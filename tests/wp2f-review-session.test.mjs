@@ -11,11 +11,11 @@ const card = (extra = {}) => ({ id: 'c', kind: 'flashcard', options: [{ id: 'a' 
 const run = (extra = {}) => ({ id: 'r', index: 1, total: 4, card: card(), revealed: false, feedback: null, queueVersion: 0, ...extra });
 
 test('the answer entry of a new question is empty, and restored input only returns to the same, unanswered question', () => {
-  assert.deepEqual(emptyEntry(), { selected: [], hint: false, explain: false, response: '', clozeValues: {}, teaching: null, teachAnswer: '' });
+  assert.deepEqual(emptyEntry(), { selected: [], hint: false, explain: false, response: '', clozeValues: {}, teaching: null, teachAnswer: '', assistance: null });
   assert.notEqual(emptyEntry().selected, emptyEntry().selected, 'fresh containers every time');
   const first = run();
   const restored = { key: JSON.stringify(['r', 1, 'c', 0, 0]), selected: ['a'], hint: true, explain: true, response: 'typed', clozeValues: { x: '1' }, teachAnswer: 'half' };
-  assert.deepEqual(entryForRun(first, restored, { draft: () => '' }), { selected: ['a'], hint: true, explain: true, response: 'typed', clozeValues: { x: '1' }, teaching: null, teachAnswer: 'half' });
+  assert.deepEqual(entryForRun(first, restored, { draft: () => '' }), { selected: ['a'], hint: true, explain: true, response: 'typed', clozeValues: { x: '1' }, teaching: null, teachAnswer: 'half', assistance: null });
   assert.deepEqual(entryForRun(first, { ...restored, key: 'other' }, { draft: () => '' }), emptyEntry(), 'another question does not inherit the typed answer');
   assert.deepEqual(entryForRun(run({ feedback: { selected: ['b'] } }), restored, { draft: () => '' }).selected, ['b'], 'an answered question shows what was picked, not the restored input');
   assert.equal(entryForRun(run({ feedback: {} }), restored, { draft: () => '' }).response, '', 'nothing is restored into an answered question');
@@ -25,8 +25,12 @@ test('the answer entry of a new question is empty, and restored input only retur
 });
 
 test('a changed queue version resets the entry; the same run and version does not; another run is not this rule\'s business', () => {
-  assert.equal(shouldResetEntry({ id: 'r', version: 1 }, { id: 'r', queueVersion: 2 }), true);
-  assert.equal(shouldResetEntry({ id: 'r', version: 1 }, { id: 'r', queueVersion: 1 }), false);
+  const place = { id: 'r', index: 0, cardId: 'c' };
+  const open = (extra) => ({ id: 'r', index: 0, card: { id: 'c' }, ...extra });
+  assert.equal(shouldResetEntry({ ...place, version: 1 }, open({ card: { id: 'd' }, queueVersion: 2 })), true, 'another question at that place');
+  assert.equal(shouldResetEntry({ ...place, version: 1 }, open({ index: 1, queueVersion: 2 })), true, 'another place');
+  assert.equal(shouldResetEntry({ ...place, version: 1 }, open({ queueVersion: 2 })), false, 'the queue moved around the question on screen: what is typed stays');
+  assert.equal(shouldResetEntry({ ...place, version: 1 }, open({ card: { id: 'd' }, queueVersion: 1 })), false);
   assert.equal(shouldResetEntry({ id: 'r', version: 0 }, { id: 'r' }), false, 'a missing version is 0');
   assert.equal(shouldResetEntry({ id: 'r', version: 1 }, { id: 'other', queueVersion: 5 }), false);
   assert.equal(shouldResetEntry(null, { id: 'r', queueVersion: 5 }), false, 'the first run seen has nothing to reset');

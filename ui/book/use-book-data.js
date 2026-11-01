@@ -3,20 +3,23 @@ import { useLiveEffect } from '../use-async.js';
 
 /* The review book of a course as the page shows it (course.book.open), read again on a ticket (a task that ended, a Q&A added), and checked when the page comes
    back into view (the window regains the focus, the tab becomes visible, or the focus comes back into the app from elsewhere, such as the main chat's box):
-   course.book.revision is one number, and only when it moved is the whole book read again, in place. Never while an editor is open (`paused`). */
+   course.book.revision is one number, and only when it moved is the whole book read again, in place. Never while an editor is open (`paused`). A rebuilt outline that would move
+   the learner's own text answers its preview instead (lib/course-book-files.js); an editor that is open keeps the book it edits. */
 
 const QUIET = 2000;
 
 /** -> { book, error, setBook(next), reload() }. onReplaced(next): the book read again on return (the page keeps the heading being read where it is). */
 export function useBookData({ call, course, paused, onReplaced }) {
   const [state, setState] = useState({ book: null, error: null, ticket: 0 });
+  const latest = useRef({});
   useLiveEffect(isLive => {
-    call('course.book.open', { course }).then(book => { if (isLive()) setState(current => ({ ...current, book, error: null })); },
+    call('course.book.open', { course }).then(book => {
+      if (isLive() && !(book?.status === 'rebuild-pending' && latest.current.paused)) setState(current => ({ ...current, book, error: null }));
+    },
       error => { if (isLive()) setState(current => ({ ...current, error })); });
   }, [call, course, state.ticket]);
   const setBook = useCallback(next => setState(current => ({ ...current, book: next })), []);
   const reload = useCallback(() => setState(current => ({ ...current, ticket: current.ticket + 1 })), []);
-  const latest = useRef({});
   latest.current = { paused, onReplaced, revision: state.book?.revision };
   const ok = state.book?.status === 'ok';
   useEffect(() => {

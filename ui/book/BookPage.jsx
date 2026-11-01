@@ -26,6 +26,8 @@ import { AiFoldContext, BookAiContext, useAiFold } from './ai-fold.js';
 import { useBookData } from './use-book-data.js';
 import { useBookPlace } from './use-book-place.js';
 import { useBookAi } from './use-book-ai.js';
+import { useBookRebuild } from './use-book-rebuild.js';
+import BookRebuildPreview from './BookRebuildPreview.jsx';
 import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCoursePlan } from './use-book-actions.js';
 import { useMoreActions } from './more-actions.js';
 import { crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
@@ -95,11 +97,14 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const back = useCallback(() => { setLeaving(null); setDirty(false); setView('read'); }, []);
   // The editor and 翻看 take the page's place; 完成 · 回到阅读 comes back to the heading being read where it was on screen (held until it is drawn again).
   const openView = useCallback(next => { place.current?.hold(); setView(next); }, []);
+  // A save that lands in a pending rebuild (#461): the editor is done, so a later read is not dropped as "an editor is open", and applying leads to reading.
+  useEffect(() => { if (book?.status === 'rebuild-pending' && view === 'edit') back(); }, [book?.status, view, back]);
   const courseName = course === '' ? ui('未分类课程') : course || '';
   const courseRecord = (data?.courses || []).find(item => item.name === course);
   const dateHint = book?.status === 'ok' && book.notes ? crunchDateHint(courseRecord?.exam, crunchWindow(data?.settings?.book)) : null;
   const writing = runningBuild(data?.jobs, course, BOOK_BUILD_KIND);
-  const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask}
+  const rebuild = useBookRebuild({ call, course, notify, setBook, reload }), building = !!(writing || runningBuild(data?.jobs, course));
+  const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask} onUndoRebuild={building ? undefined : rebuild.undo}
     onBack={() => guard(onBack)} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
   const step = steps[where.current] ?? null;
   // 改名 / 移动到… / 删除这个知识点… act on the point being read; a delete goes to the point after it (or before it, at the end) once it is gone.
@@ -111,6 +116,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure: openStructure });
   if (error && !book) return <section className="page book-page" ref={pageRef}>{header}<ErrorState error={error} title={ui('没能打开复习全书')} onRetry={reload} /></section>;
   if (!book) return <section className="page book-page" ref={pageRef}>{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
+  // A rebuilt outline that would move the learner's own text: nothing moved yet, the list comes first (#461).
+  if (book.status === 'rebuild-pending') return <section className="page book-page" ref={pageRef}>{header}<BookRebuildPreview moves={book.moves} onApply={rebuild.apply} onDiscard={rebuild.discard} building={building} /></section>;
   if (book.status !== 'ok') return <section className="page book-page" ref={pageRef}>{header}<EmptyState icon="book" title={ui('这门课还没有总纲')}
     description={ui('复习全书按总纲的知识点排，先在总纲页生成总纲。')} primary={{ label: ui('回到总纲'), onClick: onBack }} /></section>;
   if (!book.notes) {

@@ -145,13 +145,13 @@ test('the book: a learner\'s note whose pages went mostly elsewhere waits in 未
   const rebuilt = outlineOf(state, [{ id: 'k1', title: 'Introduction', children: [{ id: 'k2', title: 'The architect\'s job', anchors: [`${lecture}#0`] },
     { id: 'k3', title: 'Databases state failure conditions', anchors: [`${lecture}@s2-2`, other] }] }], '2026-10-10T00:00:00.000Z');
   state.sources = state.sources.map(source => (source.id === first.id ? { ...source, archived: true } : source)).concat(rebuilt);
-  const book = openCourseBook(state, {}), [job, databases] = leaves(book.nodes);
+  const book = openCourseBook(state, {}, { applyRebuild: true }), [job, databases] = leaves(book.nodes);
   assert.deepEqual([job.hid, job.mine, job.movedFrom], [what.hid, 'Note on what architects do.', 'What architects do']);
   assert.equal(databases.mine, '', 'the note on stakeholders is not put under a point on databases');
   assert.notEqual(databases.hid, who.hid);
   assert.match(book.unplaced.text, /### Stakeholders and views（总纲重新整理后对不上新的知识点，先放在这里；最接近的是「Databases state failure conditions」，只有 \d+% 的页在那里）\n\nA long note on stakeholders and views\./);
   // The moves list only what moved; what was held back is listed apart (it is in 未归位, not under the closest point).
-  assert.deepEqual(book.moves.list, [{ from: 'What architects do', to: 'The architect\'s job', folded: false, share: 1 }]);
+  assert.deepEqual(book.moves.list, [{ from: 'What architects do', to: 'The architect\'s job', folded: false, share: 1, own: true, first: 'Note on what architects do.' }]);
   assert.equal(book.moves.total, book.moves.list.length, 'how many moves there were, so a cut list says so');
   assert.equal(book.moves.held, 1);
   assert.equal(book.moves.heldList.length, 1, 'only the held point whose text was parked: "What architects do" had text and moved; nothing else was held');
@@ -172,7 +172,7 @@ test('the book: a 3.4 point of a whole lecture cut into six points follows to th
   const six = Array.from({ length: 6 }, (_, at) => ({ id: `s${at}`, title: `Page ${at + 1} topic`, anchors: [`${lecture}@s${at}-${at}`] }));
   state.sources = state.sources.map(source => (source.id === first.id ? { ...source, archived: true } : source))
     .concat(outlineOf(state, [{ id: 'c2', title: 'Introduction', children: six }], '2026-10-10T00:00:00.000Z'));
-  const book = openCourseBook(state, {});
+  const book = openCourseBook(state, {}, { applyRebuild: true });
   assert.equal(book.unplaced.text.trim(), '');
   assert.equal(leaves(book.nodes).filter(point => point.mine === 'My own note on the lecture.').length, 1, 'the note is in the part it shares most with');
   assert.equal(book.moves.held, 0);
@@ -193,7 +193,7 @@ test('two held points that both use [^1] are parked with their own footnote labe
   const rebuilt = outlineOf(state, [{ id: 'k1', title: 'Other', children: [{ id: 'x', title: 'Databases', anchors: [`${lecture}@s0-0`, keyOf('document-l3-p1')] },
     { id: 'y', title: 'Networks', anchors: [`${lecture}@s4-4`, keyOf('document-l4-p1')] }] }], '2026-10-10T00:00:00.000Z');
   state.sources = state.sources.map(source => (source.id === first.id ? { ...source, archived: true } : source)).concat(rebuilt);
-  const book = openCourseBook(state, {}), text = book.unplaced.text;
+  const book = openCourseBook(state, {}, { applyRebuild: true }), text = book.unplaced.text;
   assert.equal(book.moves.held, 2);
   const labels = [...text.matchAll(/^\[\^([^\]]+)\]:/gm)].map(match => match[1]);
   assert.deepEqual([labels.length, new Set(labels).size], [2, 2], text);

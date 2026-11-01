@@ -23,13 +23,16 @@ export function useBookQa() {
   return { ...state, add, remove, addCard, removeCard };
 }
 
+/** What a failed add says: while a rebuilt outline waits for an answer, plain words (the refusal's own text is written for the main chat, lib/course-book-rebuild.js). */
+export const qaAddFailureText = failure => (failure?.code === 'course-book-rebuild-pending' ? ui('总纲刚重新整理好，先打开复习全书决定笔记怎么放，再加入。问答还留在题目上。') : errorMessage(failure));
+
 /** refOf: { deckId, cardId, followupId }; book: useBookQa(); onChanged() after an add or a remove (the book page reads the book again). */
 export default function BookQaButton({ refOf, book, onChanged }) {
   const [working, setWorking] = useState(false), [error, setError] = useState('');
   const added = book.ids.has(refOf.followupId);
   const run = async () => {
     setWorking(true); setError('');
-    try { if (added) await book.remove(refOf.followupId); else await book.add(refOf); onChanged?.(); } catch (failure) { setError(errorMessage(failure)); } finally { setWorking(false); }
+    try { if (added) await book.remove(refOf.followupId); else await book.add(refOf); onChanged?.(); } catch (failure) { setError(qaAddFailureText(failure)); } finally { setWorking(false); }
   };
   return (
     <span className="book-qa-button">

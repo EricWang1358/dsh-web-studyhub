@@ -186,14 +186,15 @@ test('Guided Study Loop E2E: scripted 10-step full workflow (UC-01 ~ UC-09, Sect
   assert.ok(scene.recentAttempts.length >= 1);
 
   // ---------------------------------------------------------------------------
-  // Step 6: Tutor opens branch question for contrast (UC-05) -> draft preserved
+  // Step 6: Tutor opens branch question for contrast (UC-05). c1 was answered in step 4, so it takes no more drafts
+  // (a branch keeping an unanswered question's draft: tests/guided-answer-path.test.mjs)
   // ---------------------------------------------------------------------------
-  // User had unsubmitted draft on original question
-  await study.call('review.draft.save', {
+  const lateDraft = await study.call('review.draft.save', {
     runId: run.id,
     cardId: 'c1',
     draft: { text: 'Draft on original question' },
   });
+  assert.equal(lateDraft.stale, 'answered');
 
   const branchResult = await study.call('study.branch.open', {
     sessionId: session.id,
@@ -204,12 +205,6 @@ test('Guided Study Loop E2E: scripted 10-step full workflow (UC-01 ~ UC-09, Sect
 
   assert.equal(branchResult.session.returnPath.length, 1);
   assert.equal(branchResult.session.focus.id, 'c-branch');
-
-  // Verify original draft is intact
-  const viewStoreAfterBranch = await study.store.read();
-  const activeRun = viewStoreAfterBranch.runs.find((r) => r.id === run.id);
-  const c1Entry = activeRun.entries.find((e) => e.card?.id === 'c1');
-  assert.equal(c1Entry.draft.text, 'Draft on original question');
 
   // ---------------------------------------------------------------------------
   // Step 7: Explanation QA idempotently routed to original question QA (UC-06)

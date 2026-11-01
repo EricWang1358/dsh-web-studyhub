@@ -82,6 +82,8 @@ export const runningText = run => (run.total ? uiFormat('正在整理总纲（{0
 export const offerText = count => uiFormat('现在按资料排开（{0} 份）。生成总纲会让模型把它们整理成像书一样的「章 → 节 → 知识点」，按学习顺序排好，合并重复的资料和零碎的笔记；过程在后台，进度在任务页。', [count]);
 
 /** The toast of a start. */
+/** What 重新整理 does to the learner's notes, on hover. */
+export const rebuildTipText = () => ui('整理好后不会马上动你写的内容：要换位置时，打开复习全书先列出每一处，由你决定。');
 export const startedText = already => (already ? ui('总纲已经在整理，进度在任务页。') : ui('已开始整理总纲，进度在任务页。'));
 
 /* ---------- 复习全书 (the explanation layer on the outline) ---------- */

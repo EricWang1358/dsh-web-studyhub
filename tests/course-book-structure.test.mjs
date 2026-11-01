@@ -22,16 +22,19 @@ const codeOf = promise => promise.then(() => null, error => error.code ?? error.
 
 const leafOf = (book, hid) => { const walk = list => list.flatMap(node => [node, ...walk(node.children || [])]); return walk(book.nodes).find(node => node.hid === hid); };
 /** The outline made again (a new record, as 重新整理 does), each point's title through `retitle`; `keep` picks the points that stay. */
-async function rebuild(study, retitle, keep = () => true) {
+async function rebuild(study, retitle, keep = () => true, chapter = title => title) {
   await study.store.update(state => {
     const outline = state.sources.find(source => source.provenance === 'course-outline' && !source.archived), again = structuredClone(outline);
     again.id = `${outline.id}-again`;
     again.createdAt = '2026-10-10T00:00:00.000Z';
-    for (const chapter of again.courseOutline.nodes) chapter.children = chapter.children.filter(keep).map(point => ({ ...point, title: retitle(point.title) }));
+    for (const node of again.courseOutline.nodes) Object.assign(node, { title: chapter(node.title), children: node.children.filter(keep).map(point => ({ ...point, title: retitle(point.title) })) });
     outline.archived = true;
     state.sources.push(again);
     state.sources.find(source => source.provenance === 'course-outline-notes').courseNotes.outlineId = again.id;
   });
+  // These tests are about the layout after it: the learner's go-ahead (the gate itself is tests/course-book-rebuild-undo.test.mjs).
+  const looked = await study.call('course.book.open');
+  if (looked.status === 'rebuild-pending') await study.call('course.book.rebuild', { action: 'apply', outlineId: looked.moves.outlineId });
 }
 
 async function fourteen(t) {
@@ -484,8 +487,7 @@ test('a rebuild keeps a point\'s title by its id; a renamed chapter only while t
   const mine = (await study.call('book.read', { hid: what.hid, file: 'mine' })).files.mine;
   await study.call('course.book.save', { file: mine.name, text: '我的笔记。', version: mine.version });
   // The new outline titles the chapter differently and no longer has the point.
-  await rebuild(study, title => title, point => point.id !== 'what');
-  await study.store.update(state => { state.sources.find(source => source.provenance === 'course-outline' && !source.archived).courseOutline.nodes[0].title = 'Intro (rebuilt)'; });
+  await rebuild(study, title => title, point => point.id !== 'what', () => 'Intro (rebuilt)');
   const book = await study.call('course.book.open');
   assert.equal(book.nodes[0].title, 'Intro (rebuilt)', 'a chapter is matched by the outline\'s title: renamed by the outline, the learner\'s title goes');
   assert.match(book.unplaced.text, /### 架构师做什么（已无对应知识点）\n\n我的笔记。/);
