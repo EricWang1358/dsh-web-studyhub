@@ -28,6 +28,10 @@ const m = await loadUi(`
   export { failedHandOffInput } from './ui/tasks/failed-hand-off.js';
   export { headerActions, endedNote } from './ui/tasks/task-control.js';
   export { convertEventText } from './ui/tasks/convert-log.js';
+  export { logLines } from './ui/tasks/call-model.js';
+  export { deleteNoticeText } from './ui/tasks/delete-notice.js';
+  export { archiveAllWithUndo } from './ui/tasks/archive-all.js';
+  export { jobContract as logContract } from './lib/job-contract.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
 const HAN = /[㐀-鿿]/;
@@ -56,6 +60,31 @@ test('a waiting conversion reads as waiting wherever it is shown, and never as a
   assert.equal(m.headerActions(job).retry, false, 'its way on is 导入, not 接着做');
   assert.equal(m.headerActions(failed()).retry, true);
   assert.match(m.endedNote(job), /修改并导入/);
+});
+
+test('the log never calls a waiting conversion a failure, even when no line of this attempt said it waits (a restart, a failed import)', () => {
+  m.setUiLanguage('zh');
+  const statusLine = { id: 'e1', at: '2026-10-01T00:10:00.000Z', level: 'error', code: 'status', args: { status: 'failed' }, text: CONVERT_TEXT.held };
+  const lines = job => m.logLines({ ...m.logContract(job), events: [statusLine] }).map(line => line.text).join(' | ');
+  assert.doesNotMatch(lines(held()), /任务失败/);
+  assert.match(lines(failed()), /任务失败/, 'a real failure says so');
+});
+
+test('deleting a waiting conversion says what is lost: the edited text, and in a batch too', () => {
+  m.setUiLanguage('zh');
+  const one = m.deleteNoticeText([held()]);
+  assert.match(one, /转换好的文字和你改过的地方也会丢掉/);
+  assert.doesNotMatch(one, /中间文件/);
+  assert.match(m.deleteNoticeText([held(), held({ id: 'pdf-held-2' }), failed()]), /其中 2 个任务转换好的文字和你改过的地方也会丢掉/);
+  assert.match(m.deleteNoticeText([failed()]), /中间文件/, 'the rest as before');
+  assert.match(m.deleteNoticeText([held({ archived: { at: '2026-10-02T00:00:00.000Z' } })]), /也会丢掉/, 'an archived one too');
+});
+
+test('全部归档 says how many waiting conversions it left alone', async () => {
+  m.setUiLanguage('zh');
+  const said = [];
+  await m.archiveAllWithUndo({ archive: async () => ({ ok: true, result: { archived: ['a'], skipped: [{ id: 'w', reason: 'waiting' }, { id: 'r', reason: 'running' }] } }), toast: { show: notice => said.push(notice), success: notice => said.push(notice), info: notice => said.push(notice) }, quick: null, core: null });
+  assert.match(JSON.stringify(said), /1 个等你导入的任务留在原处/);
 });
 
 test('the card offers one way on, says it waits, and no failure words; a stopped import that goes back says why', () => {

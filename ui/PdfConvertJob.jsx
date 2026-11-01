@@ -13,6 +13,7 @@ import JobFollowUp from './JobFollowUp.jsx';
 import { ConvertEditDialog, HELD_ENTRY, HeldEntry } from './ConvertEdit.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { FAILED_HAND_OFF_WHAT, failedHandOffInput, failureText } from './tasks/failed-hand-off.js';
+import { isHeldTask } from './tasks/task-model.js';
 import css from './mineru.css';
 
 /* The compact card of a PDF conversion, the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
@@ -53,7 +54,7 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
   const retry = () => run('retry', () => send('mineru.retry', { jobId: job.id }));
   // A failure only the installation can fix (Marker 2.x without Docker, a missing program) leads to the settings; 接着做 helps after that, from the console.
   const needsSettings = job.status === 'failed' && job.failure?.fix === 'settings' && !!onOpenSettings;
-  const primary = job.held && !isActiveJob(job) ? { label: HELD_ENTRY(), run: () => setEditing(true) } : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
+  const primary = isHeldTask(job) && !isActiveJob(job) ? { label: HELD_ENTRY(), run: () => setEditing(true) } : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
     : job.status === 'failed' && job.retryable ? { label: ui('接着做'), run: retry, disabled: !!working, tip: retryTip(job) }
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
   return <JobFollowUp job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
@@ -74,7 +75,7 @@ export function PdfDetail({ job, expandChunks }) {
   const count = job.chunk?.count || 1, index = job.chunk?.index || 0, adaptive = job.route === 'local' && !!job.local?.adaptive;
   return (
     <div className="pdf-detail">
-      {job.held && !running && !job.archived && <HeldEntry job={job} />}
+      {isHeldTask(job) && !running && !job.archived && <HeldEntry job={job} />}
       {job.status === 'complete' && <Hint as="small" data-reconvert-hint>{ui('想先删掉识别错的文字再导入：重新选这份 PDF，在「更多设置」里打开「导入前先让我改」。已经导入的这份不会变。')}</Hint>}
       <ConversionEnvironment env={job.env} converter={job.converter} service={job.service} now={now} />
       {running && job.phase !== 'queued' && <>
@@ -285,7 +286,7 @@ const STATUS_TONE = { running: 'info', complete: 'success', failed: 'error', can
 const STAGE_TEXT = { start: () => ui('启动'), 'start-service': () => ui('启动本机服务'), queued: () => ui('排队'), split: () => ui('切分 PDF'), upload: () => ui('上传'), parse: () => ui('云端解析'), local: () => ui('本地解析'),
   download: () => ui('下载结果'), merge: () => ui('合并各段'), save: () => ui('保存为资料') };
 
-function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, onOpenSettings }) {
+function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry, onRemove, onOpenSettings }) {
   const status = row.status, finished = !!row.finishedAt && status !== 'running' && status !== 'interrupted';
   const route = row.converter === 'marker' ? 'Marker · ' + ui('本地') : row.route === 'local' ? uiFormat('本地 · {0}', [row.tier || 'mineru']) : capital(ui('云端'));
   const size = Number.isFinite(row.bytes) ? formatBytes(row.bytes) : '', pages = Number.isFinite(row.pages) ? (row.pages === 1 ? ui('1 页') : uiFormat('{0} 页', [row.pages])) : '';
@@ -326,7 +327,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
         <div className="pdf-history__actions">
           {status === 'complete' && document?.exists && <Button variant="link" size="sm" aria-label={uiFormat('打开「{0}」', [title])} onClick={() => onOpen(row)}>{ui('打开资料')}</Button>}
           {status === 'running' && row.live && <Button variant="link" size="sm" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
-          {status === 'held' && <Button variant="link" size="sm" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onShowJob(row)}>{HELD_ENTRY()}</Button>}
+          {status === 'held' && <Button variant="link" size="sm" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onEditHeld(row)}>{HELD_ENTRY()}</Button>}
           {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
             <Button variant="primary" size="sm" busy={busy} disabled={!!working} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
           </Tooltip>}
@@ -351,7 +352,7 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
   initialRecords = null, initialShown, now: fixedNow, className, ...rest }) {
   useInjectCss(css, 'study-mineru');
   const [records, setRecords] = useState(initialRecords), [readError, setReadError] = useState(''), [problem, setProblem] = useState('');
-  const [shown, setShown] = useState(initialShown ?? HISTORY_PAGE), [working, setWorking] = useState('');
+  const [shown, setShown] = useState(initialShown ?? HISTORY_PAGE), [working, setWorking] = useState(''), [editing, setEditing] = useState(null);
   const alive = useRef(true), heading = useRef(null);
   const undoable = useUndoable();
   const key = historyRefreshKey(jobs ?? data?.jobs);
@@ -420,10 +421,12 @@ export function PdfConvertHistory({ call, act, data, jobs, onOpenSources, onOpen
       <h5 className="pdf-history__day">{dayHeading(group)}</h5>
       <ul className="pdf-history__list">
         {group.rows.map(row => <HistoryRow key={row.id} row={row} now={clock} working={working} onOpen={target => onOpenSources?.(target.document?.sourceIds || [])}
-          onShowJob={showJob} onRetry={retry} onRemove={remove} onOpenSettings={onOpenSettings} />)}
+          onShowJob={showJob} onEditHeld={setEditing} onRetry={retry} onRemove={remove} onOpenSettings={onOpenSettings} />)}
       </ul>
     </div>)}
     {more > 0 && <Button variant="quiet" size="sm" onClick={() => setShown(current => current + HISTORY_PAGE)}>{uiFormat('显示更多（还有 {0} 条）', [more])}</Button>}
+    {/* The row's own way in: the same dialog as the card, wherever the history is shown, whether or not the card is on this page. */}
+    {editing && <ConvertEditDialog job={{ id: editing.id, filename: editing.filename }} onClose={() => setEditing(null)} onChanged={() => { void load(); onChanged?.(); }} />}
   </>;
   return (
     <section className={`pdf-history${className ? ` ${className}` : ''}`} aria-label={ui('解析历史')} {...rest}>

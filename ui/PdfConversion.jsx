@@ -130,7 +130,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
   const mineruChip = mineruUsable(local) ? chip(ui('可用'), 'success') : local == null || (gate && converter === 'mineru') ? null : chip(mineruText.badge(), mineruText.tone);
   const tools = <RadioCardGroup legend={ui('解析工具')} disabled={starting}>
     <RouteCard group={`${radioId}-converter`} id={`${radioId}-mineru`} value="mineru" current={converter} title="MinerU" onSelect={setConverter} chips={mineruChip}><Hint as="span">{ui('在本机解析，不上传')}</Hint></RouteCard>
-    <RouteCard group={`${radioId}-converter`} id={`${radioId}-marker`} value="marker" current={converter} title="Marker" onSelect={setConverter} chips={marker?.state === 'ready' ? chip(ui('可用'), 'success') : chip(ui('需要设置'))}><Hint as="span">{ui('调用本机 Marker，自动导入')}</Hint></RouteCard>
+    <RouteCard group={`${radioId}-converter`} id={`${radioId}-marker`} value="marker" current={converter} title="Marker" onSelect={setConverter} chips={marker?.state === 'ready' ? chip(ui('可用'), 'success') : chip(ui('需要设置'))}><Hint as="span">{review ? ui('调用本机 Marker，转换好后先等你改') : ui('调用本机 Marker，自动导入')}</Hint></RouteCard>
   </RadioCardGroup>;
   return (
     <section className={`mineru-route-panel${compact ? ' is-compact' : ''}${className ? ` ${className}` : ''}`} aria-label={ui('PDF 解析方案')} data-route={route} {...rest}>
@@ -138,7 +138,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
         <Icon name="file" size={20} />
         <div>
           <h3>{ui('解析 PDF')}</h3>
-          <p>{ui('选择 PDF 和解析工具，完成后自动存为资料。')}</p>
+          <p>{review ? ui('选择 PDF 和解析工具，转换好后先等你改，再存为资料。') : ui('选择 PDF 和解析工具，完成后自动存为资料。')}</p>
         </div>
       </header>}
 

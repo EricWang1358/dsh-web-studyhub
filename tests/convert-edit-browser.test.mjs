@@ -55,6 +55,7 @@ test('the editor of a conversion waiting before its import, at 1280 and 420 px',
     zh: { 1280: await convert(service, '有识别错误的教材.pdf', 6), 420: await convert(service, '窄屏教材.pdf', 6) },
     en: { 1280: await convert(service, 'Book with junk.pdf', 6) },
   };
+  const inHub = await convert(service, '入口教材.pdf', 6);
   try {
     for (const [lang, width] of [['zh', 1280], ['zh', 420], ['en', 1280]]) {
       const jobId = ids[lang][width];
@@ -63,15 +64,18 @@ test('the editor of a conversion waiting before its import, at 1280 and 420 px',
       await page.route('**/api/call', async (route) => {
         let body = {};
         try { body = JSON.parse(route.request().postData() || '{}'); } catch { /* not JSON */ }
-        if (String(body.action).startsWith('mineru.') || String(body.action).startsWith('marker.') || body.action === 'job.delete') {
+        if (String(body.action).startsWith('mineru.') || String(body.action).startsWith('marker.') || ['job.delete', 'job.unarchive'].includes(body.action)) {
           if (String(body.action).endsWith('.import') && !body.action.includes('edit')) started.push(body);
           try { return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, value: await service.call(body.action, body.args ?? {}) }) }); }
           catch (error) { return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: false, error: { message: error.message } }) }); }
         }
         if (body.action !== 'snapshot') return route.continue();
-        const answer = await (await route.fetch()).json();
+        // A poll still in flight when the page closes has nobody to answer.
+        const fetched = await route.fetch().catch(() => null);
+        if (!fetched) return undefined;
+        const answer = await fetched.json();
         if (answer.ok) answer.value.jobs = [...(await service.call('snapshot', { uiLanguage: lang })).jobs.filter(job => job.id === jobId), ...(answer.value.jobs || [])];
-        return route.fulfill({ contentType: 'application/json', body: JSON.stringify(answer) });
+        return route.fulfill({ contentType: 'application/json', body: JSON.stringify(answer) }).catch(() => {});
       });
       await page.goto(preview.server.url);
       // The card on the 资料 page: it says it waits, and the one way on leads to the editor.
@@ -86,6 +90,25 @@ test('the editor of a conversion waiting before its import, at 1280 and 420 px',
       assert.ok(fit.inner <= fit.room + 1, `${lang} ${width}: the card holds its words (${fit.inner} > ${fit.room})`);
       assert.ok(fit.title > 40, `${lang} ${width}: the word beside it leaves room for the title (${fit.title})`);
       if (shots) await card.screenshot({ path: join(shots, `convert-edit-card-${lang}-${width}.png`) });
+      // The history row's own way in, on the 资料 page: the same editor; once archived, it says so and offers the way back.
+      if (lang === 'zh' && width === 1280) {
+        const row = page.locator(`[data-record="${jobId}"]`);
+        const history = page.locator('.pdf-history').first();
+        await history.waitFor({ timeout: 15000 });
+        await history.locator('summary').first().click();
+        await row.getByRole('button', { name: /修改并导入/ }).click();
+        await page.locator('[data-convert-edit] .convert-edit__block').first().waitFor({ timeout: 15000 });
+        await page.keyboard.press('Escape');
+        await page.locator('[data-convert-edit]').waitFor({ state: 'detached', timeout: 15000 });
+        await service.call('job.archive', { jobId });
+        await row.getByRole('button', { name: /修改并导入/ }).click();
+        const back = page.locator('[data-held-unarchive]');
+        await back.waitFor({ timeout: 15000 });
+        await back.click();
+        await page.locator('[data-convert-edit] .convert-edit__block').first().waitFor({ timeout: 15000 });
+        await page.keyboard.press('Escape');
+        await page.locator('[data-convert-edit]').waitFor({ state: 'detached', timeout: 15000 });
+      }
       await page.locator('[data-tour="nav-tasks"]').first().dispatchEvent('click');
       await page.locator('.tc-detail').first().waitFor({ state: 'attached', timeout: 30000 });
       await page.locator(`.tc-row[data-task-id="${jobId}"]`).dispatchEvent('click');
@@ -132,6 +155,13 @@ test('the editor of a conversion waiting before its import, at 1280 and 420 px',
         await page.locator('.mineru-route-panel [data-route="marker"]').first().click();
         const more = page.locator('.mineru-more');
         await more.waitFor({ timeout: 30000 });
+        // The history inside the add-material dialog: its row opens the editor too, and nothing claims a parse in the background.
+        await page.locator('.mineru-history summary').first().click();
+        await page.locator(`[data-record="${inHub}"]`).getByRole('button', { name: /修改并导入/ }).click();
+        await page.locator('[data-convert-edit] .convert-edit__block').first().waitFor({ timeout: 15000 });
+        await page.keyboard.press('Escape');
+        await page.locator('[data-convert-edit]').waitFor({ state: 'detached', timeout: 15000 });
+        assert.equal(await more.isVisible(), true, 'back in the add-material dialog');
         assert.equal(await page.locator('[data-review-before-import]').count(), 0, 'folded: not on the main path');
         await more.locator('summary').click();
         const box = page.locator('[data-review-before-import]');
@@ -139,6 +169,7 @@ test('the editor of a conversion waiting before its import, at 1280 and 420 px',
         assert.equal(await box.isChecked(), false, 'off by default');
         if (shots) await page.screenshot({ path: join(shots, 'convert-edit-switch-zh-1280.png') });
         await box.check({ force: true });
+        assert.match(await page.locator('.mineru-route-panel__head').innerText(), /转换好后先等你改/, 'the panel does not promise an automatic save');
         await page.locator('.mineru-start button').first().click();
         await until(async () => started.length > 0, 'the conversion to start');
         assert.equal(started[0].action, 'marker.import');

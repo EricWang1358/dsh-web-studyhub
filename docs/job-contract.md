@@ -34,7 +34,8 @@ contract = {
                    fix 'settings' when only a change of the installation helps, so the console offers 前往设置 first and 接着做 second — and toolProgress: null | { label, percent, done, total, at },
                    the progress bar the converter is drawing now — and held: null | { blocks, problem? }: converted and stopped before the import, for the learner to edit (导入前先让我改,
                    lib/converted-edit.js, mineru.edit.read/save/import). The attempt has ended and status says failed (or cancelled) so the ordinary retry can import it, and retry alone stops
-                   again; every reader goes by held (ui/tasks/task-model.js isHeldTask), never by the status. Nothing went wrong
+                   again; every reader goes by held (ui/tasks/task-model.js isHeldTask), never by the status. Nothing went wrong. job.status adds stageCode 'held', waitingForLearner and a note;
+                   mineru.edit.* are refused to the assistant (lib/assistant-boundary.js)
   startedAt, finishedAt?,
   calls,           [call]
   events           [{ id, at, level: info | step | warn | error | done, tag, code, args, text? }]

@@ -1,13 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
 import { parseConvertedDocument } from '../lib/converted-document.js';
-import { applyEdits, cleanEdits, editableBlocks, savedBy } from '../lib/converted-edit.js';
-import { convertHome, jobDir, listManifests, readManifest, sweepStale } from '../lib/mineru-job.js';
+import { applyEdits, cleanEdits, editableBlocks, emptiedPages, mergeEdits, savedBy, withoutEmptied } from '../lib/converted-edit.js';
+import { convertHome, discardHeld, discardUnlessHeld, jobDir, listManifests, readManifest, saveManifest, sweepStale } from '../lib/mineru-job.js';
+import { assistantRefusal } from '../lib/assistant-boundary.js';
+import { jobArchive } from '../lib/job-archive.js';
+import { capabilityIndex } from '../lib/runtime/tools.js';
+import { createJobNotifier } from '../lib/runtime/job-notice.js';
+import { CONVERT_TEXT } from '../lib/contexts/audio/convert-support.js';
 import { resultsDir } from '../lib/mineru-paths.js';
 import { makePdf } from './helpers/pdf.mjs';
 import { harness } from './helpers/pdf-convert-harness.mjs';
@@ -50,6 +55,80 @@ test('text typed into an edit cannot move the pages of the book', () => {
   const edited = applyEdits([{ type: 'text', text: 'a', page_idx: 0 }], { 0: `kept\n{9}${'-'.repeat(48)}\n<!-- page: 7 -->\nend` });
   assert.doesNotMatch(edited[0].text, /\{9\}-|page: 7/);
   assert.match(edited[0].text, /kept[\s\S]*end/);
+});
+
+test('a typed marker cannot be built out of two: the text is cleaned until nothing is left to clean', () => {
+  const clean = text => applyEdits([{ type: 'text', text: 'a', page_idx: 0 }], { 0: text })[0].text;
+  assert.doesNotMatch(clean('kept <!-- pa<!-- page 1 -->ge 9 -->'), /<!--\s*page/);
+  assert.doesNotMatch(clean(`kept\n{3}<!-- page 1 -->${'-'.repeat(48)}`), /^\{3\}-+$/m);
+  const book = `{0}${'-'.repeat(48)}\n\none\n\n{1}${'-'.repeat(48)}\n\n${clean('kept <!-- pa<!-- page 1 -->ge 9 -->')}`;
+  assert.equal(parseConvertedDocument(book, { filename: 'Book.md' }).converter, 'marker', 'the whole book stays Marker\'s');
+});
+
+test('a block in an unexpected shape shows what would be read and can only be removed', () => {
+  const blocks = editableBlocks([{ type: 'list', list_items: 'one line', page_idx: 0 }, { type: 'code', code_body: ['x', 'y'], page_idx: 0 }]);
+  assert.deepEqual(blocks.map(block => [block.editable, block.text]), [[false, '- one line'], [false, '```\nx,y\n```']]);
+  const kept = applyEdits([{ type: 'list', list_items: 'one line', page_idx: 0 }], { 0: 'typed' });
+  assert.equal(kept[0].list_items, 'one line');
+});
+
+test('edits merge block by block, so two windows do not overwrite each other', () => {
+  const first = mergeEdits(CONTENT, {}, { 1: null });
+  const second = mergeEdits(CONTENT, first, { 6: 'last' });
+  assert.deepEqual(second, { 1: null, 6: 'last' });
+  assert.deepEqual(mergeEdits(CONTENT, second, {}, [1]), { 6: 'last' }, 'one block can be restored');
+  assert.deepEqual(mergeEdits(CONTENT, second, { 6: 'last page' }), { 1: null }, 'typed back to what it was is no edit');
+  assert.deepEqual(mergeEdits(CONTENT, second, { 6: 7 }), second, 'a malformed entry changes nothing');
+});
+
+test('a page the learner emptied is theirs, not a page of pictures', () => {
+  const edits = { 5: null, 6: null };
+  assert.deepEqual(emptiedPages(CONTENT, edits), [3, 4]);
+  const parsed = parseConvertedDocument(JSON.stringify(applyEdits(CONTENT, edits)), { filename: 'Book.json' });
+  assert.match(parsed.warnings[0], /no text/);
+  assert.deepEqual(withoutEmptied({ skippedPages: parsed.skippedPages, warnings: parsed.warnings }, [3, 4]), { skippedPages: [], warnings: [] });
+  const mixed = withoutEmptied({ skippedPages: [2, 3], warnings: ['Pages 2, 3 have no text in the converted output (pictures or blank pages) and were skipped.', 'other'] }, [3]);
+  assert.deepEqual(mixed.skippedPages, [2]);
+  assert.match(mixed.warnings[0], /^Pages 2 have no text/);
+  assert.equal(mixed.warnings[1], 'other');
+});
+
+test('the text of a waiting conversion belongs to the learner\'s own clicks: the main chat can neither read, change nor import it', () => {
+  for (const action of ['mineru.edit.read', 'mineru.edit.save', 'mineru.edit.import']) assert.match(assistantRefusal(action) || '', /not available to the assistant/, action);
+  assert.equal(assistantRefusal('mineru.retry'), null, 'a retry only stops again, so it stays');
+  const index = JSON.stringify(capabilityIndex([{ id: 'audio', api: 'study.audio', operations: ['mineru.edit.read', 'mineru.edit.save', 'mineru.edit.import', 'mineru.retry'].map(name => ({ name })) }]));
+  assert.doesNotMatch(index, /edit/, 'and it is not listed to the assistant');
+  assert.match(index, /retry/);
+});
+
+test('the notice to the main chat says the conversion waits, that nothing failed, and that a retry only stops again', () => {
+  const said = [], announce = createJobNotifier(notice => said.push(notice));
+  for (const language of ['zh', 'en']) announce({ id: `held-${language}`, type: 'pdf-convert', filename: 'Book.pdf', status: 'failed', stage: CONVERT_TEXT.held, held: { blocks: 3 }, language });
+  const [zh, en] = said.map(notice => JSON.stringify(notice));
+  assert.doesNotMatch(en, /has status failed|incomplete/);
+  assert.match(en, /waiting for the learner/);
+  assert.match(en, /only stops again/i);
+  assert.doesNotMatch(zh, /状态 failed|未完成/);
+  assert.match(zh, /只会再次停下/);
+});
+
+test('a folder whose manifest cannot be read counts as holding edits: nothing deletes it', async t => {
+  const h = await harness(t, { runtime: false });
+  const job = await held(h, (await h.start(2, { reviewBeforeImport: true })).jobId), dir = jobDir(h.root, job.id);
+  assert.equal(await discardUnlessHeld(h.root, job.id, { keepResults: true }), false, 'a retry\'s clean-up leaves a waiting job alone');
+  await readManifest(dir);
+  const good = await readFile(join(dir, 'manifest.json'), 'utf8');
+  await writeFile(join(dir, 'manifest.json'), '{ not json');
+  assert.equal(await discardUnlessHeld(h.root, job.id, { keepResults: true }), false);
+  assert.equal(await discardHeld(h.root, job.id), false);
+  const old = new Date(Date.now() - 30 * 24 * 60 * 60_000);
+  await utimes(dir, old, old);
+  await sweepStale(h.root);
+  assert.ok((await stat(join(dir, 'held.json'))).isFile(), 'still there');
+  await writeFile(join(dir, 'manifest.json'), good);
+  const plain = { ...JSON.parse(good) }; delete plain.held;
+  await saveManifest(dir, plain);
+  assert.equal(await discardUnlessHeld(h.root, job.id, { keepResults: true }), true, 'an ordinary conversion is cleaned as before');
 });
 
 test('saved edits drop what is not an edit, and the saving is the existing token measure', () => {
@@ -136,6 +215,109 @@ for (const runtime of [false, true]) {
     assert.equal((await mineruSources(h)).some(source => source.document.page === page), false);
   });
 
+  test(`${path}: the press of 导入 does not cross an attempt: a restart or a refused retry takes it back`, async t => {
+    const h = await harness(t, { runtime });
+    const job = await held(h, (await h.start(2, { reviewBeforeImport: true })).jobId), dir = jobDir(h.root, job.id);
+    const pressed = await readManifest(dir);
+    pressed.held.approved = true;
+    await saveManifest(dir, pressed);
+    await h.restart();
+    assert.equal((await readManifest(dir)).held.approved, false, 'a restart takes it back');
+    await held(h, (await h.call('mineru.retry', { jobId: job.id })).jobId);
+    assert.equal((await mineruSources(h)).length, 0, 'so a later retry imports nothing');
+
+    const refused = await readManifest(dir);
+    refused.route = 'cloud';
+    await saveManifest(dir, refused);
+    // The original path refuses the start; a Job starts and refuses in its attempt: either way the press is taken back.
+    const pressedAgain = h.call('mineru.edit.import', { jobId: job.id });
+    if (runtime) await pressedAgain; else await assert.rejects(pressedAgain);
+    await h.settled(job.id);
+    assert.equal((await readManifest(dir)).held.approved, false, 'a refused start takes it back');
+    assert.equal((await mineruSources(h)).length, 0);
+  });
+
+  test(`${path}: two windows: saves merge block by block, and the second press of 导入 is a plain refusal`, async t => {
+    const h = await harness(t, { runtime });
+    const job = await held(h, (await h.start(3, { reviewBeforeImport: true })).jobId);
+    const { blocks } = await h.call('mineru.edit.read', { jobId: job.id });
+    await Promise.all([h.call('mineru.edit.save', { jobId: job.id, edits: { [blocks[0].index]: 'from window A' } }), h.call('mineru.edit.save', { jobId: job.id, edits: { [blocks[1].index]: 'from window B' } })]);
+    const { edits } = await h.call('mineru.edit.read', { jobId: job.id });
+    assert.deepEqual([edits[blocks[0].index], edits[blocks[1].index]], ['from window A', 'from window B']);
+    const answered = await h.call('mineru.edit.save', { jobId: job.id, restore: [blocks[1].index] });
+    assert.deepEqual(answered.edits, { [blocks[0].index]: 'from window A' });
+
+    const presses = await Promise.allSettled([h.call('mineru.edit.import', { jobId: job.id }), h.call('mineru.edit.import', { jobId: job.id })]);
+    assert.equal(presses.filter(press => press.status === 'fulfilled').length, 1, 'one import');
+    const refusal = presses.find(press => press.status === 'rejected').reason.message;
+    assert.doesNotMatch(refusal, /ENOENT|[\\/]/, refusal);
+    const done = await h.settled(job.id);
+    assert.equal(done.status, 'complete', done.stage);
+    assert.equal(done.contract?.detail?.held ?? null, null, 'the card does not go back to waiting');
+    assert.ok((await mineruSources(h)).some(source => source.text.includes('from window A')));
+  });
+
+  test(`${path}: letting it go also takes back the letter that says it waits`, async t => {
+    const h = await harness(t, { runtime });
+    const job = await held(h, (await h.start(2, { reviewBeforeImport: true })).jobId);
+    await until(async () => (await letters(h)).includes('pdf-held'), 'the letter');
+    await h.call('job.delete', { jobIds: [job.id] });
+    assert.deepEqual(await letters(h), [], 'no letter points at a job that is gone');
+  });
+
+  test(`${path}: 全部归档 and 全部移除 leave a waiting conversion where it is`, async t => {
+    const h = await harness(t, { runtime });
+    const job = await held(h, (await h.start(2, { reviewBeforeImport: true })).jobId);
+    const reply = await h.call('job.archive', { all: true });
+    assert.deepEqual(reply.skipped.filter(item => item.reason === 'waiting').map(item => item.id).length, 1);
+    assert.deepEqual(reply.archived, []);
+    await h.call('job.dismiss', { all: true });
+    assert.ok((await h.jobs()).some(item => item.id === job.id));
+    assert.ok((await h.call('mineru.edit.read', { jobId: job.id })).blocks.length > 0);
+  });
+
+  test(`${path}: archived, the app restarted, unarchived: 导入 still works`, async t => {
+    const h = await harness(t, { runtime });
+    const job = await held(h, (await h.start(2, { reviewBeforeImport: true })).jobId);
+    await h.call('job.archive', { jobId: job.id });
+    await h.restart();
+    await h.call('job.unarchive', { jobId: job.id });
+    const back = await until(async () => (await h.jobs()).find(item => item.id === job.id), 'the job to come back');
+    assert.ok(back.contract.detail.held);
+    const imported = await h.call('mineru.edit.import', { jobId: job.id });
+    const done = await h.settled(imported.jobId);
+    assert.equal(done.status, 'complete', done.stage);
+    assert.ok((await mineruSources(h)).length > 0);
+  });
+
+  test(`${path}: archived and unarchived with no restart: 导入 still works`, async t => {
+    const h = await harness(t, { runtime });
+    const job = await held(h, (await h.start(2, { reviewBeforeImport: true })).jobId);
+    await h.call('job.archive', { jobId: job.id });
+    await h.call('job.unarchive', { jobId: job.id });
+    await until(async () => (await h.jobs()).find(item => item.id === job.id), 'the job to come back');
+    const done = await h.settled((await h.call('mineru.edit.import', { jobId: job.id })).jobId);
+    assert.equal(done.status, 'complete', done.stage);
+  });
+
+  test(`${path}: asked for the job, the answer says it waits and that a retry only stops again; a page the learner emptied is not called blank`, async t => {
+    const h = await harness(t, { runtime });
+    const job = await held(h, (await h.start(3, { reviewBeforeImport: true })).jobId);
+    const told = await h.call('job.status', { jobId: job.id }), listed = (await h.call('job.status')).jobs.find(item => item.id === job.id);
+    for (const answer of [told, listed]) {
+      assert.equal(answer.status, job.status, 'the status stays what the job model says');
+      assert.equal(answer.stageCode, 'held');
+      assert.equal(answer.waitingForLearner, true);
+      assert.match(answer.note, /only stops again/);
+    }
+    const { blocks } = await h.call('mineru.edit.read', { jobId: job.id });
+    const page = blocks[blocks.length - 1].page;
+    const done = await h.settled((await h.call('mineru.edit.import', { jobId: job.id, edits: Object.fromEntries(blocks.filter(block => block.page === page).map(block => [block.index, null])) })).jobId);
+    assert.equal(done.status, 'complete', done.stage);
+    assert.deepEqual(done.skippedPages, []);
+    assert.equal(done.warnings.some(text => /no text|pictures|blank/.test(text)), false, done.warnings.join(' | '));
+  });
+
   test(`${path}: 接着做 on a waiting job does not import behind the learner's back`, async t => {
     const h = await harness(t, { runtime });
     const job = await held(h, (await h.start(2, { reviewBeforeImport: true })).jobId);
@@ -178,7 +360,8 @@ for (const runtime of [false, true]) {
     const { blocks } = await h.call('mineru.edit.read', { jobId: job.id });
     await h.call('mineru.edit.save', { jobId: job.id, edits: { [blocks[0].index]: 'kept through the archive' } });
     await h.call('job.archive', { jobId: job.id });
-    await assert.rejects(h.call('mineru.edit.read', { jobId: job.id }), /取消归档|已归档/);
+    assert.deepEqual(await h.call('mineru.edit.read', { jobId: job.id }), { archived: true }, 'read-only until it is unarchived, and it says so');
+    await assert.rejects(h.call('mineru.edit.save', { jobId: job.id, edits: {} }), /取消归档/);
     await assert.rejects(h.start(2), error => error.code === 'edit-pending' && /已归档/.test(error.message));
     await h.call('job.unarchive', { jobId: job.id });
     const back = await until(async () => (await h.jobs()).find(item => item.id === job.id), 'the job to come back');
@@ -213,6 +396,20 @@ for (const runtime of [false, true]) {
     assert.equal((await mineruSources(h)).some(source => source.text === 'my words'), false);
   });
 }
+
+test('a waiting conversion that falls off the end of the archive keeps its text and comes back', async t => {
+  const h = await harness(t, { runtime: false });
+  const job = await held(h, (await h.start(2, { reviewBeforeImport: true })).jobId);
+  await h.call('job.archive', { jobId: job.id });
+  const file = join(h.root, 'job-archive.json'), record = JSON.parse(await readFile(file, 'utf8')).records.find(item => item.id === job.id);
+  const at = Date.now() + 1000;
+  await jobArchive(h.root).add(Array.from({ length: 199 }, (_, index) => ({ ...record, id: `filler-${index}`, ids: [`filler-${index}`], archivedAt: new Date(at).toISOString(), job: { ...record.job, id: `filler-${index}` } })));
+  await h.set({ total: 2 });
+  const other = await h.settled((await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 2, title: 'one more' }), 'More.pdf') })).jobId);
+  await h.call('job.archive', { jobId: other.id });
+  assert.equal(JSON.parse(await readFile(file, 'utf8')).records.some(item => item.id === job.id), false, 'it fell off');
+  assert.ok((await listManifests(h.root)).some(item => item.manifest.id === job.id), 'its text did not');
+});
 
 test('the default stays automatic: without the switch nothing waits', async t => {
   const h = await harness(t, { runtime: false });
