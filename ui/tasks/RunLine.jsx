@@ -3,7 +3,7 @@ import { ui } from '../i18n.js';
 import { Tooltip } from '../components/index.js';
 import { contractOf } from './task-model.js';
 import { joinMeta } from '../format.js';
-import { continueLine, coveragePathText, forecastMath, nextRoundText, repeatingLine, runLine, runPathText, shortfallLine, shortfallWhy, stopText } from '../coverage/copy.js';
+import { continueLine, coveragePathText, forecastMath, nextRoundText, repeatingLine, runLine, runPathText, runStopText, shortfallLine, shortfallWhy } from '../coverage/copy.js';
 import { forecastOf } from './task-facts.js';
 import RepeatingExplain from '../coverage/RepeatingExplain.jsx';
 import { HandOff } from '../hand-off/HandOff.jsx';
@@ -43,7 +43,7 @@ function PlanLine({ task, shortfall, now = Date.now(), onOpenSource, onOpenSetti
     );
   }
   const interrupted = contract.status === 'interrupted';
-  const stop = interrupted ? '' : (shortfall ? shortfallWhy(shortfall) : '') || stopText(run.stop);
+  const stop = interrupted ? '' : (shortfall ? shortfallWhy(shortfall) : '') || runStopText(run.stop, shortfall);
   const standing = shortfall && !['running', 'paused'].includes(shortfall.state);
   const counts = standing ? joinMeta([continuing ? continueLine(shortfall) : shortfallLine(shortfall), shortfall.state === 'done' ? '' : nextRoundText(shortfall)]) : '';
   const path = standing ? coveragePathText(shortfall) : runPathText(run);

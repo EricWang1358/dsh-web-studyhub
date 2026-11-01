@@ -71,7 +71,7 @@ test('after a round: all done and covered; the target reached early; manual wait
   assert.deepEqual(stepOf({ spec: spec(['done', 'done', 'done']), uncovered: new Set(['b']), run: run({ fillUsed: FILL_ROUNDS }) }), { type: 'stop', reason: 'sections-left', left: 1 });
   assert.deepEqual(stepOf({ spec: spec(['done', 'done', 'done']), uncovered: new Set(['b']), run: run({ fillUsed: 1 }), fillRounds: 1 }), { type: 'stop', reason: 'sections-left', left: 1 }, 'the bound is injectable');
   assert.equal(stepOf({ spec: spec(), uncovered: all, run: run() }).index, 0);
-  assert.deepEqual(Object.keys(STOP_REASONS).sort(), ['budget', 'complete', 'learner', 'no-progress', 'refused', 'round-failed', 'sections-left', 'target']);
+  assert.deepEqual(Object.keys(STOP_REASONS).sort(), ['budget', 'complete', 'learner', 'no-progress', 'questions-short', 'refused', 'round-failed', 'sections-left', 'target']);
   for (const reason of Object.values(STOP_REASONS)) assert.ok(typeof reason.level === 'string');
 });
 

@@ -6,7 +6,7 @@ import { useStudy } from '../study-context.jsx';
 import { activeJobOf } from './run-job.js';
 import { draftRunFacts } from '../../lib/coverage-run.js';
 import css from './coverage.css';
-import { autoLabel, autoStartLine, repeatingHead, repeatingItem, repeatingNote, runLine, shortfallLine, shortfallWhy, stopText } from './copy.js';
+import { autoLabel, autoStartLine, repeatingHead, repeatingItem, repeatingNote, runLine, runStopText, shortfallLine, shortfallWhy, stopText } from './copy.js';
 import { draftShortfall } from './use-shortfall.js';
 import RepeatingExplain from './RepeatingExplain.jsx';
 import RoundCost from './RoundCost.jsx';
@@ -29,7 +29,7 @@ export default function RunPanel({ draft, view, jobs = [], held = false, modelRe
   if (!summary || !summary.facts.total) return null;
   const { facts, job } = summary, live = !!job && facts.live, pending = facts.left > 0;
   // The counts and the reason it stands still are the shortfall's (lib/shortfall.js), said the same way on the home row and in the 任务 console.
-  const shortfall = draftShortfall(draft, { view, jobs }), why = live || facts.interrupted ? '' : shortfallWhy(shortfall) || summary.stop;
+  const shortfall = draftShortfall(draft, { view, jobs }), why = live || facts.interrupted ? '' : shortfallWhy(shortfall) || runStopText(facts.stop, shortfall);
   // Flipped while it runs: the job takes it. With nothing running, ticking it starts the rest of the plan (only while there is a round left and the draft can be topped up).
   const canStart = !live && pending && view.canTopUp && modelReady && !held, toggle = live || canStart;
   const change = (value) => {

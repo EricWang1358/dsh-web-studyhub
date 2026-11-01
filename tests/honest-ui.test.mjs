@@ -57,6 +57,8 @@ const STATES = {
   paused: { draft: draftOf({ cards: 80, statuses: ['done', 'done', 'done', ...Array(6).fill('pending')], marker: { jobId: 'j1', autoComplete: true, state: 'paused', startedAt: at(0), updatedAt: at(50), tokensUsed: 800_000 } }),
     job: jobOf({ status: 'running', paused: true, savedCount: 80, control: { values: { concurrency: 4, autoComplete: true, paused: true }, limits: {} }, finishedAt: undefined }, { state: 'paused', stop: undefined, list: mirror('paused').list.map((round, i) => ({ ...round, status: i < 3 ? 'done' : 'pending' })) }), action: 'resume' },
 };
+// A run closed with every section covered and questions owed (lib/contexts/generation/run-state.js closeRun): the job ended, the draft keeps its goal, the action is the 接着做 of a short draft.
+STATES['closed-short'] = { draft: draftOf({ requested: GOAL, marker: stopped({ reason: 'questions-short', round: 9, left: undefined }) }), job: jobOf({ retryable: false }, { stop: { reason: 'questions-short', round: 9 } }), action: 'continue' };
 const data = (state, extra = {}) => ({ revision: undefined, jobs: [STATES[state].job], drafts: [STATES[state].draft], decks: [], sources: [], model: { ready: true }, ...extra });
 const seed = () => { m.forgetCoverage(); seedView(m, view); };
 const HomeBoth = (props) => React.createElement(React.Fragment, null, React.createElement(m.HomeActivity, props), React.createElement(m.HomeDrafts, { ...props, defaultOpen: true }));
@@ -67,6 +69,31 @@ const pageOf = (state, language = 'zh') => { seed(); const d = data(state), draf
   React.createElement(m.RunPanel, { draft, view, jobs: d.jobs }), React.createElement(m.CoverageTopUp, { draft, view, jobs: d.jobs, onTopUp: noop })), { language, data: d }); };
 const shortfall = state => m.shortfallOf({ draft: STATES[state].draft, coverage: view.coverage, round: view.round, job: STATES[state].job });
 const buttonsOf = html => [...html.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map(match => text(match[1]));
+
+test('one number for a press above one round: the sentence says what this press adds', () => {
+  const s = m.shortfallOf({ draft: draftOf({ cards: KEPT, requested: KEPT + 35, over: { goal: KEPT + 35 }, marker: stopped({ reason: 'questions-short', round: 9, left: undefined }) }), coverage: view.coverage, round: view.round });
+  assert.match(m.copy.continueLine(s), new RegExp(`已出 ${KEPT}/${KEPT + 35} 题保留，接着补 30 题`));
+});
+
+test('once the goal is met, the record of the job that closed the run short does not say it is still short', () => {
+  STATES['short-met'] = { draft: draftOf({ cards: GOAL, requested: GOAL, marker: stopped({ reason: 'complete', round: 9, left: undefined }, { state: 'complete' }) }), job: jobOf({ retryable: false }, { stop: { reason: 'questions-short', round: 9 } }), action: null };
+  try {
+    for (const html of [consoleOf('short-met'), pageOf('short-met')]) {
+      assert.doesNotMatch(text(html), /还没出满计划的题数/);
+      assert.doesNotMatch(text(html), /接着补/);
+    }
+  } finally { delete STATES['short-met']; }
+});
+
+test('a run closed short says the true count against its goal and why on the draft page and the console, with the 接着做 of a short draft and nothing about a target reached', () => {
+  for (const html of [pageOf('closed-short'), consoleOf('closed-short')]) {
+    assert.match(text(html), new RegExp(`已出 ${KEPT}/${GOAL} 题`));
+    assert.doesNotMatch(text(html), /已达到这档覆盖强度的目标/);
+    assert.ok(buttonsOf(html).includes('接着做'), buttonsOf(html).join(' | '));
+  }
+  assert.match(text(pageOf('closed-short')), /被中断过：每个小节都有题了，但还没出满计划的题数/);
+  assert.match(text(pageOf('closed-short')), /接着补 30 题/, 'what this press adds (it owes more)');
+});
 
 test('the fixture is what the evaluation printed: 174 of 251 questions, sections without a question, the next round in view', () => {
   const s = shortfall('stopped');

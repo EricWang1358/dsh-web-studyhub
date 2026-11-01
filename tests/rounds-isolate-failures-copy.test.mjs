@@ -18,6 +18,15 @@ const ENGLISH_ROUND = (round) => ({ ...round, lost: round.lost.map((item, index)
 const OWNER_ROUND = { round: 7, rounds: 7, status: 'done', fill: true, kept: 5, covered: 0, uncredited: 5, tried: 15, unit: 'part', percent: 76, lostCount: 15,
   lost: [{ title: '第十三部分：分层架构边界与 API 缓存位置', reason: 'cancelled' }, { title: '第十六部分：统一接口四要素与 RMM 合规', reason: 'budget' }, { title: '第十七部分：RMM 语义、分层架构与缓存层级', reason: 'unavailable' }] };
 
+test('a round whose pass a stopped host cut short says its figures are not known, in both languages (never 「保留 0 题」 for a round that wrote questions)', () => {
+  const row = { status: 'done', sections: 2, unit: 'part' };
+  const zh = inLanguage('zh', () => m.copy.roundResult(row));
+  assert.match(zh, /中断过/);
+  assert.doesNotMatch(zh, /保留 0 题/);
+  assert.doesNotMatch(inLanguage('en', () => m.copy.roundResult(row)), han);
+  assert.match(inLanguage('zh', () => m.copy.roundResult({ ...row, kept: 0, covered: 0 })), /保留 0 题/, 'a round that really kept none still says so');
+});
+
 test('a round that kept questions and credited no section says so, in Chinese and in English (never a bare 「新覆盖 0/15」)', () => {
   const zh = inLanguage('zh', () => m.copy.runEventText('round-end', OWNER_ROUND));
   assert.match(zh, /补做第 7 轮完成：保留 5 题，新覆盖 0\/15 个小节 · 5 道题通过了审阅，但没有对上任何小节 · 覆盖 76%/);

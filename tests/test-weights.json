@@ -209,6 +209,8 @@
  "tests/generation-restart-mixed.test.mjs": 8250,
  "tests/generation-restart.test.mjs": 62100,
  "tests/generation-review-severity.test.mjs": 500,
+ "tests/generation-run-crash.test.mjs": 195110,
+ "tests/generation-run-wiring.test.mjs": 9370,
  "tests/generation-settings-runtime.test.mjs": 3440,
  "tests/generation-settings-ui.test.mjs": 200,
  "tests/generation-settings.test.mjs": 580,

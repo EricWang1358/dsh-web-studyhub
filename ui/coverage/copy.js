@@ -339,9 +339,14 @@ export function stopText(stop) {
     // The key was refused: said once, in plain words, whatever the provider printed for each part.
     refused: () => (stop.code === 'quota' ? ui('模型账户的余额或额度不足，已经停下；已通过的题都保留。') : ui('模型服务拒绝了请求（密钥无效或没有权限），已经停下；已通过的题都保留。')),
     'round-failed': () => uiFormat('第 {0} 轮出错，已经停下；已通过的题都保留。', [round]),
+    // No number here: the line beside it says 已出 x/y 题, the one count of the shortfall.
+    'questions-short': () => ui('这次运行被中断过：每个小节都有题了，但还没出满计划的题数。已通过的题都保留，可以点「接着做」补上。'),
   })[stop.reason];
   return text ? [text(), stop.reason === 'no-progress' || stop.reason === 'round-failed' ? cause : ''].filter(Boolean).join(' ') : '';
 }
+
+/** Why a finished job's run stopped, as far as it is still true: a job that closed a run short keeps that stop on its record, and once a later press has met the goal the draft is not short any more. */
+export const runStopText = (stop, shortfall) => (stop?.reason === 'questions-short' && shortfall?.questionsMissing === 0 ? '' : stopText(stop));
 
 /* ---------- the shortfall (lib/shortfall.js): ONE set of sentences for the home banner, the 待发布 row, the 任务 console and the draft page ---------- */
 
@@ -367,7 +372,7 @@ export function nextRoundText(s) {
 /** What 接着做 does, said before the button (the same sentence on the banner, the row, the console and the draft page): a plain run keeps what it made and makes the questions it still owes,
     「已出 13/15 题保留，接着补 2 题」; a run of rounds keeps it and goes on at the round that comes next. */
 export function continueLine(s) {
-  if (s.continueKind === 'count' && s.questionsMissing > 0) return uiFormat('已出 {0}/{1} 题保留，接着补 {2} 题', [s.questionsKept, s.questionsGoal, s.questionsMissing]);
+  if (s.continueKind === 'count' && s.questionsMissing > 0) return uiFormat('已出 {0}/{1} 题保留，接着补 {2} 题', [s.questionsKept, s.questionsGoal, s.continueCount ?? s.questionsMissing]);
   if (s.round) return uiFormat('已出 {0}/{1} 题保留，接着做从第 {2} 轮继续', [s.questionsKept, s.questionsGoal, s.round]);
   return uiFormat('已出 {0}/{1} 题保留，接着做会继续', [s.questionsKept, s.questionsGoal]);
 }
@@ -452,6 +457,8 @@ export const uncreditedText = (count) => (count > 0 ? uiFormat('{0} 道题通过
 export function roundResult(round) {
   if (round.status === 'pending' || round.status === 'running') return '';
   if (round.status === 'skipped') return ui('这一轮的小节都已经有题了');
+  // A round whose pass was cut short by a stopped host: its questions are in the draft, what it kept and cost was lost with the host. Never 「保留 0 题」.
+  if (round.status === 'done' && round.kept === undefined) return ui('这一轮中途被中断过：写好的题都在，具体数字没有记下');
   const head = uiFormat('保留 {0} 题，新覆盖 {1}', [round.kept ?? 0, gainText(round.covered, round.sections, round.unit)]);
   const minutes = round.ms > 0 ? minutesText(Math.max(1, Math.round(round.ms / 60000))) : '';
   const word = round.code || round.reason, reason = round.status === 'failed' ? (word === 'timeout' ? ui('这一轮用时到限') : failedWhy(word)) : '';

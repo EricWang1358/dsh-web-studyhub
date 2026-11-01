@@ -104,6 +104,8 @@
   "暂停于第 {0} 轮之后": "Paused after round {0}",
   "出题计划做完了：计划里的每个小节都有题了。": "The plan is done: every section it planned has a question.",
   "已达到这档覆盖强度的目标，剩下的轮次不用再做了。": "The target of this level is reached; the remaining rounds are not needed.",
+  "这次运行被中断过：每个小节都有题了，但还没出满计划的题数。已通过的题都保留，可以点「接着做」补上。": "This run was interrupted: every section has a question, but the plan's number of questions was not reached. The questions that passed are kept; Continue adds the rest.",
+  "这一轮中途被中断过：写好的题都在，具体数字没有记下": "This round was cut short: the questions it wrote are kept, its figures were not recorded",
   "你在第 {0} 轮停了下来；已通过的题都保留。": "You stopped it at round {0}; every question that passed is kept.",
   "用到了你设的花费上限，在第 {0} 轮之后停下；已通过的题都保留。": "The spending limit you set was reached, so it stopped after round {0}; every question that passed is kept.",
   "第 {0} 轮重试后仍没有补到新的小节，所以停下了，免得白白重复花费。": "Round {0} covered no new section even after its retries, so the run stopped rather than repeat itself for nothing.",
