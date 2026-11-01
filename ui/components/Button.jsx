@@ -42,11 +42,11 @@ export const Button = forwardRef(function Button({ variant = 'secondary', size =
   const [mine, setMine] = useState(false);
   // A press counts for the flag that goes up in the same event; the next task forgets it.
   useEffect(() => { setMine(!!lock && pressed.current); }, [lock]);
-  const press = (onClick || locks) && (event => {
+  const press = onClick || locks ? event => {
     holdWidth(event.currentTarget);
     if (locks) { pressed.current = true; setTimeout(() => { pressed.current = false; }, 0); }
     onClick?.(event);
-  });
+  } : undefined;
   const working = busy || (!!lock && mine);
   return (
     <button ref={ref} type={type} onClick={press}
