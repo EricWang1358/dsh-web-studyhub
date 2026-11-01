@@ -59,7 +59,7 @@ const Row = memo(function Row({ row, data, tabStop, bodyId, pick, papers, onPick
         </Button>
         {papers > 0 && node.tier && <Badge size="sm" tone={node.tier === 'must' ? 'warning' : 'neutral'} className="outline-row__tier">{tierText(node, papers)}</Badge>}
         <MasteryLine className="outline-row__mastery" summary={node.summary} title={title} />
-        {node.total > 0 && <Button size="sm" variant="secondary" icon="play" className="outline-row__practice" disabled={busy} onClick={() => onPractice(row)}>{practiceLabel(node.resume)}</Button>}
+        {node.total > 0 && <Button size="sm" variant="secondary" icon="play" className="outline-row__practice" lock={busy} onClick={() => onPractice(row)}>{practiceLabel(node.resume)}</Button>}
       </div>
       {node.intro && (row.kind === 'part' || row.kind === 'section' || row.kind === 'point') && <p className="outline-row__intro">{node.intro}</p>}
       {row.kind === 'point' && row.expanded && data?.notes && <LeafNotes notes={data.notes} onOpenSource={onOpenSource} onReadMore={onReadMore} />}
