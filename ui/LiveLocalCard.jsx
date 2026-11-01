@@ -102,7 +102,7 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
     <div className="mineru-install__where">
       <span className="mineru-install__label">{ui('安装位置')}</span>
       <code translate="no">{folder() || '…'}</code>
-      {!choosing && <Button size="sm" variant="secondary" icon="location" disabled={!!working} onClick={() => setChoosing(true)}>{ui('选择位置')}</Button>}
+      {!choosing && <Button size="sm" variant="secondary" icon="location" lock={!!working} onClick={() => setChoosing(true)}>{ui('选择位置')}</Button>}
     </div>
     {choosing && chooser}
     <p className="mineru-install__facts" aria-busy={planning || !plan || undefined}>{plan && !planning
@@ -137,10 +137,10 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
     const button = <Button variant="primary" icon={action.icon} busy={working === 'start'} disabled={!!working} onClick={() => void fix(action)}>{action.label}</Button>;
     body = <div className="mineru-install__problem">{shown.state !== 'repair' && stages}
       <div className="mineru-install__row">{action.tip ? <Tooltip layer content={action.tip}>{button}</Tooltip> : button}
-        {shown.state === 'repair' && settings && <Button variant="quiet" size="sm" disabled={!!working} onClick={() => setAsking(true)}>{ui('删除本地转写引擎')}</Button>}</div></div>;
+        {shown.state === 'repair' && settings && <Button variant="quiet" size="sm" lock={!!working} onClick={() => setAsking(true)}>{ui('删除本地转写引擎')}</Button>}</div></div>;
   } else if (shown.state === 'unsupported') body = <Hint>{ui('课堂实录请用 Gemini，或课后在「音频转写」里导入录音。')}</Hint>;
   else if (shown.state === 'ready' && settings) body = <div className="mineru-install__row">
-    <Button variant="quiet" size="sm" disabled={!!working} onClick={() => setAsking(true)}>{ui('删除本地转写引擎')}</Button></div>;
+    <Button variant="quiet" size="sm" lock={!!working} onClick={() => setAsking(true)}>{ui('删除本地转写引擎')}</Button></div>;
 
   return <section className={['live-local-card', className].filter(Boolean).join(' ')} data-state={shown.state} aria-label={ui('本地转写（声音不上传）')}>
     {head}
