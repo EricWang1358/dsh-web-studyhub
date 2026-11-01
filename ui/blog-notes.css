@@ -7,7 +7,6 @@
     .note-list > * { min-width: 0; }
     .note-list > button { display: flex; justify-content: space-between; gap: var(--space-3); text-align: left; padding: var(--space-3) var(--space-4); }
     .note-list small { opacity: .7; }
-    .note-list .daily-recap { margin: var(--space-2) 0; }
     .note-daily-item { border-left: 3px solid var(--accent); }
     .note-daily-date { display: block; margin-top: var(--space-1); }
     .note-heading { align-items: flex-start; gap: var(--space-5); flex-wrap: wrap; }

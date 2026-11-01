@@ -52,6 +52,7 @@
     .daily-recap-footer details { flex: 0 1 auto; }
     .daily-recap-footer details[open] { flex-basis: 100%; }
     .daily-recap-footer p { max-width: 65ch; line-height: 1.7; }
+    .note-list .daily-recap { margin: var(--space-2) 0; }
   }
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {

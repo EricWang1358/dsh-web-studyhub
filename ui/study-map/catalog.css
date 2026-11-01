@@ -152,6 +152,16 @@
     }
     .map-row input[type="checkbox"] { flex-shrink: 0; margin: 0; }
     .map-row > .map-dot { display: none; }
+    .review-tick .lv-new { --tick: color-mix(in srgb, var(--text) 34%, transparent); }
+    .review-tick .lv-weak { --tick: var(--bad); }
+    .prereq-strip li .map-dot {
+      position: relative;
+      top: -1px;
+    }
+    .page-heading > .section-heading-actions { flex-shrink: 0; max-width: 100%; }
+    .review-tick .lv-learning { --tick: var(--warn); }
+    .review-tick .lv-familiar { --tick: var(--ok-mid); }
+    .review-tick .lv-mastered { --tick: var(--ok); }
   }
   @media (hover: hover) {
     :where(.study-app, .study-seat) {

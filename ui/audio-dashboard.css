@@ -73,6 +73,7 @@
     .audio-dashboard-footer span { flex: 1 1 320px; }
     .audio-dashboard-footer a { color: var(--text-dim); }
     .audio-dashboard .audio-dashboard__problem { margin-bottom: var(--space-4); }
+    .audio-expert .audio-reasoning { margin-top: var(--space-4); }
   }
   @container (max-width: 560px) {
     :is(.study-app, .study-seat) {

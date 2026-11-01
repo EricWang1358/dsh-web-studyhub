@@ -182,13 +182,6 @@
       gap: var(--space-3);
     }
     /* A case question in review: the scenario on the left, the question on the right. */
-    .question-area.has-case {
-      width: min(1240px, calc(100% - 48px));
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
-      column-gap: var(--space-6);
-      align-items: start;
-    }
     .question-area.has-case > * { grid-column: 2; min-width: 0; }
     .question-area.has-case > .case-review-scenario {
       grid-column: 1;
@@ -202,7 +195,6 @@
   }
   @container study (max-width: 980px) {
     :where(.study-app, .study-seat) {
-      .question-area.has-case { display: block; width: min(700px, calc(100% - 32px)); }
       .question-area.has-case > .case-review-scenario { position: static; max-height: 40vh; margin-bottom: var(--space-4); }
     }
   }
