@@ -2,7 +2,6 @@
    补漏 of one point while materials changed (never rewriting the outline or hiding `outdated`), and the model gate on 补漏. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
 import { planBook } from '../lib/contexts/generation/book/plan.js';
