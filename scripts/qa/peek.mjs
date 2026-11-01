@@ -264,10 +264,10 @@ export async function runPeekQa(options) {
     await step("peek-notice-opens-original-pdf", async () => {
       await panel.locator("[data-peek-notice]").getByRole("button", { name: t("查看原始 PDF", "View original PDF") }).click();
       await panel.waitFor({ state: "detached" });
-      await viewer.locator(".reader-original iframe").waitFor();
-      const src = await viewer.locator(".reader-original iframe").getAttribute("src");
-      if (!/#page=3$/.test(src || "")) throw new Error(`the original opened at ${src}`);
-      return { src };
+      await viewer.locator(".reader-pdf-view").waitFor();
+      const shown = await viewer.locator(".reader-pdf-view").getAttribute("data-pdf-page");
+      if (shown !== "3") throw new Error(`the original opened at ${shown}`);
+      return { shown };
     });
     await closeReader();
 

@@ -3,7 +3,7 @@
    can land while one is on its way). The reader is in 批注 mode. Journey: a passage selected in 阅读 is shown in the learning panel; a 没听懂
    asked there and followed at once by a switch to 原始 PDF is still answered and kept as an annotation; in 原始 PDF the old selection is not
    shown and the panel names the page; Escape in the page box does not close the reader; 「问这一页」 opens a closed panel; previous / next
-   and a typed page number move both the panel and the frame (#page=, a new frame per page); a typed question is answered from that page; a
+   and a typed page number move both the panel and the page drawn in place; a typed question is answered from that page; a
    page without saved text says so; back in 阅读 the selection and its answers are still there; a kept annotation opened from the links panel
    in 原始 PDF goes back to 阅读; a page question refused by the server (the document changed) keeps the page wording on 重试. The PDF itself
    is drawn by the browser's own viewer (it does draw in Chromium here); the screenshots show it with our controls and the panel. */
@@ -59,9 +59,10 @@ export async function runPageAskQa(options) {
     const pageBox = () => bar.getByRole("spinbutton", { name: t("页码", "Page number") });
     const typePage = async (number) => { await closeOverlay(); await pageBox().fill(String(number)); await pageBox().press("Enter"); await openTools(); };
     const kept = async () => (await previewCall(server, "materials.annotation.list", { documentId: SEEDED.documentId })).items?.length || 0;
-    const frameAt = async () => viewer.locator(".reader-original iframe").getAttribute("src");
+    const frameAt = async () => `#page=${await viewer.locator(".reader-pdf-view").getAttribute("data-pdf-page")}`;
     const expectPage = async (number) => {
-      await page.waitForFunction(([want, zh]) => (document.querySelector(".study-page-ask__scope")?.textContent || "").includes(zh ? `第 ${want} 页` : `page ${want}`), [number, options.lang === "zh"], { timeout: 10000 });
+      await page.waitForFunction(([want, zh]) => (document.querySelector(".study-page-ask__scope")?.textContent || "").includes(zh ? `第 ${want} 页` : `page ${want}`)
+        && document.querySelector(".reader-pdf-view")?.dataset.pdfPage === String(want), [number, options.lang === "zh"], { timeout: 10000 });
       const src = await frameAt();
       if (!src?.endsWith(`#page=${number}`)) throw new Error(`the frame is not at page ${number}: ${src}`);
       return { scope: await scopeLine.innerText(), frame: src.replace(/^blob:[^#]*/, "blob:…") };
@@ -151,14 +152,14 @@ export async function runPageAskQa(options) {
       if (await link.count()) throw new Error("the link stays while the panel is open");
     });
     await step("next-next-is-page-3", async () => {
-      await page.evaluate(() => { document.querySelector(".reader-original iframe").dataset.qaOld = "1"; });
+      await page.evaluate(() => { document.querySelector(".reader-pdf-view").dataset.qaOld = "1"; });
       // Narrow: the panel slides over the page controls, so the page is turned from the panel's own buttons.
       const stepper = narrow ? paging.locator(".study-page-ask__step") : bar;
       await stepper.getByRole("button", { name: t("下一页", "Next page") }).click();
       await stepper.getByRole("button", { name: t("下一页", "Next page") }).click();
       const at = await expectPage(3);
-      // The PDF viewer ignores a changed #page= on the same frame: a new frame is what makes the shown page follow.
-      if (await page.evaluate(() => document.querySelector(".reader-original iframe").dataset.qaOld)) throw new Error("the same frame was kept, so the PDF viewer stays on the old page");
+      // The page is drawn in place: the same view, nothing reloaded (#488).
+      if (!await page.evaluate(() => document.querySelector(".reader-pdf-view").dataset.qaOld)) throw new Error("the view was replaced: the page turn reloaded the file");
       await sleep(1200);
       return at;
     });
