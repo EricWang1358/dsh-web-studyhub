@@ -34,14 +34,6 @@
       "ui/course-active.css",
       "ui/study-map/desk.css"
     ],
-    "dim": [
-      "ui/review/question.css",
-      "ui/skeleton.css"
-    ],
-    "empty": [
-      "ui/skeleton.css",
-      "ui/study-map/catalog.css"
-    ],
     "extensions-settings__choice": [
       "ui/large-documents.css",
       "ui/settings.css"

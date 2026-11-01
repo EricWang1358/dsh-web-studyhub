@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { classOwners, readAllow, subjectClasses } from '../scripts/qa/css-ownership.mjs';
 
 // #151: a class is styled in one stylesheet. The allow-list is the debt that is left; it may only shrink.
@@ -27,6 +30,19 @@ test('the subject of a selector is its last compound', () => {
   assert.deepEqual(subjectClasses('.a .b:not(.c)'), ['b'], ':not() names what the element is not');
   assert.deepEqual(subjectClasses('.a button'), []);
   assert.deepEqual(subjectClasses('.a [data-x=".z"] .y'), ['y']);
+});
+
+test('a class that is only ever written on top of another class is a modifier, not an owner', () => {
+  const modifiers = new Set(['self', 'a', 'b']);
+  assert.deepEqual(subjectClasses('.dash-line.self', modifiers), ['dash-line']);
+  assert.deepEqual(subjectClasses('.x .self', modifiers), ['self'], 'on its own it is the subject');
+  assert.deepEqual(subjectClasses('.a.b', modifiers), ['a', 'b'], 'two modifiers have nothing to be attributed to');
+  const root = mkdtempSync(join(tmpdir(), 'css-own-'));
+  mkdirSync(join(root, 'ui'));
+  writeFileSync(join(root, 'ui/one.css'), '.dash-line.self { stroke: red; }\n.dash-line { stroke: blue; }\n.dim-row { opacity: 1; }\n');
+  writeFileSync(join(root, 'ui/two.css'), '.dash-rate.self { background: red; }\n.dash-rate { gap: 1px; }\n.dim-row.self { opacity: .5; }\n.dim-row { color: red; }\n');
+  assert.deepEqual(classOwners(root), { 'dim-row': ['ui/one.css', 'ui/two.css'] }, '.self is nobody\'s; .dim-row really is styled by both');
+  rmSync(root, { recursive: true, force: true });
 });
 
 test('a state class written on another class is that class\'s own modifier, not a second owner', () => {
