@@ -56,6 +56,17 @@ export function forecastOf(contract, now = Date.now()) {
     ...(run?.dueKnown ? { left: run.questionsLeft } : {}) });
 }
 
+/**
+ * The one quiet fact an audio run adds to its card on a page (CompactJobCard): how long it has run and the tokens its model calls used, the values of the console's 已用 tile and of the tokens
+ * after 模型任务. '' for any other kind of task, a task that is not running (a queued one has not begun), and tokens nobody reported (not shown as zero).
+ */
+export function runFacts(job, now = Date.now()) {
+  const contract = contractOf(job);
+  if (taskKindOf(job) !== 'audio' || !isRunningTask(job) || contract.status === 'queued') return '';
+  const elapsed = elapsedOf(contract, true, now);
+  return joinMeta([elapsed === dash ? '' : `${ui('已用')} ${elapsed}`, contract.usage.tokens > 0 ? uiFormat('{0} tok', [formatCompactTokens(contract.usage.tokens)]) : '']);
+}
+
 /** "151 · 0 失败": model calls made and how many failed. */
 function callsFact(contract) {
   const calls = contract.calls.filter((call) => call.kind !== 'wait');

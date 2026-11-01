@@ -48,6 +48,57 @@ test('book.toc of a large book stays under the cut at its largest page', async t
   assert.ok(toc.toc.every(row => row.title.length <= 61));
 });
 
+test('book.toc compact (#489 item 12): hid, n and title only, more rows a call; a 400-point book is walked in a few calls, each under the cut', async t => {
+  const titles = Array.from({ length: 400 }, (_, i) => ({ id: `p${i}`, title: `Point ${i}: ${'a rather long title about the architecture of systems '.repeat(3)}`, anchors: [] }));
+  const { study } = await bookService(t, { points: titles });
+  const plain = [];
+  for (let at = 0; at !== null;) { const page = await study.call('book.toc', { offset: at, limit: 40 }); plain.push(...page.toc.map(row => row.hid)); at = page.nextOffset; }
+  const seen = [], sizes = [];
+  let calls = 0;
+  for (let at = 0; at !== null;) {
+    const page = await study.call('book.toc', { offset: at, compact: true, limit: 1000 });
+    calls += 1; sizes.push(sizeOf(page)); seen.push(...page.toc);
+    assert.ok(page.toc.length <= 60, 'at most 60 compact rows a call');
+    at = page.nextOffset;
+  }
+  assert.deepEqual(seen.map(row => row.hid), plain, 'the same rows in the same order as the full table of contents');
+  assert.ok(calls <= 8, `${calls} calls`);
+  assert.ok(Math.max(...sizes) < LIMIT, `${Math.max(...sizes)} characters`);
+  assert.deepEqual(Object.keys(seen[1]).sort(), ['hid', 'n', 'title'], 'a point row: id, number, title');
+  assert.deepEqual(Object.keys(seen[0]).sort(), ['chapter', 'hid', 'n', 'title'], 'a chapter row says so, as it has no point to read');
+  assert.equal((await study.call('book.toc', { compact: true })).toc.length, 60, 'compact rows default to the most a call carries');
+  assert.equal((await study.call('book.toc', { compact: true, limit: 5 })).toc.length, 5);
+});
+
+test('book.read heading: a file read from one heading (id or title) on, its headings listed from there; no heading, or heading with offset, is refused', async t => {
+  const { study } = await bookService(t);
+  const toc = await study.call('book.toc'), what = toc.toc[1], opened = await study.call('course.book.open');
+  const file = opened.nodes[0].children[0].files.mine, long = Array.from({ length: 300 }, (_, i) => `## Part ${i}\n\nLine ${i} of my own long notes about architects.`).join('\n\n');
+  await study.call('course.book.save', { file, text: long, version: opened.files[file].version });
+  const first = (await study.call('book.read', { hid: what.hid, file: 'mine' })).files.mine;
+  assert.equal(first.headings.length, 30, 'a long file lists 30 headings from its start');
+  let all = '';
+  for (let at = 0; at !== null;) { const page = (await study.call('book.read', { hid: what.hid, file: 'mine', offset: at })).files.mine; all += page.text; at = page.truncated ? page.nextOffset : null; }
+  const idOf = title => new RegExp(`## ${title} <!-- sh:id (h\\d+) -->`).exec(all)[1];
+  for (const wanted of [idOf('Part 100'), 'Part 100']) {
+    const view = (await study.call('book.read', { hid: what.hid, file: 'mine', heading: wanted })).files.mine;
+    assert.match(view.text, /^## Part 100 /);
+    assert.equal(view.from, all.indexOf('## Part 100 '), 'the text starts at the heading line');
+    assert.equal(view.headings[0].id, idOf('Part 100'));
+    assert.equal(view.headings[0].title, 'Part 100');
+    assert.equal(view.headings.length, 30);
+  }
+  // It goes on as any cut file does: by nextOffset.
+  const cut = (await study.call('book.read', { hid: what.hid, file: 'mine', heading: 'Part 100' })).files.mine;
+  assert.equal(cut.truncated, true);
+  assert.equal((await study.call('book.read', { hid: what.hid, file: 'mine', offset: cut.nextOffset })).files.mine.from, cut.nextOffset);
+  const codeOf = async args => (await study.call('book.read', args).then(() => ({}), error => error)).code;
+  assert.equal(await codeOf({ hid: what.hid, file: 'mine', heading: 'No such part' }), 'book-section-missing');
+  assert.equal(await codeOf({ hid: what.hid, heading: 'Part 100' }), 'book-offset-needs-file');
+  assert.equal(await codeOf({ hid: what.hid, file: 'mine', heading: 'Part 100', offset: 10 }), 'book-read-heading-offset');
+  assert.equal(await codeOf({ hid: what.hid, file: 'mine', heading: 7 }), 'book-section-missing');
+});
+
 test('book.read: one point, its files, headings, neighbours and pages; a long file is cut and continued with file/offset', async t => {
   const { study } = await bookService(t);
   const toc = await study.call('book.toc'), [what, who] = toc.toc.slice(1);
@@ -162,6 +213,7 @@ test('book.coverage: the point\'s pages opened, partly opened, not opened and ci
 test('the tool contract names the reads in area book, and the description points there', () => {
   for (const action of ['book.toc {course?', 'book.read {course?,hid', 'source.pages {documentId|sourceId', 'book.coverage {course?,hid}']) assert.ok(libraryContracts.book.includes(action), action);
   assert.match(libraryContracts.book, /never use course\.book\.open or course\.book\.save/);
+  for (const text of ['book.toc {course?,offset?,limit?<=40,compact?}', 'offset?|heading? (only with file']) assert.ok(libraryContracts.book.includes(text), text);
   assert.match(studyToolDescription, /book\.toc\/read\/coverage, source\.pages \(details: book\)/);
   assert.deepEqual([writesFor('library', 'book.toc'), writesFor('library', 'book.read'), writesFor('library', 'source.pages'), writesFor('library', 'book.coverage')], [['sources'], [], [], []]);
 });

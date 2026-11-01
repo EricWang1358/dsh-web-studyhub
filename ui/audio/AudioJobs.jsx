@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useContext } from "react";
 import { ui } from "../i18n.js";
 import CompactJobCard from "../tasks/CompactJobCard.jsx";
+import { AppContext } from "../app/app-context.js";
+import { contractOf } from "../tasks/task-model.js";
 import JobFollowUp from "../JobFollowUp.jsx";
 export { parallelNote, reuseNote } from "./audio-notes.js";
 export { reasoningNote } from "../EffortSelect.jsx";
@@ -65,11 +67,15 @@ function primaryOf(job, { onOpenSources, onLegacyRetry, onOpenSettings }) {
   return undefined;
 }
 
+/** The way on to this job in the 任务 console for a card whose one button does something else (the transcript, the audio settings, picking the recording again): the same page 「查看详情」 opens. */
+export const consoleLink = (job, app) => ({ label: ui("查看详情"), run: () => app?.nav?.show?.task?.(contractOf(job).jobId) });
+
 /** Progress and results of audio imports; shown in the add-source form and at the top of the sources page. A finished one offers 用它出题 when the page can (onGenerate(sourceIds)). */
 export function AudioJobs({ data, busy, act, onOpenSources, onLegacyRetry, onOpenSettings, onGenerate }) {
-  const jobs = (data.jobs || []).filter(isAudioJob);
-  return jobs.length ? <div className="cjc-list audio-jobs">{jobs.map((job) => <JobFollowUp key={job.id} job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
-    <CompactJobCard job={job}
-      onStop={act ? () => act("job.control", { jobId: job.batchId || job.id, action: "cancel" }) : undefined}
-      primary={primaryOf(job, { onOpenSources, onLegacyRetry, onOpenSettings })} /></JobFollowUp>)}</div> : null;
+  const jobs = (data.jobs || []).filter(isAudioJob), app = useContext(AppContext) || {};
+  // A card whose one button is something else (the transcript, the settings, the recording again) keeps a quiet way to the console, where the run's stage, time, tokens and output are.
+  return jobs.length ? <div className="cjc-list audio-jobs">{jobs.map((job) => { const primary = primaryOf(job, { onOpenSources, onLegacyRetry, onOpenSettings });
+    return <JobFollowUp key={job.id} job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
+      <CompactJobCard job={job} links={primary || job.status === "complete" ? [consoleLink(job, app)] : undefined}
+        onStop={act ? () => act("job.control", { jobId: job.batchId || job.id, action: "cancel" }) : undefined} primary={primary} /></JobFollowUp>; })}</div> : null;
 }
