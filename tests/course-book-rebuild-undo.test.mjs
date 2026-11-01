@@ -17,7 +17,7 @@ import { currentCourseNotes, courseNotesMaterial } from '../lib/course-book.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { StudyService } from '../lib/service.js';
-import { settleJob } from './helpers/wait.mjs';
+import { settleJob, until } from './helpers/wait.mjs';
 import { privateRoot } from './helpers/model-family-baseline.mjs';
 import { switchOptions } from './helpers/runtime-switch.mjs';
 import { COURSE, outlineLibrary, outlineModel } from './helpers/course-outline-library.mjs';
@@ -303,6 +303,70 @@ test('giving up and undoing are refused while a build of the course runs: its sa
     gate = new Promise(resolve => { release = resolve; });
   }
   release();
+});
+
+/** A build started on the rebuilt outline with the fake model held, so it is really running. `go` lets the model answer. */
+async function heldBuild(t) {
+  const fake = outlineModel({ inventory: 'none' });
+  let go;
+  const gate = new Promise(resolve => { go = resolve; });
+  const complete = async (...args) => { await gate; return fake.complete(...args); };
+  const set = await setUp(t, { complete, ...switchOptions('runtime', { complete, paths: [] }) });
+  return { ...set, fake, go, newId: await set.rebuild() };
+}
+const outlinesOf = state => state.sources.filter(source => source.provenance === 'course-outline' && !source.archived).map(source => source.id);
+
+for (const [action, code] of [['generation.courseBook.build', 'course-book-outline-changed'], ['generation.courseOutline.build', 'course-outline-changed']]) {
+  test(`${action}: stopped, the rebuild given up, then retried from the console: refused at once, no model call, nothing saved on an outline that is not current`, async t => {
+    const { service, go, fake, undo, first, newId } = await heldBuild(t);
+    const { jobId } = await service.call(action, { course: COURSE, language: 'zh', confirm: true });
+    await service.call('job.cancel', { jobId });
+    go();
+    await settleJob(service, jobId);
+    assert.equal((await undo(newId)).write, 'discarded');
+    const calls = fake.calls.length, sources = (await view(service)).sources.length;
+    await service.call('job.control', { jobId, action: 'retry' });
+    const job = await settleJob(service, jobId);
+    assert.equal(job.status, 'failed');
+    assert.equal(job.errorCode ?? job.error?.code ?? job.contract?.error?.code ?? code, code, JSON.stringify(job.error));
+    assert.match(JSON.stringify(job), /总纲在这个任务开始之后变过了/);
+    assert.equal(fake.calls.length, calls, 'no further model call');
+    const state = await view(service);
+    assert.equal(state.sources.length, sources, 'nothing saved');
+    assert.deepEqual(outlinesOf(state), [first.id]);
+    assert.equal(currentCourseNotes(state.sources, COURSE), null);
+  });
+}
+
+test('a paused build still counts as running for the undo; and if its outline moved anyway, resuming saves nothing', async t => {
+  const { service, go, undo, first, newId } = await heldBuild(t);
+  const { jobId } = await service.call('generation.courseBook.build', { course: COURSE, language: 'zh', confirm: true });
+  await service.call('job.control', { jobId, action: 'pause' });
+  go();
+  await until(() => [...service.runtime.work.jobs.values()].find(job => job.id === jobId)?.contract?.status === 'paused', 'a checkpoint');
+  await assert.rejects(undo(newId), error => error.code === 'course-book-rebuild-job-running');
+  // The outline moved all the same (another app process over the same library): the job's own check is the last word.
+  await service.store.update(state => {
+    state.sources.find(source => source.id === newId).archived = true;
+    state.sources.find(source => source.id === first.id).archived = false;
+  });
+  await service.call('job.control', { jobId, action: 'resume' });
+  const job = await settleJob(service, jobId);
+  assert.equal(job.status, 'failed');
+  assert.match(JSON.stringify(job), /总纲在这个任务开始之后变过了/);
+  const state = await view(service);
+  assert.deepEqual(outlinesOf(state), [first.id]);
+  assert.equal(currentCourseNotes(state.sources, COURSE), null);
+});
+
+test('the export of a pending rebuild says it is that layout, not the book as it stands', async t => {
+  const { service, rebuild, apply } = await setUp(t);
+  const newId = await rebuild();
+  const exported = await service.call('course.book.export', { course: COURSE });
+  assert.equal(exported.rebuildPending?.outlineId, newId);
+  assert.match(exported.rebuildPending.note, /not applied/);
+  await apply(newId);
+  assert.equal((await service.call('course.book.export', { course: COURSE })).rebuildPending, undefined);
 });
 
 test('undo of a rebuild a book update made with its notes: the explanations written before it are current again', async t => {
