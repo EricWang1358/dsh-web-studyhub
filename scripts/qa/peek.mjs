@@ -267,7 +267,7 @@ export async function runPeekQa(options) {
       await viewer.locator(".reader-pdf-view").waitFor();
       const shown = await viewer.locator(".reader-pdf-view").getAttribute("data-pdf-page");
       if (shown !== "3") throw new Error(`the original opened at ${shown}`);
-      return { src };
+      return { shown };
     });
     await closeReader();
 
