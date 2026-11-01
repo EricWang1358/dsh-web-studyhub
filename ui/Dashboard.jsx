@@ -134,7 +134,7 @@ export function StatsView({ stats, course, data, localDecks = [], onStartScope, 
                     <strong>{w.topic || ui("未分类")}</strong>
                     <small>{w.detail}</small>
                   </span>
-                  <Button variant="link" size="sm" iconEnd="arrow-right"
+                  <Button variant="link" size="sm" iconEnd="arrow-right" className="dash-weak-start"
                     onClick={() =>
                       onStartScope([
                         w.topic ? { deckId: w.deckId, topic: w.topic } : { deckId: w.deckId },

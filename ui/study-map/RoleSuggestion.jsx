@@ -32,7 +32,7 @@ export default function RoleSuggestion({ data, role, suggestRole, onFocus, start
     <div className="role-prep">
       <details>
         <summary>{ui('用岗位描述细化练习范围')}</summary>
-        <textarea rows={4} value={jdDraft} placeholder={ui('需要时粘贴 JD；不贴也可按岗位方向匹配')} onChange={(event) => setJdDraft(event.target.value)} />
+        <textarea className="role-prep__jd" rows={4} value={jdDraft} placeholder={ui('需要时粘贴 JD；不贴也可按岗位方向匹配')} onChange={(event) => setJdDraft(event.target.value)} />
         <Button size="sm" busy={matching} disabled={!role.trim()} onClick={match}>{matching ? ui('匹配中…') : ui('AI 匹配知识点')}</Button>
         {error && <InlineMessage tone="error">{error}</InlineMessage>}
         {proposal && <div className="role-proposal">
