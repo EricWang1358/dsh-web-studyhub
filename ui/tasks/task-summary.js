@@ -2,7 +2,7 @@ import { ui, uiFormat, uiMessage } from '../i18n.js';
 import { describeFailure, failureSentence, stageCodeLabel } from '../generation-status.js';
 import { STATUS } from '../../lib/job-contract.js';
 import { formatDay, joinMeta } from '../format.js';
-import { contractOf, taskKindOf, isRunningTask, hasDailyFailures } from './task-model.js';
+import { contractOf, taskKindOf, isRunningTask, hasDailyFailures, isHeldTask } from './task-model.js';
 import { badgeText } from './task-parallel.js';
 import { roundOfText, waitingText } from '../coverage/copy.js';
 import { partTitle } from '../deck-parts.js';
@@ -20,9 +20,10 @@ export const taskKindLabel = (kind) => ui(KIND_LABEL[kind] || KIND_LABEL.extensi
 const AUDIO_LABEL = { 'audio-batch': '音频批量转写', 'audio-subtitles': '字幕导入', 'audio-review': '转写复核', 'audio-live-save': '课堂保存', 'audio-live-correction': '课堂校正' };
 export const audioKindLabel = (contract) => ui(AUDIO_LABEL[contract.kind] || (contract.detail?.files?.length > 1 ? '音频批量转写' : '音频转写'));
 
-/** run | queued | paused | stopping | done | partial | fail | stopped: what a row's dot, colour and word are drawn from. */
+/** run | queued | paused | stopping | done | partial | fail | stopped | held: what a row's dot, colour and word are drawn from. */
 export function taskState(job) {
   const contract = contractOf(job), { status, result } = contract;
+  if (isHeldTask(job) && !isRunningTask(job)) return 'held';
   if (hasDailyFailures(contract)) return contract.detail.metrics?.passed > 0 ? 'partial' : 'fail';
   switch (status) {
     case STATUS.QUEUED: return 'queued';
@@ -56,7 +57,7 @@ export const taskPercent = (job) => contractOf(job).progress.percent;
 
 const AUDIO_PHASES = { queued: '排队中', read: '读取并切分音频', transcribe: '转写音频', proofread: '校对识别错误的词', translate: '翻译并整理成中英对照',
   batch: '按顺序整理逐字稿', assemble: '合成逐字稿', done: '完成' };
-const PDF_PHASES = { queued: '排队中', 'start-service': '启动本机服务', split: '切分', upload: '上传', parse: '解析文档', local: '本地解析', download: '下载', merge: '合并', save: '保存', interrupted: '已中断', done: '完成' };
+const PDF_PHASES = { held: '等你导入', queued: '排队中', 'start-service': '启动本机服务', split: '切分', upload: '上传', parse: '解析文档', local: '本地解析', download: '下载', merge: '合并', save: '保存', interrupted: '已中断', done: '完成' };
 const withCount = (label, { done, total } = {}) => (total > 0 && done !== undefined ? uiFormat('{0} · {1}/{2}', [label, Math.min(done + 1, total), total]) : label);
 
 /** A stage of a contract in words: `{ code, args }` to a short phrase. An unknown code falls back to the producer's own prose. */
@@ -77,6 +78,7 @@ export function stageLabel(stage) {
 /** The one status line under the title. */
 export function taskLine(job) {
   const contract = contractOf(job), state = taskState(job);
+  if (state === 'held') return uiMessage(contract.stage.text || contract.error?.message || '');
   if (contract.kind === 'coach-daily') {
     const { batches = [], metrics = {}, paused } = contract.detail, ran = batches.filter((batch) => batch.status !== 'skipped').length;
     const failed = batches.filter(batch => batch.status === 'failed').length;
@@ -110,4 +112,4 @@ export function taskSummary(job) {
 }
 
 /** The badge word of a state. */
-export const stateLabel = (state) => ({ run: ui('进行中'), queued: ui('排队中'), paused: ui('已暂停'), stopping: ui('正在停止'), done: ui('已完成'), partial: ui('部分完成'), fail: ui('失败'), interrupted: ui('已中断'), stopped: ui('已停止') })[state] || '';
+export const stateLabel = (state) => ({ run: ui('进行中'), queued: ui('排队中'), paused: ui('已暂停'), stopping: ui('正在停止'), done: ui('已完成'), partial: ui('部分完成'), fail: ui('失败'), interrupted: ui('已中断'), stopped: ui('已停止'), held: ui('等你导入') })[state] || '';

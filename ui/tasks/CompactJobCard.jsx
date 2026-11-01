@@ -91,7 +91,7 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
     });
   };
   const result = !live && contract.status === 'complete' ? resultOpener(job, app) : null;
-  const go = primary || result || (!live && ['failed', 'interrupted', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? { label: ui('看原因并继续'), run: openConsole }
+  const go = primary || result || (!live && summary.state !== 'held' && ['failed', 'interrupted', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? { label: ui('看原因并继续'), run: openConsole }
     : { label: ui('查看详情'), run: openConsole });
   if (title) summary.title = title;
   const stoppable = contract.actions.cancel.available && live, tone = summary.state, dismissFailure = quick?.failures[job.id];
@@ -105,9 +105,9 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
       <div className="cjc__main">
         <div className="cjc__top">
           <strong className="cjc__title">{summary.title}</strong>
-          {percentHint && summary.percent !== null && !['fail', 'interrupted', 'stopped', 'done'].includes(tone)
+          {percentHint && summary.percent !== null && !['fail', 'interrupted', 'stopped', 'done', 'held'].includes(tone)
             ? <Tooltip layer content={percentHint} anchorClassName="cjc__pct-anchor"><span className="cjc__pct" data-state={tone} data-metric-hint tabIndex={0}>{`${summary.percent}%`}</span></Tooltip>
-            : <span className="cjc__pct" data-state={tone}>{tone === 'fail' ? ui('失败') : tone === 'interrupted' ? ui('已中断') : tone === 'stopped' ? ui('已停止') : tone === 'done' ? ui('完成') : summary.percent === null ? '' : `${summary.percent}%`}</span>}
+            : <span className="cjc__pct" data-state={tone}>{tone === 'fail' ? ui('失败') : tone === 'interrupted' ? ui('已中断') : tone === 'stopped' ? ui('已停止') : tone === 'done' ? ui('完成') : tone === 'held' ? ui('等你导入') : summary.percent === null ? '' : `${summary.percent}%`}</span>}
         </div>
         <ProgressBar className="cjc__bar" size="sm" value={summary.percent ?? 0} max={100} indeterminate={unknown} tone={tone === 'fail' ? 'error' : tone === 'done' ? 'success' : 'accent'} label={uiFormat('{0} 的进度', [summary.title])} />
         <span className="cjc__line" role={tone === 'fail' ? 'alert' : undefined}>{line || cardLine(job, now)}</span>
