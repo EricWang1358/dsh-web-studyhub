@@ -51,14 +51,14 @@ function Binding({ app }) {
           <LibraryUsage root={binding.root} call={call} active={!!data} />
         </div>
         <div className="binding-actions">
-          <Button onClick={chooseRoot} disabled={busy}>{ui('更换目录…')}</Button>
-          {binding.rootSource === 'custom' && <Button disabled={busy} onClick={() => updateBinding({ root: '' })}>{ui('改回当前工作区')}</Button>}
+          <Button onClick={chooseRoot} lock={busy}>{ui('更换目录…')}</Button>
+          {binding.rootSource === 'custom' && <Button lock={busy} onClick={() => updateBinding({ root: '' })}>{ui('改回当前工作区')}</Button>}
         </div>
       </div>
       {rootDraft !== null && (
         <form className="binding-inline" onSubmit={async (event) => { event.preventDefault(); if (await updateBinding({ root: rootDraft })) setRootDraft(null); }}>
           <input autoFocus required aria-label={ui('学习库绝对路径')} value={rootDraft} onChange={(event) => setRootDraft(event.target.value)} />
-          <Button type="submit" variant="primary" disabled={busy}>{ui('使用此目录')}</Button>
+          <Button type="submit" variant="primary" lock={busy}>{ui('使用此目录')}</Button>
           <Button onClick={() => setRootDraft(null)}>{ui('取消')}</Button>
         </form>
       )}
@@ -83,7 +83,7 @@ function Binding({ app }) {
             onChange={(event) => setModelDraft({ ...modelDraft, provider: event.target.value })} />
           <input required aria-label={ui('模型 ID')} placeholder={ui('模型 ID')} value={modelDraft.model}
             onChange={(event) => setModelDraft({ ...modelDraft, model: event.target.value })} />
-          <Button type="submit" variant="primary" disabled={busy}>{ui('使用')}</Button>
+          <Button type="submit" variant="primary" lock={busy}>{ui('使用')}</Button>
           <Button onClick={() => setModelDraft(null)}>{ui('取消')}</Button>
         </form>
       )}
