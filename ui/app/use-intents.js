@@ -60,10 +60,13 @@ export function useIntents({ core, lib, nav, session, learn }) {
     setError('');
     const { page, run } = latest.current, data = refs.dataRef.current;
     if (page === 'review' && run && !run.complete) return;
-    if (data?.lastRun) openRun(data.lastRun.id);
-    else if (data?.decks.length) act('review.start', dailyPathArgs(data.today), session.enterRun);
-    else goGenerate();
-  }, [act, goGenerate, openRun, refs, session.enterRun, setError]);
+    // Asked before a run is opened or started, not when the run arrives.
+    nav.leaving(() => {
+      if (data?.lastRun) openRun(data.lastRun.id);
+      else if (data?.decks.length) act('review.start', dailyPathArgs(data.today), session.enterRun);
+      else goGenerate();
+    });
+  }, [act, goGenerate, nav, openRun, refs, session.enterRun, setError]);
 
   return useMemo(() => ({ genSource, setGenSource, revealHome, setRevealHome, goGenerate, openDeck, practice, startReview, openRun, practiceFromReading,
     startCourseFlow, resumeOrStart }),

@@ -53,7 +53,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   const draftSaved = useCallback(async () => (await latest.current.flushDraft?.()) !== false, []);
 
   /** Local links keep a small trail; ordinary sidebar navigation starts afresh. */
-  const openLearningTarget = useCallback(async (target, { remember = true, throwOnError = false } = {}) => {
+  const openTargetNow = useCallback(async (target, { remember = true, throwOnError = false } = {}) => {
     if (!(await draftSaved())) return;
     const origin = captureContext(), live = guard();
     setError('');
@@ -68,6 +68,12 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       if (live()) { if (throwOnError) throw error; setError(errorMessage(error)); }
     }
   }, [call, captureContext, draftSaved, guard, rememberContext, setError, setModal, setFocusRequest, verbs]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A target that leaves the page asks before anything starts (a course target switches the course while it loads; a card starts a run). A learner who stays: nothing happened, nothing settles.
+  const { leaving } = nav;
+  const openLearningTarget = useCallback((target, options) => new Promise((resolve, reject) => {
+    const go = () => openTargetNow(target, options).then(resolve, reject);
+    if (leavesTrail(target)) leaving(go); else go();
+  }), [leaving, openTargetNow]);
 
   const currentStudyReference = useCallback(() => {
     const { page, run, state } = latest.current;

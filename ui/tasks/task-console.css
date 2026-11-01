@@ -136,7 +136,7 @@
     .tc-dot[data-state='partial'] { background: var(--warn); }
     .tc-dot[data-state='fail'] { background: var(--bad); }
     .tc-dot[data-state='interrupted'] { background: var(--warn); }
-    .tc-dot[data-state='queued'] { background: var(--info); }
+    .tc-dot:is([data-state='queued'], [data-state='held']) { background: var(--info); }
     .tc-num[data-state='run'] { color: var(--accent-text); }
     .tc-num[data-state='done'] { color: var(--ok-ink); }
     .tc-num[data-state='partial'] { color: var(--warn-ink); }

@@ -139,6 +139,21 @@ test('复习全书: the moves are shown before they happen, can always be read a
           await page.locator('[data-book-moves]').getByRole('button', { name: '知道了' }).click();
           await page.locator('[data-book-moves-line]').waitFor({ timeout: 30000 });
           await shot('3-line');
+          // In the editor with unsaved text the undo is not offered: it would take away the file under the words being typed (#489).
+          await page.locator('.book-bar__more').evaluate(element => element.click());
+          await page.getByRole('menuitem', { name: /^编辑这个知识点/ }).click();
+          await page.locator('.book-editor .cm-content').waitFor({ timeout: 30000 });
+          await page.locator('.book-editor .cm-content').click();
+          await page.keyboard.type('Unsaved words.');
+          await page.locator('[data-book-moves-line]').getByRole('button', { name: '查看' }).click();
+          await page.getByRole('dialog').waitFor({ timeout: 30000 });
+          assert.equal(await page.getByRole('dialog').getByRole('button', { name: '撤销这次整理' }).count(), 0, 'no undo over unsaved text');
+          await page.keyboard.press('Escape');
+          await page.getByRole('dialog').waitFor({ state: 'detached', timeout: 30000 });
+          assert.match(await page.locator('.book-editor .cm-content').innerText(), /Unsaved words\./);
+          await page.getByRole('button', { name: '放弃改动' }).click();
+          await page.locator('.book-mode__done').click();
+          await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
           await page.locator('[data-book-moves-line]').getByRole('button', { name: '查看' }).click();
           const dialog = page.getByRole('dialog');
           await dialog.waitFor({ timeout: 30000 });
