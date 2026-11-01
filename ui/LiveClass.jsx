@@ -330,9 +330,9 @@ export default function LiveClass({ call, data, visible, onJobs, onSettings, onS
         node?.scrollIntoView({ block: 'center' }); node?.focus({ preventScroll: true });
       }} onRetry={() => void perform(async () => { client.accept(await call('live.correct.background', { id: session.id })); })} />}
       <footer className="live-footer"><p className="muted">{ui('付费转写估算')} ${session.usage?.estimatedPaidUsd || 0} · {ui('不含翻译费用')}</p>
-        {!active(session) && segments.length > 0 && <div className="live-actions"><Button disabled={disabled || session.translating > 0 || session.correction?.running || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform(async () => {
+        {!active(session) && segments.length > 0 && <div className="live-actions"><Button disabled={disabled || session.translating > 0 || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} lock={session.correction?.running} onClick={() => void perform(async () => {
           await call('live.save', { id: session.id }); toast.success(ui('已保存中英对照资料与课堂笔记（如有）。')); onJobs?.();
-        })}>{ui('保存为资料')}</Button><Button disabled={disabled || session.correction?.running || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform(async () => {
+        })}>{ui('保存为资料')}</Button><Button disabled={disabled || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} lock={session.correction?.running} onClick={() => void perform(async () => {
           await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
         })}>{ui('校对后保存')}</Button><Button variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button></div>}</footer>
     </>}
