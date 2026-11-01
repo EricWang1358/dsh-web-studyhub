@@ -55,6 +55,12 @@ export default memo(function BookChapter({ node, open, onToggle, course, handler
 /** 未归位: the text whose point is gone, and its file's suggestions. */
 export function UnplacedBody({ node, handlers }) {
   return <>
+    {handlers.place && handlers.unplacedSections?.length > 0 && <ul className="book-unplaced" aria-label={ui('放回到知识点')}>
+      {handlers.unplacedSections.map(section => <li key={section.id} className="book-unplaced__section" data-unplaced-section="">
+        <span className="book-unplaced__title">{section.title || ui('开头的文字')}</span>
+        <Button variant="link" size="sm" onClick={() => handlers.place(section)}>{ui('放回…')}</Button>
+      </li>)}
+    </ul>}
     <BookFile text={node.text} hid="unplaced" handlers={handlers} className="book-file book-file--mine" />
     {handlers.files?.[node.file]?.suggestions?.length > 0 && <BookSuggestion meta={handlers.files[node.file]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.file, action, id)} />}
   </>;

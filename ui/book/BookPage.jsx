@@ -85,7 +85,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     if (reading.mode !== 'scroll' || view !== 'read' || !ai.ask || !pageRef.current) return;
     if (!pageRef.current.querySelector(`[data-book-point="${CSS.escape(ai.ask.heading)}"]`)) ai.closeAsk();
   });
-  const handlers = useBookHandlers({ call, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource, ai: ai.actions, foldAi: aiFold.fold });
+  const placeSection = useCallback(section => setStructure({ kind: 'place', section }), []);
+  const handlers = useBookHandlers({ call, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource, ai: ai.actions, foldAi: aiFold.fold, onPlace: placeSection });
   const [tocWide, setTocWide] = usePersistentState(`study-book-toc:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
   const [tocOver, setTocOver] = useState(false), closeToc = useCallback(() => setTocOver(false), []);
   useEffect(() => { setTocOver(false); }, [narrow]);
@@ -193,7 +194,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
       </div>
       {askPanel}
       {dialogs}
-      {structure && <BookStructureDialog kind={structure.kind} book={book} node={structure.node} onRun={handlers.structure} onClose={() => setStructure(null)}
+      {structure && <BookStructureDialog kind={structure.kind} book={book} node={structure.node} section={structure.section} onRun={handlers.structure} onClose={() => setStructure(null)}
+        onPlaced={(hid, next) => { if (!next?.unplaced?.sections?.length) where.goTo(hid); }}
         onDeleted={() => { const next = structure.next; setStructure(null); if (next) where.goTo(next); }} />}
     </section>
   );
