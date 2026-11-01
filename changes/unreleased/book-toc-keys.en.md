@@ -1,0 +1,1 @@
+- **The review book's contents takes one Tab, not hundreds.** Tab stops once in the list; the arrow keys, Home and End walk its rows and Enter goes to the heading. Not verified: with a screen reader.
