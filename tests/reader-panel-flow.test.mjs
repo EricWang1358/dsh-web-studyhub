@@ -25,6 +25,7 @@ const compiled = await build({ stdin: { contents: `
   export { pageHandOffInput } from './ui/document-preview/PageAsk.jsx';
   export { hintClosed, closeHint, forgetClosedHints, READER_HINTS } from './ui/document-preview/reader/hints.js';
   export { askRequest, retryOf, pageDraftKey } from './ui/document-preview/ask-request.js';
+  export { clampRangeEnd, pageKey, pagesLabel, pagesOf, pageScopeOf, pageSelection, pagesText } from './ui/document-preview/page-scope.js';
   export { StudyServicesContext } from './ui/study-context.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
@@ -155,9 +156,60 @@ test('原始 PDF: an empty box, a missing model, a page without text and a cut p
   assert.match(text(blank), /第 3 页没有保存文字（多半是扫描页或图片页）：换一页再问/);
   assert.doesNotMatch(blank, /<textarea/, 'nothing to ask from a page without text');
   const cut = render(React.createElement(lib.LearningPanel, pagePanel({ pageCut: { page: 3, chars: 9000, used: 8000, truncated: true } })));
-  assert.match(text(cut), /回答只读了前 8000 字（共 9000 字）；后面的内容请在「阅读」里选中再问/);
+  assert.match(text(cut), /回答只读了前 8000 字（共 9000 字）。/);
+  assert.match(text(cut), /接着读后面 1000 字/, 'the way on stays in the panel and says how much it sends');
+  assert.doesNotMatch(text(cut), /请在「阅读」里选中/);
+  assert.match(cut, /只发送后面这段文字和同一个问题，前面读过的不再发送/, 'its cost is explained on hover');
+  const later = render(React.createElement(lib.LearningPanel, pagePanel({ pageCut: { page: 3, chars: 20000, used: 8000, offset: 8000, truncated: true } })));
+  assert.match(text(later), /这次读到第 16000 字（共 20000 字）。/);
+  assert.match(text(later), /接着读后面 4000 字/);
+  const done = render(React.createElement(lib.LearningPanel, pagePanel({ pageCut: null })));
+  assert.doesNotMatch(text(done), /接着读/);
   const stale = render(React.createElement(lib.LearningPanel, pagePanel({ question: 'q', resolution: { status: 'stale' } })));
   assert.match(text(stale), /这份资料刚更新过：关掉阅读器再打开，就能接着问这一页/);
+});
+
+test('原始 PDF (#488): the scope of a range: a page without text does not empty it, the selection and the key name both ends, the limit is said', () => {
+  const sources = [1, 2, 3, 4, 5, 6, 7].map(page => ({ id: `p${page}`, text: page === 4 ? '' : `Page ${page}`, document: { page } }));
+  assert.deepEqual(lib.pageScopeOf(sources, 3), { kind: 'page', page: 3, sourceId: 'p3', empty: false }, 'one page reads as before');
+  const range = lib.pageScopeOf(sources, 3, 5);
+  assert.deepEqual(range, { kind: 'page', page: 3, to: 5, sourceId: '', empty: false, emptyPages: [4], chars: 12 });
+  assert.equal(lib.pageScopeOf(sources.map(item => ({ ...item, text: '' })), 3, 5).empty, true);
+  assert.equal(lib.pagesLabel(range), '3–5'); assert.equal(lib.pagesLabel({ page: 3 }), '3');
+  assert.deepEqual(lib.pagesOf(range), [3, 4, 5]); assert.deepEqual(lib.pagesOf({ page: 3 }), [3]);
+  assert.deepEqual(lib.pageSelection({ id: 'doc', revision: 'r' }, range), { documentId: 'doc', revision: 'r', page: 3, to: 5 });
+  assert.notEqual(lib.pageKey(lib.pageSelection({ id: 'doc', revision: 'r' }, range)), lib.pageKey(lib.pageSelection({ id: 'doc', revision: 'r' }, { kind: 'page', page: 3, sourceId: 'p3', empty: false })));
+  assert.equal(lib.pagesText(sources, range), '[page 3]\nPage 3\n\n[page 5]\nPage 5');
+  assert.equal(lib.pagesText(sources, { kind: 'page', page: 3 }), 'Page 3');
+  assert.deepEqual(lib.clampRangeEnd('5', 3, 7), { to: 5, cut: false });
+  assert.deepEqual(lib.clampRangeEnd('50', 3, 100), { to: 7, cut: true }, 'held to the limit, and said');
+  assert.deepEqual(lib.clampRangeEnd('50', 3, 5), { to: 5, cut: false }, 'the end of the file is not a limit worth saying');
+  assert.deepEqual(lib.clampRangeEnd('2', 3, 7), { to: 3, cut: false }, 'before the page: only this page');
+  assert.equal(lib.clampRangeEnd('x', 3, 7), null);
+});
+
+test('原始 PDF (#488): the panel says the range, offers it off the main path, and its presets say these pages', () => {
+  lib.setUiLanguage('zh');
+  const one = render(React.createElement(lib.LearningPanel, pagePanel({ pageTotal: 7, onRange() {} })));
+  assert.match(text(one), /正在问：第 3 页/);
+  assert.match(text(one), /连问后面几页/);
+  assert.doesNotMatch(one, /aria-label="问到第几页"/, 'the box waits for the link: one page stays the main path');
+  const last = render(React.createElement(lib.LearningPanel, pagePanel({ pageTotal: 3, onRange() {} })));
+  assert.doesNotMatch(text(last), /连问后面几页/, 'nothing after the last page');
+  const range = { kind: 'page', page: 3, to: 5, sourceId: '', empty: false, emptyPages: [4], chars: 12000 };
+  const many = render(React.createElement(lib.LearningPanel, pagePanel({ scope: range, pageTotal: 7, onRange() {}, resolution: { status: 'resolved', scope: 'page', selection: { page: 3, to: 5 } } })));
+  assert.match(text(many), /正在问：第 3–5 页/);
+  assert.match(text(many), /只问这一页/);
+  assert.match(text(many), /第 4 页没有保存文字，模型读不到。/);
+  assert.match(text(many), /这几页共 12000 字，一次回答最多读 16000 字。/);
+  assert.match(text(many), /针对这几页提问/);
+  assert.match(text(many), /依据这几页回答/);
+  assert.match(text(many), /讲解这几页/);
+  assert.doesNotMatch(text(many), /讲解这一页/);
+  assert.match(many, /aria-label="问到第几页"/);
+  const blank = render(React.createElement(lib.LearningPanel, pagePanel({ scope: { ...range, empty: true, emptyPages: [3, 4, 5] }, pageTotal: 7, onRange() {}, resolution: null })));
+  assert.match(text(blank), /第 3–5 页没有保存文字/);
+  assert.match(text(blank), /只问这一页/, 'the way back from a range without text');
 });
 
 test('原始 PDF: the page controls step, take a typed number and say the total', () => {
@@ -310,6 +362,10 @@ test('重试 asks the same preset again; a follow-up carries its term and thread
   const node = { id: 'n1', question: '请把这一页按知识点拆开', term: '', intent: 'points', status: 'failed' };
   assert.deepEqual(lib.retryOf(node), { question: '请把这一页按知识点拆开', term: '', intent: 'points' });
   assert.equal(lib.askRequest({ selection: {}, page: true, ...lib.retryOf(node), language: '中文' }).intent, 'points');
+  // #488: 接着读 names where it goes on, and so does its 重试
+  assert.equal(lib.askRequest({ selection: {}, page: true, question: 'q', offset: 8000, language: '中文' }).offset, 8000);
+  assert.equal(lib.askRequest({ selection: {}, page: true, ...lib.retryOf({ question: 'q', offset: 8000 }), language: '中文' }).offset, 8000);
+  assert.equal('offset' in lib.askRequest({ selection: {}, page: true, ...lib.retryOf({ question: 'q' }), language: '中文' }), false);
   assert.deepEqual(lib.retryOf({ question: 'q' }), { question: 'q', term: '', intent: '' });
   const inside = lib.askRequest({ selection: {}, question: 'q', term: 'ELK', context: [{ question: 'a', answer: 'b' }], language: 'English' });
   assert.equal(inside.term, 'ELK'); assert.deepEqual(inside.thread, [{ question: 'a', answer: 'b' }]);

@@ -284,5 +284,15 @@
   "先问：永久删除或归档任何东西之前，先用一句话问我：什么会没有，什么会留下；我说好再动手。": "Ask first: before any permanent delete or archive, ask me in one sentence what goes and what stays, and act only when I say yes.",
   "帮我看懂资料 {0} 的第 {1} 页；这一页的图在这条消息的附件里，你能看图片的话请对照着看。": "Help me understand page {1} of the material {0}; the picture of the page is attached to this message, read it alongside if you can read pictures.",
   "页面：这一页保存的文字在 data 围栏里；图表、画成图片的公式和排版只在附图里，两者不一致时以附图为准。": "Page: the saved text of the page is in the data fence; figures, formulas drawn as pictures and the layout are only in the attached picture; if they disagree, the picture wins.",
-  "页面：这一页没有保存的文字（扫描页或图片页），内容都在附图里；你看不了图片时，直接告诉我。": "Page: the page has no saved text (a scanned or picture page), everything is in the attached picture; if you cannot read pictures, tell me so directly."
+  "页面：这一页没有保存的文字（扫描页或图片页），内容都在附图里；你看不了图片时，直接告诉我。": "Page: the page has no saved text (a scanned or picture page), everything is in the attached picture; if you cannot read pictures, tell me so directly.",
+  "帮我看懂资料 {0} 的第 {1} 页；这几页的图在这条消息的附件里，你能看图片的话请对照着看。": "Help me understand pages {1} of the material {0}; the pictures of the pages are attached to this message, read them alongside if you can read pictures.",
+  "帮我看懂资料 {0} 的第 {1} 页；能看图片的话，这几页的截图我贴在最后。": "Help me understand pages {1} of the material {0}; if you can read pictures, the screenshots of the pages are at the end.",
+  "页面：这几页保存的文字在 data 围栏里，每页以 [page N] 开头；图表、画成图片的公式和排版只在附图里，两者不一致时以附图为准。": "Pages: the saved text of the pages is in the data fence, each page starting with [page N]; figures, formulas drawn as pictures and the layout are only in the attached pictures; if they disagree, the pictures win.",
+  "页面：这几页保存的文字在 data 围栏里，每页以 [page N] 开头；图表、画成图片的公式和排版只在截图里（如果我贴了），两者不一致时以截图为准。": "Pages: the saved text of the pages is in the data fence, each page starting with [page N]; figures, formulas drawn as pictures and the layout are only in the screenshots (if I pasted them); if they disagree, the screenshots win.",
+  "页面：这几页没有保存的文字（扫描页或图片页），内容都在附图里；你看不了图片时，直接告诉我。": "Pages: these pages have no saved text (scanned or picture pages), everything is in the attached pictures; if you cannot read pictures, tell me so directly.",
+  "页面：这几页没有保存的文字（扫描页或图片页）；没有截图、或你看不了图片时，直接告诉我。": "Pages: these pages have no saved text (scanned or picture pages); if there are no screenshots or you cannot read pictures, tell me so directly.",
+  "截断：这几页的文字较长，只附了前 {0} 字（共 {1} 字）。": "Cut: the text of these pages is long, so only the first {0} of {1} characters are attached.",
+  "做法：先用一两句话说这几页讲什么，再回答我的问题；说明每一点来自哪一页；资料里没有的内容要说明是资料以外的。": "How: first say in a sentence or two what these pages are about, then answer my question; say which page each point comes from; mark anything that is not in the material.",
+  "这几页保存的文字": "The saved text of these pages",
+  "这几页的截图（主会话能看图片时，粘贴在这里）：": "Screenshots of the pages (paste them here if this chat takes pictures):"
 }

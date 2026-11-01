@@ -194,6 +194,18 @@ test('reader.page with the page\'s pictures in the box (#488): the message says 
   }
 });
 
+test('reader.page of a range (#488): the pages are named, the text is cut at the cap of a range, and the words say these pages', async () => {
+  const { PAGE_RANGE_EVIDENCE_MAX } = await import('../lib/ask-prompt.js');
+  for (const language of ['zh', 'en']) {
+    const text = ui.handOffText('reader.page', { title: 'Scheduling', page: '3–5', range: true, text: '[page 3]\nThree\n\n[page 5]\nFive', images: [{}] }, language);
+    assert.match(text.split('\n')[0], language === 'zh' ? /第 3–5 页；这几页的图在这条消息的附件里/ : /pages 3–5.*attached to this message/);
+    assert.ok(text.includes('[page 5]'));
+    const long = ui.handOffText('reader.page', { title: 'S', page: '3–5', range: true, text: 'y'.repeat(PAGE_RANGE_EVIDENCE_MAX + 1) }, language);
+    assert.match(long, language === 'zh' ? new RegExp(`只附了前 ${PAGE_RANGE_EVIDENCE_MAX} 字`) : new RegExp(`first ${PAGE_RANGE_EVIDENCE_MAX} of`));
+    assert.match(long, language === 'zh' ? /这几页的截图/ : /Screenshots of the pages/);
+  }
+});
+
 test('reader.page: the page, its saved text (cut at the cap of the built-in answer, and said), the typed question, and the screenshot line at the very end', async () => {
   const { PAGE_EVIDENCE_MAX } = await import('../lib/ask-prompt.js');
   for (const language of ['zh', 'en']) {

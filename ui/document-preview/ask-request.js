@@ -4,14 +4,14 @@
  * its term and the thread above it.
  */
 
-/** { selection, page, question, intent, term, context, language } -> the arguments of materials.selection.ask. */
-export function askRequest({ selection, page = false, question, intent = '', term = '', context = [], language }) {
-  return { selection, ...(page ? { scope: 'page' } : {}), question, ...(intent ? { intent } : {}), language, terms: true,
+/** { selection, page, question, intent, term, context, offset, language } -> the arguments of materials.selection.ask. offset: 接着读, the part of a long page this one goes on from. */
+export function askRequest({ selection, page = false, question, intent = '', term = '', context = [], offset = 0, language }) {
+  return { selection, ...(page ? { scope: 'page' } : {}), ...(offset ? { offset } : {}), question, ...(intent ? { intent } : {}), language, terms: true,
     ...(term ? { term } : {}), ...(context.length ? { thread: context } : {}) };
 }
 
-/** What 重试 of a failed node asks again: its own question, its term and its preset (a preset question retried stays that preset). */
-export const retryOf = node => ({ question: node.question, term: node.term || '', intent: node.intent || '' });
+/** What 重试 of a failed node asks again: its own question, its term, its preset (a preset question retried stays that preset) and the part of the page it read. */
+export const retryOf = node => ({ question: node.question, term: node.term || '', intent: node.intent || '', ...(node.offset ? { offset: node.offset } : {}) });
 
 /** The key a page's unsent question is held under while the reader is open: a question typed on one page never follows to another. */
 export const pageDraftKey = scope => (scope?.kind === 'page' ? `${scope.sourceId || ''}|${scope.page}` : '');
