@@ -23,7 +23,7 @@ export default function FilterBar({ query, labels, onChange, open, onToggle, mat
       <div id={barId} className="board-filter__bar" role="search">
         <label className="board-search">
           <Icon name="search" size={16} />
-          <input type="search" value={query.text || ''} placeholder={ui('搜索待办')} aria-label={ui('搜索待办')} onChange={(event) => set({ text: event.target.value })} />
+          <input className="board-search__input" type="search" value={query.text || ''} placeholder={ui('搜索待办')} aria-label={ui('搜索待办')} onChange={(event) => set({ text: event.target.value })} />
         </label>
         <div className="board-filter__group" role="group" aria-label={ui('按到期筛选')}>
           <Button size="sm" shape="pill" aria-pressed={query.due === 'overdue'} onClick={() => due('overdue')}>{ui('只看逾期')}</Button>
