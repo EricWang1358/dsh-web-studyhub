@@ -165,7 +165,7 @@ export function sourceRowPropsEqual(a, b) {
 
 /* `slot`: the index badge's line is kept from the first paint, so a coverage answer that arrives later fills it instead of making the row taller (#229). */
 const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, indexLink = false, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '' }) {
-  const { busy, call } = useStudy();
+  const { busy } = useStudy();
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
   useEffect(() => () => clearTimeout(opening.current), []);
@@ -256,7 +256,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
       {advice && <Disclosure className="source-doc__advice" meta={ui('大教材建议')} summary={<Tooltip layer content={adviceTip()}>
           <span tabIndex={0}>{uiFormat('这份资料有 {0} 页，建议按章节使用', [pages])}</span></Tooltip>}>
         <LargeDocumentCard reason="long-document" detail={{ name, pages }} document={indexInfo ? { info: indexInfo, courses: item.courses } : undefined}
-          retrieval={retrieval} onOpenSettings={actions.openSettings} call={call} courses={courses} defaultCourse={item.courses?.[0] || defaultCourse} />
+          retrieval={retrieval} onOpenSettings={actions.openSettings} runnable courses={courses} defaultCourse={item.courses?.[0] || defaultCourse} />
       </Disclosure>}
     </article>
   );
@@ -545,8 +545,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
         {!filtered.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
       </>}
       <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} onGenerate={onGenerate} />
-      <PdfConvertJobs data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onGenerate={onGenerate} />
-      <PdfConvertHistory data={data} act={act} call={call} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} collapsible hideWhenEmpty />
+      <PdfConvertJobs data={data} act={act} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onGenerate={onGenerate} />
+      <PdfConvertHistory data={data} act={act} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} collapsible hideWhenEmpty />
       {!items.length ? (
         <section className="sources-empty" data-tour="sources-list">
           <div className="sources-empty__intro">

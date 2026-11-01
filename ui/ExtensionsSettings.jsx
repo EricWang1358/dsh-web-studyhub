@@ -7,6 +7,7 @@ import ExtensionPanel from './ExtensionPanel.jsx';
 import { setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 import { useAsyncAction } from './use-async.js';
 import css from './large-documents.css';
+import { useStudy } from './study-context.jsx';
 
 export { providerLabel };
 
@@ -19,9 +20,10 @@ export { providerLabel };
 const NOTHING = { selected: 'builtin', effective: 'builtin', hostCanSearch: false, providers: [], otherTools: [] };
 const stripTool = value => String(value ?? '').replace(/^mcp:/, '');
 
-/** Props: call(action, args), initialStatus (skips the first read; tests and previews), courses + defaultCourse (the index). */
-export default function ExtensionsSettings({ call, initialStatus = null, courses = [], defaultCourse = '', onStatus, initialPlan, initialRun }) {
+/** Props: initialStatus (skips the first read; tests and previews), courses + defaultCourse (the index). */
+export default function ExtensionsSettings({ initialStatus = null, courses = [], defaultCourse = '', onStatus, initialPlan, initialRun }) {
   const toast = useToast();
+  const { call } = useStudy();
   useInjectCss(css, 'study-large-documents');
   const query = useRetrievalStatus({ call, initialData: initialStatus ?? undefined, enabled: !initialStatus });
   const status = query.data ?? (query.error ? NOTHING : null);
@@ -49,7 +51,7 @@ export default function ExtensionsSettings({ call, initialStatus = null, courses
       <ConverterMain />
       <div className="large-doc__group" data-role="retrieval">
         <h3 className="large-doc__group-title">{ui('检索：只让 AI 看相关页面')}</h3>
-        <ExtensionPanel call={call} status={status} onStatus={accept} courses={courses} defaultCourse={defaultCourse} initialPlan={initialPlan} initialRun={initialRun} />
+        <ExtensionPanel status={status} onStatus={accept} courses={courses} defaultCourse={defaultCourse} initialPlan={initialPlan} initialRun={initialRun} />
       </div>
       <DetectionLine retrieval={current} />
       {/* A provider that is really gone; the search extension whose service did not start says so in its own panel above. */}

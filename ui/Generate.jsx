@@ -224,7 +224,7 @@ export default function Generate({
               {/* A selection too big for one generation: ONE block with the ways on (steps / pages by topic), only the chosen one drawn; with no search tool the old card is a fold under it. */}
               {choice && <TooBigChoice advice={advice} stats={stats} modes={modes} mode={mode} onMode={setChosenMode} disabled={busy}
                 card={advice.tooBig && !retrievalReady(retrieval) ? <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={openLargeDocumentSettings}
-                  call={call} courses={data.focus?.courses} defaultCourse={generationCourse} /> : null}>
+                  runnable courses={data.focus?.courses} defaultCourse={generationCourse} /> : null}>
                 {pathMode && <GenerationPath path={path} disabled={busy || !model.ready || !!referenceState.reason} onSettings={openSettings} onUseStep={narrowToStep} />}
                 {retrievalMode && <RetrievalPanel advice={advice} sourceIds={selectedSources} focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
               </TooBigChoice>}
