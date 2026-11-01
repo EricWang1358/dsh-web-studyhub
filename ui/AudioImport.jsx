@@ -264,7 +264,7 @@ export default function AudioImport({
         : undefined}>{problem}</InlineMessage>}
       {!upload && !gated && <>
         {files.length > 0 && <div className="audio-add" onDragOver={event => event.preventDefault()} onDrop={drop}>
-          <Button size="sm" disabled={busy} onClick={() => picker.current?.click()}>{ui('添加音频')}</Button>
+          <Button size="sm" lock={busy} onClick={() => picker.current?.click()}>{ui('添加音频')}</Button>
           <Hint as="small">{ui('也可把更多音频拖到这里')}</Hint>
         </div>}
         <div className="audio-ways">
@@ -300,18 +300,18 @@ export default function AudioImport({
               {note && <span className={`audio-check audio-check--${note.kind}`} role={note.kind === 'blocked' ? 'alert' : undefined}>
                 <span>{note.text}</span>
                 {note.kind === 'blocked' && <>
-                  {files.length > 1 && <Button size="sm" disabled={busy || starting} onClick={() => skipAndContinue(index)}>{ui('跳过此文件继续')}</Button>}
-                  <Button size="sm" variant="quiet" disabled={busy || starting} onClick={() => replaceFile(index)}>{ui('换一个文件')}</Button>
+                  {files.length > 1 && <Button size="sm" lock={busy || starting} onClick={() => skipAndContinue(index)}>{ui('跳过此文件继续')}</Button>}
+                  <Button size="sm" variant="quiet" lock={busy || starting} onClick={() => replaceFile(index)}>{ui('换一个文件')}</Button>
                   <HandOff id="import.file" input={{ purpose: 'audio', files: [file.path || file.name], error: note.text }} disabled={busy || starting} what={AUDIO_WHAT} />
                 </>}
               </span>}
             </div>
             <div className="audio-order-actions">{files.length > 1 && <>
               <IconButton size="sm" icon={<Icon name="arrow-up" size={16} />} label={uiFormat('上移 {0}', [file.name])}
-                disabled={busy} aria-disabled={busy || index === 0} onClick={() => move(index, index - 1)} />
+                lock={busy} aria-disabled={busy || index === 0} onClick={() => move(index, index - 1)} />
               <IconButton size="sm" icon={<Icon name="arrow-down" size={16} />} label={uiFormat('下移 {0}', [file.name])}
-                disabled={busy} aria-disabled={busy || index === files.length - 1} onClick={() => move(index, index + 1)} />
-            </>}<Button size="sm" variant="quiet" disabled={busy} aria-label={uiFormat('移除 {0}', [file.name])} onClick={() => remove(index)}>{ui(files.length === 1 ? '换一个' : '移除')}</Button></div>
+                lock={busy} aria-disabled={busy || index === files.length - 1} onClick={() => move(index, index + 1)} />
+            </>}<Button size="sm" variant="quiet" lock={busy} aria-label={uiFormat('移除 {0}', [file.name])} onClick={() => remove(index)}>{ui(files.length === 1 ? '换一个' : '移除')}</Button></div>
           </li>;
         })}</ol>
         <AudioMoreSettings values={{ ...more, paidOnly }} defaultPaid={audioSettings?.paidOnlyByDefault === true} course={inDialog ? undefined : course} courses={courses} disabled={busy}
