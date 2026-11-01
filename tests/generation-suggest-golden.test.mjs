@@ -29,9 +29,10 @@ const card = (id, topic) => ({ id, kind: 'flashcard', topic, prompt: `${id}?`, a
 /** A library with materials, a stated exam and weak topics; `answers` are what the light model says in turn (the last one repeats): text, an Error to throw, or a function. */
 async function library(t, { answers, language } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-suggest-golden-'));
-  const calls = [];
-  const light = answers ? async (system, prompt) => {
+  const calls = [], signals = [];
+  const light = answers ? async (system, prompt, options) => {
     calls.push({ system, prompt });
+    signals.push(options?.signal);
     const answer = answers[Math.min(calls.length - 1, answers.length - 1)];
     if (typeof answer === 'function') return answer();
     if (answer instanceof Error) throw answer;
@@ -49,7 +50,7 @@ async function library(t, { answers, language } = {}) {
     for (const [deckId, quiz_id, grade] of [['d1', 'c1', 1], ['d1', 'c2', 2], ['d1', 'c3', 1], ['d1', 'c4', 5], ['d2', 'o1', 1]])
       s.attempts.push({ deckId, quiz_id, assessment: 'self', grade, timestamp: '2026-01-01T00:00:00.000Z' });
   });
-  return { service, calls, ids: [a.id, b.id, 'list'] };
+  return { service, calls, signals, ids: [a.id, b.id, 'list'] };
 }
 const failure = (run) => run.then(() => assert.fail('it should refuse'), (error) => ({ refused: error.message }));
 const GOOD = JSON.stringify({ focus: ['Raft vs Paxos', 'Replication'], coverage: 'standard', difficulty: 'application', kind: 'mixed', why: 'Weak on Raft.' });
@@ -89,14 +90,16 @@ test('generate.suggest: a failing model leaves the local answer and a clipped me
 });
 
 test('generate.suggest: the time limit is one limit over both tries', async (t) => {
-  const { service, calls, ids } = await library(t, { answers: [() => new Promise(() => {})] });
+  const { service, calls, signals, ids } = await library(t, { answers: [() => new Promise(() => {})] });
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const answer = service.call('generate.suggest', { sourceIds: ids, course: 'SWE5001' });
   while (!calls.length) await new Promise((resolve) => setImmediate(resolve));
   t.mock.timers.tick(44_999);
   await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(signals[0].aborted, false);
   t.mock.timers.tick(1);
   pinned('suggest.timeout', { calls: calls.length, output: await answer });
+  assert.equal(signals[0].aborted, true, 'past the limit the call is told to stop: it would otherwise spend tokens nobody reads');
   t.mock.timers.reset();
 });
 
@@ -141,12 +144,13 @@ test('generate.path.suggest: text that is not JSON gets the corrective prompt fi
 });
 
 test('generate.path.suggest: the time limit', async (t) => {
-  const { service, calls } = await library(t, { answers: [() => new Promise(() => {})] });
+  const { service, calls, signals } = await library(t, { answers: [() => new Promise(() => {})] });
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const answer = service.call('generate.path.suggest', { steps: PATH_STEPS });
   while (!calls.length) await new Promise((resolve) => setImmediate(resolve));
   t.mock.timers.tick(45_000);
   pinned('path.timeout', { calls: calls.length, output: await answer });
+  assert.equal(signals[0].aborted, true, 'past the limit the call is told to stop');
   t.mock.timers.reset();
 });
 

@@ -1,6 +1,6 @@
 # The state of a coverage run
 
-The code is `transitionRunState` in `lib/contexts/generation/run-state.js`. This page is the same table in words, plus the glossary. `tests/generation-run-state.test.mjs` checks every row, and that this page names every event and state.
+The code is `transitionRunState` in `lib/contexts/generation/run-state.js`, and the executor that makes its moves is `lib/contexts/generation/generate/execute.js`. This page is the same table in words, plus the glossary. `tests/generation-run-state.test.mjs` checks every row, and that this page names every event and state.
 
 ## Glossary
 
