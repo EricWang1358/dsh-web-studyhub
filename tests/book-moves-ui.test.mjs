@@ -11,6 +11,7 @@ const ui = await loadUi(`
   export { default as BookMoves, MovesList, MovesReview, rememberMovesSeen } from './ui/book/BookMoves.jsx';
   export { default as BookRebuildPreview } from './ui/book/BookRebuildPreview.jsx';
   export { rebuildFailureText } from './ui/book/use-book-rebuild.js';
+  export { qaAddFailureText } from './ui/book/BookQaButton.jsx';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement;
 const draw = (moves, props = {}) => renderToStaticMarkup(h(ui.BookMoves, { course: 'SA', moves, ...props }));
@@ -44,7 +45,7 @@ test('a move can always be reviewed: every stored row is drawn (no short cut), w
   assert.match(whole, /Body 635/);
   assert.doesNotMatch(whole, /还有|这里列出/);
   assert.match(list({ at: 'z', total: 250, list: rows.slice(0, 200), held: 0 }), /这里列出 200 个，一共 250 个/);
-  const old = list({ at: 'o', list: [{ from: 'A', to: 'B', folded: true, share: 0.33 }], held: 1, heldList: [{ from: 'C', closest: 'D', share: 0.1, first: 'Note on C' }], gone: 1, goneList: [{ from: 'E', first: 'Note on E' }] });
+  const old = list({ at: 'o', revisionAfter: 3, list: [{ from: 'A', to: 'B', folded: true, share: 0.33 }], held: 1, heldList: [{ from: 'C', closest: 'D', share: 0.1, first: 'Note on C' }], gone: 1, goneList: [{ from: 'E', first: 'Note on E' }] });
   assert.match(old, /「A」并入「B」/);
   assert.match(old, /33%/);
   assert.match(old, /还没有正文/);
@@ -52,6 +53,21 @@ test('a move can always be reviewed: every stored row is drawn (no short cut), w
   assert.match(old, /Note on C/);
   assert.match(old, /「E」/);
   assert.match(old, /Note on E/);
+});
+
+test('a record from before first lines existed does not say a body is missing: that would read like lost text', () => {
+  const old = list({ at: 'o', list: [{ from: 'A', to: 'B', folded: false }], total: 1, held: 1, heldList: [{ from: 'C', closest: 'D', share: 0.1 }] });
+  assert.doesNotMatch(old, /还没有正文/);
+  assert.match(old, /「A」→「B」/);
+});
+
+test('a Q&A add refused while a rebuild waits says so in plain words: the op\'s name is for the main chat', () => {
+  const refused = { code: 'course-book-rebuild-pending', message: '… course.book.rebuild {action, outlineId} …' };
+  assert.match(ui.qaAddFailureText(refused), /打开复习全书/);
+  assert.doesNotMatch(ui.qaAddFailureText(refused), /course\.book|outlineId/);
+  assert.equal(ui.qaAddFailureText({ message: 'Other failure' }), 'Other failure');
+  ui.setUiLanguage('en');
+  try { assert.match(ui.qaAddFailureText(refused), /review book/); } finally { ui.setUiLanguage('zh'); }
 });
 
 test('知道了 folds the notice to one line that stays, with the way to the list', () => {

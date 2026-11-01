@@ -19,6 +19,17 @@ import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
 const moved = 'The first line of my own note on architects';
 
+/** The outline `id`, archived by an undo, made current again from outside the page, as a finished build would. */
+async function rebuildAgain(running, id) {
+  const service = new StudyService(join(running.base, 'library'));
+  await service.store.update(state => {
+    currentCourseOutline(state.sources, COURSE).archived = true;
+    const made = state.sources.find(source => source.id === id);
+    made.archived = false;
+  });
+  await service.dispose();
+}
+
 async function seed(root) {
   await mkdir(root, { recursive: true });
   const service = new StudyService(root);
@@ -52,6 +63,47 @@ async function seed(root) {
   });
   await service.dispose();
 }
+
+test('a save that lands in a pending rebuild: the preview shows, and applying it leads to reading, not back into the editor', { timeout: 600000 }, async t => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-book-rebuild-edit-dist-'));
+  await buildPreview({ outdir: dist });
+  const running = await startLateServer({ distDir: dist, seed });
+  try {
+    const { page, errors, context } = await openPage(browser, running, { width: 1280, height: 900 });
+    try {
+      // Book as it was: the rebuild of the seed taken back, so the page opens the book itself.
+      await running.api('focus.set', { course: COURSE });
+      const preview = await running.api('course.book.open', {});
+      await running.api('course.book.rebuild', { action: 'undo', outlineId: preview.moves.outlineId });
+      await page.goto(running.server.url);
+      await page.locator('[data-tour="nav-book"]').first().click({ timeout: 30000 });
+      await page.locator('.book-bar').waitFor({ timeout: 30000 });
+      await page.locator('.book-bar__more').click();
+      await page.getByRole('menuitem', { name: '编辑这个知识点…' }).click();
+      await page.locator('.book-editor').waitFor({ timeout: 30000 });
+      // The outline made again meanwhile: the rebuilt one, saved again, is current again (sources.ingest), while the editor stays open.
+      const rebuiltId = preview.moves.outlineId;
+      await rebuildAgain(running, rebuiltId);
+      await page.locator('.book-editor .cm-content').click();
+      await page.keyboard.type('Typed while it was rebuilt. ');
+      await page.locator('.book-editor__save').click();
+      await page.locator('[data-book-rebuild-preview]').waitFor({ timeout: 30000 });
+      await page.getByRole('button', { name: '按这样放' }).click();
+      await page.locator('.book-bar').waitFor({ timeout: 30000 });
+      assert.equal(await page.locator('.book-editor').count(), 0, 'reading, not the editor');
+      assert.equal(await page.locator('[data-book-rebuild-preview]').count(), 0);
+      const book = await running.api('course.book.open', {});
+      assert.match(JSON.stringify(book.nodes), /Typed while it was rebuilt\./);
+      assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+  } finally {
+    await running.close();
+    await browser.close();
+    await rm(dist, { recursive: true, force: true });
+  }
+});
 
 test('复习全书: the moves are shown before they happen, can always be read again, and one rebuild can be undone (1280 and 420 px)', { timeout: 600000 }, async t => {
   let browser;

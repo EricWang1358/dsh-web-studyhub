@@ -3,7 +3,7 @@ import { ui } from '../i18n.js';
 import { Button, ConfirmDialog, Tooltip } from '../components/index.js';
 import { MovesList } from './BookMoves.jsx';
 
-/* The book page after the 总纲 was organised again, when that would move or park the learner's own text (course.book.open `holdRebuild`, #461): nothing has moved yet.
+/* The book page after the 总纲 was organised again, when that would move or park the learner's own text (course.book.open answers `rebuild-pending`, #461): nothing has moved yet.
    The moves are only known once the new outline exists, so this is where they can be looked at first: old title -> new title and the first line of the body under it, what
    would wait in 未归位. 按这样放 is the one main button (撤销这次整理 can still take them back); 放弃这次整理 puts the outline before it back. */
 

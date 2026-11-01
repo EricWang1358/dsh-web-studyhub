@@ -97,6 +97,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const back = useCallback(() => { setLeaving(null); setDirty(false); setView('read'); }, []);
   // The editor and 翻看 take the page's place; 完成 · 回到阅读 comes back to the heading being read where it was on screen (held until it is drawn again).
   const openView = useCallback(next => { place.current?.hold(); setView(next); }, []);
+  // A save that lands in a pending rebuild (#461): the editor is done, so a later read is not dropped as "an editor is open", and applying leads to reading.
+  useEffect(() => { if (book?.status === 'rebuild-pending' && view === 'edit') back(); }, [book?.status, view, back]);
   const courseName = course === '' ? ui('未分类课程') : course || '';
   const courseRecord = (data?.courses || []).find(item => item.name === course);
   const dateHint = book?.status === 'ok' && book.notes ? crunchDateHint(courseRecord?.exam, crunchWindow(data?.settings?.book)) : null;

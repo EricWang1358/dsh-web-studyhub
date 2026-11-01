@@ -18,26 +18,27 @@ export const movesSeenAt = course => readText(keyOf(course), null);
 export const rememberMovesSeen = (course, at) => writeText(keyOf(course), at);
 
 const counts = moves => { const list = moves?.list || []; return { list, total: Math.max(moves?.total ?? 0, list.length), held: moves?.held || 0, gone: moves?.gone || 0 }; };
-const FirstLine = ({ text }) => <span className="book-moves__first">{text || ui('（还没有正文）')}</span>;
+// A record from before first lines were kept (no `revisionAfter`) has none to show: saying 还没有正文 there would read like lost text.
+const FirstLine = ({ text, known }) => (text || known ? <span className="book-moves__first">{text || ui('（还没有正文）')}</span> : null);
 
 /** Every point of `moves` that was stored: what moved, then what waits in 未归位 (held: no new point holds enough of its pages; gone: none holds any). */
 export function MovesList({ moves }) {
-  const { list, total, held, gone } = counts(moves);
+  const { list, total, held, gone } = counts(moves), known = moves?.revisionAfter !== undefined;
   return (
     <div className="book-moves">
       {list.length > 0 && <ul className="book-moves__list">{list.map((move, at) => <li key={at} data-book-move="">
         <span className="book-moves__titles">{uiFormat(move.folded ? '「{0}」并入「{1}」' : '「{0}」→「{1}」', [move.from, move.to])}
           {move.share !== undefined && <span className="book-moves__share"> {uiFormat('占原知识点 {0}% 的页', [Math.round(move.share * 100)])}</span>}</span>
-        <FirstLine text={move.first} /></li>)}</ul>}
+        <FirstLine text={move.first} known={known} /></li>)}</ul>}
       {total > list.length && <p className="book-moves__note">{uiFormat('这里列出 {0} 个，一共 {1} 个', [list.length, total])}</p>}
       {held > 0 && <p className="book-moves__note" data-book-held="">{uiFormat('{0} 个知识点的笔记对不上新的知识点，放在「未归位」里', [held])}</p>}
       {(moves?.heldList || []).length > 0 && <ul className="book-moves__list">{moves.heldList.map((item, at) => <li key={at}>
         <span className="book-moves__titles">{uiFormat('「{0}」最接近「{1}」', [item.from, item.closest])}
           {item.share !== undefined && <span className="book-moves__share"> {uiFormat('只有 {0}% 的页在那里', [Math.round(item.share * 100)])}</span>}</span>
-        <FirstLine text={item.first} /></li>)}</ul>}
+        <FirstLine text={item.first} known={known} /></li>)}</ul>}
       {gone > 0 && <p className="book-moves__note">{uiFormat('{0} 个知识点在新总纲里没有了，笔记放在「未归位」里', [gone])}</p>}
       {(moves?.goneList || []).length > 0 && <ul className="book-moves__list">{moves.goneList.map((item, at) => <li key={at}>
-        <span className="book-moves__titles">{uiFormat('「{0}」', [item.from])}</span><FirstLine text={item.first} /></li>)}</ul>}
+        <span className="book-moves__titles">{uiFormat('「{0}」', [item.from])}</span><FirstLine text={item.first} known={known} /></li>)}</ul>}
     </div>
   );
 }

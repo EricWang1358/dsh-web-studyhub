@@ -27,7 +27,7 @@ import { WrongAnswerSource } from "../document-preview/practice/ReadingReturn.js
 import { NextDue } from "../NextDue.jsx";
 import { formatGap } from "../format.js";
 import { resolveBookSettings } from "../../lib/book-settings.js";
-import { useBookQa } from "../book/BookQaButton.jsx";
+import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
@@ -110,7 +110,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     qaSeen.current = seen.state;
     for (const id of autoAddPlan({ mode: qaToBook, withBook: book.ready && book.courses.has(bookCourse), fresh: seen.fresh, tried: qaTried.current, added: book.ids })) {
       qaTried.current.add(id);
-      book.add({ deckId: run.deckId, cardId: run.card.id, followupId: id }).catch((failure) => setBookNote(failure?.message || ui("没能加入复习全书，可以点「加入复习全书」再试。")));
+      book.add({ deckId: run.deckId, cardId: run.card.id, followupId: id }).catch((failure) => setBookNote(failure?.code === 'course-book-rebuild-pending' ? qaAddFailureText(failure) : failure?.message || ui("没能加入复习全书，可以点「加入复习全书」再试。")));
     }
   }, [followupKey, run.id, run.index, !!run.solution]); // eslint-disable-line react-hooks/exhaustive-deps -- keyed on the question and its Q&A ids
   const multiple = run.card?.multiple || run.card?.kind === "multi";
