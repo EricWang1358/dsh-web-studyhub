@@ -242,6 +242,19 @@ test('a continuation of a coverage run has the limit of the run: a selection abo
   await settleJob(service, reply.jobId);
 });
 
+test('the job card prices a press above the limit of a plain run the same as the form did', async t => {
+  const service = await open(t, () => clusteringModel({ readsExisting: true }).complete);
+  await closedShort(service, 13);
+  const ids = ['big0', 'big1', 'big2', 'big3'];
+  for (const id of ids) await service.call('source.add', { id, title: id, text: 'Filler paragraph about the topic that a learner would have in a long book.\n\n'.repeat(7663) });
+  const draft = await draftOf(service), saved = await save(service, draft, { generation: { ...draft.editorial.generation, sourceIds: [...draft.editorial.generation.sourceIds, ...ids] } });
+  const form = await service.call('usage.estimate', { feature: 'generate', resumeDraftId: saved.id, draftVersion: saved.draftVersion });
+  const reply = await press(service, saved);
+  const { estimate } = (await service.call('snapshot')).jobs.find(job => job.id === reply.jobId || job.contract?.jobId === reply.jobId);
+  assert.ok(Math.abs(estimate.totalTokens.high - form.totalTokens.high) < form.totalTokens.high * 0.05, `form ${form.totalTokens.high}, job ${estimate.totalTokens.high}`);
+  await settleJob(service, reply.jobId);
+});
+
 test('a plain run keeps the limit of a plain run', async t => {
   const service = await open(t, () => clusteringModel({ readsExisting: true }).complete);
   await settleJob(service, (await start(service, { coverageLevel: undefined, count: 2, title: 'Plain' })).jobId);
