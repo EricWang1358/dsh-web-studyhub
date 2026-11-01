@@ -455,5 +455,11 @@
   "想调整这份计划：": "Want to change this plan:",
   "让主会话和你一起定备考计划；你同意之后才会存。": "Ask the main chat to draft the study plan with you; it is saved only after you agree.",
   "让主会话和你一起看这份计划要不要改；你同意之后才会存。": "Ask the main chat to go over this plan with you and see whether it needs changing; it is saved only after you agree.",
-  "正在打开编辑器…": "Opening the editor…"
+  "正在打开编辑器…": "Opening the editor…",
+  "在书里找": "Find in the book",
+  "{0} 个知识点里有": "In {0} points",
+  "这里列出前 {0} 个": "the first {0} listed",
+  "{0} 处": "{0} places",
+  "收起这一章": "Fold this chapter",
+  "展开这一章": "Open this chapter"
 }

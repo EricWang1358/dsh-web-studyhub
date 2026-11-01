@@ -65,6 +65,49 @@
       font-size: var(--fs-xs);
       line-height: var(--lh-snug);
     }
+    /* 在书里找: the box over the list, and what it found in the list's place. The words are marked on the page with the reader's highlight (ui/book/use-found-marks.js). */
+    .book-toc__search {
+      min-width: 0;
+      padding: 0 var(--space-half);
+    }
+    .book-toc__input {
+      width: 100%;
+    }
+    .book-toc__found {
+      margin: 0;
+      padding: 0 var(--space-2);
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+    }
+    .book-toc__hit {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-half);
+    }
+    .book-toc__hit-title {
+      color: var(--text);
+    }
+    .book-toc__hit-text {
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-weight: normal;
+      line-height: var(--lh-snug);
+    }
+    .book-toc__hit-text mark {
+      background-color: var(--warn-mark);
+      color: inherit;
+    }
+    ::highlight(study-find) { background-color: var(--warn-mark); color: inherit; }
+    ::highlight(study-find-current) { background-color: var(--warn-solid); color: inherit; }
+    /* A big book's chapter opens from its caret: pointing right when shut, down when open. */
+    .book-toc__fold {
+      flex: 0 0 auto;
+      align-self: flex-start;
+      color: var(--text-muted);
+    }
+    .book-toc__fold[data-open] svg {
+      transform: rotate(90deg);
+    }
     .book-toc__list {
       display: grid;
       gap: var(--space-half);
