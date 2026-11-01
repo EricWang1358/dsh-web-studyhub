@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { uiFormat, errorMessage } from '../../i18n.js';
 import PagePeekView from './PagePeekView.jsx';
 import { createPeekRenderer } from './renderer.js';
+
+export { createPeekRenderer };
 import { LruCache, MAX_CACHED_PAGES, clampTo, createRenderGate, moveBox, pdfPageFor, peekCanvasSize, peekPlan, resizeBox, stepZoom } from './peek-logic.js';
 
 const bitmapKey = (pdfPage, quality, scale) => quality === 'low' ? `${pdfPage}:low` : `${pdfPage}:s${Math.round(scale * 100)}`;

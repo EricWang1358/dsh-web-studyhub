@@ -27,6 +27,7 @@ import { useBookData } from './use-book-data.js';
 import { useBookPlace } from './use-book-place.js';
 import { useBookAi } from './use-book-ai.js';
 import { useBookRebuild } from './use-book-rebuild.js';
+import { useFoundMarks } from './use-found-marks.js';
 import BookRebuildPreview from './BookRebuildPreview.jsx';
 import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCoursePlan } from './use-book-actions.js';
 import { useMoreActions } from './more-actions.js';
@@ -90,6 +91,13 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const [tocOver, setTocOver] = useState(false), closeToc = useCallback(() => setTocOver(false), []);
   useEffect(() => { setTocOver(false); }, [narrow]);
   const tocOpen = narrow ? tocOver : tocWide;
+  // 在书里找 (the 目录's box, ui/book/book-search.js): what is typed stays while a narrow 目录 is closed; `found` is the point a row went to, its words marked while it is drawn.
+  const [findQuery, setFindQuery] = useState(''), [found, setFound] = useState(null);
+  const dropFound = useCallback(() => setFound(null), []);
+  const onFindQuery = useCallback(text => { setFindQuery(text); if (!text.trim()) setFound(null); }, []);
+  const { goTo } = where;
+  const onFound = useCallback((row, query) => { goTo(row.hid); setFound({ hid: row.hid, query, count: row.count, nonce: Date.now() }); }, [goTo]);
+  useFoundMarks({ found, drawn: `${view}:${reading.mode}:${where.stepAt}:${book?.revision}`, pageRef, aiFold, onGone: dropFound });
   useStepKeys(view === 'read' && !tocOver && book?.status === 'ok' && !!book.notes, where.go);
   // Leaving the editor with unsaved text asks first: the 完成 button and another course here, every other way out of the page through the app's one leave gate
   // (holdLeave, ui/app/navigator.js createLeaveGate), closing or reloading the tab through the browser's own question.
@@ -175,7 +183,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
         onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={(point, on) => plan.mark(point.id, 'read', on)}
         onFlip={() => openView('flip')} onMockStarted={onExamRun} />}
       <div className={tocOpen && !narrow ? 'book-layout book-layout--toc' : 'book-layout'}>
-        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} />}
+        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} book={book} query={findQuery} onQuery={onFindQuery} onFound={onFound} />}
         <ReadingBlock className="book-read" measure>
           <AiFoldContext.Provider value={aiFold}><BookAiContext.Provider value={ai.lines}><BookReadContext.Provider value={reading}>
             {reading.mode === 'step' ? <BookStep steps={steps} at={where.stepAt} onGo={index => where.go(index - where.stepAt)} course={course} handlers={handlers} />

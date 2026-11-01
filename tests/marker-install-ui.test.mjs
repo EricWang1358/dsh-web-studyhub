@@ -140,14 +140,14 @@ function find(tree, predicate) {
 // Keep state and effects across renders, so the component's effects and handlers run as in the app (no DOM needed).
 async function mount(props) {
   const states = [], refs = [], deps = [], cleanups = [];
-  let stateAt = 0, refAt = 0, effectAt = 0, pending = [];
-  const hooks = { ...React, useId: () => 'mounted', useContext: () => null,
+  let stateAt = 0, refAt = 0, effectAt = 0, pending = [], services = props;
+  const hooks = { ...React, useId: () => 'mounted', useContext: () => services, // the app's services (useStudy): the harness's props carry `call`
     useState: initial => { const index = stateAt++; if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial; return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value; }]; },
     useRef: initial => refs[refAt++] ||= { current: initial }, useMemo: read => read(), useCallback: fn => fn,
     useInsertionEffect: () => {}, useEffect: (effect, dependencies) => { const index = effectAt++;
       if (!deps[index] || !dependencies || dependencies.some((value, position) => value !== deps[index][position])) { deps[index] = dependencies; pending.push(() => { cleanups[index]?.(); cleanups[index] = effect(); }); } } };
   const { MarkerInstall: Hooked } = await loadHooked(hooks);
-  return { render(next = props) { stateAt = 0; refAt = 0; effectAt = 0; pending = []; const tree = Hooked(next); pending.forEach(run => run()); return tree; }, close() { cleanups.forEach(cleanup => cleanup?.()); }, states };
+  return { render(next = props) { services = next; stateAt = 0; refAt = 0; effectAt = 0; pending = []; const tree = Hooked(next); pending.forEach(run => run()); return tree; }, close() { cleanups.forEach(cleanup => cleanup?.()); }, states };
 }
 async function loadHooked(hooks) {
   const { build } = await import('esbuild');

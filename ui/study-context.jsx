@@ -10,7 +10,9 @@ import { createContext, useContext } from 'react';
      host                 what the host offers (openAgent, pickDirectory, openInSidebar ...)
      openSettings(section)   open Settings, optionally scrolled to a section
      navigate(page, options) the app's single navigation; openModal(modal) opens one of the app dialogs
-   Pages owned by other work packages keep their props this wave and can adopt the context when they are next touched. */
+   A part of a page reads them itself rather than being handed them. A prop stays only where it carries a different value: a busy that is the part's own
+   (an exam run, a save in flight, the tour's sample) or an `act` whose presence picks the route (PdfConvertJobs/PdfConvertHistory). The ratchet
+   serviceHandoff (tests/fixtures/ui-guardrail-baseline.json) keeps count. */
 export const STUDY_SERVICE_NAMES = Object.freeze(['call', 'act', 'busy', 'notify', 'askInChat', 'host', 'openSettings', 'navigate', 'openModal']);
 
 const nothing = () => {};

@@ -48,7 +48,7 @@ function Binding({ app }) {
           <span className="binding-label">{ui('学习库')}</span>
           <code className="binding-value" title={binding.root}>{binding.root || '—'}</code>
           <small>{uiFormat('{0} · {1}', [where, ui('资料、题库与复习记录保存在这里')])}</small>
-          <LibraryUsage root={binding.root} call={call} active={!!data} />
+          <LibraryUsage root={binding.root} active={!!data} />
         </div>
         <div className="binding-actions">
           <Button onClick={chooseRoot} disabled={busy}>{ui('更换目录…')}</Button>
@@ -57,7 +57,7 @@ function Binding({ app }) {
       </div>
       {rootDraft !== null && (
         <form className="binding-inline" onSubmit={async (event) => { event.preventDefault(); if (await updateBinding({ root: rootDraft })) setRootDraft(null); }}>
-          <input autoFocus required aria-label={ui('学习库绝对路径')} value={rootDraft} onChange={(event) => setRootDraft(event.target.value)} />
+          <input className="binding-inline__input" autoFocus required aria-label={ui('学习库绝对路径')} value={rootDraft} onChange={(event) => setRootDraft(event.target.value)} />
           <Button type="submit" variant="primary" disabled={busy}>{ui('使用此目录')}</Button>
           <Button onClick={() => setRootDraft(null)}>{ui('取消')}</Button>
         </form>
@@ -79,15 +79,15 @@ function Binding({ app }) {
       </div>
       {modelDraft && (
         <form className="binding-inline" onSubmit={async (event) => { event.preventDefault(); if (await updateBinding(modelDraft)) setModelDraft(null); }}>
-          <input autoFocus required aria-label="Provider" placeholder="Provider" value={modelDraft.provider}
+          <input className="binding-inline__input" autoFocus required aria-label="Provider" placeholder="Provider" value={modelDraft.provider}
             onChange={(event) => setModelDraft({ ...modelDraft, provider: event.target.value })} />
-          <input required aria-label={ui('模型 ID')} placeholder={ui('模型 ID')} value={modelDraft.model}
+          <input className="binding-inline__input" required aria-label={ui('模型 ID')} placeholder={ui('模型 ID')} value={modelDraft.model}
             onChange={(event) => setModelDraft({ ...modelDraft, model: event.target.value })} />
           <Button type="submit" variant="primary" disabled={busy}>{ui('使用')}</Button>
           <Button onClick={() => setModelDraft(null)}>{ui('取消')}</Button>
         </form>
       )}
-      <ReasoningEffortField binding={binding} busy={busy} refreshKey={JSON.stringify(followedModel || null)}
+      <ReasoningEffortField binding={binding} refreshKey={JSON.stringify(followedModel || null)}
         onChange={(reasoningEffort) => updateBinding({ reasoningEffort })}
         onRefresh={() => call('binding.get').then(setBinding, () => {})} />
     </div>

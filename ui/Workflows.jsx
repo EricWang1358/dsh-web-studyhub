@@ -35,7 +35,8 @@ function BranchSelect({ label, value, onChange, steps }) {
     ...steps.map((step, index) => ({ value: step.id, label: `${index + 1}. ${step.title || ui("未命名步骤")}` }))]} /></label>;
 }
 
-export function FlowEditor({ initial, components, latest, storageKey, draftName, call, onSaved, onBack }) {
+export function FlowEditor({ initial, components, latest, storageKey, draftName, onSaved, onBack }) {
+  const { call } = useStudy();
   const keyFor = (value) => `${storageKey}:${value.id || draftName}`;
   const [draft, setDraft] = useState(() => {
     const restored = readDraft(keyFor(initial));
@@ -160,7 +161,8 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
   </section>;
 }
 
-export function StartFlow({ template, listing, call, onRefresh, onStarted, onBack }) {
+export function StartFlow({ template, listing, onRefresh, onStarted, onBack }) {
+  const { call } = useStudy();
   const [topic, setTopic] = useState("");
   const [selected, setSelected] = useState(new Set());
   const [skeletonId, setSkeletonId] = useState("");
@@ -279,8 +281,8 @@ export default function Workflows({ data, openSession, openRun, initialListing =
   const unfinished = sessions.filter((s) => s.status !== "completed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   if (screen.kind === "portal") return <>{renderRelated?.(screen.id)}<WorkflowPortal key={screen.id} id={screen.id} libraryKey={root} onOpenRun={openRun} onOpenSession={(sessionId) => setScreen({ kind: "portal", id: sessionId })} onBack={back} revision={data?.revision} /></>;
   if (!listing) return <section className="page workflow-page"><PageHeader title={ui("学习流")} />{error ? <ErrorState error={error} onRetry={refresh} retryLabel={ui("重新读取")} /> : <LoadingState label={ui("正在读取学习流…")} />}</section>;
-  if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} call={call} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
-  if (screen.kind === "start") return <section className="page workflow-page"><StartFlow template={screen.template} listing={listing} call={call} onRefresh={refresh} onStarted={(s) => setScreen({ kind: "portal", id: s.id })} onBack={back} /></section>;
+  if (screen.kind === "edit") return <section className="page workflow-page"><FlowEditor key={screen.key} initial={screen.template} components={listing.components} latest={listing.templates.find((t) => t.id === screen.template.id)} storageKey={`study-workflow-draft:${root}`} draftName={screen.key} onSaved={(template, forChat) => { setScreen((prev) => forChat ? { ...prev, template } : { kind: "list" }); setListing((prev) => ({ ...prev, templates: prev.templates.some((t) => t.id === template.id) ? prev.templates.map((t) => t.id === template.id ? template : t) : [...prev.templates, template] })); void refresh(); }} onBack={back} /></section>;
+  if (screen.kind === "start") return <section className="page workflow-page"><StartFlow template={screen.template} listing={listing} onRefresh={refresh} onStarted={(s) => setScreen({ kind: "portal", id: s.id })} onBack={back} /></section>;
   return <section className="page workflow-page">
     <PageHeader title={ui("今天想学什么？")} description={ui("说一句就行。AI 从你的学习库里挑材料、排顺序、讲给你听，再看你的复述；你只管往下走。")} />
     <form className="wf-quick" onSubmit={quickStart} data-tour="workflows-main">

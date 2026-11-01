@@ -22,8 +22,10 @@ const components = load(React);
 const changes = [];
 const events = load({ ...React, useState: initial => [typeof initial === 'function' ? initial() : initial, value => changes.push(value)],
   useInsertionEffect: () => {}, useEffect: () => {}, useId: () => 'pdf', useMemo: read => read(), useRef: initial => ({ current: initial }),
-  // The shared host-query store (ui/host-query.js) reads through these: no services, and the store's current answer.
-  useContext: () => null, useSyncExternalStore: (_subscribe, snapshot) => snapshot() });
+  // The page reads `call` from the app's services (useStudy), and the shared host-query store (ui/host-query.js) reads the store's current answer.
+  useContext: () => globalThis.__services ?? null, useSyncExternalStore: (_subscribe, snapshot) => snapshot() });
+// Calls the page like the app does, with the harness's props standing in for the app's services.
+const pageOf = props => { globalThis.__services = props; try { return events.PdfConversion(props); } finally { globalThis.__services = null; } };
 function find(tree, predicate) {
   if (Array.isArray(tree)) return tree.map(item => find(item, predicate)).find(Boolean);
   if (!React.isValidElement(tree)) return undefined;
@@ -56,7 +58,7 @@ test('import portal folds the converters into one entry, offers the peer tools o
 
 test('Marker starts from original PDF with course routing, without cloud acknowledgement or manual results', async () => {
   const calls = [], starts = [], file = { name: 'Lecture.pdf', size: 1000 }, plan = { pages: 5, bytes: 1000 };
-  const tree = events.PdfConversion({ file, initialPlan: plan, initialConverter: 'marker', initialMarker: { state: 'ready' }, initialLocal: { state: 'ready' },
+  const tree = pageOf({ file, initialPlan: plan, initialConverter: 'marker', initialMarker: { state: 'ready' }, initialLocal: { state: 'ready' },
     courses: ['Mechanics'], call: async (action, args) => { calls.push({ action, args }); return { jobId: 'marker-job' }; }, onStarted: job => starts.push(job) });
   await find(tree, item => item.props.children === '用 Marker 开始解析').props.onClick();
   assert.deepEqual(calls.map(item => item.action), ['marker.import']);
@@ -68,7 +70,7 @@ test('Marker starts from original PDF with course routing, without cloud acknowl
 
 test('Marker setup is a settings jump rather than installation instructions inside import', () => {
   let anchor;
-  const tree = events.PdfConversion({ file: { name: 'Lecture.pdf', size: 1000 }, initialPlan: { pages: 5, bytes: 1000 }, initialConverter: 'marker', initialMarker: { state: 'not-installed' },
+  const tree = pageOf({ file: { name: 'Lecture.pdf', size: 1000 }, initialPlan: { pages: 5, bytes: 1000 }, initialConverter: 'marker', initialMarker: { state: 'not-installed' },
     initialLocal: { state: 'ready' }, onOpenSettings: value => { anchor = value; } });
   find(tree, item => item.props.children === '前往设置').props.onClick();
   assert.equal(anchor, 'settings-marker');
@@ -99,8 +101,9 @@ test('script download contains the generated local script and releases the objec
 // Keep state and effect dependencies across renders to exercise the shared upload ownership.
 function mountPdf(props, component = 'PdfConversion') {
   const states = [], refs = [], effectDependencies = [], cleanups = [];
-  let stateCursor = 0, refCursor = 0, effectCursor = 0, pending = [];
-  const mounted = load({ ...React, useId: () => 'mounted-pdf', useContext: () => null, useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
+  let stateCursor = 0, refCursor = 0, effectCursor = 0, pending = [], services = props;
+  // The pages read `call` from the app's services (useStudy): the harness's props stand in for them.
+  const mounted = load({ ...React, useId: () => 'mounted-pdf', useContext: () => services, useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
     useState: initial => { const index = stateCursor++; if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial; return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value; }]; },
     useRef: initial => refs[refCursor++] ||= { current: initial },
     useInsertionEffect: () => {}, useEffect: (effect, dependencies) => { const index = effectCursor++; if (dependencies?.some(item => typeof item === 'string' && item.includes('{'))) return;
@@ -109,7 +112,7 @@ function mountPdf(props, component = 'PdfConversion') {
       }
     } });
   return {
-    render(next = props) { stateCursor = 0; refCursor = 0; effectCursor = 0; pending = []; const tree = mounted[component](next); pending.forEach(effect => effect()); return tree; },
+    render(next = props) { services = next; stateCursor = 0; refCursor = 0; effectCursor = 0; pending = []; const tree = mounted[component](next); pending.forEach(effect => effect()); return tree; },
     close() { cleanups.forEach(cleanup => cleanup?.()); }, states,
   };
 }

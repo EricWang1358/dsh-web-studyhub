@@ -40,15 +40,15 @@
       gap: var(--space-3);
       margin: 0;
     }
-    .generate-page .source-mode > button.source-tab {
+    .generate-page .source-mode > .source-tab {
       gap: var(--space-1);
       padding: var(--space-4);
       border-radius: var(--radius);
       font-size: var(--fs-md);
     }
-    .generate-page .source-mode > button.source-tab .sh-tab__label { font-weight: var(--fw-medium); color: var(--text); }
-    .generate-page .source-mode > button.source-tab .sh-tab__note { font-size: var(--fs-sm); color: var(--text-muted); }
-    .generate-page .source-mode > button.source-tab.is-active {
+    .generate-page .source-mode > .source-tab .sh-tab__label { font-weight: var(--fw-medium); color: var(--text); }
+    .generate-page .source-mode > .source-tab .sh-tab__note { font-size: var(--fs-sm); color: var(--text-muted); }
+    .generate-page .source-mode > .source-tab.is-active {
       background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
       border-color: var(--accent-soft);
     }

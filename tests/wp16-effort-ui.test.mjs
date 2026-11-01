@@ -10,13 +10,14 @@ import { nativeSelects } from './helpers/native-selects.mjs';
 // model in effect has levels, and says plainly what the trade-off is.
 const require = createRequire(import.meta.url);
 const compiled = await build({
-  stdin: { contents: `export { default as ReasoningEffortField, effortTradeoff } from './ui/ReasoningEffortField.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+  stdin: { contents: `export { default as ReasoningEffortField, effortTradeoff } from './ui/ReasoningEffortField.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent',
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { ReasoningEffortField, effortTradeoff, setUiLanguage } = module.exports;
-const render = (props) => renderToStaticMarkup(React.createElement(ReasoningEffortField, { busy: false, onChange() {}, ...props }));
+const { ReasoningEffortField, effortTradeoff, StudyServicesContext, setUiLanguage } = module.exports;
+// `busy` is the app's (useStudy), so the tests give it through the services.
+const render = ({ busy = false, ...props }) => renderToStaticMarkup(React.createElement(StudyServicesContext.Provider, { value: { busy } }, React.createElement(ReasoningEffortField, { onChange() {}, ...props })));
 const han = /[㐀-鿿]/;
 
 const LEVELS = [{ id: 'low', name: 'Low' }, { id: 'medium', name: 'Medium' }, { id: 'high', name: 'High' }];

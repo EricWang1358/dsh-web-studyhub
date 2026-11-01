@@ -165,7 +165,7 @@ test('uninstall and start-index report their outcome without throwing', async ()
 
 /* ---------- the card and Settings ---------- */
 
-const card = (props, language) => render(h(LargeDocumentCard, { reason: 'selection', detail: { chars: 700000 }, retrieval: fresh, call: noop, courses: ['操作系统'], ...props }), language);
+const card = (props, language) => render(h(LargeDocumentCard, { reason: 'selection', detail: { chars: 700000 }, retrieval: fresh, runnable: true, courses: ['操作系统'], ...props }), language);
 const at = (html, pattern) => html.search(pattern);
 
 test('the card leads with the one-click MinerU route that StudyHub runs; the desktop client and the rest are under 高级', () => {
@@ -198,7 +198,7 @@ test('the card offers the install and the index builder where it is shown', () =
   assert.match(card({ retrieval: fresh }), /sh-btn--primary[^>]*>(?:<svg.*?<\/svg>)?安装检索扩展/);
   assert.match(card({ retrieval: running, initialPlan: plan }), /为这门课建立检索索引/);
   // Without a way to call the host (a static preview) there is no button to press: only the words.
-  assert.doesNotMatch(card({ call: undefined, retrieval: fresh }), /sh-btn--primary[^>]*>(?:<svg.*?<\/svg>)?安装检索扩展/);
+  assert.doesNotMatch(card({ runnable: false, retrieval: fresh }), /sh-btn--primary[^>]*>(?:<svg.*?<\/svg>)?安装检索扩展/);
 });
 
 test('while the extension runs but holds no index yet, the status line says it will be used once built', () => {

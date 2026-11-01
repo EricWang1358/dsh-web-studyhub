@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiLocale, errorMessage } from './i18n.js';
 import { recapTimeZone } from './useDailyRecap.js';
 import { Button, Checkbox, Field, Hint, Select, SettingsSection, useToast } from './components/index.js';
+import { useStudy } from './study-context.jsx';
 
 const valuesFor = saved => ({ automatic: saved?.automatic === true, tone: saved?.tone === 'professional' ? 'professional' : 'friendly', timeZone: recapTimeZone(saved) });
 
@@ -9,7 +10,8 @@ export default function DailyRecapSettings(props) {
   return <DailyRecapSettingsForm key={props.root} {...props} />;
 }
 
-export function DailyRecapSettingsForm({ root, saved, busy = false, act }) {
+export function DailyRecapSettingsForm({ root, saved }) {
+  const { busy, act } = useStudy();
   const toast = useToast();
   const incoming = JSON.stringify(valuesFor(saved));
   const [editor, setEditor] = useState(() => ({ baseline: incoming, values: JSON.parse(incoming) }));

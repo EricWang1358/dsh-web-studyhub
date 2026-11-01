@@ -10,9 +10,11 @@ import { modelReadiness } from './generation-status.js';
 import { INGEST_KINDS, INGEST_MISTAKES } from './agent-prompts/ingest.js';
 import { deckChoices, deckEntries } from './deck-picker-entries.js';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { useStudy } from './study-context.jsx';
 
 /** Setup for recording questions straight from the conversation. */
-export default function Ingest({ data, busy, start, onOpenSettings }) {
+export default function Ingest({ data, start, onOpenSettings }) {
+  const { busy } = useStudy();
   useInjectCss(handOffCss, 'study-hand-off');
   const decks = data.decks.filter(d => !d.archived && !d.systemKind);
   const currentCourse = data.focus?.course ?? '';

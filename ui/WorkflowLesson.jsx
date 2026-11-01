@@ -6,6 +6,7 @@ import ModelErrorNote from "./ModelErrorNote.jsx";
 import ModelSetupGate from "./ModelSetupGate.jsx";
 import { TokenEstimate, TokenUsage } from "./TokenUsage.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
+import { useStudy } from "./study-context.jsx";
 
 export const TeachingArticle = React.memo(function TeachingArticle({ content, className = "" }) {
   const html = useMemo(() => renderNoteMarkdown(content), [content]);
@@ -20,7 +21,8 @@ function TeachingCitations({ citations, sources }) {
   return <details className="wf-readings"><summary>{uiFormat("这篇讲解的资料依据 · {0} 处", [citations.length])}</summary>{citations.map((ref, index) => <blockquote key={index}><p>{ref.quote}</p><cite>{sources?.find(source => source.id === ref.sourceId)?.title || ui("关联资料")}</cite></blockquote>)}</details>;
 }
 
-export default function WorkflowLesson({ topic, content, record, resources, disabled, onTeach, onUndo, call, sessionId, stepId }) {
+export default function WorkflowLesson({ topic, content, record, resources, disabled, onTeach, onUndo, sessionId, stepId }) {
+  const { call } = useStudy();
   const [request, setRequest] = useState("");
   const teaching = record.teaching;
   const running = teaching?.status === "running" && resources.teachingActive !== false;

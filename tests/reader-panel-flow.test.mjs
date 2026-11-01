@@ -22,9 +22,10 @@ const compiled = await build({ stdin: { contents: `
   export { ModelSettingsContext } from './ui/ModelErrorNote.jsx';
   export { default as PdfPageBar, pageBoxKey } from './ui/document-preview/reader/PdfPageBar.jsx';
   export { default as QuickIntents, PAGE_INTENTS, PASSAGE_INTENTS } from './ui/document-preview/QuickIntents.jsx';
-  export { pageHandOffInput } from './ui/document-preview/PageAsk.jsx';
+  export { pageHandOffInput, pagePicture, pageWords } from './ui/document-preview/PageAsk.jsx';
   export { hintClosed, closeHint, forgetClosedHints, READER_HINTS } from './ui/document-preview/reader/hints.js';
   export { askRequest, retryOf, pageDraftKey } from './ui/document-preview/ask-request.js';
+  export { clampRangeEnd, pageKey, pagesLabel, pagesOf, pageScopeOf, pageSelection, pagesText } from './ui/document-preview/page-scope.js';
   export { StudyServicesContext } from './ui/study-context.jsx';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
@@ -155,9 +156,60 @@ test('原始 PDF: an empty box, a missing model, a page without text and a cut p
   assert.match(text(blank), /第 3 页没有保存文字（多半是扫描页或图片页）：换一页再问/);
   assert.doesNotMatch(blank, /<textarea/, 'nothing to ask from a page without text');
   const cut = render(React.createElement(lib.LearningPanel, pagePanel({ pageCut: { page: 3, chars: 9000, used: 8000, truncated: true } })));
-  assert.match(text(cut), /回答只读了前 8000 字（共 9000 字）；后面的内容请在「阅读」里选中再问/);
+  assert.match(text(cut), /回答只读了前 8000 字（共 9000 字）。/);
+  assert.match(text(cut), /接着读后面 1000 字/, 'the way on stays in the panel and says how much it sends');
+  assert.doesNotMatch(text(cut), /请在「阅读」里选中/);
+  assert.match(cut, /只发送后面这段文字和同一个问题，前面读过的不再发送/, 'its cost is explained on hover');
+  const later = render(React.createElement(lib.LearningPanel, pagePanel({ pageCut: { page: 3, chars: 20000, used: 8000, offset: 8000, truncated: true } })));
+  assert.match(text(later), /这次读到第 16000 字（共 20000 字）。/);
+  assert.match(text(later), /接着读后面 4000 字/);
+  const done = render(React.createElement(lib.LearningPanel, pagePanel({ pageCut: null })));
+  assert.doesNotMatch(text(done), /接着读/);
   const stale = render(React.createElement(lib.LearningPanel, pagePanel({ question: 'q', resolution: { status: 'stale' } })));
   assert.match(text(stale), /这份资料刚更新过：关掉阅读器再打开，就能接着问这一页/);
+});
+
+test('原始 PDF (#488): the scope of a range: a page without text does not empty it, the selection and the key name both ends, the limit is said', () => {
+  const sources = [1, 2, 3, 4, 5, 6, 7].map(page => ({ id: `p${page}`, text: page === 4 ? '' : `Page ${page}`, document: { page } }));
+  assert.deepEqual(lib.pageScopeOf(sources, 3), { kind: 'page', page: 3, sourceId: 'p3', empty: false }, 'one page reads as before');
+  const range = lib.pageScopeOf(sources, 3, 5);
+  assert.deepEqual(range, { kind: 'page', page: 3, to: 5, sourceId: '', empty: false, emptyPages: [4], chars: '[page 3]\nPage 3\n\n[page 5]\nPage 5'.length }, 'chars: one number with what the answer counts');
+  assert.equal(lib.pageScopeOf(sources.map(item => ({ ...item, text: '' })), 3, 5).empty, true);
+  assert.equal(lib.pagesLabel(range), '3–5'); assert.equal(lib.pagesLabel({ page: 3 }), '3');
+  assert.deepEqual(lib.pagesOf(range), [3, 4, 5]); assert.deepEqual(lib.pagesOf({ page: 3 }), [3]);
+  assert.deepEqual(lib.pageSelection({ id: 'doc', revision: 'r' }, range), { documentId: 'doc', revision: 'r', page: 3, to: 5 });
+  assert.notEqual(lib.pageKey(lib.pageSelection({ id: 'doc', revision: 'r' }, range)), lib.pageKey(lib.pageSelection({ id: 'doc', revision: 'r' }, { kind: 'page', page: 3, sourceId: 'p3', empty: false })));
+  assert.equal(lib.pagesText(sources, range), '[page 3]\nPage 3\n\n[page 5]\nPage 5');
+  assert.equal(lib.pagesText(sources, { kind: 'page', page: 3 }), 'Page 3');
+  assert.deepEqual(lib.clampRangeEnd('5', 3, 7), { to: 5, cut: false });
+  assert.deepEqual(lib.clampRangeEnd('50', 3, 100), { to: 7, cut: true }, 'held to the limit, and said');
+  assert.deepEqual(lib.clampRangeEnd('50', 3, 5), { to: 5, cut: false }, 'the end of the file is not a limit worth saying');
+  assert.deepEqual(lib.clampRangeEnd('2', 3, 7), { to: 3, cut: false }, 'before the page: only this page');
+  assert.equal(lib.clampRangeEnd('x', 3, 7), null);
+});
+
+test('原始 PDF (#488): the panel says the range, offers it off the main path, and its presets say these pages', () => {
+  lib.setUiLanguage('zh');
+  const one = render(React.createElement(lib.LearningPanel, pagePanel({ pageTotal: 7, onRange() {} })));
+  assert.match(text(one), /正在问：第 3 页/);
+  assert.match(text(one), /连问后面几页/);
+  assert.doesNotMatch(one, /aria-label="问到第几页"/, 'the box waits for the link: one page stays the main path');
+  const last = render(React.createElement(lib.LearningPanel, pagePanel({ pageTotal: 3, onRange() {} })));
+  assert.doesNotMatch(text(last), /连问后面几页/, 'nothing after the last page');
+  const range = { kind: 'page', page: 3, to: 5, sourceId: '', empty: false, emptyPages: [4], chars: 12000 };
+  const many = render(React.createElement(lib.LearningPanel, pagePanel({ scope: range, pageTotal: 7, onRange() {}, resolution: { status: 'resolved', scope: 'page', selection: { page: 3, to: 5 } } })));
+  assert.match(text(many), /正在问：第 3–5 页/);
+  assert.match(text(many), /只问这一页/);
+  assert.match(text(many), /第 4 页没有保存文字，模型读不到。/);
+  assert.match(text(many), /这几页共 12000 字，一次回答最多读 16000 字。/);
+  assert.match(text(many), /针对这几页提问/);
+  assert.match(text(many), /依据这几页回答/);
+  assert.match(text(many), /讲解这几页/);
+  assert.doesNotMatch(text(many), /讲解这一页/);
+  assert.match(many, /aria-label="问到第几页"/);
+  const blank = render(React.createElement(lib.LearningPanel, pagePanel({ scope: { ...range, empty: true, emptyPages: [3, 4, 5] }, pageTotal: 7, onRange() {}, resolution: null })));
+  assert.match(text(blank), /第 3–5 页没有保存文字/);
+  assert.match(text(blank), /只问这一页/, 'the way back from a range without text');
 });
 
 test('原始 PDF: the page controls step, take a typed number and say the total', () => {
@@ -237,6 +289,31 @@ test('原始 PDF: four preset chips say 这一页 and ask at once with their own
   assert.match(/<button[^>]*>(?:<[^>]+>)*讲解这一页/.exec(render(React.createElement(lib.LearningPanel, pagePanel({ onQuick() {}, thread: asking }))))[0], /disabled/, 'they wait while an answer is coming');
 });
 
+test('原始 PDF (#488): only a model the host says takes images gets a picture, and only then is the page drawn; the words follow what will happen', async () => {
+  lib.setUiLanguage('zh');
+  const taking = lib.pageWords(true), plain = lib.pageWords(false);
+  for (const word of Object.values(taking)) assert.doesNotMatch(lib.ui(word), /截图/, 'no screenshot on that path');
+  assert.equal(taking.lead, '想让主会话接着讲（连这一页的图一起）：');
+  assert.match(plain.what, /当前模型看不了图片时，带截图的消息发不出去/, 'a picture blocks the whole message on a text model: the hover says so');
+  const out = render(React.createElement(lib.StudyServicesContext.Provider, { value: services }, React.createElement(lib.LearningPanel, pagePanel({ question: 'q', pageHandOff: { ...pageHandOff, loadImages: async () => [] } }))));
+  assert.match(text(out), /主会话能看图片时可附截图/, 'nothing said yet by the host: the plain words');
+  let drawn = 0;
+  const handOff = { pages: 3, loadImages: async () => { drawn += 1; return [{}, {}]; } }, seen = [];
+  const host = takes => ({ chatTakesPictures: async () => takes });
+  assert.deepEqual(await lib.pagePicture(host(false), handOff), { picture: { refused: 'model' } });
+  assert.deepEqual(await lib.pagePicture(host(undefined), handOff), { picture: { refused: 'unknown' } });
+  assert.deepEqual(await lib.pagePicture({ chatTakesPictures: async () => { throw new Error('no'); } }, handOff), { picture: { refused: 'unknown' } });
+  assert.deepEqual(await lib.pagePicture(host(null), handOff), {}, 'a host without the attachment faces: nothing to say, the old screenshot way');
+  assert.deepEqual(await lib.pagePicture({}, handOff), {});
+  assert.equal(drawn, 0, 'nothing is drawn unless a picture will be attached');
+  assert.deepEqual(await lib.pagePicture(host(true), handOff, on => seen.push(on)), { picture: { images: [{}, {}], wanted: 3 } });
+  assert.equal(drawn, 1);
+  assert.deepEqual(seen, [true, false], 'the panel shows that it is drawing');
+  assert.deepEqual(await lib.pagePicture(host(true), { pages: 1, loadImages: async () => { throw new Error('bad'); } }), { picture: { images: [], wanted: 1 } });
+  const inputs = [lib.pageHandOffInput(handOff, 'q', false), lib.pageHandOffInput(handOff, 'q', true)];
+  assert.ok(inputs.every(input => !('loadImages' in input) && !('pages' in input)), 'the loader is not part of the message input');
+});
+
 test('原始 PDF: 发给主会话 is a quiet link under the answers on a page with text, and the way forward on a page without text', () => {
   lib.setUiLanguage('zh');
   const out = render(withStudy(React.createElement(lib.LearningPanel, pagePanel({ question: '图 2 说明了什么？', pageHandOff }))));
@@ -295,6 +372,10 @@ test('重试 asks the same preset again; a follow-up carries its term and thread
   const node = { id: 'n1', question: '请把这一页按知识点拆开', term: '', intent: 'points', status: 'failed' };
   assert.deepEqual(lib.retryOf(node), { question: '请把这一页按知识点拆开', term: '', intent: 'points' });
   assert.equal(lib.askRequest({ selection: {}, page: true, ...lib.retryOf(node), language: '中文' }).intent, 'points');
+  // #488: 接着读 names where it goes on, and so does its 重试
+  assert.equal(lib.askRequest({ selection: {}, page: true, question: 'q', offset: 8000, language: '中文' }).offset, 8000);
+  assert.equal(lib.askRequest({ selection: {}, page: true, ...lib.retryOf({ question: 'q', offset: 8000 }), language: '中文' }).offset, 8000);
+  assert.equal('offset' in lib.askRequest({ selection: {}, page: true, ...lib.retryOf({ question: 'q' }), language: '中文' }), false);
   assert.deepEqual(lib.retryOf({ question: 'q' }), { question: 'q', term: '', intent: '' });
   const inside = lib.askRequest({ selection: {}, question: 'q', term: 'ELK', context: [{ question: 'a', answer: 'b' }], language: 'English' });
   assert.equal(inside.term, 'ELK'); assert.deepEqual(inside.thread, [{ question: 'a', answer: 'b' }]);

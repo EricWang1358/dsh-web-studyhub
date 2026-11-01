@@ -10,6 +10,7 @@ import RoleSuggestion from './RoleSuggestion.jsx';
 import MasteryBar from './MasteryBar.jsx';
 import { HandOff } from '../hand-off/HandOff.jsx';
 import { META_DOT } from '../format.js';
+import { useStudy } from '../study-context.jsx';
 
 /** The mastery of the current course (and the whole library when it differs), with what the words mean on hover. */
 function DeskMastery({ mastery }) {
@@ -26,7 +27,8 @@ function DeskMastery({ mastery }) {
 }
 
 /** Runs left half done, other than the one the card offers: resume or end each. */
-function OtherRuns({ runs, otherCourse, busy, resume, endRun }) {
+function OtherRuns({ runs, otherCourse, resume, endRun }) {
+  const { busy } = useStudy();
   return (
     <details className="resume-list">
       <summary>{uiFormat('另有 {0} 组练习未完成', [runs.length])}</summary>
@@ -47,7 +49,8 @@ function OtherRuns({ runs, otherCourse, busy, resume, endRun }) {
 }
 
 /** The left of the home desk: study mode, the course (or role) heading, the way to the 总纲 beside the course title, the course route, mastery, the next step and the other ways to start. */
-export default function DeskIntro({ data, home, mastery, role, busy, start, resume, endRun, onFocus, onCourseSettings, onShowOutline, suggestRole }) {
+export default function DeskIntro({ data, home, mastery, role, start, resume, endRun, onFocus, onCourseSettings, onShowOutline, suggestRole }) {
+  const { busy } = useStudy();
   const { interview, route, starter, headline, plan, alternatives, otherRuns, otherCourse } = home;
   const currentEntry = (data.focus?.courses || []).find((course) => course.name === data.focus?.course);
   return (
@@ -87,7 +90,7 @@ export default function DeskIntro({ data, home, mastery, role, busy, start, resu
           </p>
         </details>
       )}
-      {otherRuns.length > 0 && <OtherRuns runs={otherRuns} otherCourse={otherCourse} busy={busy} resume={resume} endRun={endRun} />}
+      {otherRuns.length > 0 && <OtherRuns runs={otherRuns} otherCourse={otherCourse} resume={resume} endRun={endRun} />}
     </div>
   );
 }

@@ -547,8 +547,7 @@
       padding-left: 0;
     }
     .book-export__body,
-    .book-export__estimate,
-    .book-export__files {
+    .book-export__estimate {
       display: grid;
       gap: var(--space-3);
       min-width: 0;
@@ -566,19 +565,6 @@
       align-items: center;
       gap: var(--space-2);
       font-weight: var(--fw-strong);
-    }
-    .book-export__list {
-      display: grid;
-      gap: var(--space-1);
-      margin: 0;
-      padding: 0;
-      list-style: none;
-      max-height: 16rem;
-      overflow-y: auto;
-    }
-    .book-export__file {
-      overflow-wrap: anywhere;
-      text-align: left;
     }
     /* M7 期末一周: one day of the plan (the home's card and the book's 今天读哪几节), the mock paper, the 翻看 view. A hairline block, never a box
        inside a box; long titles wrap. */

@@ -58,7 +58,7 @@ import { AppContext } from "./app/app-context.js";
                     'compact' puts the line's card in the today slot; `plan` is the third step's summary and estimate (useFirstDeck). Left out, the line is the
                     compact card. */
 export default function StudyMap({ data, actions = {}, setupHandlers, notebooks, reveal, onRevealed, firstRun, children }) {
-  const { call, act, busy, host } = useStudy();
+  const { call, act, host } = useStudy();
   const publishDraft = (useContext(AppContext) || {}).drafts?.publishAndPractice;
   const refreshLibrary = (useContext(AppContext) || {}).core?.refresh;
   const toast = useToast();
@@ -161,27 +161,27 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       {/* 课程准备: what is done once per course, above the day's work while it is open and one quiet line after; it waits until the learner has published a deck of their own. */}
       {hasOwnDeck(data) && <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} on={setupHandlers} />}
       <div className={"desk" + (home.plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
-        <DeskIntro data={data} home={home} mastery={mastery} role={role} busy={busy} start={start} resume={resume} endRun={endRun}
+        <DeskIntro data={data} home={home} mastery={mastery} role={role} start={start} resume={resume} endRun={endRun}
           onFocus={onFocus} onCourseSettings={onCourseSettings} onShowOutline={onShowOutline} suggestRole={suggestRole} />
         {line.show
           ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} plan={firstRun?.plan} /></div>
-          : <TodayCard plan={home.plan} todayLabel={home.todayLabel} busy={busy} quiet={nextHasButton} />}
+          : <TodayCard plan={home.plan} todayLabel={home.todayLabel} quiet={nextHasButton} />}
       </div>
       {/* 待发布 is folded and sits under the day's work, not above it. */}
       <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} />
       <CatalogHeading count={data.decks.filter((deck) => !!deck.archived === showArchived).length} showArchived={showArchived} hasDecks={data.decks.length > 0}
-        hasSources={data.sources.length > 0} course={data.focus?.course} merge={merge} busy={busy} slain={data.decks.find((deck) => deck.systemKind === "slain")}
+        hasSources={data.sources.length > 0} course={data.focus?.course} merge={merge} slain={data.decks.find((deck) => deck.systemKind === "slain")}
         addSource={addSource} createManual={createManual} importLibrary={importLibrary} manage={manage} onShowGraph={onShowGraph}
         onShowOutline={home.route?.chapters?.length ? onShowOutline : undefined} />
       <TopicGroupReminder grouping={data.topicGrouping} root={data.root} />
       <BookBackupHint bookCourses={data.bookCourses} root={data.root} />
-      <MergeSuggestions merge={merge} busy={busy} />
+      <MergeSuggestions merge={merge} />
       {data.decks.length > 0 && <CatalogToolbar search={search} onSearch={setSearch} showArchived={showArchived}
         onToggleArchived={() => { setShowArchived((value) => !value); tree.clearSelection(); }} />}
       {showArchived && <p className="muted archive-explanation">{ui('已归档题组不参与学习。恢复后可继续学习；永久删除会保留原始资料和作答记录。')}</p>}
       {folders.visible.length ? (
         <DeckTree data={data} folders={folders.shownFolders} tree={tree} query={query} showArchived={showArchived} singleCourse={folders.singleCourse}
-          inFocus={folders.inFocus} parkedByName={folders.parkedByName} progress={progress} runFor={runFor} busy={busy} actions={deckActions} />
+          inFocus={folders.inFocus} parkedByName={folders.parkedByName} progress={progress} runFor={runFor} actions={deckActions} />
       ) : data.decks.length ? (
         <p className="muted map-empty">{ui("没有符合条件的题组。")}</p>
       ) : (
@@ -193,9 +193,9 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
         icon={<Icon name="caret" size={14} className="sh-caret" />}
         onClick={() => setShowParked((value) => !value)}>{uiFormat("未激活的课程 ({0})", [folders.parkedFolders.length])}</Button>}
       {/* Cross-workspace notebooks are for people with decks, or with notebooks elsewhere (P12). */}
-      {showNotebooks && <NotebookDirectory notebooks={notebooks?.notebooks} error={notebooks?.notebookError} busy={busy} onPublish={notebooks?.publish}
+      {showNotebooks && <NotebookDirectory notebooks={notebooks?.notebooks} error={notebooks?.notebookError} onPublish={notebooks?.publish}
         onUnpublish={notebooks?.unpublish} onOpen={notebooks?.open} refresh={notebooks?.loadNotebooks} onSearch={notebooks?.search} />}
-      <SelectionBar scope={tree.scope} run={selectedRun} busy={busy} onClear={tree.clearSelection} onShowGraph={onShowGraph} onStart={start} onResume={resume} />
+      <SelectionBar scope={tree.scope} run={selectedRun} onClear={tree.clearSelection} onShowGraph={onShowGraph} onStart={start} onResume={resume} />
     </section>
   );
 }

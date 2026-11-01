@@ -234,7 +234,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
   const recent = <RecentExams items={recentExams(data)} format={examMode} onOpen={openRecent} busy={busy} />;
   const deepRun = (kind) => openRun?.kind === kind ? openRun.runId : initialKind === kind ? initialRunId : undefined;
   // 案例分析卷 (WP12): a timed case paper on the same exam runs, timer and report.
-  if (examMode === "case") return <CasePaper key={`case:${deepRun("case") || ""}`} call={call} data={data} onExit={onExit}
+  if (examMode === "case") return <CasePaper key={`case:${deepRun("case") || ""}`} data={data} onExit={onExit}
     header={header} recent={recent} course={course} onCourseChange={chooseCourse} onSetupModel={onSetupModel}
     onCreate={onCreateCase || onCreate} onStartRun={onStartRun} onLocation={onLocation}
     initialRunId={deepRun("case")} />;

@@ -192,7 +192,6 @@ export default function Generate({
       ) : current === "chat" ? (
         <Ingest
           data={data}
-          busy={busy}
           onOpenSettings={openSettings}
           start={(config) =>
             // Recording mode first (a write), then the hand-off says so and fills the chat's box (never sends).
@@ -224,7 +223,7 @@ export default function Generate({
               {/* A selection too big for one generation: ONE block with the ways on (steps / pages by topic), only the chosen one drawn; with no search tool the old card is a fold under it. */}
               {choice && <TooBigChoice advice={advice} stats={stats} modes={modes} mode={mode} onMode={setChosenMode} disabled={busy}
                 card={advice.tooBig && !retrievalReady(retrieval) ? <LargeDocumentCard reason="selection" detail={{ chars: advice.chars }} retrieval={retrieval} onOpenSettings={openLargeDocumentSettings}
-                  call={call} courses={data.focus?.courses} defaultCourse={generationCourse} /> : null}>
+                  runnable courses={data.focus?.courses} defaultCourse={generationCourse} /> : null}>
                 {pathMode && <GenerationPath path={path} disabled={busy || !model.ready || !!referenceState.reason} onSettings={openSettings} onUseStep={narrowToStep} />}
                 {retrievalMode && <RetrievalPanel advice={advice} sourceIds={selectedSources} focus={gen.focus} course={generationCourse} onApply={setSelectedSources} disabled={busy} />}
               </TooBigChoice>}
@@ -288,7 +287,7 @@ export default function Generate({
                   limits={gen.referenceLimits} onLimitsChange={referenceLimits => setGen({ ...gen, referenceLimits })}
                   format={gen.referenceFormat} onFormatChange={referenceFormat => setGen({ ...gen, referenceFormat })}
                   onChange={ids => setGen({ ...gen, referenceSourceIds: ids })} onImport={() => openReferenceImport()}
-                  courses={data.focus?.courses} busy={busy} />
+                  courses={data.focus?.courses} />
               </Disclosure>
               {!pathMode && custom && selectedPdfPages > custom && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围、取消自定义题数，或按覆盖强度出题。", [selectedPdfPages, custom])}</InlineMessage>}
             </fieldset>

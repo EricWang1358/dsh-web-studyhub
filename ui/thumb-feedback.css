@@ -4,7 +4,7 @@
   :is(.study-app, .study-seat) {
     /* The 👎 control is an expander (aria-expanded), so its recorded vote is not aria-pressed (#176): the same "chosen" look
        as the pressed 👍 in coach.css, driven by data-vote. */
-    .thumbs > button[data-vote="on"] {
+    .thumbs > [data-vote="on"] {
       border-color: var(--accent);
       color: var(--text);
       background: var(--accent-glow);

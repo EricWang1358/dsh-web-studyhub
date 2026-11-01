@@ -8,11 +8,13 @@ import MasteryBar from './MasteryBar.jsx';
 import { dotLevel, topicKey } from './map-model.js';
 import { HandOff } from '../hand-off/HandOff.jsx';
 import { useHandOff } from '../hand-off/use-hand-off.js';
+import { useStudy } from '../study-context.jsx';
 
 /** One deck of the tree: its fold, selection, mastery, play button and ⋯ menu (with 发给主会话), and its topics when open (each with a 发给主会话 icon). */
-export default function DeckRow({ deck: d, progress: p, open, tree, runFor, busy, actions }) {
+export default function DeckRow({ deck: d, progress: p, open, tree, runFor, actions }) {
+  const { busy } = useStudy();
   const handOff = useHandOff();
-  if (d.archived) return <ArchivedDeckRow deck={d} busy={busy} onRestore={actions.restoreDeck} onRemove={actions.removeDeck} onManage={actions.manage} />;
+  if (d.archived) return <ArchivedDeckRow deck={d} onRestore={actions.restoreDeck} onRemove={actions.removeDeck} onManage={actions.manage} />;
   const { start, resume, manage, archiveDeck, runsOn } = actions;
   const key = topicKey(d.id), whole = tree.selected.has(key), run = runFor([{ deckId: d.id }]);
   const choose = {
