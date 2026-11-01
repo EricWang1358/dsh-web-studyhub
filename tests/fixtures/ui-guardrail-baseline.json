@@ -83,7 +83,6 @@
     },
     "longLine": {},
     "bareBusyDisabled": {
-      "ui/AnswerCard.jsx": 1,
       "ui/ArchivedDeckRow.jsx": 3,
       "ui/AudioDashboard.jsx": 1,
       "ui/AudioImport.jsx": 6,
