@@ -18,7 +18,8 @@ async function jpegOf(bitmap, name) {
   return new File([blob], name, { type: 'image/jpeg' });
 }
 
-const openPeek = async bytes => (await import('./renderer.js')).createPeekRenderer(bytes);
+// Through the peek's own chunk: pdf.js stays one lazy module, so this adds no chunk and no load wave.
+const openPeek = async bytes => (await import('./PagePeek.jsx')).createPeekRenderer(bytes);
 
 /**
  * renderPageImages({ loadBytes, pages, totalPages }) -> File[], one per page that can be shown truly, in order; [] when there is no file. A failure of pdf.js rejects.

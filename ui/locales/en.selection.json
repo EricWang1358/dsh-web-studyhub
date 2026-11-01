@@ -103,7 +103,6 @@
   "针对这一页提问": "Ask about this page",
   "输入或粘贴问题，例如：这一页的主要结论是什么？": "Type or paste a question, e.g. What is the main conclusion of this page?",
   "依据这一页回答": "Answer from this page",
-  "这一页很长，回答只读了前 {0} 字（共 {1} 字）；后面的内容请在「阅读」里选中再问。": "This page is long: the answer read only its first {0} of {1} characters; for the rest, select the passage in “Read” and ask there.",
   "在 PDF 里选中的文字可以复制，粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页的图，请在「阅读」里点「看原页」查看。": "Text selected in the PDF can be copied and pasted into the question box. The model reads only the saved text of this page and cannot see figures; to see the page image, use “Original page” in “Read”.",
   "讲解这一页": "Explain this page",
   "请按原文顺序讲解这一页。": "Please explain this page in the order of the source.",
