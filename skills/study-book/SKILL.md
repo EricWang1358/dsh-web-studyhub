@@ -47,7 +47,7 @@ Only when the learner asks for it (rename, reorder, remove, tidy up the structur
 
 ## When the outline was organised again
 
-If `book.toc` answers `status: "rebuild-pending"` or a write is refused with `course-book-rebuild-pending`, nothing of the learner's has moved yet and you cannot write the book. Show them `moves` (old title, new title, first line of the text; `course.book.open` has the whole list) and ask. On their word only: `course.book.rebuild {"action": "apply", "outlineId": <moves.outlineId>}` moves the text; `{"action": "undo", "outlineId"}` gives the new outline up. After an apply, `undo` takes it back only until anything is written to the book, so ask before you write.
+If `book.toc` answers `status: "rebuild-pending"` or a write is refused with `course-book-rebuild-pending`, nothing of the learner's has moved yet and you cannot write the book. Show them `moves` (old title, new title, first line of the text; `course.book.open` has the whole list) and `moves.structure` when it is there (what they moved, deleted or renamed that this rebuild does not keep: it can be the only thing listed), and ask. On their word only: `course.book.rebuild {"action": "apply", "outlineId": <moves.outlineId>}` moves the text; `{"action": "undo", "outlineId"}` gives the new outline up. After an apply, `undo` takes it back only until anything is written to the book, so ask before you write.
 
 ## Limits
 

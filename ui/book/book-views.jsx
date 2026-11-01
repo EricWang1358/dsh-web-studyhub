@@ -41,13 +41,15 @@ export const editFile = (book, step) => (step?.hid === 'unplaced' ? book.unplace
 
 /** 编辑这个知识点: the editor on the point's files. Leaving with unsaved text asks first (`leaving`: what to do once the learner agrees; onStay keeps editing). */
 export function EditView({ book, step, theme, root, onChanged, onDirty, leaving, onLeave, onStay, onDone }) {
-  const discarded = useRef(false);
+  const discarded = useRef(false), box = useRef(null);
+  // 继续编辑 puts the focus back in the text (on <body> the next key would fire an app shortcut).
+  const text = useMemo(() => ({ get current() { return box.current?.querySelector('.cm-content') ?? null; } }), []);
   const [file, setFile] = useState(() => editFile(book, step) ?? Object.keys(book.files)[0]);
   const title = step ? uiFormat('编辑 · {0}', [[step.node.number, step.node.title].filter(Boolean).join(' ')]) : ui('编辑');
   return (
-    <section className="book-mode" aria-label={ui('编辑这个知识点')}>
+    <section ref={box} className="book-mode" aria-label={ui('编辑这个知识点')}>
       <ModeBar title={title} onDone={onDone} />
-      {leaving && <InlineConfirm title={ui('还有没保存的改动')} confirmLabel={ui('丢掉改动，离开')} cancelLabel={ui('继续编辑')} onConfirm={() => { discarded.current = true; onLeave(); }} onCancel={onStay}>
+      {leaving && <InlineConfirm title={ui('还有没保存的改动')} confirmLabel={ui('丢掉改动，离开')} cancelLabel={ui('继续编辑')} returnFocusRef={text} onConfirm={() => { discarded.current = true; onLeave(); }} onCancel={onStay}>
         {ui('离开编辑会丢掉这些改动；先按「保存」就不会丢。')}</InlineConfirm>}
       <BookEditor key={book.course} book={book} file={file && book.files[file] ? file : Object.keys(book.files)[0]} onPick={setFile} onChanged={onChanged} onDirty={onDirty} theme={theme} root={root} discarded={discarded} />
     </section>

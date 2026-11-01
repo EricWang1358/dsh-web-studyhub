@@ -96,6 +96,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const guard = useCallback(then => (unsaved ? setLeaving(() => then) : then()), [unsaved]);
   useEffect(() => (unsaved ? holdLeave?.(go => setLeaving(() => go)) : undefined), [unsaved, holdLeave]);
   useUnsavedWarning(unsaved);
+  // Saved (or given up) with the question still up: nothing is left to ask about. The learner stays; the click that raised the question is not carried out later.
+  useEffect(() => { if (!unsaved) setLeaving(null); }, [unsaved]);
   const back = useCallback(() => { setLeaving(null); setDirty(false); setView('read'); }, []);
   // The editor and 翻看 take the page's place; 完成 · 回到阅读 comes back to the heading being read where it was on screen (held until it is drawn again).
   const openView = useCallback(next => { place.current?.hold(); setView(next); }, []);
@@ -106,7 +108,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const dateHint = book?.status === 'ok' && book.notes ? crunchDateHint(courseRecord?.exam, crunchWindow(data?.settings?.book)) : null;
   const writing = runningBuild(data?.jobs, course, BOOK_BUILD_KIND);
   const rebuild = useBookRebuild({ call, course, notify, setBook, reload }), building = !!(writing || runningBuild(data?.jobs, course));
-  const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask} onUndoRebuild={building ? undefined : rebuild.undo}
+  const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask} onUndoRebuild={building || unsaved ? undefined : rebuild.undo}
     onBack={onBack} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
   const step = steps[where.current] ?? null;
   // 改名 / 移动到… / 删除这个知识点… act on the point being read; a delete goes to the point after it (or before it, at the end) once it is gone.

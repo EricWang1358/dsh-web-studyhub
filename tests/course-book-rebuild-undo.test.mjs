@@ -147,6 +147,14 @@ test('a rebuild that would drop a move or bring back a deleted point is held eve
   assert.deepEqual(preview.moves.list, []);
   assert.deepEqual(preview.moves.structure, { moved: ['What architects do'], revived: ['A third point'], renamed: ['My own chapter name'] });
   assert.deepEqual(await docOf(service), before, 'nothing happened yet');
+  // The main chat is told the same, in a sentence that is true when no text moves at all.
+  const toc = await service.call('book.toc', { course: COURSE });
+  assert.equal(toc.status, 'rebuild-pending');
+  assert.deepEqual(toc.moves.structure, preview.moves.structure);
+  assert.doesNotMatch(toc.note, /would move the learner's text/);
+  assert.match(toc.note, /nothing has happened yet/i);
+  assert.match(toc.note, /moves\.structure/);
+  await assert.rejects(service.call('book.write', { course: COURSE, hid: leaves(shaped.nodes)[0].hid, markdown: 'x' }), pending);
   // Applied: exactly what the preview said.
   const book = await apply(newId);
   assert.deepEqual(leaves(book.nodes).map(node => node.title), ['What architects do', 'Stakeholders and views', 'A third point']);

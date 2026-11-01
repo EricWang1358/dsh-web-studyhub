@@ -32,7 +32,8 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, the
   typed.current = draft;
   // The editor goes with unsaved text and nobody answered: the leave gate could not ask (see ui/book/unsaved-draft.js).
   useEffect(() => () => {
-    if (typed.current !== base.current.text && !discarded?.current) keepUnsaved(root, book.course, base.current.file, typed.current, base.current.version);
+    if (typed.current === base.current.text || discarded?.current) return;
+    if (!keepUnsaved(root, book.course, base.current.file, typed.current, base.current.version)) notify({ text: ui('编辑器关掉了，没保存的改动没能留在这个浏览器里（太大，或者浏览器不让存），这些字丢了。'), tone: 'error' });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const closeRescue = () => { forgetUnsaved(root, book.course, file); setRescue(null); };
   // From the version it was edited from: a file that moved since goes through the save's 书已更新, nothing is written over.
@@ -61,6 +62,8 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, the
     setSaving(true);
     try {
       const next = await call('course.book.save', { course: book.course, file, text: draft, version: base.current.version });
+      // A save answers what was left unsaved of this file.
+      closeRescue();
       setMerged(next.write === 'merged');
       if (next.write === 'merged') notify({ text: ui('书已更新：你的改动已保存，另一边的内容放在了建议里。'), tone: 'info' });
       settle(next);

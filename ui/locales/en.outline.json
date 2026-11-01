@@ -464,5 +464,9 @@
   "你改的 {0} 个名字不保留：新总纲里没有这些章节或知识点了": "{0} names you gave are not kept: the new outline no longer has those chapters or points",
   "你移动、删除和改名的结构也都回到整理之前。": "The moves, deletes and names you made in the structure also go back to how they were.",
   "上次整理总纲没有保留你对结构的 {0} 处改动": "The last rebuild did not keep {0} of your changes to the structure",
-  "下面也列了你对书的结构做过、这次不会保留的改动。放好后「撤销这次整理」能把它们和笔记一起放回去，只要之后没有再改过书；「放弃这次整理」则什么都不动。": "The list also shows changes you made to the book's structure that this rebuild does not keep. After placing, Undo this rebuild puts them back together with the notes, as long as the book has not changed since; Give this rebuild up changes nothing."
+  "下面也列了你对书的结构做过、这次不会保留的改动。放好后「撤销这次整理」能把它们和笔记一起放回去，只要之后没有再改过书；「放弃这次整理」则什么都不动。": "The list also shows changes you made to the book's structure that this rebuild does not keep. After placing, Undo this rebuild puts them back together with the notes, as long as the book has not changed since; Give this rebuild up changes nothing.",
+  "编辑器关掉了，没保存的改动没能留在这个浏览器里（太大，或者浏览器不让存），这些字丢了。": "The editor closed and your unsaved changes could not be kept in this browser (too big, or storage is blocked), so they are lost.",
+  "看一下这次整理不会保留什么": "See what this rebuild does not keep",
+  "总纲已经重新整理好了，书还没有动。这次不用搬笔记，只是书会按新总纲排。": "The outline has been organised again and the book has not changed. No notes need to move; the book would just follow the new outline.",
+  "书按新总纲排。放好后还能撤销这次整理，只要之后没有再改过书。": "The book follows the new outline. You can still undo this rebuild afterwards, as long as the book has not changed since."
 }

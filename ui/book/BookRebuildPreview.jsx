@@ -11,12 +11,16 @@ import { MovesList } from './BookMoves.jsx';
 export default function BookRebuildPreview({ moves, onApply, onDiscard, building = false }) {
   const [asking, setAsking] = useState(false), [working, setWorking] = useState(false);
   const apply = async () => { setWorking(true); try { await onApply(moves.outlineId); } finally { setWorking(false); } };
+  // Only the learner's structure to say (#489): there are no rows of text and no notes to place.
+  const textMoves = moves.list?.length > 0 || moves.held > 0 || moves.gone > 0;
+  const title = textMoves ? ui('看一下这次整理会怎么放你的笔记') : ui('看一下这次整理不会保留什么');
   return (
-    <section className="book-rebuild-preview" data-book-rebuild-preview="" aria-label={ui('看一下这次整理会怎么放你的笔记')}>
-      <h2 className="book-rebuild-preview__title">{ui('看一下这次整理会怎么放你的笔记')}</h2>
-      <p className="book-rebuild-preview__lead">{ui('总纲已经重新整理好了，你写的内容还没有动。每一行下面是新标题下的第一行正文：对不上时可以放弃这次整理。')}</p>
+    <section className="book-rebuild-preview" data-book-rebuild-preview="" aria-label={title}>
+      <h2 className="book-rebuild-preview__title">{title}</h2>
+      <p className="book-rebuild-preview__lead">{textMoves ? ui('总纲已经重新整理好了，你写的内容还没有动。每一行下面是新标题下的第一行正文：对不上时可以放弃这次整理。')
+        : ui('总纲已经重新整理好了，书还没有动。这次不用搬笔记，只是书会按新总纲排。')}</p>
       <div className="book-rebuild-preview__actions">
-        <Tooltip layer content={ui('笔记放到下面列的位置。放好后还能撤销这次整理，只要之后没有再改过书。')}>
+        <Tooltip layer content={textMoves ? ui('笔记放到下面列的位置。放好后还能撤销这次整理，只要之后没有再改过书。') : ui('书按新总纲排。放好后还能撤销这次整理，只要之后没有再改过书。')}>
           <Button variant="primary" busy={working} onClick={apply}>{ui('按这样放')}</Button></Tooltip>
         <Tooltip layer content={building ? ui('这门课正在整理总纲或更新全书，等它结束再撤销。这次没有改动。') : ui('总纲回到上一版，书一个字不动。想要新总纲，要再整理一次。')}>
           <Button variant="quiet" disabled={working || building} onClick={() => setAsking(true)}>{ui('放弃这次整理')}</Button></Tooltip>

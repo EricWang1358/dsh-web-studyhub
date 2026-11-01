@@ -135,6 +135,12 @@ test('#489: what a rebuild does not keep of the learner\'s structure is said in 
   assert.match(preview, /你改的 1 个名字不保留/);
   assert.match(preview, /「My name」/);
   assert.doesNotMatch(renderToStaticMarkup(h(ui.BookRebuildPreview, { moves: { ...moves, structure: undefined }, onApply() {}, onDiscard() {} })), /data-book-rebuild-structure|不保留/, 'nothing of the kind, nothing said');
+  // Nothing of the learner's text moves here, so the page does not talk about rows of text it does not have.
+  assert.doesNotMatch(preview, /每一行下面|怎么放你的笔记/);
+  assert.match(preview, /这次不用搬笔记/);
+  const withText = renderToStaticMarkup(h(ui.BookRebuildPreview, { moves: { ...moves, list: [{ from: 'A', to: 'B', folded: false, share: 1, own: true }], total: 1 }, onApply() {}, onDiscard() {} }));
+  assert.match(withText, /每一行下面/);
+  assert.match(withText, /怎么放你的笔记/);
   // With only these to say, the notice after the rebuild is still there (it used to count text moves only).
   const notice = draw({ ...moves, undoable: true });
   assert.match(notice, /上次整理总纲没有保留你对结构的 3 处改动/);

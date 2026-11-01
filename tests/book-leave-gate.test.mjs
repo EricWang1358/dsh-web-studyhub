@@ -42,4 +42,7 @@ test('no page change goes around the gate: the hook hands out only gated ways, t
   assert.equal(raw.length, 2, raw.join('\n'));
   assert.ok(raw.some(line => /const to = /.test(line)) && raw.some(line => /forcePage/.test(line)));
   assert.match(await readFile('ui/app/library-state.js', 'utf8'), /nav\.forcePage\(value\)/);
+  // These write before they navigate (a run opened, a letter marked read), so they ask before they start.
+  assert.match(await readFile('ui/app/use-intents.js', 'utf8'), /nav\.leaving\(\(\) => \{\s+if \(data\?\.lastRun\)/);
+  assert.match(await readFile('ui/app/use-inbox.js', 'utf8'), /openInboxItem = useCallback\(\(item\) => nav\.leaving\(/);
 });
