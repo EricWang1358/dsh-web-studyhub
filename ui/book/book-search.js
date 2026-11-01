@@ -10,11 +10,16 @@ const BEFORE = 14, AFTER = 40;
 // A line that is the point's own 练 / 问答 links says nothing about the content, and every point has one.
 const LINK_LINE = /studyhub:\/\/(practice|qa)\b/;
 
+// Inline code is words as they stand; outside it only PAIRED emphasis is a mark (`int *p` and `a*b` are words on the page, as Markdown draws them).
+const INLINE_CODE = /(`+[^`\n]*`+)/;
+const unmarked = piece => piece.replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, '$2').replace(/\*(?=[^\s*])([^*\n]*?[^\s*])\*/g, '$1');
+
 /** The words of a file as the page shows them: no markers, footnote labels, link targets or Markdown marks. */
 export function plainText(markdown) {
   return String(markdown ?? '').split(/\r?\n/).filter(line => !LINK_LINE.test(line)).join('\n')
     .replace(/<!--[\s\S]*?-->/g, ' ').replace(/\[\^[^\]]+\]:?/g, ' ').replace(/!?\[([^\]]*)\]\([^)\s]*\)/g, '$1')
-    .replace(/^#{1,6}\s+/gm, '').replace(/^\s*[-*+]\s+/gm, '').replace(/\*\*?|__|`/g, '');
+    .replace(/^#{1,6}\s+/gm, '').replace(/^\s*[-*+]\s+/gm, '')
+    .split(INLINE_CODE).map((piece, at) => (at % 2 ? piece.replace(/`/g, '') : unmarked(piece))).join('');
 }
 
 /** What a search looks through, made once per book (folding half a million characters on every key would not keep up with typing). */

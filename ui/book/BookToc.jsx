@@ -18,8 +18,8 @@ import css from './book-toc.css';
 export const TOC_FOLD_ABOVE = 120;
 
 /** entries: [{ id, level, title, chapter }] (the book's own title left out); here: the heading id being read; onGo(id); opened: the chapters open when the 目录 folds (a Set; none: it does not),
-    parents: the chapters with something to open, onToggle(chapter). */
-export const BookTocList = memo(function BookTocList({ entries, here, onGo, opened, parents, onToggle }) {
+    parents: the chapters with something to open, onToggle(chapter); hidden: the chapter folded over the heading being read, which takes its mark. */
+export const BookTocList = memo(function BookTocList({ entries, here, onGo, opened, parents, onToggle, hidden = null }) {
   return (
     <ol className="book-toc__list">
       {entries.map(entry => (
@@ -27,7 +27,7 @@ export const BookTocList = memo(function BookTocList({ entries, here, onGo, open
           {parents?.has(entry.id) && <IconButton size="sm" className="book-toc__fold" aria-expanded={opened.has(entry.id)} data-open={opened.has(entry.id) ? '' : undefined}
             icon={<Icon name="caret" size={14} />} label={opened.has(entry.id) ? ui('收起这一章') : ui('展开这一章')} onClick={() => onToggle(entry.id)} />}
           <Tooltip layer placement="right-start" group="book-toc" content={uiFormat('编号 {0}', [codeOf(entry.id)])} anchorClassName="book-toc__anchor">
-            <Button variant="quiet" size="sm" wrap className="book-toc__go" aria-current={entry.id === here ? 'location' : undefined} onClick={() => onGo(entry.id)}>
+            <Button variant="quiet" size="sm" wrap className="book-toc__go" aria-current={entry.id === (hidden ?? here) ? 'location' : undefined} onClick={() => onGo(entry.id)}>
               {entry.title}
             </Button>
           </Tooltip>
@@ -103,7 +103,7 @@ export default function BookToc({ entries, here, onGo, narrow, onClose, returnRe
           onKeyDown={event => { if (event.key === 'Escape' && query) { event.preventDefault(); event.stopPropagation(); onQuery(''); } }} />
       </div>}
       {results ? <FoundList results={results} query={typed} onFound={found} />
-        : <BookTocList entries={shown} here={here} onGo={go} opened={opened} parents={parents} onToggle={toggle} />}
+        : <BookTocList entries={shown} here={here} onGo={go} opened={opened} parents={parents} onToggle={toggle} hidden={opened && hereChapter && !opened.has(hereChapter) && hereChapter !== here ? hereChapter : null} />}
     </nav>
   </>;
 }

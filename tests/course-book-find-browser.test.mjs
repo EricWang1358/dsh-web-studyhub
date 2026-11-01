@@ -22,7 +22,7 @@ test('复习全书 find and the big 目录 (1280 and 420 px)', { timeout: 420000
   const running = await startLateServer({ distDir: dist, seed: root => seedBigBook(root, { points: 200, chars: 300 }) });
   try {
     const opened = await running.api('course.book.open', {}), target = opened.nodes[7].children[3];
-    await running.api('course.book.save', { file: target.files.mine, text: '那个独一无二的公式，再说一次独一无二。', version: opened.files[target.files.mine].version });
+    await running.api('course.book.save', { file: target.files.mine, text: '那个独一无二的公式，再说一次独一无二。调用 `__init__` 时。', version: opened.files[target.files.mine].version });
     for (const width of [1280, 420]) {
       const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
       await page.goto(running.server.url);
@@ -40,6 +40,11 @@ test('复习全书 find and the big 目录 (1280 and 420 px)', { timeout: 420000
       await caret.click();
       assert.ok(await page.locator('.book-toc__go').count() >= rows + 20, `${width}px: its caret opens another chapter`);
       assert.equal(await page.locator('.book-toc [title]:not(.book-toc__fold)').count(), 0, `${width}px: no title= on text`);
+      // The chapter being read folded by hand: the mark moves to its row, so the 目录 still says where the learner is.
+      await page.locator('.book-toc__fold[aria-expanded="true"]').first().click();
+      assert.equal(await page.locator('.book-toc__go[aria-current="location"]').innerText(), '1 第 1 章', `${width}px: the mark is on the chapter`);
+      await page.locator('.book-toc__fold[aria-expanded="false"]').first().click();
+      assert.equal(await page.locator('.book-toc__go[aria-current="location"]').count(), 1, `${width}px: and back on the point`);
       // Words that are in one point, not drawn yet: one row, one click, there with the words marked. The width of the characters does not matter.
       const box = page.getByRole('searchbox', { name: '在书里找' });
       await box.fill('独一无二');
@@ -57,6 +62,17 @@ test('复习全书 find and the big 目录 (1280 and 420 px)', { timeout: 420000
       assert.equal(seen.text, '独一无二');
       assert.ok(seen.top >= 0 && seen.top < seen.height, `${width}px: the first one is on screen (${seen.top})`);
       if (width === 420) assert.equal(await page.locator('.book-toc').count(), 0, '420px: the 目录 closes after a jump');
+      // A word with marks in it, in code on the page: found and marked as it stands.
+      await toc();
+      await box.fill('__init__');
+      await page.locator('.book-toc__hit-text mark', { hasText: '__init__' }).waitFor({ timeout: 30000 });
+      await hit.first().click();
+      await page.waitForFunction(() => [...(window.CSS.highlights.get('study-find') ?? [])].some(range => range.toString() === '__init__'), null, { timeout: 30000 });
+      await toc();
+      await box.fill('独一无二');
+      await page.locator('.book-toc__hit-text mark', { hasText: '独一无二' }).waitFor({ timeout: 30000 });
+      await hit.first().click();
+      await page.waitForFunction(() => window.CSS.highlights.get('study-find')?.size === 2, null, { timeout: 30000 });
       // Another point: the marks go. Back in the 目录 what was typed is still there; 清空 brings the headings back.
       await page.locator('.book-bar').getByRole('button', { name: /下一/ }).first().click();
       await page.waitForFunction(() => !window.CSS.highlights.get('study-find')?.size, null, { timeout: 30000 });
@@ -64,7 +80,8 @@ test('复习全书 find and the big 目录 (1280 and 420 px)', { timeout: 420000
       assert.equal(await box.inputValue(), '独一无二', `${width}px: what was typed stays`);
       await box.press('Escape');
       assert.equal(await box.inputValue(), '', `${width}px: Esc clears the box first`);
-      assert.ok(await page.locator('.book-toc__go').count() >= 10, `${width}px: the headings are back`);
+      await page.locator('[data-book-hit]').waitFor({ state: 'detached', timeout: 30000 });
+      await page.waitForFunction(() => document.querySelectorAll('.book-toc__go').length >= 10, null, { timeout: 30000 });
       // No match says so. 整章连着读 goes to the same words.
       await box.fill('全书里没有的词');
       await page.locator('.book-toc__found', { hasText: '没有找到' }).waitFor({ timeout: 30000 });

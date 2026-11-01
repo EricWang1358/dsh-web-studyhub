@@ -40,6 +40,19 @@ test('what the page does not show as words is not found: link targets, ids, foot
   assert.equal(find('背压').rows[0].hid, 'b', 'a Q&A of the point');
 });
 
+test('marks that are words on the page are found: code and lone stars stay, only paired emphasis goes', () => {
+  const code = { status: 'ok', unplaced: { title: '未归位', text: '' }, nodes: [leaf('py', '1', 'Python', 'Call `__init__` and pass `**kwargs` here.\n\nIn C write int *p once.\n\nThe product a*b.\n\n**Bold words** and *slanted words* and __strong words__.')] };
+  const inCode = ui.searchIndex(code);
+  for (const words of ['__init__', '**kwargs', 'int *p', 'a*b', 'init', 'kwargs', 'Bold words', 'slanted words', 'strong words']) {
+    const [row] = ui.searchBook(inCode, words).rows;
+    assert.equal(row?.hid, 'py', words);
+    assert.equal(row.match.toLowerCase(), words.toLowerCase(), `${words}: the words shown are the words asked for`);
+  }
+  assert.equal(ui.searchBook(inCode, '**Bold').total, 0, 'the marks of emphasis are not on the page');
+  assert.equal(ui.searchBook(inCode, '`__init__`').total, 0, 'nor are the backticks');
+  assert.equal(ui.plainText('`a` and `b*c*d` then x*y*z'), 'a and b*c*d then xyz');
+});
+
 test('a title alone is found (a chapter too), with no place in the text to show', () => {
   const [row] = find('Chapter One').rows;
   assert.deepEqual([row.hid, row.number, row.count, row.match], ['c1', '1', 1, undefined]);
