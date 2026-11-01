@@ -204,7 +204,7 @@
       color: var(--text-muted);
       font-size: var(--fs-md);
     }
-    .dash-weak-row button {
+    .dash-weak-row .dash-weak-start {
       flex: none;
     }
   }

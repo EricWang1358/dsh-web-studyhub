@@ -120,7 +120,7 @@ function CopyAddress({ address }) {
   async function copy() { if (!await write()) document.getElementById('study-update-address')?.select?.(); }
   return (
     <div className="update-address">
-      <input id="study-update-address" readOnly value={address} aria-label={ui('安装地址')} onFocus={event => event.target.select()} />
+      <input className="update-address__input" id="study-update-address" readOnly value={address} aria-label={ui('安装地址')} onFocus={event => event.target.select()} />
       <Button size="sm" variant={copied ? 'secondary' : 'primary'} icon={copied ? 'check' : undefined} onClick={copy}>
         {copied ? ui('已复制') : ui('复制安装地址')}
       </Button>
