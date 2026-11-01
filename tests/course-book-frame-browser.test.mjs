@@ -226,6 +226,27 @@ Written by the main chat at ${width}.` });
     await pick();
     await ask.getByRole('button', { name: '丢掉改动，离开' }).click();
     await page.locator('.book-page h1', { hasText: 'Second course' }).waitFor({ timeout: 30000 });
+    // What the discard answered is not kept; what went with no question possible (the course changed from outside, as the main chat can) waits and is offered back.
+    await switcher.click();
+    await page.getByRole('option', { name: /ArchSS/ }).click();
+    await page.locator('.book-page h1', { hasText: 'ArchSS' }).waitFor({ timeout: 30000 });
+    await more(page, /^编辑这个知识点/);
+    const rescue = page.locator('[data-book-rescue]');
+    await page.locator('.book-editor .cm-content').waitFor({ timeout: 30000 });
+    assert.equal(await rescue.count(), 0, 'nothing is offered after 丢掉改动');
+    await page.locator('.book-editor .cm-content').click();
+    await page.keyboard.type('Words that nobody asked about.');
+    await running.api('focus.set', { course: 'Second course' });
+    await page.locator('.book-page h1', { hasText: 'Second course' }).waitFor({ timeout: 60000 });
+    await running.api('focus.set', { course: 'ArchSS' });
+    await page.locator('.book-page h1', { hasText: 'ArchSS' }).waitFor({ timeout: 60000 });
+    await more(page, /^编辑这个知识点/);
+    await rescue.waitFor({ timeout: 30000 });
+    assert.doesNotMatch(await page.locator('.book-editor .cm-content').innerText(), /nobody asked/, 'offered, not put in by itself');
+    await rescue.getByRole('button', { name: '恢复这些改动' }).click();
+    assert.match(await page.locator('.book-editor .cm-content').innerText(), /nobody asked/);
+    await page.locator('.book-editor__save').click();
+    await rescue.waitFor({ state: 'detached' });
     assert.deepEqual(errors, [], 'two courses: no page errors');
     await context.close();
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }

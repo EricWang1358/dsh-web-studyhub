@@ -150,7 +150,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     {dialog === 'mock' && <MockDialog course={course} pointIds={plan.day ? plan.points.map(point => point.id) : undefined} onStarted={onExamRun} onClose={() => setDialog(null)} />}
   </>;
   if (view === 'edit') return <section className="page book-page" ref={pageRef}>{header}
-    <EditView book={book} step={step} theme={theme} onChanged={setBook} onDirty={setDirty} leaving={!!leaving} onStay={() => setLeaving(null)}
+    <EditView book={book} step={step} theme={theme} root={root} onChanged={setBook} onDirty={setDirty} leaving={!!leaving} onStay={() => setLeaving(null)}
       onLeave={() => { const then = leaving; back(); then?.(); }} onDone={() => guard(back)} /></section>;
   if (view === 'flip') return <section className="page book-page" ref={pageRef}>{header}
     <BookAiContext.Provider value={ai.lines}><FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} onMark={(hid, on) => plan.mark(hid, 'seen', on)}

@@ -455,5 +455,8 @@
   "想调整这份计划：": "Want to change this plan:",
   "让主会话和你一起定备考计划；你同意之后才会存。": "Ask the main chat to draft the study plan with you; it is saved only after you agree.",
   "让主会话和你一起看这份计划要不要改；你同意之后才会存。": "Ask the main chat to go over this plan with you and see whether it needs changing; it is saved only after you agree.",
-  "正在打开编辑器…": "Opening the editor…"
+  "正在打开编辑器…": "Opening the editor…",
+  "上次离开时这份文件还有没保存的改动，当时没来得及问你。": "This file still had unsaved changes when the editor last closed, and there was no chance to ask you.",
+  "恢复这些改动": "Bring them back",
+  "不要了": "Discard them"
 }

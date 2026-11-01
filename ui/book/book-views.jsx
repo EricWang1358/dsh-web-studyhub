@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Dialog, InlineConfirm, LoadingState } from '../components/index.js';
 import BookFlip from './BookFlip.jsx';
@@ -40,15 +40,16 @@ export function useUnsavedWarning(on) {
 export const editFile = (book, step) => (step?.hid === 'unplaced' ? book.unplaced.file : step?.node.files?.gen ?? null);
 
 /** 编辑这个知识点: the editor on the point's files. Leaving with unsaved text asks first (`leaving`: what to do once the learner agrees; onStay keeps editing). */
-export function EditView({ book, step, theme, onChanged, onDirty, leaving, onLeave, onStay, onDone }) {
+export function EditView({ book, step, theme, root, onChanged, onDirty, leaving, onLeave, onStay, onDone }) {
+  const discarded = useRef(false);
   const [file, setFile] = useState(() => editFile(book, step) ?? Object.keys(book.files)[0]);
   const title = step ? uiFormat('编辑 · {0}', [[step.node.number, step.node.title].filter(Boolean).join(' ')]) : ui('编辑');
   return (
     <section className="book-mode" aria-label={ui('编辑这个知识点')}>
       <ModeBar title={title} onDone={onDone} />
-      {leaving && <InlineConfirm title={ui('还有没保存的改动')} confirmLabel={ui('丢掉改动，离开')} cancelLabel={ui('继续编辑')} onConfirm={onLeave} onCancel={onStay}>
+      {leaving && <InlineConfirm title={ui('还有没保存的改动')} confirmLabel={ui('丢掉改动，离开')} cancelLabel={ui('继续编辑')} onConfirm={() => { discarded.current = true; onLeave(); }} onCancel={onStay}>
         {ui('离开编辑会丢掉这些改动；先按「保存」就不会丢。')}</InlineConfirm>}
-      <BookEditor key={book.course} book={book} file={file && book.files[file] ? file : Object.keys(book.files)[0]} onPick={setFile} onChanged={onChanged} onDirty={onDirty} theme={theme} />
+      <BookEditor key={book.course} book={book} file={file && book.files[file] ? file : Object.keys(book.files)[0]} onPick={setFile} onChanged={onChanged} onDirty={onDirty} theme={theme} root={root} discarded={discarded} />
     </section>
   );
 }
