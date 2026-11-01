@@ -288,7 +288,7 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
   return <section className="page board-page">
     <PageHeader title={ui("待办看板")} eyebrow={ui("所有工作区")} description={ui("所有工作区共用。把想做的事记下来，逐步完成。")}
       actions={<>
-        <IconButton icon={<Icon name="sync" size={18} />} label={ui("刷新")} size="sm" disabled={busy} onClick={() => refresh({ force: true })} />
+        <IconButton icon={<Icon name="sync" size={18} />} label={ui("刷新")} size="sm" lock={busy} onClick={() => refresh({ force: true })} />
         <Button variant="quiet" size="sm" icon={<Icon name="archive" />} aria-pressed={archive} onClick={() => setArchive(!archive)}>{ui("归档")}{board ? ` (${board.archived.length})` : ""}</Button>
         {!archive && !empty && <Button variant="primary" icon="plus" disabled={readOnly || !board?.columns.length} onClick={() => openComposer(board.columns[0].id)}>{ui("添加卡片")}</Button>}
       </>} />
