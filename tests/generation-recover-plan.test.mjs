@@ -31,6 +31,14 @@ test('a run whose draft closed is over, whatever its record says: the process di
   assert.deepEqual(plan.restore.map(run => run.id), ['m2', 'm3', 'm4'], 'a supplement still has its publication to do; a record that names no run is judged as before');
 });
 
+test('a run closed short is closed too: its record does not bring back a job whose retry would be refused', () => {
+  const closed = draft('a', 'stopped'); closed.editorial.generation.runId = 'run-1'; closed.editorial.coverageRun.stop = { reason: 'questions-short', round: 2 };
+  const other = draft('b', 'stopped'); other.editorial.generation.runId = 'run-2'; other.editorial.coverageRun.stop = { reason: 'refused', round: 2 };
+  const plan = planRunRecovery({ runs: [{ id: 'm1', kind: 'generation', jobId: 'run-1', status: 'running', at: NOW }, { id: 'm2', kind: 'generation', jobId: 'run-2', status: 'running', at: NOW }], now: NOW, drafts: [closed, other] });
+  assert.deepEqual(plan.forget.map(run => run.id), ['m1']);
+  assert.deepEqual(plan.restore.map(run => run.id), ['m2'], 'a run stopped for another reason can still go on');
+});
+
 test('which drafts come back as an interrupted job: running or paused with rounds to do, no job on it, not archived', () => {
   const drafts = [draft('a'), draft('b', 'paused'), draft('c', 'waiting'), draft('d', 'stopped'), draft('e', 'complete'), draft('f', 'something-new'), draft('g', 'running', { editingDeckId: 'x' }), draft('h'), draft('i'), draft('j'), { id: 'plain', editorial: {} }];
   const jobs = [{ id: 'job-h', root: 'elsewhere', draftId: 'other' }, { id: 'zzz', root: 'R', draftId: 'i' }, { id: 'yyy', root: 'elsewhere', draftId: 'a' }];

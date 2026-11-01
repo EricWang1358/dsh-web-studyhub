@@ -4,6 +4,7 @@
    `modes`: what the planner does for the pieces it is given
      'cluster'  the first `count` sentences of the first piece(s)
      'greedy'   as 'cluster', and one more than asked (it never stops at the quota)
+   `readsExisting`: a planner that also reads the objectives it is told exist, as a real one does: a passage one of them already tests is not chosen again (a continuation asks a new model for what a draft lacks).
    `refuse(request)`: return true to make the planner answer {"error":"insufficient evidence"} for that request (a section that supports no point)
    `log.asks`: every planning call: { count, assignments, pieces, sections } so a test can read what each call was given. */
 import { sectionedModel } from './coverage-fixture.mjs';
@@ -12,7 +13,7 @@ import { parseJson } from '../../lib/generation.js';
 const SENTENCE = /Recording (\d+), part (\d+), point (\d+)\.1: [^.]{20,90}/g;
 export const sectionOfQuote = quote => { const match = /Recording (\d+), part (\d+), point/.exec(quote); return match ? `r${match[1]}.p${match[2]}` : null; };
 
-export function clusteringModel({ mode = 'cluster', refuse = () => false, failReview, onPlan } = {}) {
+export function clusteringModel({ mode = 'cluster', refuse = () => false, failReview, onPlan, readsExisting = false } = {}) {
   const inner = sectionedModel({ failReview });
   const log = { ...inner.log, asks: [] };
   let serial = 0;
@@ -24,7 +25,8 @@ export function clusteringModel({ mode = 'cluster', refuse = () => false, failRe
     if (refuse(request)) return JSON.stringify({ error: 'insufficient evidence' });
     // A planner that reads what it is told: a passage listed as already planned for an assignment is not chosen again (it still clusters: first sentences first).
     const used = (request.assignments || []).flatMap(item => item.alreadyPlanned || []);
-    const all = request.sources.flatMap(source => [...source.text.matchAll(SENTENCE)].map(match => ({ sourceId: source.id, quote: match[0] }))).filter(item => !used.some(text => item.quote.startsWith(text.replace(/…$/, ''))));
+    const all = request.sources.flatMap(source => [...source.text.matchAll(SENTENCE)].map(match => ({ sourceId: source.id, quote: match[0] }))).filter(item => !used.some(text => item.quote.startsWith(text.replace(/…$/, ''))))
+      .filter(item => !readsExisting || !(request.existing || []).some(objective => String(objective).startsWith(`Objective ${item.quote.slice(0, 40)}`)));
     const picked = all.slice(0, request.count + (mode === 'greedy' ? 1 : 0));
     const taken = new Set((request.existing || []).map(item => String(item).toLowerCase()));
     return JSON.stringify({ targets: picked.map(item => {

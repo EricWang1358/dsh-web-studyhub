@@ -13,6 +13,7 @@ import { clusteringModel } from './helpers/clustering-model.mjs';
 import { settleJob } from './helpers/wait.mjs';
 import { corpusWorld, CORPUS_ROUND_LIMIT, weighing } from './helpers/record-run-corpus.mjs';
 import { MODES, WINDOWS, modeOptions } from './fixtures/generation-crash-worker.mjs';
+import { shortfallOf } from '../lib/shortfall.js';
 
 const WORKER = fileURLToPath(new URL('./fixtures/generation-crash-worker.mjs', import.meta.url)), GOAL = 19, world = corpusWorld();
 /** What a run asks of the model when nothing cuts it short: in round 1 (a pause during the last of those calls stands at the boundary between rounds) and in all. */
@@ -34,18 +35,18 @@ before(async () => {
   await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
-async function die(t, name, mode) {
+async function die(t, name, mode, scenario = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-run-crash-'));
   t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
-  const child = spawn(process.execPath, [WORKER, root, name, mode, String(uncut.roundOne)], { env: { ...process.env, DSH_HOME: join(root, '.home') }, stdio: 'inherit' });
+  const child = spawn(process.execPath, [WORKER, root, name, mode, String(uncut.roundOne), JSON.stringify(scenario)], { env: { ...process.env, DSH_HOME: join(root, '.home') }, stdio: 'inherit' });
   const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('exit', resolve); });
   assert.equal(code, WINDOWS[name].code, `the process died in the window "${name}" (70: the window was never reached)`);
   return root;
 }
-async function reopen(t, root, mode) {
+async function reopen(t, root, mode, { roundLimit = CORPUS_ROUND_LIMIT } = {}) {
   let model = async () => { throw new Error('a restart must not call a model by itself'); };
   const log = [], complete = (system, prompt, context) => { log.push(system.slice(0, 30)); return model(system, prompt, context); };
-  const service = new StudyService(root, { coverage: { roundLimit: CORPUS_ROUND_LIMIT }, ...modeOptions(mode, complete) });
+  const service = new StudyService(root, { coverage: { roundLimit }, ...modeOptions(mode, complete) });
   service.light = weighing;
   service.complete = complete;
   t.after(() => service.dispose());
@@ -94,6 +95,46 @@ async function recoverAndFinish(t, root, mode, options) {
   assert.deepEqual(left.filter(job => job.contract.status === 'interrupted').map(job => job.id), [], 'no interrupted job is left behind');
   return { calls: after.log.length };
 }
+
+/* The last round, cut once every section has its first question: nothing is left to ask a model, and questions are still owed. An uncut run of these worlds makes 30, 22 and 46. */
+const SHORT_WORLDS = [{ name: '3 sections, 30 asked', parts: 3, count: 30, goal: 30 }, { name: '2 sections, 30 asked', parts: 2, count: 30, goal: 24 }, { name: '4 sections, 60 asked', parts: 4, count: 60, goal: 48 }];
+const shortScenario = ({ parts, count }) => ({ world: { recordings: 1, parts, paragraphs: 16 }, count, roundLimit: 30 });
+const shortfallFor = async (service, draft) => shortfallOf({ draft, coverage: (await service.call('coverage.get', { draftId: draft.id })).coverage });
+
+for (const mode of Object.keys(MODES)) for (const world of SHORT_WORLDS) test(`${mode}, ${world.name}: closing a run that is short keeps the goal the card showed and offers the way to add more`, async t => {
+  const scenario = shortScenario(world), root = await die(t, 'every-section-covered', mode, scenario), after = await reopen(t, root, mode, scenario);
+  const left = await draftOf(after.service), kept = left.cards.length;
+  assert.ok(kept < world.goal, `this world is short when it is cut (${kept} of ${world.goal})`);
+  const [card] = await jobsOnDraft(after.service, left);
+  assert.equal(card.requestedTotal, world.goal, 'the goal the interrupted card shows');
+  // (Behind generationRestart the card is the kernel's last record, which a kill can leave a save behind the draft.)
+  if (mode !== 'restart') assert.equal(card.savedCount, kept, 'the count it shows');
+  const reply = await after.service.call('job.control', { jobId: card.id, action: 'retry' });
+  const done = await settleJob(after.service, attemptOf(reply));
+  assert.deepEqual(after.log, [], 'closing asks no model');
+  assert.equal(done.status, 'complete', done.stage);
+  assert.deepEqual([done.savedCount, done.requestedTotal], [kept, world.goal], 'the number does not change between the card and the close');
+  assert.doesNotMatch(done.stage, /target|ready/i, 'a run that is short does not claim it reached anything');
+  assert.match(done.stage, new RegExp(`${kept} of ${world.goal}`));
+  const closed = await draftOf(after.service), short = await shortfallFor(after.service, closed);
+  assert.equal(closed.cards.length, kept);
+  assert.ok(roundList(closed.editorial.coverageSpec).every(round => !['pending', 'running'].includes(round.status)), 'no round left open');
+  assert.deepEqual([short.questionsKept, short.questionsGoal, short.questionsMissing], [kept, world.goal, world.goal - kept]);
+  assert.deepEqual([short.state, short.reason, short.ready, short.percent], ['done', 'questions-short', false, Math.round(kept / world.goal * 100)]);
+  assert.deepEqual([short.action, short.continueKind, short.canContinue], ['continue', 'count', true], 'the way any short draft is added to');
+  // That way: the action a plain short run gets, asked for what the sentence says.
+  after.use(clusteringModel({ readsExisting: true }).complete);
+  const more = await after.service.call('generate', { resumeDraftId: closed.id, draftVersion: closed.draftVersion });
+  assert.equal(more.missing, world.goal - kept, 'the number on the button is the number the job is asked for');
+  const added = await settleJob(after.service, attemptOf(more));
+  assert.equal(added.status, 'complete', added.stage);
+  const last = await draftOf(after.service);
+  assert.ok(last.cards.length > kept && last.cards.length <= world.goal, `it added to the draft (${kept} -> ${last.cards.length} of ${world.goal})`);
+  assert.ok(left.cards.every(card => last.cards.some(item => item.id === card.id)), 'what had passed review is kept');
+  const then = await shortfallFor(after.service, last);
+  assert.equal(then.questionsMissing, world.goal - last.cards.length);
+  assert.equal(then.ready, last.cards.length === world.goal);
+});
 
 for (const mode of Object.keys(MODES)) {
   test(`${mode}: killed before its first draft`, async t => {

@@ -146,6 +146,15 @@ test('a close looks at what each round did: a round that never started is skippe
   assert.equal(again.spec.rounds[0].status, 'done', 'a second kill finds the round that was in flight pending, with its pass still on it');
 });
 
+test('a close that is short of the goal is stopped, not complete: it keeps the goal and says why; the goal met is complete as ever', () => {
+  const covered = { sections: [{ key: 'a', state: 'covered' }] };
+  const left = { marker: marker('running'), spec: { goal: 24, quotas: [{ sectionId: 'a', quota: 24 }], rounds: [{ round: 1, status: 'running', sectionIds: ['a'], askedKeys: ['a'] }] } };
+  const short = closeRun(left, covered, { jobId: 'k', at: LATER, kept: 17 });
+  assert.deepEqual([short.marker.state, short.marker.stop.reason, short.spec.goal], ['stopped', 'questions-short', 24]);
+  assert.equal(isOpenRun(short.marker), false, 'it does not come back by itself');
+  assert.deepEqual([closeRun(left, covered, { jobId: 'k', at: LATER, kept: 24 }).marker.state, closeRun(left, covered, { jobId: 'k', at: LATER, kept: 24 }).marker.stop.reason], ['complete', 'complete']);
+});
+
 test('a closed run has no pending row: a fill round in flight is settled like any other', () => {
   const covered = { sections: [{ key: 'a', state: 'covered' }] };
   const closed = closeRun({ marker: marker('running'), spec: { quotas: [{ sectionId: 'a', quota: 1 }], rounds: [{ round: 1, status: 'done', sectionIds: ['a'] }, { round: 2, status: 'running', fill: true, sectionIds: ['a'], askedKeys: ['a'] }, { round: 3, fill: true, status: 'pending', sectionIds: ['a'] }] } }, covered, { jobId: 'k', at: LATER });

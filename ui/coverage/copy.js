@@ -339,6 +339,8 @@ export function stopText(stop) {
     // The key was refused: said once, in plain words, whatever the provider printed for each part.
     refused: () => (stop.code === 'quota' ? ui('模型账户的余额或额度不足，已经停下；已通过的题都保留。') : ui('模型服务拒绝了请求（密钥无效或没有权限），已经停下；已通过的题都保留。')),
     'round-failed': () => uiFormat('第 {0} 轮出错，已经停下；已通过的题都保留。', [round]),
+    // No number here: the line beside it says 已出 x/y 题, the one count of the shortfall.
+    'questions-short': () => ui('这次运行被中断过：每个小节都有题了，但还没出满计划的题数。已通过的题都保留，可以点「接着做」补上。'),
   })[stop.reason];
   return text ? [text(), stop.reason === 'no-progress' || stop.reason === 'round-failed' ? cause : ''].filter(Boolean).join(' ') : '';
 }

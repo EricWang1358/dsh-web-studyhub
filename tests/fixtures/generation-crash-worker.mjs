@@ -6,6 +6,9 @@ import { Store } from '../../lib/store.js';
 import { clusteringModel } from '../helpers/clustering-model.mjs';
 import { managedRuntimeOptions } from '../helpers/runtime-switch.mjs';
 import { corpusWorld, CORPUS_ROUND_LIMIT, weighing } from '../helpers/record-run-corpus.mjs';
+import { mergedTranscript } from '../helpers/merged-transcript.mjs';
+import { coverageForDraft } from '../../lib/coverage-state.js';
+import { wantedUncovered } from '../../lib/coverage-run.js';
 
 const round = (draft, index) => draft?.editorial?.coverageSpec?.rounds?.[index]?.status;
 export const WINDOWS = Object.freeze({
@@ -18,7 +21,17 @@ export const WINDOWS = Object.freeze({
   'closing-unsaved': { code: 87, before: draft => draft?.editorial?.coverageRun?.state === 'complete' },
   'closing-saved': { code: 88, after: draft => draft.editorial?.coverageRun?.state === 'complete' },
   paused: { code: 89, after: draft => draft.editorial?.coverageRun?.state === 'paused', pauseAtCall: true },
+  // The last round, with every section at its first question and the round's other parts still in flight: nothing is left to ask, and questions are still owed.
+  'every-section-covered': { code: 90, after: (draft, _goal, state) => isFullyCovered(draft, state) },
 });
+function isFullyCovered(draft, state) {
+  const spec = draft?.editorial?.coverageSpec;
+  if (!spec?.quotas?.length || draft.editorial.coverageRun?.state !== 'running' || !draft.cards.length) return false;
+  const view = coverageForDraft(state, draft);
+  return !wantedUncovered(spec, view).size && spec.quotas.every(quota => view.sections.some(section => section.key === quota.sectionId));
+}
+/** A world of a test: the material, what is asked of it and how large a round is. */
+export const worldOf = ({ world, roundLimit = CORPUS_ROUND_LIMIT } = {}) => ({ world: world ? mergedTranscript(world) : corpusWorld(), roundLimit });
 export const MODES = Object.freeze({ legacy: [], generation: ['generation'], restart: ['generation', 'generationRestart'] });
 
 /** The service options of a mode: the runtime's switches and a fixture host, or nothing. */
@@ -29,7 +42,7 @@ export function modeOptions(mode, complete) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const [root, name, mode, pauseAt] = process.argv.slice(2), window = WINDOWS[name], { goal, world } = { goal: 19, world: corpusWorld() };
+  const [root, name, mode, pauseAt, given] = process.argv.slice(2), scenario = JSON.parse(given || '{}'), window = WINDOWS[name], goal = 19, { world, roundLimit } = worldOf(scenario);
   const write = Store.prototype.update;
   Store.prototype.update = async function (fn, ...rest) {
     const result = await write.call(this, async state => {
@@ -41,9 +54,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   };
   const after = Store.prototype.update;
   Store.prototype.update = async function (fn, ...rest) {
-    let draft;
-    const result = await after.call(this, async state => { const out = await fn(state); draft = state.drafts?.[0]; return out; }, ...rest);
-    if (draft && window.after?.(draft, goal)) process.exit(window.code);
+    let hit = false;
+    const result = await after.call(this, async state => { const out = await fn(state); const draft = state.drafts?.[0]; hit = !!draft && !!window.after?.(draft, goal, state); return out; }, ...rest);
+    if (hit) process.exit(window.code);
     return result;
   };
   const inner = clusteringModel().complete;
@@ -54,11 +67,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (window.pauseAtCall && calls === Number(pauseAt)) await service.call('job.control', { jobId, action: 'pause' });
     return inner(system, prompt, context);
   };
-  service = new StudyService(root, { coverage: { roundLimit: CORPUS_ROUND_LIMIT }, ...modeOptions(mode, complete) });
+  service = new StudyService(root, { coverage: { roundLimit }, ...modeOptions(mode, complete) });
   service.light = weighing;
   service.complete = complete;
   for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
-  ({ jobId } = await service.call('generate', { sourceIds: world.sources.map(source => source.id), coverageLevel: 'standard', kind: 'quiz' }));
+  ({ jobId } = await service.call('generate', { sourceIds: world.sources.map(source => source.id), coverageLevel: 'standard', kind: 'quiz', ...(scenario.count ? { count: scenario.count } : {}) }));
   await service.call('job.wait', { jobId, timeoutSeconds: 60 });
   process.exit(70); // Nothing killed it: the window was never reached.
 }

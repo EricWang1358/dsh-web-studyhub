@@ -131,6 +131,40 @@ test('a plain run that stopped short is NOT told about sections it never promise
   assert.equal(s.sectionsUncovered, 94, 'the sections stay a fact of the material (the coverage line says them)');
 });
 
+/* A run cut in its last round and closed with every section covered (lib/contexts/generation/run-state.js closeRun): the goal stays, and what is owed is continued by count like any short draft. */
+const closedShort = ({ cards = 17, goal = 24, level } = {}) => ({ id: 'c1', title: 'Cut', draftVersion: 5, cards: Array.from({ length: cards }, (_, index) => ({ id: `c${index}` })), editorial: { requested: goal, generation: { sourceIds: ['s'], kind: 'quiz' },
+  coverageSpec: spec({ goal, level, quotas: [{ sectionId: key(0), quota: goal }] }, 1), coverageRun: { jobId: 'j', autoComplete: true, state: 'stopped', tokensUsed: 5, stop: { reason: 'questions-short', round: 1 } } } });
+
+test('a run closed short: 17 of the 24 the interrupted card showed, 71%, and the one action adds the 7 it owes', () => {
+  const s = shortfallOf({ draft: closedShort(), coverage: coverageOf(2, 0), round: round(0, 0, 0, 0) });
+  assert.deepEqual([s.questionsKept, s.questionsGoal, s.questionsMissing, s.percent], [17, 24, 7, 71]);
+  assert.deepEqual([s.state, s.reason, s.ready, s.action, s.continueKind, s.canContinue, s.secondary], ['done', 'questions-short', false, 'continue', 'count', true, null]);
+  assert.equal(s.roundsLeft, 0);
+});
+
+test('a run closed short says the same before the coverage view has arrived, and under a level that leaves sections out (they stay the top-up beside it)', () => {
+  const early = shortfallOf({ draft: closedShort() });
+  assert.deepEqual([early.state, early.questionsMissing, early.percent, early.action], ['done', 7, 71, 'continue']);
+  const lean = shortfallOf({ draft: closedShort({ level: 'lean' }), coverage: coverageOf(10, 6), round: round(6, 6, 0, 1) });
+  assert.deepEqual([lean.state, lean.questionsMissing, lean.percent, lean.action, lean.secondary], ['done', 7, 71, 'continue', 'topup']);
+});
+
+test('a run closed short that was added to: running while its job works, ready once nothing is missing, short again if the job comes back short', () => {
+  const working = shortfallOf({ draft: closedShort(), coverage: coverageOf(2, 0), job: { id: 'k', draftId: 'c1', status: 'running' } });
+  assert.deepEqual([working.state, working.action, working.canContinue], ['running', null, false]);
+  const full = shortfallOf({ draft: closedShort({ cards: 24 }), coverage: coverageOf(2, 0), round: round(0, 0, 0, 0) });
+  assert.deepEqual([full.state, full.ready, full.percent, full.action, full.questionsMissing], ['done', true, 100, null, 0]);
+  const fullLean = shortfallOf({ draft: closedShort({ cards: 24, level: 'lean' }), coverage: coverageOf(10, 6), round: round(6, 6, 0, 1) });
+  assert.deepEqual([fullLean.ready, fullLean.questionsMissing], [true, 0], 'the plan is met: the sections it left out are not missing');
+  const again = shortfallOf({ draft: closedShort({ cards: 20 }), coverage: coverageOf(2, 0), round: round(0, 0, 0, 0) });
+  assert.deepEqual([again.questionsMissing, again.action], [4, 'continue']);
+});
+
+test('a complete run stays what it was: its goal is what it made, whatever the plan said', () => {
+  const s = shortfallOf({ draft: draft({ cards: 22, specOver: { goal: 24 }, marker: { jobId: 'j', autoComplete: true, state: 'complete', stop: { reason: 'complete', round: 1 }, tokensUsed: 5 } }), coverage: coverageOf(2, 0), round: round(0, 0, 0, 0) });
+  assert.deepEqual([s.questionsGoal, s.questionsMissing, s.percent, s.action, s.continueKind], [22, 0, 100, null, 'rounds']);
+});
+
 test('the way a top-up goes from here to full coverage: coverage now, after the round, and what it takes (rounds and questions)', () => {
   const s = shortfallOf({ draft: plainDraft(), coverage: coverageOf(108, 94), round: { ...round(27, 27, 67, 4), allQuestions: 100 } });
   assert.equal(s.coveragePercent, 13);
