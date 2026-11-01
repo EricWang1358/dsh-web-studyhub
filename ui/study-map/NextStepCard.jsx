@@ -27,7 +27,7 @@ export default function NextStepCard({ view, onDismiss }) {
         {action && (action.usage === 'home.start'
           ? <Button {...primary} data-usage="home.start" onClick={action.run}>{action.label}</Button>
           : <Button {...primary} data-usage="home.next" onClick={action.run}>{action.label}</Button>)}
-        <Button variant="quiet" size="sm" disabled={busy} data-usage="home.next-later" data-next-dismiss onClick={onDismiss}>{ui('今天先不')}</Button>
+        <Button variant="quiet" size="sm" lock={busy} data-usage="home.next-later" data-next-dismiss onClick={onDismiss}>{ui('今天先不')}</Button>
       </div>
       <p className="next-card__help">
         <HandOff id="guide.start" lead={ui('不知道从哪开始？')} what={ui('让主会话看一眼你的学习库，再说两三条能马上开始的路。')} disabled={busy} />
