@@ -57,7 +57,7 @@ function Binding({ app }) {
       </div>
       {rootDraft !== null && (
         <form className="binding-inline" onSubmit={async (event) => { event.preventDefault(); if (await updateBinding({ root: rootDraft })) setRootDraft(null); }}>
-          <input autoFocus required aria-label={ui('学习库绝对路径')} value={rootDraft} onChange={(event) => setRootDraft(event.target.value)} />
+          <input className="binding-inline__input" autoFocus required aria-label={ui('学习库绝对路径')} value={rootDraft} onChange={(event) => setRootDraft(event.target.value)} />
           <Button type="submit" variant="primary" disabled={busy}>{ui('使用此目录')}</Button>
           <Button onClick={() => setRootDraft(null)}>{ui('取消')}</Button>
         </form>
@@ -79,9 +79,9 @@ function Binding({ app }) {
       </div>
       {modelDraft && (
         <form className="binding-inline" onSubmit={async (event) => { event.preventDefault(); if (await updateBinding(modelDraft)) setModelDraft(null); }}>
-          <input autoFocus required aria-label="Provider" placeholder="Provider" value={modelDraft.provider}
+          <input className="binding-inline__input" autoFocus required aria-label="Provider" placeholder="Provider" value={modelDraft.provider}
             onChange={(event) => setModelDraft({ ...modelDraft, provider: event.target.value })} />
-          <input required aria-label={ui('模型 ID')} placeholder={ui('模型 ID')} value={modelDraft.model}
+          <input className="binding-inline__input" required aria-label={ui('模型 ID')} placeholder={ui('模型 ID')} value={modelDraft.model}
             onChange={(event) => setModelDraft({ ...modelDraft, model: event.target.value })} />
           <Button type="submit" variant="primary" disabled={busy}>{ui('使用')}</Button>
           <Button onClick={() => setModelDraft(null)}>{ui('取消')}</Button>

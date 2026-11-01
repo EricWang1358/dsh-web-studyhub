@@ -19,8 +19,8 @@
     .coach-card .coach-options { gap: var(--space-1-5); }
     /* ── Thumbs ───────────────────────────────────────────────────────────── */
     .thumbs { display: inline-flex; align-items: center; gap: var(--space-1); position: relative; }
-    .thumbs > button { min-width: 34px; padding-left: var(--space-2-5); padding-right: var(--space-2-5); }
-    .thumbs > button[aria-pressed="true"] { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
+    .thumbs > .thumbs__button { min-width: 34px; padding-left: var(--space-2-5); padding-right: var(--space-2-5); }
+    .thumbs > .thumbs__button[aria-pressed="true"] { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
     .thumb-tray {
       position: absolute;
       bottom: calc(100% + 8px);
