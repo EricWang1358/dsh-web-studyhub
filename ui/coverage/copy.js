@@ -345,6 +345,9 @@ export function stopText(stop) {
   return text ? [text(), stop.reason === 'no-progress' || stop.reason === 'round-failed' ? cause : ''].filter(Boolean).join(' ') : '';
 }
 
+/** Why a finished job's run stopped, as far as it is still true: a job that closed a run short keeps that stop on its record, and once a later press has met the goal the draft is not short any more. */
+export const runStopText = (stop, shortfall) => (stop?.reason === 'questions-short' && shortfall?.questionsMissing === 0 ? '' : stopText(stop));
+
 /* ---------- the shortfall (lib/shortfall.js): ONE set of sentences for the home banner, the 待发布 row, the 任务 console and the draft page ---------- */
 
 /** 「已出 174/251 题」 for a draft that is short of its goal, 「174 道题」 for one that is not. */
@@ -369,7 +372,7 @@ export function nextRoundText(s) {
 /** What 接着做 does, said before the button (the same sentence on the banner, the row, the console and the draft page): a plain run keeps what it made and makes the questions it still owes,
     「已出 13/15 题保留，接着补 2 题」; a run of rounds keeps it and goes on at the round that comes next. */
 export function continueLine(s) {
-  if (s.continueKind === 'count' && s.questionsMissing > 0) return uiFormat('已出 {0}/{1} 题保留，接着补 {2} 题', [s.questionsKept, s.questionsGoal, s.questionsMissing]);
+  if (s.continueKind === 'count' && s.questionsMissing > 0) return uiFormat('已出 {0}/{1} 题保留，接着补 {2} 题', [s.questionsKept, s.questionsGoal, s.continueCount ?? s.questionsMissing]);
   if (s.round) return uiFormat('已出 {0}/{1} 题保留，接着做从第 {2} 轮继续', [s.questionsKept, s.questionsGoal, s.round]);
   return uiFormat('已出 {0}/{1} 题保留，接着做会继续', [s.questionsKept, s.questionsGoal]);
 }
