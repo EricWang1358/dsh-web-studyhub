@@ -89,64 +89,14 @@
       "ui/sources-page.css"
     ],
     "is-active": [
-      "ui/case-study.css",
-      "ui/components/components.css",
       "ui/components/disclosure.css",
-      "ui/course-field.css",
-      "ui/generate-home.css",
-      "ui/review/question.css",
       "ui/skeleton.css"
-    ],
-    "is-compact": [
-      "ui/course-active.css",
-      "ui/mineru.css",
-      "ui/update.css"
     ],
     "is-current": [
       "ui/components/feedback.css",
-      "ui/course-settings.css",
       "ui/focus.css",
       "ui/mineru.css",
       "ui/workflows.css"
-    ],
-    "is-done": [
-      "ui/board/board.css",
-      "ui/components/feedback.css"
-    ],
-    "is-dragging": [
-      "ui/board/board.css",
-      "ui/shell.css",
-      "ui/side-groups.css"
-    ],
-    "is-narrow": [
-      "ui/shell.css",
-      "ui/side-groups.css"
-    ],
-    "is-open": [
-      "ui/case-study.css",
-      "ui/workflows.css"
-    ],
-    "is-over": [
-      "ui/board/board.css",
-      "ui/case-result.css",
-      "ui/components/components.css"
-    ],
-    "is-panning": [
-      "ui/graph.css",
-      "ui/skeleton.css"
-    ],
-    "is-parked": [
-      "ui/course-active.css",
-      "ui/course-field.css"
-    ],
-    "is-ready": [
-      "ui/tour/tour.css",
-      "ui/wrongbook.css"
-    ],
-    "is-selected": [
-      "ui/components/feedback.css",
-      "ui/components/fields.css",
-      "ui/source-picker.css"
     ],
     "local-status": [
       "ui/shell.css",

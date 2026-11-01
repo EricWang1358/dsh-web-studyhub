@@ -27,9 +27,16 @@ export function subjectClasses(entry) {
   let compound = entry.slice(cut);
   compound = compound.replace(/:not\((?:[^()]|\([^()]*\))*\)/g, '').replace(/\[[^\]]*\]/g, '');
   const inner = [...compound.matchAll(/:(?:is|where|matches)\(((?:[^()]|\([^()]*\))*)\)/g)].map((m) => m[1]);
-  const text = [compound.replace(/:(?:is|where|matches)\((?:[^()]|\([^()]*\))*\)/g, ''), ...inner.flatMap((part) => part.split(','))].join(' ');
-  return [...new Set([...text.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1]))];
+  const parts = [compound.replace(/:(?:is|where|matches)\((?:[^()]|\([^()]*\))*\)/g, ''), ...inner.flatMap((part) => part.split(','))];
+  /* `.a.is-done` styles `.a` in its done state: a state class (is-*, has-*) written on another class is that class's modifier and
+     belongs to its owner. A state class on its own (`.is-done`, `.is-a.is-b`) has nobody to be attributed to and stays a subject. */
+  const names = parts.flatMap((part) => {
+    const found = [...part.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1]);
+    return found.some((name) => !STATE_CLASS.test(name)) ? found.filter((name) => !STATE_CLASS.test(name)) : found;
+  });
+  return [...new Set(names)];
 }
+const STATE_CLASS = /^(?:is|has)-/;
 
 /** class -> sorted list of the stylesheets that write a rule whose subject it is. */
 export function classOwners(root = ROOT) {

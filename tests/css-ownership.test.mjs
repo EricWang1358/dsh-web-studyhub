@@ -28,3 +28,12 @@ test('the subject of a selector is its last compound', () => {
   assert.deepEqual(subjectClasses('.a button'), []);
   assert.deepEqual(subjectClasses('.a [data-x=".z"] .y'), ['y']);
 });
+
+test('a state class written on another class is that class\'s own modifier, not a second owner', () => {
+  assert.deepEqual(subjectClasses('.board-due.is-done'), ['board-due'], '.board-due.is-done styles .board-due');
+  assert.deepEqual(subjectClasses('.a .b.has-rail:hover'), ['b']);
+  assert.deepEqual(subjectClasses('.a :is(.b.is-open, .c)'), ['b', 'c']);
+  assert.deepEqual(subjectClasses('.a .is-done'), ['is-done'], 'a bare state class is still a subject of its own');
+  assert.deepEqual(subjectClasses('.is-a.is-b'), ['is-a', 'is-b'], 'only state classes: nothing to attribute them to');
+  assert.deepEqual(subjectClasses('.sh-btn.sh-btn--primary'), ['sh-btn', 'sh-btn--primary'], 'BEM modifiers are classes with their own home');
+});
