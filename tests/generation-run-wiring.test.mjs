@@ -7,6 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { roundList } from '../lib/coverage-run.js';
+import { shortfallOf } from '../lib/shortfall.js';
+import { SELECTION_CHARS } from '../lib/limits.js';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { settleJob, until } from './helpers/wait.mjs';
 import { corpusWorld, CORPUS_ROUND_LIMIT, weighing } from './helpers/record-run-corpus.mjs';
@@ -67,6 +69,7 @@ test('a run that failed in a round the learner pressed for: the draft keeps what
   assert.equal(stop.reason, 'round-failed');
   assert.deepEqual([stop.code, stop.detail], ['plan-short', job.stage.slice(0, 200)], 'the stop carries its extra');
   assert.equal(job.retryable, true, 'it can go on: its draft is the checkpoint');
+  assert.equal((await draftOf(service)).editorial.generation.runId, job.id, 'it wrote no question, and the draft still says which run it was on: every save of a run names it');
 });
 
 test('a run that failed before its first draft has nothing to go on from: no 接着做 is offered', async t => {
@@ -151,4 +154,114 @@ test('what a run closed short owes is asked for a round at a time: more than a r
   assert.equal(reply.missing, 30);
   const job = await settleJob(service, reply.jobId);
   assert.equal(job.requestedTotal, goal);
+});
+
+/** A finished run put back as a close leaves one that owes `owed` more questions. */
+async function closedShort(service, owed, over = {}) {
+  await settleJob(service, (await start(service, over)).jobId);
+  const draft = await draftOf(service), goal = draft.cards.length + owed;
+  return save(service, draft, { requested: goal, coverageSpec: { ...draft.editorial.coverageSpec, goal }, coverageRun: { ...draft.editorial.coverageRun, state: 'stopped', stop: { reason: 'questions-short', round: 1 } } });
+}
+const shortOf = async service => { const draft = await draftOf(service); return { draft, short: shortfallOf({ draft, coverage: (await service.call('coverage.get', { draftId: draft.id })).coverage }) }; };
+const press = (service, draft) => service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion });
+/** A model for a draft that is pressed: `allow()` says how many more calls come back before the next ones fail. */
+const pressing = allow => (_lib, inner) => { const fresh = clusteringModel({ readsExisting: true }).complete; return async (system, prompt, context = {}) => {
+  const left = allow();
+  if (left === null) return inner(system, prompt, context);
+  if (left.calls-- <= 0) throw new Error('503 overloaded');
+  return fresh(system, prompt, context);
+}; };
+
+test('the reply of a close says what is missing, and the close leaves the number the next press counts from', async t => {
+  const service = await open(t);
+  await lostItsClosingWrite(service, spec => ({ ...spec, goal: 40 }));
+  const draft = await draftOf(service);
+  assert.ok(draft.editorial.requested < 40, 'the number of the first round until now');
+  const reply = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { run: true } });
+  assert.equal(reply.missing, 40 - draft.cards.length);
+  await settleJob(service, reply.jobId);
+  assert.equal((await draftOf(service)).editorial.requested, 40);
+});
+
+test('a press that falls short keeps the action, whatever came of its job; the goal met clears it', async t => {
+  let budget = null;
+  const service = await open(t, pressing(() => budget));
+  const kept = (await closedShort(service, 13)).cards.length;
+  budget = { calls: 9 };
+  const first = (await shortOf(service)).draft, job = await settleJob(service, (await press(service, first)).jobId);
+  const { draft, short } = await shortOf(service);
+  assert.ok(draft.cards.length > kept && draft.cards.length < kept + 13, `${kept} -> ${draft.cards.length} (${job.status}: ${job.stage})`);
+  assert.equal(draft.editorial.coverageRun.stop.reason, 'questions-short', 'its saves carry the state');
+  assert.deepEqual([short.questionsGoal, short.action, short.continueKind, short.canContinue, short.reason], [kept + 13, 'continue', 'count', true, 'questions-short']);
+  budget = { calls: 999 };
+  await settleJob(service, (await press(service, draft)).jobId);
+  const end = await shortOf(service);
+  assert.equal(end.draft.cards.length, kept + 13);
+  assert.deepEqual([end.draft.editorial.coverageRun.state, end.draft.editorial.coverageRun.stop.reason, end.short.ready, end.short.action, end.short.percent], ['complete', 'complete', true, null, 100]);
+});
+
+test('a job that failed on a draft closed short leaves the same action', async t => {
+  let budget = null;
+  const service = await open(t, pressing(() => budget));
+  await closedShort(service, 5);
+  budget = { calls: 0 };
+  const before = (await shortOf(service)).draft, job = await settleJob(service, (await press(service, before)).jobId);
+  const { draft } = await shortOf(service), { coverage } = await service.call('coverage.get', { draftId: draft.id });
+  const short = shortfallOf({ draft, coverage, job });
+  assert.deepEqual([job.status, short.action, short.continueKind, short.canContinue], ['failed', 'continue', 'count', true]);
+});
+
+test('above one round: each press asks for a round of questions and the action stays until the goal; the estimate prices the same press', async t => {
+  const service = await open(t, () => clusteringModel({ readsExisting: true }).complete);
+  await closedShort(service, 35);
+  const { draft, short } = await shortOf(service);
+  assert.deepEqual([short.questionsMissing, short.continueCount], [35, 30]);
+  const cost = async deck => (await service.call('usage.estimate', { feature: 'generate', resumeDraftId: deck.id, draftVersion: deck.draftVersion })).totalTokens;
+  const priced = await cost(draft);
+  const asThirty = await save(service, draft, { requested: draft.cards.length + 30 });
+  assert.deepEqual(await cost(asThirty), priced, 'a press above one round is priced as one round');
+  const back = await save(service, asThirty, { requested: draft.cards.length + 35 });
+  const reply = await press(service, back);
+  assert.equal(reply.missing, short.continueCount, 'the number on the button is the number of the job');
+  await settleJob(service, reply.jobId);
+  const after = await shortOf(service);
+  assert.equal(after.short.questionsGoal, draft.cards.length + 35);
+  assert.equal(after.short.action, after.short.questionsMissing > 0 ? 'continue' : null);
+});
+
+const LONG = 'Filler paragraph about the topic that a learner would have in a long book. '.repeat(Math.ceil(SELECTION_CHARS / 75)).slice(0, SELECTION_CHARS - 10);
+
+test('a continuation of a coverage run has the limit of the run: a selection above the limit of a plain run is not refused, and the estimate does not call it over', async t => {
+  const service = await open(t, () => clusteringModel({ readsExisting: true }).complete);
+  await closedShort(service, 2);
+  await service.call('source.add', { id: 'big', title: 'big', text: LONG });
+  const draft = await draftOf(service), saved = await save(service, draft, { generation: { ...draft.editorial.generation, sourceIds: [...draft.editorial.generation.sourceIds, 'big'] } });
+  assert.equal((await service.call('usage.estimate', { feature: 'generate', resumeDraftId: saved.id, draftVersion: saved.draftVersion })).blocked, undefined);
+  const reply = await press(service, saved);
+  assert.equal(reply.missing, 2);
+  await settleJob(service, reply.jobId);
+});
+
+test('a plain run keeps the limit of a plain run', async t => {
+  const service = await open(t, () => clusteringModel({ readsExisting: true }).complete);
+  await settleJob(service, (await start(service, { coverageLevel: undefined, count: 2, title: 'Plain' })).jobId);
+  await service.call('source.add', { id: 'big', title: 'big', text: LONG });
+  const draft = await draftOf(service);
+  assert.equal(draft.editorial.coverageSpec, undefined);
+  const saved = await save(service, draft, { requested: draft.cards.length + 2, generation: { ...draft.editorial.generation, sourceIds: [...draft.editorial.generation.sourceIds, 'big'] } });
+  await assert.rejects(press(service, saved), /the limit is/);
+});
+
+test('several kinds: a press that falls short, then another: the split comes from what the draft holds, never a stale one the job refuses', async t => {
+  let budget = null;
+  const service = await open(t, pressing(() => budget));
+  const kept = (await closedShort(service, 8, { kinds: ['quiz', 'flashcard'], kind: undefined })).cards.length;
+  budget = { calls: 9 };
+  const first = (await shortOf(service)).draft, one = await settleJob(service, (await press(service, first)).jobId);
+  assert.doesNotMatch(String(one.stage), /Invalid mixed/);
+  budget = { calls: 999 };
+  const { draft, short } = await shortOf(service);
+  assert.ok(draft.cards.length >= kept);
+  assert.equal(short.action, short.questionsMissing > 0 ? 'continue' : null);
+  if (short.questionsMissing) assert.doesNotMatch(String((await settleJob(service, (await press(service, draft)).jobId)).stage), /Invalid mixed/);
 });

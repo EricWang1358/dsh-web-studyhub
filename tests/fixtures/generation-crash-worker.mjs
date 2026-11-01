@@ -21,6 +21,8 @@ export const WINDOWS = Object.freeze({
   'closing-unsaved': { code: 87, before: draft => draft?.editorial?.coverageRun?.state === 'complete' },
   'closing-saved': { code: 88, after: draft => draft.editorial?.coverageRun?.state === 'complete' },
   'closing-saved-short': { code: 91, after: draft => draft.editorial?.coverageRun?.stop?.reason === 'questions-short' },
+  // A press of 接着做 on a run closed short, right after its first save.
+  'more-saved': { code: 92, after: (draft, _goal, _state, scenario) => draft.cards.length > scenario.kept },
   paused: { code: 89, after: draft => draft.editorial?.coverageRun?.state === 'paused', pauseAtCall: true },
   // The last round, with every section at its first question and the round's other parts still in flight: nothing is left to ask, and questions are still owed.
   'every-section-covered': { code: 90, after: (draft, _goal, state) => isFullyCovered(draft, state) },
@@ -56,11 +58,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const after = Store.prototype.update;
   Store.prototype.update = async function (fn, ...rest) {
     let hit = false;
-    const result = await after.call(this, async state => { const out = await fn(state); const draft = state.drafts?.[0]; hit = !!draft && !!window.after?.(draft, goal, state); return out; }, ...rest);
+    const result = await after.call(this, async state => { const out = await fn(state); const draft = state.drafts?.[0]; hit = !!draft && !!window.after?.(draft, goal, state, scenario); return out; }, ...rest);
     if (hit) process.exit(window.code);
     return result;
   };
-  const inner = clusteringModel().complete;
+  const inner = clusteringModel({ readsExisting: !!scenario.press }).complete;
   let calls = 0, jobId, service;
   const complete = async (system, prompt, context = {}) => {
     calls += 1;
@@ -72,10 +74,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   service.light = weighing;
   service.complete = complete;
   // `direct`: a second life, over what the first one left: 接着做 through generate itself, which is a new logical job and not a retry of the one that was interrupted.
-  if (scenario.direct) {
+  if (scenario.direct || scenario.press) {
     await service.call('snapshot');
     const draft = (await service.call('export')).drafts[0];
-    ({ jobId } = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { run: true } }));
+    ({ jobId } = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, ...(scenario.press ? {} : { coverage: { run: true } }) }));
   } else {
     for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
     ({ jobId } = await service.call('generate', { sourceIds: world.sources.map(source => source.id), coverageLevel: 'standard', kind: 'quiz', ...(scenario.count ? { count: scenario.count } : {}) }));

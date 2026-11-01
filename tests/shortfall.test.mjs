@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { shortfallOf, SHORTFALL_STATES, REPEAT_LIMIT } from '../lib/shortfall.js';
+import { continuationKindCounts, nextContinuation } from '../lib/draft-continuation.js';
 
 /* D-2: ONE shortfall object for the home banner, the 待发布 row, the console and the draft page. Pure: a draft, the coverage view of it, the round a top-up would run now, and the job (if any). */
 
@@ -158,6 +159,22 @@ test('a run closed short that was added to: running while its job works, ready o
   assert.deepEqual([fullLean.ready, fullLean.questionsMissing], [true, 0], 'the plan is met: the sections it left out are not missing');
   const again = shortfallOf({ draft: closedShort({ cards: 20 }), coverage: coverageOf(2, 0), round: round(0, 0, 0, 0) });
   assert.deepEqual([again.questionsMissing, again.action], [4, 'continue']);
+});
+
+test('one number for the press: above what one job may ask, the sentence says what this press adds, and the count of what is missing stays the truth', () => {
+  const s = shortfallOf({ draft: closedShort({ cards: 10, goal: 45 }), coverage: coverageOf(2, 0) });
+  assert.deepEqual([s.questionsMissing, s.continueCount], [35, 30]);
+  const near = shortfallOf({ draft: closedShort({ cards: 20, goal: 24 }), coverage: coverageOf(2, 0) });
+  assert.deepEqual([near.questionsMissing, near.continueCount], [4, 4]);
+});
+
+test('what a press asks for, by kind: counted from the cards the draft holds, so a press that fell short leaves nothing stale; above one round it is not split by kind', () => {
+  const held = (quiz, flashcard, requested) => ({ cards: [...Array(quiz).fill({ kind: 'quiz' }), ...Array(flashcard).fill({ kind: 'flashcard' })], editorial: { requested, generation: { kinds: ['quiz', 'flashcard'] } } });
+  assert.deepEqual(continuationKindCounts(held(8, 3, 24)), { quiz: 4, flashcard: 9 });
+  assert.deepEqual(continuationKindCounts(held(10, 3, 24)), { quiz: 2, flashcard: 9 }, 'after a press that came back with 2 quiz questions');
+  assert.equal(continuationKindCounts(held(14, 3, 24)), undefined, 'one kind past its share: no split adds up to what is missing');
+  assert.equal(continuationKindCounts(held(5, 5, 45)), undefined);
+  assert.equal(nextContinuation(held(5, 5, 45)), 30);
 });
 
 test('a complete run stays what it was: its goal is what it made, whatever the plan said', () => {

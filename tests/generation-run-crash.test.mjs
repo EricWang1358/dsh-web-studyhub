@@ -137,6 +137,71 @@ for (const [mode, world] of [...SHORT_WORLDS.map(item => ['legacy', item]), ['ge
   const then = await shortfallFor(after.service, last);
   assert.equal(then.questionsMissing, world.goal - last.cards.length);
   assert.equal(then.ready, last.cards.length === world.goal);
+  assert.equal(last.editorial.requested, world.goal, 'what the next press counts from');
+  if (then.questionsMissing > 0) {
+    assert.deepEqual([then.action, then.continueKind, then.canContinue], ['continue', 'count', true], 'it keeps saying so until the goal is met');
+    const second = await settleJob(after.service, attemptOf(await after.service.call('generate', { resumeDraftId: last.id, draftVersion: last.draftVersion })));
+    assert.equal(second.status, 'complete', second.stage);
+    const final = await draftOf(after.service), now = await shortfallFor(after.service, final);
+    assert.ok(final.cards.length >= last.cards.length);
+    assert.equal(now.action, now.questionsMissing > 0 ? 'continue' : null);
+  } else {
+    assert.deepEqual([last.editorial.coverageRun.state, last.editorial.coverageRun.stop.reason, then.action], ['complete', 'complete', null], 'the goal met clears it');
+  }
+});
+
+/* The press of a run closed short, killed in its turn: it is the job that has work left, so it comes back. */
+test('restart: the 接着做 of a run closed short, killed after its first save: it comes back, and its retry goes on towards the goal', async t => {
+  const scenario = shortScenario(SHORT_WORLDS[1]), root = await die(t, 'every-section-covered', 'restart', scenario), first = await reopen(t, root, 'restart', scenario);
+  const [card] = (await first.service.call('snapshot')).jobs;
+  await settleJob(first.service, attemptOf(await first.service.call('job.control', { jobId: card.id, action: 'retry' })));
+  const kept = (await draftOf(first.service)).cards.length;
+  await first.service.dispose();
+  await die(t, 'more-saved', 'restart', { ...scenario, press: true, kept }, root);
+  const after = await reopen(t, root, 'restart', scenario), cut = await draftOf(after.service);
+  assert.ok(cut.cards.length > kept && cut.cards.length < 24, `${kept} -> ${cut.cards.length}`);
+  assert.equal(cut.editorial.coverageRun.stop.reason, 'questions-short', 'the draft still says it owes');
+  const jobs = (await after.service.call('snapshot')).jobs.filter(job => job.contract.status === 'interrupted');
+  assert.equal(jobs.length, 1, 'the press comes back');
+  assert.deepEqual(after.log, []);
+  after.use(clusteringModel({ readsExisting: true }).complete);
+  const done = await settleJob(after.service, attemptOf(await after.service.call('job.control', { jobId: jobs[0].id, action: 'retry' })));
+  assert.equal(done.status, 'complete', done.stage);
+  assert.doesNotMatch(done.stage, /计划已经完成|plan of this draft is complete/);
+  const last = await draftOf(after.service), short = await shortfallFor(after.service, last);
+  assert.ok(last.cards.length > cut.cards.length, `${cut.cards.length} -> ${last.cards.length}`);
+  assert.equal(short.action, short.questionsMissing > 0 ? 'continue' : null);
+  assert.deepEqual((await after.service.call('snapshot')).jobs.filter(job => job.contract.status === 'interrupted'), [], 'no retry is left standing');
+});
+
+test('legacy: the 接着做 of a run closed short, killed after its first save: nothing to bring back, and the draft still offers the rest', async t => {
+  const scenario = shortScenario(SHORT_WORLDS[1]), root = await die(t, 'every-section-covered', 'legacy', scenario), first = await reopen(t, root, 'legacy', scenario);
+  const [card] = (await first.service.call('snapshot')).jobs;
+  await settleJob(first.service, attemptOf(await first.service.call('job.control', { jobId: card.id, action: 'retry' })));
+  const kept = (await draftOf(first.service)).cards.length;
+  await first.service.dispose();
+  await die(t, 'more-saved', 'legacy', { ...scenario, press: true, kept }, root);
+  const after = await reopen(t, root, 'legacy', scenario), cut = await draftOf(after.service), short = await shortfallFor(after.service, cut);
+  assert.deepEqual([short.questionsGoal, short.action, short.continueKind], [24, 'continue', 'count']);
+  assert.deepEqual([cut.cards.length > kept, short.questionsKept], [true, cut.cards.length]);
+});
+
+test('restart: a job that was replaced does not come back when the job that replaced it ended short of closing: its retry would make a second draft', async t => {
+  const root = await die(t, 'round-2-part-saved', 'restart'), life = await reopen(t, root, 'restart');
+  await life.service.call('snapshot');
+  const left = await draftOf(life.service), inner = clusteringModel().complete;
+  let plans = 0;
+  life.use(async (system, prompt, context) => { if (system.startsWith('Plan a source') && plans++ >= 1) throw new Error('503 overloaded'); return inner(system, prompt, context); });
+  const reply = await life.service.call('generate', { resumeDraftId: left.id, draftVersion: left.draftVersion, coverage: { run: true } });
+  await settleJob(life.service, attemptOf(reply));
+  const ended = await draftOf(life.service), [job] = await jobsOnDraft(life.service, ended);
+  assert.notEqual(ended.editorial.coverageRun.state, 'running', 'it ended and did not close');
+  assert.equal(ended.editorial.generation.runId, job.contract.jobId, 'every save of a run names it');
+  await life.service.dispose();
+  const after = await reopen(t, root, 'restart');
+  assert.deepEqual((await after.service.call('snapshot')).jobs.filter(item => item.contract.status === 'interrupted').map(item => item.stage), []);
+  assert.equal((await after.service.call('export')).drafts.length, 1);
+  assert.deepEqual(await readdir(join(root, 'generation-runs')), []);
 });
 
 /* Two kills. The run is closed through generate itself (a new logical job, not a retry of the job that was interrupted) and that process dies too, right after the closing write. */

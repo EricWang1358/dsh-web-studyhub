@@ -43,12 +43,26 @@ test('a draft has one run: of two records on it the one the draft names comes ba
   assert.deepEqual([plan.restore, plan.forget.map(run => run.id)], [[], ['m1', 'm2']], 'the job that closed it and the job it replaced');
 });
 
+test('a draft that names another run ends a run that had saved to it, whether or not that other run still lives; a run that only asked to continue it and never saved is another thing', () => {
+  const owned = draft('a', 'stopped'); owned.editorial.generation.runId = 'run-b';
+  const run = (id, jobId, extra) => ({ id, kind: 'generation', jobId, status: 'interrupted', at: NOW, ...extra });
+  const plan = (...runs) => planRunRecovery({ runs, now: NOW, drafts: [owned] }).restore.map(item => item.id);
+  assert.deepEqual(plan(run('m1', 'run-a', { draftId: 'a', saved: true })), [], 'it saved here, and the draft moved on');
+  assert.deepEqual(plan(run('m1', 'run-c', { draftId: 'a' })), ['m1'], 'asked to continue it and never saved: its press still stands');
+  assert.deepEqual(plan(run('m1', 'run-b', { draftId: 'a', saved: true })), ['m1'], 'the run the draft names');
+  assert.deepEqual(plan(run('m1', 'run-a', { saved: true, draftId: 'elsewhere' })), ['m1'], 'a draft that is gone says nothing');
+  const named = draft('b', 'running'); named.editorial.generation.runId = 'run-a';
+  assert.deepEqual(planRunRecovery({ runs: [run('m1', 'run-a'), run('m2', 'run-c', { draftId: 'b' })], now: NOW, drafts: [named] }).restore.map(item => item.id), ['m1'], 'a record that lost its checkpoint is known by the run the draft names');
+});
+
 test('a run closed short is closed too: its record does not bring back a job whose retry would be refused', () => {
   const closed = draft('a', 'stopped'); closed.editorial.generation.runId = 'run-1'; closed.editorial.coverageRun.stop = { reason: 'questions-short', round: 2 };
   const other = draft('b', 'stopped'); other.editorial.generation.runId = 'run-2'; other.editorial.coverageRun.stop = { reason: 'refused', round: 2 };
   const plan = planRunRecovery({ runs: [{ id: 'm1', kind: 'generation', jobId: 'run-1', status: 'running', at: NOW }, { id: 'm2', kind: 'generation', jobId: 'run-2', status: 'running', at: NOW }], now: NOW, drafts: [closed, other] });
   assert.deepEqual(plan.forget.map(run => run.id), ['m1']);
   assert.deepEqual(plan.restore.map(run => run.id), ['m2'], 'a run stopped for another reason can still go on');
+  const pressing = planRunRecovery({ runs: [{ id: 'm3', kind: 'generation', jobId: 'run-1', status: 'interrupted', at: NOW, draftId: 'a', saved: true, continues: true }], now: NOW, drafts: [closed] });
+  assert.deepEqual(pressing.restore.map(run => run.id), ['m3'], 'the 接着做 of a run closed short has work left');
 });
 
 test('which drafts come back as an interrupted job: running or paused with rounds to do, no job on it, not archived', () => {

@@ -40,6 +40,7 @@ The code is `transitionRunState` in `lib/contexts/generation/run-state.js`. This
 | `unpause` | `paused` | `running` |
 | `wait` | `running` | `waiting` |
 | `stop` | `running`, `paused`, `waiting`, not stopped before | `complete` when the reason is `complete` or `target`, otherwise `stopped` (`questions-short` included: see below) |
+| `goal-met` | stopped with the reason `questions-short` | `complete`, the stop becomes `complete`: its continuation reached the goal |
 | `usage`, `auto`, `touch` | anything | state unchanged |
 
 ## Round statuses
@@ -61,14 +62,22 @@ Every section has its question, but the draft still says `running` or `paused`. 
 
 - **It holds the plan's goal:** `complete` when every round ran, `target` when a planned round never ran.
 - **It is short of the goal:** the host stopped in the last round, after every section had its first question and while the round's other parts were in flight. Measured with a fake model and `roundLimit` 30: 3 sections, 30 asked, 25 of 30; 2 sections, 30 asked, 11 of 24; 4 sections, 60 asked, 39 of 48. The run is `stopped`, reason `questions-short`, and the goal stays the one the interrupted card showed. The job keeps `requestedTotal`, the stage says the count against the goal, and `shortfallOf` gives `reason: questions-short`, `percent` as kept over goal, `action: continue`, `continueKind: count`.
-- **Adding what is missing:** `generate { resumeDraftId, draftVersion }`, the same way a plain short draft is continued. The close writes `editorial.requested = goal` because that is the number `lib/draft-continuation.js` counts. A job asks for at most `ROUND_LIMIT` at a time, so a run that owes more takes more than one press.
+- **Adding what is missing:** `generate { resumeDraftId, draftVersion }`, the same way a plain short draft is continued. The close writes `editorial.requested = goal` because that is the number `lib/draft-continuation.js` counts. One press asks for at most `ROUND_LIMIT` (`nextContinuation`), and the button, the estimate and the job all say that number; a run that owes more takes more than one press. Its selection has the limit of a coverage run.
+- **Until the goal is met:** a continuation's saves carry the `questions-short` marker, so a press that falls short (a part failed, more owed than one press asks, a kill) still offers the action. When the draft reaches the goal, `goal-met` makes the marker `complete`. A later attempt of the press asks for the count, not `coverage: { run: true }` (`resume-args.js`).
 - **A round's row:** the round in flight is `done`, not `skipped`: it wrote the questions. What it kept and cost was lost with the host, so `kept`, `covered` and `tokens` are absent and the row says they are not known. No row of a closed run is `pending`, fill rounds included.
 
 `questions-short` is a new value of `stop.reason`, and the only addition to what a draft can hold. A release from before it reads the draft as a stopped run whose sections are covered, with no sentence for the reason.
 
 ## After a restart (`generationRestart`)
 
-A draft has one run. A run whose draft is closed (`complete`, or `questions-short`) has its manifest forgotten and does not come back. Every save of a run's draft writes `editorial.generation.runId`, the closing save too. 接着做 through `generate` is a new logical job over the same draft, so two manifests can name one draft; the one the draft names comes back, else the newest, and the other is forgotten. Its retry would otherwise ask its first request again and make a second draft.
+A draft has one run. Every save of a run's draft writes `editorial.generation.runId`, the closing save and `persist` too.
+
+- A run whose draft says `complete` has its manifest forgotten. So does one whose draft is closed short, unless it is a press of 接着做 by count (`continues`): that one has its work still to do, and it comes back.
+- 接着做 through `generate` is a new logical job over the same draft. A run that saved to a draft that now names another run is over, whether or not that other run still has a manifest. Its retry would otherwise ask its first request again and make a second draft.
+- Of two manifests left on one draft (one never saved), the one the draft names comes back, else the newest.
+- A manifest that is forgotten settles the usage it owes first, through the same ledger call a preflight makes.
+
+Known window: a run killed between its first draft commit and its first checkpoint has no draft in its manifest. If the draft names it, that is enough. If another job has since saved to that draft, nothing links them: the manifest comes back and its retry makes a second draft. It takes a kill in that moment and a direct `generate` on the draft after it; the UI's retry stays the same logical job. Linking them needs a field on the draft or the manifest, so it is not done.
 
 ## Limits
 

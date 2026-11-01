@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { RUN_STATES, roundList, runFacts } from '../lib/coverage-run.js';
 import { closeRun, isOpenRun, transitionRunState as apply } from '../lib/contexts/generation/run-state.js';
 
-const RUN_EVENTS = ['start', 'resume', 'round-start', 'round-finish', 'round-stopped', 'round-skip', 'fill-append', 'pause', 'unpause', 'wait', 'stop', 'usage', 'auto', 'touch', 'recover'];
+const RUN_EVENTS = ['start', 'resume', 'round-start', 'round-finish', 'round-stopped', 'round-skip', 'fill-append', 'pause', 'unpause', 'wait', 'stop', 'goal-met', 'usage', 'auto', 'touch', 'recover'];
 const AT = '2026-11-01T00:00:00.000Z', LATER = '2026-11-01T00:00:09.000Z';
 const spec = (...statuses) => ({ goal: 9, quotas: [{ sectionId: 'a', quota: 2 }], rounds: statuses.map((status, index) => ({ round: index + 1, questions: 3, sectionIds: ['a'], ...(status ? { status } : {}) })) });
 const marker = (state = 'running', extra = {}) => ({ jobId: 'j', autoComplete: true, state, startedAt: AT, updatedAt: AT, tokensUsed: 5, ...extra });
@@ -153,6 +153,15 @@ test('a close that is short of the goal is stopped, not complete: it keeps the g
   assert.deepEqual([short.marker.state, short.marker.stop.reason, short.spec.goal], ['stopped', 'questions-short', 24]);
   assert.equal(isOpenRun(short.marker), false, 'it does not come back by itself');
   assert.deepEqual([closeRun(left, covered, { jobId: 'k', at: LATER, kept: 24 }).marker.state, closeRun(left, covered, { jobId: 'k', at: LATER, kept: 24 }).marker.stop.reason], ['complete', 'complete']);
+});
+
+test('a run closed short says so until its goal is met, and then it is what a met plan is; nothing else moves this way', () => {
+  const short = { marker: marker('stopped', { stop: { reason: 'questions-short', at: AT, round: 2 } }), spec: spec('done') };
+  const met = apply(short, { type: 'goal-met', at: LATER }).marker;
+  assert.deepEqual([met.state, met.stop, met.updatedAt, met.jobId], ['complete', { reason: 'complete', at: LATER, round: 2 }, LATER, 'j']);
+  illegal(run('stopped', 'done'), { type: 'goal-met', at: LATER });
+  illegal(run('running', 'done'), { type: 'goal-met', at: LATER });
+  illegal({ marker: marker('stopped', { stop: { reason: 'budget' } }), spec: spec('done') }, { type: 'goal-met', at: LATER });
 });
 
 test('a closed run has no pending row: a fill round in flight is settled like any other', () => {
