@@ -10,6 +10,7 @@ import { megabytes } from '../lib/office/limits.js';
 import { HISTORY_PAGE, groupHistoryByDay, historyRefreshKey, pageRange, isConvertJob } from './mineru-flow.js';
 import CompactJobCard from './tasks/CompactJobCard.jsx';
 import JobFollowUp from './JobFollowUp.jsx';
+import { ConvertEditDialog, HELD_ENTRY, HeldEntry } from './ConvertEdit.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { FAILED_HAND_OFF_WHAT, failedHandOffInput, failureText } from './tasks/failed-hand-off.js';
 import css from './mineru.css';
@@ -42,7 +43,7 @@ export async function forgetRecords(call, ids) {
 export const cardOutcome = (value) => (value === undefined || value === null || value?.ok === false ? { ok: false } : { ok: true });
 
 function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, onGenerate }) {
-  const [working, setWorking] = useState('');
+  const [working, setWorking] = useState(''), [editing, setEditing] = useState(false);
   const run = async (name, work) => {
     if (working) return { ok: false };
     setWorking(name);
@@ -52,13 +53,14 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
   const retry = () => run('retry', () => send('mineru.retry', { jobId: job.id }));
   // A failure only the installation can fix (Marker 2.x without Docker, a missing program) leads to the settings; 接着做 helps after that, from the console.
   const needsSettings = job.status === 'failed' && job.failure?.fix === 'settings' && !!onOpenSettings;
-  const primary = needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
+  const primary = job.held && !isActiveJob(job) ? { label: HELD_ENTRY(), run: () => setEditing(true) } : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
     : job.status === 'failed' && job.retryable ? { label: ui('接着做'), run: retry, disabled: !!working, tip: retryTip(job) }
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
   return <JobFollowUp job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
     <CompactJobCard job={job} primary={primary} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
       onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
       onDismiss={() => run('dismiss', () => send('job.archive', { jobId: job.id }))} />
+    {editing && <ConvertEditDialog job={job} onClose={() => setEditing(false)} onChanged={onChanged} />}
   </JobFollowUp>;
 }
 
@@ -72,6 +74,8 @@ export function PdfDetail({ job, expandChunks }) {
   const count = job.chunk?.count || 1, index = job.chunk?.index || 0, adaptive = job.route === 'local' && !!job.local?.adaptive;
   return (
     <div className="pdf-detail">
+      {job.held && !running && !job.archived && <HeldEntry job={job} />}
+      {job.status === 'complete' && <Hint as="small" data-reconvert-hint>{ui('想先删掉识别错的文字再导入：重新选这份 PDF，在「更多设置」里打开「导入前先让我改」。已经导入的这份不会变。')}</Hint>}
       <ConversionEnvironment env={job.env} converter={job.converter} service={job.service} now={now} />
       {running && job.phase !== 'queued' && <>
         {job.route === 'local' && job.phase !== 'start-service' && (count > 1 || adaptive) && !job.toolProgress && <Hint as="small">{ui('本地解析按页段推进，一段做完才会前进；一段里没有更细的进度，不是卡住了。')}</Hint>}
@@ -276,8 +280,8 @@ const dayHeading = group => {
   if (group.when === 'unknown') return ui('日期未知');
   return formatDay(group.day);
 };
-const STATUS_TEXT = { running: () => ui('进行中'), complete: () => ui('已完成'), failed: () => ui('没有完成'), cancelled: () => ui('已取消'), interrupted: () => ui('被中断') };
-const STATUS_TONE = { running: 'info', complete: 'success', failed: 'error', cancelled: 'neutral', interrupted: 'warning' };
+const STATUS_TEXT = { running: () => ui('进行中'), complete: () => ui('已完成'), failed: () => ui('没有完成'), cancelled: () => ui('已取消'), interrupted: () => ui('被中断'), held: () => ui('等你导入') };
+const STATUS_TONE = { running: 'info', complete: 'success', failed: 'error', cancelled: 'neutral', interrupted: 'warning', held: 'info' };
 const STAGE_TEXT = { start: () => ui('启动'), 'start-service': () => ui('启动本机服务'), queued: () => ui('排队'), split: () => ui('切分 PDF'), upload: () => ui('上传'), parse: () => ui('云端解析'), local: () => ui('本地解析'),
   download: () => ui('下载结果'), merge: () => ui('合并各段'), save: () => ui('保存为资料') };
 
@@ -300,7 +304,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
   const known = Object.hasOwn(STATUS_TEXT, status) ? status : 'failed';
   return (
     <li className="pdf-history__item" data-record={row.id}>
-      <JobRow className="pdf-history__row" status={known} title={row.filename} data-route={row.route || 'cloud'} data-status={status}
+      <JobRow className="pdf-history__row" status={known === 'held' ? 'queued' : known} title={row.filename} data-route={row.route || 'cloud'} data-status={status}
         failure={stage || row.failure?.reason ? { title: stage || undefined, hint: row.failure?.reason ? uiMessage(row.failure.reason) : undefined } : undefined}>
         <span className="pdf-history__chips">
           <Badge tone={row.route === 'local' ? 'neutral' : 'info'}>{route}</Badge>
@@ -314,6 +318,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
         {status === 'complete' && row.skippedPages > 0 && <Hint as="small">{uiFormat('没有可读文字而跳过的页：{0}', [row.skippedPages])}</Hint>}
         {status === 'interrupted' && <small>{ui('上次没有做完（应用被关闭，或意外中断）。')}</small>}
         {status === 'cancelled' && <small>{ui('已解析好的段落会保留，再选同一个文件不会重复解析。')}</small>}
+        {status === 'held' && <small>{ui('已转换，还没有存为资料。')}</small>}
         {progress && <small>{progress}</small>}
         {stuck && <Hint as="small">{row.route === 'local' ? ui('临时文件已清理，没法接着做。重新选择这份 PDF 再解析一次，已解析好的段落会被复用。') : ui('云端解析已停用；请重新选择这份 PDF 用本机解析。')}</Hint>}
         {row.env && <details className="pdf-env-details"><summary>{ui('运行环境')}</summary><ConversionEnvironment converter={row.converter} env={row.env} bare stoppedAtFailure={row.failure?.code === 'server-stopped'}
@@ -321,6 +326,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onRetry, onRemove, o
         <div className="pdf-history__actions">
           {status === 'complete' && document?.exists && <Button variant="link" size="sm" aria-label={uiFormat('打开「{0}」', [title])} onClick={() => onOpen(row)}>{ui('打开资料')}</Button>}
           {status === 'running' && row.live && <Button variant="link" size="sm" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
+          {status === 'held' && <Button variant="link" size="sm" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onShowJob(row)}>{HELD_ENTRY()}</Button>}
           {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
             <Button variant="primary" size="sm" busy={busy} disabled={!!working} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
           </Tooltip>}

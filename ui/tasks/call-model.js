@@ -279,7 +279,8 @@ export function logLines(contract, filter = 'all') {
   const lines = [];
   const warnings = new Map();
   // A conversion's own failure line (convert-failed) says the cause once, with the converter's last lines: the status line of the end and the failed window do not repeat it.
-  const told = new Set((contract?.events || []).filter((event) => event.code === 'convert-failed' && event.text).map((event) => event.text));
+  // A conversion that stopped before the import (convert-held) did not fail: its line says what it waits for, and no status line calls it a failure.
+  const told = new Set((contract?.events || []).filter((event) => ['convert-failed', 'convert-held'].includes(event.code) && event.text).map((event) => event.text));
   for (const raw of contract?.events || []) {
     if (raw.code === 'status' && ['failed', 'interrupted'].includes(raw.args?.status) && told.has(raw.text)) continue;
     const event = raw.code === 'window-failed' && told.has(raw.text) ? { ...raw, text: undefined } : raw;

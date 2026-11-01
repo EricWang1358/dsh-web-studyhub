@@ -28,7 +28,9 @@ export const taskId = (job) => contractOf(job).jobId;
 export const isRunningTask = (job) => isLiveStatus(contractOf(job).status);
 /** A resting daily record may contain failed work; its lifecycle only says whether a batch is in flight. */
 export const hasDailyFailures = (contract) => contract.kind === 'coach-daily' && !isLiveStatus(contract.status) && contract.detail.batches?.some(batch => batch.status === 'failed');
-const isFailed = (job) => { const contract = contractOf(job); return [STATUS.FAILED, STATUS.INTERRUPTED].includes(contract.status) || hasDailyFailures(contract); };
+/** A conversion that stopped before the import and waits for the learner (导入前先让我改). Its attempt has ended and it can go on, as a failed one can, but nothing went wrong: every reader goes by this, not by the status. */
+export const isHeldTask = (job) => !!contractOf(job).detail?.held;
+const isFailed = (job) => { const contract = contractOf(job); return !isHeldTask(job) && ([STATUS.FAILED, STATUS.INTERRUPTED].includes(contract.status) || hasDailyFailures(contract)); };
 
 /** How many tasks are waiting or running: the badge on the sidebar entry. */
 export function runningTaskCount(data) {

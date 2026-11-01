@@ -27,6 +27,23 @@
     .mineru-plan__list ol { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .mineru-acked { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--ok-ink); font-size: var(--fs-sm); }
     .mineru-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+    /* 导入前先让我改: the text of a conversion that waits (ui/ConvertEdit.jsx). */
+    .pdf-held { display: grid; justify-items: start; gap: var(--space-2); margin-bottom: var(--space-3); }
+    .pdf-held p { margin: 0; }
+    .convert-edit { display: grid; gap: var(--space-3); min-width: 0; }
+    .convert-edit__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+    .convert-edit__bar [data-removed-line] { margin-inline-start: auto; color: var(--text-muted); font-size: var(--fs-sm); }
+    .convert-edit__jump { display: inline-flex; flex-direction: row; align-items: center; gap: var(--space-2); margin: 0; }
+    .convert-edit__page { width: 5.5em; }
+    .convert-edit__list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+    .convert-edit__block { display: grid; gap: var(--space-1); min-width: 0; }
+    .convert-edit__meta { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); color: var(--text-muted); }
+    .convert-edit__text { width: 100%; }
+    .convert-edit__fixed, .convert-edit__gone { margin: 0; max-height: 10em; overflow: auto; padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius); color: var(--text-muted);
+      font-size: var(--fs-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .convert-edit__gone { text-decoration: line-through; }
+    .convert-edit__pager { display: flex; align-items: center; justify-content: center; gap: var(--space-3); }
+    .convert-edit__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); width: 100%; }
     .mineru-local { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
     .mineru-local .sh-btn, .mineru-route-panel .sh-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: left; justify-self: start; }
   }
