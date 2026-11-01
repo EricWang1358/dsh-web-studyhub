@@ -122,3 +122,21 @@ test('a refused undo says why in the learner\'s words, in either language', () =
     assert.match(ui.rebuildFailureText({ code: 'course-book-rebuild-no-undo' }), /kept/);
   } finally { ui.setUiLanguage('zh'); }
 });
+
+test('#489: what a rebuild does not keep of the learner\'s structure is said in the preview, before anything happens, with what the undo gives back; afterwards too', () => {
+  const moves = { at: 'r', outlineId: 'o2', list: [], total: 0, held: 0, gone: 0, undoable: false, revisionAfter: 5, structure: { moved: ['Moved chapter'], revived: ['Deleted point'], renamed: ['My name'] } };
+  const preview = renderToStaticMarkup(h(ui.BookRebuildPreview, { moves, onApply() {}, onDiscard() {} }));
+  assert.match(preview, /data-book-rebuild-structure/);
+  assert.match(preview, /「撤销这次整理」能把它们和笔记一起放回去/);
+  assert.match(preview, /你移动过的 1 个章节或知识点不保留/);
+  assert.match(preview, /「Moved chapter」/);
+  assert.match(preview, /你删掉的 1 个章节或知识点新总纲里还有，会重新出现/);
+  assert.match(preview, /「Deleted point」/);
+  assert.match(preview, /你改的 1 个名字不保留/);
+  assert.match(preview, /「My name」/);
+  assert.doesNotMatch(renderToStaticMarkup(h(ui.BookRebuildPreview, { moves: { ...moves, structure: undefined }, onApply() {}, onDiscard() {} })), /data-book-rebuild-structure|不保留/, 'nothing of the kind, nothing said');
+  // With only these to say, the notice after the rebuild is still there (it used to count text moves only).
+  const notice = draw({ ...moves, undoable: true });
+  assert.match(notice, /上次整理总纲没有保留你对结构的 3 处改动/);
+  assert.match(notice, />查看每一处</);
+});

@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { firstBodyLine, REBUILD_FILE } from '../lib/course-book-moves.js';
+import { firstBodyLine, REBUILD_FILE, structureEdits } from '../lib/course-book-moves.js';
 import { REBUILD_JOB_KINDS } from '../lib/course-book-rebuild.js';
 import { COURSE_BOOK_KIND } from '../lib/contexts/generation/book/jobs/course-book-build.js';
 import { COURSE_OUTLINE_KIND } from '../lib/contexts/generation/outline/jobs/course-outline-build.js';
@@ -101,6 +101,64 @@ test('any open, with no flag: a rebuild that would move the learner\'s text answ
   assert.match(leaves(book.nodes).find(node => node.title === 'The architect\'s job').mine, /Note on what architects do\./);
   assert.equal((await service.call('course.book.open', { course: COURSE })).status, 'ok', 'it is the book now');
   assert.equal((await apply(newId)).status, 'ok', 'twice is the same');
+});
+
+// #489 item 2: a rebuild lays the book out by the new outline, so what the learner did to the book's structure does not survive it. That is said before it happens, and an undo gives it back.
+test('the learner\'s moves, deletes and renames that a rebuild would not keep: pure diff against the outline the book was laid out by', () => {
+  const outline = [{ id: 'c1', title: 'One', children: [{ id: 'a', title: 'A', anchors: ['x'] }, { id: 'b', title: 'B' }, { id: 'c', title: 'C' }] }, { id: 'c2', title: 'Two', children: [{ id: 'd', title: 'D' }] }];
+  const leaf = (id, title = id.toUpperCase()) => ({ id, hid: `h-${id}`, title, leaf: true, children: [] });
+  const same = [{ id: 'c1', hid: 'h1', title: 'One', children: [leaf('a'), leaf('b'), leaf('c')] }, { id: 'c2', hid: 'h2', title: 'Two', children: [leaf('d')] }];
+  assert.deepEqual(structureEdits(outline, same), { moved: [], deleted: [] }, 'a book as the outline laid it out has none, renamed or not');
+  // One point up inside its chapter: only that one moved, not its neighbours.
+  const reordered = [{ ...same[0], children: [leaf('c'), leaf('a'), leaf('b')] }, same[1]];
+  assert.deepEqual(structureEdits(outline, reordered).moved.map(node => node.title), ['C']);
+  const across = [{ ...same[0], children: [leaf('a'), leaf('c')] }, { ...same[1], children: [leaf('d'), leaf('b', 'My B')] }];
+  assert.deepEqual(structureEdits(outline, across).moved.map(node => node.title), ['My B'], 'under another chapter, under the title the book shows');
+  const deleted = structureEdits(outline, [{ ...same[0], children: [leaf('a'), leaf('c')] }, same[1]]);
+  assert.deepEqual(deleted.deleted.map(node => node.title), ['B']);
+  assert.deepEqual(deleted.moved, []);
+  // A chapter deleted with its points promoted: the chapter is the delete; its points did not move by themselves.
+  const promoted = structureEdits(outline, [same[0], leaf('d')]);
+  assert.deepEqual(promoted.deleted.map(node => node.title), ['Two']);
+  assert.deepEqual(promoted.moved, []);
+});
+
+test('a rebuild that would drop a move or bring back a deleted point is held even with no text moving; undo gives them back', async t => {
+  const { service, rebuild, apply, undo, lecture, other } = await setUp(t);
+  const nodes = [{ id: 'c1', title: 'Introduction', children: [{ id: 'what', title: 'What architects do', anchors: [`${lecture}#0`] }, { id: 'who', title: 'Stakeholders and views', anchors: [`${lecture}#1`, `${lecture}#2`] },
+    { id: 'third', title: 'A third point', anchors: [other] }] }];
+  // The book follows an outline of three points; the learner moves one up and deletes another, keeping their notes where they are.
+  const three = await rebuild(nodes, '2026-10-09T12:00:00.000Z');
+  const opened = await service.call('course.book.open', { course: COURSE });
+  assert.equal(opened.status, 'ok');
+  assert.equal(opened.moves, undefined, 'the same points under the same titles: nothing to say');
+  const [what, , third] = leaves(opened.nodes);
+  const moved = await service.call('course.book.move', { course: COURSE, hid: what.hid, afterHid: leaves(opened.nodes)[1].hid, version: opened.structureVersion });
+  await service.call('course.book.rename', { course: COURSE, hid: opened.nodes[0].hid, title: 'My own chapter name', version: moved.structureVersion });
+  const named = await service.call('course.book.open', { course: COURSE });
+  await service.call('course.book.delete', { course: COURSE, hid: third.hid, version: named.structureVersion });
+  const shaped = await service.call('course.book.open', { course: COURSE }), before = await docOf(service);
+  assert.deepEqual(leaves(shaped.nodes).map(node => node.title), ['Stakeholders and views', 'What architects do']);
+  // The outline is made again: the same pages under the same titles, in a chapter of another name. Not one line of the learner's text moves.
+  const newId = await rebuild([{ ...nodes[0], title: 'Opening' }], '2026-10-10T00:00:00.000Z');
+  assert.notEqual(newId, three);
+  const preview = await service.call('course.book.open', { course: COURSE });
+  assert.equal(preview.status, 'rebuild-pending', 'held, though no text moves');
+  assert.deepEqual(preview.moves.list, []);
+  assert.deepEqual(preview.moves.structure, { moved: ['What architects do'], revived: ['A third point'], renamed: ['My own chapter name'] });
+  assert.deepEqual(await docOf(service), before, 'nothing happened yet');
+  // Applied: exactly what the preview said.
+  const book = await apply(newId);
+  assert.deepEqual(leaves(book.nodes).map(node => node.title), ['What architects do', 'Stakeholders and views', 'A third point']);
+  assert.equal(book.nodes[0].title, 'Opening');
+  assert.deepEqual(book.moves.structure, preview.moves.structure, 'said again after, while it can be looked at');
+  assert.equal(book.moves.undoable, true);
+  // Undone: the move, the delete and the name are back.
+  await undo(newId);
+  const back = await service.call('course.book.open', { course: COURSE });
+  assert.equal(back.status, 'ok');
+  assert.deepEqual(leaves(back.nodes).map(node => node.title), ['Stakeholders and views', 'What architects do']);
+  assert.equal(back.nodes[0].title, 'My own chapter name');
 });
 
 test('a rebuild that moves nothing of the learner\'s is not held; a book without their text goes straight on', async t => {
