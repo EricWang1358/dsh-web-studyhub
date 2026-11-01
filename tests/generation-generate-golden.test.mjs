@@ -6,7 +6,7 @@ import test from 'node:test';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { goldenLibrary, pinned } from './helpers/generate-golden.mjs';
-import { settleJob } from './helpers/wait.mjs';
+import { settleJob, until } from './helpers/wait.mjs';
 
 const ONE_BY_ONE = { concurrency: 1, batchSize: 4, jobTimeoutMinutes: 20, fillRounds: 0, effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low' };
 const PLAIN = { kind: 'quiz', count: 4, performance: ONE_BY_ONE };
@@ -193,6 +193,51 @@ test('a run that ends otherwise: a refused key, a failing round, a cancel', asyn
   await settleJob(line.service, front.jobId);
   await settleJob(line.service, behind.jobId);
   pinned('end.cancelledInQueue', { card: await line.cardOf(behind.jobId) });
+});
+
+test('a supplement at its time limit publishes what passed', async t => {
+  // The 20-minute limit of the run strikes when the model says so: once the first batch is saved, whatever the machine's load.
+  const real = globalThis.setTimeout, TOTAL_MS = 20 * 60 * 1000;
+  let strike = null;
+  t.after(() => { globalThis.setTimeout = real; });
+  let blueprints = 0;
+  const inner = clusteringModel({ readsExisting: true }).complete;
+  const lib = await goldenLibrary(t, { model: async (system, prompt, context = {}) => {
+    if (strike && system.startsWith('Prepare supported answers') && ++blueprints > 1 && context.signal) {
+      const stopped = new Promise((_, reject) => context.signal.addEventListener('abort', () => reject(context.signal.reason)));
+      strike();
+      await stopped;
+    }
+    return inner(system, prompt, context);
+  } });
+  await settleJob(lib.service, (await lib.service.call('generate', { sourceIds: lib.ids, ...PLAIN })).jobId);
+  const draft = await firstDraft(lib.service), { deckId: madeId } = await lib.service.call('draft.publish.quick', { id: draft.id, draftVersion: draft.draftVersion });
+  await lib.service.store.update(state => { state.decks.find(deck => deck.id === madeId).id = 'target-deck'; });
+  globalThis.setTimeout = (fn, ms, ...rest) => {
+    const timer = real(fn, ms, ...rest);
+    if (ms === TOTAL_MS) strike = () => { clearTimeout(timer); fn(); };
+    return timer;
+  };
+  pinned('end.supplementAtLimit', await lib.press('supplement', { sourceIds: lib.ids, deckId: 'target-deck', ...PLAIN, count: 8 }, { quietModel: true }));
+  globalThis.setTimeout = real;
+});
+
+test('a host that stops under a coverage run leaves it interrupted, its draft saying it was running', async t => {
+  const lib = await goldenLibrary(t);
+  let authors = 0, release;
+  const stopped = new Promise(resolve => { release = resolve; });
+  const inner = clusteringModel().complete;
+  lib.service.complete = async (system, prompt, context = {}) => {
+    if (system.startsWith('You author') && ++authors > 1) await stopped;
+    return inner(system, prompt, context);
+  };
+  const { jobId } = await lib.service.call('generate', { sourceIds: lib.ids, coverageLevel: 'standard', kind: 'quiz', performance: ONE_BY_ONE });
+  await until(() => authors > 1, 'the second batch');
+  lib.service.runtime.work.generationControllers.get(jobId)?.abort(new Error('Work owner unloaded'));
+  release();
+  await settleJob(lib.service, jobId);
+  const left = (await lib.service.call('export')).drafts[0];
+  pinned('end.hostStopped', lib.clean.walk({ card: await lib.cardOf(jobId), state: left?.editorial.coverageRun?.state, rounds: left?.editorial.coverageSpec?.rounds.map(round => round.status) }));
 });
 
 /* ---------- what it refuses, in both languages ---------- */
