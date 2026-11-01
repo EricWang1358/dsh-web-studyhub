@@ -193,7 +193,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
           <Button variant="primary" icon="sparkle" busy={starting} disabled={!plan || !usable} onClick={start}>
             {isMarker ? ui('用 Marker 开始解析') : ui('开始本地解析')}
           </Button>
-          {onFile && <Button variant="quiet" disabled={starting} onClick={() => onFile(null)}>{ui('换一份 PDF')}</Button>}
+          {onFile && <Button variant="quiet" lock={starting} onClick={() => onFile(null)}>{ui('换一份 PDF')}</Button>}
         </div>
       </>}
 
