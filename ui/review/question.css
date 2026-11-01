@@ -939,14 +939,15 @@
     :where(.study-app, .study-seat) {
     }
   }
-  @container study (max-width: 980px) {
-    :where(.study-app, .study-seat) {
-      .question-area.has-case { display: block; width: min(700px, calc(100% - 32px)); }
-    }
-  }
+  /* The 600px rule comes first: at equal specificity the case review's own width (980px, below) has always won over it. */
   @container study (max-width: 600px) {
     :where(.study-app, .study-seat) {
       .review-body > .question-area { width: 100%; min-width: 0; }
+    }
+  }
+  @container study (max-width: 980px) {
+    :where(.study-app, .study-seat) {
+      .question-area.has-case { display: block; width: min(700px, calc(100% - 32px)); }
     }
   }
 }
