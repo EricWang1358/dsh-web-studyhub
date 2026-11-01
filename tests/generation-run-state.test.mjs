@@ -4,8 +4,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { RUN_STATES } from '../lib/coverage-run.js';
-import { RUN_EVENTS, closeRun, isOpenRun, transitionRunState as apply } from '../lib/contexts/generation/run-state.js';
+import { closeRun, isOpenRun, transitionRunState as apply } from '../lib/contexts/generation/run-state.js';
 
+const RUN_EVENTS = ['start', 'resume', 'round-start', 'round-finish', 'round-stopped', 'round-skip', 'fill-append', 'pause', 'unpause', 'wait', 'stop', 'usage', 'auto', 'touch', 'recover'];
 const AT = '2026-11-01T00:00:00.000Z', LATER = '2026-11-01T00:00:09.000Z';
 const spec = (...statuses) => ({ goal: 9, quotas: [{ sectionId: 'a', quota: 2 }], rounds: statuses.map((status, index) => ({ round: index + 1, questions: 3, sectionIds: ['a'], ...(status ? { status } : {}) })) });
 const marker = (state = 'running', extra = {}) => ({ jobId: 'j', autoComplete: true, state, startedAt: AT, updatedAt: AT, tokensUsed: 5, ...extra });
@@ -135,6 +136,7 @@ test('the function changes nothing it was given, and an event it does not know i
   apply(given, { type: 'round-start', index: 0, at: AT }); apply(given, { type: 'pause' }); apply(given, { type: 'stop', reason: 'learner', round: 1, at: AT });
   assert.deepEqual(given, copy);
   illegal(given, { type: 'explode' });
+  illegal(given, { type: 'constructor' });
 });
 
 test('every event is in the table and in the document, with the glossary', async () => {
