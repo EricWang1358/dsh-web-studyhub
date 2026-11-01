@@ -40,6 +40,7 @@
     "tests/hand-off-browser.test.mjs",
     "tests/hand-off-deadends-browser.test.mjs",
     "tests/hand-off-migrate-browser.test.mjs",
+    "tests/host-boot-lazy-browser.test.mjs",
     "tests/host-composer-selection-browser.test.mjs",
     "tests/import-hop-browser.test.mjs",
     "tests/index-shortcut-browser.test.mjs",

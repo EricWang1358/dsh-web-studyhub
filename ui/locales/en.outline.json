@@ -476,6 +476,15 @@
   "总纲已经重新整理好了，书还没有动。这次不用搬笔记，只是书会按新总纲排。": "The outline has been organised again and the book has not changed. No notes need to move; the book would just follow the new outline.",
   "书按新总纲排。放好后还能撤销这次整理，只要之后没有再改过书。": "The book follows the new outline. You can still undo this rebuild afterwards, as long as the book has not changed since.",
   "案例题": "Case",
+  "已放回": "Put back",
+  "放回到一个知识点": "Put back into a point",
+  "放回到知识点": "Put back into a point",
+  "放回": "Put back",
+  "放回…": "Put back…",
+  "开头的文字": "The text at the start",
+  "放在这个知识点「我的笔记」的最后；放好后可以马上撤销。": "It goes at the end of this point's notes; you can undo it straight away.",
+  "搜索知识点": "Search points",
+  "选一个知识点": "Choose a point",
   "资料有变化，这本书可能跟不上了。": "The materials have changed, so this book may be behind them.",
   "重新整理、更新全书": "Organise again, update the book"
 }

@@ -5,6 +5,8 @@ import { useLiveEffect } from '../use-async.js';
 import { localDate } from '../../lib/board-model.js';
 import { goneSet, rowOf } from './model.js';
 import { STRUCTURE_DONE, structureFailureText } from './book-structure.js';
+import { STRUCTURE_FILE } from '../../lib/course-book-own-titles.js';
+import { UNDO_TIMEOUT } from '../undoable.js';
 import { showBlock, showWords } from './ai-anchors.js';
 import { bookStartedText, readMoreStartedText } from '../outline/words.js';
 
@@ -64,7 +66,7 @@ async function copyText(text) {
 
 /** The handlers every point reads (ui/book/PointBody.jsx and below). ai: the stable ctions of ui/book/use-book-ai.js (the lines themselves reach the points
     through BookAiContext, so a line or the 问 AI panel never gives every point new handlers). */
-export function useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource, modelReady = true, onBack, ai, foldAi }) {
+export function useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource, modelReady = true, onBack, ai, foldAi, onPlace }) {
   const [qa, setQa] = useState(() => new Set());
   const [choosing, setChoosing] = useState(false);
   return useMemo(() => ({
@@ -100,13 +102,21 @@ export function useBookHandlers({ call, act, course, notify, book, setBook, rows
       try {
         const next = await call(action, { course, ...args, version: book.structureVersion, answer: 'book' });
         setBook(next);
-        notify({ text: ui(STRUCTURE_DONE[action]), tone: 'success' });
+        // 放回 can be taken back at once: both files, in one undo (lib/course-book-structure.js placeUnplacedSection).
+        const takeBack = async () => {
+          try { setBook(await call('course.book.revert', { course, file: STRUCTURE_FILE, version: next.structureVersion, answer: 'book' })); notify({ text: ui('已撤销'), tone: 'success' }); }
+          catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); reload(); }
+        };
+        notify({ text: ui(STRUCTURE_DONE[action]), tone: 'success', ...(action === 'course.book.place' ? { undo: true, timeout: UNDO_TIMEOUT, action: { label: ui('撤销'), onClick: takeBack } } : {}) });
         return { ok: true, book: next };
       } catch (failure) {
         if (failure?.code === 'course-book-conflict') { notify({ text: structureFailureText(failure), tone: 'error' }); reload(); }
         return { ok: false, failure };
       }
     },
+    // 未归位's sections and 放回… (ui/book/BookChapter.jsx UnplacedBody, ui/book/BookStructure.jsx PlaceDialog).
+    unplacedSections: book?.unplaced?.sections,
+    place: onPlace,
     // 补漏 of a point left short: only its missing concepts, the same task as on the 总纲 page (without a model it goes there, like 更新全书).
     fillGaps: async node => {
       if (!modelReady) { onBack?.(); return; }
@@ -132,5 +142,5 @@ export function useBookHandlers({ call, act, course, notify, book, setBook, rows
     // The fold of the blocks (kept in this browser), and the two ways between a block and its dashed words (ui/book/ai-anchors.js): open the block, then show it.
     aiOpen: id => { flushSync(() => foldAi(id, false)); showBlock(id); },
     aiWords: id => showWords(id),
-  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, onBack, ai, foldAi, reload, act]);
+  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, onBack, ai, foldAi, reload, act, onPlace]);
 }

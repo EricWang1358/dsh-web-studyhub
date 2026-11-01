@@ -220,6 +220,56 @@ test('复习全书 structure: 更多 › 改名 / 移动到 / 删除 change the 
   } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
 });
 
+/* #489 item 5: a section of 未归位 is put back from the page, and one 撤销 takes it back. */
+test('复习全书 未归位: 放回… picks a point, the text moves, 撤销 brings it back (1280 and 420 px)', { timeout: 420000 }, async t => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-book-place-dist-'));
+  await buildPreview({ outdir: dist });
+  const running = await startLateServer({ distDir: dist, seed });
+  try {
+    await running.api('focus.set', { course: COURSE });
+    const opened = await running.api('course.book.open', {}), [what, who] = opened.nodes[0].children;
+    await running.api('course.book.save', { file: who.files.mine, text: 'Parked words about stakeholders.', version: opened.files[who.files.mine].version });
+    await running.api('course.book.delete', { hid: who.hid, version: opened.structureVersion });
+    for (const width of [1280, 420]) {
+      const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
+      await page.goto(running.server.url);
+      const entry = page.locator('[data-tour="nav-book"]').first();
+      await entry.waitFor({ state: 'attached', timeout: 30000 });
+      await entry.dispatchEvent('click');
+      await page.locator('[data-book-point]').first().waitFor({ timeout: 60000 });
+      if (!await page.locator('.book-toc').count()) await page.locator('.book-bar__toc').click();
+      await page.locator('.book-toc__go', { hasText: '未归位' }).click();
+      const row = page.locator('[data-unplaced-section]', { hasText: 'Stakeholders and concerns' });
+      await row.waitFor({ timeout: 30000 });
+      const shots = process.env.BOOK_PLACE_SHOTS;
+      if (shots) await page.screenshot({ path: join(shots, `unplaced-${width}.png`) });
+      await row.getByRole('button', { name: '放回…' }).click();
+      const dialog = page.getByRole('dialog', { name: '放回到一个知识点' });
+      await dialog.waitFor({ timeout: 30000 });
+      if (shots) await page.screenshot({ path: join(shots, `place-dialog-${width}.png`) });
+      assert.equal(await dialog.getByRole('button', { name: '放回', exact: true }).isDisabled(), true, `${width}px: no point chosen yet`);
+      await dialog.locator('.book-place__point').click();
+      await page.locator('[role="option"]', { hasText: what.title }).first().click();
+      await dialog.getByRole('button', { name: '放回', exact: true }).click();
+      await dialog.waitFor({ state: 'detached', timeout: 30000 });
+      // Nothing is left in 未归位, so the page goes to where the text landed.
+      await page.locator(`[data-book-step="${what.hid}"]`).waitFor({ timeout: 30000 });
+      assert.match(await page.locator(`[data-book-step="${what.hid}"]`).innerText(), /Parked words about stakeholders\./, `${width}px: there`);
+      assert.doesNotMatch(await page.locator('.book-page').innerText(), /未归位/, `${width}px: 未归位 is empty`);
+      await page.getByRole('button', { name: '撤销' }).first().click();
+      await page.waitForFunction(() => !document.querySelector('.book-step')?.innerText.includes('Parked words'), null, { timeout: 30000 });
+      const back = await running.api('course.book.open', {});
+      assert.match(back.unplaced.text, /Parked words about stakeholders\./, `${width}px: back in 未归位`);
+      assert.doesNotMatch(back.nodes[0].children[0].mine, /Parked words/);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, `${width}px: nothing runs sideways`);
+      assert.deepEqual(errors, [], `${width}px: no page errors`);
+      await context.close();
+    }
+  } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
+});
+
 /* #489 item 6: upkeep from the book page. Changed materials are said here with 更新全书; a point left short has 补漏; 更多 leads back to the 总纲. */
 test('复习全书 upkeep: 更新全书 when the materials changed, 补漏 on a short point, 回到总纲 from 更多 (1280 and 420 px)', { timeout: 420000 }, async t => {
   let browser;

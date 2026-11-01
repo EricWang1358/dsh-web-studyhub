@@ -50,6 +50,28 @@
       display: grid;
       gap: var(--space-3);
     }
+    /* 未归位: what can be put back, one row a section, above the text itself. */
+    .book-unplaced {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0 0 var(--space-3);
+      padding: 0;
+      list-style: none;
+    }
+    .book-unplaced__section {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-unplaced__title {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
     .book-structure p {
       margin: 0;
     }

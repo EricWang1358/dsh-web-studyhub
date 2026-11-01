@@ -32,6 +32,13 @@ export function moveTargets(book, hid) {
   return out;
 }
 
+/** The points a section of 未归位 can go to, in reading order: [{ value, label }] for a Combobox. */
+export function placeTargets(book) {
+  const out = [], walk = list => (list || []).forEach(node => { if (node.leaf) out.push({ value: node.hid, label: [node.number, node.title].filter(Boolean).join(' ') }); walk(node.children); });
+  walk(book?.nodes);
+  return out;
+}
+
 /** The place one sibling up (`delta` -1) or down (1), or null at that end: { beforeHid } going up, { afterHid } going down (the move takes the
     node out first, then puts it before or after the neighbour). */
 export function shiftPlace(book, hid, delta) {
@@ -52,4 +59,4 @@ export const deleteFailureText = failure => structureFailureText(failure)
   ?? ((failure?.message || typeof failure === 'string') && errorMessage(failure) || ui('这次没有成功，也没有拿到具体原因。可以再试一次。'));
 
 /** The one success line of each change (the page's feedback region). */
-export const STRUCTURE_DONE = Object.freeze({ 'course.book.rename': '已改名', 'course.book.move': '已移动', 'course.book.delete': '已删除这个知识点' });
+export const STRUCTURE_DONE = Object.freeze({ 'course.book.rename': '已改名', 'course.book.move': '已移动', 'course.book.delete': '已删除这个知识点', 'course.book.place': '已放回' });

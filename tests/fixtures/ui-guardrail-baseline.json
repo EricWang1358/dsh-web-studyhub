@@ -87,7 +87,7 @@
       "ui/book/BookEditor.jsx": 2,
       "ui/book/BookQaButton.jsx": 1,
       "ui/book/BookRebuildPreview.jsx": 1,
-      "ui/book/BookStructure.jsx": 5,
+      "ui/book/BookStructure.jsx": 4,
       "ui/book/BookSuggestion.jsx": 2,
       "ui/book/MockPaper.jsx": 1,
       "ui/document-preview/AskThread.jsx": 1,
