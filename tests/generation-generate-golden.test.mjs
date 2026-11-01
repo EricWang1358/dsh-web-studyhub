@@ -184,6 +184,15 @@ test('a run that ends otherwise: a refused key, a failing round, a cancel', asyn
   held.gate.armed = false; held.gate.open();
   await settleJob(held.service, jobId);
   pinned('end.cancelledBeforeDraft', { card: await held.cardOf(jobId) });
+  const line = await goldenLibrary(t);
+  line.gate.armed = true;
+  const front = await line.service.call('generate', { sourceIds: line.ids, kind: 'quiz', count: 2 }), behind = await line.service.call('generate', { sourceIds: line.ids, kind: 'quiz', count: 2 });
+  while (!line.gate.open) await new Promise(resolve => setImmediate(resolve));
+  await line.service.call('job.control', { jobId: behind.jobId, action: 'cancel' });
+  line.gate.armed = false; line.gate.open();
+  await settleJob(line.service, front.jobId);
+  await settleJob(line.service, behind.jobId);
+  pinned('end.cancelledInQueue', { card: await line.cardOf(behind.jobId) });
 });
 
 /* ---------- what it refuses, in both languages ---------- */
