@@ -84,15 +84,15 @@ export function DailyRecapPanel(props) {
         <div className="daily-recap-actions">
           {canGenerate && toneControl(group)}
           <div className="daily-recap-buttons">
-            {group.noteId && group.hasContent && <Button variant={primary ? 'primary' : 'secondary'} disabled={!onOpenNote || busy} onClick={() => onOpenNote(group.noteId)}>{ui('阅读今日合集')}</Button>}
+            {group.noteId && group.hasContent && <Button variant={primary ? 'primary' : 'secondary'} disabled={!onOpenNote} lock={busy} onClick={() => onOpenNote(group.noteId)}>{ui('阅读今日合集')}</Button>}
             {canGenerate && <Button variant={group.hasContent || !primary ? 'secondary' : 'primary'} busy={working === recapGroupKey(group)} disabled={busy || !!working || !group.eligible || !modelReady}
               onClick={() => recap.generate(group)}>{ui(retry ? '重试生成合集' : group.hasContent ? '更新今日合集' : '生成今日合集')}</Button>}
-            {running && <Button size="sm" variant="quiet" disabled={busy || !!working} onClick={() => recap.cancel(group)}>{ui('停止生成')}</Button>}
+            {running && <Button size="sm" variant="quiet" disabled={!!working} lock={busy} onClick={() => recap.cancel(group)}>{ui('停止生成')}</Button>}
           </div>
         </div>
         {protectedEdit && <details className="daily-recap-replace"><summary>{ui('重新整理这篇合集')}</summary>
           <p>{ui('重新整理会替换你手动编辑的标题和正文，请先保存需要保留的内容。')}</p>{toneControl(group)}
-          <Button size="sm" disabled={busy || !!working || !group.eligible || !modelReady} onClick={() => recap.generate(group, true)}>{ui('替换手动内容并重新整理')}</Button></details>}
+          <Button size="sm" disabled={!!working || !group.eligible || !modelReady} lock={busy} onClick={() => recap.generate(group, true)}>{ui('替换手动内容并重新整理')}</Button></details>}
       </article>;
     })}
     {status && <div className="daily-recap-footer"><span>{ui(status.automatic ? '自动整理已开启' : '由你决定何时生成')}</span>
