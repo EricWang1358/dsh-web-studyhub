@@ -121,7 +121,9 @@ export function ConvertEditDialog({ job, onClose, onChanged }) {
       <Button variant="primary" busy={busy} disabled={!book} onClick={importText}>{ui('导入')}</Button>
     </Tooltip>
   </div>;
-  return <>
+  // The history can sit inside another dialog (添加资料), and React carries a dialog's cancel and close up its tree: Escape here closes only this one.
+  const own = event => event.stopPropagation();
+  return <div style={{ display: 'contents' }} onCancel={own} onClose={own}>
     <Dialog size="lg" title={uiFormat('修改「{0}」的文字', [book?.filename ?? job.filename ?? ''])} description={ui('删掉或改掉识别错的文字，它们就不会占用模型的输入。页码和结构不变。')} busy={busy} footer={footer} onClose={onClose} guardDrops>
       <div className="convert-edit" data-convert-edit>
         {problem && <InlineMessage tone="error">{problem}</InlineMessage>}
@@ -150,7 +152,7 @@ export function ConvertEditDialog({ job, onClose, onChanged }) {
       onConfirm={async () => { pending.current = { edits: {}, restore: [] }; await queue.current; await send('job.delete', { jobIds: [job.id] }); }}>
       {ui('转换好的文字和你改过的地方都会丢掉，什么也不会存为资料。已解析好的段落从解析完起保留 7 天，这期间再选同一份 PDF 不用重新解析；过了就要重新解析。')}
     </ConfirmDialog>}
-  </>;
+  </div>;
 }
 
 /** The entry in the 任务 console's 转换详情: the same dialog the card opens. */
