@@ -40,6 +40,8 @@ const hooks = { ...React,
   useInsertionEffect: () => {}, useEffect: (callback, deps) => { const [, slot] = hook(() => ({ deps: undefined, cleanup: null }));
     if (!slot.deps || deps.some((value, index) => value !== slot.deps[index])) { active.effects.push(() => { slot.cleanup?.(); slot.cleanup = callback(); }); slot.deps = deps; } },
 };
+// A Button rendered by the server renderer after the panel's own render has no owner here: it takes the real hooks (Button keeps the pressed latch of `lock` in them).
+for (const name of ['useState', 'useRef', 'useEffect']) { const mocked = hooks[name]; hooks[name] = (...args) => (active ? mocked(...args) : React[name](...args)); }
 const { DailyRecapPanel, setUiLanguage } = load((name) => (name === 'react' ? hooks : require(name)));
 function view(props) {
   const owner = { cursor: 0, slots: [], effects: [] };

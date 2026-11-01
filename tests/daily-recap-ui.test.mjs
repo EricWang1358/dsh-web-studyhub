@@ -26,6 +26,8 @@ const hooks = { ...React,
       active.effects.push(() => { slot.cleanup?.(); slot.cleanup = callback(); }); slot.deps = deps;
     } },
 };
+// A Button rendered by the server renderer after the panel's own render has no owner here: it takes the real hooks (Button keeps the pressed latch of `lock` in them).
+for (const name of ['useState', 'useRef', 'useEffect']) { const mocked = hooks[name]; hooks[name] = (...args) => (active ? mocked(...args) : React[name](...args)); }
 const components = load(name => name === 'react' ? hooks : require(name));
 function view(Component, props = {}) {
   let current = props;
