@@ -85,7 +85,6 @@
     "bareBusyDisabled": {
       "ui/Exam.jsx": 1,
       "ui/ExplanationFollowup.jsx": 1,
-      "ui/ExtensionPanel.jsx": 1,
       "ui/FlipCard.jsx": 1,
       "ui/ImportHub.jsx": 3,
       "ui/Inbox.jsx": 2,
