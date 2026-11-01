@@ -36,6 +36,8 @@ export function convertEventText(event) {
     case 'convert-end': return joinMeta([uiFormat('转换完成：{0} 页资料', [a.pages]), a.title ? uiFormat('「{0}」', [a.title]) : '', uiFormat('{0} 段', [a.windows]),
       a.retries > 0 ? uiFormat('重试 {0} 次', [a.retries]) : '', Number.isFinite(a.chars) ? uiFormat('{0} 字', [a.chars]) : '', uiFormat('共用时 {0}', [took(a.seconds)])]);
     case 'convert-failed': return uiFormat('转换失败：{0}', [uiMessage(event.text || '')]);
+    case 'convert-held': return uiMessage(event.text || '');
+    case 'held-import-failed': return uiFormat('没能导入，文字和你的修改都还在：{0}', [uiMessage(event.text || '')]);
     default: return null;
   }
 }

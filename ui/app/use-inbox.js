@@ -16,12 +16,12 @@ export function useInbox({ core, lib, nav, session, learn, data }) {
   }), [learn, nav.show, session, setDetour]);
 
   /** A letter jumps to its card: the spot in an open run when there is one, otherwise a one-card run that can return to the current question. */
-  const openInboxItem = useCallback((item) => {
+  const openInboxItem = useCallback((item) => nav.leaving(() => {
     const from = learn.captureContext();
     const { page, run } = latest.current;
     const fromReview = page === 'review' && run && !run.complete;
     act('inbox.open', { id: item.id, ...(fromReview ? { runId: from.runId } : {}) }, (result) => openInboxResult({ item, result, from, fromReview }, verbs));
-  }, [act, learn, verbs]);
+  }), [act, learn, nav, verbs]);
 
   // Letters about the question already on screen are read by looking at it. 定制题 letters stay: the variants themselves are not on this card.
   const onScreenCardId = nav.page === 'review' && session.run?.card ? session.run.card.id : null;

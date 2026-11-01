@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, Disclosure, Hint, Icon, InlineMessage, ProgressBar, RadioCard, RadioCardGroup, SegmentedControl } from './components/index.js';
+import { Badge, Button, Checkbox, Disclosure, Hint, Icon, InlineMessage, ProgressBar, RadioCard, RadioCardGroup, SegmentedControl, Tooltip } from './components/index.js';
 import { localEstimate, minutesOf, pageRange, uploadPdf } from './mineru-flow.js';
 import { formatBytes } from './components/FileDrop.jsx';
 import { PdfConvertHistory } from './PdfConvertJob.jsx';
@@ -47,7 +47,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
   const isMarker = converter === 'marker';
   const { local } = useMineruState({ call, initialLocal, enabled: available });
   const [plan, setPlan] = useState(initialPlan), [reading, setReading] = useState(null), [problem, setProblem] = useState('');
-  const [starting, setStarting] = useState(false);
+  const [starting, setStarting] = useState(false), [review, setReview] = useState(false);
   const uploadId = useRef(''), picker = useRef(null), alive = useRef(true), taken = useRef(false);
   const radioId = useId();
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -106,7 +106,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
     setStarting(true); setProblem('');
     try {
       taken.current = true;
-      const job = await call(isMarker ? 'marker.import' : 'mineru.import', { uploadId: selectedUpload, ...(isMarker ? {} : { route }), ...(courses.length ? { courses } : {}) });
+      const job = await call(isMarker ? 'marker.import' : 'mineru.import', { uploadId: selectedUpload, ...(isMarker ? {} : { route }), ...(courses.length ? { courses } : {}), ...(review ? { reviewBeforeImport: true } : {}) });
       uploadId.current = '';
       if (alive.current) onStarted?.({ ...job, filename: file.name, pages: plan.pages, route, converter });
     } catch (error) {
@@ -130,7 +130,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
   const mineruChip = mineruUsable(local) ? chip(ui('可用'), 'success') : local == null || (gate && converter === 'mineru') ? null : chip(mineruText.badge(), mineruText.tone);
   const tools = <RadioCardGroup legend={ui('解析工具')} disabled={starting}>
     <RouteCard group={`${radioId}-converter`} id={`${radioId}-mineru`} value="mineru" current={converter} title="MinerU" onSelect={setConverter} chips={mineruChip}><Hint as="span">{ui('在本机解析，不上传')}</Hint></RouteCard>
-    <RouteCard group={`${radioId}-converter`} id={`${radioId}-marker`} value="marker" current={converter} title="Marker" onSelect={setConverter} chips={marker?.state === 'ready' ? chip(ui('可用'), 'success') : chip(ui('需要设置'))}><Hint as="span">{ui('调用本机 Marker，自动导入')}</Hint></RouteCard>
+    <RouteCard group={`${radioId}-converter`} id={`${radioId}-marker`} value="marker" current={converter} title="Marker" onSelect={setConverter} chips={marker?.state === 'ready' ? chip(ui('可用'), 'success') : chip(ui('需要设置'))}><Hint as="span">{review ? ui('调用本机 Marker，转换好后先等你改') : ui('调用本机 Marker，自动导入')}</Hint></RouteCard>
   </RadioCardGroup>;
   return (
     <section className={`mineru-route-panel${compact ? ' is-compact' : ''}${className ? ` ${className}` : ''}`} aria-label={ui('PDF 解析方案')} data-route={route} {...rest}>
@@ -138,7 +138,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
         <Icon name="file" size={20} />
         <div>
           <h3>{ui('解析 PDF')}</h3>
-          <p>{ui('选择 PDF 和解析工具，完成后自动存为资料。')}</p>
+          <p>{review ? ui('选择 PDF 和解析工具，转换好后先等你改，再存为资料。') : ui('选择 PDF 和解析工具，完成后自动存为资料。')}</p>
         </div>
       </header>}
 
@@ -180,10 +180,15 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
 
         {available && gate}
 
-        {usable && <p className="mineru-acked"><Icon name="success" size={16} />{isMarker ? ui('在 StudyHub 所在电脑运行，结果自动导入。') : ui('本地解析：不会上传任何内容。')}</p>}
+        {usable && <p className="mineru-acked"><Icon name="success" size={16} />{isMarker ? (review ? ui('在 StudyHub 所在电脑运行，转换好后先等你改。') : ui('在 StudyHub 所在电脑运行，结果自动导入。')) : ui('本地解析：不会上传任何内容。')}</p>}
         {usable && stopped && <Hint>{ui('本机服务没在运行，开始解析时会先自动启动（约 1 分钟）。')}</Hint>}
 
         {problem && <InlineMessage tone="error" boxed>{problem}</InlineMessage>}
+        {usable && <Disclosure lazy summary={ui('更多设置')} className="mineru-more">
+          <Tooltip layer content={ui('转换好后先停下，等你删掉识别错的文字再导入；不打开就是转换完自动导入。已经导入的资料不会变：重新转换同一份 PDF 会存成另一份资料，等你导入的文字也不会被覆盖。')}>
+            <Checkbox label={ui('导入前先让我改')} checked={review} disabled={starting} onChange={setReview} data-review-before-import />
+          </Tooltip>
+        </Disclosure>}
         <div className="mineru-start">
           <Button variant="primary" icon="sparkle" busy={starting} disabled={!plan || !usable} onClick={start}>
             {isMarker ? ui('用 Marker 开始解析') : ui('开始本地解析')}

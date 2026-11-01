@@ -17,9 +17,18 @@ export const movesSeenAt = course => readText(keyOf(course), null);
 /** Remember that the moves of rebuild `at` were read; true when it was stored. */
 export const rememberMovesSeen = (course, at) => writeText(keyOf(course), at);
 
-const counts = moves => { const list = moves?.list || []; return { list, total: Math.max(moves?.total ?? 0, list.length), held: moves?.held || 0, gone: moves?.gone || 0 }; };
+const counts = moves => { const list = moves?.list || [], own = moves?.structure; return { list, total: Math.max(moves?.total ?? 0, list.length), held: moves?.held || 0, gone: moves?.gone || 0,
+  own: (own?.moved.length || 0) + (own?.revived.length || 0) + (own?.renamed.length || 0) }; };
 // A record from before first lines were kept (no `revisionAfter`) has none to show: saying 还没有正文 there would read like lost text.
 const FirstLine = ({ text, known }) => (text || known ? <span className="book-moves__first">{text || ui('（还没有正文）')}</span> : null);
+
+/** What the learner did to the book's tree that this layout does not keep (#489), one line per kind with the titles under it. */
+function OwnStructure({ structure }) {
+  const rows = [[structure?.moved, '你移动过的 {0} 个章节或知识点不保留，按新总纲排'], [structure?.revived, '你删掉的 {0} 个章节或知识点新总纲里还有，会重新出现；你在里面写过的还在「未归位」'],
+    [structure?.renamed, '你改的 {0} 个名字不保留：新总纲里没有这些章节或知识点了']].filter(([list]) => list?.length);
+  return rows.map(([list, text]) => <React.Fragment key={text}><p className="book-moves__note" data-book-own-structure="">{uiFormat(text, [list.length])}</p>
+    <ul className="book-moves__list">{list.map((title, at) => <li key={at}><span className="book-moves__titles">{uiFormat('「{0}」', [title])}</span></li>)}</ul></React.Fragment>);
+}
 
 /** Every point of `moves` that was stored: what moved, then what waits in 未归位 (held: no new point holds enough of its pages; gone: none holds any). */
 export function MovesList({ moves }) {
@@ -39,6 +48,7 @@ export function MovesList({ moves }) {
       {gone > 0 && <p className="book-moves__note">{uiFormat('{0} 个知识点在新总纲里没有了，笔记放在「未归位」里', [gone])}</p>}
       {(moves?.goneList || []).length > 0 && <ul className="book-moves__list">{moves.goneList.map((item, at) => <li key={at}>
         <span className="book-moves__titles">{uiFormat('「{0}」', [item.from])}</span><FirstLine text={item.first} known={known} /></li>)}</ul>}
+      <OwnStructure structure={moves?.structure} />
     </div>
   );
 }
@@ -53,22 +63,22 @@ export function MovesReview({ moves, onUndo }) {
         <Button variant="secondary" size="sm" onClick={() => setAsking(true)}>{ui('撤销这次整理')}</Button></Tooltip></p>}
     {!moves.undoable && moves.revisionAfter !== undefined && <p className="book-moves__note">{ui('这次整理之后书又改过了，不能再撤销；「未归位」里的内容可以手动放回。')}</p>}
     {asking && <ConfirmDialog title={ui('撤销这次整理')} confirmLabel={ui('撤销这次整理')} tone="primary" onConfirm={() => onUndo(moves.outlineId)} onClose={() => setAsking(false)}>
-      <p>{ui('笔记和总纲都回到这次整理之前。想要新总纲，要再整理一次。')}</p></ConfirmDialog>}
+      <p>{ui('笔记和总纲都回到这次整理之前。想要新总纲，要再整理一次。')}</p>{moves.structure && <p>{ui('你移动、删除和改名的结构也都回到整理之前。')}</p>}</ConfirmDialog>}
   </>;
 }
 
 /** moves: course.book.open's `moves` ({ at, outlineId, list: [{ from, to, folded, share?, first? }], total, held, heldList?, gone?, goneList?, undoable }); onUndo as MovesReview. */
 export default function BookMoves({ course, moves, onUndo }) {
   const [seen, setSeen] = useState(() => movesSeenAt(course)), [open, setOpen] = useState(false);
-  const { list, total, held, gone } = counts(moves);
-  if (!list.length && !held && !gone) return null;
+  const { list, total, held, gone, own } = counts(moves);
+  if (!list.length && !held && !gone && !own) return null;
   // A write that fails only shows the notice again next time.
   const done = () => { rememberMovesSeen(course, moves.at); setSeen(moves.at); };
   const review = open && <Dialog size="md" title={ui('这次整理动了哪些笔记')} onClose={() => setOpen(false)}><MovesReview moves={moves} onUndo={onUndo && (async outlineId => { await onUndo(outlineId); setOpen(false); })} /></Dialog>;
   // Read once (知道了), or 设置 › 引导 switched the notice off: one quiet line, never nothing.
   if (seen === moves.at || !guidanceAllows('book.moves')) return (
     <div className="book-header__moves-line" data-book-moves-line="">
-      {[list.length > 0 && uiFormat('上次整理总纲：{0} 个知识点的笔记换了位置', [total]), held + gone > 0 && uiFormat('{0} 个放在「未归位」', [held + gone])].filter(Boolean).join(ui('，'))}
+      {[list.length > 0 && uiFormat('上次整理总纲：{0} 个知识点的笔记换了位置', [total]), held + gone > 0 && uiFormat('{0} 个放在「未归位」', [held + gone]), own > 0 && uiFormat('上次整理总纲没有保留你对结构的 {0} 处改动', [own])].filter(Boolean).join(ui('，'))}
       <Button variant="link" size="sm" onClick={() => setOpen(true)}>{ui('查看')}</Button>{review}</div>
   );
   return (
@@ -76,6 +86,7 @@ export default function BookMoves({ course, moves, onUndo }) {
       {list.length > 0 && <p>{uiFormat('{0} 个知识点的笔记被移到了新位置（总纲重新整理过）。', [total])}</p>}
       {held > 0 && <p data-book-held="">{uiFormat('{0} 个知识点的笔记对不上新的知识点，放在「未归位」里', [held])}</p>}
       {gone > 0 && <p>{uiFormat('{0} 个知识点在新总纲里没有了，笔记放在「未归位」里', [gone])}</p>}
+      {own > 0 && <p>{uiFormat('上次整理总纲没有保留你对结构的 {0} 处改动', [own])}</p>}
       <div className="book-header__moves-actions">
         <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>{ui('查看每一处')}</Button>
         <Button size="sm" variant="quiet" onClick={done}>{ui('知道了')}</Button>

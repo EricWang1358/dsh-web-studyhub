@@ -31,7 +31,8 @@ async function base(t, { state = {}, runtime = true, windowPages = 200, parseWin
   const cli = patientCli({ file: process.execPath, prefix: [FAKE], env: { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath } });
   const { starts: _starts, ...managed } = managedRuntimeOptions({ paths: runtime ? ['pdfConvert'] : [] });
   const mineru = { limits: { windowPages, livenessMs: 0 }, local: { cli, home: work, ...(parseWindow ? { parseWindow } : {}) } };
-  const service = new StudyService(root, { ...(runtime ? managed : {}), mineru });
+  const options = { ...(runtime ? managed : {}), mineru };
+  let service = new StudyService(root, options);
   t.after(async () => {
     await new Promise(resolve => setTimeout(resolve, 20));
     await service.dispose();
@@ -47,7 +48,9 @@ async function base(t, { state = {}, runtime = true, windowPages = 200, parseWin
     return uploadId;
   };
   const jobs = async () => (await call('snapshot')).jobs.filter(job => job.type === PDF_KIND);
-  return { home, root, work, cli, service, call, upload, jobs, log, statePath,
+  /** The app closes and opens again on the same library. */
+  const restart = async () => { await service.dispose(); service = new StudyService(root, options); await call('snapshot'); await call('mineru.history.list'); };
+  return { home, root, work, cli, service, call, upload, jobs, log, statePath, restart,
     parses: async () => (await log()).filter(entry => entry.argv[0] === 'parse'),
     set: async patch => writeJsonFile(statePath, { ...await readJsonFile(statePath), ...patch }),
     settled: id => until(async () => { const job = (await jobs()).find(item => item.id === id); return job && !['queued', 'running', 'cancelling'].includes(job.status) && job; }, 'the job to settle') };
@@ -56,7 +59,10 @@ async function base(t, { state = {}, runtime = true, windowPages = 200, parseWin
 /** The runtime (or, `runtime: false`, the original path) converting 200-page windows; `state` shapes the fake (failWindowsOnce, delayMs, finishSignal...). */
 export async function harness(t, { state = {}, runtime = true } = {}) {
   const h = await base(t, { state, runtime, windowPages: 200 });
-  return { ...h, start: async (pages = 450, args = {}) => { await h.set({ total: pages }); return h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages })), ...args }); } };
+  // The same book each time it is asked for (a PDF names its creation time, so a new one would be a different file).
+  const books = new Map();
+  const book = async pages => { if (!books.has(pages)) books.set(pages, await makePdf({ pages })); return books.get(pages); };
+  return { ...h, start: async (pages = 450, args = {}) => { await h.set({ total: pages }); return h.call('mineru.import', { uploadId: await h.upload(await book(pages)), ...args }); } };
 }
 
 /** The runtime converting a 120-page book in 50-page windows. */
