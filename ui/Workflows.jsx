@@ -103,7 +103,7 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
   };
 
   return <section className="wf-editor">
-    <div className="wf-topline"><Button variant="link" size="sm" onClick={onBack} disabled={!!pending}>{ui("← 学习流工作台")}</Button><span className="muted small">{dirty ? ui("修改暂存于此设备") : draft.id ? ui("已保存") : ui("新学习流")}</span></div>
+    <div className="wf-topline"><Button variant="link" size="sm" onClick={onBack} lock={!!pending}>{ui("← 学习流工作台")}</Button><span className="muted small">{dirty ? ui("修改暂存于此设备") : draft.id ? ui("已保存") : ui("新学习流")}</span></div>
     <PageHeader className="wf-heading" title={ui("编排学习流")} description={ui("把适合自己的学习方式排成步骤。拖动排序，也可使用上移、下移。")} />
     {error && <InlineMessage tone="error" boxed>{error}{" "}{ui("你的输入已保留。")}</InlineMessage>}
     {conflict && (() => {
@@ -133,7 +133,7 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
             }} onDragEnd={() => { dragId.current = null; }} aria-hidden="true"><Icon name="list" size={16} /></span>
             <span className="wf-step-number">{formatIndex(index + 1)}</span>
             <button type="button" className="wf-step-toggle" aria-expanded={open} onClick={() => setExpanded(open ? "" : step.id)}><strong>{step.title || ui("未命名步骤")}</strong><small>{component?.title}</small></button>
-            <div className="wf-step-move"><IconButton icon={TURN_UP} size="sm" disabled={!!pending || index === 0} label={uiFormat("上移第 {0} 步 {1}", [index + 1, step.title])} onClick={() => reorder(index, index - 1)} /><IconButton icon={TURN_DOWN} size="sm" disabled={!!pending || index === draft.steps.length - 1} label={uiFormat("下移第 {0} 步 {1}", [index + 1, step.title])} onClick={() => reorder(index, index + 1)} /></div>
+            <div className="wf-step-move"><IconButton icon={TURN_UP} size="sm" disabled={index === 0} lock={!!pending} label={uiFormat("上移第 {0} 步 {1}", [index + 1, step.title])} onClick={() => reorder(index, index - 1)} /><IconButton icon={TURN_DOWN} size="sm" disabled={index === draft.steps.length - 1} lock={!!pending} label={uiFormat("下移第 {0} 步 {1}", [index + 1, step.title])} onClick={() => reorder(index, index + 1)} /></div>
           </div>
           {open && <div className="wf-step-body"><fieldset className="wf-fields" disabled={!!pending}>
             <p className="muted small">{component?.description}</p>
@@ -143,14 +143,14 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
             {step.kind === "practice" && <label>{ui("本步练习题数")}<input type="number" min={QUESTION_COUNT.min} max={QUESTION_COUNT.max} value={step.count} onChange={(e) => changeStep(step.id, { count: Number(e.target.value) })} /></label>}
             <div className="wf-branch-fields"><BranchSelect label={ui("完成或跳过后")} value={step.next} onChange={(next) => changeStep(step.id, { next })} steps={draft.steps} /><BranchSelect label={ui("还需巩固时")} value={step.retry} onChange={(retry) => changeStep(step.id, { retry })} steps={draft.steps} /></div>
           </fieldset>
-          <Button variant="danger" disabled={!!pending || draft.steps.length <= 1} onClick={askConfirm(step.id)}>{ui("移除这一步")}</Button>
+          <Button variant="danger" disabled={draft.steps.length <= 1} lock={!!pending} onClick={askConfirm(step.id)}>{ui("移除这一步")}</Button>
           {confirm === step.id && <InlineConfirm title={uiFormat("移除「{0}」及其预置内容？", [step.title])} confirmLabel={ui("确认移除")}
             returnFocusRef={confirmTrigger} onConfirm={() => removeStep(step.id)} onCancel={() => setConfirm("")} />}
           </div>}
         </li>;
       })}
     </ol>
-    <div className="wf-components"><h3>{ui("添加一个组件")}</h3><div className="wf-component-options">{components.map((c) => <Button key={c.kind} icon="plus" size="sm" disabled={!!pending || draft.steps.length >= 16} title={c.description} onClick={() => { const step = newStep(c); change({ ...draft, steps: [...draft.steps, step] }); setExpanded(step.id); }}>{c.title}</Button>)}</div></div>
+    <div className="wf-components"><h3>{ui("添加一个组件")}</h3><div className="wf-component-options">{components.map((c) => <Button key={c.kind} icon="plus" size="sm" disabled={draft.steps.length >= 16} lock={!!pending} title={c.description} onClick={() => { const step = newStep(c); change({ ...draft, steps: [...draft.steps, step] }); setExpanded(step.id); }}>{c.title}</Button>)}</div></div>
     <div className="wf-savebar"><Button variant="primary" disabled={!!pending || !draft.title.trim() || !draft.steps.length || !!conflict} busy={pending === "save"} busyLabel={ui("保存中…")} onClick={() => save()}>{ui("保存学习流")}</Button><span className="small muted" role="status">{ui("每次学习都会保留开始时的流程副本。")}</span></div>
     <details className="wf-chat"><summary>{ui("让主会话帮我调整")}</summary>
       <HandOffForm id="workflow.design" className="wf-chat__form" label="想怎样学" placeholder="例如：先看例子，再讲原理；不用选择题，改成口述复盘。" maxLength={2000}
@@ -287,30 +287,30 @@ export default function Workflows({ data, openSession, openRun, initialListing =
       {data?.focus?.course != null && (data.focus.courses || []).length > 0 && <p className="wf-quick-course muted small">{uiFormat("会在当前课程「{0}」的资料里选；想换课程，开始后在下一页点「换课程」。", [data.focus.course || ui("未分类课程")])}</p>}
       {prefilled && <p className="wf-quick-course muted small">{ui("已填好推荐的下一个主题，直接点「开始学」；也可以改成别的。")}</p>}
       {!modelReady && <ModelSetupGate variant="compact" feature="workflow" model={modelReadiness(data)} className="wf-quick-hint" />}
-      {unfinished && <p className="wf-quick-resume"><span className="muted">{ui("上次学到一半")}</span><Button variant="link" size="sm" iconEnd="arrow-right" disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: unfinished.id })}>{[unfinished.topic, unfinished.stepIndex >= 0 && uiFormat("第 {0}/{1} 步 {2}", [unfinished.stepIndex + 1, unfinished.stepCount, unfinished.stepTitle]), ui("接着学")].filter(Boolean).join(" · ")}</Button></p>}
+      {unfinished && <p className="wf-quick-resume"><span className="muted">{ui("上次学到一半")}</span><Button variant="link" size="sm" iconEnd="arrow-right" lock={!!pending} onClick={() => setScreen({ kind: "portal", id: unfinished.id })}>{[unfinished.topic, unfinished.stepIndex >= 0 && uiFormat("第 {0}/{1} 步 {2}", [unfinished.stepIndex + 1, unfinished.stepCount, unfinished.stepTitle]), ui("接着学")].filter(Boolean).join(" · ")}</Button></p>}
       <div className="wf-quick-row">
         <input value={goal} onChange={(e) => setTypedGoal(e.target.value)} maxLength={500} disabled={!!pending}
           aria-label={ui("想学什么")} placeholder={ui("例如：弄懂 Platform Engineering 里的平台团队职责")} />
         <Button type="submit" variant="primary" className="wf-quick-go" disabled={!!pending || !goal.trim()} busy={pending === "quick"} busyLabel={ui("AI 正在准备…")}>{ui("开始学 →")}</Button>
       </div>
       {suggestions.length > 0 && <div className="wf-quick-suggest">{suggestions.map((text) =>
-        <Button variant="link" size="sm" key={text} disabled={!!pending} onClick={() => setTypedGoal(text)}>{text}</Button>)}</div>}
+        <Button variant="link" size="sm" key={text} lock={!!pending} onClick={() => setTypedGoal(text)}>{text}</Button>)}</div>}
       {pending === "quick" && <LoadingState className="wf-quick-status" label={modelReady ? ui("AI 正在从你的学习库里挑选相关主题、排好顺序…") : ui("正在按名称匹配学习库里的主题…")} />}
       {modelReady && <Checkbox className="wf-quick-option" checked={autoSkeleton} disabled={!!pending} onChange={setAutoSkeleton}
         label={ui("没有现成的知识骨架时，在后台按本次范围生成一份")} hint={ui("不用等它，学习照常开始；会在后台多调用一次模型，不想花这一次就取消勾选。")} />}
     </form>
     {error && <ErrorState error={error} />}
     <div className="wf-section-head"><h2>{ui("学习记录")}</h2></div>
-    {!sessions.length ? <p className="muted wf-empty">{ui("还没有学习记录。在上面说一句想学什么，学到一半离开也会留在这里，随时接着学。")}</p> : <ul className="wf-session-list">{[...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((s) => <li key={s.id} data-session={s.id}><div><strong>{s.topic}</strong><p>{s.title} · {s.status === "completed" ? ui("本次学习已结束") : s.stepTitle}</p><small className="muted">{s.status === "completed" ? "" : `${ui(STATUS[s.status])} · `}{when(s.updatedAt)}</small></div><div className="wf-actions"><Button disabled={!!pending} onClick={() => setScreen({ kind: "portal", id: s.id })}>{s.status === "completed" ? ui("查看记录") : ui("继续学习")}</Button><Button disabled={!!pending} aria-label={uiFormat("删除学习记录 {0}", [s.topic])} onClick={() => remove("session", s)}>{ui("删除")}</Button></div></li>)}</ul>}
+    {!sessions.length ? <p className="muted wf-empty">{ui("还没有学习记录。在上面说一句想学什么，学到一半离开也会留在这里，随时接着学。")}</p> : <ul className="wf-session-list">{[...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((s) => <li key={s.id} data-session={s.id}><div><strong>{s.topic}</strong><p>{s.title} · {s.status === "completed" ? ui("本次学习已结束") : s.stepTitle}</p><small className="muted">{s.status === "completed" ? "" : `${ui(STATUS[s.status])} · `}{when(s.updatedAt)}</small></div><div className="wf-actions"><Button lock={!!pending} onClick={() => setScreen({ kind: "portal", id: s.id })}>{s.status === "completed" ? ui("查看记录") : ui("继续学习")}</Button><Button lock={!!pending} aria-label={uiFormat("删除学习记录 {0}", [s.topic])} onClick={() => remove("session", s)}>{ui("删除")}</Button></div></li>)}</ul>}
     <details className="wf-advanced"><summary>{ui("高级：自定义学习步骤")}</summary>
       <p className="muted small">{ui("想按自己的顺序学时再用。自定义的学习流用「使用」开始，需要自己选主题与范围。")}</p>
-    <div className="wf-section-head"><h2>{ui("我的学习流")}{" "}<span className="muted">{templates.length} / {listing.limit}</span></h2><Button icon="plus" size="sm" disabled={!!pending || templates.length >= listing.limit} onClick={() => { void undoable.flush(); edit({ title: "", description: "", steps: [newStep(listing.components[0])] }, "new"); }}>{ui("自己拼一条")}</Button></div>
+    <div className="wf-section-head"><h2>{ui("我的学习流")}{" "}<span className="muted">{templates.length} / {listing.limit}</span></h2><Button icon="plus" size="sm" disabled={templates.length >= listing.limit} lock={!!pending} onClick={() => { void undoable.flush(); edit({ title: "", description: "", steps: [newStep(listing.components[0])] }, "new"); }}>{ui("自己拼一条")}</Button></div>
     {templates.length >= listing.limit && <p className="muted small">{ui("已保存五条。可以修改现有流程，或删除一条后再创建。")}</p>}
     <div className="wf-template-list">{templates.map((template, index) => <article className="wf-template-row" key={template.id} data-template={template.id}>
       <span className="wf-row-number" aria-hidden="true">{formatIndex(index + 1)}</span><div className="wf-template-copy"><h3>{template.title}</h3><p>{template.description || uiFormat("{0} 个学习步骤", [template.steps.length])}</p><div className="wf-route-preview">{template.steps.map((s) => <span key={s.id}>{s.title}</span>)}</div></div>
-      <div className="wf-actions"><Button onClick={() => setScreen({ kind: "start", template })} disabled={!!pending}>{ui("使用")}</Button><Button onClick={() => edit(template)} disabled={!!pending}>{ui("编辑")}</Button><Button aria-label={uiFormat("删除学习流 {0}", [template.title])} onClick={() => remove("template", template)} disabled={!!pending}>{ui("删除")}</Button></div>
+      <div className="wf-actions"><Button onClick={() => setScreen({ kind: "start", template })} lock={!!pending}>{ui("使用")}</Button><Button onClick={() => edit(template)} lock={!!pending}>{ui("编辑")}</Button><Button aria-label={uiFormat("删除学习流 {0}", [template.title])} onClick={() => remove("template", template)} lock={!!pending}>{ui("删除")}</Button></div>
     </article>)}</div>
-    <article className="wf-suggested"><div><p className="wf-eyebrow">{ui("从一条建议开始")}</p><h3>{listing.suggested.title}</h3><p className="muted">{listing.suggested.description}</p><div className="wf-route-preview">{listing.suggested.steps.map((s) => <span key={s.id}>{s.title}</span>)}</div></div><Button disabled={!!pending || templates.length >= listing.limit} onClick={() => { void undoable.flush(); edit(listing.suggested, "suggested"); }}>{ui("编辑并保存这条流程")}</Button></article>
+    <article className="wf-suggested"><div><p className="wf-eyebrow">{ui("从一条建议开始")}</p><h3>{listing.suggested.title}</h3><p className="muted">{listing.suggested.description}</p><div className="wf-route-preview">{listing.suggested.steps.map((s) => <span key={s.id}>{s.title}</span>)}</div></div><Button disabled={templates.length >= listing.limit} lock={!!pending} onClick={() => { void undoable.flush(); edit(listing.suggested, "suggested"); }}>{ui("编辑并保存这条流程")}</Button></article>
     <details className="wf-chat"><summary>{ui("和主会话一起拼")}</summary>
       <HandOffForm id="workflow.design" className="wf-chat__form" label="告诉主会话你的学习习惯" placeholder="例如：我只想轻松刷卡，最后记一下容易忘的点；或先讲例子，再让我口述。" maxLength={2000}
         what="让主会话按你写的学习习惯设计一条学习流" disabled={!!pending || templates.length >= listing.limit} input={(text) => ({ wish: text })} />
