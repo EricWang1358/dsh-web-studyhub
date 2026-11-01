@@ -27,6 +27,7 @@ import { useBookData } from './use-book-data.js';
 import { useBookPlace } from './use-book-place.js';
 import { useBookAi } from './use-book-ai.js';
 import { useBookRebuild } from './use-book-rebuild.js';
+import { useFoundMarks } from './use-found-marks.js';
 import BookRebuildPreview from './BookRebuildPreview.jsx';
 import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCoursePlan } from './use-book-actions.js';
 import { useMoreActions } from './more-actions.js';
@@ -41,8 +42,8 @@ import aiCss from './book-ai.css';
    back to the same point. The place is kept for the next visit (ui/book/use-book-place.js); what the main chat wrote shows up when the page comes back into view. */
 
 /** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume, place }); onOpenSource(sourceId, quote); onCreate() (出题); onOpenTask(jobId);
-    onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId); theme: 'light' | 'dark' (the editor's). */
-export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, theme }) {
+    onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId); theme: 'light' | 'dark' (the editor's); holdLeave(ask): the app's leave gate, held while the editor has unsaved text. */
+export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, theme, holdLeave }) {
   useInjectCss(css, 'study-book');
   useInjectCss(aiCss, 'study-book-ai');
   const { call, act, notify } = useStudy();
@@ -89,11 +90,22 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const [tocOver, setTocOver] = useState(false), closeToc = useCallback(() => setTocOver(false), []);
   useEffect(() => { setTocOver(false); }, [narrow]);
   const tocOpen = narrow ? tocOver : tocWide;
+  // 在书里找 (the 目录's box, ui/book/book-search.js): what is typed stays while a narrow 目录 is closed; `found` is the point a row went to, its words marked while it is drawn.
+  const [findQuery, setFindQuery] = useState(''), [found, setFound] = useState(null);
+  const dropFound = useCallback(() => setFound(null), []);
+  const onFindQuery = useCallback(text => { setFindQuery(text); if (!text.trim()) setFound(null); }, []);
+  const { goTo } = where;
+  const onFound = useCallback((row, query) => { goTo(row.hid); setFound({ hid: row.hid, query, count: row.count, nonce: Date.now() }); }, [goTo]);
+  useFoundMarks({ found, drawn: `${view}:${reading.mode}:${where.stepAt}:${book?.revision}`, pageRef, aiFold, onGone: dropFound });
   useStepKeys(view === 'read' && !tocOver && book?.status === 'ok' && !!book.notes, where.go);
-  // Leaving the editor with unsaved text asks first (the 完成 button, 回到总纲, another course; closing or reloading the tab: the browser's own question).
-  // The sidebar and the other pages do not ask yet (no navigation guard in the app; S4 saves as you type).
-  const guard = useCallback(then => (view === 'edit' && dirty ? setLeaving(() => then) : then()), [view, dirty]);
-  useUnsavedWarning(view === 'edit' && dirty);
+  // Leaving the editor with unsaved text asks first: the 完成 button and another course here, every other way out of the page through the app's one leave gate
+  // (holdLeave, ui/app/navigator.js createLeaveGate), closing or reloading the tab through the browser's own question.
+  const unsaved = view === 'edit' && dirty;
+  const guard = useCallback(then => (unsaved ? setLeaving(() => then) : then()), [unsaved]);
+  useEffect(() => (unsaved ? holdLeave?.(go => setLeaving(() => go)) : undefined), [unsaved, holdLeave]);
+  useUnsavedWarning(unsaved);
+  // Saved (or given up) with the question still up: nothing is left to ask about. The learner stays; the click that raised the question is not carried out later.
+  useEffect(() => { if (!unsaved) setLeaving(null); }, [unsaved]);
   const back = useCallback(() => { setLeaving(null); setDirty(false); setView('read'); }, []);
   // The editor and 翻看 take the page's place; 完成 · 回到阅读 comes back to the heading being read where it was on screen (held until it is drawn again).
   const openView = useCallback(next => { place.current?.hold(); setView(next); }, []);
@@ -104,8 +116,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const dateHint = book?.status === 'ok' && book.notes ? crunchDateHint(courseRecord?.exam, crunchWindow(data?.settings?.book)) : null;
   const writing = runningBuild(data?.jobs, course, BOOK_BUILD_KIND);
   const rebuild = useBookRebuild({ call, course, notify, setBook, reload }), building = !!(writing || runningBuild(data?.jobs, course));
-  const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask} onUndoRebuild={building ? undefined : rebuild.undo}
-    onBack={() => guard(onBack)} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
+  const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask} onUndoRebuild={building || unsaved ? undefined : rebuild.undo}
+    onBack={onBack} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
   const step = steps[where.current] ?? null;
   // 改名 / 移动到… / 删除这个知识点… act on the point being read; a delete goes to the point after it (or before it, at the end) once it is gone.
   const structureAt = where.current;
@@ -148,7 +160,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     {dialog === 'mock' && <MockDialog course={course} pointIds={plan.day ? plan.points.map(point => point.id) : undefined} onStarted={onExamRun} onClose={() => setDialog(null)} />}
   </>;
   if (view === 'edit') return <section className="page book-page" ref={pageRef}>{header}
-    <EditView book={book} step={step} theme={theme} onChanged={setBook} onDirty={setDirty} leaving={!!leaving} onStay={() => setLeaving(null)}
+    <EditView book={book} step={step} theme={theme} root={root} onChanged={setBook} onDirty={setDirty} leaving={!!leaving} onStay={() => setLeaving(null)}
       onLeave={() => { const then = leaving; back(); then?.(); }} onDone={() => guard(back)} /></section>;
   if (view === 'flip') return <section className="page book-page" ref={pageRef}>{header}
     <BookAiContext.Provider value={ai.lines}><FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} onMark={(hid, on) => plan.mark(hid, 'seen', on)}
@@ -170,7 +182,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
         onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={(point, on) => plan.mark(point.id, 'read', on)}
         onFlip={() => openView('flip')} onMockStarted={onExamRun} />}
       <div className={tocOpen && !narrow ? 'book-layout book-layout--toc' : 'book-layout'}>
-        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} />}
+        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} book={book} query={findQuery} onQuery={onFindQuery} onFound={onFound} />}
         <ReadingBlock className="book-read" measure>
           <AiFoldContext.Provider value={aiFold}><BookAiContext.Provider value={ai.lines}><BookReadContext.Provider value={reading}>
             {reading.mode === 'step' ? <BookStep steps={steps} at={where.stepAt} onGo={index => where.go(index - where.stepAt)} course={course} handlers={handlers} />

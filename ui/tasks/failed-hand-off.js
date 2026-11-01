@@ -1,4 +1,4 @@
-import { contractOf, isRunningTask } from './task-model.js';
+import { contractOf, isHeldTask, isRunningTask } from './task-model.js';
 import { taskSummary } from './task-summary.js';
 
 /* 「发给主会话」 at a job that did not finish (the hand-off plan N8, N9, N11: 'job.failed'): when it is offered and what it carries. One rule for the card on a
@@ -18,7 +18,7 @@ export const failureText = (failure) => (failure ? [failure.summary, ...(Number.
 export function failedHandOffInput(job, { line = '' } = {}) {
   if (!job || job.leaving || job.archived) return null;
   const contract = contractOf(job);
-  if (isRunningTask(job) || !FAILED_HAND_OFF_STATES.includes(contract.status) || contract.continuedBy || job.continuedBy) return null;
+  if (isHeldTask(job) || isRunningTask(job) || !FAILED_HAND_OFF_STATES.includes(contract.status) || contract.continuedBy || job.continuedBy) return null;
   const error = [contract.error?.message, failureText(job.failure)].filter(Boolean).filter((text, index, all) => all.indexOf(text) === index).join('\n');
   const sources = contract.result?.refs?.filter((ref) => ref.kind === 'source').map((ref) => ref.id) || [];
   return { jobId: contract.jobId, kind: contract.kind, title: taskSummary(job).title, status: contract.status, line, error,

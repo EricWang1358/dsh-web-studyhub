@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import MathText from '../MathText.jsx';
 import { AudioCorrections } from '../audio/AudioCorrections.jsx';
@@ -10,6 +10,7 @@ import { ReaderModelContext } from './ReaderModelGate.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
 import { issueOf } from './original-file.js';
 import { peekStatus } from './peek/peek-logic.js';
+import { renderPageImages } from './peek/page-image.js';
 import { captureSelection, fuzzyPassageRange, groupPassageLinks, isPlaced, locateQuote, renderedPassageRange, resolveQuote } from './selection.js';
 import PassageLinksPanel, { linkTitleWords } from './links/PassageLinksPanel.jsx';
 import { buildLinkModel, groupTitle } from './links/link-model.js';
@@ -204,13 +205,20 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // view is opened and then kept: the reading panel (its selection, its thread, a question still being answered and kept as 批注) is only hidden
   // meanwhile, so it is never shown with an old quote in 原始 PDF and is all there again on the way back to 阅读.
   const totalPages = pageCount(sources);
-  const pageScope = useMemo(() => format === 'pdf' && fileUrl ? pageScopeOf(sources, pdfPage) : null, [format, fileUrl, sources, pdfPage]);
+  // A range of pages (#488) belongs to the page it was made on: turning the page, by any way, ends it.
+  const [pageRange, setPageRange] = useState(null), pageTo = pageRange?.from === pdfPage ? pageRange.to : 0;
+  if (pageRange && !pageTo) setPageRange(null); // gone for good: turning back does not bring it back
+  const askThrough = to => setPageRange(to ? { from: pdfPage, to } : null);
+  const pageScope = useMemo(() => format === 'pdf' && fileUrl ? pageScopeOf(sources, pdfPage, pageTo) : null, [format, fileUrl, sources, pdfPage, pageTo]);
   const goToPage = page => { const next = clampPage(page, totalPages); if (next !== null) setPdfPage(next); };
+  // 发给主会话 of a page: the picture of its pages, from the file this view already holds (peek/page-image.js; pdf.js is fetched on the first use).
+  const pageBytes = useRef(null); pageBytes.current = fileUrl;
+  const pageImages = useCallback(pages => renderPageImages({ pages, totalPages, loadBytes: async () => pageBytes.current ? new Uint8Array(await (await fetch(pageBytes.current)).arrayBuffer()) : null }), [totalPages]);
   const [pagePanel, setPagePanel] = useState(false);
   if (view === 'original' && pageScope && !pagePanel) setPagePanel(true);
   // In 原始 PDF the reading panel shows only its 补题 job cards (it holds and polls them, once), above the page panel; the rest of it waits for 阅读.
   const learningPanels = [{ scope: 'selection', hidden: false, props: { capture, annotation, jobsOnly: view === 'original' } },
-    ...(pagePanel && pageScope ? [{ scope: 'page', hidden: view !== 'original', props: { capture: null, scope: pageScope, pageTotal: totalPages, onPage: goToPage } }] : [])];
+    ...(pagePanel && pageScope ? [{ scope: 'page', hidden: view !== 'original', props: { capture: null, scope: pageScope, pageTotal: totalPages, onPage: goToPage, onRange: askThrough, pageImages } }] : [])];
   const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderReaderMarkdown(content), { markdownImages: localMode })
     : format === 'html' ? safeDocumentHtml(content) : '', [content, format, reading, localMode]);
   const sections = useMemo(() => (reading && !html) || paged ? readingSections({ paged, sources, text: sources[0]?.text || content, sourceId: sources[0]?.id }) : [],

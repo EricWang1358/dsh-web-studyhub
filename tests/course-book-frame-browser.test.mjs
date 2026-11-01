@@ -195,9 +195,95 @@ Written by the main chat at ${width}.` });
     await ask.waitFor({ state: 'detached' });
     assert.match(await page.locator('.book-page h1').innerText(), /ArchSS/, 'still the same course');
     assert.match(await page.locator('.book-editor .cm-content').innerText(), /Unsaved words\./, 'the text is kept');
+    // Every other way out passes the same gate (#489): the sidebar and 回到总纲 ask, and staying keeps the page and the text.
+    // 回到题目 starts or opens a run: it asks before that, so staying started nothing.
+    const runBefore = (await running.api('snapshot')).lastRun?.id ?? null;
+    for (const leave of [() => page.locator('.side-nav .nav', { hasText: '任务' }).first().click(), () => page.getByRole('button', { name: '回到总纲' }).first().click(),
+      () => page.locator('.side-nav button', { hasText: '回到题目' }).first().click()]) {
+      await leave();
+      await ask.waitFor({ timeout: 30000 });
+      assert.equal(await page.locator('.book-editor').count(), 1, 'nothing left yet');
+      await ask.getByRole('button', { name: '继续编辑' }).click();
+      await ask.waitFor({ state: 'detached' });
+      assert.match(await page.locator('.book-editor .cm-content').innerText(), /Unsaved words\./, 'the text is kept');
+      // The focus is back in the text: the next key is typed, it does not fire an app shortcut from <body>.
+      await page.waitForFunction(() => document.activeElement?.classList.contains('cm-content'), null, { timeout: 5000 });
+    }
+    assert.equal((await running.api('snapshot')).lastRun?.id ?? null, runBefore, 'no run was started behind the question');
+    // The question does not outlive what it asks about: saving with it up takes it away, and the learner stays (the click that raised it is not carried out later).
+    await page.locator('.side-nav .nav', { hasText: '任务' }).first().click();
+    await ask.waitFor({ timeout: 30000 });
+    await page.locator('.book-editor__save').click();
+    await page.locator('.book-editor__forked').waitFor({ timeout: 30000 });
+    await ask.waitFor({ state: 'detached', timeout: 30000 });
+    assert.equal(await page.locator('.book-editor').count(), 1, 'still in the editor after the save');
+    // Saved, nothing to lose: the sidebar goes at once, and the words are in the book when the learner comes back.
+    await page.locator('.side-nav .nav', { hasText: '任务' }).first().click();
+    await page.locator('.book-page').waitFor({ state: 'detached', timeout: 30000 });
+    await fromSidebar(page);
+    assert.match(await page.locator('.book-page').innerText(), /Unsaved words\./, 'what was saved is in the book');
+    await more(page, /^编辑这个知识点/);
+    await page.locator('.book-editor .cm-content').click();
+    await page.keyboard.type(' Then more.');
+    // Discarding on the sidebar's question goes where the click was going, and the text is gone.
+    await page.locator('.side-nav .nav', { hasText: '任务' }).first().click();
+    await ask.getByRole('button', { name: '丢掉改动，离开' }).click();
+    await page.locator('.book-page').waitFor({ state: 'detached', timeout: 30000 });
+    await fromSidebar(page);
+    assert.doesNotMatch(await page.locator('.book-page').innerText(), /Then more\./, 'what was discarded is not in the book');
+    await more(page, /^编辑这个知识点/);
+    await page.locator('.book-editor .cm-content').click();
+    await page.keyboard.type('Unsaved words.');
     await pick();
     await ask.getByRole('button', { name: '丢掉改动，离开' }).click();
     await page.locator('.book-page h1', { hasText: 'Second course' }).waitFor({ timeout: 30000 });
+    // What the discard answered is not kept; what went with no question possible (the course changed from outside, as the main chat can) waits and is offered back.
+    await switcher.click();
+    await page.getByRole('option', { name: /ArchSS/ }).click();
+    await page.locator('.book-page h1', { hasText: 'ArchSS' }).waitFor({ timeout: 30000 });
+    await more(page, /^编辑这个知识点/);
+    const rescue = page.locator('[data-book-rescue]');
+    await page.locator('.book-editor .cm-content').waitFor({ timeout: 30000 });
+    assert.equal(await rescue.count(), 0, 'nothing is offered after 丢掉改动');
+    await page.locator('.book-editor .cm-content').click();
+    await page.keyboard.type('Words that nobody asked about.');
+    await running.api('focus.set', { course: 'Second course' });
+    await page.locator('.book-page h1', { hasText: 'Second course' }).waitFor({ timeout: 60000 });
+    await running.api('focus.set', { course: 'ArchSS' });
+    await page.locator('.book-page h1', { hasText: 'ArchSS' }).waitFor({ timeout: 60000 });
+    await more(page, /^编辑这个知识点/);
+    await rescue.waitFor({ timeout: 30000 });
+    assert.doesNotMatch(await page.locator('.book-editor .cm-content').innerText(), /nobody asked/, 'offered, not put in by itself');
+    // A save of that file answers the offer too: typed anew and saved, it is not offered again at the next open.
+    await page.locator('.book-editor .cm-content').click();
+    await page.keyboard.type('Something else.');
+    await page.locator('.book-editor__save').click();
+    await rescue.waitFor({ state: 'detached' });
+    await page.locator('.book-mode__done').click();
+    await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
+    await more(page, /^编辑这个知识点/);
+    await page.locator('.book-editor .cm-content').waitFor({ timeout: 30000 });
+    assert.equal(await rescue.count(), 0, 'a saved file offers nothing');
+    // Offered, restored and saved.
+    await page.locator('.book-editor .cm-content').click();
+    await page.keyboard.type('Words that nobody asked about.');
+    await running.api('focus.set', { course: 'Second course' });
+    await page.locator('.book-page h1', { hasText: 'Second course' }).waitFor({ timeout: 60000 });
+    await running.api('focus.set', { course: 'ArchSS' });
+    await page.locator('.book-page h1', { hasText: 'ArchSS' }).waitFor({ timeout: 60000 });
+    await more(page, /^编辑这个知识点/);
+    await rescue.getByRole('button', { name: '恢复这些改动' }).click();
+    assert.match(await page.locator('.book-editor .cm-content').innerText(), /nobody asked/);
+    await page.locator('.book-editor__save').click();
+    await rescue.waitFor({ state: 'detached' });
+    await page.locator('.book-editor__save:disabled').waitFor({ timeout: 30000 });
+    // The browser refuses to keep it (too big, or storage blocked): the learner is told the text is gone, not left to find out.
+    await page.locator('.book-editor .cm-content').click();
+    await page.keyboard.type('Words with nowhere to wait.');
+    await page.evaluate(() => { window.Storage.prototype.setItem = () => { throw new Error('full'); }; });
+    await running.api('focus.set', { course: 'Second course' });
+    await page.locator('.book-page h1', { hasText: 'Second course' }).waitFor({ timeout: 60000 });
+    await page.getByText('没能留在这个浏览器里').first().waitFor({ timeout: 30000 });
     assert.deepEqual(errors, [], 'two courses: no page errors');
     await context.close();
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }

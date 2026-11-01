@@ -143,11 +143,23 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       assert.match(saved, /^# 复习全书 · SA \{#book\}\n\n## 查找 \{#lookup\}/);
       assert.match(saved, /## 答案册 \{#answers\}/);
       assert.doesNotMatch(saved, /<!--|studyhub:\/\/|只给自己看/);
-      await dialog.getByRole('button', { name: '分文件导出…' }).click();
-      await dialog.locator('.book-export__file', { hasText: 'book.yaml' }).waitFor({ timeout: 30000 });
-      assert.ok(await dialog.locator('.book-export__file').count() >= 4, `${width}px: the folder's files`);
+      // The dialog's sections keep their gap.
+      assert.equal(await dialog.locator('.book-export__body').evaluate(element => window.getComputedStyle(element).display), 'grid', `${width}px: the sections are laid out`);
+      assert.ok(parseFloat(await dialog.locator('.book-export__body').evaluate(element => window.getComputedStyle(element).rowGap)) > 0, `${width}px: and do not touch`);
+      // The files of the folder come as one .zip: book.yaml first, then the book's files, in one press.
+      const zipped = page.waitForEvent('download');
+      await dialog.locator('.book-export__zip').click();
+      const archive = await zipped;
+      assert.equal(archive.suggestedFilename(), '复习全书-SA-含答案册.zip');
+      const bytes = await readFile(await archive.path());
+      assert.equal(bytes.readUInt32LE(0), 0x04034b50, `${width}px: a zip`);
+      assert.equal(bytes.toString('utf8', 30, 39), 'book.yaml', `${width}px: its first file names the order`);
+      assert.ok(bytes.readUInt16LE(bytes.length - 12) >= 4, `${width}px: the folder's files are all in it`);
       if (shots) await page.screenshot({ path: join(shots, `export-files-${width}.png`) });
+      // The focus stayed on the button (a busy button is disabled and drops it, and then Esc reaches nothing): Esc hides its tooltip, as any tooltip's, and the next one closes the dialog.
       await page.keyboard.press('Escape');
+      await page.keyboard.press('Escape');
+      await dialog.waitFor({ state: 'detached', timeout: 10000 });
       // Over the limit: one quiet line under the bar (the estimate and how far over; its Tooltip says where to change the limit). It is not in the bar: the
       // buttons stay where they were, the place keeps its room, and it covers nothing (the way back, the point's path and heading, the 目录).
       await page.locator('.book-bar-limit').waitFor({ timeout: 30000 });

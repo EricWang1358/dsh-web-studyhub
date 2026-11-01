@@ -20,15 +20,26 @@ export const HAND_OFF_MENU_HINT = '只填进输入框，不自动发送';
 
 /**
  * The receipt of each outcome: its title (the seal's character is in it: 填 留 复 手), the one line under it, its one action and how long it stays (ms; 0:
- * until it is closed). 'filled' has no action (the host already switched to the chat); 'kept' offers 去主会话 only where the host can show the chat;
+ * until it is closed). 'filled' and 'kept' offer 去主会话 only where the host can show the chat (a learner who came back to the reader finds the way again);
  * 'shown' is the slip left when the full-text card was closed without copying. The learner's own typed text is never called 草稿 (that word is a draft deck).
  */
 export const HAND_OFF_RECEIPTS = Object.freeze({
-  filled: { title: '已填进主会话的输入框', line: '看一眼，再由你按发送', timeout: 5000 },
+  filled: { title: '已填进主会话的输入框', line: '看一眼，再由你按发送', timeout: 8000, action: '去主会话' },
   kept: { title: '输入框里你写的字都留着', line: '这段已复制，粘贴到合适的位置', timeout: 8000, action: '去主会话' },
   copied: { title: '已复制到剪贴板', line: '没找到主会话，粘贴到任意对话', timeout: 6000, action: '看看内容' },
   shown: { title: '需要手动复制', line: '浏览器没让复制，点「打开全文」', timeout: 0, action: '打开全文' },
 });
+/**
+ * What became of the pictures of a page (reader.page, #488), said first on the receipt. picture: { images, wanted } (drawn, for how many pages) or { refused: 'model' | 'unknown' }
+ * (not drawn: the host says this model takes no image, or cannot say; a picture for a text model would block the whole message).
+ */
+export function pictureLine(picture, attached) {
+  if (picture.refused) return ui(picture.refused === 'model' ? '当前模型看不了图，这次只发了文字；要让它看图，先在主会话换一个能看图的模型，再按一次' : '没法确认当前模型能不能看图，这次只发了文字；需要的话自己截图贴上');
+  const got = picture.images?.length || 0, wanted = picture.wanted || got;
+  if (!attached || !got) return ui('没能附上这一页的图，需要的话自己截图贴上');
+  if (got < wanted) return uiFormat('{0} 页里附上了 {1} 页的图，其余的没画出来', [wanted, got]);
+  return wanted > 1 ? uiFormat('这 {0} 页的图都附上了', [wanted]) : ui('这一页的图也附上了');
+}
 /** The input of a hand-off could not be read: the app's error toast, no seal. */
 export const HAND_OFF_FAILED = '没能发给主会话：{0}';
 
@@ -61,21 +72,31 @@ export function handOffReceipt(outcome, { lead = '', action = null } = {}) {
  * The delivery behind askInChat (ui/app/use-app-core.js): host.askInChat(text) fills the composer ('filled' or true), keeps the learner's own text ('kept')
  * or has no chat (anything else). Not filled: the prompt goes onto the clipboard. A refused clipboard opens the full-text card (`openSheet({ text, mode:
  * 'shown', lead, onClosed(copied) })`), and only a card closed without copying leaves the 「需要手动复制」 slip, whose action opens the card again; without a
- * card (no app around it) the slip carries the whole text. `said`: what a write before the hand-off did (「已保存。」), said first.
+ * card (no app around it) the slip carries the whole text. `said`: what a write before the hand-off did (「已保存。」), said first. `picture` (reader.page,
+ * pictureLine): its files join the box after the text (host.attachToChat, a picture never replaces the learner's words), and the receipt, and the box's own line where the host
+ * has moved to the chat and the receipt is out of sight (host.noteInChat), say what became of them.
  * Resolves to 'filled' | 'kept' | 'copied' | 'shown'.
  */
-export async function deliverToChat({ host, prompt, said = '', notify = () => {}, openSheet = null, clipboard = globalThis.navigator?.clipboard }) {
-  const text = withLanguageTail(String(prompt ?? '')), lead = said ? ui(said) : '';
-  let outcome = false;
+export async function deliverToChat({ host, prompt, said = '', picture, notify = () => {}, openSheet = null, clipboard = globalThis.navigator?.clipboard }) {
+  const text = withLanguageTail(String(prompt ?? ''));
+  let outcome = false, lead = said ? ui(said) : '';
   try { outcome = await host?.askInChat?.(text); } catch { outcome = false; }
-  if (outcome === true || outcome === 'filled') { notify(handOffReceipt('filled', { lead })); return 'filled'; }
-  const kept = outcome === 'kept';
+  const filled = outcome === true || outcome === 'filled', kept = outcome === 'kept';
+  if (picture && (filled || kept)) {
+    let attached = false;
+    try { attached = picture.images?.length > 0 && !!await host?.attachToChat?.(picture.images); } catch { attached = false; }
+    const line = pictureLine(picture, attached);
+    lead = joinSentences([lead, line]);
+    if (filled) host?.noteInChat?.(line);
+  }
+  // 去主会话 only where the host can show the chat (the top-level page covers it)
+  const toChat = typeof host?.showChat === 'function' ? { label: ui(HAND_OFF_RECEIPTS.kept.action), run: () => host.showChat() } : null;
+  if (filled) { notify(handOffReceipt('filled', { lead, action: toChat })); return 'filled'; }
   const look = mode => () => { notify(''); openSheet?.({ text, mode, lead }); };
   try {
     await clipboard.writeText(text);
-    // 去主会话 only where the host can show the chat (the top-level page covers it); 看看内容 opens the card with what was copied
-    const action = kept ? (typeof host?.showChat === 'function' ? { label: ui(HAND_OFF_RECEIPTS.kept.action), run: () => host.showChat() } : null)
-      : openSheet ? { label: ui(HAND_OFF_RECEIPTS.copied.action), run: look('copied') } : null;
+    // 看看内容 opens the card with what was copied
+    const action = kept ? toChat : openSheet ? { label: ui(HAND_OFF_RECEIPTS.copied.action), run: look('copied') } : null;
     notify(handOffReceipt(kept ? 'kept' : 'copied', { lead, action }));
     return kept ? 'kept' : 'copied';
   } catch {
@@ -91,7 +112,8 @@ export async function deliverToChat({ host, prompt, said = '', notify = () => {}
 
 /**
  * useHandOff() -> { send, action, item }.
- *   send(id, input, { said }) -> Promise<'filled'|'kept'|'copied'|'shown'|'failed'>: `input` may be an async function (read what the message needs first);
+ *   send(id, input, { said }) -> Promise<'filled'|'kept'|'copied'|'shown'|'failed'>: `input` may be an async function (read what the message needs first); `picture` in
+ *     the input (reader.page, pictureLine) travels beside the text;
  *     a write before the hand-off stays at the call site (await act(..., { rethrow: true }), then send with `said`). 'failed': the input could not be read.
  *   action(id, input, { what, said }) -> { label, onClick, tip }: for a Feedback action/secondary, a CompactJobCard link, a FileDrop rejectAction.
  *   item(id, input) -> { id, label, hint (the short rule), run }: a Menu item; Menu runs it when chosen (it does not reach onSelect; no dialog of its own).
@@ -101,15 +123,16 @@ export function useHandOff() {
   const { askInChat, notify } = useStudy();
   const send = useCallback(async (id, input = {}, { said = '' } = {}) => {
     if (!isHandOff(id)) throw new Error(`Unknown hand-off: ${id}`);
-    let text;
+    let text, picture;
     try {
       const value = typeof input === 'function' ? await input() : input;
       text = handOffText(id, value ?? {}, getUiLanguage());
+      picture = value?.picture;
     } catch (failure) {
       notify({ text: uiFormat(HAND_OFF_FAILED, [errorMessage(failure)]), tone: 'error' });
       return 'failed';
     }
-    return (await askInChat(text, { said })) || 'failed';
+    return (await askInChat(text, { said, ...(picture ? { picture } : {}) })) || 'failed';
   }, [askInChat, notify]);
   const action = useCallback((id, input, { what = '', said = '' } = {}) => {
     if (!isHandOff(id)) throw new Error(`Unknown hand-off: ${id}`);

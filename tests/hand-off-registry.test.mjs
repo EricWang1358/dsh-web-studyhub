@@ -179,6 +179,25 @@ test('skeleton.design keeps the diagram promise and the details under a point', 
   assert.match(ui.handOffText('skeleton.design', FIXTURES['skeleton.design'].input, 'en'), /interactive UML class diagram plus sequence diagrams/);
 });
 
+test('reader.page with pictures on their way (#488): the text never claims one is attached (attaching comes after it, and may be refused), asks for no screenshot and has no paste line', () => {
+  for (const language of ['zh', 'en']) {
+    const picture = { images: [{ name: 'page-3.jpg' }], wanted: 1 };
+    const text = ui.handOffText('reader.page', { ...FIXTURES['reader.page'].input, picture }, language);
+    assert.doesNotMatch(text, /在这条消息的附件里|attached to this message|截图|[Ss]creenshot/, `${language}: no claim, no screenshot`);
+    assert.match(text, language === 'zh' ? /这条消息带了图的话/ : /If this message carries a picture/);
+    assert.ok(text.endsWith(ui.languageTail(language)), `${language}: nothing to paste after the language sentence`);
+    assert.ok(!text.includes('page-3.jpg'), 'the file itself is not text');
+    const blank = ui.handOffText('reader.page', { title: 'Scheduling', page: 4, text: '', picture }, language);
+    assert.match(blank, language === 'zh' ? /这条消息没带图、或你看不了图片时，直接告诉我/ : /if this message carries no picture, or you cannot read pictures/);
+    const textModel = ui.handOffText('reader.page', { ...FIXTURES['reader.page'].input, picture: { refused: 'model' } }, language);
+    assert.doesNotMatch(textModel, /截图|[Ss]creenshot/, `${language}: a screenshot would block the message on this model: nobody is invited to paste one`);
+    for (const other of [{ images: [], wanted: 1 }, { refused: 'unknown' }]) {
+      const said = ui.handOffText('reader.page', { ...FIXTURES['reader.page'].input, picture: other }, language);
+      assert.match(said, language === 'zh' ? /这一页的截图（主会话能看图片时/ : /Screenshot of the page/, `${language}: no picture: the screenshot way stays`);
+    }
+  }
+});
+
 test('reader.page: the page, its saved text (cut at the cap of the built-in answer, and said), the typed question, and the screenshot line at the very end', async () => {
   const { PAGE_EVIDENCE_MAX } = await import('../lib/ask-prompt.js');
   for (const language of ['zh', 'en']) {
