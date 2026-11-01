@@ -47,7 +47,7 @@ export function DocumentTopUpBody({ view, onStart }) {
     {coveragePathText(shortfall) && <p className="cov-topup__path" data-coverage-path>{coveragePathText(shortfall)}</p>}
     <div className="cov-topup__act">
       {/* The cost is on the button that spends it: this round's estimate, and that the rounds after it go on by themselves and are counted on their own. */}
-      <Button className="cov-topup__button cov-topup__button--cost" variant="primary" disabled={busy} data-coverage-start title={ui('补完这一轮后自动做下一轮，直到每个小节都有题；可以随时暂停或停下。')}
+      <Button className="cov-topup__button cov-topup__button--cost" variant="primary" lock={busy} data-coverage-start title={ui('补完这一轮后自动做下一轮，直到每个小节都有题；可以随时暂停或停下。')}
         onClick={() => onStart?.(args, chosen)}>
         <span>{actionLabel('topup')}</span>
         <RoundCost request={{ feature: 'generate', ...args }} roundsAfter={Math.max(0, (shortfall.roundsToFull ?? 1) - 1)} />

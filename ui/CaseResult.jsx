@@ -128,14 +128,14 @@ export function CaseReport({ report, busy, onDrills, onAgain, onPracticeDeck, on
               <strong>{item.label}</strong>
               <small>{uiFormat("第 {0} 题 · {1}/{2} 分", [item.n, marks(item.score), marks(item.max)])}</small>
             </div>
-            {onDrills && <Button size="sm" variant="secondary" disabled={busy} onClick={() => onDrills([`${item.cardId}:${item.criterionId}`])}>{ui("针对练习")}</Button>}
+            {onDrills && <Button size="sm" variant="secondary" lock={busy} onClick={() => onDrills([`${item.cardId}:${item.criterionId}`])}>{ui("针对练习")}</Button>}
           </li>)}
         </ol>
       </section>}
       <div className="case-report__actions">
-        {onDrills && <Button variant="primary" icon="sparkle" disabled={busy || !paper.weakest.length} onClick={() => onDrills()}>{ui("把薄弱项变成练习")}</Button>}
-        {onAgain && <Button variant="secondary" disabled={busy} onClick={onAgain}>{ui("再来一个同类案例")}</Button>}
-        {onPracticeDeck && <Button variant="quiet" disabled={busy} onClick={onPracticeDeck}>{ui("逐题复习这套案例")}</Button>}
+        {onDrills && <Button variant="primary" icon="sparkle" disabled={!paper.weakest.length} lock={busy} onClick={() => onDrills()}>{ui("把薄弱项变成练习")}</Button>}
+        {onAgain && <Button variant="secondary" lock={busy} onClick={onAgain}>{ui("再来一个同类案例")}</Button>}
+        {onPracticeDeck && <Button variant="quiet" lock={busy} onClick={onPracticeDeck}>{ui("逐题复习这套案例")}</Button>}
       </div>
       {paper.questions.some((question) => question.status === "graded") && <Disclosure summary={ui("逐题批改详情")}>
         {paper.questions.filter((question) => question.rubric).map((question) => (

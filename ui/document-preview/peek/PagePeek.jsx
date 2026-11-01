@@ -171,3 +171,6 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
     panelRef={panel} canvasRef={canvas} scrollRef={scroller} onClose={onClose} onPrev={() => go(-1)} onNext={() => go(1)} onZoom={zoomBy} onFit={fit}
     onAttach={onAttach} onShowOriginal={onShowOriginal ? () => onShowOriginal(shownPage.current) : undefined} onRetry={() => { setPhase('ready'); setTries(count => count + 1); }} onDragStart={onDragStart} onResizeStart={onResizeStart} onGripKey={onGripKey} onKeyDown={onKeyDown} />;
 }
+
+// One lazy chunk for pdf.js: the page of 原始 PDF (reader/PdfOriginal.jsx) comes through here.
+export { default as PdfPageView } from './PdfPageView.jsx';

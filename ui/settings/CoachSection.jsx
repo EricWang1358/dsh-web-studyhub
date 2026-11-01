@@ -60,7 +60,7 @@ export function CoachSection({ profile, setProfile, confirmForget = false }) {
         </ul>
       </div>
       <div className="settings-actions">
-        <Button variant="secondary" disabled={busy} onClick={() => setConfirm(true)}>{ui('清空画像')}</Button>
+        <Button variant="secondary" lock={busy} onClick={() => setConfirm(true)}>{ui('清空画像')}</Button>
       </div>
       {confirm && <ConfirmDialog title={ui('清空陪学画像？')} confirmLabel={ui('清空画像')} busy={busy} onClose={() => setConfirm(false)}
         description={uiFormat('将删除：学习目标、画像摘要、反馈计数和 {0} 道未使用的定制题。', [profile.ready || 0])}

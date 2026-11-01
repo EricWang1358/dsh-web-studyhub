@@ -122,8 +122,8 @@ export function ChapterList({ item, onOpen, onGenerate, onPractice, listId, mast
             item.chapterUnit === 'text' ? '' : uiFormat(item.chapterUnit === 'part' ? '{0} 部分 · {1} 字符' : '{0} 页 · {1} 字符', [chapter.sourceIds.length, formatNumber(chapter.chars)])].filter(Boolean).join(' · ')}</small>
           <MasteryLine className="source-doc__mastery" summary={mastery?.chapters?.[chapter.index] ?? null} title={chapterLabel(chapter, item.chapterUnit)} />
         </Button>
-        {practisable && <Button size="sm" variant="secondary" icon="success" disabled={busy} onClick={() => onPractice(item, chapter)}>{ui('练这一章')}</Button>}
-        {onGenerate && <Button size="sm" variant={onPractice && !practisable ? 'secondary' : 'quiet'} icon="sparkle" disabled={busy || inside}
+        {practisable && <Button size="sm" variant="secondary" icon="success" lock={busy} onClick={() => onPractice(item, chapter)}>{ui('练这一章')}</Button>}
+        {onGenerate && <Button size="sm" variant={onPractice && !practisable ? 'secondary' : 'quiet'} icon="sparkle" disabled={inside} lock={busy}
           title={inside ? (item.chapterUnit === 'text' ? ui('这份资料是一整段文字，出题仍以整份资料为单位') : ui('这一章在同一页内，不能单独出题')) : undefined}
           onClick={() => onGenerate(chapter.sourceIds)}>{ui('从这一章出题')}</Button>}
       </li>;
@@ -137,18 +137,18 @@ export function RowMenuItems({ item, onChangeCourse, onRemove, onSegment, onRena
   const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
   return <div className="source-row-menu">
     {call && <OriginalMenuEntry item={item} />}
-    {onRename && <Button disabled={busy} onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</Button>}
+    {onRename && <Button lock={busy} onClick={event => { close(event); onRename(item); }}>{ui('重命名…')}</Button>}
     {/* 置顶: one entry to pin or unpin; a pinned row can also be moved without dragging (the pin's own order, lib/material-pins.js). */}
-    {onPin && !item.archived && <Button disabled={busy} onClick={event => { close(event); onPin(item); }}>{pin?.pinned ? ui('取消置顶') : ui('置顶')}</Button>}
+    {onPin && !item.archived && <Button lock={busy} onClick={event => { close(event); onPin(item); }}>{pin?.pinned ? ui('取消置顶') : ui('置顶')}</Button>}
     {onPin && onPinMove && !item.archived && pin?.pinned && <>
-      <Button disabled={busy || pin.first} onClick={event => { close(event); onPinMove(item, 'up'); }}>{ui('上移')}</Button>
-      <Button disabled={busy || pin.last} onClick={event => { close(event); onPinMove(item, 'down'); }}>{ui('下移')}</Button>
-      <Button disabled={busy || pin.first} onClick={event => { close(event); onPinMove(item, 'front'); }}>{ui('置顶到最前')}</Button>
+      <Button disabled={pin.first} lock={busy} onClick={event => { close(event); onPinMove(item, 'up'); }}>{ui('上移')}</Button>
+      <Button disabled={pin.last} lock={busy} onClick={event => { close(event); onPinMove(item, 'down'); }}>{ui('下移')}</Button>
+      <Button disabled={pin.first} lock={busy} onClick={event => { close(event); onPinMove(item, 'front'); }}>{ui('置顶到最前')}</Button>
     </>}
-    {onChangeCourse && <Button disabled={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</Button>}
-    {onSegment && <Button disabled={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</Button>}
-    {onArchive && <Button disabled={busy} onClick={event => { close(event); onArchive(item); }}>{item.archived ? ui('恢复资料') : ui('归档')}</Button>}
-    {item.archived && onRemove && <Button disabled={busy} onClick={event => { close(event); onRemove(item); }}>{ui('永久删除')}</Button>}
+    {onChangeCourse && <Button lock={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</Button>}
+    {onSegment && <Button lock={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</Button>}
+    {onArchive && <Button lock={busy} onClick={event => { close(event); onArchive(item); }}>{item.archived ? ui('恢复资料') : ui('归档')}</Button>}
+    {item.archived && onRemove && <Button lock={busy} onClick={event => { close(event); onRemove(item); }}>{ui('永久删除')}</Button>}
   </div>;
 }
 
@@ -224,12 +224,12 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           </span>
         </button>}
         <div className="source-doc__actions">
-          {canGenerate && <Button size="sm" variant="secondary" icon="sparkle" disabled={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
+          {canGenerate && <Button size="sm" variant="secondary" icon="sparkle" lock={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           {/* 为没覆盖的部分补题 of a material whose questions were published: a NEW draft, the deck's next part (ui/coverage/DocumentTopUp.jsx). */}
           {topUp && <DocumentTopUp item={item} revision={JSON.stringify(coverage)} />}
           {item.archived && <>
-            <Button size="sm" variant="secondary" disabled={busy} onClick={() => actions.archive(item)}>{ui('恢复资料')}</Button>
-            <Button size="sm" variant="danger" disabled={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>
+            <Button size="sm" variant="secondary" lock={busy} onClick={() => actions.archive(item)}>{ui('恢复资料')}</Button>
+            <Button size="sm" variant="danger" lock={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>
           </>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
             <RowMenuItems item={item} onChangeCourse={actions.changeCourse}
@@ -277,7 +277,7 @@ export function CourseDialog({ item, items, byId, courses, onClose }) {
   return (
     <Dialog size="sm" title={uiFormat("修改「{0}」的课程", [displayTitle(item.title)])} busy={busy} onClose={onClose}
       footer={<>
-        <Button variant="quiet" disabled={busy} onClick={onClose}>{ui("取消")}</Button>
+        <Button variant="quiet" lock={busy} onClick={onClose}>{ui("取消")}</Button>
         <Button variant="primary" busy={busy} disabled={busy} onClick={save}>{ui("保存课程")}</Button>
       </>}>
       <p className="muted">{ui('只更改归属，原文与引用保持不变。留空就是「未分类」。')}</p>
@@ -498,10 +498,10 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           </p>
           <CourseField value={courseText} onChange={setCourseText} courses={data.focus?.courses} multiple disabled={busy} />
           <div className="source-organization-actions">
-            <Button disabled={busy || !selectedItems.length} onClick={() => act('source.courses.set', {
+            <Button disabled={!selectedItems.length} lock={busy} onClick={() => act('source.courses.set', {
               assignments: courseAssignments(items, selected, parseCourses(courseText), byId),
             }, finish)}>{ui('应用课程归属')}</Button>
-            <Button disabled={busy || !modelReadiness(data).ready || !selectedItems.length || selectedItems.length > 100}
+            <Button disabled={!modelReadiness(data).ready || !selectedItems.length || selectedItems.length > 100} lock={busy}
               onClick={() => act('source.organize.suggest', { sourceIds: selectedItems.map(item => item.sourceIds[0]) }, result => {
                 setJevRun(result.jev ?? null);
                 setProposals(result.proposals.map(proposal => {
@@ -524,7 +524,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           {experimental && <JevRunNote jev={jevRun} />}
           {/* 归档所选: the checked documents in one go (a material is archived before it can be deleted; each one is deleted for good from 已归档). */}
           {!showArchived && <div className="source-organization-actions source-archive-actions">
-            <Button disabled={busy || !chosen.length} data-archive-selected onClick={archiveChosen}>{chosen.length ? uiFormat('归档所选（{0}）', [chosen.length]) : ui('归档所选')}</Button>
+            <Button disabled={!chosen.length} lock={busy} data-archive-selected onClick={archiveChosen}>{chosen.length ? uiFormat('归档所选（{0}）', [chosen.length]) : ui('归档所选')}</Button>
             <span className="muted">{ui('归档会把它们从这个列表收起，可以在「已归档」里恢复。')}</span>
           </div>}
           {proposals &&<div className="source-course-proposals">
@@ -537,7 +537,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
               <p className="muted">{proposal.reason}{experimental && proposal.decidedBy === 'jev' && <> <JevDecidedBadge scope="row" /></>}</p>
               {experimental && <JevProbabilities jev={proposal.jev} />}
             </div>)}
-            <Button disabled={busy || !proposals.some(proposal => proposal.include)} onClick={() => act('source.courses.set', {
+            <Button disabled={!proposals.some(proposal => proposal.include)} lock={busy} onClick={() => act('source.courses.set', {
               assignments: proposals.filter(proposal => proposal.include).flatMap(proposal =>
                 courseAssignments(items, [proposal.key], parseCourses(proposal.courseText), byId)),
             }, finish)}>{ui('确认应用建议')}</Button>

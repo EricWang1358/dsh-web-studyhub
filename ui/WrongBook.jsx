@@ -360,7 +360,7 @@ export function WrongBookView({
           {counts.rubric > 0 && uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric])}
         </>}
         scope={<PageScope courses={data?.focus?.courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />}
-        actions={<Button variant="secondary" icon="refresh" onClick={() => onReload(page)} disabled={busy || loading}>{ui("刷新")}</Button>} />
+        actions={<Button variant="secondary" icon="refresh" onClick={() => onReload(page)} lock={busy || loading}>{ui("刷新")}</Button>} />
 
       {err && <ErrorState error={items ? uiFormat("没能刷新，下面仍是上次读到的内容：{0}", [err]) : err} onRetry={busy || loading ? undefined : () => onReload(page)} />}
       {loading && !items && <LoadingState label={ui(isHistory ? "正在读取已订正的错题…" : "正在读取待巩固题…")} />}
@@ -388,15 +388,15 @@ export function WrongBookView({
           </div>
           {/* A disabled choice cannot take focus or a hover of its own, so the group says why on hover and on focus (an empty tip draws nothing). */}
           <Tooltip layer anchorClassName="wb-retrain-pick" content={unavailableTip}>
-            <SegmentedControl label={ui("重练范围")} value={picked} options={options} onChange={setChoice} />
+            <SegmentedControl label={ui("重练范围")} value={picked} options={options} onChange={setChoice} disabled={busy || loading} />
           </Tooltip>
-          <Button variant="primary" icon="arrow-right" disabled={busy || loading || !total} onClick={startRetrain}
+          <Button variant="primary" icon="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}
             title={hasMore ? ui("把本页的待巩固题按学习路径重新练一遍") : ui("把这些待巩固题按学习路径重新练一遍")}>
             {uiFormat("开始重练 · 全部 {0} 题", [current.count])}
           </Button>
           {/* The main button takes every mistake of the page, whatever the filter shows; with a filter on, what is shown has its own button. */}
           {filtering && shown.length > 0 && shown.length < rows.length && (
-            <Button variant="secondary" icon="arrow-right" disabled={busy || loading} onClick={() => onPractice(shown.map(refOf))}
+            <Button variant="secondary" icon="arrow-right" lock={busy || loading} onClick={() => onPractice(shown.map(refOf))}
               title={ui("只练下面筛选出来的错题")}>{uiFormat("练筛选的 {0} 道", [shown.length])}</Button>
           )}
         </div>
@@ -417,7 +417,7 @@ export function WrongBookView({
             <h2 id="wb-recs-title">{ui("为你推荐")}<span className="wb-free">{ui("不消耗模型")}</span></h2>
             {recItems.length === 0 && <span className="muted wb-recs-status" role="status">{recsLoading ? ui("正在查找同类题…") : ui("题库里没有找到合适的同类题")}</span>}
             {recItems.length > 0 && (
-              <Button variant="secondary" size="sm" icon="arrow-right" disabled={busy} onClick={() => onPractice(recItems.map(refOf))}>
+              <Button variant="secondary" size="sm" icon="arrow-right" lock={busy} onClick={() => onPractice(recItems.map(refOf))}>
                 {uiFormat("练这 {0} 道", [recItems.length])}
               </Button>
             )}
@@ -530,7 +530,7 @@ export function WrongBookView({
           <div className="wb-consent-actions">
             <Button variant="secondary" icon="sparkle" busy={working} disabled={!ask.cards.length}
               onClick={() => run(ask.cards, true)}>{ui("同意并生成")}</Button>
-            <Button variant="quiet" disabled={working} onClick={() => setAsk(null)}>{ui("暂不")}</Button>
+            <Button variant="quiet" lock={working} onClick={() => setAsk(null)}>{ui("暂不")}</Button>
           </div>
         </div>
       )}
@@ -559,7 +559,7 @@ export function WrongBookView({
                 </span>
               </FoldButton>
               <div className="wb-group-actions">
-                <Button variant="quiet" size="sm" icon="arrow-right" disabled={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
+                <Button variant="quiet" size="sm" icon="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
                   onClick={() => onPractice(group.rows.map(refOf))}>{ui("练这一组")}</Button>
                 {group.deckIds.length === 1 && applied.deck !== group.deckIds[0] && (
                   <Tooltip layer content={tip(ui('只显示这个题组里的错题。'), ui('点「清除筛选」可以回到全部。'))}>
@@ -568,7 +568,7 @@ export function WrongBookView({
                 )}
                 {!isHistory && canGenerate && todo.length > 0 && (
                   <Tooltip layer content={generateTip()}>
-                    <Button variant="quiet" size="sm" icon="sparkle" disabled={busy || working} onClick={() => generate(todo)}>
+                    <Button variant="quiet" size="sm" icon="sparkle" lock={busy || working} onClick={() => generate(todo)}>
                       {uiFormat("为本组生成变式 ({0})", [todo.length])}
                     </Button>
                   </Tooltip>
@@ -590,8 +590,8 @@ export function WrongBookView({
       })}
       {items && hasMore && <nav className="wb-pages" aria-label={ui(isHistory ? "已订正题分页" : "待巩固题分页")}>
         <span>{uiFormat("第 {0}–{1} 题 / 共 {2} 题", [page * pageSize + 1, page * pageSize + total, counts.total])}</span>
-        <Button disabled={busy || loading || page === 0} onClick={() => onPage(page - 1)}>{ui("上一页")}</Button>
-        <Button disabled={busy || loading || (page + 1) * pageSize >= counts.total}
+        <Button disabled={page === 0} lock={busy || loading} onClick={() => onPage(page - 1)}>{ui("上一页")}</Button>
+        <Button disabled={(page + 1) * pageSize >= counts.total} lock={busy || loading}
           onClick={() => onPage(page + 1)}>{ui("下一页")}</Button>
       </nav>}
     </section>

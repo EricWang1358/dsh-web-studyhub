@@ -120,11 +120,11 @@ function CourseRow({ course, label = course.name, duplicates = [], onOpen, onMer
       {duplicates.length > 0 && <span className="course-list__duplicate">
         <Icon name="warning" size={14} />
         <span>{uiFormat('可能与「{0}」重复', [duplicates.map(item => item.name).join('」「')])}</span>
-        {onMerge && <Button size="sm" variant="link" disabled={busy} onClick={() => onMerge(course.id, duplicates.map(item => item.id))}>{ui('合并到这里')}</Button>}
+        {onMerge && <Button size="sm" variant="link" lock={busy} onClick={() => onMerge(course.id, duplicates.map(item => item.id))}>{ui('合并到这里')}</Button>}
       </span>}
     </span>
     {course.id && <ActiveSwitch course={course} courses={all} compact disabled={busy} />}
-    {course.id && <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen?.(course.id)}>{ui('设置')}</Button>}
+    {course.id && <Button size="sm" variant="secondary" lock={busy} onClick={() => onOpen?.(course.id)}>{ui('设置')}</Button>}
   </div>;
 }
 
@@ -207,7 +207,7 @@ export function CourseList({ courses = [], onOpen, onMerge, onCreate, currentId,
         </button>
         {/* A parent nobody filed a deck under has no record yet: it is active until parked, and parking it creates its record. */}
         <ActiveSwitch course={entry.parent.id ? entry.parent : { ...entry.parent, active: true }} courses={courses} compact disabled={busy} />
-        {entry.parent.id && <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen?.(entry.parent.id)}>{ui('设置')}</Button>}
+        {entry.parent.id && <Button size="sm" variant="secondary" lock={busy} onClick={() => onOpen?.(entry.parent.id)}>{ui('设置')}</Button>}
       </div>
       {expanded && <ul className="course-list__chapters" aria-label={uiFormat('「{0}」的章节', [entry.name])}>
         {chapters.map(item => <li key={item.course.id || item.course.name} className={item.depth > 1 ? 'course-list__chapter--nested' : undefined} style={item.depth > 1 ? { '--depth': item.depth - 1 } : undefined}>
@@ -307,7 +307,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
       description={[ui('课程设置'), countLine(course)].filter(Boolean).join(' · ')} busy={working} onClose={() => onClose?.('dismiss')}
       footer={<>
         {error && <InlineMessage className="course-settings__error">{error}</InlineMessage>}
-        <Button variant="quiet" disabled={working} onClick={() => onClose?.('cancel')}>{ui('关闭')}</Button>
+        <Button variant="quiet" lock={working} onClick={() => onClose?.('cancel')}>{ui('关闭')}</Button>
         <Button variant="primary" icon="check" busy={working && !confirm} disabled={disabled} onClick={save}>{ui('保存课程信息')}</Button>
       </>}>
       {/* The one thing most learners come here for, in the open; saving it is the button below. Everything else is in the fold. */}

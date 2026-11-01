@@ -111,7 +111,7 @@ export function ScheduleSection({ root, settings = {}, saved = {}, setSettings }
         {error && <Hint tone="error" role="alert">{error}</Hint>}
         <div className="settings-actions">
           <Button type="submit" variant="primary" busy={working} disabled={busy || !dirty || !good}>{ui('保存复习设置')}</Button>
-          <Button variant="quiet" disabled={busy || working || !dirty} onClick={() => { setError(''); setSettings(previous => ({ ...previous, ...baseline })); }}>{ui('撤销未保存修改')}</Button>
+          <Button variant="quiet" disabled={!dirty} lock={busy || working} onClick={() => { setError(''); setSettings(previous => ({ ...previous, ...baseline })); }}>{ui('撤销未保存修改')}</Button>
         </div>
       </SettingsSection>
     </form>

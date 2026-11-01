@@ -105,7 +105,7 @@
     .live-count { display: inline-flex; align-items: stretch; height: 39px; margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--text) 5%, transparent); }
     .live-count-label { display: flex; align-items: center; padding: 0 var(--space-2-5) 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); white-space: nowrap; }
     .live-selection .live-count button { width: 34px; height: auto; padding: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; background: transparent; font-size: var(--fs-xl); line-height: 1; }
-    .live-selection .live-count button:disabled { opacity: .35; }
+    .live-selection .live-count button:disabled { color: var(--text-faint); cursor: default; }
     .live-count output { display: flex; align-items: center; justify-content: center; min-width: 34px; border-left: 1px solid var(--line); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
     .live-footer { padding: var(--space-4) 0; }
     .live-history { margin-top: var(--space-5); }

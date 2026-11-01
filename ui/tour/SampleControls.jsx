@@ -18,13 +18,13 @@ export function OnboardingPanel({ sample, progress, busy = false, onTour, onRest
         ? uiFormat("示例课程「{0}」已载入。移除时只删除示例，不影响你自己的资料和记录。", [sample.course || ""])
         : ui("示例课程可以演示全部功能：一份讲义、一个题组和三周的练习记录。载入后随时可以一键移除。")}</p>
       <div className="onboarding-settings__actions">
-        <Button icon="sparkle" disabled={busy} onClick={onTour}>{progress
+        <Button icon="sparkle" lock={busy} onClick={onTour}>{progress
           ? uiFormat("继续功能导览（{0}/{1}）", [progress.index + 1, progress.total]) : ui("开始功能导览")}</Button>
-        {progress && onRestart && <Button variant="quiet" disabled={busy} onClick={onRestart}>{ui("从头开始")}</Button>}
-        {onFullTour && <Button variant="quiet" disabled={busy} onClick={onFullTour}>{ui("看完整导览")}</Button>}
+        {progress && onRestart && <Button variant="quiet" lock={busy} onClick={onRestart}>{ui("从头开始")}</Button>}
+        {onFullTour && <Button variant="quiet" lock={busy} onClick={onFullTour}>{ui("看完整导览")}</Button>}
         {loaded
-          ? <Button variant="danger" disabled={busy} onClick={onRemove}>{ui("移除示例数据")}</Button>
-          : onLoad && <Button disabled={busy} onClick={onLoad}>{ui("载入示例数据")}</Button>}
+          ? <Button variant="danger" lock={busy} onClick={onRemove}>{ui("移除示例数据")}</Button>
+          : onLoad && <Button lock={busy} onClick={onLoad}>{ui("载入示例数据")}</Button>}
       </div>
     </fieldset>
   );

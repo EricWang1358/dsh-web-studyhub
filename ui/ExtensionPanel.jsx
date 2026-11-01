@@ -214,7 +214,7 @@ export default function ExtensionPanel({ status, onStatus, courses = [], default
       {error && <InlineMessage boxed title={ui('没能完成')}>{error}</InlineMessage>}
       {running && <IndexBuilder courses={courses} defaultCourse={defaultCourse} document={document} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
       {extension.canInstall && extension.installed && <div>
-        <Button size="sm" variant="quiet" disabled={busy} onClick={() => setConfirmRemove(true)}>{ui('卸载检索扩展')}</Button>
+        <Button size="sm" variant="quiet" lock={busy} onClick={() => setConfirmRemove(true)}>{ui('卸载检索扩展')}</Button>
       </div>}
       <ApprovalDialog approval={approval} busy={busy} install={install} close={() => setApproval(null)} />
       {confirmRemove && <ConfirmDialog title={ui('卸载检索扩展？')} confirmLabel={ui('卸载')} onConfirm={remove} onClose={() => setConfirmRemove(false)}

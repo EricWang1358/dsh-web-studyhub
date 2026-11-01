@@ -87,8 +87,8 @@ export function ActiveSwitch({ course, courses = [], disabled = false, compact =
     {state.confirm && !parked && <InlineMessage tone="warning" boxed title={uiFormat('「{0}」含 {1} 门子课程，要一起设为未激活吗？', [nameOf(course), subs.length])}>
       <div className="course-active__confirm">
         <Button size="sm" variant="primary" busy={state.working} onClick={() => set(false, { withSubCourses: true })}>{ui('连同子课程一起')}</Button>
-        <Button size="sm" variant="secondary" disabled={state.working} onClick={() => set(false, { withSubCourses: false })}>{ui('只停这一门')}</Button>
-        <Button size="sm" variant="quiet" disabled={state.working} onClick={() => setState(current => ({ ...current, confirm: false }))}>{ui('取消')}</Button>
+        <Button size="sm" variant="secondary" lock={state.working} onClick={() => set(false, { withSubCourses: false })}>{ui('只停这一门')}</Button>
+        <Button size="sm" variant="quiet" lock={state.working} onClick={() => setState(current => ({ ...current, confirm: false }))}>{ui('取消')}</Button>
       </div>
     </InlineMessage>}
     {state.error && <InlineMessage tone="error">{state.error}</InlineMessage>}

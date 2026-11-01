@@ -14,13 +14,19 @@ const han = /[\u3400-\u9fff]/;
 const compiled = await build({ stdin: { contents: `
   export * from './ui/document-preview/peek/peek-logic.js';
   export { default as PagePeekView } from './ui/document-preview/peek/PagePeekView.jsx';
+  export { default as PdfOriginal } from './ui/document-preview/reader/PdfOriginal.jsx';
   export { default as ReadingSections } from './ui/document-preview/reader/ReadingSections.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
-  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+  bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'],
+  plugins: [{ name: 'stub-pdfjs', setup(builder) {
+    builder.onResolve({ filter: /^pdfjs-dist\// }, args => ({ path: args.path, namespace: 'stub-pdfjs' }));
+    builder.onLoad({ filter: /.*/, namespace: 'stub-pdfjs' }, () => ({ contents: 'export const getDocument = () => ({}); export const WorkerMessageHandler = {}; export class TextLayer {}', loader: 'js' }));
+  } }],
+  loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const lib = module.exports;
-const { LruCache, MAX_EDGE, MAX_CACHED_PAGES, ZOOMS, createRenderGate, isFigurePlaceholder, pdfPageFor, peekCanvasSize, peekPlan, peekStatus, stepZoom } = lib;
+const { LruCache, MAX_EDGE, MAX_CACHED_PAGES, SLOW_PAGE_MS, TURN_COALESCE_MS, ZOOMS, createRenderGate, exceedsPageBudget, isFigurePlaceholder, pdfPageFor, peekCanvasSize, peekPlan, peekStatus, stepZoom } = lib;
 const h = React.createElement, noop = () => {};
 const text = html => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const inLanguage = (language, run) => { try { lib.setUiLanguage(language); return run(); } finally { lib.setUiLanguage('zh'); } };
@@ -285,4 +291,34 @@ test('the panel no longer uses the browser\'s own resize corner, which sat on th
   const view = readFileSync(new URL('../ui/document-preview/peek/PagePeekView.jsx', import.meta.url), 'utf8');
   assert.match(view, /page-peek__grip--se/);
   assert.match(view, /page-peek__grip--nw/);
+});
+
+test('the single-page PDF budget counts CPU render work only (not asset downloads, hidden tabs or manual opt-in), and its fallback notice is translated', () => {
+  assert.equal(TURN_COALESCE_MS, 160);
+  assert.equal(SLOW_PAGE_MS, 1200);
+  assert.equal(exceedsPageBudget({ elapsedMs: 600 }), false);
+  assert.equal(exceedsPageBudget({ elapsedMs: 1200 }), true);
+  assert.equal(exceedsPageBudget({ elapsedMs: 1800, assetMs: 1000 }), false, 'chunk download time is excluded');
+  assert.equal(exceedsPageBudget({ elapsedMs: 2300, assetMs: 1000 }), true, 'remaining CPU time still exceeds budget');
+  assert.equal(exceedsPageBudget({ elapsedMs: 5000, hidden: true }), false, 'background-tab throttling is not a slow file');
+  assert.equal(exceedsPageBudget({ elapsedMs: 5000, budgetMs: Infinity }), false, 'manual opt-in disables the auto-switch');
+
+  const slowZh = renderToStaticMarkup(h(lib.PdfOriginal, {
+    fileUrl: 'blob:test', title: 'Scan.pdf', page: 4, total: 20, onPage: noop,
+    settings: { zoom: 1, native: true, slow: true }, onSettings: noop,
+  }));
+  assert.match(text(slowZh), /这份文件单页绘制太慢，已换成浏览器的查看器，避免翻页卡顿。/);
+  assert.match(slowZh, /回到单页视图/, 'manual toggle back to single-page view stays available');
+  assert.match(slowZh, /<iframe[^>]*src="blob:test#page=4"/);
+
+  inLanguage('en', () => {
+    const slowEn = renderToStaticMarkup(h(lib.PdfOriginal, {
+      fileUrl: 'blob:test', title: 'Scan.pdf', page: 4, total: 20, onPage: noop,
+      settings: { zoom: 1, native: true, slow: true }, onSettings: noop,
+    }));
+    assert.match(text(slowEn), /This file draws too slowly here, so the browser’s viewer is shown instead to keep page turns responsive\./);
+    assert.match(slowEn, /Back to the single-page view/);
+    assert.doesNotMatch(text(slowEn), han);
+    for (const attribute of slowEn.match(/aria-label="[^"]*"|title="[^"]*"/g) || []) assert.doesNotMatch(attribute, han, attribute);
+  });
 });

@@ -31,7 +31,7 @@ export default function SourceReaderDialog({ modal, onClose }) {
             <div className="source-connections">
               <small className="muted">{ui('使用这份资料的题组')}</small>
               {source.usedBy.map((deck) => (
-                <Button key={`${deck.kind}:${deck.id}`} variant="quiet" size="sm" disabled={busy || deck.kind === 'draft'}
+                <Button key={`${deck.kind}:${deck.id}`} variant="quiet" size="sm" disabled={deck.kind === 'draft'} lock={busy}
                   onClick={() => learn.openLearningTarget({ kind: 'deck', id: deck.id })}>
                   {deck.archived ? uiFormat('{0} · 已归档', [deck.title]) : deck.title}
                 </Button>

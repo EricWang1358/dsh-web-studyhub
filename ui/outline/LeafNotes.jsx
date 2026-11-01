@@ -79,13 +79,13 @@ export default function LeafNotes({ notes, onOpenSource, onReadMore }) {
       {notes.concepts && <p className="outline-notes__coverage" data-concepts="">
         <span>{conceptsText(notes.concepts)}</span>
         {body?.status === 'short' && onReadMore && <Tooltip content={fillGapsTip()}>
-          <Button variant="link" size="sm" icon="sparkle" className="outline-notes__more" disabled={busy} onClick={() => onReadMore(notes.id, null)}>{ui('补漏')}</Button>
+          <Button variant="link" size="sm" icon="sparkle" className="outline-notes__more" lock={busy} onClick={() => onReadMore(notes.id, null)}>{ui('补漏')}</Button>
         </Tooltip>}
       </p>}
       {coverage && <p className="outline-notes__coverage">
         <span>{coverageText(coverage)}</span>
         {coverage.more && onReadMore && <Tooltip content={readMoreTip(coverage.more)}>
-          <Button variant="link" size="sm" icon="sparkle" className="outline-notes__more" disabled={busy} onClick={() => onReadMore(notes.id, coverage.more)}>{ui('读更多')}</Button>
+          <Button variant="link" size="sm" icon="sparkle" className="outline-notes__more" lock={busy} onClick={() => onReadMore(notes.id, coverage.more)}>{ui('读更多')}</Button>
         </Tooltip>}
       </p>}
     </section>

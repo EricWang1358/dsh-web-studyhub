@@ -167,7 +167,7 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
     <div className="mineru-install__where">
       <span className="mineru-install__label">{ui('安装位置')}</span>
       <code translate="no">{skeleton ? '…' : folder || '…'}</code>
-      {!choosing && <Button size="sm" variant="secondary" icon="location" className="mineru-install__choose" disabled={skeleton || !!working} onClick={() => setChoosing(true)}>{ui('选择位置')}</Button>}
+      {!choosing && <Button size="sm" variant="secondary" icon="location" className="mineru-install__choose" disabled={skeleton} lock={!!working} onClick={() => setChoosing(true)}>{ui('选择位置')}</Button>}
     </div>
     {(skeleton || hint || !blocking) && <Hint className="mineru-install__hint">{(!skeleton && hint) || ' '}</Hint>}
     {!skeleton && nonAscii && <TipBadge tip={uiMessage(nonAscii.message)} tone="warning">{ui('路径里有中文或特殊字符')}</TipBadge>}
@@ -233,7 +233,7 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
       {said && <Hint>{said}</Hint>}
       {!choosing && <div className="mineru-install__row">
         {action.tip ? <Tooltip layer content={action.tip}>{button}</Tooltip> : button}
-        {action.id === 'vc-runtime' && <Button variant="quiet" size="sm" disabled={!!working}
+        {action.id === 'vc-runtime' && <Button variant="quiet" size="sm" lock={!!working}
           onClick={() => void (shown.origin === 'service' ? startService({ restart: true }) : start({ location: fixFolder() }))}>{ui('重试')}</Button>}
       </div>}
       {choosing && chooser}
@@ -281,8 +281,8 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
         {running && <Tooltip layer content={ui('服务在后台会占用内存；需要解析时会自动再启动。')}>
           <Button variant="secondary" size="sm" busy={working === 'stop'} disabled={!!working} onClick={stopService}>{ui('停止服务')}</Button>
         </Tooltip>}
-        {installed && <Button variant="secondary" size="sm" disabled={!!working} onClick={() => { setMoving(true); setChoosing(true); }}>{ui('安装到其他位置…')}</Button>}
-        {(installed || install?.folder) && <Button variant="quiet" size="sm" disabled={!!working} onClick={() => setAsking(true)}>{ui('卸载')}</Button>}
+        {installed && <Button variant="secondary" size="sm" lock={!!working} onClick={() => { setMoving(true); setChoosing(true); }}>{ui('安装到其他位置…')}</Button>}
+        {(installed || install?.folder) && <Button variant="quiet" size="sm" lock={!!working} onClick={() => setAsking(true)}>{ui('卸载')}</Button>}
       </div>
       {moving && <Hint>{ui('新位置装好并通过检查后，才会删除旧的那一份；失败时旧的保持可用。')}</Hint>}
       {view?.external && <p className="mineru-install__external">{uiFormat('另一份 MinerU：{0}（{1}）', [view.external.exe, view.external.state === 'found' ? ui('已找到') : view.external.state])}</p>}

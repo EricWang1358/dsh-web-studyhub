@@ -30,7 +30,7 @@ import OutlinePanel from './reader/OutlinePanel.jsx';
 import OutlineAssist from './reader/OutlineAssist.jsx';
 import FindBar from './reader/FindBar.jsx';
 import DisplaySettings from './reader/DisplaySettings.jsx';
-import PdfPageBar from './reader/PdfPageBar.jsx';
+import PdfOriginal from './reader/PdfOriginal.jsx';
 import { clampPage, pageCount, pageScopeOf } from './page-scope.js';
 import ReadingSections from './reader/ReadingSections.jsx';
 import { renderReaderMarkdown } from './reader/markdown.js';
@@ -126,7 +126,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [finding, setFinding] = useState(false), [query, setQuery] = useState(''), [total, setTotal] = useState(0), [match, setMatch] = useState(0);
   const [headings, setHeadings] = useState([]);
   const [aiOutline, setAiOutline] = useState(null), [aiItems, setAiItems] = useState([]), [emptyOpen, setEmptyOpen] = useState(false);
-  const [pdfPage, setPdfPage] = useState(() => source.document?.page || source.selection?.page || 1);
+  const [pdfPage, setPdfPage] = useState(() => source.document?.page || source.selection?.page || 1), [pdfView, setPdfView] = useState({ zoom: 1, native: false });
   const [attaching, setAttaching] = useState(null), [reload, setReload] = useState(0), attachTarget = useRef(null); // 补全原文件 (OriginalFile.jsx)
   const [peek, setPeek] = useState(null); // 看原页 (peek/PagePeek.jsx): { page, figure }
   const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
@@ -136,6 +136,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useEffect(() => {
     let current = true, objectUrl = '';
     setLoading(true); setError(''); setDocument(null); setContent(''); setFileUrl(''); setCapture(null);
+    setPdfView(previous => previous.slow || previous.keepSinglePage ? { zoom: previous.zoom, native: false, slow: false, keepSinglePage: false } : previous);
     setLinks([]);
     if (localMode) { setLoading(false); return undefined; }
     (async () => {
@@ -470,11 +471,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         <div className="reader-page">
           <div className="study-document-body" ref={body} onMouseUp={select} onKeyUp={select} onTouchEnd={select} onClick={pick} onCopy={copy}>
             {view === 'original'
-              ? <div className="reader-original">
-                <PdfPageBar page={pdfPage} total={totalPages} onPage={goToPage} />
-                {/* A new frame per page: the browser's PDF viewer ignores a later change of #page= (seen in Chromium), so the page asked about and the page shown would differ. */}
-                <iframe key={pdfPage} src={`${fileUrl}#page=${pdfPage}`} title={source.title || ui('原始 PDF')} />
-              </div>
+              ? <PdfOriginal fileUrl={fileUrl} title={source.title || ui('原始 PDF')} page={pdfPage} total={totalPages} onPage={goToPage} settings={pdfView} onSettings={change => setPdfView(current => ({ ...current, ...change }))} />
               : reading
                 ? html ? <div className="reader-html source-md" data-study-text="true" dangerouslySetInnerHTML={{ __html: html }} />
                   : <ReadingSections sections={sections} labelOf={labelOf} onPeek={canPeek ? openPeek : undefined} />

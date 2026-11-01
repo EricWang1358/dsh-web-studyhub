@@ -116,7 +116,7 @@ export function ConvertEditDialog({ job, onClose, onChanged }) {
   </div>;
   const removedLine = saved.chars > 0 ? uiFormat('已去掉 {0} 字，约 {1} tokens', [saved.chars, saved.tokens]) : ui('还没有去掉文字');
   const footer = <div className="convert-edit__foot">
-    <Button variant="quiet" disabled={busy || !book} onClick={() => setLetGo(true)}>{ui('放弃这份文字')}</Button>
+    <Button variant="quiet" disabled={!book} lock={busy} onClick={() => setLetGo(true)}>{ui('放弃这份文字')}</Button>
     <Tooltip layer content={ui('把现在这份文字存为资料，之后出题和引用都按它来。已经导入的资料不会变。')}>
       <Button variant="primary" busy={busy} disabled={!book} onClick={importText}>{ui('导入')}</Button>
     </Tooltip>
@@ -128,7 +128,7 @@ export function ConvertEditDialog({ job, onClose, onChanged }) {
       <div className="convert-edit" data-convert-edit>
         {problem && <InlineMessage tone="error">{problem}</InlineMessage>}
         {archived && <InlineMessage tone="info">{ui('这个任务已归档，是只读记录；取消归档后才能修改。')}
-          <Button variant="link" size="sm" disabled={busy} data-held-unarchive onClick={unarchive}>{ui('取消归档')}</Button></InlineMessage>}
+          <Button variant="link" size="sm" lock={busy} data-held-unarchive onClick={unarchive}>{ui('取消归档')}</Button></InlineMessage>}
         {!book && !problem && !archived && <LoadingState label={ui('正在读取转换好的文字…')} />}
         {book && <>
           <div className="convert-edit__bar">

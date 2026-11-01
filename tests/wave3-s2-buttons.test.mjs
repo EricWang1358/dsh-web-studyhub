@@ -48,6 +48,25 @@ test('Button: busy keeps its width, announces aria-busy and can swap its label',
   assert.match(css, /\.sh-btn\[aria-busy="true"\]\s*\{\s*min-width:\s*var\(--sh-held-width/);
 });
 
+test('Button: lock disables without a spinner (only the pressed button spins, see the browser test)', () => {
+  const locked = html(m.Button, { lock: true }, 'Save');
+  assert.match(locked, /<button[^>]*\bdisabled=""/);
+  assert.doesNotMatch(locked, /aria-busy|sh-spinner/, 'a button locked without being pressed stays quiet');
+  assert.doesNotMatch(locked, /lock=/, 'the prop is not passed on to the DOM');
+  assert.doesNotMatch(html(m.Button, { lock: false }, 'Save'), /disabled=|aria-busy/);
+  assert.match(html(m.Button, { lock: true, disabled: false, busy: true }, 'Save'), /aria-busy="true"[^>]*>|sh-spinner/, 'busy still spins on its own');
+  assert.match(html(m.IconButton, { icon: 'refresh', label: 'Reload', lock: true }), /disabled=""/);
+});
+
+test('one disabled look for buttons and segments: faint text and no pointer, never a faded copy', () => {
+  const sheet = readFileSync(new URL('../ui/components/components.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [...sheet.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector, body]) => ({ selector: selector.trim(), body }))
+    .filter(({ selector }) => /^\.sh-(?:btn|seg__item)[^,]*:disabled$/.test(selector));
+  assert.ok(rules.length >= 4, 'the button and segment disabled rules are found');
+  for (const { selector, body } of rules) assert.doesNotMatch(body, /opacity:\s*0?\.\d|!important/, `${selector} must not fade the control or force itself`);
+  assert.match(rules.find(({ selector }) => selector === '.sh-seg__item:disabled').body, /color:\s*(?:color-mix\(in srgb,\s*)?var\(--text-faint\)/, 'a segment dims from the faint token without opacity');
+});
+
 test('SegmentedControl: fill, wrap, stack and xs are class modifiers', () => {
   const options = [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }];
   const out = html(m.SegmentedControl, { label: 'x', value: 'a', options, fill: true, wrap: true, stack: true, size: 'xs' });
