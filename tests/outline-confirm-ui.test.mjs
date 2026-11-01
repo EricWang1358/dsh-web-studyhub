@@ -7,13 +7,18 @@ import { loadUi } from './helpers/ui-module.mjs';
 import { extendedOutline } from '../lib/contexts/generation/book/jobs/stages.js';
 import { courseOutlineMaterial } from '../lib/course-outline-book.js';
 
-const ui = await loadUi(`export { organiseArgs, REBUILD_OUTLINE } from './ui/outline/CourseOutline.jsx';`);
+const ui = await loadUi(`export { organiseArgs, REBUILD_OUTLINE } from './ui/outline/CourseOutline.jsx';
+  export { rebuildTipText } from './ui/outline/words.js';`);
 
 test('the outline page sends confirm: true with every rebuild it starts', () => {
   assert.deepEqual(ui.organiseArgs('SA', null), { course: 'SA', confirm: true });
   assert.deepEqual(ui.organiseArgs('SA', ['doc:a']), { course: 'SA', confirm: true, papers: ['doc:a'] });
   assert.deepEqual(ui.organiseArgs('SA', []), { course: 'SA', confirm: true, papers: [] });
   assert.deepEqual({ ...ui.REBUILD_OUTLINE }, { rebuildOutline: true, confirm: true });
+});
+
+test('重新整理 says on hover that the notes do not move right away: the book page lists each place first', () => {
+  assert.match(ui.rebuildTipText(), /不会马上动你写的内容.*先列出每一处/);
 });
 
 test('an outline extended by a review book build keeps its cut (granularity, maxPoints)', () => {

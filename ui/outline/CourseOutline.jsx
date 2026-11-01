@@ -11,7 +11,7 @@ import { displayTitle } from '../../lib/document-title.js';
 import { COVERAGE_DEFAULT, bookCoverage } from '../../lib/book-settings.js';
 import OutlineTree from './OutlineTree.jsx';
 import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
-import { basisText, bookCoverageText, bookIntroText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions, offerText, pickedText, readMoreStartedText, runningText,
+import { basisText, bookCoverageText, bookIntroText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions, offerText, pickedText, readMoreStartedText, rebuildTipText, runningText,
   startPickedText, startedText, usedPapersText, whatText, writingText, levelsText } from './words.js';
 import css from './outline.css';
 
@@ -54,8 +54,8 @@ function usePicked({ call, course, deckId, pick }) {
 /** data: the library snapshot; onBack(); onCreate() (创建题组); onOpenSources() (the 资料 page, where a material is filed under a course); onPractice(scope, { resume }) starts the round and keeps the way back here;
     onOpenTask(jobId) shows a task in the 任务 console; onOpenSource(sourceId, quote) opens the original at a quote (a 角标 of the 复习全书); onOpenBook(key?) opens the
     复习全书 page (at a knowledge point). */
-/** What the page's buttons send. The click is the learner's go-ahead (`confirm`, #461): a rebuild moves the review book's own text by pages, and what
-    matches no new point waits in 未归位. `papers`: null leaves the choice to the build; a list is the learner's (empty: none). */
+/** What the page's buttons send. The click is the go-ahead to make the new outline (`confirm`, #461): which text goes where is only known once it exists, so the book page shows
+    that first, before anything moves (ui/book/BookRebuildPreview.jsx). `papers`: null leaves the choice to the build; a list is the learner's (empty: none). */
 export const organiseArgs = (course, papers) => ({ course, confirm: true, ...(Array.isArray(papers) ? { papers } : {}) });
 export const REBUILD_OUTLINE = Object.freeze({ rebuildOutline: true, confirm: true });
 
@@ -164,7 +164,7 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, a
         onClick={() => actions.writeBook(chosen())}>{book?.notes ? ui('更新全书') : ui('生成复习全书')}</Button>
       {actions.setCoverage && <Select className="outline-organise__level" aria-label={ui('讲解详尽程度')} value={coverage} options={levelOptions()} disabled={off}
         onChange={value => actions.setCoverage(value)} />}
-      {book && <Button variant="quiet" size="sm" icon="refresh" disabled={off} onClick={() => actions.organise(chosen())}>{ui('重新整理')}</Button>}
+      {book && <Tooltip layer content={rebuildTipText()}><Button variant="quiet" size="sm" icon="refresh" disabled={off} onClick={() => actions.organise(chosen())}>{ui('重新整理')}</Button></Tooltip>}
       {used.length > 0 && !changed && <p className="outline-papers__used" data-papers-used="">{usedPapersText(used.map(paper => displayTitle(paper.title)), !book || book.papersBy !== 'learner')}</p>}
       {choices.length > 0 && <Disclosure className="outline-papers" summary={used.length ? ui('更改样卷') : ui('提供了试卷？')} meta={papers.size ? uiFormat('已选 {0} 份', [papers.size]) : null}>
         <p className="outline-papers__note">{ui('勾选的资料当作样卷：总纲会标出样卷考过的知识点。像样卷的资料默认就用上；全部不勾选就不标。')}</p>

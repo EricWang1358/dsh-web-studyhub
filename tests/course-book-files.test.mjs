@@ -101,7 +101,7 @@ test('an outline rebuild maps the files by anchors, then by title; what cannot b
   const rebuilt = outlineOf(state, [{ id: 'k1', title: 'Introduction', children: [{ id: 'k2', title: 'The architect\'s job', anchors: [`${lecture}#0`] }, { id: 'k3', title: 'Views', anchors: [`${lecture}#2`] }] }],
     { createdAt: '2026-10-10T00:00:00.000Z' });
   state.sources = state.sources.map(source => (source.id === outline.id ? { ...source, archived: true } : source)).concat(rebuilt);
-  const book = openCourseBook(state, {}), [job, views] = leaves(book.nodes);
+  const book = openCourseBook(state, {}, { applyRebuild: true }), [job, views] = leaves(book.nodes);
   assert.equal(job.hid, what.hid, 'mapped by anchors: the same heading id');
   assert.equal(job.mine, 'Note on what architects do.');
   assert.equal(book.nodes[0].hid, record.bookDoc.manifest.nodes[0].hid, 'the chapter of the same title keeps its id');

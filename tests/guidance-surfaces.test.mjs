@@ -110,13 +110,13 @@ test('the topic-group reminder: shown as before; hidden by the master switch or 
   withStorage({ 'study-topic-group-later:/lib': '2:5' }, () => assert.equal(reminder(), '', '稍后 still holds until the grouping changes'));
 });
 
-test('「笔记换了位置」: shown as before; hidden by the master switch or its own switch', () => {
+test('「笔记换了位置」: shown as before; the master switch or its own switch folds it to the one line that leads to the list', () => {
   lib.setUiLanguage('zh');
   const moves = { at: 'rebuild-1', list: [{ from: 'A', to: 'B' }], total: 1 };
   const draw = () => renderToStaticMarkup(h(lib.BookMoves, { course: 'Cloud', moves }));
   withStorage({}, () => assert.match(draw(), /data-book-moves/));
-  withStorage(off, () => assert.equal(draw(), ''));
-  withStorage(muted('book.moves'), () => assert.equal(draw(), ''));
+  withStorage(off, () => { assert.doesNotMatch(draw(), /data-book-moves=""/); assert.match(draw(), /data-book-moves-line/); });
+  withStorage(muted('book.moves'), () => { assert.doesNotMatch(draw(), /data-book-moves=""/); assert.match(draw(), /data-book-moves-line/); });
 });
 
 test('「补全原文件」 note: the full notice as before; switched off it is the quiet line that keeps 补全原文件…', () => {

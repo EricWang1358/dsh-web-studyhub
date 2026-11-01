@@ -113,6 +113,7 @@ export function useBookAi({ call, course, notify, reload, book, setBook, rows, a
     try {
       const view = await call('course.book.block', { course, file: node.files.mine, id: block.id, action: 'delete' });
       latest.current.setBook(view);
+      if (view.status !== 'ok') return; // a rebuilt outline waits for an answer: the page shows that next
       const line = deletedLine(view, node, block);
       if (line) setUndo(line);
       else latest.current.notify(ui('这段已经不在书里了'));
