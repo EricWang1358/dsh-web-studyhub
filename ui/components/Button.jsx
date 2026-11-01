@@ -48,14 +48,16 @@ export const Button = forwardRef(function Button({ variant = 'secondary', size =
     onClick?.(event);
   } : undefined;
   const working = busy || (!!lock && mine);
+  const replaceEnd = working && busyLabel == null && !icon && !!iconEnd;
+  const spinOver = working && busyLabel == null && !icon && !iconEnd;
   return (
     <button ref={ref} type={type} onClick={press}
       className={cx('sh-btn', `sh-btn--${kind}`, `sh-btn--${scale}`, wrap && 'sh-btn--wrap', block && 'sh-btn--block',
-        ALIGNS.has(align) && `sh-btn--${align}`, pill && 'sh-btn--pill', className)}
+        ALIGNS.has(align) && `sh-btn--${align}`, pill && 'sh-btn--pill', spinOver && 'sh-btn--spin-over', className)}
       disabled={disabled || busy || !!lock} aria-busy={working || undefined} {...rest}>
-      {working ? <span className="sh-spinner" aria-hidden="true" /> : glyph(icon, iconSize)}
+      {working && !replaceEnd ? <span className="sh-spinner" aria-hidden="true" /> : glyph(icon, iconSize)}
       {working && busyLabel != null ? busyLabel : children}
-      {glyph(iconEnd, iconSize)}
+      {replaceEnd ? <span className="sh-spinner" aria-hidden="true" /> : glyph(iconEnd, iconSize)}
     </button>
   );
 });

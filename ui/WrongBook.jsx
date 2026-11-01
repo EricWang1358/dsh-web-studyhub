@@ -388,7 +388,7 @@ export function WrongBookView({
           </div>
           {/* A disabled choice cannot take focus or a hover of its own, so the group says why on hover and on focus (an empty tip draws nothing). */}
           <Tooltip layer anchorClassName="wb-retrain-pick" content={unavailableTip}>
-            <SegmentedControl label={ui("重练范围")} value={picked} options={options} onChange={setChoice} />
+            <SegmentedControl label={ui("重练范围")} value={picked} options={options} onChange={setChoice} disabled={busy || loading} />
           </Tooltip>
           <Button variant="primary" icon="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}
             title={hasMore ? ui("把本页的待巩固题按学习路径重新练一遍") : ui("把这些待巩固题按学习路径重新练一遍")}>

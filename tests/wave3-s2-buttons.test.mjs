@@ -64,7 +64,7 @@ test('one disabled look for buttons and segments: faint text and no pointer, nev
     .filter(({ selector }) => /^\.sh-(?:btn|seg__item)[^,]*:disabled$/.test(selector));
   assert.ok(rules.length >= 4, 'the button and segment disabled rules are found');
   for (const { selector, body } of rules) assert.doesNotMatch(body, /opacity:\s*0?\.\d|!important/, `${selector} must not fade the control or force itself`);
-  assert.match(rules.find(({ selector }) => selector === '.sh-seg__item:disabled').body, /color:\s*var\(--text-faint\)/, 'a segment dims like a button');
+  assert.match(rules.find(({ selector }) => selector === '.sh-seg__item:disabled').body, /color:\s*(?:color-mix\(in srgb,\s*)?var\(--text-faint\)/, 'a segment dims from the faint token without opacity');
 });
 
 test('SegmentedControl: fill, wrap, stack and xs are class modifiers', () => {
