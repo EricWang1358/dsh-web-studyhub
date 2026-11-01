@@ -69,7 +69,7 @@ The full pipeline is in [Question generation and quality checks](assessment-qual
 
 ## Ask about a page of the original PDF
 
-In the reader, **Original PDF** shows the file itself, in the browser's own PDF viewer. Text you select there does not reach **Study tools** (you can copy it and paste it into the question box), so the panel asks about the current page instead of a passage.
+In the reader, **Original PDF** draws the file itself one page at a time (or falls back to the browser's own PDF viewer when a file cannot be drawn here or draws too slowly). Text you select there does not reach **Study tools** (you can copy it and paste it into the question box), so the panel asks about the current page instead of a passage.
 
 A typical round:
 
@@ -80,7 +80,7 @@ A typical round:
 
 The first time, two short hints explain the page controls and the presets; each closes for good with its own × (remembered in this browser; when the browser blocks storage, for this visit only).
 
-- Turn pages with the controls above the PDF (previous, page number, next) or with the arrows beside **Asking about page N** in the panel. The PDF shows one page at a time, the page that is asked about; turning the page reloads nothing, the zoom and the sideways place stay, and a new page starts at its top (with the focus on the PDF, PageUp and PageDown turn the page too). To find in the whole file or scroll through it, click **Use the browser's viewer** beside the page number: there each page turn reloads the PDF, its zoom is not kept, and scrolling does not change the page that is asked about.
+- Turn pages with the controls above the PDF (previous, page number, next) or with the arrows beside **Asking about page N** in the panel. The PDF shows one page at a time, the page that is asked about; turning the page reloads nothing, rapid page turns skip intermediate pages, the zoom and the sideways place stay, and a new page starts at its top (with the focus on the PDF, PageUp and PageDown turn the page too). To find in the whole file or scroll through it, click **Use the browser's viewer** beside the page number (heavy scanned files that draw too slowly switch there automatically, with **Back to the single-page view** still beside the page number): there each page turn reloads the PDF, its zoom is not kept, and scrolling does not change the page that is asked about.
 - Type or paste a question and click **Answer from this page**. The answer uses the saved text of that page only. On a very long page it reads the first part, the panel says how much was used and offers **Read on: the next N characters**, which asks the same question about the next part only and sends nothing already read.
 - To ask about several pages, click **Ask about the next few pages too** and fill in the last page. At most 5 pages and 16000 characters at a time; the panel says **Asking about: page 3–5**, names a page without saved text and still answers from the others. Turning the page goes back to one page.
 - Or press one of the four presets under the box; each asks at once: **Explain this page**, **Translate this page** (into the language of the interface), **Split this page into points** and **Formulas and code of this page**. Hovering a preset shows the exact question it sends. **Translate this page** is a one-off answer about the page's saved text and is not kept; the side-by-side translation of the whole material, kept per version with its glossary, is **Translate** in the **Read** toolbar.
