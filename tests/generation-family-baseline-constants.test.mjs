@@ -34,5 +34,5 @@ test('the reserve is 20% of the questions asked for a group of pages, at most 3,
 
 test('every reason a coverage run can stop for is listed with its level; only complete and target are "ok"', () => {
   assert.deepEqual(Object.entries(STOP_REASONS).map(([name, value]) => [name, value.ok]).sort(), [['budget', false], ['complete', true], ['learner', false], ['no-progress', false],
-    ['refused', false], ['round-failed', false], ['sections-left', false], ['target', true]]);
+    ['questions-short', false], ['refused', false], ['round-failed', false], ['sections-left', false], ['target', true]]);
 });
