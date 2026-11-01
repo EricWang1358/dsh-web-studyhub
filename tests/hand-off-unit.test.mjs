@@ -20,7 +20,7 @@ const m = await loadUi(`
   export { messageParts } from './ui/agent-prompts/message.js';
   export { ToastRegion, shouldAutoDismiss } from './ui/components/Feedback.jsx';
   export { HandOff, HandOffButton, HandOffForm } from './ui/hand-off/HandOff.jsx';
-  export { fillComposer, composerHasContent } from './ui/host/composer-draft.js';
+  export { fillComposer, composerHasContent, attachToComposer, canAttachToComposer } from './ui/host/composer-draft.js';
   export { languageTail } from './ui/agent-prompts/say.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { InlineMessage, Banner } from './ui/components/Feedback.jsx';
@@ -30,25 +30,102 @@ const m = await loadUi(`
 m.setUiLanguage('zh');
 const h = React.createElement;
 const TAIL = '请用中文回复；已有的题目和引文保持原文，不要翻译。';
+const actx = { id: 'session-scope' };
 
 /** A fake app: what askInChat's host does, a clipboard that takes or refuses, and the notices said. */
 function fakes({ host = null, refuse = false, openSheet = () => {} } = {}) {
   const notices = [], copied = [];
   const clipboard = { writeText: async (text) => { if (refuse) throw new Error('denied'); copied.push(text); } };
-  return { notices, copied, deliver: (prompt, said) => m.deliverToChat({ host, prompt, said, notify: (value) => notices.push(value), openSheet, clipboard }) };
+  return { notices, copied, deliver: (prompt, said, picture) => m.deliverToChat({ host, prompt, said, picture, notify: (value) => notices.push(value), openSheet, clipboard }) };
 }
 
-test('filled: the host took it into an empty box; the receipt 填 says to check and press send, with no action (the host already shows the chat); the language sentence is added once', async () => {
+test('filled: the host took it into an empty box; the receipt 填 says to check and press send, with 去主会话 where the host can show the chat (#488); the language sentence is added once', async () => {
   const seen = [];
   const { notices, copied, deliver } = fakes({ host: { askInChat: (text) => { seen.push(text); return 'filled'; }, showChat: () => {} } });
   assert.equal(await deliver('请改这一节。'), 'filled');
   assert.deepEqual(seen, [`请改这一节。\n${TAIL}`]);
   assert.deepEqual(copied, []);
-  assert.deepEqual(notices, [{ receipt: 'filled', title: '已填进主会话的输入框', text: '看一眼，再由你按发送', timeout: 5000 }]);
+  const [filled] = notices;
+  assert.deepEqual({ ...filled, action: filled.action.label }, { receipt: 'filled', title: '已填进主会话的输入框', text: '看一眼，再由你按发送', timeout: 8000, action: '去主会话' });
+  const noChat = fakes({ host: { askInChat: () => 'filled' } });
+  await noChat.deliver('p');
+  assert.equal(noChat.notices[0].action, undefined, 'no button where this host cannot show the chat');
   // An older host answers true; a prompt that already carries the sentence is not given a second one.
   const again = fakes({ host: { askInChat: () => true } });
   assert.equal(await again.deliver(`x\n${TAIL}`), 'filled');
   assert.equal(m.withLanguageTail(`x\n${TAIL}`), `x\n${TAIL}`);
+});
+
+test('pictures of a page (#488): after the text they go into the box and the receipt says how many; a refused or short set is said too; without a chat they are not touched', async () => {
+  const order = [], pics = [{ name: 'page-3.jpg' }], one = { images: pics, wanted: 1 };
+  const notes = [], host = { askInChat: () => { order.push('text'); return 'filled'; }, attachToChat: files => { order.push(files); return true; }, showChat: () => {}, noteInChat: text => notes.push(text) };
+  const ok = fakes({ host });
+  assert.equal(await ok.deliver('p', '', one), 'filled');
+  assert.deepEqual(order, ['text', pics], 'text first: a picture in the box would make the box count as the learner\'s own');
+  assert.equal(ok.notices[0].text, '这一页的图也附上了。看一眼，再由你按发送');
+  assert.deepEqual(notes.splice(0), ['这一页的图也附上了'], 'the host shows the chat at once: the box itself says it too, or the top-level page never would');
+  const many = fakes({ host });
+  await many.deliver('p', '', { images: [{}, {}, {}], wanted: 3 });
+  assert.match(many.notices[0].text, /^这 3 页的图都附上了。/);
+  const short = fakes({ host });
+  await short.deliver('p', '', { images: [{}, {}, {}], wanted: 5 });
+  assert.match(short.notices[0].text, /^5 页里附上了 3 页的图，其余的没画出来。/, 'never "attached" for part of them');
+  const refused = fakes({ host: { ...host, attachToChat: () => false } });
+  await refused.deliver('p', '', one);
+  assert.equal(refused.notices[0].text, '没能附上这一页的图，需要的话自己截图贴上。看一眼，再由你按发送');
+  const none = fakes({ host });
+  await none.deliver('p', '', { images: [], wanted: 1 });
+  assert.match(none.notices[0].text, /^没能附上这一页的图/, 'a page that could not be drawn says so as well');
+  const text = fakes({ host });
+  await text.deliver('p', '', { refused: 'model' });
+  assert.match(text.notices[0].text, /^当前模型看不了图，这次只发了文字；要让它看图，先在主会话换一个能看图的模型，再按一次。/);
+  const unknown = fakes({ host });
+  await unknown.deliver('p', '', { refused: 'unknown' });
+  assert.match(unknown.notices[0].text, /^没法确认当前模型能不能看图，这次只发了文字；需要的话自己截图贴上。/);
+  notes.length = 0;
+  const kept = fakes({ host: { ...host, askInChat: () => 'kept' } });
+  assert.equal(await kept.deliver('p', '', one), 'kept');
+  assert.match(kept.notices[0].text, /^这一页的图也附上了。这段已复制/, 'a picture never replaces what the learner typed, so it still goes in');
+  assert.deepEqual(notes, [], 'kept stays on the page: its receipt is seen');
+  const seen = [];
+  const noChat = fakes({ host: { askInChat: () => false, attachToChat: files => { seen.push(files); return true; } } });
+  assert.equal(await noChat.deliver('p', '', one), 'copied');
+  assert.deepEqual(seen, []);
+  assert.doesNotMatch(noChat.notices[0].text, /这一页的图/);
+  const plain = fakes({ host: { ...host, attachToChat: files => { seen.push(files); return true; } } });
+  await plain.deliver('p');
+  assert.deepEqual(seen, [], 'every other hand-off has no picture and says nothing about one');
+  assert.equal(plain.notices[0].text, '看一眼，再由你按发送');
+});
+
+test('the composer takes a picture through the two faces of the real host: a draft is registered, its id joins the box; a second press replaces it; a host without the faces, a busy box or a throw leaves nothing behind', async () => {
+  const files = [{ name: 'page-3.jpg', type: 'image/jpeg' }], log = [];
+  let next = 0;
+  const shell = (add = true) => ({ addAttachments: ids => { log.push(['add', ids]); if (add === 'throw') throw new Error('disposed'); return add; }, removeAttachment: id => { log.push(['remove', id]); return true; } });
+  const conversation = (add = true) => ({
+    createDrafts: (session, given) => { log.push(['drafts', session, given]); next += 1; return [{ id: `d${next}` }]; },
+    releaseDraftAttachment: id => log.push(['released one', id]),
+    releaseDraftAttachments: drafts => log.push(['released', drafts]),
+    input: { for: () => shell(add) },
+  });
+  assert.equal(m.canAttachToComposer(conversation(), actx), true);
+  assert.equal(await m.attachToComposer(conversation(), actx, 's1', files), true);
+  assert.deepEqual(log.splice(0), [['drafts', 's1', files], ['add', ['d1']]]);
+  assert.equal(await m.attachToComposer(conversation(), actx, 's1', files), true);
+  assert.deepEqual(log.splice(0).slice(1), [['add', ['d2']], ['remove', 'd1'], ['released one', 'd1']], 'a second press replaces the picture, it does not pile up');
+  assert.equal(await m.attachToComposer(conversation(false), actx, 's2', files), false);
+  assert.deepEqual(log.splice(0).at(-1), ['released', [{ id: 'd3' }]], 'a busy box refuses: the draft is let go');
+  assert.equal(await m.attachToComposer(conversation('throw'), actx, 's3', files), false);
+  assert.deepEqual(log.splice(0).at(-1), ['released', [{ id: 'd4' }]], 'a throw lets it go too');
+  const later = { ...conversation(), createDrafts: async () => [{ id: 'd9' }] };
+  assert.equal(await m.attachToComposer(later, actx, 's4', files), true, 'an asynchronous createDrafts is awaited');
+  log.length = 0;
+  assert.equal(m.canAttachToComposer({ input: { for: () => ({}) } }, actx), false, 'DSH without createDrafts: the old screenshot way');
+  assert.equal(m.canAttachToComposer({ createDrafts() {}, input: { for: () => ({}) } }, actx), false, 'nor without addAttachments');
+  assert.equal(await m.attachToComposer({ input: { for: () => ({}) } }, actx, 's1', files), false);
+  assert.equal(await m.attachToComposer(null, actx, 's1', files), false);
+  assert.equal(await m.attachToComposer(conversation(), actx, 's1', []), false);
+  assert.equal(await m.attachToComposer({ createDrafts: () => { throw new Error('gone'); }, input: { for: () => ({ addAttachments: () => true }) } }, actx, 's1', files), false);
 });
 
 test('kept: the learner\'s own text stays; the prompt is copied; 去主会话 only where the host can show the chat; a write before it is said before the line', async () => {
@@ -121,7 +198,7 @@ test('English: the receipts and the language sentence are English', async () => 
 test('the receipt table: each outcome its title, its line, its one action and its time; each title carries its seal\'s character', () => {
   assert.deepEqual(Object.keys(m.HAND_OFF_RECEIPTS), ['filled', 'kept', 'copied', 'shown']);
   assert.deepEqual(Object.fromEntries(Object.entries(m.HAND_OFF_RECEIPTS).map(([outcome, receipt]) => [outcome, [receipt.timeout, receipt.action ?? null]])),
-    { filled: [5000, null], kept: [8000, '去主会话'], copied: [6000, '看看内容'], shown: [0, '打开全文'] });
+    { filled: [8000, '去主会话'], kept: [8000, '去主会话'], copied: [6000, '看看内容'], shown: [0, '打开全文'] });
   for (const [outcome, receipt] of Object.entries(m.HAND_OFF_RECEIPTS)) {
     assert.ok(receipt.title.includes(m.SEALS[outcome].character), `${outcome}: ${m.SEALS[outcome].character} in 「${receipt.title}」`);
     assert.ok(m.ICON_NAMES.includes(m.SEALS[outcome].glyph), `${outcome}: its English glyph is in the icon set`);
@@ -207,7 +284,6 @@ function conversationWith({ text = '', draft = text, attachments = [], projectio
   const conversation = { input: { for: (actx) => { log.push(['for', actx.id]); return guard(shell, 'input'); } } };
   return { conversation, log };
 }
-const actx = { id: 'session-scope' };
 
 test('the composer: empty -> setDraft only (never submit); words, a chip or an attachment -> nothing written', () => {
   const empty = conversationWith();

@@ -27,6 +27,14 @@ export const PAGE_INTENTS = Object.freeze([
   { label: '提取这一页的公式与代码', question: '请把这一页的公式和代码原样提取出来，并说明各自的用途。', intent: 'extract' },
 ]);
 
+/** The same chips for a range of pages (#488): the same intents, in the words of these pages. */
+export const PAGE_RANGE_INTENTS = Object.freeze([
+  { label: '讲解这几页', question: '请按原文顺序讲解这几页。', intent: 'explain' },
+  { label: '翻译这几页', question: '请把这几页完整翻译过来，保持原来的顺序。', intent: 'translate', note: '这是对这几页保存文字的一次回答，不会保存；整份资料的对照翻译在工具栏的「翻译」里。' },
+  { label: '按知识点拆分这几页', question: '请把这几页按知识点拆开，每个知识点用一两句话说清。', intent: 'points' },
+  { label: '提取这几页的公式与代码', question: '请把这几页的公式和代码原样提取出来，并说明各自的用途。', intent: 'extract' },
+]);
+
 /** chips: one of the lists above, plus the page's own presets; onAsk(question, label, intent); onQuiz: the 出题考我 jump (a passage only); onCustom: the way to manage the presets (a page only). */
 export default function QuickIntents({ chips = PASSAGE_INTENTS, onAsk, onQuiz, onCustom, disabled = false }) {
   // A chip of the learner's own sends exactly what they wrote: never through the catalogue, which would translate a preset that says the same as a built-in.

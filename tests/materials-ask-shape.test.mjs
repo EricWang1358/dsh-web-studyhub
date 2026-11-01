@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Store } from '../lib/store.js';
 import { createMaterialsOperations } from '../lib/contexts/materials/operations.js';
 import { materialsSchemas } from '../lib/contexts/materials/contracts.js';
-import { PAGE_EVIDENCE_MAX } from '../lib/ask-prompt.js';
+import { PAGE_EVIDENCE_MAX, PAGE_RANGE_EVIDENCE_MAX, PAGE_RANGE_MAX } from '../lib/ask-prompt.js';
 
 /* materials.selection.ask: plain, explanation, term and thread questions reach the model in the right shape and the
    result keeps its old shape. */
@@ -113,6 +113,66 @@ test('a long page is cut at the named cap and the answer says so', async t => {
   assert.deepEqual(result.evidence, { page: 3, chars: long.length, used: PAGE_EVIDENCE_MAX, truncated: true });
   assert.equal(seen[0].input.context.length, PAGE_EVIDENCE_MAX);
   assert.equal(seen[0].input.truncated, true);
+});
+
+test('#488: 接着读 sends only the next part of a long page and the question, never what was read before, and says where it stands', async t => {
+  const { ask, seen, page, imported, store } = await pageFixture(t);
+  const long = `${'x'.repeat(PAGE_EVIDENCE_MAX)}${'y'.repeat(PAGE_EVIDENCE_MAX)}${'z'.repeat(10)}`;
+  await store.update(state => { state.sources.find(item => item.id === imported.sourceIds[2]).text = long; });
+  const second = await ask({ scope: 'page', selection: page(3), question: 'Translate', offset: PAGE_EVIDENCE_MAX });
+  assert.deepEqual(second.evidence, { page: 3, chars: long.length, used: PAGE_EVIDENCE_MAX, truncated: true, offset: PAGE_EVIDENCE_MAX });
+  assert.equal(seen[0].input.context, 'y'.repeat(PAGE_EVIDENCE_MAX), 'nothing of the first part is sent again');
+  assert.equal(seen[0].input.offset, PAGE_EVIDENCE_MAX);
+  assert.match(seen[0].system, /later part/);
+  const last = await ask({ scope: 'page', selection: page(3), question: 'Translate', offset: 2 * PAGE_EVIDENCE_MAX });
+  assert.deepEqual(last.evidence, { page: 3, chars: long.length, used: 10, truncated: false, offset: 2 * PAGE_EVIDENCE_MAX });
+  assert.equal(seen[1].input.truncated, undefined);
+  const count = seen.length;
+  const past = await ask({ scope: 'page', selection: page(3), question: 'Translate', offset: long.length });
+  assert.equal(past.status, 'missing', 'past the end nothing is asked');
+  assert.equal(seen.length, count);
+  await assert.rejects(ask({ scope: 'page', selection: page(3), question: 'q', offset: -1 }), /offset/);
+});
+
+test('#488: a range asks several pages at once: each page is marked, a page without text is named and does not stop the others, the size is held and said', async t => {
+  const { ask, seen, page, imported, store, pages } = await pageFixture(t);
+  await store.update(state => { state.sources.find(item => item.id === imported.sourceIds[0]).text = ''; });
+  const asked = await ask({ scope: 'page', selection: { ...page(1), to: 3 }, question: 'Compare' });
+  assert.equal(asked.status, 'answered');
+  assert.deepEqual(asked.evidence, { page: 1, to: 3, chars: seen[0].input.context.length, used: seen[0].input.context.length, truncated: false, pages: [2, 3], emptyPages: [1] });
+  assert.equal(seen[0].input.context, `[page 2]\n${pages[1]}\n\n[page 3]\n${pages[2]}`);
+  assert.equal(seen[0].input.page, 1); assert.equal(seen[0].input.to, 3); assert.deepEqual(seen[0].input.emptyPages, [1]);
+  assert.match(seen[0].system, /\[page N\]/);
+  assert.deepEqual(asked.citations.map(item => item.page), [2, 3]);
+  assert.equal(asked.selection.page, 1);
+  await store.update(state => { for (const id of imported.sourceIds) state.sources.find(item => item.id === id).text = 'w'.repeat(PAGE_RANGE_EVIDENCE_MAX); });
+  const big = await ask({ scope: 'page', selection: { ...page(1), to: 2 }, question: 'q' });
+  assert.equal(big.evidence.used, PAGE_RANGE_EVIDENCE_MAX); assert.equal(big.evidence.truncated, true);
+  const onward = await ask({ scope: 'page', selection: { ...page(1), to: 2 }, question: 'q', offset: PAGE_RANGE_EVIDENCE_MAX });
+  assert.equal(onward.evidence.offset, PAGE_RANGE_EVIDENCE_MAX);
+  assert.ok(seen.at(-1).input.context.startsWith('[page 1, continued]\n'), 'the part goes on from where it stopped, and says on which page');
+  assert.deepEqual(onward.evidence.pages, [1, 2]);
+  assert.deepEqual(onward.citations.map(item => item.page), [1, 2], 'citations: the pages this part read');
+  assert.deepEqual(big.citations.map(item => item.page), [1], 'the first part did not read page 2');
+  const count = seen.length;
+  for (const selection of [{ ...page(3), to: 2 }, { ...page(0), to: 2 }, { ...page(2), to: 2.5 }]) {
+    const refused = await ask({ scope: 'page', selection, question: 'q' });
+    assert.equal(refused.status, 'missing', JSON.stringify(selection)); assert.equal(refused.reason, 'bad-range');
+  }
+  assert.equal(seen.length, count, 'a bad range is refused plainly, before a model call');
+});
+
+test('#488: a range is held to its limit by the server too, and a range with no saved text at all is refused before a model call', async t => {
+  const { ask, seen, page, imported, store } = await pageFixture(t);
+  const held = await ask({ scope: 'page', selection: { ...page(1), to: 99 }, question: 'q' });
+  assert.equal(held.status, 'answered');
+  assert.equal(held.evidence.to, Math.min(PAGE_RANGE_MAX, imported.sourceIds.length));
+  const count = seen.length;
+  await store.update(state => { for (const id of imported.sourceIds) state.sources.find(item => item.id === id).text = ' '; });
+  const blank = await ask({ scope: 'page', selection: { ...page(1), to: 2 }, question: 'q' });
+  assert.equal(blank.status, 'missing'); assert.equal(blank.reason, 'empty');
+  assert.equal((await ask({ scope: 'page', selection: { ...page(1), to: 2, revision: 'older' }, question: 'q' })).status, 'stale');
+  assert.equal(seen.length, count);
 });
 
 test('a page with no saved text, a page that is not there and an old revision are refused before any model call', async t => {

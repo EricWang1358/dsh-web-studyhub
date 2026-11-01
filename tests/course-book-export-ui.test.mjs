@@ -41,14 +41,14 @@ test('查找: 目录 with codes, 按题型 as the 速查表, 按概念, 易错�
 
 test('导出: 含 / 不含答案册, the page limit; the limit is compared quietly', () => {
   const text = textOf(render(h(ui.BookExport, { course: 'SA', pageLimit: 30, onClose: noop })));
-  for (const part of ['导出复习全书', '不含答案册', '含答案册', '正在准备导出…', '页数上限', '下载 Markdown', '分文件导出…', '印哪些题', '只印书里链接的题', '再加每个知识点自己的题', '不印题目']) assert.ok(text.includes(part), part);
+  for (const part of ['导出复习全书', '不含答案册', '含答案册', '正在准备导出…', '页数上限', '下载 Markdown', '分文件下载（zip）', '印哪些题', '只印书里链接的题', '再加每个知识点自己的题', '不印题目']) assert.ok(text.includes(part), part);
   assert.match(render(h(ui.BookExport, { course: 'SA', onClose: noop })), /checked="" value="linked"/, 'only the linked questions by default');
   assert.deepEqual(ui.budgetText(32, 30), { tone: 'warning', text: '比上限多 2 页' });
   assert.deepEqual(ui.budgetText(12, 30), { tone: 'success', text: '在上限 30 页以内' });
   assert.equal(ui.budgetText(12, undefined), null);
   english(() => {
     const en = textOf(render(h(ui.BookExport, { course: 'SA', onClose: noop })));
-    for (const part of ['Export the review book', 'Without the answer key', 'With the answer key', 'Page limit', 'Download Markdown', 'Export as files…', 'Which questions to print', 'Only the questions the book links', 'Also every point', 'No questions']) assert.ok(en.includes(part), part);
+    for (const part of ['Export the review book', 'Without the answer key', 'With the answer key', 'Page limit', 'Download Markdown', 'Download as files (zip)', 'Which questions to print', 'Only the questions the book links', 'Also every point', 'No questions']) assert.ok(en.includes(part), part);
     assert.equal(ui.budgetText(32, 30).text, '2 pages over the limit');
   });
 });
