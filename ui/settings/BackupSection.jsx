@@ -26,8 +26,8 @@ export function RestorePreview({ file, busy, onConfirm, onCancel }) {
     <p>{[uiFormat('{0} 门课程', [count.courses]), uiFormat('{0} 份资料', [count.sources]),
       uiFormat('{0} 个题组（{1} 道题）', [count.decks, count.cards]), uiFormat('{0} 条作答记录', [count.attempts])].join(' · ')}</p>
     <div className="settings-actions">
-      <Button variant="danger" disabled={busy} onClick={onConfirm}>{ui('用此备份替换当前学习库')}</Button>
-      <Button variant="quiet" disabled={busy} onClick={onCancel}>{ui('换一个文件')}</Button>
+      <Button variant="danger" lock={busy} onClick={onConfirm}>{ui('用此备份替换当前学习库')}</Button>
+      <Button variant="quiet" lock={busy} onClick={onCancel}>{ui('换一个文件')}</Button>
     </div>
   </div>;
 }
@@ -74,14 +74,14 @@ export function BackupSection({ root, busy, exportData, act, onRestored }) {
           <p>{ui('下载一个完整的 JSON 备份：资料、题组、复习进度和作答记录都在里面。')}</p>
           <Hint>{ui('已复制到资料库的原文件会放进备份；只记了路径的原文件留在你的电脑上，不在备份里，换电脑后需要重新指定。')}</Hint>
           <Hint>{uiFormat('文件名形如 {0}，保存到浏览器的下载文件夹。', [backupFileName()])}</Hint>
-          <div className="settings-actions"><Button variant="primary" icon="download" data-usage="settings.export" disabled={busy} onClick={exportData}>{ui('导出学习库')}</Button></div>
+          <div className="settings-actions"><Button variant="primary" icon="download" data-usage="settings.export" lock={busy} onClick={exportData}>{ui('导出学习库')}</Button></div>
         </section>
         <section className="backup-block" aria-labelledby={restoreId}>
           <h3 id={restoreId} className="settings-subtitle">{ui('恢复')}</h3>
           <p>{ui('用一份完整备份替换当前学习库。替换前，当前数据会自动另存一份到：')}</p>
           <code className="backup-path" title={folder}>{folder || ui('当前学习库的 backups 文件夹')}</code>
           <input ref={input} type="file" hidden accept=".json,application/json" onChange={(e) => read(e.target.files?.[0])} />
-          {!file && <div className="settings-actions"><Button icon="upload" disabled={busy} onClick={chooseBackup}>{ui('选择备份文件…')}</Button></div>}
+          {!file && <div className="settings-actions"><Button icon="upload" lock={busy} onClick={chooseBackup}>{ui('选择备份文件…')}</Button></div>}
           {error && <InlineMessage>{error}</InlineMessage>}
           {file && <RestorePreview file={file} busy={busy || confirm} onConfirm={() => setConfirm(true)} onCancel={chooseBackup} />}
         </section>
