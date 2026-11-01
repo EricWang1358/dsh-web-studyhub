@@ -84,11 +84,11 @@ export default function Manage({
         description={slainView ? ui("本工作区唯一的斩题组。这里的题不参与复习，作答历史和复习进度保留，可恢复到原题组。")
           : ui("编辑先进入草稿；重新发布时，未改动题目保留复习进度，内容变更的题目重新开始调度。历史作答始终保留。")}
         actions={<>
-          <Button variant="primary" disabled={busy || slainView} onClick={() => act("deck.edit", { id: managedDeck.id }, openDraft)}>{ui("编辑题组")}</Button>
-          <Button data-manage-archive disabled={busy || slainView} onClick={archiveDeck}>
+          <Button variant="primary" disabled={slainView} lock={busy} onClick={() => act("deck.edit", { id: managedDeck.id }, openDraft)}>{ui("编辑题组")}</Button>
+          <Button data-manage-archive disabled={slainView} lock={busy} onClick={archiveDeck}>
             {managedDeck.archived ? ui("恢复题组") : ui("归档题组并结束练习")}
           </Button>
-          {managedDeck.archived && !managedDeck.systemKind && <Button variant="danger" disabled={busy}
+          {managedDeck.archived && !managedDeck.systemKind && <Button variant="danger" lock={busy}
             onClick={() => onRemoveDeck(managedDeck.id)}>{ui("永久删除")}</Button>}
         </>}>
         <div className="manage-meta">
@@ -128,7 +128,7 @@ export default function Manage({
             onChange={(e) => setFolderDraft(e.target.value)}
             placeholder={ui("所在目录，例如：设计模式 / 第 4 章（留空为顶层）")}
           />
-          <Button disabled={busy || folderDraft === (managedDeck.folder || "")} type="submit">{ui("保存目录")}</Button>
+          <Button disabled={folderDraft === (managedDeck.folder || "")} lock={busy} type="submit">{ui("保存目录")}</Button>
         </div>
       </form>
       {!managedDeck.systemKind && !managedDeck.archived && <Panel className="manage-panel" title={ui("整理题组")}
@@ -136,8 +136,8 @@ export default function Manage({
         <div className="manage-section">
           <span className="manage-label">{ui("题组顺序")}</span>
           <div className="manage-row manage-row--pair">
-            <Button disabled={busy || siblingIndex <= 0} onClick={() => moveOrder(-1)}>{ui("上移题组")}</Button>
-            <Button disabled={busy || siblingIndex < 0 || siblingIndex >= siblings.length - 1} onClick={() => moveOrder(1)}>{ui("下移题组")}</Button>
+            <Button disabled={siblingIndex <= 0} lock={busy} onClick={() => moveOrder(-1)}>{ui("上移题组")}</Button>
+            <Button disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1} lock={busy} onClick={() => moveOrder(1)}>{ui("下移题组")}</Button>
           </div>
         </div>
         <form className="manage-section" onSubmit={(e) => {
@@ -149,7 +149,7 @@ export default function Manage({
             <Combobox id="manage-merge-target" value={targetId} onChange={setTargetId} placeholder={ui("选择合并目标")} label={ui("合并到题组")} searchPlaceholder={ui("搜索题组")}
               emptyText={(query) => uiFormat("没有叫「{0}」的题组", [query])}
               options={deckEntries(deckChoices(peers, { focus }))} />
-            <Button disabled={busy || !targetId} type="submit">{ui("合并到目标题组")}</Button>
+            <Button disabled={!targetId} lock={busy} type="submit">{ui("合并到目标题组")}</Button>
           </div>
         </form>
         {topics.length > 1 && <form className="manage-section" onSubmit={(e) => {
@@ -171,7 +171,7 @@ export default function Manage({
           </label>)}</div>
           <div className="manage-row">
             <input aria-label={ui("新题组名称")} value={splitTitle} onChange={(e) => setSplitTitle(e.target.value)} placeholder={ui("新题组名称")} />
-            <Button disabled={busy || !splitReady} type="submit">{ui("拆出所选主题")}</Button>
+            <Button disabled={!splitReady} lock={busy} type="submit">{ui("拆出所选主题")}</Button>
           </div>
         </form>}
       </Panel>}
@@ -201,7 +201,7 @@ export default function Manage({
               {card.slain && <p className="muted">{ui("原题组：")}{card.slain.deckTitle} · {formatDateTime(card.slain.at, 'date')}</p>}
             </div>
             <div className="manage-card__actions">
-              <Button disabled={busy} onClick={() => act(
+              <Button lock={busy} onClick={() => act(
                 slainView ? "card.restore" : "card.slay",
                 { deckId: managedDeck.id, cardId: card.id },
                 async (result) => {
@@ -210,7 +210,7 @@ export default function Manage({
                 },
               )}>{slainView ? ui("恢复原题组") : ui("斩")}</Button>
               <Button
-                disabled={busy || slainView}
+                disabled={slainView} lock={busy}
                 onClick={() =>
                   act(
                     "card.suspend",
@@ -230,7 +230,7 @@ export default function Manage({
               </Button>
               {card.flag && (
                 <Button
-                  disabled={busy}
+                  lock={busy}
                   onClick={() =>
                     act(
                       "card.flag",

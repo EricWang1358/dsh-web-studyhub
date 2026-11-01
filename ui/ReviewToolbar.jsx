@@ -54,7 +54,7 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
         <Menu label={ui("更多")} items={more.map(({ run: _run, ...item }) => item)} defaultOpen={moreDefaultOpen}
           onSelect={(id) => more.find((item) => item.id === id)?.run?.()}
           trigger={({ props, ref }) => <Button ref={ref} variant="quiet" className="tool-action review-more-trigger" {...props}>{ui("更多")}</Button>} />
-        <Button size="sm" data-usage="review.prev" disabled={busy || run.index === 0} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
+        <Button size="sm" data-usage="review.prev" disabled={run.index === 0} lock={busy} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: -1 })}>{ui("上一题")}</Button>
         <Button variant="primary" size="sm" data-usage="review.next" disabled={nextBlocked}
           aria-describedby={needsAnswer && !busy ? NEXT_HINT_ID : undefined}

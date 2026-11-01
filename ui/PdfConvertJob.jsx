@@ -333,7 +333,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
           {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
             <Button variant="primary" size="sm" busy={busy} disabled={!!working} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
           </Tooltip>}
-          {status !== 'running' && <Button variant="link" size="sm" disabled={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
+          {status !== 'running' && <Button variant="link" size="sm" lock={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
         </div>
       </JobRow>
     </li>
@@ -417,7 +417,7 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
     </div>}
     {list.length > 0 && <div className="pdf-history__bar">
       <small>{uiFormat('{0} 条记录 · 保留最近 50 条，以及 90 天内的所有记录。删除记录不会删除已导入的资料。', [list.length])}</small>
-      {deletable.length > 0 && <Button variant="quiet" size="sm" disabled={!!working} onClick={clear}>{ui('清空历史')}</Button>}
+      {deletable.length > 0 && <Button variant="quiet" size="sm" lock={!!working} onClick={clear}>{ui('清空历史')}</Button>}
     </div>}
     {problem && <InlineMessage tone="error">{uiFormat('没能完成：{0}', [problem])}</InlineMessage>}
     {groups.map(group => <div className="pdf-history__group" key={group.key}>

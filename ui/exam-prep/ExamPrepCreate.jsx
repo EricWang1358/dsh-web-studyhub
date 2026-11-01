@@ -105,7 +105,7 @@ export default function ExamPrepCreate({ data, initial, initialMore, onBack, onS
           {pool.length > 0 && counts['past-paper'] === 0 && (
             <p className="exam-prep-docs__none">
               {noPaperWords()}
-              {openImport && <>{' '}<Button variant="link" size="sm" disabled={busy} onClick={() => importAs('past-paper')}>{ui('导入样卷')}</Button></>}
+              {openImport && <>{' '}<Button variant="link" size="sm" lock={busy} onClick={() => importAs('past-paper')}>{ui('导入样卷')}</Button></>}
             </p>
           )}
           {pool.length ? (
@@ -115,7 +115,7 @@ export default function ExamPrepCreate({ data, initial, initialMore, onBack, onS
           ) : (
             <p className="exam-prep-docs__empty">
               {ui('这里还没有可用的资料，先导入课件。')}
-              {openImport && <>{' '}<Button variant="link" size="sm" disabled={busy} onClick={() => importAs('lecture')}>{ui('添加资料')}</Button></>}
+              {openImport && <>{' '}<Button variant="link" size="sm" lock={busy} onClick={() => importAs('lecture')}>{ui('添加资料')}</Button></>}
             </p>
           )}
         </section>

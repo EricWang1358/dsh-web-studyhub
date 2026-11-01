@@ -22,7 +22,7 @@ export function Adjustment({ plan, onClose }) {
       <label className="daily-plan__minutes">{ui('只调整今天')}<input type="number" min="0" max="240" value={minutes}
         placeholder={String(budgetMinutes)} disabled={!!plan.busy} onChange={event => setMinutes(event.target.value)} /><span>{ui('分钟')}</span></label>
       <div className="daily-plan__actions"><Button type="submit" busy={plan.busy === 'suggest'} disabled={!!plan.busy || (minutes !== '' && !validMinutes(minutes))}>
-        {ui('按我的意见重新建议')}</Button><Button variant="quiet" disabled={!!plan.busy} onClick={onClose}>{ui('取消')}</Button></div>
+        {ui('按我的意见重新建议')}</Button><Button variant="quiet" lock={!!plan.busy} onClick={onClose}>{ui('取消')}</Button></div>
     </div>
     <p className="daily-plan__footnote">{ui('今天的调整不会改变长期习惯。只发送内容标题和进度摘要，不发送资料全文。')}</p>
   </form>;
@@ -48,7 +48,7 @@ export function Profile({ plan, onClose }) {
     {(profile.observedWeekdayMinutes !== undefined || profile.observedWeekendMinutes !== undefined) &&
       <p className="daily-plan__footnote">{uiFormat('根据已完成日的记录：工作日约 {0} 分钟，周末约 {1} 分钟。可以据此调整，系统不会自动覆盖。',
         [profile.observedWeekdayMinutes ?? '—', profile.observedWeekendMinutes ?? '—'])}</p>}
-    <div className="daily-plan__actions"><Button type="submit" disabled={!validMinutes(weekday) || !validMinutes(weekend) || !!plan.busy}>
-      {ui('保存长期习惯')}</Button><Button variant="quiet" disabled={!!plan.busy} onClick={onClose}>{ui('取消')}</Button></div>
+    <div className="daily-plan__actions"><Button type="submit" disabled={!validMinutes(weekday) || !validMinutes(weekend)} lock={!!plan.busy}>
+      {ui('保存长期习惯')}</Button><Button variant="quiet" lock={!!plan.busy} onClick={onClose}>{ui('取消')}</Button></div>
   </form>;
 }

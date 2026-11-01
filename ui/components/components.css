@@ -23,6 +23,7 @@
     }
     .sh-icon { flex: none; }
     .sh-spinner {
+      box-sizing: border-box;
       flex: none;
       width: 1em;
       height: 1em;
@@ -144,6 +145,24 @@
       padding: 0;
     }
     .sh-btn--icon.sh-btn--sm { width: var(--control-h-sm, 32px); }
+    .sh-btn:not(.sh-btn--spin-over) > .sh-spinner { width: 18px; height: 18px; }
+    .sh-btn--sm:not(.sh-btn--spin-over) > .sh-spinner { width: 16px; height: 16px; }
+    /* An icon-less busy button centers the spinner over its own invisible label so its width and height never jump. */
+    .sh-btn[aria-busy="true"].sh-btn--spin-over {
+      position: relative;
+      color: transparent;
+      text-decoration: none;
+      transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+    }
+    .sh-btn--spin-over > :not(.sh-spinner) { color: transparent; text-decoration: none; }
+    .sh-btn--spin-over > .sh-spinner {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      color: var(--text-faint);
+    }
+    .sh-btn--primary.sh-btn--spin-over > .sh-spinner { color: var(--accent-ink); }
+    .sh-btn--danger.sh-btn--spin-over > .sh-spinner { color: var(--bad); }
     /* ── Segmented control ──────────────────────────────────────────────── */
     /* The active fill lives on the item until the script measures the thumb
        (data-thumb="on"); then the thumb slides and the item fill goes away. */
@@ -189,7 +208,7 @@
       border: 1px solid transparent;
       border-radius: calc(var(--radius-sm) + var(--radius-xs) - var(--space-1) - var(--hairline));
       background: transparent;
-      color: var(--text-muted);
+      color: var(--text-dim);
       font: inherit;
       font-size: var(--fs-sm);
       font-weight: var(--fw-strong);
@@ -219,7 +238,14 @@
       outline-offset: 1px;
     }
     .sh-seg__item:not(.is-active):focus-visible { box-shadow: var(--ring); }
-    .sh-seg__item:disabled { opacity: 0.4; }
+    /* Disabled segments step clearly below enabled inactive choices (--text-dim) without fading opacity or shifting width. */
+    .sh-seg__item:disabled { color: color-mix(in srgb, var(--text-faint) 52%, transparent); cursor: default; }
+    .sh-seg:has(> .sh-seg__item.is-active:disabled) > .sh-seg__thumb,
+    .sh-seg:not([data-thumb="on"]) > .sh-seg__item.is-active:disabled {
+      background: color-mix(in srgb, var(--text) 6%, transparent);
+      border-color: var(--line);
+      box-shadow: none;
+    }
     .sh-seg--sm .sh-seg__item { min-height: 28px; padding: var(--space-half) var(--space-2-5); }
     /* Helper text that explains the selected segment, on its own line below the row. */
     .sh-seg-note { display: block; margin-top: var(--space-2); }

@@ -25,7 +25,7 @@ export function ParallelButton({ task }) {
   }
   return (
     <Tooltip layer placement="bottom-end" content={<Explain {...askTip(requeued)} />}>
-      <Button size="sm" disabled={core.busy} data-parallel="ask"
+      <Button size="sm" lock={core.busy} data-parallel="ask"
         onClick={() => core.act('job.parallel', { jobId: contractOf(task).jobId }, () => core.notify?.(ui('已要求并行：这个任务现在就开始。')))}>{ui('要求并行')}</Button>
     </Tooltip>
   );

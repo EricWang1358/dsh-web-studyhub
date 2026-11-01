@@ -98,7 +98,7 @@ function Step({ step, index, setup, on, next, onLater }) {
       </div>
       {!done && (
         <div className="setup-actions">
-          <Button size="sm" variant="secondary" disabled={busy || action.disabled} onClick={action.run}>{action.label}</Button>
+          <Button size="sm" variant="secondary" disabled={action.disabled} lock={busy} onClick={action.run}>{action.label}</Button>
           <Button size="sm" variant="link" onClick={() => onLater(step.id)}>{ui("稍后")}</Button>
         </div>
       )}

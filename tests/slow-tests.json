@@ -3,6 +3,7 @@
     "tests/answer-card-browser.test.mjs",
     "tests/book-entry-browser.test.mjs",
     "tests/book-send-to-chat-browser.test.mjs",
+    "tests/busy-lock-browser.test.mjs",
     "tests/calculation-guidance-browser.test.mjs",
     "tests/convert-edit-browser.test.mjs",
     "tests/course-book-ai-browser.test.mjs",

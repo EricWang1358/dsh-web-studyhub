@@ -540,9 +540,9 @@ export default function ImportHub({
           <input ref={pdfPicker} type="file" accept=".pdf,application/pdf" className="sh-visually-hidden" tabIndex={-1} aria-hidden="true"
             onChange={event => { const chosen = event.target.files?.[0]; event.target.value = ''; if (chosen) { setConversionFile(chosen); setConversionOpen(true); } }} />
           <div className="import-hub__converter-actions">
-            <Button size="sm" icon="upload" disabled={busy || running || !convertible} data-tour="import-mineru" onClick={() => pdfPicker.current?.click()}>{ui('选择 PDF 解析…')}</Button>
-            <Button variant="link" size="sm" disabled={busy || running || !convertible} onClick={() => { setConversionHistory(true); setConversionOpen(true); }}>{ui('解析历史')}</Button>
-            {onOpenSettings && convertible && <Button variant="link" size="sm" disabled={busy || running} onClick={() => settingsFor('settings-mineru')}>{ui('前往设置')}</Button>}
+            <Button size="sm" icon="upload" disabled={!convertible} lock={busy || running} data-tour="import-mineru" onClick={() => pdfPicker.current?.click()}>{ui('选择 PDF 解析…')}</Button>
+            <Button variant="link" size="sm" disabled={!convertible} lock={busy || running} onClick={() => { setConversionHistory(true); setConversionOpen(true); }}>{ui('解析历史')}</Button>
+            {onOpenSettings && convertible && <Button variant="link" size="sm" lock={busy || running} onClick={() => settingsFor('settings-mineru')}>{ui('前往设置')}</Button>}
           </div>
         </Disclosure>}
         {!items.length && !conversionOpen && <p className="import-hub__routes">{audioOn

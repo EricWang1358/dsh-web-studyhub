@@ -89,7 +89,7 @@ function ModelBody({ step, on }) {
           <li key={index}>
             <span className="frl-setup__num" aria-hidden="true">{index + 1}</span>
             <span className="frl-setup__text">{item.text}
-              {item.choose && on.openModelSettings && <>{' '}<Button variant="link" size="sm" className="first-run__link" disabled={busy} onClick={on.openModelSettings}>{settingsLabel}</Button></>}
+              {item.choose && on.openModelSettings && <>{' '}<Button variant="link" size="sm" className="first-run__link" lock={busy} onClick={on.openModelSettings}>{settingsLabel}</Button></>}
               {item.hint && <span className="frl-setup__hint">{item.hint}</span>}
             </span>
           </li>
@@ -109,7 +109,7 @@ function MaterialBody({ on }) {
     <>
       <p className="frl-body__text">{ui('PDF、Word、PowerPoint、Markdown、保存下来的网页文件（.html）或文本都可以，原文件会保留。添加后就能用它出题。')}</p>
       {on.importFirst && <div className="frl-body__actions">
-        <Button variant="primary" icon="upload" disabled={busy} data-first-run="import" onClick={on.importFirst}>{ui('添加资料')}</Button>
+        <Button variant="primary" icon="upload" lock={busy} data-first-run="import" onClick={on.importFirst}>{ui('添加资料')}</Button>
       </div>}
     </>
   );
@@ -145,7 +145,7 @@ function DeckBody({ step, on, jobs, plan }) {
     <>
       <p className="frl-body__text">{ui('已出的题都在草稿里。打开草稿能看到还差什么，也能从那里接着出。')}</p>
       {on.openDraft && <div className="frl-body__actions">
-        <Button variant="primary" iconEnd="arrow-right" disabled={busy} data-first-run="review" onClick={() => on.openDraft(draft)}>{ui('检查草稿')}</Button>
+        <Button variant="primary" iconEnd="arrow-right" lock={busy} data-first-run="review" onClick={() => on.openDraft(draft)}>{ui('检查草稿')}</Button>
       </div>}
     </>
   );
@@ -159,8 +159,8 @@ function DeckBody({ step, on, jobs, plan }) {
     <>
       <p className="frl-body__text">{ui('出题时已逐题审阅；发布时会再检查一遍题目的结构，然后直接开始练第一轮。')}</p>
       <div className="frl-body__actions">
-        {on.publish && <Button variant="primary" iconEnd="arrow-right" disabled={busy} data-first-run="publish" onClick={() => on.publish(draft)}>{ui('发布并开始练')}</Button>}
-        {on.openDraft && <Button variant="link" className="first-run__link" disabled={busy} data-first-run="look" onClick={() => on.openDraft(draft)}>{ui('先看看草稿')}</Button>}
+        {on.publish && <Button variant="primary" iconEnd="arrow-right" lock={busy} data-first-run="publish" onClick={() => on.publish(draft)}>{ui('发布并开始练')}</Button>}
+        {on.openDraft && <Button variant="link" className="first-run__link" lock={busy} data-first-run="look" onClick={() => on.openDraft(draft)}>{ui('先看看草稿')}</Button>}
       </div>
     </>
   );
@@ -168,7 +168,7 @@ function DeckBody({ step, on, jobs, plan }) {
     <>
       <p className="frl-body__text">{ui('发布前先在草稿页看一遍：每道题都能修改，看完点「发布并开始练 →」。')}</p>
       {on.openDraft && <div className="frl-body__actions">
-        <Button variant="primary" iconEnd="arrow-right" disabled={busy} data-first-run="review" onClick={() => on.openDraft(draft)}>{ui('检查草稿')}</Button>
+        <Button variant="primary" iconEnd="arrow-right" lock={busy} data-first-run="review" onClick={() => on.openDraft(draft)}>{ui('检查草稿')}</Button>
       </div>}
     </>
   );
@@ -179,9 +179,9 @@ function DeckBody({ step, on, jobs, plan }) {
       <p className="frl-body__text">{ui('出题时会逐题核对原文、审阅，出好的题先放进草稿。')}</p>
       {plan && !blocked && <DeckPlan plan={plan} />}
       {(on.generate || on.tune) && <div className="frl-body__actions">
-        {on.generate && <Button variant="primary" iconEnd="arrow-right" disabled={busy || !!blocked} data-first-run="generate" data-usage="first-run.generate"
+        {on.generate && <Button variant="primary" iconEnd="arrow-right" disabled={!!blocked} lock={busy} data-first-run="generate" data-usage="first-run.generate"
           onClick={() => on.generate(step.sourceIds)}>{ui('出第一组题')}</Button>}
-        {on.tune && <Button variant="link" className="first-run__link" disabled={busy} data-first-run="tune" onClick={() => on.tune(step.sourceIds)}>{ui('改题型和题数')}</Button>}
+        {on.tune && <Button variant="link" className="first-run__link" lock={busy} data-first-run="tune" onClick={() => on.tune(step.sourceIds)}>{ui('改题型和题数')}</Button>}
       </div>}
       {blocked && on.generate && <Hint data-first-run="blocked">{blocked}</Hint>}
     </>
@@ -209,7 +209,7 @@ function CompactBlocked({ reason, sourceIds, on }) {
   return (
     <div className="frl-compact-plan frl-compact-plan--blocked">
       <p className="frl-compact-plan__reason" data-first-run="blocked">{reason}</p>
-      {on.tune && <Button variant="link" size="sm" className="first-run__link frl-compact-plan__tune" disabled={busy} data-first-run="tune"
+      {on.tune && <Button variant="link" size="sm" className="first-run__link frl-compact-plan__tune" lock={busy} data-first-run="tune"
         onClick={() => on.tune(sourceIds)}>{ui('改题型和题数')}</Button>}
     </div>
   );
@@ -218,8 +218,8 @@ function CompactBlocked({ reason, sourceIds, on }) {
 /** A quiet link on a closed row: the second step is never locked (a material can come before the model), and an added one can have a second. */
 function RowLink({ step, on }) {
   const { busy } = useStudy();
-  if (step.status === 'todo' && on.importFirst) return <Button variant="link" size="sm" className="frl-row-link first-run__link" disabled={busy} onClick={on.importFirst}>{ui('添加资料')}</Button>;
-  if (step.status === 'done' && on.importMore) return <Button variant="link" size="sm" className="frl-row-link first-run__link" disabled={busy} data-first-run="more" onClick={() => on.importMore(step.sourceIds)}>{ui('再加一份')}</Button>;
+  if (step.status === 'todo' && on.importFirst) return <Button variant="link" size="sm" className="frl-row-link first-run__link" lock={busy} onClick={on.importFirst}>{ui('添加资料')}</Button>;
+  if (step.status === 'done' && on.importMore) return <Button variant="link" size="sm" className="frl-row-link first-run__link" lock={busy} data-first-run="more" onClick={() => on.importMore(step.sourceIds)}>{ui('再加一份')}</Button>;
   return null;
 }
 
@@ -267,7 +267,7 @@ export default function FirstRunLine({ line, form = 'page', sample, todayLabel, 
         </div>
         <Steps line={line} on={on} compact />
         {planned && (action?.blocked ? <CompactBlocked reason={action.blocked} sourceIds={deck.sourceIds} on={on} /> : <CompactPlan plan={plan} />)}
-        {action && <Button variant="primary" className="today-go" iconEnd="arrow-right" disabled={busy || !!action.blocked} data-usage="home.start" onClick={action.run}>{action.label}</Button>}
+        {action && <Button variant="primary" className="today-go" iconEnd="arrow-right" disabled={!!action.blocked} lock={busy} data-usage="home.start" onClick={action.run}>{action.label}</Button>}
       </div>
     );
   }

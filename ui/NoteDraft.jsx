@@ -14,7 +14,7 @@ export default function NoteDraft({ note, model, running = false, disabled = fal
   return (
     <section className="note-draft" aria-label={ui('AI 起草')} data-running={running || undefined}>
       <div className="note-draft__row">
-        <Button variant="primary" icon="sparkle" disabled={disabled || running || !model?.ready} onClick={onStart}>{ui('AI 起草解析')}</Button>
+        <Button variant="primary" icon="sparkle" disabled={disabled || !model?.ready} lock={running} onClick={onStart}>{ui('AI 起草解析')}</Button>
         {model?.ready && !running && <TokenEstimate request={{ feature: 'note', id: note.id }} />}
       </div>
       {running

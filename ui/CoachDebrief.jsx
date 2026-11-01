@@ -156,7 +156,7 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
         {action && !back && (!nextShown || suggestion) && (
           <Button
             variant={quiet ? "secondary" : "primary"}
-            disabled={busy}
+            lock={busy}
             onClick={() => {
               cancelled.current = true;
               action();
@@ -177,8 +177,8 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
         <div className="coach-card coach-consent">
           <p>{ui("要给你备几道变式题和应用场景题吗？开启时会从最近的错题中选最多 4 道备题；之后点「生成变式」或标记「太简单 / 太难」时，也会在后台少量调用模型备题。本轮回顾发现还缺应用练习时，也会准备应用题。")}</p>
           <div className="coach-options">
-            <Button size="sm" disabled={consent.busy} onClick={() => answerConsent(true)}>{ui("好，帮我备题")}</Button>
-            <Button variant="quiet" size="sm" disabled={consent.busy} onClick={() => answerConsent(false)}>{ui("先不用")}</Button>
+            <Button size="sm" lock={consent.busy} onClick={() => answerConsent(true)}>{ui("好，帮我备题")}</Button>
+            <Button variant="quiet" size="sm" lock={consent.busy} onClick={() => answerConsent(false)}>{ui("先不用")}</Button>
           </div>
           {consent.error && <ErrorState compact className="coach-consent__problem" error={consent.error} />}
         </div>

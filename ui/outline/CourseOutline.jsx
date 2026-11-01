@@ -227,7 +227,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
         {stale && <p className="outline-book-line__stale" role="status">{stale}</p>}
         {book.from === null && actions.writeBook && <p className="outline-book-line__stale" data-old-outline="">
           <span>{ui('这份总纲是旧版本按资料名整理的，复习全书照旧按它写。')}</span>{' '}
-          <Button size="sm" variant="secondary" icon="refresh" disabled={busy || !model.ready} onClick={() => actions.writeBook(null, REBUILD_OUTLINE)}>{ui('用清点结果重新整理总纲')}</Button>{' '}
+          <Button size="sm" variant="secondary" icon="refresh" disabled={!model.ready} lock={busy} onClick={() => actions.writeBook(null, REBUILD_OUTLINE)}>{ui('用清点结果重新整理总纲')}</Button>{' '}
           <span>{ui('你的笔记会按位置对应过去；没有新知识点占到足够多页的，放进「未归位」。')}</span>
         </p>}
         {book.notes?.levels ? <p className="outline-book-line__coverage" data-book-levels="">{levelsText(book.notes.levels)}</p>
@@ -247,7 +247,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
         {picked ? <span className="outline-bar__count" aria-live="polite">{pickedText(picked.total)}</span> : <LoadingState inline className="outline-bar__count" label={ui('正在计算…')} />}
         {picked?.capped && <small className="outline-bar__note">{cappedText(picked.total, picked.limit)}</small>}
         <Button size="sm" variant="quiet" onClick={actions.clearPick}>{ui('清除')}</Button>
-        <Button size="sm" variant="primary" icon="play" disabled={busy || !picked?.total} onClick={actions.practisePicked}>
+        <Button size="sm" variant="primary" icon="play" disabled={!picked?.total} lock={busy} onClick={actions.practisePicked}>
           {startPickedText(picked ? Math.min(picked.total, picked.limit) : 0)}</Button>
       </div>}
     </section>
