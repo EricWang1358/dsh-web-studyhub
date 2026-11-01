@@ -283,6 +283,10 @@ function disabledExpression(open) {
   return open.slice(from, i - 1);
 }
 const WORKING_WORD = '(?:busy|pending|saving|working|loading|starting|checking|searching|matching|reading|proposing|installing|updating|connecting|running|generating)';
+/* Does a disabled expression wait on a working flag (busy, core.busy, !!pending, saving)? A string literal is not a flag (`status === 'running'`), and a single
+   `!` is not waiting (`!running` is a Stop button, disabled when nothing runs). */
+const FLAG = new RegExp(`(?<![\\w$!.])(?:[\\w$]+\\??\\.)*${WORKING_WORD}(?![\\w$])`);
+const waitsOnFlag = (expression) => FLAG.test(expression.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '""').replace(/!!/g, ''));
 const LABEL_SWAP = new RegExp(`\\b${WORKING_WORD}\\b[\\w.!=\\s&|'"]*\\?\\s*(?:ui|uiFormat)\\(`);
 
 function scanJsxFile(file, source, metrics, found) {
@@ -298,10 +302,8 @@ function scanJsxFile(file, source, metrics, found) {
     let swaps = 0;
     for (const el of buttonElements(text)) if (!/\bbusy=/.test(el.open) && LABEL_SWAP.test(el.body)) swaps++;
     bump('busyLabelSwap', swaps);
-    /* A working word that is not negated: `!running` is a Stop button, not a button that waits. */
-    const waits = new RegExp(`(?<![\\w$.!])${WORKING_WORD}(?![\\w$])`);
     let bare = 0;
-    for (const el of buttonElements(text, 'Button|IconButton|button')) if (!/\b(?:busy|lock)=/.test(el.open) && waits.test(disabledExpression(el.open))) bare++;
+    for (const el of buttonElements(text, 'Button|IconButton|button')) if (!/\b(?:busy|lock)=/.test(el.open) && waitsOnFlag(disabledExpression(el.open))) bare++;
     bump('bareBusyDisabled', bare);
     bump('hostTitle', (text.match(/<(?:span|div|li|small|p|td|th|strong|i|b|time|mark|em|dd|dt|section|article)(?=[\s>])[^>]*\stitle=/g) || []).length);
     bump('rawChoiceInput', (text.match(/\btype=(?:"(?:checkbox|radio)"|'(?:checkbox|radio)'|\{\s*['"](?:checkbox|radio)['"]\s*\})/g) || []).length);
