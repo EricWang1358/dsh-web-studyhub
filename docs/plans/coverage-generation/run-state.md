@@ -78,6 +78,7 @@ A draft has one run. Every save of a run's draft writes `editorial.generation.ru
 - A manifest that is forgotten settles the usage it owes first, through the same ledger call a preflight makes.
 
 Known window: a run killed between its first draft commit and its first checkpoint has no draft in its manifest. If the draft names it, that is enough. If another job has since saved to that draft, nothing links them: the manifest comes back and its retry makes a second draft. It takes a kill in that moment and a direct `generate` on the draft after it; the UI's retry stays the same logical job. Linking them needs a field on the draft or the manifest, so it is not done.
+- Known, to fix before `generationRestart` is turned on: a plain run killed and back with its card, then continued from the draft by a direct `generate`: the old card still offers retry, and pressing it writes a second full draft (7 model calls in the probe). `supersede` misses it because the run has no `coverageRun`; the recovery rule only forgets it at the next restart.
 
 ## Limits
 

@@ -1,1 +1,0 @@
-- **Text in Not placed can be put back with one press.** Each section in Not placed has Put back…: choose a point and the text goes to the end of its notes, its headings and footnotes adjusted, and leaves Not placed; Undo takes both back. The main chat can read Not placed and do the same. Not verified: with a real host or a real chat session; checked on seeded books in Chromium.
