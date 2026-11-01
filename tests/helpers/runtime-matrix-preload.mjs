@@ -7,6 +7,7 @@ import { managedRuntimeOptions } from './runtime-switch.mjs';
 import { MIGRATION_SWITCHES } from '../../lib/runtime-config.js';
 
 const family = process.env.STUDY_RUNTIME_MATRIX;
+globalThis.STUDY_RUNTIME_MATRIX_ON = family;
 const PILOT_PATHS = { generation: ['generation'], generationRestart: ['generation', 'generationRestart'], generationRepair: ['generation', 'generationRepair'],
   generationRepairRestart: ['generation', 'generationRepair', 'generationRestart'],
   generationPublish: ['generation', 'generationPublish'], generationPublishRestart: ['generation', 'generationPublish', 'generationRestart'], audio: ['audioSingle'],

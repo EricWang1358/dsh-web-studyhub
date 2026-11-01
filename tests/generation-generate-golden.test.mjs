@@ -1,7 +1,7 @@
 /* The operation `generate` pinned from the outside before it is split (issue #608): every kind of press the way the UI makes it, with a recording fake model. What is pinned: the model calls in order (stage,
    part, round, a digest of the bytes of system and prompt, the length), the RPC answer, the job card as it was seeded and as it ended, and what the draft says. Ids, times and clock readings are
    marked (tests/helpers/generate-golden.mjs), so what is left is what the code decided. tests/fixtures/generation-generate-golden*.json were recorded from the code before the split and must not move
-   with a refactoring; a deliberate change records again (STUDY_RECORD_GOLDEN=1) and the diff of the file is the review. Run it on the runtime with STUDY_RUNTIME_MATRIX=generation (a fixture of its own). */
+   with a refactoring; a deliberate change records again (STUDY_RECORD_GOLDEN=1) and the diff of the file is the review. Run it on the runtime with STUDY_RUNTIME_MATRIX=generation and --import ./tests/helpers/runtime-matrix-preload.mjs (a fixture of its own). */
 import test from 'node:test';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';

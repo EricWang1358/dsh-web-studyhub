@@ -13,6 +13,8 @@ import { settleJob, until } from './wait.mjs';
    left is what the code decided. One fixture per side of the runtime switch, because a card of the runtime says more than a card of the legacy path; the prompts are the same on both, and the test checks that. */
 
 const family = process.env.STUDY_RUNTIME_MATRIX;
+// Without the preload this runs the legacy path under the runtime's name: it would pass, and recording would write legacy cards into the runtime's fixture.
+if (family && globalThis.STUDY_RUNTIME_MATRIX_ON !== family) throw new Error('STUDY_RUNTIME_MATRIX needs --import ./tests/helpers/runtime-matrix-preload.mjs');
 const FIXTURE = new URL(`../fixtures/generation-generate-golden${family ? `.${family}` : ''}.json`, import.meta.url);
 const recording = process.env.STUDY_RECORD_GOLDEN === '1';
 const golden = recording ? {} : JSON.parse(await readFile(FIXTURE, 'utf8'));
