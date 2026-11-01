@@ -229,3 +229,75 @@ test('course.book.place is listed with its keys and is a write', async t => {
   assert.deepEqual(Object.keys(found.input.properties), ['section', 'toHid', 'version']);
   assert.ok(writesFor('library', 'course.book.place').includes('sources'));
 });
+
+test('undoing course.book.place never loses the placed section when 未归位 was edited after placing or when file history rolled past 20 writes', async t => {
+  // 1) Chat undo and page undo (with structureVersion) after editing unplaced.md: the point reverts, the learner's new words stay, and the section returns to 未归位.
+  for (const pageUndo of [false, true]) {
+    const { study, two } = await parked(t);
+    const open0 = await study.call('course.book.open');
+    await study.call('course.book.save', { file: open0.unplaced.file, text: '### 甲\n\n独一甲文\n\n### 乙\n\n乙文', version: open0.files[open0.unplaced.file].version });
+    const before = await study.call('course.book.open');
+    const placed = await study.call('course.book.place', { section: before.unplaced.sections[0].id, toHid: two.hid, version: before.structureVersion, answer: 'book' });
+    await study.call('course.book.save', { file: placed.unplaced.file, text: `${placed.unplaced.text}\n\n再加一行`, version: placed.files[placed.unplaced.file].version });
+    const undone = await study.call('course.book.revert', { file: STRUCTURE_FILE, ...(pageUndo ? { version: placed.structureVersion } : {}), answer: 'book' });
+    assert.equal(undone.write, 'reverted');
+    assert.equal(undone.nodes[0].children.find(node => node.hid === two.hid).mine, '', 'the target point gave the placed section back');
+    assert.match(undone.unplaced.text, /再加一行/, 'the learner\'s later edit in 未归位 stayed');
+    assert.match(undone.unplaced.text, /独一甲文/, 'the placed section came back to 未归位 instead of vanishing');
+  }
+  // 2) Rolling file history (19 and 20 saves on another point's file): structure undo still preserves the placed text in the book.
+  for (const writes of [19, 20]) {
+    const { study, two, three } = await parked(t);
+    const open0 = await study.call('course.book.open');
+    await study.call('course.book.save', { file: open0.unplaced.file, text: '### 甲\n\n独一甲文\n\n### 乙\n\n乙文', version: open0.files[open0.unplaced.file].version });
+    const before = await study.call('course.book.open');
+    const placed = await study.call('course.book.place', { section: before.unplaced.sections[0].id, toHid: two.hid, version: before.structureVersion, answer: 'book' });
+    const otherFile = placed.nodes[0].children.find(node => node.hid === three.hid).files.mine;
+    let ver = placed.files[otherFile].version;
+    for (let i = 0; i < writes; i += 1) ver = (await study.call('course.book.save', { file: otherFile, text: `第 ${i} 版`, version: ver })).files[otherFile].version;
+    const undone = await study.call('course.book.revert', { file: STRUCTURE_FILE, answer: 'book' });
+    const whole = undone.unplaced.text + undone.nodes[0].children.find(node => node.hid === two.hid).mine;
+    assert.ok(whole.includes('独一甲文'), `after ${writes} writes on another file, undo keeps 独一甲文 in the book`);
+  }
+});
+
+test('placing keeps LaTeX $ titles verbatim, avoids footnote self-collision, carries shared definitions, and distinguishes duplicate/CRLF sections', async t => {
+  assert.equal(unplacedSections('### 甲\r\n\r\n字')[0].id, unplacedSections('### 甲\n\n字')[0].id, 'CRLF and LF hash identically');
+  const dup = unplacedSections('### 同\n\n一样\n\n### 同\n\n一样');
+  assert.equal(dup.length, 2);
+  assert.notEqual(dup[0].id, dup[1].id, 'duplicate sections get distinct ids');
+
+  const { study, two, three } = await parked(t);
+  let book = await study.call('course.book.open');
+  const twoMine = book.nodes[0].children.find(node => node.hid === two.hid).files.mine;
+  await study.call('course.book.save', { file: twoMine, text: '已有[^a]\n\n[^a]: 老注', version: book.files[twoMine].version });
+  await study.call('course.book.save', {
+    file: book.unplaced.file,
+    text: '### 公式 $$E=mc^2$$ 与 $& 尾\n\n甲[^a]与[^a-2]与共用[^1]，`[^a]` 代码\n\n~~~\n[^a]\n~~~\n\n[^a]: 注一\n[^a-2]: 注二\n\n### 乙\n\n乙[^1]\n\n[^1]: 共用注',
+    version: book.files[book.unplaced.file].version,
+  });
+  book = await study.call('course.book.open');
+  const placed = await study.call('course.book.place', { section: book.unplaced.sections[0].id, toHid: two.hid, version: book.structureVersion, answer: 'book' });
+  const target = placed.nodes[0].children.find(node => node.hid === two.hid).mine;
+  assert.match(target, /#### 公式 \$\$E=mc\^2\$\$ 与 \$& 尾 <!-- sh:id h\d+ -->/, '$ patterns in title stay literal');
+  assert.match(target, /甲\[\^a-3\]与\[\^a-2\]与共用\[\^1\]，`\[\^a\]` 代码/, '[^a] skips [^a-2] and inline code stays untouched');
+  assert.match(target, /\[\^a-3\]: 注一\n\[\^a-2\]: 注二/, 'both definitions stay distinct');
+  assert.match(target, /\[\^1\]: 共用注/, 'shared footnote definition is copied along');
+  assert.match(placed.unplaced.text, /乙\[\^1\][\s\S]*\[\^1\]: 共用注/, 'shared footnote definition also stays for 乙 in 未归位');
+  void three;
+});
+
+test('book.read {hid: "unplaced"} stays under the 8 000-character budget and supports heading jumps', async t => {
+  const { study } = await parked(t);
+  const open0 = await study.call('course.book.open');
+  const heavy = Array.from({ length: 40 }, (_, i) => `### 段 ${i} ${'题'.repeat(55)}\n\n${'\n'.repeat(20)}${'"\\'.repeat(30)}`).join('\n\n');
+  await study.call('course.book.save', { file: open0.unplaced.file, text: heavy, version: open0.files[open0.unplaced.file].version });
+  const first = await study.call('book.read', { hid: 'unplaced' });
+  assert.ok(JSON.stringify(first).length < 8000, `JSON size ${JSON.stringify(first).length} stays under 8000`);
+  assert.equal(first.sectionsTotal, 40);
+  const jumped = await study.call('book.read', { hid: 'unplaced', heading: '段 38 ' + '题'.repeat(55) });
+  assert.match(jumped.files.unplaced.text, /^### 段 38 /);
+  assert.ok(jumped.sections.some(section => section.title.startsWith('段 38 ')), 'sections follow the read offset');
+  assert.equal(await codeOf(study.call('book.read', { hid: 'unplaced', heading: '不存在' })), 'book-section-missing');
+  assert.equal(await codeOf(study.call('book.read', { hid: 'unplaced', heading: '段 1', offset: 10 })), 'book-read-heading-offset');
+});
