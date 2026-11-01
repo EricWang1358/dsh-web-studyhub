@@ -55,6 +55,16 @@ The code is `transitionRunState` in `lib/contexts/generation/run-state.js`. This
 | `fill-append` | anything | a new `pending` fill round at the end |
 | `recover` | anything; running it twice equals running it once | every `running` round is `pending` again, and what its pass was asked for is owed again |
 
+## A run that lost only its closing write
+
+Every section has its question, but the draft still says `running` or `paused`. The run comes back as interrupted, because reading the job list never writes. 接着做 then closes it with one write of the draft and no model call (`closeRun`, `run-close.js`). A run on the runtime whose draft already says `complete` has its manifest forgotten, so it does not come back at all.
+
+## Limits
+
+- A pass cut in the middle may have covered a section with fewer questions than its quota. A section that has a question is not asked for again, so the finished draft can be a little short of the goal with every section covered.
+- Before its first draft a run is lost on the legacy path and with `generation` alone: nothing was written. Behind `generationRestart` it comes back, because the manifest holds the request.
+- A run on the runtime cannot be paused (declared unsupported in S3-2), so only the legacy path leaves a draft `paused`.
+
 ## What stays true on disk
 
 - Same fields as v4.1.0: no store version change and no new field. `tests/generation-run-corpus.test.mjs` runs drafts written by v4.1.0 through the code and checks the field names.

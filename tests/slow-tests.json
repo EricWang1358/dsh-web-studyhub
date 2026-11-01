@@ -106,6 +106,7 @@
     "tests/documents.test.mjs",
     "tests/exam-blueprint-material.test.mjs",
     "tests/extract-release.test.mjs",
+    "tests/generation-run-crash.test.mjs",
     "tests/groq-split.test.mjs",
     "tests/jev-eval-replace.test.mjs",
     "tests/jev-eval.test.mjs",
