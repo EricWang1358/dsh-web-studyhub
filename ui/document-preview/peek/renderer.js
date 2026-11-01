@@ -26,7 +26,19 @@ export const isCancelled = error => error?.name === 'RenderingCancelledException
  * deps (tests): { pdfjs, loaders } stand in for pdf.js and for the wasm/CMap/font chunks.
  */
 export async function createPeekRenderer(bytes, deps = {}) {
-  const BinaryDataFactory = createBinaryDataFactory(deps.loaders || peekAssetLoaders);
+  const rawLoaders = deps.loaders || peekAssetLoaders;
+  let assetClock = 0, assetActive = 0;
+  const timedLoaders = {};
+  for (const type of ['wasm', 'cmap', 'font']) {
+    timedLoaders[type] = async request => {
+      if (!rawLoaders[type]) return undefined;
+      const started = performance.now();
+      assetActive += 1;
+      try { return await rawLoaders[type](request); }
+      finally { assetActive -= 1; assetClock += Math.max(0, performance.now() - started); }
+    };
+  }
+  const BinaryDataFactory = createBinaryDataFactory(timedLoaders);
   const task = (deps.pdfjs || loadPdfjs()).getDocument(peekDocumentOptions(bytes, BinaryDataFactory));
   let doc;
   try { doc = await task.promise; }
@@ -34,6 +46,8 @@ export async function createPeekRenderer(bytes, deps = {}) {
   const sizes = new Map();
   return {
     numPages: doc.numPages,
+    cachedPageSize(number) { return sizes.get(number) || null; },
+    assetStats() { return { totalMs: assetClock, active: assetActive }; },
     async pageSize(number) {
       if (!sizes.has(number)) {
         const page = await doc.getPage(number);
@@ -48,6 +62,7 @@ export async function createPeekRenderer(bytes, deps = {}) {
       try {
         signal?.throwIfAborted();
         const unit = page.getViewport({ scale: 1 });
+        sizes.set(number, { width: unit.width, height: unit.height });
         const size = peekCanvasSize({ width: unit.width, height: unit.height, scale });
         const canvas = document.createElement('canvas');
         canvas.width = size.width; canvas.height = size.height;
@@ -63,16 +78,20 @@ export async function createPeekRenderer(bytes, deps = {}) {
       } finally { page.cleanup(); }
     },
     /* The words of a page over its picture, so they can be selected (原始 PDF, PdfPageView.jsx): `container` is emptied and filled when this is still the current turn. -> the layer, with cancel(). */
-    async textLayer(number, { scale, container, current = () => true }) {
+    async textLayer(number, { scale, container, signal, current = () => true }) {
       const page = await doc.getPage(number), viewport = page.getViewport({ scale });
-      if (!current()) return null;
-      const next = document.createElement('div');
-      next.style.setProperty('--total-scale-factor', String(scale));
-      next.className = 'reader-pdf-text__page';
-      const layer = new pdfjs.TextLayer({ textContentSource: page.streamTextContent({ disableNormalization: true }), container: next, viewport });
-      await layer.render();
-      if (current()) container.replaceChildren(next);
-      return layer;
+      try {
+        if (signal?.aborted || !current()) return null;
+        const next = document.createElement('div');
+        next.style.setProperty('--total-scale-factor', String(scale));
+        next.className = 'reader-pdf-text__page';
+        const layer = new pdfjs.TextLayer({ textContentSource: page.streamTextContent({ disableNormalization: true }), container: next, viewport });
+        const cancel = () => layer.cancel();
+        signal?.addEventListener('abort', cancel, { once: true });
+        try { await layer.render(); } finally { signal?.removeEventListener('abort', cancel); }
+        if (!signal?.aborted && current()) container.replaceChildren(next);
+        return layer;
+      } finally { page.cleanup(); }
     },
     async destroy() { sizes.clear(); try { await task.destroy(); } catch { /* already gone */ } },
   };

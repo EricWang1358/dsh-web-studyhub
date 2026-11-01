@@ -123,6 +123,96 @@ test('原始 PDF: turning the page keeps the view, the zoom and the sideways pla
     assert.equal(await bar.getByRole('button', { name: '回到单页视图' }).count(), 0, 'no way back to a view that cannot draw it');
     assert.deepEqual(pageErrors, []);
     await context.close();
+
+    await t.test('rapidly turning 8 pages coalesces intermediate turns instead of rendering all 8 pages', async () => {
+      const rapid = await openPage(browser, running, { width: 1440, height: 900 });
+      const rapidErrors = [];
+      rapid.page.on('pageerror', error => rapidErrors.push(String(error)));
+      try {
+        const rapidView = rapid.page.locator('.reader-pdf-view');
+        await rapid.page.goto(running.server.url);
+        await rapid.page.locator('[data-tour="nav-sources"]').first().click().catch(() => {});
+        await rapid.page.locator('.source-doc', { hasText: 'Lecture' }).first().locator('.source-main').click();
+        await rapid.page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
+        await rapid.page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+        await until(async () => (await rapidView.getAttribute('data-pdf-page').catch(() => '')) === '1'
+          && /Page 1 explains/.test(await rapidView.locator('.reader-pdf-text').innerText().catch(() => '')), 'page 1 before burst');
+        await rapid.page.evaluate(() => {
+          const real = window.createImageBitmap.bind(window);
+          const state = { bitmaps: 0, painted: [] };
+          window.__pdfBurst = state;
+          window.createImageBitmap = (...args) => { state.bitmaps += 1; return real(...args); };
+          const target = document.querySelector('.reader-pdf-view');
+          new window.MutationObserver(() => state.painted.push(target.dataset.pdfPage)).observe(target, { attributes: true, attributeFilter: ['data-pdf-page'] });
+        });
+        await rapidView.focus();
+        for (let i = 0; i < 8; i += 1) {
+          await rapid.page.keyboard.press('PageDown');
+          await new Promise(resolve => setTimeout(resolve, 60));
+        }
+        await until(async () => (await rapidView.getAttribute('data-pdf-page')) === '9'
+          && /Page 9 explains/.test(await rapidView.locator('.reader-pdf-text').innerText().catch(() => '')), 'final page 9 after 8 PageDown presses');
+        const burst = await rapid.page.evaluate(() => window.__pdfBurst);
+        assert.ok(burst.bitmaps <= 2, `rapid 8-page burst should execute at most 2 renders, got ${burst.bitmaps} (painted: ${burst.painted.join(',')})`);
+        assert.ok(burst.painted.length <= 2 && burst.painted.at(-1) === '9', `intermediate pages should be skipped, got painted=${burst.painted.join(',')}`);
+        assert.deepEqual(rapidErrors, []);
+      } finally {
+        await rapid.context.close();
+      }
+    });
+
+    await t.test('a heavy page render that exceeds the single-page budget switches to the browser viewer and keeps the manual toggle', async () => {
+      const slow = await openPage(browser, running, { width: 1440, height: 900 });
+      const slowErrors = [];
+      slow.page.on('pageerror', error => slowErrors.push(String(error)));
+      try {
+        await slow.page.addInitScript(() => {
+          const real = window.createImageBitmap.bind(window);
+          window.createImageBitmap = async (...args) => {
+            const untilMs = performance.now() + 1350;
+            while (performance.now() < untilMs) { /* simulate synchronous wasm JPX decode blocking main thread */ }
+            return real(...args);
+          };
+        });
+        await slow.page.goto(running.server.url);
+        await slow.page.locator('[data-tour="nav-sources"]').first().click().catch(() => {});
+        await slow.page.locator('.source-doc', { hasText: 'Lecture' }).first().locator('.source-main').click();
+        await slow.page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
+        await slow.page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+        await slow.page.locator('.reader-original iframe').waitFor({ timeout: 5000 });
+        assert.match(await slow.page.locator('.reader-original iframe').getAttribute('src'), /#page=1$/);
+        assert.match(await slow.page.locator('.reader-original').innerText(), /这份文件单页绘制太慢，已换成浏览器的查看器，避免翻页卡顿。/);
+        const toggle = slow.page.locator('.reader-pdf-bar').getByRole('button', { name: '回到单页视图' });
+        assert.equal(await toggle.count(), 1, 'manual toggle back to single-page view remains available');
+        await toggle.click();
+        await slow.page.locator('.reader-pdf-view').waitFor({ timeout: 10000 });
+        await until(async () => /Page 1 explains/.test(await slow.page.locator('.reader-pdf-view .reader-pdf-text').innerText().catch(() => '')), 'manual opt-in stays on single-page view');
+        assert.equal(await slow.page.locator('.reader-original iframe').count(), 0, 'explicitly returning to single-page view does not immediately bounce back');
+        assert.deepEqual(slowErrors, []);
+      } finally {
+        await slow.context.close();
+      }
+    });
+
+    await t.test('a page render that stalls switches to the browser viewer within the budget instead of hanging', async () => {
+      const stalled = await openPage(browser, running, { width: 1440, height: 900 });
+      const stalledErrors = [];
+      stalled.page.on('pageerror', error => stalledErrors.push(String(error)));
+      try {
+        await stalled.page.addInitScript(() => { window.createImageBitmap = () => new Promise(() => {}); });
+        await stalled.page.goto(running.server.url);
+        await stalled.page.locator('[data-tour="nav-sources"]').first().click().catch(() => {});
+        await stalled.page.locator('.source-doc', { hasText: 'Lecture' }).first().locator('.source-main').click();
+        await stalled.page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
+        await stalled.page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+        await stalled.page.locator('.reader-original iframe').waitFor({ timeout: 5000 });
+        assert.match(await stalled.page.locator('.reader-original').innerText(), /这份文件单页绘制太慢，已换成浏览器的查看器，避免翻页卡顿。/);
+        assert.equal(await stalled.page.locator('.reader-pdf-bar').getByRole('button', { name: '回到单页视图' }).count(), 1);
+        assert.deepEqual(stalledErrors, []);
+      } finally {
+        await stalled.context.close();
+      }
+    });
   } finally {
     await browser.close();
     await running.close?.();

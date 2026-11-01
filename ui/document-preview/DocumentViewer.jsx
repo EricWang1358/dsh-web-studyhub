@@ -136,6 +136,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useEffect(() => {
     let current = true, objectUrl = '';
     setLoading(true); setError(''); setDocument(null); setContent(''); setFileUrl(''); setCapture(null);
+    setPdfView(previous => previous.slow || previous.keepSinglePage ? { zoom: previous.zoom, native: false, slow: false, keepSinglePage: false } : previous);
     setLinks([]);
     if (localMode) { setLoading(false); return undefined; }
     (async () => {

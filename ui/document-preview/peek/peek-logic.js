@@ -8,8 +8,18 @@ import { issueOf } from '../original-file.js';
 export const MAX_EDGE = 2000;
 /** How many page bitmaps are kept for going back and forth. */
 export const MAX_CACHED_PAGES = 6;
+/** How long rapid page or zoom changes in 原始 PDF wait before starting an uncached render (ms). */
+export const TURN_COALESCE_MS = 160;
+/** Single-page render budget in 原始 PDF (ms, asset fetch excluded); slower files fall back to the browser's viewer. */
+export const SLOW_PAGE_MS = 1200;
 /** Zoom as a factor of "fit to the width of the panel". */
 export const ZOOMS = [0.5, 0.75, 1, 1.5, 2, 3];
+
+/** True when a single-page render took at least `budgetMs` of work (`assetMs` chunk-fetch wait and hidden tabs excluded). */
+export function exceedsPageBudget({ elapsedMs, assetMs = 0, budgetMs = SLOW_PAGE_MS, hidden = false }) {
+  if (hidden || !(budgetMs > 0) || !Number.isFinite(budgetMs)) return false;
+  return Math.max(0, elapsedMs - Math.max(0, assetMs)) >= budgetMs;
+}
 
 /** The next zoom step up (+1) or down (-1); an odd value moves to the neighbouring step, and the ends stay. */
 export function stepZoom(zoom, direction) {

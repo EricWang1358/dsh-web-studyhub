@@ -61,7 +61,8 @@ export async function runPageAskQa(options) {
     const kept = async () => (await previewCall(server, "materials.annotation.list", { documentId: SEEDED.documentId })).items?.length || 0;
     const frameAt = async () => `#page=${await viewer.locator(".reader-pdf-view").getAttribute("data-pdf-page")}`;
     const expectPage = async (number) => {
-      await page.waitForFunction(([want, zh]) => (document.querySelector(".study-page-ask__scope")?.textContent || "").includes(zh ? `第 ${want} 页` : `page ${want}`), [number, options.lang === "zh"], { timeout: 10000 });
+      await page.waitForFunction(([want, zh]) => (document.querySelector(".study-page-ask__scope")?.textContent || "").includes(zh ? `第 ${want} 页` : `page ${want}`)
+        && document.querySelector(".reader-pdf-view")?.dataset.pdfPage === String(want), [number, options.lang === "zh"], { timeout: 10000 });
       const src = await frameAt();
       if (!src?.endsWith(`#page=${number}`)) throw new Error(`the frame is not at page ${number}: ${src}`);
       return { scope: await scopeLine.innerText(), frame: src.replace(/^blob:[^#]*/, "blob:…") };

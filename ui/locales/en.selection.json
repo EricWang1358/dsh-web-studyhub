@@ -4,6 +4,7 @@
   "回到单页视图": "Back to the single-page view",
   "用浏览器的查看器": "Use the browser’s viewer",
   "这份文件在这里画不出来，已换成浏览器的查看器。": "This file cannot be drawn here, so the browser’s viewer is shown instead.",
+  "这份文件单页绘制太慢，已换成浏览器的查看器，避免翻页卡顿。": "This file draws too slowly here, so the browser’s viewer is shown instead to keep page turns responsive.",
   "独立审阅中": "Independent review",
   "正在保存到题组": "Saving to the deck",
   "已通过 {0} / 共 {1}": "Passed {0} of {1}",
