@@ -28,6 +28,7 @@ const snapshot = (page) => page.evaluate((start) => {
     startSpinner: !!document.querySelector(`${start} .sh-spinner`),
     disabled: buttons.filter((element) => element.disabled).map((element) => ({ text: element.textContent.trim(), opacity: getComputedStyle(element).opacity, busy: element.hasAttribute('aria-busy') })),
     enabled: buttons.filter((element) => !element.disabled).length,
+    segments: [...document.querySelectorAll('main .sh-seg__item:disabled')].map((element) => getComputedStyle(element).opacity),
   };
 }, START);
 
@@ -68,6 +69,7 @@ test('only the pressed button shows the work while the app is locked (mistakes p
       const others = held.disabled.filter((button) => !button.busy);
       assert.ok(others.length >= 2, `${width}px: the other buttons are locked, and quiet (${others.length})`);
       assert.ok(held.disabled.every((button) => button.opacity === '1'), `${width}px: every locked button has the one disabled look, not a faded copy`);
+      assert.ok(held.segments.length >= 1 && held.segments.every((opacity) => opacity === '1'), `${width}px: a disabled segment has the same look, not opacity .4 (${held.segments})`);
       assert.ok(Math.abs(held.start.width - idle.start.width) <= 1, `${width}px: the busy button kept its width (${idle.start.width} -> ${held.start.width})`);
       assert.ok(Math.abs(held.start.height - idle.start.height) <= 1, `${width}px: and its height`);
       assert.ok(Math.abs(held.start.x - idle.start.x) <= 1 && Math.abs(held.start.y - idle.start.y) <= 1, `${width}px: and its place`);

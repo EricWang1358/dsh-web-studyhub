@@ -219,7 +219,8 @@
       outline-offset: 1px;
     }
     .sh-seg__item:not(.is-active):focus-visible { box-shadow: var(--ring); }
-    .sh-seg__item:disabled { opacity: 0.4; }
+    /* The one disabled look (same as .sh-btn:disabled): faint text, no pointer, never a faded copy of the enabled one. */
+    .sh-seg__item:disabled { color: var(--text-faint); cursor: default; }
     .sh-seg--sm .sh-seg__item { min-height: 28px; padding: var(--space-half) var(--space-2-5); }
     /* Helper text that explains the selected segment, on its own line below the row. */
     .sh-seg-note { display: block; margin-top: var(--space-2); }
