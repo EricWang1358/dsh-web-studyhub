@@ -46,6 +46,18 @@ test('it refuses what would change the cascade: another scope wrapper, a missing
   assert.throws(() => moveRule(wrapped, high, '.x .b'), /at-rule/);
 });
 
+test('with createAt, a missing at-rule is added at the end of the layer, around a scope block of the same kind', () => {
+  const wrapped = `${LAYER}@layer study.features {\n  @media (max-width: 1px) {\n    :is(.study-app, .study-seat) {\n      .x .b { gap: 1px; }\n    }\n  }\n}\n`;
+  const to = sheet('    .b { gap: 0; }\n');
+  const out = moveRule(wrapped, to, '.x .b', { createAt: true });
+  assert.equal(out.to, `${LAYER}@layer study.features {\n  :is(.study-app, .study-seat) {\n    .b { gap: 0; }\n  }\n  @media (max-width: 1px) {\n    :is(.study-app, .study-seat) {\n      .x .b { gap: 1px; }\n    }\n  }\n}\n`);
+});
+
+test('it refuses to cross cascade layers (a component-layer sheet is below every feature sheet)', () => {
+  const components = sheet('    .b { gap: 0; }\n').replace('@layer study.features {', '@layer study.components {');
+  assert.throws(() => moveRule(sheet('    .x .b { gap: 1px; }\n'), components, '.x .b'), /layer/);
+});
+
 test('CRLF sheets stay CRLF', () => {
   const crlf = (text) => text.replace(/\n/g, '\r\n');
   const out = moveRule(crlf(sheet('    .x .b { gap: 1px; }\n')), crlf(sheet('    .b { gap: 0; }\n')), '.x .b');

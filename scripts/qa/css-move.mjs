@@ -14,11 +14,13 @@ const norm = (text) => text.replace(/\s+/g, ' ').trim();
 /* The first rule whose selector list holds `entry`, with the wrappers it sits in. */
 function findRule(root, entry) {
   let found = null;
+  let layer = '';
   const visit = (node, wrappers, scope) => {
     for (const child of node.children) {
       if (found) return;
-      if (child.kind === 'rule' && scope && node === scope && splitSelectorList(child.prelude).map(norm).includes(entry)) { found = { rule: child, scope, wrappers }; return; }
-      if (child.kind === 'at') visit(child, /^@layer\b/.test(child.prelude) ? wrappers : [...wrappers, child.prelude], null);
+      if (child.kind === 'rule' && scope && node === scope && splitSelectorList(child.prelude).map(norm).includes(entry)) { found = { rule: child, scope, wrappers, layer }; return; }
+      if (child.kind === 'at' && /^@layer\b/.test(child.prelude)) { layer = child.prelude; visit(child, wrappers, null); }
+      else if (child.kind === 'at') visit(child, [...wrappers, child.prelude], null);
       else if (child.kind === 'rule' && SCOPE.test(child.prelude)) visit(child, wrappers, child);
     }
   };
@@ -27,12 +29,17 @@ function findRule(root, entry) {
 }
 
 /* The scope block of the other sheet that sits in the same wrappers. */
-function findScope(root, wrappers, scopePrelude) {
+function findScope(root, wrappers, scopePrelude, layerPrelude, createAt) {
   const layer = root.children.find((child) => child.kind === 'at' && /^@layer study\.\w+$/.test(child.prelude));
+  if (layer?.prelude !== layerPrelude) throw new Error(`the layer differs (${layerPrelude} -> ${layer?.prelude}): the rule would change its place in the cascade`);
   let node = layer;
   for (const wrapper of wrappers) {
-    node = node?.children.find((child) => child.kind === 'at' && child.prelude === wrapper);
-    if (!node) throw new Error(`the target sheet has no ${wrapper} at-rule to receive the rule: add it first`);
+    const next = node.children.find((child) => child.kind === 'at' && child.prelude === wrapper);
+    if (!next) {
+      if (createAt && wrappers.length === 1) return { create: { layer, wrapper, scopePrelude } };
+      throw new Error(`the target sheet has no ${wrapper} at-rule to receive the rule (pass --create-at to add one)`);
+    }
+    node = next;
   }
   const scope = node?.children.find((child) => child.kind === 'rule' && SCOPE.test(child.prelude));
   if (!scope) throw new Error('the target sheet has no scope block (:is(.study-app, .study-seat)) in that place');
@@ -42,14 +49,14 @@ function findScope(root, wrappers, scopePrelude) {
 
 const lineStart = (text, index) => text.lastIndexOf('\n', index - 1) + 1;
 
-export function moveRule(fromText, toText, entry) {
+export function moveRule(fromText, toText, entry, { createAt = false } = {}) {
   const crlf = [fromText, toText].map((text) => text.includes('\r\n'));
   const from = fromText.replace(/\r\n/g, '\n'), to = toText.replace(/\r\n/g, '\n');
   entry = norm(entry);
   const hit = findRule(parseTree(from), entry);
   if (!hit) throw new Error(`no rule with the selector ${entry} in the source sheet`);
-  const { rule, scope, wrappers } = hit;
-  const target = findScope(parseTree(to), wrappers, scope.prelude);
+  const { rule, scope, wrappers, layer } = hit;
+  const found = findScope(parseTree(to), wrappers, scope.prelude, layer, createAt);
   const start = lineStart(from, rule.start);
   if (from.slice(start, rule.start).trim()) throw new Error('the rule does not start its own line');
   const indent = from.slice(start, rule.start);
@@ -59,9 +66,17 @@ export function moveRule(fromText, toText, entry) {
   let nextFrom;
   if (entries.length === 1) nextFrom = from.slice(0, start) + from.slice(from[rule.end] === '\n' ? rule.end + 1 : rule.end);
   else nextFrom = `${from.slice(0, rule.start)}${entries.filter((e) => e !== entry).join(`,\n${indent}`)} {${from.slice(rule.bodyStart)}`;
-  const close = lineStart(to, target.bodyEnd);
-  if (to.slice(close, target.bodyEnd).trim()) throw new Error('the target scope block does not close on its own line');
-  const nextTo = to.slice(0, close) + moved + to.slice(close);
+  let nextTo;
+  if (found.create) {
+    const { layer: into, wrapper, scopePrelude } = found.create;
+    const close = lineStart(to, into.bodyEnd);
+    const unit = '  ';
+    nextTo = `${to.slice(0, close)}${unit}${wrapper} {\n${unit}${unit}${scopePrelude} {\n${moved}${unit}${unit}}\n${unit}}\n${to.slice(close)}`;
+  } else {
+    const close = lineStart(to, found.bodyEnd);
+    if (to.slice(close, found.bodyEnd).trim()) throw new Error('the target scope block does not close on its own line');
+    nextTo = to.slice(0, close) + moved + to.slice(close);
+  }
   const above = from.slice(0, start).trimEnd();
   const warnings = above.endsWith('*/') ? [`a comment sits above ${entry} in the source sheet: check that it still fits`] : [];
   const back = (text, was) => (was ? text.replace(/\n/g, '\r\n') : text);
@@ -69,14 +84,15 @@ export function moveRule(fromText, toText, entry) {
 }
 
 function main() {
-  const [from, to, ...entries] = process.argv.slice(2);
+  const createAt = process.argv.includes('--create-at');
+  const [from, to, ...entries] = process.argv.slice(2).filter((arg) => arg !== '--create-at');
   if (!from || !to || !entries.length) { console.error('usage: node scripts/qa/css-move.mjs <from.css> <to.css> "<selector entry>" ...'); process.exitCode = 2; return; }
   let a = readFileSync(resolve(from), 'utf8'), b = readFileSync(resolve(to), 'utf8');
   for (const entry of entries) {
     let count = 0;
     for (;;) {
       let out;
-      try { out = moveRule(a, b, entry); } catch (error) { if (count && /^no rule/.test(error.message)) break; throw error; }
+      try { out = moveRule(a, b, entry, { createAt }); } catch (error) { if (count && /^no rule/.test(error.message)) break; throw error; }
       ({ from: a, to: b } = out); count++;
       for (const warning of out.warnings) console.warn(warning);
     }

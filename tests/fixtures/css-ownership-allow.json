@@ -17,10 +17,6 @@
       "ui/canvas/canvas.css",
       "ui/graph.css"
     ],
-    "cloze": [
-      "ui/graph.css",
-      "ui/review/question.css"
-    ],
     "course-heading": [
       "ui/course-settings.css",
       "ui/home-tiers.css",
@@ -60,10 +56,6 @@
       "ui/study-map/catalog.css",
       "ui/study-map/desk.css"
     ],
-    "generation-trace": [
-      "ui/generate-home.css",
-      "ui/review/question.css"
-    ],
     "highlight-quote": [
       "ui/document-preview/reader/reader.css",
       "ui/sources-page.css"
@@ -90,52 +82,9 @@
       "ui/shell.css",
       "ui/side-groups.css"
     ],
-    "lv-familiar": [
-      "ui/review/session.css",
-      "ui/study-map/catalog.css"
-    ],
-    "lv-learning": [
-      "ui/review/session.css",
-      "ui/study-map/catalog.css"
-    ],
-    "lv-mastered": [
-      "ui/review/session.css",
-      "ui/study-map/catalog.css"
-    ],
-    "lv-new": [
-      "ui/review/session.css",
-      "ui/study-map/catalog.css"
-    ],
-    "lv-weak": [
-      "ui/review/session.css",
-      "ui/study-map/catalog.css"
-    ],
-    "map-dot": [
-      "ui/review/question.css",
-      "ui/study-map/catalog.css"
-    ],
     "md": [
       "ui/markdown.css",
-      "ui/reading-settings/reading.css",
-      "ui/review/question.css",
-      "ui/skeleton.css",
-      "ui/workflows.css"
-    ],
-    "md-code": [
-      "ui/markdown.css",
-      "ui/review/question.css"
-    ],
-    "md-details": [
-      "ui/markdown.css",
-      "ui/review/question.css"
-    ],
-    "md-image-open": [
-      "ui/markdown.css",
-      "ui/review/question.css"
-    ],
-    "md-math": [
-      "ui/markdown.css",
-      "ui/review/question.css"
+      "ui/reading-settings/reading.css"
     ],
     "md-table": [
       "ui/markdown.css",
@@ -162,11 +111,6 @@
     "page-scope": [
       "ui/course-active.css",
       "ui/source-picker.css"
-    ],
-    "quality-note": [
-      "ui/draft.css",
-      "ui/generate-home.css",
-      "ui/review/question.css"
     ],
     "question-area": [
       "ui/case-study.css",
@@ -200,10 +144,6 @@
     "role-prep": [
       "ui/focus.css",
       "ui/study-map/desk.css"
-    ],
-    "section-heading-actions": [
-      "ui/shell.css",
-      "ui/study-map/catalog.css"
     ],
     "self": [
       "ui/charts/charts.css",
@@ -470,14 +410,6 @@
     "study-document-viewer": [
       "ui/blog-notes.css",
       "ui/document-preview/reader/reader.css"
-    ],
-    "summary-actions": [
-      "ui/review-results.css",
-      "ui/review/question.css"
-    ],
-    "summary-topics": [
-      "ui/review-results.css",
-      "ui/review/question.css"
     ],
     "two-col": [
       "ui/legacy.css",

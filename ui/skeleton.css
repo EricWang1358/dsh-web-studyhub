@@ -1114,7 +1114,6 @@
   }
   :where(.study-app, .study-seat) {
     .spine-body { margin-top: var(--space-half); }
-    .spine-body > .md { margin: 0 0 var(--space-2-5); }
     /* The strip: one row, circles on one baseline whatever the title length. */
     .spine-nav { display: flex; align-items: center; gap: var(--space-1-5); }
     .spine-strip {

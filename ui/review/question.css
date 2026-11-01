@@ -76,12 +76,10 @@
       padding-bottom: var(--space-3);
     }
     .question-card .question,
-    .question-card .options,
-    .question-card .cloze {
+    .question-card .options {
       animation: ink-in 0.34s var(--ease-out) backwards;
     }
-    .question-card .options,
-    .question-card .cloze { animation-delay: 70ms; }
+    .question-card .options { animation-delay: 70ms; }
     .card-progress { height: 2px; margin: 0 0 var(--space-6); background: var(--line); box-shadow: none; }
     .question-meta > span:first-child {
       font-variant-numeric: tabular-nums;
@@ -213,14 +211,6 @@
     .option--selected {
       background: color-mix(in srgb, var(--accent) 7%, transparent);
     }
-    .option > div > .md:first-child {
-      transition: color var(--dur-slow) var(--ease);
-      transition-delay: calc(var(--reveal-index, 0) * 50ms);
-    }
-    .option.correct > div > .md:first-child {
-      color: var(--ok);
-      font-weight: var(--fw-strong);
-    }
     /* After answering, each option's verdict and explanation grow open from zero
        height, staggered down the list, so the card lengthens smoothly. */
     .option-reveal {
@@ -246,19 +236,23 @@
       overflow: hidden;
       margin: 0;
     }
+    .draft-generation-details .quality-note {
+      display: block;
+      margin: var(--space-3) 0;
+      overflow-wrap: anywhere;
+    }
+    .generate-page .generate-submit .quality-note { margin: 0; }
+    .home-activity .sh-job .generation-trace { margin-top: var(--space-1); font-size: var(--fs-sm); }
+    .result-page .summary-topics { margin: var(--space-5) 0; }
+    .result-page .summary-actions { justify-content: flex-start; margin-top: var(--space-5-5); }
   }
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {
       .option-reveal, .option-reveal > div, .choice-feedback-wrap { animation: none; }
-      .option-letter, .option > div > .md:first-child { transition: none; }
+      .option-letter { transition: none; }
     }
   }
   :where(.study-app, .study-seat) {
-    .option.incorrect > div > .md:first-child {
-      color: var(--bad);
-      text-decoration: line-through;
-      text-decoration-thickness: 1px;
-    }
     .option.dim {
       color: var(--text-muted);
     }
@@ -522,7 +516,6 @@
       opacity: 1;
     }
     .flashcard .flip-inner { pointer-events: none; }
-    .flashcard .flip-face:not([aria-hidden="true"]) :is(.md-image-open, .md-math, .md-code, .md-details > summary) { pointer-events: auto; }
     /* FlipCard sets an explicit height from the face that is up, so a longer
        answer grows the card in step with the flip instead of in one frame. */
     .flip-inner {
@@ -638,10 +631,6 @@
       gap: var(--space-2);
       color: var(--text-dim);
     }
-    .prereq-strip li .map-dot {
-      position: relative;
-      top: -1px;
-    }
     .prereq-item {
       display: flex;
       align-items: baseline;
@@ -656,9 +645,6 @@
     }
     .prereq-item:hover:not(:disabled) {
       background: var(--bg-hover);
-    }
-    .prereq-item .md {
-      flex: 1;
     }
     .prereq-go {
       color: var(--accent-soft);
@@ -939,6 +925,10 @@
       .session-summary {
         margin-top: 60px;
       }
+    }
+  }
+  @container study (max-width: 640px) {
+    :where(.study-app, .study-seat) {
     }
   }
 }

@@ -447,7 +447,6 @@
       margin-bottom: 0;
     }
     .page-heading > :first-child { min-width: 0; }
-    .page-heading > .section-heading-actions { flex-shrink: 0; max-width: 100%; }
     .page-heading button {
       flex-shrink: 0;
     }

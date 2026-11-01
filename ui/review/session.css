@@ -140,11 +140,6 @@
       transform: scaleX(calc(9 / 22));
       transition: transform 180ms ease, border-color 250ms ease;
     }
-    .review-tick .lv-new { --tick: color-mix(in srgb, var(--text) 34%, transparent); }
-    .review-tick .lv-weak { --tick: var(--bad); }
-    .review-tick .lv-learning { --tick: var(--warn); }
-    .review-tick .lv-familiar { --tick: var(--ok-mid); }
-    .review-tick .lv-mastered { --tick: var(--ok); }
     .review-tick:hover:not(:disabled) { background: var(--accent-glow); }
     .review-tick:hover .review-tick-line { transform: scaleX(calc(15 / 22)); }
     .review-tick[aria-current="step"] .review-tick-line { transform: none; }
