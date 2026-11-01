@@ -47,12 +47,19 @@ async function seed(root) {
 }
 
 /** Every call the page makes, so a button's action and payload are read as sent (not only what came of it). */
-async function watchCalls(page) {
+async function watchCalls(page, mode = {}) {
   const sent = [];
   await page.route('**/api/call', async route => {
     let body = {};
     try { body = route.request().postDataJSON() || {}; } catch { body = {}; }
     sent.push({ action: body.action, args: body.args || {} });
+    if (mode.noModel && body.action === 'snapshot') {
+      const response = await route.fetch();
+      const json = await response.json();
+      if (json?.value) Object.assign(json.value, { modelReady: false, model: { ready: false, reason: 'no-route', label: '' } });
+      await route.fulfill({ response, json });
+      return;
+    }
     await route.continue();
   });
   return sent;
@@ -258,6 +265,62 @@ test('复习全书 未归位: 放回… picks a point, the text moves, 撤销 br
       assert.doesNotMatch(back.nodes[0].children[0].mine, /Parked words/);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, `${width}px: nothing runs sideways`);
       assert.deepEqual(errors, [], `${width}px: no page errors`);
+      await context.close();
+    }
+  } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
+});
+
+/* #489 item 6: upkeep from the book page. Changed materials are said here with 更新全书; a point left short has 补漏; 更多 leads back to the 总纲. */
+test('复习全书 upkeep: 更新全书 when the materials changed, 补漏 on a short point, 回到总纲 from 更多 (1280 and 420 px)', { timeout: 420000 }, async t => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-book-upkeep-dist-'));
+  await buildPreview({ outdir: dist });
+  const running = await startLateServer({ distDir: dist, seed: async root => {
+    await seed(root);
+    const service = new StudyService(root);
+    await service.store.update(state => { state.sources.find(source => source.provenance === 'course-outline-notes').courseNotes.leaves[0].body.status = 'short'; });
+    await service.dispose();
+  } });
+  try {
+    await running.api('focus.set', { course: COURSE });
+    for (const width of [1280, 420]) {
+      const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
+      const mode = { noModel: false };
+      const sent = await watchCalls(page, mode);
+      const open = async () => {
+        await page.goto(running.server.url);
+        const entry = page.locator('[data-tour="nav-book"]').first();
+        await entry.waitFor({ state: 'attached', timeout: 30000 });
+        await entry.dispatchEvent('click');
+        await page.locator('[data-book-point]').first().waitFor({ timeout: 60000 });
+      };
+      // Without a model, 补漏 (like 更新全书) leads to the 总纲 page where the model gate stands, without starting a build.
+      mode.noModel = true;
+      await open();
+      sent.length = 0;
+      await page.locator('.book-point__short').getByRole('button', { name: '补漏' }).click();
+      await page.locator('.book-page').waitFor({ state: 'detached', timeout: 30000 });
+      await page.locator('.outline-page [data-model-gate="compact"]').waitFor({ timeout: 30000 });
+      assert.equal(sent.some(call => call.action === 'generation.courseBook.build'), false, `${width}px: without a model 补漏 starts no build`);
+      mode.noModel = false;
+
+      await open();
+      if (width === 1280) assert.equal(await page.locator('[data-book-outdated]').count(), 0, 'nothing changed: nothing said');
+      await page.locator('.book-point__short').getByRole('button', { name: '补漏' }).click();
+      await until(() => sent.some(call => call.action === 'generation.courseBook.build' && call.args.point === 'what'), '补漏 asks for that point');
+      if (width === 1280) await running.api('source.add', { title: 'A new lecture', text: 'New material for this course.', course: COURSE });
+      await open();
+      const line = page.locator('[data-book-outdated]');
+      await line.waitFor({ timeout: 30000 });
+      sent.length = 0;
+      await line.getByRole('button', { name: '更新全书' }).click();
+      await until(() => sent.some(call => call.action === 'generation.courseBook.build' && call.args.point === undefined), '更新全书 asks for the whole book');
+      await page.locator('.book-bar__more').evaluate(element => element.click());
+      await page.getByRole('menuitem', { name: /^回到总纲/ }).click();
+      await page.locator('.book-page').waitFor({ state: 'detached', timeout: 30000 });
+      // The preview has no task runner, so the build's own refusal is a failed request here; nothing else may fail.
+      assert.deepEqual(errors.filter(text => !/Failed to load resource/.test(text)), [], `${width}px: no page errors`);
       await context.close();
     }
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }

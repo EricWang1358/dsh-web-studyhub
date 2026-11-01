@@ -101,6 +101,8 @@ The reading text follows **Aa** in the bar (the same setting as the reader: size
 
 **Putting Not placed back.** On Not placed each section has **Put back…**: choose a point and the section goes to the end of its notes (its headings follow the new depth, its footnote labels stay apart from those there) and leaves Not placed. The notice offers **Undo**, which takes both back at once; the main chat can do the same (`course.book.place`).
 
+**Upkeep from the book page.** When the materials changed, a line on top says so with **Update the book**; a point left short has **Fill the gaps** under its text, which writes only the missing concepts (with no model set up, both lead to the outline page); **More › Back to the outline** goes to organise it again.
+
 ## Q&A in the book
 
 A follow-up you get while practising (an answer to **追问** or **帮我弄懂**) stays on its question as before. To keep it in the book too, select **Add to the review book** under it, on the practice page or in a point's **Questions and answers**; it then reads **Added · Take back**, and selecting that takes it out of the book again (the question keeps it either way).

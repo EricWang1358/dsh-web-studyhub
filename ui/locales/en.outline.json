@@ -484,5 +484,7 @@
   "开头的文字": "The text at the start",
   "放在这个知识点「我的笔记」的最后；放好后可以马上撤销。": "It goes at the end of this point's notes; you can undo it straight away.",
   "搜索知识点": "Search points",
-  "选一个知识点": "Choose a point"
+  "选一个知识点": "Choose a point",
+  "资料有变化，这本书可能跟不上了。": "The materials have changed, so this book may be behind them.",
+  "重新整理、更新全书": "Organise again, update the book"
 }

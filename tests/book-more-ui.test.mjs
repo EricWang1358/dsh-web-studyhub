@@ -19,7 +19,7 @@ const item = (items, id) => items.find(entry => entry.id === id);
 test('更多: four groups; a fold item only where there are AI blocks, named by their state; 整章连着读 a check', () => {
   const plain = ui.moreItems({});
   assert.deepEqual(headings(plain), ['这个知识点', '阅读', '整本书', '期末一周']);
-  assert.deepEqual(ids(plain), ['edit', 'rename', 'move', 'delete', 'create', 'code', 'scroll', 'flip', 'lookup', 'export', 'chat', 'mock'], 'no blocks, no plan, no settings: the plain items');
+  assert.deepEqual(ids(plain), ['edit', 'rename', 'move', 'delete', 'create', 'code', 'scroll', 'flip', 'lookup', 'export', 'outline', 'chat', 'mock'], 'no blocks, no plan, no settings: the plain items');
   assert.equal(item(plain, 'scroll').checked, false, '整章连着读 is a check, off');
   assert.equal(item(ui.moreItems({ scroll: true }), 'scroll').checked, true);
   assert.equal(item(plain, 'code').hint, undefined, '复制编号 says nothing more: a hint only where a rule is hidden');
