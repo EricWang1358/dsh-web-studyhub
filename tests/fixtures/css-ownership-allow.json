@@ -5,10 +5,6 @@
       "ui/components/components.css",
       "ui/review/question.css"
     ],
-    "audio-reasoning": [
-      "ui/audio-dashboard.css",
-      "ui/audio-settings.css"
-    ],
     "board-page": [
       "ui/board/board.css",
       "ui/shell.css"
@@ -20,14 +16,6 @@
     "canvas-expanded": [
       "ui/canvas/canvas.css",
       "ui/graph.css"
-    ],
-    "cloze": [
-      "ui/graph.css",
-      "ui/review/question.css"
-    ],
-    "collapse-toggle": [
-      "ui/app/app-shell.css",
-      "ui/shell.css"
     ],
     "course-heading": [
       "ui/course-settings.css",
@@ -46,22 +34,6 @@
       "ui/course-active.css",
       "ui/study-map/desk.css"
     ],
-    "course-route": [
-      "ui/focus.css",
-      "ui/study-map/desk.css"
-    ],
-    "daily-recap": [
-      "ui/DailyRecap.css",
-      "ui/blog-notes.css"
-    ],
-    "dim": [
-      "ui/review/question.css",
-      "ui/skeleton.css"
-    ],
-    "empty": [
-      "ui/skeleton.css",
-      "ui/study-map/catalog.css"
-    ],
     "extensions-settings__choice": [
       "ui/large-documents.css",
       "ui/settings.css"
@@ -71,10 +43,6 @@
       "ui/coach.css",
       "ui/study-map/catalog.css",
       "ui/study-map/desk.css"
-    ],
-    "generation-trace": [
-      "ui/generate-home.css",
-      "ui/review/question.css"
     ],
     "highlight-quote": [
       "ui/document-preview/reader/reader.css",
@@ -89,115 +57,22 @@
       "ui/sources-page.css"
     ],
     "is-active": [
-      "ui/case-study.css",
-      "ui/components/components.css",
       "ui/components/disclosure.css",
-      "ui/course-field.css",
-      "ui/generate-home.css",
-      "ui/review/question.css",
       "ui/skeleton.css"
-    ],
-    "is-compact": [
-      "ui/course-active.css",
-      "ui/mineru.css",
-      "ui/update.css"
     ],
     "is-current": [
       "ui/components/feedback.css",
-      "ui/course-settings.css",
       "ui/focus.css",
       "ui/mineru.css",
       "ui/workflows.css"
-    ],
-    "is-done": [
-      "ui/board/board.css",
-      "ui/components/feedback.css"
-    ],
-    "is-dragging": [
-      "ui/board/board.css",
-      "ui/shell.css",
-      "ui/side-groups.css"
-    ],
-    "is-narrow": [
-      "ui/shell.css",
-      "ui/side-groups.css"
-    ],
-    "is-open": [
-      "ui/case-study.css",
-      "ui/workflows.css"
-    ],
-    "is-over": [
-      "ui/board/board.css",
-      "ui/case-result.css",
-      "ui/components/components.css"
-    ],
-    "is-panning": [
-      "ui/graph.css",
-      "ui/skeleton.css"
-    ],
-    "is-parked": [
-      "ui/course-active.css",
-      "ui/course-field.css"
-    ],
-    "is-ready": [
-      "ui/tour/tour.css",
-      "ui/wrongbook.css"
-    ],
-    "is-selected": [
-      "ui/components/feedback.css",
-      "ui/components/fields.css",
-      "ui/source-picker.css"
     ],
     "local-status": [
       "ui/shell.css",
       "ui/side-groups.css"
     ],
-    "lv-familiar": [
-      "ui/review/session.css",
-      "ui/study-map/catalog.css"
-    ],
-    "lv-learning": [
-      "ui/review/session.css",
-      "ui/study-map/catalog.css"
-    ],
-    "lv-mastered": [
-      "ui/review/session.css",
-      "ui/study-map/catalog.css"
-    ],
-    "lv-new": [
-      "ui/review/session.css",
-      "ui/study-map/catalog.css"
-    ],
-    "lv-weak": [
-      "ui/review/session.css",
-      "ui/study-map/catalog.css"
-    ],
-    "map-dot": [
-      "ui/review/question.css",
-      "ui/study-map/catalog.css"
-    ],
     "md": [
       "ui/markdown.css",
-      "ui/reading-settings/reading.css",
-      "ui/review/question.css",
-      "ui/skeleton.css",
-      "ui/workflows.css"
-    ],
-    "md-code": [
-      "ui/markdown.css",
-      "ui/review/question.css"
-    ],
-    "md-details": [
-      "ui/markdown.css",
-      "ui/review/question.css"
-    ],
-    "md-image-open": [
-      "ui/markdown.css",
-      "ui/review/question.css"
-    ],
-    "md-math": [
-      "ui/markdown.css",
-      "ui/review/question.css"
+      "ui/reading-settings/reading.css"
     ],
     "md-table": [
       "ui/markdown.css",
@@ -215,29 +90,9 @@
       "ui/shell.css",
       "ui/side-groups.css"
     ],
-    "nav-reset": [
-      "ui/app/app-shell.css",
-      "ui/shell.css"
-    ],
     "page-heading": [
       "ui/reading-settings/reading.css",
-      "ui/shell.css",
-      "ui/skeleton.css",
-      "ui/views.css"
-    ],
-    "page-scope": [
-      "ui/course-active.css",
-      "ui/source-picker.css"
-    ],
-    "quality-note": [
-      "ui/draft.css",
-      "ui/generate-home.css",
-      "ui/review/question.css"
-    ],
-    "question-area": [
-      "ui/case-study.css",
-      "ui/review/question.css",
-      "ui/review/session.css"
+      "ui/shell.css"
     ],
     "reader-p": [
       "ui/document-preview/reader/reader.css",
@@ -259,25 +114,9 @@
       "ui/blog-notes.css",
       "ui/document-preview/reader/reader.css"
     ],
-    "result-details": [
-      "ui/oral-exam.css",
-      "ui/review-results.css"
-    ],
-    "result-weak": [
-      "ui/oral-exam.css",
-      "ui/review-results.css"
-    ],
     "review-page": [
       "ui/review/session.css",
       "ui/shell.css"
-    ],
-    "role-prep": [
-      "ui/focus.css",
-      "ui/study-map/desk.css"
-    ],
-    "section-heading-actions": [
-      "ui/shell.css",
-      "ui/study-map/catalog.css"
     ],
     "self": [
       "ui/charts/charts.css",
@@ -503,10 +342,6 @@
       "ui/shell.css",
       "ui/side-groups.css"
     ],
-    "source-doc__icon": [
-      "ui/document-preview/rename.css",
-      "ui/sources.css"
-    ],
     "source-md": [
       "ui/document-preview/document-preview.css",
       "ui/sources-page.css"
@@ -548,26 +383,6 @@
     "study-document-viewer": [
       "ui/blog-notes.css",
       "ui/document-preview/reader/reader.css"
-    ],
-    "summary-actions": [
-      "ui/review-results.css",
-      "ui/review/question.css"
-    ],
-    "summary-topics": [
-      "ui/review-results.css",
-      "ui/review/question.css"
-    ],
-    "thumbs": [
-      "ui/coach.css",
-      "ui/review/question.css"
-    ],
-    "token-estimate": [
-      "ui/draft-shortfall.css",
-      "ui/token-usage.css"
-    ],
-    "two-col": [
-      "ui/legacy.css",
-      "ui/settings.css"
     ],
     "wf-scope": [
       "ui/workflow-scope.css",

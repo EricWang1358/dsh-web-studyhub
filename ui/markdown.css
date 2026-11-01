@@ -251,5 +251,30 @@
       font-weight: var(--fw-medium);
       margin: var(--space-1-5) 0 var(--space-2-5);
     }
+    .option > div > .md:first-child {
+      transition: color var(--dur-slow) var(--ease);
+      transition-delay: calc(var(--reveal-index, 0) * 50ms);
+    }
+    .option.correct > div > .md:first-child {
+      color: var(--ok);
+      font-weight: var(--fw-strong);
+    }
+    .option.incorrect > div > .md:first-child {
+      color: var(--bad);
+      text-decoration: line-through;
+      text-decoration-thickness: 1px;
+    }
+    .prereq-item .md {
+      flex: 1;
+    }
+    .flashcard .flip-face:not([aria-hidden="true"]) :is(.md-image-open, .md-math, .md-code, .md-details > summary) { pointer-events: auto; }
+    .spine-body > .md { margin: 0 0 var(--space-2-5); }
+    .wf-skeleton > .md { font-size: var(--fs-md); line-height: 1.8; }
+    .workflow-page .md { overflow-wrap: anywhere; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .option > div > .md:first-child { transition: none; }
+    }
   }
 }

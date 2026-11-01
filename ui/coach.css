@@ -162,6 +162,7 @@
     .shortcut-sheet dl { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1-5) var(--space-3); margin: 0; }
     .shortcut-sheet dt { white-space: nowrap; }
     .shortcut-sheet dd { margin: 0; }
+    .question-toolbar .thumbs { gap: 0; }
   }
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {

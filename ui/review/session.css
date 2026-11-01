@@ -97,7 +97,6 @@
       grid-template-columns: minmax(0, 1fr);
       align-items: start;
     }
-    .review-body > .question-area { grid-column: 1; grid-row: 1; min-width: 0; }
     /* Sticky applies at scroll 0 too: a top below the natural position pushes the
        rail there immediately (just under the 51px top bar), so it never moves. */
     .review-navigator {
@@ -140,11 +139,6 @@
       transform: scaleX(calc(9 / 22));
       transition: transform 180ms ease, border-color 250ms ease;
     }
-    .review-tick .lv-new { --tick: color-mix(in srgb, var(--text) 34%, transparent); }
-    .review-tick .lv-weak { --tick: var(--bad); }
-    .review-tick .lv-learning { --tick: var(--warn); }
-    .review-tick .lv-familiar { --tick: var(--ok-mid); }
-    .review-tick .lv-mastered { --tick: var(--ok); }
     .review-tick:hover:not(:disabled) { background: var(--accent-glow); }
     .review-tick:hover .review-tick-line { transform: scaleX(calc(15 / 22)); }
     .review-tick[aria-current="step"] .review-tick-line { transform: none; }
@@ -154,7 +148,6 @@
     :where(.study-app, .study-seat) {
       .review-page.has-rail { grid-template-columns: 28px minmax(0, 1fr); column-gap: var(--space-1); padding-left: var(--space-1-5); padding-right: var(--space-3); }
       .review-tick { width: 28px; height: 24px; }
-      .review-body > .question-area { width: 100%; min-width: 0; }
     }
   }
   @media (prefers-reduced-motion: reduce) {
