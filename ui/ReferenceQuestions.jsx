@@ -38,8 +38,8 @@ export default function ReferenceQuestions({ sources, selected = [], evidenceIds
     <p className="muted small">{ui('提高上限本身不增加用量；实际选入的文字才会增加输入 Token。更多样题可提供不同表达，也可能带来风格冲突，增加费用与等待时间；不会增加生成题数或保证通过率。沿用现有生成与审阅步骤，不增加模型调用步骤。')}</p>
     <SourcePicker sources={sources.filter(source => !evidence.has(source.id))} selected={selected} onChange={onChange}
       courses={courses} disabled={busy} maxHeight={240} aria-label={ui('参考样题资料')} />
-    <Button variant="link" icon="upload" disabled={busy} onClick={onImport}>{ui('上传参考样题')}</Button>
-    {selected.length > 0 && <Button variant="link" disabled={busy} onClick={() => onChange([])}>{ui('清空样题选择')}</Button>}
+    <Button variant="link" icon="upload" lock={busy} onClick={onImport}>{ui('上传参考样题')}</Button>
+    {selected.length > 0 && <Button variant="link" lock={busy} onClick={() => onChange([])}>{ui('清空样题选择')}</Button>}
     <small className="muted">{ui('TXT / Markdown 可直接上传；PDF / Word 沿用资料解析。图片请先转成文本。导入后保存在资料库，可再次选择。')}</small>
     <p role="status" className="muted">{uiFormat('已选择 {0} 个样题片段 · {1} 字符', [state.ids.length, state.chars])}</p>
     {state.reason && <InlineMessage tone="error">{state.reason === 'limits'
