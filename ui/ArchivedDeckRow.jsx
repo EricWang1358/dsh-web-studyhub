@@ -10,9 +10,9 @@ export default function ArchivedDeckRow({ deck, busy, onRestore, onRemove, onMan
       <small>{uiFormat('{0} 题 · 已归档', [deck.count])}</small>
     </div>
     <div className="archived-deck__actions">
-      {!deck.systemKind && <Button variant="secondary" disabled={busy} onClick={() => onRestore(deck.id)}>{ui('恢复题组')}</Button>}
-      <Button variant="quiet" disabled={busy} onClick={() => onManage(deck.id)}>{ui('管理题组')}</Button>
-      {!deck.systemKind && <Button variant="danger" disabled={busy} onClick={() => onRemove(deck.id)}>{ui('永久删除')}</Button>}
+      {!deck.systemKind && <Button variant="secondary" lock={busy} onClick={() => onRestore(deck.id)}>{ui('恢复题组')}</Button>}
+      <Button variant="quiet" lock={busy} onClick={() => onManage(deck.id)}>{ui('管理题组')}</Button>
+      {!deck.systemKind && <Button variant="danger" lock={busy} onClick={() => onRemove(deck.id)}>{ui('永久删除')}</Button>}
     </div>
   </li>;
 }
