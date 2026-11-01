@@ -17,7 +17,7 @@ import { sessionFileAddress } from '../document-preview/selection.js';
 import { canOpenBackgroundAgent, openBackgroundAgent } from './open-agent.js';
 import { createPoller } from "../use-polling.js";
 import { NoSessionNotice, StudyHubGlyph } from './studyhub-page.jsx';
-import { attachToComposer, canAttachToComposer, fillComposer } from './composer-draft.js';
+import { attachToComposer, canAttachToComposer, fillComposer, noteInComposer } from './composer-draft.js';
 import { createIntentGuard } from './intent-sequence.js';
 // The top-level DSH page (root `main` panel) and its sidebar entry share one key.
 export const STUDYHUB_PANEL = "studyhub";
@@ -294,17 +294,26 @@ export function apply(ctx, registerDocumentLearning) {
           if (outcome === "filled") try { showChat(); } catch { /* the draft is in; the learner can switch views themselves */ }
           return outcome;
         },
-        // The picture of a page beside the text (ui/host/composer-draft.js); only where this DSH has the attachment faces.
-        canAttachToChat: () => {
-          try { return canAttachToComposer(ctx.get("sessions")?.scope?.(sessionId)?.get("conversation")); } catch { return false; }
+        // The picture of a page beside the text (ui/host/composer-draft.js). chatTakesPictures -> true / false as the host declares for the model this conversation
+        // will use next, undefined when it cannot say, null where this DSH has no attachment faces: a picture for a text model would block the whole message.
+        chatTakesPictures: async () => {
+          let faces = false;
+          try { const actx = ctx.get("sessions")?.scope?.(sessionId); faces = canAttachToComposer(actx?.get("conversation"), actx); } catch { /* no faces */ }
+          if (!faces) return null;
+          const route = models?.directoryFor?.(sessionId)?.store?.getSnapshot?.()?.current || current?.current || catalog?.value?.default;
+          if (!route?.provider) return undefined;
+          return (await call("chat.model.images", { provider: route.provider, model: route.model }))?.takes ?? undefined;
         },
-        attachToChat: (files) => {
+        attachToChat: async (files) => {
           try {
             const actx = ctx.get("sessions")?.scope?.(sessionId);
-            return attachToComposer(actx?.get("conversation"), actx, sessionId, files);
+            return await attachToComposer(actx?.get("conversation"), actx, sessionId, files);
           } catch {
             return false;
           }
+        },
+        noteInChat: (text) => {
+          try { const actx = ctx.get("sessions")?.scope?.(sessionId); noteInComposer(actx?.get("conversation"), actx, text); } catch { /* the receipt says it too */ }
         },
         onReviewState: (run) => call("panel.visible", { placement,
           sequence: ++visibleSequence.current,

@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { scrubSecrets, scrubProcessEnv } from "./env.mjs";
 import { launchChromium } from "./browser.mjs";
-import { createFakeOpenAI, FAKE_OPENAI_MODEL } from "./fake-openai.mjs";
+import { createFakeOpenAI, FAKE_OPENAI_MODEL, FAKE_VISION_MODEL } from "./fake-openai.mjs";
 import { handOffStep, pagePictureStep, seedHandOffBook } from "./dsh-hand-off.mjs";
 
 // The host release the harness pins by default; `--dsh-version <x>` / DSH_QA_VERSION tests another release (see resolveDshVersion).
@@ -42,7 +42,8 @@ export function dshPatch({ fakeModelUrl, documentsDirectory, keyEnv = FAKE_KEY_E
   return [
     { id: "llm-pi-ai", config: { providers: { [FAKE_PROVIDER]: { displayName: "StudyHub QA fake model (local)", apiKeyEnv: keyEnv,
       api: "openai-completions", baseURL: fakeModelUrl,
-      models: [{ id: FAKE_OPENAI_MODEL, name: "Fake Tutor", contextWindow: 65536, reasoningEfforts: false }] } } } },
+      models: [{ id: FAKE_OPENAI_MODEL, name: "Fake Tutor", contextWindow: 65536, reasoningEfforts: false },
+        { id: FAKE_VISION_MODEL, name: "Fake Vision", contextWindow: 65536, reasoningEfforts: false, input: ["text", "image"] }] } } } },
     { id: "agent-default-model", config: { provider: FAKE_PROVIDER, model: FAKE_OPENAI_MODEL } },
     { id: "workspace-controller", config: { documentsDirectory } },
   ];

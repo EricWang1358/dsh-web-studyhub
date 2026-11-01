@@ -29,8 +29,17 @@ export const HAND_OFF_RECEIPTS = Object.freeze({
   copied: { title: '已复制到剪贴板', line: '没找到主会话，粘贴到任意对话', timeout: 6000, action: '看看内容' },
   shown: { title: '需要手动复制', line: '浏览器没让复制，点「打开全文」', timeout: 0, action: '打开全文' },
 });
-/** What became of the pictures of a page (reader.page, #488); said first on the receipt. */
-export const HAND_OFF_PICTURE = Object.freeze({ attached: '这一页的图也附上了', missed: '没能附上这一页的图，需要的话自己截图贴上' });
+/**
+ * What became of the pictures of a page (reader.page, #488), said first on the receipt. picture: { images, wanted } (drawn, for how many pages) or { refused: 'model' | 'unknown' }
+ * (not drawn: the host says this model takes no image, or cannot say; a picture for a text model would block the whole message).
+ */
+export function pictureLine(picture, attached) {
+  if (picture.refused) return ui(picture.refused === 'model' ? '当前模型看不了图，这次只发了文字；要让它看图，先在主会话换一个能看图的模型，再按一次' : '没法确认当前模型能不能看图，这次只发了文字；需要的话自己截图贴上');
+  const got = picture.images?.length || 0, wanted = picture.wanted || got;
+  if (!attached || !got) return ui('没能附上这一页的图，需要的话自己截图贴上');
+  if (got < wanted) return uiFormat('{0} 页里附上了 {1} 页的图，其余的没画出来', [wanted, got]);
+  return wanted > 1 ? uiFormat('这 {0} 页的图都附上了', [wanted]) : ui('这一页的图也附上了');
+}
 /** The input of a hand-off could not be read: the app's error toast, no seal. */
 export const HAND_OFF_FAILED = '没能发给主会话：{0}';
 
@@ -63,19 +72,22 @@ export function handOffReceipt(outcome, { lead = '', action = null } = {}) {
  * The delivery behind askInChat (ui/app/use-app-core.js): host.askInChat(text) fills the composer ('filled' or true), keeps the learner's own text ('kept')
  * or has no chat (anything else). Not filled: the prompt goes onto the clipboard. A refused clipboard opens the full-text card (`openSheet({ text, mode:
  * 'shown', lead, onClosed(copied) })`), and only a card closed without copying leaves the 「需要手动复制」 slip, whose action opens the card again; without a
- * card (no app around it) the slip carries the whole text. `said`: what a write before the hand-off did (「已保存。」), said first. `images` (reader.page: the files
- * of a page, [] when none could be drawn): they join the box after the text (host.attachToChat, a picture never replaces the learner's words), and the receipt says what became of them.
+ * card (no app around it) the slip carries the whole text. `said`: what a write before the hand-off did (「已保存。」), said first. `picture` (reader.page,
+ * pictureLine): its files join the box after the text (host.attachToChat, a picture never replaces the learner's words), and the receipt, and the box's own line where the host
+ * has moved to the chat and the receipt is out of sight (host.noteInChat), say what became of them.
  * Resolves to 'filled' | 'kept' | 'copied' | 'shown'.
  */
-export async function deliverToChat({ host, prompt, said = '', images, notify = () => {}, openSheet = null, clipboard = globalThis.navigator?.clipboard }) {
+export async function deliverToChat({ host, prompt, said = '', picture, notify = () => {}, openSheet = null, clipboard = globalThis.navigator?.clipboard }) {
   const text = withLanguageTail(String(prompt ?? ''));
   let outcome = false, lead = said ? ui(said) : '';
   try { outcome = await host?.askInChat?.(text); } catch { outcome = false; }
   const filled = outcome === true || outcome === 'filled', kept = outcome === 'kept';
-  if (images && (filled || kept)) {
+  if (picture && (filled || kept)) {
     let attached = false;
-    try { attached = images.length > 0 && !!await host?.attachToChat?.(images); } catch { attached = false; }
-    lead = joinSentences([lead, ui(attached ? HAND_OFF_PICTURE.attached : HAND_OFF_PICTURE.missed)]);
+    try { attached = picture.images?.length > 0 && !!await host?.attachToChat?.(picture.images); } catch { attached = false; }
+    const line = pictureLine(picture, attached);
+    lead = joinSentences([lead, line]);
+    if (filled) host?.noteInChat?.(line);
   }
   // 去主会话 only where the host can show the chat (the top-level page covers it)
   const toChat = typeof host?.showChat === 'function' ? { label: ui(HAND_OFF_RECEIPTS.kept.action), run: () => host.showChat() } : null;
@@ -100,8 +112,8 @@ export async function deliverToChat({ host, prompt, said = '', images, notify = 
 
 /**
  * useHandOff() -> { send, action, item }.
- *   send(id, input, { said }) -> Promise<'filled'|'kept'|'copied'|'shown'|'failed'>: `input` may be an async function (read what the message needs first); `images` in
- *     the input (files, reader.page) travel beside the text;
+ *   send(id, input, { said }) -> Promise<'filled'|'kept'|'copied'|'shown'|'failed'>: `input` may be an async function (read what the message needs first); `picture` in
+ *     the input (reader.page, pictureLine) travels beside the text;
  *     a write before the hand-off stays at the call site (await act(..., { rethrow: true }), then send with `said`). 'failed': the input could not be read.
  *   action(id, input, { what, said }) -> { label, onClick, tip }: for a Feedback action/secondary, a CompactJobCard link, a FileDrop rejectAction.
  *   item(id, input) -> { id, label, hint (the short rule), run }: a Menu item; Menu runs it when chosen (it does not reach onSelect; no dialog of its own).
@@ -111,16 +123,16 @@ export function useHandOff() {
   const { askInChat, notify } = useStudy();
   const send = useCallback(async (id, input = {}, { said = '' } = {}) => {
     if (!isHandOff(id)) throw new Error(`Unknown hand-off: ${id}`);
-    let text, images;
+    let text, picture;
     try {
       const value = typeof input === 'function' ? await input() : input;
       text = handOffText(id, value ?? {}, getUiLanguage());
-      images = value?.images;
+      picture = value?.picture;
     } catch (failure) {
       notify({ text: uiFormat(HAND_OFF_FAILED, [errorMessage(failure)]), tone: 'error' });
       return 'failed';
     }
-    return (await askInChat(text, { said, ...(images ? { images } : {}) })) || 'failed';
+    return (await askInChat(text, { said, ...(picture ? { picture } : {}) })) || 'failed';
   }, [askInChat, notify]);
   const action = useCallback((id, input, { what = '', said = '' } = {}) => {
     if (!isHandOff(id)) throw new Error(`Unknown hand-off: ${id}`);

@@ -22,7 +22,7 @@ const compiled = await build({ stdin: { contents: `
   export { ModelSettingsContext } from './ui/ModelErrorNote.jsx';
   export { default as PdfPageBar, pageBoxKey } from './ui/document-preview/reader/PdfPageBar.jsx';
   export { default as QuickIntents, PAGE_INTENTS, PASSAGE_INTENTS } from './ui/document-preview/QuickIntents.jsx';
-  export { pageHandOffInput } from './ui/document-preview/PageAsk.jsx';
+  export { pageHandOffInput, pagePicture, pageWords } from './ui/document-preview/PageAsk.jsx';
   export { hintClosed, closeHint, forgetClosedHints, READER_HINTS } from './ui/document-preview/reader/hints.js';
   export { askRequest, retryOf, pageDraftKey } from './ui/document-preview/ask-request.js';
   export { clampRangeEnd, pageKey, pagesLabel, pagesOf, pageScopeOf, pageSelection, pagesText } from './ui/document-preview/page-scope.js';
@@ -173,7 +173,7 @@ test('原始 PDF (#488): the scope of a range: a page without text does not empt
   const sources = [1, 2, 3, 4, 5, 6, 7].map(page => ({ id: `p${page}`, text: page === 4 ? '' : `Page ${page}`, document: { page } }));
   assert.deepEqual(lib.pageScopeOf(sources, 3), { kind: 'page', page: 3, sourceId: 'p3', empty: false }, 'one page reads as before');
   const range = lib.pageScopeOf(sources, 3, 5);
-  assert.deepEqual(range, { kind: 'page', page: 3, to: 5, sourceId: '', empty: false, emptyPages: [4], chars: 12 });
+  assert.deepEqual(range, { kind: 'page', page: 3, to: 5, sourceId: '', empty: false, emptyPages: [4], chars: '[page 3]\nPage 3\n\n[page 5]\nPage 5'.length }, 'chars: one number with what the answer counts');
   assert.equal(lib.pageScopeOf(sources.map(item => ({ ...item, text: '' })), 3, 5).empty, true);
   assert.equal(lib.pagesLabel(range), '3–5'); assert.equal(lib.pagesLabel({ page: 3 }), '3');
   assert.deepEqual(lib.pagesOf(range), [3, 4, 5]); assert.deepEqual(lib.pagesOf({ page: 3 }), [3]);
@@ -289,19 +289,29 @@ test('原始 PDF: four preset chips say 这一页 and ask at once with their own
   assert.match(/<button[^>]*>(?:<[^>]+>)*讲解这一页/.exec(render(React.createElement(lib.LearningPanel, pagePanel({ onQuick() {}, thread: asking }))))[0], /disabled/, 'they wait while an answer is coming');
 });
 
-test('原始 PDF (#488): where the host takes pictures, the panel says the picture goes along and asks for no screenshot', () => {
+test('原始 PDF (#488): only a model the host says takes images gets a picture, and only then is the page drawn; the words follow what will happen', async () => {
   lib.setUiLanguage('zh');
-  const taking = el => React.createElement(lib.StudyServicesContext.Provider, { value: { ...services, host: { canAttachToChat: () => true } } }, el);
-  const handOff = { ...pageHandOff, loadImages: async () => [] };
-  const out = render(taking(React.createElement(lib.LearningPanel, pagePanel({ question: 'q', pageHandOff: handOff }))));
-  assert.match(text(out), /想让主会话接着讲（连这一页的图一起）：/);
-  assert.match(text(out), /图表或扫描页可以「发给主会话」，这一页的图会一起放进输入框；图只在主会话能看图片时有用。/);
-  assert.doesNotMatch(text(out), /截图/, 'no screenshot on the main path');
-  const blank = render(taking(React.createElement(lib.LearningPanel, pagePanel({ scope: pageScope({ empty: true, sourceId: '' }), resolution: null, pageHandOff: { ...handOff, text: '' } }))));
-  assert.match(text(blank), /点按钮，这一页的图会放进主会话的输入框，由你按发送；图只在主会话能看图片时有用。/);
-  assert.doesNotMatch(text(blank), /截图/);
+  const taking = lib.pageWords(true), plain = lib.pageWords(false);
+  for (const word of Object.values(taking)) assert.doesNotMatch(lib.ui(word), /截图/, 'no screenshot on that path');
+  assert.equal(taking.lead, '想让主会话接着讲（连这一页的图一起）：');
+  assert.match(plain.what, /当前模型看不了图片时，带截图的消息发不出去/, 'a picture blocks the whole message on a text model: the hover says so');
+  const out = render(React.createElement(lib.StudyServicesContext.Provider, { value: services }, React.createElement(lib.LearningPanel, pagePanel({ question: 'q', pageHandOff: { ...pageHandOff, loadImages: async () => [] } }))));
+  assert.match(text(out), /主会话能看图片时可附截图/, 'nothing said yet by the host: the plain words');
+  let drawn = 0;
+  const handOff = { pages: 3, loadImages: async () => { drawn += 1; return [{}, {}]; } }, seen = [];
+  const host = takes => ({ chatTakesPictures: async () => takes });
+  assert.deepEqual(await lib.pagePicture(host(false), handOff), { picture: { refused: 'model' } });
+  assert.deepEqual(await lib.pagePicture(host(undefined), handOff), { picture: { refused: 'unknown' } });
+  assert.deepEqual(await lib.pagePicture({ chatTakesPictures: async () => { throw new Error('no'); } }, handOff), { picture: { refused: 'unknown' } });
+  assert.deepEqual(await lib.pagePicture(host(null), handOff), {}, 'a host without the attachment faces: nothing to say, the old screenshot way');
+  assert.deepEqual(await lib.pagePicture({}, handOff), {});
+  assert.equal(drawn, 0, 'nothing is drawn unless a picture will be attached');
+  assert.deepEqual(await lib.pagePicture(host(true), handOff, on => seen.push(on)), { picture: { images: [{}, {}], wanted: 3 } });
+  assert.equal(drawn, 1);
+  assert.deepEqual(seen, [true, false], 'the panel shows that it is drawing');
+  assert.deepEqual(await lib.pagePicture(host(true), { pages: 1, loadImages: async () => { throw new Error('bad'); } }), { picture: { images: [], wanted: 1 } });
   const inputs = [lib.pageHandOffInput(handOff, 'q', false), lib.pageHandOffInput(handOff, 'q', true)];
-  assert.ok(inputs.every(input => !('loadImages' in input)), 'the loader is not part of the message input');
+  assert.ok(inputs.every(input => !('loadImages' in input) && !('pages' in input)), 'the loader is not part of the message input');
 });
 
 test('原始 PDF: 发给主会话 is a quiet link under the answers on a page with text, and the way forward on a page without text', () => {

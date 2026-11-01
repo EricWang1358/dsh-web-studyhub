@@ -139,7 +139,7 @@ test('#488: a range asks several pages at once: each page is marked, a page with
   await store.update(state => { state.sources.find(item => item.id === imported.sourceIds[0]).text = ''; });
   const asked = await ask({ scope: 'page', selection: { ...page(1), to: 3 }, question: 'Compare' });
   assert.equal(asked.status, 'answered');
-  assert.deepEqual(asked.evidence, { page: 1, to: 3, chars: seen[0].input.context.length, used: seen[0].input.context.length, truncated: false, emptyPages: [1] });
+  assert.deepEqual(asked.evidence, { page: 1, to: 3, chars: seen[0].input.context.length, used: seen[0].input.context.length, truncated: false, pages: [2, 3], emptyPages: [1] });
   assert.equal(seen[0].input.context, `[page 2]\n${pages[1]}\n\n[page 3]\n${pages[2]}`);
   assert.equal(seen[0].input.page, 1); assert.equal(seen[0].input.to, 3); assert.deepEqual(seen[0].input.emptyPages, [1]);
   assert.match(seen[0].system, /\[page N\]/);
@@ -150,8 +150,16 @@ test('#488: a range asks several pages at once: each page is marked, a page with
   assert.equal(big.evidence.used, PAGE_RANGE_EVIDENCE_MAX); assert.equal(big.evidence.truncated, true);
   const onward = await ask({ scope: 'page', selection: { ...page(1), to: 2 }, question: 'q', offset: PAGE_RANGE_EVIDENCE_MAX });
   assert.equal(onward.evidence.offset, PAGE_RANGE_EVIDENCE_MAX);
-  assert.ok(!seen.at(-1).input.context.startsWith('[page 1]'), 'the part goes on from where it stopped');
-  await assert.rejects(ask({ scope: 'page', selection: { ...page(3), to: 2 }, question: 'q' }), /range/);
+  assert.ok(seen.at(-1).input.context.startsWith('[page 1, continued]\n'), 'the part goes on from where it stopped, and says on which page');
+  assert.deepEqual(onward.evidence.pages, [1, 2]);
+  assert.deepEqual(onward.citations.map(item => item.page), [1, 2], 'citations: the pages this part read');
+  assert.deepEqual(big.citations.map(item => item.page), [1], 'the first part did not read page 2');
+  const count = seen.length;
+  for (const selection of [{ ...page(3), to: 2 }, { ...page(0), to: 2 }, { ...page(2), to: 2.5 }]) {
+    const refused = await ask({ scope: 'page', selection, question: 'q' });
+    assert.equal(refused.status, 'missing', JSON.stringify(selection)); assert.equal(refused.reason, 'bad-range');
+  }
+  assert.equal(seen.length, count, 'a bad range is refused plainly, before a model call');
 });
 
 test('#488: a range is held to its limit by the server too, and a range with no saved text at all is refused before a model call', async t => {

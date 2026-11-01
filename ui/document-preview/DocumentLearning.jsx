@@ -183,7 +183,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
   const pageMode = scope?.kind === 'page';
   // What 发给主会话 of a page carries (ui/agent-prompts/reader.js): the material's name, the page, its saved text; the typed question is added when it is sent.
   const pageText = pageMode ? pagesText(document?.sources, scope) : '';
-  const pageHandOff = useMemo(() => pageMode ? { title: document?.title || document?.filename || '', page: scope.to ? pagesLabel(scope) : scope.page, ...(scope.to ? { range: true } : {}), text: pageText, ...(pageImages ? { loadImages: () => pageImages(pagesOf(scope)) } : {}) } : null,
+  const pageHandOff = useMemo(() => pageMode ? { title: document?.title || document?.filename || '', page: scope.to ? pagesLabel(scope) : scope.page, ...(scope.to ? { range: true } : {}), text: pageText, ...(pageImages ? { pages: pagesOf(scope).length, loadImages: () => pageImages(pagesOf(scope)) } : {}) } : null,
     [pageMode, document?.title, document?.filename, scope, pageText, pageImages]);
   const [pageCut, setPageCut] = useState(null), [pageRefusal, setPageRefusal] = useState(null), cuts = useRef(new Map());
   // A question typed on one page stays with that page (it comes back there), never follows to the next one.
@@ -269,7 +269,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
   }, []);
 
   /** Ask the model for one node of the thread; a thread that was dropped meanwhile (another selection) is left alone. */
-  async function run(id, { question: asked, term = '', context = [], intent = '', offset = 0 }) {
+  async function run(id, { question: asked, term = '', context = [], intent = '', offset = 0, first = false }) {
     const selection = resolution.selection, held = threadKey(resolution), page = pageMode;
     // The answer lands in the thread on screen; when the learner has moved to another passage meanwhile, in the thread held for this one.
     const settle = change => { if (nodeOf(threadRef.current, id)) commit(change(threadRef.current)); else memory.current.settle(held, id, change); };
@@ -283,7 +283,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
       } else {
         settle(current => answerNode(current, id, value.answer));
         // A page cut at the evidence cap is said under the box, with the question 接着读 goes on with; only a first-level question moves it (a question inside an answer reads that answer's part).
-        if (page && nodeOf(threadRef.current, id)?.parentId == null) {
+        if (page && first) {
           const cut = value.evidence?.truncated ? { ...value.evidence, question: asked, intent } : null;
           if (cut) cuts.current.set(held, cut); else cuts.current.delete(held);
           if (nodeOf(threadRef.current, id)) { setPageCut(cut); setPageRefusal(null); }
@@ -352,7 +352,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
     const id = crypto.randomUUID(), base = current.nodes.length && planAsk(current, { parentId: null }).action === 'ask' ? current : emptyThread();
     commit(addNode(base, { id, parentId: null, question: text, label, ...(intent ? { intent } : {}), ...(offset ? { offset } : {}) }));
     setFocusId(id); // the answer comes in under the chips and the form: bring it into view
-    return run(id, { question: text, intent, offset });
+    return run(id, { question: text, intent, offset, first: true });
   }
   /** 接着读 (#488): the same question on the next part of a long page; the answer joins the thread under the name of that part. */
   function readOn() {
@@ -381,7 +381,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
     const current = threadRef.current, node = nodeOf(current, id);
     if (!node || node.status !== 'failed') return;
     commit(retryNode(current, id)); say();
-    run(id, { ...retryOf(node), context: threadFor(current, node.parentId) });
+    run(id, { ...retryOf(node), context: threadFor(current, node.parentId), first: node.parentId === null });
   }
   // The handlers the markers call must keep one identity, or every render would parse the answers again.
   const latest = useRef({}); latest.current = { askInside, retryNodeAsk, keep, passageKey };

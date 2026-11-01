@@ -26,13 +26,13 @@ export const pagesLabel = scope => (scope?.to ? `${scope.page}–${scope.to}` : 
 /**
  * The page scope of the 原始 PDF view: { kind: 'page', page, sourceId, empty }. `empty` when the page has no saved text (a scanned or
  * picture page, or one skipped on import): nothing can be answered from it, so the panel says so instead of spending a call.
- * With `to` (#488) it is a range: { ..., to, emptyPages, chars }, `empty` only when no page of it has text; a page without text is named, and the others are still asked about.
+ * With `to` (#488) it is a range: { ..., to, emptyPages, chars (what the answer counts: the marked text, pagesText) }, `empty` only when no page of it has text; a page without text is named, and the others are still asked about.
  */
 export function pageScopeOf(sources = [], page, to) {
   const at = number => sources.find(item => item.document?.page === number);
   if (!to || to <= page) { const source = at(page); return { kind: 'page', page, sourceId: source?.id || '', empty: charsOf(source) === 0 }; }
   const pages = pagesOf({ page, to }), emptyPages = pages.filter(number => charsOf(at(number)) === 0);
-  return { kind: 'page', page, to, sourceId: '', empty: emptyPages.length === pages.length, emptyPages, chars: pages.reduce((sum, number) => sum + charsOf(at(number)), 0) };
+  return { kind: 'page', page, to, sourceId: '', empty: emptyPages.length === pages.length, emptyPages, chars: pagesText(sources, { page, to }).length };
 }
 
 /** The end of a range typed on `page`, held to the file and to PAGE_RANGE_MAX: { to, cut } (cut: the limit changed it, the panel says so); null for what is not a number. */

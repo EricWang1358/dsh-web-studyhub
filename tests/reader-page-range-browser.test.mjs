@@ -86,6 +86,11 @@ test('原始 PDF: a range and 接着读 in the panel, at 1440 and 420 (#488)', {
       await panel.locator('.study-page-ask__step').getByRole('button', { name: '下一页' }).click();
       await until(async () => (await scopeLine()) === '正在问：第 2 页', 'the page to turn');
       assert.equal(await panel.getByRole('spinbutton', { name: '问到第几页' }).count(), 0, 'one page again, and the box is put away');
+      // Turning back does not bring the range back: a turn ended it.
+      await panel.locator('.study-page-ask__step').getByRole('button', { name: '上一页' }).click();
+      await until(async () => (await scopeLine()) === '正在问：第 1 页', 'back on the page of the range, one page');
+      await panel.locator('.study-page-ask__step').getByRole('button', { name: '下一页' }).click();
+      await until(async () => (await scopeLine()) === '正在问：第 2 页', 'the long page again');
 
       // The long page: the same question goes on from where it stopped, one press at a time; 重试-free path.
       await panel.getByRole('button', { name: '翻译这一页' }).click();
@@ -95,6 +100,31 @@ test('原始 PDF: a range and 接着读 in the panel, at 1440 and 420 (#488)', {
       assert.match(await on.innerText(), /接着读后面 8000 字/);
       await shot(`${width}-cut`);
       const first = asked.at(-1);
+      // A question asked inside that answer, answered only after the page was turned away: 接着读 still goes on with the first question, not with this one.
+      await until(async () => (await panel.locator('[data-ask-node][data-status="answered"]').count()) > 0, 'an answer to ask inside');
+      let release;
+      const held = new Promise(done => { release = done; });
+      const holdFollowUp = async (route) => { await held; return route.continue(); };
+      await page.route('**/api/call', async (route) => {
+        const body = JSON.parse(route.request().postData() || '{}');
+        if (body.action === 'materials.selection.ask' && body.args?.question === '追问 QA') { asked.push(body.args); return holdFollowUp(route); }
+        return route.fallback();
+      });
+      const follow = panel.locator('.ask-node__follow-input').last();
+      await follow.fill('追问 QA');
+      await follow.press('Enter');
+      await until(() => asked.at(-1).question === '追问 QA', 'the question inside the answer to go out');
+      await panel.locator('.study-page-ask__step').getByRole('button', { name: '下一页' }).click();
+      await until(async () => (await scopeLine()) === '正在问：第 3 页', 'the page to turn while it is answered');
+      release();
+      await page.waitForTimeout(800);
+      await panel.locator('.study-page-ask__step').getByRole('button', { name: '上一页' }).click();
+      await until(async () => (await scopeLine()) === '正在问：第 2 页', 'back on the long page');
+      await page.unroute('**/api/call', undefined).catch(() => {});
+      await page.route('**/api/call', async (route) => {
+        try { const body = JSON.parse(route.request().postData() || '{}'); if (body.action === 'materials.selection.ask') asked.push(body.args); } catch { /* not JSON */ }
+        return route.continue();
+      });
       assert.equal(first.offset, undefined);
       await on.click();
       await until(() => asked.at(-1).offset === PAGE_EVIDENCE_MAX, 'the next part to be asked');

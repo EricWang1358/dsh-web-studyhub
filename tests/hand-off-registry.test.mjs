@@ -179,30 +179,22 @@ test('skeleton.design keeps the diagram promise and the details under a point', 
   assert.match(ui.handOffText('skeleton.design', FIXTURES['skeleton.design'].input, 'en'), /interactive UML class diagram plus sequence diagrams/);
 });
 
-test('reader.page with the page\'s pictures in the box (#488): the message says they are attached, asks for no screenshot and has no paste line', () => {
+test('reader.page with pictures on their way (#488): the text never claims one is attached (attaching comes after it, and may be refused), asks for no screenshot and has no paste line', () => {
   for (const language of ['zh', 'en']) {
-    const images = [{ name: 'page-3.jpg' }];
-    const text = ui.handOffText('reader.page', { ...FIXTURES['reader.page'].input, images }, language);
-    assert.match(text.split('\n')[0], language === 'zh' ? /第 3 页；这一页的图在这条消息的附件里/ : /page 3.*attached to this message/);
-    assert.doesNotMatch(text, /截图|[Ss]creenshot/, `${language}: nobody is asked to take a screenshot`);
+    const picture = { images: [{ name: 'page-3.jpg' }], wanted: 1 };
+    const text = ui.handOffText('reader.page', { ...FIXTURES['reader.page'].input, picture }, language);
+    assert.doesNotMatch(text, /在这条消息的附件里|attached to this message|截图|[Ss]creenshot/, `${language}: no claim, no screenshot`);
+    assert.match(text, language === 'zh' ? /这条消息带了图的话/ : /If this message carries a picture/);
     assert.ok(text.endsWith(ui.languageTail(language)), `${language}: nothing to paste after the language sentence`);
     assert.ok(!text.includes('page-3.jpg'), 'the file itself is not text');
-    const blank = ui.handOffText('reader.page', { title: 'Scheduling', page: 4, text: '', images }, language);
-    assert.match(blank, language === 'zh' ? /内容都在附图里/ : /everything is in the attached picture/);
-    const failed = ui.handOffText('reader.page', { ...FIXTURES['reader.page'].input, images: [] }, language);
-    assert.match(failed, language === 'zh' ? /这一页的截图（主会话能看图片时/ : /Screenshot of the page/, `${language}: no picture could be drawn: the screenshot way stays`);
-  }
-});
-
-test('reader.page of a range (#488): the pages are named, the text is cut at the cap of a range, and the words say these pages', async () => {
-  const { PAGE_RANGE_EVIDENCE_MAX } = await import('../lib/ask-prompt.js');
-  for (const language of ['zh', 'en']) {
-    const text = ui.handOffText('reader.page', { title: 'Scheduling', page: '3–5', range: true, text: '[page 3]\nThree\n\n[page 5]\nFive', images: [{}] }, language);
-    assert.match(text.split('\n')[0], language === 'zh' ? /第 3–5 页；这几页的图在这条消息的附件里/ : /pages 3–5.*attached to this message/);
-    assert.ok(text.includes('[page 5]'));
-    const long = ui.handOffText('reader.page', { title: 'S', page: '3–5', range: true, text: 'y'.repeat(PAGE_RANGE_EVIDENCE_MAX + 1) }, language);
-    assert.match(long, language === 'zh' ? new RegExp(`只附了前 ${PAGE_RANGE_EVIDENCE_MAX} 字`) : new RegExp(`first ${PAGE_RANGE_EVIDENCE_MAX} of`));
-    assert.match(long, language === 'zh' ? /这几页的截图/ : /Screenshots of the pages/);
+    const blank = ui.handOffText('reader.page', { title: 'Scheduling', page: 4, text: '', picture }, language);
+    assert.match(blank, language === 'zh' ? /这条消息没带图、或你看不了图片时，直接告诉我/ : /if this message carries no picture, or you cannot read pictures/);
+    const textModel = ui.handOffText('reader.page', { ...FIXTURES['reader.page'].input, picture: { refused: 'model' } }, language);
+    assert.doesNotMatch(textModel, /截图|[Ss]creenshot/, `${language}: a screenshot would block the message on this model: nobody is invited to paste one`);
+    for (const other of [{ images: [], wanted: 1 }, { refused: 'unknown' }]) {
+      const said = ui.handOffText('reader.page', { ...FIXTURES['reader.page'].input, picture: other }, language);
+      assert.match(said, language === 'zh' ? /这一页的截图（主会话能看图片时/ : /Screenshot of the page/, `${language}: no picture: the screenshot way stays`);
+    }
   }
 });
 

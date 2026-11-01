@@ -207,6 +207,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const totalPages = pageCount(sources);
   // A range of pages (#488) belongs to the page it was made on: turning the page, by any way, ends it.
   const [pageRange, setPageRange] = useState(null), pageTo = pageRange?.from === pdfPage ? pageRange.to : 0;
+  if (pageRange && !pageTo) setPageRange(null); // gone for good: turning back does not bring it back
   const askThrough = to => setPageRange(to ? { from: pdfPage, to } : null);
   const pageScope = useMemo(() => format === 'pdf' && fileUrl ? pageScopeOf(sources, pdfPage, pageTo) : null, [format, fileUrl, sources, pdfPage, pageTo]);
   const goToPage = page => { const next = clampPage(page, totalPages); if (next !== null) setPdfPage(next); };
