@@ -85,7 +85,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     if (reading.mode !== 'scroll' || view !== 'read' || !ai.ask || !pageRef.current) return;
     if (!pageRef.current.querySelector(`[data-book-point="${CSS.escape(ai.ask.heading)}"]`)) ai.closeAsk();
   });
-  const handlers = useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource, ai: ai.actions, foldAi: aiFold.fold });
+  const handlers = useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource,
+    modelReady: modelReadiness(data).ready, onBack, ai: ai.actions, foldAi: aiFold.fold });
   const [tocWide, setTocWide] = usePersistentState(`study-book-toc:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
   const [tocOver, setTocOver] = useState(false), closeToc = useCallback(() => setTocOver(false), []);
   useEffect(() => { setTocOver(false); }, [narrow]);

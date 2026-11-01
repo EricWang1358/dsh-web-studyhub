@@ -64,7 +64,7 @@ async function copyText(text) {
 
 /** The handlers every point reads (ui/book/PointBody.jsx and below). ai: the stable ctions of ui/book/use-book-ai.js (the lines themselves reach the points
     through BookAiContext, so a line or the 问 AI panel never gives every point new handlers). */
-export function useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource, ai, foldAi }) {
+export function useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource, modelReady = true, onBack, ai, foldAi }) {
   const [qa, setQa] = useState(() => new Set());
   const [choosing, setChoosing] = useState(false);
   return useMemo(() => ({
@@ -107,8 +107,9 @@ export function useBookHandlers({ call, act, course, notify, book, setBook, rows
         return { ok: false, failure };
       }
     },
-    // 补漏 of a point left short: only its missing concepts, the same task as on the 总纲 page.
+    // 补漏 of a point left short: only its missing concepts, the same task as on the 总纲 page (without a model it goes there, like 更新全书).
     fillGaps: async node => {
+      if (!modelReady) { onBack?.(); return; }
       try { await act('generation.courseBook.build', { course, point: String(node.key).replace(/^bk:/, '') }, result => notify({ text: readMoreStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true }); }
       catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
     },
@@ -131,5 +132,5 @@ export function useBookHandlers({ call, act, course, notify, book, setBook, rows
     // The fold of the blocks (kept in this browser), and the two ways between a block and its dashed words (ui/book/ai-anchors.js): open the block, then show it.
     aiOpen: id => { flushSync(() => foldAi(id, false)); showBlock(id); },
     aiWords: id => showWords(id),
-  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, ai, foldAi, reload, act]);
+  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, onBack, ai, foldAi, reload, act]);
 }

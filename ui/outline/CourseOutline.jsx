@@ -240,7 +240,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
       </section>}
       {nothing && <EmptyState icon="book" title={outline.status === 'empty' ? ui('还没有课程') : ui('这门课还没有题')}
         description={ui('在「创建题组」里从资料出题，题目会按资料的章节排进总纲。')} primary={book ? undefined : create} secondary={book ? create : undefined} />}
-      {rows.length > 0 && <OutlineTree rows={rows} details={details} pick={pick} papers={book?.papers || 0} onToggle={actions.toggle} onPick={actions.onPick} onPickCard={actions.onPickCard}
+      {rows.length > 0 && <OutlineTree rows={rows} details={details} pick={pick} papers={book?.papers || 0} modelReady={model.ready} onToggle={actions.toggle} onPick={actions.onPick} onPickCard={actions.onPickCard}
         onPractice={actions.onPracticeRow} onOpenSources={actions.onOpenSources} onOpenSource={actions.onOpenSource} onOpenBook={book?.notes ? actions.onOpenBook : undefined}
         onReadMore={actions.readMore} label={ui('总纲')} />}
       {isPicked(pick) && <div className="outline-bar" role="region" aria-label={ui('已选的题')}>

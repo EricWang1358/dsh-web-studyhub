@@ -47,12 +47,19 @@ async function seed(root) {
 }
 
 /** Every call the page makes, so a button's action and payload are read as sent (not only what came of it). */
-async function watchCalls(page) {
+async function watchCalls(page, mode = {}) {
   const sent = [];
   await page.route('**/api/call', async route => {
     let body = {};
     try { body = route.request().postDataJSON() || {}; } catch { body = {}; }
     sent.push({ action: body.action, args: body.args || {} });
+    if (mode.noModel && body.action === 'snapshot') {
+      const response = await route.fetch();
+      const json = await response.json();
+      if (json?.value) Object.assign(json.value, { modelReady: false, model: { ready: false, reason: 'no-route', label: '' } });
+      await route.fulfill({ response, json });
+      return;
+    }
     await route.continue();
   });
   return sent;
@@ -229,7 +236,8 @@ test('复习全书 upkeep: 更新全书 when the materials changed, 补漏 on a 
     await running.api('focus.set', { course: COURSE });
     for (const width of [1280, 420]) {
       const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
-      const sent = await watchCalls(page);
+      const mode = { noModel: false };
+      const sent = await watchCalls(page, mode);
       const open = async () => {
         await page.goto(running.server.url);
         const entry = page.locator('[data-tour="nav-book"]').first();
@@ -237,6 +245,16 @@ test('复习全书 upkeep: 更新全书 when the materials changed, 补漏 on a 
         await entry.dispatchEvent('click');
         await page.locator('[data-book-point]').first().waitFor({ timeout: 60000 });
       };
+      // Without a model, 补漏 (like 更新全书) leads to the 总纲 page where the model gate stands, without starting a build.
+      mode.noModel = true;
+      await open();
+      sent.length = 0;
+      await page.locator('.book-point__short').getByRole('button', { name: '补漏' }).click();
+      await page.locator('.book-page').waitFor({ state: 'detached', timeout: 30000 });
+      await page.locator('.outline-page [data-model-gate="compact"]').waitFor({ timeout: 30000 });
+      assert.equal(sent.some(call => call.action === 'generation.courseBook.build'), false, `${width}px: without a model 补漏 starts no build`);
+      mode.noModel = false;
+
       await open();
       if (width === 1280) assert.equal(await page.locator('[data-book-outdated]').count(), 0, 'nothing changed: nothing said');
       await page.locator('.book-point__short').getByRole('button', { name: '补漏' }).click();
