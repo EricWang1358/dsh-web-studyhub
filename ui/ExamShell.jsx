@@ -102,7 +102,7 @@ function Row({ item, onOpen, busy }) {
     <li className="es-recent__row">
       <Badge className="es-kind" tone={item.kind === "case" ? "info" : "neutral"}>{tags[item.kind]}</Badge>
       <span className="es-recent__text"><strong>{score}</strong>{detail && <small>{detail}</small>}</span>
-      <Button size="sm" variant="secondary" disabled={busy} onClick={() => onOpen(item)}>{ui("查看报告")}</Button>
+      <Button size="sm" variant="secondary" lock={busy} onClick={() => onOpen(item)}>{ui("查看报告")}</Button>
     </li>
   );
 }
