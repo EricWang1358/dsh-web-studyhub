@@ -25,6 +25,8 @@ export const RULES = {
   rawColor: { issue: '#156', why: 'raw #hex / rgb() / hsl() outside token definitions', fix: 'use a colour token or color-mix() of tokens (only #000 inside mask-image is allowed)' },
   spacingPx: { issue: '#148', why: 'raw px padding/margin/gap', fix: 'use var(--space-*)' },
   longLine: { issue: '#156', why: 'CSS line longer than 400 characters (minified)', fix: 'format the stylesheet (one declaration per line)' },
+  bareBusyDisabled: { issue: '#153', why: '<Button> or <button> disabled by a busy flag (disabled={busy}, disabled={!ok || saving}): the pressed one gets no spinner, no aria-busy, no held width',
+    fix: '<Button lock={busy}>: it disables while the flag is up and shows the spinner only on the button that was pressed' },
   hostTitle: { issue: '#86', why: 'title="..." on a plain text element (span, div, li, small, p ...): it never shows on touch or keyboard focus', fix: '<Tooltip layer content={...}><span tabIndex={0}>...</span></Tooltip>; a title that only repeats a truncated label may stay on its Button' },
   busyLabelSwap: { issue: '#153', why: '<Button> whose label swaps to a working text without the busy prop (no spinner, no aria-busy, no held width)', fix: '<Button busy={working} busyLabel={ui(\'正在…\')}>' },
   radiusCard: { issue: '#143', why: 'border-radius: var(--radius-card) in a feature sheet (it is the physical paper card\'s corner, spelled once as --paper-radius in ui/paper.css)', fix: 'use var(--radius) for a desk panel, or the paper card: class="sh-paper-card" / <Panel tone="paper">' },
@@ -253,8 +255,8 @@ function classNameStrings(source) {
 }
 
 /* Each <Button> / <IconButton> element of a source text: its opening tag (balanced braces and quotes) and its body up to the closing tag. */
-function* buttonElements(text) {
-  const re = /<(Button|IconButton)(?=[\s>])/g;
+function* buttonElements(text, tags = 'Button|IconButton') {
+  const re = new RegExp(`<(${tags})(?=[\\s>])`, 'g');
   let m;
   while ((m = re.exec(text))) {
     let i = re.lastIndex, depth = 0, quote = '';
@@ -270,6 +272,15 @@ function* buttonElements(text) {
     const end = open.endsWith('/>') ? -1 : text.indexOf(`</${m[1]}>`, i);
     yield { open, body: open.endsWith('/>') || end < 0 ? '' : text.slice(i + 1, end) };
   }
+}
+/* The expression of `disabled={...}` in an opening tag (balanced braces), or '' when there is none. */
+function disabledExpression(open) {
+  const start = /\bdisabled=\{/.exec(open);
+  if (!start) return '';
+  let depth = 1, i = start.index + start[0].length;
+  const from = i;
+  for (; i < open.length && depth; i++) depth += open[i] === '{' ? 1 : open[i] === '}' ? -1 : 0;
+  return open.slice(from, i - 1);
 }
 const WORKING_WORD = '(?:busy|pending|saving|working|loading|starting|checking|searching|matching|reading|proposing|installing|updating|connecting|running|generating)';
 const LABEL_SWAP = new RegExp(`\\b${WORKING_WORD}\\b[\\w.!=\\s&|'"]*\\?\\s*(?:ui|uiFormat)\\(`);
@@ -287,6 +298,11 @@ function scanJsxFile(file, source, metrics, found) {
     let swaps = 0;
     for (const el of buttonElements(text)) if (!/\bbusy=/.test(el.open) && LABEL_SWAP.test(el.body)) swaps++;
     bump('busyLabelSwap', swaps);
+    /* A working word that is not negated: `!running` is a Stop button, not a button that waits. */
+    const waits = new RegExp(`(?<![\\w$.!])${WORKING_WORD}(?![\\w$])`);
+    let bare = 0;
+    for (const el of buttonElements(text, 'Button|IconButton|button')) if (!/\b(?:busy|lock)=/.test(el.open) && waits.test(disabledExpression(el.open))) bare++;
+    bump('bareBusyDisabled', bare);
     bump('hostTitle', (text.match(/<(?:span|div|li|small|p|td|th|strong|i|b|time|mark|em|dd|dt|section|article)(?=[\s>])[^>]*\stitle=/g) || []).length);
     bump('rawChoiceInput', (text.match(/\btype=(?:"(?:checkbox|radio)"|'(?:checkbox|radio)'|\{\s*['"](?:checkbox|radio)['"]\s*\})/g) || []).length);
   }
