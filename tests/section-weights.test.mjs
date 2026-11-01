@@ -140,3 +140,16 @@ test('ids the model invents or repeats are ignored; a stop signal stops the aski
   controller.abort(new Error('stopped'));
   await assert.rejects(sectionWeights({ sections: leaves, sources, light: model.complete, signal: controller.signal }), /stopped/);
 });
+
+test('a call past the time limit is told to stop and nothing more is asked', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const signals = [];
+  const answer = sectionWeights({ sections: leaves.slice(0, 20), sources, light: (_system, _prompt, options) => { signals.push(options.signal); return new Promise(() => {}); } });
+  for (let turns = 0; turns < 1000 && !signals.length; turns++) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(signals[0].aborted, false);
+  t.mock.timers.tick(45_000);
+  const result = await answer;
+  assert.match(result.failed, /timeout/);
+  assert.equal(result.source, 'length');
+  assert.equal(signals[0].aborted, true);
+});

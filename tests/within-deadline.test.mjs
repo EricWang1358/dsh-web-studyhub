@@ -44,3 +44,29 @@ test('a limit that passes between two calls is no unhandled rejection, and the n
   release();
   await assert.rejects(answer, /timeout/);
 });
+
+test('the limit stops the call: its signal aborts with the same error, so a model still working stops spending tokens', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let seen;
+  const answer = withinDeadline(1000, (race, signal) => { seen = signal; return race(never()); });
+  assert.equal(seen.aborted, false);
+  t.mock.timers.tick(1000);
+  const error = await answer.catch(failure => failure);
+  assert.equal(error.message, MODEL_TIMEOUT_MESSAGE);
+  assert.equal(error.name, 'TimeoutError', 'the retry of a light call does not ask again (lib/model-retry.js)');
+  assert.equal(seen.aborted, true);
+  assert.equal(seen.reason, error);
+});
+
+test('work that ends in time leaves its signal alone', async () => {
+  let seen;
+  await withinDeadline(1000, async (race, signal) => { seen = signal; return race(Promise.resolve('ok')); });
+  assert.equal(seen.aborted, false);
+});
+
+test('a model that answers with the abort still reads as the time limit', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const answer = withinDeadline(1000, (race, signal) => race(new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted by the provider'))))));
+  t.mock.timers.tick(1000);
+  await assert.rejects(answer, new RegExp(MODEL_TIMEOUT_MESSAGE.replace(/[()]/g, '\\$&')));
+});

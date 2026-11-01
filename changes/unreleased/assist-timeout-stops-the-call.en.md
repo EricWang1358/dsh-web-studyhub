@@ -1,0 +1,1 @@
+- **An assist that runs out of time stops asking the model.** When **Help me think**, the step-by-step path or the weighing of sections pass their 45 seconds, the model call is told to stop instead of going on in the background, so a slow provider no longer spends tokens on an answer nobody reads. Stopping a run while it weighs its sections stops that call too.
