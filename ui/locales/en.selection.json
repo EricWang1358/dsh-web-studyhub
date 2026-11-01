@@ -140,5 +140,10 @@
   "名称最多 {0} 个字。": "A name takes at most {0} characters.",
   "已经有一个叫「{0}」的预设：换个名字，或者先改那一个。": "You already have a preset called “{0}”: use another name, or change that one first.",
   "提示词不能为空。": "The prompt cannot be empty.",
-  "提示词最多 {0} 个字。": "A prompt takes at most {0} characters."
+  "提示词最多 {0} 个字。": "A prompt takes at most {0} characters.",
+  "一次画一页：翻页不重新载入，缩放不变，显示的就是面板问的那一页。": "One page at a time: turning the page reloads nothing, the zoom stays, and the page shown is the page the panel asks about.",
+  "能在整份文件里查找、连续滚动；但每次翻页都会重新载入，缩放不保留。": "Finds in the whole file and scrolls through it; but every page turn reloads it and the zoom is lost.",
+  "回到单页视图": "Back to the single-page view",
+  "用浏览器的查看器": "Use the browser’s viewer",
+  "这份文件在这里画不出来，已换成浏览器的查看器。": "This file cannot be drawn here, so the browser’s viewer is shown instead."
 }

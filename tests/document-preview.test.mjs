@@ -115,7 +115,9 @@ test('原始 PDF: a selection is never captured or shown there, the reading pane
   assert.match(viewer, /\{onCaseFromPassage && view !== 'original' && <Button/, '围绕这段出案例题 is not offered there');
   assert.match(viewer, /if \(view === 'original'\) setMode\('read'\); \/\/ a kept passage is shown where it can be selected/, 'a kept annotation opened from the links goes back to 阅读');
   assert.match(viewer, /\{!toolsOn && <> <Button variant="link" size="sm" onClick=\{\(\) => toggle\('tools'\)\}>\{ui\('问这一页'\)\}<\/Button><\/>\}/, '「问这一页」 opens a closed panel');
-  assert.match(viewer, /<PdfPageBar page=\{pdfPage\} total=\{totalPages\} onPage=\{goToPage\} \/>[\s\S]{0,240}<iframe key=\{pdfPage\} src=\{`\$\{fileUrl\}#page=\$\{pdfPage\}`\}/, 'a new frame per page: a changed #page= alone is ignored by the PDF viewer');
+  assert.match(viewer, /<PdfOriginal fileUrl=\{fileUrl\}[^\n]*page=\{pdfPage\} total=\{totalPages\} onPage=\{goToPage\}/, 'the page is drawn in place (reader/PdfOriginal.jsx)');
+  const original = await readFile(new URL('../ui/document-preview/reader/PdfOriginal.jsx', import.meta.url), 'utf8');
+  assert.match(original, /<iframe key=\{page\} src=\{`\$\{fileUrl\}#page=\$\{page\}`\}/, 'the browser\'s viewer still gets a new frame per page: a changed #page= alone is ignored by it');
   assert.doesNotMatch(viewer, /要选中文字提问或补题，请切换到「阅读」。'\)\}<\/p>/, 'the old dead-end hint is gone');
 });
 

@@ -62,6 +62,18 @@ export async function createPeekRenderer(bytes, deps = {}) {
         return bitmap;
       } finally { page.cleanup(); }
     },
+    /* The words of a page over its picture, so they can be selected (原始 PDF, PdfPageView.jsx): `container` is emptied and filled when this is still the current turn. -> the layer, with cancel(). */
+    async textLayer(number, { scale, container, current = () => true }) {
+      const page = await doc.getPage(number), viewport = page.getViewport({ scale });
+      if (!current()) return null;
+      const next = document.createElement('div');
+      next.style.setProperty('--total-scale-factor', String(scale));
+      next.className = 'reader-pdf-text__page';
+      const layer = new pdfjs.TextLayer({ textContentSource: page.streamTextContent({ includeMarkedContent: true, disableNormalization: true }), container: next, viewport });
+      await layer.render();
+      if (current()) container.replaceChildren(next);
+      return layer;
+    },
     async destroy() { sizes.clear(); try { await task.destroy(); } catch { /* already gone */ } },
   };
 }
