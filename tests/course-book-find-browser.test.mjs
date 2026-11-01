@@ -45,6 +45,21 @@ test('复习全书 find and the big 目录 (1280 and 420 px)', { timeout: 420000
       assert.equal(await page.locator('.book-toc__go[aria-current="location"]').innerText(), '1 第 1 章', `${width}px: the mark is on the chapter`);
       await page.locator('.book-toc__fold[aria-expanded="false"]').first().click();
       assert.equal(await page.locator('.book-toc__go[aria-current="location"]').count(), 1, `${width}px: and back on the point`);
+      // The keyboard: one tab stop for the list, the arrows and Home / End walk it (#489 item 11), Enter goes.
+      assert.equal(await page.locator('.book-toc__go[tabindex="0"]').count(), 1, `${width}px: one row is the tab stop`);
+      assert.equal(await page.locator('.book-toc__go[tabindex="0"][aria-current="location"]').count(), 1, `${width}px: the one being read`);
+      await page.locator('.book-toc__go[aria-current="location"]').focus();
+      await page.keyboard.press('ArrowDown');
+      const focused = () => page.evaluate(() => document.activeElement?.textContent);
+      assert.match(await focused(), /知识点 1\.2/, `${width}px: down`);
+      assert.equal(await page.locator('.book-toc__go[tabindex="0"]').innerText(), await focused(), `${width}px: the tab stop follows`);
+      await page.keyboard.press('ArrowUp');
+      assert.match(await focused(), /知识点 1\.1/, `${width}px: up`);
+      await page.keyboard.press('Home');
+      assert.match(await focused(), /第 1 章/, `${width}px: Home`);
+      await page.keyboard.press('End');
+      assert.notEqual(await page.locator('.book-toc__go').last().innerText(), '', `${width}px: End`);
+      assert.equal(await page.locator('.book-toc__go').last().evaluate(element => element === document.activeElement), true, `${width}px: End is the last row`);
       // Words that are in one point, not drawn yet: one row, one click, there with the words marked. The width of the characters does not matter.
       const box = page.getByRole('searchbox', { name: '在书里找' });
       await box.fill('独一无二');
