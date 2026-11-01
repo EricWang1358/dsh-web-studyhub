@@ -44,7 +44,7 @@ export function RenameDialog({ book, node, onRun, onClose }) {
   return (
     <Dialog title={ui('给这个知识点改名')} size="sm" className="book-structure-dialog" onClose={onClose}
       footer={<>
-        <Button variant="quiet" onClick={() => onClose()} disabled={busy}>{ui('取消')}</Button>
+        <Button variant="quiet" onClick={() => onClose()} lock={busy}>{ui('取消')}</Button>
         <Button variant="primary" type="submit" form={formId} busy={busy} disabled={!next}>{ui('保存')}</Button>
       </>}>
       <div className="book-structure">
@@ -123,7 +123,7 @@ export function PlaceDialog({ book, section, onRun, onClose, onPlaced }) {
   return (
     <Dialog title={ui('放回到一个知识点')} size="sm" className="book-structure-dialog" onClose={onClose} busy={busy}
       footer={<>
-        <Button variant="quiet" onClick={() => onClose()} disabled={busy}>{ui('取消')}</Button>
+        <Button variant="quiet" onClick={() => onClose()} lock={busy}>{ui('取消')}</Button>
         <Button variant="primary" busy={busy} disabled={!point} onClick={place}>{ui('放回')}</Button>
       </>}>
       <div className="book-structure">
