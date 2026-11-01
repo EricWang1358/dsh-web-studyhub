@@ -13,13 +13,17 @@ import { githubRelease } from './helpers/wp15-release.mjs';
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
   export * from './ui/UpdateCenter.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { UpdateChip, UpdateDialog, UpdateSettings, startUpgrade, chipState, setUiLanguage } = module.exports;
+const { UpdateChip, UpdateDialog: Dialog, UpdateSettings: Settings, startUpgrade, chipState, setUiLanguage, StudyServicesContext } = module.exports;
 const han = /[㐀-鿿]/;
 const h = React.createElement;
+// The dialog and the section read `call` and `host` from the app's services (useStudy): the tests give them as props here and this passes them on.
+const withServices = View => ({ call, host, ...props }) => h(StudyServicesContext.Provider, { value: { call, host } }, h(View, props));
+const UpdateDialog = withServices(Dialog), UpdateSettings = withServices(Settings);
 const ASSET = 'https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v2.1.1/ericwang1358-dsh-daily-flashcard-2.1.1.tgz';
 const update = (extra = {}) => ({ current: '2.1.0', latest: '2.1.1', newer: true, publishedAt: '2026-10-05T08:00:00Z',
   notes: '## What\'s new\n- calmer update check', url: 'https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v2.1.1',

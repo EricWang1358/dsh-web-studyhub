@@ -3,6 +3,7 @@ import { ui, uiFormat, uiMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, Hint } from './components/index.js';
 import css from './jev.css';
+import { useStudy } from './study-context.jsx';
 
 /* EXPERIMENTAL 题目认知层次对照, the developer panel: Jev's reading of a question's level next to the code's keyword heuristic that the 本轮小结
    uses. Counts of agreement and disagreement, the matrix, and the questions where they disagree. A cross-check only: nothing is changed or
@@ -33,7 +34,8 @@ export function JevLevelCheckView({ result, busy, onRun }) {
 }
 
 /** Connected: asks `jev.levels.check` for the library's questions. */
-export default function JevLevelCheck({ call }) {
+export default function JevLevelCheck() {
+  const { call } = useStudy();
   const [result, setResult] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const run = async () => {
     setBusy(true); setError('');

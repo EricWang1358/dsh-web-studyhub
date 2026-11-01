@@ -18,6 +18,7 @@ import CourseField from './CourseField.jsx';
 import { usePageScope } from './PageScope.jsx';
 import { useLiveEffect } from './use-async.js';
 import { useUndoable } from './use-undoable.js';
+import { useStudy } from './study-context.jsx';
 
 // What the host's generator is told to write in, by interface language.
 const GENERATION_LANGUAGE = { en: 'English', zh: '中文' };
@@ -153,7 +154,8 @@ export function CaptureHelp({ kind, facts, disabled, onMicrophone, onRetry }) {
   </div>;
 }
 
-export default function LiveClass({ call, data, visible, onJobs, onSettings, onSources, initialReadiness = null, initialLocal = null }) {
+export default function LiveClass({ data, visible, onJobs, onSettings, onSources, initialReadiness = null, initialLocal = null }) {
+  const { call } = useStudy();
   const language = useUiLanguage();
   useInjectCss(css, 'study-live-class');
   const [course, setCourse] = usePageScope(data?.root, 'live-class-course', data?.focus?.course ?? '');

@@ -7,6 +7,7 @@ import { useInjectCss } from "./shared.js";
 import { inboxMissingPrompt, inboxOpenHint, inboxTone, inboxTopics } from "../lib/inbox-kinds.js";
 import css from "./inbox.css";
 import previewCss from "./inbox-preview.css";
+import { useStudy } from "./study-context.jsx";
 
 /* 顶栏信箱：会话或后台替学习者做完的事（改题、前置题、陪学回复、讲解追问、笔记草稿、
    音频转写、PDF 转换、译文、批改、原文补题）都投递到这里。点一条直接跳回那道题或那份
@@ -35,7 +36,8 @@ function Preview({ m }) {
   </>;
 }
 
-function Letter({ m, busy, now, onOpen, onUndo, close }) {
+function Letter({ m, now, onOpen, onUndo, close }) {
+  const { busy } = useStudy();
   const tone = inboxTone(m.kind);
   return (
     <>
@@ -66,7 +68,7 @@ function Letter({ m, busy, now, onOpen, onUndo, close }) {
   );
 }
 
-export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readError = "", defaultOpen = false, onOpenTasks }) {
+export default function Inbox({ inbox, onOpen, onReadAll, onUndo, readError = "", defaultOpen = false, onOpenTasks }) {
   useInjectCss(css, "study-inbox");
   useInjectCss(previewCss, "study-inbox-preview");
   const [open, setOpen] = React.useState(defaultOpen);
@@ -115,7 +117,7 @@ export default function Inbox({ inbox, busy, onOpen, onReadAll, onUndo, readErro
           {items.length ? (
             <ScrollWindow className="mailbox__scroll" label={ui("信箱消息")} items={items} itemKey={(m) => m.id}
               listClassName="mailbox__list" itemClassName="mailbox__row" style={PANEL_ROWS}
-              renderItem={(m) => <Letter m={m} busy={busy} now={now} onOpen={onOpen} onUndo={onUndo} close={() => setOpen(false)} />} />
+              renderItem={(m) => <Letter m={m} now={now} onOpen={onOpen} onUndo={onUndo} close={() => setOpen(false)} />} />
           ) : <EmptyMailbox onOpenTasks={onOpenTasks ? () => { setOpen(false); onOpenTasks(); } : undefined} />}
         </div>
       )}

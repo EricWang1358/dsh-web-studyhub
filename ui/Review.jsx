@@ -104,7 +104,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
     >
       {/* The rail is a full-height column of the page, not of the question body,
           so it is pinned from the first frame instead of sliding up to stick. */}
-      {rail && <ReviewNavigator run={run} busy={busy} onJump={(index) => reviewAct("review.move", { index })} />}
+      {rail && <ReviewNavigator run={run} onJump={(index) => reviewAct("review.move", { index })} />}
       <PageHeader className="review-heading" compact
         eyebrow={flow ? [ui("学习流"), flow.stepIndex >= 0 && uiFormat("第 {0}/{1} 步", [flow.stepIndex + 1, flow.stepCount]), flow.stepTitle].filter(Boolean).join(" · ") : undefined}
         title={[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}
@@ -165,11 +165,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <CoachDebrief
               key={"debrief-" + run.id}
               run={run}
-              call={coachProps.call}
               initial={coachProps.debrief}
               // Autopilot must not pull a learner out of a workflow or a detour.
               autopilot={coachProps.autopilot && !flow && !detour && !run.returnTo && !backHere}
-              busy={busy}
               onPractice={coachProps.onPractice}
               onContinue={coachProps.onContinue}
               destination={coachProps.destination}
@@ -179,8 +177,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               onSettings={goPracticeSettings} onProfileSettings={() => openSettings("settings-profile")}
             />
           )}
-          {call && <DailyRecap root={data.root} runId={run.id} saved={data.settings?.dailyRecap} call={call} act={act}
-            busy={busy} poll primary={!nextStep && !backHere} onOpenNote={onOpenNote} onSettings={onRecapSettings} onModelSettings={onModelSettings} />}
+          {call && <DailyRecap root={data.root} runId={run.id} saved={data.settings?.dailyRecap}
+            poll primary={!nextStep && !backHere} onOpenNote={onOpenNote} onSettings={onRecapSettings} onModelSettings={onModelSettings} />}
           <div className="summary-topics sh-paper-card">
             <h3>{ui("接下来重点复习 · 最多 3 个主题")}</h3>
             {(run.weakTopics || []).slice(0, 3).map((t) => run.weakScopes?.[t]?.length

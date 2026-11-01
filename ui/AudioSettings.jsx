@@ -11,6 +11,7 @@ import { audioFocusPending, requestAudioSettingsFocus, takeAudioSettingsFocus } 
 import { useInjectCss } from './shared.js';
 import css from './audio-settings.css';
 import { setQueryData, useHostQuery } from './host-query.js';
+import { useStudy } from './study-context.jsx';
 
 export { audioFocusPending, requestAudioSettingsFocus };
 
@@ -45,17 +46,18 @@ const RESULT = (result) => (result.ok ? ui('可用：密钥有效，网络也连
  * shared SecretKeyForm: the key input at full width, the actions, then the result message and an optional footnote (rows
  * that cards can line up). `initialResult` shows a check result on first render (previews and tests).
  */
-export function ProviderKeyForm({ provider, state, call, busy = false, primary = true, onSaved, label, footnote, initialResult = null }) {
+export function ProviderKeyForm({ provider, state, primary = true, onSaved, label, footnote, initialResult = null }) {
+  const { call, busy } = useStudy();
   const set = (patch) => Promise.resolve(call('audio.settings.set', patch)).then((next) => onSaved?.(next));
   return <SecretKeyForm name="audio-key" label={label || uiFormat('{0} 的 API 密钥', [ui(provider.name)])} placeholder={ui(provider.placeholder)}
-    saved={state} busy={busy || !call} primary={primary} footnote={footnote} initialResult={initialResult} resultText={RESULT}
+    saved={state} busy={busy} primary={primary} footnote={footnote} initialResult={initialResult} resultText={RESULT}
     onSave={(key) => set({ [provider.field]: key })} onClear={() => set({ [provider.field]: '' })}
     onVerify={() => Promise.resolve(call('audio.test', { tier: provider.tier })).then((report) => report?.[provider.tier] || { ok: false })} />;
 }
 
 /* A card's rows (head, saved status, steps, key input, actions, message/footnote)
    share the grid's rows through subgrid, so the same parts line up across cards. */
-function KeyCard({ provider, state, call, busy, onSaved, recommended }) {
+function KeyCard({ provider, state, onSaved, recommended }) {
   return (
     <ProviderCard data-provider={provider.tier} title={ui(provider.name)} set={!!state?.set}
       badges={<>
@@ -64,7 +66,7 @@ function KeyCard({ provider, state, call, busy, onSaved, recommended }) {
       </>}
       status={state?.set ? uiFormat('已保存 {0}', [state.hint]) : ui('未配置')}
       steps={provider.steps.map((step) => ({ text: ui(step.text), href: step.href }))}>
-      <ProviderKeyForm provider={provider} state={state} call={call} busy={busy} onSaved={onSaved} primary={!!recommended}
+      <ProviderKeyForm provider={provider} state={state} onSaved={onSaved} primary={!!recommended}
         footnote={<Hint>{ui(provider.note)}</Hint>} />
     </ProviderCard>
   );
@@ -79,7 +81,7 @@ const GATE_COPY = Object.freeze({
   siliconflow: { why: '录音要先转成文字。推荐硅基流动 SenseVoice：免费 · 国内直连，注册后马上能用。', other: { text: '在海外网络下也可以用 Groq 或 Google Gemini 的免费额度', tier: 'groq', label: '获取 Groq 密钥' } },
 });
 
-export function AudioSetupGate({ language = getUiLanguage(), call, onOpenSettings, onSaved, reason = 'no-provider' }) {
+export function AudioSetupGate({ language = getUiLanguage(), onOpenSettings, onSaved, reason = 'no-provider' }) {
   useInjectCss(css, 'study-audio-settings');
   const lead = providerOrder(language)[0], provider = PROVIDERS[lead], copy = GATE_COPY[lead];
   const others = { text: copy.other.text, href: providerOf(copy.other.tier).keyUrl, label: copy.other.label };
@@ -90,7 +92,7 @@ export function AudioSetupGate({ language = getUiLanguage(), call, onOpenSetting
       steps={reason === 'paid-missing' ? [] : provider.steps.map((step) => ({ text: ui(step.text), href: step.href }))}
       secondary={onOpenSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: onOpenSettings } : undefined}>
       {reason !== 'paid-missing' && <>
-        <ProviderKeyForm provider={provider} call={call} onSaved={onSaved} label={uiFormat('{0} 的 API 密钥', [ui(provider.name)])} />
+        <ProviderKeyForm provider={provider} onSaved={onSaved} label={uiFormat('{0} 的 API 密钥', [ui(provider.name)])} />
         <Hint className="audio-setup-alt">{ui(others.text)} · <a href={others.href} target="_blank" rel="noreferrer">{ui(others.label)}</a></Hint>
       </>}
     </SetupRequired>
@@ -118,7 +120,8 @@ export function LiveEngineChoice({ view, disabled = false, onSave, initialLocal 
   </div>;
 }
 
-export default function AudioSettings({ busy, act, call, initialView = null, initialLocal = null }) {
+export default function AudioSettings({ initialView = null, initialLocal = null }) {
+  const { busy, act, call } = useStudy();
   const toast = useToast();
   useInjectCss(css, 'study-audio-settings');
   const language = useUiLanguage();
@@ -150,7 +153,7 @@ export default function AudioSettings({ busy, act, call, initialView = null, ini
       {!configured && <InlineMessage tone="warning">{ui('还没有配置任何转写服务：从下面任选一个，约 2 分钟。')}</InlineMessage>}
       <ProviderGrid>
         {providerOrder(language).map((tier, index) => <KeyCard key={tier} provider={PROVIDERS[tier]} state={view[PROVIDERS[tier].field]}
-          call={call} busy={busy} onSaved={saved} recommended={index === 0} />)}
+          onSaved={saved} recommended={index === 0} />)}
       </ProviderGrid>
       <LiveEngineChoice view={view} disabled={!!busy} onSave={patch => save(patch)} initialLocal={initialLocal} />
       <Hint className="audio-settings-path">{uiFormat('密钥只保存在这台电脑：{0}，不会进入学习库、备份或主会话。贴进主会话的内容会被模型看到，所以密钥只在这里填。', [view.settingsFile || '~/.dsh/study/audio.json'])}</Hint>
@@ -160,7 +163,7 @@ export default function AudioSettings({ busy, act, call, initialView = null, ini
           <h4 className="settings-subtitle">{ui('Gemini 付费密钥（可选）')}</h4>
           <Hint>{ui('来自另一个开通计费并充值的 Google 项目，免费额度都用完时才用；导入时勾选「只用付费密钥」可以完全不经过免费服务。余额用完时请求会失败，不会自动降回免费。')}</Hint>
           <ProviderKeyForm provider={{ tier: 'paid', field: providerOf('paid').keyField, name: providerOf('paid').name, placeholder: '粘贴付费项目的 AI Studio 密钥' }}
-            state={view.paidKey} call={call} busy={busy} primary={false} onSaved={saved} />
+            state={view.paidKey} primary={false} onSaved={saved} />
           <Switch name="paidOnlyByDefault" label={ui('导入录音时默认只用付费密钥')} checked={view.paidOnlyByDefault === true} disabled={busy}
             onChange={(value) => save({ paidOnlyByDefault: value })}
             hint={ui('添加录音时，「更多设置」里的「只用付费密钥」会默认勾上，每次仍可单独改。需要先填写上面的付费密钥。')} />

@@ -4,6 +4,7 @@ import { formatBytes as formatUsageBytes } from './format.js';
 import { useInjectCss } from './shared.js';
 import { IconButton, StackedBar } from './components/index.js';
 import css from './library-usage.css';
+import { useStudy } from './study-context.jsx';
 
 export { formatUsageBytes }; // the one size style (ui/format.js)
 
@@ -61,7 +62,8 @@ export function LibraryUsageView({ state, onRefresh }) {
  * at app start. `call(action, args)` is the panel's host call; the walk itself
  * runs on the host, so the panel stays responsive however large the library.
  */
-export default function LibraryUsage({ root, call, active = true }) {
+export default function LibraryUsage({ root, active = true }) {
+  const { call } = useStudy();
   const [state, setState] = useState({ status: 'idle' });
   const callRef = useRef(call);
   callRef.current = call;

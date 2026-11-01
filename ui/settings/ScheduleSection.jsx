@@ -4,6 +4,7 @@ import { Button, Field, Hint, Icon, NumberInput, SettingsSection, Tooltip, useTo
 import { LIMITS, previewSchedule } from '../../lib/sm2.js';
 import { syncScheduleSettings } from '../schedule-settings.js';
 import { formatList } from '../format.js';
+import { useStudy } from '../study-context.jsx';
 
 /* ---------- 间隔复习 · FSRS-6 ---------- */
 
@@ -52,7 +53,8 @@ function SchedulePreview({ good, hard }) {
 }
 
 /** FSRS-6 settings: two number fields with their explanations on hover, a live preview and save/undo. The defaults just work. */
-export function ScheduleSection({ root, settings = {}, saved = {}, setSettings, act, busy }) {
+export function ScheduleSection({ root, settings = {}, saved = {}, setSettings }) {
+  const { busy, act } = useStudy();
   const toast = useToast();
   const savedKey = JSON.stringify(numbers(saved));
   const [baseline, setBaseline] = useState(() => numbers(saved));
