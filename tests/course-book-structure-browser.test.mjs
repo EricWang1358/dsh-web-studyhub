@@ -212,3 +212,48 @@ test('复习全书 structure: 更多 › 改名 / 移动到 / 删除 change the 
     }
   } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
 });
+
+/* #489 item 6: upkeep from the book page. Changed materials are said here with 更新全书; a point left short has 补漏; 更多 leads back to the 总纲. */
+test('复习全书 upkeep: 更新全书 when the materials changed, 补漏 on a short point, 回到总纲 from 更多 (1280 and 420 px)', { timeout: 420000 }, async t => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), 'study-book-upkeep-dist-'));
+  await buildPreview({ outdir: dist });
+  const running = await startLateServer({ distDir: dist, seed: async root => {
+    await seed(root);
+    const service = new StudyService(root);
+    await service.store.update(state => { state.sources.find(source => source.provenance === 'course-outline-notes').courseNotes.leaves[0].body.status = 'short'; });
+    await service.dispose();
+  } });
+  try {
+    await running.api('focus.set', { course: COURSE });
+    for (const width of [1280, 420]) {
+      const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
+      const sent = await watchCalls(page);
+      const open = async () => {
+        await page.goto(running.server.url);
+        const entry = page.locator('[data-tour="nav-book"]').first();
+        await entry.waitFor({ state: 'attached', timeout: 30000 });
+        await entry.dispatchEvent('click');
+        await page.locator('[data-book-point]').first().waitFor({ timeout: 60000 });
+      };
+      await open();
+      if (width === 1280) assert.equal(await page.locator('[data-book-outdated]').count(), 0, 'nothing changed: nothing said');
+      await page.locator('.book-point__short').getByRole('button', { name: '补漏' }).click();
+      await until(() => sent.some(call => call.action === 'generation.courseBook.build' && call.args.point === 'what'), '补漏 asks for that point');
+      if (width === 1280) await running.api('source.add', { title: 'A new lecture', text: 'New material for this course.', course: COURSE });
+      await open();
+      const line = page.locator('[data-book-outdated]');
+      await line.waitFor({ timeout: 30000 });
+      sent.length = 0;
+      await line.getByRole('button', { name: '更新全书' }).click();
+      await until(() => sent.some(call => call.action === 'generation.courseBook.build' && call.args.point === undefined), '更新全书 asks for the whole book');
+      await page.locator('.book-bar__more').evaluate(element => element.click());
+      await page.getByRole('menuitem', { name: /^回到总纲/ }).click();
+      await page.locator('.book-page').waitFor({ state: 'detached', timeout: 30000 });
+      // The preview has no task runner, so the build's own refusal is a failed request here; nothing else may fail.
+      assert.deepEqual(errors.filter(text => !/Failed to load resource/.test(text)), [], `${width}px: no page errors`);
+      await context.close();
+    }
+  } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
+});

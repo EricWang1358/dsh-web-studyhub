@@ -1,6 +1,7 @@
 import React, { useContext, useMemo, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Disclosure } from '../components/index.js';
+import { Button, Disclosure, Tooltip } from '../components/index.js';
+import { fillGapsTip } from '../outline/words.js';
 import { plainPrompt } from '../shared.js';
 import BookQa from './BookQa.jsx';
 import BookFile, { resolverOf } from './BookFile.jsx';
@@ -91,6 +92,8 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
       {folded(view.points)}
       {folded(view.extra)}
       {node.bridge?.out && <p className="book-point__bridge">{node.bridge.out}</p>}
+      {node.short && handlers.fillGaps && <p className="book-point__short"><Tooltip content={fillGapsTip()}>
+        <Button variant="link" size="sm" icon="sparkle" disabled={handlers.busy} onClick={() => handlers.fillGaps(node)}>{ui('补漏')}</Button></Tooltip></p>}
       <BookSuggestion meta={handlers.files?.[node.files?.gen]} busy={handlers.busy} onChoose={(action, id) => handlers.choose(node.files.gen, action, id)} />
       <PointLayer node={node} view={view} handlers={handlers} aiFold={aiFold} isFolded={isFolded} renderBlock={renderBlock} onAnchored={onAnchored} />
       <PointQuestions node={node} handlers={handlers} />
