@@ -83,7 +83,6 @@
     },
     "longLine": {},
     "bareBusyDisabled": {
-      "ui/CaseResult.jsx": 4,
       "ui/CoachDebrief.jsx": 1,
       "ui/ConvertEdit.jsx": 2,
       "ui/CourseSettings.jsx": 4,
