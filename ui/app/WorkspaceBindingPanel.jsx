@@ -48,7 +48,7 @@ function Binding({ app }) {
           <span className="binding-label">{ui('学习库')}</span>
           <code className="binding-value" title={binding.root}>{binding.root || '—'}</code>
           <small>{uiFormat('{0} · {1}', [where, ui('资料、题库与复习记录保存在这里')])}</small>
-          <LibraryUsage root={binding.root} call={call} active={!!data} />
+          <LibraryUsage root={binding.root} active={!!data} />
         </div>
         <div className="binding-actions">
           <Button onClick={chooseRoot} disabled={busy}>{ui('更换目录…')}</Button>
@@ -87,7 +87,7 @@ function Binding({ app }) {
           <Button onClick={() => setModelDraft(null)}>{ui('取消')}</Button>
         </form>
       )}
-      <ReasoningEffortField binding={binding} busy={busy} refreshKey={JSON.stringify(followedModel || null)}
+      <ReasoningEffortField binding={binding} refreshKey={JSON.stringify(followedModel || null)}
         onChange={(reasoningEffort) => updateBinding({ reasoningEffort })}
         onRefresh={() => call('binding.get').then(setBinding, () => {})} />
     </div>

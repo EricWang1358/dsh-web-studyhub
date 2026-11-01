@@ -2,8 +2,10 @@ import React from 'react';
 import { InlineMessage } from './components/index.js';
 import PermanentDeleteDialog from './components/PermanentDeleteDialog.jsx';
 import { ui, uiFormat } from './i18n.js';
+import { useStudy } from './study-context.jsx';
 
-export default function RemoveDeckDialog({ deck, busy, act, onClose, onRemoved }) {
+export default function RemoveDeckDialog({ deck, onClose, onRemoved }) {
+  const { busy, act } = useStudy();
   const eligible = deck.archived && !deck.systemKind;
   async function confirm() {
     const result = await act('deck.remove', { id: deck.id, confirm: true }, undefined, { rethrow: true });
