@@ -136,6 +136,11 @@ export async function pagePictureStep(page, { lang = 'zh', model, shot = async (
   const button = page.locator('.study-page-ask:visible [data-hand-off="reader.page"]').first();
   await button.waitFor({ timeout: 30000 }).catch(async (error) => { await shot('14-page-picture-no-button'); throw error; });
   result.lead = await page.locator('.study-page-ask:visible .sh-handoff__lead').first().innerText();
+  // Where the page is drawn in place (a page of 原始 PDF without the browser's viewer), it is drawn before the shot: its words are in its text layer.
+  if (await page.locator('.reader-pdf-view:visible').count()) {
+    await page.locator('.reader-pdf-view:visible .reader-pdf-text', { hasText: 'Picture QA page one' }).waitFor({ timeout: 30000 });
+    result.drawnInPlace = true;
+  }
   await shot('14-page-picture-panel');
   await button.click();
   // The host reveals the conversation once the box is filled; drawing the page comes first.
