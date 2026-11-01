@@ -190,7 +190,7 @@ export function StartFlow({ template, listing, call, onRefresh, onStarted, onBac
     } catch (err) { setError(err.message); }
     finally { lock.current = false; setPending(false); }
   }
-  return <section className="wf-start"><div className="wf-topline"><Button variant="link" size="sm" onClick={onBack} disabled={pending}>{ui("← 学习流工作台")}</Button></div>
+  return <section className="wf-start"><div className="wf-topline"><Button variant="link" size="sm" onClick={onBack} lock={pending}>{ui("← 学习流工作台")}</Button></div>
     <PageHeader className="wf-heading" eyebrow={ui("开始一次学习")} title={template.title} description={template.description || ui("选定主题，从第一步开始。")} />
     {error && <ErrorState error={error} />}
     <form onSubmit={start}><fieldset disabled={pending} className="wf-fields">
