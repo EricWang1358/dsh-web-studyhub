@@ -150,11 +150,11 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
           <Button size="sm" variant="quiet" className="tc-head__full" aria-pressed={full} onClick={onFull}>{full ? ui('退出全屏') : ui('全屏')}</Button>
           <ParallelBadge task={task} />
           <ParallelButton task={task} />
-          {actions.pause && <Button size="sm" aria-pressed="false" disabled={core.busy} onClick={() => act('pause')}>{ui('暂停')}</Button>}
-          {actions.resume && <Button size="sm" aria-pressed="true" disabled={core.busy} onClick={() => act('resume')}>{ui('继续')}</Button>}
+          {actions.pause && <Button size="sm" aria-pressed="false" lock={core.busy} onClick={() => act('pause')}>{ui('暂停')}</Button>}
+          {actions.resume && <Button size="sm" aria-pressed="true" lock={core.busy} onClick={() => act('resume')}>{ui('继续')}</Button>}
           {fix && <Button size="sm" variant="primary" data-fix="settings" onClick={() => settingsEntry.openSettings(fix)}>{ui('前往设置')}</Button>}
-          {actions.retry && <Button size="sm" variant={shortfall?.action === 'model-settings' || fix ? undefined : 'primary'} disabled={core.busy} title={run ? uiFormat('继续第 {0} 轮：已通过的题都保留，这一轮从头重做', [run.round]) : shortfall?.continueKind === 'count' ? ui('已出的题都保留，只补还差的题，设置不变') : retryTitle(task)} onClick={() => act('retry')}>{ui('接着做')}</Button>}
-          {draftContinue && <Button size="sm" variant="primary" disabled={core.busy} data-draft-continue title={ui('已出的题都保留，只补还差的题，设置不变')}
+          {actions.retry && <Button size="sm" variant={shortfall?.action === 'model-settings' || fix ? undefined : 'primary'} lock={core.busy} title={run ? uiFormat('继续第 {0} 轮：已通过的题都保留，这一轮从头重做', [run.round]) : shortfall?.continueKind === 'count' ? ui('已出的题都保留，只补还差的题，设置不变') : retryTitle(task)} onClick={() => act('retry')}>{ui('接着做')}</Button>}
+          {draftContinue && <Button size="sm" variant="primary" lock={core.busy} data-draft-continue title={ui('已出的题都保留，只补还差的题，设置不变')}
             onClick={() => core.act('generate', continueArgs(draftContinue), (started) => core.notify?.(continueNotice(draftContinue, started)))}>{ui('接着做')}</Button>}
           {toggle && live && <Checkbox className="tc-head__auto" label={autoLabel()} checked={toggle.value} disabled={core.busy} data-run-auto
             onChange={(value) => core.act('job.control', { jobId: contract.jobId, action: 'set', patch: { autoComplete: value } })} />}
@@ -163,18 +163,18 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
           {shortfall?.action === 'model-settings' && !live && settingsEntry?.openModelSettings && <Button size="sm" variant="primary" data-shortfall-act="model-settings" onClick={settingsEntry.openModelSettings}>{actionLabel('model-settings')}</Button>}
           {draft && !live && !continued && <CoverageTopUpPopover draft={draft} view={covered.view} jobs={data?.jobs || []} modelReady={modelReadiness(data || {}).ready}
             onTopUp={(target, sectionIds) => core.act('generate', topUpArgs(target, sectionIds), (job) => core.notify?.(topUpNotice(target, job)))} />}
-          {actions.cancel && <Button size="sm" variant="danger" disabled={core.busy} title={run ? ui('已通过的题都保留') : undefined} onClick={() => act('cancel')}>{run ? ui('停在这里') : ui('停止')}</Button>}
-          {archived && <Button size="sm" disabled={core.busy} onClick={unarchive}>{ui('取消归档')}</Button>}
+          {actions.cancel && <Button size="sm" variant="danger" lock={core.busy} title={run ? ui('已通过的题都保留') : undefined} onClick={() => act('cancel')}>{run ? ui('停在这里') : ui('停止')}</Button>}
+          {archived && <Button size="sm" lock={core.busy} onClick={unarchive}>{ui('取消归档')}</Button>}
           {!live && !archived && !contract.detail.today && (day
             // A past day of 为你定制 is a record its own file ages out (fourteen days): this button removes it, so it says so (知道了 archives everywhere else).
             ? <Tooltip content={ui('删除这一天的记录；为你定制只保留最近 14 天。')} layer placement="bottom-end">
               <Button size="sm" variant="quiet" onClick={removeDay}>{ui('删除这一天')}</Button>
             </Tooltip>
             : <Tooltip content={ui('放进「已归档」，不会删除任何东西；之后可以取消归档或删除。')} layer placement="bottom-end">
-              <Button size="sm" variant="quiet" disabled={core.busy} onClick={archive}>{ui('归档')}</Button>
+              <Button size="sm" variant="quiet" lock={core.busy} onClick={archive}>{ui('归档')}</Button>
             </Tooltip>)}
-          {resume && <Button size="sm" variant="primary" data-install-resume disabled={core.busy} onClick={() => core.act(resume.action, resume.args, () => core.notify?.(ui('已开始安装：进度在这里和「任务」里。')))}>{ui('继续安装')}</Button>}
-          {!live && !day && !resume && <Button size="sm" variant="danger" className="tc-head__delete" disabled={core.busy} onClick={() => onDelete([key])}>{ui('删除')}</Button>}
+          {resume && <Button size="sm" variant="primary" data-install-resume lock={core.busy} onClick={() => core.act(resume.action, resume.args, () => core.notify?.(ui('已开始安装：进度在这里和「任务」里。')))}>{ui('继续安装')}</Button>}
+          {!live && !day && !resume && <Button size="sm" variant="danger" className="tc-head__delete" lock={core.busy} onClick={() => onDelete([key])}>{ui('删除')}</Button>}
         </div>
       </header>
       <Metrics job={task} summary={summary} now={now} />

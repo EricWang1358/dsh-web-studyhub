@@ -110,8 +110,7 @@
       "ui/review/QuestionRun.jsx": 3,
       "ui/study-map/DeckRow.jsx": 2,
       "ui/study-map/DeskIntro.jsx": 1,
-      "ui/study-map/NotebookDirectory.jsx": 3,
-      "ui/tasks/TaskConsole.jsx": 9
+      "ui/study-map/NotebookDirectory.jsx": 3
     },
     "hostTitle": {
       "ui/AudioDashboard.jsx": 3,
