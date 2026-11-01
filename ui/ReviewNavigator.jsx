@@ -1,9 +1,11 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useRef } from "react";
+import { useStudy } from "./study-context.jsx";
 
 const labels = { new: "未学", weak: "薄弱", learning: "学习中", familiar: "熟悉", mastered: "掌握" };
 
-export default function ReviewNavigator({ run, busy, onJump }) {
+export default function ReviewNavigator({ run, onJump }) {
+  const { busy } = useStudy();
   const rail = useRef(null);
   useEffect(() => {
     const container = rail.current;

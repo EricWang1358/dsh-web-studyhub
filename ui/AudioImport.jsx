@@ -244,10 +244,10 @@ export default function AudioImport({
       {!gated && <Hint>{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。")}</Hint>}
       <input ref={picker} type="file" hidden multiple accept={`audio/*,${AUDIO_ACCEPT.join(',')}`}
         onChange={event => { const chosen = Array.from(event.target.files || []); event.target.value = ''; if (chosen.length) void send(chosen); }} />
-      <AudioJobs data={data} busy={busy} act={act} openAgent={openAgent} onOpenSources={onOpenSources} onOpenSettings={openSettings} onGenerate={onGenerate}
+      <AudioJobs data={data} openAgent={openAgent} onOpenSources={onOpenSources} onOpenSettings={openSettings} onGenerate={onGenerate}
         onLegacyRetry={job => { onRecoveryChange?.(job.id); picker.current?.click(); }} />
       {gated && <>
-        <AudioSetupGate language={language} call={call} onOpenSettings={openSettings} reason={readiness.reason}
+        <AudioSetupGate language={language} onOpenSettings={openSettings} reason={readiness.reason}
           onSaved={() => { void refreshReadiness(); }} />
         {readiness.text !== false && <AudioSubtitleLine disabled={busy} onFiles={(accepted, rejected) => {
           if (rejected.length) return void reject(rejected.map(item => uiFormat('{0}：{1}', [item.name, item.message])).join(' '), rejected.map(item => item.name));
@@ -268,7 +268,7 @@ export default function AudioImport({
           <Hint as="small">{ui('也可把更多音频拖到这里')}</Hint>
         </div>}
         <div className="audio-ways">
-          <AudioWorkspace call={call} onPick={(picked) => pickPath(picked.path, picked.size)} />
+          <AudioWorkspace onPick={(picked) => pickPath(picked.path, picked.size)} />
           <HandOff id="import.file" input={{ purpose: 'audio' }} lead="多段录音或别处的文件：" disabled={busy} what="让主会话按你指定的顺序导入这些音频；文件在输入框里用 @ 选" />
           <details className="audio-path"><summary>{ui("粘贴文件路径（高级）")}</summary>
             <div className="audio-path-row">

@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { errorMessage } from './i18n.js';
+import { useStudy } from './study-context.jsx';
 
 export const recapGroupKey = group => JSON.stringify([group.day, group.courseId || group.course]);
 export const recapTimeZone = saved => saved?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai';
 const isRunning = status => status?.groups?.some(group => group.generation?.status === 'running');
 
 /** Own status reads and mutations together, so an older read cannot erase a newer action. */
-export function useDailyRecap({ root, runId, course, saved, call, act, busy, poll }) {
+export function useDailyRecap({ root, runId, course, saved, poll }) {
+  const { call, act, busy } = useStudy();
   const [status, setStatus] = useState(null), [error, setError] = useState('');
   const [working, setWorking] = useState(''), [tones, setTones] = useState({});
   const owner = useRef(null), callbacks = useRef({ call, act });

@@ -28,22 +28,24 @@ test('the recap status says whether a model can write it, so the page can wait i
 
 const require = createRequire(import.meta.url);
 globalThis.document = { querySelector: () => ({ textContent: '' }) };
-const built = await build({ stdin: { contents: `export { DailyRecapPanel } from './ui/DailyRecap.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+const built = await build({ stdin: { contents: `export { DailyRecapPanel } from './ui/DailyRecap.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const load = (fn) => { const module = { exports: {} }; new Function('require', 'module', 'exports', built.outputFiles[0].text)(fn, module, module.exports); return module.exports; };
-let active;
+let active, studyContext;
 const hook = (initial) => { const index = active.cursor++; if (!(index in active.slots)) active.slots[index] = initial(); return [index, active.slots[index]]; };
 const hooks = { ...React,
   useState: (initial) => { const owner = active, [index, value] = hook(() => typeof initial === 'function' ? initial() : initial);
     return [value, (next) => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }]; },
-  useContext: () => null, useRef: (value) => hook(() => ({ current: value }))[1], useId: () => hook(() => `field-${active.cursor}`)[1],
+  useContext: (context) => (context === studyContext ? globalThis.__study ?? null : null), useRef: (value) => hook(() => ({ current: value }))[1], useId: () => hook(() => `field-${active.cursor}`)[1],
   useInsertionEffect: () => {}, useEffect: (callback, deps) => { const [, slot] = hook(() => ({ deps: undefined, cleanup: null }));
     if (!slot.deps || deps.some((value, index) => value !== slot.deps[index])) { active.effects.push(() => { slot.cleanup?.(); slot.cleanup = callback(); }); slot.deps = deps; } },
 };
-const { DailyRecapPanel, setUiLanguage } = load((name) => (name === 'react' ? hooks : require(name)));
+const { DailyRecapPanel, StudyServicesContext, setUiLanguage } = load((name) => (name === 'react' ? hooks : require(name)));
+studyContext = StudyServicesContext;
 function view(props) {
   const owner = { cursor: 0, slots: [], effects: [] };
-  return { render(next = {}) { owner.cursor = 0; active = owner; try { return DailyRecapPanel({ ...props, ...next }); } finally { active = null; } },
+  return { render(next = {}) { owner.cursor = 0; active = owner; globalThis.__study = { busy: false, ...props, ...next }; // call, act and busy come from the app's services (useStudy)
+      try { return DailyRecapPanel({ ...props, ...next }); } finally { active = null; globalThis.__study = null; } },
     effects() { owner.effects.splice(0).forEach((callback) => callback()); } };
 }
 const find = (tree, predicate) => {
