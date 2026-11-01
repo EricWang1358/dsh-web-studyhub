@@ -7,6 +7,7 @@ import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_LA
   GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
 import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
+import { useStudy } from './study-context.jsx';
 
 const labels = { kinds: '默认题型', coverageLevel: '默认覆盖强度', count: '主会话里出题的默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
   concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', fillRounds: '自动补题轮数',
@@ -39,7 +40,8 @@ export default function GenerationSettings(props) {
 }
 
 /** `efforts` are the reasoning levels of the model in use ([{ id, name }], null until known): the stage selects offer those, like the audio settings. */
-export function GenerationSettingsForm({ root, saved, busy = false, act, efforts = null, session }) {
+export function GenerationSettingsForm({ root, saved, efforts = null, session }) {
+  const { busy, act } = useStudy();
   const toast = useToast();
   const savedKey = JSON.stringify(normalizeGenerationSettings(saved));
   const [editor, setEditor] = useState(() => ({ observed: savedKey, baseline: JSON.parse(savedKey), values: JSON.parse(savedKey) }));

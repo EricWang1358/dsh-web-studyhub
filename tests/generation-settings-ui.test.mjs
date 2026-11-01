@@ -11,28 +11,30 @@ import { GENERATION_KINDS } from '../lib/generation-settings.js';
 const require = createRequire(import.meta.url);
 const built = await build({ stdin: { contents: `export { default as GenerationSettings, GenerationSettingsForm, generationFormErrors } from './ui/GenerationSettings.jsx';
   export { setUiLanguage } from './ui/i18n.js';
-  export { toggleKind } from './ui/generate-form.js';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node',
+  export { toggleKind } from './ui/generate-form.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node',
   format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
 const load = requireFn => { const module = { exports: {} }; new Function('require', 'module', 'exports', built.outputFiles[0].text)(requireFn, module, module.exports); return module.exports; };
 const ssr = load(require), noop = () => {};
-let active;
+let active, studyContext;
 const hook = initial => { const index = active.cursor++; if (!(index in active.slots)) active.slots[index] = initial(); return [index, active.slots[index]]; };
 const hooks = { ...React,
   useState: initial => { const owner = active, [index, value] = hook(() => typeof initial === 'function' ? initial() : initial);
     return [value, next => { owner.slots[index] = typeof next === 'function' ? next(owner.slots[index]) : next; }]; },
-  useContext: () => globalThis.__toast ?? null, useRef: value => hook(() => ({ current: value }))[1], useId: () => hook(() => `field-${active.cursor}`)[1],
+  useContext: context => (context === studyContext ? globalThis.__study ?? null : globalThis.__toast ?? null), useRef: value => hook(() => ({ current: value }))[1], useId: () => hook(() => `field-${active.cursor}`)[1],
   useInsertionEffect: () => {}, useEffect: (callback, deps) => { const [, slot] = hook(() => ({ deps: undefined, cleanup: null }));
     if (!slot.deps || deps.some((value, index) => value !== slot.deps[index])) {
       active.effects.push(() => { slot.cleanup?.(); slot.cleanup = callback(); }); slot.deps = deps;
     } },
 };
-const { GenerationSettingsForm } = load(name => name === 'react' ? hooks : require(name));
+const hooked = load(name => name === 'react' ? hooks : require(name)), { GenerationSettingsForm } = hooked;
+studyContext = hooked.StudyServicesContext;
 function editor(props = {}) {
   let current = { root: '/temporary/library', saved: GENERATION_SETTINGS_DEFAULTS, busy: false, act: noop, ...props };
   const owner = { cursor: 0, slots: [], effects: [] };
   return {
-    render(next = {}) { current = { ...current, ...next }; owner.cursor = 0; active = owner;
-      try { return GenerationSettingsForm(current); } finally { active = null; } },
+    render(next = {}) { current = { ...current, ...next }; owner.cursor = 0; active = owner; globalThis.__study = current;
+      try { return GenerationSettingsForm(current); } finally { active = null; globalThis.__study = null; } },
     effects() { owner.effects.splice(0).forEach(callback => callback()); },
     unmount() { owner.slots.forEach(slot => slot?.cleanup?.()); },
   };

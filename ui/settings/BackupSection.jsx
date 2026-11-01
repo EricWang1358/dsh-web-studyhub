@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, ConfirmDialog, Hint, Icon, InlineMessage, SettingsSection, formatBytes } from '../components/index.js';
 import { backupFileName } from './backup-name.js';
+import { useStudy } from '../study-context.jsx';
 
 export { backupFileName };
 
@@ -33,7 +34,8 @@ export function RestorePreview({ file, busy, onConfirm, onCancel }) {
 }
 
 /** Export and restore as two blocks with the same shape: what it does, where the file goes, one action. */
-export function BackupSection({ root, busy, exportData, act, onRestored }) {
+export function BackupSection({ root, exportData, onRestored }) {
+  const { busy, act } = useStudy();
   const [file, setFile] = useState(null), [error, setError] = useState(''), [confirm, setConfirm] = useState(false);
   const input = useRef(null), readRequest = useRef(0);
   const exportId = useId(), restoreId = useId();

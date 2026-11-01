@@ -99,8 +99,9 @@ test('script download contains the generated local script and releases the objec
 // Keep state and effect dependencies across renders to exercise the shared upload ownership.
 function mountPdf(props, component = 'PdfConversion') {
   const states = [], refs = [], effectDependencies = [], cleanups = [];
-  let stateCursor = 0, refCursor = 0, effectCursor = 0, pending = [];
-  const mounted = load({ ...React, useId: () => 'mounted-pdf', useContext: () => null, useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
+  let stateCursor = 0, refCursor = 0, effectCursor = 0, pending = [], services = props;
+  // MarkerSettings reads `call` from the app's services (useStudy); the converter page still takes it as a prop and reads no services.
+  const mounted = load({ ...React, useId: () => 'mounted-pdf', useContext: () => (component === 'MarkerSettings' ? services : null), useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
     useState: initial => { const index = stateCursor++; if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial; return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value; }]; },
     useRef: initial => refs[refCursor++] ||= { current: initial },
     useInsertionEffect: () => {}, useEffect: (effect, dependencies) => { const index = effectCursor++; if (dependencies?.some(item => typeof item === 'string' && item.includes('{'))) return;
@@ -109,7 +110,7 @@ function mountPdf(props, component = 'PdfConversion') {
       }
     } });
   return {
-    render(next = props) { stateCursor = 0; refCursor = 0; effectCursor = 0; pending = []; const tree = mounted[component](next); pending.forEach(effect => effect()); return tree; },
+    render(next = props) { services = next; stateCursor = 0; refCursor = 0; effectCursor = 0; pending = []; const tree = mounted[component](next); pending.forEach(effect => effect()); return tree; },
     close() { cleanups.forEach(cleanup => cleanup?.()); }, states,
   };
 }

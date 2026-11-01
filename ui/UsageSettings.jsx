@@ -7,6 +7,7 @@ import { displayName } from './usage/names.js';
 import { flushUsageNow, notifyUsageChanged } from './usage/controller.js';
 import css from './usage.css';
 import { formatList } from './format.js';
+import { useStudy } from './study-context.jsx';
 
 /* 设置 › 高级 › 使用频率记录 and 我的使用报告 (lib/usage-frequency.js, lib/usage-report.js; docs/usage-frequency.md).
 
@@ -133,8 +134,9 @@ const stateOf = status => {
 };
 
 /** The section, from what the host said. Pure: every action is a callback. */
-export function UsageSettingsView({ status, report, period, busy = false, working = '', error = '', confirming = false,
+export function UsageSettingsView({ status, report, period, working = '', error = '', confirming = false,
   onSwitch, onPause, onPeriod, onReportToggle, onExport, onCopy, onAskClear, onCancelClear, onClear }) {
+  const { busy } = useStudy();
   const language = getUiLanguage();
   const state = stateOf(status);
   const line = {
@@ -191,7 +193,8 @@ function download(file) {
 }
 
 /** The container: reads the status once, loads the report only when the learner opens it, and turns the switch through the host. */
-export default function UsageSettings({ call, busy = false, initial = null }) {
+export default function UsageSettings({ initial = null }) {
+  const { call } = useStudy();
   useInjectCss(css, 'study-usage');
   const toast = useToast();
   const [status, setStatus] = useState(initial?.status || EMPTY);
@@ -246,7 +249,7 @@ export default function UsageSettings({ call, busy = false, initial = null }) {
     finally { if (live.current) setWorking(''); }
   };
   return (
-    <UsageSettingsView status={status} report={report} period={period} busy={busy} working={working} error={error} confirming={confirming}
+    <UsageSettingsView status={status} report={report} period={period} working={working} error={error} confirming={confirming}
       onSwitch={enabled => change('usage.frequency.set', { enabled }, 'switch')}
       onPause={() => change('usage.frequency.set', { paused: !status.paused }, 'pause')}
       onPeriod={setPeriod}
