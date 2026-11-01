@@ -60,7 +60,7 @@ const draftOf = async service => (await service.call('export')).drafts[0];
 const attemptOf = reply => reply.attemptId ?? reply.jobId;
 
 /** The draft a run comes to when nothing cut it short. `exact`: no pass was cut in the middle; a pass that was may have covered a section with fewer questions than its quota, and a section that has a
-    question is not asked for again, so the draft can be short of the goal with every section covered. */
+    question is not asked for again, so the draft can be short of the goal with every section covered. (These worlds have later rounds to go through and end complete; a run cut in its last round is closed short: SHORT_WORLDS.) */
 async function assertFinished(service, draft, before, { exact = true } = {}) {
   if (exact) assert.equal(draft.cards.length, GOAL, 'every question of the plan, once');
   assert.ok(draft.cards.length <= GOAL, `never more than the plan (${draft.cards.length})`);
@@ -103,7 +103,8 @@ const SHORT_WORLDS = [{ name: '3 sections, 30 asked', parts: 3, count: 30, goal:
 const shortScenario = ({ parts, count }) => ({ world: { recordings: 1, parts, paragraphs: 16 }, count, roundLimit: 30 });
 const shortfallFor = async (service, draft) => shortfallOf({ draft, coverage: (await service.call('coverage.get', { draftId: draft.id })).coverage });
 
-for (const mode of Object.keys(MODES)) for (const world of SHORT_WORLDS) test(`${mode}, ${world.name}: closing a run that is short keeps the goal the card showed and offers the way to add more`, async t => {
+// Every size on the legacy path, and the one on each switch: what differs under a switch is the job, not the sizes.
+for (const [mode, world] of [...SHORT_WORLDS.map(item => ['legacy', item]), ['generation', SHORT_WORLDS[1]], ['restart', SHORT_WORLDS[1]]]) test(`${mode}, ${world.name}: closing a run that is short keeps the goal the card showed and offers the way to add more`, async t => {
   const scenario = shortScenario(world), root = await die(t, 'every-section-covered', mode, scenario), after = await reopen(t, root, mode, scenario);
   const left = await draftOf(after.service), kept = left.cards.length;
   assert.ok(kept < world.goal, `this world is short when it is cut (${kept} of ${world.goal})`);

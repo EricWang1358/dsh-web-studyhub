@@ -39,7 +39,7 @@ The code is `transitionRunState` in `lib/contexts/generation/run-state.js`. This
 | `pause` | `running`, no round in flight | `paused` |
 | `unpause` | `paused` | `running` |
 | `wait` | `running` | `waiting` |
-| `stop` | `running`, `paused`, `waiting`, not stopped before | `complete` when the reason is `complete` or `target`, otherwise `stopped` |
+| `stop` | `running`, `paused`, `waiting`, not stopped before | `complete` when the reason is `complete` or `target`, otherwise `stopped` (`questions-short` included: see below) |
 | `usage`, `auto`, `touch` | anything | state unchanged |
 
 ## Round statuses
@@ -51,17 +51,29 @@ The code is `transitionRunState` in `lib/contexts/generation/run-state.js`. This
 | `round-start` | marker `running`, no round in flight | the round is `running` |
 | `round-finish` | that round is `running` | `done` or `failed`, or `pending` when it still owes sections |
 | `round-stopped` | anything; with no round in flight nothing changes | the round in flight is `failed`, or `pending` when it owes sections no pass asked for |
-| `round-skip` | that round is not `running` | `done` if a pass of it ran, otherwise `skipped` |
+| `round-skip` | that round is not `running` | `done` if a pass of it ran, even one cut short (`askedKeys` or `triedKeys` on it), otherwise `skipped` |
 | `fill-append` | anything | a new `pending` fill round at the end |
 | `recover` | anything; running it twice equals running it once | every `running` round is `pending` again, and what its pass was asked for is owed again |
 
-## A run that lost only its closing write
+## A run with nothing left to ask by section
 
-Every section has its question, but the draft still says `running` or `paused`. The run comes back as interrupted, because reading the job list never writes. 接着做 then closes it with one write of the draft and no model call (`closeRun`, `run-close.js`). A run on the runtime whose draft already says `complete` has its manifest forgotten, so it does not come back at all.
+Every section has its question, but the draft still says `running` or `paused`. The run comes back as interrupted, because reading the job list never writes. 接着做 then closes it with one write of the draft and no model call (`closeRun`, `run-close.js`).
+
+- **It holds the plan's goal:** `complete` when every round ran, `target` when a planned round never ran.
+- **It is short of the goal:** the host stopped in the last round, after every section had its first question and while the round's other parts were in flight. Measured with a fake model and `roundLimit` 30: 3 sections, 30 asked, 25 of 30; 2 sections, 30 asked, 11 of 24; 4 sections, 60 asked, 39 of 48. The run is `stopped`, reason `questions-short`, and the goal stays the one the interrupted card showed. The job keeps `requestedTotal`, the stage says the count against the goal, and `shortfallOf` gives `reason: questions-short`, `percent` as kept over goal, `action: continue`, `continueKind: count`.
+- **Adding what is missing:** `generate { resumeDraftId, draftVersion }`, the same way a plain short draft is continued. The close writes `editorial.requested = goal` because that is the number `lib/draft-continuation.js` counts. A job asks for at most `ROUND_LIMIT` at a time, so a run that owes more takes more than one press.
+- **A round's row:** the round in flight is `done`, not `skipped`: it wrote the questions. What it kept and cost was lost with the host, so `kept`, `covered` and `tokens` are absent and the row says they are not known. No row of a closed run is `pending`, fill rounds included.
+
+`questions-short` is a new value of `stop.reason`, and the only addition to what a draft can hold. A release from before it reads the draft as a stopped run whose sections are covered, with no sentence for the reason.
+
+## After a restart (`generationRestart`)
+
+A draft has one run. A run whose draft is closed (`complete`, or `questions-short`) has its manifest forgotten and does not come back. Every save of a run's draft writes `editorial.generation.runId`, the closing save too. 接着做 through `generate` is a new logical job over the same draft, so two manifests can name one draft; the one the draft names comes back, else the newest, and the other is forgotten. Its retry would otherwise ask its first request again and make a second draft.
 
 ## Limits
 
-- A pass cut in the middle may have covered a section with fewer questions than its quota. A section that has a question is not asked for again, so the finished draft can be a little short of the goal with every section covered.
+- A pass cut in the middle may have covered a section with fewer questions than its quota, and a section that has a question is not asked for again. When later rounds still have work, the run goes on through them and ends `complete` as it would uncut, so the draft shows what it holds as its goal, and the questions the cut pass did not write are not reported. Measured on the corpus world, killed with part of a round saved: 18 kept of a goal of 19, shown as 18/18, percent 100. This is the case `shortfallOf` calls a met plan, the same as an uncut run that came back short (22 of a goal of 24 in the 2-section world). Only a close reports against the plan's goal.
+- A fill round left pending by a stopped host, when other sections still need asking, stays pending if the run then stops by `stepOf`. Only a close settles every row.
 - Before its first draft a run is lost on the legacy path and with `generation` alone: nothing was written. Behind `generationRestart` it comes back, because the manifest holds the request.
 - A run on the runtime cannot be paused (declared unsupported in S3-2), so only the legacy path leaves a draft `paused`.
 
