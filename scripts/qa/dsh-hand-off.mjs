@@ -9,6 +9,8 @@
 import { StudyService } from '../../lib/service.js';
 import { workspaceLibrary } from '../../lib/host.js';
 import { seedBookFixture } from '../../tests/helpers/book-fixtures.mjs';
+import { createStudyRuntime } from '../../lib/runtime/builtins.js';
+import { makeTextPdf } from '../../tests/helpers/text-pdf.mjs';
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
@@ -19,10 +21,19 @@ export async function seedHandOffBook(workspace, home) {
   try {
     const root = await workspaceLibrary(workspace);
     const service = new StudyService(root);
-    let has = false;
-    try { has = ((await service.store.read()).sources || []).some((source) => source.provenance === 'course-book-doc'); } finally { await service.dispose(); }
-    if (has) return { root, seeded: false };
-    await seedBookFixture(root, 'archss');
+    let has = false, hasPdf = false;
+    try {
+      const sources = (await service.store.read()).sources || [];
+      has = sources.some((source) => source.provenance === 'course-book-doc');
+      hasPdf = sources.some((source) => /picture-qa/.test(`${source.title} ${source.document?.filename}`));
+    } finally { await service.dispose(); }
+    if (!has) await seedBookFixture(root, 'archss');
+    if (has && hasPdf) return { root, seeded: false };
+    if (hasPdf) return { root, seeded: true };
+    // The PDF of pagePictureStep below: its original is kept, so 原始 PDF opens.
+    const runtime = createStudyRuntime(root);
+    await runtime.call('materials.document.import', { filename: 'picture-qa.pdf', dataBase64: (await makeTextPdf([['Picture QA page one'], ['Picture QA page two']])).toString('base64'), courses: ['ArchSS'] });
+    runtime.dispose();
     return { root, seeded: true };
   } finally {
     if (before === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = before;
@@ -103,5 +114,106 @@ export async function handOffStep(page, { lang = 'zh', model, shot = async () =>
   await sleep(1500);
   result.requests = model.log.length - requestsBefore;
   if (result.requests) throw new Error(`a hand-off sent ${result.requests} request(s) to the model; it must only fill the box`);
+  return result;
+}
+
+/* #488, in the real host, on both kinds of model. A text model (no declared image input; a picture would block the whole message): the box gets the text and no picture, the box
+   itself says why, and the message SENDS. A model that takes images: the box gets the text and exactly one picture, which is the page (large enough, ink on it), a second press replaces it,
+   and the picture reaches the model. conversation.createDrafts, input.addAttachments and llm.resolveModelInfo are not one public contract, so only this proves them. */
+export async function pagePictureStep(page, { lang = 'zh', model, shot = async () => {} }) {
+  const en = lang === 'en', result = { text: {}, vision: {} };
+  const composer = page.locator('[data-qa-composer]');
+  const pictures = () => page.evaluate(() => [...document.querySelectorAll('img[src^="blob:"]')].filter((image) => !image.closest('.study-app, .study-seat') && image.getClientRects().length).length);
+  const newChat = async () => { await page.getByText(/^(新会话|New (chat|session))$/).first().click(); await sleep(800); };
+  const handOver = async () => {
+    await page.getByRole('button', { name: /^StudyHub$/ }).first().click();
+    await page.locator('[data-tour="nav-sources"]:visible').first().click({ force: true });
+    await sleep(1500);
+    if (!await page.locator('.study-document-viewer:visible').count()) {
+      await page.locator('.source-doc:visible', { hasText: 'picture-qa' }).first().locator('.source-main').click({ timeout: 15000 });
+      await page.locator('.study-document-viewer:visible').waitFor({ timeout: 30000 });
+      await sleep(2500); // the original file loads first; before that the tab offers to attach one
+      await page.locator('.study-document-viewer:visible .sh-seg__item', { hasText: en ? 'Original PDF' : '原始 PDF' }).click();
+      if (!await page.locator('[data-tour="source-tools"]:visible').count()) await page.locator('[data-tour="source-tools-toggle"]:visible').click();
+    }
+    const button = page.locator('.study-page-ask:visible [data-hand-off="reader.page"]').first();
+    await button.waitFor({ timeout: 30000 });
+    await sleep(1000); // the panel asks the host about the model
+    const lead = await page.locator('.study-page-ask:visible .sh-handoff__lead').first().innerText();
+    await button.click();
+    return lead;
+  };
+  const inTheBox = async () => {
+    await page.waitForFunction(() => [...document.querySelectorAll('[contenteditable="true"], [role="textbox"]')].some((element) => !element.closest('.study-app, .study-seat') && element.getClientRects().length && (element.innerText || '').trim()), null, { timeout: 60000 });
+    await sleep(1500);
+    if (!await markComposer(page)) throw new Error('no chat input box after the hand-off');
+    return composer.evaluate((element) => element.innerText || '');
+  };
+  const send = async () => { await composer.click(); await page.keyboard.press('Control+End'); await page.keyboard.press('Enter'); await sleep(4000); };
+  const refusedOnScreen = () => page.getByText(en ? /does not support images/ : /当前模型不支持图片/).count();
+
+  // 1. The default route declares no image input.
+  await newChat();
+  let requests = model.log.length;
+  result.text.lead = await handOver();
+  let text = await inTheBox();
+  result.text.pictures = await pictures();
+  result.text.note = await page.getByText(en ? /cannot read pictures, so only the text went in/ : /当前模型看不了图，这次只发了文字/).count();
+  await shot('14-picture-text-model-box');
+  if (!/Picture QA page one/.test(text)) throw new Error(`the box did not get the page text: ${text.slice(0, 200)}`);
+  if (/在这条消息的附件里|attached to this message/.test(text)) throw new Error('the message claims a picture');
+  if (result.text.pictures !== 0) throw new Error(`a text model got ${result.text.pictures} picture(s)`);
+  if (!result.text.note) throw new Error('the box does not say why there is no picture');
+  if (/连这一页的图/.test(result.text.lead)) throw new Error(`the panel promised a picture: ${result.text.lead}`);
+  if (model.log.length !== requests) throw new Error('a hand-off asked the model');
+  await send();
+  result.text.refused = await refusedOnScreen();
+  result.text.requests = model.log.length - requests;
+  await shot('14-picture-text-model-sent');
+  if (result.text.refused || !result.text.requests) throw new Error(`the message did not send on a text model: refused ${result.text.refused}, ${result.text.requests} request(s)`);
+
+  // 2. A new conversation on the route that declares image input.
+  await newChat();
+  await page.getByText(/Fake Tutor/).last().click();
+  await sleep(500);
+  await page.getByText(en ? /^Model$/ : /^模型$/).last().click(); // the seat opens a menu whose first row opens the models
+  await sleep(500);
+  await shot('14-picture-model-menu');
+  await page.getByText(/Fake Vision/).last().click({ timeout: 15000 });
+  await sleep(800);
+  requests = model.log.length;
+  result.vision.lead = await handOver();
+  text = await inTheBox();
+  result.vision.pictures = await pictures();
+  result.vision.note = await page.getByText(en ? /picture of this page is attached too/ : /这一页的图也附上了/).count();
+  result.vision.drawnFromPage = await page.evaluate(() => {
+    const image = [...document.querySelectorAll('img[src^="blob:"]')].find((item) => !item.closest('.study-app, .study-seat') && item.getClientRects().length);
+    if (!image) return null;
+    const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    let inked = 0; for (let at = 0; at < data.length; at += 4) if (data[at] < 128) inked += 1;
+    return { width: canvas.width, height: canvas.height, inked };
+  });
+  await shot('14-picture-vision-model-box');
+  if (result.vision.pictures !== 1) throw new Error(`the box holds ${result.vision.pictures} picture(s)`);
+  if (!(Math.max(result.vision.drawnFromPage.width, result.vision.drawnFromPage.height) >= 1000 && result.vision.drawnFromPage.inked > 50)) throw new Error(`the picture is not the page: ${JSON.stringify(result.vision.drawnFromPage)}`);
+  if (!result.vision.note) throw new Error('the box does not say the picture went in');
+  // A second press: the box holds words now (kept), the picture is replaced, not doubled.
+  await handOver();
+  const kept = page.locator('.sh-toast--receipt[data-receipt="kept"]').first();
+  await kept.waitFor({ timeout: 30000 });
+  await kept.locator('.sh-toast__action').click();
+  await sleep(1200);
+  result.vision.afterSecondPress = await pictures();
+  if (result.vision.afterSecondPress !== 1) throw new Error(`a second press left ${result.vision.afterSecondPress} pictures`);
+  await markComposer(page);
+  await send();
+  result.vision.refused = await refusedOnScreen();
+  result.vision.requests = model.log.length - requests;
+  result.vision.imagesAtModel = model.log.at(-1)?.images ?? null;
+  await shot('14-picture-vision-model-sent');
+  if (result.vision.refused || !result.vision.requests || !result.vision.imagesAtModel) throw new Error(`the picture did not reach the model: ${JSON.stringify(result.vision)}`);
+  await newChat();
   return result;
 }

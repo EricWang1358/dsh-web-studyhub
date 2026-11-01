@@ -281,5 +281,17 @@
   "保存：我同意之后才用 course.save 存 plan，不要自己存；已有计划时把整份 plan 发回去。": "Saving: only after I agree, save the plan with course.save; do not save it on your own, and when a plan exists send back the whole plan object.",
   "已有计划：course.plan 里的 plan 就是现在存着的，改动前先给我看差别。": "Existing plan: the plan in course.plan is what is saved now; show me what would change before you change it.",
   "说明：计划只是建议，不是掌握的证据；最后一周每天读什么仍由期末一周（book.crunch）排。": "Note: the plan is a suggestion, not evidence of mastery; what to read each day of the final week is still planned by the final week (book.crunch).",
-  "先问：永久删除或归档任何东西之前，先用一句话问我：什么会没有，什么会留下；我说好再动手。": "Ask first: before any permanent delete or archive, ask me in one sentence what goes and what stays, and act only when I say yes."
+  "先问：永久删除或归档任何东西之前，先用一句话问我：什么会没有，什么会留下；我说好再动手。": "Ask first: before any permanent delete or archive, ask me in one sentence what goes and what stays, and act only when I say yes.",
+  "帮我看懂资料 {0} 的第 {1} 页；能看图片的话，这几页的截图我贴在最后。": "Help me understand pages {1} of the material {0}; if you can read pictures, the screenshots of the pages are at the end.",
+  "页面：这几页保存的文字在 data 围栏里，每页以 [page N] 开头；图表、画成图片的公式和排版只在截图里（如果我贴了），两者不一致时以截图为准。": "Pages: the saved text of the pages is in the data fence, each page starting with [page N]; figures, formulas drawn as pictures and the layout are only in the screenshots (if I pasted them); if they disagree, the screenshots win.",
+  "页面：这几页没有保存的文字（扫描页或图片页）；没有截图、或你看不了图片时，直接告诉我。": "Pages: these pages have no saved text (scanned or picture pages); if there are no screenshots or you cannot read pictures, tell me so directly.",
+  "截断：这几页的文字较长，只附了前 {0} 字（共 {1} 字）。": "Cut: the text of these pages is long, so only the first {0} of {1} characters are attached.",
+  "做法：先用一两句话说这几页讲什么，再回答我的问题；说明每一点来自哪一页；资料里没有的内容要说明是资料以外的。": "How: first say in a sentence or two what these pages are about, then answer my question; say which page each point comes from; mark anything that is not in the material.",
+  "这几页保存的文字": "The saved text of these pages",
+  "这几页的截图（主会话能看图片时，粘贴在这里）：": "Screenshots of the pages (paste them here if this chat takes pictures):",
+  "帮我看懂资料 {0} 的第 {1} 页。": "Help me understand page(s) {1} of the material {0}.",
+  "页面：这一页保存的文字在 data 围栏里；这条消息带了图的话，图表、画成图片的公式和排版以图为准。": "Page: the saved text of the page is in the data fence. If this message carries a picture, it is the authority on figures, formulas drawn as pictures and the layout.",
+  "页面：这一页没有保存的文字（扫描页或图片页）；这条消息没带图、或你看不了图片时，直接告诉我。": "Page: the page has no saved text (a scanned or picture page); if this message carries no picture, or you cannot read pictures, tell me so directly.",
+  "页面：这几页保存的文字在 data 围栏里，每页以 [page N] 开头；这条消息带了图的话，图表、画成图片的公式和排版以图为准。": "Pages: the saved text of the pages is in the data fence, each page starting with [page N]. If this message carries pictures, they are the authority on figures, formulas drawn as pictures and the layout.",
+  "页面：这几页没有保存的文字（扫描页或图片页）；这条消息没带图、或你看不了图片时，直接告诉我。": "Pages: these pages have no saved text (scanned or picture pages); if this message carries no pictures, or you cannot read pictures, tell me so directly."
 }

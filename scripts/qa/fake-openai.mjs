@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 import { createFakeModel } from "../fake-model.mjs";
 
 export const FAKE_OPENAI_MODEL = "fake-tutor";
+/** A second route of the same fake that declares image input (scripts/qa/dsh-hand-off.mjs pagePictureStep). */
+export const FAKE_VISION_MODEL = "fake-vision";
 
 const text = (content) => typeof content === "string" ? content
   : Array.isArray(content) ? content.map((part) => typeof part === "string" ? part : part?.text || "").join("") : "";
@@ -66,7 +68,7 @@ export async function createFakeOpenAI({ port = 0, host = "127.0.0.1", model, be
         if (!handled) { content = await study(system, asked); handled = studyLog.slice(before).some((entry) => entry.handler); }
         // DSH prepends <system-reminder> blocks to the user turn; echo only what the learner wrote.
         if (!handled) content = `【StudyHub QA fake model】收到：${prompt.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim().slice(0, 60)}`;
-        log.push({ at: new Date().toISOString(), model: request.model, stream: !!request.stream, handled,
+        log.push({ at: new Date().toISOString(), model: request.model, stream: !!request.stream, handled, images: (JSON.stringify(messages).match(/"image_url"/g) || []).length,
           tools: (request.tools || []).map((tool) => tool.function?.name || tool.name).filter(Boolean), systemHead: system.slice(0, 200), systemText: system.slice(0, 40000), toolResult: lastTool.slice(0, 600) });
         const base = { id: `chatcmpl-qa-${log.length}`, created: Math.floor(Date.now() / 1000), model: request.model || FAKE_OPENAI_MODEL };
         const usage = { prompt_tokens: Math.ceil((system.length + prompt.length) / 4), completion_tokens: Math.ceil(content.length / 4) };
