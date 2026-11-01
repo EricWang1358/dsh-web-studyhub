@@ -411,14 +411,13 @@
     .reader-pdf-bar__zoom { min-width: 3.2em; text-align: center; color: var(--text-muted); font-variant-numeric: tabular-nums; }
     /* The page of 原始 PDF drawn in place (peek/PdfPageView.jsx): the picture, and pdf.js's text layer over it (transparent words, selectable). */
     .reader-pdf-view { flex: 1 1 auto; min-height: 0; overflow: auto; background: var(--bg-sunken); }
-    .reader-pdf-sheet { position: relative; margin-inline: auto; background: #fff; }
+    .reader-pdf-sheet { position: relative; margin-inline: auto; }
     .reader-pdf-sheet canvas { display: block; }
     .reader-pdf-text, .reader-pdf-text__page { position: absolute; inset: 0; overflow: clip; line-height: 1; text-align: initial; forced-color-adjust: none; transform-origin: 0 0; }
     .reader-pdf-text__page { --min-font-size: 1; --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size)); --min-font-size-inv: calc(1 / var(--min-font-size)); }
     .reader-pdf-text__page :is(span, br) { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; user-select: text; }
-    .reader-pdf-text__page > :not(.markedContent), .reader-pdf-text__page .markedContent span:not(.markedContent) { --font-height: 0; --scale-x: 1; --rotate: 0deg; z-index: 1; font-size: calc(var(--text-scale-factor) * var(--font-height)); transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv)); }
-    .reader-pdf-text__page .markedContent { display: contents; }
-    .reader-pdf-text__page ::selection { background: rgba(0, 0, 255, 0.25); }
+    .reader-pdf-text__page > * { --font-height: 0; --scale-x: 1; --rotate: 0deg; z-index: 1; font-size: calc(var(--text-scale-factor) * var(--font-height)); transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv)); }
+    .reader-pdf-text__page ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
     /* Previous / next section */
     .reader-pager {
       display: flex;

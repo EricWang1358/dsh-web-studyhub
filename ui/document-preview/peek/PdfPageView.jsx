@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, errorMessage } from '../../i18n.js';
+import { useLiveEffect } from '../../use-async.js';
 import { LoadingState } from '../../components/index.js';
 import { createPeekRenderer, isCancelled } from './renderer.js';
 import { LruCache, MAX_CACHED_PAGES, createRenderGate, pdfPageFor, peekCanvasSize, peekPlan } from './peek-logic.js';
@@ -23,23 +24,22 @@ export default function PdfPageView({ loadBytes, page, totalPages = 0, zoom = 1,
   cache.current ||= new LruCache(MAX_CACHED_PAGES, closeBitmap);
 
   // The file is opened once and let go with the view.
-  useEffect(() => {
-    let live = true;
+  useLiveEffect((isLive) => {
     const bitmaps = cache.current, run = gate.current;
     (async () => {
       try {
         const bytes = await loadBytes();
-        if (!live) return;
+        if (!isLive()) return;
         if (!bytes) { failed.current?.(); return; }
         const opened = await createPeekRenderer(bytes);
-        if (!live) { opened.destroy(); return; }
+        if (!isLive()) { opened.destroy(); return; }
         renderer.current = opened;
         if (!pdfPageFor({ page: 1, totalPages, pdfPages: opened.numPages }).ok) { failed.current?.(); return; }
         setReady(true);
-      } catch (failure) { if (live) { console.warn('PDF page view:', errorMessage(failure)); failed.current?.(); } }
+      } catch (failure) { if (isLive()) { console.warn('PDF page view:', errorMessage(failure)); failed.current?.(); } }
     })();
-    return () => { live = false; run.cancelAll(); bitmaps.clear(); renderer.current?.destroy(); renderer.current = null; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- one file per view; the caller keys it by the file
+    return () => { run.cancelAll(); bitmaps.clear(); renderer.current?.destroy(); renderer.current = null; };
+  }, []); // one file per view; the caller keys it by the file
 
   // Draw the page: from the cache, else small first and then sharp; a newer page, zoom or width cancels this one. The old page stays until the new one has something to show.
   useEffect(() => {

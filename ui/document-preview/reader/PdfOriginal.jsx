@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useLiveEffect } from '../../use-async.js';
 import { ui } from '../../i18n.js';
 import { Button, InlineMessage, LoadingState, Tooltip } from '../../components/index.js';
 import { stepZoom } from '../peek/peek-logic.js';
@@ -12,11 +13,9 @@ export default function PdfOriginal({ fileUrl, title, page, total, onPage, setti
   const [failed, setFailed] = useState(false), native = settings.native || failed;
   // pdf.js lives in the peek's chunk, fetched when this view is first opened, never with the reader; a chunk that does not load falls back like a file that cannot be drawn.
   const [PdfPageView, setView] = useState(null);
-  useEffect(() => {
-    if (native || PdfPageView) return undefined;
-    let live = true;
-    import('../peek/PagePeek.jsx').then(module => { if (live) setView(() => module.PdfPageView); }).catch(() => { if (live) setFailed(true); });
-    return () => { live = false; };
+  useLiveEffect((isLive) => {
+    if (native || PdfPageView) return;
+    import('../peek/PagePeek.jsx').then(module => { if (isLive()) setView(() => module.PdfPageView); }).catch(() => { if (isLive()) setFailed(true); });
   }, [native, PdfPageView]);
   const loadBytes = async () => new Uint8Array(await (await fetch(fileUrl)).arrayBuffer());
   return <div className="reader-original">

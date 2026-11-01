@@ -69,7 +69,7 @@ export async function createPeekRenderer(bytes, deps = {}) {
       const next = document.createElement('div');
       next.style.setProperty('--total-scale-factor', String(scale));
       next.className = 'reader-pdf-text__page';
-      const layer = new pdfjs.TextLayer({ textContentSource: page.streamTextContent({ includeMarkedContent: true, disableNormalization: true }), container: next, viewport });
+      const layer = new pdfjs.TextLayer({ textContentSource: page.streamTextContent({ disableNormalization: true }), container: next, viewport });
       await layer.render();
       if (current()) container.replaceChildren(next);
       return layer;
