@@ -5,10 +5,6 @@
       "ui/components/components.css",
       "ui/review/question.css"
     ],
-    "audio-reasoning": [
-      "ui/audio-dashboard.css",
-      "ui/audio-settings.css"
-    ],
     "board-page": [
       "ui/board/board.css",
       "ui/shell.css"
@@ -24,10 +20,6 @@
     "cloze": [
       "ui/graph.css",
       "ui/review/question.css"
-    ],
-    "collapse-toggle": [
-      "ui/app/app-shell.css",
-      "ui/shell.css"
     ],
     "course-heading": [
       "ui/course-settings.css",
@@ -49,10 +41,6 @@
     "course-route": [
       "ui/focus.css",
       "ui/study-map/desk.css"
-    ],
-    "daily-recap": [
-      "ui/DailyRecap.css",
-      "ui/blog-notes.css"
     ],
     "dim": [
       "ui/review/question.css",
@@ -165,10 +153,6 @@
       "ui/shell.css",
       "ui/side-groups.css"
     ],
-    "nav-reset": [
-      "ui/app/app-shell.css",
-      "ui/shell.css"
-    ],
     "page-heading": [
       "ui/reading-settings/reading.css",
       "ui/shell.css",
@@ -208,14 +192,6 @@
     "reader-toolbar__group--end": [
       "ui/blog-notes.css",
       "ui/document-preview/reader/reader.css"
-    ],
-    "result-details": [
-      "ui/oral-exam.css",
-      "ui/review-results.css"
-    ],
-    "result-weak": [
-      "ui/oral-exam.css",
-      "ui/review-results.css"
     ],
     "review-page": [
       "ui/review/session.css",
@@ -453,10 +429,6 @@
       "ui/shell.css",
       "ui/side-groups.css"
     ],
-    "source-doc__icon": [
-      "ui/document-preview/rename.css",
-      "ui/sources.css"
-    ],
     "source-md": [
       "ui/document-preview/document-preview.css",
       "ui/sources-page.css"
@@ -506,14 +478,6 @@
     "summary-topics": [
       "ui/review-results.css",
       "ui/review/question.css"
-    ],
-    "thumbs": [
-      "ui/coach.css",
-      "ui/review/question.css"
-    ],
-    "token-estimate": [
-      "ui/draft-shortfall.css",
-      "ui/token-usage.css"
     ],
     "two-col": [
       "ui/legacy.css",

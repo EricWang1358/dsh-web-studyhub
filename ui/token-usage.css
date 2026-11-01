@@ -126,6 +126,7 @@
       .jev-usage .token-usage { min-width: 0; flex: 1 1 14em; }
     .jev-usage .token-usage--inline .token-usage__row { justify-content: flex-start; }
     .jev-usage .token-usage--inline .token-usage__rows { flex-direction: row; flex-wrap: wrap; gap: var(--space-half) var(--space-4); }
+    .draft-topup .token-estimate { justify-self: stretch; }
 }
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {

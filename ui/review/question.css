@@ -333,7 +333,6 @@
       background: var(--bg-hover);
       color: var(--text);
     }
-    .question-toolbar .thumbs { gap: 0; }
     .question-toolbar .thumbs > .tool-icon { width: 38px; padding: var(--space-2); }
     .question-toolbar .thumbs svg { display: block; width: 17px; height: 17px; }
     .question-navigation { margin-left: auto; }

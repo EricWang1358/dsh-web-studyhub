@@ -57,6 +57,8 @@
     .exam-report .result-weak > button { margin-top: var(--space-4); }
     .exam-report .result-weak .exam-topic-practice { margin-left: var(--space-2); }
     .result-note-link { font-size: var(--fs-md); text-decoration: none; }
+    .oral-report .result-weak { padding: var(--space-4-5); border: 1px solid var(--line); border-radius: var(--radius); }
+    .oral-report .result-details { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-4); }
   }
   @container study (max-width: 640px) {
     :where(.study-app, .study-seat) {

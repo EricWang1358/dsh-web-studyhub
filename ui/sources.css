@@ -90,6 +90,7 @@
     .sources-empty { display: grid; gap: var(--space-4); margin-top: var(--space-2); }
     .sources-empty__intro h2 { margin: 0 0 var(--space-1); font-size: var(--fs-xl); }
     .sources-empty__intro p { margin: 0; color: var(--text-muted); }
+    .source-doc .source-main--editing .source-doc__icon { margin-top: var(--space-2-5); }
   }
   @media (prefers-reduced-motion: reduce) {
     :is(.study-app, .study-seat) {
