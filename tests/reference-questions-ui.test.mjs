@@ -6,15 +6,16 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { importedReferences, referenceSelection } from '../ui/reference-questions.js';
 import { queueSteps } from '../ui/generation-path-flow.js';
-import { services as studyServices } from './helpers/study-services.mjs';
+import { services as studyServices, withStudy } from './helpers/study-services.mjs';
 
 const compiled = await build({ stdin: { contents: `export { default as Generate } from './ui/Generate.jsx';
   export { default as CaseCreate } from './ui/CaseCreate.jsx'; export { default as ReferenceQuestions } from './ui/ReferenceQuestions.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() }, bundle: true, write: false,
   platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Generate, CaseCreate, ReferenceQuestions, setUiLanguage } = module.exports;
+const { Generate, CaseCreate, ReferenceQuestions, StudyServicesContext, setUiLanguage } = module.exports;
 // Exercise event closures without a browser, storage or executing effects/model calls.
 const services = { current: null }; // what useStudy() answers inside the event closures (see tests/helpers/study-services.mjs)
 const hooks = { ...React, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}],
@@ -70,7 +71,9 @@ test('configured limits accept more excerpts and text while enforcing shared har
 
 test('editable limit controls preserve invalid edits, use shared defaults and disable while busy', () => {
   const changes = [];
-  const tree = ReferenceQuestions({ sources, onChange: noop, onImport: noop, onLimitsChange: value => changes.push(value) });
+  services.current = studyServices();
+  const tree = eventComponents.ReferenceQuestions({ sources, onChange: noop, onImport: noop, onLimitsChange: value => changes.push(value) });
+  services.current = null;
   const group = findElement(tree, node => node.props.role === 'group');
   const sourceInput = group.props.children[0].props.children[1];
   const charsInput = group.props.children[1].props.children[1];
@@ -82,7 +85,7 @@ test('editable limit controls preserve invalid edits, use shared defaults and di
   charsInput.props.onChange({ target: { value: '' } });
   assert.deepEqual(changes, [{ sources: 8, chars: 12000 }, { sources: 5, chars: '' }]);
   // The fold opens by itself once a sample is chosen; shut, its body is not drawn at all (#565).
-  const busyHtml = render(ReferenceQuestions, { sources, busy: true, selected: ['examples'], onChange: noop, onImport: noop });
+  const busyHtml = renderToStaticMarkup(withStudy(StudyServicesContext, React.createElement(ReferenceQuestions, { sources, selected: ['examples'], onChange: noop, onImport: noop }), { busy: true }));
   assert.equal((busyHtml.match(/type="number"[^>]*disabled/g) || []).length, 2);
   assert.match(busyHtml, /已选择 1 个样题片段/);
   assert.match(render(ReferenceQuestions, { sources, selected: ['examples'], limits: { sources: 1.5 }, onChange: noop, onImport: noop }), /role="alert"/);
@@ -90,7 +93,9 @@ test('editable limit controls preserve invalid edits, use shared defaults and di
 
 test('the three-stop format slider emits enums and defaults to balanced with readable labels', () => {
   const choices = [];
-  const tree = ReferenceQuestions({ sources, onChange: noop, onImport: noop, onFormatChange: value => choices.push(value) });
+  services.current = studyServices();
+  const tree = eventComponents.ReferenceQuestions({ sources, onChange: noop, onImport: noop, onFormatChange: value => choices.push(value) });
+  services.current = null;
   const slider = findElement(tree, node => node.props.type === 'range');
   assert.deepEqual([slider.props.min, slider.props.max, slider.props.step, slider.props.value], ['0', '2', '1', 1]);
   for (const value of ['0', '1', '2']) slider.props.onChange({ target: { value } });
@@ -98,7 +103,7 @@ test('the three-stop format slider emits enums and defaults to balanced with rea
   assert.equal(referenceSelection(sources, ['examples'], [], undefined, 'strict').reason, '');
   for (const value of ['', null, 'maximum', 100])
     assert.equal(referenceSelection(sources, [], [], undefined, value).reason, 'format');
-  assert.match(render(ReferenceQuestions, { sources, selected: ['examples'], busy: true, format: 'strict', onChange: noop, onImport: noop }), /type="range"[^>]*disabled/);
+  assert.match(renderToStaticMarkup(withStudy(StudyServicesContext, React.createElement(ReferenceQuestions, { sources, selected: ['examples'], format: 'strict', onChange: noop, onImport: noop }), { busy: true })), /type="range"[^>]*disabled/);
   assert.match(render(ReferenceQuestions, { sources, selected: ['examples'], format: 'invalid', onChange: noop, onImport: noop }), /role="alert"/);
 });
 

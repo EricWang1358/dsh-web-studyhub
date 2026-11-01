@@ -109,7 +109,8 @@ const pageLabel = (item, page) => item.format === 'pdf'
  * no whole page, so generation cannot be scoped to it (the button is off); it still opens the document at its start.
  * 练这一章 practises the chapter's published questions (the very set its mastery counts) in one click; a chapter with none offers 出题 as its one action.
  */
-export function ChapterList({ item, busy, onOpen, onGenerate, onPractice, listId, mastery }) {
+export function ChapterList({ item, onOpen, onGenerate, onPractice, listId, mastery }) {
+  const { busy } = useStudy();
   return <ul id={listId} className="source-doc__page-list source-doc__chapters" role="region" aria-label={ui('章节列表')} tabIndex={0}>
     {item.chapters.map(chapter => {
       const inside = chapter.sourceIds.length === 0, partial = chapter.partial && item.chapterUnit !== 'text';
@@ -131,8 +132,8 @@ export function ChapterList({ item, busy, onOpen, onGenerate, onPractice, listId
 }
 
 /** The entries of a row's 更多 menu. */
-export function RowMenuItems({ item, busy, onChangeCourse, onRemove, onSegment, onRename, onArchive, onPin, onPinMove, pin }) {
-  const { call } = useStudy();
+export function RowMenuItems({ item, onChangeCourse, onRemove, onSegment, onRename, onArchive, onPin, onPinMove, pin }) {
+  const { busy, call } = useStudy();
   const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
   return <div className="source-row-menu">
     {call && <OriginalMenuEntry item={item} />}
@@ -231,7 +232,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
             <Button size="sm" variant="danger" disabled={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>
           </>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
-            <RowMenuItems item={item} busy={busy} onChangeCourse={actions.changeCourse}
+            <RowMenuItems item={item} onChangeCourse={actions.changeCourse}
               onArchive={item.archived ? undefined : actions.archive} onSegment={canSegment ? actions.segment : undefined} onRename={editor ? startEditing : undefined}
               onPin={actions.pin} onPinMove={actions.pinMove} pin={{ pinned, first: pinFirst, last: pinLast }} />
           </details>
@@ -242,7 +243,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           onClick={() => setPagesOpen(open => !open)}>
           {pagesOpen ? ui('收起') : chaptered ? uiFormat('查看 {0} 章', [item.chapters.length]) : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
         </Button>
-        {pagesOpen && chaptered && <ChapterList item={item} busy={busy} onOpen={actions.open} onGenerate={canGenerate ? actions.generate : undefined}
+        {pagesOpen && chaptered && <ChapterList item={item} onOpen={actions.open} onGenerate={canGenerate ? actions.generate : undefined}
           onPractice={canPractice ? actions.practiceChapter : undefined} listId={listId} mastery={mastery} />}
         {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list" role="region" aria-label={ui('页面列表')} tabIndex={0}>
           {item.pages.map(page => <li key={page.sourceId}>

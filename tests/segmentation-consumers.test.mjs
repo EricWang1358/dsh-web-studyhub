@@ -9,6 +9,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { chaptersOfOutline, stampSegmentations } from '../lib/document-outline.js';
+import { withStudy } from './helpers/study-services.mjs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
@@ -17,13 +18,16 @@ const compiled = await build({ stdin: { contents: `
   export { SegmentPreview } from './ui/document-preview/reader/SegmentDialog.jsx';
   export { OutlineDialogBody, changesLibrary } from './ui/document-preview/reader/OutlineDialog.jsx';
   export { structureOutline, chapterNeighbours } from './ui/document-preview/reader/outline.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { SourcePicker, Sources, ChapterList, RowMenuItems, chapterLabel, SegmentPreview, OutlineDialogBody, changesLibrary, structureOutline, chapterNeighbours, setUiLanguage } = module.exports;
+const { SourcePicker, Sources, ChapterList, RowMenuItems, StudyServicesContext, chapterLabel, SegmentPreview, OutlineDialogBody, changesLibrary, structureOutline, chapterNeighbours, setUiLanguage } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
+// ChapterList and RowMenuItems read `busy` from the app's services (useStudy): `inApp(type, props)` gives it there.
+const inApp = (type, { busy = false, ...props }) => withStudy(StudyServicesContext, h(type, props), { busy });
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
 
 const HASH = 'b'.repeat(64);
@@ -74,21 +78,21 @@ test('chapters of files and of one text are labelled by what they are: parts, or
   assert.equal(chapterLabel(text.chapters[1], text.chapterUnit), 'Second');
   assert.equal(chapterLabel(segmented.chapters[0], segmented.chapterUnit), 'Basics · 第 1 页');
   assert.equal(chapterLabel({ title: 'Old', startPage: 1, endPage: 2 }), 'Old · 第 1–2 页', 'callers that pass no unit keep the page wording');
-  const html = render(h(ChapterList, { item: text, busy: false, onOpen() {}, onGenerate() {}, listId: 'l' }));
+  const html = render(inApp(ChapterList, { item: text, onOpen() {}, onGenerate() {}, listId: 'l' }));
   assert.equal((html.match(/data-chapter-index=/g) || []).length, 2);
   assert.match(html.split('data-chapter-index="1"')[1], /整份资料|文字/, 'a chapter inside one text says generation stays whole-document');
 });
 
 test('every row of the 资料 page offers AI 重新分段… in its 更多 menu, in both languages', () => {
   const [item] = groupSourcesByDocument(pages);
-  const markup = render(h(RowMenuItems, { item, busy: false, onChangeCourse() {}, onRemove() {}, onSegment() {} }));
+  const markup = render(inApp(RowMenuItems, { item, onChangeCourse() {}, onRemove() {}, onSegment() {} }));
   assert.match(markup, /AI 重新分段…/);
   assert.match(markup, /改课程…/);
   assert.doesNotMatch(markup, /永久删除|移除/, 'active sources cannot be deleted');
-  const english = render(h(RowMenuItems, { item, busy: false, onChangeCourse() {}, onRemove() {}, onSegment() {} }), 'en');
+  const english = render(inApp(RowMenuItems, { item, onChangeCourse() {}, onRemove() {}, onSegment() {} }), 'en');
   assert.match(english, /Re-segment with AI…/);
-  assert.doesNotMatch(render(h(RowMenuItems, { item, busy: false, onChangeCourse() {}, onRemove() {} })), /重新分段/, 'without a handler there is no entry');
-  assert.match(render(h(RowMenuItems, { item, busy: true, onChangeCourse() {}, onRemove() {}, onSegment() {} })), /disabled=""[^>]*>AI 重新分段/);
+  assert.doesNotMatch(render(inApp(RowMenuItems, { item, onChangeCourse() {}, onRemove() {} })), /重新分段/, 'without a handler there is no entry');
+  assert.match(render(inApp(RowMenuItems, { item, busy: true, onChangeCourse() {}, onRemove() {}, onSegment() {} })), /disabled=""[^>]*>AI 重新分段/);
 });
 
 /* ---------- the picker that scopes generation ---------- */

@@ -1,8 +1,10 @@
 import { ui } from "./i18n.js";
 import React from "react";
 import { Button } from "./components/index.js";
+import { useStudy } from "./study-context.jsx";
 
-export default function EmptyStudyActions({ data, busy, onStart, onLibrary, onCreate, onSources }) {
+export default function EmptyStudyActions({ data, onStart, onLibrary, onCreate, onSources }) {
+  const { busy } = useStudy();
   const canStudy = data?.decks?.some((deck) => !deck.archived);
   return <div className="study-empty-actions">
     {canStudy ? <Button variant="primary" disabled={busy} onClick={onStart}>{ui("开始学习")}</Button>

@@ -213,7 +213,8 @@ export function instantWait(summary) {
 }
 
 /** 模型用量, connected: asks `usage.summary` for the chosen window. */
-export function ModelUsage({ call, onAudio }) {
+export function ModelUsage({ onAudio }) {
+  const { call } = useStudy();
   const [days, setDays] = useState(30);
   const [state, setState] = useState({ status: 'loading' });
   const callRef = useRef(call);
