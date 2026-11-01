@@ -89,7 +89,7 @@
       "ui/Inbox.jsx": 1,
       "ui/ReviewNavigator.jsx": 1,
       "ui/WorkflowLesson.jsx": 1,
-      "ui/WorkflowPortal.jsx": 10,
+      "ui/WorkflowPortal.jsx": 1,
       "ui/Workflows.jsx": 1,
       "ui/app/WorkspaceBindingPanel.jsx": 4,
       "ui/app/modals/SourceReaderDialog.jsx": 1,
