@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { RUN_STATES } from '../lib/coverage-run.js';
+import { RUN_STATES, roundList, runFacts } from '../lib/coverage-run.js';
 import { closeRun, isOpenRun, transitionRunState as apply } from '../lib/contexts/generation/run-state.js';
 
 const RUN_EVENTS = ['start', 'resume', 'round-start', 'round-finish', 'round-stopped', 'round-skip', 'fill-append', 'pause', 'unpause', 'wait', 'stop', 'usage', 'auto', 'touch', 'recover'];
@@ -61,7 +61,7 @@ test('a run stopped with a round in flight: failed, or pending again when the ro
   assert.deepEqual(apply(idle, { type: 'round-stopped', reason: 'boom', at: AT }), idle);
 });
 
-test('a round skipped: done if a pass of it ran, else skipped; a round in flight is not skipped', () => {
+test('a round skipped: done if a pass of it ran or was cut short, else skipped; a round in flight is not skipped', () => {
   assert.equal(apply(run('running', 'pending'), { type: 'round-skip', index: 0 }).spec.rounds[0].status, 'skipped');
   assert.equal(apply(run('running', 'pending'), { type: 'round-skip', index: 0 }).spec.rounds[0].reason, 'covered');
   const tried = { marker: marker(), spec: { rounds: [{ round: 1, status: 'pending', triedKeys: ['a'], sectionIds: ['a'] }] } };
@@ -120,8 +120,10 @@ test('a run that wrote everything and lost its closing write is closed: rounds i
   const sections = states => ({ sections: Object.entries(states).map(([key, state]) => ({ key, state })) });
   const left = { marker: marker('running', { stop: undefined }), spec: { quotas: [{ sectionId: 'a', quota: 1 }, { sectionId: 'b', quota: 1 }], rounds: [{ round: 1, status: 'done', sectionIds: ['a'] }, { round: 2, status: 'running', sectionIds: ['b'], askedKeys: ['b'] }] } };
   const closed = closeRun(left, sections({ a: 'covered', b: 'covered' }), { jobId: 'k', at: LATER });
-  assert.deepEqual(closed.spec.rounds.map(round => round.status), ['done', 'skipped']);
-  assert.deepEqual([closed.marker.jobId, closed.marker.state, closed.marker.stop.reason, closed.marker.stop.round, closed.marker.tokensUsed], ['k', 'complete', 'target', 2, 5]);
+  assert.deepEqual(closed.spec.rounds.map(round => round.status), ['done', 'done'], 'the round in flight wrote its section: it did the work, it was not skipped');
+  assert.equal(closed.spec.rounds[1].reason, undefined);
+  assert.deepEqual([closed.spec.rounds[1].kept, closed.spec.rounds[1].covered, closed.spec.rounds[1].tokens], [undefined, undefined, undefined], 'what that pass kept and cost was lost with the host: unknown, never a made-up 0');
+  assert.deepEqual([closed.marker.jobId, closed.marker.state, closed.marker.stop.reason, closed.marker.stop.round, closed.marker.tokensUsed], ['k', 'complete', 'complete', 2, 5], 'every round ran: what the run says when nothing cut it short');
   const allDone = { marker: marker('paused'), spec: { quotas: [{ sectionId: 'a', quota: 1 }], rounds: [{ round: 1, status: 'done', sectionIds: ['a'] }] } };
   assert.equal(closeRun(allDone, sections({ a: 'covered' }), { jobId: 'k', at: LATER }).marker.stop.reason, 'complete');
   assert.equal(closeRun(left, sections({ a: 'covered', b: 'none' }), { jobId: 'k', at: LATER }), null, 'a section still has no question');
@@ -129,6 +131,37 @@ test('a run that wrote everything and lost its closing write is closed: rounds i
   assert.equal(closeRun({ marker: marker(), spec: { rounds: [] } }, sections({}), { jobId: 'k', at: LATER }), null, 'nothing was planned');
   assert.deepEqual(['running', 'paused', 'waiting', 'stopped', 'complete', undefined].map(state => isOpenRun({ state })), [true, true, false, false, false, false]);
   assert.equal(isOpenRun(undefined), false);
+});
+
+test('a close looks at what each round did: a round that never started is skipped and the plan met early; one from before askedKeys was kept is known by its status', () => {
+  const covered = { sections: [{ key: 'a', state: 'covered' }, { key: 'b', state: 'covered' }] };
+  const at = (...rounds) => ({ marker: marker('running'), spec: { quotas: [{ sectionId: 'a', quota: 1 }, { sectionId: 'b', quota: 1 }], rounds } });
+  const never = closeRun(at({ round: 1, status: 'running', sectionIds: ['a'], askedKeys: ['a'] }, { round: 2, status: 'pending', sectionIds: ['b'] }), covered, { jobId: 'k', at: LATER });
+  assert.deepEqual(never.spec.rounds.map(round => round.status), ['done', 'skipped']);
+  assert.equal(never.spec.rounds[1].reason, 'covered');
+  assert.equal(never.marker.stop.reason, 'target', 'a round that never ran was not needed: the target was met early');
+  const old = closeRun(at({ round: 1, status: 'running', sectionIds: ['a', 'b'] }), covered, { jobId: 'k', at: LATER });
+  assert.deepEqual([old.spec.rounds[0].status, old.marker.stop.reason], ['done', 'complete']);
+  const again = closeRun(at({ round: 1, status: 'pending', sectionIds: ['a', 'b'], askedKeys: ['a', 'b'] }), covered, { jobId: 'k', at: LATER });
+  assert.equal(again.spec.rounds[0].status, 'done', 'a second kill finds the round that was in flight pending, with its pass still on it');
+});
+
+test('a closed run has no pending row: a fill round in flight is settled like any other', () => {
+  const covered = { sections: [{ key: 'a', state: 'covered' }] };
+  const closed = closeRun({ marker: marker('running'), spec: { quotas: [{ sectionId: 'a', quota: 1 }], rounds: [{ round: 1, status: 'done', sectionIds: ['a'] }, { round: 2, status: 'running', fill: true, sectionIds: ['a'], askedKeys: ['a'] }, { round: 3, fill: true, status: 'pending', sectionIds: ['a'] }] } }, covered, { jobId: 'k', at: LATER });
+  assert.deepEqual(closed.spec.rounds.map(round => round.status), ['done', 'done', 'skipped']);
+  assert.equal(closed.marker.stop.reason, 'complete', 'a fill round that was not needed says nothing about the plan');
+  assert.equal(runFacts({ rounds: roundList(closed.spec), run: closed.marker }).left, 0);
+});
+
+test('a close reads what a library holds: an empty row of the plan is not a mistake of the executor', () => {
+  const closed = closeRun({ marker: marker('running'), spec: { quotas: [{ sectionId: 'a', quota: 1 }], rounds: [null, { round: 2, status: 'running', sectionIds: ['a'], askedKeys: ['a'] }, 7] } }, { sections: [{ key: 'a', state: 'covered' }] }, { jobId: 'k', at: LATER });
+  assert.deepEqual([closed.spec.rounds.map(round => [round.round, round.status]), closed.marker.state], [[[2, 'done']], 'complete']);
+});
+
+test('a round-skip after a resume: the pass that was cut short ran, and wrote what the round asked for', () => {
+  const given = { marker: marker(), spec: { rounds: [{ round: 1, status: 'pending', sectionIds: ['a'], askedKeys: ['a'] }] } };
+  assert.equal(apply(given, { type: 'round-skip', index: 0 }).spec.rounds[0].status, 'done');
 });
 
 test('the function changes nothing it was given, and an event it does not know is refused', () => {

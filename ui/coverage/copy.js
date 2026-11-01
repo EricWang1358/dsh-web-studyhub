@@ -452,6 +452,8 @@ export const uncreditedText = (count) => (count > 0 ? uiFormat('{0} 道题通过
 export function roundResult(round) {
   if (round.status === 'pending' || round.status === 'running') return '';
   if (round.status === 'skipped') return ui('这一轮的小节都已经有题了');
+  // A round whose pass was cut short by a stopped host: its questions are in the draft, what it kept and cost was lost with the host. Never 「保留 0 题」.
+  if (round.status === 'done' && round.kept === undefined) return ui('这一轮中途被中断过：写好的题都在，具体数字没有记下');
   const head = uiFormat('保留 {0} 题，新覆盖 {1}', [round.kept ?? 0, gainText(round.covered, round.sections, round.unit)]);
   const minutes = round.ms > 0 ? minutesText(Math.max(1, Math.round(round.ms / 60000))) : '';
   const word = round.code || round.reason, reason = round.status === 'failed' ? (word === 'timeout' ? ui('这一轮用时到限') : failedWhy(word)) : '';
