@@ -144,6 +144,18 @@ test('the panel lists the four parts of the cost in tokens and the cost of an in
   assert.doesNotMatch(unmeasured, /每道独立通过的题平均：0|每道独立通过的题平均：null/);
 });
 
+test('an item passed with help or on a retry says it was not done alone, without naming a hint nobody opened', () => {
+  const items = [{ id: 'k', title: 'One', status: 'assisted', evidenceAttemptIds: [] }];
+  m.setUiLanguage('zh');
+  const zh = text(renderToStaticMarkup(h(m.StudyProgressPanel, { progress: { displayLine: 'x', items }, defaultExpanded: true })));
+  assert.match(zh, /非独立完成/);
+  assert.doesNotMatch(zh, /借助提示/);
+  m.setUiLanguage('en');
+  const en = text(renderToStaticMarkup(h(m.StudyProgressPanel, { progress: { displayLine: 'x', items }, defaultExpanded: true })));
+  m.setUiLanguage('zh');
+  assert.match(en, /Done, not on your own/);
+});
+
 test('with no check items the panel asks for a goal instead of saying it is finished or still estimating', () => {
   m.setUiLanguage('zh');
   const html = text(renderToStaticMarkup(h(m.StudyProgressPanel, { progress: { displayLine: '未设定检验项', items: [] }, estimate: { status: 'no_goal' } })));

@@ -5,10 +5,11 @@ import { ui, uiFormat } from '../i18n.js';
 import { LoadingState } from '../components/Loading.jsx';
 import { joinMeta } from '../format.js';
 import { exactTok } from '../token-usage.js';
+import { NOT_ALONE_LABEL } from '../../lib/study-progress.js';
 
 const STATUS_LABELS = {
   pending: { label: '待检验', tone: 'neutral' },
-  assisted: { label: '借助提示完成', tone: 'info' },
+  assisted: { label: NOT_ALONE_LABEL, tone: 'info' },
   passed: { label: '已独立通过', tone: 'success' },
   needs_review: { label: '需复核', tone: 'warning' },
 };

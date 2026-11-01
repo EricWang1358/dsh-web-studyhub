@@ -102,6 +102,15 @@ test('evidenceAttemptIds precisely tracks each attempt behind item status', () =
   assert.deepEqual(derived.evidenceAttemptIds, ['a1', 'a2']);
 });
 
+test('every flag of the recorded help makes a pass helped, the same way everywhere', () => {
+  const pass = (assistance) => [{ id: 'a', correct: true, timestamp: 1, assistance }];
+  for (const assistance of [{ used: true }, { hintUsed: true }, { revealedBeforeAnswer: true }, { askedTutorBeforeAnswer: true }])
+    assert.equal(deriveItemStatus({}, pass(assistance)).status, 'assisted');
+  assert.equal(deriveItemStatus({}, pass({ used: false, hintUsed: false })).status, 'passed');
+  assert.equal(deriveItemStatus({}, pass(undefined)).status, 'passed');
+  assert.equal(deriveItemStatus({}, [{ id: 'r', correct: true, timestamp: 1, retry: true, assistance: { used: false } }]).status, 'assisted', 'a retry comes after the answer was shown');
+});
+
 const dueAttempt = (id, quiz_id, timestamp, dueAfterMs, extra = {}) => ({ id, quiz_id, timestamp: new Date(timestamp).toISOString(), grade: 4, correct: true,
   after: { due_at: new Date(timestamp + dueAfterMs).toISOString() }, ...extra });
 

@@ -53,6 +53,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   // 在右栏打开: busy until the sidebar has the run; when it cannot, say why (never a silent click).
   const [movingToSidebar, setMovingToSidebar] = React.useState(false);
   const moveToSidebar = async () => {
+    // The sidebar opens the run from the library: what was just typed has to be there first.
+    if (await session.flushDraft?.() === false) return;
     setMovingToSidebar(true);
     try { await host.openInSidebar(run.id); }
     catch (failure) { notify({ text: uiFormat("没能放进右栏：{0}", [errorMessage(failure)]), tone: "warning" }); }

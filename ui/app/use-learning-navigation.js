@@ -14,7 +14,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   const { call, setError, notify, refresh, refs } = core;
   const { setModal, setContextTrail, setFocusRequest, setDetour } = lib.set;
   const latest = useRef(null);
-  latest.current = { page: nav.page, run: session.run, entry: session.entry, state: lib.state };
+  latest.current = { page: nav.page, run: session.run, entry: session.entry, state: lib.state, flushDraft: session.flushDraft };
 
   // The verbs a learning target is shown with: the page's own state and the page are set together.
   const verbs = useMemo(() => ({
@@ -49,8 +49,12 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   }, [refs]);
   const env = (live) => ({ live, data: () => refs.dataRef.current, refresh });
 
+  // What was typed on the open question is in the library before a link leaves it (#537). False: it could not be saved, the session has said so, stay here.
+  const draftSaved = useCallback(async () => (await latest.current.flushDraft?.()) !== false, []);
+
   /** Local links keep a small trail; ordinary sidebar navigation starts afresh. */
   const openLearningTarget = useCallback(async (target, { remember = true, throwOnError = false } = {}) => {
+    if (!(await draftSaved())) return;
     const origin = captureContext(), live = guard();
     setError('');
     try {
@@ -63,7 +67,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     } catch (error) {
       if (live()) { if (throwOnError) throw error; setError(errorMessage(error)); }
     }
-  }, [call, captureContext, guard, rememberContext, setError, setModal, setFocusRequest, verbs]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [call, captureContext, draftSaved, guard, rememberContext, setError, setModal, setFocusRequest, verbs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentStudyReference = useCallback(() => {
     const { page, run, state } = latest.current;
@@ -94,6 +98,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   }, [onPage, setContextTrail]);
 
   const returnFromContext = useCallback(async () => {
+    if (!(await draftSaved())) return;
     const origin = latest.current.state.contextTrail.at(-1), live = guard();
     if (!origin || origin.root !== refs.dataRef.current?.root) { setContextTrail([]); return; }
     try {
@@ -111,12 +116,12 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       setContextTrail((previous) => previous.slice(0, -1));
       setFocusRequest({ element: origin.invoker });
     } catch (error) { if (live()) setError(errorMessage(error)); }
-  }, [call, guard, refs, setContextTrail, setError, setFocusRequest, setModal, verbs]);
+  }, [call, draftSaved, guard, refs, setContextTrail, setError, setFocusRequest, setModal, verbs]);
 
   // Back to the question a letter took the learner away from.
   const returnFromDetour = useCallback(async () => {
     const back = latest.current.state.detour;
-    if (!back) return;
+    if (!back || !(await draftSaved())) return;
     const live = guard();
     if (back.root !== refs.dataRef.current?.root) { setDetour(null); return; }
     try {
@@ -126,7 +131,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
       setDetour(null);
       setFocusRequest({ element: back.invoker });
     } catch (error) { if (live()) setError(error.message); }
-  }, [call, guard, refs, session, setDetour, setError, setFocusRequest]);
+  }, [call, draftSaved, guard, refs, session, setDetour, setError, setFocusRequest]);
 
   // Reopen the reader where the learner was: the section, the offset into it and the scroll position of the stored context.
   const returnToReading = useCallback((reading) => {
