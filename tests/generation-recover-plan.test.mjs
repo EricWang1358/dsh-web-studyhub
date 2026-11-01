@@ -31,6 +31,18 @@ test('a run whose draft closed is over, whatever its record says: the process di
   assert.deepEqual(plan.restore.map(run => run.id), ['m2', 'm3', 'm4'], 'a supplement still has its publication to do; a record that names no run is judged as before');
 });
 
+test('a draft has one run: of two records on it the one the draft names comes back, else the newest; a closed draft ends them all; a supplement and another draft are left alone', () => {
+  const owned = draft('a', 'running'); owned.editorial.generation.runId = 'run-2';
+  const live = (id, jobId, draftId, at = NOW, kind = 'generation') => ({ id, kind, jobId, status: 'interrupted', at, draftId });
+  assert.deepEqual(planRunRecovery({ runs: [live('m1', 'run-1', 'a', NOW), live('m2', 'run-2', 'a', NOW - 9)], now: NOW, drafts: [owned] }).restore.map(run => run.id), ['m2'], 'the run the draft names, though the other is newer');
+  assert.deepEqual(planRunRecovery({ runs: [live('m1', 'run-1', 'a', NOW - 9), live('m2', 'run-3', 'a', NOW)], now: NOW, drafts: [owned] }).restore.map(run => run.id), ['m2'], 'nobody it names: the newest');
+  assert.deepEqual(planRunRecovery({ runs: [live('m1', 'run-1', 'a'), live('m2', 'run-3', 'b'), live('m3', 'run-4', undefined), live('m4', 'run-5', undefined), live('m5', 'run-6', 'a', NOW, 'supplement')], now: NOW, drafts: [owned] }).restore.map(run => run.id),
+    ['m1', 'm2', 'm3', 'm4', 'm5'], 'one per draft only: a record that names no draft is judged as before');
+  const closed = draft('c', 'complete'); closed.editorial.generation.runId = 'run-9';
+  const plan = planRunRecovery({ runs: [live('m1', 'run-9', 'c'), live('m2', 'run-8', 'c')], now: NOW, drafts: [closed] });
+  assert.deepEqual([plan.restore, plan.forget.map(run => run.id)], [[], ['m1', 'm2']], 'the job that closed it and the job it replaced');
+});
+
 test('a run closed short is closed too: its record does not bring back a job whose retry would be refused', () => {
   const closed = draft('a', 'stopped'); closed.editorial.generation.runId = 'run-1'; closed.editorial.coverageRun.stop = { reason: 'questions-short', round: 2 };
   const other = draft('b', 'stopped'); other.editorial.generation.runId = 'run-2'; other.editorial.coverageRun.stop = { reason: 'refused', round: 2 };

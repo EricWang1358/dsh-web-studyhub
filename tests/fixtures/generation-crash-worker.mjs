@@ -20,6 +20,7 @@ export const WINDOWS = Object.freeze({
   'last-question-saved': { code: 86, after: (draft, goal) => draft.cards.length >= goal },
   'closing-unsaved': { code: 87, before: draft => draft?.editorial?.coverageRun?.state === 'complete' },
   'closing-saved': { code: 88, after: draft => draft.editorial?.coverageRun?.state === 'complete' },
+  'closing-saved-short': { code: 91, after: draft => draft.editorial?.coverageRun?.stop?.reason === 'questions-short' },
   paused: { code: 89, after: draft => draft.editorial?.coverageRun?.state === 'paused', pauseAtCall: true },
   // The last round, with every section at its first question and the round's other parts still in flight: nothing is left to ask, and questions are still owed.
   'every-section-covered': { code: 90, after: (draft, _goal, state) => isFullyCovered(draft, state) },
@@ -70,8 +71,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   service = new StudyService(root, { coverage: { roundLimit }, ...modeOptions(mode, complete) });
   service.light = weighing;
   service.complete = complete;
-  for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
-  ({ jobId } = await service.call('generate', { sourceIds: world.sources.map(source => source.id), coverageLevel: 'standard', kind: 'quiz', ...(scenario.count ? { count: scenario.count } : {}) }));
+  // `direct`: a second life, over what the first one left: 接着做 through generate itself, which is a new logical job and not a retry of the one that was interrupted.
+  if (scenario.direct) {
+    await service.call('snapshot');
+    const draft = (await service.call('export')).drafts[0];
+    ({ jobId } = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { run: true } }));
+  } else {
+    for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
+    ({ jobId } = await service.call('generate', { sourceIds: world.sources.map(source => source.id), coverageLevel: 'standard', kind: 'quiz', ...(scenario.count ? { count: scenario.count } : {}) }));
+  }
   await service.call('job.wait', { jobId, timeoutSeconds: 60 });
   process.exit(70); // Nothing killed it: the window was never reached.
 }

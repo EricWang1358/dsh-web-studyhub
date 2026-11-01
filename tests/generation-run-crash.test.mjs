@@ -3,7 +3,7 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,9 +35,11 @@ before(async () => {
   await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
-async function die(t, name, mode, scenario = {}) {
-  const root = await mkdtemp(join(tmpdir(), 'study-run-crash-'));
-  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+async function die(t, name, mode, scenario = {}, root) {
+  if (!root) {
+    root = await mkdtemp(join(tmpdir(), 'study-run-crash-'));
+    t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  }
   const child = spawn(process.execPath, [WORKER, root, name, mode, String(uncut.roundOne), JSON.stringify(scenario)], { env: { ...process.env, DSH_HOME: join(root, '.home') }, stdio: 'inherit' });
   const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('exit', resolve); });
   assert.equal(code, WINDOWS[name].code, `the process died in the window "${name}" (70: the window was never reached)`);
@@ -134,6 +136,54 @@ for (const mode of Object.keys(MODES)) for (const world of SHORT_WORLDS) test(`$
   const then = await shortfallFor(after.service, last);
   assert.equal(then.questionsMissing, world.goal - last.cards.length);
   assert.equal(then.ready, last.cards.length === world.goal);
+});
+
+/* Two kills. The run is closed through generate itself (a new logical job, not a retry of the job that was interrupted) and that process dies too, right after the closing write. */
+test('restart: killed before the closing write, closed by a new job, killed after it: the run is over and no job comes back', async t => {
+  const root = await die(t, 'closing-unsaved', 'restart');
+  await die(t, 'closing-saved', 'restart', { direct: true }, root);
+  const after = await reopen(t, root, 'restart'), draft = await draftOf(after.service);
+  await assertFinished(after.service, draft);
+  const { jobs } = await after.service.call('snapshot');
+  assert.deepEqual(jobs.filter(job => job.contract.status === 'interrupted').map(job => [job.contract.jobId, job.stage]), [], 'neither the job that closed it nor the one it replaced');
+  assert.deepEqual(after.log, []);
+  assert.deepEqual(await readdir(join(root, 'generation-runs')).catch(() => []), [], 'and they leave nothing on disk');
+});
+
+test('restart: closed by a new job with nothing killed after it: that job replaces the interrupted one on the list and on disk, and the draft says which run it is', async t => {
+  const root = await die(t, 'closing-unsaved', 'restart'), after = await reopen(t, root, 'restart');
+  await after.service.call('snapshot');
+  const left = await draftOf(after.service), reply = await after.service.call('generate', { resumeDraftId: left.id, draftVersion: left.draftVersion, coverage: { run: true } });
+  const done = await settleJob(after.service, attemptOf(reply)), draft = await draftOf(after.service);
+  assert.equal(done.status, 'complete', done.stage);
+  const onDraft = await jobsOnDraft(after.service, draft);
+  assert.deepEqual(onDraft.map(job => job.contract.status), ['complete'], 'one job for the run');
+  assert.equal(draft.editorial.generation.runId, onDraft[0].contract.jobId, 'every save of a run names it, the closing one too');
+  await after.service.dispose();
+  const again = await reopen(t, root, 'restart');
+  assert.deepEqual((await again.service.call('snapshot')).jobs.map(job => job.contract.status), [], 'the job it replaced does not come back');
+  assert.deepEqual(await readdir(join(root, 'generation-runs')), []);
+});
+
+test('restart: a short run killed, closed by a new job, killed after the closing write: same, and the draft still says what is missing', async t => {
+  const world = SHORT_WORLDS[1], scenario = shortScenario(world), root = await die(t, 'every-section-covered', 'restart', scenario);
+  await die(t, 'closing-saved-short', 'restart', { ...scenario, direct: true }, root);
+  const after = await reopen(t, root, 'restart', scenario), draft = await draftOf(after.service);
+  assert.deepEqual((await after.service.call('snapshot')).jobs.filter(job => job.contract.status === 'interrupted').map(job => job.contract.jobId), []);
+  assert.deepEqual((await shortfallFor(after.service, draft)).action, 'continue');
+  assert.deepEqual(after.log, []);
+});
+
+test('restart: killed before the closing write and again before the new job closed it: one job for the run, and it closes', async t => {
+  const root = await die(t, 'closing-unsaved', 'restart');
+  await die(t, 'closing-unsaved', 'restart', { direct: true }, root);
+  const after = await reopen(t, root, 'restart'), draft = await draftOf(after.service);
+  const jobs = (await after.service.call('snapshot')).jobs.filter(job => job.contract.status === 'interrupted');
+  assert.equal(jobs.length, 1, jobs.map(job => job.contract.jobId).join(' | '));
+  const done = await settleJob(after.service, attemptOf(await after.service.call('job.control', { jobId: jobs[0].id, action: 'retry' })));
+  assert.equal(done.status, 'complete', done.stage);
+  await assertFinished(after.service, await draftOf(after.service), draft);
+  assert.deepEqual(after.log, []);
 });
 
 for (const mode of Object.keys(MODES)) {
