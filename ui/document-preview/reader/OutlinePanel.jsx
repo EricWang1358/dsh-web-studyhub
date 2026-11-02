@@ -21,7 +21,7 @@ const FILTER_FROM = 12;
  * and a square coverage mark. `coverageTotals` (lib/coverage.js) is what the header says (覆盖 7/80); `initialOnlyUncovered` starts with 只看没覆盖的 on. `coverageAction` is the one top-up of the
  * material, under the header (ui/coverage/DocumentTopUp.jsx).
  */
-export default function OutlinePanel({ items, activeId, onJump, labelOf = () => '', id, className = '', footer = null, initialOpen, meters = null, coverage = null, coverageTotals = null, coverageAction = null, initialOnlyUncovered = false, ...rest }) {
+export default function OutlinePanel({ items, activeId, onJump, labelOf = () => '', id, className = '', footer = null, initialOpen, meters = null, upgradedIds = null, coverage = null, coverageTotals = null, coverageAction = null, initialOnlyUncovered = false, ...rest }) {
   useInjectCss(coverageCss, 'study-coverage');
   const list = useRef(null), [query, setQuery] = useState(''), [toggled, setToggled] = useState(() => new Map()), [onlyUncovered, setOnlyUncovered] = useState(initialOnlyUncovered);
   const signature = `${items.length}:${items[0]?.id ?? ''}:${items.at(-1)?.id ?? ''}`;
@@ -85,7 +85,7 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
                 here.neverPlanned > 0 && neverPlannedText(here.neverPlanned, coverageTotals?.recorded !== false)])}>
                 <span className="reader-outline__cov-count" data-coverage-parent>{`${here.covered}/${here.leaves}`}</span></Tooltip> : null}</span>}
             {/* 资料掌握度 of this entry (and what is below it); present only when the document has questions at all. */}
-            {meters && <span className="reader-outline__meter"><MasteryMark summary={meters.get(item.id) ?? null} title={name(item)} size={13} /></span>}
+            {meters && <span className="reader-outline__meter" data-upgraded={upgradedIds?.has?.(item.id) ? 'true' : undefined}><MasteryMark summary={meters.get(item.id) ?? null} title={name(item)} size={13} /></span>}
           </li>;
         })}
       </ol>

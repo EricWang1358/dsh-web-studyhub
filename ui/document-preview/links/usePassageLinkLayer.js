@@ -10,7 +10,8 @@ function insertMarkers(container, entries, open, titleOf) {
     end.collapse(false);
     const marker = doc.createElement('sup'), button = doc.createElement('button'), title = titleOf(group);
     marker.className = 'study-passage-mark'; marker.dataset.studyMarker = 'true'; marker.dataset.kind = group.kind;
-    button.type = 'button'; button.textContent = `[${group.number}]`; button.title = title; button.setAttribute('aria-label', title);
+    if (group.masteryState) marker.dataset.mastery = group.masteryState;
+    button.type = 'button'; button.className = 'study-passage-mark__btn'; button.textContent = `[${group.number}]`; button.title = title; button.setAttribute('aria-label', title);
     button.addEventListener('click', () => open(group));
     marker.append(button); end.insertNode(marker); markers.push(marker);
   }
