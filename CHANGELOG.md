@@ -2,6 +2,10 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 4.2.1 — 2026-11-03
+
+- **Reading and practice now show live memory and mastery progress as you study.** Linked passages in the reader shift their underlines, footnote numbers and side-panel marks from new through learning to mastered, returning to reading after a round highlights upgraded outline sections and shows the round's gain in the toolbar, each answered question shows its level promotion, interval growth, stability gauge and credited prerequisites, and both the question card header and the round result screen track before-and-after mastery visually. Not verified: live screen-reader announcements across macOS VoiceOver and Windows NVDA during rapid keyboard answering.
+
 ## 4.2.0 — 2026-11-01
 
 - **The typeface you pick in Aa now really changes the reading text.** 宋体, 楷体, 圆体 and 等宽 (and the reader's 字体 row) used to leave the text in the interface typeface. The rule naming the picked face sat in an earlier style layer than the reader's own default, and a browser compares layers before specificity, so the later layer's plain default won and the choice never reached the page (宋体 only looked a little bolder). The default now lives in the same layer as the choice, so a note and the daily study recap, a review explanation, the review book and an exam report draw the face you picked. Not verified: none of these reading surfaces was opened with a picked face in a real DSH window or in the browser preview; the stylesheet rules and the font registry's unit tests were checked only.
