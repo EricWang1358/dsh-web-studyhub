@@ -579,7 +579,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <Markdown text={run.card.hint} />
           </div>
         )}
-        {run.feedback && <NextDue feedback={run.feedback} />}
+        {run.feedback && <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} />}
         <WrongAnswerSource run={run} sources={data.sources} onOpen={(source, quote) => openModal({ type: "source", source, quote, back: true })} />
         {run.solution && (explain || !!run.feedback) && (
           <ReadingBlock measure className="explanation">

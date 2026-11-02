@@ -26,18 +26,19 @@ export function nextDueWord(feedback = {}) {
   return feedback.level === 'mastered' ? ui('✓ 已掌握') : ui('答对了');
 }
 
-export function NextDue({ feedback }) {
+export function NextDue({ feedback, telemetry = null }) {
   if (!feedback) return null;
-  const promoted = feedback.beforeLevel && feedback.level && (LEVEL_RANK[feedback.level] ?? -1) > (LEVEL_RANK[feedback.beforeLevel] ?? -1)
-    && LEVEL_WORDS[feedback.beforeLevel] && LEVEL_WORDS[feedback.level];
-  const hasAfterDays = Number.isFinite(feedback.afterDays) && feedback.afterDays > 0;
-  const beforeDays = Number.isFinite(feedback.beforeDays) ? feedback.beforeDays : 0;
+  const meta = telemetry || feedback;
+  const promoted = meta.beforeLevel && feedback.level && (LEVEL_RANK[feedback.level] ?? -1) > (LEVEL_RANK[meta.beforeLevel] ?? -1)
+    && LEVEL_WORDS[meta.beforeLevel] && LEVEL_WORDS[feedback.level];
+  const hasAfterDays = Number.isFinite(meta.afterDays) && meta.afterDays > 0;
+  const beforeDays = Number.isFinite(meta.beforeDays) ? meta.beforeDays : 0;
   const gapChip = hasAfterDays
-    ? (beforeDays > 0 && feedback.afterDays !== beforeDays
-      ? uiFormat('间隔 {0} 天 → {1} 天', [beforeDays, feedback.afterDays])
-      : (!beforeDays && feedback.correct ? uiFormat('首轮间隔 {0} 天', [feedback.afterDays]) : ''))
+    ? (beforeDays > 0 && meta.afterDays !== beforeDays
+      ? uiFormat('间隔 {0} 天 → {1} 天', [beforeDays, meta.afterDays])
+      : (!beforeDays && feedback.correct ? uiFormat('首轮间隔 {0} 天', [meta.afterDays]) : ''))
     : '';
-  const lit = stabilitySteps(feedback.stability);
+  const lit = stabilitySteps(meta.stability);
   const credited = Number.isInteger(feedback.credited) && feedback.credited > 0 ? feedback.credited : 0;
   const hasTelemetry = !!(promoted || gapChip || lit > 0 || credited > 0);
   return (
@@ -51,7 +52,7 @@ export function NextDue({ feedback }) {
           {' '}
           {promoted && (
             <span className="next-due__chip next-due__chip--up">
-              {uiFormat('{0} → {1}', [ui(LEVEL_WORDS[feedback.beforeLevel]), ui(LEVEL_WORDS[feedback.level])])}
+              {uiFormat('{0} → {1}', [ui(LEVEL_WORDS[meta.beforeLevel]), ui(LEVEL_WORDS[feedback.level])])}
             </span>
           )}
           {' '}
@@ -59,7 +60,7 @@ export function NextDue({ feedback }) {
           {' '}
           {lit > 0 && (
             <span className="next-due__chip next-due__chip--stability">
-              <span>{uiFormat('稳定度 {0} 天', [feedback.stability])}</span>
+              <span>{uiFormat('稳定度 {0} 天', [meta.stability])}</span>
               <span className="next-due__pips" aria-hidden="true">
                 {[1, 2, 3, 4, 5].map((step) => <i key={step} data-lit={step <= lit ? 'true' : undefined} />)}
               </span>

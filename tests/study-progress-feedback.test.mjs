@@ -163,20 +163,21 @@ test('Point 3 & 4 (runtime): review.answer records FSRS trajectory + credited pr
   assert.equal(run.liveMastery.before.percent, 0);
   assert.equal(run.liveMastery.after.percent, 0);
 
-  const feedbacks = {};
+  const feedbacks = {}, telemetries = {};
   for (let step = 0; step < 2; step++) {
     const id = run.card.id;
     run = await service.call('review.answer', { runId: run.id, cardId: id, queueVersion: run.queueVersion, selected: ['a'] });
     feedbacks[id] = run.feedback;
+    telemetries[id] = run.feedbackTelemetry;
     assert.equal(run.complete, false);
     assert.ok(run.liveMastery.after.percent > run.liveMastery.before.percent, 'liveMastery climbs immediately mid-round');
     if (step === 0) run = await service.call('review.move', { runId: run.id, direction: 1 });
   }
-  assert.equal(feedbacks.main1.beforeLevel, 'new');
+  assert.equal(telemetries.main1.beforeLevel, 'new');
   assert.equal(feedbacks.main1.level, 'learning');
-  assert.equal(feedbacks.main1.beforeDays, 0);
-  assert.ok(feedbacks.main1.afterDays >= 1, `expected positive interval, got ${feedbacks.main1.afterDays}`);
-  assert.ok(feedbacks.main1.stability > 0, `expected positive stability, got ${feedbacks.main1.stability}`);
+  assert.equal(telemetries.main1.beforeDays, 0);
+  assert.ok(telemetries.main1.afterDays >= 1, `expected positive interval, got ${telemetries.main1.afterDays}`);
+  assert.ok(telemetries.main1.stability > 0, `expected positive stability, got ${telemetries.main1.stability}`);
   assert.equal(feedbacks.main1.credited, 1, 'answering main1 credits its due prerequisite pre1');
 });
 

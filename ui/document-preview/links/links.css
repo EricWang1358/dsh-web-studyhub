@@ -17,14 +17,14 @@
       text-decoration-line: underline;
       text-decoration-style: solid;
       text-decoration-thickness: 2px;
-      text-decoration-color: color-mix(in srgb, var(--bad) 86%, transparent);
-      background-color: color-mix(in srgb, var(--bad) 8%, transparent);
+      text-decoration-color: var(--bad);
+      background-color: var(--bad-halo);
     }
     ::highlight(study-link-question-learning) {
       text-decoration-line: underline;
       text-decoration-style: solid;
       text-decoration-thickness: 1.5px;
-      text-decoration-color: color-mix(in srgb, var(--warn) 86%, transparent);
+      text-decoration-color: var(--warn);
     }
     ::highlight(study-link-question-familiar) {
       text-decoration-line: underline;
@@ -36,8 +36,8 @@
       text-decoration-line: underline;
       text-decoration-style: solid;
       text-decoration-thickness: 1.5px;
-      text-decoration-color: color-mix(in srgb, var(--ok) 85%, transparent);
-      background-color: color-mix(in srgb, var(--ok) 7%, transparent);
+      text-decoration-color: var(--ok);
+      background-color: var(--ok-halo);
     }
     ::highlight(study-link-qa) {
       text-decoration-line: underline;
@@ -49,7 +49,7 @@
       text-decoration-line: underline;
       text-decoration-style: dotted;
       text-decoration-thickness: 2px;
-      text-decoration-color: color-mix(in srgb, var(--ok) 85%, transparent);
+      text-decoration-color: var(--ok);
     }
     ::highlight(study-link-annotation) {
       text-decoration-line: underline;

@@ -184,7 +184,7 @@
       .reader-toolbar__delta,
       .reading-result__delta { animation: none; }
       [data-returned='true'] { background: color-mix(in srgb, var(--accent) 18%, transparent); }
-      [data-returned='true'][data-returned-rose='true'] { background: color-mix(in srgb, var(--ok) 18%, transparent); }
+      [data-returned='true'][data-returned-rose='true'] { background: var(--ok-halo); }
       .reading-result__after,
       .reading-result__before { transition: none; }
     }
@@ -197,7 +197,7 @@
 }
 
 @keyframes sh-reader-returned-rose {
-  0%, 55% { background: color-mix(in srgb, var(--ok) 20%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--ok) 18%, transparent); }
+  0%, 55% { background: var(--ok-halo); box-shadow: 0 0 0 6px var(--ok-halo); }
   100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
 }
 
