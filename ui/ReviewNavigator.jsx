@@ -24,6 +24,7 @@ export default function ReviewNavigator({ run, onJump }) {
         const label = uiFormat(item.answered ? "第 {0} 题 · {1} · {2} · 已答" : "第 {0} 题 · {1} · {2}", [item.index + 1, ui(labels[item.level]), item.topic]);
         return <button key={item.index}
           className="review-tick" aria-label={label} title={label}
+          data-answered={item.answered ? "true" : undefined}
           aria-current={current ? "step" : undefined} disabled={busy}
           onClick={() => { if (!current) onJump(item.index); }}>
           <span className={"review-tick-line lv-" + item.level} />

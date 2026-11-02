@@ -64,5 +64,17 @@
   "另有 1 题在草稿": "1 more in drafts",
   "另有 {0} 题在草稿": "{0} more in drafts",
   "发布草稿后才能练习这几页的题。": "Publish the draft to practise the questions of these pages.",
-  "这份草稿已经不在了，可能已发布或删除。": "That draft is gone; it may have been published or deleted."
+  "这份草稿已经不在了，可能已发布或删除。": "That draft is gone; it may have been published or deleted.",
+  "待复习": "Due",
+  "本轮 +{0}%": "This round +{0}%",
+  "间隔 {0} 天 → {1} 天": "Interval {0}d → {1}d",
+  "首轮间隔 {0} 天": "First interval {0}d",
+  "稳定度 {0} 天": "Stability {0}d",
+  "顺带推进 {0} 道前置题": "Credited {0} prerequisite(s)",
+  "本组 {0}% → {1}%": "This set {0}% → {1}%",
+  "本组 {0}%": "This set {0}%",
+  "新学 {0} 题": "{0} new started",
+  "消除薄弱 {0} 题": "{0} weak cleared",
+  "完成待复习 {0} 题": "{0} due reviewed",
+  "整组达标": "All mastered"
 }

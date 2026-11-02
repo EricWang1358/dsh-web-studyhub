@@ -24,6 +24,7 @@ import reviewCss from "./review.css";
 import { useInjectCss } from "../shared.js";
 import { RubricAnswer, ScenarioPanel } from "../CaseWorkspace.jsx";
 import { WrongAnswerSource } from "../document-preview/practice/ReadingReturn.jsx";
+import { MasteryMark } from "../document-preview/practice/MasteryMark.jsx";
 import { NextDue } from "../NextDue.jsx";
 import { formatGap } from "../format.js";
 import { resolveBookSettings } from "../../lib/book-settings.js";
@@ -207,7 +208,17 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         <div className={"question-card" + (!choice && !isCloze && !rubricCard ? "" : " sh-paper-card sh-paper-card--roomy")} data-tour="review-question">
           <div className="question-meta">
             <span>
-              {run.index + 1} / {run.total}
+              <span>{run.index + 1} / {run.total}</span>
+              {run.mode !== "exam" && run.liveMastery?.before?.total > 0 && run.liveMastery?.after?.total > 0 && (() => {
+                const { before, after } = run.liveMastery, delta = after.percent - before.percent;
+                return (
+                  <span className="question-live-mastery" data-testid="live-mastery" data-rose={delta > 0 ? "true" : delta < 0 ? "down" : undefined}>
+                    <MasteryMark summary={after} size={13} />
+                    <span>{delta !== 0 ? uiFormat("本组 {0}% → {1}%", [before.percent, after.percent]) : uiFormat("本组 {0}%", [after.percent])}</span>
+                    {delta > 0 && <strong className="question-live-mastery__delta">{`+${delta}%`}</strong>}
+                  </span>
+                );
+              })()}
             </span>
             <div>
               {cardNotes.map((note) => note.status === "published" && note.url
@@ -568,7 +579,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <Markdown text={run.card.hint} />
           </div>
         )}
-        {run.feedback && <NextDue feedback={run.feedback} />}
+        {run.feedback && <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} />}
         <WrongAnswerSource run={run} sources={data.sources} onOpen={(source, quote) => openModal({ type: "source", source, quote, back: true })} />
         {run.solution && (explain || !!run.feedback) && (
           <ReadingBlock measure className="explanation">

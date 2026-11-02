@@ -198,8 +198,6 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     await call('materials.annotation.delete', { documentId: document.documentId || document.id, revision: document.revision, stale: true });
     setKeptReload(count => count + 1);
   };
-  // Which passages are underlined (resolved links) and which must be selected again; notes follow their cards.
-  const model = useMemo(() => buildLinkModel(groups, { noteBadges: data?.noteBadges }), [groups, data?.noteBadges]);
   const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
   const sources = useMemo(() => localMode ? [{ id: localContent.id, title: localContent.title, text: content, format: 'md' }] : document?.sources || [source], [localMode, localContent?.id, localContent?.title, content, document, source]);
   // 原始 PDF: the learning panel asks about the page our own controls show (page-scope.js). It is a panel of its own, mounted the first time the
@@ -290,6 +288,22 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   };
   // Link layer: [n] markers, underlines (when shown) and their click. Ranges are located once per links/text change.
   const rendered = useMemo(() => ({ html, content, view, sections, document, language }), [html, content, view, sections, document, language]);
+  // 读 → 做这几页的题 → 回到阅读 → 掌握度: the questions linked to this document placed under the outline, the range chooser, and the way back to a stored position.
+  const documentItem = useMemo(() => data?.sources ? groupSourcesByDocument(data.sources).find(item => item.sourceIds.includes(source.id)) || null : null, [data?.sources, source.id]);
+  // A place named by its offset into the text (在资料中查看 on a part of a question run) is the section that offset is in (lib/sections.js; ids are the outline's own); a page of a PDF opens at its page.
+  const place = useMemo(() => resume && Number.isInteger(resume.at) && !paged && !html && !resume.sectionId ? sectionAtOffset([{ id: sources[0]?.id ?? source.id, text: sources[0]?.text || content }], sources[0]?.id ?? source.id, resume.at) : null,
+    [resume, paged, html, sources, content, source.id]);
+  // Only the sections this reader draws (a transcript's recordings and parts) can be started at; Markdown draws its own headings, text without structure has none.
+  const resumeAt = useMemo(() => resume && (place?.kind === 'recording' || place?.kind === 'part') ? { ...resume, sectionId: place.sectionId } : resume, [resume, place]);
+  const unit = aiOn || !paged ? 'section' : isSlideFormat(format) ? 'slide' : 'page';
+  const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt });
+  const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
+  const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
+  const openDraftPages = draftIds => { loop.setOpen(false); onOpenDraftPages?.(draftIds); };
+  const meters = !localMode && loop.status === 'ready' && loop.total > 0 && view !== 'original' ? loop.meters : null;
+  // Which passages are underlined (resolved links), their mastery state, and which must be selected again; notes follow their cards.
+  const cardMastery = useMemo(() => (!localMode && loop.cards?.length ? new Map(loop.cards.map(card => [`${card.deckId}:${card.cardId}`, card])) : null), [localMode, loop.cards]);
+  const model = useMemo(() => buildLinkModel(groups, { noteBadges: data?.noteBadges, cardMastery }), [groups, data?.noteBadges, cardMastery]);
   const linkTitle = group => groupTitle(group, linkTitleWords());
   // A kept thread is opened in the learning panel: its passage becomes the selection there, and the panel brings its answers back.
   const openAnnotation = link => {
@@ -346,20 +360,6 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     openedAt.current = key;
     showSourcePage();
   }, [paged, quote, reading, quoteState?.status, loading, sections, view, source.id, source.document?.page]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 读 → 做这几页的题 → 回到阅读 → 掌握度: the questions linked to this document placed under the outline, the range chooser, and the way back to a stored position.
-  const documentItem = useMemo(() => data?.sources ? groupSourcesByDocument(data.sources).find(item => item.sourceIds.includes(source.id)) || null : null, [data?.sources, source.id]);
-  // A place named by its offset into the text (在资料中查看 on a part of a question run) is the section that offset is in (lib/sections.js; ids are the outline's own); a page of a PDF opens at its page.
-  const place = useMemo(() => resume && Number.isInteger(resume.at) && !paged && !html && !resume.sectionId ? sectionAtOffset([{ id: sources[0]?.id ?? source.id, text: sources[0]?.text || content }], sources[0]?.id ?? source.id, resume.at) : null,
-    [resume, paged, html, sources, content, source.id]);
-  // Only the sections this reader draws (a transcript's recordings and parts) can be started at; Markdown draws its own headings, text without structure has none.
-  const resumeAt = useMemo(() => resume && (place?.kind === 'recording' || place?.kind === 'part') ? { ...resume, sectionId: place.sectionId } : resume, [resume, place]);
-  const unit = aiOn || !paged ? 'section' : isSlideFormat(format) ? 'slide' : 'page';
-  const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt });
-  const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
-  const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
-  const openDraftPages = draftIds => { loop.setOpen(false); onOpenDraftPages?.(draftIds); };
-  const meters = !localMode && loop.status === 'ready' && loop.total > 0 && view !== 'original' ? loop.meters : null;
 
   // Search in the document: matches are DOM ranges painted with the Custom Highlight API.
   const deferredQuery = useDeferredValue(query);
@@ -431,7 +431,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       <p className="reader-toolbar__where" title={where || undefined}>{where}</p>
       {/* Two facts, two lines, one block (a toolbar has no room for a second row of words): what was learned (掌握, only published questions) and what was asked (覆盖, drafts included). */}
       {(meters || (!localMode && view !== 'original' && loop.coverage?.cards > 0)) && <span className="reader-toolbar__quality">
-        {meters && <span className="reader-toolbar__mastery"><MasteryLine summary={loop.current} title={ui('本节掌握度')} /></span>}
+        {meters && <span className="reader-toolbar__mastery" data-rose={loop.returnDelta > 0 ? 'true' : undefined}>
+          <MasteryLine summary={loop.current} title={ui('本节掌握度')} />
+          {loop.returnDelta > 0 && <span className="reader-toolbar__delta" role="status">{uiFormat('本轮 +{0}%', [loop.returnDelta])}</span>}
+        </span>}
         {!localMode && view !== 'original' && loop.coverage?.cards > 0 && <span className="reader-toolbar__coverage"><CoverageChip coverage={loop.coverage} /></span>}
       </span>}
       <div className="reader-toolbar__group reader-toolbar__group--end">
@@ -461,7 +464,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
-      {outlineOn && <OutlinePanel id={outlineId} items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters}
+      {outlineOn && <OutlinePanel id={outlineId} items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters} upgradedIds={loop.upgradedIds}
         coverage={!localMode && view !== 'original' && loop.coverage?.cards > 0 ? loop.outlineCoverage : null} coverageTotals={loop.coverage}
         coverageAction={!localMode && data && offersDocumentTopUp({ item: documentItem, coverage: loop.coverage, jobs: data.jobs, modelReady: modelReadiness(data).ready })
           ? <DocumentTopUp item={documentItem} revision={data.revision} placement="bottom-start" block /> : null}

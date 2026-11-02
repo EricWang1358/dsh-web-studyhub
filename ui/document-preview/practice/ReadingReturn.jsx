@@ -27,12 +27,43 @@ export function masteryChangeText(change, kind = 'pages') {
   return uiFormat(moved, [before.percent, after.percent]);
 }
 
-/** The one line of a mastery change, the same on every result page: the mark of those cards now and the change in words. Nothing when there is no change to say. */
+/** Factual tier shifts derived strictly from the round's before/after summaries. */
+export function masteryShiftParts(change) {
+  const before = change?.before, after = change?.after;
+  if (!before?.total || !after?.total) return [];
+  const started = Math.max(0, (before.fresh || 0) - (after.fresh || 0));
+  const clearedWeak = Math.max(0, (before.weak || 0) - (after.weak || 0));
+  const reviewedDue = Math.max(0, (before.due || 0) - (after.due || 0));
+  return [
+    started > 0 && uiFormat('新学 {0} 题', [started]),
+    clearedWeak > 0 && uiFormat('消除薄弱 {0} 题', [clearedWeak]),
+    reviewedDue > 0 && uiFormat('完成待复习 {0} 题', [reviewedDue]),
+    after.state === 'mastered' && before.state !== 'mastered' && ui('整组达标'),
+  ].filter(Boolean);
+}
+
+/** The mastery change block, the same on every result page: the mark of those cards now, the change in words, a dual-layer before/after rail, and factual tier shifts. */
 export function MasteryChange({ change, kind = 'pages', className }) {
   useInjectCss(css, 'study-reading-loop');
   const text = masteryChangeText(change, kind);
   if (!text) return null;
-  return <p className={cx('reading-result__change', className)} data-testid="mastery-change"><MasteryMark summary={change.after} size={18} /> <strong>{text}</strong></p>;
+  const beforePct = Math.max(0, Math.min(100, Number(change.before.percent) || 0));
+  const afterPct = Math.max(0, Math.min(100, Number(change.after.percent) || 0));
+  const delta = afterPct - beforePct;
+  const shifts = masteryShiftParts(change);
+  return <div className={cx('reading-result__change', className)} data-testid="mastery-change" data-rose={delta > 0 ? 'true' : undefined}>
+    <p className="reading-result__headline">
+      <MasteryMark summary={change.after} size={18} />
+      {' '}
+      <strong>{text}</strong>
+      {delta > 0 && <span className="reading-result__delta">{` +${delta}%`}</span>}
+    </p>
+    <div className="reading-result__rail" aria-hidden="true">
+      <span className="reading-result__after" style={{ transform: `scaleX(${afterPct / 100})` }} />
+      <span className="reading-result__before" style={{ transform: `scaleX(${Math.min(beforePct, afterPct) / 100})` }} />
+    </div>
+    {shifts.length > 0 && <p className="reading-result__shifts">{shifts.join(' · ')}</p>}
+  </div>;
 }
 
 /** Where the way back leads: the page or section the reader was on. */

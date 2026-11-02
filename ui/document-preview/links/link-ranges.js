@@ -5,8 +5,16 @@
 import { spanFormulas } from '../reader/formula.js';
 
 export const HIGHLIGHT_NAMES = Object.freeze({ question: 'study-link-question', qa: 'study-link-qa', annotation: 'study-link-annotation', note: 'study-link-note' });
+export const MASTERY_HIGHLIGHT_NAMES = Object.freeze({
+  learning: 'study-link-question-learning',
+  familiar: 'study-link-question-familiar',
+  weak: 'study-link-question-weak',
+  mastered: 'study-link-question-mastered',
+  'qa-mastered': 'study-link-qa-mastered',
+});
 /** Where two kinds overlap, the higher priority decides the look: a question over a Q&A card over an annotation over a note. */
 const PRIORITY = { question: 3, qa: 2, annotation: 1, note: 0 };
+const MASTERY_PRIORITY = { weak: 5, learning: 4, familiar: 4, mastered: 4, 'qa-mastered': 2.5 };
 
 const SHOW_TEXT = 4;
 const isSpace = char => /\s/.test(char);
@@ -91,19 +99,32 @@ export function locateGroups(container, groups) {
 const supported = () => typeof window !== 'undefined' && window.CSS?.highlights && typeof window.Highlight === 'function'
   ? { registry: window.CSS.highlights, Highlight: window.Highlight } : { registry: null, Highlight: null };
 
-/** Paint every located passage in the highlight of its kind; returns the function that clears them all. */
+function bucketFor(group) {
+  const kind = group.kind in PRIORITY ? group.kind : 'question', state = group.masteryState;
+  if (kind === 'question' && state && state in MASTERY_HIGHLIGHT_NAMES) return { name: MASTERY_HIGHLIGHT_NAMES[state], priority: MASTERY_PRIORITY[state] };
+  if (kind === 'qa' && state === 'mastered') return { name: MASTERY_HIGHLIGHT_NAMES['qa-mastered'], priority: MASTERY_PRIORITY['qa-mastered'] };
+  return { name: HIGHLIGHT_NAMES[kind], priority: PRIORITY[kind] };
+}
+
+/** Paint every located passage in the highlight of its kind and mastery state; returns the function that clears them all. */
 export function paintLinkHighlights(entries, env = supported()) {
   const { registry, Highlight } = env || {};
   if (!registry || typeof Highlight !== 'function') return () => {};
-  const byKind = {};
-  for (const { group, range } of entries) (byKind[group.kind in PRIORITY ? group.kind : 'question'] ||= []).push(range);
-  for (const kind of Object.keys(HIGHLIGHT_NAMES)) {
-    if (!byKind[kind]?.length) { registry.delete(HIGHLIGHT_NAMES[kind]); continue; }
-    const highlight = new Highlight(...byKind[kind]);
-    highlight.priority = PRIORITY[kind];
-    registry.set(HIGHLIGHT_NAMES[kind], highlight);
+  const allNames = [...Object.values(HIGHLIGHT_NAMES), ...Object.values(MASTERY_HIGHLIGHT_NAMES)];
+  const buckets = new Map();
+  for (const { group, range } of entries) {
+    const { name, priority } = bucketFor(group);
+    if (!buckets.has(name)) buckets.set(name, { priority, ranges: [] });
+    buckets.get(name).ranges.push(range);
   }
-  return () => { for (const name of Object.values(HIGHLIGHT_NAMES)) registry.delete(name); };
+  for (const name of allNames) {
+    const bucket = buckets.get(name);
+    if (!bucket?.ranges.length) { registry.delete(name); continue; }
+    const highlight = new Highlight(...bucket.ranges);
+    highlight.priority = bucket.priority;
+    registry.set(name, highlight);
+  }
+  return () => { for (const name of allNames) registry.delete(name); };
 }
 
 /** The passages under a point of the text (a node and an offset), the innermost first. Never throws on a replaced range. */

@@ -22,10 +22,38 @@
     .mastery-line[data-state='mastered'] { color: var(--ok); }
     .mastery-line__text { min-width: 0; overflow-wrap: anywhere; }
     /* ── In the outline: a mark after each entry ────────────────────────── */
-    .reader-outline__meter { display: grid; flex: none; place-items: center; width: 22px; }
+    .reader-outline__meter { display: grid; flex: none; place-items: center; width: 22px; border-radius: var(--radius-pill); }
+    .reader-outline__meter[data-upgraded='true'] {
+      color: var(--ok);
+      background: var(--ok-bg);
+      animation: sh-meter-lock 1.8s var(--ease-out) 1;
+    }
     .reader-outline li[data-minor] .reader-outline__meter { opacity: 0.7; }
     /* ── In the toolbar: the mastery of the current section ─────────────── */
-    .reader-toolbar__mastery { flex: none; max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .reader-toolbar__mastery {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1-5);
+      flex: none;
+      max-width: 19em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .reader-toolbar__delta {
+      display: inline-flex;
+      align-items: center;
+      flex: none;
+      padding: 0 var(--space-1-5);
+      border: 1px solid var(--ok-line);
+      border-radius: var(--radius-pill);
+      background: var(--ok-bg);
+      color: var(--ok);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-strong);
+      font-variant-numeric: tabular-nums;
+      animation: sh-delta-enter 0.36s var(--ease-out) backwards;
+    }
     /* ── The control and its panel ──────────────────────────────────────── */
     .reader-practice__panel { gap: var(--space-3); width: 320px; }
     .reader-practice__panel p { margin: 0; }
@@ -63,6 +91,7 @@
     .reader-practice__panel .sh-btn { justify-self: stretch; }
     /* ── Coming back: the section the learner returns to is marked for a moment ── */
     [data-returned='true'] { animation: reader-returned 2.4s var(--ease-out) 1; border-radius: var(--radius-sm); }
+    [data-returned='true'][data-returned-rose='true'] { animation: sh-reader-returned-rose 2.4s var(--ease-out) 1; }
     .reader-resume-note { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); }
     /* ── The way back, on the practice page ─────────────────────────────── */
     .reading-result {
@@ -76,7 +105,45 @@
     }
     .reading-result[data-rose] { border-color: var(--ok-line); }
     .reading-result p { margin: 0; }
-    .reading-result__change { display: flex; align-items: center; gap: var(--space-2); font-size: var(--fs-lg, 1.1rem); font-variant-numeric: tabular-nums; }
+    .reading-result__change { display: grid; gap: var(--space-2); font-variant-numeric: tabular-nums; }
+    .reading-result__headline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; font-size: var(--fs-lg, 1.1rem); }
+    .reading-result__delta {
+      display: inline-flex;
+      align-items: center;
+      padding: var(--space-half) var(--space-2);
+      border: 1px solid var(--ok-line);
+      border-radius: var(--radius-pill);
+      background: var(--ok-bg);
+      color: var(--ok);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-strong);
+      animation: sh-delta-enter 0.36s var(--ease-out) backwards;
+    }
+    .reading-result__rail {
+      position: relative;
+      height: var(--space-1-5);
+      max-width: 24rem;
+      overflow: hidden;
+      border-radius: var(--radius-pill);
+      background: var(--line);
+    }
+    .reading-result__after,
+    .reading-result__before {
+      position: absolute;
+      inset: 0;
+      display: block;
+      transform-origin: left center;
+      transition: transform 420ms var(--ease-out);
+    }
+    .reading-result__after { background: var(--text-muted); }
+    .reading-result__change[data-rose='true'] .reading-result__after { background: var(--ok); }
+    .reading-result__before { background: color-mix(in srgb, var(--text) 32%, var(--paper)); }
+    .reading-result__shifts {
+      margin: 0;
+      color: var(--text-dim);
+      font-size: var(--fs-xs);
+      line-height: var(--lh-snug);
+    }
     .reading-result__meaning { font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .reading-result .reading-result__return { justify-self: start; display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--space-half); text-align: left; }
     .reading-result .reading-result__return small { color: inherit; font-size: var(--fs-xs); font-weight: var(--fw-regular); line-height: var(--lh-snug); }
@@ -111,12 +178,34 @@
   }
   @media (prefers-reduced-motion: reduce) {
     :is(.study-app, .study-seat) {
-      [data-returned='true'] { animation: none; background: color-mix(in srgb, var(--accent) 18%, transparent); }
+      [data-returned='true'],
+      [data-returned='true'][data-returned-rose='true'],
+      .reader-outline__meter[data-upgraded='true'],
+      .reader-toolbar__delta,
+      .reading-result__delta { animation: none; }
+      [data-returned='true'] { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+      [data-returned='true'][data-returned-rose='true'] { background: var(--ok-halo); }
+      .reading-result__after,
+      .reading-result__before { transition: none; }
     }
   }
 }
 
-  @keyframes reader-returned {
-    0%, 55% { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent); }
-    100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
-  }
+@keyframes reader-returned {
+  0%, 55% { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent); }
+  100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+
+@keyframes sh-reader-returned-rose {
+  0%, 55% { background: var(--ok-halo); box-shadow: 0 0 0 6px var(--ok-halo); }
+  100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+
+@keyframes sh-meter-lock {
+  0% { transform: scale(1.28); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes sh-delta-enter {
+  from { opacity: 0; transform: translateY(3px) scale(0.95); }
+}
