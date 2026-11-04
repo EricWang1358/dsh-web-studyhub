@@ -103,7 +103,7 @@
   "内置功能做不了的事，点「发给主会话」：StudyHub 把写好的话填进主会话的输入框，由你按发送；没有主会话时，复制到剪贴板。": "For what the built-in features cannot do, click “Send to the main chat”: StudyHub puts the message into the main chat’s input box and you press send; without a main chat it is copied to the clipboard.",
   "许多页面": "Many pages",
   "找功能": "Find a feature",
-  "输入一个词（中文、英文或常见叫法都行）就能找到功能在哪，选中后「带我去」会切到那一页并标出来。按 Ctrl K（Mac 上 ⌘K），或在没有输入框聚焦时按 /，也能打开。": "Type a word (Chinese, English or a common name all work) to find where a feature is; after selecting it, “Take me there” switches to that page and marks it. Press Ctrl K (⌘K on a Mac), or / when no text field has the focus, to open it too.",
+  "输入一个词（中文、英文或常见叫法都行）就能找到功能在哪，选中后「带我去」会切到那一页，并把焦点放到那个控件上。按 Ctrl K（Mac 上 ⌘K），或在没有输入框聚焦时按 /，也能打开。": "Type a word (Chinese, English or a common name all work) to find where a feature is; after selecting it, “Take me there” switches to that page and puts the focus on the control. Press Ctrl K (⌘K on a Mac), or / when no text field has the focus, to open it too.",
   "语言、外观、强调色、界面大小在最上面；字体、动画、对比度、密度和圆角在「更多外观选项」里；也能把外观复制或存成文件，带到另一台电脑": "Language, appearance, accent colour and interface size are at the top; fonts, animation, contrast, density and corners are in “More appearance options”; you can also copy the look or save it as a file and take it to another computer",
   "公式的大小和对齐、图片的显示方式，以及化学配平和代数恒等式两个在本地计算的小工具": "Formula size and alignment, how images are shown, and two small tools that compute locally: chemical balancing and algebraic identity checking",
   "选学习库放在哪个文件夹，也选用哪个模型出题；模型的密钥在 DSH 的「设置 › 模型」里填": "Choose which folder the library lives in and which model makes questions; the model’s key goes in DSH’s “Settings › Model”",

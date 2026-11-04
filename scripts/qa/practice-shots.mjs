@@ -58,7 +58,7 @@ try {
   facts.citedSourceIds = run.sourceIds?.length;
 
   const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 1, locale: lang === "en" ? "en-US" : "zh-CN", colorScheme: theme });
-  await context.addInitScript(([l, t]) => { try { localStorage.setItem("study-ui-language", l); localStorage.setItem("study-theme", t); localStorage.removeItem("study-sidebar"); } catch { /* blocked */ } }, [lang, theme]);
+  await context.addInitScript(([l, t]) => { try { localStorage.setItem("study-ui-language", l); localStorage.setItem("study-theme", t); localStorage.removeItem("study-nav-place"); } catch { /* blocked */ } }, [lang, theme]);
   const page = await context.newPage();
   page.on("pageerror", (error) => problems.push(`page error ${error}`));
   const t = (zh, en) => (lang === "en" ? en : zh);

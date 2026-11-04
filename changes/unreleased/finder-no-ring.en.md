@@ -1,0 +1,1 @@
+- **"Take me there" no longer draws a frame.** Find a feature's "Take me there" still goes to the page, opens the folds and puts the focus on the control, but the coloured frame around it is gone: it added little and, with folds and drawers moving things, it often framed the wrong place. Not verified: checked in the preview with a fake model, not inside DSH.

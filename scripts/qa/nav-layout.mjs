@@ -147,7 +147,7 @@ export async function collectStates({ browser, running, lang, theme, width, mode
   const label = `${width}px ${lang} ${theme} ${mode}`;
   for (const dir of ["library", "home"]) await rm(join(base, dir), { recursive: true, force: true });
   const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 1, locale: lang === "en" ? "en-US" : "zh-CN", colorScheme: theme });
-  await context.addInitScript(([l, t, m]) => { try { localStorage.setItem("study-ui-language", l); localStorage.setItem("study-theme", t); localStorage.setItem("study-sidebar", m === "collapsed" ? "collapsed" : "open"); } catch { /* blocked */ } }, [lang, theme, mode]);
+  await context.addInitScript(([l, t, m]) => { try { localStorage.setItem("study-ui-language", l); localStorage.setItem("study-theme", t); localStorage.setItem("study-nav-place", m === "collapsed" ? "drawer" : "docked"); } catch { /* blocked */ } }, [lang, theme, mode]);
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(String(error)));

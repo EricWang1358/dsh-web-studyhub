@@ -47,7 +47,6 @@ import HandOffSheet from './hand-off/HandOffSheet.jsx';
 import { useTour } from './app/use-tour.js';
 import { useFinder } from './finder/use-finder.js';
 import FinderSheet from './finder/FinderSheet.jsx';
-import FinderRing from './finder/FinderRing.jsx';
 import { freshGeneration, initialGeneration, useLibraryConnection } from './app/use-library-connection.js';
 import { useReviewSession } from './review/useReviewSession.js';
 import { shellTitleOf } from './app/shell-title.js';
@@ -159,7 +158,6 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                       onRemoveSample={data.sample?.loaded ? () => tour.endTour({ then: () => tour.setRemovingSample(true) }) : undefined} />
                   )}
                   {finder.open && <FinderSheet data={data} onGo={finder.go} onClose={finder.closeFinder} onTour={finder.startTour} />}
-                  {finder.ring && <FinderRing key={finder.ring.key} resolve={finder.ring.resolve} onDone={finder.clearRing} />}
                   <AppModalHost />
                   {core.handOffSheet && <HandOffSheet key={core.handOffSheet.text} sheet={core.handOffSheet} onClose={core.closeHandOffSheet} />}
                 </div>

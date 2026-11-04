@@ -57,6 +57,7 @@
     "tests/live-capture-browser.test.mjs",
     "tests/local-study-image.test.mjs",
     "tests/model-setup-browser.test.mjs",
+    "tests/nav-drawer-frame-browser.test.mjs",
     "tests/nav-groups-browser.test.mjs",
     "tests/nav-layout.test.mjs",
     "tests/nav-reorder-hint-browser.test.mjs",

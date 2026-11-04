@@ -6,12 +6,14 @@ import css from './app-shell.css';
 import drawerCss from './nav-drawer.css';
 import { useApp } from './app-context.js';
 import { useNavAlert } from './use-nav-alert.js';
+import { useDrawerFrame } from './use-drawer-frame.js';
 import SidebarNav from './SidebarNav.jsx';
 import SidebarFooter from './SidebarFooter.jsx';
 
 /* The sidebar, in one of two forms (ui/app/use-app-shell.js):
    - docked: the column on the left, with a button that puts it away;
-   - a drawer (#657): when the learner put it away, and whenever the workspace is narrow (a DSH panel is often 420 px wide). The top bar's
+   - a drawer (#657): when the learner put it away, and whenever the workspace is narrow (a DSH panel is often 420 px wide). It opens inside
+     StudyHub's own page (use-drawer-frame.js), never along the edge of the whole DSH window. The top bar's
      menu button (AppTopbar.jsx, data-tour="nav-menu") opens it; it is the shared Dialog, so it holds the focus, closes on Esc, on its close
      button and on the backdrop, and gives the focus back to the menu button. It has every label: there is no row of bare icons.
    Both forms draw the same rows (SidebarNav, SidebarFooter). In the drawer, choosing a page closes it. */
@@ -36,6 +38,7 @@ export default function AppSidebar() {
   useInjectCss(drawerCss, 'study-nav-drawer');
   const { shell } = useApp();
   const { alert, reason, tasks } = useNavAlert();
+  useDrawerFrame(shell.rootRef, shell.navDrawer && shell.navOpen);
   const body = (<><SidebarNav alert={alert} reason={reason} tasks={tasks} /><SidebarFooter /></>);
   if (!shell.navDrawer) {
     return <aside className="sidebar"><Brand onCollapse={() => shell.setSidebarCollapsed(true)} />{body}</aside>;

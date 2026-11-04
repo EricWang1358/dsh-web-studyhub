@@ -5,10 +5,9 @@
      1. the sidebar row 找功能 is there above 帮助, with its label and its shortcut, in the wide sidebar and in the narrow window's drawer (#657);
      2. Ctrl K opens the sheet (from the app root), the field has the focus, the empty query lists the areas as <details>;
      3. a query lists results, ↓ / ↑ move the selected row, Esc closes and the focus goes back to what opened it;
-     4. 「带我去」 on a settings target (强调色): the page is Settings, the control has the focus and the ring is drawn around it;
-     5. on a control folded away on another page (花费上限 inside 更多选项 inside 创建题组): the folds are open, the control is lit;
-     6. on a control the finder cannot open for the learner (翻译 in the reader): the page of the materials and a toast with the path;
-     7. the ring is gone after about 2.5 s, and at once on any input.
+     4. 「带我去」 on a settings target (强调色): the page is Settings and the control has the focus; no ring is drawn (removed 2026-11-05);
+     5. on a control folded away on another page (花费上限 inside 更多选项 inside 创建题组): the folds are open, the control has the focus;
+     6. on a control the finder cannot open for the learner (翻译 in the reader): the page of the materials and a toast with the path.
    Screenshots go to <out>/<width>-<lang>-<theme>-<step>.png (default output/finder-shots). */
 /* global document, getComputedStyle, localStorage, innerHeight -- page.evaluate callbacks run in the browser */
 import { mkdir } from "node:fs/promises";
@@ -22,14 +21,9 @@ const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const quote = "Bridge separates an abstraction from its implementation so the two can vary independently.";
 
-/** The ring's box against the control it was drawn for: within the padding the tour's spotlight uses (6 px) and a little. */
-export async function ringAround(page, anchor) {
-  return page.evaluate((name) => {
-    const target = document.querySelector(`[data-tour="${name}"]`), ring = document.querySelector("[data-finder-ring] .finder-ring__box");
-    if (!target || !ring) return null;
-    const a = target.getBoundingClientRect(), b = ring.getBoundingClientRect();
-    return { left: b.left - a.left, top: b.top - a.top, right: b.right - a.right, bottom: b.bottom - a.bottom, focus: !!document.activeElement?.closest(`[data-tour="${name}"]`) };
-  }, anchor);
+/** Wait until the control `anchor` (a data-tour id) has the focus; true when it got it. No ring is drawn any more (2026-11-05). */
+export async function focusedOn(page, anchor, timeout = 15000) {
+  return page.waitForFunction((name) => !!document.activeElement?.closest(`[data-tour="${name}"]`), anchor, { timeout }).then(() => true, () => false);
 }
 
 /** Walk one width. Returns { label, problems }. */
@@ -39,14 +33,14 @@ export async function walkFinder({ browser, running, lang = "zh", theme = "light
   const label = `${width}px ${lang} ${theme}`, problems = [];
   const expect = (ok, message) => { if (!ok) problems.push(`${label}: ${message}`); };
   const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 1, locale: lang === "en" ? "en-US" : "zh-CN", colorScheme: theme });
-  await context.addInitScript(([l, t]) => { try { localStorage.setItem("study-ui-language", l); localStorage.setItem("study-theme", t); localStorage.removeItem("study-sidebar"); } catch { /* blocked */ } }, [lang, theme]);
+  await context.addInitScript(([l, t]) => { try { localStorage.setItem("study-ui-language", l); localStorage.setItem("study-theme", t); localStorage.removeItem("study-nav-place"); } catch { /* blocked */ } }, [lang, theme]);
   const page = await context.newPage();
   page.on("pageerror", (error) => problems.push(`${label}: page error ${error}`));
-  // A moment first: the dialog and the ring fade in over --dur-slow, and a picture of the middle of that says nothing.
+  // A moment first: the dialog fades in over --dur-slow, and a picture of the middle of that says nothing.
   const shot = async (name) => { if (shots) { await sleep(450); await page.screenshot({ path: join(out, `${width}-${lang}-${theme}-${name}.png`) }); } };
   const settle = async (ms = 600) => { await page.waitForLoadState("networkidle").catch(() => {}); await sleep(ms); };
   const word = (zh, en) => (lang === "en" ? en : zh);
-  const narrow = width <= 720;
+  const narrow = width <= 560;
   // A narrow window has the sidebar in a drawer behind the top bar's menu button (#657); choosing a row closes it.
   const drawer = async () => {
     if (await page.locator(".sidebar").count()) return false;
@@ -119,32 +113,20 @@ export async function walkFinder({ browser, running, lang = "zh", theme = "light
     await page.locator('dialog[open] [role="combobox"]').fill(word("强调色", "accent"));
     await sleep(150);
     await page.keyboard.press("Enter");
-    await page.locator('[data-finder-ring]').waitFor({ timeout: 15000 });
+    expect(await focusedOn(page, "settings-appearance-accent"), "the accent control has the focus");
     await sleep(900);
     expect(await page.locator(".settings-page").count() === 1, "带我去 opened Settings");
-    const accent = await ringAround(page, "settings-appearance-accent");
-    expect(!!accent, "the accent control and its ring are on the page");
-    if (accent) {
-      expect(accent.focus, "the control has the focus");
-      expect(Math.abs(accent.left + 6) < 6 && Math.abs(accent.top + 6) < 6 && Math.abs(accent.right - 6) < 6 && Math.abs(accent.bottom - 6) < 6, `the ring hugs the control (${JSON.stringify(accent)})`);
-    }
+    expect(await page.locator("[data-finder-ring]").count() === 0, "no ring is drawn (removed 2026-11-05)");
     await shot("goto-setting");
-    // 7. any input takes the ring away at once
-    await page.mouse.move(5, 5);
-    await page.mouse.down(); await page.mouse.up();
-    await sleep(150);
-    expect(await page.locator("[data-finder-ring]").count() === 0, "a click takes the ring away");
 
-    // 4b. a setting folded inside Settings itself (圆角 is in 更多外观选项, below the first screen): the fold opens, the page scrolls to it, the ring is drawn (#679)
+    // 4b. a setting folded inside Settings itself (圆角 is in 更多外观选项, below the first screen): the fold opens, the page scrolls to it (#679)
     await openSheet("click");
     await page.locator('dialog[open] [role="combobox"]').fill(word("圆角", "corners"));
     await sleep(150);
     await page.keyboard.press("Enter");
-    await page.locator('[data-finder-ring]').waitFor({ timeout: 15000 }).catch(() => expect(false, "a ring is drawn around a setting inside a fold of Settings"));
+    expect(await focusedOn(page, "settings-appearance-radius"), "圆角 has the focus");
     await sleep(900);
     expect(await page.evaluate(() => document.querySelector('.appearance-more')?.open === true), "the fold 更多外观选项 was opened");
-    const radius = await ringAround(page, "settings-appearance-radius");
-    expect(!!radius && radius.focus, "圆角 has the focus and its ring");
     expect(await page.evaluate(() => { const box = document.querySelector('[data-tour="settings-appearance-radius"]')?.getBoundingClientRect(); return !!box && box.top >= 0 && box.bottom <= innerHeight; }), "圆角 was scrolled into view");
     await shot("goto-folded-setting");
     await page.mouse.move(5, 5);
@@ -158,16 +140,12 @@ export async function walkFinder({ browser, running, lang = "zh", theme = "light
     const budgetTitle = await activeText();
     expect(/花费上限|limit/i.test(budgetTitle), `the query finds 花费上限 first (${budgetTitle})`);
     await page.keyboard.press("Enter");
-    await page.locator('[data-finder-ring]').waitFor({ timeout: 15000 });
+    expect(await focusedOn(page, "generate-budget"), "花费上限 has the focus");
     await sleep(1000);
     expect(await page.locator(".generate-page").count() === 1, "带我去 opened 创建题组");
     const state = await page.evaluate(() => ({ more: document.querySelector('[data-tour="generate-more"]')?.open, budget: document.querySelector('[data-tour="generate-budget"]')?.open }));
     expect(state.more === true && state.budget === true, `the folds around 花费上限 were opened (${JSON.stringify(state)})`);
-    const budget = await ringAround(page, "generate-budget");
-    expect(!!budget && budget.focus, "花费上限 has the focus and its ring");
     await shot("goto-folded");
-    // 7. the ring leaves by itself
-    await page.locator("[data-finder-ring]").waitFor({ state: "detached", timeout: 6000 }).catch(() => expect(false, "the ring is gone after about 2.5 s"));
 
     // 6. a control the finder cannot open for the learner
     await openSheet("click");
