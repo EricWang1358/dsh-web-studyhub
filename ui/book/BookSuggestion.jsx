@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ui } from '../i18n.js';
 import { Badge, Button, Disclosure } from '../components/index.js';
 import Markdown from '../Markdown.jsx';
@@ -9,10 +9,12 @@ import Markdown from '../Markdown.jsx';
 
 /** meta: { forked, suggestions }; onChoose(action, id) with 'accept' | 'ignore'; busy. */
 export default function BookSuggestion({ meta, onChoose, busy = false }) {
+  const [picked, setPicked] = useState('');
   const list = meta?.suggestions || [];
   if (!list.length) return meta?.forked ? <p className="book-suggestion__forked"><Badge size="sm" tone="warning">{ui('已改动')}</Badge> {ui('这段讲解你改过：重新生成时不会覆盖它。')}</p> : null;
+  const choose = (action, id) => { setPicked(`${action}:${id}`); return onChoose(action, id); };
   return list.map(item => {
-    const theirs = item.kind === 'theirs';
+    const theirs = item.kind === 'theirs', acceptKey = `accept:${item.id}`, ignoreKey = `ignore:${item.id}`;
     return (
       <div key={item.id} className="book-suggestion" role="status" data-suggestion={item.kind}>
         <p className="book-suggestion__line">
@@ -23,8 +25,8 @@ export default function BookSuggestion({ meta, onChoose, busy = false }) {
           <Markdown text={item.text} links={false} />
         </Disclosure>
         <div className="book-suggestion__actions">
-          <Button size="sm" variant="secondary" disabled={busy} onClick={() => onChoose('accept', item.id)}>{ui('采用')}</Button>
-          <Button size="sm" variant="quiet" disabled={busy} onClick={() => onChoose('ignore', item.id)}>{ui('忽略')}</Button>
+          <Button size="sm" variant="secondary" busy={busy && picked === acceptKey} lock={busy && picked !== acceptKey} onClick={() => choose('accept', item.id)}>{ui('采用')}</Button>
+          <Button size="sm" variant="quiet" busy={busy && picked === ignoreKey} lock={busy && picked !== ignoreKey} onClick={() => choose('ignore', item.id)}>{ui('忽略')}</Button>
         </div>
       </div>
     );

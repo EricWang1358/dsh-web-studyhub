@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getUiLanguage, ui, uiFormat } from './i18n.js';
-import { Badge, Button, ConfirmDialog, Hint, InlineMessage, LoadingState, ProgressBar, SegmentedControl, SettingsSection, Switch, useToast } from './components/index.js';
+import { Badge, Button, ConfirmDialog, Hint, InlineMessage, LoadingState, ProgressBar, SegmentedControl, SettingsSection, Switch, Tooltip, useToast } from './components/index.js';
 import { useInjectCss } from './shared.js';
 import { USAGE_AREAS, USAGE_GROUPS, usageArea } from './usage/registry.js';
 import { displayName } from './usage/names.js';
@@ -74,8 +74,12 @@ function Rhythm({ rhythm, period }) {
     <section className="usage-block">
       <h4 className="settings-subtitle">{ui('每天的节奏')}</h4>
       <ol className="usage-rhythm" aria-label={uiFormat('每天的互动次数（{0}）', [ui(PERIODS.find(([value]) => value === period)?.[1] || '')])}>
-        {rhythm.map(day => <li key={day.day} className="usage-rhythm__day" title={`${day.day}: ${day.n}`}>
-          <span className="usage-rhythm__bar" aria-hidden="true" style={{ height: `${day.n > 0 ? Math.max(6, Math.round((day.n / top) * 100)) : 0}%` }} />
+        {rhythm.map(day => <li key={day.day} className="usage-rhythm__day">
+          <Tooltip layer group="usage-rhythm" anchorClassName="usage-rhythm__hit" content={`${day.day}: ${day.n}`}>
+            <span className="usage-rhythm__col" tabIndex={0}>
+              <span className="usage-rhythm__bar" aria-hidden="true" style={{ height: `${day.n > 0 ? Math.max(6, Math.round((day.n / top) * 100)) : 0}%` }} />
+            </span>
+          </Tooltip>
           <span className="sh-visually-hidden">{`${day.day}: ${day.n}`}</span>
         </li>)}
       </ol>

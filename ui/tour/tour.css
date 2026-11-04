@@ -64,7 +64,7 @@
       overscroll-behavior: contain;
     }
     .tour-pop:focus { outline: none; }
-    .tour-pop:focus-visible { box-shadow: var(--shadow-dialog), var(--ring); }
+    .tour-pop:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--shadow-dialog), var(--ring); }
     /* Measured before it is shown; opacity (not visibility) keeps it focusable. */
     .tour-layer.is-measuring .tour-pop { opacity: 0; pointer-events: none; }
     /* The caret points from the card to the spotlight. */
@@ -125,6 +125,9 @@
     }
     .tour-pop__body {
       margin: 0;
+      max-height: min(42dvh, 18rem);
+      overflow-y: auto;
+      overscroll-behavior: contain;
       color: var(--text-dim);
       font-size: var(--fs-md);
       line-height: var(--lh-body);
@@ -141,9 +144,9 @@
       font-size: var(--fs-sm);
       line-height: var(--lh-snug);
     }
-    .tour-pop__note .sh-icon { margin-top: 1px; color: var(--info); }
+    .tour-pop__note .sh-icon { margin-top: calc(var(--space-half) / 2); color: var(--info-ink); }
     .tour-pop__note.is-ready { background: var(--ok-bg); }
-    .tour-pop__note.is-ready .sh-icon { color: var(--ok); }
+    .tour-pop__note.is-ready .sh-icon { color: var(--ok-ink); }
     .tour-pop__choices {
       display: flex;
       flex-wrap: wrap;

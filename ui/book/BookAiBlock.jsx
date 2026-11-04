@@ -40,11 +40,12 @@ function BlockMenu({ block, busy, onAction }) {
     A folded row is always one line (its summary cut with an ellipsis), as high as the line a task leaves; data-ai-landed is a landed block's short highlight. */
 export default function BookAiBlock({ item, resolveLink, onAction, onFollow, busy = false, folded = false, onFold, anchored = false, onWords, repeat = false, rewriting = null, onCancel }) {
   const { block, status } = item, gone = status === 'gone';
-  const [question, setQuestion] = useState('');
+  const [question, setQuestion] = useState(''), [acting, setActing] = useState('');
   const summary = useMemo(() => (folded ? aiSummary(block.body) : ''), [folded, block.body]);
   const bodyRef = useRef(null);
   useLayoutEffect(() => (folded ? undefined : markLabels(bodyRef.current)), [folded, block.body]);
   const stuck = busy || !!rewriting;
+  const act = action => { setActing(action); return onAction(action, block); };
   return (
     <aside className="book-ai" data-ai-block={block.id} data-ai-state={block.state} data-ai-folded={folded || undefined} data-ai-rewriting={rewriting ? '' : undefined} aria-label={ui('AI 段落')}>
       <div className="book-ai__head">
@@ -70,15 +71,15 @@ export default function BookAiBlock({ item, resolveLink, onAction, onFollow, bus
           : <span className="book-ai__quote">{block.first}</span>)}
         <Markdown key={block.body} rootRef={bodyRef} className="book-ai__body" text={block.body} resolveLink={resolveLink} />
         <div className="book-ai__actions">
-          {block.state === 'new' && <Button size="sm" variant="quiet" disabled={busy} onClick={() => onAction('keep', block)}>{ui('保留')}</Button>}
-          <Button size="sm" variant="quiet" disabled={stuck} onClick={() => onAction('again', block)}>{ui('重新生成')}</Button>
+          {block.state === 'new' && <Button size="sm" variant="quiet" busy={busy && acting === 'keep'} lock={busy && acting !== 'keep'} onClick={() => act('keep')}>{ui('保留')}</Button>}
+          <Button size="sm" variant="quiet" busy={busy && acting === 'again'} lock={stuck && !(busy && acting === 'again')} onClick={() => act('again')}>{ui('重新生成')}</Button>
           <Tooltip layer content={ui('删除后几秒内可以撤销。')} anchorClassName="book-ai__act">
-            <Button size="sm" variant="quiet" disabled={stuck} onClick={() => onAction('delete', block)}>{ui('删除')}</Button>
+            <Button size="sm" variant="quiet" busy={busy && acting === 'delete'} lock={stuck && !(busy && acting === 'delete')} onClick={() => act('delete')}>{ui('删除')}</Button>
           </Tooltip>
         </div>
         <form className="book-ai__follow" onSubmit={event => { event.preventDefault(); if (question.trim()) { onFollow(block, question.trim()); setQuestion(''); } }}>
           <TextInput className="book-ai__input" aria-label={ui('接着问')} placeholder={ui('接着问…')} value={question} maxLength={600} onChange={event => setQuestion(event.target.value)} disabled={busy} />
-          <Button size="sm" type="submit" disabled={busy || !question.trim()}>{ui('问')}</Button>
+          <Button size="sm" type="submit" disabled={!question.trim()} lock={busy}>{ui('问')}</Button>
         </form>
       </>}
     </aside>

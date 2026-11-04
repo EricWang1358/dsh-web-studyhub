@@ -5,7 +5,7 @@
     /* ImportHub (WP3): course first, one drop zone, paste and audio as tabs.
        Tokens only; scoped like ui/components so it outranks the bare element
        defaults in style.css. */
-    .import-hub { display: grid; gap: var(--space-4); min-width: 0; }
+    .import-hub { container-type: inline-size; display: grid; gap: var(--space-4); min-width: 0; }
     .import-hub__course {
       padding: var(--space-3) var(--space-4);
       border: 1px solid var(--line);
@@ -43,17 +43,16 @@
       border-color: var(--accent);
       background: color-mix(in srgb, var(--accent) 6%, transparent);
     }
-    .import-hub__paste { display: grid; min-width: 0; }
-    .import-hub__paste label { margin: 0 0 var(--space-4); }
+    .import-hub__paste { display: grid; gap: var(--space-4); min-width: 0; }
     .import-hub__paste textarea { min-height: 180px; }
     .import-hub__paste-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
     .import-hub__paste-footer small { font-size: var(--fs-sm); }
-    .import-hub__paste .sh-inline { margin: 0 0 var(--space-3); }
+    .import-hub__paste .sh-inline { margin: 0; }
     /* AudioImport keeps its own markup; inside the tab it drops its card frame. */
     .import-hub__audio > .audio-import { margin: 0; padding: 0; border: 0; }
     .import-hub__audio > .audio-import > strong:first-child { display: none; }
   }
-  @container (max-width: 520px) {
+  @container (max-width: 560px) {
     :is(.study-app, .study-seat) {
       .import-hub__course { padding: var(--space-3); }
       .import-hub__tabs { justify-self: stretch; }

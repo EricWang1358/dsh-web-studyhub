@@ -18,31 +18,32 @@ import css from './rename.css';
  */
 export function RenameField({ title, original = '', onSave, onRestore, onCancel, initial, problem: seeded = '', label, className }) {
   useInjectCss(css, 'study-rename');
-  const [value, setValue] = useState(initial ?? title), [problem, setProblem] = useState(seeded), [working, setWorking] = useState(false);
+  const [value, setValue] = useState(initial ?? title), [problem, setProblem] = useState(seeded), [working, setWorking] = useState('');
+  const busy = !!working;
   const input = useRef(null), alive = useRef(true), hintId = useId(), errorId = useId();
   useEffect(() => { input.current?.focus(); input.current?.select(); return () => { alive.current = false; }; }, []);
-  async function run(task) {
-    setWorking(true); setProblem('');
+  async function run(action, task) {
+    setWorking(action); setProblem('');
     try { await task(); }
     catch (failure) { if (alive.current) { setProblem(explainRename(failure)); input.current?.focus(); } }
-    finally { if (alive.current) setWorking(false); }
+    finally { if (alive.current) setWorking(''); }
   }
   const save = () => {
     const check = validateTitle(value, title);
     if (!check.ok) { setProblem(check.problem); input.current?.focus(); return; }
     if (check.unchanged) { onCancel?.(); return; }
-    void run(() => onSave(check.title));
+    void run('save', () => onSave(check.title));
   };
-  return <form className={`rename-field${className ? ` ${className}` : ''}`} noValidate data-state={working ? 'saving' : problem ? 'problem' : 'idle'}
-    onSubmit={event => { event.preventDefault(); if (!working) save(); }}
-    onKeyDown={event => { if (fieldKeyAction(event) === 'cancel' && !working) { event.preventDefault(); event.stopPropagation(); onCancel?.(); } }}>
-    <input ref={input} type="text" className="rename-field__input" value={value} placeholder={title} disabled={working} spellCheck={false} autoComplete="off"
+  return <form className={`rename-field${className ? ` ${className}` : ''}`} noValidate data-state={busy ? 'saving' : problem ? 'problem' : 'idle'}
+    onSubmit={event => { event.preventDefault(); if (!busy) save(); }}
+    onKeyDown={event => { if (fieldKeyAction(event) === 'cancel' && !busy) { event.preventDefault(); event.stopPropagation(); onCancel?.(); } }}>
+    <input ref={input} type="text" className="rename-field__input" value={value} placeholder={title} disabled={busy} spellCheck={false} autoComplete="off"
       aria-label={label || ui('新名称')} aria-invalid={problem ? true : undefined} aria-describedby={`${hintId}${problem ? ` ${errorId}` : ''}`}
       onChange={event => { setValue(event.target.value); if (problem) setProblem(''); }} />
     <div className="rename-field__actions">
-      <Button type="submit" size="sm" variant="primary" busy={working}>{ui('保存')}</Button>
-      <Button size="sm" variant="quiet" disabled={working} onClick={() => onCancel?.()}>{ui('取消')}</Button>
-      {original && onRestore && <Button size="sm" variant="quiet" disabled={working} title={uiFormat('原名：{0}', [original])} onClick={() => void run(onRestore)}>{ui('恢复原名')}</Button>}
+      <Button type="submit" size="sm" variant="primary" busy={working === 'save'} lock={working === 'restore'}>{ui('保存')}</Button>
+      <Button size="sm" variant="quiet" lock={busy} onClick={() => onCancel?.()}>{ui('取消')}</Button>
+      {original && onRestore && <Button size="sm" variant="quiet" busy={working === 'restore'} lock={working === 'save'} title={uiFormat('原名：{0}', [original])} onClick={() => void run('restore', onRestore)}>{ui('恢复原名')}</Button>}
     </div>
     <small id={hintId} className="rename-field__hint">{ui('Enter 保存，Esc 取消。只改名称，原文、页码、引用和题目都不变。')}</small>
     {problem && <p id={errorId} className="rename-field__error" role="alert">{problem}</p>}

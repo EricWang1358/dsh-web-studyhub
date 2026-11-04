@@ -407,7 +407,9 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
               <ul className="sk-lint-list">
                 {lintCards.slice(0, 60).map((c) => (
                   <li key={c.cardId}>
-                    <span className="sk-lint-prompt" title={c.prompt}>{c.prompt}</span>
+                    <Tooltip layer content={c.prompt} anchorClassName="sk-lint-prompt-tip">
+                      <span className="sk-lint-prompt" tabIndex={0}>{c.prompt}</span>
+                    </Tooltip>
                     <small className="muted">{c.deckTitle} · {c.topic}</small>
                     <span className="sk-issues">
                       {c.issues.map((code) => (
@@ -448,7 +450,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
               <header className="sk-view-head">
                 <h3>{viewing.title}</h3>
                 <div className="sk-actions">
-                  <Button variant="primary"
+                  <Button variant="secondary"
                     lock={busy}
                     onClick={() => onPractice(viewing.nodes.flatMap((n) => n.cards))}
                   >{ui("练整个骨架")}</Button>

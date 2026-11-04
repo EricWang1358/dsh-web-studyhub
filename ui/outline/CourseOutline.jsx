@@ -226,8 +226,8 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
         {book.notes && actions.onOpenBook && <Button size={openMain ? undefined : 'sm'} variant={openMain ? 'primary' : 'secondary'} icon="book" className="outline-book-line__open" onClick={() => actions.onOpenBook()}>{ui('打开书页')}</Button>}
         {stale && <p className="outline-book-line__stale" role="status">{stale}</p>}
         {book.from === null && actions.writeBook && <p className="outline-book-line__stale" data-old-outline="">
-          <span>{ui('这份总纲是旧版本按资料名整理的，复习全书照旧按它写。')}</span>{' '}
-          <Button size="sm" variant="secondary" icon="refresh" disabled={!model.ready} lock={busy} onClick={() => actions.writeBook(null, REBUILD_OUTLINE)}>{ui('用清点结果重新整理总纲')}</Button>{' '}
+          <span>{ui('这份总纲是旧版本按资料名整理的，复习全书照旧按它写。')}</span>
+          <Button size="sm" variant="secondary" icon="refresh" disabled={!model.ready} lock={busy} onClick={() => actions.writeBook(null, REBUILD_OUTLINE)}>{ui('用清点结果重新整理总纲')}</Button>
           <span>{ui('你的笔记会按位置对应过去；没有新知识点占到足够多页的，放进「未归位」。')}</span>
         </p>}
         {book.notes?.levels ? <p className="outline-book-line__coverage" data-book-levels="">{levelsText(book.notes.levels)}</p>

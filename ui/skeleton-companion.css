@@ -1,7 +1,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     /* 推荐 Archify (ui/ArchifyCard.jsx): one quiet recessed block at the end of the 知识骨架 page. Tokens only; it never grows when a copy is made. */
     .sk-archify { display: grid; gap: var(--space-2); min-width: 0; margin-top: var(--space-4); }
     .sk-archify__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -12,8 +12,8 @@
     .sk-archify__label { flex: none; font-size: var(--fs-sm); color: var(--text-muted); }
     .sk-archify__command {
       flex: 1 1 280px; min-width: 0; padding: var(--space-1-5) var(--space-3);
-      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg);
-      font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-xs); line-height: var(--lh-snug);
+      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-surface);
+      font-family: var(--font-stack-mono); font-size: var(--fs-xs); line-height: var(--lh-snug);
       white-space: pre-wrap; overflow-wrap: anywhere; user-select: all;
     }
     .sk-archify__command:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
@@ -44,7 +44,7 @@
     .sk-diagram-links { margin-inline-end: auto; }
   }
   @container study (max-width: 640px) {
-    :is(.study-app, .study-seat) {
+    :where(.study-app, .study-seat) {
       .sk-diagrams__row { flex-wrap: wrap; }
     }
   }

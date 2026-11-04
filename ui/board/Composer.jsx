@@ -1,6 +1,6 @@
 import { ui, uiFormat } from '../i18n.js';
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { Button, Chip, CloseButton } from '../components/index.js';
+import { Button, Chip, CloseButton, Tooltip } from '../components/index.js';
 import { isMeaningfulTitle } from '../../lib/board-model.js';
 import { studyRefLabel } from './meta.js';
 
@@ -67,7 +67,9 @@ export default function Composer({ columnTitle, studyRef, library, labelSuggesti
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent?.isComposing) { event.preventDefault(); submit(); } }} />
       {problem && <p id={hintId} role="alert" className="board-hint">{problem}</p>}
       {link && <Chip tone="info" size="sm" icon="link" className="board-composer__link" onRemove={onClearStudyRef} removeLabel={ui('取消关联')}>
-        <span className="board-composer__link-text" title={studyRef.root}>{uiFormat('关联：{0}', [link.text])}</span>
+        {studyRef.root
+          ? <Tooltip layer content={studyRef.root}><span className="board-composer__link-text" tabIndex={0}>{uiFormat('关联：{0}', [link.text])}</span></Tooltip>
+          : <span className="board-composer__link-text">{uiFormat('关联：{0}', [link.text])}</span>}
       </Chip>}
       <div className="board-composer__fields">
         <label className="board-field"><span>{ui('截止日期')}</span><input className="board-input" type="date" value={due} onChange={(event) => setDue(event.target.value)} /></label>

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Button } from '../components/Button.jsx';
 import { Badge } from '../components/Badge.jsx';
+import { TextInput } from '../components/Field.jsx';
+import Icon from '../components/Icon.jsx';
 import { ui, uiFormat } from '../i18n.js';
 import { LoadingState } from '../components/Loading.jsx';
 import { joinMeta } from '../format.js';
@@ -78,7 +80,7 @@ export function StudyProgressPanel({
           <span>{joinMeta([uiFormat('讲解已覆盖 {0} 点', [progress.lectureCoveredCount || 0]), uiFormat('隔日巩固待复习 {0} 题', [progress.nextDayDueCount || 0])])}</span>
         </div>
         <div className="progress-time-line">
-          <span>⏱️ {estimateLine(estimate)}</span>
+          <span className="progress-time-text"><Icon name="clock" size={14} /> {estimateLine(estimate)}</span>
         </div>
         <div className="progress-toggle-row">
           <Button
@@ -152,8 +154,8 @@ export function StudyProgressPanel({
           {/* 添加新检验项表单 */}
           {onAddItem && (
             <form onSubmit={handleAddItem} className="progress-add-form">
-              <input
-                type="text"
+              <TextInput
+                aria-label={ui('新检验项的名称…')}
                 placeholder={ui('新检验项的名称…')}
                 value={newItemTitle}
                 onChange={(e) => setNewItemTitle(e.target.value)}

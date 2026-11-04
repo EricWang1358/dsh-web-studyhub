@@ -30,7 +30,7 @@ const EVERYWHERE = [
 
 /** A non-modal sheet: focus moves into it when it opens, Escape or a press outside closes it and focus goes back to where it was. */
 export default function ShortcutHelp({ page, onClose }) {
-  const rows = page === "review" ? [...REVIEW, ...EVERYWHERE] : [...(page === "book" ? BOOK : []), ...EVERYWHERE, ["A", ui("自动驾驶 开/关")]];
+  const rows = page === "review" ? [...REVIEW, ...EVERYWHERE] : [...(page === "book" ? BOOK : []), ...EVERYWHERE, ["A", "自动驾驶 开/关"]];
   const sheet = useRef(null), opener = useRef(null);
   useEffect(() => {
     opener.current = document.activeElement;
@@ -45,7 +45,10 @@ export default function ShortcutHelp({ page, onClose }) {
   useDismiss({ open: true, onClose, refs: sheet, returnFocusRef: opener, escape: !dialogOpen });
   return (
     <div className="shortcut-sheet" role="dialog" aria-label={ui("快捷键")} tabIndex={-1} ref={sheet}>
-      <h3>{ui("快捷键")}<CloseButton label={ui("关闭快捷键")} onClick={onClose} /></h3>
+      <div className="shortcut-sheet__head">
+        <h3>{ui("快捷键")}</h3>
+        <CloseButton label={ui("关闭快捷键")} onClick={onClose} />
+      </div>
       <dl>
         {rows.map(([k, v]) => (
           <React.Fragment key={k}>

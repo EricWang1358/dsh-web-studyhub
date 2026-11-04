@@ -60,7 +60,7 @@
     .question-area {
       /* 700px at the standard reading width and size (44em of 16px); 窄 / 宽 and a larger size change it. */
       width: min(var(--review-column, 700px), calc(100% - 48px));
-      margin: 34px auto var(--space-9);
+      margin: var(--space-7) auto var(--space-9);
     }
     .question-area:not(.flash-area) .question-card {
       --paper-pad-top: var(--space-4-5);
@@ -68,7 +68,9 @@
     }
     .question-meta {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
+      gap: var(--space-1-5) var(--space-3);
       color: var(--text-muted);
       font-size: var(--fs-md);
       align-items: center;
@@ -97,7 +99,7 @@
     .question-live-mastery[data-rose='true'] {
       border-color: var(--ok-line);
       background: var(--ok-halo);
-      color: var(--ok);
+      color: var(--ok-ink);
     }
     .question-live-mastery__delta {
       font-weight: var(--fw-strong);
@@ -116,27 +118,30 @@
     .flash-area .question-card {
       position: relative;
     }
-    .flash-area .question-meta {
+    .flash-area .question-card__head {
       position: absolute;
       z-index: 2;
       top: 0;
       left: 0;
       right: 0;
-      padding: var(--space-3-5) 36px 0;
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-3-5) 2.25rem 0;
+    }
+    .flash-area .question-meta {
+      padding-bottom: 0;
       color: var(--text-muted);
     }
     .flash-area .card-progress {
-      position: absolute;
-      z-index: 2;
-      top: 52px;
-      left: 36px;
-      right: 36px;
       margin: 0;
     }
     .question-meta > div {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
+      justify-content: flex-end;
       gap: var(--space-2);
+      min-width: 0;
     }
     .question-meta > div > span {
       font-size: var(--fs-md);
@@ -206,7 +211,7 @@
       flex-shrink: 0;
       width: 28px;
       height: 28px;
-      margin-top: -1px;
+      margin-top: calc(var(--hairline) * -1);
       border-radius: 50%;
       box-shadow: inset 0 0 0 1px var(--line-strong);
       color: var(--text-dim);
@@ -226,7 +231,7 @@
     .option.incorrect .option-letter {
       background: transparent;
       box-shadow: inset 0 0 0 1.5px var(--bad);
-      color: var(--bad);
+      color: var(--bad-ink);
     }
     .option:disabled {
       opacity: 1;
@@ -296,11 +301,11 @@
     .answer-state {
       display: block;
       font-size: var(--fs-md);
-      color: var(--ok);
+      color: var(--ok-ink);
       margin: var(--space-2) 0 var(--space-1);
     }
     .option.incorrect .answer-state {
-      color: var(--bad);
+      color: var(--bad-ink);
     }
     .answer-state:empty {
       display: none;
@@ -315,7 +320,7 @@
     }
     .choice-feedback strong { color: var(--text); }
     .choice-feedback > span { white-space: nowrap; }
-    .choice-feedback .choice-mismatch { color: var(--bad); }
+    .choice-feedback .choice-mismatch { color: var(--bad-ink); }
     .option p {
       font-size: var(--fs-md);
       line-height: 1.7;
@@ -403,11 +408,11 @@
       font-size: var(--fs-md);
     }
     .hint .icon {
-      color: var(--warn);
+      color: var(--warn-ink);
     }
     .next-due {
       font-size: var(--fs-md);
-      color: var(--ok);
+      color: var(--ok-ink);
       margin: var(--space-4) 0;
     }
     .next-due__lead { margin: 0; }
@@ -637,7 +642,7 @@
       grid-area: 1 / 1;
       min-width: 0;
       min-height: 400px;
-      --paper-pad-top: 76px;
+      --paper-pad-top: 5.5rem;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -658,8 +663,7 @@
         --paper-pad-x: var(--space-4-5);
         --paper-pad-bottom: var(--space-5-5);
       }
-      .flash-area .question-meta { padding: var(--space-3) var(--space-5-5) 0; }
-      .flash-area .card-progress { left: var(--space-5-5); right: var(--space-5-5); }
+      .flash-area .question-card__head { padding: var(--space-3) var(--space-5-5) 0; }
     }
   }
   :where(.study-app, .study-seat) {
@@ -802,7 +806,7 @@
     .flip-label {
       font-size: var(--fs-md);
       color: var(--text-faint);
-      margin-top: 45px;
+      margin-top: calc(var(--space-8) + var(--space-1));
     }
     .grading {
       margin-top: var(--space-6);
@@ -844,13 +848,13 @@
     .grade:focus-visible { outline-offset: -3px; }
     .grade:active:not(:disabled) { background: var(--bg-selected); }
     .grade.low {
-      color: var(--bad);
+      color: var(--bad-ink);
     }
     .grade.high {
-      color: var(--ok);
+      color: var(--ok-ink);
     }
     .grade:nth-child(4) {
-      color: var(--warn);
+      color: var(--warn-ink);
     }
     .grade strong {
       display: block;
@@ -896,7 +900,7 @@
     }
     .session-summary {
       max-width: 568px;
-      margin: 90px auto;
+      margin: calc(var(--space-9) + var(--space-7)) auto;
       text-align: center;
       padding: 0 var(--space-6);
     }
@@ -924,23 +928,23 @@
   @container study (min-width:1400px) {
     :where(.study-app, .study-seat) {
       .flash-area {
-        margin-top: 145px;
+        margin-top: calc(var(--space-9) * 2 + var(--space-7));
       }
       .flip-face {
         min-height: 480px;
       }
       .question-area {
-        margin-top: 58px;
+        margin-top: var(--space-9);
       }
       .question-area.flash-area {
-        margin-top: 130px;
+        margin-top: calc(var(--space-9) * 2 + var(--space-4));
       }
     }
   }
   @container study (max-width:1050px) {
     :where(.study-app, .study-seat) {
       .flash-area {
-        margin-top: 70px;
+        margin-top: calc(var(--space-9) + var(--space-3-5));
       }
       .flip-face {
         min-height: 380px;
@@ -954,7 +958,7 @@
     :where(.study-app, .study-seat) {
       .question-area {
         width: calc(100% - 30px);
-        margin-top: 34px;
+        margin-top: var(--space-7);
       }
       .question {
         font-size: calc(var(--fs-lg) * var(--card-scale, 1));
@@ -981,7 +985,7 @@
       }
       .flip-face {
         min-height: 280px;
-        --paper-pad-top: 72px;
+        --paper-pad-top: 6.25rem;
         --paper-pad-x: var(--space-5);
         --paper-pad-bottom: var(--space-5);
       }
@@ -1001,15 +1005,9 @@
         width: 100%;
         justify-content: flex-end;
       }
-      .question-toolbar .tool-action,
-      .question-toolbar .tool-icon,
       .session-summary {
-        margin-top: 60px;
+        margin-top: 3.75rem;
       }
-    }
-  }
-  @container study (max-width: 640px) {
-    :where(.study-app, .study-seat) {
     }
   }
   /* The 600px rule comes first: at equal specificity the case review's own width (980px, below) has always won over it. */

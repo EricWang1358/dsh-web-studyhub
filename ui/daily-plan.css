@@ -46,9 +46,10 @@
     .daily-plan__actual { margin-top: var(--space-1); font-size: var(--fs-xs); }
     /* One compact row: label, minutes with its unit and 保存 on the same line; it wraps on a narrow screen without leaving a gap. */
     .daily-plan__actual-form { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
-    .daily-plan__proposal ol { list-style: decimal-leading-zero; padding-left: var(--space-6); margin: var(--space-3) 0 var(--space-4); }
-    .daily-plan__proposal li { display: list-item; padding: var(--space-2) 0 var(--space-2) var(--space-2); border-bottom: 1px solid var(--line-soft); overflow-wrap: anywhere; }
-    .daily-plan__proposal li::marker { color: var(--text-muted); font-size: var(--fs-xs); }
+    .daily-plan__proposal ol { list-style: none; padding-left: 0; margin: var(--space-3) 0 var(--space-4); }
+    .daily-plan__proposal li { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) 0; border-bottom: 1px solid var(--line-soft); overflow-wrap: anywhere; }
+    .daily-plan__proposal li > div { min-width: 0; }
+    .daily-plan__proposal .daily-plan__meta { flex-shrink: 0; }
     .daily-plan__proposal li strong { font-size: var(--fs-sm); }
     .daily-plan__proposal li p { margin: var(--space-1) 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .daily-plan__failure { margin: var(--space-2) 0 var(--space-3); }
@@ -66,12 +67,16 @@
     .daily-related { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-5); padding: var(--space-3) 0; margin: var(--space-3) 0; border-block: 1px solid var(--line-soft); }
     .daily-related__row { display: flex; align-items: center; gap: var(--space-4); flex: 1 1 15rem; min-width: 0; }
     .daily-related__row .daily-plan__task-copy { flex: 1; }
-    .daily-plan :is(summary, input),
-    .daily-plan__body button,
-    .daily-related button { min-height: 2.75rem; }
-    .daily-plan summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .daily-plan summary:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
   }
-  @media (max-width: 600px) {
+  @media (pointer: coarse) {
+    :is(.study-app, .study-seat) {
+      .daily-plan :is(summary, input),
+      .daily-plan__body button,
+      .daily-related button { min-height: 2.75rem; }
+    }
+  }
+  @container study (max-width: 600px) {
     :is(.study-app, .study-seat) {
       .daily-plan__next-bottom { align-items: flex-start; flex-direction: column; }
       .daily-plan__task { align-items: flex-start; }

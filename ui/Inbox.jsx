@@ -45,8 +45,10 @@ function Letter({ m, now, onOpen, onUndo, close }) {
       <button
         type="button"
         className={"mailbox__item" + (m.read ? "" : " is-unread")}
-        disabled={busy || m.missing}
+        disabled={busy}
+        aria-disabled={m.missing || undefined}
         onClick={() => {
+          if (busy || m.missing) return;
           close();
           onOpen(m);
         }}

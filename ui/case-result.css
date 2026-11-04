@@ -51,9 +51,9 @@
       font-weight: var(--fw-strong);
       border: 1px solid currentColor;
     }
-    .rubric-band.band-excellent, .rubric-band.band-good { color: var(--ok); }
-    .rubric-band.band-pass { color: var(--warn); }
-    .rubric-band.band-weak { color: var(--bad); }
+    .rubric-band.band-excellent, .rubric-band.band-good { color: var(--ok-ink); border-color: var(--ok-line); background: var(--ok-bg); }
+    .rubric-band.band-pass { color: var(--warn-ink); border-color: var(--warn-line); background: var(--warn-bg); }
+    .rubric-band.band-weak { color: var(--bad-ink); border-color: var(--bad-line); background: var(--bad-bg); }
     .rubric-rows {
       list-style: none;
       margin: 0;
@@ -217,7 +217,7 @@
       color: var(--text-muted);
       font-size: var(--fs-xs);
     }
-    .case-report__pace.is-over { color: var(--warn); }
+    .case-report__pace.is-over { color: var(--warn-ink); }
     .case-report__questions li.is-unanswered { border-color: var(--bad); }
     .case-report__weak li {
       display: flex;
@@ -282,7 +282,7 @@
       align-self: flex-end;
       border-radius: var(--radius-xs);
       background: var(--accent-soft);
-      margin-right: 1px;
+      margin-right: var(--hairline);
     }
     .rubric-skills__trend i:last-of-type { margin-right: var(--space-2); }
   }

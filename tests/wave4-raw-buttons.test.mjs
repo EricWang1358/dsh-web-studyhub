@@ -29,7 +29,7 @@ const EXCEPTIONS = {
   'CourseActive.jsx': 'role=switch', 'CourseField.jsx': 'course picks (hue, parked state, group counts)', 'Skeleton.jsx': 'node rows, tabs of the canvas and chapter picks',
   'SkeletonCanvas.jsx': 'canvas nodes and the minimap', 'ThumbFeedback.jsx': 'the two 17px thumb icon buttons of the question toolbar',
   'UpdateCenter.jsx': 'the update status chip (state-coloured pill)',
-  'Workflows.jsx': 'step toggle row (wf-step-toggle)', 'WorkflowPortal.jsx': 'route link (wf-route-link)', 'WorkflowLesson.jsx': 'the undo link (wf-undo)',
+  'Workflows.jsx': 'step toggle row (wf-step-toggle)', 'WorkflowPortal.jsx': 'route link (wf-route-link)',
   // The navigation system itself.
   'SideNav.jsx': 'the nav rows and group labels', 'LanguageSwitch.jsx': 'the rail language toggle', 'Settings.jsx': 'settings category rows', 'Inbox.jsx': 'mailbox rows',
 };

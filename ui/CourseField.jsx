@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Field, IconButton, ScrollWindow, TextInput, useDismiss } from './components/index.js';
+import { Field, IconButton, ScrollWindow, TextInput, Tooltip, useDismiss } from './components/index.js';
 import { groupCourseNames, isParkedCourse, rankCourses } from './course-names.js';
 import css from './course-field.css';
 
@@ -152,7 +152,7 @@ export default function CourseField({ courses = [], value = '', onChange, multip
     : row.type === 'group'
     ? <><span className="course-field__option-chevron" aria-hidden="true" /><span className="course-field__option-name">{row.entry.name}</span>
       <small>{uiFormat('{0} 章', [row.count])}</small></>
-    : <><span className="course-field__option-name" title={row.course.name}>{row.label}</span>
+    : <><Tooltip layer anchorClassName="course-field__option-tip" content={row.label}><span className="course-field__option-name">{row.label}</span></Tooltip>
       {chosen.includes(row.course.name) && <small className="course-field__option-check">{ui('已选')}</small>}</>;
   return <div className="course-field" ref={root}>
     <Field label={label} hint={hint || undefined} width="full">
@@ -190,6 +190,7 @@ export default function CourseField({ courses = [], value = '', onChange, multip
           className: `course-field__option course-field__option--${row.type !== 'course' ? 'group' : row.depth ? 'chapter' : 'course'}${index === activeIndex ? ' is-active' : ''}${row.course && isParkedCourse(row.course) ? ' is-parked' : ''}`,
           ...(row.depth > 1 ? { style: { '--depth': row.depth } } : { style: { '--depth': 1 } }),
           'aria-selected': row.type !== 'course' ? false : chosen.includes(row.course.name),
+          ...(row.type === 'course' && row.course.name !== row.label ? { 'aria-label': row.course.name } : {}),
           ...(row.type !== 'course' ? { 'aria-expanded': row.expanded } : {}),
           onMouseDown: event => event.preventDefault(), onClick: () => activate(row) })}
         empty={uiFormat('没有名为“{0}”的课程，保存时会新建这门课。', [query])} />

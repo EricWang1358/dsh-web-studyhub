@@ -169,8 +169,8 @@ export default function OutlineAssist({ call, target, current, saved, stale, mis
       onRestored={() => { onSaved?.({ ...saved, segmentation: undefined }); onChanged?.(); }} />}
     {state.phase === 'proposal' && <Dialog title={mode === 'chapters' ? ui('AI 建议的章节') : ui('AI 建议的目录')} size="lg" onClose={() => dispatch({ type: 'reset' })}
       description={ui('预览：确认之前，资料和当前目录都不会改变。')}
-      footer={<><Button variant="primary" onClick={accept} disabled={state.saving}>{mode === 'chapters' ? ui('采用这些章节') : ui('采用这个目录')}</Button>
-        <Button variant="quiet" onClick={() => dispatch({ type: 'reset' })}>{ui('放弃')}</Button></>}>
+      footer={<><Button variant="quiet" lock={!!state.saving} onClick={() => dispatch({ type: 'reset' })}>{ui('放弃')}</Button>
+        <Button variant="primary" busy={!!state.saving} onClick={accept}>{mode === 'chapters' ? ui('采用这些章节') : ui('采用这个目录')}</Button></>}>
       <ProposalPreview current={current} entries={state.entries} usage={state.usage} coverage={state.coverage} warnings={state.warnings} mode={mode} />
     </Dialog>}
   </>;

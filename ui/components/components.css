@@ -134,7 +134,7 @@
     .sh-btn--danger {
       background: transparent;
       border-color: var(--bad-line);
-      color: var(--bad);
+      color: var(--bad-ink);
     }
     .sh-btn--danger:hover:not(:disabled) {
       background: var(--bad-bg);
@@ -148,7 +148,7 @@
     .sh-btn:not(.sh-btn--spin-over) > .sh-spinner { width: 18px; height: 18px; }
     .sh-btn--sm:not(.sh-btn--spin-over) > .sh-spinner { width: 16px; height: 16px; }
     /* An icon-less busy button centers the spinner over its own invisible label so its width and height never jump. */
-    .sh-btn[aria-busy="true"].sh-btn--spin-over {
+    :is(.sh-btn, .sh-btn--danger)[aria-busy="true"].sh-btn--spin-over {
       position: relative;
       color: transparent;
       text-decoration: none;
@@ -162,7 +162,7 @@
       color: var(--text-faint);
     }
     .sh-btn--primary.sh-btn--spin-over > .sh-spinner { color: var(--accent-ink); }
-    .sh-btn--danger.sh-btn--spin-over > .sh-spinner { color: var(--bad); }
+    .sh-btn--danger.sh-btn--spin-over > .sh-spinner { color: var(--bad-ink); }
     /* ── Segmented control ──────────────────────────────────────────────── */
     /* The active fill lives on the item until the script measures the thumb
        (data-thumb="on"); then the thumb slides and the item fill goes away. */
@@ -915,13 +915,11 @@
   }
   :is(.study-app, .study-seat).sh-dialog::backdrop {
     background: var(--scrim);
-    backdrop-filter: blur(3px);
     animation: sh-fade-in 0.18s ease;
   }
   :is(.study-app, .study-seat) {
     .sh-dialog::backdrop {
       background: var(--scrim);
-      backdrop-filter: blur(3px);
       animation: sh-fade-in 0.18s ease;
     }
   }

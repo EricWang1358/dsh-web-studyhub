@@ -1,5 +1,5 @@
 import { ui } from './i18n.js';
-import React, { Suspense, lazy, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { audioFocusPending } from './audio-focus.js';
 import { hasContext } from './capabilities.js';
 import { KEY_FIELDS } from '../lib/audio-providers.js';
@@ -31,8 +31,13 @@ const writeCategory = (value) => { writeText(CATEGORY_KEY, value); /* the choice
 
 /** The list of categories under the three group headings; the selected one is marked, and one that needs attention says so in words (not by colour alone). */
 export function SettingsNav({ available, active, missing, onSelect }) {
+  const navRef = useRef(null);
+  useEffect(() => {
+    const activeBtn = navRef.current?.querySelector('[aria-current="page"]');
+    activeBtn?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
+  }, [active]);
   return (
-    <nav className="settings-nav" aria-label={ui('设置分类')}>
+    <nav ref={navRef} className="settings-nav" aria-label={ui('设置分类')}>
       {SETTINGS_GROUPS.map((group) => {
         const items = available.filter((category) => category.group === group.id);
         if (!items.length) return null;
@@ -117,6 +122,16 @@ export default function Settings({
   const missing = state.common.missing.concat(state.once.missing);
   const [active, setActive] = useState(() => initialCategory({ available, focusSection: focusSection || (audioFocusPending() ? 'settings-audio' : ''), missing, last: readCategory() }));
   const select = (id) => { setActive(id); writeCategory(id); };
+  const openSchedule = () => {
+    if (available.some((item) => item.id === 'data')) select('data');
+    let tries = 0;
+    const seek = () => {
+      const target = typeof document !== 'undefined' && (document.querySelector('.sm2-settings') || document.querySelector('[data-tour="settings-data"]'));
+      if (!target && tries++ < 120 && typeof requestAnimationFrame === 'function') { requestAnimationFrame(seek); return; }
+      target?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(seek);
+  };
   useEffect(() => {
     if (!focusSection) return undefined;
     const linked = categoryForAnchor(focusSection);
@@ -135,7 +150,7 @@ export default function Settings({
   }, [focusSection]);
   // Everything a pane may need. Panes take what they use and nothing else.
   const services = { data, busy, act, host, settings, setSettings, legacy, setLegacy,
-    exportData, onRestored, appearance, profile, setProfile, capabilities, status };
+    exportData, onRestored, appearance, profile, setProfile, capabilities, status, openSchedule };
   const selected = available.find((item) => item.id === active) || available[0];
   return (
     <section className="page settings-page">

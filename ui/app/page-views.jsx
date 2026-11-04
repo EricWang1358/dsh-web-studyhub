@@ -379,7 +379,7 @@ function NotesView() {
 }
 
 function GuidedStudyView() {
-  const { data, core, session, lib, nav, host } = useApp();
+  const { data, core, session, lib, set, nav, host } = useApp();
   const started = lib.guidedSession || data?.activeStudySession || null;
   // The session as it is now and its new question's preparation (#547): the main chat starts it, the reviewed question opens here as a round of one.
   const { session: guidedSession, prepState, clearFailure, refresh: readGuidedSession } = useGuidedQuestion({ session: started, call: core.call,
@@ -408,7 +408,7 @@ function GuidedStudyView() {
 
   const handleEnd = (id) => {
     core.act('study.session.end', { sessionId: id });
-    lib.set?.setGuidedSession?.(null);
+    set?.setGuidedSession?.(null);
     nav.navigate('library');
   };
 

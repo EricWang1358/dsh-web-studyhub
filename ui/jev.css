@@ -102,7 +102,7 @@
     .jev-card-signals__head .jev-experimental { margin-left: 0; }
     .jev-card-signals__head small, .jev-card-signals__note { color: var(--text-muted); font-size: var(--fs-xs); margin: 0; }
   }
-  @media (max-width: 480px) {
+  @container study (max-width: 480px) {
     :is(.study-app, .study-seat) {
       .jev-guide__list { grid-template-columns: minmax(0, 1fr); }
       .jev-guide__list dd { margin-bottom: var(--space-2); }

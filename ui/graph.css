@@ -87,7 +87,7 @@
     }
     .graph-truncated {
       font-size: var(--fs-xs);
-      color: var(--warn);
+      color: var(--warn-ink);
     }
     /* The viewport pans and zooms the WHOLE drawing (the shared canvas kit moves
        .graph-plane with a transform). In the panel it is bounded so the page stays
@@ -260,15 +260,21 @@
       background: var(--bg-raised);
       border: 1px solid var(--line-strong);
       border-radius: var(--radius-sm);
-      padding: 1px var(--space-2);
+      padding: var(--hairline) var(--space-2);
       text-align: center;
       transition:
         border-color var(--dur-fast) var(--ease),
         box-shadow var(--dur-fast) var(--ease);
     }
     & input.cloze-blank:focus {
-      outline: none;
+      outline: 2px solid transparent;
+      outline-offset: 2px;
       border-color: var(--accent);
+      box-shadow: var(--ring);
+    }
+    .cloze-blank.cloze-blank:focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: 2px;
       box-shadow: var(--ring);
     }
     & input.cloze-blank:disabled {
@@ -277,17 +283,17 @@
     .cloze-right,
     .cloze-wrong {
       border-radius: var(--radius-sm);
-      padding: 1px var(--space-2);
+      padding: var(--hairline) var(--space-2);
       font-size: var(--fs-sm);
     }
     .cloze-right {
-      color: var(--ok);
-      border: 1px solid var(--ok);
+      color: var(--ok-ink);
+      border: 1px solid var(--ok-line);
       background: var(--ok-bg);
     }
     .cloze-wrong {
-      color: var(--bad);
-      border: 1px solid var(--bad);
+      color: var(--bad-ink);
+      border: 1px solid var(--bad-line);
       background: var(--bad-bg);
     }
     .cloze-mark {

@@ -2,7 +2,7 @@ import React, { useSyncExternalStore } from 'react';
 import { audioInputStatus } from './live-audio-health.js';
 import { ui, uiFormat } from './i18n.js';
 import { formatElapsed } from './format.js';
-import { useNow } from './components/index.js';
+import { Tooltip, useNow } from './components/index.js';
 
 /**
  * Input level and upload health. `compact` is the recording view: one slim line
@@ -48,7 +48,7 @@ export default function LiveAudioMonitor({ health, visible, recording, compact =
   </>;
   if (compact) return <aside className={`live-audio-bar${warning ? ' warn' : ''}`} aria-label={ui('音频输入状态')}>
     <div className="live-audio-line">
-      <span className="live-audio-name" title={device}>{device}</span>
+      <Tooltip layer anchorClassName="live-audio-name" content={device}><span className="live-audio-name" tabIndex={0}>{device}</span></Tooltip>
       {meter}
       <span className={warning ? 'live-audio-warning' : 'live-audio-state'} role="status">{labels[status]}</span>
       {backlog && <span className="live-audio-warning">{ui('上传积压')}</span>}

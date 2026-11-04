@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Badge, Button, Tooltip } from '../components/index.js';
+import { Badge, Button, TextInput, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useApp } from '../app/app-context.js';
 import { taskKindOf } from './task-model.js';
@@ -15,6 +15,20 @@ import css from './plan-table.css';
 
 const EXPLAIN = '这是 AI 在规划阶段为本次任务列出的知识点；不会额外花 token。';
 const TONE = { pending: 'neutral', authoring: 'info', 'awaiting-review': 'info', reviewing: 'info', repairing: 'info', passed: 'success', failed: 'error', stopped: 'neutral' };
+const PAGE_ROWS = 80;
+
+function capGroups(groups, limit) {
+  let left = limit, hidden = 0;
+  const shown = [];
+  for (const group of groups) {
+    if (left <= 0) { hidden += group.rows.length; continue; }
+    if (group.rows.length <= left) { shown.push(group); left -= group.rows.length; continue; }
+    shown.push({ ...group, rows: group.rows.slice(0, left) });
+    hidden += group.rows.length - left;
+    left = 0;
+  }
+  return { shown, hidden };
+}
 
 /** The tab of the strip: the full label (a short one where the strip is narrow), the count when it is known, and what the list is on hover and focus. */
 export function planTabItem(contract) {
@@ -58,8 +72,13 @@ export default function PlanTable({ contract, task }) {
     if (box.right > edge.right) strip.scrollLeft += box.right - edge.right; else if (box.left < edge.left) strip.scrollLeft -= edge.left - box.left;
   }, []);
   const table = useMemo(() => planTable(contract), [contract]);
-  const [filter, setFilter] = useState('all'), [query, setQuery] = useState('');
+  const [filter, setFilter] = useState('all'), [query, setQuery] = useState(''), [expanded, setExpanded] = useState(false);
+  useEffect(() => { setExpanded(false); }, [contract?.jobId, filter, query]);
   const groups = useMemo(() => narrowTable(table, { filter, query }), [table, filter, query]);
+  const { shown: shownGroups, hidden: hiddenCount } = useMemo(
+    () => (typeof document !== 'undefined' && !expanded ? capGroups(groups, PAGE_ROWS) : { shown: groups, hidden: 0 }),
+    [groups, expanded],
+  );
   const counts = useMemo(() => filterCounts(table), [table]);
   const material = useMemo(() => taskMaterial(task, sources)?.title || '', [task, sources]);
   const lines = useMemo(() => goalLines(contract, { material, kindLabel: taskKindLabel(taskKindOf(task)), table }), [contract, material, task, table]);
@@ -88,7 +107,7 @@ export default function PlanTable({ contract, task }) {
           <div className="tc-filters" role="group" aria-label={ui('考点筛选')}>
             {FILTERS.map(([id, label]) => <Button key={id} size="sm" className="tc-filter" aria-pressed={filter === id} onClick={() => setFilter(id)}>{`${ui(label)} ${counts[id]}`}</Button>)}
           </div>
-          <input type="search" className="tc-plan__search" value={query} placeholder={ui('搜索考点')} aria-label={ui('搜索考点')} autoComplete="off" spellCheck={false} onChange={(event) => setQuery(event.target.value)} />
+          <TextInput type="search" className="tc-plan__search" value={query} placeholder={ui('搜索考点')} aria-label={ui('搜索考点')} autoComplete="off" spellCheck={false} onChange={(event) => setQuery(event.target.value)} />
         </div>
       )}
       {listed && (
@@ -96,8 +115,8 @@ export default function PlanTable({ contract, task }) {
           <div role="row" className="tc-plan__cols">
             <span role="columnheader">{ui('批次')}</span><span role="columnheader">{ui('知识点')}</span><span role="columnheader">{ui('来自')}</span><span role="columnheader">{ui('状态')}</span>
           </div>
-          {groups.length === 0 && <p className="tc-empty" role="row">{ui('没有符合的考点。')}</p>}
-          {groups.map((group) => (
+          {shownGroups.length === 0 && <p className="tc-empty" role="row">{ui('没有符合的考点。')}</p>}
+          {shownGroups.map((group) => (
             <div role="rowgroup" key={group.key} data-group={group.key}>
               <div role="row" className="tc-plan__group">
                 <Tooltip layer content={ui('一批是交给模型的一次出题工作，同一批的考点一起写、一起审阅。这一批失败时，它的考点会一起没通过。')}><span tabIndex={0}>{groupTitle(group)}</span></Tooltip>
@@ -107,6 +126,11 @@ export default function PlanTable({ contract, task }) {
               {group.rows.map((row) => <PointRow key={row.key} row={row} canOpen={canOpen && !!row.source && here(row.source.sourceId)} onOpen={onOpen} />)}
             </div>
           ))}
+          {hiddenCount > 0 && (
+            <div className="tc-plan__more">
+              <Button variant="quiet" size="sm" onClick={() => setExpanded(true)}>{uiFormat('显示更多（还有 {0} 条）', [hiddenCount])}</Button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -78,10 +78,10 @@
       padding: var(--space-4-5) var(--space-5);
       border-radius: var(--radius);
       text-align: left;
-      border: 1px solid var(--line-soft);
+      border: 1px solid var(--line);
       /* A plain surface, no cinnabar wash: the page's one filled button is the only cinnabar block on the result page. */
       background: var(--bg-surface);
-      box-shadow: var(--shadow-popover);
+      box-shadow: var(--shadow-item);
       animation: coach-rise 320ms var(--ease) both;
     }
     /* On the result page it lines up with the score card above it. */
@@ -149,16 +149,20 @@
     /* ── Shortcut sheet ──────────────────────────────────────────────────── */
     .shortcut-sheet {
       position: fixed;
-      right: 20px;
-      bottom: 20px;
+      right: var(--space-5);
+      bottom: var(--space-5);
       z-index: var(--z-overlay);
-      width: min(340px, calc(100cqi - 40px));
+      width: min(340px, calc(100cqi - 2 * var(--space-5)));
+      max-height: min(72dvh, 28rem);
+      overflow-y: auto;
+      overscroll-behavior: contain;
       padding: var(--space-3-5) var(--space-4);
       font-size: var(--fs-md);
       color: var(--text-dim);
       animation: coach-pop 180ms var(--ease) both;
     }
-    .shortcut-sheet h3 { margin: 0 0 var(--space-2); font-size: var(--fs-md); color: var(--text); display: flex; justify-content: space-between; }
+    .shortcut-sheet__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin: 0 0 var(--space-2); }
+    .shortcut-sheet h3 { margin: 0; font-size: var(--fs-md); color: var(--text); }
     .shortcut-sheet dl { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1-5) var(--space-3); margin: 0; }
     .shortcut-sheet dt { white-space: nowrap; }
     .shortcut-sheet dd { margin: 0; }
@@ -228,7 +232,7 @@
       font-size: var(--fs-md);
     }
     .assist-status.failed {
-      color: var(--warn);
+      color: var(--warn-ink);
     }
     .assist-note {
       display: flex;

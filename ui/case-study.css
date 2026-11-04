@@ -83,7 +83,7 @@
     .case-hl {
       color: inherit;
       border-radius: var(--radius-xs);
-      padding: 0 1px;
+      padding: 0 var(--hairline);
       cursor: pointer;
     }
     .case-hl.hl-yellow { background: var(--hl-yellow); }
@@ -199,12 +199,16 @@
     }
   }
   :where(.study-app, .study-seat) {
+    .case-answer-card {
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--line);
+    }
     /* ---------- the timed case paper ---------- */
     .case-paper.is-running { container-type: inline-size; }
     .case-paper__bar {
       position: sticky;
       top: 60px;
-      z-index: 2;
+      z-index: var(--z-sticky);
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -212,7 +216,7 @@
       padding: var(--space-3) var(--space-4);
       margin-bottom: var(--space-4);
       border-radius: var(--radius);
-      background: var(--bg-glass-strong);
+      background: var(--bg-raised);
       border: 1px solid var(--line);
       box-shadow: var(--shadow-item);
     }
@@ -328,7 +332,7 @@
     }
     .case-create__question {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 6rem auto;
+      grid-template-columns: minmax(0, 1fr) 5rem auto;
       gap: var(--space-2);
       align-items: start;
       padding: var(--space-3);
@@ -359,7 +363,8 @@
   @container study (max-width: 560px) {
     :where(.study-app, .study-seat) {
       .case-create__grid { grid-template-columns: minmax(0, 1fr); }
-      .case-create__question { grid-template-columns: minmax(0, 1fr) 5rem; }
+      .case-create__question { grid-template-columns: minmax(0, 1fr) auto; }
+      .case-create__question .case-create__prompt { grid-column: 1 / -1; }
       .case-scenario { padding: var(--space-3); }
       .case-paper__clock { font-size: var(--fs-xl); }
     }

@@ -104,7 +104,7 @@ export default function AppSidebar() {
         <div>{ui('StudyHub')}<small>{ui('每道题都点得回原页')}</small></div>
         <Button variant="quiet" size="sm" className="collapse-toggle" data-usage="nav.collapse" aria-label={toggleLabel} aria-expanded={!sidebarNarrow}
           title={toggleLabel} onClick={() => shell.setSidebarCollapsed((value) => !value)}>
-          {sidebarNarrow ? '»' : '«'}
+          <Icon name={sidebarNarrow ? 'chevron' : 'chevron-left'} size={14} />
         </Button>
       </div>
       <nav ref={navRef} className={'side-nav' + (navOrder.lifted ? ' is-reordering' : '')} data-tour="nav">
@@ -159,8 +159,8 @@ export default function AppSidebar() {
           <Tooltip layer placement="top-start" anchorClassName="sidebar-link-tip" content={ui('看这一页能用的键；按 ? 也能打开')}>
             <Button variant="link" size="sm" className="sidebar-link" icon="key" data-usage="nav.shortcut" onClick={() => session.actions.openShortcutHelp()}>{ui('快捷键')}</Button>
           </Tooltip>
-          <Tooltip layer placement="top-start" anchorClassName="sidebar-term-tip" content={glossaryText()}>
-            <span className="sidebar-link sidebar-link--term" tabIndex={0}>{ui('名词解释')}</span>
+          <Tooltip layer interactive placement="top-start" anchorClassName="sidebar-term-tip" content={glossaryText()}>
+            <span className="sidebar-link sidebar-link--term" tabIndex={0} onClick={(e) => e.currentTarget.focus()}>{ui('名词解释')}</span>
           </Tooltip>
         </div>
         <div className="local-status"><span />{ui('本地学习工作区')}</div>

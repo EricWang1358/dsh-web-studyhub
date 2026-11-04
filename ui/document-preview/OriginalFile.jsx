@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ui, uiFormat } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, Checkbox, Dialog, FileDrop, Hint, Icon, InlineMessage, LoadingState, RadioCard, RadioCardGroup } from '../components/index.js';
+import { Button, Checkbox, Dialog, FileDrop, Hint, Icon, InlineMessage, LoadingState, RadioCard, RadioCardGroup, Tooltip } from '../components/index.js';
 import css from './original-file.css';
 import { ORIGINAL_MAX_BYTES, canAttach, collapseNotice, defaultMode, explainFailure, issueOf, modeOptions, noticeCollapsed, originalLine, reportHeadline, reportLines } from './original-file.js';
 import { formatBytes } from '../format.js';
@@ -150,7 +150,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
   const options = picked ? modeOptions({ size: picked.size, hasPath: picked.kind === 'path' }) : [];
   const headline = report && reportHeadline(report), lines = report ? reportLines(report) : [];
   const footer = done ? <Button variant="primary" onClick={onClose}>{ui('完成')}</Button>
-    : <><Button variant="quiet" disabled={phase === 'attaching'} onClick={onClose}>{ui('取消')}</Button>
+    : <><Button variant="quiet" lock={phase === 'attaching'} onClick={onClose}>{ui('取消')}</Button>
       {picked && <Button variant="primary" busy={phase === 'attaching'} disabled={!canAttach({ phase, report, picked, mode, confirmed })} onClick={attach}>{ui('附上原文件')}</Button>}
       {!picked && pickerOn && <Button variant="primary" disabled>{ui('附上原文件')}</Button>}</>;
 
@@ -160,24 +160,24 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
     {done && <Status tone="success"><strong>{ui('已附上原文件')}</strong>{done.mode === 'reference' ? <span title={info?.path}>{uiFormat('引用 {0}', [info?.path])}</span> : <span>{uiFormat('已复制到资料库 · {0}', [formatBytes(info?.bytes)])}</span>}</Status>}
     {!done && !report && issue?.message && <Status tone="warning" alert>{issue.message}</Status>}
     {!done && info && !issue && !choosing && <>
-      <Status tone="success"><span title={info.path}>{info.mode === 'copy' ? uiFormat('原文件已经复制在资料库里（{0}），不受原文件移动影响。', [formatBytes(info.bytes)]) : uiFormat('原文件：引用 {0}', [info.path])}</span></Status>
+      <Status tone="success"><Tooltip layer content={info.path || ''}><span tabIndex={info.path ? 0 : undefined}>{info.mode === 'copy' ? uiFormat('原文件已经复制在资料库里（{0}），不受原文件移动影响。', [formatBytes(info.bytes)]) : uiFormat('原文件：引用 {0}', [info.path])}</span></Tooltip></Status>
       {info.mode === 'reference' && <div className="original-actions">
-        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setChoosing(true)}>{ui('重新指定…')}</Button>
-        <Button size="sm" variant="secondary" disabled={busy} onClick={() => { setChoosing(true); void checkPath(info.path, 'copy'); }}>{ui('改为复制到资料库')}</Button>
-        <Button size="sm" variant="quiet" disabled={busy} onClick={detach}>{ui('不再引用')}</Button>
+        <Button size="sm" variant="secondary" lock={busy} onClick={() => setChoosing(true)}>{ui('重新指定…')}</Button>
+        <Button size="sm" variant="secondary" lock={busy} onClick={() => { setChoosing(true); void checkPath(info.path, 'copy'); }}>{ui('改为复制到资料库')}</Button>
+        <Button size="sm" variant="quiet" lock={busy} onClick={detach}>{ui('不再引用')}</Button>
       </div>}
     </>}
     {issue?.canCopy && !picked && !done && <div className="original-actions">
-      <Button size="sm" variant="secondary" disabled={busy} onClick={() => checkPath(info.path, 'copy')}>{ui('改为复制到资料库')}</Button></div>}
+      <Button size="sm" variant="secondary" lock={busy} onClick={() => checkPath(info.path, 'copy')}>{ui('改为复制到资料库')}</Button></div>}
     {pickerOn && <section className="original-pick" aria-label={ui('选择原文件')}>
       <p className="original-step"><strong>{ui('原文件在哪里？')}</strong> <span id={hintId} className="muted">{ui('填写完整路径，或选择文件。')}</span></p>
       <div className="original-pathrow">
         <input id={pathId} type="text" value={pathText} disabled={busy} spellCheck={false} aria-label={ui('原文件的完整路径')} aria-describedby={hintId}
           placeholder={ui('例如：D:\\资料\\讲义.pdf')} onChange={event => setPathText(event.target.value)}
           onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void checkPath(pathText); } }} />
-        <Button disabled={busy || !pathText.trim()} onClick={() => checkPath(pathText)}>{ui('核对')}</Button>
+        <Button lock={busy} disabled={!pathText.trim()} onClick={() => checkPath(pathText)}>{ui('核对')}</Button>
       </div>
-      {host?.pickFile && <div className="original-actions"><Button icon="folder" disabled={busy} onClick={pickNative}>{ui('选择文件…')}</Button></div>}
+      {host?.pickFile && <div className="original-actions"><Button icon="folder" lock={busy} onClick={pickNative}>{ui('选择文件…')}</Button></div>}
       <FileDrop compact accept={[`.${format}`]} maxBytes={ORIGINAL_MAX_BYTES} disabled={busy}
         label={ui('或把文件拖到这里（浏览器不提供路径，只能复制）')} buttonLabel={host?.pickFile ? ui('从浏览器选择…') : ui('选择文件…')}
         onFiles={accepted => void chooseFile(accepted)} />
@@ -186,7 +186,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
     {report && phase !== 'verifying' && !done && <>
       <Status tone={headline.tone} alert={headline.tone === 'warning'}>
         <strong>{headline.text}</strong>
-        {picked && <small className="original-file-name" title={picked.path}>{picked.kind === 'path' ? baseName(picked.path) : picked.name}{picked.size ? ` · ${formatBytes(picked.size)}` : ''}</small>}
+        {picked && <Tooltip layer content={picked.path || ''}><small className="original-file-name" tabIndex={picked.path ? 0 : undefined}>{picked.kind === 'path' ? baseName(picked.path) : picked.name}{picked.size ? ` · ${formatBytes(picked.size)}` : ''}</small></Tooltip>}
         {lines.length > 0 && <ul className="original-lines">{lines.map((item, index) => <li key={index} data-tone={item.tone}>{item.text}</li>)}</ul>}
       </Status>
       <RadioCardGroup className="original-modes" legend={ui('怎样保存这个文件')} disabled={phase === 'attaching'}>
@@ -224,7 +224,7 @@ export function OriginalMenuEntry({ item, host, initial }) {
     setPortal(event.currentTarget.closest('.study-app, .study-seat') || document.body);
   };
   return <>
-    {line && <small className="source-row-menu__note" data-tone={line.tone} title={line.title}>{line.text}</small>}
+    {line && <Tooltip layer content={line.title || ''}><small className="source-row-menu__note" data-tone={line.tone} tabIndex={line.title ? 0 : undefined}>{line.text}</small></Tooltip>}
     <Button ref={anchor} variant="quiet" size="sm" busy={busy} onClick={open}>{info && info.status !== 'none' ? ui('管理原文件…') : ui('补全原文件…')}</Button>
     {portal && createPortal(<OriginalDialog target={{ sourceId, title: item.title, format: item.format }} call={call} host={host} intent="attach"
       onClose={() => setPortal(null)} onChanged={() => Promise.resolve(call('materials.original.status', { sourceId })).then(setInfo, () => {})} />, portal)}

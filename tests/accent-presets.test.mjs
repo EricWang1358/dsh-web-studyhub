@@ -142,7 +142,7 @@ test('the accent is written once: tokens.css keeps a literal only in the two --a
   assert.equal((styleCss.match(/c93d22|c03a1f/gi) || []).length, 2, 'dark and light --accent are the only cinnabar literals');
   assert.match(styleCss, /--accent-glow:\s*color-mix\(in srgb, var\(--accent\)/);
   assert.match(styleCss, /--ring:\s*0 0 0 3px color-mix\(in srgb, var\(--accent\)/);
-  for (const key of ['--bg-selected', '--accent-soft', '--accent-glow', '--ring'])
+  for (const key of ['--bg-selected', '--accent-soft', '--accent-text', '--accent-glow', '--ring'])
     assert.match(cardBase[key], /color-mix\(in srgb, var\(--accent\)/, `card stock ${key} derives from --accent`);
   assert.doesNotMatch(Object.values(cardBase).join(' '), /c93d22|c03a1f|b3361c/i, 'no literal cinnabar on the card');
 });
@@ -175,7 +175,7 @@ for (const name of PRESETS) for (const theme of ['dark', 'light']) {
   });
   test(`${name} (${theme}) on card stock: the accent rule and fill show on paper, the derived tint and outline stay readable`, () => {
     const scope = { ...scopeOf(name, theme), ...cardBase }, failures = [], paper = color('var(--bg-raised)', scope);
-    for (const [token, min] of [['--accent', 3], ['--accent-soft', 4.5]]) { const r = ratio(scope, token, '--bg-raised'); if (r < min) failures.push(`${token} on paper: ${r.toFixed(2)} < ${min}`); }
+    for (const [token, min] of [['--accent', 3], ['--accent-soft', 4.5], ['--accent-text', 4.5]]) { const r = ratio(scope, token, '--bg-raised'); if (r < min) failures.push(`${token} on paper: ${r.toFixed(2)} < ${min}`); }
     const ink = ratio(scope, '--accent-ink', '--accent');
     if (ink < 4.5) failures.push(`--accent-ink on --accent: ${ink.toFixed(2)}`);
     /* A selected row on paper: AA, except where the default itself is below it (--text-faint and --accent-soft of cinnabar on the dark paper, 4.16 and 4.32,

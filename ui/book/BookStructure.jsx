@@ -65,24 +65,28 @@ export function MoveDialog({ book, node, onRun, onClose }) {
   const current = nodeAt(book?.nodes, node.hid)?.node ?? node;
   const up = shiftPlace(book, node.hid, -1), down = shiftPlace(book, node.hid, 1);
   const targets = moveTargets(book, node.hid);
-  const [parent, setParent] = useState('');
+  const [parent, setParent] = useState(''), [moving, setMoving] = useState('');
   const { busy, failure, run } = useStructureRun(onRun);
-  const move = async place => { if (await run('course.book.move', { hid: node.hid, ...place })) setParent(''); };
+  const move = async (which, place) => {
+    setMoving(which);
+    try { if (await run('course.book.move', { hid: node.hid, ...place })) setParent(''); }
+    finally { setMoving(''); }
+  };
   return (
     <Dialog title={ui('移动这个知识点')} size="sm" className="book-structure-dialog" onClose={onClose} busy={busy}
-      footer={<Button variant="secondary" onClick={() => onClose()} disabled={busy}>{ui('完成')}</Button>}>
+      footer={<Button variant="secondary" onClick={() => onClose()} lock={busy}>{ui('完成')}</Button>}>
       <div className="book-structure">
         <p className="book-structure__what">{label(current)}</p>
         <div className="book-structure__row">
-          <Button variant="secondary" size="sm" className="book-structure__up" disabled={!up || busy} onClick={() => move(up)}>{ui('上移')}</Button>
-          <Button variant="secondary" size="sm" className="book-structure__down" disabled={!down || busy} onClick={() => move(down)}>{ui('下移')}</Button>
+          <Button variant="secondary" size="sm" className="book-structure__up" disabled={!up} busy={busy && moving === 'up'} lock={busy && moving !== 'up'} onClick={() => move('up', up)}>{ui('上移')}</Button>
+          <Button variant="secondary" size="sm" className="book-structure__down" disabled={!down} busy={busy && moving === 'down'} lock={busy && moving !== 'down'} onClick={() => move('down', down)}>{ui('下移')}</Button>
         </div>
         <Hint>{ui('上移、下移是在同一层里换位置。选一个章或节，会把这一节连同它下面的一起移过去。')}</Hint>
         <Field label={ui('放到')} hint={ui('移到那个章或节的末尾；放好以后还可以用上移、下移调整。')}>
           <Select options={targets} value={parent} placeholder={ui('选一个章或节')} disabled={busy} onChange={value => setParent(value)} />
         </Field>
         <div className="book-structure__row">
-          <Button variant="secondary" size="sm" className="book-structure__go" disabled={!parent || busy} onClick={() => move({ toParent: parent })}>{ui('移过去')}</Button>
+          <Button variant="secondary" size="sm" className="book-structure__go" disabled={!parent} busy={busy && moving === 'parent'} lock={busy && moving !== 'parent'} onClick={() => move('parent', { toParent: parent })}>{ui('移过去')}</Button>
         </div>
         <Refusal failure={failure} />
       </div>

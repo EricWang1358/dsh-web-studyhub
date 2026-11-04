@@ -196,7 +196,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, fresh })
   // Moving a node expands the fit bounds, but does not refit during the drag.
   const anchor = layout.boxes.find((b) => b.id === selected) || layout.boxes[0];
   const { viewRef, view, viewport, fit, zoomAt, readable, moveTo, panHandlers } = usePanZoom(layout.width, layout.height, {
-    insetRight: detailOpen ? 310 : 0, anchorX: anchor ? anchor.x + anchor.w / 2 : 0, anchorY: anchor ? anchor.y + anchor.h / 2 : 0, vertical: !focused && flowDirection === "down",
+    insetRight: detailOpen && !narrow ? 310 : 0, anchorX: anchor ? anchor.x + anchor.w / 2 : 0, anchorY: anchor ? anchor.y + anchor.h / 2 : 0, vertical: !focused && flowDirection === "down",
   });
   const fitDrawing = () => fit(false, world);
   const edges = useMemo(
@@ -455,7 +455,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, fresh })
             )}
             <ExtendBox node={node} skeleton={skeleton} />
             {onPractice && node.cards.length > 0 && (
-              <Button variant="primary" className="skc-practice" onClick={() => onPractice(node.cards)}>{uiFormat("练关联的 {0} 题", [node.cards.length])}</Button>
+              <Button variant="secondary" className="skc-practice" onClick={() => onPractice(node.cards)}>{uiFormat("练关联的 {0} 题", [node.cards.length])}</Button>
             )}
           </ReadingBlock>
         )}

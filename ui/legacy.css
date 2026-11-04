@@ -19,7 +19,7 @@
     }
     .onboarding {
       max-width: 680px;
-      padding: 70px var(--space-7-less);
+      padding: calc(var(--space-9) + var(--space-3-5)) var(--space-7-less);
       margin: auto;
     }
     .onboarding h1 {
@@ -27,9 +27,9 @@
     }
     .intro {
       color: var(--text-dim);
-      margin: var(--space-5) 0 35px;
+      margin: var(--space-5) 0 calc(var(--space-7) + var(--space-1));
     }
-    .app-loading { padding: 80px; }
+    .app-loading { padding: calc(var(--space-8) * 2); }
   }
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {

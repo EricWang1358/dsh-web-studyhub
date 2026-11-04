@@ -31,14 +31,15 @@ function Part({ label, children, id }) {
 }
 
 /** card: solution.answerCard (with its `state`); actions: what goes under it (加入复习全书, 重新生成). */
-export function AnswerCardView({ card, actions = null }) {
+export function AnswerCardView({ card, actions = null, flat = false, embedded = false }) {
   useInjectCss(css, 'study-answer-card');
   if (!card) return null;
   const state = (STATE[card.state] || STATE.partial)();
   const quotes = card.checks?.quotes, coverage = card.checks?.coverage, invented = card.checks?.inventedNumbers || [], review = card.checks?.review;
   const justification = card.justification || {};
+  const surfaceClass = flat || embedded ? 'answer-card case-answer-card' : 'answer-card sh-paper-card sh-paper-card--snug';
   return (
-    <section className="answer-card sh-paper-card sh-paper-card--snug" aria-label={ui('答题卡')} data-answer-card={card.state || 'partial'}>
+    <section className={surfaceClass} aria-label={ui('答题卡')} data-answer-card={card.state || 'partial'}>
       <header className="answer-card__head">
         <div className="answer-card__title">
           <strong>{ui('答题卡')}</strong>
@@ -110,7 +111,7 @@ function BookButton({ deckId, cardId, book }) {
  * The answer of a graded case question: the answer card when it has one, else the reference answer with 「生成答题卡」. run: the review projection
  * (run.solution after the reveal); data: the snapshot (the model gate); onSetupModel() opens the model settings.
  */
-export default function AnswerCardSection({ run, data, onSetupModel }) {
+export default function AnswerCardSection({ run, data, onSetupModel, flat = true, embedded = false }) {
   useInjectCss(css, 'study-answer-card');
   const { call, notify } = useStudy();
   const book = useBookQa();
@@ -145,7 +146,7 @@ export default function AnswerCardSection({ run, data, onSetupModel }) {
   </>;
   if (card) return (
     <div className="answer-card-section">
-      <AnswerCardView card={card} actions={<>
+      <AnswerCardView card={card} flat={flat} embedded={embedded} actions={<>
         <BookButton deckId={deckId} cardId={cardId} book={book} />
         {card.state === 'edited' && generate(true)}
       </>} />

@@ -15,6 +15,9 @@ import { mergeProgress, topicKey } from './map-model.js';
  */
 export default function DeckTree({ data, folders, tree, query, showArchived, singleCourse, inFocus, parkedByName, progress, runFor, actions }) {
   const [showAll, setShowAll] = useState(false);
+  const selectedDeckIds = new Set([...tree.selected].map((key) => {
+    try { return JSON.parse(key)[0]; } catch { return ''; }
+  }));
   const isOpen = (id) => !!query || tree.expanded.has(id);
   const deckRow = (deck) => <DeckRow key={deck.id} deck={deck} progress={progress[deck.id]} open={isOpen(deck.id)} tree={tree} runFor={runFor} actions={actions} />;
   return (
@@ -28,13 +31,16 @@ export default function DeckTree({ data, folders, tree, query, showArchived, sin
         const shown = truncated && !showAll ? decks.slice(0, 3) : decks;
         const parked = parkedByName.get(folder);
         const name = courseRelative(folder, data.focus?.course, courseNamesOf(data)) ?? folder;
+        const selectableDecks = decks.filter((deck) => !deck.archived);
+        const allSelected = selectableDecks.length > 0 && selectableDecks.every((deck) => tree.selected.has(topicKey(deck.id)));
+        const someSelected = selectableDecks.some((deck) => selectedDeckIds.has(deck.id));
         return (
           <li key={id} className={`map-folder${parked ? ' is-parked-row' : ''}`}>
             <div className="map-row folder-row">
               <DisclosureToggle className="map-fold" open={open} label={foldLabel(open, name)} onToggle={() => tree.toggleOpen(id)} />
               {!showArchived && <CheckboxInput aria-label={uiFormat('选择目录 {0}', [folder])}
-                checked={decks.every((deck) => tree.selected.has(topicKey(deck.id)))}
-                onChange={(event) => tree.toggleSelect(decks.filter((deck) => !deck.archived).map((deck) => topicKey(deck.id)), event.target.checked)} />}
+                checked={allSelected} indeterminate={someSelected && !allSelected}
+                onChange={(event) => tree.toggleSelect(selectableDecks.map((deck) => topicKey(deck.id)), event.target.checked)} />}
               <button className="map-name" onClick={() => tree.toggleOpen(id)}>
                 <strong title={folder}>{name}</strong>
                 <small>{uiFormat('{0} 个题组', [decks.length])}</small>

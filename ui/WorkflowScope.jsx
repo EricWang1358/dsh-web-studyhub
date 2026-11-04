@@ -6,7 +6,7 @@ import React, { useState } from "react";
 import { ui, uiFormat } from "./i18n.js";
 import Markdown from "./Markdown.jsx";
 import { useInjectCss } from "./shared.js";
-import { Button, Combobox, ConfirmDialog } from "./components/index.js";
+import { Button, Combobox, ConfirmDialog, Tooltip } from "./components/index.js";
 import { courseEntries } from "./course-picker-entries.js";
 import css from "./workflow-scope.css";
 
@@ -42,19 +42,28 @@ export function ScopeBar({ session, resources, disabled, onRescope, onStartNew }
     else onRescope?.(next);
   };
   const topicLine = shown ? (total > 4 ? uiFormat("{0} 等 {1} 个主题", [shown, total]) : shown) : "";
+  const decksTip = (resources.scopeDecks || []).join("、");
   return <div className="wf-scope">
-    <p className={`wf-scope-line${fallback ? " is-fallback" : ""}`} title={topics.join("、")}>
-      {named ? <span>{scopeSentence(session, course, total, session.goal)}</span>
-        : <span>{ui(PICKED[session.pickedBy]) || ui("本次范围")}{topicLine ? "：" : ""}{!named && topicLine}</span>}
+    <p className={`wf-scope-line${fallback ? " is-fallback" : ""}`}>
+      <Tooltip layer content={topics.join("、")} anchorClassName="wf-scope-tip">
+        <span tabIndex={topics.length ? 0 : undefined}>
+          {named ? scopeSentence(session, course, total, session.goal)
+            : <>{ui(PICKED[session.pickedBy]) || ui("本次范围")}{topicLine ? "：" : ""}{!named && topicLine}</>}
+        </span>
+      </Tooltip>
       {resources.cardCount > 0 && <span className="wf-scope-count"><span aria-hidden="true"> · </span>{uiFormat("{0} 题", [resources.cardCount])}</span>}
     </p>
-    {named && topicLine && <p className="wf-scope-topics" title={(resources.scopeDecks || []).join("、")}>{session.pickedBy === "course" ? ui("先从这些主题学起：") : ""}{topicLine}</p>}
+    {named && topicLine && <p className="wf-scope-topics">
+      <Tooltip layer content={decksTip} anchorClassName="wf-scope-tip">
+        <span tabIndex={decksTip ? 0 : undefined}>{session.pickedBy === "course" ? ui("先从这些主题学起：") : ""}{topicLine}</span>
+      </Tooltip>
+    </p>}
     {session.aiFailed && <p className="wf-scope-note">{ui("模型暂时不可用，已按名称匹配主题")}</p>}
     {canSwitch && !disabled && <div className="wf-scope-actions">
-      <label className="wf-course-switch"><span>{ui("换课程")}</span>
+      <div className="wf-course-switch"><span>{ui("换课程")}</span>
         <Combobox label={ui("换课程")} value={course} onChange={choose} options={courseEntries({ courses, current: course })} searchPlaceholder={ui("搜索课程或章节")}
           emptyText={(query) => uiFormat("没有叫「{0}」的课程或章节", [query])} />
-      </label>
+      </div>
       {hint && <p className="wf-scope-hint">{uiFormat("「{0}」可能更相关", [courseName(hint.course)])} · <Button variant="link" size="sm" onClick={() => choose(hint.course)}>{ui("切换到这门课")}</Button></p>}
     </div>}
     {asking !== null && <ConfirmDialog tone="primary" title={ui("换课程要开始新的学习")} cancelLabel={ui("先不换")}

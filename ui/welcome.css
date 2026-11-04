@@ -9,13 +9,13 @@
     .sample-banner {
       max-width: 1200px;
       margin: var(--space-4-5) auto 0;
-      width: calc(100% - 72px);
+      width: calc(100% - var(--space-6) * 2);
     }
     .sample-banner .sh-banner__icon { color: var(--accent-text); }
   }
-  @container study (max-width: 760px) {
+  @container study (max-width: 720px) {
     :is(.study-app, .study-seat) {
-      .sample-banner { width: calc(100% - 32px); }
+      .sample-banner { width: calc(100% - var(--space-5) * 2); }
     }
   }
 }

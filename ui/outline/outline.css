@@ -85,7 +85,7 @@
       cursor: pointer;
     }
     .outline-row__toggle:focus-visible {
-      outline: 2px solid var(--ring);
+      outline: 2px solid var(--accent-soft);
       outline-offset: 2px;
       border-radius: var(--radius-xs);
     }
@@ -251,7 +251,7 @@
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: var(--space-1) var(--space-4);
+      gap: var(--space-2);
       color: var(--text-muted);
       font-size: var(--fs-sm);
     }
@@ -261,11 +261,19 @@
       font-size: var(--fs-sm);
     }
     .outline-book-line__basis,
+    .outline-book-line__coverage,
     .outline-book-line__stale {
       margin: 0;
     }
     .outline-book-line__stale {
       color: var(--warn-text);
+    }
+    .outline-book-line__stale[data-old-outline] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1-5) var(--space-2);
+      flex-basis: 100%;
     }
     .outline-book-line .outline-organise__actions {
       margin-left: auto;

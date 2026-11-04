@@ -66,7 +66,7 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
         : <h2 className="board-column__title">{label}</h2>}
       <span className="board-count" aria-label={cardsText(column.cardIds.length)}>{filtering && shown.length !== column.cardIds.length ? `${shown.length}/${column.cardIds.length}` : column.cardIds.length}</span>
       {!readOnly && <Menu label={uiFormat("列设置：{0}", [label])} items={items} className="board-column__menu"
-        onSelect={(id) => { if (id === "rename") { setName(column.title); setRenaming(true); } else if (id === "fold") onFold(column); else onRemove(column); }} />}
+        onSelect={(id) => { if (id === "rename") { if (collapsed) onFold(column); setName(column.title); setRenaming(true); } else if (id === "fold") onFold(column); else onRemove(column); }} />}
     </header>
     {!collapsed && <>
       <div className="board-cards" onDragOver={(event) => {
@@ -284,6 +284,9 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
   const hasDone = !!board?.columns.some((column) => column.done);
   const editingCard = editing && board?.cards[editing.id];
   const message = originError || (board?.readOnly ? board.error : friendly(error, conflict));
+  const colTracks = view && board
+    ? `${view.columns.map((_, at) => (collapsed.has(board.columns[at].id) ? "2.75rem" : "minmax(16rem, 1fr)")).join(" ")}${!readOnly ? " minmax(10.5rem, 13rem)" : ""}`
+    : undefined;
 
   return <section className="page board-page">
     <PageHeader title={ui("待办看板")} eyebrow={ui("所有工作区")} description={ui("所有工作区共用。把想做的事记下来，逐步完成。")}
@@ -306,7 +309,7 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
           primary={{ label: ui("添加第一张卡片"), icon: "plus", disabled: readOnly || !board.columns.length, onClick: () => openComposer(board.columns[0].id) }} />}
         {filtering && matched === 0 && total > 0 && <EmptyState size="sm" icon={<Icon name="search" size={22} />} title={ui("没有符合筛选的卡片")} className="board-empty"
           secondary={{ label: ui("清除筛选"), onClick: () => setQuery({}) }} />}
-        {showColumns && <div className="board-columns" style={{ "--board-cols": board.columns.length }}>
+        {showColumns && <div className="board-columns" style={{ "--board-cols": board.columns.length, "--board-col-tracks": colTracks }}>
           {view.columns.map((column, at) => <Column key={column.id} column={board.columns[at]} view={column} board={board} today={today} library={library} drag={drag} drop={drop}
             setDrag={setDrag} setDrop={setDrop} hasDone={hasDone} composer={composer === column.id} collapsed={collapsed.has(column.id)} filtering={filtering} readOnly={readOnly} boardEmpty={empty}
             labelSuggestions={labels.map((entry) => entry.label)} studyRef={studyRef} onClearStudyRef={onClearStudyRef}

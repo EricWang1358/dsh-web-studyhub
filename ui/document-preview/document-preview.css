@@ -211,10 +211,10 @@
   .study-passage-links article {
     padding: .5rem 0;
   }
-  .study-passage-mark[data-mastery='weak'] .study-passage-mark__btn { color: var(--bad); font-weight: var(--fw-strong); }
-  .study-passage-mark[data-mastery='learning'] .study-passage-mark__btn { color: var(--warn); }
+  .study-passage-mark[data-mastery='weak'] .study-passage-mark__btn { color: var(--bad-ink); font-weight: var(--fw-strong); }
+  .study-passage-mark[data-mastery='learning'] .study-passage-mark__btn { color: var(--warn-ink); }
   .study-passage-mark[data-mastery='familiar'] .study-passage-mark__btn { color: var(--ok-mid); }
-  .study-passage-mark[data-mastery='mastered'] .study-passage-mark__btn { color: var(--ok); font-weight: var(--fw-strong); }
+  .study-passage-mark[data-mastery='mastered'] .study-passage-mark__btn { color: var(--ok-ink); font-weight: var(--fw-strong); }
   .study-passage-mark {
     user-select: none;
     white-space: nowrap;
@@ -247,6 +247,16 @@
   .study-document-preview-mode {
     display: flex;
     gap: .4rem;
+  }
+  @container study (max-width: 800px) {
+    .study-document-side { position: static; }
+    .study-document-body iframe { height: 48vh; }
+    .study-document-learning { padding: .8rem; }
+  }
+  @container reader (max-width: 800px) {
+    .study-document-side { position: static; }
+    .study-document-body iframe { height: 48vh; }
+    .study-document-learning { padding: .8rem; }
   }
   @media (max-width:800px) {
     .study-document-side {

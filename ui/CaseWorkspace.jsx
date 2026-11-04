@@ -8,7 +8,7 @@ import { submitAssist } from "./assist-request.js";
 import { modelReadiness } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
 import { EXAM_SETTING_LIMITS } from "../lib/courses.js";
-import { Badge, Button, Checkbox, Disclosure, InlineMessage, PageHeader, Panel, RadioCard, SegmentedControl, Spinner, useToast } from "./components/index.js";
+import { Badge, Button, Checkbox, Disclosure, InlineMessage, PageHeader, Panel, RadioCard, SegmentedControl, Spinner, Tooltip, useToast } from "./components/index.js";
 import ModelSetupGate, { gateTitle } from "./ModelSetupGate.jsx";
 import { formatClock, joinMeta } from "./format.js";
 import { useExamRun } from "./exam/useExamRun.js";
@@ -105,11 +105,13 @@ export function ScenarioPanel({ title, text, highlights = [], onChange, readOnly
               <span className="case-para__n" aria-hidden="true">{n}</span>
               <div>
                 <p className="case-para__text" data-paragraph={n} onMouseUp={() => { if (pen) mark(); }}>
-                  {segmentParagraph(paragraph, own).map((piece, at) => piece.id
-                    ? <mark key={at} className={`case-hl hl-${piece.color}` + (piece.id === active ? " is-active" : "")} title={piece.note || undefined}
-                      tabIndex={editable ? 0 : undefined} onClick={() => editable && setActive(piece.id)}
-                      onKeyDown={(event) => { if (editable && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setActive(piece.id); } }}>{piece.text}</mark>
-                    : <React.Fragment key={at}>{piece.text}</React.Fragment>)}
+                  {segmentParagraph(paragraph, own).map((piece, at) => {
+                    if (!piece.id) return <React.Fragment key={at}>{piece.text}</React.Fragment>;
+                    const markEl = <mark key={at} className={`case-hl hl-${piece.color}` + (piece.id === active ? " is-active" : "")}
+                      tabIndex={editable || piece.note ? 0 : undefined} onClick={() => editable && setActive(piece.id)}
+                      onKeyDown={(event) => { if (editable && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setActive(piece.id); } }}>{piece.text}</mark>;
+                    return piece.note ? <Tooltip key={at} layer content={piece.note}>{markEl}</Tooltip> : markEl;
+                  })}
                 </p>
                 {own.filter((item) => item.note).map((item) => <p key={item.id} className="case-para__note"><span className={`case-dot hl-${item.color}`} />{item.note}</p>)}
                 {editable && current && current.paragraph === n && <div className="case-mark-tools" role="group" aria-label={ui("编辑这处高亮")}>

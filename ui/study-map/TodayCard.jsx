@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui } from '../i18n.js';
-import { Button } from '../components/index.js';
+import { Button, Tooltip } from '../components/index.js';
 import { TERMS } from '../mastery-terms.js';
 import { useStudy } from '../study-context.jsx';
 
@@ -18,7 +18,7 @@ export default function TodayCard({ plan, todayLabel, quiet = false }) {
           <strong>{plan.count}</strong>
           <span>{plan.unit}</span>
         </div>
-        {plan.detail && <p className="today-detail" title={plan.kind === 'path' ? ui(TERMS.due.hint) : undefined}>{plan.detail}</p>}
+        {plan.detail && <p className="today-detail">{plan.kind === 'path' ? <Tooltip layer content={ui(TERMS.due.hint)}><span tabIndex={0}>{plan.detail}</span></Tooltip> : plan.detail}</p>}
         {plan.action && (
           <Button variant={quiet ? "secondary" : "primary"} className="today-go" iconEnd="arrow-right" disabled={plan.action.disabled} lock={busy} data-usage="home.start" onClick={plan.action.run}>
             {plan.action.label}

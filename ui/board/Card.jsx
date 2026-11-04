@@ -56,7 +56,7 @@ export default function BoardCard({ card, column, columns, index, count, today, 
   const origin = card.origin?.workspaceTitle || card.origin?.workspace || '';
   const key = (event) => {
     if (readOnly) return;
-    if (event.target === event.currentTarget && event.key === 'Enter') { event.preventDefault(); onEdit(card); return; }
+    if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onEdit(card); return; }
     if (!event.altKey) return;
     const action = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[event.key];
     if (action) { event.preventDefault(); onAction(action, card); }
@@ -69,7 +69,7 @@ export default function BoardCard({ card, column, columns, index, count, today, 
           aria-label={uiFormat(done ? '标记为未完成：{0}' : '标记完成：{0}', [card.title])} onClick={() => onToggleDone(card)}>
           <Icon name="check" size={14} strokeWidth={2.4} />
         </button>}
-        <button type="button" className="board-card__title" disabled={readOnly} onClick={() => onEdit(card)} title={card.title}>{card.title}</button>
+        <button type="button" tabIndex={-1} className="board-card__title" disabled={readOnly} onClick={() => onEdit(card)} title={card.title}>{card.title}</button>
         {!readOnly && <Menu label={uiFormat('更多操作：{0}', [card.title])} items={cardMenuItems({ column, columns, index, count })} defaultOpen={menuOpen}
           className="board-card__menu" onSelect={(id) => onAction(id, card)} />}
       </div>
@@ -79,16 +79,21 @@ export default function BoardCard({ card, column, columns, index, count, today, 
         {state && <Tooltip content={dueTitle(card.due, state.kind === 'done' ? null : state)}>
           <span className={`board-due is-${state.kind}`} tabIndex={0}><Icon name="calendar" size={13} />{state.kind === 'done' ? card.due : dueText(state)}</span>
         </Tooltip>}
-        {progress.total > 0 && <span className={`board-progress${progress.done === progress.total ? ' is-complete' : ''}`}
-          title={uiFormat('清单 {0}/{1}', [progress.done, progress.total])}><Icon name="checklist" size={13} />{progress.done}/{progress.total}</span>}
+        {progress.total > 0 && <Tooltip layer content={uiFormat('清单 {0}/{1}', [progress.done, progress.total])}>
+          <span className={`board-progress${progress.done === progress.total ? ' is-complete' : ''}`} tabIndex={0}><Icon name="checklist" size={13} />{progress.done}/{progress.total}</span>
+        </Tooltip>}
       </div>}
       {(origin || link) && <div className="board-meta">
         {origin && (onOrigin && card.origin?.workspace
           ? <button type="button" className="board-meta__item" title={card.origin.workspace} onClick={() => onOrigin(card.origin.workspace)}><Icon name="folder" size={13} /><span>{origin}</span></button>
-          : <span className="board-meta__item" title={card.origin?.workspace}><Icon name="folder" size={13} /><span>{origin}</span></span>)}
+          : card.origin?.workspace
+            ? <Tooltip layer content={card.origin.workspace}><span className="board-meta__item" tabIndex={0}><Icon name="folder" size={13} /><span>{origin}</span></span></Tooltip>
+            : <span className="board-meta__item"><Icon name="folder" size={13} /><span>{origin}</span></span>)}
         {link && (onStudyRef
           ? <button type="button" className="board-meta__item" title={card.studyRef.root} onClick={() => onStudyRef(card.studyRef)}><Icon name="link" size={13} /><span>{link.text}</span></button>
-          : <span className="board-meta__item" title={card.studyRef.root}><Icon name="link" size={13} /><span>{link.text}</span></span>)}
+          : card.studyRef?.root
+            ? <Tooltip layer content={card.studyRef.root}><span className="board-meta__item" tabIndex={0}><Icon name="link" size={13} /><span>{link.text}</span></span></Tooltip>
+            : <span className="board-meta__item"><Icon name="link" size={13} /><span>{link.text}</span></span>)}
       </div>}
     </article>
   );

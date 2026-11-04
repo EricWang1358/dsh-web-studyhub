@@ -10,8 +10,8 @@
     /* ── The mark ───────────────────────────────────────────────────────── */
     .cov-mark { display: inline-grid; flex: none; place-items: center; color: var(--text-faint); line-height: 0; vertical-align: -2px; }
     .cov-mark svg { display: block; }
-    .cov-mark[data-state='covered'] { color: var(--info); }
-    .cov-mark[data-state='planned-failed'] { color: var(--warn); }
+    .cov-mark[data-state='covered'] { color: var(--info-ink); }
+    .cov-mark[data-state='planned-failed'] { color: var(--warn-ink); }
     .cov-mark__tip { display: grid; gap: var(--space-half); max-width: 22em; }
     .cov-mark__tip strong { font-weight: var(--fw-strong); }
     .cov-mark__tip span { color: inherit; opacity: 0.85; }
@@ -125,6 +125,16 @@
   }
   @container reader (max-width: 899.98px) {
     :where(.study-app, .study-seat) { .reader-toolbar__coverage { display: none; } }
+  }
+  @container study (max-width: 520px) {
+    :where(.study-app, .study-seat) {
+      .cov-summary { padding: var(--space-3) var(--space-4); }
+      .cov-groups li { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--space-half); }
+      .cov-groups li .sh-stacked { grid-column: 1 / -1; grid-row: 2; }
+      .cov-list li { grid-template-columns: auto minmax(0, 1fr); }
+      .cov-list li .cov-list__open { grid-column: 2; justify-self: start; }
+      .cov-topup__button { flex: 1 1 100%; }
+    }
   }
   @media (max-width: 520px) {
     :where(.study-app, .study-seat) {

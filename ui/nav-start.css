@@ -64,6 +64,11 @@
     /* The glossary is a word to hover, not a control that does something when pressed. */
     .sidebar-link--term {
       cursor: help;
+      border-radius: var(--radius-xs);
+    }
+    .sidebar-link--term:focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: 2px;
     }
     .sidebar.is-narrow .sidebar-links {
       display: none;

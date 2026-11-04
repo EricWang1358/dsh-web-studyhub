@@ -1,6 +1,6 @@
 import React, { useId } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, LoadingState, Popover } from '../../components/index.js';
+import { Button, LoadingState, Popover, RadioCard, RadioCardGroup } from '../../components/index.js';
 import { useInjectCss } from '../../shared.js';
 import { MasteryMark } from './MasteryMark.jsx';
 import { countsLine, draftExtraText, draftNoneText, inclusionNote, meaningLine, noneText, questionsWord, rangeLabel, stateLabel } from './mastery-copy.js';
@@ -48,14 +48,13 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
         <Button size="sm" onClick={loop.reload}>{ui('重试')}</Button>
       </>}
       {ready && <>
-        {options.length > 1 && <fieldset className="reader-practice__ranges">
-          <legend>{ui('做题范围')}</legend>
-          {options.map(option => <label key={option.kind} className="reader-practice__range" data-checked={option.kind === selected.kind || undefined}>
-            <input type="radio" name={groupName} value={option.kind} checked={option.kind === selected.kind} onChange={() => setKind(option.kind)} />
-            <span>{rangeLabel(option, unit)}{inclusionNote(option) && <small className="reader-practice__older">{inclusionNote(option)}</small>}</span>
-            <small>{option.summary.total ? questionsWord(option.summary.total) : noneText(option)}</small>
-          </label>)}
-        </fieldset>}
+        {options.length > 1 && <RadioCardGroup className="reader-practice__ranges" legend={ui('做题范围')}>
+          {options.map(option => <RadioCard key={option.kind} className="reader-practice__range" name={groupName} value={option.kind}
+            checked={option.kind === selected.kind} onSelect={setKind}
+            title={rangeLabel(option, unit)} badges={<small>{option.summary.total ? questionsWord(option.summary.total) : noneText(option)}</small>}>
+            {inclusionNote(option) && <small className="reader-practice__older">{inclusionNote(option)}</small>}
+          </RadioCard>)}
+        </RadioCardGroup>}
         {options.length === 1 && <p className="reader-practice__scope">{rangeLabel(selected, unit)}{inclusionNote(selected) && <small className="reader-practice__older">{inclusionNote(selected)}</small>}</p>}
         {total > 0 ? <>
           <p className="reader-practice__counts" data-testid="practice-counts">{countsLine(summary)}</p>
@@ -66,14 +65,14 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
           <InactiveNote summary={summary} courses={loop.inactiveCourses} />
           {drafted && <p className="reader-practice__drafts" data-testid="practice-drafts">{draftExtraText(drafted.draftCards)}</p>}
           {openDraft}
-          <Button variant="primary" icon="arrow-right" disabled={busy} onClick={() => onStart(selected)}>
+          <Button variant="primary" icon="arrow-right" lock={busy} onClick={() => onStart(selected)}>
             {total === 1 ? ui('开始做这 1 道题') : uiFormat('开始做这 {0} 道题', [total])}</Button>
         </> : <>
           <p className="reader-practice__none" data-testid="practice-none"><MasteryMark summary={null} size={16} /> {drafted ? draftNoneText(drafted.draftCards) : ui('这几页还没有题')}</p>
           {drafted && <p className="reader-practice__meaning">{ui('发布草稿后才能练习这几页的题。')}</p>}
           {coverageLine && <p className="reader-practice__coverage" data-testid="practice-coverage">{coverageLine}</p>}
           {openDraft}
-          <Button variant="primary" icon="sparkle" disabled={busy} onClick={() => onGenerate(selected)}>{ui('为这几页出题')}</Button>
+          <Button variant="primary" icon="sparkle" lock={busy} onClick={() => onGenerate(selected)}>{ui('为这几页出题')}</Button>
         </>}
       </>}
   </Popover>;

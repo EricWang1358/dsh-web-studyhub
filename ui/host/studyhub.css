@@ -60,34 +60,19 @@
   .studyhub-page-empty svg {
     color: var(--text-muted);
   }
-  .studyhub-page-empty h1 {
+  .studyhub-page-empty__title {
     margin: var(--space-2) 0 0;
     font-family: var(--font-display);
     font-size: var(--fs-2xl);
     font-weight: var(--fw-strong);
   }
-  .studyhub-page-empty p {
+  .studyhub-page-empty__lead {
     margin: 0;
     max-width: 44ch;
     color: var(--text-muted);
     line-height: 1.7;
   }
-  .studyhub-page-empty button {
+  .studyhub-page-empty__cta {
     margin-top: var(--space-2);
-    padding: 9px var(--space-4-5);
-    border: 1px solid var(--accent);
-    border-radius: var(--radius-sm);
-    background: var(--accent);
-    color: var(--accent-ink);
-    font: inherit;
-    font-weight: var(--fw-strong);
-    cursor: pointer;
-  }
-  .studyhub-page-empty button:hover {
-    background: var(--accent-soft);
-  }
-  .studyhub-page-empty button:focus-visible {
-    outline: 2px solid var(--accent-soft);
-    outline-offset: 3px;
   }
 }

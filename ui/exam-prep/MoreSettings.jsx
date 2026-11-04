@@ -1,12 +1,12 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Disclosure, Field, Icon, SegmentedControl, TextInput } from '../components/index.js';
+import { Button, Disclosure, Field, Icon, SegmentedControl, Switch, TextInput } from '../components/index.js';
 import { joinMeta } from '../format.js';
 import CourseField from '../CourseField.jsx';
 import Explain from './Explain.jsx';
 
 /* 备考补习, 更多设置: everything optional about a new list in one fold that stays closed unless it carries values. The name, the list language and
-   the other-course switch start from the learner's defaults (Settings > 备考补习), which this fold links to. */
+   the other-course switch (默认不显示) start from the learner's defaults (Settings > 备考补习), which this fold links to. */
 
 const languageName = language => ({ zh: ui('中文'), en: 'English' })[language] ?? ui('自动');
 
@@ -31,12 +31,9 @@ export default function MoreSettings({ form, title, courses, hideCourse, disable
           <SegmentedControl size="sm" label={ui('清单语言')} value={form.language || 'auto'} disabled={disabled} onChange={language => onChange({ language })}
             options={[{ value: 'auto', label: ui('自动') }, { value: 'zh', label: ui('中文') }, { value: 'en', label: 'English' }]} />
         </Field>
-        <Field label={ui('其它课程的资料')} group hint={ui('打开后，上面的表格也会列出其它课程的资料（默认不用）。')}>
-          <SegmentedControl size="sm" label={ui('其它课程的资料')} value={form.others ? 'on' : 'off'} disabled={disabled}
-            onChange={value => onChange({ others: value === 'on' })}
-            options={[{ value: 'off', label: ui('不显示') }, { value: 'on', label: ui('显示') }]} />
-        </Field>
       </div>
+      <Switch label={ui('其它课程的资料')} hint={ui('打开后，上面的表格也会列出其它课程的资料（默认不用）。')}
+        checked={!!form.others} disabled={disabled} onChange={others => onChange({ others })} />
       <fieldset className="exam-prep-reading" data-role="textbook">
         <legend className="exam-prep-reading__head">
           <span>{ui('推荐教材')}</span>

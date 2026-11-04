@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/Button.jsx';
+import { NumberInput, TextArea } from '../components/Field.jsx';
 
 const validMinutes = value => value !== '' && Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) <= 240;
 
@@ -16,10 +17,10 @@ export function Adjustment({ plan, onClose }) {
       ...(proposal ? { proposalId: proposal.id } : {}),
     })) onClose();
   }}>
-    <label>{ui('告诉 AI 你的想法')}<textarea autoFocus value={feedback} maxLength={2000} rows="2" disabled={!!plan.busy}
+    <label>{ui('告诉 AI 你的想法')}<TextArea autoFocus value={feedback} maxLength={2000} rows={2} disabled={!!plan.busy}
       placeholder={ui('例如：今天先顾考试，少安排阅读')} onChange={event => setFeedback(event.target.value)} /></label>
     <div className="daily-plan__editor-bottom">
-      <label className="daily-plan__minutes">{ui('只调整今天')}<input type="number" min="0" max="240" value={minutes}
+      <label className="daily-plan__minutes">{ui('只调整今天')}<NumberInput inputMode="numeric" min="0" max="240" value={minutes}
         placeholder={String(budgetMinutes)} disabled={!!plan.busy} onChange={event => setMinutes(event.target.value)} /><span>{ui('分钟')}</span></label>
       <div className="daily-plan__actions"><Button type="submit" busy={plan.busy === 'suggest'} disabled={!!plan.busy || (minutes !== '' && !validMinutes(minutes))}>
         {ui('按我的意见重新建议')}</Button><Button variant="quiet" lock={!!plan.busy} onClick={onClose}>{ui('取消')}</Button></div>
@@ -40,9 +41,9 @@ export function Profile({ plan, onClose }) {
   }}>
     <p>{ui('长期习惯单独保存。今天的调整不会改掉它。')}</p>
     <div className="daily-plan__fields">
-      <label>{ui('工作日（分钟）')}<input autoFocus type="number" min="0" max="240" required value={weekday}
+      <label>{ui('工作日（分钟）')}<NumberInput autoFocus inputMode="numeric" min="0" max="240" required value={weekday}
         disabled={!!plan.busy} onChange={event => setWeekday(event.target.value)} /></label>
-      <label>{ui('周末（分钟）')}<input type="number" min="0" max="240" required value={weekend}
+      <label>{ui('周末（分钟）')}<NumberInput inputMode="numeric" min="0" max="240" required value={weekend}
         disabled={!!plan.busy} onChange={event => setWeekend(event.target.value)} /></label>
     </div>
     {(profile.observedWeekdayMinutes !== undefined || profile.observedWeekendMinutes !== undefined) &&

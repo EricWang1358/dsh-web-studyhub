@@ -11,7 +11,7 @@
       text-transform: uppercase;
     }
     .result-page .result-title { margin: var(--space-2-5) 0 var(--space-1-5); font-size: clamp(var(--fs-3xl), 4cqi, var(--fs-5xl)); }
-    .result-page .result-subtitle { margin: 0 0 26px; color: var(--text-muted); }
+    .result-page .result-subtitle { margin: 0 0 calc(var(--space-6) + var(--space-half)); color: var(--text-muted); }
     /* 这组题掌握度 a% → b%: one line between the subtitle and the score, part of the page's first draw (the run carries it). */
     .result-page .result-mastery { margin: 0 0 var(--space-5); }
     .result-hero {
@@ -53,7 +53,7 @@
     .oral-report .result-details { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-4); }
     .session-summary.result-page {
       max-width: 760px;
-      margin: 48px auto 72px;
+      margin: calc(var(--space-8) + var(--space-2)) auto calc(var(--space-9) + var(--space-4));
       text-align: left;
       padding: 0 var(--space-6);
     }

@@ -15,16 +15,16 @@
       vertical-align: -2px;
     }
     .mastery-mark svg { display: block; }
-    .mastery-mark[data-state='learning'] { color: var(--warn); }
+    .mastery-mark[data-state='learning'] { color: var(--warn-ink); }
     .mastery-mark[data-state='familiar'] { color: var(--text-dim); }
-    .mastery-mark[data-state='mastered'] { --mastery-ink: var(--bg-surface); color: var(--ok); }
+    .mastery-mark[data-state='mastered'] { --mastery-ink: var(--bg-surface); color: var(--ok-ink); }
     .mastery-line { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-    .mastery-line[data-state='mastered'] { color: var(--ok); }
+    .mastery-line[data-state='mastered'] { color: var(--ok-ink); }
     .mastery-line__text { min-width: 0; overflow-wrap: anywhere; }
     /* ── In the outline: a mark after each entry ────────────────────────── */
     .reader-outline__meter { display: grid; flex: none; place-items: center; width: 22px; border-radius: var(--radius-pill); }
     .reader-outline__meter[data-upgraded='true'] {
-      color: var(--ok);
+      color: var(--ok-ink);
       background: var(--ok-bg);
       animation: sh-meter-lock 1.8s var(--ease-out) 1;
     }
@@ -48,7 +48,7 @@
       border: 1px solid var(--ok-line);
       border-radius: var(--radius-pill);
       background: var(--ok-bg);
-      color: var(--ok);
+      color: var(--ok-ink);
       font-size: var(--fs-xs);
       font-weight: var(--fw-strong);
       font-variant-numeric: tabular-nums;
@@ -58,29 +58,13 @@
     .reader-practice__panel { gap: var(--space-3); width: 320px; }
     .reader-practice__panel p { margin: 0; }
     .reader-practice__status { color: var(--text-muted); font-size: var(--fs-sm); }
-    .reader-practice__ranges { display: grid; gap: var(--space-1); min-width: 0; margin: 0; padding: 0; border: 0; }
-    .reader-practice__ranges:is(fieldset) { margin: 0; padding: 0; border: 0; }
-    .reader-practice__ranges legend { padding: 0 0 var(--space-2); color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
-    .reader-practice__range {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      align-items: center;
-      gap: var(--space-2);
-      min-height: 36px;
-      margin: 0;
-      padding: var(--space-1) var(--space-2);
-      border: 1px solid transparent;
-      border-radius: var(--radius-sm);
-      color: var(--text);
-      font-size: var(--fs-sm);
-      cursor: pointer;
-    }
-    .reader-practice__range input { width: 16px; height: 16px; min-height: 0; margin: 0; accent-color: var(--accent); }
-    .reader-practice__range small { color: var(--text-muted); font-size: var(--fs-xs); }
-    .reader-practice__range:hover { background: var(--bg-hover); }
-    .reader-practice__range[data-checked] { border-color: var(--line-strong); background: var(--bg-selected); }
-    .reader-practice__range:has(input:focus-visible) { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
-    .reader-practice__older { display: block; font-weight: normal; letter-spacing: 0; line-height: var(--lh-snug); }
+    .reader-practice__ranges { gap: var(--space-1); }
+    .reader-practice__ranges > legend { margin: 0; padding: 0 0 var(--space-2); color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
+    .reader-practice__range { align-items: center; gap: var(--space-2); min-height: 36px; padding: var(--space-1-5) var(--space-2-5); }
+    .reader-practice__range > span { flex: 1 1 auto; }
+    .reader-practice__range > span > span:first-child { justify-content: space-between; width: 100%; }
+    .reader-practice__range small { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
+    .reader-practice__older { display: block; font-weight: var(--fw-regular); letter-spacing: 0; line-height: var(--lh-snug); }
     .reader-practice__scope { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
     .reader-practice__counts { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
     .reader-practice__mastery { display: flex; align-items: center; gap: var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
@@ -114,7 +98,7 @@
       border: 1px solid var(--ok-line);
       border-radius: var(--radius-pill);
       background: var(--ok-bg);
-      color: var(--ok);
+      color: var(--ok-ink);
       font-size: var(--fs-xs);
       font-weight: var(--fw-strong);
       animation: sh-delta-enter 0.36s var(--ease-out) backwards;

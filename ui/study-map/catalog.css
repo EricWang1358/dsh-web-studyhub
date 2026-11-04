@@ -6,7 +6,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin: 36px 0 var(--space-4);
+      margin: calc(var(--space-8) - var(--space-1)) 0 var(--space-4);
       gap: var(--space-3);
       flex-wrap: wrap;
     }
@@ -90,11 +90,13 @@
       max-width: 460px;
       margin: 0;
     }
-    .map-tools input {
-      padding: var(--space-2) var(--space-3);
+    .map-tools .map-tools__search {
+      padding: var(--space-1-5) var(--space-3);
       min-width: 0;
+      min-height: var(--space-7);
       background: var(--bg-sunken);
       color: var(--text);
+      font-size: var(--fs-sm);
     }
     /* The search field gives way, the 已归档 switch keeps its one line. */
     .map-tools__archived { flex: none; white-space: nowrap; }
@@ -139,7 +141,7 @@
       font-weight: var(--fw-strong);
       letter-spacing: -0.01em;
     }
-    .folder-row > .mastery { margin-right: calc(var(--space-9) + 34px + var(--space-6)); }
+    .folder-row > .mastery { margin-right: calc(var(--space-9) + var(--space-7) + var(--space-6)); }
     .deck-row { padding: var(--space-3-5) var(--space-2-5); min-height: 60px; }
     .map-deck { border-bottom: 1px solid var(--line-soft); }
     .map-deck > .map-row:hover,
@@ -165,7 +167,7 @@
   }
   @media (hover: hover) {
     :where(.study-app, .study-seat) {
-      .map-tree:not(:has(input:checked)) .map-row:not(:hover):not(:focus-within) > input[type="checkbox"] {
+      .map-tree:not(:has(input:checked, input:indeterminate)) .map-row:not(:hover):not(:focus-within) > input[type="checkbox"] {
         opacity: 0;
       }
     }
@@ -201,6 +203,7 @@
       /* Keep name text and mastery/actions in stable columns across rows.
          Only on wide layouts; narrow ones stack instead. */
       .map-row > .map-name { max-width: 46%; }
+      .topic-row:not(:has(.map-ask)) .map-play { margin-right: calc(var(--space-7) + var(--space-3)); }
     }
   }
   :where(.study-app, .study-seat) {
@@ -222,6 +225,13 @@
       flex-shrink: 0;
       width: 150px;
       margin-left: auto;
+    }
+    .mastery-track {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2-5);
+      flex: 1;
+      min-width: 0;
     }
     .mastery-bar {
       display: flex;
@@ -309,15 +319,16 @@
     }
   }
   :where(.study-app, .study-seat) {
-    .map-topics { padding: var(--space-half) 0 var(--space-2-5) 34px; }
+    .map-topics { padding: var(--space-half) 0 var(--space-2-5) calc(var(--space-7) + var(--space-half)); }
     .topic-row { min-height: 42px; padding: var(--space-2) var(--space-2-5) var(--space-2) var(--space-2); }
     .map-menu-wrap { position: relative; flex-shrink: 0; }
     .map-empty { padding: var(--space-5) var(--space-1); }
     .selection-bar {
       position: sticky;
       bottom: var(--space-3-5);
-      z-index: calc(var(--z-sticky) + 5);
+      z-index: var(--z-sticky);
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: var(--space-2-5);
       margin: var(--space-4-5) 0;
@@ -355,7 +366,7 @@
         flex: 1 0 100%;
         width: auto;
         margin: var(--space-half) 0 0;
-        padding-left: 27px;
+        padding-left: var(--space-6-5);
       }
       .map-row .mastery-bar { flex: 1; width: auto; }
       .map-row > input[type="checkbox"] { order: 0; }
@@ -375,7 +386,7 @@
     /* Cross-workspace notebook directory. */
     /* Sections below the catalog start on the same left edge as its heading. */
     .nb-dir {
-      margin-top: 48px;
+      margin-top: calc(var(--space-8) + var(--space-2));
     }
     .nb-dir .map-heading h2 {
       display: flex;
@@ -403,8 +414,8 @@
       padding: var(--space-3) var(--space-4);
       cursor: pointer;
       transition:
-        border-color var(--ease),
-        background var(--ease);
+        border-color var(--dur-fast) var(--ease-out),
+        background var(--dur-fast) var(--ease-out);
     }
     .nb-row:hover:not(:disabled) {
       border-color: var(--line-strong);

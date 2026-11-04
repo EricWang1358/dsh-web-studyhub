@@ -22,8 +22,9 @@
     }
     .draft-card summary {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: var(--space-3);
+      gap: var(--space-1-5) var(--space-3);
       --sh-summary-marker-gap: 0;
       cursor: pointer;
       line-height: 1.65;
@@ -33,8 +34,10 @@
       font-size: var(--fs-md);
     }
     .draft-card summary small {
-      margin-left: auto;
       flex-shrink: 0;
+    }
+    .draft-card summary small:first-of-type {
+      margin-left: auto;
     }
     .edit-option {
       background: var(--bg-surface);
@@ -110,8 +113,11 @@
     .draft-page .sticky-actions {
       margin: 0 0 var(--space-5);
     }
+    .draft-blocker-summary {
+      margin: 0 0 var(--space-3);
+    }
     .draft-generation-details {
-      margin: var(--space-1) 0 26px;
+      margin: var(--space-1) 0 calc(var(--space-6) + var(--space-half));
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
       background: var(--bg-surface);
@@ -193,5 +199,22 @@
   :is(.study-app, .study-seat) {
     /* The draft card is a <Panel> (ui-consistency #143): the Panel owns border, radius and background; this only settles the spacing between neighbours. */
     .draft-card.sh-panel { margin: var(--space-4) 0; padding: var(--space-4) var(--space-5); }
+    .draft-citation-preview {
+      flex-direction: column;
+      align-items: flex-start;
+      height: auto;
+      text-align: left;
+      white-space: normal;
+    }
+    .draft-citation-quote {
+      display: block;
+      padding-left: var(--space-2-5);
+      border-left: 2px solid var(--line-strong);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+      line-height: var(--lh-snug);
+      overflow-wrap: anywhere;
+    }
   }
 }

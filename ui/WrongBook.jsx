@@ -53,9 +53,12 @@ function statusTip(kind) {
 const historyTip = () => tip(ui('这是这道题最近一次答错时的类型；现在已答对，记录保留。'));
 
 /** The one fold control of the page (a group header, a question row, a recommendation): a whole row is the target. */
-function FoldButton({ className, open, controls, onClick, children }) {
-  return <button type="button" className={className} aria-expanded={open} aria-controls={controls} onClick={onClick}>{children}</button>;
+function FoldButton({ className, open, controls, onClick, children, ...rest }) {
+  return <button type="button" className={className} aria-expanded={open} aria-controls={controls} onClick={onClick} {...rest}>{children}</button>;
 }
+
+const PROMPT_TIP_MIN = 48;
+const META_TIP_MIN = 20;
 
 function StatusMark({ kind, history = false }) {
   return <Tooltip layer content={history ? historyTip() : statusTip(kind)}><span tabIndex={0} className={"wb-grade" + (kind === "graded" ? "" : " self")}>{statusLabel(kind)}</span></Tooltip>;
@@ -85,20 +88,30 @@ function VariantControl({ state, onGenerate, onPractice, disabled }) {
 
 function RecRow({ rec, shortName, open, onToggle, onPractice, disabled }) {
   const id = useId();
+  const fullPrompt = plainPrompt(rec.prompt);
+  const toggleBtn = (
+    <FoldButton className="wb-rec-toggle" open={open} controls={id} onClick={onToggle}>
+      <Icon name="chevron" size={16} className="wb-chevron" />
+      <span className="wb-prompt"><StudyInline text={rec.prompt} /></span>
+    </FoldButton>
+  );
   return (
     <li className={"wb-rec" + (open ? " is-open" : "")}>
       <div className="wb-rec-line">
-        <FoldButton className="wb-rec-toggle" open={open} controls={id} onClick={onToggle}>
-          <Icon name="chevron" size={16} className="wb-chevron" />
-          <span className="wb-prompt" title={plainPrompt(rec.prompt)}><StudyInline text={rec.prompt} /></span>
-        </FoldButton>
-        <span className="wb-why" title={rec.reasons.map(reasonText).join(" · ")}>{reasonText(rec.reasons[0])}</span>
+        {fullPrompt.length > PROMPT_TIP_MIN
+          ? <Tooltip layer content={fullPrompt} anchorClassName="wb-toggle-tip">{toggleBtn}</Tooltip>
+          : toggleBtn}
+        {rec.reasons.length > 1
+          ? <Tooltip layer content={rec.reasons.map(reasonText).join(" · ")} anchorClassName="wb-why-tip">
+            <span tabIndex={0} className="wb-why">{reasonText(rec.reasons[0])}</span>
+          </Tooltip>
+          : <span className="wb-why">{reasonText(rec.reasons[0])}</span>}
         <Button variant="quiet" size="sm" disabled={disabled} onClick={onPractice}
-          aria-label={uiFormat("练习 {0}：{1}", [rec.topic || ui("未分类"), plainPrompt(rec.prompt)])}>{ui("练")}</Button>
+          aria-label={uiFormat("练习 {0}：{1}", [rec.topic || ui("未分类"), fullPrompt])}>{ui("练")}</Button>
       </div>
       {open && (
         <div className="wb-detail" id={id}>
-          <div className="wb-full-prompt"><Markdown text={plainPrompt(rec.prompt)} links={false} /></div>
+          <div className="wb-full-prompt"><Markdown text={fullPrompt} links={false} /></div>
           <ul className="wb-why-list">{rec.reasons.map((reason, index) => <li key={index}>{reasonText(reason)}</li>)}</ul>
           <small className="muted">{uiFormat("来自 {0}", [shortName(rec.deckTitle)])}</small>
         </div>
@@ -138,13 +151,20 @@ function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, di
         <div className="wb-sub">
           <h4>{ui("同类题")}</h4>
           <ul>
-            {recs.map((rec) => (
-              <li key={rec.cardId} className="wb-sub-rec">
-                <span className="wb-prompt" title={plainPrompt(rec.prompt)}><StudyInline text={rec.prompt} /></span>
-                <span className="wb-why">{reasonText(rec.reasons[0])}</span>
-                <Button variant="quiet" size="sm" disabled={disabled} onClick={() => onPractice(rec)}>{ui("练")}</Button>
-              </li>
-            ))}
+            {recs.map((rec) => {
+              const fullPrompt = plainPrompt(rec.prompt);
+              return (
+                <li key={rec.cardId} className="wb-sub-rec">
+                  {fullPrompt.length > PROMPT_TIP_MIN
+                    ? <Tooltip layer content={fullPrompt} anchorClassName="wb-prompt-tip">
+                      <span tabIndex={0} className="wb-prompt"><StudyInline text={rec.prompt} /></span>
+                    </Tooltip>
+                    : <span className="wb-prompt"><StudyInline text={rec.prompt} /></span>}
+                  <span className="wb-why">{reasonText(rec.reasons[0])}</span>
+                  <Button variant="quiet" size="sm" disabled={disabled} onClick={() => onPractice(rec)}>{ui("练")}</Button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -161,14 +181,23 @@ const sameRow = (a, b) => Object.keys(a).every((key) => (key === 'state' ? sameV
 const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers, history = false, mistake = "" }) {
   const detailId = `wb-detail-${it.cardId}`;
   const recs = useMemo(() => (isOpen ? relatedTo(recItems, it.cardId) : []), [isOpen, recItems, it.cardId]);
+  const fullPrompt = plainPrompt(it.prompt);
+  const overflowTip = fullPrompt.length > PROMPT_TIP_MIN || (metaText && metaText.length > META_TIP_MIN)
+    ? joinMeta([metaText, fullPrompt])
+    : "";
+  const toggleBtn = (
+    <FoldButton className="wb-row-toggle" open={isOpen} controls={detailId} onClick={() => handlers.open(it)}>
+      <Icon name="chevron" size={16} className="wb-chevron" />
+      <span className="wb-meta">{metaText}</span>
+      <span className="wb-prompt"><StudyInline text={it.prompt} /></span>
+    </FoldButton>
+  );
   return (
     <li className={"wb-row" + (isOpen ? " is-open" : "")}>
       <div className="wb-row-line">
-        <FoldButton className="wb-row-toggle" open={isOpen} controls={detailId} onClick={() => handlers.open(it)}>
-          <Icon name="chevron" size={16} className="wb-chevron" />
-          <span className="wb-meta" title={metaText}>{metaText}</span>
-          <span className="wb-prompt" title={plainPrompt(it.prompt)}><StudyInline text={it.prompt} /></span>
-        </FoldButton>
+        {overflowTip
+          ? <Tooltip layer content={overflowTip} anchorClassName="wb-toggle-tip">{toggleBtn}</Tooltip>
+          : toggleBtn}
         <StatusMark kind={statusOf(it)} history={history} />
         {history && (
           <span className="wb-fixed">
@@ -380,27 +409,30 @@ export function WrongBookView({
         </Banner>
       )}
 
-      {!isHistory && total > 0 && (
-        <div className="wb-retrain">
-          <div className="wb-retrain-copy">
-            <strong>{ui("重练")}</strong>
-            <small className="muted">{similarNote || ui("选择这一轮练什么。")}</small>
+      {!isHistory && total > 0 && (() => {
+        const filteredSubset = filtering && shown.length > 0 && shown.length < rows.length;
+        return (
+          <div className="wb-retrain">
+            <div className="wb-retrain-copy">
+              <strong>{ui("重练")}</strong>
+              <small className="muted">{similarNote || ui("选择这一轮练什么。")}</small>
+            </div>
+            {/* A disabled choice cannot take focus or a hover of its own, so the group says why on hover and on focus (an empty tip draws nothing). */}
+            <Tooltip layer anchorClassName="wb-retrain-pick" content={unavailableTip}>
+              <SegmentedControl label={ui("重练范围")} value={picked} options={options} onChange={setChoice} disabled={busy || loading} />
+            </Tooltip>
+            <Button variant={filteredSubset ? "secondary" : "primary"} icon="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}
+              title={hasMore ? ui("把本页的待巩固题按学习路径重新练一遍") : ui("把这些待巩固题按学习路径重新练一遍")}>
+              {uiFormat("开始重练 · 全部 {0} 题", [current.count])}
+            </Button>
+            {/* The main button takes every mistake of the page, whatever the filter shows; with a filter on, what is shown has its own button. */}
+            {filteredSubset && (
+              <Button variant="primary" icon="arrow-right" lock={busy || loading} onClick={() => onPractice(shown.map(refOf))}
+                title={ui("只练下面筛选出来的错题")}>{uiFormat("练筛选的 {0} 道", [shown.length])}</Button>
+            )}
           </div>
-          {/* A disabled choice cannot take focus or a hover of its own, so the group says why on hover and on focus (an empty tip draws nothing). */}
-          <Tooltip layer anchorClassName="wb-retrain-pick" content={unavailableTip}>
-            <SegmentedControl label={ui("重练范围")} value={picked} options={options} onChange={setChoice} disabled={busy || loading} />
-          </Tooltip>
-          <Button variant="primary" icon="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}
-            title={hasMore ? ui("把本页的待巩固题按学习路径重新练一遍") : ui("把这些待巩固题按学习路径重新练一遍")}>
-            {uiFormat("开始重练 · 全部 {0} 题", [current.count])}
-          </Button>
-          {/* The main button takes every mistake of the page, whatever the filter shows; with a filter on, what is shown has its own button. */}
-          {filtering && shown.length > 0 && shown.length < rows.length && (
-            <Button variant="secondary" icon="arrow-right" lock={busy || loading} onClick={() => onPractice(shown.map(refOf))}
-              title={ui("只练下面筛选出来的错题")}>{uiFormat("练筛选的 {0} 道", [shown.length])}</Button>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* Weak rubric criteria as skills (WP12): case linkage, assumptions, justification… */}
       {!isHistory && <RubricSkills attempts={data?.attempts} practiceLabel={ui("练案例题")}
@@ -590,8 +622,8 @@ export function WrongBookView({
       })}
       {items && hasMore && <nav className="wb-pages" aria-label={ui(isHistory ? "已订正题分页" : "待巩固题分页")}>
         <span>{uiFormat("第 {0}–{1} 题 / 共 {2} 题", [page * pageSize + 1, page * pageSize + total, counts.total])}</span>
-        <Button disabled={page === 0} lock={busy || loading} onClick={() => onPage(page - 1)}>{ui("上一页")}</Button>
-        <Button disabled={(page + 1) * pageSize >= counts.total} lock={busy || loading}
+        <Button size="sm" disabled={page === 0} lock={busy || loading} onClick={() => onPage(page - 1)}>{ui("上一页")}</Button>
+        <Button size="sm" disabled={(page + 1) * pageSize >= counts.total} lock={busy || loading}
           onClick={() => onPage(page + 1)}>{ui("下一页")}</Button>
       </nav>}
     </section>

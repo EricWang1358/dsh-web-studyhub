@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Badge, Button, DisclosureToggle, Hint, InlineMessage, LoadingState, foldLabel } from '../components/index.js';
+import { Badge, Button, DisclosureToggle, Hint, InlineMessage, LoadingState, Tooltip, foldLabel } from '../components/index.js';
 import { EMPTY_NOTEBOOKS } from './map-model.js';
 import { readText, writeText } from '../storage.js';
 import { joinMeta } from '../format.js';
@@ -116,9 +116,9 @@ export default function NotebookDirectory({ notebooks, error, onPublish, onUnpub
           {list.length ? (
             <ul className="nb-list">
               {current?.publishedAt && (
-                <li className="nb-row nb-row--current" title={current.workspace}>
+                <li className="nb-row nb-row--current">
                   <Badge tone="info">{ui('本工作区')}</Badge>
-                  <span className="nb-main"><strong>{current.title}</strong><small>{topics(current) || stats(current)}</small></span>
+                  <Tooltip layer content={current.workspace} anchorClassName="nb-main"><span tabIndex={0}><strong>{current.title}</strong><small>{topics(current) || stats(current)}</small></span></Tooltip>
                   <span className="nb-stats">{stats(current)}</span>
                 </li>
               )}

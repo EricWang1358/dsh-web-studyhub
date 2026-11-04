@@ -23,7 +23,9 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, the
   const meta = book.files[file] || { version: 0 };
   const [draft, setDraft] = useState(() => fileText(book, file));
   const [saving, setSaving] = useState(false);
+  const [reverting, setReverting] = useState(false);
   const [merged, setMerged] = useState(false);
+  const working = saving || reverting;
   const base = useRef({ file, version: meta.version, text: fileText(book, file) });
   // Text left unsaved last time with no question possible: offered back, never put in by itself. Text that is what the file holds now needs no offer.
   const rescueOf = name => { const kept = readUnsaved(root, book.course, name); return kept && kept.text !== fileText(book, name) ? kept : null; };
@@ -70,18 +72,18 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, the
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); } finally { setSaving(false); }
   };
   const revert = async () => {
-    setSaving(true);
-    try { settle(await call('course.book.revert', { course: book.course, file })); setMerged(false); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); } finally { setSaving(false); }
+    setReverting(true);
+    try { settle(await call('course.book.revert', { course: book.course, file })); setMerged(false); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); } finally { setReverting(false); }
   };
   return (
     <section className="book-editor" aria-label={ui('原文')}>
       <div className="book-editor__bar">
         {/* While there are unsaved edits the file stays chosen: save them or 放弃改动 first, so nothing is lost by switching. */}
-        <Combobox className="book-editor__file" label={ui('要改的文件')} aria-label={ui('要改的文件')} searchPlaceholder={ui('搜索文件')} value={file} options={options} disabled={dirty} onChange={value => onPick(value)} />
+        <Combobox className="book-editor__file" label={ui('要改的文件')} aria-label={ui('要改的文件')} searchPlaceholder={ui('搜索文件')} value={file} options={options} disabled={dirty || working} onChange={value => onPick(value)} />
         {book.files[file]?.forked && <Badge size="sm" tone="warning" className="book-editor__forked">{ui('已改动')}</Badge>}
-        <Button size="sm" variant="primary" icon="check" disabled={!dirty || saving} busy={saving} onClick={save} className="book-editor__save">{ui('保存')}</Button>
-        <Button size="sm" variant="quiet" disabled={!dirty || saving} onClick={() => setDraft(base.current.text)}>{ui('放弃改动')}</Button>
-        <Button size="sm" variant="quiet" icon="refresh" disabled={!book.history?.[file] || saving || dirty} onClick={revert} className="book-editor__revert">{ui('回退到上一版')}</Button>
+        <Button size="sm" variant="primary" icon="check" disabled={!dirty} busy={saving} lock={reverting} onClick={save} className="book-editor__save">{ui('保存')}</Button>
+        <Button size="sm" variant="quiet" disabled={!dirty} lock={working} onClick={() => setDraft(base.current.text)}>{ui('放弃改动')}</Button>
+        <Button size="sm" variant="quiet" icon="refresh" disabled={!book.history?.[file] || dirty} busy={reverting} lock={saving} onClick={revert} className="book-editor__revert">{ui('回退到上一版')}</Button>
       </div>
       {file.endsWith('.gen.md') && !book.files[file]?.forked && <p className="book-editor__note">{ui('这是程序生成的讲解。改了之后它就归你：以后重新生成时，新内容只作为建议给你，不会覆盖。')}</p>}
       {rescue && <InlineMessage tone="warning" data-book-rescue="" action={{ label: ui('恢复这些改动'), onClick: restore }} secondary={{ label: ui('不要了'), onClick: closeRescue }}>

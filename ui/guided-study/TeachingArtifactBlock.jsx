@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '../components/Button.jsx';
-import { renderNoteMarkdown } from '../note-markdown.js';
+import Markdown from '../Markdown.jsx';
+import { ReadingBlock } from '../reading-settings/ReadingSettings.jsx';
 import { ui, uiFormat } from '../i18n.js';
 
 function sanitizeTeachingMarkdown(markdown) {
@@ -14,28 +15,40 @@ function sanitizeTeachingMarkdown(markdown) {
 }
 
 export function TeachingArtifactBlock({ artifact, onAnchorClick }) {
+  const [collapsed, setCollapsed] = useState(false);
+
   if (!artifact) {
     return (
       <div className="teaching-artifact-block teaching-artifact-empty">
-        <span className="teaching-artifact-muted">{ui('还没有讲解内容')}</span>
+        <span>{ui('还没有讲解内容')}</span>
       </div>
     );
   }
 
   const cleanMd = sanitizeTeachingMarkdown(artifact.markdown || '');
-  const renderedHtml = renderNoteMarkdown(cleanMd);
+  const collapsible = cleanMd.length > 240;
 
   return (
     <div className="teaching-artifact-block" data-artifact-id={artifact.id}>
       <div className="teaching-artifact-header">
         <span className="teaching-artifact-title">{artifact.title || ui('讲解')}</span>
-        {artifact.topic && <span className="teaching-artifact-topic">{artifact.topic}</span>}
+        <div className="teaching-artifact-header-meta">
+          {artifact.topic && <span className="teaching-artifact-topic">{artifact.topic}</span>}
+          {collapsible && (
+            <Button variant="quiet" size="sm" onClick={() => setCollapsed((current) => !current)}>
+              {collapsed ? ui('展开') : ui('收起')}
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div
-        className="teaching-artifact-content markdown-body"
-        dangerouslySetInnerHTML={{ __html: renderedHtml }}
-      />
+      <ReadingBlock
+        prose
+        measure={false}
+        className={`teaching-artifact-content${collapsed ? ' is-collapsed' : ''}`}
+      >
+        <Markdown text={cleanMd} />
+      </ReadingBlock>
 
       {Array.isArray(artifact.sourceAnchors) && artifact.sourceAnchors.length > 0 && (
         <div className="teaching-artifact-anchors">

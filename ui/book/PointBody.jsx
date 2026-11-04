@@ -1,6 +1,6 @@
 import React, { useContext, useMemo, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Disclosure, Tooltip } from '../components/index.js';
+import { Button, Disclosure, Icon, Tooltip } from '../components/index.js';
 import { fillGapsTip } from '../outline/words.js';
 import { plainPrompt } from '../shared.js';
 import BookQa from './BookQa.jsx';
@@ -99,7 +99,7 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
       <PointQuestions node={node} handlers={handlers} />
       {/* The point's actions close it, so the reading starts right under its heading (S2 turns this row into the point's end); 出处 is the first of them, its
           list opens under the row. */}
-      <PointToolbar node={node} course={course} handlers={handlers} cites={view.citeCount > 0 ? <Button variant="quiet" size="sm" icon="external"
+      <PointToolbar node={node} course={course} handlers={handlers} cites={view.citeCount > 0 ? <Button variant="quiet" size="sm" icon={<Icon name="caret" size={14} className="book-point__caret" />}
         className="book-point__cites-toggle" aria-expanded={cites} onClick={() => setCites(value => !value)}>{uiFormat('出处 {0}', [view.citeCount])}</Button> : null} />
       {cites && view.citeCount > 0 && <BookFile text={view.cites} citeText={node.gen} hid={node.hid} handlers={handlers} className="book-file book-point__cite-list" />}
       {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} onBookChanged={handlers.reload} />}

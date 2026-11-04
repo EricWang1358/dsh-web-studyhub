@@ -4,7 +4,7 @@ import { readFileSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  scanUi, readBaseline, diffMetrics, describe as describeDrift, mergeLowered, parseCss, RULES, ALLOW, BASELINE_FILE, ROOT,
+  scanUi, readBaseline, diffMetrics, describe as describeDrift, mergeLowered, parseCss, walk, stripJsComments, RULES, ALLOW, BASELINE_FILE, ROOT,
 } from '../scripts/qa/guardrail-baseline.mjs';
 
 // UI consistency guard rails (tracker #161). Per-file ratchets may only fall; the hard rules
@@ -252,4 +252,15 @@ test('tokens are documented in DESIGN.md', () => {
     assert.ok(design.includes(name), `DESIGN.md does not mention ${name}`);
   }
   assert.ok(ROOT);
+});
+
+test('no component uses a bare side-effect CSS import (host build loads .css as text and tree-shakes unused imports)', () => {
+  const offenders = [];
+  for (const abs of walk(join(ROOT, 'ui'), ['.js', '.jsx'])) {
+    const rel = abs.slice(ROOT.length).replace(/\\/g, '/').replace(/^\/+/, '');
+    if (rel === 'ui/dev.jsx') continue;
+    const text = stripJsComments(readFileSync(abs, 'utf8'));
+    if (/^\s*import\s+['"][^'"]+\.css['"]/m.test(text)) offenders.push(rel);
+  }
+  assert.deepEqual(offenders, [], 'import css text and register it with useInjectCss / useComponentCss instead of bare import "./foo.css"');
 });

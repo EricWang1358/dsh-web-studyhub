@@ -33,14 +33,15 @@
     .reader-toolbar {
       display: flex;
       flex: none;
+      flex-wrap: wrap;
       align-items: center;
-      gap: var(--space-3);
+      gap: var(--space-2) var(--space-3);
       min-height: 52px;
       padding: var(--space-2) var(--space-4);
       border-bottom: 1px solid var(--line);
       background: var(--bg-raised);
     }
-    .reader-toolbar__group { display: flex; flex: none; align-items: center; gap: var(--space-2); min-width: 0; }
+    .reader-toolbar__group { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
     .reader-toolbar__group--end { margin-left: auto; }
     .reader-toolbar__where {
       flex: 1 1 0;
@@ -174,7 +175,7 @@
       flex: 1 1 auto;
       flex-direction: column;
       align-items: flex-start;
-      gap: 1px;
+      gap: var(--hairline);
       min-width: 0;
       min-height: 34px;
       padding: var(--space-1-5) var(--space-2);
@@ -224,11 +225,9 @@
     .reader-assist__tag { flex: none; padding: 0 var(--space-1-5); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--fs-xs); }
     /* Using the outline as chapters: the level, the chapters it gives, what a chapter inside a page means. */
     .reader-segment { display: grid; gap: var(--space-3); }
-    .reader-segment__levels { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); min-width: 0; margin: 0; padding: 0; border: 0; }
-    .reader-segment__levels legend { width: 100%; margin: 0 0 var(--space-2); padding: 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
-    .reader-segment__levels label { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; padding: var(--space-1-5) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); cursor: pointer; }
-    .reader-segment__levels label:has(input:checked) { border-color: var(--accent); background: var(--bg-selected); }
-    .reader-segment__levels input { flex: none; width: auto; min-height: 0; margin: 0; accent-color: var(--accent); }
+    .reader-segment__levels { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+    .reader-segment__levels > legend { width: 100%; margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
+    .reader-segment__level { align-items: center; gap: var(--space-2); padding: var(--space-1-5) var(--space-3); }
     .reader-segment__chapters { max-height: 40vh; margin: 0; padding: var(--space-2); overflow: auto; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .reader-segment__chapters li { display: flex; align-items: baseline; gap: var(--space-2); padding: var(--space-1) var(--space-2); }
     .reader-segment__chapters li > span { min-width: 0; overflow-wrap: anywhere; }
@@ -479,7 +478,7 @@
         cursor: default;
       }
       .reader-toolbar__where { display: none; }
-      .reader-toolbar__group--end { flex: 1 1 auto; justify-content: flex-end; }
+      .reader-toolbar__group--end { flex: 1 1 auto; flex-wrap: wrap; justify-content: flex-end; row-gap: var(--space-2); }
     }
   }
   @container reader (max-width: 640px) {

@@ -20,7 +20,7 @@
       --nav-row: 34px;
       --nav-row-upkeep: 32px;
       /* How far the sidebar's own padding is: the active bar sits on its outer edge. */
-      --sidebar-pad: 14px;
+      --sidebar-pad: var(--space-3-5);
       --nav-highlight: color-mix(in srgb, var(--text) 8%, transparent);
     }
     .brand {
@@ -182,7 +182,7 @@
       font-weight: var(--fw-regular);
     }
     .nav-count.is-due {
-      color: var(--danger, var(--accent));
+      color: var(--accent-text);
       font-weight: var(--fw-strong);
     }
     /* Tasks are running: the count is live, so it reads a little brighter than a plain count. */
@@ -196,7 +196,7 @@
     .sidebar.is-narrow {
       width: 62px;
       padding: var(--space-3) var(--space-1-5);
-      --sidebar-pad: 6px;
+      --sidebar-pad: var(--space-1-5);
       --nav-row: 38px;
       --nav-row-upkeep: 38px;
     }
@@ -264,6 +264,7 @@
       flex: 1;
       min-width: 0;
       min-height: 100%;
+      container: main / inline-size;
     }
     .topbar {
       height: 51px;
@@ -475,7 +476,7 @@
         width: 190px;
         padding-left: var(--space-2-5);
         padding-right: var(--space-2-5);
-        --sidebar-pad: 10px;
+        --sidebar-pad: var(--space-2-5);
       }
       .brand {
         font-size: var(--fs-md);

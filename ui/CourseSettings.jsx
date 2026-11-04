@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Checkbox, Dialog, Disclosure, EmptyState, Field, Hint, Icon, IconButton, InlineConfirm, InlineMessage, NumberInput, ScrollWindow, SegmentedControl, SettingsSection, TextInput, useToast } from './components/index.js';
+import { Button, Checkbox, Dialog, Disclosure, EmptyState, Field, Hint, Icon, IconButton, InlineConfirm, InlineMessage, NumberInput, ScrollWindow, SegmentedControl, SettingsSection, TextInput, Tooltip, useToast } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
 import TopicChips from './TopicChips.jsx';
 import GuidanceSuggestions, { guidanceSuggestions } from './GuidanceSuggestions.jsx';
@@ -91,9 +91,11 @@ export function ExamCountdown({ course, now }) {
   useInjectCss(css, 'study-course-settings');
   const countdown = course?.exam ? examCountdown(course.exam, now) : null;
   if (!countdown) return null;
-  return <small className="course-heading-exam" title={course.exam.date}>
-    {countdown.text}{countdown.format ? ` · ${countdown.format}` : ''}
-  </small>;
+  return <Tooltip layer content={course.exam.date}>
+    <small className="course-heading-exam" tabIndex={0}>
+      {countdown.text}{countdown.format ? ` · ${countdown.format}` : ''}
+    </small>
+  </Tooltip>;
 }
 
 const counted = (count, one, many) => count === 1 ? ui(one) : uiFormat(many, [count]);
@@ -116,7 +118,7 @@ function CourseRow({ course, label = course.name, duplicates = [], onOpen, onMer
   const meta = courseMeta(course);
   return <div className={`course-list__item${current ? ' is-current' : ''}${isParked(course) ? ' is-parked-row' : ''}`}>
     <span className="course-list__text">
-      <strong title={course.name}>{label}</strong>
+      <Tooltip layer content={course.name !== label ? course.name : ''}><strong tabIndex={course.name !== label ? 0 : undefined}>{label}</strong></Tooltip>
       {(meta || current) && <small>{[current ? ui('当前课程') : '', meta].filter(Boolean).join(' · ')}</small>}
       {duplicates.length > 0 && <span className="course-list__duplicate">
         <Icon name="warning" size={14} />
@@ -202,7 +204,7 @@ export function CourseList({ courses = [], onOpen, onMerge, onCreate, currentId,
         <button type="button" className="course-list__toggle" aria-expanded={expanded} onClick={() => toggle(entry.name)}>
           <Icon name="chevron" size={16} />
           <span className="course-list__text">
-            <strong title={entry.name}>{entry.name}</strong>
+            <Tooltip layer content={entry.name}><strong>{entry.name}</strong></Tooltip>
             <small>{meta}{flagged ? <span className="course-list__flag">{' · '}{uiFormat('{0} 处可能重复', [flagged])}</span> : null}</small>
           </span>
         </button>

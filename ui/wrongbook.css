@@ -17,31 +17,27 @@
       border-radius: var(--radius);
       background: var(--bg-surface);
     }
-    .wb-retrain-copy { display: grid; gap: var(--space-half); margin-right: auto; min-width: 8em; }
-    .wb-retrain-copy small { font-size: var(--fs-sm); }
     /* The note replaces the helper line in place, in a column wide enough for either text, so it changes neither the bar's height nor its neighbours (#206).
        Each option keeps room for its count with a second figure ("48+10"), so a count arriving later does not move the others. */
-    .wb-retrain-copy { min-width: 14em; }
-    .wb-retrain-copy small { white-space: nowrap; }
+    .wb-retrain-copy { display: grid; gap: var(--space-half); margin-right: auto; min-width: 14em; }
+    .wb-retrain-copy small { font-size: var(--fs-sm); white-space: nowrap; }
     .wb-retrain .sh-seg__item { min-width: 13em; justify-content: center; }
     .wb-retrain .sh-seg { flex-wrap: wrap; max-width: 100%; }
     /* The tooltip anchor that says why a choice is disabled: it holds the choices, so it must not shrink them. */
     .wb-retrain-pick { display: flex; max-width: 100%; }
-    /* recommendations */
+    /* recommendations — one line from the first paint (#206): loading, empty and found all fit it, so the answer never moves the list below. */
     .wb-recs {
       display: grid;
       /* An auto column is as wide as the longest nowrap question; this one may shrink so the rows ellipsise inside the panel. */
       grid-template-columns: minmax(0, 1fr);
       min-width: 0;
-      gap: var(--space-3);
-      padding: var(--space-4);
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-4);
       border: 1px solid var(--line);
       border-left: 3px solid var(--accent-soft);
       border-radius: var(--radius);
       background: var(--bg-surface);
     }
-    /* One line from the first paint (#206): loading, empty and found all fit it, so the answer never moves the list below. */
-    .wb-recs { padding: var(--space-3) var(--space-4); gap: var(--space-2); }
     .wb-recs-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: nowrap; gap: var(--space-3); min-height: 32px; /* a small button */ }
     .wb-recs-bar h2 {
       display: flex;
@@ -49,23 +45,22 @@
       flex-wrap: wrap;
       gap: var(--space-2);
       min-width: 0;
-      margin: 0;
+      margin: 0 auto 0 0;
       font-family: var(--font-display);
       font-size: var(--fs-lg);
     }
     .wb-recs-bar > .sh-btn { flex: none; }
-    .wb-recs-bar h2 { margin-right: auto; }
     .wb-recs-spacer { flex: none; width: 32px; height: 32px; }
     .wb-recs-status { min-width: 0; margin-left: auto; font-size: var(--fs-sm); text-align: right; }
     .wb-recs-body { display: grid; gap: var(--space-3); min-width: 0; }
     .wb-recs-body > p { margin: 0; font-size: var(--fs-md); }
     .wb-recs-body > .sh-btn--link { justify-self: start; }
     .wb-free {
-      padding: 1px var(--space-2);
+      padding: var(--hairline) var(--space-2);
       border: 1px solid var(--ok-line);
       border-radius: var(--radius-pill);
       background: var(--ok-bg);
-      color: var(--ok);
+      color: var(--ok-ink);
       font-family: var(--font-ui);
       font-size: var(--fs-sm);
       font-weight: var(--fw-medium);
@@ -186,6 +181,7 @@
       color: var(--text-muted);
       font-size: var(--fs-md);
     }
+    .wb-toggle-tip { display: flex; flex: 1 1 18em; min-width: 0; }
     .wb-prompt {
       flex: 1;
       min-width: 0;
@@ -194,16 +190,18 @@
       white-space: nowrap;
       font-size: var(--fs-md);
     }
-    .wb-grade { flex: none; color: var(--bad); font-size: var(--fs-md); border-radius: var(--radius-sm); cursor: help; }
+    .wb-prompt[tabindex]:focus-visible, .wb-why[tabindex]:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; border-radius: var(--radius-xs); }
+    .wb-grade { flex: none; color: var(--bad-ink); font-size: var(--fs-md); border-radius: var(--radius-sm); cursor: help; }
     .wb-grade:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .wb-grade::before { content: "× "; }
-    .wb-grade.self { color: var(--warn); }
+    .wb-grade.self { color: var(--warn-ink); }
     .wb-grade.self::before { content: "○ "; }
     /* A corrected mistake: the 已订正 mark and how often, when and how it was missed. */
     .wb-fixed { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-2); flex: none; }
     .wb-fixed-meta { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+    .wb-why-tip { display: inline-flex; flex: 0 1 15em; min-width: 0; }
     .wb-why {
-      flex: 0 1 15em;
+      flex: 1 1 auto;
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -220,8 +218,8 @@
       font-size: var(--fs-sm);
       color: var(--text-muted);
     }
-    .wb-var.is-ready { color: var(--ok); font-weight: var(--fw-medium); }
-    .wb-var.is-failed { color: var(--warn); max-width: 26em; }
+    .wb-var.is-ready { color: var(--ok-ink); font-weight: var(--fw-medium); }
+    .wb-var.is-failed { color: var(--warn-ink); max-width: 26em; }
     .wb-var .sh-spinner { width: 0.9em; height: 0.9em; }
     /* opened row */
     .wb-detail {
@@ -245,6 +243,7 @@
     .wb-sub h4 { margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .wb-sub ul, .wb-why-list { margin: 0; padding-left: 1.2em; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
     .wb-sub .wb-sub-rec { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-3); list-style: none; margin-left: -1.2em; }
+    .wb-sub .wb-sub-rec .wb-prompt-tip { display: flex; flex: 1 1 14em; min-width: 0; }
     .wb-sub .wb-sub-rec .wb-prompt { flex: 1 1 14em; }
     .wb-sub .wb-why { flex: 1 1 14em; white-space: normal; overflow: visible; }
     .wb-why-list { color: var(--accent-text); font-size: var(--fs-sm); }

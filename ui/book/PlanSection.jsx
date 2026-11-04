@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Badge, Button, Tooltip } from '../components/index.js';
+import { Badge, Button, Icon, Tooltip } from '../components/index.js';
 import { HandOff } from '../hand-off/HandOff.jsx';
 import { useInjectCss } from '../shared.js';
 import CrunchDay from './CrunchDay.jsx';
@@ -47,7 +47,7 @@ function Head({ answer, schedule, open, onToggle, onRefresh, windowDays }) {
   return (
     <p className="book-plan__head">
       <Tooltip layer content={uiFormat('备考计划管从开始到考试的整段时间；考前 {0} 天起每天读什么由「期末一周」排。', [windowDays])}>
-        <Button variant="link" size="sm" className="book-plan__title" aria-expanded={open} onClick={onToggle}>{ui('备考计划')}</Button>
+        <Button variant="quiet" size="sm" icon={<Icon name="caret" size={14} className="book-plan__caret" />} className="book-plan__title" aria-expanded={open} onClick={onToggle}>{ui('备考计划')}</Button>
       </Tooltip>
       <span className="book-plan__countdown">{countdownText(schedule.daysLeft)}</span>
       {status === 'paused' && <Badge size="sm">{ui('已暂停')}</Badge>}

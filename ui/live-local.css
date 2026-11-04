@@ -5,7 +5,7 @@
     /* 本地（不联网）: the live class's local engine card (ui/LiveLocalCard.jsx). Its install rows are the one-click MinerU card's (mineru-install__*,
        ui/mineru-install.css); this file owns only the card's frame, its head and its status line. Tokens only; 12 px floor. */
     .live-local-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); min-width: 0; padding: var(--space-3) var(--space-4);
-      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg); }
+      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-surface); }
     .live-local-card__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
     .live-local-card__name { font-size: var(--fs-md, var(--fs-sm)); color: var(--text); }
     .live-local-card__tipped { display: inline-flex; border-radius: var(--radius-pill); }

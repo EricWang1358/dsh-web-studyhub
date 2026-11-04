@@ -74,7 +74,7 @@
       animation: source-new-in 1.6s var(--ease-out) 1;
     }
     .source-new {
-      padding: 1px var(--space-2);
+      padding: var(--hairline) var(--space-2);
       border-radius: var(--radius-pill);
       background: color-mix(in srgb, var(--accent) 16%, transparent);
       color: var(--accent-text);

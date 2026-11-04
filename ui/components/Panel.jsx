@@ -16,7 +16,8 @@ export function Panel({ title, description, actions, children, tone = 'plain', d
   useComponentCss(css);
   useComponentCss(toneCss, 'study-panel-tones');
   return (
-    <Tag className={cx('sh-panel', tone === 'paper' ? 'sh-paper-card' : tone !== 'plain' && PANEL_TONES.includes(tone) && `sh-panel--${tone}`, density === 'compact' && 'sh-panel--compact', className)} {...rest}>
+    <Tag className={cx('sh-panel', tone === 'paper' ? 'sh-paper-card' : tone !== 'plain' && PANEL_TONES.includes(tone) && `sh-panel--${tone}`,
+      density === 'compact' && (tone === 'paper' ? 'sh-paper-card--snug' : 'sh-panel--compact'), className)} {...rest}>
       {(title || description || actions) && <div className="sh-panel__head">
         <div className="sh-panel__heading">
           {title && <h3 className="sh-panel__title">{title}</h3>}

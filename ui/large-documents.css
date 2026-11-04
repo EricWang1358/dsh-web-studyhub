@@ -21,7 +21,7 @@
     .large-doc__tool {
       display: grid; gap: var(--space-2); align-content: start; min-width: 0;
       padding: var(--space-3) var(--space-4);
-      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg);
+      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-surface);
     }
     .large-doc__tool-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
     .large-doc__summary { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text); }
@@ -31,7 +31,7 @@
     .large-doc__channels a { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--accent-text); overflow-wrap: anywhere; }
     .large-doc__code {
       margin: 0 0 var(--space-2); padding: var(--space-3); overflow-x: auto;
-      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-sunken, var(--bg));
+      border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-sunken);
       font-size: var(--fs-xs); line-height: var(--lh-snug); white-space: pre;
     }
     .large-doc__detect { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin: 0; font-size: var(--fs-sm); color: var(--text-dim); }
@@ -51,7 +51,7 @@
     .extension-panel { display: grid; gap: var(--space-3); min-width: 0; }
     .extension-panel__lead { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .extension-panel__lead--ok { color: var(--text); font-weight: var(--fw-strong); }
-    .extension-panel__index { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg); }
+    .extension-panel__index { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-surface); }
     .extension-panel__course label { margin: 0; }
     .extension-panel__course select { width: 100%; }
     .extension-panel__plan { margin: 0; font-size: var(--fs-sm); color: var(--text); line-height: var(--lh-snug); }

@@ -20,7 +20,7 @@
     .marker-install__where { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--fs-sm); min-width: 0; }
     .marker-install__where > span { color: var(--text-muted); }
     .marker-install__where code { min-width: 0; padding: var(--space-half) var(--space-2); border-radius: var(--radius-xs); background: var(--bg-sunken, var(--bg-surface));
-      font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+      font-family: var(--font-stack-mono); font-size: var(--fs-xs); overflow-wrap: anywhere; }
     .marker-install__facts { display: grid; gap: var(--space-2); margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); background: var(--bg-surface); border: 1px solid var(--line-soft); }
     .marker-install__facts > div { display: grid; grid-template-columns: minmax(5.5em, max-content) minmax(0, 1fr); gap: var(--space-1) var(--space-3); align-items: baseline; }
     .marker-install__facts dt { color: var(--text-muted); font-size: var(--fs-sm); }
@@ -33,12 +33,12 @@
     .marker-install__lead { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .marker-install__draft { display: grid; gap: var(--space-2); }
     .marker-install__commands { margin: 0; padding: var(--space-3); max-height: 16rem; overflow: auto; border-radius: var(--radius-sm); background: var(--bg-sunken, var(--bg-surface)); }
-    .marker-install__commands code { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-xs); line-height: var(--lh-snug); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .marker-install__commands code { font-family: var(--font-stack-mono); font-size: var(--fs-xs); line-height: var(--lh-snug); white-space: pre-wrap; overflow-wrap: anywhere; }
     .marker-install__docker { display: grid; gap: var(--space-2); }
     .marker-install__choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--space-3); }
     .marker-install__choice { display: grid; align-content: start; justify-items: start; gap: var(--space-1); min-width: 0; padding: var(--space-3); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); }
     .marker-install__choice p { margin: 0; color: var(--text-dim); overflow-wrap: anywhere; }
-    .marker-install__line { color: var(--text-muted); font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+    .marker-install__line { color: var(--text-muted); font-family: var(--font-stack-mono); font-size: var(--fs-xs); overflow-wrap: anywhere; }
     .marker-install__stages { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: var(--space-1) 0; padding: 0; list-style: none; font-size: var(--fs-sm); color: var(--text-muted); }
     .marker-install__stages li { display: inline-flex; align-items: center; gap: var(--space-2); }
     .marker-install__stages li[data-state="active"] { color: var(--text); font-weight: var(--fw-strong); }
@@ -47,6 +47,11 @@
     .marker-install__mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: var(--radius-pill); border: 1px solid var(--line-strong); box-sizing: border-box; }
     .marker-install__stages li[data-state="done"] .marker-install__mark, .marker-install__stages li[data-state="failed"] .marker-install__mark { border-color: transparent; }
     .marker-install__stages li[data-state="active"] .marker-install__mark { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, transparent); }
+  }
+  @container study (max-width: 480px) {
+    :is(.study-app, .study-seat) {
+      .marker-install__facts > div { grid-template-columns: minmax(0, 1fr); }
+    }
   }
   @media (max-width: 480px) {
     :is(.study-app, .study-seat) {

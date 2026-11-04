@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { formatDateTime, joinMeta } from '../format.js';
-import { Badge, Button, EmptyState, PageHeader, ProgressBar } from '../components/index.js';
+import { Badge, Button, EmptyState, Icon, PageHeader, ProgressBar } from '../components/index.js';
 import { EMPTY_REASONS, emptyReason } from '../empty-reasons.js';
 import PageScope from '../PageScope.jsx';
 import Explain from './Explain.jsx';
@@ -102,7 +102,7 @@ export default function ExamPrepList({ data, scope, onScope, rows, history = [],
       ) : <Empty onCreate={onCreate} otherCount={otherCount} scoped={scope !== '*'} onScope={onScope} />}
       {history.length > 0 && (
         <div className="exam-prep-history">
-          <Button variant="link" size="sm" aria-expanded={older} onClick={() => setOlder(value => !value)}>
+          <Button variant="quiet" size="sm" icon={<Icon name="caret" size={14} className="exam-prep-history__caret" />} className="exam-prep-history__toggle" aria-expanded={older} onClick={() => setOlder(value => !value)}>
             {older ? ui('收起历史版本') : uiFormat('历史版本（{0}）', [history.length])}
           </Button>
           {older && <ul className="exam-prep-list">{history.map(row => <ListRow key={row.id} row={row} onOpen={onOpen} onOpenTask={onOpenTask} onRestore={onRestore} />)}</ul>}

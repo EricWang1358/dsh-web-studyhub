@@ -25,6 +25,11 @@
     /* ── Interactive tooltip ─────────────────────────────────────────────────
        <Tooltip interactive>: the pointer may rest on the card (to scroll long
        text), so the card takes pointer events instead of letting them through. */
-    .sh-tooltip.sh-tooltip--interactive { pointer-events: auto; }
+    .sh-tooltip.sh-tooltip--interactive {
+      pointer-events: auto;
+      max-height: min(60dvh, 22rem);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
   }
 }

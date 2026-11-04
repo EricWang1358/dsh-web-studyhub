@@ -1,7 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import React, { useContext, useState } from "react";
 import Markdown from "./Markdown.jsx";
-import { useInjectCss } from "./shared.js";
+import { kinds, useInjectCss } from "./shared.js";
 import css from "./manage.css";
 import { useStudy } from "./study-context.jsx";
 import { AppContext } from "./app/app-context.js";
@@ -191,7 +191,7 @@ export default function Manage({
             <div className="manage-card__body">
               <div className="manage-card__meta">
                 <Badge size="sm">{card.topic || ui("未分类")}</Badge>
-                <span>{card.kind}</span>
+                <span>{kinds[card.kind] || card.kind}</span>
                 {card.suspended && <Badge size="sm" tone="warning">{ui("已暂停")}</Badge>}
                 {marks && !cardMatchesReview(marks[card.id], card) && <Badge size="sm" tone="warning">{ui("未自动审阅")}</Badge>}
                 {selfCitedCardCount([card], sources) > 0 && <Badge size="sm" tone="warning">{ui("仅有导入题目引用")}</Badge>}
