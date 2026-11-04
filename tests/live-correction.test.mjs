@@ -172,7 +172,8 @@ function sizedFixture(lengths, complete, extra = {}) {
 }
 const timeoutError = () => Object.assign(new Error('Model timed out after 20s'), { name: 'TimeoutError' });
 const ids = input => input.items.map(item => item.n);
-const fix = (input, n) => response(input, { items: [{ n, text: `Fixed ${n}`, zh: `修正 ${n}`, confidence: 'high', reason: 'term' }] });
+// Sentence 1 is never edited, so it stays long and keeps being read-only context for the sentences after it.
+const fix = (input, n) => n === 1 ? response(input) : response(input, { items: [{ n, text: `Fixed ${n}`, zh: `修正 ${n}`, confidence: 'high', reason: 'term' }] });
 const size = lengths => lengths.reduce((total, length, i) => total + `S${i + 1} `.length + length, 0);
 
 test('correctionBudget grows with the characters asked about and stays within its caps', () => {
@@ -259,10 +260,10 @@ test('a single long sentence that times out is tried twice, skipped, and the nex
   assert.deepEqual(calls, [[1], [2], [2], [3]]);
   const snapshot = correction.snapshot();
   assert.equal(snapshot.calls, 4, 'calls equal the requests actually sent');
-  assert.equal(snapshot.covered, 3); assert.equal(snapshot.pending, 0); assert.equal(snapshot.skipped, 1); assert.deepEqual(snapshot.skippedIds, [2]);
+  assert.equal(snapshot.covered, 2); assert.equal(snapshot.pending, 0); assert.equal(snapshot.skipped, 1); assert.equal(snapshot.coveredThrough, 3); assert.deepEqual(snapshot.skippedIds, [2]);
   assert.match(snapshot.skippedItems[0].reason, /超时/);
   assert.equal(session.segments[1].en.startsWith('S2 a'), true, 'the skipped sentence keeps its uncorrected text');
-  assert.equal(session.segments[0].en, 'Fixed 1'); assert.equal(session.segments[2].en, 'Fixed 3');
+  assert.equal(session.segments[0].en.startsWith('S1 a'), true); assert.equal(session.segments[2].en, 'Fixed 3');
   assert.match(snapshot.error, /有 1 句太长，润色超时，已跳过（原文保留）；可点『重试待校正内容』再试。/);
   await correction.run(); assert.equal(correction.snapshot().calls, 4, 'nothing is asked again on the next interval');
   assert.match(correction.snapshot().error, /已跳过/, 'the skipped note survives an idle interval');
@@ -270,7 +271,7 @@ test('a single long sentence that times out is tried twice, skipped, and the nex
 
 test('a failing batch is retried once with half the characters, then the smaller size is kept for the pass', async () => {
   const calls = [];
-  const { correction } = sizedFixture([300, 300, 300, 300], async (_s, prompt) => {
+  const { correction } = sizedFixture([295, 295, 295, 295], async (_s, prompt) => {
     const input = JSON.parse(prompt); calls.push(ids(input));
     if (input.items.length >= 3 && input.firstNewId === 1) throw timeoutError();
     return response(input);
