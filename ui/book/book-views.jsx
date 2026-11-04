@@ -4,6 +4,7 @@ import { Button, Dialog, InlineConfirm, LoadingState } from '../components/index
 import BookFlip from './BookFlip.jsx';
 import BookHistory from './BookHistory.jsx';
 import BookLookup from './BookLookup.jsx';
+import BookExamKit from './BookExamKit.jsx';
 import CrunchDay from './CrunchDay.jsx';
 import MockPaper from './MockPaper.jsx';
 import { AiFoldContext } from './ai-fold.js';
@@ -86,6 +87,15 @@ export function LookupDialog({ book, onGo, onCard, onClose }) {
   return (
     <Dialog title={ui('速查页')} size="lg" className="book-lookup-dialog" onClose={onClose}>
       {lookup && <BookLookup lookup={lookup} toc={false} onGo={hid => { onClose(); onGo(hid); }} onCard={onCard && ((hid, code) => { onClose(); onCard(hid, code); })} />}
+    </Dialog>
+  );
+}
+
+/** 答题模板 in a dialog, next to 速查页 (#710 S4): a point code opens the reading surface at that point and closes the dialog. */
+export function KitDialog({ book, onGo, onClose }) {
+  return (
+    <Dialog title={ui('答题模板')} size="lg" className="book-kit-dialog" onClose={onClose}>
+      <BookExamKit kit={book.examKit} onGo={hid => { onClose(); onGo(hid); }} />
     </Dialog>
   );
 }

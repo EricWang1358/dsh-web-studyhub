@@ -9,9 +9,9 @@ import { HAND_OFF_LABEL, HAND_OFF_MENU_HINT } from '../hand-off/use-hand-off.js'
    整本书: 速查页… / 导出… / 发给主会话 (no ellipsis: it opens nothing first, the chat's input box is where a request is added). 期末一周: 今天读哪几节 / 出一套模拟卷… / 设置考试日期 / 前往设置. */
 
 /** The menu's items (pure, for the tests): `state` says what the page has now. unplaced: the step shown is 未归位 (no code the book tools match, no
-    questions of its own, no AI blocks, and no structure of its own: only 编辑这个知识点… in its group). */
+    questions of its own, no AI blocks, and no structure of its own: only 编辑这个知识点… in its group). kit: the book has an exam answer kit (答题模板…). */
 export function moreItems({ unplaced = false, pointFold = null, scroll = false, bookFold = null, pages = null, pageLimit = null, history = false, today = false, mockScope = 0, dateHint = null,
-  settings = false }) {
+  settings = false, kit = false }) {
   const pagesHint = pages === null ? undefined : pageLimit ? uiFormat('约 {0} 页 / 上限 {1} 页', [pages, pageLimit]) : uiFormat('约 {0} 页', [pages]);
   return [
     { heading: true, label: ui('这个知识点') },
@@ -28,6 +28,8 @@ export function moreItems({ unplaced = false, pointFold = null, scroll = false, 
     bookFold && { id: 'fold-book', label: bookFold.folded ? ui('展开整本书的 AI 段落') : ui('收起整本书的 AI 段落'), hint: ui('只记在这个浏览器里') },
     { heading: true, label: ui('整本书') },
     { id: 'lookup', label: ui('速查页…') },
+    // The exam answer kit the build made from the sample papers (#710 S4): only a book that has one.
+    kit && { id: 'kit', label: ui('答题模板…') },
     { id: 'export', label: ui('导出…'), hint: pagesHint },
     history && { id: 'history', label: ui('版本历史…') },
     { id: 'outline', label: ui('回到总纲'), hint: ui('重新整理、更新全书') },
