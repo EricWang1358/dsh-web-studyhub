@@ -76,7 +76,7 @@
       .daily-related button { min-height: 2.75rem; }
     }
   }
-  @container study (max-width: 600px) {
+  @container study (max-width: 37.5rem) {
     :is(.study-app, .study-seat) {
       .daily-plan__next-bottom { align-items: flex-start; flex-direction: column; }
       .daily-plan__task { align-items: flex-start; }

@@ -88,7 +88,7 @@ test('English is complete', () => {
 });
 
 test('the stylesheet uses tokens only, the UI font for numbers and no box around the block', () => {
-  const css = readFileSync('ui/daily-plan.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*/g, '');
+  const css = readFileSync('ui/daily-plan.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/@(?:media|container)[^{]*/g, '');
   assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|\b(?![123]px)\d+px\b|font-weight:\s*\d{3}/i, 'no raw colours, px sizes (hairlines aside) or numeric weights');
   assert.doesNotMatch(css, /monospace|--font-mono/);
   const block = css.match(/\.daily-plan\s*\{[^}]*\}/)?.[0] || '';
