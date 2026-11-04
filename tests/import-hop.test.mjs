@@ -14,12 +14,12 @@ const compiled = await build({ stdin: { contents: `
   export * from './ui/ImportHub.jsx'; export { default as ImportHub } from './ui/ImportHub.jsx';
   export { importHandoff, importForQuestions } from './ui/app/import-handoff.js';
   export { default as PdfConversion } from './ui/PdfConversion.jsx';
-  export { default as JobFollowUp } from './ui/JobFollowUp.jsx';
+  export { followUpLink } from './ui/job-follow-up.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { ImportHub, runImport, importSummary, importDoneMessage, importOutcome, importHandoff, importForQuestions, PdfConversion, JobFollowUp, setUiLanguage } = module.exports;
+const { ImportHub, runImport, importSummary, importDoneMessage, importOutcome, importHandoff, importForQuestions, PdfConversion, followUpLink, setUiLanguage } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const text = html => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
@@ -166,14 +166,12 @@ test('the first import goes on to 创建题组 with its materials ticked; anythi
 
 /* ---------- a finished conversion ---------- */
 
-test('a finished background import offers 用它出题 under its card; one that is not finished, or saved nothing, does not', () => {
+test('a finished background import offers 用它出题 as an action of its own card; one that is not finished, or saved nothing, does not', () => {
   setUiLanguage('zh');
-  const card = h('article', null, 'card');
-  const view = (job, onGenerate = () => {}) => renderToStaticMarkup(h(JobFollowUp, { job, sourceIds: job.sourceIds, onGenerate }, card));
-  assert.match(view({ status: 'complete', filename: 'Book.pdf', sourceIds: ['a'] }), /用它出题/);
-  assert.doesNotMatch(view({ status: 'running', filename: 'Book.pdf', sourceIds: ['a'] }), /用它出题/);
-  assert.doesNotMatch(view({ status: 'complete', filename: 'Book.pdf', sourceIds: [] }), /用它出题/);
-  const without = renderToStaticMarkup(h(JobFollowUp, { job: { status: 'complete', sourceIds: ['a'] }, sourceIds: ['a'] }, card));
-  assert.doesNotMatch(without, /用它出题/, 'a page that cannot make questions does not offer it');
-  assert.match(view({ status: 'running', sourceIds: [] }), /<div class="job-follow"><article>card<\/article><\/div>/, 'the card keeps its place when the job ends');
+  const link = (job, onGenerate = () => {}) => followUpLink(job, job.sourceIds, onGenerate);
+  assert.equal(link({ status: 'complete', filename: 'Book.pdf', sourceIds: ['a'] })?.label, '用它出题');
+  assert.equal(link({ status: 'complete', filename: 'Book.pdf', sourceIds: ['a'] }).aria, '用它出题：Book.pdf');
+  assert.equal(link({ status: 'running', filename: 'Book.pdf', sourceIds: ['a'] }), null);
+  assert.equal(link({ status: 'complete', filename: 'Book.pdf', sourceIds: [] }), null);
+  assert.equal(followUpLink({ status: 'complete', sourceIds: ['a'] }, ['a'], undefined), null, 'a page that cannot make questions does not offer it');
 });

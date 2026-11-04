@@ -116,11 +116,11 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
         {stoppable ? <Button variant="quiet" size="sm" aria-label={uiFormat('停止：{0}', [summary.title])} onClick={cancel}>{ui('停止')}</Button>
           : !live ? <Button variant="quiet" size="sm" aria-label={uiFormat('归档：{0}', [summary.title])} onClick={dismiss}>{ui('归档')}</Button> : null}
       </div>
-      {/* The other ways on, as quiet links under the card ([{ label, run (or onClick), disabled, tip }]; tip: on hover and focus): the card keeps ONE primary button. */}
+      {/* The other ways on, as the card's one kind of quiet button ([{ label, run (or onClick), disabled, tip, aria }]; tip: on hover and focus): the card keeps ONE primary button. */}
       {(links?.length > 0 || handOff) && <div className="cjc__links">{(links || []).map((link) => {
-        const button = <Button key={link.label} variant="link" size="sm" disabled={link.disabled} onClick={link.run ?? link.onClick}>{link.label}</Button>;
+        const button = <Button key={link.label} variant="quiet" size="sm" disabled={link.disabled} aria-label={link.aria} onClick={link.run ?? link.onClick}>{link.label}</Button>;
         return link.tip ? <Tooltip key={link.label} layer content={link.tip} anchorClassName="cjc__link-anchor">{button}</Tooltip> : button;
-      })}{handOff && <HandOff id="job.failed" input={handOff} what={FAILED_HAND_OFF_WHAT} aria-label={uiFormat('发给主会话：{0}', [summary.title])} />}</div>}
+      })}{handOff && <HandOff id="job.failed" shape="quiet" input={handOff} what={FAILED_HAND_OFF_WHAT} aria-label={uiFormat('发给主会话：{0}', [summary.title])} />}</div>}
       {/* A dismissal that did not go through says so next to the card that came back. */}
       {dismissFailure && <InlineMessage className="cjc__problem" tone="error">{uiFormat('没能移除这条记录：{0}', [dismissFailure])}</InlineMessage>}
       {/* `primary.tip`: what the button does first, on hover and focus (never a title attribute). */}

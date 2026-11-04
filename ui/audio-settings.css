@@ -9,9 +9,9 @@
     .audio-paid { display: grid; gap: var(--space-2); }
     /* 课堂实录's engine: the three choices, then the local engine's card (ui/LiveLocalCard.jsx). */
     .audio-live-engine { display: grid; gap: var(--space-3); min-width: 0; }
-    /* The setup gate in the audio tab (#578): while it shows, the form drops its own frame, so under the page title the gate is the one card,
-       as wide as the page's column; the subtitle way in is a line of text and a button under it, a drop target with no frame of its own. */
-    .audio-import--setup { padding: 0; border: 0; border-radius: 0; }
+    /* The import form has no frame of its own (#678: the job cards were a card inside a card): its parts (the jobs, the drop zone, the setup gate of #578,
+       the chosen files) are the cards, as wide as the page's column; the subtitle way in is a line of text and a button under it. */
+    .audio-import { padding: 0; border: 0; border-radius: 0; }
     .audio-setup { max-width: none; margin: var(--space-4) 0; }
     .audio-setup .audio-setup__secret { margin-top: var(--space-4); max-width: 560px; }
     .audio-setup-alt { margin: var(--space-3) 0 0; }

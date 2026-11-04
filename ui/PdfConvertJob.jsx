@@ -9,7 +9,7 @@ import { isActiveJob } from './job-visibility.js';
 import { megabytes } from '../lib/office/limits.js';
 import { HISTORY_PAGE, groupHistoryByDay, historyRefreshKey, pageRange, isConvertJob } from './mineru-flow.js';
 import CompactJobCard from './tasks/CompactJobCard.jsx';
-import JobFollowUp from './JobFollowUp.jsx';
+import { followUpLink } from './job-follow-up.js';
 import { ConvertEditDialog, HELD_ENTRY, HeldEntry } from './ConvertEdit.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { FAILED_HAND_OFF_WHAT, failedHandOffInput, failureText } from './tasks/failed-hand-off.js';
@@ -58,12 +58,13 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
   const primary = isHeldTask(job) && !isActiveJob(job) ? { label: HELD_ENTRY(), run: () => setEditing(true) } : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
     : job.status === 'failed' && job.retryable ? { label: ui('接着做'), run: retry, disabled: !!working, tip: retryTip(job) }
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
-  return <JobFollowUp job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
-    <CompactJobCard job={job} primary={primary} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
+  const follow = followUpLink(job, job.sourceIds, onGenerate);
+  return <>
+    <CompactJobCard job={job} primary={primary} links={follow ? [follow] : undefined} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
       onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
       onDismiss={() => run('dismiss', () => send('job.archive', { jobId: job.id }))} />
     {editing && <ConvertEditDialog job={job} onClose={() => setEditing(false)} onChanged={onChanged} />}
-  </JobFollowUp>;
+  </>;
 }
 
 /**
