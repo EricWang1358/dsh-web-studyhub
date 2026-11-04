@@ -536,6 +536,8 @@
     }
     .book-lookup__toc,
     .book-lookup__glossary,
+    .book-lookup__by-chapter,
+    .book-lookup__formula-page,
     .book-lookup__concepts,
     .book-lookup__mistakes,
     .book-lookup__cards {

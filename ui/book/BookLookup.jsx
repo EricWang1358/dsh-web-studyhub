@@ -73,7 +73,7 @@ export default memo(function BookLookup({ lookup, onGo, onCard, toc = true }) {
         </li>)}</ul>
       </Part>}
       {lookup.cardChapters?.length > 0 && <Part id="cards" title={ui('术语卡（按章）')}>
-        <ul className="book-lookup__glossary">{lookup.cardChapters.map(chapter => <li key={chapter.hid}>
+        <ul className="book-lookup__by-chapter">{lookup.cardChapters.map(chapter => <li key={chapter.hid}>
           <p className="book-lookup__place">{`${chapter.number} ${chapter.title}`.trim()}</p>
           <p className="book-lookup__muted">{chapter.cards.map((card, at) => <React.Fragment key={card.code}>
             {at > 0 && <span className="book-lookup__sep" aria-hidden="true">·</span>}<CardCode hid={card.hid} code={card.code} onGo={onGo} onCard={onCard} /><span>{card.name}</span></React.Fragment>)}</p>
@@ -81,7 +81,7 @@ export default memo(function BookLookup({ lookup, onGo, onCard, toc = true }) {
       </Part>}
       {lookup.formulas?.length > 0 && <Part id="formulas" title={ui('公式')}>
         <p className="book-lookup__muted">{ui('书里讲到的公式，按讲它的知识点排；代码打开那一节。')}</p>
-        <ul className="book-lookup__glossary">{lookup.formulas.map(entry => <li key={`${entry.term}|${entry.hid}`} data-formula={entry.term}>
+        <ul className="book-lookup__formula-page">{lookup.formulas.map(entry => <li key={`${entry.term}|${entry.hid}`} data-formula={entry.term}>
           <strong>{entry.term}</strong>{entry.gist ? uiFormat('：{0}', [entry.gist]) : ''} {entry.code && <CardCode hid={entry.hid} code={entry.code} onGo={onGo} onCard={onCard} />}
           <Code hid={entry.hid} code={places.get(entry.hid)?.code ?? entry.hid} onGo={onGo} />
           {Number.isInteger(entry.page) && <span className="book-lookup__muted"> {uiFormat('第 {0} 页', [entry.page])}</span>}
