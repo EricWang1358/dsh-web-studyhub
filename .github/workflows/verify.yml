@@ -8,10 +8,10 @@ on:
 permissions:
   contents: read
 
-# A new push to a pull request replaces the checks still running for it; a push to main always runs to the end.
+# A newer push to a pull request or to main replaces an older run still in flight so consecutive merges do not queue serially.
 concurrency:
   group: verify-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   # Lint and the bundle do not depend on the system, so they run once (they used to run on both systems, one after the other with the tests).
@@ -28,10 +28,9 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
-  # The suite is cut into shards of about equal weight (tests/test-weights.json, scripts/qa/test-schedule.mjs) and each shard runs on its own machine.
-  # Windows is slower than Linux, so it gets more shards. tests/test-runner-shards.test.mjs checks that the shards below are 1..N for each system.
-  # A shard takes 3.5 to 5 minutes (a slow runner took 9). A hung test fails at the runner's own limits (scripts/qa/run-tests.mjs: per test, per file)
-  # with its name; 15 minutes is the last resort.
+  # Pull requests run all 3 Ubuntu shards (full suite) plus 1 fast Windows platform-smoke VM below (~4 test VMs per PR, ~3 minutes, well under GitHub's 20-VM cap).
+  # Pushes to main run the full cross-platform shard matrix across both Ubuntu (1..3) and Windows (1..5), with cancel-in-progress replacing superseded main runs.
+  # tests/test-runner-shards.test.mjs checks that the shards below are 1..N for each system.
   test:
     name: test (${{ matrix.os }} ${{ matrix.shard }}/${{ matrix.shards }})
     runs-on: ${{ matrix.os }}
@@ -43,11 +42,6 @@ jobs:
           - { os: ubuntu-latest, shard: 1, shards: 3 }
           - { os: ubuntu-latest, shard: 2, shards: 3 }
           - { os: ubuntu-latest, shard: 3, shards: 3 }
-          - { os: windows-latest, shard: 1, shards: 5 }
-          - { os: windows-latest, shard: 2, shards: 5 }
-          - { os: windows-latest, shard: 3, shards: 5 }
-          - { os: windows-latest, shard: 4, shards: 5 }
-          - { os: windows-latest, shard: 5, shards: 5 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -68,16 +62,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # The one result to look at (and to require, if a branch ever needs a required check): green only when lint and every shard are green.
+  test-windows:
+    name: test (${{ matrix.os }} ${{ matrix.shard }}/${{ matrix.shards }})
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, shard: 1, shards: 5 }
+          - { os: windows-latest, shard: 2, shards: 5 }
+          - { os: windows-latest, shard: 3, shards: 5 }
+          - { os: windows-latest, shard: 4, shards: 5 }
+          - { os: windows-latest, shard: 5, shards: 5 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+        env:
+          STUDYHUB_SKIP_PREPARE: '1'
+      - run: node scripts/test.mjs --shard=${{ matrix.shard }}/${{ matrix.shards }} --test-concurrency=4
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: durations-${{ matrix.os }}-${{ matrix.shard }}of${{ matrix.shards }}
+          path: node_modules/.cache/studyhub-tests/durations.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # On pull requests, one Windows VM verifies Windows-specific store renames, process/CLI spawning, loopback audio, and test-runner locking/batching.
+  windows-smoke:
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+        env:
+          STUDYHUB_SKIP_PREPARE: '1'
+      - run: >-
+          node scripts/test.mjs --test-concurrency=4
+          tests/store.test.mjs
+          tests/local-command.test.mjs
+          tests/live-loopback.test.mjs
+          tests/test-runner-batch.test.mjs
+          tests/test-runner-lock.test.mjs
+          tests/test-runner-schedule.test.mjs
+          tests/test-runner-shards.test.mjs
+          tests/test-runner-timeout.test.mjs
+
+  # The one result to look at (and to require, if a branch ever needs a required check): green only when lint and every active test job are green.
   verify:
     if: always()
-    needs: [lint, test]
+    needs: [lint, test, test-windows, windows-smoke]
     runs-on: ubuntu-latest
     steps:
       - name: Lint and every test shard passed
         env:
           LINT: ${{ needs.lint.result }}
           TEST: ${{ needs.test.result }}
+          TEST_WIN: ${{ needs['test-windows'].result }}
+          WIN_SMOKE: ${{ needs['windows-smoke'].result }}
         run: |
-          echo "lint: $LINT, test shards: $TEST"
-          [ "$LINT" = success ] && [ "$TEST" = success ]
+          echo "lint: $LINT, linux shards: $TEST, windows shards: $TEST_WIN, windows-smoke: $WIN_SMOKE"
+          [ "$LINT" = success ] && [ "$TEST" = success ] && { [ "$TEST_WIN" = success ] || [ "$TEST_WIN" = skipped ]; } && { [ "$WIN_SMOKE" = success ] || [ "$WIN_SMOKE" = skipped ]; }

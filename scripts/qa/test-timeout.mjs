@@ -25,7 +25,8 @@ if (fileMs > 0 && inTestFile) {
   // Node 22's run({ timeout }) stops a whole file from the parent; Node 24+ only times active tests and waits forever when an open handle
   // remains after the last test passed. An unref'd timer inside the file's process exits cleanly without keeping a finished file open.
   realSetTimeout(() => {
-    writeSync(2, `\n${FILE_TIMEOUT_MARK}: file process still running after ${fileMs} ms.\n`);
+    const importing = globalThis.__studyCurrentTestFile ? ` [batch-file=${globalThis.__studyCurrentTestFile}]` : '';
+    writeSync(2, `\n${FILE_TIMEOUT_MARK}${importing}: file process still running after ${fileMs} ms.\n`);
     process.exit(1);
   }, fileMs + 50).unref();
 }
