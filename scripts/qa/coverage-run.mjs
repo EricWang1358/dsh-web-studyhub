@@ -81,6 +81,8 @@ export async function runRunQa(options) {
         await level(zh ? "标准" : "Standard").click();
         await sleep(600);
         assert.equal(await page.locator("[data-coverage-auto]").getAttribute("data-auto"), "on");
+        const more = page.locator(".generate-more").first();
+        if (!await more.evaluate((element) => element.open)) await more.locator("summary").first().click();
         await page.locator(".cov-strength__budget summary").click();
         await page.locator("#generate-budget").fill("1x");
         await sleep(300);

@@ -23,8 +23,10 @@
     .generate-page .generate-panel > .generate-gate { margin-bottom: var(--space-4); }
     .generate-page .generate-sources-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-3); }
     .generate-page .generate-submit { display: grid; gap: var(--space-3); margin-top: var(--space-5); }
-    .generate-page .generate-submit > .generate-submit__btn { width: 100%; justify-content: center; }
+    .generate-page .generate-submit > .generate-submit__btn { justify-self: start; }
     .generate-page .generate-submit .generate-submit__note { margin: 0; }
+    /* The note about the checks is a quiet line, not a card of its own: the button stays within a screen and a half. */
+    .generate-page .generate-submit .generate-quality { padding: var(--space-3) var(--space-4); }
   }
 }
 
@@ -49,8 +51,8 @@
     .generate-page .source-mode > .source-tab .sh-tab__label { font-weight: var(--fw-medium); color: var(--text); }
     .generate-page .source-mode > .source-tab .source-tab__note { font-size: var(--fs-sm); color: var(--text-muted); }
     .generate-page .source-mode > .source-tab.is-active {
-      background: color-mix(in srgb, var(--accent) 12%, var(--bg-surface));
-      border-color: var(--accent-soft);
+      background: var(--bg-selected);
+      border-color: var(--line-strong);
     }
     /* The row is its own container: the cards need 3 × 12rem and two gaps, and it is that width, not the window's (the
        sidebar may be open or folded), that decides when they stop fitting side by side. The row's margins are the frame's, so

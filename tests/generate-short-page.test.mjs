@@ -4,8 +4,9 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 
-/* 创建题组, the short main path: sources, one line of what will be made (题型, 覆盖强度, 课程) with 前往设置, and the one button. Every optional control (题型, 覆盖强度, 难度, 语言, 公式写法,
-   课程, 想练什么, 名称, 岗位, 参考样题) is inside 更多选项. Static markup here; the opening state, the estimate and the clicks are in tests/generate-short-browser.test.mjs. */
+/* 创建题组, the short main path (#667): sources, 题型, 覆盖强度 (精简 / 标准 / 完整 / 自定义), one line of where the new deck goes (课程, #665) with 前往设置, and the one button. Every optional control
+   (想练什么, 重点, 参考样题, 难度, 语言, 公式写法, 自动补到完整, 花费上限, 名称, 目标岗位 / 面试方向 #666) is inside 更多选项, in four groups by purpose. Static markup here; the opening state,
+   the estimate and the clicks are in tests/generate-short-browser.test.mjs. */
 
 const m = await loadUi(`
   export { default as Generate } from './ui/Generate.jsx';
@@ -31,33 +32,58 @@ const parts = html => {
   return { main: html.slice(options, fold), fold: html.slice(fold, submit), submit: html.slice(submit) };
 };
 
-test('the main path of the options is one line with a link to the settings: no control, no row', () => {
+test('the main path of the options: the question types, the 覆盖强度 with 自定义 as its fourth choice, one line for the course and the way to the settings', () => {
   const { main } = parts(render());
+  assert.match(main, /data-tour="generate-kinds"/);
+  assert.match(main, /data-tour="generate-coverage"/);
+  const choices = [...main.matchAll(/<button[^>]*class="sh-seg__item[^"]*"[^>]*aria-pressed="(true|false)"[^>]*>(.*?)<\/button>/g)].map(match => [text(match[2]), match[1] === 'true']);
+  assert.deepEqual(choices, [['精简', false], ['标准', true], ['完整', false], ['自定义', false]], 'four choices, one on');
   assert.match(main, /data-generate-plan/);
-  assert.match(text(main), /单选测验 · 覆盖强度：标准 · 课程：数据库/, 'the question types, the 覆盖强度 and the course (as the page infers it) in one line');
-  assert.match(main, /<button[^>]*data-open-settings="settings-generation"[^>]*>前往设置<\/button>/, 'and the way to the defaults');
-  assert.doesNotMatch(main, /<(input|select|textarea)\b/, 'nothing to fill in on the main path');
-  assert.doesNotMatch(main, /generate-row|sh-seg|sh-check/, 'no row of controls either');
+  assert.match(text(main.slice(main.indexOf('data-generate-plan'))), /^[^>]*> 新题组放进课程：数据库 更改 前往设置/, 'where the new deck goes (as the page infers it), 更改, and the way to the defaults');
+  assert.match(main, /<button[^>]*data-open-settings="settings-generation"[^>]*>前往设置<\/button>/);
+  assert.doesNotMatch(main, /generate-focus|generate-title|generate-role|generate-count|data-tour="generate-(difficulty|language|notation)"/, 'nothing optional on the main path');
+  assert.doesNotMatch(main, /课程归属|课程范围/, 'the course field of the new deck is not drawn until 更改 (the page has one course field: 课程范围 of the materials)');
+});
+
+test('the one course field: 课程范围 filters the materials, and the new deck follows it (and the ticked materials) without a second field', () => {
+  const html = render();
+  assert.equal((html.match(/课程范围/g) || []).length > 0, true, 'the filter of the list of materials is there');
+  assert.doesNotMatch(html, /课程归属/, 'no second field named for the deck\'s course');
+  assert.doesNotMatch(html, /id="course-field|course-field__input/, 'the field of the deck\'s course is not drawn until 更改');
 });
 
 test('every optional control is inside 更多选项, closed unless the form carries values', () => {
   const { fold } = parts(render());
   assert.doesNotMatch(fold.slice(0, 80), /\sopen[\s>=]/, 'the fold is closed with the defaults');
-  for (const label of ['题型', '覆盖强度', '难度', '语言', '公式写法', '课程归属', '这次想练什么？', '题组名称（可选）', '目标岗位 / 面试方向（可选）', '参考样题（可选）'])
+  for (const label of ['想练什么', '难度与语言', '花费', '题组信息', '这次想练什么？', '难度', '语言', '公式写法', '花费上限', '题组名称（可选）', '目标岗位 / 面试方向（可选）', '参考样题（可选）'])
     assert.ok(text(fold).includes(label), `${label} is in the fold`);
   assert.match(fold, /id="generate-focus"/);
-  assert.match(fold, /name="kinds-quiz"|class="generate-kind/, 'the question types');
-  assert.match(fold, /data-coverage-strength/, 'the 覆盖强度 choice');
-  assert.match(text(fold.slice(0, 600)), /题型、覆盖强度、难度、语言、课程、想练什么/, 'the closed fold says what is in it');
-  // typed values open it, so nothing the learner entered is hidden
-  for (const typed of [{ focus: '死锁' }, { title: '期中复习' }, { role: '后端' }, { difficulty: 'advanced' }, { customCount: '40' }, { kinds: ['quiz', 'open'], kind: 'quiz' }, { language: 'English' }])
+  assert.match(fold, /data-tour="generate-budget"/, 'the spending limit');
+  assert.doesNotMatch(fold, /data-coverage-auto|data-coverage-level-note|kinds-quiz|id="generate-count"/, 'the question types and the strength are on the main path, not repeated here');
+  assert.match(text(fold.slice(0, 600)), /想练什么、难度与语言、花费上限、题组名称/, 'the closed fold says what is in it');
+  // typed values open it, so nothing the learner entered is hidden; what stands on the main path does not
+  for (const typed of [{ focus: '死锁' }, { title: '期中复习' }, { role: '后端' }, { difficulty: 'advanced' }, { language: 'English' }, { tokenBudget: '2M' }])
     assert.match(parts(render({}, { gen: { ...gen, ...typed } })).fold.slice(0, 80), /\sopen[\s>=]/, `${Object.keys(typed)} opens the fold`);
+  for (const onMain of [{ customCount: '40' }, { kinds: ['quiz', 'open'], kind: 'quiz' }, { coverageLevel: 'full' }, { autoComplete: false }])
+    assert.doesNotMatch(parts(render({}, { gen: { ...gen, ...onMain } })).fold.slice(0, 80), /\sopen[\s>=]/, `${Object.keys(onMain)} is on the main path and leaves the fold shut`);
 });
 
-test('the 覆盖强度 in the fold draws only its choices: the plan, the count and the estimate are said once, under the form', () => {
+test('the target role is not on the regular path: folded inside 更多选项 (open for an interview goal or a typed role)', () => {
+  const { main, fold } = parts(render());
+  assert.doesNotMatch(main, /generate-role|目标岗位/);
+  const role = /<details class="sh-disclosure[^"]*generate-role"([^>]*)>/.exec(fold);
+  assert.ok(role, 'the role sits in its own fold');
+  assert.doesNotMatch(role[1], /\sopen/, 'shut for an ordinary course');
+  assert.match(fold, /data-tour="generate-role"/, 'the anchor stays for 找功能');
+  assert.match(/<details class="sh-disclosure[^"]*generate-role"([^>]*)>/.exec(parts(render({}, { gen: { ...gen, role: '后端工程师' } })).fold)[1], /\sopen/, 'a typed role stays visible');
+  assert.match(/<details class="sh-disclosure[^"]*generate-role"([^>]*)>/.exec(parts(render({ focus: { course: '数据库', courses: [{ name: '数据库' }], mode: 'interview' } })).fold)[1], /\sopen/, 'and so does an interview course');
+});
+
+test('the 覆盖强度 draws only its choices: the plan, the count and the estimate are said once, under the form', () => {
   const { fold, submit } = parts(render());
   assert.doesNotMatch(fold, /data-coverage-consequence|data-coverage-auto-note/, 'no estimate line and no rounds sentence in the fold');
-  assert.match(fold, /data-coverage-auto/, 'the choice 自动补到完整 itself is there');
+  assert.doesNotMatch(parts(render()).main, /data-coverage-consequence|data-coverage-auto-note/, 'nor on the main path: only the choices and 自动补到完整 itself');
+  assert.match(parts(render()).main, /data-coverage-auto/, 'the choice 自动补到完整 belongs to the strength and stands with it');
   assert.doesNotMatch(text(fold), /共 \d+ 种题型，按 \d+ 题平均分配/, 'the question types do not repeat the planned total');
   assert.match(submit, /data-tour="generate-summary"/);
 });
@@ -73,7 +99,7 @@ test('the page promises no check at publish: it says what the generation already
 test('an uncategorised result is said once, in the plan line, and points at the fold, not at something "above"', () => {
   const data = { sources: sources.map(source => ({ ...source, courses: [] })), focus: { course: '*', courses: [] } };
   const html = render(data);
-  assert.match(text(parts(html).main), /课程：未分类/);
+  assert.match(text(parts(html).main), /新题组放进课程：未分类/);
   assert.doesNotMatch(text(html), /可在上方指定课程/);
 });
 
@@ -83,16 +109,16 @@ test('the same page in English has no Chinese outside the control values', () =>
     const html = render();
     const bare = html.replace(/\bvalue="[^"]*"/g, '').replace(/>中文</g, '><').replace(/placeholder="[^"]*"/g, '');
     assert.doesNotMatch(text(bare).replace(/数据库|索引笔记|事务笔记/g, ''), han);
-    assert.match(text(parts(html).main), /Single choice · Coverage strength: Standard · Course: 数据库/);
+    assert.match(text(parts(html).main), /Coverage strength Lean Standard Full Custom/);
+    assert.match(text(parts(html).main), /New deck goes into course: 数据库 Change Go to settings/);
     assert.match(parts(html).main, />Go to settings</);
   } finally { m.setUiLanguage('zh'); }
 });
 
-test('planLine names the types, the strength (or that a number was typed) and the course', () => {
-  const { planLine } = m.form;
-  assert.equal(planLine({ kinds: ['quiz'], level: 'lean', course: '网络' }), '单选测验 · 覆盖强度：精简 · 课程：网络');
-  assert.equal(planLine({ kinds: ['quiz', 'flashcard'], level: 'full', course: '' }), '单选测验 + 闪卡 · 覆盖强度：完整 · 课程：未分类');
-  assert.equal(planLine({ kinds: ['open'], level: 'standard', custom: true, course: 'DB' }), '开放问答 · 覆盖强度：自定义题数 · 课程：DB');
+test('courseLine says which course the new deck goes into', () => {
+  const { courseLine } = m.form;
+  assert.equal(courseLine('网络'), '新题组放进课程：网络');
+  assert.equal(courseLine(''), '新题组放进课程：未分类');
 });
 
 test('moreValuesOf: what makes the fold open', () => {
@@ -104,8 +130,9 @@ test('moreValuesOf: what makes the fold open', () => {
   assert.equal(moreValuesOf({ ...base, tokenBudget: '2M' }, base), true);
   assert.equal(moreValuesOf({ ...base, referenceSourceIds: ['x'] }, base), true);
   assert.equal(moreValuesOf({ ...base, difficulty: 'advanced' }, { ...base, difficulty: 'advanced' }), false, 'a value that is the saved default is not a choice made here');
-  assert.equal(moreValuesOf({ ...base, coverageLevel: 'full' }, base), true);
-  assert.equal(moreValuesOf({ ...base, kinds: ['quiz', 'open'], kind: 'quiz' }, base), true);
+  assert.equal(moreValuesOf({ ...base, coverageLevel: 'full' }, base), false, 'the strength stands on the main path');
+  assert.equal(moreValuesOf({ ...base, customCount: '40' }, base), false, 'so does a typed number of questions (it is the choice 自定义)');
+  assert.equal(moreValuesOf({ ...base, kinds: ['quiz', 'open'], kind: 'quiz' }, base), false, 'and the question types');
   assert.equal(moreValuesOf({ ...base, course: '网络' }, base), false, 'a course stands on the main path line, so it opens nothing');
-  assert.equal(moreValuesOf({ ...base, autoComplete: false }, base), true, 'a choice about the rounds is a choice');
+  assert.equal(moreValuesOf({ ...base, autoComplete: false }, base), false, 'the rounds are chosen under 覆盖强度, on the main path');
 });

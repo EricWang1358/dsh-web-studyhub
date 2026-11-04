@@ -206,9 +206,11 @@ test("02 / 学习方式 uses segmented controls (the 覆盖强度 among them) an
   for (const word of ["单选测验", "多选测验", "闪卡", "开放问答", "填空卡"]) assert.match(kindGroup, new RegExp(`sh-check__label">${word}</span>`), word);
   assert.match(section, /aria-pressed="true"[^>]*>标准</, "the default strength is 标准");
   assert.doesNotMatch(section, /aria-label="减少题数"|aria-label="增加题数"|generate-stepper/, "the bare question-count stepper is gone");
-  assert.match(section, /自定义题数/);
-  assert.match(section, /<input[^>]*type="number"[^>]*min="1"[^>]*max="500"|<input[^>]*max="500"[^>]*type="number"/);
-  const presets = [...section.matchAll(/<span[^>]*class="sh-chip [^"]*generate-preset[^"]*"[^>]*><button[^>]*class="sh-chip__main"[^>]*>(\d+)<\/button>/g)].map((match) => match[1]);
+  assert.match(section, /sh-seg__item[^>]*>自定义<\/button>/, "自定义 is the fourth choice of 覆盖强度");
+  assert.doesNotMatch(section, /id="generate-count"/, "the number field is there only for 自定义");
+  const typedSection = formOf(render({}, { gen: { ...gen, customCount: "40" } }));
+  assert.match(typedSection, /<input[^>]*type="number"[^>]*min="1"[^>]*max="500"|<input[^>]*max="500"[^>]*type="number"/);
+  const presets = [...typedSection.matchAll(/<span[^>]*class="sh-chip [^"]*generate-preset[^"]*"[^>]*><button[^>]*class="sh-chip__main"[^>]*>(\d+)<\/button>/g)].map((match) => match[1]);
   assert.deepEqual(presets, ["10", "30", "60", "100"]);
   assert.match(section, /标准：每个不少于 600 字的小节都出题/, "the level says what it means");
   const full = formOf(render({}, { gen: { ...gen, coverageLevel: "full" } }));
@@ -256,19 +258,15 @@ test("without a usable model the assist offers local suggestions and never claim
   assert.doesNotMatch(section, /只发送资料标题与目录/);
 });
 
-test("the custom number starts empty, shows the density of the level as its placeholder and keeps what the learner typed", () => {
+test("the custom number is not there until 自定义 is the choice, and keeps what the learner typed; a level takes it away", () => {
   const section = formOf(render());
   assert.doesNotMatch(section, /建议 \d+ 题|generate-hint/, "the old suggestion chip is gone");
-  assert.match(section, /<input[^>]*id="generate-count"[^>]*placeholder="例如 1"|<input[^>]*placeholder="例如 1"[^>]*id="generate-count"/, "400 characters of notes: one question at the standard density, not five");
-  assert.doesNotMatch(section, /<input[^>]*id="generate-count"[^>]*value="10"/, "the saved default count is not put in the field");
+  assert.doesNotMatch(section, /id="generate-count"/, "no field while a level is the choice");
   const typed = formOf(render({}, { gen: { ...gen, customCount: "75" } }));
   assert.match(typed, /<input[^>]*id="generate-count"[^>]*value="75"|<input[^>]*value="75"[^>]*id="generate-count"/);
-  assert.match(typed, /<details class="sh-disclosure[^"]*cov-strength__custom"[^>]*\sopen/, "a typed number keeps the disclosure open");
-  assert.match(typed, /改回按覆盖强度/);
-  const pdf = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((page) => ({ id: `p${page}`, title: `slides.pdf · p.${page}`, text: "x".repeat(900),
-    courses: ["数据库"], document: { id: "h".repeat(64), format: "pdf", page, filename: "slides.pdf" } }));
-  const big = formOf(render({ sources: pdf }, { selectedSources: pdf.map((page) => page.id) }));
-  assert.match(big, /placeholder="例如 11"/, "ten pages of 1 800 characters: 11 at the standard density");
+  assert.match(typed, /aria-pressed="true"[^>]*>自定义</, "a typed number is the chosen strength");
+  assert.doesNotMatch(typed, /aria-pressed="true"[^>]*>标准</, "and 标准 is not drawn as chosen next to it (#664)");
+  assert.match(typed, /按你填的题数出，题仍按「标准」的规则/);
 });
 
 test("a course with a case exam points to 案例分析题", () => {
