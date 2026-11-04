@@ -5,11 +5,11 @@ import { Button, IconButton, Icon, ProgressBar } from "../components/index.js";
 import { useTopDialog } from "../components/dialog-stack.js";
 import { useInjectCss } from "../shared.js";
 import { NARROW_WIDTH, placePopover, spotlightBox } from "./geometry.js";
+import { ANCHOR_WAIT_MS, findAnchor } from "./anchor.js";
 import { tourKeyAction } from "./steps.js";
 import css from "./tour.css";
 import { usePolling } from '../use-polling.js';
 
-const ANCHOR_WAIT_MS = 4000;
 const cx = (...names) => names.filter(Boolean).join(" ");
 const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -57,16 +57,6 @@ export function TourPopover({ step, index, total, model, sampleLoaded = true, bu
       </div>
     </div>
   );
-}
-
-/** The anchor element of a step inside the study app, once it is rendered with a size. */
-function findAnchor(root, anchors) {
-  for (const anchor of anchors) {
-    const element = root?.querySelector(`[data-tour="${anchor}"]`);
-    const box = element?.isConnected ? element.getBoundingClientRect() : null;
-    if (box && box.width > 0 && box.height > 0) return element;
-  }
-  return null;
 }
 
 /* While the card is docked along the bottom of a narrow panel, the page gets that much room after its end (tour.css), so a control at the

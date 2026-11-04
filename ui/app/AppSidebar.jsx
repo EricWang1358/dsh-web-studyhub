@@ -13,6 +13,7 @@ import { useReorderHint } from '../nav-reorder-hint.js';
 import { GLOSSARY } from '../mastery-terms.js';
 import { APPEARANCE_LABELS, THEME_CYCLE } from '../appearance-prefs.js';
 import LanguageSwitch from '../LanguageSwitch.jsx';
+import FinderNavItem from '../finder/FinderNavItem.jsx';
 import UpdateCenter from '../UpdateCenter.jsx';
 import { Button, Icon } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
@@ -48,7 +49,7 @@ const gotoPage = (nav, id) => nav.navigate(id, { animate: true, keepTrail: false
 export default function AppSidebar() {
   useInjectCss(css, 'study-app-shell');
   useInjectCss(navStartCss, 'study-nav-start');
-  const { data, language, core, shell, nav, session, intents, tour, board } = useApp();
+  const { data, language, core, shell, nav, session, intents, tour, board, finder } = useApp();
   const { busy } = core;
   const { sidebarNarrow } = shell;
   const { navPage, pageTarget, page } = nav;
@@ -148,6 +149,8 @@ export default function AppSidebar() {
       </nav>
       <div className="sidebar-bottom">
         <LanguageSwitch language={language} narrow={sidebarNarrow} onChange={setUiLanguage} />
+        {/* 找功能 sits directly above 功能导览: look a feature up, or walk through the main chain. */}
+        <FinderNavItem narrow={sidebarNarrow} disabled={!!tour.tourStep} onOpen={finder.openFinder} />
         {data && (
           <NavItem className="tour-nav" data-tour="tour-reopen" data-usage="nav.tour" icon={<Icon name="nav-tour" />} label={ui('功能导览')} disabled={tour.sampleBusy}
             aria-disabled={!!tour.tourStep || undefined} hint={tour.tourResume ? `${tour.tourResume.index + 1}/${tour.tourResume.total}` : undefined}

@@ -21,6 +21,7 @@ const BOOK = [
 ];
 const EVERYWHERE = [
   ["S", "从任意页继续上一轮或开始今日学习"],
+  ["Ctrl K / ⌘K / /", "找功能：搜一个功能在哪，选中后直接带你过去（/ 在没有输入框聚焦时可用）"],
   // The sidebar's reorder keys (ui/nav-order.js): its tooltips say them once only (ui/nav-reorder-hint.js), so they are kept here.
   ["Alt+↑ / Alt+↓", "侧栏：把有焦点的那一项上移 / 下移（用鼠标就长按并拖动）"],
   ["P", "阅读资料时：做这几页的题（范围可选，做完回到阅读）"],

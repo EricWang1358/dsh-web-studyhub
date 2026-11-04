@@ -37,10 +37,12 @@
       font-variant-numeric: tabular-nums;
       color: var(--text-faint);
     }
+    /* The title and the action share the first line; the sentence and the tags take the whole width under it, so a narrow panel loses no room to the button. */
     .finder-row {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--space-3);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: var(--space-3);
+      align-items: start;
       padding: var(--space-2-5) var(--space-3);
       border-radius: var(--radius-sm);
     }
@@ -51,15 +53,17 @@
       color: var(--text-faint);
     }
     .finder-row__text {
-      flex: 1 1 auto;
-      min-width: 0;
+      display: contents;
     }
     .finder-row__head {
+      grid-column: 1;
+      grid-row: 1;
       display: flex;
       flex-wrap: wrap;
       align-items: baseline;
       gap: var(--space-half) var(--space-2);
       margin: 0;
+      min-height: 28px;
     }
     .finder-row__title {
       font-weight: var(--fw-medium);
@@ -72,6 +76,8 @@
       color: var(--text-faint);
     }
     .finder-row__what {
+      grid-column: 1 / -1;
+      grid-row: 2;
       margin: var(--space-half) 0 0;
       color: var(--text-muted);
     }
@@ -79,6 +85,8 @@
       color: var(--text-faint);
     }
     .finder-row__tags {
+      grid-column: 1 / -1;
+      grid-row: 3;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -91,7 +99,8 @@
     }
     /* A per-row action appears on the selected row and on hover; the space is always there, so nothing moves. */
     .finder-row__go {
-      flex: none;
+      grid-column: 2;
+      grid-row: 1;
       opacity: 0;
       transition: opacity var(--dur-fast) var(--ease);
     }
@@ -117,7 +126,7 @@
     .finder-ring-layer {
       position: fixed;
       inset: 0;
-      z-index: var(--z-tour);
+      z-index: var(--z-sticky);
       overflow: hidden;
       pointer-events: none;
     }
