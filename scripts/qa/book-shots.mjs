@@ -73,7 +73,8 @@ async function whole(page, width, path) {
   await page.setViewportSize({ width, height: 900 });
 }
 
-async function openBook(page, running) {
+/** The book page of the focused course, its first point drawn (also scripts/qa/book-kit-shots.mjs). */
+export async function openBook(page, running) {
   await page.goto(running.server.url);
   await (await revealNavRow(page, 'book')).click({ timeout: 30000 });
   await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });

@@ -1,0 +1,179 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* 答题模板 of the review book (ui/book/BookExamKit.jsx), in a dialog over the book like the 速查页: the template cards and the question-signal matrix. Its codes
+       are ink links like every other link of the book; a [slot] is marked with the selection wash and a dashed rule (never the accent, which stays for the
+       one primary button and progress). Tokens only; long words wrap; on a narrow screen each row of the matrix is a small block with its column names. */
+    .book-kit {
+      --sh-link-ink: var(--text);
+      --sh-link-wash: var(--bg-hover);
+      display: grid;
+      gap: var(--space-5);
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .book-kit__part {
+      display: grid;
+      gap: var(--space-3);
+      min-width: 0;
+    }
+    .book-kit__title {
+      margin: 0;
+      font-size: var(--fs-md);
+    }
+    .book-kit__type {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      min-width: 0;
+      scroll-margin-top: var(--space-3);
+    }
+    .book-kit__label,
+    .book-kit__head {
+      margin: 0;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+    }
+    .book-kit__tcode {
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .book-kit__asks,
+    .book-kit__muted {
+      margin: 0;
+    }
+    /* The points a type tests, one per line as the book names them (number, title, the code muted after); a long title wraps under itself. */
+    .book-kit__where {
+      display: grid;
+      gap: var(--space-1);
+    }
+    .book-kit__points {
+      display: grid;
+      gap: var(--space-half);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      min-width: 0;
+    }
+    /* A point's number, muted like the book's heading numbers but without their margin, so the link keeps one unbroken underline. */
+    .book-kit__number {
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .book-kit__muted {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-kit__template {
+      margin: 0;
+      padding: var(--space-2) var(--space-3);
+      border-left: 2px solid var(--line-strong);
+      background: var(--bg-sunken);
+      white-space: pre-wrap;
+      line-height: var(--lh-body);
+    }
+    .book-kit__slot {
+      padding: 0 var(--space-half);
+      border-bottom: 1px dashed var(--line-strong);
+      border-radius: var(--radius-xs);
+      background: var(--bg-selected);
+      color: var(--text);
+      font-weight: var(--fw-medium);
+    }
+    .book-kit__fills {
+      display: grid;
+      gap: var(--space-2);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .book-kit__fill {
+      display: grid;
+      grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
+      gap: var(--space-3);
+      min-width: 0;
+    }
+    .book-kit__ref {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-variant-numeric: tabular-nums;
+    }
+    .book-kit__values {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1) var(--space-3);
+      min-width: 0;
+    }
+    .book-kit__name {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+    }
+    .book-kit__code {
+      font-variant-numeric: tabular-nums;
+      margin-right: var(--space-1);
+    }
+    .book-kit__scroll {
+      min-width: 0;
+      overflow-x: auto;
+    }
+    .book-kit__matrix {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--fs-sm);
+    }
+    .book-kit__matrix th,
+    .book-kit__matrix td {
+      padding: var(--space-2);
+      border-bottom: 1px solid var(--line-soft);
+      text-align: left;
+      vertical-align: top;
+    }
+    .book-kit__matrix th {
+      color: var(--text-muted);
+      font-weight: var(--fw-medium);
+      white-space: nowrap;
+    }
+  }
+  @container study (max-width: 45rem) {
+    :where(.study-app, .study-seat) {
+      .book-kit__fill {
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-1);
+      }
+      .book-kit__matrix thead {
+        display: none;
+      }
+      .book-kit__matrix,
+      .book-kit__matrix tbody {
+        display: block;
+      }
+      .book-kit__row {
+        display: grid;
+        gap: var(--space-half);
+        padding: var(--space-2) 0;
+        border-bottom: 1px solid var(--line-soft);
+      }
+      .book-kit__matrix td {
+        display: grid;
+        grid-template-columns: 7.5em minmax(0, 1fr);
+        gap: var(--space-2);
+        padding: 0;
+        border-bottom: 0;
+      }
+      .book-kit__matrix td:empty {
+        display: none;
+      }
+      .book-kit__matrix td::before {
+        content: attr(data-head);
+        color: var(--text-muted);
+        font-size: var(--fs-xs);
+        line-height: var(--lh-body);
+      }
+    }
+  }
+}

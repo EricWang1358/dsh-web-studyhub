@@ -526,5 +526,15 @@
   "→ {0}": "→ {0}",
   "术语卡（按章）": "Term cards by chapter",
   "公式": "Formulas",
-  "书里讲到的公式，按讲它的知识点排；代码打开那一节。": "The formulas the book explains, in the order of the points that explain them; a code opens that section."
+  "书里讲到的公式，按讲它的知识点排；代码打开那一节。": "The formulas the book explains, in the order of the points that explain them; a code opens that section.",
+  "答题模板…": "Answer templates…",
+  "答题模板": "Answer templates",
+  "由样卷题目整理：每种题型一个答题模板，和每道真题怎么填。点知识点打开讲它的那一节。": "Made from the sample papers: an answer template for each question type, and how each past question fills it. Open a point to read the section that teaches it.",
+  "按题型的答题模板": "Templates by question type",
+  "题干信号矩阵": "Question signals",
+  "每道真题的填法": "How each past question fills it",
+  "题干原词": "Trigger words",
+  "考查本质与切入点": "What is really tested",
+  "模板": "Template",
+  "真题": "Past papers"
 }

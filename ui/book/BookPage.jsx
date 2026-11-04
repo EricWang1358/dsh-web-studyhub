@@ -20,7 +20,7 @@ import BookAskLayer from './BookAskLayer.jsx';
 import BookExport from './BookExport.jsx';
 import BookStructureDialog from './BookStructure.jsx';
 import PlanSection from './PlanSection.jsx';
-import { EditView, FlipView, HistoryDialog, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
+import { EditView, FlipView, HistoryDialog, KitDialog, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
 import { BookReadContext, bookSteps, useBookReading, useStepKeys } from './reading.js';
 import { AiFoldContext, BookAiContext, useAiFold } from './ai-fold.js';
 import { useBookData } from './use-book-data.js';
@@ -157,10 +157,12 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const unplaced = step?.hid === 'unplaced', counted = steps.filter(item => item.hid !== 'unplaced').length;
   const hasHistory = Object.values(book.history || {}).some(count => count > 0);
   const menu = <BookMore onSelect={more.select} unplaced={unplaced} pointFold={more.pointFold} bookFold={more.bookFold} scroll={reading.mode === 'scroll'} pages={pages} pageLimit={pageLimit}
-    history={hasHistory} today={!!plan.day} mockScope={plan.day ? plan.points.length : 0} dateHint={dateHint} settings={!!(courseRecord?.id && onCourseSettings)} />;
+    history={hasHistory} today={!!plan.day} mockScope={plan.day ? plan.points.length : 0} dateHint={dateHint} settings={!!(courseRecord?.id && onCourseSettings)}
+    kit={!!book.examKit?.types?.length} />;
   const dialogs = <>
     {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} onClose={() => setDialog(null)} />}
     {dialog === 'lookup' && <LookupDialog book={book} onGo={where.goTo} onCard={handlers.goCard} onClose={() => setDialog(null)} />}
+    {dialog === 'kit' && book.examKit && <KitDialog book={book} onGo={where.goTo} onClose={() => setDialog(null)} />}
     {dialog === 'history' && <HistoryDialog book={book} step={step} onChanged={setBook} onClose={() => setDialog(null)} />}
     {dialog === 'mock' && <MockDialog course={course} pointIds={plan.day ? plan.points.map(point => point.id) : undefined} onStarted={onExamRun} onClose={() => setDialog(null)} />}
   </>;

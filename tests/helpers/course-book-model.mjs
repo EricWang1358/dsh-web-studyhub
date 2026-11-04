@@ -1,5 +1,5 @@
 /* A fake model for the 复习全书 build: the inventory and the outline stages are answered by the course outline's fake (tests/helpers/course-outline-library.mjs),
-   the writing, the independent review, the repair, the placing of loose items and 考情 here, the way a plausible model would: the writer explains each
+   the writing, the independent review, the repair, the placing of loose items, 考情 and the exam answer kit here, the way a plausible model would: the writer explains each
    checklist item by name with a quote copied from its first page; the reviewer flags every must item the text does not name; the repair adds what was flagged.
    No real model, no network. */
 import { reportUsage } from '../../lib/usage-scope.js';
@@ -37,6 +37,13 @@ function review(data, { unsupported = [] }) {
 }
 
 const examAnswer = data => ({ leaves: data.leaves.map(leaf => ({ id: leaf.id, note: `Asked as: ${String(leaf.questions[0] ?? '').slice(0, 40)}` })) });
+/** The exam answer kit (#710 S4): per type a name, its question's first two words as trigger words plus one the papers do not hold, a template with slots, and a
+    fill per question plus one of a question that was never asked (the program drops both). */
+const kitAnswer = data => ({ types: data.types.map(type => ({ id: type.id, name: `${type.kind} answer`, asks: `考的是${type.points.join('、')}`,
+  signals: [type.questions[0].text.split(' ').slice(0, 2).join(' '), 'words in no question'],
+  template: '1. State [Claim] about [Topic].\n2. Support it with [Evidence].\n3. Close with [Trade-off].',
+  fills: [...type.questions.map(question => ({ question: question.id, fill: `Claim: ${question.text.slice(0, 30)} ｜ Topic: ${question.label}` })),
+    { question: 'q99', fill: 'A question that was never asked.' }] })) });
 
 /**
  * The fake model. Outline options as outlineModel; `invent`: each section also cites a quote that is in no material; `skip`: point titles the writer answers
@@ -52,7 +59,7 @@ export function bookModel({ invent = false, skip = [], omit = 0, stubborn = [], 
     if (held && (held.stage ? call.stage === held.stage && !held.taken && (held.taken = true) : calls.length === held.at)) await held.gate.promise;
     if (fail?.(call, calls)) throw new Error('provider down');
     if (junk?.(call, calls)) { reportUsage({ uncachedInputTokens: 10, outputTokens: 3, cacheReadTokens: 0, cacheWriteTokens: 0 }); return 'Not JSON at all.'; }
-    if (['write', 'review', 'repair', 'place', 'exam'].includes(data.stage)) {
+    if (['write', 'review', 'repair', 'place', 'exam', 'kit'].includes(data.stage)) {
       reportUsage({ uncachedInputTokens: 100, outputTokens: 60, cacheReadTokens: 0, cacheWriteTokens: 0 });
       const must = (data.checklist || []).filter(item => item.priority === 'must'), all = data.checklist || [];
       if (data.stage === 'write') {
@@ -66,6 +73,7 @@ export function bookModel({ invent = false, skip = [], omit = 0, stubborn = [], 
         return JSON.stringify(section(data, keep, { invent: false, cards: opts.cards }));
       }
       if (data.stage === 'place') return JSON.stringify({ places: data.items.map(item => ({ item: item.id, point: 'k1' })) });
+      if (data.stage === 'kit') return JSON.stringify(kitAnswer(data));
       return JSON.stringify(examAnswer(data));
     }
     let text = await base.complete(system, prompt, request);
