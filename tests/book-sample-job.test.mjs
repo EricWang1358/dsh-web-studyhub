@@ -55,8 +55,17 @@ test('a first build writes the sample and waits; building the rest keeps it, sen
   assert.ok(sample.estimate.totalTokens.low > 0 && sample.estimate.concurrency >= 1);
   // The Job: partial (the rest is not written), and the console says the book waits for the learner.
   assert.equal(first.contract.result.completeness, 'partial');
-  assert.match(first.contract.stage.text, new RegExp(`样例已写好：2 个知识点，等你看过再生成其余 ${anchored - 2} 个`));
+  // The waiting first, so the console's one-line row says it even when narrow.
+  assert.equal(first.contract.stage.text, `样例已写好，等你看过再生成其余 ${anchored - 2} 个（样例 2 个知识点）`);
   assert.deepEqual(first.contract.detail.book.sample, { points: 2, rest: anchored - 2, total: anchored, ready: true, written: true });
+  // The pages show it while it waits: the 总纲's book line and the book page, its points by title (on the book page with their headings) and the scale.
+  const shown = (await w.service.call('course.outline', { course: COURSE })).book.notes.sample;
+  const inOrder = sample.leaves.map(id => notes.leaves.find(leaf => leaf.id === id).title);
+  assert.deepEqual(shown.points.map(point => point.title), inOrder, 'the typical point first');
+  assert.deepEqual([shown.level, shown.written, shown.estimate], [sample.level, true, sample.estimate]);
+  const opened = (await w.service.call('course.book.open', { course: COURSE })).sample;
+  assert.deepEqual(opened.points.map(point => point.title), inOrder);
+  assert.ok(opened.points.every(point => /^[a-z0-9-]+$/i.test(point.hid)), 'each point by its heading on the book page');
 
   // Build the rest: the sample's points are kept (no call asks for them again); every write carries the approved sample.
   const mark = w.fake.calls.length;
@@ -70,6 +79,7 @@ test('a first build writes the sample and waits; building the rest keeps it, sen
   assert.ok(rest.record.courseNotes.leaves.filter(leaf => leaf.anchors.length).every(leaf => leaf.body?.status === 'ok'));
   assert.equal(rest.contract.result.completeness, 'complete');
   assert.equal(rest.contract.detail.book.sample, undefined, 'no sample in this build');
+  assert.equal((await w.service.call('course.outline', { course: COURSE })).book.notes.sample, undefined, 'an approved sample is not shown');
 
   // A later build at the same settings: the approved sample stands, nothing to write, no call.
   const after = w.fake.calls.length;

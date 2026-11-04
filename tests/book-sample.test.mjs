@@ -69,8 +69,10 @@ test('the scale of the whole build, from what the sample really used: the typica
   assert.deepEqual(estimate.totalTokens, { low: 161200, high: 386200 });
   assert.deepEqual(estimate.outputTokens, { low: 50000 + 300 + 1000, high: 120000 + 300 + 1000 });
   assert.equal(estimate.inputTokens.low, estimate.uncachedInputTokens.low + estimate.cacheReadTokens.low);
-  // Time: 25 rounds of 4 points (20 s or 40 s a point), the 13 other calls 4 at a time.
-  assert.deepEqual(estimate.minutes, { low: Math.ceil((25 * 20000 + (3 * 4000 + 10 * 1000) / 4) / 60000), high: Math.ceil((25 * 40000 + (3 * 4000 + 10 * 1000) / 4) / 60000) });
+  // Time: 25 rounds of 4 points (20 s or 40 s a point), the 13 other calls 4 at a time; to the nearest minute (8.4 and 16.7 minutes).
+  assert.deepEqual(estimate.minutes, { low: 8, high: 17 });
+  const quick = scaleEstimate({ calls: calls.map(item => ({ ...item, endedAt: new Date(20).toISOString() })), rest: { points: 3, tested: 0, inventory: 0 }, total: 5, sample: 2, concurrency: 4 });
+  assert.deepEqual(quick.minutes, { low: 0, high: 0 }, 'calls of a few milliseconds: under a minute, not "about 1 minute"');
   assert.equal(estimate.concurrency, 4);
   assert.deepEqual(estimate.stages.map(stage => [stage.id, stage.calls]), [['bookPoints', 250], ['exam', 3], ['inventory', 10]]);
   assert.ok(!JSON.stringify(estimate).match(/price|cost|元|\$/i), 'no prices');
