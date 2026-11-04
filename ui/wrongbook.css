@@ -38,20 +38,22 @@
       border-radius: var(--radius);
       background: var(--bg-surface);
     }
-    .wb-recs-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: nowrap; gap: var(--space-3); min-height: 32px; /* a small button */ }
+    /* The fold arrow beside two lines: the title, then what was found and how it is practised. The second line is there from the first paint (loading, none,
+       found), so the answer never changes the bar's height; there is no start in it, the page has one (#674). */
+    .wb-recs-bar { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--space-3); min-height: 32px; }
+    .wb-recs-bar > :first-child { grid-row: 1 / span 2; align-self: start; }
     .wb-recs-bar h2 {
       display: flex;
       align-items: center;
       flex-wrap: wrap;
       gap: var(--space-2);
       min-width: 0;
-      margin: 0 auto 0 0;
+      margin: 0;
       font-family: var(--font-display);
       font-size: var(--fs-lg);
     }
-    .wb-recs-bar > .wb-recs-bar__btn { flex: none; }
     .wb-recs-spacer { flex: none; width: 32px; height: 32px; }
-    .wb-recs-status { min-width: 0; margin-left: auto; font-size: var(--fs-sm); text-align: right; }
+    .wb-recs-status { grid-column: 2; min-width: 0; margin: 0; font-size: var(--fs-sm); }
     .wb-recs-body { display: grid; gap: var(--space-3); min-width: 0; }
     .wb-recs-body > p { margin: 0; font-size: var(--fs-md); }
     .wb-recs-body > .wb-recs-body__more { justify-self: start; }
@@ -129,6 +131,8 @@
     .wb-group:not(.is-open) .wb-group-head { border-bottom-color: var(--line-soft); }
     .wb-toolbar + .wb-group:not(.is-open) { margin-top: var(--space-2); }
     .wb-group-toggle:hover .wb-group-title strong { color: var(--accent-text); }
+    /* The one group of a short list: its title and count, open, nothing to fold (#675). */
+    .wb-group-head.is-flat { min-height: 40px; padding-block: var(--space-1); }
     .wb-group-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
     .wb-group-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-half) var(--space-3); min-width: 0; flex: 1 1 auto; }
     .wb-summary { color: var(--text-dim); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
