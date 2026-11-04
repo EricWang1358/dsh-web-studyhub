@@ -53,7 +53,14 @@ test('全部归档: the notice counts and 撤销 brings back exactly what the ho
   assert.deepEqual(sent[0], ['job.archive', { all: true }]);
   assert.equal(result.ids.length, 7);
   assert.match(shown[0].message, /已归档 7 个任务/);
-  assert.equal(await shown[0].action.onClick(), true);
+  // 撤销 puts the focus back on a 30 ms timer (ui/undoable.js); without a page here it must run inside the test, not after it.
+  const focused = [], priorDocument = globalThis.document;
+  globalThis.document = { querySelector: (selector) => ({ focus: () => focused.push(selector) }) };
+  try {
+    assert.equal(await shown[0].action.onClick(), true);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.deepEqual(focused, ['.jobs-dismiss-all'], '撤销 puts the keyboard focus back on 全部归档');
+  } finally { if (priorDocument === undefined) delete globalThis.document; else globalThis.document = priorDocument; }
   assert.deepEqual(sent[1][0], 'job.unarchive');
   assert.deepEqual([...sent[1][1].jobIds].sort(), [...onHome, ...elsewhere].sort(), '撤销 unarchives the same 7');
   assert.deepEqual(m.archivedIdsOf({ archived: ['a'], alreadyArchived: ['b', 'a'] }), ['a', 'b']);
