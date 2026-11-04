@@ -148,15 +148,17 @@ test("generation failures become plain language with a fix", () => {
   assert.doesNotMatch(english.title + english.hint, han);
 });
 
-test("a started generation confirms with the deck name and resets the form", () => {
+test("a started generation says nothing the page already says, and resets the form", () => {
   const gen = { kind: "quiz", count: "4", title: "  索引小测 ", focus: "写多读少", language: "English", difficulty: "advanced", role: "后端", course: "数据库" };
-  const notice = m.generationStartedNotice({ status: "running", parts: 1 }, gen, 2);
-  assert.equal(notice.tone, "success");
-  assert.match(notice.text, /^已开始生成「索引小测」…/);
-  const queued = m.generationStartedNotice({ status: "queued", queuedBehind: 1, parts: 1 }, gen, 2);
-  assert.match(queued.text, /「索引小测」/);
-  assert.match(queued.text, /前面还有 1 个/);
-  assert.match(m.generationStartedNotice({ status: "running" }, { ...gen, title: "" }, 2).text, /已开始用 2 份资料出题/);
+  // The progress card the learner lands on already names the deck and says 正在生成 or 排队中: a toast that says it again is noise (#677).
+  assert.equal(m.generationStartedNotice({ status: "running", parts: 1 }, gen, 2), null);
+  assert.equal(m.generationStartedNotice({ status: "queued", queuedBehind: 1, parts: 1 }, gen, 2), null);
+  assert.equal(m.generationStartedNotice({ status: "running" }, { ...gen, title: "" }, 2), null);
+  // What the card does not say (how a plan of several rounds goes on) is the one thing left to say.
+  const rounds = m.generationStartedNotice({ status: "running", plan: { rounds: 3, questions: 12 } }, gen, 2);
+  assert.equal(rounds.tone, "success");
+  assert.match(rounds.text, /^分 3 轮；这次先出第 1 轮（约 12 题）/);
+  assert.doesNotMatch(rounds.text, /已开始生成|索引小测/);
   assert.deepEqual(m.freshGeneration(gen), { kind: "quiz", kinds: ["quiz"], count: 10, title: "", focus: "", language: "English",
     difficulty: "advanced", role: "后端", notation: "auto", coverageLevel: "standard", customCount: "", tokenBudget: "", course: undefined });
   assert.deepEqual({ kind: m.GENERATION_DEFAULTS.kind, count: m.GENERATION_DEFAULTS.count }, { kind: "quiz", count: 10 });

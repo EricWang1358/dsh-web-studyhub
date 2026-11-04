@@ -363,10 +363,6 @@
       background: var(--bg-hover);
       color: var(--text);
     }
-    .question-toolbar .tool-action.is-active {
-      background: var(--bg-hover);
-      color: var(--text);
-    }
     .question-toolbar .thumbs > .tool-icon { width: 38px; padding: var(--space-2); }
     .question-toolbar .thumbs svg { display: block; width: 17px; height: 17px; }
     .question-navigation { margin-left: auto; }
@@ -417,6 +413,10 @@
       margin: var(--space-4) 0;
     }
     .next-due__lead { margin: 0; }
+    /* 「为什么是 3 天」: the numbers behind the date stay one click away. */
+    .next-due__why { margin-top: var(--space-2); }
+    .next-due__explain { margin: var(--space-2) 0 0; }
+    .question-retry-note { margin-left: var(--space-2); color: var(--text-muted); font-size: var(--fs-xs); }
     .next-due__telemetry {
       display: flex;
       flex-wrap: wrap;

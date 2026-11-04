@@ -13,7 +13,9 @@
     /* A window draws 24 rows at first (more as they scroll near) and shows about six: the rest are not laid out until they scroll near (the last size is remembered, 90px before the first). */
     .source-picker__entry { content-visibility: auto; contain-intrinsic-size: auto 90px; }
     .source-picker__entry + .source-picker__entry .source-picker__item { border-top: 1px solid var(--line-soft); }
-    .source-picker__item.is-selected { background: color-mix(in srgb, var(--accent) 7%, var(--bg-surface)); box-shadow: inset 3px 0 0 var(--accent); }
+    /* A ticked row is the selection colour with a neutral tick: the accent stays on the one primary button (ui/DESIGN.md, #658). */
+    .source-picker__item.is-selected { background: var(--bg-selected); }
+    .source-picker .source-picker__check:is(:checked, :indeterminate) { border-color: var(--text); background: var(--text); color: var(--bg-surface); }
     .source-picker__row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); }
     .source-picker__doc { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); flex: 1; min-width: 0; margin: 0; cursor: pointer; }
     .source-picker .source-picker__check { margin: var(--space-1) 0 0; }

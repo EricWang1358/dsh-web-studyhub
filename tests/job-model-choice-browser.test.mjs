@@ -8,6 +8,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { startConsole, startJobs } from '../scripts/qa/task-console.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 「仅本任务生效」 in the browser: the 即时控制 box of a running question run with a host model catalog (DSH's, played by window.STUDY_MODEL_GROUPS in the
    preview) at 1280 and 420 px. The 模型 select sits with the other choices, says 「跟随设置」 whole, lists the models by name in its popup; choosing one is
@@ -47,7 +48,7 @@ async function openWithCatalog(browser, running, { lang, theme, width }) {
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, value: { options: ids.map((id) => ({ id, name: id[0].toUpperCase() + id.slice(1) })) } }) });
   });
   await opened.page.goto(running.server.url);
-  await opened.page.locator('[data-tour="nav-tasks"]').first().dispatchEvent('click');
+  await (await revealNavRow(opened.page, 'tasks')).dispatchEvent('click');
   await opened.page.locator('.tc-detail').first().waitFor({ state: 'attached', timeout: 30000 });
   await settleAnimations(opened.page);
   for (let index = 0, rows = await opened.page.locator('.tc-row').count(); index < rows && !(await opened.page.locator('[data-control="model"]').count()); index++) {

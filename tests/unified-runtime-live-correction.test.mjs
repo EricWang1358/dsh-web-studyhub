@@ -92,3 +92,23 @@ test('measure: a 90-minute class (about 180 passes) keeps the job\'s calls and t
   console.log(`MEASURE passes=180 calls=${done.calls.length} events=${done.events.length} steps=${done.runtime.steps.length} snapshotBytes=${snapshot.length}`);
   assert.equal(done.status, 'complete');
 });
+
+test('long sentences on the job: each request is budgeted by its characters, and a sentence that times out twice is skipped, not asked again', async t => {
+  const { session } = fakeClass(), requests = [];
+  for (let id = 1; id <= 3; id++) session.segments.push({ id, t: id * 1000, en: `Long ${id} ${'word '.repeat(140)}`, zh: `句 ${id}` });
+  const host = modelHost([]);
+  const answer = async (system, prompt, request) => {
+    const input = JSON.parse(prompt); requests.push({ n: input.items.map(item => item.n), maxTokens: request?.maxTokens });
+    if (input.items.some(item => item.n === 2)) throw Object.assign(new Error('Model timed out after 60s'), { name: 'TimeoutError' });
+    const last = input.items.at(-1).n;
+    return JSON.stringify({ items: [], note: { text: '知识点', refs: [last] }, memory: { text: '摘要', refs: [last] }, followups: [] });
+  };
+  const h = harness(t, { session, host: { ...host, complete: answer, light: answer } });
+  session.status = 'ended';
+  const started = await h.start();
+  await h.port.wait(started.jobId);
+  assert.deepEqual(requests.map(request => request.n), [[1], [2], [2], [3]]);
+  assert.ok(requests.every(request => request.maxTokens >= 2048 && request.maxTokens <= 8192), 'the reply allowed is the expected reply, within its caps');
+  assert.ok(requests[0].maxTokens > requests[1].maxTokens, 'the first request also writes the cumulative memory, so it is allowed more');
+  assert.deepEqual([h.correction.snapshot().skipped, h.correction.snapshot().calls, h.correction.coveredThrough], [1, 4, 3]);
+});

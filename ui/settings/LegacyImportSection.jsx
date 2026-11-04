@@ -8,7 +8,7 @@ export default function LegacyImportSection({ legacy, setLegacy }) {
   const { busy, act } = useStudy();
   const toast = useToast();
   return (
-    <SettingsSection title={ui('导入 study-lib-spar')} lead={ui('从已有本地学习库导入，保留可迁移的复习记录。')}>
+    <SettingsSection tour="settings-legacy-import" title={ui('导入 study-lib-spar')} lead={ui('从已有本地学习库导入，保留可迁移的复习记录。')}>
       <Field label={ui('原学习库路径')}><TextInput value={legacy} onChange={(e) => setLegacy(e.target.value)} /></Field>
       <div className="settings-actions">
         <Button disabled={!legacy} lock={busy} onClick={() =>

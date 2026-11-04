@@ -9,6 +9,7 @@ import { StudyService } from '../lib/service.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 「发给主会话」 on every place that handed over before the shared unit existed (the hand-off plan, S2b), in Chromium through the REAL host adapter
    (ui/host/workspace.jsx) and the REAL App on a real library; only DSH is faked and its conversation is wrapped in a Proxy whose submit throws.
@@ -127,7 +128,7 @@ test('发给主会话 on the places that handed over before: the shared control,
     /** The receipt of `outcome` (ui/hand-off/use-hand-off.js), its line matching `line` (what a write before it did comes first). */
     const receipt = (outcome, line) => page.locator(`.sh-toasts .sh-toast--receipt[data-receipt="${outcome}"]`).filter({ hasText: line });
     const FILLED = '看一眼，再由你按发送', KEPT = '输入框里你写的字都留着';
-    const go = async (id) => { await page.locator(`[data-tour="nav-${id}"]`).first().click({ timeout: 60000, force: true }); };
+    const go = async (id) => { await (await revealNavRow(page, id)).click({ timeout: 60000, force: true }); };
     const state = () => page.evaluate(() => ({ log: window.dshLog.slice(), text: window.composerText, copied: window.copied.slice() }));
     const reset = async (extra = {}) => {
       await page.evaluate((s) => { Object.assign(window, { composerText: '', noChat: false, copied: [] }, s); window.dshLog.length = 0; }, extra);

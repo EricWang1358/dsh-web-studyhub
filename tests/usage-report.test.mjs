@@ -115,11 +115,12 @@ test('observations are rule-based and each explains itself: a busy control in a 
   const report = buildReport(state, { period: 30, today: TODAY, language: 'en' });
   const byId = Object.fromEntries(report.observations.map(item => [item.id, item]));
   assert.ok(report.observations.length >= 3 && report.observations.length <= 6, `${report.observations.length} observations`);
-  assert.ok(byId['quiet-busy'], 'Knowledge outline is used about every day but sits in the quiet group');
+  // #654: a busy page folded into 「更多」 can be dragged into the main list (the groups are by content now, not by how often).
+  assert.ok(byId['quiet-busy'], 'Knowledge outline is used about every day but sits in 「更多」');
   assert.equal(byId['quiet-busy'].key, 'nav.skeleton');
   assert.match(byId['quiet-busy'].text, /Knowledge outline/);
-  assert.match(byId['quiet-busy'].text, /Setup & manage/);
-  assert.match(byId['quiet-busy'].text, /Every day/);
+  assert.match(byId['quiet-busy'].text, /More › Practice and review/);
+  assert.match(byId['quiet-busy'].text, /main list/);
   assert.ok(byId['idle-fold'], 'Mock exam was last used 40 days ago');
   assert.match(byId['idle-fold'].text, /Mock exam/);
   assert.match(byId['idle-fold'].text, /30 days/);
@@ -132,7 +133,7 @@ test('observations are rule-based and each explains itself: a busy control in a 
     assert.ok(!/score|index|metric|coefficient|z-?value/i.test(item.text), 'no scoring jargon');
   }
   const zh = buildReport(state, { period: 30, today: TODAY, language: 'zh' });
-  assert.match(zh.observations.find(item => item.id === 'quiet-busy').text, /知识骨架.*课程准备与管理.*每天/);
+  assert.match(zh.observations.find(item => item.id === 'quiet-busy').text, /知识骨架.*更多 › 练习与复习.*主导航/);
   assert.deepEqual(zh.observations.map(item => item.id), report.observations.map(item => item.id), 'the same observations in both languages');
 });
 

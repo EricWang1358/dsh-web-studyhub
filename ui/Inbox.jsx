@@ -100,6 +100,7 @@ export default function Inbox({ inbox, onOpen, onReadAll, onUndo, readError = ""
         ref={toggle}
         icon="mail"
         className={"mailbox__toggle" + (unread ? " has-unread" : "")}
+        data-tour="topbar-mailbox"
         aria-expanded={open}
         aria-haspopup="dialog"
         label={unread ? uiFormat("信箱，{0} 条未读", [unread]) : ui("信箱")}

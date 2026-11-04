@@ -13,7 +13,7 @@ const REVIEW = [
   ["H", "提示 / 讲解"],
   ["T", "通俗详解：用比喻把这道题讲透（交给后台助教）"],
   ["G / B", "👍 这题不错 / 👎 这题有问题"],
-  ["A", "自动驾驶 开/关"],
+  ["A", "自动跳下一步 开/关"],
 ];
 // 复习全书: the keys of the reading surface (ui/book/reading.js useStepKeys, ui/book/BookToc.jsx).
 const BOOK = [
@@ -21,6 +21,7 @@ const BOOK = [
 ];
 const EVERYWHERE = [
   ["S", "从任意页继续上一轮或开始今日学习"],
+  ["Ctrl K / ⌘K / /", "找功能：搜一个功能在哪，选中后直接带你过去（/ 在没有输入框聚焦时可用）"],
   // The sidebar's reorder keys (ui/nav-order.js): its tooltips say them once only (ui/nav-reorder-hint.js), so they are kept here.
   ["Alt+↑ / Alt+↓", "侧栏：把有焦点的那一项上移 / 下移（用鼠标就长按并拖动）"],
   ["P", "阅读资料时：做这几页的题（范围可选，做完回到阅读）"],
@@ -30,7 +31,7 @@ const EVERYWHERE = [
 
 /** A non-modal sheet: focus moves into it when it opens, Escape or a press outside closes it and focus goes back to where it was. */
 export default function ShortcutHelp({ page, onClose }) {
-  const rows = page === "review" ? [...REVIEW, ...EVERYWHERE] : [...(page === "book" ? BOOK : []), ...EVERYWHERE, ["A", "自动驾驶 开/关"]];
+  const rows = page === "review" ? [...REVIEW, ...EVERYWHERE] : [...(page === "book" ? BOOK : []), ...EVERYWHERE, ["A", "自动跳下一步 开/关"]];
   const sheet = useRef(null), opener = useRef(null);
   useEffect(() => {
     opener.current = document.activeElement;

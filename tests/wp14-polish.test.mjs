@@ -9,6 +9,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { existsSync, readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const compiled = await build({ stdin: { contents: `
@@ -19,13 +20,12 @@ const compiled = await build({ stdin: { contents: `
   export { default as SourcePicker } from './ui/SourcePicker.jsx';
   export { default as DocumentViewer, sourceTextClass, originalHandling, viewerFormat } from './ui/document-preview/DocumentViewer.jsx';
   export { sourceFormatLabel, SOURCE_PICKER_FIRST_ROWS } from './ui/SourcePicker.jsx';
-  export { default as LanguageSwitch } from './ui/LanguageSwitch.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { ScrollWindow, filterItems, scrollEdges, edgeTracker, CourseField, courseQuery, pickCourse, rankCourses, CourseList, CourseSettings, groupCourseNames, findDuplicateCourses, courseNameKey,
-  splitCourseName, SourcePicker, DocumentViewer, sourceTextClass, originalHandling, viewerFormat, sourceFormatLabel, SOURCE_PICKER_FIRST_ROWS, LanguageSwitch, setUiLanguage } = module.exports;
+  splitCourseName, SourcePicker, DocumentViewer, sourceTextClass, originalHandling, viewerFormat, sourceFormatLabel, SOURCE_PICKER_FIRST_ROWS, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
 const h = React.createElement;
@@ -409,20 +409,13 @@ test('SourcePicker lists documents inside a filterable scroll window', () => {
 
 /* ---------- language switch ---------- */
 
-test('the language switch is one compact row with a small segmented control', () => {
-  const html = render(h(LanguageSwitch, { language: 'zh', onChange() {} }));
-  assert.match(html, /class="study-language-switch"/);
-  assert.match(html, /class="sh-seg sh-seg--xs/);
-  assert.match(html, /aria-label="Interface language \/ 界面语言"/);
-  assert.match(html, /aria-pressed="true"[^>]*>中文</);
-  assert.match(html, /aria-pressed="false"[^>]*>EN</);
-  assert.match(html, />语言</);
-  assert.match(render(h(LanguageSwitch, { language: 'en', onChange() {} }), 'en'), />Language</);
-  const narrow = render(h(LanguageSwitch, { language: 'zh', narrow: true, onChange() {} }));
-  assert.equal((narrow.match(/<button/g) || []).length, 1, 'the icon rail gets one small toggle');
-  assert.match(narrow, /aria-label="Interface language \/ 界面语言[^"]*"/);
-  assert.match(narrow, />中</);
-  assert.match(render(h(LanguageSwitch, { language: 'en', narrow: true, onChange() {} })), />EN</);
+// #656: language and appearance have one place each, 设置 › 界面. The sidebar's quick switch (and its one-button form in the icon rail) is gone:
+// the language follows the browser on first run and is rarely changed after, so it does not need a control on every page.
+test('the interface language has one place: 设置 › 界面, and no switch in the sidebar', () => {
+  assert.equal(existsSync('ui/LanguageSwitch.jsx'), false, 'the sidebar switch is deleted');
+  const settings = readFileSync('ui/settings/AppearanceSection.jsx', 'utf8');
+  assert.match(settings, /label=\{ui\('界面语言'\)\}[^>]*data-tour="settings-appearance-language"/);
+  for (const file of ['ui/app/SidebarNav.jsx', 'ui/app/SidebarFooter.jsx', 'ui/app/AppSidebar.jsx']) assert.doesNotMatch(readFileSync(file, 'utf8'), /LanguageSwitch|study-language-switch|setUiLanguage/, file);
 });
 
 /* ---------- Word and PowerPoint (WP22) in the viewer and the picker ---------- */

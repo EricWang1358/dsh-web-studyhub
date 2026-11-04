@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import * as appearance from '../ui/appearance-prefs.js';
 import { readAppSource } from './helpers/app-source.mjs';
 
-const { APPEARANCE_DEFAULTS, APPEARANCE_OPTIONS, APPEARANCE_LABELS, THEMES, THEME_CYCLE, normalizeAppearance, appearanceAttrs, exportAppearance, importAppearance,
+const { APPEARANCE_DEFAULTS, APPEARANCE_OPTIONS, APPEARANCE_LABELS, THEMES, normalizeAppearance, appearanceAttrs, exportAppearance, importAppearance,
   loadAppearance, saveAppearance } = appearance;
 const han = /[㐀-鿿]/;
 const calm = { light: false, reducedMotion: false, contrast: false };
@@ -21,10 +21,9 @@ const memory = (initial = {}) => { const map = new Map(Object.entries(initial));
 
 /* ---------- the settings ---------- */
 
-test('themes grow by two, the old three keep their place and the sidebar toggle keeps cycling only those', () => {
+// The sidebar's one-tap theme toggle (THEME_CYCLE) is gone (#656): every theme is chosen in 设置 › 界面, so there is no short list to check.
+test('themes grow by two and the old three keep their place', () => {
   assert.deepEqual([...THEMES], ['auto', 'dark', 'light', 'oled', 'paper']);
-  assert.deepEqual([...THEME_CYCLE], ['auto', 'dark', 'light']);
-  for (const id of THEME_CYCLE) assert.ok(THEMES.includes(id));
   assert.deepEqual(APPEARANCE_OPTIONS.theme, THEMES);
   assert.deepEqual({ oled: '纯黑 OLED', paper: '护眼纸色' }, { oled: APPEARANCE_LABELS.theme.oled, paper: APPEARANCE_LABELS.theme.paper });
 });
@@ -253,7 +252,7 @@ test('设置 › 界面 offers the new themes, contrast, density and corner styl
     assert.match(zh, /aria-label="对比度"/);
     for (const key of ['contrast', 'density', 'radius'])
       for (const zhLabel of Object.values(APPEARANCE_LABELS[key])) { setUiLanguage('en'); assert.doesNotMatch(ui(zhLabel), han, `${key}: ${zhLabel}`); setUiLanguage('zh'); }
-    for (const zhLabel of [APPEARANCE_LABELS.theme.oled, APPEARANCE_LABELS.theme.paper, '对比度', '界面密度', '圆角', '外观 · ']) { setUiLanguage('en'); assert.doesNotMatch(ui(zhLabel), han, zhLabel); setUiLanguage('zh'); }
+    for (const zhLabel of [APPEARANCE_LABELS.theme.oled, APPEARANCE_LABELS.theme.paper, '对比度', '界面密度', '圆角']) { setUiLanguage('en'); assert.doesNotMatch(ui(zhLabel), han, zhLabel); setUiLanguage('zh'); }
     setUiLanguage('en');
     const en = render({});
     for (const label of ['>Pure black \\(OLED\\)<', '>Paper \\(eye comfort\\)<', '>High<', '>Compact<', '>Comfortable<', '>Sharp<', '>Soft<']) assert.match(en, new RegExp(label), label);
@@ -261,8 +260,8 @@ test('设置 › 界面 offers the new themes, contrast, density and corner styl
   } finally { setUiLanguage('zh'); }
 });
 
-test('App wires the three handlers and keeps the sidebar toggle on the three-step cycle', async () => {
+test('App wires the three handlers; the theme is chosen in Settings only, with no sidebar toggle (#656)', async () => {
   const app = await readAppSource();
   for (const key of ['contrast', 'density', 'radius']) assert.match(app, new RegExp(`on${key[0].toUpperCase()}${key.slice(1)}: \\(value\\) => updateAppearance\\(\\{ ${key}: value \\}\\)`), key);
-  assert.match(app, /THEME_CYCLE/, 'the toggle cycles the short list, oled and paper are chosen in Settings');
+  assert.doesNotMatch(app, /THEME_CYCLE|theme-cycle/, 'language and appearance have one place each: 设置 › 界面');
 });

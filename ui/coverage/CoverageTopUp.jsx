@@ -9,7 +9,7 @@ import { ModelSettingsContext } from '../ModelErrorNote.jsx';
 import { draftWork, draftWorkLabel } from '../draft-shortfall.js';
 import { isActiveJob } from '../job-visibility.js';
 import css from './coverage.css';
-import { actionLabel, allCoveredText, continueLine, coveragePathText, nextRoundText, shortfallWhy } from './copy.js';
+import { actionLabel, allCoveredText, continueLine, coverageAheadText, coveragePathText, nextRoundText, planFinished, shortfallWhy } from './copy.js';
 import { describeFailure } from '../generation-status.js';
 import { continueArgs, continueNotice } from './top-up.js';
 import { draftShortfall } from './use-shortfall.js';
@@ -30,18 +30,22 @@ const workOn = (draft, jobs) => draftWork(draft, jobs) || (() => {
 })();
 const classOf = (variant) => `cov-topup${variant === 'compact' ? ' cov-topup--compact' : variant === 'panel' ? ' cov-topup--panel' : ''}`;
 /** While something works on the draft this is a status (the work's own words, with its progress), not a button that cannot be pressed. */
-const WorkStatus = ({ draft, work, variant, percent }) => <div className={`draft-topup ${classOf(variant)}`} data-draft-topup data-coverage-topup><Badge tone="info" dot data-draft-work>{draftWorkLabel(work, draft, percent)}</Badge></div>;
+// On the draft page (variant 'block') the summary above says the coverage once; the home card and the popover have no summary of their own, so their line keeps it.
+const WorkStatus = ({ draft, work, variant, percent }) => <div className={`draft-topup ${classOf(variant)}`} data-draft-topup data-coverage-topup><Badge tone="info" dot data-draft-work>{draftWorkLabel(work, draft, percent, { cover: variant !== 'block' })}</Badge></div>;
 
 /** The body: the round, the button and the estimate. `compact` is the home card's narrow column; `panel` the console header's popover. */
 function TopUpBody({ draft, view, shortfall, modelReady, held, onTopUp, variant }) {
   const { call, busy } = useStudy();
   const round = view.round, units = view.coverage.units, cls = classOf(variant);
-  if (!round.sections) return <div className={cls} data-coverage-topup data-coverage-complete><p className="cov-topup__done">{allCoveredText(units)}</p></div>;
+  // A draft with a plan that is met says it once, in the coverage line above (ui/coverage/Coverage.jsx CoverageFact): the draft page does not say 「每个小节都有题了」 a second time (#663).
+  if (!round.sections) return variant === 'block' && planFinished(shortfall) ? null : <div className={cls} data-coverage-topup data-coverage-complete><p className="cov-topup__done">{allCoveredText(units)}</p></div>;
   const blocked = busy || held || !modelReady;
   const sectionIds = round.picks.map((pick) => pick.key);
-  return <div className={cls} data-coverage-topup data-shortfall-action="topup">
+  // The draft page already says where the coverage stands (CoverageFact): there the path says only what is still ahead.
+  const path = variant === 'block' ? coverageAheadText(shortfall) : coveragePathText(shortfall);
+  return <div className={cls} data-tour="coverage-topup" data-coverage-topup data-shortfall-action="topup">
     <p className="cov-topup__plan" data-coverage-round>{nextRoundText(shortfall)}</p>
-    {coveragePathText(shortfall) && <p className="cov-topup__path" data-coverage-path>{coveragePathText(shortfall)}</p>}
+    {path && <p className="cov-topup__path" data-coverage-path>{path}</p>}
     <div className="cov-topup__act">
       <Button className="cov-topup__button" disabled={blocked} data-coverage-start title={!modelReady ? gateTitle('block') : held ? ui('草稿已在后台更新，先载入最新草稿，再补题。') : shortfall.reason === 'manual' ? ui('一次补一轮') : ui('补完这一轮后自动做下一轮，直到每个小节都有题；可以随时暂停或停下。')}
         onClick={() => onTopUp?.(draft, sectionIds, round)}>{actionLabel('topup')}</Button>

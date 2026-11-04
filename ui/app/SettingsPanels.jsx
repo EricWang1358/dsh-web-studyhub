@@ -13,10 +13,12 @@ export function CoursesPanel() {
   if (!app) return null;
   const { data, core, settingsEntry } = app;
   return (
+    <div data-tour="settings-courses">
     <CourseList courses={data.courses || []} onOpen={settingsEntry.setCourseSettings} currentId={data.focus?.courseId}
       recent={Object.fromEntries((data.focus?.courses || []).map((course) => [course.name, course.lastUsedAt]))}
       onMerge={(id, mergeFrom) => settingsEntry.setCourseSettings({ id, mergeFrom })}
       onCreate={(name) => core.act('course.save', { name }, (course) => { if (course?.id) settingsEntry.setCourseSettings(course.id); }, { rethrow: true })} />
+    </div>
   );
 }
 

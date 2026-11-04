@@ -7,14 +7,16 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 // UI wave 2 · WP-F (#109): one page registry behind the sidebar, the top bar, availability and rendering.
 
+// #654: NAV_DEFAULTS is the main list (the pages marked `main`) and then each section of 「更多」 with the rest of its pages.
 test('every sidebar page of the registry is in NAV_DEFAULTS, in the same group and order, and nothing else is', () => {
-  for (const group of Object.keys(NAV_DEFAULTS)) {
-    assert.deepEqual(pagesInGroup(group), NAV_DEFAULTS[group], `group ${group}`);
+  assert.deepEqual(NAV_DEFAULTS.main, PAGE_IDS.filter((id) => PAGES[id].group && PAGES[id].main));
+  for (const group of Object.keys(NAV_DEFAULTS).filter((id) => id !== 'main')) {
+    assert.deepEqual(pagesInGroup(group).filter((id) => !PAGES[id].main), NAV_DEFAULTS[group], `group ${group}`);
   }
   const grouped = PAGE_IDS.filter((id) => PAGES[id].group);
   assert.deepEqual(grouped.sort(), Object.values(NAV_DEFAULTS).flat().sort());
   assert.deepEqual(NAV_GROUPS.map((group) => group.id), Object.keys(NAV_DEFAULTS));
-  for (const id of PAGE_IDS) if (PAGES[id].group) assert.ok(NAV_DEFAULTS[PAGES[id].group], `${id}: its group exists`);
+  for (const id of PAGE_IDS) if (PAGES[id].group) assert.ok(NAV_DEFAULTS[PAGES[id].group], `${id}: its home section exists`);
 });
 
 test('a page row has the fields the shell reads', () => {
@@ -46,7 +48,7 @@ test('only sidebar pages have a navigation label (a return from settings says �
   assert.equal(navLabelOf('live'), '课堂实录');
   assert.equal(navLabelOf('audio'), '音频转写');
   assert.equal(navLabelOf('book'), '复习全书', 'the review book has a sidebar entry (3.4.1)');
-  assert.equal(pageOf('book').group, 'periodic');
+  assert.equal(pageOf('book').group, 'practice', '更多 › 练习与复习 since #654');
   assert.equal(pageOf('book').glyph, 'book');
   for (const id of ['settings', 'review', 'draft', 'manage', 'graph', 'outline', 'nope']) assert.equal(navLabelOf(id), undefined, id);
 });

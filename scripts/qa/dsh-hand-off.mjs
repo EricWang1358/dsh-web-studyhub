@@ -61,7 +61,7 @@ export async function handOffStep(page, { lang = 'zh', model, shot = async () =>
   // The top-level StudyHub page (DSH's sidebar entry), on the book.
   const openBook = async () => {
     await page.getByRole('button', { name: /^StudyHub$/ }).first().click();
-    await page.locator('[data-tour="nav-book"]:visible').first().click({ force: true });
+    await page.locator('[data-tour="nav-book"]').first().dispatchEvent('click'); // 复习全书 is folded in 「更多」 (#654)
     await page.locator('[data-book-point]:visible').first().waitFor({ timeout: 60000 });
     await sleep(800);
   };

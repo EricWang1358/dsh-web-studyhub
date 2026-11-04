@@ -590,11 +590,11 @@
       "calls": [
         {
           "callee": "complete",
-          "count": 1
+          "count": 2
         },
         {
           "callee": "tiers.complete",
-          "count": 1
+          "count": 2
         }
       ],
       "owner": "existing domain maintainer",
@@ -610,6 +610,33 @@
           "switches": [
             "audioLiveSave"
           ]
+        },
+        {
+          "what": "liveNotesModel: the class-notes model of a quick save (host complete or Gemini tiers), added 2026-11-05 for the notes fallback",
+          "disposition": "exception",
+          "kind": "session-subsystem",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/live-notes-fallback.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "Class notes from the transcript when polish produced none (owner request 2026-11-05); called with the save's text model, at most 8 bounded requests",
+      "removeAt": "with the live save Job (moves onto its gateway step)",
+      "evidence": "PR #696; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "notesFromTranscript request per transcript chunk",
+          "disposition": "exception",
+          "kind": "session-subsystem",
+          "reached": true
         }
       ]
     },

@@ -45,6 +45,9 @@ import { useSelectionNotices } from './app/use-selection-notices.js';
 import { useHostLinks } from './app/use-host-links.js';
 import HandOffSheet from './hand-off/HandOffSheet.jsx';
 import { useTour } from './app/use-tour.js';
+import { useFinder } from './finder/use-finder.js';
+import FinderSheet from './finder/FinderSheet.jsx';
+import FinderRing from './finder/FinderRing.jsx';
 import { freshGeneration, initialGeneration, useLibraryConnection } from './app/use-library-connection.js';
 import { useReviewSession } from './review/useReviewSession.js';
 import { shellTitleOf } from './app/shell-title.js';
@@ -93,6 +96,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const notebooks = useNotebooks({ core, lib: handle, nav, host, root: connection.binding.root });
   const sources = useSourceImport({ core, lib: handle, nav, drafts, intents, data });
   const tour = useTour({ core, lib: handle, nav, session, drafts, intents, data, rootRef: shell.rootRef });
+  const finder = useFinder({ nav, settingsEntry, core, tour, rootRef: shell.rootRef });
   const selectionNotices = useSelectionNotices({ core, learn, data });
   const { courseActive } = useHostLinks({ host, core, nav, session, learn, lib: handle, rootRef: shell.rootRef, data, loading: connection.loading });
   const boardState = useBoard(core.call, nav.page === 'board');
@@ -109,7 +113,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
     openSettings: settingsEntry.openSettings, navigate: nav.navigate, openModal: set.setModal }),
   [core.call, core.act, core.busy, core.notify, core.askInChat, host, settingsEntry.openSettings, nav.navigate, set.setModal]);
   const app = { language, host, data, canChat: host.capabilities?.chat ?? !!host.askInChat, connection, core, shell, nav, lib, set, session, learn, intents, drafts,
-    notebooks, inbox, sources, tour, settingsEntry, dailyPlan, board, selectionNotices, resetLibraryState };
+    notebooks, inbox, sources, tour, finder, settingsEntry, dailyPlan, board, selectionNotices, resetLibraryState };
 
   if (connection.loading) return <div className="study-app"><LoadingState className="app-loading" label={connection.connecting || ui('正在打开学习工作区…')} /></div>;
   const { run } = session, page = nav.page;
@@ -123,7 +127,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
             <ModelSettingsContext.Provider value={settingsEntry.openModelSettings}>
               <AppContext.Provider value={app}>
                 <div className="study-app" {...shell.appearanceAttrs} style={{ ...scienceVars(shell.sciencePrefs), ...appearanceStyle(shell.appearance) }}
-                  lang={LANG_ATTR[language]} ref={shell.attachRoot} data-usage-area={page} tabIndex={-1}
+                  lang={LANG_ATTR[language]} ref={shell.attachRoot} data-usage-area={page} tabIndex={-1} onKeyDown={finder.onKeyDown}
                   onPointerDown={(event) => { if (!event.target.closest('button,input,textarea,select,a')) shell.rootRef.current?.focus(); }}>
                   <AppSidebar />
                   <main className={nav.pageTarget ? 'is-leaving' : undefined}>
@@ -154,6 +158,8 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                       onImport={() => tour.endTour({ then: tour.openFirstImport })} onFullTour={tour.fullTour ? undefined : tour.startFullTour}
                       onRemoveSample={data.sample?.loaded ? () => tour.endTour({ then: () => tour.setRemovingSample(true) }) : undefined} />
                   )}
+                  {finder.open && <FinderSheet data={data} onGo={finder.go} onClose={finder.closeFinder} onTour={finder.startTour} />}
+                  {finder.ring && <FinderRing key={finder.ring.key} resolve={finder.ring.resolve} onDone={finder.clearRing} />}
                   <AppModalHost />
                   {core.handOffSheet && <HandOffSheet key={core.handOffSheet.text} sheet={core.handOffSheet} onClose={core.closeHandOffSheet} />}
                 </div>

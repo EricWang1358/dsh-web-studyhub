@@ -51,6 +51,7 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
       <div className="cloze-text">
         {parts.map((p, i) => {
           if (p.t === "text") return <span key={i}><MathText text={p.v} /></span>;
+          if (p.t === "code") return <code key={i} className="cloze-code">{p.v}</code>;
           const id = p.id;
           const nthBlank = (nth += 1);
           const detail = detailById.get(id);

@@ -12,8 +12,6 @@ export const THEME_KEY = 'study-theme';
 export const INTERFACE_KEY = 'study-interface';
 /** oled and paper are chosen in Settings; they sit on a base mode (oled on dark, paper on light), so everything that only knows dark/light keeps working. */
 export const THEMES = Object.freeze(['auto', 'dark', 'light', 'oled', 'paper']);
-/** What the sidebar's one-tap toggle cycles through; the extra themes are picked in Settings so the toggle stays three steps. */
-export const THEME_CYCLE = Object.freeze(['auto', 'dark', 'light']);
 const BASE_MODE = Object.freeze({ oled: 'dark', paper: 'light' });
 /** Contrast, interface density and corner style (#66): data-* on the root, the values live in appearance-themes.css; 'standard' has no rule. */
 export const CONTRASTS = Object.freeze(['auto', 'standard', 'high']);

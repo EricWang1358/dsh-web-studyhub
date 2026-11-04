@@ -5,9 +5,9 @@
     /* The 👎 control is an expander (aria-expanded), so its recorded vote is not aria-pressed (#176): the same "chosen" look
        as the pressed 👍 in coach.css, driven by data-vote. */
     .thumbs > [data-vote="on"] {
-      border-color: var(--accent);
+      border-color: var(--text-muted);
       color: var(--text);
-      background: var(--accent-glow);
+      background: var(--bg-selected);
     }
   }
 }

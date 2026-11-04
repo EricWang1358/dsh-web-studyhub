@@ -24,7 +24,7 @@
       --bg-surface: #20160c08;
       --bg-sunken: #20160c0d;
       --bg-raised: var(--paper);
-      --bg-selected: color-mix(in srgb, var(--accent) 8%, transparent);
+      --bg-selected: #20160c14;
       --accent-soft: color-mix(in srgb, var(--accent) 89%, black);
       --accent-text: color-mix(in srgb, var(--accent) 85%, black);
       --accent-glow: color-mix(in srgb, var(--accent) 20%, transparent);

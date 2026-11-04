@@ -12,9 +12,11 @@ import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { StudyService } from '../lib/service.js';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
-/* 创建题组 in the browser preview on a seeded library: the page opens with the current course's documents that have no question ticked and says why, the main path is one line
-   (types, strength, course) with 前往设置, the plan (rounds, tokens) is said once under the form, everything optional is in 更多选项, and 前往设置 lands on 出题偏好.
+/* 创建题组 in the browser preview on a seeded library: the page opens with the current course's documents that have no question ticked and says why, the main path is the question types,
+   the 覆盖强度 (精简 / 标准 / 完整 / 自定义, one on at a time, #664) and one line for the course (更改 opens the one field of it, #665) with 前往设置, the plan (rounds, tokens) is said once under the form,
+   everything optional is in 更多选项 and the page is at most about one and a half screens before it is opened (#667), and 前往设置 lands on 出题偏好.
    At 1280 and 420 px, no sideways scroll, no layout shift. EXAM_PREP_SHOTS-style switch: GENERATE_SHOTS=<dir> writes screenshots. */
 
 const SHOTS = process.env.GENERATE_SHOTS || '';
@@ -64,7 +66,7 @@ const shotForm = async (page, name) => {
   await page.setViewportSize(size);
 };
 const goGenerate = async page => {
-  await page.locator('[data-tour="nav-generate"]').first().dispatchEvent('click');
+  await (await revealNavRow(page, 'generate')).dispatchEvent('click');
   await page.locator('.generate-page form').waitFor({ timeout: 30000 });
 };
 
@@ -91,13 +93,40 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       const reason = page.locator('[data-opening-reason]');
       assert.match(await reason.innerText(), /已选中「数据库」里还没出过题的 2 份资料。\s*没选：已出过题的 1 份。/, 'and the line says why, and what it left out');
 
-      // the main path: one line, one link, no control
+      // the main path: the strength is one choice of four, the course is one line with a link, nothing else to fill in
       const plan = page.locator('[data-generate-plan]');
-      assert.match(await plan.innerText(), /单选测验 · 覆盖强度：标准 · 课程：数据库/);
-      assert.equal(await plan.locator('input, select, textarea').count(), 0, 'nothing to fill in on the main path');
+      assert.match(await plan.innerText(), /新题组放进课程：数据库/);
+      assert.equal(await plan.locator('input, select, textarea').count(), 0, 'nothing to fill in on the plan line');
+      assert.equal(await page.locator('.generate-page .course-field').count(), 0, 'the field of the deck\'s course waits for 更改: the page has one course field (课程范围)');
+      const strength = page.locator('[data-coverage-strength] .sh-seg__item');
+      const pressed = async () => (await strength.evaluateAll(items => items.filter(item => item.getAttribute('aria-pressed') === 'true').map(item => item.textContent.trim())));
+      assert.deepEqual(await strength.allInnerTexts(), ['精简', '标准', '完整', '自定义']);
+      assert.deepEqual(await pressed(), ['标准']);
+      // #664: back and forth between the four choices, one is on at every step, and the number field is there only for 自定义
+      for (const choice of ['自定义', '完整', '自定义', '精简', '标准']) {
+        await strength.filter({ hasText: choice }).first().click();
+        await until(async () => (await pressed()).join() === choice, `${choice} is the one choice that is on`);
+        assert.equal(await page.locator('#generate-count').count(), choice === '自定义' ? 1 : 0, `the number field is there for 自定义 only (${choice})`);
+        if (choice === '自定义') assert.ok(Number(await page.locator('#generate-count').inputValue()) >= 1, 'and starts from a number');
+      }
+      await plan.getByRole('button', { name: '更改' }).click();
+      await page.locator('.generate-page .course-field').waitFor({ timeout: 10000 });
+      assert.equal(await page.locator('.generate-page .course-field').count(), 1);
+      await plan.getByRole('button', { name: '收起' }).click();
       assert.equal(await page.locator('.generate-more').evaluate(element => element.open), false, '更多选项 is closed');
       assert.equal(await page.locator('#generate-focus').isVisible(), false, 'the topic box is not on the main path');
+      if (width === 1280) {
+        // #667: the main path (to the end of the button) is about one and a half screens before 更多选项 is opened (was 1312 px for less, with the types and the strength behind the fold)
+        const reach = await page.evaluate(() => { const section = document.querySelector('.generate-page'), button = document.querySelector('[data-tour="generate-submit"]');
+          return Math.round(button.getBoundingClientRect().bottom - section.getBoundingClientRect().top); });
+        assert.ok(reach <= 900 * 1.6, `the generate button ends ${reach}px down the page (the page, the three ways in and the ticked materials come first: one and a half screens and a little)`);
+      }
       assert.equal(await page.getByText('难度', { exact: true }).first().isVisible(), false, 'nor the difficulty');
+      // 找功能 keeps every folded control: its anchor is in the page (with a size, so the finder opens the folds around it) while 更多选项 is shut
+      for (const anchor of ['generate-kinds', 'generate-coverage', 'generate-auto', 'generate-course', 'generate-budget', 'generate-difficulty', 'generate-language', 'generate-notation', 'generate-focus', 'generate-reference', 'generate-role']) {
+        const box = await page.locator(`[data-tour="${anchor}"]`).first().boundingBox();
+        assert.ok(box && box.width > 0 && box.height > 0, `the anchor ${anchor} is there for 找功能`);
+      }
 
       // the plan, said once: the estimate and the count under the form, not in the fold
       await until(async () => (await page.locator('[data-generate-estimate] [data-token-estimate][data-status="ready"]').count()) > 0, 'the estimate', { timeoutMs: 60000 });

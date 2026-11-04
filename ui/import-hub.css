@@ -46,9 +46,6 @@
     .import-hub__paste-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
     .import-hub__paste-footer small { font-size: var(--fs-sm); }
     .import-hub__paste .import-hub__paste-error { margin: 0; }
-    /* AudioImport keeps its own markup; inside the tab it drops its card frame. */
-    .import-hub__audio > .audio-import { margin: 0; padding: 0; border: 0; }
-    .import-hub__audio > .audio-import > strong:first-child { display: none; }
   }
   @container (max-width: 560px) {
     :is(.study-app, .study-seat) {

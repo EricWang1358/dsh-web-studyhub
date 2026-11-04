@@ -26,7 +26,7 @@ export default function AudioMoreSettings({ values, defaultPaid = false, course,
       <Checkbox checked={paidOnly} onChange={value => onChange({ paidOnly: value })} disabled={disabled}
         label={ui('只用付费密钥（免费额度下，Google 可能用内容改进产品）')} />
       <Hint>{ui('课程里已有题组的标题和知识点，会自动用来纠正术语。')}</Hint>
-      {onSettings && <Hint>{ui('「只用付费密钥」的默认值可以在设置里修改。')}{' '}<Button variant="link" size="sm" onClick={onSettings}>{ui('前往设置')}</Button></Hint>}
+      {onSettings && <Hint>{ui('「只用付费密钥」的默认值可以在设置里修改。')}{' '}<Button variant="quiet" size="sm" onClick={onSettings}>{ui('前往设置')}</Button></Hint>}
     </Disclosure>
   );
 }

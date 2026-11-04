@@ -11,6 +11,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { StudyService } from '../lib/service.js';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* From the form to practice, and the places that used to be dead ends, in the browser preview on a seeded library (fake model; the failure and the slow run are the model's):
    1. 创建题组 → 生成 → the finished card says 发布并开始练 and one press publishes and starts the questions;
@@ -73,7 +74,7 @@ async function openApp(browser, running, { lang = 'zh', width = 1280, height = 9
 const overflow = page => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: false }); };
 const area = page => page.locator('.study-app').first().getAttribute('data-usage-area');
-const nav = async (page, id) => { await page.locator(`[data-tour="nav-${id}"]`).first().dispatchEvent('click'); };
+const nav = async (page, id) => { await (await revealNavRow(page, id)).dispatchEvent('click'); };
 
 test('a finished run of a clean draft is published and practised from its card in one press, and the draft page can be reached from a quiet link', { timeout: 900000 }, async t => {
   let browser;

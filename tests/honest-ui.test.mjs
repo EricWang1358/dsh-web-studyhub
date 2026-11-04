@@ -17,6 +17,7 @@ const m = await loadUi(`
   export { default as HomeActivity, HomeDrafts } from './ui/study-map/HomeActivity.jsx';
   export { default as TaskConsole } from './ui/tasks/TaskConsole.jsx';
   export { default as RunPanel } from './ui/coverage/RunPanel.jsx';
+  export { default as DraftCoverage } from './ui/coverage/DraftCoverage.jsx';
   export { CoverageTopUp } from './ui/coverage/CoverageTopUp.jsx';
   export { default as CoverageStrength } from './ui/coverage/CoverageStrength.jsx';
   export { seedCoverage, forgetCoverage } from './ui/coverage/use-coverage.js';
@@ -65,8 +66,10 @@ const HomeBoth = (props) => React.createElement(React.Fragment, null, React.crea
 const home = (state, language = 'zh') => { seed(); const d = data(state); return render(React.createElement(HomeBoth, { jobs: d.jobs, drafts: d.drafts, busy: false, openDraft: noop, openAgent: noop, cancelJob: noop, dismissJob: noop, retryGeneration: noop, manage: noop,
   start: noop, topUpDraft: noop, openModelSettings: noop, modelReady: true, data: d }), { language, data: d }); };
 const consoleOf = (state, language = 'zh') => { seed(); const d = data(state); return render(React.createElement(m.TaskConsole, { data: d, openers: { resultOf: () => null } }), { language, data: d }); };
-const pageOf = (state, language = 'zh') => { seed(); const d = data(state), draft = STATES[state].draft; return render(React.createElement(React.Fragment, null,
-  React.createElement(m.RunPanel, { draft, view, jobs: d.jobs }), React.createElement(m.CoverageTopUp, { draft, view, jobs: d.jobs, onTopUp: noop })), { language, data: d }); };
+// The draft page's coverage block as the page draws it (ui/coverage/DraftCoverage.jsx): the summary with its one sentence, the run and the one top-up.
+// (The lists of recordings and sections are the material's own names, which no translation changes: they are left out.)
+const pageOf = (state, language = 'zh') => { seed(); const d = data(state), draft = STATES[state].draft; return render(React.createElement(m.DraftCoverage, { draft, view, jobs: d.jobs, onTopUp: noop }), { language, data: d })
+  .replace(/<ul class="cov-(?:groups|list)"[\s\S]*?<\/ul>/g, ''); };
 const shortfall = state => m.shortfallOf({ draft: STATES[state].draft, coverage: view.coverage, round: view.round, job: STATES[state].job });
 const buttonsOf = html => [...html.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map(match => text(match[1]));
 
@@ -144,7 +147,7 @@ test('no screen prints 100% for a draft that is short, stopped, refused, interru
   }
   // The console's headline is the run's 覆盖 (the sections that have a question: tests/progress-honest.test.mjs), not the questions kept over the plan (174 of 251 = 69%, which the draft row says).
   assert.equal(m.taskSummary(STATES.stopped.job).percent, 83, 'the sections that have a question');
-  assert.match(text(consoleOf('stopped')), /总进度 · 部分完成.*覆盖：有题的小节 ÷ 计划里的小节.*83%/);
+  assert.match(text(consoleOf('stopped')), /计划进度 · 部分完成.*覆盖：有题的小节 ÷ 计划里的小节.*83%/);
 });
 
 test('the badge says what is true of the draft: never 「已复审，待发布」 while it is short, stopped, refused, interrupted or paused (D-1)', () => {
@@ -285,7 +288,8 @@ test('the form says, for a run that waits (自动补到完整 off), what the fir
   const manual = m.shortfallOf({ draft: draftOf({ cards: 28, over: { level: 'lean', goal: 126 }, statuses: ['done', 'pending', 'pending', 'pending', 'pending'],
     marker: { jobId: 'j1', autoComplete: false, state: 'waiting', startedAt: at(0), updatedAt: at(1), tokensUsed: 215_000 } }), coverage: view.coverage, round: view.round });
   assert.equal(manual.reason, 'manual');
-  assert.equal(m.copy.shortfallWhy(manual), `精简：先出第 1 轮，覆盖 ${view.coverage.percentLeaves}%；点「自动补到完整」继续`);
+  // The coverage is said once, by the summary's line (#663): this sentence has the round and the way on.
+  assert.equal(m.copy.shortfallWhy(manual), '精简：先出第 1 轮；点「自动补到完整」继续');
 });
 
 test('every new sentence has an English twin without Chinese in it', () => {

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import {
   FRAME_BYTES, LIVE_ENDPOINT, audioMessage, classifyClose, frameText, frames, parseServerMessage, setupMessage,
 } from "../lib/live-protocol.js";
-import { LiveSession, deleteSaved, listSaved, readSaved, writeSaved } from "../lib/live.js";
+import { LiveSession, deleteSaved, listSaved, makeTranslator, readSaved, writeSaved } from "../lib/live.js";
 import { GeminiTiers } from "../lib/gemini.js";
 import { clock, excerptText, quickDocuments } from "../lib/live-save.js";
 import { StudyService } from "../lib/service.js";
@@ -185,9 +185,10 @@ test("sentences are translated in order in small batches, with context, and fail
   const [one, two, three] = live.snapshot().segments;
   assert.equal(one.zh, "译：First sentence here is fine.");
   assert.equal(two.zhState, "done");
-  assert.equal(three.zh, `译：${three.en}`, "Chinese speech passes through the Simplified Chinese translator");
+  assert.equal(three.zhState, "none", "Simplified Chinese speech needs no translation on any engine");
+  assert.equal(three.zh, "");
   assert.ok(calls.every((c) => c.items.every((i) => i.n)), "items are keyed by segment id");
-  assert.ok(calls.flatMap((c) => c.items).length === 3, "all sentences reach the translator");
+  assert.ok(calls.flatMap((c) => c.items).length === 2, "only the English sentences reach the translator");
 
   failNext = 3;
   server.say({ serverContent: { inputTranscription: { text: "Fourth sentence will fail three times." } } });
@@ -555,4 +556,36 @@ test("a finished class is saved as a bilingual source, and an unfinished one ref
   assert.ok((await service.call('source.get', { id: saved.sourceIds[0] })).text, 'exported transcript survives deleting recording');
   assert.ok((await service.call('source.get', { id: saved.noteSourceId })).text, 'exported notes survive deleting recording');
   await assert.rejects(service.call("live.get", { id }), /没有找到这场实录/);
+});
+
+test("a translator whose model answers in prose turns to the other model, and keeps using it", async () => {
+  const prose = "好的，我来帮你翻译这段课堂内容。";
+  let primary = 0, fallback = 0;
+  const translate = makeTranslator({ subject: "DB", vocabulary: [], complete: async () => { primary++; return prose; },
+    fallback: async (_system, prompt) => { fallback++; return JSON.stringify({ items: JSON.parse(prompt).items.map((item) => ({ n: item.n, zh: `译：${item.en}` })) }); } });
+  assert.equal((await translate({ items: [{ n: 1, en: "Hello there." }], context: [] })).get(1), "译：Hello there.");
+  assert.equal((await translate({ items: [{ n: 2, en: "Again." }], context: [] })).get(2), "译：Again.");
+  assert.deepEqual([primary, fallback], [2, 2]);
+});
+
+test("sentences whose translation failed are tried again on their own, a bounded number of rounds", async () => {
+  const Socket = socketClass(healthy);
+  let calls = 0, failing = Infinity;
+  const translate = async (request) => { calls++; if (calls <= failing) throw new Error("model hiccup"); return echoTranslate(request); };
+  const live = session(Socket, { translate, timing: { ...timing, translateAutoRetryMs: 20 } });
+  await live.start();
+  failing = 3;
+  Socket.instances[0].say({ serverContent: { inputTranscription: { text: "This sentence fails three times, then works." } } });
+  await until(() => live.snapshot().segments[0]?.zhState === "done");
+  assert.equal(calls, 4, "no click needed: one automatic round brought it back");
+  failing = Infinity;
+  Socket.instances[0].say({ serverContent: { inputTranscription: { text: "This sentence never gets a translation at all." } } });
+  await until(() => live.snapshot().segments[1]?.zhState === "error");
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(live.snapshot().segments[1].zhState, "error", "after the automatic rounds it waits for the learner");
+  assert.equal(calls, 4 + 3 * 3, "three tries, then two automatic rounds of three tries");
+  failing = 0;
+  live.retryFailed();
+  await until(() => live.snapshot().segments[1].zhState === "done");
+  await live.stop();
 });

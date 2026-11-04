@@ -11,6 +11,7 @@ import { openPage, settleAnimations, frames, until } from '../scripts/qa/layout-
 import { startConsole } from '../scripts/qa/task-console.mjs';
 import { StudyService } from '../lib/service.js';
 import { makePdf } from './helpers/pdf.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* The 任务 console of a Marker conversion in a real browser, at 1280 and 420 px: one conversion running (Marker printing progress bars) and one that failed the way the
    owner's did (marker-pdf 2.x without Docker). The two records are made by the real service with the stand-in Marker (tests/helpers/fake-marker-cli.mjs), then shown by
@@ -67,7 +68,7 @@ test('the console of a running and of a failed Marker conversion at 1280 and 420
         return route.fulfill({ contentType: 'application/json', body: JSON.stringify(answer) });
       });
       await page.goto(preview.server.url);
-      await page.locator('[data-tour="nav-tasks"]').first().dispatchEvent('click');
+      await (await revealNavRow(page, 'tasks')).dispatchEvent('click');
       await page.locator('.tc-detail').first().waitFor({ state: 'attached', timeout: 30000 });
       for (const [name, job] of [['running', running[lang]], ['failed', failed[lang]]]) {
         await page.locator(`.tc-row[data-task-id="${job.contract.jobId}"]`).dispatchEvent('click');

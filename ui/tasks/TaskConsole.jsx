@@ -26,6 +26,7 @@ import ControlRow from './ControlRow.jsx';
 import ContinuedNote from './ContinuedNote.jsx';
 import QueueNote, { ParallelBadge, ParallelButton } from './ParallelParts.jsx';
 import TaskBody from './TaskBody.jsx';
+import TaskMore from './TaskMore.jsx';
 import { readJSON, writeJSON } from '../storage.js';
 import { CoverageTopUpPopover } from '../coverage/CoverageTopUp.jsx';
 import { useCoverage } from '../coverage/use-coverage.js';
@@ -140,7 +141,7 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
   // A one-click install that stopped (paused, failed or interrupted) goes on where it stopped: 继续安装 is its one action here, in the folder it used (in place of the crimson 删除: 知道了 still archives it).
   const install = contract.detail?.install || null, resume = install && !live && !archived ? installResume(task) : null;
   return (
-    <section className="tc-detail" data-surface="dense" aria-label={ui('任务详情')} data-task-id={contract.jobId} data-status={contract.status} data-archived={archived ? 'true' : undefined}>
+    <section className="tc-detail" data-tour="tasks-detail" data-surface="dense" aria-label={ui('任务详情')} data-task-id={contract.jobId} data-status={contract.status} data-archived={archived ? 'true' : undefined}>
       <header className="tc-bar tc-head">
         <div className="tc-head__title">
           <h2>{summary.title}</h2>
@@ -167,22 +168,18 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
             onTopUp={(target, sectionIds) => core.act('generate', topUpArgs(target, sectionIds), (job) => core.notify?.(topUpNotice(target, job)))} />}
           {actions.cancel && <Button size="sm" variant="danger" lock={core.busy} title={run ? ui('已通过的题都保留') : undefined} onClick={() => act('cancel')}>{run ? ui('停在这里') : ui('停止')}</Button>}
           {archived && <Button size="sm" lock={core.busy} onClick={unarchive}>{ui('取消归档')}</Button>}
-          {!live && !archived && !contract.detail.today && (day
-            // A past day of 为你定制 is a record its own file ages out (fourteen days): this button removes it, so it says so (知道了 archives everywhere else).
-            ? <Tooltip content={ui('删除这一天的记录；为你定制只保留最近 14 天。')} layer placement="bottom-end">
-              <Button size="sm" variant="quiet" onClick={removeDay}>{ui('删除这一天')}</Button>
-            </Tooltip>
-            : <Tooltip content={ui('放进「已归档」，不会删除任何东西；之后可以取消归档或删除。')} layer placement="bottom-end">
-              <Button size="sm" variant="quiet" lock={core.busy} onClick={archive}>{ui('归档')}</Button>
-            </Tooltip>)}
+          {!live && !archived && !contract.detail.today && !day && <Tooltip content={ui('放进「已归档」，不会删除任何东西；之后可以取消归档或删除。')} layer placement="bottom-end">
+            <Button size="sm" variant="quiet" lock={core.busy} onClick={archive}>{ui('归档')}</Button>
+          </Tooltip>}
           {resume && <Button size="sm" variant="primary" data-install-resume lock={core.busy} onClick={() => core.act(resume.action, resume.args, () => core.notify?.(ui('已开始安装：进度在这里和「任务」里。')))}>{ui('继续安装')}</Button>}
-          {!live && !day && !resume && <Button size="sm" variant="danger" className="tc-head__delete" lock={core.busy} onClick={() => onDelete([key])}>{ui('删除')}</Button>}
+          {/* 删除 is behind the ⋯ (ui/tasks/TaskMore.jsx): not beside the primary action. A past day of 为你定制 is a record its own file ages out (fourteen days): the item says it deletes the day (知道了 archives everywhere else). */}
+          {((!live && !archived && !contract.detail.today && day) || (!live && !day && !resume)) && <TaskMore day={day} onDelete={() => (day ? removeDay() : onDelete([key]))} />}
         </div>
       </header>
       <Metrics job={task} summary={summary} now={now} />
       <TaskUsage contract={contract} />
       <QueueNote task={task} />
-      <RunLine task={task} shortfall={shortfall} now={now} onOpenSource={learn?.openSourceAt} onOpenSettings={settingsEntry?.openSettings} />
+      <RunLine task={task} shortfall={shortfall} coverage={shortfall && covered.view?.status === 'ok' ? covered.view.coverage : null} now={now} onOpenSource={learn?.openSourceAt} onOpenSettings={settingsEntry?.openSettings} />
       <TimeLimit task={task} now={now} steps={steps} onPick={(id) => setFocusCall({ id, at: Date.now() })} />
       {archived ? <ArchivedNote task={task} /> : continued ? <ContinuedNote contract={contract} /> : <ControlRow job={task} />}
       {usage && <p className="tc-usage" aria-label={ui('用量')}>{usage}</p>}
@@ -279,8 +276,10 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
   // no 退出全屏): there they stay, the one way out. They sit on the title's line (the header's action slot, under it when narrow), so the header takes as little of the
   // height the detail's panels need as a page title can.
   const filterBar = none || (full && !empty) ? null : (
-    <SegmentedControl className="tc-scope" size="sm" label={ui('筛选')} value={filter} onChange={setFilter}
-      options={filters.map((item) => ({ value: item.id, label: `${ui(FILTER_LABEL[item.id])} ${item.count}` }))} />
+    <div className="tc-scope-wrap">
+      <SegmentedControl className="tc-scope" size="sm" label={ui('筛选')} value={filter} onChange={setFilter}
+        options={filters.map((item) => ({ value: item.id, label: `${ui(FILTER_LABEL[item.id])} ${item.count}` }))} />
+    </div>
   );
   return (
     <div className="tc" data-usage-area="tasks" data-full={full ? 'true' : 'false'} data-empty={none ? 'all' : empty ? 'filter' : undefined}>

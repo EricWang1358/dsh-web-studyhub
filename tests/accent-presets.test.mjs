@@ -123,7 +123,7 @@ const scopeOf = (name, theme) => ({ ...darkBase, ...(theme === 'light' ? lightBa
 test('accent.css overrides a handful of tokens for each non-default preset, dark and light, and cinnabar needs no override at all', () => {
   assert.ok(Buffer.byteLength(accentCss) <= 2048, `accent.css is ${Buffer.byteLength(accentCss)} bytes, the budget is 2048`);
   assert.equal(presetRule('cinnabar'), undefined, 'the default renders from tokens.css alone');
-  const names = new Set(['--accent', '--accent-soft', '--accent-text', '--bg-selected', '--accent-ink']);
+  const names = new Set(['--accent', '--accent-soft', '--accent-text', '--accent-ink']); // not --bg-selected: a selection is a neutral surface on every accent (#658)
   for (const name of PRESETS.slice(1)) {
     const r = presetRule(name);
     assert.ok(r, `${name} has a rule`);
@@ -131,7 +131,8 @@ test('accent.css overrides a handful of tokens for each non-default preset, dark
     assert.ok(light, `${name} has a light block`);
     for (const set of [r.decls, light.decls]) {
       for (const key of Object.keys(set)) assert.ok(names.has(key), `${name}: ${key} is one of the accent tokens`);
-      for (const key of ['--accent', '--accent-soft', '--accent-text', '--bg-selected']) assert.match(set[key] ?? '', /^#[0-9a-f]{6}$/i, `${name} sets ${key}`);
+      for (const key of ['--accent', '--accent-soft', '--accent-text']) assert.match(set[key] ?? '', /^#[0-9a-f]{6}$/i, `${name} sets ${key}`);
+      assert.equal(set['--bg-selected'], undefined, `${name} leaves --bg-selected alone: the selected row is the same neutral surface on every accent (#658)`);
     }
     assert.match(r.selector, /\.study-app/);
     assert.match(r.selector, /\.study-seat/, `${name} reaches the seat too (host overlays), like the typeface does`);
@@ -142,16 +143,15 @@ test('the accent is written once: tokens.css keeps a literal only in the two --a
   assert.equal((styleCss.match(/c93d22|c03a1f/gi) || []).length, 2, 'dark and light --accent are the only cinnabar literals');
   assert.match(styleCss, /--accent-glow:\s*color-mix\(in srgb, var\(--accent\)/);
   assert.match(styleCss, /--ring:\s*0 0 0 3px color-mix\(in srgb, var\(--accent\)/);
-  for (const key of ['--bg-selected', '--accent-soft', '--accent-text', '--accent-glow', '--ring'])
+  for (const key of ['--accent-soft', '--accent-text', '--accent-glow', '--ring'])
     assert.match(cardBase[key], /color-mix\(in srgb, var\(--accent\)/, `card stock ${key} derives from --accent`);
+  assert.doesNotMatch(cardBase['--bg-selected'], /accent/, 'a selected row on paper is neutral ink, not an accent tint (#658)');
   assert.doesNotMatch(Object.values(cardBase).join(' '), /c93d22|c03a1f|b3361c/i, 'no literal cinnabar on the card');
 });
 
-test('cinnabar renders as before: the derived card and glow tints equal the old literals (within rounding)', () => {
+test('cinnabar renders as before: the derived card and glow tints equal the old literals (within rounding; the selected row is neutral since #658)', () => {
   const close = (a, b, tolerance, label) => a.forEach((x, k) => assert.ok(Math.abs(x - b[k]) <= tolerance, `${label}: ${a.map(Math.round)} vs ${b.map(Math.round)}`));
   const dk = scopeOf('cinnabar', 'dark'), card = { ...dk, ...cardBase };
-  close(color(card['--bg-selected'], card).slice(0, 3), [201, 61, 34], 0.5, 'selected rgb');
-  assert.ok(Math.abs(color(card['--bg-selected'], card)[3] - 0x14 / 255) < 0.003, 'selected alpha is #14');
   assert.ok(Math.abs(color(card['--accent-glow'], card)[3] - 0x33 / 255) < 0.003, 'card glow alpha is #33');
   close(color(card['--accent-soft'], card), [0xb3, 0x36, 0x1c, 1], 2.5, 'card accent-soft');
   assert.ok(Math.abs(color(dk['--accent-glow'], dk)[3] - 0x47 / 255) < 0.003, 'dark glow alpha is #47');

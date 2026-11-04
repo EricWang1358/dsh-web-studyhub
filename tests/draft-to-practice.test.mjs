@@ -153,7 +153,9 @@ test('holdLine says what works on the draft, why saving and publishing wait, and
   // a run of rounds names its round
   const rounds = ['done', 'running', 'pending'].map((status, index) => ({ round: index + 1, questions: 24, status, fill: false, sections: 6, ...(status === 'done' ? { kept: 24, covered: 6, tokens: 400_000, ms: 600_000 } : {}) }));
   const run = job({ coverageRun: { autoComplete: true, state: 'running', percent: 31, tokensUsed: 1_200_000, startedAt: '2026-10-06T10:00:00.000Z', list: rounds } });
-  assert.match(holdLine({ kind: 'topup', job: run }, draft, 31), /^第 2\/3 轮 · 覆盖 31%.*这期间不能保存或发布/, 'which round');
+  // The draft page says the coverage once, in its summary: the hold sentence has the round and the tokens only (#663).
+  assert.match(holdLine({ kind: 'topup', job: run }, draft, 31), /^第 2\/3 轮 · 已用.*这期间不能保存或发布/, 'which round');
+  assert.doesNotMatch(holdLine({ kind: 'topup', job: run }, draft, 31), /覆盖 31%/);
   // the stop action
   assert.equal(canStopWork(work({})), true);
   assert.equal(canStopWork(work({ status: 'cancelling' })), false);
@@ -186,7 +188,9 @@ test('while a job works on the draft, the page says which job, why 发布并开�
   assert.match(text(hold), /停止并保留已出的题/, 'and the way out');
   assert.match(buttonTag(html, '发布并开始练'), /disabled/, 'the button is still off');
   assert.match(buttonTag(html, '发布并开始练'), /aria-describedby="draft-hold"/, 'and the line is its description');
-  assert.ok(html.indexOf('data-draft-hold') > html.indexOf('sticky-actions'), 'under the buttons');
+  // The bar is the last thing on the page (#669), so the line stands above the questions and the bar says in short that something works: the button's description is the line.
+  assert.ok(html.indexOf('data-draft-hold') < html.indexOf('sticky-actions'), 'above the bar');
+  assert.match(text(sticky(html)), /后台任务进行中，暂时不能保存或发布/, 'and the bar itself says why its buttons wait');
   assert.doesNotMatch(html, /后台任务正在更新这份草稿/, 'the old generic line is gone: one fact once');
   // a publication check cannot be stopped from here; it says what it is doing
   const publishing = page(draft, { jobs: [working({ type: 'draft-publish', continued: false, stage: '正在检查第 2 道题' })] });

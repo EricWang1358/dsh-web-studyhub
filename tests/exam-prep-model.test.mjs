@@ -35,15 +35,15 @@ test('the page exists only when the host says the exam-point build is switched o
   assert.equal(m.pageAvailable({}, 'generate'), true);
 });
 
-test('备考补习 is a sidebar page of the now-and-then group, titled and labelled 备考补习, and a learner\'s saved order keeps its sequence', () => {
+// #654: the sidebar's groups are by content; 备考补习 sits in 「更多 › 考试与统计」 (it was in 阶段性).
+test('备考补习 is a sidebar page of 更多 › 考试与统计, titled and labelled 备考补习, and a learner\'s saved order keeps its sequence', () => {
   assert.equal(m.PAGES.examprep.label, '备考补习');
   assert.equal(m.PAGES.examprep.title, '备考补习');
-  assert.equal(m.PAGES.examprep.group, 'periodic');
-  assert.ok(m.NAV_DEFAULTS.periodic.includes('examprep'));
-  assert.deepEqual(m.pagesInGroup('periodic'), m.NAV_DEFAULTS.periodic);
-  const merged = m.mergeOrder({ periodic: ['dashboard', 'exam'] }, m.NAV_DEFAULTS).periodic;
-  assert.deepEqual(merged.slice(0, 2), ['dashboard', 'exam']);
-  assert.ok(merged.includes('examprep'));
+  assert.equal(m.PAGES.examprep.group, 'exam');
+  assert.deepEqual(m.NAV_DEFAULTS.exam, ['examprep'], 'the pages of 考试与统计 that are not in the main list');
+  // A learner who put 统计 back into its section keeps the order they made there.
+  const merged = m.mergeOrder({ main: ['library', 'sources', 'generate', 'wrongbook', 'exam'], exam: ['dashboard', 'examprep'] }, m.NAV_DEFAULTS).exam;
+  assert.deepEqual(merged, ['dashboard', 'examprep']);
   for (const word of [m.PAGES.examprep.label, m.PAGES.examprep.title]) assert.doesNotMatch(word, /蓝图|blueprint/i);
 });
 

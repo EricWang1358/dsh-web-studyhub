@@ -13,6 +13,7 @@ import { courseNotesMaterial } from '../lib/course-book.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 复习全书 structure from the page (#470, docs/review-book.md "Structure"): 更多 › 改名… / 移动到… / 删除这个知识点… change the book without the
    main chat and without the outline. Rename keeps the point's number, files and questions; 上移 / 下移 reorder it among its siblings; 放到 moves it
@@ -235,9 +236,7 @@ test('复习全书 未归位: 放回… picks a point, the text moves, 撤销 br
     for (const width of [1280, 420]) {
       const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
       await page.goto(running.server.url);
-      const entry = page.locator('[data-tour="nav-book"]').first();
-      await entry.waitFor({ state: 'attached', timeout: 30000 });
-      await entry.dispatchEvent('click');
+      await (await revealNavRow(page, 'book')).dispatchEvent('click');
       await page.locator('[data-book-point]').first().waitFor({ timeout: 60000 });
       if (!await page.locator('.book-toc').count()) await page.locator('.book-bar__toc').click();
       await page.locator('.book-toc__go', { hasText: '未归位' }).click();
@@ -290,9 +289,7 @@ test('复习全书 upkeep: 更新全书 when the materials changed, 补漏 on a 
       const sent = await watchCalls(page, mode);
       const open = async () => {
         await page.goto(running.server.url);
-        const entry = page.locator('[data-tour="nav-book"]').first();
-        await entry.waitFor({ state: 'attached', timeout: 30000 });
-        await entry.dispatchEvent('click');
+        await (await revealNavRow(page, 'book')).dispatchEvent('click');
         await page.locator('[data-book-point]').first().waitFor({ timeout: 60000 });
       };
       // Without a model, 补漏 (like 更新全书) leads to the 总纲 page where the model gate stands, without starting a build.

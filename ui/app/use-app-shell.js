@@ -25,9 +25,14 @@ export function useAppShell() {
   const theme = appearance.theme, resolvedTheme = appearanceAttrs['data-theme'], motion = appearanceAttrs['data-motion'];
   const setTheme = useCallback((value) => updateAppearance({ theme: value }), [updateAppearance]);
   const [sciencePrefs, setSciencePrefs] = usePersistentState(SCIENCE_KEY, () => ({ ...SCIENCE_DEFAULTS }), scienceCodec);
-  /* Sidebar collapse. The manual choice is persisted; a narrow workspace forces the icon rail regardless of the stored preference. */
+  /* The sidebar is docked on the left, or (#657) it is a drawer behind a menu button in the top bar: when the learner put it away (the manual
+     choice is persisted, as 'collapsed' always was) and whenever the workspace is narrow, where a docked sidebar would take the room of the
+     page. There is no icon rail: the drawer has every label. navOpen is whether the drawer is out; it closes by itself when the sidebar docks. */
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentState(SIDEBAR_KEY, false, sidebarCodec);
   const [narrowWindow, setNarrowWindow] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const navDrawer = sidebarCollapsed || narrowWindow;
+  useEffect(() => { if (!navDrawer) setNavOpen(false); }, [navDrawer]);
   const rootRef = useRef(null), narrowObserver = useRef(null);
   const attachRoot = useCallback((node) => {
     rootRef.current = node;
@@ -44,5 +49,5 @@ export function useAppShell() {
   }, []);
   useEffect(() => () => narrowObserver.current?.disconnect(), []);
   return { appearance, updateAppearance, resetAppearance, appearanceAttrs, theme, resolvedTheme, motion, setTheme, sciencePrefs, setSciencePrefs,
-    sidebarCollapsed, setSidebarCollapsed, sidebarNarrow: sidebarCollapsed || narrowWindow, rootRef, attachRoot };
+    sidebarCollapsed, setSidebarCollapsed, narrowWindow, navDrawer, navOpen, setNavOpen, rootRef, attachRoot };
 }

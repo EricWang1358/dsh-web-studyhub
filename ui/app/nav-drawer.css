@@ -1,0 +1,59 @@
+/* ui/app/nav-drawer.css — the sidebar as a drawer (#657, ui/app/AppSidebar.jsx) and the top bar's menu button that opens it.
+   The drawer is the shared Dialog (size full) placed along the left edge: this sheet writes its position and size only, never its border,
+   corner, fill or shadow. It slides in by transform and opacity. Tokens only; both themes. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .nav-drawer {
+      inset: 0 auto 0 0;
+      width: min(300px, calc(100vw / var(--study-ui-scale, 1) - 56px));
+      height: calc(100dvh / var(--study-ui-scale, 1));
+      margin: 0;
+    }
+    .nav-drawer[open] {
+      animation: nav-drawer-in var(--dur) var(--ease-out);
+    }
+    .nav-drawer__header {
+      padding: var(--space-4) var(--space-3) var(--space-2) var(--space-5);
+    }
+    .nav-drawer__title {
+      font-size: var(--fs-lg);
+    }
+    .nav-drawer__body {
+      padding: 0;
+    }
+    .nav-drawer__content {
+      max-width: none;
+      margin: 0;
+    }
+    /* The sidebar inside the drawer is styled with the sidebar, in ui/shell.css. */
+    .nav-dock {
+      margin: var(--space-3) var(--space-3) 0;
+      color: var(--text-muted);
+    }
+    /* The menu button sits at the start of the top bar, before the page title. */
+    .nav-menu-anchor {
+      display: inline-flex;
+      flex: none;
+      margin-right: var(--space-2);
+    }
+    .nav-menu-toggle {
+      width: 32px;
+      height: 32px;
+      min-width: 0;
+      min-height: 0;
+      padding: 0;
+      justify-content: center;
+      color: var(--text-dim);
+    }
+  }
+}
+
+@keyframes nav-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}

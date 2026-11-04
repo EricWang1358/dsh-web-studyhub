@@ -8,6 +8,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { frames, until } from '../scripts/qa/layout-late.mjs';
 import { startConsole, startJobs, openConsole } from '../scripts/qa/task-console.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* The 即时控制 row of a running question task, with a session whose model id is long and carries a provider prefix (`cn:deepseek-v4.1-flash`, level high), at
    1280, 1024, 768 and 420 px, dark and light, in both languages: every control is inside the row and the window, a label sits over its own select, nothing is cut
@@ -156,7 +157,7 @@ test('出题偏好 in Settings: the same select, the closed one short, the popup
     for (const [lang, width] of [['zh', 1280], ['en', 420]]) {
       const words = WORDS[lang], where = `${lang} ${width}px settings`;
       const { page, context, errors } = await openConsole(browser, running, { lang, theme: 'dark', width, height: 900 });
-      await page.locator('[data-tour="nav-settings"]').first().dispatchEvent('click');
+      await (await revealNavRow(page, 'settings')).dispatchEvent('click');
       await page.getByText(lang === 'zh' ? '出题偏好' : 'Question defaults').first().dispatchEvent('click');
       const follow = page.locator('[role="combobox"]', { hasText: words.short });
       await follow.first().waitFor({ state: 'attached' });

@@ -60,8 +60,19 @@ test('the sidebar pages of the registry are the sidebar pages of the app, in the
     assert.ok(entry, `nav.${page} is registered`);
     assert.equal(entry.navGroup, group, `${page} sits in ${group}`);
   }
-  const tiers = { daily: 'daily', periodic: 'periodic', setup: 'once' };
-  for (const [group, pages] of Object.entries(NAV_DEFAULTS)) for (const page of pages) assert.equal(usageEntry(`nav.${page}`).tier, tiers[group], `${page}: tier follows the group`);
+  // The groups are by content since #654, so a tier (when a page is used, docs/feature-tiers.md) no longer follows from the group: it is the
+  // page's own, unchanged by the regrouping.
+  const tiers = { library: 'daily', sources: 'daily', generate: 'daily', tasks: 'daily', wrongbook: 'daily', workflows: 'daily', notes: 'daily', board: 'daily',
+    exam: 'periodic', examprep: 'periodic', book: 'periodic', dashboard: 'periodic', skeleton: 'once', audio: 'once', live: 'once' };
+  assert.deepEqual(Object.values(NAV_DEFAULTS).flat().sort(), Object.keys(tiers).sort());
+  for (const [page, tier] of Object.entries(tiers)) assert.equal(usageEntry(`nav.${page}`).tier, tier, `${page}: tier`);
+  // The report names a group as the sidebar does: 主导航, or 更多 › the section's label (ui/pages.js NAV_SECTIONS).
+  const { NAV_SECTIONS } = await import('../ui/pages.js');
+  assert.deepEqual(Object.keys(USAGE_NAV_GROUPS), Object.keys(NAV_DEFAULTS));
+  for (const section of NAV_SECTIONS) assert.equal(USAGE_NAV_GROUPS[section.id].zh, `更多 › ${section.label}`, section.id);
+  // The sidebar's own controls of #654–#657 are registered; the removed ones (theme and language switch, group fold) are not.
+  for (const key of ['nav.more', 'nav.help', 'nav.menu']) assert.ok(usageEntry(key), key);
+  for (const key of ['nav.theme', 'nav.language', 'nav.group']) assert.equal(usageEntry(key), null, key);
 });
 
 test('the page re-exports the one registry (lib/ owns it because the report is built by the backend)', () => {
@@ -152,9 +163,13 @@ for (const [name, area, render, minimum = 3] of [['home', 'library', home], ['pr
 }
 
 test('the sidebar rows carry data-usage in the app and key identically in both languages', async () => {
-  const app = await readFile(join('ui', 'app', 'AppSidebar.jsx'), 'utf8');
-  assert.match(app, /data-usage=\{`nav\.\$\{id\}`\}/, 'the page rows are keyed by page id');
-  assert.match(app, /data-usage="nav\.settings"/);
+  // #654 split the sidebar: the page rows are drawn by SidebarNav.jsx, the footer (设置, 帮助) by SidebarFooter.jsx.
+  const rows = await readFile(join('ui', 'app', 'SidebarNav.jsx'), 'utf8');
+  const footer = await readFile(join('ui', 'app', 'SidebarFooter.jsx'), 'utf8');
+  assert.match(rows, /data-usage=\{`nav\.\$\{id\}`\}/, 'the page rows are keyed by page id');
+  assert.match(rows, /data-usage="nav\.more"/);
+  assert.match(footer, /data-usage="nav\.settings"/);
+  assert.match(footer, /data-usage="nav\.help"/);
   const zh = withLanguage('zh', () => renderToStaticMarkup(h(pages.NavItem, { glyph: 'library', label: pages.ui('学习库'), 'data-usage': 'nav.library' })));
   const en = withLanguage('en', () => renderToStaticMarkup(h(pages.NavItem, { glyph: 'library', label: pages.ui('学习库'), 'data-usage': 'nav.library' })));
   assert.deepEqual(keysOf(en, 'library'), keysOf(zh, 'library'));

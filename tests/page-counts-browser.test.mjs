@@ -7,6 +7,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { frames, holdActions, openPage, settleAnimations, startLateServer, until } from '../scripts/qa/layout-late.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* One book, one number. A converted textbook of 404 pages with text whose original PDF has 422 sits on the 资料 page with its 大教材建议 open, in a course that
    has 4 more pages in other materials without an index. The row, the index badge, the advice title and the card all say 404; the original's 422 is said once,
@@ -48,8 +49,7 @@ test('the row, the badge, the advice and the card agree on 404 pages, and the co
       const hold = await holdActions(page, ['retrieval.status', 'retrieval.index.coverage', 'retrieval.index.plan']);
       await page.goto(running.server.url);
       await page.locator('aside, nav').first().waitFor({ timeout: 30000 });
-      const nav = page.locator('[data-tour="nav-sources"]').first();
-      await nav.waitFor({ state: 'visible' });
+      const nav = await revealNavRow(page, 'sources');
       await nav.dispatchEvent('click');
       const row = page.locator(`.sources-page .source-doc[data-document-key*="${HASH}"]`).first();
       await row.waitFor({ timeout: 30000 });

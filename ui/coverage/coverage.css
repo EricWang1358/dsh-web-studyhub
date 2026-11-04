@@ -26,8 +26,11 @@
     /* ── The summary on the draft page ─────────────────────────────────── */
     .cov-summary { display: grid; gap: var(--space-3); min-width: 0; margin-block: var(--space-4); padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-raised); }
     .cov-summary > * { min-width: 0; margin: 0; }
-    .cov-summary__kicker { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
-    .cov-summary__line { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    /* The coverage, said once (CoverageFact): the fact, its bar and the one sentence of the plan. */
+    .cov-fact { display: grid; gap: var(--space-2); min-width: 0; }
+    .cov-fact > * { min-width: 0; margin: 0; }
+    .cov-fact__line { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-fact__status { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-groups { display: grid; gap: var(--space-1-5); margin: 0; padding: 0; list-style: none; }
     .cov-groups li { display: grid; grid-template-columns: minmax(6em, 14em) minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); font-size: var(--fs-sm); }
     .cov-groups__name { min-width: 0; color: var(--text-dim); overflow-wrap: anywhere; line-height: var(--lh-snug); }
@@ -44,7 +47,6 @@
     .cov-run { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
     .cov-run > * { min-width: 0; margin: 0; }
     /* What the draft holds and which sections have no question: the SHORTFALL (lib/shortfall.js), the same words as the home row and the 任务 console. */
-    .cov-run__counts { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-run__line { font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-run__stop, .cov-run__hint { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .cov-run[data-run-state='interrupted'] .cov-run__line, .cov-run[data-run-state='stopped'] .cov-run__line { color: var(--warn-ink, var(--text)); }
@@ -90,6 +92,8 @@
     .cov-topup--compact .cov-topup__estimate { flex-basis: 100%; max-width: none; }
     /* The status of a run that works (「第 3/12 轮 · 覆盖 31% · 已用 1.2M tok · 预计还要 …」) is a sentence: in the narrow column it wraps instead of running off the screen. */
     .cov-topup--compact [data-draft-work] { max-width: 100%; height: auto; padding-block: var(--space-1); white-space: normal; text-align: end; line-height: var(--lh-snug); }
+    /* On the draft page the status of a running round (rounds, tokens, what is left) is a sentence too: it wraps inside the box instead of running past it. */
+    .cov-topup:not(.cov-topup--compact) [data-draft-work] { max-width: 100%; height: auto; padding-block: var(--space-1); white-space: normal; line-height: var(--lh-snug); }
     .cov-topup--panel { padding-top: 0; border-top: 0; }
     /* The console header's popover: wide enough for the sentences and the button (a popover is as wide as its content, which here is a column of short lines). */
     .cov-popover__panel { gap: var(--space-3); width: min(22rem, calc(100vw - var(--space-6))); }
@@ -117,7 +121,6 @@
     .cov-strength__input--budget { width: 9em; font-variant-numeric: tabular-nums; }
     .cov-strength__unit { color: var(--text-muted); font-size: var(--fs-sm); }
     /* ── Why a section has the questions it has (the plan of the draft) ───── */
-    .cov-summary__plan { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-list__why { display: block; color: var(--text-dim); font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     /* ── In a part of a question run (the 任务 console) ────────────────── */
     .tc-cover { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-1-5); min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }

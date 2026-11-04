@@ -131,7 +131,7 @@ export async function runSmoke(options) {
       pause: await refused("job.control", { jobId: held.id, action: "pause" }), retry: await refused("job.control", { jobId: held.id, action: "retry" }), message: await refused("job.message", { jobId: held.id, message: "hi" }) }));
     await step("console screenshot with a running runtime job (1280 wide)", async () => {
       await page.setViewportSize({ width: 1280, height: 900 });
-      await page.locator('[data-tour="nav-tasks"]').first().click({ force: true });
+      await page.locator('[data-tour="nav-tasks"]').first().dispatchEvent('click');
       await sleep(1500);
       await shot("tasks-running-1280");
       return { text: (await page.locator(".study-app").first().innerText()).slice(0, 400) };
@@ -175,7 +175,7 @@ export async function runSmoke(options) {
       const started = await call("audio.subtitles.import", subtitles(4));
       await until("the job to run", async () => { const job = await row(started.jobId); return job && job.contract.calls.length ? job : null; });
       await page.setViewportSize({ width: 1280, height: 900 });
-      await page.locator('[data-tour="nav-tasks"]').first().click({ force: true });
+      await page.locator('[data-tour="nav-tasks"]').first().dispatchEvent('click');
       await page.locator(".tc-row", { hasText: "smoke-4.txt" }).first().waitFor({ timeout: 30000 });
       await page.locator(".tc-row", { hasText: "smoke-4.txt" }).first().click();
       await sleep(800);
@@ -204,7 +204,7 @@ export async function runSmoke(options) {
       const out = {};
       for (const width of [1280, 420]) {
         await page.setViewportSize({ width, height: width === 420 ? 820 : 900 });
-        await page.locator('[data-tour="nav-tasks"]').first().click({ force: true }).catch(() => {});
+        await page.locator('[data-tour="nav-tasks"]').first().dispatchEvent('click').catch(() => {});
         await sleep(1500);
         await page.mouse.move(Math.max(5, width - 5), 5);
         await sleep(300);

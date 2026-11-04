@@ -1,175 +1,59 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ui, uiFormat, setUiLanguage } from '../i18n.js';
-import { PAGES } from '../pages.js';
-import { pageAvailable } from '../capabilities.js';
-import { countDocuments } from '../../lib/source-groups.js';
-import { NavItem, ResumeNavItem, CoachNavItem, NavGroup } from '../SideNav.jsx';
-import Tooltip from '../components/Tooltip.jsx';
-import { useTaskBadge } from '../tasks/use-task-badge.js';
-import { bookEntryPage } from '../book/model.js';
-import { NAV_DEFAULTS, NAV_GROUPS, groupIsOpen, useNavGroups, useNavOrder } from '../nav-order.js';
-import { isStartPage, markStart, readStarts, startHere } from '../nav-start.js';
-import { useReorderHint } from '../nav-reorder-hint.js';
-import { GLOSSARY } from '../mastery-terms.js';
-import { APPEARANCE_LABELS, THEME_CYCLE } from '../appearance-prefs.js';
-import LanguageSwitch from '../LanguageSwitch.jsx';
-import UpdateCenter from '../UpdateCenter.jsx';
-import { Button, Icon } from '../components/index.js';
+import React from 'react';
+import { ui } from '../i18n.js';
+import { Button, Dialog, Icon } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import css from './app-shell.css';
-import navStartCss from '../nav-start.css';
+import drawerCss from './nav-drawer.css';
 import { useApp } from './app-context.js';
+import { useNavAlert } from './use-nav-alert.js';
+import SidebarNav from './SidebarNav.jsx';
+import SidebarFooter from './SidebarFooter.jsx';
 
-/* The sidebar cycles auto, dark, light only; OLED black and paper are chosen in 设置 › 界面 (and show on the toggle with their base mode's glyph). */
-const THEMES = THEME_CYCLE.map((id) => [id, APPEARANCE_LABELS.theme[id]]);
+/* The sidebar, in one of two forms (ui/app/use-app-shell.js):
+   - docked: the column on the left, with a button that puts it away;
+   - a drawer (#657): when the learner put it away, and whenever the workspace is narrow (a DSH panel is often 420 px wide). The top bar's
+     menu button (AppTopbar.jsx, data-tour="nav-menu") opens it; it is the shared Dialog, so it holds the focus, closes on Esc, on its close
+     button and on the backdrop, and gives the focus back to the menu button. It has every label: there is no row of bare icons.
+   Both forms draw the same rows (SidebarNav, SidebarFooter). In the drawer, choosing a page closes it. */
 
-/** The one line the glossary entry shows on hover/focus: every word the interface assumes, with what it means (ui/mastery-terms.js). */
-const glossaryText = () => [ui('界面里这些词的意思：'), ...Object.values(GLOSSARY).map((term) => `${ui(term.label)} — ${ui(term.hint)}`)].join('\n');
-
-function ThemeCycle() {
-  const { shell } = useApp();
-  const { theme, resolvedTheme, setTheme } = shell;
-  const at = Math.max(0, THEMES.findIndex(([id]) => id === (THEME_CYCLE.includes(theme) ? theme : resolvedTheme)));
-  const [current] = THEMES[at], label = APPEARANCE_LABELS.theme[theme], [nextId, nextLabel] = THEMES[(at + 1) % THEMES.length];
+function Brand({ onCollapse }) {
   return (
-    <NavItem className="theme-cycle" data-usage="nav.theme" glyph={current} label={uiFormat('外观 · {0}', [ui(label)])}
-      title={uiFormat('主题：{0}（点击切换为{1}）', [ui(label), ui(nextLabel)])}
-      aria-label={uiFormat('主题：{0}，切换为{1}', [ui(label), ui(nextLabel)])} onClick={() => setTheme(nextId)} />
+    <div className="brand">
+      <span className="brand-mark" aria-hidden="true"><Icon name="brand" size={30} /></span>
+      <div>{ui('StudyHub')}<small>{ui('每道题都点得回原页')}</small></div>
+      {onCollapse && (
+        <Button variant="quiet" size="sm" className="collapse-toggle" data-tour="nav-collapse" data-usage="nav.collapse" aria-label={ui('收起侧边栏')}
+          title={ui('收起侧边栏')} onClick={onCollapse}>
+          <Icon name="chevron-left" size={14} />
+        </Button>
+      )}
+    </div>
   );
 }
 
-/** What the number on 任务 says: what is running, and what ended since the console was last opened (and how many of those did not finish). */
-const taskBadgeTitle = ({ running, unseen, failed }) => [running > 0 ? uiFormat('{0} 个任务正在进行', [running]) : '',
-  unseen > 0 ? (failed > 0 ? uiFormat('{0} 个任务有新结果，其中 {1} 个没有完成', [unseen, failed]) : uiFormat('{0} 个任务有新结果', [unseen])) : ''].filter(Boolean).join(' · ');
-
-/** Where a nav page's "go there" press leads: the old page lifts away, the new one settles in, the context trail starts afresh. */
-const gotoPage = (nav, id) => nav.navigate(id, { animate: true, keepTrail: false, enter: 'user' });
-
 export default function AppSidebar() {
   useInjectCss(css, 'study-app-shell');
-  useInjectCss(navStartCss, 'study-nav-start');
-  const { data, language, core, shell, nav, session, intents, tour, board } = useApp();
-  const { busy } = core;
-  const { sidebarNarrow } = shell;
-  const { navPage, pageTarget, page } = nav;
-  const navRef = useRef(null), [navMark, setNavMark] = useState(null);
-  const navOrder = useNavOrder(NAV_DEFAULTS, navRef);
-  const navGroups = useNavGroups();
-  /* How to reorder is said once, in the first row tooltip the learner opens, not in all fifteen (ui/nav-reorder-hint.js); a learner who
-     has lifted or moved a row has found it. */
-  const reorderHint = useReorderHint();
-  const { learned } = reorderHint;
-  useEffect(() => { if (navOrder.lifted || navOrder.announce) learned(); }, [navOrder.lifted, navOrder.announce, learned]);
-  /* 「从这里开始」: the ids opened so far (ui/nav-start.js). A page that was already open when the app started keeps its marker: the visit the
-     learner lands on was not a choice, and the home is where the markers are meant to be read. Every other way into a page counts. */
-  const [starts, setStarts] = useState(readStarts);
-  const landed = useRef(true), opened = useRef(starts);
-  opened.current = starts;
-  useEffect(() => {
-    if (landed.current) { landed.current = false; return; }
-    if (!isStartPage(navPage) || opened.current.includes(navPage)) return;
-    setStarts(markStart(navPage));
-  }, [navPage]);
-  const tasks = useTaskBadge({ root: data?.root, data, viewing: navPage === 'tasks' });
-  const lastRun = data?.lastRun && page === 'review' && session.run?.id === data.lastRun.id
-    ? { ...data.lastRun, index: session.run.index, total: session.run.total } : data?.lastRun;
-  /* One highlight glides to the active nav item instead of each item switching its own background, so a page change reads as movement. */
-  useLayoutEffect(() => {
-    const element = navRef.current;
-    if (!element) return undefined;
-    const measure = () => {
-      const active = element.querySelector('.nav[aria-current="page"]');
-      setNavMark((mark) => {
-        const next = active ? { top: active.offsetTop, height: active.offsetHeight } : null;
-        return mark?.top === next?.top && mark?.height === next?.height ? mark : next;
-      });
-    };
-    measure();
-    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
-    observer?.observe(element);
-    return () => observer?.disconnect();
-  }, [page, pageTarget, sidebarNarrow, busy, !!data, data?.lastRun?.id, data?.lastRun?.index, navOrder.order, navGroups.folded]); // eslint-disable-line react-hooks/exhaustive-deps
-  /* 复习全书: the book of the current course when it has been written, else the 总纲 page, which offers to organise the course and write it. */
-  const openBookEntry = async () => {
-    let target = 'book';
-    try { target = bookEntryPage(await core.call('course.book.open', { course: data?.focus?.course ?? null })); } catch { /* the book page shows the failure, with a retry */ }
-    gotoPage(nav, target);
-  };
-  const toggleLabel = sidebarNarrow ? ui('展开侧边栏') : ui('收起侧边栏');
-  const announced = navOrder.announce && PAGES[navOrder.announce.id];
+  useInjectCss(drawerCss, 'study-nav-drawer');
+  const { shell } = useApp();
+  const { alert, reason, tasks } = useNavAlert();
+  const body = (<><SidebarNav alert={alert} reason={reason} tasks={tasks} /><SidebarFooter /></>);
+  if (!shell.navDrawer) {
+    return <aside className="sidebar"><Brand onCollapse={() => shell.setSidebarCollapsed(true)} />{body}</aside>;
+  }
+  if (!shell.navOpen) return null;
+  const close = () => shell.setNavOpen(false);
+  // A row that leads somewhere closes the drawer once it has done its work; a fold (更多, 帮助) and the glossary keep it open.
+  const leave = (event) => { if (event.target.closest?.('button.nav:not([aria-expanded]):not([data-keep-open])')) close(); };
   return (
-    <aside className={sidebarNarrow ? 'sidebar is-narrow' : 'sidebar'}>
-      <div className="brand">
-        <span className="brand-mark" aria-hidden="true"><Icon name="brand" size={30} /></span>
-        <div>{ui('StudyHub')}<small>{ui('每道题都点得回原页')}</small></div>
-        <Button variant="quiet" size="sm" className="collapse-toggle" data-usage="nav.collapse" aria-label={toggleLabel} aria-expanded={!sidebarNarrow}
-          title={toggleLabel} onClick={() => shell.setSidebarCollapsed((value) => !value)}>
-          <Icon name={sidebarNarrow ? 'chevron' : 'chevron-left'} size={14} />
-        </Button>
-      </div>
-      <nav ref={navRef} className={'side-nav' + (navOrder.lifted ? ' is-reordering' : '')} data-tour="nav">
-        {navMark && <span className="nav-mark" aria-hidden="true" style={{ transform: `translateY(${navMark.top}px)`, height: navMark.height }} />}
-        {NAV_GROUPS.map((group) => {
-          const ids = navOrder.order[group.id].filter((id) => pageAvailable(data, id));
-          // A group whose pages are all switched off in the host is not drawn; the daily one always is (it holds 回到题目).
-          if (!ids.length && group.id !== 'daily') return null;
-          return (
-            <NavGroup key={group.id} id={group.id} label={group.label} hint={group.hint} collapsible={group.collapsible}
-              open={groupIsOpen(group.id, navGroups.folded, navPage)} onToggle={() => navGroups.toggle(group.id)}>
-              {group.id === 'daily' && (
-                <ResumeNavItem lastRun={lastRun} hasDecks={!!data?.decks.length} ready={!!data} active={navPage === 'review'} narrow={sidebarNarrow}
-                  start={startHere('review', starts)} disabled={!data || busy || !pageAvailable(data, 'review')} onClick={intents.resumeOrStart} />
-              )}
-              {group.id === 'daily' && data?.coach?.ready > 0 && pageAvailable(data, 'review') && (
-                <CoachNavItem ready={data.coach.ready} disabled={busy} narrow={sidebarNarrow} onClick={session.onCoachPractice} />
-              )}
-              {ids.map((id) => {
-                const label = ui(PAGES[id].label);
-                const due = id === 'board' && board.due.overdue + board.due.today > 0;
-                const news = id === 'tasks' ? tasks : null;
-                return (
-                  <NavItem key={id} {...navOrder.bind(id)} data-tour={`nav-${id}`} data-usage={`nav.${id}`}
-                    className={navOrder.lifted === id ? 'is-dragging' : ''} upkeep={group.id === 'setup'} active={navPage === id}
-                    glyph={PAGES[id].glyph} label={label} purpose={ui(PAGES[id].purpose)} narrow={sidebarNarrow}
-                    tail={reorderHint.show ? ui('长按并拖动可调整顺序（键盘：Alt+↑/↓）') : undefined} onTipChange={reorderHint.tipChange} start={startHere(id, starts)}
-                    onClick={() => (id === 'book' ? openBookEntry() : gotoPage(nav, id))} disabled={!data && id !== 'board'}
-                    hint={id === 'board' ? board.count : id === 'sources' && data ? countDocuments(data.sources) : news?.total > 0 ? news.total : undefined}
-                    hintClass={due || news?.failed > 0 ? 'nav-count is-due' : news?.total > 0 ? 'nav-count is-live' : 'nav-count'}
-                    hintTitle={due ? uiFormat('{0} 项已逾期 · {1} 项今天截止', [board.due.overdue, board.due.today]) : news?.total > 0 ? taskBadgeTitle(news) : undefined} />
-                );
-              })}
-            </NavGroup>
-          );
-        })}
-        {navOrder.customized && !sidebarNarrow && <Button variant="link" size="sm" className="nav-reset" onClick={navOrder.reset}>{ui('恢复默认顺序')}</Button>}
-        <span className="sh-visually-hidden" role="status" aria-live="polite">
-          {announced && uiFormat('{0} 已移到第 {1} 位，共 {2} 项', [ui(announced.label), navOrder.announce.position, navOrder.announce.count])}
-        </span>
-      </nav>
-      <div className="sidebar-bottom">
-        <LanguageSwitch language={language} narrow={sidebarNarrow} onChange={setUiLanguage} />
-        {data && (
-          <NavItem className="tour-nav" data-tour="tour-reopen" data-usage="nav.tour" icon={<Icon name="nav-tour" />} label={ui('功能导览')} disabled={tour.sampleBusy}
-            aria-disabled={!!tour.tourStep || undefined} hint={tour.tourResume ? `${tour.tourResume.index + 1}/${tour.tourResume.total}` : undefined}
-            title={[ui('功能导览：切到每个关键功能，看看怎么用'), tour.tourResume && uiFormat('继续 {0}/{1}', [tour.tourResume.index + 1, tour.tourResume.total])].filter(Boolean).join('\n')}
-            onClick={() => { if (!tour.tourStep) tour.startTour(); }} />
+    <Dialog className="nav-drawer" headerClassName="nav-drawer__header" titleClassName="nav-drawer__title" bodyClassName="nav-drawer__body" contentClassName="nav-drawer__content" size="full" title={ui('导航')} closeLabel={ui('关闭导航')} onClose={close}>
+      <div className="sidebar is-drawer" onClick={leave}>
+        {body}
+        {!shell.narrowWindow && (
+          <Button variant="quiet" size="sm" icon="panel" className="nav-dock" data-usage="nav.collapse" onClick={() => { shell.setSidebarCollapsed(false); close(); }}>
+            {ui('把侧栏固定在左边')}
+          </Button>
         )}
-        {/* Two quiet entries of the rail: the keys of this page (? opens the same sheet), and the words the interface assumes. */}
-        <div className="sidebar-links">
-          <Tooltip layer placement="top-start" anchorClassName="sidebar-link-tip" content={ui('看这一页能用的键；按 ? 也能打开')}>
-            <Button variant="link" size="sm" className="sidebar-link" icon="key" data-usage="nav.shortcut" onClick={() => session.actions.openShortcutHelp()}>{ui('快捷键')}</Button>
-          </Tooltip>
-          <Tooltip layer interactive placement="top-start" anchorClassName="sidebar-term-tip" content={glossaryText()}>
-            <span className="sidebar-link sidebar-link--term" tabIndex={0} onClick={(e) => e.currentTarget.focus()}>{ui('名词解释')}</span>
-          </Tooltip>
-        </div>
-        <div className="local-status"><span />{ui('本地学习工作区')}</div>
-        {/* Theme: one cycling toggle. `auto` is dark; light is explicit opt-in. */}
-        <ThemeCycle />
-        <UpdateCenter compact={sidebarNarrow} />
-        <NavItem glyph="settings" label={ui('设置')} active={navPage === 'settings'} narrow={sidebarNarrow} purpose={ui('语言、外观、模型连接和引导提示都在这页调')} data-tour="nav-settings" data-usage="nav.settings"
-          onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })} />
       </div>
-    </aside>
+    </Dialog>
   );
 }

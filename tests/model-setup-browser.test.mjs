@@ -9,6 +9,7 @@ import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { frames, openPage, seedPickerLibrary, until } from '../scripts/qa/layout-late.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* Model setup in the browser preview, on a library with no model (the preview host offers no DSH model panel, like DSH 0.2): Settings › 学习库与模型 says
    the model is not connected with the exact steps and no key field; 重新检查 reads the library again, says so when nothing changed and shows the new state
@@ -71,7 +72,7 @@ const openApp = async (running, state, { width }) => {
   await opened.page.locator('aside, nav').first().waitFor({ timeout: 30000 });
   return opened;
 };
-const go = async (page, name) => { await page.locator(`[data-tour="nav-${name}"]`).first().dispatchEvent('click'); await frames(page, 6); };
+const go = async (page, name) => { await (await revealNavRow(page, name)).dispatchEvent('click'); await frames(page, 6); };
 const modelPane = async page => {
   await go(page, 'settings');
   await page.locator('[data-category="model"]').first().dispatchEvent('click');

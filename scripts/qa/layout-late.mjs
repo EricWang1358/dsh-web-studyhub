@@ -19,6 +19,7 @@ import { seedLibrary } from "./perf-seed.mjs";
 import { launchChromium } from "./browser.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { drainLayoutStability, installLayoutObserver, judgeLayoutStability } from "./layout-stability.mjs";
+import { revealNavRow } from "./nav-reveal.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -166,8 +167,7 @@ export async function pickerScenario({ browser, running, lang = "zh", theme = "d
   const hold = await holdActions(page, ["retrieval.index.coverage"]);
   await page.goto(running.server.url);
   await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
-  const nav = page.locator('[data-tour="nav-generate"]').first();
-  await nav.waitFor({ state: "visible" });
+  const nav = await revealNavRow(page, "generate");
   await nav.dispatchEvent("click");
   const fromSources = page.locator('[data-tour="generate-from-sources"]').or(page.getByRole("tab", { name: lang === "en" ? "From materials" : "从资料补题" }));
   // Dispatched, not real input: Chromium drops layout shifts within 500 ms of real input (hadRecentInput), and this is about data that arrives on its own.
@@ -229,8 +229,7 @@ export async function sourcesScenario({ browser, running, lang = "zh", theme = "
   const hold = await holdActions(page, ["retrieval.index.coverage"]);
   await page.goto(running.server.url);
   await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
-  const nav = page.locator('[data-tour="nav-sources"]').first();
-  await nav.waitFor({ state: "visible" });
+  const nav = await revealNavRow(page, "sources");
   await nav.dispatchEvent("click");
   const rows = ".sources-page .source-doc";
   await page.locator(rows).first().waitFor({ timeout: 30000 });
@@ -285,7 +284,7 @@ const readWrongBook = (page) => page.evaluate(() => {
   const start = retrain?.querySelector(".sh-btn--primary");
   return {
     retrain: box(retrain), start: box(start), startText: start?.textContent.trim() ?? "", selected: pressed?.textContent.trim() ?? "", options: [...new Set(options)],
-    note: retrain?.querySelector(".wb-retrain-copy small")?.textContent.trim() ?? "", recs: box(document.querySelector(".wb-recs")),
+    note: document.querySelector(".wb-recs-status")?.textContent.trim() ?? "", recs: box(document.querySelector(".wb-recs")),
     group: box(document.querySelector(".wb-group")), firstRow: box(document.querySelector(".wb-row")),
   };
 });
@@ -295,8 +294,7 @@ export async function wrongBookScenario({ browser, running, lang = "zh", theme =
   const hold = await holdActions(page, ["wrongbook.recommend"]);
   await page.goto(running.server.url);
   await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
-  const nav = page.locator('[data-tour="nav-wrongbook"]').first();
-  await nav.waitFor({ state: "visible" });
+  const nav = await revealNavRow(page, "wrongbook");
   await nav.dispatchEvent("click");
   await page.locator(".wb-retrain").waitFor({ timeout: 30000 });
   // The groups open folded: open the first one (dispatched, not real input, for the reason above) so the list has rows to measure.
@@ -309,7 +307,7 @@ export async function wrongBookScenario({ browser, running, lang = "zh", theme =
   await drainLayoutStability(page);
   if (shots) await page.screenshot({ path: join(shots, "before-arrival.png") });
   hold.release("wrongbook.recommend");
-  await until(() => page.evaluate(() => !!document.querySelector(".wb-recs .sh-btn")), "the recommendations to arrive");
+  await until(() => page.evaluate(() => /\d/.test(document.querySelector(".wb-recs-status")?.textContent ?? "")), "the recommendations to arrive");
   await frames(page, 4);
   const after = await readWrongBook(page);
   const log = await drainLayoutStability(page);
@@ -325,8 +323,7 @@ export async function titlesScenario({ browser, running, lang = "zh", theme = "d
   const { page, errors, context } = await openPage(browser, running, { lang, theme, width });
   await page.goto(running.server.url);
   await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
-  const nav = page.locator('[data-tour="nav-generate"]').first();
-  await nav.waitFor({ state: "visible" });
+  const nav = await revealNavRow(page, "generate");
   await nav.dispatchEvent("click");
   await page.locator('[data-tour="generate-from-sources"]').or(page.getByRole("tab", { name: lang === "en" ? "From materials" : "从资料补题" })).first().dispatchEvent("click");
   const rows = '[data-tour="generate-sources"] .source-picker__item';
@@ -345,7 +342,7 @@ export async function shellScenario({ browser, running, lang = "zh", theme = "da
   const { page, errors, context } = await openPage(browser, running, { lang, theme, width });
   await page.goto(running.server.url);
   await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
-  await page.locator('[data-tour="nav-library"]').first().waitFor({ state: "visible", timeout: 30000 });
+  await page.locator('[data-tour="nav-library"], .nav-menu-toggle').first().waitFor({ state: "visible", timeout: 30000 }); // a narrow window has the menu button, not the row (#657)
   await frames(page, 6);
   const log = await drainLayoutStability(page);
   const verdict = judgeLayoutStability(log);

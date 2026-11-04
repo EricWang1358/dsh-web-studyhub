@@ -37,13 +37,14 @@ const page = (extra = {}) => render(h(ui.CourseOutlineView, { course: 'SA', outl
 const buttons = html => dom(html).all.filter(item => item.tagName === 'BUTTON' || item.tagName === 'button');
 const primary = html => buttons(html).filter(item => /sh-btn--primary/.test(item.getAttribute('class') || '')).map(item => item.textContent.trim());
 
-test('the registry row: 复习全书 is a sidebar page of 阶段性 after 备考补习, with a book icon, and its way back keeps its own words', () => {
-  assert.deepEqual([ui.PAGES.book.label, ui.PAGES.book.group, ui.PAGES.book.glyph], ['复习全书', 'periodic', 'book']);
-  assert.deepEqual(ui.NAV_DEFAULTS.periodic, ['exam', 'examprep', 'book', 'dashboard']);
+// #654: the sidebar's groups are by content, so 复习全书 sits in 「更多 › 练习与复习」 (it was in 阶段性 after 备考补习).
+test('the registry row: 复习全书 is a sidebar page of 更多 › 练习与复习, with a book icon, and its way back keeps its own words', () => {
+  assert.deepEqual([ui.PAGES.book.label, ui.PAGES.book.group, ui.PAGES.book.glyph], ['复习全书', 'practice', 'book']);
+  assert.deepEqual(ui.NAV_DEFAULTS.practice, ['workflows', 'book', 'skeleton']);
   assert.equal(ui.backLabelOf('book'), '回到复习全书', 'a practice round started in the book still says 回到复习全书, not 返回复习全书');
   assert.equal(ui.PAGES.outline.group, null, 'the 总纲 page itself is still reached from the home and from here');
   const entry = ui.USAGE_REGISTRY.find(item => item.key === 'nav.book');
-  assert.deepEqual([entry.zh, entry.en, entry.group, entry.navGroup], ['复习全书', 'Review book', 'nav', 'periodic']);
+  assert.deepEqual([entry.zh, entry.en, entry.group, entry.navGroup], ['复习全书', 'Review book', 'nav', 'practice']);
 });
 
 test('the sidebar row is one line with the book icon, in Chinese and in English', () => {
@@ -64,7 +65,7 @@ test('where the sidebar leads: the book page once its notes are written, else th
   assert.equal(ui.bookEntryPage({ status: 'empty', reason: 'no-outline' }), 'outline');
   assert.equal(ui.bookEntryPage({ status: 'empty', reason: 'no-course' }), 'outline');
   assert.equal(ui.bookEntryPage(null), 'outline');
-  const sidebar = readFileSync('ui/app/AppSidebar.jsx', 'utf8');
+  const sidebar = readFileSync('ui/app/SidebarNav.jsx', 'utf8'); // the sidebar's page rows (#654 split AppSidebar into SidebarNav and SidebarFooter)
   assert.match(sidebar, /id === 'book' \? openBookEntry\(\)/, 'the book row asks first');
   assert.match(sidebar, /course\.book\.open/);
 });

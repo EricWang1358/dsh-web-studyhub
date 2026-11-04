@@ -3,12 +3,12 @@ import React, { useEffect, useRef } from 'react';
 import AudioReasoning from './AudioReasoning.jsx';
 import { EffortSelect } from './EffortSelect.jsx';
 import { useModelEfforts } from './use-model-efforts.js';
-import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, RadioCard, RadioCardGroup, SecretKeyForm, Select, SetupRequired, SettingsSection, Switch, TextInput, useToast } from './components/index.js';
+import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, RadioCard, RadioCardGroup, SecretKeyForm, SegmentedControl, Select, SetupRequired, SettingsSection, Switch, TextInput, Tooltip, useToast } from './components/index.js';
 import LiveLocalCard from './LiveLocalCard.jsx';
 import LiveLoopbackCard from './LiveLoopbackCard.jsx';
 import { KEY_FIELDS, providerOf, providersFor } from '../lib/audio-providers.js';
 import { REQUEST_LIMIT_MINUTES } from '../lib/audio-formats.js';
-import { audioFocusPending, requestAudioSettingsFocus, takeAudioSettingsFocus } from './audio-focus.js';
+import { audioFocusPending, audioFocusTarget, requestAudioSettingsFocus, takeAudioSettingsFocus } from './audio-focus.js';
 import { useInjectCss } from './shared.js';
 import css from './audio-settings.css';
 import { setQueryData, useHostQuery } from './host-query.js';
@@ -117,6 +117,16 @@ export function LiveEngineChoice({ view, disabled = false, onSave, initialLocal 
       <RadioCard name="live-provider" value="gemini" checked={choice === 'gemini'} disabled={disabled} onSelect={value => onSave({ liveProvider: value })}
         title={ui('Gemini（云端）')} hint={ui('需要 Gemini 密钥和海外网络；声音发给 Google。')} />
     </RadioCardGroup>
+    {/* 断句停顿: one choice for both engines (LIVE_PAUSE, lib/audio-settings.js); the words behind it are a Tooltip, hidden until hover or focus. */}
+    <Field group label={ui('断句停顿')} hint={ui('讲课很快、几乎不停顿时选『短』：停顿更短就断句，润色和出题更早能用。')} data-tour="settings-live-pause">
+      {({ describedBy }) => <Tooltip layer content={<>{ui('Gemini：多久没有新文字，就算一句话说完。短 / 标准 / 长 = 0.7 / 1.5 / 2.5 秒。')}<br />
+        {ui('本地转写：多久没有声音，就算一句话说完。短 / 标准 / 长 = 0.25 / 0.5 / 0.8 秒。')}<br />
+        {ui('选得太短，可能把一句话切成两句。')}<br />{ui('下次点「开始实录」或「接着录」时生效；正在录的课不变。')}</>}>
+        <SegmentedControl label={ui('断句停顿')} value={['short', 'long'].includes(view.liveSentencePause) ? view.liveSentencePause : 'standard'} disabled={disabled}
+          aria-describedby={describedBy} onChange={value => onSave({ liveSentencePause: value })}
+          options={[{ value: 'short', label: ui('短 · 讲得快') }, { value: 'standard', label: ui('标准') }, { value: 'long', label: ui('长 · 讲得慢') }]} />
+      </Tooltip>}
+    </Field>
     <LiveLocalCard settings initialStatus={initialLocal} />
     <LiveLoopbackCard settings hideUnsupported initialStatus={initialLoopback} />
   </div>;
@@ -135,7 +145,15 @@ export default function AudioSettings({ initialView = null, initialLocal = null,
   const setView = (next) => setQueryData('audio.settings.get', {}, next);
   useEffect(() => {
     if (!view || !audioFocusPending() || !section.current) return;
+    const field = audioFocusTarget();
     takeAudioSettingsFocus();
+    // A link that names a field (the live page's 断句停顿 line) lands on that field, not on the first empty key.
+    const named = field && section.current.querySelector(`[data-tour="${field}"]`);
+    if (named) {
+      named.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+      named.querySelector('button[aria-pressed="true"]')?.focus?.({ preventScroll: true });
+      return;
+    }
     section.current.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
     section.current.querySelector('.sh-provider:not(.is-set) input[name="audio-key"]')?.focus?.({ preventScroll: true });
   }, [view]);

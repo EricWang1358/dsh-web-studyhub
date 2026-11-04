@@ -31,7 +31,8 @@ export function holdLine(work, draft, percent) {
   const { kind, job } = work;
   if (kind === 'publish') return job.stage || ui('发布检查正在进行，完成后可继续保存或发布。');
   if (job.status === JOB_STATUS.CANCELLING) return ui('正在停止；停下后就可以保存或发布。');
-  const label = draftWorkLabel(work, draft, percent);
+  // This sentence is the draft page's, which says the coverage once in its summary: the label leaves the figure out.
+  const label = draftWorkLabel(work, draft, percent, { cover: false });
   return kind === 'repair' ? uiFormat('{0}。修题期间不能保存或发布；想现在发布，先停止修题（已修好的题保留）。', [label])
     : uiFormat('{0}。这期间不能保存或发布；想现在发布，先停止它（已通过检查的题都保留在草稿里）。', [label]);
 }

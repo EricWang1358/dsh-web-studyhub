@@ -146,8 +146,8 @@
     .deck-row .map-name strong { font-size: var(--fs-lg); font-weight: var(--fw-strong); }
     .map-row--selected,
     .map-deck > .map-row--selected {
-      background: color-mix(in srgb, var(--accent) 9%, transparent);
-      box-shadow: inset 2px 0 0 var(--accent);
+      background: var(--bg-selected);
+      box-shadow: inset 2px 0 0 var(--text-dim);
     }
     .map-row .map-row__check { flex-shrink: 0; margin: 0; }
     .map-row > .map-dot { display: none; }

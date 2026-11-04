@@ -138,7 +138,7 @@ async function openState({ browser, running, state, lang, theme, width, label, o
   });
   const settle = async (ms = 700) => { await page.waitForLoadState("networkidle").catch(() => {}); await sleep(ms); };
   await page.goto(server.url);
-  await page.locator(".sidebar").first().waitFor({ timeout: 30000 });
+  await page.locator(".sidebar, .nav-menu-toggle").first().waitFor({ timeout: 30000 }); // narrow: the sidebar is a drawer (#657)
   await settle(900);
   const record = { state, lang, theme, width, pages: {}, errors };
   const shoot = async (name) => {

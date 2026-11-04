@@ -21,7 +21,7 @@ const materials = [
 async function library(t, options = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-wp27-jobs-'));
   const service = new StudyService(root, { complete: createFakeModel({ usage: true }), ...options });
-  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true }); });
+  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); });
   const sourceIds = [];
   for (const item of materials) sourceIds.push((await service.call('source.add', { ...item, courses: ['Cloud Native'] })).id);
   return { service, sourceIds, root };
@@ -92,7 +92,7 @@ test('a coach helper call is tallied as coach, in the light model path', async (
     reportUsage({ uncachedInputTokens: 700, outputTokens: 60, cacheReadTokens: 300, cacheWriteTokens: 0 }, { calls: 1 });
     return JSON.stringify({ questions: ['为什么成对？', '怎样处理失败？', '能举例吗？'] });
   } });
-  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true }); });
+  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); });
   const quote = '方法成对出现，前者失败抛异常，后者返回特殊值。';
   await service.call('source.add', { id: 's1', title: 'Queue', text: quote });
   await service.call('draft.save', { deck: { id: 'd1', title: 'Java', cards: [{ id: 'f1', kind: 'flashcard', topic: '队列', objective: '区分失败行为', prompt: 'add 和 offer 失败时有何不同？',

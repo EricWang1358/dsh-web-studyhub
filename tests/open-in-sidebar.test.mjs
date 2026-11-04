@@ -99,7 +99,10 @@ async function open(t, { sidebar = 'works', withReading = true, premount = false
     await page.evaluate(() => window.mountSidebar());
     await page.locator('#side .study-app').waitFor();
   }
-  await page.locator('#main').getByRole('button', { name: /^回到题目/ }).click();
+  // A narrow seat has the sidebar in a drawer behind the top bar's menu button (#657).
+  const menu = page.locator('#main .nav-menu-toggle');
+  if (await menu.count()) await menu.first().click();
+  await page.locator(await menu.count() ? '.nav-drawer' : '#main').getByRole('button', { name: /^回到题目/ }).first().click();
   await page.locator('#main .review-page').waitFor();
   return { page, errors };
 }

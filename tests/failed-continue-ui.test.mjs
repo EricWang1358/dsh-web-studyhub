@@ -93,9 +93,12 @@ test('the draft page offers the same 接着做 with the same sentence, and the t
   const html = pageOf([failed()]), said = text(html);
   assert.ok(said.includes(`已出 ${KEPT}/${ASKED} 题保留，接着补 ${ASKED - KEPT} 题`), said);
   assert.ok(buttonsOf(html).includes('接着做'));
+  // The path from here to full coverage, as the home row and the console's popover say it; on the draft page, which has the coverage line above, only what is still ahead (#663).
   const path = m.copy.coveragePathText(shortfall([failed()]));
-  assert.ok(path && said.includes(path), `the top-up says where it goes: ${path}`);
   assert.match(path, /^覆盖现在 \d+\/\d+ 个小节（\d+%）→ 本轮后约 \d+% → 目标 100%，还要 \d+ 轮、约 \d+ 题$/);
+  const ahead = m.copy.coverageAheadText(shortfall([failed()]));
+  assert.ok(ahead ? said.includes(ahead) : !said.includes('覆盖现在'), `the top-up says only what is ahead: ${ahead}`);
+  assert.doesNotMatch(said, /覆盖现在/);
   inLanguage('en', () => assert.match(m.copy.coveragePathText(shortfall([failed()])), /^Coverage now \d+\/\d+ sections \(\d+%\) → about \d+% after this round → target 100%, \d+ more rounds?, about \d+ questions$/));
 });
 

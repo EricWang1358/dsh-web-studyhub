@@ -12,53 +12,72 @@ import { ui, uiFormat } from "./i18n.js";
    aria-current; `disabled` is dimmed, does nothing and is never current. Nothing else is dimmed or bold.
 
    Words: every row says what it is for (`purpose`, one short sentence from ui/pages.js), so hovering or focusing it answers
-   "what is this?" and not only "what is it called". The label itself is in the tooltip only in the narrow rail (`narrow`), where
-   the row is an icon and the tooltip is what names it; beside a visible label it would be said twice (issue 569). `title` is the
-   row's own state (a run's title, the week's theme) and `hintTitle` explains the trailing count; `tail` comes last (the reorder
-   line, said once in all, ui/nav-reorder-hint.js; `onTipChange` hears that row's tooltip open and close). All of it is the one
-   Tooltip (never a title attribute): it opens on hover, on keyboard focus and on a long press. `start` draws the 「从这里开始」
-   marker (ui/nav-start.js): a dot on the icon's corner, in the wide sidebar and in the 62px rail alike, and it changes nothing else about the row. */
-export function NavItem({ glyph, icon, label, hint, hintClass = "nav-count", hintTitle, purpose, tail, onTipChange, narrow = false, start = false, upkeep = false, active = false, disabled = false, className = "", title, ...button }) {
-  const classes = ["nav", className, upkeep && "nav-upkeep", start && "is-start"].filter(Boolean).join(" ");
+   "what is this?" and not only "what is it called"; beside the visible label the label itself is not said again (issue 569). `title` is
+   the row's own state (a run's title, the week's theme) and `hintTitle` explains the trailing count; `tail` comes last (the reorder line,
+   said once in all, ui/nav-reorder-hint.js; `onTipChange` hears that row's tooltip open and close). All of it is the one Tooltip (never a
+   title attribute): it opens on hover, on keyboard focus and on a long press.
+
+   `alert` is the one attention dot of the sidebar (#655, ui/nav-alert.js): a dot on the icon's corner for something the learner should act
+   on now, and its reason is the first line of the tooltip. At most one row carries it; with nothing to act on, none does. */
+export function NavItem({ glyph, icon, label, hint, hintClass = "nav-count", hintTitle, purpose, tail, onTipChange, alert, upkeep = false, active = false, disabled = false, className = "", title,
+  tipInteractive = false, tipPlacement = "bottom-start", ...button }) {
+  const classes = ["nav", className, upkeep && "nav-upkeep", alert && "has-alert"].filter(Boolean).join(" ");
   const row = (
     <button type="button" {...button} className={classes} disabled={disabled} aria-current={active && !disabled ? "page" : undefined}>
-      {/* The 「从这里开始」 marker is a dot on the icon's top-right corner, like a notification badge (ui/nav-start.css, issue 579): it
-          sits inside the icon's box, so it never reads as a bullet before the label, takes no room from it (a long English label keeps
-          its two lines) and stays when the rail is only icons. Its meaning is the first line of the tooltip and, for a screen reader, of
-          the description. */}
-      <IconBox className={start ? "nav-start-icon" : undefined}>{icon || <Icon name={`nav-${glyph}`} />}{start && <span className="nav-start" aria-hidden="true" />}</IconBox>
+      <IconBox className={alert ? "nav-dot-icon" : undefined}>{icon || <Icon name={`nav-${glyph}`} />}{alert && <span className="nav-dot" aria-hidden="true" />}</IconBox>
       <span className="nav-label">{label}</span>
       {hint !== undefined && hint !== null && hint !== false && <span className={hintClass}>{hint}</span>}
     </button>
   );
-  // What the row says beyond its label (that it is a starting point, why it is here, a run's title, what the count means, how to reorder) is a Tooltip: it shows on keyboard focus too.
-  const words = [start ? ui("从这里开始") : "", narrow ? label : "", title !== label && title, purpose, hintTitle, tail].filter(Boolean).join("\n");
-  return words ? <Tooltip layer anchorClassName="nav-tip" className="nav-tooltip" placement="bottom-start" content={words} onOpenChange={onTipChange}>{row}</Tooltip> : row;
+  // What the row says beyond its label (why it has a dot, why it is here, a run's title, what the count means, how to reorder) is a Tooltip: it shows on keyboard focus too.
+  const words = [alert || "", title !== label && title, purpose, hintTitle, tail].filter(Boolean).join("\n");
+  return words
+    ? <Tooltip layer interactive={tipInteractive} anchorClassName="nav-tip" className="nav-tooltip" placement={tipPlacement} content={words} onOpenChange={onTipChange}>{row}</Tooltip>
+    : row;
 }
 
-/* A group of rows by when they are used (每天 / 阶段性 / 课程准备与管理, ui/nav-order.js). The label is one fixed-height line
-   of its own, so folding or opening a group moves only what is below it and never the height of any row. A foldable group
-   is a button with aria-expanded; a folded group keeps its rows in the page (hidden), so anchors and shortcuts still
-   resolve. The daily group has nothing to fold and is a plain heading. `hint` is the one line that says what the group holds,
-   said by the Tooltip (a plain heading is focusable so a keyboard can read it too). */
-export function NavGroup({ id, label, hint, collapsible = false, open = true, onToggle, children }) {
-  const labelId = `nav-group-${id}-label`, itemsId = `nav-group-${id}-items`;
-  const title = hint ? ui(hint) : undefined;
-  const heading = collapsible
-    ? <button type="button" className="nav-group-label" data-usage="nav.group" id={labelId} aria-expanded={open} aria-controls={itemsId} onClick={onToggle}>
-      <span className="nav-group-text">{ui(label)}</span><span className="nav-group-chevron" aria-hidden="true" />
-    </button>
-    : <div className="nav-group-label is-static" id={labelId} tabIndex={0}><span className="nav-group-text">{ui(label)}</span></div>;
+/* A group of rows: the main list (its heading is for screen readers only: on screen it is simply the first rows) or a section of 「更多」 named
+   by what it holds (ui/pages.js NAV_SECTIONS). The heading is one fixed-height line of its own, so no state of the page changes the height of
+   any row. `data-nav-group` is what a drag measures to move a row between the main list and its section (ui/nav-order.js). */
+export function NavGroup({ id, label, hidden: hideLabel = false, children }) {
+  const labelId = `nav-group-${id}-label`;
   return (
-    <div className="nav-group" role="group" aria-labelledby={labelId} data-nav-group={id} data-open={open ? "true" : "false"}>
-      {title ? <Tooltip layer anchorClassName="nav-group-tip" placement="bottom-start" content={title}>{heading}</Tooltip> : heading}
-      <div className="nav-group-items" id={itemsId} hidden={open ? undefined : true}>{children}</div>
+    <div className="nav-group" role="group" aria-labelledby={labelId} data-nav-group={id}>
+      <div className={hideLabel ? "nav-group-label sh-visually-hidden" : "nav-group-label"} id={labelId}><span className="nav-group-text">{ui(label)}</span></div>
+      <div className="nav-group-items">{children}</div>
     </div>
   );
 }
 
+/* A row that opens more rows below it (「更多」, 「帮助」). The row is a NavItem like every other (same anatomy and height, the same Tooltip, the
+   attention dot while the row that carries it is folded away) with aria-expanded; what it opens is a native <details>, so the feature finder
+   and the tour open it the way they open every other fold (ui/tour/anchor.js locateAnchor sets .open, and `onToggle` hears it). The fold's own
+   <summary> is hidden: the row above is its one control, and `open` is the one state. */
+export function NavFold({ id, glyph, icon, label, purpose, alert, open, onToggle, className = "", children, ...row }) {
+  const itemsId = `nav-fold-${id}`;
+  return (
+    <div className={["nav-fold", className].filter(Boolean).join(" ")} data-nav-fold={id} data-open={open ? "true" : "false"}>
+      <NavItem {...row} className="nav-fold__toggle" icon={icon || <Icon name={glyph} />} label={label} purpose={purpose} alert={alert}
+        aria-expanded={open} aria-controls={itemsId} hint="" hintClass="nav-fold__chevron" onClick={() => onToggle(!open)} />
+      <details className="nav-fold__items" id={itemsId} open={open}
+        onToggle={(event) => { if (event.currentTarget.open !== open) onToggle(event.currentTarget.open); }}>
+        <summary hidden>{label}</summary>
+        {children}
+      </details>
+    </div>
+  );
+}
+
+/** The open run as 回到题目 shows it, from the session on screen when that is the same run: where the learner is in the round, not the queue index
+ *  (a re-ask inside a round of 4 would otherwise read 5/4). `run.position` ({ total, at, … }, 1-based `at`) is the round as the practice page
+ *  counts it; without it, the queue index and length. */
+export function resumeProgress(lastRun, run) {
+  if (!lastRun || !run || run.id !== lastRun.id) return lastRun;
+  return { ...lastRun, index: Math.max(0, (run.position?.at ?? run.index + 1) - 1), total: run.position?.total ?? run.total };
+}
+
 /** 回到题目: back into the open run, or start today's study; with an open run its progress is the trailing hint. */
-export function ResumeNavItem({ lastRun, hasDecks, ready = true, active = false, disabled = false, start = false, narrow = false, onClick }) {
+export function ResumeNavItem({ lastRun, hasDecks, ready = true, active = false, disabled = false, alert, onClick }) {
   const title = !ready
     ? ""
     : lastRun
@@ -68,15 +87,15 @@ export function ResumeNavItem({ lastRun, hasDecks, ready = true, active = false,
         : ui("还没有题目，先去创建题组");
   return (
     <NavItem className="resume-nav" data-usage="nav.resume" glyph="resume" label={ui("回到题目")} active={active} disabled={disabled} title={title} aria-keyshortcuts="S" onClick={onClick}
-      purpose={ui("每一轮练习都从这里接着做")} start={start} narrow={narrow}
+      purpose={ui("每一轮练习都从这里接着做")} alert={alert}
       hint={lastRun ? `${lastRun.index + 1}/${lastRun.total}` : undefined} hintClass="nav-count nav-progress" />
   );
 }
 
 /** 为你定制: the prepared questions are ready; the count is the trailing badge. */
-export function CoachNavItem({ ready, disabled = false, narrow = false, onClick }) {
+export function CoachNavItem({ ready, disabled = false, onClick }) {
   return (
-    <NavItem className="coach-nav" data-usage="nav.coach" glyph="coach" label={ui("为你定制")} disabled={disabled} narrow={narrow} onClick={onClick}
+    <NavItem className="coach-nav" data-usage="nav.coach" glyph="coach" label={ui("为你定制")} disabled={disabled} onClick={onClick}
       title={`${uiFormat("{0} 道题已备好", [ready])}\n${ui("开刷为你定制的题（这一轮会保留，可回来继续）")}`}
       hint={ready} hintClass="nav-badge" />
   );

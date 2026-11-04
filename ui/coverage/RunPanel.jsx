@@ -6,7 +6,7 @@ import { useStudy } from '../study-context.jsx';
 import { activeJobOf } from './run-job.js';
 import { draftRunFacts } from '../../lib/coverage-run.js';
 import css from './coverage.css';
-import { autoLabel, autoStartLine, repeatingHead, repeatingItem, repeatingNote, runLine, runStopText, shortfallLine, shortfallWhy, stopText } from './copy.js';
+import { autoLabel, autoStartLine, repeatingHead, repeatingItem, repeatingNote, runLine, runStopText, shortfallWhy, stopText } from './copy.js';
 import { draftShortfall } from './use-shortfall.js';
 import RepeatingExplain from './RepeatingExplain.jsx';
 import RoundCost from './RoundCost.jsx';
@@ -15,17 +15,18 @@ import RoundCost from './RoundCost.jsx';
    「自动补到完整」. The facts are lib/coverage-run.js draftRunFacts (the same function the 任务 console reads) and the words ui/coverage/copy.js's. While a job works on the draft the choice can be flipped
    any time (the run goes on by itself, or stops after the round in flight); with nothing running, ticking it starts the rest of the plan as one run. */
 
-/** The line a run says about itself, and the reason it stopped: used by the draft page, the home row and the status that replaces the top-up button while a run works. */
-export function runSummary(draft, jobs, percent, coverage) {
+/** The line a run says about itself, and the reason it stopped: used by the draft page, the home row and the status that replaces the top-up button while a run works.
+    `cover: false` (the draft page): the coverage is said once by ui/coverage/CoverageFact.jsx, so the line has the rounds and the tokens only. */
+export function runSummary(draft, jobs, percent, coverage, { cover = true } = {}) {
   const job = activeJobOf(draft, jobs), facts = draftRunFacts(draft, { job, percent, coverage });
-  return facts ? { facts, job, line: runLine(facts, { interrupted: facts.interrupted && !facts.live }), stop: facts.live || facts.interrupted ? '' : stopText(facts.stop) } : null;
+  return facts ? { facts, job, line: runLine(facts, { interrupted: facts.interrupted && !facts.live, cover }), stop: facts.live || facts.interrupted ? '' : stopText(facts.stop) } : null;
 }
 
 /* `saveThen(next)`: the page's own way to save its edits first and then run `next(saved)` (the draft page passes it while the page has edits; a top-up asks for the saved version). */
 export default function RunPanel({ draft, view, jobs = [], held = false, modelReady = true, onStarted, onOpenSource, saveThen }) {
   useInjectCss(css, 'study-coverage');
   const { act, call, busy, notify, openSettings } = useStudy();
-  const summary = view?.status === 'ok' && draft ? runSummary(draft, jobs, view.coverage?.percentLeaves ?? null, view.coverage) : null;
+  const summary = view?.status === 'ok' && draft ? runSummary(draft, jobs, view.coverage?.percentLeaves ?? null, view.coverage, { cover: false }) : null;
   if (!summary || !summary.facts.total) return null;
   const { facts, job } = summary, live = !!job && facts.live, pending = facts.left > 0;
   // The counts and the reason it stands still are the shortfall's (lib/shortfall.js), said the same way on the home row and in the 任务 console.
@@ -45,7 +46,6 @@ export default function RunPanel({ draft, view, jobs = [], held = false, modelRe
     }
   };
   return <div className="cov-run" data-coverage-run data-run-state={facts.live ? 'live' : facts.interrupted ? 'interrupted' : facts.state || 'idle'}>
-    {!live && <p className="cov-run__counts" data-shortfall-line>{shortfallLine(shortfall)}</p>}
     {!live && <p className="cov-run__line" data-run-line>{summary.line}</p>}
     {why && <p className="cov-run__stop" data-run-stop>{why}</p>}
     {!live && shortfall.repeating.length > 0 && <div className="cov-run__repeating" data-repeating>

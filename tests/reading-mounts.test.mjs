@@ -27,12 +27,12 @@ const source = async path => readFile(new URL(`../${path}`, import.meta.url), 'u
 const toolbar = () => renderToStaticMarkup(h(lib.ReviewToolbar, { run: { index: 0, total: 3, feedback: null, revealed: false, mode: 'path', card: {} }, busy: false,
   onToggleHelp: noop, onAsk: noop, onImprove: noop, onSlay: noop, onNote: noop, onReviewAction: noop }));
 
-test('the review toolbar has the Aa button beside 帮我弄懂, without the underline row, and it is not a card control', () => {
-  const html = toolbar();
-  assert.match(html, /class="reader-popover/);
-  assert.match(html, /aria-label="显示设置"/);
-  assert.ok(html.indexOf('帮我弄懂') < html.indexOf('reader-popover'), 'after the help button');
-  inLanguage('en', () => assert.match(toolbar(), /aria-label="Display settings"/));
+test('the review toolbar keeps the reading settings behind 更多 (字号与版心…), in the one display-settings dialog, in both languages', () => {
+  const menu = () => renderToStaticMarkup(h(lib.ReviewToolbar, { run: { index: 0, total: 3, feedback: null, revealed: false, mode: 'path', card: {} }, busy: false,
+    onToggleHelp: noop, onAsk: noop, onImprove: noop, onSlay: noop, onNote: noop, onReviewAction: noop, moreDefaultOpen: true }));
+  assert.doesNotMatch(toolbar(), /reader-popover/, 'no Aa button of its own any more (#671)');
+  assert.match(menu(), />字号与版心…</);
+  inLanguage('en', () => assert.match(menu(), />Text size and width…</));
 });
 
 test('a lesson article is a reading block whose own size is the reading size, in both languages', () => {

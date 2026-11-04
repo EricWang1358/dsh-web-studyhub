@@ -9,6 +9,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { openPage, startLateServer, until } from '../scripts/qa/layout-late.mjs';
 import { makeTextPdf } from './helpers/text-pdf.mjs';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* #488, item 3, in the browser at 1440 and 420: a page turn in 原始 PDF changes the page in place. The same view stays (no new frame, no reload of the file), the zoom and
    the sideways place stay, the page shown is the page asked about, its text can be selected and copied. The browser's viewer stays one press away, and it is what a
@@ -37,7 +38,7 @@ test('原始 PDF: turning the page keeps the view, the zoom and the sideways pla
     const view = page.locator('.reader-pdf-view'), bar = page.locator('.reader-pdf-bar');
     const open = async (name) => {
       await page.goto(running.server.url);
-      await page.locator('[data-tour="nav-sources"]').first().click().catch(() => {});
+      await (await revealNavRow(page, 'sources')).click().catch(() => {});
       await page.locator('.source-doc', { hasText: name }).first().locator('.source-main').click();
       await page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
       await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
@@ -131,7 +132,7 @@ test('原始 PDF: turning the page keeps the view, the zoom and the sideways pla
       try {
         const rapidView = rapid.page.locator('.reader-pdf-view');
         await rapid.page.goto(running.server.url);
-        await rapid.page.locator('[data-tour="nav-sources"]').first().click().catch(() => {});
+        await (await revealNavRow(rapid.page, 'sources')).click().catch(() => {});
         await rapid.page.locator('.source-doc', { hasText: 'Lecture' }).first().locator('.source-main').click();
         await rapid.page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
         await rapid.page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
@@ -175,7 +176,7 @@ test('原始 PDF: turning the page keeps the view, the zoom and the sideways pla
           };
         });
         await slow.page.goto(running.server.url);
-        await slow.page.locator('[data-tour="nav-sources"]').first().click().catch(() => {});
+        await (await revealNavRow(slow.page, 'sources')).click().catch(() => {});
         await slow.page.locator('.source-doc', { hasText: 'Lecture' }).first().locator('.source-main').click();
         await slow.page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
         await slow.page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
@@ -201,7 +202,7 @@ test('原始 PDF: turning the page keeps the view, the zoom and the sideways pla
       try {
         await stalled.page.addInitScript(() => { window.createImageBitmap = () => new Promise(() => {}); });
         await stalled.page.goto(running.server.url);
-        await stalled.page.locator('[data-tour="nav-sources"]').first().click().catch(() => {});
+        await (await revealNavRow(stalled.page, 'sources')).click().catch(() => {});
         await stalled.page.locator('.source-doc', { hasText: 'Lecture' }).first().locator('.source-main').click();
         await stalled.page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
         await stalled.page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();

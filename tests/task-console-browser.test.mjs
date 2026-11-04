@@ -9,6 +9,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, until } from '../scripts/qa/layout-late.mjs';
 import { startConsole, startJobs, finishJobsThenHoldOne, openConsole, measure, measureCards, measureSelection, contrastRatio } from '../scripts/qa/task-console.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* WP-TC in the browser, on a seeded temporary library with the fake model: an audio batch and a question run held in flight, and four days of 为你定制 in the
    coach's file. At 1280 the console is as tall as the window and every list scrolls INSIDE its panel (the page never grows); at 420 the columns stack and the page
@@ -237,7 +238,7 @@ test('归档 on a card of the audio page archives the task: the card goes, the f
     assert.deepEqual(snapshot.jobs.filter((job) => job.id === id), [], 'out of the live list');
     assert.equal(snapshot.archivedJobs.filter((job) => job.id === id).length, 1, 'kept as an archived record');
     assert.deepEqual((await folders()).filter((name) => !name.includes('.retired')), before, 'the working folder is still there');
-    await page.locator('[data-tour="nav-tasks"]').first().dispatchEvent('click');
+    await (await revealNavRow(page, 'tasks')).dispatchEvent('click');
     await page.locator('.tc-detail').first().waitFor({ state: 'attached' });
     await page.locator('.tc-scope .sh-seg__item').nth(3).dispatchEvent('click');
     await until(async () => (await page.locator(`.tc-row[data-task-id="${snapshot.archivedJobs.find((job) => job.id === id).contract.jobId}"]`).count()) === 1, 'the task under 已归档');
@@ -366,15 +367,20 @@ test('the archived read-only detail: the name keeps its room, the actions fit an
             const m = await measureSelection(page);
             assert.ok(m.scrollWidth <= width, `${where}: no sideways scroll`);
             const names = m.head.actions.map((action) => action.text);
-            // 全屏 first, 取消归档 and 删除 last; between them whatever the task offers (打开资料 / 打开草稿, and 为没覆盖的部分补题 for a draft that still has uncovered sections).
-            assert.ok(names.length >= 4 && /^(全屏|Full screen)$/.test(names[0]) && /^(取消归档|Unarchive)$/.test(names.at(-2)) && /^(删除|Delete)$/.test(names.at(-1)), `${where}: 全屏, …, 取消归档, 删除: ${names}`);
+            // 全屏 first, 取消归档 and the ⋯ menu (删除 is its item, #668) last; between them whatever the task offers (打开资料 / 打开草稿, and 为没覆盖的部分补题 for a draft that still has uncovered sections).
+            assert.ok(names.length >= 4 && /^(全屏|Full screen)$/.test(names[0]) && /^(取消归档|Unarchive)$/.test(names.at(-2)) && names.at(-1) === '', `${where}: 全屏, …, 取消归档, ⋯: ${names}`);
             for (const [index, action] of m.head.actions.entries()) {
               assert.ok(action.left >= m.head.detail.left && action.right <= m.head.detail.right, `${where}: ${action.text} is inside the detail (${Math.round(action.left)}-${Math.round(action.right)} of ${Math.round(m.head.detail.left)}-${Math.round(m.head.detail.right)})`);
               if (index && Math.abs(action.top - m.head.actions[index - 1].top) < 4) assert.ok(action.left >= m.head.actions[index - 1].right - 0.5, `${where}: ${action.text} does not overlap ${m.head.actions[index - 1].text}`);
             }
             const [unarchive, remove] = m.head.actions.slice(-2);
-            if (Math.abs(unarchive.top - remove.top) < 4) assert.ok(remove.left - unarchive.right >= 8, `${where}: 删除 is set apart from the others (${Math.round(remove.left - unarchive.right)}px)`);
-            assert.equal(await page.locator('.tc-head__actions button').last().evaluate((button) => button.classList.contains('sh-btn--danger')), true, `${where}: 删除 looks destructive`);
+            if (Math.abs(unarchive.top - remove.top) < 4) assert.ok(remove.left - unarchive.right >= 4, `${where}: the ⋯ menu is set apart from the others (${Math.round(remove.left - unarchive.right)}px)`);
+            assert.equal(await page.locator('.tc-head__actions button').last().getAttribute('aria-haspopup'), 'menu', `${where}: the last control is the ⋯ menu, not a red 删除 button`);
+            await page.locator('.tc-head__actions button').last().click();
+            const item = page.getByRole('menuitem', { name: /^(删除任务记录|Delete task record)$/ });
+            await item.waitFor({ state: 'attached' });
+            assert.equal(await item.evaluate((button) => button.classList.contains('is-danger')), true, `${where}: 删除 looks destructive in the menu`);
+            await page.keyboard.press('Escape');
             assert.ok(m.head.title.width >= 160, `${where}: the name of the task has room (${Math.round(m.head.title.width)}px)`);
             if (width === 1280) assert.equal(m.head.titleCut, false, `${where}: the name is not cut`);
             const note = await page.locator('.tc-controls[data-archived="true"]').evaluate((element) => { const r = element.getBoundingClientRect(), p = element.parentElement.getBoundingClientRect(), text = element.querySelector('.tc-controls__idle'); return { left: r.left, right: r.right, parentLeft: p.left, parentRight: p.right, height: r.height, cut: text.scrollWidth > text.clientWidth + 1 }; });
@@ -400,7 +406,7 @@ test('the archived read-only detail: the name keeps its room, the actions fit an
 /* The overview of every kind of task (a question run, an audio batch, a day of 为你定制) is one structure: label, value, from the TOP of each tile, and - only for the kinds whose row can carry a note (a question run) -
    a note line that is always there in EVERY tile of the row; a row that never has a note is not taller for it (an audio batch, a conversion, a day of 为你定制 keep the 53px they had). In every row of tiles
    (one row at 1280, two rows beside the progress tile when it wraps at 768 and 420) the labels stand on one line and the values on one line, whichever tile has a note (the owner's 「UI不整齐」). */
-test('the tiles of the overview share their lines: the labels and the values of a row have the same top (within 1px), whichever tile has a note, at 1280, 768 and 420', { timeout: 600000 }, async (t) => {
+test('the tiles of the overview share their lines: the labels and the values of a row have the same top (within 1px), whichever tile has a note, at 1280 and 768; at 420 it is a one-line-per-figure list', { timeout: 600000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-console-dist-'));
@@ -431,6 +437,12 @@ test('the tiles of the overview share their lines: the labels and the values of 
           assert.ok(!reserved || facts.every((tile) => tile.note !== null), `${where}: a row that has a note line has it in every tile, empty or not`);
           if (facts.some((tile) => tile.noteText)) { withNote += 1; assert.ok(reserved); }
           // a row that never has a note keeps the height it had before the line existed (a tile of a row that does not hold the progress tile: 53px)
+          // Under 560px (#680) the overview is a list, one figure per line: its label and its value share a line, every tile is the width of the panel and none is as tall as a tile of the grid.
+          if (width <= 420) {
+            for (const tile of facts) assert.ok(Math.abs(tile.label - tile.value) <= 6, `${where}: the label and the value of a figure are on one line (${tile.label} vs ${tile.value})`);
+            assert.equal(new Set(tiles.map((tile) => Math.round(tile.top))).size, tiles.length, `${where}: one tile per line`);
+            continue;
+          }
           if (!reserved) for (const tile of facts) if (!tiles.some((other) => other.progress && Math.round(other.top) === Math.round(tile.top))) assert.ok(Math.abs(tile.height - 53) <= 1, `${where}: a tile without a note is ${tile.height}px high, as before`);
           // rows of tiles: the tiles with the same top are a row
           const rowsOf = new Map();

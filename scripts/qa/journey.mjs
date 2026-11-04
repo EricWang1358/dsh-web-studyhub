@@ -93,14 +93,14 @@ export const JOURNEY_STEPS = [
     await j.nav("generate");
     await j.clickIfPresent(j.anchor("generate-from-sources").or(j.page.getByRole("tab", { name: j.t("从资料补题") })));
     await j.clickIfPresent(j.page.getByRole("button", { name: j.t("选择当前范围") }));
-    // The short form says what will be made in one line; the question types (单选测验 is the default), the count (自定义题数) and the deck name are under 更多选项.
-    const more = j.page.locator(".generate-more").first();
-    if (!await more.evaluate((element) => element.open)) await more.locator("summary").first().click();
-    const quiz = more.getByRole("checkbox", { name: j.t("单选测验"), exact: true });
+    // The question types (单选测验 is the default) and the 覆盖强度 with 自定义 as its fourth choice are on the main path; the deck name is under 更多选项.
+    const quiz = j.page.locator('[data-tour="generate-kinds"]').getByRole("checkbox", { name: j.t("单选测验"), exact: true });
     if (!await quiz.isChecked()) await quiz.check();
     const count = j.page.locator("#generate-count");
-    if (!await count.isVisible()) await j.page.locator(".cov-strength__custom summary").first().click();
+    if (!await count.isVisible()) await j.page.locator(".cov-strength__levels .sh-seg__item", { hasText: j.t("自定义") }).first().click();
     await count.fill("4");
+    const more = j.page.locator(".generate-more").first();
+    if (!await more.evaluate((element) => element.open)) await more.locator("summary").first().click();
     await j.page.getByLabel(j.t("题组名称（可选）")).fill(j.lang === "en" ? "QA journey deck" : "QA 旅程题组");
     await j.shot("form", { fullPage: true });
     const before = (await j.snapshot()).jobs.length;
@@ -219,6 +219,7 @@ export const JOURNEY_STEPS = [
   } },
   { name: "audio-long", needs: ["siliconflow"], run: async (j) => {
     await j.nav("audio");
+    await j.clearToasts();
     const input = j.page.locator('.audio-drop-zone input[type="file"]');
     await input.waitFor({ state: "attached", timeout: 15000 });
     await input.setInputFiles(j.fixtures.longM4a);
@@ -240,7 +241,16 @@ export const JOURNEY_STEPS = [
   } },
   { name: "live-gate", run: async (j) => {
     await j.nav("live");
-    await j.page.getByText(j.t("课堂实录需要 Gemini 密钥")).first().waitFor({ timeout: 15000 });
+    // With no engine, the live page shows one setup gate, and which one depends on this computer: where the local engine can be installed (Windows
+    // and macOS) the gate offers it first ("先装一个转写引擎"); where it cannot, the gate asks for a Gemini key. The journey accepts either: it checks
+    // that a gate stands in the way of the microphone, not which engine this machine can run.
+    const gate = j.page.locator(".live-setup-gate");
+    await gate.waitFor({ timeout: 15000 });
+    const titles = [j.t("先装一个转写引擎"), j.t("课堂实录需要 Gemini 密钥")];
+    const said = await gate.innerText();
+    if (!titles.some((title) => said.includes(title))) throw new Error(`the live setup gate says none of ${titles.join(" / ")}`);
+    // The engine card reads the install plan (about 1.5 s on a real machine) before it shows the folder and the button: the shot waits for it.
+    await gate.getByText(j.t("正在计算剩余空间…")).first().waitFor({ state: "detached", timeout: 15000 });
     await j.settle();
     await j.shot();
   } },
@@ -630,7 +640,10 @@ export async function runJourney(options) {
         await step.run(j);
       } catch (error) {
         record.status = "failed";
-        record.error = String(error?.message || error).split("\n")[0];
+        const lines = String(error?.message || error).split("\n");
+        record.error = lines[0];
+        // Playwright puts the reason after the first line (which element was in the way, what the locator matched): keep it, it is the cause (#682).
+        if (lines.length > 1) record.detail = lines.slice(1, 16).map((line) => line.trim()).filter(Boolean);
         await j.shot("failed").catch(() => {});
       }
       record.ms = Date.now() - started;
@@ -702,6 +715,13 @@ function journeyContext({ page, server, options, english, fixtures, step }) {
         if (Date.now() > deadline) throw new Error(`Timed out: ${label}`);
         await sleep(250);
       }
+    },
+    /** Let the toasts of the step before leave. A toast stays while the pointer is on it or focus is in it (ui/components/Feedback.jsx), and the pointer of
+     *  the last click is still where that click was: at 420 wide the "已开始后台转写" toast opens right over the start button the previous step pressed, so
+     *  the toast was held for ever and covered the next step's button (#682). The pointer goes to a corner, then the toasts get their own time (6 s) to go. */
+    async clearToasts(timeout = 12000) {
+      await page.mouse.move(1, 1);
+      await page.locator(".sh-toasts .sh-toast").first().waitFor({ state: "detached", timeout }).catch(() => {});
     },
     async clickIfPresent(locator) {
       if (await locator.count() && await locator.first().isVisible()) { await locator.first().click(); await j.settle(300); return true; }

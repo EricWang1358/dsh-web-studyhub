@@ -31,7 +31,7 @@ const EXCEPTIONS = {
   'UpdateCenter.jsx': 'the update status chip (state-coloured pill)',
   'Workflows.jsx': 'step toggle row (wf-step-toggle)', 'WorkflowPortal.jsx': 'route link (wf-route-link)',
   // The navigation system itself.
-  'SideNav.jsx': 'the nav rows and group labels', 'LanguageSwitch.jsx': 'the rail language toggle', 'Settings.jsx': 'settings category rows', 'Inbox.jsx': 'mailbox rows',
+  'SideNav.jsx': 'the nav rows', 'Settings.jsx': 'settings category rows', 'Inbox.jsx': 'mailbox rows',
 };
 
 test('every file that still has a raw <button> is on the documented list, and no file holds more than the baseline says (#135)', () => {

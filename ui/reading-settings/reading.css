@@ -35,7 +35,6 @@
     /* Where the Aa button sits on each surface. */
     .result-reading { display: flex; justify-content: flex-end; margin-bottom: var(--space-2); }
     .spine-bar .spine-reading, .exam-report .exam-reading, .wf-teaching-heading .wf-reading, .skc-detail-head .skc-reading { margin-left: auto; }
-    .question-tools .review-reading { align-self: center; }
     .study-reading {
       --reader-sans: var(--font-ui);
       /* --reader-face: the default and the picked face itself live in tokens.css, one layer, so the pick cannot be overridden by a

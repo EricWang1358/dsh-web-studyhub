@@ -9,7 +9,7 @@ import { clearCount } from './guidance/cleared.js';
    shortcut sheet (ui/ShortcutHelp.jsx) and on each row as aria-keyshortcuts (ui/nav-order.js), and 设置 › 引导 lists the line
    (ui/guidance/registry.js, 'nav.reorder-hint') with 再显示一次.
 
-   One key, through the same helper as the sidebar's order and its 「从这里开始」 dots (ui/storage.js): study-nav-reorder-hint:v1 = true.
+   One key, through the same helper as the sidebar's order (ui/storage.js): study-nav-reorder-hint:v1 = true.
    A browser that cannot store it keeps the memory for the visit only, so the line is still said once a visit, not on every row. */
 
 export const NAV_REORDER_HINT_KEY = 'study-nav-reorder-hint:v1';

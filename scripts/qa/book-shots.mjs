@@ -26,6 +26,7 @@ import { StudyService } from '../../lib/service.js';
 import { createFakeModel } from '../fake-model.mjs';
 import { switchOptions } from '../../tests/helpers/runtime-switch.mjs';
 import { settleJob } from '../../tests/helpers/wait.mjs';
+import { revealNavRow } from './nav-reveal.mjs';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -71,7 +72,7 @@ async function whole(page, width, path) {
 
 async function openBook(page, running) {
   await page.goto(running.server.url);
-  await page.locator('[data-tour="nav-book"]').click({ timeout: 30000 });
+  await (await revealNavRow(page, 'book')).click({ timeout: 30000 });
   await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
   // The pointer is left over the page, not over the sidebar entry it pressed (that tooltip would be in every picture).
   await page.mouse.move(900, 500);
