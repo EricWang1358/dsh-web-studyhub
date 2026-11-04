@@ -5,10 +5,13 @@ import overlayCss from './overlays.css';
 import { useComponentCss, cx } from './css.js';
 import { IconButton } from './Button.jsx';
 import Icon from './Icon.jsx';
+import Tooltip from './Tooltip.jsx';
 import { placeInHost, useDismiss } from './use-dismiss.js';
 
 const glyph = (icon, size) => typeof icon === 'string' ? <Icon name={icon} size={size} /> : icon || null;
 const More = <Icon name="more" size={18} />;
+/** An item with `tip`: its button in a Tooltip, beside the menu (in the top layer, so the menu's own scrolling cannot cut it off). */
+const tipped = (item, button) => (item.tip ? <Tooltip key={item.id} layer placement="left-start" content={item.tip}>{button}</Tooltip> : button);
 
 /**
  * A small action menu behind a button (⋯ by default). In the browser the list
@@ -19,10 +22,11 @@ const More = <Icon name="more" size={18} />;
  * keys/Home/End move, Enter/Space choose, Escape closes and returns focus, Tab
  * closes, ArrowDown on the button opens it.
  *
- * items: [{ id, label, icon?, hint?, danger?, disabled?, heading?, checked?, attrs?, run? }] (`icon` is
+ * items: [{ id, label, icon?, hint?, tip?, danger?, disabled?, heading?, checked?, attrs?, run? }] (`icon` is
  * an Icon name or a node; `heading` makes a non-interactive group title; `checked`
  * (true or false) makes the item a menuitemcheckbox with a check mark while on; `attrs`
- * are extra attributes of the item's button, such as a data-usage name).
+ * are extra attributes of the item's button, such as a data-usage name; `tip` is words shown in a Tooltip on hover and focus, for what the label and
+ * a hint cannot say, such as what an item costs).
  * onSelect(id): an item that carries `run` (useHandOff().item) is run instead and does not reach onSelect.
  * `icon`: the default trigger's glyph (Icon name or node).
  * trigger({ props, ref, open }): a text trigger instead ("整理与添加"); spread
@@ -84,14 +88,14 @@ export default function Menu({ label, items, onSelect, defaultOpen = false, icon
     <div ref={list} id={menuId} role="menu" aria-label={label} className="sh-menu" onKeyDown={onKey} style={style}>
       {items.map((item, index) => item.heading
         ? <p key={`h${index}`} role="presentation" className="sh-menu__heading">{item.label}</p>
-        : <button key={item.id} type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'} aria-checked={item.checked === undefined ? undefined : !!item.checked}
+        : tipped(item, <button key={item.id} type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'} aria-checked={item.checked === undefined ? undefined : !!item.checked}
           disabled={item.disabled} {...item.attrs}
           className={cx('sh-menu__item', item.danger && 'is-danger')}
           onClick={() => { setOpen(false); button.current?.focus(); if (item.run) item.run(); else onSelect?.(item.id); }}>
           {item.icon ? glyph(item.icon, 16) : item.checked ? glyph('check', 16) : iconColumn && <span className="sh-menu__gap" aria-hidden="true" />}
           <span className="sh-menu__label">{item.label}</span>
           {item.hint && <span className="sh-menu__hint">{item.hint}</span>}
-        </button>)}
+        </button>))}
     </div>
   );
   const props = { 'aria-haspopup': 'menu', 'aria-expanded': open, 'aria-controls': open ? menuId : undefined,

@@ -536,5 +536,10 @@
   "题干原词": "Trigger words",
   "考查本质与切入点": "What is really tested",
   "模板": "Template",
-  "真题": "Past papers"
+  "真题": "Past papers",
+  "补术语卡": "Add term cards",
+  "还有 {0} 个知识点没有术语卡。只读已经写好的讲解来补，讲解、引文和覆盖都不改；约 {1} 次模型调用，用了多少在任务页看。": "{0} points have no term cards yet. They are made from the explanations already written; no explanation, quote or coverage changes. It takes about {1} model calls; the task page shows what was used.",
+  "每个知识点都有术语卡了，没有要补的。": "Every point has its term cards; there is nothing to add.",
+  "复习全书已经在生成，没有术语卡的知识点会一起补上；进度在任务页。": "The review book is already being written; the points without term cards get theirs in the same task. Progress is on the task page.",
+  "已开始补术语卡，进度在任务页。": "Started adding term cards; progress is on the task page."
 }

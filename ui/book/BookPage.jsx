@@ -31,6 +31,7 @@ import { useFoundMarks } from './use-found-marks.js';
 import BookRebuildPreview from './BookRebuildPreview.jsx';
 import BookSample from './BookSample.jsx';
 import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCoursePlan } from './use-book-actions.js';
+import { startCardPass, useCardPass } from './use-card-pass.js';
 import { useMoreActions } from './more-actions.js';
 import { bookCoverage, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { bookRows, crunchDateHint, keepBook, tocEntries } from './model.js';
@@ -119,6 +120,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const dateHint = book?.status === 'ok' && book.notes ? crunchDateHint(courseRecord?.exam, crunchWindow(data?.settings?.book)) : null;
   const writing = runningBuild(data?.jobs, course, BOOK_BUILD_KIND);
   const rebuild = useBookRebuild({ call, course, notify, setBook, reload }), building = !!(writing || runningBuild(data?.jobs, course));
+  const cardPass = useCardPass({ call, course, book, building });
   const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask} onUndoRebuild={building || unsaved ? undefined : rebuild.undo}
     onUpdate={book?.sample ? undefined : modelReadiness(data).ready ? () => startBookBuild({ act, course, notify }) : onBack}
     onBack={onBack} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
@@ -129,7 +131,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     const next = steps[structureAt + 1]?.hid ?? steps[structureAt - 1]?.hid ?? null;
     setStructure({ ...entry, next });
   }, [steps, structureAt]);
-  const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure: openStructure, onOutline: onBack });
+  const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure: openStructure, onOutline: onBack,
+    onCards: () => startCardPass({ act, course, notify }) });
   if (error && !book) return <section className="page book-page" ref={pageRef}>{header}<ErrorState error={error} title={ui('没能打开复习全书')} onRetry={reload} /></section>;
   if (!book) return <section className="page book-page" ref={pageRef}>{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
   // A rebuilt outline that would move the learner's own text: nothing moved yet, the list comes first (#461).
@@ -159,7 +162,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const hasHistory = Object.values(book.history || {}).some(count => count > 0);
   const menu = <BookMore onSelect={more.select} unplaced={unplaced} pointFold={more.pointFold} bookFold={more.bookFold} scroll={reading.mode === 'scroll'} pages={pages} pageLimit={pageLimit}
     history={hasHistory} today={!!plan.day} mockScope={plan.day ? plan.points.length : 0} dateHint={dateHint} settings={!!(courseRecord?.id && onCourseSettings)}
-    kit={!!book.examKit?.types?.length} />;
+    kit={!!book.examKit?.types?.length} cardPass={cardPass} />;
   const dialogs = <>
     {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} onClose={() => setDialog(null)} />}
     {dialog === 'lookup' && <LookupDialog book={book} onGo={where.goTo} onCard={handlers.goCard} onClose={() => setDialog(null)} />}
