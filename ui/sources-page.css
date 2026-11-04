@@ -105,9 +105,9 @@
       font-size: var(--fs-md);
       line-height: 1.9;
       margin: 0 0 var(--space-6);
-      border-left: 3px solid var(--accent-soft);
+      border-left: 3px solid var(--line-strong);
       padding: var(--space-4);
-      background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
+      background: var(--bg-sunken);
     }
   }
   /* The index badge (IndexBadge.jsx, on this page and in the picker of 创建题组) says whose pages it counts ("这份资料 404/404 页"). In a narrow window the row
@@ -143,11 +143,11 @@
   :where(.study-app, .study-seat) {
     /* Citation hit inside the source modal: one highlighted passage. */
     .source-hit {
-      background: var(--accent-glow);
+      background: var(--warn-mark);
       color: inherit;
       border-radius: var(--radius-xs);
       padding: var(--hairline) 0;
-      box-shadow: 0 0 0 2px var(--accent-glow);
+      box-shadow: 0 0 0 2px var(--warn-mark);
     }
   }
 }
