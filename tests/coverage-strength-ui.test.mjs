@@ -32,14 +32,13 @@ const render = (level, estimate, extra = {}) => renderToStaticMarkup(React.creat
   state: estimate ? { status: 'ready', estimate } : { status: 'idle' }, stats: { materials: 2, pages: 0, chars: 572427 }, enabled: true, ...extra }));
 const lineOf = html => text(/<p class="token-estimate__line">([\s\S]*?)<\/p>/.exec(html)?.[1] || '');
 
-test('the control: three levels, 标准 on by default, the level said in words, the custom number folded away', () => {
+test('the control: three levels and 自定义, 标准 on by default, the level said in words, the custom number only under 自定义', () => {
   const html = render('standard', estimateOf({ coverageLevel: 'standard' }));
   const labels = [...html.matchAll(/<button[^>]*class="sh-seg__item[^"]*"[^>]*>(.*?)<\/button>/g)].map(match => text(match[1]));
-  assert.deepEqual(labels, ['精简', '标准', '完整']);
+  assert.deepEqual(labels, ['精简', '标准', '完整', '自定义']);
   assert.match(html, /aria-pressed="true"[^>]*>标准</);
   assert.match(text(html), /标准：每个不少于 600 字的小节都出题，更长、更重要的小节题更多，每万字约 6 题。/);
-  assert.match(html, /<details class="sh-disclosure[^"]*cov-strength__custom"(?![^>]*\sopen)/, 'the custom number is a closed disclosure');
-  assert.match(text(html), /自定义题数 可选/);
+  assert.doesNotMatch(html, /cov-strength__custom|id="generate-count"/, 'no number field while a level is the choice');
   for (const level of ['lean', 'full']) assert.match(render(level, null), new RegExp(`aria-pressed="true"[^>]*>${level === 'lean' ? '精简' : '完整'}<`));
 });
 
@@ -56,7 +55,8 @@ test('the consequence line is the real estimate in plain words: 「标准：约 
   const custom = estimateOf({ coverageLevel: 'standard', count: 100 });
   const html = render('standard', custom, { customCount: '100' });
   assert.equal(lineOf(html), `自定义：100 道题，覆盖 ${custom.coverage.sections}/81 个小节，分 4 轮，${text(m.estimateSummary(custom))}`);
-  assert.match(html, /<details class="sh-disclosure[^"]*cov-strength__custom"[^>]*\sopen/, 'a typed number keeps the disclosure open');
+  assert.match(html, /aria-pressed="true"[^>]*>自定义</, 'a typed number is the choice 自定义');
+  assert.doesNotMatch(html, /aria-pressed="true"[^>]*>标准</, 'and 标准 is not shown as chosen next to it');
   assert.match(html, /<input[^>]*id="generate-count"[^>]*value="100"|<input[^>]*value="100"[^>]*id="generate-count"/);
   assert.doesNotMatch(text(html), /精简约/, 'with a custom number the three levels are not offered side by side');
   const one = estimateOf({ coverageLevel: 'standard', count: 20 });
@@ -84,9 +84,8 @@ test('the English control has no Chinese text', () => inLanguage('en', () => {
   assert.doesNotMatch(text(html), han, text(html).match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
   assert.match(lineOf(html), /^Standard: about 251 questions, covering 81\/81 sections, in 9 rounds. Estimated [\d.]+[KM]?–[\d.]+[KM]? tok · \d+–\d+ model calls$/);
   const labels = [...html.matchAll(/<button[^>]*class="sh-seg__item[^"]*"[^>]*>(.*?)<\/button>/g)].map(match => text(match[1]));
-  assert.deepEqual(labels, ['Lean', 'Standard', 'Full']);
+  assert.deepEqual(labels, ['Lean', 'Standard', 'Full', 'Custom']);
   assert.match(text(html), /Lean about 126 · Standard about 251 · Full about 419/);
-  assert.match(text(html), /Custom number of questions/);
   const custom = render('standard', estimateOf({ coverageLevel: 'full', count: 100 }), { customCount: '100' });
   assert.doesNotMatch(text(custom), han);
   assert.match(lineOf(custom), /^Custom: 100 questions, covering 81\/81 sections, in 4 rounds. Estimated /);

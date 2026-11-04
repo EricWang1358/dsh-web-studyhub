@@ -120,7 +120,6 @@
       "ui/document-preview/document-preview.css": 3,
       "ui/document-preview/practice/practice.css": 2,
       "ui/focus.css": 1,
-      "ui/generate-home.css": 2,
       "ui/generation-path.css": 1,
       "ui/guided-study/guided-study.css": 1,
       "ui/import-hub.css": 2,
@@ -138,7 +137,6 @@
       "ui/review/session.css": 1,
       "ui/setup-checklist.css": 3,
       "ui/skeleton.css": 6,
-      "ui/source-picker.css": 2,
       "ui/study-map/catalog.css": 2,
       "ui/workflows.css": 4,
       "ui/wrongbook.css": 3

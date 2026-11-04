@@ -114,6 +114,30 @@ export function customCountOf(gen) {
   return number >= COUNT_MIN && number <= COUNT_MAX ? number : null;
 }
 
+/** The four choices of 覆盖强度: the three levels and 自定义 (a typed number of questions). */
+export const CUSTOM_CHOICE = 'custom';
+export const COVERAGE_CHOICES = Object.freeze([...COVERAGE_LEVELS, Object.freeze({ value: CUSTOM_CHOICE, get label() { return ui('自定义'); } })]);
+
+/**
+ * The one place that says which coverage plan applies: `{ choice, level, count }`. A valid typed number of questions is the plan (`count`, `choice` 自定义) whatever the level says; without one the
+ * level plans (`count` null). `picking`: the learner has just picked 自定义 and not typed a number yet, so the choice stays 自定义 while the field is empty (the level plans until a number is there).
+ * The control (ui/coverage/CoverageStrength.jsx) shows `choice`; the request and the estimate send `count` (customCountOf), so what is drawn is what runs.
+ */
+export function effectiveCoverage(gen, { picking = false } = {}) {
+  const level = levelOf(gen?.coverageLevel ?? DEFAULT_LEVEL), count = customCountOf(gen);
+  return { choice: count || picking ? CUSTOM_CHOICE : level, level, count };
+}
+export const coverageChoiceOf = (gen, options) => effectiveCoverage(gen, options).choice;
+
+/**
+ * The form fields a pick of one of the four choices sets: a level takes any typed number away (so it cannot go on applying under a highlighted level); 自定义 starts from `suggested`
+ * questions, so the field is never empty and the plan is the number shown.
+ */
+export function coverageChoicePatch(choice, { suggested } = {}) {
+  if (choice === CUSTOM_CHOICE) return { customCount: String(clampCount(suggested)) };
+  return { coverageLevel: levelOf(choice), customCount: '' };
+}
+
 /** The generation request the form sends: the form as typed, the 覆盖强度 and, only when the learner typed one, a total number of questions. A request without a count is planned by its level. */
 export function generationRequest(gen, { course, sourceIds }) {
   const { count: _saved, customCount: _typed, autoComplete: _chosen, tokenBudget: _budget, ...rest } = gen, custom = customCountOf(gen), budget = parseTokenBudget(gen.tokenBudget);
@@ -247,22 +271,18 @@ export const hasSettings = (suggestion = {}) => LEVELS.includes(suggestion.cover
 /** The target role is for interview preparation; a role already typed stays visible. */
 export const roleOpenByDefault = ({ goal, focus, role } = {}) => goal === 'interview' || focus?.mode === 'interview' || !!String(role || '').trim();
 
-/** The one line the main path says about the choices that live in 更多选项: the question types, the 覆盖强度 (or that a number of questions was typed) and the course the questions go to. */
-export function planLine({ kinds, level, custom = false, course = '' }) {
-  return [kindsLabel(kinds), custom ? ui('覆盖强度：自定义题数') : uiFormat('覆盖强度：{0}', [levelLabel(level)]), uiFormat('课程：{0}', [course || ui('未分类')])].join(META_DOT);
-}
+/** The one line of the main path about where the new deck goes: the course it is filed under (the page infers it from the ticked materials and the 课程范围; 更改 edits it). */
+export const courseLine = (course = '') => uiFormat('新题组放进课程：{0}', [course || ui('未分类')]);
 
-const sameList = (left, right) => left.length === right.length && left.every((item, at) => item === right[at]);
 /**
  * Does the form carry a choice of its own in the fold (something typed, or a choice that is not the saved default)? Then 更多选项 opens at once, so nothing the learner set is hidden. `defaults` are the
- * form's defaults from Settings (generationFormDefaults). The course is not one: it stands on the main path's line.
+ * form's defaults from Settings (generationFormDefaults). The question types, the 覆盖强度 (with a typed number of questions and 自动补到完整) and the course are not in the fold: they stand on the main path.
  */
 export function moreValuesOf(gen = {}, defaults = {}) {
   const typed = key => String(gen[key] ?? '').trim() !== '';
-  if (['focus', 'title', 'role', 'customCount', 'tokenBudget'].some(typed) || (gen.referenceSourceIds || []).length > 0 || typeof gen.autoComplete === 'boolean') return true;
-  if (['difficulty', 'language', 'coverageLevel'].some(key => defaults[key] !== undefined && gen[key] !== undefined && gen[key] !== defaults[key])) return true;
-  if ((gen.notation ?? 'auto') !== (defaults.notation ?? 'auto')) return true;
-  return !sameList(kindsOfForm(gen), kindsOfForm(defaults));
+  if (['focus', 'title', 'role', 'tokenBudget'].some(typed) || (gen.referenceSourceIds || []).length > 0) return true;
+  if (['difficulty', 'language'].some(key => defaults[key] !== undefined && gen[key] !== undefined && gen[key] !== defaults[key])) return true;
+  return (gen.notation ?? 'auto') !== (defaults.notation ?? 'auto');
 }
 
 /** The materials a case paper is written from: no reference sample (a style, not evidence) and no case written by an earlier run (案例：…, kept as a source so it can be graded against). */
