@@ -16,13 +16,13 @@ import { startNavServer, collectStates, checkContract, compareStates, measureSid
 
 test("the contract checker names a row that moves, grows, or is current while disabled", () => {
   const row = (key, top, height, extra = {}) => ({ key, top, bottom: 900 - top - height, height, zone: "study", active: false, ariaCurrent: null, disabled: false, ...extra });
-  const before = { rows: [row("resume-nav", 100, 38), row("library", 139, 38)], mark: null, narrow: false };
-  const after = { rows: [row("resume-nav", 100, 62), row("library", 163, 38)], mark: null, narrow: false };
+  const before = { rows: [row("resume-nav", 100, 38), row("library", 139, 38)], mark: null, drawer: false };
+  const after = { rows: [row("resume-nav", 100, 62), row("library", 163, 38)], mark: null, drawer: false };
   assert.deepEqual(compareStates(before, after), [{ key: "resume-nav", dTop: 0, dHeight: 24 }, { key: "library", dTop: 24, dHeight: 0 }]);
   const problems = checkContract({ a: before, b: after }, "x");
   assert.ok(problems.some((p) => /library moved 24px/.test(p)));
   assert.ok(problems.some((p) => /resume-nav moved 0px, height \+24px/.test(p)));
-  const off = { rows: [row("resume-nav", 100, 38, { active: true, ariaCurrent: "page", disabled: true })], mark: { top: 100, height: 38 }, narrow: false };
+  const off = { rows: [row("resume-nav", 100, 38, { active: true, ariaCurrent: "page", disabled: true })], mark: { top: 100, height: 38 }, drawer: false };
   assert.ok(checkContract({ a: off }, "x").some((p) => /disabled yet aria-current/.test(p)));
 });
 
@@ -89,11 +89,19 @@ test('the resume highlight returns when saving finishes before its snapshot arri
         await gate;
         await route.fulfill({ response }).catch(() => {});
       });
+      // At 200% the 1440px window is 720px of workspace: the sidebar is a drawer behind the top bar's menu button (#657), and choosing a row closes it.
+      const openNav = async () => {
+        await page.locator('.sidebar, .nav-menu-toggle').first().waitFor();
+        if (!await page.locator('.sidebar').count()) await page.locator('.nav-menu-toggle').click();
+        await page.locator('.sidebar').waitFor();
+      };
       try {
         await page.goto(running.server.url);
+        await openNav();
         await page.waitForFunction(() => document.querySelector('.resume-nav')?.disabled === false);
         await page.locator('.resume-nav').click();
         await until(() => held > 0, 'the post-action snapshot response to be held');
+        await openNav();
         // The action runner releases busy independently of the held refresh. The row must regain its highlight at that point.
         await page.waitForFunction(() => document.querySelector('.resume-nav')?.getAttribute('aria-current') === 'page');
         const state = await measureSidebar(page);

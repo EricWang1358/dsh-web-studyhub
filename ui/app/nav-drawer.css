@@ -1,0 +1,75 @@
+/* ui/app/nav-drawer.css — the sidebar as a drawer (#657, ui/app/AppSidebar.jsx) and the top bar's menu button that opens it.
+   The drawer is the shared Dialog (size full) placed along the left edge: this sheet writes its position and size only, never its border,
+   corner, fill or shadow. It slides in by transform and opacity. Tokens only; both themes. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .sh-dialog--full.nav-drawer {
+      inset: 0 auto 0 0;
+      width: min(300px, calc(100vw / var(--study-ui-scale, 1) - 56px));
+      height: calc(100dvh / var(--study-ui-scale, 1));
+      margin: 0;
+    }
+    .sh-dialog--full.nav-drawer[open] {
+      animation: nav-drawer-in var(--dur) var(--ease-out);
+    }
+    .nav-drawer .sh-dialog__header {
+      padding: var(--space-4) var(--space-3) var(--space-2) var(--space-5);
+    }
+    .nav-drawer .sh-dialog__title {
+      font-size: var(--fs-lg);
+    }
+    .nav-drawer .sh-dialog__body {
+      padding: 0;
+    }
+    .nav-drawer .sh-dialog__content {
+      max-width: none;
+      margin: 0;
+    }
+    /* Inside the drawer the sidebar is a plain column: the drawer scrolls, the rows keep their one height. */
+    .sidebar.is-drawer {
+      position: static;
+      width: auto;
+      height: auto;
+      min-height: 100%;
+      border-right: 0;
+      background: transparent;
+      padding: 0 var(--sidebar-pad) var(--space-4); /* the active bar sits --sidebar-pad left of the rows: on the drawer's edge */
+      overflow: visible;
+    }
+    .sidebar.is-drawer .sidebar-bottom {
+      margin-top: var(--space-5);
+    }
+    .nav-dock {
+      margin: var(--space-3) var(--space-3) 0;
+      color: var(--text-muted);
+    }
+    /* The menu button sits at the start of the top bar, before the page title. */
+    .nav-menu-anchor {
+      display: inline-flex;
+      flex: none;
+      margin-right: var(--space-2);
+    }
+    .nav-menu-anchor + .crumbs {
+      margin-right: auto;
+    }
+    .nav-menu-toggle {
+      width: 32px;
+      height: 32px;
+      min-width: 0;
+      min-height: 0;
+      padding: 0;
+      justify-content: center;
+      color: var(--text-dim);
+    }
+  }
+}
+
+@keyframes nav-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}

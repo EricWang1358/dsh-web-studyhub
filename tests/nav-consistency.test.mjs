@@ -19,7 +19,7 @@ const compiled = await build({
 });
 const mod = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(require, mod, mod.exports);
-const { NavItem, ResumeNavItem, CoachNavItem, setUiLanguage } = mod.exports;
+const { NavItem, NavFold, ResumeNavItem, CoachNavItem, resumeProgress, setUiLanguage } = mod.exports;
 const html = (element) => renderToStaticMarkup(element);
 const lastRun = { id: "r1", title: "Patterns", index: 1, total: 3 };
 
@@ -67,50 +67,61 @@ test("the resume row is the same single line with or without a run; progress is 
   assert.doesNotMatch(open, /<button[^>]*\btitle=/, "no native title: the Tooltip also shows on keyboard focus (#86)");
 });
 
-test("a row says what it is for, and the starting marker takes no room from the label", () => {
+test("the resume row counts the round the practice page counts: a re-ask never reads 5/4", () => {
+  setUiLanguage("zh");
+  const saved = { id: "r1", title: "Patterns", index: 0, total: 4 };
+  // The session's position (1-based `at` in a round of `total`) wins over the queue index, which runs past the round while a re-ask is open.
+  const reask = resumeProgress(saved, { id: "r1", index: 4, total: 5, position: { total: 4, at: 4, retries: 1, retryAt: 1, last: false } });
+  assert.deepEqual([reask.index, reask.total], [3, 4]);
+  assert.match(html(React.createElement(ResumeNavItem, { lastRun: reask, hasDecks: true })), /<span class="nav-count nav-progress">4\/4<\/span>/);
+  // Without a position (before the practice batch), the queue index and length as before.
+  assert.deepEqual((({ index, total }) => [index, total])(resumeProgress(saved, { id: "r1", index: 1, total: 4 })), [1, 4]);
+  assert.equal(resumeProgress(saved, { id: "other", index: 3, total: 9 }), saved, "another run on screen changes nothing");
+  assert.equal(resumeProgress(null, { id: "r1", index: 1, total: 4 }), null);
+});
+
+/* #655: the 「从这里开始」 markers are gone (an empty library lit five of them, and none was something to act on now). What is left is one attention
+   dot (ui/nav-alert.js): the same badge on the icon's corner, with its reason as the first line of the row's Tooltip. */
+test("a row says what it is for, and the attention dot takes no room from the label", () => {
   setUiLanguage("zh");
   const purpose = "把做过的题写成笔记，也可以发布出去";
   const tail = "长按并拖动可调整顺序（键盘：Alt+↑/↓）";
+  const reason = "今天有 3 道题到期复习";
   const tip = (markup) => markup.slice(markup.indexOf('role="tooltip"'));
-  const marked = html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", purpose, tail, start: true }));
-  const tooltipAt = marked.indexOf('role="tooltip"'), startAt = marked.indexOf("从这里开始", tooltipAt), purposeAt = marked.indexOf(purpose, startAt), tailAt = marked.indexOf(tail, purposeAt);
-  assert.ok(tooltipAt > 0 && startAt > tooltipAt && purposeAt > startAt && tailAt > purposeAt, "that it is a starting point, what it is for, then (once) how to reorder it");
+  const marked = html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", purpose, tail, alert: reason }));
+  const tooltipAt = marked.indexOf('role="tooltip"'), reasonAt = marked.indexOf(reason, tooltipAt), purposeAt = marked.indexOf(purpose, reasonAt), tailAt = marked.indexOf(tail, purposeAt);
+  assert.ok(tooltipAt > 0 && reasonAt > tooltipAt && purposeAt > reasonAt && tailAt > purposeAt, "why it has a dot, what it is for, then (once) how to reorder it");
   assert.doesNotMatch(tip(marked), /学习笔记/, "beside a visible label the tooltip does not say the label again (#569)");
-  assert.match(marked, /class="nav is-start"/, "the row says it is a starting point");
-  assert.match(marked, /<span class="nav-start" aria-hidden="true"><\/span>/, "the dot is the marker; its words are in the tooltip, so no label loses room to it");
-  assert.match(marked, /<span class="icon nav-start-icon" aria-hidden="true"><svg[^]*?<\/svg><span class="nav-start" aria-hidden="true"><\/span><\/span><span class="nav-label">/,
-    "the dot sits on the icon, not in the gap before the label, where it read as a bullet (#579)");
+  assert.match(marked, /class="nav has-alert"/, "the row says it has something to act on");
+  assert.match(marked, /<span class="icon nav-alert-icon" aria-hidden="true"><svg[^]*?<\/svg><span class="nav-alert" aria-hidden="true"><\/span><\/span><span class="nav-label">/,
+    "the dot sits on the icon, not in the gap before the label, where it read as a bullet (#579); its words are in the tooltip");
   assert.doesNotMatch(marked, /<button[^>]*\btitle=/, "no native title: the Tooltip also shows on keyboard focus and on a long press");
-  assert.doesNotMatch(html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", purpose })), /nav-start/, "only the starting five carry the marker");
+  assert.doesNotMatch(html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", purpose })), /nav-alert|has-alert/, "no reason, no dot");
+  assert.doesNotMatch(html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", purpose, start: true })), /nav-start|is-start/, "the 从这里开始 marker is gone");
   assert.doesNotMatch(html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记" })), /role="tooltip"/, "a row with nothing to add has no tooltip");
   assert.equal(tip(html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", title: "学习笔记", purpose }))).match(/学习笔记/g), null, "a title equal to the label is not said either");
 });
 
-test("the 从这里开始 dot is a badge on the icon's corner, in the wide sidebar and in the 62px rail (#579)", async () => {
-  const css = await readFile(new URL("../ui/nav-start.css", import.meta.url), "utf8");
+test("the attention dot is a badge on the icon's corner (#579, #655), and the old marker's sheet is gone", async () => {
+  const css = (await readFile(new URL("../ui/side-groups.css", import.meta.url), "utf8")).replace(/\r/g, "");
   const rule = (selector) => css.match(new RegExp(`(?:^|\\n)\\s*${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`))?.[1] ?? null;
-  const dot = rule(".nav-start");
-  assert.ok(dot, "the marker has its rule");
+  const dot = rule(".nav-alert");
+  assert.ok(dot, "the dot has its rule");
   assert.doesNotMatch(dot, /\bleft:/, "placed from the icon's top-right corner, not at an offset into the gap before the label");
   assert.match(dot, /\btop:/);
   assert.match(dot, /\bright:/);
-  assert.match(rule(".nav-start-icon") ?? "", /position:\s*relative[^]*color:\s*var\(--accent-soft\)/, "the icon holds the dot and takes the accent");
-  assert.equal(rule(".sidebar.is-narrow .nav-start"), null, "the rail shows it too");
-  assert.match(css, /\.sidebar\.is-narrow \.nav:has\(\.nav-progress\) \.nav-start\s*\{\s*display:\s*none;/, "only where a run's progress dot already sits on that corner");
+  assert.match(dot, /background:\s*var\(--accent-soft\)/, "the accent marks the one thing to act on");
+  assert.match(rule(".nav-alert-icon") ?? "", /position:\s*relative/, "the icon holds the dot");
+  await assert.rejects(readFile(new URL("../ui/nav-start.css", import.meta.url), "utf8"), "the 从这里开始 sheet is deleted");
 });
 
-test("in the narrow rail the row is an icon, so its tooltip names the page first (#569)", () => {
+test("the resume row and a fold carry the dot's reason first; with no rail, no row names itself in its own tooltip (#657)", () => {
   setUiLanguage("zh");
-  const purpose = "把做过的题写成笔记，也可以发布出去";
-  const narrow = html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", purpose, narrow: true }));
-  assert.match(narrow, /role="tooltip"[^>]*>学习笔记\n把做过的题写成笔记/, "the name, then what it is for");
-  const started = html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", purpose, narrow: true, start: true }));
-  assert.match(started, /role="tooltip"[^>]*>从这里开始\n学习笔记\n把做过的题写成笔记/);
-  const once = html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", title: "学习笔记", purpose, narrow: true }));
-  assert.equal(once.slice(once.indexOf('role="tooltip"')).match(/学习笔记/g).length, 1, "named once, not twice");
-  assert.match(html(React.createElement(ResumeNavItem, { lastRun, hasDecks: true, narrow: true })), /role="tooltip"[^>]*>回到题目\n回到「Patterns」第 2\/3 题/, "the resume row is named too");
-  assert.match(html(React.createElement(CoachNavItem, { ready: 3, narrow: true })), /role="tooltip"[^>]*>为你定制\n3 道题已备好/);
-  assert.doesNotMatch(html(React.createElement(ResumeNavItem, { lastRun, hasDecks: true })), /role="tooltip"[^>]*>回到题目/, "wide, the label is on screen");
+  assert.match(html(React.createElement(ResumeNavItem, { lastRun, hasDecks: true, alert: "今天有 3 道题到期复习" })), /role="tooltip"[^>]*>今天有 3 道题到期复习\n回到「Patterns」第 2\/3 题/);
+  assert.doesNotMatch(html(React.createElement(ResumeNavItem, { lastRun, hasDecks: true })), /role="tooltip"[^>]*>回到题目/, "the label is on screen");
+  const fold = html(React.createElement(NavFold, { id: "more", glyph: "more", label: "更多", purpose: "其余的功能", alert: "2 个任务没有完成，点开看原因", open: false, onToggle() {} }));
+  assert.match(fold, /role="tooltip"[^>]*>2 个任务没有完成，点开看原因\n其余的功能/, "a closed 「更多」 carries the dot of a row folded inside it");
+  assert.match(fold, /aria-expanded="false"/);
 });
 
 test("every sidebar page has one short sentence saying what it is for, with an English line", async () => {
@@ -191,12 +202,16 @@ test("stylesheet contract: one row height, labels clamped to the row, no second-
   assert.match(all, /\.sidebar-bottom\s+\.nav\[aria-current="page"\]/, "Settings gets the same highlight and bar as the rows above it");
 });
 
-test("the rail's foot shows 快捷键 and 名词解释, and 快捷键 opens the one ? sheet", async () => {
+// #656: 快捷键 and 名词解释 sit in the footer's 「帮助」 fold (with 功能导览), so the footer has three controls: 找功能, 帮助, 设置.
+test("the footer's 帮助 holds 快捷键 and 名词解释, and 快捷键 opens the one ? sheet", async () => {
   const source = (await readAppSource()).replace(/\r/g, "");
   assert.match(source, /data-usage="nav\.shortcut"/, "a visible entry, and a marked control");
   assert.match(source, /session\.actions\.openShortcutHelp\(\)/, "it opens the sheet the ? key opens");
   assert.match(source, /名词解释/, "the glossary has a visible entry too");
-  assert.match(source, /content=\{glossaryText\(\)\}/, "the glossary is the Tooltip's words, not a second panel");
+  assert.match(source, /purpose=\{glossaryText\(\)\}/, "the glossary is the row's Tooltip words, not a second panel");
+  const footer = (await readFile(new URL("../ui/app/SidebarFooter.jsx", import.meta.url), "utf8")).replace(/\r/g, "");
+  const help = footer.slice(footer.indexOf('<NavFold id="help"'), footer.indexOf("</NavFold>"));
+  for (const tour of ["tour-reopen", "nav-shortcuts", "nav-glossary"]) assert.match(help, new RegExp(`data-tour="${tour}"`), `${tour} is inside 帮助`);
   const session = await readFile(new URL("../ui/review/useReviewSession.js", import.meta.url), "utf8");
   assert.match(session, /openShortcutHelp: \(\) => setShortcutHelp\(true\)/, "one sheet, two ways in");
 });

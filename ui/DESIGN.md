@@ -86,7 +86,7 @@ The half-steps exist so existing 6/10/14/18/22/28/30px layouts keep their exact 
 
 Personalisation (设置 › 界面, `ui/appearance-prefs.js`) is data attributes on `.study-app` plus token overrides in `ui/appearance-themes.css`; the default of each setting has no rule, so it renders exactly as before.
 
-- `oled` (dark base) and `paper` 护眼纸色 (light base) set `data-palette`; `data-theme` stays `dark` / `light`, so everything that only knows two modes keeps working. Both keep the cinnabar accent and the paper card; new palettes must pass the AA assertions in `tests/wp1-tokens.test.mjs`, incl. card stock. The sidebar toggle cycles `auto → dark → light` only (`THEME_CYCLE`); the extra themes are chosen in Settings.
+- `oled` (dark base) and `paper` 护眼纸色 (light base) set `data-palette`; `data-theme` stays `dark` / `light`, so everything that only knows two modes keeps working. Both keep the cinnabar accent and the paper card; new palettes must pass the AA assertions in `tests/wp1-tokens.test.mjs`, incl. card stock. Every theme is chosen in 设置 › 界面, the one place for appearance and language (#656: no sidebar toggle).
 - Contrast (`data-contrast`, `auto` follows `prefers-contrast: more`) overrides only `--line*`, `--text-faint`, `--decor-faint` and the focus outline. `@media (forced-colors: active)` re-states buttons, focus and selected states with system colours.
 - Density (`data-density`) scales only `--space-*` and `--lh-*`; corner style (`data-radius`) only `--radius`, `--radius-sm`, `--radius-card`. New CSS should write `var(--radius…)` / `var(--space-…)` / `var(--fs-…)` where a value equals a token (`tests/css-token-guard.test.mjs` also fails on new raw hex colours).
 

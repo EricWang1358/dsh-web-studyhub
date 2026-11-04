@@ -1,48 +1,28 @@
-/* ui/side-groups.css — the sidebar's groups (每天 / 阶段性 / 课程准备与管理, ui/SideNav.jsx NavGroup).
-   Tokens only; both themes. A group label is one fixed-height line (--nav-group), so no state of the page can change
-   the height of anything in the rail; in the 62px rail the label shrinks to a hairline and every group is open. */
+/* ui/side-groups.css — the sidebar's groups (#654, ui/SideNav.jsx NavGroup / NavFold): the main list, the 「更多」 and 「帮助」 folds, the sections
+   inside 「更多」 named by what they hold, and the one attention dot (#655, ui/nav-alert.js).
+   Tokens only; both themes. A section label is one fixed-height line (--nav-group) and a fold's row is a row like every other, so no state of
+   the page changes the height of anything above it. */
 
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
   :is(.study-app, .study-seat) {
     .nav-group {
-      /* One height for every group label, whatever it says. */
-      --nav-group: 18px;
-    }
-    .sidebar.is-narrow .nav-group {
-      --nav-group: 8px;
-    }
-    .sidebar.is-narrow .nav-group + .nav-group {
-      margin-top: 0;
-    }
-    .nav-group + .nav-group {
-      margin-top: var(--space-1);
+      /* One height for every section label, whatever it says. */
+      --nav-group: 24px;
     }
     .nav-group-label {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-2);
+      align-items: flex-end;
       width: 100%;
       height: var(--nav-group);
       margin: 0;
-      padding: 0 var(--space-3);
-      border: none;
-      background: none;
+      padding: 0 var(--space-3) var(--space-1);
       color: var(--text-faint);
       font-size: var(--fs-xs);
       font-weight: var(--fw-strong);
       letter-spacing: 0.04em;
       line-height: 1;
-      text-align: left;
-    }
-    .nav-group-label:not(.is-static) {
-      cursor: pointer;
-      transition: color var(--dur-fast) var(--ease);
-    }
-    .nav-group-label:not(.is-static):hover {
-      color: var(--text-dim);
     }
     .nav-group-text {
       min-width: 0;
@@ -50,47 +30,65 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .nav-group-chevron {
+    /* A fold: its row, then what it opens (the <details> whose own summary is hidden; the row above is its control). */
+    .nav-fold__items > summary {
+      display: none;
+    }
+    .nav-fold__items {
+      margin: 0;
+    }
+    .nav-fold[data-nav-fold="more"] {
+      margin-top: var(--space-2);
+    }
+    /* 「更多」 holds sections; each opens with its label, inset like the rows' labels, so the eye reads them as one indented list. */
+    .nav-fold[data-nav-fold="more"] .nav-group {
+      margin-top: var(--space-1);
+    }
+    /* 「帮助」 holds three rows, set a little in from the rows around it. */
+    .nav-fold[data-nav-fold="help"] .nav-fold__items > .nav-tip,
+    .nav-fold[data-nav-fold="help"] .nav-fold__items > .nav {
+      padding-left: var(--space-4);
+    }
+    .nav-fold__chevron {
       flex: none;
       width: 7px;
       height: 7px;
+      margin-left: auto;
+      margin-right: var(--space-1);
       border-right: 1.5px solid currentColor;
       border-bottom: 1.5px solid currentColor;
-      transform: translateY(-2px) rotate(45deg);
+      transform: translateX(-2px) rotate(-45deg);
       transition: transform var(--dur) var(--ease-out);
     }
-    .nav-group-label[aria-expanded="false"] .nav-group-chevron {
-      transform: translateX(-2px) rotate(-45deg);
+    .nav-fold__toggle[aria-expanded="true"] .nav-fold__chevron {
+      transform: translateY(-2px) rotate(45deg);
+    }
+    /* The one attention dot: a badge on the icon's top-right corner. It sits inside the icon's box, so it takes no room from the label, and a
+       ring of the sidebar's own background cuts it out of the glyph it overlaps. Its reason is the first line of the row's Tooltip. */
+    .nav-alert-icon {
+      position: relative;
+    }
+    .nav-alert {
+      position: absolute;
+      top: calc(var(--space-half) * -1.5);
+      right: calc(var(--space-half) * -1.5);
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      box-shadow: 0 0 0 2px var(--bg-canvas);
+      pointer-events: none;
+    }
+    .nav-drawer .nav-alert {
+      box-shadow: 0 0 0 2px var(--bg-raised);
     }
     /* The row's Tooltip wrapper adds no box of its own (its panel is in the top layer). The footer's rows get the same: an inline
-       wrapper would shrink the row to its text and set 外观 and 设置 side by side, so the rail could scroll sideways in a narrow window. */
+       wrapper would shrink the row to its text and set rows side by side. */
     .side-nav .nav-tip,
     .sidebar-bottom .nav-tip { display: block; }
-    /* A group label's Tooltip wrapper keeps the label one fixed-height line. */
-    .side-nav .nav-group-tip { display: block; }
-    /* Every row, wherever it sits, floats above the one gliding highlight; a lifted row (.side-nav .nav.is-dragging) above its neighbours — styled in ui/shell.css. */
-    /* The 62px rail has no room for words: the label becomes a hairline between the groups and nothing is folded. */
-    .sidebar.is-narrow .nav-group-label {
-      height: var(--nav-group);
-      padding: 0;
-      justify-content: center;
-    }
-    .sidebar.is-narrow .nav-group-label::before {
-      content: "";
-      width: 22px;
-      height: 1px;
-      background: var(--line-soft);
-    }
-    .sidebar.is-narrow .nav-group-text,
-    .sidebar.is-narrow .nav-group-chevron {
-      display: none;
-    }
-    /* first-of-type, not first-child: the gliding highlight (a span) comes before the first group while a page of the rail is open. */
-    .sidebar.is-narrow .nav-group:first-of-type .nav-group-label {
-      display: none;
-    }
-    .sidebar.is-narrow .nav-group-items[hidden] {
-      display: block;
+    /* The glossary row is words to read on hover or focus. */
+    .glossary-nav {
+      cursor: help;
     }
   }
 }

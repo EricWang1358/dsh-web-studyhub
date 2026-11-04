@@ -61,13 +61,16 @@ test('the shortcut sheet lists the reorder keys, in both languages, on every pag
 });
 
 test('the sidebar says the line only while the hint is due, names the keys on every row, and no longer repeats the label', async () => {
-  const sidebar = await read('ui/app/AppSidebar.jsx');
+  // #654 split the sidebar: the page rows are drawn by SidebarNav.jsx, the footer (设置) by SidebarFooter.jsx.
+  const sidebar = await read('ui/app/SidebarNav.jsx');
+  const footer = await read('ui/app/SidebarFooter.jsx');
   assert.match(sidebar, /tail=\{reorderHint\.show \? ui\('长按并拖动可调整顺序（键盘：Alt\+↑\/↓）'\) : undefined\}/);
   assert.match(sidebar, /onTipChange=\{reorderHint\.tipChange\}/);
   assert.match(sidebar, /if \(navOrder\.lifted \|\| navOrder\.announce\) learned\(\)/, 'a learner who has reordered is not told how');
-  assert.doesNotMatch(sidebar, /title=\{label\}|title=\{ui\('设置'\)\}/, 'the label is not said again in its own tooltip');
-  for (const row of [/<ResumeNavItem[^>]*narrow=\{sidebarNarrow\}/, /<CoachNavItem[^>]*narrow=\{sidebarNarrow\}/, /purpose=\{ui\(PAGES\[id\]\.purpose\)\} narrow=\{sidebarNarrow\}/, /label=\{ui\('设置'\)\}[^>]*narrow=\{sidebarNarrow\}/]) assert.match(sidebar, row, 'in the rail each row names itself');
+  for (const source of [sidebar, footer]) assert.doesNotMatch(source, /title=\{label\}|title=\{ui\('设置'\)\}/, 'the label is not said again in its own tooltip');
+  // #657: there is no icon rail any more (a narrow window gets a drawer in which every row has its label), so no row takes a `narrow` prop.
+  for (const source of [sidebar, footer]) assert.doesNotMatch(source, /narrow=\{|sidebarNarrow/, 'no rail');
   const order = await read('ui/nav-order.js');
   assert.match(order, /"aria-keyshortcuts": "Alt\+ArrowUp Alt\+ArrowDown"/, 'a screen reader hears the keys on each row');
-  assert.match(order, /setAnnounce\(\{ id, position: index \+ 1/, 'the keyboard move is still announced');
+  assert.match(order, /setAnnounce\(\{ id, group: moved\.group, position: moved\.position, count: moved\.count \}\)/, 'the keyboard move is still announced, with its group');
 });

@@ -3,9 +3,10 @@ import { ui, uiFormat, uiIsEnglish, uiMessage } from '../i18n.js';
 import { isTransientStudyError } from '../transport.js';
 import { markInboxRead } from '../quick-actions.js';
 import Inbox from '../Inbox.jsx';
-import { Button, Icon, Tooltip } from '../components/index.js';
+import { Button, Icon, IconBox, Tooltip } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useApp } from './app-context.js';
+import { useNavAlert } from './use-nav-alert.js';
 import css from './app-shell.css';
 
 /** The folder a learner recognises: the default library is a hidden folder inside its workspace. */
@@ -57,10 +58,25 @@ export function statusHint({ busy, running, publishing, syncIssue, syncTransient
   return uiIsEnglish() && HAN.test(reason) ? ui('学习库读不出来，正在重试') : uiFormat('学习库读不出来，正在重试：{0}', [reason]);
 }
 
+/** The way to the sidebar while it is a drawer (#657: a narrow window, or the learner put it away): one button at the start of the bar. It carries
+    the sidebar's attention dot (ui/nav-alert.js) and says its reason; the drawer itself has every label. */
+function NavMenuButton() {
+  const { shell } = useApp();
+  const { reason } = useNavAlert();
+  return (
+    <Tooltip layer content={reason || ui('打开导航：全部功能都在这里')} anchorClassName="nav-menu-anchor">
+      <Button variant="quiet" size="sm" className={'nav-menu-toggle' + (reason ? ' has-alert' : '')} data-tour="nav-menu" data-usage="nav.menu"
+        aria-label={ui('打开导航')} aria-haspopup="dialog" aria-expanded={shell.navOpen} onClick={() => shell.setNavOpen(true)}>
+        <IconBox className={reason ? 'nav-alert-icon' : undefined}><Icon name="panel" size={18} />{reason && <span className="nav-alert" />}</IconBox>
+      </Button>
+    </Tooltip>
+  );
+}
+
 /** The top bar: the crumb for the page on screen, where the library lives, whether the host is working, and the mailbox. */
 export default function AppTopbar({ title }) {
   useInjectCss(css, 'study-app-shell');
-  const { data, core, nav, connection, inbox, settingsEntry } = useApp();
+  const { data, core, nav, connection, inbox, settingsEntry, shell } = useApp();
   const { busy, act, quick, quickApi } = core;
   const { binding, running, publishing, syncIssue, syncTransient } = connection;
   const labelId = React.useId();
@@ -77,6 +93,7 @@ export default function AppTopbar({ title }) {
   const label = <span className="top-status-label" id={labelId}>{words}</span>;
   return (
     <header className="topbar">
+      {shell?.navDrawer && <NavMenuButton />}
       <nav className="crumbs" aria-label={ui('位置')}>
         <span className="crumb">{ui('StudyHub')}</span>
         <span className="breadcrumb" aria-hidden="true"><Icon name="arrow-right" size={12} /></span>

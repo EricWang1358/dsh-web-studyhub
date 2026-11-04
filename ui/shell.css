@@ -15,8 +15,8 @@
       padding: 26px var(--space-3-5) var(--space-4);
       display: flex;
       flex-direction: column;
-      /* One row height for every sidebar entry, whatever it says (see ui/SideNav.jsx). 34px: the 复习全书 entry and the footer's 快捷键 / 名词解释 links bring the rail
-         to nineteen rows, and at 768 px wide / 900 px tall the rail has to hold them without scrolling (a rail that scrolls moves every row when the active one is clicked). */
+      /* One row height for every sidebar entry, whatever it says (see ui/SideNav.jsx). 34px: with 「更多」 and 「帮助」 open the column still fits 768 x 900
+         without scrolling (a column that scrolls moves every row when the active one is clicked); closed, it is eleven rows (#654). */
       --nav-row: 34px;
       --nav-row-upkeep: 32px;
       /* How far the sidebar's own padding is: the active bar sits on its outer edge. */
@@ -159,84 +159,15 @@
       color: var(--text-faint);
       font-weight: var(--fw-regular);
     }
-    .nav-count.is-due {
-      color: var(--accent-text);
-      font-weight: var(--fw-strong);
-    }
     /* Tasks are running: the count is live, so it reads a little brighter than a plain count. */
     .nav-count.is-live {
       color: var(--accent-text);
       font-weight: var(--fw-strong);
     }
-    /* ── Collapsed rail ─────────────────────────────────────────────────────
-       .is-narrow is set manually via the toggle, or automatically when the
-       workspace is ≤720px (ResizeObserver in App.jsx). */
-    .sidebar.is-narrow {
-      width: 62px;
-      padding: var(--space-3) var(--space-1-5);
-      --sidebar-pad: var(--space-1-5);
-      --nav-row: 38px;
-      --nav-row-upkeep: 38px;
-    }
-    .sidebar.is-narrow .brand {
-      flex-direction: column;
-      margin: 0 auto var(--space-3);
-    }
-    .sidebar.is-narrow .brand > div,
-    .sidebar.is-narrow .nav-count,
-    .sidebar.is-narrow .local-status {
-      display: none;
-    }
-    .sidebar.is-narrow .nav {
-      font-size: 0;
-      gap: 0;
-      padding: 0;
-      justify-content: center;
-    }
-    /* The label stays in the tree for assistive technology and the tooltip names the row; it just takes no room. */
-    .sidebar.is-narrow .nav-label {
-      flex: none;
-      width: 0;
-    }
-    /* A run in progress folds into a dot on the icon, as the coach count does. */
-    .sidebar.is-narrow .nav-progress {
-      display: block;
-      position: absolute;
-      top: 7px;
-      right: 7px;
-      width: 9px;
-      height: 9px;
-      margin: 0;
-      padding: 0;
-      border-radius: 50%;
-      background: var(--accent);
-      font-size: 0;
-    }
-    .sidebar.is-narrow .nav .icon svg {
-      width: 20px;
-      height: 20px;
-    }
-    /* Three segments don't fit a 62px rail; it gets one cycling button instead. */
+    /* There is no icon rail (#657): a narrow window, or a sidebar put away, is the drawer of ui/app/nav-drawer.css, with every label. */
     .sidebar-bottom {
       margin-top: auto;
-    }
-    /* The dot sits in the same 20px slot as a row's icon, so the text lines up with the labels above. */
-    .local-status {
-      font-size: var(--fs-md);
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      padding: var(--space-5) var(--space-3);
-    }
-    .local-status span {
-      width: 6px;
-      height: 6px;
-      margin: 0 var(--space-2);
-      flex: none;
-      border-radius: 50%;
-      background: var(--ok);
-      box-shadow: 0 0 0 3px var(--ok-halo);
+      padding-top: var(--space-3);
     }
     & main {
       flex: 1;
@@ -487,21 +418,17 @@
     }
   }
   :is(.study-app, .study-seat) {
-    /* Three labels, 复习全书 and the footer links take room the rail did not have: take it back from the quiet parts around the rows so 900px never scrolls. */
-    .sidebar:not(.is-narrow) {
+    /* The rows sit close under the brand; the quiet parts around them stay small. */
+    .sidebar {
       padding-top: var(--space-3);
       padding-bottom: var(--space-3);
     }
-    .sidebar:not(.is-narrow) .brand {
-      margin-bottom: var(--space-2);
+    .sidebar .brand {
+      margin-bottom: var(--space-4);
     }
-    .sidebar:not(.is-narrow) .brand small {
+    .sidebar .brand small {
       font-size: var(--fs-xs);
       margin-top: var(--space-half);
-    }
-    .sidebar:not(.is-narrow) .local-status {
-      padding-block: var(--space-half);
-      font-size: var(--fs-xs);
     }
     /* Every row, wherever it sits, floats above the one gliding highlight; a lifted row above its neighbours. */
     .side-nav .nav {

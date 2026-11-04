@@ -35,7 +35,6 @@
         color 0.18s var(--ease);
     }
     .collapse-toggle:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-    .sidebar.is-narrow .collapse-toggle { margin: var(--space-1) auto 0; }
     .nav-reset {
       display: flex;
       justify-content: flex-start;
