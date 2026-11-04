@@ -2,6 +2,11 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 4.3.5 — 2026-11-05
+
+- **The accent colour now means "this is the action" or "this is moving" (#658).** It stays on the main button, on progress (a running task, the step you are on, a service starting) and on the place a dragged file will land. Quote bars, callouts, guide boxes, the answer you picked and small counts are neutral grey now. The inbox's unread mark is amber, like the sidebar dot, and a failed job's edge is red. A guard keeps new accent fills out. Not verified: checked in the preview with a fake model in light and dark, not inside DSH.
+- **Your course focus topics now show how far you are with each (#690).** Under course progress on the home page, one line counts your focus topics, for example "Focus topics 5: Mastered 1 · Not yet 2 · No questions 1". "Practise the focus topics you can't do yet →" starts a round over exactly those questions. Course settings lists each saved topic with its status and "n questions · Mastered m". The daily plan's focus review now takes wrong answers first, then due questions, then new ones, at most 5. Not verified: checked in the preview with a fake model, not inside DSH.
+
 ## 4.3.4 — 2026-11-05
 
 - **Live class has a new "Sentence pause" setting: when a speaker is fast and barely pauses, sentences can close sooner.** Under Settings › Audio transcription, below the live-class engine choice, pick "Short · fast speaker", "Standard" or "Long · slow speaker". Standard is exactly what it was before; with Short, a shorter pause already ends a sentence, so context polishing and ticking sentences for questions become available earlier. It takes effect the next time you press Start recording or Continue recording; a class that is already recording keeps its value. On the live page, when one stretch of speech has gone over a minute without turning into a sentence, a quiet line and a button take you straight to this setting. Too short can cut one sentence in two. Not verified: not tried with a real Gemini live session or with real fast speech, only with simulated recognition and pauses.
