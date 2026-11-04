@@ -8,6 +8,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { openPage, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { BOOK_COURSE, seedBookFixture } from './helpers/book-fixtures.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 复习全书 S1, the frame (docs/review-book.md "Open it", "The book bar", "More", "The contents", "Where you were") in the real page at 1280 and 420 px, on the
    ArchSS-like fixture (sixteen points, no questions): no standing mode switch; the bar sticks under the app's top bar while the point scrolls and its line says how
@@ -23,9 +24,7 @@ const headingTop = (page, hid) => page.evaluate(id => Math.round(document.getEle
 const scrollBy = (page, dy) => page.evaluate(by => { document.querySelector('.study-app').scrollTop += by; }, dy);
 /** The sidebar's 复习全书 (at 420 the rail may sit aside: the press is dispatched). */
 const fromSidebar = async page => {
-  const entry = page.locator('[data-tour="nav-book"]').first();
-  await entry.waitFor({ state: 'attached', timeout: 30000 });
-  await entry.dispatchEvent('click');
+  await (await revealNavRow(page, 'book')).dispatchEvent('click');
   await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
 };
 /** 更多 › an item (pressed like the learner's click: the menu closes on any scroll). */
@@ -144,7 +143,7 @@ Written by the main chat at ${width}.` });
       assert.ok(Math.abs(now - kept) <= 3, `${width}px: the re-read keeps the heading where it was: ${kept} -> ${now}`);
 
       // An entry's target wins over the kept place: the home's 期末一周 card opens the book at its point.
-      await page.locator('[data-tour="nav-home"], [data-tour="nav-library"]').first().dispatchEvent('click');
+      await (await revealNavRow(page, 'library')).dispatchEvent('click');
       const card = page.locator('.crunch-card .crunch-day__point').first();
       // This library has a book and no deck of the learner's own, so the home opens on the first-run line (3.6), which holds the 期末一周 card back;
       // 以后再说 folds the line and the home, its 期末一周 card included, is back.

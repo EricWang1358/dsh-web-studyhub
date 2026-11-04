@@ -13,6 +13,7 @@ import { courseNotesMaterial } from '../lib/course-book.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* #461 from the page: an outline organised again over the learner's own notes shows where they would go before they move; 按这样放 applies it; the notice folds to one line that
    leads to the whole list; 撤销这次整理 takes that one rebuild back. Real page at 1280 and 420 px; BOOK_SHOTS=<folder> keeps a picture of each step. */
@@ -78,7 +79,7 @@ test('a save that lands in a pending rebuild: the preview shows, and applying it
       const preview = await running.api('course.book.open', {});
       await running.api('course.book.rebuild', { action: 'undo', outlineId: preview.moves.outlineId });
       await page.goto(running.server.url);
-      await page.locator('[data-tour="nav-book"]').first().click({ timeout: 30000 });
+      await (await revealNavRow(page, 'book')).click({ timeout: 30000 });
       await page.locator('.book-bar').waitFor({ timeout: 30000 });
       await page.locator('.book-bar__more').click();
       await page.getByRole('menuitem', { name: '编辑这个知识点…' }).click();
@@ -123,8 +124,7 @@ test('复习全书: the moves are shown before they happen, can always be read a
           await page.goto(running.server.url);
           const before = await running.api('course.book.revision', {});
           // The real way in: the sidebar's 复习全书, which opens the book before it knows what is there.
-          const entry = page.locator('[data-tour="nav-book"]').first();
-          await entry.waitFor({ timeout: 30000 });
+          const entry = await revealNavRow(page, 'book');
           await entry.click({ timeout: 5000 }).catch(() => entry.dispatchEvent('click'));
           await page.locator('[data-book-rebuild-preview]').waitFor({ timeout: 30000 });
           assert.equal((await running.api('course.book.revision', {})).revision, before.revision, 'opening the preview writes nothing');

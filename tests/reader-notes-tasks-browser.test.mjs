@@ -10,6 +10,7 @@ import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* The reader, 学习笔记, the 任务 console and the course panel after the shortening, in the browser preview on the sample library (the same data the tour
    shows): a selected passage asks with one click, the top-up form starts filled in, the sidebar says what finished, the page scope says whether it follows the
@@ -65,7 +66,7 @@ const selectPassage = (page, { skip = 0, length = 24 } = {}) => page.evaluate(({
 }, { skip, length });
 
 async function openReader(page) {
-  await page.locator('[data-tour="nav-sources"]').first().dispatchEvent('click');
+  await (await revealNavRow(page, 'sources')).dispatchEvent('click');
   await page.locator('.source-doc').first().waitFor({ timeout: 30000 });
   await page.locator('.source-doc').first().locator('.source-main').click();
   await page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
@@ -136,8 +137,8 @@ test('a question run that finished while the learner was elsewhere shows on 任�
   try {
     const { page, errors, context } = await openApp(browser, running);
     try {
-      const entry = page.locator('[data-tour="nav-tasks"]').first();
-      await entry.waitFor({ state: 'attached', timeout: 30000 });
+      // 任务 is folded in 「更多 › 任务、笔记与待办」 (#654): the learner opens 更多 (it stays open across the reload below) to see its number.
+      const entry = await revealNavRow(page, 'tasks');
       assert.equal(await entry.locator('.nav-count').count(), 0, 'nothing has finished yet: no number');
       // The run starts and ends while the learner is on another page; the page is opened again as a learner returning to it would.
       const status = await running.call('sample.status');
@@ -154,7 +155,7 @@ test('a question run that finished while the learner was elsewhere shows on 任�
       await entry.dispatchEvent('click');
       await page.locator('.tc').waitFor({ timeout: 30000 });
       await until(async () => (await entry.locator('.nav-count').count()) === 0, 'the number to clear when the console is open');
-      await page.locator('[data-tour="nav-sources"]').first().dispatchEvent('click');
+      await (await revealNavRow(page, 'sources')).dispatchEvent('click');
       await page.locator('.sources-page').waitFor({ timeout: 30000 });
       assert.equal(await entry.locator('.nav-count').count(), 0, 'and it stays clear after leaving the console');
       await page.reload();
@@ -177,7 +178,7 @@ test('a note has its AI draft as a main button, with the estimate beside it and 
     for (const width of [1280, 420]) {
       const { page, errors, context } = await openApp(browser, running, { width });
       try {
-        await page.locator('[data-tour="nav-notes"]').first().dispatchEvent('click');
+        await (await revealNavRow(page, 'notes')).dispatchEvent('click');
         await page.locator('.note-list').waitFor({ timeout: 30000 });
         await shot(page, `notes-${width}-list`);
         await page.locator('.note-list > button', { hasText: /\d+ 题/ }).first().click();
@@ -209,7 +210,7 @@ test('a page scope says it follows the current course until the learner picks on
     for (const width of [1280, 420]) {
       const { page, errors, context } = await openApp(browser, running, { width });
       try {
-        await page.locator('[data-tour="nav-dashboard"]').first().dispatchEvent('click');
+        await (await revealNavRow(page, 'dashboard')).dispatchEvent('click');
         const scope = page.locator('.page-scope').first();
         await scope.waitFor({ timeout: 30000 });
         assert.match(await scope.innerText(), /跟随当前课程/, `${width}px: nothing picked yet`);
@@ -221,9 +222,9 @@ test('a page scope says it follows the current course until the learner picks on
         await until(async () => /已固定/.test(await scope.innerText()), `${width}px: pinned`);
         await shot(page, `scope-${width}-pinned`);
         // It is remembered for the tab: leaving the page and coming back keeps it pinned.
-        await page.locator('[data-tour="nav-sources"]').first().dispatchEvent('click');
+        await (await revealNavRow(page, 'sources')).dispatchEvent('click');
         await page.locator('.sources-page').waitFor({ timeout: 30000 });
-        await page.locator('[data-tour="nav-dashboard"]').first().dispatchEvent('click');
+        await (await revealNavRow(page, 'dashboard')).dispatchEvent('click');
         await page.locator('.page-scope').first().waitFor({ timeout: 30000 });
         await until(async () => /已固定/.test(await page.locator('.page-scope').first().innerText()), `${width}px: still pinned after a visit elsewhere`);
         // One click and it follows again.
@@ -247,7 +248,7 @@ test('a new course is made from the course list, asked about when its name is ne
     for (const width of [1280, 420]) {
       const { page, errors, context } = await openApp(browser, running, { width });
       try {
-        await page.locator('[data-tour="nav-settings"]').first().dispatchEvent('click');
+        await (await revealNavRow(page, 'settings')).dispatchEvent('click');
         await page.locator('[data-category="courses"]').first().click();
         const create = page.getByRole('button', { name: '新建课程' });
         await create.waitFor({ timeout: 30000 });

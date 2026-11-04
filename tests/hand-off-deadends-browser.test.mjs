@@ -9,6 +9,7 @@ import { StudyService } from '../lib/service.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 「发给主会话」 at the dead ends of adding files and of jobs (the hand-off plan section 2.1 N1–N11, S3, and the empty home's link, plan item 5), in Chromium
    through the REAL host adapter (ui/host/workspace.jsx) and the REAL App on a real library; only DSH is faked (its conversation's submit throws) and the
@@ -148,7 +149,7 @@ test('发给主会话 at the dead ends of adding files and of jobs: only once th
         assert.ok(text >= box - 90 && text >= box * 0.6, `${tag} ${name}: the text column is ${Math.round(text)} px of a ${Math.round(box)} px message`);
         assert.equal(await message.locator(':scope > .sh-feedback__tip, :scope > .sh-inline__action').count(), 0, `${tag} ${name}: no action beside the text`);
       };
-      const go = async (id) => { await page.locator(`[data-tour="nav-${id}"]`).first().click({ timeout: 60000, force: true }); };
+      const go = async (id) => { await (await revealNavRow(page, id)).click({ timeout: 60000, force: true }); };
       /** The control is the shared one; its Tooltip shows on hover (screenshot), a press fills the empty box by setDraft alone. Returns the prompt. */
       const handOver = async (control, { name, first, tail = TAIL } = {}) => {
         await control.waitFor({ timeout: 30000 });

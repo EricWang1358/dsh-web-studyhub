@@ -19,6 +19,7 @@ import { createPreviewServer, previewCall } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
 import { scrubProcessEnv } from "./env.mjs";
+import { revealNavRow } from './nav-reveal.mjs';
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const arg = (name, fallback) => { const hit = process.argv.find((a) => a.startsWith(`--${name}=`)); const at = process.argv.indexOf(`--${name}`);
@@ -137,7 +138,7 @@ try {
       if ((route.request().postData() || "").includes('"job.archive"')) await route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ ok: false, error: "Disk is busy, try again" }) });
       else await route.continue();
     });
-    await page.click('[data-tour="nav-audio"]');
+    await (await revealNavRow(page, 'audio')).click();
     await page.waitForSelector(".audio-jobs .sh-job__dismiss");
     await page.click(".audio-jobs .sh-job__dismiss");
     await sleep(700);
@@ -158,7 +159,7 @@ try {
     process.exit(results.errors.filter((e) => !/status of 400|400 POST/.test(e)).length ? 1 : 0);
   }
   // Audio page.
-  await page.click('[data-tour="nav-audio"]');
+  await (await revealNavRow(page, 'audio')).click();
   await page.waitForSelector(".audio-jobs .sh-job__dismiss", { timeout: 20000 });
   await measure("audio-single", ".audio-jobs .sh-job", 0);
   await page.click('[data-tour="nav-library"]');

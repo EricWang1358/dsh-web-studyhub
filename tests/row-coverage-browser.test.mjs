@@ -7,6 +7,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layout-late.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 为啥有题目没有覆盖率: a 资料 row that says 「N 题」 also says how much of the material has a question. The questions of a re-imported lecture sit on its older version, and
    the questions of a recording made of 2 parts sit on the two single recordings it was merged from; both rows used to have no coverage figure. A material with no question
@@ -47,8 +48,7 @@ test('every material with questions shows its coverage in the chip\'s one wordin
       const { page, errors, context } = await openPage(browser, running, { width, height: 1100 });
       await page.goto(running.server.url);
       await page.locator('aside, nav').first().waitFor({ timeout: 30000 });
-      const nav = page.locator('[data-tour="nav-sources"]').first();
-      await nav.waitFor({ state: 'visible' });
+      const nav = await revealNavRow(page, 'sources');
       await nav.dispatchEvent('click');
       await page.locator('.sources-page .source-doc').first().waitFor({ timeout: 30000 });
       await settleAnimations(page);

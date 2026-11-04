@@ -63,7 +63,7 @@ export async function runJourney({ browser, running, name, lang, width = 1440 })
   };
   const reach = (stage) => tally.milestones.push({ stage, clicks: tally.clicks, typed: tally.fills });
   await page.goto(server.url);
-  await page.locator(".sidebar").first().waitFor({ timeout: 30000 });
+  await page.locator(".sidebar, .nav-menu-toggle").first().waitFor({ timeout: 30000 }); // narrow: the sidebar is a drawer (#657)
   await sleep(1200);
   const snapshot = () => api("snapshot");
   const jobs = async () => (await snapshot()).jobs.length;

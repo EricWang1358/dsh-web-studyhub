@@ -10,6 +10,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { openPage, until } from '../scripts/qa/layout-late.mjs';
 import { StudyService } from '../lib/service.js';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 模拟考试 交卷 in the real app on a seeded temporary library: with questions still open the dialog says how many (and
    继续作答 leaves the paper as it was); with every question answered 交卷 hands the paper in at once, no dialog. */
@@ -50,8 +51,7 @@ test('交卷 asks only about questions that are still open, and a full paper goe
       [`study-page-scope:v1:${JSON.stringify([snapshot.root, 'exam'])}`, 'Databases']);
     await page.goto(server.url);
     await page.locator('aside, nav').first().waitFor({ timeout: 30000 });
-    const entry = page.locator('[data-tour="nav-exam"]').first();
-    await entry.waitFor({ state: 'attached', timeout: 30000 });
+    const entry = await revealNavRow(page, 'exam');
     await entry.dispatchEvent('click');
     await page.locator('.es-sheet').waitFor({ timeout: 30000 });
     await page.getByRole('button', { name: '开始考试' }).click();

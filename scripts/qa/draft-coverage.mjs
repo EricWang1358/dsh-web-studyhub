@@ -11,6 +11,7 @@ import { previewCall } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
 import { mergedTranscript } from "../../tests/helpers/merged-transcript.mjs";
+import { revealNavRow } from "./nav-reveal.mjs";
 
 const world = mergedTranscript({ recordings: 1, parts: 5, paragraphs: 3 });
 
@@ -43,7 +44,7 @@ export async function runDraftQa(options) {
       const call = (action, args = {}) => previewCall(server, action, { ...args, uiLanguage: options.lang });
       const facts = {}, narrow = options.width < 700, strict = !!options.check;
       summary.facts = facts;
-      const goto = async (nav) => { const entry = page.locator(`[data-tour="nav-${nav}"]`).first(); await entry.waitFor({ state: "attached" }); await entry.dispatchEvent("click"); await sleep(900); };
+      const goto = async (nav) => { const entry = await revealNavRow(page, nav); await entry.click(); await sleep(900); };
       const idle = async () => { for (let guard = 0; guard < 600; guard += 1) { if (!(await call("snapshot", {})).jobs.some((job) => ["queued", "running", "cancelling"].includes(job.status))) return; await sleep(250); } throw new Error("the jobs did not finish"); };
       const noOverflow = async (label) => { const probe = await page.evaluate(overflowProbe); assert.ok(probe.scrollWidth <= probe.clientWidth + 1, `horizontal overflow on ${label}: ${JSON.stringify(probe)}`); };
       const settle = async (ms = 600) => {

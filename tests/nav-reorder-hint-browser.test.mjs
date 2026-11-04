@@ -9,8 +9,8 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { startNavServer } from '../scripts/qa/nav-layout.mjs';
 
 /* Issue 569 in a real browser: the sidebar's tooltips say what a page is for; 「长按并拖动可调整顺序（键盘：Alt+↑/↓）」 is in the first one the
-   learner opens and in no other, not even after a reload; wide, the tooltip does not repeat the label beside it; in the 420px rail, where the
-   row is an icon, it names the page. Needs a Chromium; without one the test says so instead of passing silently. */
+   learner opens and in no other, not even after a reload; the tooltip does not repeat the label beside it, wide or in the 420px drawer (#657:
+   there is no icon rail any more, so no row has to name itself in its tooltip). Needs a Chromium; without one the test says so instead of passing silently. */
 const LINE = '长按并拖动可调整顺序（键盘：Alt+↑/↓）';
 
 test('the reorder line is said once, the label only where it is not on screen', { timeout: 300000 }, async (t) => {
@@ -25,6 +25,9 @@ test('the reorder line is said once, the label only where it is not on screen', 
     const page = await context.newPage(), errors = [];
     page.on('pageerror', (error) => errors.push(String(error)));
     await page.goto(running.server.url);
+    // At 420 the sidebar is a drawer behind the top bar's menu button (#657).
+    await page.locator('.sidebar, .nav-menu-toggle').first().waitFor({ timeout: 30000 });
+    if (!await page.locator('.sidebar').count()) await page.locator('.nav-menu-toggle').click();
     await page.locator('[data-nav-id="library"]:not([disabled])').waitFor({ timeout: 30000 });
     return { context, page, errors };
   };
@@ -48,7 +51,7 @@ test('the reorder line is said once, the label only where it is not on screen', 
         assert.ok(first.some((line) => line.startsWith('每次打开先看这里')), 'and what the page is for');
         assert.ok(!first.includes('学习库'), `the label is on screen beside it, so not in the tooltip: ${JSON.stringify(first)}`);
         assert.equal(await page.evaluate(() => localStorage.getItem('study-nav-reorder-hint:v1')), 'true');
-        for (const id of ['sources', 'board', 'library']) {
+        for (const id of ['sources', 'wrongbook', 'library']) {
           const lines = await hover(page, id);
           assert.ok(!lines.includes(LINE), `${id}: said once is enough: ${JSON.stringify(lines)}`);
           assert.ok(lines.length >= 1, `${id}: still says what it is for`);
@@ -60,16 +63,15 @@ test('the reorder line is said once, the label only where it is not on screen', 
         assert.deepEqual(errors, []);
       } finally { await context.close(); }
     });
-    await t.test('420: the rail is icons, so the tooltip names the page', async () => {
+    await t.test('420: the drawer has every label, so no tooltip names its row again; the first one still says how to reorder', async () => {
       const { context, page, errors } = await open(420);
       try {
-        assert.equal(await page.locator('.sidebar.is-narrow').count(), 1, 'the narrow window draws the rail');
+        assert.equal(await page.locator('.sidebar.is-drawer').count(), 1, 'the narrow window has the drawer, not a rail');
         const lines = await hover(page, 'library');
-        assert.ok(lines.slice(0, 2).includes('学习库'), `the page is named first: ${JSON.stringify(lines)}`);
-        assert.ok(lines.includes(LINE), 'and the first tooltip still says how to reorder');
-        const next = await hover(page, 'notes');
-        assert.equal(next[0], '学习笔记', `the next row is named too: ${JSON.stringify(next)}`);
-        assert.ok(!next.includes(LINE));
+        assert.ok(!lines.includes('学习库'), `the label is on screen beside it: ${JSON.stringify(lines)}`);
+        assert.ok(lines.includes(LINE), 'the first tooltip says how to reorder');
+        const next = await hover(page, 'sources');
+        assert.ok(!next.includes('资料') && !next.includes(LINE), `the next row neither: ${JSON.stringify(next)}`);
         assert.deepEqual(errors, []);
       } finally { await context.close(); }
     });

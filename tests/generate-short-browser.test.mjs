@@ -12,6 +12,7 @@ import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { StudyService } from '../lib/service.js';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 创建题组 in the browser preview on a seeded library: the page opens with the current course's documents that have no question ticked and says why, the main path is the question types,
    the 覆盖强度 (精简 / 标准 / 完整 / 自定义, one on at a time, #664) and one line for the course (更改 opens the one field of it, #665) with 前往设置, the plan (rounds, tokens) is said once under the form,
@@ -65,7 +66,7 @@ const shotForm = async (page, name) => {
   await page.setViewportSize(size);
 };
 const goGenerate = async page => {
-  await page.locator('[data-tour="nav-generate"]').first().dispatchEvent('click');
+  await (await revealNavRow(page, 'generate')).dispatchEvent('click');
   await page.locator('.generate-page form').waitFor({ timeout: 30000 });
 };
 

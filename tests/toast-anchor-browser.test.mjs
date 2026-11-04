@@ -11,6 +11,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { StudyService } from '../lib/service.js';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* A toast has one anchor: the bottom edge of the visible viewport, however tall the page behind it is (ui/components/components.css, the page rail). It used
    to be a zero-height sticky rail at the END of the page, so on a page with three rows it floated right under the last row, in the middle of the screen (#677).
@@ -55,8 +56,7 @@ test('a toast stays at the bottom edge of the viewport, on a page of 3 rows and 
           const { page, context, errors } = await openPage(browser, running, { width, height });
           try {
             await page.goto(running.server.url);
-            await page.locator('[data-tour="nav-sources"]').first().waitFor({ timeout: 30000 });
-            await page.locator('[data-tour="nav-sources"]').first().dispatchEvent('click');
+            await (await revealNavRow(page, 'sources')).click();
             await page.locator('.sources-page').waitFor({ timeout: 30000 });
             await page.locator('[data-tour="sources-add"]').first().click();
             const dialog = page.locator('dialog[open], [role="dialog"]').first();

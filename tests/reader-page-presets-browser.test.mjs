@@ -9,6 +9,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { frames, openPage, startLateServer, until } from '../scripts/qa/layout-late.mjs';
 import { makeTextPdf, LECTURE_PAGES } from './helpers/text-pdf.mjs';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* #485 in the browser: a preset of the learner's own in the 原始 PDF panel — added, asking with its exact words, kept across a reload,
    wrapping in the two-column row at 420 px, and gone at once when deleted. The wording of the four built-ins is asserted in
@@ -34,7 +35,7 @@ test('原始 PDF: a preset of one\'s own is added, asks with its exact words, su
     page.on('pageerror', error => pageErrors.push(String(error)));
     /** Open the imported PDF in 原始 PDF with its learning panel (the panel the presets sit in). */
     const openOriginal = async () => {
-      await page.locator('[data-tour="nav-sources"]').first().click().catch(() => {});
+      await (await revealNavRow(page, 'sources')).click().catch(() => {});
       await page.locator('.source-doc').first().locator('.source-main').click();
       await page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
       await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();

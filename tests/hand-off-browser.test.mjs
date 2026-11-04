@@ -10,6 +10,7 @@ import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs'
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { seedBookFixture } from './helpers/book-fixtures.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 「发给主会话」 in Chromium through the REAL host adapter (ui/host/workspace.jsx) and the REAL App on a real library with a 复习全书 (the hand-off plan, S2a):
    only DSH is faked, and its conversation is wrapped in a Proxy whose submit throws. From the book's 问 AI panel, with direction B's receipts:
@@ -150,7 +151,7 @@ test('发给主会话 from the book through the real host adapter: the four rece
     await page.evaluate(() => { window.installDsh(); window.mountPage(); });
     await page.waitForTimeout(100);
     await page.evaluate(() => { window.dshReady = true; });
-    await page.locator('[data-tour="nav-book"]').first().click({ timeout: 60000 });
+    await (await revealNavRow(page, 'book', { timeout: 60000 })).click({ timeout: 60000 });
     await page.locator('[data-book-point]').first().waitFor({ timeout: 60000 });
     const tag = `${language}-${width}-${theme}`;
     // A picture waits for the slip's entrance to end; a hovered button waits for its Tooltip.
@@ -361,7 +362,7 @@ test('发给主会话 from the book through the real host adapter: the four rece
     if (language === 'zh' && (shots || (width === 1280 && theme === 'light'))) {
       await reset({ composerText: '我自己先打的字' });
       await page.getByRole('button', { name: '回到总纲' }).first().click();
-      await page.locator('[data-tour="nav-workflows"]').first().click();
+      await (await revealNavRow(page, 'workflows')).click();
       await page.locator('details.wf-advanced > summary').click();
       const chat = page.locator('details.wf-advanced details.wf-chat');
       await chat.locator('summary').click();

@@ -9,7 +9,6 @@ import { ARCHIFY_CARD_PREFIX } from '../archify.js';
 import { BOOK_MOVES_PREFIX } from '../book/BookMoves.jsx';
 import { BOOK_BACKUP_PREFIX } from '../study-map/BookBackupHint.jsx';
 import { JEV_GUIDE_KEY } from '../jev-flow.js';
-import { NAV_START_KEY } from '../nav-start.js';
 import { NAV_REORDER_HINT_ID, NAV_REORDER_HINT_KEY } from '../nav-reorder-hint.js';
 import { NEXT_CARD_PREFIX } from '../study-map/next-dismiss.js';
 
@@ -64,8 +63,6 @@ export const GUIDANCE_ITEMS = Object.freeze([
   { id: 'book.backup', kind: 'card', where: '学习库首页', title: '备份学习库的提醒', trigger: '这个学习库第一次有复习全书时说一次：想退回旧版前，先把学习库文件夹复制一份。', again: '下次打开学习库首页时', memory: local(BOOK_BACKUP_PREFIX, 'prefix'), dismiss: 'forever', proactive: false },
   { id: 'skeleton.archify', kind: 'card', where: '知识骨架', title: '推荐用 Archify 画图', trigger: '在知识骨架页推荐开源插件 Archify；点「以后再说」后不再出现。', again: '下次打开知识骨架页时', memory: local(ARCHIFY_CARD_PREFIX, 'prefix'), dismiss: 'forever', proactive: true },
   { id: 'book.moves', kind: 'card', where: '复习全书', title: '笔记换了位置', trigger: '总纲重新整理后，说一次哪些笔记移到了新位置；点「知道了」后收成一行，列表随时能看。下次重新整理还会再说。', again: '总纲重新整理过、有笔记换了位置时，下次打开复习全书时', memory: local(BOOK_MOVES_PREFIX, 'prefix'), dismiss: 'until-condition', proactive: true },
-  // 步骤 5's 「从这里开始」 dots (ui/nav-start.js). The key holds the pages already opened, so 再显示一次 here removes it and every dot comes back.
-  { id: 'nav.start', kind: 'nudge', where: '侧栏', title: '从这里开始的小圆点', trigger: '还没有打开过某一页时，侧栏这一项旁边有一个小圆点；打开过就消失。', again: '下次打开侧栏时', dismiss: 'until-condition', proactive: false, memory: local(NAV_START_KEY) },
   // The sidebar's reorder line (ui/nav-reorder-hint.js), said in the first row tooltip the learner opens and then never again. Not proactive: it is part of a
   // tooltip the learner asked for, so the switches and the daily budget do not apply; the keys stay in the shortcut sheet.
   { id: NAV_REORDER_HINT_ID, kind: 'tip', where: '侧栏', title: '侧栏怎么调整顺序', trigger: '第一次把鼠标停在侧栏的某一项上（或用键盘移到它）时，提示里多一句「长按并拖动可调整顺序（键盘：Alt+↑/↓）」；说过一次就不再说。', again: '下次把鼠标停在侧栏的某一项上时', dismiss: 'forever', proactive: false, memory: local(NAV_REORDER_HINT_KEY) },

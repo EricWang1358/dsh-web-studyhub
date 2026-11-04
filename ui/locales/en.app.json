@@ -20,7 +20,6 @@
   "{0} · 已归档": "{0} · Archived",
   "题组「{0}」· 已录入 {1} 题": "Deck “{0}” · Questions imported: {1}",
   "有本窗口暂存的编辑：{0}（尚未发布）": "Unsaved edits in this window: {0} (not published)",
-  "外观 · {0}": "Appearance · {0}",
   "这个页面需要的组件没有启用": "The components this page needs are not enabled",
   "备考补习还没有开启": "Exam prep is not turned on yet",
   "备考补习在设置里被关掉了，要用的话在设置里重新打开；已保存的考点清单仍可阅读。": "Exam prep is turned off in Settings. Turn it back on there to use it; saved point lists stay readable.",

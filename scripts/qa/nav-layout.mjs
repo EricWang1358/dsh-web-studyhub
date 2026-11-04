@@ -2,6 +2,9 @@
                                   [--modes=expanded,collapsed] [--out=<dir>] [--dist=<dir with app.js/app.css>] [--shots] [--json=<file>]
    The sidebar navigation measured in the browser preview (UI consistency).
 
+   In drawer mode (the sidebar put away, or a window too narrow for it, #657) the sidebar is measured inside its drawer: every state opens
+   the drawer from the top bar's menu button, measures, and closes it with Esc.
+
    Runs the real preview server on a throw-away library (os temp dir, fake model, no network, every key/token/base-url
    variable removed) and, for each UI language, theme, window width and sidebar mode, walks the learner through the
    states the sidebar must survive: an empty library, a library with data and no run, a run open (on the study page,
@@ -13,7 +16,7 @@
      1. no row of the sidebar moves or changes height from one state to the next, so nothing below the resume row
         jumps when a run starts or ends or the learner changes page (the busy state may insert the 为你定制 row, so
         it is only compared by height; the bottom group is compared by its distance to the bottom of the rail);
-     2. rows of one kind share one height (study rows, upkeep rows, bottom rows);
+     2. rows of one kind share one height (the rows above, the bottom rows);
      3. exactly one row is marked aria-current, it is never disabled;
      4. the gliding highlight sits on the active row of the rail.
    Screenshots (--shots) go to <out>/<width>-<lang>-<theme>-<mode>-<state>.png. */
@@ -44,9 +47,9 @@ export async function measureSidebar(page) {
     if (!side) return null;
     const origin = side.getBoundingClientRect();
     const r1 = (n) => Math.round(n * 10) / 10;
-    const keyOf = (el) => el.dataset.navId || el.dataset.tour || [...el.classList].find((c) => /-nav$|^theme-cycle$|^update-chip$|study-language/.test(c)) || el.className;
-    const rows = [...side.querySelectorAll("button.nav, .study-language-switch, .update-chip")]
-      .filter((el) => el.getBoundingClientRect().height > 0)
+    const keyOf = (el) => el.dataset.navId || el.dataset.tour || [...el.classList].find((c) => /-nav$|^update-chip$/.test(c)) || el.className;
+    const rows = [...side.querySelectorAll("button.nav, .update-chip")]
+      .filter((el) => el.checkVisibility()) // a row in a closed 「更多」 keeps a layout box: ask whether it is drawn
       .map((el) => {
         const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
         const label = el.querySelector(".nav-label");
@@ -55,7 +58,7 @@ export async function measureSidebar(page) {
         return {
           key: keyOf(el), text: el.textContent.trim().replace(/\s+/g, " ").slice(0, 60),
           top: r1(r.top - origin.top), bottom: r1(origin.bottom - r.bottom), height: r1(r.height), left: r1(r.left - origin.left), width: r1(r.width),
-          zone: el.closest(".sidebar-bottom") ? "bottom" : /nav-upkeep/.test(el.className) ? "upkeep" : "study",
+          zone: el.closest(".sidebar-bottom") ? "bottom" : "study",
           weight: cs.fontWeight, opacity: cs.opacity, cursor: cs.cursor,
           truncated: !!label && label.scrollWidth > label.clientWidth + 1,
           disabled: !!el.disabled, ariaDisabled: el.getAttribute("aria-disabled"), ariaCurrent: el.getAttribute("aria-current"),
@@ -76,7 +79,7 @@ export async function measureSidebar(page) {
     }
     return {
       bar,
-      sidebarWidth: Math.round(origin.width), sidebarHeight: Math.round(origin.height), narrow: side.classList.contains("is-narrow"),
+      sidebarWidth: Math.round(origin.width), sidebarHeight: Math.round(origin.height), drawer: side.classList.contains("is-drawer"),
       mark: m ? { top: r1(m.top - origin.top), height: r1(m.height) } : null,
       rows,
     };
@@ -102,7 +105,7 @@ export function checkContract(states, label, { insertsRows = [] } = {}) {
   const base = states[names[0]];
   for (const name of names) {
     const s = states[name], at = `${label} ${name}`;
-    for (const kind of ["study", "upkeep", "bottom"]) {
+    for (const kind of ["study", "bottom"]) {
       const heights = [...new Set(s.rows.filter((r) => r.zone === kind && r.key !== "update-chip").map((r) => r.height))];
       if (heights.length > 1) problems.push(`${at}: ${kind} rows differ in height: ${heights.join(", ")}`);
     }
@@ -161,10 +164,19 @@ export async function collectStates({ browser, running, lang, theme, width, mode
     } catch { return route.abort().catch(() => {}); } // the page navigated away while the snapshot was in flight: the answer is no longer wanted
   });
   const settle = async (ms = 700) => { await page.waitForLoadState("networkidle").catch(() => {}); await sleep(ms); };
-  const open = async () => { await page.goto(server.url); await page.locator(".sidebar").first().waitFor({ timeout: 120000 }); await settle(900); };
+  // The sidebar, or in drawer mode the top bar's menu button that opens it (#657).
+  const open = async () => { await page.goto(server.url); await page.locator(".sidebar, .nav-menu-toggle").first().waitFor({ timeout: 120000 }); await settle(900); };
+  const drawer = async () => {
+    if (await page.locator(".sidebar").count()) return false;
+    await page.locator(".nav-menu-toggle").click();
+    await page.locator(".nav-drawer .sidebar").waitFor();
+    await settle(400);
+    return true;
+  };
   const states = {};
   const record = async (name) => {
     // Let the sliding highlight and any transition finish: measure until two readings 150 ms apart agree (at most two seconds).
+    const opened = await drawer();
     let reading = await measureSidebar(page);
     for (let tries = 0; tries < 14; tries++) {
       await sleep(150);
@@ -175,8 +187,11 @@ export async function collectStates({ browser, running, lang, theme, width, mode
     }
     states[name] = reading;
     if (shots) await page.screenshot({ path: join(out, `${width}-${lang}-${theme}-${mode}-${name}.png`) });
+    if (opened) { await page.keyboard.press("Escape"); await page.locator(".nav-drawer").waitFor({ state: "detached" }); }
   };
-  const nav = async (id) => { await page.locator(`[data-tour="nav-${id}"]`).first().click(); await settle(900); };
+  // Choosing a page from the drawer closes it.
+  const nav = async (id) => { await drawer(); await page.locator(`[data-tour="nav-${id}"]`).first().click(); await settle(900); };
+  const resume = async () => { await drawer(); await page.locator(".resume-nav").click(); await settle(900); };
   await open();
   await record("1-empty");
   await api("source.add", { id: "s1", title: "Bridge", text: quote });
@@ -184,7 +199,7 @@ export async function collectStates({ browser, running, lang, theme, width, mode
   await api("draft.publish", { id: "d1" });
   await open();
   await record("2-data-no-run");
-  await page.locator(".resume-nav").click(); await settle(900);
+  await resume();
   await record("3-run-open");
   await nav("library");
   await record("4-run-open-library");
@@ -194,7 +209,7 @@ export async function collectStates({ browser, running, lang, theme, width, mode
     const run = (await api("snapshot")).lastRun;
     await api("card.update", { cardId: "c3", patch: { hint: "Count the reasons to change." }, reason: "补充提示" });
     await open();
-    await page.locator(".resume-nav").click(); await settle(900);
+    await resume();
     await page.locator(".mailbox__toggle").click(); await settle(400);
     await page.locator(".mailbox__item").first().click().catch(() => {}); await settle(900);
     await record("6-detour");

@@ -84,7 +84,7 @@ async function runCombo({ browser, lang, theme, width, out, dist }) {
   const text = async (selector) => (await page.locator(selector).first().innerText().catch(() => "")).replace(/\s+/g, " ");
 
   await page.goto(server.url);
-  await page.locator(".sidebar").first().waitFor({ timeout: 30000 });
+  await page.locator(".sidebar, .nav-menu-toggle").first().waitFor({ timeout: 30000 }); // narrow: the sidebar is a drawer (#657)
   await settle(1200);
   await shot("01-home-before");
   const homeBefore = await text(".today-card");

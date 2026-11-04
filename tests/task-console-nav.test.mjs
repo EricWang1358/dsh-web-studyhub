@@ -8,20 +8,22 @@ import { usageEntry } from '../lib/usage-registry.js';
 
 // WP-TC step 1: the 任务 page in the sidebar, its running-count badge and the deep link to one job.
 
-test('任务 is a sidebar page of every day, right after 创建题组, that needs no host component', () => {
+// #654: the sidebar's groups are by content; 任务 heads 「更多 › 任务、笔记与待办」 (it was in 每天, after 创建题组). A failed job still shows: the
+// one attention dot goes on 「更多」 while it is closed (ui/nav-alert.js, tests/nav-alert.test.mjs).
+test('任务 is a sidebar page of 更多 › 任务、笔记与待办, first in it, that needs no host component', () => {
   assert.equal(PAGES.tasks.label, '任务');
-  assert.equal(PAGES.tasks.group, 'daily');
+  assert.equal(PAGES.tasks.group, 'notes');
   assert.equal(PAGES.tasks.glyph, 'tasks');
   assert.deepEqual(pageNeeds('tasks'), [], 'the console only reads what the snapshot already holds');
-  const daily = NAV_DEFAULTS.daily;
-  assert.equal(daily[daily.indexOf('generate') + 1], 'tasks');
-  assert.deepEqual(pagesInGroup('daily'), daily);
+  const notes = NAV_DEFAULTS.notes;
+  assert.equal(notes[0], 'tasks');
+  assert.deepEqual(pagesInGroup('notes'), notes);
   // A learner's saved order keeps its sequence; the page they never saw is added after it (mergeOrder).
-  const merged = mergeOrder({ daily: ['notes', 'library'] }, NAV_DEFAULTS).daily;
-  assert.deepEqual(merged.slice(0, 2), ['notes', 'library']);
+  const merged = mergeOrder({ notes: ['board', 'notes'] }, NAV_DEFAULTS).notes;
+  assert.deepEqual(merged.slice(0, 2), ['board', 'notes']);
   assert.ok(merged.includes('tasks'));
   assert.ok(usageEntry('nav.tasks'), 'the sidebar entry is a registered control');
-  assert.equal(usageEntry('nav.tasks').navGroup, 'daily');
+  assert.equal(usageEntry('nav.tasks').navGroup, 'notes');
 });
 
 test('the library remembers which job the console was opened on, and forgets it with the library', () => {

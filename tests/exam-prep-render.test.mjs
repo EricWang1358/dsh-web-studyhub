@@ -61,10 +61,10 @@ const row = source => ui.listRow(examPointListSummary(source));
 /* ---------- registration ---------- */
 
 test('the sidebar entry and the page exist only while the switch is on', () => {
-  const entries = data => ui.NAV_DEFAULTS.periodic.filter(id => ui.pageAvailable(data, id));
+  const entries = data => [...ui.NAV_DEFAULTS.main, ...ui.NAV_DEFAULTS.exam].filter(id => ui.pageAvailable(data, id));
   assert.ok(entries(dataWith([mine], { on: true })).includes('examprep'));
   assert.ok(!entries(dataWith([mine], { on: false })).includes('examprep'));
-  assert.deepEqual(entries(dataWith([mine], { on: false })), ['exam', 'book', 'dashboard'], 'nothing else changes');
+  assert.deepEqual(entries(dataWith([mine], { on: false })), ['library', 'sources', 'generate', 'wrongbook', 'exam', 'dashboard'], 'nothing else changes');
   assert.equal(ui.PAGES.examprep.glyph, 'examprep');
 });
 
