@@ -15,6 +15,7 @@ const EXECUTION = [/^lib\/jobs\//, /^lib\/runtime[./]/, /^lib\/job[-.]/, /^lib\/
   /^lib\/draft-continuation/, /^lib\/coverage-run/, /^lib\/shortfall/, /^lib\/batch/];
 // What nothing in production reaches and stays on purpose: a vocabulary or helper a test pins. A NEW entry here needs a reason a reviewer accepts.
 const KEPT = {
+  'lib/audio-dashboard.js#flushAudioUsage': 'waits for the pending usage-ledger write; the audio suites and their fixtures await it in teardown before the temporary home goes',
   'lib/audio-file.js#splitWav': 'the whole-file WAV splitter; the quiet-cut one is what production calls, and audio.test.mjs pins the plain one',
   'lib/audio-import.js#plainModel': 'a pass-through wrapper that audio-retry.test.mjs pins',
   'lib/contexts/jobs/contracts.js#JOB_STAGE_CODES': 'the vocabulary of stage codes; wp4-stage-codes.test.mjs asserts it is complete',
