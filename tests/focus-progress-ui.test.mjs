@@ -48,7 +48,7 @@ const desk = (over = {}, props = {}) => {
 
 test('the home line counts the focus topics and sits under the course progress, in one line with one link', () => {
   const html = desk(), line = visible(html);
-  assert.match(line, /重点 8 条：已掌握 3 · 还不会 2 · 还没有题 1 · 学习中 2/);
+  assert.match(line, /重点 8 条：已掌握 3 · 还不会 2 · 还没有题 1(?! ·)/);
   assert.match(line, /练还不会的重点 →/);
   assert.equal((html.match(/练还不会的重点/g) || []).length, 1);
   assert.ok(html.indexOf('class="focus-progress"') > html.indexOf('course-heading'), 'under the course title');
@@ -59,7 +59,7 @@ test('zero counts are left out, and nothing to practise means no link', () => {
   const done = { ...progress, total: 2, done: 2, weak: 0, none: 0, weakScope: [], topics: progress.topics.filter(topic => topic.status === 'done').concat(progress.topics.filter(topic => topic.status === 'done')) };
   const line = visible(desk({ progress: done }));
   assert.match(line, /重点 2 条：已掌握 2/);
-  assert.doesNotMatch(line, /还不会|还没有题|学习中|练还不会的重点/);
+  assert.doesNotMatch(line, /还不会|还没有题|练还不会的重点/);
 });
 
 test('the line is hidden without focus topics, in 笔试 / 面试 mode, and when the readout is empty', () => {
@@ -77,7 +77,7 @@ test('how it is counted is a hover Tooltip, never a title attribute', () => {
 
 test('English: every word of the line and its explanation is English', () => {
   const html = render(h(m.FocusProgressLine, { progress, courseId: 'course-os', busy: false, start: noop, onCourseSettings: noop }), 'en'), line = visible(html);
-  assert.match(line, /Focus topics 8: Mastered 3 · Not yet 2 · No questions 1 · Learning 2/);
+  assert.match(line, /Focus topics 8: Mastered 3 · Not yet 2 · No questions 1(?! ·)/);
   assert.match(line, /Practise the focus topics you can't do yet →/);
   assert.doesNotMatch(text(html), /[㐀-鿿]/, 'the explanation too');
   const rows = text(render(h(m.FocusProgressRows, { progress }), 'en'));

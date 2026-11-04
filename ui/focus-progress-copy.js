@@ -15,14 +15,12 @@ export function statusLabel(status) {
 /** Badge tone of a status: only the topics that need the learner's attention are coloured. */
 export const statusTone = (status) => (status === 'weak' ? 'warning' : status === 'done' ? 'success' : 'neutral');
 
-/** The counts of a readout as short phrases, zero counts left out: 已掌握 3 · 还不会 2 · 还没有题 1 · 学习中 2. */
+/** The counts of a readout as short phrases, zero counts left out: 已掌握 3 · 还不会 2 · 还没有题 1. The topics still being learned are the rest, so the line stays short enough for a phone. */
 export function summaryParts(progress) {
-  const learning = progress.total - progress.done - progress.weak - progress.none;
   return [
     progress.done > 0 && uiFormat('已掌握 {0}', [progress.done]),
     progress.weak > 0 && uiFormat('还不会 {0}', [progress.weak]),
     progress.none > 0 && uiFormat('还没有题 {0}', [progress.none]),
-    learning > 0 && uiFormat('学习中 {0}', [learning]),
   ].filter(Boolean);
 }
 
