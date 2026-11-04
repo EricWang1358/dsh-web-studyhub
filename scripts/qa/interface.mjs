@@ -19,6 +19,9 @@ export async function runInterfaceQa(options) {
         await page.waitForSelector(".settings-nav", { timeout: 15000 });
         if (!(await page.locator(".appearance-settings").first().isVisible().catch(() => false))) await page.locator('[data-category="appearance"]').click();
         await page.locator(".appearance-settings").waitFor({ state: "visible", timeout: 15000 });
+        // The typefaces, animation and the rest are behind 更多外观选项 (#679): open it, as the finder and the tour do.
+        const more = page.locator(".appearance-more").first();
+        if (!(await more.evaluate((element) => element.open))) await more.locator("> summary").click();
       };
       await step("settings-interface-section", async () => {
         await open();
@@ -79,21 +82,29 @@ export async function runInterfaceQa(options) {
         if (!["full", "reduced"].includes(await root("data-motion"))) throw new Error("auto resolves to full or reduced");
       });
       await step("appearance-backup", async () => {
-        // 恢复默认外观 and the export / import of the whole look (one small piece of text), through the same whitelist.
+        // 恢复默认外观, and the copy / import of the whole look (one small piece of text, pasted into a dialog), through the same whitelist.
         await open();
         await choose("150%").click(); await choose(t("宋体 / 衬线", "Serif (Song)")).click(); await sleep(300);
-        await choose(t("导出外观", "Export appearance")).click(); await sleep(200);
-        const box = page.locator(".appearance-backup textarea");
-        const exported = await box.inputValue();
+        if (await page.locator(".appearance-backup textarea").count()) throw new Error("a raw text box is on the settings page");
+        await browserContext.grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => {});
+        await choose(t("复制外观设置", "Copy appearance settings")).click(); await sleep(300);
+        const exported = await page.evaluate(() => navigator.clipboard.readText());
         const parsed = JSON.parse(exported);
         if (parsed.scale !== 150 || parsed.font !== "serif" || parsed.studyhubAppearance !== 1) throw new Error(`export ${exported}`);
         await choose(t("恢复默认外观", "Restore default appearance")).click(); await sleep(300);
         if ((await root("data-ui-scale")) !== "100" || (await root("data-ui-font")) !== "system" || (await root("data-theme")) === null) throw new Error("the defaults did not come back");
-        await box.fill(exported); await choose(t("导入外观", "Import appearance")).click(); await sleep(300);
+        const importText = async (text) => {
+          await choose(t("导入外观", "Import appearance")).click();
+          const dialog = page.locator("dialog[open]");
+          await dialog.locator("textarea").fill(text);
+          await dialog.getByRole("button", { name: t("导入外观", "Import appearance"), exact: true }).click(); await sleep(300);
+        };
+        await importText(exported);
         if ((await root("data-ui-scale")) !== "150" || (await root("data-ui-font")) !== "serif") throw new Error("the import did not apply");
-        await box.fill('{"studyhubAppearance":2,"scale":200}'); await choose(t("导入外观", "Import appearance")).click(); await sleep(300);
+        await importText('{"studyhubAppearance":2,"scale":200}');
         if ((await root("data-ui-scale")) !== "150") throw new Error("a foreign text changed the look");
         await page.getByText(t("这不是 StudyHub 的外观设置，没有改动。", "That is not StudyHub appearance settings; nothing was changed.")).waitFor({ timeout: 3000 });
+        await page.keyboard.press("Escape"); await sleep(200);
         const stored = await page.evaluate(() => ({ theme: localStorage.getItem("study-theme"), interface: JSON.parse(localStorage.getItem("study-interface")) }));
         if (stored.interface.scale !== 150 || !stored.theme) throw new Error(`stored ${JSON.stringify(stored)}`);
         return stored;

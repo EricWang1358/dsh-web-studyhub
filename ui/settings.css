@@ -102,6 +102,8 @@
     .guidance-item__actions { display: flex; justify-content: flex-end; }
     .guidance-item__note { grid-column: 1 / -1; margin: 0; }
     .settings-page .appearance-backup { display: grid; gap: var(--space-2); }
+    /* 恢复默认外观 is a quiet button on the left edge: it hangs its padding so its text lines up with the choices above it. */
+    .settings-page .appearance-backup > .settings-actions > .sh-btn--quiet:only-child { margin-inline-start: calc(var(--space-3) * -1 - var(--space-half) / 2); }
   }
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {

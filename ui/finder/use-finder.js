@@ -75,22 +75,23 @@ export function useFinder({ nav, settingsEntry, core, tour, rootRef }) {
     setRing(null);
     const mine = ++trip.current, aborted = () => trip.current !== mine;
     const root = rootRef.current, plan = planTrip(entry, { page: latest.current.page });
-    let hit = plan.here ? locateAnchor(root, entry.anchors) : null;
+    let hit = plan.here ? locateAnchor(root, entry.anchors) : null, linked = false;
     if (!hit) {
-      if (plan.settings) openSettings(plan.settings);
+      if (plan.settings) { openSettings(plan.settings); linked = true; }
       else if (plan.land) navigate(plan.land, { keepTrail: false, enter: 'tour', scroll: true });
       hit = await waitFor(() => locateAnchor(root, entry.anchors), ANCHOR_WAIT_MS, aborted);
     }
     if (aborted()) return;
     const notice = tripNotice(entry, hit ? hit.index : -1);
     if (hit) {
-      // The fold we opened has told its page by now (its toggle event); the page draws what it holds. Settings scrolls to its own anchor.
+      // The fold we opened has told its page by now (its toggle event); the page draws what it holds. Settings scrolls to its own anchor (unless the control sat in a fold we opened).
       await frames(2);
       if (hit.opened && !reducedMotion()) await new Promise((resolve) => setTimeout(resolve, FOLD_SETTLE_MS));
       if (aborted()) return;
       const element = hit.element.isConnected ? hit.element : findAnchor(root, entry.anchors);
       if (element) {
-        if (!plan.settings) element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
+        // Settings scrolls to the anchor of its own link, but not when the page was already there (no link) and not to a control inside a fold it could not see yet (hit.opened).
+        if (!linked || hit.opened) element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
         focusTarget(element);
         setRing({ key: mine, resolve: () => (element.isConnected ? element : findAnchor(root, entry.anchors)) });
       }
