@@ -479,7 +479,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           (pinned.length ? (rest.length ? uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。", [filtered.length, pinned.length, groups.length]) : uiFormat(" 共 {0} 份资料，全部置顶。", [filtered.length]))
             : uiFormat(" 共 {0} 份资料，按导入日期分为 {1} 组。", [filtered.length, groups.length]))}</>}
         actions={<>
-          <Button variant="quiet" data-archive-toggle aria-pressed={showArchived} onClick={() => { setShowArchived(value => !value); setSelected([]); setProposals(null); }}>{showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [allItems.filter(item => item.archived).length])}</Button>
+          <Button variant="quiet" data-archive-toggle data-tour="sources-archived" aria-pressed={showArchived} onClick={() => { setShowArchived(value => !value); setSelected([]); setProposals(null); }}>{showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [allItems.filter(item => item.archived).length])}</Button>
           {groups.length > 1 && <Button variant="quiet" onClick={() => {
             if (allOpen) { setOpened(new Set()); setClosed(new Set(groups.map(group => group.key))); }
             else { setOpened(new Set(groups.map(group => group.key))); setClosed(new Set()); }
@@ -489,7 +489,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}
       {items.length > 0 && <>
         <PageScope value={scope} onChange={setScope} courses={data.focus?.courses} />
-        <details className="source-organize" onToggle={event => setOrganizing(event.currentTarget.open)}>
+        <details className="source-organize" data-tour="sources-organize" onToggle={event => setOrganizing(event.currentTarget.open)}>
           <summary>{ui('整理课程归属')}</summary>
           <p className="muted">{ui('勾选资料后统一整理。改课程归属时，原文与引用保持不变。')}</p>
           <p>{uiFormat('已选择 {0} 份资料', [selectedItems.length])}{' '}

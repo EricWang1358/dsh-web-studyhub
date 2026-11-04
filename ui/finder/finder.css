@@ -1,0 +1,167 @@
+/* ui/finder/finder.css — 找功能 (#653): the sheet, the sidebar row's shortcut hint and the one-shot ring around the control 「带我去」 lands on.
+   Tokens only. The selected row is --bg-selected, never the accent; the ring is the tour's spotlight ring (accent-soft over accent-glow), drawn once, with no
+   dimming of the page; the only things that move are opacity and a scale of the ring. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    .finder-sheet .finder-input {
+      width: 100%;
+    }
+    /* A fixed height: a result list that changes with every key must not make the dialog grow and shrink under the pointer. */
+    .finder-sheet .finder-results {
+      box-sizing: border-box;
+      height: min(56dvh, 30rem);
+      margin-top: var(--space-3);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+    .finder-group {
+      border-bottom: var(--hairline) solid var(--line-soft);
+    }
+    .finder-group__summary {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 40px;
+      padding-inline: var(--space-1);
+      font-weight: var(--fw-medium);
+      cursor: pointer;
+    }
+    .finder-group__count {
+      margin-left: auto;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-regular);
+      font-variant-numeric: tabular-nums;
+      color: var(--text-faint);
+    }
+    /* The title and the action share the first line; the sentence and the tags take the whole width under it, so a narrow panel loses no room to the button. */
+    .finder-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: var(--space-3);
+      align-items: start;
+      padding: var(--space-2-5) var(--space-3);
+      border-radius: var(--radius-sm);
+    }
+    .finder-row[data-active="true"] {
+      background: var(--bg-selected);
+    }
+    .finder-row[data-unavailable="true"] {
+      color: var(--text-faint);
+    }
+    .finder-row__text {
+      display: contents;
+    }
+    .finder-row__head {
+      grid-column: 1;
+      grid-row: 1;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-half) var(--space-2);
+      margin: 0;
+      min-height: 28px;
+    }
+    .finder-row__title {
+      font-weight: var(--fw-medium);
+    }
+    .finder-row__crumbs {
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .finder-row[data-unavailable="true"] .finder-row__crumbs {
+      color: var(--text-faint);
+    }
+    .finder-row__what {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      margin: var(--space-half) 0 0;
+      color: var(--text-muted);
+    }
+    .finder-row[data-unavailable="true"] .finder-row__what {
+      color: var(--text-faint);
+    }
+    .finder-row__tags {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1);
+      margin: var(--space-1-5) 0 0;
+    }
+    .finder-row__reason {
+      font-size: var(--fs-sm);
+      color: var(--text-faint);
+    }
+    /* A per-row action appears on the selected row and on hover; the space is always there, so nothing moves. */
+    .finder-row__go {
+      grid-column: 2;
+      grid-row: 1;
+      opacity: 0;
+      transition: opacity var(--dur-fast) var(--ease);
+    }
+    .finder-row[data-active="true"] .finder-row__go,
+    .finder-row:hover .finder-row__go {
+      opacity: 1;
+    }
+    .finder-empty {
+      display: grid;
+      justify-items: start;
+      gap: var(--space-3);
+      padding: var(--space-5) var(--space-3);
+      color: var(--text-muted);
+    }
+    .finder-empty p {
+      margin: 0;
+    }
+    /* The shortcut on the sidebar row: the row's trailing hint, quieter than a count. */
+    .finder-nav .nav-keys {
+      font-size: var(--fs-sm);
+    }
+    /* The ring: a fixed layer over the page that takes no pointer events, one box placed with a transform. */
+    .finder-ring-layer {
+      position: fixed;
+      inset: 0;
+      z-index: var(--z-sticky);
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .finder-ring {
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    .finder-ring__box {
+      border-radius: var(--radius);
+      box-shadow:
+        0 0 0 2px var(--accent-soft),
+        0 0 0 7px var(--accent-glow);
+    }
+    .finder-ring.is-leaving .finder-ring__box {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :where(.study-app, .study-seat) {
+      .finder-ring__box {
+        animation: finder-ring-in var(--dur-slow) var(--ease-out) both;
+      }
+      .finder-ring.is-leaving .finder-ring__box {
+        animation: finder-ring-out var(--dur-slow) var(--ease) both;
+      }
+    }
+  }
+}
+
+@keyframes finder-ring-in {
+  from { opacity: 0; transform: scale(1.06); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes finder-ring-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}

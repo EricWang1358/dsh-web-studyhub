@@ -13,6 +13,7 @@ import { useReorderHint } from '../nav-reorder-hint.js';
 import { GLOSSARY } from '../mastery-terms.js';
 import { APPEARANCE_LABELS, THEME_CYCLE } from '../appearance-prefs.js';
 import LanguageSwitch from '../LanguageSwitch.jsx';
+import FinderNavItem from '../finder/FinderNavItem.jsx';
 import UpdateCenter from '../UpdateCenter.jsx';
 import { Button, Icon } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
@@ -48,7 +49,7 @@ const gotoPage = (nav, id) => nav.navigate(id, { animate: true, keepTrail: false
 export default function AppSidebar() {
   useInjectCss(css, 'study-app-shell');
   useInjectCss(navStartCss, 'study-nav-start');
-  const { data, language, core, shell, nav, session, intents, tour, board } = useApp();
+  const { data, language, core, shell, nav, session, intents, tour, board, finder } = useApp();
   const { busy } = core;
   const { sidebarNarrow } = shell;
   const { navPage, pageTarget, page } = nav;
@@ -148,6 +149,8 @@ export default function AppSidebar() {
       </nav>
       <div className="sidebar-bottom">
         <LanguageSwitch language={language} narrow={sidebarNarrow} onChange={setUiLanguage} />
+        {/* 找功能 sits directly above 功能导览: look a feature up, or walk through the main chain. */}
+        <FinderNavItem narrow={sidebarNarrow} disabled={!!tour.tourStep} onOpen={finder.openFinder} />
         {data && (
           <NavItem className="tour-nav" data-tour="tour-reopen" data-usage="nav.tour" icon={<Icon name="nav-tour" />} label={ui('功能导览')} disabled={tour.sampleBusy}
             aria-disabled={!!tour.tourStep || undefined} hint={tour.tourResume ? `${tour.tourResume.index + 1}/${tour.tourResume.total}` : undefined}
@@ -157,17 +160,17 @@ export default function AppSidebar() {
         {/* Two quiet entries of the rail: the keys of this page (? opens the same sheet), and the words the interface assumes. */}
         <div className="sidebar-links">
           <Tooltip layer placement="top-start" anchorClassName="sidebar-link-tip" content={ui('看这一页能用的键；按 ? 也能打开')}>
-            <Button variant="link" size="sm" className="sidebar-link" icon="key" data-usage="nav.shortcut" onClick={() => session.actions.openShortcutHelp()}>{ui('快捷键')}</Button>
+            <Button variant="link" size="sm" className="sidebar-link" icon="key" data-tour="nav-shortcuts" data-usage="nav.shortcut" onClick={() => session.actions.openShortcutHelp()}>{ui('快捷键')}</Button>
           </Tooltip>
           <Tooltip layer interactive placement="top-start" anchorClassName="sidebar-term-tip" content={glossaryText()}>
-            <span className="sidebar-link sidebar-link--term" tabIndex={0} onClick={(e) => e.currentTarget.focus()}>{ui('名词解释')}</span>
+            <span className="sidebar-link sidebar-link--term" data-tour="nav-glossary" tabIndex={0} onClick={(e) => e.currentTarget.focus()}>{ui('名词解释')}</span>
           </Tooltip>
         </div>
         <div className="local-status"><span />{ui('本地学习工作区')}</div>
         {/* Theme: one cycling toggle. `auto` is dark; light is explicit opt-in. */}
         <ThemeCycle />
         <UpdateCenter compact={sidebarNarrow} />
-        <NavItem glyph="settings" label={ui('设置')} active={navPage === 'settings'} narrow={sidebarNarrow} purpose={ui('语言、外观、模型连接和引导提示都在这页调')} data-tour="nav-settings" data-usage="nav.settings"
+        <NavItem glyph="settings" label={ui('设置')} active={navPage === 'settings'} narrow={sidebarNarrow} purpose={ui(PAGES.settings.purpose)} data-tour="nav-settings" data-usage="nav.settings"
           onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })} />
       </div>
     </aside>

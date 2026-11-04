@@ -46,7 +46,7 @@ export default function CoverageStrength({ level, customCount = '', onLevel, onC
       <Checkbox label={autoLabel()} checked={auto} disabled={disabled} onChange={onAuto} />
       {rounds > 1 && !compact && <p className="generate-note" data-coverage-auto-note>{autoLine(auto, rounds, coverage?.leaves > 0 && Number.isFinite(coverage.firstRoundSections) ? { level: coverage.level, percent: Math.round(coverage.firstRoundSections / coverage.leaves * 100) } : undefined)}</p>}
     </div>}
-    <Disclosure className="cov-strength__custom" summary={ui('自定义题数')} meta={custom ? uiFormat('{0} 题', [custom]) : ui('可选')} defaultOpen={String(customCount).trim() !== ''}>
+    <Disclosure className="cov-strength__custom" data-tour="generate-custom-count" summary={ui('自定义题数')} meta={custom ? uiFormat('{0} 题', [custom]) : ui('可选')} defaultOpen={String(customCount).trim() !== ''}>
       <div className="generate-count cov-strength__count">
         <input id="generate-count" className="cov-strength__input" type="number" min={COUNT_MIN} max={COUNT_MAX} inputMode="numeric" value={customCount} disabled={disabled}
           placeholder={hint ? uiFormat('例如 {0}', [hint]) : ''} aria-describedby="generate-count-note"
@@ -59,7 +59,7 @@ export default function CoverageStrength({ level, customCount = '', onLevel, onC
       {coverage?.raised && <p className="generate-note" data-coverage-raised role="status">{raisedLine(coverage.raised)}</p>}
       <p className="generate-note" id="generate-count-note">{uiFormat('填了题数就按这个数出，题仍按所选覆盖强度的规则分到各个小节；超过 30 道的会分成几轮（每轮最多 30 题），最多 {0} 题。', [COUNT_MAX])}</p>
     </Disclosure>
-    {onBudget && <Disclosure className="cov-strength__budget" summary={ui('花费上限')} meta={spend ? tokensText(spend) : ui('可选')} defaultOpen={String(budget).trim() !== ''}>
+    {onBudget && <Disclosure className="cov-strength__budget" data-tour="generate-budget" summary={ui('花费上限')} meta={spend ? tokensText(spend) : ui('可选')} defaultOpen={String(budget).trim() !== ''}>
       <div className="generate-count cov-strength__count">
         <label className="cov-strength__unit" htmlFor="generate-budget">{ui('最多用')}</label>
         <input id="generate-budget" className="cov-strength__input cov-strength__input--budget" type="text" inputMode="text" autoComplete="off" value={budget} disabled={disabled} placeholder={ui('例如 2M')}

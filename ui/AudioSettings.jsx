@@ -9,7 +9,6 @@ import LiveLoopbackCard from './LiveLoopbackCard.jsx';
 import { KEY_FIELDS, providerOf, providersFor } from '../lib/audio-providers.js';
 import { REQUEST_LIMIT_MINUTES } from '../lib/audio-formats.js';
 import { audioFocusPending, audioFocusTarget, requestAudioSettingsFocus, takeAudioSettingsFocus } from './audio-focus.js';
-import { LIVE_PAUSE_ANCHOR } from './live-pause-hint.js';
 import { useInjectCss } from './shared.js';
 import css from './audio-settings.css';
 import { setQueryData, useHostQuery } from './host-query.js';
@@ -119,7 +118,7 @@ export function LiveEngineChoice({ view, disabled = false, onSave, initialLocal 
         title={ui('Gemini（云端）')} hint={ui('需要 Gemini 密钥和海外网络；声音发给 Google。')} />
     </RadioCardGroup>
     {/* 断句停顿: one choice for both engines (LIVE_PAUSE, lib/audio-settings.js); the words behind it are a Tooltip, hidden until hover or focus. */}
-    <Field group label={ui('断句停顿')} hint={ui('讲课很快、几乎不停顿时选『短』：停顿更短就断句，润色和出题更早能用。')} data-tour={LIVE_PAUSE_ANCHOR}>
+    <Field group label={ui('断句停顿')} hint={ui('讲课很快、几乎不停顿时选『短』：停顿更短就断句，润色和出题更早能用。')} data-tour="settings-live-pause">
       {({ describedBy }) => <Tooltip layer content={<>{ui('Gemini：多久没有新文字，就算一句话说完。短 / 标准 / 长 = 0.7 / 1.5 / 2.5 秒。')}<br />
         {ui('本地转写：多久没有声音，就算一句话说完。短 / 标准 / 长 = 0.25 / 0.5 / 0.8 秒。')}<br />
         {ui('选得太短，可能把一句话切成两句。')}<br />{ui('下次点「开始实录」或「接着录」时生效；正在录的课不变。')}</>}>

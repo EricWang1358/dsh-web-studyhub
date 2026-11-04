@@ -412,7 +412,7 @@ export function WrongBookView({
       {!isHistory && total > 0 && (() => {
         const filteredSubset = filtering && shown.length > 0 && shown.length < rows.length;
         return (
-          <div className="wb-retrain">
+          <div className="wb-retrain" data-tour="wrongbook-retrain">
             <div className="wb-retrain-copy">
               <strong>{ui("重练")}</strong>
               <small className="muted">{similarNote || ui("选择这一轮练什么。")}</small>
@@ -541,7 +541,7 @@ export function WrongBookView({
           {!isHistory && canGenerate && (!filtering || shown.length > 0) && (
             <div className="wb-batch">
               <Tooltip layer content={generateTip()}>
-                <Button variant="quiet" size="sm" icon="sparkle" busy={working} disabled={busy || !batch.length} onClick={() => generate(batch)}>
+                <Button variant="quiet" size="sm" icon="sparkle" data-tour="wrongbook-batch" busy={working} disabled={busy || !batch.length} onClick={() => generate(batch)}>
                   {filtering ? uiFormat("为当前筛选的 {0} 题生成变式", [shown.length]) : ui("为全部错题生成变式")}
                 </Button>
               </Tooltip>

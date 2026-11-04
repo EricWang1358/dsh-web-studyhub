@@ -39,7 +39,7 @@ function TopUpBody({ draft, view, shortfall, modelReady, held, onTopUp, variant 
   if (!round.sections) return <div className={cls} data-coverage-topup data-coverage-complete><p className="cov-topup__done">{allCoveredText(units)}</p></div>;
   const blocked = busy || held || !modelReady;
   const sectionIds = round.picks.map((pick) => pick.key);
-  return <div className={cls} data-coverage-topup data-shortfall-action="topup">
+  return <div className={cls} data-tour="coverage-topup" data-coverage-topup data-shortfall-action="topup">
     <p className="cov-topup__plan" data-coverage-round>{nextRoundText(shortfall)}</p>
     {coveragePathText(shortfall) && <p className="cov-topup__path" data-coverage-path>{coveragePathText(shortfall)}</p>}
     <div className="cov-topup__act">

@@ -161,7 +161,10 @@ If a check fails, the error appears on the **Context polish** line and the pendi
 
 ### How the check works
 
-- Checks run in order, in batches of up to 8 new sentences plus the last 2 sentences of the previous batch as overlap.
+- Checks run in order, in batches of up to 8 new sentences (and about 1,200 characters) plus the last 2 sentences of the previous batch (within about 300 characters) as overlap. A very long sentence goes alone; the end of a long earlier sentence rides along as read-only context.
+- A request is allowed time and reply size in proportion to what it reads and is expected to write, up to 60 seconds and 8,192 tokens. The model returns small edits (a few words to replace), not the whole sentence again, and a Chinese translation only for a sentence that is not already Chinese.
+- If a request times out or its reply is cut off, it is repeated once with half the text, then one sentence at a time; a sentence that still fails is **skipped** (its text is kept) and the check moves on. Click **Retry pending correction** to try the skipped sentences again. A network or quota failure is retried on later checks at most three times, then waits for your click.
+- The cumulative summary is rewritten every few batches, not on every call, and a note or summary the model gets wrong is dropped without losing that batch's corrections.
 - Each check works through the whole backlog that existed when it started. Sentences that arrive during a check wait for the next one. **End recording** runs a final pass over the rest.
 - A check with no new sentences makes no model call. Checks stop while recording is paused.
 - Each batch reads its window, the subject, the terms, the cumulative summary (up to 1,600 characters) and the last 3 notes. It writes a note for the batch and updates the summary, so the growing history is never resent in full.
