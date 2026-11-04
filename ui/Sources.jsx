@@ -189,7 +189,9 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
     row.current.querySelector(".source-main")?.focus({ preventScroll: true });
   }, [isNew]);
   const corrections = source?.audio ? uiFormat("校对 {0} 处", [source.audio.corrections?.appliedCount ?? 0]) : "";
-  const details = [uiFormat("{0} 字符", [formatNumber(item.chars)]), corrections, ...documentNotes(item), relationNote(relation)].filter(Boolean);
+  // The facts only (#676): what it is, how big, and how it relates to the others. What the learner has to check is a Badge beside the title (below), the start of the text is not in the row.
+  const details = [uiFormat("{0} 字符", [formatNumber(item.chars)]), corrections, relationNote(relation)].filter(Boolean);
+  const notes = documentNotes(item);
   // One page count for the document (the pages that have text); when the original file has more, that is said once, beside it, with the reason on hover.
   const gap = pageGapNote(item), pages = pageFacts(item).readable;
   return (
@@ -207,12 +209,12 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           onKeyDown={editor ? event => { if (startsEditing(event)) { event.preventDefault(); startEditing(); } } : undefined}>
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
           <span>
-            <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <Badge size="sm" className="source-new">{ui("刚导入")}</Badge>}</strong>
-            {/* One line of facts under the title (#570): where it belongs, then what it is; each part ellipsises on its own. */}
+            <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <Badge size="sm" className="source-new">{ui("刚导入")}</Badge>}{notes.map(note => <Badge key={note} tone="warning" size="sm" icon wrap className="source-note">{note}</Badge>)}</strong>
+            {/* One line of facts under the title (#570): where it belongs, then what it is and how big; each part ellipsises on its own. */}
             <span className="source-doc__meta">
               <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
                 item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ')}</small>
-              <small className={gap ? "source-doc__facts--gap" : undefined}>{sourceFormatLabel(item)}{gap &&<>{" · "}<Tooltip layer content={pageGapHint(item)}><span className="source-doc__gap" tabIndex={0}>{gap}</span></Tooltip></>}{details.length > 0 && ` · ${details.join(" · ")}`}{item.excerpt ? ` · ${item.excerpt.slice(0, 80)}` : ""}</small>
+              <small className={gap ? "source-doc__facts--gap" : undefined}>{sourceFormatLabel(item)}{gap &&<>{" · "}<Tooltip layer content={pageGapHint(item)}><span className="source-doc__gap" tabIndex={0}>{gap}</span></Tooltip></>}{details.length > 0 && ` · ${details.join(" · ")}`}</small>
             </span>
             {/* The status line, always visible: 资料掌握度 (the snapshot's materialMastery) and 覆盖 beside it (drafts included; the mastery is only about published questions),
                 then the index badge's slot at the end of the same line, kept from the first paint so a late coverage answer fills it and moves nothing (#229). */}
@@ -380,9 +382,10 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const [removing, setRemoving] = useState(null);
   const [editingCourse, setEditingCourse] = useState(null);
   const [segmenting, setSegmenting] = useState(null);
+  // A rename in the row says nothing more: the row shows the new name the moment the field closes (a toast that repeats it is noise, #677).
   const renameFor = (act || call) ? item => ({
-    save: async title => { await renameDocument({ act, call }, item, { title }); toast.success(uiFormat('已重命名为「{0}」', [title])); },
-    restore: async () => { const done = await renameDocument({ act, call }, item, { restore: true }); toast.success(uiFormat('已恢复原名「{0}」', [done.title])); },
+    save: async title => { await renameDocument({ act, call }, item, { title }); },
+    restore: async () => { await renameDocument({ act, call }, item, { restore: true }); },
   }) : undefined;
   const selectedItems = items.filter(item => selected.includes(item.key));
   const finish = () => { setProposals(null); setSelected([]); setJevRun(null); };

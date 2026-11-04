@@ -13,7 +13,9 @@
     .source-doc { display: block; margin: 0; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; }
     .source-doc__line { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
     .source-doc__line > .source-doc__check { margin: 0; }
-    .source-doc .source-main > span { display: grid; gap: var(--space-half); min-width: 0; }
+    /* The text column takes the whole width of the row beside the icon (it used to be as wide as its longest line, the start of the text, so a row with a short title and
+       no such line gave the status line a sliver and it broke in two once its content arrived: #676). */
+    .source-doc .source-main > span { display: grid; flex: 1 1 auto; gap: var(--space-half); min-width: 0; }
     .source-doc .source-main strong { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
     .source-doc .source-main small { margin-top: var(--space-half); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     /* The facts line: the courses, then the format and size; the courses give way first so the size stays readable. */
@@ -71,6 +73,8 @@
     .source-doc__chapters li > .source-doc__row small { white-space: normal; text-align: right; }
     /* 刚导入: the row itself stays plain (the page scrolls to it and focuses it); the word 「刚导入」 is a neutral Badge beside the title, never a tint of the accent (#658). */
     .source-new { margin-inline-start: var(--space-2); vertical-align: baseline; }
+    /* A reminder about the material (文字偏少，核对正文…): a warning Badge beside the title, from the first paint (it comes with the row's data, so it moves nothing). */
+    .source-note { vertical-align: baseline; }
     /* 置顶: the pin sits in the title line from the first paint (the row's height never depends on it); a pinned row can be dragged, and the drop mark is a shadow so it takes no room. */
     .source-pin { display: inline-flex; flex: none; color: var(--accent-text); }
     .source-doc[draggable="true"] { cursor: grab; }
