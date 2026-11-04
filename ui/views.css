@@ -305,8 +305,8 @@
       border-radius: var(--radius-sm);
     }
     .exam-option[aria-pressed="true"] {
-      border-color: var(--accent);
-      background: color-mix(in srgb, var(--accent) 14%, transparent);
+      border-color: var(--text-muted);
+      background: var(--bg-selected);
       box-shadow: var(--ring);
     }
     .exam-option:focus-visible {
@@ -329,8 +329,8 @@
     }
     .exam-option[aria-pressed="true"] .exam-option-letter {
       border-color: transparent;
-      background: var(--accent);
-      color: var(--accent-ink);
+      background: var(--text);
+      color: var(--bg-raised);
     }
     .exam-option-text {
       min-width: 0;

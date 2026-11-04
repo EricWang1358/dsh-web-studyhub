@@ -40,7 +40,7 @@
       font-size: var(--fs-xs);
       cursor: pointer;
     }
-    .case-pen.is-on { background: var(--bg-selected); color: var(--text); border-color: var(--accent-soft); }
+    .case-pen.is-on { background: var(--bg-selected); color: var(--text); border-color: var(--text-muted); }
     .case-swatch {
       width: 22px;
       height: 22px;
@@ -269,7 +269,7 @@
       background: var(--bg-surface);
       border: 1px solid var(--line);
     }
-    .case-question.is-active { border-color: var(--accent-soft); }
+    .case-question.is-active { border-color: var(--text-muted); }
     .case-question__head {
       display: flex;
       flex-wrap: wrap;
@@ -290,7 +290,7 @@
       cursor: pointer;
       font: inherit;
     }
-    .case-paper__write.is-active { border-style: solid; border-color: var(--accent-soft); color: var(--text); }
+    .case-paper__write.is-active { border-style: solid; border-color: var(--text-muted); color: var(--text); }
     /* ---------- creating a case set ---------- */
     .case-create {
       display: grid;
