@@ -11,13 +11,25 @@ import { writeSync } from 'node:fs';
 
 /** What starts the stderr line, so the runner can find it among a file's output. */
 export const TIMEOUT_MARK = 'TEST TIMEOUT';
+export const FILE_TIMEOUT_MARK = 'TEST FILE TIMEOUT (CHILD)';
 
-const ms = Number(new URL(import.meta.url).searchParams.get('ms'));
+const params = new URL(import.meta.url).searchParams;
+const ms = Number(params.get('ms'));
+const fileMs = Number(params.get('fileMs'));
 // The real timers, taken before any test file's code runs: tests swap the global ones (a setTimeout that calls back at once, mock.timers
 // ticked 20 minutes), and a test or subtest that starts under such a swap is still timed by the real clock.
 const { setTimeout: realSetTimeout, clearTimeout: realClearTimeout } = globalThis;
 // Only the test file's own process: a program a test starts may forward execArgv, but it is no *.test.mjs file.
-if (ms > 0 && process.env.NODE_TEST_CONTEXT && /\.test\.[cm]?js$/.test(process.argv[1] || '')) {
+const inTestFile = Boolean(process.env.NODE_TEST_CONTEXT && /\.test\.[cm]?js$/.test(process.argv[1] || ''));
+if (fileMs > 0 && inTestFile) {
+  // Node 22's run({ timeout }) stops a whole file from the parent; Node 24+ only times active tests and waits forever when an open handle
+  // remains after the last test passed. An unref'd timer inside the file's process exits cleanly without keeping a finished file open.
+  realSetTimeout(() => {
+    writeSync(2, `\n${FILE_TIMEOUT_MARK}: file process still running after ${fileMs} ms.\n`);
+    process.exit(1);
+  }, fileMs + 50).unref();
+}
+if (ms > 0 && inTestFile) {
   const running = new Map();
   beforeEach(t => {
     const timer = realSetTimeout(() => expire(t), ms);

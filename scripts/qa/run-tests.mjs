@@ -25,7 +25,7 @@ import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { compose, PassThrough } from 'node:stream';
 import { pathToFileURL } from 'node:url';
 import { durationsFile, listTestFiles, mergeDurations, orderLongestFirst, parseShard, readDurations, readSlowList, readWeights, repoRoot, shardKeys } from './test-schedule.mjs';
-import { TIMEOUT_MARK } from './test-timeout.mjs';
+import { FILE_TIMEOUT_MARK, TIMEOUT_MARK } from './test-timeout.mjs';
 
 /* Measured on a full local run on a busy machine (Windows, 12 workers next to other test runs, 2026-10-22; 11.5 minutes where CI's
    shards take 3.5 to 5): the longest top-level test took 128 s (a browser test failing at its own 120 s action limit; the longest passing
@@ -132,19 +132,28 @@ process.on('message', message => { if (message?.stop) stop(String(message.stop))
 process.channel?.unref();
 
 const stream = run({ files, concurrency, cwd: repoRoot, signal: abort.signal, ...(fileMs ? { timeout: fileMs } : {}),
-  execArgv: ['--import', guard, ...(testMs ? ['--import', `${new URL('./test-timeout.mjs', import.meta.url).href}?ms=${testMs}`] : [])],
+  execArgv: ['--import', guard, ...((testMs || fileMs) ? ['--import', `${new URL('./test-timeout.mjs', import.meta.url).href}?ms=${testMs}&fileMs=${fileMs}`] : [])],
   ...(values('--test-name-pattern').length ? { testNamePatterns: values('--test-name-pattern') } : {}),
   ...(values('--test-skip-pattern').length ? { testSkipPatterns: values('--test-skip-pattern') } : {}) });
 
-const measured = {};
+function noteFileTimeout(file) {
+  const key = keyOf(file);
+  if (timeouts.has(key) || abort.signal.aborted) return;
+  timeouts.set(key, `the whole file was still running after ${fileMs} ms and was stopped`);
+  say(`\nTEST FILE TIMEOUT: ${key} was still running after ${fileMs} ms and was stopped (limit per file: STUDY_TEST_FILE_TIMEOUT_MS).`);
+  sayUnfinished('Test files still running now:', { always: false });
+}
+
+const measured = {}, fileWall = {};
 let failed = false;
 for await (const event of stream) {
   for (const { input } of sinks) if (!input.write(event)) await once(input, 'drain');
   const { type, data } = event;
-  if ((type === 'test:pass' || type === 'test:fail') && data.nesting === 0 && data.file && !isFileEvent(data)) {
-    // Every top-level test of a file, so the file's own time is their sum.
-    const key = keyOf(data.file);
-    measured[key] = (measured[key] || 0) + (data.details?.duration_ms || 0);
+  if ((type === 'test:pass' || type === 'test:fail') && data.nesting === 0 && data.file) {
+    const key = keyOf(data.file), ms = data.details?.duration_ms || 0;
+    // Sum top-level tests; if module evaluation or hooks add substantial wall time (or a thin wrapper delegates its tests), keep the file's own span.
+    if (isFileEvent(data)) fileWall[key] = Math.max(fileWall[key] || 0, ms);
+    else measured[key] = (measured[key] || 0) + ms;
   }
   if (type === 'test:fail') failed = true;
   if (!data?.file) continue;
@@ -153,15 +162,13 @@ for await (const event of stream) {
     if (type === 'test:dequeue') state.started = true;
     if (type === 'test:complete') {
       state.done = true;
-      if (data.details?.error?.failureType === 'testTimeoutFailure' && !abort.signal.aborted) {
-        timeouts.set(keyOf(data.file), `the whole file was still running after ${fileMs} ms and was stopped`);
-        say(`\nTEST FILE TIMEOUT: ${keyOf(data.file)} was still running after ${fileMs} ms and was stopped (limit per file: STUDY_TEST_FILE_TIMEOUT_MS).`);
-        sayUnfinished('Test files still running now:', { always: false });
-      }
+      if (data.details?.error?.failureType === 'testTimeoutFailure') noteFileTimeout(data.file);
     }
   } else if (type === 'test:dequeue') state.tests.add(test);
   else if (type === 'test:pass' || type === 'test:fail') state.tests.delete(test);
-  else if (type === 'test:stderr' && data.message?.includes(TIMEOUT_MARK)) {
+  else if (type === 'test:stderr' && data.message?.includes(FILE_TIMEOUT_MARK)) {
+    noteFileTimeout(data.file);
+  } else if (type === 'test:stderr' && data.message?.includes(TIMEOUT_MARK)) {
     const line = data.message.slice(data.message.indexOf(TIMEOUT_MARK)).trim();
     timeouts.set(keyOf(data.file), line.slice(TIMEOUT_MARK.length + 1).split(' Limit per test:')[0].trim());
     say(`\n${keyOf(data.file)}: ${line}`);
@@ -175,5 +182,8 @@ for await (const event of stream) {
 for (const { input } of sinks) input.end();
 await Promise.all(sinks.map(({ done }) => done));
 if (timeouts.size) say(`\nTimed out (${timeouts.size}):\n${[...timeouts].map(([key, what]) => `  ${key}: ${what}`).join('\n')}`);
+for (const [key, wall] of Object.entries(fileWall)) {
+  if (!(key in measured) || wall - measured[key] >= 400) measured[key] = wall;
+}
 if (!abort.signal.aborted) await mergeDurations(durationsFile(), Object.fromEntries(Object.entries(measured).map(([key, ms]) => [key, Math.round(ms)])));
 process.exitCode = failed || timeouts.size || abort.signal.aborted ? 1 : 0;

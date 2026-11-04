@@ -64,7 +64,7 @@ test('an observer\'s wait that times out does not cancel the job', async t => {
   const { runtime, staged, hold, services } = await library(t, { holdAt: 'plan' });
   const started = await runtime.call('generate', request, services('a'));
   await soon(() => hold.entered, 'the job to be at the model');
-  const waited = await runtime.call('job.wait', { jobId: started.jobId, timeoutSeconds: 1 }, services('a'));
+  const waited = await runtime.call('job.wait', { jobId: started.jobId, timeoutSeconds: 0.02 }, services('a'));
   assert.equal(waited.status, 'running', 'the wait gave up, the job did not');
   hold.open();
   assert.equal((await runtime.call('job.wait', { jobId: started.jobId, timeoutSeconds: 30 }, services('a'))).status, 'complete');

@@ -14,8 +14,8 @@ const built = () => existsSync(new URL('../lib/client.js', import.meta.url));
 
 if (process.env.STUDYHUB_SKIP_PREPARE === '1' || built()) process.exit(0);
 
-console.log('studyhub: building the client bundle (lib/client.js is build output)…');
-const result = spawnSync(process.execPath, ['scripts/build.mjs'], { cwd: root, stdio: 'inherit' });
+console.error('studyhub: building the client bundle (lib/client.js is build output)…');
+const result = spawnSync(process.execPath, ['scripts/build.mjs', '--host-only'], { cwd: root, stdio: ['ignore', 2, 2] });
 if (result.status !== 0 || !built()) {
   console.error('studyhub: the client bundle could not be built. Install the release package instead (see docs/install.md), or run `npm ci && npm run build` in a clone.');
   process.exit(result.status || 1);

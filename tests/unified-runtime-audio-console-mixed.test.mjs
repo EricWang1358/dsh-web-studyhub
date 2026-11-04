@@ -26,7 +26,7 @@ test(`${mode}: every kind of audio job, while it runs, is a card the console can
     rows.push({ ...card, row, c });
     // The same job is read by its card id and by its contract id.
     for (const id of [row.id, c.jobId]) {
-      const byContract = id !== row.id, status = await refuse(lib, { jobId: id }, 'job.status'), waited = await refuse(lib, { jobId: id, timeoutSeconds: 1 }, 'job.wait');
+      const byContract = id !== row.id, status = await refuse(lib, { jobId: id }, 'job.status'), waited = await refuse(lib, { jobId: id, timeoutSeconds: 0.02 }, 'job.wait');
       for (const [operation, answer] of [['status', status], ['wait', waited]]) {
         assert.ok(answer.reply, `${card.name}/${card.side}: job.${operation} by ${byContract ? 'contract' : 'card'} id: ${answer.error?.message}`);
       }
@@ -63,7 +63,7 @@ test(`${mode}: every kind of audio job, while it runs, is a card the console can
     return rows.map(item => jobs.find(job => job.id === item.row.id));
   };
   const states = async () => (await currentCards()).map((card, index) => `${rows[index].name}/${rows[index].side}:${card.status}:${card.stage}:${(card.contract?.calls ?? []).slice(-2).map(call => `${call.kind}.${call.status}`).join('+')}`).join(' ');
-  await until(async () => { lib.trickle(4); return (await currentCards()).every(row => ENDED.includes(row.status)); }, 'every job to end', { timeoutMs: 300_000, intervalMs: 250 })
+  await until(async () => { lib.trickle(4); return (await currentCards()).every(row => ENDED.includes(row.status)); }, 'every job to end', { timeoutMs: 300_000, intervalMs: 15 })
     .catch(async error => { throw new Error(`${error.message}: ${await states()}`); });
   for (const item of rows) {
     const done = await settleJob(lib.service, item.row.id);

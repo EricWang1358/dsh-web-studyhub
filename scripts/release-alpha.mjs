@@ -24,7 +24,7 @@ const npmCli = [process.env.npm_execpath,
 if (!npmCli) throw new Error('Cannot find npm-cli.js; run the release pack through npm (npm run release:pack)');
 async function pack(cwd) {
   const child = spawn(process.execPath, [npmCli, 'pack', '--json', '--ignore-scripts', '--pack-destination', target],
-    { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    { cwd, env: { ...process.env, STUDYHUB_SKIP_PREPARE: '1' }, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '', errors = '';
   child.stdout.on('data', bytes => { output += bytes; });
   child.stderr.on('data', bytes => { errors += bytes; });
@@ -38,17 +38,17 @@ async function pack(cwd) {
 }
 
 // Build and verification are deliberately owned by the release coordinator.
-const archives = [await pack(root)];
 await mkdir(join(target, 'packages'), { recursive: true });
-for (const domain of ['runtime', 'materials', 'bank', 'study', 'generation', 'audio']) {
+const docsPaths = manifest.files.filter(path => path.startsWith('docs/'));
+async function packDomain(domain) {
   const staging = await mkdtemp(join(target, 'packages', `${domain}-`));
-  for (const path of ['lib', 'skills', 'references', 'locale', 'presets', 'LICENSE', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'CHANGELOG.zh-CN.md'])
-    await cp(join(root, path), join(staging, path), { recursive: true });
+  await Promise.all(['lib', 'skills', 'references', 'locale', 'presets', 'LICENSE', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'CHANGELOG.zh-CN.md']
+    .map(path => cp(join(root, path), join(staging, path), { recursive: true })));
   await mkdir(join(staging, 'docs'), { recursive: true });
-  for (const path of manifest.files.filter(path => path.startsWith('docs/'))) {
+  await Promise.all(docsPaths.map(async path => {
     await mkdir(dirname(join(staging, path)), { recursive: true });
     await cp(join(root, path), join(staging, path));
-  }
+  }));
   const name = `@ericwang1358/dsh-study-${domain}`;
   const entry = `./lib/plugins/${domain}.js`;
   await writeFile(join(staging, 'package.json'), JSON.stringify({
@@ -60,19 +60,23 @@ for (const domain of ['runtime', 'materials', 'bank', 'study', 'generation', 'au
     dsh: { bundle: { patch: './cordis.patch.yml' } },
   }, null, 2) + '\n');
   await writeFile(join(staging, 'cordis.patch.yml'), `- insert:\n    - id: study-${domain}\n      name: '${name}'\n      config: {}\n`);
-  archives.push(await pack(staging));
+  return pack(staging);
 }
 // The search extension (WP28b): a companion bundle StudyHub installs on request; same version, same checksum list. Its code changes
 // rarely, so only an installed one older than EXTENSION_BUILD.since is asked to update; the version stamped here says which release packed it.
-{
+async function packRetrieval() {
   const source = join(root, 'packages', 'studyhub-retrieval');
   const staging = await mkdtemp(join(target, 'packages', 'retrieval-'));
-  await cp(source, staging, { recursive: true });
-  await cp(join(root, 'LICENSE'), join(staging, 'LICENSE'));
+  await Promise.all([cp(source, staging, { recursive: true }), cp(join(root, 'LICENSE'), join(staging, 'LICENSE'))]);
   const companion = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'));
   await writeFile(join(staging, 'package.json'), JSON.stringify({ ...companion, version: manifest.version }, null, 2) + '\n');
-  archives.push(await pack(staging));
+  return pack(staging);
 }
+const archives = await Promise.all([
+  pack(root),
+  ...['runtime', 'materials', 'bank', 'study', 'generation', 'audio'].map(packDomain),
+  packRetrieval(),
+]);
 const setupFilename = `StudyHub-${manifest.version}-Setup.html`;
 await cp(join(root, 'docs/install.html'), join(target, setupFilename));
 const setup = { filename: setupFilename,

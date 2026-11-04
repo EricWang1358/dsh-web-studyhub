@@ -54,6 +54,8 @@ for (const failure of ['exhausted replacement', 'partial write']) test(`a normal
     }
     return originalWrite(path, value, options);
   };
+  const prevRetryMs = process.env.STUDY_FS_RETRY_MS;
+  process.env.STUDY_FS_RETRY_MS = '1';
   syncBuiltinESMExports();
   try {
     await assert.rejects(saveAudioBatch(root, { ...batch, status: 'complete' }), error => error === fault);
@@ -66,6 +68,7 @@ for (const failure of ['exhausted replacement', 'partial write']) test(`a normal
     assert.deepEqual(await readdir(directory), ['manifest.json']);
     assert.equal(attempts, failure === 'exhausted replacement' ? 10 : 1);
   } finally {
+    if (prevRetryMs === undefined) delete process.env.STUDY_FS_RETRY_MS; else process.env.STUDY_FS_RETRY_MS = prevRetryMs;
     fs.promises.rename = originalRename; fs.promises.writeFile = originalWrite; syncBuiltinESMExports();
   }
 });
@@ -259,7 +262,7 @@ test('transient Windows manifest replacement failures preserve the finished memb
     const proc = spawn(process.execPath, [
       ...(mode === 'interrupt' ? ['--import', `data:text/javascript,${encodeURIComponent(preload)}`] : []),
       fileURLToPath(new URL('./fixtures/audio-batch-process.mjs', import.meta.url)), root, mode,
-    ], { env: { ...process.env, DSH_HOME: join(dir, 'home') }, windowsHide: true });
+    ], { env: { ...process.env, DSH_HOME: join(dir, 'home'), STUDY_FS_RETRY_MS: '1' }, windowsHide: true });
     let out = '', err = '';
     proc.stdout.on('data', data => { out += data; }); proc.stderr.on('data', data => { err += data; });
     proc.on('error', reject); proc.on('close', code => code ? reject(new Error(err || out)) : resolve(JSON.parse(out.trim())));
@@ -295,7 +298,7 @@ async function orphanedBatch(t) {
     const proc = spawn(process.execPath, [
       ...(mode === 'interrupt' ? ['--import', `data:text/javascript,${encodeURIComponent(preload)}`] : []),
       fileURLToPath(new URL('./fixtures/audio-batch-process.mjs', import.meta.url)), root, mode,
-    ], { env: { ...process.env, DSH_HOME: join(dir, 'home') }, windowsHide: true });
+    ], { env: { ...process.env, DSH_HOME: join(dir, 'home'), STUDY_FS_RETRY_MS: '1' }, windowsHide: true });
     let out = '', err = '';
     proc.stdout.on('data', data => { out += data; }); proc.stderr.on('data', data => { err += data; });
     proc.on('error', reject); proc.on('close', code => code ? reject(new Error(err || out)) : resolve(JSON.parse(out.trim())));
@@ -434,7 +437,9 @@ test('resumable upload copies and their job card outlive automatic terminal job 
   assert.equal(failed.status, 'failed');
   const manifestPath = join(root, 'audio-batches', failed.batchId, 'manifest.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-  for (let i = 0; i < 103; i++) assert.equal((await wait(await service.call('audio.import', { path: a }))).status, 'complete');
+  for (let i = 0; i < 103; i += 1) {
+    assert.equal((await wait(await service.call('audio.import', { path: a }))).status, 'complete');
+  }
   assert.ok((await service.call('snapshot')).jobs.some(job => job.id === failed.id && job.retryable));
   assert.equal((await readFile(manifest.members[1].path)).at(-1), 2);
   const before = calls.filter(call => call === 'transcribe:B').length;

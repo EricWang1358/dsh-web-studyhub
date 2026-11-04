@@ -174,7 +174,7 @@ for (const driver of DRIVERS) for (const mode of ['off', 'on', 'mixed']) {
         const status = await world.service.call('job.status', { jobId: id });
         assert.deepEqual([status.id, status.finished], [row.id, false]);
       }
-      assert.equal((await world.service.call('job.wait', { jobId: c.jobId, timeoutSeconds: 1 })).status, 'running');
+      assert.equal((await world.service.call('job.wait', { jobId: c.jobId, timeoutSeconds: 0.02 })).status, 'running');
       for (const action of ['pause', 'resume', 'retry', 'set']) {
         if (c.actions[action].available) continue;
         const answer = await refuse(world.service, { jobId: c.jobId, action, ...(action === 'set' ? { patch: { concurrency: 2 } } : {}) });
