@@ -10,7 +10,7 @@ import { HAND_OFF_LABEL, HAND_OFF_MENU_HINT } from '../hand-off/use-hand-off.js'
 
 /** The menu's items (pure, for the tests): `state` says what the page has now. unplaced: the step shown is 未归位 (no code the book tools match, no
     questions of its own, no AI blocks, and no structure of its own: only 编辑这个知识点… in its group). */
-export function moreItems({ unplaced = false, pointFold = null, scroll = false, bookFold = null, pages = null, pageLimit = null, today = false, mockScope = 0, dateHint = null,
+export function moreItems({ unplaced = false, pointFold = null, scroll = false, bookFold = null, pages = null, pageLimit = null, history = false, today = false, mockScope = 0, dateHint = null,
   settings = false }) {
   const pagesHint = pages === null ? undefined : pageLimit ? uiFormat('约 {0} 页 / 上限 {1} 页', [pages, pageLimit]) : uiFormat('约 {0} 页', [pages]);
   return [
@@ -29,6 +29,7 @@ export function moreItems({ unplaced = false, pointFold = null, scroll = false, 
     { heading: true, label: ui('整本书') },
     { id: 'lookup', label: ui('速查页…') },
     { id: 'export', label: ui('导出…'), hint: pagesHint },
+    history && { id: 'history', label: ui('版本历史…') },
     { id: 'outline', label: ui('回到总纲'), hint: ui('重新整理、更新全书') },
     { id: 'chat', label: ui(HAND_OFF_LABEL), hint: ui(HAND_OFF_MENU_HINT) },
     { heading: true, label: ui('期末一周') },
