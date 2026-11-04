@@ -8,6 +8,7 @@ import { AUDIO_DEFAULTS, LIVE_PAUSE, livePauseOf, publicAudioSettings, readAudio
 import { DEFAULT_TIMING, LiveSession, listSaved } from '../lib/live.js';
 import { GeminiTiers } from '../lib/gemini.js';
 import { StudyService } from '../lib/service.js';
+import { localizeAppMessage } from '../lib/application-messages.js';
 
 /* 断句停顿 (liveSentencePause): how long a pause ends a sentence in 课堂实录. One saved choice, one table (LIVE_PAUSE) that maps it to both engines:
    Gemini's idle flush (lib/live.js) and the local engine's VAD silence (lib/live-local-worker.mjs). */
@@ -54,6 +55,8 @@ test('liveSentencePause is a saved setting: standard by default, short or long o
   assert.equal((await saveAudioSettings({ liveProvider: 'local' })).liveSentencePause, 'short', 'a patch without it leaves it alone');
   assert.equal((await saveAudioSettings({ liveSentencePause: 'long' })).liveSentencePause, 'long');
   await assert.rejects(saveAudioSettings({ liveSentencePause: 'tiny' }), /liveSentencePause/);
+  const refusal = await saveAudioSettings({ liveSentencePause: 'tiny' }).catch(error => error.message);
+  assert.equal(localizeAppMessage(refusal, 'en'), 'liveSentencePause must be short, standard or long', 'the refusal has an English reading');
   assert.equal((await readAudioSettings()).liveSentencePause, 'long', 'a refused patch changes nothing');
   assert.equal(publicAudioSettings(await readAudioSettings()).liveSentencePause, 'long', 'the panel sees it');
 });
