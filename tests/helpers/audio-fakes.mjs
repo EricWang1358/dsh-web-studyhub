@@ -20,10 +20,13 @@ export function wav(fill) {
 export const kindOfPrompt = system => system.includes('You proofread speech-to-text') ? 'proofread'
   : /translate paragraphs|You translate/.test(system) ? 'translate'
   : system.includes('one English title') || system.startsWith('Write one') ? 'title'
-  : system.includes('re-examine suspected speech-recognition errors') ? 'review' : 'unknown';
+  : system.includes('re-examine suspected speech-recognition errors') ? 'review'
+  : system.includes('class notes from a live-class transcript') ? 'notes' : 'unknown';
 
 /** The deterministic answer of a text model to one step (the text of its reply). */
 export function answerFor(kind, prompt, { corrections } = {}) {
+  // The class notes a save makes from the transcript when the correction left none (lib/live-notes-fallback.js): a summary and one cited point.
+  if (kind === 'notes') return JSON.stringify({ summary: '课堂摘要', points: [{ text: '课堂要点', refs: [Number(prompt.match(/\[(\d+)\]/)?.[1] || 1)] }] });
   const data = kind === 'title' ? {} : JSON.parse(prompt.split('\n\nYour previous')[0]);
   if (kind === 'proofread') return JSON.stringify({ corrections: corrections ?? [] });
   if (kind === 'translate') return JSON.stringify({ titleZh: '涨价', titleEn: 'Price Rises', paragraphs: data.paragraphs.map(p => ({ n: p.n, en: `EN ${p.text}`, zh: `译 ${p.text || p.en}` })) });

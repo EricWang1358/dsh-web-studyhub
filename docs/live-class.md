@@ -117,10 +117,7 @@ While StudyHub connects, an **Input level** panel shows. During recording, a sli
 | **Browser audio interrupted**, **No audio frames received** | The browser is not delivering audio. Check the device or the sharing, and end and restart if needed. |
 | **Waiting for audio permission** | Answer the browser's microphone or sharing prompt. |
 
-**Transfer details** shows two separate timers:
-
-- **Audio captured**: audio the browser has recorded.
-- **Backend accepted**: audio that StudyHub's backend has received. This does not mean Google has turned it into text yet.
+**Sound details** states one fact: "Computer heard 2 min 32 sec · 12 sentences recognized". Hearing sound does not mean it has become text, so the number of recognized sentences stands next to it.
 
 If uploads fall about 30 seconds behind, StudyHub stops the recording and keeps what it has received. Check your connection, then click **Continue recording**.
 
@@ -131,7 +128,7 @@ The meter shows the relative level of the audio actually sent for transcription.
 1. Select sentences in any of these ways:
    - tick the box next to a sentence;
    - drag across original or translated text, which selects every sentence the highlight touches;
-   - click **Last 8 sentences**.
+   - click **Latest stretch**: it selects the latest 1200 characters or so of the class (a single very long sentence counts as the stretch).
 2. Select at least about 120 characters of original text and no more than 400 sentences. The selection bar shows how many more characters you need. **Clear** empties the selection.
 3. Set **Questions** to a number from 1 to 15. The default is 5.
 4. Click **Create questions from selection**. Recording continues.
@@ -200,15 +197,15 @@ After **End recording**, the bottom of the page offers:
 
 | Button | What it does | Cost |
 | --- | --- | --- |
-| **Save as source** | Saves the bilingual transcript as it is, as one source (more for a very long class) with sections titled by time range. Waits while any sentence is still being translated; a sentence whose translation failed is saved without one. | Free, no model calls |
+| **Save as source** | Available at any time after the class; it is never greyed out because the polish or the translations are unfinished. When both are complete it saves the bilingual transcript (more sources for a very long class) and the class notes at once. When something is missing it starts a task: first the rest of the polish (up to about 4 minutes; sentences that cannot be polished keep their text) and the failed translations (up to about 90 seconds), then it saves. What could not be finished is written in the task, and the transcript is saved anyway. With no text model only the transcript is saved, and it says the notes were not saved. | The finishing steps use your text model; nothing is called when there is nothing to finish (class notes excepted, see below) |
 | **Proofread and save** | Runs a background task that proofreads misrecognised words, translates the transcript again and saves the result. It uses the **Proofreading and translation** level from audio settings and joins the same queue as audio imports, which handles one recording at a time. Saving the same class again with unchanged settings reuses the sources already saved. | Free allowance, or billed by your provider |
 | **Open sources** | Opens the **Sources** page. | |
 
-When there is a summary or notes, either save also stores a separate class notes source. It holds the summary, the batch notes and sentence references with their times. Historical requests that failed are listed in it under "Needs verification".
+Either save also stores a separate class notes source with the summary, the batch notes and sentence references with their times; failed historical requests are listed in it under "Needs verification". When the polish made no notes (every batch timed out or was skipped, or there was no model) the save writes them from the transcript instead: in chunks of about 8000 characters, at most 8 requests, each giving a summary and key points that cite sentences. With no text model no notes are saved, and it says so.
 
-Both save buttons stay unavailable until context correction has covered every sentence and no historical correction is queued or running. If correction stopped with an error, click **Retry pending correction** first.
+When the polish pauses because of an error, the **Context polish** line says why, with **Retry pending correction** beside it and a way to Settings > Audio transcription to choose another text model.
 
-A translation that fails 3 times shows as unavailable. Click **Retry failed translations** above the transcript to try again.
+A sentence whose translation is not there yet shows one small line, "No translation yet"; click the single **Retry failed translations** above the transcript to try again. A sentence that is Chinese already is never translated and never shows a translation line.
 
 ## Manage previous classes
 

@@ -285,7 +285,7 @@ const readWrongBook = (page) => page.evaluate(() => {
   const start = retrain?.querySelector(".sh-btn--primary");
   return {
     retrain: box(retrain), start: box(start), startText: start?.textContent.trim() ?? "", selected: pressed?.textContent.trim() ?? "", options: [...new Set(options)],
-    note: retrain?.querySelector(".wb-retrain-copy small")?.textContent.trim() ?? "", recs: box(document.querySelector(".wb-recs")),
+    note: document.querySelector(".wb-recs-status")?.textContent.trim() ?? "", recs: box(document.querySelector(".wb-recs")),
     group: box(document.querySelector(".wb-group")), firstRow: box(document.querySelector(".wb-row")),
   };
 });
@@ -309,7 +309,7 @@ export async function wrongBookScenario({ browser, running, lang = "zh", theme =
   await drainLayoutStability(page);
   if (shots) await page.screenshot({ path: join(shots, "before-arrival.png") });
   hold.release("wrongbook.recommend");
-  await until(() => page.evaluate(() => !!document.querySelector(".wb-recs .sh-btn")), "the recommendations to arrive");
+  await until(() => page.evaluate(() => /\d/.test(document.querySelector(".wb-recs-status")?.textContent ?? "")), "the recommendations to arrive");
   await frames(page, 4);
   const after = await readWrongBook(page);
   const log = await drainLayoutStability(page);
