@@ -4,7 +4,7 @@ import { Button, Disclosure, StackedBar, Tooltip } from '../components/index.js'
 import { useInjectCss } from '../shared.js';
 import { coverageFromDigest } from '../../lib/coverage.js';
 import css from './coverage.css';
-import { countOf, coverageChipText, coverageLine, planLine, sectionName, stateMeaning, stateWord, reasonWord, uncoveredHead, weightLine } from './copy.js';
+import { countOf, coverageChipText, coverageHead, coverageLine, planFinished, planFinishedLine, sectionName, shortfallLine, stateMeaning, stateWord, reasonWord, uncoveredHead, weightLine } from './copy.js';
 
 /* 覆盖 on screen: the bar, the mark beside an outline entry, the chip beside the mastery mark and the summary of a draft. They are drawn from lib/coverage.js's result
    (`coverage.get`, the snapshot's materialCoverage) and say it in ui/coverage/copy.js, so every screen shows the same numbers in the same words. */
@@ -34,6 +34,23 @@ export function CoverageBar({ coverage, legend = false, size = 'md', className =
   if (!coverage?.leaves) return null;
   const line = coverageLine(coverage);
   return <StackedBar className={`cov-bar ${className}`.trim()} segments={coverageSegments(coverage)} name={line} legend={legend} size={size === 'lg' ? 'lg' : 'md'} data-coverage-bar />;
+}
+
+/**
+ * THE coverage of a draft, said once per page (#663): one line of fact 「覆盖 4/5 个小节（80%）」, the bar under it and, when the draft has a plan that stands still, ONE sentence that says where the plan ended
+ * and what it left out (ui/coverage/copy.js shortfallLine, #662). The draft page (CoverageSummary below) and the 任务 console's plan strip (ui/tasks/RunLine.jsx) both draw it; the run's own line (rounds,
+ * tokens), the plan and the next round are details around it, never a second copy of the figure. `coverage` is `coverage.get`'s coverage, `shortfall` lib/shortfall.js's.
+ */
+export function CoverageFact({ coverage, shortfall, legend = false, className = '' }) {
+  useInjectCss(css, 'study-coverage');
+  if (!coverage?.leaves) return null;
+  // A run that works says where it is in its own line; the sentence is for a plan that stands still.
+  const status = !shortfall?.planned || ['running', 'paused'].includes(shortfall.state) ? '' : planFinished(shortfall) && shortfall.sectionsUncovered === 0 ? planFinishedLine(shortfall) : shortfallLine(shortfall);
+  return <div className={`cov-fact ${className}`.trim()} data-coverage-fact>
+    <p className="cov-fact__line" data-coverage-line>{coverageHead(coverage)}</p>
+    <CoverageBar coverage={coverage} legend={legend} />
+    {status && <p className="cov-fact__status" data-shortfall-line>{status}</p>}
+  </div>;
 }
 
 /**
@@ -94,19 +111,17 @@ function UncoveredList({ coverage, onOpen }) {
 }
 
 /**
- * The summary at the top of a draft: 「覆盖 7/80 个部分（9%）· 3 个计划了没出成 · 70 个没计划到」, the bar, one row per recording (or chapter) and the list of what has no
- * question with the way to open the reader at it (`onOpen(section)`, the app's openSourceAt at the section's start). `children` is the one top-up. `coverage` is `coverage.get`'s coverage.
+ * The summary at the top of a draft: THE fact line, the bar and the sentence of the plan (CoverageFact), one row per recording (or chapter) and the list of what has no
+ * question with the way to open the reader at it (`onOpen(section)`, the app's openSourceAt at the section's start). `children` is the one top-up. `coverage` is `coverage.get`'s coverage,
+ * `shortfall` the draft's (lib/shortfall.js).
  */
 /** `lead`: what is said first, above the line of the sections (the draft page: 「选了 N 份，M 份已出题」, ui/coverage/MaterialsReport.jsx). */
-export function CoverageSummary({ coverage, onOpen, children, lead = null, className = '' }) {
+export function CoverageSummary({ coverage, shortfall, onOpen, children, lead = null, className = '' }) {
   useInjectCss(css, 'study-coverage');
   if (!coverage?.leaves) return null;
-  return <section className={`cov-summary ${className}`.trim()} aria-label={ui('这份草稿对资料的覆盖')} data-coverage-summary>
-    <p className="cov-summary__kicker">{ui('覆盖')}</p>
+  return <section className={`cov-summary ${className}`.trim()} aria-label={ui('这份草稿对资料的覆盖')} data-coverage-summary data-tour="draft-coverage">
     {lead}
-    <p className="cov-summary__line" data-coverage-line>{coverageLine(coverage)}</p>
-    {coverage.spec && <p className="cov-summary__plan" data-coverage-plan>{planLine(coverage.spec)}</p>}
-    <CoverageBar coverage={coverage} legend />
+    <CoverageFact coverage={coverage} shortfall={shortfall} legend />
     {coverage.groups?.length > 1 && <ul className="cov-groups" aria-label={coverage.groups.some((group) => group.recording != null) ? ui('每段录音的覆盖') : ui('每一章的覆盖')} data-coverage-groups>
       {coverage.groups.map((group) => <li key={group.id} data-group={group.id}>
         <span className="cov-groups__name">{groupName(group)}</span>

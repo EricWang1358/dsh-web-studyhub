@@ -5,27 +5,52 @@
     .draft-card {
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: var(--space-4-5);
-      margin: var(--space-4) 0;
     }
-    .draft-card summary {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: var(--space-1-5) var(--space-3);
+    /* One row layout for every question (#670): the fold's chevron, the number, the question and, at the end, its tags, in one grid row. The question is cut at two lines (three
+       lines' worth of room is never reserved: a one-line question has a one-line row, a long one two) and shown whole when the row is open; the tags never wrap away from the end of the row. */
+    .draft-card .draft-card__row {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr) auto;
+      align-items: start;
+      column-gap: var(--space-3);
       --sh-summary-marker-gap: 0;
       cursor: pointer;
-      line-height: 1.65;
-    }
-    .draft-card summary > span {
-      color: var(--accent-soft);
       font-size: var(--fs-md);
+      line-height: var(--lh-snug);
     }
-    .draft-card summary small {
-      flex-shrink: 0;
+    /* The chevron sits on the first line of the question, not above it (its own line-height is 1). */
+    .draft-card .draft-card__row::before {
+      margin-top: calc((var(--lh-snug) - 1) * 0.5em);
     }
-    .draft-card summary small:first-of-type {
-      margin-left: auto;
+    .draft-card__no {
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .draft-card__prompt {
+      min-width: 0;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+    }
+    .draft-card[open] > .draft-card__row .draft-card__prompt {
+      display: block;
+      overflow: visible;
+    }
+    .draft-card__tags {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: baseline;
+      gap: 0 var(--space-2);
+      max-width: 12em;
+      color: var(--text-muted);
+    }
+    .draft-card__tags small {
+      white-space: nowrap;
     }
     .edit-option {
       background: var(--bg-surface);
@@ -51,25 +76,41 @@
       height: 60vh;
       tab-size: 2;
     }
+    /* The action bar (ui/DraftBar.jsx, #669): the LAST thing on the page, stuck to the bottom of the view, so publishing is within reach at every scroll position while the questions come
+       first. Opaque: the page scrolls under it, and a translucent bar let the text show through its buttons (the evaluation's D-14). Its buttons are on the right, what the draft holds on the left. */
     .sticky-actions {
       position: sticky;
-      top: 12px;
+      bottom: 0;
       z-index: var(--z-sticky);
-      width: fit-content;
-      max-width: 100%;
-      /* Opaque: the page scrolls under this bar, and a translucent one let the coverage headline show through its buttons (the evaluation's D-14). */
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2) var(--space-4);
+      margin-top: var(--space-5);
+      padding: var(--space-2-5) var(--space-3);
       background: var(--bg-raised);
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
-      box-shadow: var(--shadow-item);
-      padding: var(--space-2);
-      margin-bottom: var(--space-5-5);
+      box-shadow: var(--shadow-up);
+    }
+    .sticky-actions__status {
+      min-width: 0;
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-md);
+    }
+    .sticky-actions__status strong {
+      color: var(--text);
+      font-size: var(--fs-lg);
+    }
+    .sticky-actions__buttons {
       display: flex;
+      flex: none;
+      align-items: center;
       gap: var(--space-2);
-      flex-wrap: wrap;
     }
     .draft-title-field {
-      margin: 0 0 var(--space-1-5);
+      margin: 0 0 var(--space-3);
       color: var(--text-muted);
       font-size: var(--fs-md);
     }
@@ -77,15 +118,6 @@
       margin-top: var(--space-2);
       font-size: var(--fs-lg);
       font-weight: var(--fw-strong);
-    }
-    .draft-count {
-      margin: var(--space-2) 0 var(--space-4-5);
-      color: var(--text-muted);
-      font-size: var(--fs-md);
-    }
-    .draft-count strong {
-      color: var(--text);
-      font-size: var(--fs-lg);
     }
     /* A draft that will be the next part of a published deck: whose part it is, and where it goes when published (ui/DraftPart.jsx). */
     .draft-part-line {
@@ -96,9 +128,6 @@
     }
     .draft-part-target {
       margin: 0 0 var(--space-4);
-    }
-    .draft-page .sticky-actions {
-      margin: 0 0 var(--space-5);
     }
     .draft-blocker-summary {
       margin: 0 0 var(--space-3);
@@ -162,18 +191,44 @@
   }
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
-      /* On a narrow screen the three buttons share ONE row (a two-row bar covers a seventh of the screen for as long as the page scrolls) and the bar spans the width. */
+      /* On a narrow screen the buttons share ONE row (a two-row bar covers a seventh of the screen for as long as the page scrolls) and the bar spans the width; what the draft holds is
+         said only when there is something to say (unsaved edits, a task at work on it)... */
       .draft-page .sticky-actions {
-        width: 100%;
         gap: var(--space-1-5);
         padding: var(--space-1-5);
-        flex-wrap: nowrap;
       }
-      .draft-page .sticky-actions > * {
+      .draft-page .sticky-actions__status:not([data-unsaved]) {
+        display: none;
+      }
+      /* ...and then it is one short line above the buttons, cut with an ellipsis, never several lines of a tall bar. */
+      .draft-page .sticky-actions {
+        flex-wrap: wrap;
+      }
+      .draft-page .sticky-actions__status {
+        flex: 1 1 100%;
+        overflow: hidden;
+        font-size: var(--fs-sm);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .draft-page .sticky-actions__buttons {
+        flex: 1 1 auto;
+        justify-content: flex-end;
+        gap: var(--space-1-5);
+      }
+      .draft-page .sticky-actions__buttons > .draft-bar__button {
         flex: 1 1 auto;
         min-width: 0;
         padding-inline: var(--space-2);
         font-size: var(--fs-sm);
+      }
+      .draft-card__tags {
+        grid-column: 3;
+        justify-content: flex-start;
+        max-width: none;
+      }
+      .draft-card .draft-card__row {
+        grid-template-columns: auto auto minmax(0, 1fr);
       }
     }
   }
@@ -182,7 +237,12 @@
 @layer study.features {
   :is(.study-app, .study-seat) {
     /* The draft card is a <Panel> (ui-consistency #143): the Panel owns border, radius and background; this only settles the spacing between neighbours. */
-    .draft-card { margin: var(--space-4) 0; padding: var(--space-4) var(--space-5); }
+    /* The title is one row: the label, then the field (the page's first screen is for the questions, #669); on a narrow screen they stack again. */
+    .draft-title-field { flex-direction: row; align-items: center; gap: var(--space-3); white-space: nowrap; }
+    .draft-title-field .draft-title-field__input { flex: 1 1 auto; min-width: 0; margin: 0; }
+    .draft-card { margin: var(--space-2) 0; padding: var(--space-2-5) var(--space-4); }
+    /* The page's toasts stand above the bar, not behind it (the bar is 60 to 90px high, and the rail's bottom edge is below the bar's). */
+    main:has([data-draft-bar]) { --sh-toast-offset: calc(var(--space-9) * 2); }
     .draft-citation-preview {
       flex-direction: column;
       align-items: flex-start;
@@ -199,6 +259,11 @@
       font-weight: var(--fw-regular);
       line-height: var(--lh-snug);
       overflow-wrap: anywhere;
+    }
+  }
+  @container study (max-width:720px) {
+    :is(.study-app, .study-seat) {
+      .draft-title-field { flex-direction: column; align-items: stretch; gap: var(--space-1-5); }
     }
   }
 }

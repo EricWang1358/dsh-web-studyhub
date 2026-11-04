@@ -138,8 +138,10 @@ const summaryHtml = (v, language = 'zh', props) => inLanguage(language, () => re
 
 test('the draft page summary: the line, one bar, one row per recording, and every uncovered section with its state', () => {
   const out = summaryHtml(view);
-  assert.match(out, /data-coverage-line[^>]*>覆盖 3\/12 个小节（25%） · 2 个计划了没出成 · 7 个没计划到</);
-  assert.match(out, /role="img"[^>]*aria-label="覆盖 3\/12 个小节（25%）/);
+  // The fact is ONE short line (#663); how the rest splits is the bar's legend and its name.
+  assert.match(out, /data-coverage-line[^>]*>覆盖 3\/12 个小节（25%）</);
+  assert.match(out, /role="img"[^>]*aria-label="覆盖 3\/12 个小节（25%） · 2 个计划了没出成 · 7 个没计划到/);
+  assert.match(text(out), /计划了没出成 2.*没计划到 7/, 'the legend counts them');
   const rows = [...out.matchAll(/data-group="(r\d)"[\s\S]*?cov-groups__count">(\d+\/\d+)</g)].map(match => [match[1], match[2]]);
   assert.deepEqual(rows, [['r1', '2/4'], ['r2', '1/4'], ['r3', '0/4']], 'one row per recording, with the same numbers as the checklist');
   assert.equal((out.match(/data-section="[^"]*"/g) || []).length, FAILED.length + NEVER.length, 'nothing is left out of the list of what has no question');
@@ -150,7 +152,7 @@ test('the draft page summary: the line, one bar, one row per recording, and ever
   assert.equal((out.match(/data-coverage-mark="covered"/g) || []).length, 0, 'covered sections are not in the list of what is missing');
   const english = inLanguage('en', () => text(withoutData(summaryHtml(view, 'en'))));
   assert.doesNotMatch(english, han);
-  assert.match(english, /Covered 3\/12 sections \(25%\) · 2 planned but not produced · 7 never planned/);
+  assert.match(english, /Covered 3\/12 sections \(25%\)/);
   assert.match(english, /Uncovered sections · 9/);
   assert.match(english, /Planned, not produced: The review reply stayed malformed after being reviewed again/);
 });
@@ -158,17 +160,18 @@ test('the draft page summary: the line, one bar, one row per recording, and ever
 test('the summary of a draft from before plans were kept says 没有记录, and names no reason it cannot know', () => {
   const old = draftView({ covered: COVERED, recorded: false });
   const out = text(summaryHtml(old));
-  assert.match(out, /覆盖 3\/12 个小节（25%） · 9 个没有记录/);
+  assert.match(out, /覆盖 3\/12 个小节（25%）/);
+  assert.match(out, /没有记录 9/, 'the legend says what it cannot tell');
   assert.doesNotMatch(out, /没计划到|计划了没出成/);
   assert.match(out, /这份草稿生成时没有保存计划/);
   const english = inLanguage('en', () => text(withoutData(summaryHtml(old, 'en'))));
-  assert.match(english, /9 with no plan on record/);
+  assert.match(english, /No plan on record 9/, 'the legend');
 });
 
 test('a single recording or a book needs no per-recording rows; a material with nothing covered still shows the whole gap', () => {
   const none = draftView({ covered: [], failed: [] });
   const out = text(summaryHtml(none));
-  assert.match(out, /覆盖 0\/12 个小节（0%） · 12 个没计划到/);
+  assert.match(out, /覆盖 0\/12 个小节（0%）/);
   assert.match(out, /没覆盖的小节 · 12/);
 });
 

@@ -3,7 +3,8 @@ import { ui } from '../i18n.js';
 import { Tooltip } from '../components/index.js';
 import { contractOf } from './task-model.js';
 import { joinMeta } from '../format.js';
-import { continueLine, coveragePathText, forecastMath, nextRoundText, repeatingLine, runLine, runPathText, runStopText, shortfallLine, shortfallWhy } from '../coverage/copy.js';
+import { continueLine, coverageAheadText, coveragePathText, forecastMath, nextRoundText, repeatingLine, runLine, runPathText, runStopText, shortfallLine, shortfallWhy } from '../coverage/copy.js';
+import { CoverageFact } from '../coverage/Coverage.jsx';
 import { forecastOf } from './task-facts.js';
 import RepeatingExplain from '../coverage/RepeatingExplain.jsx';
 import { HandOff } from '../hand-off/HandOff.jsx';
@@ -30,7 +31,7 @@ export default function RunLine(props) {
   </div></>;
 }
 
-function PlanLine({ task, shortfall, now = Date.now(), onOpenSource, onOpenSettings }) {
+function PlanLine({ task, shortfall, coverage, now = Date.now(), onOpenSource, onOpenSettings }) {
   const contract = contractOf(task), run = contract.detail?.run;
   const continuing = shortfall?.action === 'continue' && (!!shortfall.ended || ['failed', 'cancelled'].includes(contract.status));
   if (!run?.total) {
@@ -45,13 +46,16 @@ function PlanLine({ task, shortfall, now = Date.now(), onOpenSource, onOpenSetti
   const interrupted = contract.status === 'interrupted';
   const stop = interrupted ? '' : (shortfall ? shortfallWhy(shortfall) : '') || runStopText(run.stop, shortfall);
   const standing = shortfall && !['running', 'paused'].includes(shortfall.state);
-  const counts = standing ? joinMeta([continuing ? continueLine(shortfall) : shortfallLine(shortfall), shortfall.state === 'done' ? '' : nextRoundText(shortfall)]) : '';
-  const path = standing ? coveragePathText(shortfall) : runPathText(run);
+  // The coverage is written once, by the same component as on the draft page (ui/coverage/CoverageFact.jsx); the run's line, the next round and what is ahead are details around it (#663).
+  const fact = standing && coverage?.leaves > 0;
+  const counts = standing ? joinMeta([continuing ? continueLine(shortfall) : fact ? '' : shortfallLine(shortfall), shortfall.state === 'done' ? '' : nextRoundText(shortfall)]) : '';
+  const path = standing ? (fact ? coverageAheadText(shortfall) : coveragePathText(shortfall)) : runPathText(run);
   const forecast = interrupted ? null : forecastOf(contract, now), math = forecast ? forecastMath(forecast, { own: !!run.ownTokens, used: contract.usage?.tokens }) : '';
   return (
     <div className="tc-run" role="status" aria-label={ui('出题计划')} data-run-state={interrupted ? 'interrupted' : run.state || 'running'}>
       <span className="tc-run__k">{ui('出题计划')}</span>
-      <strong className="tc-run__line" data-run-line>{runLine(run, { interrupted, forecast })}</strong>
+      <strong className="tc-run__line" data-run-line>{runLine(run, { interrupted, forecast, cover: !fact })}</strong>
+      {fact && <CoverageFact className="tc-run__fact" coverage={coverage} shortfall={continuing ? null : shortfall} />}
       {forecast && (math
         ? <Tooltip layer content={math} anchorClassName="tc-run__counts tc-run__math-anchor"><span className="tc-run__math" data-run-math tabIndex={0}>{math}</span></Tooltip>
         : <span className="tc-run__counts tc-run__math" data-run-math>{'\u00a0'}</span>)}

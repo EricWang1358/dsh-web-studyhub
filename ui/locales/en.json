@@ -658,6 +658,7 @@
   "帮我弄懂": "Help me understand",
   "这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。": "This is an active mock exam. Continue answering here; submit and view results on the Mock exam page.",
   "更多": "More",
+  "后台任务进行中，暂时不能保存或发布": "A background task is working on it; saving and publishing wait",
   "写笔记": "Write a note",
   "修题": "Improve question",
   "斩掉此题": "Retire question",

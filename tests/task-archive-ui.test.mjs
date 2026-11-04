@@ -87,7 +87,8 @@ test('a finished task has 归档 (it was 知道了), which now says where the ta
   const detail = finished.slice(finished.indexOf('class="tc-detail"'));
   assert.match(detail, />归档</);
   assert.match(detail, /已归档/, 'the words next to the button say it goes to 已归档, it is not deleted');
-  assert.match(detail, />删除</);
+  assert.doesNotMatch(detail, />删除</, '删除 is not a button of the row: it is the item of the ⋯ menu (#668, tests/danger-menu.test.mjs)');
+  assert.match(detail, /aria-haspopup="menu"[^>]*aria-label="更多操作"|aria-label="更多操作"[^>]*aria-haspopup="menu"/, 'one step away');
   const running = render({ data: { jobs: [live()[0]] } });
   const runningDetail = running.slice(running.indexOf('class="tc-detail"'));
   assert.doesNotMatch(runningDetail, />归档</);
@@ -108,7 +109,8 @@ test('the archived list shows archived tasks read-only: 取消归档 and 删除,
   const detail = html.slice(html.indexOf('class="tc-detail"'));
   assert.match(detail, /data-archived="true"/);
   assert.match(detail, />取消归档</);
-  assert.match(detail, />删除</);
+  assert.doesNotMatch(detail, />删除</, '删除 is behind the ⋯ of the header (#668), not beside 取消归档');
+  assert.match(detail, /aria-label="更多操作"/);
   for (const gone of ['>暂停<', '>继续<', '>接着做<', '>停止<', '>归档<']) assert.ok(!detail.includes(gone), gone);
   assert.match(detail, /只读/);
   const en = render({ data, props: { initialFilter: 'archived' }, language: 'en' });
@@ -133,15 +135,15 @@ test('删除 of task records asks nothing: the shared 撤销 notice (ui/undoable
   assert.equal(existsSync('ui/tasks/DeleteTasksDialog.jsx'), false, 'the dialog is gone');
 });
 
-test('a past day of 为你定制 has no box and no 删除: its one button says it deletes the day (its file keeps fourteen days), it is not archived', () => {
+test('a past day of 为你定制 has no box and no 删除 button: the item of its ⋯ menu says it deletes the day (its file keeps fourteen days), it is not archived', () => {
   const day = { id: 'coach:2026-10-01', type: 'coach-daily', date: '2026-10-01', status: 'complete', today: false, startedAt: iso(0),
     coachDaily: { date: '2026-10-01', batches: [], metrics: {}, tokens: { input: 0, output: 0, cache: 0 }, paused: false, limits: null } };
   const html = render({ data: { jobs: [day] } });
   assert.equal([...html.matchAll(/<input[^>]*type="checkbox"[^>]*>/g)].filter((match) => /选择任务/.test(match[0])).length, 0, 'no box on a day');
   const detail = html.slice(html.indexOf('class="tc-detail"'));
-  assert.match(detail, />删除这一天</);
+  assert.doesNotMatch(detail, />删除这一天</, 'the item is in the menu (tests/danger-menu.test.mjs), not a button of the row');
+  assert.match(detail, /aria-label="更多操作"/);
   assert.doesNotMatch(detail, />归档</, '归档 archives, and a day is not archived');
-  assert.match(detail, /只保留最近 14 天/);
   assert.doesNotMatch(detail, />删除</);
 });
 
@@ -163,7 +165,7 @@ test('the bar of the selection announces its count, takes the focus when the sel
   const data = { archivedJobs: [archivedRecord('o1', '旧题组', 'complete', 1)] };
   const archived = render({ data, props: { initialFilter: 'archived' } });
   const head = archived.slice(archived.indexOf('class="tc-head__actions"'), archived.indexOf('aria-label="概览"'));
-  assert.match(head.match(/<button[^>]*>删除<\/button>/)[0], /sh-btn--danger[^"]*tc-head__delete|tc-head__delete[^"]*sh-btn--danger/, '删除 in the header is the danger look too');
+  assert.doesNotMatch(head, /<button[^>]*>删除<\/button>/, '删除 in the header is the item of the ⋯ menu, in the danger colour (tests/danger-menu.test.mjs)');
   assert.doesNotMatch(head.match(/<button[^>]*>取消归档<\/button>/)[0], /sh-btn--danger/);
   // each box of a row is named by its task; the row that is open says so (aria-pressed)
   const list = render();
