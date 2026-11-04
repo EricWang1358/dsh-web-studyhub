@@ -25,6 +25,6 @@ export default function LiveNotes({ correction, onSentence, onRetry, disabled })
       {references(task.ids)}{task.error && <p>{task.error}</p>}
     </details>)}
     {background.failed > 0 && <Button disabled={disabled} lock={background.running} onClick={onRetry}>{ui('重试历史歧义校正')}</Button>}
-    <small className="muted">{ui('保存为资料时，会另外保存一份课堂笔记，包含摘要、分批记录和引用。')}</small>
+    <small className="muted">{ui('保存为资料时会另存一份课堂笔记；润色没能整理出笔记时，会改用文字稿整理一份。')}</small>
   </details>;
 }

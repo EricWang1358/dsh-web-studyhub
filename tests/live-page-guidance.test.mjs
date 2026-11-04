@@ -189,10 +189,10 @@ test('recentWindow takes the newest sentences up to a character budget, and alwa
 
 test('after the class: one quiet line where the end button is, only while the class runs', () => {
   const running = render(page({}));
-  assert.equal((textOf(running).match(/结束后会先补完润色/g) || []).length, 1);
+  assert.equal((textOf(running).match(/结束后点「保存为资料」，会先补完润色和译文/g) || []).length, 1);
   assert.match(textOf(running), /保存为资料/);
-  assert.ok(running.indexOf('结束实录') < running.indexOf('结束后会先补完润色'), 'it stands under the end button');
-  assert.doesNotMatch(textOf(render(page({ status: 'ended' }))), /结束后会先补完润色/);
+  assert.ok(running.indexOf('结束实录') < running.indexOf('结束后点「保存为资料」'), 'it stands under the end button');
+  assert.doesNotMatch(textOf(render(page({ status: 'ended' }))), /结束后点「保存为资料」，会先补完/);
 });
 
 test('English: the whole running page has no Chinese chrome (the transcript is content)', () => {
@@ -201,4 +201,71 @@ test('English: the whole running page has no Chinese chrome (the transcript is c
   const chrome = english.replace(/<p class="live-chinese"[^>]*>[^<]*<\/p>/g, '').replace(/<small class="live-skipped"[^>]*>[^<]*<\/small>/g, '');
   assert.doesNotMatch(textOf(chrome), /[㐀-鿿]/);
   assert.match(textOf(english), /Skipped 1 sentence/);
+});
+
+const ENDED = { status: 'ended', translating: 3, correction: { ...CORRECTION, running: true, pending: 42, covered: 0, background: { running: true, pending: 2, failed: 0, tasks: [] } } };
+
+test('after the class both save buttons are always usable: no disabled button whatever the polish, the translations or the background corrections are doing', () => {
+  const html = render(page(ENDED));
+  const footer = html.match(/<footer class="live-footer">[\s\S]*?<\/footer>/)[0];
+  assert.match(footer, />保存为资料</); assert.match(footer, />校对后保存</);
+  assert.doesNotMatch(footer, /disabled/, 'nothing in the footer is disabled');
+  assert.doesNotMatch(footer, /aria-busy/);
+});
+
+test('the one primary save says what it does, and the proofread one says how it differs (a Tooltip, never title=)', () => {
+  const footer = render(page(ENDED)).match(/<footer class="live-footer">[\s\S]*?<\/footer>/)[0];
+  assert.match(textOf(footer), /保存时会先补完润色和译文/);
+  assert.match(textOf(footer), /再校对一遍整份文字/);
+  assert.match(footer, /role="tooltip"/);
+  assert.doesNotMatch(footer, /title="/);
+});
+
+test('a translation that failed is a small muted line on its row, never a bold line of its own; a Chinese sentence never shows one', () => {
+  const english = segment(4, 'A partition lets the optimizer skip data.', { zh: '', zhState: 'error' });
+  const waiting = segment(6, 'An index helps lookups.', { zh: '', zhState: 'pending' });
+  const html = render(page({ status: 'ended', segments: [english, waiting, segment(2, '分区可以减少数据量。', { zhState: 'error' }), segment(3, '索引帮助定位。')], total: 4 }));
+  const row = id => html.match(new RegExp(`<article[^>]*data-segment-id="${id}"[\\s\\S]*?</article>`))[0];
+  assert.doesNotMatch(html, /译文暂不可用，可重试/);
+  assert.doesNotMatch(row(4), /class="live-chinese"/);
+  assert.match(row(4), /<small class="live-zh-state" data-zh-state="error">译文暂时没有<\/small>/);
+  assert.match(row(6), /<small class="live-zh-state" data-zh-state="pending">正在翻译…<\/small>/);
+  for (const id of [2, 3]) assert.doesNotMatch(row(id), /live-zh-state|live-chinese/);
+  assert.equal((textOf(html).match(/重试失败的翻译/g) || []).length, 1, 'one page-level retry');
+});
+
+test('a Chinese class with failed translation states shows no retry for them', () => {
+  const html = render(page({ status: 'ended', segments: [segment(2, '分区可以减少数据量。', { zhState: 'error' })], total: 1 }));
+  assert.doesNotMatch(html, /重试失败的翻译/);
+});
+
+test('English: the translation line of a row is English', () => {
+  const html = render(page({ ...ENGLISH, status: 'ended', segments: [segment(4, 'A partition.', { zh: '', zhState: 'error' })], total: 1, correction: null }), 'en');
+  assert.match(textOf(html), /No translation yet/);
+  assert.doesNotMatch(textOf(html), /译文/);
+});
+
+test('when polish is paused the plain error, the retry and a way to the model setting stand together', () => {
+  const error = '润色模型的回复格式不对，已暂停自动重试。可以到音频设置换一个文字模型，再点重试。';
+  const html = render(page({ status: 'ended', correction: { ...CORRECTION, skipped: 0, skippedIds: [], skippedItems: [], pending: 3, paused: 'format', error } }, { onSettings: noop }), 'zh');
+  const fix = html.match(/<span class="live-correction-fix">[\s\S]*?<\/button><\/span>/)[0];
+  assert.match(fix, /润色模型的回复格式不对/);
+  assert.match(fix, />重试待校正内容</);
+  assert.match(fix, /data-live-model-setting[^>]*>[^<]*音频设置/);
+  for (const paused of ['skips', null]) {
+    const other = render(page({ status: 'ended', correction: { ...CORRECTION, skipped: 1, paused, error: '有 1 句…' } }, { onSettings: noop }), 'zh');
+    assert.equal(/data-live-model-setting/.test(other), paused === 'skips', `paused ${paused}`);
+  }
+  assert.doesNotMatch(render(page({ status: 'ended', correction: { ...CORRECTION, paused: 'format', error } })), /data-live-model-setting/, 'no link where the page cannot open settings');
+});
+
+test('the pause without an error still shows what to do', () => {
+  const html = render(page({ status: 'ended', correction: { ...CORRECTION, skipped: 0, skippedIds: [], skippedItems: [], pending: 3, paused: 'skips', error: '' } }, { onSettings: noop }), 'zh');
+  assert.match(textOf(html), /润色已暂停/);
+  assert.match(html, />重试待校正内容</);
+});
+
+test('English: the pause line and the model link are English', () => {
+  const html = render(page({ ...ENGLISH, status: 'ended', correction: { ...CORRECTION, skipped: 0, skippedIds: [], skippedItems: [], pending: 3, paused: 'format', error: 'Reply format was wrong.' } }, { onSettings: noop }), 'en');
+  assert.match(textOf(html), /Choose another text model in Audio settings/);
 });

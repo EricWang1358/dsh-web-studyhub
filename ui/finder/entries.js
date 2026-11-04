@@ -52,6 +52,7 @@ export const PREPARE_STEPS = Object.freeze({
   mistakes: { text: '答错过题以后，这一项才会出现。' },
   task: { text: '先在「任务」里点开一个任务，这一项在任务的详情里。' },
   'add-dialog': { text: '点「添加资料」，在弹出的窗口里就有这一项。' },
+  'live-class': { text: '先在「课堂实录」里开始或打开一场实录，这一项才会出现。' },
 });
 
 const feature = (entry) => ({ kind: 'feature', aliases: [], anchors: [], ...entry });
@@ -254,6 +255,21 @@ export const FEATURES = Object.freeze([
     aliases: ['断句', '停顿', '讲得快', '一直没有断句', '润色 0 句', 'sentence pause', 'pause length'],
     path: ['设置', '音频转写', '断句停顿'],
     what: '课堂实录多久没有新文字（本地转写：多久没有声音）就算一句话说完。老师讲得快、几乎不停顿时选「短」，句子会更早出现，润色和出题也更早能用；下次开始或接着录时生效。',
+    needs: { capability: 'audio' } }),
+  feature({ id: 'live-polish', area: 'course', title: '课堂实录的润色状态与重试', page: 'live', anchors: ['live-polish', 'nav-live'], prepare: 'live-class',
+    aliases: ['上下文润色', '润色', '已检查', '已润色', '已跳过', '原文保留', '重试待校正内容', '润色失败', '润色超时', '润色 0 句', 'polish', 'skipped', 'retry polish'],
+    path: ['课堂实录', '逐字稿上方的「上下文润色」一行'],
+    what: '逐字稿上方的「上下文润色」一行写着已检查、已润色和已跳过几句；有句子太长或超时被跳过（原文保留），或出了错，错误就在这一行里，点它旁边的「重试待校正内容」再试；用了多少次模型在「说明与用量」里。',
+    needs: { capability: 'audio', model: true } }),
+  feature({ id: 'live-selection', area: 'course', title: '在实录里选句出题', page: 'live', anchors: ['live-selection', 'nav-live'], prepare: 'live-class',
+    aliases: ['最近一段', '最近 8 句', '选中内容出题', '勾选句子', '划选', '清空', '题数', '实录出题', 'recent', 'last 8 sentences', 'select sentences'],
+    path: ['课堂实录', '逐字稿下面的选择栏'],
+    what: '勾选句子或划选文字，或点「最近一段」选中最近约 1200 个字符，再点「选中内容出题」。按钮灰着时，悬停或聚焦它会说为什么（还没选句子、字数不够、一次最多 400 句）。',
+    needs: { capability: 'audio', model: true } }),
+  feature({ id: 'live-save', area: 'course', title: '实录结束后保存为资料与课堂笔记', page: 'live', anchors: ['live-save', 'nav-live'], prepare: 'live-class',
+    aliases: ['保存为资料', '校对后保存', '课堂笔记', '笔记', '结束实录', '实录保存', 'save class', 'class notes', 'save as source'],
+    path: ['课堂实录', '结束实录', '保存按钮'],
+    what: '结束实录后随时可以点「保存为资料」，不会因为润色或译文没做完而点不了：它会先补完润色和译文，再存下文字稿和课堂笔记；润色没整理出笔记时，会用文字稿另外整理一份；做不完的，任务里会写清楚。',
     needs: { capability: 'audio' } }),
 
   // ── 设置 ──
