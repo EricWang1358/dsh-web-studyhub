@@ -102,7 +102,7 @@ export async function runDraftQa(options) {
           if (await fold.count() && !await fold.evaluate((element) => element.open)) await fold.locator("summary").first().click();
           await page.locator(".draft-row .draft-open").first().click();
         }
-        await page.getByRole("button", { name: t("发布并开始练 →", "Publish and start practising →") }).first().waitFor({ timeout: 15000 });
+        await page.getByRole("button", { name: t("发布并开始练 →", "Publish and practise →") }).first().waitFor({ timeout: 15000 });
         await settle();
         const said = (await page.locator(".draft-page").first().innerText()).replace(/\s+/g, " ");
         facts.draftPage = said.slice(0, 700);
@@ -137,7 +137,7 @@ export async function runDraftQa(options) {
         facts.rows = rows;
         if (strict) {
           assert.ok(rows.length >= 3, "the draft has several questions");
-          assert.ok(rows.every((row) => row.height <= 72 + (narrow ? 20 : 0)), `every closed row is at most 72px${narrow ? " (+20 on a phone)" : ""}: ${JSON.stringify(rows)}`);
+          assert.ok(rows.every((row) => row.height <= 72 + (narrow ? 44 : 0)), `every closed row is at most 72px${narrow ? " (+44 on a phone: the kind goes under the question, and in English may take two lines)" : ""}: ${JSON.stringify(rows)}`);
           assert.equal(new Set(rows.map((row) => row.summary)).size, 1, "every row has the same structure");
         }
       });

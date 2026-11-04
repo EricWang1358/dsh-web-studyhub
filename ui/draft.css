@@ -241,8 +241,8 @@
     .draft-title-field { flex-direction: row; align-items: center; gap: var(--space-3); white-space: nowrap; }
     .draft-title-field .draft-title-field__input { flex: 1 1 auto; min-width: 0; margin: 0; }
     .draft-card { margin: var(--space-2) 0; padding: var(--space-2-5) var(--space-4); }
-    /* The page's toasts stand above the bar, not behind it (the bar is about 56px high). */
-    main:has([data-draft-bar]) { --sh-toast-offset: calc(var(--space-9) + var(--space-2)); }
+    /* The page's toasts stand above the bar, not behind it (the bar is 60 to 90px high, and the rail's bottom edge is below the bar's). */
+    main:has([data-draft-bar]) { --sh-toast-offset: calc(var(--space-9) * 2); }
     .draft-citation-preview {
       flex-direction: column;
       align-items: flex-start;
