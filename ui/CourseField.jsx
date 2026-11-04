@@ -157,7 +157,7 @@ export default function CourseField({ courses = [], value = '', onChange, multip
   return <div className="course-field" ref={root}>
     <Field label={label} hint={hint || undefined} width="full">
       {({ id: inputId, describedBy }) => <div className={`course-field__control${filled ? ' has-value' : ''}`}>
-        <TextInput ref={input} id={inputId} value={value} title={value || undefined} disabled={disabled} maxLength={multiple ? 6000 : 200} autoComplete="off"
+        <TextInput ref={input} id={inputId} className="course-field__input" value={value} title={value || undefined} disabled={disabled} maxLength={multiple ? 6000 : 200} autoComplete="off"
           list={large || exact ? undefined : id} aria-describedby={describedBy}
           {...(large ? { role: 'combobox', 'aria-expanded': open, 'aria-controls': listboxId, 'aria-autocomplete': 'list',
             'aria-activedescendant': open && activeRow ? `${listboxId}-${activeIndex}` : undefined } : {})}

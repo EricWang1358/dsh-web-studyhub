@@ -70,7 +70,7 @@ function TaskRow({ task, plan, featured }) {
     <div className="daily-plan__task-copy"><strong>{task.title}</strong><TaskProgress task={task} />
       {task.status === 'done' && task.available !== false && <ActualTime task={task} plan={plan} />}
     </div>
-    {actionable(task) && !featured && <Button variant="quiet" size="sm" lock={!!plan.busy} onClick={() => plan.start(task.id)}>
+    {actionable(task) && !featured && <Button className="daily-plan__task-btn" variant="quiet" size="sm" lock={!!plan.busy} onClick={() => plan.start(task.id)}>
       {task.status === 'doing' ? ui('继续') : ui('开始')}</Button>}
   </li>;
 }

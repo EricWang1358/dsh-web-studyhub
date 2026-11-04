@@ -231,7 +231,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               <div>
                 {cardNotes.map((note) => note.status === "published" && note.url
                   ? <a key={note.noteId} className="result-note-link" href={note.url} target="_blank" rel="noopener noreferrer" title={note.title}><Badge size="sm" icon="external">{ui("已发布笔记")}</Badge></a>
-                  : <Button key={note.noteId} variant="quiet" size="sm" className="result-note-link" disabled={!onOpenNote}
+                  : <Button key={note.noteId} variant="quiet" size="sm" className="result-note-link question-meta__action" disabled={!onOpenNote}
                     title={note.title} onClick={() => onOpenNote?.(note.noteId)}>{ui("笔记草稿")}</Button>)}
                 {run.origin && (
                   <Badge size="sm" className="origin-note" title={run.origin.prompt ? uiFormat("源自：{0}", [run.origin.prompt]) : ""}>
@@ -252,6 +252,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                     <Button size="sm" onClick={() => assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</Button>
                   </Popover>}
                 <Button
+                  className="question-meta__action"
                   aria-label={ui("标记题目")}
                   onClick={() => openModal({ type: "flag" })}
                 >
@@ -543,9 +544,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                     <Chip key={label} onClick={() => setAssistText(ui(body))}>{ui(label)}</Chip>)}
                 </div>
               </>}
-              <label>
+              <label className="assist-form__field">
                 {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : assistMode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : ui("这道题哪里不好？后台助教会直接改这张卡，可一步撤销")}
                 <textarea
+                  className="assist-form__input"
                   autoFocus
                   rows={2}
                   value={assistText}
@@ -668,7 +670,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       );
                     }}
                   >
-                    <label>
+                    <label className="teaching-panel__field">
                       <Markdown text={teaching.check} />
                       <textarea
                         required
@@ -679,7 +681,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                         onChange={(e) => actions.setTeachAnswer(e.target.value)}
                       />
                     </label>
-                    <Button variant="primary"
+                    <Button className="teaching-panel__submit" variant="primary"
                       disabled={teachingBusy || !teachAnswer.trim()}
                       onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })}
                      type="submit">{ui("检查理解 →")}</Button>

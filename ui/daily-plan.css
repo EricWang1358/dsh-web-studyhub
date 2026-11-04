@@ -57,11 +57,11 @@
     .daily-plan__empty { max-width: 60ch; }
     .daily-plan__empty p { margin: 0 0 var(--space-3); color: var(--text-muted); line-height: var(--lh-body); font-size: var(--fs-sm); }
     .daily-plan__editor { padding: var(--space-3) 0 var(--space-2); border-top: 1px solid var(--line-soft); }
-    .daily-plan label { display: flex; gap: var(--space-2); flex-direction: column; font-size: var(--fs-sm); }
-    .daily-plan textarea { box-sizing: border-box; width: 100%; resize: vertical; min-height: 5rem; }
-    .daily-plan input { min-width: 0; width: 5rem; }
+    .daily-plan__editor > :has(> [rows]), .daily-plan__fields > *, .daily-plan__minutes { display: flex; gap: var(--space-2); flex-direction: column; font-size: var(--fs-sm); }
+    .daily-plan [rows] { box-sizing: border-box; width: 100%; resize: vertical; min-height: 5rem; }
+    .daily-plan [type="number"] { min-width: 0; width: 5rem; }
     .daily-plan__editor-bottom { margin-top: var(--space-3); }
-    & label.daily-plan__minutes { flex-direction: row; align-items: center; flex-wrap: wrap; }
+    .daily-plan__minutes { flex-direction: row; align-items: center; flex-wrap: wrap; }
     .daily-plan__footnote { margin: var(--space-3) 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .daily-plan__fields { display: flex; gap: var(--space-4); margin-bottom: var(--space-3); flex-wrap: wrap; }
     .daily-related { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-5); padding: var(--space-3) 0; margin: var(--space-3) 0; border-block: 1px solid var(--line-soft); }
@@ -71,16 +71,16 @@
   }
   @media (pointer: coarse) {
     :is(.study-app, .study-seat) {
-      .daily-plan :is(summary, input),
-      .daily-plan__body button,
-      .daily-related button { min-height: 2.75rem; }
+      .daily-plan :is(summary, [type="number"]),
+      .daily-plan__body :is([type="button"], [type="submit"]),
+      .daily-related [type="button"] { min-height: 2.75rem; }
     }
   }
   @container study (max-width: 37.5rem) {
     :is(.study-app, .study-seat) {
       .daily-plan__next-bottom { align-items: flex-start; flex-direction: column; }
       .daily-plan__task { align-items: flex-start; }
-      .daily-plan__task > button { flex-shrink: 0; }
+      .daily-plan__task > .daily-plan__task-btn { flex-shrink: 0; }
       .daily-plan__editor-bottom { align-items: flex-start; }
     }
   }

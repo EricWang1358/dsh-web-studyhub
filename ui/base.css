@@ -305,6 +305,12 @@
       box-shadow: var(--ring);
     }
   }
+  @media (forced-colors: active) {
+    :where(.study-app, .study-seat) {
+      & button { border: 1px solid ButtonText; }
+      & button:disabled { border-color: GrayText; color: GrayText; }
+    }
+  }
 }
 
 /* Keyframes live at the top level: browsers ignore @keyframes nested inside

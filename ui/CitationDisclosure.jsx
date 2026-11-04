@@ -22,7 +22,7 @@ export default function CitationDisclosure({ card, sources = [], onOpenSource })
         <div className="citations">
           {citations.map((citation, index) => {
             const source = sourceById.get(citation.sourceId);
-            return <Button key={index} variant="quiet" wrap block align="start" icon="external"
+            return <Button key={index} className="citations__button" variant="quiet" wrap block align="start" icon="external"
               onClick={() => onOpenSource(source && citation.selection ? { ...source, selection: citation.selection } : source, citation.quote)}>
               <span>{source?.title || ui("资料")}
                 <blockquote>{citation.quote}</blockquote></span>

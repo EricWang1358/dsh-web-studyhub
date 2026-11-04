@@ -12,8 +12,6 @@
       border-radius: var(--radius);
       background: var(--bg-surface);
     }
-    .import-hub__course label { margin: 0; gap: var(--space-1-5); font-weight: var(--fw-strong); }
-    .import-hub__course input { font-weight: var(--fw-regular); }
     .import-hub__course small { font-size: var(--fs-sm); font-weight: var(--fw-regular); line-height: var(--lh-snug); }
     /* The course as one line: where the files go, why, and the way to change it. The field opens under it. */
     .import-hub__chip { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); margin: 0; min-width: 0; }
@@ -44,7 +42,7 @@
       background: color-mix(in srgb, var(--accent) 6%, transparent);
     }
     .import-hub__paste { display: grid; gap: var(--space-4); min-width: 0; }
-    .import-hub__paste textarea { min-height: 180px; }
+    .import-hub__paste .import-hub__paste-input { min-height: 180px; }
     .import-hub__paste-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
     .import-hub__paste-footer small { font-size: var(--fs-sm); }
     .import-hub__paste .sh-inline { margin: 0; }

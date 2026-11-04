@@ -116,20 +116,20 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
       {open && (
         <div className="followup-picker">
           {questions.map((text) => (
-            <Button key={text} size="sm" wrap align="start" lock={!!pending} onClick={() => ask(text)}>{text}</Button>
+            <Button key={text} className="followup-picker__choice" size="sm" wrap align="start" lock={!!pending} onClick={() => ask(text)}>{text}</Button>
           ))}
-          <Button size="sm" lock={pending === "answer"} aria-expanded={custom}
+          <Button className="followup-picker__choice" size="sm" lock={pending === "answer"} aria-expanded={custom}
             onClick={() => setCustom(!custom)}>{ui("你的疑问")}</Button>
           {custom && (
             <form onSubmit={(event) => { event.preventDefault(); ask(question); }}>
-              <label>{ui("你的疑问")}<textarea autoFocus value={question} maxLength={1000} rows={3} disabled={pending === "answer"}
+              <label className="followup-picker__field">{ui("你的疑问")}<textarea className="followup-picker__input" autoFocus value={question} maxLength={1000} rows={3} disabled={pending === "answer"}
                   placeholder={ui("写下你想弄清楚的地方，也可以接着上面的回答问…")}
                   onChange={(event) => setQuestion(event.target.value)} />
               </label>
-              <Button type="submit" variant="primary" size="sm" busy={pending === "answer"} disabled={!!pending || !question.trim()}>{ui("解答并添加")}</Button>
+              <Button className="followup-picker__submit" type="submit" variant="primary" size="sm" busy={pending === "answer"} disabled={!!pending || !question.trim()}>{ui("解答并添加")}</Button>
             </form>
           )}
-          {error && !questions.length && !pending && <Button size="sm" onClick={suggest}>{ui("重新推荐问题")}</Button>}
+          {error && !questions.length && !pending && <Button className="followup-picker__choice" size="sm" onClick={suggest}>{ui("重新推荐问题")}</Button>}
         </div>
       )}
       {pending && <p className="muted small" role="status">{pending === "suggest" ? ui("正在准备 3 个追问…") : ui("正在解答，完成后会保存到本题，可继续下一题。")}</p>}</>}

@@ -32,7 +32,7 @@ function FollowUp({ node, onAsk, quick }) {
     </div>}
     <form onSubmit={submit}>
       <div className="ask-node__follow-row">
-        <input className="ask-node__follow-input" value={text} onChange={event => setText(event.target.value)} placeholder={ui('接着问这一条')} aria-label={ui('接着问这一条')} maxLength={500} />
+        <input className="ask-node__follow-input study-learning-control" value={text} onChange={event => setText(event.target.value)} placeholder={ui('接着问这一条')} aria-label={ui('接着问这一条')} maxLength={500} />
         <Button type="submit" size="sm" disabled={!text.trim()}>{ui('提问')}</Button>
       </div>
     </form>

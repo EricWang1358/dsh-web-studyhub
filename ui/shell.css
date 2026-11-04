@@ -458,9 +458,6 @@
       margin-bottom: 0;
     }
     .page-heading > :first-child { min-width: 0; }
-    .page-heading button {
-      flex-shrink: 0;
-    }
     /* A run's progress in the resume row: a count like the others, a little brighter because it is live. */
     .nav-progress {
       color: var(--text-muted);
@@ -512,9 +509,6 @@
       }
       .page-heading {
         display: block;
-      }
-      .page-heading > button {
-        margin-top: var(--space-4);
       }
       .page h1 {
         font-size: var(--fs-2xl);

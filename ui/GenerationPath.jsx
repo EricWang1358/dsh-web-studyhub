@@ -26,7 +26,7 @@ function Step({ step, disabled, patch, onUseStep }) {
   return (
     <li className="gen-path__step" data-included={step.included === false ? 'false' : 'true'} data-optional={step.optional ? 'true' : 'false'}>
       <label className="gen-path__title">
-        <CheckboxInput checked={step.included !== false} disabled={disabled} onChange={event => patch(step.id, { included: event.target.checked })} />
+        <CheckboxInput className="gen-path__check" checked={step.included !== false} disabled={disabled} onChange={event => patch(step.id, { included: event.target.checked })} />
         <span><strong>{uiFormat('第 {0} 步', [step.order])} · {title}</strong>
           {step.optional && <em className="gen-path__tag">{optionalTag(step)}</em>}
           <small>{[uiFormat('{0} 页 · {1} 字符 · 建议 {2} 题', [step.pages, formatNumber(step.chars), step.count]), stepPages(step, title)].filter(Boolean).join(' · ')}</small></span>
@@ -34,7 +34,7 @@ function Step({ step, disabled, patch, onUseStep }) {
       {step.optional && step.included === false && <small className="gen-path__reason">{uiFormat('{0}，默认不出题；勾选就会包含这一步。', [matterWord(step)])}</small>}
       {step.reason && <small className="gen-path__reason">{step.reason}</small>}
       <div className="gen-path__edit">
-        <input type="text" value={step.focus} maxLength={200} disabled={disabled} aria-label={uiFormat('第 {0} 步想练什么', [step.order])}
+        <input className="gen-path__focus" type="text" value={step.focus} maxLength={200} disabled={disabled} aria-label={uiFormat('第 {0} 步想练什么', [step.order])}
           placeholder={ui('这一步想练什么（可选）')} onChange={event => patch(step.id, { focus: event.target.value })} />
         <Tooltip layer placement="bottom-end" content={ui('把选择缩到这一步的页面，回到普通出题（会离开分步模式），题数用这一步的建议题数')}>
           <Button size="sm" variant="quiet" disabled={disabled} onClick={() => onUseStep(step)} data-usage="generate.path-use">{ui('只出这一步')}</Button>

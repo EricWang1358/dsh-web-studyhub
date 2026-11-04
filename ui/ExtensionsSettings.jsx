@@ -61,8 +61,8 @@ export default function ExtensionsSettings({ initialStatus = null, courses = [],
       <Disclosure summary={ui('高级')} meta={ui('其他检索工具 · 模型下载地址 · 手动配置')} defaultOpen={!!current.missing}>
         <div className="extensions-settings__advanced">
           {canChoose && <div className="extensions-settings__choice">
-            <Field label={ui('用哪个工具检索')}>
-              <Select value={current.effective} disabled={!!working} onChange={choose} options={[
+            <Field className="extensions-settings__choice-field" label={ui('用哪个工具检索')}>
+              <Select className="extensions-settings__select" value={current.effective} disabled={!!working} onChange={choose} options={[
                 { value: 'builtin', label: ui('不使用检索（把选中的资料全部交给 AI）') },
                 ...current.providers.map(provider => ({ value: provider.id, label: providerLabel(provider) })),
                 ...(mcpOthers.length > 0 ? [{ group: ui('其他 MCP 工具'), options: mcpOthers.map(tool => ({ value: `mcp:${tool.name}`, label: providerLabel({ kind: 'mcp', label: tool.label, server: tool.server }) })) }] : [])]} />
@@ -77,7 +77,7 @@ export default function ExtensionsSettings({ initialStatus = null, courses = [],
           </InlineMessage>}
           {probe && !probe.ok && probe.reason !== 'builtin' && <InlineMessage className="extensions-settings__result">{probe.message || ui('检索工具没有回应。')}</InlineMessage>}
           <div className="extensions-settings__endpoint">
-            <Field label={ui('模型下载地址')} width="full"
+            <Field className="extensions-settings__endpoint-field" label={ui('模型下载地址')} width="full"
               hint={ui('检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在重启 DSH 后生效。')}>
               <TextInput type="url" value={endpoint} placeholder="https://huggingface.co" disabled={!!working} onChange={event => setEndpoint(event.target.value)} />
             </Field>

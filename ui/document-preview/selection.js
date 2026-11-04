@@ -177,7 +177,7 @@ export function annotatePassages(container, groups, onOpen, title = count => `${
     range.collapse(false);
     const marker = container.ownerDocument.createElement('sup'), button = container.ownerDocument.createElement('button');
     marker.className = 'study-passage-mark'; marker.dataset.studyMarker = 'true';
-    button.type = 'button'; button.textContent = `[${group.number || index + 1}]`; button.title = title(group.links.length);
+    button.type = 'button'; button.className = 'study-passage-mark__btn'; button.textContent = `[${group.number || index + 1}]`; button.title = title(group.links.length);
     button.addEventListener('click', () => onOpen(group)); marker.append(button); range.insertNode(marker); markers.push(marker);
   }
   return () => { markers.forEach(marker => marker.remove()); container.normalize(); };

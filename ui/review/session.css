@@ -31,7 +31,6 @@
       margin-bottom: var(--space-2);
       letter-spacing: -0.01em;
     }
-    .review-heading > button,
     .review-return {
       font-size: var(--fs-md);
       border-color: transparent;
@@ -69,11 +68,6 @@
       }
       .review-heading h1 {
         font-size: var(--fs-xl);
-      }
-      .review-heading > button {
-        font-size: var(--fs-md);
-        padding: var(--space-1) 0;
-        white-space: nowrap;
       }
       /* On its own row the label lines up with the title above it, not with the button's padding. */
       .review-return { padding-inline: 0; }

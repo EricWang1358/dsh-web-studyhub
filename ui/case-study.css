@@ -117,7 +117,7 @@
       background: var(--bg-raised);
       border: 1px solid var(--line);
     }
-    .case-mark-tools input {
+    .case-mark-tools .case-mark-tools__note {
       flex: 1 1 10rem;
       min-width: 0;
     }
@@ -160,7 +160,7 @@
       font-size: var(--fs-sm);
       font-weight: var(--fw-strong);
     }
-    .rubric-editor textarea {
+    .rubric-editor__input {
       width: 100%;
       min-height: 12rem;
       resize: vertical;
@@ -173,7 +173,7 @@
       background: var(--bg-sunken);
       color: var(--text);
     }
-    .rubric-editor textarea[readonly] { opacity: 0.75; cursor: not-allowed; }
+    .rubric-editor__input[readonly] { opacity: 0.75; cursor: not-allowed; }
     .rubric-answer__foot {
       display: flex;
       flex-wrap: wrap;
@@ -308,7 +308,7 @@
     }
   }
   :is(.study-app, .study-seat) {
-    .case-create button {
+    .case-create .case-create__action {
       min-width: 0;
       max-width: 100%;
       white-space: normal;
@@ -320,7 +320,7 @@
       color: var(--text);
       margin-bottom: var(--space-2);
     }
-    .case-create textarea { width: 100%; }
+    .case-create__textarea { width: 100%; }
     .case-create__grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -408,7 +408,7 @@
       color: var(--text-dim);
       font-size: var(--fs-sm);
     }
-    .case-create__passage button { justify-self: start; }
+    .case-create__passage .case-create__passage-clear { justify-self: start; }
     .case-create__profile {
       display: flex;
       flex-wrap: wrap;

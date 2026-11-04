@@ -59,7 +59,7 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
     </div>}
     {items.length > FILTER_FROM && <div className="reader-outline__filter" role="search">
       <Icon name="search" size={16} className="reader-find__icon" />
-      <input type="search" value={query} autoComplete="off" spellCheck={false} placeholder={ui('在目录中查找')} aria-label={ui('在目录中查找')}
+      <input type="search" className="reader-outline__filter-input" value={query} autoComplete="off" spellCheck={false} placeholder={ui('在目录中查找')} aria-label={ui('在目录中查找')}
         onChange={event => setQuery(event.target.value)} onKeyDown={onFilterKey} />
     </div>}
     <div className="reader-outline__scroll" ref={list}>

@@ -9,7 +9,7 @@
     padding: 0;
     list-style: none;
   }
-  .study-panel-candidates button {
+  .study-panel-candidates .study-panel-candidates__choice {
     display: block;
     width: 100%;
     padding: var(--space-3);
@@ -20,15 +20,15 @@
     color: var(--text);
     cursor: pointer;
   }
-  .study-panel-candidates button:hover {
+  .study-panel-candidates .study-panel-candidates__choice:hover {
     border-color: var(--line-strong);
     background: var(--bg-hover);
   }
-  .study-panel-candidates button small,
-  .study-panel-candidates button span {
+  .study-panel-candidates .study-panel-candidates__choice small,
+  .study-panel-candidates .study-panel-candidates__choice span {
     display: block;
   }
-  .study-panel-candidates button small {
+  .study-panel-candidates .study-panel-candidates__choice small {
     color: var(--text-muted);
     margin-bottom: var(--space-1);
   }

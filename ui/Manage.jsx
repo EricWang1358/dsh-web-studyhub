@@ -124,11 +124,12 @@ export default function Manage({
         <div className="manage-row">
           <input
             id="manage-folder-input"
+            className="manage-row__control"
             value={folderDraft}
             onChange={(e) => setFolderDraft(e.target.value)}
             placeholder={ui("所在目录，例如：设计模式 / 第 4 章（留空为顶层）")}
           />
-          <Button disabled={folderDraft === (managedDeck.folder || "")} lock={busy} type="submit">{ui("保存目录")}</Button>
+          <Button className="manage-row__action" disabled={folderDraft === (managedDeck.folder || "")} lock={busy} type="submit">{ui("保存目录")}</Button>
         </div>
       </form>
       {!managedDeck.systemKind && !managedDeck.archived && <Panel className="manage-panel" title={ui("整理题组")}
@@ -136,8 +137,8 @@ export default function Manage({
         <div className="manage-section">
           <span className="manage-label">{ui("题组顺序")}</span>
           <div className="manage-row manage-row--pair">
-            <Button disabled={siblingIndex <= 0} lock={busy} onClick={() => moveOrder(-1)}>{ui("上移题组")}</Button>
-            <Button disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1} lock={busy} onClick={() => moveOrder(1)}>{ui("下移题组")}</Button>
+            <Button className="manage-row__action" disabled={siblingIndex <= 0} lock={busy} onClick={() => moveOrder(-1)}>{ui("上移题组")}</Button>
+            <Button className="manage-row__action" disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1} lock={busy} onClick={() => moveOrder(1)}>{ui("下移题组")}</Button>
           </div>
         </div>
         <form className="manage-section" onSubmit={(e) => {
@@ -146,10 +147,10 @@ export default function Manage({
         }}>
           <label className="manage-label" htmlFor="manage-merge-target">{ui("合并到题组")}</label>
           <div className="manage-row">
-            <Combobox id="manage-merge-target" value={targetId} onChange={setTargetId} placeholder={ui("选择合并目标")} label={ui("合并到题组")} searchPlaceholder={ui("搜索题组")}
+            <Combobox id="manage-merge-target" className="manage-row__control" value={targetId} onChange={setTargetId} placeholder={ui("选择合并目标")} label={ui("合并到题组")} searchPlaceholder={ui("搜索题组")}
               emptyText={(query) => uiFormat("没有叫「{0}」的题组", [query])}
               options={deckEntries(deckChoices(peers, { focus }))} />
-            <Button disabled={!targetId} lock={busy} type="submit">{ui("合并到目标题组")}</Button>
+            <Button className="manage-row__action" disabled={!targetId} lock={busy} type="submit">{ui("合并到目标题组")}</Button>
           </div>
         </form>
         {topics.length > 1 && <form className="manage-section" onSubmit={(e) => {
@@ -166,12 +167,12 @@ export default function Manage({
             <small>{uiFormat("已选 {0} / {1} 个主题", [splitTopics.length, topics.length])}</small>
           </span>
           <div className="manage-topics">{topics.map((topic) => <label key={topic} className="manage-topic">
-            <CheckboxInput checked={splitTopics.includes(topic)} onChange={(e) => setSplitTopics((old) => e.target.checked ? [...old, topic] : old.filter((x) => x !== topic))} />
+            <CheckboxInput className="manage-topic__check" checked={splitTopics.includes(topic)} onChange={(e) => setSplitTopics((old) => e.target.checked ? [...old, topic] : old.filter((x) => x !== topic))} />
             <span>{topic}</span>
           </label>)}</div>
           <div className="manage-row">
-            <input aria-label={ui("新题组名称")} value={splitTitle} onChange={(e) => setSplitTitle(e.target.value)} placeholder={ui("新题组名称")} />
-            <Button disabled={!splitReady} lock={busy} type="submit">{ui("拆出所选主题")}</Button>
+            <input className="manage-row__control" aria-label={ui("新题组名称")} value={splitTitle} onChange={(e) => setSplitTitle(e.target.value)} placeholder={ui("新题组名称")} />
+            <Button className="manage-row__action" disabled={!splitReady} lock={busy} type="submit">{ui("拆出所选主题")}</Button>
           </div>
         </form>}
       </Panel>}
@@ -201,7 +202,7 @@ export default function Manage({
               {card.slain && <p className="muted">{ui("原题组：")}{card.slain.deckTitle} · {formatDateTime(card.slain.at, 'date')}</p>}
             </div>
             <div className="manage-card__actions">
-              <Button lock={busy} onClick={() => act(
+              <Button className="manage-card__action" lock={busy} onClick={() => act(
                 slainView ? "card.restore" : "card.slay",
                 { deckId: managedDeck.id, cardId: card.id },
                 async (result) => {
@@ -210,6 +211,7 @@ export default function Manage({
                 },
               )}>{slainView ? ui("恢复原题组") : ui("斩")}</Button>
               <Button
+                className="manage-card__action"
                 disabled={slainView} lock={busy}
                 onClick={() =>
                   act(
@@ -230,6 +232,7 @@ export default function Manage({
               </Button>
               {card.flag && (
                 <Button
+                  className="manage-card__action"
                   lock={busy}
                   onClick={() =>
                     act(

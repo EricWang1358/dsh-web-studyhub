@@ -38,7 +38,7 @@ export default function DeckTree({ data, folders, tree, query, showArchived, sin
           <li key={id} className={`map-folder${parked ? ' is-parked-row' : ''}`}>
             <div className="map-row folder-row">
               <DisclosureToggle className="map-fold" open={open} label={foldLabel(open, name)} onToggle={() => tree.toggleOpen(id)} />
-              {!showArchived && <CheckboxInput aria-label={uiFormat('选择目录 {0}', [folder])}
+              {!showArchived && <CheckboxInput className="map-row__check" aria-label={uiFormat('选择目录 {0}', [folder])}
                 checked={allSelected} indeterminate={someSelected && !allSelected}
                 onChange={(event) => tree.toggleSelect(selectableDecks.map((deck) => topicKey(deck.id)), event.target.checked)} />}
               <button className="map-name" onClick={() => tree.toggleOpen(id)}>

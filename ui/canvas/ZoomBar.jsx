@@ -5,14 +5,14 @@ import { useComponentCss, cx } from '../components/css.js';
 import { Button, IconButton } from '../components/index.js';
 
 /** Zoom out, the current zoom, zoom in and fit: the controls every canvas shares. `fitTitle` explains the fit button. */
-export function ZoomControls({ zoomAt, fit, percent, disabled = false, fitTitle, variant = 'secondary' }) {
+export function ZoomControls({ zoomAt, fit, percent, disabled = false, fitTitle, variant = 'secondary', buttonClassName }) {
   useComponentCss(canvasCss, 'study-canvas');
   return (
     <>
-      <IconButton icon="minus" size="sm" variant={variant} label={ui('缩小')} disabled={disabled} onClick={() => zoomAt(1 / 1.2)} />
+      <IconButton icon="minus" size="sm" variant={variant} className={buttonClassName} label={ui('缩小')} disabled={disabled} onClick={() => zoomAt(1 / 1.2)} />
       {percent != null && <output className="canvas-zoom-value" aria-label={ui('当前缩放')}>{percent}%</output>}
-      <IconButton icon="plus" size="sm" variant={variant} label={ui('放大')} disabled={disabled} onClick={() => zoomAt(1.2)} />
-      <Button size="sm" variant={variant} disabled={disabled} title={fitTitle} onClick={() => fit()}>{ui('适应')}</Button>
+      <IconButton icon="plus" size="sm" variant={variant} className={buttonClassName} label={ui('放大')} disabled={disabled} onClick={() => zoomAt(1.2)} />
+      <Button size="sm" variant={variant} className={buttonClassName} disabled={disabled} title={fitTitle} onClick={() => fit()}>{ui('适应')}</Button>
     </>
   );
 }
@@ -26,7 +26,7 @@ export function FullscreenButton({ full, onToggle, title, ...rest }) {
 export function ZoomBar({ zoomAt, fit, percent, className, children }) {
   return (
     <div className={cx('skc-toolbar', className)}>
-      <ZoomControls zoomAt={zoomAt} fit={fit} percent={percent} />
+      <ZoomControls zoomAt={zoomAt} fit={fit} percent={percent} buttonClassName="skc-tool-btn" />
       {children}
     </div>
   );

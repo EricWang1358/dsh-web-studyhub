@@ -41,13 +41,11 @@
     /* .page-scope (the course-scope control): ui/course-active.css, so every page shows it the same. */
     .source-organize { margin: var(--space-4) 0; }
     .source-organize > summary, .source-row-actions > summary { cursor: pointer; color: var(--text-muted); }
-    .source-organize > label { max-width: 560px; }
     .source-organization-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
     /* 归档所选: its own row under the course buttons, with the sentence that says what archiving does beside it (under it on a narrow page). */
     .source-archive-actions { align-items: center; margin-top: var(--space-3); }
     .source-course-proposals { margin: var(--space-4) 0; padding-left: var(--space-4); border-left: 2px solid var(--line); }
     .source-row-actions { max-width: 150px; flex: 0 0 auto; }
-    .source-row-actions button { display: block; margin-top: var(--space-2); max-width: 100%; }
     /* Raw attachment paths have no spaces; let them wrap instead of overflowing. */
     .source-main strong {
       overflow-wrap: anywhere;
@@ -65,7 +63,7 @@
     .source-group .source-main {
       background: transparent;
     }
-    & button.source-group-head {
+    .source-group-head {
       display: flex;
       align-items: center;
       gap: var(--space-2-5);
@@ -78,7 +76,7 @@
       background: transparent;
       text-align: left;
     }
-    & button.source-group-head:hover:not(:disabled) {
+    .source-group-head:hover:not(:disabled) {
       background: var(--bg-hover);
     }
     .source-group-head small {
@@ -183,7 +181,7 @@
 
 @layer study.features {
   :is(.study-app, .study-seat) {
-    & button.source-group-head { flex-wrap: wrap; }
+    .source-group-head { flex-wrap: wrap; }
     .source-doc .source-main { align-items: flex-start; gap: var(--space-3); }
     /* A 资料 row is the hover surface (ui/sources.css, #570); the title button inside it draws no box of its own. */
     .source-doc .source-main, .source-doc .source-main:is(:hover, :active) { padding: 0; background: transparent; }

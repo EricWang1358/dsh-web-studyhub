@@ -85,12 +85,12 @@ export default function BoardCard({ card, column, columns, index, count, today, 
       </div>}
       {(origin || link) && <div className="board-meta">
         {origin && (onOrigin && card.origin?.workspace
-          ? <button type="button" className="board-meta__item" title={card.origin.workspace} onClick={() => onOrigin(card.origin.workspace)}><Icon name="folder" size={13} /><span>{origin}</span></button>
+          ? <button type="button" className="board-meta__item board-meta__btn" title={card.origin.workspace} onClick={() => onOrigin(card.origin.workspace)}><Icon name="folder" size={13} /><span>{origin}</span></button>
           : card.origin?.workspace
             ? <Tooltip layer content={card.origin.workspace}><span className="board-meta__item" tabIndex={0}><Icon name="folder" size={13} /><span>{origin}</span></span></Tooltip>
             : <span className="board-meta__item"><Icon name="folder" size={13} /><span>{origin}</span></span>)}
         {link && (onStudyRef
-          ? <button type="button" className="board-meta__item" title={card.studyRef.root} onClick={() => onStudyRef(card.studyRef)}><Icon name="link" size={13} /><span>{link.text}</span></button>
+          ? <button type="button" className="board-meta__item board-meta__btn" title={card.studyRef.root} onClick={() => onStudyRef(card.studyRef)}><Icon name="link" size={13} /><span>{link.text}</span></button>
           : card.studyRef?.root
             ? <Tooltip layer content={card.studyRef.root}><span className="board-meta__item" tabIndex={0}><Icon name="link" size={13} /><span>{link.text}</span></span></Tooltip>
             : <span className="board-meta__item"><Icon name="link" size={13} /><span>{link.text}</span></span>)}

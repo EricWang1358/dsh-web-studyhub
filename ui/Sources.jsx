@@ -197,7 +197,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
       {...(pinned && !editing ? { draggable: true, onDragStart: event => actions.dragStart(item.key, event), onDragOver: event => actions.dragOver(item.key, event),
         onDrop: event => actions.drop(item.key, event), onDragEnd: actions.dragEnd } : {})}>
       <div className="source-doc__line">
-        {organizing && <CheckboxInput aria-label={uiFormat('选择资料：{0}', [name])}
+        {organizing && <CheckboxInput className="source-doc__check" aria-label={uiFormat('选择资料：{0}', [name])}
           checked={selected} onChange={event => actions.select(item.key, event.target.checked)} />}
         {editing && editor ? <div className="source-main source-main--editing">
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />

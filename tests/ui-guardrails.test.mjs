@@ -41,6 +41,11 @@ test('no raw px font size, numeric font weight, px radius or 999px pill in a sty
   for (const rule of ['fontSizePx', 'fontWeightNumeric', 'radiusPx', 'radius999']) assert.deepEqual(scan.metrics[rule], {}, `${rule}: ${RULES[rule].fix}`);
 });
 
+test('no bare button / input / select / textarea / label selector outside ui/base.css and ui/components/ (#137)', () => {
+  assert.deepEqual(scan.metrics.elementSelector, {}, `elementSelector: ${RULES.elementSelector.fix}`);
+  assert.deepEqual(baseline.elementSelector, {}, 'no baseline for elementSelector: style a dedicated class or shared primitive instead');
+});
+
 test('keyframe names are unique across ui/**/*.css (#102)', () => {
   assert.deepEqual(scan.duplicateKeyframes, [], 'two @keyframes share a name, so whichever stylesheet is injected last silently wins; give each an sh- prefixed unique name');
 });

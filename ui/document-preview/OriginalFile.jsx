@@ -172,7 +172,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
     {pickerOn && <section className="original-pick" aria-label={ui('选择原文件')}>
       <p className="original-step"><strong>{ui('原文件在哪里？')}</strong> <span id={hintId} className="muted">{ui('填写完整路径，或选择文件。')}</span></p>
       <div className="original-pathrow">
-        <input id={pathId} type="text" value={pathText} disabled={busy} spellCheck={false} aria-label={ui('原文件的完整路径')} aria-describedby={hintId}
+        <input id={pathId} className="original-pathrow__input" type="text" value={pathText} disabled={busy} spellCheck={false} aria-label={ui('原文件的完整路径')} aria-describedby={hintId}
           placeholder={ui('例如：D:\\资料\\讲义.pdf')} onChange={event => setPathText(event.target.value)}
           onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void checkPath(pathText); } }} />
         <Button lock={busy} disabled={!pathText.trim()} onClick={() => checkPath(pathText)}>{ui('核对')}</Button>

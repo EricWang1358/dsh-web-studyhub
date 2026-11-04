@@ -117,7 +117,7 @@ export function ScenarioPanel({ title, text, highlights = [], onChange, readOnly
                 {editable && current && current.paragraph === n && <div className="case-mark-tools" role="group" aria-label={ui("编辑这处高亮")}>
                   {HIGHLIGHT_COLORS.map((name) => <button key={name} type="button" className={`case-swatch hl-${name}`} aria-pressed={current.color === name}
                     aria-label={ui(COLOR_LABEL[name])} onClick={() => onChange(recolorHighlight(highlights, current.id, name))} />)}
-                  <input aria-label={ui("批注")} placeholder={ui("写一句批注（可选）")} value={note} maxLength={500}
+                  <input className="case-mark-tools__note" aria-label={ui("批注")} placeholder={ui("写一句批注（可选）")} value={note} maxLength={500}
                     onChange={(event) => setNote(event.target.value)}
                     onBlur={() => { if ((current.note || "") !== note.trim()) onChange(annotateHighlight(highlights, current.id, note)); }} />
                   <Button size="sm" variant="quiet" onClick={() => { onChange(removeHighlight(highlights, current.id)); setActive(null); }}>{ui("移除高亮")}</Button>
@@ -174,7 +174,7 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
         <>
           <label className="rubric-editor">
             <span>{ui("你的回答")}</span>
-            <textarea rows={10} value={draft} readOnly={grading} maxLength={30000}
+            <textarea className="rubric-editor__input" rows={10} value={draft} readOnly={grading} maxLength={30000}
               placeholder={ui("写出建议，并用案例里的事实说明理由；案例没说的地方先写假设，再说明为什么不选另一种方案。支持 Markdown。")}
               onChange={(event) => change(event.target.value)} />
           </label>
@@ -408,7 +408,7 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
               ) : (
                 <label className="rubric-editor">
                   <span className="sh-visually-hidden">{uiFormat("第 {0} 题的回答", [index + 1])}</span>
-                  <textarea rows={8} value={answers[card.id] || ""} readOnly={!typing} aria-readonly={!typing} maxLength={30000}
+                  <textarea className="rubric-editor__input" rows={8} value={answers[card.id] || ""} readOnly={!typing} aria-readonly={!typing} maxLength={30000}
                     placeholder={typing ? ui("写出建议、案例依据、假设和取舍。") : ui("阅读结束后开放作答")}
                     onFocus={() => setActiveId(card.id)} onChange={(event) => typing && answer(card.id, event.target.value)} />
                   <small className="muted">{uiFormat("{0} 字/词", [countWords(answers[card.id] || "")])}</small>
@@ -494,12 +494,12 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
         </div>
         {deck && <div className="es-section">
           <div className="es-times">
-            <label>{ui("阅读时间（分钟）")}
-              <input type="number" min={EXAM_SETTING_LIMITS.readingMinutes.min} max={EXAM_SETTING_LIMITS.readingMinutes.max} value={reading}
+            <label className="es-times__field">{ui("阅读时间（分钟）")}
+              <input className="es-times__input" type="number" min={EXAM_SETTING_LIMITS.readingMinutes.min} max={EXAM_SETTING_LIMITS.readingMinutes.max} value={reading}
                 onChange={(event) => setSettings({ ...settings, readingMinutes: Math.min(EXAM_SETTING_LIMITS.readingMinutes.max, Math.max(EXAM_SETTING_LIMITS.readingMinutes.min, Math.round(Number(event.target.value) || 0))) })} />
             </label>
-            <label>{ui("每分用时（分钟）")}
-              <input type="number" min={EXAM_SETTING_LIMITS.minutesPerMark.min} max={EXAM_SETTING_LIMITS.minutesPerMark.max} step="any" value={settings.minutesPerMark}
+            <label className="es-times__field">{ui("每分用时（分钟）")}
+              <input className="es-times__input" type="number" min={EXAM_SETTING_LIMITS.minutesPerMark.min} max={EXAM_SETTING_LIMITS.minutesPerMark.max} step="any" value={settings.minutesPerMark}
                 onChange={(event) => setSettings({ ...settings, minutesPerMark: Math.min(EXAM_SETTING_LIMITS.minutesPerMark.max, Math.max(EXAM_SETTING_LIMITS.minutesPerMark.min, Number(event.target.value) || DEFAULT_MINUTES_PER_MARK)) })} />
             </label>
           </div>

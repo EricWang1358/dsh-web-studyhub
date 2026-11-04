@@ -390,7 +390,7 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
             {candidateError && <InlineMessage tone="error">{candidateError}</InlineMessage>}
             <div className="study-panel-candidates">
               {candidateIntent.candidates.map((item) =>
-                <button type="button" key={`${item.deckId}:${item.cardId}`} onClick={() => chooseCandidate(item)}>
+                <button type="button" className="study-panel-candidates__choice" key={`${item.deckId}:${item.cardId}`} onClick={() => chooseCandidate(item)}>
                   <small>{item.deckTitle} · {item.topic || ui("未分类")}</small>
                   <span>{item.prompt}</span>
                 </button>)}

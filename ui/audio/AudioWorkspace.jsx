@@ -23,14 +23,14 @@ export default function AudioWorkspace({ onPick }) {
   return (
     <details className="audio-workspace" onToggle={(event) => setOpened(event.currentTarget.open)}>
       <summary>{ui("从工作区里找")}</summary>
-      <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={ui("搜索文件名")} aria-label={ui("搜索文件名")} />
+      <input type="search" className="audio-workspace-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={ui("搜索文件名")} aria-label={ui("搜索文件名")} />
       {state.status === "loading" && !state.files.length && <Hint>{ui("正在查找…")}</Hint>}
       {state.status === "error" && <InlineMessage tone="error">{uiFormat("无法列出工作区里的文件：{0}", [state.error])}</InlineMessage>}
       {state.status === "ready" && !state.files.length && <Hint>{ui("工作区里没有找到音频文件。把录音放进工作区，或用上面的方式选择。")}</Hint>}
       {state.files.length > 0 && <ul className="audio-files">
         {state.files.map((file) => (
           <li key={file.path}>
-            <Button variant="quiet" className="audio-file" onClick={() => onPick(file)}>
+            <Button variant="quiet" className="audio-file audio-workspace-file" onClick={() => onPick(file)}>
               <strong>{file.name}</strong>
               <small>{file.rel.slice(0, Math.max(0, file.rel.length - file.name.length)).replace(/[\\/]$/, "") || ui("工作区根目录")}</small>
               <small>{formatBytes(file.size)} · {formatDateTime(file.modified, "day")}</small>

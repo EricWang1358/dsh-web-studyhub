@@ -96,7 +96,7 @@ export default function NotebookDirectory({ notebooks, error, onPublish, onUnpub
             </div>
           )}
           <form className="nb-search" onSubmit={runSearch}>
-            <input type="search" aria-label={ui('跨笔记本搜索')} placeholder={ui('跨笔记本搜索题组、主题或题目…')} value={query} maxLength={100} onChange={(event) => setQuery(event.target.value)} />
+            <input type="search" className="nb-search__input" aria-label={ui('跨笔记本搜索')} placeholder={ui('跨笔记本搜索题组、主题或题目…')} value={query} maxLength={100} onChange={(event) => setQuery(event.target.value)} />
             <Button type="submit" busy={searching} disabled={!query.trim() || !onSearch}>{searching ? ui('搜索中…') : ui('搜索')}</Button>
           </form>
           {searchError && <InlineMessage tone="error">{ui('搜索失败：')}{searchError}</InlineMessage>}

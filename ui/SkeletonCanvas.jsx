@@ -295,23 +295,24 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, fresh })
       }}
     >
       <ZoomBar zoomAt={zoomAt} fit={fitDrawing} percent={Math.round(view.k * 100)}>
-        <FullscreenButton full={fullscreen.full} onToggle={fullscreen.toggle} />
+        <FullscreenButton className="skc-tool-btn" full={fullscreen.full} onToggle={fullscreen.toggle} />
         <Popover label={ui("布局")} placement="bottom-start" panelClassName="skc-layout-panel"
-          trigger={({ props, ref }) => <Button ref={ref} size="sm" {...props}>{ui("布局")}</Button>}>
-          <Button size="sm" onClick={readable} title={ui("按原始字号阅读，可拖动画布")}>{ui("原始大小")}</Button>
+          trigger={({ props, ref }) => <Button ref={ref} size="sm" className="skc-tool-btn" {...props}>{ui("布局")}</Button>}>
+          <Button size="sm" className="skc-tool-btn" onClick={readable} title={ui("按原始字号阅读，可拖动画布")}>{ui("原始大小")}</Button>
           <Checkbox checked={showAttributes} onChange={(checked) => { setShowAttributes(checked); setFocusPositions({}); }} label={ui("显示属性")} />
-          <Select aria-label={ui("布局方向")} value={direction} onChange={(next) => { setDirection(next); setFocusMode(false); setFocusPositions({}); }}
+          <Select className="skc-layout-select" aria-label={ui("布局方向")} value={direction} onChange={(next) => { setDirection(next); setFocusMode(false); setFocusPositions({}); }}
             options={[{ value: "auto", label: ui("自适应方向") }, { value: "right", label: ui("从左到右") }, { value: "down", label: ui("从上到下") }]} />
-          <Select aria-label={ui("布局间距")} value={spacing} onChange={(next) => { setSpacing(next); setFocusMode(false); setFocusPositions({}); }}
+          <Select className="skc-layout-select" aria-label={ui("布局间距")} value={spacing} onChange={(next) => { setSpacing(next); setFocusMode(false); setFocusPositions({}); }}
             options={[{ value: 1, label: ui("标准间距") }, { value: 1.6, label: ui("宽松间距") }]} />
-          {!!Object.keys(positions).length && <Button size="sm" onClick={() => setPositions({})} title={ui("恢复自动排版")}>{ui("重置布局")}</Button>}
+          {!!Object.keys(positions).length && <Button size="sm" className="skc-tool-btn" onClick={() => setPositions({})} title={ui("恢复自动排版")}>{ui("重置布局")}</Button>}
         </Popover>
         {selected && (
           <>
             <span className="skc-sep" />
-            {!!trail.current.length && <Button size="sm" icon="arrow-left" onClick={goBack} title={ui("回到上一个聚焦的概念")}>{ui("返回")}</Button>}
+            {!!trail.current.length && <Button size="sm" icon="arrow-left" className="skc-tool-btn" onClick={goBack} title={ui("回到上一个聚焦的概念")}>{ui("返回")}</Button>}
             <Button
               size="sm"
+              className="skc-tool-btn"
               aria-pressed={focusMode}
               onClick={() => setFocusMode((v) => !v)}
               title={focusMode ? ui("显示全部概念，保留选中") : ui("只看选中概念和它的直接邻居")}
@@ -328,14 +329,14 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, fresh })
         </span>
       </ZoomBar>
       <div className="skc-search">
-        <input aria-label={ui("查找概念")} placeholder={ui("查找概念…")} value={query} onChange={(ev) => setQuery(ev.target.value)} />
-        {components.length > 1 && <Select aria-label={ui("概念分组")} value={component?.id || ""} onChange={(next) => { setComponentId(next); setFocusMode(false); onSelect(null); }}
+        <input className="skc-search-input" aria-label={ui("查找概念")} placeholder={ui("查找概念…")} value={query} onChange={(ev) => setQuery(ev.target.value)} />
+        {components.length > 1 && <Select className="skc-search-select" aria-label={ui("概念分组")} value={component?.id || ""} onChange={(next) => { setComponentId(next); setFocusMode(false); onSelect(null); }}
           options={[{ value: "", label: uiFormat("全部 {0} 组", [components.length]) },
             ...components.map((group) => ({ value: group.id, label: uiFormat("{0} · {1} 个概念", [group.title, group.nodes.length]) }))]} />}
       </div>
       {query.trim() && <div className="skc-results" aria-label={ui("概念搜索结果")}>
         {skeleton.nodes.filter((n) => `${n.term} ${n.meaning}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 30).map((n) => (
-          <Button key={n.id} size="sm" onClick={() => { setQuery(""); setComponentId(""); setFocusMode(true); onSelect(n.id); }}>{n.term}</Button>
+          <Button key={n.id} size="sm" className="skc-result-btn" onClick={() => { setQuery(""); setComponentId(""); setFocusMode(true); onSelect(n.id); }}>{n.term}</Button>
         ))}
         {!skeleton.nodes.some((n) => `${n.term} ${n.meaning}`.toLowerCase().includes(query.trim().toLowerCase())) && <span className="muted">{ui("没有匹配的概念")}</span>}
       </div>}
@@ -519,12 +520,12 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
       onKeyDown(ev);
     }}>
       <ZoomBar zoomAt={zoomAt} fit={fit} percent={Math.round(view.k * 100)}>
-        <FullscreenButton full={fullscreen.full} onToggle={fullscreen.toggle} />
+        <FullscreenButton className="skc-tool-btn" full={fullscreen.full} onToggle={fullscreen.toggle} />
         <span className="skc-sep" />
-        <IconButton icon="arrow-left" size="sm" disabled={!current} onClick={() => { setPlaying(false); setCurrent((c) => Math.max(0, c - 1)); }} label={ui("上一步")} />
+        <IconButton icon="arrow-left" size="sm" className="skc-tool-btn" disabled={!current} onClick={() => { setPlaying(false); setCurrent((c) => Math.max(0, c - 1)); }} label={ui("上一步")} />
         <Button
           size="sm"
-          className={playing ? "is-active" : ""}
+          className={"skc-tool-btn" + (playing ? " is-active" : "")}
           disabled={!total}
           onClick={() => {
             if (playing) return setPlaying(false);
@@ -534,8 +535,8 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
         >
           {playing ? ui("暂停") : current >= total && total ? ui("重播") : ui("播放")}
         </Button>
-        <IconButton icon="arrow-right" size="sm" disabled={current >= total} onClick={() => { setPlaying(false); setCurrent((c) => Math.min(total, c + 1)); }} label={ui("下一步")} />
-        <Button size="sm" disabled={!current} onClick={() => { setPlaying(false); setCurrent(0); }}>{ui("全部")}</Button>
+        <IconButton icon="arrow-right" size="sm" className="skc-tool-btn" disabled={current >= total} onClick={() => { setPlaying(false); setCurrent((c) => Math.min(total, c + 1)); }} label={ui("下一步")} />
+        <Button size="sm" className="skc-tool-btn" disabled={!current} onClick={() => { setPlaying(false); setCurrent(0); }}>{ui("全部")}</Button>
         <span className="skc-hint">{current ? uiFormat("第 {0} / {1} 步", [current, total]) : uiFormat("共 {0} 步 · ← → 逐步看", [total])}</span>
       </ZoomBar>
       <div className="skc-view sqc-view" ref={viewRef} tabIndex={0} {...panHandlers} onKeyDown={onKeyDown} style={fullscreen.full ? undefined : { height: Math.min(480, Math.max(240, layout.height + 40)) }}>

@@ -11,7 +11,7 @@
     .audio-dashboard-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-6-5); }
     .audio-dashboard-heading small { color: var(--text-muted); font-size: var(--fs-xs); letter-spacing: .18em; }
     .audio-dashboard-heading h2 { font-size: var(--fs-2xl); margin-top: var(--space-1-5); letter-spacing: -.04em; }
-    .audio-dashboard button { min-height: 40px; }
+    .audio-dashboard .audio-dashboard-btn { min-height: 40px; }
     .audio-dashboard-summary { display: grid; grid-template-columns: 156px minmax(0,1fr); align-items: center; gap: calc(var(--space-7) + var(--space-1)); margin-bottom: var(--space-7); }
     .audio-usage-dial { aspect-ratio: 1; border-radius: 50%; padding: var(--space-2); background: conic-gradient(var(--usage-free) var(--share), var(--line) 0); }
     .audio-usage-dial[data-exhausted="true"] { --usage-free: var(--warn); }
@@ -69,8 +69,8 @@
     .audio-quota-settings summary { cursor: pointer; color: var(--text-dim); }
     .audio-quota-settings p { color: var(--text-muted); line-height: 1.7; padding-top: var(--space-3); }
     .audio-quota-settings form { margin-top: var(--space-4); }
-    .audio-quota-settings label { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); overflow-wrap: anywhere; }
-    .audio-quota-settings input { width: 110px; min-width: 80px; }
+    .audio-quota-settings .audio-quota-field { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); overflow-wrap: anywhere; }
+    .audio-quota-settings .audio-quota-input { width: 110px; min-width: 80px; }
     .audio-dashboard-footer { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.7; }
     .audio-dashboard-footer span { flex: 1 1 320px; }
     .audio-dashboard-footer a { color: var(--text-dim); }

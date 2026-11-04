@@ -18,7 +18,7 @@
     .study-document-selection { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .study-document-selection > p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .study-document-selection .study-document-learning { padding: 0; border: 0; border-radius: 0; }
-    .study-document-selection .study-document-learning form > button { width: 100%; }
+    .study-document-selection .study-document-learning form > .sh-btn { width: 100%; }
     .study-document-wide { width: 100%; justify-content: center; }
     .study-document-links-heading { margin: var(--space-3) 0 0; font-size: var(--fs-md); font-weight: var(--fw-strong); }
     .study-document-side > .sh-btn { justify-self: start; }
@@ -56,7 +56,7 @@
     .selection-job__phases li[data-state="done"] { border-top-color: var(--ok); }
     .selection-job__phases li[data-state="current"] { border-top-color: var(--accent); color: var(--text); font-weight: var(--fw-strong); }
     .selection-job__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-    .study-document-learning .selection-job__actions button { width: auto; }
+    .study-document-learning .selection-job__actions .sh-btn { width: auto; }
     .selection-job__reasons { display: grid; gap: var(--space-1); font-size: var(--fs-sm); }
     .selection-job__reasons ul,
     .selection-job__trace ol { display: grid; gap: var(--space-half); margin: var(--space-1) 0 0; padding-left: 1.2em; }
@@ -165,7 +165,6 @@
   .ask-node__failed { display: grid; justify-items: start; gap: var(--space-2); }
   .ask-node__follow { display: grid; gap: var(--space-2); }
   .ask-node__follow-row { display: flex; gap: var(--space-2); }
-  .study-document-learning .ask-node__follow-input { flex: 1 1 auto; min-width: 0; width: auto; }
   .ask-tip { display: grid; gap: var(--space-1); }
   .ask-note { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
   .ask-node__keep { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
@@ -182,11 +181,11 @@
     padding-top: 1rem;
     border-top: 1px solid var(--line);
   }
-  .study-document-learning label {
+  .study-document-learning .study-learning-label {
     display: grid;
     gap: .3rem;
   }
-  .study-document-learning textarea, .study-document-learning select, .study-document-learning input {
+  .study-document-learning .study-learning-control {
     box-sizing: border-box;
     width: 100%;
     color: inherit;
@@ -195,6 +194,7 @@
     padding: .5rem;
     border-radius: var(--radius-sm);
   }
+  .study-document-learning .ask-node__follow-input { flex: 1 1 auto; min-width: 0; width: auto; }
   .study-selection-options {
     display: grid;
     grid-template-columns: 1fr 5rem;
@@ -211,21 +211,21 @@
   .study-passage-links article {
     padding: .5rem 0;
   }
-  .study-passage-mark[data-mastery='weak'] .study-passage-mark__btn { color: var(--bad-ink); font-weight: var(--fw-strong); }
-  .study-passage-mark[data-mastery='learning'] .study-passage-mark__btn { color: var(--warn-ink); }
-  .study-passage-mark[data-mastery='familiar'] .study-passage-mark__btn { color: var(--ok-mid); }
-  .study-passage-mark[data-mastery='mastered'] .study-passage-mark__btn { color: var(--ok-ink); font-weight: var(--fw-strong); }
   .study-passage-mark {
     user-select: none;
     white-space: nowrap;
   }
-  .study-passage-mark button {
+  .study-passage-mark .study-passage-mark__btn {
     padding: 0 .2em;
     min-height: 0;
     border: none;
     color: var(--accent);
     font-size: .75em;
   }
+  .study-passage-mark[data-mastery='weak'] .study-passage-mark__btn { color: var(--bad-ink); font-weight: var(--fw-strong); }
+  .study-passage-mark[data-mastery='learning'] .study-passage-mark__btn { color: var(--warn-ink); }
+  .study-passage-mark[data-mastery='familiar'] .study-passage-mark__btn { color: var(--ok-mid); }
+  .study-passage-mark[data-mastery='mastered'] .study-passage-mark__btn { color: var(--ok-ink); font-weight: var(--fw-strong); }
   .study-document-native {
     display: inline-flex;
     gap: .4rem;

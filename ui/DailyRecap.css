@@ -32,13 +32,13 @@
     .daily-recap-tone-fold { font-size: var(--fs-sm); color: var(--text-muted); }
     .daily-recap-tone-fold[open] > summary { margin-bottom: var(--space-2); }
     .daily-recap-tone legend { padding: 0; margin-bottom: var(--space-1-5); color: var(--text-muted); font-size: var(--fs-xs); }
-    .daily-recap-tone label { display: flex; flex-direction: row; align-items: center; gap: var(--space-1-5); min-height: 44px; padding: var(--space-2) var(--space-3); margin: 0; white-space: nowrap; border: 1px solid var(--line); font-size: var(--fs-sm); cursor: pointer; background: var(--bg-sunken); }
-    .daily-recap-tone label:first-of-type { border-radius: var(--radius-sm, var(--radius-sm)) 0 0 var(--radius-sm, var(--radius-sm)); }
-    .daily-recap-tone label:last-of-type { border-radius: 0 var(--radius-sm, var(--radius-sm)) var(--radius-sm, var(--radius-sm)) 0; border-left: 0; }
-    .daily-recap-tone label:has(input:checked) { background: var(--bg-hover); color: var(--text); }
-    .daily-recap-tone label:focus-within { outline: 2px solid var(--accent-soft); outline-offset: 2px; position: relative; z-index: 1; }
-    .daily-recap-tone input[type="radio"] { accent-color: var(--accent); margin: 0; padding: 0; width: 14px; height: 14px; flex: none; }
-    .daily-recap-tone:disabled label { opacity: .6; cursor: default; }
+    .daily-recap-tone .daily-recap-tone__option { display: flex; flex-direction: row; align-items: center; gap: var(--space-1-5); min-height: 44px; padding: var(--space-2) var(--space-3); margin: 0; white-space: nowrap; border: 1px solid var(--line); font-size: var(--fs-sm); cursor: pointer; background: var(--bg-sunken); }
+    .daily-recap-tone .daily-recap-tone__option:first-of-type { border-radius: var(--radius-sm, var(--radius-sm)) 0 0 var(--radius-sm, var(--radius-sm)); }
+    .daily-recap-tone .daily-recap-tone__option:last-of-type { border-radius: 0 var(--radius-sm, var(--radius-sm)) var(--radius-sm, var(--radius-sm)) 0; border-left: 0; }
+    .daily-recap-tone .daily-recap-tone__option:has(.daily-recap-tone__radio:checked) { background: var(--bg-hover); color: var(--text); }
+    .daily-recap-tone .daily-recap-tone__option:focus-within { outline: 2px solid var(--accent-soft); outline-offset: 2px; position: relative; z-index: 1; }
+    .daily-recap-tone .daily-recap-tone__radio { accent-color: var(--accent); margin: 0; padding: 0; width: 14px; height: 14px; flex: none; }
+    .daily-recap-tone:disabled .daily-recap-tone__option { opacity: .6; cursor: default; }
     .daily-recap-progress { display: flex; align-items: flex-start; gap: var(--space-2-5); margin: var(--space-4) 0; }
     .daily-recap-progress p { margin: 0 0 var(--space-1); font-size: var(--fs-md); }
     .daily-recap-progress small { color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.6; }

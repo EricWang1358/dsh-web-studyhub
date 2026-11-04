@@ -53,11 +53,11 @@
       line-height: 1;
       text-align: left;
     }
-    & button.nav-group-label {
+    .nav-group-label:not(.is-static) {
       cursor: pointer;
       transition: color var(--dur-fast) var(--ease);
     }
-    & button.nav-group-label:hover {
+    .nav-group-label:not(.is-static):hover {
       color: var(--text-dim);
     }
     .nav-group-text {

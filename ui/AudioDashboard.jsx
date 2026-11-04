@@ -34,7 +34,7 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error,
   const max = Math.max(1, ...data.trend.map(dayTotal));
   return <Panel tone="sunken" className="audio-dashboard" aria-labelledby="audio-dashboard-title">
     <header className="audio-dashboard-heading"><div><small>{ui('音频 / 用量')}</small><h2 id="audio-dashboard-title">{ui('用量控制台')}</h2></div>
-      <Button variant="quiet" size="sm" icon="refresh" busy={busy} onClick={refresh}>{ui('刷新')}</Button></header>
+      <Button className="audio-dashboard-btn" variant="quiet" size="sm" icon="refresh" busy={busy} onClick={refresh}>{ui('刷新')}</Button></header>
     {error && <ErrorState error={error} className="audio-dashboard__problem" />}
     <div className="audio-dashboard-summary">
       <div className="audio-usage-dial" role="meter" aria-label={dialLabel} aria-valuenow={freeQuota ? Math.max(0, freeQuota.remaining) : 0} aria-valuemin={0} aria-valuemax={freeQuota ? freeQuota.limit : 0} data-exhausted={exhausted ? 'true' : undefined} style={{ '--share': `${share}%` }}><div><strong>{freeQuota ? fmt(freeQuota.remaining) : '—'}</strong>
@@ -87,8 +87,8 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error,
       <p>{ui('从 AI Studio 填入当前模型的 RPD。Gemini 同项目共享额度，这里的已用量只统计本插件；0 表示未知。')}</p>
       <form onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); const dailyLimits = { ...settings.dailyLimits };
         for (const [model, value] of values) dailyLimits[model] = Number(value); save({ dailyLimits }); }}>
-        {[...new Set([settings.transcribeModel, settings.textModel].filter(Boolean))].map(model => <label key={model}>{model}<input type="number" name={model} min="0" max="1000000000" step="1" defaultValue={settings.dailyLimits?.[model] || 0} required disabled={busy} /></label>)}
-        <Button type="submit" lock={busy}>{ui('保存上限')}</Button>
+        {[...new Set([settings.transcribeModel, settings.textModel].filter(Boolean))].map(model => <label key={model} className="audio-quota-field">{model}<input type="number" className="audio-quota-input" name={model} min="0" max="1000000000" step="1" defaultValue={settings.dailyLimits?.[model] || 0} required disabled={busy} /></label>)}
+        <Button type="submit" className="audio-dashboard-btn" lock={busy}>{ui('保存上限')}</Button>
       </form>
     </details>
     <footer className="audio-dashboard-footer"><span>{ui('「今日」和近 7 日按你所在时区的日期；Gemini 免费额度按太平洋时间的额度日计算。从启用此统计起记录模型请求，包含失败及重试。课堂实时音频与 DSH Token 不计入。')}</span>

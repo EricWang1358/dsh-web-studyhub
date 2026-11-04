@@ -180,7 +180,7 @@ export default function Draft({
     <section className="page draft-page">
       <PageHeader eyebrow={ui("发布草稿")} title={ui("草稿与发布")}
         actions={jsonMode && <Button variant="quiet" onClick={toggleJsonMode}>{ui("返回逐题编辑")}</Button>} />
-      {!jsonMode && <label className="draft-title-field">{ui("题组标题")}<input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+      {!jsonMode && <label className="draft-title-field">{ui("题组标题")}<input className="draft-title-field__input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
       </label>}
       {!jsonMode && draft.format === "case-study" && <CaseDraftHeader draft={draft} data={data} />}
       <DraftPartLine targets={targets} />
@@ -370,7 +370,7 @@ export default function Draft({
         <div><h2>{ui("题目")}</h2><span>{uiFormat("{0} 题 · 按需展开编辑", [draft.cards.length])}</span></div>
         <details className="draft-advanced">
           <summary>{ui("高级编辑")}</summary>
-          <Button onClick={toggleJsonMode}>{ui("JSON 编辑")}</Button>
+          <Button className="draft-advanced__action" onClick={toggleJsonMode}>{ui("JSON 编辑")}</Button>
         </details>
       </div>}
       {jsonMode ? (
@@ -458,6 +458,7 @@ export default function Draft({
                 <div className="edit-option" key={o.id}>
                   <label className="inline">
                     <input
+                      className="edit-option__choice"
                       type={q.kind === "quiz" ? "radio" : "checkbox"}
                       name={q.kind === "quiz" ? `correct-${q.id}` : undefined}
                       checked={o.correct}
@@ -473,6 +474,7 @@ export default function Draft({
                       }
                     />{ui("正确选项")}</label>
                   <input
+                    className="edit-option__field"
                     aria-label={uiFormat("选项 {0}", [o.id])}
                     value={o.text}
                     onChange={(e) =>
@@ -488,6 +490,7 @@ export default function Draft({
                     }
                   />
                   <textarea
+                    className="edit-option__field"
                     aria-label={uiFormat("选项解析 {0}", [o.id])}
                     value={o.explanation}
                     onChange={(e) =>

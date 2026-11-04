@@ -43,8 +43,8 @@ export default function RetrievalPanel({ advice, sourceIds = [], focus = '', cou
       {preview && preview.pages?.length > 0 && <>
         <ul className="retrieval-panel__pages" aria-label={ui('检索挑出的页面')}>
           {preview.pages.map(page => <li key={page.sourceId}>
-            <label>
-              <CheckboxInput checked={checked.has(page.sourceId)} disabled={disabled} onChange={event => toggle(page.sourceId, event.target.checked)} />
+            <label className="retrieval-panel__row">
+              <CheckboxInput className="retrieval-panel__check" checked={checked.has(page.sourceId)} disabled={disabled} onChange={event => toggle(page.sourceId, event.target.checked)} />
               <span className="retrieval-panel__page">{page.page ? uiFormat('第 {0} 页', [page.page]) : page.title}</span>
               <span className="retrieval-panel__snippet">{page.snippet}</span>
             </label>

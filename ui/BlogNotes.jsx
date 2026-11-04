@@ -265,7 +265,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
       </details>
       {notes.length ? notes.map((item) => {
         const hasLocalDraft = !(item.status === 'published' && !isDailyNote(item)) && !!readDraft(draftKey(data.root, 'note', item.id));
-        return <button key={item.id} className={isDailyNote(item) ? 'note-daily-item' : ''} onClick={() => setId(item.id)}>
+        return <button key={item.id} className={isDailyNote(item) ? 'note-list-item note-daily-item' : 'note-list-item'} onClick={() => setId(item.id)}>
           <span><strong>{item.title}</strong>{isDailyNote(item) && <small className="note-daily-date">{item.kind === 'daily-recap-history' ? ui('课程合并前的学习总结') : item.daily?.day === today ? ui('今日学习总结') : item.daily?.day}</small>}</span>
           <small>{isDailyNote(item) ? uiFormat('已练习 {0} 题', [item.daily?.answeredCount ?? item.cardCount]) : <>{uiFormat("{0} 题", [item.cardCount])}{" · "}{item.status === "published" ? ui("已发布笔记") : ui("笔记草稿")}</>}{hasLocalDraft ? ` · ${ui('修改暂存于此设备')}` : ''}</small>
         </button>;
@@ -301,7 +301,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
         {daily && <p className="muted">{ui('链接只关联公开文章；更新本地合集不会自动修改 CSDN 正文。')}</p>}
         <p className="muted">{ui("公开文章请使用通用案例，不写课程、PPT 或个人信息。原题关联只保存在学习库。")}</p>
         <div className="note-actions">
-        {writable && <Button disabled={note.generation?.status === "running"} lock={saving} onClick={() => perform(async live => {
+        {writable && <Button className="note-action-btn" disabled={note.generation?.status === "running"} lock={saving} onClick={() => perform(async live => {
           const editorTab = window.open("", "_blank");
           try {
             const saved = await persistCurrent();
@@ -316,7 +316,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
             if (live()) toast.success(uiFormat("草稿已保存，Markdown 已复制；请在 CSDN 审阅并发布。{0}",[lookupHint]));
           } catch (error) { editorTab?.close(); throw error; }
         })}>{ui("复制内容并打开 CSDN")}</Button>}
-        {writable && <Button lock={saving} onClick={findPublished}>{ui("查找已发布文章")}</Button>}
+        {writable && <Button className="note-action-btn" lock={saving} onClick={findPublished}>{ui("查找已发布文章")}</Button>}
       </div>
         <div className="note-card-search"><TextInput className="note-input" aria-label={ui("https://blog.csdn.net/用户名")} value={home} placeholder={ui("https://blog.csdn.net/用户名")}
           onChange={(event) => setHome(event.target.value)} />
