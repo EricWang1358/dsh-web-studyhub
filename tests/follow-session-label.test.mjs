@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createHostHandler, sessionFollow } from '../lib/host.js';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
+import { fingerprintDiff } from './helpers/fingerprint-diff.mjs';
 
 /* 「跟随当前会话」 says which model and reasoning level it follows: the conversation's own default (the DSH session route),
    not the learner's saved generation preference. The host puts it on snapshot.model.session; the 即时控制 row and 出题偏好 draw it:
@@ -160,7 +161,8 @@ test('the snapshot carries the session model and level, and a changed session mo
   const { state, run } = await panel(t, { route: SESSION });
   const first = await run();
   assert.deepEqual(first.model.session, SESSION);
-  assert.equal((await run({ since: first.fingerprint })).unchanged, true);
+  const again = await run({ since: first.fingerprint });
+  assert.equal(again.unchanged, true, fingerprintDiff(first.fingerprint, again.fingerprint));
   state.route = { ...SESSION, reasoningEffort: 'low' };
   const second = await run({ since: first.fingerprint });
   assert.equal(second.unchanged, undefined);
