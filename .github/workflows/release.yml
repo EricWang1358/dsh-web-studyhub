@@ -1,0 +1,111 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to package and publish (for example, v4.3.2)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Resolve release tag
+        id: meta
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "Expected a vX.Y.Z release tag, got: $TAG" >&2; exit 1 ;;
+          esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ steps.meta.outputs.tag }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build, package, and verify release artifacts
+        env:
+          EXPECTED_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          PKG_VERSION="$(node --input-type=module -e "import { readFileSync } from 'node:fs'; process.stdout.write(JSON.parse(readFileSync('package.json', 'utf8')).version);")"
+          if [ "$PKG_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "package.json version ($PKG_VERSION) does not match tag version ($EXPECTED_VERSION)" >&2
+            exit 1
+          fi
+          npm ci --legacy-peer-deps
+          npm run changelog:check
+          rm -rf "output/release-$EXPECTED_VERSION"
+          npm run build
+          npm run release:pack
+          npm run release:check
+
+      - name: Publish GitHub Release with verified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          NOTES_FILE="$RUNNER_TEMP/release-notes-$VERSION.md"
+          {
+            node scripts/changelog.mjs --preview "$VERSION"
+            printf '\n'
+            node scripts/changelog.mjs --preview "$VERSION" --lang=zh-CN
+          } > "$NOTES_FILE"
+          test -s "$NOTES_FILE"
+          DIR="output/release-$VERSION"
+          ASSETS=(
+            "$DIR"/*.tgz
+            "$DIR/SHA256SUMS-$VERSION.txt"
+            "$DIR/StudyHub-$VERSION-Setup.html"
+            "$DIR/StudyHub-$VERSION-Setup.zh-CN.html"
+          )
+          if [ "${#ASSETS[@]}" -ne 11 ]; then
+            echo "Expected 11 release assets, found ${#ASSETS[@]}: ${ASSETS[*]}" >&2
+            exit 1
+          fi
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${ASSETS[@]}" -R "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" \
+              -R "$GITHUB_REPOSITORY" \
+              --title "StudyHub $VERSION" \
+              --notes-file "$NOTES_FILE" \
+              --draft=false \
+              --latest
+          else
+            gh release create "$TAG" "${ASSETS[@]}" \
+              -R "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "StudyHub $VERSION" \
+              --notes-file "$NOTES_FILE" \
+              --latest
+          fi
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json tagName,name,isDraft,url,assets \
+            --jq 'if (.isDraft == false) and ((.assets | length) == 11) then {tagName, name, url, assetCount: (.assets | length)} else error("Release verification failed") end'
