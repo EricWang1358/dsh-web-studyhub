@@ -93,7 +93,7 @@ async function world(t) {
   const { sources, decks } = outlineLibrary({ paper: true });
   await service.store.update(state => { state.sources.push(...structuredClone(sources)); state.decks.push(...structuredClone(decks)); state.focus = { mode: 'class', course: COURSE }; });
   const notes = async () => (await service.store.read()).sources.filter(isCourseNotesSource).find(record => !record.archived);
-  const build = async (args = {}) => service.call('generation.courseBook.build', { course: COURSE, language: 'zh', ...args });
+  const build = async (args = {}) => service.call('generation.courseBook.build', { course: COURSE, language: 'zh', sample: 'skip', ...args });
   const contract = () => [...service.runtime.work.jobs.values()].filter(job => job.type === 'course-book-build').at(-1).contract;
   const run = async (args = {}) => { const job = await settleJob(service, (await build(args)).jobId); assert.equal(job.status, 'complete', JSON.stringify(contract()?.error ?? null)); return contract(); };
   const stages = since => fake.calls.slice(since).reduce((count, call) => ({ ...count, [call.stage]: (count[call.stage] ?? 0) + 1 }), {});
