@@ -200,7 +200,7 @@ test('every label has an English entry, so 设置 › 界面 reads fully in both
       assert.ok(APPEARANCE_OPTIONS[key].includes(isNaN(value) ? value : Number(value)), `${key}.${value} is a real choice`);
       assert.doesNotMatch(ui(zh), han, `${key}.${value} ${zh}`);
     }
-    for (const zh of ['恢复默认外观', '导出外观', '导入外观', '外观设置（一小段文字，可粘贴到另一台电脑）', '已导出，可以复制保存。', '已应用这份外观设置。', '这不是 StudyHub 的外观设置，没有改动。'])
+    for (const zh of ['恢复默认外观', '复制外观设置', '下载为文件', '更多外观选项', '导入外观', '外观设置（一小段文字，可粘贴到另一台电脑）', '已复制外观设置，可以粘贴到另一台电脑。', '已应用这份外观设置。', '这不是 StudyHub 的外观设置，没有改动。'])
       assert.doesNotMatch(ui(zh), han, zh);
   } finally { setUiLanguage('zh'); }
 });
@@ -230,7 +230,7 @@ test('App and the empty page no longer read or write the theme by hand, and Sett
   assert.match(settings, /APPEARANCE_OPTIONS/);
 });
 
-test('设置 › 界面 offers 恢复默认外观 and export / import, in both languages, next to the existing choices', async () => {
+test('设置 › 界面 offers 恢复默认外观 and copy / import, in both languages, next to the existing choices (the layout itself: tests/appearance-settings-layout.test.mjs)', async () => {
   const { Settings, setUiLanguage } = await bundle("export { default as Settings } from './ui/Settings.jsx'; export { setUiLanguage } from './ui/i18n.js';");
   await warmSettingsPanes(Settings);
   const noop = () => {};
@@ -240,12 +240,12 @@ test('设置 › 界面 offers 恢复默认外观 and export / import, in both l
   try {
     const full = { onReset: noop, onExport: () => exportAppearance({}), onImport: () => true };
     const zh = render(full);
-    for (const label of ['恢复默认外观', '导出外观', '导入外观', '深色', '浅色', '90%', '200%', '系统默认', '衬线', '等宽', '无动画']) assert.match(zh, new RegExp(label), label);
+    for (const label of ['恢复默认外观', '复制外观设置', '导入外观', '深色', '浅色', '90%', '200%', '系统默认', '衬线', '等宽', '无动画']) assert.match(zh, new RegExp(label), label);
     assert.match(zh, /aria-label="界面字体"/);
     assert.doesNotMatch(render({}), /恢复默认外观/, 'without the handlers there is nothing to restore');
     setUiLanguage('en');
     const en = render(full);
-    for (const label of ['Restore default appearance', 'Export appearance', 'Import appearance', '>Dark<', '>Light<', '>System default<', '>Serif .Song.<', '>Kai<', '>Rounded<', '>Monospace<']) assert.match(en, new RegExp(label), label);
+    for (const label of ['Restore default appearance', 'Copy appearance settings', 'Import appearance', '>Dark<', '>Light<', '>System default<', '>Serif .Song.<', '>Kai<', '>Rounded<', '>Monospace<']) assert.match(en, new RegExp(label), label);
   } finally { setUiLanguage('zh'); }
 });
 

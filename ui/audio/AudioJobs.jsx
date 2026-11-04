@@ -3,7 +3,7 @@ import { ui } from "../i18n.js";
 import CompactJobCard from "../tasks/CompactJobCard.jsx";
 import { AppContext } from "../app/app-context.js";
 import { contractOf } from "../tasks/task-model.js";
-import JobFollowUp from "../JobFollowUp.jsx";
+import { followUpLink } from "../job-follow-up.js";
 export { parallelNote, reuseNote } from "./audio-notes.js";
 export { reasoningNote } from "../EffortSelect.jsx";
 import { isActiveJob, isAudioJob } from "../../lib/job-status.js";
@@ -77,7 +77,8 @@ export function AudioJobs({ data, onOpenSources, onLegacyRetry, onOpenSettings, 
   const jobs = (data.jobs || []).filter(isAudioJob), app = useContext(AppContext) || {};
   // A card whose one button is something else (the transcript, the settings, the recording again) keeps a quiet way to the console, where the run's stage, time, tokens and output are.
   return jobs.length ? <div className="cjc-list audio-jobs">{jobs.map((job) => { const primary = primaryOf(job, { onOpenSources, onLegacyRetry, onOpenSettings });
-    return <JobFollowUp key={job.id} job={job} sourceIds={job.sourceIds} onGenerate={onGenerate}>
-      <CompactJobCard job={job} links={primary || job.status === "complete" ? [consoleLink(job, app)] : undefined}
-        onStop={() => act("job.control", { jobId: job.batchId || job.id, action: "cancel" })} primary={primary} /></JobFollowUp>; })}</div> : null;
+    // 用它出题 is one of the card's own quiet actions (the next step of a finished import), not a link under it.
+    const links = [followUpLink(job, job.sourceIds, onGenerate), primary || job.status === "complete" ? consoleLink(job, app) : null].filter(Boolean);
+    return <CompactJobCard key={job.id} job={job} links={links.length ? links : undefined}
+      onStop={() => act("job.control", { jobId: job.batchId || job.id, action: "cancel" })} primary={primary} />; })}</div> : null;
 }

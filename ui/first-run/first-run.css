@@ -146,6 +146,24 @@
     .first-run-card .frl-compact-plan__tune { height: var(--frl-rule); color: var(--paper-dim); }
     .first-run-card .frl-compact-plan__tune:hover { color: var(--paper-ink); }
   }
+  /* Wide (#681): the welcome words on the left and the three steps beside them, sharing the page's width, so a 1440 or 1920 window has no empty third at
+     the right and the left edge stays where every other page has it. Narrower than this it is the one column below. */
+  @container study (min-width: 1200px) {
+    :is(.study-app, .study-seat) {
+      .first-run {
+        display: grid;
+        grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+        grid-template-areas: "intro steps" "intro footer";
+        grid-template-rows: auto 1fr;
+        column-gap: var(--space-9);
+        align-items: start;
+        max-width: none;
+      }
+      .first-run__intro { grid-area: intro; margin-bottom: 0; }
+      .first-run > .frl-steps { grid-area: steps; }
+      .first-run__footer { grid-area: footer; }
+    }
+  }
   @container study (max-width: 760px) {
     :is(.study-app, .study-seat) {
       .first-run { padding-top: var(--space-5); }

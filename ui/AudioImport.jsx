@@ -240,7 +240,7 @@ export default function AudioImport({
     <div className={`pdf-import audio-import${gated ? ' audio-import--setup' : ''}`}>
       {!gated && <strong>{ui("音频 / 录音 → 中英对照逐字稿")}</strong>}
       {recoveryJobId && <p className="muted">{ui('正在接续旧版失败任务：请选择同一份原录音。原提交参数未保存，请核对下面的课程和术语设置。')}
-        <Button variant="link" size="sm" onClick={() => onRecoveryChange?.('')}>{ui('取消接续')}</Button></p>}
+        <Button variant="quiet" size="sm" onClick={() => onRecoveryChange?.('')}>{ui('取消接续')}</Button></p>}
       {!gated && <Hint>{ui("先把录音转写成文字（用你在音频设置里配置的服务），再校对识别错误的词、翻译，保存为一份资料。出题仍在「创建题组」里另选。")}</Hint>}
       <input ref={picker} type="file" hidden multiple accept={`audio/*,${AUDIO_ACCEPT.join(',')}`}
         onChange={event => { const chosen = Array.from(event.target.files || []); event.target.value = ''; if (chosen.length) void send(chosen); }} />
@@ -269,7 +269,7 @@ export default function AudioImport({
         </div>}
         <div className="audio-ways">
           <AudioWorkspace onPick={(picked) => pickPath(picked.path, picked.size)} />
-          <HandOff id="import.file" input={{ purpose: 'audio' }} lead="多段录音或别处的文件：" disabled={busy} what="让主会话按你指定的顺序导入这些音频；文件在输入框里用 @ 选" />
+          <HandOff id="import.file" shape="quiet" input={{ purpose: 'audio' }} lead="多段录音或别处的文件：" disabled={busy} what="让主会话按你指定的顺序导入这些音频；文件在输入框里用 @ 选" />
           <details className="audio-path"><summary>{ui("粘贴文件路径（高级）")}</summary>
             <div className="audio-path-row">
               <input className="audio-path-input" value={pathText} onChange={(event) => setPathText(event.target.value)} placeholder={ui("例如：C:\\Users\\你\\Downloads\\lecture.mp3")}
@@ -281,8 +281,8 @@ export default function AudioImport({
       </>}
       {upload && <div className="audio-upload">
         <div className="audio-upload-head"><strong>{upload.name}</strong>
-          {upload.error ? <Button variant="link" size="sm" onClick={uploads.dismiss}>{ui("重新选择")}</Button>
-            : <Button variant="link" size="sm" onClick={uploads.cancel}>{ui("取消上传")}</Button>}</div>
+          {upload.error ? <Button variant="quiet" size="sm" onClick={uploads.dismiss}>{ui("重新选择")}</Button>
+            : <Button variant="quiet" size="sm" onClick={uploads.cancel}>{ui("取消上传")}</Button>}</div>
         {upload.error ? <InlineMessage tone="error">{uiFormat("上传失败：{0}", [upload.error])}</InlineMessage> : <>
           <ProgressBar value={percent} max={100} size="sm" label={uiFormat("上传 {0}", [upload.name])} />
           <small className="muted">{uiFormat("正在上传 {0} / {1}", [formatBytes(upload.sent), formatBytes(upload.size)])}</small></>}
@@ -302,7 +302,7 @@ export default function AudioImport({
                 {note.kind === 'blocked' && <>
                   {files.length > 1 && <Button size="sm" lock={busy || starting} onClick={() => skipAndContinue(index)}>{ui('跳过此文件继续')}</Button>}
                   <Button size="sm" variant="quiet" lock={busy || starting} onClick={() => replaceFile(index)}>{ui('换一个文件')}</Button>
-                  <HandOff id="import.file" input={{ purpose: 'audio', files: [file.path || file.name], error: note.text }} disabled={busy || starting} what={AUDIO_WHAT} />
+                  <HandOff id="import.file" shape="quiet" input={{ purpose: 'audio', files: [file.path || file.name], error: note.text }} disabled={busy || starting} what={AUDIO_WHAT} />
                 </>}
               </span>}
             </div>

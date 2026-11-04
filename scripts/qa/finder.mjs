@@ -10,7 +10,7 @@
      6. on a control the finder cannot open for the learner (翻译 in the reader): the page of the materials and a toast with the path;
      7. the ring is gone after about 2.5 s, and at once on any input.
    Screenshots go to <out>/<width>-<lang>-<theme>-<step>.png (default output/finder-shots). */
-/* global document, getComputedStyle, localStorage -- page.evaluate callbacks run in the browser */
+/* global document, getComputedStyle, localStorage, innerHeight -- page.evaluate callbacks run in the browser */
 import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -124,6 +124,22 @@ export async function walkFinder({ browser, running, lang = "zh", theme = "light
     await page.mouse.down(); await page.mouse.up();
     await sleep(150);
     expect(await page.locator("[data-finder-ring]").count() === 0, "a click takes the ring away");
+
+    // 4b. a setting folded inside Settings itself (圆角 is in 更多外观选项, below the first screen): the fold opens, the page scrolls to it, the ring is drawn (#679)
+    await openSheet("click");
+    await page.locator('dialog[open] [role="combobox"]').fill(word("圆角", "corners"));
+    await sleep(150);
+    await page.keyboard.press("Enter");
+    await page.locator('[data-finder-ring]').waitFor({ timeout: 15000 }).catch(() => expect(false, "a ring is drawn around a setting inside a fold of Settings"));
+    await sleep(900);
+    expect(await page.evaluate(() => document.querySelector('.appearance-more')?.open === true), "the fold 更多外观选项 was opened");
+    const radius = await ringAround(page, "settings-appearance-radius");
+    expect(!!radius && radius.focus, "圆角 has the focus and its ring");
+    expect(await page.evaluate(() => { const box = document.querySelector('[data-tour="settings-appearance-radius"]')?.getBoundingClientRect(); return !!box && box.top >= 0 && box.bottom <= innerHeight; }), "圆角 was scrolled into view");
+    await shot("goto-folded-setting");
+    await page.mouse.move(5, 5);
+    await page.mouse.down(); await page.mouse.up();
+    await sleep(150);
 
     // 5. a folded target on another page
     await openSheet("click");

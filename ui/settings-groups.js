@@ -31,8 +31,8 @@ export const SETTINGS_GROUPS = Object.freeze([
    <category.Component {...services} /> and decides nothing else about a category. */
 const category = (entry, load) => ({ ...entry, load, Component: lazy(load) });
 export const SETTINGS_CATEGORIES = Object.freeze([
-  category({ id: 'appearance', group: 'common', title: '界面', anchors: ['settings-appearance', 'settings-appearance-language', 'settings-appearance-theme', 'settings-appearance-accent', 'settings-appearance-scale', 'settings-appearance-font', 'settings-appearance-motion', 'settings-appearance-contrast', 'settings-appearance-density', 'settings-appearance-radius', 'settings-appearance-transfer'],
-    purpose: '语言、外观、强调色、界面大小、字体、动画、对比度、密度和圆角都在这里调；也能把外观导出成一小段文字，带到另一台电脑' }, () => import('./settings/AppearancePane.jsx')),
+  category({ id: 'appearance', group: 'common', title: '界面', anchors: ['settings-appearance', 'settings-appearance-language', 'settings-appearance-theme', 'settings-appearance-accent', 'settings-appearance-scale', 'settings-appearance-font', 'settings-appearance-motion', 'settings-appearance-contrast', 'settings-appearance-density', 'settings-appearance-radius', 'settings-appearance-reset', 'settings-appearance-transfer'],
+    purpose: '语言、外观、强调色、界面大小在最上面；字体、动画、对比度、密度和圆角在「更多外观选项」里；也能把外观复制或存成文件，带到另一台电脑' }, () => import('./settings/AppearancePane.jsx')),
   category({ id: 'science', group: 'common', title: '公式、图片与计算工具', anchors: ['settings-science'], purpose: '公式的大小和对齐、图片的显示方式，以及化学配平和代数恒等式两个在本地计算的小工具' }, () => import('./settings/SciencePane.jsx')),
   category({ id: 'model', group: 'common', title: '学习库与模型', anchors: ['settings-model'], purpose: '选学习库放在哪个文件夹，也选用哪个模型出题；模型的密钥在 DSH 的「设置 › 模型」里填' }, () => import('./settings/ModelPane.jsx')),
   category({ id: 'generation', group: 'common', title: '出题偏好', anchors: ['settings-generation', 'settings-generation-time'], needs: 'generation',

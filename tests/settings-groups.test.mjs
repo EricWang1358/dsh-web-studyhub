@@ -105,7 +105,9 @@ test('the page is the category list and ONE category: the first one by default, 
   assert.match(first, /class="settings-pane"/);
   assert.match(first, /界面语言/, 'the first category is the interface');
   assert.doesNotMatch(first, /数据备份与恢复|间隔复习 · FSRS-6/, 'the other categories are not on the page');
-  assert.doesNotMatch(first, /<details/, 'no folded groups any more');
+  // No folded groups of settings any more; the one fold is 更多外观选项 inside the appearance section (#679), which keeps the main path short.
+  assert.equal((first.match(/<details/g) || []).length, 1, 'no folded groups any more, only the appearance fold');
+  assert.match(first, /更多外观选项/);
   const model = page({ focusSection: 'settings-model', appearance });
   assert.match(model, /data-tour="settings-model"/);
   assert.match(model, /aria-current="page"[^>]*data-category="model"|data-category="model"[^>]*aria-current="page"/);
