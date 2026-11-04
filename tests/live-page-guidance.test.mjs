@@ -252,9 +252,10 @@ test('when polish is paused the plain error, the retry and a way to the model se
   assert.match(fix, /润色模型的回复格式不对/);
   assert.match(fix, />重试待校正内容</);
   assert.match(fix, /data-live-model-setting[^>]*>[^<]*音频设置/);
-  for (const paused of ['skips', null]) {
+  for (const paused of ['skips', 'transient', null, undefined]) {
     const other = render(page({ status: 'ended', correction: { ...CORRECTION, skipped: 1, paused, error: '有 1 句…' } }, { onSettings: noop }), 'zh');
-    assert.equal(/data-live-model-setting/.test(other), paused === 'skips', `paused ${paused}`);
+    assert.equal(/data-live-model-setting/.test(other), paused === 'skips', `paused ${paused}: the model link only for a model problem`);
+    assert.match(other, />重试待校正内容</);
   }
   assert.doesNotMatch(render(page({ status: 'ended', correction: { ...CORRECTION, paused: 'format', error } })), /data-live-model-setting/, 'no link where the page cannot open settings');
 });
