@@ -201,6 +201,15 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
   }
 });
 
+/* #658: the accent is the primary action, progress, the card head rule and the heatmap. accentFill is a per-file ratchet for the older sheets (it may only fall); the places the
+   issue named, and the selected rows of the sheets swept with them, are held at zero so a selection or a "just imported" row cannot go back to a tint of the accent. */
+test('the 资料 page, the task console, the shared checkbox and the selected rows swept in #658 paint no accent fill', () => {
+  const clean = ['ui/sources.css', 'ui/sources-page.css', 'ui/tasks/task-console.css', 'ui/tasks/compact-card.css', 'ui/tasks/plan-table.css', 'ui/settings.css', 'ui/components/fields.css', 'ui/course-field.css',
+    'ui/course-settings.css', 'ui/exam-setup.css', 'ui/live-class.css', 'ui/manage.css', 'ui/thumb-feedback.css', 'ui/exam.css', 'ui/views.css'];
+  assert.deepEqual(clean.filter((file) => scan.metrics.accentFill[file]), [], `${RULES.accentFill.fix}`);
+  assert.deepEqual(clean.filter((file) => baseline.accentFill[file]), [], 'these files have no baseline entry for accentFill');
+});
+
 /* #140: the choice rows (checkbox / switch / radio card) are primitives. rawChoiceInput and handSwitch are per-file ratchets,
    so a new hand-written checkbox, radio or switch outside ui/components already fails the rule above; a settings page has no
    exception at all, and the switch-row classes the primitives replaced may not come back to a stylesheet or a className. */

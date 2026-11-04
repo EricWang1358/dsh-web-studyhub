@@ -172,7 +172,7 @@
       min-width: 0;
     }
 
-    .guided-study-card-option[data-picked] { border-color: var(--accent); }
+    .guided-study-card-option[data-picked] { border-color: var(--text-muted); }
     .guided-study-card-option[data-verdict="correct"] { border-color: var(--ok-line); }
     .guided-study-card-option[data-verdict="wrong"] { border-color: var(--bad-line); }
     .guided-study-card-options:disabled .guided-study-card-option { cursor: default; }

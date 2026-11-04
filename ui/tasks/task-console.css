@@ -25,6 +25,10 @@
       color: var(--text);
     }
     .tc-header { flex: none; margin-bottom: var(--space-3); }
+    /* The filters are one line whatever the width: where the four do not fit they scroll sideways inside their own box (the shared control wraps by default, which made two lines of them at 420). */
+    .tc-header .sh-page-header__actions { min-width: 0; max-width: 100%; flex-wrap: nowrap; }
+    .tc-scope { flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+    .tc-scope > .sh-seg__item { flex: none; white-space: nowrap; }
     /* The list and the detail: one flat desk panel (surface, hairline, desk corner); the list is divided from the detail by a hairline, not by a grey slab. */
     .tc-main {
       flex: 1 1 0;
@@ -89,12 +93,12 @@
     /* A row and the box that selects it: the column is there for every row (a running task has no box), so the rows line up. The box sits on the first line of the row, level with the
        status dot and the title (not in the middle of the two lines), and under the box of the bar. */
     .tc-item { --tc-line: 22px; display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: stretch; border-bottom: 1px solid var(--line-soft); }
-    /* A ticked row is tinted like the picked one (the accent's own tint, so it reads on every accent and in both themes); the picked one also has the accent edge. */
+    /* A ticked row is the selected surface (--bg-selected, the same neutral on every accent and in both themes); the picked one also has a neutral edge, never an accent one (#658). */
     .tc-item[data-checked='true'] { background: var(--bg-selected); }
     .tc-item > .tc-row { border-bottom: 0; padding-inline-start: 0; }
-    /* The hover and the picked row are painted on the whole item, the empty box column included, so the highlight and its accent edge start at the list's edge instead of 40px in (a running task has no box). */
+    /* The hover and the picked row are painted on the whole item, the empty box column included, so the highlight and its edge start at the list's edge instead of 40px in (a running task has no box). */
     .tc-item:hover:not([data-checked='true']) { background: var(--bg-hover); }
-    .tc-item:has(> .tc-row[aria-pressed='true']) { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--accent); }
+    .tc-item:has(> .tc-row[aria-pressed='true']) { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--text-dim); }
     .tc-item > .tc-row:is(:hover, [aria-pressed='true']) { background: transparent; box-shadow: none; }
     /* The box is 1.15em with a 0.1em top margin (ui/components/fields.css) in the font size of its label: the same size here as in the bar, centred on the title's line. */
     .tc-item__check { display: flex; align-items: flex-start; justify-content: flex-start; gap: 0; min-width: 0; padding: calc(var(--space-3) + (var(--tc-line) - 1.15em) / 2 - 0.1em) 0 0 var(--space-4); font-size: var(--fs-sm); }
@@ -120,12 +124,12 @@
       white-space: normal;
     }
     .tc-row:hover { background: var(--bg-hover); }
-    .tc-row[aria-pressed='true'] { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--accent); }
+    .tc-row[aria-pressed='true'] { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--text-dim); }
     .tc-row:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
     .tc-row__title { overflow: hidden; font-weight: var(--fw-medium); line-height: var(--tc-line, 20px); text-overflow: ellipsis; white-space: nowrap; }
     .tc-row__sub { grid-column: 2 / 4; overflow: hidden; color: var(--text-muted); font-size: var(--fs-sm); text-overflow: ellipsis; white-space: nowrap; }
     .tc-row .tc-num { font-size: var(--fs-sm); }
-    .tc-num { color: var(--text-muted); font-family: var(--font-stack-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .tc-num { color: var(--text-muted); font-family: var(--font-ui); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
     /* 批次 of a day of 为你定制: a dot, the time, one line, the state. */
     .tc-batch { display: grid; grid-template-columns: 8px 44px minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-3); height: 36px; padding: 0 var(--space-4); border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
     .tc-batch__time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
@@ -192,9 +196,9 @@
     .tc-metric:last-child { border-right: 0; }
     .tc-metric--progress { gap: var(--space-2); padding-inline: var(--space-5); }
     .tc-metric__k { display: block; color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.3; }
-    .tc-metric__v { overflow: hidden; font-family: var(--font-stack-mono); font-size: var(--fs-md); font-variant-numeric: tabular-nums; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+    .tc-metric__v { overflow: hidden; font-family: var(--font-ui); font-size: var(--fs-md); font-variant-numeric: tabular-nums; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
     .tc-metric__top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
-    .tc-metric__pct { font-family: var(--font-stack-mono); font-size: var(--fs-lg); font-variant-numeric: tabular-nums; }
+    .tc-metric__pct { font-family: var(--font-ui); font-size: var(--fs-lg); font-variant-numeric: tabular-nums; }
     .tc-segments { display: flex; gap: var(--space-half); height: 5px; }
     .tc-segment { flex-basis: 0; min-width: 6px; background: var(--line); }
     .tc-segment > i { display: block; height: 100%; background: var(--sh-seg, var(--accent)); transform-origin: left; }
@@ -210,7 +214,7 @@
     .tc-panel[hidden] { display: none; }
     .tc-tabs { flex: none; flex-wrap: nowrap; gap: 0; height: 32px; border-bottom: 1px solid var(--line); }
     .tc-tab { min-height: 32px; padding-inline: var(--space-5); border: 0; background: transparent; box-shadow: none; color: var(--text-muted); font-weight: var(--fw-strong); }
-    .tc-tab[aria-selected='true'] { background: transparent; box-shadow: inset 0 -2px 0 var(--accent); color: var(--text); }
+    .tc-tab[aria-selected='true'] { background: transparent; box-shadow: inset 0 -2px 0 var(--text); color: var(--text); }
     /* Three tabs in the left panel: the strip measures ITSELF. Where the labels do not fit, the third tab shortens to 「目标」 (a long label, as English has, sooner; the tooltip has the whole name) and the tabs
        close up; what still does not fit scrolls sideways inside the strip. */
     .tc-tabs { container-type: inline-size; overflow-x: auto; scrollbar-width: none; }
@@ -246,7 +250,7 @@
     .tc-callbar[data-slow][aria-pressed='true'] { outline-color: var(--text); }
     .tc-legend [data-kind='slow'] i { width: 10px; height: 8px; box-sizing: border-box; border: 1px solid var(--warn-ink, var(--text)); background: repeating-linear-gradient(135deg, var(--decor-faint) 0 2px, transparent 2px 4px); }
     .tc-lanes__more { flex: none; margin: 0; color: var(--text-faint); font-size: var(--fs-xs); }
-    .tc-axis { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-3); padding: 0 var(--space-5) var(--space-2); color: var(--text-faint); font-family: var(--font-stack-mono); font-size: var(--fs-xs); }
+    .tc-axis { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-3); padding: 0 var(--space-5) var(--space-2); color: var(--text-faint); font-family: var(--font-ui); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     .tc-axis > div { display: flex; justify-content: space-between; }
 
     /* Lists: the calls in flight, the files, the parts. */
@@ -266,7 +270,7 @@
       text-align: left;
       white-space: normal;
     }
-    .tc-callrow[aria-pressed='true'], .tc-filerow[aria-pressed='true'] { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--accent); }
+    .tc-callrow[aria-pressed='true'], .tc-filerow[aria-pressed='true'] { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--text-dim); }
     .tc-callrow__step { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tc-callrow__by { grid-column: 2 / 4; overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
     .tc-filerow { grid-template-columns: 8px minmax(0, 1fr) minmax(56px, 96px) auto; }
@@ -392,7 +396,7 @@
     .tc-round .tc-dot { margin-top: 0.4em; }
     .tc-round__name { display: flex; flex-direction: column; min-width: 0; font-size: var(--fs-sm); white-space: normal; overflow-wrap: anywhere; }
     .tc-round__result { color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.4; }
-    .tc-rounds__list > li[data-status='running'] { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--accent); }
+    .tc-rounds__list > li[data-status='running'] { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--text-dim); }
     .tc-round__sections { display: grid; gap: var(--space-half); margin: 0; padding: 0 var(--space-4) var(--space-3) calc(var(--space-4) + var(--space-5)); list-style: none; }
     .tc-round__sections li { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--fs-xs); }
     .tc-round__sections li[data-state='covered'] small { color: var(--ok-ink); }
@@ -416,7 +420,7 @@
     .tc-figures__timings { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-4); margin: 0; }
     .tc-figures__cell { display: flex; align-items: baseline; gap: var(--space-2); }
     .tc-figures__cell dt { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); }
-    .tc-figures__cell dd { margin: 0; font-family: var(--font-stack-mono); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .tc-figures__cell dd { margin: 0; font-family: var(--font-ui); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
     /* What an audio import asked of its providers: ONE line of a fixed height, whatever it says; the notices are the log's. */
     .tc-usage {
@@ -452,7 +456,7 @@
     .tc-control__label { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: break-word; }
     .tc-stepper { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); }
     .tc-stepper__btn { min-width: 24px; --control-h-sm: 24px; padding-inline: 0; border-width: 0; background: var(--bg-raised); }
-    .tc-stepper__value { min-width: 28px; font-family: var(--font-stack-mono); font-weight: var(--fw-medium); text-align: center; font-variant-numeric: tabular-nums; }
+    .tc-stepper__value { min-width: 28px; font-family: var(--font-ui); font-weight: var(--fw-medium); text-align: center; font-variant-numeric: tabular-nums; }
     /* The width of its cell whatever it shows (no shift when another level is chosen); the cell is wide enough for the longest of the short words (「跟随当前会话」, "Follow session") and 模型默认 / 最低 / 低 / 中 / 高 / 最高; the long label of the follow option is in the popup. */
     .tc-select { width: 100%; min-height: 28px; padding-block: 0; padding-inline: var(--space-3); font-size: var(--fs-sm); }
   }
@@ -481,6 +485,19 @@
     :is(.study-app, .study-seat) {
       .tc { padding: var(--space-5) var(--space-5) var(--space-6); }
       .tc-header { margin-bottom: var(--space-4); }
+    }
+  }
+
+  /* A narrow panel (the DSH side panel, a phone): the overview is a short list, a metric one line (its name, then its value at the end; a note under it) instead of a grid of tiles that are mostly empty. */
+  @container study (max-width: 560px) {
+    :is(.study-app, .study-seat) {
+      .tc-metrics { grid-template-columns: minmax(0, 1fr); }
+      .tc-metric:not(.tc-metric--progress) { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 0 var(--space-3); min-height: 0; padding: var(--space-2) var(--space-4); border-right: 0; border-bottom: 1px solid var(--line-soft); }
+      .tc-metric:not(.tc-metric--progress) .tc-metric__v { text-align: end; }
+      .tc-metric:not(.tc-metric--progress) .tc-metric__note-anchor, .tc-metric:not(.tc-metric--progress) > .tc-metric__note { grid-column: 1 / -1; }
+      .tc-metric:not(.tc-metric--progress) .tc-metric__note { min-height: 0; }
+      .tc-metric:not(.tc-metric--progress) > .tc-metric__note:empty { display: none; }
+      .tc-metric:last-child { border-bottom: 0; }
     }
   }
 

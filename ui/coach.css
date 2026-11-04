@@ -20,7 +20,7 @@
     /* ── Thumbs ───────────────────────────────────────────────────────────── */
     .thumbs { display: inline-flex; align-items: center; gap: var(--space-1); position: relative; }
     .thumbs > .thumbs__button { min-width: 34px; padding-left: var(--space-2-5); padding-right: var(--space-2-5); }
-    .thumbs > .thumbs__button[aria-pressed="true"] { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
+    .thumbs > .thumbs__button[aria-pressed="true"] { border-color: var(--text-muted); color: var(--text); background: var(--bg-selected); }
     .thumb-tray {
       position: absolute;
       bottom: calc(100% + 8px);
