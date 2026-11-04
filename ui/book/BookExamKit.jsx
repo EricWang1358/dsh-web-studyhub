@@ -50,7 +50,10 @@ function Card({ type, onGo }) {
 /** The card of `code` in the middle of the dialog. */
 const jump = code => document.getElementById(`book-kit-${code}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
 
-/** One row per type; on a narrow screen each row is a block whose cells carry their column's name (data-head, drawn by book-kit.css). */
+/** A cell of the matrix: its content in one box, so on a narrow screen the column's name (data-head, drawn by book-kit.css) stands beside it. Empty: nothing. */
+const Cell = ({ head, children }) => <td data-head={head}>{children ? <span className="book-kit__cell">{children}</span> : null}</td>;
+
+/** One row per type; on a narrow screen each row is a small block of name-value lines. */
 function Matrix({ types, onGo }) {
   const heads = [ui('题干原词'), ui('考查本质与切入点'), ui('模板'), ui('知识点'), ui('真题')];
   return (
@@ -58,11 +61,11 @@ function Matrix({ types, onGo }) {
       <table className="book-kit__matrix">
         <thead><tr>{heads.map(head => <th key={head} scope="col">{head}</th>)}</tr></thead>
         <tbody>{types.map(type => <tr key={type.code} className="book-kit__row">
-          <td data-head={heads[0]}>{type.signals.join(' · ')}</td>
-          <td data-head={heads[1]}>{type.asks}</td>
-          <td data-head={heads[2]}><Button variant="link" size="sm" className="book-kit__code" data-kit-jump={type.code} onClick={() => jump(type.code)}>{type.code}</Button></td>
-          <td data-head={heads[3]}><Codes hids={type.hids} onGo={onGo} /></td>
-          <td data-head={heads[4]}>{type.anchors.join(' · ')}</td>
+          <Cell head={heads[0]}>{type.signals.join(' · ')}</Cell>
+          <Cell head={heads[1]}>{type.asks}</Cell>
+          <Cell head={heads[2]}><Button variant="link" size="sm" className="book-kit__code" data-kit-jump={type.code} onClick={() => jump(type.code)}>{type.code}</Button></Cell>
+          <Cell head={heads[3]}>{type.hids.length > 0 && <Codes hids={type.hids} onGo={onGo} />}</Cell>
+          <Cell head={heads[4]}>{type.anchors.join(' · ')}</Cell>
         </tr>)}</tbody>
       </table>
     </div>

@@ -41,7 +41,7 @@ const examAnswer = data => ({ leaves: data.leaves.map(leaf => ({ id: leaf.id, no
     fill per question plus one of a question that was never asked (the program drops both). */
 const kitAnswer = data => ({ types: data.types.map(type => ({ id: type.id, name: `${type.kind} answer`, asks: `考的是${type.points.join('、')}`,
   signals: [type.questions[0].text.split(' ').slice(0, 2).join(' '), 'words in no question'],
-  template: '1. State [Claim] about [Topic]. 2. Support it with [Evidence]. 3. Close with [Trade-off].',
+  template: '1. State [Claim] about [Topic].\n2. Support it with [Evidence].\n3. Close with [Trade-off].',
   fills: [...type.questions.map(question => ({ question: question.id, fill: `Claim: ${question.text.slice(0, 30)} ｜ Topic: ${question.label}` })),
     { question: 'q99', fill: 'A question that was never asked.' }] })) });
 

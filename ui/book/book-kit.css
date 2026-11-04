@@ -131,16 +131,21 @@
       .book-kit__matrix thead {
         display: none;
       }
-      .book-kit__row,
-      .book-kit__matrix td {
+      .book-kit__matrix,
+      .book-kit__matrix tbody {
         display: block;
       }
       .book-kit__row {
+        display: grid;
+        gap: var(--space-half);
         padding: var(--space-2) 0;
         border-bottom: 1px solid var(--line-soft);
       }
       .book-kit__matrix td {
-        padding: var(--space-half) 0;
+        display: grid;
+        grid-template-columns: 7.5em minmax(0, 1fr);
+        gap: var(--space-2);
+        padding: 0;
         border-bottom: 0;
       }
       .book-kit__matrix td:empty {
@@ -148,9 +153,9 @@
       }
       .book-kit__matrix td::before {
         content: attr(data-head);
-        display: block;
         color: var(--text-muted);
         font-size: var(--fs-xs);
+        line-height: var(--lh-body);
       }
     }
   }
