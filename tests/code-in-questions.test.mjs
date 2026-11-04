@@ -283,3 +283,15 @@ test('a cloze question draws its code spans as code and keeps the blank as an in
   assert.match(html, /<input[^>]*cloze-blank/);
   assert.doesNotMatch(html, /`/);
 });
+
+test('code looks like code through tokens: the mono stack, a block that scrolls instead of widening the card, a regular weight inside a bold stem', () => {
+  const css = readFileSync(new URL('../ui/markdown.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const block = rule => new RegExp(`${rule.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`).exec(css)?.[1] ?? '';
+  assert.match(block('.md code'), /font-family: var\(--font-stack-mono\)/);
+  assert.doesNotMatch(css, /JetBrains/);
+  assert.match(block('.md .md-code'), /overflow-x: auto/);
+  assert.match(block('.md .md-code'), /white-space: pre/);
+  assert.match(block('.md .md-code'), /font-weight: var\(--fw-regular\)/);
+  const graph = readFileSync(new URL('../ui/graph.css', import.meta.url), 'utf8');
+  assert.match(graph, /\.cloze-code \{[^}]*var\(--font-stack-mono\)/);
+});
