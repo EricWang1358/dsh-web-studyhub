@@ -10,6 +10,17 @@ import { browserSession, browserStorage, readJSON, readText, writeJSON, writeTex
 export const VARIANT_BATCH_CAP = 8;
 export const RECS_PREVIEW = 3;
 export const DEFAULT_GROUP_BY = 'deck';
+/** From this many mistakes on the page offers its filter bar, grouping switch and fold-all; a shorter list is read as it stands. */
+export const FILTER_MIN = 10;
+
+/** What the page reads of a list to know it has changed: the counts and the newest row (the service sorts newest first, so a new, repeated or corrected
+ * mistake always moves the first row or a count). A probe of one row and the full first page read the same. */
+export function readSignature(res) {
+  if (!res) return '';
+  const first = res.items?.[0];
+  return JSON.stringify([res.view, res.total, res.counts?.weak, res.counts?.history, res.gradedTotal, res.selfTotal, res.oralTotal, res.rubricTotal,
+    first?.cardId ?? null, first?.recoveredAt ?? first?.lastAt ?? null]);
+}
 
 /** Short deck names, trimmed per course so "课程｜卷名｜90题" reads as "卷名". */
 export function shortDeckNames(items, decks = []) {

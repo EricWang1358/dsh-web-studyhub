@@ -26,7 +26,7 @@ const coach = { enabled: true, consent: true, ready: 1, preparing: false, prepar
 const base = { data: { root: 'r', decks, focus: { course: 'PE', courses: [{ name: 'PE' }] }, model: { ready: true } }, course: 'PE', onCourse: noop,
   items, counts: { total: 5, graded: 4, self: 1, oral: 0, rubric: 0 }, loading: false, err: '', page: 0, pageSize: 100, hasMore: false,
   onReload: noop, onPage: noop, recs: null, coach, details: {}, onLoadDetail: noop, onPractice: noop, onPracticePrepared: noop,
-  onGenerate: async () => ({}), onOpenSettings: noop, busy: false };
+  onGenerate: async () => ({}), onOpenSettings: noop, busy: false, filterMin: 1 };
 const render = (extra = {}) => renderToStaticMarkup(React.createElement(WrongBookView, { ...base, ...extra }));
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const count = (html, pattern) => (html.match(pattern) || []).length;
@@ -206,16 +206,21 @@ test('口头评估 and 批改未达标 get a chip only when the library has such
 });
 
 test('a status filter narrows the list, the result line, the chips and every button that costs a model call', () => {
-  const html = render({ initial: { filter: { status: 'self' }, groups: 'all' } });
+  const html = render({ initial: { filter: { status: 'graded' }, groups: 'all' } });
   const t = text(html);
-  assert.match(t, /显示 1 \/ 共 5 题/);
+  assert.match(t, /显示 4 \/ 共 5 题/);
   assert.match(t, /清除筛选/);
-  assert.equal(count(html, /class="wb-row[ "]/g), 1);
+  assert.equal(count(html, /class="wb-row[ "]/g), 4);
   assert.doesNotMatch(t, /为全部错题生成变式/);
-  assert.match(t, /为当前筛选的 1 题生成变式/);
-  assert.equal(count(t, /为本组生成变式/g), 1, 'only the group that still has rows keeps its button');
+  assert.match(t, /为当前筛选的 4 题生成变式/);
+  assert.equal(count(t, /为本组生成变式/g), 2, 'both groups still have rows, so each keeps its button');
   assert.match(t, /一次最多 8 题/);
-  assert.match(buttonWith(html, '未掌握 1'), /aria-pressed="true"/);
+  assert.match(buttonWith(html, '答错 4'), /aria-pressed="true"/);
+  // A filter that leaves one question has the question's own generate button: the batch and the group's would say the same (#675).
+  const one = text(render({ initial: { filter: { status: 'self' }, groups: 'all' } }));
+  assert.match(one, /显示 1 \/ 共 5 题/);
+  assert.doesNotMatch(one, /为当前筛选的|为本组生成变式/);
+  assert.match(one, /生成变式/);
 });
 
 test('without a filter the batch button keeps its old words', () => {
@@ -320,11 +325,11 @@ test('English: the whole new surface is translated while question text stays as 
     assert.match(text(folded), /Expand all/);
     assert.match(text(folded), /Collapse all/);
     assert.match(text(folded), /Only this deck/);
-    const filtered = view({ initial: { filter: { status: 'graded', deck: 'd4', query: 'state' }, groups: 'all' } });
+    const filtered = view({ initial: { filter: { status: 'graded' }, groups: 'all' } });
     assert.doesNotMatch(filtered, han);
-    assert.match(text(filtered), /Showing 1 of 3 questions/);
+    assert.match(text(filtered), /Showing 2 of 3 questions/);
     assert.match(text(filtered), /Clear filters/);
-    assert.match(text(filtered), /Generate variants for the filtered questions \(1\)/);
+    assert.match(text(filtered), /Generate variants for the filtered questions \(2\)/);
     const none = view({ initial: { filter: { query: 'zzz' } } });
     assert.doesNotMatch(none, han);
     assert.match(text(none), /No mistakes match the filters/);
