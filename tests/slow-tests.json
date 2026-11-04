@@ -30,6 +30,7 @@
     "tests/document-toolbar-button-browser.test.mjs",
     "tests/exam-prep-browser.test.mjs",
     "tests/exam-submit-count-browser.test.mjs",
+    "tests/feature-finder-browser.test.mjs",
     "tests/feedback-lite-browser.test.mjs",
     "tests/first-run-line-browser.test.mjs",
     "tests/first-run-tour-browser.test.mjs",
