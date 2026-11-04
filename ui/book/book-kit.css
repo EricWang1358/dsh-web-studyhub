@@ -43,9 +43,26 @@
       font-variant-numeric: tabular-nums;
     }
     .book-kit__asks,
-    .book-kit__muted,
-    .book-kit__where {
+    .book-kit__muted {
       margin: 0;
+    }
+    /* The points a type tests, one per line as the book names them (number, title, the code muted after); a long title wraps under itself. */
+    .book-kit__where {
+      display: grid;
+      gap: var(--space-1);
+    }
+    .book-kit__points {
+      display: grid;
+      gap: var(--space-half);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      min-width: 0;
+    }
+    /* A point's number, muted like the book's heading numbers but without their margin, so the link keeps one unbroken underline. */
+    .book-kit__number {
+      color: var(--text-muted);
+      white-space: nowrap;
     }
     .book-kit__muted {
       color: var(--text-muted);

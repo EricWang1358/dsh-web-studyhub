@@ -1,6 +1,6 @@
 /* 复习全书 S4 (#710): the exam answer kit on the book page, reached from 「⋯ 更多」 › 答题模板… next to 速查页… (only when the book has a kit): the template cards
    T01… with their [slots] marked, each past question's fill named by paper and number (its words on hover, never a title=), and the question-signal matrix
-   (trigger words → what is tested → template → points → past papers); every point code opens the book there. Static markup, no browser. */
+   (trigger words → what is tested → template → points → past papers); every point, named by its number and title, opens the book there. Static markup, no browser. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -21,6 +21,10 @@ const KIT = { language: 'en', types: [
     fills: [{ ref: 'PAST3 Q1a', quote: 'How can ONE Health grow its ecosystem?', fill: 'Seeds: prescriptions ｜ Capability: open APIs' }],
     anchors: ['PAST2 Q1a', 'PAST3 Q1a'], hids: ['h3', 'h7'] },
   { code: 'T02', name: 'Compare', family: 'compare', signals: [], asks: '', template: 'Compare [A] with [B].', fills: [], anchors: ['PAST1 Q2'], hids: [] }] };
+/** The book as course.book.open gives it to the page: the kit and the points it links to (a chapter holding two points). */
+const BOOK = { status: 'ok', examKit: KIT, nodes: [{ hid: 'h1', number: '2', title: 'Architecture', leaf: false, children: [
+  { hid: 'h3', number: '2.2.1', title: 'Views and viewpoints', leaf: true, children: [] },
+  { hid: 'h7', number: '2.3', title: 'Platform seeds', leaf: true, children: [] }] }] };
 
 test('更多 › 答题模板… stands next to 速查页… only when the book has an answer kit', () => {
   assert.ok(!ids(ui.moreItems({})).includes('kit'), 'no kit: no item');
@@ -37,7 +41,7 @@ test('a template\'s slots and a fill\'s slot names are told apart from the words
 });
 
 test('the kit page: cards T01… with slots marked, fills by paper and number with the question as a tip, the matrix, codes that open the book', () => {
-  const html = renderToStaticMarkup(h(ui.BookExamKit, { kit: KIT, onGo: () => {} }));
+  const html = renderToStaticMarkup(h(ui.BookExamKit, { book: BOOK, onGo: () => {} }));
   assert.match(html, /按题型的答题模板/);
   assert.match(html, /题干信号矩阵/);
   assert.match(html, /id="book-kit-T01"/);
@@ -53,10 +57,22 @@ test('the kit page: cards T01… with slots marked, fills by paper and number wi
   assert.match(html, /data-kit-jump="T02"/, 'the matrix\'s template code jumps to its card');
 });
 
+test('a point reads as its number and title, the code a quiet suffix, on the card and in the matrix', () => {
+  const html = renderToStaticMarkup(h(ui.BookExamKit, { book: BOOK, onGo: () => {} }));
+  const links = [...html.matchAll(/<button[^>]*data-book-code="h3"[^>]*>(.*?)<\/button>/g)].map(found => found[1]);
+  assert.equal(links.length, 2, 'the card and the matrix');
+  for (const link of links) {
+    assert.match(link, /<span class="book-kit__number">2\.2\.1<\/span> Views and viewpoints <span class="book-node__code">H3<\/span>/);
+  }
+  assert.equal((html.match(/Platform seeds/g) || []).length, 2);
+  const lone = renderToStaticMarkup(h(ui.BookExamKit, { book: { ...BOOK, nodes: [] }, onGo: () => {} }));
+  assert.match(lone, /data-book-code="h3"[^>]*><span class="book-node__code">H3<\/span><\/button>/, 'a point the book no longer has: its code alone');
+});
+
 test('the kit page in English', () => {
   ui.setUiLanguage('en');
   try {
-    const html = renderToStaticMarkup(h(ui.BookExamKit, { kit: KIT, onGo: () => {} }));
+    const html = renderToStaticMarkup(h(ui.BookExamKit, { book: BOOK, onGo: () => {} }));
     assert.match(html, /Templates by question type/);
     assert.match(html, /Question signals/);
     assert.doesNotMatch(html.replace(/平台四要素 \+ 闭环交互链/g, ''),/[㐀-鿿]/, 'no Chinese but the kit\'s own words');

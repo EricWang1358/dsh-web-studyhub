@@ -95,7 +95,7 @@ export function LookupDialog({ book, onGo, onCard, onClose }) {
 export function KitDialog({ book, onGo, onClose }) {
   return (
     <Dialog title={ui('答题模板')} size="lg" className="book-kit-dialog" onClose={onClose}>
-      <BookExamKit kit={book.examKit} onGo={hid => { onClose(); onGo(hid); }} />
+      <BookExamKit book={book} onGo={hid => { onClose(); onGo(hid); }} />
     </Dialog>
   );
 }
