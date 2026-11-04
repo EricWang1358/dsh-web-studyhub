@@ -477,15 +477,13 @@ function roundsNotice(job) {
   return ` ${uiFormat('分 {0} 轮；这次先出第 1 轮（约 {1} 题）。', [plan.rounds, plan.questions])}`;
 }
 
-/** The toast after a generation starts (P26): which deck, and that it is on its way. */
-export function generationStartedNotice(job = {}, gen = {}, materials = 0) {
-  const title = String(gen.title || '').trim();
-  const text = job.status === 'queued'
-    ? title ? uiFormat('「{0}」已加入队列，前面还有 {1} 个任务。', [title, job.queuedBehind ?? 1])
-      : uiFormat('已加入队列，前面还有 {0} 个任务。', [job.queuedBehind ?? 1])
-    : title ? uiFormat('已开始生成「{0}」…完成后在这里检查草稿。', [title])
-      : uiFormat('已开始用 {0} 份资料出题…完成后在这里检查草稿。', [materials]);
-  // A plan of several rounds: this run makes the first (the heaviest sections); whether the rest goes on by itself is the job's own answer (job.autoComplete: 标准 and 完整 do, 精简 waits),
-  // so the notice never sends the learner to the draft page for rounds that are coming without them. The total number of questions is the form's to say (once), not this notice's.
-  return { text: text + roundsNotice(job), tone: 'success' };
+/**
+ * The toast after a generation starts, or null. The learner lands where the run's progress card is, and the card already names the deck and says it is
+ * running or waiting in the queue: a toast that says it again is noise (#677). What the card does not say is how a plan of several rounds goes on: this run
+ * makes the first (the heaviest sections); whether the rest goes on by itself is the job's own answer (job.autoComplete: 标准 and 完整 do, 精简 waits), so the
+ * learner is never sent to the draft page for rounds that are coming without them. The total number of questions is the form's to say (once), not this notice's.
+ */
+export function generationStartedNotice(job = {}) {
+  const text = roundsNotice(job).trim();
+  return text ? { text, tone: 'success' } : null;
 }

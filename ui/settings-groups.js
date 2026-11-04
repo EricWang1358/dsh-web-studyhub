@@ -31,17 +31,17 @@ export const SETTINGS_GROUPS = Object.freeze([
    <category.Component {...services} /> and decides nothing else about a category. */
 const category = (entry, load) => ({ ...entry, load, Component: lazy(load) });
 export const SETTINGS_CATEGORIES = Object.freeze([
-  category({ id: 'appearance', group: 'common', title: '界面', anchors: ['settings-appearance', 'settings-appearance-language', 'settings-appearance-theme', 'settings-appearance-accent', 'settings-appearance-scale', 'settings-appearance-font', 'settings-appearance-motion', 'settings-appearance-contrast', 'settings-appearance-density', 'settings-appearance-radius', 'settings-appearance-transfer'],
-    purpose: '语言、外观、强调色、界面大小、字体、动画、对比度、密度和圆角都在这里调；也能把外观导出成一小段文字，带到另一台电脑' }, () => import('./settings/AppearancePane.jsx')),
+  category({ id: 'appearance', group: 'common', title: '界面', anchors: ['settings-appearance', 'settings-appearance-language', 'settings-appearance-theme', 'settings-appearance-accent', 'settings-appearance-scale', 'settings-appearance-font', 'settings-appearance-motion', 'settings-appearance-contrast', 'settings-appearance-density', 'settings-appearance-radius', 'settings-appearance-reset', 'settings-appearance-transfer'],
+    purpose: '语言、外观、强调色、界面大小在最上面；字体、动画、对比度、密度和圆角在「更多外观选项」里；也能把外观复制或存成文件，带到另一台电脑' }, () => import('./settings/AppearancePane.jsx')),
   category({ id: 'science', group: 'common', title: '公式、图片与计算工具', anchors: ['settings-science'], purpose: '公式的大小和对齐、图片的显示方式，以及化学配平和代数恒等式两个在本地计算的小工具' }, () => import('./settings/SciencePane.jsx')),
   category({ id: 'model', group: 'common', title: '学习库与模型', anchors: ['settings-model'], purpose: '选学习库放在哪个文件夹，也选用哪个模型出题；模型的密钥在 DSH 的「设置 › 模型」里填' }, () => import('./settings/ModelPane.jsx')),
   category({ id: 'generation', group: 'common', title: '出题偏好', anchors: ['settings-generation', 'settings-generation-time'], needs: 'generation',
     purpose: '新出题任务的默认值：题型、覆盖强度、语言、难度、公式写法，以及同时处理几批、每轮运行时限、自动再补几轮' }, () => import('./settings/GenerationPane.jsx')),
   category({ id: 'daily-recap', group: 'common', title: '每日讲解合集', anchors: ['settings-daily-recap'], purpose: '把一天里答错的题整理成一篇讲解合集：是否自动准备、默认的讲解口吻和按哪个时区算一天' }, () => import('./settings/DailyRecapPane.jsx')),
-  category({ id: 'practice', group: 'common', title: '练习', anchors: ['settings-practice'], purpose: '每天的练习怎么走：每轮题数、自动驾驶、本轮点评，以及期末一周的安排' }, () => import('./settings/PracticePane.jsx')),
+  category({ id: 'practice', group: 'common', title: '练习', anchors: ['settings-practice'], purpose: '每天的练习怎么走：每轮题数、自动跳下一步、本轮点评，以及期末一周的安排' }, () => import('./settings/PracticePane.jsx')),
   category({ id: 'courses', group: 'once', title: '课程', anchors: ['settings-courses'], purpose: '列出每门课；点开一门课可以记下考试形式、日期、总分和重点知识点，也能把两门课合并' }, () => import('./settings/CoursesPane.jsx')),
   category({ id: 'exam-prep', group: 'once', title: '备考补习', anchors: ['settings-exam-prep'], needs: 'generation', purpose: '备考补习的个人默认值：是否自动识别资料用途、清单语言，以及是否默认列出其它课程的资料' }, () => import('./settings/ExamPrepPane.jsx')),
-  category({ id: 'audio', group: 'once', title: '音频转写', anchors: ['settings-audio'], needs: 'audio', purpose: '填转写用的密钥（Gemini 或国内能直连的硅基流动），也选课堂实录用云端还是本地转写' }, () => import('./settings/AudioPane.jsx')),
+  category({ id: 'audio', group: 'once', title: '音频转写', anchors: ['settings-audio', 'settings-live-pause'], needs: 'audio', purpose: '填转写用的密钥（Gemini 或国内能直连的硅基流动），也选课堂实录用云端还是本地转写' }, () => import('./settings/AudioPane.jsx')),
   category({ id: 'mineru', group: 'once', title: 'PDF 转换（MinerU / Marker）', anchors: ['settings-mineru', 'settings-marker'], partNeeds: { routes: 'audio' },
     purpose: '把扫描件、公式多或很大的 PDF 先在本机解析成带页码的文字：安装 MinerU，或接入 Marker' }, () => import('./settings/MineruPane.jsx')),
   category({ id: 'retrieval', group: 'once', title: '检索扩展', anchors: ['settings-extensions'], needs: 'generation', purpose: '给上百页的大教材用：装好后，整本书出题时只挑出相关页面给 AI 看' }, () => import('./settings/RetrievalPane.jsx')),

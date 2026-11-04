@@ -176,8 +176,8 @@ test("the toast says the path, then what is left to do: nothing when the control
   assert.equal(m.tripNotice(entry("budget"), 0), null);
   assert.equal(m.tripNotice(entry("update"), 0), null);
   assert.equal(m.tripNotice(entry("update"), -1).text, "在「设置 › 关于与更新」里。");
-  assert.equal(m.tripNotice(entry("budget"), -1).text, "在「创建题组 › 更多选项 › 覆盖强度 › 花费上限」里。先在「资料」里添加资料，这一项才会出现。");
-  assert.equal(m.tripNotice(entry("budget"), 1).text, "在「创建题组 › 更多选项 › 覆盖强度 › 花费上限」里。先在「资料」里添加资料，这一项才会出现。", "only the first tab of the page was lit: there are no materials yet");
+  assert.equal(m.tripNotice(entry("budget"), -1).text, "在「创建题组 › 更多选项 › 花费 › 花费上限」里。先在「资料」里添加资料，这一项才会出现。");
+  assert.equal(m.tripNotice(entry("budget"), 1).text, "在「创建题组 › 更多选项 › 花费 › 花费上限」里。先在「资料」里添加资料，这一项才会出现。", "only the first tab of the page was lit: there are no materials yet");
   assert.equal(m.tripNotice(entry("translation"), -1).text, "在「资料 › 打开一份资料 › 工具栏 › 翻译」里。先在「资料」里打开一份资料。");
   assert.match(m.tripNotice(entry("translation"), 1).text, /先在「资料」里打开一份资料。/, "only the list of materials was lit");
   assert.equal(m.tripNotice(entry("translation"), 0), null, "the control itself was lit");

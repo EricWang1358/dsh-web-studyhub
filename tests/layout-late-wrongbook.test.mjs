@@ -30,15 +30,16 @@ test('while recommendations are being found the bar is already there, and nothin
   assert.match(html, /为你推荐/);
   assert.match(html, /正在查找同类题/);
   assert.doesNotMatch(html, /练这 \d+ 道/);
-  assert.match(html, /开始重练 · 全部 3 题/);
+  assert.match(html, /开始重练 · 3 题/);
   assert.match(html, /错题 \+ 同类题 \(3\+0\)/);
   assert.doesNotMatch(text(render({ recs: null })), /为你推荐/, 'a view that was never told about recommendations shows no bar');
 });
 
-test('the bar is one folded line when recommendations are in; the list is behind its toggle', () => {
+test('the bar is folded when recommendations are in, says what was found, and has no start of its own (#674); the list is behind its toggle', () => {
   const html = render({ recs: { items: recItems } });
   assert.match(text(html), /为你推荐/);
-  assert.match(text(html), /练这 4 道/);
+  assert.match(text(html), /共 4 道/);
+  assert.doesNotMatch(text(html), /练这 \d+ 道/);
   assert.match(html, /aria-expanded="false"/);
   assert.match(html, /aria-controls="wb-recs-body"/);
   assert.doesNotMatch(text(html), /Similar 0/, 'folded by default');
@@ -51,10 +52,11 @@ test('the bar is one folded line when recommendations are in; the list is behind
   assert.doesNotMatch(none, /练这 \d+ 道/);
 });
 
-test('with recommendations in at the first draw the default is still the richest, and a note says what was found', () => {
+test('with recommendations in at the first draw the default is still the richest, and the bar says they are in the round', () => {
   const html = render({ recs: { items: recItems } });
   assert.match(html, /aria-pressed="true"[^>]*>错题 \+ 同类题 \(3\+4\)/);
-  assert.match(text(html), /开始重练 · 全部 7 题/);
+  assert.match(text(html), /开始重练 · 7 题/);
+  assert.match(text(html), /共 4 道，已在这一轮重练里/);
 });
 
 test('English: the new bar and note are translated', () => {
@@ -89,7 +91,8 @@ test('recommendations arriving late move nothing and switch nothing (mistakes pa
       const similar = (state) => state.options.find((label) => /同类题/.test(label));
       assert.match(similar(before), /\(\d+\+0\)/);
       assert.match(similar(after), /\(\d+\+10\)/, 'the count on the option is updated');
-      assert.match(after.note, /找到 10 道同类题/, 'a quiet note says what was found');
+      assert.match(before.note, /正在查找同类题/, `${width}px: the bar's second line is there from the first paint`);
+      assert.match(after.note, /共 10 道/, 'the same line says what was found');
       assert.ok(cls <= 0.05, `${width}px: CLS ${cls}`);
       assert.equal(rowResizes, 0);
     }

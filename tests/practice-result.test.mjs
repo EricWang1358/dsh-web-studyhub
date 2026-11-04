@@ -157,7 +157,8 @@ async function study(t) {
 test('a finished round says how many answers were self-graded and where each weak topic lives', async (t) => {
   const service = await study(t);
   let run = await service.call('review.start', { mode: 'path', scope: [{ deckId: 'd1' }, { deckId: 'd2' }], fresh: true });
-  for (let step = 0; step < run.total; step++) {
+  // Every wrong answer queues a re-ask at the end, so the walk goes on until the round says it is complete (the round's total no longer includes re-asks, #660).
+  for (let step = 0; !run.complete && step < 20; step++) {
     const card = run.card;
     if (card.kind === 'flashcard') { await service.call('review.reveal', { runId: run.id, cardId: card.id }); run = await service.call('review.answer', { runId: run.id, cardId: card.id, grade: 1 }); }
     else run = await service.call('review.answer', { runId: run.id, cardId: card.id, selected: ['n'] });

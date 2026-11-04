@@ -1,5 +1,5 @@
-/* 错题与待巩固: practising one topic is one click on its group (not one 练 per question), the retrain button says what it takes (every mistake of the page),
-   and with a filter on there is a second button for just what the filter shows. */
+/* 错题与待巩固: practising one topic is one click on its group (not one 练 per question), the retrain button says what it takes (the scope's count),
+   and with a filter on there is a second, quieter button for just what the filter shows. A page with one group has no group-level repeats (#675). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -18,7 +18,7 @@ const items = [row('c1', 'd4', '保护状态', '熔断器？'), row('c2', 'd4', 
 const base = { data: { root: 'r', decks, focus: { course: 'PE', courses: [{ name: 'PE' }] }, model: { ready: true } }, course: 'PE', onCourse: noop,
   items, counts: { total: 5, graded: 4, self: 1, oral: 0, rubric: 0 }, loading: false, err: '', page: 0, pageSize: 100, hasMore: false,
   onReload: noop, onPage: noop, recs: null, coach: null, details: {}, onLoadDetail: noop, onPractice: noop, onPracticePrepared: noop,
-  onGenerate: async () => ({}), onOpenSettings: noop };
+  onGenerate: async () => ({}), onOpenSettings: noop, filterMin: 1 };
 // `busy` is the app's (useStudy), so a test that wants a busy page gives it through the services.
 const render = ({ busy = false, ...extra } = {}) => renderToStaticMarkup(withStudy(m.StudyServicesContext, React.createElement(WrongBookView, { ...base, ...extra }), { busy }));
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
@@ -42,14 +42,14 @@ test('the group button is not offered while the page is busy', () => {
   assert.ok(labelled(render(), /练这一组/).every((tag) => !/disabled/.test(tag)));
 });
 
-test('the retrain button says it takes every mistake of the page, not what a filter shows', () => {
+test('the retrain button counts the whole page, not what a filter shows', () => {
   setUiLanguage('zh');
   const plain = text(render());
-  assert.match(plain, /开始重练 · 全部 5 题/);
-  assert.doesNotMatch(plain, /开始重练 \(/);
+  assert.match(plain, /开始重练 · 5 题/);
+  assert.doesNotMatch(plain, /开始重练 \(|全部 5 题/);
   assert.doesNotMatch(plain, /练筛选的/, 'no filter, no second button');
   const filtered = render({ initial: { filter: { status: 'self' } } });
-  assert.match(text(filtered), /开始重练 · 全部 5 题/, 'the filter does not change what the main button practises');
+  assert.match(text(filtered), /开始重练 · 5 题/, 'the filter does not change what the main button practises');
   assert.match(text(filtered), /练筛选的 1 道/);
   assert.equal(labelled(filtered, /练筛选的/).length, 1);
 });
@@ -68,8 +68,8 @@ test('English: the new buttons are translated', () => {
   try {
     const html = render({ initial: { filter: { deck: 'd4' } } });
     assert.doesNotMatch(text(html).replace(/期末综合卷0\d/g, ''), /\p{Script=Han}/u);
-    assert.match(text(html), /Practise this group/);
-    assert.match(text(html), /Start retraining · all 5/);
+    assert.match(text(render()), /Practise this group/);
+    assert.match(text(html), /Start retraining · 5/);
     assert.match(text(html), /Practise the 3 filtered/);
   } finally { setUiLanguage('zh'); }
 });

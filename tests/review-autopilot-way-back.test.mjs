@@ -56,9 +56,9 @@ async function opened(t, trail) {
 test('the autopilot countdown: a plain round counts down and goes on; a round with the book\'s or the reader\'s way back as its main button does neither', { timeout: 60000 }, async (t) => {
   const [library, book, reader] = await Promise.all(['library', 'book', 'reader'].map((trail) => opened(t, trail)));
   if (!library) return;
-  await library.page.getByText(/自动驾驶：\d 秒后执行/).waitFor({ timeout: 5000 });
-  assert.equal(await book.page.getByText(/自动驾驶/).count(), 0, 'no countdown on a book round');
-  assert.equal(await reader.page.getByText(/自动驾驶/).count(), 0, 'no countdown on a reader round');
+  await library.page.getByText(/自动跳下一步：\d 秒后执行/).waitFor({ timeout: 5000 });
+  assert.equal(await book.page.getByText(/自动跳下一步/).count(), 0, 'no countdown on a book round');
+  assert.equal(await reader.page.getByText(/自动跳下一步/).count(), 0, 'no countdown on a reader round');
   await library.page.waitForFunction(() => window.goes === 1, null, { timeout: 10000 });
   await book.page.waitForTimeout(1500);
   assert.equal(await book.page.evaluate(() => window.goes), 0, 'the book round stays where it is: the learner chooses the way back');

@@ -464,3 +464,52 @@ test('the same class with a model that writes whole sentences back: bounded retr
   await correction.retry();
   assert.equal(correction.snapshot().skipped, 0); assert.ok(session.segments.every(segment => segment.en.includes('山德斯')));
 });
+
+// The owner's class (2026-11-04): the conversation model answered the JSON request with a paragraph ("你发来的是一段……"). That is not about size.
+const proseReply = '你发来的是一段（未讲完的）课堂录音转写，我先帮你概括一下要点。';
+
+test('a model that answers in prose hands the class to the other model: nothing is halved or skipped, and the switch is told', async () => {
+  let primaryCalls = 0, fallbackCalls = 0;
+  const { correction } = sizedFixture([10, 10, 10], async () => { primaryCalls++; return proseReply; },
+    { fallback: async (_s, prompt) => { fallbackCalls++; return response(JSON.parse(prompt)); } });
+  await correction.run();
+  assert.equal(correction.coveredThrough, 3); assert.equal(correction.snapshot().skipped, 0);
+  assert.equal(primaryCalls, 2, 'asked once as written and once with the reply rule, then never again');
+  assert.equal(fallbackCalls, 1);
+  assert.equal(correction.snapshot().paused, null);
+  assert.ok(correction.snapshot().warnings.some(warning => /改用/.test(warning)));
+});
+
+test('with no other model, prose pauses polish with a plain reason and a way out; no sentence is skipped and no batch is halved', async () => {
+  let calls = 0;
+  const { correction } = sizedFixture([10, 10, 10, 10], async () => { calls++; return proseReply; });
+  await correction.run();
+  const snapshot = correction.snapshot();
+  assert.equal(calls, 2); assert.equal(snapshot.skipped, 0); assert.equal(correction.coveredThrough, 0);
+  assert.equal(snapshot.paused, 'format');
+  assert.match(snapshot.error, /没有按格式回答/); assert.match(snapshot.error, /音频转写/); assert.match(snapshot.error, /你发来的是一段/);
+  await correction.run(); assert.equal(calls, 2, 'it waits for the learner');
+  correction.correct = makeCorrector({ subject: 'Cloud computing', complete: async (_s, prompt) => response(JSON.parse(prompt)) });
+  await correction.retry();
+  assert.equal(correction.snapshot().paused, null); assert.equal(correction.coveredThrough, 4); assert.equal(correction.error, '');
+});
+
+test('every pause says why: skips in a row, or repeated connection failures', async () => {
+  const skips = sizedFixture([700, 700, 700, 700, 700], async () => { throw timeoutError(); });
+  await skips.correction.run();
+  assert.equal(skips.correction.snapshot().paused, 'skips');
+  const down = sizedFixture([10, 10], async () => { throw Object.assign(new Error('fetch failed'), { status: 503 }); });
+  for (let i = 0; i < LIVE_CORRECTION.transientAttempts; i++) await down.correction.run();
+  assert.equal(down.correction.snapshot().paused, 'transient');
+  const fine = sizedFixture([10], async (_s, prompt) => response(JSON.parse(prompt)));
+  await fine.correction.run();
+  assert.equal(fine.correction.snapshot().paused, null);
+});
+
+test('a connection failure of the primary model is answered by the other model for that request', async () => {
+  let fallbackCalls = 0;
+  const { correction } = sizedFixture([10, 10], async () => { throw Object.assign(new Error('429 Too Many Requests'), { status: 429 }); },
+    { fallback: async (_s, prompt) => { fallbackCalls++; return response(JSON.parse(prompt)); } });
+  await correction.run();
+  assert.equal(correction.coveredThrough, 2); assert.equal(fallbackCalls, 1); assert.equal(correction.error, '');
+});

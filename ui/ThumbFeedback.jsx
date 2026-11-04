@@ -1,5 +1,5 @@
 import { ui, uiFormat, errorMessage } from "./i18n.js";
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { asksWhatTheSourceSays } from "../lib/question-voice.js";
 import { Chip, Icon, InlineMessage, useToast } from "./components/index.js";
 import { feedbackOutcome } from "./card-fix.js";
@@ -22,7 +22,9 @@ const TAGS = [
 ];
 const IDLE_MS = 1200;
 
-export default function ThumbFeedback({ run, canShortcut, onSent, onFix }) {
+/* On the practice page the two thumbs are items of the toolbar's 更多 menu (ui/ReviewToolbar.jsx, #671): it passes `buttons={false}`, and this component then keeps
+   the vote, the tag tray and the G / B keys, and hands the menu two calls through `ref` ({ up(), down() }) and the vote through `onVote`. */
+export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onFix, onVote, buttons = true }, ref) {
   const { call } = useStudy();
   const [vote, setVote] = useState(run.vote?.vote || null),
     [tags, setTags] = useState(run.vote?.tags || []),
@@ -147,6 +149,8 @@ export default function ThumbFeedback({ run, canShortcut, onSent, onFix }) {
 
   const latest = useRef({});
   latest.current = { open, thumb, toggle, canShortcut };
+  useImperativeHandle(ref, () => ({ up: () => latest.current.thumb("up"), down: () => (latest.current.open ? setOpen(false) : latest.current.thumb("down")) }), []);
+  useEffect(() => { onVote?.(vote); }, [vote]); // eslint-disable-line react-hooks/exhaustive-deps -- the menu reads the vote; the callback is not a trigger
   useEffect(() => {
     function key(e) {
       const { open, thumb, toggle, canShortcut } = latest.current;
@@ -175,13 +179,13 @@ export default function ThumbFeedback({ run, canShortcut, onSent, onFix }) {
   }, []);
 
   return (
-    <span className="thumbs" data-tour="review-thumbs" onPointerUp={(e) => {
+    <span className="thumbs" data-tour={buttons ? "review-thumbs" : undefined} onPointerUp={(e) => {
       // Pointer feedback should leave Enter available for the next question.
       // Keyboard activation retains normal button focus and accessibility.
       e.currentTarget.closest(".study-app")?.focus({ preventScroll: true });
     }}>
-      <button className="tool-icon thumbs__button" aria-label={ui("这题不错")} aria-pressed={vote === "up"} aria-keyshortcuts="G" title={ui("这题不错（G）")} onClick={() => thumb("up")}><Icon name="thumb-up" /></button>
-      <button className="tool-icon thumbs__button" aria-label={ui("这题有问题")} data-vote={vote === "down" ? "on" : undefined} aria-expanded={open} aria-controls={open ? trayId : undefined} aria-describedby={vote === "down" ? voteId : undefined} aria-keyshortcuts="B" title={ui("这题有问题（B），选标签说明哪里不好")} onClick={() => (open ? setOpen(false) : thumb("down"))}><Icon name="thumb-down" /></button>
+      {buttons && <button className="tool-icon thumbs__button" aria-label={ui("这题不错")} aria-pressed={vote === "up"} aria-keyshortcuts="G" title={ui("这题不错（G）")} onClick={() => thumb("up")}><Icon name="thumb-up" /></button>}
+      {buttons && <button className="tool-icon thumbs__button" aria-label={ui("这题有问题")} data-vote={vote === "down" ? "on" : undefined} aria-expanded={open} aria-controls={open ? trayId : undefined} aria-describedby={vote === "down" ? voteId : undefined} aria-keyshortcuts="B" title={ui("这题有问题（B），选标签说明哪里不好")} onClick={() => (open ? setOpen(false) : thumb("down"))}><Icon name="thumb-down" /></button>}
       {vote === "down" && <span id={voteId} className="sh-visually-hidden">{ui("已标记这题有问题")}</span>}
       {error && <InlineMessage tone="error" className="thumbs__error">{error}</InlineMessage>}
       {open && (
@@ -196,4 +200,4 @@ export default function ThumbFeedback({ run, canShortcut, onSent, onFix }) {
       )}
     </span>
   );
-}
+});

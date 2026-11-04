@@ -42,7 +42,8 @@
     .cjc__go-anchor { display: block; min-width: 0; }
     .cjc__link-anchor { display: inline-flex; min-width: 0; }
     .cjc__problem { grid-column: 1 / -1; grid-row: 3; margin: var(--space-2) 0 0; }
-    .cjc__links { grid-column: 2 / -1; grid-row: 3; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin-top: var(--space-1); }
+    /* The other actions are quiet buttons (the same as 归档), so the first one hangs its padding and its text lines up with the title. */
+    .cjc__links { grid-column: 2 / -1; grid-row: 3; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-top: var(--space-1); margin-inline-start: calc(var(--space-3) * -1 - var(--space-half) / 2); }
     .cjc[inert] { overflow: hidden; pointer-events: none; animation: sh-job-leave var(--dur-leave, var(--dur-fast)) ease-out forwards; }
     .cjc-list { display: grid; gap: var(--space-2); margin-block: var(--space-3); }
   }

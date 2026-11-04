@@ -2,9 +2,11 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState, useSync
 import { LiveClient } from './live-client.js';
 import LiveAudioMonitor from './LiveAudioMonitor.jsx';
 import LiveNotes from './LiveNotes.jsx';
+import LiveCorrectionLine from './LiveCorrectionLine.jsx';
+import { RECENT_CHARS, isChinese, recentWindow, showsTranslation, tidyCjk } from './live-display.js';
 import LiveHistory from './LiveHistory.jsx';
 import { ui, uiFormat, useUiLanguage, uiMessage } from './i18n.js';
-import { formatClock, joinMeta } from './format.js';
+import { formatClock } from './format.js';
 import { usePolling } from './use-polling.js';
 import { providerOf } from '../lib/audio-providers.js';
 import { Button, Checkbox, CheckboxInput, IconButton, InlineMessage, PageHeader, Select, SetupRequired, Tooltip, useToast } from './components/index.js';
@@ -12,6 +14,7 @@ import LiveLocalCard from './LiveLocalCard.jsx';
 import LiveLoopbackCard from './LiveLoopbackCard.jsx';
 import { localTip } from './live-local-flow.js';
 import { openAudioSettings } from './audio-focus.js';
+import { LIVE_PAUSE_ANCHOR, usePauseHint } from './live-pause-hint.js';
 import { hostInfo, tabSharingAllowed } from './live-audio.js';
 import { useInjectCss } from './shared.js';
 import css from './live-class.css';
@@ -46,22 +49,34 @@ export function SentenceMark({ segment, checked }) {
   return <span className="live-marks" aria-hidden="true" />;
 }
 
-export const Sentence = memo(function Sentence({ segment, selected, generated, checked, onToggle, language }) {
+/**
+ * One sentence. A sentence that is Chinese already is shown once (the polished text when it was corrected, with the recognised original behind 查看识别原稿);
+ * an English one has its translation under it. Spacing and punctuation are tidied for display only. `skipReason` is why the polish gave up on it, if it did.
+ */
+export const Sentence = memo(function Sentence({ segment, selected, generated, checked, skipReason, onToggle, language }) {
+  const chinese = isChinese(segment);
   return <article className={`live-sentence${selected ? ' live-sentence--selected' : ''}${segment.correctedAt ? ' polished' : ''}`} data-segment-id={segment.id} tabIndex={-1}>
     <label className="live-select"><CheckboxInput checked={selected} onChange={() => onToggle(segment.id)}
       aria-label={uiFormat('选择句子 {0}', [segment.id])} />
       <time>{formatClock(segment.t)}</time></label>
-    <div className="live-words"><p lang={segment.zhState === 'none' ? undefined : 'en'}>{segment.en}</p>
-      {/* 'none': nothing to translate (the local engine already wrote it in Chinese, or a class without a text model). */}
-      {segment.zhState !== 'none' && <p className="live-chinese" lang="zh-Hans">{segment.zh || (segment.zhState === 'error' ? ui('译文暂不可用，可重试') : ui('正在翻译…'))}</p>}
+    <div className={`live-words${chinese ? ' live-words--chinese' : ''}`}><p lang={chinese ? 'zh-Hans' : segment.zhState === 'none' ? undefined : 'en'}>{tidyCjk(segment.en)}</p>
+      {/* No second line where the sentence is Chinese already, or nothing is translated (the local engine wrote Chinese, or a class without a text model). */}
+      {showsTranslation(segment) && (segment.zh ? <p className="live-chinese" lang="zh-Hans">{tidyCjk(segment.zh)}</p>
+        : <small className="live-zh-state" data-zh-state={segment.zhState === 'error' ? 'error' : 'pending'}>{segment.zhState === 'error' ? ui('译文暂时没有') : ui('正在翻译…')}</small>)}
       {segment.correctedAt && <details className="live-correction-original"><summary>{ui('查看识别原稿')}</summary>
-        <p>{segment.originalEn}</p>{segment.correctionReason && <small>{segment.correctionReason}</small>}
+        <p>{tidyCjk(segment.originalEn)}</p>{segment.correctionReason && <small>{segment.correctionReason}</small>}
       </details>}
+      {skipReason !== undefined && <small className="live-skipped">{skipReason ? uiFormat('{0}，原文保留', [uiMessage(skipReason)]) : ui('没能润色，原文保留')}</small>}
       {generated && <small className="live-used">{ui('已用于出题')}</small>}
     </div>
     <SentenceMark segment={segment} checked={checked} />
   </article>;
 });
+
+/** A button that may be off: a Tooltip says what it does or, when it is off, why. A disabled button gets no hover of its own, so the words sit on a wrapper. */
+function Why({ reason, off = false, children }) {
+  return <Tooltip layer content={reason || ''} anchorClassName="live-why"><span className="live-why__anchor" tabIndex={off ? 0 : undefined}>{children}</span></Tooltip>;
+}
 
 const GEMINI_STEPS = () => [{ text: ui('用 Google 账号登录 AI Studio'), href: providerOf('free').consoleUrl },
   { text: ui('在「Get API key」页创建一个密钥（这个项目不要开通计费）'), href: providerOf('free').keyUrl },
@@ -166,12 +181,13 @@ export function CaptureHelp({ kind, facts, disabled, activeOp = '', lock = false
   </div>;
 }
 
-export default function LiveClass({ data, visible, onJobs, onSettings, onSources, initialReadiness = null, initialLocal = null, initialLoopback = null, initialAppHost, initialKind = 'microphone' }) {
+export default function LiveClass({ data, visible, onJobs, onSettings, onSources, initialReadiness = null, initialLocal = null, initialLoopback = null, initialAppHost, initialKind = 'microphone', initialSession = null }) {
   const { call } = useStudy();
   const language = useUiLanguage();
   useInjectCss(css, 'study-live-class');
   const [course, setCourse] = usePageScope(data?.root, 'live-class-course', data?.focus?.course ?? '');
-  const client = useMemo(() => new LiveClient(call), [call]);
+  // `initialSession`: a class already open (tests and screenshots); the client then starts with it, as after 打开 in the history.
+  const client = useMemo(() => { const made = new LiveClient(call); if (initialSession) made.accept(initialSession); return made; }, [call, initialSession]);
   const { session, capturing, busy, error, errorKind, errorFacts } = useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
   const [sessions, setSessions] = useState([]), [title, setTitle] = useState(''), [subject, setSubject] = useState('');
   const [terms, setTerms] = useState(''), [kind, setKind] = useState(initialKind), [paidOnly, setPaidOnly] = useState(false);
@@ -185,6 +201,9 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
   const [tabAllowed] = useState(() => tabSharingAllowed());
   const [appHost] = useState(() => initialAppHost ?? hostInfo().app);
   const openAudio = openAudioSettings(onSettings);
+  const openPause = openAudioSettings(onSettings, LIVE_PAUSE_ANCHOR);
+  // A speaker who never pauses leaves everything in the grey line: after a minute of that, one quiet line says where 断句停顿 is.
+  const pauseHint = usePauseHint(session);
   const feed = useRef(null), operation = useRef(false);
   // Whether a live provider is configured, checked before anything asks for the microphone (null until known).
   const [readiness, setReadiness] = useState(initialReadiness), [checked, setChecked] = useState(0);
@@ -247,12 +266,18 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
   });
   const segments = session?.segments || [], generated = new Set(session?.generatedIds || []);
   const correction = session?.correction, checkedThrough = correction?.enabled ? correction.coveredThrough || 0 : 0;
+  // A sentence the cursor passed but gave up on is not checked: it carries its reason instead of a tick.
+  const skippedWhy = useMemo(() => new Map((correction?.skippedItems || []).map((item) => [item.id, item.reason || ''])), [correction?.skippedItems]);
+  const everyChinese = segments.length > 0 && segments.every(isChinese);
   const polished = segments.filter((segment) => segment.correctedAt).length;
   const chosen = segments.filter((segment) => selected.has(segment.id));
   const selectedChars = chosen.reduce((n, segment) => n + segment.en.length, 0);
   const disabled = busy || working;
   const total = session?.total || segments.length;
   const canGenerate = !disabled && selectedChars >= MIN_CHARS && chosen.length <= 400 && Number.isInteger(count) && count >= 1 && count <= 15;
+  // Why 选中内容出题 is off (nothing while a request is running: that is just waiting).
+  const generateWhy = canGenerate || disabled ? '' : chosen.length > 400 ? ui('一次最多选 400 句') : !chosen.length ? ui('先选几句话；至少约 120 个原文字符才能出题')
+    : uiFormat('至少约 {0} 个原文字符，目前 {1}', [MIN_CHARS, selectedChars]);
   const tone = !session ? 'idle' : session.status === 'live' ? 'ok' : session.status === 'error' ? 'bad'
     : ['paused', 'connecting', 'reconnecting', 'ending'].includes(session.status) ? 'warn' : 'idle';
   function selectText() {
@@ -306,60 +331,52 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
         <div className="live-actions">{capturing && <Button busy={activeOp === 'pause'} lock={disabled} onClick={() => void perform('pause', () => client.pause())}>{session.status === 'paused' ? ui('继续') : ui('暂停')}</Button>}
           {active(session) && <Button busy={activeOp === 'stop'} lock={disabled} onClick={() => void perform('stop', async () => { await client.stop(); await refresh(); })}>{ui('结束实录')}</Button>}
           {!active(session) && !session.archivedAt && <ResumeControl session={session} readiness={readiness} busy={activeOp === 'resume'} lock={disabled}
-            onResume={(onEngine) => void perform('resume', async () => { await client.start(effectiveKind, { resumeId: session.id, paidOnly: onEngine !== 'local' && paidOnly, ...(onEngine ? { provider: onEngine } : {}) }); })} />}</div></div>
-      <LiveAudioMonitor compact health={client.health} visible={visible} recording={capturing} />
-      {correction && <div className="live-correction-line">
-        <span className={`live-correction-state${correction.running ? ' running' : ''}`}>{correction.running ? ui('正在按上下文润色…') : ui('上下文润色')}</span>
-        <span className="muted">{joinMeta([uiFormat('已检查 {0} / {1} 句 · 已润色 {2} 句', [correction.covered, total, polished]), correction.pending > 0 ? uiFormat('待处理 {0}', [correction.pending]) : ''])}</span>
-        <span className="live-legend" aria-label={ui('右侧标记说明')}>
-          <span><i className="live-dot polished" aria-hidden="true" />{ui('已润色')}</span>
-          <span><i className="live-dot checked" aria-hidden="true" />{ui('已检查未改')}</span></span>
-        {!correction.running && correction.pending > 0 && (correction.error || !active(session)) &&
-          <Button busy={activeOp === 'correct'} lock={disabled} onClick={() => void perform('correct', async () => { client.accept(await call('live.correct', { id: session.id })); })}>{ui('重试待校正内容')}</Button>}
-        <details className="live-correction-more"><summary>{ui('说明与用量')}</summary>
-          <p className="muted">{ui('每 30 秒检查一次，按顺序分批：每批最多 8 句新内容，再带上前批最后 2 句作上下文（共约 10 句）；结束后补齐剩余内容。只有模型高置信度改动过的句子才会亮绿点，实心表示已润色，空心圈表示检查过、无需修改。')}</p>
-          <p>{uiFormat('模型调用 {0} 次 · 本地结果复用 {1} 次', [correction.calls, correction.cacheHits])}</p>
-          <p>{correction.usage ? uiFormat('服务商缓存命中 {0} 输入 tokens', [(correction.usage.free?.cachedInputTokens || 0) + (correction.usage.paid?.cachedInputTokens || 0)])
-            : ui('当前模型未提供缓存用量。')}</p>
-          <small>{ui('没有新句子时跳过调用；新上下文中的重叠句会重新判断。')}</small>
-        </details>
-        {correction.error && <p className="live-correction-error" role="status">{correction.error}</p>}
-      </div>}
+            onResume={(onEngine) => void perform('resume', async () => { await client.start(effectiveKind, { resumeId: session.id, paidOnly: onEngine !== 'local' && paidOnly, ...(onEngine ? { provider: onEngine } : {}) }); })} />}</div>
+        {active(session) && <small className="muted live-after" data-live-after>{ui('结束后点「保存为资料」，会先补完润色和译文，再存下文字稿和课堂笔记。')}</small>}</div>
+      <LiveAudioMonitor compact health={client.health} visible={visible} recording={capturing} sentences={total} />
+      {correction && <LiveCorrectionLine correction={correction} total={total} polished={polished} active={active(session)} busy={activeOp === 'correct'} lock={disabled} onSettings={openAudio}
+        onRetry={() => void perform('correct', async () => { client.accept(await call('live.correct', { id: session.id })); })} />}
       {session.message && <p role="status" className="muted">{session.message}</p>}
       {session.warnings?.length > 0 && <details><summary>{ui('连接与额度提示')}</summary>{session.warnings.map((warning, index) => <p key={index}>{warning}</p>)}</details>}
       <div className="live-stage">
         <div className="live-feed-head">
-          <span className="muted">{ui('原文在上，简体中文在下；勾选句子或划选文字即可出题。')}</span>
+          <span className="muted">{everyChinese ? ui('勾选句子或划选文字即可出题。') : ui('原文在上，简体中文在下；勾选句子或划选文字即可出题。')}</span>
           <div className="live-actions">
-            {segments.some((segment) => segment.zhState === 'error') && <Button busy={activeOp === 'retry-zh'} lock={disabled} onClick={() => void perform('retry-zh', async () => { await call('live.retry', { id: session.id }); await client.poll(); })}>{ui('重试失败的翻译')}</Button>}
+            {segments.some((segment) => showsTranslation(segment) && segment.zhState === 'error') && <Button busy={activeOp === 'retry-zh'} lock={disabled} onClick={() => void perform('retry-zh', async () => { await call('live.retry', { id: session.id }); await client.poll(); })}>{ui('重试失败的翻译')}</Button>}
             <Button variant="link" size="sm" className="live-follow" onClick={() => setFollow(!follow)} aria-pressed={follow}>{follow ? ui('正在跟随最新') : ui('回到最新')}</Button></div>
         </div>
+        {pauseHint && <p className="live-pause-hint muted" role="status" data-live-pause-hint>{ui('讲得很快、一直没有断句？到 音频设置 › 断句停顿 选『短』，下次开始或接着录时生效。')}
+          {openPause && <> <Button variant="link" size="sm" onClick={openPause}>{ui('打开断句停顿设置')}</Button></>}</p>}
         <div className="live-feed" ref={feed} tabIndex={0} onMouseUp={selectText} onKeyUp={selectText} onScroll={() => {
           const node = feed.current; if (node && node.scrollHeight - node.scrollTop - node.clientHeight > 80) setFollow(false);
         }} aria-label={ui('课堂原文与译文')}>
-          {!segments.length && <p className="live-empty">{active(session) ? ui('开始说话后，原文和译文会出现在这里。') : ui('这场实录还没有文字。')}</p>}
+          {!segments.length && !session.interim && <p className="live-empty">{active(session) ? ui('开始说话后，原文和译文会出现在这里。') : ui('这场实录还没有文字。')}</p>}
           {segments.map((segment) => <Sentence key={segment.id} segment={segment} selected={selected.has(segment.id)} generated={generated.has(segment.id)}
-            checked={checkedThrough >= segment.id && !segment.correctedAt} onToggle={toggle} language={language} />)}
-          {session.interim && <p className="live-interim">{session.interim}<span aria-hidden="true"> …</span></p>}
+            checked={checkedThrough >= segment.id && !segment.correctedAt && !skippedWhy.has(segment.id)} skipReason={skippedWhy.get(segment.id)} onToggle={toggle} language={language} />)}
+          {session.interim && <div className="live-interim" data-live-interim><small className="live-interim__label">{ui('正在听写，句子说完后会定稿')}</small>
+            <p>{tidyCjk(session.interim)}<span aria-hidden="true"> …</span></p></div>}
         </div>
-        <div className="live-selection">
+        <div className="live-selection" data-tour="live-selection">
           <div className="live-selection-info"><strong>{uiFormat('已选 {0} 句', [chosen.length])}</strong>
-            <span className="muted live-selection-info__note" data-blocking={chosen.length > 0 && selectedChars < MIN_CHARS ? 'true' : undefined}>{chosen.length ? (selectedChars >= MIN_CHARS ? uiFormat('约 {0} 个原文字符', [selectedChars])
+            <span className="muted live-selection-info__note" data-blocking={chosen.length > 0 && selectedChars < MIN_CHARS ? 'true' : undefined} data-ok={selectedChars >= MIN_CHARS ? 'true' : undefined}>{chosen.length ? (selectedChars >= MIN_CHARS ? uiFormat('约 {0} 个原文字符', [selectedChars])
               : uiFormat('再多选约 {0} 个字符才能出题', [MIN_CHARS - selectedChars]))
               : ui('至少选约 120 个原文字符')}</span></div>
-          <div className="live-actions"><Button className="live-selection-btn" disabled={!segments.length} onClick={() => setSelected(new Set(segments.slice(-8).map((segment) => segment.id)))}>{ui('最近 8 句')}</Button>
-            <Button className="live-selection-btn" disabled={!selected.size} onClick={() => setSelected(new Set())}>{ui('清空')}</Button>
+          <div className="live-actions">
+            <Why off={!segments.length} reason={segments.length ? uiFormat('选中最近约 {0} 个原文字符的内容', [RECENT_CHARS]) : ui('还没有句子可选')}>
+              <Button className="live-selection-btn" disabled={!segments.length} onClick={() => setSelected(new Set(recentWindow(segments).map((segment) => segment.id)))}>{ui('最近一段')}</Button></Why>
+            <Why off={!selected.size} reason={selected.size ? '' : ui('还没有选中的句子')}>
+              <Button className="live-selection-btn" disabled={!selected.size} onClick={() => setSelected(new Set())}>{ui('清空')}</Button></Why>
             <div className="live-count" role="group" aria-label={ui('题数')}>
               <span className="live-count-label">{ui('题数')}</span>
               <IconButton className="live-count-btn" icon="minus" size="sm" label={ui('减少题数')} disabled={count <= 1} onClick={() => setCount(Math.max(1, count - 1))} />
               <output aria-live="polite">{count}</output>
               <IconButton className="live-count-btn" icon="plus" size="sm" label={ui('增加题数')} disabled={count >= 15} onClick={() => setCount(Math.min(15, count + 1))} /></div>
-            <Button className="live-selection-btn" variant="primary" busy={activeOp === 'generate'} lock={disabled} disabled={!canGenerate} title={selectedChars < MIN_CHARS ? uiFormat('至少约 {0} 个原文字符，目前 {1}', [MIN_CHARS, selectedChars]) : undefined}
+            <Why off={!canGenerate && !disabled} reason={generateWhy}><Button className="live-selection-btn" variant="primary" busy={activeOp === 'generate'} lock={disabled} disabled={!canGenerate}
               onClick={() => void perform('generate', async () => {
                 const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count, language: GENERATION_LANGUAGE[language] });
                 toast.success(ui('已加入出题任务；课堂实录会继续。完成后在收件箱打开草稿。'));
                 setSelected(new Set()); await client.poll(); onJobs?.(result);
-              })}>{ui('选中内容出题')}</Button></div></div>
+              })}>{ui('选中内容出题')}</Button></Why></div></div>
       </div>
       {correction && <LiveNotes correction={correction} disabled={disabled} onSentence={id => {
         setFollow(false);
@@ -367,11 +384,22 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
         node?.scrollIntoView({ block: 'center' }); node?.focus({ preventScroll: true });
       }} onRetry={() => void perform('notes-retry', async () => { client.accept(await call('live.correct.background', { id: session.id })); })} />}
       <footer className="live-footer"><p className="muted">{ui('付费转写估算')} ${session.usage?.estimatedPaidUsd || 0} · {ui('不含翻译费用')}</p>
-        {!active(session) && segments.length > 0 && <div className="live-actions"><Button busy={activeOp === 'save'} lock={disabled || session.correction?.running} disabled={session.translating > 0 || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform('save', async () => {
-          await call('live.save', { id: session.id }); toast.success(ui('已保存中英对照资料与课堂笔记（如有）。')); onJobs?.();
-        })}>{ui('保存为资料')}</Button><Button busy={activeOp === 'save-proofread'} lock={disabled || session.correction?.running} disabled={session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform('save-proofread', async () => {
-          await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
-        })}>{ui('校对后保存')}</Button><Button variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button></div>}</footer>
+        {!active(session) && segments.length > 0 && <div className="live-actions" data-tour="live-save">
+          {/* Never off for what the polish or the translations are doing: the save finishes what is missing first (one job in 任务) and says what it could not. */}
+          <Why reason={ui('保存时会先补完润色和译文，再存下文字稿和课堂笔记；没能做完的，会在任务里说明。')}>
+            <Button busy={activeOp === 'save'} lock={disabled} onClick={() => void perform('save', async () => {
+              const saved = await call('live.save', { id: session.id });
+              if (saved?.jobId) toast.success(ui('已加入保存任务：先补完润色和译文，再保存。进度在任务里，完成后在资料里打开。'));
+              // Said plainly either way: the notes are saved, or they are not (no model, or the model gave nothing usable).
+              else if (saved?.noteSourceId) toast.success(ui('已保存文字稿和课堂笔记。'));
+              else toast.warning(ui('已保存文字稿，但没有保存课堂笔记：没有可用的文字模型，或模型没有给出可用的笔记。'));
+              onJobs?.(saved?.jobId ? saved : undefined);
+            })}>{ui('保存为资料')}</Button></Why>
+          <Why reason={ui('再校对一遍整份文字、按段翻译并起标题，需要文字模型，比较慢；一般点「保存为资料」就够了。')}>
+            <Button variant="quiet" busy={activeOp === 'save-proofread'} lock={disabled} onClick={() => void perform('save-proofread', async () => {
+              await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
+            })}>{ui('校对后保存')}</Button></Why>
+          <Button variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button></div>}</footer>
     </>}
     <LiveHistory sessions={sessions.filter(item => !undoable.hidden(`live:${item.id}`))} disabled={disabled} capturing={capturing}
       onOpen={id => void perform('history-open', async () => { setSelected(new Set()); await client.open(id); })}

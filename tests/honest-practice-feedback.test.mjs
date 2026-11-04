@@ -45,19 +45,19 @@ test('the first correct answer is level "learning" (the mastery views call it �
 test('the feedback line follows the level: 答对了 after one correct answer, 已掌握 only when the level really is mastered, 将继续巩固 for a miss', () => {
   const due = '2026-10-07T00:00:00.000Z';
   const line = feedback => text(renderToStaticMarkup(React.createElement(m.NextDue, { feedback })));
-  assert.match(line({ correct: true, level: 'learning', nextDue: due }), /^答对了 · 下次复习 /);
+  assert.match(line({ correct: true, level: 'learning', nextDue: due }), /^答对了 · 下次/);
   assert.doesNotMatch(line({ correct: true, level: 'learning', nextDue: due }), /已掌握/);
-  assert.match(line({ correct: true, level: 'familiar', nextDue: due }), /^答对了 · 下次复习 /);
-  assert.match(line({ correct: true, level: 'mastered', nextDue: due }), /^✓ 已掌握 · 下次复习 /);
-  assert.match(line({ correct: false, level: 'weak', nextDue: due }), /^↻ 将继续巩固 · 下次复习 /);
+  assert.match(line({ correct: true, level: 'familiar', nextDue: due }), /^答对了 · 下次/);
+  assert.match(line({ correct: true, level: 'mastered', nextDue: due }), /^✓ 已掌握 · 下次/);
+  assert.match(line({ correct: false, level: 'weak', nextDue: due }), /^↻ 将继续巩固 · 下次/);
   assert.match(line({ correct: true, nextDue: due }), /^答对了/, 'a feedback from an older host has no level: it says only what it knows');
   assert.match(line({ correct: false, retryQueued: true, level: 'weak', nextDue: due }), /这道题放到了本轮最后，会再出现一次/);
   m.setUiLanguage('en');
   try {
     const english = line({ correct: true, level: 'learning', nextDue: due });
-    assert.match(english, /^Correct · next review /);
+    assert.match(english, /^Correct · see it again/);
     assert.doesNotMatch(english, han);
-    assert.match(line({ correct: true, level: 'mastered', nextDue: due }), /^✓ Mastered · next review /);
+    assert.match(line({ correct: true, level: 'mastered', nextDue: due }), /^✓ Mastered · see it again/);
   } finally { m.setUiLanguage('zh'); }
 });
 

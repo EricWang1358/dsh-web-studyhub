@@ -166,7 +166,7 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
           </Button>
         )}
         {left !== null && left > 0 && (
-          <span className="coach-countdown" role="status">{back ? uiFormat("自动驾驶：{0} 秒后{1} ·", [left, label.replace(/\s*→$/, "")]) : uiFormat("自动驾驶：{0} 秒后执行 ·", [left])}{" "}
+          <span className="coach-countdown" role="status">{back ? uiFormat("自动跳下一步：{0} 秒后{1} ·", [left, label.replace(/\s*→$/, "")]) : uiFormat("自动跳下一步：{0} 秒后执行 ·", [left])}{" "}
             <Button variant="link" size="sm" onClick={() => { cancelled.current = true; setLeft(null); }}>{ui("取消")}</Button>
           </span>
         )}

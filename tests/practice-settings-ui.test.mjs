@@ -47,7 +47,7 @@ test('nothing saved: the defaults show as the contract says, and there is nothin
   assert.match(html, /<option[^>]*value="20"[^>]*selected|<option[^>]*selected[^>]*value="20"/);
   assert.match(words(html), /每轮题数/);
   assert.match(words(html), /当前是 20 题一轮，新题最多 10 道/);
-  assert.match(words(html), /自动驾驶/);
+  assert.match(words(html), /自动跳下一步/);
   assert.match(words(html), /本轮点评由模型来写/);
   assert.match(html.match(/<button[^>]*>(?:(?!<\/button>).)*恢复默认/)[0], /disabled/);
 });
@@ -79,7 +79,7 @@ test('English: every word of the pane is translated', () => {
   ssr.setUiLanguage('en');
   try {
     for (const data of [{ settings: {} }, { settings: { practice: { autopilot: true, roundSize: 30, debrief: false } } }]) assert.doesNotMatch(words(pane({ data })), han);
-    assert.match(words(pane()), /Autopilot/);
+    assert.match(words(pane()), /Auto-advance/);
     assert.match(words(pane()), /questions per round/i);
   } finally { ssr.setUiLanguage('zh'); }
 });

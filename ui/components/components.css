@@ -532,12 +532,17 @@
     }
   }
   :is(.study-app, .study-seat) {
-    /* Page placement: a zero-height sticky rail at the end of the page, pinned to the bottom of the
+    /* Page placement: a zero-height sticky rail at the end of the page, pinned to the bottom edge of the
        view, so a toast is visible wherever the learner has scrolled, never shifts the page and never
-       covers the PageHeader actions at the top right. */
+       covers the PageHeader actions at the top right. `bottom` holds it there on a page taller than the
+       view; `top` (a percentage of the scrolling box, not of the page) holds it there on a page SHORTER
+       than the view, where the end of the page is half way up the screen: with both, the rail's place is
+       the view's bottom edge less --sh-toast-edge, whatever the height of the page (#677). */
     :is(.sh-toasts--page, .sh-toasts--auto) {
+      --sh-toast-edge: var(--sh-toast-offset, var(--space-4));
       position: sticky;
-      bottom: var(--sh-toast-offset, var(--space-4));
+      top: calc(100% - var(--sh-toast-edge));
+      bottom: var(--sh-toast-edge);
       z-index: var(--z-toast);
       height: 0;
     }
@@ -661,7 +666,7 @@
     }
     /* Above the phone's home bar and the book's sticky bar (it sets --sh-toast-offset). */
     :is(.sh-toasts--page, .sh-toasts--auto):has(.sh-toast--receipt):not(.action-feedback-slot .sh-toasts--auto) {
-      bottom: max(var(--sh-toast-offset, var(--space-4)), calc(env(safe-area-inset-bottom) + var(--space-2)));
+      --sh-toast-edge: max(var(--sh-toast-offset, var(--space-4)), calc(env(safe-area-inset-bottom) + var(--space-2)));
     }
     /* ── Inline message and banner ──────────────────────────────────────── */
     .sh-inline {
