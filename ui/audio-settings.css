@@ -12,6 +12,9 @@
     /* The import form has no frame of its own (#678: the job cards were a card inside a card): its parts (the jobs, the drop zone, the setup gate of #578,
        the chosen files) are the cards, as wide as the page's column; the subtitle way in is a line of text and a button under it. */
     .audio-import { padding: 0; border: 0; border-radius: 0; }
+    /* Inside the 添加资料 tab (ui/import-hub.css) it also drops its outer margin and its own title. */
+    .import-hub__audio > .audio-import { margin: 0; }
+    .import-hub__audio > .audio-import > strong:first-child { display: none; }
     .audio-setup { max-width: none; margin: var(--space-4) 0; }
     .audio-setup .audio-setup__secret { margin-top: var(--space-4); max-width: 560px; }
     .audio-setup-alt { margin: var(--space-3) 0 0; }

@@ -29,7 +29,7 @@ function AppearanceReset({ onReset }) {
   const [note, setNote] = useState(null);
   return (
     <div className="appearance-backup" data-tour="settings-appearance-reset">
-      <div className="settings-actions"><Button variant="quiet" onClick={() => { onReset(); setNote({ tone: 'success', text: ui('已恢复默认外观。') }); }}>{ui('恢复默认外观')}</Button></div>
+      <div className="settings-actions"><Button variant="quiet" className="appearance-reset" onClick={() => { onReset(); setNote({ tone: 'success', text: ui('已恢复默认外观。') }); }}>{ui('恢复默认外观')}</Button></div>
       {note && <InlineMessage tone={note.tone}>{note.text}</InlineMessage>}
     </div>
   );
