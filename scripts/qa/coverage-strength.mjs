@@ -94,8 +94,7 @@ export async function runStrengthQa(options) {
       await step("create-form-custom-number", async () => {
         await level(zh ? "标准" : "Standard").click();
         const before = await lineText();
-        const disclosure = page.locator(".cov-strength__custom");
-        await disclosure.locator("summary").click();
+        await level(zh ? "自定义" : "Custom").click();
         await page.locator("#generate-count").fill("100");
         const line = await settle(before), want = await promised({ coverageLevel: "standard", count: 100 });
         facts.customLine = line;
@@ -107,7 +106,7 @@ export async function runStrengthQa(options) {
       });
       await step("create-form-back-to-standard", async () => {
         const before = await lineText();
-        await page.getByRole("button", { name: zh ? "改回按覆盖强度" : "Back to coverage strength" }).click();
+        await level(zh ? "标准" : "Standard").click();
         const line = await settle(before);
         assert.ok(zh ? line.startsWith("标准：") : line.startsWith("Standard:"), line);
         await page.locator('[data-tour="generate-submit"]').scrollIntoViewIfNeeded();

@@ -86,8 +86,6 @@
   "翻译需要 AI 模型；已有的译文照常显示。": "Translating needs an AI model; translations you already have are still shown.",
   "出题：选好资料就能生成": "Make questions: pick sources and generate",
   "勾选要出题的资料，题型、题数和难度保持默认就行，再点这里的生成按钮。AI 出的题先进入草稿，你检查过再发布。": "Tick the sources to write questions from; the default question types, count and difficulty are fine. Then press the generate button here. New questions go into a draft first, and you publish after you have checked them.",
-  "题型、难度和题数": "Question types, difficulty and count",
-  "题型和难度是开关，题数由「覆盖强度」决定（精简、标准或完整），想自己定题数再展开「自定义题数」。不知道练什么？点「帮我想想」，它只发送资料标题和目录，不发送全文；没有模型时，会改用你的错题给建议。": "Question types and difficulty are switches. The count follows the “Coverage strength” (Lean, Standard or Full); open “Custom number of questions” to set your own. Not sure what to practise? Choose “Suggest a focus”: it sends only the source titles and outlines, never the full text, and without a model it suggests from your mistakes instead.",
   "任务：后台工作的进度": "Jobs: progress of background work",
   "出题、音频转写这类要等一阵的工作在后台进行，可以边等边做别的；进度、暂停、停止和重试都在「任务」里。": "Work that takes a while, such as making questions or transcribing audio, runs in the background, so you can do something else meanwhile. Progress, pause, stop and retry are all in Jobs.",
   "备考补习：考前补漏": "Exam prep: fill the gaps before the exam",
@@ -130,5 +128,7 @@
   "选好的参考样题和这些资料对不上：点「改题型和题数」，在创建题组里调整。": "The sample questions you chose do not fit these sources: press “Change question types and count” to adjust them on Create deck.",
   "AI 带学：边讲边练": "AI Guided Study: learn and practise together",
   "在主会话里说一句就能开始，比如「带我学条件概率，每讲完一个点就出一道题考我」。主会话讲一个点，当场按你的资料出一道经过审核的题，放到右侧带学工作台让你做；做错了可以点「请教主会话」。更多说法和默认设置在「设置 › 引导 › AI 带学」。": "Say one sentence in the main chat to start, for example “Teach me conditional probability and test me with a question after each point.” The main chat explains a point, has a reviewed question written from your material on the spot and shown in the guided workbench on the right for you to answer; after a wrong answer press “Ask the main chat”. More sentences and the defaults are in Settings › Guidance › AI-guided learning.",
-  "AI 带学需要配置 AI 模型。": "AI Guided Study needs an AI model."
+  "AI 带学需要配置 AI 模型。": "AI Guided Study needs an AI model.",
+  "题型和覆盖强度": "Question types and coverage strength",
+  "题型和「覆盖强度」就在这里：覆盖强度分精简、标准、完整，想自己定题数就选「自定义」。难度、语言、公式写法、花费上限都收在「更多选项」里。不知道练什么？展开「更多选项」点「帮我想想」，它只发送资料标题和目录，不发送全文；没有模型时，会改用你的错题给建议。": "Question types and “Coverage strength” are right here: coverage is Lean, Standard or Full, and choose “Custom” to set your own number. Difficulty, language, formula notation and the spending limit are in “More options”. Not sure what to practise? Open “More options” and choose “Suggest a focus”: it sends only the source titles and outlines, never the full text, and without a model it suggests from your mistakes instead."
 }
