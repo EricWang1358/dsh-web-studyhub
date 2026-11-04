@@ -264,12 +264,15 @@ test('a question with inline code and a fenced block draws <code> in the stem an
   for (const code of ['#', '/* */', '//', '--']) assert.ok(html.includes(`<code>${code}</code>`), `option ${code} is code`);
 });
 
-test('the options and their explanations draw code after the answer too (right and wrong)', () => {
+test('after the answer the options, the wrong one and the right one, and their explanations draw code too', () => {
   const quiz = { ...deckOf().cards[0], id: 'q' };
-  const html = render({ run: { id: 'r', index: 0, total: 1, mode: 'path', card: quiz, revealed: true, answered: true, selected: ['b'] }, selected: ['b'],
-    feedback: { correct: false, selected: ['b'], answer: 'a' } });
+  const solution = { answer: '`#`', explanation: quiz.explanation, options: quiz.options.map(({ id, correct, explanation }) => ({ id, correct, explanation })) };
+  const html = render({ run: { id: 'r', index: 0, total: 1, mode: 'path', card: quiz, revealed: true, feedback: { selected: ['b'], correct: false }, solution } });
+  assert.match(html, /class="option incorrect"/, 'the picked wrong option');
+  assert.match(html, /class="option correct"/, 'the right option');
   assert.match(html, /<code>SyntaxError<\/code>/, 'the explanation of the wrong option');
-  assert.doesNotMatch(html, /`/);
+  assert.match(html, /<code>#<\/code>[\s\S]*?<code>\/\* \*\/<\/code>/);
+  assert.doesNotMatch(html, /`/, 'no backtick is left over on screen');
 });
 
 test('a cloze question draws its code spans as code and keeps the blank as an input', () => {
