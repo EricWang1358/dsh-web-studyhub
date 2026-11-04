@@ -53,6 +53,10 @@ const needService = () => { if (state.configFails) fail('unexpected failure whil
 const [command, sub] = argv;
 if (state.probeDelayMs && ((command === 'server' && sub === 'status' && argv.includes('--json')) || (command === 'list' && sub === 'parses')))
   await new Promise(resolve => setTimeout(resolve, state.probeDelayMs));
+// `readDelayMs`: every `--version`, `server status` and `config get` takes this long (a Python start-up: 2 s and 5 s on a real install), so a test can tell a read that
+// asks one after the other from one that asks together, and a read from an answer kept in memory.
+if (state.readDelayMs && (command === '--version' || command === '-V' || (command === 'server' && sub === 'status') || (command === 'config' && sub === 'get')))
+  await new Promise(resolve => setTimeout(resolve, state.readDelayMs));
 if (command === '--version' || command === '-V') out(`mineru, version ${state.version ?? '4.0.10'}`);
 else if (command === 'config' && sub === 'show') {
   needService();
