@@ -162,6 +162,7 @@
     "tests/perf-budget.test.mjs",
     "tests/retrieval-self-heal.test.mjs",
     "tests/store.test.mjs",
+    "tests/test-runner-batch.test.mjs",
     "tests/test-runner-lock.test.mjs",
     "tests/test-runner-schedule.test.mjs",
     "tests/test-runner-shards.test.mjs",
