@@ -213,52 +213,54 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         {/* The card: header, stem and answers on paper stock. Toolbar,
             status and explanation sit below it on the desk. */}
         <div className={"question-card" + (!choice && !isCloze && !rubricCard ? "" : " sh-paper-card sh-paper-card--roomy")} data-tour="review-question">
-          <div className="question-meta">
-            <span>
-              <span>{run.index + 1} / {run.total}</span>
-              {run.mode !== "exam" && run.liveMastery?.before?.total > 0 && run.liveMastery?.after?.total > 0 && (() => {
-                const { before, after } = run.liveMastery, delta = after.percent - before.percent;
-                return (
-                  <span className="question-live-mastery" data-testid="live-mastery" data-rose={delta > 0 ? "true" : delta < 0 ? "down" : undefined}>
-                    <MasteryMark summary={after} size={13} />
-                    <span>{delta !== 0 ? uiFormat("本组 {0}% → {1}%", [before.percent, after.percent]) : uiFormat("本组 {0}%", [after.percent])}</span>
-                    {delta > 0 && <strong className="question-live-mastery__delta">{`+${delta}%`}</strong>}
-                  </span>
-                );
-              })()}
-            </span>
-            <div>
-              {cardNotes.map((note) => note.status === "published" && note.url
-                ? <a key={note.noteId} className="result-note-link" href={note.url} target="_blank" rel="noopener noreferrer" title={note.title}><Badge size="sm" icon="external">{ui("已发布笔记")}</Badge></a>
-                : <Button key={note.noteId} variant="quiet" size="sm" className="result-note-link" disabled={!onOpenNote}
-                  title={note.title} onClick={() => onOpenNote?.(note.noteId)}>{ui("笔记草稿")}</Button>)}
-              {run.origin && (
-                <Badge size="sm" className="origin-note" title={run.origin.prompt ? uiFormat("源自：{0}", [run.origin.prompt]) : ""}>
-                  {(() => {
-                    const reason = run.origin.reason === "too-hard" ? ui("前置台阶") : run.origin.reason === "followup" ? ui("追问巩固") : ui("变式");
-                    return run.origin.prompt ? uiFormat("{0} · 源自「{1}」", [reason, run.origin.prompt.length > 18 ? run.origin.prompt.slice(0, 18) + "…" : run.origin.prompt]) : reason;
-                  })()}
-                </Badge>
-              )}
-              {run.card.focus && <Badge size="sm" tone="accent" className="origin-note">{ui("重点")}</Badge>}
-              {run.card.importedFromJson && <Badge size="sm" className="origin-note">{ui("外部导入")}</Badge>}
-              {run.card.sourceQa && <Badge size="sm" className="origin-note">{ui("问答")}</Badge>}
-              <span>{run.card.topic}</span>
-              {!!publicationIssues.length && !run.card.publicationUngrable &&
-                <Popover label={ui("待核对")} className="publication-mark" panelClassName="publication-mark__panel"
-                  trigger={({ props, ref }) => <Button ref={ref} variant="link" size="sm" className="publication-mark__trigger" {...props}>{ui("待核对")}</Button>}>
-                  <p>{publicationIssues.join("；")}</p>
-                  <Button size="sm" onClick={() => assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</Button>
-                </Popover>}
-              <Button
-                aria-label={ui("标记题目")}
-                onClick={() => openModal({ type: "flag" })}
-              >
-                ⚑
-              </Button>
+          <div className="question-card__head">
+            <div className="question-meta">
+              <span>
+                <span>{run.index + 1} / {run.total}</span>
+                {run.mode !== "exam" && run.liveMastery?.before?.total > 0 && run.liveMastery?.after?.total > 0 && (() => {
+                  const { before, after } = run.liveMastery, delta = after.percent - before.percent;
+                  return (
+                    <span className="question-live-mastery" data-testid="live-mastery" data-rose={delta > 0 ? "true" : delta < 0 ? "down" : undefined}>
+                      <MasteryMark summary={after} size={13} />
+                      <span>{delta !== 0 ? uiFormat("本组 {0}% → {1}%", [before.percent, after.percent]) : uiFormat("本组 {0}%", [after.percent])}</span>
+                      {delta > 0 && <strong className="question-live-mastery__delta">{`+${delta}%`}</strong>}
+                    </span>
+                  );
+                })()}
+              </span>
+              <div>
+                {cardNotes.map((note) => note.status === "published" && note.url
+                  ? <a key={note.noteId} className="result-note-link" href={note.url} target="_blank" rel="noopener noreferrer" title={note.title}><Badge size="sm" icon="external">{ui("已发布笔记")}</Badge></a>
+                  : <Button key={note.noteId} variant="quiet" size="sm" className="result-note-link" disabled={!onOpenNote}
+                    title={note.title} onClick={() => onOpenNote?.(note.noteId)}>{ui("笔记草稿")}</Button>)}
+                {run.origin && (
+                  <Badge size="sm" className="origin-note" title={run.origin.prompt ? uiFormat("源自：{0}", [run.origin.prompt]) : ""}>
+                    {(() => {
+                      const reason = run.origin.reason === "too-hard" ? ui("前置台阶") : run.origin.reason === "followup" ? ui("追问巩固") : ui("变式");
+                      return run.origin.prompt ? uiFormat("{0} · 源自「{1}」", [reason, run.origin.prompt.length > 18 ? run.origin.prompt.slice(0, 18) + "…" : run.origin.prompt]) : reason;
+                    })()}
+                  </Badge>
+                )}
+                {run.card.focus && <Badge size="sm" tone="accent" className="origin-note">{ui("重点")}</Badge>}
+                {run.card.importedFromJson && <Badge size="sm" className="origin-note">{ui("外部导入")}</Badge>}
+                {run.card.sourceQa && <Badge size="sm" className="origin-note">{ui("问答")}</Badge>}
+                <span>{run.card.topic}</span>
+                {!!publicationIssues.length && !run.card.publicationUngrable &&
+                  <Popover label={ui("待核对")} className="publication-mark" panelClassName="publication-mark__panel"
+                    trigger={({ props, ref }) => <Button ref={ref} variant="link" size="sm" className="publication-mark__trigger" {...props}>{ui("待核对")}</Button>}>
+                    <p>{publicationIssues.join("；")}</p>
+                    <Button size="sm" onClick={() => assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</Button>
+                  </Popover>}
+                <Button
+                  aria-label={ui("标记题目")}
+                  onClick={() => openModal({ type: "flag" })}
+                >
+                  ⚑
+                </Button>
+              </div>
             </div>
+            <ProgressBar size="sm" className="card-progress" label={ui("复习进度")} value={run.index + 1} max={Math.max(1, run.total)} />
           </div>
-          <ProgressBar size="sm" className="card-progress" label={ui("复习进度")} value={run.index + 1} max={Math.max(1, run.total)} />
           {(choice || isCloze || run.card.publicationUngrable) && prereqStrip}
           {run.card.publicationUngrable ? (
             <Banner tone="warning" role="status" className="review-ungrable"

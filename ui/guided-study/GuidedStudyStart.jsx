@@ -2,10 +2,12 @@ import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { HandOff } from '../hand-off/HandOff.jsx';
 import { GUIDED_DEFAULTS, GUIDED_EXAMPLES } from './examples.js';
-import './guided-start.css';
+import { useInjectCss } from '../shared.js';
+import startCss from './guided-start.css';
 
 /** 「怎么开始带学」(#549): sentences the learner can send to the main chat as they are, and, with `defaults`, what a guided session leaves off until they agree. */
 export default function GuidedStudyStart({ defaults = false, compact = false }) {
+  useInjectCss(startCss, 'study-guided-start');
   return (
     <div className={`guided-start${compact ? ' guided-start--compact' : ''}`} data-guided-start="">
       <ul className="guided-start__examples">

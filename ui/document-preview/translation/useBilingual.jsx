@@ -434,8 +434,20 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     if (error && !item) return <TranslationBlock {...common} state="error" error={error} onRetry={() => { const paragraph = layer.current.byKey.get(key); if (paragraph) void send([paragraphEntry(paragraph)]); }} onDismiss={() => { dispatch({ type: 'dismiss-error', keys: [key] }); layer.current.pinned.delete(key); }} />;
     if (!item) return null;
     const entry = () => entryOfItem(item);
-    return <TranslationBlock {...common} state={pending ? 'pending' : 'ok'} item={item} pendingKind={pending} open={blockState(state, key, mode) === 'open'}
-      onToggle={() => dispatch({ type: 'show', keys: [key], value: blockState(state, key, mode) !== 'open' })} onDelete={() => remove(key)} onCancel={() => cancel(key)}
+    const isOpen = blockState(state, key, mode) === 'open';
+    const toggleBlock = () => {
+      const nextOpen = !isOpen;
+      const shouldRestoreFocus = !nextOpen && typeof document !== 'undefined' && hosts.get?.(key)?.contains?.(document.activeElement);
+      dispatch({ type: 'show', keys: [key], value: nextOpen });
+      if (shouldRestoreFocus) requestAnimationFrame(() => {
+        const own = layer.current;
+        const markKey = own.marks.has(key) ? key : own.byElement.get(own.pinned.get(key))?.key;
+        const button = own.marks.get(markKey)?.querySelector?.('button') || own.marks.get(markKey)?.firstChild;
+        if (button?.focus) { button.setAttribute('tabindex', '0'); button.focus({ preventScroll: true }); }
+      });
+    };
+    return <TranslationBlock {...common} state={pending ? 'pending' : 'ok'} item={item} pendingKind={pending} open={isOpen}
+      onToggle={toggleBlock} onDelete={() => remove(key)} onCancel={() => cancel(key)}
       onRetranslate={comment => { const made = entry(); if (made) void send([made], { retranslate: true, comment }); }} />;
   };
   const layerNodes = <>

@@ -1,7 +1,7 @@
 import { ui, uiFormat, uiMessage, useUiLanguage } from "./i18n.js";
 import React, { useEffect, useRef, useState } from "react";
 import { parseCourses } from './CourseField.jsx';
-import { Button, FileDrop, Hint, Icon, IconButton, InlineMessage, ProgressBar, useToast } from './components/index.js';
+import { Button, FileDrop, Hint, Icon, IconButton, InlineMessage, ProgressBar, Tooltip, useToast } from './components/index.js';
 import { AudioSetupGate } from './AudioSettings.jsx';
 import { openAudioSettings } from './audio-focus.js';
 import { useInjectCss } from './shared.js';
@@ -296,7 +296,7 @@ export default function AudioImport({
             onDragEnd={() => { moving.current = null; }} onDragOver={event => { if (moving.current !== null) event.preventDefault(); }}
             onDrop={event => { if (moving.current !== null) { event.preventDefault(); event.stopPropagation(); move(moving.current, index); moving.current = null; } }}>
             <span className="audio-drop-icon" aria-hidden="true">{files.length > 1 ? index + 1 : <Icon name="audio" size={18} />}</span>
-            <div><strong title={file.path || file.name}>{file.name}</strong><small className="muted">{file.size ? `${formatBytes(file.size)} · ` : ''}{file.kind === 'subtitle' ? ui('字幕文件 · 不转写，直接校对') : file.kind === 'upload' ? ui('已上传') : ui('来自工作区或路径')}</small>
+            <div><Tooltip layer content={file.path || file.name}><strong tabIndex={0}>{file.name}</strong></Tooltip><small className="muted">{file.size ? `${formatBytes(file.size)} · ` : ''}{file.kind === 'subtitle' ? ui('字幕文件 · 不转写，直接校对') : file.kind === 'upload' ? ui('已上传') : ui('来自工作区或路径')}</small>
               {note && <span className={`audio-check audio-check--${note.kind}`} role={note.kind === 'blocked' ? 'alert' : undefined}>
                 <span>{note.text}</span>
                 {note.kind === 'blocked' && <>

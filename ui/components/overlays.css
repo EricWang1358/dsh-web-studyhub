@@ -114,8 +114,8 @@
       text-align: left;
       white-space: nowrap;
     }
-    .sh-menu__item:hover:not(:disabled), .sh-menu__item:focus-visible { background: var(--bg-hover); outline: none; }
-    .sh-menu__item:focus-visible { background: color-mix(in srgb, var(--text) 10%, transparent); }
+    .sh-menu__item:hover:not(:disabled) { background: var(--bg-hover); }
+    .sh-menu__item:focus-visible { background: color-mix(in srgb, var(--text) 10%, transparent); outline: 2px solid var(--accent-soft); outline-offset: -2px; }
     .sh-menu__item:disabled { color: var(--text-faint); opacity: 0.8; }
     .sh-menu__item.is-danger, .sh-menu__item.is-danger:hover:not(:disabled) { color: var(--bad-ink); }
     .sh-menu__gap { width: 16px; flex: none; }
@@ -142,6 +142,12 @@
     .sh-dialog[aria-busy="true"] { cursor: progress; }
     .sh-dialog[aria-busy="true"] .sh-dialog__close { cursor: not-allowed; }
     .sh-confirm-dialog__title { margin: 0; font-weight: var(--fw-strong); overflow-wrap: anywhere; }
+  }
+  @container study (max-width: 600px) {
+    :is(.study-app, .study-seat) {
+      .sh-confirm__actions { justify-content: stretch; }
+      .sh-confirm__actions .sh-btn { flex: 1 1 auto; }
+    }
   }
   @media (max-width: 600px) {
     :is(.study-app, .study-seat) {

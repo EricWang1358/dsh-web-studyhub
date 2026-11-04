@@ -12,7 +12,7 @@
     .gen-path__step[data-included='false'] { opacity: 0.55; }
     /* A step that is optional by nature (index, colophon, …) is labelled in words, so it stays readable while it is off. */
     .gen-path__step[data-optional='true'][data-included='false'] { opacity: 0.85; border-style: dashed; }
-    .gen-path__tag { justify-self: start; padding: 1px var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--text-muted); font-size: var(--fs-xs); font-style: normal; }
+    .gen-path__tag { justify-self: start; padding: var(--hairline) var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--text-muted); font-size: var(--fs-xs); font-style: normal; }
     /* The page's own label rule makes a label a grid: this one is a checkbox beside its text. */
     .gen-path .gen-path__step label.gen-path__title { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-2); cursor: pointer; min-width: 0; }
     .gen-path .gen-path__title input[type='checkbox'] { flex: none; margin: var(--space-1) 0 0; }
@@ -38,7 +38,7 @@
     .too-big__tip-then { color: var(--text-muted); }
     .too-big__card { margin: 0; }
   }
-  @media (max-width: 640px) {
+  @container study (max-width: 720px) {
     :is(.study-app, .study-seat) {
       .gen-path__edit { flex-wrap: wrap; }
       .too-big { padding: var(--space-3); }

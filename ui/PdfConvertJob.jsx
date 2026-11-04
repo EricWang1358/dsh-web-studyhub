@@ -331,7 +331,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
           {status === 'running' && row.live && <Button variant="link" size="sm" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
           {status === 'held' && <Button variant="link" size="sm" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onEditHeld(row)}>{HELD_ENTRY()}</Button>}
           {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
-            <Button variant="primary" size="sm" busy={busy} disabled={!!working} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
+            <Button variant="secondary" size="sm" busy={busy} lock={!!working && !busy} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
           </Tooltip>}
           {status !== 'running' && <Button variant="link" size="sm" lock={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
         </div>

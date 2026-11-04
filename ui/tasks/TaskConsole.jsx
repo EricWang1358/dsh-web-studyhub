@@ -154,8 +154,10 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
           {actions.resume && <Button size="sm" aria-pressed="true" lock={core.busy} onClick={() => act('resume')}>{ui('继续')}</Button>}
           {fix && <Button size="sm" variant="primary" data-fix="settings" onClick={() => settingsEntry.openSettings(fix)}>{ui('前往设置')}</Button>}
           {actions.retry && <Button size="sm" variant={shortfall?.action === 'model-settings' || fix ? undefined : 'primary'} lock={core.busy} title={run ? uiFormat('继续第 {0} 轮：已通过的题都保留，这一轮从头重做', [run.round]) : shortfall?.continueKind === 'count' ? ui('已出的题都保留，只补还差的题，设置不变') : retryTitle(task)} onClick={() => act('retry')}>{ui('接着做')}</Button>}
-          {draftContinue && <Button size="sm" variant="primary" lock={core.busy} data-draft-continue title={ui('已出的题都保留，只补还差的题，设置不变')}
-            onClick={() => core.act('generate', continueArgs(draftContinue), (started) => core.notify?.(continueNotice(draftContinue, started)))}>{ui('接着做')}</Button>}
+          {draftContinue && <Tooltip content={ui('已出的题都保留，只补还差的题，设置不变')} layer placement="bottom-end">
+            <Button size="sm" variant="primary" lock={core.busy} data-draft-continue
+              onClick={() => core.act('generate', continueArgs(draftContinue), (started) => core.notify?.(continueNotice(draftContinue, started)))}>{ui('接着做')}</Button>
+          </Tooltip>}
           {toggle && live && <Checkbox className="tc-head__auto" label={autoLabel()} checked={toggle.value} disabled={core.busy} data-run-auto
             onChange={(value) => core.act('job.control', { jobId: contract.jobId, action: 'set', patch: { autoComplete: value } })} />}
           {result && <Button size="sm" onClick={result.run}>{result.label}</Button>}

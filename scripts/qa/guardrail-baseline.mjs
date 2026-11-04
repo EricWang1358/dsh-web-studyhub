@@ -79,12 +79,6 @@ export const ALLOW = {
     /* Optional overrides: the default sits in the var() fallback on purpose. */
     { name: '--sh-toast-offset', reason: 'optional override set by a host page' },
     { name: '--dur-leave', reason: 'optional override, ui/components/feedback.css fallback is the default' },
-    /* Stale token names that never existed. Each is a latent bug; replace the use, then delete the entry. */
-    { name: '--bg', reason: 'use --bg-surface (large-documents.css, mineru.css)' },
-    { name: '--font-mono', reason: 'no mono token exists (mineru.css fallback is used)' },
-    { name: '--danger', reason: 'use --bad (blocked in wave 1)' },
-    { name: '--radius-md', reason: 'use --radius (token-usage.css)' },
-    { name: '--fs-15', reason: 'use --fs-md (workflow-scope.css)' },
   ],
 };
 

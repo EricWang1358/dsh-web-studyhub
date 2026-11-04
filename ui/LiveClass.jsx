@@ -98,15 +98,16 @@ export function ProviderChoice({ readiness, value, onChange, disabled }) {
  * so, and offers the other engine as its own button: never a silent switch. A pre-flight that says nothing about the local engine (an older backend)
  * keeps the old button.
  */
-export function ResumeControl({ session, readiness, disabled, onResume }) {
+export function ResumeControl({ session, readiness, disabled, busy = false, lock = false, onResume }) {
+  const held = lock || disabled;
   const recorded = session.engine === 'local' ? 'local' : 'gemini';
-  if (!readiness?.liveLocal) return readiness?.live === false ? null : <Button disabled={disabled} onClick={() => onResume(undefined)}>{ui('接着录')}</Button>;
+  if (!readiness?.liveLocal) return readiness?.live === false ? null : <Button busy={busy} lock={held} onClick={() => onResume(undefined)}>{ui('接着录')}</Button>;
   const can = { local: !!readiness.liveLocal.ready, gemini: !!(readiness.providers?.free || readiness.providers?.paid) };
-  if (can[recorded]) return <Button disabled={disabled} onClick={() => onResume(recorded)}>{ui('接着录')}</Button>;
+  if (can[recorded]) return <Button busy={busy} lock={held} onClick={() => onResume(recorded)}>{ui('接着录')}</Button>;
   const other = recorded === 'local' ? 'gemini' : 'local';
   return <span className="live-resume-blocked" data-resume-blocked={recorded}>
     <span className="muted">{recorded === 'local' ? ui('这堂课是用本地转写录的，本地转写现在用不了（可能已删除或需要修复）。') : ui('这堂课是用 Gemini 录的，现在没有 Gemini 密钥。')}</span>
-    {can[other] && <Button disabled={disabled} onClick={() => onResume(other)}>{other === 'gemini' ? ui('用 Gemini 接着录') : ui('用本地转写接着录')}</Button>}
+    {can[other] && <Button busy={busy} lock={held} onClick={() => onResume(other)}>{other === 'gemini' ? ui('用 Gemini 接着录') : ui('用本地转写接着录')}</Button>}
   </span>;
 }
 const engineNote = provider => (provider === 'local'
@@ -140,14 +141,15 @@ export function captureFactsLine(facts) {
  * the gesture the microphone prompt needs); 「再试一次共享」 only where trying again can work (a permission the learner may just have fixed, or an unknown cause).
  * Where the window itself cannot share (policy, an app shell, a frame) retrying is not offered. The facts line says what the browser reported.
  */
-export function CaptureHelp({ kind, facts, disabled, onMicrophone, onRetry }) {
+export function CaptureHelp({ kind, facts, disabled, activeOp = '', lock = false, onMicrophone, onRetry }) {
   if (!['blocked', 'embedded-instant', 'app-window', 'instant', 'unknown'].includes(kind)) return null;
   const retry = kind === 'instant' || kind === 'unknown';
+  const held = lock || disabled;
   const line = captureFactsLine(facts);
   return <div className="live-capture-help" data-capture-help={kind}>
     <div className="live-capture-actions">
-      <Button disabled={disabled} onClick={onMicrophone}>{ui('改用麦克风并开始')}</Button>
-      {retry && <Button variant="quiet" disabled={disabled} onClick={onRetry}>{ui('再试一次共享')}</Button>}
+      <Button busy={activeOp === 'start-mic'} lock={held} onClick={onMicrophone}>{ui('改用麦克风并开始')}</Button>
+      {retry && <Button variant="quiet" busy={activeOp === 'start-tab'} lock={held} onClick={onRetry}>{ui('再试一次共享')}</Button>}
     </div>
     {facts?.platform === 'windows' && <p className="muted" data-capture-loopback>{ui('戴着耳机、不想外放：把 Windows 的默认录音设备改成「立体声混音」（或虚拟声卡的 Output），然后选「麦克风」，就能直接录到电脑播放的声音。步骤见文档「课堂实录」。')}</p>}
     {line && <details className="live-capture-facts"><summary>{ui('排查信息')}</summary><p className="muted">{line}</p></details>}
@@ -163,7 +165,8 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
   const { session, capturing, busy, error, errorKind, errorFacts } = useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
   const [sessions, setSessions] = useState([]), [title, setTitle] = useState(''), [subject, setSubject] = useState('');
   const [terms, setTerms] = useState(''), [kind, setKind] = useState('microphone'), [paidOnly, setPaidOnly] = useState(false);
-  const [selected, setSelected] = useState(new Set()), [count, setCount] = useState(5), [working, setWorking] = useState(false);
+  const [selected, setSelected] = useState(new Set()), [count, setCount] = useState(5), [activeOp, setActiveOp] = useState('');
+  const working = activeOp !== '';
   const toast = useToast();
   // 删除 of an archived class asks nothing (a recording is not a source or a question): the row leaves and the notice offers 撤销 (ui/undoable.js).
   const undoable = useUndoable();
@@ -202,16 +205,16 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
   }, [visible, follow, session?.revision, session?.interim]);
   // A refusal that retrying cannot fix moves the form to the microphone, so the next click on 「开始实录」 works.
   useEffect(() => { if (error && ['blocked', 'embedded-instant', 'app-window'].includes(errorKind)) setKind('microphone'); }, [error, errorKind]);
-  const perform = async (action) => {
+  const perform = async (op, action) => {
     if (operation.current) return;
-    operation.current = true; setWorking(true); client.update({ error: '' });
+    operation.current = true; setActiveOp(op); client.update({ error: '' });
     try { await action(); } catch (failure) { client.fail(failure); }
-    finally { operation.current = false; setWorking(false); }
+    finally { operation.current = false; setActiveOp(''); }
   };
   const toggle = useCallback((id) => setSelected((previous) => {
     const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next;
   }), []);
-  const begin = (source) => perform(async () => {
+  const begin = (source, op = 'start') => perform(op, async () => {
     setSelected(new Set());
     await client.start(source, { title, course, subject, terms, paidOnly: engine !== 'local' && paidOnly, ...(readiness?.liveProvider ? { provider: engine } : {}) });
     await refresh();
@@ -238,11 +241,11 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
       description={session ? undefined : ui('边听边看简体中文，选中重点就能出题。')}
       actions={<Button variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
     {error && <InlineMessage tone="error" boxed>{uiMessage(error)}</InlineMessage>}
-    {error && !active(session) && <CaptureHelp kind={errorKind} facts={errorFacts} disabled={disabled} onMicrophone={() => { setKind('microphone'); void begin('microphone'); }} onRetry={() => void begin('tab')} />}
+    {error && !active(session) && <CaptureHelp kind={errorKind} facts={errorFacts} activeOp={activeOp} lock={disabled} onMicrophone={() => { setKind('microphone'); void begin('microphone', 'start-mic'); }} onRetry={() => void begin('tab', 'start-tab')} />}
     {!active(session) && readiness && readiness.live === false && <LiveSetup readiness={readiness} onSettings={openAudio} initialLocal={initialLocal}
       onReady={() => setChecked((value) => value + 1)} />}
     {!active(session) && !(readiness && readiness.live === false) && <form className="live-setup" onSubmit={(event) => {
-      event.preventDefault(); void begin(kind);
+      event.preventDefault(); void begin(kind, 'start');
     }}>
       <div className="live-fields"><label>{ui('课堂名称')}<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder={ui('例如：数据库 · 分区与索引')} /></label>
         <label>{ui('声音来源')}<Select value={kind} onChange={setKind}
@@ -255,7 +258,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
       <ProviderChoice readiness={readiness} value={engine} onChange={setProvider} disabled={disabled} />
       <div className="live-setup-foot">
         {engine !== 'local' && <Checkbox checked={paidOnly} onChange={setPaidOnly} label={ui('只用付费密钥')} />}
-        <Button variant="primary" disabled={disabled} busy={busy} busyLabel={ui('正在连接…')} type="submit">{ui('开始实录')}</Button></div>
+        <Button variant="primary" busy={busy || activeOp === 'start'} lock={disabled} busyLabel={ui('正在连接…')} type="submit">{ui('开始实录')}</Button></div>
       <small className="muted">{engineNote(engine)}</small>
     </form>}
     {!session && busy && <LiveAudioMonitor health={client.health} visible={visible} recording={capturing} />}
@@ -268,10 +271,10 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
           <span className="muted live-meta">{formatClock(session.elapsedMs)} · {uiFormat('{0} 句', [total])}
             {session.tier && active(session) ? ` · ${{ free: ui('免费额度'), local: ui('本地转写（声音不上传）') }[session.tier] || ui('付费密钥')}` : ''}</span>
         </div>
-        <div className="live-actions">{capturing && <Button disabled={disabled} onClick={() => void perform(() => client.pause())}>{session.status === 'paused' ? ui('继续') : ui('暂停')}</Button>}
-          {active(session) && <Button disabled={disabled} onClick={() => void perform(async () => { await client.stop(); await refresh(); })}>{ui('结束实录')}</Button>}
-          {!active(session) && !session.archivedAt && <ResumeControl session={session} readiness={readiness} disabled={disabled}
-            onResume={(onEngine) => void perform(async () => { await client.start(kind, { resumeId: session.id, paidOnly: onEngine !== 'local' && paidOnly, ...(onEngine ? { provider: onEngine } : {}) }); })} />}</div></div>
+        <div className="live-actions">{capturing && <Button busy={activeOp === 'pause'} lock={disabled} onClick={() => void perform('pause', () => client.pause())}>{session.status === 'paused' ? ui('继续') : ui('暂停')}</Button>}
+          {active(session) && <Button busy={activeOp === 'stop'} lock={disabled} onClick={() => void perform('stop', async () => { await client.stop(); await refresh(); })}>{ui('结束实录')}</Button>}
+          {!active(session) && !session.archivedAt && <ResumeControl session={session} readiness={readiness} busy={activeOp === 'resume'} lock={disabled}
+            onResume={(onEngine) => void perform('resume', async () => { await client.start(kind, { resumeId: session.id, paidOnly: onEngine !== 'local' && paidOnly, ...(onEngine ? { provider: onEngine } : {}) }); })} />}</div></div>
       <LiveAudioMonitor compact health={client.health} visible={visible} recording={capturing} />
       {correction && <div className="live-correction-line">
         <span className={`live-correction-state${correction.running ? ' running' : ''}`}>{correction.running ? ui('正在按上下文润色…') : ui('上下文润色')}</span>
@@ -280,7 +283,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
           <span><i className="live-dot polished" aria-hidden="true" />{ui('已润色')}</span>
           <span><i className="live-dot checked" aria-hidden="true" />{ui('已检查未改')}</span></span>
         {!correction.running && correction.pending > 0 && (correction.error || !active(session)) &&
-          <Button disabled={disabled} onClick={() => void perform(async () => { client.accept(await call('live.correct', { id: session.id })); })}>{ui('重试待校正内容')}</Button>}
+          <Button busy={activeOp === 'correct'} lock={disabled} onClick={() => void perform('correct', async () => { client.accept(await call('live.correct', { id: session.id })); })}>{ui('重试待校正内容')}</Button>}
         <details className="live-correction-more"><summary>{ui('说明与用量')}</summary>
           <p className="muted">{ui('每 30 秒检查一次，按顺序分批：每批最多 8 句新内容，再带上前批最后 2 句作上下文（共约 10 句）；结束后补齐剩余内容。只有模型高置信度改动过的句子才会亮绿点，实心表示已润色，空心圈表示检查过、无需修改。')}</p>
           <p>{uiFormat('模型调用 {0} 次 · 本地结果复用 {1} 次', [correction.calls, correction.cacheHits])}</p>
@@ -296,7 +299,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
         <div className="live-feed-head">
           <span className="muted">{ui('原文在上，简体中文在下；勾选句子或划选文字即可出题。')}</span>
           <div className="live-actions">
-            {segments.some((segment) => segment.zhState === 'error') && <Button disabled={disabled} onClick={() => void perform(async () => { await call('live.retry', { id: session.id }); await client.poll(); })}>{ui('重试失败的翻译')}</Button>}
+            {segments.some((segment) => segment.zhState === 'error') && <Button busy={activeOp === 'retry-zh'} lock={disabled} onClick={() => void perform('retry-zh', async () => { await call('live.retry', { id: session.id }); await client.poll(); })}>{ui('重试失败的翻译')}</Button>}
             <Button variant="link" size="sm" className="live-follow" onClick={() => setFollow(!follow)} aria-pressed={follow}>{follow ? ui('正在跟随最新') : ui('回到最新')}</Button></div>
         </div>
         <div className="live-feed" ref={feed} tabIndex={0} onMouseUp={selectText} onKeyUp={selectText} onScroll={() => {
@@ -309,7 +312,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
         </div>
         <div className="live-selection">
           <div className="live-selection-info"><strong>{uiFormat('已选 {0} 句', [chosen.length])}</strong>
-            <span className="muted">{chosen.length ? (selectedChars >= MIN_CHARS ? uiFormat('约 {0} 个原文字符', [selectedChars])
+            <span className="muted" data-blocking={chosen.length > 0 && selectedChars < MIN_CHARS ? 'true' : undefined}>{chosen.length ? (selectedChars >= MIN_CHARS ? uiFormat('约 {0} 个原文字符', [selectedChars])
               : uiFormat('再多选约 {0} 个字符才能出题', [MIN_CHARS - selectedChars]))
               : ui('至少选约 120 个原文字符')}</span></div>
           <div className="live-actions"><Button disabled={!segments.length} onClick={() => setSelected(new Set(segments.slice(-8).map((segment) => segment.id)))}>{ui('最近 8 句')}</Button>
@@ -319,8 +322,8 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
               <IconButton icon="minus" size="sm" label={ui('减少题数')} disabled={count <= 1} onClick={() => setCount(Math.max(1, count - 1))} />
               <output aria-live="polite">{count}</output>
               <IconButton icon="plus" size="sm" label={ui('增加题数')} disabled={count >= 15} onClick={() => setCount(Math.min(15, count + 1))} /></div>
-            <Button variant="primary" disabled={!canGenerate} title={selectedChars < MIN_CHARS ? uiFormat('至少约 {0} 个原文字符，目前 {1}', [MIN_CHARS, selectedChars]) : undefined}
-              onClick={() => void perform(async () => {
+            <Button variant="primary" busy={activeOp === 'generate'} lock={disabled} disabled={!canGenerate} title={selectedChars < MIN_CHARS ? uiFormat('至少约 {0} 个原文字符，目前 {1}', [MIN_CHARS, selectedChars]) : undefined}
+              onClick={() => void perform('generate', async () => {
                 const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count, language: GENERATION_LANGUAGE[language] });
                 toast.success(ui('已加入出题任务；课堂实录会继续。完成后在收件箱打开草稿。'));
                 setSelected(new Set()); await client.poll(); onJobs?.(result);
@@ -330,17 +333,17 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
         setFollow(false);
         const node = feed.current?.querySelector(`[data-segment-id="${id}"]`);
         node?.scrollIntoView({ block: 'center' }); node?.focus({ preventScroll: true });
-      }} onRetry={() => void perform(async () => { client.accept(await call('live.correct.background', { id: session.id })); })} />}
+      }} onRetry={() => void perform('notes-retry', async () => { client.accept(await call('live.correct.background', { id: session.id })); })} />}
       <footer className="live-footer"><p className="muted">{ui('付费转写估算')} ${session.usage?.estimatedPaidUsd || 0} · {ui('不含翻译费用')}</p>
-        {!active(session) && segments.length > 0 && <div className="live-actions"><Button disabled={disabled || session.translating > 0 || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} lock={session.correction?.running} onClick={() => void perform(async () => {
+        {!active(session) && segments.length > 0 && <div className="live-actions"><Button busy={activeOp === 'save'} lock={disabled || session.correction?.running} disabled={session.translating > 0 || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform('save', async () => {
           await call('live.save', { id: session.id }); toast.success(ui('已保存中英对照资料与课堂笔记（如有）。')); onJobs?.();
-        })}>{ui('保存为资料')}</Button><Button disabled={disabled || session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} lock={session.correction?.running} onClick={() => void perform(async () => {
+        })}>{ui('保存为资料')}</Button><Button busy={activeOp === 'save-proofread'} lock={disabled || session.correction?.running} disabled={session.correction?.background?.pending > 0 || (session.correction?.enabled && session.correction.pending > 0)} onClick={() => void perform('save-proofread', async () => {
           await call('live.save', { id: session.id, proofread: true, paidOnly }); toast.success(ui('已加入校对任务，完成后会保存为资料。')); onJobs?.();
         })}>{ui('校对后保存')}</Button><Button variant="link" size="sm" onClick={onSources}>{ui('打开资料')}</Button></div>}</footer>
     </>}
     <LiveHistory sessions={sessions.filter(item => !undoable.hidden(`live:${item.id}`))} disabled={disabled} capturing={capturing}
-      onOpen={id => void perform(async () => { setSelected(new Set()); await client.open(id); })}
-      onArchive={(id, archived) => void perform(async () => {
+      onOpen={id => void perform('history-open', async () => { setSelected(new Set()); await client.open(id); })}
+      onArchive={(id, archived) => void perform('history-archive', async () => {
         const result = await call('live.archive', { id, archived });
         if (client.getSnapshot().session?.id === id) client.accept(result);
         await refresh();

@@ -38,6 +38,12 @@
     .book-plan__title {
       font-weight: var(--fw-strong);
     }
+    .book-plan__caret {
+      transition: transform var(--dur-fast) var(--ease);
+    }
+    .book-plan__title[aria-expanded='true'] .book-plan__caret {
+      transform: rotate(90deg);
+    }
     .book-plan__countdown,
     .book-plan__coverage,
     .book-plan__note,
@@ -92,6 +98,11 @@
       align-items: baseline;
       gap: var(--space-1) var(--space-2);
       margin: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .book-plan__caret { transition: none; }
     }
   }
 }

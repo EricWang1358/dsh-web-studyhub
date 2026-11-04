@@ -1,7 +1,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :is(.study-app, .study-seat) {
+  :where(.study-app, .study-seat) {
     .guided-study-workbench {
       display: flex;
       flex-direction: column;
@@ -45,7 +45,7 @@
       background: var(--bg-sunken);
       border-bottom: 1px solid var(--line);
       color: var(--warn-text);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       line-height: var(--lh-snug);
     }
 
@@ -68,9 +68,7 @@
     }
 
     .guided-study-adaptive-card .guided-study-artifact-section {
-      flex: 1;
-      max-height: 140px;
-      overflow: hidden;
+      flex: 0 0 auto;
     }
 
     .guided-study-adaptive-card .guided-study-practice-section {
@@ -89,9 +87,16 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: var(--space-2);
       margin-bottom: var(--space-3);
       padding-bottom: var(--space-2);
       border-bottom: 1px solid var(--line-soft);
+    }
+
+    .teaching-artifact-header-meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
     }
 
     .teaching-artifact-title {
@@ -109,9 +114,15 @@
     }
 
     .teaching-artifact-content {
+      max-height: 24rem;
+      overflow-y: auto;
       font-size: var(--fs-sm);
       line-height: var(--lh-body);
       color: var(--text);
+    }
+
+    .teaching-artifact-content.is-collapsed {
+      max-height: 8rem;
     }
 
     .teaching-artifact-anchors {
@@ -129,10 +140,6 @@
     }
 
     .guided-study-card-view {
-      background: var(--bg-surface);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: var(--space-4);
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
@@ -173,7 +180,7 @@
     .question-prep-stage {
       margin: 0;
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
 
     .guided-study-card-explanation {
@@ -188,6 +195,7 @@
 
     .guided-study-card-actions {
       display: flex;
+      flex-wrap: wrap;
       gap: var(--space-2);
       margin-top: var(--space-2);
     }
@@ -204,7 +212,7 @@
       padding: var(--space-2) var(--space-4);
       background: var(--bg-surface);
       border-top: 1px solid var(--line);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
     }
 
@@ -232,6 +240,12 @@
       margin-bottom: var(--space-2);
     }
 
+    .question-prep-warning-icon {
+      display: inline-flex;
+      align-items: center;
+      color: var(--bad-ink);
+    }
+
     .question-prep-desc,
     .question-prep-reason {
       font-size: var(--fs-sm);
@@ -241,7 +255,7 @@
     }
 
     .question-prep-reason {
-      color: var(--bad);
+      color: var(--bad-ink);
     }
 
     .study-progress-panel {
@@ -260,9 +274,15 @@
 
     .progress-sub-line,
     .progress-time-line {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
       margin-bottom: var(--space-1);
+    }
+
+    .progress-time-text {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1-5);
     }
 
     .progress-toggle-row {
@@ -319,25 +339,23 @@
     .progress-cost-list {
       margin: var(--space-1) 0 0;
       padding-left: var(--space-4);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
       line-height: var(--lh-snug);
     }
 
     .progress-add-form {
       display: flex;
+      align-items: center;
       gap: var(--space-2);
       margin-top: var(--space-2);
     }
 
     .progress-add-input {
       flex: 1;
-      padding: var(--space-2);
+      min-width: 0;
+      padding: var(--space-1-5) var(--space-2-5);
       font-size: var(--fs-sm);
-      background: var(--bg-sunken);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      color: var(--text);
     }
   }
 }

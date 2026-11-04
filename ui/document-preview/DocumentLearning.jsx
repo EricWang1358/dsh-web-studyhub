@@ -74,7 +74,7 @@ export function ModeSwitch({ mode, onMode }) {
  * editable while a job runs (the same passage and deck is refused, another one is fine).
  */
 export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHandOff = null, pageCut = null, pageRefusal = null, pageTotal = 0, onPage, onRange, onContinue, resolution, resolving = false, error = '', question = '', thread = emptyThread(), notice = '', noticeWhy = '', mode = 'read', onMode, annotateReady = false, savedIds, keepBusy = false, keepError = '', onKeep, onDeleteThread, deckId = '', deckNote = '', count = 10, kind = 'quiz',
-  decks = [], askReady = false, generateReady = false, modelReady = false, starting = false, jobs = [], now = Date.now(), call, sectionRef,
+  decks = [], askReady = false, generateReady = false, modelReady = false, starting = false, primary = true, jobs = [], now = Date.now(), call, sectionRef,
   onQuestion, onAsk, onQuick, onAskInside, onRetryNode, onToggleNode, onDeck, onCount, onKind, onStart, saveReady = false, onSaved, isCurrent, ...jobHandlers }) {
   const resolved = resolution?.status === 'resolved';
   const asking = thread.nodes.some(node => node.parentId === null && node.status === 'asking');
@@ -137,14 +137,14 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
         {generateReady && deckId && typeof call === 'function' && <TokenEstimate enabled
           request={{ feature: 'selection', selection: resolution.selection, deckId, count: Number(count) || 1, kind, language: uiLanguageName() }} />}
         {blocking && <p className="muted" role="status">{ui('这段原文补到这个题组的任务正在进行，请等它完成，或先停止它。')}</p>}
-        <Button type="submit" variant="primary" busy={starting} busyLabel={ui('正在启动…')} disabled={!generateReady || !deckId || !!blocking}>{ui('生成、审核并补充题目')}</Button>
+        <Button type="submit" variant={primary ? 'primary' : 'secondary'} busy={starting} busyLabel={ui('正在启动…')} disabled={!generateReady || !deckId || !!blocking}>{ui('生成、审核并补充题目')}</Button>
       </form>
     </>}
   </section>;
 }
 
 /** One resolved selection feeds both grounded questions and reviewed, incremental publication (a background job). */
-export default function DocumentLearning({ call, document, capture, scope = null, jobsOnly = false, pageTotal = 0, onPage, onRange, pageImages, data, annotation, usedBy, onPublished, onOpenCard, onOpenDeck, onPractice, onStarted, isCurrent = () => true }) {
+export default function DocumentLearning({ call, document, capture, scope = null, jobsOnly = false, pageTotal = 0, onPage, onRange, pageImages, data, annotation, usedBy, primary = true, onPublished, onOpenCard, onOpenDeck, onPractice, onStarted, isCurrent = () => true }) {
   const toast = useToast();
   const [resolution, setResolution] = useState(null), [resolving, setResolving] = useState(false);
   const [question, setQuestion] = useState(''), [questionLabel, setQuestionLabel] = useState(''), [thread, setThread] = useState(emptyThread), [refused, setRefused] = useState(''), [refusedWhy, setRefusedWhy] = useState(''), [keepBusy, setKeepBusy] = useState(false), [keepError, setKeepError] = useState(''), [savedLocal, setSavedLocal] = useState(() => new Set()), [focusId, setFocusId] = useState('');
@@ -436,7 +436,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
     mode={mode} onMode={annotation?.onMode} annotateReady={annotateReady} savedIds={savedIds} keepBusy={keepBusy} keepError={keepError} onKeep={keep} onDeleteThread={deleteThread}
     onAskInside={onAskInside} onRetryNode={onRetryNode} onToggleNode={onToggleNode} onQuick={askFirst}
     deckId={deckId} deckNote={deckNote} count={count} kind={kind} decks={decks} askReady={askReady} generateReady={generateReady} modelReady={modelReady}
-    starting={starting} jobs={shown} now={now} call={call} sectionRef={sectionRef} canPractice={typeof onPractice === 'function'}
+    starting={starting} primary={primary} jobs={shown} now={now} call={call} sectionRef={sectionRef} canPractice={typeof onPractice === 'function'}
     saveReady={available('generation', 'selection.saveAnswer')} onSaved={onPublished} isCurrent={isCurrent}
     onQuestion={(text, label = '') => { setQuestion(text); setQuestionLabel(label); if (draftKey) drafts.current.set(draftKey, text); }} onAsk={ask} onDeck={setPickedDeck} onCount={setPickedCount} onKind={setPickedKind} onStart={start}
     onCancel={cancel} onRetry={retry} onDismiss={job => setDismissed(current => new Set(current).add(job.operationId))}

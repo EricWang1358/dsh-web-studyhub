@@ -21,7 +21,7 @@ function DeskMastery({ mastery }) {
       <span className="desk-mastery-value">{primary.value}<small>%</small></span>
       <span className="desk-mastery-label">{ui(TERMS.mastery.label)}</span>
       <MasteryBar node={primary.node} />
-      {others && whole && <span className="desk-mastery-all" title={uiFormat('全部课程合计 {0} 题', [whole.cards])}>{ui('所有课程')}{' '}<strong>{whole.value}%</strong></span>}
+      {others && whole && <span className="desk-mastery-all"><Tooltip layer content={uiFormat('全部课程合计 {0} 题', [whole.cards])}><span tabIndex={0}>{ui('所有课程')}{' '}<strong>{whole.value}%</strong></span></Tooltip></span>}
     </div>
   );
 }

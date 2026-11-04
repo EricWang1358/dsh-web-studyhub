@@ -1,12 +1,12 @@
 import { ui, uiFormat, errorMessage } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import css from "./views.css";
 import chartCss from "./charts/charts.css";
 import { useInjectCss } from "./shared.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
-import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
+import PageScope, { courseMatcher, decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { useCourseActive } from './CourseActive.jsx';
 import { ForecastPanel, MasteryPanel, TrendPanel } from "./charts/DashboardCharts.jsx";
 import { shortDeckTitles } from "./charts/chart-math.js";
@@ -14,6 +14,8 @@ import { ModelUsage } from "./TokenUsage.jsx";
 import { Button, EmptyState, ErrorState, LoadingState, PageHeader, Tooltip } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 import { MEASURES, THIN_DATA, enoughAnswers } from "./mastery-terms.js";
+
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /* 学习统计仪表盘（v0.4 契约 §2）。所有统计来自 call("stats")；data prop 只
    用于展示当前到期概览（data.today）。热力图为 CSS grid；三张图（每日平均分、
@@ -62,7 +64,20 @@ function RateTile({ measure, rate, answers, minimum, markClass }) {
   );
 }
 
-export function StatsView({ stats, course, data, localDecks = [], onStartScope, onLibrary, onCreate, onSources, onManageCourses }) {
+export function StatsView({ stats, course = "*", data, localDecks, onStartScope, onLibrary, onCreate, onSources, onManageCourses }) {
+  const decks = localDecks ?? decksInCourse(data, course);
+  const scopedAttempts = useMemo(() => {
+    const attempts = data?.attempts;
+    if (!Array.isArray(attempts) || !attempts.length) return attempts;
+    const matchCourse = courseMatcher(course);
+    const deckIds = new Set((decks || []).map((deck) => deck.id));
+    const knownDecks = new Map((data?.decks || []).map((deck) => [deck.id, deck]));
+    return attempts.filter((attempt) => {
+      if (attempt?.deckId && knownDecks.has(attempt.deckId)) return deckIds.has(attempt.deckId);
+      if (typeof attempt?.course === "string") return matchCourse(attempt.course);
+      return course === "*";
+    });
+  }, [data?.attempts, data?.decks, decks, course]);
   const totals = stats?.totals || {},
     heat = stats?.heatmap || [],
     trend = stats?.trend || [],
@@ -76,15 +91,17 @@ export function StatsView({ stats, course, data, localDecks = [], onStartScope, 
       heat.length - minDays)),
     shownHeat = heat.slice(heatStart);
   const broken = !(totals.streak > 0) && totals.activeDays > 0;
+  const heatRef = useRef(null);
+  useIsomorphicLayoutEffect(() => {
+    if (heatRef.current) heatRef.current.scrollLeft = heatRef.current.scrollWidth;
+  }, [shownHeat.length]);
 
   return (
     <>
       {!totals.attempts && <EmptyState icon="list" title={ui("还没有作答记录")} description={ui("开始学习后，这里会显示作答热力、分数趋势和薄弱主题。")}>
-        <EmptyStudyActions data={{ ...data, decks: localDecks }} onStart={() => onStartScope((localDecks || []).map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
+        <EmptyStudyActions data={{ ...data, decks }} onStart={() => onStartScope((decks || []).map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
           onCreate={onCreate} onSources={onSources} />
       </EmptyState>}
-      {/* Rubric skills over time (WP12), weakest first. */}
-      <RubricSkills attempts={data?.attempts} />
       <div className="dash-hero" data-tour="dashboard-summary">
         {/* The focal numeral is the streak; once the streak is broken it is the learner's active days instead of a giant 0, and the broken streak
             becomes one quiet line (#573). With no active day at all there is nothing positive to show, so the streak stays. */}
@@ -100,18 +117,21 @@ export function StatsView({ stats, course, data, localDecks = [], onStartScope, 
         </div>
         <div className="dash-heat-wrap">
           <div
+            ref={heatRef}
             className="dash-heat"
             role="img"
             aria-label={uiFormat("近 {0} 周的每日作答次数热力图", [Math.round(shownHeat.length / 7)])}
           >
             {shownHeat.map((d) => (
-              <span
+              <Tooltip
                 key={d.date}
-                className={"dash-heat-cell l" + heatLevel(d.count, maxCount)}
-                title={
-                  d.count ? uiFormat("{0} · 作答 {1} 次", [d.date, d.count]) : uiFormat("{0} · 无作答", [d.date])
-                }
-              />
+                layer
+                group="dash-heat"
+                anchorClassName={"dash-heat-cell l" + heatLevel(d.count, maxCount)}
+                content={d.count ? uiFormat("{0} · 作答 {1} 次", [d.date, d.count]) : uiFormat("{0} · 无作答", [d.date])}
+              >
+                <span tabIndex={0} />
+              </Tooltip>
             ))}
           </div>
           <div className="dash-heat-legend" aria-hidden="true">
@@ -122,6 +142,9 @@ export function StatsView({ stats, course, data, localDecks = [], onStartScope, 
           </div>
         </div>
       </div>
+
+      {/* Rubric skills over time (WP12), weakest first, scoped to the active course. */}
+      <RubricSkills attempts={scopedAttempts} />
 
       <div className="dash-split">
         <section className="dash-section">

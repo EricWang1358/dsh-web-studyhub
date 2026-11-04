@@ -1,7 +1,7 @@
 import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
-import { Banner, Button, Disclosure, Hint, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
+import { Banner, Button, Disclosure, Hint, InlineMessage, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
 import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS, JOB_TYPES } from "../lib/job-status.js";
@@ -61,6 +61,7 @@ export default function Draft({
   const toast = useToast();
   // 删除草稿 asks once, in the shared dialog (ui/DeleteDraftDialog.jsx; the 待发布 row opens the same one): the draft's unpublished questions cost tokens.
   const [deletingId, setDeletingId] = React.useState(null);
+  const detailsRef = React.useRef(null);
   // A draft made as the next part of a published deck (lib/deck-parts.js): where it goes is chosen here, when it is published; nothing touches the deck before.
   const targets = partTargets(draft, data), [partTarget, setPartTarget] = React.useState(undefined);
   const intoDeck = !targets ? null : partTarget === NEW_DECK ? NEW_DECK : targets.candidates.some((item) => item.id === partTarget) ? partTarget : defaultPartTarget(targets);
@@ -94,6 +95,7 @@ export default function Draft({
   const rejectedIssues = draft.editorial?.rejectedIssues || {};
   const rejectedCards = draft.cards.filter((card) => rejectedIssues[card.id]);
   const rejectedCount = rejectedCards.length;
+  const qualityErrorCount = draft.quality?.errors?.length || 0;
   const missingRepairEvidence = rejectedCards.filter((card) =>
     !repairSourcesForCard(card, draft, data.sources).length).length;
   const repairableCount = rejectedCount - missingRepairEvidence;
@@ -248,7 +250,25 @@ export default function Draft({
           <OmittedQuestions draft={draft} />
         </Banner>}
       </div>
-      <details className="draft-generation-details">
+      {!updatingDraft && (rejectedCount > 0 || qualityErrorCount > 0) && (
+        <InlineMessage tone="warning" boxed className="draft-blocker-summary"
+          action={{ label: ui("查看详情"), onClick: () => {
+            if (detailsRef.current) {
+              detailsRef.current.open = true;
+              detailsRef.current.scrollIntoView?.({ block: "nearest" });
+            }
+          } }}>
+          {[
+            rejectedCount > 0
+              ? (retryPublishCount > 0
+                ? uiFormat("{0} 道题待处理 · {1} 道待重新检查发布", [rejectedCount, retryPublishCount])
+                : uiFormat("{0} 道题待处理", [rejectedCount]))
+              : "",
+            qualityErrorCount > 0 ? uiFormat("{0} 项题目问题", [qualityErrorCount]) : "",
+          ].filter(Boolean).join(" · ")}
+        </InlineMessage>
+      )}
+      <details ref={detailsRef} className="draft-generation-details">
         <summary>{draft.editorial?.failures?.length ? uiFormat("生成详情 · {0} 条生成记录", [draft.editorial.failures.length]) : ui("生成详情")}</summary>
       {draft.editorial && (
         <>
@@ -545,6 +565,7 @@ export default function Draft({
                       />
                     </label>
                     <Button
+                      className="draft-citation-preview"
                       onClick={() =>
                         setModal({
                           type: "source",
@@ -555,10 +576,12 @@ export default function Draft({
                         })
                       }
                     >
-                      ↗{" "}
-                      {data.sources.find((s) => s.id === c.sourceId)
-                        ?.title || ui("原文")}
-                      <blockquote>{c.quote}</blockquote>
+                      <span>
+                        ↗{" "}
+                        {data.sources.find((s) => s.id === c.sourceId)
+                          ?.title || ui("原文")}
+                      </span>
+                      {c.quote && <span className="draft-citation-quote">{c.quote}</span>}
                     </Button>
                     <Button variant="danger"
                       onClick={() => patchCard(i, "citations", q.citations.filter((_, index) => index !== j))}>{ui("删除这条引用")}</Button>

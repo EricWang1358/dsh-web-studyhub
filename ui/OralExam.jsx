@@ -3,6 +3,7 @@ import React from "react";
 import Markdown from "./Markdown.jsx";
 import css from "./oral-exam.css";
 import resultCss from "./review-results.css";
+import examCss from "./exam.css";
 import { useInjectCss } from "./shared.js";
 import { decksInCourse } from './PageScope.jsx';
 import { draftKey, readDraft, writeDraft, clearDraft } from './writing-drafts.js';
@@ -22,6 +23,7 @@ const FIELDS = ['answer', 'followupAnswer'];
 export default function OralExam({ data, onExit, onStartRun, initialRunId, onLocation, header, recent, onSetupModel, course = '*', selection = { course } }) {
   useInjectCss(css, "study-oral-exam");
   useInjectCss(resultCss, "review-results");
+  useInjectCss(examCss, "study-exam");
   const { call } = useStudy();
   const exam = useExamRun({ kind: 'oral', call, initialRunId, onLocation });
   const { run, report, busy, error, loading } = exam;
@@ -123,7 +125,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
     </>}
     {run?.entry && !report && <>
       <div className="oral-progress"><span>{uiFormat("第 {0} / {1} 题", [run.index + 1, run.total])}</span><span>{uiFormat("本轮已回答 {0} 题", [run.answered])}</span></div>
-      <Panel className="oral-question">
+      <Panel className="oral-question" tone="paper" data-exam-paper="">
         <Badge tone="info">{run.entry.topic}</Badge>
         <div className="oral-prompt"><Markdown text={run.entry.prompt} links={false} /></div>
         {run.entry.options?.length > 0 && <details><summary>{ui("查看题目选项")}</summary><ul>
@@ -148,7 +150,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
       </div>
       <p className="muted small">{ui("模拟过程中不会显示对错；回答在本地学习库保存。")}</p>
     </>}
-    {report && <Panel className="oral-report">
+    {report && <Panel className="oral-report" tone="paper" data-exam-paper="">
       <div className="result-kicker">{ui("口头模拟报告")}</div>
       <h2>{report.feedbackStatus === "assessed" ? uiFormat("{0} 题回答扎实", [report.strong]) : ui("回答已保存，尚未评估")}</h2>
       <p className="muted">{uiFormat("{0}/{1} 题已回答 · {2} 题已评估", [report.answered, report.total, report.assessed])}</p>

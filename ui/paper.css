@@ -26,6 +26,7 @@
       --bg-raised: var(--paper);
       --bg-selected: color-mix(in srgb, var(--accent) 8%, transparent);
       --accent-soft: color-mix(in srgb, var(--accent) 89%, black);
+      --accent-text: color-mix(in srgb, var(--accent) 85%, black);
       --accent-glow: color-mix(in srgb, var(--accent) 20%, transparent);
       --ok: #2c7a53;
       --warn: #93600f;

@@ -17,7 +17,7 @@ export default function ResultBreakdown({ total, answered, correct, correctLabel
     { key: "remaining", label: ui("未答"), count: remaining },
   ];
   return (
-    <div className="result-breakdown" aria-label={uiFormat("{0} 题：{1} {2}，需要巩固 {3}，未答 {4}", [total, correctLabel, correct, practice, remaining])}>
+    <div className="result-breakdown" role="group" aria-label={uiFormat("{0} 题：{1} {2}，需要巩固 {3}，未答 {4}", [total, correctLabel, correct, practice, remaining])}>
       <StackedBar size="lg" name={uiFormat("{0} {1} 题，需要巩固 {2} 题，未答 {3} 题", [correctLabel, correct, practice, remaining])}
         segments={segments.map((segment) => ({ value: segment.count, tone: SEGMENT_TONE[segment.key] }))} />
       <div className="result-breakdown-legend">

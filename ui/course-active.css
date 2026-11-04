@@ -23,7 +23,7 @@
     .course-active.is-parked .course-active__state { color: var(--text-dim); }
     .course-active__confirm { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
     .course-parked { flex-wrap: wrap; vertical-align: middle; }
-    .course-parked__error { color: var(--bad); }
+    .course-parked__error { color: var(--bad-ink); }
     /* Page scope (ui/PageScope.jsx): one line on every page (issue 571). The small muted label sits beside one fixed-width select (it never grows
        with the page or the chosen course; the select itself names a chosen sub-course's whole path), then the follow mark and the one action
        a state offers. A narrow container lets the select give up width first, then wraps the action and the notes to a second line. */

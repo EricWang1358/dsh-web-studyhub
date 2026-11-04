@@ -19,6 +19,7 @@
       .question-card .question,
       .question-card .options,
       .question-card .cloze,
+      :is(.page, .review-page),
       :is(.page, .review-page) > *,
       .nav-mark {
         animation: none !important;
@@ -31,23 +32,25 @@
   /* 动画 (设置 › 界面): the learner's motion choice is stamped on the app root (data-motion = full | reduced | off; "auto" resolves to one of them from the
      system's reduce-motion setting). 'reduced' keeps short fades and drops movement; 'off' stops transitions and animations, except the ones that tell the
      learner something is busy (spinners and progress shimmer). */
-  .study-app[data-motion='reduced'] *:not([class*='spin'], [class*='busy'], [class*='shimmer']),
-  .study-app[data-motion='reduced'] *::before,
-  .study-app[data-motion='reduced'] *::after {
-    animation-duration: 0.12s !important;
-    animation-delay: 0ms !important;
-    transition-duration: 0.12s !important;
-    transition-delay: 0ms !important;
-    scroll-behavior: auto !important;
-  }
-  .study-app[data-motion='off'] *:not([class*='spin'], [class*='busy'], [class*='shimmer']),
-  .study-app[data-motion='off'] *::before,
-  .study-app[data-motion='off'] *::after {
-    animation-duration: 0.01ms !important;
-    animation-delay: 0ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    transition-delay: 0ms !important;
-    scroll-behavior: auto !important;
+  :is(.study-app, .study-seat) {
+    &:is([data-motion='reduced'], :has(> .study-app[data-motion='reduced'])) *:not([class*='spin'], [class*='busy'], [class*='shimmer']),
+    &:is([data-motion='reduced'], :has(> .study-app[data-motion='reduced'])) *::before,
+    &:is([data-motion='reduced'], :has(> .study-app[data-motion='reduced'])) *::after {
+      animation-duration: 0.12s !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.12s !important;
+      transition-delay: 0ms !important;
+      scroll-behavior: auto !important;
+    }
+    &:is([data-motion='off'], :has(> .study-app[data-motion='off'])) *:not([class*='spin'], [class*='busy'], [class*='shimmer']),
+    &:is([data-motion='off'], :has(> .study-app[data-motion='off'])) *::before,
+    &:is([data-motion='off'], :has(> .study-app[data-motion='off'])) *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      transition-delay: 0ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

@@ -57,7 +57,7 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, acti
         {p && <MasteryBar node={p} />}
         <button className={`map-play${run ? ' is-run' : ''}`} disabled={busy || d.archived || !d.available}
           title={run ? uiFormat('继续 {0}/{1}', [run.index + 1, run.total]) : uiFormat('学习全部 {0} 题', [d.available])}
-          aria-label={uiFormat('开始学习 {0}', [d.title])}
+          aria-label={run ? `${ui('继续')} ${d.title}` : uiFormat('开始学习 {0}', [d.title])}
           onClick={() => (run ? resume(run.id) : start({ mode: 'path', scope: [{ deckId: d.id }] }))}>
           {run ? ui('继续') : <Icon name="play" size={14} />}
         </button>
@@ -71,13 +71,14 @@ export default function DeckRow({ deck: d, progress: p, open, tree, runFor, acti
               <li key={t.name} className={`map-row topic-row${whole || tree.selected.has(k) ? ' map-row--selected' : ''}`}>
                 <CheckboxInput aria-label={uiFormat('选择主题 {0}', [t.name])} checked={whole || tree.selected.has(k)}
                   disabled={whole || d.archived} onChange={(event) => tree.toggleSelect([k], event.target.checked)} />
-                <span className={`map-dot lv-${level}`} title={LEVEL_LABEL[level]} />
+                <span className={`map-dot lv-${level}`} />
                 <span className="map-name">
                   <span>{t.name}</span>
                   <small>{uiFormat('{0} 题', [t.total])}{' · '}{t.due ? uiFormat('{0} 题到期', [t.due]) : LEVEL_LABEL[level]}</small>
                 </span>
                 <MasteryBar node={t} />
-                <button className={`map-play${topicRun ? ' is-run' : ''}`} disabled={busy || d.archived} aria-label={uiFormat('学习主题 {0}', [t.name])}
+                <button className={`map-play${topicRun ? ' is-run' : ''}`} disabled={busy || d.archived}
+                  aria-label={topicRun ? `${ui('继续')} ${t.name}` : uiFormat('学习主题 {0}', [t.name])}
                   title={topicRun ? uiFormat('继续 {0}/{1}', [topicRun.index + 1, topicRun.total]) : ui('学习这个主题')}
                   onClick={() => (topicRun ? resume(topicRun.id) : start({ mode: 'path', scope: [{ deckId: d.id, topic: t.name }] }))}>
                   {topicRun ? ui('继续') : <Icon name="play" size={14} />}

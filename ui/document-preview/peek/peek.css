@@ -5,7 +5,7 @@
     /* 看原页: the floating original-page panel and the buttons that open it. Tokens only. The panel sits in the reader (a fixed box inside the
        viewer), can be dragged by its title and resized by its two corner grips. */
     .reader-peek {
-      display: inline-flex; align-items: center; margin-left: var(--space-2); padding: 1px var(--space-2);
+      display: inline-flex; align-items: center; margin-left: var(--space-2); padding: var(--hairline) var(--space-2);
       border: 1px solid var(--line); border-radius: var(--radius-pill); background: transparent;
       color: var(--text-muted); font: inherit; font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; user-select: none;
     }
@@ -38,23 +38,35 @@
     /* Fitted to the width there is nothing to scroll sideways: a horizontal bar there is only a few pixels of rounding. */
     .page-peek__scroll[data-fit='true'] { overflow-x: hidden; }
     /* The resize handles: real, visible grips outside the scroll area (a native resize corner sat on the scrollbars and, with the panel docked bottom-right, moved the wrong way). */
-    .page-peek__foot { display: flex; flex: none; justify-content: flex-end; height: 14px; border-top: 1px solid var(--line); background: var(--bg-raised); }
-    .page-peek__grip { position: relative; flex: none; width: 18px; height: 14px; padding: 0; border: 0; background: transparent; color: var(--text-dim); touch-action: none; }
-    .page-peek__grip::before { content: ''; position: absolute; inset: 3px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; border-radius: 0 0 var(--radius-xs) 0; }
-    .page-peek__grip--se { cursor: nwse-resize; }
-    .page-peek__grip--nw { position: absolute; top: 0; left: 0; z-index: 1; width: 16px; height: 16px; cursor: nwse-resize; }
-    .page-peek__grip--nw::before { inset: 3px; border-right: 0; border-bottom: 0; border-left: 2px solid currentColor; border-top: 2px solid currentColor; border-radius: var(--radius-xs) 0 0 0; }
+    .page-peek__foot { position: relative; display: flex; flex: none; justify-content: flex-end; height: 14px; border-top: 1px solid var(--line); background: var(--bg-raised); }
+    .page-peek__grip { position: relative; flex: none; width: var(--space-7); height: var(--space-7); padding: 0; border: 0; background: transparent; color: var(--text-dim); touch-action: none; }
+    .page-peek__grip::before { content: ''; position: absolute; right: 3px; bottom: 3px; width: 10px; height: 10px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; border-radius: 0 0 var(--radius-xs) 0; }
+    .page-peek__grip--se { position: absolute; right: 0; bottom: 0; z-index: 1; cursor: nwse-resize; }
+    .page-peek__grip--nw { position: absolute; top: 0; left: 0; z-index: 1; cursor: nwse-resize; }
+    .page-peek__grip--nw::before { top: 3px; left: 3px; right: auto; bottom: auto; border-right: 0; border-bottom: 0; border-left: 2px solid currentColor; border-top: 2px solid currentColor; border-radius: var(--radius-xs) 0 0 0; }
     .page-peek__grip:hover, .page-peek__grip:focus-visible { color: var(--text); }
     .page-peek__grip:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
     .page-peek__canvas { display: block; margin: 0 auto; max-width: none; background: var(--pdf-page); box-shadow: 0 0 0 1px var(--line); }
     .page-peek__state { display: flex; align-items: center; gap: var(--space-2); margin: 0; padding: var(--space-4); color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-snug); }
     .page-peek__state--note { flex-direction: column; align-items: flex-start; }
     .page-peek__state p { margin: 0; overflow-wrap: anywhere; }
-    .page-peek__busy { position: absolute; top: var(--space-2); left: var(--space-3); margin: 0; padding: 1px var(--space-2); border-radius: var(--radius-pill); background: var(--bg-raised); color: var(--text-muted); font-size: var(--fs-xs); box-shadow: 0 0 0 1px var(--line); }
+    .page-peek__busy { position: absolute; top: var(--space-2); left: var(--space-3); margin: 0; padding: var(--hairline) var(--space-2); border-radius: var(--radius-pill); background: var(--bg-raised); color: var(--text-muted); font-size: var(--fs-xs); box-shadow: 0 0 0 1px var(--line); }
     /* A scanned page whose images did not decode: said in words with a way out, never a silently blank page. */
     .page-peek__alert { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); background: var(--bg-raised); color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .page-peek__alert p { flex: 1 1 14em; margin: 0; overflow-wrap: anywhere; }
     .page-peek__note { flex: none; margin: 0; padding: var(--space-2) var(--space-3); border-top: 1px solid var(--line); color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+  }
+  @container reader (max-width: 640px) {
+    :is(.study-app, .study-seat) {
+      .page-peek { right: var(--space-2); bottom: var(--space-2); width: calc(100% - var(--space-4)); height: min(70%, 640px); }
+      .page-peek__head { flex-wrap: wrap; }
+    }
+  }
+  @container study (max-width: 640px) {
+    :is(.study-app, .study-seat) {
+      .page-peek { right: var(--space-2); bottom: var(--space-2); width: calc(100% - var(--space-4)); height: min(70%, 640px); }
+      .page-peek__head { flex-wrap: wrap; }
+    }
   }
   @media (max-width: 640px) {
     :is(.study-app, .study-seat) {

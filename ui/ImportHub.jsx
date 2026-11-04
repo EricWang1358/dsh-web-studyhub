@@ -1,7 +1,7 @@
 import React, { cloneElement, isValidElement, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Disclosure, FileDrop, Icon, InlineMessage, SegmentedControl } from './components/index.js';
+import { Button, Disclosure, Field, FileDrop, Icon, InlineMessage, SegmentedControl, TextArea, TextInput } from './components/index.js';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import { coursesForFile } from './import-course.js';
 import { sourceFormatLabel } from './SourcePicker.jsx';
@@ -338,11 +338,15 @@ function PasteForm({ courses, disabled, draft, onDraft, onSaved }) {
   }
   return (
     <form className="import-hub__paste" onSubmit={submit}>
-      <label>{ui('资料名称')}<input required value={draft.title} disabled={disabled || saving} placeholder={ui('例如：设计模式 · 第 4 章')}
-        onChange={event => onDraft({ ...draft, title: event.target.value })} /></label>
-      <label>{ui('原文')}<textarea required rows={10} maxLength={SELECTION_CHARS} value={draft.text} disabled={disabled || saving}
-        aria-describedby={error ? errorId : undefined} placeholder={ui('粘贴讲义、笔记或材料。生成内容将引用这里的原文。')}
-        onChange={event => onDraft({ ...draft, text: event.target.value })} /></label>
+      <Field label={ui('资料名称')} width="full" required>
+        <TextInput value={draft.title} disabled={disabled || saving} placeholder={ui('例如：设计模式 · 第 4 章')}
+          onChange={event => onDraft({ ...draft, title: event.target.value })} />
+      </Field>
+      <Field label={ui('原文')} width="full" required>
+        <TextArea rows={10} maxLength={SELECTION_CHARS} value={draft.text} disabled={disabled || saving}
+          aria-describedby={error ? errorId : undefined} placeholder={ui('粘贴讲义、笔记或材料。生成内容将引用这里的原文。')}
+          onChange={event => onDraft({ ...draft, text: event.target.value })} />
+      </Field>
       {error && <InlineMessage id={errorId}>{error}</InlineMessage>}
       <div className="import-hub__paste-footer">
         <small>{uiFormat('{0} / {1} 字符', [formatNumber(draft.text.length), formatNumber(SELECTION_CHARS)])}</small>

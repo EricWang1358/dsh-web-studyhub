@@ -5,7 +5,7 @@ import CourseField from "./CourseField.jsx";
 import SourcePicker from "./SourcePicker.jsx";
 import ReferenceQuestions from './ReferenceQuestions.jsx';
 import { importedReferences, referenceSelection } from './reference-questions.js';
-import { Button, SegmentedControl, IconButton, Select, useToast } from "./components/index.js";
+import { Button, Hint, SegmentedControl, IconButton, Select, useToast } from "./components/index.js";
 import { usePageScope } from "./PageScope.jsx";
 import { caseEvidence, takeImported } from "./generate-form.js";
 import { openingStands } from "./generate-opening.js";
@@ -54,9 +54,11 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
     setForm(current => syncGenerationDefaults(before.course === course ? current : { ...current, totalMarks: defaults.totalMarks }, before, defaults));
   }, [course, defaults.totalMarks, defaults.language]); // eslint-disable-line react-hooks/exhaustive-deps
   const answered = pasted.questions.filter((question) => question.answer.trim()).length;
+  const scenarioShort = mode === "import" && countWords(pasted.scenario) < 40;
+  const styleShort = mode === "style" && form.styleText.trim().length < 80;
   const ready = mode === "import"
-    ? countWords(pasted.scenario) >= 40 && pasted.questions.every((question) => question.prompt.trim().length >= 5 && Number(question.marks) > 0)
-    : sourceIds.length > 0 && !referenceState.reason && (mode !== "style" || form.styleText.trim().length >= 80);
+    ? !scenarioShort && pasted.questions.every((question) => question.prompt.trim().length >= 5 && Number(question.marks) > 0)
+    : sourceIds.length > 0 && !referenceState.reason && !styleShort;
   function submit(event) {
     event.preventDefault();
     if (!model.ready || busy || !ready) return;
@@ -79,6 +81,7 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
     <form className="case-create" onSubmit={submit} data-tour="case-create">
       <SegmentedControl label={ui("案例来源")} value={mode} onChange={setMode} options={[
         { value: "new", label: ui("用资料出新案例") }, { value: "style", label: ui("仿照真题出题") }, { value: "import", label: ui("粘贴题目直接批改") }]} />
+      {!model.ready && <ModelSetupGate variant="block" feature="case" model={model} onOpenSettings={openSettings} />}
       <fieldset>
         <legend>{ui("01 / 课程与资料")}</legend>
         <CourseField courses={data.focus?.courses} value={course} onChange={setCourse} label={ui("所属课程")} />
@@ -115,11 +118,12 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
           <legend>{ui("02 / 案例与题目")}</legend>
           <label>{ui("案例标题（可选）")}<input value={pasted.title} maxLength={120} onChange={(event) => setPasted({ ...pasted, title: event.target.value })} /></label>
           <label>{ui("案例原文")}<textarea rows={10} value={pasted.scenario} maxLength={24000}
-            onChange={(event) => setPasted({ ...pasted, scenario: event.target.value })} placeholder={ui("粘贴完整的案例，段落之间空一行。")} /></label>
+            onChange={(event) => setPasted({ ...pasted, scenario: event.target.value })} placeholder={ui("粘贴完整的案例，段落之间空一行。")} />
+            {scenarioShort && <Hint>{uiFormat("至少需要 {0}", [uiFormat("{0} 字/词", [40])])}</Hint>}</label>
           <div className="case-create__questions">
             {pasted.questions.map((question, index) => (
               <div key={index} className="case-create__question">
-                <label>{uiFormat("第 {0} 题", [index + 1])}<textarea rows={2} value={question.prompt} onChange={(event) => setQuestion(index, { prompt: event.target.value })} /></label>
+                <label className="case-create__prompt">{uiFormat("第 {0} 题", [index + 1])}<textarea rows={2} value={question.prompt} onChange={(event) => setQuestion(index, { prompt: event.target.value })} /></label>
                 <label>{ui("分值")}<input type="number" min={0.5} max={100} step={0.5} value={question.marks} onChange={(event) => setQuestion(index, { marks: event.target.value })} /></label>
                 {pasted.questions.length > 1 ? <IconButton icon="close" label={ui("删除这道题")}
                   onClick={() => setPasted({ ...pasted, questions: pasted.questions.filter((_, at) => at !== index) })} /> : <span />}
@@ -135,7 +139,8 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
           <legend>{ui("02 / 试卷")}</legend>
           {mode === "style" && <label>{ui("往年真题（只作风格模板，不会照抄）")}
             <textarea rows={8} value={form.styleText} maxLength={60000} onChange={(event) => setForm({ ...form, styleText: event.target.value })}
-              placeholder={ui("粘贴一份往年案例题。AI 只学它的结构、篇幅和提问方式，案例的公司、人物和数字都会重新编写。")} /></label>}
+              placeholder={ui("粘贴一份往年案例题。AI 只学它的结构、篇幅和提问方式，案例的公司、人物和数字都会重新编写。")} />
+            {styleShort && <Hint>{uiFormat("至少需要 {0}", [uiFormat("{0} 字", [80])])}</Hint>}</label>}
           <div className="case-create__grid">
             <label>{ui("题数")}<input type="number" min={1} max={5} value={form.questions} onChange={(event) => setForm({ ...form, questions: event.target.value })} /></label>
             <label>{ui("总分")}<input type="number" min={4} max={100} value={form.totalMarks} onChange={(event) => setForm({ ...form, totalMarks: event.target.value })} /></label>
@@ -155,13 +160,9 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
             questions: pasted.questions.map((question) => ({ prompt: question.prompt.trim(), marks: Number(question.marks) })) }
           : { feature: "case", course, language: form.language, sourceIds, referenceSourceIds, referenceLimits, referenceFormat, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
             ...(passage ? { focus: passage } : {}), ...(mode === "style" ? { styleText: form.styleText } : {}) }} />
-        {model.ready ? (
-          <Button type="submit" variant="primary" icon="sparkle" busy={busy} disabled={!ready} data-tour="generate-submit" data-usage="generate.submit">
-            {mode === "import" ? answered ? ui("导入并批改 →") : ui("导入案例 →") : ui("出一套案例题 →")}
-          </Button>
-        ) : (
-          <ModelSetupGate variant="block" feature="case" model={model} onOpenSettings={openSettings} />
-        )}
+        <Button type="submit" variant="primary" icon="sparkle" busy={busy} disabled={!ready || !model.ready} data-tour="generate-submit" data-usage="generate.submit">
+          {mode === "import" ? answered ? ui("导入并批改 →") : ui("导入案例 →") : ui("出一套案例题 →")}
+        </Button>
       </div>
     </form>
   );

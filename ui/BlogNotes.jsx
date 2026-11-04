@@ -14,7 +14,7 @@ import DailyRecap from './DailyRecap.jsx';
 import { recapTimeZone } from './useDailyRecap.js';
 import DocumentViewer from './document-preview/DocumentViewer.jsx';
 import { existingNoteMaterial } from './DailyRecap-material.js';
-import { Button, CheckboxInput, InlineMessage, Menu, PageHeader, useToast } from './components/index.js';
+import { Button, CheckboxInput, ConfirmDialog, InlineMessage, Menu, PageHeader, TextInput, useToast } from './components/index.js';
 import { useStudy } from './study-context.jsx';
 import NoteDraft from './NoteDraft.jsx';
 import { modelReadiness } from './generation-status.js';
@@ -39,10 +39,11 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
   const [home, setHome] = useState(data.csdnHome || "");
   // Browser storage refused the recovery copy: say it once beside the editor, never as a toast per keystroke.
   const [storageWarning, setStorageWarning] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(null);
   const [lookup, setLookup] = useState(null), [link, setLink] = useState("");
   const [query, setQuery] = useState(""), [results, setResults] = useState([]);
   const [picked, setPicked] = useState([]), [newTitle, setNewTitle] = useState("");
-    const [editing, setEditing] = useState(false), [materialSaved, setMaterialSaved] = useState(false);
+  const [editing, setEditing] = useState(false), [materialSaved, setMaterialSaved] = useState(false);
   const [savedWriting, setSavedWriting] = useState('');
   // 删除这篇笔记 asks nothing (a note is not a source or a question): the note closes and leaves the list at once, the notice offers 撤销, and the host deletes it
   // (note.delete, which also stops a draft being written for it) when that notice leaves (ui/undoable.js).
@@ -72,7 +73,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
     const token = { root: data.root, id };
     identity.current = token;
     current.current = null;
-    setNote(null); setLookup(null); setSaving(false); setPublishing(false); setServerVersion(null); setEditing(false); setMaterialSaved(false); setSavedWriting(''); pending.current = false;
+    setNote(null); setLookup(null); setSaving(false); setPublishing(false); setServerVersion(null); setEditing(false); setMaterialSaved(false); setSavedWriting(''); setConfirmLeave(null); pending.current = false;
     if (id) call('note.get', { id }).then(next => { if (identity.current === token) restore(next); })
       .catch(error => { if (identity.current === token) toast.error(error); });
     return () => { if (identity.current === token) identity.current = null; };
@@ -90,6 +91,17 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
   }, [call, id, note?.generation?.status, note?.status, summary?.generation?.status, summary?.status, summary?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const daily = isDailyNote(note), writable = note?.status === 'draft' || daily;
   const dirty = writable && writingStamp(note) !== savedWriting;
+  const guardLeave = (nextAction) => {
+    if (dirty && storageWarning) setConfirmLeave(() => nextAction);
+    else nextAction();
+  };
+  function discardDraft() {
+    if (!note) return;
+    clearDraft(draftKey(data.root, 'note', note.id));
+    const token = identity.current;
+    call('note.get', { id: note.id }).then(next => { if (identity.current === token) restore(next); })
+      .catch(error => { if (identity.current === token) toast.error(error); });
+  }
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: recapTimeZone(data.settings?.dailyRecap), year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const within = courseMatcher(data, course);
   const notes = (data.notes || []).filter(item => !undoable.hidden(item.id)).filter(item => course === '*' || (course === '' ? !item.courses?.length : (item.courses || []).some(within)))
@@ -211,7 +223,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
   }
   return <section className="page blog-notes-page">
     <PageHeader className={`note-heading${note && !editing && note.markdown ? ' note-heading-reading' : ''}`}
-      back={note ? { label: ui('全部笔记'), onClick: () => { setId(''); setLookup(null); } } : undefined}
+      back={note ? { label: ui('全部笔记'), onClick: () => guardLeave(() => { setId(''); setLookup(null); }) } : undefined}
       title={note?.title || ui('学习笔记')} titleProps={{ tabIndex: -1, 'data-context-heading': true }}
       scope={!note ? <PageScope courses={data.focus?.courses} value={course} onChange={setCourse} /> : undefined}
       description={daily ? <span className="note-daily-meta">{note.daily?.day} · {note.daily?.course} · {uiFormat('已练习 {0} 题 · 需要回顾 {1} 题', [note.daily?.answeredCount, note.daily?.wrongCount])}</span> : undefined}
@@ -219,21 +231,24 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
         {!note && <ReadingSettingsButton />}
         {note && writable && <Button aria-pressed={editing} disabled={publishing || note.generation?.status === 'running'} lock={saving}
           onClick={() => editing ? returnToReading() : setEditing(true)}>{ui(editing ? dirty ? '保存并返回阅读' : '返回阅读' : '编辑内容')}</Button>}
-        {editing && writable && <Button variant="primary" disabled={!dirty || note.generation?.status === 'running'} lock={saving} onClick={save}>{ui(daily ? '保存合集' : '保存草稿')}</Button>}
-        <Button onClick={onBack}>{backLabel || ui('返回学习库')}</Button>
+        {(editing || dirty) && writable && <Button variant="primary" disabled={!dirty || note.generation?.status === 'running'} lock={saving} onClick={save}>{ui(daily ? '保存合集' : '保存草稿')}</Button>}
+        <Button onClick={() => guardLeave(() => onBack?.())}>{backLabel || ui('返回学习库')}</Button>
         {/* Behind the note's ⋯ (更多操作), never beside 返回: a slip on the way back must not delete. One choice there, then 撤销 in the notice. */}
         {note && <Menu className="note-more" label={ui('更多操作')} items={[{ id: 'delete', label: ui('删除这篇笔记'), danger: true, disabled: saving || publishing, attrs: { 'data-note-delete': '' } }]}
           onSelect={(id) => { if (id === 'delete') removeNote(); }} />}
       </>}>
       {dirty && <span className="note-unsaved">{ui('有未保存的修改')}</span>}
+      {!editing && dirty && !storageWarning && <InlineMessage tone="info" action={{ label: ui('丢弃暂存'), onClick: discardDraft }}>{ui('修改暂存于此设备')}</InlineMessage>}
       {editing && storageWarning && <InlineMessage tone="warning">{ui('浏览器暂存不可用，请及时保存草稿。')}</InlineMessage>}
     </PageHeader>
+    {confirmLeave && <ConfirmDialog title={ui('有未保存的修改')} description={ui('浏览器暂存不可用，请及时保存草稿。')} confirmLabel={ui('丢弃暂存')}
+      onClose={() => setConfirmLeave(null)} onConfirm={() => { const go = confirmLeave; setConfirmLeave(null); go?.(); }} />}
     {!note && <div className="note-list">
       <DailyRecap root={data.root} course={course} saved={data.settings?.dailyRecap} poll onOpenNote={setId} onSettings={onRecapSettings} onModelSettings={onModelSettings} />
       <details className="note-linking"><summary>{ui("挑题成文")}</summary>
-        <label>{ui("笔记标题")}<input value={newTitle} placeholder={ui("写一个可公开的知识点标题")}
+        <label>{ui("笔记标题")}<TextInput className="note-input" value={newTitle} placeholder={ui("写一个可公开的知识点标题")}
           onChange={(event) => setNewTitle(event.target.value)} /></label>
-        <div className="note-card-search"><input value={query} placeholder={ui("搜索题目或知识点")}
+        <div className="note-card-search"><TextInput className="note-input" aria-label={ui("搜索题目或知识点")} value={query} placeholder={ui("搜索题目或知识点")}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => { if (event.key === "Enter") addCard(); }} />
           <Button onClick={addCard}>{ui("搜索题目")}</Button></div>
@@ -248,16 +263,19 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
             setId(created.id); setPicked([]); setNewTitle(""); setResults([]);
           })}>{uiFormat("创建笔记草稿 · {0} 题", [picked.length])}</Button>
       </details>
-      {notes.length ? notes.map((item) => <button key={item.id} className={isDailyNote(item) ? 'note-daily-item' : ''} onClick={() => setId(item.id)}>
-        <span><strong>{item.title}</strong>{isDailyNote(item) && <small className="note-daily-date">{item.kind === 'daily-recap-history' ? ui('课程合并前的学习总结') : item.daily?.day === today ? ui('今日学习总结') : item.daily?.day}</small>}</span>
-        <small>{isDailyNote(item) ? uiFormat('已练习 {0} 题', [item.daily?.answeredCount ?? item.cardCount]) : <>{uiFormat("{0} 题", [item.cardCount])}{" · "}{item.status === "published" ? ui("已发布笔记") : ui("笔记草稿")}</>}</small>
-      </button>) : <p className="muted">{ui("做题时选择“写笔记”，或在这里搜索并挑选题目。")}</p>}
+      {notes.length ? notes.map((item) => {
+        const hasLocalDraft = !(item.status === 'published' && !isDailyNote(item)) && !!readDraft(draftKey(data.root, 'note', item.id));
+        return <button key={item.id} className={isDailyNote(item) ? 'note-daily-item' : ''} onClick={() => setId(item.id)}>
+          <span><strong>{item.title}</strong>{isDailyNote(item) && <small className="note-daily-date">{item.kind === 'daily-recap-history' ? ui('课程合并前的学习总结') : item.daily?.day === today ? ui('今日学习总结') : item.daily?.day}</small>}</span>
+          <small>{isDailyNote(item) ? uiFormat('已练习 {0} 题', [item.daily?.answeredCount ?? item.cardCount]) : <>{uiFormat("{0} 题", [item.cardCount])}{" · "}{item.status === "published" ? ui("已发布笔记") : ui("笔记草稿")}</>}{hasLocalDraft ? ` · ${ui('修改暂存于此设备')}` : ''}</small>
+        </button>;
+      }) : <p className="muted">{ui("做题时选择“写笔记”，或在这里搜索并挑选题目。")}</p>}
     </div>}
     {note && <>
       {daily && note.daily?.unassessedCount > 0 && <p className="muted">{uiFormat('其中 {0} 题尚待批改，合集先回顾作答内容，批改后可更新。', [note.daily.unassessedCount])}</p>}
-      {daily && note.generation?.status === 'running' && <p role="status">{ui('正在整理今天的讲解与总结，你可以继续学习。')}</p>}
-      {daily && ['cancelled', 'interrupted'].includes(note.generation?.status) && <p role="status">{ui('生成已停止，已完成的合集仍然保留。')}</p>}
-      {note.generation?.status === "failed" && <p role="alert">{ui("起草失败：")}{note.generation.message}</p>}
+      {daily && note.generation?.status === 'running' && <InlineMessage tone="info">{ui('正在整理今天的讲解与总结，你可以继续学习。')}</InlineMessage>}
+      {daily && ['cancelled', 'interrupted'].includes(note.generation?.status) && <InlineMessage tone="info">{ui('生成已停止，已完成的合集仍然保留。')}</InlineMessage>}
+      {note.generation?.status === "failed" && <InlineMessage tone="error">{ui("起草失败：")}{note.generation.message}</InlineMessage>}
       {serverVersion && <details className="note-linking"><summary>{ui('已保存版本有更新，展开核对；你的输入已保留')}</summary>
         <strong>{serverVersion.title}</strong><ReadingBlock as="article" prose className="note-preview" dangerouslySetInnerHTML={{ __html: renderNoteMarkdown(serverVersion.markdown || '') }} />
       </details>}
@@ -266,7 +284,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
       {!editing && note.markdown && <div className="note-reader"><DocumentViewer key={note.id} source={{ id: note.id, title: note.title, text: note.markdown, format: 'md' }}
         localContent={{ id: note.id, title: note.title, markdown: note.markdown }} data={data} call={call} /></div>}
       {editing && writable && <>
-        <label className="note-title">{ui("文章标题")}<input value={note.title} disabled={publishing || note.generation?.status === "running"}
+        <label className="note-title">{ui("文章标题")}<TextInput className="note-input" value={note.title} disabled={publishing || note.generation?.status === "running"}
           onChange={(event) => edit({ title: event.target.value })} /></label>
         <div className="note-editor note-editor-single"><div className="note-edit-pane"><strong>{ui("编辑 Markdown")}</strong>
           {science.localImages && <LocalImagePicker key={JSON.stringify([data.root, note.id])} disabled={publishing || note.generation?.status === 'running'}
@@ -300,13 +318,13 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
         })}>{ui("复制内容并打开 CSDN")}</Button>}
         {writable && <Button lock={saving} onClick={findPublished}>{ui("查找已发布文章")}</Button>}
       </div>
-        <div className="note-card-search"><input value={home} placeholder={ui("https://blog.csdn.net/用户名")}
+        <div className="note-card-search"><TextInput className="note-input" aria-label={ui("https://blog.csdn.net/用户名")} value={home} placeholder={ui("https://blog.csdn.net/用户名")}
           onChange={(event) => setHome(event.target.value)} />
           <Button onClick={() => act("note.home", { home }, () => toast.success(ui("公开主页已保存")))}>{ui("保存主页")}</Button></div>
-        {lookup?.reason && <p>{lookup.reason}</p>}
+        {lookup?.reason && <InlineMessage tone="info">{lookup.reason}</InlineMessage>}
         {lookup?.matches?.map((url) => <Button key={url} onClick={() => linkArticle(url)}>{uiFormat("确认这篇文章 · {0}", [url])}</Button>)}
         {note.publicUrl && <p><a href={note.publicUrl} target="_blank" rel="noopener noreferrer">{ui("打开已发布文章 ↗")}</a></p>}
-        {writable && <div className="note-card-search"><input value={link}
+        {writable && <div className="note-card-search"><TextInput className="note-input" aria-label={ui("找不到时粘贴文章链接")} value={link}
           placeholder={ui("找不到时粘贴文章链接")} onChange={(event) => setLink(event.target.value)} />
           <Button disabled={!link.trim()} lock={saving} onClick={() => linkArticle(link)}>{ui("手动关联")}</Button></div>}
       </details>
@@ -317,7 +335,7 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
           {ref.deckTitle && <small className="muted">{ref.deckTitle}</small>}
           {editing && note.status === "draft" && !daily && <Button onClick={() => edit({
             cards: note.cards.filter((item) => item.cardId !== ref.cardId) })}>{ui("移除")}</Button>}</li>)}</ul>
-        {editing && note.status === "draft" && !daily && <><div className="note-card-search"><input value={query}
+        {editing && note.status === "draft" && !daily && <><div className="note-card-search"><TextInput className="note-input" aria-label={ui("搜索题目或知识点")} value={query}
           placeholder={ui("搜索题目或知识点")} onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => { if (event.key === "Enter") addCard(); }} />
           <Button onClick={addCard}>{ui("搜索题目")}</Button></div>

@@ -3,14 +3,14 @@ import { ui } from '../i18n.js';
 import { LEVEL_LABEL } from '../shared.js';
 import { LEVEL_HINT } from '../mastery-terms.js';
 import { BAR_ORDER } from './map-model.js';
-import { Chip } from '../components/index.js';
+import { Chip, TextInput } from '../components/index.js';
 
 /** Search, the 已归档 switch and the mastery legend above the tree. */
 export default function CatalogToolbar({ search, onSearch, showArchived, onToggleArchived }) {
   return (
     <div className="map-toolbar">
       <div className="map-tools">
-        <input type="search" aria-label={ui('搜索题组或主题')} value={search} onChange={(event) => onSearch(event.target.value)} placeholder={ui('搜索题组、目录或主题')} />
+        <TextInput type="search" className="map-tools__search" aria-label={ui('搜索题组或主题')} value={search} onChange={(event) => onSearch(event.target.value)} placeholder={ui('搜索题组、目录或主题')} />
         <Chip className="map-tools__archived" selected={showArchived} onClick={onToggleArchived}>{ui('已归档')}</Chip>
       </div>
       {!showArchived && <div className="map-legend" aria-label={ui('掌握程度图例')}>

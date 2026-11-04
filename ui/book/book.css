@@ -200,10 +200,12 @@
       flex: none;
       color: var(--text-muted);
     }
-    .book-node__caret {
+    .book-node__caret,
+    .book-point__caret {
       transition: transform var(--dur-fast) var(--ease);
     }
-    .book-node__toggle[aria-expanded='true'] .book-node__caret {
+    .book-node__toggle[aria-expanded='true'] .book-node__caret,
+    .book-point__cites-toggle[aria-expanded='true'] .book-point__caret {
       transform: rotate(90deg);
     }
     /* 逐节读 (ui/book/BookStep.jsx): one point under its path, 上一节 / 下一节 above (compact) and below (with the neighbour's title). */
@@ -727,6 +729,11 @@
       .book-lookup__cols {
         grid-template-columns: minmax(0, 1fr);
       }
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .book-node__caret, .book-point__caret { transition: none; }
     }
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, Dialog, InlineMessage, LoadingState } from '../../components/index.js';
+import { Button, Dialog, InlineMessage, LoadingState, RadioCard, RadioCardGroup } from '../../components/index.js';
 import { chapterLabel } from '../../SourcePicker.jsx';
 import { useLiveEffect } from '../../use-async.js';
 import { formatNumber } from '../../format.js';
@@ -18,13 +18,10 @@ export function SegmentPreview({ preview, level, onLevel }) {
   const tag = unit === 'part' ? ui('从文件中间开始') : ui('从页中间开始');
   return <div className="reader-segment">
     <p className="reader-assist__note" role="status">{currentText(preview.current)}</p>
-    <fieldset className="reader-segment__levels">
-      <legend>{ui('用哪一级的标题分章')}</legend>
-      {[1, 2, 3].map(value => <label key={value}>
-        <input type="radio" name="segment-level" value={value} checked={level === value} onChange={() => onLevel(value)} />
-        <span>{uiFormat('第 {0} 级 · {1} 章', [value, preview.levels[value]?.count ?? 0])}</span>
-      </label>)}
-    </fieldset>
+    <RadioCardGroup className="reader-segment__levels" legend={ui('用哪一级的标题分章')}>
+      {[1, 2, 3].map(value => <RadioCard key={value} className="reader-segment__level" name="segment-level" value={value} checked={level === value}
+        onSelect={() => onLevel(value)} title={uiFormat('第 {0} 级 · {1} 章', [value, preview.levels[value]?.count ?? 0])} />)}
+    </RadioCardGroup>
     <ol className="reader-segment__chapters" aria-label={ui('分段结果')}>
       {view.chapters.map(chapter => <li key={chapter.index} data-partial={chapter.partial && unit !== 'text' ? 'true' : undefined}>
         <span>{chapterLabel(chapter, unit)}</span>
@@ -63,9 +60,9 @@ export default function SegmentDialog({ call, args, onClose, onApplied, onRestor
   const busy = state.status === 'saving';
   return <Dialog title={ui('用这份目录重新分段')} size="lg" busy={busy} onClose={onClose}
     footer={<>
-      {preview?.applied && <Button variant="quiet" disabled={busy} onClick={() => apply(null)}>{ui('恢复自动分段')}</Button>}
-      <Button variant="quiet" disabled={busy} onClick={onClose}>{ui('取消')}</Button>
-      <Button variant="primary" busy={busy} disabled={busy || !preview || !preview.levels[level]?.count} onClick={() => apply(level)}>{ui('用这个分段')}</Button>
+      {preview?.applied && <Button variant="quiet" lock={busy} onClick={() => apply(null)}>{ui('恢复自动分段')}</Button>}
+      <Button variant="quiet" lock={busy} onClick={onClose}>{ui('取消')}</Button>
+      <Button variant="primary" lock={busy} disabled={!preview || !preview.levels[level]?.count} onClick={() => apply(level)}>{ui('用这个分段')}</Button>
     </>}>
     {state.status === 'loading' && <LoadingState label={ui('正在计算每一级的章节…')} />}
     {state.status === 'error' && <InlineMessage tone="error">{uiFormat('没能完成：{0}', [state.message])}</InlineMessage>}

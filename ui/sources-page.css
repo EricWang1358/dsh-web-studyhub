@@ -175,7 +175,7 @@
       background: var(--accent-glow);
       color: inherit;
       border-radius: var(--radius-xs);
-      padding: 1px 0;
+      padding: var(--hairline) 0;
       box-shadow: 0 0 0 2px var(--accent-glow);
     }
   }

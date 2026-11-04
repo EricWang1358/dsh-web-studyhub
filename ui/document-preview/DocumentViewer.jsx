@@ -4,7 +4,7 @@ import MathText from '../MathText.jsx';
 import { AudioCorrections } from '../audio/AudioCorrections.jsx';
 import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, IconButton, InlineMessage, LoadingState, SegmentedControl } from '../components/index.js';
+import { Button, IconButton, InlineMessage, LoadingState, SegmentedControl, Tooltip } from '../components/index.js';
 import DocumentLearning from './DocumentLearning.jsx';
 import { ReaderModelContext } from './ReaderModelGate.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
@@ -428,7 +428,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
           onClick={() => toggle('outline')} />}
         <SegmentedControl size="sm" className="study-document-preview-mode" label={ui('显示方式')} value={view} options={modes} onChange={chooseView} />
       </div>
-      <p className="reader-toolbar__where" title={where || undefined}>{where}</p>
+      <p className="reader-toolbar__where">{where ? <Tooltip layer content={where}><span tabIndex={0}>{where}</span></Tooltip> : null}</p>
       {/* Two facts, two lines, one block (a toolbar has no room for a second row of words): what was learned (掌握, only published questions) and what was asked (覆盖, drafts included). */}
       {(meters || (!localMode && view !== 'original' && loop.coverage?.cards > 0)) && <span className="reader-toolbar__quality">
         {meters && <span className="reader-toolbar__mastery" data-rose={loop.returnDelta > 0 ? 'true' : undefined}>
@@ -499,7 +499,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         <div className="study-document-selection">
           {view !== 'original' && <Button className="study-document-wide" icon="plus" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</Button>}
           {learningPanels.map(panel => <div key={panel.scope} className="reader-learning" data-scope={panel.scope} hidden={panel.hidden}>
-            <DocumentLearning call={call} document={learningDocument} {...panel.props} data={data} usedBy={source.usedBy} onPublished={refreshLinks} onOpenCard={onOpenCard}
+            <DocumentLearning call={call} document={learningDocument} {...panel.props} data={data} primary={!onGenerate} usedBy={source.usedBy} onPublished={refreshLinks} onOpenCard={onOpenCard}
               onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
           </div>)}
           {/* Case practice (WP12): a passage can be the seed of a case paper. */}

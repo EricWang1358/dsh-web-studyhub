@@ -484,22 +484,35 @@
     }
   }
 
+  /* Short laptop viewports (1366x768, 1280x720): when header + metrics + control strips leave < 14rem for the panels, let .tc scroll vertically rather than crushing .tc-panel. */
+  @media (max-height: 780px) {
+    :is(.study-app, .study-seat) {
+      .tc:not([data-empty='all']) { overflow-y: auto; }
+      .tc-main { flex: 1 0 auto; }
+      .tc-list { height: 0; min-height: 100%; }
+      .tc-detail > .tc-body { flex: 1 0 14rem; min-height: 14rem; }
+      .tc-body { grid-template-rows: minmax(14rem, 1fr); }
+      .tc-panel { min-height: 14rem; }
+    }
+  }
+
   /* Narrow: the console is a page again. The list sits above the detail, every panel gets a height of its own, and the page scrolls. */
   @container study (max-width: 900px) {
     :is(.study-app, .study-seat) {
       & main:has(> .tc:not([data-empty='all'])) { height: auto; overflow: visible; }
       /* With no task at all there is nothing to scroll: the page keeps the window's height and the empty state stays in the middle of it. */
       & main:has(> .tc[data-empty='all']) { overflow: auto; }
-      .tc:not([data-empty='all']) { flex: none; }
+      .tc:not([data-empty='all']) { flex: none; overflow-y: visible; }
       .tc-main { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; flex: none; }
-      .tc-list { border-right: 0; border-bottom: 1px solid var(--line); }
+      .tc-list { height: auto; min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); }
       .tc-scroll { border-end-start-radius: 0; }
       .tc-list > .tc-scroll { flex: none; max-height: 220px; }
       .tc-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .tc-metric--progress { grid-column: 1 / -1; border-bottom: 1px solid var(--line-soft); }
-      .tc-detail > .tc-body { flex: none; }
+      .tc-detail > .tc-body { flex: none; min-height: 0; }
       .tc-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
       .tc-col { height: 440px; }
+      .tc-panel { min-height: 0; }
       .tc-col + .tc-col { border-inline-start: 0; border-top: 1px solid var(--line); }
       .tc-head { height: auto; min-height: 44px; flex-wrap: wrap; row-gap: var(--space-2); padding-block: var(--space-2); }
       /* The name takes a line of its own; the actions wrap onto the next and keep their size (they were squeezed against the edge and 删除 was cut). */

@@ -6,7 +6,7 @@
        Every slot that is filled by an answer keeps its height before it arrives (the status line, the hint and the facts one line each), so the
        card never jumps when the state is read; the only motion is the components' own. */
     .mineru-install { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
-    .mineru-install--compact { padding: var(--space-3) var(--space-4); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg); }
+    .mineru-install--compact { padding: var(--space-3) var(--space-4); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--bg-surface); }
     .mineru-install__status { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-2) var(--space-3); min-width: 0;
       min-height: calc(var(--lh-snug) * var(--fs-sm)); }
     .mineru-install__line { display: flex; flex: 1 1 280px; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); min-width: 0; }
@@ -26,7 +26,7 @@
     .mineru-install__where { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: 0; min-width: 0; font-size: var(--fs-sm); }
     .mineru-install__label, .mineru-install__where > span { color: var(--text-muted); }
     .mineru-install__where code { min-width: 0; max-width: 100%; padding: var(--space-half) var(--space-2); border-radius: var(--radius-xs); background: var(--bg-sunken, var(--bg-surface));
-      font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+      font-family: var(--font-stack-mono); font-size: var(--fs-xs); overflow-wrap: anywhere; }
     .mineru-install__hint { min-height: calc(var(--lh-snug) * var(--fs-sm)); }
     .mineru-install__facts { min-height: calc(var(--lh-snug) * var(--fs-sm)); margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug);
       font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
@@ -34,7 +34,7 @@
     .mineru-install__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
     .mineru-install__draft { display: grid; gap: var(--space-2); }
     .mineru-install__drives { min-width: 0; }
-    .mineru-install__drives code { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+    .mineru-install__drives code { font-family: var(--font-stack-mono); font-size: var(--fs-sm); overflow-wrap: anywhere; }
     .mineru-install__last { display: block; min-height: calc(var(--lh-snug) * var(--fs-sm)); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug);
       font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
     .mineru-install__stages { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: var(--space-1) 0; padding: 0; list-style: none; font-size: var(--fs-sm); color: var(--text-muted); }
@@ -49,8 +49,17 @@
     .mineru-install__choices { min-width: 0; }
     .mineru-install__external { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); overflow-wrap: anywhere; }
     .mineru-install__pre { margin: 0; padding: var(--space-3); max-height: 16rem; overflow: auto; border-radius: var(--radius-sm); background: var(--bg-sunken, var(--bg-surface)); }
-    .mineru-install__pre code { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-xs); line-height: var(--lh-snug); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .mineru-install__pre code { font-family: var(--font-stack-mono); font-size: var(--fs-xs); line-height: var(--lh-snug); white-space: pre-wrap; overflow-wrap: anywhere; }
     .mineru-install__settings { justify-self: start; }
+  }
+  @container study (max-width: 480px) {
+    :is(.study-app, .study-seat) {
+      .mineru-install__where { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; }
+      .mineru-install--compact { padding: var(--space-3); }
+      .mineru-install__recheck, .mineru-install__choose, .mineru-install__settings { justify-self: start; margin-inline-start: 0; }
+      .mineru-install__hint, .mineru-install__facts { min-height: calc(2 * var(--lh-snug) * var(--fs-sm)); }
+      .mineru-install__facts:lang(en) { min-height: calc(3 * var(--lh-snug) * var(--fs-sm)); }
+    }
   }
   @media (max-width: 480px) {
     :is(.study-app, .study-seat) {

@@ -96,7 +96,7 @@
       text-align: left;
       cursor: pointer;
     }
-    .mailbox__item:hover:not(:disabled) { background: var(--bg-hover); }
+    .mailbox__item:hover:not(:disabled, [aria-disabled="true"]) { background: var(--bg-hover); }
     .mailbox__item:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
     .mailbox__item.is-unread { color: var(--text); }
     .mailbox__item.is-unread::before {
@@ -109,7 +109,7 @@
       border-radius: 50%;
       background: var(--accent);
     }
-    .mailbox__item:disabled { opacity: 0.5; cursor: default; }
+    .mailbox__item:is(:disabled, [aria-disabled="true"]) { opacity: 0.5; cursor: default; }
     .mailbox__top {
       display: flex;
       flex-wrap: wrap;

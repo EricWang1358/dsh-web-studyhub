@@ -20,7 +20,7 @@
       font-size: var(--fs-md);
       border: 1px solid var(--warn-line);
       background: var(--warn-bg);
-      color: var(--warn);
+      color: var(--warn-ink);
     }
     /* ── picker + work panel ─────────────────────────────────────────────── */
     .sk-layout {
@@ -124,7 +124,7 @@
     }
     .sk-decks {
       list-style: none;
-      margin: 0 0 var(--space-1-5) 34px;
+      margin: 0 0 var(--space-1-5) calc(var(--space-7) + var(--space-half));
       padding: 0;
     }
   }
@@ -161,7 +161,7 @@
   :is(.study-app, .study-seat) {
     .sk-mini { flex: none; }
     & button.sk-danger {
-      color: var(--bad);
+      color: var(--bad-ink);
     }
   }
   :where(.study-app, .study-seat) {
@@ -181,7 +181,7 @@
       font-size: var(--fs-md);
     }
     .sk-lint-summary strong {
-      color: var(--warn);
+      color: var(--warn-ink);
     }
     .sk-filters {
       display: flex;
@@ -206,7 +206,12 @@
       padding: var(--space-2) var(--space-half);
       border-bottom: 1px solid var(--line-soft);
     }
+    .sk-lint-prompt-tip {
+      display: flex;
+      min-width: 0;
+    }
     .sk-lint-prompt {
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -227,16 +232,16 @@
       max-width: 260px;
     }
     .sk-issue {
-      padding: 1px var(--space-2);
+      padding: var(--hairline) var(--space-2);
       border-radius: var(--radius-pill);
       background: var(--warn-bg);
-      color: var(--warn);
+      color: var(--warn-ink);
       font-size: var(--fs-md);
       white-space: nowrap;
     }
     .sk-issue.i-membership-stem {
       background: var(--bad-bg);
-      color: var(--bad);
+      color: var(--bad-ink);
     }
     /* ── saved skeletons ─────────────────────────────────────────────────── */
     .sk-saved {
@@ -348,7 +353,7 @@
       flex-wrap: wrap;
     }
     .sk-rel {
-      padding: 1px var(--space-2);
+      padding: var(--hairline) var(--space-2);
       border-radius: var(--radius-pill);
       background: var(--bg-sunken);
       border: 1px solid var(--line-soft);
@@ -528,6 +533,11 @@
       border-color: var(--accent);
       box-shadow: var(--ring), var(--shadow-popover);
     }
+    & .skc-class.skc-class:focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: 2px;
+      box-shadow: var(--ring), var(--shadow-popover);
+    }
     & .skc-class.dim {
       opacity: 0.35;
     }
@@ -549,7 +559,7 @@
       display: flex;
       flex-direction: column;
       padding: var(--space-2) var(--space-2-5);
-      gap: 1px;
+      gap: var(--hairline);
       font-size: var(--fs-xs);
       line-height: 17px;
       color: var(--text-dim);
@@ -755,6 +765,21 @@
       background: transparent;
       color: var(--text);
     }
+    & .sqc-actor.sqc-actor:focus-visible,
+    & .sqc-label.sqc-label:focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: 2px;
+      box-shadow: var(--ring);
+    }
+  }
+  @media (forced-colors: active) {
+    :is(.study-app, .study-seat) {
+      & .skc-class--selected,
+      & .sqc-actor.lit {
+        outline: 2px solid Highlight;
+        outline-offset: 2px;
+      }
+    }
   }
   :where(.study-app, .study-seat) {
     .sqc-label b {
@@ -875,7 +900,7 @@
       font-weight: var(--fw-medium);
     }
     .sk-group-desc {
-      margin: calc(var(--space-half) * -1) var(--space-2-5) var(--space-1-5) 34px;
+      margin: calc(var(--space-half) * -1) var(--space-2-5) var(--space-1-5) calc(var(--space-7) + var(--space-half));
       color: var(--text-muted);
       font-size: var(--fs-md);
       line-height: 1.5;
@@ -949,7 +974,7 @@
     .skc-class-name, .skc-class-attrs { width: 100%; box-sizing: border-box; min-width: 0; }
     .skc-view { background: var(--bg-sunken); }
   }
-  @media (max-width: 600px) {
+  @container study (max-width: 600px) {
     :is(.study-app, .study-seat) {
       .skc-toolbar button, .skc-results button { min-height: 44px; }
     }
@@ -969,13 +994,19 @@
     .skc:fullscreen .skc-view, .skc-expanded .skc-view { height: calc(100dvh - 200px); min-height: 260px; }
     .skc:fullscreen .skc-body, .skc-expanded .skc-body { flex: 1; }
     .skc-toolbar select { max-width: 150px; }
-    .skc-class:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    .skc-class:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+  }
+  @container study (max-width: 600px) {
+    :where(.study-app, .study-seat) {
+      .skc:fullscreen, .skc-expanded { padding: var(--space-2-5); }
+      .skc:fullscreen .skc-view, .skc-expanded .skc-view { height: calc(100dvh - 280px); }
+      .skc-toolbar select { min-height: 44px; }
+    }
   }
   @media (max-width: 600px) {
     :where(.study-app, .study-seat) {
       .skc:fullscreen, .skc-expanded { padding: var(--space-2-5); }
       .skc:fullscreen .skc-view, .skc-expanded .skc-view { height: calc(100dvh - 280px); }
-      .skc-toolbar select { min-height: 44px; }
     }
   }
   :where(.study-app, .study-seat) {
@@ -993,7 +1024,7 @@
     .skc-class-name { font-size: var(--fs-md); line-height: 18px; }
     .skc-class-attrs { font-size: var(--fs-xs); }
   }
-  @media (max-width: 600px) {
+  @container study (max-width: 600px) {
     :where(.study-app, .study-seat) {
       .skc-hint { display: none; }
       .skc-search { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-2); }
@@ -1270,7 +1301,7 @@
     }
     .spine-contrast {
       font-size: var(--fs-md);
-      color: var(--warn);
+      color: var(--warn-ink);
     }
   }
   :is(.study-app, .study-seat) {
@@ -1316,7 +1347,7 @@
       line-height: 1.35;
       overflow-wrap: anywhere;
     }
-    .spine-all-body { padding: 0 0 var(--space-3) 38px; }
+    .spine-all-body { padding: 0 0 var(--space-3) calc(var(--space-8) - var(--space-half)); }
     /* Where the lesson mounts the spine: a quiet bordered strip that stays one line while folded. */
     .wf-spine-peek {
       margin: 0 0 var(--space-4);
@@ -1328,7 +1359,6 @@
     .wf-spine-peek .spine-marker { background: var(--bg-surface); }
     .wf-spine-peek .spine-tab.is-active .spine-marker { background: var(--text); }
     .wf-spine-peek.is-folded { padding-bottom: var(--space-half); }
-    .wf-spine-peek 
     .spine :is(button, summary):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
   }
   @media (prefers-reduced-motion: no-preference) {

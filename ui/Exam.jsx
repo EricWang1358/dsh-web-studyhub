@@ -11,10 +11,11 @@ import { practiceArgs, readExamTarget } from './learning-navigation.js';
 import { CasePaper } from './CaseWorkspace.jsx';
 import SubmitBlanksDialog from './SubmitBlanksDialog.jsx';
 import caseCss from './case-study.css';
-import { Badge, Button, ErrorState, LoadingState, PageHeader, Panel } from './components/index.js';
+import examCss from './exam.css';
+import { Badge, Button, ErrorState, LoadingState, PageHeader, Panel, Tooltip } from './components/index.js';
 import { ExamHeader, RecentExams } from './ExamShell.jsx';
 import { defaultExamFormat, isExamFormat, recentExams, shortDeckTitles } from './exam-format.js';
-import { formatClock } from './format.js';
+import { formatClock, joinMeta } from './format.js';
 import { useExamRun } from './exam/useExamRun.js';
 import { DEFAULT_COUNT, cardKindName, clampCount, picksFromRun, typeAvailableOf, unansweredCount } from './exam/exam-written.js';
 import WrittenSetup from './exam/WrittenSetup.jsx';
@@ -29,11 +30,13 @@ import { useStudy } from './study-context.jsx';
    作答时间，没有就 30 分钟，存在 run 上，lib/exam-timing.js）；卸载不交卷，未交卷的考试保留在服务端可再次接回。 */
 
 const RETRY_SUBMIT_MS = 5000;
+const LOW_TIME_MS = 5 * 60 * 1000;
 
 export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun, onSetupModel, initialRunId, initialKind = 'exam', onLocation }) {
   const { call } = useStudy();
   useInjectCss(css, "study-views");
   useInjectCss(caseCss, "study-case-workspace");
+  useInjectCss(examCss, "study-exam");
   const [course, setCourse] = usePageScope(data?.root, 'exam', data?.focus?.mode === 'interview' ? '*' : data?.focus?.course ?? '*');
   const [showInactive, setShowInactive] = useShowInactive(data?.root, 'exam');
   const [deckChoice, setDeckChoice] = usePageScope(data?.root, 'exam-decks', '');
@@ -56,6 +59,9 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
   const count = clampCount(countDraft);
   // How long this paper lasts: what the run says once it is running; before that, the learner's choice for this course, else the course's own time.
   const runLimitMs = examLimitMs(run) ?? Infinity;
+  const hasLimit = Number.isFinite(runLimitMs) && runLimitMs > 0;
+  const remainingMs = hasLimit ? Math.max(0, runLimitMs - elapsedMs) : 0;
+  const lowTime = hasLimit && remainingMs < LOW_TIME_MS;
   const limitDefault = defaultLimitMinutes(data, course);
   const savedLimit = useMemo(() => { try { return JSON.parse(limitChoice); } catch { return null; } }, [limitChoice]);
   const limitMinutes = savedLimit?.course === course && Number.isInteger(savedLimit.minutes) && savedLimit.minutes >= LIMIT_MINUTES.min && savedLimit.minutes <= LIMIT_MINUTES.max
@@ -162,17 +168,19 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
       : uiFormat("选择尚未保存，请重新选择后继续：{0}", [errorMessage(e)])));
   }
 
-  const move = (direction) => {
+  const navigate = (step) => {
     if (expired || !run) return;
     return exam.perform(async () => {
       await writes.current.flush();
-      const next = await call("review.move", { runId: run.id, direction });
+      const next = await call("review.move", { runId: run.id, ...step });
       const r = next && next.card ? next : await call("review.get", { runId: run.id });
       exam.setRun(r);
       // All writes finished before navigation; the server is authoritative.
       applyPicks(picksFromRun(r));
     });
   };
+  const move = (direction) => navigate({ direction });
+  const jumpTo = (index) => (index === run?.index ? undefined : navigate({ index }));
 
   const submit = useCallback(() => {
     setConfirming(false);
@@ -256,10 +264,30 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
         <>
           <PageHeader eyebrow={ui("模拟考试进行中")} title={run.title || ui("模拟考试")}
             actions={<>
-              <span className="exam-timer" title={ui("已用时")}>{uiFormat("已用时 {0}", [formatClock(elapsedMs)])}</span>
+              <Tooltip layer content={hasLimit ? uiFormat("已用时 {0}", [formatClock(elapsedMs)]) : ui("已用时")}>
+                <span className={"exam-timer exam-countdown" + (lowTime ? " is-low" : "")} tabIndex={0}>
+                  {hasLimit ? uiFormat("剩余时间 {0}", [formatClock(remainingMs)]) : uiFormat("已用时 {0}", [formatClock(elapsedMs)])}
+                </span>
+              </Tooltip>
               <span className="exam-progress">{run.index + 1} / {run.total}</span>
             </>} />
-          <Panel className="exam-card" key={run.card.id}>
+          {run.total > 1 && <nav className="exam-jump" aria-label={ui("题目跳转与掌握程度")}>
+            {Array.from({ length: run.total }, (_, i) => {
+              const slot = Array.isArray(run.picks) && run.picks.length === run.total ? run.picks[i] : i === run.index ? { deckId: run.deckId, cardId: run.card.id } : null;
+              const answered = Boolean(slot?.deckId != null && slot?.cardId && picks[`${slot.deckId}:${slot.cardId}`]?.length);
+              const current = i === run.index;
+              return (
+                <Button key={i} size="sm" variant={current ? "secondary" : "quiet"}
+                  className={"exam-jump__btn" + (answered ? " is-answered" : "") + (current ? " is-current" : "")}
+                  aria-current={current ? "step" : undefined}
+                  aria-label={joinMeta([uiFormat("第 {0} 题", [i + 1]), answered ? ui("已选") : ui("未答")])}
+                  disabled={expired} lock={busy} onClick={() => jumpTo(i)}>
+                  {i + 1}
+                </Button>
+              );
+            })}
+          </nav>}
+          <Panel className="exam-card" tone="paper" data-exam-paper="" key={run.card.id}>
             <div className="exam-card-meta">
               <Badge tone="info">{run.card.topic || ui("未分类")}</Badge>
               <Badge>{cardKindName(run.card)}</Badge>

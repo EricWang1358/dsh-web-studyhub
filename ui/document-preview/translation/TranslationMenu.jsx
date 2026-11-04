@@ -58,7 +58,7 @@ export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvail
       {scopes.map(scope => <section key={scope.id} className="tr-scope" data-status={scope.status}>
         <div className="tr-scope__head"><strong>{scope.label}</strong><small>{scopeLine(scope)}</small></div>
         {scope.status === 'ready' && scope.estimate && (scope.counts?.toTranslate || 0) > 0 && <TokenEstimateView state={{ status: 'ready', estimate: scope.estimate }} />}
-        {(scope.counts?.toTranslate || 0) > 0 && <Button size="sm" variant="secondary" disabled={!modelAvailable || busy || scope.status !== 'ready'} onClick={() => onStart(scope.id)}>{ui('开始翻译')}</Button>}
+        {(scope.counts?.toTranslate || 0) > 0 && <Button size="sm" variant="secondary" lock={busy} disabled={!modelAvailable || scope.status !== 'ready'} onClick={() => onStart(scope.id)}>{ui('开始翻译')}</Button>}
       </section>)}
       {scopes.some(scope => (scope.counts?.toTranslate || 0) > 0) && <p className="tr-panel__note">{ui('只译还没有译文的段落；在后台进行，可以继续阅读，关闭阅读器也不会中断，完成后进信箱。')}</p>}
       <div className="tr-panel__actions">

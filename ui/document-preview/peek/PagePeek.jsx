@@ -125,7 +125,15 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
   /* The panel's box is plain left/top/width/height (set once it is showing a page, from where it sits), so every handle moves exactly what it is
      dragged on: the title moves the box, the corner grips resize it (the bottom-right one keeps the top-left still, the top-left one keeps the
      bottom-right still, because the panel starts docked in the bottom-right corner and can only grow towards the top-left). Always inside the window. */
-  const win = () => ({ width: window.innerWidth, height: window.innerHeight });
+  const uiScale = useCallback(element => {
+    if (!element) return 1;
+    const raw = element.getBoundingClientRect();
+    return (element.offsetWidth ? raw.width / element.offsetWidth : Number(element.currentCSSZoom) || parseFloat(getComputedStyle(element).zoom)) || 1;
+  }, []);
+  const win = useCallback(() => {
+    const scale = uiScale(panel.current);
+    return { width: window.innerWidth / scale, height: window.innerHeight / scale };
+  }, [uiScale]);
   const apply = useCallback(() => {
     const element = panel.current, box = rect.current;
     if (!element) return;
@@ -134,15 +142,24 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
   }, [phase]);
   useLayoutEffect(() => {
     const element = panel.current;
-    if (phase === 'ready' && element && !rect.current) { const box = element.getBoundingClientRect(); rect.current = { left: box.left, top: box.top, width: box.width, height: box.height }; }
+    if (phase === 'ready' && element && !rect.current) {
+      const box = element.getBoundingClientRect(), scale = uiScale(element);
+      rect.current = { left: box.left / scale, top: box.top / scale, width: box.width / scale, height: box.height / scale };
+    }
     apply();
-  }, [phase, apply]);
+  }, [phase, apply, uiScale]);
   useEffect(() => {
     // The window got smaller: pull the box back inside it.
-    const inside = () => { const box = rect.current; if (!box) return; const width = Math.min(box.width, window.innerWidth - 16), height = Math.min(box.height, window.innerHeight - 16); rect.current = { width, height, left: clampTo(box.left, 8, window.innerWidth - 8 - width), top: clampTo(box.top, 8, window.innerHeight - 8 - height) }; apply(); };
+    const inside = () => {
+      const box = rect.current;
+      if (!box) return;
+      const bounds = win(), width = Math.min(box.width, bounds.width - 16), height = Math.min(box.height, bounds.height - 16);
+      rect.current = { width, height, left: clampTo(box.left, 8, bounds.width - 8 - width), top: clampTo(box.top, 8, bounds.height - 8 - height) };
+      apply();
+    };
     window.addEventListener('resize', inside);
     return () => window.removeEventListener('resize', inside);
-  }, [apply]);
+  }, [apply, win]);
   const track = (event, onMove) => {
     const stop = () => { drag.current = null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', stop); window.removeEventListener('pointercancel', stop); };
     drag.current = true;
@@ -152,14 +169,14 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
   // Dragging the title moves the panel; the buttons in it still click.
   const onDragStart = event => {
     if (event.button !== 0 || event.target.closest('button, output') || !rect.current) return;
-    const from = { ...rect.current }, x = event.clientX, y = event.clientY;
-    track(event, at => { rect.current = moveBox(from, at.clientX - x, at.clientY - y, win()); apply(); });
+    const from = { ...rect.current }, x = event.clientX, y = event.clientY, scale = uiScale(panel.current);
+    track(event, at => { rect.current = moveBox(from, (at.clientX - x) / scale, (at.clientY - y) / scale, win()); apply(); });
   };
   const onResizeStart = corner => event => {
     if (event.button !== 0 || !rect.current) return;
     event.stopPropagation();
-    const from = { ...rect.current }, x = event.clientX, y = event.clientY;
-    track(event, at => { rect.current = resizeBox(corner, at.clientX - x, at.clientY - y, from, win()); apply(); });
+    const from = { ...rect.current }, x = event.clientX, y = event.clientY, scale = uiScale(panel.current);
+    track(event, at => { rect.current = resizeBox(corner, (at.clientX - x) / scale, (at.clientY - y) / scale, from, win()); apply(); });
   };
   const onGripKey = corner => event => {
     const step = event.shiftKey ? 64 : 24, move = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[event.key];

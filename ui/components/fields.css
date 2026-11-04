@@ -9,7 +9,9 @@
     .sh-field { display: grid; gap: var(--space-1); align-content: start; min-width: 0; margin: 0; }
     .sh-field--sm { max-width: 14rem; }
     .sh-field--md { max-width: 36rem; }
-    .sh-field--inline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-3); max-width: none; }
+    .sh-field--inline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-3); }
+    .sh-field--inline:not(.sh-field--sm, .sh-field--md) { max-width: none; }
+    .sh-field--inline > .sh-input { flex: 1 1 10rem; width: auto; }
     .sh-field--inline > .sh-hint { flex: 1 0 100%; }
     .sh-field__label { display: block; margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: var(--lh-tight); }
     .sh-field__required { margin-inline-start: var(--space-half); color: var(--bad-ink); }
@@ -31,6 +33,7 @@
     }
     .sh-input::placeholder { color: var(--text-faint); }
     .sh-input:focus { border-color: var(--accent-soft); background: var(--bg-surface); box-shadow: var(--ring); outline: none; }
+    .sh-input:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -1px; }
     .sh-input:disabled { opacity: 0.5; cursor: default; }
     .sh-input[aria-invalid="true"] { border-color: var(--bad); }
     & textarea.sh-input { resize: vertical; }
@@ -40,7 +43,7 @@
     /* ── Checkbox / Switch rows ────────────────────────────────────────── */
     .sh-check { position: relative; display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); min-width: 0; margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }
     .sh-check.is-disabled { cursor: default; opacity: 0.6; }
-    .sh-check__input:focus-visible, .sh-radio-card__input:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
+    .sh-check__input:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
     /* The check is drawn from the tokens (#566), not left to the browser: a native box follows color-scheme only where the engine
        honours it, and was a white square on the dark desk. Ticked and mixed (indeterminate) fill with the accent and carry an
        --accent-ink mark; the box is sized in em, so it follows the text of its row. Forced colours get the system control back. */
@@ -64,6 +67,7 @@
     @media (forced-colors: active) {
       .sh-check__input { appearance: auto; }
       .sh-check__input::before { content: none; }
+      .sh-switch .sh-check__input:focus-visible + .sh-switch__track { outline: 3px solid Highlight; box-shadow: none; }
     }
     .sh-check__text { display: grid; gap: var(--space-half); min-width: 0; }
     .sh-check__label { font-weight: var(--fw-medium); }
@@ -72,7 +76,8 @@
     .sh-switch__thumb { position: absolute; top: 50%; left: 0.2em; width: 0.9em; height: 0.9em; border-radius: 50%; background: var(--text-muted); transform: translate(0, -50%); transition: transform var(--dur-fast) var(--ease); }
     .sh-switch .sh-check__input:checked + .sh-switch__track { border-color: var(--text); background: var(--text); }
     .sh-switch .sh-check__input:checked + .sh-switch__track .sh-switch__thumb { background: var(--bg-surface); transform: translate(1em, -50%); }
-    .sh-switch .sh-check__input:focus-visible + .sh-switch__track { box-shadow: var(--ring); }
+    .sh-switch .sh-check__input:focus-visible + .sh-switch__track { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
+    &:is([data-contrast='high'], :has(> .study-app[data-contrast='high'])) .sh-switch .sh-check__input:focus-visible + .sh-switch__track { outline-width: 3px; }
     .sh-switch .sh-check__input:disabled + .sh-switch__track { opacity: 0.6; }
     /* ── Radio cards ───────────────────────────────────────────────────── */
     .sh-check-group { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); min-width: 0; margin: 0; padding: 0; border: 0; }
@@ -80,10 +85,10 @@
     .sh-radio-group > legend { margin: 0 0 var(--space-2); padding: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
     .sh-radio-card { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }
     .sh-radio-card:hover:not(.is-disabled) { border-color: var(--line-strong); }
-    .sh-radio-card.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface)); }
-    .sh-radio-card:focus-within { box-shadow: var(--ring); }
+    .sh-radio-card.is-selected { border-color: var(--accent-soft); background: var(--bg-selected); }
+    .sh-radio-card:has(.sh-radio-card__input:focus-visible) { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
     .sh-radio-card.is-disabled { cursor: default; opacity: 0.6; }
-    .sh-radio-card__input { flex: none; width: 1.15em; height: 1.15em; min-width: 0; margin: 0.1em 0 0; padding: 0; accent-color: var(--accent); }
+    .sh-radio-card__input { flex: none; width: 1.15em; height: 1.15em; min-width: 0; margin: 0.1em 0 0; padding: 0; accent-color: var(--accent); outline: none; }
     .sh-radio-card__body { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
     .sh-radio-card__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); font-weight: var(--fw-medium); }
     .sh-radio-card__badges { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }

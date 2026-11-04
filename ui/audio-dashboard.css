@@ -12,11 +12,13 @@
     .audio-dashboard-heading small { color: var(--text-muted); font-size: var(--fs-xs); letter-spacing: .18em; }
     .audio-dashboard-heading h2 { font-size: var(--fs-2xl); margin-top: var(--space-1-5); letter-spacing: -.04em; }
     .audio-dashboard button { min-height: 40px; }
-    .audio-dashboard-summary { display: grid; grid-template-columns: 156px minmax(0,1fr); align-items: center; gap: 36px; margin-bottom: var(--space-7); }
+    .audio-dashboard-summary { display: grid; grid-template-columns: 156px minmax(0,1fr); align-items: center; gap: calc(var(--space-7) + var(--space-1)); margin-bottom: var(--space-7); }
     .audio-usage-dial { aspect-ratio: 1; border-radius: 50%; padding: var(--space-2); background: conic-gradient(var(--usage-free) var(--share), var(--line) 0); }
+    .audio-usage-dial[data-exhausted="true"] { --usage-free: var(--warn); }
     .audio-usage-dial > div { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: inherit; background: var(--bg-sunken); }
     .audio-usage-dial strong { font-size: var(--fs-4xl); letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
-    .audio-usage-dial span { color: var(--text-dim); font-size: var(--fs-sm); margin-top: var(--space-1-5); }
+    .audio-usage-dial > div > span { color: var(--text-dim); font-size: var(--fs-sm); margin-top: var(--space-1-5); }
+    .audio-usage-dial[data-exhausted="true"] > div > :is(strong, span) { color: var(--warn-ink); }
     .audio-usage-dial small { color: var(--text-muted); font-size: var(--fs-xs); margin-top: var(--space-1); }
     .audio-dashboard-metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-5-5) var(--space-7-less); }
     .audio-dashboard-metrics > div > span { color: var(--text-muted); font-size: var(--fs-xs); }
@@ -36,7 +38,7 @@
     .audio-provider-heading strong span { font-size: var(--fs-xs); font-weight: var(--fw-regular); color: var(--text-muted); margin-left: var(--space-2); }
     .audio-model-quota { margin-top: var(--space-4); }
     .audio-model-quota > div:first-child { display: flex; gap: var(--space-2); justify-content: space-between; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--text-dim); }
-    .audio-model-quota > div:first-child > span { overflow-wrap: anywhere; }
+    .audio-model-quota > div:first-child > span { min-width: 0; overflow-wrap: anywhere; }
     .audio-model-quota > div:first-child small { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     .audio-quota-bar { margin-block: var(--space-2); --sh-tone: var(--provider-color); }
     .audio-model-quota > small { display: block; font-size: var(--fs-xs); line-height: 1.6; color: var(--text-dim); }
@@ -63,7 +65,7 @@
     .audio-reasoning .audio-section-title small { display: block; margin-bottom: var(--space-2); letter-spacing: .13em; }
     .audio-reasoning-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4) var(--space-6); align-items: start; }
     .audio-reasoning-help { grid-column: 1 / -1; }
-    .audio-quota-settings { margin-top: 26px; font-size: var(--fs-xs); }
+    .audio-quota-settings { margin-top: calc(var(--space-6) + var(--space-half)); font-size: var(--fs-xs); }
     .audio-quota-settings summary { cursor: pointer; color: var(--text-dim); }
     .audio-quota-settings p { color: var(--text-muted); line-height: 1.7; padding-top: var(--space-3); }
     .audio-quota-settings form { margin-top: var(--space-4); }

@@ -52,11 +52,11 @@ export function DailyRecapPanel(props) {
     <p className="daily-recap-lead">{ui('把今天各章的练习串起来，收好错因、思路和下一步。')}</p>
     {status && !modelReady && <InlineMessage tone="warning" title={gateTitle('inline')} action={onModelSettings ? { label: ui('打开模型设置'), onClick: onModelSettings } : undefined}>
       {ui('整理合集需要先配置模型；已经写好的合集仍可阅读。')}</InlineMessage>}
-    {error && <div className="daily-recap-error" role="alert"><p>{ui('这一步没有成功。可以再试一次。')}
-      <Button size="sm" variant="link" lock={!!working} onClick={recap.refresh}>{ui('重新加载状态')}</Button></p>
+    {error && <InlineMessage tone="error" boxed action={{ label: ui('重新加载状态'), onClick: recap.refresh, disabled: !!working }}
+      secondary={/模型|model|provider/i.test(error) && onModelSettings ? { label: ui('检查 AI 模型设置'), onClick: onModelSettings } : undefined}>
+      {ui('这一步没有成功。可以再试一次。')}
       <details><summary>{ui('查看原因')}</summary><p>{error}</p></details>
-      {/模型|model|provider/i.test(error) && onModelSettings && <Button size="sm" onClick={onModelSettings}>{ui('检查 AI 模型设置')}</Button>}
-    </div>}
+    </InlineMessage>}
     {!status && !error && <LoadingState className="daily-recap-loading" label={ui('正在读取今天的学习记录…')} />}
     {status && !status.groups?.length && <p className="muted">{ui('今天的练习会留在这里。完成一章后，就能查看当天的进度。')}</p>}
     {status?.groups?.map(group => {

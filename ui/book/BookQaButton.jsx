@@ -36,7 +36,7 @@ export default function BookQaButton({ refOf, book, onChanged }) {
   };
   return (
     <span className="book-qa-button">
-      <Button variant="link" size="sm" icon={added ? 'check' : 'book'} className="book-qa-button__go" data-book-qa={added ? 'added' : 'add'} disabled={working} onClick={run}>
+      <Button variant="link" size="sm" icon={added ? 'check' : 'book'} className="book-qa-button__go" data-book-qa={added ? 'added' : 'add'} busy={working} onClick={run}>
         {added ? ui('已加入 · 撤回') : ui('加入复习全书')}</Button>
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
     </span>

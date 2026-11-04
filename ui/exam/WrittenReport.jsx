@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { plainPrompt } from '../shared.js';
-import { Badge, Button, ErrorState, PageHeader, ProgressBar } from '../components/index.js';
+import { Badge, Button, ErrorState, PageHeader, ProgressBar, Tooltip } from '../components/index.js';
 import { formatDuration } from '../format.js';
 import ResultBreakdown from '../ResultBreakdown.jsx';
 import { ReadingBlock, ReadingSettingsButton } from '../reading-settings/ReadingSettings.jsx';
@@ -29,7 +29,9 @@ function QuestionList({ title, items, empty }) {
         <ul>{items.map((item) => (
           <li key={item.deckId + ':' + item.cardId} className="exam-wrong-row">
             <Badge tone="info">{item.topic || ui('未分类')}</Badge>
-            <span className="exam-wrong-prompt" title={plainPrompt(item.prompt)}>{plainPrompt(item.prompt)}</span>
+            <Tooltip layer content={plainPrompt(item.prompt)} anchorClassName="exam-wrong-prompt-tip">
+              <span className="exam-wrong-prompt" tabIndex={0}>{plainPrompt(item.prompt)}</span>
+            </Tooltip>
             <Badge>{kindName(item.kind)}</Badge>
           </li>
         ))}</ul>

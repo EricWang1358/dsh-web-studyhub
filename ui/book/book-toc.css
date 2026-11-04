@@ -31,6 +31,7 @@
       /* It fits between where it sticks and the page's bottom padding (.page, ui/shell.css), so the end of a short point never pushes it up under the bar. */
       max-height: calc(100dvh - var(--book-bar-top) - var(--book-bar-h) - var(--space-3) - var(--space-9));
       min-width: 0;
+      overflow-x: hidden;
       overflow-y: auto;
       overscroll-behavior: contain;
       padding: 0 var(--space-1) var(--space-4) 0;
@@ -41,7 +42,9 @@
       bottom: 0;
       left: 0;
       z-index: var(--z-overlay);
-      width: min(340px, 88vw);
+      box-sizing: border-box;
+      width: min(340px, 88cqi, 88vw);
+      max-width: 100%;
       max-height: none;
       padding: var(--space-5) var(--space-3) var(--space-6);
       background: var(--bg-raised);
@@ -85,13 +88,17 @@
       gap: var(--space-half);
     }
     .book-toc__hit-title {
+      max-width: 100%;
       color: var(--text);
+      overflow-wrap: anywhere;
     }
     .book-toc__hit-text {
+      max-width: 100%;
       color: var(--text-muted);
       font-size: var(--fs-xs);
-      font-weight: normal;
+      font-weight: var(--fw-regular);
       line-height: var(--lh-snug);
+      overflow-wrap: anywhere;
     }
     .book-toc__hit-text mark {
       background-color: var(--warn-mark);

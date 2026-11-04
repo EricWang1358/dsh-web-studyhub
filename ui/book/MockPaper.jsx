@@ -31,7 +31,7 @@ export default function MockPaper({ course, pointIds, onStarted, className, auto
     catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
     finally { setBusy(false); }
   };
-  if (!plan) return <Button size="sm" variant="secondary" icon="clock" className={className} busy={busy} disabled={busy} data-usage="book.mock" onClick={ask}>{ui('用这些知识点出一套模拟卷')}</Button>;
+  if (!plan) return <Button size="sm" variant="secondary" icon="clock" className={className} busy={busy} data-usage="book.mock" onClick={ask}>{ui('用这些知识点出一套模拟卷')}</Button>;
   const minutes = plan.limitMinutes ?? EXAM_LIMIT_MS / 60000, left = leftOutText(plan.leftOut);
   return (
     <div className={className ? `book-mock ${className}` : 'book-mock'} role="group" aria-label={ui('模拟卷')}>
@@ -44,8 +44,8 @@ export default function MockPaper({ course, pointIds, onStarted, className, auto
             <NumberInput suffix={ui('道')} min="1" max={String(most)} step="1" required value={count} disabled={busy} onChange={event => setCount(event.target.value)} />
           </Field>
           <span className="book-mock__muted">{plan.limitMinutes ? uiFormat('限时 {0} 分钟（课程的作答时间）', [minutes]) : uiFormat('限时 {0} 分钟', [minutes])}</span>
-          <Button type="submit" size="sm" variant="secondary" busy={busy} disabled={busy || !valid}>{ui('开始模拟卷')}</Button>
-          <Button size="sm" variant="quiet" disabled={busy} onClick={cancel}>{ui('取消')}</Button>
+          <Button type="submit" size="sm" variant="secondary" busy={busy} disabled={!valid}>{ui('开始模拟卷')}</Button>
+          <Button size="sm" variant="quiet" lock={busy} onClick={cancel}>{ui('取消')}</Button>
         </form>
       ) : (
         <InlineMessage tone="warning" action={{ label: ui('知道了'), onClick: cancel }}>{ui('这些知识点没有单选或多选题，出不了模拟卷。')}</InlineMessage>

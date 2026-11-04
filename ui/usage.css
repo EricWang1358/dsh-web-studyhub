@@ -9,18 +9,18 @@
     .usage-status { margin: 0; color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .usage-settings[data-state="off"] .usage-status,
     .usage-settings[data-state="off-data"] .usage-status { color: var(--text-muted); }
-    .usage-settings[data-state="paused"] .usage-status { color: var(--warn); }
+    .usage-settings[data-state="paused"] .usage-status { color: var(--warn-ink); }
     /* The report: folded until opened. */
     .usage-report { display: grid; gap: var(--space-4); min-width: 0; border-top: 1px solid var(--line-soft); padding-top: var(--space-2); }
     .usage-report__summary { padding: var(--space-2) 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); cursor: pointer; }
     .usage-report[open] > .usage-report__summary { margin-bottom: var(--space-3); }
     .usage-report__body { display: grid; gap: var(--space-5); min-width: 0; max-width: 780px; }
-    .usage-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: var(--space-3); max-width: 480px; margin: 0; }
+    .usage-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 112px), 1fr)); gap: var(--space-3); max-width: 480px; margin: 0; }
     .usage-summary > div { display: grid; gap: var(--space-half); min-width: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-surface); }
     .usage-summary dt { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .usage-summary dd { margin: 0; color: var(--text); font-size: var(--fs-xl); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
     .usage-block { display: grid; gap: var(--space-2); align-content: start; min-width: 0; }
-    .usage-pair { display: grid; align-items: start; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-5) var(--space-6); min-width: 0; }
+    .usage-pair { display: grid; align-items: start; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--space-5) var(--space-6); min-width: 0; }
     /* Ranked rows and share rows: name and numbers on one line, a thin bar under them. */
     .usage-rank,
     .usage-shares { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
@@ -33,7 +33,10 @@
     .usage-share__meter { grid-column: 1 / -1; }
     /* The daily rhythm: one bar per day, the numbers are in the text under it and in each day's hidden label. */
     .usage-rhythm { display: flex; align-items: stretch; gap: var(--space-half); height: 64px; margin: 0; padding: 0; list-style: none; min-width: 0; border-bottom: 1px solid var(--line); }
-    .usage-rhythm__day { position: relative; flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; }
+    .usage-rhythm__day { position: relative; flex: 1 1 0; min-width: 0; display: flex; align-items: stretch; }
+    .usage-rhythm__hit { flex: 1 1 0; min-width: 0; }
+    .usage-rhythm__col { flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; }
+    .usage-rhythm__col:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; border-radius: var(--radius-xs); }
     .usage-rhythm__bar { display: block; width: 100%; min-height: 0; border-radius: var(--radius-xs) var(--radius-xs) 0 0; background: var(--info); }
     .usage-never { min-width: 0; }
     .usage-never > summary { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); cursor: pointer; padding: var(--space-1) 0; }
@@ -41,14 +44,16 @@
     .usage-never__group { color: var(--text-dim); }
     .usage-hints__list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; max-width: 72ch; }
     .usage-hints__list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2); align-items: start; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .usage-actions { margin-top: var(--space-2); }
+    .usage-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
     .usage-file { overflow-wrap: anywhere; }
   }
-  @media (max-width: 560px) {
+  @container study (max-width: 560px) {
     :is(.study-app, .study-seat) {
-      .usage-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .usage-summary { grid-template-columns: repeat(auto-fit, minmax(min(100%, 96px), 1fr)); }
       .usage-summary > div { padding: var(--space-2); }
       .usage-summary dd { font-size: var(--fs-lg); }
+      .usage-rank__row,
+      .usage-share__row { flex-wrap: wrap; }
     }
   }
 }

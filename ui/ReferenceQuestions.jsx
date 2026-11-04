@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from './i18n.js';
 import SourcePicker from './SourcePicker.jsx';
-import { Button, Disclosure, InlineMessage } from './components/index.js';
+import { Button, Disclosure, InlineMessage, NumberInput } from './components/index.js';
 import { referenceSelection } from './reference-questions.js';
 import { QUESTION_REFERENCE_LIMITS, QUESTION_REFERENCE_HARD_LIMITS, QUESTION_REFERENCE_FORMAT_DEFAULT } from '../lib/question-references.js';
 import { formatNumber } from './format.js';
@@ -30,9 +30,9 @@ export default function ReferenceQuestions({ sources, selected = [], evidenceIds
     <p className="muted small">{ui('开始生成后，所选样题会随教材发送给已配置的模型，会增加输入 Token。')}</p>
     <p className="muted small">{ui('建议包含题干、答案与解析。按资料页或文本片段计数，不是按单道题计数；整本题集请先缩小到少量样题。')}</p>
     <div className="two-col" role="group" aria-label={ui('参考样题用量上限')}>
-      <label>{ui('最多样题片段')}<input type="number" min="1" max={QUESTION_REFERENCE_HARD_LIMITS.sources} step="1" required
+      <label>{ui('最多样题片段')}<NumberInput inputMode="numeric" min="1" max={QUESTION_REFERENCE_HARD_LIMITS.sources} step="1" required
         value={values.sources} disabled={busy} onChange={event => updateLimit('sources', event.target.value)} /></label>
-      <label>{ui('最多样题字符')}<input type="number" min="1" max={QUESTION_REFERENCE_HARD_LIMITS.chars} step="1" required
+      <label>{ui('最多样题字符')}<NumberInput inputMode="numeric" min="1" max={QUESTION_REFERENCE_HARD_LIMITS.chars} step="1" required
         value={values.chars} disabled={busy} onChange={event => updateLimit('chars', event.target.value)} /></label>
     </div>
     <p className="muted small">{uiFormat('默认 {0} 个片段 / {1} 字符；可调整，最高 {2} 个片段 / {3} 字符。',

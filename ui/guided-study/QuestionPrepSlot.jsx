@@ -1,5 +1,7 @@
 import React from 'react';
 import { Button } from '../components/Button.jsx';
+import Icon from '../components/Icon.jsx';
+import { Spinner } from '../components/Loading.jsx';
 import { ui } from '../i18n.js';
 
 export function QuestionPrepSlot({
@@ -13,7 +15,7 @@ export function QuestionPrepSlot({
     return (
       <div className="question-prep-slot question-prep-running" role="status">
         <div className="question-prep-header">
-          <span className="question-prep-spinner" />
+          <Spinner size="sm" />
           <span className="question-prep-title">{ui('正在出一道新题')}</span>
         </div>
         {/* What the job really does (the ordinary supplement: plan, answer, author, citation check, independent review): no promised duration. */}
@@ -39,7 +41,7 @@ export function QuestionPrepSlot({
     return (
       <div className="question-prep-slot question-prep-failed" role="alert">
         <div className="question-prep-header">
-          <span className="question-prep-warning-icon">⚠️</span>
+          <span className="question-prep-warning-icon"><Icon name="warning" size={16} /></span>
           <span className="question-prep-title">{ui('这道题没有加入题组')}</span>
         </div>
         <p className="question-prep-reason">

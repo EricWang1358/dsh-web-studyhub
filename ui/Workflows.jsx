@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowPortal from "./WorkflowPortal.jsx";
 import ModelSetupGate from "./ModelSetupGate.jsx";
 import { modelReadiness } from "./generation-status.js";
-import { Banner, Button, Checkbox, CheckboxInput, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, LoadingState, PageHeader, Select, useToast } from "./components/index.js";
+import { Banner, Button, Checkbox, CheckboxInput, ErrorState, Icon, IconButton, InlineConfirm, InlineMessage, LoadingState, PageHeader, Select, Tooltip, useToast } from "./components/index.js";
 import { HandOff, HandOffForm } from "./hand-off/HandOff.jsx";
 import { useInjectCss } from "./shared.js";
 import { usePolling } from "./use-polling.js";
@@ -129,9 +129,11 @@ export function FlowEditor({ initial, components, latest, storageKey, draftName,
           onDragOver={(e) => { if (dragId.current) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }}
           onDrop={(e) => { e.preventDefault(); reorder(draft.steps.findIndex((s) => s.id === dragId.current), index); dragId.current = null; }}>
           <div className="wf-step-head">
-            <span className="wf-drag" title={ui("拖动这个手柄排序")} draggable={!pending} onDragStart={(e) => {
-              dragId.current = step.id; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", step.id);
-            }} onDragEnd={() => { dragId.current = null; }} aria-hidden="true"><Icon name="list" size={16} /></span>
+            <Tooltip layer content={ui("拖动这个手柄排序")}>
+              <span className="wf-drag" draggable={!pending} onDragStart={(e) => {
+                dragId.current = step.id; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", step.id);
+              }} onDragEnd={() => { dragId.current = null; }} aria-hidden="true"><Icon name="list" size={16} /></span>
+            </Tooltip>
             <span className="wf-step-number">{formatIndex(index + 1)}</span>
             <button type="button" className="wf-step-toggle" aria-expanded={open} onClick={() => setExpanded(open ? "" : step.id)}><strong>{step.title || ui("未命名步骤")}</strong><small>{component?.title}</small></button>
             <div className="wf-step-move"><IconButton icon={TURN_UP} size="sm" disabled={index === 0} lock={!!pending} label={uiFormat("上移第 {0} 步 {1}", [index + 1, step.title])} onClick={() => reorder(index, index - 1)} /><IconButton icon={TURN_DOWN} size="sm" disabled={index === draft.steps.length - 1} lock={!!pending} label={uiFormat("下移第 {0} 步 {1}", [index + 1, step.title])} onClick={() => reorder(index, index + 1)} /></div>
@@ -201,7 +203,7 @@ export function StartFlow({ template, listing, onRefresh, onStarted, onBack }) {
         <p className="muted small">{ui("未选题目时，使用关联骨架的题目范围；都不选则从阅读、讲解和复述开始。")}</p>
         {listing.topics.length ? <><input type="search" aria-label={ui("搜索学习主题")} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={ui("搜索主题或题组")} />
           {(listing.groups?.groups || []).length > 0 && <div className="wf-topic-groups" aria-label={ui("按主题组选择")}>{listing.groups.groups.map((g) => <label key={g.id}><CheckboxInput checked={g.topics.length > 0 && g.topics.every((key) => selected.has(key))} indeterminate={g.topics.some((key) => selected.has(key)) && !g.topics.every((key) => selected.has(key))} onChange={(e) => toggle(g.topics, e.target.checked, g.title)} /><span>{g.title}</span><small>{uiFormat("{0} 个主题", [g.topics.length])}</small></label>)}</div>}
-          <div className="wf-topic-list">{matched.map((t) => <label key={t.key}><CheckboxInput checked={selected.has(t.key)} onChange={(e) => toggle([t.key], e.target.checked, t.topic)} /><span>{t.topic}<small title={t.decks.map((d) => d.deckTitle).join(" · ")}>{t.decks.slice(0, 2).map((d) => d.deckTitle).join(" · ")}{t.decks.length > 2 ? uiFormat(" 等 {0} 个题组", [t.decks.length]) : ""}</small></span><small>{uiFormat("{0} 题", [t.count])}</small></label>)}{!matched.length && <p className="muted">{ui("没有匹配的主题。")}</p>}</div>
+          <div className="wf-topic-list">{matched.map((t) => <label key={t.key}><CheckboxInput checked={selected.has(t.key)} onChange={(e) => toggle([t.key], e.target.checked, t.topic)} /><span>{t.topic}<Tooltip layer content={t.decks.map((d) => d.deckTitle).join(" · ")} anchorClassName="wf-topic-decks-tip"><small tabIndex={0}>{t.decks.slice(0, 2).map((d) => d.deckTitle).join(" · ")}{t.decks.length > 2 ? uiFormat(" 等 {0} 个题组", [t.decks.length]) : ""}</small></Tooltip></span><small>{uiFormat("{0} 题", [t.count])}</small></label>)}{!matched.length && <p className="muted">{ui("没有匹配的主题。")}</p>}</div>
         </> : <p className="muted small">{ui("学习库还没有题目主题。填写上方主题即可开始。")}</p>}
       </details>
       <label>{ui("这次学什么")}<input required maxLength={120} value={topic} placeholder={ui("写一个主题；没有题目也可以开始")} onChange={(e) => { setTopic(e.target.value); requestId.current = crypto.randomUUID(); }} /></label>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ui } from '../i18n.js';
+import { Tooltip } from '../components/index.js';
 import { LEVEL_LABEL } from '../shared.js';
 import { BAR_ORDER } from './map-model.js';
 
@@ -9,17 +10,19 @@ export default function MasteryBar({ node }) {
   const label = BAR_ORDER.filter((level) => node.counts[level]).map((level) => `${LEVEL_LABEL[level]} ${node.counts[level]}`).join(' · ') || ui('暂无题目');
   let seen = 0;
   return (
-    <span className="mastery" title={label}>
-      <span className={total > 0 ? 'mastery-bar' : 'mastery-bar empty'} aria-hidden="true">
-        {BAR_ORDER.map((level) => {
-          if (!node.counts[level]) return null;
-          // Stagger each segment so the bar fills left-to-right on mount.
-          const delay = `${seen * 90}ms`;
-          seen += 1;
-          return <span key={level} className={`lv-${level}`} style={{ flexGrow: node.counts[level], animationDelay: delay }} />;
-        })}
+    <Tooltip layer content={label} anchorClassName="mastery">
+      <span className="mastery-track" tabIndex={0}>
+        <span className={total > 0 ? 'mastery-bar' : 'mastery-bar empty'} aria-hidden="true">
+          {BAR_ORDER.map((level) => {
+            if (!node.counts[level]) return null;
+            // Stagger each segment so the bar fills left-to-right on mount.
+            const delay = `${seen * 90}ms`;
+            seen += 1;
+            return <span key={level} className={`lv-${level}`} style={{ flexGrow: node.counts[level], animationDelay: delay }} />;
+          })}
+        </span>
+        <span className={total > 0 && node.mastery > 0 ? 'mastery-value' : 'mastery-value zero'}>{total > 0 ? `${node.mastery}%` : '—'}</span>
       </span>
-      <span className={total > 0 && node.mastery > 0 ? 'mastery-value' : 'mastery-value zero'}>{total > 0 ? `${node.mastery}%` : '—'}</span>
-    </span>
+    </Tooltip>
   );
 }

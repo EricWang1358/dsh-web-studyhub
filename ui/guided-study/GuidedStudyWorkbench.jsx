@@ -9,7 +9,8 @@ import { QuestionPrepSlot } from './QuestionPrepSlot.jsx';
 import { StudyProgressPanel } from './StudyProgressPanel.jsx';
 import { buildAskTutorPrompt, applyAskTutorMessage } from '../agent-prompts/guided-study.js';
 import { useStudy } from '../study-context.jsx';
-import './guided-study.css';
+import { useInjectCss } from '../shared.js';
+import css from './guided-study.css';
 import GuidedStudyStart from './GuidedStudyStart.jsx';
 
 /* How the session's status reads to the learner (never the raw value). */
@@ -39,6 +40,7 @@ export default function GuidedStudyWorkbench({
   onAskTutor,
   onNext,
 }) {
+  useInjectCss(css, 'study-guided-study');
   const study = useStudy();
   const effectiveHost = host || study?.host;
   const [tutorMessage, setTutorMessage] = useState('');
@@ -172,7 +174,7 @@ export default function GuidedStudyWorkbench({
               onFallbackToExisting={onFallbackToExisting}
             />
           ) : currentCard ? (
-            <div className="guided-study-card-view">
+            <div className="guided-study-card-view sh-paper-card sh-paper-card--snug">
               <div className="guided-study-card-prompt">
                 <Markdown text={currentCard.prompt} />
               </div>

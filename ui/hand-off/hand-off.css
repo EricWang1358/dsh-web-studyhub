@@ -195,6 +195,13 @@
       .sh-toast--receipt .sh-seal { --sh-seal-size: calc(var(--space-7) + var(--space-1)); align-self: start; }
     }
   }
+  @container study (max-width: 600px) {
+    :where(.study-app, .study-seat) {
+      .sh-handoff-sheet__foot { flex-direction: column-reverse; align-items: stretch; }
+      .sh-handoff-sheet__copy { width: 100%; }
+      .sh-handoff-sheet__select { align-self: center; }
+    }
+  }
   @media (max-width: 600px) {
     :where(.study-app, .study-seat) {
       .sh-handoff-sheet__foot { flex-direction: column-reverse; align-items: stretch; }

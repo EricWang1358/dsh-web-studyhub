@@ -9,7 +9,6 @@
       gap: var(--space-2);
       width: calc(100% - 2 * var(--space-2));
       margin: 0 var(--space-2) var(--space-2);
-      padding: var(--space-2) var(--space-3);
       padding: 0;
       border: 0;
       border-radius: var(--radius-pill);
@@ -26,7 +25,7 @@
     }
     .update-chip svg { flex-shrink: 0; }
     .update-chip:hover .sh-badge { background: color-mix(in srgb, var(--sh-tone) 22%, transparent); }
-    .update-chip:focus-visible { outline: none; box-shadow: var(--ring); }
+    .update-chip:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
     .update-chip.is-compact {
       justify-content: center;
       width: auto;

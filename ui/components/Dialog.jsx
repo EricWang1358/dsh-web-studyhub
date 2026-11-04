@@ -49,13 +49,25 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(mediaCss, 'study-dialog-media');
   const [own, setOwn] = useState(null);
-  const ref = useRef(null), pointerDown = useRef(null), closing = useRef(false), onCloseRef = useRef(onClose);
+  const [scrollable, setScrollable] = useState(false);
+  const ref = useRef(null), bodyRef = useRef(null), pointerDown = useRef(null), closing = useRef(false), onCloseRef = useRef(onClose);
   const canDismiss = dismissible && !busy;
   const [entry] = useState(() => ({ dialog: null }));
   const top = useTopDialog();
   const titleId = useId(), descriptionId = useId();
   const kind = SIZES.has(size) ? size : 'md';
   useLayoutEffect(() => { onCloseRef.current = onClose; });
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return undefined;
+    const sync = () => setScrollable(body.scrollHeight > body.clientHeight + 1);
+    sync();
+    if (typeof ResizeObserver !== 'function') return undefined;
+    const observer = new ResizeObserver(sync);
+    observer.observe(body);
+    if (body.firstElementChild) observer.observe(body.firstElementChild);
+    return () => observer.disconnect();
+  }, []);
   useLayoutEffect(() => {
     const dialog = ref.current;
     const opener = document.activeElement;
@@ -106,7 +118,7 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
         {dismissible && <IconButton icon="close" className="sh-dialog__close" label={closeLabel || ui('关闭')} aria-disabled={busy || undefined}
           onClick={() => requestClose('button')} />}
       </header>
-      <div className="sh-dialog__body" tabIndex={0} role="region" aria-label={bodyLabel || (typeof title === 'string' ? title : undefined)}>
+      <div ref={bodyRef} className="sh-dialog__body" tabIndex={scrollable ? 0 : undefined} role="region" aria-label={bodyLabel || (typeof title === 'string' ? title : undefined)}>
         <div className="sh-dialog__content">{children}</div>
       </div>
       <div className="sh-dialog__toasts">{top === entry && entry.dialog && <DialogToasts dialog={entry.dialog} />}</div>

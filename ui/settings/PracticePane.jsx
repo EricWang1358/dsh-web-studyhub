@@ -5,6 +5,7 @@ import { PRACTICE_DEFAULTS, resolvePracticeSettings } from '../../lib/practice-s
 import { COVERAGE_DEFAULT, CRUNCH_MINUTES, CRUNCH_WINDOW, bookCoverage, crunchMinutes, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { levelHint, levelOptions } from '../outline/words.js';
 import { AUTO_ADVANCE_MS, RESULT_COUNTDOWN_SECONDS } from '../review/session-logic.js';
+import { useStudy } from '../study-context.jsx';
 
 /* 设置 › 练习: the learner's personal defaults for the daily practice, saved at once (settings.practice.set); 恢复默认 forgets them (settings.practice.reset).
    Autopilot and the round size are what the practice page and the home card read; 本轮点评 is the one place that says the result page asks the model. */
@@ -17,7 +18,8 @@ const withSaved = (choices, value) => (choices.includes(value) ? choices : [...c
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 const seconds = (ms) => String(ms / 1000);
 
-export default function PracticePane({ data, busy, act }) {
+export default function PracticePane({ data, busy, act, openSchedule }) {
+  const { openSettings } = useStudy();
   const toast = useToast();
   const saved = data?.settings?.practice, savedValues = resolvePracticeSettings(saved), key = JSON.stringify(savedValues);
   const [values, setValues] = useState(savedValues), [working, setWorking] = useState(false), [error, setError] = useState('');
@@ -96,6 +98,8 @@ export default function PracticePane({ data, busy, act }) {
       <div className="settings-actions">
         <Button disabled={disabled || (saved === undefined && same(values, PRACTICE_DEFAULTS))}
           onClick={() => run('settings.practice.reset', {}, resolvePracticeSettings())}>{ui('恢复默认')}</Button>
+        <Button variant="link" size="sm" iconEnd="chevron-right"
+          onClick={() => (openSchedule ? openSchedule() : openSettings('settings-data'))}>{ui('间隔复习 · FSRS-6')}</Button>
       </div>
       <Hint>{ui('改动立即保存，只影响之后的练习。')}</Hint>
     </SettingsSection>

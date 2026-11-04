@@ -4,23 +4,18 @@
   :where(.study-app, .study-seat) {
     /* WP18 · the guided flow's course line, switcher, references and model errors. */
     .wf-scope { display: grid; gap: var(--space-1-5); margin-top: var(--space-2-5); min-width: 0; }
-    .wf-scope .wf-scope-line { margin: 0; font-size: var(--fs-15, var(--fs-md)); color: var(--text); line-height: 1.6; overflow-wrap: anywhere; }
+    .wf-scope .wf-scope-line { margin: 0; font-size: var(--fs-md); color: var(--text); line-height: 1.6; overflow-wrap: anywhere; }
     .wf-scope .wf-scope-line > span:first-child, .wf-scope .wf-scope-line.is-fallback > span:first-child { color: var(--text); font-weight: var(--fw-strong); }
     .wf-scope .wf-scope-count { white-space: nowrap; color: var(--text-muted); }
     .wf-scope-topics, .wf-scope-note { margin: 0; font-size: var(--fs-md); line-height: 1.6; color: var(--text-muted); overflow-wrap: anywhere; }
     .wf-scope-note { color: var(--text-dim); font-style: normal; }
     .wf-scope-note::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: var(--space-2); border-radius: 50%; background: var(--warn); vertical-align: middle; }
     .wf-scope-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-top: var(--space-1); }
-    .workflow-page label.wf-course-switch {
-      display: inline-flex; flex-direction: row; align-items: center; gap: var(--space-1-5); margin: 0; max-width: 100%;
-      padding: var(--space-half) var(--space-1) var(--space-half) var(--space-3);
-      border: 1px solid var(--line-strong); border-radius: var(--radius-pill, var(--radius-pill));
-      background: var(--bg-surface); font-size: var(--fs-md); color: var(--text-muted);
+    .wf-course-switch {
+      display: inline-flex; flex-direction: row; align-items: center; gap: var(--space-2); margin: 0; max-width: 100%;
+      font-size: var(--fs-md); color: var(--text-muted);
     }
-    .wf-course-switch:focus-within { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .wf-course-switch > span { white-space: nowrap; }
-    .workflow-page .wf-course-switch select { width: auto; min-width: 0; max-width: min(320px, 56vw); min-height: 32px; padding: var(--space-1) var(--space-6-5) var(--space-1) var(--space-1); border: 0; background-color: transparent; color: var(--text); font-weight: var(--fw-strong); text-overflow: ellipsis; cursor: pointer; }
-    .workflow-page .wf-course-switch select:is(:focus, :focus-visible) { outline: 0; box-shadow: none; background-color: transparent; }
     .wf-spine-status:has(.sh-inline) { align-items: flex-start; }
     .wf-failure { display: grid; justify-items: start; gap: var(--space-2); margin-block: var(--space-3); }
     .wf-failure > .sh-inline { width: 100%; }
@@ -37,8 +32,7 @@
   }
   @container (max-width: 520px) {
     :where(.study-app, .study-seat) {
-      .wf-course-switch { width: 100%; box-sizing: border-box; }
-      .workflow-page .wf-course-switch select { flex: 1; max-width: none; }
+      .wf-course-switch { width: 100%; box-sizing: border-box; flex-wrap: wrap; }
     }
   }
 }

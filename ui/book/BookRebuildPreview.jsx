@@ -23,7 +23,7 @@ export default function BookRebuildPreview({ moves, onApply, onDiscard, building
         <Tooltip layer content={textMoves ? ui('笔记放到下面列的位置。放好后还能撤销这次整理，只要之后没有再改过书。') : ui('书按新总纲排。放好后还能撤销这次整理，只要之后没有再改过书。')}>
           <Button variant="primary" busy={working} onClick={apply}>{ui('按这样放')}</Button></Tooltip>
         <Tooltip layer content={building ? ui('这门课正在整理总纲或更新全书，等它结束再撤销。这次没有改动。') : ui('总纲回到上一版，书一个字不动。想要新总纲，要再整理一次。')}>
-          <Button variant="quiet" disabled={working || building} onClick={() => setAsking(true)}>{ui('放弃这次整理')}</Button></Tooltip>
+          <Button variant="quiet" lock={working} disabled={building} onClick={() => setAsking(true)}>{ui('放弃这次整理')}</Button></Tooltip>
       </div>
       {moves.structure && <p className="book-rebuild-preview__lead" data-book-rebuild-structure="">{ui('下面也列了你对书的结构做过、这次不会保留的改动。放好后「撤销这次整理」能把它们和笔记一起放回去，只要之后没有再改过书；「放弃这次整理」则什么都不动。')}</p>}
       <MovesList moves={moves} />

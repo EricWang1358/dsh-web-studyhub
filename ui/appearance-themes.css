@@ -32,7 +32,6 @@
     .flash-area .card-progress, .study-document-viewer[data-tone='paper'] .reader-page, .study-reading[data-tone='paper']) {
     --line: #6e6252; --line-strong: #4d4438; --text-faint: #4a4236; --decor-faint: #7a705f;
   }
-  .study-app[data-contrast='high'] :is(button, a, input, textarea, select):focus-visible { outline-width: 3px; outline-offset: 2px; }
   /* Density: spacing and line height only. Corners: the three radius tokens only. */
   .study-app[data-density='compact'],
   .study-seat:has(> .study-app[data-density='compact']) {
@@ -48,10 +47,16 @@
   .study-seat:has(> .study-app[data-radius='sharp']) { --radius: 4px; --radius-sm: 2px; --radius-card: 6px; }
   .study-app[data-radius='soft'],
   .study-seat:has(> .study-app[data-radius='soft']) { --radius: 18px; --radius-sm: 12px; --radius-card: 24px; }
+}
+
+@layer study.overrides {
+  :is(.study-app, .study-seat) {
+    &:is([data-contrast='high'], :has(> .study-app[data-contrast='high'])) :is(button, a, input, textarea, select, [tabindex]):focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
+  }
   @media (forced-colors: active) {
     :is(.study-app, .study-seat) {
       /* Forced colours (Windows high contrast): say with system colours what colour alone said. */
-      :is(button, a, input, textarea, select):focus-visible { outline: 3px solid Highlight; outline-offset: 2px; box-shadow: none; }
+      :is(button, a, input, textarea, select, [tabindex]):focus-visible { outline: 3px solid Highlight; outline-offset: 2px; box-shadow: none; }
       :is(button, .sh-btn) { border: 1px solid ButtonText; }
       :is(button, .sh-btn):disabled { border-color: GrayText; color: GrayText; }
       :is([aria-pressed='true'], [aria-selected='true'], [aria-current='step'], .nav[aria-current="page"], .is-active, .primary, .sh-btn--primary) { forced-color-adjust: none; background: Highlight !important; color: HighlightText !important; }

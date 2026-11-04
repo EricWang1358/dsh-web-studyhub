@@ -76,7 +76,7 @@
     .setup-step[data-status="done"] .setup-mark {
       border-color: transparent;
       background: var(--ok-bg);
-      color: var(--ok);
+      color: var(--ok-ink);
     }
     .setup-body {
       display: grid;
@@ -154,7 +154,7 @@
       color: var(--text-dim);
       font-size: var(--fs-sm);
     }
-    .setup-done .icon { color: var(--ok); }
+    .setup-done .icon { color: var(--ok-ink); }
   }
   @container study (max-width: 760px) {
     :is(.study-app, .study-seat) {
