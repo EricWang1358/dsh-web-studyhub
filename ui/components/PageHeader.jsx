@@ -14,12 +14,12 @@ import { Button } from './Button.jsx';
  * floating at its bottom right, e.g. 学习统计).
  * Extra props (data-tour, id…) land on the <header>.
  */
-export default function PageHeader({ eyebrow, title, description, actions, scope, back, titleProps, compact = false, actionsOnTitleRow = false, children, className, ...rest }) {
+export default function PageHeader({ eyebrow, title, description, actions, scope, back, titleProps, compact = false, actionsOnTitleRow = false, children, className, textClassName, ...rest }) {
   useComponentCss(css);
   const heading = <h1 {...titleProps} className={cx('sh-page-header__title', titleProps?.className)}>{title}</h1>;
   return (
     <header className={cx('sh-page-header', compact && 'sh-page-header--compact', className)} {...rest}>
-      <div className="sh-page-header__text">
+      <div className={cx('sh-page-header__text', textClassName)}>
         {back && <Button variant="link" size="sm" icon="arrow-left" className="sh-page-header__back" onClick={back.onClick}>{back.label}</Button>}
         {eyebrow && <p className="sh-page-header__eyebrow">{eyebrow}</p>}
         {actionsOnTitleRow && actions ? <div className="sh-page-header__title-row">{heading}<div className="sh-page-header__actions">{actions}</div></div> : heading}

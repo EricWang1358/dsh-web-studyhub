@@ -34,7 +34,6 @@
     .course-field__panel-head { display: flex; align-items: center; gap: var(--space-2); min-height: 32px; }
     .course-field__panel-head strong { color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .course-field__panel-head small { margin-right: auto; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-    .course-field__panel .sh-scroll__frame { background: var(--bg-surface); }
     .course-field__options { display: grid; padding: var(--space-1); }
     .course-field__option { display: flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: var(--space-1-5) var(--space-3);
       border-radius: var(--radius-sm); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); cursor: pointer; }

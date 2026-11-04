@@ -77,7 +77,7 @@
     .mailbox__error { margin: var(--space-2) var(--space-3) 0; }
     /* The list is a ScrollWindow; inside the panel its frame is the panel's own edge. */
     .mailbox__scroll { gap: 0; min-height: 0; }
-    .mailbox__scroll .sh-scroll__frame { border: 0; border-radius: 0; background: none; }
+    .mailbox__scroll .mailbox__scroll-frame { border: 0; border-radius: 0; background: none; }
     .mailbox__list { padding: var(--space-2); }
     .mailbox__row { display: block; }
     .mailbox__item {
@@ -120,7 +120,7 @@
       font-size: var(--fs-sm);
     }
     /* A long kind label (English) wraps inside its pill instead of pushing the time out of the panel. */
-    .mailbox__top .sh-badge { flex: 0 1 auto; white-space: normal; }
+    .mailbox__top .mailbox__badge { flex: 0 1 auto; white-space: normal; }
     .mailbox__deck {
       min-width: 0;
       overflow: hidden;

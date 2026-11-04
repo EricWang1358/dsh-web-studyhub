@@ -24,8 +24,8 @@ test('a chapter row is one flex line: the title takes the room, the generate but
   const row = rule('.source-doc__chapters > li');
   assert.match(row, /display:\s*flex/);
   assert.match(row, /align-items:\s*center/);
-  assert.match(rule('.source-doc__chapters > li > .sh-btn'), /flex:\s*none/);
-  assert.match(rule('.source-doc__chapters > li > .sh-btn'), /width:\s*auto/);
+  assert.match(rule('.source-doc__chapters > li > .source-doc__chapter-btn'), /flex:\s*none/);
+  assert.match(rule('.source-doc__chapters > li > .source-doc__chapter-btn'), /width:\s*auto/);
 });
 
 test('no stylesheet rule is written for a raw button of the list any more: the rows are <Button> (#137)', () => {

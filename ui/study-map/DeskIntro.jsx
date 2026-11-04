@@ -36,7 +36,7 @@ function OtherRuns({ runs, otherCourse, resume, endRun }) {
         <div className="resume-row" key={r.id}>
           <button className="resume" disabled={busy} onClick={() => resume(r.id)}>
             <span>
-              <span className="eyebrow">{[otherCourse(r) || ui('继续上次学习'), r.inactive ? ui('未激活') : ''].filter(Boolean).join(' · ')}</span>
+              <span className="eyebrow resume__eyebrow">{[otherCourse(r) || ui('继续上次学习'), r.inactive ? ui('未激活') : ''].filter(Boolean).join(' · ')}</span>
               <strong>{r.title}</strong>
             </span>
             <span>{r.index + 1} / {r.total} <b>→</b></span>

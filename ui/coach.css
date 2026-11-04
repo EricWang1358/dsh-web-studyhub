@@ -86,7 +86,7 @@
     }
     /* On the result page it lines up with the score card above it. */
     .result-page .coach-debrief { width: 100%; margin: var(--space-5) 0; }
-    .coach-debrief .eyebrow { margin-bottom: var(--space-1-5); }
+    .coach-debrief .coach-debrief__eyebrow { margin-bottom: var(--space-1-5); }
     .coach-debrief h2 { margin: 0 0 var(--space-1-5); font-size: var(--fs-2xl); line-height: 1.4; color: var(--text); }
     .coach-debrief > p { margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); line-height: 1.7; }
     .coach-score-split { display: flex; flex-wrap: wrap; gap: var(--space-1-5) var(--space-4); margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); }
@@ -118,7 +118,7 @@
     .skeleton.s { height: 12px; width: 55%; }
     /* ── Library offer ───────────────────────────────────────────────────── */
     /* ── Sidebar entry: shows on every page while 定制题 are ready ─────────── */
-    .coach-nav .icon { color: var(--accent-soft); }
+    .coach-nav > span:first-child { color: var(--accent-soft); }
     .nav-badge {
       flex: none;
       margin-left: auto;

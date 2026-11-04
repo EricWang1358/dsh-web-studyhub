@@ -16,7 +16,7 @@
       text-align: left;
       cursor: pointer;
     }
-    .update-chip .sh-badge { flex: 1 1 auto; min-width: 0; padding-block: var(--space-1); padding-inline: var(--space-3); }
+    .update-chip .update-chip__badge { flex: 1 1 auto; min-width: 0; padding-block: var(--space-1); padding-inline: var(--space-3); }
     .update-chip__label {
       min-width: 0;
       overflow: hidden;
@@ -24,14 +24,14 @@
       white-space: nowrap;
     }
     .update-chip svg { flex-shrink: 0; }
-    .update-chip:hover .sh-badge { background: color-mix(in srgb, var(--sh-tone) 22%, transparent); }
+    .update-chip:hover .update-chip__badge { background: color-mix(in srgb, var(--sh-tone) 22%, transparent); }
     .update-chip:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
     .update-chip.is-compact {
       justify-content: center;
       width: auto;
       margin: 0 auto var(--space-2);
     }
-    .update-chip.is-compact .sh-badge { flex: none; padding: var(--space-2); }
+    .update-chip.is-compact .update-chip__badge { flex: none; padding: var(--space-2); }
     .update-dialog .update-notes-wrap h3 {
       margin: 0 0 var(--space-2);
       font-size: var(--fs-sm);
@@ -138,7 +138,7 @@
     .update-settings .update-facts div { display: grid; gap: var(--space-half); }
     .update-settings .update-facts dt { color: var(--text-muted); font-size: var(--fs-xs); }
     .update-settings .update-facts dd { margin: 0; color: var(--text); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
-    .update-settings > .sh-banner, .update-settings > .sh-inline, .update-settings > .sh-hint { margin: 0 0 var(--space-3); }
+    .update-settings > .update-settings__banner, .update-settings > .update-settings__inline, .update-settings > .update-settings__hint { margin: 0 0 var(--space-3); }
     .update-settings .update-settings__actions {
       display: flex;
       align-items: center;

@@ -81,7 +81,7 @@ export default function NotebookDirectory({ notebooks, error, onPublish, onUnpub
         <>
           {dueRows.length > 0 && (
             <div className="nb-due">
-              <div className="eyebrow">{ui('全局到期 · 跨工作区')}</div>
+              <div className="eyebrow nb-due__eyebrow">{ui('全局到期 · 跨工作区')}</div>
               <ul className="nb-list">
                 {dueRows.map(({ n, d }) => (
                   <li key={`${n.root}:${d.id}`}>

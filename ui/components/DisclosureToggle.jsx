@@ -12,7 +12,7 @@ import { IconButton } from './Button.jsx';
  */
 export const DisclosureToggle = forwardRef(function DisclosureToggle({ open, onToggle, label, controls, size = 'sm', className, ...rest }, ref) {
   useComponentCss(css, 'study-disclosure');
-  return <IconButton ref={ref} icon="caret" size={size} label={label} aria-expanded={!!open} aria-controls={controls}
+  return <IconButton ref={ref} icon="caret" iconClassName="sh-disclosure-toggle__icon" size={size} label={label} aria-expanded={!!open} aria-controls={controls}
     className={cx('sh-disclosure-toggle', className)} onClick={() => onToggle?.(!open)} {...rest} />;
 });
 

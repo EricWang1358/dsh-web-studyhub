@@ -110,7 +110,7 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
           supplement.current?.scrollIntoView?.({ block: 'nearest' });
           supplement.current?.querySelector('input, button, select')?.focus();
         }} />
-        <Button type="submit" busy={asking} busyLabel={ui('正在回答…')} disabled={!askReady || !question.trim()}>{ui('依据原文回答')}</Button>
+        <Button type="submit" className="study-learning-submit" busy={asking} busyLabel={ui('正在回答…')} disabled={!askReady || !question.trim()}>{ui('依据原文回答')}</Button>
       </form>
       {modeSwitch && <p className="muted ask-note">{mode === 'annotate' ? ui('批注模式：每条回答都会和这段原文一起保存。') : ui('阅读模式：问答只在阅读器打开时保留。要留下来，点「存为批注」或切到批注。')}</p>}
       <AskThread thread={thread} notice={notice} noticeWhy={noticeWhy} mode={mode} savedIds={savedIds} keepBusy={keepBusy} keepError={keepError}
@@ -137,7 +137,7 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
         {generateReady && deckId && typeof call === 'function' && <TokenEstimate enabled
           request={{ feature: 'selection', selection: resolution.selection, deckId, count: Number(count) || 1, kind, language: uiLanguageName() }} />}
         {blocking && <p className="muted" role="status">{ui('这段原文补到这个题组的任务正在进行，请等它完成，或先停止它。')}</p>}
-        <Button type="submit" variant={primary ? 'primary' : 'secondary'} busy={starting} busyLabel={ui('正在启动…')} disabled={!generateReady || !deckId || !!blocking}>{ui('生成、审核并补充题目')}</Button>
+        <Button type="submit" className="study-learning-submit" variant={primary ? 'primary' : 'secondary'} busy={starting} busyLabel={ui('正在启动…')} disabled={!generateReady || !deckId || !!blocking}>{ui('生成、审核并补充题目')}</Button>
       </form>
     </>}
   </section>;

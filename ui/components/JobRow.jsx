@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
+import baseCss from './components.css';
 import css from './feedback.css';
 import { useComponentCss, cx } from './css.js';
 import { Button } from './Button.jsx';
@@ -50,6 +51,7 @@ export function jobAnnouncement(previous, current) {
  *   failure: { title, hint, detail }   actions: [{ label, onClick, variant?, icon?, disabled?, busy?, title? }]
  */
 export function JobRow({ status = 'running', stage, title, meta, progress, failure, actions, onDismiss, dismissLabel, dismissTitle, leaving = false, className, children, ...rest }) {
+  useComponentCss(baseCss);
   useComponentCss(css, 'study-feedback');
   const kind = statusOf(status), look = STATUS[kind];
   const [announced, setAnnounced] = useState('');

@@ -114,7 +114,7 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
   if (!debrief)
     return (
       <div className="coach-debrief" aria-busy="true" aria-label={ui("正在分析这一轮")}>
-        <div className="eyebrow">{ui("陪学 · 本轮分析")}</div>
+        <div className="eyebrow coach-debrief__eyebrow">{ui("陪学 · 本轮分析")}</div>
         <div className="skeleton h" />
         <div className="skeleton l" />
         <div className="skeleton s" />
@@ -124,7 +124,7 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
   const m = debrief.metrics || {};
   return (
     <ReadingBlock className="coach-debrief" data-next={next} role="region" aria-label={ui("本轮建议")}>
-      <div className="eyebrow">{ui("陪学 · 本轮建议")}</div>
+      <div className="eyebrow coach-debrief__eyebrow">{ui("陪学 · 本轮建议")}</div>
       <h2>{promisesNext ? ui("这一轮的状态不错。") : debrief.headline}</h2>
       {debrief.why && <p>{debrief.why}</p>}
       {(m.gradedAnswered > 0 || m.selfAnswered > 0) && <div className="coach-score-split">

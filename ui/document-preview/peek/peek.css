@@ -31,7 +31,7 @@
     .page-peek__title { font-size: var(--fs-md); }
     .page-peek__where { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .page-peek__tools { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-half); }
-    .page-peek__tools .sh-btn { min-width: 32px; padding-inline: var(--space-2); font-size: var(--fs-md); }
+    .page-peek__tools .page-peek__tool { min-width: 32px; padding-inline: var(--space-2); font-size: var(--fs-md); }
     .page-peek__zoom { min-width: 3.2em; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; text-align: center; }
     .page-peek__body { position: relative; display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
     .page-peek__scroll { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--bg-sunken); }

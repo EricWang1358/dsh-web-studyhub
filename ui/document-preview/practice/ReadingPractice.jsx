@@ -33,7 +33,7 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
   // 覆盖: how much of this range has no question at all (the words of the outline's header and the draft page); said only when part of it has one.
   const covered = loop.coverage && loop.outlineCoverage ? rangeCoverageOf(loop.outlineCoverage, selected?.ids ?? null, loop.coverage) : null;
   const coverageLine = covered && covered.covered > 0 && covered.uncovered > 0 ? rangeUncoveredLine(covered.uncovered, covered.leaves, loop.coverage.units === 'page' ? 'page' : 'section') : '';
-  const openDraft = drafted && onOpenDraft && drafted.draftIds?.length ? <Button size="sm" variant="secondary" icon="arrow-right" onClick={() => onOpenDraft(drafted.draftIds)}
+  const openDraft = drafted && onOpenDraft && drafted.draftIds?.length ? <Button size="sm" variant="secondary" icon="arrow-right" className="reader-practice__action" onClick={() => onOpenDraft(drafted.draftIds)}
     data-testid="practice-open-draft">{ui('检查草稿')}</Button> : null;
   // On a narrow pane the button can sit anywhere along the wrapped toolbar: Popover slides the panel back inside the viewer.
   return <Popover open={open} onOpenChange={setOpen} label={ui('做这几页的题')} className="reader-popover reader-practice" panelClassName="reader-popover__panel reader-practice__panel"
@@ -45,7 +45,7 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
       {status === 'loading' && <LoadingState className="reader-practice__status" label={ui('正在读取这几页的题…')} />}
       {(status === 'error' || status === 'unavailable') && <>
         <p className="reader-practice__status" role="alert">{status === 'unavailable' ? ui('这个版本暂时读不到这几页的题。') : ui('没能读取这几页的题。')}</p>
-        <Button size="sm" onClick={loop.reload}>{ui('重试')}</Button>
+        <Button size="sm" className="reader-practice__action" onClick={loop.reload}>{ui('重试')}</Button>
       </>}
       {ready && <>
         {options.length > 1 && <RadioCardGroup className="reader-practice__ranges" legend={ui('做题范围')}>
@@ -65,14 +65,14 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
           <InactiveNote summary={summary} courses={loop.inactiveCourses} />
           {drafted && <p className="reader-practice__drafts" data-testid="practice-drafts">{draftExtraText(drafted.draftCards)}</p>}
           {openDraft}
-          <Button variant="primary" icon="arrow-right" lock={busy} onClick={() => onStart(selected)}>
+          <Button variant="primary" icon="arrow-right" className="reader-practice__action" lock={busy} onClick={() => onStart(selected)}>
             {total === 1 ? ui('开始做这 1 道题') : uiFormat('开始做这 {0} 道题', [total])}</Button>
         </> : <>
           <p className="reader-practice__none" data-testid="practice-none"><MasteryMark summary={null} size={16} /> {drafted ? draftNoneText(drafted.draftCards) : ui('这几页还没有题')}</p>
           {drafted && <p className="reader-practice__meaning">{ui('发布草稿后才能练习这几页的题。')}</p>}
           {coverageLine && <p className="reader-practice__coverage" data-testid="practice-coverage">{coverageLine}</p>}
           {openDraft}
-          <Button variant="primary" icon="sparkle" lock={busy} onClick={() => onGenerate(selected)}>{ui('为这几页出题')}</Button>
+          <Button variant="primary" icon="sparkle" className="reader-practice__action" lock={busy} onClick={() => onGenerate(selected)}>{ui('为这几页出题')}</Button>
         </>}
       </>}
   </Popover>;

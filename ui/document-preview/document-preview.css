@@ -6,28 +6,10 @@
     .study-document-notices { display: grid; gap: var(--space-1); margin: 0 0 var(--space-4); }
     .study-document-notices:empty { display: none; }
     .study-document-notices p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .study-document-viewer .source-text--reading { max-width: 44em; margin: 0; color: var(--text); font-family: var(--font-ui); font-size: var(--fs-lg);
-      line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; tab-size: 4; }
-    .study-document-viewer .source-text--reading.source-md { white-space: normal; }
-    .study-document-viewer .source-text--pdf { max-width: 100%; margin: 0; padding: var(--space-3) var(--space-4); overflow-x: auto;
-      border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--text); font: var(--fs-sm)/1.65 ui-monospace, "Cascadia Mono", Consolas, monospace;
-      white-space: pre; tab-size: 4; }
-    .study-document-page + .study-document-page { margin-top: var(--space-5); }
-    .study-document-page h3 { margin: 0 0 var(--space-2); color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .study-document-side { display: grid; gap: var(--space-3); align-content: start; }
-    .study-document-selection { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
-    .study-document-selection > p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .study-document-selection .study-document-learning { padding: 0; border: 0; border-radius: 0; }
-    .study-document-selection .study-document-learning form > .sh-btn { width: 100%; }
+    .study-document-selection .study-document-learning form > .study-learning-submit { width: 100%; }
     .study-document-wide { width: 100%; justify-content: center; }
-    .study-document-links-heading { margin: var(--space-3) 0 0; font-size: var(--fs-md); font-weight: var(--fw-strong); }
-    .study-document-side > .sh-btn { justify-self: start; }
-  }
-  @container study (max-width: 520px) {
-    :is(.study-app, .study-seat) {
-      .study-document-viewer .source-text--reading { font-size: var(--fs-md); line-height: 1.75; }
-      .study-document-viewer .source-text--pdf { padding: var(--space-2) var(--space-3); font-size: var(--fs-sm); }
-    }
   }
   :is(.study-app, .study-seat) {
     /* Passage supplements in the learning panel (SelectionJobs.jsx): a background job shown in place, never a blocked panel. */
@@ -56,7 +38,7 @@
     .selection-job__phases li[data-state="done"] { border-top-color: var(--ok); }
     .selection-job__phases li[data-state="current"] { border-top-color: var(--accent); color: var(--text); font-weight: var(--fw-strong); }
     .selection-job__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-    .study-document-learning .selection-job__actions .sh-btn { width: auto; }
+    .study-document-learning .selection-job__actions .selection-job__btn { width: auto; }
     .selection-job__reasons { display: grid; gap: var(--space-1); font-size: var(--fs-sm); }
     .selection-job__reasons ul,
     .selection-job__trace ol { display: grid; gap: var(--space-half); margin: var(--space-1) 0 0; padding-left: 1.2em; }
@@ -72,10 +54,6 @@
 /* host-embedded: these rules style content that the host renders outside the study app (its preview pane, the ::highlight on its document), so
    their selectors are not scoped to .study-app. They are still in the features layer: unlayered rules would out-rank every layered rule of the reader. */
 @layer study.features {
-  .study-document-body {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
   .study-document-body table {
     border-collapse: collapse;
     width: 100%;
@@ -121,7 +99,7 @@
   /* The page presets: an even two-column grid, every chip as wide as its column, so a narrow panel shows two tidy rows instead of ragged ones; a long label wraps inside its chip. */
   .study-page-ask .ask-quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .study-page-ask .ask-quick__chip { display: flex; min-width: 0; }
-  .study-page-ask .ask-quick .sh-btn { flex: 1 1 auto; min-width: 0; white-space: normal; line-height: var(--lh-snug); text-align: center; text-wrap: balance; }
+  .study-page-ask .ask-quick .ask-quick__btn { flex: 1 1 auto; min-width: 0; white-space: normal; line-height: var(--lh-snug); text-align: center; text-wrap: balance; }
   /* A first-visit hint keeps its × on the line of its text (the shared inline message would wrap it under a full-width text). */
   .study-page-ask__hint { flex-wrap: nowrap; margin: 0 0 var(--space-2); }
   /* The panel itself takes focus when a hint closes and no control follows it (tabIndex -1): ring it like every other control. */
@@ -240,9 +218,6 @@
   .study-html-document td, .study-html-document th {
     border: 1px solid var(--line);
     padding: .5rem;
-  }
-  .study-document-links-heading {
-    margin-top: 1.5rem;
   }
   .study-document-preview-mode {
     display: flex;

@@ -198,16 +198,16 @@ export function InlineMessage({ tone = 'error', title, children, action, seconda
  * A page- or section-level message that stays until its cause is fixed (no
  * model configured, library read-only…). action / secondary: { label, onClick, disabled?, tip? } (tip: a layered Tooltip on hover and focus).
  */
-export function Banner({ tone = 'info', title, children, action, secondary, onDismiss, icon, className, ...rest }) {
+export function Banner({ tone = 'info', title, children, action, secondary, onDismiss, icon, className, iconClassName, bodyClassName, ...rest }) {
   useComponentCss(css);
   const kind = toneOf(tone);
   return (
     <div className={cx('sh-banner', `sh-banner--${kind}`, className)} role={kind === 'error' ? 'alert' : undefined} {...rest}>
       <div className="sh-banner__row">
-        <Icon name={icon || kind} size={20} className="sh-banner__icon" />
+        <Icon name={icon || kind} size={20} className={cx('sh-banner__icon', iconClassName)} />
         <div className="sh-banner__text">
           {title && <p className="sh-banner__title">{title}</p>}
-          {children && <div className="sh-banner__body">{children}</div>}
+          {children && <div className={cx('sh-banner__body', bodyClassName)}>{children}</div>}
         </div>
         {(action || secondary) && <div className="sh-banner__actions">
           {action && withTip(action.tip, <Button size="sm" variant={action.variant || 'secondary'} icon={action.icon} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}

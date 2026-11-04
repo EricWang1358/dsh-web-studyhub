@@ -319,7 +319,7 @@ export default function AudioImport({
         <TokenEstimate enabled={estimate.enabled} request={estimate.request} />
         <div className="audio-submit">
           <Button type="submit" variant="primary" wrap busy={starting} disabled={busy || !!upload || audioFiles.some(file => checks[file.key]?.checking)}>{starting ? ui("正在检查…") : startLabel(files, checks)}</Button>
-          {submitError && <InlineMessage action={openSettings && aboutSettings(submitError) ? { label: ui('打开音频设置'), onClick: openSettings } : undefined}
+          {submitError && <InlineMessage className="audio-submit__inline" action={openSettings && aboutSettings(submitError) ? { label: ui('打开音频设置'), onClick: openSettings } : undefined}
             onDismiss={() => setSubmitError('')}>{uiMessage(submitError)}</InlineMessage>}
         </div>
       </form>}

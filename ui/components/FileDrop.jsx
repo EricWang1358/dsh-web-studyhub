@@ -124,7 +124,7 @@ const fileIcon = name => /\.(mp3|wav|m4a|aac|ogg|oga|flac|opus|webm|aiff?)$/i.te
  * rejectAction(rejections) -> { label, onClick, tip? } | null: another way on for the files it did not take, under their list (only when passed).
  */
 export default function FileDrop({ accept = [], multiple = false, maxBytes, label, hint, buttonLabel, disabled = false, busy = false,
-  onFiles, items, compact = false, icon = 'upload', rejectAction, className, ...rest }) {
+  onFiles, items, compact = false, icon = 'upload', rejectAction, className, dropClassName, ...rest }) {
   useComponentCss(css);
   const zone = useRef(null), input = useRef(null), latest = useRef(null);
   const labelId = useId(), hintId = useId();
@@ -149,7 +149,7 @@ export default function FileDrop({ accept = [], multiple = false, maxBytes, labe
     <div className={cx('sh-filedrop', className)}>
       <div ref={zone} role="group" aria-labelledby={labelId} aria-describedby={limits ? hintId : undefined}
         aria-disabled={disabled || undefined} aria-busy={busy || undefined}
-        className={cx('sh-drop', compact && 'sh-drop--compact', over && 'is-over')}
+        className={cx('sh-drop', compact && 'sh-drop--compact', over && 'is-over', dropClassName)}
         onClick={event => { if (!event.target.closest('button, a, input')) open(); }} {...rest}>
         <span className="sh-drop__icon" aria-hidden="true"><Icon name={icon} size={compact ? 18 : 22} /></span>
         <div className="sh-drop__text">

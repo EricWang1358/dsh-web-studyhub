@@ -41,16 +41,16 @@ export default function QuickIntents({ chips = PASSAGE_INTENTS, onAsk, onQuiz, o
   const chip = ({ key, label, question, intent, note, own }) => {
     const say = own ? text => text : ui;
     return <Tooltip key={key || label} layer group="ask-help" anchorClassName="ask-quick__chip" content={<span className="ask-tip"><span>{uiFormat('点击即发送：「{0}」', [say(question)])}</span>{note && <span>{say(note)}</span>}</span>}>
-      <Button size="sm" disabled={disabled} onClick={() => onAsk(say(question), say(label), intent)}>{say(label)}</Button>
+      <Button size="sm" className="ask-quick__btn" disabled={disabled} onClick={() => onAsk(say(question), say(label), intent)}>{say(label)}</Button>
     </Tooltip>;
   };
   return <div className="ask-quick" role="group" aria-label={ui('快捷提问')}>
     {chips.map(chip)}
     {onQuiz && <Tooltip layer group="ask-help" content={<span className="ask-tip"><span>{ui('跳到下面的「补充到现有题组」。')}</span><span>{ui('不会自动出题。')}</span></span>}>
-      <Button size="sm" onClick={onQuiz}>{ui('出题考我')}</Button>
+      <Button size="sm" className="ask-quick__btn" onClick={onQuiz}>{ui('出题考我')}</Button>
     </Tooltip>}
     {onCustom && <Tooltip layer group="ask-help" content={<span className="ask-tip"><span>{ui('添加自己的预设，或隐藏内置的预设；只保存在这个浏览器里。')}</span></span>}>
-      <Button size="sm" icon="plus" disabled={disabled} onClick={onCustom}>{ui('自定义预设…')}</Button>
+      <Button size="sm" icon="plus" className="ask-quick__btn" disabled={disabled} onClick={onCustom}>{ui('自定义预设…')}</Button>
     </Tooltip>}
   </div>;
 }

@@ -25,7 +25,7 @@ export default function CourseHeading({ data, headline, onFocus, onCourseSetting
   const { openModal } = useStudy();
   const focus = data.focus || {};
   const courses = focus.courses || [];
-  const frame = (title, titleProps) => <PageHeader className="course-header" title={title} titleProps={titleProps} actions={aside} />;
+  const frame = (title, titleProps) => <PageHeader className="course-header" textClassName="course-header__text" title={title} titleProps={titleProps} actions={aside} />;
   if (focus.mode === 'interview') {
     return frame(
       <input className="course-heading-input" aria-label={ui('岗位方向')} placeholder={ui('输入岗位方向')} value={role.draft}

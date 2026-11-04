@@ -72,7 +72,7 @@
     .reader-practice__coverage { color: var(--info-ink); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .reader-practice__note { padding: var(--space-2) var(--space-3); border-left: 3px solid var(--warn); background: var(--bg-sunken); color: var(--text-dim); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .reader-practice__none { display: flex; align-items: center; gap: var(--space-2); color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); }
-    .reader-practice__panel .sh-btn { justify-self: stretch; }
+    .reader-practice__panel .reader-practice__action { justify-self: stretch; }
     /* ── Coming back: the section the learner returns to is marked for a moment ── */
     [data-returned='true'] { animation: reader-returned 2.4s var(--ease-out) 1; border-radius: var(--radius-sm); }
     [data-returned='true'][data-returned-rose='true'] { animation: sh-reader-returned-rose 2.4s var(--ease-out) 1; }
@@ -141,10 +141,10 @@
     /* Narrow: the way back to the book and a second button of the round stand in one stack, the same width. */
     @container study (max-width: 640px) {
       .result-page .result-next--back { flex-direction: column; align-items: stretch; }
-      .result-next--back > .sh-btn,
+      .result-next--back > [type='button'],
       .result-next--back > .reading-result__anchor { display: flex; width: 100%; max-width: 100%; }
       /* Both labels start at the same inset, not centred in one and left in the other. */
-      .result-next--back > .sh-btn { justify-content: flex-start; text-align: start; }
+      .result-next--back > [type='button'] { justify-content: flex-start; text-align: start; }
       .result-next--back .reading-result__return { width: 100%; max-width: 100%; }
     }
     .reading-source { margin-top: var(--space-2); }

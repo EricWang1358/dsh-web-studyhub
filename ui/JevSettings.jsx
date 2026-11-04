@@ -116,7 +116,7 @@ export function JevReplaceList({ settings, onToggle, onGoto, initialBlocked = ''
         hint={<>{site.hint()}<span className="jev-replace__replaces">{site.replaces()}</span><span>{ui('预期：更快、更省，但准确度可能下降。')}</span></>} />)}
       {!ready && need && <div className="jev-prereq" role="status">
         <p><strong>{need.text()}</strong> {ui('先完成这一步，上面的开关才会生效。')}</p>
-        <Button size="sm" variant="secondary" data-goto={step} onClick={() => onGoto?.(step)}>{need.go()}</Button>
+        <Button size="sm" variant="secondary" className="jev-prereq__btn" data-goto={step} onClick={() => onGoto?.(step)}>{need.go()}</Button>
       </div>}
       {blocked && !ready && <p className="jev-prereq__blocked" role="alert">{uiFormat('先完成上面的步骤，才能打开「{0}」。', [JEV_REPLACE_META.find(site => site.id === blocked)?.label() ?? ''])}</p>}
       <Hint className="jev-replace__compare">{ui('想知道在你的资料上差多少？用评估脚本把 Jev 和现在的模型对比：node scripts/eval-jev.mjs（见 docs/jev-experimental.md）。')}</Hint>

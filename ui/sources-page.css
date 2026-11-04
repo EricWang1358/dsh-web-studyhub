@@ -35,9 +35,6 @@
       max-width: 560px;
       margin-top: var(--space-2);
     }
-    .source-main .icon {
-      color: var(--accent-soft);
-    }
     /* .page-scope (the course-scope control): ui/course-active.css, so every page shows it the same. */
     .source-organize { margin: var(--space-4) 0; }
     .source-organize > summary, .source-row-actions > summary { cursor: pointer; color: var(--text-muted); }
@@ -96,27 +93,6 @@
       overflow-wrap: anywhere;
       margin-top: var(--space-3);
     }
-    .source-mode {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
-      gap: var(--space-2-5);
-      margin: var(--space-4-5) 0 var(--space-2);
-    }
-    .source-tab {
-      display: grid;
-      gap: var(--space-1);
-      text-align: left;
-      padding: var(--space-3-5) var(--space-4);
-      border-radius: var(--radius);
-    }
-    .source-tab small {
-      font-size: var(--fs-md);
-      color: var(--text-muted);
-    }
-    .source-md {
-      white-space: normal;
-      line-height: 1.8;
-    }
     .source-text {
       font-family: inherit;
       font-size: var(--fs-md);
@@ -161,9 +137,6 @@
       }
       .source-main small {
         max-width: 180px;
-      }
-      .source-main .icon {
-        display: none;
       }
     }
   }

@@ -6,7 +6,7 @@
        top-bar controls that used to be raw buttons. They keep the look of the rules in style.css and library-location.css, which they
        outrank now that the buttons carry .sh-btn. Tokens only. */
     /* Messages that stay until their cause is gone: one Banner each, never accent-coloured. */
-    .sh-banner.app-banner {
+    .app-banner {
       width: auto;
       margin: var(--space-4) var(--space-6) 0;
     }
@@ -14,7 +14,7 @@
     .app-banner .app-banner__hint { color: var(--text-muted); font-size: var(--fs-sm); }
     .app-banner ul { margin: var(--space-1) 0 0; padding-left: 1.1em; }
     .context-return { margin: var(--space-3) var(--space-6) 0; }
-    .sh-btn.collapse-toggle {
+    .collapse-toggle {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -34,9 +34,9 @@
         background 0.18s var(--ease),
         color 0.18s var(--ease);
     }
-    .sh-btn.collapse-toggle:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-    .sidebar.is-narrow .sh-btn.collapse-toggle { margin: var(--space-1) auto 0; }
-    .sh-btn.nav-reset {
+    .collapse-toggle:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
+    .sidebar.is-narrow .collapse-toggle { margin: var(--space-1) auto 0; }
+    .nav-reset {
       display: flex;
       justify-content: flex-start;
       margin: var(--space-2) var(--space-3) 0;
@@ -48,11 +48,11 @@
       font-size: var(--fs-xs);
       text-align: left;
     }
-    .sh-btn.nav-reset:hover:not(:disabled) { color: var(--text-dim); background: none; }
+    .nav-reset:hover:not(:disabled) { color: var(--text-dim); background: none; }
     /* Top bar: with no model the status area is the way to Settings › 学习库与模型 (AppTopbar.jsx). It is a Button drawn as the plain words it
        replaces — no box, no padding, the same gap — so the bar does not move by a pixel when it becomes clickable; hover and keyboard focus
        underline the words, and the focus ring of a Button adds no size. */
-    .sh-btn.top-status__fix {
+    .top-status__fix {
       display: inline-flex;
       align-items: center;
       gap: var(--space-2);
@@ -68,12 +68,12 @@
       line-height: inherit;
       transition: none;
     }
-    .sh-btn.top-status__fix:hover:not(:disabled) { background: none; border: 0; color: inherit; }
-    .sh-btn.top-status__fix:hover, .sh-btn.top-status__fix:focus-visible { text-decoration: underline; text-underline-offset: 2px; }
+    .top-status__fix:hover:not(:disabled) { background: none; border: 0; color: inherit; }
+    .top-status__fix:hover, .top-status__fix:focus-visible { text-decoration: underline; text-underline-offset: 2px; }
   }
   @container study (max-width: 720px) {
     :is(.study-app, .study-seat) {
-      .sh-banner.app-banner { margin: var(--space-3) var(--space-5) 0; }
+      .app-banner { margin: var(--space-3) var(--space-5) 0; }
       .context-return { margin: var(--space-3) var(--space-5) 0; }
     }
   }

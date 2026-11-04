@@ -48,8 +48,8 @@ export default function SaveAnswerAsCard({ call, selection, question, answer, de
     {result ? <QaSavedLine result={result} onOpenCard={onOpenCard} /> : <>
       <Button size="sm" busy={busy} disabled={!ready} onClick={save}
         title={ready ? undefined : ui('需要先启用出题组件，才能存成闪卡。')}>{busy ? ui('正在保存…') : error ? ui('重试保存') : ui('存成闪卡')}</Button>
-      <small className="muted">{deckId && deckTitle ? uiFormat('将保存到「{0}」', [deckTitle]) : ui('将保存到本课程的「原文问答」题组')}</small>
+      <small className="muted study-qa-save__note">{deckId && deckTitle ? uiFormat('将保存到「{0}」', [deckTitle]) : ui('将保存到本课程的「原文问答」题组')}</small>
     </>}
-    {error && <InlineMessage tone="error">{error}</InlineMessage>}
+    {error && <InlineMessage tone="error" className="study-qa-save__error">{error}</InlineMessage>}
   </div>;
 }

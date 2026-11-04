@@ -74,7 +74,7 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
   );
 
   return (
-    <Dialog title={ui('编辑待办')} size="md" busy={saving} onClose={onClose} footer={footer} initialFocus={titleField} className="board-editor">
+    <Dialog title={ui('编辑待办')} size="md" busy={saving} onClose={onClose} footer={footer} initialFocus={titleField} className="board-editor" footerClassName="board-editor__footer">
       <form id={formId} className="board-editor__form" onSubmit={submit}>
         {error && <InlineMessage tone={conflict ? 'warning' : 'error'}>{error}</InlineMessage>}
         {stale && <InlineMessage tone="warning" boxed action={latest ? { label: ui('载入最新卡片（替换当前输入）'), onClick: () => { setDraft(fromCard(latest)); setBase(board.revision); } } : undefined}>

@@ -80,7 +80,7 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
             </div>
             <div className="exam-type-settings">
               <strong>{ui('题型')}</strong>
-              <SegmentedControl label={ui('考试题型')} value={typeMode} onChange={onTypeMode}
+              <SegmentedControl className="exam-type-settings__seg" label={ui('考试题型')} value={typeMode} onChange={onTypeMode}
                 options={Object.entries(EXAM_KIND_LABELS).map(([value, label]) => ({ value, label: ui(label) }))} />
               <small className="muted">{uiFormat('已选题组：单选 {0} 道，多选 {1} 道。均衡模式尽量各占一半，不足时由另一类补齐。', [kinds.quiz, kinds.multi])}</small>
               {picked.size > 0 && !typeAvailable && <InlineMessage tone="warning">{ui('所选题组没有这种题型，请换题型或题组。')}</InlineMessage>}

@@ -153,7 +153,7 @@ test('the card is injected with its own stylesheet and App mounts it inside the 
   assert.match(css, /\.setup-card/);
   assert.match(css, /\.setup-chip/);
   assert.match(css, /@container study|@media/, 'it has a narrow layout');
-  assert.match(css, /\.setup-actions\s+\.sh-btn\s*\{[^}]*white-space:\s*normal/s, 'a long button label wraps instead of leaving the column');
+  assert.match(css, /\.setup-actions\s+\.setup-actions__btn\s*\{[^}]*white-space:\s*normal/s, 'a long button label wraps instead of leaving the column');
 });
 
 test('the checklist explains itself with a Tooltip, never a title attribute: the chip, the step names and the hint stay in the page', () => {

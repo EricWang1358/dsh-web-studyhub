@@ -186,7 +186,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
                 onClick={() => act("review.start", practiceArgs(run.weakScopes[t]), enterRun)}>{t}</Button>
               : <Badge className="summary-topic" key={t}>{t}</Badge>)}
             {!run.weakTopics?.length && (
-              <p className="muted">{ui("本轮没有低分记录，继续按间隔复习巩固。")}</p>
+              <p className="muted summary-topics__empty">{ui("本轮没有低分记录，继续按间隔复习巩固。")}</p>
             )}
           </div>
           {run.course && (

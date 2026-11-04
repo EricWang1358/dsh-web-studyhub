@@ -184,7 +184,7 @@ export default function Generate({
       {/* The row measures its own width (generate-home.css): where the cards no longer fit side by side they become one row of
           titles and the chosen way's line is said once under it (#575). The tab keeps its note, so a screen reader hears the same name. */}
       <div className="source-mode-frame">
-        <Tabs id="generate" className="source-mode" itemClassName="source-tab" label={ui("创建方式")} value={current} onChange={setGenSource}
+        <Tabs id="generate" className="source-mode" itemClassName="source-tab" noteClassName="source-tab__note" label={ui("创建方式")} value={current} onChange={setGenSource}
           items={tabs.map((tab) => ({ value: tab.id, label: tab.label, note: tab.note, attrs: tab.attrs }))} />
         <p className="source-mode-note" aria-hidden="true">{tabs.find((tab) => tab.id === current)?.note}</p>
       </div>
@@ -210,7 +210,7 @@ export default function Generate({
           secondary={{ label: ui("已有题目？导入 JSON 题组"), onClick: () => setGenSource("json") }} />
       ) : (
         <>
-          <ModelSetupGate variant="banner" feature="generate" model={model} onOpenSettings={openSettings} />
+          <ModelSetupGate variant="banner" feature="generate" className="generate-gate" model={model} onOpenSettings={openSettings} />
           <p className="muted">{ui("选好资料就能生成。生成结果先进入草稿，你看过再发布。")}</p>
           <form onSubmit={submit}>
             <fieldset data-tour="generate-sources">
@@ -266,16 +266,16 @@ export default function Generate({
                       budget={gen.tokenBudget ?? ''} onBudget={(tokenBudget) => setGen({ ...gen, tokenBudget })} />
                   </FormRow>}
                   <FormRow label={ui("难度")}>
-                    <SegmentedControl label={ui("难度")} value={gen.difficulty} options={DIFFICULTIES.map(({ value, label }) => ({ value, label }))}
+                    <SegmentedControl className="generate-seg" label={ui("难度")} value={gen.difficulty} options={DIFFICULTIES.map(({ value, label }) => ({ value, label }))}
                       onChange={(difficulty) => setGen({ ...gen, difficulty })} />
                     <p className="generate-note">{difficultyNote(gen.difficulty)}</p>
                   </FormRow>
                   <FormRow label={ui("语言")}>
-                    <SegmentedControl label={ui("语言")} size="sm" value={gen.language} options={LANGUAGES.map(({ value, label }) => ({ value, label }))}
+                    <SegmentedControl className="generate-seg" label={ui("语言")} size="sm" value={gen.language} options={LANGUAGES.map(({ value, label }) => ({ value, label }))}
                       onChange={(language) => setGen({ ...gen, language })} />
                   </FormRow>
                   <FormRow label={ui("公式写法")}>
-                    <SegmentedControl label={ui("公式写法")} size="sm" value={gen.notation ?? 'auto'} options={NOTATION_CHOICES.map(({ value, label }) => ({ value, label }))}
+                    <SegmentedControl className="generate-seg" label={ui("公式写法")} size="sm" value={gen.notation ?? 'auto'} options={NOTATION_CHOICES.map(({ value, label }) => ({ value, label }))}
                       onChange={(notation) => setGen({ ...gen, notation })} />
                     <p className="generate-note">{notationNote()}</p>
                   </FormRow>
@@ -322,11 +322,11 @@ export default function Generate({
                   plannedCoverage.leaves > 0 && Number.isFinite(plannedCoverage.firstRoundSections) ? { level: plannedCoverage.level, percent: Math.round(plannedCoverage.firstRoundSections / plannedCoverage.leaves * 100) } : undefined)}</p>}
               </div>}
               {model.ready ? <>
-                {!selectedSources.length && <p className="muted">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
+                {!selectedSources.length && <p className="muted generate-submit__note">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
                 {/* Why the button is off, once: with pages picked by topic the panel above already says the topic is missing, so here it is only what to do. */}
                 {blocked && (retrievalMode ? <Hint>{ui("写下主题后才能生成。")}</Hint>
                   : <InlineMessage tone="warning">{ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</InlineMessage>)}
-                {running && <p className="muted">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
+                {running && <p className="muted generate-submit__note">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
                 {pathMode ? <>
                   <Tooltip layer placement="top-start" content={ui("每一步是一个独立的出题任务，按顺序排队；先做完的一步就可以先练。")}>
                     <Button variant="primary" type="submit" icon="sparkle" busy={path.queueing} disabled={busy || !path.included.length || !!referenceState.reason}
@@ -339,14 +339,14 @@ export default function Generate({
                       ? uiFormat("（{0} 等 {1} 步）", [group.steps.slice(0, 3).join("、"), group.steps.length]) : uiFormat("（{0}）", [group.steps.join("、")])}</small></p>)}
                   </InlineMessage>}
                 </> : (
-                  <Button variant="primary" type="submit" icon="sparkle" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason}
+                  <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason}
                     data-tour="generate-submit" data-usage="generate.submit">
                     {running ? ui("加入生成队列 →") : ui("生成并检查题组 →")}
                   </Button>
                 )}
               </> : (
                 /* P14: no usable model, so there is nothing to click into a 20-second failure; the banner on top says why. */
-                <Button variant="primary" type="submit" icon="sparkle" disabled data-tour="generate-submit">{ui("生成并检查题组 →")}</Button>
+                <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" disabled data-tour="generate-submit">{ui("生成并检查题组 →")}</Button>
               )}
             </div>
           </form>

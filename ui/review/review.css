@@ -5,7 +5,7 @@
     /* The parts of the practice page that are components now (ui-consistency #79 #101 #102): the 待核对 popover and the 更多 menu's
        trigger. Tokens only. The rules they replace (.review-more*, .publication-mark > summary, .publication-mark-popover,
        .assist-spin, the native-progress pseudo elements of .teaching-progress) are left in style.css and coach.css for the CSS pass. */
-    .publication-mark .publication-mark__trigger.sh-btn {
+    .publication-mark .publication-mark__trigger {
       min-height: 0;
       padding: 0;
       border-radius: 0;
@@ -51,8 +51,7 @@
   :is(.study-app, .study-seat) {
     /* The practice page's buttons are the shared <Button> (ui-consistency #135). A shared button never wraps its label; a long label in a
        narrow column (the teaching form at 320px, the question toolbar) must be allowed to, or it widens the whole column. Tokens only. */
-    .teaching-panel form > .sh-btn { min-width: 0; max-width: 100%; white-space: normal; text-align: center; }
-    .question-navigation > .sh-btn { min-width: 0; white-space: normal; }
-    .assist-actions > .sh-btn { white-space: normal; }
+    .question-navigation > :is(.review-more-trigger, [data-usage="review.prev"], [data-usage="review.next"]) { min-width: 0; white-space: normal; }
+    .assist-actions > .assist-actions__btn { white-space: normal; }
   }
 }

@@ -662,7 +662,7 @@ export default function SkeletonCanvas({ skeleton, onPractice }) {
           <div className="skc-section-head">
             <h4>{ui("时序图 · 动态链路")}</h4>
             {sequences.length > 1 && (
-              <Tabs id="skc-sequences" className="skc-tabs" label={ui("时序图")} value={tab} onChange={setTab}
+              <Tabs id="skc-sequences" className="skc-tabs" itemClassName="skc-tabs__tab" label={ui("时序图")} value={tab} onChange={setTab}
                 items={sequences.map((q, i) => ({ value: i, label: q.title }))} />
             )}
           </div>

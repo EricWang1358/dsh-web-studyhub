@@ -18,7 +18,7 @@
        the study panel's paint containment, so the section really does own the
        whole screen instead of being clipped to the sidebar's width. */
     .graph:fullscreen,
-    .graph.canvas-expanded {
+    .graph.graph--expanded {
       box-sizing: border-box;
       width: 100%;
       height: 100%;
@@ -136,8 +136,8 @@
       text-align: center;
       color: var(--text-muted);
     }
-    .graph-state.sh-loading { justify-content: center; }
-    .graph-state .sh-inline { max-width: 480px; margin-inline: auto; text-align: left; }
+    .graph-state--loading { justify-content: center; }
+    .graph-state .graph-state__inline { max-width: 480px; margin-inline: auto; text-align: left; }
     .graph-hint {
       font-size: var(--fs-xs);
       color: var(--text-faint);

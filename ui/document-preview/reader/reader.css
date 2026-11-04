@@ -10,6 +10,8 @@
   :where(.study-app, .study-seat) {
     ::highlight(study-find) { background-color: var(--warn-mark); color: inherit; }
     ::highlight(study-find-current) { background-color: var(--warn-solid); color: inherit; }
+    .source-md { white-space: normal; line-height: 1.8; }
+    .note-reader > .study-document-viewer { height: 100%; }
   }
   :is(.study-app, .study-seat) {
     .study-document-viewer {
@@ -54,8 +56,8 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .reader-toolbar .sh-btn[aria-pressed='true'] { background: var(--bg-selected); color: var(--text); }
-    .reader-toolbar .sh-btn--icon { position: relative; }
+    .reader-toolbar [aria-pressed='true'] { background: var(--bg-selected); color: var(--text); }
+    .reader-toolbar .reader-toolbar__icon-btn { position: relative; }
     .reader-toolbar [data-attention='true']::after {
       content: "";
       position: absolute;
@@ -122,7 +124,7 @@
     .study-document-viewer .reader-notices:not(:empty) { padding-block: var(--space-2); border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
     .reader-aux { flex: none; padding: 0 var(--space-5); }
     .reader-aux:empty { display: none; }
-    .reader-aux .highlight-quote { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); font-size: var(--fs-md); line-height: 1.7; }
+    .reader-aux .reader-aux__quote { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); font-size: var(--fs-md); line-height: 1.7; }
     /* ── Layout: outline | reading column | learning panel ───────────────── */
     .reader-layout { position: relative; display: flex; flex: 1 1 auto; min-height: 0; }
     .reader-scroll {
@@ -208,7 +210,7 @@
     /* ── "让 AI 帮你": the flow under the outline, and its preview ───────── */
     .reader-assist { display: grid; gap: var(--space-2); }
     .reader-assist__actions { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
-    .reader-assist__actions .sh-btn { height: auto; padding-block: var(--space-1); line-height: var(--lh-snug); white-space: normal; text-align: left; }
+    .reader-assist__actions .reader-assist__btn { height: auto; padding-block: var(--space-1); line-height: var(--lh-snug); white-space: normal; text-align: left; }
     .reader-assist__note, .reader-assist__status { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .reader-assist__bar { position: relative; display: block; height: 3px; overflow: hidden; border-radius: var(--radius-pill); background: var(--bg-sunken); }
     .reader-assist__bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 36%; border-radius: inherit; background: var(--accent); animation: reader-assist-run 1.4s var(--ease-out) infinite; }
@@ -234,7 +236,7 @@
     .reader-segment__chapters li > small:last-child { flex: none; margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
     .reader-assist-dialog { display: grid; gap: var(--space-3); }
     .reader-assist-dialog > p { margin: 0; }
-    .reader-assist-dialog .reader-assist__actions .sh-btn { white-space: normal; }
+    .reader-assist-dialog .reader-assist__actions .reader-assist__btn { white-space: normal; }
   }
   @container reader (max-width: 640px) {
     :is(.study-app, .study-seat) {
@@ -249,6 +251,7 @@
   :is(.study-app, .study-seat) {
     /* ── The reading column ──────────────────────────────────────────────── */
     .reader-page {
+      position: relative;
       box-sizing: border-box;
       width: 100%;
       max-width: calc(var(--reader-measure) + var(--space-6) * 2);
@@ -256,6 +259,11 @@
       padding: var(--space-8) var(--space-6) var(--space-9);
       font-size: var(--reader-size);
     }
+    .study-document-body {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .study-document-body[data-link-hover] { cursor: pointer; }
     .reader-page .study-document-body {
       box-sizing: border-box;
       max-width: var(--reader-measure);
@@ -275,6 +283,9 @@
       margin: var(--space-6) auto var(--space-8);
       padding: 3.2em 4em 3.6em;
     }
+    .reader-page[data-tr-mode='side'] { max-width: min(calc(var(--reader-measure) * 2 + var(--space-6) * 2 + var(--space-7)), 100%); }
+    .study-document-viewer[data-tone='paper'] .reader-page[data-tr-mode='side'] { max-width: min(calc(var(--reader-measure) * 2 + 12em), 100%); }
+    .reader-page[data-tr-mode='side'] .study-document-body { max-width: none; }
     /* Rendered Markdown / HTML */
     .reader-html > :first-child, .reader-prose > :first-child { margin-top: 0; }
     .reader-html > :last-child, .reader-prose > :last-child { margin-bottom: 0; }
@@ -350,6 +361,7 @@
     .reader-p--label + .reader-p { margin-top: 0; }
     .reader-join { font-size: 0; }
     .reader-p { margin: 0 0 var(--reader-gap, 1em); line-height: inherit; white-space: normal; text-wrap: pretty; }
+    .reader-p:has(+ [data-tr-key]:not([data-shown='false'])) { margin-bottom: 0.4em; }
     .reader-p--lines { white-space: pre-line; }
     /* A formula, one look for text and Markdown sources (formula.js): its stored text is the hidden source, the drawing a marker beside it.
        Inline sits on the baseline; display is a centred block of the document that scrolls sideways when it is wide. */
@@ -376,6 +388,14 @@
     }
     .reader-p--heading { margin: 1.6em 0 0.5em; font-family: var(--font-display); font-size: 1.18em; font-weight: var(--fw-strong); line-height: 1.35; text-wrap: balance; }
     /* 原文: the stored text exactly, in the reader's size and typeface */
+    .study-document-viewer .source-text--reading { max-width: 44em; margin: 0; color: var(--text); font-family: var(--font-ui); font-size: var(--fs-lg);
+      line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; tab-size: 4; }
+    .study-document-viewer .source-text--reading.source-md { white-space: normal; }
+    .study-document-viewer .source-text--pdf { max-width: 100%; margin: 0; padding: var(--space-3) var(--space-4); overflow-x: auto;
+      border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--text); font: var(--fs-sm)/1.65 var(--font-stack-mono);
+      white-space: pre; tab-size: 4; }
+    .study-document-page + .study-document-page { margin-top: var(--space-5); }
+    .study-document-page h3 { margin: 0 0 var(--space-2); color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .study-document-viewer .study-document-body .source-text--reading {
       max-width: none;
       color: inherit;
@@ -447,8 +467,9 @@
     .reader-pager__link small { color: var(--text-muted); font-size: var(--fs-xs); }
     .reader-pager__link span { overflow-wrap: anywhere; }
     /* ── Learning panel ──────────────────────────────────────────────────── */
+    .study-document-selection { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
+    .study-document-selection > p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .reader-tools .study-document-selection { gap: var(--space-3); padding: 0; border: 0; border-radius: 0; background: transparent; }
-    .reader-tools .study-document-links-heading { margin: var(--space-4) 0 0; font-size: var(--fs-md); }
     /* ── Display settings (Aa) ───────────────────────────────────────────── */
     .reader-setting { display: grid; gap: var(--space-2); }
     .reader-setting__label { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
@@ -489,6 +510,20 @@
       .study-document-viewer[data-tone='paper'] .reader-page { margin: 0; padding: 1.6em 1.3em 2em; border-radius: 0; box-shadow: none; }
       .reader-pager { flex-direction: column; }
       .reader-pager .reader-pager__link { max-width: none; }
+    }
+  }
+  @container study (max-width: 520px) {
+    :is(.study-app, .study-seat) {
+      .study-document-viewer .source-text--reading { font-size: var(--fs-md); line-height: 1.75; }
+      .study-document-viewer .source-text--pdf { padding: var(--space-2) var(--space-3); font-size: var(--fs-sm); }
+    }
+  }
+  @container study (max-width: 600px) {
+    :where(.study-app, .study-seat) {
+      .blog-notes-page .note-reader .reader-toolbar { gap: var(--space-1); padding: var(--space-1-5); }
+      .blog-notes-page .note-reader .reader-toolbar__group { gap: var(--space-1); }
+      .blog-notes-page .note-reader .reader-toolbar__group--end { flex: 1 1 auto; justify-content: flex-end; }
+      .blog-notes-page .note-reader .reader-mode__item { min-width: 44px; min-height: 44px; padding-inline: var(--space-1); }
     }
   }
   @media (prefers-reduced-motion: reduce) {

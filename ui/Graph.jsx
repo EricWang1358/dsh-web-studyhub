@@ -49,8 +49,8 @@ const fitLabel = (t, max) => {
 
 /** What the canvas says when there is no drawing: reading, failed (with a retry) or nothing in this scope. */
 export function GraphStatus({ loading, error, onRetry }) {
-  if (loading) return <LoadingState className="graph-state" label={ui("正在生成图谱…")} />;
-  if (error) return <div className="graph-state"><ErrorState error={error} title={ui("图谱加载失败")} onRetry={onRetry} /></div>;
+  if (loading) return <LoadingState className="graph-state graph-state--loading" label={ui("正在生成图谱…")} />;
+  if (error) return <div className="graph-state"><ErrorState className="graph-state__inline" error={error} title={ui("图谱加载失败")} onRetry={onRetry} /></div>;
   return <div className="graph-state"><Hint>{ui("当前范围内没有可展示的题目。")}</Hint></div>;
 }
 
@@ -254,7 +254,7 @@ export default function Graph({
 
   return (
     <section
-      className={("graph" + (fullscreen.full ? " graph-canvas" : "") + " " + fullscreen.className).trim()}
+      className={("graph" + (fullscreen.full ? " graph-canvas" : "") + (fullscreen.expanded ? " graph--expanded" : "") + " " + fullscreen.className).trim()}
       ref={fullscreen.ref}
       tabIndex={-1}
       aria-busy={busy || loading}

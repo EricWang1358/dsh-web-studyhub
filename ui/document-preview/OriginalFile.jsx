@@ -154,7 +154,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
       {picked && <Button variant="primary" busy={phase === 'attaching'} disabled={!canAttach({ phase, report, picked, mode, confirmed })} onClick={attach}>{ui('附上原文件')}</Button>}
       {!picked && pickerOn && <Button variant="primary" disabled>{ui('附上原文件')}</Button>}</>;
 
-  return <Dialog size="md" className="original-dialog" title={title} busy={phase === 'attaching'} guardDrops onClose={onClose} footer={footer}>
+  return <Dialog size="md" className="original-dialog" contentClassName="original-dialog__content" title={title} busy={phase === 'attaching'} guardDrops onClose={onClose} footer={footer}>
     {!info && <LoadingState label={ui('正在读取原文件状态…')} />}
     {info && info.status === 'none' && !done && <p>{ui('这份资料只保存了提取出的文字，没有原文件。提问、补题和查看引用仍然可用；补上原文件后，还能对照原版排版和图表。已保存的文字、引用和题目不会变。')}</p>}
     {done && <Status tone="success"><strong>{ui('已附上原文件')}</strong>{done.mode === 'reference' ? <span title={info?.path}>{uiFormat('引用 {0}', [info?.path])}</span> : <span>{uiFormat('已复制到资料库 · {0}', [formatBytes(info?.bytes)])}</span>}</Status>}
@@ -225,7 +225,7 @@ export function OriginalMenuEntry({ item, host, initial }) {
   };
   return <>
     {line && <Tooltip layer content={line.title || ''}><small className="source-row-menu__note" data-tone={line.tone} tabIndex={line.title ? 0 : undefined}>{line.text}</small></Tooltip>}
-    <Button ref={anchor} variant="quiet" size="sm" busy={busy} onClick={open}>{info && info.status !== 'none' ? ui('管理原文件…') : ui('补全原文件…')}</Button>
+    <Button ref={anchor} variant="quiet" size="sm" className="source-row-menu__btn" busy={busy} onClick={open}>{info && info.status !== 'none' ? ui('管理原文件…') : ui('补全原文件…')}</Button>
     {portal && createPortal(<OriginalDialog target={{ sourceId, title: item.title, format: item.format }} call={call} host={host} intent="attach"
       onClose={() => setPortal(null)} onChanged={() => Promise.resolve(call('materials.original.status', { sourceId })).then(setInfo, () => {})} />, portal)}
   </>;

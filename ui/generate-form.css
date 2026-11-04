@@ -27,7 +27,7 @@
     .generate-row__control > .generate-row__input { width: 100%; }
     .generate-note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     /* Six question types wrap instead of overflowing a narrow pane. */
-    .generate-form .sh-seg { max-width: 100%; }
+    .generate-form .generate-seg { max-width: 100%; }
     .generate-form .generate-kind { display: flex; flex-wrap: wrap; }
     /* ── Custom number of questions: field and presets ───────────────────── */
     .generate-count { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }

@@ -44,7 +44,7 @@ export const isBackdropClick = (event, dialog, downTarget) => event.target === d
  * or margins) away from the browser and the host chat.
  */
 export default function Dialog({ title, description, onClose, size = 'md', footer, children, dismissible = true, initialFocus,
-  bodyLabel, closeLabel, busy = false, guardDrops = false, className, ...rest }) {
+  bodyLabel, closeLabel, busy = false, guardDrops = false, className, bodyClassName, contentClassName, footerClassName, ...rest }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(mediaCss, 'study-dialog-media');
@@ -118,11 +118,11 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
         {dismissible && <IconButton icon="close" className="sh-dialog__close" label={closeLabel || ui('关闭')} aria-disabled={busy || undefined}
           onClick={() => requestClose('button')} />}
       </header>
-      <div ref={bodyRef} className="sh-dialog__body" tabIndex={scrollable ? 0 : undefined} role="region" aria-label={bodyLabel || (typeof title === 'string' ? title : undefined)}>
-        <div className="sh-dialog__content">{children}</div>
+      <div ref={bodyRef} className={cx('sh-dialog__body', bodyClassName)} tabIndex={scrollable ? 0 : undefined} role="region" aria-label={bodyLabel || (typeof title === 'string' ? title : undefined)}>
+        <div className={cx('sh-dialog__content', contentClassName)}>{children}</div>
       </div>
       <div className="sh-dialog__toasts">{top === entry && entry.dialog && <DialogToasts dialog={entry.dialog} />}</div>
-      {footer && <footer className="sh-dialog__footer">{footer}</footer>}
+      {footer && <footer className={cx('sh-dialog__footer', footerClassName)}>{footer}</footer>}
     </dialog>
   );
 }

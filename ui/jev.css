@@ -37,7 +37,7 @@
     .jev-prereq { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); background: var(--warn-bg);
       border: 1px solid var(--warn-line); font-size: var(--fs-sm); }
     .jev-prereq p { margin: 0; overflow-wrap: anywhere; }
-    .jev-prereq .sh-btn { justify-self: start; }
+    .jev-prereq .jev-prereq__btn { justify-self: start; }
     .jev-prereq__blocked { margin: 0; color: var(--warn-ink); font-size: var(--fs-sm); font-weight: var(--fw-strong); overflow-wrap: anywhere; }
     .jev-signals__note { margin: 0; padding-top: var(--space-2); border-top: 1px solid var(--line-soft); }
     /* The custom endpoint form and the variable name form. */

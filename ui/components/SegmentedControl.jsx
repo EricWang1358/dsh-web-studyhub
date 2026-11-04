@@ -18,7 +18,7 @@ const ITEMS = ':scope > .sh-seg__item';
  * size: md | sm | xs. fill: full width, equal segments. wrap: long labels may
  * run over lines. stack: becomes a column when its container is narrow.
  */
-export default function SegmentedControl({ label, value, options = [], onChange, size = 'md', fill = false, wrap = false, stack = false, disabled = false, className, onKeyDown, ...rest }) {
+export default function SegmentedControl({ label, value, options = [], onChange, size = 'md', fill = false, wrap = false, stack = false, disabled = false, className, itemClassName, iconClassName, onKeyDown, ...rest }) {
   useComponentCss(css);
   useComponentCss(variantsCss, 'study-button-variants');
   const root = useRef(null);
@@ -92,10 +92,10 @@ export default function SegmentedControl({ label, value, options = [], onChange,
       {options.map((option, index) => {
         const active = option.value === value;
         return (
-          <button type="button" key={option.value} className={active ? 'sh-seg__item is-active' : 'sh-seg__item'} aria-pressed={active}
+          <button type="button" key={option.value} className={cx('sh-seg__item', itemClassName, active && 'is-active')} aria-pressed={active}
             tabIndex={index === tabStop ? 0 : -1} title={option.title} disabled={disabled || option.disabled}
             onClick={() => { if (!active) onChange?.(option.value); }}>
-            {option.icon ? <Icon name={option.icon} size={16} /> : null}{option.label}
+            {option.icon ? <Icon name={option.icon} size={16} className={iconClassName} /> : null}{option.label}
           </button>
         );
       })}

@@ -75,9 +75,6 @@
       background: transparent;
       color: var(--text);
     }
-    .nav .icon {
-      transition: transform var(--dur) var(--ease-out), color var(--dur-fast) var(--ease);
-    }
     /* The row keeps its one height: a label that does not fit takes a second line (tight leading) and past that is cut with an
        ellipsis, the tooltip has the whole text. */
     .nav-label {
@@ -93,9 +90,6 @@
       line-clamp: 2;
       overflow-wrap: anywhere;
     }
-    .nav:hover:not(:disabled):not([aria-current="page"]) .icon {
-      transform: translateX(2px);
-    }
     .nav[aria-current="page"] {
       background: transparent;
       color: var(--text);
@@ -104,9 +98,6 @@
     /* The one highlight behind the active item; it glides between items. */
     .side-nav {
       position: relative;
-    }
-    .side-nav > .nav {
-      z-index: 1;
     }
     .nav-mark {
       position: absolute;
@@ -147,13 +138,6 @@
     }
     /* Reordering: hold an item, then drag; the lifted one follows the pointer while the others make way. */
     .side-nav.is-reordering, .side-nav.is-reordering .nav { cursor: grabbing; user-select: none; }
-    .side-nav > .nav.is-dragging {
-      z-index: var(--z-sticky);
-      border-radius: var(--radius-sm);
-      background: var(--bg-raised);
-      box-shadow: var(--shadow-drag);
-      color: var(--text);
-    }
     .nav.is-dragging::after { display: none; }
     .nav:not(.nav-upkeep) + .nav-upkeep::after {
       content: "";
@@ -163,12 +147,6 @@
       right: 12px;
       height: 1px;
       background: var(--line-soft);
-    }
-    /* Sidebar glyphs share one fixed slot so labels line up; Unicode glyphs
-       differ in optical size, so the outliers get a nudge. */
-    .sidebar .icon {
-      width: 20px;
-      justify-content: center;
     }
     .sidebar .icon svg {
       display: block;
@@ -428,25 +406,6 @@
       margin: 0 auto;
       padding: var(--space-7) 36px var(--space-9);
     }
-    /* Switching pages: the new page settles in as ONE block (opacity and a few
-       pixels of rise), 0.2s. It used to animate every child of the page with a
-       stagger: a composited layer per block while React was still mounting the
-       page, which is what made a heavy page (Generate, 资料) stutter on arrival. */
-    :is(.page, .review-page) {
-      animation: page-in var(--dur) var(--ease-out) backwards;
-    }
-    /* Leaving: the current page lifts and fades for a beat before the switch
-       (90ms: see leaveDelayMs in interface-prefs.js, which must match). */
-    & main > :is(.page, .review-page, .board-page) {
-      transition:
-        opacity 0.09s ease-in,
-        transform 0.09s ease-in;
-    }
-    & main.is-leaving > :is(.page, .review-page, .board-page) {
-      opacity: 0;
-      transform: translateY(-6px);
-      pointer-events: none;
-    }
     .page-heading {
       display: flex;
       justify-content: space-between;
@@ -525,6 +484,35 @@
     }
     & main {
       position: relative;
+    }
+  }
+  :is(.study-app, .study-seat) {
+    /* Three labels, 复习全书 and the footer links take room the rail did not have: take it back from the quiet parts around the rows so 900px never scrolls. */
+    .sidebar:not(.is-narrow) {
+      padding-top: var(--space-3);
+      padding-bottom: var(--space-3);
+    }
+    .sidebar:not(.is-narrow) .brand {
+      margin-bottom: var(--space-2);
+    }
+    .sidebar:not(.is-narrow) .brand small {
+      font-size: var(--fs-xs);
+      margin-top: var(--space-half);
+    }
+    .sidebar:not(.is-narrow) .local-status {
+      padding-block: var(--space-half);
+      font-size: var(--fs-xs);
+    }
+    /* Every row, wherever it sits, floats above the one gliding highlight; a lifted row above its neighbours. */
+    .side-nav .nav {
+      z-index: 1;
+    }
+    .side-nav .nav.is-dragging {
+      z-index: var(--z-sticky);
+      border-radius: var(--radius-sm);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-drag);
+      color: var(--text);
     }
   }
 }

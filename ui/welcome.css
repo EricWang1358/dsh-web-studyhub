@@ -11,7 +11,7 @@
       margin: var(--space-4-5) auto 0;
       width: calc(100% - var(--space-6) * 2);
     }
-    .sample-banner .sh-banner__icon { color: var(--accent-text); }
+    .sample-banner .sample-banner__icon { color: var(--accent-text); }
   }
   @container study (max-width: 720px) {
     :is(.study-app, .study-seat) {

@@ -272,6 +272,15 @@
     .wf-skeleton > .md { font-size: var(--fs-md); line-height: 1.8; }
     .workflow-page .md { overflow-wrap: anywhere; }
   }
+  :is(.study-app, .study-seat) {
+    .study-reading.study-reading .md {
+      font-family: var(--reader-face);
+      font-weight: var(--reader-weight, 400);
+      font-size: var(--reader-size, var(--fs-lg));
+      line-height: var(--reading-leading, 1.65);
+    }
+    .study-reading .md-table { max-width: 100%; }
+  }
   @media (prefers-reduced-motion: reduce) {
     :where(.study-app, .study-seat) {
       .option > div > .md:first-child { transition: none; }

@@ -266,6 +266,16 @@
    features layer for that reason, and an element that carries an sh- class is left out: the primitives own their states. */
 @layer study.features {
   :where(.study-app, .study-seat) {
+    .sidebar .icon {
+      width: 20px;
+      justify-content: center;
+    }
+    .nav .icon {
+      transition: transform var(--dur) var(--ease-out), color var(--dur-fast) var(--ease);
+    }
+    .nav:hover:not(:disabled):not([aria-current="page"]) .icon {
+      transform: translateX(2px);
+    }
     & button:where(:not([class^="sh-"], [class*=" sh-"])):hover:not(:disabled) {
       background: color-mix(in srgb, var(--text) 11%, transparent);
       border-color: var(--line-strong);

@@ -176,9 +176,9 @@ test('the button is the words it replaces: same label and dot inside, same span 
   assert.match(none, /top-status-label"[^>]*>还没配模型</, 'the label keeps its own element and words');
   assert.match(none, /<i class="dot[^"]*" aria-hidden="true"><\/i>/, 'the dot is unchanged');
   const css = await readFile('ui/app/app-shell.css', 'utf8');
-  const rule = /\.sh-btn\.top-status__fix \{([^}]*)\}/.exec(css)?.[1] || '';
+  const rule = /\.top-status__fix \{([^}]*)\}/.exec(css)?.[1] || '';
   for (const decl of ['display: inline-flex', 'gap: var(--space-2)', 'margin: 0', 'padding: 0', 'border: 0', 'background: none', 'font: inherit', 'color: inherit', 'min-height: 0']) {
-    assert.ok(rule.includes(decl), `no layout shift: .sh-btn.top-status__fix needs ${decl}`);
+    assert.ok(rule.includes(decl), `no layout shift: .top-status__fix needs ${decl}`);
   }
 });
 
