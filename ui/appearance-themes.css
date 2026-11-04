@@ -7,14 +7,14 @@
   .study-app[data-palette='oled'],
   .study-seat:has(> .study-app[data-palette='oled']) {
     --bg-canvas: #060505; --bg-sunken: #000000; --bg-surface: #0e0c0b; --bg-raised: #181513;
-    --bg-glass: #0e0c0bf0; --bg-glass-strong: #0e0c0bfa; --bg-selected: #231a16;
+    --bg-glass: #0e0c0bf0; --bg-glass-strong: #0e0c0bfa; --bg-selected: #211e1b;
     --line: #2a2622; --line-strong: #433d35; --decor-faint: #6a635a;
   }
   /* 护眼纸色: warm sepia paper, soft ink. */
   .study-app[data-palette='paper'],
   .study-seat:has(> .study-app[data-palette='paper']) {
     --bg-canvas: #f1e8d3; --bg-sunken: #e7dcc3; --bg-surface: #f7efdd; --bg-raised: #fbf5e8;
-    --bg-glass: #f7efddf0; --bg-glass-strong: #f7efddfa; --bg-hover: #4a35180d; --bg-selected: #efd9c6;
+    --bg-glass: #f7efddf0; --bg-glass-strong: #f7efddfa; --bg-hover: #4a35180d; --bg-selected: #eadfc7;
     --line-soft: #4a351814; --line: #d8cbb0; --line-strong: #bfae8d;
     --text: #231d12; --text-dim: #433929; --text-muted: #5d513c; --text-faint: #64583f; --decor-faint: #968a72;
     --accent-text: #a33a1f; --ok: #1c6c48; --warn: #7f510c; --bad: #a23461; --info: #346287; --paper: #fcf6e6;

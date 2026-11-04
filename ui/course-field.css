@@ -20,7 +20,7 @@
     .course-field__pick-meta { flex: none; padding-left: var(--space-1-5); color: var(--text-muted); }
     .course-field__pick:hover:not(:disabled) { border-color: var(--line-strong); color: var(--text); }
     .course-field__pick[aria-pressed="true"], .course-field__pick.has-chosen {
-      border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); color: var(--accent-text); background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface)); }
+      border-color: var(--text-muted); color: var(--text); background: var(--bg-selected); }
     .course-field__pick--group[aria-expanded="true"] { border-style: solid; box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 45%, transparent); }
     .course-field__pick--group::after,
     .course-field__caret { content: ""; flex: none; width: 6px; height: 6px; margin-left: var(--space-2); border-right: 1.5px solid currentColor;

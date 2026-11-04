@@ -44,7 +44,7 @@
     .sm2-series.is-hard text { fill: var(--text-muted); font-weight: var(--fw-medium); }
     .sm2-preview figcaption { display: grid; gap: var(--space-half); color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .sm2-key::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: var(--space-2); border-radius: 50%; vertical-align: 1px; }
-    .sm2-key.is-good::before { background: var(--accent); }
+    .sm2-key.is-good::before { background: var(--ok); }
     .sm2-key.is-hard::before { border: 1.5px solid var(--text-muted); }
     /* 数据备份与恢复 */
     .backup-blocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--space-4); }

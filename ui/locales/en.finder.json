@@ -147,5 +147,11 @@
   "这题不错 / 这题有问题": "Good question / Something is wrong",
   "在题目下方的「更多」里选「这题不错」或「这题有问题…」；选后者可以再选标签（题干太空、选项太烂、太简单、太难、答案有误、解析不清、只问资料怎么说）。快捷键 G / B。": "Choose “Good question” or “Something is wrong with it…” in “More” below the question; after the second you can pick tags (vague stem, poor options, too easy, too hard, wrong answer, unclear explanation, only asks what the source says). The keys are G / B.",
   "答对后自动进入下一题，点任意处或按键可以停下；在题目下方的「更多」里开关，按 A 键也行。默认值在「设置 › 练习」里。": "After a correct answer it moves on to the next question by itself; click anywhere or press a key to stop it. Switch it in “More” below the question, or press A. The default is in “Settings › Practice”.",
-  "这题不错 / 这题有问题…": "Good question / Something is wrong…"
+  "这题不错 / 这题有问题…": "Good question / Something is wrong…",
+  "断句": "sentence break",
+  "停顿": "pause",
+  "讲得快": "fast speaker",
+  "一直没有断句": "no sentence ends",
+  "润色 0 句": "0 sentences polished",
+  "课堂实录多久没有新文字（本地转写：多久没有声音）就算一句话说完。老师讲得快、几乎不停顿时选「短」，句子会更早出现，润色和出题也更早能用；下次开始或接着录时生效。": "How long live class waits with no new text (local transcription: no sound) before a sentence counts as finished. For a lecturer who talks fast and hardly pauses, choose “Short”: sentences appear sooner, and polishing and questions can start sooner. It takes effect the next time you start or resume recording."
 }
