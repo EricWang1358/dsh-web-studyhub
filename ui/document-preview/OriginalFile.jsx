@@ -34,19 +34,19 @@ export function OriginalNotice({ document, onAction, collapsed, onCollapse }) {
   // 设置 › 引导 can switch the full notice off (master switch or its own): it is then the quiet line, which keeps 补全原文件….
   const closed = collapsed ?? (closedHere.has(id) || noticeCollapsed(id) || !guidanceAllows('reader.original-notice'));
   const close = () => { collapseNotice(id); setClosedHere(previous => new Set(previous).add(id)); onCollapse?.(id); };
-  if (issue.kind === 'none' && closed) return <p className="original-quiet" data-kind="none" data-collapsed="true">
+  if (issue.kind === 'none' && closed) return <p className="original-quiet" data-tour="reader-original-notice" data-kind="none" data-collapsed="true">
     <Icon name="info" size={16} />
     <span>{ui('这份资料没有原文件。')}</span>
     <Button size="sm" variant="quiet" icon="file" onClick={() => onAction?.('attach')}>{ui('补全原文件…')}</Button>
   </p>;
-  if (issue.kind === 'none') return <InlineMessage tone="info" boxed data-kind="none" onDismiss={close} dismissText={ui('收起，之后在这里仍可补全原文件')}>
+  if (issue.kind === 'none') return <InlineMessage tone="info" boxed data-tour="reader-original-notice" data-kind="none" onDismiss={close} dismissText={ui('收起，之后在这里仍可补全原文件')}>
     <p>{document.format === 'pdf'
       ? ui('这份资料只保存了提取出的文字，没有原文件，所以「原始 PDF」打不开。提问、补题和查看引用仍然可用。')
       : ui('这份资料只保存了提取出的文字，没有原文件。提问、补题和查看引用仍然可用。')}</p>
     <p>{ui('补上原文件有两种办法：指给它文件的位置（只记路径，不占空间），或复制一份进资料库。已保存的文字、引用和题目不会变。')}</p>
     <div className="original-notice__actions"><Button size="sm" variant="secondary" icon="file" onClick={() => onAction?.('attach')}>{ui('补全原文件…')}</Button></div>
   </InlineMessage>;
-  return <InlineMessage tone="warning" boxed data-kind={issue.kind}>
+  return <InlineMessage tone="warning" boxed data-tour="reader-original-notice" data-kind={issue.kind}>
     <p>{issue.message}</p>
     <div className="original-notice__actions">
       <Button size="sm" variant="secondary" onClick={() => onAction?.('relink')}>{ui('重新指定…')}</Button>

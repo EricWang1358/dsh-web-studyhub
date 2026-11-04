@@ -21,8 +21,8 @@ export function HandOffButton({ shape = 'link', size = 'sm', what = '', label = 
   useInjectCss(css, 'study-hand-off');
   const variant = VARIANT[shape] || 'link', text = ui(label);
   const button = shape === 'icon'
-    ? <Button variant={variant} size={size} icon="chat" className="sh-btn--icon sh-handoff__btn" aria-label={text} aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest} />
-    : <Button variant={variant} size={size} className="sh-handoff__btn" aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest}>{text}</Button>;
+    ? <Button variant={variant} size={size} icon="chat" className="sh-btn--icon sh-handoff__btn" data-tour="hand-off" aria-label={text} aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest} />
+    : <Button variant={variant} size={size} className="sh-handoff__btn" data-tour="hand-off" aria-busy={busy || undefined} disabled={disabled || busy} onClick={onClick} {...rest}>{text}</Button>;
   return <Tooltip layer content={handOffTip(what)} anchorClassName={anchorClassName}>{button}</Tooltip>;
 }
 

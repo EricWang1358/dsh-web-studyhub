@@ -69,7 +69,7 @@ export function BackupSection({ root, exportData, onRestored }) {
     }
   }
   return (
-    <SettingsSection className="backup-settings" title={ui('数据备份与恢复')}>
+    <SettingsSection className="backup-settings" tour="settings-backup" title={ui('数据备份与恢复')}>
       <div className="backup-blocks">
         <section className="backup-block" aria-labelledby={exportId}>
           <h3 id={exportId} className="settings-subtitle">{ui('导出')}</h3>

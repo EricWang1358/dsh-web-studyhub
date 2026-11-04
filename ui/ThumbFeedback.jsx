@@ -175,7 +175,7 @@ export default function ThumbFeedback({ run, canShortcut, onSent, onFix }) {
   }, []);
 
   return (
-    <span className="thumbs" onPointerUp={(e) => {
+    <span className="thumbs" data-tour="review-thumbs" onPointerUp={(e) => {
       // Pointer feedback should leave Enter available for the next question.
       // Keyboard activation retains normal button focus and accessibility.
       e.currentTarget.closest(".study-app")?.focus({ preventScroll: true });

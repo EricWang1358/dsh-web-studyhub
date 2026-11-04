@@ -157,17 +157,17 @@ export default function AppSidebar() {
         {/* Two quiet entries of the rail: the keys of this page (? opens the same sheet), and the words the interface assumes. */}
         <div className="sidebar-links">
           <Tooltip layer placement="top-start" anchorClassName="sidebar-link-tip" content={ui('看这一页能用的键；按 ? 也能打开')}>
-            <Button variant="link" size="sm" className="sidebar-link" icon="key" data-usage="nav.shortcut" onClick={() => session.actions.openShortcutHelp()}>{ui('快捷键')}</Button>
+            <Button variant="link" size="sm" className="sidebar-link" icon="key" data-tour="nav-shortcuts" data-usage="nav.shortcut" onClick={() => session.actions.openShortcutHelp()}>{ui('快捷键')}</Button>
           </Tooltip>
           <Tooltip layer interactive placement="top-start" anchorClassName="sidebar-term-tip" content={glossaryText()}>
-            <span className="sidebar-link sidebar-link--term" tabIndex={0} onClick={(e) => e.currentTarget.focus()}>{ui('名词解释')}</span>
+            <span className="sidebar-link sidebar-link--term" data-tour="nav-glossary" tabIndex={0} onClick={(e) => e.currentTarget.focus()}>{ui('名词解释')}</span>
           </Tooltip>
         </div>
         <div className="local-status"><span />{ui('本地学习工作区')}</div>
         {/* Theme: one cycling toggle. `auto` is dark; light is explicit opt-in. */}
         <ThemeCycle />
         <UpdateCenter compact={sidebarNarrow} />
-        <NavItem glyph="settings" label={ui('设置')} active={navPage === 'settings'} narrow={sidebarNarrow} purpose={ui('语言、外观、模型连接和引导提示都在这页调')} data-tour="nav-settings" data-usage="nav.settings"
+        <NavItem glyph="settings" label={ui('设置')} active={navPage === 'settings'} narrow={sidebarNarrow} purpose={ui(PAGES.settings.purpose)} data-tour="nav-settings" data-usage="nav.settings"
           onClick={() => nav.navigate('settings', { animate: true, keepTrail: false })} />
       </div>
     </aside>

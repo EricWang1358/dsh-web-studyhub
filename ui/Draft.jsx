@@ -368,7 +368,7 @@ export default function Draft({
       </details>
       {!jsonMode && <div className="draft-edit-heading">
         <div><h2>{ui("题目")}</h2><span>{uiFormat("{0} 题 · 按需展开编辑", [draft.cards.length])}</span></div>
-        <details className="draft-advanced">
+        <details className="draft-advanced" data-tour="draft-advanced">
           <summary>{ui("高级编辑")}</summary>
           <Button className="draft-advanced__action" onClick={toggleJsonMode}>{ui("JSON 编辑")}</Button>
         </details>
