@@ -35,8 +35,9 @@ test('a picked or running row is the neutral selected surface with a neutral edg
 test('narrow: the filters are one scrolling line and the metrics are a compact list (#680)', () => {
   const narrow = css.slice(css.indexOf('@container study (max-width: 560px)'));
   assert.ok(narrow.startsWith('@container study (max-width: 560px)'), 'a container rule for the narrow console');
-  assert.match(css, /\.tc-scope\b[^{]*\{[^}]*flex-wrap: nowrap/, 'the filter control never wraps');
-  assert.match(css, /\.tc-scope\b[^{]*\{[^}]*overflow-x: auto/, 'and scrolls sideways when it must');
+  assert.match(css, /\.tc-scope\s*\{[^}]*flex-wrap: nowrap/, 'the filter control never wraps');
+  assert.match(css, /\.tc-scope-wrap\s*\{[^}]*overflow-x: auto/, 'and its box scrolls sideways when it must');
+  assert.doesNotMatch(css, /\.sh-page-header__actions|\.sh-seg__item/, 'the shared header and segmented control keep their own classes (css-ownership)');
   const rules = declarations.filter((d) => /@container study \(max-width: 560px\)/.test(d.ctx.join('|')));
   const metrics = rules.filter((d) => /\.tc-metrics$/.test(selectorOf(d)) && d.prop === 'grid-template-columns');
   assert.deepEqual(metrics.map((d) => d.value), ['minmax(0, 1fr)'], 'one metric per row');

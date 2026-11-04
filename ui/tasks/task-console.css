@@ -25,10 +25,10 @@
       color: var(--text);
     }
     .tc-header { flex: none; margin-bottom: var(--space-3); }
-    /* The filters are one line whatever the width: where the four do not fit they scroll sideways inside their own box (the shared control wraps by default, which made two lines of them at 420). */
-    .tc-header .sh-page-header__actions { min-width: 0; max-width: 100%; flex-wrap: nowrap; }
-    .tc-scope { flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-    .tc-scope > .sh-seg__item { flex: none; white-space: nowrap; }
+    /* The filters are one line whatever the width: the control keeps its own width (it would wrap by default, which made two lines of it at 420) and the box around it, which may shrink
+       to the room there is, scrolls sideways where the four do not fit. */
+    .tc-scope-wrap { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+    .tc-scope { flex-wrap: nowrap; max-width: none; white-space: nowrap; }
     /* The list and the detail: one flat desk panel (surface, hairline, desk corner); the list is divided from the detail by a hairline, not by a grey slab. */
     .tc-main {
       flex: 1 1 0;
