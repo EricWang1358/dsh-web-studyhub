@@ -45,8 +45,7 @@
       margin-top: var(--space-1);
     }
     /* 「帮助」 holds three rows, set a little in from the rows around it. */
-    .nav-fold[data-nav-fold="help"] .nav-fold__items > .nav-tip,
-    .nav-fold[data-nav-fold="help"] .nav-fold__items > .nav {
+    .nav-fold[data-nav-fold="help"] .nav-fold__items > .nav-tip {
       padding-left: var(--space-4);
     }
     .nav-fold__chevron {
@@ -75,7 +74,7 @@
       width: 7px;
       height: 7px;
       border-radius: 50%;
-      background: var(--accent-soft);
+      background: var(--warn-solid); /* attention, not the accent (#658): the accent is the primary action */
       box-shadow: 0 0 0 2px var(--bg-canvas);
       pointer-events: none;
     }

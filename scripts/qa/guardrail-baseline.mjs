@@ -54,7 +54,6 @@ const ACCENT_FILL_ALLOW = [
   { file: 'ui/document-preview/reader/reader.css', selector: /\.reader-progress|\.reader-assist__bar/, why: 'progress' },
   { file: 'ui/book/book-bar.css', selector: /\.book-bar__line/, why: 'progress' },
   { file: 'ui/coach.css', selector: /\.autopilot-bar/, why: 'progress' },
-  { file: 'ui/shell.css', selector: /\.nav-progress/, why: 'progress' },
   { file: 'ui/focus.css', selector: /\.course-route-bar/, why: 'progress' },
   { file: 'ui/workflows.css', selector: /\.wf-progress-mark/, why: 'progress' },
   { file: 'ui/tasks/task-console.css', selector: /\.tc-segment|\.tc-legend i|\.tc-callbar|\.tc-cells|\.tc-steps__mark|\.tc-dot\[data-state='run'\]|\.tc-output__caret/, why: 'progress and the running call of a job' },

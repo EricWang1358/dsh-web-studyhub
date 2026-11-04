@@ -441,6 +441,28 @@
       box-shadow: var(--shadow-drag);
       color: var(--text);
     }
+    /* Inside the drawer (ui/app/nav-drawer.css, #657) the sidebar is a plain column: the drawer scrolls, the rows keep their one height. */
+    .sidebar.is-drawer {
+      position: static;
+      width: auto;
+      height: auto;
+      min-height: 100%;
+      border-right: 0;
+      background: transparent;
+      padding: 0 var(--sidebar-pad) var(--space-4); /* the active bar sits --sidebar-pad left of the rows: on the drawer's edge */
+      overflow: visible;
+    }
+    .sidebar.is-drawer .sidebar-bottom {
+      margin-top: var(--space-5);
+    }
+    /* After the top bar's menu button the page title takes the room left. */
+    .nav-menu-anchor + .crumbs {
+      margin-right: auto;
+    }
+    /* 「帮助」 holds three rows, set a little in from the rows around it (the Tooltip wrappers are in ui/side-groups.css). */
+    .nav-fold[data-nav-fold="help"] .nav-fold__items > .nav {
+      padding-left: var(--space-4);
+    }
   }
 }
 

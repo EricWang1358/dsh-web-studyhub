@@ -44,7 +44,7 @@ export const isBackdropClick = (event, dialog, downTarget) => event.target === d
  * or margins) away from the browser and the host chat.
  */
 export default function Dialog({ title, description, onClose, size = 'md', footer, children, dismissible = true, initialFocus,
-  bodyLabel, closeLabel, busy = false, guardDrops = false, className, bodyClassName, contentClassName, footerClassName, ...rest }) {
+  bodyLabel, closeLabel, busy = false, guardDrops = false, className, headerClassName, titleClassName, bodyClassName, contentClassName, footerClassName, ...rest }) {
   useComponentCss(css);
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(mediaCss, 'study-dialog-media');
@@ -110,9 +110,9 @@ export default function Dialog({ title, description, onClose, size = 'md', foote
       onPointerDown={event => { pointerDown.current = event.target; }}
       onClick={event => { if (canDismiss && isBackdropClick(event, ref.current, pointerDown.current)) requestClose('backdrop'); }}
       {...rest}>
-      <header className="sh-dialog__header">
+      <header className={cx('sh-dialog__header', headerClassName)}>
         <div className="sh-dialog__heading">
-          <h2 id={titleId} className="sh-dialog__title" title={typeof title === 'string' ? title : undefined}>{title}</h2>
+          <h2 id={titleId} className={cx('sh-dialog__title', titleClassName)} title={typeof title === 'string' ? title : undefined}>{title}</h2>
           {description && <p id={descriptionId} className="sh-dialog__description">{description}</p>}
         </div>
         {dismissible && <IconButton icon="close" className="sh-dialog__close" label={closeLabel || ui('关闭')} aria-disabled={busy || undefined}

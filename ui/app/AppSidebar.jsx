@@ -45,7 +45,7 @@ export default function AppSidebar() {
   // A row that leads somewhere closes the drawer once it has done its work; a fold (更多, 帮助) and the glossary keep it open.
   const leave = (event) => { if (event.target.closest?.('button.nav:not([aria-expanded]):not([data-keep-open])')) close(); };
   return (
-    <Dialog className="nav-drawer" size="full" title={ui('导航')} closeLabel={ui('关闭导航')} onClose={close}>
+    <Dialog className="nav-drawer" headerClassName="nav-drawer__header" titleClassName="nav-drawer__title" bodyClassName="nav-drawer__body" contentClassName="nav-drawer__content" size="full" title={ui('导航')} closeLabel={ui('关闭导航')} onClose={close}>
       <div className="sidebar is-drawer" onClick={leave}>
         {body}
         {!shell.narrowWindow && (

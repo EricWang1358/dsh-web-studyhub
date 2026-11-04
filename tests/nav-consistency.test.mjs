@@ -110,7 +110,7 @@ test("the attention dot is a badge on the icon's corner (#579, #655), and the ol
   assert.doesNotMatch(dot, /\bleft:/, "placed from the icon's top-right corner, not at an offset into the gap before the label");
   assert.match(dot, /\btop:/);
   assert.match(dot, /\bright:/);
-  assert.match(dot, /background:\s*var\(--accent-soft\)/, "the accent marks the one thing to act on");
+  assert.match(dot, /background:\s*var\(--warn-solid\)/, "the attention colour marks the one thing to act on; the accent is the primary action (#658)");
   assert.match(rule(".nav-alert-icon") ?? "", /position:\s*relative/, "the icon holds the dot");
   await assert.rejects(readFile(new URL("../ui/nav-start.css", import.meta.url), "utf8"), "the 从这里开始 sheet is deleted");
 });
