@@ -9,7 +9,7 @@ import { ModelSettingsContext } from '../ModelErrorNote.jsx';
 import { draftWork, draftWorkLabel } from '../draft-shortfall.js';
 import { isActiveJob } from '../job-visibility.js';
 import css from './coverage.css';
-import { actionLabel, allCoveredText, continueLine, coverageAheadText, coveragePathText, nextRoundText, shortfallWhy } from './copy.js';
+import { actionLabel, allCoveredText, continueLine, coverageAheadText, coveragePathText, nextRoundText, planFinished, shortfallWhy } from './copy.js';
 import { describeFailure } from '../generation-status.js';
 import { continueArgs, continueNotice } from './top-up.js';
 import { draftShortfall } from './use-shortfall.js';
@@ -37,7 +37,8 @@ const WorkStatus = ({ draft, work, variant, percent }) => <div className={`draft
 function TopUpBody({ draft, view, shortfall, modelReady, held, onTopUp, variant }) {
   const { call, busy } = useStudy();
   const round = view.round, units = view.coverage.units, cls = classOf(variant);
-  if (!round.sections) return <div className={cls} data-coverage-topup data-coverage-complete><p className="cov-topup__done">{allCoveredText(units)}</p></div>;
+  // A draft with a plan that is met says it once, in the coverage line above (ui/coverage/Coverage.jsx CoverageFact): the draft page does not say 「每个小节都有题了」 a second time (#663).
+  if (!round.sections) return variant === 'block' && planFinished(shortfall) ? null : <div className={cls} data-coverage-topup data-coverage-complete><p className="cov-topup__done">{allCoveredText(units)}</p></div>;
   const blocked = busy || held || !modelReady;
   const sectionIds = round.picks.map((pick) => pick.key);
   // The draft page already says where the coverage stands (CoverageFact): there the path says only what is still ahead.

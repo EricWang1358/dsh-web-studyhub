@@ -348,8 +348,9 @@ export function stopText(stop) {
 
 /** Why a finished job's run stopped, as far as it is still true: a job that closed a run short keeps that stop on its record, and once a later press has met the goal the draft is not short any more. */
 export const runStopText = (stop, shortfall) => (stop?.reason === 'questions-short' && shortfall?.questionsMissing === 0 ? ''
-  // 「计划里的每个小节都有题了」 is not said beside a section that has none: shortfallLine names the plan's end and what it left out in one sentence (#662).
-  : planDone(shortfall) && ['complete', 'target'].includes(stop?.reason) ? '' : stopText(stop));
+  // 「计划里的每个小节都有题了」 is not said beside a section that has none: shortfallLine names the plan's end and what it left out in one sentence (#662); with every section covered the
+  // coverage line says so (planFinishedLine), so the stop is not said a second time (#663).
+  : planFinished(shortfall) && ['complete', 'target'].includes(stop?.reason) ? '' : stopText(stop));
 
 /* ---------- the shortfall (lib/shortfall.js): ONE set of sentences for the home banner, the 待发布 row, the 任务 console and the draft page ---------- */
 
@@ -408,8 +409,14 @@ export function runPathText(run) {
 /** 「精简：先出第 1 轮；点「自动补到完整」继续」: what a run that waits for the learner (自动补到完整 is off) has done, and how it goes on. The coverage is not repeated here: the fact line says it (#663). */
 export const manualLine = (s) => uiFormat('{0}：先出第 {1} 轮；点「自动补到完整」继续', [levelLabel(s.level), Math.max(1, s.roundsDone || 1)]);
 
-/** The plan is met (every question it asked for is made) and the material has sections it never reached: the two facts a bare 「100%」 and 「还有 1 个小节没有题」 told as a contradiction (#662). */
-export const planDone = (s) => !!s && s.planned !== false && s.ready === true && s.sectionsUncovered > 0;
+/** The plan is met: every question it asked for is made. */
+export const planFinished = (s) => !!s && s.planned !== false && s.ready === true;
+
+/** The plan is met and the material has sections it never reached: the two facts a bare 「100%」 and 「还有 1 个小节没有题」 told as a contradiction (#662). */
+export const planDone = (s) => planFinished(s) && s.sectionsUncovered > 0;
+
+/** The plan is met and nothing is left out: 「计划内 5 题已全部出完。每个小节都有题了。」 (the one sentence of the draft page and the console for it; the stop of the run is not said again). */
+export const planFinishedLine = (s) => uiFormat('计划内 {0} 题已全部出完。{1}', [s.questionsKept, allCoveredText(s.units)]);
 
 /** The counts of a draft in one line: 「已出 174/251 题 · 还有 18 个小节没有题」; a draft whose plan is done says 「计划内 4 题已全部出完；还有 1 个小节不在计划里，可以补题」. THE sentence of the draft page, the 任务 console and the home row. */
 export function shortfallLine(s) {

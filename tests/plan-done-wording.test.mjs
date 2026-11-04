@@ -68,7 +68,9 @@ test('#662: one sentence names the two facts apart: the plan is done, and what i
 test('#662: the run\'s own stop reason does not say 「每个小节都有题」 while a section has none', () => {
   const s = shortfall();
   assert.equal(m.copy.runStopText(marker.stop, s), '', 'the sentence above already says it');
-  assert.match(m.copy.runStopText(marker.stop, { ...s, sectionsUncovered: 0 }), /每个小节都有题了/, 'with nothing left out the plan\'s own words stand');
+  assert.equal(m.copy.runStopText(marker.stop, { ...s, sectionsUncovered: 0 }), '', 'with nothing left out the coverage line says it (planFinishedLine), once');
+  assert.match(m.copy.runStopText(marker.stop, undefined), /每个小节都有题了/, 'a screen that knows nothing else keeps the run\'s own words');
+  assert.match(m.copy.runStopText(marker.stop, { ...s, ready: false, sectionsUncovered: 0 }), /每个小节都有题了/, 'a plan that is not met is told as before');
 });
 
 test('#662: the draft page and the console never say 「都有题」 and 「没有题」 together; both name the section that is not in the plan', () => {
@@ -108,4 +110,19 @@ test('#663: the coverage figure is written once on the draft page and once in th
   assert.match(draftPage, /data-coverage-fact[^>]*>[\s\S]*?data-coverage-line[^>]*>覆盖 11\/12 个小节（92%）</);
   assert.match(tasks, /data-coverage-fact[^>]*>[\s\S]*?data-coverage-line[^>]*>覆盖 11\/12 个小节（92%）</);
   inLanguage('en', () => assert.match(text(page('en')), /Covered 11\/12 sections \(92%\)/));
+});
+
+test('#663: with every section covered the plan says it once ("每个小节都有题了" is not repeated by the run\'s stop or by the top-up)', () => {
+  const full = draftView({ draftId: 'd1', draftVersion: 3, covered: small.ids });
+  const whole = { ...draft, cards: Array.from({ length: small.ids.length }, (_, i) => ({ id: `c${i}`, kind: 'quiz' })),
+    editorial: { ...draft.editorial, requested: small.ids.length, coverageSpec: { ...spec, goal: small.ids.length, rounds: [{ ...spec.rounds[0], sectionIds: small.ids, questions: small.ids.length }] } } };
+  const everything = { ...data, drafts: [whole] };
+  const draftPage = (language) => { m.forgetCoverage(); seedView(m, full); return inLanguage(language, () => renderToStaticMarkup(inApp(m, React.createElement(m.DraftCoverage, { draft: whole, view: full, jobs: everything.jobs, modelReady: true }),
+    { data: everything, app: { lib: { taskFocus: null }, host: {}, settingsEntry: { openModelSettings: noop } } }))); };
+  const said = text(draftPage('zh'));
+  assert.match(said, /计划内 12 题已全部出完。每个小节都有题了。/);
+  assert.equal(count(said, '每个小节都有题'), 1, said);
+  assert.doesNotMatch(said, /出题计划做完了/);
+  assert.match(text(draftPage('en')), /All 12 planned questions are made\. Every section has questions\./);
+  assert.equal(count(text(draftPage('en')), 'Every section has questions'), 1);
 });

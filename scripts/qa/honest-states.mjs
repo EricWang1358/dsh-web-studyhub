@@ -9,7 +9,7 @@
      restart  the host stopped under a paused run: the banner and the row offer the one action 接着做 (not 打开草稿), the title is the deck's, not an internal label.
      paused   a live run paused between rounds: the banner and the row offer the one action 继续, the console says 暂停于第 N 轮之后, and nothing says 100%.
    practise the line under a practice answer follows the mastery level (D-6): one correct answer is 「答对了 · 下次复习 …」, never 「✓ 已掌握」, and the library agrees (学习中).
-   manual   精简 waits for the learner: the form's line and the draft page say 「精简：先出第 1 轮，覆盖 N%；点「自动补到完整」继续」, and the one button is 为没覆盖的部分补题.
+   manual   精简 waits for the learner: the form's line says 「精简：先出第 1 轮，覆盖约 N%；点「自动补到完整」继续…」 and the draft page 「精简：先出第 1 轮；点「自动补到完整」继续」 (its coverage line says the percent, #663), and the one button is 为没覆盖的部分补题.
    Every claim is read off the page and compared with the same fact from the snapshot. Fake model, Chromium, every key/token/base-url variable removed; one screenshot per step. */
 /* global document, window, getComputedStyle */
 import assert from "node:assert/strict";
@@ -261,8 +261,8 @@ export async function runHonestQa(options) {
         });
         await step("draft-short-list", async () => { await page.locator("[data-coverage-list] summary").first().click().catch(() => {}); await sleep(500); });
         await step("draft-scroll-sticky", async () => {
-          // The draft page's action bar is sticky (D-14): while the page scrolls under it, it must be OPAQUE (no coverage text showing through its buttons) and, on a narrow screen, ONE row
-          // (a two-row bar covers a seventh of the screen); at rest (scrolled to the top) it overlaps nothing.
+          // The draft page's action bar is sticky (D-14; at the bottom of the view since #669): while the page scrolls under it, it must be OPAQUE (no coverage text showing through its buttons) and, on a narrow screen,
+          // ONE row (a two-row bar covers a seventh of the screen); at rest (scrolled to the top) it overlaps nothing.
           const verdicts = [];
           for (const top of [0, 300, 700, 1100]) {
             await page.evaluate((y) => { for (const el of [document.scrollingElement, ...document.querySelectorAll("main, .study-app, .page, .study-main")]) if (el) el.scrollTop = y; window.scrollTo(0, y); }, top);
@@ -271,7 +271,7 @@ export async function runHonestQa(options) {
               const bar = document.querySelector(".sticky-actions"); if (!bar) return null;
               const box = bar.getBoundingClientRect(), style = getComputedStyle(bar), alpha = (/rgba?\(([^)]*)\)/.exec(style.backgroundColor)?.[1] || "").split(",").map(Number);
               const hits = [];
-              for (const el of document.querySelectorAll(".cov-summary__line, .cov-summary__plan, .cov-run__counts, .cov-run__line, .cov-summary__kicker")) {
+              for (const el of document.querySelectorAll(".cov-fact__line, .cov-fact__status, .cov-run__line")) {
                 const rect = el.getBoundingClientRect();
                 if (rect.bottom > box.top + 1 && rect.top < box.bottom - 1 && rect.height > 0) hits.push(el.className);
               }
@@ -357,7 +357,7 @@ export async function runHonestQa(options) {
       if (scenario === "manual") {
         await check("精简 waits for the learner: the draft page says it plainly and offers the one button; the toggle is one click away", async () => {
           assert.equal(snap.editorial.coverageRun.autoComplete, false);
-          const line = new RegExp(t("精简：先出第 1 轮，覆盖 \\d+%；点「自动补到完整」继续", "Lean: round 1 is made, \\d+% covered; tick \"Finish automatically\" to go on"));
+          const line = new RegExp(t("精简：先出第 1 轮；点「自动补到完整」继续", "Lean: round 1 is made; tick \"Finish automatically\" to go on"));
           assert.match(draft.text, line, draft.text.slice(0, 600));
           assert.ok(draft.run.includes(t("自动补到完整", "Finish automatically")), "the toggle is on the page");
           assert.ok(draft.buttons.includes(t("为没覆盖的部分补题", "Add questions for the uncovered parts")), `the one button: ${draft.buttons}`);
