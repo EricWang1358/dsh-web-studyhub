@@ -133,3 +133,31 @@ test('an old book updated: one card call per batch, no write, review or repair; 
   await w.run();
   assert.equal(w.fake.calls.length - again, 0, 'nothing is missing: no call');
 });
+
+test('补术语卡 (cards: true): the estimate costs nothing, the pass touches no text even when the detail level changed, and with nothing to do no task starts', async t => {
+  const w = await world(t);
+  await w.run();
+  await w.age();
+  const old = (await w.notes()).courseNotes;
+  // The learner raised the detail level since: an update would rewrite; the card pass must not.
+  await w.service.store.update(state => { state.settings = { ...(state.settings || {}), book: { ...(state.settings?.book || {}), coverage: 'full' } }; });
+  const before = w.fake.calls.length;
+  const estimate = await w.build({ cards: true, estimate: true });
+  assert.equal(w.fake.calls.length, before, 'an estimate is no call');
+  assert.equal(estimate.status, 'estimate');
+  assert.ok(estimate.points > 0 && estimate.calls === Math.ceil(estimate.points / CARD_PASS.units), JSON.stringify(estimate));
+  await w.run({ cards: true });
+  assert.deepEqual(Object.keys(w.stages(before)), ['cards'], 'only the card pass');
+  assert.equal(w.stages(before).cards, estimate.calls, 'the estimate is what it cost');
+  const now = (await w.notes()).courseNotes;
+  assert.deepEqual(withoutCards(now.leaves), withoutCards(old.leaves), 'no explanation rewritten');
+  assert.ok(carded(now.leaves) > 0);
+  const nothing = await w.build({ cards: true });
+  assert.deepEqual([nothing.status, nothing.calls, nothing.jobId], ['nothing', 0, undefined], 'no task, no call');
+});
+
+test('补术语卡 on a course without a book is refused with a code before any call', async t => {
+  const w = await world(t);
+  await assert.rejects(w.build({ cards: true }), error => error.code === 'course-book-no-book');
+  assert.equal(w.fake.calls.length, 0);
+});
