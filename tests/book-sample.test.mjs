@@ -75,6 +75,10 @@ test('the scale of the whole build, from what the sample really used: the typica
   assert.deepEqual(quick.minutes, { low: 0, high: 0 }, 'calls of a few milliseconds: under a minute, not "about 1 minute"');
   assert.equal(estimate.concurrency, 4);
   assert.deepEqual(estimate.stages.map(stage => [stage.id, stage.calls]), [['bookPoints', 250], ['exam', 3], ['inventory', 10]]);
+  // The answer kit the sample did not make: like an average call of its points (500 + 250 and 1,025 + 475 tokens a call: 762.5 + 362.5 each).
+  const kit = scaleEstimate({ calls, rest: { points: 100, tested: 20, inventory: 10, kit: 2 }, total: 102, sample: 2, concurrency: 4 });
+  assert.deepEqual([kit.calls, kit.totalTokens], [{ low: 215, high: 315 }, { low: 163450, high: 388450 }]);
+  assert.deepEqual(kit.stages.at(-1), { id: 'kit', calls: 2, inputTokens: { low: 1525, high: 1525 }, outputTokens: { low: 725, high: 725 } });
   assert.ok(!JSON.stringify(estimate).match(/price|cost|元|\$/i), 'no prices');
   assert.equal(scaleEstimate({ calls: [], rest: { points: 5, tested: 0, inventory: 0 }, total: 7, sample: 2, concurrency: 3 }), null, 'nothing was asked: nothing to scale');
   const blind = scaleEstimate({ calls: calls.map(item => ({ ...item, tokenUsage: null })), rest: { points: 100, tested: 0, inventory: 0 }, total: 102, sample: 2, concurrency: 4 });

@@ -137,6 +137,7 @@ export function stageLabel(id, feature) {
     article: ui('写讲解'), proofread: ui('校对'), translate: ui('翻译'), title: ui('起标题'),
     // The scale of a review book's rest, from its sample (#710).
     bookPoints: ui('其余知识点（写、审阅、修复）'), exam: ui('考情（对照样卷）'), inventory: ui('清点资料'),
+    kit: ui('写答题模板'),
   })[id] || id;
 }
 

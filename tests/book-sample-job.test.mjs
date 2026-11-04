@@ -53,6 +53,10 @@ test('a first build writes the sample and waits; building the rest keeps it, sen
   assert.deepEqual(sample.estimate.points, { total: anchored, sample: 2, rest: anchored - 2 });
   assert.ok(sample.estimate.calls.low >= (anchored - 2) * 2, `two calls a point at least (${JSON.stringify(sample.estimate.calls)})`);
   assert.ok(sample.estimate.totalTokens.low > 0 && sample.estimate.concurrency >= 1);
+  // The answer kit is the whole papers', not a point's: the sample asks none of it, and its calls are in the scale of the rest.
+  assert.equal(w.fake.of('kit').length, 0, 'no kit call in the sample');
+  const kitCalls = sample.estimate.stages.find(stage => stage.id === 'kit')?.calls ?? 0;
+  assert.ok(kitCalls > 0, `the kit is in the scale (${JSON.stringify(sample.estimate.stages)})`);
   // The Job: partial (the rest is not written), and the console says the book waits for the learner.
   assert.equal(first.contract.result.completeness, 'partial');
   // The waiting first, so the console's one-line row says it even when narrow.
@@ -73,6 +77,8 @@ test('a first build writes the sample and waits; building the rest keeps it, sen
   const asked = w.since(mark);
   assert.deepEqual(titled(asked, titles), [], 'the sample is never paid twice');
   assert.equal(asked.filter(call => call.stage === 'write').length, anchored - 2, 'every other point written once');
+  assert.equal(asked.filter(call => call.stage === 'kit').length, kitCalls, 'the rest makes the kit, as many calls as the scale said');
+  assert.ok(rest.record.courseNotes.examKit, 'and the book has it');
   assert.ok(asked.filter(call => ['write', 'review', 'repair'].includes(call.stage)).every(call => call.prompt.includes(sample.exemplar)), 'the sample leads every request');
   assert.ok(asked.filter(call => call.stage === 'review').every(call => call.prompt.includes('"drift"')));
   assert.equal(rest.record.courseNotes.sample.status, 'confirmed');
@@ -85,6 +91,20 @@ test('a first build writes the sample and waits; building the rest keeps it, sen
   const after = w.fake.calls.length;
   await w.build();
   assert.equal(w.fake.calls.length, after, 'a rerun asks nothing');
+});
+
+test('a book with its answer kit made again at another level: the sample keeps the kit, the scale counts no kit call and the rest asks none', async t => {
+  const w = await world(t, { library: { paper: true } });
+  const whole = await w.build({ coverage: 'standard', sample: 'skip' });
+  const kit = whole.record.courseNotes.examKit;
+  assert.ok(kit && w.fake.of('kit').length > 0, 'the whole build made the kit');
+  const first = await w.build({ coverage: 'full' });
+  assert.deepEqual(first.record.courseNotes.examKit, kit, 'the waiting book keeps its kit');
+  assert.equal(first.record.courseNotes.sample.estimate.stages.find(stage => stage.id === 'kit'), undefined, 'no kit call in the scale');
+  const mark = w.fake.calls.length;
+  const rest = await w.build({ coverage: 'full', sample: 'confirm' });
+  assert.equal(w.since(mark).filter(call => call.stage === 'kit').length, 0, 'the rest asks no kit call');
+  assert.deepEqual(rest.record.courseNotes.examKit, kit);
 });
 
 test('an outline without its inventory: the sample reads only its own materials; the rest reads the others and still keeps the sample', async t => {
