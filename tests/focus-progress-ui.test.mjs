@@ -62,6 +62,12 @@ test('zero counts are left out, and nothing to practise means no link', () => {
   assert.doesNotMatch(line, /还不会|还没有题|练还不会的重点/);
 });
 
+test('every topic still being learned: the line says so instead of ending at the colon', () => {
+  const learning = { ...progress, total: 2, done: 0, weak: 0, none: 0, weakScope: [], topics: progress.topics.filter(topic => ['todo', 'active'].includes(topic.status)) };
+  assert.match(visible(desk({ progress: learning })), /重点 2 条：学习中 2/);
+  assert.match(visible(render(h(m.FocusProgressLine, { progress: learning, courseId: 'c', start: noop }), 'en')), /Learning 2/);
+});
+
 test('the line is hidden without focus topics, in 笔试 / 面试 mode, and when the readout is empty', () => {
   assert.doesNotMatch(desk({ progress: undefined }), /focus-progress/);
   assert.doesNotMatch(desk({ progress: { ...progress, total: 0, topics: [] } }), /focus-progress/);

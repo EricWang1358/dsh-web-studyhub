@@ -17,11 +17,13 @@ export const statusTone = (status) => (status === 'weak' ? 'warning' : status ==
 
 /** The counts of a readout as short phrases, zero counts left out: 已掌握 3 · 还不会 2 · 还没有题 1. The topics still being learned are the rest, so the line stays short enough for a phone. */
 export function summaryParts(progress) {
-  return [
+  const parts = [
     progress.done > 0 && uiFormat('已掌握 {0}', [progress.done]),
     progress.weak > 0 && uiFormat('还不会 {0}', [progress.weak]),
     progress.none > 0 && uiFormat('还没有题 {0}', [progress.none]),
   ].filter(Boolean);
+  // Every topic still being learned: say that, so the line never ends at its colon.
+  return parts.length ? parts : [uiFormat('学习中 {0}', [progress.total])];
 }
 
 /** What one topic holds: its questions and how many are mastered ("还没有题" for a topic without a question). */
