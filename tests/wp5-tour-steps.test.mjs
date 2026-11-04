@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir, access } from "node:fs/promises";
 import { join } from "node:path";
+import { anchorsInSource, sourceFiles } from "./helpers/tour-anchors.mjs";
 import { TOUR_STEPS, availableTourSteps, tourNeighbour, tourKeyAction, tourStepCopy, CORE_TOUR_LENGTH, CORE_ORDER } from "../ui/tour/steps.js";
 import { NAV_DEFAULTS, mergeOrder } from "../ui/nav-order.js";
 
@@ -12,30 +13,6 @@ const english = JSON.parse(await readFile("ui/locales/en.onboarding.json", "utf8
 const catalogue = Object.assign({}, ...await Promise.all((await readdir("ui/locales")).filter((name) => /^en(\..+)?\.json$/.test(name))
   .map(async (name) => JSON.parse(await readFile(join("ui/locales", name), "utf8")))));
 
-async function sourceFiles(dir) {
-  const out = [];
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...await sourceFiles(path));
-    else if (/\.(jsx?|mjs)$/.test(entry.name)) out.push(path);
-  }
-  return out;
-}
-/** Every `data-tour` anchor rendered by the UI source, including the nav items' `nav-${id}`. */
-async function anchorsInSource() {
-  const anchors = new Set();
-  for (const file of await sourceFiles("ui")) {
-    const text = await readFile(file, "utf8");
-    // JSX attributes (data-tour="x") and spread props ({ "data-tour": "x" }).
-    for (const match of text.matchAll(/data-tour["']?\s*[=:]\s*["']([a-z0-9-]+)["']/g)) anchors.add(match[1]);
-    // A settings section names its anchor with the tour prop of SettingsSection (rendered as data-tour).
-    if (/\bSettingsSection\b/.test(text)) for (const match of text.matchAll(/\btour=["']([a-z0-9-]+)["']/g)) anchors.add(match[1]);
-    if (/data-tour=\{`nav-\$\{id\}`\}/.test(text)) for (const id of Object.values(NAV_DEFAULTS).flat()) anchors.add(`nav-${id}`);
-    // Tabs described as data ({ …, tour: "x" } rendered with data-tour={tab.tour}, ui/Generate.jsx).
-    if (/data-tour=\{tab\.tour\}/.test(text)) for (const match of text.matchAll(/\btour:\s*["']([a-z0-9-]+)["']/g)) anchors.add(match[1]);
-  }
-  return anchors;
-}
 /* Anchors another work package still has to add to its own pages (plan §5).
    WP3 and WP4 have merged, so every anchor must exist now. */
 const PARALLEL = {};
