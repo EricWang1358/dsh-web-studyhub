@@ -47,7 +47,7 @@ export function DailyRecapPanel(props) {
   </details>;
   return <section className="daily-recap" aria-labelledby={prefix + '-title'}>
     <div className="daily-recap-heading"><h2 id={prefix + '-title'}>{ui('今日学习总结')}</h2>
-      {onSettings && <Button size="sm" variant="quiet" onClick={onSettings}>{ui('生成设置')}</Button>}
+      {onSettings && <Button className="daily-recap-heading__btn" size="sm" variant="quiet" onClick={onSettings}>{ui('生成设置')}</Button>}
     </div>
     <p className="daily-recap-lead">{ui('把今天各章的练习串起来，收好错因、思路和下一步。')}</p>
     {status && !modelReady && <InlineMessage tone="warning" title={gateTitle('inline')} action={onModelSettings ? { label: ui('打开模型设置'), onClick: onModelSettings } : undefined}>
@@ -86,10 +86,10 @@ export function DailyRecapPanel(props) {
         <div className="daily-recap-actions">
           {canGenerate && toneControl(group)}
           <div className="daily-recap-buttons">
-            {group.noteId && group.hasContent && <Button variant={primary ? 'primary' : 'secondary'} disabled={!onOpenNote} lock={busy} onClick={() => onOpenNote(group.noteId)}>{ui('阅读今日合集')}</Button>}
-            {canGenerate && <Button variant={group.hasContent || !primary ? 'secondary' : 'primary'} busy={working === recapGroupKey(group)} disabled={busy || !!working || !group.eligible || !modelReady}
+            {group.noteId && group.hasContent && <Button className="daily-recap-buttons__btn" variant={primary ? 'primary' : 'secondary'} disabled={!onOpenNote} lock={busy} onClick={() => onOpenNote(group.noteId)}>{ui('阅读今日合集')}</Button>}
+            {canGenerate && <Button className="daily-recap-buttons__btn" variant={group.hasContent || !primary ? 'secondary' : 'primary'} busy={working === recapGroupKey(group)} disabled={busy || !!working || !group.eligible || !modelReady}
               onClick={() => recap.generate(group)}>{ui(retry ? '重试生成合集' : group.hasContent ? '更新今日合集' : '生成今日合集')}</Button>}
-            {running && <Button size="sm" variant="quiet" disabled={!!working} lock={busy} onClick={() => recap.cancel(group)}>{ui('停止生成')}</Button>}
+            {running && <Button className="daily-recap-buttons__btn" size="sm" variant="quiet" disabled={!!working} lock={busy} onClick={() => recap.cancel(group)}>{ui('停止生成')}</Button>}
           </div>
         </div>
         {protectedEdit && <details className="daily-recap-replace"><summary>{ui('重新整理这篇合集')}</summary>

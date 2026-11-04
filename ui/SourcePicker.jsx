@@ -165,7 +165,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
           </span>
         </label>
         {multi && <Button variant="quiet" size="sm" className="source-picker__expand" aria-expanded={open} aria-controls={chaptered ? chaptersId : listId}
-          iconEnd="chevron" onClick={() => setOpen(value => !value)}>
+          iconEnd="chevron" iconEndClassName="source-picker__chevron" onClick={() => setOpen(value => !value)}>
           {open ? ui('收起') : chaptered ? ui('选择章节') : isPagedFormat(item.format) ? ui('选择页面') : ui('选择部分')}
         </Button>}
       </div>

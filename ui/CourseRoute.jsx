@@ -21,7 +21,7 @@ export default function CourseRoute({ route }) {
       </p>
       <div className="course-route-bar" role="img" aria-label={uiFormat("学过 {0} / {1} 题", [route.learned, route.cards])}>
         {route.chapters.map((c) => (
-          <span key={c.deckId} className={`is-${c.status}`} style={{ flexGrow: c.total, display: "grid" }}>
+          <span key={c.deckId} className={`course-route-stop is-${c.status}`} style={{ flexGrow: c.total, display: "grid" }}>
             <i style={{ width: `${Math.round((c.learned / c.total) * 100)}%` }} />
             <Tooltip layer group="course-route" content={`${c.title} · ${c.learned}/${c.total}`}>
               <b tabIndex={0} aria-label={`${c.title} · ${c.learned}/${c.total}`} style={{ flex: 1 }} />

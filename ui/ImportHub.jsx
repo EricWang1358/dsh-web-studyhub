@@ -347,7 +347,7 @@ function PasteForm({ courses, disabled, draft, onDraft, onSaved }) {
           aria-describedby={error ? errorId : undefined} placeholder={ui('粘贴讲义、笔记或材料。生成内容将引用这里的原文。')}
           onChange={event => onDraft({ ...draft, text: event.target.value })} />
       </Field>
-      {error && <InlineMessage id={errorId}>{error}</InlineMessage>}
+      {error && <InlineMessage id={errorId} className="import-hub__paste-error">{error}</InlineMessage>}
       <div className="import-hub__paste-footer">
         <small>{uiFormat('{0} / {1} 字符', [formatNumber(draft.text.length), formatNumber(SELECTION_CHARS)])}</small>
         <Button type="submit" variant="primary" busy={saving} disabled={disabled}>{ui('保存资料')}</Button>
@@ -509,8 +509,8 @@ export default function ImportHub({
   return (
     <div ref={root} className={`import-hub${className ? ` ${className}` : ''}`} data-tab={tab} {...rest}>
       <CourseChoice value={courseText} focus={data?.focus?.course || ''} from={courseFrom} courses={choices} onChange={setCourseText} disabled={busy || running} />
-      <SegmentedControl className="import-hub__tabs" label={ui('添加方式')} value={tab} options={tabs} disabled={running} onChange={setTab} />
-      {stray && <p className="import-hub__stray" role="status"><Icon name="info" size={16} />{strayText}</p>}
+      <SegmentedControl className="import-hub__tabs" iconClassName="import-hub__tab-icon" label={ui('添加方式')} value={tab} options={tabs} disabled={running} onChange={setTab} />
+      {stray && <p className="import-hub__stray" role="status"><Icon name="info" size={16} className="import-hub__stray-icon" />{strayText}</p>}
       {tab === 'files' && <div className="import-hub__files">
         {!running && failed > 0 && <InlineMessage tone="warning" boxed className="import-hub__summary" actionsBelow
           title={finished ? uiFormat('{0} 个文件已导入，{1} 个没有导入', [finished, failed]) : uiFormat('{0} 个文件没有导入', [failed])}
@@ -518,7 +518,7 @@ export default function ImportHub({
           secondary={lasting ? handOff.action('import.file', () => failedImportInput(itemsRef.current, { courses }), { what: '让主会话按每个文件的原因换个办法导入；文件在输入框里用 @ 选' }) : undefined}>
           {ui('原因写在每个文件旁边。修正后可以重新拖进来。')}
         </InlineMessage>}
-        {(!conversionOpen || items.length > 0 || largeItem) && <FileDrop className={stray ? 'is-attention' : undefined} accept={importAccept({ audio: audioOn })} multiple compact
+        {(!conversionOpen || items.length > 0 || largeItem) && <FileDrop className={stray ? 'is-attention' : undefined} dropClassName="import-hub__drop" accept={importAccept({ audio: audioOn })} multiple compact
           label={ui('把讲义、笔记或题组文件拖到这里，可以一次放多个')}
           hint={[audioOn ? ui('PDF · Word · PowerPoint · Markdown · HTML · TXT · JSON 题组 · SRT / VTT 字幕') : ui('PDF · Word · PowerPoint · Markdown · HTML · TXT · JSON 题组'),
             uiFormat('PDF 与文本最大 {0} MB，Word / PPT 最大 {1} MB', [megabytes(MAX_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])].join(' · ')}

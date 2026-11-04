@@ -25,8 +25,9 @@
       margin: 0;
       font-size: var(--fs-md);
     }
-    .quality-note .icon {
+    .quality-note > svg {
       color: var(--accent-soft);
+      flex: none;
     }
     .citations .citations__button {
       display: block;
@@ -407,7 +408,7 @@
       margin: 0;
       font-size: var(--fs-md);
     }
-    .hint .icon {
+    .hint .hint__icon {
       color: var(--warn-ink);
     }
     .next-due {
@@ -527,7 +528,7 @@
     .teaching-context .md p { font-size: inherit; }
     .teaching-panel form { display: grid; gap: var(--space-3-5); margin-top: var(--space-4-5); }
     .teaching-panel form > .teaching-panel__field { display: grid; gap: var(--space-2-5); }
-    .teaching-panel form > .teaching-panel__submit { justify-self: end; }
+    .teaching-panel form > .teaching-panel__submit { justify-self: end; min-width: 0; max-width: 100%; white-space: normal; text-align: center; }
   }
   @container study (max-width: 480px) {
     :where(.study-app, .study-seat) {

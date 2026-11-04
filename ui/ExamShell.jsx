@@ -31,7 +31,7 @@ export function ExamHeader({ courses, course, onCourse, format, onFormat, showIn
       <div className="es-controls">
         <div className="es-format">
           <span className="es-label">{ui("考试形式")}</span>
-          <SegmentedControl label={ui("考试形式")} value={format} onChange={onFormat} options={formatOptions()} data-tour="exam-case" />
+          <SegmentedControl className="es-format__seg" itemClassName="es-format__seg-item" label={ui("考试形式")} value={format} onChange={onFormat} options={formatOptions()} data-tour="exam-case" />
         </div>
       </div>
     </PageHeader>
@@ -61,7 +61,7 @@ export function ExamSetupCard({ title, intro, steps = [], children, summary, act
       </div>
       <footer className="es-foot">
         <p className="es-summary" role="status">{summary}</p>
-        {action}
+        {React.isValidElement(action) ? React.cloneElement(action, { className: [action.props.className, "es-foot__start"].filter(Boolean).join(" ") }) : action}
       </footer>
     </section>
   );
@@ -102,7 +102,7 @@ function Row({ item, onOpen, busy }) {
     <li className="es-recent__row">
       <Badge className="es-kind" tone={item.kind === "case" ? "info" : "neutral"}>{tags[item.kind]}</Badge>
       <span className="es-recent__text"><strong>{score}</strong>{detail && <small>{detail}</small>}</span>
-      <Button size="sm" variant="secondary" lock={busy} onClick={() => onOpen(item)}>{ui("查看报告")}</Button>
+      <Button size="sm" variant="secondary" className="es-recent__btn" lock={busy} onClick={() => onOpen(item)}>{ui("查看报告")}</Button>
     </li>
   );
 }

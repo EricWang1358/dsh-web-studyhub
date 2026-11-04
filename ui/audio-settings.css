@@ -5,7 +5,7 @@
     /* Audio transcription settings, the audio setup gate and the import pre-flight rows. Tokens only; 12 px floor.
        The provider card, steps, badges, fields and notes are shared components (ui/components/fields.css); only what is about audio is here. */
     .audio-advanced { margin-top: var(--space-5); }
-    .audio-advanced .sh-disclosure__body > * + * { margin-top: var(--space-5); }
+    .audio-advanced .settings-disclosure__body > * + * { margin-top: var(--space-5); }
     .audio-paid { display: grid; gap: var(--space-2); }
     /* 课堂实录's engine: the three choices, then the local engine's card (ui/LiveLocalCard.jsx). */
     .audio-live-engine { display: grid; gap: var(--space-3); min-width: 0; }
@@ -13,7 +13,7 @@
        as wide as the page's column; the subtitle way in is a line of text and a button under it, a drop target with no frame of its own. */
     .audio-import--setup { padding: 0; border: 0; border-radius: 0; }
     .audio-setup { max-width: none; margin: var(--space-4) 0; }
-    .audio-setup .sh-secret { margin-top: var(--space-4); max-width: 560px; }
+    .audio-setup .audio-setup__secret { margin-top: var(--space-4); max-width: 560px; }
     .audio-setup-alt { margin: var(--space-3) 0 0; }
     .audio-setup-alt a { color: var(--accent-text); }
     .audio-subtitle-only { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-4);
@@ -27,6 +27,6 @@
     .audio-check--blocked { color: var(--bad-ink); }
     .audio-check--ok, .audio-check--split-confirmed { color: var(--ok-ink); }
     .audio-submit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
-    .audio-submit .sh-inline { flex: 1 1 100%; }
+    .audio-submit .audio-submit__inline { flex: 1 1 100%; }
   }
 }

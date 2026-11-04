@@ -60,7 +60,7 @@ function AssistFailure({ task, onSettings, onResubmit, onEdit }) {
   const { busy } = useStudy();
   const text = plainAssistFailure(task.message) || ui("没有拿到具体原因");
   const info = describeModelError(text);
-  const resubmit = <Button variant="primary" size="sm" lock={busy} onClick={onResubmit}>{ui("重新提交")}</Button>;
+  const resubmit = <Button className="assist-actions__btn" variant="primary" size="sm" lock={busy} onClick={onResubmit}>{ui("重新提交")}</Button>;
   if (info.kind !== "unknown") {
     return (
       <div className="assist-note assist-failed" data-kind={info.kind}>
@@ -74,7 +74,7 @@ function AssistFailure({ task, onSettings, onResubmit, onEdit }) {
       <p>{uiFormat("后台助教没能完成：{0}", [text])}</p>
       <div className="assist-actions">
         {resubmit}
-        {onEdit && <Button size="sm" onClick={onEdit}>{ui("改一改再提交")}</Button>}
+        {onEdit && <Button className="assist-actions__btn" size="sm" onClick={onEdit}>{ui("改一改再提交")}</Button>}
       </div>
     </div>
   );
@@ -558,9 +558,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               </label>
               <div className="action-feedback-slot">{feedback}</div>
               <div className="assist-actions">
-                <Button type="submit" variant="primary" size="sm"
+                <Button type="submit" variant="primary" size="sm" className="assist-actions__btn"
                   disabled={!assistText.trim() && !(assistMode === "ask" && helpChoices.length)}>{ui("提交到后台")}</Button>
-                <Button size="sm" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
+                <Button size="sm" className="assist-actions__btn" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
               </div>
               {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教；完成结果进信箱，做题和主会话可继续。")}</p>}
             </form>
@@ -587,7 +587,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         )}
         {hint && !run.revealed && (
           <div className="hint">
-            <Icon name="help" />
+            <Icon name="help" className="hint__icon" />
             <Markdown text={run.card.hint} />
           </div>
         )}

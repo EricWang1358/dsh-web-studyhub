@@ -9,11 +9,10 @@
     .settings-page .settings-form { margin: 0; }
     /* Disclosures inside a section start at the section edge (no extra indent). */
     .settings-page .settings-disclosure { margin: 0; }
-    .settings-page .settings-disclosure > .sh-disclosure__summary { padding: var(--space-3) 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); }
-    .settings-page .settings-disclosure > .sh-disclosure__body { display: grid; gap: var(--space-5); padding: var(--space-1) 0 var(--space-4); }
-    .settings-page .settings-disclosure > .sh-disclosure__body > * { margin: 0; }
-    .settings-page .audio-expert > .sh-disclosure__body { gap: var(--space-4); }
-    .settings-page .course-list__window { margin: 0; }
+    .settings-page .settings-disclosure > .settings-disclosure__summary { padding: var(--space-3) 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); }
+    .settings-page .settings-disclosure > .settings-disclosure__body { display: grid; gap: var(--space-5); padding: var(--space-1) 0 var(--space-4); }
+    .settings-page .settings-disclosure > .settings-disclosure__body > * { margin: 0; }
+    .settings-page .audio-expert > .audio-expert__body { gap: var(--space-4); }
     /* 陪学 */
     .coach-profile { display: grid; gap: var(--space-2); max-width: 72ch; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .coach-profile__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); }
@@ -76,10 +75,7 @@
       background: var(--warn-bg); color: var(--text); font-size: var(--fs-xs); font-weight: var(--fw-regular); line-height: 1.6; white-space: nowrap; }
     .settings-pane { min-width: 0; }
     /* The first section of a pane sits at its top: no rule above it. */
-    .settings-page .settings-pane > :first-child.settings-section, .settings-page .settings-pane > :first-child { margin-top: 0; }
-    .settings-page .settings-pane > :first-child.settings-section { border-top: 0; padding-top: 0; }
-    /* A pane that is one form (出题偏好, 每日合集, 复习调度) starts at its top as well. */
-    .settings-page .settings-pane > .settings-form:first-child > .settings-section { margin-top: 0; padding-top: 0; border-top: 0; }
+    .settings-page .settings-pane > :first-child { margin-top: 0; }
     .settings-all { min-width: 0; }
   }
   @container study (max-width: 860px) {
@@ -106,8 +102,6 @@
     .guidance-item__actions { display: flex; justify-content: flex-end; }
     .guidance-item__note { grid-column: 1 / -1; margin: 0; }
     .settings-page .appearance-backup { display: grid; gap: var(--space-2); }
-    /* The retrieval tool picker and its test button share a row; the button lines up with the select, not the label. */
-    .settings-page .extensions-settings__choice { align-items: flex-end; }
   }
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {
@@ -134,7 +128,6 @@
       .sm2-fields { grid-template-columns: minmax(0, 1fr); }
       .sm2-preview { padding: var(--space-3); }
       .restore-preview__file { flex-wrap: wrap; }
-      .settings-page .extensions-settings__choice { flex-wrap: wrap; align-items: stretch; }
     }
   }
 }

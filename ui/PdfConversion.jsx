@@ -123,7 +123,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
     ? <MineruInstallCard compact initialLocal={local} onOpenSettings={onOpenSettings ? section => onOpenSettings(section, { file }) : undefined} />
     : <InlineMessage tone="info" boxed>
       {!available ? ui('PDF 解析是音频组件的一部分，而音频组件没有启用。在 DSH 插件管理器里启用它，这里就能用。') : ui('先在设置里安装或配置 Marker。')}
-      {onOpenSettings && available && <Button variant="link" onClick={() => onOpenSettings('settings-marker', { file })}>{ui('前往设置')}</Button>}
+      {onOpenSettings && available && <Button variant="link" className="mineru-route-panel__btn" onClick={() => onOpenSettings('settings-marker', { file })}>{ui('前往设置')}</Button>}
     </InlineMessage>);
 
   // The tool is chosen here and nowhere else. Inside another card (compact) it is one line, MinerU unless the learner changes it; the gate below says what the chosen one needs.
@@ -137,7 +137,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
   return (
     <section className={`mineru-route-panel${compact ? ' is-compact' : ''}${className ? ` ${className}` : ''}`} aria-label={ui('PDF 解析方案')} data-route={route} {...rest}>
       {!compact && <header className="mineru-route-panel__head">
-        <Icon name="file" size={20} />
+        <Icon name="file" size={20} className="mineru-route-panel__icon" />
         <div>
           <h3>{ui('解析 PDF')}</h3>
           <p>{review ? ui('选择 PDF 和解析工具，转换好后先等你改，再存为资料。') : ui('选择 PDF 和解析工具，完成后自动存为资料。')}</p>
@@ -151,7 +151,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
       {!file && <div className="mineru-pick">
         <input ref={picker} type="file" accept={ACCEPT} className="sh-visually-hidden" tabIndex={-1} aria-hidden="true"
           onChange={event => { const chosen = event.target.files?.[0]; event.target.value = ''; if (chosen) onFile?.(chosen); }} />
-        <Button variant="primary" icon="upload" disabled={!available} onClick={() => picker.current?.click()}>{ui('选择 PDF…')}</Button>
+        <Button variant="primary" icon="upload" className="mineru-route-panel__btn" disabled={!available} onClick={() => picker.current?.click()}>{ui('选择 PDF…')}</Button>
         <small>{ui('只在这台电脑上读取，确认之后才会开始解析。')}</small>
       </div>}
 
@@ -192,10 +192,10 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
           </Tooltip>
         </Disclosure>}
         <div className="mineru-start">
-          <Button variant="primary" icon="sparkle" busy={starting} disabled={!plan || !usable} onClick={start}>
+          <Button variant="primary" icon="sparkle" className="mineru-route-panel__btn" busy={starting} disabled={!plan || !usable} onClick={start}>
             {isMarker ? ui('用 Marker 开始解析') : ui('开始本地解析')}
           </Button>
-          {onFile && <Button variant="quiet" lock={starting} onClick={() => onFile(null)}>{ui('换一份 PDF')}</Button>}
+          {onFile && <Button variant="quiet" className="mineru-route-panel__btn" lock={starting} onClick={() => onFile(null)}>{ui('换一份 PDF')}</Button>}
         </div>
       </>}
 

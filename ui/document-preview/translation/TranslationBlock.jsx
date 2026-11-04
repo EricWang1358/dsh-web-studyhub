@@ -105,7 +105,7 @@ export default function TranslationBlock({ state, item, target, open, pendingKin
     <Bar open={open} onToggle={onToggle} target={target} item={item} menu={menu} preview={item.text} copied={copied} />
     {open && <>
       <p className="tr-block__text"><MathText text={item.text} /></p>
-      {busy && <p className="tr-block__status" role="status"><Spinner />{ui('正在重新翻译…')}<Button size="sm" variant="quiet" onClick={onCancel}>{ui('取消')}</Button></p>}
+      {busy && <p className="tr-block__status" role="status"><Spinner />{ui('正在重新翻译…')}<Button size="sm" variant="quiet" className="tr-block__status-btn" onClick={onCancel}>{ui('取消')}</Button></p>}
       {!busy && item.warnings?.includes('numbers') && <InlineMessage tone="warning" className="tr-block__note">{ui('译文里的数字和原文对不上，请核对。')}</InlineMessage>}
       {!busy && item.parts > 1 && <p className="tr-block__note">{uiFormat('这段很长，已分成 {0} 小段翻译。', [item.parts])}</p>}
       {!busy && item.reused && <p className="tr-block__note">{ui('沿用了相同文字的旧译文，没有再调用模型。')}</p>}

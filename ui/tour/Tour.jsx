@@ -37,7 +37,7 @@ export function TourPopover({ step, index, total, model, sampleLoaded = true, bu
       <h2 id={titleId} className="tour-pop__title">{ui(step.title)}</h2>
       <p id={bodyId} className="tour-pop__body">{ui(step.body)}</p>
       {note && <p className={cx("tour-pop__note", model?.ready ? "is-ready" : "is-missing")}>
-        <Icon name={model?.ready ? "success" : "info"} size={16} />{note}</p>}
+        <Icon className="tour-pop__note-icon" name={model?.ready ? "success" : "info"} size={16} />{note}</p>}
       {offerSample && <div className="tour-pop__choices">
         <Button variant="primary" icon="sparkle" busy={busy} onClick={onLoadSample}>{ui("载入示例并开始")}</Button>
         {onBrowse && <Button variant="quiet" lock={busy} onClick={onBrowse}>{ui("只看界面")}</Button>}

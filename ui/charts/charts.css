@@ -32,11 +32,11 @@
   @container study (max-width: 520px) {
     :where(.study-app, .study-seat) {
       .dash-charts { gap: var(--space-4); }
-      .dash-chart.sh-panel { padding: var(--space-4); }
+      .dash-chart { padding: var(--space-4); }
     }
   }
   :where(.study-app, .study-seat) {
-    .dash-chart .sh-panel__head { flex-wrap: wrap; }
+    .dash-chart .dash-chart__head { flex-wrap: wrap; }
     /* Legend: line samples that differ by dash pattern, not only by colour. */
     .dash-legend {
       display: flex;

@@ -35,7 +35,6 @@
     /* Where the Aa button sits on each surface. */
     .result-reading { display: flex; justify-content: flex-end; margin-bottom: var(--space-2); }
     .spine-bar .spine-reading, .exam-report .exam-reading, .wf-teaching-heading .wf-reading, .skc-detail-head .skc-reading { margin-left: auto; }
-    .exam-report .page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
     .question-tools .review-reading { align-self: center; }
     .study-reading {
       --reader-sans: var(--font-ui);
@@ -51,7 +50,7 @@
     /* The paragraph gap (段间距) of the reading blocks; the fallback is the spacing .md has always had. */
     .study-reading.study-reading .md p { margin-bottom: var(--reader-gap, 0.7em); }
     /* The text elements follow the reading size, leading and typeface. The doubled class outranks the page's own px sizes. */
-    .study-reading.study-reading :is(p, li, blockquote, dd, dt, figcaption, .md) {
+    .study-reading.study-reading :is(p, li, blockquote, dd, dt, figcaption) {
       font-family: var(--reader-face);
       font-weight: var(--reader-weight, 400);
       font-size: var(--reader-size, var(--fs-lg));
@@ -66,7 +65,7 @@
     /* Headings grow with the text but keep their own face; they are never smaller than the body. */
     .study-reading.study-reading h3 { font-size: calc(var(--reader-size, var(--fs-lg)) + var(--fs-xs)); }
     .study-reading.study-reading :is(h4, h5) { font-size: var(--reader-size, var(--fs-lg)); }
-    .study-reading :is(.md-table, table) { max-width: 100%; }
+    .study-reading table { max-width: 100%; }
     /* An article that is all text (a lesson): the container itself is the text, and its headings scale with it. */
     .study-reading--prose.study-reading {
       font-family: var(--reader-face);
@@ -83,7 +82,7 @@
       --paper-pad-y: var(--space-4);
       --paper-pad-x: var(--space-5);
     }
-    .study-reading[data-tone='paper'] :is(.md th, th) { background: var(--paper-rule); }
+    .study-reading[data-tone='paper'] .md th, .study-reading[data-tone='paper'] th { background: var(--paper-rule); }
   }
   /* In a narrow reader the Aa panel opens towards the text, not off the right edge. */
   @container reader (max-width: 899.98px) {

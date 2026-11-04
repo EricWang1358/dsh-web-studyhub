@@ -327,13 +327,13 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
         {row.env && <details className="pdf-env-details"><summary>{ui('运行环境')}</summary><ConversionEnvironment converter={row.converter} env={row.env} bare stoppedAtFailure={row.failure?.code === 'server-stopped'}
           timings={row.route === 'local' ? { windows: row.windows, secondsPerPage: row.plan?.secondsPerPage } : undefined} /></details>}
         <div className="pdf-history__actions">
-          {status === 'complete' && document?.exists && <Button variant="link" size="sm" aria-label={uiFormat('打开「{0}」', [title])} onClick={() => onOpen(row)}>{ui('打开资料')}</Button>}
-          {status === 'running' && row.live && <Button variant="link" size="sm" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
-          {status === 'held' && <Button variant="link" size="sm" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onEditHeld(row)}>{HELD_ENTRY()}</Button>}
+          {status === 'complete' && document?.exists && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('打开「{0}」', [title])} onClick={() => onOpen(row)}>{ui('打开资料')}</Button>}
+          {status === 'running' && row.live && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
+          {status === 'held' && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onEditHeld(row)}>{HELD_ENTRY()}</Button>}
           {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
-            <Button variant="secondary" size="sm" busy={busy} lock={!!working && !busy} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
+            <Button variant="secondary" size="sm" className="pdf-history__action" busy={busy} lock={!!working && !busy} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
           </Tooltip>}
-          {status !== 'running' && <Button variant="link" size="sm" lock={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
+          {status !== 'running' && <Button variant="link" size="sm" className="pdf-history__action" lock={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
         </div>
       </JobRow>
     </li>
@@ -417,7 +417,7 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
     </div>}
     {list.length > 0 && <div className="pdf-history__bar">
       <small>{uiFormat('{0} 条记录 · 保留最近 50 条，以及 90 天内的所有记录。删除记录不会删除已导入的资料。', [list.length])}</small>
-      {deletable.length > 0 && <Button variant="quiet" size="sm" lock={!!working} onClick={clear}>{ui('清空历史')}</Button>}
+      {deletable.length > 0 && <Button variant="quiet" size="sm" className="pdf-history__bar-btn" lock={!!working} onClick={clear}>{ui('清空历史')}</Button>}
     </div>}
     {problem && <InlineMessage tone="error">{uiFormat('没能完成：{0}', [problem])}</InlineMessage>}
     {groups.map(group => <div className="pdf-history__group" key={group.key}>
@@ -434,7 +434,7 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
   return (
     <section className={`pdf-history${className ? ` ${className}` : ''}`} aria-label={ui('解析历史')} {...rest}>
       {collapsible
-        ? <Disclosure summary={ui('解析历史')} meta={list.length || undefined} defaultOpen={defaultOpen} className="pdf-history__disclosure">{body}</Disclosure>
+        ? <Disclosure summary={ui('解析历史')} meta={list.length || undefined} defaultOpen={defaultOpen} className="pdf-history__disclosure" bodyClassName="pdf-history__disclosure-body">{body}</Disclosure>
         : <><h4 className="pdf-history__title" ref={heading} tabIndex={-1}>{ui('解析历史')}</h4>{body}</>}
     </section>
   );

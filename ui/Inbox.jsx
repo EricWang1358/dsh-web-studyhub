@@ -55,7 +55,7 @@ function Letter({ m, now, onOpen, onUndo, close }) {
       >
         <span className="mailbox__top">
           {!m.read && <span className="sh-visually-hidden">{ui("未读")}</span>}
-          <Badge tone={tone} size="sm" icon={tone === "error" || tone === "warning"}>{ui(m.label)}</Badge>
+          <Badge className="mailbox__badge" tone={tone} size="sm" icon={tone === "error" || tone === "warning"}>{ui(m.label)}</Badge>
           {m.count > 1 && <span className="mailbox__multi">×{m.count}</span>}
           <small className="mailbox__deck">{m.deckTitle}</small>
           <small className="mailbox__time">{formatAgo(m.at, now)}</small>
@@ -117,7 +117,7 @@ export default function Inbox({ inbox, onOpen, onReadAll, onUndo, readError = ""
           </div>
           {readError && <InlineMessage tone="error" className="mailbox__error">{uiFormat("没能标为已读：{0}", [readError])}</InlineMessage>}
           {items.length ? (
-            <ScrollWindow className="mailbox__scroll" label={ui("信箱消息")} items={items} itemKey={(m) => m.id}
+            <ScrollWindow className="mailbox__scroll" frameClassName="mailbox__scroll-frame" label={ui("信箱消息")} items={items} itemKey={(m) => m.id}
               listClassName="mailbox__list" itemClassName="mailbox__row" style={PANEL_ROWS}
               renderItem={(m) => <Letter m={m} now={now} onOpen={onOpen} onUndo={onUndo} close={() => setOpen(false)} />} />
           ) : <EmptyMailbox onOpenTasks={onOpenTasks ? () => { setOpen(false); onOpenTasks(); } : undefined} />}

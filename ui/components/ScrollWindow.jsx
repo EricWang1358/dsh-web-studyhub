@@ -66,7 +66,7 @@ export const scrollWindowCount = (total, shown, filtering) => filtering
  */
 export default function ScrollWindow({ label, items = [], itemKey = (item, index) => index, renderItem = item => textOf(item), match = textOf,
   filterable = false, filterLabel, filterPlaceholder, query, onQueryChange, defaultQuery = '', showCount, activeKey, maxHeight = 380, renderLimit = SCROLL_WINDOW_CHUNK,
-  as = 'ul', listClassName, itemClassName, empty, toolbar, focusable = true, listProps, itemProps, className, style, ...rest }) {
+  as = 'ul', frameClassName, listClassName, itemClassName, empty, toolbar, focusable = true, listProps, itemProps, className, style, ...rest }) {
   useComponentCss(css, 'study-scroll-window');
   const [ownQuery, setOwnQuery] = useState(defaultQuery);
   const value = query ?? ownQuery;
@@ -116,7 +116,7 @@ export default function ScrollWindow({ label, items = [], itemKey = (item, index
         {toolbar}
         {counted && <small className="sh-scroll__count" aria-live="polite">{scrollWindowCount(items.length, shown.length, filtering)}</small>}
       </div>}
-      <div className="sh-scroll__frame" data-fade-top={edges.top || undefined} data-fade-bottom={edges.bottom || undefined}>
+      <div className={cx('sh-scroll__frame', frameClassName)} data-fade-top={edges.top || undefined} data-fade-bottom={edges.bottom || undefined}>
         <div ref={viewport} id={id} className="sh-scroll__viewport" role="region" aria-label={label} tabIndex={focusable ? 0 : undefined}
           onScroll={event => { measure(); if (more && nearEnd(event.currentTarget)) grow(); }}
           onFocus={event => {

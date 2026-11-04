@@ -110,6 +110,7 @@ test('job activity and cancellability come from lib/job-status, not from local S
 /* ---------- 5b. Job row layout ---------- */
 
 const jobCss = await source('ui/components/feedback.css');
+const baseJobCss = await source('ui/components/components.css');
 const ruleOf = (selector) => jobCss.split('\n').find((line) => line.trim().startsWith(`${selector} {`)) || '';
 
 test('a job row keeps its actions in one wrapping row on a shared baseline and flush with the text column', () => {
@@ -117,7 +118,7 @@ test('a job row keeps its actions in one wrapping row on a shared baseline and f
   assert.match(row, /display: flex/);
   assert.match(row, /flex-wrap: wrap/);
   assert.match(row, /align-items: baseline/);
-  assert.match(jobCss, /\.sh-job__actions > \.sh-btn--quiet:first-child \{[^}]*margin-inline-start: calc\(/, 'a leading quiet button hangs its padding so the text lines up with the title');
+  assert.match(baseJobCss, /\.sh-job__actions > \.sh-btn--quiet:first-child \{[^}]*margin-inline-start: calc\(/, 'a leading quiet button hangs its padding so the text lines up with the title');
   assert.match(jobCss, /@container study \(max-width: 560px\) \{[^@]*?\.sh-job__actions \{ grid-column: 2; justify-content: flex-start; \}/);
 });
 

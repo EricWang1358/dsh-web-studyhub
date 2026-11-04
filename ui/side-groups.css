@@ -6,27 +6,11 @@
 
 @layer study.features {
   :is(.study-app, .study-seat) {
-    .sidebar {
+    .nav-group {
       /* One height for every group label, whatever it says. */
       --nav-group: 18px;
     }
-    /* Three labels, 复习全书 and the footer links take room the rail did not have: take it back from the quiet parts around the rows so 900px never scrolls. */
-    .sidebar:not(.is-narrow) {
-      padding-top: var(--space-3);
-      padding-bottom: var(--space-3);
-    }
-    .sidebar:not(.is-narrow) .brand {
-      margin-bottom: var(--space-2);
-    }
-    .sidebar:not(.is-narrow) .brand small {
-      font-size: var(--fs-xs);
-      margin-top: var(--space-half);
-    }
-    .sidebar:not(.is-narrow) .local-status {
-      padding-block: var(--space-half);
-      font-size: var(--fs-xs);
-    }
-    .sidebar.is-narrow {
+    .sidebar.is-narrow .nav-group {
       --nav-group: 8px;
     }
     .sidebar.is-narrow .nav-group + .nav-group {
@@ -84,17 +68,7 @@
     .sidebar-bottom .nav-tip { display: block; }
     /* A group label's Tooltip wrapper keeps the label one fixed-height line. */
     .side-nav .nav-group-tip { display: block; }
-    /* Every row, wherever it sits, floats above the one gliding highlight; a lifted row above its neighbours. */
-    .side-nav .nav {
-      z-index: 1;
-    }
-    .side-nav .nav.is-dragging {
-      z-index: var(--z-sticky);
-      border-radius: var(--radius-sm);
-      background: var(--bg-raised);
-      box-shadow: var(--shadow-drag);
-      color: var(--text);
-    }
+    /* Every row, wherever it sits, floats above the one gliding highlight; a lifted row (.side-nav .nav.is-dragging) above its neighbours — styled in ui/shell.css. */
     /* The 62px rail has no room for words: the label becomes a hairline between the groups and nothing is folded. */
     .sidebar.is-narrow .nav-group-label {
       height: var(--nav-group);

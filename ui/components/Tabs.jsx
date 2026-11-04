@@ -33,7 +33,7 @@ export function nextTabIndex(items, from, key, { wrap = true, rtl = false } = {}
  * itemClassName / className: skin the buttons / the list. wrap={false}: the
  * ends stay put.
  */
-export const Tabs = forwardRef(function Tabs({ id, value, onChange, items = [], label, className, itemClassName, wrap = true, onKeyDown, ...rest }, ref) {
+export const Tabs = forwardRef(function Tabs({ id, value, onChange, items = [], label, className, itemClassName, noteClassName, wrap = true, onKeyDown, ...rest }, ref) {
   useComponentCss(css, 'study-disclosure');
   const generated = useId();
   const base = id || generated;
@@ -63,7 +63,7 @@ export const Tabs = forwardRef(function Tabs({ id, value, onChange, items = [], 
             className={cx('sh-tab', itemClassName, active && 'is-active')} onClick={() => { if (!active) onChange?.(item.value); }} {...item.attrs}>
             {item.content ?? <>
               <span className="sh-tab__label">{item.label}</span>
-              {item.note && <small className="sh-tab__note">{item.note}</small>}
+              {item.note && <small className={cx('sh-tab__note', noteClassName)}>{item.note}</small>}
             </>}
           </button>
         );

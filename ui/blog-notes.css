@@ -24,7 +24,6 @@
     .note-daily-meta { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.7; margin: 0; }
     .note-unsaved { display: block; margin-top: var(--space-1-5); font-size: var(--fs-xs); color: var(--text-muted); }
     .note-reader { min-width: 0; height: min(78vh, 950px); min-height: 420px; margin: var(--space-4-5) 0; }
-    .note-reader > .study-document-viewer { height: 100%; }
     .note-editor.note-editor-single { grid-template-columns: minmax(0, 1fr); max-width: 56rem; }
     .note-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0; }
     .note-title { display: grid; gap: var(--space-1-5); max-width: 56rem; margin: var(--space-3-5) 0; }
@@ -70,10 +69,6 @@
       .blog-notes-page { padding-top: var(--space-5); }
       .note-heading { gap: var(--space-3); }
       .note-reader { margin-top: var(--space-3); }
-      .blog-notes-page .note-reader .reader-toolbar { gap: var(--space-1); padding: var(--space-1-5); }
-      .blog-notes-page .note-reader .reader-toolbar__group { gap: var(--space-1); }
-      .blog-notes-page .note-reader .reader-toolbar__group--end { flex: 1 1 auto; justify-content: flex-end; }
-      .blog-notes-page .note-reader .sh-seg__item { min-width: 44px; min-height: 44px; padding-inline: var(--space-1); }
     }
   }
   :where(.study-app, .study-seat) {

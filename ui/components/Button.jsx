@@ -6,7 +6,7 @@ import Icon from './Icon.jsx';
 
 const VARIANTS = new Set(['primary', 'secondary', 'quiet', 'link', 'danger']);
 const ALIGNS = new Set(['start', 'center']);
-const glyph = (icon, size) => typeof icon === 'string' ? <Icon name={icon} size={size} /> : icon || null;
+const glyph = (icon, size, className) => typeof icon === 'string' ? <Icon name={icon} size={size} className={className} /> : icon || null;
 
 /** A press remembers the button's width in --sh-held-width; while busy, CSS keeps the button at least that wide (the label may change, the row must not jump). */
 export const holdWidth = element => element?.style?.setProperty('--sh-held-width', `${element.offsetWidth}px`);
@@ -29,7 +29,7 @@ export const holdWidth = element => element?.style?.setProperty('--sh-held-width
  * started, or a handler that raised the flag after an await) stays disabled and
  * quiet. `busy` is for a button that always shows its own work.
  */
-export const Button = forwardRef(function Button({ variant = 'secondary', size = 'md', type = 'button', icon, iconEnd,
+export const Button = forwardRef(function Button({ variant = 'secondary', size = 'md', type = 'button', icon, iconEnd, iconClassName, iconEndClassName,
   busy = false, lock, busyLabel, wrap = false, block = false, align, shape, disabled = false, className, children, onClick, ...rest }, ref) {
   useComponentCss(css);
   useComponentCss(variantsCss, 'study-button-variants');
@@ -55,9 +55,9 @@ export const Button = forwardRef(function Button({ variant = 'secondary', size =
       className={cx('sh-btn', `sh-btn--${kind}`, `sh-btn--${scale}`, wrap && 'sh-btn--wrap', block && 'sh-btn--block',
         ALIGNS.has(align) && `sh-btn--${align}`, pill && 'sh-btn--pill', spinOver && 'sh-btn--spin-over', className)}
       disabled={disabled || busy || !!lock} aria-busy={working || undefined} {...rest}>
-      {working && !replaceEnd ? <span className="sh-spinner" aria-hidden="true" /> : glyph(icon, iconSize)}
+      {working && !replaceEnd ? <span className="sh-spinner" aria-hidden="true" /> : glyph(icon, iconSize, iconClassName)}
       {working && busyLabel != null ? busyLabel : children}
-      {replaceEnd ? <span className="sh-spinner" aria-hidden="true" /> : glyph(iconEnd, iconSize)}
+      {replaceEnd ? <span className="sh-spinner" aria-hidden="true" /> : glyph(iconEnd, iconSize, iconEndClassName)}
     </button>
   );
 });

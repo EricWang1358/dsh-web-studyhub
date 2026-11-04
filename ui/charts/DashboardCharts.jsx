@@ -96,7 +96,7 @@ export function TrendPanel({ trend = [], today }) {
   };
 
   return (
-    <Panel className="dash-chart dash-trend-panel" title={ui('每日平均分')}
+    <Panel className="dash-chart dash-trend-panel" headClassName="dash-chart__head" title={ui('每日平均分')}
       description={ui('0–5 分，只画有作答的日子；没作答的日子不连线')}
       actions={<SegmentedControl size="sm" label={ui('时间范围')} value={range} onChange={(v) => { setRange(v); setActive(null); }}
         options={RANGES.map((n) => ({ value: n, label: uiFormat('近 {0} 天', [n]) }))} />}>
@@ -189,7 +189,7 @@ export function ForecastPanel({ forecast, onStart, parked }) {
   })();
 
   return (
-    <Panel className="dash-chart dash-forecast-panel" title={ui('未来 14 天到期复习')}
+    <Panel className="dash-chart dash-forecast-panel" headClassName="dash-chart__head" title={ui('未来 14 天到期复习')}
       description={ui('按间隔重复排好的复习日，逾期的并入今天')}>
       <div className="dash-chart-box" ref={boxRef}>
         {total ? (
@@ -269,7 +269,7 @@ export function MasteryPanel({ mastery, defaultView = 'level' }) {
   const names = view === 'level' ? LEVEL_NAME : KIND_NAME;
   const answered = rows.reduce((n, r) => n + r.n, 0);
   return (
-    <Panel className="dash-chart dash-mastery-panel" title={ui(MEASURES.passRate.label)}
+    <Panel className="dash-chart dash-mastery-panel" headClassName="dash-chart__head" title={ui(MEASURES.passRate.label)}
       description={uiFormat('近 {0} 天作答，3 分及以上算达标', [windowDays])}
       actions={<SegmentedControl size="sm" label={ui('统计维度')} value={view} onChange={setView}
         options={[{ value: 'level', label: ui('按认知层次') }, { value: 'kind', label: ui('按题型') }]} />}>

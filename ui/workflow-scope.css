@@ -16,9 +16,8 @@
       font-size: var(--fs-md); color: var(--text-muted);
     }
     .wf-course-switch > span { white-space: nowrap; }
-    .wf-spine-status:has(.sh-inline) { align-items: flex-start; }
     .wf-failure { display: grid; justify-items: start; gap: var(--space-2); margin-block: var(--space-3); }
-    .wf-failure > .sh-inline { width: 100%; }
+    .wf-failure > .wf-failure__inline { width: 100%; }
     .wf-failure > p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
     .wf-scope-hint { margin: 0; font-size: var(--fs-md); line-height: 1.6; color: var(--text-muted); }
     .wf-ref-card { margin: var(--space-1) 0 var(--space-2-5); padding: var(--space-2-5) var(--space-3-5); border: 1px solid var(--line); border-left: 3px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg-surface); }

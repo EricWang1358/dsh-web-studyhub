@@ -58,7 +58,7 @@ function RateTile({ measure, rate, answers, minimum, markClass }) {
       <div tabIndex={0}>
         {thin ? <strong className="is-thin">{ui(THIN_DATA)}</strong>
           : <strong>{rate == null ? "—" : rate}<small>{rate == null ? "" : "%"}</small></strong>}
-        <span className="dash-rate__label"><i className={markClass} />{uiFormat("{0} · {1} 次", [ui(measure.label), answers ?? 0])}</span>
+        <span className="dash-rate__label"><i className={markClass ? `dash-rate ${markClass}` : "dash-rate"} />{uiFormat("{0} · {1} 次", [ui(measure.label), answers ?? 0])}</span>
       </div>
     </Tooltip>
   );

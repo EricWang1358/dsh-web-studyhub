@@ -8,8 +8,8 @@
     .es-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-4) var(--space-6); margin-top: var(--space-4); }
     .es-format { display: grid; gap: var(--space-1); min-width: 0; max-width: 100%; }
     .es-label { color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
-    .es-format .sh-seg { max-width: 100%; }
-    .es-format .sh-seg__item { min-height: 36px; padding: var(--space-1) var(--space-3-5); flex: 0 1 auto; white-space: nowrap; }
+    .es-format .es-format__seg { max-width: 100%; }
+    .es-format .es-format__seg-item { min-height: 36px; padding: var(--space-1) var(--space-3-5); flex: 0 1 auto; white-space: nowrap; }
     /* ── the setup card: the exam paper you are about to sit ── */
     .es-sheet {
       display: flex; flex-direction: column;
@@ -35,7 +35,7 @@
       background: color-mix(in srgb, var(--text) 3%, transparent);
     }
     .es-summary { margin: 0; flex: 1 1 260px; min-width: 0; color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
-    .es-foot .sh-btn--primary { min-width: 168px; justify-content: center; min-height: 44px; font-size: var(--fs-lg); }
+    .es-foot .es-foot__start { min-width: 168px; justify-content: center; min-height: 44px; font-size: var(--fs-lg); }
     /* settings pieces */
     .es-section { display: grid; gap: var(--space-2); min-width: 0; }
     .es-section__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
@@ -68,7 +68,7 @@
     .es-empty { display: grid; gap: var(--space-2); justify-items: start; padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
     .es-empty strong { font-size: var(--fs-md); }
     .es-empty p { margin: 0; color: var(--text-muted); font-size: var(--fs-md); max-width: 56ch; }
-    .es-gate .sh-setup { margin: 0; }
+    .es-gate > section { margin: 0; }
     /* ── recent exams ── */
     .es-recent { display: grid; gap: var(--space-3); max-width: 980px; padding: var(--space-4) var(--space-5); border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--bg-surface); }
     .es-recent__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -77,7 +77,7 @@
     .es-recent__row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--line-soft); }
     .es-recent__text { display: grid; gap: var(--space-half); min-width: 0; flex: 1 1 auto; }
     .es-recent__text small { color: var(--text-muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }
-    .es-recent__row .sh-btn { flex: none; }
+    .es-recent__row .es-recent__btn { flex: none; }
     .es-recent__empty { margin: 0; color: var(--text-muted); font-size: var(--fs-md); }
     .es-kind { min-width: 52px; justify-content: center; }
   }
@@ -90,14 +90,14 @@
   }
   @container study (max-width: 520px) {
     :where(.study-app, .study-seat) {
-      .es-format .sh-seg { width: 100%; }
-      .es-format .sh-seg__item { flex: 1 1 0; justify-content: center; padding: var(--space-1) var(--space-1-5); gap: var(--space-1); }
+      .es-format .es-format__seg { width: 100%; }
+      .es-format .es-format__seg-item { flex: 1 1 0; justify-content: center; padding: var(--space-1) var(--space-1-5); gap: var(--space-1); }
       .es-controls { align-items: stretch; }
-      .es-foot .sh-btn--primary { width: 100%; }
+      .es-foot .es-foot__start { width: 100%; }
       .es-recent { padding: var(--space-4); }
       .es-recent__row { flex-wrap: wrap; }
       .es-recent__text { flex-basis: calc(100% - 80px); }
-      .es-recent__row .sh-btn { margin-left: auto; }
+      .es-recent__row .es-recent__btn { margin-left: auto; }
     }
   }
 }

@@ -24,14 +24,14 @@ export default function PagePeekView({ phase, page, total, zoom = 1, figure = fa
       <span className="page-peek__where" aria-live="polite">{uiFormat('第 {0} / {1} 页', [page, total])}</span>
       <div className="page-peek__tools">
         {ready && <>
-          <IconButton size="sm" icon="chevron-left" label={ui('上一页')} disabled={page <= 1} onClick={onPrev} />
-          <IconButton size="sm" icon="chevron" label={ui('下一页')} disabled={page >= total} onClick={onNext} />
-          <IconButton size="sm" icon="minus" label={ui('缩小')} disabled={zoom <= ZOOMS[0]} onClick={() => onZoom(-1)} />
+          <IconButton size="sm" icon="chevron-left" className="page-peek__tool" label={ui('上一页')} disabled={page <= 1} onClick={onPrev} />
+          <IconButton size="sm" icon="chevron" className="page-peek__tool" label={ui('下一页')} disabled={page >= total} onClick={onNext} />
+          <IconButton size="sm" icon="minus" className="page-peek__tool" label={ui('缩小')} disabled={zoom <= ZOOMS[0]} onClick={() => onZoom(-1)} />
           <output className="page-peek__zoom" aria-live="polite">{Math.round(zoom * 100)}%</output>
-          <IconButton size="sm" icon="plus" label={ui('放大')} disabled={zoom >= ZOOMS.at(-1)} onClick={() => onZoom(1)} />
-          <IconButton size="sm" icon="fit" label={ui('适合宽度')} onClick={onFit} />
+          <IconButton size="sm" icon="plus" className="page-peek__tool" label={ui('放大')} disabled={zoom >= ZOOMS.at(-1)} onClick={() => onZoom(1)} />
+          <IconButton size="sm" icon="fit" className="page-peek__tool" label={ui('适合宽度')} onClick={onFit} />
         </>}
-        <CloseButton onClick={onClose} />
+        <CloseButton className="page-peek__tool" onClick={onClose} />
       </div>
     </header>
     <div className="page-peek__body">

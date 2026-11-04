@@ -110,7 +110,7 @@ export function UpdateChip({ update, onOpen, compact = false }) {
   return (
     <button type="button" className={`update-chip update-chip--${state}${compact ? ' is-compact' : ''}`} onClick={onOpen}
       aria-label={compact ? label : undefined} title={label}>
-      <Badge tone="info" icon={state === 'restart' ? 'info' : 'sparkle'}>{!compact && <span className="update-chip__label">{label}</span>}</Badge>
+      <Badge className="update-chip__badge" tone="info" icon={state === 'restart' ? 'info' : 'sparkle'}>{!compact && <span className="update-chip__label">{label}</span>}</Badge>
     </button>
   );
 }
@@ -270,12 +270,12 @@ export function UpdateSettings({ update, onOpen, checking = false, extension, on
         <div><dt>{ui('最新已知版本')}</dt><dd>{update?.latest || '—'}</dd></div>
         <div><dt>{ui('上次检查')}</dt><dd>{update?.checkedAt ? formatDateTime(update.checkedAt) : ui('尚未检查')}</dd></div>
       </dl>
-      {update?.pendingRestart && <Hint>{ui('当前版本是正在运行的代码；已安装版本在重启 DSH 后生效。')}</Hint>}
-      {available && <Banner tone="info" icon="sparkle" title={uiFormat('有新版本 {0}', [update.latest])} action={{ label: ui('查看升级'), variant: 'primary', onClick: onOpen }} />}
-      {checkError ? <InlineMessage tone="error" title={ui('没能检查更新')} action={retry}>{failure(CHECK_ERROR_CODE.test(checkError) ? checkError : 'network', true)}</InlineMessage>
-        : update?.error ? <InlineMessage tone="warning" action={retry}>{failure(update.error, false)}</InlineMessage> : null}
-      {!checkError && status && (status.tone === 'hint' ? <Hint>{status.text}</Hint> : <InlineMessage tone={status.tone}>{status.text}</InlineMessage>)}
-      {saveError && <InlineMessage tone="error" onDismiss={() => setSaveError('')}>{ui('没能保存这个设置，已恢复原来的选择。')}</InlineMessage>}
+      {update?.pendingRestart && <Hint className="update-settings__hint">{ui('当前版本是正在运行的代码；已安装版本在重启 DSH 后生效。')}</Hint>}
+      {available && <Banner className="update-settings__banner" tone="info" icon="sparkle" title={uiFormat('有新版本 {0}', [update.latest])} action={{ label: ui('查看升级'), variant: 'primary', onClick: onOpen }} />}
+      {checkError ? <InlineMessage className="update-settings__inline" tone="error" title={ui('没能检查更新')} action={retry}>{failure(CHECK_ERROR_CODE.test(checkError) ? checkError : 'network', true)}</InlineMessage>
+        : update?.error ? <InlineMessage className="update-settings__inline" tone="warning" action={retry}>{failure(update.error, false)}</InlineMessage> : null}
+      {!checkError && status && (status.tone === 'hint' ? <Hint className="update-settings__hint">{status.text}</Hint> : <InlineMessage className="update-settings__inline" tone={status.tone}>{status.text}</InlineMessage>)}
+      {saveError && <InlineMessage className="update-settings__inline" tone="error" onDismiss={() => setSaveError('')}>{ui('没能保存这个设置，已恢复原来的选择。')}</InlineMessage>}
       {extension?.installed && <ExtensionUpdateNotice status={{ extension }} onStatus={onExtension} />}
       <div className="update-settings__actions">
         <Button size="sm" busy={checking} onClick={checkUpdates}>{ui('检查更新')}</Button>

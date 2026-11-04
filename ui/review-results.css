@@ -35,7 +35,7 @@
     .result-legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
     .result-page .result-next { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-5) 0 var(--space-4); }
     .result-page .summary-topics h3 { margin: 0 0 var(--space-3); font-size: var(--fs-lg); }
-    .result-page .summary-topics .muted { margin: 0; }
+    .result-page .summary-topics .summary-topics__empty { margin: 0; }
     .result-page .result-details,
     .exam-report .result-details { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-4) var(--space-5); margin-top: var(--space-4-5); }
     .result-details > summary { cursor: pointer; font-weight: var(--fw-strong); }
@@ -45,13 +45,13 @@
     .exam-report .result-weak h2 { margin: 0 0 var(--space-3); font-size: var(--fs-xl); }
     .exam-report .result-weak ol { margin: 0; padding-left: var(--space-5-5); }
     .exam-report .result-weak li { padding: var(--space-1) 0; }
-    .exam-report .result-weak .muted { margin: 0; }
+    .exam-report .result-weak .result-weak__empty { margin: 0; }
     .exam-report .result-weak > .exam-weak-queue { margin-top: var(--space-4); }
     .exam-report .result-weak .exam-topic-practice { margin-left: var(--space-2); }
     .result-note-link { font-size: var(--fs-md); text-decoration: none; }
     .oral-report .result-weak { padding: var(--space-4-5); border: 1px solid var(--line); border-radius: var(--radius); }
     .oral-report .result-details { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-4); }
-    .session-summary.result-page {
+    .result-page.result-page {
       max-width: 760px;
       margin: calc(var(--space-8) + var(--space-2)) auto calc(var(--space-9) + var(--space-4));
       text-align: left;
@@ -61,7 +61,7 @@
   @container study (max-width: 640px) {
     :where(.study-app, .study-seat) {
       .result-hero { grid-template-columns: 1fr; padding: var(--space-5-5); gap: var(--space-6); }
-      .session-summary.result-page { margin-top: var(--space-6-5); padding: 0 var(--space-3-5); }
+      .result-page.result-page { margin-top: var(--space-6-5); padding: 0 var(--space-3-5); }
     }
   }
 }

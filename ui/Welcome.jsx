@@ -13,7 +13,7 @@ export function SampleBanner({ sample, busy = false, onTour, onRemove }) {
   useInjectCss(css, "study-welcome");
   if (!sample?.loaded) return null;
   return (
-    <Banner className="sample-banner" icon="sparkle" title={uiFormat("正在使用示例数据：{0}", [sample.course || ""])}
+    <Banner className="sample-banner" iconClassName="sample-banner__icon" icon="sparkle" title={uiFormat("正在使用示例数据：{0}", [sample.course || ""])}
       action={onTour && { label: ui("重新开始导览"), onClick: onTour, disabled: busy }}
       secondary={onRemove && { label: ui("移除示例数据"), onClick: onRemove, disabled: busy }} />
   );

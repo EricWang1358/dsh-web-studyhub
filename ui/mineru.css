@@ -8,7 +8,7 @@
       border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .mineru-route-panel.is-compact { padding: var(--space-4); margin: var(--space-3) 0; }
     .mineru-route-panel__head { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; }
-    .mineru-route-panel__head .sh-icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
+    .mineru-route-panel__head .mineru-route-panel__icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
     .mineru-route-panel__head h3 { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
     .mineru-route-panel__head p { margin: var(--space-1) 0 0; max-width: 70ch; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
     .mineru-pick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
@@ -44,8 +44,7 @@
     .convert-edit__gone { text-decoration: line-through; }
     .convert-edit__pager { display: flex; align-items: center; justify-content: center; gap: var(--space-3); }
     .convert-edit__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); width: 100%; }
-    .mineru-local { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
-    .mineru-local .sh-btn, .mineru-route-panel .sh-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: left; justify-self: start; }
+    .mineru-route-panel .mineru-route-panel__btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: left; justify-self: start; }
   }
   @container study (max-width: 480px) {
     :is(.study-app, .study-seat) {
@@ -65,7 +64,7 @@
     .pdf-history__title:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .pdf-history__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); min-width: 0; }
     .pdf-history__bar small, .pdf-history__note { flex: 1 1 260px; min-width: 0; margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-    .pdf-history__bar .sh-btn { flex: none; }
+    .pdf-history__bar .pdf-history__bar-btn { flex: none; }
     .pdf-history__empty { display: grid; gap: var(--space-1); padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
     .pdf-history__empty strong { color: var(--text); font-size: var(--fs-sm); }
     .pdf-history__empty p { margin: 0; max-width: 62ch; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
@@ -73,15 +72,15 @@
     .pdf-history__day { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
     .pdf-history__list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; min-width: 0; }
     .pdf-history__item { min-width: 0; }
-    .pdf-history .sh-job.pdf-history__row { background: var(--bg-surface); border-color: var(--line-soft); }
+    .pdf-history .pdf-history__row { background: var(--bg-surface); border-color: var(--line-soft); }
     .pdf-history__chips { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
     .pdf-history__row .sh-job__body small { max-width: 100%; margin: 0; overflow-wrap: anywhere; font-size: var(--fs-xs); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
     .pdf-history__row .sh-job__body small.pdf-history__result { color: var(--text); font-size: var(--fs-sm); }
     .pdf-history__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-top: var(--space-1); max-width: 100%; }
     .pdf-history__actions:empty { display: none; }
-    .pdf-history__actions .sh-btn { max-width: 100%; height: auto; min-height: 32px; white-space: normal; text-align: left; }
+    .pdf-history__actions .pdf-history__action { max-width: 100%; height: auto; min-height: 32px; white-space: normal; text-align: left; }
     .mineru-history { margin: 0; }
-    .mineru-history .sh-disclosure__body { display: grid; gap: var(--space-3); }
+    .mineru-history .pdf-history__disclosure-body { display: grid; gap: var(--space-3); }
     .sources-page .pdf-history { margin: var(--space-3) 0; }
     /* 运行环境: what does the work. One block on the live card and (collapsed) on the history rows. */
     .pdf-env { display: grid; gap: var(--space-1); min-width: 0; max-width: 100%; margin-top: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
@@ -108,7 +107,7 @@
     /* The windows: they wrap INSIDE the card in even columns (never run off its edge), with a state each; many of them fold into one line and a toggle. */
     .pdf-chunks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: var(--space-half) var(--space-3); min-width: 0; max-width: 100%; margin: var(--space-1) 0 0; padding: 0; list-style: none; }
     .pdf-chunks li { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-    .pdf-chunks li.is-current { color: var(--text); font-weight: var(--fw-strong); }
+    .pdf-chunks [aria-current="step"] { color: var(--text); font-weight: var(--fw-strong); }
     .pdf-chunks__summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     /* The window in progress (adaptive local plan): which pages and for how long, what the service says about it, and why a scan can take minutes. */
     .pdf-live { display: grid; justify-items: start; gap: var(--space-1); min-width: 0; max-width: 100%; margin-top: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);

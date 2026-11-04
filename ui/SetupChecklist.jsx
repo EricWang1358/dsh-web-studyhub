@@ -98,8 +98,8 @@ function Step({ step, index, setup, on, next, onLater }) {
       </div>
       {!done && (
         <div className="setup-actions">
-          <Button size="sm" variant="secondary" disabled={action.disabled} lock={busy} onClick={action.run}>{action.label}</Button>
-          <Button size="sm" variant="link" onClick={() => onLater(step.id)}>{ui("稍后")}</Button>
+          <Button className="setup-actions__btn" size="sm" variant="secondary" disabled={action.disabled} lock={busy} onClick={action.run}>{action.label}</Button>
+          <Button className="setup-actions__btn" size="sm" variant="link" onClick={() => onLater(step.id)}>{ui("稍后")}</Button>
         </div>
       )}
     </li>
@@ -141,7 +141,7 @@ export default function SetupChecklist({ data, on = {}, later: laterProp, initia
     if (seen) return null;
     return (
       <div className="setup-done" data-setup-checklist="" data-mode="done" role="status">
-        <Icon name="success" size={18} />
+        <Icon className="setup-done__icon" name="success" size={18} />
         <span>{ui("课程准备已完成")}</span>
         <Button size="sm" variant="link" onClick={() => setHidden(true)}>{ui("知道了")}</Button>
       </div>

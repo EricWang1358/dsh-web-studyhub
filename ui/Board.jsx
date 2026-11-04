@@ -97,7 +97,7 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
         {/* While the whole board is empty the page says so once (#576); an empty column among filled ones still says so. */}
         {!shown.length && !composer && !boardEmpty && (filtering && column.cardIds.length
           ? <p className="board-column__none">{ui("没有符合筛选的卡片")}</p>
-          : <EmptyState size="sm" title={ui("这一列没有卡片")} description={ui("把卡片拖到这里，或点下面添加。")} />)}
+          : <EmptyState className="board-column__empty" size="sm" title={ui("这一列没有卡片")} description={ui("把卡片拖到这里，或点下面添加。")} />)}
       </div>
       {!readOnly && (composer
         ? <Composer columnTitle={label} studyRef={studyRef} library={library} labelSuggestions={labelSuggestions} onSubmit={(fields) => onAdd(column, fields)}
@@ -110,7 +110,7 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
 function NewColumn({ onAdd }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  if (!open) return <div className="board-column board-column--new"><Button variant="quiet" size="sm" icon="plus" onClick={() => setOpen(true)}>{ui("新建列")}</Button></div>;
+  if (!open) return <div className="board-column board-column--new"><Button className="board-column__new-btn" variant="quiet" size="sm" icon="plus" onClick={() => setOpen(true)}>{ui("新建列")}</Button></div>;
   return <form className="board-column board-column--new is-editing" onSubmit={async (event) => { event.preventDefault(); if (name.trim() && await onAdd(name.trim())) { setName(""); setOpen(false); } }}>
     <input className="board-input" autoFocus aria-label={ui("新列名称")} placeholder={ui("新列名称")} maxLength={80} value={name} onChange={(event) => setName(event.target.value)}
       onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setOpen(false); setName(""); } }} />
@@ -289,7 +289,7 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
     : undefined;
 
   return <section className="page board-page">
-    <PageHeader title={ui("待办看板")} eyebrow={ui("所有工作区")} description={ui("所有工作区共用。把想做的事记下来，逐步完成。")}
+    <PageHeader className="board-page__header" title={ui("待办看板")} eyebrow={ui("所有工作区")} description={ui("所有工作区共用。把想做的事记下来，逐步完成。")}
       actions={<>
         <IconButton icon={<Icon name="sync" size={18} />} label={ui("刷新")} size="sm" lock={busy} onClick={() => refresh({ force: true })} />
         <Button variant="quiet" size="sm" icon={<Icon name="archive" />} aria-pressed={archive} onClick={() => setArchive(!archive)}>{ui("归档")}{board ? ` (${board.archived.length})` : ""}</Button>

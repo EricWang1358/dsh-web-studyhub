@@ -7,6 +7,8 @@ import ModelSetupGate from "./ModelSetupGate.jsx";
 import { TokenEstimate, TokenUsage } from "./TokenUsage.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
 import { useStudy } from "./study-context.jsx";
+import { useInjectCss } from "./shared.js";
+import scopeCss from "./workflow-scope.css";
 
 export const TeachingArticle = React.memo(function TeachingArticle({ content, className = "" }) {
   const html = useMemo(() => renderNoteMarkdown(content), [content]);
@@ -22,6 +24,7 @@ function TeachingCitations({ citations, sources }) {
 }
 
 export default function WorkflowLesson({ topic, content, record, resources, disabled, onTeach, onUndo, sessionId, stepId }) {
+  useInjectCss(scopeCss, "study-workflow-scope");
   const { call } = useStudy();
   const [request, setRequest] = useState("");
   const teaching = record.teaching;
@@ -48,13 +51,13 @@ export default function WorkflowLesson({ topic, content, record, resources, disa
     <header className="wf-teaching-heading"><div><span className="wf-eyebrow">{ui("围绕主题，连起来学")}</span><h3>{content ? ui("本步讲解") : ui("从一篇完整讲解开始")}</h3></div>{content && <span className="wf-reading-label">{ui("阅读 · 理解 · 应用")}</span>}<ReadingSettingsButton className="wf-reading" /></header>
     {content ? <TeachingArticle content={content} /> : <div className="wf-teaching-empty">
       <p>{uiFormat("把「{0}」的概念、原理和例子连成一条线，再看看它适用于什么情境。", [topic])}</p>
-      <p className="muted">{ui("结合本次材料，生成可直接阅读的讲解；有公式或推导时逐步展开。")}</p>
+      <p className="muted wf-teaching-empty__note">{ui("结合本次材料，生成可直接阅读的讲解；有公式或推导时逐步展开。")}</p>
       {!running && <Button className="wf-empty-btn" variant="primary" disabled={blocked} onClick={() => onTeach("lesson")}>{ui("生成完整讲解")}</Button>}
       {!running && <TokenEstimate action="workflow.teaching.estimate" enabled={!!call && !!sessionId} request={{ id: sessionId, stepId, mode: "lesson" }} />}
     </div>}
     <TeachingCitations citations={record.citations} sources={resources.sources} />
     {running && !remedyRunning && <div className="wf-teaching-progress" role="status"><span className="wf-progress-mark" aria-hidden="true" /><div><strong>{teaching.mode === "improve" ? ui("正在改进这篇讲解") : content ? ui("正在补充讲解") : ui("正在组织概念与例子")}</strong><p>{ui("完成后会显示在这里。你可以继续阅读，也可以稍后回来。")}</p></div></div>}
-    {failed && <div className="wf-failure">{!interrupted && teaching.message ? <ModelErrorNote error={teaching.message} /> : <InlineMessage tone="warning">{interrupted ? ui("上次生成已中断，可以重新开始。") : ui("这次讲解没有生成成功，请重试。")}</InlineMessage>}<Button size="sm" disabled={blocked} onClick={() => onTeach(teaching.mode || "lesson", teaching.request || "")}>{ui("重新生成")}</Button></div>}
+    {failed && <div className="wf-failure">{!interrupted && teaching.message ? <ModelErrorNote className="wf-failure__inline" error={teaching.message} /> : <InlineMessage className="wf-failure__inline" tone="warning">{interrupted ? ui("上次生成已中断，可以重新开始。") : ui("这次讲解没有生成成功，请重试。")}</InlineMessage>}<Button size="sm" disabled={blocked} onClick={() => onTeach(teaching.mode || "lesson", teaching.request || "")}>{ui("重新生成")}</Button></div>}
     {unavailable && <ModelSetupGate variant="compact" feature="lesson" model={{ ready: false }} className="wf-model-hint" />}
     {content && <div className="wf-teaching-tools">
       <div className="wf-help-row"><span>{ui("帮我弄懂")}</span><div className="wf-quick-choices" role="group" aria-label={ui("帮助方式")}>{HELP.map((item) => <Button className="wf-choice-btn" key={item.mode} disabled={blocked} onClick={() => onTeach(item.mode)}>{ui(item.label)}</Button>)}<Button className="wf-choice-btn" disabled={blocked} onClick={() => onTeach("improve")}>{ui("改进讲解")}</Button></div></div>

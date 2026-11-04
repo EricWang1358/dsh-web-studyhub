@@ -198,7 +198,7 @@ export function StartFlow({ template, listing, onRefresh, onStarted, onBack }) {
     <PageHeader className="wf-heading" eyebrow={ui("开始一次学习")} title={template.title} description={template.description || ui("选定主题，从第一步开始。")} />
     {error && <ErrorState error={error} />}
     <form onSubmit={start}><fieldset disabled={pending} className="wf-fields">
-      <details className="wf-scope" open={listing.topics.length > 0}>
+      <details className="wf-start-scope" open={listing.topics.length > 0}>
         <summary>{ui("选择已有主题与题目范围")}{" "}<span className="muted">{selected.size ? uiFormat("· 已选 {0} 个主题 / {1} 题", [selected.size, selectedCount]) : ui("· 可选")}</span></summary>
         <p className="muted small">{ui("未选题目时，使用关联骨架的题目范围；都不选则从阅读、讲解和复述开始。")}</p>
         {listing.topics.length ? <><input className="wf-control" type="search" aria-label={ui("搜索学习主题")} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={ui("搜索主题或题组")} />
@@ -217,7 +217,7 @@ export function StartFlow({ template, listing, onRefresh, onStarted, onBack }) {
         </div>
         <p className="muted small" role="status">{scope.length ? ui("根据上方已选题目，发给主会话生成；保存后可在这里关联。") : ui("先选择上方题目范围，即可生成对应骨架；也可以直接关联已有骨架。")}</p>
       </div>
-    </fieldset><div className="wf-route-preview" aria-label={ui("本次学习步骤")}>{template.steps.map((s, index) => <span key={s.id}>{index + 1}. {s.title}</span>)}</div><Button type="submit" variant="primary" disabled={!topic.trim()} busy={!!pending} busyLabel={ui("进入中…")}>{ui("进入学习 Portal")}</Button></form>
+    </fieldset><div className="wf-route-preview" aria-label={ui("本次学习步骤")}>{template.steps.map((s, index) => <span key={s.id}>{index + 1}. {s.title}</span>)}</div><Button type="submit" variant="primary" className="wf-start__submit" disabled={!topic.trim()} busy={!!pending} busyLabel={ui("进入中…")}>{ui("进入学习 Portal")}</Button></form>
   </section>;
 }
 

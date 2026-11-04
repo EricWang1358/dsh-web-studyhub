@@ -160,7 +160,7 @@ export default function PageAsk({ scope, handOff = null, onQuick, resolution, re
             onChange={event => onQuestion?.(event.target.value, '')} placeholder={ui('输入或粘贴问题，例如：这一页的主要结论是什么？')} /></label>
           <QuickIntents chips={visiblePagePresets(presets, range ? PAGE_RANGE_INTENTS : PAGE_INTENTS)} disabled={locked} onAsk={(text, label, intent) => onQuick?.(text, label, intent)} onCustom={() => setManaging(true)} />
           <FirstHint id={READER_HINTS.presets} dismiss="不再提示：预设和发给主会话">{ui(words.hint)}</FirstHint>
-          <Button type="submit" busy={asking} busyLabel={ui('正在回答…')} disabled={!askReady || !question.trim() || !!refused}>{ui(range ? '依据这几页回答' : '依据这一页回答')}</Button>
+          <Button type="submit" className="study-learning-submit" busy={asking} busyLabel={ui('正在回答…')} disabled={!askReady || !question.trim() || !!refused}>{ui(range ? '依据这几页回答' : '依据这一页回答')}</Button>
         </form>
         {cut?.truncated && <CutNote cut={cut} range={range} disabled={locked} onContinue={onContinue} />}
         <AskThread thread={thread} notice={notice} noticeWhy={noticeWhy} onAsk={onAskInside || noop} onRetry={onRetryNode || noop} onToggle={onToggleNode || noop} />

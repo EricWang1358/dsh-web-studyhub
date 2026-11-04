@@ -12,13 +12,13 @@ export const PANEL_TONES = Object.freeze(['plain', 'sunken', 'accent', 'dashed',
  * empty area) | paper (the physical card: renders `.sh-paper-card`, the one card look of ui/paper.css). density: normal | compact.
  * `as` swaps the element (section, article, li, div…).
  */
-export function Panel({ title, description, actions, children, tone = 'plain', density = 'normal', as: Tag = 'section', className, ...rest }) {
+export function Panel({ title, description, actions, children, tone = 'plain', density = 'normal', as: Tag = 'section', className, headClassName, ...rest }) {
   useComponentCss(css);
   useComponentCss(toneCss, 'study-panel-tones');
   return (
     <Tag className={cx('sh-panel', tone === 'paper' ? 'sh-paper-card' : tone !== 'plain' && PANEL_TONES.includes(tone) && `sh-panel--${tone}`,
       density === 'compact' && (tone === 'paper' ? 'sh-paper-card--snug' : 'sh-panel--compact'), className)} {...rest}>
-      {(title || description || actions) && <div className="sh-panel__head">
+      {(title || description || actions) && <div className={cx('sh-panel__head', headClassName)}>
         <div className="sh-panel__heading">
           {title && <h3 className="sh-panel__title">{title}</h3>}
           {description && <p className="sh-panel__description">{description}</p>}
@@ -36,7 +36,7 @@ export function Panel({ title, description, actions, children, tone = 'plain', d
  * `lazy`: the body is drawn the first time the fold opens and kept from then on. A shut <details> still holds its whole
  * body in the page, so a heavy one (a list of materials) cost every visit to the page it sits on (#565).
  */
-export function Disclosure({ summary, meta, defaultOpen = false, open, onToggle, lazy = false, children, className, ...rest }) {
+export function Disclosure({ summary, meta, defaultOpen = false, open, onToggle, lazy = false, children, className, summaryClassName, bodyClassName, ...rest }) {
   useComponentCss(css);
   const shown = open ?? defaultOpen;
   const [opened, setOpened] = useState(shown);
@@ -48,12 +48,12 @@ export function Disclosure({ summary, meta, defaultOpen = false, open, onToggle,
   } : undefined;
   return (
     <details className={cx('sh-disclosure', className)} open={shown} onToggle={toggle} {...rest}>
-      <summary className="sh-disclosure__summary">
+      <summary className={cx('sh-disclosure__summary', summaryClassName)}>
         <Icon name="chevron" size={16} className="sh-disclosure__chevron" />
         <span className="sh-disclosure__label">{summary}</span>
         {meta && <span className="sh-disclosure__meta">{meta}</span>}
       </summary>
-      <div className="sh-disclosure__body">{drawn ? children : null}</div>
+      <div className={cx('sh-disclosure__body', bodyClassName)}>{drawn ? children : null}</div>
     </details>
   );
 }

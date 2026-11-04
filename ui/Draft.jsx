@@ -245,7 +245,7 @@ export default function Draft({
         {staleDraft && !unsavedDraft && !updatingDraft && <LoadingState label={ui("正在载入后台修好的题目…")} />}
         {activeReview && <Banner tone="warning" role="status">{ui("原题组还有进行中的学习。请先从侧栏回到题目，完成或结束练习，再发布编辑。")}</Banner>}
         {rejectedCount > 0 && unsavedDraft && !staleDraft && <Banner tone="warning" role="status">{ui("当前有未保存的编辑。先保存；如果改过题目内容，请重新发布检查，再决定是否交给后台修复。")}</Banner>}
-        {shortBlock && <Banner tone="warning" role="status" className="draft-shortfall" title={ui("有题没能进入草稿")}>
+        {shortBlock && <Banner tone="warning" role="status" className="draft-shortfall" bodyClassName="draft-shortfall__body" title={ui("有题没能进入草稿")}>
           <ShortfallReasons draft={draft} />
           <OmittedQuestions draft={draft} />
         </Banner>}

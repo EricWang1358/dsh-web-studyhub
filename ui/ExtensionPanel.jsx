@@ -150,7 +150,7 @@ function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun,
       {!running && action.note && <p className="extension-panel__plan extension-panel__plan--note">{action.note}</p>}
       {plan?.firstRun && !upToDate && !running && <Hint>{uiFormat('首次需要下载约 {0} MB 的检索模型，只下载一次，之后可以离线使用。', [plan.modelMb])}</Hint>}
       {running && <div className="extension-panel__progress">
-        <ProgressBar value={Math.min(run.done || 0, run.total || 1)} max={run.total || 1} label={ui('索引进度')} size="sm" />
+        <ProgressBar className="extension-panel__bar" value={Math.min(run.done || 0, run.total || 1)} max={run.total || 1} label={ui('索引进度')} size="sm" />
         <p role="status">{progress.label}</p>
         {run.stage === 'model' && run.firstRun && <Hint>{ui('首次需要下载约 90 MB 的检索模型，只下载一次。')}</Hint>}
         <Button size="sm" variant="quiet" onClick={stop}>{ui('停止')}</Button>

@@ -156,7 +156,7 @@ export function DetectionLine({ retrieval, onOpenSettings }) {
   else text = ui('没有检测到检索工具。');
   return (
     <p className={`large-doc__detect large-doc__detect--${tone}`} role="status">
-      <Icon name={tone === 'on' ? 'success' : 'info'} size={16} />
+      <Icon name={tone === 'on' ? 'success' : 'info'} size={16} className="large-doc__detect-icon" />
       <span>{text}</span>
       {onOpenSettings && tone !== 'on' && <Button size="sm" variant="link" onClick={onOpenSettings}>{ui('打开检索设置')}</Button>}
       {onOpenSettings && tone === 'on' && <Button size="sm" variant="link" onClick={onOpenSettings}>{ui('查看检索设置')}</Button>}

@@ -32,6 +32,7 @@
       border-right-color: transparent;
       animation: sh-spin 0.8s linear infinite;
     }
+    .sh-job__mark .sh-spinner { width: 18px; height: 18px; }
     /* ── Button ─────────────────────────────────────────────────────────── */
     .sh-btn {
       display: inline-flex;
@@ -71,7 +72,14 @@
       background: color-mix(in srgb, var(--text) 3%, transparent);
       border-color: var(--line);
     }
-    .sh-btn[aria-busy="true"] { cursor: progress; }
+    /* Busy keeps the width the press measured (Button stores it in --sh-held-width). */
+    .sh-btn[aria-busy="true"] { cursor: progress; min-width: var(--sh-held-width, 0); }
+    /* Any toggle button reads as selected when pressed (a primary keeps its own fill). */
+    .sh-btn[aria-pressed="true"]:not(.sh-btn--primary, .sh-btn--link) {
+      background: var(--bg-selected);
+      border-color: var(--line-strong);
+      color: var(--text);
+    }
     .sh-btn--sm {
       min-height: var(--control-h-sm, 32px);
       padding: var(--space-1) var(--space-3);
@@ -131,6 +139,8 @@
       text-decoration-color: currentColor;
     }
     .sh-btn--link:disabled { background: none; }
+    /* A link-style button that wraps still reads as running text. */
+    .sh-btn--link[class~="sh-btn--wrap"] { display: inline; text-align: start; }
     .sh-btn--danger {
       background: transparent;
       border-color: var(--bad-line);
@@ -163,6 +173,8 @@
     }
     .sh-btn--primary.sh-btn--spin-over > .sh-spinner { color: var(--accent-ink); }
     .sh-btn--danger.sh-btn--spin-over > .sh-spinner { color: var(--bad-ink); }
+    .sh-job__body > .sh-btn { justify-self: start; }
+    .sh-job__actions .sh-btn { max-width: 100%; white-space: normal; text-align: left; }
     /* ── Segmented control ──────────────────────────────────────────────── */
     /* The active fill lives on the item until the script measures the thumb
        (data-thumb="on"); then the thumb slides and the item fill goes away. */
@@ -178,6 +190,7 @@
       border-radius: calc(var(--radius-sm) + var(--radius-xs));
       background: var(--bg-sunken);
     }
+    .sh-field .sh-seg { justify-self: start; max-width: 100%; flex-wrap: wrap; }
     .sh-seg__thumb {
       position: absolute;
       top: 0;
@@ -247,6 +260,22 @@
       box-shadow: none;
     }
     .sh-seg--sm .sh-seg__item { min-height: 28px; padding: var(--space-half) var(--space-2-5); }
+    .sh-seg--fill > .sh-seg__item {
+      flex: 1 1 0;
+      justify-content: center;
+      min-width: 0;
+    }
+    .sh-seg--wrap > .sh-seg__item {
+      white-space: normal;
+      text-align: start;
+      overflow-wrap: anywhere;
+    }
+    .sh-seg--xs > .sh-seg__item {
+      min-height: 24px;
+      padding: 0 var(--space-2);
+      gap: var(--space-1);
+      font-size: var(--fs-xs);
+    }
     /* Helper text that explains the selected segment, on its own line below the row. */
     .sh-seg-note { display: block; margin-top: var(--space-2); }
     /* ── Page header ────────────────────────────────────────────────────── */
@@ -385,6 +414,7 @@
       gap: var(--space-3);
       margin-bottom: var(--space-4);
     }
+    .sh-panel--compact .sh-panel__head { margin-bottom: var(--space-3); }
     .sh-panel__heading { min-width: 0; }
     .sh-panel__title { margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
     .sh-panel__description { margin: var(--space-1) 0 0; color: var(--text-muted); line-height: var(--lh-snug); }
@@ -533,7 +563,7 @@
   }
   :is(.study-app, .study-seat) {
     /* Inline placement: in flow beside the control (review's action slot). */
-    :is(.sh-toasts--inline, .action-feedback-slot .sh-toasts--auto) {
+    .sh-toasts--inline, .action-feedback-slot .sh-toasts--auto {
       position: static;
       height: auto;
     }
@@ -663,6 +693,9 @@
     }
     .sh-inline ul { margin: var(--space-1) 0 0; padding-left: 1.1em; }
     .sh-inline li + li { margin-top: var(--space-half); }
+    .sh-job__failure .sh-inline { width: 100%; margin: 0; }
+    .sh-job__body > .sh-inline { margin: 0; }
+    .sh-secret__foot .sh-inline { overflow-wrap: anywhere; }
     .sh-banner {
       container-type: inline-size;
       width: 100%;
@@ -1020,9 +1053,20 @@
       .sh-empty { padding: var(--space-7) var(--space-4); }
     }
   }
+  @container study (max-width: 560px) {
+    :is(.study-app, .study-seat) {
+      /* When stacked under the title, a leading quiet button hangs its padding and 1px border so its text aligns with the title. */
+      .sh-job__actions > .sh-btn--quiet:first-child { margin-inline-start: calc(var(--space-3) * -1 - var(--space-half) / 2); }
+    }
+  }
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {
       .sh-setup { padding: var(--space-5); }
+    }
+  }
+  @container study (max-width: 480px) {
+    :is(.study-app, .study-seat) {
+      .sh-seg--stack > .sh-seg__item { justify-content: flex-start; text-align: start; }
     }
   }
   @media (max-width: 600px) {

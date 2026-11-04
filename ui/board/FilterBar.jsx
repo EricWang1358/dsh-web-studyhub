@@ -22,7 +22,7 @@ export default function FilterBar({ query, labels, onChange, open, onToggle, mat
       <IconButton icon={<Icon name="filter" size={18} />} label={ui('筛选')} className="board-filter__toggle" aria-expanded={!!open} aria-controls={barId} onClick={onToggle} />
       <div id={barId} className="board-filter__bar" role="search">
         <label className="board-search">
-          <Icon name="search" size={16} />
+          <Icon className="board-search__icon" name="search" size={16} />
           <input className="board-search__input" type="search" value={query.text || ''} placeholder={ui('搜索待办')} aria-label={ui('搜索待办')} onChange={(event) => set({ text: event.target.value })} />
         </label>
         <div className="board-filter__group" role="group" aria-label={ui('按到期筛选')}>

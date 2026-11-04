@@ -23,8 +23,5 @@
     .sh-panel--compact {
       padding: var(--space-3) var(--space-4);
     }
-    .sh-panel--compact .sh-panel__head {
-      margin-bottom: var(--space-3);
-    }
   }
 }

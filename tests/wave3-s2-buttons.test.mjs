@@ -45,7 +45,8 @@ test('Button: busy keeps its width, announces aria-busy and can swap its label',
   m.holdWidth({ offsetWidth: 132, style: { setProperty: (name, value) => { stored[name] = value; } } });
   assert.deepEqual(stored, { '--sh-held-width': '132px' });
   assert.doesNotThrow(() => m.holdWidth(null));
-  assert.match(css, /\.sh-btn\[aria-busy="true"\]\s*\{\s*min-width:\s*var\(--sh-held-width/);
+  const baseCss = readFileSync(new URL('../ui/components/components.css', import.meta.url), 'utf8');
+  assert.match(baseCss, /\.sh-btn\[aria-busy="true"\]\s*\{[^}]*min-width:\s*var\(--sh-held-width/);
 });
 
 test('Button: lock disables without a spinner (only the pressed button spins, see the browser test)', () => {

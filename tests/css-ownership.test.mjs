@@ -9,9 +9,14 @@ import React from 'react';
 import { classOwners, readAllow, subjectClasses } from '../scripts/qa/css-ownership.mjs';
 import { ROOT } from '../scripts/qa/css-tools.mjs';
 
-// #151: a class is styled in one stylesheet. The allow-list is the debt that is left; it may only shrink.
+// #151: every non-modifier class is owned by a single stylesheet; the legacy allow-list is drained to zero and locked.
 const owners = classOwners();
 const allow = readAllow();
+
+test('every class has a single owning stylesheet and the allow-list stays empty (#151)', () => {
+  assert.deepEqual(owners, {}, 'every class must live in one owning stylesheet (move or scope the second rule)');
+  assert.deepEqual(allow, {}, 'tests/fixtures/css-ownership-allow.json is drained to zero and must remain empty');
+});
 
 test('a class that two stylesheets both write rules for is on the allow-list, with exactly those files', () => {
   const unlisted = Object.entries(owners).filter(([name]) => !allow[name]).map(([name, files]) => `.${name}: ${files.join(', ')}`);

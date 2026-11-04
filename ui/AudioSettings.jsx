@@ -46,10 +46,10 @@ const RESULT = (result) => (result.ok ? ui('可用：密钥有效，网络也连
  * shared SecretKeyForm: the key input at full width, the actions, then the result message and an optional footnote (rows
  * that cards can line up). `initialResult` shows a check result on first render (previews and tests).
  */
-export function ProviderKeyForm({ provider, state, primary = true, onSaved, label, footnote, initialResult = null }) {
+export function ProviderKeyForm({ provider, state, primary = true, onSaved, label, footnote, initialResult = null, className }) {
   const { call, busy } = useStudy();
   const set = (patch) => Promise.resolve(call('audio.settings.set', patch)).then((next) => onSaved?.(next));
-  return <SecretKeyForm name="audio-key" label={label || uiFormat('{0} 的 API 密钥', [ui(provider.name)])} placeholder={ui(provider.placeholder)}
+  return <SecretKeyForm className={className} name="audio-key" label={label || uiFormat('{0} 的 API 密钥', [ui(provider.name)])} placeholder={ui(provider.placeholder)}
     saved={state} busy={busy} primary={primary} footnote={footnote} initialResult={initialResult} resultText={RESULT}
     onSave={(key) => set({ [provider.field]: key })} onClear={() => set({ [provider.field]: '' })}
     onVerify={() => Promise.resolve(call('audio.test', { tier: provider.tier })).then((report) => report?.[provider.tier] || { ok: false })} />;
@@ -92,7 +92,7 @@ export function AudioSetupGate({ language = getUiLanguage(), onOpenSettings, onS
       steps={reason === 'paid-missing' ? [] : provider.steps.map((step) => ({ text: ui(step.text), href: step.href }))}
       secondary={onOpenSettings ? { label: ui('打开音频设置'), icon: 'key', onClick: onOpenSettings } : undefined}>
       {reason !== 'paid-missing' && <>
-        <ProviderKeyForm provider={provider} onSaved={onSaved} label={uiFormat('{0} 的 API 密钥', [ui(provider.name)])} />
+        <ProviderKeyForm className="audio-setup__secret" provider={provider} onSaved={onSaved} label={uiFormat('{0} 的 API 密钥', [ui(provider.name)])} />
         <Hint className="audio-setup-alt">{ui(others.text)} · <a href={others.href} target="_blank" rel="noreferrer">{ui(others.label)}</a></Hint>
       </>}
     </SetupRequired>
@@ -157,7 +157,7 @@ export default function AudioSettings({ initialView = null, initialLocal = null 
       </ProviderGrid>
       <LiveEngineChoice view={view} disabled={!!busy} onSave={patch => save(patch)} initialLocal={initialLocal} />
       <Hint className="audio-settings-path">{uiFormat('密钥只保存在这台电脑：{0}，不会进入学习库、备份或主会话。贴进主会话的内容会被模型看到，所以密钥只在这里填。', [view.settingsFile || '~/.dsh/study/audio.json'])}</Hint>
-      <Disclosure className="audio-advanced settings-disclosure" summary={ui('高级')} meta={ui('校对与翻译的推理强度、付费密钥、模型')}>
+      <Disclosure className="audio-advanced settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body" summary={ui('高级')} meta={ui('校对与翻译的推理强度、付费密钥、模型')}>
         <AudioReasoning settings={view} busy={busy} onSave={save} efforts={model.options} modelName={model.model} />
         <div className="audio-paid">
           <h4 className="settings-subtitle">{ui('Gemini 付费密钥（可选）')}</h4>
@@ -168,7 +168,7 @@ export default function AudioSettings({ initialView = null, initialLocal = null 
             onChange={(value) => save({ paidOnlyByDefault: value })}
             hint={ui('添加录音时，「更多设置」里的「只用付费密钥」会默认勾上，每次仍可单独改。需要先填写上面的付费密钥。')} />
         </div>
-        <Disclosure className="audio-expert settings-disclosure" summary={ui('专家选项')} meta={ui('模型、并发')}>
+        <Disclosure className="audio-expert settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body audio-expert__body" summary={ui('专家选项')} meta={ui('模型、并发')}>
           <Field label={ui('校对与翻译用哪个模型')}>
             <Select value={view.textProvider} disabled={busy} onChange={(value) => save({ textProvider: value })} options={[
               { value: 'auto', label: ui('自动（有生成模型就用它，否则用 Gemini）') },

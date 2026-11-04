@@ -12,10 +12,8 @@
     .sh-field--inline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-3); }
     .sh-field--inline:not(.sh-field--sm, .sh-field--md) { max-width: none; }
     .sh-field--inline > .sh-input { flex: 1 1 10rem; width: auto; }
-    .sh-field--inline > .sh-hint { flex: 1 0 100%; }
     .sh-field__label { display: block; margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: var(--lh-tight); }
     .sh-field__required { margin-inline-start: var(--space-half); color: var(--bad-ink); }
-    .sh-field .sh-seg { justify-self: start; max-width: 100%; flex-wrap: wrap; }
     /* ── Inputs ────────────────────────────────────────────────────────── */
     .sh-input {
       box-sizing: border-box;
@@ -94,11 +92,11 @@
     .sh-radio-card__badges { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
     /* ── Settings section shell ────────────────────────────────────────── */
     .settings-section { display: grid; gap: var(--space-3); align-content: start; min-width: 0; margin: var(--space-7) 0 0; padding: var(--space-5) 0 0; border: 0; border-top: 1px solid var(--line); }
+    .settings-page .settings-pane > :first-child.settings-section,
+    .settings-page .settings-pane > .settings-form:first-child > .settings-section { margin-top: 0; padding-top: 0; border-top: 0; }
     /* A floated legend is laid out as ordinary content: the title sits under the rule, at the section's edge. */
     .settings-section__title { float: left; width: 100%; margin: 0; padding: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
     .settings-section__lead { max-width: 70ch; margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
-    /* Legacy note class of the sections still written by hand (UpdateCenter, tour/SampleControls): their notes are Hints in all but name. */
-    .settings-section .sh-hint { overflow-wrap: anywhere; }
     .effort-select__note { margin-top: var(--space-1); }
     /* ── Provider card and steps ───────────────────────────────────────── */
     .sh-provider-grid { min-width: 0; }
@@ -109,7 +107,6 @@
     .sh-provider__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
     .sh-provider__title { margin: 0; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
     .sh-provider__badges { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; max-width: 100%; }
-    .sh-provider__badges .sh-badge { max-width: 100%; white-space: normal; }
     .sh-provider__status { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
     .sh-provider__status.is-set { color: var(--ok-ink); font-weight: var(--fw-medium); }
     .sh-steps { display: grid; align-content: start; gap: var(--space-2); margin: 0; padding: var(--space-3) 0 0; border-top: 1px solid var(--line-soft); list-style: none; font-size: var(--fs-sm); line-height: var(--lh-snug); }
@@ -123,7 +120,6 @@
          and buttons sit at the same height in every card, whatever wraps above them. A `stack` card keeps its own column. The columns come from
          the grid's own sizing, with no container of its own: one inside a lazily mounted pane made Chromium skip laying out the cards now and then. */
       .sh-provider-grid__items:not(.sh-provider-grid__items--two) > .sh-provider:not(.sh-provider--stack) { display: grid; grid-row: span 6; grid-template-rows: subgrid; }
-      .sh-provider-grid__items:not(.sh-provider-grid__items--two) > .sh-provider:not(.sh-provider--stack) .sh-secret { display: grid; grid-row: span 3; grid-template-rows: subgrid; }
     }
   }
   @container study (max-width: 520px) {

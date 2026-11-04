@@ -65,12 +65,11 @@
     }
   }
   :is(.study-app, .study-seat) {
-    .study-document-body[data-link-hover] { cursor: pointer; }
     /* The Aa popover's underline row sits on one line so the popover stays short. */
     /* ── Save an answer as a flashcard ──────────────────────────────────── */
     .study-qa-save { margin-top: var(--space-3); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
-    .study-qa-save .muted { flex: 1 1 12em; min-width: 0; overflow-wrap: anywhere; }
-    .study-qa-save .sh-inline { flex-basis: 100%; margin: 0; }
+    .study-qa-save .study-qa-save__note { flex: 1 1 12em; min-width: 0; overflow-wrap: anywhere; }
+    .study-qa-save .study-qa-save__error { flex-basis: 100%; margin: 0; }
     .study-qa-saved { margin: 0; color: var(--text); }
     .study-qa-saved .study-qa-saved__open {
       width: auto;
@@ -84,6 +83,7 @@
       cursor: pointer;
     }
     /* ── The linked passages in the learning panel ──────────────────────── */
+    .study-document-links-heading { margin: var(--space-4) 0 0; font-size: var(--fs-md); font-weight: var(--fw-strong); }
     .reader-links { display: grid; gap: var(--space-2); }
     .reader-links__list { display: grid; }
     .reader-link-group, .reader-links__stale { border-bottom: 1px solid var(--line); }

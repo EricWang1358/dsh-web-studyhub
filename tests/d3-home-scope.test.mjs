@@ -82,7 +82,7 @@ test('the home has one h1, one primary button, and the mode tabs sit before the 
 });
 
 test('home css: tabs and title never share a line; the resume number and its caption share one baseline', () => {
-  const tiers = `${css('home-tiers.css')}\n${css('study-map/desk.css')}`; // the tier rules of the desk classes moved into desk.css with their base rules (#151)
+  const tiers = `${css('home-tiers.css')}\n${css('study-map/desk.css')}\n${css('study-map/catalog.css')}\n${css('course-active.css')}`; // each class's tier rules live in its single owning stylesheet (#151)
   assert.match(tiers, /\.focus-switch\s*\{[^}]*display:\s*flex/, 'the tabs take their own line');
   assert.match(tiers, /\.desk-intro\s*\{[^}]*flex-direction:\s*column/);
   assert.match(tiers, /\.today-count\s*\{[^}]*align-items:\s*baseline/);

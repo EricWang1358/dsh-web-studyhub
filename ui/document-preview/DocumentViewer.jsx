@@ -424,9 +424,9 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     <div className="reader-toolbar">
       <div className="reader-toolbar__group">
         {onBack && <Button size="sm" variant="secondary" icon="arrow-left" className="reader-back-to-question" onClick={onBack}>{backLabel}</Button>}
-        {canOutline && <IconButton icon="list" label={ui('目录')} aria-pressed={outlineOn} aria-controls={outlineOn ? outlineId : undefined}
+        {canOutline && <IconButton icon="list" className="reader-toolbar__icon-btn" label={ui('目录')} aria-pressed={outlineOn} aria-controls={outlineOn ? outlineId : undefined}
           onClick={() => toggle('outline')} />}
-        <SegmentedControl size="sm" className="study-document-preview-mode" label={ui('显示方式')} value={view} options={modes} onChange={chooseView} />
+        <SegmentedControl size="sm" className="study-document-preview-mode" itemClassName="reader-mode__item" label={ui('显示方式')} value={view} options={modes} onChange={chooseView} />
       </div>
       <p className="reader-toolbar__where">{where ? <Tooltip layer content={where}><span tabIndex={0}>{where}</span></Tooltip> : null}</p>
       {/* Two facts, two lines, one block (a toolbar has no room for a second row of words): what was learned (掌握, only published questions) and what was asked (覆盖, drafts included). */}
@@ -440,11 +440,11 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       <div className="reader-toolbar__group reader-toolbar__group--end">
         {!localMode && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
         {view !== 'original' && <>
-          <IconButton icon="search" label={ui('在文中查找')} aria-pressed={finding} onClick={() => finding ? closeFind() : openFind()} />
+          <IconButton icon="search" className="reader-toolbar__icon-btn" label={ui('在文中查找')} aria-pressed={finding} onClick={() => finding ? closeFind() : openFind()} />
           {bilingual.toolbar}
-          <DisplaySettings settings={settings} onChange={updateSettings} onReset={resetSettings} underline={!localMode} extra={bilingual.displayRow} />
+          <DisplaySettings settings={settings} onChange={updateSettings} onReset={resetSettings} underline={!localMode} extra={bilingual.displayRow} buttonClassName="reader-toolbar__icon-btn" />
         </>}
-        {!localMode && <IconButton icon="panel" label={ui('学习工具')} aria-pressed={toolsOn} aria-controls={toolsId} data-tour="source-tools-toggle"
+        {!localMode && <IconButton icon="panel" className="reader-toolbar__icon-btn" label={ui('学习工具')} aria-pressed={toolsOn} aria-controls={toolsId} data-tour="source-tools-toggle"
           data-attention={capture && !toolsOn ? 'true' : undefined} onClick={() => toggle('tools')}>
           {groups.length > 0 && <span className="reader-count" aria-hidden="true">{groups.length}</span>}
         </IconButton>}
@@ -459,7 +459,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       onStep={stepFind} onClose={closeFind} inputRef={findInput} />}
     <div className="study-document-notices reader-notices">{notices}</div>
     <div className="reader-aux">
-      {quote && <blockquote className="highlight-quote"><MathText text={quote} /></blockquote>}
+      {quote && <blockquote className="highlight-quote reader-aux__quote"><MathText text={quote} /></blockquote>}
       {!localMode && <AudioCorrections audio={source.audio} onReview={call && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />}
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>

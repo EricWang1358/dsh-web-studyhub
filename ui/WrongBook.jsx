@@ -66,7 +66,7 @@ function StatusMark({ kind, history = false }) {
 
 function VariantControl({ state, onGenerate, onPractice, disabled }) {
   if (state.kind === "preparing")
-    return <span className="wb-var is-busy" role="status"><span className="sh-spinner" aria-hidden="true" />{ui("生成中…")}</span>;
+    return <span className="wb-var is-busy" role="status"><span className="sh-spinner wb-var__spinner" aria-hidden="true" />{ui("生成中…")}</span>;
   if (state.kind === "ready")
     return (
       <span className="wb-var is-ready">
@@ -397,7 +397,7 @@ export function WrongBookView({
       {/* 待巩固 / 已订正 first: a cleared 待巩固 page must not read as "no mistakes ever" (the field report). */}
       {showViews && (
         <div className="wb-views">
-          <SegmentedControl label={ui("错题视图")} value={view} size="sm" onChange={onView}
+          <SegmentedControl className="wb-views__seg" itemClassName="wb-views__seg-item" label={ui("错题视图")} value={view} size="sm" onChange={onView}
             options={[{ value: "weak", label: uiFormat("待巩固 {0}", [weakCount]) }, { value: "history", label: uiFormat("已订正 {0}", [historyCount]) }]} />
         </div>
       )}
@@ -419,15 +419,15 @@ export function WrongBookView({
             </div>
             {/* A disabled choice cannot take focus or a hover of its own, so the group says why on hover and on focus (an empty tip draws nothing). */}
             <Tooltip layer anchorClassName="wb-retrain-pick" content={unavailableTip}>
-              <SegmentedControl label={ui("重练范围")} value={picked} options={options} onChange={setChoice} disabled={busy || loading} />
+              <SegmentedControl className="wb-retrain__seg" itemClassName="wb-retrain__seg-item" label={ui("重练范围")} value={picked} options={options} onChange={setChoice} disabled={busy || loading} />
             </Tooltip>
-            <Button variant={filteredSubset ? "secondary" : "primary"} icon="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}
+            <Button className="wb-retrain__btn" variant={filteredSubset ? "secondary" : "primary"} icon="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}
               title={hasMore ? ui("把本页的待巩固题按学习路径重新练一遍") : ui("把这些待巩固题按学习路径重新练一遍")}>
               {uiFormat("开始重练 · 全部 {0} 题", [current.count])}
             </Button>
             {/* The main button takes every mistake of the page, whatever the filter shows; with a filter on, what is shown has its own button. */}
             {filteredSubset && (
-              <Button variant="primary" icon="arrow-right" lock={busy || loading} onClick={() => onPractice(shown.map(refOf))}
+              <Button className="wb-retrain__btn" variant="primary" icon="arrow-right" lock={busy || loading} onClick={() => onPractice(shown.map(refOf))}
                 title={ui("只练下面筛选出来的错题")}>{uiFormat("练筛选的 {0} 道", [shown.length])}</Button>
             )}
           </div>
@@ -449,7 +449,7 @@ export function WrongBookView({
             <h2 id="wb-recs-title">{ui("为你推荐")}<span className="wb-free">{ui("不消耗模型")}</span></h2>
             {recItems.length === 0 && <span className="muted wb-recs-status" role="status">{recsLoading ? ui("正在查找同类题…") : ui("题库里没有找到合适的同类题")}</span>}
             {recItems.length > 0 && (
-              <Button variant="secondary" size="sm" icon="arrow-right" lock={busy} onClick={() => onPractice(recItems.map(refOf))}>
+              <Button className="wb-recs-bar__btn" variant="secondary" size="sm" icon="arrow-right" lock={busy} onClick={() => onPractice(recItems.map(refOf))}>
                 {uiFormat("练这 {0} 道", [recItems.length])}
               </Button>
             )}
@@ -464,7 +464,7 @@ export function WrongBookView({
                 ))}
               </ul>
               {recItems.length > RECS_PREVIEW && (
-                <Button variant="link" size="sm" onClick={() => setRecsAll(!recsAll)}>
+                <Button className="wb-recs-body__more" variant="link" size="sm" onClick={() => setRecsAll(!recsAll)}>
                   {recsAll ? ui("收起") : uiFormat("再显示 {0} 道", [recItems.length - RECS_PREVIEW])}
                 </Button>
               )}

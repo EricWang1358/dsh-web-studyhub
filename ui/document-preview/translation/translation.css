@@ -7,7 +7,6 @@
 
 @layer study.features {
   :is(.study-app, .study-seat) {
-    .reader-page { position: relative; }
     /* ── The inline 译 at the end of a paragraph: quiet until the paragraph is hovered or focused ── */
     .tr-mark {
       display: inline-block;
@@ -79,7 +78,7 @@
     /* ── A translation block: after its paragraph, in the right column, or instead of it ── */
     .tr-host { min-width: 0; margin: 0 0 1em; font-size: 0.92em; line-height: 1.7; }
     .tr-host[data-shown='false'] { display: none; }
-    :is(p, li, h1, h2, h3, h4, h5, h6, blockquote, dt, dd, figcaption, .reader-p):has(+ .tr-host:not([data-shown='false'])) { margin-bottom: 0.4em; }
+    :is(p, li, h1, h2, h3, h4, h5, h6, blockquote, dt, dd, figcaption):has(+ .tr-host:not([data-shown='false'])) { margin-bottom: 0.4em; }
     .tr-block {
       position: relative;
       padding: 0.5em 0.8em 0.6em 0.85em;
@@ -100,7 +99,7 @@
     .tr-block__text { margin: 0.3em 0 0; color: var(--text); overflow-wrap: anywhere; white-space: pre-line; }
     .tr-block[data-state='busy'] .tr-block__text { opacity: 0.55; }
     .tr-block__note { margin: 0.4em 0 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
-    .tr-block__note .sh-btn, .tr-block__status .sh-btn { margin-left: var(--space-1); }
+    .tr-block__note [type='button'], .tr-block__status .tr-block__status-btn { margin-left: var(--space-1); }
     .tr-fold {
       display: inline-flex;
       flex: none;
@@ -136,9 +135,6 @@
     .tr-history li { display: grid; gap: var(--hairline); padding-left: var(--space-2); border-left: 2px solid var(--line-strong); overflow-wrap: anywhere; }
     .tr-history li > span { color: var(--text-dim); font-size: var(--fs-sm); white-space: pre-line; }
     /* ── The layouts ── */
-    .reader-page[data-tr-mode='side'] { max-width: min(calc(var(--reader-measure) * 2 + var(--space-6) * 2 + var(--space-7)), 100%); }
-    .study-document-viewer[data-tone='paper'] .reader-page[data-tr-mode='side'] { max-width: min(calc(var(--reader-measure) * 2 + 12em), 100%); }
-    .reader-page[data-tr-mode='side'] .study-document-body { max-width: none; }
     .reader-page[data-tr-mode='side'] :is(.reader-prose, .reader-html) {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

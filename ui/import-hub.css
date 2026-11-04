@@ -35,8 +35,8 @@
       color: var(--text);
       font-size: var(--fs-sm);
     }
-    .import-hub__stray .sh-icon { color: var(--info); }
-    .import-hub .is-attention .sh-drop {
+    .import-hub__stray .import-hub__stray-icon { color: var(--info); }
+    .import-hub .is-attention .import-hub__drop {
       border-style: solid;
       border-color: var(--accent);
       background: color-mix(in srgb, var(--accent) 6%, transparent);
@@ -45,7 +45,7 @@
     .import-hub__paste .import-hub__paste-input { min-height: 180px; }
     .import-hub__paste-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
     .import-hub__paste-footer small { font-size: var(--fs-sm); }
-    .import-hub__paste .sh-inline { margin: 0; }
+    .import-hub__paste .import-hub__paste-error { margin: 0; }
     /* AudioImport keeps its own markup; inside the tab it drops its card frame. */
     .import-hub__audio > .audio-import { margin: 0; padding: 0; border: 0; }
     .import-hub__audio > .audio-import > strong:first-child { display: none; }
@@ -54,7 +54,7 @@
     :is(.study-app, .study-seat) {
       .import-hub__course { padding: var(--space-3); }
       .import-hub__tabs { justify-self: stretch; }
-      .import-hub__tabs .sh-icon { display: none; }
+      .import-hub__tabs .import-hub__tab-icon { display: none; }
     }
   }
 }

@@ -123,11 +123,11 @@ function CourseRow({ course, label = course.name, duplicates = [], onOpen, onMer
       {duplicates.length > 0 && <span className="course-list__duplicate">
         <Icon name="warning" size={14} />
         <span>{uiFormat('可能与「{0}」重复', [duplicates.map(item => item.name).join('」「')])}</span>
-        {onMerge && <Button size="sm" variant="link" lock={busy} onClick={() => onMerge(course.id, duplicates.map(item => item.id))}>{ui('合并到这里')}</Button>}
+        {onMerge && <Button className="course-list__dup-link" size="sm" variant="link" lock={busy} onClick={() => onMerge(course.id, duplicates.map(item => item.id))}>{ui('合并到这里')}</Button>}
       </span>}
     </span>
     {course.id && <ActiveSwitch course={course} courses={all} compact disabled={busy} />}
-    {course.id && <Button size="sm" variant="secondary" lock={busy} onClick={() => onOpen?.(course.id)}>{ui('设置')}</Button>}
+    {course.id && <Button className="course-list__action" size="sm" variant="secondary" lock={busy} onClick={() => onOpen?.(course.id)}>{ui('设置')}</Button>}
   </div>;
 }
 
@@ -202,7 +202,7 @@ export function CourseList({ courses = [], onOpen, onMerge, onCreate, currentId,
     return <div className="course-list__group">
       <div className="course-list__group-head">
         <button type="button" className="course-list__toggle" aria-expanded={expanded} onClick={() => toggle(entry.name)}>
-          <Icon name="chevron" size={16} />
+          <Icon className="course-list__toggle-icon" name="chevron" size={16} />
           <span className="course-list__text">
             <Tooltip layer content={entry.name}><strong>{entry.name}</strong></Tooltip>
             <small>{meta}{flagged ? <span className="course-list__flag">{' · '}{uiFormat('{0} 处可能重复', [flagged])}</span> : null}</small>
@@ -307,7 +307,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
   // Materials whose name says syllabus, unticked, with their reason (never chosen for the learner: guidance feeds the case questions and the grading).
   const guidance = guidanceSuggestions(data, course.name, draft.guidanceSourceIds);
   return (
-    <Dialog size="lg" className="course-settings" title={course.name}
+    <Dialog size="lg" className="course-settings" bodyClassName="course-settings__body" title={course.name}
       description={[ui('课程设置'), countLine(course)].filter(Boolean).join(' · ')} busy={working} onClose={() => onClose?.('dismiss')}
       footer={<>
         {error && <InlineMessage className="course-settings__error">{error}</InlineMessage>}
@@ -320,13 +320,13 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           <TextInput type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></Field>
       </section>
 
-      <Disclosure className="course-settings__more" summary={ui('更多设置')} defaultOpen={startOpen}
+      <Disclosure className="course-settings__more" bodyClassName="course-settings__more-body" summary={ui('更多设置')} defaultOpen={startOpen}
         meta={joinMeta([draft.format !== 'other' ? examFormatLabel(draft.format) : '', splitTopics(draft.focusTopics).length ? uiFormat('{0} 个重点知识点', [splitTopics(draft.focusTopics).length]) : '',
           draft.guidanceSourceIds.length ? uiFormat('考官指引 {0} 份', [draft.guidanceSourceIds.length]) : ''])}>
         <section className="course-settings__block" aria-labelledby="course-settings-name">
           <h3 id="course-settings-name">{ui('名称')}</h3>
           <div className="course-settings__rename">
-            <Field className="course-settings__wide" label={ui('课程名称')} width="full">
+            <Field className="course-settings__wide course-settings__rename-field" label={ui('课程名称')} width="full">
               <TextInput value={name} maxLength={200} disabled={disabled} onChange={event => { setName(event.target.value); setConfirm(null); }} /></Field>
             <Button ref={renameTrigger} variant="secondary" disabled={disabled || !renamed} onClick={() => setConfirm('rename')}>{ui('改名')}</Button>
           </div>
@@ -380,7 +380,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           <TopicChips value={draft.focusTopics} disabled={disabled} suggestions={weakTopics} onChange={focusTopics => change({ focusTopics })} />
         </section>
 
-        <Disclosure className="course-settings__disclosure" summary={ui('考官指引')}
+        <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('考官指引')}
           meta={draft.guidanceSourceIds.length ? uiFormat('已选 {0} 份', [draft.guidanceSourceIds.length]) : guidance.length ? uiFormat('有 {0} 份建议', [guidance.length]) : ui('未选择')}
           defaultOpen={draft.guidanceSourceIds.length > 0}>
           <Hint>{ui('选入考官讲解或考试说明（例如导入的说明会逐字稿），出案例题和批改时会参考。')}</Hint>
@@ -389,15 +389,15 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
             onChange={guidanceSourceIds => change({ guidanceSourceIds })} />
         </Disclosure>
 
-        {others.length > 0 && <Disclosure className="course-settings__disclosure" summary={ui('把其他课程合并到这里')}
+        {others.length > 0 && <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('把其他课程合并到这里')}
           meta={mergeIds.length ? uiFormat('已选 {0} 门', [mergeIds.length]) : ''} defaultOpen={mergeFrom.length > 0}>
           {/* A long course list scrolls in a window; likely duplicates of this course come first (WP14). */}
           <ScrollWindow className="course-settings__merge-window" label={ui('可以合并的课程')} items={mergeCandidates} itemKey={item => item.id}
             match={item => [item.name, ...(item.aliases || [])].join(' ')} filterable={mergeCandidates.length > 6} filterPlaceholder={ui('筛选课程…')}
-            maxHeight={260} listClassName="course-settings__merge" renderItem={item => <Checkbox label={item.name} checked={mergeIds.includes(item.id)} disabled={disabled}
+            maxHeight={260} listClassName="course-settings__merge" renderItem={item => <Checkbox className="course-settings__merge-check" label={item.name} checked={mergeIds.includes(item.id)} disabled={disabled}
               hint={(countLine(item) || likely.has(item.id)) ? [likely.has(item.id) ? ui('名称几乎相同') : '', countLine(item)].filter(Boolean).join(' · ') : undefined}
               onChange={checked => { setConfirm(null); setMergeIds(current => checked ? [...current, item.id] : current.filter(id => id !== item.id)); }} />} />
-          <Button ref={mergeTrigger} variant="secondary" disabled={disabled || !mergeIds.length} onClick={() => setConfirm('merge')}>{ui('合并所选课程')}</Button>
+          <Button className="course-settings__merge-btn" ref={mergeTrigger} variant="secondary" disabled={disabled || !mergeIds.length} onClick={() => setConfirm('merge')}>{ui('合并所选课程')}</Button>
           {confirm === 'merge' && mergeIds.length > 0 && <InlineConfirm tone="warning" title={uiFormat('把 {0} 门课程并入「{1}」？', [mergeNames.length, course.name])}
             confirmLabel={ui('确认合并')} busy={working || busy} returnFocusRef={mergeTrigger} onConfirm={merge} onCancel={() => setConfirm(null)}>
             <p><strong>{mergeNames.join(' · ')}</strong></p>

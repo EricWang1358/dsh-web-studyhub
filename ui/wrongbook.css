@@ -21,8 +21,8 @@
        Each option keeps room for its count with a second figure ("48+10"), so a count arriving later does not move the others. */
     .wb-retrain-copy { display: grid; gap: var(--space-half); margin-right: auto; min-width: 14em; }
     .wb-retrain-copy small { font-size: var(--fs-sm); white-space: nowrap; }
-    .wb-retrain .sh-seg__item { min-width: 13em; justify-content: center; }
-    .wb-retrain .sh-seg { flex-wrap: wrap; max-width: 100%; }
+    .wb-retrain .wb-retrain__seg-item { min-width: 13em; justify-content: center; }
+    .wb-retrain .wb-retrain__seg { flex-wrap: wrap; max-width: 100%; }
     /* The tooltip anchor that says why a choice is disabled: it holds the choices, so it must not shrink them. */
     .wb-retrain-pick { display: flex; max-width: 100%; }
     /* recommendations — one line from the first paint (#206): loading, empty and found all fit it, so the answer never moves the list below. */
@@ -49,12 +49,12 @@
       font-family: var(--font-display);
       font-size: var(--fs-lg);
     }
-    .wb-recs-bar > .sh-btn { flex: none; }
+    .wb-recs-bar > .wb-recs-bar__btn { flex: none; }
     .wb-recs-spacer { flex: none; width: 32px; height: 32px; }
     .wb-recs-status { min-width: 0; margin-left: auto; font-size: var(--fs-sm); text-align: right; }
     .wb-recs-body { display: grid; gap: var(--space-3); min-width: 0; }
     .wb-recs-body > p { margin: 0; font-size: var(--fs-md); }
-    .wb-recs-body > .sh-btn--link { justify-self: start; }
+    .wb-recs-body > .wb-recs-body__more { justify-self: start; }
     .wb-free {
       padding: var(--hairline) var(--space-2);
       border: 1px solid var(--ok-line);
@@ -82,8 +82,8 @@
     .wb-fold-all { display: inline-flex; align-items: center; gap: var(--space-1); }
     /* 待巩固 / 已订正: which list the page shows, both counts on the switch. */
     .wb-views { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
-    .wb-views .sh-seg { max-width: 100%; flex-wrap: wrap; }
-    .wb-views .sh-seg__item { font-variant-numeric: tabular-nums; }
+    .wb-views .wb-views__seg { max-width: 100%; flex-wrap: wrap; }
+    .wb-views .wb-views__seg-item { font-variant-numeric: tabular-nums; }
     /* The filter is the toolbar's middle cluster: deck, text, status. On a narrow page the deck and the text share a row and the chips take the next. */
     .wb-filter { display: flex; align-items: center; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; gap: var(--space-2); }
     /* Fixed starting widths, so the bar breaks between whole clusters rather than squeezing the fields; the picker keeps room for 全部题组 / All decks
@@ -220,7 +220,7 @@
     }
     .wb-var.is-ready { color: var(--ok-ink); font-weight: var(--fw-medium); }
     .wb-var.is-failed { color: var(--warn-ink); max-width: 26em; }
-    .wb-var .sh-spinner { width: 0.9em; height: 0.9em; }
+    .wb-var .wb-var__spinner { width: 0.9em; height: 0.9em; }
     /* opened row */
     .wb-detail {
       display: grid;
@@ -252,9 +252,9 @@
   @container study (max-width: 640px) {
     :where(.study-app, .study-seat) {
       .wb-retrain { align-items: stretch; }
-      .wb-retrain > .sh-btn { width: 100%; }
-      .wb-retrain .sh-seg, .wb-retrain-pick { width: 100%; }
-      .wb-retrain .sh-seg__item { flex: 1 1 100%; justify-content: flex-start; white-space: normal; text-align: left; }
+      .wb-retrain > .wb-retrain__btn { width: 100%; }
+      .wb-retrain .wb-retrain__seg, .wb-retrain-pick { width: 100%; }
+      .wb-retrain .wb-retrain__seg-item { flex: 1 1 100%; justify-content: flex-start; white-space: normal; text-align: left; }
       .wb-meta { width: auto; max-width: 9em; }
       .wb-row-line .wb-prompt, .wb-rec-line .wb-prompt { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
       .wb-row-toggle { flex-wrap: wrap; align-items: flex-start; }

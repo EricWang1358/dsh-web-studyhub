@@ -312,7 +312,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
         </div>
         <div className="live-selection">
           <div className="live-selection-info"><strong>{uiFormat('已选 {0} 句', [chosen.length])}</strong>
-            <span className="muted" data-blocking={chosen.length > 0 && selectedChars < MIN_CHARS ? 'true' : undefined}>{chosen.length ? (selectedChars >= MIN_CHARS ? uiFormat('约 {0} 个原文字符', [selectedChars])
+            <span className="muted live-selection-info__note" data-blocking={chosen.length > 0 && selectedChars < MIN_CHARS ? 'true' : undefined}>{chosen.length ? (selectedChars >= MIN_CHARS ? uiFormat('约 {0} 个原文字符', [selectedChars])
               : uiFormat('再多选约 {0} 个字符才能出题', [MIN_CHARS - selectedChars]))
               : ui('至少选约 120 个原文字符')}</span></div>
           <div className="live-actions"><Button className="live-selection-btn" disabled={!segments.length} onClick={() => setSelected(new Set(segments.slice(-8).map((segment) => segment.id)))}>{ui('最近 8 句')}</Button>

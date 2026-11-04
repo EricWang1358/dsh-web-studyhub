@@ -5,7 +5,7 @@
     /* Sources page (WP3): one row per document, pages on demand, fresh imports
        highlighted. Builds on the .source-group/.source-row rules in style.css;
        tokens only. */
-    .sources-page .sh-page-header { margin-bottom: var(--space-4); }
+    .sources-page .sources-page__header { margin-bottom: var(--space-4); }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
     & .source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     /* A material is a row on the desk under its day's rule, not a card in a box (#570, ui/DESIGN.md "the card is the only physical object"): no border, no stock,
@@ -32,7 +32,7 @@
     .source-doc .source-main small.source-doc__index > * { min-width: 0; max-width: 100%; }
     .source-doc__icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
     .source-doc__actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; min-width: 0; align-items: center; gap: var(--space-2); }
-    .source-doc__actions > .sh-btn { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+    .source-doc__actions > .source-doc__action { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
     .source-doc__actions .source-row-actions > summary {
       padding: var(--space-1-5) var(--space-2-5);
       border-radius: var(--radius-sm);
@@ -51,22 +51,22 @@
       min-width: 9em;
       margin-top: var(--space-1);
     }
-    .source-doc__actions .source-row-menu .sh-btn { display: block; width: 100%; max-width: 100%; margin: 0; text-align: left; white-space: nowrap; }
+    .source-doc__actions .source-row-menu .source-row-menu__btn { display: block; width: 100%; max-width: 100%; margin: 0; text-align: left; white-space: nowrap; }
     .source-doc__pages { margin: var(--space-2) 0 0 calc(var(--space-3) + var(--space-5) + var(--space-3)); }
-    .source-doc__pages-toggle .sh-icon:last-child { transition: transform 0.18s var(--ease); }
-    .source-doc__pages-toggle[aria-expanded="true"] .sh-icon:last-child { transform: rotate(90deg); }
+    .source-doc__pages-toggle .source-doc__pages-chevron { transition: transform 0.18s var(--ease); }
+    .source-doc__pages-toggle[aria-expanded="true"] .source-doc__pages-chevron { transform: rotate(90deg); }
     /* The list of pages/chapters of a document scrolls inside its own box: a 400-page book must not push the whole page down. */
     .source-doc__page-list { display: grid; gap: var(--space-half); margin: var(--space-1) 0 0; padding: 0 var(--space-1) 0 0; list-style: none; max-height: min(60vh, 30rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
     /* A chapter is one line: the title takes the room (and ellipsises), the size sits at its end, 从这一章出题 keeps its own width. */
     .source-doc__chapters > li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-    .source-doc__chapters > li > .sh-btn { flex: none; width: auto; white-space: nowrap; }
+    .source-doc__chapters > li > .source-doc__chapter-btn { flex: none; width: auto; white-space: nowrap; }
     /* The list rows (<Button variant="quiet" block align="start">): one line, the label ellipsises, the size sits at the end. */
     .source-doc__row { align-items: baseline; gap: var(--space-3); min-height: 0; padding: calc(var(--space-1) + var(--space-half)) var(--space-2); font-size: var(--fs-sm); font-weight: var(--fw-regular); }
     .source-doc__row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .source-doc__page-list small { margin-left: auto; color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; }
     /* A chapter row: the chapter opens on the left, its own 出题 button sits at the right (not a full-width second line). */
     .source-doc__chapters li { display: flex; align-items: center; gap: var(--space-2); }
-    .source-doc__chapters li > .sh-btn { flex: none; width: auto; }
+    .source-doc__chapters li > .source-doc__chapter-btn { flex: none; width: auto; }
     .source-doc__chapters li > .source-doc__row { flex: 1 1 auto; width: auto; min-width: 0; }
     .source-doc__chapters li > .source-doc__row small { white-space: normal; text-align: right; }
     .source-doc.is-new {
@@ -143,7 +143,7 @@
       /* With 练这一章 and 从这一章出题 together the two buttons do not fit beside the title: they take their own line under it. */
       .source-doc__chapters li { flex-wrap: wrap; row-gap: var(--space-half); }
       .source-doc__chapters li > .source-doc__row { flex: 1 0 100%; }
-      .source-doc__chapters li > .source-doc__row + .sh-btn { margin-left: var(--space-2); }
+      .source-doc__chapters li > .source-doc__row + .source-doc__chapter-btn { margin-left: var(--space-2); }
     }
   }
 }

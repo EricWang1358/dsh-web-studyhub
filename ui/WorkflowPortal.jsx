@@ -128,7 +128,7 @@ export function SpinePeek({ session, resources, stepKind, late, disabled, onGene
   // At the last step a new skeleton would only serve a later session.
   if (!resources.modelReady || late) return null;
   const interrupted = job?.status === "running" || job?.status === "failed";
-  return <div className="wf-spine-status muted">{interrupted ? <><span>{ui("上次后台整理骨架没有完成。")}</span>{job.message && <ModelErrorNote error={job.message} />}</> : <span>{ui("本次范围还没有知识骨架。")}</span>}
+  return <div className="wf-spine-status muted">{interrupted ? <><span>{ui("上次后台整理骨架没有完成。")}</span>{job.message && <ModelErrorNote className="wf-spine-error" error={job.message} />}</> : <span>{ui("本次范围还没有知识骨架。")}</span>}
     <Button variant="link" size="sm" disabled={disabled} onClick={onGenerate}>{interrupted ? ui("重新在后台生成") : ui("在后台生成一份")}</Button></div>;
 }
 
@@ -401,7 +401,7 @@ function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision
       actions={!completed && <Button disabled={!!remote} lock={busy} onClick={() => changeStatus(active ? "paused" : "active")}>{active ? ui("保存并暂停") : ui("继续学习")}</Button>}>
       <ScopeBar session={session} resources={resources} disabled={busy || !!remote || !active} onRescope={rescope} onStartNew={startInCourse} />
     </PageHeader>
-    {error && <div className="wf-failure"><ModelErrorNote error={error} /><p>{ui("你的输入仍保留在此设备。")}</p><Button size="sm" lock={busy} onClick={refresh}>{ui("核对最新进度")}</Button></div>}
+    {error && <div className="wf-failure"><ModelErrorNote className="wf-failure__inline" error={error} /><p>{ui("你的输入仍保留在此设备。")}</p><Button size="sm" lock={busy} onClick={refresh}>{ui("核对最新进度")}</Button></div>}
     {remote && <Banner tone="info" role="status" title={ui("这次学习在其他地方有了更新。你的文字已保留，请选择怎样继续。")}
       action={{ label: remote.session.currentStepId === session.currentStepId ? ui("载入更新，保留我的文字") : ui("进入新步骤，保留旧步草稿"), onClick: () => reconcile(true) }}
       secondary={{ label: ui("使用最新记录"), onClick: () => reconcile(false) }}>
@@ -411,7 +411,7 @@ function PortalBody({ id, libraryKey, onOpenRun, onOpenSession, onBack, revision
       const outcome = session.records[item.id]?.outcome, resume = item.id === session.resumeStepId;
       const body = <><span>{formatNumber(stepIndex + 1, { minimumIntegerDigits: 2 })}</span><strong>{item.title}</strong>{resume ? <small className="wf-route-resume">{ui("当前进度 · 回到这里")}</small> : outcome && <small>{ui(OUTCOME[outcome])}</small>}</>;
       const reachable = active && !remote && item.id !== step.id && (outcome || resume);
-      return <li key={item.id} aria-current={!completed && item.id === step.id ? "step" : undefined} className={[item.id === step.id && !completed ? "is-current" : "", reachable ? "is-reachable" : ""].filter(Boolean).join(" ") || undefined}>
+      return <li key={item.id} aria-current={!completed && item.id === step.id ? "step" : undefined} className={["wf-portal-step", item.id === step.id && !completed ? "is-current" : "", reachable ? "is-reachable" : ""].filter(Boolean).join(" ")}>
         {reachable ? <button type="button" className="wf-route-link" disabled={busy} title={resume ? ui("回到刚才的进度") : uiFormat("回到「{0}」看看，记录都会保留", [item.title])} onClick={() => goTo(item.id)}>{body}</button> : body}
       </li>;
     })}</ol>

@@ -25,7 +25,7 @@
       gap: var(--space-3);
       min-width: 0;
     }
-    .resume .eyebrow {
+    .resume .resume__eyebrow {
       margin: 0;
       font-size: var(--fs-md);
       letter-spacing: 0;
@@ -326,7 +326,7 @@
   :is(.study-app, .study-seat) {
     .desk-more .desk-also { margin-top: var(--space-2); }
     .desk > .desk-intro { --desk-measure: 32.5rem; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-5); min-width: 0; }
-    .desk > .desk-intro > :is(.course-route, .role-prep, .desk-mastery, .desk-next, .desk-also, .desk-more, .resume-list, .course-parked-line) { width: 100%; max-width: var(--desk-measure); margin: 0; }
+    .desk > .desk-intro > :is(.course-route, .role-prep, .desk-mastery, .desk-next, .desk-also, .desk-more, .resume-list) { width: 100%; max-width: var(--desk-measure); margin: 0; }
     .desk > .desk-intro > .desk-next { margin-top: var(--space-2); }
     .today-card-head { align-items: baseline; }
       .desk-more {
@@ -350,7 +350,6 @@
         .desk > .desk-intro > .desk-more { order: 9; }
         .desk > .desk-intro > .course-route { order: 5; }
         .desk > .desk-intro > .role-prep { order: 3; }
-        .desk > .desk-intro > .course-parked-line { order: 2; }
 }
   }
 }

@@ -38,6 +38,7 @@
     /* A label that may not fit its row (Badge wrap) takes more lines instead of being cut; a pill shape does not hold two lines. */
     .sh-badge--wrap { flex: 0 1 auto; min-width: 0; white-space: normal; text-align: start; overflow-wrap: anywhere; border-radius: var(--radius-sm); }
     .sh-badge__dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--sh-tone); }
+    .sh-provider__badges .sh-badge { max-width: 100%; white-space: normal; }
     /* ── Chip (interactive) ─────────────────────────────────────────────── */
     .sh-chip {
       display: inline-flex;
@@ -74,7 +75,7 @@
       background: color-mix(in srgb, var(--sh-tone) 18%, transparent);
       color: var(--text);
     }
-    .sh-chip .sh-chip__remove.sh-btn--icon { flex: none; width: 24px; min-height: 24px; height: 24px; margin-right: var(--space-half); padding: 0; border-radius: 50%; }
+    .sh-chip .sh-chip__remove.sh-chip__remove { flex: none; width: 24px; min-height: 24px; height: 24px; margin-right: var(--space-half); padding: 0; border-radius: 50%; }
     /* ── Hint ───────────────────────────────────────────────────────────── */
     .sh-hint {
       margin: 0;
@@ -84,6 +85,8 @@
     }
     .sh-hint--xs { font-size: var(--fs-xs); }
     .sh-hint[data-tone]:not([data-tone='neutral']) { color: var(--sh-tone-ink); }
+    .sh-field--inline > .sh-hint { flex: 1 0 100%; }
+    .settings-section .sh-hint { overflow-wrap: anywhere; }
     /* ── Spinner size and loading line ──────────────────────────────────── */
     .sh-spinner--sm { width: 0.9em; height: 0.9em; border-width: 1.5px; }
     .sh-loading {
@@ -180,9 +183,7 @@
     .sh-job--running { border-color: var(--info-line); }
     .sh-job--failed { border-color: var(--bad-line); }
     .sh-job__mark { display: flex; align-items: center; justify-content: center; height: 24px; color: var(--sh-tone-ink); }
-    .sh-job__mark .sh-spinner { width: 18px; height: 18px; }
     .sh-job__body { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
-    .sh-job__body > .sh-btn { justify-self: start; }
     .sh-job__title { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: var(--lh-snug); }
     .sh-job__meta { display: block; margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .sh-job__progress { display: grid; gap: var(--space-2); max-width: 420px; margin-block: var(--space-1); }
@@ -191,22 +192,17 @@
     .sh-job__steps { display: flex; flex-wrap: wrap; gap: var(--space-half) var(--space-3); margin: 0; padding: 0; list-style: none; }
     .sh-job__steps li { display: inline-flex; align-items: center; gap: var(--space-half); }
     .sh-job__steps .is-done { color: var(--ok-ink); }
-    .sh-job__steps .is-current { color: var(--text); font-weight: var(--fw-strong); }
+    .sh-job__steps [class~="is-current"] { color: var(--text); font-weight: var(--fw-strong); }
     .sh-job__failure { display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-1); }
-    .sh-job__failure .sh-inline { width: 100%; margin: 0; }
-    .sh-job__body > .sh-inline { margin: 0; }
     .sh-job__detail { width: 100%; color: var(--text-muted); font-size: var(--fs-sm); }
     .sh-job__raw { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--fs-xs); }
     .sh-job__actions { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: var(--space-1) var(--space-3); min-width: 0; }
-    .sh-job__actions .sh-btn { max-width: 100%; white-space: normal; text-align: left; }
     .sh-job.is-leaving { pointer-events: none; animation: sh-job-leave var(--dur-leave, var(--dur-fast)) ease-out forwards; }
   }
   @container study (max-width: 560px) {
     :is(.study-app, .study-seat) {
       .sh-job { grid-template-columns: 22px minmax(0, 1fr); padding: var(--space-3); }
       .sh-job__actions { grid-column: 2; justify-content: flex-start; }
-      /* When stacked under the title, a leading quiet button hangs its padding and 1px border so its text aligns with the title. */
-      .sh-job__actions > .sh-btn--quiet:first-child { margin-inline-start: calc(var(--space-3) * -1 - var(--space-half) / 2); }
     }
   }
   @media (prefers-reduced-motion: reduce) {

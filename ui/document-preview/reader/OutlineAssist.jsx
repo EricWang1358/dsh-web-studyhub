@@ -64,30 +64,30 @@ export function OutlineAssistView({ state, saved, stale, missing = 0, variant = 
     <p className="reader-assist__note">{coverageText(state.coverage)}</p>
     <TokenEstimateView state={{ status: 'ready', estimate: state.estimate }} />
     <p className="reader-assist__note">{ui('只调用一次模型；不会改动资料的原文、引用、选区和题目。')}</p>
-    <div className="reader-assist__actions"><Button size="sm" variant="primary" onClick={onRun}>{ui('开始')}</Button><Button size="sm" variant="quiet" onClick={onCancel}>{ui('取消')}</Button></div>
+    <div className="reader-assist__actions"><Button size="sm" variant="primary" className="reader-assist__btn" onClick={onRun}>{ui('开始')}</Button><Button size="sm" variant="quiet" className="reader-assist__btn" onClick={onCancel}>{ui('取消')}</Button></div>
   </div>;
   if (phase === 'running') return <div className="reader-assist" data-phase="running">
     <p className="reader-assist__status" role="status" aria-live="polite">{ui('AI 正在整理目录…可以继续阅读，完成后会提示。')}</p>
     <span className="reader-assist__bar" aria-hidden="true" />
-    <div className="reader-assist__actions"><Button size="sm" variant="quiet" onClick={onCancel}>{ui('取消')}</Button></div>
+    <div className="reader-assist__actions"><Button size="sm" variant="quiet" className="reader-assist__btn" onClick={onCancel}>{ui('取消')}</Button></div>
   </div>;
   if (phase === 'proposal') return <p className="reader-assist__status" role="status">{ui('已生成一份建议目录，请在弹出的窗口里确认。')}</p>;
   if (phase === 'nomodel') return <div className="reader-assist" data-phase="nomodel">
     <ReaderModelGate feature="outline" className="reader-assist__note" />
-    <div className="reader-assist__actions"><Button size="sm" variant="quiet" onClick={onDiscard}>{ui('知道了')}</Button></div>
+    <div className="reader-assist__actions"><Button size="sm" variant="quiet" className="reader-assist__btn" onClick={onDiscard}>{ui('知道了')}</Button></div>
   </div>;
   if (phase === 'empty') return <div className="reader-assist" data-phase="empty">
     <p className="reader-assist__note" role="status">{ui('这份资料里没有可以整理的文字。')}</p>
-    <div className="reader-assist__actions"><Button size="sm" variant="quiet" onClick={onDiscard}>{ui('知道了')}</Button></div>
+    <div className="reader-assist__actions"><Button size="sm" variant="quiet" className="reader-assist__btn" onClick={onDiscard}>{ui('知道了')}</Button></div>
   </div>;
   if (phase === 'rejected') return <div className="reader-assist" data-phase="rejected">
     <InlineMessage tone="error" className="reader-assist__note">{rejectionText(state.code)}</InlineMessage>
     {state.usage && <TokenUsage usage={state.usage} />}
-    <div className="reader-assist__actions"><Button size="sm" onClick={() => onStart(state.mode)}>{ui('重新生成')}</Button><Button size="sm" variant="quiet" onClick={onDiscard}>{ui('关闭')}</Button></div>
+    <div className="reader-assist__actions"><Button size="sm" className="reader-assist__btn" onClick={() => onStart(state.mode)}>{ui('重新生成')}</Button><Button size="sm" variant="quiet" className="reader-assist__btn" onClick={onDiscard}>{ui('关闭')}</Button></div>
   </div>;
   if (phase === 'failed') return <div className="reader-assist" data-phase="failed">
     <InlineMessage tone="error" className="reader-assist__note">{uiFormat('没能完成：{0}', [state.message || ui('出现未知错误')])}</InlineMessage>
-    <div className="reader-assist__actions"><Button size="sm" onClick={() => onStart(state.mode)}>{ui('重试')}</Button><Button size="sm" variant="quiet" onClick={onDiscard}>{ui('关闭')}</Button></div>
+    <div className="reader-assist__actions"><Button size="sm" className="reader-assist__btn" onClick={() => onStart(state.mode)}>{ui('重试')}</Button><Button size="sm" variant="quiet" className="reader-assist__btn" onClick={onDiscard}>{ui('关闭')}</Button></div>
   </div>;
   return <div className="reader-assist" data-phase="idle">
     {saved && <>
@@ -95,22 +95,22 @@ export function OutlineAssistView({ state, saved, stale, missing = 0, variant = 
       {missing > 0 && <InlineMessage tone="warning" className="reader-assist__note">{uiFormat('有 {0} 项在当前版面里找不到，已略过。', [missing])}</InlineMessage>}
       {segmentation && <p className="reader-assist__note" role="status">{uiFormat('已按第 {0} 级分成 {1} 章。', [segmentation.level, segmentation.chapters])}</p>}
       <div className="reader-assist__actions">
-        {onSegment && <Button size="sm" variant="quiet" onClick={onSegment}>{ui('用它重新分段')}</Button>}
-        {onRestoreSegmentation && segmentation && <Button size="sm" variant="quiet" onClick={onRestoreSegmentation}>{ui('恢复自动分段')}</Button>}
-        <Button size="sm" variant="quiet" onClick={() => onStart(saved.mode)}>{ui('重新生成')}</Button>
-        <Button size="sm" variant="quiet" onClick={onRestore}>{ui('恢复自动目录')}</Button>
+        {onSegment && <Button size="sm" variant="quiet" className="reader-assist__btn" onClick={onSegment}>{ui('用它重新分段')}</Button>}
+        {onRestoreSegmentation && segmentation && <Button size="sm" variant="quiet" className="reader-assist__btn" onClick={onRestoreSegmentation}>{ui('恢复自动分段')}</Button>}
+        <Button size="sm" variant="quiet" className="reader-assist__btn" onClick={() => onStart(saved.mode)}>{ui('重新生成')}</Button>
+        <Button size="sm" variant="quiet" className="reader-assist__btn" onClick={onRestore}>{ui('恢复自动目录')}</Button>
       </div>
     </>}
     {!saved && <>
       {stale && <p className="reader-assist__note" role="status">{ui('这份资料已更新；之前为旧版本整理的 AI 目录不再适用。')}</p>}
       {variant === 'dialog'
         ? <div className="reader-assist__actions">
-          <Button variant="primary" icon="sparkle" onClick={() => onStart('chapters')} title={ui('只让 AI 找出章节的起点，比完整目录便宜')}>{ui('让 AI 找出章节（较省）')}</Button>
-          <Button variant="secondary" onClick={() => onStart('outline')}>{ui('让 AI 整理完整目录')}</Button>
+          <Button variant="primary" icon="sparkle" className="reader-assist__btn" onClick={() => onStart('chapters')} title={ui('只让 AI 找出章节的起点，比完整目录便宜')}>{ui('让 AI 找出章节（较省）')}</Button>
+          <Button variant="secondary" className="reader-assist__btn" onClick={() => onStart('outline')}>{ui('让 AI 整理完整目录')}</Button>
         </div>
         : <div className="reader-assist__actions">
-          <Button size="sm" variant="quiet" icon="sparkle" onClick={() => onStart('outline')}>{ui('对自动解析的标题不满意？让 AI 帮你')}</Button>
-          <Button size="sm" variant="quiet" onClick={() => onStart('chapters')} title={ui('只让 AI 找出章节的起点，比完整目录便宜')}>{ui('只分章节')}</Button>
+          <Button size="sm" variant="quiet" icon="sparkle" className="reader-assist__btn" onClick={() => onStart('outline')}>{ui('对自动解析的标题不满意？让 AI 帮你')}</Button>
+          <Button size="sm" variant="quiet" className="reader-assist__btn" onClick={() => onStart('chapters')} title={ui('只让 AI 找出章节的起点，比完整目录便宜')}>{ui('只分章节')}</Button>
         </div>}
     </>}
   </div>;

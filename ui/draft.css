@@ -182,7 +182,7 @@
 @layer study.features {
   :is(.study-app, .study-seat) {
     /* The draft card is a <Panel> (ui-consistency #143): the Panel owns border, radius and background; this only settles the spacing between neighbours. */
-    .draft-card.sh-panel { margin: var(--space-4) 0; padding: var(--space-4) var(--space-5); }
+    .draft-card { margin: var(--space-4) 0; padding: var(--space-4) var(--space-5); }
     .draft-citation-preview {
       flex-direction: column;
       align-items: flex-start;

@@ -144,9 +144,9 @@
       font-size: var(--fs-sm);
       line-height: var(--lh-snug);
     }
-    .tour-pop__note .sh-icon { margin-top: calc(var(--space-half) / 2); color: var(--info-ink); }
+    .tour-pop__note .tour-pop__note-icon { margin-top: calc(var(--space-half) / 2); color: var(--info-ink); }
     .tour-pop__note.is-ready { background: var(--ok-bg); }
-    .tour-pop__note.is-ready .sh-icon { color: var(--ok-ink); }
+    .tour-pop__note.is-ready .tour-pop__note-icon { color: var(--ok-ink); }
     .tour-pop__choices {
       display: flex;
       flex-wrap: wrap;
