@@ -13,7 +13,8 @@ import { planTrip, tripNotice } from './trip.js';
      1. the control is on this page already: light it;
      2. otherwise go to the page: a settings anchor is a settings link (it selects the category), any other page is nav.navigate, as the tour does it;
      3. wait for the anchor (the tour's ANCHOR_WAIT_MS), opening the <details> around it (ui/tour/anchor.js locateAnchor);
-     4. scroll it to the middle of the view, put the focus on it (or its first focusable part) and draw the one-shot ring (FinderRing.jsx);
+     4. scroll it to the middle of the view and put the focus on it (or its first focusable part). No ring is drawn around it: the owner found it
+        superfluous and, with folds and drawers moving things, often in the wrong place (2026-11-05);
      5. say in a toast where the control is when it could not simply be lit. */
 
 /** A fold that was opened draws its content over the length of --dur-slow: the control is scrolled to after that, not while it is still moving. */
@@ -45,18 +46,16 @@ const waitFor = (look, timeout, aborted) => new Promise((resolve) => {
 });
 
 export function useFinder({ nav, settingsEntry, core, tour, rootRef }) {
-  const [open, setOpen] = useState(false), [ring, setRing] = useState(null);
+  const [open, setOpen] = useState(false);
   const trip = useRef(0), latest = useRef({});
   latest.current = { page: nav.page, touring: !!tour.tourStep, open };
   const { notify } = core, { navigate } = nav, { openSettings } = settingsEntry, { startTour } = tour;
 
   const openFinder = useCallback(() => {
     if (latest.current.touring) return;
-    setRing(null);
     setOpen(true);
   }, []);
   const closeFinder = useCallback(() => setOpen(false), []);
-  const clearRing = useCallback(() => setRing(null), []);
 
   /** The root's key handler. */
   const onKeyDown = useCallback((event) => {
@@ -72,7 +71,6 @@ export function useFinder({ nav, settingsEntry, core, tour, rootRef }) {
   /** 带我去. */
   const go = useCallback(async (entry) => {
     setOpen(false);
-    setRing(null);
     const mine = ++trip.current, aborted = () => trip.current !== mine;
     const root = rootRef.current, plan = planTrip(entry, { page: latest.current.page });
     let hit = plan.here ? locateAnchor(root, entry.anchors) : null, linked = false;
@@ -93,7 +91,6 @@ export function useFinder({ nav, settingsEntry, core, tour, rootRef }) {
         // Settings scrolls to the anchor of its own link, but not when the page was already there (no link) and not to a control inside a fold it could not see yet (hit.opened).
         if (!linked || hit.opened) element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
         focusTarget(element);
-        setRing({ key: mine, resolve: () => (element.isConnected ? element : findAnchor(root, entry.anchors)) });
       }
     }
     if (notice) notify(notice);
@@ -102,5 +99,5 @@ export function useFinder({ nav, settingsEntry, core, tour, rootRef }) {
   /** The empty state's way on: the feature tour. */
   const startFinderTour = useCallback(() => { setOpen(false); startTour(); }, [startTour]);
 
-  return { open, ring, openFinder, closeFinder, clearRing, onKeyDown, go, startTour: startFinderTour };
+  return { open, openFinder, closeFinder, onKeyDown, go, startTour: startFinderTour };
 }

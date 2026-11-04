@@ -429,7 +429,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'finder', area: 'settings', title: '找功能', page: null, anchors: ['nav-finder', NAV_MENU],
     aliases: ['搜索', '查找', '找', '搜', 'search', 'find', 'find a feature', 'command palette', 'ctrl k', 'ctrl+k', 'cmd k', '⌘k'],
     path: ['侧栏', '找功能'],
-    what: '输入一个词（中文、英文或常见叫法都行）就能找到功能在哪，选中后「带我去」会切到那一页并标出来。按 Ctrl K（Mac 上 ⌘K），或在没有输入框聚焦时按 /，也能打开。' }),
+    what: '输入一个词（中文、英文或常见叫法都行）就能找到功能在哪，选中后「带我去」会切到那一页，并把焦点放到那个控件上。按 Ctrl K（Mac 上 ⌘K），或在没有输入框聚焦时按 /，也能打开。' }),
 ]);
 
 /** One entry per page of the registry that has a sidebar group or a purpose. */

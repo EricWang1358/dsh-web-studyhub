@@ -1,6 +1,5 @@
-/* ui/finder/finder.css — 找功能 (#653): the sheet, the sidebar row's shortcut hint and the one-shot ring around the control 「带我去」 lands on.
-   Tokens only. The selected row is --bg-selected, never the accent; the ring is the tour's spotlight ring (accent-soft over accent-glow), drawn once, with no
-   dimming of the page; the only things that move are opacity and a scale of the ring. */
+/* ui/finder/finder.css — 找功能 (#653): the sheet and the sidebar row's shortcut hint. 「带我去」 draws no ring (removed 2026-11-05): it scrolls to the
+   control and gives it the focus. Tokens only. The selected row is --bg-selected, never the accent. */
 
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
@@ -122,46 +121,5 @@
     .finder-nav .nav-keys {
       font-size: var(--fs-sm);
     }
-    /* The ring: a fixed layer over the page that takes no pointer events, one box placed with a transform. */
-    .finder-ring-layer {
-      position: fixed;
-      inset: 0;
-      z-index: var(--z-sticky);
-      overflow: hidden;
-      pointer-events: none;
-    }
-    .finder-ring {
-      position: absolute;
-      left: 0;
-      top: 0;
-    }
-    .finder-ring__box {
-      border-radius: var(--radius);
-      box-shadow:
-        0 0 0 2px var(--accent-soft),
-        0 0 0 7px var(--accent-glow);
-    }
-    .finder-ring.is-leaving .finder-ring__box {
-      opacity: 0;
-    }
   }
-  @media (prefers-reduced-motion: no-preference) {
-    :where(.study-app, .study-seat) {
-      .finder-ring__box {
-        animation: finder-ring-in var(--dur-slow) var(--ease-out) both;
-      }
-      .finder-ring.is-leaving .finder-ring__box {
-        animation: finder-ring-out var(--dur-slow) var(--ease) both;
-      }
-    }
-  }
-}
-
-@keyframes finder-ring-in {
-  from { opacity: 0; transform: scale(1.06); }
-  to { opacity: 1; transform: scale(1); }
-}
-@keyframes finder-ring-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
 }
