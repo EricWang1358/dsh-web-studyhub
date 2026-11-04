@@ -38,6 +38,7 @@ Exactly these, and every `oral.*` (the list is `INSTANT_ACTIONS` and `tests/inst
 - `coach.reply`
 - `coach.feedback`
 - `coach.rewrite.retry`
+- `focus.extract`
 - `generate.suggest`
 - `generate.path.suggest`
 - `case.drills`

@@ -45,9 +45,18 @@ function sentences(text) {
   return String(text ?? "").split(/(?<=[。！？.!?\n])/).map((s) => s.trim()).filter((s) => s.length >= 16 && s.length <= 160);
 }
 /** A verbatim passage of at least 12 characters; `index` rotates through the sentences. */
-function quoteFor(source, index) {
+function quoteFor(source, index, focusTopics) {
   const list = sentences(source?.text);
-  if (list.length) return list[index % list.length].slice(0, 90);
+  if (list.length) {
+    if (Array.isArray(focusTopics) && focusTopics.length) {
+      const lowered = focusTopics.map((item) => String(item || "").trim().toLowerCase()).filter(Boolean);
+      const focused = list.filter((sentence) => lowered.some((term) => sentence.toLowerCase().includes(term)));
+      const rest = list.filter((sentence) => !focused.includes(sentence));
+      const ordered = [...focused, ...rest];
+      return ordered[index % ordered.length].slice(0, 90);
+    }
+    return list[index % list.length].slice(0, 90);
+  }
   const text = String(source?.text ?? "").trim();
   const start = Math.max(0, Math.min((index * 97) % Math.max(1, text.length - 60), text.length - 60));
   return text.slice(start, start + 60);
@@ -64,7 +73,7 @@ function planAssigned(request, nextNumber) {
     if (!piece) continue;
     const used = (item.alreadyPlanned || []).map((text) => text.replace(/…$/, ""));
     for (let at = 0, made = 0; made < Number(item.quota) && at < 12; at++) {
-      const n = nextNumber(), quote = quoteFor(piece, n - 1);
+      const n = nextNumber(), quote = quoteFor(piece, n - 1, request.focusTopics);
       if (used.some((text) => quote.startsWith(text))) continue;
       const objective = englishContent(request.language, quote)
         ? `Target #${n}: explain what “${clip(quote, 40)}” establishes and tell it apart from a near miss`
@@ -83,7 +92,14 @@ function planAssigned(request, nextNumber) {
 
 function planTargets(request, nextNumber) {
   if (Array.isArray(request.assignments) && request.assignments.length) return planAssigned(request, nextNumber);
-  const sources = Array.isArray(request.sources) && request.sources.length ? request.sources : [];
+  const rawSources = Array.isArray(request.sources) && request.sources.length ? request.sources : [];
+  const sources = Array.isArray(request.focusTopics) && request.focusTopics.length
+    ? [...rawSources].sort((a, b) => {
+        const terms = request.focusTopics.map((item) => String(item || "").trim().toLowerCase()).filter(Boolean);
+        const hit = (item) => terms.some((term) => `${item?.title || ""}\n${item?.text || ""}`.toLowerCase().includes(term)) ? 0 : 1;
+        return hit(a) - hit(b);
+      })
+    : rawSources;
   const covered = new Set((request.existing || []).map(norm));
   return {
     targets: Array.from({ length: Number(request.count) || 0 }, (_, index) => {
@@ -92,7 +108,7 @@ function planTargets(request, nextNumber) {
       // Skip any target an earlier generation (or an earlier preview run) already used.
       do {
         n = nextNumber();
-        quote = quoteFor(source, n - 1);
+        quote = quoteFor(source, n - 1, request.focusTopics);
         objective = englishContent(request.language, quote)
           ? `Target #${n}: explain what “${clip(quote, 40)}” establishes and tell it apart from a near miss`
           : `目标 #${n}：说清「${clip(quote, 24)}」成立的机制，并与相近说法区分`;
@@ -517,6 +533,15 @@ const HANDLERS = [
     reply: ({ input }) => ({ text: input.instruction ? `预览：按「${input.instruction}」写的一段，关于「${input.words || input.point}」。` : `预览：「${input.words}」的意思是这样的：资料里这一段讲的就是它。`,
       quotes: (input.materials || []).slice(0, 1).map((part) => part.text.slice(0, 40)), extra: ['预览：一个资料以外的补充。'] }) },
   // The importance of each section of a material (lib/section-weights.js): a spread of ratings so a preview shows the plan telling long and important sections from filler.
+  { name: 'focus.extract', match: (s) => s.startsWith('You extract exam focus topics'),
+    reply: ({ prompt, english }) => {
+      const input = payload(prompt);
+      const raw = [input.notes || '', ...(input.materials || []).map((m) => `${m.title || ''}\n${m.excerpt || ''}`)].join('\n');
+      const lines = raw.split(/\n+/).map((line) => line.replace(/^[\s\d.、\-*•#]+/, '').trim()).filter((line) => line.length >= 2 && line.length <= 40);
+      const topics = [...new Set(lines)].slice(0, 8);
+      return { topics: topics.length ? topics : [english ? 'Key focus concept' : '重点概念'],
+        summary: english ? 'Preview extracted focus points.' : '预览：已从提供的说明与资料中提炼重点。' };
+    } },
   { name: 'section.weights', match: (s) => s.startsWith('You rate how much each section of a study material matters'),
     reply: ({ input }) => ({ sections: (input.sections || []).map((section, at) => {
       const importance = [3, 4, 5, 2, 3, 1, 4][at % 7], kind = ['method', 'definition', 'definition', 'example', 'method', 'chatter', 'summary'][at % 7];

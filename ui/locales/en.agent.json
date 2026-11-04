@@ -293,5 +293,18 @@
   "页面：这一页保存的文字在 data 围栏里；这条消息带了图的话，图表、画成图片的公式和排版以图为准。": "Page: the saved text of the page is in the data fence. If this message carries a picture, it is the authority on figures, formulas drawn as pictures and the layout.",
   "页面：这一页没有保存的文字（扫描页或图片页）；这条消息没带图、或你看不了图片时，直接告诉我。": "Page: the page has no saved text (a scanned or picture page); if this message carries no picture, or you cannot read pictures, tell me so directly.",
   "页面：这几页保存的文字在 data 围栏里，每页以 [page N] 开头；这条消息带了图的话，图表、画成图片的公式和排版以图为准。": "Pages: the saved text of the pages is in the data fence, each page starting with [page N]. If this message carries pictures, they are the authority on figures, formulas drawn as pictures and the layout.",
-  "页面：这几页没有保存的文字（扫描页或图片页）；这条消息没带图、或你看不了图片时，直接告诉我。": "Pages: these pages have no saved text (scanned or picture pages); if this message carries no pictures, or you cannot read pictures, tell me so directly."
+  "页面：这几页没有保存的文字（扫描页或图片页）；这条消息没带图、或你看不了图片时，直接告诉我。": "Pages: these pages have no saved text (scanned or picture pages); if this message carries no pictures, or you cannot read pictures, tell me so directly.",
+  "帮我从这些重点图片或说明里整理课程 {0} 的考试重点，存进这门课。": "Help me extract the exam focus topics for the course {0} from these highlight images or notes and save them to the course.",
+  "帮我从这些重点图片或说明里整理课程 {0} 的考试重点存进这门课，再按重点出一组题存成草稿。": "Help me extract the exam focus topics for the course {0} from these highlight images or notes, save them to the course, and generate a draft set of focus questions.",
+  "帮我从这些重点图片或说明里整理考试重点，存到对应的课程里。": "Help me extract the exam focus topics from these highlight images or notes and save them to the right course.",
+  "帮我从这些重点图片或说明里整理考试重点存进课程，再按重点出一组题存成草稿。": "Help me extract the exam focus topics from these highlight images or notes, save them to the course, and generate a draft set of focus questions.",
+  "识图：重点图片已存到工作区（路径见下方 data 围栏），若这条消息附了图可直接结合图片看；看不清或当前模型看不了图时，用已装好的 MinerU（mineru.import）或本机文字识别读取这些路径，不要猜测没读出的字。": "Reading images: the highlight images are saved in the workspace (paths in the data fence below), and if this message carries pictures you may read them directly; when text is unclear or this model cannot read pictures, use installed MinerU (mineru.import) or local OCR on those paths, and never guess unread words.",
+  "识图：重点图片已存到工作区（路径见下方 data 围栏）；能直接看工作区图片就直接逐字转写，看不了图片时用已装好的 MinerU（mineru.import）或本机已有的文字识别工具读取，要装新工具先问我，不要猜测没读出的字。": "Reading images: the highlight images are saved in the workspace (paths in the data fence below); transcribe them word for word if you can read workspace images directly, or read those paths with installed MinerU (mineru.import) or an existing local OCR tool, asking me before installing anything new and never guessing unread words.",
+  "入库：把整理出的重点原文用 source.add 存成这门课的一份重点资料，再用 course.get 读出现有课程信息，把提炼出的简短重点条目合入 focusTopics、把这份资料的 id 合入 guidanceSourceIds，通过 course.save 存回（保留课程原有的 exam 和 plan）。": "Saving focus: save the transcribed highlight notes as a course material with source.add, read the course first with course.get, merge the concise focus topics into focusTopics and that material id into guidanceSourceIds, and save with course.save while keeping any existing exam and plan.",
+  "出题：存好重点后，结合这门课已有的学习资料调用 generate 出一组草稿题给我检查（课程已设 focusTopics 时会自动提高重点占比并加深到应用或分析难度）。": "Questions: once the focus topics are saved, call generate over this course's study materials to make a draft set of questions for me to check (saved focusTopics automatically raise focus coverage and deepen difficulty to application or advanced).",
+  "做完：列出识别并存入 focusTopics 的重点条目、新建资料的标题，以及看不清需要我核对的地方。": "When done: list the focus topics saved into focusTopics, the title of the saved material, and anything unclear that needs my check.",
+  "我的补充说明": "My notes",
+  "目标课程": "Target course",
+  "重点图片路径": "Highlight image paths",
+  "课程已有重点": "Existing focus topics"
 }

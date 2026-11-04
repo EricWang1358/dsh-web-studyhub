@@ -74,6 +74,7 @@ import outlineCopy from './locales/en.outline.json';
 import deleteCopy from './locales/en.delete.json';
 import liveLocal from './locales/en.live-local.json';
 import nextStepCopy from './locales/en.next-step.json';
+import focusCopy from './locales/en.focus.json';
 import appMessages from '../lib/application-messages-en.js';
 
 export const ENGLISH_SOURCES = {
@@ -146,6 +147,7 @@ export const ENGLISH_SOURCES = {
   'en.delete.json': deleteCopy,
   'en.live-local.json': liveLocal,
   'en.next-step.json': nextStepCopy,
+  'en.focus.json': focusCopy,
 };
 
 /** The English of lib/application-messages.js (localizeAppMessage), handed to it once this module is here. */

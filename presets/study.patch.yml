@@ -63,7 +63,11 @@
                 Questions the student already has (a question book, a spreadsheet, a screenshot, a
                 wrong-answer export) are entered as they are with ingest or deck.import: keep their
                 wording and answer keys, mark answers you inferred, and add no new questions on that
-                path.
+                path. Exam focus highlights ("重点", including screenshots staged under
+                studyhub-work/focus-intake/ or pasted scope notes) are transcribed faithfully (with
+                vision, MinerU or local OCR; never guess unread image text) and saved onto the course
+                via source.add plus course.save focusTopics and guidanceSourceIds so StudyHub reviews
+                them more frequently and generates deeper questions.
 
                 You may run commands and read, write and edit files to convert, split, OCR or export
                 material. Write results as new files under studyhub-work/ in the workspace; never

@@ -307,6 +307,18 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
             return false;
           }
         },
+        stageFocusImages: async (files) => {
+          const encoded = await Promise.all((files || []).map((file) => {
+            if (typeof file?.dataUrl === "string") return Promise.resolve({ name: file.name || "focus.png", dataUrl: file.dataUrl });
+            return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve({ name: file?.name || "focus.png", dataUrl: String(reader.result || "") });
+              reader.onerror = () => reject(reader.error || new Error("Failed to read image"));
+              reader.readAsDataURL(file);
+            });
+          }));
+          return call("focus.images.stage", { files: encoded });
+        },
         noteInChat: (text) => {
           try { const actx = ctx.get("sessions")?.scope?.(sessionId); noteInComposer(actx?.get("conversation"), actx, text); } catch { /* the receipt says it too */ }
         },
@@ -368,7 +380,7 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
         },
         };
       },
-      [workspace, catalog, current, sessionId, openView, placement, call],
+      [workspace, catalog, current, sessionId, openView, placement, call, models],
     );
     const seat = (
       <div className="study-seat"><StudyBoundary>

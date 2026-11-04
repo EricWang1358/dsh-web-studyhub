@@ -2,6 +2,13 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 4.3.0 — 2026-11-04
+
+- **You can now add course exam focus highlights—even when all you have are screenshots or photos—and StudyHub schedules them more often and tests them at higher difficulty.** Open **Add exam focus…** from the course switcher on the home desk, **Course settings**, **Generate questions**, or **Exam prep** to drop or paste chat screenshots, whiteboard photos, or scope notes, and toggle **Mark as focus** under **More** on any question during practice:
+  - **Image and text focus intake, including text-only models such as DeepSeek**: when your main-chat model reads images, **Send to the main chat** attaches the screenshots and saves copies in the workspace; when your main-chat model is text-only (such as DeepSeek), StudyHub saves the images into the workspace without attaching pictures that would block sending, so the main chat can read them through MinerU or local OCR and save the focus list for you, or you can click **Combine into PDF for local parser** to import them directly. You can also paste highlight messages or pick existing materials and click **Extract focus with AI**.
+  - **Higher review frequency and first-in-line priority**: focus questions use a higher target recall so their intervals stay tighter (`High-frequency focus review`), take priority in daily rounds, course batches, final-week schedules, study plans, and mock exams, and unlock a **Focus only** link on the home card whenever focus questions are waiting.
+  - **Deeper, harder focus questions**: sections matching course focus topics automatically receive higher question quotas during generation, and focus questions step up to application and advanced multi-condition scenario reasoning with sharper near-miss distractors instead of single-fact recall. Not verified: end-to-end OCR accuracy on low-light angled classroom whiteboard photos inside a live DSH window with MinerU or Tesseract.
+
 ## 4.2.1 — 2026-11-03
 
 - **Reading and practice now show live memory and mastery progress as you study.** Linked passages in the reader shift their underlines, footnote numbers and side-panel marks from new through learning to mastered, returning to reading after a round highlights upgraded outline sections and shows the round's gain in the toolbar, each answered question shows its level promotion, interval growth, stability gauge and credited prerequisites, and both the question card header and the round result screen track before-and-after mastery visually. Not verified: live screen-reader announcements across macOS VoiceOver and Windows NVDA during rapid keyboard answering.

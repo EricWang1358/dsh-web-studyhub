@@ -45,6 +45,7 @@ const FIXTURES = {
   // AI 带学 (skills/study-tutor): one of the shared sentences, no learner data
   'guided.start': { input: { example: 'chapter' }, fenced: [] },
   'reader.page': { input: { title: 'Scheduling', page: 3, text: 'Page 3 explains round robin.', question: 'What does figure 2 show?' }, fenced: ['title', 'text', 'question'] },
+  'course.focus': { input: { course: 'OS', files: ['studyhub-work/focus-intake/b1/01-scope.png'], notes: 'Focus on page replacement', existingTopics: ['Deadlock'], generateAfter: true }, fenced: ['course', 'files', 'notes', 'existingTopics'] },
 };
 // Inside a note on purpose in both languages: the book's own marker for text from outside the materials, in the book's language.
 const KEPT_CHINESE = /（资料以外）/g;
@@ -244,7 +245,7 @@ test('messageParts: the sentence, the learner\'s own words, the notes and the ta
 /* Every StudyHub action a message names (book.read, skeleton.patch, topic.groups.save …) is one the chat can find: in the tool's description or a contract. */
 const KNOWN = `${studyToolDescription}\n${Object.values(libraryContracts).join('\n')}`;
 // File names, and the fields a message reads in a result (groups.groups, groups.ungroupedCount, concepts.missing): not actions.
-const NOT_ACTIONS = /\.(?:md|html|json|txt|pdf)$|^(?:e\.g|i\.e)$|^groups\.(?:groups|ungroupedCount)$|^concepts\.missing$/;
+const NOT_ACTIONS = /\.(?:md|html|json|txt|pdf|png|jpe?g|webp|gif)$|^(?:e\.g|i\.e)$|^groups\.(?:groups|ungroupedCount)$|^concepts\.missing$/;
 const actionsOf = text => [...new Set((text.match(/(?<![\w./-])[a-z][a-zA-Z]*(?:\.[a-z][a-zA-Z]*)+(?![\w/-])/g) || []).filter(name => !NOT_ACTIONS.test(name)))];
 
 test('every action a message names exists in studyToolDescription or the library contracts', () => {

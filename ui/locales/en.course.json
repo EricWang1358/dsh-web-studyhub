@@ -52,7 +52,6 @@
   "添加考试部分": "Add a section",
   "按讲师或题型分几部分时，在这里写下每部分的分值和考查知识点。": "If the paper is split by lecturer or question type, note each part's marks and topics here.",
   "重点知识点": "Focus topics",
-  "复习、出题和案例分析会优先照顾这些知识点。": "Review, question generation and case practice give these topics priority.",
   "填了就会在首页倒数；其余都可以不填。": "Once it is set, the home page counts down to it. Everything else is optional.",
   "{0} 个重点知识点": "{0} focus topics",
   "考官指引 {0} 份": "{0} examiner guidance",

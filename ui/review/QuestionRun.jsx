@@ -85,7 +85,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const { run, entry, showBack, showEn, enBusyKey, teachingBusy, teachingError, choice, isCloze, autopilot, actions } = session;
   const { selected, hint, explain, response, teaching, teachAnswer, clozeValues } = entry;
   const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn } = actions;
-  const { call, busy, openModal, openSettings } = useStudy();
+  const { call, act, busy, openModal, openSettings } = useStudy();
+  const toggleCardFocus = React.useCallback(() => {
+    if (!run?.card?.id) return;
+    const nextFocus = !run.card.focus;
+    act("card.focus", { deckId: run.deckId, cardId: run.card.id, focus: nextFocus }, (res) => {
+      session.patchRun?.((prev) => prev?.card ? { ...prev, card: { ...prev.card, focus: !!res?.focus, focusSource: res?.focus ? "card" : null } } : prev);
+    });
+  }, [act, run?.card?.focus, run?.card?.id, run?.deckId, session]);
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
   const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader } = context;
@@ -233,6 +240,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                   })()}
                 </Badge>
               )}
+              {run.card.focus && <Badge size="sm" tone="accent" className="origin-note">{ui("重点")}</Badge>}
               {run.card.importedFromJson && <Badge size="sm" className="origin-note">{ui("外部导入")}</Badge>}
               {run.card.sourceQa && <Badge size="sm" className="origin-note">{ui("问答")}</Badge>}
               <span>{run.card.topic}</span>
@@ -476,7 +484,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
           onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
           onDerive={() => setAssistMode((m) => (m === "derive" ? "" : "derive"))}
-          onSlay={slayCard} onReviewAction={reviewAct}
+          onSlay={slayCard} onToggleFocus={run.mode !== "exam" ? toggleCardFocus : undefined} onReviewAction={reviewAct}
           onNote={onMakeNote}
           onTask={onMakeTask}
           enOn={enOn}

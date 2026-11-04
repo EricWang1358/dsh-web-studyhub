@@ -36,6 +36,7 @@ import {
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import homeCss from './generate-home.css';
 import formCss from './generate-form.css';
+import focusIntakeCss from './focus-intake.css';
 import CaseCreate from './CaseCreate.jsx';
 import ReferenceQuestions from './ReferenceQuestions.jsx';
 import { referenceSelection } from './reference-questions.js';
@@ -67,9 +68,10 @@ export default function Generate({
   initialGenerationMode = null,
 }) {
   useInjectCss(homeCss, "study-generate-home");
-  const { notify, call, busy, act, openSettings: openSettingsSection } = useStudy();
+  const { notify, call, busy, act, openSettings: openSettingsSection, openModal } = useStudy();
   const { send } = useHandOff();
   useInjectCss(formCss, "study-generate-form");
+  useInjectCss(focusIntakeCss, "study-focus-intake");
   const [sourceScope, setSourceScope] = usePageScope(data.root, 'generate-sources', data.focus?.course ?? '*');
   // Whether each material's search index is built: the picker rows say so (and follow a running build).
   const [indexCoverage, , indexStatus] = useIndexCoverage(call);
@@ -163,7 +165,10 @@ export default function Generate({
   // The case form opens with the materials ticked on this tab (its own selection when it comes from the reader): the learner already chose them, and the form says so.
   const carried = caseEvidence(data.sources, referenceSourceIds).filter((source) => selectedSources.includes(source.id)).map((source) => source.id);
   const caseStart = caseInitial?.sourceIds ? caseInitial : { ...(carried.length ? { sourceIds: carried, broughtOver: carried.length, ...(generationCourse ? { course: generationCourse } : {}) } : {}), ...caseInitial };
-  const caseExam = courseHasCaseExam((data.courses || []).find((course) => course?.name === generationCourse));
+  const activeCourseRecord = (data.courses || []).find((course) => course?.name === generationCourse);
+  const activeFocusCount = activeCourseRecord?.focusTopics?.length || 0;
+  const openFocusDialog = () => (setModal || openModal)?.({ type: 'focusIntake', course: generationCourse || '' });
+  const caseExam = courseHasCaseExam(activeCourseRecord);
   // What the chosen 覆盖强度 means for the chosen materials: the backend's plan, priced from the real prompts (lib/token-estimate.js), asked once the choice settles.
   const level = levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), custom = customCountOf(gen);
   const estimateRequest = estimateRequestOf(gen, { course: generationCourse, sourceIds: selectedSources, reasoningEffort });
@@ -234,6 +239,16 @@ export default function Generate({
               <div className="generate-plan" data-generate-plan>
                 <p className="generate-plan__line">{planLine({ kinds: kindsOfForm(gen), level, custom: !!custom, course: generationCourse })}</p>
                 <Button variant="link" size="sm" data-open-settings="settings-generation" onClick={openGenerationSettings}>{ui("前往设置")}</Button>
+              </div>
+              <div className="generate-focus-bar" data-generate-focus>
+                <p className="generate-focus-bar__text">
+                  {activeFocusCount > 0
+                    ? uiFormat("当前课程已设 {0} 个重点知识点：相关章节自动提高题量配额，重点题加深为应用 / 进阶难度。", [activeFocusCount])
+                    : ui("手上有老师划的重点图或范围？先录入重点，出题会自动提高重点占比并加深难度。")}
+                </p>
+                <Button variant="link" size="sm" lock={busy} onClick={openFocusDialog}>
+                  {activeFocusCount > 0 ? ui("修改重点") : ui("录入重点…")}
+                </Button>
               </div>
               {caseExam && <p className="generate-case-hint">{ui("这门课考案例题，可以切到「案例分析题」出题。")}{" "}
                 <Button variant="link" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></p>}

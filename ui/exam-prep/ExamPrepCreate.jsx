@@ -41,7 +41,7 @@ export function useBuildCheck(call, request, enabled, delay = 350) {
 const LEAVING_MS = 600;
 
 export default function ExamPrepCreate({ data, initial, initialMore, onBack, onStarted, openSettings, openImport }) {
-  const { call, act, busy } = useStudy();
+  const { call, act, busy, openModal } = useStudy();
   const [form, setForm] = useState(initial);
   const [more, setMore] = useState(() => initialMore ?? hasMoreValues(initial));
   const [error, setError] = useState('');
@@ -108,6 +108,13 @@ export default function ExamPrepCreate({ data, initial, initialMore, onBack, onS
               {openImport && <>{' '}<Button variant="link" size="sm" lock={busy} onClick={() => importAs('past-paper')}>{ui('导入样卷')}</Button></>}
             </p>
           )}
+          <p className="exam-prep-docs__none">
+            {ui('手上有老师发的重点截图或划重点消息？')}
+            {' '}
+            <Button variant="link" size="sm" lock={busy} onClick={() => openModal({ type: 'focusIntake', course: form.course || '' })}>
+              {ui('录入课程重点…')}
+            </Button>
+          </p>
           {pool.length ? (
             <DocTable items={pool} picks={form.picks} suggestions={suggestions} sources={data.sources} course={form.course} known={known}
               courses={data.focus?.courses} disabled={busy}
