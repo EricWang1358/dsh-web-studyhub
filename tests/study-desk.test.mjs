@@ -82,7 +82,7 @@ test("a half-done run from another course still takes the card, and says which c
   const html = render({ decks: [deck, redis], progress: { ...progress, d2: progress.d1 }, runs,
     lastRun: { id: "redis-run", index: 2, total: 10, title: "Redis 与缓存" } });
   assert.match(html, /后端面试八股 › Redis 与缓存 · 已做到第 3 \/ 10 题/);
-  assert.match(html, /<span class="eyebrow">继续上次学习<\/span><strong>行为型模式<\/strong>/,
+  assert.match(html, /<span class="eyebrow resume__eyebrow">继续上次学习<\/span><strong>行为型模式<\/strong>/,
     "a run inside the heading's course needs no label");
 });
 
