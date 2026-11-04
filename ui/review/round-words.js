@@ -4,7 +4,7 @@ import { ui, uiFormat } from '../i18n.js';
    the total is the questions the round started with and never grows; a question asked again after a wrong answer is a re-ask (再练), counted by itself. */
 
 /** The run's position, or the plain one for a run that carries none (a mock exam, a run from an older host): index and total as they are. */
-export const positionOf = (run) => run?.position || { total: run?.total ?? 0, at: (run?.index ?? 0) + 1, retries: 0, retryAt: 0, last: !!run && run.index === run.total - 1 };
+export const roundAt = (run) => run?.position || { total: run?.total ?? 0, at: (run?.index ?? 0) + 1, retries: 0, retryAt: 0, last: !!run && run.index === run.total - 1 };
 
 /** `{ main, note }`: 「2 / 4」 and, while a re-ask waits, 「稍后再练 1 题」; on the re-ask itself 「再练 1 / 1」. */
 export function roundWords(position) {

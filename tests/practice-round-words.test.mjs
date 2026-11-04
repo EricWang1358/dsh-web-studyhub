@@ -7,7 +7,7 @@ import { loadUi } from "./helpers/ui-module.mjs";
 /* #660 (the counter and the re-ask), #672 (feedback in plain words, inside the card), #673 (every tick of the rail says what it is). */
 
 const m = await loadUi(`
-  export { positionOf, roundWords, tickWords } from './ui/review/round-words.js';
+  export { roundAt, roundWords, tickWords } from './ui/review/round-words.js';
   export { NextDue, nextDueWhen } from './ui/NextDue.jsx';
   export { default as ReviewNavigator } from './ui/ReviewNavigator.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
@@ -25,9 +25,9 @@ test("#660: the counter is 2 / 4 whatever a wrong answer queues, and the re-ask 
 });
 
 test("#660: a run without a position (a mock exam, an older host) shows its own index and total", () => {
-  assert.deepEqual(m.positionOf({ index: 1, total: 5 }), { total: 5, at: 2, retries: 0, retryAt: 0, last: false });
-  assert.equal(m.positionOf({ index: 4, total: 5 }).last, true);
-  assert.equal(m.positionOf({ index: 0, total: 5, position: { total: 4, at: 1, retries: 1, retryAt: 0, last: false } }).total, 4, "the round's position wins");
+  assert.deepEqual(m.roundAt({ index: 1, total: 5 }), { total: 5, at: 2, retries: 0, retryAt: 0, last: false });
+  assert.equal(m.roundAt({ index: 4, total: 5 }).last, true);
+  assert.equal(m.roundAt({ index: 0, total: 5, position: { total: 4, at: 1, retries: 1, retryAt: 0, last: false } }).total, 4, "the round's position wins");
 });
 
 test("#660: English words", () => {

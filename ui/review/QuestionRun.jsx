@@ -30,7 +30,7 @@ import { formatGap } from "../format.js";
 import { resolveBookSettings } from "../../lib/book-settings.js";
 import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
-import { positionOf, roundWords } from "./round-words.js";
+import { roundAt, roundWords } from "./round-words.js";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -162,7 +162,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   };
   const cardNotes = data?.noteBadges?.[run.card?.id] || [];
   // The round's own size and the re-ask, said by one function (the round model puts `position` on the run, #660).
-  const position = positionOf(run), words = roundWords(position);
+  const position = roundAt(run), words = roundWords(position);
   const prereqStrip = run.prerequisites?.length > 0 && !run.complete && (
     <details className="prereq-strip">
       <summary>

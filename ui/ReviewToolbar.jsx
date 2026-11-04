@@ -3,7 +3,7 @@ import React from "react";
 import { Button, Menu } from "./components/index.js";
 import { ReadingSettingsDialog } from "./reading-settings/ReadingSettings.jsx";
 import { useStudy } from "./study-context.jsx";
-import { positionOf } from "./review/round-words.js";
+import { roundAt } from "./review/round-words.js";
 
 const NEXT_HINT_ID = "review-next-hint";
 
@@ -20,7 +20,7 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
   const needsAnswer = !run.feedback && run.mode !== "exam";
   const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
   const exam = run.mode === "exam";
-  const last = positionOf(run).last;
+  const last = roundAt(run).last;
   const more = [
     { heading: true, label: ui("显示与节奏") },
     !exam && { id: "en", label: ui("显示英文"), checked: !!enOn, disabled: !!enBusy && !enOn, hint: enBusy ? "EN…" : undefined,
