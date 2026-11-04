@@ -42,7 +42,7 @@ const LEAVES = new Set(items.map(item => item.id));
 test('the paper questions: each place once, in paper order, with the label printed before it, its paper and the points that hold it', () => {
   const questions = paperQuestions(items, { papers, byId, titles });
   assert.deepEqual(questions.map(q => [q.title, q.label]), [['SA 2025 样卷', 'Q1'], ['SA 2025 样卷', 'Q2'], ['SA 2025 样卷', 'Q3'],
-    ['SA 2024 样卷', 'Question 1 (a)'], ['SA 2024 样卷', '(b)'], ['SA 2024 样卷', 'Question 2']]);
+    ['SA 2024 样卷', 'Question 1 (a)'], ['SA 2024 样卷', 'Question 1 (b)'], ['SA 2024 样卷', 'Question 2']], 'a bare (b) takes the number of the question before it');
   assert.deepEqual(questions[0].leaves, ['n1', 'n2'], 'one question, two points: both linked');
   assert.equal(new Set(questions.map(q => q.id)).size, 6, 'a stable id per question');
   assert.match(questions[0].text, /^Compare an API gateway .*\(10 marks\)$/, 'the text runs to the end of the question, not into the next one');
@@ -59,7 +59,7 @@ test('question types: the command word and the chapter, cheaply; a big group spl
   assert.equal(familyOf('The shop sells shoes.'), 'other');
   const questions = paperQuestions(items, { papers, byId, titles }), types = groupQuestions(questions);
   assert.deepEqual(types.map(type => [type.family, type.chapter, type.questions.map(q => q.label)]), [
-    ['compare', 0, ['Q1', 'Question 1 (a)']], ['calculate', 0, ['(b)']], ['explain', 1, ['Q2', 'Question 2']], ['design', 1, ['Q3']]]);
+    ['compare', 0, ['Q1', 'Question 1 (a)']], ['calculate', 0, ['Question 1 (b)']], ['explain', 1, ['Q2', 'Question 2']], ['design', 1, ['Q3']]]);
   const many = Array.from({ length: 11 }, (_, at) => ({ id: `q${at}`, text: `Explain thing ${at}.`, chapter: 0, leaves: ['n1'] }));
   assert.deepEqual(groupQuestions(many, { per: 4 }).map(type => type.questions.length), [4, 4, 3], 'a type holds at most `per` questions');
   const spread = Array.from({ length: 6 }, (_, at) => ({ id: `q${at}`, text: at % 2 ? `Explain ${at}.` : `Compare ${at}.`, chapter: at, leaves: ['n1'] }));

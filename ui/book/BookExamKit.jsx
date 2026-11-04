@@ -40,7 +40,7 @@ function Card({ type, onGo }) {
       <Template text={type.template} />
       {type.fills.length > 0 && <>
         <h4 className="book-kit__head">{ui('每道真题的填法')}</h4>
-        <ul className="book-kit__fills">{type.fills.map(fill => <Fill key={fill.ref} fill={fill} />)}</ul>
+        <ul className="book-kit__fills">{type.fills.map((fill, at) => <Fill key={`${at}|${fill.ref}`} fill={fill} />)}</ul>
       </>}
       {type.hids.length > 0 && <p className="book-kit__where">{ui('知识点')} <Codes hids={type.hids} onGo={onGo} /></p>}
     </article>
