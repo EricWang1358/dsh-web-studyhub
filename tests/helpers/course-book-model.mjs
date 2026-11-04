@@ -11,15 +11,21 @@ export const INVENTED = 'This sentence is not written in any of the materials at
 /** The first words of a text, cut at a word: what a model copies as a quote. */
 const opening = text => { const words = text.replace(/\s+/g, ' ').trim().split(' '); let quote = ''; for (const word of words) { if ((`${quote} ${word}`).length > 60) break; quote = `${quote} ${word}`.trim(); } return quote; };
 
+/** The 术语卡 of a section (#710): one per must item it explains, its initials as the other name, related to the next item and opposite a concept outside the list. */
+const cardsOf = items => items.filter(item => item.priority === 'must').map((item, at, list) => ({ item: item.id, name: item.name,
+  alt: item.name.split(/\s+/).map(word => word[0]).join('').toUpperCase(), plain: `${item.name} in one plain sentence: ${item.gist || 'what it means'}.`,
+  pitch: `${item.name} is defined in the course as ${item.gist || 'a key idea'}.`,
+  relations: [...(list[at + 1] ? [{ kind: 'related', item: list[at + 1].id }] : []), { kind: 'opposite', name: `Not ${item.name}` }] }));
+
 /** A section that explains the given checklist items, with a lead-in and a lead-on, a mark on the first statement and its quote. */
-function section(data, items, { invent }) {
+function section(data, items, { invent, cards = true }) {
   const point = data.point, lines = [];
   if (point.before) lines.push(`After ${point.before} comes ${point.title}.`);
   lines.push(`${point.title}, explained for a beginner with $x^2$ [1].${invent ? ' A claim that rests on nothing [2].' : ''}`);
   for (const item of items) lines.push(`**${item.name}**: ${item.gist || 'what it means'}; this is how it is used.`);
   lines.push('A general intuition the materials do not give （资料以外）.');
   if (point.after) lines.push(`That leads on to ${point.after}.`);
-  return { text: lines.join('\n\n'), covered: items.map(item => ({ id: item.id, where: item.name })),
+  return { text: lines.join('\n\n'), covered: items.map(item => ({ id: item.id, where: item.name })), ...(cards ? { cards: cardsOf(items) } : {}),
     quotes: [{ n: 1, ref: 'S1', quote: opening(data.pages[0]?.text ?? '') }, ...(invent ? [{ n: 2, ref: 'S1', quote: INVENTED }] : [])] };
 }
 
@@ -35,11 +41,11 @@ const examAnswer = data => ({ leaves: data.leaves.map(leaf => ({ id: leaf.id, no
 /**
  * The fake model. Outline options as outlineModel; `invent`: each section also cites a quote that is in no material; `skip`: point titles the writer answers
  * with no text (the point fails); `omit`: how many must items the writer leaves out of each section; `stubborn`: point titles whose repair leaves them out
- * again (the point ends short); `unsupported`: point titles the reviewer always finds an unsupported claim in; `renameMap`: the outline's order gives every
+ * again (the point ends short); `cards`: the writer also returns 术语卡 (default; false: a writer that returns none); `unsupported`: point titles the reviewer always finds an unsupported claim in; `renameMap`: the outline's order gives every
  * leaf a new title; `junk(call, calls)`; `held`: { at | stage, gate }; `fail(call, calls)`: throw.
  */
-export function bookModel({ invent = false, skip = [], omit = 0, stubborn = [], unsupported = [], renameMap = false, junk, held, fail, ...outline } = {}) {
-  const base = outlineModel(outline), calls = [], opts = { invent, skip, omit, stubborn, unsupported, renameMap };
+export function bookModel({ invent = false, skip = [], omit = 0, stubborn = [], unsupported = [], renameMap = false, cards = true, junk, held, fail, ...outline } = {}) {
+  const base = outlineModel(outline), calls = [], opts = { invent, skip, omit, stubborn, unsupported, renameMap, cards };
   const complete = async (system, prompt, request) => {
     const data = requestData(prompt), call = { stage: data.stage, data, request, system, prompt };
     calls.push(call);
@@ -57,7 +63,7 @@ export function bookModel({ invent = false, skip = [], omit = 0, stubborn = [], 
       if (data.stage === 'review') return JSON.stringify(review(data, opts));
       if (data.stage === 'repair') {
         const keep = opts.stubborn.includes(data.point.title) ? all.filter(item => !data.missing.includes(item.id)) : all;
-        return JSON.stringify(section(data, keep, { invent: false }));
+        return JSON.stringify(section(data, keep, { invent: false, cards: opts.cards }));
       }
       if (data.stage === 'place') return JSON.stringify({ places: data.items.map(item => ({ item: item.id, point: 'k1' })) });
       return JSON.stringify(examAnswer(data));
