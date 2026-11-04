@@ -19,10 +19,10 @@ const RUNTIME = SWITCH_MODE === 'runtime';
 const ID = 'saved-class-0001';
 const SENTENCES = ['Transactions preserve consistency across related database changes.', 'Partitioning splits one big table into smaller physical pieces by a chosen key.'];
 const calls = n => ({ uncachedInputTokens: n * REPORTED.uncachedInputTokens, outputTokens: n * REPORTED.outputTokens, cacheReadTokens: 0, cacheWriteTokens: 0, calls: n });
-async function savedClass(t, { sentences = SENTENCES, ...options } = {}) {
+async function savedClass(t, { sentences = SENTENCES, polished = false, ...options } = {}) {
   const log = [], notices = [];
   const lib = await library(t, { settings: { textProvider: 'host' }, complete: hostModel(log, options.model), notify: notice => notices.push(notice), ...options.library });
-  await writeSaved(lib.root, { id: ID, title: 'Databases week 5', course: 'Databases', vocabulary: ['partition'],
+  await writeSaved(lib.root, { id: ID, title: 'Databases week 5', course: 'Databases', vocabulary: ['partition'], ...(polished ? { correction: { coveredThrough: sentences.length } } : {}),
     segments: sentences.map((en, index) => ({ id: index + 1, t: index * 5000, en, zh: `译：${en}`, zhState: 'done' })) });
   return { ...lib, log, notices };
 }
@@ -42,8 +42,9 @@ test('a live class that cannot be saved is refused before any job record, model 
 });
 
 // A class the correction left without notes (the fake class here was never corrected) gets class notes from its transcript: the one model request of a quick save.
+// (A class whose polish has not reached every sentence is saved by a job that finishes it first: tests/live-save-finish.test.mjs.)
 test('quick save is synchronous: no job, no letter, no notice, one model request for the class notes; the same class saves to the same ids', async t => {
-  const lib = await savedClass(t);
+  const lib = await savedClass(t, { polished: true });
   const first = await lib.service.call('live.save', { id: ID });
   assert.deepEqual([first.proofread, first.sourceIds.length], [false, 2]);
   assert.match(first.noteSourceId, /^live-saved-cl-notes-[0-9a-f]{8}$/);
