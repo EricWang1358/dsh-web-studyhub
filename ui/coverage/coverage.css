@@ -47,7 +47,6 @@
     .cov-run { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
     .cov-run > * { min-width: 0; margin: 0; }
     /* What the draft holds and which sections have no question: the SHORTFALL (lib/shortfall.js), the same words as the home row and the 任务 console. */
-    .cov-run__counts { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-run__line { font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-run__stop, .cov-run__hint { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .cov-run[data-run-state='interrupted'] .cov-run__line, .cov-run[data-run-state='stopped'] .cov-run__line { color: var(--warn-ink, var(--text)); }
@@ -122,7 +121,6 @@
     .cov-strength__input--budget { width: 9em; font-variant-numeric: tabular-nums; }
     .cov-strength__unit { color: var(--text-muted); font-size: var(--fs-sm); }
     /* ── Why a section has the questions it has (the plan of the draft) ───── */
-    .cov-summary__plan { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-list__why { display: block; color: var(--text-dim); font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     /* ── In a part of a question run (the 任务 console) ────────────────── */
     .tc-cover { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-1-5); min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
