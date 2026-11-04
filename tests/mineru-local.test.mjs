@@ -57,11 +57,12 @@ test('installed, service running, never set up: models are needed, and the next 
   assert.equal(detected.modelsDownloaded, false);
 });
 
-test('only read-only commands are run to find out: --version, server status first, then config get', async t => {
+test('only read-only commands are run to find out: --version and server status first (together, either order), then config get', async t => {
   const fake = await fakeCli(t, { mode: 'managed', tier: 'basic', running: true });
   await detectLocal({ cli: fake.cli, home: fake.dir });
   const calls = (await fake.log()).map(entry => entry.argv.slice(0, 3).join(' '));
-  assert.deepEqual(calls.slice(0, 2), ['--version', 'server status'], 'whether the service runs is asked before its settings are');
+  // The two probes run at the same time (#683), so which one the fake CLI logs first is up to the scheduler; both come before any settings read.
+  assert.deepEqual(calls.slice(0, 2).sort(), ['--version', 'server status'], 'whether the service runs is asked before its settings are');
   assert.deepEqual([...calls].sort(), ['--version', 'config get parse_server.local.managed_tier', 'config get parse_server.local.mode', 'server status'].sort());
   assert.deepEqual((await fake.state()).running, true, 'nothing was started or changed');
 });
