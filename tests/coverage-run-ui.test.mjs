@@ -184,13 +184,14 @@ test('the draft page: where the run is, why it stopped, the choice 自动补到�
   const view = { status: 'ok', canTopUp: true, coverage: { percentLeaves: 9, leaves: 81, covered: 7, units: 'part', plannedFailed: 0, neverPlanned: 74, recorded: true }, round: { sections: 6, questions: 24, picks: [], plannedFailed: 0, neverPlanned: 6, left: 0, rounds: 1, limit: 30 } };
   const waiting = draft(['done', 'pending', 'pending'], { jobId: 'run-1', autoComplete: false, state: 'waiting', tokensUsed: 400_000, startedAt: at(0), updatedAt: at(100) });
   let html = render(React.createElement(m.RunPanel, { draft: waiting, view, jobs: [] }));
-  assert.match(text(html), /第 1 轮完成，还有 2 轮 · 覆盖 9% · 已用 400K tok/);
+  assert.match(text(html), /第 1 轮完成，还有 2 轮 · 已用 400K tok/, 'the run line has rounds and tokens; the coverage is said once, by the summary above it (#663)');
+  assert.doesNotMatch(text(html), /覆盖 9%/);
   assert.match(html, /data-run-auto/);
   assert.match(text(html), /勾选后，剩下的 2 轮一轮接一轮自动做完；可以随时暂停，或停在这里/);
   assert.doesNotMatch(html, /checked/, 'a run that waits is not going on by itself');
   const stopped = draft(['done', 'failed', 'pending'], { jobId: 'run-1', autoComplete: true, state: 'stopped', tokensUsed: 900_000, startedAt: at(0), updatedAt: at(100), stop: { reason: 'budget', round: 2 } });
   html = render(React.createElement(m.RunPanel, { draft: stopped, view, jobs: [] }));
-  assert.match(text(html), /停在第 1 轮之后 · 覆盖 9%/);
+  assert.match(text(html), /停在第 1 轮之后/);
   assert.match(text(html), /用到了你设的花费上限，在第 2 轮之后停下；已通过的题都保留。/);
   const live = job({ draftId: 'd1' });
   html = render(React.createElement(m.RunPanel, { draft: draft(['done', 'done', 'running', ...Array(9).fill('pending')], { jobId: 'run-1', autoComplete: true, state: 'running' }), view, jobs: [live] }));
@@ -199,15 +200,16 @@ test('the draft page: where the run is, why it stopped, the choice 自动补到�
   assert.doesNotMatch(text(html), /勾选后/);
   const status = render(React.createElement(m.CoverageTopUp, { draft: draft(['done', 'done', 'running']), view, jobs: [live] }));
   // The line is the console's (round, tokens, estimate); the coverage in it is the page's own bar (the view's 9%), not the job's copy (31%, refreshed only every few seconds): two numbers on one screen never differ.
-  assert.match(text(status), /第 3\/12 轮 · 覆盖 9% · 已用 1\.2M tok/, 'while it runs the status is the console\'s line');
+  assert.match(text(status), /第 3\/12 轮 · 已用 1\.2M tok/, 'while it runs the status is the console\'s line, without the coverage the summary above says');
+  assert.doesNotMatch(text(status), /覆盖 9%/);
   const done = draft(['done', 'done', 'done'], { jobId: 'run-1', autoComplete: true, state: 'complete', tokensUsed: 1_300_000, startedAt: at(0), updatedAt: at(100), stop: { reason: 'complete', round: 3 } });
   html = render(React.createElement(m.RunPanel, { draft: done, view, jobs: [] }));
-  assert.match(text(html), /共 3 轮 · 覆盖 9% · 共用 1\.3M tok/);
+  assert.match(text(html), /共 3 轮 · 共用 1\.3M tok/);
   assert.doesNotMatch(html, /data-run-auto/, 'nothing left to run: no choice');
   assert.equal(render(React.createElement(m.RunPanel, { draft: { ...waiting, editorial: { ...waiting.editorial, coverageSpec: undefined } }, view, jobs: [] })), '', 'a draft without a plan has no run');
   inLanguage('en', () => {
     const english = render(React.createElement(m.RunPanel, { draft: waiting, view, jobs: [] }), { language: 'en' });
-    assert.match(text(english), /Round 1 is done, 2 more to go · Covered 9% · 400K tok used/);
+    assert.match(text(english), /Round 1 is done, 2 more to go · 400K tok used/);
     assert.match(text(english), /Finish automatically/);
     assert.doesNotMatch(text(english), han);
   });

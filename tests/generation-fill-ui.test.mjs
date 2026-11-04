@@ -43,7 +43,8 @@ test('the one top-up says before it starts how many sections it covers, which of
   withView();
   const out = page(draft());
   const said = text(out);
-  assert.match(said, /覆盖 2\/12 个小节（17%） · 1 个计划了没出成 · 9 个没计划到/);
+  assert.match(said, /覆盖 2\/12 个小节（17%）/);
+  assert.match(said, /计划了没出成 1.*没计划到 9/, 'how the rest splits is the bar\'s legend, not a second line of the figure (#663)');
   // ONE sentence: what the next round covers (the old 「这一轮补 N 个部分，约 M 题 / 其中… / 另外…」 is gone); the draft has no round of a plan, so nothing is left after it.
   assert.match(said, /下一轮补 10 个小节/);
   assert.doesNotMatch(said, /这一轮补|按原来的考点重写/);
@@ -54,7 +55,7 @@ test('the one top-up says before it starts how many sections it covers, which of
   assert.match(out, /data-token-estimate/, 'the estimate of exactly this request is under the button');
   const english = text(dropData(page(draft(), {}, {}, 'en')));
   assert.doesNotMatch(english.replaceAll('第1步 架构思维', 'TITLE'), han);
-  assert.match(english, /Covered 2\/12 sections \(17%\) · 1 planned but not produced · 9 never planned/);
+  assert.match(english, /Covered 2\/12 sections \(17%\)/);
   assert.match(english, /The next round covers 10 sections/);
   assert.match(english, /Add questions for the uncovered parts/);
 });
@@ -64,7 +65,8 @@ test('a round that does not reach everything says how much is left and how many 
   const view = withView(draftView({ material: big, covered: ['r1.p1'], failed: [] }));
   assert.deepEqual([view.round.sections, view.round.left, view.round.rounds], [30, 50, 3]);
   const out = page(draft());
-  assert.match(text(out), /覆盖 1\/81 个小节（1%） · 80 个没计划到/);
+  assert.match(text(out), /覆盖 1\/81 个小节（1%）/);
+  assert.match(text(out), /没计划到 80/);
   assert.match(text(out), /下一轮补 30 个小节，还剩 50 个/);
   assert.doesNotMatch(text(out), /一轮补不完|约还要/, 'the competing sentence about rounds is gone: the next-round sentence says what is left');
   assert.match(text(dropData(page(draft(), {}, {}, 'en'))), /The next round covers 30 sections; 50 left after it/);
@@ -74,10 +76,11 @@ test('an old draft with no plans says 没有记录 instead of pretending to know
   const old = withView(draftView({ covered: ['r1.p1'], failed: [], recorded: false }));
   assert.equal(old.coverage.recorded, false);
   const out = text(page(draft()));
-  assert.match(out, /覆盖 1\/12 个小节（8%） · 11 个没有记录/);
+  assert.match(out, /覆盖 1\/12 个小节（8%）/);
+  assert.match(out, /没有记录 11/);
   assert.doesNotMatch(out, /没计划到/, 'nothing is said about what was planned when no plan was kept');
   const english = text(dropData(page(draft(), {}, {}, 'en')));
-  assert.match(english, /11 with no plan on record/);
+  assert.match(english, /No plan on record 11/);
 });
 
 test('every part covered: the top-up says so and offers nothing to press', () => {

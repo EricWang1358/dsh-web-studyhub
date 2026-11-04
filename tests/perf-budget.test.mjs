@@ -8,6 +8,7 @@ import { courseKey } from "../lib/courses.js";
 import { buildCompactScene } from "../lib/study-scene.js";
 import { seedLibrary } from "../scripts/qa/perf-seed.mjs";
 import { Probe, settledMemory } from "../scripts/qa/perf-probe.mjs";
+import { fingerprintDiff } from "./helpers/fingerprint-diff.mjs";
 
 /* Performance budgets on a deterministic synthetic library (scripts/qa/perf-seed.mjs). They count work, not time:
    JSON parsed and written, structuredClone calls and characters copied, bytes sent, and heap growth after a collection.
@@ -77,7 +78,7 @@ test("an unchanged poll costs a stat, not a rebuild (poll budget)", async (t) =>
   const first = await f.service.call("snapshot");
   await f.probe.measure(() => f.service.call("snapshot", { since: first.fingerprint }));
   const { value, counts } = await f.probe.measure(() => f.service.call("snapshot", { since: first.fingerprint }));
-  assert.equal(value.unchanged, true);
+  assert.equal(value.unchanged, true, fingerprintDiff(first.fingerprint, value.fingerprint));
   t.diagnostic(`unchanged poll: ${JSON.stringify(counts)}`);
   assert.equal(counts.jsonParseChars, 0, "an unchanged poll must not parse anything");
   assert.ok(counts.structuredCloneCalls <= 8, `an unchanged poll made ${counts.structuredCloneCalls} structuredClone calls; budget 8`);

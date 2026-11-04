@@ -33,7 +33,7 @@ const ALL = { part: () => ui('每个小节都有题了。'), page: () => ui('每
   window: () => ui('每个片段都有题了。'), section: () => ui('每个小节都有题了。') };
 export const allCoveredText = (units) => (ALL[units] || ALL.section)();
 
-/** 「覆盖 7/80 个小节（9%）」 */
+/** 「覆盖 7/80 个小节（9%）」: THE statement of how much of the material has a question, written once per page by ui/coverage/Coverage.jsx CoverageFact (what is left out is named by shortfallLine, the states by the bar's legend). */
 export const coverageHead = (c) => uiFormat('覆盖 {0}/{1}（{2}%）', [c.covered, countOf(c.units, c.leaves), c.percentLeaves]);
 
 /** 「3 个计划了没出成」, 「70 个没计划到」: the rest of the line. A draft from before plans were kept says 「没有记录」 for what it cannot tell. */
@@ -298,11 +298,12 @@ export const waitingText = (facts) => uiFormat('第 {0} 轮完成，还有 {1} �
  * where they are instead of the round that is being made. `interrupted`: the host stopped while it ran (the job is restored with 接着做). `forecast` (runForecast): the console says what is left from the
  * run's own progress (forecastText) instead of the projection of the rounds done; without one (the home row) it is the projection. 已用 is runFacts' tokensUsed: a job's own tokens on the line of a job (the same
  * number as its usage), the run's on the line of a draft; a job that continues a run that spent tokens before it says 「本任务已用」 (`ownTokens`), so it is never read as the run's.
+ * `cover: false`: the page already says the coverage once (ui/coverage/CoverageFact.jsx), so the line leaves the figure out.
  */
-export function runLine(facts, { interrupted = false, forecast } = {}) {
+export function runLine(facts, { interrupted = false, forecast, cover: withCover = true } = {}) {
   if (!facts?.total) return '';
   const tokens = formatCompactTokens(Math.round(facts.tokensUsed || 0));
-  const cover = Number.isFinite(facts.percent) ? uiFormat('覆盖 {0}%', [facts.percent]) : '', used = facts.tokensUsed > 0 ? uiFormat(facts.ownTokens ? '本任务已用 {0} tok' : '已用 {0} tok', [tokens]) : '';
+  const cover = withCover && Number.isFinite(facts.percent) ? uiFormat('覆盖 {0}%', [facts.percent]) : '', used = facts.tokensUsed > 0 ? uiFormat(facts.ownTokens ? '本任务已用 {0} tok' : '已用 {0} tok', [tokens]) : '';
   if (interrupted) return [uiFormat('中断于第 {0} 轮', [facts.round]), cover, used, uiFormat('接着做会从第 {0} 轮继续', [facts.round])].filter(Boolean).join(META_DOT);
   if (facts.ended) {
     const head = facts.state === 'stopped' ? uiFormat('停在第 {0} 轮之后', [Math.max(1, facts.done)]) : uiFormat('共 {0} 轮', [facts.done]);
@@ -346,7 +347,10 @@ export function stopText(stop) {
 }
 
 /** Why a finished job's run stopped, as far as it is still true: a job that closed a run short keeps that stop on its record, and once a later press has met the goal the draft is not short any more. */
-export const runStopText = (stop, shortfall) => (stop?.reason === 'questions-short' && shortfall?.questionsMissing === 0 ? '' : stopText(stop));
+export const runStopText = (stop, shortfall) => (stop?.reason === 'questions-short' && shortfall?.questionsMissing === 0 ? ''
+  // 「计划里的每个小节都有题了」 is not said beside a section that has none: shortfallLine names the plan's end and what it left out in one sentence (#662); with every section covered the
+  // coverage line says so (planFinishedLine), so the stop is not said a second time (#663).
+  : planFinished(shortfall) && ['complete', 'target'].includes(stop?.reason) ? '' : stopText(stop));
 
 /* ---------- the shortfall (lib/shortfall.js): ONE set of sentences for the home banner, the 待发布 row, the 任务 console and the draft page ---------- */
 
@@ -386,6 +390,13 @@ export function coveragePathText(s) {
     : uiFormat('覆盖现在 {0}（{1}%）→ 本轮后约 {2}% → 目标 100%，还要 {3} 轮、约 {4} 题', [now, s.coveragePercent, s.afterRoundPercent, s.roundsToFull, s.questionsToFull]);
 }
 
+/** What is still ahead, on a page that already says where the coverage stands (ui/coverage/CoverageFact.jsx): 「本轮后约 38%，到 100% 还要 4 轮、约 100 题」. Nothing when one round reaches the end: the button and its
+    estimate say all there is to say (#663). */
+export function coverageAheadText(s) {
+  if (!(s?.roundsToFull > 1) || !(s.questionsToFull > 0) || !Number.isFinite(s.afterRoundPercent)) return '';
+  return uiFormat('本轮后约 {0}%，到 100% 还要 {1} 轮、约 {2} 题', [s.afterRoundPercent, s.roundsToFull, s.questionsToFull]);
+}
+
 /** The same way, said by a run that works (its rounds are the job's): 「覆盖现在 31% → 目标 100%，还要 3 轮、约 90 题」. The questions are what is LEFT (runFacts questionsLeft: the sections that still have
     no question, the points the planner returned for the round in flight), the rounds those that still have something to make (`roundsLeft`; a round whose sections all have a question is skipped). */
 export function runPathText(run) {
@@ -395,11 +406,24 @@ export function runPathText(run) {
     : uiFormat('覆盖现在 {0}% → 目标 100%，还要 {1} 轮、约 {2} 题', [run.percent, rounds, run.questionsLeft]);
 }
 
-/** 「精简：先出第 1 轮，覆盖 12%；点「自动补到完整」继续」: what a run that waits for the learner (自动补到完整 is off) has done, and how it goes on. */
-export const manualLine = (s) => uiFormat('{0}：先出第 {1} 轮，覆盖 {2}%；点「自动补到完整」继续', [levelLabel(s.level), Math.max(1, s.roundsDone || 1), s.coveragePercent ?? 0]);
+/** 「精简：先出第 1 轮；点「自动补到完整」继续」: what a run that waits for the learner (自动补到完整 is off) has done, and how it goes on. The coverage is not repeated here: the fact line says it (#663). */
+export const manualLine = (s) => uiFormat('{0}：先出第 {1} 轮；点「自动补到完整」继续', [levelLabel(s.level), Math.max(1, s.roundsDone || 1)]);
 
-/** The counts of a draft in one line: 「已出 174/251 题 · 还有 18 个小节没有题」. */
-export const shortfallLine = (s) => joinMeta([questionsText(s), sectionsLeftText(s)]);
+/** The plan is met: every question it asked for is made. */
+export const planFinished = (s) => !!s && s.planned !== false && s.ready === true;
+
+/** The plan is met and the material has sections it never reached: the two facts a bare 「100%」 and 「还有 1 个小节没有题」 told as a contradiction (#662). */
+export const planDone = (s) => planFinished(s) && s.sectionsUncovered > 0;
+
+/** The plan is met and nothing is left out: 「计划内 5 题已全部出完。每个小节都有题了。」 (the one sentence of the draft page and the console for it; the stop of the run is not said again). */
+export const planFinishedLine = (s) => uiFormat('计划内 {0} 题已全部出完。{1}', [s.questionsKept, allCoveredText(s.units)]);
+
+/** The counts of a draft in one line: 「已出 174/251 题 · 还有 18 个小节没有题」; a draft whose plan is done says 「计划内 4 题已全部出完；还有 1 个小节不在计划里，可以补题」. THE sentence of the draft page, the 任务 console and the home row. */
+export function shortfallLine(s) {
+  if (!planDone(s)) return joinMeta([questionsText(s), sectionsLeftText(s)]);
+  const left = countOf(s.units, s.sectionsUncovered);
+  return s.reason === 'target' ? uiFormat('已达到这档覆盖目标；还有 {0}没有题，可以补题', [left]) : uiFormat('计划内 {0} 题已全部出完；还有 {1}不在计划里，可以补题', [s.questionsKept, left]);
+}
 
 /** Why it stands still: the true reason a run stopped (or that it waits for the learner), in plain words. */
 export function shortfallWhy(s) {

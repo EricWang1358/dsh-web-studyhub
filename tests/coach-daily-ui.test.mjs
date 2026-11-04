@@ -100,7 +100,8 @@ test('a paused day offers to resume; a past day has no settings and can be dismi
   assert.match(m.taskSummary(today).line, /今天已暂停/);
   const out = consoleOf([past]);
   assert.doesNotMatch(out, />暂停</);
-  assert.match(out, />删除这一天</);
+  assert.doesNotMatch(out, />删除这一天</, 'the item is in the ⋯ menu (#668, tests/danger-menu.test.mjs), not a button of the row');
+  assert.match(out, /aria-label="更多操作"/, 'one step away');
   assert.match(out, /这个任务现在没有可以调整的设置|任务已经结束/);
 });
 

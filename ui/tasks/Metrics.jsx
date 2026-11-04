@@ -37,7 +37,8 @@ export default function Metrics({ job, summary, now }) {
         <div className="tc-metric__top">
           <Label hint={hints.percent}>{summary.kind === 'coach'
             ? uiFormat('本日记录 · {0}', [summary.state === 'done' ? ui('暂无进行中的批次') : stateLabel(summary.state)])
-            : uiFormat('总进度 · {0}', [stateLabel(summary.state)])}</Label>
+            // A coverage plan's percent is the plan's (the sections it covered over the sections it holds): it says so, so it is never read as the coverage of the whole material (#662).
+            : uiFormat(contractOf(job).detail?.run?.total > 0 ? '计划进度 · {0}' : '总进度 · {0}', [stateLabel(summary.state)])}</Label>
           <strong className="tc-metric__pct">{summary.percent === null ? '—' : `${summary.percent}%`}</strong>
         </div>
         <SegmentedProgress segments={segments} label={label || ui('总进度')} />
