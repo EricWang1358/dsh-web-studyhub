@@ -17,7 +17,10 @@
    BOOK_SHOTS_DETAIL=1 adds the names of the elements counted. Seeded temporary library, fake model, no network, no key.
    BOOK_FIXTURES=built (#710, not in the default list): a book BUILT by the fake model (tests/helpers/book-fixtures.mjs seedBuiltBook), at 1440 and 420, light:
    built-<width>-light-cards (the first point's 术语卡 open), card-link (a relation followed to its card), lookup-az, lookup-chapters and lookup-formulas (the
-   速查页's A–Z with the cards' numbers and other names, the cards by chapter, the formula page). */
+   速查页's A–Z with the cards' numbers and other names, the cards by chapter, the formula page).
+   BOOK_SAMPLE_SHOTS=<dir> instead looks at the sample of a first 复习全书 build (#710; light, Chinese, 1440 and 420 px): sample-<width>-outline.png (the 总纲's
+   book line with the sample, its scale and its one primary button), sample-<width>-card.png (the card alone), sample-<width>-book.png (the book page with it) and
+   sample-<width>-console.png (the 任务 console: the build ended, waiting for the learner), and prints what the card and the console say. */
 /* global document, window, getComputedStyle */
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
@@ -30,6 +33,8 @@ import { createFakeModel } from '../fake-model.mjs';
 import { switchOptions } from '../../tests/helpers/runtime-switch.mjs';
 import { settleJob } from '../../tests/helpers/wait.mjs';
 import { revealNavRow } from './nav-reveal.mjs';
+import { COURSE as OUTLINE_COURSE, outlineLibrary } from '../../tests/helpers/course-outline-library.mjs';
+import { bookModel } from '../../tests/helpers/course-book-model.mjs';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -353,6 +358,83 @@ export async function bookShots({ shots = process.env.BOOK_SHOTS, kinds = (proce
   return results;
 }
 
+/**
+ * The library shaped like the owner's (134 materials, a sample paper) after a first 复习全书 build, run by the unified runtime with the fake book model: the
+ * sample written, the book waiting. -> { jobs }: the snapshot's jobs of that run. The preview has no DSH job executor to run a runtime Job itself, so the 任务
+ * console is shown this run's own record (added to the page's snapshot answers at the network edge).
+ */
+async function seedSample(root) {
+  await mkdir(root, { recursive: true });
+  const fake = bookModel();
+  const service = new StudyService(root, { complete: fake.complete, ...switchOptions('runtime', { complete: fake.complete, paths: [] }) });
+  try {
+    await service.call('snapshot');
+    const { sources, decks } = outlineLibrary({ paper: true });
+    await service.store.update(state => { state.sources.push(...sources); state.decks.push(...decks); state.focus = { mode: 'class', course: OUTLINE_COURSE, role: '', jd: '', targetTopics: [] }; });
+    const { jobId } = await service.call('generation.courseBook.build', { course: OUTLINE_COURSE, language: 'zh' });
+    const job = await settleJob(service, jobId);
+    if (job.status !== 'complete') throw new Error(`the sample build did not finish: ${job.status}`);
+    return { jobId, jobs: (await service.call('snapshot')).jobs };
+  } finally { await service.dispose(); }
+}
+
+/** The page's snapshot answers carry the seeded run's jobs too (see seedSample). */
+const withJobs = (page, jobs) => page.route('**/api/call', async route => {
+  let action = '';
+  try { action = JSON.parse(route.request().postData() || '{}').action; } catch { /* not JSON */ }
+  if (action !== 'snapshot') return route.continue();
+  const answer = await route.fetch(), body = await answer.json();
+  if (body?.ok && body.value) body.value.jobs = [...jobs, ...(body.value.jobs || [])];
+  return route.fulfill({ response: answer, body: JSON.stringify(body) });
+});
+
+export async function bookSampleShots({ shots = process.env.BOOK_SAMPLE_SHOTS, dist = process.env.BOOK_DIST } = {}) {
+  await mkdir(shots, { recursive: true });
+  const browser = await launchChromium(), seen = [];
+  const running = await startLateServer({ distDir: resolve(repoRoot, dist || 'dist'), seed: seedSample });
+  const built = running.seeded;
+  try {
+    await running.api('focus.set', { course: OUTLINE_COURSE });
+    for (const width of [1440, 420]) {
+      const { page, errors, context } = await openPage(browser, running, { width, height: 900, theme: 'light' });
+      try {
+        await withJobs(page, built.jobs);
+        const name = shot => join(shots, `sample-${width}-${shot}.png`);
+        await page.goto(running.server.url);
+        await page.locator('.outline-entry').first().click({ timeout: 30000 });
+        const card = page.locator('.outline-book-line [data-book-sample]');
+        await card.waitFor({ timeout: 30000 });
+        await page.mouse.move(width - 10, 890);
+        await settleAnimations(page);
+        await page.screenshot({ path: name('outline') });
+        await card.screenshot({ path: name('card') });
+        const primary = await page.locator('.outline-page .sh-btn--primary').allInnerTexts();
+        const text = (await card.innerText()).replace(/\s+/g, ' ');
+        // The book page: the two written points, the card above the reading.
+        await page.locator('.outline-book-line__open').click();
+        await page.locator('.book-page [data-book-sample]').waitFor({ timeout: 30000 });
+        await page.mouse.move(width - 10, 890);
+        await settleAnimations(page);
+        await page.screenshot({ path: name('book') });
+        // The 任务 console: the build ended and says the book waits for the learner.
+        await (await revealNavRow(page, 'tasks')).dispatchEvent('click');
+        const row = page.locator('.tc-row', { hasText: '生成复习全书' }).first();
+        await row.waitFor({ timeout: 30000 }).catch(async error => { await page.screenshot({ path: name('console-failed') }); throw error; });
+        await row.dispatchEvent('click');
+        await page.locator('.tc-detail').first().waitFor({ timeout: 30000 });
+        await page.mouse.move(width - 10, 890);
+        await settleAnimations(page);
+        await page.screenshot({ path: name('console'), fullPage: width < 768 });
+        const task = (await page.locator('.tc-detail').first().innerText()).replace(/\s+/g, ' ').slice(0, 400);
+        const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        seen.push({ width, primary, card: text, console: task, sideways, errors });
+        console.log(JSON.stringify(seen.at(-1)));
+      } finally { await context.close(); }
+    }
+  } finally { await running.close(); await browser.close(); }
+  return seen;
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  bookShots().catch(error => { console.error(error); process.exitCode = 1; });
+  (process.env.BOOK_SAMPLE_SHOTS ? bookSampleShots() : bookShots()).catch(error => { console.error(error); process.exitCode = 1; });
 }
