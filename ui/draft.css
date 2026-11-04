@@ -2,18 +2,6 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    .file-input {
-      font-size: var(--fs-md);
-      border: 1px dashed var(--line-strong);
-      padding: var(--space-3);
-      border-radius: var(--radius-sm);
-    }
-    .file-input input {
-      background: transparent;
-      border: 0;
-      padding: 0;
-      font-size: var(--fs-md);
-    }
     .draft-card {
       border: 1px solid var(--line);
       border-radius: var(--radius);
@@ -45,8 +33,7 @@
       padding: var(--space-3);
       margin: var(--space-2-5) 0;
     }
-    .edit-option input,
-    .edit-option textarea {
+    .edit-option .edit-option__field {
       margin-bottom: var(--space-2);
     }
     .edit-option .inline {
@@ -55,7 +42,7 @@
       font-size: var(--fs-md);
       margin: 0 0 var(--space-2);
     }
-    .edit-option .inline input {
+    .edit-option .inline .edit-option__choice {
       margin: 0;
     }
     .json-editor {
@@ -86,7 +73,7 @@
       color: var(--text-muted);
       font-size: var(--fs-md);
     }
-    .draft-title-field input {
+    .draft-title-field .draft-title-field__input {
       margin-top: var(--space-2);
       font-size: var(--fs-lg);
       font-weight: var(--fw-strong);
@@ -162,7 +149,7 @@
     .draft-advanced > summary {
       cursor: pointer;
     }
-    .draft-advanced button {
+    .draft-advanced .draft-advanced__action {
       position: absolute;
       right: 0;
       top: 100%;
@@ -175,9 +162,6 @@
   }
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
-      .sticky-actions button {
-        font-size: var(--fs-md);
-      }
       /* On a narrow screen the three buttons share ONE row (a two-row bar covers a seventh of the screen for as long as the page scrolls) and the bar spans the width. */
       .draft-page .sticky-actions {
         width: 100%;

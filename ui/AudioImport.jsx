@@ -272,9 +272,9 @@ export default function AudioImport({
           <HandOff id="import.file" input={{ purpose: 'audio' }} lead="多段录音或别处的文件：" disabled={busy} what="让主会话按你指定的顺序导入这些音频；文件在输入框里用 @ 选" />
           <details className="audio-path"><summary>{ui("粘贴文件路径（高级）")}</summary>
             <div className="audio-path-row">
-              <input value={pathText} onChange={(event) => setPathText(event.target.value)} placeholder={ui("例如：C:\\Users\\你\\Downloads\\lecture.mp3")}
+              <input className="audio-path-input" value={pathText} onChange={(event) => setPathText(event.target.value)} placeholder={ui("例如：C:\\Users\\你\\Downloads\\lecture.mp3")}
                 onKeyDown={(event) => { if (event.key === "Enter" && unquotePath(pathText)) { event.preventDefault(); pickPath(unquotePath(pathText)); } }} />
-              <Button size="sm" disabled={!unquotePath(pathText)} onClick={() => pickPath(unquotePath(pathText))}>{ui("选用")}</Button>
+              <Button className="audio-path-pick" size="sm" disabled={!unquotePath(pathText)} onClick={() => pickPath(unquotePath(pathText))}>{ui("选用")}</Button>
             </div>
           </details>
         </div>
@@ -307,11 +307,11 @@ export default function AudioImport({
               </span>}
             </div>
             <div className="audio-order-actions">{files.length > 1 && <>
-              <IconButton size="sm" icon={<Icon name="arrow-up" size={16} />} label={uiFormat('上移 {0}', [file.name])}
+              <IconButton className="audio-order-btn" size="sm" icon={<Icon name="arrow-up" size={16} />} label={uiFormat('上移 {0}', [file.name])}
                 lock={busy} aria-disabled={busy || index === 0} onClick={() => move(index, index - 1)} />
-              <IconButton size="sm" icon={<Icon name="arrow-down" size={16} />} label={uiFormat('下移 {0}', [file.name])}
+              <IconButton className="audio-order-btn" size="sm" icon={<Icon name="arrow-down" size={16} />} label={uiFormat('下移 {0}', [file.name])}
                 lock={busy} aria-disabled={busy || index === files.length - 1} onClick={() => move(index, index + 1)} />
-            </>}<Button size="sm" variant="quiet" lock={busy} aria-label={uiFormat('移除 {0}', [file.name])} onClick={() => remove(index)}>{ui(files.length === 1 ? '换一个' : '移除')}</Button></div>
+            </>}<Button className="audio-order-btn" size="sm" variant="quiet" lock={busy} aria-label={uiFormat('移除 {0}', [file.name])} onClick={() => remove(index)}>{ui(files.length === 1 ? '换一个' : '移除')}</Button></div>
           </li>;
         })}</ol>
         <AudioMoreSettings values={{ ...more, paidOnly }} defaultPaid={audioSettings?.paidOnlyByDefault === true} course={inDialog ? undefined : course} courses={courses} disabled={busy}

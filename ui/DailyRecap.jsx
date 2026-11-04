@@ -39,8 +39,8 @@ export function DailyRecapPanel(props) {
     <summary>{uiFormat('讲解口吻 · {0}', [ui(recap.toneFor(group) === 'friendly' ? '亲切' : '专业')])}</summary>
     <fieldset className="daily-recap-tone" aria-label={uiFormat('{0}的讲解口吻', [group.course])} disabled={busy || !!working}>
       <legend>{ui('讲解口吻')}</legend>
-      {['friendly', 'professional'].map(tone => <label key={tone}>
-        <input type="radio" name={prefix + '-' + recapGroupKey(group)} value={tone} checked={recap.toneFor(group) === tone}
+      {['friendly', 'professional'].map(tone => <label key={tone} className="daily-recap-tone__option">
+        <input type="radio" className="daily-recap-tone__radio" name={prefix + '-' + recapGroupKey(group)} value={tone} checked={recap.toneFor(group) === tone}
           onChange={() => recap.setTone(group, tone)} />{ui(tone === 'friendly' ? '亲切' : '专业')}
       </label>)}
     </fieldset>

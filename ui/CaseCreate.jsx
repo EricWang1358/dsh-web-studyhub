@@ -91,7 +91,7 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
             profile.guidanceSourceIds.length ? uiFormat("，评分说明 {0} 份", [profile.guidanceSourceIds.length]) : ui("，还没有评分说明"),
             profile.focusTopics.length ? uiFormat("，重点主题：{0}", [profile.focusTopics.join("、")]) : ""])}</p>
           {courseRecord && onCourseSettings
-            ? <Button size="sm" variant="link" onClick={() => onCourseSettings(courseRecord.id)}>{ui("修改课程的考试设置、评分说明和重点主题")}</Button>
+            ? <Button className="case-create__action" size="sm" variant="link" onClick={() => onCourseSettings(courseRecord.id)}>{ui("修改课程的考试设置、评分说明和重点主题")}</Button>
             : <small className="muted">{ui("选好课程后，可以在课程设置里指定评分说明资料和重点主题。")}</small>}
         </div>
         {initial.broughtOver > 0 && mode !== "import" && openingStands({ sourceIds: initial.sourceIds }, sourceIds) && <p className="muted" data-brought-over>{uiFormat("已带入刚才选好的 {0} 份资料；不合适就在下面改。", [initial.broughtOver])}</p>}
@@ -102,7 +102,7 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
         {passage && mode !== "import" && <div className="case-create__passage">
           <strong>{ui("围绕这段资料出题")}</strong>
           <blockquote>{passage}</blockquote>
-          <Button size="sm" variant="quiet" onClick={() => setPassage("")}>{ui("不限定段落")}</Button>
+          <Button className="case-create__action case-create__passage-clear" size="sm" variant="quiet" onClick={() => setPassage("")}>{ui("不限定段落")}</Button>
         </div>}
       </fieldset>
       {mode !== 'import' && <ReferenceQuestions sources={data.sources} selected={referenceSourceIds} evidenceIds={evidenceIds}
@@ -117,28 +117,28 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
         <fieldset>
           <legend>{ui("02 / 案例与题目")}</legend>
           <label>{ui("案例标题（可选）")}<input value={pasted.title} maxLength={120} onChange={(event) => setPasted({ ...pasted, title: event.target.value })} /></label>
-          <label>{ui("案例原文")}<textarea rows={10} value={pasted.scenario} maxLength={24000}
+          <label>{ui("案例原文")}<textarea className="case-create__textarea" rows={10} value={pasted.scenario} maxLength={24000}
             onChange={(event) => setPasted({ ...pasted, scenario: event.target.value })} placeholder={ui("粘贴完整的案例，段落之间空一行。")} />
             {scenarioShort && <Hint>{uiFormat("至少需要 {0}", [uiFormat("{0} 字/词", [40])])}</Hint>}</label>
           <div className="case-create__questions">
             {pasted.questions.map((question, index) => (
               <div key={index} className="case-create__question">
-                <label className="case-create__prompt">{uiFormat("第 {0} 题", [index + 1])}<textarea rows={2} value={question.prompt} onChange={(event) => setQuestion(index, { prompt: event.target.value })} /></label>
+                <label className="case-create__prompt">{uiFormat("第 {0} 题", [index + 1])}<textarea className="case-create__textarea" rows={2} value={question.prompt} onChange={(event) => setQuestion(index, { prompt: event.target.value })} /></label>
                 <label>{ui("分值")}<input type="number" min={0.5} max={100} step={0.5} value={question.marks} onChange={(event) => setQuestion(index, { marks: event.target.value })} /></label>
-                {pasted.questions.length > 1 ? <IconButton icon="close" label={ui("删除这道题")}
+                {pasted.questions.length > 1 ? <IconButton className="case-create__action" icon="close" label={ui("删除这道题")}
                   onClick={() => setPasted({ ...pasted, questions: pasted.questions.filter((_, at) => at !== index) })} /> : <span />}
                 <label className="case-create__answer">{ui("我的回答（可选，填了就立即批改）")}
-                  <textarea rows={4} value={question.answer} onChange={(event) => setQuestion(index, { answer: event.target.value })} /></label>
+                  <textarea className="case-create__textarea" rows={4} value={question.answer} onChange={(event) => setQuestion(index, { answer: event.target.value })} /></label>
               </div>
             ))}
-            {pasted.questions.length < 8 && <Button variant="link" icon="plus" onClick={() => setPasted({ ...pasted, questions: [...pasted.questions, blankQuestion()] })}>{ui("添加一道题")}</Button>}
+            {pasted.questions.length < 8 && <Button className="case-create__action" variant="link" icon="plus" onClick={() => setPasted({ ...pasted, questions: [...pasted.questions, blankQuestion()] })}>{ui("添加一道题")}</Button>}
           </div>
         </fieldset>
       ) : (
         <fieldset>
           <legend>{ui("02 / 试卷")}</legend>
           {mode === "style" && <label>{ui("往年真题（只作风格模板，不会照抄）")}
-            <textarea rows={8} value={form.styleText} maxLength={60000} onChange={(event) => setForm({ ...form, styleText: event.target.value })}
+            <textarea className="case-create__textarea" rows={8} value={form.styleText} maxLength={60000} onChange={(event) => setForm({ ...form, styleText: event.target.value })}
               placeholder={ui("粘贴一份往年案例题。AI 只学它的结构、篇幅和提问方式，案例的公司、人物和数字都会重新编写。")} />
             {styleShort && <Hint>{uiFormat("至少需要 {0}", [uiFormat("{0} 字", [80])])}</Hint>}</label>}
           <div className="case-create__grid">
@@ -160,7 +160,7 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
             questions: pasted.questions.map((question) => ({ prompt: question.prompt.trim(), marks: Number(question.marks) })) }
           : { feature: "case", course, language: form.language, sourceIds, referenceSourceIds, referenceLimits, referenceFormat, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
             ...(passage ? { focus: passage } : {}), ...(mode === "style" ? { styleText: form.styleText } : {}) }} />
-        <Button type="submit" variant="primary" icon="sparkle" busy={busy} disabled={!ready || !model.ready} data-tour="generate-submit" data-usage="generate.submit">
+        <Button className="case-create__action" type="submit" variant="primary" icon="sparkle" busy={busy} disabled={!ready || !model.ready} data-tour="generate-submit" data-usage="generate.submit">
           {mode === "import" ? answered ? ui("导入并批改 →") : ui("导入案例 →") : ui("出一套案例题 →")}
         </Button>
       </div>

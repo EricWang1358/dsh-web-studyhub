@@ -168,7 +168,7 @@
       background: transparent;
       color: var(--text-faint);
     }
-    & button.reader-outline__twisty:hover { background: var(--bg-hover); color: var(--text); }
+    .reader-outline__twisty:not(.reader-outline__twisty--none):hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
     .reader-outline__twisty--none { pointer-events: none; }
     .reader-outline__link {
       display: flex;
@@ -202,8 +202,8 @@
     }
     .reader-outline__empty { margin: 0; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); }
     .reader-outline__filter { display: flex; flex: none; align-items: center; gap: var(--space-2); padding: 0 var(--space-3) var(--space-2); }
-    .reader-outline__filter input { flex: 1 1 auto; width: auto; min-width: 0; min-height: 32px; margin: 0; padding: var(--space-1) var(--space-3); font-size: var(--fs-sm); }
-    .reader-outline__filter input::-webkit-search-cancel-button { display: none; }
+    .reader-outline__filter .reader-outline__filter-input { flex: 1 1 auto; width: auto; min-width: 0; min-height: 32px; margin: 0; padding: var(--space-1) var(--space-3); font-size: var(--fs-sm); }
+    .reader-outline__filter .reader-outline__filter-input::-webkit-search-cancel-button { display: none; }
     .reader-outline__foot { flex: none; max-height: 55%; padding: var(--space-3); overflow: auto; border-top: 1px solid var(--line); }
     /* ── "让 AI 帮你": the flow under the outline, and its preview ───────── */
     .reader-assist { display: grid; gap: var(--space-2); }

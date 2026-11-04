@@ -63,7 +63,7 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
                 {decks.map((deck) => (
                   <li key={deck.id}>
                     <label className={'es-deck' + (picked.has(deck.id) ? ' is-checked' : '')}>
-                      <CheckboxInput checked={picked.has(deck.id)}
+                      <CheckboxInput className="es-deck__check" checked={picked.has(deck.id)}
                         onChange={(event) => onPick((previous) => {
                           const next = new Set(previous);
                           if (event.target.checked) next.add(deck.id); else next.delete(deck.id);

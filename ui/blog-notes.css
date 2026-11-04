@@ -5,7 +5,7 @@
     .blog-notes-page { max-width: none; }
     .note-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); max-width: 44rem; }
     .note-list > * { min-width: 0; }
-    .note-list > button {
+    .note-list > .note-list-item {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
@@ -16,9 +16,9 @@
       border-radius: var(--radius-sm);
       background: var(--bg-surface);
     }
-    .note-list > button:hover:not(:disabled) { border-color: var(--line-strong); background: var(--bg-hover); }
+    .note-list > .note-list-item:hover:not(:disabled) { border-color: var(--line-strong); background: var(--bg-hover); }
     .note-list small { color: var(--text-muted); font-size: var(--fs-xs); }
-    .note-daily-item { border-left: 3px solid var(--accent); }
+    .note-list > .note-daily-item { border-left: 3px solid var(--accent); }
     .note-daily-date { display: block; margin-top: var(--space-1); }
     .note-heading { align-items: flex-start; gap: var(--space-5); flex-wrap: wrap; }
     .note-daily-meta { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.7; margin: 0; }
@@ -63,10 +63,10 @@
   }
   @container study (max-width: 600px) {
     :where(.study-app, .study-seat) {
-      .note-list > button { flex-wrap: wrap; padding: var(--space-3); }
+      .note-list > .note-list-item { flex-wrap: wrap; padding: var(--space-3); }
       .note-card-search { flex-wrap: wrap; }
       .note-reader { min-height: 360px; height: 72vh; }
-      .note-actions > button { white-space: normal; }
+      .note-actions > .note-action-btn { white-space: normal; }
       .blog-notes-page { padding-top: var(--space-5); }
       .note-heading { gap: var(--space-3); }
       .note-reader { margin-top: var(--space-3); }

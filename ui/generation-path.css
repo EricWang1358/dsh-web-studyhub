@@ -14,13 +14,13 @@
     .gen-path__step[data-optional='true'][data-included='false'] { opacity: 0.85; border-style: dashed; }
     .gen-path__tag { justify-self: start; padding: var(--hairline) var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--text-muted); font-size: var(--fs-xs); font-style: normal; }
     /* The page's own label rule makes a label a grid: this one is a checkbox beside its text. */
-    .gen-path .gen-path__step label.gen-path__title { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-2); cursor: pointer; min-width: 0; }
-    .gen-path .gen-path__title input[type='checkbox'] { flex: none; margin: var(--space-1) 0 0; }
+    .gen-path .gen-path__step .gen-path__title { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-2); cursor: pointer; min-width: 0; }
+    .gen-path .gen-path__title .gen-path__check { flex: none; margin: var(--space-1) 0 0; }
     .gen-path__title > span { display: grid; gap: var(--space-half); min-width: 0; }
     .gen-path__title strong { overflow-wrap: anywhere; }
     .gen-path__title small, .gen-path__reason { color: var(--text-muted); font-size: var(--fs-xs); }
     .gen-path__edit { display: flex; gap: var(--space-2); align-items: center; min-width: 0; }
-    .gen-path__edit input { flex: 1 1 auto; min-width: 0; margin: 0; }
+    .gen-path__edit .gen-path__focus { flex: 1 1 auto; min-width: 0; margin: 0; }
     /* The steps that are off by default are one folded line; opened, they are the same rows. */
     .gen-path__optional { margin: 0; }
     .gen-path__optional .gen-path__steps { margin-top: var(--space-2); }

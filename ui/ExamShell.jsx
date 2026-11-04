@@ -81,7 +81,7 @@ export function CountField({ label = ui("题数"), value, onChange, presets = []
         {presets.length > 0 && <SegmentedControl size="sm" label={label} value={value} onChange={(next) => { setDraft(String(next)); onChange(next); }}
           options={presets.map((preset) => ({ value: preset, label: String(preset) }))} />}
         <label className="es-count__custom">{ui("自定义")}
-          <input type="number" min={min} max={max} value={draft} inputMode="numeric"
+          <input className="es-count__input" type="number" min={min} max={max} value={draft} inputMode="numeric"
             onChange={(event) => { setDraft(event.target.value); if (event.target.value !== "") onChange(clamp(event.target.value)); }}
             onBlur={() => setDraft(String(value))} />
         </label>

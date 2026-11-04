@@ -2,18 +2,18 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    .audio-import label { display: block; margin-top: var(--space-3); }
-    .audio-import textarea { width: 100%; }
+    .audio-import .audio-more-field { display: block; margin-top: var(--space-3); }
+    .audio-import .audio-more-terms { width: 100%; }
     .audio-drop-icon { font-size: var(--fs-3xl); line-height: 1; color: var(--accent-soft); }
     .audio-ways { display: grid; gap: var(--space-3); margin-top: var(--space-3-5); text-align: left; }
     .audio-ways summary { cursor: pointer; }
-    .audio-workspace input[type="search"], .audio-path-row input { width: 100%; min-width: 0; margin-top: var(--space-2); }
+    .audio-workspace .audio-workspace-search, .audio-path-row .audio-path-input { width: 100%; min-width: 0; margin-top: var(--space-2); }
     .audio-path-row { display: flex; align-items: center; gap: var(--space-2); }
-    .audio-path-row button { margin-top: var(--space-2); flex: none; }
+    .audio-path-row .audio-path-pick { margin-top: var(--space-2); flex: none; }
     .audio-files { list-style: none; margin: var(--space-2-5) 0 0; padding: 0; max-height: 240px; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); }
     .audio-files li + li { border-top: 1px solid var(--line); }
-    .audio-files button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-half) var(--space-3-5); width: 100%; padding: var(--space-2-5) var(--space-3); border: 0; border-radius: 0; background: transparent; text-align: left; }
-    .audio-files button:hover, .audio-files button:focus-visible { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+    .audio-files .audio-workspace-file { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-half) var(--space-3-5); width: 100%; padding: var(--space-2-5) var(--space-3); border: 0; border-radius: 0; background: transparent; text-align: left; }
+    .audio-files .audio-workspace-file:hover, .audio-files .audio-workspace-file:focus-visible { background: color-mix(in srgb, var(--accent) 9%, transparent); }
     .audio-files strong { overflow-wrap: anywhere; font-weight: var(--fw-strong); }
     .audio-files small { color: var(--text-dim); overflow-wrap: anywhere; }
     .audio-files small:last-child { grid-column: 2; grid-row: 1 / span 2; align-self: center; text-align: right; white-space: nowrap; }
@@ -29,7 +29,7 @@
     .audio-selection { margin: var(--space-2-5) 0; padding: 0; list-style: none; }
     .audio-selection .audio-chosen { margin-top: var(--space-2); }
     .audio-chosen > .audio-order-actions { flex: 0 0 auto; display: flex; gap: var(--space-1); }
-    .audio-order-actions button { padding: var(--space-1-5) var(--space-2); }
+    .audio-order-actions .audio-order-btn { padding: var(--space-1-5) var(--space-2); }
     .audio-add { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2-5) 0; }
     .audio-add.over { outline: 2px dashed var(--line); outline-offset: 4px; }
   }
@@ -41,7 +41,7 @@
     }
   }
   :where(.study-app, .study-seat) {
-    .audio-order-actions button[aria-disabled="true"] { opacity: .45; cursor: default; }
+    .audio-order-actions .audio-order-btn[aria-disabled="true"] { opacity: .45; cursor: default; }
     .audio-corrections { margin: 0 0 var(--space-3-5); overflow-wrap: anywhere; }
     .audio-corrections li { margin: var(--space-2) 0; }
   }

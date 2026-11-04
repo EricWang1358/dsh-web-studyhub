@@ -30,7 +30,7 @@
     .page-scope { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); max-width: 100%; margin: 0; flex: 0 1 auto;
       font-size: var(--fs-sm); font-weight: var(--fw-strong); line-height: var(--lh-snug); color: var(--text-muted); }
     .page-scope__label { display: block; flex: none; margin: 0; color: inherit; cursor: pointer; }
-    .page-scope__select, .page-scope select { flex: 1 1 12rem; width: 20rem; max-width: 20rem; min-width: 0; min-height: 38px;
+    .page-scope__select { flex: 1 1 12rem; width: 20rem; max-width: 20rem; min-width: 0; min-height: 38px;
       font-size: var(--fs-md); font-weight: var(--fw-regular); text-overflow: ellipsis; }
     /* The follow state: a small mark (its words are in the tooltip and for screen readers) and, when pinned, the way back. */
     .page-scope__follow { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; font-weight: var(--fw-regular); }
@@ -41,7 +41,6 @@
     /* Page scope: a note beside the picker (a parked course, the inactive courses a page leaves out). */
     .page-scope__note { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); margin: 0;
       font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); font-weight: var(--fw-regular); }
-    .page-scope select option.is-parked { color: var(--text-muted); }
     /* The home: the current course is parked - say so under the heading, with the way back. */
     .course-parked-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: var(--space-1) 0 0; }
     .course-parked-line small { font-size: var(--fs-sm); color: var(--text-muted); }

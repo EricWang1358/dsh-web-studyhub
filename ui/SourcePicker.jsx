@@ -155,7 +155,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
     <div className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
       <div className="source-picker__row">
         <label className="source-picker__doc">
-          <CheckboxInput checked={state === 'all'} indeterminate={state === 'some'} disabled={disabled}
+          <CheckboxInput className="source-picker__check" checked={state === 'all'} indeterminate={state === 'some'} disabled={disabled}
             onChange={event => { const on = event.target.checked; apply(current => toggleDocument(current, item, on)); }} />
           <span className="source-picker__text">
             <strong title={item.title}>{name}</strong>
@@ -174,8 +174,8 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
           {item.chapters.map(chapter => {
             const chapterPicked = chapterState(chapter, selected), inside = chapter.sourceIds.length === 0;
             return <li key={chapter.index} data-chapter-index={chapter.index}>
-              <label>
-                <CheckboxInput checked={chapterPicked === 'all'} indeterminate={chapterPicked === 'some'} disabled={disabled || inside}
+              <label className="source-picker__chapter">
+                <CheckboxInput className="source-picker__check" checked={chapterPicked === 'all'} indeterminate={chapterPicked === 'some'} disabled={disabled || inside}
                   onChange={event => { const on = event.target.checked; apply(current => toggleChapter(current, chapter, on)); }} />
                 <span>{chapterLabel(chapter, item.chapterUnit)}</span>
                 <small>{inside ? ui('在同一页内，不能单独选择') : uiFormat(item.chapterUnit === 'part' ? '{0} 部分' : '{0} 页', [chapter.sourceIds.length])}</small>
@@ -188,7 +188,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
         {pagesOpen && <ul id={listId} className="source-picker__pages" aria-label={uiFormat('「{0}」的页面', [name])}>
         {item.pages.map(page => <li key={page.sourceId}>
           <label>
-            <CheckboxInput checked={chosen.has(page.sourceId)} disabled={disabled}
+            <CheckboxInput className="source-picker__check" checked={chosen.has(page.sourceId)} disabled={disabled}
               onChange={event => { const on = event.target.checked; apply(current => on ? [...current, page.sourceId] : current.filter(id => id !== page.sourceId)); }} />
             <span>{pageLabel(item, page)}</span>
             <small>{uiFormat('{0} 字符', [formatNumber(page.chars)])}</small>
@@ -199,7 +199,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
       {multi && open && !chaptered && <ul id={listId} className="source-picker__pages" aria-label={uiFormat('「{0}」的页面', [name])}>
         {item.pages.map(page => <li key={page.sourceId}>
           <label>
-            <CheckboxInput checked={chosen.has(page.sourceId)} disabled={disabled}
+            <CheckboxInput className="source-picker__check" checked={chosen.has(page.sourceId)} disabled={disabled}
               onChange={event => { const on = event.target.checked; apply(current => on ? [...current, page.sourceId] : current.filter(id => id !== page.sourceId)); }} />
             <span>{pageLabel(item, page)}</span>
             <small>{uiFormat('{0} 字符', [formatNumber(page.chars)])}</small>

@@ -104,7 +104,7 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
     {resolved && <>
       {!modelReady && <ReaderModelGate feature="passage" />}
       <form onSubmit={onAsk}>
-        <label>{ui('针对这段原文提问')}<textarea ref={area} value={question} required rows={2} disabled={asking}
+        <label className="study-learning-label">{ui('针对这段原文提问')}<textarea className="study-learning-control" ref={area} value={question} required rows={2} disabled={asking}
           onChange={event => onQuestion?.(event.target.value, '')} placeholder={ui('例如：这里的因果关系是什么？')} /></label>
         <QuickIntents disabled={!askReady || asking} onAsk={(text, label, intent) => onQuick?.(text, label, intent)} onQuiz={() => {
           supplement.current?.scrollIntoView?.({ block: 'nearest' });
@@ -117,7 +117,7 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
         onKeep={annotateReady ? onKeep : undefined} onDelete={onDeleteThread} onAsk={onAskInside || noop} onRetry={onRetryNode || noop} onToggle={onToggleNode || noop}
         save={{ call, selection: resolution.selection, deckId, decks, ready: saveReady, onSaved, onOpenCard: jobHandlers.onOpenCard, isCurrent }} />
       <form ref={supplement} onSubmit={onStart}>
-        <label>{ui('补充到现有题组')}<Combobox value={deckId} required onChange={value => onDeck?.(value)} placeholder={ui('选择题组')} label={ui('补充到现有题组')} searchPlaceholder={ui('搜索题组')}
+        <label className="study-learning-label">{ui('补充到现有题组')}<Combobox value={deckId} required onChange={value => onDeck?.(value)} placeholder={ui('选择题组')} label={ui('补充到现有题组')} searchPlaceholder={ui('搜索题组')}
           emptyText={query => uiFormat('没有叫「{0}」的题组', [query])}
           options={deckEntries(decks)} /></label>
         {!decks.length && <p className="muted">{ui('请先创建或导入一个题组，再从资料中补题。')}</p>}
@@ -125,10 +125,10 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
         {/* The kind and the number are the ones of 设置 › 出题偏好, said here and changeable for this run; the settings themselves are not touched. */}
         <Disclosure className="study-selection-more" summary={ui('更多设置')} meta={joinMeta([kinds[kind], uiFormat('{0} 题', [Number(count) || 1])])}>
           <div className="study-selection-options">
-            <label>{ui('题型')}<Select value={kind} onChange={value => onKind?.(value)} options={[
+            <label className="study-learning-label">{ui('题型')}<Select value={kind} onChange={value => onKind?.(value)} options={[
               { value: 'flashcard', label: ui('闪卡') }, { value: 'quiz', label: ui('单选测验') }, { value: 'multi', label: ui('多选测验') },
               { value: 'open', label: ui('开放问答') }, { value: 'cloze', label: ui('填空卡') }]} /></label>
-            <label>{ui('题数')}<input type="number" min="1" max="20" value={count} onChange={event => onCount?.(event.target.value)} /></label>
+            <label className="study-learning-label">{ui('题数')}<input className="study-learning-control" type="number" min="1" max="20" value={count} onChange={event => onCount?.(event.target.value)} /></label>
           </div>
           <p className="muted">{ui('题型和题数取自设置里的出题偏好；在这里改，不会改动设置。')}
             {openSettings && <> <Button variant="link" size="sm" onClick={() => openSettings('settings-generation')}>{ui('前往设置')}</Button></>}</p>

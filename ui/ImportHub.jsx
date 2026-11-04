@@ -343,7 +343,7 @@ function PasteForm({ courses, disabled, draft, onDraft, onSaved }) {
           onChange={event => onDraft({ ...draft, title: event.target.value })} />
       </Field>
       <Field label={ui('原文')} width="full" required>
-        <TextArea rows={10} maxLength={SELECTION_CHARS} value={draft.text} disabled={disabled || saving}
+        <TextArea className="import-hub__paste-input" rows={10} maxLength={SELECTION_CHARS} value={draft.text} disabled={disabled || saving}
           aria-describedby={error ? errorId : undefined} placeholder={ui('粘贴讲义、笔记或材料。生成内容将引用这里的原文。')}
           onChange={event => onDraft({ ...draft, text: event.target.value })} />
       </Field>

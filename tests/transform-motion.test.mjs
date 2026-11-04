@@ -12,7 +12,7 @@ const LAYOUT_PROP = /(?<![\w-])(width|height|left|top|right|bottom|max-height|ma
 const ALLOWED = {
   'ui/review/question.css | .flip-inner': 'the card grows to the height of the face that is up while it turns; the height is content-driven (FlipCard measures it)',
   'ui/review/question.css | .smooth-height': 'the response area under a card eases to its content height (auto height, no fixed size to scale from)',
-  'ui/skeleton.css | & button.skc-class': 'focus-view boxes of the structure canvas glide to positions the layout engine writes as left/top; dragging switches the transition off',
+  'ui/skeleton.css | .skc-class': 'focus-view boxes of the structure canvas glide to positions the layout engine writes as left/top; dragging switches the transition off',
 };
 
 const found = [];

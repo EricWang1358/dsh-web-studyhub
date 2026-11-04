@@ -77,7 +77,7 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
           return (
             <input
               key={i}
-              className="cloze-blank"
+              className="cloze-blank cloze-blank--input"
               type="text"
               value={val}
               disabled={disabled}

@@ -137,8 +137,8 @@ function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun,
   return (
     <div className="extension-panel__index">
       <div className="extension-panel__course">
-        <label htmlFor={selectId}>{ui('要建立索引的课程')}
-          <Select id={selectId} value={course} disabled={running || starting} onChange={setCourse}
+        <label className="extension-panel__course-label" htmlFor={selectId}>{ui('要建立索引的课程')}
+          <Select id={selectId} className="extension-panel__course-select" value={course} disabled={running || starting} onChange={setCourse}
             options={[{ value: '', label: ui('全部资料') }, ...list.map(name => ({ value: name, label: name }))]} />
         </label>
       </div>

@@ -218,6 +218,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
         <div className="sk-topic-row">
           <DisclosureToggle open={expanded} label={foldLabel(expanded, t.topic)} onToggle={() => toggleFold(t.key)} />
           <CheckboxInput
+            className="sk-topic-check"
             aria-label={uiFormat("选择主题 {0}", [t.topic])}
             checked={on === keys.length}
             indeterminate={on > 0 && on < keys.length}
@@ -240,8 +241,8 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
               const key = pairKey(d.deckId, d.topic);
               return (
                 <li key={key}>
-                  <label>
-                    <CheckboxInput checked={picked.has(key)} onChange={(e) => toggle([key], e.target.checked)} />
+                  <label className="sk-deck-label">
+                    <CheckboxInput className="sk-topic-check" checked={picked.has(key)} onChange={(e) => toggle([key], e.target.checked)} />
                     <span>{d.folder ? `${d.folder} / ` : ""}{d.deckTitle}</span>
                     <small>{uiFormat("{0} 题", [d.count])}</small>
                   </label>
@@ -318,6 +319,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
                     <div className="sk-topic-row">
                       <DisclosureToggle open={!!expanded} label={foldLabel(!!expanded, g.title)} onToggle={() => toggleFold("g:" + g.id)} />
                       <CheckboxInput
+                        className="sk-topic-check"
                         aria-label={uiFormat("选择主题组 {0}", [g.title])}
                         checked={keys.length > 0 && on === keys.length}
                         indeterminate={on > 0 && on < keys.length}

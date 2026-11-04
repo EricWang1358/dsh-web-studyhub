@@ -194,14 +194,14 @@
       border-radius: var(--radius-sm);
       background: var(--bg-surface);
     }
-    .assist-form label {
+    .assist-form .assist-form__field {
       display: grid;
       gap: var(--space-1-5);
       margin: 0;
       color: var(--text-dim);
       font-size: var(--fs-md);
     }
-    .assist-form textarea {
+    .assist-form .assist-form__input {
       width: 100%;
       box-sizing: border-box;
       font-size: var(--fs-md);

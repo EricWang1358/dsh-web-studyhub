@@ -51,14 +51,14 @@
 
 @layer study.overrides {
   :is(.study-app, .study-seat) {
-    &:is([data-contrast='high'], :has(> .study-app[data-contrast='high'])) :is(button, a, input, textarea, select, [tabindex]):focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
+    &:is([data-contrast='high'], :has(> .study-app[data-contrast='high'])) :focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
   }
   @media (forced-colors: active) {
     :is(.study-app, .study-seat) {
       /* Forced colours (Windows high contrast): say with system colours what colour alone said. */
-      :is(button, a, input, textarea, select, [tabindex]):focus-visible { outline: 3px solid Highlight; outline-offset: 2px; box-shadow: none; }
-      :is(button, .sh-btn) { border: 1px solid ButtonText; }
-      :is(button, .sh-btn):disabled { border-color: GrayText; color: GrayText; }
+      :focus-visible { outline: 3px solid Highlight; outline-offset: 2px; box-shadow: none; }
+      .sh-btn { border: 1px solid ButtonText; }
+      .sh-btn:disabled { border-color: GrayText; color: GrayText; }
       :is([aria-pressed='true'], [aria-selected='true'], [aria-current='step'], .nav[aria-current="page"], .is-active, .primary, .sh-btn--primary) { forced-color-adjust: none; background: Highlight !important; color: HighlightText !important; }
     }
   }

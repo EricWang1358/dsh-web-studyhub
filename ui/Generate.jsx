@@ -280,7 +280,7 @@ export default function Generate({
                     <p className="generate-note">{notationNote()}</p>
                   </FormRow>
                   <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus">
-                    <textarea id="generate-focus" ref={focusBox} className="generate-focus" rows={2} value={gen.focus}
+                    <textarea id="generate-focus" ref={focusBox} className="generate-focus generate-row__input" rows={2} value={gen.focus}
                       onChange={(e) => setGen({ ...gen, focus: e.target.value })}
                       placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")} />
                     {(pathMode || retrievalMode) && <FocusHelp mode={mode} />}
@@ -292,10 +292,10 @@ export default function Generate({
                       onApply={() => { setGen(applySuggestion(gen, assist.result)); setAssist({ ...assist, applied: true }); }} />
                   </FormRow>
                   <FormRow label={ui("题组名称（可选）")} htmlFor="generate-title">
-                    <input id="generate-title" value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如 SWE5001 · Solution Architecture")} />
+                    <input id="generate-title" className="generate-row__input" value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如 SWE5001 · Solution Architecture")} />
                   </FormRow>
                   <FormRow label={ui("目标岗位 / 面试方向（可选）")} htmlFor="generate-role">
-                    <input id="generate-role" value={gen.role} onChange={(e) => setGen({ ...gen, role: e.target.value })} placeholder={ui("例如：后端工程师 · 系统设计")} />
+                    <input id="generate-role" className="generate-row__input" value={gen.role} onChange={(e) => setGen({ ...gen, role: e.target.value })} placeholder={ui("例如：后端工程师 · 系统设计")} />
                   </FormRow>
                 </div>
                 <ReferenceQuestions sources={data.sources} selected={referenceSourceIds} evidenceIds={selectedSources}

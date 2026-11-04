@@ -89,7 +89,7 @@ export function LiveSetup({ readiness, onSettings, onReady, initialLocal = null 
 /** Under the start form: which engine this class will use, and, where both can run, the choice between them (per class; the default is in 音频设置). */
 export function ProviderChoice({ readiness, value, onChange, disabled }) {
   const gemini = !!(readiness?.providers?.free || readiness?.providers?.paid), local = !!readiness?.liveLocal?.ready;
-  if (gemini && local) return <label className="live-provider">{ui('转写')}<Select value={value} onChange={onChange} disabled={disabled}
+  if (gemini && local) return <label className="live-provider live-field">{ui('转写')}<Select className="live-input" value={value} onChange={onChange} disabled={disabled}
     options={[{ value: 'gemini', label: ui('Gemini（云端）') }, { value: 'local', label: ui('本地转写（声音不上传）') }]} /></label>;
   return null;
 }
@@ -247,14 +247,14 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
     {!active(session) && !(readiness && readiness.live === false) && <form className="live-setup" onSubmit={(event) => {
       event.preventDefault(); void begin(kind, 'start');
     }}>
-      <div className="live-fields"><label>{ui('课堂名称')}<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder={ui('例如：数据库 · 分区与索引')} /></label>
-        <label>{ui('声音来源')}<Select value={kind} onChange={setKind}
+      <div className="live-fields"><label className="live-field">{ui('课堂名称')}<input className="live-input" value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder={ui('例如：数据库 · 分区与索引')} /></label>
+        <label className="live-field">{ui('声音来源')}<Select className="live-input" value={kind} onChange={setKind}
           options={[{ value: 'microphone', label: ui('麦克风（现场课堂）') }, { value: 'tab', label: ui('标签页 / 系统声音（网课）') }]} /></label></div>
       <SourceHint kind={kind} tabAllowed={tabAllowed} onUseMicrophone={() => setKind('microphone')} />
       <CourseField value={course} onChange={setCourse} courses={data?.focus?.courses} disabled={disabled} />
       <details><summary>{ui('课程背景与术语（可选）')}</summary>
-        <label>{ui('这堂课讲什么')}<input value={subject} maxLength={300} onChange={(event) => setSubject(event.target.value)} /></label>
-        <label>{ui('术语（逗号或换行分隔）')}<textarea value={terms} onChange={(event) => setTerms(event.target.value)} rows={2} /></label></details>
+        <label className="live-field">{ui('这堂课讲什么')}<input className="live-input" value={subject} maxLength={300} onChange={(event) => setSubject(event.target.value)} /></label>
+        <label className="live-field">{ui('术语（逗号或换行分隔）')}<textarea className="live-input" value={terms} onChange={(event) => setTerms(event.target.value)} rows={2} /></label></details>
       <ProviderChoice readiness={readiness} value={engine} onChange={setProvider} disabled={disabled} />
       <div className="live-setup-foot">
         {engine !== 'local' && <Checkbox checked={paidOnly} onChange={setPaidOnly} label={ui('只用付费密钥')} />}
@@ -315,14 +315,14 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
             <span className="muted" data-blocking={chosen.length > 0 && selectedChars < MIN_CHARS ? 'true' : undefined}>{chosen.length ? (selectedChars >= MIN_CHARS ? uiFormat('约 {0} 个原文字符', [selectedChars])
               : uiFormat('再多选约 {0} 个字符才能出题', [MIN_CHARS - selectedChars]))
               : ui('至少选约 120 个原文字符')}</span></div>
-          <div className="live-actions"><Button disabled={!segments.length} onClick={() => setSelected(new Set(segments.slice(-8).map((segment) => segment.id)))}>{ui('最近 8 句')}</Button>
-            <Button disabled={!selected.size} onClick={() => setSelected(new Set())}>{ui('清空')}</Button>
+          <div className="live-actions"><Button className="live-selection-btn" disabled={!segments.length} onClick={() => setSelected(new Set(segments.slice(-8).map((segment) => segment.id)))}>{ui('最近 8 句')}</Button>
+            <Button className="live-selection-btn" disabled={!selected.size} onClick={() => setSelected(new Set())}>{ui('清空')}</Button>
             <div className="live-count" role="group" aria-label={ui('题数')}>
               <span className="live-count-label">{ui('题数')}</span>
-              <IconButton icon="minus" size="sm" label={ui('减少题数')} disabled={count <= 1} onClick={() => setCount(Math.max(1, count - 1))} />
+              <IconButton className="live-count-btn" icon="minus" size="sm" label={ui('减少题数')} disabled={count <= 1} onClick={() => setCount(Math.max(1, count - 1))} />
               <output aria-live="polite">{count}</output>
-              <IconButton icon="plus" size="sm" label={ui('增加题数')} disabled={count >= 15} onClick={() => setCount(Math.min(15, count + 1))} /></div>
-            <Button variant="primary" busy={activeOp === 'generate'} lock={disabled} disabled={!canGenerate} title={selectedChars < MIN_CHARS ? uiFormat('至少约 {0} 个原文字符，目前 {1}', [MIN_CHARS, selectedChars]) : undefined}
+              <IconButton className="live-count-btn" icon="plus" size="sm" label={ui('增加题数')} disabled={count >= 15} onClick={() => setCount(Math.min(15, count + 1))} /></div>
+            <Button className="live-selection-btn" variant="primary" busy={activeOp === 'generate'} lock={disabled} disabled={!canGenerate} title={selectedChars < MIN_CHARS ? uiFormat('至少约 {0} 个原文字符，目前 {1}', [MIN_CHARS, selectedChars]) : undefined}
               onClick={() => void perform('generate', async () => {
                 const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count, language: GENERATION_LANGUAGE[language] });
                 toast.success(ui('已加入出题任务；课堂实录会继续。完成后在收件箱打开草稿。'));

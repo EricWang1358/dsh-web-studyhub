@@ -28,7 +28,7 @@
     .quality-note .icon {
       color: var(--accent-soft);
     }
-    .citations button {
+    .citations .citations__button {
       display: block;
       width: 100%;
       text-align: left;
@@ -151,7 +151,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .question-meta button {
+    .question-meta .question-meta__action {
       padding: var(--space-1) var(--space-2);
       border: 0;
     }
@@ -488,18 +488,6 @@
     .teaching-panel {
       margin-top: var(--space-5-5);
     }
-    .teaching-panel > button {
-      width: 100%;
-      padding: var(--space-3-5);
-      font-size: var(--fs-md);
-      color: var(--text-dim);
-      background: transparent;
-      border: 1px dashed var(--line-strong);
-    }
-    .teaching-panel > button:hover:not(:disabled) {
-      background: var(--bg-hover);
-      border-color: var(--decor-faint);
-    }
     .teaching-panel .explanation {
       margin-top: 0;
       padding: var(--space-4-5) var(--space-5);
@@ -538,14 +526,14 @@
     .teaching-context dd { margin: 0; min-width: 0; }
     .teaching-context .md p { font-size: inherit; }
     .teaching-panel form { display: grid; gap: var(--space-3-5); margin-top: var(--space-4-5); }
-    .teaching-panel form > label { display: grid; gap: var(--space-2-5); }
-    .teaching-panel form > button { justify-self: end; }
+    .teaching-panel form > .teaching-panel__field { display: grid; gap: var(--space-2-5); }
+    .teaching-panel form > .teaching-panel__submit { justify-self: end; }
   }
   @container study (max-width: 480px) {
     :where(.study-app, .study-seat) {
       .teaching-panel .explanation { padding: var(--space-4); }
       .teaching-context > div { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
-      .teaching-panel form > button { width: 100%; }
+      .teaching-panel form > .teaching-panel__submit { width: 100%; }
     }
   }
   :where(.study-app, .study-seat) {

@@ -156,7 +156,7 @@ export default function PageAsk({ scope, handOff = null, onQuick, resolution, re
         {error && <InlineMessage tone="error">{error}</InlineMessage>}
         {!modelReady && <ReaderModelGate feature="passage" />}
         <form onSubmit={onAsk}>
-          <label>{ui(range ? '针对这几页提问' : '针对这一页提问')}<TextArea value={question} required rows={3} disabled={asking}
+          <label className="study-learning-label">{ui(range ? '针对这几页提问' : '针对这一页提问')}<TextArea className="study-learning-control" value={question} required rows={3} disabled={asking}
             onChange={event => onQuestion?.(event.target.value, '')} placeholder={ui('输入或粘贴问题，例如：这一页的主要结论是什么？')} /></label>
           <QuickIntents chips={visiblePagePresets(presets, range ? PAGE_RANGE_INTENTS : PAGE_INTENTS)} disabled={locked} onAsk={(text, label, intent) => onQuick?.(text, label, intent)} onCustom={() => setManaging(true)} />
           <FirstHint id={READER_HINTS.presets} dismiss="不再提示：预设和发给主会话">{ui(words.hint)}</FirstHint>
