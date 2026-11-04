@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
+import { useNow } from './components/use-now.js';
 
 /* The one quiet line on the live page for a fast speaker (断句停顿, lib/audio-settings.js LIVE_PAUSE): text only becomes a sentence when a pause is
    heard, so a speaker who never pauses leaves everything in the grey in-progress line, with nothing to polish or tick for questions. After more than a
@@ -31,14 +32,10 @@ const running = session => !!session && !['ended', 'error'].includes(session.sta
 
 /** Whether the live page shows the line for this session; it looks again every few seconds while a class runs, so a speaker who goes quiet needs no new poll. */
 export function usePauseHint(session) {
-  const [, setTick] = useState(0);
   const watch = useRef(initialPauseWatch());
   const on = running(session);
-  useEffect(() => {
-    if (!on) return undefined;
-    const timer = setInterval(() => setTick(value => value + 1), 5000);
-    return () => clearInterval(timer);
-  }, [on]);
+  // Looks again every 5 s through the shared clock (#125): one timer for the page, paused while it is hidden.
+  useNow(5000, { enabled: on });
   const result = pauseHint(watch.current, { id: session?.id || '', active: on, count: session?.total ?? session?.segments?.length ?? 0, interim: session?.interim || '' }, Date.now());
   watch.current = result.watch;
   return result.show;
