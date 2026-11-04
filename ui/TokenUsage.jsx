@@ -64,8 +64,9 @@ const GHOST_ESTIMATE = { totalTokens: { low: 88800, high: 99900 }, calls: { low:
  * stages, the same rows as ranges and what the estimate cannot know. `state`: { status, estimate }. Loading and ready draw the same box
  * (a hidden copy of the line holds the room), so nothing moves when the answer arrives; `align="end"` right-aligns it in an action column.
  * A selection over the limit says so in plain sight, not only in the panel. `tight` keeps the info button at the end of a long line instead of under it. `lead` is what goes before the figures (the 覆盖强度 line: 「标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，」).
+ * `method`: how the figures were made, the panel's last line (default: DSH's fixed estimate; a scale measured from a sample run says so instead).
  */
-export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = false, align = 'start', lead = '', tight = false }) {
+export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = false, align = 'start', lead = '', tight = false, method = null }) {
   useInjectCss(css, 'study-token-usage');
   const [open, setOpen] = useState(defaultOpen);
   const panel = useId();
@@ -96,7 +97,7 @@ export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = fa
         <TokenUsage estimate={estimate} />
         <ul className="token-estimate__notes">
           {notes.map((note) => <li key={note}>{note}</li>)}
-          <li>{methodNote()}</li>
+          <li>{method || methodNote()}</li>
         </ul>
       </div>}
     </>}

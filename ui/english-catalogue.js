@@ -76,6 +76,7 @@ import liveLocal from './locales/en.live-local.json';
 import nextStepCopy from './locales/en.next-step.json';
 import focusCopy from './locales/en.focus.json';
 import finderCopy from './locales/en.finder.json';
+import bookSampleCopy from './locales/en.book-sample.json';
 import appMessages from '../lib/application-messages-en.js';
 
 export const ENGLISH_SOURCES = {
@@ -150,6 +151,7 @@ export const ENGLISH_SOURCES = {
   'en.next-step.json': nextStepCopy,
   'en.focus.json': focusCopy,
   'en.finder.json': finderCopy,
+  'en.book-sample.json': bookSampleCopy,
 };
 
 /** The English of lib/application-messages.js (localizeAppMessage), handed to it once this module is here. */

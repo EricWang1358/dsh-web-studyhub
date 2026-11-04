@@ -1,0 +1,65 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* The sample of a 复习全书 build while it waits (ui/book/BookSample.jsx): a hairline block on the 总纲's book line and above the book page's reading, never a
+       box inside a box. Title, one lead sentence, the two points, the scale (quiet small lines; the token panel is ui/TokenUsage's), the tip, then the actions:
+       one primary button and a quiet one. Tokens only; long titles wrap. */
+    .book-sample {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+      margin: 0;
+      padding: var(--space-3);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      overflow-wrap: anywhere;
+    }
+    .book-sample__title {
+      margin: 0;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-strong);
+    }
+    .book-sample__lead,
+    .book-sample__block {
+      margin: 0;
+    }
+    .book-sample__points {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .book-sample__points > li {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-sample__role {
+      flex: none;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-sample__scale {
+      display: grid;
+      gap: var(--space-1);
+      min-width: 0;
+    }
+    .book-sample__line,
+    .book-sample__tip {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-sample__actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+  }
+}

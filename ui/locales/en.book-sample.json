@@ -1,0 +1,23 @@
+{
+  "样例": "Sample",
+  "样例：先写了 {0} 个知识点": "Sample: {0} knowledge points written first",
+  "先读一读：满意就生成其余 {0} 个，它们照样例的写法和篇幅写；不满意就改讲解详尽程度或样卷，再重做样例。": "Read them first. If you like them, build the other {0}: they are written in the sample's style and length. If not, change the detail level or the sample papers and make the sample again.",
+  "先读一读这两个知识点的讲解，再决定其余的怎么写。": "Read the explanations of these two points first, then decide how the rest is written.",
+  "典型": "Typical",
+  "较重": "Heavier",
+  "整本 {0} 个知识点，样例 {1} 个，其余 {2} 个": "{0} knowledge points in the book: {1} in the sample, {2} to go",
+  "生成其余：": "Building the rest: ",
+  "按样例这 {0} 个知识点实际用的调用和 token 推算：较轻的那个是下限，样例的平均是上限；缓存命中越多，实际越少。": "Scaled from the calls and tokens the {0} sample points really used: the lighter one is the low end, the sample's average the high end. The more the cache hits, the less it really uses.",
+  "按现在的并行 {0} 个，不到 1 分钟": "At the current {0} in parallel: under a minute",
+  "按现在的并行 {0} 个，大约 {1} 分钟": "At the current {0} in parallel: about {1} min",
+  "按现在的并行 {0} 个，大约 {1}–{2} 分钟": "At the current {0} in parallel: about {1}–{2} min",
+  "整本比较费：可以把资料交给网页版 AI 生成后导入，或者用 opencode / commandcode 这类套餐再生成": "A whole book uses a lot: you can give the materials to a web AI and import what it writes, or build it with a plan such as opencode / commandcode",
+  "样例没写成：模型没有给出可用的讲解。可以改设置后重做样例。": "The sample was not written: the model gave no usable explanation. You can change the settings and make the sample again.",
+  "讲解详尽程度改成了「{0}」，样例是按「{1}」写的：先重做样例，再生成其余。": "The detail level is now “{0}” but the sample was written at “{1}”: make the sample again before building the rest.",
+  "生成其余 {0} 个": "Build the other {0}",
+  "生成其余知识点": "Build the other points",
+  "重做样例": "Make the sample again",
+  "改了讲解详尽程度或样卷以后，按新的设置只重写这 {0} 个知识点；其余的还没写。": "After changing the detail level or the sample papers: rewrites only these {0} points at the new settings. The rest are not written yet.",
+  "其余知识点（写、审阅、修复）": "Other points (write, review, repair)",
+  "考情（对照样卷）": "Exam notes (against the papers)"
+}
