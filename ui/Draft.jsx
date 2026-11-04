@@ -241,15 +241,18 @@ export default function Draft({
         <>
           {draft.cards.map((q, i) => (
             <Panel as="details" className="draft-card" key={q.id}>
-              <summary>
-                <span>{formatNumber(i + 1, { minimumIntegerDigits: 2 })}</span>
-                {q.prompt.replace(/!\[([^\]]*)\]\(data:image\/[^)]+\)/g, '[$1]')}
-                <small>{kinds[q.kind]}</small>
-                {!cardMatchesReview(draft.editorial?.reviewedCards?.[q.id], q) &&
-                  <small>{ui("未自动审阅")}</small>}
-                {selfCitedCardCount([q], data.sources) > 0 && <small>{ui("仅有导入题目引用")}</small>}
-                {experimentalShown(data) && <JevCardBadge signal={draft.editorial?.jev?.signals?.[q.id]} />}
-                {experimentalShown(data) && draft.editorial?.jevDecided?.cards?.[q.id] && <JevDecidedBadge />}
+              {/* One row layout for every question (#670): the number, the question (two lines at most, whole when the row is open) and, at the end, the kind and what is not as it should be. */}
+              <summary className="draft-card__row">
+                <span className="draft-card__no">{formatNumber(i + 1, { minimumIntegerDigits: 2 })}</span>
+                <span className="draft-card__prompt">{q.prompt.replace(/!\[([^\]]*)\]\(data:image\/[^)]+\)/g, '[$1]')}</span>
+                <span className="draft-card__tags">
+                  <small>{kinds[q.kind]}</small>
+                  {!cardMatchesReview(draft.editorial?.reviewedCards?.[q.id], q) &&
+                    <small>{ui("未自动审阅")}</small>}
+                  {selfCitedCardCount([q], data.sources) > 0 && <small>{ui("仅有导入题目引用")}</small>}
+                  {experimentalShown(data) && <JevCardBadge signal={draft.editorial?.jev?.signals?.[q.id]} />}
+                  {experimentalShown(data) && draft.editorial?.jevDecided?.cards?.[q.id] && <JevDecidedBadge />}
+                </span>
               </summary>
               {experimentalShown(data) && <JevCardSignals signal={draft.editorial?.jev?.signals?.[q.id]} threshold={draft.editorial?.jev?.threshold} />}
               <label>{ui("问题")}<textarea

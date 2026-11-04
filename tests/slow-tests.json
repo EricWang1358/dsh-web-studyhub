@@ -28,6 +28,7 @@
     "tests/deck-archive-browser.test.mjs",
     "tests/delete-d2-browser.test.mjs",
     "tests/document-toolbar-button-browser.test.mjs",
+    "tests/draft-layout-browser.test.mjs",
     "tests/exam-prep-browser.test.mjs",
     "tests/exam-submit-count-browser.test.mjs",
     "tests/feature-finder-browser.test.mjs",

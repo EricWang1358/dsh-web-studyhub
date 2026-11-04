@@ -65,3 +65,29 @@ test('#669: the bar sticks to the BOTTOM of the view and is opaque', async () =>
   assert.doesNotMatch(rule, /(?<![-\w])top:/, 'it no longer sticks under the top bar');
   assert.match(rule, /background:\s*var\(--bg-raised\)/, 'opaque: the page scrolls under it');
 });
+
+const rowsOf = (html) => [...html.matchAll(/<summary class="draft-card__row">([\s\S]*?)<\/summary>/g)].map((match) => match[1]);
+const shape = (row) => [...row.matchAll(/<span class="(draft-card__(?:no|prompt|tags))"/g)].map((match) => match[1]).join(' > ');
+
+test('#670: every question is one row of the same structure: number, question, tags (the first included)', () => {
+  const rows = rowsOf(page());
+  assert.equal(rows.length, 4);
+  assert.deepEqual(new Set(rows.map(shape)), new Set(['draft-card__no > draft-card__prompt > draft-card__tags']), rows.map(shape).join(' | '));
+  assert.match(rows[0], /<span class="draft-card__no">01<\/span>/);
+  assert.match(rows[3], /<span class="draft-card__no">04<\/span>/);
+  for (const row of rows) assert.match(row.slice(row.indexOf('draft-card__tags')), /<small>[^<]+<\/small>/, 'the kind is at the end of the row');
+  assert.match(rows[0].slice(rows[0].indexOf('draft-card__tags')), /<small>单选测验<\/small>/);
+  assert.match(rows[3].slice(rows[3].indexOf('draft-card__tags')), /<small>开放问答<\/small>/);
+  assert.match(rows[0], /<span class="draft-card__prompt">关于「间隔重复/, 'the whole question is in the row (the CSS cuts it at two lines)');
+});
+
+test('#670: the question is cut at two lines and shown whole when its row is open; the row has no padding of its own beyond the card\'s', async () => {
+  const sheet = await css();
+  const prompt = sheet.slice(sheet.indexOf('.draft-card__prompt {'), sheet.indexOf('}', sheet.indexOf('.draft-card__prompt {')));
+  assert.match(prompt, /-webkit-line-clamp:\s*2/);
+  assert.match(sheet, /\.draft-card\[open\] > \.draft-card__row \.draft-card__prompt \{[^}]*overflow:\s*visible/);
+  const row = sheet.slice(sheet.indexOf('.draft-card .draft-card__row {'), sheet.indexOf('}', sheet.indexOf('.draft-card .draft-card__row {')));
+  assert.match(row, /display:\s*grid/);
+  assert.match(row, /grid-template-columns:\s*auto auto minmax\(0, 1fr\) auto/, 'chevron, number, question, tags in one row');
+  assert.match(sheet, /\.draft-card \{ margin: var\(--space-2\) 0; padding: var\(--space-2-5\) var\(--space-4\); \}/, 'a closed row is about 66px high with two lines, not 120 to 145');
+});

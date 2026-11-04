@@ -5,27 +5,52 @@
     .draft-card {
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: var(--space-4-5);
-      margin: var(--space-4) 0;
     }
-    .draft-card summary {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: var(--space-1-5) var(--space-3);
+    /* One row layout for every question (#670): the fold's chevron, the number, the question and, at the end, its tags, in one grid row. The question is cut at two lines (three
+       lines' worth of room is never reserved: a one-line question has a one-line row, a long one two) and shown whole when the row is open; the tags never wrap away from the end of the row. */
+    .draft-card .draft-card__row {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr) auto;
+      align-items: start;
+      column-gap: var(--space-3);
       --sh-summary-marker-gap: 0;
       cursor: pointer;
-      line-height: 1.65;
-    }
-    .draft-card summary > span {
-      color: var(--accent-soft);
       font-size: var(--fs-md);
+      line-height: var(--lh-snug);
     }
-    .draft-card summary small {
-      flex-shrink: 0;
+    /* The chevron sits on the first line of the question, not above it (its own line-height is 1). */
+    .draft-card .draft-card__row::before {
+      margin-top: calc((var(--lh-snug) - 1) * 0.5em);
     }
-    .draft-card summary small:first-of-type {
-      margin-left: auto;
+    .draft-card__no {
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .draft-card__prompt {
+      min-width: 0;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+    }
+    .draft-card[open] > .draft-card__row .draft-card__prompt {
+      display: block;
+      overflow: visible;
+    }
+    .draft-card__tags {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: baseline;
+      gap: 0 var(--space-2);
+      max-width: 12em;
+      color: var(--text-muted);
+    }
+    .draft-card__tags small {
+      white-space: nowrap;
     }
     .edit-option {
       background: var(--bg-surface);
@@ -190,6 +215,14 @@
         padding-inline: var(--space-2);
         font-size: var(--fs-sm);
       }
+      .draft-card__tags {
+        grid-column: 3;
+        justify-content: flex-start;
+        max-width: none;
+      }
+      .draft-card .draft-card__row {
+        grid-template-columns: auto auto minmax(0, 1fr);
+      }
     }
   }
 }
@@ -200,7 +233,7 @@
     /* The title is one row: the label, then the field (the page's first screen is for the questions, #669); on a narrow screen they stack again. */
     .draft-title-field { flex-direction: row; align-items: center; gap: var(--space-3); white-space: nowrap; }
     .draft-title-field .draft-title-field__input { flex: 1 1 auto; min-width: 0; margin: 0; }
-    .draft-card { margin: var(--space-4) 0; padding: var(--space-4) var(--space-5); }
+    .draft-card { margin: var(--space-2) 0; padding: var(--space-2-5) var(--space-4); }
     /* The page's toasts stand above the bar, not behind it (the bar is about 56px high). */
     main:has([data-draft-bar]) { --sh-toast-offset: calc(var(--space-9) + var(--space-2)); }
     .draft-citation-preview {
