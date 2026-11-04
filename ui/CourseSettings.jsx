@@ -4,6 +4,7 @@ import { useInjectCss } from './shared.js';
 import { Button, Checkbox, Dialog, Disclosure, EmptyState, Field, Hint, Icon, IconButton, InlineConfirm, InlineMessage, NumberInput, ScrollWindow, SegmentedControl, SettingsSection, TextInput, Tooltip, useToast } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
 import TopicChips from './TopicChips.jsx';
+import FocusProgressList from './FocusProgressList.jsx';
 import GuidanceSuggestions, { guidanceSuggestions } from './GuidanceSuggestions.jsx';
 import { splitTopics } from './course-topics.js';
 import { useStudy } from './study-context.jsx';
@@ -378,6 +379,8 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           </div>
           <Hint>{ui('复习、出题和案例分析会优先照顾这些知识点：重点题间隔更短，出题时自动提高配额并加深难度。')}</Hint>
           <TopicChips value={draft.focusTopics} disabled={disabled} suggestions={weakTopics} onChange={focusTopics => change({ focusTopics })} />
+          {/* Read only, and of the saved topics: a chip not yet saved has nothing to read against. */}
+          <FocusProgressList course={course.name} saved={course.focusTopics} />
         </section>
 
         <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('考官指引')}

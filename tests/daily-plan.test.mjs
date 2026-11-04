@@ -474,3 +474,19 @@ test('a new workflow task with an already completed step charges the remaining a
   const finished=await service.call('daily.plan.get',{date});
   assert.equal(finished.spentMinutes,10);
 }));
+
+test('the focus review block takes the weak focus questions first, then the due ones, then those never answered', () => isolated(async service => {
+  await service.call('course.save', { name: 'Math', focusTopics: ['Bayes'] });
+  const make = (id, review) => ({ id, kind: 'flashcard', topic: 'Bayes rule', prompt: `Question ${id}`, answer: 'Answer', options: [], citations: [], requires: [], review });
+  const fresh = { repetitions: 0, interval_days: 0, ease_factor: 2.5, due_at: null };
+  const due = { repetitions: 2, interval_days: 3, ease_factor: 2.5, due_at: '2026-10-01T00:00:00.000Z' };
+  await service.store.update(s => {
+    // In the deck's order the never-answered and the due questions come before the weak ones.
+    s.decks[0].cards = [make('n1', fresh), make('n2', fresh), make('d1', due), make('d2', due), make('w1', { ...due, due_at: '2026-12-01T00:00:00.000Z' }), make('w2', fresh), make('w3', fresh)];
+    s.attempts.push(...['w1', 'w2', 'w3'].map(quiz_id => ({ deckId: 'deck', quiz_id, grade: 1, timestamp: '2026-10-04T08:00:00.000Z' })));
+  });
+  const { proposal } = await service.call('daily.plan.suggest', { date, minutes: 60 });
+  const block = proposal.items.find(item => item.title.startsWith('重点复习'));
+  assert.ok(block, 'the focus review block is proposed');
+  assert.deepEqual(block.scope.map(ref => ref.cardId), ['w1', 'w2', 'w3', 'd1', 'd2']);
+}));

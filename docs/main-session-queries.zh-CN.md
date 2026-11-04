@@ -15,6 +15,7 @@
 | 搜索或阅读资料原文 | “资料里哪里讲了 TCP 三次握手？” | 先 `source.search`，再 `source.get` |
 | 查哪些题引用了某份资料 | “哪些题引用了这份讲义？” | `source.coverage` |
 | 找已有的题 | “题库里有没有二分查找的题？” | `card.search` |
+| 看课程的重点里哪些还不会 | “我的考试重点里还有哪些没掌握？” | `course.focusProgress`（每条已保存的重点有几道题、按掌握程度分几类；只读） |
 | 给已有题组补题 | “根据这份讲义，给二分查找题组补 5 道题” | `supplement`，见[向已有题组补题](supplementation.zh-CN.md) |
 | 把草稿发布到已有题组 | “把这份草稿并入二分查找题组” | `draft.publish` |
 | 把知识骨架画成可交互的图 | “用 archify 技能画我的可靠性骨架” | `skeleton.get`，再 `skeleton.diagram.attach`，见[搭配好用的工具](companions.zh-CN.md) |
