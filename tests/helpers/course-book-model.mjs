@@ -43,6 +43,14 @@ function review(data, { unsupported = [] }) {
   return { issues, checked: data.checklist.filter(item => data.text.includes(item.name)).map(item => item.id) };
 }
 
+/** The card pass (#710 S6): a card for every listed item of every point, from its name and gist, related to the next item of the request (the first item of
+    the next point when it is a point's last). */
+const cardPassAnswer = data => {
+  const items = data.points.flatMap(point => point.checklist);
+  return { cards: items.map((item, at) => ({ item: item.id, name: item.name, plain: `${item.name}: ${item.gist || 'what it means'}.`,
+    pitch: `${item.name} is ${item.gist || 'a key idea'}.`, relations: items[at + 1] ? [{ kind: 'related', item: items[at + 1].id }] : [] })) };
+};
+
 const examAnswer = data => ({ leaves: data.leaves.map(leaf => ({ id: leaf.id, note: `Asked as: ${String(leaf.questions[0] ?? '').slice(0, 40)}` })) });
 /** The exam answer kit (#710 S4): per type a name, its question's first two words as trigger words plus one the papers do not hold, a template with slots, and a
     fill per question plus one of a question that was never asked (the program drops both). */
@@ -66,7 +74,7 @@ export function bookModel({ invent = false, skip = [], omit = 0, stubborn = [], 
     if (held && (held.stage ? call.stage === held.stage && !held.taken && (held.taken = true) : calls.length === held.at)) await held.gate.promise;
     if (fail?.(call, calls)) throw new Error('provider down');
     if (junk?.(call, calls)) { reportUsage({ uncachedInputTokens: 10, outputTokens: 3, cacheReadTokens: 0, cacheWriteTokens: 0 }); return 'Not JSON at all.'; }
-    if (['write', 'review', 'repair', 'place', 'exam', 'kit'].includes(data.stage)) {
+    if (['write', 'review', 'repair', 'place', 'exam', 'kit', 'cards'].includes(data.stage)) {
       reportUsage({ uncachedInputTokens: 100, outputTokens: 60, cacheReadTokens: 0, cacheWriteTokens: 0 });
       const must = (data.checklist || []).filter(item => item.priority === 'must'), all = data.checklist || [];
       if (data.stage === 'write') {
@@ -79,6 +87,7 @@ export function bookModel({ invent = false, skip = [], omit = 0, stubborn = [], 
         const keep = opts.stubborn.includes(data.point.title) ? all.filter(item => !data.missing.includes(item.id)) : all;
         return JSON.stringify(section(data, keep, { invent: false, cards: opts.cards }));
       }
+      if (data.stage === 'cards') return JSON.stringify(cardPassAnswer(data));
       if (data.stage === 'place') return JSON.stringify({ places: data.items.map(item => ({ item: item.id, point: 'k1' })) });
       if (data.stage === 'kit') return JSON.stringify(kitAnswer(data));
       return JSON.stringify(examAnswer(data));
