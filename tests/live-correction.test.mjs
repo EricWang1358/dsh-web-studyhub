@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeCorrector, RollingCorrection } from '../lib/live-correction.js';
-import { LIVE_CORRECTION, correctionBudget } from '../lib/live-correction-settings.js';
+import { LIVE_CORRECTION, correctionBudget, mainlyChinese } from '../lib/live-correction-settings.js';
 import { runCorrectionAgent } from '../lib/live-correction-agent.js';
 import { LiveSession } from '../lib/live.js';
 import { GeminiTiers } from '../lib/gemini.js';
@@ -83,7 +83,7 @@ test('correction updates the existing row, persists the original and rejects unk
   assert.equal(restored.correction.snapshot().covered, 1);
   assert.equal(restored.snapshot().segments[0].originalEn, 'Sentence 1.');
   assert.equal(restored.correction.notes.length, 1);
-  for (const extra of [{ items: [{ n: 99, text: 'x', zh: 'x', confidence: 'high' }] }, { note: { text: 'Unsupported', refs: [99] } }]) {
+  for (const extra of [{ items: [{ n: 99, text: 'x', zh: 'x', confidence: 'high' }] }]) {
     const rejected = fixture(1, async (_s, prompt) => response(JSON.parse(prompt), extra));
     await rejected.correction.run(); assert.ok(rejected.correction.error);
     // A reply that is malformed twice is not asked a third time: the sentence is skipped with its text untouched, and the learner can retry it.
@@ -176,16 +176,6 @@ const ids = input => input.items.map(item => item.n);
 const fix = (input, n) => n === 1 ? response(input) : response(input, { items: [{ n, text: `Fixed ${n}`, zh: `修正 ${n}`, confidence: 'high', reason: 'term' }] });
 const size = lengths => lengths.reduce((total, length, i) => total + `S${i + 1} `.length + length, 0);
 
-test('correctionBudget grows with the characters asked about and stays within its caps', () => {
-  const short = correctionBudget(80), single = correctionBudget(700), huge = correctionBudget(50_000);
-  assert.equal(short.timeoutMs >= LIVE_CORRECTION.requestMs, true); assert.equal(short.maxOutputTokens >= LIVE_CORRECTION.maxTokens, true);
-  assert.ok(single.timeoutMs > short.timeoutMs); assert.ok(single.maxOutputTokens > short.maxOutputTokens);
-  assert.equal(correctionBudget(0).timeoutMs, LIVE_CORRECTION.requestMs); assert.equal(correctionBudget(0).maxOutputTokens, LIVE_CORRECTION.maxTokens);
-  assert.deepEqual(huge, { timeoutMs: 60_000, maxOutputTokens: 8192 });
-  const background = correctionBudget(700, { background: true });
-  assert.ok(background.timeoutMs >= LIVE_CORRECTION.backgroundMs); assert.equal(correctionBudget(50_000, { background: true }).timeoutMs, 120_000);
-});
-
 test('eight short sentences are still one request; long sentences are batched by characters', async () => {
   const calls = [];
   const short = sizedFixture(Array(8).fill(10), async (_s, prompt) => { const input = JSON.parse(prompt); calls.push(input); return response(input); });
@@ -227,12 +217,14 @@ test('short earlier sentences still ride along as editable overlap, within the c
   assert.deepEqual(calls.map(ids), [[1, 2, 3, 4, 5, 6, 7, 8], [7, 8, 9, 10, 11, 12, 13, 14, 15, 16]]);
 });
 
-test('each request is allowed time and tokens in proportion to its characters', async () => {
+test('each request is allowed time and tokens in proportion to what it is expected to write', async () => {
   const seen = [];
   const { correction } = sizedFixture([20, 700], async (_s, prompt, options) => { const input = JSON.parse(prompt); seen.push({ n: ids(input), ...options }); return response(input); });
   await correction.run();
   assert.equal(seen.length, 1, 'both fit one 1200-character batch');
-  assert.deepEqual({ timeoutMs: seen[0].timeoutMs, maxOutputTokens: seen[0].maxOutputTokens }, correctionBudget(size([20, 700])));
+  const chars = size([20, 700]);
+  assert.deepEqual({ timeoutMs: seen[0].timeoutMs, maxOutputTokens: seen[0].maxOutputTokens },
+    (({ timeoutMs, maxOutputTokens }) => ({ timeoutMs, maxOutputTokens }))(correctionBudget({ inputChars: chars, items: 2, zhChars: chars, memory: true })));
   const lone = sizedFixture([900, 900], async (_s, prompt, options) => { const input = JSON.parse(prompt); seen.push({ n: ids(input), ...options }); return response(input); });
   seen.length = 0; await lone.correction.run();
   assert.equal(seen.length, 2);
@@ -245,7 +237,7 @@ test('without a driver the request is stopped at the scaled time, not at the fix
   let asked = 0;
   correction.ask = (_work, ms) => { asked = ms; return Promise.reject(timeoutError()); };
   await correction.run();
-  assert.equal(asked, correctionBudget(size([700])).timeoutMs);
+  assert.equal(asked, correctionBudget({ inputChars: size([700]), items: 1, zhChars: size([700]), memory: true }).timeoutMs);
   assert.ok(asked > LIVE_CORRECTION.requestMs);
 });
 
@@ -348,5 +340,127 @@ test('a background request is allowed time in proportion to what it rereads', as
   correction.enqueue({ ids: [1], reason: 'Check old ambiguity.' }, [2]);
   await correction.settled();
   assert.equal(correction.tasks[0].status, 'done');
-  assert.deepEqual({ timeoutMs: childOptions.timeoutMs, maxOutputTokens: childOptions.maxOutputTokens }, correctionBudget(size([700, 700]), { background: true }));
+  const expected = correctionBudget({ inputChars: size([700, 700]), items: 1, zhChars: size([700]), background: true });
+  assert.deepEqual({ timeoutMs: childOptions.timeoutMs, maxOutputTokens: childOptions.maxOutputTokens }, { timeoutMs: expected.timeoutMs, maxOutputTokens: expected.maxOutputTokens });
+});
+
+// ---- Output follows the expected reply: small edits, translation only for non-Chinese, notes apart from corrections ----
+const chinese = (id, length) => ({ id, en: `第${id}号桑德斯${'讲'.repeat(length)}`, zh: '', t: id * 1000, rev: id, zhState: 'none' });
+const edit = (n, from, to, extra = {}) => ({ n, edits: [{ from, to }], reason: '人名', confidence: 'high', ...extra });
+
+test('a correction is a list of small edits applied in code; a Chinese sentence needs no translation', async () => {
+  const { session, correction } = fixture(0, async (_s, prompt) => response(JSON.parse(prompt), { items: [edit(1, '桑德斯', '山德斯')] }));
+  session.segments.push(chinese(1, 20));
+  await correction.run();
+  assert.equal(session.segments[0].en, `第1号山德斯${'讲'.repeat(20)}`); assert.equal(session.segments[0].originalEn, `第1号桑德斯${'讲'.repeat(20)}`);
+  assert.equal(session.segments[0].zhState, 'none'); assert.equal(session.segments[0].zh, '');
+  assert.equal(session.segments[0].correctionReason, '人名'); assert.equal(correction.coveredThrough, 1);
+  const latin = fixture(1, async (_s, prompt) => response(JSON.parse(prompt), { items: [edit(1, 'Sentence', 'Sentences', { zh: '多个句子 1。' })] }));
+  await latin.correction.run();
+  assert.equal(latin.session.segments[0].en, 'Sentences 1.'); assert.equal(latin.session.segments[0].zh, '多个句子 1。');
+});
+
+test('an edit that does not occur exactly once, or a missing translation, drops that correction with a warning and never fails the batch', async () => {
+  const { session, correction } = fixture(3, async (_s, prompt) => response(JSON.parse(prompt), { items: [
+    edit(1, 'Sentence', 'X', { zh: 'x' }), edit(2, 'absent', 'X', { zh: 'x' }), edit(3, '3', 'three') ] }));
+  session.segments[0].en = 'Sentence Sentence 1.';
+  await correction.run();
+  assert.equal(session.segments[0].en, 'Sentence Sentence 1.', 'ambiguous: appears twice');
+  assert.equal(session.segments[1].en, 'Sentence 2.', 'not found');
+  assert.equal(session.segments[2].en, 'Sentence 3.', 'a translation is required for a sentence that is not Chinese');
+  assert.equal(correction.coveredThrough, 3); assert.equal(correction.error, ''); assert.equal(correction.snapshot().skipped, 0);
+  assert.equal(correction.snapshot().warnings.length, 3);
+  assert.equal(correction.notes.length, 1, 'the note of the batch is kept');
+});
+
+test('the full-sentence form of a correction is still read', async () => {
+  const { session, correction } = fixture(1, async (_s, prompt) => response(JSON.parse(prompt), { items: [{ n: 1, text: 'Whole sentence.', zh: '整句。', confidence: 'high' }] }));
+  await correction.run(); assert.equal(session.segments[0].en, 'Whole sentence.'); assert.equal(session.segments[0].zh, '整句。');
+});
+
+test('a bad note or memory is dropped with a warning; the corrections of the batch are kept', async () => {
+  for (const extra of [{ note: { text: 'Unsupported', refs: [99] } }, { memory: { text: '摘要', refs: [99] } }, { memory: undefined }, { memory: { text: 'x'.repeat(2000), refs: [1] } }]) {
+    const { session, correction } = fixture(1, async (_s, prompt) => response(JSON.parse(prompt), { items: [edit(1, 'Sentence', 'Sentences', { zh: '多句' })], ...extra }));
+    await correction.run();
+    assert.equal(session.segments[0].en, 'Sentences 1.'); assert.equal(correction.coveredThrough, 1); assert.equal(correction.error, ''); assert.equal(correction.snapshot().skipped, 0);
+    assert.ok(correction.snapshot().warnings.length >= 1, JSON.stringify(extra));
+  }
+});
+
+test('the memory is asked for on its own cadence: first batch, every third batch, and once more when the class is over', async () => {
+  const asked = [];
+  const { session, correction } = sizedFixture([700, 700, 700, 700, 700], async (_s, prompt) => { const input = JSON.parse(prompt); asked.push(input.updateMemory); return response(input); });
+  session.status = 'live';
+  await correction.run();
+  assert.deepEqual(asked, [true, false, false, true, false]);
+  assert.equal(correction.memory.text, '课程摘要');
+  session.status = 'ended'; session.segments.push(...sized([700]).map(s => ({ ...s, id: 6 })));
+  await correction.run();
+  assert.equal(asked.at(-1), true, 'the last batch of an ended class refreshes the memory');
+  // A reply that leaves the memory out when it was not asked for changes nothing.
+  const quiet = sizedFixture([700, 700], async (_s, prompt) => { const input = JSON.parse(prompt); return response(input, input.updateMemory ? {} : { memory: undefined }); });
+  await quiet.correction.run(); assert.equal(quiet.correction.memory.text, '课程摘要'); assert.deepEqual(quiet.correction.snapshot().warnings, []);
+});
+
+test('the budget follows the expected reply: translation only for non-Chinese, memory only when asked, input read time', () => {
+  const none = correctionBudget({ inputChars: 0, items: 1 });
+  assert.equal(none.timeoutMs, LIVE_CORRECTION.requestMs); assert.ok(none.maxOutputTokens >= LIVE_CORRECTION.minTokens);
+  assert.ok(correctionBudget({ items: 1, zhChars: 700 }).maxOutputTokens > none.maxOutputTokens, 'a translation of 700 characters');
+  assert.ok(correctionBudget({ items: 1, memory: true }).maxOutputTokens > none.maxOutputTokens, 'the memory');
+  assert.ok(correctionBudget({ items: 5 }).maxOutputTokens > none.maxOutputTokens, 'more sentences to correct');
+  assert.ok(correctionBudget({ inputChars: 2000, items: 1, memory: true }).timeoutMs > correctionBudget({ inputChars: 100, items: 1, memory: true }).timeoutMs);
+  assert.deepEqual([correctionBudget({ inputChars: 99_999, items: 99, zhChars: 99_999, memory: true }).timeoutMs, correctionBudget({ inputChars: 99_999, items: 99, zhChars: 99_999, memory: true }).maxOutputTokens], [60_000, 8192]);
+  assert.equal(correctionBudget({ inputChars: 99_999, background: true }).timeoutMs, 120_000);
+  assert.ok(correctionBudget({ background: true }).timeoutMs >= LIVE_CORRECTION.backgroundMs);
+  assert.equal(mainlyChinese('第1号桑德斯讲'), true); assert.equal(mainlyChinese('The 桑德斯 effect'), false); assert.equal(mainlyChinese(''), false);
+});
+
+// The owner's real class (2026-11-04): Chinese, one 2419-character "sentence", then short ones, then a 1990-character one. A fake model that takes time in
+// proportion to what it reads and writes (4 ms per character read, 25 ms per character written) and times out when it would exceed the request's budget.
+const REAL_LENGTHS = [2419, 277, 332, 50, 41, 27, 22, 89, 1990];
+function slowModel(reply, log) {
+  return async (_system, prompt, options) => {
+    const input = JSON.parse(prompt), out = reply(input), took = prompt.length * 4 + out.length * 25;
+    log.push({ n: input.items.map(item => item.n), took, allowed: options.timeoutMs, updateMemory: input.updateMemory });
+    if (took > options.timeoutMs) throw timeoutError();
+    return out;
+  };
+}
+const compactReply = input => response(input, { items: input.items.filter(item => item.text.includes('桑德斯')).map(item => edit(item.n, '桑德斯', '山德斯')),
+  note: { text: `要点 ${input.items.at(-1).n}`, refs: [input.items.at(-1).n] }, ...(input.updateMemory ? {} : { memory: undefined }) });
+const echoReply = input => response(input, { items: input.items.map(item => ({ n: item.n, text: item.text.replace('桑德斯', '山德斯'), confidence: 'high', reason: '人名' })),
+  ...(input.updateMemory ? {} : { memory: undefined }) });
+function realClass(complete) {
+  const correct = makeCorrector({ subject: '药学', complete });
+  const session = new LiveSession({ id: 'real-class', title: 'Class', tiers: new GeminiTiers({}), correct, saved: { segments: REAL_LENGTHS.map((length, i) => chinese(i + 1, length)) }, save: async () => {} });
+  return { session, correction: session.correction };
+}
+
+test('the owner\'s real Chinese class: small edits finish every sentence in three requests and the class notes appear', async () => {
+  const log = [], { session, correction } = realClass(slowModel(compactReply, log));
+  await correction.run();
+  assert.deepEqual(log.map(call => call.n), [[1], [2, 3, 4, 5, 6, 7, 8], [7, 8, 9]], 'one long sentence alone, the short ones together, the next long one with two short ones before it');
+  assert.ok(log.every(call => call.took < call.allowed), JSON.stringify(log));
+  const snapshot = correction.snapshot();
+  assert.deepEqual([snapshot.covered, snapshot.pending, snapshot.skipped, snapshot.calls, snapshot.error], [9, 0, 0, 3, '']);
+  assert.ok(session.segments.every(segment => segment.en.includes('山德斯')), 'every sentence was corrected');
+  assert.equal(correction.notes.length, 3); assert.equal(correction.memory.text, '课程摘要');
+  assert.ok(session.segments.every(segment => segment.zhState === 'none' && segment.zh === ''), 'Chinese sentences are not translated into Chinese');
+});
+
+test('the same class with a model that writes whole sentences back: bounded retries, the rest is corrected and the notes still appear', async () => {
+  const log = [], { session, correction } = realClass(slowModel(echoReply, log));
+  await correction.run();
+  const snapshot = correction.snapshot();
+  assert.ok(log.length <= 6, `at most two requests per long sentence and one for the rest, got ${log.length}`);
+  assert.equal(log.filter(call => call.took > call.allowed).length, snapshot.skipped * 2);
+  assert.deepEqual(snapshot.skippedIds, [1, 9]);
+  assert.equal(snapshot.covered, 7); assert.equal(snapshot.pending, 0); assert.equal(snapshot.calls, log.length);
+  assert.ok(correction.notes.length >= 1, 'a failed long sentence does not take the notes of the others with it');
+  assert.ok(session.segments.slice(1, 8).every(segment => segment.en.includes('山德斯')));
+  await correction.run(); assert.equal(correction.snapshot().calls, log.length, 'nothing is sent again by itself');
+  // The learner retries; this time the model writes small edits.
+  correction.correct = makeCorrector({ subject: '药学', complete: slowModel(compactReply, log) });
+  await correction.retry();
+  assert.equal(correction.snapshot().skipped, 0); assert.ok(session.segments.every(segment => segment.en.includes('山德斯')));
 });
