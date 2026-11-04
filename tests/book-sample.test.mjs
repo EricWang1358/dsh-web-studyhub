@@ -18,6 +18,8 @@ test('the pick: the typical point (median weight) and the heavy one (the heavies
   assert.deepEqual(pickSample(course(weights, [8, 11])), { typical: 'p11', heavy: 'p1' }, 'the tested point nearest the median');
   assert.deepEqual(pickSample(course(weights, [1])), { typical: 'p1', heavy: 'p8' }, 'the only tested point is the typical one; the heavy one is the heaviest of the rest');
   assert.equal(pickSample(course(weights.slice(1))), null, 'too few points to write: no sample, the build writes them all');
+  assert.deepEqual(pickSample(course(weights), { leaves: ['p5', 'p0'] }), { typical: 'p5', heavy: 'p0' }, 'made again: the same two points');
+  assert.deepEqual(pickSample(course(weights), { leaves: ['p5', 'gone'] }), { typical: 'p2', heavy: 'p1' }, 'a point of it left the outline: picked anew');
   assert.equal(candidateOf({ id: 'x', anchors: ['a', 'b'] }).weight < candidateOf({ id: 'y', items: ['i'], anchors: [] }).weight, true, 'concepts weigh more than anchors');
 });
 

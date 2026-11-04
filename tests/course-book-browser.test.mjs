@@ -33,7 +33,8 @@ async function seed(root) {
       answer: 'Sorted keys.', citations: [{ sourceId: 'db-notes', quote: 'Indexes fact 1: a B-tree keeps keys sorted.' }] }] });
     state.focus = { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] };
   });
-  for (const [action, args] of [['generation.courseBook.build', { course: COURSE, papers: [PAPER] }], ['generation.courseOutline.build', { course: 'DB' }]]) {
+  // The whole book at once (the sample slice before a big build: tests/book-sample-job.test.mjs).
+  for (const [action, args] of [['generation.courseBook.build', { course: COURSE, papers: [PAPER], sample: 'skip' }], ['generation.courseOutline.build', { course: 'DB' }]]) {
     const job = await settleJob(service, (await service.call(action, args)).jobId);
     if (job.status !== 'complete') throw new Error(`${action} did not finish: ${job.status}`);
   }

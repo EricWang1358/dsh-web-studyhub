@@ -24,7 +24,8 @@ async function world(t, { fake = bookModel(), library = {}, sources: own, decks:
   t.after(() => service.dispose());
   const built = own ? { sources: own, decks: ownDecks || [] } : outlineLibrary(library);
   await service.store.update(state => { state.sources.push(...structuredClone([...built.sources, ...extra])); state.decks.push(...structuredClone(built.decks)); state.focus = { mode: 'class', course }; });
-  const build = (args = {}) => service.call('generation.courseBook.build', { course, language: 'zh', ...args });
+  // The whole book at once (the sample slice before a big build: tests/book-sample-job.test.mjs).
+  const build = (args = {}) => service.call('generation.courseBook.build', { course, language: 'zh', sample: 'skip', ...args });
   const jobs = () => [...service.runtime.work.jobs.values()].filter(job => job.type === KIND);
   const records = async () => (await service.store.read()).sources;
   const notes = async () => (await records()).filter(isCourseNotesSource);
