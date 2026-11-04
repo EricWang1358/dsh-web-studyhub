@@ -2,11 +2,13 @@ import React from 'react';
 import { ui } from '../i18n.js';
 import RemoveDeckDialog from '../RemoveDeckDialog.jsx';
 import CourseSettings from '../CourseSettings.jsx';
+import FocusIntakeDialog from '../FocusIntakeDialog.jsx';
 import { RemoveSampleDialog } from '../tour/SampleControls.jsx';
 import AddSourceDialog from './modals/AddSourceDialog.jsx';
 import FlagDialog from './modals/FlagDialog.jsx';
 import SourceListDialog from './modals/SourceListDialog.jsx';
 import SourceReaderDialog from './modals/SourceReaderDialog.jsx';
+import { practiceArgs } from '../learning-navigation.js';
 import { useApp } from './app-context.js';
 
 /* The app's dialogs, each in its own file. `modal` (library state) says which one is open; any other value is the reader. */
@@ -16,6 +18,21 @@ const DIALOGS = {
     onOpenSource={(source) => app.set.setModal({ type: 'source', source })} />,
   flag: ({ onClose, app }) => <FlagDialog run={app.session.run} onClose={onClose} />,
   source: ({ modal, onClose }) => <SourceReaderDialog modal={modal} onClose={onClose} />,
+  focusIntake: ({ modal, onClose, app }) => (
+    <FocusIntakeDialog
+      data={app.data}
+      initialCourse={modal.course ?? app.data?.focus?.course ?? ''}
+      initialTab={modal.tab || 'image'}
+      initialGenerateAfter={!!modal.generateAfter}
+      onClose={onClose}
+      onStartFocusPractice={(course) => {
+        onClose();
+        app.intents.startReview(practiceArgs(undefined, { ...(course ? { course } : {}), focusOnly: true, fresh: true }));
+      }}
+      onGenerateCourse={(course) => app.intents.goGenerate({ genPatch: course ? { course } : undefined, closeModal: true })}
+      onOpenPdfImport={(pdfFile, course) => app.set.setModal({ type: 'add', ...(course ? { course } : {}), resumeConversion: pdfFile })}
+    />
+  ),
 };
 
 /** Is the reader (a material full-size) the open dialog? The daily plan listens while it is. */

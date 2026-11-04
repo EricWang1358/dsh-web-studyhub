@@ -40,7 +40,7 @@ export function NextDue({ feedback, telemetry = null }) {
     : '';
   const lit = stabilitySteps(meta.stability);
   const credited = Number.isInteger(feedback.credited) && feedback.credited > 0 ? feedback.credited : 0;
-  const hasTelemetry = !!(promoted || gapChip || lit > 0 || credited > 0);
+  const hasTelemetry = !!(promoted || gapChip || lit > 0 || credited > 0 || feedback.focusScheduled);
   return (
     <div className={`next-due${feedback.correct ? '' : ' retry'}`} data-level={feedback.level || undefined}>
       <p className="next-due__lead">
@@ -66,6 +66,8 @@ export function NextDue({ feedback, telemetry = null }) {
               </span>
             </span>
           )}
+          {' '}
+          {feedback.focusScheduled && <span className="next-due__chip">{ui('重点加密复习')}</span>}
           {' '}
           {credited > 0 && (
             <span className="next-due__chip next-due__chip--credit">

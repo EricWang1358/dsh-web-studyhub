@@ -10,12 +10,13 @@ const NEXT_HINT_ID = "review-next-hint";
  * The tools under a question: hint / explanation, EN, ask for help, the reading settings, 更多 (a menu: note, task, fix the
  * question, derive a prerequisite, slay it) and the previous / next buttons. `moreDefaultOpen` opens the menu at first render.
  */
-export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onNote, onTask, onReviewAction, thumbs, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, moreDefaultOpen = false }) {
+export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onNote, onTask, onReviewAction, thumbs, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, moreDefaultOpen = false }) {
   const { busy } = useStudy();
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer; a pending step is still saving.
   const needsAnswer = !run.feedback && run.mode !== "exam";
   const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
   const more = [
+    onToggleFocus && { id: "focus", label: run.card?.focus ? ui("取消重点标记") : ui("标为重点"), disabled: busy, run: onToggleFocus },
     { id: "note", label: ui("写笔记"), disabled: busy, run: onNote },
     onTask && { id: "task", label: ui("记待办"), disabled: busy, run: onTask },
     { id: "improve", label: ui("修题"), run: onImprove },

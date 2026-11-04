@@ -76,6 +76,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   const startFresh = () => start({ mode: 'new', currentCourse: true, count: 10, fresh: true });
   const startPath = () => (todayRun ? resume(todayRun.id) : start(dailyPathArgs(today)));
   const startEverywhere = () => start(practiceArgs(undefined, { fresh: false }));
+  const startFocusOnly = () => start(practiceArgs(undefined, { ...(today?.course != null ? { course: today.course } : {}), focusOnly: true, fresh: true }));
   // 课程路线 (class mode): an unfinished batch first, else the next batch in chapter order.
   const route = !interview ? data.focus?.route : null;
   const courseRun = route && runs.find((r) => r.purpose === 'course' && r.course === route.course);
@@ -83,6 +84,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   const flowLink = startCourseFlow && route?.next?.fresh ? [[ui('先讲后练 · 学习流'), () => startCourseFlow()]] : [];
   /* The ways to start that are not the round: the course's next batch (chapter order), new questions only, and whatever waits in the other courses. */
   const otherStarts = [
+    ...(!interview && today.focusTotal > 0 ? [[uiFormat('只练重点 · {0} 题', [today.focusTotal]), startFocusOnly]] : []),
     ...(route?.next ? [[uiFormat('课程下一批 · {0} 题', [route.next.fresh + route.next.reviews]), startCourse]] : []),
     ...(!interview && freshCount ? [[uiFormat('只学当前课程新题 · {0} 题', [freshCount]), startFresh]] : []),
     ...flowLink,

@@ -13,6 +13,7 @@ import { ActiveSwitch, isParked } from './CourseActive.jsx';
 import { daysUntilExam, examProfile, EXAM_SETTING_LIMITS } from '../lib/courses.js';
 import { courseNameKey, findDuplicateCourses, groupCourseNames, rankCourses, similarCourses } from './course-names.js';
 import css from './course-settings.css';
+import focusIntakeCss from './focus-intake.css';
 
 /* Course settings (WP13): one panel per course record — name and aliases,
    the exam profile, focus topics and examiner-guidance materials, plus rename
@@ -255,9 +256,10 @@ function SectionRow({ section, index, onChange, onRemove, disabled }) {
  * Props: data (snapshot: courses, sources, focus), courseId, onClose; act (called with rethrow so errors stay in the panel) and busy come from useStudy().
  */
 export default function CourseSettings({ data, courseId, onClose, mergeFrom = [] }) {
-  const { act, busy } = useStudy();
+  const { act, busy, openModal } = useStudy();
   const toast = useToast();
   useInjectCss(css, 'study-course-settings');
+  useInjectCss(focusIntakeCss, 'study-focus-intake');
   const courses = useMemo(() => data?.courses || [], [data?.courses]);
   const course = courses.find(item => item.id === courseId);
   const [draft, setDraft] = useState(() => draftFromCourse(course));
@@ -365,8 +367,14 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
         </section>
 
         <section className="course-settings__block" aria-labelledby="course-settings-focus">
-          <h3 id="course-settings-focus">{ui('重点知识点')}</h3>
-          <Hint>{ui('复习、出题和案例分析会优先照顾这些知识点。')}</Hint>
+          <div className="course-settings__focus-head">
+            <h3 id="course-settings-focus">{ui('重点知识点')}</h3>
+            <Button size="sm" variant="secondary" icon="upload" lock={disabled}
+              onClick={() => { onClose?.('focus-intake'); openModal({ type: 'focusIntake', course: course.name }); }}>
+              {ui('从图片 / 文字录入重点…')}
+            </Button>
+          </div>
+          <Hint>{ui('复习、出题和案例分析会优先照顾这些知识点：重点题间隔更短，出题时自动提高配额并加深难度。')}</Hint>
           <TopicChips value={draft.focusTopics} disabled={disabled} suggestions={weakTopics} onChange={focusTopics => change({ focusTopics })} />
         </section>
 

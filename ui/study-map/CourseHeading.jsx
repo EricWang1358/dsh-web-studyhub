@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { Combobox, PageHeader } from '../components/index.js';
 import { ExamCountdown } from '../CourseSettings.jsx';
 import { courseEntries } from '../course-picker-entries.js';
+import { useStudy } from '../study-context.jsx';
 
 /** The current course as a heading-size course switcher (the home's heading and the review book's title share it): a searchable Combobox ranked like every course
     picker, its trigger the text passed as children. onFocus({ course }) makes another course current (the whole app follows). */
@@ -21,6 +22,7 @@ export const CourseSwitch = forwardRef(function CourseSwitch({ data, onFocus, ac
  * from useRoleDraft. Always the page's title (h1), drawn by PageHeader; `aside` (the way to the 总纲) sits at its right.
  */
 export default function CourseHeading({ data, headline, onFocus, onCourseSettings, role, aside }) {
+  const { openModal } = useStudy();
   const focus = data.focus || {};
   const courses = focus.courses || [];
   const frame = (title, titleProps) => <PageHeader className="course-header" title={title} titleProps={titleProps} actions={aside} />;
@@ -34,8 +36,10 @@ export default function CourseHeading({ data, headline, onFocus, onCourseSetting
   }
   if (!courses.length) return frame(headline, { className: 'course-heading' });
   // Ranked like every course picker (current, recently used, busiest) with "Course / Chapter" names as a tree; parked courses stay reachable, last.
-  const actions = onCourseSettings && focus.courseId
-    ? [{ id: 'course-settings', label: ui('课程设置…'), icon: 'settings', onSelect: () => onCourseSettings(focus.courseId) }] : [];
+  const actions = [
+    ...(focus.course ? [{ id: 'focus-intake', label: ui('录入重点…'), icon: 'sparkle', onSelect: () => openModal({ type: 'focusIntake', course: focus.course }) }] : []),
+    ...(onCourseSettings && focus.courseId ? [{ id: 'course-settings', label: ui('课程设置…'), icon: 'settings', onSelect: () => onCourseSettings(focus.courseId) }] : []),
+  ];
   return frame(<>
       <CourseSwitch data={data} onFocus={onFocus} actions={actions}>{focus.course === '' ? ui('未分类课程') : focus.course || headline}</CourseSwitch>
       <ExamCountdown course={(data.courses || []).find((course) => course.id === focus.courseId)} />

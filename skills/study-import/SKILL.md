@@ -13,6 +13,7 @@ whenToUse: The learner asks in chat to import, add, convert, split or enter a fi
 - **Material** (lecture notes, slides, a textbook, a paper, a web page): it becomes sources that questions are made from. Go to section 2.
 - **Questions the learner already has** (a question book, a past paper with answers, a wrong-answer list, a spreadsheet, a screenshot of questions, a JSON question bank): they are entered as they are, never turned into new questions. Go to section 3.
 - **A recording** (lecture audio, subtitles): go to section 4.
+- **Exam focus highlights (重点, including screenshots or photos only)**: go to section 4a.
 - Both at once (a past paper is material and questions): ask the learner once which they want; "both" means import it as material and enter its questions.
 - Use a file only when the learner points at it (@path, a file name with an extension, "this folder") or a 「发给主会话」 message names it. Do not search their disk for others.
 
@@ -41,6 +42,12 @@ whenToUse: The learner asks in chat to import, add, convert, split or enter a fi
 
 - `audio.import {"path": "…"}`, or `{"files": [{"path": "…"}]}` in recording order: transcription and proofreading run in the background, and audio makes no questions by itself.
 - Never ask for or accept an API key in chat: `audio.settings.get` says whether one is set, and the learner sets it in Settings.
+
+## 4a. Exam focus highlights (重点 / screenshots only)
+
+- Screenshots or photos staged under `studyhub-work/focus-intake/` (or handed in chat): transcribe them word for word when your model reads images; on a text-only model (such as DeepSeek), read those workspace paths via installed MinerU (`mineru.import {"path": "…"}`) or an already-installed local OCR tool (ask before installing anything; never pretend to have read an image or guess unclear words).
+- Save the transcribed highlight text as a course material with `source.add {"title": "…", "text": "…", "courses": ["…"]}`, optionally extract concise topic names with `focus.extract {"course": "…", "text": "…"}`, read the existing course first with `course.get {"name": "…"}`, and merge the concise topics into `focusTopics` plus the material id into `guidanceSourceIds` via `course.save {"name": "…", "focusTopics": ["…"], "guidanceSourceIds": ["…"]}` (preserving any `exam` and `plan`).
+- Saved `focusTopics` automatically increase focus review frequency and escalate question generation depth; call `generate` or `supplement` only when the learner asks for questions.
 
 ## 5. Background work
 

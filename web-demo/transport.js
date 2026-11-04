@@ -26,7 +26,7 @@ export async function call(action,args={}) {
   if(action.startsWith('board.'))return boardAction(action,args,'/demo');
   if(action==='notebook.list')return {notebooks:[],current:null};
   if(action==='notebook.search')return {items:[],total:0};
-  if(action.startsWith('notebook.')||action==='source.import'||action==='legacy.import'||action==='restore'||action.startsWith('blog.lookup')||action==='card.translate')throw new Error(message());
+  if(action.startsWith('notebook.')||action==='source.import'||action==='legacy.import'||action==='restore'||action.startsWith('blog.lookup')||action==='card.translate'||action==='focus.images.stage')throw new Error(message());
   if(action==='assist.start'){
     const request=normalizeAssistRequest(args.mode,String(args.text||''),args.helpChoices);
     if(args.mode!=='ask')throw new Error(message());

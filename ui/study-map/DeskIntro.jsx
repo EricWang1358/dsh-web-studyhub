@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, SegmentedControl, Tooltip } from '../components/index.js';
+import { Badge, Button, SegmentedControl, Tooltip } from '../components/index.js';
 import { ParkedChip, isParked } from '../CourseActive.jsx';
 import CourseRoute from '../CourseRoute.jsx';
 import { TERMS } from '../mastery-terms.js';
@@ -69,7 +69,7 @@ export default function DeskIntro({ data, home, mastery, role, start, resume, en
         {data.next ? (
           <>
             <span className="desk-next-label">{ui('推荐下一步')}</span>
-            <span className="desk-next-topic">{data.next.deckTitle} › <strong>{data.next.topic}</strong>
+            <span className="desk-next-topic">{data.next.deckTitle} › <strong>{data.next.topic}</strong>{data.next.focus ? <> <Badge size="sm" tone="accent">{ui('重点')}</Badge></> : null}
               <Tooltip layer content={ui('按课程里题组和主题的顺序，这是第一个还没掌握的主题。')}><small tabIndex={0}>{META_DOT}{uiFormat('课程里下一个没掌握的主题 · 掌握 {0}%', [data.next.mastery])}</small></Tooltip></span>
             <Button variant="link" lock={busy} onClick={() => start({ mode: 'path', scope: [{ deckId: data.next.deckId, topic: data.next.topic }] })}>{ui('只学这个主题 →')}</Button>
           </>
