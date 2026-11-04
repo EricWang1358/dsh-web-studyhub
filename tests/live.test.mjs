@@ -185,9 +185,10 @@ test("sentences are translated in order in small batches, with context, and fail
   const [one, two, three] = live.snapshot().segments;
   assert.equal(one.zh, "译：First sentence here is fine.");
   assert.equal(two.zhState, "done");
-  assert.equal(three.zh, `译：${three.en}`, "Chinese speech passes through the Simplified Chinese translator");
+  assert.equal(three.zhState, "none", "Simplified Chinese speech needs no translation on any engine");
+  assert.equal(three.zh, "");
   assert.ok(calls.every((c) => c.items.every((i) => i.n)), "items are keyed by segment id");
-  assert.ok(calls.flatMap((c) => c.items).length === 3, "all sentences reach the translator");
+  assert.ok(calls.flatMap((c) => c.items).length === 2, "only the English sentences reach the translator");
 
   failNext = 3;
   server.say({ serverContent: { inputTranscription: { text: "Fourth sentence will fail three times." } } });
