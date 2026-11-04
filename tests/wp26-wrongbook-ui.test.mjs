@@ -34,7 +34,7 @@ const coach = { enabled: true, consent: true, ready: 3, preparing: true, prepari
 const base = { data: { root: 'r', decks, focus: { course: 'PE', courses: [{ name: 'PE' }] }, model: { ready: true } }, course: 'PE', onCourse: noop,
   items, counts: { total: 5, graded: 3, self: 1, oral: 0, rubric: 0 }, loading: false, err: '', page: 0, pageSize: 100, hasMore: false,
   onReload: noop, onPage: noop, recs, coach, details: {}, onLoadDetail: noop, onPractice: noop, onPracticePrepared: noop,
-  onGenerate: async () => ({}), onOpenSettings: noop, busy: false };
+  onGenerate: async () => ({}), onOpenSettings: noop, busy: false, filterMin: 1 };
 const render = (extra = {}) => renderToStaticMarkup(React.createElement(WrongBookView, { ...base, ...extra }));
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
@@ -59,14 +59,16 @@ test('the segmented control opens on by deck (3.0.2) and switches to topic group
   assert.match(render({ initial: { groupBy: 'topic' } }), /aria-pressed="true"[^>]*>按主题/);
 });
 
-test('为你推荐 lists similar bank questions with why, a cap and a practise-these action', () => {
+test('为你推荐 lists similar bank questions with why and a cap, and explains how to practise them (no start of its own, #674)', () => {
   // One folded line until opened (#206); the list is behind its toggle.
   assert.doesNotMatch(text(render()), /推荐题 0/);
-  assert.match(text(render()), /练这 8 道/);
+  assert.doesNotMatch(text(render()), /练这 \d+ 道/);
+  assert.match(text(render()), /共 8 道/);
   const html = text(render({ initial: { recsOpen: true } }));
   assert.match(html, /为你推荐/);
   assert.match(html, /不消耗模型/);
-  assert.match(html, /练这 8 道/);
+  assert.match(html, /共 8 道，选「错题 \+ 同类题」来练/);
+  assert.doesNotMatch(html, /练这 \d+ 道/);
   assert.match(html, /同主题：保护状态/);
   assert.match(html, /引用同一页：05 Platform Management 第 21 页/);
   assert.match(html, /推荐题 0/);
@@ -113,7 +115,7 @@ test('重练 is a three-way choice and defaults to the richest available', () =>
   assert.match(text(html), /错题 \+ 同类题 \(5\+8\)/);
   assert.match(text(html), /错题 \+ 变式 \(5\+3\)/);
   assert.match(html, /aria-pressed="true"[^>]*>错题 \+ 变式/);
-  assert.match(text(html), /开始重练 · 全部 8 题/);
+  assert.match(text(html), /开始重练 · 8 题/);
   assert.match(text(render({ hasMore: true, counts: { total: 150, graded: 3, self: 1, oral: 0 } })), /只练本页错题 \(5\)/);
 });
 
@@ -225,16 +227,16 @@ test('English: every UI string is translated while question content stays as wri
   counts: { total: 2, graded: 2, self: 0, oral: 0, rubric: 0 },
   recs: { items: [{ deckId: 'd2', deckTitle: 'Final 02', cardId: 'r0', topic: 'Circuit breaker', kind: 'quiz', prompt: 'Name the half-open rule', score: 6, forCardIds: ['c1'],
     reasons: [{ type: 'topic', topic: 'Circuit breaker' }] }] },
-  coach: { ...coach, preparingCards: ['c4'], readyCards: [{ id: 'p', originDeckId: 'd4', originCardId: 'c1', prompt: 'Variant one', reason: 'wrong' }], failedCards: [], ready: 1 } };
+  coach: { ...coach, preparingCards: [], readyCards: [{ id: 'p', originDeckId: 'd4', originCardId: 'c1', prompt: 'Variant one', reason: 'wrong' }], failedCards: [], ready: 1 } };
   try {
     setUiLanguage('en');
-    const html = renderToStaticMarkup(React.createElement(WrongBookView, { ...english, initial: { recsOpen: true } }));
+    const html = renderToStaticMarkup(React.createElement(WrongBookView, { ...english, initial: { recsOpen: true, groups: 'all' } }));
     assert.doesNotMatch(html.replace(/aria-label="[^"]*"/g, '$&'), han, 'no Chinese UI left');
     assert.match(text(html), /By topic/);
     assert.match(text(html), /Recommended for you/);
     assert.match(text(html), /Same topic: Circuit breaker/);
     assert.match(text(html), /Generate variants/);
-    assert.match(text(html), /Start retraining · all \d+/);
+    assert.match(text(html), /Start retraining · \d+/);
     const gate = renderToStaticMarkup(React.createElement(WrongBookView, { ...english, coach: { ...english.coach, enabled: false } }));
     assert.doesNotMatch(gate, han);
     const consent = renderToStaticMarkup(React.createElement(WrongBookView, { ...english, coach: { ...english.coach, consent: null }, initial: { askConsent: true } }));
