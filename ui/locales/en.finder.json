@@ -147,5 +147,11 @@
   "这个 DSH 里没有开启{0}": "{0} is not turned on in this DSH",
   "这个 DSH 里没有启用它需要的组件：{0}": "This DSH does not have the component it needs: {0}",
   "在「{0}」里。": "It is in “{0}”.",
-  "找功能：搜一个功能在哪，选中后直接带你过去（/ 在没有输入框聚焦时可用）": "Find a feature: look up where a feature is and go straight there (/ works when no text field has the focus)"
+  "找功能：搜一个功能在哪，选中后直接带你过去（/ 在没有输入框聚焦时可用）": "Find a feature: look up where a feature is and go straight there (/ works when no text field has the focus)",
+  "断句": "sentence break",
+  "停顿": "pause",
+  "讲得快": "fast speaker",
+  "一直没有断句": "no sentence ends",
+  "润色 0 句": "0 sentences polished",
+  "课堂实录多久没有新文字（本地转写：多久没有声音）就算一句话说完。老师讲得快、几乎不停顿时选「短」，句子会更早出现，润色和出题也更早能用；下次开始或接着录时生效。": "How long live class waits with no new text (local transcription: no sound) before a sentence counts as finished. For a lecturer who talks fast and hardly pauses, choose “Short”: sentences appear sooner, and polishing and questions can start sooner. It takes effect the next time you start or resume recording."
 }

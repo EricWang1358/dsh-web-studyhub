@@ -30,6 +30,7 @@ class Vad {
   constructor(config, bufferSeconds) {
     if (!config?.sileroVad?.model || !fs.existsSync(config.sileroVad.model)) throw new Error('vad model not found');
     this.bufferSeconds = bufferSeconds;
+    this.silenceSamples = Math.round((config.sileroVad.minSilenceDuration || 0.5) * 16000);
     this.speech = [];
     this.silence = 0;
     this.segments = [];
@@ -39,7 +40,7 @@ class Vad {
     if (loud) { this.speech.push(Float32Array.from(samples)); this.silence = 0; return; }
     if (!this.speech.length) return;
     this.silence += samples.length;
-    if (this.silence >= 8000) this.cut();
+    if (this.silence >= this.silenceSamples) this.cut();
   }
   cut() {
     const length = this.speech.reduce((sum, piece) => sum + piece.length, 0), samples = new Float32Array(length);

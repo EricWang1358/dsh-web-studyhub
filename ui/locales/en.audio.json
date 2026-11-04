@@ -104,5 +104,15 @@
   "浏览器：{0}": "Browser: {0}",
   "系统：{0}": "System: {0}",
   "点击后 {0} 毫秒被拒绝": "Refused {0} ms after the click",
-  "戴着耳机、不想外放：把 Windows 的默认录音设备改成「立体声混音」（或虚拟声卡的 Output），然后选「麦克风」，就能直接录到电脑播放的声音。步骤见文档「课堂实录」。": "Wearing headphones, or not playing through speakers: set Windows’ default recording device to “Stereo Mix” (or a virtual cable’s Output), then choose Microphone to record what the computer plays. The steps are in the Live class guide."
+  "戴着耳机、不想外放：把 Windows 的默认录音设备改成「立体声混音」（或虚拟声卡的 Output），然后选「麦克风」，就能直接录到电脑播放的声音。步骤见文档「课堂实录」。": "Wearing headphones, or not playing through speakers: set Windows’ default recording device to “Stereo Mix” (or a virtual cable’s Output), then choose Microphone to record what the computer plays. The steps are in the Live class guide.",
+  "断句停顿": "Sentence pause",
+  "短 · 讲得快": "Short · fast speaker",
+  "长 · 讲得慢": "Long · slow speaker",
+  "讲课很快、几乎不停顿时选『短』：停顿更短就断句，润色和出题更早能用。": "Pick “Short” when the speaker is fast and barely pauses: a shorter pause already ends a sentence, so polishing and questions can use it sooner.",
+  "Gemini：多久没有新文字，就算一句话说完。短 / 标准 / 长 = 0.7 / 1.5 / 2.5 秒。": "Gemini: how long without new text counts as the end of a sentence. Short / Standard / Long = 0.7 / 1.5 / 2.5 s.",
+  "本地转写：多久没有声音，就算一句话说完。短 / 标准 / 长 = 0.25 / 0.5 / 0.8 秒。": "Local transcription: how long a silence ends a sentence. Short / Standard / Long = 0.25 / 0.5 / 0.8 s.",
+  "选得太短，可能把一句话切成两句。": "Too short can cut one sentence in two.",
+  "下次点「开始实录」或「接着录」时生效；正在录的课不变。": "Takes effect the next time you press Start recording or Continue recording; a class that is already recording keeps its value.",
+  "讲得很快、一直没有断句？到 音频设置 › 断句停顿 选『短』，下次开始或接着录时生效。": "Speaking fast and no sentences yet? Go to Audio settings › Sentence pause and choose “Short”; it takes effect the next time you start or continue recording.",
+  "打开断句停顿设置": "Open the sentence pause setting"
 }

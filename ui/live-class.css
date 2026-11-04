@@ -84,6 +84,7 @@
     /* The transcript is the page: a tall feed with the question bar pinned under it */
     .live-stage { border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); overflow: clip; }
     .live-feed-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding: var(--space-2-5) var(--space-3-5); border-bottom: 1px solid var(--line); font-size: var(--fs-sm); }
+    .live-pause-hint { margin: 0; padding: var(--space-2) var(--space-3-5); border-bottom: 1px solid var(--line); font-size: var(--fs-sm); overflow-wrap: anywhere; }
     .live-follow { white-space: nowrap; }
     .live-follow[aria-pressed="true"] { color: var(--ok-ink); }
     .live-feed { max-height: min(64vh, 760px); min-height: 240px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
