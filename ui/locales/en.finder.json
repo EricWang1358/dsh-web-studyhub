@@ -162,5 +162,16 @@
   "讲得快": "fast speaker",
   "一直没有断句": "no sentence ends",
   "润色 0 句": "0 sentences polished",
-  "课堂实录多久没有新文字（本地转写：多久没有声音）就算一句话说完。老师讲得快、几乎不停顿时选「短」，句子会更早出现，润色和出题也更早能用；下次开始或接着录时生效。": "How long live class waits with no new text (local transcription: no sound) before a sentence counts as finished. For a lecturer who talks fast and hardly pauses, choose “Short”: sentences appear sooner, and polishing and questions can start sooner. It takes effect the next time you start or resume recording."
+  "课堂实录多久没有新文字（本地转写：多久没有声音）就算一句话说完。老师讲得快、几乎不停顿时选「短」，句子会更早出现，润色和出题也更早能用；下次开始或接着录时生效。": "How long live class waits with no new text (local transcription: no sound) before a sentence counts as finished. For a lecturer who talks fast and hardly pauses, choose “Short”: sentences appear sooner, and polishing and questions can start sooner. It takes effect the next time you start or resume recording.",
+  "课堂实录的润色状态与重试": "Polish status and retry in live class",
+  "逐字稿上方的「上下文润色」一行": "The “Context polish” line above the transcript",
+  "逐字稿上方的「上下文润色」一行写着已检查、已润色和已跳过几句；有句子太长或超时被跳过（原文保留），或出了错，错误就在这一行里，点它旁边的「重试待校正内容」再试；用了多少次模型在「说明与用量」里。": "The “Context polish” line above the transcript says how many sentences were checked, polished and skipped. A sentence that was too long or timed out is skipped (its original text is kept), and an error shows on the same line: choose “Retry pending correction” next to it. How many model calls were used is under “Details and usage”.",
+  "在实录里选句出题": "Pick sentences for questions in live class",
+  "逐字稿下面的选择栏": "The selection bar under the transcript",
+  "勾选句子或划选文字，或点「最近一段」选中最近约 1200 个字符，再点「选中内容出题」。按钮灰着时，悬停或聚焦它会说为什么（还没选句子、字数不够、一次最多 400 句）。": "Tick sentences or select text, or choose “Latest stretch” to select the latest 1200 characters or so, then choose “Create questions from selection”. When a button is grey, hovering or focusing it says why (nothing selected, too few characters, at most 400 sentences at a time).",
+  "实录结束后保存为资料与课堂笔记": "Save a class as a source with class notes",
+  "结束实录": "End recording",
+  "先在「课堂实录」里开始或打开一场实录，这一项才会出现。": "Start or open a recording in Live class first; this item appears then.",
+  "保存按钮": "The save button",
+  "结束实录后随时可以点「保存为资料」，不会因为润色或译文没做完而点不了：它会先补完润色和译文，再存下文字稿和课堂笔记；润色没整理出笔记时，会用文字稿另外整理一份；做不完的，任务里会写清楚。": "After you end the recording you can save at any time; it is never greyed out because the polish or translations are unfinished. Saving first finishes the polish and the translations, then keeps the transcript and the class notes. If the polish made no notes, they are written from the transcript. Anything that could not be finished is written in Tasks."
 }

@@ -160,6 +160,7 @@
 | `lib/jobs/gateway.js:138` | 仍走 | 例外：内核 | 批准的模型网关 |
 | `lib/library-usage.js:46`、`lib/sample-library.js:89` | 仍走 | 例外：误报 | |
 | `lib/live-job.js:39,42` | 不走（已更新：`audioLiveSave`） | S6-2 删除 | 原课堂保存运行器；Job 共用 `translateLive` |
+| `lib/live-job.js` `liveNotesModel`、`lib/live-notes-fallback.js` | 仍走 | 例外：会话子系统 | 快速保存时，校正没留下课堂笔记就用文字稿补一份（2026-11-05，PR #696）；至多 8 次有界请求；随课堂保存迁到网关 |
 | `lib/live.js:553` | 仍走 | 例外：会话子系统 | 逐句实时翻译 |
 | `lib/runtime/builtins.js`、`lib/runtime/domain-contracts.js` | — | 例外：误报（静态数组） | |
 | `lib/runtime/models.js:30` | 仍走 | 例外：provider 实现 | 宿主模型适配 |
