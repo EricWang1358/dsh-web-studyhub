@@ -81,7 +81,7 @@ test("更多 is a menu (#79): a button with aria-haspopup, not a details element
   assert.match(closed, /<button[^>]*aria-haspopup="menu"[^>]*aria-expanded="false"[^>]*>更多<\/button>|<button[^>]*aria-expanded="false"[^>]*aria-haspopup="menu"[^>]*>更多<\/button>/);
   const open = render({ feedback: null }, { moreDefaultOpen: true });
   assert.match(open, /role="menu"/);
-  assert.deepEqual([...open.matchAll(/<span class="sh-menu__label">([^<]*)<\/span>/g)].map((match) => match[1]), ["写笔记", "修题", "斩掉此题"]);
+  assert.deepEqual([...open.matchAll(/<span class="sh-menu__label">([^<]*)<\/span>/g)].map((match) => match[1]), ["显示英文", "字号与版心…", "写笔记", "修题", "斩掉此题"]);
   assert.match(open, /<button[^>]*role="menuitem"[^>]*class="sh-menu__item is-danger"[^>]*>(?:(?!<\/button>).)*斩掉此题/, 'slaying is marked as the dangerous one');
   const withTask = render({ feedback: null }, { onTask() {}, moreDefaultOpen: true });
   assert.ok(withTask.indexOf("记待办") > withTask.indexOf("写笔记") && withTask.indexOf("记待办") < withTask.indexOf("修题"));
@@ -101,28 +101,44 @@ test("the More menu has 出前置题… next to 修题 (only when the page can s
   } finally { setUiLanguage("zh"); }
 });
 
-test("自动驾驶 has a visible switch in the toolbar, bound to what the page gives it, with its key said", () => {
+const menuOf = (run, props = {}) => render(run, { moreDefaultOpen: true, ...props });
+const item = (html, label) => html.match(new RegExp(`<button[^>]*role="menuitemcheckbox"[^>]*>(?:(?!</button>).)*${label}</span>(?:(?!</button>).)*</button>`))?.[0] || "";
+
+test("自动跳下一步 is an item of 更多 with its key A, bound to what the page gives it (#671: the toolbar keeps five controls)", () => {
   setUiLanguage("zh");
-  const off = render({ feedback: null }, { autopilot: false, onToggleAutopilot() {} });
-  const button = (html) => html.match(/<button[^>]*>自动驾驶<\/button>/)?.[0] || "";
-  assert.match(button(off), /aria-pressed="false"/);
-  assert.match(button(off), /aria-keyshortcuts="A"/);
-  assert.doesNotMatch(button(off), /is-active/);
-  const on = render({ feedback: null }, { autopilot: true, onToggleAutopilot() {} });
-  assert.match(button(on), /aria-pressed="true"/);
-  assert.match(button(on), /is-active/);
-  assert.doesNotMatch(render({ feedback: null }), /自动驾驶/, "a page without the setting draws no dead switch");
-  assert.doesNotMatch(render({ mode: "exam", feedback: null }, { autopilot: true, onToggleAutopilot() {} }), /自动驾驶/, "a mock exam does not move on by itself");
+  const off = menuOf({ feedback: null }, { autopilot: false, onToggleAutopilot() {} });
+  assert.match(item(off, "自动跳下一步"), /aria-checked="false"/);
+  assert.match(item(off, "自动跳下一步"), /aria-keyshortcuts="A"/);
+  assert.match(item(off, "自动跳下一步"), /sh-menu__hint">A</);
+  assert.match(item(menuOf({ feedback: null }, { autopilot: true, onToggleAutopilot() {} }), "自动跳下一步"), /aria-checked="true"/);
+  assert.doesNotMatch(render({ feedback: null }, { autopilot: true, onToggleAutopilot() {} }), /自动跳下一步|自动驾驶/, "not a control of the toolbar itself");
+  assert.doesNotMatch(menuOf({ feedback: null }), /自动跳下一步/, "a page without the setting draws no dead switch");
+  assert.doesNotMatch(menuOf({ mode: "exam", feedback: null }, { autopilot: true, onToggleAutopilot() {} }), /自动跳下一步/, "a mock exam does not move on by itself");
 });
 
-test("the switch is a button that calls the page, and it is not disabled while a step is saving (it only flips a setting)", () => {
+test("the toolbar keeps at most five controls, and every folded one is an item of 更多 with its key", () => {
   setUiLanguage("zh");
-  const html = render({ feedback: { correct: true } }, { autopilot: false, onToggleAutopilot() {}, busy: true });
-  assert.doesNotMatch(html.match(/<button[^>]*>自动驾驶<\/button>/)?.[0] || "", /disabled/);
+  const props = { autopilot: false, onToggleAutopilot() {}, onThumb() {}, thumbVote: null, onToggleEn() {} };
+  const closed = render({ feedback: null }, props);
+  const buttons = [...closed.matchAll(/<button\b[^>]*>/g)].map((match) => match[0]);
+  assert.ok(buttons.length <= 5, `${buttons.length} controls: ${buttons.join(" ")}`);
+  const open = menuOf({ feedback: null }, props);
+  for (const label of ["显示英文", "自动跳下一步", "字号与版心…", "这题不错", "这题有问题…"]) assert.match(open, new RegExp(`>${label}<`), `${label} is in 更多`);
+  assert.match(item(open, "这题不错"), /aria-keyshortcuts="G"/);
+  assert.match(open, /<button[^>]*aria-keyshortcuts="B"[^>]*>(?:(?!<\/button>).)*这题有问题…/);
+  assert.match(item(menuOf({ feedback: null }, { ...props, thumbVote: "up" }), "这题不错"), /aria-checked="true"/, "the recorded vote shows as checked");
+  assert.match(item(menuOf({ feedback: null }, { ...props, enOn: true }), "显示英文"), /aria-checked="true"/);
+});
+
+test("the autopilot item flips a setting, so a saving step does not disable it; the English words are English", () => {
+  setUiLanguage("zh");
+  const html = menuOf({ feedback: { correct: true } }, { autopilot: false, onToggleAutopilot() {}, busy: true });
+  assert.doesNotMatch(item(html, "自动跳下一步"), /disabled/);
   setUiLanguage("en");
   try {
-    const english = render({ feedback: null }, { autopilot: true, onToggleAutopilot() {} });
-    assert.match(english, />Autopilot<\/button>/);
+    const english = menuOf({ feedback: null }, { autopilot: true, onToggleAutopilot() {}, onThumb() {}, onToggleEn() {} });
+    assert.match(english, />Auto-advance</);
+    assert.match(english, />Good question</);
     assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
   } finally { setUiLanguage("zh"); }
 });

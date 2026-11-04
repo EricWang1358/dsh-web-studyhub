@@ -49,9 +49,11 @@ export async function runReadingQa(options) {
     const size = selector => page.locator(selector).first().evaluate(element => parseFloat(getComputedStyle(element).fontSize));
     const family = selector => page.locator(selector).first().evaluate(element => getComputedStyle(element).fontFamily);
     const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem("study-reader-settings") || "null"));
-    const popover = page.locator(".question-tools .reader-popover");
-    const openPopover = async () => { if (!(await popover.locator(".reader-popover__panel").count())) await popover.getByRole("button", { name: t("显示设置", "Display settings") }).click(); await popover.locator(".reader-popover__panel").waitFor(); };
-    const panelButton = name => popover.locator(".reader-popover__panel").getByRole("button", { name, exact: true });
+    // The reading settings are behind 更多 › 字号与版心… (#671): a dialog, closed again after each step.
+    const popover = page.locator("dialog[open]");
+    const openPopover = async () => { if (!(await popover.count())) { await page.locator(".question-toolbar").getByRole("button", { name: t("更多", "More"), exact: true }).click(); await page.getByRole("menuitem", { name: t("字号与版心…", "Text size and width…") }).click(); } await popover.waitFor(); };
+    const closePopover = async () => { if (await popover.count()) { await page.keyboard.press("Escape"); await popover.waitFor({ state: "detached" }); } };
+    const panelButton = name => popover.getByRole("button", { name, exact: true });
 
     // A run with its explanation showing: start, reveal and answer through the host, then resume it from the side navigation.
     const run = await api(page, "review.start", { deckId: "qa-reading", mode: "flashcard" });
@@ -76,10 +78,10 @@ export async function runReadingQa(options) {
       return before;
     });
     await step("popover-open", async () => {
-      await popover.scrollIntoViewIfNeeded();
+      await page.locator(".question-toolbar").first().scrollIntoViewIfNeeded();
       await openPopover();
       if (await popover.locator(".reader-setting--inline").count()) throw new Error("the underline row is shown outside the reader");
-      const box = await popover.locator(".reader-popover__panel").boundingBox(), view = page.viewportSize();
+      const box = await popover.boundingBox(), view = page.viewportSize();
       if (!box || box.x < 0 || box.x + box.width > view.width + 0.5) throw new Error(`popover off screen ${JSON.stringify(box)}`);
     });
     await step("size-up", async () => {
@@ -115,13 +117,14 @@ export async function runReadingQa(options) {
       return sizes.length;
     });
     await step("serif-and-paper", async () => {
-      await pick(page, popover.locator(".reader-popover__panel .reader-select"), t("宋体 / 衬线", "Serif (Song)"));
+      await pick(page, popover.locator(".reader-select"), t("宋体 / 衬线", "Serif (Song)"));
       await panelButton(t("纸张", "Paper")).click();
       await sleep(200);
       const face = await family(".explanation.study-reading .md p");
       if (!/serif/i.test(face) && !/Source Serif|Noto Serif|Songti|SimSun/i.test(face)) throw new Error(`typeface did not change: ${face}`);
       const tone = await page.locator(".explanation.study-reading").first().evaluate(element => element.getAttribute("data-tone"));
       if (tone !== "paper") throw new Error(`tone ${tone}`);
+      await closePopover();
     });
     await check("no-horizontal-overflow-review", async () => {
       const probe = await page.evaluate(overflowProbe);
@@ -192,13 +195,14 @@ export async function runReadingQa(options) {
     await page.getByRole("button", { name: new RegExp(`${t("回到题目", "Return to question")}`) }).first().click();
     await page.locator(".explanation").first().waitFor();
     await step("reset-everywhere", async () => {
-      await popover.scrollIntoViewIfNeeded();
+      await page.locator(".question-toolbar").first().scrollIntoViewIfNeeded();
       await openPopover();
       await panelButton(t("恢复默认", "Reset")).click();
       await sleep(200);
       const value = await stored();
       if (value.size !== 16 || value.face !== "sans" || value.tone !== "auto" || value.width !== "standard") throw new Error(`not reset: ${JSON.stringify(value)}`);
       if (await size(".explanation.study-reading .md p") !== 16) throw new Error("the explanation did not reset");
+      await closePopover();
     });
     await step("notes-page", async () => {
       await page.getByRole("button", { name: t("学习笔记", "Study notes") }).first().click();

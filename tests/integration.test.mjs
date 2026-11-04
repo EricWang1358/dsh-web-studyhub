@@ -157,9 +157,9 @@ test("self-grades 0 and 1 append one hidden tail retry, persist on resume and pr
     const cardId = run.card.id, args = { runId: run.id, cardId };
     await service.call("review.reveal", args);
     run = await service.call("review.answer", { ...args, grade });
-    assert.equal(run.total, 3);
+    assert.equal(run.total, 2);
     assert.equal(run.feedback.retryQueued, true);
-    assert.equal((await service.call("review.answer", { ...args, grade })).total, 3);
+    assert.equal((await service.call("review.answer", { ...args, grade })).total, 2);
     const due = run.feedback.nextDue;
     run = await service.call("review.move", { runId: run.id, direction: 1 });
     assert.notEqual(run.card.id, cardId);
@@ -174,7 +174,7 @@ test("self-grades 0 and 1 append one hidden tail retry, persist on resume and pr
     await service.call("review.reveal", args);
     await assert.rejects(service.call("review.answer", { ...args, grade: 8 }), /Grade/);
     run = await service.call("review.answer", { ...args, grade: grade === 0 ? 0 : 5 });
-    assert.equal(run.total, 3);
+    assert.equal(run.total, 2);
     assert.equal(run.feedback.nextDue, due);
     assert.equal((await service.call("review.move", { runId: run.id, direction: 1 })).complete, true);
   }
@@ -199,13 +199,13 @@ for (const kind of ["quiz", "multi", "cloze"]) for (const retryCorrect of [false
     run = await service.call("review.answer", { ...args, ...wrong });
     assert.equal(run.feedback.correct, false);
     assert.equal(run.feedback.retryQueued, true);
-    assert.equal(run.total, 3);
-    assert.equal((await service.call("review.answer", { ...args, ...wrong })).total, 3, "duplicate submission cannot append twice");
+    assert.equal(run.total, 2);
+    assert.equal((await service.call("review.answer", { ...args, ...wrong })).total, 2, "duplicate submission cannot append twice");
     const scheduled = (await service.call("deck.get", { id: "d" })).cards.find((c) => c.id === cardId).review;
     run = await service.call("review.move", { runId: run.id, direction: 1 });
     assert.notEqual(run.card.id, cardId, "other original questions precede the retry");
     run = await service.call("review.answer", { runId: run.id, cardId: run.card.id, ...right });
-    assert.equal(run.total, 3, "correct first answers do not queue retries");
+    assert.equal(run.total, 2, "correct first answers do not queue retries");
     run = await service.call("review.move", { runId: run.id, direction: 1 });
     run = await new StudyService(root).call("review.start", { deckId: "d", mode: "quiz" });
     assert.equal(run.card.id, cardId);
@@ -217,7 +217,7 @@ for (const kind of ["quiz", "multi", "cloze"]) for (const retryCorrect of [false
     else assert.ok(run.card.options.every((o) => o.correct === undefined));
     run = await service.call("review.answer", { ...args, ...(retryCorrect ? right : wrong) });
     assert.equal(run.feedback.correct, retryCorrect);
-    assert.equal(run.total, 3, "a failed retry does not grow an endless queue");
+    assert.equal(run.total, 2, "a failed retry does not grow an endless queue; the round stays 2 questions (#660)");
     assert.deepEqual([run.questions, run.answered, run.correct, run.retries], [2, 2, 1, 1],
       "the summary counts each question once and reports retries separately");
     assert.deepEqual((await service.call("deck.get", { id: "d" })).cards.find((c) => c.id === cardId).review, scheduled);

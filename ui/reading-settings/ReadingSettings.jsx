@@ -1,7 +1,7 @@
 import React, { createElement } from 'react';
 import { ui } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, Field, IconButton, Popover, SegmentedControl, Select } from '../components/index.js';
+import { Button, Dialog, Field, IconButton, Popover, SegmentedControl, Select } from '../components/index.js';
 import { FONT_PRESETS } from '../font-presets.js';
 import { FACES, SIZES, readingProps, stepSize } from './settings.js';
 import { useReadingSettings } from './store.js';
@@ -73,6 +73,15 @@ export function DisplaySettings({ settings, onChange, onReset, underline = true,
 export function ReadingSettingsButton({ underline = false, className, size, buttonClassName, ...rest }) {
   const [settings, update, reset] = useReadingSettings();
   return <DisplaySettings settings={settings} onChange={update} onReset={reset} underline={underline} className={className} size={size} buttonClassName={buttonClassName} {...rest} />;
+}
+
+/** The same controls in a dialog, for a surface that has no room for the Aa button (the practice toolbar keeps it behind 更多 › 字号与版心…). */
+export function ReadingSettingsDialog({ onClose }) {
+  useInjectCss(css, 'study-reading');
+  const [settings, update, reset] = useReadingSettings();
+  return <Dialog title={ui('显示设置')} size="sm" onClose={onClose}>
+    <DisplayControls settings={settings} onChange={update} onReset={reset} underline={false} />
+  </Dialog>;
 }
 
 /** The props (class, face, tone, size variables) a long-form container carries; spread them on any element, or use <ReadingBlock>. */

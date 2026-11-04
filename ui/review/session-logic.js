@@ -47,12 +47,17 @@ export const isPassed = (run) => !!run?.feedback && (run.feedback.grade !== unde
 /** Names the question the autopilot countdown belongs to. */
 export const advanceKeyOf = (run) => (run ? `${run.id}:${run.index}:${run.queueVersion || 0}` : '');
 
-/** Should the autopilot count down to the next question now? `skippedKey` is the question the learner stopped it on. */
-export function autopilotPlan({ autopilot, page, passed, complete, teaching, skippedKey, advanceKey }) {
+/** Should the autopilot count down to the next question now? `skippedKey` is the question the learner stopped it on; `holdKey` the question they were taken to read (see keepAutopilotHold). */
+export function autopilotPlan({ autopilot, page, passed, complete, teaching, skippedKey, advanceKey, holdKey = '' }) {
   const idle = { schedule: false, key: '', ms: 0 };
-  if (!autopilot || page !== 'review' || !passed || complete || teaching || skippedKey === advanceKey) return idle;
+  if (!autopilot || page !== 'review' || !passed || complete || teaching || skippedKey === advanceKey || (holdKey && holdKey === advanceKey)) return idle;
   return { schedule: true, key: advanceKey, ms: AUTO_ADVANCE_MS };
 }
+
+/* A learner taken to one question to read its Q&A or explanation (a letter of the 信箱, any jump that opens a question with its explanation) must not be moved on by
+   the autopilot before reading it. The hold is that question's key (advanceKeyOf of the run when the jump opened it); the switch stays on and nothing about the setting
+   changes. The hold ends when any other question is on screen: 回到第 N 题 and every other move go through there, so the autopilot is as before. */
+export const keepAutopilotHold = (holdKey, advanceKey) => (holdKey && holdKey === advanceKey ? holdKey : '');
 
 /** Which kind of answer the open question takes. A flashcard-mode round shows every card as a flashcard. */
 export function reviewChoiceKind(run) {

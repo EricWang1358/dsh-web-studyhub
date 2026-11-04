@@ -10,7 +10,7 @@ import { EN_KEY, flag } from '../app/use-app-shell.js';
 import { resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
-  AUTO_ADVANCE_MS, advanceKeyOf, autopilotPlan, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, reviewChoiceKind,
+  AUTO_ADVANCE_MS, advanceKeyOf, autopilotPlan, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, reviewChoiceKind,
   shortcutAction, shortcutGate, shouldResetEntry,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
@@ -203,11 +203,14 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   }, []);
   const cancelRef = useRef(cancelAutoAdvance);
   cancelRef.current = cancelAutoAdvance;
+  /* The question the learner was taken to read (showExplanation, below): the autopilot leaves it alone until another question is on screen (keepAutopilotHold). */
+  const autoHold = useRef(''), [holdTick, setHoldTick] = useState(0);
   const passed = isPassed(run), advanceKey = advanceKeyOf(run);
   useEffect(() => {
     clearTimeout(autoTimer.current);
     autoTimer.current = null;
-    const plan = autopilotPlan({ autopilot, page, passed, complete: run?.complete, teaching: !!entry.teaching, skippedKey: autoSkipped.current, advanceKey });
+    autoHold.current = keepAutopilotHold(autoHold.current, advanceKey);
+    const plan = autopilotPlan({ autopilot, page, passed, complete: run?.complete, teaching: !!entry.teaching, skippedKey: autoSkipped.current, advanceKey, holdKey: autoHold.current });
     if (!plan.schedule) { setAutoAdvance(''); return undefined; }
     setAutoAdvance(plan.key);
     autoTimer.current = setTimeout(() => {
@@ -216,7 +219,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       reviewActRef.current('review.move', { direction: 1 });
     }, plan.ms);
     return () => clearTimeout(autoTimer.current);
-  }, [autopilot, page, passed, advanceKey, run?.complete, !!entry.teaching]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autopilot, page, passed, advanceKey, run?.complete, !!entry.teaching, holdTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── EN: one translate per card entry, a second click joins the in-flight call ── */
   const enFlights = useRef(createFlightSet());
@@ -411,7 +414,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn,
     toggleHelp: () => { if (runRef.current?.revealed) patch((value) => ({ explain: !value.explain })); else toggleHint(); },
     noteAssistance,
-    showExplanation: () => patch({ explain: true }),
+    // Opening a question to read its Q&A (a 信箱 letter): the explanation shows and the autopilot is held on this question, whatever the answer was.
+    showExplanation: () => { patch({ explain: true }); autoHold.current = advanceKeyOf(runRef.current); setHoldTick((tick) => tick + 1); },
     setResponse: (response) => patch({ response }),
     setClozeValue: (id, value) => patch((current) => ({ clozeValues: { ...current.clozeValues, [id]: value } })),
     setTeachAnswer: (teachAnswer) => patch({ teachAnswer }),
