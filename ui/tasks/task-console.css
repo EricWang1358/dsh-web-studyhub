@@ -175,7 +175,7 @@
     .tc-head__sub { overflow: hidden; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-tight, 1.25); text-overflow: ellipsis; white-space: nowrap; }
     .tc-head__actions { display: flex; flex: 0 1 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-1) var(--space-2); max-width: 100%; margin-inline-start: auto; }
     /* 删除 is the one destructive action of the header: a gap from the others, and the danger look of the bar's. */
-    .tc-head__delete { margin-inline-start: var(--space-2); }
+    .tc-head__more { margin-inline-start: var(--space-1); }
     .tc-metrics {
       display: grid;
       grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(0, 1fr));

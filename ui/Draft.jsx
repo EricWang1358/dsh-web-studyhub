@@ -29,6 +29,7 @@ import { publishAndPractice } from './app/use-drafts.js';
 import { canStopWork, holdLine, stopLabel } from './draft-publish.js';
 import { topUpArgs, topUpNotice } from './coverage/top-up.js';
 import DeleteDraftDialog from './DeleteDraftDialog.jsx';
+import DraftBar from './DraftBar.jsx';
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
    发布需先保存再 draft.publish（draftVersion 乐观锁）。blankCard /
@@ -182,42 +183,30 @@ export default function Draft({
       <DraftPartLine targets={targets} />
       <p className="draft-count">{uiRich("当前草稿 {0} 题", <strong>{draft.cards.length}</strong>)}{unsavedDraft && <><span aria-hidden="true"> · </span><span>{ui("有未保存修改")}</span></>}</p>
       <PartTargetChoice targets={targets} value={intoDeck} onChange={setPartTarget} disabled={busy} />
-      <div className="sticky-actions" data-tour="draft-publish">
-        <Button
-          disabled={updatingDraft || staleDraft || missingDraft} lock={busy}
-          onClick={() => {
-            let d;
-            try {
-              d = jsonMode ? parseDraft(draftText) : draft;
-            } catch (e) {
-              toast.error("JSON 格式不正确：" + e.message);
-              return;
-            }
-            act("draft.save", { deck: d }, openDraft);
-          }}
-        >{ui("保存并校验")}</Button>
-        <Button variant="primary"
-          disabled={updatingDraft || staleDraft || missingDraft || activeReview} lock={busy}
-          title={activeReview ? ui("先完成或结束原题组的学习") : undefined}
-          aria-describedby={hold ? "draft-hold" : undefined}
-          onClick={async () => {
-            let d;
-            try {
-              d = jsonMode ? parseDraft(draftText) : draft;
-            } catch (e) {
-              toast.error("JSON 格式不正确：" + e.message);
-              return;
-            }
-            // The same quick publication as 发布并开始练 on the finished card of a run (ui/app/use-drafts.js).
-            await publishAndPractice({ call, act, toast, draft: d, intoDeck, openDraft, clearRecovery, enterRun: onStartPublished, setPage });
-          }}
-        >
-          {publicationLabel}
-        </Button>
-        <Button variant="danger" disabled={missingDraft} lock={busy} onClick={() => setDeletingId(draft.id)}>
-          {ui("删除草稿")}
-        </Button>
-      </div>
+      <DraftBar publishLabel={publicationLabel} saveDisabled={updatingDraft || staleDraft || missingDraft} deleteDisabled={missingDraft}
+        publishDisabled={updatingDraft || staleDraft || missingDraft || activeReview} publishTitle={activeReview ? ui("先完成或结束原题组的学习") : undefined} describedBy={hold ? "draft-hold" : undefined}
+        onDelete={() => setDeletingId(draft.id)}
+        onSave={() => {
+          let d;
+          try {
+            d = jsonMode ? parseDraft(draftText) : draft;
+          } catch (e) {
+            toast.error("JSON 格式不正确：" + e.message);
+            return;
+          }
+          act("draft.save", { deck: d }, openDraft);
+        }}
+        onPublish={async () => {
+          let d;
+          try {
+            d = jsonMode ? parseDraft(draftText) : draft;
+          } catch (e) {
+            toast.error("JSON 格式不正确：" + e.message);
+            return;
+          }
+          // The same quick publication as 发布并开始练 on the finished card of a run (ui/app/use-drafts.js).
+          await publishAndPractice({ call, act, toast, draft: d, intoDeck, openDraft, clearRecovery, enterRun: onStartPublished, setPage });
+        }} />
       {deleting && <DeleteDraftDialog draft={draft} data={data} onClose={() => setDeletingId(null)}
         onDeleted={() => { setDeletingId(null); clearRecovery(); setPage("library"); }} />}
       {hold && <Banner tone="info" role="status" id="draft-hold" className="draft-hold" data-draft-hold
