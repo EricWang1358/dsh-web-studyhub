@@ -1,1 +1,0 @@
-- **Language and appearance live in Settings › Interface only.** The sidebar's language and theme switches are gone; the footer now has three items: Find a feature, Help (the tour, keyboard shortcuts and the glossary) and Settings. The language still follows your browser until you choose one. Not verified: checked in the preview with a fake model, not inside DSH.
