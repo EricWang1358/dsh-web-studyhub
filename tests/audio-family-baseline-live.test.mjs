@@ -41,13 +41,16 @@ test('a live class that cannot be saved is refused before any job record, model 
   assert.deepEqual([empty.log, (await noModel.call('snapshot')).jobs, (await empty.state()).inbox, await empty.ledger()], [[], [], [], null]);
 });
 
-test('quick save is synchronous: no job, no model request, no letter, no notice; the same class saves to the same ids', async t => {
+// A class the correction left without notes (the fake class here was never corrected) gets class notes from its transcript: the one model request of a quick save.
+test('quick save is synchronous: no job, no letter, no notice, one model request for the class notes; the same class saves to the same ids', async t => {
   const lib = await savedClass(t);
   const first = await lib.service.call('live.save', { id: ID });
-  assert.deepEqual([first.proofread, first.noteSourceId, first.sourceIds.length], [false, null, 1]);
+  assert.deepEqual([first.proofread, first.sourceIds.length], [false, 2]);
+  assert.match(first.noteSourceId, /^live-saved-cl-notes-[0-9a-f]{8}$/);
   assert.match(first.sourceIds[0], /^live-saved-cl-[0-9a-f]{8}$/);
-  assert.deepEqual([(await lib.service.call('snapshot')).jobs, lib.log, lib.notices, (await lib.state()).inbox, await lib.ledger()], [[], [], [], [], null]);
+  assert.deepEqual([(await lib.service.call('snapshot')).jobs, lib.log, lib.notices, (await lib.state()).inbox, await lib.ledger()], [[], ['notes'], [], [], calls(1)]);
   assert.deepEqual((await lib.service.call('live.save', { id: ID })).sourceIds, first.sourceIds);
+  assert.deepEqual(lib.log, ['notes', 'notes']);
   const source = (await lib.state()).sources.find(item => item.id === first.sourceIds[0]);
   assert.deepEqual([source.audio.live, source.audio.proofread, source.courses, source.audio.sessionId], [true, false, ['Databases'], ID]);
 });
@@ -63,8 +66,8 @@ test('proofread save is an audio-import job that waits on the transcription gate
   free(); await held;
   const done = await settleJob(lib.service, started.jobId);
   assert.equal(done.status, 'complete', done.stage);
-  assert.deepEqual(lib.log, ['proofread', 'translate', 'title']);
-  assert.deepEqual([done.type, done.filename, done.titleEn, done.sourceIds.length], [RUNTIME ? 'audio-live-save' : 'audio-import', 'Databases week 5', 'Coding Plans Get Pricier', 1]);
+  assert.deepEqual(lib.log, ['proofread', 'translate', 'title', 'notes'], 'the class notes are the fourth request: the class was never corrected, so it has none of its own');
+  assert.deepEqual([done.type, done.filename, done.titleEn, done.sourceIds.length], [RUNTIME ? 'audio-live-save' : 'audio-import', 'Databases week 5', 'Coding Plans Get Pricier', 2]);
   assert.match(done.sourceIds[0], /^live-saved-cl-[0-9a-f]{8}$/);
   const state = await lib.state();
   for (const record of [state.sources, state.audioResults].map(rows => rows.find(item => item.id === done.sourceIds[0]))) {
@@ -72,20 +75,20 @@ test('proofread save is an audio-import job that waits on the transcription gate
     assert.equal(record.audio.textModel, null, 'a host proofread save must not claim the unused Gemini model');
   }
   // Unlike audio, subtitle and review jobs, nothing wraps the host call in withJobUsage: the ledger has the tokens, the task shows none.
-  assert.deepEqual(await lib.ledger(), calls(3));
+  assert.deepEqual(await lib.ledger(), calls(4));
   assert.equal(done.tokenUsage, undefined);
   const view = (await lib.service.call('snapshot')).jobs.find(job => job.id === done.id);
   if (RUNTIME) {
-    assert.deepEqual([view.contract.usage.tokens, view.contract.usage.calls], [330, 3]);
-    assert.deepEqual(view.contract.calls.map(call => [call.stepKey, call.tokens]), [['proofread:1', 110], ['translate:1', 110], ['title:0', 110]]);
+    assert.deepEqual([view.contract.usage.tokens, view.contract.usage.calls], [440, 4]);
+    assert.deepEqual(view.contract.calls.map(call => [call.stepKey, call.tokens]), [['proofread:1', 110], ['translate:1', 110], ['title:0', 110], ['notes:1', 110]]);
   } else {
-    assert.deepEqual([view.contract.usage.tokens, view.contract.usage.tokenUsage, view.contract.usage.calls], [null, null, 3], 'unobserved usage is null, not zero tokens');
-    assert.deepEqual(view.contract.calls.map(call => [call.stepKey, call.tokens]), [['proofread', null], ['translate', null], ['title', null]], 'the calls are listed, their tokens are not observed');
+    assert.deepEqual([view.contract.usage.tokens, view.contract.usage.tokenUsage, view.contract.usage.calls], [null, null, 4], 'unobserved usage is null, not zero tokens');
+    assert.deepEqual(view.contract.calls.map(call => [call.stepKey, call.tokens]), [['proofread', null], ['translate', null], ['title', null], ['other', null]], 'the calls are listed (the class notes are an "other" step on the old path), their tokens are not observed');
   }
   assert.deepEqual(letters(await lib.state(), done.id), ['audio-result']);
   assert.match(lib.notices[0].summary, RUNTIME ? /^课堂「Databases week 5」已校对并保存为中英对照逐字稿$/ : /^音频「Databases week 5」已转写成中英对照逐字稿$/);
   const again = await settleJob(lib.service, (await lib.service.call('live.save', { id: ID, proofread: true })).jobId);
-  assert.deepEqual([again.reused, again.sourceIds, lib.log.length], [true, done.sourceIds, 3]);
+  assert.deepEqual([again.reused, again.sourceIds, lib.log.length], [true, done.sourceIds, 4]);
 });
 
 test('a failed proofread save is not recoverable after a restart; saving the class again reuses its checkpoints', async t => {
@@ -99,7 +102,7 @@ test('a failed proofread save is not recoverable after a restart; saving the cla
   await assert.rejects(restarted.call('audio.retry', { jobId: failed.id }), /这个任务不能重试/);
   const again = await settleJob(restarted, (await restarted.call('live.save', { id: ID, proofread: true })).jobId);
   assert.equal(again.status, 'complete', again.stage);
-  assert.deepEqual(lib.log, ['proofread', 'translate', 'translate', 'title']);
+  assert.deepEqual(lib.log, ['proofread', 'translate', 'translate', 'title', 'notes']);
 });
 
 test('live correction is not a job: it books the daily ledger and leaves no task, letter or notice (on the runtime it is one job, D-12)', async t => {
