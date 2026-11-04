@@ -39,7 +39,7 @@
   "草稿里还有资料小节没有题时，点它按小节补一轮题；开着「自动补到完整」会一轮接一轮补，直到每个小节都有题。补之前会先估算要用多少。学习库首页的待发布行和「任务」里也有这个入口。": "When a draft still has parts of the materials without questions, click it to top up one round by part. With “Fill up automatically” on, rounds follow one another until every part has questions. The cost is estimated first. The Study library’s unpublished row and “Jobs” have this entry too.",
   "AI 出的题先放进草稿：你可以逐题核对、修改或删除，确认无误再发布，发布后就能开始练习。": "Questions made by the AI go into a draft first: check, edit or delete them one by one, publish when they are right, and then you can practise them.",
   "草稿页「题目」一栏里折叠着「高级编辑」，里面的「JSON 编辑」可以直接用 JSON 改这份草稿。": "On the draft page, “Advanced editing” is folded in the “Questions” section; its “Edit JSON” changes this draft directly as JSON.",
-  "做题时点「提示」先看线索；答完题，这个按钮变成「讲解」。按 H 键也行。": "Click “Hint” while answering to see a clue; after you answer, the button becomes “Explanation”. The H key works too.",
+  "做题时点「提示」先看线索；揭晓答案以后，它变成「讲解」。按 H 键也能打开。": "Click “Hint” while answering to see a clue; once the answer is revealed it becomes “Explanation”. The H key opens it too.",
   "题目下方": "Below the question",
   "卡住了点它：后台助教会结合原文讲解这道题、补上前置知识，讲完送进信箱，不打断你做题。": "Click it when you are stuck: a background tutor explains the question with the original text and fills in the prerequisites, then sends it to your inbox without interrupting you.",
   "答对后自动进入下一题，点任意处或按键可以停下；按 A 键开关。默认值在「设置 › 练习」里。": "After a correct answer it moves on to the next question by itself; click anywhere or press a key to stop it. The A key switches it on and off. The default is in “Settings › Practice”.",

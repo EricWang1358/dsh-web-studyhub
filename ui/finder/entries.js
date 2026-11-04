@@ -173,7 +173,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'hint', area: 'practice', title: '提示', page: 'review', anchors: ['review-hint'], prepare: 'run',
     aliases: ['讲解', '看提示', '线索', 'hint', 'h'],
     path: ['练习', '题目下方', '提示'],
-    what: '做题时点「提示」先看线索；答完题，这个按钮变成「讲解」。按 H 键也行。' }),
+    what: '做题时点「提示」先看线索；揭晓答案以后，它变成「讲解」。按 H 键也能打开。' }),
   feature({ id: 'help-me-understand', area: 'practice', title: '帮我弄懂', page: 'review', anchors: ['review-help'], prepare: 'run',
     aliases: ['不懂', '助教', '通俗详解', '讲解', 'explain', 'help me understand', 'tutor'],
     path: ['练习', '题目下方', '帮我弄懂'],
