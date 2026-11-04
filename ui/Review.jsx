@@ -20,6 +20,7 @@ import { MasteryChange, ReadingBackButton, ReadingResult, ReturnPrimary } from "
 import { practiceArgs } from "./learning-navigation.js";
 import { isBackDestination, wayBackOf } from "./review/way-back.js";
 import { resolvePracticeSettings } from "../lib/practice-settings.js";
+import { countMaterials } from "../lib/source-groups.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -122,7 +123,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           </Button>}
         </>}>
         <div className="review-heading-links">
-          <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [run.sourceIds?.length || 0])}</Button>
+          <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [countMaterials(data?.sources, run.sourceIds)])}</Button>
           <RunContext data={data} deckId={run.deckId} run={run} />
           {skeletonHere && openSkeleton && (
             <Button variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>
