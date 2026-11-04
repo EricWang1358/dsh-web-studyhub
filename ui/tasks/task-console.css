@@ -354,6 +354,7 @@
     .tc-run { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-4); flex: none; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--line); background: var(--bg-surface); }
     .tc-run__k { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
     .tc-run__line { min-width: 0; font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+    .tc-run__fact { flex: 1 1 100%; max-width: 40rem; }
     .tc-run__counts { flex: 1 1 100%; min-width: 0; font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; line-height: 1.45; overflow-wrap: anywhere; }
     .tc-run__stop { flex: 1 1 100%; color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.45; }
     /* What is left, as a sum to check: one line, always (cut with an ellipsis, the whole in its title), so the numbers arriving or changing move nothing. */

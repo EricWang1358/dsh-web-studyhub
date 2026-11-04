@@ -153,7 +153,9 @@ test('holdLine says what works on the draft, why saving and publishing wait, and
   // a run of rounds names its round
   const rounds = ['done', 'running', 'pending'].map((status, index) => ({ round: index + 1, questions: 24, status, fill: false, sections: 6, ...(status === 'done' ? { kept: 24, covered: 6, tokens: 400_000, ms: 600_000 } : {}) }));
   const run = job({ coverageRun: { autoComplete: true, state: 'running', percent: 31, tokensUsed: 1_200_000, startedAt: '2026-10-06T10:00:00.000Z', list: rounds } });
-  assert.match(holdLine({ kind: 'topup', job: run }, draft, 31), /^第 2\/3 轮 · 覆盖 31%.*这期间不能保存或发布/, 'which round');
+  // The draft page says the coverage once, in its summary: the hold sentence has the round and the tokens only (#663).
+  assert.match(holdLine({ kind: 'topup', job: run }, draft, 31), /^第 2\/3 轮 · 已用.*这期间不能保存或发布/, 'which round');
+  assert.doesNotMatch(holdLine({ kind: 'topup', job: run }, draft, 31), /覆盖 31%/);
   // the stop action
   assert.equal(canStopWork(work({})), true);
   assert.equal(canStopWork(work({ status: 'cancelling' })), false);

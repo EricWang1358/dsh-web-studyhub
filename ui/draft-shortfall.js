@@ -30,8 +30,8 @@ export function draftWork(draft, jobs = []) {
   return { kind, job };
 }
 
-/** The label of the draft's action button while something works on it, so it says what is really happening. */
-export function draftWorkLabel(work, draft, percent) {
+/** The label of the draft's action button while something works on it, so it says what is really happening. `cover: false`: the page already says the coverage once (the draft page). */
+export function draftWorkLabel(work, draft, percent, { cover = true } = {}) {
   const { kind, job } = work;
   const saved = job.savedCount ?? draft?.cards?.length, total = job.requestedTotal ?? draft?.editorial?.requested;
   const progress = Number.isInteger(saved) && Number.isInteger(total) && total > 0;
@@ -40,7 +40,7 @@ export function draftWorkLabel(work, draft, percent) {
   if (job.status === JOB_STATUS.CANCELLING) return ui('正在停止…');
   if (job.status === 'queued') return kind === 'topup' ? ui('补题排队中') : ui('排队中…');
   // A run of several rounds says which round it is in and what it has used (ui/coverage/copy.js runLine), not a count of questions that only grows.
-  const rounds = jobRunLine(job, percent);
+  const rounds = jobRunLine(job, percent, { cover });
   if (rounds) return rounds;
   if (kind === 'topup') return progress ? uiFormat('补题中 · 草稿 {0}/{1} 题', [saved, total]) : ui('补题中…');
   return progress ? uiFormat('生成中 · 草稿 {0}/{1} 题', [saved, total]) : ui('生成中…');

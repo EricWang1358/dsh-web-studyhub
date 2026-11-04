@@ -16,9 +16,8 @@ import { CaseDraftHeader, CriteriaEditor } from "./CaseWorkspace.jsx";
 import { renderRubric } from "../lib/case-study.js";
 import { OmittedQuestions, ShortfallReasons } from "./DraftShortfall.jsx";
 import { draftWork, generationRecordLines, missingQuestions } from "./draft-shortfall.js";
-import { CoverageSummary } from "./coverage/Coverage.jsx";
-import { CoverageTopUp } from "./coverage/CoverageTopUp.jsx";
-import RunPanel from "./coverage/RunPanel.jsx";
+import DraftCoverage from "./coverage/DraftCoverage.jsx";
+import { planLine } from "./coverage/copy.js";
 import { useCoverage } from "./coverage/use-coverage.js";
 import { modelReadiness } from "./generation-status.js";
 import { coverageGroups, coverageUnit } from "./coverage-groups.js";
@@ -29,7 +28,6 @@ import { DraftPartLine, NEW_DECK, PartTargetChoice, defaultPartTarget, partTarge
 import { publishAndPractice } from './app/use-drafts.js';
 import { canStopWork, holdLine, stopLabel } from './draft-publish.js';
 import { topUpArgs, topUpNotice } from './coverage/top-up.js';
-import MaterialsReport from './coverage/MaterialsReport.jsx';
 import DeleteDraftDialog from './DeleteDraftDialog.jsx';
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
@@ -144,8 +142,6 @@ export default function Draft({
   const topUp = (target, sectionIds, options) => (unsavedDraft
     ? saveThen(async (saved) => toast.success(topUpNotice(saved, await call("generate", topUpArgs(saved, sectionIds, options)))))
     : topUpDraft(target, sectionIds, options));
-  // 选了 N 份，M 份已出题: the materials of the draft, read live (coverage.get), each without a question with its reason and its own 补题.
-  const materials = covered.view?.status === "ok" ? covered.view.materials : null;
   const activeReview = draft.editingDeckId && data.runs?.some((run) =>
     run.deckIds?.includes(draft.editingDeckId) || run.deckId === draft.editingDeckId);
   function saveAsNewDraft() {
@@ -226,13 +222,8 @@ export default function Draft({
         onDeleted={() => { setDeletingId(null); clearRecovery(); setPage("library"); }} />}
       {hold && <Banner tone="info" role="status" id="draft-hold" className="draft-hold" data-draft-hold
         action={canStopWork(work) ? { label: stopLabel(work), disabled: busy, onClick: stopWork } : undefined}>{hold}</Banner>}
-      {covered.view && <CoverageSummary coverage={covered.view.coverage} onOpen={openSourceAt ? (section) => openSourceAt(section.sourceId, section.start) : undefined}
-        lead={<MaterialsReport report={materials} disabled={busy || !!work || staleDraft || !modelReadiness(data).ready} onTopUp={(keys) => topUp(draft, keys, { manual: true })} />}>
-        <RunPanel draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} saveThen={unsavedDraft ? saveThen : undefined} modelReady={modelReadiness(data).ready} onOpenSource={openSourceAt} />
-        <CoverageTopUp draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} modelReady={modelReadiness(data).ready}
-          onTopUp={topUp} />
-        {!work && (unsavedDraft || staleDraft) && covered.view.canTopUp && covered.view.round?.sections > 0 && <Hint as="small">{staleDraft ? ui("草稿已在后台更新，先载入最新草稿，再补题。") : ui("补题前会先保存草稿。")}</Hint>}
-      </CoverageSummary>}
+      <DraftCoverage draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} unsaved={unsavedDraft} work={work} modelReady={modelReadiness(data).ready}
+        saveThen={saveThen} onTopUp={topUp} onOpenSource={openSourceAt} />
       <div className="draft-notices">
         {staleDraft && unsavedDraft && <Banner tone="warning" role="status" title={ui("草稿已在后台更新")}
           action={{ label: ui("载入最新草稿"), onClick: () => openDraft(latestDraft) }}>
@@ -270,6 +261,8 @@ export default function Draft({
       )}
       <details ref={detailsRef} className="draft-generation-details">
         <summary>{draft.editorial?.failures?.length ? uiFormat("生成详情 · {0} 条生成记录", [draft.editorial.failures.length]) : ui("生成详情")}</summary>
+      {/* How the rounds were split is a detail of the run, not a second line under the coverage (#663). */}
+      {liveView?.coverage?.spec && planLine(liveView.coverage.spec) && <Hint data-coverage-plan>{planLine(liveView.coverage.spec)}</Hint>}
       {draft.editorial && (
         <>
           {draft.editorial.summary && <Disclosure className="editorial-summary" summary={ui("生成审阅摘要 · 点击展开")}>

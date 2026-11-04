@@ -148,7 +148,7 @@ test('the hover explanations say what each number counts, in both languages; onl
 
 test('the metrics: the percent, the label and each question tile carry a focusable anchor with the hover text (no title attribute); the tile shows nothing different when there is no hint', () => {
   const html = renderToStaticMarkup(React.createElement(m.Metrics, { job: card(continuation()), summary: m.taskSummary(card(continuation())), now: T0 + 71 * 60_000 }));
-  assert.match(html, /总进度 · 进行中/);
+  assert.match(html, /计划进度 · 进行中/, 'a run with a plan: the percent is the plan\'s, and says so (#662)');
   assert.match(html, /<strong[^>]*>0%<\/strong>/);
   assert.doesNotMatch(html, /\btitle="/, 'the project\'s Tooltip, never a title attribute');
   assert.equal((html.match(/data-metric-hint/g) || []).length, 2, 'the percent and the question tile');

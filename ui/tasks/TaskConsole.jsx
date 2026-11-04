@@ -182,7 +182,7 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
       <Metrics job={task} summary={summary} now={now} />
       <TaskUsage contract={contract} />
       <QueueNote task={task} />
-      <RunLine task={task} shortfall={shortfall} now={now} onOpenSource={learn?.openSourceAt} onOpenSettings={settingsEntry?.openSettings} />
+      <RunLine task={task} shortfall={shortfall} coverage={shortfall && covered.view?.status === 'ok' ? covered.view.coverage : null} now={now} onOpenSource={learn?.openSourceAt} onOpenSettings={settingsEntry?.openSettings} />
       <TimeLimit task={task} now={now} steps={steps} onPick={(id) => setFocusCall({ id, at: Date.now() })} />
       {archived ? <ArchivedNote task={task} /> : continued ? <ContinuedNote contract={contract} /> : <ControlRow job={task} />}
       {usage && <p className="tc-usage" aria-label={ui('用量')}>{usage}</p>}

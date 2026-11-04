@@ -133,12 +133,14 @@ test('a section row says its importance, what it is, how many questions it was p
   assert.match(why(important), /^重要性 5\/5 · 定义 · 计划 \d+ 题 — The core definition of the platform team$/);
   assert.match(why(plain), /^重要性 3\/5 · 方法 · 计划 \d+ 题 — How the teams reuse it$/);
   assert.equal([...html.matchAll(/cov-list__why/g)].length, rows.length, 'every row has its line');
-  assert.match(text(html), new RegExp(`出题计划：标准，约 ${spec.goal} 题，分 ${spec.rounds.length} 轮（重要性由模型判断）`));
+  // The plan's own line is a detail of the run: the draft page keeps it in 生成详情, not under the coverage (#663).
+  assert.match(m.copy.planLine(coverage.spec), new RegExp(`^出题计划：标准，约 ${spec.goal} 题，分 ${spec.rounds.length} 轮（重要性由模型判断）$`));
+  assert.doesNotMatch(text(html), /出题计划：/);
   inLanguage('en', () => {
     const english = renderToStaticMarkup(React.createElement(m.CoverageSummary, { coverage, onOpen: noop }));
     const line = text(/<small class="cov-list__why"[^>]*>([\s\S]*?)<\/small>/.exec(english)?.[1] || '');
     assert.match(line, /^Importance \d\/5 · (definition|method) · \d+ planned — /);
-    assert.match(text(english), new RegExp(`Plan: Standard, about ${spec.goal} questions in ${spec.rounds.length} rounds \\(importance judged by the model\\)`));
+    assert.match(m.copy.planLine(coverage.spec), new RegExp(`^Plan: Standard, about ${spec.goal} questions in ${spec.rounds.length} rounds \\(importance judged by the model\\)$`));
     const visible = text(english.replace(/<span class="cov-list__name">[\s\S]*?<\/small><\/span>/g, '').replace(/<span class="cov-groups__name">[\s\S]*?<\/span>/g, ''));
     assert.doesNotMatch(visible, han, visible.match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
   });
@@ -151,7 +153,7 @@ test('without the model the rows say the questions were shared out by length, an
   const why = text(/<small class="cov-list__why"[^>]*>([\s\S]*?)<\/small>/.exec(html)?.[1] || '');
   assert.match(why, /^按篇幅分配 · 计划 \d+ 题/);
   assert.doesNotMatch(why, /重要性/);
-  assert.match(text(html), new RegExp(`出题计划：标准，约 ${spec.goal} 题，分 ${spec.rounds.length} 轮（按篇幅分配，没有用模型判断重要性）`));
+  assert.match(m.copy.planLine(coverage.spec), new RegExp(`^出题计划：标准，约 ${spec.goal} 题，分 ${spec.rounds.length} 轮（按篇幅分配，没有用模型判断重要性）$`));
   assert.equal(m.copy.weightLine(null), '');
   assert.equal(m.copy.planLine(undefined), '');
 });
@@ -184,7 +186,7 @@ test('a draft with a plan says that its later rounds are planned, not "never pla
   assert.ok(tried.every(section => section.state === 'planned-failed' && section.reason === 'plan-short' && first.has(section.key)));
   assert.equal(m.copy.coverageLine(coverage), `覆盖 1/81 个小节（1%） · ${tried.length} 个计划了没出成 · ${waiting.length} 个排在后面的轮次${never ? ` · ${never} 个没有记录` : ''}`);
   const html = renderToStaticMarkup(React.createElement(m.CoverageSummary, { coverage, onOpen: noop }));
-  assert.match(text(html), new RegExp(`${waiting.length} 个排在后面的轮次`));
+  assert.match(text(html), new RegExp(`排在后面的轮次 ${waiting.length}`), 'the legend of the bar counts them; the fact line above it no longer repeats the split (#663)');
   const rows = [...html.matchAll(/<li[^>]*data-section="([^"]+)"[^>]*>([\s\S]*?)<\/li>/g)];
   assert.equal(rows.filter(row => row[2].includes('排在后面的轮次')).length, waiting.length, 'each of them says so in its row, and nothing else does');
   assert.ok(waiting.every(section => rows.find(row => row[1] === section.key)?.[2].includes('排在后面的轮次')));
