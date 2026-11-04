@@ -382,7 +382,7 @@ test('出第一组题 sends 创建题组\'s request, says so, and starts the nex
   assert.equal(sent.length, 1);
   assert.equal(sent[0].action, 'generate');
   assert.deepEqual(sent[0].args, m.generationRequest(gen, { course: '', sourceIds: ['s1'] }));
-  assert.match(notices[0].text, /已开始生成「我的题组」/);
+  assert.deepEqual(notices, [], 'the card the learner lands on says the deck is running: no toast that says it again (#677)');
   assert.equal(gens[0].title, '', 'the form is clean for the next deck');
   assert.equal(started.id, 'job-1');
 });
