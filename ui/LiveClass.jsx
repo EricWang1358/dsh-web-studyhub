@@ -147,7 +147,7 @@ export function captureFactsLine(facts) {
  * the gesture the microphone prompt needs); 「再试一次共享」 only where trying again can work (a permission the learner may just have fixed, or an unknown cause).
  * Where the window itself cannot share (policy, an app shell, a frame) retrying is not offered. The facts line says what the browser reported.
  */
-export function CaptureHelp({ kind, facts, call, disabled, activeOp = '', lock = false, liveLoopback = null, initialLoopback = null, onMicrophone, onSystemAudio, onLoopbackReady, onRetry }) {
+export function CaptureHelp({ kind, facts, disabled, activeOp = '', lock = false, liveLoopback = null, initialLoopback = null, onMicrophone, onSystemAudio, onLoopbackReady, onRetry }) {
   if (!['blocked', 'embedded-instant', 'app-window', 'instant', 'unknown'].includes(kind)) return null;
   const retry = kind === 'instant' || kind === 'unknown';
   const held = lock || disabled;
@@ -160,7 +160,7 @@ export function CaptureHelp({ kind, facts, call, disabled, activeOp = '', lock =
       <Button busy={activeOp === 'start-mic'} lock={held} onClick={onMicrophone}>{ui('改用麦克风并开始')}</Button>
       {retry && <Button variant="quiet" busy={activeOp === 'start-tab'} lock={held} onClick={onRetry}>{ui('再试一次共享')}</Button>}
     </div>
-    {canLoopback && !liveLoopback.ready && <LiveLoopbackCard call={call} initialStatus={initialLoopback} onReady={onLoopbackReady} />}
+    {canLoopback && !liveLoopback.ready && <LiveLoopbackCard initialStatus={initialLoopback} onReady={onLoopbackReady} />}
     {!canLoopback && facts?.platform === 'windows' && <p className="muted" data-capture-loopback>{ui('戴着耳机、不想外放：把 Windows 的默认录音设备改成「立体声混音」（或虚拟声卡的 Output），然后选「麦克风」，就能直接录到电脑播放的声音。步骤见文档「课堂实录」。')}</p>}
     {line && <details className="live-capture-facts"><summary>{ui('排查信息')}</summary><p className="muted">{line}</p></details>}
   </div>;
@@ -267,7 +267,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
       description={session ? undefined : ui('边听边看简体中文，选中重点就能出题。')}
       actions={<Button variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
     {error && <InlineMessage tone="error" boxed>{uiMessage(error)}</InlineMessage>}
-    {error && !active(session) && <CaptureHelp kind={errorKind} facts={errorFacts} call={call} activeOp={activeOp} lock={disabled}
+    {error && !active(session) && <CaptureHelp kind={errorKind} facts={errorFacts} activeOp={activeOp} lock={disabled}
       liveLoopback={readiness?.liveLoopback || null} initialLoopback={initialLoopback}
       onSystemAudio={() => { setKind('system'); void begin('system', 'start-system'); }}
       onLoopbackReady={() => { setKind('system'); setChecked((value) => value + 1); }}
@@ -282,7 +282,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
         <label className="live-field">{ui('声音来源')}<Select className="live-input" value={effectiveKind} onChange={setKind}
           options={sourceOptions} /></label></div>
       <SourceHint kind={effectiveKind} tabAllowed={tabAllowed} loopbackReady={loopbackReady} onUseMicrophone={() => setKind('microphone')} />
-      {needsLoopbackInstall && <LiveLoopbackCard call={call} initialStatus={initialLoopback} onReady={() => setChecked((value) => value + 1)} />}
+      {needsLoopbackInstall && <LiveLoopbackCard initialStatus={initialLoopback} onReady={() => setChecked((value) => value + 1)} />}
       <CourseField value={course} onChange={setCourse} courses={data?.focus?.courses} disabled={disabled} />
       <details><summary>{ui('课程背景与术语（可选）')}</summary>
         <label className="live-field">{ui('这堂课讲什么')}<input className="live-input" value={subject} maxLength={300} onChange={(event) => setSubject(event.target.value)} /></label>

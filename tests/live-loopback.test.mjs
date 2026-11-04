@@ -393,7 +393,7 @@ test('UI: LiveClient system-audio sync and bilingual rendering of LiveLoopbackCa
     }),
     h(uiMod.CaptureHelp, {
       kind: 'app-window', facts: { browser: 'Chrome', platform: 'windows', app: true, policy: 'unknown', elapsedMs: 8 },
-      call: callStub, liveLoopback: { supported: true, ready: true }, onSystemAudio() {}, onMicrophone() {}, onRetry() {},
+      liveLoopback: { supported: true, ready: true }, onSystemAudio() {}, onMicrophone() {}, onRetry() {},
     }),
     h(uiMod.SourceHint, { kind: 'system', tabAllowed: true, loopbackReady: true }),
     h(uiMod.LiveEngineChoice, { view: { liveProvider: 'auto' }, onSave() {}, initialLocal: null, initialLoopback: states.ready }),
@@ -428,7 +428,7 @@ test('Windows integration: compiles LIVE_LOOPBACK_CS_SOURCE with real csc.exe, r
   const probe = await probeLoopbackHelper({ exePath: helper.exePath });
   assert.equal(probe.ok, true);
 
-  // Verify --capture either reports no-device cleanly (headless VM) or streams & exits 0 within < 2s when stdin closes.
+  // Verify --capture either reports no-device cleanly (exit 3 on headless VM) or streams & exits 0 within < 2s when stdin closes.
   const child = spawn(helper.exePath, ['--capture'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
   let stderr = '';
   child.stderr.on('data', chunk => { stderr += chunk.toString('utf8'); });
@@ -443,5 +443,5 @@ test('Windows integration: compiles LIVE_LOOPBACK_CS_SOURCE with real csc.exe, r
     child.on('close', code => { clearTimeout(timer); resolve(code); });
   });
   assert.match(stderr, /STATE:\{/);
-  assert.ok(exitCode === 0 || (stderr.includes('"no-device"') && exitCode === 2), `unexpected exit ${exitCode}: ${stderr}`);
+  assert.ok(exitCode === 0 || (stderr.includes('"no-device"') && exitCode === 3), `unexpected exit ${exitCode}: ${stderr}`);
 });

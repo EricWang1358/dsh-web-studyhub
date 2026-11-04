@@ -81,6 +81,7 @@
 | `lib/live-correction.js:127`（`setInterval`） | 旧滚动校正计时器 | 不走（`managed` 时 `start()` 直接返回） | S6-2 删除 |
 | `lib/contexts/audio/operations.js:214`（`ownWork(session)`）、`lib/live.js:134`（看门狗 `setInterval`） | 一场实时课堂（连接与它的生命周期） | 仍走 | 保留例外：会话子系统（计划：实时连接留在会话子系统；它的校正和保存是任务） |
 | `lib/live-local.js:59`、`lib/live-local-install.js:295`（`new Worker`） | 本地转写：一场课堂的识别线程；安装检查时加载引擎的一次性线程 | 仍走 | 保留例外：识别线程属于会话子系统（随一场实时课堂的连接开始和结束）；引擎检查是安装任务里的一步（等它结束） |
+| `lib/live-loopback.js:20`（`spawn`）、`lib/live-loopback-install.js:116,151`（`runLocalCommand`） | 电脑系统声音（热插拔 WASAPI 环回组件）：一场活跃课堂的只读采音子进程（暂停/结束即退）；安装阶段里的本机 `csc.exe` 编译与 `--probe` 自检 | 仍走 | 保留例外：采音子进程属于会话子系统（随一场实时课堂的活跃采集开始和结束，空闲与暂停均零驻留）；编译与自检是安装任务里的步骤（受超时与取消信号约束） |
 | `lib/groq.js:67,81`（`spawn` ffmpeg） | 音频窗口的解码与切分，在音频 Job 内部 | 仍走（Job 内的叶子工作） | 保留例外：provider 实现；**不记为 Call**（缺口 7） |
 
 ### 3.2 PDF 与非模型任务
