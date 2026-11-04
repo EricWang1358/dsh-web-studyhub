@@ -179,7 +179,7 @@ The user's daily DSH profile was not changed. Full interaction inside an existin
 
 `ce-simplify-code`: reuse, quality and efficiency passes completed. Consolidated imports, normalized source text once per validation, parallelized static reference reads, documented teaching tool actions and bounded terminal generation-job retention. Deferred low-value loop/I/O rewrites to avoid needless behavioral churn.
 
-Initial 0.1.0 `ce-code-review`: completed, seven findings fixed and independently validated, no remaining actionable findings. Receipt: `docs/ce-code-review/2026-09-12-final/review.json`. The 0.2.0 completeness changes received an inline code review and the additional tests/browser checks above; that earlier independent receipt does not cover the new diff.
+Initial 0.1.0 `ce-code-review`: completed, seven findings fixed and independently validated, no remaining actionable findings. Receipt: `docs/ce-code-review/2026-09-12-final/review.json` (removed from the tree; read it at commit `06b6a15d`). The 0.2.0 completeness changes received an inline code review and the additional tests/browser checks above; that earlier independent receipt does not cover the new diff.
 
 Real model-provider generation was not run with user credentials. The generation protocol and repair/error paths are tested with controlled responses; the model's factual and teaching quality still requires checking against real source material. No claim is made that automated editorial review proves correctness. No lint or TypeScript checker is configured; files were formatted with Prettier and verified by build/tests.
 # 2026-09-29：实时上下文校正、课堂笔记与归档
