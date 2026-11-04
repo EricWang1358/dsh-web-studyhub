@@ -51,29 +51,41 @@
       height: 60vh;
       tab-size: 2;
     }
+    /* The action bar (ui/DraftBar.jsx, #669): the LAST thing on the page, stuck to the bottom of the view, so publishing is within reach at every scroll position while the questions come
+       first. Opaque: the page scrolls under it, and a translucent bar let the text show through its buttons (the evaluation's D-14). Its buttons are on the right, what the draft holds on the left. */
     .sticky-actions {
       position: sticky;
-      top: 12px;
+      bottom: 0;
       z-index: var(--z-sticky);
-      width: fit-content;
-      max-width: 100%;
-      /* Opaque: the page scrolls under this bar, and a translucent one let the coverage headline show through its buttons (the evaluation's D-14). */
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2) var(--space-4);
+      margin-top: var(--space-5);
+      padding: var(--space-2-5) var(--space-3);
       background: var(--bg-raised);
       border: 1px solid var(--line-soft);
       border-radius: var(--radius-sm);
-      box-shadow: var(--shadow-item);
-      padding: var(--space-2);
-      margin-bottom: var(--space-5-5);
-      display: flex;
-      gap: var(--space-2);
-      flex-wrap: wrap;
+      box-shadow: var(--shadow-up);
     }
-    /* The buttons of the bar (ui/DraftBar.jsx): the primary and the secondary one, with the ⋯ menu (删除草稿) after them. */
+    .sticky-actions__status {
+      min-width: 0;
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-md);
+    }
+    .sticky-actions__status strong {
+      color: var(--text);
+      font-size: var(--fs-lg);
+    }
     .sticky-actions__buttons {
-      display: contents;
+      display: flex;
+      flex: none;
+      align-items: center;
+      gap: var(--space-2);
     }
     .draft-title-field {
-      margin: 0 0 var(--space-1-5);
+      margin: 0 0 var(--space-3);
       color: var(--text-muted);
       font-size: var(--fs-md);
     }
@@ -81,15 +93,6 @@
       margin-top: var(--space-2);
       font-size: var(--fs-lg);
       font-weight: var(--fw-strong);
-    }
-    .draft-count {
-      margin: var(--space-2) 0 var(--space-4-5);
-      color: var(--text-muted);
-      font-size: var(--fs-md);
-    }
-    .draft-count strong {
-      color: var(--text);
-      font-size: var(--fs-lg);
     }
     /* A draft that will be the next part of a published deck: whose part it is, and where it goes when published (ui/DraftPart.jsx). */
     .draft-part-line {
@@ -100,9 +103,6 @@
     }
     .draft-part-target {
       margin: 0 0 var(--space-4);
-    }
-    .draft-page .sticky-actions {
-      margin: 0 0 var(--space-5);
     }
     .draft-blocker-summary {
       margin: 0 0 var(--space-3);
@@ -166,14 +166,25 @@
   }
   @container study (max-width:720px) {
     :where(.study-app, .study-seat) {
-      /* On a narrow screen the three buttons share ONE row (a two-row bar covers a seventh of the screen for as long as the page scrolls) and the bar spans the width. */
+      /* On a narrow screen the buttons share ONE row (a two-row bar covers a seventh of the screen for as long as the page scrolls) and the bar spans the width; what the draft holds is
+         said only when there is something to say (unsaved edits), so it never takes a row of its own. */
       .draft-page .sticky-actions {
-        width: 100%;
         gap: var(--space-1-5);
         padding: var(--space-1-5);
-        flex-wrap: nowrap;
       }
-      .draft-page .sticky-actions > * {
+      .draft-page .sticky-actions__status:not([data-unsaved]) {
+        display: none;
+      }
+      .draft-page .sticky-actions__status {
+        flex: 1 1 auto;
+        font-size: var(--fs-sm);
+      }
+      .draft-page .sticky-actions__buttons {
+        flex: 1 1 auto;
+        justify-content: flex-end;
+        gap: var(--space-1-5);
+      }
+      .draft-page .sticky-actions__buttons > .sh-btn {
         flex: 1 1 auto;
         min-width: 0;
         padding-inline: var(--space-2);
@@ -186,7 +197,12 @@
 @layer study.features {
   :is(.study-app, .study-seat) {
     /* The draft card is a <Panel> (ui-consistency #143): the Panel owns border, radius and background; this only settles the spacing between neighbours. */
+    /* The title is one row: the label, then the field (the page's first screen is for the questions, #669); on a narrow screen they stack again. */
+    .draft-title-field { flex-direction: row; align-items: center; gap: var(--space-3); white-space: nowrap; }
+    .draft-title-field .draft-title-field__input { flex: 1 1 auto; min-width: 0; margin: 0; }
     .draft-card { margin: var(--space-4) 0; padding: var(--space-4) var(--space-5); }
+    /* The page's toasts stand above the bar, not behind it (the bar is about 56px high). */
+    main:has([data-draft-bar]) { --sh-toast-offset: calc(var(--space-9) + var(--space-2)); }
     .draft-citation-preview {
       flex-direction: column;
       align-items: flex-start;
@@ -203,6 +219,11 @@
       font-weight: var(--fw-regular);
       line-height: var(--lh-snug);
       overflow-wrap: anywhere;
+    }
+  }
+  @container study (max-width:720px) {
+    :is(.study-app, .study-seat) {
+      .draft-title-field { flex-direction: column; align-items: stretch; gap: var(--space-1-5); }
     }
   }
 }

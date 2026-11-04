@@ -53,13 +53,24 @@ export async function runDraftQa(options) {
       };
       const scrollTo = async (where) => {
         await page.evaluate(scrollerProbe);
-        await page.evaluate((at) => { const element = document.querySelector("[data-qa-scroller]"); if (element) element.scrollTop = at === "end" ? element.scrollHeight : at; }, where);
+        // The panel the app scrolls inside; on a narrow screen the page itself may be what scrolls.
+        facts.scrolled = await page.evaluate((at) => {
+          const element = document.querySelector("[data-qa-scroller]") || document.scrollingElement;
+          element.scrollTop = at === "end" ? element.scrollHeight : at;
+          return { scrollTop: Math.round(element.scrollTop), of: element.scrollHeight, tag: element.tagName };
+        }, where);
         await sleep(500);
       };
 
       await call("generate", { sourceIds: options.ids, coverageLevel: options.level, kind: "quiz", title: t("覆盖演示", "Coverage demo") });
       await idle();
-      const snapshot = await call("snapshot", {});
+      let snapshot = await call("snapshot", {});
+      // Two of the questions are long (the rows are cut at two lines), one is short: the rows must be alike whatever the question says.
+      const long = t("关于「间隔重复与遗忘曲线」，哪一项最准确地概括了这句话：「间隔重复的核心做法是在快要忘记之前安排下一次复习，从而用较少的次数维持长期记忆，这样复习负担不会随着卡片数量增加而失控，而且每次成功回忆之后下一次复习的间隔都会被拉长。」？",
+        "About spaced repetition and the forgetting curve, which option best sums up this sentence: 'The core of spaced repetition is to schedule the next review just before you would forget, so that a long-term memory is kept with few reviews and the load does not grow without bound as the cards pile up, and each successful recall stretches the next interval.'?");
+      const current = snapshot.drafts.at(-1);
+      await call("draft.save", { deck: { ...current, cards: current.cards.map((card, index) => (index === 1 ? { ...card, prompt: t("短题？", "A short one?") } : { ...card, prompt: long })) } });
+      snapshot = await call("snapshot", {});
       const draft = snapshot.drafts.at(-1), view = await call("coverage.get", { draftId: draft.id }), coverage = view.coverage;
       facts.draft = { cards: draft.cards.length, run: draft.editorial?.coverageRun?.state, stop: draft.editorial?.coverageRun?.stop?.reason, goal: draft.editorial?.coverageSpec?.goal };
       facts.coverage = { covered: coverage.covered, leaves: coverage.leaves, percent: coverage.percentLeaves };
@@ -118,10 +129,10 @@ export async function runDraftQa(options) {
         const bar = await page.evaluate(() => { const bar = document.querySelector("[data-draft-bar]"); if (!bar) return null; const rect = bar.getBoundingClientRect(); return { top: Math.round(rect.top), bottom: Math.round(rect.bottom) }; });
         facts.barEnd = bar;
         if (strict) assert.ok(bar && bar.bottom <= options.height + 1 && bar.top >= 0, `the publish bar is in view at the end of the page: ${JSON.stringify(bar)}`);
-        await scrollTo(0);
       });
 
       await step("draft-rows", async () => {
+        await scrollTo(0);
         const rows = await page.evaluate(() => [...document.querySelectorAll(".draft-card")].map((card) => { const rect = card.getBoundingClientRect(); return { height: Math.round(rect.height), summary: card.querySelector("summary")?.children.length }; }));
         facts.rows = rows;
         if (strict) {
@@ -132,14 +143,33 @@ export async function runDraftQa(options) {
       });
 
       await step("draft-more", async () => {
-        const more = page.locator("[data-draft-more] button, [data-draft-more]").first();
+        const more = page.locator("[data-draft-more] button").first();
         const present = await more.count();
         facts.more = !!present;
         if (strict) {
           assert.ok(present, "the bar has a 更多 menu");
           assert.equal(await page.locator("[data-draft-bar]").getByRole("button", { name: t("删除草稿", "Delete draft"), exact: true }).count(), 0, "no 删除草稿 button beside the primary action");
         }
-        if (present) { await more.click(); await sleep(400); }
+        if (present) {
+          await more.click();
+          const item = page.getByRole("menuitem", { name: t("删除草稿", "Delete draft") });
+          await item.waitFor({ timeout: 5000 });
+          facts.menuItem = await item.evaluate((element) => ({ danger: element.classList.contains("is-danger"), top: Math.round(element.getBoundingClientRect().top) }));
+          if (strict) assert.ok(facts.menuItem.danger, "删除草稿 is in the danger colour");
+          await sleep(400);
+        }
+      });
+
+      // A notice stands above the bar, not behind it (the top-up says that it started).
+      await step("draft-notice", async () => {
+        await page.keyboard.press("Escape");
+        await page.getByRole("button", { name: t("为没覆盖的部分补题", "Add questions for the uncovered parts"), exact: true }).click();
+        const toast = page.locator(".sh-toast").first();
+        await toast.waitFor({ timeout: 8000 });
+        await sleep(600);
+        const boxes = await page.evaluate(() => { const toast = document.querySelector(".sh-toast"), bar = document.querySelector("[data-draft-bar]"); return toast && bar ? { toastBottom: Math.round(toast.getBoundingClientRect().bottom), barTop: Math.round(bar.getBoundingClientRect().top) } : null; });
+        facts.notice = boxes;
+        if (strict) assert.ok(boxes && boxes.toastBottom <= boxes.barTop + 1, `the notice is above the bar: ${JSON.stringify(boxes)}`);
       });
     } });
 }

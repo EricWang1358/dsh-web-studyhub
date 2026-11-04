@@ -101,7 +101,6 @@ export const ALLOW = {
     { name: '--available-height', reason: 'Base UI positioner variable' },
     { name: '--transform-origin', reason: 'Base UI positioner variable' },
     /* Optional overrides: the default sits in the var() fallback on purpose. */
-    { name: '--sh-toast-offset', reason: 'optional override set by a host page' },
     { name: '--dur-leave', reason: 'optional override, ui/components/feedback.css fallback is the default' },
   ],
 };

@@ -181,38 +181,11 @@ export default function Draft({
       </label>}
       {!jsonMode && draft.format === "case-study" && <CaseDraftHeader draft={draft} data={data} />}
       <DraftPartLine targets={targets} />
-      <p className="draft-count">{uiRich("当前草稿 {0} 题", <strong>{draft.cards.length}</strong>)}{unsavedDraft && <><span aria-hidden="true"> · </span><span>{ui("有未保存修改")}</span></>}</p>
       <PartTargetChoice targets={targets} value={intoDeck} onChange={setPartTarget} disabled={busy} />
-      <DraftBar publishLabel={publicationLabel} saveDisabled={updatingDraft || staleDraft || missingDraft} deleteDisabled={missingDraft}
-        publishDisabled={updatingDraft || staleDraft || missingDraft || activeReview} publishTitle={activeReview ? ui("先完成或结束原题组的学习") : undefined} describedBy={hold ? "draft-hold" : undefined}
-        onDelete={() => setDeletingId(draft.id)}
-        onSave={() => {
-          let d;
-          try {
-            d = jsonMode ? parseDraft(draftText) : draft;
-          } catch (e) {
-            toast.error("JSON 格式不正确：" + e.message);
-            return;
-          }
-          act("draft.save", { deck: d }, openDraft);
-        }}
-        onPublish={async () => {
-          let d;
-          try {
-            d = jsonMode ? parseDraft(draftText) : draft;
-          } catch (e) {
-            toast.error("JSON 格式不正确：" + e.message);
-            return;
-          }
-          // The same quick publication as 发布并开始练 on the finished card of a run (ui/app/use-drafts.js).
-          await publishAndPractice({ call, act, toast, draft: d, intoDeck, openDraft, clearRecovery, enterRun: onStartPublished, setPage });
-        }} />
       {deleting && <DeleteDraftDialog draft={draft} data={data} onClose={() => setDeletingId(null)}
         onDeleted={() => { setDeletingId(null); clearRecovery(); setPage("library"); }} />}
       {hold && <Banner tone="info" role="status" id="draft-hold" className="draft-hold" data-draft-hold
         action={canStopWork(work) ? { label: stopLabel(work), disabled: busy, onClick: stopWork } : undefined}>{hold}</Banner>}
-      <DraftCoverage draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} unsaved={unsavedDraft} work={work} modelReady={modelReadiness(data).ready}
-        saveThen={saveThen} onTopUp={topUp} onOpenSource={openSourceAt} />
       <div className="draft-notices">
         {staleDraft && unsavedDraft && <Banner tone="warning" role="status" title={ui("草稿已在后台更新")}
           action={{ label: ui("载入最新草稿"), onClick: () => openDraft(latestDraft) }}>
@@ -248,106 +221,8 @@ export default function Draft({
           ].filter(Boolean).join(" · ")}
         </InlineMessage>
       )}
-      <details ref={detailsRef} className="draft-generation-details">
-        <summary>{draft.editorial?.failures?.length ? uiFormat("生成详情 · {0} 条生成记录", [draft.editorial.failures.length]) : ui("生成详情")}</summary>
-      {/* How the rounds were split is a detail of the run, not a second line under the coverage (#663). */}
-      {liveView?.coverage?.spec && planLine(liveView.coverage.spec) && <Hint data-coverage-plan>{planLine(liveView.coverage.spec)}</Hint>}
-      {draft.editorial && (
-        <>
-          {draft.editorial.summary && <Disclosure className="editorial-summary" summary={ui("生成审阅摘要 · 点击展开")}>
-            <p>{draft.editorial.summary}</p>
-          </Disclosure>}
-          {experimentalShown(data) && <JevDecidedNote decided={draft.editorial.jevDecided} />}
-          {draft.editorial.repairTried > 0 && <Hint data-repair-yield>{uiFormat("修复后保留 {0} 题 · 丢弃 {1} 题（其中 {2} 题修复后仍未通过，原因见「没进入草稿的题」）",
-            [draft.editorial.repairedInRun || 0, (draft.editorial.omitted || []).length, draft.editorial.repairTried - (draft.editorial.repairedInRun || 0)])}</Hint>}
-          {draft.editorial.suggestions?.length > 0 && <Disclosure className="review-suggestions" summary={uiFormat("审阅建议（已记录，不影响通过）· {0}", [draft.editorial.suggestions.length])}>
-            <ul>{draft.editorial.suggestions.map((item, index) => <li key={index}>{item.applied ? `${ui("已采纳")} · ` : ""}{item.text}</li>)}</ul>
-          </Disclosure>}
-          <Hint>
-            {[reviewStatus
-              ? uiFormat("{0} / {1} 题与上次模型审阅时一致。", [reviewStatus.unchanged, reviewStatus.total])
-              : ui("这份草稿没有可核对的逐题审阅版本。"),
-            needsReview > 0 ? uiFormat("{0} 题未经过模型审阅。", [needsReview]) : ""].filter(Boolean).join(" ")}
-          </Hint>
-        </>
-      )}
-      {!draft.editorial && <Banner tone="info" role="status">{ui("这份草稿尚未经过模型审阅。直接发布会保留未审阅标记。")}</Banner>}
-      {selfCited > 0 && <Banner tone="warning" role="status">
-        {uiFormat("{0} 道题只引用了导入的题目自身。模型可以检查题目是否自洽，但无法据此独立核实答案；如需事实依据，请把引用换成原始资料。", [selfCited])}</Banner>}
-      {draft.editorial?.requested && !draft.editorial?.repairOfDeckId && !draft.editorial?.partialEdit && (draft.editorial.generated ?? draft.cards.length) <= draft.editorial.requested && <p>{uiFormat("本次生成通过检查 {0} / {1} 题；当前草稿 {2} 题。", [draft.editorial.generated ?? draft.cards.length, draft.editorial.requested, draft.cards.length])}</p>}
-      {incomplete && <Banner tone="warning" role="status">
-        {uiFormat("{0}：已完成 {1} / {2} 批。当前草稿只包含已保存的题目；其余批次尚未完成检查。", [generating ? ui("仍在生成") : ui("本次生成已中断"), draft.editorial.completedParts, draft.editorial.parts])}</Banner>}
-      {audits.map((audit, i) => <Disclosure key={i} summary={uiFormat("质量自查记录 · 第 {0} 批 · 主动改写 {1} 项", [audit.part || i + 1, audit.changes.length])}>
-        <p className="muted">{uiFormat("已规划 {0} 个考点；独立验收逐题检查自足性、泄题风险、选项质量、学习价值和证据支持。这是生成时的检查记录。", [audit.targets.length])}</p>
-        <ul>{audit.changes.filter((change) => typeof change?.summary === "string").map((change, index) => <li key={index}>{change.summary}</li>)}</ul>
-        <ul>{audit.checks.filter((check) => typeof check?.explanation === "string").map((check, index) => <li key={index}>{check.explanation}</li>)}</ul>
-      </Disclosure>)}
-      {failureLines.length > 0 && <Banner tone="warning" title={ui("部分题目未生成成功，合格题目已保留")}>
-        <Disclosure summary={ui("查看记录")}><ul>{failureLines.map((line, i) => <li key={i}>{line}</li>)}</ul></Disclosure>
-      </Banner>}
-      {!shortBlock && <OmittedQuestions draft={draft} />}
-      {rejectedCount > 0 && <Banner tone="warning" role="status"
-        title={retryPublishCount > 0 ? uiFormat("{0} 道题待处理 · {1} 道待重新检查发布", [rejectedCount, retryPublishCount]) : uiFormat("{0} 道题待处理", [rejectedCount])}>
-        <p>{[draft.editorial?.partialEdit
-          ? ui("通过检查的修改已更新到原题组；未通过的修改留在草稿。原有题目仍按旧内容供学习，新加的题尚未发布。")
-          : draft.editorial?.repairOfDeckId
-            ? ui("先前通过检查的题目已发布；当前草稿中的题目尚未发布。")
-            : ui("当前草稿中的题目尚未发布。"),
-        retryPublishCount > 0 && uiFormat("可点击「{0}」重新检查其余题目。", [publicationLabel.replace(/\s*→$/, "")]),
-        ui("待处理题目可自行修改，或选择交给后台修题。")].filter(Boolean).join(" ")}</p>
-        {publishedDeck && <p>{uiFormat("已发布题组「{0}」现有 {1} 题。", [publishedDeck.title, publishedDeck.count])}{" "}
-          <Button variant="link" size="sm" lock={busy} onClick={() => onOpenPublished(publishedDeck.id)}>{ui("查看已发布题组")}</Button>
-        </p>}
-        <Disclosure summary={ui("查看待处理问题")}>
-          <ul>{rejectedCards.map((card) =>
-            <li key={card.id}><strong>{card.prompt || ui("问题尚未填写")}</strong>：{rejectedIssues[card.id]
-              .map((issue) => readableQualityIssue(issue).replace(/^第 \d+ 题：/, "")).join("；")}</li>)}</ul>
-        </Disclosure>
-        {missingRepairEvidence > 0 && <p>
-          {uiFormat("{0} 题没有可定位的资料。请先在题目中添加引用来源；{1}", [missingRepairEvidence, repairableCount > 0 ? uiFormat("后台仍可先处理其余 {0} 题。", [repairableCount]) : ui("补充后才能启动后台修题。")])}
-        </p>}
-        <div className="draft-banner__actions">
-          <Button size="sm" disabled={repairRunning || staleDraft || unsavedDraft || !data.modelReady || !repairableCount} lock={busy}
-            title={unsavedDraft ? ui("先保存草稿") : !data.modelReady ? ui("先在设置中选择模型") : !repairableCount ? ui("先给待处理题目添加引用来源") : ui("后台逐题修复并独立复审")}
-            onClick={() => act("draft.repair", { id: draft.id, draftVersion: draft.draftVersion },
-              () => toast.success(ui("后台修题已启动；完成后可回来发布通过的题目。")))}>
-            {repairRunning ? ui("后台修题中…") : ui("交给后台修题")}
-          </Button>
-          {repairJob && <Button size="sm" variant="quiet" disabled={repairJob.status === JOB_STATUS.CANCELLING} lock={busy}
-            onClick={() => act("job.cancel", { jobId: repairJob.id },
-              () => toast.success(ui("正在停止后台修题；已修好的题目会保留在草稿中。")))}>
-            {repairJob.status === JOB_STATUS.CANCELLING ? ui("正在停止修题…") : ui("停止修题，保留草稿")}
-          </Button>}
-        </div>
-      </Banner>}
-      {previousLines.length > 0 && <Banner tone="warning" title={ui("之前未完成的批次")}>
-        <Disclosure summary={ui("查看记录")}><ul>{previousLines.map((line, i) => <li key={i}>{line}</li>)}</ul></Disclosure>
-      </Banner>}
-      {draft.editorial?.coverage && <Disclosure summary={coverageCount
-        ? uiFormat("逐份资料出题记录 · 已引用 {0} / {1} 页", liveCited ?? [draft.editorial.coverage.cited, draft.editorial.coverage.selected])
-        : uiFormat("逐份资料出题记录 · 已引用 {0} / {1} 份", liveCited ?? [draft.editorial.coverage.cited, draft.editorial.coverage.selected])}>
-        <p className="muted">{ui("“规划”是模型选出的考点次数，“通过”是最终引用该资料的合格题数；即使有题，也不代表整页或全部知识点都已覆盖。")}</p>
-        {coveredSources.length > 0 && <ul className="coverage-documents">{coverageDocuments.filter((group) => group.covered > 0).map((group) => <li key={group.key}>
-          {group.rows[0].page === null
-            ? uiFormat("{0}：规划 {1} 个考点，通过 {2} 题", [group.title, group.planned, group.accepted])
-            : <><strong>{group.title}</strong><ul>{group.rows.filter((row) => row.accepted > 0).map((row) => <li key={row.id}>
-              {uiFormat("第 {0} 页：规划 {1} 个考点，通过 {2} 题", [row.page, row.planned, row.accepted])}</li>)}</ul></>}
-        </li>)}</ul>}
-        {uncoveredCount > 0 && <Disclosure summary={coverageCount ? uiFormat("{0} 页本次没有合格题 · 查看清单", [uncoveredCount]) : uiFormat("{0} 份资料本次没有合格题 · 查看清单", [uncoveredCount])}>
-          <ul className="coverage-documents">{uncoveredPages.map((group) => <li key={group.key}>
-            {group.rows[0].page === null
-              ? <>{group.title}{group.planned ? uiFormat("：规划 {0} 个考点", [group.planned]) : ""}</>
-              : <><strong>{group.title}</strong>{" · "}{uiFormat("页码：{0}", [group.rows.map((row) => row.page).join(ui("、"))])}</>}
-          </li>)}</ul>
-        </Disclosure>}
-      </Disclosure>}
-      {draft.quality?.warnings?.map((w, i) => <Banner tone="warning" key={i}>{w}</Banner>)}
-      {draft.quality?.errors?.length > 0 && <Banner tone="warning" title={uiFormat("{0} 项题目问题", [draft.quality.errors.length])}>
-        <Disclosure summary={ui("查看详情")}>
-          <ul>{draft.quality.errors.map((issue, index) => <li key={index}>{readableQualityIssue(issue)}</li>)}</ul>
-        </Disclosure>
-      </Banner>}
-      </details>
+      <DraftCoverage draft={draft} view={covered.view} jobs={data.jobs} held={staleDraft} unsaved={unsavedDraft} work={work} modelReady={modelReadiness(data).ready}
+        saveThen={saveThen} onTopUp={topUp} onOpenSource={openSourceAt} />
       {!jsonMode && <div className="draft-edit-heading">
         <div><h2>{ui("题目")}</h2><span>{uiFormat("{0} 题 · 按需展开编辑", [draft.cards.length])}</span></div>
         <details className="draft-advanced" data-tour="draft-advanced">
@@ -589,6 +464,130 @@ export default function Draft({
           >{ui("添加闪卡")}</Button>
         </>
       )}
+      <details ref={detailsRef} className="draft-generation-details">
+        <summary>{draft.editorial?.failures?.length ? uiFormat("生成详情 · {0} 条生成记录", [draft.editorial.failures.length]) : ui("生成详情")}</summary>
+      {/* How the rounds were split is a detail of the run, not a second line under the coverage (#663). */}
+      {liveView?.coverage?.spec && planLine(liveView.coverage.spec) && <Hint data-coverage-plan>{planLine(liveView.coverage.spec)}</Hint>}
+      {draft.editorial && (
+        <>
+          {draft.editorial.summary && <Disclosure className="editorial-summary" summary={ui("生成审阅摘要 · 点击展开")}>
+            <p>{draft.editorial.summary}</p>
+          </Disclosure>}
+          {experimentalShown(data) && <JevDecidedNote decided={draft.editorial.jevDecided} />}
+          {draft.editorial.repairTried > 0 && <Hint data-repair-yield>{uiFormat("修复后保留 {0} 题 · 丢弃 {1} 题（其中 {2} 题修复后仍未通过，原因见「没进入草稿的题」）",
+            [draft.editorial.repairedInRun || 0, (draft.editorial.omitted || []).length, draft.editorial.repairTried - (draft.editorial.repairedInRun || 0)])}</Hint>}
+          {draft.editorial.suggestions?.length > 0 && <Disclosure className="review-suggestions" summary={uiFormat("审阅建议（已记录，不影响通过）· {0}", [draft.editorial.suggestions.length])}>
+            <ul>{draft.editorial.suggestions.map((item, index) => <li key={index}>{item.applied ? `${ui("已采纳")} · ` : ""}{item.text}</li>)}</ul>
+          </Disclosure>}
+          <Hint>
+            {[reviewStatus
+              ? uiFormat("{0} / {1} 题与上次模型审阅时一致。", [reviewStatus.unchanged, reviewStatus.total])
+              : ui("这份草稿没有可核对的逐题审阅版本。"),
+            needsReview > 0 ? uiFormat("{0} 题未经过模型审阅。", [needsReview]) : ""].filter(Boolean).join(" ")}
+          </Hint>
+        </>
+      )}
+      {!draft.editorial && <Banner tone="info" role="status">{ui("这份草稿尚未经过模型审阅。直接发布会保留未审阅标记。")}</Banner>}
+      {selfCited > 0 && <Banner tone="warning" role="status">
+        {uiFormat("{0} 道题只引用了导入的题目自身。模型可以检查题目是否自洽，但无法据此独立核实答案；如需事实依据，请把引用换成原始资料。", [selfCited])}</Banner>}
+      {draft.editorial?.requested && !draft.editorial?.repairOfDeckId && !draft.editorial?.partialEdit && (draft.editorial.generated ?? draft.cards.length) <= draft.editorial.requested && <p>{uiFormat("本次生成通过检查 {0} / {1} 题；当前草稿 {2} 题。", [draft.editorial.generated ?? draft.cards.length, draft.editorial.requested, draft.cards.length])}</p>}
+      {incomplete && <Banner tone="warning" role="status">
+        {uiFormat("{0}：已完成 {1} / {2} 批。当前草稿只包含已保存的题目；其余批次尚未完成检查。", [generating ? ui("仍在生成") : ui("本次生成已中断"), draft.editorial.completedParts, draft.editorial.parts])}</Banner>}
+      {audits.map((audit, i) => <Disclosure key={i} summary={uiFormat("质量自查记录 · 第 {0} 批 · 主动改写 {1} 项", [audit.part || i + 1, audit.changes.length])}>
+        <p className="muted">{uiFormat("已规划 {0} 个考点；独立验收逐题检查自足性、泄题风险、选项质量、学习价值和证据支持。这是生成时的检查记录。", [audit.targets.length])}</p>
+        <ul>{audit.changes.filter((change) => typeof change?.summary === "string").map((change, index) => <li key={index}>{change.summary}</li>)}</ul>
+        <ul>{audit.checks.filter((check) => typeof check?.explanation === "string").map((check, index) => <li key={index}>{check.explanation}</li>)}</ul>
+      </Disclosure>)}
+      {failureLines.length > 0 && <Banner tone="warning" title={ui("部分题目未生成成功，合格题目已保留")}>
+        <Disclosure summary={ui("查看记录")}><ul>{failureLines.map((line, i) => <li key={i}>{line}</li>)}</ul></Disclosure>
+      </Banner>}
+      {!shortBlock && <OmittedQuestions draft={draft} />}
+      {rejectedCount > 0 && <Banner tone="warning" role="status"
+        title={retryPublishCount > 0 ? uiFormat("{0} 道题待处理 · {1} 道待重新检查发布", [rejectedCount, retryPublishCount]) : uiFormat("{0} 道题待处理", [rejectedCount])}>
+        <p>{[draft.editorial?.partialEdit
+          ? ui("通过检查的修改已更新到原题组；未通过的修改留在草稿。原有题目仍按旧内容供学习，新加的题尚未发布。")
+          : draft.editorial?.repairOfDeckId
+            ? ui("先前通过检查的题目已发布；当前草稿中的题目尚未发布。")
+            : ui("当前草稿中的题目尚未发布。"),
+        retryPublishCount > 0 && uiFormat("可点击「{0}」重新检查其余题目。", [publicationLabel.replace(/\s*→$/, "")]),
+        ui("待处理题目可自行修改，或选择交给后台修题。")].filter(Boolean).join(" ")}</p>
+        {publishedDeck && <p>{uiFormat("已发布题组「{0}」现有 {1} 题。", [publishedDeck.title, publishedDeck.count])}{" "}
+          <Button variant="link" size="sm" lock={busy} onClick={() => onOpenPublished(publishedDeck.id)}>{ui("查看已发布题组")}</Button>
+        </p>}
+        <Disclosure summary={ui("查看待处理问题")}>
+          <ul>{rejectedCards.map((card) =>
+            <li key={card.id}><strong>{card.prompt || ui("问题尚未填写")}</strong>：{rejectedIssues[card.id]
+              .map((issue) => readableQualityIssue(issue).replace(/^第 \d+ 题：/, "")).join("；")}</li>)}</ul>
+        </Disclosure>
+        {missingRepairEvidence > 0 && <p>
+          {uiFormat("{0} 题没有可定位的资料。请先在题目中添加引用来源；{1}", [missingRepairEvidence, repairableCount > 0 ? uiFormat("后台仍可先处理其余 {0} 题。", [repairableCount]) : ui("补充后才能启动后台修题。")])}
+        </p>}
+        <div className="draft-banner__actions">
+          <Button size="sm" disabled={repairRunning || staleDraft || unsavedDraft || !data.modelReady || !repairableCount} lock={busy}
+            title={unsavedDraft ? ui("先保存草稿") : !data.modelReady ? ui("先在设置中选择模型") : !repairableCount ? ui("先给待处理题目添加引用来源") : ui("后台逐题修复并独立复审")}
+            onClick={() => act("draft.repair", { id: draft.id, draftVersion: draft.draftVersion },
+              () => toast.success(ui("后台修题已启动；完成后可回来发布通过的题目。")))}>
+            {repairRunning ? ui("后台修题中…") : ui("交给后台修题")}
+          </Button>
+          {repairJob && <Button size="sm" variant="quiet" disabled={repairJob.status === JOB_STATUS.CANCELLING} lock={busy}
+            onClick={() => act("job.cancel", { jobId: repairJob.id },
+              () => toast.success(ui("正在停止后台修题；已修好的题目会保留在草稿中。")))}>
+            {repairJob.status === JOB_STATUS.CANCELLING ? ui("正在停止修题…") : ui("停止修题，保留草稿")}
+          </Button>}
+        </div>
+      </Banner>}
+      {previousLines.length > 0 && <Banner tone="warning" title={ui("之前未完成的批次")}>
+        <Disclosure summary={ui("查看记录")}><ul>{previousLines.map((line, i) => <li key={i}>{line}</li>)}</ul></Disclosure>
+      </Banner>}
+      {draft.editorial?.coverage && <Disclosure summary={coverageCount
+        ? uiFormat("逐份资料出题记录 · 已引用 {0} / {1} 页", liveCited ?? [draft.editorial.coverage.cited, draft.editorial.coverage.selected])
+        : uiFormat("逐份资料出题记录 · 已引用 {0} / {1} 份", liveCited ?? [draft.editorial.coverage.cited, draft.editorial.coverage.selected])}>
+        <p className="muted">{ui("“规划”是模型选出的考点次数，“通过”是最终引用该资料的合格题数；即使有题，也不代表整页或全部知识点都已覆盖。")}</p>
+        {coveredSources.length > 0 && <ul className="coverage-documents">{coverageDocuments.filter((group) => group.covered > 0).map((group) => <li key={group.key}>
+          {group.rows[0].page === null
+            ? uiFormat("{0}：规划 {1} 个考点，通过 {2} 题", [group.title, group.planned, group.accepted])
+            : <><strong>{group.title}</strong><ul>{group.rows.filter((row) => row.accepted > 0).map((row) => <li key={row.id}>
+              {uiFormat("第 {0} 页：规划 {1} 个考点，通过 {2} 题", [row.page, row.planned, row.accepted])}</li>)}</ul></>}
+        </li>)}</ul>}
+        {uncoveredCount > 0 && <Disclosure summary={coverageCount ? uiFormat("{0} 页本次没有合格题 · 查看清单", [uncoveredCount]) : uiFormat("{0} 份资料本次没有合格题 · 查看清单", [uncoveredCount])}>
+          <ul className="coverage-documents">{uncoveredPages.map((group) => <li key={group.key}>
+            {group.rows[0].page === null
+              ? <>{group.title}{group.planned ? uiFormat("：规划 {0} 个考点", [group.planned]) : ""}</>
+              : <><strong>{group.title}</strong>{" · "}{uiFormat("页码：{0}", [group.rows.map((row) => row.page).join(ui("、"))])}</>}
+          </li>)}</ul>
+        </Disclosure>}
+      </Disclosure>}
+      {draft.quality?.warnings?.map((w, i) => <Banner tone="warning" key={i}>{w}</Banner>)}
+      {draft.quality?.errors?.length > 0 && <Banner tone="warning" title={uiFormat("{0} 项题目问题", [draft.quality.errors.length])}>
+        <Disclosure summary={ui("查看详情")}>
+          <ul>{draft.quality.errors.map((issue, index) => <li key={index}>{readableQualityIssue(issue)}</li>)}</ul>
+        </Disclosure>
+      </Banner>}
+      </details>
+      <DraftBar status={<>{uiRich("当前草稿 {0} 题", <strong>{draft.cards.length}</strong>)}{unsavedDraft && <><span aria-hidden="true"> · </span><span>{ui("有未保存修改")}</span></>}{hold && <><span aria-hidden="true"> · </span><span>{ui("后台任务进行中，暂时不能保存或发布")}</span></>}</>} unsaved={unsavedDraft || !!hold} publishLabel={publicationLabel} saveDisabled={updatingDraft || staleDraft || missingDraft} deleteDisabled={missingDraft}
+        publishDisabled={updatingDraft || staleDraft || missingDraft || activeReview} publishTitle={activeReview ? ui("先完成或结束原题组的学习") : undefined} describedBy={hold ? "draft-hold" : undefined}
+        onDelete={() => setDeletingId(draft.id)}
+        onSave={() => {
+          let d;
+          try {
+            d = jsonMode ? parseDraft(draftText) : draft;
+          } catch (e) {
+            toast.error("JSON 格式不正确：" + e.message);
+            return;
+          }
+          act("draft.save", { deck: d }, openDraft);
+        }}
+        onPublish={async () => {
+          let d;
+          try {
+            d = jsonMode ? parseDraft(draftText) : draft;
+          } catch (e) {
+            toast.error("JSON 格式不正确：" + e.message);
+            return;
+          }
+          // The same quick publication as 发布并开始练 on the finished card of a run (ui/app/use-drafts.js).
+          await publishAndPractice({ call, act, toast, draft: d, intoDeck, openDraft, clearRecovery, enterRun: onStartPublished, setPage });
+        }} />
     </section>
   );
 }
