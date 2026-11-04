@@ -488,19 +488,6 @@
     }
   }
 
-  /* A narrow panel (the DSH side panel, a phone): the overview is a short list, a metric one line (its name, then its value at the end; a note under it) instead of a grid of tiles that are mostly empty. */
-  @container study (max-width: 560px) {
-    :is(.study-app, .study-seat) {
-      .tc-metrics { grid-template-columns: minmax(0, 1fr); }
-      .tc-metric:not(.tc-metric--progress) { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 0 var(--space-3); min-height: 0; padding: var(--space-2) var(--space-4); border-right: 0; border-bottom: 1px solid var(--line-soft); }
-      .tc-metric:not(.tc-metric--progress) .tc-metric__v { text-align: end; }
-      .tc-metric:not(.tc-metric--progress) .tc-metric__note-anchor, .tc-metric:not(.tc-metric--progress) > .tc-metric__note { grid-column: 1 / -1; }
-      .tc-metric:not(.tc-metric--progress) .tc-metric__note { min-height: 0; }
-      .tc-metric:not(.tc-metric--progress) > .tc-metric__note:empty { display: none; }
-      .tc-metric:last-child { border-bottom: 0; }
-    }
-  }
-
   /* Short laptop viewports (1366x768, 1280x720): when header + metrics + control strips leave < 14rem for the panels, let .tc scroll vertically rather than crushing .tc-panel. */
   @media (max-height: 780px) {
     :is(.study-app, .study-seat) {
@@ -535,6 +522,19 @@
       /* The name takes a line of its own; the actions wrap onto the next and keep their size (they were squeezed against the edge and 删除 was cut). */
       .tc-head__title { flex: 1 1 100%; }
       .tc-head__actions { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; max-width: 100%; margin-inline-start: auto; }
+    }
+  }
+
+  /* A narrow panel (the DSH side panel, a phone): the overview is a short list, a metric one line (its name, then its value at the end; a note under it) instead of a grid of tiles that are mostly empty. */
+  @container study (max-width: 560px) {
+    :is(.study-app, .study-seat) {
+      .tc-metrics { grid-template-columns: minmax(0, 1fr); }
+      .tc-metric:not(.tc-metric--progress) { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 0 var(--space-3); min-height: 0; padding: var(--space-2) var(--space-4); border-right: 0; border-bottom: 1px solid var(--line-soft); }
+      .tc-metric:not(.tc-metric--progress) .tc-metric__v { text-align: end; }
+      .tc-metric:not(.tc-metric--progress) .tc-metric__note-anchor, .tc-metric:not(.tc-metric--progress) > .tc-metric__note { grid-column: 1 / -1; }
+      .tc-metric:not(.tc-metric--progress) .tc-metric__note { min-height: 0; }
+      .tc-metric:not(.tc-metric--progress) > .tc-metric__note:empty { display: none; }
+      .tc-metric:last-child { border-bottom: 0; }
     }
   }
 }
