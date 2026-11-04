@@ -269,7 +269,6 @@ test('复习全书: 打开书页 from the 总纲, the 目录 and the heading bei
 /* The way back from practice (#603), at 1280 and 420 px: the heading comes back where it was on screen (2 px at most) and holds there while the page around it is still arriving. What
    arrives late is the real thing that moved it: 备考计划 (course.plan) is drawn above the point once its answer is in, held at the network edge here so it comes after the landing every time. */
 const practiceBack = page => page.locator('.review-return', { hasText: '回到复习全书' });
-const scrollerTop = page => page.evaluate(() => document.querySelector('.study-app').scrollTop);
 const near = (after, before, what) => assert.ok(Math.abs(after - before) <= 2, `${what}: ${before} -> ${after}`);
 
 /** The book at one point (`title`, as the 目录 says it) with 本节的题 open. -> its heading id. */
