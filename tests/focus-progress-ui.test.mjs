@@ -76,7 +76,7 @@ test('how it is counted is a hover Tooltip, never a title attribute', () => {
 });
 
 test('English: every word of the line and its explanation is English', () => {
-  const html = render(h(m.FocusProgressLine, { progress, courseId: 'course-os', busy: false, start: noop, onCourseSettings: noop }), 'en'), line = visible(html);
+  const html = render(h(m.FocusProgressLine, { progress, courseId: 'course-os', lock: false, start: noop, onCourseSettings: noop }), 'en'), line = visible(html);
   assert.match(line, /Focus topics 8: Mastered 3 · Not yet 2 · No questions 1(?! ·)/);
   assert.match(line, /Practise the focus topics you can't do yet →/);
   assert.doesNotMatch(text(html), /[㐀-鿿]/, 'the explanation too');
@@ -95,7 +95,7 @@ const textOf = node => (typeof node === 'string' || typeof node === 'number' ? S
 
 test('pressing the link starts a path run over the weak focus questions; pressing the summary opens the course settings', () => {
   const calls = [];
-  const tree = m.FocusProgressLine({ progress, courseId: 'course-os', busy: false, start: args => calls.push(['start', args]), onCourseSettings: id => calls.push(['settings', id]) });
+  const tree = m.FocusProgressLine({ progress, courseId: 'course-os', lock: false, start: args => calls.push(['start', args]), onCourseSettings: id => calls.push(['settings', id]) });
   const buttons = walk(tree).filter(node => typeof node.props.onClick === 'function');
   assert.equal(buttons.length, 2);
   const [summary, practise] = buttons;
@@ -104,7 +104,7 @@ test('pressing the link starts a path run over the weak focus questions; pressin
   summary.props.onClick();
   practise.props.onClick();
   assert.deepEqual(calls, [['settings', 'course-os'], ['start', { mode: 'path', scope: progress.weakScope }]]);
-  assert.equal(practise.props.lock, false, 'locked while another action runs');
+  assert.equal(practise.props.lock, false, 'the link takes the single-flight lock of the app');
 });
 
 test('the settings list shows each saved topic with its status and counts, and "no questions" in words', () => {

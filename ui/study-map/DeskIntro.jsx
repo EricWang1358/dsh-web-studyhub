@@ -65,7 +65,7 @@ export default function DeskIntro({ data, home, mastery, role, start, resume, en
         <small>{ui('未激活的课程不进入到期复习和推荐；随时可以再激活')}</small></p>}
       {interview && <RoleSuggestion data={data} role={role.draft} suggestRole={suggestRole} onFocus={onFocus} start={start} />}
       {route && <CourseRoute route={route} />}
-      {!interview && <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} busy={busy} start={start} onCourseSettings={onCourseSettings} />}
+      {!interview && <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} lock={busy} start={start} onCourseSettings={onCourseSettings} />}
       {mastery.primary && <DeskMastery mastery={mastery} />}
       <p className="desk-next">
         {data.next ? (

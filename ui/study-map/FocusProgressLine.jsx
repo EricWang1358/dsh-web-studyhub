@@ -5,7 +5,7 @@ import { summaryParts } from '../focus-progress-copy.js';
 
 /** 重点 × 掌握度 on the home, under the course progress (lib/focus-progress.js): the counts of the course's focus topics in one line, whose press opens the course settings
     (the topics are listed there), and, when some focus questions are weak, a link that practises exactly those. How a topic is counted is a hover Tooltip. */
-export default function FocusProgressLine({ progress, courseId, busy, start, onCourseSettings }) {
+export default function FocusProgressLine({ progress, courseId, lock, start, onCourseSettings }) {
   if (!progress?.total) return null;
   return (
     <p className="focus-progress">
@@ -14,7 +14,7 @@ export default function FocusProgressLine({ progress, courseId, busy, start, onC
           {uiFormat('重点 {0} 条：{1}', [progress.total, summaryParts(progress).join(' · ')])}
         </Button>
       </Tooltip>
-      {progress.weakScope?.length > 0 && <Button variant="link" lock={busy} onClick={() => start({ mode: 'path', scope: progress.weakScope })}>{ui('练还不会的重点 →')}</Button>}
+      {progress.weakScope?.length > 0 && <Button variant="link" lock={lock} onClick={() => start({ mode: 'path', scope: progress.weakScope })}>{ui('练还不会的重点 →')}</Button>}
     </p>
   );
 }
