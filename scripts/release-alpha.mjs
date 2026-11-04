@@ -24,7 +24,7 @@ const npmCli = [process.env.npm_execpath,
 if (!npmCli) throw new Error('Cannot find npm-cli.js; run the release pack through npm (npm run release:pack)');
 async function pack(cwd) {
   const child = spawn(process.execPath, [npmCli, 'pack', '--json', '--ignore-scripts', '--pack-destination', target],
-    { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    { cwd, env: { ...process.env, STUDYHUB_SKIP_PREPARE: '1' }, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '', errors = '';
   child.stdout.on('data', bytes => { output += bytes; });
   child.stderr.on('data', bytes => { errors += bytes; });

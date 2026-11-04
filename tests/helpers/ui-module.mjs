@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const EXTERNAL = [
   'react', 'react-dom', 'react/*', 'react-dom/*',
-  '@codemirror/*', '@lezer/*', '@uiw/*', '@base-ui/*',
+  '@codemirror/*', '@lezer/*', '@base-ui/*',
   'markdown-it', 'markdown-it-texmath', 'dompurify',
   'katex', 'katex/*', 'parse5', 'pdf-lib', 'yaml', 'schemastery', 'proper-lockfile',
 ];
