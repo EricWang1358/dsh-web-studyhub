@@ -47,7 +47,8 @@ test('the 134-material course: inventory, outline, checklist, parallel writing, 
   const phases = w.count();
   t.diagnostic(`134 materials, first build, calls per phase: ${JSON.stringify(phases)}`);
   const [outline] = await w.outlines(), leaves = leavesOf(outline.courseOutline.nodes);
-  assert.deepEqual(phases, { inventory: 7, cluster: 2, order: 1, paper: 1, write: leaves.length, review: leaves.length, exam: 1 }, 'one write and one review a point, no repair');
+  assert.deepEqual(phases, { inventory: 7, cluster: 2, order: 1, paper: 1, write: leaves.length, review: leaves.length, exam: 1, kit: 1 },
+    'one write and one review a point, no repair; the three one-question types of the exam answer kit in one call');
   assert.ok(w.fake.of('write').every(call => call.prompt.length < 60000), 'every call modest');
   const notes = record.courseNotes;
   assert.deepEqual(notes.leaves.map(leaf => leaf.id), leaves.map(leaf => leaf.id), 'one explanation per point, in reading order');
