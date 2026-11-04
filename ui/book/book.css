@@ -159,6 +159,63 @@
     .book-point__cite-list {
       color: var(--text-muted);
     }
+    /* 术语卡 (#710, ui/book/TermCards.jsx): a compact list in the fold, a hairline between cards, no box; the number quiet and tabular like a heading code,
+       the labels (考场原句, 相关概念 …) muted, the text in ink. A card gone to from a link flashes the hover wash. */
+    .book-cards__list {
+      display: grid;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      min-width: 0;
+    }
+    .book-card {
+      display: grid;
+      gap: var(--space-1);
+      padding: var(--space-2) var(--space-1);
+      border-top: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      min-width: 0;
+      transition: background-color var(--dur-slow) var(--ease);
+    }
+    .book-card:first-child {
+      border-top: 0;
+    }
+    .book-card[data-ai-flash] {
+      background: var(--bg-hover);
+    }
+    .book-card__head,
+    .book-card__line {
+      margin: 0;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .book-card__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-2);
+    }
+    .book-card__code {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      font-variant-numeric: tabular-nums;
+    }
+    .book-card__alt,
+    .book-card__label,
+    .book-card__sep {
+      color: var(--text-muted);
+    }
+    .book-card__label {
+      margin-right: var(--space-1);
+      font-size: var(--fs-sm);
+    }
+    .book-card__rel {
+      font-size: var(--fs-sm);
+    }
+    .book-card__sep {
+      margin: 0 var(--space-1);
+    }
     /* 我的: a hairline with a small label (not a toggle) and, from two blocks, one quiet link that folds or opens them all. */
     .book-layer {
       display: grid;
@@ -497,6 +554,9 @@
     .book-lookup__code {
       font-variant-numeric: tabular-nums;
       margin-right: var(--space-1);
+    }
+    .book-lookup__sep {
+      margin: 0 var(--space-2);
     }
     .book-lookup__order,
     .book-lookup__muted,

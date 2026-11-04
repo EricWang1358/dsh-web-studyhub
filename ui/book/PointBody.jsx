@@ -11,12 +11,13 @@ import BookAiLine from './BookAiLine.jsx';
 import PointToolbar from './PointToolbar.jsx';
 import PointLayer from './PointLayer.jsx';
 import PointText from './PointText.jsx';
+import TermCards from './TermCards.jsx';
 import { foldsByDefault, pointView } from './point-parts.js';
 import { linesOf } from './ai-lines.js';
 import { AiFoldContext, BookAiContext } from './ai-fold.js';
 
 /* A knowledge point's body (复习全书; also the folded 讲解 of 翻看, ui/book/BookFlip.jsx), in reading order (docs/review-book.md "Reading a point"): the
-   one-sentence takeaway (type, no box), the story (讲解, 例子) with the AI blocks about words right after their paragraphs, 要点清单 and 补充 folded, the
+   one-sentence takeaway (type, no box), the story (讲解, 例子) with the AI blocks about words right after their paragraphs, 要点清单 and 补充 folded, its 术语卡 (folded), the
    learner's layer (我的: notes, AI blocks for the whole point, Q&A), the point's questions, 出处 behind one quiet chip, and last the row of its actions
    (练 5 道, 本节问答 with its panel under it; 问 AI is at the title). The line an AI task or a deletion leaves stands where its block is or will be
    (ui/book/ai-lines.js). Nothing is left out of the file: the parts are only shown in another order. */
@@ -91,6 +92,7 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
             : text(part)))}
       {folded(view.points)}
       {folded(view.extra)}
+      <TermCards cards={node.cards} onCard={handlers.goCard} />
       {node.bridge?.out && <p className="book-point__bridge">{node.bridge.out}</p>}
       {node.short && handlers.fillGaps && <p className="book-point__short"><Tooltip content={fillGapsTip()}>
         <Button variant="link" size="sm" icon="sparkle" lock={handlers.busy} onClick={() => handlers.fillGaps(node)}>{ui('补漏')}</Button></Tooltip></p>}

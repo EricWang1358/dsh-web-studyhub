@@ -11,6 +11,10 @@ function Code({ hid, code, onGo }) {
   return <Button variant="link" size="sm" className="book-lookup__code" data-book-code={hid} onClick={() => onGo(hid)}>{code}</Button>;
 }
 const Codes = ({ hids, places, onGo }) => hids.map(hid => <Code key={hid} hid={hid} code={places.get(hid)?.code ?? hid} onGo={onGo} />);
+/** A 术语卡's number (#710): goes to that card (`onCard`), else opens its point. */
+function CardCode({ hid, code, onGo, onCard }) {
+  return <Button variant="link" size="sm" className="book-lookup__code" data-term-link={code} onClick={() => (onCard ? onCard(hid, code) : onGo(hid))}>{code}</Button>;
+}
 
 function Part({ id, title, children }) {
   return (
@@ -21,8 +25,8 @@ function Part({ id, title, children }) {
   );
 }
 
-/** lookup: bookLookup's answer; onGo(hid) opens the book there; toc: false leaves the 目录 part out (the book page has its own 目录). */
-export default memo(function BookLookup({ lookup, onGo, toc = true }) {
+/** lookup: bookLookup's answer; onGo(hid) opens the book there; onCard(hid, code) goes to a 术语卡; toc: false leaves the 目录 part out (the book page has its own 目录). */
+export default memo(function BookLookup({ lookup, onGo, onCard, toc = true }) {
   const places = new Map(lookup.places.map(place => [place.hid, place]));
   return (
     <div className="book-lookup">
@@ -60,8 +64,26 @@ export default memo(function BookLookup({ lookup, onGo, toc = true }) {
       </Part>
       {lookup.glossary?.length > 0 && <Part id="glossary" title={ui('生词与概念')}>
         <p className="book-lookup__muted">{ui('清点资料时找到、书里讲到的术语与概念，按字母排序；代码打开讲它的那一节。')}</p>
-        <ul className="book-lookup__glossary">{lookup.glossary.map(entry => <li key={`${entry.term}|${entry.hid}`} data-glossary-term={entry.term}>
-          <strong>{entry.term}</strong>{entry.gist ? uiFormat('：{0}', [entry.gist]) : ''} <Code hid={entry.hid} code={places.get(entry.hid)?.code ?? entry.hid} onGo={onGo} />
+        <ul className="book-lookup__glossary">{lookup.glossary.map(entry => <li key={`${entry.term}|${entry.hid}|${entry.see ?? ''}`} data-glossary-term={entry.term}>
+          {entry.see
+            ? <><strong>{entry.term}</strong> {uiFormat('→ {0}', [entry.see])} <CardCode hid={entry.hid} code={entry.code} onGo={onGo} onCard={onCard} /></>
+            : <><strong>{entry.term}</strong>{entry.gist ? uiFormat('：{0}', [entry.gist]) : ''} {entry.code && <CardCode hid={entry.hid} code={entry.code} onGo={onGo} onCard={onCard} />}
+              <Code hid={entry.hid} code={places.get(entry.hid)?.code ?? entry.hid} onGo={onGo} />
+              {Number.isInteger(entry.page) && <span className="book-lookup__muted"> {uiFormat('第 {0} 页', [entry.page])}</span>}</>}
+        </li>)}</ul>
+      </Part>}
+      {lookup.cardChapters?.length > 0 && <Part id="cards" title={ui('术语卡（按章）')}>
+        <ul className="book-lookup__glossary">{lookup.cardChapters.map(chapter => <li key={chapter.hid}>
+          <p className="book-lookup__place">{`${chapter.number} ${chapter.title}`.trim()}</p>
+          <p className="book-lookup__muted">{chapter.cards.map((card, at) => <React.Fragment key={card.code}>
+            {at > 0 && <span className="book-lookup__sep" aria-hidden="true">·</span>}<CardCode hid={card.hid} code={card.code} onGo={onGo} onCard={onCard} /><span>{card.name}</span></React.Fragment>)}</p>
+        </li>)}</ul>
+      </Part>}
+      {lookup.formulas?.length > 0 && <Part id="formulas" title={ui('公式')}>
+        <p className="book-lookup__muted">{ui('书里讲到的公式，按讲它的知识点排；代码打开那一节。')}</p>
+        <ul className="book-lookup__glossary">{lookup.formulas.map(entry => <li key={`${entry.term}|${entry.hid}`} data-formula={entry.term}>
+          <strong>{entry.term}</strong>{entry.gist ? uiFormat('：{0}', [entry.gist]) : ''} {entry.code && <CardCode hid={entry.hid} code={entry.code} onGo={onGo} onCard={onCard} />}
+          <Code hid={entry.hid} code={places.get(entry.hid)?.code ?? entry.hid} onGo={onGo} />
           {Number.isInteger(entry.page) && <span className="book-lookup__muted"> {uiFormat('第 {0} 页', [entry.page])}</span>}
         </li>)}</ul>
       </Part>}
