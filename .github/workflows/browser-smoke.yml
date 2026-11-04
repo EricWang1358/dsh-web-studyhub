@@ -35,6 +35,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
+        env:
+          STUDYHUB_SKIP_PREPARE: '1'
       - name: Playwright version (the cache key for the browser download)
         id: playwright
         run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"

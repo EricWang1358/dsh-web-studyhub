@@ -20,7 +20,7 @@ for (const mode of MODES) test(`${mode}: a conversion, while it runs, is a card 
     readActions(c, card, { running: true });
     card.row = row; card.c = c;
     for (const id of [row.id, c.jobId]) {
-      const status = await refuse(h.service, { jobId: id }, 'job.status'), waited = await refuse(h.service, { jobId: id, timeoutSeconds: 1 }, 'job.wait');
+      const status = await refuse(h.service, { jobId: id }, 'job.status'), waited = await refuse(h.service, { jobId: id, timeoutSeconds: 0.02 }, 'job.wait');
       if (id === row.id) assert.ok(status.reply && waited.reply, `${card.side}: the card id is taken by status and wait`);
       else assert.ok(status.reply || card.side === 'off', `${card.side}: status by the contract id (${status.error?.message})`);
     }

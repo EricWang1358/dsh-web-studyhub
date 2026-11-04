@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -40,6 +40,7 @@ async function restarted(t, root, extra) {
 }
 const askedAuthors = () => { const log = []; const inner = authoring({ entered: true }, Infinity, 'again'); return { log, model: async (system, prompt, context) => { if (system.startsWith('You author')) log.push(requestData(prompt).count); return inner(system, prompt, context); } }; };
 
+describe('generation restart: checkpoint and refusal', { concurrency: 3 }, () => {
 test('a run killed after its first part is the same job after the restart, interrupted and idle; its retry continues the same draft with only what is missing', async t => {
   const first = await dying(t, 2);
   const started = await first.service.call('generate', { sourceIds: ['p1'], count: 3, kind: 'flashcard', performance: ONE_BY_ONE });
@@ -156,7 +157,9 @@ test('a retry is refused while the old executor may still be alive', async t => 
   assert.equal(job.contract.actions.retry.available, false);
   await assert.rejects(after.service.call('job.control', { jobId: job.id, action: 'retry' }), { code: 'executor-alive' });
 });
+});
 
+describe('generation restart: durability and coverage', { concurrency: 3 }, () => {
 test('a damaged record of a run is left alone: nothing is restored, nothing breaks', async t => {
   const first = await dying(t, 2);
   await first.service.call('generate', { sourceIds: ['p1'], count: 3, kind: 'flashcard', performance: ONE_BY_ONE });
@@ -267,4 +270,5 @@ test('a retry keeps the usage of every Attempt on the job, while the card tells 
   assert.ok(row.contract.calls.length > earlier, 'the job lists the calls of both Attempts');
   assert.equal(row.contract.usage.calls, row.contract.calls.filter(call => call.modelRequest).length, 'one usage for the job: every Attempt counted once');
   assert.ok(row.steps.length < row.contract.calls.length, 'the card tells of the current Attempt only');
+});
 });

@@ -30,7 +30,10 @@ const savedClass = (lib, n) => writeSaved(lib.root, { id: classId(n), title: `Da
 /** The receipt of a correction is the class itself; its job (when there is one) is found by its title. */
 async function correctionOf(lib, n) {
   const title = `课堂校正 · Databases class ${n}`;
-  const row = await until(async () => (await lib.service.call('snapshot')).jobs.find(job => (job.contract?.title ?? job.title) === title), `the correction job of class ${n}`, { timeoutMs: 3000 }).catch(() => null);
+  const find = async () => (await lib.service.call('snapshot')).jobs.find(job => (job.contract?.title ?? job.title) === title);
+  const row = lib.pilot.audioLiveCorrection
+    ? await until(find, `the correction job of class ${n}`, { timeoutMs: 3000 }).catch(() => null)
+    : await find();
   return row ? { jobId: row.id } : null;
 }
 
