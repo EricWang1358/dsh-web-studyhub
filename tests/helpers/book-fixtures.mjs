@@ -6,7 +6,9 @@
    - 'questions': the same book, and most points have 10-25 questions (two have a Q&A put into the book); the plan has 翻看 days.
    Seeded into a temporary library through the service (no model, no network). `today` is the day the page itself reads (localDate).
    seedBuiltBook (#710): not one of these two; a book BUILT by the fake model (tests/helpers/course-book-model.mjs) over the course outline library with a sample
-   paper and two formula sentences, so every point has its 术语卡 and the glossary its formulas. */
+   paper and two formula sentences, so every point has its 术语卡 and the glossary its formulas.
+   seedOldBook (#710 S6): that book as written before 术语卡 existed (no unit has cards), for 补术语卡; seedCardPassBook: that old book after 补术语卡 ran
+   (generation.courseBook.build { cards: true } on the fake model; the preview server has no job executor, so the pass runs here). */
 import { mkdir } from 'node:fs/promises';
 import { StudyService } from '../../lib/service.js';
 import { courseOutlineMaterial, materialsFingerprint } from '../../lib/course-outline-book.js';
@@ -23,6 +25,7 @@ import { COURSE, outlineLibrary } from './course-outline-library.mjs';
 import { bookModel } from './course-book-model.mjs';
 import { switchOptions } from './runtime-switch.mjs';
 import { settleJob } from './wait.mjs';
+import { isCourseNotesSource } from '../../lib/exam-point-list.js';
 
 export const BOOK_COURSE = 'ArchSS';
 export const BOOK_FIXTURES = ['archss', 'questions'];
@@ -157,4 +160,27 @@ export async function seedBuiltBook(root) {
     await service.call('course.book.open', { course: COURSE });
   } finally { await service.dispose(); }
   return { course: COURSE };
+}
+
+/** Seed `root` with the built book as it was before 术语卡 existed: the same book, no unit's cards; -> { course }. */
+export async function seedOldBook(root) {
+  await seedBuiltBook(root);
+  const service = new StudyService(root);
+  try {
+    await service.store.update(state => {
+      for (const record of state.sources.filter(isCourseNotesSource)) for (const leaf of record.courseNotes.leaves) for (const unit of leaf.body?.units || []) delete unit.cards;
+    });
+  } finally { await service.dispose(); }
+  return { course: COURSE };
+}
+
+/** Seed `root` with the old book after 补术语卡 (see the top of this file); -> { course, job } (the card pass's contract). */
+export async function seedCardPassBook(root) {
+  await seedOldBook(root);
+  const fake = bookModel(), service = new StudyService(root, { complete: fake.complete, ...switchOptions('runtime', { complete: fake.complete, paths: [] }) });
+  try {
+    const job = await settleJob(service, (await service.call('generation.courseBook.build', { course: COURSE, language: 'zh', cards: true })).jobId);
+    if (job.status !== 'complete') throw new Error(`The card pass ended ${job.status}`);
+    return { course: COURSE, job: [...service.runtime.work.jobs.values()].at(-1).contract };
+  } finally { await service.dispose(); }
 }

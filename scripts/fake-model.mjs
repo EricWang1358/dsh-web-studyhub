@@ -526,6 +526,13 @@ const HANDLERS = [
   { name: 'answer.card', match: (s) => s.startsWith('You write the model answer of a case / analysis exam question'),
     reply: ({ prompt }) => answerCardReply(after(prompt.split('\n\nREPAIR:')[0], 'REQUEST DATA:\n')) },
   { name: 'answer.card.review', match: (s) => s.startsWith('You independently review an answer card'), reply: () => ({ issues: [], summary: 'Preview: nothing found.' }) },
+  // 复习全书 补术语卡 (lib/contexts/generation/book/card-prompt.js, #710 S6): a card for every listed item of every point, related to the next item of the request.
+  { name: 'book.cards', match: (s) => s.startsWith('You make the term cards of a review book'),
+    reply: ({ prompt }) => {
+      const items = (after(prompt, 'REQUEST DATA:\n').points || []).flatMap((point) => point.checklist || []);
+      return { cards: items.map((item, at) => ({ item: item.id, name: item.name, plain: `预览：${item.name}，${item.gist || '一句白话'}。`,
+        pitch: `${item.name} is ${item.gist || 'a key idea of the course'}.`, relations: items[at + 1] ? [{ kind: 'related', item: items[at + 1].id }] : [] })) };
+    } },
   // 复习全书 弄懂 / 加一段 (lib/contexts/generation/book-ai): the reader's grounded ask with a JSON shape; one real quote from the point's materials, one extra.
   // An instruction (write / here / follow) has its own system prompt, which starts with the task (lib/contexts/generation/book-ai/system-prompt.js).
   { name: 'book.ai', match: (s) => (s.startsWith('Answer the learner question using only the selected source evidence') || s.startsWith('The learner '))

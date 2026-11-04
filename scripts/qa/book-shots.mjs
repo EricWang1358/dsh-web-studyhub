@@ -20,14 +20,18 @@
    速查页's A–Z with the cards' numbers and other names, the cards by chapter, the formula page).
    BOOK_SAMPLE_SHOTS=<dir> instead looks at the sample of a first 复习全书 build (#710; light, Chinese, 1440 and 420 px): sample-<width>-outline.png (the 总纲's
    book line with the sample, its scale and its one primary button), sample-<width>-card.png (the card alone), sample-<width>-book.png (the book page with it) and
-   sample-<width>-console.png (the 任务 console: the build ended, waiting for the learner), and prints what the card and the console say. */
+   sample-<width>-console.png (the 任务 console: the build ended, waiting for the learner), and prints what the card and the console say.
+   BOOK_FIXTURES=old (#710 S6, not in the default list): that book as written before 术语卡 existed (seedOldBook), at 1440 and 420, light: old-<width>-light-tip
+   (更多 open, the pointer on 补术语卡, its Tooltip); then after the pass (seedCardPassBook: the preview has no job executor, so the pass runs in the seed):
+   cards (the first point's 术语卡, open) and more-after (更多 without 补术语卡). The 任务 console of the pass is not shown: its job ran in the seed's own
+   runtime, which the preview does not list. */
 /* global document, window, getComputedStyle */
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launchChromium } from './browser.mjs';
 import { openPage, settleAnimations, startLateServer } from './layout-late.mjs';
-import { BOOK_COURSE, BOOK_FIXTURES, seedBookFixture, seedBuiltBook } from '../../tests/helpers/book-fixtures.mjs';
+import { BOOK_COURSE, BOOK_FIXTURES, seedBookFixture, seedBuiltBook, seedCardPassBook, seedOldBook } from '../../tests/helpers/book-fixtures.mjs';
 import { StudyService } from '../../lib/service.js';
 import { createFakeModel } from '../fake-model.mjs';
 import { switchOptions } from '../../tests/helpers/runtime-switch.mjs';
@@ -294,6 +298,34 @@ async function lookAtCards(browser, running, { width, theme, shots }) {
   } finally { await context.close(); }
 }
 
+/** 补术语卡 (#710 S6): see the top of this file. `after`: the book after the pass (seedCardPassBook), else before it (seedOldBook). */
+async function lookAtCardPass(browser, running, { width, theme, shots, after }) {
+  const { page, errors, context } = await openPage(browser, running, { width, height: 900, theme });
+  const save = async shot => { await page.waitForTimeout(300); await settleAnimations(page); await page.screenshot({ path: join(shots, `old-${width}-${theme}-${shot}.png`) }); };
+  try {
+    await openBook(page, running);
+    if (!after) {
+      await page.locator('.book-bar__more').click();
+      const item = page.getByRole('menuitem', { name: '补术语卡' });
+      await item.waitFor({ timeout: 30000 });
+      await item.hover();
+      await page.locator('.sh-tooltip:popover-open').waitFor({ timeout: 10000 });
+      await save('tip');
+      return errors;
+    }
+    const fold = page.locator('.book-cards').first();
+    await fold.locator('summary').click();
+    await fold.evaluate(element => { element.scrollIntoView({ block: 'start' }); const app = document.querySelector('.study-app'); if (app) app.scrollTop -= 120; });
+    await page.mouse.move(width - 10, 890);
+    await save('cards');
+    await page.locator('.book-bar__more').click();
+    await page.getByRole('menuitem', { name: '速查页…' }).waitFor({ timeout: 30000 });
+    if (await page.getByRole('menuitem', { name: '补术语卡' }).count()) console.error('old: 补术语卡 is still offered after the pass');
+    await save('more-after');
+    return errors;
+  } finally { await context.close(); }
+}
+
 /** Two courses (a note of a second one added): the title's course is the home's switcher; the picture has its list open. */
 async function lookAtCourse(browser, running, { kind, width, theme, shots }) {
   const { page, errors, context } = await openPage(browser, running, { width, height: 900, theme });
@@ -313,6 +345,18 @@ export async function bookShots({ shots = process.env.BOOK_SHOTS, kinds = (proce
   const browser = await launchChromium(), results = [];
   try {
     for (const kind of kinds) {
+      if (kind === 'old') {
+        for (const after of [false, true]) {
+          const running = await startLateServer({ distDir: resolve(repoRoot, dist || 'dist'), seed: after ? seedCardPassBook : seedOldBook });
+          try {
+            for (const width of [1440, 420]) {
+              const errors = await lookAtCardPass(browser, running, { width, theme: 'light', shots, after });
+              if (errors.length) console.error(`old ${width} light: page errors ${JSON.stringify(errors)}`);
+            }
+          } finally { await running.close(); }
+        }
+        continue;
+      }
       if (kind === 'built') {
         const running = await startLateServer({ distDir: resolve(repoRoot, dist || 'dist'), seed: seedBuiltBook });
         try {
