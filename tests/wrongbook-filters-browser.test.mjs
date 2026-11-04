@@ -8,6 +8,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, openPage, seedWrongBookLibrary, settleAnimations, startLateServer, until } from '../scripts/qa/layout-late.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 3.0.2: the mistakes page in a real browser, at a desktop and a phone width. It opens grouped by deck with every group folded; one click
    narrows it to one deck; the generate button says how many questions it will act on; a refresh moves nothing and closes nothing; and nothing
@@ -44,8 +45,7 @@ test('mistakes page: folded by deck, one-click deck filter, honest generate butt
       page.on('request', (request) => { if (request.url().includes('/api/call') && /"action":"wrongbook"/.test(request.postData() || '')) reads++; });
       await page.goto(running.server.url);
       await page.locator('aside, nav').first().waitFor({ timeout: 30000 });
-      const nav = page.locator('[data-tour="nav-wrongbook"]').first();
-      await nav.waitFor({ state: 'visible' });
+      const nav = await revealNavRow(page, 'wrongbook');
       await nav.dispatchEvent('click');
       await page.locator('.wb-group-toggle').first().waitFor({ timeout: 30000 });
       await settleAnimations(page);
@@ -101,9 +101,9 @@ test('mistakes page: folded by deck, one-click deck filter, honest generate butt
       assert.match(cleared.result, /显示 48 \/ 共 48 题/);
 
       // Coming back from another page (or from practice) keeps the group open for this tab; the filter starts clean.
-      await page.locator('[data-tour="nav-library"]').first().dispatchEvent('click');
+      await (await revealNavRow(page, 'library')).dispatchEvent('click');
       await page.locator('.wb-group-toggle').first().waitFor({ state: 'detached', timeout: 30000 });
-      await nav.dispatchEvent('click');
+      await (await revealNavRow(page, 'wrongbook')).dispatchEvent('click');
       await page.locator('.wb-group-toggle').first().waitFor({ timeout: 30000 });
       const back = await readState(page);
       assert.equal(back.heads.length, 2);

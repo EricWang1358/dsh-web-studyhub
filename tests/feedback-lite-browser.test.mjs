@@ -11,6 +11,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { StudyService } from '../lib/service.js';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* Closing the feedback loop, in the real app on a seeded temporary library: the mock exam shows its time limit (the course's own 作答时间) and keeps the one
    chosen, the report's weak topics and a chapter row's 练这一章 each start practice in one click, and the dashboard names its rates apart from 掌握度.
@@ -75,8 +76,7 @@ async function openApp(browser, running, { width, scope }) {
 }
 
 const go = async (page, id) => {
-  const entry = page.locator(`[data-tour="nav-${id}"]`).first();
-  await entry.waitFor({ state: 'attached', timeout: 30000 });
+  const entry = await revealNavRow(page, id);
   await entry.dispatchEvent('click');
 };
 

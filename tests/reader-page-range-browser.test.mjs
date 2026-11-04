@@ -11,6 +11,7 @@ import { makeTextPdf } from './helpers/text-pdf.mjs';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { Store } from '../lib/store.js';
 import { PAGE_EVIDENCE_MAX } from '../lib/ask-prompt.js';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* #488 in the browser, at 1440 and 420: 连问后面几页 names the range and sends both ends, a page turn ends it, the limit is said; on a long page 接着读后面 asks the same
    question about the next part only. What travels to the model is asserted in tests/materials-ask-shape.test.mjs; here the panel and its requests. */
@@ -48,7 +49,7 @@ test('原始 PDF: a range and 接着读 in the panel, at 1440 and 420 (#488)', {
     for (const width of [1440, 420]) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(running.server.url);
-      await page.locator('[data-tour="nav-sources"]').first().click().catch(() => {});
+      await (await revealNavRow(page, 'sources')).click().catch(() => {});
       await page.locator('.source-doc').first().locator('.source-main').click();
       await page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
       await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();

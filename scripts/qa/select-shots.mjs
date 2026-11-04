@@ -37,7 +37,7 @@ async function runCombo({ browser, lang, theme, width, scale, out, dist }) {
   const nav = async (id) => { await page.locator(`[data-tour="nav-${id}"]`).first().click({ force: true }); await settle(900); };
 
   await page.goto(server.url);
-  await page.locator(".sidebar").first().waitFor({ timeout: 30000 });
+  await page.locator(".sidebar, .nav-menu-toggle").first().waitFor({ timeout: 30000 }); // narrow: the sidebar is a drawer (#657)
   await settle(1200);
 
   // 1. The course heading is the switcher: open, then filtered to a chapter.

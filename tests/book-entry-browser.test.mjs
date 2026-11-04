@@ -16,6 +16,7 @@ import { openCourseBook } from '../lib/course-book-files.js';
 import { localDate } from '../lib/board-model.js';
 import { addDays } from '../lib/crunch-plan.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* The sidebar's 复习全书 (3.4.1) in the real page at 1280 and 420 px: with a written book it opens the book page, and the header says what the 期末一周
    needs (no exam date: a link to the course settings; a date beyond the window: when the week starts); with only an outline it opens the 总纲 page with its one
@@ -55,9 +56,7 @@ const sideways = page => page.evaluate(() => {
 const flat = overflow => overflow.doc <= 0 && overflow.wide.length === 0;
 /** The sidebar entry: at 420 px the rail may sit off to the side, so the press is dispatched when a plain click is blocked. */
 const pressBook = async page => {
-  const entry = page.locator('[data-tour="nav-book"]').first();
-  await entry.waitFor({ state: 'attached', timeout: 30000 });
-  await entry.dispatchEvent('click');
+  await (await revealNavRow(page, 'book')).dispatchEvent('click');
 };
 
 test('复习全书 in the sidebar: the book page with the 期末一周 date hints, the 总纲 page with its one line, and the 总纲 page for a course without an outline (1280 and 420 px)', { timeout: 600000 }, async t => {

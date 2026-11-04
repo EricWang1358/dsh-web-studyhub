@@ -12,6 +12,7 @@ import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { TOUR_STEPS, CORE_TOUR_LENGTH } from '../ui/tour/steps.js';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* The first run in the browser preview, on an empty temporary library with the host's 备考补习 switch on: the welcome page, the default tour
    (CORE_TOUR_LENGTH steps, every anchored step lit), its last step offering the full tour, the full tour from there to its end (every anchored
@@ -209,9 +210,11 @@ test('the default tour is short and lit, the full tour is one button away, and S
         await page.locator('.tour-layer').waitFor({ state: 'detached', timeout: 15000 });
 
         // ---- Settings: one name, and the library chip lands on the folder control ----
-        await page.locator('[data-tour="nav-settings"]').first().dispatchEvent('click');
+        // At 420 the sidebar is a drawer behind the menu button (#657): read the row's name there, then choose it (which closes the drawer).
+        const settingsRow = await revealNavRow(page, 'settings');
+        const entry = (await settingsRow.innerText()).trim();
+        await settingsRow.click();
         await page.locator('.settings-page').waitFor({ timeout: 30000 });
-        const entry = (await page.locator('[data-tour="nav-settings"]').first().innerText()).trim();
         assert.equal((await page.locator('.settings-page h1').first().innerText()).trim(), '设置');
         assert.ok(entry === '设置' || width < 800, 'the sidebar entry says the same');
         assert.equal((await page.locator('.crumb[aria-current="page"]').innerText()).trim(), '设置');
@@ -223,7 +226,7 @@ test('the default tour is short and lit, the full tour is one button away, and S
         // the last category the learner used is something else than the library: the chip still goes to the folder control
         await page.locator('.settings-nav__item[data-category="appearance"]').first().click();
         await page.locator('.settings-nav__item[data-category="appearance"][aria-current="page"]').waitFor({ timeout: 15000 });
-        await page.locator('[data-tour="nav-library"]').first().dispatchEvent('click');
+        await (await revealNavRow(page, 'library')).click();
         await page.locator('.library-location').first().click();
         await page.locator('.binding-panel').waitFor({ timeout: 30000 });
         assert.equal(await page.locator('.settings-nav__item[data-category="model"]').first().getAttribute('aria-current'), 'page');

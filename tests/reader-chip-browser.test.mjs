@@ -12,6 +12,7 @@ import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { bilingualMarkdown } from './helpers/bilingual-transcript.mjs';
 import { until } from './helpers/wait.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* #231: the 译 chip of a selection sits at the end of the selection (above it, never paragraphs away), at any interface size, wide and narrow,
    and keeps following it while the reader scrolls. The cause was the interface zoom: rectangles are screen pixels, the chip's left/top are
@@ -87,7 +88,7 @@ test('the 译 chip stays at the end of the selection at 100% and 150%, wide and 
       await context.addInitScript((value) => { try { localStorage.setItem('study-interface', JSON.stringify({ scale: value })); } catch { /* blocked */ } }, scale);
       try {
         await page.goto(running.server.url);
-        await page.locator('[data-tour="nav-sources"]').first().click().catch(() => {});
+        await (await revealNavRow(page, 'sources')).click().catch(() => {});
         await page.locator('.source-doc').first().locator('.source-main').click();
         await page.locator('.study-document-viewer').waitFor();
         await page.locator('.tr-mark').first().waitFor({ timeout: 30000 });
@@ -146,7 +147,7 @@ test('the floating translation card of the 原文 view opens at the selection un
       await context.addInitScript((value) => { try { localStorage.setItem('study-interface', JSON.stringify({ scale: value })); } catch { /* blocked */ } }, scale);
       try {
         await page.goto(running.server.url);
-        await page.locator('[data-tour="nav-sources"]').first().click().catch(() => {});
+        await (await revealNavRow(page, 'sources')).click().catch(() => {});
         await page.locator('.source-doc').first().locator('.source-main').click();
         await page.locator('.study-document-viewer').waitFor();
         await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原文' }).click();

@@ -14,6 +14,7 @@ import { createFakeModel } from '../scripts/fake-model.mjs';
 import { switchOptions } from './helpers/runtime-switch.mjs';
 import { settleJob } from './helpers/wait.mjs';
 import { replaceAiBlock } from '../lib/course-book-ai-text.js';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 复习全书 问 AI in the real page at 1280 and 420 px (docs/review-book.md "Ask AI", "AI blocks"), on the ArchSS-like book: words selected with the keyboard
    (selection.modify, what Shift+arrows do: only `selectionchange` tells the page) show the toolbar 弄懂 / 写一段… / 发给主会话 (弄懂 secondary, the page keeps at
@@ -92,7 +93,7 @@ test('复习全书 问 AI: the keyboard selection toolbar, the writing line and 
       t.after(() => tasks.dispose());
       const { control } = tasks;
       await page.goto(running.server.url);
-      await page.locator('[data-tour="nav-book"]').click({ timeout: 30000 });
+      await (await revealNavRow(page, 'book')).click({ timeout: 30000 });
       await page.locator('[data-book-point]').first().waitFor({ timeout: 30000 });
       await page.mouse.move(width - 10, 890);
 

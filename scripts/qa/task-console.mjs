@@ -21,6 +21,7 @@ import { scrubProcessEnv } from "./env.mjs";
 import { drainLayoutStability } from "./layout-stability.mjs";
 import { openPage, settleAnimations, until, frames } from "./layout-late.mjs";
 import { dayOf, DAILY } from "../../lib/coach-daily.js";
+import { revealNavRow } from "./nav-reveal.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const sleep = (ms, signal) => new Promise((resolveSleep, reject) => {
@@ -137,8 +138,7 @@ export async function openConsole(browser, running, { lang = "zh", theme = "dark
   if (accent && accent !== "cinnabar") await opened.context.addInitScript((value) => { try { localStorage.setItem("study-interface", JSON.stringify({ accent: value })); } catch { /* blocked */ } }, accent);
   await opened.page.goto(running.server.url);
   await opened.page.locator("aside, nav").first().waitFor({ timeout: 30000 });
-  const entry = opened.page.locator(`[data-tour="nav-${nav}"]`).first();
-  await entry.waitFor({ state: "attached" });
+  const entry = await revealNavRow(opened.page, nav);
   await entry.dispatchEvent("click");
   await opened.page.locator(nav === "tasks" ? ".tc-detail" : ".cjc").first().waitFor({ state: "attached", timeout: 30000 });
   await settleAnimations(opened.page);

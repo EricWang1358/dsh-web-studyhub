@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { frames, holdActions, openPage, seedWrongBookLibrary, settleAnimations, startLateServer, until } from '../scripts/qa/layout-late.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* #153: the app runs one action at a time, so every button of a page is disabled while one runs, but only the button that was pressed shows the work. On the
    mistakes page: press 开始重练 while the answer to review.start is held. That one button has a spinner and aria-busy, keeps its width and height, and nothing
@@ -124,8 +125,7 @@ test('only the pressed button shows the work while the app is locked, disabled s
           // Return to home / wrongbook fresh hold
         }
 
-        const nav = page.locator('[data-tour="nav-wrongbook"]').first();
-        await nav.waitFor({ state: 'visible', timeout: 30000 });
+        const nav = await revealNavRow(page, 'wrongbook');
         await nav.dispatchEvent('click');
         await page.locator(START).waitFor({ timeout: 30000 });
         await until(() => page.evaluate((start) => !document.querySelector(start).disabled, START), 'the retrain button to be enabled');

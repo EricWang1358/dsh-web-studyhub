@@ -9,6 +9,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, until } from '../scripts/qa/layout-late.mjs';
 import { startConsole, startJobs, finishJobsThenHoldOne, openConsole, measure, measureCards, measureSelection, contrastRatio } from '../scripts/qa/task-console.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* WP-TC in the browser, on a seeded temporary library with the fake model: an audio batch and a question run held in flight, and four days of 为你定制 in the
    coach's file. At 1280 the console is as tall as the window and every list scrolls INSIDE its panel (the page never grows); at 420 the columns stack and the page
@@ -237,7 +238,7 @@ test('归档 on a card of the audio page archives the task: the card goes, the f
     assert.deepEqual(snapshot.jobs.filter((job) => job.id === id), [], 'out of the live list');
     assert.equal(snapshot.archivedJobs.filter((job) => job.id === id).length, 1, 'kept as an archived record');
     assert.deepEqual((await folders()).filter((name) => !name.includes('.retired')), before, 'the working folder is still there');
-    await page.locator('[data-tour="nav-tasks"]').first().dispatchEvent('click');
+    await (await revealNavRow(page, 'tasks')).dispatchEvent('click');
     await page.locator('.tc-detail').first().waitFor({ state: 'attached' });
     await page.locator('.tc-scope .sh-seg__item').nth(3).dispatchEvent('click');
     await until(async () => (await page.locator(`.tc-row[data-task-id="${snapshot.archivedJobs.find((job) => job.id === id).contract.jobId}"]`).count()) === 1, 'the task under 已归档');

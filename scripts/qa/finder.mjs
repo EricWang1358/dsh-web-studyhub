@@ -2,7 +2,7 @@
    找功能 (#653) in a real browser, on a throw-away library (fake model, no network, every key variable removed).
 
    For each width it walks the learner through what the finder promises and asserts it (exit code 1 when broken):
-     1. the sidebar row 找功能 is there above 功能导览, in the wide sidebar with its shortcut and in the narrow rail as an icon;
+     1. the sidebar row 找功能 is there above 帮助, with its label and its shortcut, in the wide sidebar and in the narrow window's drawer (#657);
      2. Ctrl K opens the sheet (from the app root), the field has the focus, the empty query lists the areas as <details>;
      3. a query lists results, ↓ / ↑ move the selected row, Esc closes and the focus goes back to what opened it;
      4. 「带我去」 on a settings target (强调色): the page is Settings, the control has the focus and the ring is drawn around it;
@@ -47,8 +47,16 @@ export async function walkFinder({ browser, running, lang = "zh", theme = "light
   const settle = async (ms = 600) => { await page.waitForLoadState("networkidle").catch(() => {}); await sleep(ms); };
   const word = (zh, en) => (lang === "en" ? en : zh);
   const narrow = width <= 720;
+  // A narrow window has the sidebar in a drawer behind the top bar's menu button (#657); choosing a row closes it.
+  const drawer = async () => {
+    if (await page.locator(".sidebar").count()) return false;
+    await page.locator(".nav-menu-toggle").click();
+    await page.locator(".nav-drawer .sidebar").waitFor({ timeout: 10000 });
+    await sleep(300);
+    return true;
+  };
   const openSheet = async (how) => {
-    if (how === "click" || narrow) await page.locator('[data-tour="nav-finder"]').click();
+    if (how === "click" || narrow) { await drawer(); await page.locator('[data-tour="nav-finder"]').click(); }
     else { await page.locator(".study-app").first().click({ position: { x: 640, y: 420 } }); await page.keyboard.press("Control+K"); }
     await page.locator('dialog[open] [role="combobox"]').waitFor({ timeout: 10000 });
   };
@@ -56,27 +64,29 @@ export async function walkFinder({ browser, running, lang = "zh", theme = "light
   const activeText = () => page.evaluate(() => document.querySelector('dialog[open] [role="option"][aria-selected="true"] .finder-row__title')?.textContent || "");
   try {
     await page.goto(server.url);
-    await page.locator(".sidebar").first().waitFor({ timeout: 120000 });
+    await page.locator(".sidebar, .nav-menu-toggle").first().waitFor({ timeout: 120000 });
     await settle(900);
     // One material, so 创建题组 draws its form; the library is shared by the widths, so a second walk finds it there already.
     await api("source.add", { id: "s1", title: "Bridge", text: quote }).catch((error) => { if (!/already exists/.test(String(error?.message))) throw error; });
     await page.reload();
-    await page.locator(".sidebar").first().waitFor({ timeout: 120000 });
+    await page.locator(".sidebar, .nav-menu-toggle").first().waitFor({ timeout: 120000 });
     await settle(900);
 
-    // 1. the row: above 功能导览, an icon in the rail
+    // 1. the row: above 帮助 (功能导览 is inside it since #656), with its label, wide and in the drawer
+    const opened = await drawer();
     const rows = await page.evaluate(() => {
       const row = (name) => { const element = document.querySelector(`[data-tour="${name}"]`); const box = element?.getBoundingClientRect(); return element ? { top: box.top, height: box.height, width: box.width, label: element.querySelector(".nav-label")?.textContent || "", hint: element.querySelector(".nav-keys")?.textContent || "", hintShown: !!element.querySelector(".nav-keys") && getComputedStyle(element.querySelector(".nav-keys")).display !== "none" } : null; };
-      return { finder: row("nav-finder"), tour: row("tour-reopen") };
+      return { finder: row("nav-finder"), tour: row("nav-help") };
     });
-    expect(!!rows.finder && !!rows.tour, "the 找功能 row and the 功能导览 row are there");
+    expect(!!rows.finder && !!rows.tour, "the 找功能 row and the 帮助 row are there");
     if (rows.finder && rows.tour) {
-      expect(rows.finder.top < rows.tour.top, "找功能 sits above 功能导览");
+      expect(rows.finder.top < rows.tour.top, "找功能 sits above 帮助");
       expect(Math.abs(rows.finder.height - rows.tour.height) < 0.5, `the row has the height of the others (${rows.finder.height} against ${rows.tour.height})`);
-      if (narrow) expect(!rows.finder.hintShown, "in the rail only the icon is drawn");
-      else expect(/Ctrl K|⌘K/.test(rows.finder.hint) && rows.finder.hintShown, `the shortcut is the row's quiet hint (${rows.finder.hint})`);
+      expect(!!rows.finder.label, "the row has its label: there is no icon rail");
+      expect(/Ctrl K|⌘K/.test(rows.finder.hint) && rows.finder.hintShown, `the shortcut is the row's quiet hint (${rows.finder.hint})`);
     }
     await shot("sidebar");
+    if (opened) { await page.keyboard.press("Escape"); await page.locator(".nav-drawer").waitFor({ state: "detached" }); }
 
     // 2. the sheet: from the keyboard, the index
     await openSheet(narrow ? "click" : "key");
@@ -162,7 +172,8 @@ export async function walkFinder({ browser, running, lang = "zh", theme = "light
     await shot("nothing-found");
     await page.keyboard.press("Escape");
     await sleep(250);
-    expect(await page.evaluate(() => !!document.activeElement?.closest('[data-tour="nav-finder"]')), "Esc gives the focus back to the row that opened the sheet");
+    // In the drawer the row went away with the drawer: the focus goes back to the menu button that opened it (#657).
+    expect(await page.evaluate((sel) => !!document.activeElement?.closest(sel), narrow ? '[data-tour="nav-menu"]' : '[data-tour="nav-finder"]'), "Esc gives the focus back to what opened the sheet");
   } catch (error) {
     problems.push(`${label}: ${error?.stack || error}`);
     await shot("failure").catch(() => {});

@@ -13,6 +13,7 @@ import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { StudyService } from '../lib/service.js';
 import { library, pointList, STAMP } from './helpers/exam-prep-fixtures.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 备考补习 in the browser preview, on a seeded temporary library (the real module's point list, written to the library as the build job writes it) with the
    host's switch turned on: the sidebar entry, the list, one list opened (keyboard on the points, 看原页 opens the reader on the quote), the create form with its
@@ -93,9 +94,7 @@ test('turned off in Settings the page has no sidebar entry and one switch there 
     try {
       for (const width of [1280, 420]) {
         const { page, errors, context } = await openApp(browser, on, { width });
-        const entry = page.locator('[data-tour="nav-examprep"]').first();
-        await entry.waitFor({ state: 'attached', timeout: 30000 });
-        await entry.dispatchEvent('click');
+        await (await revealNavRow(page, 'examprep')).dispatchEvent('click');
         await page.locator('.exam-prep-row').first().waitFor({ timeout: 30000 });
         await settleAnimations(page);
         await frames(page, 4);
@@ -189,7 +188,7 @@ test('turned off in Settings the page has no sidebar entry and one switch there 
         await page.locator('.exam-prep-more__settings button').click();
         await page.locator('[data-tour="nav-examprep"]').first().waitFor({ state: 'attached', timeout: 30000 });
         await page.locator('.exam-prep-form').waitFor({ state: 'detached', timeout: 30000 });
-        await page.locator('[data-tour="nav-examprep"]').first().dispatchEvent('click');
+        await (await revealNavRow(page, 'examprep')).dispatchEvent('click');
         await page.locator('.exam-prep-form').waitFor({ timeout: 30000 });
         assert.match(await page.locator('.exam-prep-docs__counts').innerText(), /0 份样卷/, 'the change survived the detour');
         assert.equal(await page.locator('.exam-prep-more').evaluate(element => element.open), true, 'and so did the fold');
@@ -225,7 +224,7 @@ test('a long library opens with every plain note on 不用, a plain hint while n
     try {
       for (const width of [1280, 420]) {
         const { page, context } = await openApp(browser, long, { width });
-        await page.locator('[data-tour="nav-examprep"]').first().dispatchEvent('click');
+        await (await revealNavRow(page, 'examprep')).dispatchEvent('click');
         await page.locator('.exam-prep-row').first().waitFor({ timeout: 30000 });
         await page.locator('[data-usage="examprep.create"]').first().click();
         await page.locator('[data-doc]').first().waitFor({ timeout: 30000 });

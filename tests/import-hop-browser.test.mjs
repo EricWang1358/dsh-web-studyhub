@@ -12,6 +12,7 @@ import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { StudyService } from '../lib/service.js';
 import { makePdf } from './helpers/pdf.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* Importing material in fewer steps, in the browser preview on a seeded temporary library: the course line and its reason, a new material that is not hidden
    by the page's course filter, the first import landing on 创建题组 with the file ticked, a PDF with no text and a PDF over 8 MB led into the converter with
@@ -67,7 +68,7 @@ async function openApp(browser, running, { width = 1280, height = 900, lang = 'z
 
 const dialog = page => page.locator('dialog[open], [role="dialog"]').first();
 async function openSources(page) {
-  await page.locator('[data-tour="nav-sources"]').first().dispatchEvent('click');
+  await (await revealNavRow(page, 'sources')).dispatchEvent('click');
   await page.locator('.sources-page').waitFor({ timeout: 30000 });
 }
 async function openAdd(page) {

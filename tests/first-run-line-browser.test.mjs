@@ -11,6 +11,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 3.6 D2 in the browser preview, on an empty temporary library: the first-run line from no model to the first question. No model (step 1 open with the gate's
    steps, 重新检查 the one primary, no bounce to the settings) → a model (the same library opened again with the fake model: step 1 ticked) → 添加资料 (the
@@ -186,7 +187,7 @@ test('the first-run line from no model to the first question: one primary per st
         await shot(page, `06-first-question-${width}`);
         // From the line's first screen with a model to the first question: 添加资料, the file, 出第一组题, 发布并开始练 (检查草稿 adds one), no scrolling.
         assert.ok(clicks <= (state === 'draft-clean' ? 4 : 5), `${width}px: ${clicks} presses to the first question`);
-        await page.locator('[data-tour="nav-library"]').first().dispatchEvent('click');
+        await (await revealNavRow(page, 'library')).dispatchEvent('click');
         await page.locator('.desk').waitFor({ timeout: 30000 });
         assert.equal(await page.locator('.first-run, [data-first-run]').count(), 0, 'the line is gone after the first publish');
         assert.equal(await page.locator('.today-count').count(), 1, 'the today card is back');

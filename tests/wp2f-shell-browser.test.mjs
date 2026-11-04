@@ -8,6 +8,7 @@ import { StudyService } from '../lib/service.js';
 import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 // UI wave 2 · WP-F in a real browser: the dialogs own focus and Escape (#73), the flag save is a footer action (#74), the board's
 // undo goes through the one toast region and is held while hovered (#90), the keyboard and the nav menu still work.
@@ -63,7 +64,8 @@ test('the composed shell: shortcut sheet over a dialog, the flag save, the 更�
   await page.getByText('Question flagged for priority review.').waitFor();
 
   // #79: 更多 is a menu: Enter opens, arrows move, Escape closes and gives focus back to the trigger.
-  const more = page.getByRole('button', { name: 'More', exact: true });
+  // The question's 更多 (the sidebar has a 「更多」 of its own since #654, outside main).
+  const more = page.locator('main').getByRole('button', { name: 'More', exact: true });
   await more.focus();
   await page.keyboard.press('Enter');
   await page.getByRole('menu').waitFor();
@@ -74,7 +76,7 @@ test('the composed shell: shortcut sheet over a dialog, the flag save, the 更�
 
   // #90: the board page draws no toast stack of its own (its undo goes through the app's one region; the hold-on-hover rule of that
   // region is the wave-1 overlay test's).
-  await page.locator('[data-tour="nav-board"]').click();
+  await (await revealNavRow(page, 'board')).click();
   // The page title, which every board state shows (an empty board shows no columns since #576, so the 「待办」 column heading is not there).
   await page.getByRole('heading', { name: /Task board/ }).first().waitFor();
   assert.equal(await page.locator('.sh-toasts--page').count() <= 1, true, 'at most one page-level toast stack');

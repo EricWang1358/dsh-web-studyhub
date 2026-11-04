@@ -8,6 +8,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { openPage, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { seedBigBook } from '../scripts/qa/big-book.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* #489 items 3, 4, 11 in the real page at 1280 and 420 px on a book of 200 points: 在书里找 lists the points that have the words, one click goes to the point (not drawn until then, in
    逐节读) with the words marked, the same in 整章连着读; the 目录 of a big book shows chapters with the one being read open, and its caret opens another. Nothing scrolls sideways. */
@@ -26,9 +27,7 @@ test('复习全书 find and the big 目录 (1280 and 420 px)', { timeout: 420000
     for (const width of [1280, 420]) {
       const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
       await page.goto(running.server.url);
-      const entry = page.locator('[data-tour="nav-book"]').first();
-      await entry.waitFor({ state: 'attached', timeout: 30000 });
-      await entry.dispatchEvent('click');
+      await (await revealNavRow(page, 'book')).dispatchEvent('click');
       await page.locator('[data-book-point]').first().waitFor({ timeout: 60000 });
       const toc = async () => { if (!await page.locator('.book-toc').count()) await page.locator('.book-bar__toc').click(); await page.locator('.book-toc').waitFor(); };
       await toc();
