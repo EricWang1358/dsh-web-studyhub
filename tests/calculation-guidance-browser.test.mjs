@@ -57,7 +57,8 @@ test('browser calculation flow preserves corrections, mode drafts, reload and ed
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'en'); localStorage.setItem('study-autopilot', 'off'); });
   await page.goto(server.url);
-  const resume = () => page.locator('[data-usage="nav.resume"]').click();
+  // A narrow window has the sidebar in a drawer behind the top bar's menu button (#657).
+  const resume = async () => { const menu = page.locator('.nav-menu-toggle'); if (await menu.count()) await menu.first().click(); await page.locator('[data-usage="nav.resume"]').click(); };
   await resume();
   await page.getByRole('button', { name: 'Guided calculation', exact: true }).click();
   const answer = page.getByRole('textbox', { name: 'Answer to the current step' });

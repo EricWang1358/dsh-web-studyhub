@@ -16,6 +16,7 @@ import { buildPreview } from "../build.mjs";
 import { launchChromium } from "./browser.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { pick } from "./pick.mjs";
+import { revealNavRow } from "./nav-reveal.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -64,7 +65,7 @@ export async function indexShortcutScenario({ browser, dist, width, lang = "zh",
       const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       if (wide > 1) throw new Error(`${width}px: ${what} scrolls sideways by ${wide}px`);
     };
-    const open = async (id) => { await page.locator(`[data-nav-id="${id}"]`).first().click(); await settle(300); };
+    const open = async (id) => { await (await revealNavRow(page, id)).click(); await settle(300); };
     // A page follows the current course (数据库) at first; the book is in another one, so the page shows all courses.
     const allCourses = async (scope) => { await pick(page, scope.locator('.page-scope [role="combobox"]').first(), /全部课程|All courses/); await settle(300); };
     try {
@@ -131,7 +132,7 @@ export async function indexShortcutScenario({ browser, dist, width, lang = "zh",
     await shot("4-settings-course-chosen");
     // The request was taken: a later visit to Settings starts on the current course again.
     await open("sources");
-    await page.locator('[data-tour="nav-settings"]').first().click();
+    await (await revealNavRow(page, "settings")).click();
     await page.locator('[data-tour="settings-extensions"]').waitFor({ state: "visible", timeout: 15000 }).catch(() => {});
     if (await page.locator('[data-category="retrieval"]').count()) await page.locator('[data-category="retrieval"]').click();
     await page.locator(".extension-panel__course").waitFor({ timeout: 20000 });

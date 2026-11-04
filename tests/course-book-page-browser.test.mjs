@@ -14,6 +14,7 @@ import { buildOutlineIndex } from '../lib/course-outline-index.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { openCourseBook } from '../lib/course-book-files.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 复习全书 M1 in the real page at 1280 and 420 px (docs/plans/review-book.md): from the home to the 总纲 and 打开书页; the 目录 beside the book at 1280,
    sliding over it at 420 from the bar's 目录; the heading being read marked in it; one point drawn at a time (ui/book/BookStep.jsx); a question link goes to the practice page with 回到复习全书 and comes back at the same heading
@@ -248,7 +249,7 @@ test('复习全书: 打开书页 from the 总纲, the 目录 and the heading bei
         await page.locator('.coach-debrief').screenshot({ path: join(shots, `reader-result-debrief-${tag}.png`) });
       }
       // The result page of a reader round has no header way back (回到阅读 is its one way back): leave through the sidebar.
-      await page.locator('[data-usage="nav.library"]').first().click();
+      await (await revealNavRow(page, 'library')).click();
       await page.locator('.course-header .outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-book-line__open').click();
       await page.locator('.book-step').waitFor({ timeout: 30000 });
@@ -370,14 +371,17 @@ test('复习全书: back from practice at the same heading and offset (1280 and 
       await open.page.locator(`#book-${hid}`).waitFor({ timeout: 30000 });
       await until(() => hold.seen('course.plan'), 'the page to ask for its plan');
       await open.page.mouse.move(width / 2, 500);
-      await open.page.mouse.wheel(0, 150);
-      await until(async () => (await topOf(open.page, hid)) < before - 100, 'the wheel to scroll the page');
-      const moved = await scrollerTop(open.page);
+      // Down when the page has the room, else up: how much room is below depends on how the text wraps at this width (#657 widened it at 420).
+      const dir = await open.page.evaluate(() => { const app = document.querySelector('.study-app'); return app.scrollHeight - app.clientHeight - app.scrollTop >= 150 ? 1 : -1; });
+      await open.page.mouse.wheel(0, 150 * dir);
+      await until(async () => dir * (before - await topOf(open.page, hid)) > 100, `${width}px: the wheel to scroll the page`);
+      const moved = await topOf(open.page, hid);
       hold.release('course.plan');
       await open.page.locator('.book-plan').first().waitFor();
       await frames(open.page, 2);
-      assert.ok(await scrollerTop(open.page) >= moved, `${width}px: the page is not pulled back after the learner scrolled`);
-      assert.ok(await topOf(open.page, hid) < before - 50, `${width}px: the heading stays where the learner scrolled it`);
+      // Judged by where the heading is on screen: content arriving above it may raise scrollTop (scroll anchoring) without moving what the learner sees.
+      assert.ok(dir * (await topOf(open.page, hid) - moved) <= 2, `${width}px: the page is not pulled back after the learner scrolled`);
+      assert.ok(dir * (before - await topOf(open.page, hid)) > 50, `${width}px: the heading stays where the learner scrolled it`);
       await open.page.unroute('**/api/call');
       await open.context.close();
 
