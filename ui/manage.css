@@ -35,7 +35,7 @@
       transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
     }
     .manage-topic:hover { border-color: var(--line-strong); color: var(--text); }
-    .manage-topic:has(.manage-topic__check:checked) { border-color: var(--accent); background: var(--bg-selected); color: var(--text); }
+    .manage-topic:has(.manage-topic__check:checked) { border-color: var(--text-muted); background: var(--bg-selected); color: var(--text); }
     .manage-topic:has(.manage-topic__check:focus-visible) { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .manage-topic .manage-topic__check { flex: 0 0 auto; margin: 0; }
     .manage-topic span { min-width: 0; overflow-wrap: anywhere; }

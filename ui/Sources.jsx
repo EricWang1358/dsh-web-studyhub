@@ -207,7 +207,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           onKeyDown={editor ? event => { if (startsEditing(event)) { event.preventDefault(); startEditing(); } } : undefined}>
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
           <span>
-            <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <span className="source-new">{ui("刚导入")}</span>}</strong>
+            <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <Badge size="sm" className="source-new">{ui("刚导入")}</Badge>}</strong>
             {/* One line of facts under the title (#570): where it belongs, then what it is; each part ellipsises on its own. */}
             <span className="source-doc__meta">
               <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',

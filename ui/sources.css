@@ -69,18 +69,8 @@
     .source-doc__chapters li > .source-doc__chapter-btn { flex: none; width: auto; }
     .source-doc__chapters li > .source-doc__row { flex: 1 1 auto; width: auto; min-width: 0; }
     .source-doc__chapters li > .source-doc__row small { white-space: normal; text-align: right; }
-    .source-doc.is-new {
-      background: color-mix(in srgb, var(--accent) 6%, transparent);
-      animation: source-new-in 1.6s var(--ease-out) 1;
-    }
-    .source-new {
-      padding: var(--hairline) var(--space-2);
-      border-radius: var(--radius-pill);
-      background: color-mix(in srgb, var(--accent) 16%, transparent);
-      color: var(--accent-text);
-      font-size: var(--fs-xs);
-      font-weight: var(--fw-strong);
-    }
+    /* 刚导入: the row itself stays plain (the page scrolls to it and focuses it); the word 「刚导入」 is a neutral Badge beside the title, never a tint of the accent (#658). */
+    .source-new { margin-inline-start: var(--space-2); vertical-align: baseline; }
     /* 置顶: the pin sits in the title line from the first paint (the row's height never depends on it); a pinned row can be dragged, and the drop mark is a shadow so it takes no room. */
     .source-pin { display: inline-flex; flex: none; color: var(--accent-text); }
     .source-doc[draggable="true"] { cursor: grab; }
@@ -91,11 +81,6 @@
     .sources-empty__intro h2 { margin: 0 0 var(--space-1); font-size: var(--fs-xl); }
     .sources-empty__intro p { margin: 0; color: var(--text-muted); }
     .source-doc .source-main--editing .source-doc__icon { margin-top: var(--space-2-5); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    :is(.study-app, .study-seat) {
-      .source-doc.is-new { animation: none; }
-    }
   }
   /* A row's actions (从这份资料出题, 补题, 更多) wait for the pointer on a device that has one (ui/DESIGN.md, Restraint); the status stays. They keep their place
      (opacity, not display), so nothing moves when they appear; keyboard focus inside the row, an open 更多 menu or 补题 popover, or a fresh import shows them. Touch and narrow panes
@@ -146,9 +131,4 @@
       .source-doc__chapters li > .source-doc__row + .source-doc__chapter-btn { margin-left: var(--space-2); }
     }
   }
-}
-
-@keyframes source-new-in {
-  from { box-shadow: 0 0 0 6px var(--accent-glow); }
-  to { box-shadow: 0 0 0 0 transparent; }
 }

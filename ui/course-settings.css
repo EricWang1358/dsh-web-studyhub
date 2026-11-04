@@ -49,7 +49,7 @@
     .course-list__entry + .course-list__entry { border-top: 1px solid var(--line-soft); }
     .course-list__item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
       min-height: 52px; padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4); }
-    .course-list__item.is-current { box-shadow: inset 3px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 5%, transparent); }
+    .course-list__item.is-current { box-shadow: inset 3px 0 0 var(--text-dim); background: var(--bg-selected); }
     .course-list__item > .course-list__action { flex: none; }
     /* 有效课程: the row's switch sits before 设置; its confirmation and result take the full width below. */
     .course-list__item { flex-wrap: wrap; }
@@ -81,7 +81,7 @@
     /* Library heading: the countdown sits beside the course name. */
     .course-heading .course-heading-exam { flex: none; align-self: center; padding: var(--space-1) var(--space-2); border-radius: var(--radius-pill);
       font-size: var(--fs-sm); font-weight: var(--fw-strong); letter-spacing: 0; line-height: var(--lh-tight); white-space: nowrap;
-      color: var(--accent-text); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+      color: var(--text-dim); background: var(--bg-sunken); }
   }
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {
