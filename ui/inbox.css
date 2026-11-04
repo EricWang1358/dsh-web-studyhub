@@ -38,8 +38,8 @@
       padding: 0 var(--space-1);
       box-sizing: border-box;
       border-radius: var(--radius-pill);
-      background: var(--accent);
-      color: var(--accent-ink);
+      background: var(--text);
+      color: var(--bg-canvas);
       font-size: var(--fs-xs);
       font-weight: var(--fw-strong);
       line-height: 20px;
@@ -107,7 +107,7 @@
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: var(--accent);
+      background: var(--warn-solid);
     }
     .mailbox__item:is(:disabled, [aria-disabled="true"]) { opacity: 0.5; cursor: default; }
     .mailbox__top {

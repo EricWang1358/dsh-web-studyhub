@@ -40,7 +40,7 @@ export const RULES = {
     fix: 'use useHandOff() / <HandOff> from ui/hand-off/ with an id of ui/agent-prompts/index.js' },
   chatOldWording: { issue: 'hand-off S2b', why: 'an old name for the main chat in UI code (主对话 / 对话中 / 在对话里 / 发到对话 / 让对话 / AI 归并 / 对话里的 AI / 对话里出题); a hard rule (ALLOW.chatOldWording lists the rest)',
     fix: 'say 主会话 (the button is 发给主会话); English stays "the main chat"' },
-  accentFill: { issue: '#658', why: 'a background, border or inset edge painted in the accent (var(--accent), --accent-soft or --accent-glow, also inside color-mix): the accent is the primary action, progress, the card head rule and the heatmap, nothing else',
+  accentFill: { issue: '#658', why: 'a background, border or inset edge painted in the accent (var(--accent), --accent-soft or --accent-glow, also inside color-mix): the accent is the primary action, progress, a drop target, the card head rule and the heatmap, nothing else',
     fix: 'selection is var(--bg-selected) plus a neutral check or edge (var(--line-strong), var(--text-muted)); "just imported", "new" and the like are a <Badge>; a focus ring keeps the accent' },
 };
 
@@ -58,6 +58,18 @@ const ACCENT_FILL_ALLOW = [
   { file: 'ui/workflows.css', selector: /\.wf-progress-mark/, why: 'progress' },
   { file: 'ui/tasks/task-console.css', selector: /\.tc-segment|\.tc-legend i|\.tc-callbar|\.tc-cells|\.tc-steps__mark|\.tc-dot\[data-state='run'\]|\.tc-output__caret/, why: 'progress and the running call of a job' },
   { file: 'ui/tasks/compact-card.css', selector: /\.cjc__dot\[data-state='run'\]/, why: 'progress (the running dot)' },
+  // #658 (owner, 2026-11-05): the accent also marks where a dragged file will land, and the step you are on.
+  { file: 'ui/components/components.css', selector: /\.sh-drop\.is-over/, why: 'a drop target while a file is dragged over it' },
+  { file: 'ui/board/board.css', selector: /\.board-column\.is-over|\.board-drop-line/, why: 'a drop target while a card is dragged' },
+  { file: 'ui/audio-settings.css', selector: /\.audio-subtitle-only\[data-over\]/, why: 'a drop target while a file is dragged over it' },
+  { file: 'ui/book/book-plan.css', selector: /\.book-plan__phase\[data-current\]/, why: 'progress (the phase you are in)' },
+  { file: 'ui/document-preview/document-preview.css', selector: /\.selection-job__phases li\[data-state="current"\]/, why: 'progress (the running phase)' },
+  { file: 'ui/mineru.css', selector: /\.pdf-env__service\[data-state="starting"\] \.pdf-env__dot/, why: 'progress (a service starting)' },
+  { file: 'ui/setup-checklist.css', selector: /\.setup-step\[data-next="true"\] \.setup-mark/, why: 'progress (the next setup step)' },
+  { file: 'ui/skeleton.css', selector: /\.sqc-step--current/, why: 'progress (the step you are on)' },
+  { file: 'ui/workflows.css', selector: /\.wf-portal-step\.is-current/, why: 'progress (the step you are on)' },
+  { file: 'ui/case-result.css', selector: /\.rubric-skills__trend i/, why: 'a chart, like the heatmap' },
+  { file: 'ui/study-map/catalog.css', selector: /\.map-play:hover/, why: 'the primary action (play) on hover' },
 ];
 const ACCENT_PAINT_PROP = /^(background(-color|-image)?|border(-(top|right|bottom|left|inline|block)(-(start|end))?)?(-color)?|box-shadow)$/;
 const ACCENT_TOKEN = /var\(\s*--accent(?:-soft|-glow)?\s*[,)]/;

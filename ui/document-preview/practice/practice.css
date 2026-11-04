@@ -167,7 +167,7 @@
       .reader-outline__meter[data-upgraded='true'],
       .reader-toolbar__delta,
       .reading-result__delta { animation: none; }
-      [data-returned='true'] { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+      [data-returned='true'] { background: var(--warn-mark); }
       [data-returned='true'][data-returned-rose='true'] { background: var(--ok-halo); }
       .reading-result__after,
       .reading-result__before { transition: none; }
@@ -176,7 +176,7 @@
 }
 
 @keyframes reader-returned {
-  0%, 55% { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent); }
+  0%, 55% { background: var(--warn-mark); box-shadow: 0 0 0 6px var(--warn-mark); }
   100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
 }
 

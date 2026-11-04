@@ -19,7 +19,7 @@
       grid-template-columns: minmax(190px, .75fr) 1.4fr;
       gap: var(--space-6);
       align-items: center;
-      background-image: radial-gradient(circle at 0 0, color-mix(in srgb, var(--accent) 18%, transparent), transparent 55%);
+      background-image: radial-gradient(circle at 0 0, var(--bg-sunken), transparent 55%);
       background-origin: border-box;
     }
     .result-headline strong { display: block; font-size: clamp(var(--fs-6xl), 8cqi, var(--fs-7xl)); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.06em; }

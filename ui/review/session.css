@@ -136,7 +136,7 @@
       transition: transform 180ms ease, border-color 250ms ease;
     }
     .review-tick[data-answered="true"] .review-tick-line { transform: scaleX(calc(13 / 22)); }
-    .review-tick:hover:not(:disabled) { background: var(--accent-glow); }
+    .review-tick:hover:not(:disabled) { background: var(--bg-hover); }
     .review-tick:hover .review-tick-line { transform: scaleX(calc(15 / 22)); }
     .review-tick[aria-current="step"] .review-tick-line { transform: none; }
     .review-tick:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }

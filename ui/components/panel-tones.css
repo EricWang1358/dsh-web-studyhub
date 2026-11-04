@@ -11,8 +11,8 @@
       box-shadow: none;
     }
     .sh-panel--accent {
-      border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-      background: color-mix(in srgb, var(--accent) 5%, var(--bg-surface));
+      border-color: var(--line-strong);
+      background: var(--bg-sunken);
     }
     .sh-panel--dashed {
       border-style: dashed;

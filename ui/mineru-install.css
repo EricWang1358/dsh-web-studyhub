@@ -44,7 +44,7 @@
     .mineru-install__stages li[data-state="failed"] { color: var(--bad-ink, var(--bad)); font-weight: var(--fw-strong); }
     .mineru-install__mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: var(--radius-pill); border: 1px solid var(--line-strong); box-sizing: border-box; }
     .mineru-install__stages li[data-state="done"] .mineru-install__mark, .mineru-install__stages li[data-state="failed"] .mineru-install__mark { border-color: transparent; }
-    .mineru-install__stages li[data-state="active"] .mineru-install__mark { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, transparent); }
+    .mineru-install__stages li[data-state="active"] .mineru-install__mark { border-color: var(--line-strong); background: var(--bg-sunken); }
     .mineru-install__more-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
     .mineru-install__choices { min-width: 0; }
     .mineru-install__external { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); overflow-wrap: anywhere; }

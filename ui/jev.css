@@ -15,8 +15,8 @@
     .jev-privacy__link a { color: var(--accent-text); text-underline-offset: 3px; }
     .jev-card { max-width: 640px; }
     /* The walk-through. */
-    .jev-guide { display: grid; gap: var(--space-2); max-width: 640px; min-width: 0; padding: var(--space-4) var(--space-5); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
-      border-radius: var(--radius); background: color-mix(in srgb, var(--accent) 5%, var(--bg-surface)); }
+    .jev-guide { display: grid; gap: var(--space-2); max-width: 640px; min-width: 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--line-strong);
+      border-radius: var(--radius); background: var(--bg-sunken); }
     .jev-guide--done { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-2) var(--space-4); background: transparent; border-color: var(--line); color: var(--text-muted); font-size: var(--fs-sm); }
     .jev-guide--done > span { min-width: 0; overflow-wrap: anywhere; }
     .jev-guide__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
@@ -29,7 +29,7 @@
     .jev-guide__list dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
     .jev-guide__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     /* The per-site switches. */
-    .jev-replace { display: grid; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-4) var(--space-5); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+    .jev-replace { display: grid; gap: var(--space-3); min-width: 0; margin: 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--line-strong);
       border-radius: var(--radius); background: var(--bg-surface); max-width: 640px; }
     .jev-replace > legend { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-2); color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .jev-replace > legend .jev-experimental { margin-left: 0; }
@@ -69,7 +69,7 @@
     .jev-suggest-button .jev-experimental { margin-left: 0; }
     .jev-note { margin-top: var(--space-2); }
     .jev-probs { display: grid; gap: var(--space-1); margin: var(--space-1) 0 var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
-      background: color-mix(in srgb, var(--accent) 6%, transparent); min-width: 0; }
+      background: var(--bg-sunken); min-width: 0; }
     .jev-probs[data-filled="false"] { background: var(--warn-bg); }
     .jev-probs__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; }
     .jev-probs__head .jev-experimental { margin-left: 0; }
@@ -97,7 +97,7 @@
     .jev-decided-note, .jev-run-note { overflow-wrap: anywhere; }
     .jev-badge__exp { margin-left: 0; opacity: .85; font-weight: var(--fw-medium); white-space: pre; }
     .jev-card-signals { display: grid; gap: var(--space-1); margin: var(--space-2) 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
-      background: color-mix(in srgb, var(--accent) 6%, transparent); min-width: 0; }
+      background: var(--bg-sunken); min-width: 0; }
     .jev-card-signals__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; }
     .jev-card-signals__head .jev-experimental { margin-left: 0; }
     .jev-card-signals__head small, .jev-card-signals__note { color: var(--text-muted); font-size: var(--fs-xs); margin: 0; }
