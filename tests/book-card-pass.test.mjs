@@ -97,10 +97,11 @@ async function world(t) {
   const contract = () => [...service.runtime.work.jobs.values()].filter(job => job.type === 'course-book-build').at(-1).contract;
   const run = async (args = {}) => { const job = await settleJob(service, (await build(args)).jobId); assert.equal(job.status, 'complete', JSON.stringify(contract()?.error ?? null)); return contract(); };
   const stages = since => fake.calls.slice(since).reduce((count, call) => ({ ...count, [call.stage]: (count[call.stage] ?? 0) + 1 }), {});
-  // An old book: the same book as written before 术语卡 existed (no unit has cards).
-  const age = () => service.store.update(state => {
+  // An old book: the same book as written before 术语卡 existed (no unit has cards); `kit: false` also before the exam answer kit existed.
+  const age = ({ kit = true } = {}) => service.store.update(state => {
     const record = state.sources.find(source => isCourseNotesSource(source) && !source.archived);
     for (const leaf of record.courseNotes.leaves) for (const unit of leaf.body?.units || []) delete unit.cards;
+    if (!kit) delete record.courseNotes.examKit;
   });
   return { service, fake, notes, build, run, stages, age };
 }
@@ -139,6 +140,7 @@ test('补术语卡 (cards: true): the estimate costs nothing, the pass touches n
   await w.run();
   await w.age();
   const old = (await w.notes()).courseNotes;
+  assert.ok(old.examKit, 'the book has its exam answer kit');
   // The learner raised the detail level since: an update would rewrite; the card pass must not.
   await w.service.store.update(state => { state.settings = { ...(state.settings || {}), book: { ...(state.settings?.book || {}), coverage: 'full' } }; });
   const before = w.fake.calls.length;
@@ -152,8 +154,15 @@ test('补术语卡 (cards: true): the estimate costs nothing, the pass touches n
   const now = (await w.notes()).courseNotes;
   assert.deepEqual(withoutCards(now.leaves), withoutCards(old.leaves), 'no explanation rewritten');
   assert.ok(carded(now.leaves) > 0);
+  assert.deepEqual(now.examKit, old.examKit, 'the answer kit is kept as it was');
   const nothing = await w.build({ cards: true });
   assert.deepEqual([nothing.status, nothing.calls, nothing.jobId], ['nothing', 0, undefined], 'no task, no call');
+  // A book older than the answer kit too: 补术语卡 still adds only cards (the kit is 更新全书's to write).
+  await w.age({ kit: false });
+  const since = w.fake.calls.length;
+  await w.run({ cards: true });
+  assert.deepEqual(Object.keys(w.stages(since)), ['cards'], 'no kit call');
+  assert.equal((await w.notes()).courseNotes.examKit, undefined);
 });
 
 test('补术语卡 on a course without a book is refused with a code before any call', async t => {
