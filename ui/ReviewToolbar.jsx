@@ -52,10 +52,12 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
         {thumbs}
       </div>
       {run.mode === "exam" && <p className="muted small next-due">{ui("这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。")}</p>}
-      <div className="question-navigation">
+      {/* The 找功能 anchor of 更多 sits on this group, not on the trigger: every [data-tour] gets a scroll margin (tour.css), so focusing a trigger at the
+          bottom of the view scrolled the page, and the menu closes on any scroll (components/Menu.jsx) — it shut right after Enter opened it. */}
+      <div className="question-navigation" data-tour="review-more">
         <Menu label={ui("更多")} items={more.map(({ run: _run, ...item }) => item)} defaultOpen={moreDefaultOpen}
           onSelect={(id) => more.find((item) => item.id === id)?.run?.()}
-          trigger={({ props, ref }) => <Button ref={ref} variant="quiet" className="tool-action review-more-trigger" data-tour="review-more" {...props}>{ui("更多")}</Button>} />
+          trigger={({ props, ref }) => <Button ref={ref} variant="quiet" className="tool-action review-more-trigger" {...props}>{ui("更多")}</Button>} />
         <Button size="sm" data-usage="review.prev" disabled={run.index === 0} lock={busy} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: -1 })}>{ui("上一题")}</Button>
         <Button variant="primary" size="sm" data-usage="review.next" disabled={nextBlocked}
