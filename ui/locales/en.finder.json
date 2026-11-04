@@ -151,5 +151,11 @@
   "为面试准备出题时，写下目标岗位或面试方向（例如「后端工程师 · 系统设计」），出题会据此调整；普通课程出题不用填，它收在「更多选项」里的「面试方向」下。": "When preparing for an interview, write the target role or focus (for example “backend engineer · system design”) and the questions are adjusted to it. Ordinary course questions do not need it; it is folded under “Interview focus” in “More options”.",
   "这次出哪几种题：单选测验、多选测验、闪卡、开放问答、填空卡，可以多选，总题数会在几种题型之间平均分配。默认值在「设置 › 出题偏好」里改。": "Which kinds of question to make this time: single choice, multiple choice, flashcards, open response, fill in the blank. You can pick several, and the total is shared between them. The defaults are in “Settings › Question preferences”.",
   "新题组放进的课程": "Course for the new deck",
-  "新题组默认放进你勾选的资料所在的课程（资料列表上方的「课程范围」只用来筛选资料）；点「更改」可以另选或新建一门课，留空就是未分类。": "The new deck goes into the course of the materials you ticked by default (the “Course scope” above the list of materials only filters the materials); click “Change” to pick or create another course, or leave it empty for uncategorised."
+  "新题组默认放进你勾选的资料所在的课程（资料列表上方的「课程范围」只用来筛选资料）；点「更改」可以另选或新建一门课，留空就是未分类。": "The new deck goes into the course of the materials you ticked by default (the “Course scope” above the list of materials only filters the materials); click “Change” to pick or create another course, or leave it empty for uncategorised.",
+  "断句": "sentence break",
+  "停顿": "pause",
+  "讲得快": "fast speaker",
+  "一直没有断句": "no sentence ends",
+  "润色 0 句": "0 sentences polished",
+  "课堂实录多久没有新文字（本地转写：多久没有声音）就算一句话说完。老师讲得快、几乎不停顿时选「短」，句子会更早出现，润色和出题也更早能用；下次开始或接着录时生效。": "How long live class waits with no new text (local transcription: no sound) before a sentence counts as finished. For a lecturer who talks fast and hardly pauses, choose “Short”: sentences appear sooner, and polishing and questions can start sooner. It takes effect the next time you start or resume recording."
 }

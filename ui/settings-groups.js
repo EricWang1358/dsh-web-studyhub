@@ -41,7 +41,7 @@ export const SETTINGS_CATEGORIES = Object.freeze([
   category({ id: 'practice', group: 'common', title: '练习', anchors: ['settings-practice'], purpose: '每天的练习怎么走：每轮题数、自动驾驶、本轮点评，以及期末一周的安排' }, () => import('./settings/PracticePane.jsx')),
   category({ id: 'courses', group: 'once', title: '课程', anchors: ['settings-courses'], purpose: '列出每门课；点开一门课可以记下考试形式、日期、总分和重点知识点，也能把两门课合并' }, () => import('./settings/CoursesPane.jsx')),
   category({ id: 'exam-prep', group: 'once', title: '备考补习', anchors: ['settings-exam-prep'], needs: 'generation', purpose: '备考补习的个人默认值：是否自动识别资料用途、清单语言，以及是否默认列出其它课程的资料' }, () => import('./settings/ExamPrepPane.jsx')),
-  category({ id: 'audio', group: 'once', title: '音频转写', anchors: ['settings-audio'], needs: 'audio', purpose: '填转写用的密钥（Gemini 或国内能直连的硅基流动），也选课堂实录用云端还是本地转写' }, () => import('./settings/AudioPane.jsx')),
+  category({ id: 'audio', group: 'once', title: '音频转写', anchors: ['settings-audio', 'settings-live-pause'], needs: 'audio', purpose: '填转写用的密钥（Gemini 或国内能直连的硅基流动），也选课堂实录用云端还是本地转写' }, () => import('./settings/AudioPane.jsx')),
   category({ id: 'mineru', group: 'once', title: 'PDF 转换（MinerU / Marker）', anchors: ['settings-mineru', 'settings-marker'], partNeeds: { routes: 'audio' },
     purpose: '把扫描件、公式多或很大的 PDF 先在本机解析成带页码的文字：安装 MinerU，或接入 Marker' }, () => import('./settings/MineruPane.jsx')),
   category({ id: 'retrieval', group: 'once', title: '检索扩展', anchors: ['settings-extensions'], needs: 'generation', purpose: '给上百页的大教材用：装好后，整本书出题时只挑出相关页面给 AI 看' }, () => import('./settings/RetrievalPane.jsx')),

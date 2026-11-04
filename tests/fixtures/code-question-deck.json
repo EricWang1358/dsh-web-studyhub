@@ -1,0 +1,36 @@
+{
+  "title": "Python 注释与赋值",
+  "course": "Python",
+  "cards": [
+    {
+      "kind": "quiz",
+      "topic": "Python 注释",
+      "objective": "区分 Python 与 C 风格的注释符号",
+      "prompt": "在 `.py` 文件里执行 `x = 1` 之后，下面哪一种写法只会让这一行被当作注释？\n\n```python\nx = 1  # 设置 x\nprint(x)\n```",
+      "answer": "`#`",
+      "hint": "想想 Python 的行注释用哪个符号开头。",
+      "explanation": "Python 用 `#` 开头写行注释，直到行末都会被忽略；`/* */` 是 C 风格的块注释，在 `.py` 文件里是语法错误。",
+      "misconception": "以为所有语言都用 `/* */` 写注释。",
+      "options": [
+        { "id": "a", "text": "`#`", "correct": true, "explanation": "`#` 开头的内容直到行末都是注释，`print(x)` 不受影响。" },
+        { "id": "b", "text": "`/* */`", "correct": false, "explanation": "这是 C 风格的块注释，Python 不认，会报 `SyntaxError`。" },
+        { "id": "c", "text": "`//`", "correct": false, "explanation": "在 Python 里 `//` 是整除运算符，不是注释。" },
+        { "id": "d", "text": "`--`", "correct": false, "explanation": "`--` 是 SQL 的行注释，Python 会把它当成两个减号。" }
+      ]
+    },
+    {
+      "kind": "cloze",
+      "topic": "Python 输出",
+      "objective": "用 print() 输出变量的值",
+      "prompt": "调用 `print({{b1}})` 可以把变量 `x` 的值显示在屏幕上。",
+      "answer": "x",
+      "hint": "括号里放要显示的变量名。",
+      "explanation": "`print(x)` 会把 `x` 当前的值写到标准输出。",
+      "misconception": "以为要写成 `print(\"x\")` 才能看到值。",
+      "cloze": {
+        "text": "调用 `print({{b1}})` 可以把变量 `x` 的值显示在屏幕上。",
+        "answers": [{ "id": "b1", "value": "x" }]
+      }
+    }
+  ]
+}

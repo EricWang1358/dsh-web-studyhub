@@ -100,7 +100,7 @@
       color: var(--text-muted);
     }
     .md code {
-      font-family: "JetBrains Mono", Consolas, monospace;
+      font-family: var(--font-stack-mono);
       font-size: 1em;
       padding: 0.1em 0.38em;
       border-radius: var(--radius-xs);
@@ -115,6 +115,7 @@
       border: 1px solid var(--line);
       overflow-x: auto;
       font-size: var(--fs-md);
+      font-weight: var(--fw-regular);
       line-height: 1.6;
       white-space: pre;
     }

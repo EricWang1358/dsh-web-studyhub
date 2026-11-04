@@ -12,6 +12,7 @@ import LiveLocalCard from './LiveLocalCard.jsx';
 import LiveLoopbackCard from './LiveLoopbackCard.jsx';
 import { localTip } from './live-local-flow.js';
 import { openAudioSettings } from './audio-focus.js';
+import { LIVE_PAUSE_ANCHOR, usePauseHint } from './live-pause-hint.js';
 import { hostInfo, tabSharingAllowed } from './live-audio.js';
 import { useInjectCss } from './shared.js';
 import css from './live-class.css';
@@ -185,6 +186,9 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
   const [tabAllowed] = useState(() => tabSharingAllowed());
   const [appHost] = useState(() => initialAppHost ?? hostInfo().app);
   const openAudio = openAudioSettings(onSettings);
+  const openPause = openAudioSettings(onSettings, LIVE_PAUSE_ANCHOR);
+  // A speaker who never pauses leaves everything in the grey line: after a minute of that, one quiet line says where 断句停顿 is.
+  const pauseHint = usePauseHint(session);
   const feed = useRef(null), operation = useRef(false);
   // Whether a live provider is configured, checked before anything asks for the microphone (null until known).
   const [readiness, setReadiness] = useState(initialReadiness), [checked, setChecked] = useState(0);
@@ -334,6 +338,8 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
             {segments.some((segment) => segment.zhState === 'error') && <Button busy={activeOp === 'retry-zh'} lock={disabled} onClick={() => void perform('retry-zh', async () => { await call('live.retry', { id: session.id }); await client.poll(); })}>{ui('重试失败的翻译')}</Button>}
             <Button variant="link" size="sm" className="live-follow" onClick={() => setFollow(!follow)} aria-pressed={follow}>{follow ? ui('正在跟随最新') : ui('回到最新')}</Button></div>
         </div>
+        {pauseHint && <p className="live-pause-hint muted" role="status" data-live-pause-hint>{ui('讲得很快、一直没有断句？到 音频设置 › 断句停顿 选『短』，下次开始或接着录时生效。')}
+          {openPause && <> <Button variant="link" size="sm" onClick={openPause}>{ui('打开断句停顿设置')}</Button></>}</p>}
         <div className="live-feed" ref={feed} tabIndex={0} onMouseUp={selectText} onKeyUp={selectText} onScroll={() => {
           const node = feed.current; if (node && node.scrollHeight - node.scrollTop - node.clientHeight > 80) setFollow(false);
         }} aria-label={ui('课堂原文与译文')}>

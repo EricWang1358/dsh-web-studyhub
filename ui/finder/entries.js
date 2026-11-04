@@ -262,6 +262,11 @@ export const FEATURES = Object.freeze([
     path: ['设置', '音频转写', '课堂实录的转写方式'],
     what: '课堂实录可以用 Gemini（云端，要密钥），也可以用本地转写：声音不上传，不需要密钥，要先安装。在「设置 › 音频转写」里选，也能在「课堂实录」页安装。',
     needs: { capability: 'audio', install: '本地转写引擎' } }),
+  feature({ id: 'live-pause', area: 'course', title: '断句停顿', page: 'settings', anchors: ['settings-live-pause'],
+    aliases: ['断句', '停顿', '讲得快', '一直没有断句', '润色 0 句', 'sentence pause', 'pause length'],
+    path: ['设置', '音频转写', '断句停顿'],
+    what: '课堂实录多久没有新文字（本地转写：多久没有声音）就算一句话说完。老师讲得快、几乎不停顿时选「短」，句子会更早出现，润色和出题也更早能用；下次开始或接着录时生效。',
+    needs: { capability: 'audio' } }),
 
   // ── 设置 ──
   feature({ id: 'library-folder', area: 'settings', title: '学习库文件夹', page: 'settings', anchors: ['settings-model'],
