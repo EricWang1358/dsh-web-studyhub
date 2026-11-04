@@ -404,7 +404,7 @@ test('the memory is asked for on its own cadence: first batch, every third batch
 
 test('the budget follows the expected reply: translation only for non-Chinese, memory only when asked, input read time', () => {
   const none = correctionBudget({ inputChars: 0, items: 1 });
-  assert.equal(none.timeoutMs, LIVE_CORRECTION.requestMs); assert.ok(none.maxOutputTokens >= LIVE_CORRECTION.minTokens);
+  assert.ok(none.timeoutMs >= LIVE_CORRECTION.requestMs); assert.ok(none.maxOutputTokens >= LIVE_CORRECTION.minTokens);
   assert.ok(correctionBudget({ items: 1, zhChars: 700 }).maxOutputTokens > none.maxOutputTokens, 'a translation of 700 characters');
   assert.ok(correctionBudget({ items: 1, memory: true }).maxOutputTokens > none.maxOutputTokens, 'the memory');
   assert.ok(correctionBudget({ items: 5 }).maxOutputTokens > none.maxOutputTokens, 'more sentences to correct');

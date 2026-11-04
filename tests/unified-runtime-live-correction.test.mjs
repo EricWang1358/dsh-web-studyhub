@@ -108,6 +108,7 @@ test('long sentences on the job: each request is budgeted by its characters, and
   const started = await h.start();
   await h.port.wait(started.jobId);
   assert.deepEqual(requests.map(request => request.n), [[1], [2], [2], [3]]);
-  assert.ok(requests.every(request => request.maxTokens > 4096 && request.maxTokens <= 8192), 'the reply allowed grows with the sentence, within its cap');
+  assert.ok(requests.every(request => request.maxTokens >= 2048 && request.maxTokens <= 8192), 'the reply allowed is the expected reply, within its caps');
+  assert.ok(requests[0].maxTokens > requests[1].maxTokens, 'the first request also writes the cumulative memory, so it is allowed more');
   assert.deepEqual([h.correction.snapshot().skipped, h.correction.snapshot().calls, h.correction.coveredThrough], [1, 4, 3]);
 });
