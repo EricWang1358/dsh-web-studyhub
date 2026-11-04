@@ -5,6 +5,7 @@ import { EffortSelect } from './EffortSelect.jsx';
 import { useModelEfforts } from './use-model-efforts.js';
 import { Badge, Disclosure, Field, Hint, InlineMessage, ProviderCard, ProviderGrid, RadioCard, RadioCardGroup, SecretKeyForm, Select, SetupRequired, SettingsSection, Switch, TextInput, useToast } from './components/index.js';
 import LiveLocalCard from './LiveLocalCard.jsx';
+import LiveLoopbackCard from './LiveLoopbackCard.jsx';
 import { KEY_FIELDS, providerOf, providersFor } from '../lib/audio-providers.js';
 import { REQUEST_LIMIT_MINUTES } from '../lib/audio-formats.js';
 import { audioFocusPending, requestAudioSettingsFocus, takeAudioSettingsFocus } from './audio-focus.js';
@@ -103,7 +104,7 @@ export function AudioSetupGate({ language = getUiLanguage(), onOpenSettings, onS
  * 课堂实录's engine: auto (Gemini when a key is set, otherwise the local engine), always local, or always Gemini; and the local engine's own card
  * (install, progress, remove). An explicit choice is never swapped for the other engine (lib/live-local.js resolveLiveProvider).
  */
-export function LiveEngineChoice({ view, disabled = false, onSave, initialLocal = null }) {
+export function LiveEngineChoice({ view, disabled = false, onSave, initialLocal = null, initialLoopback = null }) {
   useInjectCss(css, 'study-audio-settings');
   const choice = view.liveProvider || 'auto';
   return <div className="audio-live-engine">
@@ -117,10 +118,11 @@ export function LiveEngineChoice({ view, disabled = false, onSave, initialLocal 
         title={ui('Gemini（云端）')} hint={ui('需要 Gemini 密钥和海外网络；声音发给 Google。')} />
     </RadioCardGroup>
     <LiveLocalCard settings initialStatus={initialLocal} />
+    <LiveLoopbackCard settings hideUnsupported initialStatus={initialLoopback} />
   </div>;
 }
 
-export default function AudioSettings({ initialView = null, initialLocal = null }) {
+export default function AudioSettings({ initialView = null, initialLocal = null, initialLoopback = null }) {
   const { busy, act, call } = useStudy();
   const toast = useToast();
   useInjectCss(css, 'study-audio-settings');
@@ -155,7 +157,7 @@ export default function AudioSettings({ initialView = null, initialLocal = null 
         {providerOrder(language).map((tier, index) => <KeyCard key={tier} provider={PROVIDERS[tier]} state={view[PROVIDERS[tier].field]}
           onSaved={saved} recommended={index === 0} />)}
       </ProviderGrid>
-      <LiveEngineChoice view={view} disabled={!!busy} onSave={patch => save(patch)} initialLocal={initialLocal} />
+      <LiveEngineChoice view={view} disabled={!!busy} onSave={patch => save(patch)} initialLocal={initialLocal} initialLoopback={initialLoopback} />
       <Hint className="audio-settings-path">{uiFormat('密钥只保存在这台电脑：{0}，不会进入学习库、备份或主会话。贴进主会话的内容会被模型看到，所以密钥只在这里填。', [view.settingsFile || '~/.dsh/study/audio.json'])}</Hint>
       <Disclosure className="audio-advanced settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body" summary={ui('高级')} meta={ui('校对与翻译的推理强度、付费密钥、模型')}>
         <AudioReasoning settings={view} busy={busy} onSave={save} efforts={model.options} modelName={model.model} />
