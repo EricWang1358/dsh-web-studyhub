@@ -516,5 +516,15 @@
   "调整目录": "Changed the outline",
   "更早的改动（只能撤最近一次）": "Earlier change (only the latest can be undone)",
   "总纲已重建，不再可撤": "Outline rebuilt; no longer undoable",
-  "正在读取版本历史…": "Loading version history…"
+  "正在读取版本历史…": "Loading version history…",
+  "术语卡 {0}": "Term cards {0}",
+  "考场原句": "Exam pitch",
+  "相关概念": "Related",
+  "对立概念": "Opposite",
+  "并列概念": "Parallel",
+  "子概念": "Parts",
+  "→ {0}": "→ {0}",
+  "术语卡（按章）": "Term cards by chapter",
+  "公式": "Formulas",
+  "书里讲到的公式，按讲它的知识点排；代码打开那一节。": "The formulas the book explains, in the order of the points that explain them; a code opens that section."
 }
