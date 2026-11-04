@@ -13,8 +13,6 @@
   "第 {0} / {1} 章「{2}」{3}/{4}": "Chapter {0} / {1} “{2}” {3}/{4}",
   "全部章节都学过了": "All chapters learned",
   "下一批：{0}": "Next batch: {0}",
-  "第 {0} 题 · {1} · {2} · 已答": "Question {0} · {1} · {2} · answered",
-  "第 {0} 题 · {1} · {2}": "Question {0} · {1} · {2}",
   "{0} 个主题组": "{0} topic groups",
   "同名主题已跨题组合并": "Topics with the same name are merged across decks",
   "{0} 题待巩固": "{0} to reinforce",

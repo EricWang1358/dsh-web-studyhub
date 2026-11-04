@@ -13,7 +13,7 @@ const REVIEW = [
   ["H", "提示 / 讲解"],
   ["T", "通俗详解：用比喻把这道题讲透（交给后台助教）"],
   ["G / B", "👍 这题不错 / 👎 这题有问题"],
-  ["A", "自动驾驶 开/关"],
+  ["A", "自动跳下一步 开/关"],
 ];
 // 复习全书: the keys of the reading surface (ui/book/reading.js useStepKeys, ui/book/BookToc.jsx).
 const BOOK = [
@@ -31,7 +31,7 @@ const EVERYWHERE = [
 
 /** A non-modal sheet: focus moves into it when it opens, Escape or a press outside closes it and focus goes back to where it was. */
 export default function ShortcutHelp({ page, onClose }) {
-  const rows = page === "review" ? [...REVIEW, ...EVERYWHERE] : [...(page === "book" ? BOOK : []), ...EVERYWHERE, ["A", "自动驾驶 开/关"]];
+  const rows = page === "review" ? [...REVIEW, ...EVERYWHERE] : [...(page === "book" ? BOOK : []), ...EVERYWHERE, ["A", "自动跳下一步 开/关"]];
   const sheet = useRef(null), opener = useRef(null);
   useEffect(() => {
     opener.current = document.activeElement;

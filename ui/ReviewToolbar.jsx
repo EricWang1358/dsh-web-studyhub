@@ -1,21 +1,38 @@
 import { ui } from "./i18n.js";
 import React from "react";
 import { Button, Menu } from "./components/index.js";
-import { ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
+import { ReadingSettingsDialog } from "./reading-settings/ReadingSettings.jsx";
 import { useStudy } from "./study-context.jsx";
+import { positionOf } from "./review/round-words.js";
 
 const NEXT_HINT_ID = "review-next-hint";
 
 /**
- * The tools under a question: hint / explanation, EN, ask for help, the reading settings, 更多 (a menu: note, task, fix the
- * question, derive a prerequisite, slay it) and the previous / next buttons. `moreDefaultOpen` opens the menu at first render.
+ * The tools under a question, kept to five controls (#671): 提示 / 讲解, 帮我弄懂, 更多 and the previous / next buttons. Everything that is not needed on every question
+ * is in 更多 (a menu), each with its key where it has one: 显示英文, 答对后自动下一题 (A), 字号与版心, 这题不错 (G) / 这题有问题 (B), then the actions on the question
+ * (mark it, note, task, fix, derive a prerequisite, slay). `moreDefaultOpen` opens the menu at first render.
+ * `onThumb('up' | 'down')` and `thumbVote` are the page's 评价: its ThumbFeedback keeps the vote and the keys; `thumbs` is that component (it draws only the tag tray).
  */
-export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onNote, onTask, onReviewAction, thumbs, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, moreDefaultOpen = false }) {
+export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, moreDefaultOpen = false }) {
   const { busy } = useStudy();
+  const [readingOpen, setReadingOpen] = React.useState(false);
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer; a pending step is still saving.
   const needsAnswer = !run.feedback && run.mode !== "exam";
   const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
+  const exam = run.mode === "exam";
+  const last = positionOf(run).last;
   const more = [
+    { heading: true, label: ui("显示与节奏") },
+    !exam && { id: "en", label: ui("显示英文"), checked: !!enOn, disabled: !!enBusy && !enOn, hint: enBusy ? "EN…" : undefined,
+      run: onToggleEn },
+    // 自动驾驶, in plain words: the setting of 设置 › 练习 (default off), switchable here and with the A key; it only flips a setting, so a saving step does not block it.
+    !exam && onToggleAutopilot && { id: "autopilot", label: ui("自动跳下一步"), checked: !!autopilot, hint: "A",
+      attrs: { "aria-keyshortcuts": "A" }, run: onToggleAutopilot },
+    { id: "reading", label: ui("字号与版心…"), run: () => setReadingOpen(true) },
+    onThumb && { heading: true, label: ui("评价这道题") },
+    onThumb && { id: "thumb-up", label: ui("这题不错"), checked: thumbVote === "up", hint: "G", attrs: { "aria-keyshortcuts": "G" }, run: () => onThumb("up") },
+    onThumb && { id: "thumb-down", label: ui("这题有问题…"), checked: thumbVote === "down", hint: "B", attrs: { "aria-keyshortcuts": "B" }, run: () => onThumb("down") },
+    { heading: true, label: ui("这道题") },
     onToggleFocus && { id: "focus", label: run.card?.focus ? ui("取消重点标记") : ui("标为重点"), disabled: busy, run: onToggleFocus },
     { id: "note", label: ui("写笔记"), disabled: busy, run: onNote },
     onTask && { id: "task", label: ui("记待办"), disabled: busy, run: onTask },
@@ -29,26 +46,7 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
         {!run.feedback && <Button variant="quiet" className="tool-action" data-tour="review-hint" aria-expanded={!!expanded} onClick={onToggleHelp}>
           {run.revealed ? ui("讲解") : ui("提示")}
         </Button>}
-        {run.mode !== "exam" && (
-          <Button
-            variant="quiet"
-            className={"tool-action" + (enOn ? " is-active" : "")}
-            data-tour="review-en"
-            aria-pressed={!!enOn}
-            disabled={!!enBusy && !enOn}
-            title={enBusy ? ui("正在翻译成英文…") : ui("在中文题干和答案后显示英文")}
-            onClick={onToggleEn}
-          >
-            {enBusy ? "EN…" : "EN"}
-          </Button>
-        )}
-        {/* 自动驾驶: the setting of 设置 › 练习 (default off), switchable here and with the A key; it only flips a setting, so a saving step does not block it. */}
-        {run.mode !== "exam" && onToggleAutopilot && (
-          <Button variant="quiet" className={"tool-action tool-autopilot" + (autopilot ? " is-active" : "")} data-tour="review-autopilot" aria-pressed={!!autopilot} aria-keyshortcuts="A"
-            title={ui("答对后自动进入下一题，点任意处或按键可停下 · 按 A 键开关")} onClick={onToggleAutopilot}>{ui("自动驾驶")}</Button>
-        )}
         <Button variant="quiet" className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</Button>
-        <ReadingSettingsButton className="review-reading" data-tour="review-reading" />
         {thumbs}
       </div>
       {run.mode === "exam" && <p className="muted small next-due">{ui("这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。")}</p>}
@@ -64,10 +62,11 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
           aria-describedby={needsAnswer && !busy ? NEXT_HINT_ID : undefined}
           title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: 1 })}>
-          {run.index === run.total - 1 ? ui("完成") : ui("下一题")} →
+          {last ? ui("完成") : ui("下一题")} →
         </Button>
       </div>
       {needsAnswer && !busy && !run.card?.publicationUngrable && <p className="muted small next-hint" id={NEXT_HINT_ID}>{ui("请先作答，才能进入下一题")}</p>}
+      {readingOpen && <ReadingSettingsDialog onClose={() => setReadingOpen(false)} />}
     </div>
   );
 }

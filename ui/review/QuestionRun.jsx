@@ -30,6 +30,7 @@ import { formatGap } from "../format.js";
 import { resolveBookSettings } from "../../lib/book-settings.js";
 import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
+import { positionOf, roundWords } from "./round-words.js";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -130,6 +131,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const enStem = enOn ? run.card?.translation : null;
   const enAnswer = enOn && run.solution ? run.solution.translation : null;
   const [assistMode, setAssistMode] = React.useState("");
+  const thumbsRef = React.useRef(null);
+  const [thumbVote, setThumbVote] = React.useState(null);
   const [assistText, setAssistText] = React.useState("");
   const [helpChoices, setHelpChoices] = React.useState([]);
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
@@ -158,6 +161,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     Promise.resolve(call?.("review.highlights", { runId: run.id, highlights: next })).catch(() => {});
   };
   const cardNotes = data?.noteBadges?.[run.card?.id] || [];
+  // The round's own size and the re-ask, said by one function (the round model puts `position` on the run, #660).
+  const position = positionOf(run), words = roundWords(position);
   const prereqStrip = run.prerequisites?.length > 0 && !run.complete && (
     <details className="prereq-strip">
       <summary>
@@ -216,7 +221,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           <div className="question-card__head">
             <div className="question-meta">
               <span>
-                <span>{run.index + 1} / {run.total}</span>
+                <span>{words.main}</span>{words.note && <small className="question-retry-note">{words.note}</small>}
                 {run.mode !== "exam" && run.liveMastery?.before?.total > 0 && run.liveMastery?.after?.total > 0 && (() => {
                   const { before, after } = run.liveMastery, delta = after.percent - before.percent;
                   return (
@@ -260,7 +265,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 </Button>
               </div>
             </div>
-            <ProgressBar size="sm" className="card-progress" label={ui("复习进度")} value={run.index + 1} max={Math.max(1, run.total)} />
+            <ProgressBar size="sm" className="card-progress" label={ui("复习进度")} value={position.at} max={Math.max(1, position.total)} />
           </div>
           {(choice || isCloze || run.card.publicationUngrable) && prereqStrip}
           {run.card.publicationUngrable ? (
@@ -474,6 +479,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               {prereqStrip}
             </>
           )}
+          {/* What the answer did and when the question comes back: at the foot of the card, right after the explanations, where the eyes already are (#672). */}
+          {run.feedback && <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} />}
         </div>
         {/* Under the card, which stays in view when a question switch pins it to the top. */}
         {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
@@ -494,9 +501,11 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
           onToggleEn={toggleEn}
           autopilot={autopilot} onToggleAutopilot={actions.toggleAutopilot}
+          // 这题不错 / 这题有问题 are items of 更多; ThumbFeedback keeps the vote, the tag tray and the G / B keys (#671).
+          thumbVote={thumbVote} onThumb={coachProps && run.mode !== "exam" ? (vote) => thumbsRef.current?.[vote === "up" ? "up" : "down"]() : undefined}
           thumbs={coachProps && run.mode !== "exam" && (
-            <ThumbFeedback run={run} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()}
-              onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} />
+            <ThumbFeedback ref={thumbsRef} buttons={false} run={run} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()}
+              onVote={setThumbVote} onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} />
           )}
         />
         {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
@@ -582,7 +591,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         {coachProps?.autoAdvance > 0 && (
           <>
             <div className="autopilot-bar" key={run.index} style={{ "--autopilot-ms": coachProps.autoAdvance + "ms" }} />
-            <small className="autopilot-note">{ui("自动驾驶：马上进入下一题，点任意处或按键可停下")}</small>
+            <small className="autopilot-note">{ui("自动跳下一步：马上进入下一题，点任意处或按键可停下")}</small>
           </>
         )}
         {hint && !run.revealed && (
@@ -591,7 +600,6 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <Markdown text={run.card.hint} />
           </div>
         )}
-        {run.feedback && <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} />}
         <WrongAnswerSource run={run} sources={data.sources} onOpen={(source, quote) => openModal({ type: "source", source, quote, back: true })} />
         {run.solution && (explain || !!run.feedback) && (
           <ReadingBlock measure className="explanation">

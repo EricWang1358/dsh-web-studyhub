@@ -195,7 +195,7 @@ export async function runHonestQa(options) {
           const line = flat(await page.locator(".next-due").first().innerText());
           facts.feedbackLine = line;
           assert.ok(!/已掌握|Mastered/.test(line), `one correct answer is not 「已掌握」: ${line}`);
-          assert.match(line, new RegExp(t("^答对了 · 下次复习", "^Correct · next review")), line);
+          assert.match(line, new RegExp(t("^答对了 · 下次", "^Correct · see it again")), line);
           const snapshot = await call("snapshot", {}), level = snapshot.progress?.[deck.id]?.counts;
           facts.libraryCounts = level;
           assert.ok(level && level.learning >= 1 && !level.mastered, `the library calls the same question 学习中: ${JSON.stringify(level)}`);
