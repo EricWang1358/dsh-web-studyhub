@@ -40,7 +40,31 @@ export const RULES = {
     fix: 'use useHandOff() / <HandOff> from ui/hand-off/ with an id of ui/agent-prompts/index.js' },
   chatOldWording: { issue: 'hand-off S2b', why: 'an old name for the main chat in UI code (主对话 / 对话中 / 在对话里 / 发到对话 / 让对话 / AI 归并 / 对话里的 AI / 对话里出题); a hard rule (ALLOW.chatOldWording lists the rest)',
     fix: 'say 主会话 (the button is 发给主会话); English stays "the main chat"' },
+  accentFill: { issue: '#658', why: 'a background, border or inset edge painted in the accent (var(--accent), --accent-soft or --accent-glow, also inside color-mix): the accent is the primary action, progress, the card head rule and the heatmap, nothing else',
+    fix: 'selection is var(--bg-selected) plus a neutral check or edge (var(--line-strong), var(--text-muted)); "just imported", "new" and the like are a <Badge>; a focus ring keeps the accent' },
 };
+
+/* The accent fills DESIGN.md allows (the accent table: "the single primary action, the card head rule / progress, the heatmap"), by file and selector. A declaration that matches one is
+   not counted; an entry that matches nothing is stale. A focus ring (:focus*, outline) and ::selection are never counted: they are not a fill. */
+const ACCENT_FILL_ALLOW = [
+  { file: 'ui/components/components.css', selector: /\.sh-btn--primary/, why: 'the primary button' },
+  { file: 'ui/views.css', selector: /\.dash-heat-cell/, why: 'the heatmap' },
+  { file: 'ui/study-map/desk.css', selector: /\.today-card-head/, why: 'the card head rule' },
+  { file: 'ui/exam-setup.css', selector: /\.es-head\b/, why: 'the card head rule' },
+  { file: 'ui/document-preview/reader/reader.css', selector: /\.reader-progress|\.reader-assist__bar/, why: 'progress' },
+  { file: 'ui/book/book-bar.css', selector: /\.book-bar__line/, why: 'progress' },
+  { file: 'ui/coach.css', selector: /\.autopilot-bar/, why: 'progress' },
+  { file: 'ui/shell.css', selector: /\.nav-progress/, why: 'progress' },
+  { file: 'ui/focus.css', selector: /\.course-route-bar/, why: 'progress' },
+  { file: 'ui/workflows.css', selector: /\.wf-progress-mark/, why: 'progress' },
+  { file: 'ui/tasks/task-console.css', selector: /\.tc-segment|\.tc-legend i|\.tc-callbar|\.tc-cells|\.tc-steps__mark|\.tc-dot\[data-state='run'\]|\.tc-output__caret/, why: 'progress and the running call of a job' },
+  { file: 'ui/tasks/compact-card.css', selector: /\.cjc__dot\[data-state='run'\]/, why: 'progress (the running dot)' },
+];
+const ACCENT_PAINT_PROP = /^(background(-color|-image)?|border(-(top|right|bottom|left|inline|block)(-(start|end))?)?(-color)?|box-shadow)$/;
+const ACCENT_TOKEN = /var\(\s*--accent(?:-soft|-glow)?\s*[,)]/;
+/* A shadow counts only through an inset layer (an edge drawn inside the box); an outer glow is not a fill. */
+const paintsAccent = (prop, value) => (prop === 'box-shadow' ? value.split(/,(?![^(]*\))/).filter((layer) => /\binset\b/.test(layer)).join(',') : value).match(ACCENT_TOKEN) !== null;
+const accentFillAllowed =(file, selector) => ACCENT_FILL_ALLOW.find((entry) => entry.file === file && entry.selector.test(selector));
 
 /* The files that may name askInChat (the hand-off plan, section 1.2) because they WIRE the service, none of them hands anything over:
      ui/app/use-app-core.js   the one writer: askInChat -> deliverToChat (the notices, the clipboard)
@@ -206,6 +230,11 @@ function scanCssFile(file, source, metrics, found) {
       if (/^(-webkit-)?mask(-image)?$/.test(prop)) probe = probe.replace(/#000(000)?\b/g, '');
       const hits = (probe.match(/#[0-9a-fA-F]{3,8}\b/g) || []).length + (probe.match(/\b(rgba?|hsla?)\(/gi) || []).length;
       bump('rawColor', hits);
+    }
+    if (ACCENT_PAINT_PROP.test(prop) && paintsAccent(prop, value) && !/:focus|::selection/.test(selector)) {
+      const allowed = accentFillAllowed(file, selector);
+      if (allowed) (found.accentAllowed ||= new Set()).add(allowed);
+      else bump('accentFill');
     }
     if (prop === 'content' && CJK.test(value)) {
       const selector = decl.ctx[decl.ctx.length - 1] || '';
@@ -376,6 +405,7 @@ export function scanUi(root = ROOT) {
     ...ALLOW.cjkContent.filter((a) => !found.cjk.some((hit) => hit.file === a.file && hit.selector.includes(a.selector))).map((a) => `cjkContent ${a.file} ${a.selector} (${a.issue})`),
     ...ALLOW.undefinedVars.filter((a) => found.defined.has(a.name) || !usedNames.has(a.name)).map((a) => `undefinedVars ${a.name}`),
     ...(root === ROOT ? staleChat : []),
+    ...(root === ROOT ? ACCENT_FILL_ALLOW.filter((entry) => !found.accentAllowed?.has(entry)).map((entry) => `accentFill ${entry.file} ${entry.selector} (${entry.why})`) : []),
   ];
   return { metrics, duplicateKeyframes, cjkContent, dialogCalls, undefinedVars, staleAllow };
 }

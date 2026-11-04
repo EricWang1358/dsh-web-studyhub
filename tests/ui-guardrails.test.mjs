@@ -154,6 +154,11 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
       '.i { border-radius: var(--radius-card); } .j { border-radius: 0 0 var(--radius-card) var(--radius-card); }',
       '.e button, .e > label small { position: relative; }', '.f .sh-btn, .g [type="checkbox"], .h:not(button) { position: relative; }',
       '.inline-check { color: inherit; }',
+      // Accent as a fill (#658): three counted (a tinted background, a left rule, an inset edge). A focus ring, the accent as text or ink, the primary button and a rule in another token are not.
+      '.n { background: color-mix(in srgb, var(--accent) 10%, transparent); border-left: 3px solid var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }',
+      '.o:focus-visible { outline: 2px solid var(--accent-soft); border-color: var(--accent-soft); } .p { color: var(--accent-text); background: var(--accent-ink); }',
+      '.t { --accent: 1; --accent-soft: 1; --accent-text: 1; --accent-ink: 1; --accent-glow: 1; --bg-selected: 1; --line-strong: 1; }',
+      '.q { background: var(--bg-selected); box-shadow: inset 2px 0 0 var(--line-strong), 0 0 0 3px var(--accent-glow); }',
       '@keyframes spin { to { opacity: 1 } }', '',
     ].join('\r\n'));
     writeFileSync(join(root, 'ui', 'other.css'), '@keyframes spin { to { opacity: 0 } }\n@media (prefers-reduced-motion: reduce) { .x { animation: none !important } }\n');
@@ -185,7 +190,7 @@ test('a synthetic tree trips every rule (the guard rails can fail)', () => {
     assert.deepEqual(Object.fromEntries(Object.keys(RULES).map((rule) => [rule, total(rule)])), {
       rawButton: 3, legacyButtonClass: 3, glyphIcon: 2, fontSizePx: 2, fontWeightNumeric: 2, radiusPx: 1, radius999: 1,
       zIndexNumeric: 1, important: 1, rawColor: 2, spacingPx: 1, longLine: 0, serviceHandoff: 2, elementSelector: 1, rawChoiceInput: 2, radiusCard: 2, busyLabelSwap: 1, bareBusyDisabled: 3, hostTitle: 1, chatHandOff: 1, chatOldWording: 2,
-      handSwitch: 1, legacySwitchClass: 2,
+      handSwitch: 1, legacySwitchClass: 2, accentFill: 3,
     });
     assert.deepEqual(found.duplicateKeyframes.map((k) => k.name), ['spin']);
     assert.equal(found.cjkContent.length, 1);
