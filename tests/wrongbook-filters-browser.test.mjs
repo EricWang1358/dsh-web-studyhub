@@ -4,14 +4,15 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Store } from '../lib/store.js';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, openPage, seedWrongBookLibrary, settleAnimations, startLateServer, until } from '../scripts/qa/layout-late.mjs';
 
 /* 3.0.2: the mistakes page in a real browser, at a desktop and a phone width. It opens grouped by deck with every group folded; one click
-   narrows it to one deck; the generate button says how many questions it will act on; a refresh moves nothing and closes nothing; and nothing
-   scrolls sideways. 48 mistakes in the course the page opens on, over two decks of 24 (scripts/qa/layout-late.mjs). */
+   narrows it to one deck; the generate button says how many questions it will act on; the page has no refresh button and keeps itself up to date
+   (a quiet check moves nothing and closes nothing, a mistake corrected elsewhere is gone without a click, #675); and nothing scrolls sideways. 48 mistakes in the course the page opens on, over two decks of 24 (scripts/qa/layout-late.mjs); the second width starts with one of them corrected by the first. */
 
 const readState = (page) => page.evaluate(() => {
   const text = (element) => element?.textContent.replace(/\s+/g, ' ').trim() ?? '';
@@ -37,9 +38,12 @@ test('mistakes page: folded by deck, one-click deck filter, honest generate butt
   const dist = await mkdtemp(join(tmpdir(), 'study-wb-filters-dist-'));
   await buildPreview({ outdir: dist });
   const running = await startLateServer({ distDir: dist, seed: (root) => seedWrongBookLibrary(root, { wrong: 72 }) });
+  const store = new Store(join(running.base, 'library'));
   try {
-    for (const width of [1280, 420]) {
+    for (const [round, width] of [1280, 420].entries()) {
       const { page, errors, context } = await openPage(browser, running, { width });
+      // The first width corrects one mistake of the deck that gets narrowed to (step 6), so the second starts with one fewer.
+      const all = 48 - round, deck = 24 - round;
       let reads = 0;
       page.on('request', (request) => { if (request.url().includes('/api/call') && /"action":"wrongbook"/.test(request.postData() || '')) reads++; });
       await page.goto(running.server.url);
@@ -57,7 +61,7 @@ test('mistakes page: folded by deck, one-click deck filter, honest generate butt
       assert.equal(first.heads.length, 2, `${width}px: one header per deck that has mistakes`);
       assert.ok(first.heads.every((head) => !head.open), `${width}px: every group folded`);
       assert.equal(first.groupBy, '按题组');
-      assert.match(first.result, /显示 48 \/ 共 48 题/);
+      assert.match(first.result, new RegExp(`显示 ${all} / 共 ${all} 题`));
       assert.equal(first.scrollsSideways, false, `${width}px: no sideways scroll (${first.wide.join(', ')})`);
       assert.equal(await page.locator('.wb-group-actions').first().isVisible(), true, `${width}px: the group action is on the header`);
       await page.screenshot({ path: join(running.base, `folded-${width}.png`) });
@@ -69,26 +73,27 @@ test('mistakes page: folded by deck, one-click deck filter, honest generate butt
       await until(async () => (await readState(page)).heads.length === 1, 'the list to narrow to one deck');
       await frames(page, 4);
       const narrowed = await readState(page);
-      assert.match(narrowed.result, /显示 24 \/ 共 48 题/);
+      assert.match(narrowed.result, new RegExp(`显示 ${deck} / 共 ${all} 题`));
       assert.deepEqual(narrowed.heads.map((head) => head.open), [true], `${width}px: the deck the learner asked for is open`);
-      assert.equal(narrowed.rows, 24);
-      if (hasBatch) assert.match(narrowed.batch, /为当前筛选的 24 题生成变式/);
+      assert.equal(narrowed.rows, deck);
+      if (hasBatch) assert.match(narrowed.batch, new RegExp(`为当前筛选的 ${deck} 题生成变式`));
       assert.equal(narrowed.scrollsSideways, false, `${width}px: no sideways scroll when open (${narrowed.wide.join(', ')})`);
       await page.screenshot({ path: join(running.base, `narrowed-${width}.png`) });
 
-      // 3. A refresh moves nothing, closes nothing, forgets no filter.
+      // 3. No refresh button. The page asks by itself (here nudged by the tab coming back); asking moves nothing, closes nothing, forgets no filter.
+      assert.equal(await page.getByRole('button', { name: '刷新' }).count(), 0, `${width}px: no refresh button`);
       await drainLayoutStability(page);
       const before = reads;
-      await page.getByRole('button', { name: '刷新' }).first().dispatchEvent('click');
-      await until(() => reads > before, 'the page to read the mistakes again');
+      await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+      await until(() => reads > before, 'the page to check the mistakes again by itself');
       await frames(page, 10);
       await settleAnimations(page);
       const log = await drainLayoutStability(page);
       const verdict = judgeLayoutStability(log);
       const again = await readState(page);
       assert.deepEqual(again.heads, narrowed.heads, `${width}px: the open group stays open`);
-      assert.equal(again.rows, 24);
-      assert.match(again.result, /显示 24 \/ 共 48 题/, 'the filter survives the refresh');
+      assert.equal(again.rows, deck);
+      assert.match(again.result, new RegExp(`显示 ${deck} / 共 ${all} 题`), 'the filter survives the refresh');
       assert.ok(Math.abs(again.filterBox.y - narrowed.filterBox.y) <= 1 && Math.abs(again.headBox.y - narrowed.headBox.y) <= 1, `${width}px: the list moved on refresh`);
       assert.ok(verdict.cls <= 0.05, `${width}px: CLS ${verdict.cls}`);
       assert.equal(verdict.rowResizes, 0);
@@ -98,7 +103,7 @@ test('mistakes page: folded by deck, one-click deck filter, honest generate butt
       await until(async () => (await readState(page)).heads.length === 2, 'the filter to clear');
       const cleared = await readState(page);
       assert.equal(cleared.heads.filter((head) => head.open).length, 1);
-      assert.match(cleared.result, /显示 48 \/ 共 48 题/);
+      assert.match(cleared.result, new RegExp(`显示 ${all} / 共 ${all} 题`));
 
       // Coming back from another page (or from practice) keeps the group open for this tab; the filter starts clean.
       await page.locator('[data-tour="nav-library"]').first().dispatchEvent('click');
@@ -115,6 +120,18 @@ test('mistakes page: folded by deck, one-click deck filter, honest generate butt
       assert.match(await page.locator('.wb-filter-empty').innerText(), /没有符合筛选的错题/);
       await page.getByRole('button', { name: '清除筛选' }).last().dispatchEvent('click');
       await until(async () => (await readState(page)).heads.length === 2, 'the filter to clear again');
+
+      // 6. A mistake corrected somewhere else leaves the list without a click: the quiet check sees the new count and reads the list again.
+      const total = Number((await readState(page)).result.match(/共 (\d+) 题/)[1]);
+      await store.update((library) => {
+        const deck = library.decks[0], card = deck.cards[round];
+        library.attempts.push({ id: `fixed-${round}`, runId: library.runs[0].id, quiz_id: card.id, deckId: deck.id, topic: card.topic,
+          timestamp: new Date(Date.UTC(2026, 9, 1) + round * 60_000).toISOString(), grade: 4, elapsed_ms: 3000,
+          before: { repetitions: 0, interval_days: 0, ease_factor: 2.5, due_at: null }, after: { repetitions: 1, interval_days: 1, ease_factor: 2.5, due_at: null } });
+      });
+      await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+      await until(async () => new RegExp(`共 ${total - 1} 题`).test((await readState(page)).result), 'the corrected mistake to leave the list by itself', { timeoutMs: 60000 });
+      assert.equal((await readState(page)).heads.filter((head) => head.open).length, 1, `${width}px: the open group stays open`);
 
       assert.deepEqual(errors, []);
       await context.close();
