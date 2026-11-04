@@ -1,5 +1,5 @@
 /* 复习全书 page (ui/book/): what the page keeps between visits and how it reads course.book.open's tree. Pure, no React, no DOM. */
-import { ui } from '../i18n.js';
+import { ui, uiFormat } from '../i18n.js';
 import { browserStorage, readJSON, writeJSON } from '../storage.js';
 import { bookIndex, stitchBook } from '../../lib/course-book-links.js';
 import { daysUntilExam } from '../../lib/courses.js';
@@ -106,6 +106,13 @@ export function defaultFile(book, here) {
   const files = bookFiles(book), row = files.find(item => item.row?.hid === here);
   return (row ? files.find(item => item.row === row.row && item.kind === 'mine') : files.find(item => item.kind === 'mine'))?.file ?? files[0]?.file ?? null;
 }
+/** Combobox options for every file of the book in reading order (shared by BookEditor and HistoryDialog). */
+export const fileOptionsOf = book => bookFiles(book).map(item => ({
+  value: item.file,
+  label: item.kind === 'unplaced'
+    ? book.unplaced.title
+    : uiFormat(item.kind === 'gen' ? '{0} {1} · 讲解（生成）' : item.kind === 'qa' ? '{0} {1} · 问答' : '{0} {1} · 我的笔记', [item.row.number, item.row.title]),
+}));
 
 /** The 出处 of a file by footnote number: `[^n]: [「quote」](studyhub://source/<id>)` -> Map<n, { sourceId, quote }>. */
 export function citesOf(text) {

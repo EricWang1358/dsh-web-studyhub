@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Dialog, InlineConfirm, LoadingState } from '../components/index.js';
 import BookFlip from './BookFlip.jsx';
+import BookHistory from './BookHistory.jsx';
 import BookLookup from './BookLookup.jsx';
 import CrunchDay from './CrunchDay.jsx';
 import MockPaper from './MockPaper.jsx';
 import { AiFoldContext } from './ai-fold.js';
+import { fileOptionsOf } from './model.js';
 import { bookLookup } from '../../lib/course-book-lookup.js';
 import { deferredView } from '../deferred-view.jsx';
 
@@ -84,6 +86,24 @@ export function LookupDialog({ book, onGo, onClose }) {
   return (
     <Dialog title={ui('速查页')} size="lg" className="book-lookup-dialog" onClose={onClose}>
       {lookup && <BookLookup lookup={lookup} toc={false} onGo={hid => { onClose(); onGo(hid); }} />}
+    </Dialog>
+  );
+}
+
+/** 版本历史 in a dialog from 「⋯ 更多」 (#489): inspects any file's versions + diff and the book's structure history without opening CodeMirror. */
+export function HistoryDialog({ book, step, onChanged, onClose }) {
+  const options = useMemo(() => fileOptionsOf(book), [book]);
+  const initial = () => {
+    const stepMine = step?.hid === 'unplaced' ? book.unplaced.file : step?.node?.files?.mine;
+    if (stepMine && book.history?.[stepMine]) return stepMine;
+    const withHistory = options.find(opt => book.history?.[opt.value]);
+    return withHistory?.value ?? stepMine ?? options[0]?.value ?? '';
+  };
+  const [file, setFile] = useState(initial);
+  const currentFile = file && book.files[file] ? file : (options[0]?.value ?? '');
+  return (
+    <Dialog title={ui('版本历史')} size="lg" className="book-history-dialog" onClose={onClose}>
+      <BookHistory course={book.course} book={book} file={currentFile} fileOptions={options} onPickFile={setFile} onRestored={onChanged} />
     </Dialog>
   );
 }

@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
-import { ui, uiFormat, errorMessage } from '../i18n.js';
+import { ui, errorMessage } from '../i18n.js';
 import { Badge, Button, Combobox, InlineMessage } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
-import { bookFiles, fileText } from './model.js';
+import { fileOptionsOf, fileText } from './model.js';
 import { forgetUnsaved, keepUnsaved, readUnsaved } from './unsaved-draft.js';
+import BookHistory from './BookHistory.jsx';
 
 /* 原文 of the review book (docs/plans/review-book.md M2): the raw Markdown of ONE file in the CodeMirror Markdown editor (the one ui/BlogNotes.jsx uses), any
    file: a point's generated file (editing it forks it: the program then offers its new texts instead of writing over yours) or your own file, or 未归位.
    保存 is compare-and-set on the version the edit started from (course.book.save); when the book changed meanwhile your text is kept and the other one
-   is offered (书已更新). 回退到上一版 takes the file's previous version back. Typing touches only this editor, never the rendered book. */
+   is offered (书已更新). 回退到上一版 takes the file's previous version back; 版本历史 opens the read-only version & diff panel (#489). Typing touches only this editor, never the rendered book. */
 
 // Long lines wrap: the page never scrolls sideways, at 420 px either.
 const extensions = [markdown(), EditorView.lineWrapping];
@@ -25,6 +26,7 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, the
   const [saving, setSaving] = useState(false);
   const [reverting, setReverting] = useState(false);
   const [merged, setMerged] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const working = saving || reverting;
   const base = useRef({ file, version: meta.version, text: fileText(book, file) });
   // Text left unsaved last time with no question possible: offered back, never put in by itself. Text that is what the file holds now needs no offer.
@@ -48,8 +50,7 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, the
     setMerged(false);
     setRescue(rescueOf(file));
   }, [file]); // eslint-disable-line react-hooks/exhaustive-deps
-  const options = useMemo(() => bookFiles(book).map(item => ({ value: item.file,
-    label: item.kind === 'unplaced' ? book.unplaced.title : uiFormat(item.kind === 'gen' ? '{0} {1} · 讲解（生成）' : item.kind === 'qa' ? '{0} {1} · 问答' : '{0} {1} · 我的笔记', [item.row.number, item.row.title]) })), [book]);
+  const options = useMemo(() => fileOptionsOf(book), [book]);
   const dirty = draft !== base.current.text;
   useEffect(() => { onDirty?.(dirty); }, [dirty]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onDirty?.(false), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -84,11 +85,14 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, the
         <Button size="sm" variant="primary" icon="check" disabled={!dirty} busy={saving} lock={reverting} onClick={save} className="book-editor__save">{ui('保存')}</Button>
         <Button size="sm" variant="quiet" disabled={!dirty} lock={working} onClick={() => setDraft(base.current.text)}>{ui('放弃改动')}</Button>
         <Button size="sm" variant="quiet" icon="refresh" disabled={!book.history?.[file] || dirty} busy={reverting} lock={saving} onClick={revert} className="book-editor__revert">{ui('回退到上一版')}</Button>
+        <Button size="sm" variant={historyOpen ? 'secondary' : 'quiet'} icon="clock" aria-expanded={historyOpen} lock={working}
+          onClick={() => setHistoryOpen(value => !value)} className="book-editor__history-toggle">{ui('版本历史')}</Button>
       </div>
       {file.endsWith('.gen.md') && !book.files[file]?.forked && <p className="book-editor__note">{ui('这是程序生成的讲解。改了之后它就归你：以后重新生成时，新内容只作为建议给你，不会覆盖。')}</p>}
       {rescue && <InlineMessage tone="warning" data-book-rescue="" action={{ label: ui('恢复这些改动'), onClick: restore }} secondary={{ label: ui('不要了'), onClick: closeRescue }}>
         {ui('上次离开时这份文件还有没保存的改动，当时没来得及问你。')}</InlineMessage>}
       {merged && <InlineMessage tone="info">{ui('书已更新：你的改动已保存，另一边的内容放在了建议里，可以在预览里采用或忽略。')}</InlineMessage>}
+      {historyOpen && <BookHistory course={book.course} book={book} file={file} dirty={dirty} locked={working} onRestored={next => { settle(next); setMerged(false); }} />}
       <CodeMirror className="book-editor__code" value={draft} height="60vh" theme={theme === 'light' ? 'light' : 'dark'} extensions={extensions} onChange={setDraft}
         basicSetup={{ lineNumbers: false, foldGutter: false }} />
     </section>

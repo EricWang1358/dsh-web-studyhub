@@ -59,9 +59,11 @@ test('更多 on 未归位: only 编辑这个知识点… in its group (no code t
 });
 
 test('更多 in English: every item has its words', () => {
+  assert.equal(item(ui.moreItems({}), 'history'), undefined, 'no history yet: no 版本历史… item');
+  assert.equal(item(ui.moreItems({ history: true }), 'history').label, '版本历史…');
   ui.setUiLanguage('en');
   try {
-    const items = ui.moreItems({ pointFold: { folded: false }, bookFold: { folded: false }, today: true, dateHint: { kind: 'none' }, settings: true, pages: 3 });
+    const items = ui.moreItems({ pointFold: { folded: false }, bookFold: { folded: false }, history: true, today: true, dateHint: { kind: 'none' }, settings: true, pages: 3 });
     for (const entry of items) assert.doesNotMatch(`${entry.label} ${entry.hint ?? ''}`, /[㐀-鿿]/, `${entry.id ?? entry.label} in English`);
   } finally { ui.setUiLanguage('zh'); }
 });
