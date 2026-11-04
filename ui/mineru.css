@@ -18,7 +18,7 @@
     .mineru-file span { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     .mineru-reading { display: grid; gap: var(--space-1); }
     .mineru-plan { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm);
-      background: color-mix(in srgb, var(--accent) 7%, transparent); }
+      background: var(--bg-sunken); }
     .mineru-plan__line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; }
     .mineru-plan__line strong { color: var(--text); font-size: var(--fs-md, var(--fs-sm)); }
     .mineru-plan__line span { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
@@ -111,7 +111,7 @@
     .pdf-chunks__summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     /* The window in progress (adaptive local plan): which pages and for how long, what the service says about it, and why a scan can take minutes. */
     .pdf-live { display: grid; justify-items: start; gap: var(--space-1); min-width: 0; max-width: 100%; margin-top: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
-      background: color-mix(in srgb, var(--accent) 6%, transparent); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+      background: var(--bg-sunken); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .pdf-live p, .pdf-live small { max-width: 100%; margin: 0; overflow-wrap: anywhere; }
     .pdf-live__window { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-half) var(--space-2); color: var(--text); font-variant-numeric: tabular-nums; }
     .pdf-live__window span { color: var(--text-dim); }

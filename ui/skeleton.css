@@ -300,7 +300,7 @@
     }
     .sk-overview {
       padding: var(--space-3) var(--space-3-5);
-      border-left: 3px solid var(--accent);
+      border-left: 3px solid var(--line-strong);
       border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
       background: var(--bg-sunken);
     }
@@ -546,7 +546,7 @@
     .skc-class-name {
       padding: var(--space-2) var(--space-2-5);
       border-bottom: 1px solid var(--line);
-      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      background: var(--bg-sunken);
       border-radius: var(--radius-sm) var(--radius-sm) 0 0;
       font-weight: var(--fw-strong);
       font-size: var(--fs-sm);
@@ -579,8 +579,8 @@
       right: -8px;
       padding: 0 var(--space-1-5);
       border-radius: var(--radius-pill);
-      background: var(--accent);
-      color: var(--accent-ink);
+      background: var(--text-muted);
+      color: var(--bg-canvas);
       font-size: var(--fs-xs);
       line-height: 17px;
     }
@@ -874,7 +874,7 @@
     .skc-focus-note {
       padding: var(--space-half) var(--space-2-5);
       border-radius: var(--radius-pill);
-      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      background: var(--bg-sunken);
       color: var(--accent-soft);
       font-size: var(--fs-xs);
       white-space: nowrap;

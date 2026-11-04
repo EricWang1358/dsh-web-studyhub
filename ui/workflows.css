@@ -174,7 +174,7 @@
     .wf-prose p { margin-block: 1em; }
     .wf-prose :is(ul, ol) { padding-left: 1.5em; }
     .wf-prose li { margin-block: .45em; }
-    .wf-prose blockquote { margin: var(--space-6) 0; padding: var(--space-1) 0 var(--space-1) var(--space-5); border-left: 3px solid var(--accent-soft); color: var(--text-dim); }
+    .wf-prose blockquote { margin: var(--space-6) 0; padding: var(--space-1) 0 var(--space-1) var(--space-5); border-left: 3px solid var(--line-strong); color: var(--text-dim); }
     .wf-prose pre { max-width: 100%; overflow-x: auto; padding: var(--space-4); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: var(--fs-md); line-height: 1.7; }
     .wf-prose :not(pre) > code { background: var(--bg-sunken); border-radius: var(--radius-xs); padding: var(--space-half) var(--space-1); font-size: max(var(--fs-md), .9em); }
     .wf-prose table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin-block: var(--space-5-5); font-size: var(--fs-md); }
@@ -192,7 +192,7 @@
     .wf-help-row > span { font-size: var(--fs-md); color: var(--text-dim); }
     .wf-quick-choices { display: flex; flex-wrap: wrap; gap: var(--space-2); }
     .workflow-page .wf-quick-choices .wf-choice-btn { padding: var(--space-2) var(--space-3); border-radius: var(--radius-pill); font-size: var(--fs-md); line-height: 1.5; }
-    .wf-quick-choices .wf-choice-btn[aria-pressed="true"] { background: var(--bg-selected); border-color: var(--accent-soft); color: var(--text); }
+    .wf-quick-choices .wf-choice-btn[aria-pressed="true"] { background: var(--bg-selected); border-color: var(--line-strong); color: var(--text); }
     .wf-improve { margin-top: var(--space-4); }
     .wf-improve > summary, .wf-teaching-custom > summary { cursor: pointer; font-size: var(--fs-md); color: var(--text-muted); line-height: 1.8; }
     .workflow-page .wf-undo { margin-top: var(--space-3); font-size: var(--fs-md); }
@@ -279,7 +279,7 @@
     .wf-quick-hint { max-width: 680px; margin: var(--space-3-5) 0 0; padding: var(--space-2-5) var(--space-3-5); border-left: 3px solid var(--warn); background: var(--bg-surface); font-size: var(--fs-md); line-height: 1.7; }
     .wf-quick-resume { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: var(--space-4) 0 0; font-size: var(--fs-md); }
     .wf-quick-status { display: flex; align-items: center; margin: var(--space-3-5) 0 0; font-size: var(--fs-md); color: var(--text-dim); }
-    .wf-remedy { margin: var(--space-1) 0 var(--space-7-less); padding: var(--space-4) 0 var(--space-1-5) var(--space-5); border-left: 3px solid var(--accent); }
+    .wf-remedy { margin: var(--space-1) 0 var(--space-7-less); padding: var(--space-4) 0 var(--space-1-5) var(--space-5); border-left: 3px solid var(--line-strong); }
     .wf-remedy .wf-eyebrow { margin: 0 0 var(--space-2); color: var(--accent); }
     .wf-remedy-gaps { margin: 0 0 var(--space-3-5); padding-left: 1.2em; font-size: var(--fs-md); line-height: 1.7; color: var(--text); }
     .wf-remedy-status { display: flex; align-items: center; margin: var(--space-1-5) 0 var(--space-3); font-size: var(--fs-md); color: var(--text-dim); }

@@ -220,9 +220,9 @@
       font-weight: var(--fw-strong);
     }
     .option--selected .option-letter {
-      background: var(--accent);
+      background: var(--text);
       box-shadow: none;
-      color: var(--accent-ink);
+      color: var(--bg-canvas);
     }
     .option.correct .option-letter {
       background: var(--ok);
@@ -241,7 +241,7 @@
       background: var(--bg-hover);
     }
     .option--selected {
-      background: color-mix(in srgb, var(--accent) 7%, transparent);
+      background: var(--bg-selected);
     }
     /* After answering, each option's verdict and explanation grow open from zero
        height, staggered down the list, so the card lengthens smoothly. */
@@ -373,7 +373,7 @@
     .en-block {
       margin-top: var(--space-2-5);
       padding: var(--space-2) var(--space-3);
-      border-left: 3px solid var(--accent-glow);
+      border-left: 3px solid var(--line-strong);
       border-radius: 0 var(--radius) var(--radius) 0;
       background: var(--bg-sunken);
       color: var(--text-dim);
@@ -541,8 +541,8 @@
     .teaching-feedback {
       margin: 0 0 var(--space-3-5);
       padding: var(--space-3) var(--space-3-5);
-      background: color-mix(in srgb, var(--accent) 8%, transparent);
-      border-left: 2px solid var(--accent-soft);
+      background: var(--bg-sunken);
+      border-left: 2px solid var(--line-strong);
       border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
       color: var(--text);
       font-size: var(--fs-md);
@@ -675,7 +675,7 @@
       margin: 0 var(--space-3) var(--space-4-5);
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
+      background: var(--bg-sunken);
       font-size: var(--fs-md);
     }
     .flash-area .prereq-strip {

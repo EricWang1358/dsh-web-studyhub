@@ -688,7 +688,7 @@
     }
     .book-flip__mistakes li {
       padding: var(--space-1) var(--space-2);
-      border-left: 2px solid var(--accent);
+      border-left: 2px solid var(--line-strong);
       background: var(--bg-sunken);
       border-radius: var(--radius-sm);
     }

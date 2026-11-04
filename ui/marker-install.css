@@ -46,7 +46,7 @@
     .marker-install__stages li[data-state="failed"] { color: var(--bad-ink, var(--bad)); font-weight: var(--fw-strong); }
     .marker-install__mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: var(--radius-pill); border: 1px solid var(--line-strong); box-sizing: border-box; }
     .marker-install__stages li[data-state="done"] .marker-install__mark, .marker-install__stages li[data-state="failed"] .marker-install__mark { border-color: transparent; }
-    .marker-install__stages li[data-state="active"] .marker-install__mark { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, transparent); }
+    .marker-install__stages li[data-state="active"] .marker-install__mark { border-color: var(--line-strong); background: var(--bg-sunken); }
   }
   @container study (max-width: 480px) {
     :is(.study-app, .study-seat) {

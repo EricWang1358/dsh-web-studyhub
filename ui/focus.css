@@ -29,7 +29,7 @@
     .course-route-bar > .course-route-stop.is-current { box-shadow: 0 0 0 1px var(--accent-soft); }
   }
   :where(.study-app, .study-seat) {
-    .group-reminder { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4-5); margin: 0 0 var(--space-4-5); padding: var(--space-2-5) 0 var(--space-2-5) var(--space-3-5); border-left: 3px solid var(--accent); font-size: var(--fs-md); line-height: 1.6; color: var(--text-dim); }
+    .group-reminder { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4-5); margin: 0 0 var(--space-4-5); padding: var(--space-2-5) 0 var(--space-2-5) var(--space-3-5); border-left: 3px solid var(--line-strong); font-size: var(--fs-md); line-height: 1.6; color: var(--text-dim); }
     .group-reminder-actions { display: inline-flex; align-items: center; gap: var(--space-3-5); }
     .merge-suggestions { margin: 0 0 var(--space-4-5); padding: var(--space-3-5) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .merge-suggestions-head, .merge-suggestion { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }

@@ -14,7 +14,7 @@
     .setup-card {
       padding: var(--space-4) var(--space-5) var(--space-3);
       border: 1px solid var(--line);
-      border-left: 3px solid var(--accent);
+      border-left: 3px solid var(--line-strong);
       border-radius: var(--radius);
       background: var(--bg-surface);
     }

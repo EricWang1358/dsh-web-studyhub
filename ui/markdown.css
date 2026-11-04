@@ -128,7 +128,7 @@
     .md blockquote {
       margin: 0.4em 0 0.9em;
       padding: var(--space-half) 0 var(--space-half) var(--space-3);
-      border-left: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+      border-left: 3px solid var(--line-strong);
       color: var(--text-dim);
     }
     .md .md-heading {
@@ -157,9 +157,9 @@
       display: inline-flex;
       margin: 0;
       padding: 0 var(--space-1);
-      border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+      border: 1px solid var(--line-strong);
       border-radius: var(--radius-sm);
-      background: color-mix(in srgb, var(--accent) 10%, transparent);
+      background: var(--bg-sunken);
       color: inherit;
       font: inherit;
       line-height: inherit;
@@ -167,7 +167,7 @@
       cursor: pointer;
     }
     .md .md-term:hover {
-      background: color-mix(in srgb, var(--accent) 18%, transparent);
+      background: var(--bg-hover);
     }
     .md .md-term--asked {
       border-style: dashed;

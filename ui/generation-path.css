@@ -25,7 +25,7 @@
     .gen-path__optional { margin: 0; }
     .gen-path__optional .gen-path__steps { margin-top: var(--space-2); }
     /* One block for a selection that is too big (创建题组): the way in is a choice, and the chosen panel sits in the block without a second card around it. */
-    .too-big { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); box-sizing: border-box; max-width: 100%; min-width: 0; margin-top: var(--space-4); padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--radius); background: var(--bg-surface); }
+    .too-big { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); box-sizing: border-box; max-width: 100%; min-width: 0; margin-top: var(--space-4); padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-left: 3px solid var(--line-strong); border-radius: var(--radius); background: var(--bg-surface); }
     .too-big__head { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; }
     .too-big__icon { flex: 0 0 auto; margin-top: var(--space-1); color: var(--accent-text); }
     .too-big__head .too-big__info-anchor { margin-inline-start: auto; }

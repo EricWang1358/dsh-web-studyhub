@@ -22,7 +22,7 @@
     .daily-recap-meta { margin: var(--space-2) 0 var(--space-3-5); color: var(--text-muted); font-size: var(--fs-sm); }
     .daily-recap-hint, .daily-recap-threshold p { margin: var(--space-2-5) 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.7; }
     .daily-recap-bar { width: min(100%, 280px); background: var(--line); box-shadow: none; }
-    .daily-recap-preview { margin: var(--space-4) 0; padding: 0 0 0 var(--space-3-5); border-left: 2px solid var(--accent); }
+    .daily-recap-preview { margin: var(--space-4) 0; padding: 0 0 0 var(--space-3-5); border-left: 2px solid var(--line-strong); }
     .daily-recap-preview small { color: var(--text-muted); font-size: var(--fs-xs); }
     .daily-recap-preview p { margin: var(--space-1-5) 0 0; max-width: 65ch; font-size: var(--fs-md); line-height: 1.8; overflow-wrap: anywhere; }
     .daily-recap-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--recap-gap); margin-top: var(--space-4-5); }

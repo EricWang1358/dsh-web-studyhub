@@ -18,7 +18,7 @@
     }
     .note-list > .note-list-item:hover:not(:disabled) { border-color: var(--line-strong); background: var(--bg-hover); }
     .note-list small { color: var(--text-muted); font-size: var(--fs-xs); }
-    .note-list > .note-daily-item { border-left: 3px solid var(--accent); }
+    .note-list > .note-daily-item { border-left: 3px solid var(--line-strong); }
     .note-daily-date { display: block; margin-top: var(--space-1); }
     .note-heading { align-items: flex-start; gap: var(--space-5); flex-wrap: wrap; }
     .note-daily-meta { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.7; margin: 0; }

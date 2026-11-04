@@ -19,7 +19,7 @@
     .selection-job--done { border-color: var(--ok-line); }
     .selection-job--partial,
     .selection-job--conflict { border-color: var(--warn-line); }
-    .selection-job--failed { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+    .selection-job--failed { border-color: var(--bad-line); }
     .selection-job__head { display: flex; align-items: flex-start; gap: var(--space-2); min-width: 0; }
     .selection-job__mark { display: inline-flex; flex: none; justify-content: center; width: 20px; padding-top: var(--space-half); }
     .selection-job__title { min-width: 0; overflow-wrap: anywhere; font-size: var(--fs-md); line-height: var(--lh-snug, 1.35); }
@@ -118,7 +118,7 @@
   .study-page-presets__actions { display: flex; flex: none; flex-wrap: wrap; gap: var(--space-1); }
   .study-page-presets__form { display: grid; gap: var(--space-3); }
   .study-document-learning blockquote {
-    border-left: 3px solid var(--accent);
+    border-left: 3px solid var(--line-strong);
     padding: .5rem;
     margin: .2rem 0 1rem;
     white-space: pre-wrap;
