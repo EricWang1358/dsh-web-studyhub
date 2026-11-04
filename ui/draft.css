@@ -216,7 +216,7 @@
         justify-content: flex-end;
         gap: var(--space-1-5);
       }
-      .draft-page .sticky-actions__buttons > .sh-btn {
+      .draft-page .sticky-actions__buttons > .draft-bar__button {
         flex: 1 1 auto;
         min-width: 0;
         padding-inline: var(--space-2);

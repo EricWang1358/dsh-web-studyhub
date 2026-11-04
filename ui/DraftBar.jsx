@@ -14,8 +14,8 @@ export default function DraftBar({ status, unsaved = false, publishLabel, saveDi
       <div className="sticky-actions__buttons">
         <Menu className="sticky-actions__more" label={ui('更多')} defaultOpen={defaultMenuOpen} data-draft-more data-tour="draft-more" onSelect={onDelete}
           items={[{ id: 'delete', label: ui('删除草稿'), danger: true, disabled: deleteDisabled, attrs: { 'data-draft-delete': '' } }]} />
-        <Button disabled={saveDisabled} lock={busy} onClick={onSave}>{ui('保存并校验')}</Button>
-        <Button variant="primary" disabled={publishDisabled} lock={busy} title={publishTitle} aria-describedby={describedBy} onClick={onPublish}>{publishLabel}</Button>
+        <Button className="draft-bar__button" disabled={saveDisabled} lock={busy} onClick={onSave}>{ui('保存并校验')}</Button>
+        <Button className="draft-bar__button" variant="primary" disabled={publishDisabled} lock={busy} title={publishTitle} aria-describedby={describedBy} onClick={onPublish}>{publishLabel}</Button>
       </div>
     </div>
   );
