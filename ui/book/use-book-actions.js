@@ -15,9 +15,10 @@ import { bookStartedText, readMoreStartedText } from '../outline/words.js';
    point reads, and the book's structure (改名 / 移动到… / 删除这个知识点…, one compare-and-set write each; ui/book/BookStructure.jsx). The AI tasks and
    deletions they start are ui/book/use-book-ai.js. */
 
-/** 生成复习全书 on a course without a book: act() asked to rethrow says nothing itself (ui/act-runner.js), so a refused start is said here. */
-export async function startBookBuild({ act, course, notify }) {
-  try { await act('generation.courseBook.build', { course }, result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true }); }
+/** 生成复习全书 on a course without a book (or, with `extra` { sample: 'confirm' }, the rest of a waiting sample, #710): act() asked to rethrow says nothing itself
+    (ui/act-runner.js), so a refused start is said here. */
+export async function startBookBuild({ act, course, notify, extra = {} }) {
+  try { await act('generation.courseBook.build', { course, ...extra }, result => notify({ text: bookStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true }); }
   catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
 }
 

@@ -66,12 +66,13 @@ export function runningBuild(jobs, course, kind = OUTLINE_BUILD_KIND) {
 }
 
 /**
- * The one main action of the 总纲 page's line: 'outline' (生成总纲, no outline yet), 'book' (生成复习全书: an outline without notes) or 'update' (更新全书: notes
- * that are out of date); null when the notes are current (更新全书 stays, quiet).
+ * The one main action of the 总纲 page's line: 'outline' (生成总纲, no outline yet), 'book' (生成复习全书: an outline without notes), 'sample' (the book's sample
+ * waits for the learner: 生成其余, ui/book/BookSample.jsx) or 'update' (更新全书: notes that are out of date); null when the notes are current (更新全书 stays, quiet).
  */
 export function mainAction(book) {
   if (!book) return 'outline';
   if (!book.notes) return 'book';
+  if (book.notes.sample) return 'sample';
   return book.notes.stale ? 'update' : null;
 }
 

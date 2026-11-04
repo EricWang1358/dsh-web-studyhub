@@ -3,9 +3,16 @@
    checklist item by name with a quote copied from its first page; the reviewer flags every must item the text does not name; the repair adds what was flagged.
    No real model, no network. */
 import { reportUsage } from '../../lib/usage-scope.js';
+import { parseJson } from '../../lib/generation.js';
 import { outlineModel } from './course-outline-library.mjs';
 
-const requestData = prompt => JSON.parse(prompt.slice(prompt.indexOf('REQUEST DATA:\n') + 'REQUEST DATA:\n'.length).split('\n\nYour previous reply')[0]);
+/** The request data as a model reads it: a section request (write, review, repair) has the point's data first and what its stage reads after its rules
+    (STAGE DATA); every other request is one JSON value after its marker. */
+const requestData = prompt => {
+  const after = (marker, text) => text.slice(text.indexOf(marker) + marker.length).split('\n\nYour previous reply')[0];
+  const lead = parseJson(after('REQUEST DATA:\n', prompt));
+  return prompt.includes('\n\nSTAGE DATA:\n') ? { ...lead, ...JSON.parse(after('\n\nSTAGE DATA:\n', prompt)) } : lead;
+};
 export const INVENTED = 'This sentence is not written in any of the materials at all.';
 
 /** The first words of a text, cut at a word: what a model copies as a quote. */

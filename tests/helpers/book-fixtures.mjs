@@ -152,7 +152,7 @@ export async function seedBuiltBook(root) {
     const { sources, decks } = outlineLibrary({ paper: true });
     for (const source of sources) if (FORMULA_PAGES[source.id]) source.text += FORMULA_PAGES[source.id];
     await service.store.update(state => { state.sources.push(...sources); state.decks.push(...decks); state.focus = { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] }; });
-    const job = await settleJob(service, (await service.call('generation.courseBook.build', { course: COURSE, language: 'zh' })).jobId);
+    const job = await settleJob(service, (await service.call('generation.courseBook.build', { course: COURSE, language: 'zh', sample: 'skip' })).jobId);
     if (job.status !== 'complete') throw new Error(`The fake build ended ${job.status}`);
     await service.call('course.book.open', { course: COURSE });
   } finally { await service.dispose(); }

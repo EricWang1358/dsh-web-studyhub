@@ -10,6 +10,7 @@ import { modelReadiness } from '../generation-status.js';
 import { displayTitle } from '../../lib/document-title.js';
 import { COVERAGE_DEFAULT, bookCoverage } from '../../lib/book-settings.js';
 import OutlineTree from './OutlineTree.jsx';
+import BookSample from '../book/BookSample.jsx';
 import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
 import { basisText, bookCoverageText, bookIntroText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions, offerText, pickedText, readMoreStartedText, rebuildTipText, runningText,
   startPickedText, startedText, usedPapersText, whatText, writingText, levelsText } from './words.js';
@@ -58,6 +59,8 @@ function usePicked({ call, course, deckId, pick }) {
     that first, before anything moves (ui/book/BookRebuildPreview.jsx). `papers`: null leaves the choice to the build; a list is the learner's (empty: none). */
 export const organiseArgs = (course, papers) => ({ course, confirm: true, ...(Array.isArray(papers) ? { papers } : {}) });
 export const REBUILD_OUTLINE = Object.freeze({ rebuildOutline: true, confirm: true });
+/** 生成其余 of a waiting sample (#710): the build keeps the sample's points and writes the rest in their style. */
+export const SAMPLE_CONFIRM = Object.freeze({ sample: 'confirm' });
 
 export default function CourseOutline({ data, onBack, onCreate, onOpenSources, onPractice, onOpenTask, onOpenSource, onOpenBook }) {
   const { call, act, notify } = useStudy();
@@ -156,19 +159,23 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, a
   const flip = (key, on) => { setChanged(true); setPapers(current => { const next = new Set(current); if (on) next.add(key); else next.delete(key); return next; }); };
   const main = quiet ? null : mainAction(book), off = busy || !model.ready;
   const bookMain = main === 'book' || main === 'update';
-  return (
+  // The book's sample waits (#710): its card holds the way on (生成其余, 重做样例 with the papers chosen here), so 更新全书 is not offered beside it.
+  const sample = book?.notes?.sample ?? null;
+  return (<>
+    {sample && <BookSample sample={sample} coverage={coverage} off={off} quiet={quiet} onRest={() => actions.writeBook(chosen(), SAMPLE_CONFIRM)}
+      onRedo={() => actions.writeBook(chosen())} onOpen={actions.onOpenBook ? point => actions.onOpenBook(`bk:${point.id}`) : undefined} />}
     <div className="outline-organise__actions">
       {!book && <Button variant={main === 'outline' ? 'primary' : 'quiet'} size={main === 'outline' ? undefined : 'sm'} icon="sparkle" disabled={off}
         onClick={() => actions.organise(chosen())}>{ui('生成总纲')}</Button>}
-      <Button variant={bookMain ? 'primary' : book ? 'quiet' : 'secondary'} size={bookMain || !book ? undefined : 'sm'} icon="book" disabled={off}
-        onClick={() => actions.writeBook(chosen())}>{book?.notes ? ui('更新全书') : ui('生成复习全书')}</Button>
+      {!sample && <Button variant={bookMain ? 'primary' : book ? 'quiet' : 'secondary'} size={bookMain || !book ? undefined : 'sm'} icon="book" disabled={off}
+        onClick={() => actions.writeBook(chosen())}>{book?.notes ? ui('更新全书') : ui('生成复习全书')}</Button>}
       {actions.setCoverage && <Select className="outline-organise__level" aria-label={ui('讲解详尽程度')} value={coverage} options={levelOptions()} disabled={off}
         onChange={value => actions.setCoverage(value)} />}
       {book && <Tooltip layer content={rebuildTipText()}><Button variant="quiet" size="sm" icon="refresh" disabled={off} onClick={() => actions.organise(chosen())}>{ui('重新整理')}</Button></Tooltip>}
       {used.length > 0 && !changed && <p className="outline-papers__used" data-papers-used="">{usedPapersText(used.map(paper => displayTitle(paper.title)), !book || book.papersBy !== 'learner')}</p>}
       {choices.length > 0 && <Disclosure className="outline-papers" summary={used.length ? ui('更改样卷') : ui('提供了试卷？')} meta={papers.size ? uiFormat('已选 {0} 份', [papers.size]) : null}>
         <p className="outline-papers__note">{ui('勾选的资料当作样卷：总纲会标出样卷考过的知识点。像样卷的资料默认就用上；全部不勾选就不标。')}</p>
-        {book && <p className="outline-papers__note">{ui('已有复习全书时点「更新全书」：只重新对照样卷、改写考情，讲解不变。')}</p>}
+        {book && !sample && <p className="outline-papers__note">{ui('已有复习全书时点「更新全书」：只重新对照样卷、改写考情，讲解不变。')}</p>}
         <ul className="outline-papers__list">
           {choices.map(choice => <li key={choice.key}><Checkbox label={displayTitle(choice.title)} hint={choice.likely ? ui('像样卷') : undefined} checked={papers.has(choice.key)}
             onChange={on => flip(choice.key, on)} /></li>)}
@@ -176,7 +183,7 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, a
       </Disclosure>}
       <ModelSetupGate variant="compact" feature={book ? 'courseBook' : 'courseOutline'} model={model} />
     </div>
-  );
+  </>);
 }
 
 /**
@@ -214,7 +221,8 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
   // With a current 复习全书 (nothing else is the main action) 打开书页 is the one primary button, and it comes first.
   const openMain = !isPicked(pick) && !mainAction(book);
   // 资料有更新: with a 复习全书, its own line (更新全书 organises the outline again too); else the outline's.
-  const stale = book?.notes ? (book.notes.stale ? ui('资料有更新，建议更新全书') : null) : book?.stale ? ui('资料有更新，建议重新整理') : null;
+  // While the sample waits, the next build (重做样例 or 生成其余) reads the materials as they are now: no 更新全书 to suggest.
+  const stale = book?.notes ? (book.notes.stale && !book.notes.sample ? ui('资料有更新，建议更新全书') : null) : book?.stale ? ui('资料有更新，建议重新整理') : null;
   // With an outline the book is the main action, so 创建题组 of a course without questions is the quiet one.
   const create = { label: ui('创建题组'), icon: 'sparkle', onClick: actions.onCreate };
   return (

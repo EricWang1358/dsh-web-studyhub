@@ -29,9 +29,10 @@ import { useBookAi } from './use-book-ai.js';
 import { useBookRebuild } from './use-book-rebuild.js';
 import { useFoundMarks } from './use-found-marks.js';
 import BookRebuildPreview from './BookRebuildPreview.jsx';
+import BookSample from './BookSample.jsx';
 import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCoursePlan } from './use-book-actions.js';
 import { useMoreActions } from './more-actions.js';
-import { crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
+import { bookCoverage, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { bookRows, crunchDateHint, keepBook, tocEntries } from './model.js';
 import css from './book.css';
 import aiCss from './book-ai.css';
@@ -119,7 +120,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const writing = runningBuild(data?.jobs, course, BOOK_BUILD_KIND);
   const rebuild = useBookRebuild({ call, course, notify, setBook, reload }), building = !!(writing || runningBuild(data?.jobs, course));
   const header = <BookHeader data={data} course={course} courseName={courseName} book={book} writing={writing} switched={switched} onOpenTask={onOpenTask} onUndoRebuild={building || unsaved ? undefined : rebuild.undo}
-    onUpdate={modelReadiness(data).ready ? () => startBookBuild({ act, course, notify }) : onBack}
+    onUpdate={book?.sample ? undefined : modelReadiness(data).ready ? () => startBookBuild({ act, course, notify }) : onBack}
     onBack={onBack} onCourse={next => guard(() => act('focus.set', { course: next }))} />;
   const step = steps[where.current] ?? null;
   // 改名 / 移动到… / 删除这个知识点… act on the point being read; a delete goes to the point after it (or before it, at the end) once it is gone.
@@ -179,6 +180,10 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
         hid={step?.hid ?? null} tocOpen={tocOpen}
         onToc={() => (narrow ? setTocOver(value => !value) : setTocWide(!tocWide))} onPrev={where.current > 0 ? () => where.go(-1) : null}
         onNext={where.current < steps.length - 1 ? () => where.go(1) : null} more={menu} notice={notice} />
+      {/* The sample waits for the learner (#710): its points lead to their headings; 生成其余 / 重做样例 start the build like the 总纲's buttons. */}
+      {book.sample && !building && <BookSample sample={book.sample} coverage={bookCoverage(data?.settings?.book)} off={!modelReadiness(data).ready}
+        onRest={() => startBookBuild({ act, course, notify, extra: { sample: 'confirm' } })} onRedo={() => startBookBuild({ act, course, notify })}
+        onOpen={point => (point.hid ? where.goTo(point.hid) : undefined)} />}
       <PlanSection plan={period.answer} course={course} windowDays={crunchWindow(data?.settings?.book)} open={planOpen} onToggle={() => setPlanOpen(!planOpen)} onRefresh={period.refresh}
         onExamDate={courseRecord?.id && onCourseSettings ? () => onCourseSettings(courseRecord.id) : null} onToday={plan.day ? () => setTodayOpen(value => !value) : null} todayOpen={todayOpen}
         onRead={point => { if (period.answer?.schedule?.today?.mode === 'review') { openView('flip'); return; } where.goTo(point.id); }}

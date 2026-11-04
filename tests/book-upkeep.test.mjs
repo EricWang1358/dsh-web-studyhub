@@ -55,7 +55,8 @@ test('补漏 when materials changed mends only that point without rewriting the 
     state.focus = { mode: 'class', course: COURSE };
   });
   const runBuild = async args => {
-    const started = await service.call('generation.courseBook.build', { course: COURSE, language: 'zh', ...args });
+    // The whole book at once (the sample slice before a big build: tests/book-sample-job.test.mjs).
+    const started = await service.call('generation.courseBook.build', { course: COURSE, language: 'zh', sample: 'skip', ...args });
     return settleJob(service, started.jobId);
   };
   assert.equal((await runBuild({})).status, 'complete');

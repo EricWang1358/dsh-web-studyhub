@@ -22,8 +22,9 @@ async function world(t, { paper = true } = {}) {
   await service.store.update(state => { state.sources.push(...structuredClone(built.sources)); state.decks.push(...structuredClone(built.decks)); state.focus = { mode: 'class', course: COURSE }; });
   const contract = () => [...service.runtime.work.jobs.values()].filter(job => job.type === KIND).at(-1).contract;
   const notes = async () => (await service.store.read()).sources.filter(isCourseNotesSource).find(record => !record.archived);
+  // The whole build (no sample first, #710): the kit is made by a build that writes every point.
   const build = async () => {
-    const job = await settleJob(service, (await service.call('generation.courseBook.build', { course: COURSE, language: 'zh' })).jobId);
+    const job = await settleJob(service, (await service.call('generation.courseBook.build', { course: COURSE, language: 'zh', sample: 'skip' })).jobId);
     assert.equal(job.status, 'complete', JSON.stringify(contract()?.error ?? null));
     return notes();
   };

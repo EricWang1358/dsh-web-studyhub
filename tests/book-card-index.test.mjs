@@ -70,7 +70,8 @@ test('a build with the fake model: the write call returns cards (no extra call),
   t.after(() => service.dispose());
   const { sources, decks } = outlineLibrary({ paper: true });
   await service.store.update(state => { state.sources.push(...structuredClone(sources)); state.decks.push(...structuredClone(decks)); });
-  const job = await settleJob(service, (await service.call('generation.courseBook.build', { course: COURSE, language: 'zh' })).jobId);
+  // The whole book at once (the sample slice before a big build: tests/book-sample-job.test.mjs).
+  const job = await settleJob(service, (await service.call('generation.courseBook.build', { course: COURSE, language: 'zh', sample: 'skip' })).jobId);
   assert.equal(job.status, 'complete');
   assert.deepEqual([...new Set(fake.stages())].filter(stage => !['write', 'review', 'repair', 'place', 'exam'].includes(stage) && /card/.test(stage)), [], 'no call of its own');
   assert.match(fake.of('write')[0].prompt, /pitch[^\n]*English/, 'the papers are English: the pitch is too, in a Chinese book');
