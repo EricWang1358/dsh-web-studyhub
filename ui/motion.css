@@ -65,7 +65,10 @@
       animation: page-in var(--dur) var(--ease-out) backwards;
     }
     /* Leaving: the current page lifts and fades for a beat before the switch
-       (90ms: see leaveDelayMs in interface-prefs.js, which must match). */
+       (90ms: see leaveDelayMs in appearance-prefs.js, which must match). Opacity and
+       transform only: an inherited property here (pointer-events, visibility) restyles
+       every element of the page in the click. Presses on it are refused in
+       ui/app/leave-guard.js. */
     & main > :is(.page, .review-page, .board-page) {
       transition:
         opacity 0.09s ease-in,
@@ -74,7 +77,6 @@
     & main.is-leaving > :is(.page, .review-page, .board-page) {
       opacity: 0;
       transform: translateY(-6px);
-      pointer-events: none;
     }
   }
 }
