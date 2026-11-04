@@ -11,7 +11,7 @@ const m = await loadUi(`export * from './ui/nav-alert.js'; export { NavItem, Nav
   export { NAV_DEFAULTS, groupOf } from './ui/nav-order.js'; export { setUiLanguage, ui } from './ui/i18n.js';`);
 const han = /[㐀-鿿]/;
 const html = (type, props) => renderToStaticMarkup(React.createElement(type, props));
-const dots = (markup) => (markup.match(/class="nav-alert"/g) || []).length;
+const dots = (markup) => (markup.match(/class="nav-dot"/g) || []).length;
 
 test('an empty library has no dot at all: nothing waits for the learner yet', () => {
   assert.equal(m.navAlert({}), null);

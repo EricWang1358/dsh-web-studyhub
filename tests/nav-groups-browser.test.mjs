@@ -48,7 +48,7 @@ test('the sidebar: seven main entries, 「更多」 by content, all fifteen page
     assert.ok(visibleRows <= 7, `${visibleRows} main entries`);
     assert.equal(await moreButton.getAttribute('aria-expanded'), 'false', '「更多」 starts closed');
     assert.ok(Object.values(before).slice(1).every((group) => group.shown === 0), `its rows are folded away: ${JSON.stringify(before)}`);
-    assert.equal(await page.locator('.sidebar .nav-alert').count(), 0, 'an empty library has nothing to act on, so no dot (#655)');
+    assert.equal(await page.locator('.sidebar .nav-dot').count(), 0, 'an empty library has nothing to act on, so no dot (#655)');
     const footer = await page.evaluate(() => [...document.querySelectorAll('.sidebar-bottom button.nav')].filter((row) => row.checkVisibility()).map((row) => row.dataset.tour));
     assert.deepEqual(footer, ['nav-finder', 'nav-help', 'nav-settings'], 'three footer controls (#656)');
 

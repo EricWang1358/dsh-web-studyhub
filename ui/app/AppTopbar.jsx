@@ -67,7 +67,7 @@ function NavMenuButton() {
     <Tooltip layer content={reason || ui('打开导航：全部功能都在这里')} anchorClassName="nav-menu-anchor">
       <Button variant="quiet" size="sm" className={'nav-menu-toggle' + (reason ? ' has-alert' : '')} data-tour="nav-menu" data-usage="nav.menu"
         aria-label={ui('打开导航')} aria-haspopup="dialog" aria-expanded={shell.navOpen} onClick={() => shell.setNavOpen(true)}>
-        <IconBox className={reason ? 'nav-alert-icon' : undefined}><Icon name="panel" size={18} />{reason && <span className="nav-alert" />}</IconBox>
+        <IconBox className={reason ? 'nav-dot-icon' : undefined}><Icon name="panel" size={18} />{reason && <span className="nav-dot" />}</IconBox>
       </Button>
     </Tooltip>
   );

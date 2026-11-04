@@ -119,7 +119,7 @@ test('「更多」 is a row with aria-expanded over a native fold, so the finder
   assert.match(open, /aria-expanded="true"/);
   assert.match(open, /<details class="nav-fold__items" id="nav-fold-more" open="">/);
   const flagged = html(h(NavFold, { id: 'more', glyph: 'more', label: '更多', alert: '1 个任务没有完成，点开看原因', open: false, onToggle() {} }, child));
-  assert.match(flagged, /<span class="nav-alert" aria-hidden="true"><\/span>/, 'the dot of a row folded away is on 「更多」');
+  assert.match(flagged, /<span class="nav-dot" aria-hidden="true"><\/span>/, 'the dot of a row folded away is on 「更多」');
   assert.match(flagged, /role="tooltip"[^>]*>1 个任务没有完成，点开看原因/, 'with its reason');
 });
 
@@ -153,7 +153,7 @@ test('stylesheet contract: a section label is one fixed height, the fold has no 
   assert.match(css, /\.nav-group-label\s*\{[^}]*height:\s*var\(--nav-group\)/s);
   assert.match(css, /--nav-group:\s*\d+px/);
   assert.match(css, /\.nav-fold__items > summary\s*\{\s*display:\s*none;/);
-  assert.match(css, /\.nav-alert\s*\{[^}]*position:\s*absolute[^}]*top:[^}]*right:/s);
+  assert.match(css, /\.nav-dot\s*\{[^}]*position:\s*absolute[^}]*top:[^}]*right:/s);
   assert.doesNotMatch(css, /is-narrow/, 'there is no icon rail any more (#657)');
   const shell = (await readFile(new URL('../ui/shell.css', import.meta.url), 'utf8')).replace(/\r/g, '');
   assert.match(shell, /\.side-nav\s+\.nav\.is-dragging/, 'a lifted row still floats above its neighbours');

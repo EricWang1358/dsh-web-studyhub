@@ -93,10 +93,10 @@ test("a row says what it is for, and the attention dot takes no room from the la
   assert.ok(tooltipAt > 0 && reasonAt > tooltipAt && purposeAt > reasonAt && tailAt > purposeAt, "why it has a dot, what it is for, then (once) how to reorder it");
   assert.doesNotMatch(tip(marked), /学习笔记/, "beside a visible label the tooltip does not say the label again (#569)");
   assert.match(marked, /class="nav has-alert"/, "the row says it has something to act on");
-  assert.match(marked, /<span class="icon nav-alert-icon" aria-hidden="true"><svg[^]*?<\/svg><span class="nav-alert" aria-hidden="true"><\/span><\/span><span class="nav-label">/,
+  assert.match(marked, /<span class="icon nav-dot-icon" aria-hidden="true"><svg[^]*?<\/svg><span class="nav-dot" aria-hidden="true"><\/span><\/span><span class="nav-label">/,
     "the dot sits on the icon, not in the gap before the label, where it read as a bullet (#579); its words are in the tooltip");
   assert.doesNotMatch(marked, /<button[^>]*\btitle=/, "no native title: the Tooltip also shows on keyboard focus and on a long press");
-  assert.doesNotMatch(html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", purpose })), /nav-alert|has-alert/, "no reason, no dot");
+  assert.doesNotMatch(html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", purpose })), /nav-dot|has-alert/, "no reason, no dot");
   assert.doesNotMatch(html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", purpose, start: true })), /nav-start|is-start/, "the 从这里开始 marker is gone");
   assert.doesNotMatch(html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记" })), /role="tooltip"/, "a row with nothing to add has no tooltip");
   assert.equal(tip(html(React.createElement(NavItem, { glyph: "notes", label: "学习笔记", title: "学习笔记", purpose }))).match(/学习笔记/g), null, "a title equal to the label is not said either");
@@ -105,13 +105,13 @@ test("a row says what it is for, and the attention dot takes no room from the la
 test("the attention dot is a badge on the icon's corner (#579, #655), and the old marker's sheet is gone", async () => {
   const css = (await readFile(new URL("../ui/side-groups.css", import.meta.url), "utf8")).replace(/\r/g, "");
   const rule = (selector) => css.match(new RegExp(`(?:^|\\n)\\s*${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`))?.[1] ?? null;
-  const dot = rule(".nav-alert");
+  const dot = rule(".nav-dot");
   assert.ok(dot, "the dot has its rule");
   assert.doesNotMatch(dot, /\bleft:/, "placed from the icon's top-right corner, not at an offset into the gap before the label");
   assert.match(dot, /\btop:/);
   assert.match(dot, /\bright:/);
   assert.match(dot, /background:\s*var\(--warn-solid\)/, "the attention colour marks the one thing to act on; the accent is the primary action (#658)");
-  assert.match(rule(".nav-alert-icon") ?? "", /position:\s*relative/, "the icon holds the dot");
+  assert.match(rule(".nav-dot-icon") ?? "", /position:\s*relative/, "the icon holds the dot");
   await assert.rejects(readFile(new URL("../ui/nav-start.css", import.meta.url), "utf8"), "the 从这里开始 sheet is deleted");
 });
 

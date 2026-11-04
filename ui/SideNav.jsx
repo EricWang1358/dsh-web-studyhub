@@ -24,7 +24,7 @@ export function NavItem({ glyph, icon, label, hint, hintClass = "nav-count", hin
   const classes = ["nav", className, upkeep && "nav-upkeep", alert && "has-alert"].filter(Boolean).join(" ");
   const row = (
     <button type="button" {...button} className={classes} disabled={disabled} aria-current={active && !disabled ? "page" : undefined}>
-      <IconBox className={alert ? "nav-alert-icon" : undefined}>{icon || <Icon name={`nav-${glyph}`} />}{alert && <span className="nav-alert" aria-hidden="true" />}</IconBox>
+      <IconBox className={alert ? "nav-dot-icon" : undefined}>{icon || <Icon name={`nav-${glyph}`} />}{alert && <span className="nav-dot" aria-hidden="true" />}</IconBox>
       <span className="nav-label">{label}</span>
       {hint !== undefined && hint !== null && hint !== false && <span className={hintClass}>{hint}</span>}
     </button>

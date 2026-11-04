@@ -64,10 +64,10 @@
     }
     /* The one attention dot: a badge on the icon's top-right corner. It sits inside the icon's box, so it takes no room from the label, and a
        ring of the sidebar's own background cuts it out of the glyph it overlaps. Its reason is the first line of the row's Tooltip. */
-    .nav-alert-icon {
+    .nav-dot-icon {
       position: relative;
     }
-    .nav-alert {
+    .nav-dot {
       position: absolute;
       top: calc(var(--space-half) * -1.5);
       right: calc(var(--space-half) * -1.5);
@@ -78,7 +78,7 @@
       box-shadow: 0 0 0 2px var(--bg-canvas);
       pointer-events: none;
     }
-    .nav-drawer .nav-alert {
+    .nav-drawer .nav-dot {
       box-shadow: 0 0 0 2px var(--bg-raised);
     }
     /* The row's Tooltip wrapper adds no box of its own (its panel is in the top layer). The footer's rows get the same: an inline
