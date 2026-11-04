@@ -81,7 +81,7 @@ test('English wording keeps the meaning the inline dictionaries gave it', () => 
   assert.match(notes, /View class notes · 1 entries/);
   assert.match(notes, /1 pending · 1 incomplete|Pending 1 · Incomplete 1/i);
   const monitor = text(render(h(m.LiveAudioMonitor, { health, visible: true, recording: true }), 'en'));
-  assert.match(monitor, /Audio captured 1 min 5 sec · Backend accepted 1 min 0 sec/);
+  assert.match(monitor, /Computer heard 1 min 5 sec/);
   const sentence = text(render(h(m.Sentence, { segment: segments[2], selected: false, generated: false, checked: false, onToggle: noop, language: 'en' }), 'en'));
   assert.match(sentence, /1:02:05/);
   assert.match(render(h(m.Sentence, { segment: segments[0], selected: false, generated: false, checked: false, onToggle: noop, language: 'en' }), 'en'), /aria-label="Select sentence 1"/);

@@ -1386,8 +1386,6 @@
   "{0} 个学习步骤": "{0} learning steps",
   "删除学习流 {0}": "Delete learning flow {0}",
   "主会话与这里编辑同一份流程；你可以随时再手动调整。": "The main chat and this editor work on the same flow; you can adjust it manually anytime.",
-  "把本页的待巩固题按学习路径重新练一遍": "Retry this page’s weak questions in study-path order",
-  "把这些待巩固题按学习路径重新练一遍": "Retry these weak questions in study-path order",
   "没能刷新，下面仍是上次读到的内容：{0}": "Could not refresh; below is what was last read: {0}",
   "目前没有待巩固的题": "No questions need review right now",
   "还没有练习记录": "No practice records yet",

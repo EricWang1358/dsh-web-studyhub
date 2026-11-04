@@ -152,6 +152,7 @@
     "tests/mineru-local-service.test.mjs",
     "tests/mineru-local.test.mjs",
     "tests/mineru-service.test.mjs",
+    "tests/mineru-status-cache.test.mjs",
     "tests/nonmodel-baseline-install.test.mjs",
     "tests/nonmodel-baseline-instant.test.mjs",
     "tests/original-attach.test.mjs",
