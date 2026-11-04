@@ -82,13 +82,3 @@ export function diffLines(older, current) {
   const truncated = collapsed.length > DIFF_ROWS_MAX;
   return { identical: false, added, removed, rows: truncated ? collapsed.slice(0, DIFF_ROWS_MAX) : collapsed, truncated };
 }
-
-const pad2 = n => String(n).padStart(2, '0');
-
-/** Compact local timestamp (`YYYY-MM-DD HH:mm`) for a history entry's ISO `at`; `''` when missing or unparseable. */
-export function formatHistoryTime(iso) {
-  if (!iso || typeof iso !== 'string') return '';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-}

@@ -4,8 +4,9 @@ import { Badge, Button, Combobox, InlineMessage, LoadingState, SegmentedControl 
 import { useStudy } from '../study-context.jsx';
 import { useLiveEffect } from '../use-async.js';
 import { STRUCTURE_FILE } from '../../lib/course-book-own-titles.js';
+import { formatDateTime } from '../format.js';
 import { fileText } from './model.js';
-import { diffLines, formatHistoryTime } from './book-diff.js';
+import { diffLines } from './book-diff.js';
 
 /* Read-only version & structure history panel for 复习全书 (#489 Item 8):
    - Shows each saved version of the selected file (version number, timestamp, character count, source: 你 / 程序 / AI),
@@ -112,7 +113,7 @@ export default function BookHistory({
                 <div className="book-history__list" role="list">
                   {versions.map(item => {
                     const id = keyOf(item), active = selected && keyOf(selected) === id;
-                    const stamp = formatHistoryTime(item.at);
+                    const stamp = formatDateTime(item.at, 'stamp');
                     return (
                       <div key={id} className="book-history__row" role="listitem">
                         <Button size="sm" variant={active ? 'secondary' : 'quiet'} className="book-history__select"
@@ -177,7 +178,7 @@ export default function BookHistory({
             {!structure.length ? <div className="book-history__empty">{ui('还没有目录改动记录。')}</div> : (
               <div className="book-history__struct-list" role="list">
                 {structure.map(item => {
-                  const stamp = formatHistoryTime(item.at);
+                  const stamp = formatDateTime(item.at, 'stamp');
                   return (
                     <div key={`struct-${item.version}-${item.at}`} className="book-history__struct-row" role="listitem">
                       <div className="book-history__struct-main">

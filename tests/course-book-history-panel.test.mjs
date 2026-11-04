@@ -17,7 +17,7 @@ import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outli
 import { courseNotesMaterial } from '../lib/course-book.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
-import { diffLines, formatHistoryTime } from '../ui/book/book-diff.js';
+import { diffLines } from '../ui/book/book-diff.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
@@ -126,7 +126,7 @@ test('course.book.revision { history: true } tracks file provenance (program / l
   assert.equal(structHist.structure[2].title, 'Architect Roles');
 });
 
-test('diffLines & formatHistoryTime: contextual line diffs collapse long unchanged runs and mark additions/deletions', () => {
+test('diffLines: contextual line diffs collapse long unchanged runs and mark additions/deletions', () => {
   assert.equal(diffLines('same\ntext', 'same\ntext').identical, true);
   const oldText = ['line 1', 'line 2', 'line 3', 'line 4', 'line 5', 'old 6', 'line 7'].join('\n');
   const newText = ['line 1', 'line 2', 'line 3', 'line 4', 'line 5', 'new 6', 'line 7'].join('\n');
@@ -136,8 +136,6 @@ test('diffLines & formatHistoryTime: contextual line diffs collapse long unchang
   assert.equal(diff.rows[0].count, 3);
   assert.ok(diff.rows.some(r => r.kind === 'del' && r.text === 'old 6'));
   assert.ok(diff.rows.some(r => r.kind === 'add' && r.text === 'new 6'));
-  assert.match(formatHistoryTime('2026-10-09T08:05:00.000Z'), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
-  assert.equal(formatHistoryTime('not-a-date'), '');
 });
 
 test('BookHistory, BookEditor (版本历史) & HistoryDialog render in Chinese and English without Han leakage', () => {
