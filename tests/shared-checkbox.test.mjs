@@ -74,7 +74,8 @@ test('the shared check is drawn from tokens, with a ticked, a mixed and a forced
   assert.doesNotMatch(box, /accent-color/);
   assert.match(box, /border:[^;]*var\(--/);
   assert.match(box, /background:\s*var\(--/);
-  assert.match(rule('.sh-check__input:is(:checked, :indeterminate)'), /background:\s*var\(--accent\)/);
+  assert.match(rule('.sh-check__input:is(:checked, :indeterminate)'), /background:\s*var\(--text\)/, 'a ticked box is the ink, like the Switch (#658)');
+  assert.doesNotMatch(rule('.sh-check__input:is(:checked, :indeterminate)'), /--accent/, 'a selection is never the accent');
   assert.match(rule('.sh-check__input:checked::before'), /scale\(1\)/);
   assert.match(rule('.sh-check__input:indeterminate::before'), /clip-path/);
   assert.match(css, /@media \(forced-colors: active\)\s*\{\s*\.sh-check__input\s*\{\s*appearance:\s*auto/);
