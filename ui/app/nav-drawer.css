@@ -7,9 +7,10 @@
 @layer study.features {
   :is(.study-app, .study-seat) {
     .nav-drawer {
-      inset: 0 auto 0 0;
-      width: min(300px, calc(100vw / var(--study-ui-scale, 1) - 56px));
-      height: calc(100dvh / var(--study-ui-scale, 1));
+      /* Inside StudyHub's own page (--nav-frame-*, ui/app/use-drawer-frame.js), not the whole host window; the viewport when unmeasured. */
+      inset: calc(var(--nav-frame-top, 0px) / var(--study-ui-scale, 1)) auto auto calc(var(--nav-frame-left, 0px) / var(--study-ui-scale, 1));
+      width: min(300px, calc(var(--nav-frame-width, 100vw) / var(--study-ui-scale, 1) - 56px));
+      height: calc(var(--nav-frame-height, 100dvh) / var(--study-ui-scale, 1));
       margin: 0;
     }
     .nav-drawer[open] {

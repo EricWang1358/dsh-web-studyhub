@@ -7,14 +7,18 @@ import { usePersistentState } from '../storage.js';
    the science preferences, the sidebar collapse and the narrow-window rule. Each persisted preference is one
    usePersistentState line (ui-consistency #115). */
 
-export const SIDEBAR_KEY = 'study-sidebar';
+/* The sidebar's place, 'drawer' or 'docked'. A new key (4.3.6): the old 'study-sidebar' = 'collapsed' meant the icon rail on the page's left, and
+   carried over it put every such learner's navigation in the drawer. Everyone starts docked again; putting it away is asked anew. */
+export const SIDEBAR_KEY = 'study-nav-place';
 export const EN_KEY = 'study-en';
 
-/** Stored as readable words, as they always were: 'collapsed' | 'open', '1' | '0', 'on' | 'off'. */
+/** Stored as readable words: 'drawer' | 'docked', '1' | '0', 'on' | 'off'. */
 export const flag = (on, off) => ({ parse: (raw) => raw === on, serialize: (value) => (value ? on : off) });
-const sidebarCodec = flag('collapsed', 'open');
+const sidebarCodec = flag('drawer', 'docked');
 const scienceCodec = { parse: (raw) => normalizeScienceSettings(JSON.parse(raw)), serialize: (value) => JSON.stringify(normalizeScienceSettings(value)) };
-const NARROW_WIDTH = 720;
+/* Below this the docked sidebar would leave the page too little room (DSH's 420 px side panel): the drawer, inside the page. Above it the sidebar is
+   docked on the left, as before 4.3.4, unless the learner put it away (owner, 2026-11-05). */
+const NARROW_WIDTH = 560;
 
 /** rootRef and attachRoot: the loading screen renders .study-app without a mount effect, so the width observer hangs on a callback ref. */
 export function useAppShell() {
@@ -26,7 +30,7 @@ export function useAppShell() {
   const setTheme = useCallback((value) => updateAppearance({ theme: value }), [updateAppearance]);
   const [sciencePrefs, setSciencePrefs] = usePersistentState(SCIENCE_KEY, () => ({ ...SCIENCE_DEFAULTS }), scienceCodec);
   /* The sidebar is docked on the left, or (#657) it is a drawer behind a menu button in the top bar: when the learner put it away (the manual
-     choice is persisted, as 'collapsed' always was) and whenever the workspace is narrow, where a docked sidebar would take the room of the
+     choice is persisted, SIDEBAR_KEY) and whenever the workspace is narrow, where a docked sidebar would take the room of the
      page. There is no icon rail: the drawer has every label. navOpen is whether the drawer is out; it closes by itself when the sidebar docks. */
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentState(SIDEBAR_KEY, false, sidebarCodec);
   const [narrowWindow, setNarrowWindow] = useState(false);

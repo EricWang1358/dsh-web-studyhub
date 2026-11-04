@@ -359,8 +359,9 @@
   }
   @container study (max-width:1050px) {
     :where(.study-app, .study-seat) {
+      /* Wide enough that the resume row's label and its run count (11/14) stay on one line. */
       .sidebar {
-        width: 190px;
+        width: 212px;
         padding-left: var(--space-2-5);
         padding-right: var(--space-2-5);
         --sidebar-pad: var(--space-2-5);
@@ -371,6 +372,9 @@
       }
       .brand small {
         font-size: var(--fs-md);
+      }
+      .nav-count {
+        font-size: var(--fs-sm);
       }
       & main {
         min-width: 0;
