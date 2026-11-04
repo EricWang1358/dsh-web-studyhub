@@ -76,7 +76,8 @@ test('the prompts: the write call asks for cards in the reply, the pitch in the 
   assert.match(write, /"cards"/);
   assert.match(write, /pitch[^\n]*English/, 'the pitch in the language of the sample papers');
   const draft = { text: 'T', cites: [], claimed: [ID(1)], cards: [card(1, 'Architecture', { relations: [{ kind: 'related', item: ID(2), name: 'Coupling' }] })] };
-  const data = text => JSON.parse(text.slice(text.indexOf('REQUEST DATA:\n') + 14));
+  // The cards are what the review and repair alone read: their STAGE DATA, after the point's pages (the order of tests/book-prompt-order.test.mjs).
+  const data = text => JSON.parse(text.slice(text.indexOf('STAGE DATA:\n') + 12));
   const review = data(reviewPrompt(unit, point, draft, plan).prompt), repair = data(repairPrompt(unit, point, draft, { missing: [], issues: [], round: 1 }, plan).prompt);
   for (const sent of [review, repair]) assert.deepEqual(sent.cards[0], { item: 'c1', name: 'Architecture', plain: 'Architecture plainly', pitch: 'Architecture in one exam sentence.',
     relations: [{ kind: 'related', item: 'c2' }] }, 'cards are shown by alias, never by inventory id');
