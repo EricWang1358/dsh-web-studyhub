@@ -68,7 +68,7 @@ export async function runAllMaterialsQa(options) {
       await step("create-form-raised-count", async () => {
         const more = page.locator("summary", { hasText: zh ? "更多选项" : "More options" }).first();
         if (await more.count()) await more.click().catch(() => {});
-        const custom = page.locator(".cov-strength__custom summary").first();
+        const custom = page.locator(".cov-strength__levels .sh-seg__item", { hasText: zh ? "自定义" : "Custom" }).first();
         await custom.scrollIntoViewIfNeeded();
         await custom.click();
         await page.locator("#generate-count").fill("5");

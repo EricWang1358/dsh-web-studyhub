@@ -93,14 +93,14 @@ export const JOURNEY_STEPS = [
     await j.nav("generate");
     await j.clickIfPresent(j.anchor("generate-from-sources").or(j.page.getByRole("tab", { name: j.t("从资料补题") })));
     await j.clickIfPresent(j.page.getByRole("button", { name: j.t("选择当前范围") }));
-    // The short form says what will be made in one line; the question types (单选测验 is the default), the count (自定义题数) and the deck name are under 更多选项.
-    const more = j.page.locator(".generate-more").first();
-    if (!await more.evaluate((element) => element.open)) await more.locator("summary").first().click();
-    const quiz = more.getByRole("checkbox", { name: j.t("单选测验"), exact: true });
+    // The question types (单选测验 is the default) and the 覆盖强度 with 自定义 as its fourth choice are on the main path; the deck name is under 更多选项.
+    const quiz = j.page.locator('[data-tour="generate-kinds"]').getByRole("checkbox", { name: j.t("单选测验"), exact: true });
     if (!await quiz.isChecked()) await quiz.check();
     const count = j.page.locator("#generate-count");
-    if (!await count.isVisible()) await j.page.locator(".cov-strength__custom summary").first().click();
+    if (!await count.isVisible()) await j.page.locator(".cov-strength__levels .sh-seg__item", { hasText: j.t("自定义") }).first().click();
     await count.fill("4");
+    const more = j.page.locator(".generate-more").first();
+    if (!await more.evaluate((element) => element.open)) await more.locator("summary").first().click();
     await j.page.getByLabel(j.t("题组名称（可选）")).fill(j.lang === "en" ? "QA journey deck" : "QA 旅程题组");
     await j.shot("form", { fullPage: true });
     const before = (await j.snapshot()).jobs.length;
