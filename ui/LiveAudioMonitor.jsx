@@ -21,7 +21,7 @@ export default function LiveAudioMonitor({ health, visible, recording, compact =
     muted: ui('设备已静音'), suspended: ui('浏览器采音已中断'),
     missing: ui('未收到音频'), clipping: ui('声音过大'),
     paused: ui('已暂停采音'), stopped: ui('已停止采音'),
-    requesting: ui('等待麦克风或共享权限'),
+    requesting: state.kind === 'system' ? ui('正在连接电脑声音组件') : ui('等待麦克风或共享权限'),
   };
   const level = ['sound', 'quiet', 'clipping'].includes(status) ? state.level : 0;
   const warning = ['quiet', 'muted', 'missing', 'suspended', 'clipping'].includes(status);
@@ -32,12 +32,14 @@ export default function LiveAudioMonitor({ health, visible, recording, compact =
       : state.lastAckAt === null ? ui('等待后端接收音频')
         : current - state.lastAckAt > 3000 ? ui('最近未收到上传确认')
           : ui('音频正在上传');
-  const device = state.label || (state.kind === 'tab' ? ui('标签页 / 系统声音') : ui('系统默认麦克风'));
+  const device = state.label || (state.kind === 'system' ? ui('电脑系统声音') : state.kind === 'tab' ? ui('标签页 / 系统声音') : ui('系统默认麦克风'));
   const hint = warning && (status === 'quiet' || status === 'muted'
-    ? state.kind === 'tab' ? ui('请确认课程正在播放，并已勾选共享音频；检查播放器是否静音。')
-      : ui('对着麦克风说话，观察音量条。如果一直不动，请检查系统输入设备、静音开关和麦克风距离。')
+    ? state.kind === 'system' ? ui('请确认课程正在播放且电脑没有静音；组件只在播放出声时收到波形。')
+      : state.kind === 'tab' ? ui('请确认课程正在播放，并已勾选共享音频；检查播放器是否静音。')
+        : ui('对着麦克风说话，观察音量条。如果一直不动，请检查系统输入设备、静音开关和麦克风距离。')
     : status === 'clipping' ? ui('请调低系统输入音量或离麦克风远一点，避免声音失真。')
-      : ui('浏览器没有持续送来音频。请检查设备或共享状态，必要时结束后重新开始。'));
+      : state.kind === 'system' ? ui('暂时没有收到系统声音数据。请检查播放设备是否正常，必要时结束后重新开始。')
+        : ui('浏览器没有持续送来音频。请检查设备或共享状态，必要时结束后重新开始。'));
   const meter = <div className={`live-audio-meter${compact ? ' slim' : ''}`} role="meter" aria-label={ui('输入音量')}
     aria-valuemin={0} aria-valuemax={100} aria-valuenow={level} aria-valuetext={labels[status]}>
     <span style={{ width: `${level}%` }} className={status === 'clipping' ? 'clipping' : ''} /></div>;

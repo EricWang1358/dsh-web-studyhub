@@ -41,10 +41,13 @@ The local engine is SenseVoice (FunAudioLLM) speech recognition with a silero vo
 
 1. Open **Live class** in the sidebar, in the **Setup & manage** group.
 2. Enter a **Class title**. If you leave it empty, StudyHub names the class "Live class recording" followed by the date and time.
-3. Choose an **Audio source**: **Microphone (in-person class)** or **Tab / system audio (online class)**.
+3. Choose an **Audio source**:
+   - **Microphone (in-person class)**: captures the default microphone input.
+   - **Computer audio (desktop / online class)** (default computer-audio option in the Windows 10/11 desktop app; shown as **Computer audio (direct local component)** in Windows browsers): captures what your headphones or speakers play read-only through an on-demand local helper, with no browser share picker.
+   - **Tab / system audio (online class)**: captures online-class audio through the browser's tab-sharing dialog.
 4. Optional: choose a **Course**. Open **Subject and terminology (optional)** to fill in **Subject** and **Terms (comma or line separated)**.
 5. Optional, Gemini only: tick **Use paid key only** to skip the free Gemini key.
-6. Click **Start recording**. For an online class, choose the tab where the class is playing in the browser's sharing dialog and turn on **Share tab audio**. StudyHub sends only the audio, never the picture.
+6. Click **Start recording**. With **Tab / system audio**, choose the tab where the class is playing in the browser's sharing dialog and turn on **Share tab audio** (StudyHub sends only the audio, never the picture); with **Computer audio**, if the helper has not been installed yet, click **Install system-audio component** on the inline card once (1–3 seconds) and then start.
 
 Terms help recognition, translation and correction. StudyHub puts your terms first, then adds deck titles and question topics from the chosen course, up to 100 terms in total.
 
@@ -61,9 +64,9 @@ If you choose **Tab / system audio** and the browser refuses, the red message sa
 
 - **The sharing window opened and you closed it.** Click **Start recording** again, pick the tab and turn on **Share tab audio**.
 - **No window opened at all (the refusal came within a fraction of a second).**
-  - **In an app's built-in window** (an app that embeds a browser view): the app does not allow sharing, so trying again will not help. Click **Switch to microphone and start**, or open StudyHub in a separate Chrome or Edge window.
+  - **In an app's built-in window** (such as the desktop app or another app that embeds a browser view): the app does not allow tab sharing, so trying again will not help. On Windows 10/11, install or switch to **Computer audio** right from the help card; on other systems, click **Switch to microphone and start**, or open StudyHub in a separate Chrome or Edge window.
   - **Inside another page** whose permissions policy does not allow screen sharing: the same remedy.
-  - **In a regular window on Windows or Linux:** sharing a tab normally needs no system permission. The usual cause is a work or school policy: type `chrome://policy` or `edge://policy` in the address bar and look for screen-capture entries. Click **Try sharing again** after it is changed, or use the microphone.
+  - **In a regular window on Windows or Linux:** sharing a tab normally needs no system permission. The usual cause is a work or school policy: type `chrome://policy` or `edge://policy` in the address bar and look for screen-capture entries. On Windows you can switch directly to the local **Computer audio** component; after changing the policy you can also click **Try sharing again**, or use the microphone.
   - **On macOS:** open System Settings › Privacy & Security › Screen & System Audio Recording, turn on the switch for your browser, quit the browser completely, open it again, then click **Try sharing again**.
 
 **What the browser reported**, under the message, lists what StudyHub observed: the browser, the system, whether this is a standalone page, an embedded one or an app's window, whether the permissions policy allows sharing, and how many milliseconds after your click the refusal came. Include it if you ask for help.
@@ -72,22 +75,26 @@ The microphone source needs no sharing permission: play the class through the sp
 
 ### Record the computer's sound without sharing (Windows)
 
-Inside an app window that cannot share, you can still record what the computer plays, because Windows can offer it as a recording device:
+In the Windows 10/11 desktop app—or inside any window where browser tab sharing is blocked—use the built-in **System-audio capture component (hot-install)**:
+
+- **On-demand hot-install, no download needed.** StudyHub ships no pre-bundled native executable or audio driver. Only when you click **Install system-audio component** does it invoke Windows' built-in `.NET Framework` compiler (`csc.exe`) to build a ~20 KB read-only helper into an isolated folder (`StudyHub\LiveLoopback` by default) and pin its SHA-256 checksum, usually in 1–3 seconds.
+- **No virtual sound card, untouched system defaults, works with Bluetooth headphones.** The helper reads your default playback endpoint (speakers, wired headphones, or Bluetooth headphones) in shared-mode WASAPI loopback: it installs no kernel or virtual audio driver, leaves your default recording device alone, never forces Bluetooth headphones into low-quality hands-free call mode, and follows automatically if you plug in or unplug headphones mid-class.
+- **Zero background process when idle or paused.** Nothing runs in the background when you are not recording, and clicking **Pause**, **End recording**, or closing the window exits the helper process immediately and releases every audio handle so sound-card drivers are never held while idle.
+- **Automatic integrity check and one-click uninstall.** Every launch verifies the helper's byte size and SHA-256 checksum (**Repair** rebuilds it if modified or quarantined), and **Uninstall system-audio component** under **Settings › Audio transcription › Live class transcription** removes it in one click whenever you do not need it.
+
+If the system compiler is disabled on your machine, you can still fall back to Windows **Stereo Mix** or a virtual audio cable:
 
 1. Right-click the speaker icon in the taskbar, open **Sound settings**, then **More sound settings**, and go to the **Recording** tab.
-2. Look for **Stereo Mix**. If it is not listed, right-click an empty area and tick **Show Disabled Devices**, then right-click **Stereo Mix** and choose **Enable**.
-3. Right-click **Stereo Mix** and choose **Set as Default Device**.
-4. In **Live class**, choose **Microphone (in-person class)** and click **Start recording**. StudyHub now hears what the computer plays, with no speakers and no microphone noise.
-5. When the class is over, set your real microphone as the default recording device again. While Stereo Mix is the default, meeting software hears the computer's sound instead of your voice.
-
-**Stereo Mix only mixes what the sound card itself plays.** If the class plays through Bluetooth headphones (a separate device), use a virtual cable such as VB-Audio Virtual Cable instead: set the class's output to **CABLE Input** (the browser or system output), set **CABLE Output** as the default recording device, and to hear the class open the properties of **CABLE Output**, go to **Listen**, tick **Listen to this device** and choose your headphones.
+2. Enable **Stereo Mix** (right-click an empty area and tick **Show Disabled Devices** if needed) and choose **Set as Default Device**.
+3. In **Live class**, choose **Microphone (in-person class)** and click **Start recording**; set your real microphone back as the default recording device when the class ends.
+4. **Stereo Mix** only mixes what the sound card itself plays; for Bluetooth headphones under the manual fallback, use a virtual cable such as VB-Audio Virtual Cable.
 
 ### Controls
 
 | Control | What it does |
 | --- | --- |
-| **Pause** / **Resume** | Stops sending audio until you resume. Context correction waits too. |
-| **End recording** | Stops capture and releases the microphone or shared tab. The remaining sentences are translated and checked in the background. |
+| **Pause** / **Resume** | Stops sending audio until you resume; context correction waits too. With the system-audio component, pausing also exits the helper process and releases the audio device immediately until you click **Resume**. |
+| **End recording** | Stops capture and releases the microphone, shared tab, or system-audio component. The remaining sentences are translated and checked in the background. |
 | **Continue recording** | Appears on an ended class. Records more into the same class and keeps its title, course, subject and terms. |
 
 ### What keeps or ends a recording

@@ -1601,6 +1601,50 @@
       ]
     },
     {
+      "file": "lib/live-loopback-install.js",
+      "calls": [
+        {
+          "callee": "runLocalCommand",
+          "count": 2
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "evidence": "live-class.md (system-audio loopback); s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "compile: invoking Windows' built-in csc.exe inside the shared installer's compile stage (awaited by the install run, ended by its timeout or signal)",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        },
+        {
+          "what": "probeLoopbackHelper: one read-only --probe check awaited inside the install's check stage (ended by its timeout or signal)",
+          "disposition": "exception",
+          "kind": "provider-leaf",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/live-loopback.js",
+      "calls": [
+        {
+          "callee": "spawn",
+          "count": 1
+        }
+      ],
+      "owner": "audio family (lane A)",
+      "evidence": "plan.md (the live connection stays with the session subsystem); live-class.md (system-audio loopback); s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "the read-only WASAPI loopback helper subprocess of a class on Windows system audio (lives and ends with active class capture; zero process while idle or paused, with taskkill fallback on stop)",
+          "disposition": "exception",
+          "kind": "session-subsystem",
+          "reached": true
+        }
+      ]
+    },
+    {
       "file": "lib/live.js",
       "calls": [
         {

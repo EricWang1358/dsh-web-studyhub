@@ -9,9 +9,10 @@ import { usePolling } from './use-polling.js';
 import { providerOf } from '../lib/audio-providers.js';
 import { Button, Checkbox, CheckboxInput, IconButton, InlineMessage, PageHeader, Select, SetupRequired, Tooltip, useToast } from './components/index.js';
 import LiveLocalCard from './LiveLocalCard.jsx';
+import LiveLoopbackCard from './LiveLoopbackCard.jsx';
 import { localTip } from './live-local-flow.js';
 import { openAudioSettings } from './audio-focus.js';
-import { tabSharingAllowed } from './live-audio.js';
+import { hostInfo, tabSharingAllowed } from './live-audio.js';
 import { useInjectCss } from './shared.js';
 import css from './live-class.css';
 import CourseField from './CourseField.jsx';
@@ -119,7 +120,12 @@ const engineNote = provider => (provider === 'local'
  * in another page), the usual instruction would be a lie, so a quiet note says so before the first click instead of an error after it. The start
  * button stays usable: the policy check can be wrong, and the refusal then explains itself (ui/live-audio.js classifyTabRefusal).
  */
-export function SourceHint({ kind, tabAllowed, onUseMicrophone }) {
+export function SourceHint({ kind, tabAllowed, loopbackReady = false, onUseMicrophone }) {
+  if (kind === 'system') {
+    return loopbackReady
+      ? <p className="muted" data-system-audio="ready">{ui('直接采集这台电脑耳机或扬声器正在播放的声音，不弹共享窗口；暂停或结束实录会立即释放声卡。')}</p>
+      : null;
+  }
   if (kind !== 'tab') return null;
   if (tabAllowed === false) return <p className="muted" data-tab-sharing="blocked">{ui('浏览器显示这个面板不允许共享标签页，点「开始实录」多半弹不出选择窗口。请改用麦克风，或在独立的浏览器窗口里打开 StudyHub；也可以课后在「音频转写」里导入录音。')}{' '}
     {onUseMicrophone && <Button variant="link" size="sm" onClick={onUseMicrophone}>{ui('改用麦克风')}</Button>}</p>;
@@ -141,22 +147,26 @@ export function captureFactsLine(facts) {
  * the gesture the microphone prompt needs); 「再试一次共享」 only where trying again can work (a permission the learner may just have fixed, or an unknown cause).
  * Where the window itself cannot share (policy, an app shell, a frame) retrying is not offered. The facts line says what the browser reported.
  */
-export function CaptureHelp({ kind, facts, disabled, activeOp = '', lock = false, onMicrophone, onRetry }) {
+export function CaptureHelp({ kind, facts, disabled, activeOp = '', lock = false, liveLoopback = null, initialLoopback = null, onMicrophone, onSystemAudio, onLoopbackReady, onRetry }) {
   if (!['blocked', 'embedded-instant', 'app-window', 'instant', 'unknown'].includes(kind)) return null;
   const retry = kind === 'instant' || kind === 'unknown';
   const held = lock || disabled;
   const line = captureFactsLine(facts);
+  const canLoopback = liveLoopback?.supported === true;
   return <div className="live-capture-help" data-capture-help={kind}>
     <div className="live-capture-actions">
+      {canLoopback && liveLoopback.ready && onSystemAudio &&
+        <Button busy={activeOp === 'start-system'} lock={held} onClick={onSystemAudio}>{ui('改用电脑系统声音并开始')}</Button>}
       <Button busy={activeOp === 'start-mic'} lock={held} onClick={onMicrophone}>{ui('改用麦克风并开始')}</Button>
       {retry && <Button variant="quiet" busy={activeOp === 'start-tab'} lock={held} onClick={onRetry}>{ui('再试一次共享')}</Button>}
     </div>
-    {facts?.platform === 'windows' && <p className="muted" data-capture-loopback>{ui('戴着耳机、不想外放：把 Windows 的默认录音设备改成「立体声混音」（或虚拟声卡的 Output），然后选「麦克风」，就能直接录到电脑播放的声音。步骤见文档「课堂实录」。')}</p>}
+    {canLoopback && !liveLoopback.ready && <LiveLoopbackCard initialStatus={initialLoopback} onReady={onLoopbackReady} />}
+    {!canLoopback && facts?.platform === 'windows' && <p className="muted" data-capture-loopback>{ui('戴着耳机、不想外放：把 Windows 的默认录音设备改成「立体声混音」（或虚拟声卡的 Output），然后选「麦克风」，就能直接录到电脑播放的声音。步骤见文档「课堂实录」。')}</p>}
     {line && <details className="live-capture-facts"><summary>{ui('排查信息')}</summary><p className="muted">{line}</p></details>}
   </div>;
 }
 
-export default function LiveClass({ data, visible, onJobs, onSettings, onSources, initialReadiness = null, initialLocal = null }) {
+export default function LiveClass({ data, visible, onJobs, onSettings, onSources, initialReadiness = null, initialLocal = null, initialLoopback = null, initialAppHost, initialKind = 'microphone' }) {
   const { call } = useStudy();
   const language = useUiLanguage();
   useInjectCss(css, 'study-live-class');
@@ -164,7 +174,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
   const client = useMemo(() => new LiveClient(call), [call]);
   const { session, capturing, busy, error, errorKind, errorFacts } = useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
   const [sessions, setSessions] = useState([]), [title, setTitle] = useState(''), [subject, setSubject] = useState('');
-  const [terms, setTerms] = useState(''), [kind, setKind] = useState('microphone'), [paidOnly, setPaidOnly] = useState(false);
+  const [terms, setTerms] = useState(''), [kind, setKind] = useState(initialKind), [paidOnly, setPaidOnly] = useState(false);
   const [selected, setSelected] = useState(new Set()), [count, setCount] = useState(5), [activeOp, setActiveOp] = useState('');
   const working = activeOp !== '';
   const toast = useToast();
@@ -173,6 +183,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
   const [follow, setFollow] = useState(true);
   // Read once, in the first render: the policy of a frame does not change, and a note that arrived later would push the form down.
   const [tabAllowed] = useState(() => tabSharingAllowed());
+  const [appHost] = useState(() => initialAppHost ?? hostInfo().app);
   const openAudio = openAudioSettings(onSettings);
   const feed = useRef(null), operation = useRef(false);
   // Whether a live provider is configured, checked before anything asks for the microphone (null until known).
@@ -184,6 +195,17 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
   // The engine of the next class: the pre-flight's answer (the learner's default), changed here per class where both engines can run.
   const [provider, setProvider] = useState('');
   const engine = provider || readiness?.liveProvider || 'gemini';
+  const loopbackSupported = readiness?.liveLoopback?.supported === true;
+  const loopbackReady = readiness?.liveLoopback?.ready === true;
+  const sourceOptions = loopbackSupported && appHost === 'electron'
+    ? [{ value: 'microphone', label: ui('麦克风（现场课堂）') }, { value: 'system', label: ui('电脑系统声音（客户端 / 网课）') }]
+    : loopbackSupported
+      ? [{ value: 'microphone', label: ui('麦克风（现场课堂）') }, { value: 'system', label: ui('电脑系统声音（本机组件直采）') }, { value: 'tab', label: ui('标签页 / 系统声音（网课）') }]
+      : [{ value: 'microphone', label: ui('麦克风（现场课堂）') }, { value: 'tab', label: ui('标签页 / 系统声音（网课）') }];
+  const effectiveKind = loopbackSupported && appHost === 'electron' && kind === 'tab'
+    ? 'system'
+    : (!loopbackSupported && kind === 'system' ? 'microphone' : kind);
+  const needsLoopbackInstall = effectiveKind === 'system' && !loopbackReady;
   const refresh = useCallback(async () => {
     const result = await call('live.list'); setSessions(result.sessions || []);
   }, [call]);
@@ -203,8 +225,12 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
   useEffect(() => {
     if (visible && follow && feed.current) feed.current.scrollTop = feed.current.scrollHeight;
   }, [visible, follow, session?.revision, session?.interim]);
-  // A refusal that retrying cannot fix moves the form to the microphone, so the next click on 「开始实录」 works.
-  useEffect(() => { if (error && ['blocked', 'embedded-instant', 'app-window'].includes(errorKind)) setKind('microphone'); }, [error, errorKind]);
+  // A refusal that retrying cannot fix moves the form to system audio when ready, or the microphone, so the next click on 「开始实录」 works.
+  useEffect(() => {
+    if (error && ['blocked', 'embedded-instant', 'app-window'].includes(errorKind)) {
+      setKind(loopbackSupported && loopbackReady ? 'system' : 'microphone');
+    }
+  }, [error, errorKind, loopbackSupported, loopbackReady]);
   const perform = async (op, action) => {
     if (operation.current) return;
     operation.current = true; setActiveOp(op); client.update({ error: '' });
@@ -241,16 +267,22 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
       description={session ? undefined : ui('边听边看简体中文，选中重点就能出题。')}
       actions={<Button variant="quiet" onClick={openAudio}>{ui('音频设置')}</Button>} />
     {error && <InlineMessage tone="error" boxed>{uiMessage(error)}</InlineMessage>}
-    {error && !active(session) && <CaptureHelp kind={errorKind} facts={errorFacts} activeOp={activeOp} lock={disabled} onMicrophone={() => { setKind('microphone'); void begin('microphone', 'start-mic'); }} onRetry={() => void begin('tab', 'start-tab')} />}
+    {error && !active(session) && <CaptureHelp kind={errorKind} facts={errorFacts} activeOp={activeOp} lock={disabled}
+      liveLoopback={readiness?.liveLoopback || null} initialLoopback={initialLoopback}
+      onSystemAudio={() => { setKind('system'); void begin('system', 'start-system'); }}
+      onLoopbackReady={() => { setKind('system'); setChecked((value) => value + 1); }}
+      onMicrophone={() => { setKind('microphone'); void begin('microphone', 'start-mic'); }}
+      onRetry={() => void begin('tab', 'start-tab')} />}
     {!active(session) && readiness && readiness.live === false && <LiveSetup readiness={readiness} onSettings={openAudio} initialLocal={initialLocal}
       onReady={() => setChecked((value) => value + 1)} />}
     {!active(session) && !(readiness && readiness.live === false) && <form className="live-setup" onSubmit={(event) => {
-      event.preventDefault(); void begin(kind, 'start');
+      event.preventDefault(); if (!needsLoopbackInstall) void begin(effectiveKind, 'start');
     }}>
       <div className="live-fields"><label className="live-field">{ui('课堂名称')}<input className="live-input" value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder={ui('例如：数据库 · 分区与索引')} /></label>
-        <label className="live-field">{ui('声音来源')}<Select className="live-input" value={kind} onChange={setKind}
-          options={[{ value: 'microphone', label: ui('麦克风（现场课堂）') }, { value: 'tab', label: ui('标签页 / 系统声音（网课）') }]} /></label></div>
-      <SourceHint kind={kind} tabAllowed={tabAllowed} onUseMicrophone={() => setKind('microphone')} />
+        <label className="live-field">{ui('声音来源')}<Select className="live-input" value={effectiveKind} onChange={setKind}
+          options={sourceOptions} /></label></div>
+      <SourceHint kind={effectiveKind} tabAllowed={tabAllowed} loopbackReady={loopbackReady} onUseMicrophone={() => setKind('microphone')} />
+      {needsLoopbackInstall && <LiveLoopbackCard initialStatus={initialLoopback} onReady={() => setChecked((value) => value + 1)} />}
       <CourseField value={course} onChange={setCourse} courses={data?.focus?.courses} disabled={disabled} />
       <details><summary>{ui('课程背景与术语（可选）')}</summary>
         <label className="live-field">{ui('这堂课讲什么')}<input className="live-input" value={subject} maxLength={300} onChange={(event) => setSubject(event.target.value)} /></label>
@@ -258,7 +290,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
       <ProviderChoice readiness={readiness} value={engine} onChange={setProvider} disabled={disabled} />
       <div className="live-setup-foot">
         {engine !== 'local' && <Checkbox checked={paidOnly} onChange={setPaidOnly} label={ui('只用付费密钥')} />}
-        <Button variant="primary" busy={busy || activeOp === 'start'} lock={disabled} busyLabel={ui('正在连接…')} type="submit">{ui('开始实录')}</Button></div>
+        <Button variant={needsLoopbackInstall ? 'secondary' : 'primary'} busy={busy || activeOp === 'start'} lock={disabled} disabled={needsLoopbackInstall} busyLabel={ui('正在连接…')} type="submit">{ui('开始实录')}</Button></div>
       <small className="muted">{engineNote(engine)}</small>
     </form>}
     {!session && busy && <LiveAudioMonitor health={client.health} visible={visible} recording={capturing} />}
@@ -274,7 +306,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
         <div className="live-actions">{capturing && <Button busy={activeOp === 'pause'} lock={disabled} onClick={() => void perform('pause', () => client.pause())}>{session.status === 'paused' ? ui('继续') : ui('暂停')}</Button>}
           {active(session) && <Button busy={activeOp === 'stop'} lock={disabled} onClick={() => void perform('stop', async () => { await client.stop(); await refresh(); })}>{ui('结束实录')}</Button>}
           {!active(session) && !session.archivedAt && <ResumeControl session={session} readiness={readiness} busy={activeOp === 'resume'} lock={disabled}
-            onResume={(onEngine) => void perform('resume', async () => { await client.start(kind, { resumeId: session.id, paidOnly: onEngine !== 'local' && paidOnly, ...(onEngine ? { provider: onEngine } : {}) }); })} />}</div></div>
+            onResume={(onEngine) => void perform('resume', async () => { await client.start(effectiveKind, { resumeId: session.id, paidOnly: onEngine !== 'local' && paidOnly, ...(onEngine ? { provider: onEngine } : {}) }); })} />}</div></div>
       <LiveAudioMonitor compact health={client.health} visible={visible} recording={capturing} />
       {correction && <div className="live-correction-line">
         <span className={`live-correction-state${correction.running ? ' running' : ''}`}>{correction.running ? ui('正在按上下文润色…') : ui('上下文润色')}</span>

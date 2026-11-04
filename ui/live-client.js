@@ -25,8 +25,31 @@ export class LiveClient {
     this.getSnapshot = () => this.state;
   }
   update(patch) { this.state = { ...this.state, ...patch }; for (const listener of this.listeners) listener(); }
-  accept(patch) {
+  syncInputAudio(input, status = this.state.session?.status) {
+    if (!input || (input.source ? input.source !== 'system' : this.health.getSnapshot().kind !== 'system')) return;
+    const now = this.health.now();
+    const phase = status === 'paused' ? 'paused' : ['ended', 'error'].includes(status) ? 'stopped' : (input.phase || 'running');
+    this.health.update({
+      kind: 'system',
+      phase,
+      label: input.label || '',
+      context: '',
+      muted: !!input.muted,
+      level: phase === 'running' ? (input.level || 0) : 0,
+      peak: phase === 'running' ? (input.peak || 0) : 0,
+      capturedMs: input.capturedMs || 0,
+      acceptedMs: input.acceptedMs || 0,
+      queuedBytes: 0,
+      lastFrameAt: input.frameAgeMs == null ? null : now - input.frameAgeMs,
+      lastSoundAt: input.soundAgeMs == null ? null : now - input.soundAgeMs,
+      lastAckAt: input.ackAgeMs == null ? null : now - input.ackAgeMs,
+    });
+  }
+  accept(rawPatch) {
+    if (!rawPatch) return;
+    const { inputAudio, ...patch } = rawPatch;
     const session = mergeLiveSnapshot(this.state.session, patch);
+    this.syncInputAudio(inputAudio, session?.status);
     const previous = this.state.session;
     if (previous && Object.keys(session).every((key) => session[key] === previous[key] ||
       (key !== 'segments' && JSON.stringify(session[key]) === JSON.stringify(previous[key])))) return;
@@ -40,6 +63,19 @@ export class LiveClient {
     this.update({ busy: true, error: '', errorKind: '', errorFacts: null });
     let capture, session;
     try {
+      if (kind === 'system') {
+        const started = await this.call('live.start', { ...args, audioSource: 'system' });
+        const { inputAudio, ...rest } = started || {};
+        session = rest;
+        if (epoch !== this.epoch) { if (session?.id) await this.call('live.stop', { id: session.id }); return; }
+        this.audio = null;
+        this.health.phase('running');
+        this.syncInputAudio(inputAudio);
+        this.queue = Promise.resolve();
+        this.queuedBytes = 0;
+        this.update({ session, capturing: true });
+        return;
+      }
       capture = await this.capture(kind, (bytes) => { if (captureId === this.captureId) this.enqueue(bytes); },
         () => { if (captureId === this.captureId) void this.stop().catch((error) => this.fail(error)); },
         (state) => { if (captureId === this.captureId) this.health.update(state); });
@@ -104,7 +140,9 @@ export class LiveClient {
     ++this.epoch;
     this.health.reset();
     const session = await this.call('live.get', { id });
-    this.update({ session, error: '' });
+    const { inputAudio, ...rest } = session || {};
+    this.syncInputAudio(inputAudio);
+    this.update({ session: rest, error: '' });
   }
   close(id) {
     if (this.state.session?.id !== id || this.state.capturing) return;
@@ -126,6 +164,7 @@ export class LiveClient {
       this.update({ session: { ...this.state.session, status: result.status } });
       this.audio?.pause(paused);
       this.health.phase(paused ? 'paused' : 'running');
+      this.syncInputAudio(result?.inputAudio);
     } catch (error) { this.fail(error); throw error; }
     finally { if (this.epoch === epoch) this.update({ busy: false }); }
     await this.poll();

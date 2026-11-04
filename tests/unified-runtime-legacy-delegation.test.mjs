@@ -23,6 +23,7 @@ const KEPT = {
   'lib/generation-failure.js#FAILURE_CODES': 'the vocabulary of failure codes, pinned by tests',
   'lib/job-timing.js#tokensPerSecond': 'the speed of a decode, a documented helper of the timing fold; job-timing.test.mjs pins it',
   'lib/job-timing.js#ttftAverageMs': 'the mean wait for a first token, same',
+  'lib/live-loopback.js#loopbackProcessRunning': 'whether a WASAPI loopback subprocess is currently alive (0 while idle or paused, distinct from loopbackInUse); live-loopback.test.mjs pins the zero-paused-process invariant',
   'lib/live.js#listSaved': 'the saved classes of a library with no live class in front; the live and audio suites list through it',
   'lib/mineru-history.js#pruneRecords': 'the history trim the suites call directly (the service trims through the same function)',
   'lib/retrieval-index.js#sourceIdFromKey': 'the inverse of the source key, pinned by tests',
