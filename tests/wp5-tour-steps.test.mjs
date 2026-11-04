@@ -6,7 +6,7 @@ import { readFile, readdir, access } from "node:fs/promises";
 import { join } from "node:path";
 import { anchorsInSource, sourceFiles } from "./helpers/tour-anchors.mjs";
 import { TOUR_STEPS, availableTourSteps, tourNeighbour, tourKeyAction, tourStepCopy, CORE_TOUR_LENGTH, CORE_ORDER } from "../ui/tour/steps.js";
-import { NAV_DEFAULTS, mergeOrder } from "../ui/nav-order.js";
+import { NAV_DEFAULTS, mergeOrder, migrateOrder } from "../ui/nav-order.js";
 
 const han = /[㐀-鿿]/;
 const english = JSON.parse(await readFile("ui/locales/en.onboarding.json", "utf8"));
@@ -21,26 +21,32 @@ const PLAN_ANCHORS = ["nav", "nav-library", "nav-sources", "nav-generate", "nav-
   "generate-from-sources", "generate-submit", "review-question", "review-help", "wrongbook-list", "exam-start", "dashboard-summary",
   "skeleton-main", "workflows-main", "settings-model", "settings-audio", "settings-sample",
   // 2.1.2 refresh (WP29)
-  "generate-sources", "generate-options", "generate-summary", "wrongbook-recs", "dashboard-charts", "settings-extensions", "settings-update"];
+  "generate-sources", "generate-options", "generate-summary", "wrongbook-recs", "dashboard-charts", "settings-extensions", "settings-update",
+  // #654–#657: the 「更多」 fold, the 「帮助」 fold and the narrow window's menu button
+  "nav-more", "nav-help", "nav-menu"];
 const PAGES = new Set(["library", "sources", "generate", "draft", "review", "wrongbook", "exam", "dashboard", "skeleton", "workflows",
   "settings", "notes", "board", "audio", "live", "graph", "manage", "tasks", "examprep", "book"]);
 
-test("navigation is grouped by when a page is used: every day, now and then, once per course", () => {
+test("navigation is a main list of at most 6 pages and 「更多」 grouped by what the pages are about (#654)", () => {
   assert.deepEqual(NAV_DEFAULTS, {
-    daily: ["library", "sources", "generate", "tasks", "wrongbook", "workflows", "notes", "board"],
-    periodic: ["exam", "examprep", "book", "dashboard"],
-    setup: ["skeleton", "audio", "live"],
+    main: ["library", "sources", "generate", "wrongbook", "exam", "dashboard"],
+    material: ["audio", "live"],
+    practice: ["workflows", "book", "skeleton"],
+    exam: ["examprep"],
+    notes: ["tasks", "notes", "board"],
   });
   // A learner's saved order still applies; pages it does not mention join at the end of their group.
-  const saved = { daily: ["board", "library"], setup: ["live", "audio"] };
+  const saved = { main: ["dashboard", "library"], notes: ["board", "tasks"] };
   assert.deepEqual(mergeOrder(saved, NAV_DEFAULTS), {
-    daily: ["board", "library", "sources", "generate", "tasks", "wrongbook", "workflows", "notes"],
-    periodic: ["exam", "examprep", "book", "dashboard"],
-    setup: ["live", "audio", "skeleton"],
+    main: ["dashboard", "library", "sources", "generate", "wrongbook", "exam"],
+    material: ["audio", "live"],
+    practice: ["workflows", "book", "skeleton"],
+    exam: ["examprep"],
+    notes: ["board", "tasks", "notes"],
   });
-  // An order saved before the regrouping (main / upkeep) keeps working: its order is applied inside the new groups.
-  assert.deepEqual(mergeOrder({ main: ["library", "workflows", "live", "audio"], upkeep: ["sources", "generate", "skeleton"] }, NAV_DEFAULTS).setup,
-    ["live", "audio", "skeleton"]);
+  // An order saved before the regrouping (每天 / 阶段性 / 课程准备与管理, or main / upkeep) keeps the learner's sequence inside the new groups.
+  assert.deepEqual(migrateOrder({ main: ["library", "workflows", "live", "audio"], upkeep: ["sources", "generate", "skeleton"] }, NAV_DEFAULTS).material,
+    ["live", "audio"]);
 });
 
 const ALL = { sample: { loaded: true, deckId: "d", sourceId: "s", draftId: "r" }, pageAvailable: () => true, hasContext: () => true };
@@ -127,14 +133,16 @@ test("steps that need sample data, a page or a component are left out when it is
   assert.deepEqual(ids({ ...ALL, sample: { loaded: false }, line: true }), ["welcome", "settings-model", "sources", "generate-quick", "finish-line"]);
 });
 
-test("the group hints and the tour's sidebar step name every page of the group (任务 and 备考补习 included)", async () => {
+test("the tour's sidebar step describes the layout of #654–#657: the main pages, every section of 「更多」, the footer and the narrow menu", async () => {
   const { NAV_GROUPS } = await import("../ui/nav-order.js");
   const { PAGES: registry } = await import("../ui/pages.js");
-  const nav = TOUR_STEPS.find((step) => step.id === "nav").body;
-  for (const group of NAV_GROUPS) for (const id of NAV_DEFAULTS[group.id]) {
-    assert.ok(group.hint.includes(registry[id].label), `${group.id} hint names ${registry[id].label}`);
-    assert.ok(nav.includes(registry[id].label), `the sidebar step names ${registry[id].label}`);
-  }
+  const step = TOUR_STEPS.find((item) => item.id === "nav");
+  for (const id of NAV_DEFAULTS.main) assert.ok(step.body.includes(registry[id].label), `the sidebar step names ${registry[id].label}`);
+  for (const group of NAV_GROUPS.filter((item) => item.more)) assert.ok(step.body.includes(group.label), `the sidebar step names the section ${group.label}`);
+  for (const word of ["更多", "找功能", "帮助", "设置", "菜单"]) assert.ok(step.body.includes(word), word);
+  assert.doesNotMatch(step.body, /每天|阶段性|课程准备与管理|切换语言和外观|点标题收起/, "the old groups and footer switches are gone");
+  // In a narrow window the sidebar is a drawer behind the top bar's menu button: the step falls back to that button.
+  assert.deepEqual(step.anchor, ["nav", "nav-menu"]);
 });
 
 test("back, next and the keyboard move one step; Escape pauses", () => {

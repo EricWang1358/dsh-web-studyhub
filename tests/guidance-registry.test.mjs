@@ -48,18 +48,19 @@ const SEEN = {
   'study-book-moves-seen:Cloud': '2026-10-01T00:00:00.000Z',
   'study-book-backup-seen:/lib': '1',
   'study-jev-guide-seen': '1',
-  'study-nav-start:v1': JSON.stringify(['library', 'sources']),
   'study-nav-reorder-hint:v1': 'true',
 };
 /* Keys that look alike but are NOT registered guidance: a reset must leave them alone (the tour's resume point included: it is not in the registry). */
 const UNRELATED = {
   'study-ui-language': 'zh', 'study-theme': 'dark', 'study-tasks-seen:/lib': '123', 'study-tour:/lib': JSON.stringify({ stepId: 'practice', done: false }),
   'study-welcomed': 'keep', 'studyhub.welcomed.v1': '2026-10-01', 'study-reader-hints-extra': '[]',
+  // The 「从这里开始」 dots are gone (#655): the list an older version wrote is no guidance any more, and a reset does not need it.
+  'study-nav-start:v1': JSON.stringify(['library', 'sources']),
   [GUIDANCE_KEY]: JSON.stringify({ day: '2026-10-26', shownToday: 1, off: true, muted: ['skeleton.archify'] }),
 };
 
 test('every entry is well formed, ids are unique, kinds are tip/card/tour/nudge, and the tour resume point is not an entry', () => {
-  assert.equal(GUIDANCE_ITEMS.length, 14);
+  assert.equal(GUIDANCE_ITEMS.length, 13, 'the 「从这里开始」 dots left with #655: a new learner is led by the home first-run line, not by dots');
   for (const item of GUIDANCE_ITEMS) assert.deepEqual(entryProblems(item), [], item.id);
   const ids = GUIDANCE_ITEMS.map(item => item.id);
   assert.equal(new Set(ids).size, ids.length, 'ids are unique');
@@ -72,18 +73,10 @@ test('every entry is well formed, ids are unique, kinds are tip/card/tour/nudge,
     'what appears by itself (the master switch hint names exactly these; the setup "all done" note is a status, not a tip)');
 });
 
-test('设置 › 引导 owns the same key the sidebar writes, so 再显示一次 brings the step-5 dots back', async () => {
-  const { NAV_START_KEY, readStarts, startHere } = await import('../ui/nav-start.js');
-  const local = memoryStorage(SEEN), storages = both(local);
-  const item = guidanceItem('nav.start');
-  assert.ok(item, 'the step-5 marker is registered guidance');
-  assert.equal(itemSeen(item, storages), true);
-  assert.deepEqual(readStarts(local), ['library', 'sources']);
-  assert.equal(clearItem(item, storages), true);
-  assert.deepEqual(readStarts(local), [], '再显示一次 forgets which pages were opened');
-  assert.equal(startHere('sources', readStarts(local)), true, 'so its dot is back');
-  assert.equal(itemSeen(item, storages), false);
-  assert.equal(local.getItem(NAV_START_KEY), null, 'the emptied list is removed, not left as []');
+test('the sidebar has no 「从这里开始」 dots to bring back (#655): 设置 › 引导 does not list them', () => {
+  // They lit four rows of an empty library at once, so they said nothing; the sidebar's one dot is ui/nav-alert.js and is not guidance.
+  assert.equal(guidanceItem('nav.start'), undefined);
+  assert.ok(!GUIDANCE_ITEMS.some(item => item.memory?.key === 'study-nav-start:v1'));
 });
 
 test('the experiment entry needs both the experiments switch and the system component; 入门三步 cannot come back once there is an own deck', () => {

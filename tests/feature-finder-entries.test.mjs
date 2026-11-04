@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { anchorsInSource } from "./helpers/tour-anchors.mjs";
-import { PAGES } from "../ui/pages.js";
+import { PAGES, sectionLabelOf } from "../ui/pages.js";
 import { SETTINGS_CATEGORIES } from "../ui/settings-groups.js";
 import { GLOSSARY } from "../ui/mastery-terms.js";
 import { FINDER_AREAS, FINDER_ENTRIES, FEATURES, PREPARE_STEPS, finderCopy, entryTags } from "../ui/finder/entries.js";
@@ -26,10 +26,28 @@ test("every page with a sidebar group or a purpose has a page entry made from it
     assert.equal(entry.title, page.label, `${id}: the title is the sidebar label`);
     assert.equal(entry.what, page.purpose, `${id}: the sentence is the page's purpose`);
     assert.equal(entry.page, id);
-    assert.ok(entry.anchors.length > 0 && entry.anchors.every((anchor) => anchor === `nav-${id}`), `${id}: the sidebar entry is the anchor`);
-    assert.deepEqual(entry.path, [page.label]);
+    // The sidebar row first; in a narrow window the sidebar is a drawer, so the top bar's menu button stands in for it (#657).
+    assert.deepEqual(entry.anchors, [`nav-${id}`, "nav-menu"], `${id}: the sidebar row, then the menu button`);
+    // A page folded into 「更多」 says so: 更多 › its section › its label (#654).
+    assert.deepEqual(entry.path, page.main || !page.group ? [page.label] : ["更多", sectionLabelOf(page.group), page.label], `${id}: the path`);
     assert.ok(areaIds.includes(entry.area), `${id}: area ${entry.area}`);
   }
+});
+
+test("the folds and the menu button of the sidebar (#654–#657) are entries; the old group names and the moved controls still find them", () => {
+  const aliases = (id) => byId.get(id).aliases;
+  const more = byId.get("nav-more");
+  assert.deepEqual(more.anchors, ["nav-more", "nav-menu"]);
+  for (const word of ["每天", "阶段性", "课程准备与管理", "more"]) assert.ok(aliases("nav-more").includes(word), `更多: ${word}`);
+  assert.deepEqual(byId.get("nav-help").anchors, ["nav-help", "nav-menu"]);
+  assert.deepEqual(byId.get("nav-menu").anchors, ["nav-menu", "nav-collapse"]);
+  // What moved into 「帮助」 says so, and is lit through it in a narrow window.
+  for (const id of ["shortcuts", "tour", "glossary"]) {
+    assert.deepEqual(byId.get(id).path.slice(0, 2), ["侧栏", "帮助"], `${id}: under 帮助`);
+    assert.equal(byId.get(id).anchors.at(-1), "nav-menu", `${id}: the menu button stands in`);
+  }
+  // Language and appearance are in Settings only (#656): their sentences no longer send the learner to the sidebar.
+  for (const id of ["ui-language", "appearance-theme"]) assert.doesNotMatch(byId.get(id).what, /侧栏/, id);
 });
 
 test("every settings category has an entry that goes to its first anchor under 设置", () => {

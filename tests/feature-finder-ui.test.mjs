@@ -155,11 +155,10 @@ test("the usage record knows the row and the keys: nav.finder and shortcut.finde
   assert.equal(m.shortcutKeyFor(event({ key: "/", code: "Slash", target: field })), null, "typing a slash is not a shortcut");
 });
 
-test("the tour's sidebar step points at 找功能 and still names every page of the groups", () => {
+// The pages it names are checked in tests/wp5-tour-steps.test.mjs (the main list and every section of 「更多」, #654).
+test("the tour's sidebar step points at 找功能: its key and that it takes you there", () => {
   const step = m.TOUR_STEPS.find((item) => item.id === "nav");
-  assert.match(step.body, /找功能/);
-  assert.match(step.body, /Ctrl K/);
-  assert.ok(step.body.startsWith("左侧放常用的功能；找不到某个功能时，点「找功能」或按 Ctrl K 搜一下，选中后会直接带你过去。"));
+  assert.match(step.body, /「找功能」（Ctrl K，选中后直接带你过去）/);
 });
 
 test("where 带我去 stands: on the page already, on the page of the entry, on the page the prepare step names; a settings anchor is a settings link", () => {

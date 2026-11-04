@@ -20,7 +20,7 @@
      needs    { model, capability, flag, install }: said as tags, and capability / flag decide whether the host can take you there at all
      prepare  a key of PREPARE_STEPS: what the learner has to do first when the control is not on screen (the finder cannot open a document, start a
               round or open a menu for them) */
-import { PAGES } from '../pages.js';
+import { PAGES, sectionLabelOf } from '../pages.js';
 import { SETTINGS_CATEGORIES } from '../settings-groups.js';
 import { GLOSSARY } from '../mastery-terms.js';
 
@@ -36,9 +36,13 @@ export const FINDER_AREAS = Object.freeze([
   { id: 'terms', label: '名词' },
 ]);
 
-/** The area of a page by its sidebar group; PAGE_AREA says where a page differs from its group. */
-const GROUP_AREA = { daily: 'daily', periodic: 'exam', setup: 'course' };
-const PAGE_AREA = { sources: 'material', generate: 'generate', wrongbook: 'practice', workflows: 'practice', notes: 'practice', book: 'practice', settings: 'settings' };
+/** The area of a page by its sidebar section (ui/pages.js NAV_SECTIONS); PAGE_AREA says where a page differs from its section. */
+const GROUP_AREA = { material: 'material', practice: 'practice', exam: 'exam', notes: 'daily' };
+const PAGE_AREA = { library: 'daily', generate: 'generate', notes: 'practice', skeleton: 'course', audio: 'course', live: 'course', settings: 'settings' };
+/** The sidebar's 「更多」 (#654), the first crumb of every page folded into it. Not MORE below, which is a page's own 「更多选项」. */
+const SIDEBAR_MORE = '更多';
+/** In a narrow window the sidebar is a drawer (#657): the top bar's menu button stands in for every row of it. */
+const NAV_MENU = 'nav-menu';
 
 /** What the learner does first, for a control that is not on screen. `land` is the page to stand on meanwhile (default: the entry's page); `after`
     says it even when the control was found (a menu item behind a button that is). The words are said when the control itself could not be lit
@@ -273,7 +277,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'appearance-theme', area: 'settings', title: '外观', page: 'settings', anchors: ['settings-appearance-theme'],
     aliases: ['深色', '浅色', '暗色', '夜间', '主题', '护眼', '纸色', 'dark', 'light', 'theme', 'dark mode'],
     path: ['设置', '界面', '外观'],
-    what: '选界面的明暗和配色（也有纯黑和护眼纸色）。侧栏底部的「外观」按钮只在自动、深色、浅色之间切换。' }),
+    what: '选界面的明暗和配色（也有纯黑和护眼纸色）；选「跟随系统」就随电脑的深浅色变。' }),
   feature({ id: 'appearance-accent', area: 'settings', title: '强调色', page: 'settings', anchors: ['settings-appearance-accent'],
     aliases: ['颜色', '主色', '朱砂', 'accent', 'accent colour', 'color'],
     path: ['设置', '界面', '强调色'],
@@ -309,18 +313,18 @@ export const FEATURES = Object.freeze([
   feature({ id: 'ui-language', area: 'settings', title: '界面语言', page: 'settings', anchors: ['settings-appearance-language'],
     aliases: ['语言', '中文', '英文', 'english', 'language', 'interface language', 'switch language'],
     path: ['设置', '界面', '界面语言'],
-    what: '在中文和 English 之间切换界面语言；侧栏底部也能切换。' }),
-  feature({ id: 'shortcuts', area: 'settings', title: '快捷键', page: null, anchors: ['nav-shortcuts'],
+    what: '在中文和 English 之间切换界面语言；默认跟随浏览器的语言。' }),
+  feature({ id: 'shortcuts', area: 'settings', title: '快捷键', page: null, anchors: ['nav-shortcuts', 'nav-help', NAV_MENU],
     aliases: ['键盘', '快捷', '热键', '速查', 'keyboard', 'shortcuts', 'hotkeys', 'keys'],
-    path: ['侧栏', '快捷键'],
+    path: ['侧栏', '帮助', '快捷键'],
     what: '看这一页能用的键；按 ? 也能打开。' }),
-  feature({ id: 'tour', area: 'settings', title: '功能导览', page: null, anchors: ['tour-reopen'],
+  feature({ id: 'tour', area: 'settings', title: '功能导览', page: null, anchors: ['tour-reopen', 'nav-help', NAV_MENU],
     aliases: ['导览', '教程', '新手', '引导', '入门', '重看', 'tour', 'walkthrough', 'tutorial', 'onboarding'],
-    path: ['侧栏', '功能导览'],
+    path: ['侧栏', '帮助', '功能导览'],
     what: '切到每个关键功能，边走边看怎么用。先走主线（模型、资料、出题、草稿、练习），看完还可以看完整导览；随时可以暂停，之后接着看。' }),
-  feature({ id: 'glossary', area: 'settings', title: '名词解释', page: null, anchors: ['nav-glossary'],
+  feature({ id: 'glossary', area: 'settings', title: '名词解释', page: null, anchors: ['nav-glossary', 'nav-help', NAV_MENU],
     aliases: ['术语', '名词', '词汇', '是什么意思', 'glossary', 'terms', 'what does it mean'],
-    path: ['侧栏', '名词解释'],
+    path: ['侧栏', '帮助', '名词解释'],
     what: '把鼠标放上去（或用键盘聚焦），会列出界面里这些词的意思：主会话、总纲、覆盖强度、前置题、学习库、题组。' }),
   feature({ id: 'sample-remove', area: 'settings', title: '移除示例数据', page: 'settings', anchors: ['settings-sample'],
     aliases: ['示例', '示例课程', '示例数据', '设计模式', '删除示例', 'sample', 'demo', 'remove sample'],
@@ -352,7 +356,20 @@ export const FEATURES = Object.freeze([
     aliases: ['主会话', '交给主会话', '让主会话做', '发给 agent', 'hand off', 'main chat', 'send to chat', 'agent'],
     path: ['许多页面', '发给主会话'],
     what: '内置功能做不了的事，点「发给主会话」：StudyHub 把写好的话填进主会话的输入框，由你按发送；没有主会话时，复制到剪贴板。' }),
-  feature({ id: 'finder', area: 'settings', title: '找功能', page: null, anchors: ['nav-finder'],
+  // ── the sidebar itself (#654–#657) ──
+  feature({ id: 'nav-more', area: 'settings', title: '侧栏的「更多」', page: null, anchors: ['nav-more', NAV_MENU],
+    aliases: ['更多', '每天', '阶段性', '课程准备与管理', '侧栏分组', '其他功能', '调整顺序', '固定到侧栏', 'more', 'sidebar groups', 'reorder', 'pin'],
+    path: ['侧栏', '更多'],
+    what: '侧栏上方是最常用的几项，其余的按内容收在「更多」里：资料与出题、练习与复习、考试与统计、任务、笔记与待办。按住一项拖到上方就放进常用的几项（最多 6 项），用键盘时按 Alt 加上下方向键。' }),
+  feature({ id: 'nav-help', area: 'settings', title: '帮助', page: null, anchors: ['nav-help', NAV_MENU],
+    aliases: ['帮助', '说明', 'help'],
+    path: ['侧栏', '帮助'],
+    what: '侧栏底部的「帮助」里有功能导览、快捷键和名词解释。' }),
+  feature({ id: 'nav-menu', area: 'settings', title: '导航菜单', page: null, anchors: [NAV_MENU, 'nav-collapse'],
+    aliases: ['菜单', '侧栏', '侧边栏', '收起侧栏', '展开侧栏', '窄屏', 'menu', 'sidebar', 'navigation', 'collapse sidebar'],
+    path: ['顶栏', '菜单按钮'],
+    what: '窗口窄时，或把侧栏收起后，点顶栏左边的菜单按钮打开导航，每一项都带名字；按 Esc 或点外面就关上。窗口够宽时，导航里的「把侧栏固定在左边」能把它放回左边。' }),
+  feature({ id: 'finder', area: 'settings', title: '找功能', page: null, anchors: ['nav-finder', NAV_MENU],
     aliases: ['搜索', '查找', '找', '搜', 'search', 'find', 'find a feature', 'command palette', 'ctrl k', 'ctrl+k', 'cmd k', '⌘k'],
     path: ['侧栏', '找功能'],
     what: '输入一个词（中文、英文或常见叫法都行）就能找到功能在哪，选中后「带我去」会切到那一页并标出来。按 Ctrl K（Mac 上 ⌘K），或在没有输入框聚焦时按 /，也能打开。' }),
@@ -361,8 +378,9 @@ export const FEATURES = Object.freeze([
 /** One entry per page of the registry that has a sidebar group or a purpose. */
 function pageEntries(pages) {
   return Object.entries(pages).filter(([, page]) => page.group || page.purpose).map(([id, page]) => ({
-    id: `page-${id}`, kind: 'page', area: PAGE_AREA[id] || GROUP_AREA[page.group] || 'daily', title: page.label, aliases: [], path: [page.label], what: page.purpose || '',
-    page: id, anchors: [`nav-${id}`],
+    id: `page-${id}`, kind: 'page', area: PAGE_AREA[id] || GROUP_AREA[page.group] || 'daily', title: page.label, aliases: [], what: page.purpose || '',
+    path: page.main || !page.group ? [page.label] : [SIDEBAR_MORE, sectionLabelOf(page.group), page.label],
+    page: id, anchors: [`nav-${id}`, NAV_MENU],
     needs: { ...(page.needs?.length ? { capability: page.needs } : {}), ...(page.flag ? { flag: page.flag } : {}) },
   }));
 }
