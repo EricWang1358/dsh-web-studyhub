@@ -147,7 +147,7 @@ export default function Generate({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const tabs = [
     { id: "files", label: ui("用资料出题"), note: ui("AI 按你的资料出题，并逐题检查"), icon: "sparkle", attrs: { "data-tour": "generate-from-sources" } },
-    { id: "json", label: ui("导入 JSON 题组"), note: ui("已有题目，或外部 AI 生成的题"), icon: "file" },
+    { id: "json", label: ui("导入 JSON 题组"), note: ui("已有题目，或外部 AI 生成的题"), icon: "file", attrs: { "data-tour": "generate-json" } },
     // Case-study papers (WP12): a long case with open questions, graded criterion by criterion.
     { id: "case", label: ui("案例分析题"), note: ui("长案例 + 开放题，按评分标准逐项批改"), icon: "file", attrs: { "data-tour": "generate-case" } },
     // Recording into the conversation needs a chat that can take it (plan C3).
@@ -252,34 +252,34 @@ export default function Generate({
               </div>
               {caseExam && <p className="generate-case-hint">{ui("这门课考案例题，可以切到「案例分析题」出题。")}{" "}
                 <Button variant="link" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></p>}
-              <Disclosure className="generate-more" summary={ui("更多选项")} meta={ui("题型、覆盖强度、难度、语言、课程、想练什么")} open={foldOpen} onToggle={setMoreOpen}>
+              <Disclosure className="generate-more" data-tour="generate-more" summary={ui("更多选项")} meta={ui("题型、覆盖强度、难度、语言、课程、想练什么")} open={foldOpen} onToggle={setMoreOpen}>
                 <CourseField courses={data.focus?.courses} value={generationCourse} onChange={course => setGen({ ...gen, course })} />
                 <div className="generate-rows">
-                  <FormRow label={ui("题型")}>
+                  <FormRow label={ui("题型")} data-tour="generate-kinds">
                     <KindPicker className="generate-kind" value={kindsOfForm(gen)} onChange={(list) => setGen({ ...gen, ...kindsPatch(list) })} />
                     <p className="generate-note">{kindNote(kindsOfForm(gen))}</p>
                   </FormRow>
-                  {!pathMode && <FormRow label={ui("覆盖强度")}>
+                  {!pathMode && <FormRow label={ui("覆盖强度")} data-tour="generate-coverage">
                     <CoverageStrength compact level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}
                       onLevel={(coverageLevel) => setGen({ ...gen, coverageLevel })} onCustom={(customCount) => setGen({ ...gen, customCount })}
                       auto={autoOf({ ...gen, coverageLevel: level })} onAuto={(autoComplete) => setGen({ ...gen, autoComplete })}
                       budget={gen.tokenBudget ?? ''} onBudget={(tokenBudget) => setGen({ ...gen, tokenBudget })} />
                   </FormRow>}
-                  <FormRow label={ui("难度")}>
+                  <FormRow label={ui("难度")} data-tour="generate-difficulty">
                     <SegmentedControl className="generate-seg" label={ui("难度")} value={gen.difficulty} options={DIFFICULTIES.map(({ value, label }) => ({ value, label }))}
                       onChange={(difficulty) => setGen({ ...gen, difficulty })} />
                     <p className="generate-note">{difficultyNote(gen.difficulty)}</p>
                   </FormRow>
-                  <FormRow label={ui("语言")}>
+                  <FormRow label={ui("语言")} data-tour="generate-language">
                     <SegmentedControl className="generate-seg" label={ui("语言")} size="sm" value={gen.language} options={LANGUAGES.map(({ value, label }) => ({ value, label }))}
                       onChange={(language) => setGen({ ...gen, language })} />
                   </FormRow>
-                  <FormRow label={ui("公式写法")}>
+                  <FormRow label={ui("公式写法")} data-tour="generate-notation">
                     <SegmentedControl className="generate-seg" label={ui("公式写法")} size="sm" value={gen.notation ?? 'auto'} options={NOTATION_CHOICES.map(({ value, label }) => ({ value, label }))}
                       onChange={(notation) => setGen({ ...gen, notation })} />
                     <p className="generate-note">{notationNote()}</p>
                   </FormRow>
-                  <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus">
+                  <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus" data-tour="generate-focus">
                     <textarea id="generate-focus" ref={focusBox} className="generate-focus generate-row__input" rows={2} value={gen.focus}
                       onChange={(e) => setGen({ ...gen, focus: e.target.value })}
                       placeholder={ui("例如：区分相似模式，重点练习工程场景中的取舍")} />
@@ -294,7 +294,7 @@ export default function Generate({
                   <FormRow label={ui("题组名称（可选）")} htmlFor="generate-title">
                     <input id="generate-title" className="generate-row__input" value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如 SWE5001 · Solution Architecture")} />
                   </FormRow>
-                  <FormRow label={ui("目标岗位 / 面试方向（可选）")} htmlFor="generate-role">
+                  <FormRow label={ui("目标岗位 / 面试方向（可选）")} htmlFor="generate-role" data-tour="generate-role">
                     <input id="generate-role" className="generate-row__input" value={gen.role} onChange={(e) => setGen({ ...gen, role: e.target.value })} placeholder={ui("例如：后端工程师 · 系统设计")} />
                   </FormRow>
                 </div>
@@ -358,9 +358,9 @@ export default function Generate({
 }
 
 /* One label-left row of the form: the label column on wide panes, stacked on narrow ones. */
-function FormRow({ label, htmlFor, children }) {
+function FormRow({ label, htmlFor, children, ...rest }) {
   return (
-    <div className="generate-row">
+    <div className="generate-row" {...rest}>
       {htmlFor ? <label className="generate-row__label" htmlFor={htmlFor}>{label}</label> : <div className="generate-row__label">{label}</div>}
       <div className="generate-row__control">{children}</div>
     </div>

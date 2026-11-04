@@ -140,7 +140,7 @@ function Detail({ task, data, openers, full, onFull, onDelete, undoable }) {
   // A one-click install that stopped (paused, failed or interrupted) goes on where it stopped: 继续安装 is its one action here, in the folder it used (in place of the crimson 删除: 知道了 still archives it).
   const install = contract.detail?.install || null, resume = install && !live && !archived ? installResume(task) : null;
   return (
-    <section className="tc-detail" data-surface="dense" aria-label={ui('任务详情')} data-task-id={contract.jobId} data-status={contract.status} data-archived={archived ? 'true' : undefined}>
+    <section className="tc-detail" data-tour="tasks-detail" data-surface="dense" aria-label={ui('任务详情')} data-task-id={contract.jobId} data-status={contract.status} data-archived={archived ? 'true' : undefined}>
       <header className="tc-bar tc-head">
         <div className="tc-head__title">
           <h2>{summary.title}</h2>

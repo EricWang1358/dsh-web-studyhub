@@ -19,20 +19,26 @@ const MAX_DEPTH = 80;
  * nothing typed into an input, textarea, select or editor. Dialogs only accept the reader's P shortcut; Enter or Space on a focused button belongs to the button.
  */
 export function shortcutKeyFor(event, { fallbackArea = 'other' } = {}) {
-  if (!event || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return null;
+  if (!event || event.repeat || event.altKey) return null;
   const key = typeof event.key === 'string' ? event.key : '';
+  // Ctrl K / ⌘K is the finder's and nothing else's: any other chord belongs to the browser or the host.
+  const chord = event.ctrlKey || event.metaKey;
+  if (chord && (event.shiftKey || key.toLowerCase() !== 'k')) return null;
   const practice = key.toLowerCase() === 'p' && !event.shiftKey;
   let onButton = false, area = null;
   for (let node = event.target, depth = 0; node && depth < MAX_DEPTH; node = node.parentElement, depth += 1) {
-    if (EDITABLE.has(node.tagName) || (typeof node.hasAttribute === 'function' && node.hasAttribute('data-usage-ignore'))) return null;
+    if ((!chord && EDITABLE.has(node.tagName)) || (typeof node.hasAttribute === 'function' && node.hasAttribute('data-usage-ignore'))) return null;
+    // Ctrl K works in a text field too (ui/finder/keys.js); every other key is typing there.
     const editable = typeof node.getAttribute === 'function' ? node.getAttribute('contenteditable') : null;
-    if (editable !== null && editable !== 'false') return null;
+    if (!chord && editable !== null && editable !== 'false') return null;
     if (node.tagName === 'BUTTON' || node.tagName === 'A') onButton = true;
     if (!area && typeof node.getAttribute === 'function') area = node.getAttribute('data-usage-area');
     if (practice && area === 'reader' && node.getAttribute?.('data-mode') === 'original') return null;
     if (node.tagName === 'DIALOG' && !(practice && area === 'reader')) return null;
   }
+  if (chord) return 'shortcut.finder';
   if (key === '?' || (event.shiftKey && event.code === 'Slash')) return 'shortcut.help';
+  if (key === '/' && !event.shiftKey) return 'shortcut.finder';
   if (event.shiftKey) return null;
   const letter = key.length === 1 ? key.toLowerCase() : '';
   const page = area || fallbackArea;

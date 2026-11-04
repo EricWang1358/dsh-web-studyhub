@@ -426,7 +426,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         {onBack && <Button size="sm" variant="secondary" icon="arrow-left" className="reader-back-to-question" onClick={onBack}>{backLabel}</Button>}
         {canOutline && <IconButton icon="list" className="reader-toolbar__icon-btn" label={ui('目录')} aria-pressed={outlineOn} aria-controls={outlineOn ? outlineId : undefined}
           onClick={() => toggle('outline')} />}
-        <SegmentedControl size="sm" className="study-document-preview-mode" itemClassName="reader-mode__item" label={ui('显示方式')} value={view} options={modes} onChange={chooseView} />
+        <SegmentedControl size="sm" className="study-document-preview-mode" itemClassName="reader-mode__item" data-tour="reader-mode" label={ui('显示方式')} value={view} options={modes} onChange={chooseView} />
       </div>
       <p className="reader-toolbar__where">{where ? <Tooltip layer content={where}><span tabIndex={0}>{where}</span></Tooltip> : null}</p>
       {/* Two facts, two lines, one block (a toolbar has no room for a second row of words): what was learned (掌握, only published questions) and what was asked (覆盖, drafts included). */}
@@ -451,7 +451,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         {originalHandling(document) === 'download' && <Button size="sm" variant="quiet" icon="download" onClick={downloadOriginal}>{ui('下载原文件')}</Button>}
         {document?.preview?.kind === 'file' && host?.openDocument && <Button size="sm" variant="quiet" icon="external"
           onClick={() => host.openDocument(document.preview.path)}>{ui('使用宿主文件预览')}</Button>}
-        {!localMode && onGenerate && <Button variant="primary" icon="sparkle" disabled={generateDisabled} onClick={onGenerate}>{ui('从这份资料出题')}</Button>}
+        {!localMode && onGenerate && <Button variant="primary" icon="sparkle" data-tour="reader-generate" disabled={generateDisabled} onClick={onGenerate}>{ui('从这份资料出题')}</Button>}
       </div>
     </div>
     <div className="reader-progress" aria-hidden="true"><span style={{ transform: `scaleX(${view === 'original' ? 0 : position.progress})` }} /></div>

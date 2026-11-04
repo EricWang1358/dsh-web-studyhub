@@ -26,13 +26,14 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
   return (
     <div className="question-toolbar">
       <div className="question-tools">
-        {!run.feedback && <Button variant="quiet" className="tool-action" aria-expanded={!!expanded} onClick={onToggleHelp}>
+        {!run.feedback && <Button variant="quiet" className="tool-action" data-tour="review-hint" aria-expanded={!!expanded} onClick={onToggleHelp}>
           {run.revealed ? ui("讲解") : ui("提示")}
         </Button>}
         {run.mode !== "exam" && (
           <Button
             variant="quiet"
             className={"tool-action" + (enOn ? " is-active" : "")}
+            data-tour="review-en"
             aria-pressed={!!enOn}
             disabled={!!enBusy && !enOn}
             title={enBusy ? ui("正在翻译成英文…") : ui("在中文题干和答案后显示英文")}
@@ -43,15 +44,17 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
         )}
         {/* 自动驾驶: the setting of 设置 › 练习 (default off), switchable here and with the A key; it only flips a setting, so a saving step does not block it. */}
         {run.mode !== "exam" && onToggleAutopilot && (
-          <Button variant="quiet" className={"tool-action tool-autopilot" + (autopilot ? " is-active" : "")} aria-pressed={!!autopilot} aria-keyshortcuts="A"
+          <Button variant="quiet" className={"tool-action tool-autopilot" + (autopilot ? " is-active" : "")} data-tour="review-autopilot" aria-pressed={!!autopilot} aria-keyshortcuts="A"
             title={ui("答对后自动进入下一题，点任意处或按键可停下 · 按 A 键开关")} onClick={onToggleAutopilot}>{ui("自动驾驶")}</Button>
         )}
         <Button variant="quiet" className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</Button>
-        <ReadingSettingsButton className="review-reading" />
+        <ReadingSettingsButton className="review-reading" data-tour="review-reading" />
         {thumbs}
       </div>
       {run.mode === "exam" && <p className="muted small next-due">{ui("这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。")}</p>}
-      <div className="question-navigation">
+      {/* The 找功能 anchor of 更多 sits on this group, not on the trigger: every [data-tour] gets a scroll margin (tour.css), so focusing a trigger at the
+          bottom of the view scrolled the page, and the menu closes on any scroll (components/Menu.jsx) — it shut right after Enter opened it. */}
+      <div className="question-navigation" data-tour="review-more">
         <Menu label={ui("更多")} items={more.map(({ run: _run, ...item }) => item)} defaultOpen={moreDefaultOpen}
           onSelect={(id) => more.find((item) => item.id === id)?.run?.()}
           trigger={({ props, ref }) => <Button ref={ref} variant="quiet" className="tool-action review-more-trigger" {...props}>{ui("更多")}</Button>} />

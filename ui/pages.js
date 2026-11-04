@@ -36,7 +36,7 @@ export const PAGES = Object.freeze({
   outline: { label: '总纲', title: '总纲', glyph: null, group: null, needs: ['bank', 'study', 'materials'], back: '回到总纲' },
   graph: { label: '知识图谱', title: '知识图谱', glyph: null, group: null, needs: ['bank', 'study'], onEnter: user((ctx) => ctx.clearGraphScope()) },
   guided: { label: '带学工作台', title: '带学工作台', glyph: null, group: null, needs: ['study'] },
-  settings: { label: '设置', title: '设置', glyph: 'settings', group: null, needs: [] },
+  settings: { label: '设置', title: '设置', glyph: 'settings', group: null, needs: [], purpose: '语言、外观、模型连接和引导提示都在这页调' },
 });
 
 export const PAGE_IDS = Object.freeze(Object.keys(PAGES));
