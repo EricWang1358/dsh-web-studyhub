@@ -14,14 +14,17 @@
      perPointStandingControls the visible interactive elements inside the shown point with nothing expanded
      perPointWithoutInlineMarks  the same without the 角标 and dashed words inside the reading text
      standingModeSwitches     the segmented controls standing on the page (a mode switch: 预览/原文/查找/翻看, 逐节读/整章滚动), outside any dialog or menu
-   BOOK_SHOTS_DETAIL=1 adds the names of the elements counted. Seeded temporary library, fake model, no network, no key. */
+   BOOK_SHOTS_DETAIL=1 adds the names of the elements counted. Seeded temporary library, fake model, no network, no key.
+   BOOK_FIXTURES=built (#710, not in the default list): a book BUILT by the fake model (tests/helpers/book-fixtures.mjs seedBuiltBook), at 1440 and 420, light:
+   built-<width>-light-cards (the first point's 术语卡 open), card-link (a relation followed to its card), lookup-az, lookup-chapters and lookup-formulas (the
+   速查页's A–Z with the cards' numbers and other names, the cards by chapter, the formula page). */
 /* global document, window, getComputedStyle */
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launchChromium } from './browser.mjs';
 import { openPage, settleAnimations, startLateServer } from './layout-late.mjs';
-import { BOOK_COURSE, BOOK_FIXTURES, seedBookFixture } from '../../tests/helpers/book-fixtures.mjs';
+import { BOOK_COURSE, BOOK_FIXTURES, seedBookFixture, seedBuiltBook } from '../../tests/helpers/book-fixtures.mjs';
 import { StudyService } from '../../lib/service.js';
 import { createFakeModel } from '../fake-model.mjs';
 import { switchOptions } from '../../tests/helpers/runtime-switch.mjs';
@@ -256,6 +259,35 @@ async function lookAtAi(browser, running, { kind, width, theme, shots }) {
   } finally { await context.close(); await service.dispose(); }
 }
 
+/** 术语卡 (#710) on a book built by the fake model: see the top of this file. */
+async function lookAtCards(browser, running, { width, theme, shots }) {
+  const { page, errors, context } = await openPage(browser, running, { width, height: 900, theme });
+  const save = async shot => { await page.waitForTimeout(300); await settleAnimations(page); await page.screenshot({ path: join(shots, `built-${width}-${theme}-${shot}.png`) }); };
+  // The element's top a little under the sticky bars.
+  const toTopOf = locator => locator.evaluate(element => { element.scrollIntoView({ block: 'start' }); const app = document.querySelector('.study-app'); if (app) app.scrollTop -= 120; window.scrollBy(0, -120); });
+  try {
+    await openBook(page, running);
+    const fold = page.locator('.book-cards').first();
+    await fold.locator('summary').click();
+    await toTopOf(fold);
+    await page.mouse.move(width - 10, 890);
+    await save('cards');
+    const link = fold.locator('[data-term-link]').first();
+    if (await link.count()) { await link.click(); await page.waitForTimeout(500); await save('card-link'); } else console.error('built: no relation link in the first point');
+    await page.locator('.book-bar__more').click();
+    await page.getByRole('menuitem', { name: '速查页…' }).click();
+    const dialog = page.locator('dialog.book-lookup-dialog');
+    await dialog.waitFor({ timeout: 30000 });
+    for (const [part, shot] of [['glossary', 'lookup-az'], ['cards', 'lookup-chapters'], ['formulas', 'lookup-formulas']]) {
+      const heading = dialog.locator(`#book-lookup-${part}`);
+      if (!await heading.count()) { console.error(`built: the 速查页 has no ${part} part`); continue; }
+      await heading.evaluate(element => element.scrollIntoView({ block: 'start' }));
+      await save(shot);
+    }
+    return errors;
+  } finally { await context.close(); }
+}
+
 /** Two courses (a note of a second one added): the title's course is the home's switcher; the picture has its list open. */
 async function lookAtCourse(browser, running, { kind, width, theme, shots }) {
   const { page, errors, context } = await openPage(browser, running, { width, height: 900, theme });
@@ -275,6 +307,16 @@ export async function bookShots({ shots = process.env.BOOK_SHOTS, kinds = (proce
   const browser = await launchChromium(), results = [];
   try {
     for (const kind of kinds) {
+      if (kind === 'built') {
+        const running = await startLateServer({ distDir: resolve(repoRoot, dist || 'dist'), seed: seedBuiltBook });
+        try {
+          for (const width of [1440, 420]) {
+            const errors = await lookAtCards(browser, running, { width, theme: 'light', shots });
+            if (errors.length) console.error(`built ${width} light: page errors ${JSON.stringify(errors)}`);
+          }
+        } finally { await running.close(); }
+        continue;
+      }
       const running = await startLateServer({ distDir: resolve(repoRoot, dist || 'dist'), seed: root => seedBookFixture(root, kind) });
       try {
         await running.api('focus.set', { course: BOOK_COURSE });

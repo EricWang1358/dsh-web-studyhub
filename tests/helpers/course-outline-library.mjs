@@ -141,13 +141,16 @@ function paperAnswer(data) {
   return { questions };
 }
 
-/** The inventory a plausible model makes of some page ranges: every "<Topic> fact <n>: <what>." sentence is a concept anchored by its own words; a range with
+/** The inventory a plausible model makes of some page ranges: every "<Topic> fact <n>: <what>." sentence is a concept anchored by its own words (and every
+    "Formula <Name>: <expression>." a formula); a range with
     no such sentence and some text gives one item from its first words. `invent`: every quote is one the range does not hold (the item is kept, unverified). */
 export function inventoryAnswer(data, { invent = false } = {}) {
   const items = [];
   for (const range of data.ranges) {
     const facts = [...range.text.matchAll(/([A-Z][A-Za-z -]*?) fact (\d+): ([^.]+)\./g)];
     for (const [sentence, topic, n, gist] of facts) items.push({ range: range.ref, kind: 'concept', name: `${topic} fact ${n}`, gist, quote: invent ? 'Words that are nowhere in the range.' : sentence.slice(0, 60), key: n === '0' });
+    // "Formula <Name>: <expression>." is a formula item (only libraries that write such a sentence have one).
+    for (const [sentence, name, gist] of range.text.matchAll(/Formula ([A-Z][A-Za-z ]*?): ([^.]+)\./g)) items.push({ range: range.ref, kind: 'formula', name, gist, quote: sentence.slice(0, 60) });
     if (!facts.length && range.text.trim().length >= 20) {
       const words = range.text.trim().split(/\s+/);
       items.push({ range: range.ref, kind: 'term', name: words.slice(0, 2).join(' '), gist: words.slice(0, 8).join(' '), quote: invent ? 'Words that are nowhere in the range.' : words.slice(0, 6).join(' ') });

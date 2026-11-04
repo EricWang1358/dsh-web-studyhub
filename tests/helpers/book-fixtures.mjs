@@ -4,7 +4,9 @@
      state 'new') of 3,000-6,000 characters in the template 「这段在讲什么 / 1. 小标题 / 原文说 / 意思就是 / 资料原文 / 补充（资料以外）」; a few points also carry one short
      explain block on words of their 讲解, two a note of the learner's own. No questions. The exam is five days after today.
    - 'questions': the same book, and most points have 10-25 questions (two have a Q&A put into the book); the plan has 翻看 days.
-   Seeded into a temporary library through the service (no model, no network). `today` is the day the page itself reads (localDate). */
+   Seeded into a temporary library through the service (no model, no network). `today` is the day the page itself reads (localDate).
+   seedBuiltBook (#710): not one of these two; a book BUILT by the fake model (tests/helpers/course-book-model.mjs) over the course outline library with a sample
+   paper and two formula sentences, so every point has its 术语卡 and the glossary its formulas. */
 import { mkdir } from 'node:fs/promises';
 import { StudyService } from '../../lib/service.js';
 import { courseOutlineMaterial, materialsFingerprint } from '../../lib/course-outline-book.js';
@@ -17,6 +19,10 @@ import { localDate } from '../../lib/board-model.js';
 import { followupDigest } from '../../lib/followup.js';
 import { addDays } from '../../lib/crunch-plan.js';
 import { CHAPTERS, POINTS, bodyOf, examOf } from './book-topics.mjs';
+import { COURSE, outlineLibrary } from './course-outline-library.mjs';
+import { bookModel } from './course-book-model.mjs';
+import { switchOptions } from './runtime-switch.mjs';
+import { settleJob } from './wait.mjs';
 
 export const BOOK_COURSE = 'ArchSS';
 export const BOOK_FIXTURES = ['archss', 'questions'];
@@ -132,4 +138,23 @@ export async function seedBookFixture(root, kind = 'archss') {
   await service.call('course.save', { name: BOOK_COURSE, exam: { date: exam } });
   await service.dispose();
   return { course: BOOK_COURSE, points: POINTS.map(point => ({ id: point.id, title: point.title })), exam };
+}
+
+/** The formula sentences the built book's lectures add (the fake inventory reads "Formula <Name>: <expression>." as a formula item): page -> sentence. */
+const FORMULA_PAGES = { 'document-l2-p3': ' Formula Availability ratio: A equals MTBF divided by the sum of MTBF and MTTR.',
+  'document-l5-p5': ' Formula Little law: L equals lambda times W.' };
+
+/** Seed `root` with a review book BUILT by the fake model (see the top of this file); -> { course }. */
+export async function seedBuiltBook(root) {
+  await mkdir(root, { recursive: true });
+  const fake = bookModel(), service = new StudyService(root, { complete: fake.complete, ...switchOptions('runtime', { complete: fake.complete, paths: [] }) });
+  try {
+    const { sources, decks } = outlineLibrary({ paper: true });
+    for (const source of sources) if (FORMULA_PAGES[source.id]) source.text += FORMULA_PAGES[source.id];
+    await service.store.update(state => { state.sources.push(...sources); state.decks.push(...decks); state.focus = { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] }; });
+    const job = await settleJob(service, (await service.call('generation.courseBook.build', { course: COURSE, language: 'zh' })).jobId);
+    if (job.status !== 'complete') throw new Error(`The fake build ended ${job.status}`);
+    await service.call('course.book.open', { course: COURSE });
+  } finally { await service.dispose(); }
+  return { course: COURSE };
 }
