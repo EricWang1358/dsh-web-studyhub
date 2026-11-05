@@ -13,6 +13,7 @@ import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { studyToolDescription, libraryContracts } from '../lib/study-contracts.js';
 import { CUSTOM_PURPOSES, customDefaults } from '../lib/custom-plan.js';
 import { COURSE, LECTURES, outlineLibrary } from './helpers/course-outline-library.mjs';
+import { COURSE as BOOK_COURSE, service as bookService } from './helpers/crunch-library.mjs';
 
 async function open(t, { paper = true } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-custom-preview-'));
@@ -161,7 +162,8 @@ test('a plan the record refuses is refused here with the same message; no course
   const study = await open(t);
   const before = JSON.stringify(await study.call('export'));
   await assert.rejects(preview(study, { custom: { ...customDefaults('review'), purpose: 'later' } }), /用途需为/);
-  await assert.rejects(preview(study, { custom: customDefaults('follow') }), /指定章节需选/, 'a purpose that asks for chapters needs them named before it can be estimated');
+  await assert.rejects(preview(study, { custom: { purpose: 'review', book: { make: true, coverage: 'deep' } } }), /讲解详尽程度需为/, 'a partial plan is completed, but what it does say is checked');
+  await assert.rejects(preview(study, { custom: { purpose: 'review', scope: { kind: 'some' } } }), /范围需为/);
   const nothing = await study.call('course.custom.preview', { course: 'No such course' });
   assert.equal(nothing.status, 'no-course');
   assert.deepEqual(nothing.skeleton.documents, []);
@@ -179,4 +181,58 @@ test('the op is declared read only, the assistant may call it, and the chat\'s c
   assert.match(libraryContracts.custom, /course\.save \{name\|id, custom\}/);
   for (const id of ['explain', 'terms', 'formulas', 'index', 'confusables', 'answerKit', 'cheatSheet', 'quiz', 'multi', 'flashcard', 'open', 'cloze', 'lean', 'unknownChapters']) assert.ok(libraryContracts.custom.includes(id), id);
   assert.ok(libraryContracts.custom.length < 3000 && libraryContracts.plan.length < 3000, 'each area stays short enough to read in one go');
+});
+
+test('a partial plan during the interview is completed from the defaults of its purpose, and the filled plan is returned; only the save is strict', async t => {
+  const study = await open(t);
+  const bare = await preview(study, { custom: { version: 1, purpose: 'review' } });
+  assert.deepEqual(bare.filled, customDefaults('review'));
+  assert.deepEqual(bare.estimate, (await preview(study, { custom: customDefaults('review') })).estimate);
+  assert.deepEqual((await preview(study, { custom: {} })).filled, customDefaults('review'), 'no purpose: review');
+  const whole = await preview(study);
+  const chapters = chaptersOf(whole, [3]);
+  const some = await preview(study, { custom: { purpose: 'openbook', scope: { kind: 'chapters', chapters } } });
+  assert.deepEqual(some.filled, { ...customDefaults('openbook'), scope: { kind: 'chapters', chapters } });
+  assert.ok(some.estimate.total.calls < (await preview(study, { custom: { purpose: 'openbook' } })).estimate.total.calls, 'the chosen chapters only');
+  const part = await preview(study, { custom: { purpose: 'review', book: { parts: ['terms'] }, questions: { make: false } } });
+  assert.deepEqual(part.filled.book, { make: true, coverage: 'standard', parts: ['explain', 'terms'] }, 'a section given is merged over its default and its parts are closed');
+  assert.equal(part.filled.questions.make, false);
+  assert.deepEqual(part.filled.plan, customDefaults('review').plan);
+  const pending = await preview(study, { custom: { purpose: 'follow' } });
+  assert.deepEqual(pending.filled.scope, { kind: 'all' }, 'a purpose that wants chapters and has none yet is estimated for the whole course');
+  assert.deepEqual(pending.estimate, (await preview(study, { custom: { ...customDefaults('follow'), scope: { kind: 'all' } } })).estimate);
+  await assert.rejects(study.call('course.save', { name: COURSE, custom: { version: 1, purpose: 'review' } }), /格式不对|设置格式/, 'saving needs the complete record');
+  assert.deepEqual((await preview(study)).filled, customDefaults('review'), 'no plan sent, none saved: the review defaults');
+  await study.call('course.save', { name: COURSE, custom: customDefaults('review') });
+  assert.equal((await preview(study)).filled.purpose, 'review');
+});
+
+test('the documents carry the id the import list calls them, beside the key', async t => {
+  const study = await open(t);
+  const lecture = lectureOf(await preview(study), 3);
+  assert.equal(lecture.documentId, 'document-l3');
+  assert.equal(lecture.key, 'pdf:document-l3');
+});
+
+test('what a scope names: the chapters of the materials until the course has a current outline, then the top-level nodes of the outline', async t => {
+  const study = await open(t);
+  const before = await preview(study);
+  assert.equal(before.skeleton.basis, 'documents');
+  assert.equal('outline' in before.skeleton, false);
+  const { study: written } = await bookService(t);
+  const answer = await written.call('course.custom.preview', { course: BOOK_COURSE });
+  assert.equal(answer.skeleton.basis, 'outline');
+  assert.deepEqual(answer.skeleton.outline.chapters, [{ id: 'c1', title: 'Introduction', points: 2 }], 'the id generation.courseBook.build {chapters} takes');
+  assert.equal(answer.skeleton.outline.stale, false);
+  assert.ok(answer.skeleton.documents.some(doc => doc.chapters.length && doc.chapters[0].pages), 'the materials stay, with their pages, to map by title and page range');
+  const picked = await written.call('course.custom.preview', { course: BOOK_COURSE, custom: { purpose: 'review', scope: { kind: 'chapters', chapters: ['c1'] } } });
+  assert.deepEqual(picked.unknownChapters, []);
+  assert.ok(picked.estimate.book.points > 0 && picked.estimate.total.calls > 0);
+  const stray = await written.call('course.custom.preview', { course: BOOK_COURSE, custom: { purpose: 'review', scope: { kind: 'chapters', chapters: ['c1', 'pdf:x#0'] } } });
+  assert.deepEqual(stray.unknownChapters, ['pdf:x#0'], 'an id of the other kind names nothing under this basis');
+  // A material added since the outline: it is out of date, so a chapter pick would be refused by the build; the ids are the materials' again.
+  await written.store.update(own => { own.sources.push({ id: 'late-note', title: 'Late note', text: 'More about architecture decisions.', courses: [BOOK_COURSE], createdAt: '2026-10-10T00:00:00.000Z' }); });
+  const stale = await written.call('course.custom.preview', { course: BOOK_COURSE });
+  assert.equal(stale.skeleton.basis, 'documents');
+  assert.equal(stale.skeleton.outline.stale, true);
 });
