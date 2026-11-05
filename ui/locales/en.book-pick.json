@@ -16,5 +16,6 @@
   "生成所选章节": "Build the chapters picked",
   "生成全部其余章节": "Build all the other chapters",
   "想先只生成几章：先点「生成总纲」（只清点资料、排章节，不写讲解），再回来选章节。": "To build only some chapters first: press Generate outline (it reads the materials and arranges the chapters, no explanations), then come back and pick.",
-  "未生成": "Not built"
+  "未生成": "Not built",
+  "未生成 · 第 {0}–{1} 页": "Not built · pages {0}–{1}"
 }

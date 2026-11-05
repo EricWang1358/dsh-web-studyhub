@@ -34,6 +34,7 @@ import BookSample from './BookSample.jsx';
 import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCoursePlan } from './use-book-actions.js';
 import { startCardPass, useCardPass } from './use-card-pass.js';
 import { useMoreActions } from './more-actions.js';
+import { bookParts, showsPart } from './book-parts.js';
 import { bookCoverage, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { bookRows, crunchDateHint, keepBook, tocEntries } from './model.js';
 import css from './book.css';
@@ -120,6 +121,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   useEffect(() => { if (book?.status === 'rebuild-pending' && view === 'edit') back(); }, [book?.status, view, back]);
   const courseName = course === '' ? ui('未分类课程') : course || '';
   const courseRecord = (data?.courses || []).find(item => item.name === course);
+  // The parts the course's 定制方案 asks for (深度定制 S2, ./book-parts.js): a part left out is not offered (速查表, the 速查页's formula page and A–Z).
+  const parts = bookParts(courseRecord), offerCheat = hasCheat && showsPart(parts, 'cheatSheet');
   const dateHint = book?.status === 'ok' && book.notes ? crunchDateHint(courseRecord?.exam, crunchWindow(data?.settings?.book)) : null;
   const writing = runningBuild(data?.jobs, course, BOOK_BUILD_KIND);
   const rebuild = useBookRebuild({ call, course, notify, setBook, reload }), building = !!(writing || runningBuild(data?.jobs, course));
@@ -165,10 +168,10 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const hasHistory = Object.values(book.history || {}).some(count => count > 0);
   const menu = <BookMore onSelect={more.select} unplaced={unplaced} pointFold={more.pointFold} bookFold={more.bookFold} scroll={reading.mode === 'scroll'} pages={pages} pageLimit={pageLimit}
     history={hasHistory} today={!!plan.day} mockScope={plan.day ? plan.points.length : 0} dateHint={dateHint} settings={!!(courseRecord?.id && onCourseSettings)}
-    kit={!!book.examKit?.types?.length} cheat={hasCheat} cardPass={cardPass} />;
+    kit={!!book.examKit?.types?.length} cheat={offerCheat} cardPass={cardPass} />;
   const dialogs = <>
-    {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} book={hasCheat ? book : null} onClose={() => setDialog(null)} />}
-    {dialog === 'lookup' && <LookupDialog book={book} onGo={where.goTo} onCard={handlers.goCard} onClose={() => setDialog(null)} />}
+    {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} book={offerCheat ? book : null} onClose={() => setDialog(null)} />}
+    {dialog === 'lookup' && <LookupDialog book={book} parts={parts} onGo={where.goTo} onCard={handlers.goCard} onClose={() => setDialog(null)} />}
     {dialog === 'kit' && book.examKit && <KitDialog book={book} onGo={where.goTo} onClose={() => setDialog(null)} />}
     {dialog === 'history' && <HistoryDialog book={book} step={step} onChanged={setBook} onClose={() => setDialog(null)} />}
     {dialog === 'mock' && <MockDialog course={course} pointIds={plan.day ? plan.points.map(point => point.id) : undefined} onStarted={onExamRun} onClose={() => setDialog(null)} />}
