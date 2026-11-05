@@ -17,6 +17,7 @@ The assistant reads your library in small pages through these calls; reading nee
 | Find existing questions | "Do I have questions on binary search?" | `card.search` |
 | See which of a course's focus topics you cannot do yet | "Which of my exam focus topics am I still weak on?" | `course.focusProgress` (each saved focus topic with its questions by level; read only) |
 | Look at a big book before spending anything | "I uploaded a 500-page book: which chapters does it have and what would a custom plan cost?" | `course.custom.preview` (chapters, default plans and a rough cost in calls and tokens; read only), then `course.save {custom}` once you agree |
+| Start what a saved custom plan asks for | "Go ahead with the plan we just agreed." | `course.custom.apply` (once: the review book, the questions of the chosen chapters, the study plan; answers what started, what waits and what is only recorded; safe to say again) |
 | Add questions to an existing deck | "Add 5 questions from this lecture to my binary search deck." | `supplement`, see [Add questions to an existing deck](supplementation.md) |
 | Publish a draft into an existing deck | "Merge this draft into my binary search deck." | `draft.publish` |
 | Draw a knowledge outline as an interactive diagram | "Use the archify skill to draw my reliability outline." | `skeleton.get`, then `skeleton.diagram.attach`, see [Works well with other tools](companions.md) |

@@ -26,6 +26,7 @@
     "tests/custom-interview-browser.test.mjs",
     "tests/custom-plan-browser.test.mjs",
     "tests/custom-readiness-browser.test.mjs",
+    "tests/custom-weekly-browser.test.mjs",
     "tests/daily-plan-interactions.test.mjs",
     "tests/daily-recap-navigation.test.mjs",
     "tests/daily-recap-reader.test.mjs",

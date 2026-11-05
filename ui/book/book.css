@@ -645,6 +645,10 @@
       font-size: var(--fs-sm);
       font-weight: var(--fw-strong);
     }
+    .crunch-card__week {
+      margin: 0;
+      font-size: var(--fs-md);
+    }
     .crunch-card__open,
     .crunch-day__more {
       justify-self: start;

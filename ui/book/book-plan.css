@@ -90,6 +90,19 @@
     .book-plan__date {
       font-variant-numeric: tabular-nums;
     }
+    .book-plan__week {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-plan__weekline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-2);
+      margin: 0;
+      font-size: var(--fs-md);
+    }
     .book-plan__handover,
     .book-plan__note,
     .book-plan__revise {
