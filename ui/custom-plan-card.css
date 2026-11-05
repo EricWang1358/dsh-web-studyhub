@@ -1,0 +1,13 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* 「你的定制」 on the course settings: a sentence, one quiet line of cost, the parts as small toggle chips and three switches. Tokens only. */
+    .course-settings__first + .custom-card { margin-top: var(--space-4); }
+    .custom-card + .course-settings__more { margin-top: var(--space-4); }
+    .custom-card__summary { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: var(--fs-md); line-height: var(--lh-snug); color: var(--text); }
+    .custom-card__estimate { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .custom-card__parts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-1-5) var(--space-2); min-width: 0; }
+    .custom-card__switches { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-5); min-width: 0; }
+  }
+}
