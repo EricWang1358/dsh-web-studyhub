@@ -4,6 +4,7 @@ import { aiBlocks } from '../../lib/course-book-ai-text.js';
 import { foldsByDefault } from './point-parts.js';
 import { pointCode } from './model.js';
 import { useSendToChat } from './send-to-chat.js';
+import { useHandOff } from '../hand-off/use-hand-off.js';
 
 /* What each item of 「⋯ 更多」 (ui/book/BookMore.jsx) does on the review book page, and the fold state its two AI items name (收起 or 展开). 整本书 › 发给主会话
    hands the whole book over at once (the shared unit fills the chat's input box; the learner adds a request there). */
@@ -23,6 +24,7 @@ export function useMoreActions({ step, course, book, notify, aiFold, reading, wh
   const bookBlocks = useMemo(() => allBlocks(book), [book]);
   const isFolded = aiFold.folded;
   const sendBook = useSendToChat(course);
+  const { send } = useHandOff();
   const pointFold = useMemo(() => (pointBlocks.length ? { folded: pointBlocks.every(block => isFolded(block.id, foldsByDefault(block))) } : null), [pointBlocks, isFolded]);
   const bookFold = useMemo(() => (bookBlocks.length ? { folded: bookBlocks.every(block => isFolded(block.id, foldsByDefault(block))) } : null), [bookBlocks, isFolded]);
   const select = useCallback(async id => {
@@ -42,7 +44,8 @@ export function useMoreActions({ step, course, book, notify, aiFold, reading, wh
     else if (id === 'outline') onOutline?.();
     else if (id === 'cards') onCards?.();
     else if (id === 'chat') await sendBook({ scope: 'book', language: book?.language });
+    else if (id === 'custom') await send('custom.start', { course, hasCustom: !!courseRecord?.custom });
     else setDialog(id);
-  }, [step, course, book, notify, aiFold, pointBlocks, bookBlocks, pointFold, bookFold, where, reading.mode, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure, onOutline, onCards, sendBook]);
+  }, [step, course, book, notify, aiFold, pointBlocks, bookBlocks, pointFold, bookFold, where, reading.mode, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure, onOutline, onCards, sendBook, send]);
   return { select, pointFold, bookFold };
 }

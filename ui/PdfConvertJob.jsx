@@ -17,6 +17,7 @@ import { isHeldTask } from './tasks/task-model.js';
 import css from './mineru.css';
 import { useStudy } from './study-context.jsx';
 import { RepeatedNote } from './RepeatedNote.jsx';
+import { CUSTOM_BOOK_LABEL, CUSTOM_BOOK_WHAT, customOffered, markCustomOffered, offersCustom } from './custom-entry.js';
 
 /* The compact card of a PDF conversion, the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
    guess), one status line, a stop, and ONE button for what comes next (continue without redoing finished pieces: a stopped local service is started by
@@ -307,6 +308,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
     : uiFormat('在「{0}」阶段没能完成', [(STAGE_TEXT[row.failure.stage] || STAGE_TEXT.start)()])) : '';
   const stuck = (status === 'failed' || status === 'interrupted') && !row.canRetry;
   const busy = working === row.id;
+  const [offered, setOffered] = useState(() => customOffered(row.documentId));
   const known = Object.hasOwn(STATUS_TEXT, status) ? status : 'failed';
   return (
     <li className="pdf-history__item" data-record={row.id}>
@@ -332,6 +334,9 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
           timings={row.route === 'local' ? { windows: row.windows, secondsPerPage: row.plan?.secondsPerPage } : undefined} /></details>}
         <div className="pdf-history__actions">
           {status === 'complete' && document?.exists && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('打开「{0}」', [title])} onClick={() => onOpen(row)}>{ui('打开资料')}</Button>}
+          {/* 深度定制这本书 (skills/study-custom): quietly, once, for a book long enough to ask about before anything is made from it (ui/custom-entry.js) */}
+          {status === 'complete' && document?.exists && offersCustom(document.pages) && !offered && <HandOff id="custom.start" shape="link" label={CUSTOM_BOOK_LABEL} what={CUSTOM_BOOK_WHAT}
+            data-tour="custom-book" input={{ document: row.documentId, pages: document.pages }} onSent={() => { markCustomOffered(row.documentId); setOffered(true); }} />}
           {status === 'running' && row.live && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
           {status === 'held' && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onEditHeld(row)}>{HELD_ENTRY()}</Button>}
           {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
