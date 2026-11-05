@@ -16,7 +16,7 @@ import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { openCourseBook } from '../lib/course-book-files.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
-/* 复习全书 S5 (#710) in the real page at 1280 and 420 px: 更多 › 速查表 takes the reading surface's place with a frame of the one page (templates, matrix,
+/* 复习全书 S5 (#710) in the real page at 1440 and 420 px: 更多 › 速查表 takes the reading surface's place with a frame of the one page (templates, matrix,
    comparisons, formulas drawn as MathML, term cards with anchors); a point's code in it goes back to reading at that point; 导出… saves the same page as one
    .html file, which opens offline with no request but its own and prints as two-column A4 pages without the contents strip. The cards, the answer kit and the
    comparisons are put into the answer of course.book.open at the network edge (the build that writes them is not what is looked at here). Screenshots and
@@ -64,7 +64,7 @@ function withSheetParts(value) {
     { aspect: 'difference', cells: ['It is about the system', 'It is about people'] }, { aspect: 'mistake', cells: ['Writing it without a reason', 'Listing only users'] }] }];
 }
 
-test('复习全书: 更多 › 速查表 shows the one page, a code goes back to the book, 导出 saves it as an offline .html that prints in two columns (1280 and 420 px)', { timeout: 420000 }, async (t) => {
+test('复习全书: 更多 › 速查表 shows the one page, a code goes back to the book, 导出 saves it as an offline .html that prints in two columns (1440 and 420 px)', { timeout: 420000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-book-cheat-dist-'));
@@ -74,7 +74,7 @@ test('复习全书: 更多 › 速查表 shows the one page, a code goes back to
   const shots = process.env.COURSE_BOOK_CHEAT_SHOTS;
   if (shots) await mkdir(shots, { recursive: true });
   try {
-    for (const width of [1280, 420]) {
+    for (const width of [1440, 420]) {
       await running.api('focus.set', { course: COURSE });
       const { page, errors, context } = await openPage(browser, running, { width, height: 900 });
       await page.route('**/api/call', async route => {
@@ -119,6 +119,8 @@ test('复习全书: 更多 › 速查表 shows the one page, a code goes back to
       assert.ok(await frame.evaluate(element => { const top = element.contentDocument.getElementById('K003').getBoundingClientRect().top; return top >= -1 && top < element.contentWindow.innerHeight; }), `${width}px: a card link brings the card on screen`);
       assert.equal(await page.evaluate(() => window.location.hash), '', `${width}px: and leaves the app's own address alone`);
       await settleAnimations(page);
+      await frame.evaluate(element => element.contentWindow.scrollTo(0, 0));
+      await page.locator('.book-mode__bar').scrollIntoViewIfNeeded();
       if (shots) await page.screenshot({ path: join(shots, `sheet-${width}.png`) });
 
       // The save, from the view and from 导出…, is the same page.
@@ -162,7 +164,7 @@ test('复习全书: 更多 › 速查表 shows the one page, a code goes back to
       await sheet.emulateMedia({ media: 'print' });
       assert.equal(await sheet.locator('.nav').evaluate(element => window.getComputedStyle(element).display), 'none', `${width}px: no contents strip on paper`);
       assert.equal(await sheet.locator('#sheet-cards .cols').first().evaluate(element => window.getComputedStyle(element).columnCount), '2', `${width}px: two columns on paper`);
-      if (width === 1280 && shots) {
+      if (width === 1440 && shots) {
         await sheet.pdf({ path: join(shots, 'sheet-print.pdf'), preferCSSPageSize: true, printBackground: true });
         await sheet.screenshot({ path: join(shots, 'sheet-print-media.png'), fullPage: true });
       }

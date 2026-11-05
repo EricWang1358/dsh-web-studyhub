@@ -54,7 +54,8 @@ p{margin:.2rem 0}
 code{font:.92em/1.3 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
 .sub{color:var(--mute);font-size:.9em}
 .nav{display:flex;flex-wrap:wrap;gap:.25rem .9rem;margin:.5rem 0 0;font-size:.85rem}
-.cols{column-width:21rem;column-gap:1.4rem}
+.cols{column-gap:1.4rem}
+@media (min-width:40rem){.cols{column-count:2}}
 .box{break-inside:avoid;margin:0 0 .55rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:3px;background:#fff}
 .box h4{margin:0 0 .15rem;font-size:.92rem}
 .code{display:inline-block;margin-right:.3em;padding:0 .3em;font:700 .8em/1.4 ui-monospace,Consolas,monospace;border:1px solid var(--ink);border-radius:2px}
@@ -94,7 +95,7 @@ th{background:var(--soft)}
   h3{margin:5pt 0 2pt;font-size:8.5pt}
   .nav{display:none}
   a{color:inherit}
-  .cols{column-count:2;column-width:auto;column-gap:5mm}
+  .cols{column-count:2;column-gap:5mm}
   .box{margin-bottom:2.5pt;padding:1.5pt 3pt}
   .box h4{font-size:7.8pt}
   .rel{display:inline;margin-right:.7em}
