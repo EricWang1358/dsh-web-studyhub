@@ -13,7 +13,7 @@ In short:
 
 ## How generation works
 
-The pipeline covers **Quiz + flashcards**, **Single choice**, **Multiple choice**, **Flashcard**, **Open response** and **Fill in the blank**, including questions written from converted PDFs. **Case paper** has its own workflow, which this pipeline does not change.
+The pipeline covers **Quiz + flashcards**, **Single choice**, **Multiple choice**, **True/False**, **Flashcard**, **Open response** and **Fill in the blank**, including questions written from converted PDFs. **Case paper** has its own workflow, which this pipeline does not change.
 
 StudyHub splits a request into batches of up to 5 questions by default. Knowledge extraction runs once for each group of selected pages. After that, up to 3 batches run at the same time by default. Adjust [question defaults and generation pace](generation-agents-sidebar.md#what-a-generation-task-does) in **Settings › Question defaults**.
 
@@ -32,6 +32,16 @@ Rules that hold across these stages:
 - If the author's JSON is damaged, complete questions recovered from it still need the independent review.
 - Neither normal generation nor [supplementation](supplementation.md) repairs questions automatically, reviews them a second time or writes extra questions to reach the requested count. An unreadable or incomplete review is a protocol failure, not a reason to review again.
 - If you turned on the experimental Jev review replacement (off by default), Jev may judge some candidates in place of the model review, and the draft records which ones. See [Jev](jev-experimental.md).
+
+### True/false questions
+
+A **True/False** question (判断题) is one statement the learner judges true or false. It is stored as a choice question with exactly two options, `true` and `false`, in a fixed order, so practice, exams and the mistakes list grade it like a single-choice question. The rules for writing one are a single constant (`TRUE_FALSE_RULE` in `lib/assessment-quality.js`), given to answer preparation, writing and the independent review:
+
+- One idea per statement.
+- A false statement is a believable misconception or a confusion between neighbouring ideas from the sources. It is never a true sentence with "not" inserted and never an absurd claim.
+- No absolute words (always, never, all) used only to signal that a statement is false, and no double negatives.
+- True and false roughly balanced within a batch. When answer preparation returns 4 or more statements that are all true or all false, the program asks once for the later half to be rewritten the other way; it never drops a statement for this.
+- The explanation quotes the evidence; for a false statement it gives the true statement.
 
 ### Model calls
 

@@ -18,7 +18,7 @@ In the **Add source** dialog, StudyHub recognises JSON from a document converter
 
 1. Open **Create deck** and choose the **Import JSON deck** tab.
 2. Under **01 / JSON prompts by question type**, choose a **Question type**, or **Mixed question types (copy all)**.
-3. Click **Copy prompt**. Paste it into another AI and add your sources and requirements after it. The mixed prompt asks for 10 questions, 2 of each type, unless you ask for something else.
+3. Click **Copy prompt**. Paste it into another AI and add your sources and requirements after it. The mixed prompt asks for 12 questions, 2 of each type, unless you ask for something else.
 4. Under **02 / Import deck**, paste the AI's reply into **JSON content**, or drop a file on **Drag a JSON deck file here**. **Read JSON / TXT file** opens a file picker.
 5. Click **Check & suggest grouping**. StudyHub checks the JSON and suggests a **Short title** and a **Course**. Edit either one if needed.
 6. Click **Confirm & import draft**. The draft opens.
@@ -50,9 +50,10 @@ A `.txt` file must contain JSON. For questions that are not JSON, such as quiz-a
 
 | Field | Required for | Notes |
 | --- | --- | --- |
-| `kind` | Every question | `quiz` (single choice), `multi` (multiple choice), `flashcard`, `open` (open response) or `cloze` (fill in the blank). |
+| `kind` | Every question | `quiz` (single choice), `multi` (multiple choice), `truefalse` (true/false), `flashcard`, `open` (open response) or `cloze` (fill in the blank). |
 | `topic`, `objective`, `prompt`, `answer`, `hint`, `explanation`, `misconception` | Every question | Non-empty text. |
 | `options` | `quiz`, `multi` | 3–6 options. Each has `id`, `text`, `correct` (`true` or `false`) and `explanation`. A `quiz` has exactly 1 correct option. A `multi` has at least 1 correct and at least 1 incorrect option. |
+| `options` | `truefalse` | Exactly 2 options with the ids `true` and `false`, in that order, each with `text` and `explanation`; exactly 1 is correct. `prompt` is the statement to judge; for a false statement, `answer` gives the true statement. StudyHub shows the two options as **True** and **False** (对 / 错) and never shuffles them. |
 | `rubric` | `open` | The scoring rubric, as text. |
 | `cloze` | `cloze` | `{"text": "...", "answers": [...]}`. `text` is the sentence shown, with each blank marked `{{id}}`. Each answer has `id`, `value` and an optional `accept` list of other correct answers. Every marker needs one answer, and every answer needs one marker. |
 | `citations` | Optional | Links to sources already in your library. See [Link questions to your sources](#link-questions-to-your-sources). |

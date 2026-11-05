@@ -71,7 +71,7 @@ Call `supplement` through `study_workspace`:
 | `deckId` | Required. The full ID of an existing, unarchived ordinary deck. |
 | `sourceIds` | Required. The sources to write from. |
 | `count` | 1–30. |
-| `kind` | `quiz`, `multi`, `flashcard`, `open`, `cloze` or `mixed`. `case` is refused. |
+| `kind` | `quiz`, `multi`, `truefalse`, `flashcard`, `open`, `cloze` or `mixed`. `case` is refused. |
 | `focus`, `language`, `difficulty`, `constraints` | Optional, as for `generate`. |
 | `resumeDraftId`, `draftVersion` | Resume a partial job from its draft. The draft's target must equal `deckId`, and `draftVersion` must be current. |
 
