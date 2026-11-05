@@ -17,6 +17,7 @@
 | 找已有的题 | “题库里有没有二分查找的题？” | `card.search` |
 | 看课程的重点里哪些还不会 | “我的考试重点里还有哪些没掌握？” | `course.focusProgress`（每条已保存的重点有几道题、按掌握程度分几类；只读） |
 | 花钱之前先看一本大书 | “我传了一本 500 页的书：有哪些章，定制方案大概要多少次调用？” | `course.custom.preview`（章节、各用途的默认方案和调用次数、token 的粗估；只读），你同意后再 `course.save {custom}` |
+| 开始做已存的定制方案要求的事 | “就按我们刚定的方案做。” | `course.custom.apply`（说一次：复习全书、选中章节的题、备考计划；回答开始了什么、什么在等、什么只记着；再说一次也安全） |
 | 给已有题组补题 | “根据这份讲义，给二分查找题组补 5 道题” | `supplement`，见[向已有题组补题](supplementation.zh-CN.md) |
 | 把草稿发布到已有题组 | “把这份草稿并入二分查找题组” | `draft.publish` |
 | 把知识骨架画成可交互的图 | “用 archify 技能画我的可靠性骨架” | `skeleton.get`，再 `skeleton.diagram.attach`，见[搭配好用的工具](companions.zh-CN.md) |
