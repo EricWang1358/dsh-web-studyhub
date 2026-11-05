@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { CARD_KIND_IDS, EXAM_KIND_IDS, GENERATE_KIND_IDS, INGEST_KIND_IDS, kindOf } from '../lib/card-kinds.js';
-import { validateDeck } from '../lib/domain.js';
+import { optionOrder, validateDeck } from '../lib/domain.js';
+import { prepareJsonImport } from '../lib/json-import.js';
 import { importExample } from '../lib/deck-format.js';
 import { trueFalseOptions, unbalancedTrueFalse } from '../lib/true-false.js';
 import { TRUE_FALSE_RULE, blueprintAssessment, blueprintPrompts, qualityCriteriaFor } from '../lib/assessment-quality.js';
@@ -169,6 +170,30 @@ test('the variant of a wrong 判断题 is a 判断题 under its rule; the other 
   prompts.length = 0;
   await writeVariants(complete, { targets: [{ card: { ...original, kind: 'quiz' }, kind: 'quiz', reason: 'wrong' }], sources: [source], learner: {} });
   assert.ok(!prompts[0].includes('True/false'), 'a batch without 判断题 is asked exactly as before');
+});
+
+test('a 判断题 whose option ids are not true and false is still shown in its own option order', () => {
+  const option = id => ({ id, text: id, correct: false, explanation: 'e' });
+  assert.deepEqual(optionOrder({ kind: 'truefalse', options: ['a', 'b'].map(option) }), ['a', 'b']);
+  assert.deepEqual(optionOrder({ kind: 'truefalse', options: ['true', 'x'].map(option) }), ['true', 'x'], 'half the fixed ids is not the fixed order either');
+  assert.deepEqual(optionOrder({ kind: 'truefalse', options: ['false', 'true'].map(option) }), ['true', 'false'], 'the fixed order is kept when the ids are the fixed ones');
+  assert.equal(optionOrder({ kind: 'truefalse' }), undefined);
+});
+
+test('a JSON file may write the options of a 判断题 as 对/错, true/false in any case, or T/F; anything else is refused as before', () => {
+  const file = options => JSON.stringify({ title: 'Patterns', cards: [{ kind: 'truefalse', topic: 'Memento', objective: 'Judge the Caretaker', prompt: 'The Caretaker keeps the history.',
+    answer: 'True', hint: 'h', explanation: 'e', misconception: 'm', options }] });
+  const two = (first, second) => [{ id: first[0], text: first[1], correct: true, explanation: 'e' }, { id: second[0], text: second[1], correct: false, explanation: 'e' }];
+  const read = options => prepareJsonImport(file(options)).deck;
+  for (const given of [two(['T', 'x'], ['F', 'y']), two(['a', 'TRUE'], ['b', 'False']), two(['对', '对'], ['错', '错']), two(['b', 'true'], ['a', 'false']), two(['x', 'F'], ['y', 'T'])]) {
+    const deck = read(given);
+    assert.deepEqual(deck.cards[0].options.map(option => option.id), ['true', 'false'], JSON.stringify(given));
+    assert.deepEqual(deck.quality.errors, [], JSON.stringify(given));
+    assert.equal(deck.cards[0].options.filter(option => option.correct).length, 1);
+  }
+  assert.equal(read(two(['x', 'F'], ['y', 'T'])).cards[0].options.find(option => option.correct).id, 'false', 'the correctness goes with the verdict, not with the position');
+  assert.match(read(two(['a', 'Maybe'], ['b', 'Perhaps'])).quality.errors.join(), /options true and false/);
+  assert.match(read([{ id: 'a', text: 'True', correct: true, explanation: 'e' }]).quality.errors.join(), /options true and false|exactly 2 options/);
 });
 
 async function library(cards) {
