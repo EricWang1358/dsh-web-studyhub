@@ -38,6 +38,13 @@ export function placePopover({ target, popover, bounds, prefer, gap = 14, margin
     top: clamp(Math.min(bottom, height) - popover.height - margin, margin, height - popover.height - margin) };
 }
 
+/** The zoom between screen pixels and the layer's own CSS pixels (the app's 界面大小 is a CSS zoom): its drawn width over its layout width. */
+export const layerScale = (view, layer) => (layer?.offsetWidth && view?.width ? view.width / layer.offsetWidth : 1);
+
+/** A screen rectangle in the layer's own coordinates, where the spotlight and the popover are placed. */
+export const inLayer = (box, view, scale = 1) => ({ left: (box.left - view.left) / scale, top: (box.top - view.top) / scale,
+  width: box.width / scale, height: box.height / scale });
+
 /** The spotlight box around a target, padded and kept inside the layer. */
 export function spotlightBox(target, bounds, pad = 6) {
   if (!target) return null;
