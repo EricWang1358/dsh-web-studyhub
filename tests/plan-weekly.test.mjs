@@ -8,6 +8,8 @@ import { addDays } from '../lib/crunch-plan.js';
 import { checkedPlan } from '../lib/courses.js';
 import { chaptersOfBook, weekLine } from '../lib/plan-weekly.js';
 import { localDate } from '../lib/board-model.js';
+import { bookKey } from '../lib/course-outline-book-view.js';
+import { customDefaults } from '../lib/custom-plan.js';
 import { COURSE, service } from './helpers/crunch-library.mjs';
 
 const TODAY = '2026-10-11'; // a Sunday
@@ -99,6 +101,11 @@ test('the chapters of a book are its top-level nodes, each with its points; the 
   const nodes = [{ title: 'Basics', leaf: false, children: [{ hid: 'p1', leaf: true }, { hid: 'p2', leaf: true }] }, { title: 'Memory', leaf: false, children: [{ hid: 'p3', leaf: true }] },
     { hid: 'p4', title: 'Lone', leaf: true }];
   assert.deepEqual(chaptersOfBook(nodes), [{ n: 1, title: 'Basics', ids: ['p1', 'p2'] }, { n: 2, title: 'Memory', ids: ['p3'] }, { n: 3, title: 'Lone', ids: ['p4'] }]);
+  // A plan of chosen chapters schedules those only, under the numbers the book gives them.
+  const keyed = ['a', 'b', 'c', 'd'].map(id => ({ key: `book:${id}`, title: id.toUpperCase(), leaf: false, children: [{ hid: `${id}1`, leaf: true }] }));
+  assert.deepEqual(chaptersOfBook(keyed, new Set(['book:c', 'book:d'])).map(chapter => [chapter.n, chapter.title, chapter.ids]), [[3, 'C', ['c1']], [4, 'D', ['d1']]]);
+  assert.equal(chaptersOfBook(keyed, new Set(['book:zzz'])).length, 4, 'ids that name no chapter of the book choose nothing: every chapter');
+  assert.equal(chaptersOfBook(keyed).length, 4);
   assert.deepEqual(weekLine({ chapters: [{ n: 3 }, { n: 4 }] }), { from: 3, to: 4, count: 2 });
   assert.deepEqual(weekLine({ chapters: [{ n: 5 }] }), { from: 5, to: 5, count: 1 });
 });
@@ -116,4 +123,8 @@ test('course.plan answers a weekly plan with no exam date: the book chapter is t
   assert.equal(answer.schedule.today.week, 1);
   assert.ok(answer.schedule.today.points.length > 0);
   assert.equal(answer.plan.by, 'weekly');
+  // A custom plan that chose chapters limits the weeks to them: the ids are the outline's, and the book's chapter keys are those ids under the book prefix.
+  assert.equal((await study.call('course.book.open')).nodes[0].key, bookKey('c1'));
+  await study.call('course.save', { name: COURSE, custom: { ...customDefaults('follow'), scope: { kind: 'chapters', chapters: ['c1'] } } });
+  assert.deepEqual((await study.call('course.plan', { course: COURSE, date: localDate() })).schedule.weekly.current.chapters.map(chapter => chapter.n), [1]);
 });
