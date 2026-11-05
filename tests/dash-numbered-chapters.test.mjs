@@ -17,10 +17,10 @@ const levels = titles => inferHeadingLevels(titles);
 test('N—M is section numbering of chapter N (the rank of 1.1), with every dash and spacing', () => {
   // Under a chapter word the dash sections sit where decimal sections sit.
   assert.deepEqual(levels(['第一章 总论', '1—1 背景', '1-2 意义', '第二章 方法', '2–1 实验', '2 － 2 调查']), [1, 2, 2, 1, 2, 2]);
-  assert.deepEqual(levels(['第一章 总论', '1.1 背景', '1—2 意义']), [1, 2, 2]);
+  assert.deepEqual(levels(['第一章 总论', '1.1 背景', '1—2 意义', '1—3 方法', '第二章 方法', '2—1 甲', '2—2 乙']), [1, 2, 2, 2, 1, 2, 2]);
   // A caption, a year range and a quantity are no section numbering.
-  assert.deepEqual(levels(['第一章 总论', '1—1 背景', '表1-1 2001—2010年间的价格', '图1-2 曲线', '[资料1- 1] 故事', '1965—2014年间的增长', '3-5 分钟练习']),
-    [1, 2, 3, 3, 3, 3, 3]);
+  assert.deepEqual(levels(['第一章 总论', '1—1 背景', '表1-1 2001—2010年间的价格', '图1-2 曲线', '[资料1- 1] 故事', '1965—2014年间的增长', '3-5 分钟练习',
+    '1—2 方法', '第二章 方法', '2—1 甲', '2—2 乙']), [1, 2, 3, 3, 3, 3, 3, 2, 1, 2, 2]);
 });
 
 const BOOK_TITLES = ['示例教材', '版权页', '译者前言', '目录',
@@ -136,7 +136,7 @@ test('a book imported with this rule keeps the chapters it was stored with; part
    ends in 题 (前沿课题). The chapter starts at the heading before its FIRST lead-in, and that heading is its title. */
 const RUNS = [
   [88, '旧的一章'], [88, '本章要点'], [89, '4—1 甲'], [95, '4—2 乙'], [97, '本章提要'], [97, '操作题'],
-  [98, '总供给与总需求'], [98, '本章要点'], [100, '[资料5-1] 历史故事'], [100, '“总供给”与“总需求”:名称的含义？'], [101, '5—1 甲'], [105, '操作题'],
+  [98, '总供给与总需求'], [98, '本章要点'], [100, '[资料5-1] 历史故事'], [100, '“总供给”与“总需求”:名称的含义？'], [101, '5—1 甲'], [103, '5—2 乙'], [105, '操作题'],
   [169, '政策预览'], [169, '本章要点'], [169, '本章内容是关于经济政策的'], [170, '9—1 甲'], [174, '操作题'], [175, '泰勒规则'],
   [176, '10 收入与支出'], [176, '本章要点'], [177, '10—1 甲'], [195, '操作题'],
   [196, '11 货币、利息与收入'], [196, '本章要点'], [198, '注意那些看起来难懂的材料'], [199, '本章纲要'], [200, '11—1 甲'], [270, '操作题'],
@@ -157,4 +157,40 @@ test('the owner\'s heading runs: each chapter starts at the heading before its f
   ]);
   // The stored text keeps the headings as written; only the chapter's name drops its number.
   assert.match(book.pages.find(page => page.page === 176).text, /^# 10 收入与支出$/m);
+});
+
+/* ---------- gate review of #753 ---------- */
+
+test('a contents page whose entries are dash-numbered headings is no chapter start: the chapters open where the body has them', () => {
+  // The entries of 目录 come again later, after the numbering went back to 1: those first ones are the contents, not the sections.
+  assert.deepEqual(levels(['书名', '目录', '1—1 市场', '1—2 供给', '2—1 生产', '2—2 规模', '市场导论', '本章要点', '1—1 市场', '1—2 供给', '生产理论', '本章要点', '2—1 生产', '2—2 规模']),
+    [2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2]);
+  const toc = [title('书名', 1), title('目录', 2), title('1—1 市场', 2), title('1—2 供给', 2), title('2—1 生产', 2), title('2—2 规模', 2),
+    title('市场导论', 3), title('本章要点', 3), body('x', 3), title('1—1 市场', 4), body('a', 4), title('1—2 供给', 5), body('b', 5),
+    title('生产理论', 6), title('本章要点', 6), body('y', 6), title('2—1 生产', 7), body('c', 7), title('2—2 规模', 8), body('d', 8)];
+  assert.deepEqual(parseConvertedDocument(JSON.stringify(toc), { filename: 'x.json' }).chapters.map(chapter => [chapter.title, chapter.startPage, chapter.endPage]),
+    [['市场导论', 3, 5], ['生产理论', 6, 8]]);
+  // With the chapter titles listed in the contents too.
+  const listed = ['书名', '目录', '市场导论', '1—1 市场', '1—2 供给', '生产理论', '2—1 生产', '2—2 规模', '市场导论', '本章要点', '1—1 市场', '1—2 供给', '生产理论', '本章要点', '2—1 生产', '2—2 规模'];
+  assert.deepEqual(levels(listed), [2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2]);
+});
+
+test('dash numbers that are no section numbering (homework, a schedule, scores, times) read as before: no levels from them', () => {
+  // The values main gave before dash numbering was read.
+  assert.equal(levels(['1-2 题', '3-4 题', '5-6 题']), null);
+  assert.equal(levels(['作业一', '1-2 题', '3-5 题', '作业二', '6-8 题']), null);
+  assert.equal(levels(['9-15 Lecture', '10-20 Midterm', '11-30 Final']), null);
+  assert.equal(levels(['课程安排', '9-15 Lecture', '10-20 Midterm', '11-30 Final']), null);
+  assert.equal(levels(['3-0 胜', '2-1 负']), null);
+  assert.equal(levels(['8-10 am', '10-12 pm']), null);
+  assert.deepEqual(levels(['1 Intro', '1.1 Back', '1-2 题', '1.2 Scope', '2 Method']), [1, 2, 3, 2, 1]);
+  assert.deepEqual(levels(['第一章 导论', '1-1 概念', '1-2 方法', '第二章 国民', '2-1 GDP']), [1, 2, 2, 1, 2]);
+});
+
+test('a list-numbered heading is never a chapter\'s title: the title before it is', () => {
+  assert.deepEqual(levels(['导论', '1. 定义', '1—1 a', '1—2 b', '国民', '2—1 c', '2—2 d']), [1, 2, 2, 2, 1, 2, 2]);
+  const book = [title('导论', 1), title('1. 定义', 1), body('a', 1), title('1—1 a', 2), body('b', 2), title('1—2 b', 3), body('c', 3), title('国民', 4), body('d', 4),
+    title('2—1 c', 5), body('e', 5), title('2—2 d', 6), body('f', 6)];
+  assert.deepEqual(parseConvertedDocument(JSON.stringify(book), { filename: 'x.json' }).chapters.map(chapter => [chapter.title, chapter.startPage, chapter.endPage]),
+    [['导论', 1, 3], ['国民', 4, 6]]);
 });
