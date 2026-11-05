@@ -12,13 +12,13 @@ import CompactJobCard from './tasks/CompactJobCard.jsx';
 import { followUpLink } from './job-follow-up.js';
 import { ConvertEditDialog, HELD_ENTRY, HeldEntry } from './ConvertEdit.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
-import { useHandOff } from './hand-off/use-hand-off.js';
 import { FAILED_HAND_OFF_WHAT, failedHandOffInput, failureText } from './tasks/failed-hand-off.js';
 import { isHeldTask } from './tasks/task-model.js';
 import css from './mineru.css';
 import { useStudy } from './study-context.jsx';
 import { RepeatedNote } from './RepeatedNote.jsx';
 import { CUSTOM_BOOK_LABEL, CUSTOM_BOOK_WHAT, customOffered, markCustomOffered, offersCustom } from './custom-entry.js';
+import { useCustomLink } from './custom-convert-link.js';
 
 /* The compact card of a PDF conversion, the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
    guess), one status line, a stop, and ONE button for what comes next (continue without redoing finished pieces: a stopped local service is started by
@@ -46,20 +46,6 @@ export async function forgetRecords(call, ids) {
 }
 
 export const cardOutcome = (value) => (value === undefined || value === null || value?.ok === false ? { ok: false } : { ok: true });
-
-/** 深度定制这本书 on the card of a finished book of CUSTOM_BOOK_PAGES pages or more (ui/custom-entry.js), once, as on its 解析历史 row: the card is where a
-    finished import is seen first, and 用它出题 next to it would make questions of every page before the learner was asked what the book is for. */
-function useCustomLink(job) {
-  const handOff = useHandOff(), [offered, setOffered] = useState(() => customOffered(job.documentId));
-  const pages = job.sourceIds?.length ?? 0;
-  if (job.status !== 'complete' || !job.documentId || !offersCustom(pages) || offered) return null;
-  return { label: ui(CUSTOM_BOOK_LABEL), tip: ui(CUSTOM_BOOK_WHAT), aria: uiFormat('{0}：{1}', [ui(CUSTOM_BOOK_LABEL), job.filename || job.title || '']),
-    run: async () => {
-      if (await handOff.send('custom.start', { document: job.documentId, pages }) === 'failed') return;
-      markCustomOffered(job.documentId);
-      setOffered(true);
-    } };
-}
 
 function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, onGenerate }) {
   const [working, setWorking] = useState(''), [editing, setEditing] = useState(false);
