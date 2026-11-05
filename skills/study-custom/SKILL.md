@@ -48,7 +48,7 @@ whenToUse: The learner wants a big book customised — 「深度定制」「这�
 ## 问题 4：要不要题
 
 1. 要不要出题（要 / 不要）。不要就 `questions.make` 为假，跳过后面。
-2. 题型，多选：单选 `quiz` · 多选 `multi` · 填空 `cloze` · 问答 `open`。记忆卡 `flashcard` 请他在「其他」里写。写进 `questions.kinds`。
+2. 题型，多选：单选 `quiz` · 多选 `multi` · 填空 `cloze` · 问答 `open`。记忆卡 `flashcard`、判断题 `truefalse` 请他在「其他」里写。写进 `questions.kinds`。
 3. 多少题：精简 `lean` · 标准 `standard` · 完整 `full`（就是出题页的覆盖强度），每个选项后面写预览里的大约题数（`estimate.questions.count`），写进 `questions.strength`。
 4. 做错的题要不要准备变式题（要 / 不要），写进 `questions.variants`。
 
