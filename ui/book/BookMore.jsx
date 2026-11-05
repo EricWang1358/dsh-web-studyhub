@@ -10,7 +10,7 @@ import { cardPassTip } from './use-card-pass.js';
    整本书: 速查页… / 导出… / 补术语卡 (only while points lack cards, its cost in a Tooltip; #710 S6) / 发给主会话 (no ellipsis: it opens nothing first, the chat's input box is where a request is added). 期末一周: 今天读哪几节 / 出一套模拟卷… / 设置考试日期 / 前往设置. */
 
 /** The menu's items (pure, for the tests): `state` says what the page has now. unplaced: the step shown is 未归位 (no code the book tools match, no
-    questions of its own, no AI blocks, and no structure of its own: only 编辑这个知识点… in its group). kit: the book has an exam answer kit (答题模板…); cardPass: { points, calls } of 补术语卡 (ui/book/use-card-pass.js). */
+    questions of its own, no AI blocks, and no structure of its own: only 编辑这个知识点… in its group). kit: the book has an exam answer kit (答题模板…); cardPass: { points, pairs, calls } of 补术语卡 (or, with every card made, 补易混概念对照; ui/book/use-card-pass.js). */
 export function moreItems({ unplaced = false, pointFold = null, scroll = false, bookFold = null, pages = null, pageLimit = null, history = false, today = false, mockScope = 0, dateHint = null,
   settings = false, kit = false, cardPass = null }) {
   const pagesHint = pages === null ? undefined : pageLimit ? uiFormat('约 {0} 页 / 上限 {1} 页', [pages, pageLimit]) : uiFormat('约 {0} 页', [pages]);
@@ -33,7 +33,7 @@ export function moreItems({ unplaced = false, pointFold = null, scroll = false, 
     kit && { id: 'kit', label: ui('答题模板…') },
     { id: 'export', label: ui('导出…'), hint: pagesHint },
     history && { id: 'history', label: ui('版本历史…') },
-    cardPass?.calls > 0 && { id: 'cards', label: ui('补术语卡'), tip: cardPassTip(cardPass) },
+    cardPass?.calls > 0 && { id: 'cards', label: cardPass.points ? ui('补术语卡') : ui('补易混概念对照'), tip: cardPassTip(cardPass) },
     { id: 'outline', label: ui('回到总纲'), hint: ui('重新整理、更新全书') },
     { id: 'chat', label: ui(HAND_OFF_LABEL), hint: ui(HAND_OFF_MENU_HINT) },
     { heading: true, label: ui('期末一周') },

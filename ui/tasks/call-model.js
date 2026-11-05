@@ -12,7 +12,7 @@ import { convertEventBlock, convertEventText } from './convert-log.js';
 
 const KIND_LABEL = { transcribe: '转写', proofread: '校对', translate: '翻译', title: '生成标题', plan: '提取知识点与原文', blueprint: '确定答案与情景', author: '出题与自查',
   review: '独立审阅', repair: '修复题目', publish: '发布检查', prep: '备题', wait: '限流等待', other: '模型调用', 'live.correct': '课堂校正',
-  inventory: '清点资料', outline: '归纳知识点', write: '写讲解', cards: '补术语卡', exam: '写考情', kit: '写答题模板' };
+  inventory: '清点资料', outline: '归纳知识点', write: '写讲解', cards: '补术语卡', confusables: '写易混概念对照', exam: '写考情', kit: '写答题模板' };
 /** The review book's review and repair are of explanations, not questions: their calls say so (their stage label is exactly the word). */
 const STAGE_LABEL = { review: '审阅讲解', repair: '修复讲解', place: '概念归位' };
 
