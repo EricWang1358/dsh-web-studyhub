@@ -5,6 +5,7 @@ import { useStudy } from '../study-context.jsx';
 import { useLiveEffect } from '../use-async.js';
 import { PAGE_LIMIT_MAX } from '../../lib/book-settings.js';
 import { downloadBytes, downloadText } from './download.js';
+import { downloadCheatSheet } from './cheat-sheet-file.js';
 import { zipTextFiles } from './zip.js';
 
 /* 「导出」 of the review book (M6, docs/plans/review-book.md): the book as the learner's printable CP (course.book.export, lib/course-book-export.js):
@@ -55,7 +56,7 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); } finally { zipping.current = false; }
   };
   const downloadSheet = async () => {
-    try { await (await import('./cheat-sheet-file.js')).downloadCheatSheet(book); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+    try { await downloadCheatSheet(book); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   };
   const saved = Number.isInteger(pageLimit) ? pageLimit : null, budget = estimate ? budgetText(estimate.pages, saved) : null;
   const footer = <>

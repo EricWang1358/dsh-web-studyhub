@@ -4,6 +4,7 @@ import { Button, Hint, LoadingState } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import { useLiveEffect } from '../use-async.js';
+import { cheatSheetPage, downloadCheatSheet } from './cheat-sheet-file.js';
 import css from './book-cheat.css';
 
 /* 速查表 of the review book (#710 S5), reached from 「⋯ 更多」 › 速查表: the same one page the print and the saved .html are (ui/book/cheat-sheet-html.js), shown
@@ -18,7 +19,7 @@ export default function BookCheatSheet({ book, onGo }) {
   go.current = onGo;
   const [page, setPage] = useState({ html: null, error: null });
   useLiveEffect(isLive => {
-    import('./cheat-sheet-file.js').then(file => file.cheatSheetPage(book, { links: true })).then(
+    cheatSheetPage(book, { links: true }).then(
       next => { if (isLive()) setPage({ html: next?.html ?? '', error: null }); },
       error => { if (isLive()) setPage({ html: null, error }); });
   }, [book]);
@@ -34,7 +35,7 @@ export default function BookCheatSheet({ book, onGo }) {
   }, []);
   const print = () => { const view = frame.current?.contentWindow; if (view) { view.focus(); view.print(); } };
   const save = async () => {
-    try { await (await import('./cheat-sheet-file.js')).downloadCheatSheet(book); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+    try { await downloadCheatSheet(book); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   };
   return (
     <div className="book-cheat">

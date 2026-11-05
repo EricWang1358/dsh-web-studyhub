@@ -2,8 +2,8 @@ import { cheatSheet } from './cheat-sheet-model.js';
 import { cheatSheetFilename, cheatSheetHtml } from './cheat-sheet-html.js';
 import { downloadText } from './download.js';
 
-/* The 速查表 (#710 S5) as the page needs it: the one HTML page of a book, and its saving as a file. Imported when the view opens or the export is chosen
-   (`import()`), so neither the page's drawing nor the formula renderer (KaTeX) is part of the book page's first load. */
+/* The 速查表 (#710 S5) as the page needs it: the one HTML page of a book, and its saving as a file. The formula renderer (KaTeX) is not part of the book page's
+   load: it is the one optional chunk every formula of the app already uses (ui/StudyMath.jsx), asked for only when a sheet has formulas. */
 
 /** -> { html, filename } | null (the book has nothing for a sheet). `links`: the view's page, whose point codes open the book (cheatSheetHtml). */
 export async function cheatSheetPage(book, { links = false } = {}) {
