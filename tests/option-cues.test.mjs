@@ -4,7 +4,7 @@ import { optionCues, optionCueIssues } from "../lib/option-cues.js";
 
 /* Choice options a learner can rule out without knowing the content (owner, 2026-11-05: 「选项还是有一点点太容易区分错误了」). Haladyna, Downing & Rodriguez (2002)
    list the cues test-wise students use; the program catches the mechanical ones (a repeated option, "all of the above", the correct option clearly the longest,
-   an absolute word only in wrong options, a stem phrase echoed only by the correct option) and leaves everything fuzzy to the reviewer. Each check has options
+   an absolute word only in wrong options) and leaves everything fuzzy to the reviewer. Each check has options
    that must pass and options that must not. */
 
 const card = (prompt, texts, correctAt = [0], kind = "quiz") => ({ id: "q", kind, prompt, topic: "t", objective: "o", answer: texts[correctAt[0]], hint: "h",
@@ -81,24 +81,12 @@ test("absolute words in several wrong options but none in the correct one are a 
   assert.deepEqual(codes(card("哪个函数返回非负值？", ["取绝对值函数", "在一定的范围内取整", "绝对值不超过一的随机数", "按符号取反"])), []);
 });
 
-test("a stem phrase echoed only by the correct option is a cue; terms every option shares are not", () => {
+test("restating the stem in the right option is not a program cue (the reviewer judges an echo)", () => {
   const stem = "数据库事务隔离级别为什么需要可重复读？";
-  const echoing = ["数据库事务隔离级别可重复读保证同一事务内两次读取一致", "避免脏页写回磁盘时因为断电而丢失更新", "减少锁等待时间并因此提高系统的吞吐量",
-    "保证已经提交的数据在崩溃之后永久保存"];
-  assert.deepEqual(codes(card(stem, echoing)), ["clang"]);
-  assert.deepEqual(codes(card(stem, ["数据库事务隔离级别可重复读保证同一事务内两次读取一致", "数据库事务隔离级别串行化让并发事务排队执行",
-    "数据库事务隔离级别读未提交允许读到未提交数据", "数据库事务隔离级别读已提交每次读取最新提交"])), []);
-  assert.deepEqual(codes(card("Which property does a transaction isolation level guarantee?", ["Transaction isolation levels keep transactions apart",
-    "Durability of committed rows after a crash", "Atomic commit of every single statement", "Referential integrity of foreign keys"])), ["clang"]);
-  // a short, common word of the stem is not a cue, nor are the words every stem is made of
-  assert.deepEqual(codes(card("下列关于缓存的说法，哪一项是正确的？", ["缓存命中时可以省去一次磁盘读取", "缓存会让所有读取变慢", "缓存只能保存数字", "缓存没有容量上限"])), []);
-  // restating the stem's own words in the right option ("principles guide…" for "principles guiding…") is not an echo worth a rewrite
+  assert.deepEqual(codes(card(stem, ["数据库事务隔离级别可重复读保证同一事务内两次读取一致", "避免脏页写回磁盘时因为断电而丢失更新", "减少锁等待时间并因此提高系统的吞吐量",
+    "保证已经提交的数据在崩溃之后永久保存"])), []);
   assert.deepEqual(codes(card("Which statement about architecture principles follows from the definition?", ["Principles guide later choices",
     "Architecture is only today's diagram", "Principles never constrain design"])), []);
-  // a stem is only known once it is written: the answer stage has none
-  assert.deepEqual(codes(card(stem, echoing), { stem: false }), []);
-  // a multi has no single option to echo
-  assert.deepEqual(codes(card(stem, echoing, [0, 1], "multi")), []);
 });
 
 test("the issue lines name the card, the cue and the options, and other kinds are left alone", () => {

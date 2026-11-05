@@ -43,23 +43,14 @@ test("the answer stage corrects an option cue with the issue named, and keeps no
   assert.equal(prompts.length, 2);
   assert.match(prompts[1], /option cue \(catchall\): option d/);
   assert.deepEqual(result.items[0].options.map((option) => option.text), OK);
-  // a stem is not written at this stage, so a stem echo cannot be judged there
-  const echo = qualityBlueprint(req, plan, deck(quiz()));
-  echo.items[0].options[0].text = "事务隔离级别可重复读保证同一事务内两次读取一致";
-  let calls = 0;
-  await blueprintAssessment(async () => { calls++; return echo; }, req, plan);
-  assert.equal(calls, 1);
 });
 
-test("a card flagged only for an option cue is re-worded in the run, by its options (and for an echo, its stem)", () => {
+test("a card flagged only for an option cue is re-worded in the run, by its options", () => {
   const flagged = quiz([OK[0], OK[1], OK[2], "以上都对"]);
   const d = deck(flagged);
   const local = optionCueIssues(d);
   assert.equal(patchCandidates(d, { local, binding: [], review: [] }, mentionsCard).has("q1"), true);
   assert.deepEqual([...patchFields(local)], ["options"]);
-  const echo = "Card 1: option cue (clang): the stem's wording \"事务隔离级别\" is repeated only in the correct option a; leave it out";
-  assert.deepEqual([...patchFields([echo])].sort(), ["options", "prompt"]);
-  assert.equal(patchCandidates(d, { local: [echo], binding: [], review: [] }, mentionsCard).has("q1"), true);
 });
 
 test("the learner-facing reason and the failure class read an option cue as weak options", () => {
