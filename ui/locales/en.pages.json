@@ -94,7 +94,7 @@
   "把侧栏固定在左边": "Keep the sidebar on the left",
   "帮助": "Help",
   "功能导览、快捷键和名词解释": "Feature tour, keyboard shortcuts and glossary",
-  "其余的功能按内容分组收在这里；按住一项拖到上方，就放进主导航": "Everything else, grouped by what it is about. Hold an item and drag it up to put it in the main list.",
+  "其余的功能按内容分组收在这里；按住一项拖到上方，就放进主导航（最多 {0} 项，满了先把其中一项拖下来）": "Everything else, grouped by what it is about. Hold an item and drag it up to put it in the main list (at most {0}; when it is full, drag one of them down first).",
   "主导航最多放 {0} 项，先把其中一项拖到「更多」": "The main list holds at most {0} items; drag one of them into “More” first",
   "更多 › {0}": "More › {0}",
   "{0} 已移到「{1}」第 {2} 位，共 {3} 项": "{0} moved to “{1}”, position {2} of {3}",

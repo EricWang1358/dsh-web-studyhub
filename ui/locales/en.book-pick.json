@@ -1,0 +1,20 @@
+{
+  "未生成 · {0} 个知识点": "Not built · {0} knowledge points",
+  "已生成 {0}/{1} 个知识点": "Built {0}/{1} knowledge points",
+  "已生成": "Built",
+  "已生成 {0}/{1} 章，其余 {2} 章未生成": "{0}/{1} chapters built; the other {2} are not built yet",
+  "选的章都已经写好，不用再生成。": "The chapters picked are written already: nothing to build.",
+  "要写 {0} 个知识点 · {1}": "{0} knowledge points to write · {1}",
+  "读资料约 {0}（不含提示和模型写出的内容）": "Material read: about {0} (not counting the prompts and what the model writes)",
+  "先写 2 个样例，按它们实际用的 token 推算其余的，你看过再继续。": "It writes 2 sample points first and scales the rest from the tokens they really used; you look before it goes on.",
+  "已选 {0} 章": "{0} chapters picked",
+  "{0} 章未生成": "{0} chapters not built",
+  "生成其他章节": "Build other chapters",
+  "只生成部分章节": "Build only some chapters",
+  "勾选要生成的章：只写这些章的知识点、只读它们的资料；已经写好的不会重写，也不会再花一次。": "Tick the chapters to build: only their knowledge points are written and only their materials read. What is written already is never rewritten or paid for again.",
+  "生成所选 {0} 章": "Build the {0} chapters picked",
+  "生成所选章节": "Build the chapters picked",
+  "生成全部其余章节": "Build all the other chapters",
+  "想先只生成几章：先点「生成总纲」（只清点资料、排章节，不写讲解），再回来选章节。": "To build only some chapters first: press Generate outline (it reads the materials and arranges the chapters, no explanations), then come back and pick.",
+  "未生成": "Not built"
+}

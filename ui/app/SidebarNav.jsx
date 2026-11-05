@@ -35,7 +35,7 @@ function movedText(announce) {
 
 export default function SidebarNav({ alert, reason, tasks }) {
   const { data, core, shell, nav, session, intents, board } = useApp();
-  const { busy } = core;
+  const { busy, notify } = core;
   const { navPage, pageTarget, page } = nav;
   const navRef = useRef(null), [navMark, setNavMark] = useState(null);
   const navOrder = useNavOrder(NAV_DEFAULTS, navRef);
@@ -50,6 +50,9 @@ export default function SidebarNav({ alert, reason, tasks }) {
   const reorderHint = useReorderHint();
   const { learned } = reorderHint;
   useEffect(() => { if (navOrder.lifted || navOrder.announce) learned(); }, [navOrder.lifted, navOrder.announce, learned]);
+  /* A full main list says why on screen too (a drop or Alt+↑ that cannot land would otherwise look like nothing happened); the sentence is the one
+     the live region reads. */
+  useEffect(() => { if (navOrder.announce?.refused) notify({ text: movedText(navOrder.announce), tone: 'info' }); }, [navOrder.announce, notify]);
   // A row moved into 「更多」 with the keyboard keeps the focus: 「更多」 opens so the row is still on screen.
   useEffect(() => { if (navOrder.announce?.group && navOrder.announce.group !== 'main') setMoreOpen(true); }, [navOrder.announce, setMoreOpen]);
   const lastRun = page === 'review' ? resumeProgress(data?.lastRun, session.run) : data?.lastRun;
@@ -104,7 +107,7 @@ export default function SidebarNav({ alert, reason, tasks }) {
         {shown('main').map(row)}
       </NavGroup>
       {sections.length > 0 && (
-        <NavFold id="more" glyph="more" label={ui('更多')} purpose={ui('其余的功能按内容分组收在这里；按住一项拖到上方，就放进主导航')}
+        <NavFold id="more" glyph="more" label={ui('更多')} purpose={uiFormat('其余的功能按内容分组收在这里；按住一项拖到上方，就放进主导航（最多 {0} 项，满了先把其中一项拖下来）', [MAIN_LIMIT])}
           alert={alertInMore ? reason : undefined} open={more} onToggle={toggleMore} data-tour="nav-more" data-usage="nav.more">
           {sections.map((group) => <NavGroup key={group.id} id={group.id} label={group.label}>{shown(group.id).map(row)}</NavGroup>)}
         </NavFold>

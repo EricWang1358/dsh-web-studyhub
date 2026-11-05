@@ -426,7 +426,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'nav-more', area: 'settings', title: '侧栏的「更多」', page: null, anchors: ['nav-more', NAV_MENU],
     aliases: ['更多', '每天', '阶段性', '课程准备与管理', '侧栏分组', '其他功能', '调整顺序', '固定到侧栏', 'more', 'sidebar groups', 'reorder', 'pin'],
     path: ['侧栏', '更多'],
-    what: '侧栏上方是最常用的几项，其余的按内容收在「更多」里：资料与出题、练习与复习、考试与统计、任务、笔记与待办。按住一项拖到上方就放进常用的几项（最多 6 项），用键盘时按 Alt 加上下方向键。' }),
+    what: '侧栏上方是最常用的几项，其余的按内容收在「更多」里：资料与出题、练习与复习、考试与统计、任务、笔记与待办。按住一项拖到上方就放进常用的几项（最多 6 项，满了先把其中一项拖到「更多」），用键盘时按 Alt 加上下方向键。' }),
   feature({ id: 'nav-help', area: 'settings', title: '帮助', page: null, anchors: ['nav-help', NAV_MENU],
     aliases: ['帮助', '说明', 'help'],
     path: ['侧栏', '帮助'],

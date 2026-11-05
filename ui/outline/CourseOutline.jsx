@@ -11,6 +11,7 @@ import { displayTitle } from '../../lib/document-title.js';
 import { COVERAGE_DEFAULT, bookCoverage } from '../../lib/book-settings.js';
 import OutlineTree from './OutlineTree.jsx';
 import BookSample from '../book/BookSample.jsx';
+import BookPick, { unbuiltText } from './BookPick.jsx';
 import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
 import { basisText, bookCoverageText, bookIntroText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions, offerText, pickedText, readMoreStartedText, rebuildTipText, runningText,
   startPickedText, startedText, usedPapersText, whatText, writingText, levelsText } from './words.js';
@@ -111,6 +112,8 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
         result => notify({ text: readMoreStartedText(result?.alreadyRunning), tone: 'success' }), { rethrow: true });
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [act, course, coverage, notify]);
+  // The scale of a pick of chapters (#708) before it starts: the build's own plan, no call, no task.
+  const pickScale = useCallback(chapters => call('generation.courseBook.build', { course, coverage, chapters, estimate: true }), [call, course, coverage]);
   const toggle = useCallback((key, value) => setOpen(current => { const next = new Set(current); if (value) next.add(key); else next.delete(key); return next; }), []);
   const onPick = useCallback((key, on) => setPick(current => pickRow(current, key, on)), []);
   const onPickCard = useCallback((ref, on) => setPick(current => pickCard(current, ref, on)), []);
@@ -128,7 +131,7 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
 
   return <CourseOutlineView course={course} outline={outline} details={details} error={error} open={open} deckId={deckId} pick={pick} picked={picked}
     running={runningBuild(data?.jobs, course)} writing={runningBuild(data?.jobs, course, BOOK_BUILD_KIND)} model={modelReadiness(data)} coverage={coverage}
-    actions={{ onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, retry, toggle, onPick, onPickCard, onPracticeRow, clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
+    actions={{ onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, pickScale, retry, toggle, onPick, onPickCard, onPracticeRow, clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
       chooseDeck: value => { setDeckId(value); setPick(emptyPick()); } }} />;
 }
 
@@ -161,6 +164,10 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, a
   const bookMain = main === 'book' || main === 'update';
   // The book's sample waits (#710): its card holds the way on (生成其余, 重做样例 with the papers chosen here), so 更新全书 is not offered beside it.
   const sample = book?.notes?.sample ?? null;
+  // Chapters may be picked (#708) on an outline the build keeps as it is: not one to organise again first, with more than one chapter, no sample waiting.
+  const pickable = !!book && !sample && !book.stale && book.from !== 'descriptors' && (book.parts?.length ?? 0) > 1 && !!actions.pickScale;
+  // A book of some chapters: the whole-book button writes the rest of them, and says so.
+  const rest = !!book?.notes && !!unbuiltText(book.parts);
   return (<>
     {sample && <BookSample sample={sample} coverage={coverage} off={off} quiet={quiet} onRest={() => actions.writeBook(chosen(), SAMPLE_CONFIRM)}
       onRedo={() => actions.writeBook(chosen())} onOpen={actions.onOpenBook ? point => actions.onOpenBook(`bk:${point.id}`) : undefined} />}
@@ -168,14 +175,16 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, a
       {!book && <Button variant={main === 'outline' ? 'primary' : 'quiet'} size={main === 'outline' ? undefined : 'sm'} icon="sparkle" disabled={off}
         onClick={() => actions.organise(chosen())}>{ui('生成总纲')}</Button>}
       {!sample && <Button variant={bookMain ? 'primary' : book ? 'quiet' : 'secondary'} size={bookMain || !book ? undefined : 'sm'} icon="book" disabled={off}
-        onClick={() => actions.writeBook(chosen())}>{book?.notes ? ui('更新全书') : ui('生成复习全书')}</Button>}
+        onClick={() => actions.writeBook(chosen())}>{rest ? ui('生成全部其余章节') : book?.notes ? ui('更新全书') : ui('生成复习全书')}</Button>}
       {actions.setCoverage && <Select className="outline-organise__level" aria-label={ui('讲解详尽程度')} value={coverage} options={levelOptions()} disabled={off}
         onChange={value => actions.setCoverage(value)} />}
       {book && <Tooltip layer content={rebuildTipText()}><Button variant="quiet" size="sm" icon="refresh" disabled={off} onClick={() => actions.organise(chosen())}>{ui('重新整理')}</Button></Tooltip>}
+      {pickable && <BookPick parts={book.parts} built={!!book.notes} off={off} onScale={actions.pickScale} onBuild={chapters => actions.writeBook(chosen(), { chapters })} />}
+      {!book && <p className="outline-papers__note" data-book-pick-later="">{ui('想先只生成几章：先点「生成总纲」（只清点资料、排章节，不写讲解），再回来选章节。')}</p>}
       {used.length > 0 && !changed && <p className="outline-papers__used" data-papers-used="">{usedPapersText(used.map(paper => displayTitle(paper.title)), !book || book.papersBy !== 'learner')}</p>}
       {choices.length > 0 && <Disclosure className="outline-papers" summary={used.length ? ui('更改样卷') : ui('提供了试卷？')} meta={papers.size ? uiFormat('已选 {0} 份', [papers.size]) : null}>
         <p className="outline-papers__note">{ui('勾选的资料当作样卷：总纲会标出样卷考过的知识点。像样卷的资料默认就用上；全部不勾选就不标。')}</p>
-        {book && !sample && <p className="outline-papers__note">{ui('已有复习全书时点「更新全书」：只重新对照样卷、改写考情，讲解不变。')}</p>}
+        {book && !sample && !rest && <p className="outline-papers__note">{ui('已有复习全书时点「更新全书」：只重新对照样卷、改写考情，讲解不变。')}</p>}
         <ul className="outline-papers__list">
           {choices.map(choice => <li key={choice.key}><Checkbox label={displayTitle(choice.title)} hint={choice.likely ? ui('像样卷') : undefined} checked={papers.has(choice.key)}
             onChange={on => flip(choice.key, on)} /></li>)}
@@ -198,6 +207,8 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
   useInjectCss(css, 'study-outline');
   const { busy } = useStudy();
   const rows = useMemo(() => outlineRows(outline, details, open), [outline, details, open]);
+  // The chapters of a book of some chapters not built yet (#708): their rows say 未生成.
+  const unbuilt = useMemo(() => new Set(outline?.book?.notes ? (outline.book.parts || []).filter(part => !part.written).map(part => part.id) : []), [outline]);
   const courseName = course === '' ? ui('未分类课程') : course;
   const header = (
     <PageHeader className="outline-header" back={{ label: ui('返回学习库'), onClick: actions.onBack }} title={course === null ? ui('总纲') : uiFormat('总纲 · {0}', [courseName])}
@@ -240,6 +251,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
         </p>}
         {book.notes?.levels ? <p className="outline-book-line__coverage" data-book-levels="">{levelsText(book.notes.levels)}</p>
           : book.notes?.coverage?.total > 0 && <p className="outline-book-line__coverage">{bookCoverageText(book.notes.coverage)}</p>}
+        {book.notes && unbuiltText(book.parts) && <p className="outline-book-line__coverage" data-book-unbuilt="">{unbuiltText(book.parts)}</p>}
         {organise}
       </div>}
       {!book && outline.status === 'ok' && outline.documents.length > 0 && <section className="outline-organise" aria-label={ui('生成总纲')}>
@@ -248,7 +260,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
       </section>}
       {nothing && <EmptyState icon="book" title={outline.status === 'empty' ? ui('还没有课程') : ui('这门课还没有题')}
         description={ui('在「创建题组」里从资料出题，题目会按资料的章节排进总纲。')} primary={book ? undefined : create} secondary={book ? create : undefined} />}
-      {rows.length > 0 && <OutlineTree rows={rows} details={details} pick={pick} papers={book?.papers || 0} modelReady={model.ready} onToggle={actions.toggle} onPick={actions.onPick} onPickCard={actions.onPickCard}
+      {rows.length > 0 && <OutlineTree rows={rows} details={details} pick={pick} papers={book?.papers || 0} unbuilt={unbuilt} modelReady={model.ready} onToggle={actions.toggle} onPick={actions.onPick} onPickCard={actions.onPickCard}
         onPractice={actions.onPracticeRow} onOpenSources={actions.onOpenSources} onOpenSource={actions.onOpenSource} onOpenBook={book?.notes ? actions.onOpenBook : undefined}
         onReadMore={actions.readMore} label={ui('总纲')} />}
       {isPicked(pick) && <div className="outline-bar" role="region" aria-label={ui('已选的题')}>
