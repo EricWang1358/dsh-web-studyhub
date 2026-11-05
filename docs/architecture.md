@@ -280,6 +280,7 @@ StudyHub has no search index of its own.
 
 - A converted textbook is imported through the same `materials.document.import`. It becomes page sources with `document.chapter` for the heading each falls under, and no original is retained.
 - Choosing from it uses chapter groups (`groupSourcesByDocument` in `lib/source-groups.js`).
+- `parseConvertedDocument` is the one place a converted book's heading levels are inferred from numbering when the converter flattened them (`lib/heading-levels.js`), and lines repeated on most pages are left out (`lib/repeated-lines.js`). The removed runs stay on each page source, so `materials.document.restoreRepeated` can put them back as a new revision. The revision tag `conv2` makes a re-conversion of the same bytes replace sources that carried the old flat chapters.
 
 Search is delegated through one contract in `lib/retrieval.js`:
 
