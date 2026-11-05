@@ -44,7 +44,7 @@ test('the thresholds: at least 3 pages AND at least 40 % of the pages', () => {
 });
 
 test('never removed: headings, formulas, code, tables, short labels, numbers that do not follow the page, and a page that would be left empty', () => {
-  const keep = ['# 本章小结', '$$', 'E = mc^2', '$$', '```', 'print("hello world")', '```', '| 列一 | 列二 |', '解：', 'Solution:', '其中 $a_n$ 为通项公式'];
+  const keep = ['# 本章小结', '$$', 'E = mc^2', '$$', '```', 'print("hello world")', '```', '| 列一 | 列二 |', '解：', 'Solution:', '其中 $a_n$ 为通项公式', '[Figure]'];
   const pages = Array.from({ length: 6 }, (_, at) => page(at + 1, [said(at), ...keep, `例 ${[3, 1, 4, 1, 5, 9][at]}`]));
   const result = dropRepeatedLines(pages);
   assert.equal(result.count, 0);

@@ -16,6 +16,7 @@ import { FAILED_HAND_OFF_WHAT, failedHandOffInput, failureText } from './tasks/f
 import { isHeldTask } from './tasks/task-model.js';
 import css from './mineru.css';
 import { useStudy } from './study-context.jsx';
+import { RepeatedNote } from './RepeatedNote.jsx';
 
 /* The compact card of a PDF conversion, the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
    guess), one status line, a stop, and ONE button for what comes next (continue without redoing finished pieces: a stopped local service is started by
@@ -78,6 +79,7 @@ export function PdfDetail({ job, expandChunks }) {
   return (
     <div className="pdf-detail">
       {isHeldTask(job) && !running && !job.archived && <HeldEntry job={job} />}
+      {job.status === 'complete' && <RepeatedNote documentId={job.documentId} repeated={job.repeated} />}
       {job.status === 'complete' && <Hint as="small" data-reconvert-hint>{ui('想先删掉识别错的文字再导入：重新选这份 PDF，在「更多设置」里打开「导入前先让我改」。已经导入的这份不会变。')}</Hint>}
       <ConversionEnvironment env={job.env} converter={job.converter} service={job.service} now={now} />
       {running && job.phase !== 'queued' && <>
@@ -319,6 +321,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
         {status === 'complete' && (document?.exists
           ? <small className="pdf-history__result">{imported === 1 ? uiFormat('已导入为「{0}」· 共 1 页', [title]) : uiFormat('已导入为「{0}」· 共 {1} 页', [title, imported])}</small>
           : <Hint as="small">{ui('已导入的资料已被删除')}</Hint>)}
+        {status === 'complete' && document?.exists && <RepeatedNote documentId={row.documentId} repeated={document.repeated} />}
         {status === 'complete' && row.skippedPages > 0 && <Hint as="small">{uiFormat('没有可读文字而跳过的页：{0}', [row.skippedPages])}</Hint>}
         {status === 'interrupted' && <small>{ui('上次没有做完（应用被关闭，或意外中断）。')}</small>}
         {status === 'cancelled' && <small>{ui('已解析好的段落会保留，再选同一个文件不会重复解析。')}</small>}

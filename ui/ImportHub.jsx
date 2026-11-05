@@ -20,6 +20,7 @@ import { toBase64 } from './upload.js';
 import css from './import-hub.css';
 import { hasContext } from './capabilities.js';
 import { useStudy } from './study-context.jsx';
+import { repeatedText, restoreRepeated } from './RepeatedNote.jsx';
 import { useHandOff } from './hand-off/use-hand-off.js';
 import { failedImportInput, lastingFailures, rejectedFilesInput } from './import-hand-off.js';
 
@@ -173,7 +174,8 @@ async function importDocumentFile(file, { call, courses = [], known = [], conver
     throw permanentError(isSlideFormat(format) ? ui('没有读到可用的文字，这份幻灯片可能全是图片。请先导出为带文字的 PDF 或补上文字再导入。') : ui('文件里没有可用的文字。'));
   }
   return { kind: 'document', title: value?.document?.title || file.name, format, documentId: value?.documentId, sourceIds,
-    pages: sourceIds.length, skippedPages: value?.skippedPages || [], courses: filed.courses, courseHow: filed.how, ...(converted ? { converted } : {}) };
+    pages: sourceIds.length, skippedPages: value?.skippedPages || [], courses: filed.courses, courseHow: filed.how, ...(converted ? { converted } : {}),
+    ...(value?.repeated ? { repeated: value.repeated } : {}) };
 }
 
 async function importOne(file, { call, courses = [], known = [], audio = false, convertible = false }) {
@@ -316,9 +318,12 @@ export function itemDetail(item) {
   const label = result.format === 'docx' ? ui('Word') : isSlideFormat(result.format)
     ? (result.sourceIds.length === 1 ? ui('PowerPoint · 1 页') : uiFormat('PowerPoint · {0} 页', [result.sourceIds.length]))
     : sourceFormatLabel({ format: result.format, sourceIds: result.sourceIds });
-  return result.skippedPages?.length
+  const said = result.skippedPages?.length
     ? uiFormat('{0} · 第 {1} 页没有文字，已跳过', [label, result.skippedPages.join(ui('、'))])
     : uiFormat('{0} · 已保存到资料', [label]);
+  // A converted book that left out lines repeated on most pages says so; its row offers 恢复 (ui/RepeatedNote.jsx).
+  const removed = result.restored ? ui('已放回这些重复的行。') : repeatedText(result.repeated);
+  return removed ? `${said} · ${removed}` : said;
 }
 
 function PasteForm({ courses, disabled, draft, onDraft, onSaved }) {
@@ -495,8 +500,20 @@ export default function ImportHub({
     void run([item]);
   }
   const drop = id => setItems(current => current.filter(entry => entry.id !== id));
+  const [restoring, setRestoring] = useState('');
+  // 恢复 the lines a converted book left out as repeated (the same op as the conversion's note): the row then says they are back.
+  const putBack = async item => {
+    if (restoring) return;
+    setRestoring(item.id);
+    try {
+      await restoreRepeated(call, item.result.documentId);
+      setItems(current => current.map(entry => entry.id === item.id ? { ...entry, result: { ...entry.result, repeated: undefined, restored: true } } : entry));
+    } catch { /* the row keeps its 恢复: the host said why in its own notice */ } finally { setRestoring(''); }
+  };
   const shown = items.map(item => ({ id: item.id, name: item.name, status: item.status, detail: itemDetail(item),
-    action: item.status !== 'error' ? undefined : item.carry && audioOn ? { label: ui('去音频页'), onClick: () => { carryToAudio([item.file]); drop(item.id); } }
+    action: item.status === 'done' && item.result?.repeated?.count > 0 && item.result.documentId
+      ? { label: ui('恢复'), onClick: () => putBack(item), disabled: !!restoring || running }
+      : item.status !== 'error' ? undefined : item.carry && audioOn ? { label: ui('去音频页'), onClick: () => { carryToAudio([item.file]); drop(item.id); } }
       : item.permanent || !item.kind ? { label: ui('移除'), onClick: () => drop(item.id), disabled: running }
         : { label: ui('重试'), onClick: () => retry(item.id), disabled: running } }));
   const finished = items.filter(item => item.status === 'done').length, failed = items.filter(item => item.status === 'error').length;
