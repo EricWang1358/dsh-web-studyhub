@@ -6,6 +6,7 @@ import { writesFor } from '../lib/runtime/domain-contracts.js';
 import { libraryContracts } from '../lib/study-contracts.js';
 import { switchOptions } from './helpers/runtime-switch.mjs';
 import { COURSE, planOf, service as library } from './helpers/readiness-library.mjs';
+import { fillCourse } from '../lib/custom-fill.js';
 
 /** A model that waits for the stop: every call it gets is counted. */
 function waiting() {
@@ -129,4 +130,33 @@ test('a course with no review book or no plan to read says why and starts nothin
 test('the op writes no record of its own and the chat\'s contract tells it', () => {
   assert.deepEqual(writesFor('library', 'course.custom.fill'), []);
   assert.match(libraryContracts.custom, /course\.custom\.fill \{course\?,chapters\?,estimate\?\}/);
+});
+
+/* Gate review of #738: what 补齐 starts must not pay twice, nor at a detail level the plan did not choose. */
+
+test('two fills at once start one question job: the op runs one at a time per library, as apply does', async t => {
+  const w = await world(t);
+  const [one, two] = await Promise.all([w.fill({ chapters: ['c2'] }), w.fill({ chapters: ['c2'] })]);
+  assert.equal(w.jobs().length, 1, JSON.stringify([one.started, two.started]));
+  assert.ok([one, two].some(answer => answer.started.questions.alreadyRunning));
+});
+
+test('a job running over some of the pages keeps them: the new job reads only the pages no job holds', async t => {
+  const w = await world(t);
+  await w.study.call('generate', { sourceIds: [pages(2)[0]], course: COURSE, kinds: ['quiz'] });
+  assert.equal(w.jobs().length, 1);
+  const answer = await w.fill({ chapters: ['c2'] });
+  assert.ok(answer.started.questions.jobId, JSON.stringify(answer.started));
+  assert.equal(answer.started.questions.leftToRunning, 1, 'the page the running job reads is said, not asked again');
+  const fresh = w.jobs().find(job => job.id === answer.started.questions.jobId);
+  assert.deepEqual([...fresh.sourceIds].sort(), pages(2).slice(1));
+});
+
+test('the book build is asked at the detail level of the plan, with the sample settled, as apply asks it', async t => {
+  const w = await world(t);
+  const asked = [];
+  const call = async (name, args) => { asked.push({ name, args }); return { jobId: 'job-x' }; };
+  await fillCourse(await w.study.store.read(), { course: COURSE, chapters: ['c3'] }, { call, busy: () => new Set() });
+  const build = asked.find(item => item.name === 'courseBook.build');
+  assert.deepEqual(build.args, { course: COURSE, chapters: ['c3'], coverage: 'brief', sample: 'skip' });
 });
