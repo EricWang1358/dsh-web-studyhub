@@ -135,8 +135,10 @@ export function clusterAnswer(data) {
 
 function paperAnswer(data) {
   const id = title => data.points.find(point => point.title === title)?.id;
+  // A question outside the fixed four (tests/helpers/big-book-library.mjs bookPaper) is placed on the points whose titles it names.
+  const titled = body => data.points.filter(point => body.includes(point.title)).map(point => point.id);
   const questions = data.paper[0].text.split('\n').map(line => /^(Q\d) (.+?) \(/.exec(line)).filter(Boolean)
-    .map(([, label, body]) => ({ label, quote: body.slice(0, 60), points: PAPER_POINTS[label] ? [id(PAPER_POINTS[label])] : [] }));
+    .map(([, label, body]) => ({ label, quote: body.slice(0, 60), points: PAPER_POINTS[label] ? [id(PAPER_POINTS[label])] : titled(body) }));
   questions.push({ label: 'Q9', quote: 'A question that is not in this paper at all, invented.', points: [id('Layers')] });
   return { questions };
 }

@@ -4,58 +4,16 @@
    converted book of 500 pages in 10 chapters (tests/helpers/big-book-library.mjs) and the fake model; no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { StudyService } from '../lib/service.js';
 import { settleJob } from './helpers/wait.mjs';
-import { privateRoot } from './helpers/model-family-baseline.mjs';
-import { switchOptions } from './helpers/runtime-switch.mjs';
-import { bookModel } from './helpers/course-book-model.mjs';
-import { BIG_COURSE, BOOK_CHAPTERS, PAGES_PER_CHAPTER, bigBookLibrary, callPages, chapterTitle, topicOf } from './helpers/big-book-library.mjs';
-import { isCourseNotesSource, isCourseOutlineSource } from '../lib/exam-point-list.js';
+import { BIG_COURSE, BOOK_CHAPTERS, chapterTitle } from './helpers/big-book-library.mjs';
+import { bigBookWorld as world, leavesOf, pointTitles, readOnly, topicsOf, written } from './helpers/big-book-world.mjs';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
 import { courseRanges, inventoryCalls } from '../lib/contexts/generation/inventory/ranges.js';
-
-const KIND = 'course-book-build';
-
-async function world(t) {
-  const fake = bookModel(), root = await privateRoot(t, 'custom-book-s2-');
-  const service = new StudyService(root, { complete: fake.complete, ...switchOptions('runtime', { complete: fake.complete, paths: [] }) });
-  t.after(() => service.dispose());
-  await service.store.update(state => { state.sources.push(...bigBookLibrary().sources); state.focus = { mode: 'class', course: BIG_COURSE }; });
-  const records = async () => (await service.store.read()).sources;
-  const contract = () => [...service.runtime.work.jobs.values()].filter(job => job.type === KIND).at(-1)?.contract;
-  const ask = args => service.call('generation.courseBook.build', { course: BIG_COURSE, language: 'en', ...args });
-  const build = async args => {
-    const job = await settleJob(service, (await ask(args)).jobId);
-    assert.equal(job.status, 'complete', JSON.stringify(contract()?.error ?? null));
-    return contract();
-  };
-  return { service, fake, ask, build, contract, since: mark => fake.calls.slice(mark),
-    notes: async () => (await records()).filter(isCourseNotesSource).find(record => !record.archived),
-    outline: async () => (await records()).filter(isCourseOutlineSource).find(record => !record.archived) };
-}
-const leavesOf = nodes => nodes.flatMap(node => (node.children ? leavesOf(node.children) : [node]));
-const written = record => record.courseNotes.leaves.filter(leaf => leaf.body && !leaf.body.empty);
-const pagesOf = chapter => [(chapter - 1) * PAGES_PER_CHAPTER + 1, chapter * PAGES_PER_CHAPTER];
-const inChapters = (page, chapters) => chapters.some(chapter => page >= pagesOf(chapter)[0] && page <= pagesOf(chapter)[1]);
-const pointTitles = calls => [...new Set(calls.filter(call => call.stage === 'write').map(call => call.data.point.title))].sort();
-const topicsOf = chapters => [...new Set(chapters.flatMap(chapter => Array.from({ length: PAGES_PER_CHAPTER }, (_, at) => topicOf(pagesOf(chapter)[0] + at))))].sort();
 
 /** The inventory calls a whole-book read makes (the book's ranges, read once each): what a pick saves against. */
 async function wholeBookCalls(service) {
   const state = await service.store.read();
   return inventoryCalls(courseRanges(state, buildOutlineIndex(state, { course: BIG_COURSE }).allDocuments, { language: 'en' }).ranges).length;
-}
-
-/** The inventory calls since `mark` read only the pages of `chapters`: every call holds a page of them, and a page outside them only where a range of whole
-    pages runs over a chapter's edge (the page next to it). */
-function readOnly(calls, chapters) {
-  const pages = calls.flatMap(callPages), edge = page => inChapters(page - 1, chapters) || inChapters(page + 1, chapters);
-  assert.ok(calls.every(call => callPages(call).some(page => inChapters(page, chapters))), 'every inventory call reads a picked chapter');
-  const outside = [...new Set(pages.filter(page => !inChapters(page, chapters)))];
-  assert.ok(outside.length <= 2 * chapters.length * 15 && outside.every(page => calls.some(call => callPages(call).includes(page) && callPages(call).some(own => inChapters(own, chapters)))),
-    `only a range over an edge reads beyond it (${outside.join(',')})`);
-  assert.ok(!pages.some(page => !inChapters(page, chapters) && !edge(page) && !calls.some(call => callPages(call).some(own => inChapters(own, chapters)) && callPages(call).includes(page))));
-  return pages;
 }
 
 test('chapters 3 and 4 with no outline: only their pages are read, the outline holds them and lists the rest as 未生成; chapter 5 later extends it and leaves 3–4 as they were', async t => {

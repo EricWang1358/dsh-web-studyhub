@@ -37,3 +37,7 @@ export const callPages = call => call.data.ranges.flatMap(range => {
   const [from, to] = String(range.pages ?? '').split('-').map(Number);
   return Number.isInteger(from) ? Array.from({ length: (to || from) - from + 1 }, (_, at) => from + at) : [];
 });
+
+/** A sample paper of the course (its name says 样卷, so a build takes it as one): `questions` are the lines' bodies, each "Qn <body> (10 marks)", numbered from Q5 (Q1-Q4 are the fixed questions of course-outline-library.mjs). */
+export const bookPaper = questions => ({ id: 'big-paper', title: 'Final 2025 样卷', text: questions.map((body, at) => `Q${at + 5} ${body} (10 marks)`).join('\n'),
+  createdAt: new Date(Date.UTC(2026, 9, 2)).toISOString(), courses: [BIG_COURSE], document: { materialId: 'document-big-paper', format: 'md', filename: 'Final 2025 样卷.md' } });
