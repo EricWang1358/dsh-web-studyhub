@@ -5,6 +5,7 @@ import { Button, Checkbox, Dialog, Disclosure, EmptyState, Field, Hint, Icon, Ic
 import SourcePicker from './SourcePicker.jsx';
 import TopicChips from './TopicChips.jsx';
 import FocusProgressList from './FocusProgressList.jsx';
+import CustomPlanCard from './CustomPlanCard.jsx';
 import GuidanceSuggestions, { guidanceSuggestions } from './GuidanceSuggestions.jsx';
 import { splitTopics } from './course-topics.js';
 import { useStudy } from './study-context.jsx';
@@ -320,6 +321,9 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
         <Field label={ui('考试日期')} width="full" hint={ui('填了就会在首页倒数；其余都可以不填。')}>
           <TextInput type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></Field>
       </section>
+
+      {/* Only a course the main chat made a custom plan for has the card. */}
+      <CustomPlanCard course={course} />
 
       <Disclosure className="course-settings__more" bodyClassName="course-settings__more-body" summary={ui('更多设置')} defaultOpen={startOpen}
         meta={joinMeta([draft.format !== 'other' ? examFormatLabel(draft.format) : '', splitTopics(draft.focusTopics).length ? uiFormat('{0} 个重点知识点', [splitTopics(draft.focusTopics).length]) : '',
