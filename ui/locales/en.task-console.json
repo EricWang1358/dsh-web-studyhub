@@ -218,6 +218,8 @@
   "为 {0} 道题备变式": "Preparing variants for {0} question(s)",
   "{0} tok": "{0} tok",
   "今天还没有备过题。": "Nothing has been prepared today.",
+  "没有子代理原文": "No sub-agent transcript",
+  "变式由轻量模型直接写，不经过子代理，所以没有原文可以打开。每一批为几道题写、写了和留下几道、用了多少 tok，都在这里和「批次」里。": "Variants are written by the light model directly, without a sub-agent, so there is no transcript to open. What each batch was for, what it wrote and kept, and the tokens it used are here and under Batches.",
   "今天最多 {0} 批": "At most {0} batches today",
   "备好的题最多 {0} 道": "At most {0} prepared questions",
   "这是过去的一天，只留作记录。": "A past day, kept as a record.",

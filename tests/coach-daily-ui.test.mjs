@@ -125,6 +125,18 @@ test('in English no Chinese is left in the day\'s row, its facts, its panels or 
   try { assert.match(m.taskSummary(today).title, /^Personalised · /); } finally { m.setUiLanguage('zh'); }
 });
 
+test('实时输出 of a day says the light model writes the variants with no sub-agent, so there is no transcript, and shows the batch instead', () => {
+  const [today] = rows();
+  const out = consoleOf([today]);
+  assert.match(out, /data-coach-output/);
+  assert.match(out, /没有子代理原文/);
+  assert.match(out, /变式由轻量模型直接写，不经过子代理/);
+  assert.match(out, /第 2 批 · [^<]*写了 4 道，留下 3 道 · 22\.8K tok/, 'the newest batch, what it kept and its tokens');
+  assert.doesNotMatch(out, /等待模型开始输出|在 DSH 中打开完整会话|正在读取这一步的输出/, 'no output is promised or asked for');
+  const running = rows({ batches: [batch(1), batch(2, { status: 'running', generated: 0, passed: 0, tokens: { input: 0, output: 0, cache: 0 } })], preparing: true })[0];
+  assert.match(consoleOf([running]), /第 2 批 · [^<]*为 4 道题备变式/, 'a batch in flight says what it is writing');
+});
+
 test('the rest of the app never treats a day of 为你定制 as a job it waits for or draws a card for', () => {
   const [today] = rows({ preparing: true });
   assert.equal(today.status, 'running', 'a batch is in flight');
