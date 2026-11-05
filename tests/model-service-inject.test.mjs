@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hostOffersModel, assertHostModelRoute, hostService } from '../lib/host-capabilities.js';
+import { hostOffersModel, assertHostModelRoute } from '../lib/host-capabilities.js';
+import { hostService } from '../lib/host-service.js';
 import { describesModels, modelEfforts } from '../lib/reasoning-effort.js';
 
 /* A DSH (cordis) context that did not inject `llm`: reading the property throws, as the 即时控制 box showed when the
