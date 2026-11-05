@@ -19,7 +19,7 @@ export default function CustomReadiness({ course }) {
     Promise.resolve().then(() => call('course.custom.readiness', { course: course.name })).then(value => { if (live()) setData(value); }).catch(() => {});
   }, [call, course?.name, course?.custom?.updatedAt, stamp]);
   if (data?.status !== 'ok' || data.basis !== 'outline' || !data.chapters.length) return null;
-  const { counted, chapters } = data, disabled = busy || working, todo = chapters.filter(hasTodo);
+  const { counted, chapters } = data, locked = busy || working, todo = chapters.filter(hasTodo);
   // `ids` null is every chapter of the plan. The estimate starts nothing; the question comes back as the box below the list.
   const ask = async (ids, name) => {
     setPending({ ids, name, answer: null });
@@ -39,7 +39,7 @@ export default function CustomReadiness({ course }) {
   return <div className="custom-readiness" data-tour="custom-readiness">
     <div className="custom-readiness__head">
       <h4>{ui('章节准备度')}</h4>
-      {todo.length > 1 && <Button variant="quiet" size="sm" disabled={disabled || !!pending} onClick={() => ask(null, uiFormat('全部 {0} 章', [todo.length]))}>{ui('全部补齐')}</Button>}
+      {todo.length > 1 && <Button variant="quiet" size="sm" lock={locked} disabled={!!pending} onClick={() => ask(null, uiFormat('全部 {0} 章', [todo.length]))}>{ui('全部补齐')}</Button>}
     </div>
     <ul className="custom-readiness__list">
       {chapters.map(chapter => {
@@ -53,7 +53,7 @@ export default function CustomReadiness({ course }) {
             </span>
           </Tooltip>
           {isUnbuilt(chapter, counted) && <Badge size="sm" tone="neutral" className="custom-readiness__flag">{ui('未生成')}</Badge>}
-          {hasTodo(chapter) && <Button variant="quiet" size="sm" className="custom-readiness__fill" disabled={disabled || !!pending} onClick={() => ask([chapter.id], uiFormat('「{0}」', [chapter.title]))}>{ui('补齐')}</Button>}
+          {hasTodo(chapter) && <Button variant="quiet" size="sm" className="custom-readiness__fill" lock={locked} disabled={!!pending} onClick={() => ask([chapter.id], uiFormat('「{0}」', [chapter.title]))}>{ui('补齐')}</Button>}
         </li>;
       })}
     </ul>
