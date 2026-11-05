@@ -18,6 +18,7 @@ import css from './mineru.css';
 import { useStudy } from './study-context.jsx';
 import { RepeatedNote } from './RepeatedNote.jsx';
 import { CUSTOM_BOOK_LABEL, CUSTOM_BOOK_WHAT, customOffered, markCustomOffered, offersCustom } from './custom-entry.js';
+import { useCustomLink } from './custom-convert-link.js';
 
 /* The compact card of a PDF conversion, the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
    guess), one status line, a stop, and ONE button for what comes next (continue without redoing finished pieces: a stopped local service is started by
@@ -60,9 +61,10 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
   const primary = isHeldTask(job) && !isActiveJob(job) ? { label: HELD_ENTRY(), run: () => setEditing(true) } : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
     : job.status === 'failed' && job.retryable ? { label: ui('接着做'), run: retry, disabled: !!working, tip: retryTip(job) }
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
-  const follow = followUpLink(job, job.sourceIds, onGenerate);
+  const follow = followUpLink(job, job.sourceIds, onGenerate), custom = useCustomLink(job);
+  const links = [follow, custom].filter(Boolean);
   return <>
-    <CompactJobCard job={job} primary={primary} links={follow ? [follow] : undefined} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
+    <CompactJobCard job={job} primary={primary} links={links.length ? links : undefined} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
       onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
       onDismiss={() => run('dismiss', () => send('job.archive', { jobId: job.id }))} />
     {editing && <ConvertEditDialog job={job} onClose={() => setEditing(false)} onChanged={onChanged} />}

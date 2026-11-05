@@ -274,7 +274,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'custom-book-import', area: 'material', title: '深度定制这本书', page: 'sources', anchors: ['custom-book', 'import-mineru', 'sources-add'], prepare: 'add-dialog',
     aliases: ['深度定制', '定制', '定制这本书', '大书', '整本教材', '五百页', 'customize this book', 'customize', 'custom plan'],
     path: ['资料', '添加资料', '解析历史', '深度定制这本书'],
-    what: '导入或解析完一份 150 页以上的资料后，它在「添加资料」的文件列表和「解析历史」里的那一行出现一次：让主会话先问你几个选项，再决定这本书做什么。短资料不出现；以后随时可以在复习全书的「更多」里找到「深度定制…」。' }),
+    what: '导入或解析完一份 150 页以上的资料后，它出现在解析完成的任务卡片上（「用它出题」旁边）、「添加资料」的文件列表和「解析历史」里的那一行，点过一次就不再出现：让主会话先问你几个选项，再决定这本书做什么。短资料不出现；以后随时可以在复习全书的「更多」里找到「深度定制…」。' }),
   feature({ id: 'weekly-plan', area: 'practice', title: '每周几章的备考计划', page: 'book', anchors: ['book-weekly', 'nav-book'], prepare: 'book',
     aliases: ['本周', '每周几章', '本周读哪几章', '没有考试日期的计划', '按周学习', 'weekly plan', 'chapters a week', 'this week'],
     path: ['复习全书', '备考计划'],
