@@ -75,7 +75,7 @@
     .sh-switch .sh-check__input:checked + .sh-switch__track { border-color: var(--text); background: var(--text); }
     .sh-switch .sh-check__input:checked + .sh-switch__track .sh-switch__thumb { background: var(--bg-surface); transform: translate(1em, -50%); }
     .sh-switch .sh-check__input:focus-visible + .sh-switch__track { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
-    &:is([data-contrast='high'], :has(> .study-app[data-contrast='high'])) .sh-switch .sh-check__input:focus-visible + .sh-switch__track { outline-width: 3px; }
+    &[data-contrast='high'] .sh-switch .sh-check__input:focus-visible + .sh-switch__track { outline-width: 3px; }
     .sh-switch .sh-check__input:disabled + .sh-switch__track { opacity: 0.6; }
     /* ── Radio cards ───────────────────────────────────────────────────── */
     .sh-check-group { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); min-width: 0; margin: 0; padding: 0; border: 0; }

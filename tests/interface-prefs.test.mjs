@@ -47,9 +47,9 @@ test('the stylesheet obeys it: no stagger on every child of a page, one entrance
   const css = globalCss();
   assert.doesNotMatch(css, /:is\(\.page, \.review-page\) > \* \{\s*animation: page-in/, 'the entrance used to be a composited layer per child of the page');
   assert.match(css, /:is\(\.page, \.review-page\) \{[^}]*animation: page-in var\(--dur\)/);
-  assert.match(css, /\.study-app\[data-motion='off'\][^{]*\{[^}]*animation-duration: 0\.01ms !important/);
-  assert.match(css, /\.study-app\[data-motion='off'\][\s\S]*?:not\([^)]*spin[^)]*\)/, 'spinners and other busy indicators still turn');
-  assert.match(css, /\.study-app\[data-motion='reduced'\]/);
+  assert.match(css, /&\[data-motion='off'\][^{]*\{[^}]*animation-duration: 0\.01ms !important/);
+  assert.match(css, /&\[data-motion='off'\][\s\S]*?:not\([^)]*spin[^)]*\)/, 'spinners and other busy indicators still turn');
+  assert.match(css, /&\[data-motion='reduced'\]/);
 });
 
 test('the Animation setting is in 设置 › 界面 with its four choices, in both languages', async () => {

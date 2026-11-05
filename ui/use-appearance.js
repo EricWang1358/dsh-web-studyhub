@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { CONTRAST_QUERY, INTERFACE_KEY, LIGHT_QUERY, REDUCED_MOTION_QUERY, THEME_KEY, appearanceAttrs, createAppearanceStore } from './appearance-prefs.js';
+import { CONTRAST_QUERY, INTERFACE_KEY, LIGHT_QUERY, REDUCED_MOTION_QUERY, THEME_KEY, appearanceAttrs, createAppearanceStore, seatAttrs } from './appearance-prefs.js';
 
 /* The one appearance of this browser as a store: the app, the empty page before a session and every panel subscribe, so a change is a
    change everywhere that is open; another tab's change arrives through the storage event. */
@@ -25,4 +25,9 @@ export function useAppearanceAttrs(prefs) {
   const light = useSyncExternalStore(subscribeLight, isLight, () => false), reducedMotion = useSyncExternalStore(subscribeReduced, isReduced, () => false);
   const contrast = useSyncExternalStore(subscribeContrast, isContrast, () => false);
   return appearanceAttrs(prefs, { light, reducedMotion, contrast });
+}
+
+/** The DSH seat's own appearance attributes (motion, contrast), live like the app's. */
+export function useSeatAppearance() {
+  return seatAttrs(useAppearanceAttrs(useAppearance()[0]));
 }

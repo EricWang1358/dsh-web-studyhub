@@ -99,6 +99,11 @@ export function appearanceAttrs(value, system = systemNow()) {
   };
 }
 
+/** What the DSH seat (ui/host/workspace.jsx) wears beside the app inside it: the choices that rules apply to everything under a root
+    (ui/motion.css, the high-contrast focus ring). A `.seat:has(> .study-app[...]) *` rule would ask the same, but Chrome then restyles the
+    whole app on every element added anywhere (tests/page-switch-jank.test.mjs). */
+export const seatAttrs = (attrs) => ({ 'data-motion': attrs['data-motion'], 'data-contrast': attrs['data-contrast'] });
+
 /** The one inline CSS variable of the app root: the typed font name as `"Name", <system stack>` (only while the typeface is custom). */
 export function appearanceStyle(value) {
   const prefs = normalizeAppearance(value), stack = prefs.font === 'custom' ? customFontStack(prefs.fontCustom) : '';

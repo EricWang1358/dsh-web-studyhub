@@ -31,20 +31,21 @@
   }
   /* 动画 (设置 › 界面): the learner's motion choice is stamped on the app root (data-motion = full | reduced | off; "auto" resolves to one of them from the
      system's reduce-motion setting). 'reduced' keeps short fades and drops movement; 'off' stops transitions and animations, except the ones that tell the
-     learner something is busy (spinners and progress shimmer). */
+     learner something is busy (spinners and progress shimmer). The DSH seat wears the attribute too (ui/appearance-prefs.js seatAttrs): a
+     `:has(> .study-app[data-motion])` here made Chrome restyle the whole app on every element added (tests/page-switch-jank.test.mjs). */
   :is(.study-app, .study-seat) {
-    &:is([data-motion='reduced'], :has(> .study-app[data-motion='reduced'])) *:not([class*='spin'], [class*='busy'], [class*='shimmer']),
-    &:is([data-motion='reduced'], :has(> .study-app[data-motion='reduced'])) *::before,
-    &:is([data-motion='reduced'], :has(> .study-app[data-motion='reduced'])) *::after {
+    &[data-motion='reduced'] *:not([class*='spin'], [class*='busy'], [class*='shimmer']),
+    &[data-motion='reduced'] *::before,
+    &[data-motion='reduced'] *::after {
       animation-duration: 0.12s !important;
       animation-delay: 0ms !important;
       transition-duration: 0.12s !important;
       transition-delay: 0ms !important;
       scroll-behavior: auto !important;
     }
-    &:is([data-motion='off'], :has(> .study-app[data-motion='off'])) *:not([class*='spin'], [class*='busy'], [class*='shimmer']),
-    &:is([data-motion='off'], :has(> .study-app[data-motion='off'])) *::before,
-    &:is([data-motion='off'], :has(> .study-app[data-motion='off'])) *::after {
+    &[data-motion='off'] *:not([class*='spin'], [class*='busy'], [class*='shimmer']),
+    &[data-motion='off'] *::before,
+    &[data-motion='off'] *::after {
       animation-duration: 0.01ms !important;
       animation-delay: 0ms !important;
       animation-iteration-count: 1 !important;
