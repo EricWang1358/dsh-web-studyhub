@@ -434,6 +434,7 @@
   "这份计划按每周几章排：一周一周往后走，没有考试日期也能用。": "This plan goes by chapters a week, week after week; it works without an exam date.",
   "前几周还有 {0} 节没学完，已排进本周。": "{0} point(s) of earlier weeks are not learnt yet; they are placed in this week.",
   "本周 · {0}": "This week · {0}",
+  "{0} 节过了计划的最后一周还没学完。": "{0} point(s) were not learnt by the end of the plan.",
   "阶段": "Phases",
   "接下来几天": "The next days",
   "复习日": "Review day",

@@ -17,7 +17,8 @@ export default function WeeklyDays({ answer, schedule, course, onMore, ...handle
   return (
     <div className="book-plan__week" data-tour="book-weekly" aria-label={ui('今天读哪几节')}>
       <p className="book-plan__weekline"><strong>{weekText(weekly)}</strong>
-        {weekly.behind > 0 && <span className="book-plan__note">{uiFormat('前几周还有 {0} 节没学完，已排进本周。', [weekly.behind])}</span>}</p>
+        {weekly.behind > 0 && <span className="book-plan__note">{weekly.position === 'over' ? uiFormat('{0} 节过了计划的最后一周还没学完。', [weekly.behind])
+          : uiFormat('前几周还有 {0} 节没学完，已排进本周。', [weekly.behind])}</span>}</p>
       {today && <CrunchDay course={course} day={today} points={points} max={onMore ? 5 : Infinity} onMore={onMore} onRead={handlers.onRead} onPractice={handlers.onPractice}
         onMarkRead={handlers.onMarkRead} onFlip={handlers.onFlip} onMockStarted={handlers.onMockStarted} />}
       <NextDays days={next} />
