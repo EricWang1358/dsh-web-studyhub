@@ -12,10 +12,9 @@
   "生成其他章节": "Build other chapters",
   "只生成部分章节": "Build only some chapters",
   "勾选要生成的章：只写这些章的知识点、只读它们的资料；已经写好的不会重写，也不会再花一次。": "Tick the chapters to build: only their knowledge points are written and only their materials read. What is written already is never rewritten or paid for again.",
-  "正在估算…": "Estimating…",
   "生成所选 {0} 章": "Build the {0} chapters picked",
   "生成所选章节": "Build the chapters picked",
   "生成全部其余章节": "Build all the other chapters",
-  "想先只生成几章：先点「生成总纲」（只清点资料、排章节，不写讲解），再回来选章节。": "To build only some chapters first: press Organise the outline (it reads the materials and arranges the chapters, no explanations), then come back and pick.",
+  "想先只生成几章：先点「生成总纲」（只清点资料、排章节，不写讲解），再回来选章节。": "To build only some chapters first: press Generate outline (it reads the materials and arranges the chapters, no explanations), then come back and pick.",
   "未生成": "Not built"
 }
