@@ -219,7 +219,9 @@ export function eventText(event) {
 
 const LEVEL = { step: 'step', warn: 'warn', error: 'warn', done: 'done', info: 'info' };
 const sameStep = (a, b) => a.kind === b.kind && (a.file ?? '') === (b.file ?? '') && (a.part ?? null) === (b.part ?? null);
-const AUDIO_KINDS = new Set(['transcribe', 'proofread', 'translate']);
+// How the learner goes on after a failed call that was not retried, by what the call was; a question run's batch: 补题 in its draft.
+const AUDIO_NEXT = '可点「接着做」补上';
+const NEXT_STEP = { transcribe: AUDIO_NEXT, proofread: AUDIO_NEXT, translate: AUDIO_NEXT, prep: '可在「错题与待巩固」里再点「生成变式」' };
 
 /**
  * What came of a failed call. The later calls of the same step (same kind, file and part) are its retries (only a rate limit is retried by itself).
@@ -228,7 +230,7 @@ const AUDIO_KINDS = new Set(['transcribe', 'proofread', 'translate']);
 export function retryNote(call, calls) {
   const later = (calls || []).filter((other) => other !== call && other.kind !== 'wait' && sameStep(call, other) && Date.parse(other.startedAt) > Date.parse(call.startedAt))
     .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
-  if (!later.length) return joinMeta([ui('没有自动重试'), AUDIO_KINDS.has(call.kind) ? ui('可点「接着做」补上') : ui('缺的题请在草稿里点「补题」')]);
+  if (!later.length) return joinMeta([ui('没有自动重试'), NEXT_STEP[call.kind] ? ui(NEXT_STEP[call.kind]) : ui('缺的题请在草稿里点「补题」')]);
   const last = later[later.length - 1], times = later.length > 1 ? uiFormat('已重试 {0} 次', [later.length]) : ui('已重试');
   if (last.status === 'running' || last.status === 'waiting') return ui('重试中');
   if (last.status === 'ok') return later.length > 1 ? uiFormat('已重试 {0} 次，成功', [later.length]) : ui('已重试，成功');
