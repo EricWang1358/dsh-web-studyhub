@@ -4,7 +4,15 @@ import { inferHeadingLevels } from '../lib/heading-levels.js';
 import { parseConvertedDocument } from '../lib/converted-document.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { snapshotSources } from '../lib/source-query.js';
-import { courseSkeleton } from '../lib/custom-skeleton.js';
+import { courseSkeleton, chosenChapters } from '../lib/custom-skeleton.js';
+import { customPreview } from '../lib/custom-preview.js';
+import { customDefaults } from '../lib/custom-plan.js';
+import { createOperations as courseOperations } from '../lib/contexts/courses/operations.js';
+import { createMaterialsOperations } from '../lib/contexts/materials/operations.js';
+import { Store } from '../lib/store.js';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { coverageForDocument, coverageForDraft } from '../lib/coverage-state.js';
 import { restampConvertedChapters } from '../lib/converted-chapter-stamps.js';
 
@@ -213,4 +221,40 @@ test('a draft made from an old book, the whole of it or some chapters, rolls its
 test('a superseded revision of an old book is not read again (it is left out anyway)', () => {
   const revision = `${HASH}-json-conv2`, sources = stored(revision, oldChapterOf).map(source => ({ ...source, historical: true }));
   assert.equal(restampConvertedChapters(sources), sources);
+});
+
+test('a 深度定制 plan saved before the book was read again is reported, never re-pointed; a plan saved now keeps the titles of its chapters', () => {
+  const revision = `${HASH}-json-conv2`, sources = stored(revision, oldChapterOf);
+  const state = { sources, documents: documentsOf(sources, revision), decks: [], drafts: [], courses: [], settings: {} };
+  const skeleton = courseSkeleton(state, '经济学'), ids = skeleton.documents[0].chapters.map(chapter => chapter.id);
+  // An older saved plan (ids only) names `#1`, which was another chapter before the book was read again: reported, not used.
+  const old = { kind: 'chapters', chapters: [ids[1]] };
+  assert.deepEqual(chosenChapters(skeleton, old, { stored: true }).unknown, [ids[1]]);
+  // The ids the chat read from this very preview while it asks are this book's.
+  assert.deepEqual(chosenChapters(skeleton, old).chosen.map(row => row.id), [ids[1]]);
+  // Saved now: each id keeps the title it named.
+  courseOperations({ state: {} }).mutations['course.save'](state, { name: '经济学', custom: { ...customDefaults('follow'), scope: { kind: 'chapters', chapters: [ids[1]] } } });
+  const saved = state.courses.find(course => course.name === '经济学').custom;
+  assert.deepEqual(saved.scope.titles, ['生产理论']);
+  assert.deepEqual(chosenChapters(skeleton, saved.scope, { stored: true }).chosen.map(row => row.id), [ids[1]]);
+  assert.deepEqual(customPreview(state, { course: '经济学' }).unknownChapters, []);
+  // The id now names a chapter of another title: reported (preview, apply and fill read unknownChapters), not used.
+  assert.deepEqual(chosenChapters(skeleton, { ...saved.scope, titles: ['市场导论'] }, { stored: true }).unknown, [ids[1]]);
+  // The older plan, as saved before: the preview reports it.
+  state.courses.find(course => course.name === '经济学').custom = { ...saved, scope: old };
+  assert.deepEqual(customPreview(state, { course: '经济学' }).unknownChapters, [ids[1]]);
+});
+
+test('a translation of one chapter that names its title is refused when that chapter is another one now', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'dash-chapters-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const store = new Store(root);
+  const ops = createMaterialsOperations({ root,
+    read: async () => { const state = await store.read(); return structuredClone({ sources: state.sources, documents: state.documents || [], settings: state.settings }); },
+    update: fn => store.update(async state => { const own = { sources: state.sources, documents: state.documents || [] }; const result = await fn(own); state.sources = own.sources; state.documents = own.documents; return result; }) });
+  const call = (action, args) => ops.handlers[action](args);
+  const imported = await call('materials.document.import', { dataBase64: Buffer.from(JSON.stringify(BOOK), 'utf8').toString('base64'), filename: '示例教材.json', format: 'json' });
+  const plan = await call('materials.translation.plan', { documentId: imported.documentId, scope: { chapter: 1, chapterTitle: '生产理论' } });
+  assert.ok(plan.passages.length > 0);
+  await assert.rejects(call('materials.translation.plan', { documentId: imported.documentId, scope: { chapter: 1, chapterTitle: '货币与银行' } }), /chapter|章/);
 });
