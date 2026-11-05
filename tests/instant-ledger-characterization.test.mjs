@@ -33,7 +33,7 @@ const PINNED = {
   "materials.translation.translate (immediate passage)": {"other":[2,728,2,0,0]},
   "materials.selection.ask": {"coach":[1,254,21,0,0]},
   "card.grade": {"case":[1,901,191,0,0]},
-  "draft.publish (foreground review)": {"repair":[1,1865,83,377,0]},
+  "draft.publish (foreground review)": {"repair":[1,1940,83,395,0]}, // was [1,1865,83,377,0]: the review criteria carry the option rule (+366 characters, lib/option-cues.js)
 };
 
 const rows = async root => (await usageLedger(root).summary({ days: 1 })).byFeature;
