@@ -105,6 +105,7 @@
   "这段音频的内容和转写设置（模型、模式、语言）与之前一次相同，所以直接用了保存的转写。": "The audio content and the transcription settings (model, mode, languages) are the same as an earlier run, so the saved transcript was used.",
   "没有自动重试": "Not retried automatically",
   "可点「接着做」补上": "Use Continue to fill it in",
+  "可在「错题与待巩固」里再点「生成变式」": "Use Generate variants again in Mistakes & weak points",
   "缺的题请在草稿里点「补题」": "Top up the missing questions from the draft",
   "重试中": "Retrying",
   "已重试": "Retried",
