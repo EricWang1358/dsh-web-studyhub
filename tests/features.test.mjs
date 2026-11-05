@@ -190,6 +190,18 @@ const scoredCaseRun = (runId, points) => ({
     ...(points === null ? {} : { feedback: { correct: true, rubric: { total: points, max: 10, criteria: [] } } }) }],
 });
 
+test('an exam is compared with an earlier one of the same kind mix (single, multiple, true/false counts), not only the same single-choice count', () => {
+  const paper = (id, kinds) => ({ id, mode: 'exam', deckId: 'd', startedAt: '2026-10-01T00:00:00Z', closedAt: '2026-10-01T00:10:00Z', submittedAt: '2026-10-01T00:10:00Z',
+    entries: kinds.map((kind, at) => ({ card: { id: `${id}-${at}`, kind, prompt: 'p' }, feedback: { correct: true, grade: 4 } })) });
+  const state = { decks: [{ id: 'd', title: 'D' }] };
+  const compared = (before, now) => { const current = paper('now', now); return examReport({ ...state, runs: [paper('before', before), current] }, current).comparison; };
+  assert.equal(compared(['quiz', 'truefalse'], ['quiz', 'multi']), null, 'one single choice each, but the rest differ in kind');
+  assert.equal(compared(['quiz', 'multi'], ['quiz', 'truefalse']), null);
+  assert.equal(compared(['truefalse', 'truefalse'], ['quiz', 'quiz']), null);
+  assert.equal(compared(['quiz', 'truefalse', 'multi'], ['truefalse', 'multi', 'quiz'])?.runId, 'before', 'the same mix in another order is the same paper size and mix');
+  assert.equal(compared(['truefalse', 'truefalse'], ['truefalse', 'truefalse'])?.runId, 'before');
+});
+
 test('case exam improvement compares earned marks in both attempts', () => {
   const previous = scoredCaseRun('previous', 6), current = scoredCaseRun('current', 8);
   const report = examReport({ decks: [{ id: 'case-deck', title: 'Case' }], runs: [previous, current] }, current);

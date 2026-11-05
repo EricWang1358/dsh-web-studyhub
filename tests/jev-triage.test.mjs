@@ -51,6 +51,9 @@ test('one request per card: the question, its options and answer, and the eviden
   const quizRequest = buildTriageRequest(quiz('q', 'Which is right?'), [source]);
   assert.deepEqual(Object.keys(quizRequest.questions).sort(), ['answerInEvidence', 'needsSource', 'oneDefensible', 'stemLeaksAnswer']);
   assert.deepEqual(quizRequest.state.options.map(option => option.correct), [true, false, false]);
+  const judged = buildTriageRequest({ ...quiz('t', 'The Caretaker keeps the history.'), kind: 'truefalse', options: [
+    { id: 'true', text: 'True', correct: true, explanation: 'x' }, { id: 'false', text: 'False', correct: false, explanation: 'y' }] }, [source]);
+  assert.deepEqual(judged.state.options, [{ text: 'True', correct: true }, { text: 'False', correct: false }], 'a 判断题 is sent its two options like the choice kinds');
   const cloze = buildTriageRequest(flash('c', 'The {{b1}} guides design.', { kind: 'cloze' }), [source]);
   assert.deepEqual(Object.keys(cloze.questions).sort(), ['answerInEvidence', 'needsSource'], 'a cloze prompt contains its blanks, so "does the stem give it away" does not apply');
   // No evidence quote -> nothing to check the answer against.

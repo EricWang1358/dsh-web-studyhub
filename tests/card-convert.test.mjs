@@ -74,6 +74,8 @@ test('quiz → multi re-marks the options; quiz → flashcard drops them; the ne
   assert.equal(flash.kind, 'flashcard');
   assert.equal(flash.options, undefined, 'no stale options on a flashcard');
   await assert.rejects(service.call('card.convert', { cardId: 'f1', kind: 'quiz', reason: 'x' }), /needs patch\.options/);
+  await assert.rejects(service.call('card.convert', { cardId: 'f1', kind: 'quiz', reason: 'x' }), /needs patch\.options: 3–6 options/);
+  await assert.rejects(service.call('card.convert', { cardId: 'f1', kind: 'truefalse', reason: 'x' }), /needs patch\.options: exactly 2 options/);
   await assert.rejects(service.call('card.convert', { cardId: 'f1', kind: 'open', reason: 'x' }), /needs patch\.rubric/);
   await assert.rejects(service.call('card.convert', { cardId: 'f1', kind: 'essay', reason: 'x' }), /kind must be one of/);
   await assert.rejects(service.call('card.convert', { cardId: 'f1', kind: 'flashcard', reason: 'x' }), /already flashcard/);

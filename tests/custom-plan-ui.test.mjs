@@ -47,6 +47,12 @@ test('what is off is said as off; every kind is said as "各种题型"; the kind
   assert.match(say({ ...custom, questions: { ...custom.questions, kinds: ['quiz', 'flashcard', 'open'] } }), / · 选择、闪卡和开放问答 · /);
   assert.match(say({ ...custom, questions: { ...custom.questions, kinds: ['open'] } }), / · 开放问答 · /);
   assert.match(say({ ...custom, questions: { ...custom.questions, kinds: ['quiz', 'truefalse'] } }), / · 选择和判断 · /);
+  // A plan saved before 判断题 holds the five older kinds: it is a list of them (not 各种题型, which is every current kind), in Chinese and in English.
+  const older = { ...custom, questions: { ...custom.questions, kinds: ['quiz', 'multi', 'flashcard', 'open', 'cloze'] } };
+  assert.match(say(older), / · 选择、闪卡、开放问答和填空 · /);
+  assert.doesNotMatch(say(older), /各种题型/);
+  assert.doesNotMatch(say(older, 'en'), /[一-鿿]|Every kind/i);
+  assert.match(say({ ...custom, questions: { ...custom.questions, kinds: ['multi', 'truefalse'] } }), / · 多选和判断 · /);
   assert.match(say(mine('openbook', { book: { make: true, coverage: 'brief', parts: ['answerKit'] } })), / · 答题模板 · /, 'no explanation, no 讲解 word');
 });
 
