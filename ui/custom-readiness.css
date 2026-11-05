@@ -1,0 +1,30 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* 「章节准备度」 in the 「你的定制」 card: a quiet list, a chapter a row: title, a thin bar with its number, 未生成 and 补齐 when they apply. Tokens only. */
+    .custom-readiness { display: grid; gap: var(--space-2); min-width: 0; }
+    .custom-readiness__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+    .custom-readiness__head h4 { margin: 0; font-size: var(--fs-sm); font-weight: var(--fw-strong); color: var(--text-muted); }
+    .custom-readiness__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1-5); min-width: 0; }
+    .custom-readiness__row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(7rem, 1fr) 5rem 4.5rem; align-items: center; gap: var(--space-1) var(--space-3); min-width: 0; }
+    /* Fixed columns for the flag and the button, so every bar is as long as the others (the button stays in the last column when the flag is absent). */
+    .custom-readiness__flag { grid-column: 3; justify-self: end; }
+    .custom-readiness__fill { grid-column: 4; justify-self: end; }
+    .custom-readiness__title { min-width: 0; overflow-wrap: anywhere; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text); }
+    /* The Tooltip's wrapper is the grid item: it fills the column, so the bar does. */
+    .custom-readiness__anchor { display: block; min-width: 0; }
+    .custom-readiness__meter { display: grid; grid-template-columns: minmax(0, 1fr) 3.2ch; align-items: center; gap: var(--space-2); min-width: 0; border-radius: var(--radius-xs); }
+    .custom-readiness__value { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: end; }
+    .custom-readiness__tip { display: block; }
+    .custom-readiness__tip + .custom-readiness__tip { margin-top: var(--space-1); }
+    .custom-readiness__plan { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    /* A narrow window: the title takes its own line, the bar and the buttons share the next. */
+    @media (max-width: 520px) {
+      .custom-readiness__row { grid-template-columns: minmax(0, 1fr) 5rem 4.5rem; }
+      .custom-readiness__flag { grid-column: 2; }
+      .custom-readiness__fill { grid-column: 3; }
+      .custom-readiness__title { grid-column: 1 / -1; }
+    }
+  }
+}
