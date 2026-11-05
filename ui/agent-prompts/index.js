@@ -14,6 +14,7 @@ import { pageQuestionPrompt } from './reader.js';
 import { coursePlanPrompt } from './plan.js';
 import { guidedStartPrompt } from './guided-start.js';
 import { courseFocusPrompt } from './focus.js';
+import { customStartPrompt } from './custom.js';
 
 /* The registry of 「发给主会话」 messages (the hand-off plan, section 1.3): every message a StudyHub page hands to the main chat has an id here, and
    ui/hand-off/ sends only ids from it. An entry's builder returns the parts of one message (ui/agent-prompts/message.js: the learner's sentence, the notes
@@ -46,6 +47,8 @@ export const HAND_OFFS = Object.freeze({
   'guided.start': { build: (input, language) => guidedStartPrompt(input, language), skill: 'study-tutor' },
   // 录入重点（含只有重点截图 / 照片）: staged under studyhub-work/focus-intake/ for both vision and text-only models (ui/FocusIntakeDialog.jsx)
   'course.focus': { build: (input, language) => courseFocusPrompt(input, language), skill: 'study-import' },
+  // 深度定制: the interview that decides what is made of a big book, from a long document's row and the review book's 更多 (ui/custom-entry.js)
+  'custom.start': { build: (input, language) => customStartPrompt(input, language), skill: 'study-custom', tail: 'ask' },
 });
 
 /** Whether `id` names a registered hand-off. */
