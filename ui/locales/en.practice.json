@@ -78,5 +78,14 @@
   "这道题所在的题组，课程里的一章。": "The deck this question is in, one chapter of the course.",
   "「{0}」里所有题组合计（含子课程）。": "All the decks of “{0}” added up (sub-courses included).",
   "这一轮还有：{0}": "Also in this round: {0}",
-  "这一轮的状态不错。": "This round went well."
+  "这一轮的状态不错。": "This round went well.",
+  "我的常用语句": "My phrases",
+  "存为我的常用语句": "Save as my phrase",
+  "已存为我的常用语句": "Saved as my phrase",
+  "删除常用语句「{0}」": "Delete phrase “{0}”",
+  "已删除常用语句「{0}」": "Deleted phrase “{0}”",
+  "已恢复这条常用语句": "Phrase restored",
+  "已在我的常用语句里": "Already in my phrases",
+  "这段超过 {0} 字，存不进常用语句": "This is over {0} characters, too long to save as a phrase",
+  "常用语句最多 {0} 条，先删掉一条再存": "You can keep up to {0} phrases; delete one first"
 }

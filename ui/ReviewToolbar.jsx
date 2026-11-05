@@ -8,9 +8,10 @@ import { roundAt } from "./review/round-words.js";
 const NEXT_HINT_ID = "review-next-hint";
 
 /**
- * The tools under a question, kept to five controls (#671): 提示 / 讲解, 帮我弄懂, 更多 and the previous / next buttons. Everything that is not needed on every question
+ * The tools under a question, kept to six controls: 提示 / 讲解, 帮我弄懂, 修题, 更多 and the previous / next buttons (#671 kept five; 修题 came out of 更多 on the
+ * learner's word: fixing a question is a step of practising, and the box it opens has the learner's own phrases). Everything that is not needed on every question
  * is in 更多 (a menu), each with its key where it has one: 显示英文, 答对后自动下一题 (A), 字号与版心, 这题不错 (G) / 这题有问题 (B), then the actions on the question
- * (mark it, note, task, fix, derive a prerequisite, slay). `moreDefaultOpen` opens the menu at first render.
+ * (mark it, note, task, derive a prerequisite, slay). `moreDefaultOpen` opens the menu at first render.
  * `onThumb('up' | 'down')` and `thumbVote` are the page's 评价: its ThumbFeedback keeps the vote and the keys; `thumbs` is that component (it draws only the tag tray).
  */
 export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, moreDefaultOpen = false }) {
@@ -36,7 +37,6 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
     onToggleFocus && { id: "focus", label: run.card?.focus ? ui("取消重点标记") : ui("标为重点"), disabled: busy, run: onToggleFocus },
     { id: "note", label: ui("写笔记"), disabled: busy, run: onNote },
     onTask && { id: "task", label: ui("记待办"), disabled: busy, run: onTask },
-    { id: "improve", label: ui("修题"), run: onImprove },
     onDerive && { id: "derive", label: ui("出前置题…"), attrs: { "data-usage": "review.derive" }, run: onDerive },
     { id: "slay", label: ui("斩掉此题"), disabled: busy, danger: true, run: onSlay },
   ].filter(Boolean);
@@ -47,6 +47,7 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
           {run.revealed ? ui("讲解") : ui("提示")}
         </Button>}
         <Button variant="quiet" className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</Button>
+        <Button variant="quiet" className="tool-action" data-tour="review-improve" data-usage="review.improve" aria-expanded={assistMode === "improve"} onClick={onImprove}>{ui("修题")}</Button>
         {thumbs}
       </div>
       {run.mode === "exam" && <p className="muted small next-due">{ui("这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。")}</p>}
