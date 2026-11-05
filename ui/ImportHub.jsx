@@ -23,6 +23,7 @@ import { useStudy } from './study-context.jsx';
 import { repeatedText, restoreRepeated } from './RepeatedNote.jsx';
 import { useHandOff } from './hand-off/use-hand-off.js';
 import { failedImportInput, lastingFailures, rejectedFilesInput } from './import-hand-off.js';
+import { CUSTOM_BOOK_LABEL, customOfferOf, customOffered, markCustomOffered } from './custom-entry.js';
 
 /* The one way to add material (O-3, O-4, P19–P21, P05). The course is one line
    (the current course, or what the learner chose, or the course a file name
@@ -510,10 +511,20 @@ export default function ImportHub({
       setItems(current => current.map(entry => entry.id === item.id ? { ...entry, result: { ...entry.result, repeated: undefined, restored: true } } : entry));
     } catch { /* the row keeps its 恢复: the host said why in its own notice */ } finally { setRestoring(''); }
   };
+  // 深度定制这本书 (skills/study-custom) on the row of a finished book of CUSTOM_BOOK_PAGES pages or more, once (ui/custom-entry.js)
+  const customAction = item => {
+    const offer = item.status === 'done' && !item.customSent ? customOfferOf(item.result) : null;
+    if (!offer || customOffered(offer.document)) return undefined;
+    return { label: ui(CUSTOM_BOOK_LABEL), disabled: running, onClick: async () => {
+      if (await handOff.send('custom.start', offer) === 'failed') return;
+      markCustomOffered(offer.document);
+      setItems(current => current.map(entry => entry.id === item.id ? { ...entry, customSent: true } : entry));
+    } };
+  };
   const shown = items.map(item => ({ id: item.id, name: item.name, status: item.status, detail: itemDetail(item),
     action: item.status === 'done' && item.result?.repeated?.count > 0 && item.result.documentId
       ? { label: ui('恢复'), onClick: () => putBack(item), disabled: !!restoring || running }
-      : item.status !== 'error' ? undefined : item.carry && audioOn ? { label: ui('去音频页'), onClick: () => { carryToAudio([item.file]); drop(item.id); } }
+      : item.status !== 'error' ? customAction(item) : item.carry && audioOn ? { label: ui('去音频页'), onClick: () => { carryToAudio([item.file]); drop(item.id); } }
       : item.permanent || !item.kind ? { label: ui('移除'), onClick: () => drop(item.id), disabled: running }
         : { label: ui('重试'), onClick: () => retry(item.id), disabled: running } }));
   const finished = items.filter(item => item.status === 'done').length, failed = items.filter(item => item.status === 'error').length;
