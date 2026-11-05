@@ -5,7 +5,8 @@ import { parseConvertedDocument } from '../lib/converted-document.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { snapshotSources } from '../lib/source-query.js';
 import { courseSkeleton } from '../lib/custom-skeleton.js';
-import { coverageForDocument } from '../lib/coverage-state.js';
+import { coverageForDocument, coverageForDraft } from '../lib/coverage-state.js';
+import { restampConvertedChapters } from '../lib/converted-chapter-stamps.js';
 
 /* Owner report 2026-11-06: a 513-page translated textbook converted with local MinerU came out as 64 "chapters", 47 of them one page, and three 附录 headings
    swallowing pages 81-513. Its chapter titles carry no 第N章: each chapter is "<title>", then 本章要点, then sections numbered N—M (em dash; also N-M, N–M,
@@ -193,4 +194,23 @@ test('a list-numbered heading is never a chapter\'s title: the title before it i
     title('2—1 c', 5), body('e', 5), title('2—2 d', 6), body('f', 6)];
   assert.deepEqual(parseConvertedDocument(JSON.stringify(book), { filename: 'x.json' }).chapters.map(chapter => [chapter.title, chapter.startPage, chapter.endPage]),
     [['导论', 1, 3], ['国民', 4, 6]]);
+});
+
+test('a draft made from an old book, the whole of it or some chapters, rolls its coverage up by the chapters its 资料 row shows', () => {
+  const revision = `${HASH}-json-conv2`, sources = stored(revision, oldChapterOf), documents = documentsOf(sources, revision);
+  const deck = { id: 'deck-1', title: '经济学', course: '经济学', cards: [] };
+  const chapterGroups = coverage => coverage.groups.filter(group => group.kind === 'chapter').map(group => group.title);
+  const row = chapterGroups(coverageForDocument({ sources, documents, decks: [deck], drafts: [] }, { documentId: DOCUMENT_ID }).coverage);
+  assert.deepEqual(row, CHAPTERS.map(chapter => chapter[0]));
+  const part = { id: 'draft-part', cards: [], editorial: { generation: { sourceIds: sources.map(source => source.id) }, part: { deckId: 'deck-1', n: 2 } } };
+  assert.deepEqual(chapterGroups(coverageForDraft({ sources, documents, decks: [deck], drafts: [part] }, part)), row);
+  // Two chapters of it: their pages carry the chapters of the whole book, not of the selection alone.
+  const some = sources.filter(source => source.document.page >= 9).map(source => source.id);
+  const draft = { id: 'draft-some', cards: [], editorial: { generation: { sourceIds: some } } };
+  assert.deepEqual(chapterGroups(coverageForDraft({ sources, documents, decks: [], drafts: [draft] }, draft)), ['生产理论', '货币与银行']);
+});
+
+test('a superseded revision of an old book is not read again (it is left out anyway)', () => {
+  const revision = `${HASH}-json-conv2`, sources = stored(revision, oldChapterOf).map(source => ({ ...source, historical: true }));
+  assert.equal(restampConvertedChapters(sources), sources);
 });
