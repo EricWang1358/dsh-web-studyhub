@@ -11,6 +11,7 @@ import AudioFiles from './AudioFiles.jsx';
 import GenerationParts from './GenerationParts.jsx';
 import PlanTable, { planTabItem } from './PlanTable.jsx';
 import CoachBatches from './CoachBatches.jsx';
+import CoachOutputNote from './CoachOutputNote.jsx';
 import { PdfDetail } from '../PdfConvertJob.jsx';
 import BookBoard from './BookBoard.jsx';
 import InstallStages from '../install/InstallStages.jsx';
@@ -66,7 +67,10 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
       </div>
       <div className="tc-col">
         <Tabs id={right} className="tc-tabs" itemClassName="tc-tab" label={ui('右侧面板')} value={rightShown} onChange={setRightTab} items={rightItems} />
-        {!callFree && <TabPanel id={right} value="output" selected={rightShown} className="tc-panel" tabIndex={undefined}><OutputPanel jobId={contract.jobId} call={target} active={live} archived={archived} /></TabPanel>}
+        {/* A day of 为你定制 has no sub-agent and keeps no output: its 实时输出 says so and shows the batch instead of asking job.output for nothing. */}
+        {!callFree && <TabPanel id={right} value="output" selected={rightShown} className="tc-panel" tabIndex={undefined}>
+          {kind === 'coach' ? <CoachOutputNote contract={contract} call={target} /> : <OutputPanel jobId={contract.jobId} call={target} active={live} archived={archived} />}
+        </TabPanel>}
         <TabPanel id={right} value="log" selected={rightShown} className="tc-panel" tabIndex={undefined}><LogPanel contract={contract} /></TabPanel>
       </div>
     </div>

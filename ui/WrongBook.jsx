@@ -327,6 +327,8 @@ export function WrongBookView({
     try {
       const result = await onGenerate(chosen, { consent });
       setPending(new Set());
+      // No answer: the app was already writing something else (one write at a time), or the library changed; nothing was started.
+      if (!result) return;
       if (result?.needsConsent) { setAsk({ cards }); return; }
       const queued = result?.queued || 0;
       setMessage(queued
@@ -571,7 +573,7 @@ export function WrongBookView({
           <p>{ui("生成变式会在后台少量调用模型：每道题约 1 次轻量调用，只用你的原题和原文引用改写，写好的题会放进「为你定制」。可以随时在设置里关闭「陪学」。")}
             {onSettings && <>{" "}<Button variant="link" size="sm" onClick={() => onSettings("settings-profile")}>{ui("前往设置")}</Button></>}</p>
           <div className="wb-consent-actions">
-            <Button variant="secondary" icon="sparkle" busy={working} disabled={!ask.cards.length}
+            <Button variant="secondary" icon="sparkle" busy={working} disabled={busy || !ask.cards.length}
               onClick={() => run(ask.cards, true)}>{ui("同意并生成")}</Button>
             <Button variant="quiet" lock={working} onClick={() => setAsk(null)}>{ui("暂不")}</Button>
           </div>
@@ -652,7 +654,7 @@ export function WrongBookView({
 }
 
 export default function WrongBook({ data, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources }) {
-  const { call, openSettings, busy } = useStudy();
+  const { call, act, openSettings, busy } = useStudy();
   const [course, setCourse] = usePageScope(data?.root, 'wrongbook', data?.focus?.course ?? '*');
   const [showInactive, setShowInactive] = useShowInactive(data?.root, 'wrongbook');
   // 待巩固 is the page and 已订正 the mistakes it kept: the service reads the chosen view, so neither list is filtered apart here.
@@ -771,11 +773,13 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   const preparing = !!coach?.preparing;
   usePolling(coachQuery.refresh, { intervalMs: POLL_MS, enabled: preparing });
 
+  // Starting variants is a write that starts background work: it goes the app's write way (act), which reads the library again after it, so the 任务
+  // console and its badge show the day's 为你定制 row at once instead of after the next quiet poll.
   const generate = useCallback(async (cards, { consent } = {}) => {
-    const res = await call("coach.variants", { cards, ...(consent ? { consent: true } : {}) });
+    const res = await act("coach.variants", { cards, ...(consent ? { consent: true } : {}) }, undefined, { rethrow: true });
     if (res?.status) setCoachLive(res.status);
     return res;
-  }, [call]);
+  }, [act]);
   const asked = useRef(new Set());
   const loadDetail = useCallback((ref) => {
     if (asked.current.has(ref.cardId)) return;
