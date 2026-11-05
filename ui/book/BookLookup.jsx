@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/index.js';
+import BookConfusables from './BookConfusables.jsx';
 
 /* 「查找」 of the review book (M6, docs/plans/review-book.md): the lookup pages the printed book starts with (lib/course-book-lookup.js bookLookup), live
    from the book: 目录 with the stable codes, 按题型 (the 速查表: steps and formulas, the common mistakes and the cost to state), 生词与概念 (the glossary the build made from
@@ -86,6 +87,9 @@ export default memo(function BookLookup({ lookup, onGo, onCard, toc = true }) {
           <Code hid={entry.hid} code={places.get(entry.hid)?.code ?? entry.hid} onGo={onGo} />
           {Number.isInteger(entry.page) && <span className="book-lookup__muted"> {uiFormat('第 {0} 页', [entry.page])}</span>}
         </li>)}</ul>
+      </Part>}
+      {lookup.confusables?.length > 0 && <Part id="confusables" title={ui('易混概念')}>
+        <BookConfusables confusables={lookup.confusables} onGo={onGo} onCard={onCard} />
       </Part>}
       <Part id="concepts" title={ui('按概念')}>
         {lookup.concepts.length ? <ul className="book-lookup__concepts">{lookup.concepts.map(item => <li key={item.term}>

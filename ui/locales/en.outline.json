@@ -541,5 +541,14 @@
   "还有 {0} 个知识点没有术语卡。只读已经写好的讲解来补，讲解、引文和覆盖都不改；约 {1} 次模型调用，用了多少在任务页看。": "{0} points have no term cards yet. They are made from the explanations already written; no explanation, quote or coverage changes. It takes about {1} model calls; the task page shows what was used.",
   "每个知识点都有术语卡了，没有要补的。": "Every point has its term cards; there is nothing to add.",
   "复习全书已经在生成，没有术语卡的知识点会一起补上；进度在任务页。": "The review book is already being written; the points without term cards get theirs in the same task. Progress is on the task page.",
-  "已开始补术语卡，进度在任务页。": "Started adding term cards; progress is on the task page."
+  "已开始补术语卡，进度在任务页。": "Started adding term cards; progress is on the task page.",
+  "补易混概念对照": "Compare confusable concepts",
+  "术语卡里有 {0} 组易混概念（对立或并列的概念）还没有对照。只读术语卡来写，讲解、引文和覆盖都不改；约 {1} 次模型调用，用了多少在任务页看。": "{0} confusable pairs (opposite or parallel concepts) in the term cards have no comparison yet. They are written from the cards alone; no explanation, quote or coverage changes. It takes about {1} model calls; the task page shows what was used.",
+  "还有 {0} 个知识点没有术语卡，另有 {2} 组易混概念没有对照。只读已经写好的讲解来补，讲解、引文和覆盖都不改；约 {1} 次模型调用，用了多少在任务页看。": "{0} points have no term cards yet and {2} confusable pairs have no comparison. They are made from the explanations already written; no explanation, quote or coverage changes. It takes about {1} model calls; the task page shows what was used.",
+  "易混概念": "Confusable concepts",
+  "术语卡里对立或并列的概念，一对一对比较；点编号去那张术语卡。": "Opposite or parallel concepts of the term cards, compared pair by pair; a number goes to that term card.",
+  "是什么": "What it is",
+  "什么时候用": "When to use it",
+  "关键区别": "Key difference",
+  "常见误区": "Common mistake"
 }
