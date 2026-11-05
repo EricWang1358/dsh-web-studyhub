@@ -11,6 +11,7 @@ import { trueFalseOptions, unbalancedTrueFalse } from '../lib/true-false.js';
 import { TRUE_FALSE_RULE, blueprintAssessment, blueprintPrompts, qualityCriteriaFor } from '../lib/assessment-quality.js';
 import { optionCueIssues } from '../lib/option-cues.js';
 import { authorPrompts, reviewPrompts } from '../lib/generation.js';
+import { variantKind, writeVariants } from '../lib/coach.js';
 import { reviewChoiceKind, shortcutAction } from '../ui/review/session-logic.js';
 
 /* 判断题 (owner 2026-11-05): one statement, answered 对 / 错 and graded like a single choice. Stored as a choice question with the two fixed options
@@ -92,6 +93,20 @@ test('the writer and the reviewer of a 判断题 get its rules; other kinds are 
   assert.ok(!JSON.stringify(reviewPrompts({ sources: [source], deck: { cards: [] }, kind: 'quiz', count: 1 })).includes('True/false'));
 });
 
+test('the prompts of a 判断题 batch do not contradict its rule; the other batches keep their words', () => {
+  const plan = { targets: [{ targetId: 't1', objective: 'Judge the role of the Caretaker', citations: [{ sourceId: 's1', quote }] }] };
+  const prompt = (stage, kind) => JSON.stringify(stage({ kind, count: 1, sources: [source], language: 'English' }, plan));
+  const answer = prompt(blueprintPrompts, 'truefalse'), author = prompt(authorPrompts, 'truefalse');
+  assert.doesNotMatch(answer, /Choice questions need 3–6/);
+  assert.match(answer, /exactly the two fixed options true and false/);
+  assert.doesNotMatch(author, /Only quiz\/multi use options/);
+  assert.match(author, /Only quiz\/multi\/truefalse use options/);
+  for (const kind of ['quiz', 'multi', 'cloze']) {
+    assert.match(prompt(blueprintPrompts, kind), /Choice questions need 3–6 plausible options/);
+    assert.match(prompt(authorPrompts, kind), /Only quiz\/multi use options/);
+  }
+});
+
 test('the answer stage is asked once to balance a batch of one verdict, and never drops a statement for it', async () => {
   const targets = [1, 2, 3, 4].map(n => ({ targetId: 't' + n, objective: 'Judge the Caretaker role ' + n, citations: [{ sourceId: 's1', quote }] }));
   const item = (n, truth) => ({ targetId: 't' + n, statement: (truth ? 'The Caretaker keeps the history ' : 'The Caretaker reads every snapshot ') + n + '.',
@@ -133,6 +148,27 @@ test('a failed balance re-ask keeps the original valid statements instead of dro
   assert.equal(strict.items.length, 4, 'also without salvage: the balance check alone never fails a batch');
   const partial = await second({ items: [item(3, false)] });
   assert.deepEqual(partial.items.map(one => one.options.find(option => option.correct).id), ['true', 'true', 'false', 'true'], 'a rewrite replaces only its own statement');
+});
+
+test('the variant of a wrong 判断题 is a 判断题 under its rule; the other kinds keep the kinds they were given', async () => {
+  assert.deepEqual([['wrong', 'truefalse'], ['wrong', 'multi'], ['wrong', 'quiz'], ['wrong', 'cloze'], ['too-hard', 'truefalse']]
+    .map(([reason, kind]) => variantKind(reason, { kind })), ['truefalse', 'multi', 'quiz', 'quiz', 'flashcard']);
+  const prompts = [];
+  const complete = async (_system, prompt) => {
+    prompts.push(prompt);
+    return JSON.stringify({ cards: [{ target: 0, topic: 'Memento', objective: 'Judge the Caretaker', prompt: 'The Caretaker decides when a snapshot is taken.',
+      answer: 'False. The Originator decides.', hint: 'Who owns the state?', explanation: `"${quote}" The history is all it manages.`, misconception: 'Thinking the keeper also decides.',
+      citations: [{ sourceId: 's1', quote }],
+      options: [{ id: 'a', text: '正确', correct: false, explanation: 'The Caretaker only keeps them.' }, { id: 'b', text: '错误', correct: true, explanation: 'The Originator decides.' }] }] });
+  };
+  const original = statement('q1', false);
+  const [made] = await writeVariants(complete, { targets: [{ card: original, kind: 'truefalse', reason: 'wrong' }], sources: [source], learner: {} });
+  assert.equal(made.card.kind, 'truefalse');
+  assert.deepEqual(made.card.options.map(option => [option.id, option.correct]), [['true', false], ['false', true]]);
+  assert.ok(prompts[0].includes(TRUE_FALSE_RULE.slice(TRUE_FALSE_RULE.indexOf('Test one idea'))), 'the writer is given the rule');
+  prompts.length = 0;
+  await writeVariants(complete, { targets: [{ card: { ...original, kind: 'quiz' }, kind: 'quiz', reason: 'wrong' }], sources: [source], learner: {} });
+  assert.ok(!prompts[0].includes('True/false'), 'a batch without 判断题 is asked exactly as before');
 });
 
 async function library(cards) {
