@@ -70,10 +70,12 @@ test('without a model nothing is started and it says so, the plan stays saved', 
   assert.equal((await study.call('course.get', { name: COURSE })).custom.purpose, 'follow');
 });
 
-test('a chapter that names nothing now is not guessed: the book waits and says which', async t => {
+test('a chapter that names nothing now is not guessed: the book and the questions wait and say which', async t => {
   const study = await open(t);
-  await save(study, plan({ scope: { kind: 'chapters', chapters: ['gone#9'] }, book: { make: true, coverage: 'brief', parts: ['explain'] } }));
+  await save(study, plan({ scope: { kind: 'chapters', chapters: ['gone#9'] }, book: { make: true, coverage: 'brief', parts: ['explain'] }, questions: { make: true, kinds: ['quiz'], strength: 'lean', variants: false } }));
   const answer = await apply(study);
   assert.deepEqual(steps(answer, 'started', 'book'), []);
   assert.match(steps(answer, 'waiting', 'book')[0].what, /gone#9/);
+  assert.match(steps(answer, 'waiting', 'questions')[0].what, /gone#9/);
+  assert.equal(questionJobs(study).length, 0);
 });
