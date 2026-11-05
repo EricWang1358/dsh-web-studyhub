@@ -4,9 +4,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFUSABLE_PAIRS } from '../lib/contexts/generation/book/constants.js';
-import { assembleConfusables, planConfusables } from '../lib/contexts/generation/book/confusables/plan.js';
+import { assembleConfusables, expectedConfusableCalls, planConfusables } from '../lib/contexts/generation/book/confusables/plan.js';
 import { confusablePrompt } from '../lib/contexts/generation/book/confusables/prompt.js';
 import { readConfusables } from '../lib/contexts/generation/book/confusables/read.js';
+import { scaleEstimate } from '../lib/contexts/generation/book/estimate.js';
 
 const ID = n => `i${String(n).padStart(11, '0')}`;
 /** Pairs 1..n: card 2k-1 is opposite card 2k, all on one point (`id` of the work item), the second card naming the first back (A-B and B-A). */
@@ -98,4 +99,21 @@ test('the answer is read like every model reply: unreadable is null; a pair not 
   assert.equal(readConfusables('Not JSON at all.', batch), null);
   assert.equal(readConfusables(JSON.stringify({ rows: [] }), batch), null, 'not the shape asked: asked once more');
   assert.equal(readConfusables(JSON.stringify({ pairs: [] }), batch).size, 0);
+});
+
+test('the sample\'s scale: the pairs its cards name, per point, for the points still to write; the calls are in the estimate\'s calls, tokens and stages', () => {
+  // Two sample points with 3 pairs each (each pair named from both sides, counted once): 3 a point, 30 points left, 10 pairs a call.
+  const sample = [itemOf('a', 1, 3), itemOf('b', 7, 3), { id: 'c' }];
+  assert.equal(expectedConfusableCalls(sample, 30), 9);
+  assert.equal(expectedConfusableCalls(sample, 0), 0);
+  assert.equal(expectedConfusableCalls([{ id: 'c' }], 30), 0, 'no card in the sample: no pair seen');
+  const usage = (input, output) => ({ uncachedInputTokens: input, outputTokens: output, cacheReadTokens: 0, cacheWriteTokens: 0 });
+  const calls = [{ stage: 'write', part: 1, modelRequest: true, tokenUsage: usage(800, 400), startedAt: new Date(0).toISOString(), endedAt: new Date(1000).toISOString() }];
+  const without = scaleEstimate({ calls, rest: { points: 30, tested: 0, inventory: 0 }, total: 32, sample: 2, concurrency: 4 });
+  const withPairs = scaleEstimate({ calls, rest: { points: 30, tested: 0, inventory: 0, confusables: 9 }, total: 32, sample: 2, concurrency: 4 });
+  assert.equal(withPairs.calls.low, without.calls.low + 9);
+  assert.ok(withPairs.totalTokens.low > without.totalTokens.low);
+  assert.deepEqual(withPairs.stages.at(-1).id, 'confusables');
+  assert.equal(withPairs.stages.at(-1).calls, 9);
+  assert.equal(without.stages.some(stage => stage.id === 'confusables'), false, 'a build with none lists none');
 });

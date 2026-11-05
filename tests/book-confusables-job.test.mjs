@@ -116,3 +116,19 @@ test('a book written before them: 补术语卡 and the next build give it the co
   const nothing = await w.service.call('generation.courseBook.build', { course: COURSE, language: 'zh', cards: true });
   assert.deepEqual([nothing.status, nothing.calls, nothing.jobId], ['nothing', 0, undefined], 'no task, no call');
 });
+
+test('the sample\'s scale counts the comparisons of the rest, from the pairs its cards name; the sample itself asks none and the rest\'s build asks them', async t => {
+  const w = await world(t);
+  const sample = (await w.run({ sample: 'auto' }) && (await w.notes())).courseNotes;
+  assert.equal(sample.sample.status, 'waiting');
+  assert.equal(w.fake.of('confusables').length, 0, 'no comparison call in the sample');
+  assert.equal(sample.confusables, undefined);
+  const stage = sample.sample.estimate.stages.find(each => each.id === 'confusables');
+  assert.ok(stage?.calls > 0, `in the scale (${JSON.stringify(sample.sample.estimate.stages)})`);
+  assert.ok(stage.inputTokens.high >= stage.inputTokens.low && stage.outputTokens.high >= 0);
+  await w.run({ sample: 'confirm' });
+  const asked = w.fake.of('confusables').length;
+  t.diagnostic(`scale said ${stage.calls} comparison calls; the rest asked ${asked}`);
+  assert.ok(asked > 0 && stage.calls >= asked / 3 && stage.calls <= asked * 3, 'the same order of size');
+  assert.ok((await w.notes()).courseNotes.confusables.length > 0);
+});
