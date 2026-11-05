@@ -5,13 +5,14 @@ import { Chip, InlineMessage, Switch, Tooltip } from './components/index.js';
 import { useStudy } from './study-context.jsx';
 import { useLiveEffect } from './use-async.js';
 import { BOOK_PARTS } from '../lib/custom-plan.js';
+import CustomReadiness from './CustomReadiness.jsx';
 import { customSummary, estimateLine, lockedPartIds, partTip, partWord, saveArgs, setPlan, setQuestions, setVariants, togglePart } from './custom-plan-model.js';
 import css from './custom-plan-card.css';
 
 /* 「你的定制」 on the course settings (深度定制, lib/custom-plan.js): the course's 定制方案 in one sentence, the rough cost under it (calls and tokens, never a price; read
    from course.custom.preview, again after every change), and one switch for each part of the book, for the questions, the variants and the plan. Every switch saves the
-   whole record through course.save {custom} (the app's single-flight write) and shows a refusal on the card. A course with no 定制方案 has no card: the main chat
-   makes one. */
+   whole record through course.save {custom} (the app's single-flight write) and shows a refusal on the card. Under them, the chapters' readiness and 补齐
+   (ui/CustomReadiness.jsx). A course with no 定制方案 has no card: the main chat makes one. */
 export default function CustomPlanCard({ course }) {
   useInjectCss(css, 'study-custom-card');
   const { call, act, busy } = useStudy();
@@ -53,5 +54,6 @@ export default function CustomPlanCard({ course }) {
       </Tooltip>
     </div>
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
+    <CustomReadiness course={course} />
   </section>;
 }
