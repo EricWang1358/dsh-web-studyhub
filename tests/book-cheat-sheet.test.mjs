@@ -74,6 +74,20 @@ test('comparisons are read where they enter: the exact shape or nothing', () => 
   assert.equal(cheatSheet(bookOf()).confusables.length, 0);
 });
 
+test('a chapter that is not built yet (未生成) is not on the sheet: no cards, no places of a template, no formula of its points; a half-built chapter stays whole', () => {
+  const book = bookOf(), [basics, performance] = book.nodes;
+  const marked = node => ({ ...node, children: node.children.map(child => ({ ...child, unbuilt: true })) });
+  const sheet = cheatSheet({ ...book, nodes: [basics, marked(performance)] });
+  assert.deepEqual(sheet.chapters.map(chapter => chapter.title), ['Basics']);
+  assert.deepEqual(sheet.kit.types[0].places.map(place => place.code), ['H3'], 'h6 is in the chapter not built');
+  assert.deepEqual(sheet.formulas.map(each => each.place.code), ['H3']);
+  const half = { ...performance, children: performance.children.map((child, at) => (at === 0 ? { ...child, unbuilt: true } : child)) };
+  const kept = cheatSheet({ ...book, nodes: [basics, half] });
+  assert.deepEqual(kept.chapters.map(chapter => chapter.title), ['Basics', 'Performance']);
+  assert.deepEqual(kept.kit.types[0].places.map(place => place.code), ['H3', 'H6']);
+  assert.equal(cheatSheet({ ...book, nodes: [marked(basics), marked(performance)], examKit: undefined, glossary: [] }), null, 'nothing built, nothing to show');
+});
+
 test('counts say what the sheet holds', () => {
   assert.deepEqual(cheatSheet(bookOf({ confusables: [PAIR] })).counts, { cards: 3, types: 1, confusables: 1, formulas: 2 });
 });

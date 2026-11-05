@@ -7,7 +7,7 @@ import { codeOf } from '../../lib/course-book-lookup.js';
    are all drawn from this one answer (ui/book/cheat-sheet-html.js). Pure, no React.
 
    cheatSheet(book) -> null | { language, title, chapters, kit, confusables, formulas, counts }
-     place:       { hid, code (H12), number, title } a point of the book.
+     place:       { hid, code (H12), number, title } a point of the book. A chapter whose points are all `unbuilt` (course.book.open's mark of 未生成) is left out of every part.
      chapters:    [{ hid, number, title, cards: [{ code, name, alt?, plain?, pitch?, relations: [{ kind, name, code? }], place, page?, material? }] }], only chapters with cards.
      kit:         null | { types: [{ code, name, signals, asks, template, fills: [{ ref, fill }], anchors, places }] } (book.examKit, its points named as places).
      confusables: [{ id, names, items: [code], rows: [{ aspect, cells }] }] from book.confusables, which is read here, where it enters: a pair or a row
@@ -43,10 +43,12 @@ export function readConfusables(raw) {
 /** The 速查表 of an open book (see the top of this file); null when the book is not open or has nothing to put on it. */
 export function cheatSheet(book) {
   if (book?.status !== 'ok') return null;
-  const leaves = leavesOf(book.nodes), language = book.language === 'en' ? 'en' : 'zh';
-  const places = new Map(leaves.map(leaf => [leaf.hid, { hid: leaf.hid, code: codeOf(leaf.hid), number: leaf.number ?? '', title: leaf.title ?? '' }]));
+  const language = book.language === 'en' ? 'en' : 'zh';
+  // A chapter not built yet (未生成, #708: none of its points has an explanation) is not on the sheet: its points are no place of a template or a formula.
+  const built = (book.nodes || []).filter(node => !leavesOf([node]).every(leaf => leaf.unbuilt));
+  const places = new Map(leavesOf(built).map(leaf => [leaf.hid, { hid: leaf.hid, code: codeOf(leaf.hid), number: leaf.number ?? '', title: leaf.title ?? '' }]));
   const glossary = list(book.glossary), byItem = new Map(glossary.filter(entry => entry.item).map(entry => [entry.item, entry]));
-  const chapters = (book.nodes || []).map(node => ({ hid: node.hid, number: node.number ?? '', title: node.title ?? '',
+  const chapters = built.map(node => ({ hid: node.hid, number: node.number ?? '', title: node.title ?? '',
     cards: (node.leaf ? [node] : leavesOf(node.children)).flatMap(leaf => (leaf.cards || []).map(card => {
       const entry = byItem.get(card.item);
       return { code: card.code, name: card.name, ...(card.alt ? { alt: card.alt } : {}), ...(card.plain ? { plain: card.plain } : {}), ...(card.pitch ? { pitch: card.pitch } : {}),
