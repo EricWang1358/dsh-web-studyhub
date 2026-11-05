@@ -33,7 +33,7 @@ const PINNED = {
   "materials.translation.translate (immediate passage)": {"other":[2,728,2,0,0]},
   "materials.selection.ask": {"coach":[1,254,21,0,0]},
   "card.grade": {"case":[1,901,191,0,0]},
-  "draft.publish (foreground review)": {"repair":[1,1820,83,377,0]},
+  "draft.publish (foreground review)": {"repair":[1,1865,83,377,0]},
 };
 
 const rows = async root => (await usageLedger(root).summary({ days: 1 })).byFeature;
