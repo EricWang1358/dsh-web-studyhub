@@ -82,16 +82,19 @@ test("absolute words in several wrong options but none in the correct one are a 
 });
 
 test("a stem phrase echoed only by the correct option is a cue; terms every option shares are not", () => {
-  const stem = "事务隔离级别为什么需要可重复读？";
-  const echoing = ["事务隔离级别可重复读保证同一事务内两次读取一致", "避免脏页写回磁盘时因为断电而丢失更新", "减少锁等待时间并因此提高系统的吞吐量",
+  const stem = "数据库事务隔离级别为什么需要可重复读？";
+  const echoing = ["数据库事务隔离级别可重复读保证同一事务内两次读取一致", "避免脏页写回磁盘时因为断电而丢失更新", "减少锁等待时间并因此提高系统的吞吐量",
     "保证已经提交的数据在崩溃之后永久保存"];
   assert.deepEqual(codes(card(stem, echoing)), ["clang"]);
-  assert.deepEqual(codes(card(stem, ["事务隔离级别可重复读保证同一事务内两次读取一致", "事务隔离级别串行化让并发事务排队执行",
-    "事务隔离级别读未提交允许读到未提交数据", "事务隔离级别读已提交每次读取最新提交"])), []);
+  assert.deepEqual(codes(card(stem, ["数据库事务隔离级别可重复读保证同一事务内两次读取一致", "数据库事务隔离级别串行化让并发事务排队执行",
+    "数据库事务隔离级别读未提交允许读到未提交数据", "数据库事务隔离级别读已提交每次读取最新提交"])), []);
   assert.deepEqual(codes(card("Which property does a transaction isolation level guarantee?", ["Transaction isolation levels keep transactions apart",
     "Durability of committed rows after a crash", "Atomic commit of every single statement", "Referential integrity of foreign keys"])), ["clang"]);
   // a short, common word of the stem is not a cue, nor are the words every stem is made of
   assert.deepEqual(codes(card("下列关于缓存的说法，哪一项是正确的？", ["缓存命中时可以省去一次磁盘读取", "缓存会让所有读取变慢", "缓存只能保存数字", "缓存没有容量上限"])), []);
+  // restating the stem's own words in the right option ("principles guide…" for "principles guiding…") is not an echo worth a rewrite
+  assert.deepEqual(codes(card("Which statement about architecture principles follows from the definition?", ["Principles guide later choices",
+    "Architecture is only today's diagram", "Principles never constrain design"])), []);
   // a stem is only known once it is written: the answer stage has none
   assert.deepEqual(codes(card(stem, echoing), { stem: false }), []);
   // a multi has no single option to echo
