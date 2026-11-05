@@ -3,6 +3,7 @@
 import { ui, uiFormat } from '../i18n.js';
 import { formatList, joinMeta } from '../format.js';
 import { kindOf } from '../../lib/card-kinds.js';
+import { weekLine } from '../../lib/plan-weekly.js';
 
 /** The one line of why a day holds what it holds (lib/crunch-plan.js and lib/plan-schedule.js `reason`; 'learn', 'learn-size', 'learn-over', 'learn-free', 'exam-today'
     and 'done' are the same code in both). */
@@ -25,6 +26,8 @@ export function reasonText(reason) {
     case 'weekday': return ui('不在学习日里：这一天休息。');
     case 'looked': return uiFormat('这一天翻看了 {0} 节。', [r.count]);
     case 'exam-day': return uiFormat('考试日：只翻看全部 {0} 节的易错点。', [r.count]);
+    case 'week': return r.carried ? uiFormat('按每周几章排：今天读 {0} 节，约 {1} 分钟，其中 {2} 节是前几周没学完的。', [r.count, r.minutes, r.carried])
+      : uiFormat('按每周几章排：今天读 {0} 节，约 {1} 分钟。', [r.count, r.minutes]);
     default: return '';
   }
 }
@@ -32,6 +35,16 @@ export function reasonText(reason) {
 /** What a day is, in a few words: 学习日 / 翻看日 / 翻看日 · 模拟卷 / 休息, and the plan's 复习日 / 模拟考. */
 export const dayKind = day => (day?.mode === 'flip' ? (day.mock ? joinMeta([ui('翻看日'), ui('模拟卷')]) : ui('翻看日')) : day?.mode === 'off' ? ui('休息')
   : day?.mode === 'review' ? ui('复习日') : day?.mode === 'mock' ? ui('模拟考') : ui('学习日'));
+
+/** 「本周：第 3–4 章」: the chapters of the week today is in (a weekly plan, lib/plan-weekly.js `weekly`); before the first week the day it starts, after the last that the weeks are over. */
+export function weekText(weekly) {
+  if (weekly.current) {
+    const { from, to } = weekLine(weekly.current);
+    return from === to ? uiFormat('本周：第 {0} 章', [from]) : uiFormat('本周：第 {0}–{1} 章', [from, to]);
+  }
+  const shown = date => `${date.slice(5, 7)}/${date.slice(8, 10)}`;
+  return weekly.position === 'before' ? uiFormat('每周 {0} 章，{1} 开始', [weekly.chaptersPerWeek, shown(weekly.startsOn)]) : uiFormat('计划排到 {0}，已经过了', [shown(weekly.endsOn)]);
+}
 
 /** "距考试 N 天" / "今天考试". */
 export const countdownText = daysLeft => (daysLeft === 0 ? ui('今天考试') : daysLeft === 1 ? ui('距考试 1 天') : uiFormat('距考试 {0} 天', [daysLeft]));

@@ -36,6 +36,7 @@ test('without an exam date a weekly plan has a schedule: two chapters a week, th
   assert.deepEqual(plan.weekly.weeks.map(week => [week.n, week.from, week.until, week.chapters.map(chapter => chapter.n)]),
     [[1, TODAY, addDays(TODAY, 6), [1, 2]], [2, addDays(TODAY, 7), addDays(TODAY, 13), [3, 4]]]);
   assert.equal(plan.weekly.thisWeek, 1);
+  assert.deepEqual([plan.weekly.position, plan.weekly.startsOn, plan.weekly.endsOn], ['during', TODAY, addDays(TODAY, 13)]);
   assert.deepEqual(plan.weekly.current.chapters.map(chapter => chapter.title), ['A', 'B']);
   const ids = week => learnDays(plan).filter(day => day.week === week).flatMap(day => day.points).sort();
   assert.deepEqual(ids(1), ['a1', 'a2', 'b1', 'b2'], 'week 1 carries the points of chapters 1 and 2');
@@ -78,6 +79,8 @@ test('after the last week: still ok, no current week, what is left is said', () 
   const over = weekly({}, { today: addDays(TODAY, 20) });
   assert.equal(over.status, 'ok');
   assert.equal(over.weekly.thisWeek, null);
+  assert.equal(over.weekly.position, 'over');
+  assert.equal(weekly({ startDate: addDays(TODAY, 3) }).weekly.position, 'before');
   assert.equal(over.weekly.current, null);
   assert.deepEqual(over.days, []);
   assert.equal(over.coverage.unplaced.length, 8);
