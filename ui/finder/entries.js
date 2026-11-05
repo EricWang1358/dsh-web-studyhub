@@ -266,7 +266,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'book-cheat-sheet', area: 'practice', title: '速查表', page: 'book', anchors: ['book-more', 'nav-book'], prepare: 'book',
     aliases: ['速查', '开卷速查', '小抄', '打印', '打印速查', '存为 PDF', '导出 html', '术语卡', '易混', '公式页', 'cheat sheet', 'cheatsheet', 'print', 'pdf', 'open book', 'export html'],
     path: ['复习全书', '更多', '速查表'],
-    what: '把答题模板、题干信号矩阵、易混对照、公式和术语卡排成密密的两栏一页，每条都标着书里的哪一节，点一节的编号回到书里那一节；「打印 / 存为 PDF」按 A4 两栏打印，「下载 .html」存成一个能离线打开的页面（手机上也能看）。书里还没有术语卡、答题模板或公式时，这一项不出现；「导出…」里也有同一个下载。' }),
+    what: '把答题模板、题干信号矩阵、易混对照、公式和术语卡排成密密的两栏一页，每条都标着书里的哪一节，点一节的编号回到书里那一节；「打印 / 存为 PDF」按 A4 两栏打印，「下载 .html」存成一个能离线打开的页面（手机上也能看）。书里还没有术语卡、答题模板或公式时，这一项不出现；这门课的定制方案（深度定制）没勾「速查表」时也不出现，没勾「公式」或「索引」时，速查页里的公式页、生词与概念和术语卡（按章）同样不出现，在课程设置的「你的定制」里勾上就回来。「导出…」里也有同一个下载。' }),
   feature({ id: 'custom-book-menu', area: 'practice', title: '深度定制', page: 'book', anchors: ['book-more', 'nav-book'], prepare: 'book',
     aliases: ['深度定制', '定制', '定制方案', '定制这本书', '只学考试范围', '挑几章', '复习全书要哪些部分', '要不要出题', 'customize', 'customise', 'custom plan', 'customize in depth'],
     path: ['复习全书', '更多', '深度定制…'],

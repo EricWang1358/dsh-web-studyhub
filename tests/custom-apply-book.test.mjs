@@ -33,6 +33,7 @@ test('the book of a plan of one chapter: only that chapter is written, with the 
   await save(study, plan({ scope: { kind: 'chapters', chapters: [chapter.id] }, book: { make: true, coverage: 'brief', parts: ['explain'] } }));
   const first = await apply(study), [book] = steps(first, 'started', 'book');
   assert.ok(book.jobId, 'the build is a task of the console');
+  assert.equal(steps(first, 'recorded', 'book-parts').length, 0, 'the build leaves out the parts the plan does not tick (S2): nothing is only recorded');
   assert.equal((await settleJob(study, book.jobId)).status, 'complete');
   const written = (await notesOf(study)).courseNotes.leaves.filter(leaf => leaf.body && !leaf.body.empty);
   assert.ok(written.length > 0 && written.length <= chapter.points, 'only the points of the chapter');

@@ -12,8 +12,11 @@ import css from './book-pick.css';
    build's own plan (`estimate: true`, no call): points, calls and the material read, never a price, and the tip about cheaper ways. Props: parts, built (the
    book has notes), off (no model, or busy), onScale(chapters) -> Promise of the estimate, onBuild(chapters). */
 
-/** A chapter as the pick lists it: 未生成 with its points, 已生成 a/b, or 已生成. */
+/** A chapter as the pick lists it: 未生成 with its points, 已生成 a/b, or 已生成. A chapter of an outline built by chapters that is not built yet (深度定制 S2,
+    `pending`: no point of it is known before its inventory) says 未生成 with its pages; a built one the material no longer has (`lost`) says so. */
 export function partState(part) {
+  if (part.lost) return ui('资料里找不到这一章了 · 写好的讲解保留');
+  if (part.pending) return part.pages ? uiFormat('未生成 · 第 {0}–{1} 页', part.pages) : ui('未生成');
   if (!part.written) return uiFormat('未生成 · {0} 个知识点', [part.points]);
   return part.written < part.points ? uiFormat('已生成 {0}/{1} 个知识点', [part.written, part.points]) : ui('已生成');
 }

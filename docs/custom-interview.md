@@ -22,7 +22,7 @@ The chat reads the course and the read-only preview of the plan once (what the b
 5. A plan: by exam date, by chapters per week, or none; minutes a day.
 6. Confirm: a sample first (recommended), everything at once, or trim it further.
 
-After each answer the chat reads the estimate again and says the change in one line (calls and tokens, never prices). Nothing is generated and nothing is saved before the confirm. Then it saves the plan with `course.save` and calls **`course.custom.apply`** once (see below), which starts what the plan asks for through the existing jobs and answers in plain words what it started, what waits and why, and what is only recorded. A choice no feature can carry out yet (the exam range, leaving a single part out of the review book) is saved in the plan, listed under `recorded`, and the chat says plainly that it was not done.
+After each answer the chat reads the estimate again and says the change in one line (calls and tokens, never prices). Nothing is generated and nothing is saved before the confirm. Then it saves the plan with `course.save` and calls **`course.custom.apply`** once (see below), which starts what the plan asks for through the existing jobs and answers in plain words what it started, what waits and why, and what is only recorded. A choice no feature can carry out yet (the exam range) is saved in the plan, listed under `recorded`, and the chat says plainly that it was not done.
 
 ## Starting the work (`course.custom.apply`)
 
@@ -30,7 +30,7 @@ After each answer the chat reads the estimate again and says the change in one l
 
 - `started`: what was started now (the book's task, one task for each group of chapters' questions, the plan saved).
 - `waiting`: what was not started and why: no model, a sample that waits for you, a chapter id that names nothing now, a refusal of the build, more than 12 groups of questions at once (say it again when these have finished), an exam date a plan by date needs.
-- `recorded`: choices that are only kept in the plan (the exam range; the parts of the book while the build cannot leave one out).
+- `recorded`: choices that are only kept in the plan (the exam range; the review book now leaves out the parts the plan does not tick).
 - `done`: what is already so: a written book, questions that exist, a saved plan, the variants switch.
 
 It is safe to say again: a task that is going is named, not started twice; a book that is written and questions that exist are not made again. With **sample first** the book writes its two-point sample and waits, and the questions start for the first group only, its first round; `confirm: true` (you said it was fine) builds the rest of the book and starts every group, and takes up again, to the end, a group whose run stopped after its first round (reported under `started`, not `done`). A run that is not a sample is asked to go on by itself whatever its strength. Two applies at once are served one after the other, so a run is never started twice. A chapter that lies inside one text with no pages cannot be cut out: its questions read the whole text, and `recorded` names the chapter.

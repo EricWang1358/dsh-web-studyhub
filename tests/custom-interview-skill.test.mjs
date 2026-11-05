@@ -111,8 +111,8 @@ test('after the confirm the skill calls course.custom.apply once and reads out s
   assert.ok(body.indexOf('course.custom.apply') > body.indexOf('## 问题 6'), 'apply comes after the confirm');
   for (const word of ['started', 'waiting', 'recorded', 'confirm', '只调用一次']) assert.ok(after.includes(word), `the skill says ${word}`);
   const only = body.slice(body.indexOf('## 只记录'), body.indexOf('## 已有定制'));
-  for (const applied of ['只对选定章节出题', '按每周几章排的计划（备考计划需要考试日期）', '变式题（做错题时由应用自己准备）'])
+  for (const applied of ['只对选定章节出题', '按每周几章排的计划（备考计划需要考试日期）', '变式题（做错题时由应用自己准备）', '单独去掉某一部分'])
     assert.ok(!only.includes(applied) && !body.includes(applied), `「${applied}」 is applied now, not only recorded`);
-  for (const stillRecorded of ['考试范围', '单独去掉某一部分']) assert.ok(only.includes(stillRecorded), `「${stillRecorded}」 is still only recorded`);
+  for (const stillRecorded of ['考试范围']) assert.ok(only.includes(stillRecorded), `「${stillRecorded}」 is still only recorded`);
   assert.doesNotMatch(body, /`generate \{"sourceIds"/, 'the skill no longer starts the question runs by hand');
 });
