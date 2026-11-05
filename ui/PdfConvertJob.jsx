@@ -12,6 +12,7 @@ import CompactJobCard from './tasks/CompactJobCard.jsx';
 import { followUpLink } from './job-follow-up.js';
 import { ConvertEditDialog, HELD_ENTRY, HeldEntry } from './ConvertEdit.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { useHandOff } from './hand-off/use-hand-off.js';
 import { FAILED_HAND_OFF_WHAT, failedHandOffInput, failureText } from './tasks/failed-hand-off.js';
 import { isHeldTask } from './tasks/task-model.js';
 import css from './mineru.css';
@@ -46,6 +47,20 @@ export async function forgetRecords(call, ids) {
 
 export const cardOutcome = (value) => (value === undefined || value === null || value?.ok === false ? { ok: false } : { ok: true });
 
+/** 深度定制这本书 on the card of a finished book of CUSTOM_BOOK_PAGES pages or more (ui/custom-entry.js), once, as on its 解析历史 row: the card is where a
+    finished import is seen first, and 用它出题 next to it would make questions of every page before the learner was asked what the book is for. */
+function useCustomLink(job) {
+  const handOff = useHandOff(), [offered, setOffered] = useState(() => customOffered(job.documentId));
+  const pages = job.sourceIds?.length ?? 0;
+  if (job.status !== 'complete' || !job.documentId || !offersCustom(pages) || offered) return null;
+  return { label: ui(CUSTOM_BOOK_LABEL), tip: ui(CUSTOM_BOOK_WHAT), aria: uiFormat('{0}：{1}', [ui(CUSTOM_BOOK_LABEL), job.filename || job.title || '']),
+    run: async () => {
+      if (await handOff.send('custom.start', { document: job.documentId, pages }) === 'failed') return;
+      markCustomOffered(job.documentId);
+      setOffered(true);
+    } };
+}
+
 function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, onGenerate }) {
   const [working, setWorking] = useState(''), [editing, setEditing] = useState(false);
   const run = async (name, work) => {
@@ -60,9 +75,10 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
   const primary = isHeldTask(job) && !isActiveJob(job) ? { label: HELD_ENTRY(), run: () => setEditing(true) } : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
     : job.status === 'failed' && job.retryable ? { label: ui('接着做'), run: retry, disabled: !!working, tip: retryTip(job) }
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
-  const follow = followUpLink(job, job.sourceIds, onGenerate);
+  const follow = followUpLink(job, job.sourceIds, onGenerate), custom = useCustomLink(job);
+  const links = [follow, custom].filter(Boolean);
   return <>
-    <CompactJobCard job={job} primary={primary} links={follow ? [follow] : undefined} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
+    <CompactJobCard job={job} primary={primary} links={links.length ? links : undefined} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
       onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
       onDismiss={() => run('dismiss', () => send('job.archive', { jobId: job.id }))} />
     {editing && <ConvertEditDialog job={job} onClose={() => setEditing(false)} onChanged={onChanged} />}

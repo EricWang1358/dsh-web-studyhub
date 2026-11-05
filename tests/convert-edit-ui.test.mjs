@@ -172,3 +172,14 @@ test('an import that fails leaves the job waiting, with the reason and every edi
   assert.equal(kept.held.approved, false, 'the press does not outlive the attempt');
   assert.deepEqual(kept.held.edits, { 0: 'my words' });
 });
+
+test('a finished conversion of a book of 150 pages or more offers 深度定制这本书 on its card, next to 用它出题; a short one does not', () => {
+  const pages = n => Array.from({ length: n }, (_, at) => `doc-p${at + 1}`);
+  const book = held({ id: 'pdf-book-1', held: undefined, status: 'complete', retryable: false, phase: 'done', documentId: 'doc-book', sourceIds: pages(513) });
+  const html = draw(React.createElement(m.PdfConvertJobs, { jobs: [book], call: async () => ({}), onGenerate: () => {} }));
+  assert.match(html, /深度定制这本书/);
+  assert.match(html, /用它出题/);
+  const short = held({ id: 'pdf-short-1', held: undefined, status: 'complete', retryable: false, phase: 'done', documentId: 'doc-short', sourceIds: pages(40) });
+  assert.doesNotMatch(draw(React.createElement(m.PdfConvertJobs, { jobs: [short], call: async () => ({}), onGenerate: () => {} })), /深度定制这本书/);
+  assert.match(draw(React.createElement(m.PdfConvertJobs, { jobs: [book], call: async () => ({}), onGenerate: () => {} }), { language: 'en' }), /Customize this book in depth/);
+});

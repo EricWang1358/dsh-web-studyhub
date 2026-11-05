@@ -98,3 +98,40 @@ test('against the real DSH tool registry: an MCP-shaped tool is listed and runs 
   await assert.rejects(port.call('mcp__rag__broken', { query: 'q' }), /index is empty/);
   await assert.rejects(port.call('mcp__rag__missing', { query: 'q' }), /./);
 });
+
+/* DSH nightly (11-2026): ctx.tools.execute runs a BATCH, { calls: [{ id, name, arguments: JSON text }], signal, agent? } -> { results: [{ callId, result }] },
+   and an internal failure rejects with ToolBatchExecutionError ('Tool batch execution failed', the reason in `cause`). The old single-call shape made it
+   read calls.map of undefined, so every index write failed with only the wrapper's words. A stand-in of that executor, as the host has it. */
+function batchHost(tool) {
+  const executed = [];
+  class ToolBatchExecutionError extends Error { constructor(cause) { super('Tool batch execution failed', { cause }); this.name = 'ToolBatchExecutionError'; } }
+  const execute = async input => {
+    executed.push(input);
+    try {
+      const results = [];
+      for (const block of input.calls.map(call => ({ ...call, parsed: call.arguments ? JSON.parse(call.arguments) : {} })))
+        results.push({ callId: block.id, result: await tool(block.name, block.parsed) });
+      return { results, additionalContexts: [], concluded: false };
+    } catch (error) { throw new ToolBatchExecutionError(error); }
+  };
+  return { executed, ctx: { tools: { schemas: () => [{ name: 'mcp__studyhub__ingest_data', description: 'x', parameters: {} }], execute } } };
+}
+
+test('a host whose tools.execute runs a batch: the call is sent as a one-call batch and its own result is read', async () => {
+  const host = batchHost(async (name, args) => (name === 'mcp__studyhub__ingest_data'
+    ? { isError: false, content: [{ type: 'text', text: JSON.stringify({ chunkCount: 5, got: args.metadata.source }) }] }
+    : { isError: true, content: [{ type: 'text', text: 'Error: nope' }], error: { message: 'unknown tool' } }));
+  const port = retrievalPort(host.ctx);
+  const value = await port.call('mcp__studyhub__ingest_data', { content: 'page', metadata: { source: 'studyhub://source/p1' } });
+  assert.equal(host.executed[0].calls.length, 1);
+  assert.equal(host.executed[0].calls[0].name, 'mcp__studyhub__ingest_data');
+  assert.deepEqual(JSON.parse(host.executed[0].calls[0].arguments), { content: 'page', metadata: { source: 'studyhub://source/p1' } });
+  assert.match(JSON.parse(value.content[0].text).got, /p1$/, 'the tool result as the old host gave it: { content }');
+  await assert.rejects(port.call('mcp__studyhub__other', {}), /unknown tool/);
+});
+
+test('a batch that fails inside the host says the reason, not only "Tool batch execution failed"', async () => {
+  const host = batchHost(async () => { throw new TypeError('lancedb: table "chunks" is locked'); });
+  const port = retrievalPort(host.ctx);
+  await assert.rejects(port.call('mcp__studyhub__ingest_data', {}), error => /Tool batch execution failed/.test(error.message) && /table "chunks" is locked/.test(error.message));
+});
