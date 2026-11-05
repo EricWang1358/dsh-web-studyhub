@@ -21,6 +21,7 @@ export function issueCode(issue) {
   if (/the stem asks what the source says/.test(text)) return 'source-voice';
   if (/hint reveals the answer/.test(text)) return 'answer-leak';
   if (/missing, unknown or duplicate targetId/.test(text)) return 'binding';
+  if (/^Card \d+: option cue \(/.test(text)) return 'options';
   if (/need 3.6 options|options have an invalid shape|invalid correct option count|duplicate option|each option requires/.test(text)) return 'options-shape';
   if (/\b(?:id|kind|topic|objective|prompt|answer|hint|explanation|misconception) (?:is required|must be text)/.test(text)) return 'missing-field';
   if (/^Card \d+:/.test(text)) return 'structure';

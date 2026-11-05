@@ -8,7 +8,8 @@ import { CARD_KIND_IDS, EXAM_KIND_IDS, GENERATE_KIND_IDS, INGEST_KIND_IDS, kindO
 import { validateDeck } from '../lib/domain.js';
 import { importExample } from '../lib/deck-format.js';
 import { trueFalseOptions, unbalancedTrueFalse } from '../lib/true-false.js';
-import { TRUE_FALSE_RULE, blueprintAssessment, blueprintPrompts } from '../lib/assessment-quality.js';
+import { TRUE_FALSE_RULE, blueprintAssessment, blueprintPrompts, qualityCriteriaFor } from '../lib/assessment-quality.js';
+import { optionCueIssues } from '../lib/option-cues.js';
 import { authorPrompts, reviewPrompts } from '../lib/generation.js';
 import { reviewChoiceKind, shortcutAction } from '../ui/review/session-logic.js';
 
@@ -177,4 +178,13 @@ test('the practice page treats a 判断题 as a choice and keys 1 and 2 choose �
   assert.deepEqual(press('1'), { type: 'choose', id: 'true' });
   assert.deepEqual(press('2'), { type: 'choose', id: 'false' });
   assert.equal(press('3'), null);
+});
+
+test('the choice-option cues of the distractor rule are not a 判断题\'s: its two fixed options are judged by its own rule', () => {
+  // The correct option is far longer than the wrong one, and only the wrong one says "never": on a single choice both would be cues.
+  const card = statement('q1', false, { options: [{ id: 'true', text: 'True', correct: false, explanation: 'Never.' },
+    { id: 'false', text: 'False, because the Caretaker keeps the history without inspecting it', correct: true, explanation: 'The source says so.' }] });
+  assert.deepEqual(optionCueIssues({ cards: [card] }), []);
+  assert.match(qualityCriteriaFor(['truefalse']), /instead of the choice-option cues/);
+  assert.doesNotMatch(qualityCriteriaFor(['quiz']), /truefalse/);
 });
