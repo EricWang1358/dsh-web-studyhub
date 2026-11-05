@@ -51,7 +51,7 @@
 
 @layer study.overrides {
   :is(.study-app, .study-seat) {
-    &:is([data-contrast='high'], :has(> .study-app[data-contrast='high'])) :focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
+    &[data-contrast='high'] :focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
   }
   @media (forced-colors: active) {
     :is(.study-app, .study-seat) {

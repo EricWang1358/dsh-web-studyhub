@@ -55,6 +55,7 @@ import AppTopbar from './app/AppTopbar.jsx';
 import AppModalHost, { readerOpen } from './app/AppModalHost.jsx';
 import { ContextReturn, IngestBanner, StorageIssuesBanner } from './app/AppBanners.jsx';
 import { DisabledPage, PageView, StartPage } from './app/page-views.jsx';
+import { refuseLeavingPress } from './app/leave-guard.js';
 import { installInterFace } from './fonts/inter-face.js';
 
 export { LibraryChip, libraryFolderName } from './app/AppTopbar.jsx';
@@ -129,7 +130,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                   lang={LANG_ATTR[language]} ref={shell.attachRoot} data-usage-area={page} tabIndex={-1} onKeyDown={finder.onKeyDown}
                   onPointerDown={(event) => { if (!event.target.closest('button,input,textarea,select,a')) shell.rootRef.current?.focus(); }}>
                   <AppSidebar />
-                  <main className={nav.pageTarget ? 'is-leaving' : undefined}>
+                  <main className={nav.pageTarget ? 'is-leaving' : undefined} onClickCapture={nav.pageTarget ? refuseLeavingPress : undefined}>
                     <AppTopbar title={shellTitleOf(page, { run, decks: data?.decks })} />
                     <IngestBanner />
                     <StorageIssuesBanner />

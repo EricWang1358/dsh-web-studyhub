@@ -17,6 +17,7 @@ import { sessionFileAddress } from '../document-preview/selection.js';
 import { canOpenBackgroundAgent, openBackgroundAgent } from './open-agent.js';
 import { createPoller } from "../use-polling.js";
 import { NoSessionNotice, StudyHubGlyph } from './studyhub-page.jsx';
+import { useSeatAppearance } from "../use-appearance.js";
 import { attachToComposer, canAttachToComposer, fillComposer, noteInComposer } from './composer-draft.js';
 import { createIntentGuard } from './intent-sequence.js';
 // The top-level DSH page (root `main` panel) and its sidebar entry share one key.
@@ -164,6 +165,8 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
   function Seat(props) {
     const { sessionId, openView } = props;
     const placement = props.placement || "main";
+    // The seat wears the motion and contrast choices too, for the note and the dialog beside the app (ui/appearance-prefs.js seatAttrs).
+    const seatLook = useSeatAppearance();
     const call = React.useMemo(
       () =>
         createStudyCall(
@@ -383,7 +386,7 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
       [workspace, catalog, current, sessionId, openView, placement, call, models],
     );
     const seat = (
-      <div className="study-seat"><StudyBoundary>
+      <div className="study-seat" {...seatLook}><StudyBoundary>
         {movedNote && <InlineMessage tone="warning" onDismiss={() => setMovedNote("")}>{movedNote}</InlineMessage>}
         {placement === "sidebar" && candidateIntent?.candidates?.length > 0 &&
           <Dialog title={ui("选择要打开的题目")} size="md" onClose={() => deliverCandidates(sessionId, null)}>
