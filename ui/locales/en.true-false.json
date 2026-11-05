@@ -1,0 +1,11 @@
+{
+  "判断题": "True/False",
+  "判断": "True/False",
+  "对": "True",
+  "错": "False",
+  "正确答案是「{0}」": "The right answer is “{0}”",
+  "判断这句话对不对": "Is this statement true or false?",
+  "判断题：读一句话，判断它对还是错；错的说法会给出正确说法。": "True/False: read one statement and judge whether it is true; for a false one the explanation gives the true statement.",
+  "判断题 · 这句话说得对不对？按 1 选对，按 2 选错": "True/False · Is this statement true? Press 1 for True, 2 for False",
+  " · 判断 {0}": " · True/False {0}"
+}

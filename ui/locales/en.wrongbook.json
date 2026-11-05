@@ -81,7 +81,7 @@
   "点「清除筛选」可以回到全部。": "Click “Clear filters” to see everything again.",
   "为错题改写新的变式题：每道题约 1 次轻量模型调用，一次最多 {0} 题。": "Rewrites mistakes as new variant questions: about 1 light model call per question, up to {0} at a time.",
   "写好的变式会先备好等你，点「去练」或从侧栏「为你定制」开练。": "Variants that are written are kept ready for you. Press \"Practise\" or start from \"Personalised\" in the sidebar.",
-  "答错：单选、多选、填空由系统判分，最近一次得分低于 3 分。": "Incorrect: a single-choice, multiple-choice or fill-in question the system graded, and your latest score was below 3.",
+  "答错：单选、多选、判断、填空由系统判分，最近一次得分低于 3 分。": "Incorrect: a single-choice, multiple-choice, true/false or fill-in question the system graded, and your latest score was below 3.",
   "再答对一次，它会移到「已订正」，记录仍保留。": "Answer it correctly once more and it moves to “Corrected”; the record stays.",
   "未掌握：闪卡和开放题由你自评，最近一次自评低于 3 分。": "Not mastered: a flashcard or open question you rated yourself, and your latest rating was below 3.",
   "自评到 3 分以上，它会移到「已订正」，记录仍保留。": "Rate yourself 3 or higher and it moves to “Corrected”; the record stays.",

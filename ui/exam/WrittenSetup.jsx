@@ -71,7 +71,8 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
                         })} />
                       <span className="es-deck__name">
                         <strong title={deck.title}>{deckNames[deck.id] || deck.title}</strong>
-                        <small>{uiFormat('单选 {0} · 多选 {1}', [deck.examQuizCount || 0, deck.examMultiCount || 0])}</small>
+                        <small>{uiFormat('单选 {0} · 多选 {1}', [deck.examQuizCount || 0, deck.examMultiCount || 0])}
+                          {deck.examTrueFalseCount ? uiFormat(' · 判断 {0}', [deck.examTrueFalseCount]) : null}</small>
                       </span>
                     </label>
                   </li>

@@ -51,16 +51,16 @@ const edit = (view, key, value) => { const { props } = control(view, key); retur
 const submit = view => view.render().props.onSubmit({ preventDefault() {} });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 
-test('the generation settings section renders twenty usable controls (five of them the question types) with shared limits in both languages', () => {
+test('the generation settings section renders twenty-one usable controls (six of them the question types) with shared limits in both languages', () => {
   for (const language of ['zh', 'en']) {
     ssr.setUiLanguage(language);
     const html = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
     assert.match(html, /data-tour="settings-generation"/);
     assert.match(html, /data-tour="settings-generation-time"[^>]*>(?:(?!<div class="sh-field).)*name="jobTimeoutMinutes"/, 'the Jobs page links to the field of the time limit');
-    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 20);
+    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 21);
     const types = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*name="kinds-(\w+)"[^>]*>/g)];
-    assert.deepEqual(types.map(match => match[1]), ['quiz', 'multi', 'flashcard', 'open', 'cloze'], 'the default question types are five checkboxes, not a select');
-    assert.deepEqual(types.map(match => /checked/.test(match[0])), [true, false, false, false, false], 'single choice is ticked by default');
+    assert.deepEqual(types.map(match => match[1]), ['quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze'], 'the default question types are six checkboxes, not a select');
+    assert.deepEqual(types.map(match => /checked/.test(match[0])), [true, false, false, false, false, false], 'single choice is ticked by default');
     assert.match(types[0][0], /disabled/, 'the only ticked type cannot be unticked');
     assert.equal((html.match(/name="kind"/g) || []).length, 0);
     const check = html.match(/<input[^>]*name="applySuggestions"[^>]*>/);

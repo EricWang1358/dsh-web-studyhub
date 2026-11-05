@@ -243,7 +243,7 @@
   "多": "More",
   "需要补强": "Needs attention",
   "判分与自评": "Scores & self-ratings",
-  "近 30 天单选、多选、填空及考试的自动判分，不含本轮队尾重练": "Automatic grading for single choice, multiple choice, cloze and exams over 30 days; excludes tail retries",
+  "近 30 天单选、多选、判断、填空及考试的自动判分，不含本轮队尾重练": "Automatic grading for single choice, multiple choice, true/false, cloze and exams over 30 days; excludes tail retries",
   "近 30 天闪卡和开放问答的掌握程度自评，3 分及以上算达标": "Self-ratings for flashcards and open answers over 30 days; 3 or above counts as passed",
   "完成第一次学习后，这里会出现每日平均分的趋势线。": "Complete your first session to see the daily score trend.",
   "草稿与发布": "Draft & publish",

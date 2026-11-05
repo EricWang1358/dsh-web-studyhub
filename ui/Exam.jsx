@@ -18,6 +18,7 @@ import { defaultExamFormat, isExamFormat, recentExams, shortDeckTitles } from '.
 import { formatClock, joinMeta } from './format.js';
 import { useExamRun } from './exam/useExamRun.js';
 import { DEFAULT_COUNT, cardKindName, clampCount, picksFromRun, typeAvailableOf, unansweredCount } from './exam/exam-written.js';
+import { fixedOptionLabel, optionMark } from './option-label.js';
 import WrittenSetup from './exam/WrittenSetup.jsx';
 import WrittenReport from './exam/WrittenReport.jsx';
 import { useStudy } from './study-context.jsx';
@@ -95,8 +96,9 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
   );
   const pickedKinds = useMemo(
     () => decks.reduce((counts, deck) => pickedDecks.has(deck.id)
-      ? { quiz: counts.quiz + (deck.examQuizCount || 0), multi: counts.multi + (deck.examMultiCount || 0) }
-      : counts, { quiz: 0, multi: 0 }),
+      ? { quiz: counts.quiz + (deck.examQuizCount || 0), multi: counts.multi + (deck.examMultiCount || 0), truefalse: counts.truefalse + (deck.examTrueFalseCount || 0),
+        all: counts.all + (deck.examCount || 0) }
+      : counts, { quiz: 0, multi: 0, truefalse: 0, all: 0 }),
     [decks, pickedDecks],
   );
 
@@ -292,7 +294,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
               <Badge tone="info">{run.card.topic || ui("未分类")}</Badge>
               <Badge>{cardKindName(run.card)}</Badge>
               <span className="muted small">
-                {run.card.multiple ? ui("选出所有符合条件的选项") : ui("选出一项")}
+                {run.card.multiple ? ui("选出所有符合条件的选项") : run.card.kind === "truefalse" ? ui("判断这句话对不对") : ui("选出一项")}
               </span>
             </div>
             <div className="exam-prompt">
@@ -305,8 +307,8 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
                 return (
                   <button key={o.id} className="exam-option" aria-pressed={chosen}
                     disabled={busy || expired} onClick={() => pick(o.id)}>
-                    <span className="exam-option-letter">{String.fromCharCode(65 + i)}</span>
-                    <span className="exam-option-text"><Markdown text={o.text} links={false} className="md-compact" /></span>
+                    <span className="exam-option-letter">{optionMark(run.card, o, i)}</span>
+                    <span className="exam-option-text">{fixedOptionLabel(run.card, o) ?? <Markdown text={o.text} links={false} className="md-compact" />}</span>
                   </button>
                 );
               })}

@@ -40,8 +40,8 @@ export const cardKindName = (card) => kindName(card?.kind ?? (card?.multiple ? '
 /** Which kinds of question the exam may draw, as the setup's switch labels them (keys are the server's `examKinds`). */
 export const EXAM_KIND_LABELS = { all: '不限题型', quiz: '只单选', multi: '只多选', balanced: '单双均衡' };
 
-/** How many questions of the chosen kind the picked decks hold, from their { quiz, multi } counts. */
-export const typeAvailableOf = (kinds, typeMode) => (typeMode === 'quiz' ? kinds.quiz : typeMode === 'multi' ? kinds.multi : kinds.quiz + kinds.multi);
+/** How many questions of the chosen kind the picked decks hold, from their { quiz, multi, all } counts (all: every kind an exam takes, 判断题 too). */
+export const typeAvailableOf = (kinds, typeMode) => (typeMode === 'quiz' ? kinds.quiz : typeMode === 'multi' ? kinds.multi : kinds.all ?? kinds.quiz + kinds.multi);
 
 export const scoreChange = (comparison) => comparison.deltaPct > 0
   ? uiFormat('比上次高 {0} 个百分点', [comparison.deltaPct])

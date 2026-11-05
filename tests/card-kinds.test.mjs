@@ -39,8 +39,8 @@ test('the old hand lists are the registry', () => {
 });
 
 test('the facts of the five original kinds are what the code always assumed', () => {
-  assert.deepEqual(CARD_KIND_IDS.filter(hasOptions), ['quiz', 'multi']);
-  assert.deepEqual(CARD_KIND_IDS.filter(oneAnswer), ['quiz']);
+  assert.deepEqual(['quiz', 'multi', 'flashcard', 'open', 'cloze'].filter(hasOptions), ['quiz', 'multi']);
+  assert.deepEqual(['quiz', 'multi', 'flashcard', 'open', 'cloze'].filter(oneAnswer), ['quiz']);
   assert.deepEqual(['quiz', 'multi', 'flashcard', 'open', 'cloze'].filter(isGraded), ['quiz', 'multi', 'cloze']);
   assert.deepEqual(['quiz', 'multi', 'flashcard', 'open', 'cloze'].filter(isExamKind), ['quiz', 'multi']);
   assert.deepEqual(INGEST_KIND_IDS.filter(id => id !== 'truefalse'), ['quiz', 'multi', 'flashcard', 'open']);

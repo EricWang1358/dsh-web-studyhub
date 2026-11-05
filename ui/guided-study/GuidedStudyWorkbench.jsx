@@ -13,6 +13,7 @@ import { useInjectCss } from '../shared.js';
 import css from './guided-study.css';
 import GuidedStudyStart from './GuidedStudyStart.jsx';
 import { hasOptions } from '../../lib/card-kinds.js';
+import { fixedOptionLabel } from '../option-label.js';
 
 /* How the session's status reads to the learner (never the raw value). */
 const STATUS_WORD = { active: '带学进行中', paused: '带学已暂停', ended: '带学已结束' };
@@ -193,7 +194,7 @@ export default function GuidedStudyWorkbench({
                           onChange={() => setSelected(currentCard.kind === 'multi'
                             ? (picked ? selected.filter((id) => id !== option.id) : [...selected, option.id])
                             : [option.id])} />
-                        <Markdown text={option.text} links={false} className="md-compact" />
+                        {fixedOptionLabel(currentCard, option) ?? <Markdown text={option.text} links={false} className="md-compact" />}
                       </label>
                     );
                   })}

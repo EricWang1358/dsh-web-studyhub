@@ -9,6 +9,7 @@ import CitationDisclosure from "../CitationDisclosure.jsx";
 import ExplanationFollowup from "../ExplanationFollowup.jsx";
 import { asksWhatTheSourceSays, SOURCE_VOICE_FIX } from "../../lib/question-voice.js";
 import ChoiceFeedback from "../ChoiceFeedback.jsx";
+import { fixedOptionLabel, optionMark } from "../option-label.js";
 import ThumbFeedback from "../ThumbFeedback.jsx";
 import { reviewEntryKey } from "../async.js";
 import ModelErrorNote from "../ModelErrorNote.jsx";
@@ -33,6 +34,7 @@ import { resolveBookSettings } from "../../lib/book-settings.js";
 import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 import { roundAt, roundWords } from "./round-words.js";
+import { fixedOptionsOf } from "../../lib/card-kinds.js";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -126,6 +128,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     }
   }, [followupKey, run.id, run.index, !!run.solution]); // eslint-disable-line react-hooks/exhaustive-deps -- keyed on the question and its Q&A ids
   const multiple = run.card?.multiple || run.card?.kind === "multi";
+  // 判断题: two large 对 / 错 buttons instead of lettered options.
+  const verdict = !!fixedOptionsOf(run.card?.kind);
   const publicationIssues = (run.card?.publicationIssues || []).map((issue) =>
     readableQualityIssue(`Card 1: ${issue}`).replace(/^第 1 题：/, ""));
   // EN button: show the cached English after each Chinese stem and answer.
@@ -294,8 +298,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               {run.card.multiple && (
                 <p className="muted small">{ui("多选题 · 选出所有符合条件的选项")}</p>
               )}
-              <ChoiceFeedback options={run.card.options} feedback={run.feedback} solution={run.solution} multiple={multiple} />
-              <div className="options" key={"options:" + reviewEntryKey(run)}>
+              {verdict && !run.feedback && <p className="muted small">{ui("判断题 · 这句话说得对不对？按 1 选对，按 2 选错")}</p>}
+              <ChoiceFeedback card={run.card} options={run.card.options} feedback={run.feedback} solution={run.solution} multiple={multiple} />
+              <div className={"options" + (verdict ? " options--verdict" + (run.feedback ? " options--answered" : "") : "")} key={"options:" + reviewEntryKey(run)}>
                 {run.card.options.map((o, i) => {
                   const solution = run.solution?.options?.find(
                     (x) => x.id === o.id,
@@ -325,12 +330,13 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       data-usage="review.option"
                       onClick={() => choose(o.id)}
                     >
-                      <span className="option-letter">
-                        {String.fromCharCode(65 + i)}.
+                      <span className="option-letter" aria-hidden={verdict || undefined}>
+                        {verdict ? optionMark(run.card, o, i) : `${optionMark(run.card, o, i)}.`}
                       </span>
                       <div>
-                        <Markdown text={o.text} links={false} className="md-compact" />
-                        {enOption?.text && <p className="option-en">{enOption.text}</p>}
+                        {verdict ? <span className="option-verdict">{fixedOptionLabel(run.card, o)}</span>
+                          : <Markdown text={o.text} links={false} className="md-compact" />}
+                        {!verdict && enOption?.text && <p className="option-en">{enOption.text}</p>}
                         {run.feedback && (
                           // Grows open from zero height, one option after another,
                           // instead of every explanation landing in the same frame.
