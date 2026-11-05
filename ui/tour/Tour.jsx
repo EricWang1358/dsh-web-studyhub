@@ -4,7 +4,7 @@ import { ui, uiFormat } from "../i18n.js";
 import { Button, IconButton, Icon, ProgressBar } from "../components/index.js";
 import { useTopDialog } from "../components/dialog-stack.js";
 import { useInjectCss } from "../shared.js";
-import { NARROW_WIDTH, placePopover, spotlightBox } from "./geometry.js";
+import { NARROW_WIDTH, inLayer, layerScale, placePopover, spotlightBox } from "./geometry.js";
 import { ANCHOR_WAIT_MS, findAnchor } from "./anchor.js";
 import { tourKeyAction } from "./steps.js";
 import css from "./tour.css";
@@ -135,17 +135,18 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
       if (found) {
         targetRef.current = found;
         const box = found.getBoundingClientRect(), view = layerRef.current?.getBoundingClientRect();
+        const scale = layerScale(view, layerRef.current), own = view ? inLayer(box, view, scale) : null;
         // On a narrow panel the card is docked along the bottom: scroll tall or low anchors above the card while keeping their top under the bar.
-        if (view && view.width <= NARROW_WIDTH) {
-          const popH = popoverRef.current?.offsetHeight || view.height * 0.45;
-          const floor = view.height - 12 - popH - DOCK_MARGIN;
-          const top = box.top - view.top, bottom = box.bottom - view.top;
+        if (view && view.width / scale <= NARROW_WIDTH) {
+          const popH = popoverRef.current?.offsetHeight || view.height / scale * 0.45;
+          const floor = view.height / scale - 12 - popH - DOCK_MARGIN;
+          const top = own.top, bottom = own.top + own.height;
           if (top < DOCK_CEILING || bottom > floor) {
             setDockRoom(rootRef.current, popH);
-            const desiredTop = Math.max(DOCK_CEILING, Math.min(96, floor - box.height));
+            const desiredTop = Math.max(DOCK_CEILING, Math.min(96, floor - own.height));
             scrollRoom(found, top - desiredTop);
           }
-          dockSizesRef.current = `${step?.id}:${Math.round(box.height)}:${Math.round(popH)}`;
+          dockSizesRef.current = `${step?.id}:${Math.round(own.height)}:${Math.round(popH)}`;
         } else {
           const visible = view && box.top >= view.top + 8 && box.bottom <= view.bottom - 8;
           if (!visible) found.scrollIntoView({ block: box.height > (view?.height || 800) * 0.6 || (view?.width || 1000) <= 560 ? "start" : "center",
@@ -170,10 +171,12 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
       targetRef.current = element;
     }
     const view = layer.getBoundingClientRect();
-    const bounds = { width: view.width, height: view.height };
-    const box = element?.getBoundingClientRect();
-    const relative = box ? { left: box.left - view.left, top: box.top - view.top, width: box.width, height: box.height } : null;
-    const spot = spotlightBox(relative, bounds);
+    // Rectangles are screen pixels; the layer is inside the app's CSS zoom (界面大小), so its left/top are its own pixels.
+    const scale = layerScale(view, layer);
+    const bounds = { width: view.width / scale, height: view.height / scale };
+    const screen = element?.getBoundingClientRect();
+    const box = screen ? inLayer(screen, view, scale) : null;
+    const spot = spotlightBox(box, bounds);
     const size = { width: popover.offsetWidth, height: popover.offsetHeight };
     const place = placePopover({ target: spot, popover: size, bounds, prefer: step?.placement });
     setDockRoom(rootRef.current, place.docked ? size.height : 0);
@@ -181,7 +184,7 @@ export default function Tour({ steps, stepId, rootRef, model, sampleLoaded, busy
       const sizeKey = `${step?.id}:${Math.round(box.height)}:${Math.round(size.height)}`;
       if (dockSizesRef.current && dockSizesRef.current.startsWith(`${step?.id}:`) && dockSizesRef.current !== sizeKey) {
         dockSizesRef.current = sizeKey;
-        const top = box.top - view.top, bottom = box.bottom - view.top, floor = place.top - DOCK_MARGIN;
+        const top = box.top, bottom = box.top + box.height, floor = place.top - DOCK_MARGIN;
         if (bottom > floor && top > DOCK_CEILING) scrollRoom(element, Math.min(bottom - floor, top - DOCK_CEILING));
       } else if (!dockSizesRef.current) {
         dockSizesRef.current = sizeKey;
