@@ -12,6 +12,7 @@ import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import css from './guided-study.css';
 import GuidedStudyStart from './GuidedStudyStart.jsx';
+import { hasOptions } from '../../lib/card-kinds.js';
 
 /* How the session's status reads to the learner (never the raw value). */
 const STATUS_WORD = { active: '带学进行中', paused: '带学已暂停', ended: '带学已结束' };
@@ -57,7 +58,7 @@ export default function GuidedStudyWorkbench({
   const isRevealed = Boolean(run?.revealed ?? (run?.entries ? run.entries[run.index]?.revealed : false));
   const hasFeedback = Boolean(run?.feedback || (run?.entries ? run.entries[run.index]?.feedback : false));
 
-  const choice = ['quiz', 'multi'].includes(currentCard?.kind) && Array.isArray(currentCard?.options) && currentCard.options.length > 0;
+  const choice = hasOptions(currentCard?.kind) && Array.isArray(currentCard?.options) && currentCard.options.length > 0;
   const [selected, setSelected] = useState([]);
   useEffect(() => { setSelected([]); }, [currentCard?.id, run?.id]);
 

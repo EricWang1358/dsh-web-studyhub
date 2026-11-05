@@ -85,7 +85,7 @@ export function estimateMinutes(jobs = [], count = COUNT_DEFAULT) {
 
 /* ---------- choices ---------- */
 
-export const KINDS = Object.freeze(['mixed', 'quiz', 'multi', 'flashcard', 'open', 'cloze']);
+export const KINDS = Object.freeze(['mixed', ...BASIC_KINDS]);
 export const DIFFICULTIES = Object.freeze([
   { value: 'mixed', get label() { return ui('混合'); } },
   { value: 'foundation', get label() { return ui('基础理解'); } },

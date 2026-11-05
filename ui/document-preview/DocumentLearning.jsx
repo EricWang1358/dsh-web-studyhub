@@ -24,6 +24,7 @@ import { deckChoices, deckEntries } from '../deck-picker-entries.js';
 import { JOB_STATUS } from '../../lib/job-status.js';
 import { useUndoable } from '../use-undoable.js';
 import { deleteKeptThread, restoreKeptThread } from './annotation/delete-thread.js';
+import { GENERATE_KIND_IDS } from '../../lib/card-kinds.js';
 
 const noop = () => {};
 /** The key a passage's unsaved thread is held under: where it is and what it says (a text that changed under the same offsets is another passage). */
@@ -125,9 +126,8 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
         {/* The kind and the number are the ones of 设置 › 出题偏好, said here and changeable for this run; the settings themselves are not touched. */}
         <Disclosure className="study-selection-more" summary={ui('更多设置')} meta={joinMeta([kinds[kind], uiFormat('{0} 题', [Number(count) || 1])])}>
           <div className="study-selection-options">
-            <label className="study-learning-label">{ui('题型')}<Select value={kind} onChange={value => onKind?.(value)} options={[
-              { value: 'flashcard', label: ui('闪卡') }, { value: 'quiz', label: ui('单选测验') }, { value: 'multi', label: ui('多选测验') },
-              { value: 'open', label: ui('开放问答') }, { value: 'cloze', label: ui('填空卡') }]} /></label>
+            <label className="study-learning-label">{ui('题型')}<Select value={kind} onChange={value => onKind?.(value)}
+              options={GENERATE_KIND_IDS.map(id => ({ value: id, label: kinds[id] }))} /></label>
             <label className="study-learning-label">{ui('题数')}<input className="study-learning-control" type="number" min="1" max="20" value={count} onChange={event => onCount?.(event.target.value)} /></label>
           </div>
           <p className="muted">{ui('题型和题数取自设置里的出题偏好；在这里改，不会改动设置。')}

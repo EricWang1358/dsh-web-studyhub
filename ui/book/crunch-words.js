@@ -2,6 +2,7 @@
    ui/locales/en.outline.json); the plans themselves (lib/crunch-plan.js, lib/plan-schedule.js) only give codes and numbers. */
 import { ui, uiFormat } from '../i18n.js';
 import { formatList, joinMeta } from '../format.js';
+import { kindOf } from '../../lib/card-kinds.js';
 
 /** The one line of why a day holds what it holds (lib/crunch-plan.js and lib/plan-schedule.js `reason`; 'learn', 'learn-size', 'learn-over', 'learn-free', 'exam-today'
     and 'done' are the same code in both). */
@@ -46,6 +47,6 @@ export const pointMeta = point => joinMeta([
 /** One 易错点 of a point (lib/book-flip.js): what was asked, an answer card's pitfall, what was explained. */
 export const mistakeText = item => uiFormat(item.kind === 'asked' ? '问过：{0}' : item.kind === 'explained' ? '弄懂：{0}' : '易错：{0}', [item.text]);
 
-const kindLabel = kind => ({ case: ui('案例题'), open: ui('开放'), cloze: ui('填空'), flashcard: ui('闪卡'), quiz: ui('单选'), multi: ui('多选') })[kind] || kind;
+const kindLabel = kind => (kind === 'case' ? ui('案例题') : kindOf(kind) ? ui(kindOf(kind).short) : kind);
 /** What a mock paper leaves out, by kind: "开放 1 道、闪卡 17 道". */
 export const leftOutText = leftOut => formatList(Object.entries(leftOut || {}).filter(([, n]) => n > 0).map(([kind, n]) => uiFormat('{0} {1} 道', [kindLabel(kind), n])));
