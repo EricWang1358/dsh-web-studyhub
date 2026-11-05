@@ -132,3 +132,16 @@ test('the sample\'s scale counts the comparisons of the rest, from the pairs its
   assert.ok(asked > 0 && stage.calls >= asked / 3 && stage.calls <= asked * 3, 'the same order of size');
   assert.ok((await w.notes()).courseNotes.confusables.length > 0);
 });
+
+test('the scale of a build before it starts counts the comparisons still to ask (#708 scale), none once they are written', async t => {
+  const w = await world(t);
+  await w.run();
+  const saved = (await w.notes()).courseNotes.confusables;
+  const ask = () => w.service.call('generation.courseBook.build', { course: COURSE, language: 'zh', estimate: true });
+  const done = (await ask()).scale;
+  await w.service.store.update(state => { delete state.sources.find(source => isCourseNotesSource(source) && !source.archived).courseNotes.confusables; });
+  const lacking = (await ask()).scale;
+  const calls = Math.ceil(saved.length / CONFUSABLE_PAIRS);
+  assert.equal(lacking.calls.low - done.calls.low, calls, 'every comparison call is in the low end');
+  assert.equal(lacking.calls.high - done.calls.high, calls, 'and in the high end');
+});
