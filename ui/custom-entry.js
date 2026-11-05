@@ -1,4 +1,5 @@
 import { isPagedFormat } from '../lib/office/limits.js';
+import { readJSON, writeJSON } from './storage.js';
 
 /* 深度定制 (skills/study-custom): when the import list and the 解析历史 offer 「深度定制这本书」. The one decision lives here: a document of this many pages or
    more is a book worth asking about before anything is generated from it. The review book's 更多 menu offers 深度定制… for every course, whatever the pages. */
@@ -23,7 +24,7 @@ export const CUSTOM_BOOK_WHAT = '让主会话问你几个选项，再决定这�
 /* The offer is made once: after the learner pressed 「深度定制这本书」 on a document's row, that row does not offer it again (the review book's 更多 still does).
    A per-browser memory, a convenience only: without storage the row simply offers it each time. */
 const OFFERED_KEY = 'studyhub.custom.offered';
-const offeredIds = () => { try { const value = JSON.parse(globalThis.localStorage?.getItem(OFFERED_KEY) ?? '[]'); return Array.isArray(value) ? value : []; } catch { return []; } };
+const offeredIds = () => { const value = readJSON(OFFERED_KEY, []); return Array.isArray(value) ? value : []; };
 
 /** Whether 深度定制这本书 was already pressed for this document. */
 export const customOffered = documentId => !!documentId && offeredIds().includes(documentId);
@@ -31,5 +32,5 @@ export const customOffered = documentId => !!documentId && offeredIds().includes
 /** Remembers that it was pressed for this document (the newest 200 are kept). */
 export function markCustomOffered(documentId) {
   if (!documentId) return;
-  try { globalThis.localStorage?.setItem(OFFERED_KEY, JSON.stringify([...offeredIds().filter(id => id !== documentId), documentId].slice(-200))); } catch { /* no storage: it is offered again */ }
+  writeJSON(OFFERED_KEY, [...offeredIds().filter(id => id !== documentId), documentId].slice(-200));
 }
