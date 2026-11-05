@@ -50,7 +50,7 @@ export function moreItems({ unplaced = false, pointFold = null, scroll = false, 
 export default function BookMore({ onSelect, ...state }) {
   return (
     <Menu label={ui('更多')} items={moreItems(state)} onSelect={onSelect} className="book-more"
-      trigger={({ props, ref }) => <Button ref={ref} size="sm" variant="quiet" icon="more" className="book-bar__btn book-bar__more" aria-label={ui('更多')} {...props}>
+      trigger={({ props, ref }) => <Button ref={ref} size="sm" variant="quiet" icon="more" className="book-bar__btn book-bar__more" data-tour="book-more" aria-label={ui('更多')} {...props}>
         <span className="book-bar__word" aria-hidden="true">{ui('更多')}</span></Button>} />
   );
 }

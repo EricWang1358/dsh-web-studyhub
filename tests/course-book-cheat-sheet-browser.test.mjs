@@ -91,6 +91,7 @@ test('复习全书: 更多 › 速查表 shows the one page, a code goes back to
       await page.locator('.outline-book-line__open').click();
       await page.locator('.book-step').waitFor({ timeout: 30000 });
 
+      assert.equal(await page.locator('[data-tour="book-more"]').count(), 1, `${width}px: 更多 is where the finder's 速查表 entry points`);
       // 更多 › 速查表: the view takes the page's place.
       await page.locator('.book-bar__more').click();
       assert.match(await page.getByRole('menuitem', { name: /^速查表/ }).innerText(), /可打印/);
