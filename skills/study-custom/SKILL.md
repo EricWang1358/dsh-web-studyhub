@@ -23,7 +23,7 @@ whenToUse: The learner wants a big book customised — 「深度定制」「这�
 - 默认值放在第一个选项，标题后面加 ` (Recommended)`，学习者一路点第一个就是默认方案，只改不同意的地方。问题 1 之后，每个问题的默认都来自他选的用途（预览里的 `defaults`，或 `course.custom.preview` 带上 `custom` 后返回的）。
 - 多选的问题（问题 3 的部分、问题 4 的题型）带上 `"multiSelect": true`：返回的 `selected` 是选中的选项，`custom` 是他在「其他」里手写的补充。**如果宿主拒绝 `multiSelect`，或者多选的问题只回了一个选项**，就改成请他打字回答：把选项编号列成一小段（「1 讲解　2 术语卡和易混概念　3 答题模板和速查表　4 公式页和索引」），请他回「1 2」这样的编号，回「默认」就用推荐。之后所有多选的问题都这样问。
 - 学习者一条消息里已经把几个问题都答了（「期末复习，全书，要题，按考试日期」），直接采用，跳过这些问题，不要再问。
-- 每答一题，用选到现在的方案重读一次 `course.custom.preview {"course": "<课程>", "custom": {…选到现在的方案…}}`（只带已经定下的字段，其余由预览按用途的默认补；预览不收不完整的方案时，就把 `defaults` 合上他的改动再发），用**一句话**说这一步让总量变了多少：「多了/少了 N 次调用、约 X token」。`estimate.rough` 为真就说「这是粗略估计」。只说调用次数和 token，不说价格。
+- 每答一题，用选到现在的方案重读一次 `course.custom.preview {"course": "<课程>", "custom": {…选到现在的方案…}}`（只带已经定下的字段，其余由预览按用途的默认补，补好的完整方案在回答的 `filled` 里），用**一句话**说这一步让总量变了多少：「多了/少了 N 次调用、约 X token」。`estimate.rough` 为真就说「这是粗略估计」。只说调用次数和 token，不说价格。
 - 用「你」，不用「您」；不卖萌、不施压。
 
 ## 问题 1：这本书你拿来做什么
@@ -68,7 +68,7 @@ whenToUse: The learner wants a big book customised — 「深度定制」「这�
 
 1. 存：`course.save {"name": "<课程>", "custom": {…整份方案…}}`，整份方案发回去（先 `course.get`，已有的字段保留）；`custom` 为 `null` 是删除，只在他明确要删时才用。
 2. 开始第一步，用现有的功能：
-   - 总纲：`generation.courseOutline.build {"course": "<课程>"}`（后台任务）。要按章写书，必须先有当前的总纲；用 `course.outline {"course": "<课程>"}` 看顶层章节，按标题和页范围把 `scope.chapters` 对到总纲的章节 id，对不上的章节明说，不要硬配。
+   - 总纲：`generation.courseOutline.build {"course": "<课程>"}`（后台任务）。要按章写书，必须先有当前的总纲。预览的 `skeleton.basis` 是 `outline` 时，章节 id 就是总纲的顶层章节 id，直接用；是 `documents` 时（还没有总纲），总纲建好后用 `course.outline {"course": "<课程>"}` 看顶层章节，按标题和页范围把 `scope.chapters` 对到总纲的章节 id，对不上的章节明说，不要硬配。
    - 复习全书：`generation.courseBook.build {"course": "<课程>", "coverage": "<book.coverage>", "chapters": [<章节 id>]}`；先 `estimate: true` 读一次规模（不调用模型）。样例先行就用默认的 `sample`（知识点多时先写两个就停下，等他看过），他说好了再 `sample: "confirm"` 写完；直接全部做用 `sample: "skip"`。选了术语卡和易混概念的，书写完之后再 `cards: true`（也先 `estimate: true`），书还没写完就说它在等。
    - 题：`source.list {"course": "<课程>"}` 找资料，再 `generate {"sourceIds": […], "kind": "<题型>", "coverageLevel": "<questions.strength>"}`（多个题型就每个题型一次）；样例先行时加 `autoComplete: false`，只做第一轮。
    - 备考计划：选了按考试日期的，按 `library.context {"area":"plan"}` 里的做法和他一起用 `course.plan {"course": "<课程>"}` 起草，他同意之后才用 `course.save` 的 `plan` 存；课程没有考试日期就先问。

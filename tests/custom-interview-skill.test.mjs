@@ -17,7 +17,6 @@ const skill = parseSkill(text);
 
 /* The contract with S0 (the 定制方案): the one read-only op and the record's field values the skill writes. Until S0 lands the registry cannot answer for
    them; when it does, this list shrinks to nothing and the registry answers for every name. */
-const S0_ACTIONS = ['course.custom.preview'];
 const PURPOSES = ['preview', 'follow', 'review', 'openbook'];
 const BOOK_PARTS = ['explain', 'terms', 'formulas', 'index', 'confusables', 'answerKit', 'cheatSheet'];
 
@@ -39,7 +38,7 @@ test('every action the skill names is an action of the study workspace, or one o
   const named = [...new Set([...text.matchAll(/`((?:library|course|generation|generate|job|source|coverage|supplement|settings)(?:\.[A-Za-z]+)*)(?=[ {`])/g)].map(match => match[1]))];
   for (const action of ['library.context', 'course.get', 'course.save', 'course.custom.preview', 'generation.courseOutline.build', 'generation.courseBook.build', 'generate', 'job.status', 'course.plan'])
     assert.ok(named.includes(action), `the skill names ${action}`);
-  for (const action of named) assert.ok(S0_ACTIONS.includes(action) || study.runtime.hasAction(action), `${action} is neither registered nor in the S0 contract`);
+  for (const action of named) assert.ok(study.runtime.hasAction(action), `${action} is not registered`);
   // `custom` is saved the way `plan` is: with the existing course.save
   assert.match(text, /course\.save \{[^}]*"custom"/);
 });
