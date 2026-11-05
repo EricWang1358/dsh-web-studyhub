@@ -78,6 +78,8 @@
     .pdf-history__row .sh-job__body small.pdf-history__result { color: var(--text); font-size: var(--fs-sm); }
     .pdf-history__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-top: var(--space-1); max-width: 100%; }
     .pdf-history__actions:empty { display: none; }
+    /* What a converted book left out as repeated on most pages, with 恢复 (ui/RepeatedNote.jsx). */
+    .repeated-note { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
     .pdf-history__actions .pdf-history__action { max-width: 100%; height: auto; min-height: 32px; white-space: normal; text-align: left; }
     .mineru-history { margin: 0; }
     .mineru-history .pdf-history__disclosure-body { display: grid; gap: var(--space-3); }

@@ -159,7 +159,8 @@ test('parsed pages carry the chapter they fall in', () => {
 });
 
 test('a 1,200-page book is not capped at import (the 600,000-character selection limit applies to generation)', () => {
-  const pages = Array.from({ length: 1200 }, (_, i) => `<!-- page: ${i + 1} -->\n# 章节 ${Math.floor(i / 40) + 1}${i % 40 ? '' : ' 开始'}\n${'知识点内容。'.repeat(200)}`);
+  // Each page says something of its own (the same line on every page would be left out as running furniture, lib/repeated-lines.js).
+  const pages = Array.from({ length: 1200 }, (_, i) => `<!-- page: ${i + 1} -->\n# 章节 ${Math.floor(i / 40) + 1}${i % 40 ? '' : ' 开始'}\n${`知识点${i}内容。`.repeat(200)}`);
   const book = parseConvertedDocument(pages.join('\n'), { filename: 'big.md' });
   assert.equal(book.pages.length, 1200);
   assert.ok(book.pages.reduce((sum, page) => sum + page.text.length, 0) > 600000);

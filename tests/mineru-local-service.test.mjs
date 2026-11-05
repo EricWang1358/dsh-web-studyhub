@@ -142,7 +142,15 @@ test('a 120-page PDF is parsed locally in windows of 50 pages as one job, with n
   const stored = new Map((await h.call('export')).sources.map(item => [item.id, item.text]));
   assert.match(stored.get(sources[50].id), /第 51 页的正文/);
   assert.ok(!sources.some(source => /doc:5008352/.test(stored.get(source.id))), 'no broken image links');
-  assert.ok(finished.warnings.some(text => text === LOCAL_MESSAGES.headerFooter), 'the header/footer caveat is stated once');
+  // The fake writes the same running title, two list lines and the page number on every page: they are left out, and the job and the history say so.
+  assert.ok(!sources.some(source => /Chapter 1: Introduction|要点一/.test(stored.get(source.id))), 'the lines on every page are left out');
+  assert.equal(finished.repeated.count, 480);
+  assert.deepEqual(finished.repeated.lines[0], { text: 'Chapter 1: Introduction', pages: 120 });
+  assert.ok(!finished.warnings.includes(LOCAL_MESSAGES.headerFooter), 'no caveat that the running lines stayed when they were left out');
+  const [row] = (await h.call('mineru.history.list')).records;
+  assert.equal(row.document.repeated.count, 480, 'the history row says what the document left out, as the library has it now');
+  await h.call('materials.document.restoreRepeated', { documentId: finished.documentId });
+  assert.equal((await h.call('mineru.history.list')).records[0].document.repeated, undefined, 'put back: the row says nothing more');
   assert.equal(state.inbox.items.filter(item => item.kind === 'pdf-result').length, 1);
   assert.deepEqual(await filesUnder(join(convertHome(h.root), 'jobs')), []);
   assert.deepEqual(await filesUnder(join(convertHome(h.root), 'uploads')), []);
