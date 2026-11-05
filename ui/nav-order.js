@@ -165,14 +165,15 @@ export function useNavOrder(defaults, navRef, { homes = NAV_HOMES, limit = MAIN_
     state.dy = state.y - state.grab - natural;
     state.el.style.transform = `translateY(${state.dy}px)`;
   };
-  const finish = (state, { cancel = false, moved = null } = {}) => {
+  const finish = (state, { cancel = false } = {}) => {
     clearTimeout(state.timer);
     for (const [type, handler] of state.listeners) window.removeEventListener(type, handler);
     press.current = null;
     if (!state.active) return;
     state.el.style.transform = "";
     if (cancel) change(state.before);
-    else if (moved?.refused) setAnnounce(moved);
+    // A drop the full main list refused leaves the refusal as the thing said, not a move that did not happen.
+    else if (state.refused && sameOrder(latest.current, state.before)) { /* announce already holds the refusal */ }
     else { const group = groupOf(latest.current, state.id); said(latest.current, state.id, group); }
     setLifted(null);
     quiet.current = true;
