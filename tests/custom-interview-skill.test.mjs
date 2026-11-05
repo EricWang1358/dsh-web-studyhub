@@ -36,7 +36,7 @@ test('every action the skill names is an action of the study workspace, or one o
   const study = new StudyService(root);
   t.after(() => study.dispose?.());
   const named = [...new Set([...text.matchAll(/`((?:library|course|generation|generate|job|source|coverage|supplement|settings)(?:\.[A-Za-z]+)*)(?=[ {`])/g)].map(match => match[1]))];
-  for (const action of ['library.context', 'course.get', 'course.save', 'course.custom.preview', 'generation.courseOutline.build', 'generation.courseBook.build', 'generate', 'job.status', 'course.plan'])
+  for (const action of ['library.context', 'course.get', 'course.save', 'course.custom.preview', 'course.custom.apply', 'generation.courseOutline.build', 'generation.courseBook.build', 'generate', 'job.status', 'course.plan'])
     assert.ok(named.includes(action), `the skill names ${action}`);
   for (const action of named) assert.ok(study.runtime.hasAction(action), `${action} is not registered`);
   // `custom` is saved the way `plan` is: with the existing course.save
@@ -104,4 +104,15 @@ test('the hand-off custom.start is registered with the skill and the 我想： t
   const en = ui.handOffText('custom.start', { course: 'SA', document: 'doc-1', pages: 512 }, 'en');
   assert.match(en, /study-custom/);
   assert.match(en, /512 pages/);
+});
+
+test('after the confirm the skill calls course.custom.apply once and reads out started / waiting / recorded; what apply now does is no longer said to be only recorded', () => {
+  const body = skill.content, after = body.slice(body.indexOf('## 确认之后'));
+  assert.ok(body.indexOf('course.custom.apply') > body.indexOf('## 问题 6'), 'apply comes after the confirm');
+  for (const word of ['started', 'waiting', 'recorded', 'confirm', '只调用一次']) assert.ok(after.includes(word), `the skill says ${word}`);
+  const only = body.slice(body.indexOf('## 只记录'), body.indexOf('## 已有定制'));
+  for (const applied of ['只对选定章节出题', '按每周几章排的计划（备考计划需要考试日期）', '变式题（做错题时由应用自己准备）', '单独去掉某一部分'])
+    assert.ok(!only.includes(applied) && !body.includes(applied), `「${applied}」 is applied now, not only recorded`);
+  for (const stillRecorded of ['考试范围']) assert.ok(only.includes(stillRecorded), `「${stillRecorded}」 is still only recorded`);
+  assert.doesNotMatch(body, /`generate \{"sourceIds"/, 'the skill no longer starts the question runs by hand');
 });

@@ -19,6 +19,7 @@ import DailyPlan, { RelatedTasks } from '../DailyPlan.jsx';
 import Sources from '../Sources.jsx';
 import { keepBook } from '../book/model.js';
 import CrunchCard from '../book/CrunchCard.jsx';
+import WeeklyCard from '../book/WeeklyCard.jsx';
 import Manage from '../Manage.jsx';
 import Settings, { backupFileName } from '../Settings.jsx';
 import Generate from '../Generate.jsx';
@@ -104,6 +105,7 @@ function LibraryView() {
         {!linePage && pageAvailable(data, 'review') && hasOwnDeck(data) && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false} onBoard={() => nav.navigate('board')}
           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} />}
         {!linePage && pageAvailable(data, 'book') && <CrunchCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
+        {!linePage && pageAvailable(data, 'book') && <WeeklyCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
         <RecoveryBanner />
       </StudyMap>
     </>

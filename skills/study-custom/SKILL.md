@@ -50,11 +50,11 @@ whenToUse: The learner wants a big book customised — 「深度定制」「这�
 1. 要不要出题（要 / 不要）。不要就 `questions.make` 为假，跳过后面。
 2. 题型，多选：单选 `quiz` · 多选 `multi` · 填空 `cloze` · 问答 `open`。记忆卡 `flashcard`、判断题 `truefalse` 请他在「其他」里写。写进 `questions.kinds`。
 3. 多少题：精简 `lean` · 标准 `standard` · 完整 `full`（就是出题页的覆盖强度），每个选项后面写预览里的大约题数（`estimate.questions.count`），写进 `questions.strength`。
-4. 做错的题要不要准备变式题（要 / 不要），写进 `questions.variants`。
+4. 做错的题要不要准备变式题（要 / 不要），写进 `questions.variants`。只管这门课：要，这门课做错的题自动准备；不要，不自动准备。
 
 ## 问题 5：要不要学习计划
 
-选项：按考试日期排（`"by": "exam"`）· 按每周几章排（`"by": "weekly"`）· 不要计划。选了前两个再问每天多少分钟（30 / 60 / 120，或他自己写），按每周几章的再问每周几章（1 / 2 / 3，或自己写），写进 `plan.minutesPerDay` 和 `plan.chaptersPerWeek`。
+选项：按考试日期排（`"by": "exam"`，要先有考试日期）· 按每周几章排（`"by": "weekly"`，不需要考试日期）· 不要计划。选了前两个再问每天多少分钟（30 / 60 / 120，或他自己写），按每周几章的再问每周几章（1 / 2 / 3，或自己写），写进 `plan.minutesPerDay` 和 `plan.chaptersPerWeek`。
 
 ## 问题 6：确认
 
@@ -64,19 +64,27 @@ whenToUse: The learner wants a big book customised — 「深度定制」「这�
 - 直接全部做：`sampleFirst` 为假。
 - 再精简一些：回到问题 3–4，问他想去掉书的哪些部分、或者少出一点题，然后重新总结、再确认。
 
-## 确认之后：存，再开始第一步
+## 确认之后：存，再开始
 
 1. 存：`course.save {"name": "<课程>", "custom": {…整份方案…}}`，整份方案发回去（先 `course.get`，已有的字段保留）；`custom` 为 `null` 是删除，只在他明确要删时才用。
-2. 开始第一步，用现有的功能：
-   - 总纲：`generation.courseOutline.build {"course": "<课程>"}`（后台任务）。要按章写书，必须先有当前的总纲。预览的 `skeleton.basis` 是 `outline` 时，章节 id 就是总纲的顶层章节 id，直接用；是 `documents` 时（还没有总纲），总纲建好后用 `course.outline {"course": "<课程>"}` 看顶层章节，按标题和页范围把 `scope.chapters` 对到总纲的章节 id，对不上的章节明说，不要硬配。
-   - 复习全书：`generation.courseBook.build {"course": "<课程>", "coverage": "<book.coverage>", "chapters": [<章节 id>]}`；先 `estimate: true` 读一次规模（不调用模型）。样例先行就用默认的 `sample`（知识点多时先写两个就停下，等他看过），他说好了再 `sample: "confirm"` 写完；直接全部做用 `sample: "skip"`。选了术语卡和易混概念的，书写完之后再 `cards: true`（也先 `estimate: true`），书还没写完就说它在等。
-   - 题：`source.list {"course": "<课程>"}` 找资料，再 `generate {"sourceIds": […], "kind": "<题型>", "coverageLevel": "<questions.strength>"}`（多个题型就每个题型一次）；样例先行时加 `autoComplete: false`，只做第一轮。
-   - 备考计划：选了按考试日期的，按 `library.context {"area":"plan"}` 里的做法和他一起用 `course.plan {"course": "<课程>"}` 起草，他同意之后才用 `course.save` 的 `plan` 存；课程没有考试日期就先问。
-3. 任务都是后台的：`job.status {}` 看一次，不循环等待，不承诺「过会儿我来告诉你」；你只能在他再来的时候查。
+2. 开始：**只调用一次** `course.custom.apply {"course": "<课程>"}`。它按存下的方案，用现有的后台任务依次做：复习全书、题、备考计划；不用你自己去调 `generation.courseBook.build` 或 `generate`，也不要重复调用。把返回里的几组用一两句话念给他听，每一项的 `what` 就是现成的白话：
+   - `started`：已经开始的（复习全书、每一组章节的题，每组一个任务，还有备考计划存好了）。带 `jobId` 的是后台任务。
+   - `waiting`：没有开始，和为什么（没有模型、样例在等他看、章节编号找不到了、构建拒绝了、一次最多开 12 组题、按考试日期的计划缺考试日期）。每一项都说清楚现在要他做什么。
+   - `recorded`：只记在定制方案里、现在没有功能做的（见下面「只记录」），**不要说已经做了**。
+   - `done`：本来就已经做好的、或已经生效的（写好的书、做过的题、存好的计划、变式题的开关）。
+3. 样例先行（`sampleFirst`）的方案：复习全书先写两个知识点，题先做第一组的第一轮，其余在 `waiting` 里等。他看完样例说「做完」，再调用一次 `course.custom.apply {"course": "<课程>", "confirm": true}`，写完整本、做完所有组的题。没说之前不要自己加 `confirm`。
+4. 还没有总纲、`waiting` 里说「要先有最新的总纲」时：先 `generation.courseOutline.build {"course": "<课程>"}`（后台任务，只清点资料、排章节），建好后用 `course.outline {"course": "<课程>"}` 看顶层章节，按标题和页范围把 `scope.chapters` 对到总纲的章节 id（对不上的章节明说，不要硬配），`course.save` 存回去，再调用 `course.custom.apply` 一次。预览的 `skeleton.basis` 是 `outline` 时，章节 id 本来就是总纲的，不用对。
+5. 选了术语卡和易混概念的：书写完之后再 `generation.courseBook.build {"course": "<课程>", "cards": true}`（先 `estimate: true` 读一次规模），书还没写完就说它在等。
+6. 备考计划：按每周几章排的，`course.custom.apply` 已经存好，不需要考试日期，复习全书写好后才有具体到天的排期；按考试日期排的，`apply` 只存一份最小的（开始日期、每天分钟数），课程没有考试日期就在 `waiting` 里说，请他在课程设置里填，再调用一次。想要阶段、模拟卷日子这样的细节，按 `library.context {"area":"plan"}` 里的做法和他一起用 `course.plan {"course": "<课程>"}` 起草，他同意之后才用 `course.save` 的 `plan` 存（这门课已有计划时 `apply` 不会改它）。
+7. 任务都是后台的：`job.status {}` 看一次，不循环等待，不承诺「过会儿我来告诉你」；你只能在他再来的时候查。
 
-## 现有功能做不到的
+## 题是怎么限定的
 
-- 只记在定制方案里、现在没有对应功能的选择：复习全书里单独去掉某一部分（构建不能单独省略；答题模板在有往年卷时总会写）、公式页/索引/速查表（它们是书写好之后的视图，有内容才出现）、变式题（做错题时由应用自己准备）、只对选定章节出题（`generate` 现在只按资料）、按每周几章排的计划（备考计划需要考试日期）。
+`course.custom.apply` 出题时，只读选中章节的页（按总纲的章或按资料的章），只出方案里选的题型（一次混合，不是每个题型各一次），强度就是方案里的覆盖强度。一个任务最多出 500 题，所以大书不再被截在 500：章节按顺序分组，每组一个任务，一个章节自己超过上限就按它的页切成几组。资料里一段没有分页的文字里的章节只能整段读，`apply` 会照实说没有切开。变式题的开关只管这门课：开，这门课做错的题自动准备变式题；关，不自动准备（他自己在错题本里要的不受影响）。
+
+## 只记录
+
+- `apply` 的 `recorded` 里的选择，现在没有功能做：考试范围（`scope.kind` 为 `exam`，只能整门课做）。复习全书的部分现在照方案做：没勾的部分不生成，书页上也不出现（公式页/索引/速查表是书写好之后的视图，有内容才出现）。
 - 这些选择照样存进方案，但**不要说已经做了**。结束时分两句说清楚：已经开始做的是什么，方案里记着但现在还做不到的是什么。
 
 ## 已有定制
@@ -85,7 +93,7 @@ whenToUse: The learner wants a big book customised — 「深度定制」「这�
 
 1. 用一句话把它说给学习者听（用途、范围、书的部分、题、计划）。
 2. 问一个问题：什么变了？选项：用途变了 · 加了新资料 · 想增减章节 · 别的。
-3. 只问和变化有关的问题，重读预览，确认，存，只做新增的部分（新增的章节用 `chapters` 只写新增的）。
+3. 只问和变化有关的问题，重读预览，确认，存，再调用一次 `course.custom.apply`：已经做过、正在做的不会重做，只做新增的部分。
 
 ## 边界
 
