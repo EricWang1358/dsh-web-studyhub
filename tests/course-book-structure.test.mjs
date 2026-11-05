@@ -548,8 +548,8 @@ test('the actions are registered with input schemas, write the sources, and are 
   // Short: the library context's listing must stay under what the host shows of a tool result (8 192 characters). It was 9 979 before source.courses.set
   // got its schema (#465, +216) and 10 195 with it; leaving out the fields at their default (empty description and output, requiresModel false, available true) made it 6 268.
   const listing = JSON.stringify(filterCapabilities(capabilities, { context: 'library' }));
-  // 6 400 until course.focusProgress (#690, +85: its name and open input schema) made it 6 481, and course.custom.preview (4.4, +87) 6 568; the host shows 8 192.
-  assert.ok(listing.length < 6_700, `study_capabilities {context: 'library'} is ${listing.length} characters`);
+  // 6 400 until course.focusProgress (#690, +85: its name and open input schema) made it 6 481, and course.custom.preview (4.4, +87) 6 568, course.custom.readiness and course.custom.fill (4.4 S5, +173) 6 741; the host shows 8 192.
+  assert.ok(listing.length < 6_900, `study_capabilities {context: 'library'} is ${listing.length} characters`);
   for (const operation of ['course.book.save', 'course.book.rename', 'course.book.move', 'course.book.delete', 'book.write'])
     assert.ok(JSON.stringify(filterCapabilities(capabilities, { operation }).contexts[0].operations[0]).length < 450, operation);
   for (const text of ['course.book.rename {course?,hid,title,version}', 'course.book.move {course?,hid,toParent?,afterHid?,beforeHid?,version}', 'course.book.delete {course?,hid,children?:promote|toUnplaced,version}', "book.write {course?,hid,file?,op:insert"])
