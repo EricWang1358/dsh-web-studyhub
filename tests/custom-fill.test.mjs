@@ -34,7 +34,7 @@ test('estimate: true says what would start and the rough calls, and starts nothi
   assert.deepEqual({ cards: answer.variants.cards, points: answer.variants.points }, { cards: 1, points: 1 }, 'one weak question');
   assert.ok(answer.questions.calls.high >= answer.questions.calls.low && answer.questions.calls.low > 0, 'the question run priced as the generate form prices it');
   assert.deepEqual(answer.variants.calls, { low: 1, high: 1 });
-  assert.ok(answer.book.calls.low > 0, 'the build's own estimate');
+  assert.ok(answer.book.calls.low > 0, 'the estimate of the build itself');
   assert.equal(answer.calls.low, answer.book.calls.low + answer.questions.calls.low + 1, 'the sum of what is known');
   assert.equal(answer.started, undefined);
   assert.equal(w.jobs().length, 0, 'nothing was started');
