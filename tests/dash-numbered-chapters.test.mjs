@@ -5,6 +5,7 @@ import { parseConvertedDocument } from '../lib/converted-document.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { snapshotSources } from '../lib/source-query.js';
 import { courseSkeleton } from '../lib/custom-skeleton.js';
+import { coverageForDocument } from '../lib/coverage-state.js';
 
 /* Owner report 2026-11-06: a 513-page translated textbook converted with local MinerU came out as 64 "chapters", 47 of them one page, and three 附录 headings
    swallowing pages 81-513. Its chapter titles carry no 第N章: each chapter is "<title>", then 本章要点, then sections numbered N—M (em dash; also N-M, N–M,
@@ -113,6 +114,9 @@ test('a book imported before the fix reads with its real chapters, without conve
   // The 深度定制 interview offers the real chapters.
   const skeleton = courseSkeleton({ sources, documents, decks: [], drafts: [], courses: [] }, '经济学');
   assert.deepEqual(skeleton.documents[0].chapters.map(chapter => [chapter.title, ...chapter.pages]), CHAPTERS);
+  // The book's coverage rolls up by the same chapters (front matter is no chapter group).
+  const coverage = coverageForDocument({ sources, documents, decks: [], drafts: [] }, { documentId: DOCUMENT_ID }).coverage;
+  assert.deepEqual(coverage.groups.filter(group => group.kind === 'chapter').map(group => group.title), CHAPTERS.map(row => row[0]));
 });
 
 test('a book imported with this rule keeps the chapters it was stored with; part of an old book is not re-chaptered on its own', () => {
