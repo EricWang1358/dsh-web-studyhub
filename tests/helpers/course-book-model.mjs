@@ -18,21 +18,23 @@ export const INVENTED = 'This sentence is not written in any of the materials at
 /** The first words of a text, cut at a word: what a model copies as a quote. */
 const opening = text => { const words = text.replace(/\s+/g, ' ').trim().split(' '); let quote = ''; for (const word of words) { if ((`${quote} ${word}`).length > 60) break; quote = `${quote} ${word}`.trim(); } return quote; };
 
-/** The 术语卡 of a section (#710): one per must item it explains, its initials as the other name, related to the next item and opposite a concept outside the list. */
-const cardsOf = items => items.filter(item => item.priority === 'must').map((item, at, list) => ({ item: item.id, name: item.name,
+/** The 术语卡 of a section (#710): one per must item it explains, its initials as the other name, related to the next item and opposite a concept outside the list.
+    `pairs` (#710 S3): the items also pair up (0-1, 2-3 …), the first opposite the second and the second parallel to the first, so each pair is said from both sides. */
+const cardsOf = (items, { pairs = false } = {}) => items.filter(item => item.priority === 'must').map((item, at, list) => ({ item: item.id, name: item.name,
   alt: item.name.split(/\s+/).map(word => word[0]).join('').toUpperCase(), plain: `${item.name} in one plain sentence: ${item.gist || 'what it means'}.`,
   pitch: `${item.name} is defined in the course as ${item.gist || 'a key idea'}.`,
-  relations: [...(list[at + 1] ? [{ kind: 'related', item: list[at + 1].id }] : []), { kind: 'opposite', name: `Not ${item.name}` }] }));
+  relations: [...(list[at + 1] ? [{ kind: 'related', item: list[at + 1].id }] : []), { kind: 'opposite', name: `Not ${item.name}` },
+    ...(pairs && list[at ^ 1] ? [{ kind: at % 2 ? 'parallel' : 'opposite', item: list[at ^ 1].id }] : [])] }));
 
 /** A section that explains the given checklist items, with a lead-in and a lead-on, a mark on the first statement and its quote. */
-function section(data, items, { invent, cards = true }) {
+function section(data, items, { invent, cards = true, pairs = false }) {
   const point = data.point, lines = [];
   if (point.before) lines.push(`After ${point.before} comes ${point.title}.`);
   lines.push(`${point.title}, explained for a beginner with $x^2$ [1].${invent ? ' A claim that rests on nothing [2].' : ''}`);
   for (const item of items) lines.push(`**${item.name}**: ${item.gist || 'what it means'}; this is how it is used.`);
   lines.push('A general intuition the materials do not give （资料以外）.');
   if (point.after) lines.push(`That leads on to ${point.after}.`);
-  return { text: lines.join('\n\n'), covered: items.map(item => ({ id: item.id, where: item.name })), ...(cards ? { cards: cardsOf(items) } : {}),
+  return { text: lines.join('\n\n'), covered: items.map(item => ({ id: item.id, where: item.name })), ...(cards ? { cards: cardsOf(items, { pairs }) } : {}),
     quotes: [{ n: 1, ref: 'S1', quote: opening(data.pages[0]?.text ?? '') }, ...(invent ? [{ n: 2, ref: 'S1', quote: INVENTED }] : [])] };
 }
 
@@ -45,11 +47,20 @@ function review(data, { unsupported = [] }) {
 
 /** The card pass (#710 S6): a card for every listed item of every point, from its name and gist, related to the next item of the request (the first item of
     the next point when it is a point's last). */
-const cardPassAnswer = data => {
+const cardPassAnswer = (data, { pairs = false } = {}) => {
   const items = data.points.flatMap(point => point.checklist);
   return { cards: items.map((item, at) => ({ item: item.id, name: item.name, plain: `${item.name}: ${item.gist || 'what it means'}.`,
-    pitch: `${item.name} is ${item.gist || 'a key idea'}.`, relations: items[at + 1] ? [{ kind: 'related', item: items[at + 1].id }] : [] })) };
+    pitch: `${item.name} is ${item.gist || 'a key idea'}.`, relations: [...(items[at + 1] ? [{ kind: 'related', item: items[at + 1].id }] : []),
+      ...(pairs && items[at ^ 1] ? [{ kind: at % 2 ? 'parallel' : 'opposite', item: items[at ^ 1].id }] : [])] })) };
 };
+
+/** The confusable pairs (#710 S3): the four rows for every pair, one with an aspect nobody asked, plus a pair that was never asked (the program drops both). */
+const confusablesAnswer = data => ({ pairs: [...data.pairs.map(pair => ({ id: pair.id, rows: [
+  { aspect: 'what', a: `${pair.a.name} is what it says`, b: `${pair.b.name} is what it says` },
+  { aspect: 'when', a: `Use ${pair.a.name} first`, b: `Use ${pair.b.name} after` },
+  { aspect: 'difference', a: `${pair.a.name} differs`, b: `${pair.b.name} differs` },
+  { aspect: 'mistake', a: `${pair.a.name} taken for ${pair.b.name}`, b: `${pair.b.name} taken for ${pair.a.name}` },
+  { aspect: 'bogus', a: 'x', b: 'y' }] })), { id: 'p99', rows: [{ aspect: 'what', a: 'a pair that was never asked', b: 'y' }] }] });
 
 const examAnswer = data => ({ leaves: data.leaves.map(leaf => ({ id: leaf.id, note: `Asked as: ${String(leaf.questions[0] ?? '').slice(0, 40)}` })) });
 /** The exam answer kit (#710 S4): per type a name, its question's first two words as trigger words plus one the papers do not hold, a template with slots, and a
@@ -63,18 +74,19 @@ const kitAnswer = data => ({ types: data.types.map(type => ({ id: type.id, name:
 /**
  * The fake model. Outline options as outlineModel; `invent`: each section also cites a quote that is in no material; `skip`: point titles the writer answers
  * with no text (the point fails); `omit`: how many must items the writer leaves out of each section; `stubborn`: point titles whose repair leaves them out
- * again (the point ends short); `cards`: the writer also returns 术语卡 (default; false: a writer that returns none); `unsupported`: point titles the reviewer always finds an unsupported claim in; `renameMap`: the outline's order gives every
+ * again (the point ends short); `cards`: the writer also returns 术语卡 (default; false: a writer that returns none); `pairs`: the cards also name an opposite or parallel
+ * partner (#710 S3, so the build compares them); `unsupported`: point titles the reviewer always finds an unsupported claim in; `renameMap`: the outline's order gives every
  * leaf a new title; `junk(call, calls)`; `held`: { at | stage, gate }; `fail(call, calls)`: throw.
  */
-export function bookModel({ invent = false, skip = [], omit = 0, stubborn = [], unsupported = [], renameMap = false, cards = true, junk, held, fail, ...outline } = {}) {
-  const base = outlineModel(outline), calls = [], opts = { invent, skip, omit, stubborn, unsupported, renameMap, cards };
+export function bookModel({ invent = false, skip = [], omit = 0, stubborn = [], unsupported = [], renameMap = false, cards = true, pairs = false, junk, held, fail, ...outline } = {}) {
+  const base = outlineModel(outline), calls = [], opts = { invent, skip, omit, stubborn, unsupported, renameMap, cards, pairs };
   const complete = async (system, prompt, request) => {
     const data = requestData(prompt), call = { stage: data.stage, data, request, system, prompt };
     calls.push(call);
     if (held && (held.stage ? call.stage === held.stage && !held.taken && (held.taken = true) : calls.length === held.at)) await held.gate.promise;
     if (fail?.(call, calls)) throw new Error('provider down');
     if (junk?.(call, calls)) { reportUsage({ uncachedInputTokens: 10, outputTokens: 3, cacheReadTokens: 0, cacheWriteTokens: 0 }); return 'Not JSON at all.'; }
-    if (['write', 'review', 'repair', 'place', 'exam', 'kit', 'cards'].includes(data.stage)) {
+    if (['write', 'review', 'repair', 'place', 'exam', 'kit', 'cards', 'confusables'].includes(data.stage)) {
       reportUsage({ uncachedInputTokens: 100, outputTokens: 60, cacheReadTokens: 0, cacheWriteTokens: 0 });
       const must = (data.checklist || []).filter(item => item.priority === 'must'), all = data.checklist || [];
       if (data.stage === 'write') {
@@ -85,9 +97,10 @@ export function bookModel({ invent = false, skip = [], omit = 0, stubborn = [], 
       if (data.stage === 'review') return JSON.stringify(review(data, opts));
       if (data.stage === 'repair') {
         const keep = opts.stubborn.includes(data.point.title) ? all.filter(item => !data.missing.includes(item.id)) : all;
-        return JSON.stringify(section(data, keep, { invent: false, cards: opts.cards }));
+        return JSON.stringify(section(data, keep, { invent: false, cards: opts.cards, pairs: opts.pairs }));
       }
-      if (data.stage === 'cards') return JSON.stringify(cardPassAnswer(data));
+      if (data.stage === 'cards') return JSON.stringify(cardPassAnswer(data, opts));
+      if (data.stage === 'confusables') return JSON.stringify(confusablesAnswer(data));
       if (data.stage === 'place') return JSON.stringify({ places: data.items.map(item => ({ item: item.id, point: 'k1' })) });
       if (data.stage === 'kit') return JSON.stringify(kitAnswer(data));
       return JSON.stringify(examAnswer(data));
