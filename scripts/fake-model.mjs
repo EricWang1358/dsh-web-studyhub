@@ -138,6 +138,10 @@ const COPY = {
     open: (n, topic, quote) => `（第 ${n} 题）结合一个例子，说明「${clip(quote, 30)}」在「${topic}」中为什么重要。`,
     openAnswer: (quote) => `参考答案：${quote}`,
     rubric: "说出作用 1 分；说出成立条件 1 分；举出恰当例子 1 分。",
+    trueStatement: (n, topic, quote) => `（第 ${n} 题）在「${topic}」中，「${clip(quote, 36)}」说明的是这条要点本身的作用和成立条件。`,
+    falseStatement: (n, topic, quote) => `（第 ${n} 题）在「${topic}」中，「${clip(quote, 36)}」说明的其实是另一个相邻概念的职责。`,
+    trueWhy: "原句直接说明了这一点，所以说法成立。", falseWhy: "原句讲的是这条要点本身，不是相邻概念；正确说法是：它说明了这条要点的作用和成立条件。",
+    verdicts: ["对", "错"], verdictAnswer: (truth) => (truth ? "对。" : "错。正确说法：这句话说明了这条要点本身的作用和成立条件。"),
     title: (topic) => `${topic} · 预览题组`,
   },
   en: {
@@ -153,6 +157,11 @@ const COPY = {
     open: (n, topic, quote) => `(Q${n}) Using an example, explain why “${clip(quote, 50)}” matters for ${topic}.`,
     openAnswer: (quote) => `Reference answer: ${quote}`,
     rubric: "1 point for the role; 1 point for the condition; 1 point for a fitting example.",
+    trueStatement: (n, topic, quote) => `(Q${n}) In ${topic}, “${clip(quote, 60)}” states the role of the idea itself and when it holds.`,
+    falseStatement: (n, topic, quote) => `(Q${n}) In ${topic}, “${clip(quote, 60)}” actually describes the job of a neighbouring concept.`,
+    trueWhy: "The statement says exactly this, so it is true.",
+    falseWhy: "The statement is about the idea itself, not a neighbouring concept; the true statement: it gives the idea's role and when it holds.",
+    verdicts: ["True", "False"], verdictAnswer: (truth) => (truth ? "True." : "False. The true statement: it gives the idea's role and when it holds."),
     title: (topic) => `${topic} · preview deck`,
   },
 };
@@ -197,6 +206,14 @@ function authorDeck(request) {
         return { ...common, prompt: text, answer: blank.value, cloze: { text, answers: [{ id: "b1", value: blank.value, accept: [] }] } };
       }
     }
+    // 判断题: true and false statements take turns, so a batch is balanced.
+    if (kind === "truefalse") {
+      const truth = n % 2 === 1;
+      return { ...common, prompt: (truth ? copy.trueStatement : copy.falseStatement)(n, topic, quote), answer: copy.verdictAnswer(truth),
+        explanation: `${copy.explanation(topic, quote)} ${truth ? copy.trueWhy : copy.falseWhy}`,
+        options: [{ id: "true", text: copy.verdicts[0], correct: truth, explanation: truth ? copy.trueWhy : copy.falseWhy },
+          { id: "false", text: copy.verdicts[1], correct: !truth, explanation: truth ? copy.wrong : copy.falseWhy }] };
+    }
     // quiz and multi: four options, the correct ones rotated so the answer is not always A.
     const multi = kind === "multi";
     const texts = [copy.options[0], multi ? copy.options[1] : copy.wrongSecond, copy.options[2], copy.options[3]];
@@ -216,7 +233,7 @@ function authorDeck(request) {
 function editorReview(candidate) {
   return { issues: [], summary: "Preview fixture review", checks: (candidate?.cards || []).map((card) => ({
     cardId: card.id, selfContained: "pass", answerLeak: "pass",
-    optionQuality: ["quiz", "multi"].includes(card.kind) ? "pass" : "na",
+    optionQuality: ["quiz", "multi", "truefalse"].includes(card.kind) ? "pass" : "na",
     learningValue: "pass", sourceSupport: "pass", explanationQuality: "pass",
     explanation: "Preview fixture accepted this card; no real model judgment was made.",
   })) };
@@ -227,6 +244,7 @@ function answerBlueprint(request) {
   return { items: cards.map(card => ({ targetId: card.targetId, answer: card.answer, reasoning: card.explanation,
     scenario: { kind: 'none', facts: [], decisiveConditions: [] }, comparisonAxis: 'The specific role and condition of the quoted statement',
     ...(card.options ? { options: card.options } : {}), ...(card.rubric ? { rubric: card.rubric } : {}),
+    ...(card.kind === "truefalse" ? { statement: card.prompt } : {}),
     ...(card.cloze ? { cloze: card.cloze } : {}) })) };
 }
 

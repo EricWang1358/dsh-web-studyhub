@@ -1,11 +1,13 @@
 import { ui } from "./i18n.js";
 import React from "react";
+import { fixedOptionLabel, optionMark } from "./option-label.js";
 
-export default function ChoiceFeedback({ options, feedback, solution, multiple }) {
+export default function ChoiceFeedback({ card, options, feedback, solution, multiple }) {
   if (!feedback || !solution?.options) return null;
   const picked = new Set(feedback.selected || []);
   const correct = new Set(solution.options.filter((o) => o.correct).map((o) => o.id));
-  const letters = (matches) => options.flatMap((o, i) => matches(o.id) ? [String.fromCharCode(65 + i)] : []).join("");
+  // A 判断题 answers in words (对 / 错), every other choice in letters.
+  const letters = (matches) => options.flatMap((o, i) => matches(o.id) ? [fixedOptionLabel(card, o) ?? optionMark(card, o, i)] : []).join("");
   const yours = letters((id) => picked.has(id));
   const expected = letters((id) => correct.has(id));
   // 漏选/错选 only make sense when several options can be right.

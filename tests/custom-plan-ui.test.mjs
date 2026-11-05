@@ -46,6 +46,7 @@ test('what is off is said as off; every kind is said as "各种题型"; the kind
   assert.match(say({ ...custom, questions: { ...custom.questions, kinds: ['quiz', 'multi', 'cloze'] } }), / · 选择和填空 · /);
   assert.match(say({ ...custom, questions: { ...custom.questions, kinds: ['quiz', 'flashcard', 'open'] } }), / · 选择、闪卡和开放问答 · /);
   assert.match(say({ ...custom, questions: { ...custom.questions, kinds: ['open'] } }), / · 开放问答 · /);
+  assert.match(say({ ...custom, questions: { ...custom.questions, kinds: ['quiz', 'truefalse'] } }), / · 选择和判断 · /);
   assert.match(say(mine('openbook', { book: { make: true, coverage: 'brief', parts: ['answerKit'] } })), / · 答题模板 · /, 'no explanation, no 讲解 word');
 });
 

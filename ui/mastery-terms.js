@@ -52,7 +52,7 @@ export const THIN_DATA = "数据不足";
 export const MEASURES = Object.freeze({
   mastery: TERMS.mastery,
   passRate: { label: "达标率" },
-  gradedRate: { label: "客观题通过率", hint: "近 30 天单选、多选、填空及考试的自动判分，不含本轮队尾重练" },
+  gradedRate: { label: "客观题通过率", hint: "近 30 天单选、多选、判断、填空及考试的自动判分，不含本轮队尾重练" },
   selfRate: { label: "自评达标率", hint: "近 30 天闪卡和开放问答的掌握程度自评，3 分及以上算达标" },
   roundGraded: { label: "客观题答对" },
   roundSelf: { label: "自评达标" },

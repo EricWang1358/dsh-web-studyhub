@@ -30,6 +30,8 @@ import { canStopWork, holdLine, stopLabel } from './draft-publish.js';
 import { topUpArgs, topUpNotice } from './coverage/top-up.js';
 import DeleteDraftDialog from './DeleteDraftDialog.jsx';
 import DraftBar from './DraftBar.jsx';
+import { fixedOptionsOf, hasOptions, kindOf, oneAnswer } from "../lib/card-kinds.js";
+import { fixedOptionLabel } from "./option-label.js";
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
    发布需先保存再 draft.publish（draftVersion 乐观锁）。blankCard /
@@ -319,21 +321,22 @@ export default function Draft({
                   <label className="inline">
                     <input
                       className="edit-option__choice"
-                      type={q.kind === "quiz" ? "radio" : "checkbox"}
-                      name={q.kind === "quiz" ? `correct-${q.id}` : undefined}
+                      type={oneAnswer(q.kind) ? "radio" : "checkbox"}
+                      name={oneAnswer(q.kind) ? `correct-${q.id}` : undefined}
                       checked={o.correct}
                       onChange={(e) =>
                         patchCard(
                           i,
                           "options",
                           q.options.map((x, j) =>
-                            ({ ...x, correct: q.kind === "quiz"
+                            ({ ...x, correct: oneAnswer(q.kind)
                               ? j === oi : j === oi ? e.target.checked : x.correct }),
                           ),
                         )
                       }
-                    />{ui("正确选项")}</label>
-                  <input
+                    />{fixedOptionLabel(q, o) ? uiFormat("正确答案是「{0}」", [fixedOptionLabel(q, o)]) : ui("正确选项")}</label>
+                  {/* A 判断题's two options are fixed (对 / 错): only their explanations are written. */}
+                  {!fixedOptionLabel(q, o) && <input
                     className="edit-option__field"
                     aria-label={uiFormat("选项 {0}", [o.id])}
                     value={o.text}
@@ -348,7 +351,7 @@ export default function Draft({
                         ),
                       )
                     }
-                  />
+                  />}
                   <textarea
                     className="edit-option__field"
                     aria-label={uiFormat("选项解析 {0}", [o.id])}
@@ -365,12 +368,12 @@ export default function Draft({
                       )
                     }
                   />
-                  <Button variant="danger"
-                    onClick={() => patchCard(i, "options", q.options.filter((_, index) => index !== oi))}>{ui("删除这个选项")}</Button>
+                  {!fixedOptionsOf(q.kind) && <Button variant="danger"
+                    onClick={() => patchCard(i, "options", q.options.filter((_, index) => index !== oi))}>{ui("删除这个选项")}</Button>}
                 </div>
               ))}
-              {["quiz", "multi"].includes(q.kind) && <Button icon="plus"
-                disabled={(q.options?.length || 0) >= 6}
+              {hasOptions(q.kind) && !fixedOptionsOf(q.kind) && <Button icon="plus"
+                disabled={(q.options?.length || 0) >= kindOf(q.kind).options.max}
                 onClick={() => patchCard(i, "options", [...(q.options || []),
                   { id: crypto.randomUUID(), text: "", correct: false, explanation: "" }])}>{uiFormat("添加选项（{0}/6）", [q.options?.length || 0])}
               </Button>}

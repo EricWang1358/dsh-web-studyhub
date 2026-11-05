@@ -144,7 +144,7 @@ test('every refusal says in plain Chinese what to change, and nothing is half-sa
   refuses({ ...ok, questions: 'all' }, /出题的设置格式不对/);
   refuses({ ...ok, questions: { ...ok.questions, make: 1 } }, /出题的 make 需为 true 或 false/);
   refuses({ ...ok, questions: { ...ok.questions, kinds: [] } }, /出题至少要选一种题型/);
-  refuses({ ...ok, questions: { ...ok.questions, kinds: ['essay'] } }, /题型只能是 quiz、multi、flashcard、open、cloze/);
+  refuses({ ...ok, questions: { ...ok.questions, kinds: ['essay'] } }, /题型只能是 quiz、multi、truefalse、flashcard、open、cloze/);
   refuses({ ...ok, questions: { ...ok.questions, kinds: 'quiz' } }, /题型需为列表/);
   refuses({ ...ok, questions: { ...ok.questions, strength: 'heavy' } }, /覆盖强度需为 lean、standard 或 full/);
   refuses({ ...ok, questions: { ...ok.questions, variants: 'yes' } }, /variants 需为 true 或 false/);

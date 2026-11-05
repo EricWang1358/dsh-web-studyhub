@@ -1,11 +1,12 @@
 import { authorPrompts, salvageAuthoredCards } from '../../lib/generation.js';
 import { requestData } from './request-data.mjs';
+import { hasOptions } from '../../lib/card-kinds.js';
 
 // Fixture adapter for evidence, concrete answers, author and independent review calls.
 // Changed cards require a fresh review; unchanged cards retain their receipt.
 export function qualityReview(deck, issues = []) {
   return { issues, summary: "Reviewed fixture", checks: (deck?.cards || []).map((card) => ({ cardId: card.id,
-    selfContained: "pass", answerLeak: "pass", optionQuality: ["quiz", "multi"].includes(card.kind) ? "pass" : "na",
+    selfContained: "pass", answerLeak: "pass", optionQuality: hasOptions(card.kind) ? "pass" : "na",
     learningValue: "pass", sourceSupport: "pass", explanationQuality: "pass", explanation: "The supplied evidence supports this distinct fixture question." })) };
 }
 export function qualityPlan(request) {
@@ -29,7 +30,8 @@ export function qualityBlueprint(request, plan, deck) {
     answer: card.answer || plan.targets[index].knowledge || plan.targets[index].answerBoundary,
     reasoning: card.explanation || 'The selected original statement supplies the rule and its scope.',
     scenario: { kind: 'none', facts: [], decisiveConditions: [] }, comparisonAxis: 'The supported scope of this rule',
-    ...(['quiz', 'multi'].includes(request.kind) ? { options: card.options } : {}),
+    ...(hasOptions(request.kind) ? { options: card.options } : {}),
+    ...(request.kind === 'truefalse' ? { statement: card.prompt } : {}),
     ...(request.kind === 'open' ? { rubric: card.rubric } : {}),
     ...(request.kind === 'cloze' ? { cloze: card.cloze } : {}),
   })) };

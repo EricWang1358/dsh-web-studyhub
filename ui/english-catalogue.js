@@ -78,6 +78,7 @@ import focusCopy from './locales/en.focus.json';
 import finderCopy from './locales/en.finder.json';
 import bookSampleCopy from './locales/en.book-sample.json';
 import bookPickCopy from './locales/en.book-pick.json';
+import trueFalseCopy from './locales/en.true-false.json';
 import customCopy from './locales/en.custom.json';
 import customPlanCopy from './locales/en.custom-plan.json';
 import appMessages from '../lib/application-messages-en.js';
@@ -156,6 +157,7 @@ export const ENGLISH_SOURCES = {
   'en.finder.json': finderCopy,
   'en.book-sample.json': bookSampleCopy,
   'en.book-pick.json': bookPickCopy,
+  'en.true-false.json': trueFalseCopy,
   'en.custom.json': customCopy,
   'en.custom-plan.json': customPlanCopy,
 };

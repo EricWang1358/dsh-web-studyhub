@@ -18,8 +18,8 @@ import { requestData } from './helpers/request-data.mjs';
 
 const source = { id: 's1', title: 'Notes', text: 'Architecture connects business goals to technical decisions through principles.\n'.repeat(40) };
 
-test('the five basic kinds, and how a legacy kind reads as a list and a list as a legacy kind', () => {
-  assert.deepEqual([...BASIC_KINDS], ['quiz', 'multi', 'flashcard', 'open', 'cloze']);
+test('the basic kinds, and how a legacy kind reads as a list and a list as a legacy kind', () => {
+  assert.deepEqual([...BASIC_KINDS], ['quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze']);
   assert.deepEqual(kindsOfLegacyKind('mixed'), ['quiz', 'flashcard']);
   assert.deepEqual(kindsOfLegacyKind('cloze'), ['cloze']);
   assert.equal(kindsOfLegacyKind('case'), null);
@@ -166,6 +166,8 @@ const cardOf = (kind, target, index) => ({ id: `${kind}-${index + 1}`, targetId:
   answer: 'Principles connect goals to decisions', hint: 'Think about stakeholders', explanation: 'Design choices must serve business goals', misconception: 'Choosing technology first',
   citations: target.citations,
   ...(kind === 'quiz' || kind === 'multi' ? { options: ['a', 'b', 'c'].map(id => ({ id, text: `${id} option ${index}`, correct: kind === 'multi' ? id !== 'c' : id === 'a', explanation: `Reason ${id} for ${index}` })) } : {}),
+  ...(kind === 'truefalse' ? { prompt: `Architecture connects business goals to technical decisions, as ${target.objective} says.`,
+    options: [{ id: 'a', text: '正确', correct: index % 2 === 0, explanation: `Why true or not ${index}` }, { id: 'b', text: '错误', correct: index % 2 === 1, explanation: `Why false or not ${index}` }] } : {}),
   ...(kind === 'open' ? { rubric: 'Full credit for linking business goals to technical decisions; half for naming only one side.' } : {}),
   ...(kind === 'cloze' ? { cloze: { text: `Architecture connects business goals to {{b1}} decisions, as ${target.objective} asks.`, answers: [{ id: 'b1', value: 'technical' }] } } : {}) });
 function kindModel() {
@@ -196,9 +198,14 @@ test('a run of several kinds writes each chosen kind with its own authoring, in 
   assert.ok(result.cards.filter(card => card.kind === 'open').every(card => card.rubric), 'an open card keeps its rubric');
 });
 
-test('a run of all five kinds, and a run of a single kind that is written exactly as before', async () => {
-  const all = await generateBatched(kindModel().complete, { sources: [source], count: 10, kind: 'quiz', kinds: [...BASIC_KINDS], performance: { concurrency: 2, batchSize: 5, fillRounds: 0 } });
+test('a run of all the kinds, and a run of a single kind that is written exactly as before', async () => {
+  const all = await generateBatched(kindModel().complete, { sources: [source], count: 2 * BASIC_KINDS.length, kind: 'quiz', kinds: [...BASIC_KINDS],
+    performance: { concurrency: 2, batchSize: 5, fillRounds: 0 } });
   for (const kind of BASIC_KINDS) assert.equal(all.cards.filter(card => card.kind === kind).length, 2, kind);
+  for (const card of all.cards.filter(card => card.kind === 'truefalse')) {
+    assert.deepEqual(card.options.map(option => [option.id, option.text]), [['true', 'True'], ['false', 'False']], 'a 判断题 keeps its two fixed options');
+    assert.match(card.prompt, /^Architecture connects business goals/, 'its stem is the statement of the answer stage');
+  }
   const single = await generateBatched(kindModel().complete, { sources: [source], count: 3, kind: 'multi', performance: { concurrency: 2, batchSize: 5, fillRounds: 0 } });
   assert.deepEqual(single.cards.map(card => card.kind), ['multi', 'multi', 'multi']);
   assert.equal(single.editorial.generation.kind, 'multi');

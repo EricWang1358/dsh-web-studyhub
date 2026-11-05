@@ -45,7 +45,7 @@ const generateTip = () => tip(uiFormat('为错题改写新的变式题：每道�
 /** What each kind of low outcome means: the chips and the row marks say it in the same words. */
 function statusTip(kind) {
   switch (kind) {
-    case 'graded': return tip(ui('答错：单选、多选、填空由系统判分，最近一次得分低于 3 分。'), ui('再答对一次，它会移到「已订正」，记录仍保留。'));
+    case 'graded': return tip(ui('答错：单选、多选、判断、填空由系统判分，最近一次得分低于 3 分。'), ui('再答对一次，它会移到「已订正」，记录仍保留。'));
     case 'oral': return tip(ui('最近一次口头 AI 评估：需要巩固'));
     case 'rubric': return tip(ui('最近一次按评分标准批改：得分不足六成'));
     default: return tip(ui('未掌握：闪卡和开放题由你自评，最近一次自评低于 3 分。'), ui('自评到 3 分以上，它会移到「已订正」，记录仍保留。'));

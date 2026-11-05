@@ -1,5 +1,6 @@
 import { uiLabels } from "./i18n.js";
 import { useComponentCss } from "./components/css.js";
+import { CARD_KIND_LIST } from "../lib/card-kinds.js";
 
 /* Shared UI helpers: one-off stylesheet injection and copy used by several
    views. Kept dependency-free so any view can import it cheaply. */
@@ -19,13 +20,8 @@ export const LEVEL_LABEL = uiLabels({
 });
 export const LEVELS = Object.keys(LEVEL_LABEL);
 
-export const kinds = uiLabels({
-  quiz: "单选测验",
-  multi: "多选测验",
-  flashcard: "闪卡",
-  open: "开放问答",
-  cloze: "填空卡",
-});
+/** The name of each question kind, by id (lib/card-kinds.js). */
+export const kinds = uiLabels(Object.fromEntries(CARD_KIND_LIST.map((kind) => [kind.id, kind.label])));
 
 /* Cloze prompts store raw {{id}} markers; lists show a blank instead. */
 export const plainPrompt = (p) =>

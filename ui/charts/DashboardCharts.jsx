@@ -3,6 +3,7 @@ import { ui, uiFormat, uiLabels } from '../i18n.js';
 import { Button, Panel, ProgressBar, SegmentedControl } from '../components/index.js';
 import { dateLabel, evenTicks, fillTrend, linePath, linearScale, niceTicks } from './chart-math.js';
 import { MEASURES, THIN_DATA } from '../mastery-terms.js';
+import { CARD_KIND_LIST } from '../../lib/card-kinds.js';
 
 /* The dashboard's three charts, all plain inline SVG / CSS (no chart library):
    a wide score trend, a 14-day due forecast and mastery bars. Each draws at
@@ -259,7 +260,7 @@ export function ForecastPanel({ forecast, onStart, parked }) {
 /* ── Mastery ─────────────────────────────────────────────────────────── */
 
 const LEVEL_NAME = uiLabels({ recall: '记忆', concept: '概念辨析', apply: '应用分析' });
-const KIND_NAME = uiLabels({ quiz: '单选', multi: '多选', cloze: '填空', flashcard: '闪卡', open: '开放', case: '案例' });
+const KIND_NAME = uiLabels({ ...Object.fromEntries(CARD_KIND_LIST.map((kind) => [kind.id, kind.short])), case: '案例' });
 const tone = (rate) => (rate >= 70 ? 'success' : rate >= 50 ? 'warning' : 'error');
 
 export function MasteryPanel({ mastery, defaultView = 'level' }) {

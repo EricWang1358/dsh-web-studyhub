@@ -71,7 +71,7 @@ agent 会启动一个后台任务：根据资料出题，交给独立审核，�
 | `deckId` | 必填。已有、未归档普通题组的完整 ID。 |
 | `sourceIds` | 必填。出题所用的资料。 |
 | `count` | 1–30。 |
-| `kind` | `quiz`、`multi`、`flashcard`、`open`、`cloze` 或 `mixed`。不接受 `case`。 |
+| `kind` | `quiz`、`multi`、`truefalse`、`flashcard`、`open`、`cloze` 或 `mixed`。不接受 `case`。 |
 | `focus`、`language`、`difficulty`、`constraints` | 可选，含义同 `generate`。 |
 | `resumeDraftId`、`draftVersion` | 从草稿继续未完成的补题。草稿的目标必须与 `deckId` 一致，`draftVersion` 必须是当前版本。 |
 

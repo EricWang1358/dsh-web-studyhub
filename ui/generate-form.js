@@ -85,7 +85,7 @@ export function estimateMinutes(jobs = [], count = COUNT_DEFAULT) {
 
 /* ---------- choices ---------- */
 
-export const KINDS = Object.freeze(['mixed', 'quiz', 'multi', 'flashcard', 'open', 'cloze']);
+export const KINDS = Object.freeze(['mixed', ...BASIC_KINDS]);
 export const DIFFICULTIES = Object.freeze([
   { value: 'mixed', get label() { return ui('混合'); } },
   { value: 'foundation', get label() { return ui('基础理解'); } },
@@ -220,6 +220,7 @@ export function kindNote(list, count) {
   return ({
     quiz: ui('单选题：一个正确答案，干扰项逐项解释。'),
     multi: ui('多选题：选出所有正确的选项。'),
+    truefalse: ui('判断题：读一句话，判断它对还是错；错的说法会给出正确说法。'),
     flashcard: ui('闪卡：先想一想，再翻面看答案。'),
     open: ui('开放问答：用自己的话作答，对照评分要点。'),
     cloze: ui('填空卡：句子里挖掉关键词，补全它。'),

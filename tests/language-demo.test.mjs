@@ -79,13 +79,13 @@ test('browser storage commits atomically, serializes updates and retains progres
 
 test('English import prompts and examples retain machine schema and contain no Chinese instructions',async()=>{
   const {importPrompt,importExample}=await import('../ui/json-prompts.js');
-  for(const kind of ['mixed','quiz','multi','flashcard','open','cloze']){
+  for(const kind of ['mixed','quiz','multi','truefalse','flashcard','open','cloze']){
     const text=importPrompt(kind,kind,'en');
     assert.doesNotMatch(text,/[\u4e00-\u9fff]/);
     assert.match(text,/unless I explicitly request another content language/);
     const deck=JSON.parse(importExample(kind,'en'));
-    assert.equal(deck.cards.length,kind==='mixed'?5:1);
-    for(const card of deck.cards)assert.ok(['quiz','multi','flashcard','open','cloze'].includes(card.kind));
+    assert.equal(deck.cards.length,kind==='mixed'?6:1);
+    for(const card of deck.cards)assert.ok(['quiz','multi','truefalse','flashcard','open','cloze'].includes(card.kind));
   }
   assert.match(importPrompt('quiz','单选'),/出题质量要求/);
 });

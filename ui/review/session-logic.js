@@ -1,5 +1,6 @@
 import { reviewEntryKey } from '../async.js';
 import { mergeAssistance, restoredDraft } from './draft-persistence.js';
+import { hasOptions } from '../../lib/card-kinds.js';
 
 /* The practice session's rules without React or the DOM (ui-consistency #112): what a fresh answer entry is, when
    the autopilot moves on, what a key press means, and which late answers are still wanted. useReviewSession wires these
@@ -63,7 +64,7 @@ export const keepAutopilotHold = (holdKey, advanceKey) => (holdKey && holdKey ==
 export function reviewChoiceKind(run) {
   const flash = run?.mode === 'flashcard';
   return {
-    choice: !flash && ['quiz', 'multi'].includes(run?.card?.kind),
+    choice: !flash && hasOptions(run?.card?.kind),
     isCloze: !flash && run?.card?.kind === 'cloze',
     // An open question with rubric criteria is answered in writing and graded, never flipped.
     rubricCard: run?.card?.kind === 'open' && !!run.card.rubricCriteria?.length,

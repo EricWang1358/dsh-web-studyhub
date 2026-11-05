@@ -1,5 +1,6 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
+import { joinMeta } from '../format.js';
 import { Button, CheckboxInput, ErrorState, Icon, InlineMessage, SegmentedControl } from '../components/index.js';
 import { LIMIT_MINUTES, limitPresets } from '../../lib/exam-timing.js';
 import { EXAM_QUESTION_COUNT } from '../../lib/limits.js';
@@ -71,7 +72,8 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
                         })} />
                       <span className="es-deck__name">
                         <strong title={deck.title}>{deckNames[deck.id] || deck.title}</strong>
-                        <small>{uiFormat('单选 {0} · 多选 {1}', [deck.examQuizCount || 0, deck.examMultiCount || 0])}</small>
+                        <small>{joinMeta([uiFormat('单选 {0} · 多选 {1}', [deck.examQuizCount || 0, deck.examMultiCount || 0]),
+                          deck.examTrueFalseCount ? uiFormat('判断 {0}', [deck.examTrueFalseCount]) : null])}</small>
                       </span>
                     </label>
                   </li>

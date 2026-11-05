@@ -46,7 +46,7 @@ test('fake model supports daily recap preparation, all-correct review and consol
   assert.deepEqual(unhandled(log), []);
 });
 
-for (const [kind, count] of [["quiz", 3], ["multi", 3], ["cloze", 3], ["flashcard", 3], ["open", 2], ["mixed", 4]]) {
+for (const [kind, count] of [["quiz", 3], ["multi", 3], ["truefalse", 4], ["cloze", 3], ["flashcard", 3], ["open", 2], ["mixed", 4]]) {
   test(`fake model drives the real generation pipeline for ${kind} cards`, async (t) => {
     const log = [];
     const service = await library(t, createFakeModel({ log }));

@@ -1,5 +1,6 @@
 import { ui, uiFormat } from '../i18n.js';
 import { EXAM_QUESTION_COUNT } from '../../lib/limits.js';
+import { kindOf } from '../../lib/card-kinds.js';
 
 /* What the written (multiple-choice) exam needs besides the lifecycle: the question count, the choices the server
    already saved, and the words for a question's kind and the score change. */
@@ -32,14 +33,15 @@ export const unansweredCount = (run, picks = {}) => {
   return Math.max(0, (run?.total || 0) - Object.keys(picks).filter(has).length);
 };
 
-export const kindName = (kind) => (kind === 'multi' ? ui('多选') : ui('单选'));
-export const cardKindName = (card) => kindName(card?.multiple ? 'multi' : 'quiz');
+/** The short name of an exam question's kind (lib/card-kinds.js); an unknown kind reads as 单选, as every exam question once was. */
+export const kindName = (kind) => ui((kindOf(kind) ?? kindOf('quiz')).short);
+export const cardKindName = (card) => kindName(card?.kind ?? (card?.multiple ? 'multi' : 'quiz'));
 
 /** Which kinds of question the exam may draw, as the setup's switch labels them (keys are the server's `examKinds`). */
 export const EXAM_KIND_LABELS = { all: '不限题型', quiz: '只单选', multi: '只多选', balanced: '单双均衡' };
 
-/** How many questions of the chosen kind the picked decks hold, from their { quiz, multi } counts. */
-export const typeAvailableOf = (kinds, typeMode) => (typeMode === 'quiz' ? kinds.quiz : typeMode === 'multi' ? kinds.multi : kinds.quiz + kinds.multi);
+/** How many questions of the chosen kind the picked decks hold, from their { quiz, multi, all } counts (all: every kind an exam takes, 判断题 too). */
+export const typeAvailableOf = (kinds, typeMode) => (typeMode === 'quiz' ? kinds.quiz : typeMode === 'multi' ? kinds.multi : kinds.all ?? kinds.quiz + kinds.multi);
 
 export const scoreChange = (comparison) => comparison.deltaPct > 0
   ? uiFormat('比上次高 {0} 个百分点', [comparison.deltaPct])
