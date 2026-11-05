@@ -49,7 +49,7 @@ export default function BookPick({ parts, built = false, off = false, onScale, o
     if (!chosen.length) { setScale(null); return; }
     setScale('loading');
     Promise.resolve(onScale(chosen)).then(result => { if (isLive()) setScale(result?.scale ?? null); }, () => { if (isLive()) setScale(null); });
-  }, [key]);
+  }, [key, onScale]); // a new detail level asks again (onScale carries it)
   const flip = (id, on) => setPicked(current => { const next = new Set(current); if (on) next.add(id); else next.delete(id); return next; });
   const left = parts.filter(part => !part.written).length;
   const meta = chosen.length ? uiFormat('已选 {0} 章', [chosen.length]) : built && left ? uiFormat('{0} 章未生成', [left]) : null;
