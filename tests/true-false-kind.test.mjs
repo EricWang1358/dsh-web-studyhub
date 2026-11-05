@@ -113,6 +113,28 @@ test('the answer stage is asked once to balance a batch of one verdict, and neve
   assert.equal(stubborn.items.length, 4, 'a model that keeps them all true loses no statement');
 });
 
+test('a failed balance re-ask keeps the original valid statements instead of dropping them', async () => {
+  const targets = [1, 2, 3, 4].map(n => ({ targetId: 't' + n, objective: 'Judge the Caretaker role ' + n, citations: [{ sourceId: 's1', quote }] }));
+  const item = (n, truth) => ({ targetId: 't' + n, statement: 'The Caretaker keeps the history ' + n + '.',
+    answer: truth ? 'True.' : 'False. It keeps the history without reading it.', reasoning: 'The source: ' + quote,
+    scenario: { kind: 'none', facts: [], decisiveConditions: [] }, comparisonAxis: 'Keeping versus reading snapshots',
+    options: [{ id: 'true', text: 'True', correct: truth, explanation: 'Because of the source.' }, { id: 'false', text: 'False', correct: !truth, explanation: 'Because of the source.' }] });
+  const allTrue = { items: [1, 2, 3, 4].map(n => item(n, true)) };
+  const request = { kind: 'truefalse', count: 4, sources: [source], language: 'English' };
+  const second = (answer, options) => { let asks = 0; return blueprintAssessment(async () => (++asks === 1 ? allTrue : answer), request, { targets }, options); };
+  const errored = await second({ error: 'max tokens' });
+  assert.deepEqual(errored.items.map(one => one.targetId), ['t1', 't2', 't3', 't4'], 'a re-ask that errors loses nothing');
+  assert.deepEqual(errored.omitted, []);
+  const invalid = await second({ items: [{ ...item(3, false), options: [] }, { ...item(4, false), reasoning: '' }] });
+  assert.deepEqual(invalid.items.map(one => one.targetId), ['t1', 't2', 't3', 't4'], 'rewrites that fail other checks fall back to the originals');
+  assert.deepEqual(invalid.items.map(one => one.options.find(option => option.correct).id), ['true', 'true', 'true', 'true']);
+  assert.deepEqual(invalid.omitted, []);
+  const strict = await second({ items: [{ ...item(3, false), options: [] }] }, { salvage: false });
+  assert.equal(strict.items.length, 4, 'also without salvage: the balance check alone never fails a batch');
+  const partial = await second({ items: [item(3, false)] });
+  assert.deepEqual(partial.items.map(one => one.options.find(option => option.correct).id), ['true', 'true', 'false', 'true'], 'a rewrite replaces only its own statement');
+});
+
 async function library(cards) {
   const root = await mkdtemp(join(tmpdir(), 'study-truefalse-'));
   const service = new StudyService(root);
