@@ -9,7 +9,7 @@ import styleCss from '../../ui/styles.js';
 import { setUiLanguage } from '../../ui/i18n.js';
 import MineruSettings from '../../ui/MineruSettings.jsx';
 import MineruRoute from '../../ui/MineruRoute.jsx';
-import { PdfConvertHistory, PdfConvertJobs } from '../../ui/PdfConvertJob.jsx';
+import { PdfConvertHistory, PdfConvertJobs, PdfDetail } from '../../ui/PdfConvertJob.jsx';
 import LargeDocumentCard from '../../ui/LargeDocumentCard.jsx';
 
 const params = new URLSearchParams(location.search);
@@ -64,11 +64,13 @@ const row = (extra = {}) => { const started = extra.hours ?? 0.2; const { hours,
   route: 'cloud', status: 'complete', phase: 'done', pagesDone: 422, attempts: 1, elapsedMs: 260_000, startedAt: ago(started + 0.08), finishedAt: ago(started), importedPages: 420, skippedPages: 2,
   documentId: 'document-a-json', title: 'Operating Systems', canRetry: false, live: false, document: { exists: true, title: 'Operating Systems', pages: 420, sourceIds: ['s1'] },
   env: rest.route === 'local' ? { ...LOCAL_ENV, tier: rest.tier || 'basic', model: rest.tier === 'standard' ? LOCAL_ENV.model : 'MinerU-4_models_onnx', modelsPath: undefined, modelsRealPath: undefined } : CLOUD_ENV, ...rest }; };
+/* Lines left out of a converted book because they repeat on most of its pages (running header, page number): the note with 恢复. */
+const REPEATED = { count: 240, lines: [{ text: '考研数学 · 高等数学讲义（内部资料）', pages: 120 }, { text: '- 1 -', pages: 120 }] };
 const gone = { documentId: undefined, importedPages: undefined, skippedPages: undefined, document: undefined };
 const historyRows = () => [
   row({ hours: 0.05, status: 'running', phase: 'parse', finishedAt: undefined, elapsedMs: 0, pagesDone: 211, live: true, ...gone, filename: 'Databases Lecture Notes.pdf', pages: 330, bytes: 18 * MB }),
   row({ hours: 0.3 }),
-  row({ hours: 0.9, route: 'local', tier: 'basic', filename: 'Algorithms.pdf', pages: 120, pieces: 3, bytes: 7 * MB, elapsedMs: 310_000, importedPages: 120, skippedPages: 0, document: { exists: true, title: 'Algorithms', pages: 120, sourceIds: ['s2'] } }),
+  row({ hours: 0.9, route: 'local', tier: 'basic', filename: 'Algorithms.pdf', pages: 120, pieces: 3, bytes: 7 * MB, elapsedMs: 310_000, importedPages: 120, skippedPages: 0, document: { exists: true, title: 'Algorithms', pages: 120, sourceIds: ['s2'], repeated: REPEATED } }),
   row({ hours: 2.5, status: 'failed', phase: 'parse', pagesDone: 200, elapsedMs: 600_000, ...gone, canRetry: true, failure: { stage: 'parse', piece: 2, reason: 'MinerU 没能转换这一段文件（可能是文件受保护或内容异常）。' } }),
   row({ hours: 3, status: 'failed', phase: 'upload', pagesDone: 0, elapsedMs: 4000, ...gone, canRetry: false, failure: { stage: 'upload', reason: '连不上 MinerU：请检查网络后重试（已完成的部分会保留）。' }, filename: 'Networks.pdf', pages: 88 }),
   row({ hours: 4, status: 'failed', route: 'local', tier: 'basic', phase: 'local', pagesDone: 50, elapsedMs: 130_000, ...gone, canRetry: true, filename: 'Compilers.pdf', pages: 120, failure: { stage: 'local', piece: 2, code: 'server-stopped', reason: STOPPED } }),
@@ -126,6 +128,8 @@ function Scene() {
 
     <Section title="Cancelled · complete"><PdfConvertJobs call={call} onOpenSources={noop} jobs={[job({ status: 'cancelled', stage: '已取消；已解析好的段落会保留，再导入同一个文件不会重复解析', finishedAt: new Date().toISOString() }),
       job({ status: 'complete', phase: 'done', done: 422, sourceIds: Array.from({ length: 422 }, (_, i) => `s${i}`), finishedAt: new Date().toISOString(), warnings: ['Pages 12, 45 have no text in the converted output (pictures or blank pages) and were skipped.'] })]} /></Section>
+    <Section title="任务 console detail of a complete conversion that left repeated lines out"><PdfDetail job={job({ status: 'complete', phase: 'done', done: 422, documentId: 'document-a-json', repeated: REPEATED,
+      sourceIds: ['s1'], finishedAt: new Date().toISOString() })} /></Section>
   </div></main>;
 }
 
