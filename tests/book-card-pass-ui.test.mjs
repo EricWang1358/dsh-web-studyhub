@@ -51,3 +51,21 @@ test('Menu: an item with a tip is described by a Tooltip (aria-describedby), nev
   assert.doesNotMatch(plain, /aria-describedby/);
   assert.doesNotMatch(menu, /\btitle=/, 'no title= on the menu\'s text');
 });
+
+test('更多 › 整本书: with every card made but some confusable pairs not compared, the same item compares them, in its own words (pairs and calls, no price)', () => {
+  const only = item(ui.moreItems({ cardPass: { points: 0, pairs: 12, calls: 2 } }), 'cards');
+  assert.equal(only.label, '补易混概念对照');
+  assert.match(only.tip, /12 组易混概念/);
+  assert.match(only.tip, /约 2 次模型调用/);
+  assert.match(only.tip, /不改/);
+  assert.doesNotMatch(only.tip, /[$¥￥元]|price|价格|费用/i);
+  const both = item(ui.moreItems({ cardPass: { points: 5, pairs: 3, calls: 2 } }), 'cards');
+  assert.equal(both.label, '补术语卡', 'cards missing: it is still the card pass');
+  assert.match(both.tip, /5 个知识点没有术语卡/);
+  assert.match(both.tip, /3 组易混概念/);
+  const quiet = item(ui.moreItems({ cardPass: { points: 5, pairs: 0, calls: 1 } }), 'cards');
+  assert.doesNotMatch(quiet.tip, /易混/, 'nothing to compare yet: not mentioned');
+  const en = english(() => [item(ui.moreItems({ cardPass: { points: 0, pairs: 12, calls: 2 } }), 'cards'), item(ui.moreItems({ cardPass: { points: 5, pairs: 3, calls: 2 } }), 'cards')]);
+  for (const each of en) assert.doesNotMatch(`${each.label} ${each.tip}`, /[㐀-鿿]/, 'every word in English');
+  assert.match(en[0].tip, /12 confusable pairs/);
+});

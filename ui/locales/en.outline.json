@@ -549,5 +549,14 @@
   "下载 .html": "Download .html",
   "正在排速查表…": "Laying out the cheat sheet…",
   "速查表（.html）": "Cheat sheet (.html)",
-  "一个能离线打开、也能打印的页面：答题模板、易混对照、公式和术语卡，手机上也能看。": "One page that opens offline and prints: answer templates, confusable pairs, formulas and term cards; it reads on a phone too."
+  "一个能离线打开、也能打印的页面：答题模板、易混对照、公式和术语卡，手机上也能看。": "One page that opens offline and prints: answer templates, confusable pairs, formulas and term cards; it reads on a phone too.",
+  "补易混概念对照": "Compare confusable concepts",
+  "术语卡里有 {0} 组易混概念（对立或并列的概念）还没有对照。只读术语卡来写，讲解、引文和覆盖都不改；约 {1} 次模型调用，用了多少在任务页看。": "{0} confusable pairs (opposite or parallel concepts) in the term cards have no comparison yet. They are written from the cards alone; no explanation, quote or coverage changes. It takes about {1} model calls; the task page shows what was used.",
+  "还有 {0} 个知识点没有术语卡，另有 {2} 组易混概念没有对照。只读已经写好的讲解来补，讲解、引文和覆盖都不改；约 {1} 次模型调用，用了多少在任务页看。": "{0} points have no term cards yet and {2} confusable pairs have no comparison. They are made from the explanations already written; no explanation, quote or coverage changes. It takes about {1} model calls; the task page shows what was used.",
+  "易混概念": "Confusable concepts",
+  "术语卡里对立或并列的概念，一对一对比较；点编号去那张术语卡。": "Opposite or parallel concepts of the term cards, compared pair by pair; a number goes to that term card.",
+  "是什么": "What it is",
+  "什么时候用": "When to use it",
+  "关键区别": "Key difference",
+  "常见误区": "Common mistake"
 }

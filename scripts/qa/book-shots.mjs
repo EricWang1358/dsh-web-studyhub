@@ -18,6 +18,8 @@
    BOOK_FIXTURES=built (#710, not in the default list): a book BUILT by the fake model (tests/helpers/book-fixtures.mjs seedBuiltBook), at 1440 and 420, light:
    built-<width>-light-cards (the first point's 术语卡 open), card-link (a relation followed to its card), lookup-az, lookup-chapters and lookup-formulas (the
    速查页's A–Z with the cards' numbers and other names, the cards by chapter, the formula page).
+   BOOK_FIXTURES=confusables (#710 S3, not in the default list): seedConfusableBook at 1440 and 420, light: confusables-<width>-light-lookup (the 速查页 scrolled to its
+   易混概念 part) and confusables-<width>-light-link (a card's number in it followed to the card).
    BOOK_SAMPLE_SHOTS=<dir> instead looks at the sample of a first 复习全书 build (#710; light, Chinese, 1440 and 420 px): sample-<width>-outline.png (the 总纲's
    book line with the sample, its scale and its one primary button), sample-<width>-card.png (the card alone), sample-<width>-book.png (the book page with it) and
    sample-<width>-console.png (the 任务 console: the build ended, waiting for the learner), and prints what the card and the console say.
@@ -31,7 +33,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launchChromium } from './browser.mjs';
 import { openPage, settleAnimations, startLateServer } from './layout-late.mjs';
-import { BOOK_COURSE, BOOK_FIXTURES, seedBookFixture, seedBuiltBook, seedCardPassBook, seedOldBook } from '../../tests/helpers/book-fixtures.mjs';
+import { BOOK_COURSE, BOOK_FIXTURES, seedBookFixture, seedBuiltBook, seedCardPassBook, seedConfusableBook, seedOldBook } from '../../tests/helpers/book-fixtures.mjs';
 import { StudyService } from '../../lib/service.js';
 import { createFakeModel } from '../fake-model.mjs';
 import { switchOptions } from '../../tests/helpers/runtime-switch.mjs';
@@ -269,6 +271,29 @@ async function lookAtAi(browser, running, { kind, width, theme, shots }) {
   } finally { await context.close(); await service.dispose(); }
 }
 
+/** 易混概念 (#710 S3) in the 速查页 of a book built by the fake model: see the top of this file. */
+async function lookAtConfusables(browser, running, { width, theme, shots }) {
+  const { page, errors, context } = await openPage(browser, running, { width, height: 900, theme });
+  const save = async shot => { await page.waitForTimeout(300); await settleAnimations(page); await page.screenshot({ path: join(shots, `confusables-${width}-${theme}-${shot}.png`) }); };
+  try {
+    await openBook(page, running);
+    await page.locator('.book-bar__more').click();
+    await page.getByRole('menuitem', { name: '速查页…' }).click();
+    const dialog = page.locator('dialog.book-lookup-dialog');
+    await dialog.waitFor({ timeout: 30000 });
+    const part = dialog.locator('#book-lookup-confusables');
+    if (!await part.count()) { console.error('confusables: the 速查页 has no 易混概念 part'); return errors; }
+    await part.evaluate(element => element.scrollIntoView({ block: 'start' }));
+    await save('lookup');
+    console.log(JSON.stringify({ kind: 'confusables', width, pairs: await dialog.locator('[data-confusable]').count(), rows: await dialog.locator('[data-confusable] [data-aspect]').count() }));
+    const link = dialog.locator('[data-confusable] [data-term-link]').first();
+    await link.click();
+    await page.waitForTimeout(500);
+    await save('link');
+    return errors;
+  } finally { await context.close(); }
+}
+
 /** 术语卡 (#710) on a book built by the fake model: see the top of this file. */
 async function lookAtCards(browser, running, { width, theme, shots }) {
   const { page, errors, context } = await openPage(browser, running, { width, height: 900, theme });
@@ -355,6 +380,16 @@ export async function bookShots({ shots = process.env.BOOK_SHOTS, kinds = (proce
             }
           } finally { await running.close(); }
         }
+        continue;
+      }
+      if (kind === 'confusables') {
+        const running = await startLateServer({ distDir: resolve(repoRoot, dist || 'dist'), seed: seedConfusableBook });
+        try {
+          for (const width of [1440, 420]) {
+            const errors = await lookAtConfusables(browser, running, { width, theme: 'light', shots });
+            if (errors.length) console.error(`confusables ${width} light: page errors ${JSON.stringify(errors)}`);
+          }
+        } finally { await running.close(); }
         continue;
       }
       if (kind === 'built') {

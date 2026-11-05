@@ -1,0 +1,115 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* 易混概念 of the review book (ui/book/BookConfusables.jsx), a part of the 速查页: a comparison per pair, a small table of four rows under the two names. The
+       cards' numbers are ink links like every other link of the book (never the accent). Tokens only; long words wrap; on a narrow screen each row is a small
+       block, its label on a line of its own and each cell under its name (data-head). */
+    .book-conf {
+      --sh-link-ink: var(--text);
+      --sh-link-wash: var(--bg-hover);
+      display: grid;
+      gap: var(--space-3);
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .book-conf__muted {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-conf__pair {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      min-width: 0;
+    }
+    .book-conf__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-2);
+      margin: 0;
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+    }
+    .book-conf__id,
+    .book-conf__vs {
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      font-weight: var(--fw-regular);
+    }
+    .book-conf__code {
+      font-variant-numeric: tabular-nums;
+    }
+    .book-conf__table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--fs-sm);
+      table-layout: fixed;
+    }
+    .book-conf__table th,
+    .book-conf__table td {
+      padding: var(--space-2);
+      border-bottom: 1px solid var(--line-soft);
+      text-align: left;
+      vertical-align: top;
+    }
+    .book-conf__table thead th {
+      color: var(--text-muted);
+      font-weight: var(--fw-medium);
+    }
+    .book-conf__table tbody th {
+      width: 6.5em;
+      color: var(--text-muted);
+      font-weight: var(--fw-medium);
+    }
+    .book-conf__table tbody tr:last-child th,
+    .book-conf__table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+  }
+  @container study (max-width: 45rem) {
+    :where(.study-app, .study-seat) {
+      .book-conf__table thead {
+        display: none;
+      }
+      .book-conf__table,
+      .book-conf__table tbody {
+        display: block;
+      }
+      .book-conf__row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: var(--space-half) var(--space-2);
+        padding: var(--space-2) 0;
+        border-bottom: 1px solid var(--line-soft);
+      }
+      .book-conf__table tbody tr:last-child {
+        border-bottom: 0;
+      }
+      .book-conf__table tbody th {
+        grid-column: 1 / -1;
+        width: auto;
+        padding: 0;
+        border-bottom: 0;
+      }
+      .book-conf__table td {
+        display: grid;
+        gap: var(--space-half);
+        align-content: start;
+        padding: 0;
+        border-bottom: 0;
+      }
+      .book-conf__table td::before {
+        content: attr(data-head);
+        color: var(--text-muted);
+        font-size: var(--fs-xs);
+        line-height: var(--lh-body);
+      }
+    }
+  }
+}

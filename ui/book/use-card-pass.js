@@ -6,21 +6,25 @@ import { useLiveEffect } from '../use-async.js';
    build itself (generation.courseBook.build { cards: true, estimate: true }: the same batches the task will ask, no call), and the item's Tooltip says it in
    call counts, never prices. Pressing it starts the card pass alone: no explanation, quote or coverage changes. */
 
-/** The words of the item's Tooltip: what it does and about how many calls it takes. */
-export const cardPassTip = ({ points, calls }) => uiFormat('还有 {0} 个知识点没有术语卡。只读已经写好的讲解来补，讲解、引文和覆盖都不改；约 {1} 次模型调用，用了多少在任务页看。',
-  [points, calls]);
+/** The words of the item's Tooltip: what it does and about how many calls it takes. With every card made it is the comparison of confusable pairs alone (#710 S3). */
+export function cardPassTip({ points, pairs = 0, calls }) {
+  if (!points) return uiFormat('术语卡里有 {0} 组易混概念（对立或并列的概念）还没有对照。只读术语卡来写，讲解、引文和覆盖都不改；约 {1} 次模型调用，用了多少在任务页看。', [pairs, calls]);
+  if (pairs) return uiFormat('还有 {0} 个知识点没有术语卡，另有 {2} 组易混概念没有对照。只读已经写好的讲解来补，讲解、引文和覆盖都不改；约 {1} 次模型调用，用了多少在任务页看。',
+    [points, calls, pairs]);
+  return uiFormat('还有 {0} 个知识点没有术语卡。只读已经写好的讲解来补，讲解、引文和覆盖都不改；约 {1} 次模型调用，用了多少在任务页看。', [points, calls]);
+}
 
 /** What the page says once 补术语卡 was pressed. */
 export const cardPassWords = result => (result?.status === 'nothing' ? ui('每个知识点都有术语卡了，没有要补的。')
   : result?.alreadyRunning ? ui('复习全书已经在生成，没有术语卡的知识点会一起补上；进度在任务页。') : ui('已开始补术语卡，进度在任务页。'));
 
-/** The size of the card pass of the book being read: { points, calls } | null (unknown, or a build is running). Asked again when the book or the build changes. */
+/** The size of the card pass of the book being read: { points, pairs, calls } | null (unknown, or a build is running). Asked again when the book or the build changes. */
 export function useCardPass({ call, course, book, building }) {
   const [size, setSize] = useState(null);
   useLiveEffect(isLive => {
     if (book?.status !== 'ok' || !book.notes || building) { setSize(null); return; }
     call('generation.courseBook.build', { course, cards: true, estimate: true })
-      .then(next => { if (isLive()) setSize(next?.status === 'estimate' ? { points: next.points, calls: next.calls } : null); }, () => { if (isLive()) setSize(null); });
+      .then(next => { if (isLive()) setSize(next?.status === 'estimate' ? { points: next.points, pairs: next.pairs ?? 0, calls: next.calls } : null); }, () => { if (isLive()) setSize(null); });
   }, [call, course, book?.revision, book?.status, book?.notes, building]);
   return size;
 }
