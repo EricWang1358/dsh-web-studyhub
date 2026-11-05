@@ -1,1 +1,0 @@
-- **Choosing a model for one running task works again.** Picking a model in the task's live controls no longer fails with "cannot get property "llm" without inject"; the task's next calls use the model you picked. Not verified: tested with a stand-in host and fake model, not in a running DSH with a real model.

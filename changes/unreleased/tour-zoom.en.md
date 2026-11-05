@@ -1,1 +1,0 @@
-- **The tour lights the right spot at every interface size.** With Settings › Interface › size at 90 %, 110 % or 125 %, the tour's highlight used to sit beside or below the thing it explains (on the home page, to the right of the today card); it now frames it, and its card sits next to it. Not verified: checked in the browser preview, not inside DSH.
