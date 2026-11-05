@@ -128,3 +128,33 @@ test('a book imported with this rule keeps the chapters it was stored with; part
   assert.deepEqual(rows(groupSourcesByDocument(some, { documents: documentsOf(all, old) })[0]).map(row => row[0]),
     ['2-1 生产函数', '2 - 2 规模报酬', '操作题', '附录:生产函数的数学']);
 });
+
+/* ---------- the owner's real heading runs (coordinator's read-only run on the 513-page book, 2026-11-06) ---------- */
+
+/* What stands between a chapter's end block and its first N—1, as MinerU wrote it: a lead-in (本章要点) with content headings after it ([资料5-1] …,
+   本章内容是关于…, 注意那些…, 本章纲要), a title numbered "N 标题", a bare "N" before the title, a leftover of the previous chapter (泰勒规则), a title that
+   ends in 题 (前沿课题). The chapter starts at the heading before its FIRST lead-in, and that heading is its title. */
+const RUNS = [
+  [88, '旧的一章'], [88, '本章要点'], [89, '4—1 甲'], [95, '4—2 乙'], [97, '本章提要'], [97, '操作题'],
+  [98, '总供给与总需求'], [98, '本章要点'], [100, '[资料5-1] 历史故事'], [100, '“总供给”与“总需求”:名称的含义？'], [101, '5—1 甲'], [105, '操作题'],
+  [169, '政策预览'], [169, '本章要点'], [169, '本章内容是关于经济政策的'], [170, '9—1 甲'], [174, '操作题'], [175, '泰勒规则'],
+  [176, '10 收入与支出'], [176, '本章要点'], [177, '10—1 甲'], [195, '操作题'],
+  [196, '11 货币、利息与收入'], [196, '本章要点'], [198, '注意那些看起来难懂的材料'], [199, '本章纲要'], [200, '11—1 甲'], [270, '操作题'],
+  [272, '消费与储蓄'], [272, '本章要点'], [275, '[资料14-1] 历史故事'], [275, '税收政策下的现代消费理论'], [276, '14—1 甲'], [290, '操作题'],
+  [292, '15 投资支出'], [292, '本章要点'], [293, '投资为什么是动荡不定的'], [294, '投资:总投资与净投资'], [295, '15—1 甲'], [314, '操作题'],
+  [316, '货币需求'], [316, '本章要点'], [316, '什么是“货币”'], [317, '16—1 甲'], [328, '操作题'],
+  [330, '【选读材料】'], [330, '附录:鲍莫尔-托宾的交易需求模型'], [331, '17'], [332, '联邦储备、货币与信用'], [332, '本章要点'], [333, '17—1 甲'], [349, '操作题'],
+  [351, '政策'], [351, '本章要点'], [351, '本章是关于政策的。'], [352, '18—1 甲'], [465, '操作题'],
+  [467, '前沿课题'], [467, '本章要点'], [468, '24—1 甲'], [470, '操作题'],
+];
+const runBook = () => [...RUNS.flatMap(([page, text]) => [title(text, page), body(text, page)]), body('最后一页', 471)];
+
+test('the owner\'s heading runs: each chapter starts at the heading before its first lead-in, "N 标题" and a bare "N" give the title, a leftover stays behind', () => {
+  const book = parseConvertedDocument(JSON.stringify(runBook()), { filename: '宏观.json' });
+  assert.deepEqual(book.chapters.map(chapter => [chapter.title, chapter.startPage, chapter.endPage]), [
+    ['旧的一章', 88, 97], ['总供给与总需求', 98, 168], ['政策预览', 169, 175], ['收入与支出', 176, 195], ['货币、利息与收入', 196, 271],
+    ['消费与储蓄', 272, 291], ['投资支出', 292, 315], ['货币需求', 316, 330], ['联邦储备、货币与信用', 331, 350], ['政策', 351, 466], ['前沿课题', 467, 471],
+  ]);
+  // The stored text keeps the headings as written; only the chapter's name drops its number.
+  assert.match(book.pages.find(page => page.page === 176).text, /^# 10 收入与支出$/m);
+});
