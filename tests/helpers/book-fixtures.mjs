@@ -7,7 +7,7 @@
    Seeded into a temporary library through the service (no model, no network). `today` is the day the page itself reads (localDate).
    seedBuiltBook (#710): not one of these two; a book BUILT by the fake model (tests/helpers/course-book-model.mjs) over the course outline library with a sample
    paper and two formula sentences, so every point has its 术语卡 and the glossary its formulas.
-   seedOldBook (#710 S6): that book as written before 术语卡 existed (no unit has cards), for 补术语卡; seedCardPassBook: that old book after 补术语卡 ran
+   seedConfusableBook (#710 S3): that book with pairs of confusable cards compared (易混概念); seedOldBook (#710 S6): that book as written before 术语卡 existed (no unit has cards), for 补术语卡; seedCardPassBook: that old book after 补术语卡 ran
    (generation.courseBook.build { cards: true } on the fake model; the preview server has no job executor, so the pass runs here). */
 import { mkdir } from 'node:fs/promises';
 import { StudyService } from '../../lib/service.js';
@@ -148,9 +148,9 @@ const FORMULA_PAGES = { 'document-l2-p3': ' Formula Availability ratio: A equals
   'document-l5-p5': ' Formula Little law: L equals lambda times W.' };
 
 /** Seed `root` with a review book BUILT by the fake model (see the top of this file); -> { course }. */
-export async function seedBuiltBook(root) {
+export async function seedBuiltBook(root, { pairs = false } = {}) {
   await mkdir(root, { recursive: true });
-  const fake = bookModel(), service = new StudyService(root, { complete: fake.complete, ...switchOptions('runtime', { complete: fake.complete, paths: [] }) });
+  const fake = bookModel({ pairs }), service = new StudyService(root, { complete: fake.complete, ...switchOptions('runtime', { complete: fake.complete, paths: [] }) });
   try {
     const { sources, decks } = outlineLibrary({ paper: true });
     for (const source of sources) if (FORMULA_PAGES[source.id]) source.text += FORMULA_PAGES[source.id];
@@ -161,6 +161,9 @@ export async function seedBuiltBook(root) {
   } finally { await service.dispose(); }
   return { course: COURSE };
 }
+
+/** seedBuiltBook whose cards also name an opposite or parallel partner, so the build compares them (#710 S3: 易混概念); -> { course }. */
+export const seedConfusableBook = root => seedBuiltBook(root, { pairs: true });
 
 /** Seed `root` with the built book as it was before 术语卡 existed: the same book, no unit's cards; -> { course }. */
 export async function seedOldBook(root) {
