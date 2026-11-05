@@ -43,6 +43,14 @@ test('saying it again starts nothing new: the runs that are going are named, not
   assert.match(second.started[0].what, /没有再开/);
 });
 
+test('two applies at once start each run once: the second waits for the first and then names what is going', async t => {
+  const study = await open(t), doc = lecture(courseSkeleton(await study.store.read(), COURSE), 3);
+  await save(study, plan({ scope: { kind: 'chapters', chapters: [doc.chapters[0].id] }, questions: { make: true, kinds: ['quiz'], strength: 'lean', variants: false } }));
+  const [a, b] = await Promise.all([apply(study), apply(study)]);
+  assert.equal(questionJobs(study).length, 1, 'one run, not two');
+  assert.deepEqual([a, b].map(answer => steps(answer, 'started', 'questions')[0].jobId), [questionJobs(study)[0].id, questionJobs(study)[0].id]);
+});
+
 test('a 1,500 question want over 3 chapters is not cut to 500', async t => {
   const study = await open(t, { library: bigBook() });
   const skeleton = courseSkeleton(await study.store.read(), 'Big'), [doc] = skeleton.documents, chars = doc.chapters.reduce((sum, chapter) => sum + chapter.chars, 0);
