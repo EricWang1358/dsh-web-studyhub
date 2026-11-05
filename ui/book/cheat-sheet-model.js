@@ -43,7 +43,7 @@ export function readConfusables(raw) {
 /** The 速查表 of an open book (see the top of this file); null when the book is not open or has nothing to put on it. */
 export function cheatSheet(book) {
   if (book?.status !== 'ok') return null;
-  const language = book.language === 'en' ? 'en' : 'zh';
+  const language = ['en', 'zh'].includes(book.language) ? book.language : 'zh';
   // A chapter not built yet (未生成, #708: none of its points has an explanation) is not on the sheet: its points are no place of a template or a formula.
   const built = (book.nodes || []).filter(node => !leavesOf([node]).every(leaf => leaf.unbuilt));
   const places = new Map(leavesOf(built).map(leaf => [leaf.hid, { hid: leaf.hid, code: codeOf(leaf.hid), number: leaf.number ?? '', title: leaf.title ?? '' }]));

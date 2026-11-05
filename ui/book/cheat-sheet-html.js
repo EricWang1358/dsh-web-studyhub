@@ -20,7 +20,8 @@ const WORDS = {
     kinds: { related: 'Related', opposite: 'Opposite', parallel: 'Parallel', part: 'Part' }, aspects: { what: 'What it is', when: 'When to use', difference: 'Difference', mistake: 'Common mistake' },
     vs: ' vs ', file: title => (title ? `${title} - cheat sheet` : 'cheat sheet'), unplaced: 'Unplaced', nav: 'Contents' },
 };
-const wordsOf = language => WORDS[language === 'en' ? 'en' : 'zh'];
+/** The words of a book's language (a book is in zh or en; the sheet is the book's, not the interface's). */
+const wordsOf = language => WORDS[Object.hasOwn(WORDS, language) ? language : 'zh'];
 
 const esc = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
