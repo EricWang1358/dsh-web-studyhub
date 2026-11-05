@@ -36,6 +36,7 @@ export function useMoreActions({ step, course, book, notify, aiFold, reading, wh
     else if (id === 'fold-book') aiFold.foldAll(bookBlocks.map(block => block.id), !bookFold?.folded);
     else if (id === 'scroll') where.switchReading(reading.mode === 'scroll' ? 'step' : 'scroll');
     else if (id === 'flip') openView('flip');
+    else if (id === 'cheat') openView('cheat');
     else if (id === 'today') setTodayOpen(value => !value);
     else if (id === 'exam-date' || id === 'settings') onCourseSettings?.(courseRecord?.id);
     else if (id === 'outline') onOutline?.();

@@ -7,12 +7,12 @@ import { cardPassTip } from './use-card-pass.js';
 /* 「⋯ 更多」 of the book bar (复习全书, docs/review-book.md "More"): everything that is not reading, in one menu of four small groups, so the page has no standing
    mode switch. A one-line hint only where a rule is hidden (not what an item is for). The old views (编辑, 翻看, 速查页) open from here and come back with 「完成 · 回到阅读」.
    这个知识点: 编辑这个知识点… / 改名… / 移动到… / 删除这个知识点… / 给这个知识点出题 / 复制编号 / 收起或展开这个知识点的 AI 段落. 阅读: 整章连着读 (a check) / 翻看 / 收起或展开整本书的 AI 段落.
-   整本书: 速查页… / 导出… / 补术语卡 (only while points lack cards, its cost in a Tooltip; #710 S6) / 发给主会话 (no ellipsis: it opens nothing first, the chat's input box is where a request is added). 期末一周: 今天读哪几节 / 出一套模拟卷… / 设置考试日期 / 前往设置. */
+   整本书: 速查页… / 速查表 (#710 S5: the dense printable sheet, only while the book has something for it) / 导出… / 补术语卡 (only while points lack cards, its cost in a Tooltip; #710 S6) / 发给主会话 (no ellipsis: it opens nothing first, the chat's input box is where a request is added). 期末一周: 今天读哪几节 / 出一套模拟卷… / 设置考试日期 / 前往设置. */
 
 /** The menu's items (pure, for the tests): `state` says what the page has now. unplaced: the step shown is 未归位 (no code the book tools match, no
-    questions of its own, no AI blocks, and no structure of its own: only 编辑这个知识点… in its group). kit: the book has an exam answer kit (答题模板…); cardPass: { points, calls } of 补术语卡 (ui/book/use-card-pass.js). */
+    questions of its own, no AI blocks, and no structure of its own: only 编辑这个知识点… in its group). kit: the book has an exam answer kit (答题模板…); cheat: the book has a 速查表; cardPass: { points, calls } of 补术语卡 (ui/book/use-card-pass.js). */
 export function moreItems({ unplaced = false, pointFold = null, scroll = false, bookFold = null, pages = null, pageLimit = null, history = false, today = false, mockScope = 0, dateHint = null,
-  settings = false, kit = false, cardPass = null }) {
+  settings = false, kit = false, cheat = false, cardPass = null }) {
   const pagesHint = pages === null ? undefined : pageLimit ? uiFormat('约 {0} 页 / 上限 {1} 页', [pages, pageLimit]) : uiFormat('约 {0} 页', [pages]);
   return [
     { heading: true, label: ui('这个知识点') },
@@ -31,6 +31,8 @@ export function moreItems({ unplaced = false, pointFold = null, scroll = false, 
     { id: 'lookup', label: ui('速查页…') },
     // The exam answer kit the build made from the sample papers (#710 S4): only a book that has one.
     kit && { id: 'kit', label: ui('答题模板…') },
+    // The dense, printable sheet of the cards, templates, comparisons and formulas (#710 S5): a view that takes the reading surface's place, like 翻看.
+    cheat && { id: 'cheat', label: ui('速查表'), hint: ui('可打印 · 可存成 .html') },
     { id: 'export', label: ui('导出…'), hint: pagesHint },
     history && { id: 'history', label: ui('版本历史…') },
     cardPass?.calls > 0 && { id: 'cards', label: ui('补术语卡'), tip: cardPassTip(cardPass) },
