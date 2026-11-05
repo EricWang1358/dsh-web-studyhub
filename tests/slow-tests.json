@@ -35,6 +35,7 @@
     "tests/feedback-lite-browser.test.mjs",
     "tests/first-run-line-browser.test.mjs",
     "tests/first-run-tour-browser.test.mjs",
+    "tests/fix-phrases-browser.test.mjs",
     "tests/follow-label-fit-browser.test.mjs",
     "tests/generate-flow-browser.test.mjs",
     "tests/generate-short-browser.test.mjs",

@@ -75,7 +75,7 @@ These actions start a background assistant for the current question:
 | Action | Where | What it saves |
 | --- | --- | --- |
 | **Help me understand** | Question toolbar | The answer, added to the question as a Q&A. With **Review prerequisites** chosen, it can also link or create up to 3 prerequisite questions. |
-| **Improve question** | **More** menu | An edit to the question. The old version stays in the question's history, and you can undo the change. |
+| **Improve question** | A button under the question | An edit to the question. The old version stays in the question's history, and you can undo the change. The box offers common problems and your own saved phrases. |
 | **Make a prerequisite question** | **More** menu | One new flashcard about a knowledge point you type, as a prerequisite of this question or as a separate question. |
 | **Make a prerequisite question** / **Make a separate question** | Under a saved Q&A | One new flashcard built from that Q&A. See [Follow-up questions](followup.md). |
 

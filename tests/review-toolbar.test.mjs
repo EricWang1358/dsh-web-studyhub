@@ -81,17 +81,17 @@ test("更多 is a menu (#79): a button with aria-haspopup, not a details element
   assert.match(closed, /<button[^>]*aria-haspopup="menu"[^>]*aria-expanded="false"[^>]*>更多<\/button>|<button[^>]*aria-expanded="false"[^>]*aria-haspopup="menu"[^>]*>更多<\/button>/);
   const open = render({ feedback: null }, { moreDefaultOpen: true });
   assert.match(open, /role="menu"/);
-  assert.deepEqual([...open.matchAll(/<span class="sh-menu__label">([^<]*)<\/span>/g)].map((match) => match[1]), ["显示英文", "字号与版心…", "写笔记", "修题", "斩掉此题"]);
+  assert.deepEqual([...open.matchAll(/<span class="sh-menu__label">([^<]*)<\/span>/g)].map((match) => match[1]), ["显示英文", "字号与版心…", "写笔记", "斩掉此题"], "修题 is no item of 更多 any more: it is a button on the toolbar");
   assert.match(open, /<button[^>]*role="menuitem"[^>]*class="sh-menu__item is-danger"[^>]*>(?:(?!<\/button>).)*斩掉此题/, 'slaying is marked as the dangerous one');
   const withTask = render({ feedback: null }, { onTask() {}, moreDefaultOpen: true });
-  assert.ok(withTask.indexOf("记待办") > withTask.indexOf("写笔记") && withTask.indexOf("记待办") < withTask.indexOf("修题"));
+  assert.ok(withTask.indexOf("记待办") > withTask.indexOf("写笔记") && withTask.indexOf("记待办") < withTask.indexOf("斩掉此题"));
 });
 
-test("the More menu has 出前置题… next to 修题 (only when the page can start it), in both languages", () => {
+test("the More menu has 出前置题… between 写笔记 and 斩掉此题 (only when the page can start it), in both languages", () => {
   setUiLanguage("zh");
   const withIt = render({ feedback: null }, { onDerive() {}, moreDefaultOpen: true });
   assert.match(withIt, /<button[^>]*data-usage="review\.derive"[^>]*>(?:(?!<\/button>).)*出前置题…<\/span><\/button>/);
-  assert.ok(withIt.indexOf("修题") < withIt.indexOf("出前置题…") && withIt.indexOf("出前置题…") < withIt.indexOf("斩掉此题"), "between 修题 and 斩掉此题");
+  assert.ok(withIt.indexOf("写笔记") < withIt.indexOf("出前置题…") && withIt.indexOf("出前置题…") < withIt.indexOf("斩掉此题"), "between 写笔记 and 斩掉此题");
   assert.doesNotMatch(render({ feedback: null }, { moreDefaultOpen: true }), /出前置题/, "no handler, no entry");
   setUiLanguage("en");
   try {
@@ -116,12 +116,12 @@ test("自动跳下一步 is an item of 更多 with its key A, bound to what the 
   assert.doesNotMatch(menuOf({ mode: "exam", feedback: null }, { autopilot: true, onToggleAutopilot() {} }), /自动跳下一步/, "a mock exam does not move on by itself");
 });
 
-test("the toolbar keeps at most five controls, and every folded one is an item of 更多 with its key", () => {
+test("the toolbar keeps six controls (提示, 帮我弄懂, 修题, 更多, 上一题, 下一题), and every folded one is an item of 更多 with its key", () => {
   setUiLanguage("zh");
   const props = { autopilot: false, onToggleAutopilot() {}, onThumb() {}, thumbVote: null, onToggleEn() {} };
   const closed = render({ feedback: null }, props);
   const buttons = [...closed.matchAll(/<button\b[^>]*>/g)].map((match) => match[0]);
-  assert.ok(buttons.length <= 5, `${buttons.length} controls: ${buttons.join(" ")}`);
+  assert.ok(buttons.length <= 6, `${buttons.length} controls: ${buttons.join(" ")}`);
   const open = menuOf({ feedback: null }, props);
   for (const label of ["显示英文", "自动跳下一步", "字号与版心…", "这题不错", "这题有问题…"]) assert.match(open, new RegExp(`>${label}<`), `${label} is in 更多`);
   assert.match(item(open, "这题不错"), /aria-keyshortcuts="G"/);
@@ -140,5 +140,30 @@ test("the autopilot item flips a setting, so a saving step does not disable it; 
     assert.match(english, />Auto-advance</);
     assert.match(english, />Good question</);
     assert.doesNotMatch(english.replace(/data-usage="[^"]*"/g, ""), han);
+  } finally { setUiLanguage("zh"); }
+});
+
+const improveButton = (html) => html.match(/<button[^>]*data-usage="review\.improve"[^>]*>(?:(?!<\/button>).)*<\/button>/)?.[0] || "";
+
+test("修题 is a button on the toolbar, next to 帮我弄懂 and not behind 更多; it opens the box and shows when it is open", () => {
+  setUiLanguage("zh");
+  const closed = render({ feedback: null });
+  assert.match(improveButton(closed), />修题<\/button>$/);
+  assert.match(improveButton(closed), /data-tour="review-improve"/, "the 找功能 anchor");
+  assert.match(improveButton(closed), /aria-expanded="false"/);
+  assert.match(improveButton(closed), /class="[^"]*sh-btn--quiet[^"]*tool-action/, "the shared Button, quiet, like its neighbours");
+  assert.match(improveButton(render({ feedback: null }, { assistMode: "improve" })), /aria-expanded="true"/);
+  assert.match(improveButton(render({ feedback: null }, { assistMode: "ask" })), /aria-expanded="false"/, "only its own box counts as open");
+  assert.ok(closed.indexOf("帮我弄懂") < closed.indexOf("data-usage=\"review.improve\"") && closed.indexOf("data-usage=\"review.improve\"") < closed.indexOf("review-more"), "between 帮我弄懂 and 更多");
+  assert.doesNotMatch(menuOf({ feedback: null }).replace(improveButton(closed), ""), /修题/, "and it is not in the menu");
+  assert.match(improveButton(render({ mode: "exam", feedback: null })), /修题/, "an exam question can be fixed too, as before");
+});
+
+test("修题 reads Improve question in English and is no item of the English menu either", () => {
+  setUiLanguage("en");
+  try {
+    assert.match(improveButton(render({ feedback: null })), />Improve question<\/button>$/);
+    const menu = menuOf({ feedback: null });
+    assert.doesNotMatch(menu.replace(improveButton(menu), ""), /Improve question/);
   } finally { setUiLanguage("zh"); }
 });

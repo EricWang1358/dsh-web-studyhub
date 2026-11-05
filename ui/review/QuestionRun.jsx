@@ -18,7 +18,9 @@ import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
 import { Badge, Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
-import { HELP_CHOICES, IMPROVE_SUGGESTIONS } from "../agent-prompts/card.js";
+import { HELP_CHOICES } from "../agent-prompts/card.js";
+import { FixPhraseChips, FixPhraseSave } from "./FixPhrases.jsx";
+import { useFixPhrases } from "./use-fix-phrases.js";
 import { fixSuggestionFor } from "../card-fix.js";
 import reviewCss from "./review.css";
 import { useInjectCss } from "../shared.js";
@@ -136,6 +138,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const [assistText, setAssistText] = React.useState("");
   const [helpChoices, setHelpChoices] = React.useState([]);
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
+  // 我的常用语句: the learner's own chips of the 修题 box (settings.practice.fixPhrases).
+  const fixPhrases = useFixPhrases(data);
   React.useEffect(() => {
     setAssistMode("");
     setAssistText("");
@@ -548,10 +552,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 options={[{ value: "prerequisite", label: ui("这道题的前置题") }, { value: "standalone", label: ui("一道独立的新题") }]} />}
               {assistMode === "improve" && <>
                 <strong>{ui("不知道怎么说？点一个，或者让助教自己检查")}</strong>
-                <div className="assist-quick-choices" role="group" aria-label={ui("常见的问题")}>
-                  {IMPROVE_SUGGESTIONS.map(([label, body]) =>
-                    <Chip key={label} onClick={() => setAssistText(ui(body))}>{ui(label)}</Chip>)}
-                </div>
+                <FixPhraseChips phrases={fixPhrases.phrases} onPick={setAssistText} onRemove={fixPhrases.remove} />
               </>}
               <label className="assist-form__field">
                 {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : assistMode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : ui("这道题哪里不好？后台助教会直接改这张卡，可一步撤销")}
@@ -565,6 +566,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                   onChange={(event) => setAssistText(event.target.value)}
                 />
               </label>
+              {assistMode === "improve" && <FixPhraseSave phrases={fixPhrases.phrases} text={assistText} onSave={fixPhrases.add} />}
               <div className="action-feedback-slot">{feedback}</div>
               <div className="assist-actions">
                 <Button type="submit" variant="primary" size="sm" className="assist-actions__btn"

@@ -191,5 +191,7 @@
   "结束实录": "End recording",
   "先在「课堂实录」里开始或打开一场实录，这一项才会出现。": "Start or open a recording in Live class first; this item appears then.",
   "保存按钮": "The save button",
-  "结束实录后随时可以点「保存为资料」，不会因为润色或译文没做完而点不了：它会先补完润色和译文，再存下文字稿和课堂笔记；润色没整理出笔记时，会用文字稿另外整理一份；做不完的，任务里会写清楚。": "After you end the recording you can save at any time; it is never greyed out because the polish or translations are unfinished. Saving first finishes the polish and the translations, then keeps the transcript and the class notes. If the polish made no notes, they are written from the transcript. Anything that could not be finished is written in Tasks."
+  "结束实录后随时可以点「保存为资料」，不会因为润色或译文没做完而点不了：它会先补完润色和译文，再存下文字稿和课堂笔记；润色没整理出笔记时，会用文字稿另外整理一份；做不完的，任务里会写清楚。": "After you end the recording you can save at any time; it is never greyed out because the polish or translations are unfinished. Saving first finishes the polish and the translations, then keeps the transcript and the class notes. If the polish made no notes, they are written from the transcript. Anything that could not be finished is written in Tasks.",
+  "觉得这道题不好，点题目下方的「修题」：点一个常见的问题（或者自己写一句），后台助教会直接改这张卡，改完可以一步撤销。": "Think a question is bad? Choose “Improve question” below it: pick a common problem (or write a line of your own) and the background assistant edits the card directly; one step undoes it.",
+  "在「修题」框里写好一句话，点「存为我的常用语句」，它就和内置的常见问题排在一起，以后点一下就填进框里；每条旁边的 ✕ 可以删掉（几秒内可撤销）。最多 12 条，每条最多 200 字，存在学习库的设置里。": "Write a line in the “Improve question” box and choose “Save as my phrase”: it sits next to the built-in common problems, and one click fills the box with it next time. The ✕ on each one removes it (undo for a few seconds). Up to 12 phrases of 200 characters each, saved in the library settings."
 }
