@@ -12,6 +12,7 @@ import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 import { bookModel } from './helpers/course-book-model.mjs';
 import { isCourseNotesSource } from '../lib/exam-point-list.js';
 import { planBook } from '../lib/contexts/generation/book/plan.js';
+import { bookSteps, courseCustom, planParts } from '../lib/contexts/generation/book/plan-parts.js';
 
 const KIND = 'course-book-build';
 const plan = parts => ({ version: 1, purpose: 'review', scope: { kind: 'all' }, book: { make: true, coverage: 'brief', parts },
@@ -82,5 +83,7 @@ test('the plan\'s detail level is the build\'s when the request names none', asy
   assert.equal(planBook(state, { course: COURSE }).coverage, 'brief');
   assert.equal(planBook(state, { course: COURSE, coverage: 'full' }).coverage, 'full', 'the request wins');
   assert.equal(planBook(state, { course: COURSE }).parts.has('terms'), false);
-  assert.equal(planBook(state, { course: COURSE, cards: true }).parts, null, '补术语卡 is the learner\'s own click');
+  assert.equal(planParts(courseCustom(state, COURSE), { cardsOnly: true }), null, '补术语卡 is the learner\'s own click: every step');
+  assert.deepEqual(bookSteps(planParts(courseCustom(state, COURSE))), { write: true, exam: true, cards: false, confusables: false, kit: false });
+  assert.deepEqual(bookSteps(null), { write: true, exam: true, cards: true, confusables: true, kit: true }, 'no plan: today\'s build');
 });
