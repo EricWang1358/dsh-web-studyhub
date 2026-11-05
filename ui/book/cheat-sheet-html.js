@@ -47,12 +47,12 @@ body{margin:0;padding:12px 16px 32px;font:14px/1.45 system-ui,-apple-system,"Seg
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 h1{margin:0;font-size:1.35rem;line-height:1.25}
-h1 small{font-weight:500;color:var(--mute);font-size:.9rem;margin-left:.4em}
+h1 small{font-weight:500;color:var(--mute);font-size:.65em;margin-left:.4em}
 h2{margin:1.4rem 0 .5rem;padding:.25rem .5rem;font-size:1.05rem;background:var(--soft);border-left:4px solid var(--ink);break-after:avoid}
 h3{margin:.9rem 0 .35rem;font-size:.95rem;break-after:avoid}
 p{margin:.2rem 0}
 code{font:.92em/1.3 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
-.sub{color:var(--mute);font-size:.85rem}
+.sub{color:var(--mute);font-size:.9em}
 .nav{display:flex;flex-wrap:wrap;gap:.25rem .9rem;margin:.5rem 0 0;font-size:.85rem}
 .cols{column-width:21rem;column-gap:1.4rem}
 .box{break-inside:avoid;margin:0 0 .55rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:3px;background:#fff}
@@ -63,13 +63,13 @@ code{font:.92em/1.3 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
 .label{margin-right:.35em;font-weight:700;font-size:.82em;color:var(--mute)}
 .rel a{white-space:nowrap}
 .sep{margin:0 .3em;color:var(--mute)}
-.pt{font-size:.82rem;color:var(--mute)}
+.pt{font-size:.9em;color:var(--mute)}
 .pt b{font-family:ui-monospace,Consolas,monospace;color:var(--ink)}
 .tpl{white-space:pre-line;padding:.25rem .4rem;background:var(--soft);border-left:3px solid var(--ink)}
 .slot{background:var(--mark);color:inherit;padding:0 .15em;border:1px dashed var(--ink);border-radius:2px;font-weight:700}
 ul.plain{margin:.2rem 0;padding:0;list-style:none}
 ul.plain li{margin:.15rem 0}
-table{width:100%;border-collapse:collapse;font-size:.88rem}
+table{width:100%;border-collapse:collapse;font-size:.92em}
 th,td{border:1px solid var(--line);padding:.2rem .4rem;text-align:left;vertical-align:top}
 th{background:var(--soft)}
 .math{font-size:1.05em}
@@ -87,15 +87,18 @@ th{background:var(--soft)}
 @page{size:A4;margin:9mm 9mm}
 @media print{
   html,body{background:#fff}
-  body{padding:0;font-size:8pt;line-height:1.28;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{padding:0;font-size:7.4pt;line-height:1.22;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  p{margin:.5pt 0}
   h1{font-size:12pt}
   h2{margin:7pt 0 3pt;font-size:9.5pt;padding:1.5pt 4pt}
   h3{margin:5pt 0 2pt;font-size:8.5pt}
   .nav{display:none}
   a{color:inherit}
   .cols{column-count:2;column-width:auto;column-gap:5mm}
-  .box{margin-bottom:3pt;padding:2pt 3.5pt}
-  .box h4{font-size:8.3pt}
+  .box{margin-bottom:2.5pt;padding:1.5pt 3pt}
+  .box h4{font-size:7.8pt}
+  .rel{display:inline;margin-right:.7em}
+  .fm{margin-bottom:2pt;padding:1pt 3pt}
   table{font-size:7.5pt}
   th,td{padding:1pt 2.5pt}
   .mx tr{break-inside:avoid}

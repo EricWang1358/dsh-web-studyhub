@@ -8,6 +8,7 @@
     "tests/convert-edit-browser.test.mjs",
     "tests/course-book-ai-browser.test.mjs",
     "tests/course-book-browser.test.mjs",
+    "tests/course-book-cheat-sheet-browser.test.mjs",
     "tests/course-book-coverage-browser.test.mjs",
     "tests/course-book-crunch-browser.test.mjs",
     "tests/course-book-edit-browser.test.mjs",

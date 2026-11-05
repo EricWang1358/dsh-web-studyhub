@@ -23,9 +23,13 @@ export default function BookCheatSheet({ book, onGo }) {
       error => { if (isLive()) setPage({ html: null, error }); });
   }, [book]);
   const listen = useCallback(() => {
-    frame.current?.contentDocument?.addEventListener('click', event => {
-      const link = event.target?.closest?.('[data-go]');
-      if (link) { event.preventDefault(); go.current(link.getAttribute('data-go')); }
+    const doc = frame.current?.contentDocument;
+    doc?.addEventListener('click', event => {
+      const link = event.target?.closest?.('a');
+      const hid = link?.getAttribute('data-go'), anchor = link?.getAttribute('href')?.startsWith('#') ? link.getAttribute('href').slice(1) : '';
+      if (hid) { event.preventDefault(); go.current(hid); }
+      // A bare #link in a srcdoc frame would load the app's own address into it: scroll in the sheet instead.
+      else if (anchor) { event.preventDefault(); doc.getElementById(anchor)?.scrollIntoView(); }
     });
   }, []);
   const print = () => { const view = frame.current?.contentWindow; if (view) { view.focus(); view.print(); } };
