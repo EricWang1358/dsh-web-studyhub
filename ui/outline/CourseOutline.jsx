@@ -167,7 +167,8 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, a
   // Chapters may be picked (#708) on an outline the build keeps as it is: not one to organise again first, with more than one chapter, no sample waiting.
   const pickable = !!book && !sample && !book.stale && book.from !== 'descriptors' && (book.parts?.length ?? 0) > 1 && !!actions.pickScale;
   // A book of some chapters: the whole-book button writes the rest of them, and says so.
-  const rest = !!book?.notes && !!unbuiltText(book.parts);
+  // Out of date, the same button is 更新全书: it makes again only the built chapters that changed (lib/contexts/generation/book/part-plan.js), no other one.
+  const rest = !!book?.notes && !!unbuiltText(book.parts) && !book.stale;
   return (<>
     {sample && <BookSample sample={sample} coverage={coverage} off={off} quiet={quiet} onRest={() => actions.writeBook(chosen(), SAMPLE_CONFIRM)}
       onRedo={() => actions.writeBook(chosen())} onOpen={actions.onOpenBook ? point => actions.onOpenBook(`bk:${point.id}`) : undefined} />}

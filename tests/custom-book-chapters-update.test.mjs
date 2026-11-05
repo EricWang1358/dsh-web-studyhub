@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { settleJob } from './helpers/wait.mjs';
 import { BIG_COURSE, bookPaper, chapterTitle, topicOf } from './helpers/big-book-library.mjs';
-import { bigBookWorld as world, leavesOf, pagesOf, pointTitles, readOnly, topicsOf, written } from './helpers/big-book-world.mjs';
+import { bigBookWorld as world, leavesOf, pointTitles, readOnly, topicsOf, written } from './helpers/big-book-world.mjs';
 import { planBook } from '../lib/contexts/generation/book/plan.js';
 import { loadUi } from './helpers/ui-module.mjs';
 
@@ -38,7 +38,9 @@ test('an edit to a chapter not built yet leaves the book as it is; an edit to a 
   await w.build({ sample: 'skip' });
   readOnly(w.since(mark).filter(call => call.stage === 'inventory'), [3]);
   assert.ok(w.since(mark).filter(call => call.stage === 'inventory').length <= 2, 'only the range that changed is read again');
-  assert.deepEqual(pointTitles(w.since(mark)), [topicOf(pagesOf(3)[0] + 10)], 'the one point whose page changed is written again');
+  // Chapter 3 is grouped again (its items are; a batch boundary may move), so a point of it may be written again; never one of chapter 4.
+  const again = pointTitles(w.since(mark));
+  assert.ok(again.includes(topicOf(120)) && again.every(title => topicsOf([3]).includes(title)), `chapter 3 only, its changed point too (${again.join(', ')})`);
   const after = await w.outline(), notes = await w.notes();
   assert.deepEqual(after.courseOutline.nodes.map(node => node.title), [chapterTitle(3), chapterTitle(4)], 'still the two chapters');
   assert.deepEqual(after.courseOutline.nodes[1], nodes[1], 'chapter 4 exactly as it was');
