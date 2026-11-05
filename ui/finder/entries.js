@@ -50,6 +50,7 @@ const NAV_MENU = 'nav-menu';
 export const PREPARE_STEPS = Object.freeze({
   document: { text: '先在「资料」里打开一份资料。' },
   run: { land: 'library', text: '先开始一轮练习，题目下方就有这一项。' },
+  book: { text: '先在「复习全书」里打开一本书。' },
   'run-more': { land: 'library', after: true, text: '先开始一轮练习，点题目下方的「更多」，菜单里就有这一项。' },
   draft: { land: 'library', text: '先在学习库里打开一份待发布的草稿。' },
   materials: { text: '先在「资料」里添加资料，这一项才会出现。' },
@@ -262,6 +263,10 @@ export const FEATURES = Object.freeze([
     aliases: ['刷新', '重新读取', '更新错题', 'refresh', 'reload mistakes'],
     path: ['错题与待巩固'],
     what: '错题页不再有「刷新」按钮：打开着的时候它每隔几秒自己看一眼，有新的错题或错题已订正就会更新，展开的题组和题保持原样。' }),
+  feature({ id: 'book-cheat-sheet', area: 'practice', title: '速查表', page: 'book', anchors: ['book-more', 'nav-book'], prepare: 'book',
+    aliases: ['速查', '开卷速查', '小抄', '打印', '打印速查', '存为 PDF', '导出 html', '术语卡', '易混', '公式页', 'cheat sheet', 'cheatsheet', 'print', 'pdf', 'open book', 'export html'],
+    path: ['复习全书', '更多', '速查表'],
+    what: '把答题模板、题干信号矩阵、易混对照、公式和术语卡排成密密的两栏一页，每条都标着书里的哪一节，点一节的编号回到书里那一节；「打印 / 存为 PDF」按 A4 两栏打印，「下载 .html」存成一个能离线打开的页面（手机上也能看）。书里还没有术语卡、答题模板或公式时，这一项不出现；「导出…」里也有同一个下载。' }),
   feature({ id: 'daily-recap', area: 'practice', title: '每日讲解合集', page: 'settings', anchors: ['settings-daily-recap'],
     aliases: ['讲解合集', '错题合集', '每日错题讲解', 'recap', 'daily recap'],
     path: ['设置', '每日讲解合集'],

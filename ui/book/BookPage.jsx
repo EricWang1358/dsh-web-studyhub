@@ -20,10 +20,11 @@ import BookAskLayer from './BookAskLayer.jsx';
 import BookExport from './BookExport.jsx';
 import BookStructureDialog from './BookStructure.jsx';
 import PlanSection from './PlanSection.jsx';
-import { EditView, FlipView, HistoryDialog, KitDialog, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
+import { CheatView, EditView, FlipView, HistoryDialog, KitDialog, LookupDialog, MockDialog, TodayPanel, useUnsavedWarning } from './book-views.jsx';
 import { BookReadContext, bookSteps, useBookReading, useStepKeys } from './reading.js';
 import { AiFoldContext, BookAiContext, useAiFold } from './ai-fold.js';
 import { useBookData } from './use-book-data.js';
+import { cheatSheet } from './cheat-sheet-model.js';
 import { useBookPlace } from './use-book-place.js';
 import { useBookAi } from './use-book-ai.js';
 import { useBookRebuild } from './use-book-rebuild.js';
@@ -59,6 +60,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const { book, error, setBook, reload } = useBookData({ call, course, paused: view === 'edit', onReplaced: () => place.current?.hold() });
   const rows = useMemo(() => (book?.status === 'ok' ? bookRows(book.nodes) : []), [book]);
   const toc = useMemo(() => tocEntries(book), [book]);
+  // The 速查表 (#710 S5) is offered in 更多 and in the export only when the book has cards, templates, comparisons or formulas to put on it.
+  const hasCheat = useMemo(() => !!cheatSheet(book), [book]);
   const chapters = useMemo(() => (book?.status === 'ok' ? [...book.nodes, ...(book.unplaced.text.trim() ? [{ hid: 'unplaced', title: book.unplaced.title, text: book.unplaced.text, file: book.unplaced.file, number: '' }] : [])] : []), [book]);
   const reading = useBookReading(root, course), steps = useMemo(() => bookSteps(book), [book]);
   const where = useBookPlace({ root, course, book, rows, toc, steps, chapters, reading, pageRef, active: view === 'read' });
@@ -162,9 +165,9 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const hasHistory = Object.values(book.history || {}).some(count => count > 0);
   const menu = <BookMore onSelect={more.select} unplaced={unplaced} pointFold={more.pointFold} bookFold={more.bookFold} scroll={reading.mode === 'scroll'} pages={pages} pageLimit={pageLimit}
     history={hasHistory} today={!!plan.day} mockScope={plan.day ? plan.points.length : 0} dateHint={dateHint} settings={!!(courseRecord?.id && onCourseSettings)}
-    kit={!!book.examKit?.types?.length} cardPass={cardPass} />;
+    kit={!!book.examKit?.types?.length} cheat={hasCheat} cardPass={cardPass} />;
   const dialogs = <>
-    {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} onClose={() => setDialog(null)} />}
+    {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} book={hasCheat ? book : null} onClose={() => setDialog(null)} />}
     {dialog === 'lookup' && <LookupDialog book={book} onGo={where.goTo} onCard={handlers.goCard} onClose={() => setDialog(null)} />}
     {dialog === 'kit' && book.examKit && <KitDialog book={book} onGo={where.goTo} onClose={() => setDialog(null)} />}
     {dialog === 'history' && <HistoryDialog book={book} step={step} onChanged={setBook} onClose={() => setDialog(null)} />}
@@ -176,6 +179,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   if (view === 'flip') return <section className="page book-page" ref={pageRef}>{header}
     <BookAiContext.Provider value={ai.lines}><FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} onMark={(hid, on) => plan.mark(hid, 'seen', on)}
       onGo={hid => { setView('read'); where.goTo(hid); }} onMockStarted={onExamRun} onDone={() => setView('read')} /></BookAiContext.Provider>{askPanel}{dialogs}</section>;
+  if (view === 'cheat') return <section className="page book-page" ref={pageRef}>{header}
+    <CheatView book={book} onGo={hid => { setView('read'); where.goTo(hid); }} onDone={() => setView('read')} />{dialogs}</section>;
   return (
     <section className="page book-page" ref={pageRef} data-narrow={narrow ? '' : undefined}>
       {header}

@@ -1,0 +1,36 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    /* 速查表 of the review book (ui/book/BookCheatSheet.jsx): a quiet row (one sentence, 打印, 下载) over the sheet in a frame. The sheet is its own page, light
+       like the paper it prints on; the frame only borders it. Tokens only; the frame takes the rest of the window so the page scrolls inside it, never sideways. */
+    .book-cheat {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-cheat__tools {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+    .book-cheat__lead {
+      flex: 1 1 14rem;
+      min-width: 0;
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .book-cheat__frame {
+      display: block;
+      width: 100%;
+      height: calc(100dvh - 14rem);
+      min-height: 24rem;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      background: var(--bg-raised);
+    }
+  }
+}

@@ -5,6 +5,7 @@ import { useStudy } from '../study-context.jsx';
 import { useLiveEffect } from '../use-async.js';
 import { PAGE_LIMIT_MAX } from '../../lib/book-settings.js';
 import { downloadBytes, downloadText } from './download.js';
+import { downloadCheatSheet } from './cheat-sheet-file.js';
 import { zipTextFiles } from './zip.js';
 
 /* 「导出」 of the review book (M6, docs/plans/review-book.md): the book as the learner's printable CP (course.book.export, lib/course-book-export.js):
@@ -25,8 +26,8 @@ export function budgetText(pages, limit) {
   return pages > limit ? { tone: 'warning', text: uiFormat('比上限多 {0} 页', [pages - limit]) } : { tone: 'success', text: uiFormat('在上限 {0} 页以内', [limit]) };
 }
 
-/** course; pageLimit: the saved limit (or undefined); onClose(). */
-export default function BookExport({ course, pageLimit, onClose }) {
+/** course; pageLimit: the saved limit (or undefined); book: the open book when it has a 速查表 to save (#710 S5), else null; onClose(). */
+export default function BookExport({ course, pageLimit, book = null, onClose }) {
   const { call, act, notify } = useStudy();
   const [answerKey, setAnswerKey] = useState(false);
   // Which questions are printed (course.book.export `questions`): only the linked ones by default.
@@ -54,10 +55,15 @@ export default function BookExport({ course, pageLimit, onClose }) {
       downloadBytes(`${folder.filename}.zip`, zipTextFiles([folder.manifest, ...folder.files]));
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); } finally { zipping.current = false; }
   };
+  const downloadSheet = async () => {
+    try { await downloadCheatSheet(book); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+  };
   const saved = Number.isInteger(pageLimit) ? pageLimit : null, budget = estimate ? budgetText(estimate.pages, saved) : null;
   const footer = <>
     <Tooltip layer content={ui('每个知识点一份文件，打包成一个 zip；book.yaml 记着顺序，用 pandoc 按这个顺序读就是整本书。')}>
       <Button variant="secondary" icon="download" className="book-export__zip" disabled={!done} onClick={downloadZip}>{ui('分文件下载（zip）')}</Button></Tooltip>
+    {book && <Tooltip layer content={ui('一个能离线打开、也能打印的页面：答题模板、易混对照、公式和术语卡，手机上也能看。')}>
+      <Button variant="secondary" icon="download" className="book-export__sheet" onClick={downloadSheet}>{ui('速查表（.html）')}</Button></Tooltip>}
     <Button variant="primary" icon="download" disabled={!done} onClick={() => downloadText(done.filename, done.text)}>{ui('下载 Markdown')}</Button>
   </>;
   return (

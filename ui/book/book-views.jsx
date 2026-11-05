@@ -5,6 +5,7 @@ import BookFlip from './BookFlip.jsx';
 import BookHistory from './BookHistory.jsx';
 import BookLookup from './BookLookup.jsx';
 import BookExamKit from './BookExamKit.jsx';
+import BookCheatSheet from './BookCheatSheet.jsx';
 import CrunchDay from './CrunchDay.jsx';
 import MockPaper from './MockPaper.jsx';
 import { AiFoldContext } from './ai-fold.js';
@@ -67,6 +68,16 @@ export function FlipView({ book, crunch, course, handlers, aiFold, onMark, onGo,
       {/* Drawn once the plan is read, so its order does not change under the learner (nor under the way back after practice). */}
       {crunch ? <AiFoldContext.Provider value={aiFold}><BookFlip book={book} crunch={crunch} course={course} handlers={handlers} onMark={onMark} onGo={onGo}
         onMockStarted={onMockStarted} /></AiFoldContext.Provider> : <LoadingState label={ui('正在排期末一周…')} />}
+    </section>
+  );
+}
+
+/** 速查表 (#710 S5): the dense printable sheet takes the page's place; a point's code in it goes back to reading at that point. */
+export function CheatView({ book, onGo, onDone }) {
+  return (
+    <section className="book-mode" aria-label={ui('速查表')}>
+      <ModeBar title={ui('速查表')} onDone={onDone} />
+      <BookCheatSheet book={book} onGo={onGo} />
     </section>
   );
 }
