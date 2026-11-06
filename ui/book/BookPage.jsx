@@ -34,6 +34,9 @@ import BookSample from './BookSample.jsx';
 import { startBookBuild, useBookCrunch, useBookHandlers, useBookPages, useCoursePlan } from './use-book-actions.js';
 import { startCardPass, useCardPass } from './use-card-pass.js';
 import { useMoreActions } from './more-actions.js';
+import useIndexCoverage from '../use-index-coverage.js';
+import { hintDocOf, indexHintFor, INDEX_HINT_PAGES } from '../index-hint.js';
+import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { bookParts, showsPart } from './book-parts.js';
 import { bookCoverage, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { bookRows, crunchDateHint, keepBook, tocEntries } from './model.js';
@@ -47,7 +50,7 @@ import aiCss from './book-ai.css';
 
 /** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume, place }); onOpenSource(sourceId, quote); onCreate() (出题); onOpenTask(jobId);
     onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId); theme: 'light' | 'dark' (the editor's); holdLeave(ask): the app's leave gate, held while the editor has unsaved text. */
-export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, theme, holdLeave }) {
+export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, onBuildIndex, theme, holdLeave }) {
   useInjectCss(css, 'study-book');
   useInjectCss(aiCss, 'study-book-ai');
   const { call, act, notify } = useStudy();
@@ -137,8 +140,12 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     const next = steps[structureAt + 1]?.hid ?? steps[structureAt - 1]?.hid ?? null;
     setStructure({ ...entry, next });
   }, [steps, structureAt]);
+  // 更多 › 整本书 offers 先建立检索索引… while a book of 150 pages or more in this course has none (the other pages carry ui/IndexHint.jsx; the menu keeps it for good).
+  const courseDocs = useMemo(() => (onBuildIndex ? groupSourcesByDocument(data?.sources || []).filter(item => !item.archived && (item.courses || []).includes(course)).map(hintDocOf) : []), [data?.sources, course, onBuildIndex]);
+  const [indexCoverage] = useIndexCoverage(call, { enabled: courseDocs.some(doc => doc.pages >= INDEX_HINT_PAGES) });
+  const needsIndex = !!onBuildIndex && !!indexHintFor(courseDocs, indexCoverage, { once: false });
   const more = useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure: openStructure, onOutline: onBack,
-    onCards: () => startCardPass({ act, course, notify }) });
+    onCards: () => startCardPass({ act, course, notify }), onBuildIndex });
   if (error && !book) return <section className="page book-page" ref={pageRef}>{header}<ErrorState error={error} title={ui('没能打开复习全书')} onRetry={reload} /></section>;
   if (!book) return <section className="page book-page" ref={pageRef}>{header}<LoadingState label={ui('正在打开复习全书…')} /></section>;
   // A rebuilt outline that would move the learner's own text: nothing moved yet, the list comes first (#461).
@@ -168,7 +175,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const hasHistory = Object.values(book.history || {}).some(count => count > 0);
   const menu = <BookMore onSelect={more.select} unplaced={unplaced} pointFold={more.pointFold} bookFold={more.bookFold} scroll={reading.mode === 'scroll'} pages={pages} pageLimit={pageLimit}
     history={hasHistory} today={!!plan.day} mockScope={plan.day ? plan.points.length : 0} dateHint={dateHint} settings={!!(courseRecord?.id && onCourseSettings)}
-    kit={!!book.examKit?.types?.length} cheat={offerCheat} cardPass={cardPass} />;
+    kit={!!book.examKit?.types?.length} cheat={offerCheat} cardPass={cardPass} index={needsIndex} />;
   const dialogs = <>
     {dialog === 'export' && <BookExport course={course} pageLimit={pageLimit} book={offerCheat ? book : null} onClose={() => setDialog(null)} />}
     {dialog === 'lookup' && <LookupDialog book={book} parts={parts} onGo={where.goTo} onCard={handlers.goCard} onClose={() => setDialog(null)} />}

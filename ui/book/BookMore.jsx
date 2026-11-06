@@ -12,7 +12,7 @@ import { cardPassTip } from './use-card-pass.js';
 /** The menu's items (pure, for the tests): `state` says what the page has now. unplaced: the step shown is 未归位 (no code the book tools match, no
     questions of its own, no AI blocks, and no structure of its own: only 编辑这个知识点… in its group). kit: the book has an exam answer kit (答题模板…); cheat: the book has a 速查表; cardPass: { points, pairs, calls } of 补术语卡 (or, with every card made, 补易混概念对照; ui/book/use-card-pass.js). */
 export function moreItems({ unplaced = false, pointFold = null, scroll = false, bookFold = null, pages = null, pageLimit = null, history = false, today = false, mockScope = 0, dateHint = null,
-  settings = false, kit = false, cheat = false, cardPass = null }) {
+  settings = false, kit = false, cheat = false, cardPass = null, index = false }) {
   const pagesHint = pages === null ? undefined : pageLimit ? uiFormat('约 {0} 页 / 上限 {1} 页', [pages, pageLimit]) : uiFormat('约 {0} 页', [pages]);
   return [
     { heading: true, label: ui('这个知识点') },
@@ -37,6 +37,8 @@ export function moreItems({ unplaced = false, pointFold = null, scroll = false, 
     history && { id: 'history', label: ui('版本历史…') },
     cardPass?.calls > 0 && { id: 'cards', label: cardPass.points ? ui('补术语卡') : ui('补易混概念对照'), tip: cardPassTip(cardPass) },
     { id: 'outline', label: ui('回到总纲'), hint: ui('重新整理、更新全书') },
+    // A book of 150 pages or more in the course has no search index yet: the way to build it, before 深度定制 or a whole-book run (ui/IndexHint.jsx says why)
+    index && { id: 'index', label: ui('先建立检索索引…'), hint: ui('本机 · 不耗 token') },
     // 深度定制 (skills/study-custom): the main chat asks what the course's big book is for and makes only what is chosen; about the course, so always there
     { id: 'custom', label: ui('深度定制…') },
     { id: 'chat', label: ui(HAND_OFF_LABEL), hint: ui(HAND_OFF_MENU_HINT) },

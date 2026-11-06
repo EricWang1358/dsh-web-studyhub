@@ -52,6 +52,7 @@
     "tests/host-boot-lazy-browser.test.mjs",
     "tests/host-composer-selection-browser.test.mjs",
     "tests/import-hop-browser.test.mjs",
+    "tests/index-guidance-browser.test.mjs",
     "tests/index-shortcut-browser.test.mjs",
     "tests/job-model-choice-browser.test.mjs",
     "tests/layout-late-picker.test.mjs",

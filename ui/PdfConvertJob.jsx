@@ -19,6 +19,8 @@ import { useStudy } from './study-context.jsx';
 import { RepeatedNote } from './RepeatedNote.jsx';
 import { CUSTOM_BOOK_LABEL, CUSTOM_BOOK_WHAT, customOffered, markCustomOffered, offersCustom } from './custom-entry.js';
 import { useCustomLink } from './custom-convert-link.js';
+import IndexHint, { useIndexLink } from './IndexHint.jsx';
+import { hintDocOf } from './index-hint.js';
 
 /* The compact card of a PDF conversion, the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
    guess), one status line, a stop, and ONE button for what comes next (continue without redoing finished pieces: a stopped local service is started by
@@ -62,7 +64,9 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
     : job.status === 'failed' && job.retryable ? { label: ui('接着做'), run: retry, disabled: !!working, tip: retryTip(job) }
       : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
   const follow = followUpLink(job, job.sourceIds, onGenerate), custom = useCustomLink(job);
-  const links = [follow, custom].filter(Boolean);
+  // Before 深度定制 and 用它出题 make anything from a big book, the way to its search index (only for a finished book that has none).
+  const index = useIndexLink({ docs: job.status === 'complete' && job.documentId ? [hintDocOf({ documentId: job.documentId, sourceIds: job.sourceIds, pages: job.sourceIds?.length ?? 0, courses: job.courses })] : [], onOpenSettings });
+  const links = [index, follow, custom].filter(Boolean);
   return <>
     <CompactJobCard job={job} primary={primary} links={links.length ? links : undefined} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
       onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
@@ -339,6 +343,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
           {/* 深度定制这本书 (skills/study-custom): quietly, once, for a book long enough to ask about before anything is made from it (ui/custom-entry.js) */}
           {status === 'complete' && document?.exists && offersCustom(document.pages) && !offered && <HandOff id="custom.start" shape="link" label={CUSTOM_BOOK_LABEL} what={CUSTOM_BOOK_WHAT}
             data-tour="custom-book" input={{ document: row.documentId, pages: document.pages }} onSent={() => { markCustomOffered(row.documentId); setOffered(true); }} />}
+          {status === 'complete' && document?.exists && <IndexHint variant="link" docs={[hintDocOf({ documentId: row.documentId, sourceIds: document.sourceIds, pages: document.pages, courses: document.courses })]} onOpenSettings={onOpenSettings} />}
           {status === 'running' && row.live && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
           {status === 'held' && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onEditHeld(row)}>{HELD_ENTRY()}</Button>}
           {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
