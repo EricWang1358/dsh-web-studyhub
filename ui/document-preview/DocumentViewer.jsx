@@ -49,8 +49,8 @@ import { readingSections } from './reader/text-sections.js';
 import { sectionAtOffset } from '../../lib/sections.js';
 import { outlineFromSections, collectHeadings, withoutLabels, structureOutline, sectionNeighbours, chapterNeighbours, outlinePath } from './reader/outline.js';
 import { applyOutline, clearOutlineTags } from './reader/ai-outline.js';
-import { findRanges, paintMatches, textMatches } from './reader/find.js';
-import { chapterHits, chapterOutline, withElsewhere } from './reader/chapters.js';
+import { drawnSectionText, findRanges, paintMatches, textHits } from './reader/find.js';
+import { chapterFindGroups, chapterOutline, findStop, withElsewhere } from './reader/chapters.js';
 import { useChapterGoal, useReaderChapters } from './reader/useReaderChapters.js';
 import { chapterName, chapterRange, chapterTitle, chapterPagerLabel, elsewhereCount, nextChapterWord, previousChapterWord } from './reader/chapter-copy.js';
 import { useNarrow } from '../use-narrow.js';
@@ -370,6 +370,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [placed, setPlaced] = useState(null);
   useEffect(() => {
     if (!reading || !quote || loading) { setPlaced(null); return undefined; }
+    // One chapter at a time: the quote is placed while the chapter of its page is drawn. In another chapter it is neither found nor missing: no notice, no scroll.
+    if (chaptered && !sections.some(section => section.sourceId === source.id)) return undefined;
     if (quoteState?.status === 'ambiguous' || quoteState?.status === 'stale') { setPlaced(null); showSourcePage(); return undefined; }
     const selection = { ...source.selection, sourceId: source.id, quote };
     let range = renderedPassageRange(body.current, selection), how = 'resolved';
@@ -402,13 +404,14 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
 
   // Search in the document: matches are DOM ranges painted with the Custom Highlight API.
   const deferredQuery = useDeferredValue(query);
-  // The chapter drawn is searched in the page; the others in their stored text (find.js textMatches), each named under the bar with a way there.
+  // The chapter drawn is searched in the page; every chapter also in the text the view draws of it (find.js textHits), so another chapter's count is the one found there.
   const [findRun, setFindRun] = useState(0), findLanding = useRef(null);
   useEffect(() => {
     ranges.current = finding && view !== 'original' && deferredQuery.trim() ? findRanges(body.current, deferredQuery) : [];
     const landing = findLanding.current;
     findLanding.current = null;
-    const at = landing ? ranges.current.findIndex(range => range.startContainer.parentElement?.closest('[data-study-source]')?.dataset.studySource === landing) : -1;
+    // Arriving in another chapter from find: at its first match, or at its last when Shift+Enter went back.
+    const at = landing === 'last' ? ranges.current.length - 1 : 0;
     setTotal(ranges.current.length);
     setMatch(Math.max(0, at));
     setFindRun(count => count + 1);
@@ -421,14 +424,15 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       scroller.current.scrollTo({ top: scroller.current.scrollTop + rect.top - area.top - area.height / 3, behavior: 'auto' });
     return clear;
   }, [total, match, findRun]);
-  const findPages = useMemo(() => chaptered ? allSections.map(section => ({ sectionId: section.id, sourceId: section.sourceId, page: section.page, text: textBySource.get(section.sourceId) ?? '' })) : [],
-    [chaptered, allSections, textBySource]);
-  const elsewhere = useMemo(() => {
-    if (!finding || !chaptered || view === 'original' || !deferredQuery.trim()) return [];
-    return chapterHits(chapter.chapters, textMatches(findPages, deferredQuery)).filter(hit => hit.chapter.id !== chapter.current?.id)
-      .map(hit => ({ key: hit.chapter.id, at: chapter.chapters.indexOf(hit.chapter), title: chapterTitle(hit.chapter), detail: elsewhereCount(hit.first.page, hit.count, slides),
-        onGo: () => { findLanding.current = hit.first.sourceId; chapter.goTo({ chapterId: hit.chapter.id }); } }));
-  }, [finding, chaptered, view, deferredQuery, findPages, chapter.chapters, chapter.current, slides, language]); // eslint-disable-line react-hooks/exhaustive-deps
+  // What find reads in each chapter: the reading view's paragraphs, or each page's stored text in 原文 (folded once per chapter, kept while the text is).
+  const findGroups = useMemo(() => chaptered ? chapterFindGroups(chapter.chapters, allSections, view === 'text' ? section => textBySource.get(section.sourceId) ?? '' : drawnSectionText) : [],
+    [chaptered, chapter.chapters, allSections, view, textBySource]);
+  const findHits = useMemo(() => finding && chaptered && view !== 'original' && deferredQuery.trim() ? textHits(findGroups, deferredQuery)
+    .map(hit => ({ ...hit, at: chapter.chapters.findIndex(entry => entry.id === hit.key) })) : [], [finding, chaptered, view, deferredQuery, findGroups, chapter.chapters]);
+  const findIn = (at, landing) => { findLanding.current = landing; chapter.goTo({ chapterId: chapter.chapters[at].id }); };
+  const elsewhere = useMemo(() => findHits.filter(hit => hit.at !== chapter.index).map(hit => ({ key: hit.key, title: chapterTitle(chapter.chapters[hit.at]),
+    detail: elsewhereCount(hit.first.page, hit.count, slides), onGo: () => findIn(hit.at, 'first') })),
+  [findHits, chapter.index, chapter.chapters, slides, language]); // eslint-disable-line react-hooks/exhaustive-deps
   const openFind = () => {
     const selected = window.getSelection?.()?.toString().trim();
     if (selected && selected.length <= 80 && !selected.includes('\n')) setQuery(selected);
@@ -436,10 +440,13 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     requestAnimationFrame(() => { findInput.current?.focus(); findInput.current?.select(); });
   };
   const closeFind = () => { setFinding(false); scroller.current?.focus?.({ preventScroll: true }); };
-  // Enter with nothing in this chapter goes to the next chapter that has it (Shift+Enter: the one before), wrapping round the book.
-  const nearestElsewhere = delta => delta > 0 ? elsewhere.find(hit => hit.at > chapter.index) ?? elsewhere[0]
-    : elsewhere.findLast(hit => hit.at < chapter.index) ?? elsewhere[elsewhere.length - 1];
-  const stepFind = delta => !total && elsewhere.length ? nearestElsewhere(delta).onGo() : setMatch(current => total ? (current + delta + total) % total : 0);
+  // Enter / Shift+Enter: the next / previous match of the chapter, then on to the next chapter that has one (the one before, at its last match), round the book.
+  const stepFind = delta => {
+    if (!chaptered) { setMatch(current => total ? (current + delta + total) % total : 0); return; }
+    const stop = findStop({ hits: findHits.map(hit => hit.at), current: chapter.index, total, match: Math.min(match, Math.max(total - 1, 0)), delta });
+    if (stop?.chapter !== undefined) findIn(stop.chapter, stop.landing);
+    else if (stop) setMatch(stop.match);
+  };
   const onKeyDown = event => {
     if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'f' && view !== 'original') { event.preventDefault(); openFind(); }
     else if (event.key === 'Escape' && overlay) { event.preventDefault(); event.stopPropagation(); setOverlay(null); }
@@ -573,8 +580,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
                   : <ReadingSections key={chapter.current?.id} sections={sections} labelOf={labelOf} onPeek={canPeek ? openPeek : undefined} scrollRoot={scroller} />
                 : paged ? sections.map(section => <section key={section.id} className="study-document-page reader-section reader-section--page"
                   data-outline-id={section.id} data-study-page={section.page} data-study-source={section.sourceId}>
-                  <span className="reader-section__label">{labelOf(section)}</span>
-                  {canPeek && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={() => openPeek(section.page)}>{ui('看原页')}</Button>}
+                  <span className="reader-section__label" data-find-skip="true">{labelOf(section)}</span>
+                  {canPeek && <Button variant="quiet" size="sm" className="reader-peek" data-find-skip="true" data-peek-page={section.page} title={ui('看原页')} onClick={() => openPeek(section.page)}>{ui('看原页')}</Button>}
                   <QuotedText format={format} text={pageText(section)} quote={section.sourceId === source.id ? quote : ''} anchor={source.selection} />
                 </section>)
                   : <QuotedText format={format} text={content || sources[0]?.text || ''} quote={quote} anchor={source.selection} />}

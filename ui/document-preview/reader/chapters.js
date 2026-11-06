@@ -77,16 +77,28 @@ export function withElsewhere(entries, placed, { drawn, known }) {
   const byId = new Map(placed.map(item => [item.id, item]));
   return (entries || []).map((entry, index) => {
     const id = `ai-${index}`, sourceId = entry.anchor?.sourceId;
-    if (byId.has(id)) return byId.get(id);
+    // Every entry keeps the page it is on, so the questions of a chapter not drawn are placed under the entries by page (practice-range.js sourcePlacer).
+    if (byId.has(id)) return sourceId ? { ...byId.get(id), sourceId } : byId.get(id);
     return sourceId && known.has(sourceId) && !drawn.has(sourceId) ? { id, level: entry.level, title: entry.title, kind: entry.kind, sourceId, elsewhere: true } : null;
   }).filter(Boolean);
 }
 
-/** find.js textMatches grouped by chapter, in chapter order: [{ chapter, count, first }] (`first`: the first page with a match). */
-export function chapterHits(chapters, matches) {
-  const bySection = new Map(matches.map(match => [match.sectionId, match]));
-  return chapters.map(chapter => {
-    const found = chapter.sectionIds.map(id => bySection.get(id)).filter(Boolean);
-    return found.length ? { chapter, count: found.reduce((sum, match) => sum + match.count, 0), first: found[0] } : null;
-  }).filter(Boolean);
+/** What find reads in each chapter (find.js textHits): `textOf(section)` of its pages, in order, keyed by the chapter's id. Keep the result while the text is the same: it is folded once. */
+export function chapterFindGroups(chapters, sections, textOf) {
+  const byId = new Map(sections.map(section => [section.id, section]));
+  return chapters.map(chapter => ({ key: chapter.id, parts: chapter.sectionIds.map(id => byId.get(id)).filter(Boolean)
+    .map(section => ({ page: section.page, sourceId: section.sourceId, text: textOf(section) })) }));
+}
+
+/**
+ * Where Enter (delta 1) or Shift+Enter (-1) goes in find: the next match of the chapter shown (`total` matches, at `match`), else the next chapter (by
+ * index, among `hits`, the chapters with a match) at its first match, or the one before at its last, round the book; within the chapter when no other has
+ * one. -> { match } | { chapter, landing: 'first' | 'last' } | null.
+ */
+export function findStop({ hits, current, total, match, delta }) {
+  if (total && match + delta >= 0 && match + delta < total) return { match: match + delta };
+  const others = hits.filter(at => at !== current);
+  if (!others.length) return total ? { match: (match + delta + total) % total } : null;
+  const chapter = delta > 0 ? others.find(at => at > current) ?? others[0] : others.findLast(at => at < current) ?? others[others.length - 1];
+  return { chapter, landing: delta > 0 ? 'first' : 'last' };
 }

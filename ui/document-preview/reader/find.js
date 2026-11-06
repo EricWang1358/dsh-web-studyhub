@@ -37,23 +37,38 @@ export function matchOffsets(folded, needle, limit = 1000) {
   return offsets;
 }
 
+/**
+ * The text find reads in a page section of the reading view (ReadingSections): its paragraphs back to back, formula source and hidden brackets in,
+ * as the DOM holds them. The page's label and 看原页 are not searched (data-find-skip).
+ */
+export const drawnSectionText = section => (section?.paragraphs || []).map(paragraph => paragraph.text).join('');
+
 const folds = new WeakMap();
-/** The folded text of a page, kept per page object (a document's pages are folded once, not per query). */
-const foldedOf = page => {
-  if (!folds.has(page)) folds.set(page, foldWithMap(page.text).folded);
-  return folds.get(page);
+/** A group's text folded once (not per query), with where each of its pages starts in it. */
+const foldedOf = group => {
+  if (!folds.has(group)) {
+    let text = '';
+    const starts = group.parts.map(part => { const at = text.length; text += part.text ?? ''; return at; });
+    folds.set(group, { ...foldWithMap(text), pageStarts: starts });
+  }
+  return folds.get(group);
 };
 
 /**
- * How often `query` occurs in the STORED text of each page, for the chapters the reader does not draw (one chapter at a time, reader/chapters.js):
- * `pages` [{ sectionId, sourceId, page, text }] -> [{ sectionId, sourceId, page, count }] for the pages with a match, in order.
+ * How often `query` occurs in each group of pages the reader does not draw (a chapter, reader/chapters.js chapterFindGroups), read as the drawn
+ * find reads a drawn chapter: its pages' text back to back, so the count is the one found on arrival. `groups` [{ key, parts: [{ page, sourceId, text }] }]
+ * -> [{ key, count, first: { page, sourceId } }] for the groups with a match, in order (`first`: the page the first match starts on).
  */
-export function textMatches(pages, query, { limit = 1000 } = {}) {
+export function textHits(groups, query, { limit = 1000 } = {}) {
   const needle = foldQuery(query), out = [];
   if (!needle) return out;
-  for (const page of pages || []) {
-    const count = matchOffsets(foldedOf(page), needle, limit).length;
-    if (count) out.push({ sectionId: page.sectionId, sourceId: page.sourceId, page: page.page, count });
+  for (const group of groups || []) {
+    const { folded, starts, pageStarts } = foldedOf(group), offsets = matchOffsets(folded, needle, limit);
+    if (!offsets.length) continue;
+    const from = starts[offsets[0]];
+    let part = 0;
+    while (part + 1 < pageStarts.length && pageStarts[part + 1] <= from) part += 1;
+    out.push({ key: group.key, count: offsets.length, first: { page: group.parts[part].page, sourceId: group.parts[part].sourceId } });
   }
   return out;
 }
@@ -62,7 +77,7 @@ function textNodes(root) {
   const nodes = [], walker = root.ownerDocument.createTreeWalker(root, 4);
   let raw = '', node;
   while ((node = walker.nextNode())) {
-    if (node.parentElement?.closest('[data-study-marker], script, style')) continue;
+    if (node.parentElement?.closest('[data-study-marker], [data-find-skip], script, style')) continue;
     nodes.push({ node, start: raw.length });
     raw += node.textContent;
   }

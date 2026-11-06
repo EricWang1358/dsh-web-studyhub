@@ -8,8 +8,9 @@ import { loadUi } from './helpers/ui-module.mjs';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 
 const ui = await loadUi(`
-  export { CHAPTER_BLOCK_PAGES, readerChapters, chapterAt, chapterOutline, adjacentChapters, withElsewhere, chapterHits } from './ui/document-preview/reader/chapters.js';
-  export { textMatches } from './ui/document-preview/reader/find.js';
+  export { CHAPTER_BLOCK_PAGES, readerChapters, chapterAt, chapterOutline, adjacentChapters, withElsewhere, chapterFindGroups, findStop } from './ui/document-preview/reader/chapters.js';
+  export { textHits, drawnSectionText } from './ui/document-preview/reader/find.js';
+  export { sourcePlacer } from './ui/document-preview/practice/practice-range.js';
   export { readingSections } from './ui/document-preview/reader/text-sections.js';
   export { outlineFromSections, structureOutline, defaultExpanded, outlineRows, filterOutline } from './ui/document-preview/reader/outline.js';`);
 
@@ -103,16 +104,57 @@ test('a kept AI outline keeps the entries of the chapters that are not drawn, in
   ];
   const placed = [{ id: 'ai-2', level: 1, title: 'Two', kind: 'chapter', tagged: true }];
   const items = ui.withElsewhere(entries, placed, { drawn: new Set(['p5', 'p6']), known: new Set(['p1', 'p2', 'p5', 'p6']) });
-  assert.deepEqual(items.map(item => [item.id, item.elsewhere === true, item.sourceId ?? null]), [['ai-0', true, 'p1'], ['ai-1', true, 'p2'], ['ai-2', false, null]]);
+  // Every entry says the page it is on (sourceId), drawn or not, so the questions of a chapter that is not drawn can be placed under the entries by page (F2).
+  assert.deepEqual(items.map(item => [item.id, item.elsewhere === true, item.sourceId ?? null]), [['ai-0', true, 'p1'], ['ai-1', true, 'p2'], ['ai-2', false, 'p5']]);
   assert.equal(items[0].level, 1);
 });
 
-test('find counts the matches of every page from the stored text and groups them by chapter', () => {
-  const pages = [{ sectionId: 's1', sourceId: 'p1', page: 1, text: 'Supply and demand. DEMAND!' }, { sectionId: 's2', sourceId: 'p2', page: 2, text: 'nothing' },
-    { sectionId: 's3', sourceId: 'p3', page: 3, text: 'Ｄｅｍａｎｄ shock' }];
-  const matches = ui.textMatches(pages, ' demand ');
-  assert.deepEqual(matches.map(match => [match.sourceId, match.count]), [['p1', 2], ['p3', 1]]);
-  assert.deepEqual(ui.textMatches(pages, '  '), []);
-  const chapters = [{ id: 'c1', sectionIds: ['s1', 's2'] }, { id: 'c2', sectionIds: ['s3'] }];
-  assert.deepEqual(ui.chapterHits(chapters, matches).map(hit => [hit.chapter.id, hit.count, hit.first.page]), [['c1', 2, 1], ['c2', 1, 3]]);
+test('find counts each chapter in the text the reading view draws (paragraphs back to back, formula source in), so 「N 处」 is what is found on arrival', () => {
+  const sources = [
+    { id: 'p1', text: 'Heading 1\n\nSupply and demand. DEMAND!', document: { page: 1 } },
+    { id: 'p2', text: 'Heading 2\n\nnothing here', document: { page: 2 } },
+    { id: 'p3', text: 'Heading 3\n\nＤｅｍａｎｄ shock with $Y = C + I + G$ inside', document: { page: 3 } },
+  ];
+  const sections = ui.readingSections({ paged: true, sources });
+  assert.equal(ui.drawnSectionText(sections[0]), 'Heading 1Supply and demand. DEMAND!', 'the paragraphs as drawn: no blank line between them');
+  const chapters = [{ id: 'c1', sectionIds: [sections[0].id, sections[1].id] }, { id: 'c2', sectionIds: [sections[2].id] }];
+  const groups = ui.chapterFindGroups(chapters, sections, ui.drawnSectionText);
+  const hits = ui.textHits(groups, ' demand ');
+  assert.deepEqual(hits.map(hit => [hit.key, hit.count, hit.first.page, hit.first.sourceId]), [['c1', 2, 1, 'p1'], ['c2', 1, 3, 'p3']]);
+  assert.deepEqual(ui.textHits(groups, 'c + i + g').map(hit => [hit.key, hit.count]), [['c2', 1]], 'a formula is found by its source, as the drawn find does');
+  // The stored text has a blank line where the drawn text has none: "1 supply" is in the stored text only, so it is not counted.
+  assert.deepEqual(ui.textHits(groups, '1 supply'), []);
+  // A match that runs from one page into the next is one match, on the page it starts on.
+  assert.deepEqual(ui.textHits(groups, 'DEMAND!Heading 2').map(hit => [hit.key, hit.count, hit.first.page]), [['c1', 1, 1]]);
+  // The 原文 view draws the stored text of each page: its groups read that text.
+  const stored = ui.chapterFindGroups(chapters, sections, section => sources.find(item => item.id === section.sourceId).text);
+  assert.deepEqual(ui.textHits(stored, '1 supply').map(hit => [hit.key, hit.count]), [['c1', 1]]);
+  assert.deepEqual(ui.textHits(groups, '  '), []);
+});
+
+test('find steps through the matches of the chapter, then on to the next chapter that has one (Shift: the last match of the one before), round the book', () => {
+  // Chapters 1, 3 and 6 have matches; the reader shows chapter 3 with 4 of them.
+  const hits = [1, 3, 6];
+  assert.deepEqual(ui.findStop({ hits, current: 3, total: 4, match: 1, delta: 1 }), { match: 2 });
+  assert.deepEqual(ui.findStop({ hits, current: 3, total: 4, match: 3, delta: 1 }), { chapter: 6, landing: 'first' });
+  assert.deepEqual(ui.findStop({ hits, current: 3, total: 4, match: 0, delta: -1 }), { chapter: 1, landing: 'last' });
+  assert.deepEqual(ui.findStop({ hits, current: 6, total: 2, match: 1, delta: 1 }), { chapter: 1, landing: 'first' }, 'after the last chapter, the first one');
+  assert.deepEqual(ui.findStop({ hits, current: 1, total: 2, match: 0, delta: -1 }), { chapter: 6, landing: 'last' }, 'before the first chapter, the last one');
+  // None in the chapter shown: Enter goes to the next chapter with one, Shift+Enter to the one before.
+  assert.deepEqual(ui.findStop({ hits: [1, 6], current: 3, total: 0, match: 0, delta: 1 }), { chapter: 6, landing: 'first' });
+  assert.deepEqual(ui.findStop({ hits: [1, 6], current: 3, total: 0, match: 0, delta: -1 }), { chapter: 1, landing: 'last' });
+  // Only this chapter has any: it goes round within it, as before.
+  assert.deepEqual(ui.findStop({ hits: [3], current: 3, total: 4, match: 3, delta: 1 }), { match: 0 });
+  assert.deepEqual(ui.findStop({ hits: [3], current: 3, total: 4, match: 0, delta: -1 }), { match: 3 });
+  assert.equal(ui.findStop({ hits: [], current: 3, total: 0, match: 0, delta: 1 }), null);
+});
+
+test('the questions of a chapter that is not drawn are placed under the outline entry of their page, from data (an AI outline keeps its meters in every chapter)', () => {
+  const order = new Map(['p1', 'p2', 'p3', 'p4', 'p5', 'p6'].map((id, index) => [id, index]));
+  const items = [{ id: 'ai-0', sourceId: 'p1' }, { id: 'ai-1', sourceId: 'p3' }, { id: 'ai-2', sourceId: 'p5' }, { id: 'chapter-x' }];
+  const place = ui.sourcePlacer({ items, order });
+  assert.deepEqual(['p1', 'p2', 'p3', 'p4', 'p6'].map(sourceId => place({ sourceId })), ['ai-0', 'ai-0', 'ai-1', 'ai-1', 'ai-2']);
+  assert.equal(place({ sourceId: 'elsewhere' }), null, 'a page of another document is not placed');
+  assert.equal(ui.sourcePlacer({ items: [{ id: 'ai-0', sourceId: 'p3' }], order })({ sourceId: 'p1' }), 'ai-0', 'a page before the first entry belongs to the first one');
+  assert.equal(ui.sourcePlacer({ items: [], order })({ sourceId: 'p1' }), null);
 });
