@@ -27,7 +27,6 @@
   "复制一份到资料库（约 {0}，文件移动也不受影响）": "Keep a copy in the library (about {0}; unaffected if the file moves)",
   "找不到这个文件：{0}": "File not found: {0}",
   "请填写完整路径（从盘符或 / 开始）": "Enter the full path (starting with a drive letter or /)",
-  "这不是文件，或超过 {0} MB 的上限": "This is not a file, or it is over the {0} MB limit",
   "这不是 {0} 文件，请选择和资料同类型的文件": "This is not a {0} file; choose a file of the same type as the document",
   "无法读取这个文件，请检查文件权限": "This file cannot be read; check its permissions",
   "音频逐字稿没有原文件可附": "An audio transcript has no original file to attach",
@@ -67,5 +66,16 @@
   "我确认这是同一份资料，仍要附上": "I confirm this is the same material; attach it anyway",
   "管理原文件…": "Manage the original file…",
   "已复制到资料库的原文件会放进备份；只记了路径的原文件留在你的电脑上，不在备份里，换电脑后需要重新指定。": "Original files copied into the library are included in the backup; files linked by path stay on your computer and are not in the backup, so link them again on another machine.",
-  "备份已导出。其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。": "Backup exported. {0} original files are linked by path and are not in the backup; link them again on another computer."
+  "备份已导出。其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。": "Backup exported. {0} original files are linked by path and are not in the backup; link them again on another computer.",
+  "「{0}」有 {1}，浏览器没法复制这么大的文件。请在上面填写路径，或点「选择文件…」，只记住它的位置（不占空间）。": "\"{0}\" is {1}. The browser cannot copy a file this big. Enter the path above, or use Choose file…, to just remember its location (no space used).",
+  "「{0}」有 {1}，浏览器没法复制这么大的文件。请在上面填写完整路径，只记住它的位置（不占空间）。": "\"{0}\" is {1}. The browser cannot copy a file this big. Enter the full path above to just remember its location (no space used).",
+  "拖入或从浏览器选择的文件要先整个复制一遍才能交给 StudyHub，所以最多 {0}。填写路径时，StudyHub 直接读你电脑上的那个文件，只记住它的位置：不复制，没有大小限制。": "A file dropped or chosen in the browser has to be copied in full before StudyHub can take it, so it can be at most {0}. With a path, StudyHub reads the file on your computer directly and only remembers where it is: nothing is copied and there is no size limit.",
+  "文件太大，没有逐页核对文字。确认是同一份资料后，仍可以只记路径": "The file is too big to be checked page by page. Once you confirm it is the same material, you can still just remember its location",
+  "核对通过：文件名和大小与转换时的文件一致": "Check passed: the file name and size match the file that was converted",
+  "太大了，不能复制进资料库（最多 {0}）；只记住位置就好。": "Too big to copy into the library (at most {0}); remembering the location is enough.",
+  "复制进资料库最多 {0} MB；更大的文件请只记住位置（填写完整路径）": "A copy in the library can be at most {0} MB; for a bigger file, remember its location instead (enter the full path)",
+  "这个路径不是文件：{0}": "This path is not a file: {0}",
+  "复制最多 {0}": "Copy: up to {0}",
+  "这本书是从 {0}（{1}）转换来的，文件还在原处。": "This book was converted from {0} ({1}), and the file is still where it was.",
+  "使用转换时的原文件": "Use the file it was converted from"
 }

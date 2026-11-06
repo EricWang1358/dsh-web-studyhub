@@ -146,3 +146,14 @@ test('marker.local.status without a command uses the saved path, else StudyHub\'
   assert.equal(probed.state, 'not-installed', 'an empty command in the call is no command: the saved path decides');
   assert.deepEqual(await h.call('marker.settings.get'), { command: join(h.folder, 'elsewhere', 'marker_single') });
 });
+test('a Marker conversion of a file given by path keeps that file as the original (by reference); the history list never shows the path', async t => {
+  const h = await harness(t);
+  const file = join(h.folder, 'Book.pdf');
+  await writeFile(file, await makePdf({ pages: 6 }));
+  await h.call('marker.import', { path: file });
+  const job = await h.terminal(); assert.equal(job.status, 'complete', job.stage);
+  const [record] = (await h.call('mineru.history.list')).records;
+  assert.ok(!JSON.stringify(record).includes(h.folder));
+  const document = await h.call('materials.document.get', { documentId: record.documentId });
+  assert.deepEqual([document.original.mode, document.original.status, document.original.path], ['reference', 'ok', file]);
+});

@@ -12,6 +12,7 @@ import { SelectionJobList } from './SelectionJobs.jsx';
 import QuickIntents from './QuickIntents.jsx';
 import PageAsk, { PAGE_REFUSED, pageReasons } from './PageAsk.jsx';
 import { pageKey, pageSelection, pagesLabel, pagesOf, pagesText } from './page-scope.js';
+import { handOffOriginal } from './original-file.js';
 import { askRequest, pageDraftKey, retryOf } from './ask-request.js';
 import { blockingJob, deckName, isActive, mergeJobs, startErrorText, startedNotice, upsertJob } from './selection-job.js';
 import AskThread, { refusal } from './AskThread.jsx';
@@ -183,8 +184,10 @@ export default function DocumentLearning({ call, document, capture, scope = null
   const pageMode = scope?.kind === 'page';
   // What 发给主会话 of a page carries (ui/agent-prompts/reader.js): the material's name, the page, its saved text; the typed question is added when it is sent.
   const pageText = pageMode ? pagesText(document?.sources, scope) : '';
-  const pageHandOff = useMemo(() => pageMode ? { title: document?.title || document?.filename || '', page: scope.to ? pagesLabel(scope) : scope.page, ...(scope.to ? { range: true } : {}), text: pageText, ...(pageImages ? { pages: pagesOf(scope).length, loadImages: () => pageImages(pagesOf(scope)) } : {}) } : null,
-    [pageMode, document?.title, document?.filename, scope, pageText, pageImages]);
+  // Where the original PDF is (a reference to the learner's own file, or the copy in the library), so the main chat can open the page itself.
+  const originalPath = handOffOriginal(document)?.path;
+  const pageHandOff = useMemo(() => pageMode ? { title: document?.title || document?.filename || '', page: scope.to ? pagesLabel(scope) : scope.page, ...(scope.to ? { range: true } : {}), text: pageText, ...(originalPath ? { original: { path: originalPath } } : {}), ...(pageImages ? { pages: pagesOf(scope).length, loadImages: () => pageImages(pagesOf(scope)) } : {}) } : null,
+    [pageMode, document?.title, document?.filename, originalPath, scope, pageText, pageImages]);
   const [pageCut, setPageCut] = useState(null), [pageRefusal, setPageRefusal] = useState(null), cuts = useRef(new Map());
   // A question typed on one page stays with that page (it comes back there), never follows to the next one.
   const drafts = useRef(new Map()), draftKey = pageDraftKey(scope);

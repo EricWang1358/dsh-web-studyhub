@@ -6,8 +6,17 @@ import { browserStorage, readJSON, writeJSON } from '../storage.js';
 /* Pure logic and wording of the "补全原文件" flow: attach the ORIGINAL file to a document that only kept its text.
    The screens are in OriginalFile.jsx; everything that can be decided without React is here (and tested). */
 
-/** The largest file the host accepts as an original (mirrors lib/contexts/materials/original-file.js). */
+/** The largest file the host COPIES as an original (mirrors lib/contexts/materials/original-file.js). A file referenced by its path has no limit. */
 export const ORIGINAL_MAX_BYTES = MAX_OFFICE_BYTES;
+
+/** A file the browser chose is copied whole (base64) to reach the host: over the copy limit it is not taken, and the learner is pointed at the path instead. */
+export const tooBigForBrowser = file => !!file && file.size > ORIGINAL_MAX_BYTES;
+
+/** The sentence under a dropped or chosen file that is too big to copy, and what to do instead (the long reason is in a hover card: bigFileWhy). */
+export const bigFileLine = ({ name, size }, { picker }) => (picker
+  ? uiFormat('「{0}」有 {1}，浏览器没法复制这么大的文件。请在上面填写路径，或点「选择文件…」，只记住它的位置（不占空间）。', [name, formatBytes(size)])
+  : uiFormat('「{0}」有 {1}，浏览器没法复制这么大的文件。请在上面填写完整路径，只记住它的位置（不占空间）。', [name, formatBytes(size)]));
+export const bigFileWhy = () => uiFormat('拖入或从浏览器选择的文件要先整个复制一遍才能交给 StudyHub，所以最多 {0}。填写路径时，StudyHub 直接读你电脑上的那个文件，只记住它的位置：不复制，没有大小限制。', [formatBytes(ORIGINAL_MAX_BYTES)]);
 
 export { unquotePath, isAbsolutePath } from '../paths.js';
 
@@ -34,6 +43,18 @@ export function shortPath(path, max = 32) {
   if (parts.length < 3) return value;
   const first = parts[0] === '' ? `${separator}${parts[1]}` : parts[0];
   return `${first}${separator}…${separator}${parts.at(-1)}`;
+}
+
+/**
+ * Where the original PDF is, for the message that hands a page to the main chat (ui/agent-prompts/reader.js): the learner's own file when the library holds a reference
+ * to it (even one too big for the reader to open), else the copy in the library. Nothing when there is no original, it is not there any more, or it is not a PDF.
+ * `document` is the descriptor the reader loaded (materials.document.get).
+ */
+export function handOffOriginal(document) {
+  const original = document?.original;
+  if (document?.format !== 'pdf' || original?.status !== 'ok') return undefined;
+  const path = original.mode === 'reference' ? original.path : original.mode === 'copy' ? document.preview?.absolutePath : '';
+  return typeof path === 'string' && path ? { path } : undefined;
 }
 
 /** The one-line status of an original, for the row menu. */
@@ -70,6 +91,8 @@ const percent = value => `${Math.round(value * 1000) / 10}%`;
 
 /** The verdict in one sentence. */
 export function reportHeadline(report) {
+  if (report.verdict === 'unchecked') return { tone: 'warning', text: ui('文件太大，没有逐页核对文字。确认是同一份资料后，仍可以只记路径') };
+  if (report.basis === 'conversion-record') return { tone: 'success', text: ui('核对通过：文件名和大小与转换时的文件一致') };
   if (report.verdict === 'identical') return { tone: 'success', text: ui('核对通过：和保存文字时用的是同一个文件') };
   if (report.verdict === 'match') return { tone: 'success', text: report.pages?.stored > 1 ? ui('核对通过：页数一致，文字对得上') : ui('核对通过：文字对得上') };
   return { tone: 'warning', text: ui('页数不同 / 文字对不上，可能不是同一份文件') };
@@ -77,7 +100,7 @@ export function reportHeadline(report) {
 
 /** The figures behind the verdict. */
 export function reportLines(report) {
-  if (report.verdict === 'identical') return [];
+  if (report.verdict === 'identical' || report.verdict === 'unchecked' || report.basis) return [];
   const lines = [], { pages } = report;
   if (pages?.stored > 1 || !pages?.match) lines.push({ tone: pages.match ? 'success' : 'warning',
     text: pages.match ? uiFormat('页数一致：{0} 页', [pages.stored]) : uiFormat('页数不同：保存的文字来自 {0} 页，这个文件有 {1} 页', [pages.stored, pages.supplied]) });
@@ -92,7 +115,8 @@ export function modeOptions({ size, hasPath }) {
     { value: 'reference', label: ui('只记住位置'), disabled: !hasPath,
       detail: ui('指给它原文件的位置（只记路径，不复制，不占空间；文件移动或删除后预览会提示找不到）'),
       ...(hasPath ? {} : { note: ui('浏览器不会告诉我们文件在哪里；要只记路径，请在上面填写完整路径。') }) },
-    { value: 'copy', label: ui('复制一份到资料库'), disabled: false, detail: uiFormat('复制一份到资料库（约 {0}，文件移动也不受影响）', [formatBytes(size)]) },
+    { value: 'copy', label: ui('复制一份到资料库'), disabled: size > ORIGINAL_MAX_BYTES, detail: uiFormat('复制一份到资料库（约 {0}，文件移动也不受影响）', [formatBytes(size)]),
+      ...(size > ORIGINAL_MAX_BYTES ? { note: uiFormat('太大了，不能复制进资料库（最多 {0}）；只记住位置就好。', [formatBytes(ORIGINAL_MAX_BYTES)]) } : {}) },
   ];
 }
 
@@ -112,7 +136,8 @@ export function explainFailure(message) {
   let found;
   if ((found = /The file was not found: (.+)$/.exec(text))) return uiFormat('找不到这个文件：{0}', [found[1]]);
   if (/Document path must be absolute/.test(text)) return ui('请填写完整路径（从盘符或 / 开始）');
-  if ((found = /at most (\d+) MB/.exec(text)) || (found = /exceeds (\d+) MB/.exec(text))) return uiFormat('这不是文件，或超过 {0} MB 的上限', [found[1]]);
+  if ((found = /The path is not a file: (.+)$/.exec(text))) return uiFormat('这个路径不是文件：{0}', [found[1]]);
+  if ((found = /at most (\d+) MB/.exec(text)) || (found = /exceeds (\d+) MB/.exec(text))) return uiFormat('复制进资料库最多 {0} MB；更大的文件请只记住位置（填写完整路径）', [found[1]]);
   if ((found = /same type as the document \((\w+)\)/.exec(text))) return uiFormat('这不是 {0} 文件，请选择和资料同类型的文件', [found[1].toUpperCase()]);
   if (/cannot be read/.test(text)) return ui('无法读取这个文件，请检查文件权限');
   if (/audio transcript/.test(text)) return ui('音频逐字稿没有原文件可附');

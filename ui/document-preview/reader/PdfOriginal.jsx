@@ -4,6 +4,7 @@ import { ui } from '../../i18n.js';
 import { Button, InlineMessage, LoadingState, Tooltip } from '../../components/index.js';
 import { stepZoom } from '../peek/peek-logic.js';
 import PdfPageBar from './PdfPageBar.jsx';
+import { isPagedUrl, originalBytes, pagedFailure } from '../peek/paged-original.js';
 
 /*
  * 原始 PDF (#488): the page controls, and the page drawn in place (peek/PdfPageView.jsx). The browser's viewer stays one press away for what only it does (finding in the whole
@@ -11,7 +12,8 @@ import PdfPageBar from './PdfPageBar.jsx';
  * the reader's, so they survive a visit to 阅读.
  */
 export default function PdfOriginal({ fileUrl, title, page, total, onPage, settings, onSettings }) {
-  const [failed, setFailed] = useState(false), native = settings.native || failed;
+  // A paged original (too big to send whole) has no file for the browser's own viewer: it is always drawn here, a page at a time.
+  const paged = isPagedUrl(fileUrl), [failed, setFailed] = useState(false), native = !paged && (settings.native || failed);
   useEffect(() => { setFailed(false); }, [fileUrl]);
   // pdf.js lives in the peek's chunk, fetched when this view is first opened, never with the reader; a chunk that does not load falls back like a file that cannot be drawn.
   const [PdfPageView, setView] = useState(null);
@@ -19,18 +21,18 @@ export default function PdfOriginal({ fileUrl, title, page, total, onPage, setti
     if (native || PdfPageView) return;
     import('../peek/PagePeek.jsx').then(module => { if (isLive()) setView(() => module.PdfPageView); }).catch(() => { if (isLive()) setFailed(true); });
   }, [native, PdfPageView]);
-  const loadBytes = async () => new Uint8Array(await (await fetch(fileUrl)).arrayBuffer());
+  const loadBytes = () => originalBytes(fileUrl);
   const toggleNative = () => onSettings(settings.native
     ? { native: false, slow: false, keepSinglePage: Boolean(settings.slow || settings.keepSinglePage) }
     : { native: true, slow: false });
   return <div className="reader-original">
     <PdfPageBar page={page} total={total} onPage={onPage} zoom={native ? undefined : settings.zoom}
       onZoom={direction => onSettings({ zoom: direction ? stepZoom(settings.zoom, direction) : 1 })}>
-      {!failed && <Tooltip layer content={ui(settings.native ? '一次画一页：翻页不重新载入，缩放不变，显示的就是面板问的那一页。' : '能在整份文件里查找、连续滚动；但每次翻页都会重新载入，缩放不保留。')}>
+      {!failed && !paged && <Tooltip layer content={ui(settings.native ? '一次画一页：翻页不重新载入，缩放不变，显示的就是面板问的那一页。' : '能在整份文件里查找、连续滚动；但每次翻页都会重新载入，缩放不保留。')}>
         <Button variant="link" size="sm" onClick={toggleNative}>{ui(settings.native ? '回到单页视图' : '用浏览器的查看器')}</Button>
       </Tooltip>}
     </PdfPageBar>
-    {failed && <InlineMessage tone="info">{ui('这份文件在这里画不出来，已换成浏览器的查看器。')}</InlineMessage>}
+    {failed && <InlineMessage tone="info">{paged ? pagedFailure(fileUrl) || ui('这份原文件现在打不开：它可能被移走或改动了。') : ui('这份文件在这里画不出来，已换成浏览器的查看器。')}</InlineMessage>}
     {!failed && native && settings.slow && <InlineMessage tone="info">{ui('这份文件单页绘制太慢，已换成浏览器的查看器，避免翻页卡顿。')}</InlineMessage>}
     {/* A new frame per page: the browser's PDF viewer ignores a later change of #page=, so the page asked about and the page shown would differ. */}
     {native ? <iframe key={page} src={`${fileUrl}#page=${page}`} title={title} />

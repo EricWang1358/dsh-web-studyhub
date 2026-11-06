@@ -1,8 +1,9 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useContext, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, Checkbox, Disclosure, Hint, Icon, InlineMessage, ProgressBar, RadioCard, RadioCardGroup, SegmentedControl, Tooltip } from './components/index.js';
-import { localEstimate, minutesOf, pageRange, uploadPdf } from './mineru-flow.js';
+import { localEstimate, minutesOf, pageRange } from './mineru-flow.js';
+import { canPickNative, isNativeSource, pickNativePdf, prepareSource, sourceArgs } from './pdf-source.js';
 import { formatBytes } from './components/FileDrop.jsx';
 import { PdfConvertHistory } from './PdfConvertJob.jsx';
 import css from './mineru.css';
@@ -10,7 +11,7 @@ import { useMineruState } from './use-mineru.js';
 import { STATUS_TEXT, cardState, mineruUsable } from './mineru-install-flow.js';
 import MineruInstallCard from './MineruInstallCard.jsx';
 import { useLiveEffect } from './use-async.js';
-import { useStudy } from './study-context.jsx';
+import { StudyServicesContext, useStudy } from './study-context.jsx';
 
 /* Both entry points share one staged PDF. Choosing a converter never reuploads it;
    only an explicit start hands the file to a background conversion job. The converter is chosen once, here (MinerU or Marker), and both run on this
@@ -52,6 +53,12 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
   const [starting, setStarting] = useState(false), [review, setReview] = useState(false);
   const uploadId = useRef(''), picker = useRef(null), alive = useRef(true), taken = useRef(false);
   const radioId = useId();
+  // With a native file dialog the PDF is chosen by PATH (nothing is copied through the browser, and the finished book is linked to that file as its original); else the browser file is uploaded.
+  const host = useContext(StudyServicesContext)?.host, nativeOn = canPickNative(host), [own, setOwn] = useState(null), picked = own || file;
+  const chooseNative = async () => {
+    try { const source = await pickNativePdf(host); if (source) { setOwn(source); onFile?.(source); } }
+    catch { setProblem(ui('无法打开文件选择器，请直接把文件拖到这里。')); }
+  };
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   // What is set up: read once, and again whenever a panel changes something.
@@ -62,18 +69,17 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
 
   // A chosen PDF is handed to the backend in pieces and planned; nothing leaves the computer here.
   useEffect(() => {
-    if (!available || !file || typeof call !== 'function' || initialPlan) return undefined;
+    if (!available || !picked || typeof call !== 'function' || initialPlan) return undefined;
     const controller = new AbortController();
     let pending = '', handedOff = false;
-    setPlan(null); setProblem(''); setReading(0); taken.current = false;
+    setPlan(null); setProblem(''); setReading(isNativeSource(picked) ? null : 0); taken.current = false;
     (async () => {
       try {
-        const id = await uploadPdf(call, file, { signal: controller.signal, onProgress: fraction => { if (alive.current && !controller.signal.aborted) setReading(fraction); } });
-        pending = id;
-        if (controller.signal.aborted) { await call('mineru.upload.cancel', { uploadId: id }); return; }
-        uploadId.current = id;
-        const next = await call('mineru.plan', { uploadId: id });
-        if (alive.current && !controller.signal.aborted) { setPlan(next); setReading(null); }
+        const prepared = await prepareSource(call, picked, { signal: controller.signal, onUploaded: id => { pending = id; },
+          onProgress: fraction => { if (alive.current && !controller.signal.aborted) setReading(fraction); } });
+        if (!prepared) return;
+        uploadId.current = prepared.uploadId;
+        if (alive.current && !controller.signal.aborted) { setPlan(prepared.plan); setReading(null); }
       } catch (error) {
         if (controller.signal.aborted || !alive.current) return;
         setReading(null); setProblem(errorMessage(error));
@@ -86,7 +92,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
       // A PDF that was read but never started does not stay in the DSH home.
       if (pending && !handedOff) Promise.resolve(call('mineru.upload.cancel', { uploadId: pending })).catch(() => {});
     };
-  }, [file]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [picked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const route = 'local';
   // MinerU is usable when it is ready, or installed with its service stopped (the conversion starts it); Marker when it is ready.
@@ -103,14 +109,14 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
 
 
   const start = async () => {
-    if (!available || !file || !plan || starting) return;
+    if (!available || !picked || !plan || starting) return;
     const selectedUpload = uploadId.current;
     setStarting(true); setProblem('');
     try {
       taken.current = true;
-      const job = await call(isMarker ? 'marker.import' : 'mineru.import', { uploadId: selectedUpload, ...(isMarker ? {} : { route }), ...(courses.length ? { courses } : {}), ...(review ? { reviewBeforeImport: true } : {}) });
+      const job = await call(isMarker ? 'marker.import' : 'mineru.import', { ...sourceArgs(picked, selectedUpload), ...(isMarker ? {} : { route }), ...(courses.length ? { courses } : {}), ...(review ? { reviewBeforeImport: true } : {}) });
       uploadId.current = '';
-      if (alive.current) onStarted?.({ ...job, filename: file.name, pages: plan.pages, route, converter });
+      if (alive.current) onStarted?.({ ...job, filename: picked.name, pages: plan.pages, route, converter });
     } catch (error) {
       taken.current = false;
       if (!alive.current && selectedUpload) Promise.resolve(call('mineru.upload.cancel', { uploadId: selectedUpload })).catch(() => {});
@@ -148,15 +154,17 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
 
       {compact ? <SegmentedControl className="mineru-tools" label={ui('解析工具')} value={converter} disabled={starting} onChange={setConverter}
         options={[{ value: 'mineru', label: 'MinerU' }, { value: 'marker', label: 'Marker' }]} /> : tools}
-      {!file && <div className="mineru-pick">
-        <input ref={picker} type="file" accept={ACCEPT} className="sh-visually-hidden" tabIndex={-1} aria-hidden="true"
-          onChange={event => { const chosen = event.target.files?.[0]; event.target.value = ''; if (chosen) onFile?.(chosen); }} />
-        <Button variant="primary" icon="upload" className="mineru-route-panel__btn" disabled={!available} onClick={() => picker.current?.click()}>{ui('选择 PDF…')}</Button>
+      {!picked && <div className="mineru-pick">
+        {nativeOn ? <Button variant="primary" icon="upload" className="mineru-route-panel__btn" data-pick="native" disabled={!available} onClick={chooseNative}>{ui('选择 PDF…')}</Button> : <>
+          <input ref={picker} type="file" accept={ACCEPT} className="sh-visually-hidden" tabIndex={-1} aria-hidden="true"
+            onChange={event => { const chosen = event.target.files?.[0]; event.target.value = ''; if (chosen) onFile?.(chosen); }} />
+          <Button variant="primary" icon="upload" className="mineru-route-panel__btn" data-pick="browser" disabled={!available} onClick={() => picker.current?.click()}>{ui('选择 PDF…')}</Button></>}
         <small>{ui('只在这台电脑上读取，确认之后才会开始解析。')}</small>
       </div>}
 
-      {file && <>
-        <p className="mineru-file"><strong>{file.name}</strong><span>{formatBytes(file.size)}</span></p>
+      {picked && <>
+        <p className="mineru-file"><strong>{picked.name}</strong><span>{formatBytes(picked.size ?? plan?.bytes)}</span>
+          {nativeOn && !isNativeSource(picked) && <Button variant="quiet" size="sm" lock={starting} onClick={chooseNative}>{ui('不复制这个文件：选择本机文件…')}</Button>}</p>
         {reading !== null && <div className="mineru-reading">
           <ProgressBar value={Math.round(reading * 100)} max={100} label={ui('正在读取这份 PDF')} size="sm" />
           <small>{uiFormat('正在读取这份 PDF（只在这台电脑上），{0}%', [Math.round(reading * 100)])}</small>
@@ -195,7 +203,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
           <Button variant="primary" icon="sparkle" className="mineru-route-panel__btn" busy={starting} disabled={!plan || !usable} onClick={start}>
             {isMarker ? ui('用 Marker 开始解析') : ui('开始本地解析')}
           </Button>
-          {onFile && <Button variant="quiet" className="mineru-route-panel__btn" lock={starting} onClick={() => onFile(null)}>{ui('换一份 PDF')}</Button>}
+          {(onFile || own) && <Button variant="quiet" className="mineru-route-panel__btn" lock={starting} onClick={() => { setOwn(null); onFile?.(null); }}>{ui('换一份 PDF')}</Button>}
         </div>
       </>}
 
