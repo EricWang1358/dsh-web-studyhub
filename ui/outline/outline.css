@@ -237,6 +237,16 @@
       color: var(--text-muted);
       font-size: var(--fs-sm);
     }
+    /* The question before a whole-book build of a long book without a custom plan (ui/outline/CustomGate.jsx): small quiet lines, long words wrap. */
+    .custom-gate__scale {
+      margin: 0 0 var(--space-2);
+    }
+    .custom-gate__line {
+      margin: 0 0 var(--space-1);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      overflow-wrap: anywhere;
+    }
     .outline-papers__list {
       display: grid;
       gap: var(--space-1);
