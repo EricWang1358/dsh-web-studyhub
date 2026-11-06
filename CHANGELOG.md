@@ -2,6 +2,10 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 4.4.3 — 2026-11-06
+
+- **A big book can now be customized from its own row, and the whole-book buttons ask first.** A document of 150 pages or more has a quiet “Customize in depth” beside “Show N chapters” on the Sources page, every time (“View / change the custom plan” once the course has one). On the Outline page, “Generate outline” and the first “Generate review book” of a course with such a book and no custom plan no longer start at once: a small question offers “Customize this book in depth (recommended)”, “Generate the whole book” or “Cancel”, with a rough size (model calls and tokens read, no prices) from the build's own estimate, which calls no model. Courses with a plan, or with no book of 150 pages, start with one click as before. Not verified: the hand-off into a real DSH main chat (checked only with the clipboard stand-in of the preview), and the estimate against a real 500-page book.
+
 ## 4.4.2 — 2026-11-06
 
 - **Building the search index is a task in Tasks.** Starting the index in Settings (or from a large book's card) now adds “Build search index · course name” to Tasks, as every other long job is: it shows the pages done out of all of them, that it runs on this computer without AI and costs no tokens, a Stop, the reason when it stops (for example after five pages in a row could not be written, with what the search service said) and, at the end, what it added. Settings keeps its progress bar and Stop, and has “View in Jobs” beside them. Within one running StudyHub, starting again while a build runs shows that build instead of a second one, and the next build writes only the pages not indexed yet; restart DSH after updating, because a build still running in the old version cannot be seen by the new one. Just after DSH restarts, before a conversation is open again, the build is never refused: it runs the old way, with its progress and Stop in Settings, and does not appear in Tasks. Not verified: not run in a real DSH nightly with a real search extension or a large book (checked with a stand-in extension, in tests and a local preview).
