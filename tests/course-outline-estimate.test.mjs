@@ -16,7 +16,7 @@ import { OUTLINE_LIMITS } from '../lib/course-outline-book.js';
 
 const KIND = 'course-outline-build';
 /** The keys of an estimate: the same for a course with no readable text, one material or several, and with or without sample papers. */
-const ESTIMATE_KEYS = ['basis', 'bodyChars', 'calls', 'chars', 'cut', 'items', 'materials', 'nodes', 'papers', 'points', 'ranges', 'readTokens'];
+const ESTIMATE_KEYS = ['basis', 'bodyChars', 'calls', 'chars', 'cut', 'items', 'materials', 'nodes', 'papers', 'points', 'ranges', 'readTokens', 'totalTokens', 'writeTokens'];
 const leavesOf = nodes => nodes.flatMap(node => (node.children ? leavesOf(node.children) : [node]));
 /** The leaves of a review book's manifest (a leaf names itself and keeps an empty `children`). */
 const manifestLeaves = nodes => nodes.flatMap(node => (node.children?.length ? manifestLeaves(node.children) : [node]));

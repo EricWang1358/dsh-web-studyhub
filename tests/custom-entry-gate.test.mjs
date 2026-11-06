@@ -135,7 +135,7 @@ test('the gate offers 深度定制这本书（推荐）, 整本生成, 取消, i
 
 test('the estimate of an outline build: calls as a range and the tokens of the material it reads, from the build\'s own estimate; never a price', () => {
   const scale = ui.gateScaleOf('outline', { outline: { status: 'estimate', steps: 51, estimate: { calls: 43, chars: 900000, readTokens: { low: 210000, high: 340000 } } } });
-  assert.deepEqual(scale, { points: null, calls: { low: 43, high: 51 }, tokens: { low: 210000, high: 340000 } });
+  assert.deepEqual(scale, { points: null, calls: { low: 43, high: 51 }, tokens: { low: 210000, high: 340000 }, write: null, total: null }, 'an estimate from before the writing was priced says what it always said');
   const text = textOf(gateHtml({ scale }));
   assert.match(text, /43–51 次模型调用/);
   assert.match(text, /210\.0K–340\.0K tok|210K–340K tok/);

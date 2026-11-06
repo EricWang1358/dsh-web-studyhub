@@ -21,7 +21,10 @@ export function gateScaleOf(kind, answers) {
   if (!outline?.estimate) return null;
   const calls = outline.estimate.calls || 0, tokens = outline.estimate.readTokens || { low: 0, high: 0 };
   if (!calls && !tokens.high) return null;
-  return { points: null, calls: { low: calls, high: Math.max(calls, outline.steps || 0) }, tokens, ...(kind === 'book' ? { firstStep: true } : {}) };
+  // The whole a build asks for, when the estimate can say it (#773): the material it reads AND the writing it asks for. The prompts are named as extra rather
+  // than dropped: a range that leaves out half the spend is the thing this gate was wrong about.
+  const write = outline.estimate.writeTokens || null, total = outline.estimate.totalTokens || null;
+  return { points: null, calls: { low: calls, high: Math.max(calls, outline.steps || 0) }, tokens, write, total, ...(kind === 'book' ? { firstStep: true } : {}) };
 }
 
 function ScaleLines({ scale }) {
@@ -30,7 +33,9 @@ function ScaleLines({ scale }) {
   return (
     <div className="custom-gate__scale" data-custom-gate-scale="">
       <p className="custom-gate__line">{scale.points == null ? uiFormat('整本生成大约要 {0}', [callsText(scale.calls)]) : uiFormat('要写 {0} 个知识点 · {1}', [scale.points, callsText(scale.calls)])}</p>
-      <p className="custom-gate__line">{uiFormat('读资料约 {0}（不含提示和模型写出的内容）', [rangeTok(scale.tokens)])}</p>
+      {scale.total && scale.write
+        ? <p className="custom-gate__line">{uiFormat('整笔约 {0}：读资料 {1}，模型写出的 {2}；提示词另计', [rangeTok(scale.total), rangeTok(scale.tokens), rangeTok(scale.write)])}</p>
+        : <p className="custom-gate__line">{uiFormat('读资料约 {0}（不含提示和模型写出的内容）', [rangeTok(scale.tokens)])}</p>}
       {scale.firstStep && <p className="custom-gate__line">{ui('这只是第一步（整理总纲）；之后还要给每个知识点写讲解，比这更多。')}</p>}
       <p className="custom-gate__line">{ui('数字只是估计，实际用量在任务页看。')}</p>
     </div>
