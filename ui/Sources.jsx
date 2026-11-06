@@ -37,6 +37,8 @@ import { idsOfDocuments, offerDocumentsArchived } from './archive-entries.js';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
 import { useRetrievalStatus } from './retrieval-status.js';
+import { HandOff } from './hand-off/HandOff.jsx';
+import { CUSTOM_ROW_EDIT_LABEL, CUSTOM_ROW_EDIT_WHAT, CUSTOM_ROW_LABEL, CUSTOM_BOOK_WHAT, customRowOffer } from './custom-entry.js';
 
 /* 资料视图：一份文档一行（PDF 的各页收在行内，按需展开；P18）。按导入日期分组，
    最新一组默认展开（P23）；刚导入的资料高亮并滚动到视野里。sourceForm 是 App
@@ -153,7 +155,7 @@ export function RowMenuItems({ item, onChangeCourse, onRemove, onSegment, onRena
 }
 
 const sameRelation = (a, b) => a === b || (!!a && !!b && a.role === b.role && a.of === b.of && a.derived === b.derived && a.count === b.count);
-const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'topUp', 'canIndex', 'indexLink', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark'];
+const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'topUp', 'canIndex', 'indexLink', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark', 'custom'];
 
 /**
  * Does a row need to be drawn again? Only when its own document, its own flags, its own index state or its own relation changed (#229, as the picker's #205):
@@ -165,7 +167,7 @@ export function sourceRowPropsEqual(a, b) {
 }
 
 /* `slot`: the index badge's line is kept from the first paint, so a coverage answer that arrives later fills it instead of making the row taller (#229). */
-const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, indexLink = false, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '' }) {
+const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, indexLink = false, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '', custom = null }) {
   const { busy } = useStudy();
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
@@ -241,10 +243,15 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
         </div>
       </div>
       {(multi || chaptered) && <div className="source-doc__pages">
-        <Button variant="quiet" size="sm" iconEnd="chevron" iconEndClassName="source-doc__pages-chevron" className="source-doc__pages-toggle" aria-expanded={pagesOpen} aria-controls={listId}
-          onClick={() => setPagesOpen(open => !open)}>
-          {pagesOpen ? ui('收起') : chaptered ? uiFormat('查看 {0} 章', [item.chapters.length]) : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
-        </Button>
+        <div className="source-doc__pages-bar">
+          <Button variant="quiet" size="sm" iconEnd="chevron" iconEndClassName="source-doc__pages-chevron" className="source-doc__pages-toggle" aria-expanded={pagesOpen} aria-controls={listId}
+            onClick={() => setPagesOpen(open => !open)}>
+            {pagesOpen ? ui('收起') : chaptered ? uiFormat('查看 {0} 章', [item.chapters.length]) : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
+          </Button>
+          {/* 深度定制 (skills/study-custom) for a book of CUSTOM_BOOK_PAGES pages or more: always here, not once; 查看/修改定制 once the course has a plan (ui/custom-entry.js). */}
+          {custom && <HandOff id="custom.start" shape="quiet" label={custom.hasCustom ? CUSTOM_ROW_EDIT_LABEL : CUSTOM_ROW_LABEL} what={custom.hasCustom ? CUSTOM_ROW_EDIT_WHAT : CUSTOM_BOOK_WHAT}
+            data-tour="custom-book-row" input={custom} aria-label={uiFormat('{0}：{1}', [ui(custom.hasCustom ? CUSTOM_ROW_EDIT_LABEL : CUSTOM_ROW_LABEL), name])} />}
+        </div>
         {pagesOpen && chaptered && <ChapterList item={item} onOpen={actions.open} onGenerate={canGenerate ? actions.generate : undefined}
           onPractice={canPractice ? actions.practiceChapter : undefined} listId={listId} mastery={mastery} />}
         {pagesOpen && !chaptered && <ul id={listId} className="source-doc__page-list" role="region" aria-label={ui('页面列表')} tabIndex={0}>
@@ -464,13 +471,24 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     openSettings: (...args) => latest.current.onOpenSettings?.(...args),
     buildIndex: course => latest.current.onBuildIndex?.(course),
   }), []);
+  // The 深度定制 entry of each long book, reusing the previous object while it is unchanged: a refresh that changes nothing for a row leaves the row alone.
+  const offerCache = useRef(new Map());
+  const offers = useMemo(() => {
+    const next = new Map();
+    for (const item of showArchived ? [] : items) {
+      const offer = customRowOffer(item, data.courses), before = offerCache.current.get(item.key);
+      if (offer) next.set(item.key, before && Object.keys(offer).every(key => before[key] === offer[key]) ? before : offer);
+    }
+    offerCache.current = next;
+    return next;
+  }, [items, data.courses, showArchived]);
   // One row, in a day group or in the pinned group (`pin`: where it stands among the pinned rows).
   const renderRow = (item, pin = {}) => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])}
     isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} actions={actions}
     canGenerate={!showArchived && !!onGenerate} canPractice={!showArchived && !!onPractice} canSegment={typeof call === 'function'} canRename={!!renameFor}
     mastery={data.materialMastery?.[item.key]} coverage={data.materialCoverage?.[item.key]}
     topUp={!showArchived && offersDocumentTopUp({ item, coverage: data.materialCoverage?.[item.key], jobs: data.jobs, modelReady: modelReadiness(data).ready })} indexInfo={infos.get(item.key) ?? null} canIndex={indexCoverage?.canIndex} indexLink={!!onBuildIndex} slot={indexStatus !== 'unavailable'}
-    relation={relations.get(item.key) ?? null} advice={bigKeys.has(item.key)} retrieval={bigKeys.has(item.key) ? retrieval : null}
+    relation={relations.get(item.key) ?? null} advice={bigKeys.has(item.key)} retrieval={bigKeys.has(item.key) ? retrieval : null} custom={offers.get(item.key) ?? null}
     courses={data.focus?.courses} defaultCourse={data.focus?.course}
     pinned={!!pin.pinned} pinFirst={!!pin.first} pinLast={!!pin.last} dragging={!!pin.pinned && drag?.key === item.key} dropMark={pin.pinned && drag?.over === item.key ? drag.side : ''} />;
   const addButton = <Button variant="primary" icon="plus" data-tour="sources-add" data-usage="import.add"
