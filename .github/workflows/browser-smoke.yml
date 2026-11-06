@@ -4,6 +4,9 @@ name: browser-smoke
 # could pass CI. This job installs Playwright's Chromium (what scripts/qa/browser.mjs launches) and runs a short, stable list of them.
 # It does not touch verify.yml: not a shard, not the `verify` gate.
 #
+# Pinned to ubuntu-24.04, not ubuntu-latest: on the newer image the apt mirror can leave installing Chromium's system libraries running until the
+# job's limit. The install step has its own 3-minute limit and one retry below; move the pin only after a run proves the newer image behaves.
+#
 # Non-blocking for now: `continue-on-error: true` keeps the check green when the tests fail (open the run to see the red step).
 # To make it blocking: delete `continue-on-error`, let a week of runs stay green, then add `browser-smoke` to the branch protection's required checks
 # (or add it to `needs:` and to the gate's pass condition in verify.yml, which also needs the guard in tests/test-runner-shards.test.mjs updated).
@@ -22,7 +25,7 @@ concurrency:
 
 jobs:
   browser-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     continue-on-error: true
     env:
@@ -45,10 +48,21 @@ jobs:
         with:
           path: .playwright-browsers
           key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-      # A cache hit has the browser but not the system libraries it needs, so those are installed either way.
-      - if: steps.browsers.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-      - if: steps.browsers.outputs.cache-hit == 'true'
+      # A cache hit has the browser but not the system libraries it needs, so the browser is downloaded only on a miss and the libraries are
+      # installed either way. The apt mirror has stalled that install until the job limit, so it gets 3 minutes and one retry; a stalled install
+      # does not skip the tests below (the job still carries on, and the tests that need a browser fail in their own step).
+      - name: Chromium
+        if: steps.browsers.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+      - name: Chromium's system libraries
+        id: deps
+        timeout-minutes: 3
+        continue-on-error: true
+        run: npx playwright install-deps chromium
+      - name: Chromium's system libraries (one retry)
+        if: steps.deps.outcome == 'failure'
+        timeout-minutes: 3
+        continue-on-error: true
         run: npx playwright install-deps chromium
       # Each test builds its own UI bundle into a temp folder (buildPreview), so no build step is needed here. scripts/test.mjs is how the shards run tests too
       # (isolated home, no real network). The files cover: the shell and navigation, the review reveal, the mistakes page, and the right-sidebar hand-off.
