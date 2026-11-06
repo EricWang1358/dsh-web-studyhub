@@ -9,6 +9,7 @@ import css from './large-documents.css';
 import { refreshRetrievalStatus, setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 import { useLiveEffect } from './use-async.js';
 import ExtensionNotStarted, { resetLine } from './ExtensionNotStarted.jsx';
+import IndexNote from './IndexNote.jsx';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
 
@@ -156,7 +157,7 @@ function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun,
           <p className="extension-panel__plan" role="status" tabIndex={0}>{courseScopeLine(plan, course)}</p></Tooltip>
         : typeof call === 'function' && <p className="extension-panel__plan extension-panel__plan--waiting" aria-hidden="true" />)}
       {!running && action.note && <p className="extension-panel__plan extension-panel__plan--note">{action.note}</p>}
-      {plan?.firstRun && !upToDate && !running && <Hint>{uiFormat('首次需要下载约 {0} MB 的检索模型，只下载一次，之后可以离线使用。', [plan.modelMb])}</Hint>}
+      {!running && <IndexNote firstRun={!!plan?.firstRun && !upToDate} modelMb={plan?.modelMb ?? 90} />}
       {running && <div className="extension-panel__progress">
         <ProgressBar className="extension-panel__bar" value={Math.min(run.done || 0, run.total || 1)} max={run.total || 1} label={ui('索引进度')} size="sm" />
         <p role="status">{progress.label}</p>
@@ -165,7 +166,6 @@ function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun,
       </div>}
       {!running && <Tooltip layer anchorClassName="extension-panel__tip" content={`${ui('在本机把还没编目录的页编好，不调用 AI，不花 token。')}\n${ui('可以随时停止，已建好的部分会保留。')}`}>
         <span className="extension-panel__action"><Button variant={action.variant} busy={starting} disabled={starting || !!upToDate || plan?.canIndex === false} onClick={start}>{action.label}</Button></span></Tooltip>}
-      {!running && <Hint>{ui('默认检索模型主要针对英文；中文教材也能检索（会结合关键词匹配），但语义匹配较弱。')}</Hint>}
       {problem && <InlineMessage>{problem}</InlineMessage>}
       {run?.status === 'complete' && <InlineMessage tone="success" boxed>
         {uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题和 AI 带学现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])}
@@ -211,6 +211,7 @@ export default function ExtensionPanel({ status, onStatus, courses = [], default
       {!extension.canInstall && <InlineMessage tone="info" boxed>{ui('当前 DSH 不能在应用内安装插件，所以没有一键安装。可以展开「高级：手动配置」自己连接检索工具。')}</InlineMessage>}
       {extension.canInstall && !extension.installed && <>
         <p className="extension-panel__lead">{ui('一次点击：下载检索扩展，由 DSH 自己安装并运行。不需要命令行，也不需要另装其他软件；会下载一些组件，通常几分钟。')}</p>
+        <IndexNote />
         <div><Button variant="primary" icon="download" busy={busy} onClick={() => install()}>{ui('安装检索扩展')}</Button></div>
       </>}
       {extension.canInstall && extension.installed && <>

@@ -24,6 +24,8 @@ import { repeatedText, restoreRepeated } from './RepeatedNote.jsx';
 import { useHandOff } from './hand-off/use-hand-off.js';
 import { failedImportInput, lastingFailures, rejectedFilesInput } from './import-hand-off.js';
 import { CUSTOM_BOOK_LABEL, customOfferOf, customOffered, markCustomOffered } from './custom-entry.js';
+import IndexHint from './IndexHint.jsx';
+import { hintDocOf } from './index-hint.js';
 
 /* The one way to add material (O-3, O-4, P19–P21, P05). The course is one line
    (the current course, or what the learner chose, or the course a file name
@@ -553,6 +555,8 @@ export default function ImportHub({
           buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
           rejectAction={rejections => handOff.action('import.file', rejectedFilesInput(rejections, { area: '添加资料' }), { what: '让主会话转换这些文件再导入；文件在输入框里用 @ 选' })}
           onFiles={accepted => add(accepted)} data-tour="import-drop" />}
+        {/* A finished book long enough for 深度定制 and not indexed yet: one quiet line with the way to build the index (ui/IndexHint.jsx), once per book. */}
+        {!running && <IndexHint docs={items.filter(item => item.status === 'done' && customOfferOf(item.result)).map(item => hintDocOf(item.result))} onOpenSettings={settingsFor} />}
         {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name, file: largeItem.file }} retrieval={retrieval} onOpenSettings={settingsFor}
           runnable courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course}
           conversionAvailable={convertible} courseNames={coursesOf(largeItem.file)} onConversionStarted={conversionStarted} />}
