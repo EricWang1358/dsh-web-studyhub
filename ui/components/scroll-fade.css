@@ -1,0 +1,21 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.components {
+  :is(.study-app, .study-seat) {
+    /* A strip with more content off one side (ui/components/use-scroll-edges.js sets data-fade-start / data-fade-end) fades that side, and only that
+       side. A mask, so it works on any surface colour and is never a colour of its own; --sh-fade-size is the width of the fade, per strip.
+       The scrollbar, the scroll position and the keyboard are untouched: a mask paints, it does not move anything. */
+    .sh-fade-x[data-fade-start] {
+      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--sh-fade-size, 28px));
+      mask-image: linear-gradient(to right, transparent 0, #000 var(--sh-fade-size, 28px));
+    }
+    .sh-fade-x[data-fade-end] {
+      -webkit-mask-image: linear-gradient(to left, transparent 0, #000 var(--sh-fade-size, 28px));
+      mask-image: linear-gradient(to left, transparent 0, #000 var(--sh-fade-size, 28px));
+    }
+    .sh-fade-x[data-fade-start][data-fade-end] {
+      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--sh-fade-size, 28px), #000 calc(100% - var(--sh-fade-size, 28px)), transparent 100%);
+      mask-image: linear-gradient(to right, transparent 0, #000 var(--sh-fade-size, 28px), #000 calc(100% - var(--sh-fade-size, 28px)), transparent 100%);
+    }
+  }
+}

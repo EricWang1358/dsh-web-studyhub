@@ -2,6 +2,10 @@ import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState
 import css from './scroll-window.css';
 import { useComponentCss, cx } from './css.js';
 import { ui, uiFormat } from '../i18n.js';
+import { edgeTracker } from './scroll-edges.js';
+
+// The edge rules moved to ./scroll-edges.js (the horizontal strips share them); re-exported here because they were published from this module.
+export { createEdgeTracker, edgeTracker, scrollEdges, scrollEdgesX } from './scroll-edges.js';
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 const textOf = item => typeof item === 'string' ? item : String(item?.name ?? item?.title ?? item?.label ?? '');
@@ -14,28 +18,6 @@ export function filterItems(items = [], query = '', match = textOf) {
     const text = String(match(item) ?? '').normalize('NFKC').toLowerCase();
     return words.every(word => text.includes(word));
   });
-}
-
-/** Is there more content above / below the viewport's visible part? Drives the soft fades. */
-export const scrollEdges = element => ({
-  top: element.scrollTop > 1,
-  bottom: element.scrollTop + element.clientHeight < element.scrollHeight - 1,
-});
-
-/**
- * A `measure(element)` that calls `publish(edges)` only when top or bottom really changed.
- * It runs after every commit, so it must not call setState with an unchanged value: React 18
- * does not bail out of those at once and the layout effect re-renders itself until it throws
- * "Maximum update depth exceeded" (React error #185) once the list overflows.
- */
-export function edgeTracker(publish, initial = { top: false, bottom: false }) {
-  let last = initial;
-  return element => {
-    const next = scrollEdges(element);
-    if (next.top === last.top && next.bottom === last.bottom) return;
-    last = next;
-    publish(next);
-  };
 }
 
 /** Rows a window draws at first. Longer lists draw more as the learner scrolls: a library of a thousand materials drew thousands of nodes at once. */

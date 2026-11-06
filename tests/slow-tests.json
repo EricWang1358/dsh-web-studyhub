@@ -91,6 +91,7 @@
     "tests/review-run-context-browser.test.mjs",
     "tests/row-coverage-browser.test.mjs",
     "tests/science-settings-browser.test.mjs",
+    "tests/scroll-fade-browser.test.mjs",
     "tests/select-combobox-browser.test.mjs",
     "tests/settings-entry-targets.test.mjs",
     "tests/spine-layout.test.mjs",
