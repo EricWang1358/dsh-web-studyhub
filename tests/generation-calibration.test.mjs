@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
@@ -8,7 +8,7 @@ import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { estimateFromState, compactEstimate, stageTotals, calibrateEstimate } from "../lib/token-estimate.js";
-import { createCalibration, observedByStage, stageOfStep } from "../lib/estimate-calibration.js";
+import { calibrationDir, calibrationFor, createCalibration, observedByStage, stageOfStep } from "../lib/estimate-calibration.js";
 
 /* #218: the estimate learns from this library's own runs. Each finished generation job records, per stage, what it used against what was
    estimated; the median ratio of the last runs scales the next estimate (stage by stage), so the range covers what a run really costs here.
@@ -99,4 +99,37 @@ test("generation details show the tokens of each stage next to the estimate", as
   m.setUiLanguage("zh");
   assert.match(english, /Tokens per stage/);
   assert.match(english, /Independent review 9,?000 tok \(estimated 3,?000–4,?000\)/);
+});
+
+
+/* #772: the file is the machine's, not the library's (a new book used to start uncalibrated and a long coverage run taught nothing), and a run made on one
+   model is not corrected by another model's habits. */
+test("the correction lives on the machine, beside the usage ledger, so a new book learns from the first run that finished anywhere", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "study-dsh-home-"));
+  const previous = process.env.DSH_HOME;
+  process.env.DSH_HOME = home;
+  t.after(async () => { if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; await rm(home, { recursive: true, force: true }); });
+  const machine = createCalibration(calibrationDir()), raw = estimate(), totals = stageTotals(raw), mid = (id) => (totals[id].low + totals[id].high) / 2;
+  assert.equal(calibrationDir(), join(home, "study"), "the DSH home the host set, not the library");
+  for (let run = 0; run < 3; run++) await machine.record({ stageTotals: totals, actual: { plan: mid("plan") * 2, blueprint: mid("blueprint"), author: mid("author"), review: mid("review") } });
+  const written = JSON.parse(await readFile(join(home, "study", "estimate-calibration.json"), "utf8"));
+  assert.equal(written.runs.length, 3);
+  const factors = await calibrationFor().factors();
+  assert.ok(factors.stages.plan > 1.5, JSON.stringify(factors.stages));
+});
+
+test("a run made on one model does not correct another model's estimate, and an older record without a model still counts", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "study-calibration-model-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const calibration = createCalibration(dir), raw = estimate(), totals = stageTotals(raw), mid = (id) => (totals[id].low + totals[id].high) / 2;
+  const at = (id, ratio) => ({ plan: mid("plan"), blueprint: mid("blueprint"), author: mid("author"), review: mid("review"), [id]: mid(id) * ratio });
+  for (let run = 0; run < 3; run++) await calibration.record({ stageTotals: totals, actual: at("author", 2), model: "deepseek/deepseek-v4.1-flash" });
+  for (let run = 0; run < 3; run++) await calibration.record({ stageTotals: totals, actual: at("author", 0.5), model: "other/model" });
+  const mine = await calibration.factors({ model: "deepseek/deepseek-v4.1-flash" }), theirs = await calibration.factors({ model: "other/model" }), all = await calibration.factors();
+  assert.ok(mine.stages.author > 1.5 && mine.stages.author < 2.5, JSON.stringify(mine.stages));
+  assert.ok(theirs.stages.author > 0.4 && theirs.stages.author < 0.7, JSON.stringify(theirs.stages));
+  assert.equal(all.samples, 6, "without a model the machine's whole record is read");
+  await calibration.record({ stageTotals: totals, actual: at("author", 1) });
+  const legacy = await calibration.factors({ model: "deepseek/deepseek-v4.1-flash" });
+  assert.equal(legacy.samples, 4, "a record from before the model field still counts");
 });
