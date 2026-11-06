@@ -4,7 +4,7 @@
 
 ## 1. 做了什么
 
-`retrieval.index.start / status / cancel`（以及覆盖情况里的 `building`）在开关 `runtime.pilot.retrievalIndex`（插件 `Config`，**默认关闭**）打开时由统一运行时承担：一次构建是一个 `retrieval-index` Job，进入共享任务表和任务控制台；关闭时是原来的后台 run，行为不变。开关只在一处读取：`lib/contexts/generation/retrieval/index-runs.js`。
+`retrieval.index.start / status / cancel`（以及覆盖情况里的 `building`）在开关 `runtime.pilot.retrievalIndex`（插件 `Config`，**默认关闭**；4.4.1 之后的版本改为**默认打开**，`false` 退回原后台 run，见 [job-contract](../../job-contract.md) 的 Switches 一条）打开时由统一运行时承担：一次构建是一个 `retrieval-index` Job，进入共享任务表和任务控制台；关闭时是原来的后台 run，行为不变。开关只在一处读取：`lib/contexts/generation/retrieval/index-runs.js`。
 
 继续调用既有的宿主/MCP 工具（`mcp__studyhub__ingest_data` / `delete_file`），不新增搜索引擎、不产生第二份索引内容；查询、预览、计划、覆盖仍是即时调用。
 
