@@ -1,3 +1,4 @@
+// @ts-check
 import { isoDay } from '../clock.js';
 /* Pure helpers behind the dashboard charts (plain inline SVG, no chart
    library). Nothing here touches React or the DOM, so it is unit-tested. */
