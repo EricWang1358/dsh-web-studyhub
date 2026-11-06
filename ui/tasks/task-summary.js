@@ -96,7 +96,7 @@ export function taskLine(job) {
   if (contract.continuedBy) return ui('接着做过了 · 新的进度在接着做的任务里');
   // A question run that failed says its cause in plain words, once (the provider's own English, one line per part, stays in the log and the technical detail).
   if (state === 'fail' && ['generation', 'supplement'].includes(contract.kind) && contract.error?.message) return failureSentence(describeFailure(contract.stage.text || contract.error.message));
-  if (state === 'fail' || state === 'interrupted') return contract.error?.message ? contract.stage.text || contract.error.message : stageLabel(contract.stage);
+  if (state === 'fail' || state === 'interrupted') return contract.error?.message ? uiMessage(contract.stage.text || contract.error.message) : stageLabel(contract.stage);
   if (run && contract.status === STATUS.COMPLETE && run.waiting) return waitingText(run);
   // A run that ended short of its plan is 部分完成, here as in the header and the badge (not 「已完成」).
   if (state === 'partial' && run) return ui('部分完成');

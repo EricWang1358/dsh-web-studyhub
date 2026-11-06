@@ -161,8 +161,7 @@ function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun,
         <ProgressBar className="extension-panel__bar" value={Math.min(run.done || 0, run.total || 1)} max={run.total || 1} label={ui('索引进度')} size="sm" />
         <p role="status">{progress.label}</p>
         {run.stage === 'model' && run.firstRun && <Hint>{ui('首次需要下载约 90 MB 的检索模型，只下载一次。')}</Hint>}
-        <Button size="sm" variant="quiet" onClick={stop}>{ui('停止')}</Button>
-        <TaskLink run={run} />
+        <span className="extension-panel__progress-actions"><Button size="sm" variant="quiet" onClick={stop}>{ui('停止')}</Button><TaskLink run={run} /></span>
       </div>}
       {!running && <Tooltip layer anchorClassName="extension-panel__tip" content={`${ui('在本机把还没编目录的页编好，不调用 AI，不花 token。')}\n${ui('可以随时停止，已建好的部分会保留。')}`}>
         <span className="extension-panel__action"><Button variant={action.variant} busy={starting} disabled={starting || !!upToDate || plan?.canIndex === false} onClick={start}>{action.label}</Button></span></Tooltip>}

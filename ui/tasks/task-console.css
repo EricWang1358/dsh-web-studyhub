@@ -153,6 +153,8 @@
     .tc-steps li[data-state='active'] { color: var(--text); font-weight: var(--fw-medium); }
     .tc-steps li[data-state='done'] { color: var(--ok-ink); }
     .tc-steps li[data-state='failed'] { color: var(--bad-ink); font-weight: var(--fw-medium); }
+    /* 索引详情 (IndexDetail.jsx): its rows are sentences that may wrap, so they keep room above and below. */
+    .tc-steps--index li { padding-block: var(--space-2); }
     .tc-steps__mark { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 16px; height: 16px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: 50%; }
     .tc-steps li:is([data-state='done'], [data-state='failed']) .tc-steps__mark { border-color: transparent; }
     .tc-steps li[data-state='active'] .tc-steps__mark { border-color: var(--accent); background: var(--accent-glow); }

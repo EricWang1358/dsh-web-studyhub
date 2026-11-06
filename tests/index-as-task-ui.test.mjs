@@ -69,11 +69,13 @@ test('the console says a search-index build runs on this computer and asks no mo
   const facts = m.taskFacts(job);
   assert.equal(facts.find(fact => fact.key === 'primary').value, '3 / 513');
   const calls = facts.find(fact => fact.key === 'calls');
-  assert.deepEqual([calls.label, calls.value], ['运行方式', '本机 · 不调用 AI，不花 token']);
+  assert.deepEqual([calls.label, calls.value], ['运行方式', '本机 · 不用 AI']);
+  assert.match(calls.hint, /不调用 AI，不花 token/, 'the hover says it in full');
   m.setUiLanguage('en');
   try {
     const en = m.taskFacts(job).find(fact => fact.key === 'calls');
-    assert.deepEqual([en.label, en.value], ['How it runs', 'On this computer · no AI, no tokens']);
+    assert.deepEqual([en.label, en.value], ['How it runs', 'Local · no AI']);
+    assert.match(en.hint, /no AI and no tokens/);
   } finally { m.setUiLanguage('zh'); }
 });
 
