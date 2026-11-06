@@ -58,6 +58,7 @@ export const PREPARE_STEPS = Object.freeze({
   task: { text: '先在「任务」里点开一个任务，这一项在任务的详情里。' },
   'add-dialog': { text: '点「添加资料」，在弹出的窗口里就有这一项。' },
   'live-class': { text: '先在「课堂实录」里开始或打开一场实录，这一项才会出现。' },
+  outline: { text: '先在首页点「总纲」，打开这门课的总纲页。' },
 });
 
 const feature = (entry) => ({ kind: 'feature', aliases: [], anchors: [], ...entry });
@@ -274,7 +275,15 @@ export const FEATURES = Object.freeze([
   feature({ id: 'custom-book-import', area: 'material', title: '深度定制这本书', page: 'sources', anchors: ['custom-book', 'import-mineru', 'sources-add'], prepare: 'add-dialog',
     aliases: ['深度定制', '定制', '定制这本书', '大书', '整本教材', '五百页', 'customize this book', 'customize', 'custom plan'],
     path: ['资料', '添加资料', '解析历史', '深度定制这本书'],
-    what: '导入或解析完一份 150 页以上的资料后，它出现在解析完成的任务卡片上（「用它出题」旁边）、「添加资料」的文件列表和「解析历史」里的那一行，点过一次就不再出现：让主会话先问你几个选项，再决定这本书做什么。短资料不出现；以后随时可以在复习全书的「更多」里找到「深度定制…」。' }),
+    what: '导入或解析完一份 150 页以上的资料后，它出现在解析完成的任务卡片上（「用它出题」旁边）、「添加资料」的文件列表和「解析历史」里的那一行，点过一次就不再出现：让主会话先问你几个选项，再决定这本书做什么。短资料不出现；以后随时可以在「资料」页那本书的那一行（「查看 N 章」旁边）或复习全书的「更多」里找到「深度定制」。' }),
+  feature({ id: 'custom-book-row', area: 'material', title: '深度定制（资料那一行）', page: 'sources', anchors: ['custom-book-row', 'sources-list'], prepare: 'materials',
+    aliases: ['深度定制', '定制', '查看定制', '修改定制', '定制方案', '大书', '整本教材', '五百页', 'customize', 'custom plan', 'view custom plan'],
+    path: ['资料', '150 页以上的资料那一行', '深度定制'],
+    what: '150 页以上的资料，在「资料」页它那一行的「查看 N 章」旁边一直有「深度定制」，不是只出现一次：让主会话问你几个选项，再决定这本书做什么；确认之前不生成任何东西。这门课已经有定制方案时它写成「查看/修改定制」，主会话只问你想改的地方。只填进主会话的输入框，由你按发送。' }),
+  feature({ id: 'custom-book-gate', area: 'practice', title: '生成总纲前先问要不要深度定制', page: 'outline', anchors: ['outline-organise'], prepare: 'outline',
+    aliases: ['生成总纲', '生成复习全书', '整本生成', '先深度定制', '整本书', '大书', '确认', '估算', '用量', 'generate outline', 'generate review book', 'whole book', 'confirm'],
+    path: ['总纲', '生成总纲', '深度定制这本书（推荐）'],
+    what: '课程里有 150 页以上的资料、又还没有定制方案时，在总纲页点「生成总纲」或第一次点「生成复习全书」不会马上开始：先问你「深度定制这本书（推荐）」「整本生成」还是「取消」，并按这次生成自己的估算写出大约要几次模型调用、读多少 token（只是估计，不含价格，不调用模型）。选「整本生成」和以前一样马上开始；已有定制方案或资料都不到 150 页时，点一下就开始。' }),
   feature({ id: 'weekly-plan', area: 'practice', title: '每周几章的备考计划', page: 'book', anchors: ['book-weekly', 'nav-book'], prepare: 'book',
     aliases: ['本周', '每周几章', '本周读哪几章', '没有考试日期的计划', '按周学习', 'weekly plan', 'chapters a week', 'this week'],
     path: ['复习全书', '备考计划'],
