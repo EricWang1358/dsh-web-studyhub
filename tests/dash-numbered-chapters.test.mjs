@@ -32,6 +32,15 @@ test('N—M is section numbering of chapter N (the rank of 1.1), with every dash
     '1—2 方法', '第二章 方法', '2—1 甲', '2—2 乙']), [1, 2, 3, 3, 3, 3, 3, 2, 1, 2, 2]);
 });
 
+test('one title that starts with a decimal is no decimal numbering: a dash-numbered book keeps its chapters', () => {
+  // The owner's book has content headings such as "1.5 亿的规模效应": one of them says nothing of how the book numbers its sections.
+  assert.deepEqual(levels(['市场导论', '本章要点', '1—1 市场的含义', '1—2 供给与需求', '1.5 亿的规模效应', '本章提要', '生产理论', '本章要点', '2—1 生产函数', '2—2 规模报酬']),
+    [1, 2, 2, 2, 2, 3, 1, 2, 2, 2]);
+  // Two titles numbered so are decimal sections (1.1, 1.2): the book is not read as a dash-numbered one (this is what one title did before the fix).
+  assert.deepEqual(levels(['市场导论', '本章要点', '1—1 市场的含义', '1—2 供给与需求', '1.1 附录甲', '1.2 附录乙', '本章提要', '生产理论', '本章要点', '2—1 生产函数', '2—2 规模报酬']),
+    [1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1]);
+});
+
 const BOOK_TITLES = ['示例教材', '版权页', '译者前言', '目录',
   '市场导论', '本章要点', '1—1 市场的含义', '表1-1 2001—2010年间的价格指数', '[资料1- 1] 一个故事', '1–2 供给与需求', '本章提要', '关键术语', '问题', '概念题',
   '生产理论', '本章要点', '2-1 生产函数', '图2-3 成本曲线', '2 - 2 规模报酬', '2—3 技术进步', '技术题', '操作题', '附录:生产函数的数学',
