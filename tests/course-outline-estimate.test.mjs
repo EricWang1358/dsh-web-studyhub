@@ -16,7 +16,7 @@ import { OUTLINE_LIMITS } from '../lib/course-outline-book.js';
 
 const KIND = 'course-outline-build';
 /** The keys of an estimate: the same for a course with no readable text, one material or several, and with or without sample papers. */
-const ESTIMATE_KEYS = ['basis', 'bodyChars', 'calls', 'chars', 'cut', 'items', 'materials', 'nodes', 'papers', 'points', 'ranges'];
+const ESTIMATE_KEYS = ['basis', 'bodyChars', 'calls', 'chars', 'cut', 'items', 'materials', 'nodes', 'papers', 'points', 'ranges', 'readTokens'];
 const leavesOf = nodes => nodes.flatMap(node => (node.children ? leavesOf(node.children) : [node]));
 /** The leaves of a review book's manifest (a leaf names itself and keeps an empty `children`). */
 const manifestLeaves = nodes => nodes.flatMap(node => (node.children?.length ? manifestLeaves(node.children) : [node]));
@@ -78,6 +78,10 @@ test('an estimate answers the same shape for a course with no readable text, one
   assert.equal(answers[1].materials, 1);
   assert.ok(answers[2].points > answers[1].points, `more material, more points (${answers[1].points} -> ${answers[2].points})`);
   assert.ok(answers[2].bodyChars > answers[1].bodyChars);
+  // The tokens of the material the inventory calls read (the 总纲 page's gate before a whole-book build shows them): a range, none where nothing is read.
+  assert.deepEqual(answers[0].readTokens, { low: 0, high: 0 }, 'no readable text: nothing is read');
+  for (const answer of answers.slice(1)) assert.ok(answer.readTokens.low > 0 && answer.readTokens.high >= answer.readTokens.low, JSON.stringify(answer.readTokens));
+  assert.ok(answers[2].readTokens.high > answers[1].readTokens.high, 'more material, more tokens read');
 });
 
 test('the estimate follows the cut (coarse < medium < fine), holds maxPoints, and the sample papers never change it', async t => {

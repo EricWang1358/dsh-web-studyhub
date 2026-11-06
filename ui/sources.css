@@ -55,6 +55,8 @@
     }
     .source-doc__actions .source-row-menu .source-row-menu__btn { display: block; width: 100%; max-width: 100%; margin: 0; text-align: left; white-space: nowrap; }
     .source-doc__pages { margin: var(--space-2) 0 0 calc(var(--space-3) + var(--space-5) + var(--space-3)); }
+    /* 查看 N 章 and the quiet 深度定制 of a long book share one line; at narrow widths the second wraps under the first instead of widening the row. */
+    .source-doc__pages-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-2); min-width: 0; }
     .source-doc__pages-toggle .source-doc__pages-chevron { transition: transform 0.18s var(--ease); }
     .source-doc__pages-toggle[aria-expanded="true"] .source-doc__pages-chevron { transform: rotate(90deg); }
     /* The list of pages/chapters of a document scrolls inside its own box: a 400-page book must not push the whole page down. */
