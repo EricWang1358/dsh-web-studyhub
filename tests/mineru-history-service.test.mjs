@@ -125,7 +125,7 @@ test('the record, the exported library and every file of the library hold no doc
   assert.equal(files.length, 1);
   const raw = await readFile(join(historyDir(h.root), files[0]), 'utf8');
   for (const forbidden of [h.home, h.work, 'pdf-convert', 'source.pdf', '页的正文', 'Authorization', 'Bearer']) assert.ok(!raw.includes(forbidden), `the record holds ${forbidden}`);
-  const allowed = ['attemptStartedAt', 'attempts', 'bytes', 'converter', 'documentId', 'elapsedMs', 'env', 'failure', 'filename', 'finishedAt', 'id', 'importedPages', 'pages', 'pagesDone', 'phase', 'piece', 'pieces', 'plan', 'route', 'skippedPages', 'startedAt', 'status', 'tier', 'title', 'updatedAt', 'version', 'windows'];
+  const allowed = ['attemptStartedAt', 'attempts', 'bytes', 'converter', 'documentId', 'elapsedMs', 'env', 'failure', 'filename', 'finishedAt', 'id', 'importedPages', 'pages', 'pagesDone', 'phase', 'piece', 'pieces', 'plan', 'route', 'skippedPages', 'sourceHash', 'startedAt', 'status', 'tier', 'title', 'updatedAt', 'version', 'windows'];
   assert.deepEqual(Object.keys(JSON.parse(raw)).filter(key => !allowed.includes(key)), [], 'only the whitelisted facts are stored');
   assert.equal(JSON.parse(raw).converter, 'mineru');
   const exported = JSON.stringify(await h.call('export', {}));

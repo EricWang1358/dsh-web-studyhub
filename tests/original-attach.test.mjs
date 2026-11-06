@@ -300,7 +300,8 @@ test('hashing streams the file in small chunks; a file over the limit is refused
   assert.equal(retained.length, result.bytes);
   assert.equal(sha(retained), result.hash, 'streaming and buffered digests agree');
   await truncate(big, 41 * 1024 * 1024);
-  await assert.rejects(call('materials.original.attach', { sourceId, path: big, mode: 'reference' }), /at most 40 MB/);
+  // A copy is bounded by the limit; a reference is not (tests/original-by-path.test.mjs).
+  await assert.rejects(call('materials.original.attach', { sourceId, path: big, mode: 'copy' }), /at most 40 MB/);
 });
 
 test('path rules: absolute files of the same type only; nothing else is read', async t => {
