@@ -62,6 +62,12 @@ export function customSummary(custom) {
   return joinMeta([PURPOSE_WORDS[custom.purpose](), scopeText(custom.scope), bookText(custom.book), custom.questions.make ? kindsText(custom.questions.kinds) : ui('不出题'), planText(custom.plan)]);
 }
 
+/** The chapters a saved plan names that the material no longer holds (#758), said on the card and not only in the chat: '' when every one of them is there. */
+export const unknownChaptersText = (estimate) => {
+  const count = Array.isArray(estimate?.unknownChapters) ? estimate.unknownChapters.length : 0;
+  return count ? uiFormat('有 {0} 章在资料里找不到了，需要重新选', [count]) : '';
+};
+
 /** The cost line of course.custom.preview's estimate: calls and tokens read, roughly; never a price. */
 export function estimateLine(estimate) {
   if (!estimate?.total) return '';

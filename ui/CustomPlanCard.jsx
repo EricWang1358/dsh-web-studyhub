@@ -6,7 +6,8 @@ import { useStudy } from './study-context.jsx';
 import { useLiveEffect } from './use-async.js';
 import { BOOK_PARTS } from '../lib/custom-plan.js';
 import CustomReadiness from './CustomReadiness.jsx';
-import { customSummary, estimateLine, lockedPartIds, partTip, partWord, saveArgs, setPlan, setQuestions, setVariants, togglePart } from './custom-plan-model.js';
+import { customSummary, estimateLine, lockedPartIds, partTip, partWord, saveArgs, setPlan, setQuestions, setVariants, togglePart, unknownChaptersText } from './custom-plan-model.js';
+import { useHandOff } from './hand-off/use-hand-off.js';
 import css from './custom-plan-card.css';
 
 /* 「你的定制」 on the course settings (深度定制, lib/custom-plan.js): the course's 定制方案 in one sentence, the rough cost under it (calls and tokens, never a price; read
@@ -16,6 +17,7 @@ import css from './custom-plan-card.css';
 export default function CustomPlanCard({ course }) {
   useInjectCss(css, 'study-custom-card');
   const { call, act, busy } = useStudy();
+  const handOff = useHandOff();
   const custom = course?.custom ?? null;
   const [estimate, setEstimate] = useState(null), [error, setError] = useState(''), [working, setWorking] = useState(false);
   useLiveEffect(live => {
@@ -28,11 +30,13 @@ export default function CustomPlanCard({ course }) {
     setWorking(true); setError('');
     try { await act('course.save', saveArgs(course, next), undefined, { rethrow: true }); } catch (caught) { setError(errorMessage(caught)); } finally { setWorking(false); }
   };
-  const line = estimateLine(estimate);
+  const line = estimateLine(estimate), unknown = unknownChaptersText(estimate);
   return <section className="course-settings__block custom-card" aria-labelledby="custom-card-title">
     <h3 id="custom-card-title">{ui('你的定制')}</h3>
     <p className="custom-card__summary">{customSummary(custom)}</p>
     {line && <p className="custom-card__estimate" role="status">{line}</p>}
+    {/* A plan whose chapters moved: the chat is where the plan was made, so the card says it once and gives the one action that re-picks them (#758). */}
+    {unknown && <InlineMessage tone="warning" secondary={handOff.action('custom.start', { course: course.name, hasCustom: true }, { what: ui('重新选这几章') })}>{unknown}</InlineMessage>}
     <ul className="custom-card__parts" aria-label={ui('复习全书的部分')}>
       {BOOK_PARTS.map(id => {
         const on = custom.book.parts.includes(id), stuck = on && locked.has(id);
