@@ -134,5 +134,6 @@
   "下一章": "Next chapter",
   "上一章与下一章": "Previous and next chapter",
   "其他章节": "Other chapters",
-  "{0} · {1} 处": "{0} · {1} found"
+  "{0} · {1} 处": "{0} · {1} found",
+  "本章没有": "Not in this chapter"
 }

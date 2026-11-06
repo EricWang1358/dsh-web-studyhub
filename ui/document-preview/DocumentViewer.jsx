@@ -415,7 +415,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const elsewhere = useMemo(() => {
     if (!finding || !chaptered || view === 'original' || !deferredQuery.trim()) return [];
     return chapterHits(chapter.chapters, textMatches(findPages, deferredQuery)).filter(hit => hit.chapter.id !== chapter.current?.id)
-      .map(hit => ({ key: hit.chapter.id, title: chapterTitle(hit.chapter), detail: elsewhereCount(hit.first.page, hit.count, slides),
+      .map(hit => ({ key: hit.chapter.id, at: chapter.chapters.indexOf(hit.chapter), title: chapterTitle(hit.chapter), detail: elsewhereCount(hit.first.page, hit.count, slides),
         onGo: () => { findLanding.current = hit.first.sourceId; chapter.goTo({ chapterId: hit.chapter.id }); } }));
   }, [finding, chaptered, view, deferredQuery, findPages, chapter.chapters, chapter.current, slides, language]); // eslint-disable-line react-hooks/exhaustive-deps
   const openFind = () => {
@@ -425,7 +425,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     requestAnimationFrame(() => { findInput.current?.focus(); findInput.current?.select(); });
   };
   const closeFind = () => { setFinding(false); scroller.current?.focus?.({ preventScroll: true }); };
-  const stepFind = delta => setMatch(current => total ? (current + delta + total) % total : 0);
+  // Enter with nothing in this chapter goes to the next chapter that has it (Shift+Enter: the one before), wrapping round the book.
+  const nearestElsewhere = delta => delta > 0 ? elsewhere.find(hit => hit.at > chapter.index) ?? elsewhere[0]
+    : elsewhere.findLast(hit => hit.at < chapter.index) ?? elsewhere[elsewhere.length - 1];
+  const stepFind = delta => !total && elsewhere.length ? nearestElsewhere(delta).onGo() : setMatch(current => total ? (current + delta + total) % total : 0);
   const onKeyDown = event => {
     if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'f' && view !== 'original') { event.preventDefault(); openFind(); }
     else if (event.key === 'Escape' && overlay) { event.preventDefault(); event.stopPropagation(); setOverlay(null); }
@@ -516,7 +519,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
-      {outlineOn && <OutlinePanel id={outlineId} items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters} upgradedIds={loop.upgradedIds}
+      {outlineOn && <OutlinePanel id={outlineId} data-tour="reader-outline" items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters} upgradedIds={loop.upgradedIds}
         coverage={!localMode && view !== 'original' && loop.coverage?.cards > 0 ? loop.outlineCoverage : null} coverageTotals={loop.coverage}
         coverageAction={!localMode && data && offersDocumentTopUp({ item: documentItem, coverage: loop.coverage, jobs: data.jobs, modelReady: modelReadiness(data).ready })
           ? <DocumentTopUp item={documentItem} revision={data.revision} placement="bottom-start" block /> : null}
