@@ -73,7 +73,7 @@ In the reader, **Original PDF** draws the file itself one page at a time (or fal
 
 A typical round:
 
-1. Open the material and choose **Original PDF**. Open **Study tools** if it is closed (the line under the toolbar has an **Ask about this page** link).
+1. Open the material and choose **Original PDF**. Open **Study tools** if it is closed (**More › Study tools**; the small **?** next to the page label says how asking works here).
 2. Go to the page with the page controls above the PDF; the panel says **Asking about page N**.
 3. Tap a preset, or type your own question and click **Answer from this page**.
 4. For a figure or a scanned page, click **Send to the main chat**. When the current model reads pictures (DSH 0.2.1 onwards, as the host declares it), the picture of the page goes into the main chat's input box with the text, and you press send. Any other model gets the text only, because a picture would block the whole message: to send the picture, switch the main chat to a model that reads pictures and press again.

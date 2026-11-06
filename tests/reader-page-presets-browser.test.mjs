@@ -10,6 +10,7 @@ import { frames, openPage, startLateServer, until } from '../scripts/qa/layout-l
 import { makeTextPdf, LECTURE_PAGES } from './helpers/text-pdf.mjs';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { chooseMore } from './helpers/reader-more.mjs';
 
 /* #485 in the browser: a preset of the learner's own in the 原始 PDF panel — added, asking with its exact words, kept across a reload,
    wrapping in the two-column row at 420 px, and gone at once when deleted. The wording of the four built-ins is asserted in
@@ -41,7 +42,7 @@ test('原始 PDF: a preset of one\'s own is added, asks with its exact words, su
       await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
       await page.locator('.reader-scroll[data-mode="original"]').waitFor({ timeout: 30000 });
       if (!(await page.locator('[data-tour="source-tools"]').isVisible().catch(() => false)))
-        await page.locator('[data-tour="source-tools-toggle"]').click();
+        await chooseMore(page, '学习工具');
       await page.locator('.study-page-ask').waitFor({ timeout: 30000 });
     };
     const chip = label => page.locator('.study-page-ask .ask-quick button', { hasText: label });
@@ -87,7 +88,7 @@ test('原始 PDF: a preset of one\'s own is added, asks with its exact words, su
       await until(() => page.evaluate(() => getComputedStyle(document.querySelector('.reader-tools')).position === 'absolute'), 'the narrow reader layout');
       await frames(page, 3);
       assert.equal(await page.locator('[data-tour="source-tools"]').isVisible(), false, 'a narrow reader keeps the panel closed until it is asked for');
-      await page.locator('[data-tour="source-tools-toggle"]').click();
+      await chooseMore(page, '学习工具');
       await page.locator('.study-page-ask').waitFor({ timeout: 20000 });
       await chip(NAME).waitFor();
       const row = await page.evaluate(() => {

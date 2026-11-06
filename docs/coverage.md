@@ -22,7 +22,7 @@ Service actions: `coverage.get { draftId }` (coverage and the round a top-up wou
 
 - 任务 console › 轮次与批次: each batch (批次) says 覆盖 3/8 小节 for its range and a small bar; the strip names the sections of the batch with no question and the real reason of each. A finished (or archived) run has 为没覆盖的部分补题 in the header.
 - Draft page: the summary at the top (「覆盖 7/80 个小节（9%）· 3 个计划了没出成 · 70 个没计划到」), one row per recording, the list of what has no question with the way to the reader at that section, and the one top-up.
-- 资料 page row and the reader's toolbar: 覆盖 9% beside the mastery mark, before anything is published (drafts count).
+- 资料 page row and the reader's 更多 menu (掌握度与覆盖, which opens the 目录): 覆盖 9% beside the mastery mark, before anything is published (drafts count).
 - Reader outline: a square mark per section (solid with a tick · hatched · dashed), a count on every recording, 覆盖 7/80 in the header and 只看没覆盖的; the 做这几页的题 panel says in one line when part of its range has no question. Coverage is *asked*, mastery is *learned*: coverage is a square, mastery a ring, and the words never mix.
 
 ## The one top-up (`lib/coverage-round.js`)

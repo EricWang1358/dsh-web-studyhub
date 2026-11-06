@@ -82,6 +82,8 @@
   @container reader (max-width: 520px) {
     :is(.study-app, .study-seat) {
       .reader-more__label { display: none; }
+      /* The two panels keep their words and give up their icons, so the four controls and the contents toggle share one row at 420 px. */
+      .reader-toolbar__action--word > .sh-icon { display: none; }
       .reader-toolbar .reader-toolbar__group--end { flex: none; }
       .reader-wrong__panel, .reader-map__panel { width: min(360px, calc(100cqw - var(--space-6))); }
     }

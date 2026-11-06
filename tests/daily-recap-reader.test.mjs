@@ -8,6 +8,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
+import { chooseMore } from './helpers/reader-more.mjs';
 
 const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZkAAAAASUVORK5CYII=';
 const markdown = `# 今日学习回顾\n\n## 概念与错因\n\n检索练习帮助记忆，检索练习需要解释原因。\n\n公式：$x^2 + \\frac{1}{2}$\n\n![知识关系](${image})\n\n<script>window.unsafeRecap = true</script>\n\n${'这一段完整解释学习方法，以及为什么要回看自己的判断。\n\n'.repeat(24)}## 明天的复习\n\n${'用自己的话再讲一遍，把判断与理由一一对应起来。\n\n'.repeat(14)}`;
@@ -79,7 +80,7 @@ test('local recap shares the reader, renders math/images and never exposes mater
   assert.deepEqual(await page.evaluate(() => window.readerCalls), [], 'reading a saved recap must not send a synthetic source ID to materials');
   assert.equal(await page.locator('.reader-tools').count(), 0);
   assert.equal(await page.getByRole('button', { name: '学习工具', exact: true }).count(), 0);
-  assert.equal(await page.getByRole('button', { name: '从这份资料出题', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'AI 出题', exact: true }).count(), 0);
   assert.equal(await page.locator('.reader-assist, .reader-practice, .study-original-notice, .translation-menu').count(), 0);
   assert.equal(await page.locator('.study-document-body math').count(), 1);
   await page.waitForFunction(() => document.querySelector('.study-document-body img')?.naturalWidth === 1);
@@ -127,7 +128,8 @@ test('a real converted recap reopens as Markdown with math and a heading outline
 test('recap edits update the reading and outline while retaining the shared reading preferences', { timeout: 45000 }, async t => {
   const opened = await openReader(t); if (!opened) return;
   const { page, errors } = opened;
-  await page.getByRole('button', { name: '显示设置', exact: true }).click();
+  await page.getByRole('button', { name: '更多', exact: true }).click();
+  await page.locator('.sh-menu [role^="menuitem"]', { hasText: '显示设置' }).click();
   await page.getByRole('button', { name: '增大字号', exact: true }).click();
   await page.getByRole('button', { name: '宽', exact: true }).click();
   await pick(page, page.getByRole('combobox', { name: '字体', exact: true }), '宋体 / 衬线');
@@ -140,7 +142,7 @@ test('recap edits update the reading and outline while retaining the shared read
   assert.equal(await page.locator('.study-document-body').getByText('新的讲解内容。', { exact: true }).count(), 1);
   await page.locator('.reader-outline__link').filter({ hasText: '新的薄弱点' }).waitFor();
   assert.equal(await page.locator('.reader-outline__link').filter({ hasText: '明天的复习' }).count(), 0);
-  await page.getByRole('button', { name: '原文', exact: true }).click();
+  await chooseMore(page, '原文');
   assert.match(await page.locator('.study-document-body').innerText(), /^# 更新后的学习回顾/);
   await page.evaluate(() => window.showLocal(''));
   await page.waitForFunction(() => document.querySelector('.study-document-body')?.textContent === '');
@@ -181,15 +183,19 @@ test('narrow recap keeps reading controls reachable and source reading retains i
   await page.locator('.reader-outline').waitFor();
   await page.locator('.reader-outline__link').filter({ hasText: '明天的复习' }).click();
   assert.equal(await page.locator('.reader-outline').count(), 0, 'the narrow outline closes after navigation');
-  await page.getByRole('button', { name: '显示设置', exact: true }).click();
-  const bounds = await page.locator('.reader-popover__panel').boundingBox();
-  assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 391, 'the shared Aa panel stays within the viewport');
+  await page.getByRole('button', { name: '更多', exact: true }).click();
+  await page.locator('.sh-menu [role^="menuitem"]', { hasText: '显示设置' }).click();
+  const bounds = await page.getByRole('dialog', { name: '显示设置' }).boundingBox();
+  assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 391, 'the shared display settings stay within the viewport');
+  await page.getByRole('dialog', { name: '显示设置' }).getByRole('button', { name: '关闭' }).click();
   const controls = await page.locator('.reader-toolbar button').evaluateAll(nodes => nodes.map(node => ({ label: node.getAttribute('aria-label') || node.textContent, left: node.getBoundingClientRect().left, right: node.getBoundingClientRect().right })));
   assert.ok(controls.every(control => control.left >= 0 && control.right <= 391), JSON.stringify(controls));
   await page.evaluate(() => window.showMaterial());
   await page.getByRole('heading', { name: '课程资料', exact: true }).waitFor();
-  assert.equal(await page.getByRole('button', { name: '学习工具', exact: true }).count(), 1);
-  assert.equal(await page.getByRole('button', { name: '从这份资料出题', exact: true }).count(), 1);
+  await page.getByRole('button', { name: '更多', exact: true }).click();
+  assert.equal(await page.locator('.sh-menu [role^="menuitem"]', { hasText: '学习工具' }).count(), 1, 'a material keeps its study tools, in 更多');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.getByRole('button', { name: 'AI 出题', exact: true }).count(), 1);
   const materialCalls = await page.evaluate(() => window.readerCalls);
   assert.ok(materialCalls.some(entry => entry.name === 'materials.document.get' && entry.params.sourceId === 'material-source'));
   assert.ok(materialCalls.some(entry => entry.name === 'materials.links.list' && entry.params.documentId === 'material-document'));

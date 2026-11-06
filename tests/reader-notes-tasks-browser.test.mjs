@@ -11,6 +11,7 @@ import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { chooseMore } from './helpers/reader-more.mjs';
 
 /* The reader, 学习笔记, the 任务 console and the course panel after the shortening, in the browser preview on the sample library (the same data the tour
    shows): a selected passage asks with one click, the top-up form starts filled in, the sidebar says what finished, the page scope says whether it follows the
@@ -86,7 +87,7 @@ test('the reader: a chip asks with one click, the answer stays when the passage 
         const first = await selectPassage(page);
         assert.ok(first, `${width}px: a passage was selected`);
         // A narrow reader keeps the tools in a drawer: one press more (the toolbar button pulses to say a passage is waiting).
-        if (width < 900) await page.locator('[data-tour="source-tools-toggle"]').click();
+        if (width < 900) await chooseMore(page, '学习工具');
         const learning = page.locator('.study-document-learning').first();
         await learning.locator('.ask-quick').waitFor({ timeout: 30000 });
         // 2 actions: select, chip. No second press.
@@ -326,7 +327,7 @@ test('the reader with no model shows the gate where a question would be asked, w
         });
         await openReader(page);
         await selectPassage(page);
-        if (width < 900) await page.locator('[data-tour="source-tools-toggle"]').click();
+        if (width < 900) await chooseMore(page, '学习工具');
         const learning = page.locator('.study-document-learning').first();
         await learning.waitFor({ timeout: 30000 });
         await learning.locator('form').first().waitFor({ timeout: 30000 });

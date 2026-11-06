@@ -167,14 +167,17 @@ test('the slim reader: a quiet toolbar, 更多, 错题 and 思维导图 at 1280 
       await until(() => pageInView(page, 55), 'page 55 in view', { timeoutMs: 15000 });
       await viewer.getByRole('button', { name: '思维导图', exact: true }).click();
       await page.locator('.reader-map__panel').getByRole('button', { name: '交给主会话细化' }).click();
-      await until(async () => { const said = await page.locator('body').innerText(); t.diagnostic(said.slice(-300).replace(/\s+/g, ' ')); return /已复制到剪贴板|需要手动复制|已填进|细化资料/.test(said); }, 'the hand-off to say what became of it', { timeoutMs: 15000 });
+      await until(async () => { const said = await page.locator('body').innerText(); return /已复制到剪贴板|需要手动复制|已填进|细化资料/.test(said); }, 'the hand-off to say what became of it', { timeoutMs: 15000 });
       await page.keyboard.press('Escape');
 
-      // ---- 去练 on the mistake of the chapter that was left ----
+      // ---- 去练 on the mistake of the chapter that is drawn ----
       await viewer.getByRole('button', { name: '错题', exact: true }).click();
       await page.locator('.reader-wrong__panel .reader-wrong__row').first().getByRole('button', { name: '去练' }).click();
       await until(async () => !(await viewer.count()), 'the practice to take over from the reader', { timeoutMs: 20000 });
-      await page.getByText(new RegExp(`Question about page ${WRONG_IN_CHAPTER}\\b`)).first().waitFor({ timeout: 20000 });
+      // the chapter that is drawn is chapter 3 now, so its mistake is the first row: the run is that question, with the way back to the reading
+      await page.getByText(`Question about page ${WRONG_ELSEWHERE}`, { exact: false }).first().waitFor({ timeout: 20000 });
+      await page.getByRole('button', { name: '回到原文' }).first().waitFor();
+      if (shots) await page.screenshot({ path: join(shots, `reader-slim-practice-${width}.png`) });
       assert.deepEqual(errors.filter(error => !/Failed to load resource/.test(error)), [], `${width}px: no page error`);
     } finally { await running.close(); }
   }
