@@ -79,6 +79,7 @@ const Pane = ({ category, services }) => <PaneBoundary key={category.id} categor
 /** The services (call, act, busy, host, notify) come from useStudy(); the panels of the model, course and sample panes are drawn by the panes. */
 export default function Settings({
   data,
+  nav = null,
   settings,
   setSettings,
   legacy,
@@ -149,7 +150,7 @@ export default function Settings({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSection]);
   // Everything a pane may need. Panes take what they use and nothing else.
-  const services = { data, busy, act, host, settings, setSettings, legacy, setLegacy,
+  const services = { data, nav, busy, act, host, settings, setSettings, legacy, setLegacy,
     exportData, onRestored, appearance, profile, setProfile, capabilities, status, openSchedule };
   const selected = available.find((item) => item.id === active) || available[0];
   return (

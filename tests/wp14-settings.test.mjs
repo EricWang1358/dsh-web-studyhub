@@ -5,6 +5,7 @@
 import test from 'node:test';
 import { warmSettingsPanes } from './helpers/settings-panes.mjs';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
@@ -17,7 +18,7 @@ const compiled = await build({ stdin: { contents: `
   export { default as Settings } from './ui/Settings.jsx';
   export { CoachSection, coachActions } from './ui/settings/CoachSection.jsx';
   export { ScheduleSection } from './ui/settings/ScheduleSection.jsx';
-  export { BackupSection, RestorePreview, backupSummary, backupFileName } from './ui/settings/BackupSection.jsx';
+  export { BackupSection, RestorePreview, backupSummary, backupFileName, restoreBlockers } from './ui/settings/BackupSection.jsx';
   export { default as AudioSettings, ProviderKeyForm, PROVIDERS } from './ui/AudioSettings.jsx';
   export { CourseList } from './ui/CourseSettings.jsx';
   export { OnboardingPanel } from './ui/tour/SampleControls.jsx';
@@ -28,7 +29,7 @@ const compiled = await build({ stdin: { contents: `
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { Settings, CoachSection, coachActions, ScheduleSection, BackupSection, RestorePreview, backupSummary, backupFileName, AudioSettings, ProviderKeyForm, PROVIDERS,
+const { Settings, CoachSection, coachActions, ScheduleSection, BackupSection, RestorePreview, backupSummary, backupFileName, restoreBlockers, AudioSettings, ProviderKeyForm, PROVIDERS,
   previewSchedule, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const h = React.createElement;
@@ -216,6 +217,48 @@ test('a chosen backup shows its name, size and contents before the destructive c
   assert.doesNotMatch(en, han);
 });
 
+/* ---------- restore while a job is running (#746) ---------- */
+
+const navStub = { show: { task: () => {} } };
+const job = (id, status, extra = {}) => ({ id, type: 'supplement', status, ...extra });
+
+test('the jobs that stop a restore are the running ones, read from the panel copy of the host rule (#746)', () => {
+  const jobs = [job('a', 'running'), job('b', 'complete'), job('c', 'queued'), job('d', 'cancelling'), job('e', 'running', { type: 'coach-daily' })];
+  assert.deepEqual(restoreBlockers(jobs).map((one) => one.id), ['a', 'c', 'd'], 'running, queued and stopping; the coach record never holds a restore');
+  assert.deepEqual(restoreBlockers(undefined), [], 'a snapshot without jobs blocks nothing');
+  assert.deepEqual(restoreBlockers([]), []);
+});
+
+test('a running job is said before the learner commits, with the way to it, and the confirm is disabled (#746)', () => {
+  const running = render(h(BackupSection, { root: 'D:\\Study\\library', jobs: [job('j1', 'running')], nav: navStub, exportData: noop, onRestored: noop }));
+  assert.match(running, /学习库还有任务在运行，现在还不能恢复/, 'the reason is on the block, not only in the dialog');
+  assert.match(running, /查看任务/, 'and it points at the task');
+  assert.match(running, /选择备份文件…/, 'the file may still be chosen and looked at');
+  const quiet = render(h(BackupSection, { root: 'D:\\Study\\library', jobs: [job('j2', 'complete')], nav: navStub, exportData: noop, onRestored: noop }));
+  assert.doesNotMatch(quiet, /学习库还有任务在运行|查看任务/, 'nothing runs: no reason, no task button, and no unconditional hint either');
+  assert.doesNotMatch(quiet, /任务还在进行时不能恢复/);
+  // The destructive button of the preview is the one the blocked state disables.
+  const state = { version: 3, courses: [], sources: [], decks: [], drafts: [], runs: [], attempts: [] };
+  const file = { name: 'b.json', size: 2048, state };
+  const blocked = render(h(RestorePreview, { file, busy: false, blocked: true, onConfirm: noop, onCancel: noop }));
+  assert.match(blocked, /<button[^>]*disabled=""[^>]*>[\s\S]*?用此备份替换当前学习库/);
+  assert.doesNotMatch(render(h(RestorePreview, { file, busy: false, onConfirm: noop, onCancel: noop })), /<button[^>]*disabled=""[^>]*>[\s\S]*?用此备份替换当前学习库/);
+});
+
+test('Settings hands the job list and the navigation to the restore block (#746)', () => {
+  const html = settingsPage('zh', { tourActive: true, nav: navStub, data: { ...data, jobs: [job('j1', 'running')] } });
+  assert.match(html, /学习库还有任务在运行，现在还不能恢复/, 'the page wires data.jobs and nav through to the section');
+  assert.doesNotMatch(settingsPage('zh', { tourActive: true }), /学习库还有任务在运行/);
+});
+
+test('the confirmation is blocked and offers the task when the host refuses anyway (#746)', async () => {
+  // A running job cannot be seeded in a server-rendered page, so the dialog's own props are checked where they are written: `blocked` disables its
+  // confirm, and the error line (the race: a job starts after the preview) offers the same 查看任务.
+  const source = await readFile('ui/settings/BackupSection.jsx', 'utf8');
+  assert.match(source, /busy=\{busy\} blocked=\{blockers\.length > 0\}/);
+  assert.match(source, /errorAction=\{openTask \? \{ label: ui\('查看任务'\), onClick: openTask \} : undefined\}/);
+  assert.match(source, /\{blockers\.length > 0 && <Hint>\{ui\('任务还在进行时不能恢复。'\)\}<\/Hint>\}/, 'the old fixed hint is shown only while a job runs');
+});
 test('changing the coach consent or goal reloads the profile outside the single-flight act', async () => {
   const calls = [];
   let acting = false;
