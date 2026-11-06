@@ -101,6 +101,11 @@
       gap: var(--space-4);
       min-width: 0;
     }
+    .book-point .md {
+      /* 中英混排 (#744): as in the reader (.source-md): the space between Chinese and Latin the font does not add, a property rather than a
+         changed string, so a copied answer, a quote and a search are untouched. Engines that do not know it draw as before. */
+      text-autospace: normal;
+    }
     .book-point .md p {
       margin-bottom: 0.9em;
     }
