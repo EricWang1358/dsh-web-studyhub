@@ -106,9 +106,15 @@ test("generation details show the tokens of each stage next to the estimate", as
    model is not corrected by another model's habits. */
 test("the correction lives on the machine, beside the usage ledger, so a new book learns from the first run that finished anywhere", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "study-dsh-home-"));
-  const previous = process.env.DSH_HOME;
+  const previous = process.env.DSH_HOME, previousOff = process.env.STUDY_NO_CALIBRATION;
   process.env.DSH_HOME = home;
-  t.after(async () => { if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; await rm(home, { recursive: true, force: true }); });
+  // scripts/test.mjs turns learning off for its children (one DSH home, many libraries); this test is the app path, so it turns it back on for itself.
+  delete process.env.STUDY_NO_CALIBRATION;
+  t.after(async () => {
+    if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous;
+    if (previousOff !== undefined) process.env.STUDY_NO_CALIBRATION = previousOff;
+    await rm(home, { recursive: true, force: true });
+  });
   const machine = createCalibration(calibrationDir()), raw = estimate(), totals = stageTotals(raw), mid = (id) => (totals[id].low + totals[id].high) / 2;
   assert.equal(calibrationDir(), join(home, "study"), "the DSH home the host set, not the library");
   for (let run = 0; run < 3; run++) await machine.record({ stageTotals: totals, actual: { plan: mid("plan") * 2, blueprint: mid("blueprint"), author: mid("author"), review: mid("review") } });
