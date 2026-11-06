@@ -117,7 +117,7 @@ async function materials(t) {
   return { store, call: (action, args = {}) => ops.handlers[action](args) };
 }
 
-test('a book converted before the fix (page-sized chapters) picks up its heading chapters when it is converted again, and its course sees the change', async t => {
+test('a book converted before the fix (page-sized chapters) reads with its heading chapters without converting it again, and its course sees the change', async t => {
   const { store, call } = await materials(t);
   const text = JSON.stringify(flat), hash = bytesHash(Buffer.from(text, 'utf8')), documentId = `document-${hash}-json`, old = `${hash}-json-conv1`;
   // The library as the old import left it: one chapter per page, named after the last title on it.
@@ -130,13 +130,17 @@ test('a book converted before the fix (page-sized chapters) picks up its heading
     state.documents = [{ id: documentId, format: 'pdf', filename: '软件工程.json', title: '软件工程', currentRevision: old,
       versions: [{ revision: old, attachment: null, sourceIds: state.sources.map(source => source.id), importedAt: '2026-11-01T00:00:00.000Z' }] }];
   });
-  const before = groupSourcesByDocument((await store.read()).sources);
-  assert.equal(before[0].chapters.length, 8, 'the old import: a chapter per page');
+  const stored = (await store.read()).sources;
+  // As stored (what a book built from it saw): a chapter per page. Read now, its pages are stamped again from their own texts (lib/converted-chapter-stamps.js).
+  const built = groupSourcesByDocument(stored.map(({ text, ...source }) => ({ ...source, chars: text.length })));
+  assert.equal(built[0].chapters.length, 8, 'the old import as stored: a chapter per page');
+  const before = groupSourcesByDocument(stored);
+  assert.deepEqual(before[0].chapters.map(chapter => chapter.title), ['软件工程课程讲义', '第一章 软件过程', '第二章 需求工程', 'Chapter 3 Design']);
+  // The course's materials changed as the outline engine sees them: the book shows 需要更新 and its next update builds the outline again.
+  assert.notEqual(materialsFingerprint(before), materialsFingerprint(built));
   const imported = await call('materials.document.import', { dataBase64: Buffer.from(text, 'utf8').toString('base64'), filename: '软件工程.json', format: 'json', courses: ['SE'] });
   assert.notEqual(imported.revision, old, 'the same bytes make a new revision: the projection changed');
   const state = await store.read(), current = new Set(imported.sourceIds);
   const after = groupSourcesByDocument(state.sources.filter(source => current.has(source.id)));
   assert.deepEqual(after[0].chapters.map(chapter => chapter.title), ['软件工程课程讲义', '第一章 软件过程', '第二章 需求工程', 'Chapter 3 Design']);
-  // The course's materials changed as the outline engine sees them: the book shows 需要更新 and its next update builds the outline again.
-  assert.notEqual(materialsFingerprint(after), materialsFingerprint(before));
 });
