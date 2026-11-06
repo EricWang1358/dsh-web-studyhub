@@ -60,7 +60,7 @@ export default function WrongPanel({ read, cards, entryOf, drawn, chapterTitle, 
   const done = action => row => { setOpen(false); action(row); };
   return <Popover open={open} onOpenChange={setOpen} label={ui('错题')} className="reader-popover reader-wrong" panelClassName="reader-popover__panel reader-wrong__panel"
     boundsSelector=".study-document-viewer" flip={false} data-tour="reader-wrong"
-    trigger={({ props, ref }) => <Button ref={ref} size="sm" variant="quiet" icon="nav-wrongbook" className="reader-toolbar__action reader-toolbar__action--word" {...props}>{ui('错题')}</Button>}>
+    trigger={({ props, ref }) => <Button ref={ref} size="sm" variant="quiet" icon="nav-wrongbook" iconClassName="reader-toolbar__word-icon" className="reader-toolbar__action" {...props}>{ui('错题')}</Button>}>
     <WrongBody read={read} cards={cards} entryOf={entryOf} drawn={drawn} chapterTitle={chapterTitle} onPractice={done(onPractice)} onSeek={done(onSeek)} />
   </Popover>;
 }

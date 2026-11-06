@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Hint, IconButton, InlineMessage, TextArea, Tooltip } from '../components/index.js';
+import { Button, HelpTip, IconButton, InlineMessage, TextArea, Tooltip } from '../components/index.js';
 import { READER_HINTS, useReaderHint } from './reader/hints.js';
 import { usePagePresets, visiblePagePresets } from './reader/page-presets.js';
 import { HandOff } from '../hand-off/HandOff.jsx';
@@ -169,7 +169,7 @@ export default function PageAsk({ scope, handOff = null, onQuick, resolution, re
       </>}
       {drawing && <p className="muted" role="status">{uiFormat('正在画第 {0} 页的图…', [label])}</p>}
       {/* A page without saved text has no question box to paste into. */}
-      {!scope.empty && <Hint>{ui('在 PDF 里选中的文字可以复制，粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页的图，请在「阅读」里点「看原页」查看。')}</Hint>}
+      {!scope.empty && <HelpTip label={ui('这里能问什么、不能问什么')}>{ui('在 PDF 里选中的文字可以复制，粘贴进问题框。模型只读这一页保存的文字，看不到图表；要看本页的图，请在「阅读」里点「看原页」查看。')}</HelpTip>}
     </section>
     {managing && <PagePresets presets={presets} onChange={updatePresets} onClose={() => setManaging(false)} />}
   </>;

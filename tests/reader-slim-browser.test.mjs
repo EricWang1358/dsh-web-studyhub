@@ -1,4 +1,4 @@
-/* global document */
+/* global document window */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -156,7 +156,7 @@ test('the slim reader: a quiet toolbar, 更多, 错题 and 思维导图 at 1280 
       assert.equal(await top.count(), 1, 'one chapter heading at the top of the tree');
       assert.match(await top.first().locator('.reader-map__node').first().innerText(), /3 Topic of chapter 3/);
       assert.equal(await map.locator('.reader-map__node').count(), PER_CHAPTER, 'a node for every heading of the chapter');
-      const mapBox = await map.evaluate(node => { const box = node.getBoundingClientRect(); return { left: box.left, right: box.right, width: innerWidth }; });
+      const mapBox = await map.evaluate(node => { const box = node.getBoundingClientRect(); return { left: box.left, right: box.right, width: window.innerWidth }; });
       assert.ok(mapBox.left >= 0 && mapBox.right <= mapBox.width, `${width}px: the panel stays in the window`);
       await shot('map');
       await map.getByRole('button', { name: /^收起 3 Topic/ }).click();

@@ -3,7 +3,7 @@ import Markdown from '../Markdown.jsx';
 import { ui, uiFormat, uiLanguageName } from '../i18n.js';
 import { TokenEstimate } from '../TokenUsage.jsx';
 import MathText from '../MathText.jsx';
-import { Badge, Button, Combobox, Disclosure, InlineMessage, SegmentedControl, Select, Tooltip, useNow, useToast } from '../components/index.js';
+import { Badge, Button, Combobox, Disclosure, HelpTip, InlineMessage, SegmentedControl, Select, Tooltip, useNow, useToast } from '../components/index.js';
 import { joinMeta } from '../format.js';
 import { kinds } from '../shared.js';
 import { usePolling } from '../use-polling.js';
@@ -114,7 +114,7 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
         }} />
         <Button type="submit" className="study-learning-submit" busy={asking} busyLabel={ui('正在回答…')} disabled={!askReady || !question.trim()}>{ui('依据原文回答')}</Button>
       </form>
-      {modeSwitch && <p className="muted ask-note">{mode === 'annotate' ? ui('批注模式：每条回答都会和这段原文一起保存。') : ui('阅读模式：问答只在阅读器打开时保留。要留下来，点「存为批注」或切到批注。')}</p>}
+      {modeSwitch && <HelpTip label={ui('阅读和批注有什么不同')}>{mode === 'annotate' ? ui('批注模式：每条回答都会和这段原文一起保存。') : ui('阅读模式：问答只在阅读器打开时保留。要留下来，点「存为批注」或切到批注。')}</HelpTip>}
       <AskThread thread={thread} notice={notice} noticeWhy={noticeWhy} mode={mode} savedIds={savedIds} keepBusy={keepBusy} keepError={keepError}
         onKeep={annotateReady ? onKeep : undefined} onDelete={onDeleteThread} onAsk={onAskInside || noop} onRetry={onRetryNode || noop} onToggle={onToggleNode || noop}
         save={{ call, selection: resolution.selection, deckId, decks, ready: saveReady, onSaved, onOpenCard: jobHandlers.onOpenCard, isCurrent }} />
@@ -134,7 +134,7 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
           <p className="muted">{ui('题型和题数取自设置里的出题偏好；在这里改，不会改动设置。')}
             {openSettings && <> <Button variant="link" size="sm" onClick={() => openSettings('settings-generation')}>{ui('前往设置')}</Button></>}</p>
         </Disclosure>
-        <p className="muted">{ui('生成后独立审核，通过的题目增量保存到所选题组，并与此段原文关联。')}</p>
+        <HelpTip label={ui('生成之后会怎样')}>{ui('生成后独立审核，通过的题目增量保存到所选题组，并与此段原文关联。')}</HelpTip>
         {generateReady && deckId && typeof call === 'function' && <TokenEstimate enabled
           request={{ feature: 'selection', selection: resolution.selection, deckId, count: Number(count) || 1, kind, language: uiLanguageName() }} />}
         {blocking && <p className="muted" role="status">{ui('这段原文补到这个题组的任务正在进行，请等它完成，或先停止它。')}</p>}

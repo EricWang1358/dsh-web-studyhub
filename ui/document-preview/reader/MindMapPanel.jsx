@@ -51,7 +51,7 @@ export default function MindMapPanel({ map, document, pages, onJump }) {
   const [open, setOpen] = useState(false);
   return <Popover open={open} onOpenChange={setOpen} label={ui('思维导图')} className="reader-popover reader-map" panelClassName="reader-popover__panel reader-map__panel"
     boundsSelector=".study-document-viewer" flip={false} data-tour="reader-map"
-    trigger={({ props, ref }) => <Button ref={ref} size="sm" variant="quiet" icon="nav-skeleton" className="reader-toolbar__action reader-toolbar__action--word" {...props}>{ui('思维导图')}</Button>}>
+    trigger={({ props, ref }) => <Button ref={ref} size="sm" variant="quiet" icon="nav-skeleton" iconClassName="reader-toolbar__word-icon" className="reader-toolbar__action" {...props}>{ui('思维导图')}</Button>}>
     <MapBody key={map.title} map={map} document={document} pages={pages} onJump={node => { setOpen(false); onJump(node); }} />
   </Popover>;
 }

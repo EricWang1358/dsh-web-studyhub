@@ -18,6 +18,9 @@ test('headingLevel reads a level from a Markdown mark, a number, a chapter or se
   assert.equal(m.headingLevel('11 Demand'), 1);
   assert.equal(m.headingLevel('第 11 章 财政政策'), 1);
   assert.equal(m.headingLevel('第二节 乘数'), 2);
+  assert.equal(m.headingLevel('11—2 货币市场与LM曲线'), 2, 'the dash of a Chinese textbook number');
+  assert.equal(m.headingLevel('# 11—1 商品市场与 IS 曲线'), 2, 'a number with two parts outranks a converter that marked every heading with one #');
+  assert.equal(m.headingLevel('# 11 货币、利息与收入'), 1);
   assert.equal(m.headingLevel('Summary'), null);
 });
 

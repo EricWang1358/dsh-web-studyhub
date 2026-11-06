@@ -543,7 +543,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       {/* 出题 is the one primary control; the arrow beside it opens 做这几页的题 (shortcut P). 错题 and 思维导图 are panels. */}
       <div className="reader-toolbar__actions">
         {!localMode && onGenerate && <span className="reader-split" data-tour="reader-generate">
-          <Tooltip layer content={ui('从这份资料出题')}><Button variant="primary" size="sm" icon="sparkle" disabled={generateDisabled} onClick={onGenerate}>{ui('AI 出题')}</Button></Tooltip>
+          <Tooltip layer content={ui('从这份资料出题')}><Button variant="primary" size="sm" icon="sparkle" className="reader-split__main" disabled={generateDisabled} onClick={onGenerate}>{ui('AI 出题')}</Button></Tooltip>
           {view !== 'original' && onPracticePages && <ReadingPractice split loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
         </span>}
         {!localMode && !onGenerate && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}

@@ -114,7 +114,10 @@ test('原始 PDF: a selection is never captured or shown there, the reading pane
   assert.match(viewer, /\{view !== 'original' && <Button className="study-document-wide" icon="plus"[^\n]*使用当前选区/, '使用当前选区 is not offered there');
   assert.match(viewer, /\{onCaseFromPassage && view !== 'original' && <Button/, '围绕这段出案例题 is not offered there');
   assert.match(viewer, /if \(view === 'original'\) setMode\('read'\); \/\/ a kept passage is shown where it can be selected/, 'a kept annotation opened from the links goes back to 阅读');
-  assert.match(viewer, /\{!toolsOn && <> <Button variant="link" size="sm" onClick=\{\(\) => toggle\('tools'\)\}>\{ui\('问这一页'\)\}<\/Button><\/>\}/, '「问这一页」 opens a closed panel');
+  // The way to the closed panel is 更多 › 学习工具 (its tip says what it does on a page of the PDF), and the 「?」 beside the page label says how asking works there.
+  assert.match(viewer, /tools: localMode \? null : \{ on: toolsOn, count: groups\.length \}/, 'the study tools are an item of 更多');
+  assert.match(viewer, /tools: \(\) => toggle\('tools'\)/, 'and it opens a closed panel');
+  assert.match(viewer, /view === 'original' && !localMode && <HelpTip /, 'the explanation is a 「?」, not a paragraph');
   assert.match(viewer, /<PdfOriginal fileUrl=\{fileUrl\}[^\n]*page=\{pdfPage\} total=\{totalPages\} onPage=\{goToPage\}/, 'the page is drawn in place (reader/PdfOriginal.jsx)');
   const original = await readFile(new URL('../ui/document-preview/reader/PdfOriginal.jsx', import.meta.url), 'utf8');
   assert.match(original, /<iframe key=\{page\} src=\{`\$\{fileUrl\}#page=\$\{page\}`\}/, 'the browser\'s viewer still gets a new frame per page: a changed #page= alone is ignored by it');

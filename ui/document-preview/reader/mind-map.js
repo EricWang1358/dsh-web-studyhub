@@ -13,10 +13,12 @@ const ORDINAL = /^[一二三四五六七八九十百]{1,3}[、．.]\s*\S/, BRACK
 
 /** The level a heading line says it has: a Markdown mark's length, the parts of a number ("11.2.3"), 第…章 (1) and 第…节 (2), 一、(2) and （一）(3); null for plain words. */
 export function headingLevel(line) {
-  const text = String(line ?? '').trim(), mark = headingMark(text);
+  const full = String(line ?? '').trim(), mark = headingMark(full), text = full.slice(mark.length).trim();
+  // "11.2.3", and the "11—2" of a Chinese textbook: the parts of a number say the depth, and a converter that marked every heading with one "#" says nothing
+  const numbered = /^(\d{1,3}(?:[.—–]\d{1,3})*)(?:[.)．]|\s)/.exec(text), parts = numbered ? numbered[1].split(/[.—–]/).length : 0;
+  if (parts > 1) return Math.min(6, parts);
   if (mark) return Math.min(6, mark.trim().length);
-  const numbered = /^(\d{1,3}(?:\.\d{1,3})*)[.)．]?\s+\S/.exec(text);
-  if (numbered) return numbered[1].split('.').length;
+  if (parts === 1) return 1;
   if (/^第\s*[一二三四五六七八九十百\d]+\s*[章部篇]/.test(text)) return 1;
   if (/^第\s*[一二三四五六七八九十百\d]+\s*[节]/.test(text)) return 2;
   if (ORDINAL.test(text)) return 2;
