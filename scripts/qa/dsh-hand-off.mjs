@@ -133,8 +133,13 @@ export async function pagePictureStep(page, { lang = 'zh', model, shot = async (
       await page.locator('.source-doc:visible', { hasText: 'picture-qa' }).first().locator('.source-main').click({ timeout: 15000 });
       await page.locator('.study-document-viewer:visible').waitFor({ timeout: 30000 });
       await sleep(2500); // the original file loads first; before that the tab offers to attach one
-      await page.locator('.study-document-viewer:visible .sh-seg__item', { hasText: en ? 'Original PDF' : '原始 PDF' }).click();
-      if (!await page.locator('[data-tour="source-tools"]:visible').count()) await page.locator('[data-tour="source-tools-toggle"]:visible').click();
+      // The views and the study tools are items of the reader's 更多 (ui/document-preview/reader/more-items.js).
+      const more = async (zh, english) => {
+        await page.locator('.study-document-viewer:visible .reader-more__button').first().click();
+        await page.locator('.sh-menu [role^="menuitem"]:visible', { hasText: en ? english : zh }).first().click();
+      };
+      await more('原始 PDF', 'Original PDF');
+      if (!await page.locator('[data-tour="source-tools"]:visible').count()) await more('学习工具', 'Study tools');
     }
     const button = page.locator('.study-page-ask:visible [data-hand-off="reader.page"]').first();
     await button.waitFor({ timeout: 30000 });
