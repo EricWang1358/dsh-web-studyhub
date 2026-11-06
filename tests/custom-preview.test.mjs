@@ -93,10 +93,11 @@ test('only the chosen chapters count: fewer chapters, fewer points, calls, quest
   const three = await preview(study, { custom: custom('review', { scope: { kind: 'chapters', chapters: chaptersOf(whole, [3]) } }) });
   const a = one.estimate, b = three.estimate, all = whole.estimate;
   for (const part of [['book', 'points'], ['book', 'calls'], ['questions', 'count'], ['questions', 'calls'], ['total', 'calls'], ['total', 'readTokens']]) {
-    const [group, key] = part;
-    assert.ok(a[group][key] > 0, `${group}.${key} of one chapter`);
-    assert.ok(a[group][key] <= b[group][key] && b[group][key] < all[group][key], `${group}.${key}: one ≤ three < all`);
+    const [group, key] = part, at = (view) => (key === 'readTokens' ? view[group][key].low : view[group][key]);
+    assert.ok(at(a) > 0, `${group}.${key} of one chapter`);
+    assert.ok(at(a) <= at(b) && at(b) < at(all), `${group}.${key}: one ≤ three < all`);
   }
+  assert.ok(all.total.readTokens.high > all.total.readTokens.low * 2, 'tokens read is a range: the low end is chars/4, the high end the documented CJK rate');
   assert.deepEqual(one.unknownChapters, []);
 });
 
@@ -132,12 +133,12 @@ test('make:false adds nothing; the plan and variants add no call; the totals are
   const base = customDefaults('review');
   const get = async over => (await preview(study, { custom: custom('review', over) })).estimate;
   const full = await get({}), noBook = await get({ book: { ...base.book, make: false } }), noQuestions = await get({ questions: { ...base.questions, make: false } });
-  assert.deepEqual(noBook.book, { points: 0, calls: 0, readTokens: 0 });
-  assert.deepEqual(noQuestions.questions, { count: 0, runs: 0, calls: 0, readTokens: 0 });
+  assert.deepEqual(noBook.book, { points: 0, calls: 0, readTokens: { low: 0, high: 0 } });
+  assert.deepEqual(noQuestions.questions, { count: 0, runs: 0, calls: 0, readTokens: { low: 0, high: 0 } });
   assert.equal(noBook.total.calls, full.questions.calls);
   assert.equal(noQuestions.total.calls, full.book.calls);
   assert.equal(full.total.calls, full.book.calls + full.questions.calls);
-  assert.equal(full.total.readTokens, full.book.readTokens + full.questions.readTokens);
+  assert.deepEqual(full.total.readTokens, { low: full.book.readTokens.low + full.questions.readTokens.low, high: full.book.readTokens.high + full.questions.readTokens.high });
   assert.deepEqual(await get({ plan: { ...base.plan, make: false } }), full, 'the schedule is the program\'s: no call');
   assert.deepEqual(await get({ questions: { ...base.questions, variants: false } }), full, 'variants are only written once an answer is wrong');
   const nothing = await get({ book: { ...base.book, make: false }, questions: { ...base.questions, make: false } });
@@ -155,7 +156,8 @@ test('the question count follows the strength level of lib/coverage-strength.js,
   assert.ok(lean.count < standard.count && standard.count < full.count, `${lean.count} < ${standard.count} < ${full.count}`);
   assert.ok(lean.calls < standard.calls && standard.calls < full.calls);
   assert.ok((await count('standard', ['quiz'])).calls < standard.calls, 'one kind is fewer parts than five');
-  assert.ok(full.readTokens > 0);
+  assert.ok(full.readTokens.low > 0, 'the material the questions read');
+  assert.ok(full.readTokens.high > full.readTokens.low, 'a range: chars/4 up to the documented CJK rate');
 });
 
 test('a plan the record refuses is refused here with the same message; no course says so; nothing is written; no price anywhere', async t => {

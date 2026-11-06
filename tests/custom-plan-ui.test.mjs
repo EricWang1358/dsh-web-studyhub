@@ -91,15 +91,15 @@ test('the other toggles change only their own switch, and a question switch turn
 
 test('the estimate line is calls and tokens, roughly, with no price', () => {
   m.setUiLanguage('zh');
-  const line = m.model.estimateLine({ total: { calls: 368, readTokens: 182306 }, rough: true });
-  assert.equal(line, '粗估：约 368 次模型调用，读取约 182K tok');
+  const line = m.model.estimateLine({ total: { calls: 368, readTokens: { low: 182306, high: 273459 } }, rough: true });
+  assert.equal(line, '粗估：约 368 次模型调用，读取约 182K–273K tok');
   assert.equal(m.model.estimateLine({ total: { calls: 0, readTokens: 0 }, rough: false }), '不需要模型调用');
   assert.equal(m.model.estimateLine(null), '');
   assert.doesNotMatch(line, /价|费|元|\$|¥/);
 });
 
 const course = custom => ({ id: 'course-net', name: 'Net', aliases: [], guidanceSourceIds: [], focusTopics: [], decks: 0, sources: 0, ...(custom ? { custom } : {}) });
-const estimate = { status: 'ok', estimate: { book: { points: 10, calls: 30, readTokens: 1000 }, questions: { count: 20, calls: 16, readTokens: 500 }, total: { calls: 46, readTokens: 1500 }, rough: true } };
+const estimate = { status: 'ok', estimate: { book: { points: 10, calls: 30, readTokens: { low: 1000, high: 1500 } }, questions: { count: 20, calls: 16, readTokens: { low: 500, high: 750 } }, total: { calls: 46, readTokens: { low: 1500, high: 2250 } }, rough: true } };
 const draw = (element, language = 'zh', services = {}) => { m.setUiLanguage(language); try { return renderToStaticMarkup(inApp(m, element, { call: async () => estimate, ...services })); } finally { m.setUiLanguage('zh'); } };
 
 test('the card shows the sentence and one toggle per part, for the questions, the variants and the plan; the parts something rests on are locked', () => {

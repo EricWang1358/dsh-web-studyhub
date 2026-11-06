@@ -67,7 +67,7 @@ test('「你的定制」: the card, a saved toggle, no card without a plan, no s
       assert.match(await card.locator('.custom-card__summary').innerText(), zh ? /^期末复习 · .* · 讲解标准 \+ 术语卡 \+ 易混对照 · 各种题型 · 按考试日期排计划$/
         : /^Final review · .* · Explanations: Standard \+ Term cards \+ Confusable pairs · All question types · Plan back from the exam date$/, `${width}px: the sentence`);
       await card.locator('.custom-card__estimate').waitFor({ timeout: 30000 });
-      assert.match(await card.locator('.custom-card__estimate').innerText(), zh ? /^粗估：约 \d+ 次模型调用，读取约 [\d.]+K? tok$/ : /^Rough: about \d+ model calls, reading about [\d.]+K? tok$/, `${width}px: the cost line`);
+      assert.match(await card.locator('.custom-card__estimate').innerText(), zh ? /^粗估：约 \d+ 次模型调用，读取约 [\d.]+K?–[\d.]+K? tok$/ : /^Rough: about \d+ model calls, reading about [\d.]+K?–[\d.]+K? tok$/, `${width}px: the cost line`);
       assert.doesNotMatch(await card.innerText(), /价|费用|元|\$|¥|price|cost/i, `${width}px: no price`);
       const chips = card.locator('.custom-card__parts button');
       assert.equal(await chips.count(), 7);
