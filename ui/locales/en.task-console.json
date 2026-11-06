@@ -456,5 +456,19 @@
   "当前步骤": "Current step",
   "全部完成": "All done",
   "时间线": "Timeline",
-  "依次执行，没有同时进行的调用": "One after another; no two calls ran at once"
+  "依次执行，没有同时进行的调用": "One after another; no two calls ran at once",
+  "运行方式": "How it runs",
+  "本机 · 不用 AI": "Local · no AI",
+  "索引详情": "Index details",
+  "已完成 {0} / {1} 页": "{0} / {1} pages done",
+  "新写入 {0} 页": "{0} pages written",
+  "移除 {0} 页": "{0} pages removed",
+  "无需更新 {0} 页": "{0} pages needed no update",
+  "无检索文字 {0} 页": "{0} pages with no searchable text",
+  "没能写入 {0} 页": "{0} pages not written",
+  "在本机把页面写进检索扩展，不调用 AI，不花 token。停止后已写入的页会保留，再次开始只写还没建好的页。": "Writes the pages into the search extension on this computer, with no AI and no tokens. After a stop the pages written are kept, and starting again writes only the pages not built yet.",
+  "另有 {0} 页没能写入，下次建立时会重试。": "{0} more pages could not be written; the next build tries them again.",
+  "停止时有 {0} 页正在写入，不确定是否写进去了；下次建立会重新写它。": "{0} page was being written when it stopped, so it may or may not be in the index; the next build writes it again.",
+  "写入检索索引": "Write the search index",
+  "再点「建立索引」会接着写还没建好的页": "Start the index again to write the pages not built yet"
 }

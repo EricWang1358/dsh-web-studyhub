@@ -45,14 +45,16 @@ test('the build of a course asked twice is one job; the second course is reporte
   await lib.service.call('retrieval.index.cancel', {}); await lib.finished('the stopped build');
 });
 
-test('without the extension, or without a registered session to run in, the refusal comes first: no job, no write', async t => {
+test('without the extension the refusal comes first (no job, no write); without a registered session the build still runs, on the original path', async t => {
   const none = fakeIndexPort({ present: false }), lib = await library(t, none);
   await assert.rejects(lib.service.call('retrieval.index.start', { course: 'OS' }), { code: 'retrieval-index-unavailable' });
   assert.deepEqual(await lib.jobs(), []);
   const fake = fakeIndexPort(), gone = { assertAvailable() { throw Object.assign(new Error('no agent'), { code: 'executor-unavailable' }); } };
   const panel = await library(t, fake, { runtime: { jobExecutor: gone } });
-  await assert.rejects(panel.service.call('retrieval.index.start', { course: 'OS' }), { code: 'retrieval-index-needs-session' });
-  assert.deepEqual(await panel.jobs(), []); assert.equal(fake.calls.length, 0);
+  // DSH resumes a session's agent lazily, so a panel request after a restart often has none: the build must not be refused for it (gate review of #765).
+  assert.equal((await panel.service.call('retrieval.index.start', { course: 'OS' })).status, 'running');
+  assert.equal((await panel.finished('the build')).status, 'complete');
+  assert.deepEqual(await panel.jobs(), []); assert.equal(fake.ingested().length, PAGES);
 });
 
 test('unchanged pages are reused, an edited page is written again under its own key, and only a page that left the library is deleted', async t => {
@@ -137,7 +139,7 @@ test('the console cannot restart a finished build: the start button is the one e
 
 test('every sentence of the build, in the console and in the refusals, has its English form', () => {
   const stages = ['preparing', 'model', 'indexing', 'done', 'cancelled', 'failed'].map(phase => INDEX_TEXT.stage(phase, { done: 3, total: 9 }));
-  for (const text of [INDEX_TEXT.needsSession, INDEX_TEXT.manifestUnsaved, INDEX_TEXT.title('OS'), INDEX_TEXT.title(), ...stages]) assert.notEqual(localizeAppMessage(text), text, text);
+  for (const text of [INDEX_TEXT.manifestUnsaved, INDEX_TEXT.title('OS'), INDEX_TEXT.title(), ...stages]) assert.notEqual(localizeAppMessage(text), text, text);
   assert.equal(localizeAppMessage(INDEX_TEXT.stage('indexing', { done: 3, total: 9 })), 'Indexing 3 / 9 pages');
 });
 

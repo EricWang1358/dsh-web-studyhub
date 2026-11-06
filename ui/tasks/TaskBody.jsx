@@ -15,6 +15,7 @@ import CoachOutputNote from './CoachOutputNote.jsx';
 import { PdfDetail } from '../PdfConvertJob.jsx';
 import BookBoard from './BookBoard.jsx';
 import InstallStages from '../install/InstallStages.jsx';
+import IndexDetail from './IndexDetail.jsx';
 
 /* The two columns under the controls, one template for every kind of job: on the left the parallel timeline above the tabs 「正在进行」 and the kind's own
    section (文件 for audio, 轮次与批次 for a question run); on the right the tabs 「实时输出」 and 「日志」. Both columns are as tall as the window leaves them and
@@ -30,22 +31,24 @@ const SECTIONS = {
 /** A one-click install (Marker, MinerU; the legacy row or the Job): its steps, done, active, failed or still to come. */
 const INSTALL_SECTION = { value: 'steps', label: '安装步骤', count: (contract) => contract.detail.install.steps.length,
   View: ({ contract }) => <div className="tc-scroll"><InstallStages stages={contract.detail.install.steps.map((step) => ({ ...step, name: uiMessage(step.name) }))} label={ui('安装步骤')} className="tc-steps" markClassName="tc-steps__mark" /></div> };
+/** A search-index build: what it wrote, kept and could not write (./IndexDetail.jsx). */
+const INDEX_SECTION = { value: 'index', label: '索引详情', count: () => '', View: IndexDetail };
 /** A review book build: each knowledge point and where it is (written, reviewed, complete or short). */
 const BOOK_SECTION = { value: 'points', label: '知识点', count: (contract) => contract.detail.book?.board?.length || 0, View: BookBoard };
 
 /* `marks` (callId -> 'long' | 'slowest', time-limit.js) draws the steps the time-limit strip points at on the timeline; `focusCall` ({ id, at }) is that strip asking for one of them: it is selected and its output shown, like a click on its bar. */
 export default function TaskBody({ task, archived = false, marks, focusCall }) {
   const contract = contractOf(task), calls = contract.calls, live = isRunningTask(task), kind = taskKindOf(task);
-  const install = Array.isArray(contract.detail?.install?.steps);
-  const section = contract.kind === 'audio-live-correction' ? null : contract.kind === 'course-book-build' ? BOOK_SECTION : install ? INSTALL_SECTION : SECTIONS[kind], left = useId(), right = useId();
+  const install = Array.isArray(contract.detail?.install?.steps), index = contract.kind === 'retrieval-index';
+  const section = contract.kind === 'audio-live-correction' ? null : contract.kind === 'course-book-build' ? BOOK_SECTION : install ? INSTALL_SECTION : index ? INDEX_SECTION : SECTIONS[kind], left = useId(), right = useId();
   const [selected, setSelected] = useState(null), [leftTab, setLeftTab] = useState('running'), [rightTab, setRightTab] = useState('output');
   const running = useMemo(() => runningCalls(calls), [calls]);
   const target = calls.find((call) => call.callId === selected) || running.find((call) => call.kind !== 'wait') || null;
   const choose = (callId) => { setSelected(callId); setRightTab('output'); };
   useEffect(() => { if (focusCall?.id) { setSelected(focusCall.id); setRightTab('output'); } }, [focusCall]);
-  // A PDF conversion and an install make no model calls: no timeline, no 正在进行 and no 实时输出 (they would only say there are none); a conversion's windows are in
-  // 转换详情, an install's steps in 安装步骤, and the story of both in 日志.
-  const callFree = (kind === 'pdf' && !!section) || install;
+  // A PDF conversion, an install and a search-index build make no model calls: no timeline, no 正在进行 and no 实时输出 (they would only say there are none); a
+  // conversion's windows are in 转换详情, an install's steps in 安装步骤, a build's pages in 索引详情, and the story of each in 日志.
+  const callFree = (kind === 'pdf' && !!section) || install || index;
   const leftItems = [...(callFree ? [] : [{ value: 'running', label: uiFormat('正在进行 {0}', [running.length]) }]), ...(section ? [{ value: section.value, label: `${ui(section.label)} ${section.count(contract)}`.trim() }] : [])];
   // 目标与知识点: a question run or a top-up lists the points its plan holds (ui/tasks/PlanTable.jsx), as a third tab beside the two.
   const planned = kind === 'generation' || kind === 'supplement';

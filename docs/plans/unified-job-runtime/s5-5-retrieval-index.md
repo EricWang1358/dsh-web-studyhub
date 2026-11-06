@@ -4,7 +4,7 @@
 
 ## 1. 做了什么
 
-`retrieval.index.start / status / cancel`（以及覆盖情况里的 `building`）在开关 `runtime.pilot.retrievalIndex`（插件 `Config`，**默认关闭**）打开时由统一运行时承担：一次构建是一个 `retrieval-index` Job，进入共享任务表和任务控制台；关闭时是原来的后台 run，行为不变。开关只在一处读取：`lib/contexts/generation/retrieval/index-runs.js`。
+`retrieval.index.start / status / cancel`（以及覆盖情况里的 `building`）在开关 `runtime.pilot.retrievalIndex`（插件 `Config`，**默认关闭**；4.4.1 之后的版本改为**默认打开**，`false` 退回原后台 run，见 [job-contract](../../job-contract.md) 的 Switches 一条）打开时由统一运行时承担：一次构建是一个 `retrieval-index` Job，进入共享任务表和任务控制台；关闭时是原来的后台 run，行为不变。开关只在一处读取：`lib/contexts/generation/retrieval/index-runs.js`。
 
 继续调用既有的宿主/MCP 工具（`mcp__studyhub__ingest_data` / `delete_file`），不新增搜索引擎、不产生第二份索引内容；查询、预览、计划、覆盖仍是即时调用。
 
@@ -28,7 +28,7 @@
 | 验收 | 实现与证据（`tests/unified-runtime-retrieval-index.test.mjs`） |
 |---|---|
 | 相同 contentHash/sourceKey 复用，变更只更新对应部分，删除保持既有授权范围 | 计划与 manifest 逻辑未改。测试：二次构建不发任何调用；改一页只重写该页的 key；一页离开库只删除它的 key（`library` 是整库页 id，不会误删其他课程的条目） |
-| provider/ingest 工具缺失明确拒绝 | 入口与 `admit` 都先检查，错误码 `retrieval-index-unavailable`，没有 Job、没有写入；面板没有存活会话时（`executor-unavailable`）改为明确提示 `retrieval-index-needs-session`，同样不创建 Job |
+| provider/ingest 工具缺失明确拒绝 | 入口与 `admit` 都先检查，错误码 `retrieval-index-unavailable`，没有 Job、没有写入；面板没有存活会话时（`executor-unavailable`，例如 DSH 重启后会话还没恢复）不创建 Job，改走原后台 run，不拒绝 |
 | 取消停止后续 ingest，不把未知的已提交写入当作未发生 | 取消后无新的 ingest；在途那一页**既不记入 manifest 也不宣称未写**，状态里列在 `unconfirmed`，对应 Call 为 `cancelled`；下次构建以同一 sourceKey 重写 |
 | ingest 成功但 manifest 保存前崩溃，先按内容身份核对，不无依据重复创建 | 内容身份是（sourceKey，contentHash）。同一 sourceKey 再次写入是**替换**（上游文档："Reusing the same path or source updates the existing entry"；0.20.0 运行时行为仍属 V-2，未验证），所以未记入 manifest 的页再写一遍不会新增条目。运行时路径还修了"保存失败被吞"（D-5）：写入已成功但 manifest 保存失败时任务以 `retrieval-manifest-unsaved` 失败并说明原因；测试用"替换式"的假扩展断言重做后条目数不变 |
 | 同库只一个活动构建，其他库按现有规则隔离；query/preview 仍即时 | 入口在同一 tick 内检查并提交（无 `await` 夹在中间）；第二次 start 返回同一个 Job，课程不同时回执带 `requestedCourse`（D-7 不再静默）；另一个库有自己的构建（基线测试在开关下重跑）；构建运行期间 preview/plan/coverage 即时返回、不起任务 |

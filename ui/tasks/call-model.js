@@ -12,7 +12,9 @@ import { convertEventBlock, convertEventText } from './convert-log.js';
 
 const KIND_LABEL = { transcribe: '转写', proofread: '校对', translate: '翻译', title: '生成标题', plan: '提取知识点与原文', blueprint: '确定答案与情景', author: '出题与自查',
   review: '独立审阅', repair: '修复题目', publish: '发布检查', prep: '备题', wait: '限流等待', other: '模型调用', 'live.correct': '课堂校正',
-  inventory: '清点资料', outline: '归纳知识点', write: '写讲解', cards: '补术语卡', confusables: '写易混概念对照', exam: '写考情', kit: '写答题模板' };
+  inventory: '清点资料', outline: '归纳知识点', write: '写讲解', cards: '补术语卡', confusables: '写易混概念对照', exam: '写考情', kit: '写答题模板',
+  // A search-index build's one local call (no model): lib/contexts/generation/retrieval/jobs/retrieval-index.js.
+  index: '写入检索索引' };
 /** The review book's review and repair are of explanations, not questions: their calls say so (their stage label is exactly the word). */
 const STAGE_LABEL = { review: '审阅讲解', repair: '修复讲解', place: '概念归位' };
 
@@ -221,7 +223,8 @@ const LEVEL = { step: 'step', warn: 'warn', error: 'warn', done: 'done', info: '
 const sameStep = (a, b) => a.kind === b.kind && (a.file ?? '') === (b.file ?? '') && (a.part ?? null) === (b.part ?? null);
 // How the learner goes on after a failed call that was not retried, by what the call was; a question run's batch: 补题 in its draft.
 const AUDIO_NEXT = '可点「接着做」补上';
-const NEXT_STEP = { transcribe: AUDIO_NEXT, proofread: AUDIO_NEXT, translate: AUDIO_NEXT, prep: '可在「错题与待巩固」里再点「生成变式」' };
+const NEXT_STEP = { transcribe: AUDIO_NEXT, proofread: AUDIO_NEXT, translate: AUDIO_NEXT, prep: '可在「错题与待巩固」里再点「生成变式」',
+  index: '再点「建立索引」会接着写还没建好的页' };
 
 /**
  * What came of a failed call. The later calls of the same step (same kind, file and part) are its retries (only a rate limit is retried by itself).
