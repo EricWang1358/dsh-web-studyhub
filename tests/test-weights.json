@@ -681,6 +681,8 @@
  "tests/reader-formula.test.mjs": 100,
  "tests/reader-math.test.mjs": 90,
  "tests/reader-notes-tasks-browser.test.mjs": 550,
+ "tests/reader-one-chapter-browser.test.mjs": 450,
+ "tests/reader-one-chapter.test.mjs": 20,
  "tests/reader-page-image.test.mjs": 10,
  "tests/reader-page-presets-browser.test.mjs": 690,
  "tests/reader-page-presets.test.mjs": 90,
