@@ -119,6 +119,9 @@ export function shortcutAction(event, ctx) {
   return result(null);
 }
 
+/** The grade a shortcut answer names (a 0-5 press), or null when the key answered something else (a choice, a cloze). 0 is a grade, so a falsy
+    check here would lose 完全忘记: the practice page flashes the button this names (#745). */
+export const pressedGradeOf = (action) => (action?.type === 'answer' && Number.isInteger(action.args?.grade) ? action.args.grade : null);
 /** Is `key` (from reviewEntryKey) still the open question? needPage: also require this page (teaching answers do). */
 export const isCurrentEntry = (run, key, { page, needPage } = {}) => !!key && (!needPage || page === needPage) && reviewEntryKey(run) === key;
 

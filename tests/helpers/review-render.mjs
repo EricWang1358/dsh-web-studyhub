@@ -17,7 +17,7 @@ export function reviewParts(old) {
   const actions = { reviewAct: old.reviewAct ?? noop, choose: noop, flipCard: noop, assistCard: old.assistCard ?? noop, slayCard: noop, studyPrerequisites: noop,
     teachingAct: old.teachingAct ?? noop, toggleEn: noop, toggleHelp: noop, setResponse: noop, setClozeValue: noop, setTeachAnswer: noop, closeShortcutHelp: noop,
     showExplanation: noop, askAboutCard: noop, improveCard: noop, toggleAutopilot: old.toggleAutopilot ?? noop };
-  const session = { run: old.run, entry, showBack: !!old.showBack, showEn: !!old.showEn, enBusyKey: old.enBusyKey || '', teachingBusy: !!old.teachingBusy,
+  const session = { run: old.run, entry, showBack: !!old.showBack, showEn: !!old.showEn, enBusyKey: old.enBusyKey || '', keyGrade: old.keyGrade ?? null, teachingBusy: !!old.teachingBusy,
     autopilot: !!old.autopilot, choice: old.choice ?? kind.choice, isCloze: old.isCloze ?? kind.isCloze, rubricCard: kind.rubricCard, enterRun: old.enterRun ?? noop, actions };
   const services = { call: old.call ?? (async () => ({})), act: old.act ?? (async () => undefined), busy: !!old.busy, notify: noop, askInChat: old.askInChat ?? noop,
     host: old.host ?? {}, openSettings: noop, navigate: old.setPage ?? noop, openModal: old.setModal ?? noop };

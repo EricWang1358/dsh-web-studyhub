@@ -70,6 +70,19 @@ test("answering through QuestionRun reaches the session's own actions", () => {
   assert.deepEqual(answers, [["review.answer", { grade: 4 }]], "grading is the session's review.answer, not a copy");
 });
 
+test("a grade button says its key in a tooltip, not a title, and wears the press a number key gives it (#745)", () => {
+  const revealed = { id: "r", index: 0, total: 1, mode: "path", revealed: true, card: { id: "f", kind: "flashcard", topic: "Context", prompt: "Term?", answer: "Definition" } };
+  const { html } = mount({ keyGrade: 4, run: revealed });
+  assert.equal((html.match(/data-usage="review\.grade"/g) || []).length, 6, "the 0-5 scale is still six buttons");
+  assert.equal((html.match(/aria-keyshortcuts="[0-5]"/g) || []).length, 6, "each key stays announced on its button");
+  assert.doesNotMatch(html, /title=/, "no title attribute: the words are the shared tooltip");
+  assert.match(html, /class="sh-popover-anchor grade-tip"/, "each button is the anchor of its tooltip");
+  assert.match(html, /快捷键 4：熟练/, "the tooltip names the key and the grade");
+  const pressed = html.match(/<button[^>]*is-key-pressed[^>]*>/g) || [];
+  assert.equal(pressed.length, 1, "only the grade the session marked is pressed");
+  assert.match(pressed[0], /aria-keyshortcuts="4"/, "and it is the button the 4 key names");
+  assert.doesNotMatch(mount({ run: revealed }).html, /is-key-pressed/, "nothing is pressed until a key answers");
+});
 test("an answered question shows its marks and the explanation inside QuestionRun", () => {
   const { html, clicks } = mount({ run: { id: "r", index: 0, total: 1, mode: "path", card: choiceCard, revealed: true,
     feedback: { correct: true, selected: ["a"], level: "learning" },
