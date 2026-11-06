@@ -1,0 +1,10 @@
+{
+  "先建立检索索引：整本出题时只读相关页面，本机计算、不耗 token": "Build the search index first: a whole-book run then reads only the relevant pages. It runs on this computer and uses no tokens",
+  "在这台电脑上用本地模型建索引：不调用 AI、不耗 token，资料不离开这台电脑。": "The index is built on this computer with a local model: no AI is called, it uses no tokens, and your material never leaves this computer.",
+  "先建立检索索引": "Build the index first",
+  "先安装检索扩展": "Install the search extension first",
+  "在这台电脑上建索引：不调用 AI、不耗 token，资料不离开电脑。建好后，整本书出题只读相关页面。": "The index is built on this computer: no AI is called, it uses no tokens, and your material never leaves the computer. Once built, a whole-book run reads only the relevant pages.",
+  "点这里去建立索引（本机计算，不耗 token）": "Click to go and build the index (runs on this computer, no tokens)",
+  "先建立检索索引…": "Build the search index first…",
+  "本机 · 不耗 token": "On this computer · no tokens"
+}

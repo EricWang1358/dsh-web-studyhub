@@ -1,0 +1,10 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The hint that points a big book at the search index (ui/IndexHint.jsx): one quiet line. Tokens only. */
+    .index-hint { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .index-hint__icon { flex: none; }
+    .index-hint__tip { min-width: 0; }
+  }
+}

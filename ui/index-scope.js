@@ -91,9 +91,17 @@ export function indexTarget(document, course, names = []) {
 export const NEEDS_INDEX = new Set(['partial', 'stale', 'missing', 'reset']);
 
 /** The hover line of the badge's action: where the click goes. */
-export const indexGoTip = (canIndex) => (canIndex === false ? ui('点这里去安装检索扩展') : ui('点这里去建立索引'));
+export const indexGoTip = (canIndex) => (canIndex === false ? ui('点这里去安装检索扩展') : ui('点这里去建立索引（本机计算，不耗 token）'));
 /** The badge's action and the shortcut line's link: the build, or (the extension is not installed) its install step. */
 export const indexGoLabel = (canIndex) => (canIndex === false ? ui('安装扩展') : ui('建立索引'));
+
+/* Why build the index, said once for every place that offers it (the hint of ui/IndexHint.jsx and the hover of the shortcut line above a list): what it is for, that it
+   runs on this computer and costs no tokens, the one-time model download, and the remark about English that is only a hover. The panel's own note is ui/IndexNote.jsx. */
+const MODEL_MB = 90;
+export const indexWhyLine = () => ui('先建立检索索引：整本出题时只读相关页面，本机计算、不耗 token');
+export const indexWhyTip = () => [ui('在这台电脑上用本地模型建索引：不调用 AI、不耗 token，资料不离开这台电脑。'),
+  uiFormat('首次需要下载约 {0} MB 的检索模型，只下载一次，之后可以离线使用。', [MODEL_MB]),
+  ui('默认检索模型主要针对英文；中文教材也能检索（会结合关键词匹配），但语义匹配较弱。')];
 
 /**
  * The materials of a list ([{ item, info }], info from documentIndexState) that are not fully indexed: { count, course } or null when there are none.

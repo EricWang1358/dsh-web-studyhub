@@ -2,7 +2,7 @@ import React from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { Badge, Button, Icon, Spinner, Tooltip } from './components/index.js';
 import { formatNumber } from './format.js';
-import { indexGoLabel, indexGoTip, indexTip, NEEDS_INDEX } from './index-scope.js';
+import { indexGoLabel, indexGoTip, indexTip, indexWhyLine, indexWhyTip, NEEDS_INDEX } from './index-scope.js';
 
 /* One quiet badge on a material row: whether its search index is built (资料 page and the picker of 创建题组). The index is what lets a big book be asked about
    and turned into questions page by page; the row says where it stands, so nobody has to open the settings to find out. It counts THIS document's pages
@@ -71,7 +71,8 @@ export default function IndexBadge({ info, coverage, onIndex }) {
 export function IndexGapLine({ count, canIndex, onGo }) {
   if (!count || !onGo) return null;
   return <p className="index-gap" role="status" data-index-gap>
-    <span>{uiFormat('有 {0} 份资料的索引还没建完', [formatNumber(count)])}</span>
+    {/* The hover says why to build it: what it is for, that it runs here and costs no tokens, the one-time download. */}
+    <Tooltip layer content={[indexWhyLine(), ...indexWhyTip()].join('\n')}><span tabIndex={0}>{uiFormat('有 {0} 份资料的索引还没建完', [formatNumber(count)])}</span></Tooltip>
     <span aria-hidden="true"> · </span>
     <Button variant="link" size="sm" onClick={onGo}>{canIndex === false ? ui('去安装检索扩展') : ui('去建立索引')}</Button>
   </p>;
