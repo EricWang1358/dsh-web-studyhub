@@ -118,6 +118,13 @@
     }
     .reader-find__count { min-width: 5em; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     .reader-find__input::-webkit-search-cancel-button { display: none; }
+    .reader-find { flex-wrap: wrap; }
+    /* The other chapters that hold the text (one chapter is drawn at a time): one quiet row of buttons under the field. */
+    .reader-find__elsewhere { display: flex; flex: 1 0 100%; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); min-width: 0; }
+    .reader-find__elsewhere-label { color: var(--text-muted); font-size: var(--fs-xs); }
+    .reader-find .reader-find__chapter { max-width: 100%; gap: var(--space-1); }
+    .reader-find__chapter-title { overflow: hidden; max-width: 14em; text-overflow: ellipsis; white-space: nowrap; }
+    .reader-find__chapter small { color: var(--text-muted); white-space: nowrap; }
     .reader-turn--up { transform: rotate(-90deg); }
     .reader-turn--down { transform: rotate(90deg); }
     .study-document-viewer .reader-notices { flex: none; margin: 0; padding: 0 var(--space-5); }
@@ -374,6 +381,8 @@
     .reader-math--display { display: block; margin: 0.9em 0; overflow-x: auto; overflow-y: hidden; text-align: center; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
     .reader-math--display > .reader-math__view { display: block; width: max-content; min-width: 100%; }
     .reader-math__label { margin-inline-start: 1.2em; color: var(--text-muted); }
+    /* A formula not drawn yet (reader/lazy-formulas.js): its own text, quiet, until it comes near the screen. */
+    .reader-math__view--pending { color: var(--text-muted); font-family: var(--font-stack-mono); font-size: 0.86em; overflow-wrap: anywhere; }
     /* A converter's page footnote (lib/footnote-html.js), in text and Markdown sources alike: smaller and muted, set apart from the body, a thin rule above the
        first of a run. Its stored tags sit inside as hidden brackets (.reader-bracket), so only its words show. */
     .reader-prose .reader-footnote, .reader-html .reader-footnote { margin: 0 0 0.3em; color: var(--text-muted); font-size: 0.86em; line-height: 1.55; text-wrap: pretty; }

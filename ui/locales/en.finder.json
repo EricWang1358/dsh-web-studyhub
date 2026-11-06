@@ -201,5 +201,14 @@
   "150 页以上的资料那一行": "The row of a document of 150 pages or more",
   "生成总纲前先问要不要深度定制": "Asked before generating the outline: customize in depth?",
   "先在首页点「总纲」，打开这门课的总纲页。": "First open the course's Outline page: choose “Outline” on the home page.",
-  "只保存了提取出的文字的资料，可以补上原文件：指给它文件的位置（只记路径，不占空间，文件再大也行），或复制一份进资料库（最多 40 MB）；已保存的文字、引用和题目不会变。从本机路径转换的 PDF 会自动记住原文件的位置；之后在阅读器里把某一页发给主会话，会带上原文件的路径和页码。": "A material that only kept its extracted text can get its original file back: point to where the file is (only the path is kept, so it takes no space and the file can be any size) or copy it into the library (up to 40 MB); the saved text, citations and questions do not change. A PDF converted from a path on this computer remembers its original automatically; a page sent to the main chat from the reader then carries the original's path and the page number."
+  "只保存了提取出的文字的资料，可以补上原文件：指给它文件的位置（只记路径，不占空间，文件再大也行），或复制一份进资料库（最多 40 MB）；已保存的文字、引用和题目不会变。从本机路径转换的 PDF 会自动记住原文件的位置；之后在阅读器里把某一页发给主会话，会带上原文件的路径和页码。": "A material that only kept its extracted text can get its original file back: point to where the file is (only the path is kept, so it takes no space and the file can be any size) or copy it into the library (up to 40 MB); the saved text, citations and questions do not change. A PDF converted from a path on this computer remembers its original automatically; a page sent to the main chat from the reader then carries the original's path and the page number.",
+  "按章阅读": "Reading by chapter",
+  "目录": "Contents",
+  "章节": "chapters",
+  "上一章": "Previous chapter",
+  "下一章": "Next chapter",
+  "跳到某一页": "go to a page",
+  "整本书": "Whole book",
+  "其他章节": "Other chapters",
+  "长资料一次只显示一章，打开更快：有章节的书按它自己的章（和「资料」页「查看 N 章」里的一样），没有章节的每 20 页一段。「目录」列出所有章，点一章就换过去，展开能看到其中的页；正文末尾有「上一章」「下一章」。从引用、练习或「查看 N 章」去某一页时，会自己换到那一章；「在文中查找」也会列出其他章节里的结果。": "A long material shows one chapter at a time, so it opens fast: a book with chapters reads by its own chapters (the same as “Show N chapters” on the Sources page), one without them in parts of 20 pages. “Contents” lists every chapter; click one to switch to it, and expand it to see its pages. At the end of the text are “Previous chapter” and “Next chapter”. Going to a page from a citation, a practice run or “Show N chapters” switches to its chapter by itself, and “Find in text” also lists the matches in other chapters."
 }
