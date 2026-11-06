@@ -258,3 +258,70 @@ test('a translation of one chapter that names its title is refused when that cha
   assert.ok(plan.passages.length > 0);
   await assert.rejects(call('materials.translation.plan', { documentId: imported.documentId, scope: { chapter: 1, chapterTitle: '货币与银行' } }), /chapter|章/);
 });
+
+/* ---------- gate re-review of #753 ---------- */
+
+test('an answer key at the end that repeats the section numbers is no contents: the body keeps its sections', () => {
+  const answers = ['市场导论', '本章要点', '1—1 市场', '1—2 供给', '生产理论', '本章要点', '2—1 生产', '2—2 规模', '习题答案', '1—1 答案', '1—2 答案', '2—1 答案', '2—2 答案'];
+  const found = levels(answers);
+  assert.deepEqual(found.flatMap((level, at) => (level === 1 ? [answers[at]] : [])), ['市场导论', '生产理论']);
+  const book = [title('市场导论', 1), title('本章要点', 1), body('x', 1), title('1—1 市场', 2), body('a', 2), title('1—2 供给', 3), body('b', 3), title('生产理论', 4), title('本章要点', 4),
+    body('y', 4), title('2—1 生产', 5), body('c', 5), title('2—2 规模', 6), body('d', 6), title('习题答案', 7), title('1—1 答案', 7), body('e', 7), title('1—2 答案', 8), body('f', 8),
+    title('2—1 答案', 9), body('g', 9), title('2—2 答案', 10), body('h', 10)];
+  assert.deepEqual(parseConvertedDocument(JSON.stringify(book), { filename: 'x.json' }).chapters.map(chapter => [chapter.title, chapter.startPage, chapter.endPage]),
+    [['市场导论', 1, 3], ['生产理论', 4, 10]]);
+  // Contents written as headings with no text under them (no 目录 heading) are contents still.
+  const toc = [title('书名', 1), title('1—1 市场', 2), title('1—2 供给', 2), title('2—1 生产', 2), title('2—2 规模', 2),
+    title('市场导论', 3), title('本章要点', 3), body('x', 3), title('1—1 市场', 4), body('a', 4), title('1—2 供给', 5), body('b', 5),
+    title('生产理论', 6), title('本章要点', 6), body('y', 6), title('2—1 生产', 7), body('c', 7), title('2—2 规模', 8), body('d', 8)];
+  assert.deepEqual(parseConvertedDocument(JSON.stringify(toc), { filename: 'x.json' }).chapters.map(chapter => [chapter.title, chapter.startPage, chapter.endPage]),
+    [['市场导论', 3, 5], ['生产理论', 6, 8]]);
+});
+
+test('a chapter title numbered "N. 标题" / "N、标题" with its own chapter number is the chapter: its name without the number', () => {
+  assert.deepEqual(levels(['1. 绪论', '1—1 a', '1—2 b', '2. 方法', '2—1 c', '2—2 d']), [1, 2, 2, 1, 2, 2]);
+  assert.deepEqual(levels(['1、绪论', '1—1 a', '1—2 b', '2、方法', '2—1 c', '2—2 d']), [1, 2, 2, 1, 2, 2]);
+  const book = [title('1. 绪论', 1), body('x', 1), title('1—1 a', 2), body('a', 2), title('1—2 b', 3), body('b', 3), title('2. 方法', 4), body('y', 4),
+    title('2—1 c', 5), body('c', 5), title('2—2 d', 6), body('d', 6)];
+  assert.deepEqual(parseConvertedDocument(JSON.stringify(book), { filename: 'x.json' }).chapters.map(chapter => [chapter.title, chapter.startPage, chapter.endPage]),
+    [['绪论', 1, 3], ['方法', 4, 6]]);
+  // A list in the chapter's lead-in (its items numbered 1., 2. …) is still no title.
+  assert.deepEqual(levels(['导论', '1. 定义', '2. 性质', '1—1 a', '1—2 b', '国民', '2—1 c', '2—2 d']), [1, 2, 2, 2, 2, 1, 2, 2]);
+});
+
+const customState = chapterOf => {
+  const revision = `${HASH}-json-conv2`, sources = stored(revision, chapterOf);
+  return { sources, documents: documentsOf(sources, revision), decks: [], drafts: [], settings: {}, courses: [] };
+};
+const todayChapterOf = page => (page < 5 ? '' : page < 9 ? '市场导论' : page < 14 ? '生产理论' : '货币与银行');
+
+test('an older book whose chapters read the same today is no re-read book: a plan saved before keeps its chapters; only the chapters that changed are reported', () => {
+  const same = customState(todayChapterOf), skeleton = courseSkeleton(same, '经济学'), ids = skeleton.documents[0].chapters.map(chapter => chapter.id);
+  assert.ok(skeleton.documents[0].chapters.every(chapter => !chapter.reread));
+  same.courses = [{ id: 'c1', name: '经济学', custom: { ...customDefaults('follow'), scope: { kind: 'chapters', chapters: [ids[1]] } } }];
+  assert.deepEqual(customPreview(same, { course: '经济学' }).unknownChapters, []);
+  // Its first chapter was stored as it reads today, the others were not: only those are reported.
+  const mixed = customState(page => (page < 9 ? todayChapterOf(page) : page < 11 ? '2-1 生产函数' : page < 14 ? '操作题' : '货币与银行'));
+  const plan = { kind: 'chapters', chapters: [ids[0], ids[1], ids[2]] };
+  assert.deepEqual(chosenChapters(courseSkeleton(mixed, '经济学'), plan, { stored: true }).unknown, [ids[1], ids[2]]);
+});
+
+test('re-saving a plan (the 你的定制 card saves the whole record) never re-points it; the chat picks a chapter again by naming its title', () => {
+  const state = customState(oldChapterOf), ids = courseSkeleton(state, '经济学').documents[0].chapters.map(chapter => chapter.id);
+  state.courses = [{ id: 'c1', name: '经济学', custom: { ...customDefaults('follow'), scope: { kind: 'chapters', chapters: [ids[1]] } } }];
+  const record = () => state.courses.find(course => course.name === '经济学'), save = custom => courseOperations({ state: {} }).mutations['course.save'](state, { id: 'c1', name: '经济学', custom });
+  const toggle = () => save({ ...record().custom, questions: { ...record().custom.questions, variants: !record().custom.questions.variants } });
+  const unknown = () => customPreview(state, { course: '经济学' }).unknownChapters;
+  toggle();
+  assert.deepEqual(record().custom.scope.titles, [null], 'a chapter saved with no title on a re-read book gets none');
+  assert.deepEqual(unknown(), [ids[1]]);
+  // A chapter added now gets its title; the kept one is still unconfirmed.
+  save({ ...record().custom, scope: { kind: 'chapters', chapters: [ids[1], ids[2]] } });
+  assert.deepEqual(record().custom.scope.titles, [null, '货币与银行']);
+  assert.deepEqual(unknown(), [ids[1]]);
+  // The chat picks 生产理论 again, naming it as the preview shows it: confirmed, and a later toggle keeps it.
+  save({ ...record().custom, scope: { kind: 'chapters', chapters: [ids[1]], titles: ['生产理论'] } });
+  toggle();
+  assert.deepEqual(record().custom.scope.titles, ['生产理论']);
+  assert.deepEqual(unknown(), []);
+});
