@@ -14,6 +14,7 @@ const m = await loadUi(`
   export { taskFacts } from './ui/tasks/task-facts.js';
   export { taskSummary } from './ui/tasks/task-summary.js';
   export { default as TaskBody } from './ui/tasks/TaskBody.jsx';
+  export { callLabel, retryNote } from './ui/tasks/call-model.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement;
@@ -101,10 +102,18 @@ test('the detail of a build has no model-call panels, and an index section with 
   assert.match(running, />索引详情</);
   const failed = draw(h(m.TaskBody, { task: failedJob() }));
   assert.match(failed, /没能写入 5 页/);
-  assert.match(failed, /p-1/);
-  assert.match(failed, /embedding server refused the page/);
+  assert.match(failed, /embedding server refused the page · 2 页/, 'one line per cause, with how many of the kept pages it stopped');
   assert.match(failed, /无需更新 2 页/);
   const en = draw(h(m.TaskBody, { task: failedJob() }), 'en');
   assert.match(en, />Index details</);
   assert.match(en, /5 pages not written/);
+});
+
+test("the log names the build's one call for what it is and says how to go on, not as a question run's model call", () => {
+  const call = failedJob().contract.calls[0];
+  assert.equal(m.callLabel(call), '写入检索索引');
+  assert.match(m.retryNote(call, [call]), /再点「建立索引」/);
+  assert.doesNotMatch(m.retryNote(call, [call]), /补题/);
+  m.setUiLanguage('en');
+  try { assert.equal(m.callLabel(call), 'Write the search index'); } finally { m.setUiLanguage('zh'); }
 });
