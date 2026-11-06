@@ -1,17 +1,21 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ui } from '../../i18n.js';
 import { Button } from '../../components/index.js';
 import { lineBreakPieces, headingMark } from './text-sections.js';
 import { isFigurePlaceholder } from '../peek/peek-logic.js';
 import { splitStudyMath } from '../../study-media.js';
-import { formulaClass, formulaViewHtml } from './formula.js';
+import { formulaClass } from './formula.js';
+import { FormulaWatch, createFormulaWatch, formulaDrawing, useFormulaShown } from './lazy-formulas.js';
 
 /** One formula, as formula.js's formulaHtml writes it: the stored text hidden, the drawing a marker beside it. The raw text
- * decides the drawing, so a re-render of the page (a selection, a find) never draws it again. */
+ * decides the drawing, so a re-render of the page (a selection, a find) never draws it again. It is drawn when it comes near the
+ * screen (lazy-formulas.js); until then its own text, muted, stands in the marker. */
 const ReaderFormula = React.memo(function ReaderFormula({ formula }) {
+  const view = useRef(null), shown = useFormulaShown(view);
   return <span className={formulaClass(formula.display)}>
     <span className="sh-visually-hidden reader-math__source" aria-hidden="true">{formula.raw}</span>
-    <span className="reader-math__view" data-study-marker="true" dangerouslySetInnerHTML={{ __html: formulaViewHtml(formula) }} />
+    {shown ? <span key="drawn" ref={view} className="reader-math__view" data-study-marker="true" dangerouslySetInnerHTML={{ __html: formulaDrawing(formula) }} />
+      : <span key="pending" ref={view} className="reader-math__view reader-math__view--pending" data-study-marker="true">{formula.raw}</span>}
   </span>;
 }, (before, after) => before.formula.raw === after.formula.raw);
 
@@ -65,13 +69,23 @@ function Furniture({ paragraph }) {
  * data-study-page / data-study-source on a page, data-study-text around the paragraphs.
  * A transcript part's 【】 stay in the text (hidden, not removed), so a passage captured in
  * the plain 原文 view still finds its context here.
+ * `scrollRoot` (a ref to the scroll area) draws the formulas as they come near the screen (lazy-formulas.js); without it every one is drawn at once.
+ * Memoised: a change of the reading position, a selection or a panel does not draw the chapter again (keep `labelOf` and `onPeek` stable).
  */
-export default function ReadingSections({ sections, labelOf, onPeek }) {
+const ReadingSections = React.memo(function ReadingSections({ sections, labelOf, onPeek, scrollRoot }) {
+  const [watch] = useState(() => scrollRoot ? createFormulaWatch(() => scrollRoot.current) : null);
+  useEffect(() => () => watch?.disconnect(), [watch]);
+  const drawn = <Sections sections={sections} labelOf={labelOf} onPeek={onPeek} />;
+  return watch ? <FormulaWatch.Provider value={watch}>{drawn}</FormulaWatch.Provider> : drawn;
+});
+export default ReadingSections;
+
+function Sections({ sections, labelOf, onPeek }) {
   return sections.map(section => {
     const label = labelOf(section), paged = section.kind === 'page';
     return <section key={section.id} className={`reader-section reader-section--${section.kind}`} data-outline-id={section.kind === 'lead' ? undefined : section.id}
       {...(paged ? { 'data-study-page': section.page, 'data-study-source': section.sourceId } : {})}>
-      {(label || (!paged && section.title)) && <header className="reader-section__head">
+      {(label || (!paged && section.title)) && <header className="reader-section__head" data-find-skip={paged ? 'true' : undefined}>
         {label && <span className="reader-section__label">{label}</span>}
         {paged && onPeek && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={event => onPeek(section.page, { figure: false, trigger: event.currentTarget })}>{ui('看原页')}</Button>}
         {!paged && section.title && <h3 className="reader-section__title">

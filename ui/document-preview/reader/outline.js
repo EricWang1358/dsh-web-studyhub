@@ -116,12 +116,14 @@ const ancestorsOf = (tree, id) => {
 
 /**
  * Which entries are open: the path down to the current one, and, while the outline is short enough to scan, every
- * entry that has sections below it. A parent whose children are only labels stays folded until the reader is in it.
+ * entry that has sections below it. A parent whose children are only labels stays folded until the reader is in it,
+ * and so does a chapter of the reader (kind 'chapter', reader/chapters.js): its pages show under the current one only.
  */
 export function defaultExpanded(tree, activeId, { limit = OPEN_LIMIT } = {}) {
   const open = new Set(ancestorsOf(tree, activeId).map(node => node.id));
   if (tree.filter(node => !node.minor).length <= limit) {
-    const withSections = new Set(tree.filter(node => node.parent && !node.minor).map(node => node.parent));
+    const chapters = new Set(tree.filter(node => node.kind === 'chapter').map(node => node.id));
+    const withSections = new Set(tree.filter(node => node.parent && !node.minor && !chapters.has(node.parent)).map(node => node.parent));
     for (const id of withSections) open.add(id);
   }
   return open;

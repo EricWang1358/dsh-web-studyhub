@@ -42,7 +42,10 @@ import { readingSections } from './reader/text-sections.js';
 import { sectionAtOffset } from '../../lib/sections.js';
 import { outlineFromSections, collectHeadings, withoutLabels, structureOutline, sectionNeighbours, chapterNeighbours, outlinePath } from './reader/outline.js';
 import { applyOutline, clearOutlineTags } from './reader/ai-outline.js';
-import { findRanges, paintMatches } from './reader/find.js';
+import { drawnSectionText, findRanges, paintMatches, textHits } from './reader/find.js';
+import { chapterFindGroups, chapterOutline, findStop, withElsewhere } from './reader/chapters.js';
+import { useChapterGoal, useReaderChapters } from './reader/useReaderChapters.js';
+import { chapterName, chapterRange, chapterTitle, chapterPagerLabel, elsewhereCount, nextChapterWord, previousChapterWord } from './reader/chapter-copy.js';
 import { useNarrow } from '../use-narrow.js';
 import css from './document-preview.css';
 import readerCss from './reader/reader.css';
@@ -220,15 +223,31 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     ...(pagePanel && pageScope ? [{ scope: 'page', hidden: view !== 'original', props: { capture: null, scope: pageScope, pageTotal: totalPages, onPage: goToPage, onRange: askThrough, pageImages } }] : [])];
   const html = useMemo(() => !reading ? '' : format === 'md' ? safeDocumentHtml(renderReaderMarkdown(content), { markdownImages: localMode })
     : format === 'html' ? safeDocumentHtml(content) : '', [content, format, reading, localMode]);
-  const sections = useMemo(() => (reading && !html) || paged ? readingSections({ paged, sources, text: sources[0]?.text || content, sourceId: sources[0]?.id }) : [],
+  const allSections = useMemo(() => (reading && !html) || paged ? readingSections({ paged, sources, text: sources[0]?.text || content, sourceId: sources[0]?.id }) : [],
     [reading, html, paged, sources, content]);
-  const pageLabel = page => isSlideFormat(format) ? uiFormat('第 {0} 张', [page]) : uiFormat('第 {0} 页', [page]);
+  // One chapter at a time (reader/chapters.js): the document's own chapters, the 「查看 N 章」 list of its 资料 row (groupSourcesByDocument), else blocks of pages.
+  const documentChapters = useMemo(() => {
+    if (!paged || localMode) return null;
+    const items = groupSourcesByDocument(sources);
+    return (items.find(item => item.sourceIds.includes(source.id)) || items[0])?.chapters ?? null;
+  }, [paged, localMode, sources, source.id]);
+  // Where the reader opens: a stored reading position (its section, its page), else the source it was opened with (a page, a chapter's first page, a citation).
+  const opening = useMemo(() => resume?.sectionId || Number.isInteger(resume?.page) ? { sectionId: resume.sectionId, page: resume.page } : { sourceId: source.id, page: source.document?.page },
+    [resume, source.id, source.document?.page]);
+  const chapter = useReaderChapters({ paged, sections: allSections, chapters: documentChapters, opening, openKey: `${source.id}:${resume?.nonce ?? ''}` });
+  const chaptered = chapter.chapters.length > 0, sections = chapter.sections;
+  // A page section's text is its source's (readingSections makes one section per source); find reads the chapters not drawn from it.
+  const textBySource = useMemo(() => new Map(sources.map(item => [item.id, item.text ?? ''])), [sources]);
+  const slides = isSlideFormat(format);
+  const pageLabel = useCallback(page => slides ? uiFormat('第 {0} 张', [page]) : uiFormat('第 {0} 页', [page]), [slides]);
   // A recording's entry says which one it is; a part that carries on from the previous volume says so.
   const recordingLabel = item => item.kind === 'recording' ? uiFormat('录音 {0}', [item.recording]) : item.continued ? ui('接上一卷') : '';
-  const labelOf = section => section.kind === 'page' ? pageLabel(section.page) : recordingLabel(section);
-  const itemLabel = item => item.page ? pageLabel(item.page) : recordingLabel(item);
-  const textOutline = useMemo(() => outlineFromSections(sections), [sections]);
-  const autoOutline = reading && html ? headings : textOutline;
+  const labelOf = useCallback(section => section.kind === 'page' ? pageLabel(section.page) : recordingLabel(section), [pageLabel, language]); // eslint-disable-line react-hooks/exhaustive-deps
+  const itemLabel = item => item.kind === 'chapter' ? chapterRange(item.chapter, slides) : item.page ? pageLabel(item.page) : recordingLabel(item);
+  const textOutline = useMemo(() => outlineFromSections(allSections), [allSections]);
+  const chapterEntries = useMemo(() => chaptered ? chapterOutline(chapter.chapters.map(entry => ({ ...entry, title: chapterTitle(entry) })), textOutline) : null,
+    [chaptered, chapter.chapters, textOutline, language]); // eslint-disable-line react-hooks/exhaustive-deps
+  const autoOutline = reading && html ? headings : chapterEntries || textOutline;
   // The labels of a bilingual Markdown transcript (### 英文原句, ### 中文对照) stay in the text; they are not sections of it.
   useEffect(() => { setHeadings(reading && html ? withoutLabels(collectHeadings(body.current)) : []); }, [reading, html]);
   // A kept AI outline (materials.outline.*) replaces the automatic one wherever its entries can be placed in what is drawn.
@@ -236,12 +255,15 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useIsoLayoutEffect(() => {
     const drawn = body.current;
     if (localMode || !aiOutline || view === 'original' || loading) { clearOutlineTags(drawn); setAiItems(items => items.length ? [] : items); return; }
-    setAiItems(applyOutline(drawn, aiOutline.entries));
-  }, [aiOutline, view, html, sections, content, document, loading, localMode]);
+    const placed = applyOutline(drawn, aiOutline.entries);
+    // One chapter is drawn: the entries of the others stay listed, and a click opens their chapter (reader/chapters.js withElsewhere).
+    setAiItems(chaptered ? withElsewhere(aiOutline.entries, placed, { drawn: new Set(sections.map(section => section.sourceId)), known: new Set(allSections.map(section => section.sourceId)) }) : placed);
+  }, [aiOutline, view, html, sections, allSections, chaptered, content, document, loading, localMode]);
   const aiOn = !localMode && view !== 'original' && aiItems.length > 0;
   const outlineItems = aiOn ? aiItems : autoOutline;
-  const outline = useMemo(() => structureOutline(outlineItems, { fold: !aiOn }), [outlineItems, aiOn]);
-  const [position, jump] = useReadingPosition(scroller, outline, `${view}:${html.length}:${sections.length}:${aiItems.length}`);
+  // The chapters of the reader fold their pages themselves (outline.js defaultExpanded); a page heading met in many chapters is no label.
+  const outline = useMemo(() => structureOutline(outlineItems, { fold: !aiOn && !chapterEntries }), [outlineItems, aiOn, chapterEntries]);
+  const [position, jump] = useReadingPosition(scroller, outline, `${view}:${html.length}:${sections.length}:${aiItems.length}:${chapter.current?.id ?? ''}`);
   const activeId = view === 'original' ? textOutline.find(item => item.page === pdfPage)?.id ?? null : position.activeId;
   // Previous / next walk the sections; once the learner has applied the outline as the document's chapters, they walk the chapters.
   const chapterLevel = aiOn && aiOutline?.segmentation?.level;
@@ -249,7 +271,11 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const here = outline.find(item => item.id === activeId);
   const where = here ? [itemLabel(here), outlinePath(outline, here.id).join(' › ')].filter(Boolean).join(' · ') : '';
   const jumpTo = item => {
-    if (view === 'original') { if (item.page) setPdfPage(item.page); }
+    if (view === 'original') { const page = item.kind === 'chapter' ? item.chapter.startPage : item.page; if (page) setPdfPage(page); }
+    // A chapter opens at its top; an entry of a chapter that is not drawn opens its chapter and lands on it (useReaderChapters).
+    else if (item.kind === 'chapter') chapter.goTo({ chapterId: item.id });
+    else if (item.elsewhere) chapter.goTo({ sourceId: item.sourceId, outlineId: item.id });
+    else if (chaptered && !sections.some(section => section.id === item.id) && chapter.goTo({ sectionId: item.id, page: item.page })) { /* its chapter opens and scrolls to it */ }
     else if (item.range && item.tagged === false) scrollToNode(scroller.current, item.range);
     else jump(item.id);
     if (narrow) setOverlay(null);
@@ -296,7 +322,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // Only the sections this reader draws (a transcript's recordings and parts) can be started at; Markdown draws its own headings, text without structure has none.
   const resumeAt = useMemo(() => resume && (place?.kind === 'recording' || place?.kind === 'part') ? { ...resume, sectionId: place.sectionId } : resume, [resume, place]);
   const unit = aiOn || !paged ? 'section' : isSlideFormat(format) ? 'slide' : 'page';
-  const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt });
+  const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections: allSections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt });
   const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
   const openDraftPages = draftIds => { loop.setOpen(false); onOpenDraftPages?.(draftIds); };
@@ -333,6 +359,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [placed, setPlaced] = useState(null);
   useEffect(() => {
     if (!reading || !quote || loading) { setPlaced(null); return undefined; }
+    // One chapter at a time: the quote is placed while the chapter of its page is drawn. In another chapter it is neither found nor missing: no notice, no scroll.
+    if (chaptered && !sections.some(section => section.sourceId === source.id)) return undefined;
     if (quoteState?.status === 'ambiguous' || quoteState?.status === 'stale') { setPlaced(null); showSourcePage(); return undefined; }
     const selection = { ...source.selection, sourceId: source.id, quote };
     let range = renderedPassageRange(body.current, selection), how = 'resolved';
@@ -360,13 +388,22 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     openedAt.current = key;
     showSourcePage();
   }, [paged, quote, reading, quoteState?.status, loading, sections, view, source.id, source.document?.page]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Another chapter, once drawn, opens at its top or at the page / entry the jump named (after the effects above, so it has the last word).
+  useChapterGoal({ goal: chapter.goal, reached: chapter.reached, scroller, body, ready: !loading && view !== 'original', drawn: sections });
 
   // Search in the document: matches are DOM ranges painted with the Custom Highlight API.
   const deferredQuery = useDeferredValue(query);
+  // The chapter drawn is searched in the page; every chapter also in the text the view draws of it (find.js textHits), so another chapter's count is the one found there.
+  const [findRun, setFindRun] = useState(0), findLanding = useRef(null);
   useEffect(() => {
     ranges.current = finding && view !== 'original' && deferredQuery.trim() ? findRanges(body.current, deferredQuery) : [];
+    const landing = findLanding.current;
+    findLanding.current = null;
+    // Arriving in another chapter from find: at its first match, or at its last when Shift+Enter went back.
+    const at = landing === 'last' ? ranges.current.length - 1 : 0;
     setTotal(ranges.current.length);
-    setMatch(0);
+    setMatch(Math.max(0, at));
+    setFindRun(count => count + 1);
   }, [finding, deferredQuery, view, html, sections, content, model]);
   useEffect(() => {
     if (!total) return undefined;
@@ -375,7 +412,16 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     if (rect && area && (rect.top < area.top + 56 || rect.bottom > area.bottom - 56))
       scroller.current.scrollTo({ top: scroller.current.scrollTop + rect.top - area.top - area.height / 3, behavior: 'auto' });
     return clear;
-  }, [total, match]);
+  }, [total, match, findRun]);
+  // What find reads in each chapter: the reading view's paragraphs, or each page's stored text in 原文 (folded once per chapter, kept while the text is).
+  const findGroups = useMemo(() => chaptered ? chapterFindGroups(chapter.chapters, allSections, view === 'text' ? section => textBySource.get(section.sourceId) ?? '' : drawnSectionText) : [],
+    [chaptered, chapter.chapters, allSections, view, textBySource]);
+  const findHits = useMemo(() => finding && chaptered && view !== 'original' && deferredQuery.trim() ? textHits(findGroups, deferredQuery)
+    .map(hit => ({ ...hit, at: chapter.chapters.findIndex(entry => entry.id === hit.key) })) : [], [finding, chaptered, view, deferredQuery, findGroups, chapter.chapters]);
+  const findIn = (at, landing) => { findLanding.current = landing; chapter.goTo({ chapterId: chapter.chapters[at].id }); };
+  const elsewhere = useMemo(() => findHits.filter(hit => hit.at !== chapter.index).map(hit => ({ key: hit.key, title: chapterTitle(chapter.chapters[hit.at]),
+    detail: elsewhereCount(hit.first.page, hit.count, slides), onGo: () => findIn(hit.at, 'first') })),
+  [findHits, chapter.index, chapter.chapters, slides, language]); // eslint-disable-line react-hooks/exhaustive-deps
   const openFind = () => {
     const selected = window.getSelection?.()?.toString().trim();
     if (selected && selected.length <= 80 && !selected.includes('\n')) setQuery(selected);
@@ -383,7 +429,13 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     requestAnimationFrame(() => { findInput.current?.focus(); findInput.current?.select(); });
   };
   const closeFind = () => { setFinding(false); scroller.current?.focus?.({ preventScroll: true }); };
-  const stepFind = delta => setMatch(current => total ? (current + delta + total) % total : 0);
+  // Enter / Shift+Enter: the next / previous match of the chapter, then on to the next chapter that has one (the one before, at its last match), round the book.
+  const stepFind = delta => {
+    if (!chaptered) { setMatch(current => total ? (current + delta + total) % total : 0); return; }
+    const stop = findStop({ hits: findHits.map(hit => hit.at), current: chapter.index, total, match: Math.min(match, Math.max(total - 1, 0)), delta });
+    if (stop?.chapter !== undefined) findIn(stop.chapter, stop.landing);
+    else if (stop) setMatch(stop.match);
+  };
   const onKeyDown = event => {
     if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'f' && view !== 'original') { event.preventDefault(); openFind(); }
     else if (event.key === 'Escape' && overlay) { event.preventDefault(); event.stopPropagation(); setOverlay(null); }
@@ -392,7 +444,12 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   };
 
   // The 原始 PDF tab without a file is not dead: it explains and offers 补全原文件.
-  const chooseView = value => value === 'original' && !fileUrl ? (document && setAttaching(issueOf(document.original)?.kind === 'none' ? 'attach' : 'relink')) : setMode(value);
+  const chooseView = value => {
+    if (value === 'original' && !fileUrl) { if (document) setAttaching(issueOf(document.original)?.kind === 'none' ? 'attach' : 'relink'); return; }
+    // Back from 原始 PDF, the text opens at the page the PDF was on, in its chapter.
+    if (view === 'original' && value !== 'original' && chaptered) chapter.goTo({ page: pdfPage });
+    setMode(value);
+  };
   if (document) attachTarget.current = { documentId: document.documentId || document.id, revision: document.revision, title: document.filename || document.title || source.title, format };
   const modes = [{ value: 'read', label: ui('阅读') }, { value: 'text', label: ui('原文') },
     ...(format === 'pdf' ? [{ value: 'original', label: ui('原始 PDF'), title: fileUrl ? undefined : ui('还没有原始 PDF，点击查看如何补全') }] : [])];
@@ -412,10 +469,15 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     !localMode && loop.resumeNote === 'updated' && <p key="resume" className="reader-resume-note" role="status">{ui('资料已更新，已回到该章节大致的位置。')}</p>,
   ].filter(Boolean);
   const pagerTitle = item => [itemLabel(item), item.title].filter(Boolean).join(' · ');
-  const pageText = (section, index) => sources[index]?.text ?? '';
+  // The links under the text: 上一章 / 下一章 when one chapter is drawn, else 上一节 / 下一节.
+  const pagerLink = (target, word) => !target ? null : chaptered ? { word, title: chapterName(target, slides), go: () => chapter.goTo({ chapterId: target.id }) }
+    : { word, title: pagerTitle(target), go: () => jumpTo(target) };
+  const pager = chaptered ? { label: chapterPagerLabel(), previous: pagerLink(chapter.around.previous, previousChapterWord()), next: pagerLink(chapter.around.next, nextChapterWord()) }
+    : { label: ui('上一节与下一节'), previous: pagerLink(around.previous, ui('上一节')), next: pagerLink(around.next, ui('下一节')) };
+  const pageText = section => textBySource.get(section.sourceId) ?? '';
   // 看原页: one page of the attached original PDF in a small panel, from the text views of a page-based document (never in the PDF tab).
   const canPeek = paged && format === 'pdf' && view !== 'original' && !loading && !!document;
-  const openPeek = (page, { figure = false } = {}) => setPeek({ page, figure });
+  const openPeek = useCallback((page, { figure = false } = {}) => setPeek({ page, figure }), []);
   useEffect(() => { if (!canPeek) setPeek(null); }, [canPeek]);
   const peekBytes = async () => fileUrl ? new Uint8Array(await (await fetch(fileUrl)).arrayBuffer()) : null;
 
@@ -455,7 +517,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       </div>
     </div>
     <div className="reader-progress" aria-hidden="true"><span style={{ transform: `scaleX(${view === 'original' ? 0 : position.progress})` }} /></div>
-    {finding && view !== 'original' && <FindBar query={query} onQuery={setQuery} total={total} index={Math.min(match, Math.max(total - 1, 0))}
+    {finding && view !== 'original' && <FindBar query={query} onQuery={setQuery} total={total} index={Math.min(match, Math.max(total - 1, 0))} elsewhere={elsewhere}
       onStep={stepFind} onClose={closeFind} inputRef={findInput} />}
     <div className="study-document-notices reader-notices">{notices}</div>
     <div className="reader-aux">
@@ -464,7 +526,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
-      {outlineOn && <OutlinePanel id={outlineId} items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters} upgradedIds={loop.upgradedIds}
+      {outlineOn && <OutlinePanel id={outlineId} data-tour="reader-outline" items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters} upgradedIds={loop.upgradedIds}
         coverage={!localMode && view !== 'original' && loop.coverage?.cards > 0 ? loop.outlineCoverage : null} coverageTotals={loop.coverage}
         coverageAction={!localMode && data && offersDocumentTopUp({ item: documentItem, coverage: loop.coverage, jobs: data.jobs, modelReady: modelReadiness(data).ready })
           ? <DocumentTopUp item={documentItem} revision={data.revision} placement="bottom-start" block /> : null}
@@ -477,20 +539,20 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
               ? <PdfOriginal fileUrl={fileUrl} title={source.title || ui('原始 PDF')} page={pdfPage} total={totalPages} onPage={goToPage} settings={pdfView} onSettings={change => setPdfView(current => ({ ...current, ...change }))} />
               : reading
                 ? html ? <div className="reader-html source-md" data-study-text="true" dangerouslySetInnerHTML={{ __html: html }} />
-                  : <ReadingSections sections={sections} labelOf={labelOf} onPeek={canPeek ? openPeek : undefined} />
-                : paged ? sections.map((section, index) => <section key={section.id} className="study-document-page reader-section reader-section--page"
+                  : <ReadingSections key={chapter.current?.id} sections={sections} labelOf={labelOf} onPeek={canPeek ? openPeek : undefined} scrollRoot={scroller} />
+                : paged ? sections.map(section => <section key={section.id} className="study-document-page reader-section reader-section--page"
                   data-outline-id={section.id} data-study-page={section.page} data-study-source={section.sourceId}>
-                  <span className="reader-section__label">{labelOf(section)}</span>
-                  {canPeek && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={() => openPeek(section.page)}>{ui('看原页')}</Button>}
-                  <QuotedText format={format} text={pageText(section, index)} quote={section.sourceId === source.id ? quote : ''} anchor={source.selection} />
+                  <span className="reader-section__label" data-find-skip="true">{labelOf(section)}</span>
+                  {canPeek && <Button variant="quiet" size="sm" className="reader-peek" data-find-skip="true" data-peek-page={section.page} title={ui('看原页')} onClick={() => openPeek(section.page)}>{ui('看原页')}</Button>}
+                  <QuotedText format={format} text={pageText(section)} quote={section.sourceId === source.id ? quote : ''} anchor={source.selection} />
                 </section>)
                   : <QuotedText format={format} text={content || sources[0]?.text || ''} quote={quote} anchor={source.selection} />}
           </div>
-          {view !== 'original' && (around.previous || around.next) && <nav className="reader-pager" aria-label={ui('上一节与下一节')}>
-            {around.previous ? <button type="button" className="reader-pager__link" data-direction="previous" onClick={() => jumpTo(around.previous)}>
-              <small>{ui('上一节')}</small><span>{pagerTitle(around.previous)}</span></button> : <span />}
-            {around.next ? <button type="button" className="reader-pager__link" data-direction="next" onClick={() => jumpTo(around.next)}>
-              <small>{ui('下一节')}</small><span>{pagerTitle(around.next)}</span></button> : <span />}
+          {view !== 'original' && (pager.previous || pager.next) && <nav className="reader-pager" data-pager={chaptered ? 'chapter' : 'section'} aria-label={pager.label}>
+            {pager.previous ? <button type="button" className="reader-pager__link" data-direction="previous" onClick={pager.previous.go}>
+              <small>{pager.previous.word}</small><span>{pager.previous.title}</span></button> : <span />}
+            {pager.next ? <button type="button" className="reader-pager__link" data-direction="next" onClick={pager.next.go}>
+              <small>{pager.next.word}</small><span>{pager.next.title}</span></button> : <span />}
           </nav>}
         </div>
       </div>

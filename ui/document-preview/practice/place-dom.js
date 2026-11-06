@@ -9,6 +9,12 @@ const escape = id => String(id).replace(/["\\]/g, '\\$&');
 /** The element the reader tagged for an outline entry (a heading, a page section, or the block a kept AI outline points at). */
 export const outlineNode = (root, id) => root?.querySelector(`[data-outline-id="${escape(id)}"],[data-ai-outline-id="${escape(id)}"]`) ?? null;
 
+/** The number of the drawn page (a reading section with data-study-page) that holds `node`; null outside one. */
+export function pageOfNode(node) {
+  const page = Number(node?.closest?.('[data-study-page]')?.dataset?.studyPage);
+  return Number.isInteger(page) && page > 0 ? page : null;
+}
+
 /** The top of `node` in the scroll area's own coordinates (what scrollTop is measured against). */
 export function nodeTop(scroller, node) {
   return node.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
