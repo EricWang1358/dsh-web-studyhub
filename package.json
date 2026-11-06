@@ -142,6 +142,7 @@
     "test:fast": "node scripts/test.mjs --fast",
     "case-study": "node scripts/case-study/build.mjs --out docs/case-study/studyhub-case-study.pdf --write-facts",
     "lint": "eslint --cache --cache-location node_modules/.cache/eslint/ lib scripts tests ui packages eslint.config.js",
+    "typecheck": "tsc -p .",
     "dev": "node scripts/dev.mjs",
     "qa:journey": "node scripts/qa/journey.mjs",
     "qa:dismiss": "node scripts/qa/dismiss-timing.mjs",
@@ -213,7 +214,8 @@
     "globals": "^17.12.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "ts-fsrs": "5.4.2"
+    "ts-fsrs": "5.4.2",
+    "typescript": "^5.9.3"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-llm": ">=0.2.0-rc.2 <0.3",

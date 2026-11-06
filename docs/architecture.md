@@ -36,6 +36,11 @@ Since 2.0, StudyHub has been a set of separately installable capability plugins 
 | `cordis.patch.yml` | The full-install composition (see [Full install](#full-install)) |
 | `scripts/` | `build.mjs`, `build-demo.mjs`, `dev.mjs` (`npm run dev`), `release-alpha.mjs` (`npm run release:pack`), the `qa/` journeys (`npm run qa:*`), benchmarks and the Jev evaluation scripts |
 | `tests/` | `node --test` suites (`npm test`) |
+| `tsconfig.json` | Optional, file-by-file type checking (`npm run typecheck`); a file is checked only when its first line is `// @ts-check` |
+
+## Type checking, file by file
+
+The sources stay JavaScript; there is no TypeScript migration. `tsconfig.json` runs `tsc` with `allowJs: true` and `checkJs: false`, so a file is reported only when its first line is `// @ts-check`; `npm run typecheck` (`tsc -p .`) checks exactly those. It is **not** in `npm run verify` yet, so an annotation cannot fail the build until the batch has grown. A shape that crosses modules — the library snapshot, a job's contract, an action's payload — is written once in `lib/types.js` and named in a checked file with a `@typedef {import('.../lib/types.js').JobContract}` line. New pure modules (plain data and predicates: no React, no DOM) start with `// @ts-check` when they are added, and a file already marked is kept passing: `npm run typecheck` exits 0 today, and `strict` stays off until a batch is ready for it.
 
 ## Plugin entries
 
