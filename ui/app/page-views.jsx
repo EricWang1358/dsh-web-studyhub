@@ -249,7 +249,7 @@ function BookView() {
   const onExamRun = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
   return <BookPage key={`${data.root}:${data.focus?.course}`} data={data} theme={shell.resolvedTheme} onBack={() => nav.navigate('outline')} onPractice={onPractice} onOpenTask={nav.show.task}
     onCreate={() => intents.goGenerate()} onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })} onExamRun={onExamRun}
-    onCourseSettings={settingsEntry.setCourseSettings} holdLeave={nav.holdLeave} />;
+    onCourseSettings={settingsEntry.setCourseSettings} onBuildIndex={(name) => openIndexBuilder(settingsEntry.openSettings, name)} holdLeave={nav.holdLeave} />;
 }
 
 /** 备考补习: the 考点清单 of the current course. A place of a point opens in the reader (the one way to open a material); a build is followed in the 任务 console.

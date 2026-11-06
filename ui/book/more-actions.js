@@ -19,7 +19,7 @@ async function copy(text) {
 
 /** -> { select(id), pointFold: { folded } | null, bookFold: { folded } | null }. step: the point being read (ui/book/reading.js bookSteps). */
 export function useMoreActions({ step, course, book, notify, aiFold, reading, where, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure, onOutline,
-  onCards }) {
+  onCards, onBuildIndex }) {
   const pointBlocks = useMemo(() => blocksOf(step?.node), [step]);
   const bookBlocks = useMemo(() => allBlocks(book), [book]);
   const isFolded = aiFold.folded;
@@ -43,9 +43,10 @@ export function useMoreActions({ step, course, book, notify, aiFold, reading, wh
     else if (id === 'exam-date' || id === 'settings') onCourseSettings?.(courseRecord?.id);
     else if (id === 'outline') onOutline?.();
     else if (id === 'cards') onCards?.();
+    else if (id === 'index') onBuildIndex?.(course);
     else if (id === 'chat') await sendBook({ scope: 'book', language: book?.language });
     else if (id === 'custom') await send('custom.start', { course, hasCustom: !!courseRecord?.custom });
     else setDialog(id);
-  }, [step, course, book, notify, aiFold, pointBlocks, bookBlocks, pointFold, bookFold, where, reading.mode, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure, onOutline, onCards, sendBook, send]);
+  }, [step, course, book, notify, aiFold, pointBlocks, bookBlocks, pointFold, bookFold, where, reading.mode, openView, setDialog, setTodayOpen, onCreate, onCourseSettings, courseRecord, onStructure, onOutline, onCards, onBuildIndex, sendBook, send]);
   return { select, pointFold, bookFold };
 }
