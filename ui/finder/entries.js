@@ -79,7 +79,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'original-file', area: 'material', title: '补全原文件', page: 'sources', anchors: ['reader-original-notice', 'sources-list'], prepare: 'document',
     aliases: ['原文件', '补原文件', '附上原文件', '原始文件', '重新指定', 'attach original', 'original file'],
     path: ['资料', '打开一份资料', '补全原文件'],
-    what: '只保存了提取出的文字的资料，可以补上原文件：指给它文件的位置（只记路径，不占空间），或复制一份进资料库；已保存的文字、引用和题目不会变。' }),
+    what: '只保存了提取出的文字的资料，可以补上原文件：指给它文件的位置（只记路径，不占空间，文件再大也行），或复制一份进资料库（最多 40 MB）；已保存的文字、引用和题目不会变。从本机路径转换的 PDF 会自动记住原文件的位置；之后在阅读器里把某一页发给主会话，会带上原文件的路径和页码。' }),
   feature({ id: 'practice-pages', area: 'material', title: '做这几页的题', page: 'sources', anchors: ['reader-practice', 'sources-list'], prepare: 'document',
     aliases: ['练这几页', '读完就练', '按页练习', '这几页', 'practice pages'],
     path: ['资料', '打开一份资料', '工具栏', '做这几页的题'],

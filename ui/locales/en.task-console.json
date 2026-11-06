@@ -424,6 +424,8 @@
   "…… 中间省略 {0} 行输出": "… {0} lines of output left out …",
   "合并 {0} 段结果（共 {1} 页）": "Merging {0} windows ({1} pages)",
   "保存为资料：{0} 页，{1} 字": "Saving as material: {0} pages, {1} characters",
+  "原文件已记下位置（只记路径，不复制）": "The original file's location was remembered (path only, nothing copied)",
+  "原文件已记下位置（只记路径，不复制）· {0}": "The original file's location was remembered (path only, nothing copied) · {0}",
   "{0} 页没有文字（空白页或只有图），没有存为资料": "{0} pages have no text (blank, or images only) and were not saved as material",
   "转换完成：{0} 页资料": "Conversion done: {0} pages of material",
   "重试 {0} 次": "{0} retries",

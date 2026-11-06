@@ -1,5 +1,5 @@
 import { ui, uiFormat, uiMessage } from '../i18n.js';
-import { formatDuration, joinMeta } from '../format.js';
+import { formatBytes, formatDuration, joinMeta } from '../format.js';
 
 /* The lines a PDF conversion writes into its log (lib/mineru-job.js convertPdf, lib/contexts/audio/pdf/convert-run.js; docs/job-contract.md «日志»), as sentences.
    A conversion makes no model calls: its log is the story of its windows, what the converter printed, and how it ended. */
@@ -32,6 +32,8 @@ export function convertEventText(event) {
     case 'tool-omitted': return uiFormat('…… 中间省略 {0} 行输出', [a.count]);
     case 'merge': return uiFormat('合并 {0} 段结果（共 {1} 页）', [a.windows, a.pages]);
     case 'save': return uiFormat('保存为资料：{0} 页，{1} 字', [a.pages, a.chars]);
+    case 'original-kept': return Number.isFinite(a.bytes) ? uiFormat('原文件已记下位置（只记路径，不复制）· {0}', [formatBytes(a.bytes)]) : ui('原文件已记下位置（只记路径，不复制）');
+    case 'original-not-kept': return uiMessage(event.text || '');
     case 'empty-pages': return uiFormat('{0} 页没有文字（空白页或只有图），没有存为资料', [a.count]);
     case 'convert-end': return joinMeta([uiFormat('转换完成：{0} 页资料', [a.pages]), a.title ? uiFormat('「{0}」', [a.title]) : '', uiFormat('{0} 段', [a.windows]),
       a.retries > 0 ? uiFormat('重试 {0} 次', [a.retries]) : '', Number.isFinite(a.chars) ? uiFormat('{0} 字', [a.chars]) : '', uiFormat('共用时 {0}', [took(a.seconds)])]);

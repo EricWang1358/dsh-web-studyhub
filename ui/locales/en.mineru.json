@@ -196,5 +196,7 @@
   "调用本机 Marker，转换好后先等你改": "Runs Marker on this computer and waits for your edits",
   "上次没能导入：{0}": "The last import did not go through: {0}",
   "还没有存为资料。改完后点「导入」；这之前它不会占用模型的输入，也不会被出题用到。": "Not saved as a document yet. Choose “Import” when you are done; until then it takes up no model input and no question uses it.",
-  "没能导入，文字和你的修改都还在：{0}": "Could not import; the text and your edits are still here: {0}"
+  "没能导入，文字和你的修改都还在：{0}": "Could not import; the text and your edits are still here: {0}",
+  "无法打开文件选择器，请直接把文件拖到这里。": "Cannot open the file picker; drop the file here instead.",
+  "不复制这个文件：选择本机文件…": "Don't copy this file: choose it on this computer…"
 }

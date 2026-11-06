@@ -20,6 +20,7 @@ import { toBase64 } from './upload.js';
 import css from './import-hub.css';
 import { hasContext } from './capabilities.js';
 import { useStudy } from './study-context.jsx';
+import { canPickNative, pickNativePdf } from './pdf-source.js';
 import { repeatedText, restoreRepeated } from './RepeatedNote.jsx';
 import { useHandOff } from './hand-off/use-hand-off.js';
 import { failedImportInput, lastingFailures, rejectedFilesInput } from './import-hand-off.js';
@@ -415,7 +416,7 @@ export default function ImportHub({
   className,
   ...rest
 }) {
-  const { call, busy } = useStudy();
+  const { call, busy, host } = useStudy();
   const handOff = useHandOff();
   useInjectCss(css, 'study-import-hub');
   const audioOn = audio !== undefined && audio !== null && audio !== false;
@@ -457,6 +458,11 @@ export default function ImportHub({
 
   // The course records carry the aliases a file name may use (data.courses); the picker lists the courses with their counts (data.focus.courses).
   const courses = parseCourses(courseText), choices = data?.focus?.courses || [], known = data?.courses?.length ? data.courses : choices;
+  // 选择 PDF 解析…: the host's native dialog when it has one (the PDF is chosen by path: nothing is copied through the browser, and the book is linked to that file), else the browser's picker.
+  const choosePdfToConvert = async () => {
+    if (!canPickNative(host)) { pdfPicker.current?.click(); return; }
+    try { const source = await pickNativePdf(host); if (source) { setConversionFile(source); setConversionOpen(true); } } catch { pdfPicker.current?.click(); }
+  };
   // The courses a PDF headed for the converter is filed under: the field, else the one course its name names.
   const coursesOf = file => (file ? coursesForFile(file, { chosen: courses, known }).courses : courses);
   // Leaving for Settings with a PDF in hand: the caller keeps it so the learner can come back to it.
@@ -576,7 +582,7 @@ export default function ImportHub({
           <input ref={pdfPicker} type="file" accept=".pdf,application/pdf" className="sh-visually-hidden" tabIndex={-1} aria-hidden="true"
             onChange={event => { const chosen = event.target.files?.[0]; event.target.value = ''; if (chosen) { setConversionFile(chosen); setConversionOpen(true); } }} />
           <div className="import-hub__converter-actions">
-            <Button size="sm" icon="upload" disabled={!convertible} lock={busy || running} data-tour="import-mineru" onClick={() => pdfPicker.current?.click()}>{ui('选择 PDF 解析…')}</Button>
+            <Button size="sm" icon="upload" disabled={!convertible} lock={busy || running} data-tour="import-mineru" onClick={choosePdfToConvert}>{ui('选择 PDF 解析…')}</Button>
             <Button variant="link" size="sm" disabled={!convertible} lock={busy || running} onClick={() => { setConversionHistory(true); setConversionOpen(true); }}>{ui('解析历史')}</Button>
             {onOpenSettings && convertible && <Button variant="link" size="sm" lock={busy || running} onClick={() => settingsFor('settings-mineru')}>{ui('前往设置')}</Button>}
           </div>

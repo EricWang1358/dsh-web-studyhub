@@ -8,6 +8,7 @@ import { Button, IconButton, InlineMessage, LoadingState, SegmentedControl, Tool
 import DocumentLearning from './DocumentLearning.jsx';
 import { ReaderModelContext } from './ReaderModelGate.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
+import { originalBytes, pagedFileUrl } from './peek/paged-original.js';
 import { issueOf } from './original-file.js';
 import { peekStatus } from './peek/peek-logic.js';
 import { renderPageImages } from './peek/page-image.js';
@@ -155,6 +156,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         else {
           const bytes = await call('materials.document.bytes', { documentId: value.documentId || value.id, revision: value.revision });
           if (!current) return;
+          if (bytes.status === 'paged') { setFileUrl(pagedFileUrl(call, bytes.paged)); return; } // too big to send whole: its pages are asked for as they are drawn
           if (!bytes.dataBase64) {
             // The original is not there (a referenced file moved or changed): say so, and keep reading the stored text.
             setDocument({ ...value, originalAvailable: false, original: { ...value.original, status: bytes.reason === 'none' ? 'none' : bytes.reason === 'missing' || bytes.reason === 'unreadable' ? bytes.reason : 'changed', reason: bytes.reason, ...(bytes.path ? { path: bytes.path } : {}) } });
@@ -215,7 +217,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const goToPage = page => { const next = clampPage(page, totalPages); if (next !== null) setPdfPage(next); };
   // 发给主会话 of a page: the picture of its pages, from the file this view already holds (peek/page-image.js; pdf.js is fetched on the first use).
   const pageBytes = useRef(null); pageBytes.current = fileUrl;
-  const pageImages = useCallback(pages => renderPageImages({ pages, totalPages, loadBytes: async () => pageBytes.current ? new Uint8Array(await (await fetch(pageBytes.current)).arrayBuffer()) : null }), [totalPages]);
+  const pageImages = useCallback(pages => renderPageImages({ pages, totalPages, loadBytes: async () => pageBytes.current ? originalBytes(pageBytes.current) : null }), [totalPages]);
   const [pagePanel, setPagePanel] = useState(false);
   if (view === 'original' && pageScope && !pagePanel) setPagePanel(true);
   // In 原始 PDF the reading panel shows only its 补题 job cards (it holds and polls them, once), above the page panel; the rest of it waits for 阅读.
@@ -479,7 +481,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const canPeek = paged && format === 'pdf' && view !== 'original' && !loading && !!document;
   const openPeek = useCallback((page, { figure = false } = {}) => setPeek({ page, figure }), []);
   useEffect(() => { if (!canPeek) setPeek(null); }, [canPeek]);
-  const peekBytes = async () => fileUrl ? new Uint8Array(await (await fetch(fileUrl)).arrayBuffer()) : null;
+  const peekBytes = async () => fileUrl ? originalBytes(fileUrl) : null;
 
   return <div className="study-document-viewer reader" ref={root} data-usage-area="reader" data-mode={view} data-tone={settings.tone} data-face={settings.face}
     data-narrow={narrow || undefined} style={readerVars(settings)} onKeyDown={onKeyDown}>

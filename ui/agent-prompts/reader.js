@@ -14,8 +14,16 @@ const RANGE_WORDS = {
   blank: ['页面：这几页没有保存的文字（扫描页或图片页）；这条消息没带图、或你看不了图片时，直接告诉我。', '页面：这几页没有保存的文字（扫描页或图片页）；没有截图、或你看不了图片时，直接告诉我。'],
 };
 
-/** "Help me with page N of <material>; the screenshot follows" (none when a picture is on its way). input: { title, page (a number, or 3–5 with range), range, text, question, picture }. */
-export function pageQuestionPrompt({ title, page, range = false, text = '', question = '', picture }, language = getUiLanguage()) {
+/* The original file of the material, when the library knows where it is (a reference to the learner's own file, or the copy in the library): the main chat can open it, so a figure, a table or
+   a formula is read from the page itself, not from what the converter made of it. The path is the learner's own file name, in a name span; the page is the file's own order. */
+const ORIGINAL_WORDS = {
+  page: '原文件：{0}（PDF 的第 {1} 页，按文件的页序，不是书上印的页码）。图表、表格和公式请打开这个 PDF 的这一页来看，不要只信转换出来的文字。',
+  range: '原文件：{0}（PDF 的第 {1} 页，按文件的页序，不是书上印的页码）。图表、表格和公式请打开这个 PDF 的这几页来看，不要只信转换出来的文字。',
+};
+const originalNote = (original, page, range, language) => (original?.path ? say(language, range ? ORIGINAL_WORDS.range : ORIGINAL_WORDS.page, [nameData(original.path), page]) : '');
+
+/** "Help me with page N of <material>; the screenshot follows" (none when a picture is on its way). input: { title, page (a number, or 3–5 with range), range, text, question, picture, original ({ path }: where the original PDF is) }. */
+export function pageQuestionPrompt({ title, page, range = false, text = '', question = '', picture, original }, language = getUiLanguage()) {
   const all = String(text ?? ''), kept = all.slice(0, range ? PAGE_RANGE_EVIDENCE_MAX : PAGE_EVIDENCE_MAX), cut = kept.length < all.length;
   // A screenshot would block the message on a model the host says takes no image: nobody is invited to paste one there.
   const attached = picture?.images?.length > 0 || picture?.refused === 'model';
@@ -25,6 +33,7 @@ export function pageQuestionPrompt({ title, page, range = false, text = '', ques
     ask: say(language, words('ask'), [nameData(title), page]),
     request: question,
     notes: [say(language, words(all.trim() ? 'page' : 'blank')),
+      originalNote(original, page, true, language),
       cut && say(language, '截断：这几页的文字较长，只附了前 {0} 字（共 {1} 字）。', [kept.length, all.length]),
       say(language, '做法：先用一两句话说这几页讲什么，再回答我的问题；说明每一点来自哪一页；资料里没有的内容要说明是资料以外的。')].filter(Boolean),
     data: [['这几页保存的文字', kept]],
@@ -36,6 +45,7 @@ export function pageQuestionPrompt({ title, page, range = false, text = '', ques
     notes: [
       all.trim() ? say(language, attached ? '页面：这一页保存的文字在 data 围栏里；这条消息带了图的话，图表、画成图片的公式和排版以图为准。' : '页面：这一页保存的文字在 data 围栏里；图表、画成图片的公式和排版只在截图里（如果我贴了），两者不一致时以截图为准。')
         : say(language, attached ? '页面：这一页没有保存的文字（扫描页或图片页）；这条消息没带图、或你看不了图片时，直接告诉我。' : '页面：这一页没有保存的文字（扫描页或图片页）；没有截图、或你看不了图片时，直接告诉我。'),
+      originalNote(original, page, false, language),
       cut && say(language, '截断：这一页的文字较长，只附了前 {0} 字（共 {1} 字）。', [kept.length, all.length]),
       say(language, '做法：先用一两句话说这一页讲什么，再回答我的问题；资料里没有的内容要说明是资料以外的。'),
     ].filter(Boolean),
