@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { summarizeLinked } from '../../../lib/material-summary.js';
-import { assignCards, chapterEntryIds, entrySummaries, rangeOptions, recordVisit, refsOf, sourceIdsOf } from './practice-range.js';
+import { assignCards, chapterEntryIds, entrySummaries, rangeOptions, recordVisit, refsOf, sourceIdsOf, sourcePlacer } from './practice-range.js';
 import { captureAnchor, restoreTop } from './reading-position.js';
-import { domPlacer, nodeTop, outlineNode } from './place-dom.js';
+import { domPlacer, nodeTop, outlineNode, pageOfNode } from './place-dom.js';
 import { rangeLabel } from './mastery-copy.js';
 import { outlineCoverage } from './coverage-outline.js';
 import { useLiveEffect } from '../../use-async.js';
@@ -82,7 +82,12 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
       const place = link => bySource.get(link.sourceId) ?? null;
       setPlaced({ ...assignCards(state.cards, place), draftAssigned: assignCards(state.drafts, place).assigned });
     } else if (!loading && outline.length) {
-      const place = domPlacer({ root: body.current, items: outline, cards: [...state.cards, ...state.drafts] });
+      const dom = domPlacer({ root: body.current, items: outline, cards: [...state.cards, ...state.drafts] });
+      // One chapter is drawn (reader/chapters.js): a passage on a page that is not drawn goes under the entry of its page, from data (an AI outline's
+      // entries carry their page), so the meters of the other chapters stay.
+      const drawn = new Set([...(body.current?.querySelectorAll('[data-study-source]') || [])].map(node => node.dataset.studySource));
+      const byPage = drawn.size ? sourcePlacer({ items: outline, order: new Map(sections.map((section, index) => [section.sourceId, index])) }) : null;
+      const place = link => byPage && link.sourceId && !drawn.has(link.sourceId) ? byPage(link) : dom(link);
       setPlaced({ ...assignCards(state.cards, place), draftAssigned: assignCards(state.drafts, place).assigned });
     } else setPlaced({ assigned: new Map(), unplaced: state.cards, draftAssigned: new Map() });
   }, [state.status, state.cards, state.drafts, pageSections, sections, outline, loading, rendered, body]);
@@ -141,7 +146,9 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
   const capture = useCallback(option => {
     const element = scroller.current, node = activeId !== null && element ? outlineNode(element, activeId) : null;
     const anchor = captureAnchor({ scrollTop: element?.scrollTop || 0, clientHeight: element?.clientHeight || 0, scrollHeight: element?.scrollHeight || 0, sectionTop: node ? nodeTop(element, node) : undefined });
-    return { documentId, revision: document?.revision || '', sourceId: source.id, page: here?.page ?? source.document?.page ?? null, sectionId: activeId ?? null,
+    // The page the reading position is on, as drawn (an AI outline's entry has no page of its own): the way back opens that page's chapter.
+    const page = pageOfNode(node ?? here?.range?.startContainer?.parentElement) ?? here?.page ?? source.document?.page ?? null;
+    return { documentId, revision: document?.revision || '', sourceId: source.id, page, sectionId: activeId ?? null,
       sectionTitle: here?.title || '', ...anchor, scope: { kind: option.kind, count: Math.max(1, option.count), label: rangeLabel(option, unit) } };
   }, [scroller, activeId, documentId, document?.revision, source, here, unit]);
   const start = useCallback(option => ({ refs: refsOf(option.cards), reading: capture(option) }), [capture]);
@@ -158,6 +165,8 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
     let flashTimer = 0;
     const apply = () => {
       resumed.current = resume.nonce;
+      // One chapter at a time: a scroll offset kept in one chapter means nothing in another. When neither the entry nor its page is drawn, stay put.
+      if (!node && Number.isInteger(resume.page) && element.querySelector('[data-study-page]') && !element.querySelector(`[data-study-page="${resume.page}"]`)) { setNote(''); return; }
       const saved = updated ? { ...resume, sectionOffset: 0, scrollTop: 0 } : resume;
       element.scrollTo({ top: restoreTop({ saved, sectionTop: node ? nodeTop(element, node) : undefined, clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }), behavior: 'auto' });
       if (node) {

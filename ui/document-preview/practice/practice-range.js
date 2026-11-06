@@ -39,6 +39,20 @@ export function lastAtOrBefore(count, atOrBefore) {
 }
 
 /** The ids of an entry and of the entries below it (those that follow it with a deeper level). */
+/**
+ * `placeOf(link)` from data, for the passages on pages the reader does not draw (one chapter at a time): the last of `items` whose page (`sourceId`,
+ * ranked by `order`, sourceId -> position in the document) is at or before the link's page; the first one for a page before them; null for a page not in
+ * `order`. Items without a ranked page are skipped. The pages drawn are placed by the DOM (place-dom.js domPlacer), which also knows the place inside a page.
+ */
+export function sourcePlacer({ items, order }) {
+  const anchors = (items || []).filter(item => order.has(item.sourceId)).map(item => ({ id: item.id, at: order.get(item.sourceId) }));
+  return link => {
+    if (!anchors.length || !order.has(link?.sourceId)) return null;
+    const at = order.get(link.sourceId), found = lastAtOrBefore(anchors.length, index => anchors[index].at <= at);
+    return anchors[found < 0 ? 0 : found].id;
+  };
+}
+
 export function subtreeIds(outline, id) {
   const at = outline.findIndex(item => item.id === id), ids = new Set();
   if (at < 0) return ids;
