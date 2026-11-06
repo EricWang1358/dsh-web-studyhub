@@ -154,6 +154,7 @@ export function noteText(code, estimate = {}) {
       : '';
     case 'effort-high': return ui('推理程度越高，推理 token 越多（计入输出）。');
     case 'cjk-higher': return ui('中文内容的实际 token 通常更接近上限。');
+    case 'includes-thinking': return ui('输出按这台机器最近的调用量算，里面包含模型的思考 token。');
     case 'transcript-estimated': return ui('转写稿的长度按正常语速估算；中文讲课的转写稿更短，但每个字的 token 更多。');
     case 'language-unknown': return ui('录音讲的是中文还是英文，要转写之后才知道，所以这里把两种情况都算进范围。');
     case 'transcribe-separate': return ui('转写本身按音频时长计，不在这里；见「音频转写」页的用量与额度。');

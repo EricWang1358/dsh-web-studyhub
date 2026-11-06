@@ -133,3 +133,41 @@ test("a run made on one model does not correct another model's estimate, and an 
   const legacy = await calibration.factors({ model: "deepseek/deepseek-v4.1-flash" });
   assert.equal(legacy.samples, 4, "a record from before the model field still counts");
 });
+
+
+/* #771: the estimate sizes output from sample cards, and a thinking model writes several times that (the owner's 宏经 run: ~9k output a call where a card is
+   hundreds of tokens). Every finished run now records what each stage wrote per call; the next estimate takes that as its high end and says why. */
+test("what each stage writes per call is measured, and the estimate takes it as its output high end", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "study-calibration-thinking-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const calibration = createCalibration(dir), raw = estimate();
+  assert.deepEqual((await calibration.outputPerCall()).stages, {}, "no runs, nothing measured");
+  assert.deepEqual(calibrateEstimate(raw, null, { stages: {} }), raw, "an unmeasured stage leaves the estimate as it was");
+  // A call of the writing stage really wrote 9 000 tokens (the thinking is inside the output a provider reports).
+  for (let run = 0; run < 3; run++) await calibration.record({ outputs: { author: { calls: 4, output: 4 * 9_000 }, review: { calls: 2, output: 2 * 12_000 } } });
+  const perCall = await calibration.outputPerCall();
+  assert.equal(perCall.stages.author, 9_000);
+  assert.equal(perCall.stages.review, 12_000);
+  const raised = calibrateEstimate(raw, null, perCall);
+  const author = raised.stages.find(stage => stage.id === "author"), before = raw.stages.find(stage => stage.id === "author");
+  assert.equal(author.outputTokens.high, Math.max(before.outputTokens.high, 9_000 * before.calls), "a thinking model writes what a call really writes");
+  assert.ok(author.outputTokens.low >= before.outputTokens.low);
+  assert.ok(raised.outputTokens.high > raw.outputTokens.high, "the total grows with it");
+  assert.ok(raised.totalTokens.high > raw.totalTokens.high);
+  assert.ok(raised.notes.includes("includes-thinking"), "and says why the number grew");
+  assert.ok(raised.thinking.samples >= 3);
+  const untouched = raised.stages.find(stage => stage.id === "plan");
+  assert.deepEqual(untouched.outputTokens, raw.stages.find(stage => stage.id === "plan").outputTokens, "a stage nobody measured is left alone");
+});
+
+test("one model's output does not raise another model's estimate, and a record without measurements teaches nothing", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "study-calibration-thinking-model-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const calibration = createCalibration(dir), raw = estimate();
+  for (let run = 0; run < 3; run++) await calibration.record({ outputs: { author: { calls: 1, output: 9_000 } }, model: "other/model" });
+  for (let run = 0; run < 3; run++) await calibration.record({ stages: { author: [1, 2] }, model: "mine" });
+  assert.deepEqual((await calibration.outputPerCall({ model: "mine" })).stages, {}, "the other model's measurements are not mine");
+  assert.equal((await calibration.outputPerCall({ model: "other/model" })).stages.author, 9_000);
+  assert.equal((await calibration.outputPerCall()).stages.author, 9_000, "without a model the machine's whole record is read");
+  assert.deepEqual(calibrateEstimate(raw, null, await calibration.outputPerCall({ model: "mine" })), raw, "nothing measured for this model: the estimate is untouched");
+});
