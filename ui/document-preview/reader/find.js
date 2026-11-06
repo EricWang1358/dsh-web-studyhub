@@ -37,6 +37,27 @@ export function matchOffsets(folded, needle, limit = 1000) {
   return offsets;
 }
 
+const folds = new WeakMap();
+/** The folded text of a page, kept per page object (a document's pages are folded once, not per query). */
+const foldedOf = page => {
+  if (!folds.has(page)) folds.set(page, foldWithMap(page.text).folded);
+  return folds.get(page);
+};
+
+/**
+ * How often `query` occurs in the STORED text of each page, for the chapters the reader does not draw (one chapter at a time, reader/chapters.js):
+ * `pages` [{ sectionId, sourceId, page, text }] -> [{ sectionId, sourceId, page, count }] for the pages with a match, in order.
+ */
+export function textMatches(pages, query, { limit = 1000 } = {}) {
+  const needle = foldQuery(query), out = [];
+  if (!needle) return out;
+  for (const page of pages || []) {
+    const count = matchOffsets(foldedOf(page), needle, limit).length;
+    if (count) out.push({ sectionId: page.sectionId, sourceId: page.sourceId, page: page.page, count });
+  }
+  return out;
+}
+
 function textNodes(root) {
   const nodes = [], walker = root.ownerDocument.createTreeWalker(root, 4);
   let raw = '', node;
