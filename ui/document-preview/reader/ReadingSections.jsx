@@ -85,7 +85,7 @@ function Sections({ sections, labelOf, onPeek }) {
     const label = labelOf(section), paged = section.kind === 'page';
     return <section key={section.id} className={`reader-section reader-section--${section.kind}`} data-outline-id={section.kind === 'lead' ? undefined : section.id}
       {...(paged ? { 'data-study-page': section.page, 'data-study-source': section.sourceId } : {})}>
-      {(label || (!paged && section.title)) && <header className="reader-section__head">
+      {(label || (!paged && section.title)) && <header className="reader-section__head" data-find-skip={paged ? 'true' : undefined}>
         {label && <span className="reader-section__label">{label}</span>}
         {paged && onPeek && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={section.page} title={ui('看原页')} onClick={event => onPeek(section.page, { figure: false, trigger: event.currentTarget })}>{ui('看原页')}</Button>}
         {!paged && section.title && <h3 className="reader-section__title">
