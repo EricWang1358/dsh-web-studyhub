@@ -44,7 +44,7 @@ test("the sheet is a dialog with a search field and a listbox; the empty query i
 test("a result shows its title, its path as crumbs, one sentence and the tags of what it needs; 带我去 is there for an entry that can be reached", () => {
   const html = sheet({ initialQuery: "翻译" });
   const first = html.slice(html.indexOf('role="option"'));
-  assert.match(text(first.slice(0, first.indexOf('role="option"', 10) > 0 ? first.indexOf('role="option"', 10) : undefined)), /翻译 资料 › 打开一份资料 › 工具栏 › 翻译 把这一页或这一章译成中文或英文/);
+  assert.match(text(first.slice(0, first.indexOf('role="option"', 10) > 0 ? first.indexOf('role="option"', 10) : undefined)), /翻译 资料 › 打开一份资料 › 工具栏 › 更多 › 翻译… 在阅读器工具栏最右边的「更多」里点「翻译…」：把这一页或这一章译成中文或英文/);
   assert.match(html, /需要 AI 模型/);
   assert.match(html, /<button[^>]*finder-row__go[^>]*>带我去</);
   assert.match(html, /aria-selected="true"/, "one row is the selected one");
@@ -178,7 +178,7 @@ test("the toast says the path, then what is left to do: nothing when the control
   assert.equal(m.tripNotice(entry("update"), -1).text, "在「设置 › 关于与更新」里。");
   assert.equal(m.tripNotice(entry("budget"), -1).text, "在「创建题组 › 更多选项 › 花费 › 花费上限」里。先在「资料」里添加资料，这一项才会出现。");
   assert.equal(m.tripNotice(entry("budget"), 1).text, "在「创建题组 › 更多选项 › 花费 › 花费上限」里。先在「资料」里添加资料，这一项才会出现。", "only the first tab of the page was lit: there are no materials yet");
-  assert.equal(m.tripNotice(entry("translation"), -1).text, "在「资料 › 打开一份资料 › 工具栏 › 翻译」里。先在「资料」里打开一份资料。");
+  assert.equal(m.tripNotice(entry("translation"), -1).text, "在「资料 › 打开一份资料 › 工具栏 › 更多 › 翻译…」里。先在「资料」里打开一份资料。");
   assert.match(m.tripNotice(entry("translation"), 1).text, /先在「资料」里打开一份资料。/, "only the list of materials was lit");
   assert.equal(m.tripNotice(entry("translation"), 0), null, "the control itself was lit");
   assert.match(m.tripNotice(entry("write-note"), 0).text, /点题目下方的「更多」，菜单里就有这一项。/, "a menu item behind a button that was lit");

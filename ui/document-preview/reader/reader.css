@@ -68,22 +68,6 @@
       border-radius: var(--radius-pill);
       background: var(--warn);
     }
-    .reader-count {
-      position: absolute;
-      top: 1px;
-      right: 1px;
-      min-width: 16px;
-      height: 16px;
-      padding: 0 var(--space-1);
-      border-radius: var(--radius-pill);
-      background: var(--text);
-      color: var(--bg-raised);
-      font-size: var(--fs-xs);
-      font-weight: var(--fw-strong);
-      line-height: 16px;
-      text-align: center;
-      font-variant-numeric: tabular-nums;
-    }
     /* Reading progress: the one place besides the primary button where the accent appears. */
     .reader-progress { flex: none; height: 2px; overflow: hidden; background: var(--line-soft); }
     .reader-progress > span {
@@ -532,7 +516,6 @@
       .blog-notes-page .note-reader .reader-toolbar { gap: var(--space-1); padding: var(--space-1-5); }
       .blog-notes-page .note-reader .reader-toolbar__group { gap: var(--space-1); }
       .blog-notes-page .note-reader .reader-toolbar__group--end { flex: 1 1 auto; justify-content: flex-end; }
-      .blog-notes-page .note-reader .reader-mode__item { min-width: 44px; min-height: 44px; padding-inline: var(--space-1); }
     }
   }
   @media (prefers-reduced-motion: reduce) {

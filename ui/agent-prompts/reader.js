@@ -42,3 +42,23 @@ export function pageQuestionPrompt({ title, page, range = false, text = '', ques
     data: [['这一页保存的文字', kept]],
   };
 }
+
+/* 发给主会话 from the reader's 思维导图: the tree the reader drew from one chapter's headings (reader/mind-map.js, no model), handed over so the main chat refines
+   it from the chapter's pages. The message names the material and the chapter (name spans) and its page range, and carries the tree as an indented list in a data
+   fence; it asks for a list in the chat only, nothing saved. The English of each sentence is in ui/locales/en.agent.json. */
+const MAP_ASK = '帮我细化资料 {0} 里「{1}」这一章的思维导图（第 {2}–{3} 页）。';
+const MAP_ASK_NO_PAGES = '帮我细化资料 {0} 里「{1}」这一章的思维导图。';
+const MAP_FIRST = '用 source.pages 按页码读这一章的页面（一次最多 4 页，往后接着读）';
+const MAP_HOW = '做法：在 data 里的标题树上细化：补上漏掉的小节和要点，合并重复的，每个节点带页码；用缩进的列表直接回复我。';
+const MAP_RULE = '说明：标题树是阅读器按标题自动画的，可能有错，以页面文字为准；这张图只留在这次回复里，不会写进学习库。';
+
+/** The parts of the message that asks the chat to refine a chapter's mind map. input: { title (the material), chapter (its title), from, to (page numbers), outline (the tree as an indented text) }. */
+export function mindMapPrompt({ title = '', chapter = '', from = 0, to = 0, outline = '' } = {}, language = getUiLanguage()) {
+  const pages = Number.isInteger(from) && from > 0 && Number.isInteger(to) && to >= from;
+  return {
+    ask: pages ? say(language, MAP_ASK, [nameData(title), nameData(chapter), from, to]) : say(language, MAP_ASK_NO_PAGES, [nameData(title), nameData(chapter)]),
+    first: say(language, MAP_FIRST),
+    notes: [say(language, MAP_HOW), say(language, MAP_RULE)],
+    data: [['这一章的标题树', outline]],
+  };
+}

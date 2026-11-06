@@ -29,17 +29,7 @@
       animation: sh-meter-lock 1.8s var(--ease-out) 1;
     }
     .reader-outline li[data-minor] .reader-outline__meter { opacity: 0.7; }
-    /* ── In the toolbar: the mastery of the current section ─────────────── */
-    .reader-toolbar__mastery {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-1-5);
-      flex: none;
-      max-width: 19em;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+    /* ── In the toolbar: what a round just gained ─────────────────────── */
     .reader-toolbar__delta {
       display: inline-flex;
       align-items: center;
@@ -68,7 +58,6 @@
     .reader-practice__scope { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); letter-spacing: 0.04em; }
     .reader-practice__counts { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
     .reader-practice__mastery { display: flex; align-items: center; gap: var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-    .reader-practice__meaning { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .reader-practice__coverage { color: var(--info-ink); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .reader-practice__note { padding: var(--space-2) var(--space-3); border-left: 3px solid var(--warn); background: var(--bg-sunken); color: var(--text-dim); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .reader-practice__none { display: flex; align-items: center; gap: var(--space-2); color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); }
@@ -149,11 +138,6 @@
     }
     .reading-source { margin-top: var(--space-2); }
     .reader-back-to-question { color: var(--text); }
-  }
-  @container reader (max-width: 899.98px) {
-    :is(.study-app, .study-seat) {
-      .reader-toolbar__mastery { display: none; }
-    }
   }
   @container reader (max-width: 640px) {
     :is(.study-app, .study-seat) {

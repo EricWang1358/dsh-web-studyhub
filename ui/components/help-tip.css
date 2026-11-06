@@ -1,0 +1,25 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.components {
+  :is(.study-app, .study-seat) {
+    /* ── HelpTip ─────────────────────────────────────────────────────────────
+       The small quiet 「?」 that holds an explanation (components/HelpTip.jsx): no border, no fill until it is hovered or focused, so a line of
+       words is not crowded by it. Tokens only. */
+    .sh-help-tip__anchor { display: inline-flex; flex: none; vertical-align: middle; }
+    .sh-help-tip {
+      display: inline-grid;
+      place-items: center;
+      flex: none;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      border: 0;
+      border-radius: var(--radius-pill);
+      background: transparent;
+      color: var(--text-muted);
+      cursor: help;
+    }
+    .sh-help-tip:hover { background: var(--bg-selected); color: var(--text); }
+    .sh-help-tip:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 1px; color: var(--text); }
+  }
+}

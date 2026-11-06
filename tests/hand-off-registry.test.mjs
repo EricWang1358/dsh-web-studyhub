@@ -45,6 +45,8 @@ const FIXTURES = {
   // AI 带学 (skills/study-tutor): one of the shared sentences, no learner data
   'guided.start': { input: { example: 'chapter' }, fenced: [] },
   'reader.page': { input: { title: 'Scheduling', page: 3, text: 'Page 3 explains round robin.', question: 'What does figure 2 show?' }, fenced: ['title', 'text', 'question'] },
+  // 思维导图 of the reader: the material and the chapter are name spans, the tree a data fence
+  'reader.map': { input: { title: 'Macroeconomics', chapter: 'Chapter 11', from: 201, to: 220, outline: '11 Fiscal policy\n  11.1 Spending' }, fenced: ['title', 'chapter', 'outline'] },
   // 深度定制 (skills/study-custom): the course is a name span in the sentence and a JSON string in the note, the document key a JSON string
   'custom.start': { input: { course: 'SA', document: 'doc-1', pages: 512, hasCustom: false }, fenced: [] },
   'course.focus': { input: { course: 'OS', files: ['studyhub-work/focus-intake/b1/01-scope.png'], notes: 'Focus on page replacement', existingTopics: ['Deadlock'], generateAfter: true }, fenced: ['course', 'files', 'notes', 'existingTopics'] },

@@ -80,26 +80,24 @@ test('a hard line break inside Chinese text stays in the text but is drawn witho
   assert.match(html, /The kubelet restarts\nthe container\./, 'a Latin break stays an ordinary space');
 });
 
-test('the reader toolbar: the views on the left, find, display and study tools on the right, generate as the one primary button', () => {
-  const html = viewer(transcript, { onGenerate() {} });
+test('the reader toolbar is slim: AI 出题 (the one primary button, with the arrow of 做这几页的题) and 更多; find, views, display and study tools are in 更多, not on the toolbar', () => {
+  const html = viewer(transcript, { onGenerate() {}, onPracticePages() {} });
   const toolbar = html.match(/<div class="reader-toolbar">([\s\S]*?)<div class="reader-progress"/)?.[1] || '';
-  assert.match(toolbar, /<div role="group" aria-label="显示方式" class="sh-seg[^"]*"/, 'the views are the shared SegmentedControl');
-  assert.match(toolbar, /aria-pressed="true"[^>]*>阅读</);
-  assert.match(toolbar, />原文</);
-  assert.doesNotMatch(toolbar, /原始 PDF/, 'only a PDF has an original view');
-  for (const label of ['在文中查找', '显示设置', '学习工具']) assert.match(toolbar, new RegExp(`aria-label="${label}"`), label);
-  assert.match(toolbar, /class="sh-btn sh-btn--primary[^"]*"[^>]*>[\s\S]*?从这份资料出题/, 'generate is the primary button inside the toolbar');
-  assert.equal((toolbar.match(/sh-btn--primary/g) || []).length, 1, 'one primary button');
-  assert.ok(toolbar.indexOf('sh-seg') < toolbar.indexOf('从这份资料出题'), 'views first, generate last');
-  assert.doesNotMatch(viewer(transcript), /从这份资料出题/, 'no generate button without onGenerate');
-  const waiting = viewer(pdfPage, { onGenerate() {} });
-  assert.match(waiting, /title="还没有原始 PDF，点击查看如何补全"[^>]*>原始 PDF</, 'the original PDF view waits for the retained file and says how to add it when clicked');
-  assert.doesNotMatch(waiting, /disabled=""[^>]*>原始 PDF</, 'it is not a dead button: a click opens 补全原文件 (WP 补全原文件)');
-  const en = viewer(transcript, { onGenerate() {} }, 'en');
-  assert.match(en, /Generate from this source/);
-  assert.match(en, /aria-pressed="true"[^>]*>Read</);
-  assert.match(en, /Find in text/);
-  assert.match(en, /Display settings/);
+  const names = [...toolbar.matchAll(/<button[^>]*>/g)].map(match => match[0].match(/aria-label="([^"]*)"/)?.[1] || '(text)');
+  assert.deepEqual(names, ['(text)', '做这几页的题', '更多'], 'three buttons: 出题, the arrow beside it, and 更多 (目录, 错题 and 思维导图 appear once the material has loaded)');
+  assert.match(toolbar, /class="sh-btn sh-btn--primary[^"]*"[^>]*>[\s\S]*?AI 出题/, 'generate is the primary button inside the toolbar');
+  assert.equal((toolbar.match(/sh-btn--primary/g) || []).length, 2, 'the primary button and its attached arrow');
+  assert.match(toolbar, /class="reader-split"/, 'one control: the button and its arrow');
+  assert.match(toolbar, /aria-haspopup="menu"[^>]*aria-label="更多"|aria-label="更多"[^>]*aria-haspopup="menu"/, '更多 is a menu button');
+  for (const gone of ['在文中查找', '显示设置', '学习工具', '显示方式', '原文', '原始 PDF', '翻译']) assert.doesNotMatch(toolbar, new RegExp(gone), `${gone} is not on the toolbar any more`);
+  assert.doesNotMatch(toolbar, /sh-seg/, 'no segmented control of views');
+  assert.match(toolbar, /role="tooltip"[^>]*>从这份资料出题</, 'the long label is the tooltip of the button');
+  assert.doesNotMatch(toolbar, /<\/svg>从这份资料出题/, 'and not its text');
+  assert.doesNotMatch(viewer(transcript), /AI 出题</, 'no generate button without onGenerate');
+  const en = viewer(transcript, { onGenerate() {}, onPracticePages() {} }, 'en');
+  assert.match(en, /Make questions/);
+  assert.match(en, /aria-label="More"/);
+  assert.match(en, /aria-label="Practise these pages"|aria-label="Practice these pages"/);
 });
 
 test('the learning panel keeps the selection tools together at full width, and no empty links heading', () => {
@@ -111,7 +109,7 @@ test('the learning panel keeps the selection tools together at full width, and n
     assert.match(panel, new RegExp(`class="sh-btn [^"]*study-document-wide[^"]*"[^>]*>(?:<[^>]+>)*${label}`), `${label} is a full-width shared button`);
   assert.doesNotMatch(html, /原文关联题目与解析/, 'the related-questions heading appears once something is linked');
   assert.match(html, /data-tour="source-tools"/, 'the tour anchors on the panel');
-  assert.match(html, /data-tour="source-tools-toggle"/, 'and on its toggle when the panel is closed');
+  assert.match(viewer(transcript), /data-tour="reader-more"/, 'and on 更多, where the toggle of the panel is now');
 });
 
 /* ---------- 2 · course field ---------- */

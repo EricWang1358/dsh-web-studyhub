@@ -123,6 +123,12 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
     return ids.size ? ids : null;
   }, [meterUpgrades, returnDelta, outline, resume?.sectionId, activeId]);
 
+  // The entry each question is placed in (the first, in reading order), by `deckId|cardId`: where 看原文 of a question leads (reader/wrong-rows.js).
+  const entryOf = useMemo(() => {
+    const byKey = new Map();
+    for (const [id, cards] of placed.assigned) for (const key of cards.keys()) if (!byKey.has(key)) byKey.set(key, id);
+    return key => byKey.get(key) ?? null;
+  }, [placed.assigned]);
   const here = useMemo(() => outline.find(item => item.id === activeId) || null, [outline, activeId]);
   const chapter = useMemo(() => {
     const ids = chapterEntryIds(outline, activeId, { chapterLevel, chapterPages: pageSections ? chapterPagesOf(documentItem, here?.page) : null });
@@ -180,6 +186,6 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
   const documentSummary = state.summary;
   const current = (activeId !== null && meters.get(activeId)) || (outline.length ? summarizeLinked([]) : documentSummary);
   return { status: state.status, message: state.message, cards: state.cards, options, selected, kind: selected?.kind, setKind: setChoice, open, setOpen, reload, inactiveCourses: state.inactiveCourses,
-    meters, current, documentSummary, start, generateIds, resumeNote: note, returnDelta, upgradedIds, total: state.cards.length,
+    meters, entryOf, current, documentSummary, start, generateIds, resumeNote: note, returnDelta, upgradedIds, total: state.cards.length,
     coverage: coverage.view?.coverage || null, outlineCoverage: outlineCov };
 }

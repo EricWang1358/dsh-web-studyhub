@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, Dialog, useToast } from '../../components/index.js';
-import { RelatedTasks } from '../../DailyPlan.jsx';
+import { Dialog, useToast } from '../../components/index.js';
+import { relatedTaskItems } from '../../DailyPlan.jsx';
 import { DocumentViewer } from '../../workspace-views.jsx';
 import { ReaderHeading } from '../../document-preview/RenameTitle.jsx';
 import { documentSourceIds } from '../../../lib/source-groups.js';
@@ -17,8 +17,16 @@ export default function SourceReaderDialog({ modal, onClose }) {
   // The reader is a dialog over the page: a Settings page opened from it is not seen unless the dialog goes (the host's own model settings open beside it and the reader stays).
   const openSettings = (section) => { onClose(); settingsEntry.openSettings(section); };
   const openModelSettings = () => { if (!host.openModelSettings) onClose(); settingsEntry.openModelSettings(); };
+  // What the reader's 更多 adds (the rename, today's tasks, the question sets): they were buttons above the reader, and are items of its menu now.
+  const [renameRequest, setRenameRequest] = useState(0);
+  const moreItems = !source ? [] : [
+    ...(data.sources?.some(item => item.id === source.id) ? [{ id: 'rename', icon: 'edit', label: ui('重命名…'), run: () => setRenameRequest(count => count + 1) }] : []),
+    ...relatedTaskItems({ plan: dailyPlan, reference: { root: data.root, kind: 'source', id: source.id }, onBoard: () => { onClose(); nav.navigate('board'); } }),
+    ...(source.usedBy || []).map(deck => ({ id: `deck:${deck.kind}:${deck.id}`, icon: 'book', label: deck.archived ? uiFormat('{0} · 已归档', [deck.title]) : deck.title, hint: ui('题组'),
+      disabled: busy || deck.kind === 'draft', run: () => learn.openLearningTarget({ kind: 'deck', id: deck.id }) })),
+  ];
   const title = source
-    ? <ReaderHeading data={data} source={source} act={act} call={call}
+    ? <ReaderHeading data={data} source={source} act={act} call={call} renameRequest={renameRequest}
       onRenamed={(done) => toast.success(done.status === 'renamed' ? uiFormat('已重命名为「{0}」', [done.title]) : ui('名称没有变化'))} />
     : ui('资料不可用');
   return (
@@ -26,19 +34,7 @@ export default function SourceReaderDialog({ modal, onClose }) {
       {modal.quote && !source && <blockquote className="highlight-quote">{modal.quote}</blockquote>}
       {source ? (
         <>
-          <RelatedTasks plan={dailyPlan} reference={{ root: data.root, kind: 'source', id: source.id }} onBoard={() => { onClose(); nav.navigate('board'); }} />
-          {!!source.usedBy?.length && (
-            <div className="source-connections">
-              <small className="muted">{ui('使用这份资料的题组')}</small>
-              {source.usedBy.map((deck) => (
-                <Button key={`${deck.kind}:${deck.id}`} variant="quiet" size="sm" disabled={deck.kind === 'draft'} lock={busy}
-                  onClick={() => learn.openLearningTarget({ kind: 'deck', id: deck.id })}>
-                  {deck.archived ? uiFormat('{0} · 已归档', [deck.title]) : deck.title}
-                </Button>
-              ))}
-            </div>
-          )}
-          <DocumentViewer source={source} quote={modal.quote} call={call} data={data} host={host} generateDisabled={busy}
+          <DocumentViewer source={source} quote={modal.quote} moreItems={moreItems} call={call} data={data} host={host} generateDisabled={busy}
             onOpenModelSettings={openModelSettings} onOpenSettings={openSettings}
             onGenerate={() => intents.goGenerate({ sourceIds: documentSourceIds(data.sources, source.id), remember: true, closeModal: true })}
             onPublished={() => refresh()} onOpenCard={(reference) => { onClose(); learn.openLearningTarget({ kind: 'card', ...reference }); }}

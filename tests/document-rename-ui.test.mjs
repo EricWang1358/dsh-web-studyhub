@@ -133,9 +133,10 @@ test('the editor in English has no Chinese left', () => {
 
 /* ---------- the reader header ---------- */
 
-test('the reader header shows the document name from the library, a 重命名 button, and F2 / double-click to edit', () => {
+test('the reader header shows the document name from the library and no 重命名 button (it is in 更多), and F2 / double-click / a rename request edit', () => {
   const html = renderToStaticMarkup(h(lib.ReaderHeading, { data, source: data.sources[1], act: noop, call: noop }));
-  assert.match(text(html), /Databases lecture 重命名/);
+  assert.equal(text(html).trim(), 'Databases lecture');
+  assert.doesNotMatch(html, /重命名/, 'the button moved into the reader\'s 更多 menu');
   assert.match(html, /tabindex="0"/);
   assert.match(html, /aria-keyshortcuts="F2"/);
   assert.match(html, /title="Databases lecture\n原名：lecture5\.pdf"/);
