@@ -10,6 +10,7 @@ import { openPage, startLateServer, until } from '../scripts/qa/layout-late.mjs'
 import { makeTextPdf } from './helpers/text-pdf.mjs';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { chooseMore } from './helpers/reader-more.mjs';
 
 /* #488, item 3, in the browser at 1440 and 420: a page turn in 原始 PDF changes the page in place. The same view stays (no new frame, no reload of the file), the zoom and
    the sideways place stay, the page shown is the page asked about, its text can be selected and copied. The browser's viewer stays one press away, and it is what a
@@ -41,7 +42,7 @@ test('原始 PDF: turning the page keeps the view, the zoom and the sideways pla
       await (await revealNavRow(page, 'sources')).click().catch(() => {});
       await page.locator('.source-doc', { hasText: name }).first().locator('.source-main').click();
       await page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
-      await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+      await chooseMore(page, '原始 PDF');
       await page.locator('.reader-scroll[data-mode="original"]').waitFor({ timeout: 30000 });
     };
     const shownPage = () => view.getAttribute('data-pdf-page');
@@ -100,9 +101,9 @@ test('原始 PDF: turning the page keeps the view, the zoom and the sideways pla
 
       // The zoom comes back with the view after a visit to 阅读.
       await bar.getByRole('button', { name: '放大' }).click();
-      await page.locator('.study-document-viewer .sh-seg__item', { hasText: '阅读' }).click();
+      await chooseMore(page, '阅读');
       await bar.waitFor({ state: 'detached', timeout: 10000 });
-      await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+      await chooseMore(page, '原始 PDF');
       await view.waitFor({ timeout: 30000 });
       assert.equal(await bar.locator('.reader-pdf-bar__zoom').innerText(), '150%');
       assert.equal(await shownPage(), "181");
@@ -135,7 +136,7 @@ test('原始 PDF: turning the page keeps the view, the zoom and the sideways pla
         await (await revealNavRow(rapid.page, 'sources')).click().catch(() => {});
         await rapid.page.locator('.source-doc', { hasText: 'Lecture' }).first().locator('.source-main').click();
         await rapid.page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
-        await rapid.page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+        await chooseMore(rapid.page, '原始 PDF');
         await until(async () => (await rapidView.getAttribute('data-pdf-page').catch(() => '')) === '1'
           && /Page 1 explains/.test(await rapidView.locator('.reader-pdf-text').innerText().catch(() => '')), 'page 1 before burst');
         await rapid.page.evaluate(() => {
@@ -179,7 +180,7 @@ test('原始 PDF: turning the page keeps the view, the zoom and the sideways pla
         await (await revealNavRow(slow.page, 'sources')).click().catch(() => {});
         await slow.page.locator('.source-doc', { hasText: 'Lecture' }).first().locator('.source-main').click();
         await slow.page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
-        await slow.page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+        await chooseMore(slow.page, '原始 PDF');
         await slow.page.locator('.reader-original iframe').waitFor({ timeout: 5000 });
         assert.match(await slow.page.locator('.reader-original iframe').getAttribute('src'), /#page=1$/);
         assert.match(await slow.page.locator('.reader-original').innerText(), /这份文件单页绘制太慢，已换成浏览器的查看器，避免翻页卡顿。/);
@@ -205,7 +206,7 @@ test('原始 PDF: turning the page keeps the view, the zoom and the sideways pla
         await (await revealNavRow(stalled.page, 'sources')).click().catch(() => {});
         await stalled.page.locator('.source-doc', { hasText: 'Lecture' }).first().locator('.source-main').click();
         await stalled.page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
-        await stalled.page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+        await chooseMore(stalled.page, '原始 PDF');
         await stalled.page.locator('.reader-original iframe').waitFor({ timeout: 5000 });
         assert.match(await stalled.page.locator('.reader-original').innerText(), /这份文件单页绘制太慢，已换成浏览器的查看器，避免翻页卡顿。/);
         assert.equal(await stalled.page.locator('.reader-pdf-bar').getByRole('button', { name: '回到单页视图' }).count(), 1);

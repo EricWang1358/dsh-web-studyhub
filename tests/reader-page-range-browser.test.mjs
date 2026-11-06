@@ -53,7 +53,7 @@ test('原始 PDF: a range and 接着读 in the panel, at 1440 and 420 (#488)', {
       await (await revealNavRow(page, 'sources')).click().catch(() => {});
       await page.locator('.source-doc').first().locator('.source-main').click();
       await page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
-      await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+      await chooseMore(page, '原始 PDF');
       await page.locator('.reader-scroll[data-mode="original"]').waitFor({ timeout: 30000 });
       if (!(await page.locator('[data-tour="source-tools"]').isVisible().catch(() => false))) await chooseMore(page, '学习工具');
       await panel.waitFor({ timeout: 30000 });

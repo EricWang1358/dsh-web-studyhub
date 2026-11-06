@@ -137,6 +137,7 @@ test('recap edits update the reading and outline while retaining the shared read
   assert.equal(await page.getByRole('group', { name: '下划线', exact: true }).count(), 0);
   const chosen = await page.evaluate(() => JSON.parse(localStorage.getItem('study-reader-settings')));
   assert.equal(chosen.size, 17); assert.equal(chosen.width, 'wide'); assert.equal(chosen.face, 'serif'); assert.equal(chosen.tone, 'paper');
+  await page.getByRole('dialog', { name: '显示设置' }).getByRole('button', { name: '关闭' }).click();
   await page.evaluate(() => window.showLocal('# 更新后的学习回顾\n\n## 新的薄弱点\n\n新的讲解内容。'));
   await page.getByRole('heading', { name: '更新后的学习回顾', exact: true }).waitFor();
   assert.equal(await page.locator('.study-document-body').getByText('新的讲解内容。', { exact: true }).count(), 1);
@@ -146,7 +147,7 @@ test('recap edits update the reading and outline while retaining the shared read
   assert.match(await page.locator('.study-document-body').innerText(), /^# 更新后的学习回顾/);
   await page.evaluate(() => window.showLocal(''));
   await page.waitForFunction(() => document.querySelector('.study-document-body')?.textContent === '');
-  await page.getByRole('button', { name: '阅读', exact: true }).click();
+  await chooseMore(page, '阅读');
   assert.equal(await page.locator('.study-document-body').innerText(), '', 'an empty edit must not fall back to the synthetic source’s older text');
   await page.evaluate(() => window.unmountReader());
   await page.locator('.study-document-viewer').waitFor({ state: 'detached' });
