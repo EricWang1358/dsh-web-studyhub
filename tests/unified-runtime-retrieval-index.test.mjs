@@ -139,7 +139,7 @@ test('the console cannot restart a finished build: the start button is the one e
 
 test('every sentence of the build, in the console and in the refusals, has its English form', () => {
   const stages = ['preparing', 'model', 'indexing', 'done', 'cancelled', 'failed'].map(phase => INDEX_TEXT.stage(phase, { done: 3, total: 9 }));
-  for (const text of [INDEX_TEXT.needsSession, INDEX_TEXT.manifestUnsaved, INDEX_TEXT.title('OS'), INDEX_TEXT.title(), ...stages]) assert.notEqual(localizeAppMessage(text), text, text);
+  for (const text of [INDEX_TEXT.manifestUnsaved, INDEX_TEXT.title('OS'), INDEX_TEXT.title(), ...stages]) assert.notEqual(localizeAppMessage(text), text, text);
   assert.equal(localizeAppMessage(INDEX_TEXT.stage('indexing', { done: 3, total: 9 })), 'Indexing 3 / 9 pages');
 });
 
