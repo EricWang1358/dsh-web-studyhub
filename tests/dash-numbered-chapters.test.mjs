@@ -42,8 +42,18 @@ test('a book that numbers its sections N—M and has no chapter word: the title 
     2, 2, 2, 2, // front matter: under the chapters, so it is no chapter
     1, 2, 2, 3, 3, 2, 3, 3, 3, 3, // 市场导论: 本章要点 and its sections under it, the captions and the end-of-chapter headings under the sections
     1, 2, 2, 3, 2, 2, 3, 3, 2, // 生产理论: its 附录 is a part of the chapter, a sibling of its sections
-    1, 2, 2, 2, 3, 2, // 货币与银行: the 附录 after the last chapter's sections is that chapter's
+    1, 2, 2, 2, 3, 1, // 货币与银行: the book's own 附录, after the last chapter's end block, is a chapter of its own
   ]);
+});
+
+test('the book\'s own back matter after the last chapter\'s end block is a chapter: an 附录, an 索引, a 参考文献 alike', () => {
+  // Not the word: a title after the last chapter's end block belongs to the book. Its own end block stays with the chapter.
+  assert.deepEqual(levels(['甲', '1—1 起', '1—2 承', '本章提要', '操作题', '乙', '2—1 转', '2—2 合', '本章提要', '附录 A 数据', '索引', '参考文献']),
+    [1, 2, 2, 3, 3, 1, 2, 2, 3, 1, 1, 1]);
+  // A chapter's own 附录, before the last chapter, stays a sibling of its sections.
+  assert.deepEqual(levels(['甲', '本章要点', '1—1 a', '1—2 b', '操作题', '附录:数学', '乙', '本章要点', '2—1 c', '2—2 d']), [1, 2, 2, 2, 3, 2, 1, 2, 2, 2]);
+  // A tail with no end block is no back matter: there the chapter keeps its own 附录.
+  assert.deepEqual(levels(['甲', '1—1 a', '1—2 b', '乙', '2—1 c', '2—2 d', '附录']), [1, 2, 2, 1, 2, 2, 2]);
 });
 
 test('a chapter whose title the converter missed starts at its lead-in, else at its first section; a caption or an end-of-chapter heading is never its title', () => {
@@ -72,14 +82,14 @@ const BOOK = [
   title('3—2 银行体系', 15), body('银行', 15), title('本章提要', 15), body('小结', 15),
   title('附录', 16), body('附加材料', 16), body('附加材料续', 17),
 ];
-const CHAPTERS = [['市场导论', 5, 8], ['生产理论', 9, 13], ['货币与银行', 14, 17]];
+const CHAPTERS = [['市场导论', 5, 8], ['生产理论', 9, 13], ['货币与银行', 14, 15], ['附录', 16, 17]];
 
-test('the book\'s chapters are its real chapters: front matter before the first, no one-page chapters, each 附录 inside its chapter', () => {
+test('the book\'s chapters are its real chapters: front matter before the first, no one-page chapters, its own 附录 a chapter', () => {
   const book = parseConvertedDocument(JSON.stringify(BOOK), { filename: '示例教材.json' });
   assert.deepEqual(book.chapters.map(chapter => [chapter.title, chapter.startPage, chapter.endPage]), CHAPTERS);
   assert.deepEqual(book.pages.filter(page => page.chapter < 0).map(page => page.page), [1, 2, 3, 4], 'front matter is before the first chapter (index -1)');
   assert.equal(book.pages.find(page => page.page === 12).chapter, 1, 'the 附录 of 生产理论 is in 生产理论');
-  assert.equal(book.pages.find(page => page.page === 17).chapter, 2);
+  assert.equal(book.pages.find(page => page.page === 17).chapter, 3, 'the book\'s own 附录, after 货币与银行\'s end block, is no part of it');
 });
 
 test('a book-level appendix of a 第N章 book stays a chapter; the 第N章 and decimal books keep their chapters', () => {
@@ -215,7 +225,7 @@ test('a draft made from an old book, the whole of it or some chapters, rolls its
   // Two chapters of it: their pages carry the chapters of the whole book, not of the selection alone.
   const some = sources.filter(source => source.document.page >= 9).map(source => source.id);
   const draft = { id: 'draft-some', cards: [], editorial: { generation: { sourceIds: some } } };
-  assert.deepEqual(chapterGroups(coverageForDraft({ sources, documents, decks: [], drafts: [draft] }, draft)), ['生产理论', '货币与银行']);
+  assert.deepEqual(chapterGroups(coverageForDraft({ sources, documents, decks: [], drafts: [draft] }, draft)), ['生产理论', '货币与银行', '附录']);
 });
 
 test('a superseded revision of an old book is not read again (it is left out anyway)', () => {
@@ -293,7 +303,7 @@ const customState = chapterOf => {
   const revision = `${HASH}-json-conv2`, sources = stored(revision, chapterOf);
   return { sources, documents: documentsOf(sources, revision), decks: [], drafts: [], settings: {}, courses: [] };
 };
-const todayChapterOf = page => (page < 5 ? '' : page < 9 ? '市场导论' : page < 14 ? '生产理论' : '货币与银行');
+const todayChapterOf = page => (page < 5 ? '' : page < 9 ? '市场导论' : page < 14 ? '生产理论' : page < 16 ? '货币与银行' : '附录');
 
 test('an older book whose chapters read the same today is no re-read book: a plan saved before keeps its chapters; only the chapters that changed are reported', () => {
   const same = customState(todayChapterOf), skeleton = courseSkeleton(same, '经济学'), ids = skeleton.documents[0].chapters.map(chapter => chapter.id);
