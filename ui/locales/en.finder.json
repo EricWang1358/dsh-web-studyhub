@@ -6,7 +6,6 @@
   "把这一页或这一章译成中文或英文，译文显示在对应段落旁；翻译在后台进行，可以继续阅读，已有的译文不需要模型。": "Translates this page or chapter into Chinese or English, with the translation shown beside each paragraph. It runs in the background so you can keep reading, and a translation you already have needs no model.",
   "打开一份资料": "Open a material",
   "工具栏": "Toolbar",
-  "只保存了提取出的文字的资料，可以补上原文件：指给它文件的位置（只记路径，不占空间），或复制一份进资料库；已保存的文字、引用和题目不会变。": "A material that only kept its extracted text can get its original file back: point to where the file is (only the path is kept, so it takes no space) or copy it into the library. The saved text, citations and questions do not change.",
   "数出这几页关联了多少道题、几道到期，点一下就开始练；这几页还没有题时，同一个按钮可以为它们出题。阅读时按 P 也能打开。": "Counts how many questions are linked to these pages and how many are due, and one click starts practising them. When these pages have no questions yet, the same button can make some. Press P while reading to open it too.",
   "打开 PDF 资料后，把「显示方式」切到「原始 PDF」，就能看原文件的页面；在「学习工具」里按页提问，用翻页按钮换页，点预设直接问。没有原文件时先「补全原文件」。": "With a PDF material open, switch “View” to “Original PDF” to see the pages of the original file. Ask about a page in “Study tools”: turn pages with the page buttons and click a preset to ask at once. If there is no original file, use “Add the original file” first.",
   "打开一份 PDF": "Open a PDF",
@@ -201,5 +200,6 @@
   "深度定制（资料那一行）": "Customize in depth (on a book's row)",
   "150 页以上的资料那一行": "The row of a document of 150 pages or more",
   "生成总纲前先问要不要深度定制": "Asked before generating the outline: customize in depth?",
-  "先在首页点「总纲」，打开这门课的总纲页。": "First open the course's Outline page: choose “Outline” on the home page."
+  "先在首页点「总纲」，打开这门课的总纲页。": "First open the course's Outline page: choose “Outline” on the home page.",
+  "只保存了提取出的文字的资料，可以补上原文件：指给它文件的位置（只记路径，不占空间，文件再大也行），或复制一份进资料库（最多 40 MB）；已保存的文字、引用和题目不会变。从本机路径转换的 PDF 会自动记住原文件的位置；之后在阅读器里把某一页发给主会话，会带上原文件的路径和页码。": "A material that only kept its extracted text can get its original file back: point to where the file is (only the path is kept, so it takes no space and the file can be any size) or copy it into the library (up to 40 MB); the saved text, citations and questions do not change. A PDF converted from a path on this computer remembers its original automatically; a page sent to the main chat from the reader then carries the original's path and the page number."
 }
