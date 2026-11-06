@@ -3,6 +3,7 @@ import { WorkerMessageHandler } from 'pdfjs-dist/build/pdf.worker.mjs';
 import { peekCanvasSize, undecodedImages } from './peek-logic.js';
 import { createBinaryDataFactory, peekDocumentOptions } from './pdf-assets.js';
 import { peekAssetLoaders } from './pdf-asset-data.js';
+import { createPagedRenderer } from './paged-renderer.js';
 
 /* 看原页: pdf.js behind a tiny interface. This module (pdf.js, about a megabyte, and its worker) is only ever imported by PagePeek.jsx,
    which the viewer loads lazily on the first peek, never with the reader; the worker runs on the main thread (the page is a bundle with no worker file to point at). One document is open
@@ -20,12 +21,14 @@ function loadPdfjs() {
 export const isCancelled = error => error?.name === 'RenderingCancelledException' || error?.name === 'AbortException' || error?.name === 'AbortError';
 
 /**
- * Open `bytes` (a Uint8Array of a PDF) for peeking: { numPages, pageSize(n), render(n, { scale, signal }), destroy() }.
+ * Open `bytes` (a Uint8Array of a PDF) for peeking: { numPages, pageSize(n), render(n, { scale, signal }), destroy() }. A page source of a PAGED original (peek/paged-original.js,
+ * `{ kind: 'pages' }`) is opened the same way: its pages are fetched one at a time (peek/paged-renderer.js).
  * pageSize -> { width, height } in PDF units. render -> ImageBitmap no larger than 2000 px on its long edge; `onReport({ undecoded })` is
  * called when the page is drawn, with how many of its images pdf.js could not decode (a scan whose decoder did not load is blank otherwise).
  * deps (tests): { pdfjs, loaders } stand in for pdf.js and for the wasm/CMap/font chunks.
  */
 export async function createPeekRenderer(bytes, deps = {}) {
+  if (bytes?.kind === 'pages') return createPagedRenderer(bytes, pageBytes => createPeekRenderer(pageBytes, deps));
   const rawLoaders = deps.loaders || peekAssetLoaders;
   let assetClock = 0, assetActive = 0;
   const timedLoaders = {};

@@ -128,5 +128,6 @@
   "问这一页": "Ask about this page",
   "原始 PDF 翻页": "Original PDF pages",
   "页码": "Page number",
-  "/ {0} 页": "of {0}"
+  "/ {0} 页": "of {0}",
+  "这份原文件现在打不开：它可能被移走或改动了。": "The original file cannot be opened now: it may have been moved or changed."
 }
