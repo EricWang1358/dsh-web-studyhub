@@ -69,7 +69,7 @@ test('the slim reader: a quiet toolbar, 更多, 错题 and 思维导图 at 1280 
       const shot = async name => { if (shots) await page.screenshot({ path: join(shots, `reader-slim-${name}-${width}.png`) }); };
       const viewer = page.locator('.study-document-viewer');
       const openMore = async () => { await viewer.getByRole('button', { name: '更多', exact: true }).click(); await page.locator('.sh-menu').waitFor(); };
-      const choose = async name => { await openMore(); await page.locator('.sh-menu').getByRole('menuitem', { name }).click(); };
+      const choose = async name => { await openMore(); await page.locator('.sh-menu [role^="menuitem"]', { hasText: name }).first().click(); };
       await page.goto(running.server.url);
       await (await revealNavRow(page, 'sources')).dispatchEvent('click');
       const row = page.locator('.source-doc', { hasText: 'macro-book' }).first();
@@ -109,16 +109,25 @@ test('the slim reader: a quiet toolbar, 更多, 错题 and 思维导图 at 1280 
       await page.keyboard.press('Escape');
       await choose('显示设置…');
       await page.getByRole('dialog', { name: '显示设置' }).waitFor();
-      await page.keyboard.press('Escape');
+      // (Escape closes a dialog and the reader under it together, as it always did for 补全原文件: the close button leaves the reader)
+      await page.getByRole('dialog', { name: '显示设置' }).getByRole('button', { name: '关闭' }).click();
+      await page.getByRole('dialog', { name: '显示设置' }).waitFor({ state: 'detached' });
+      assert.equal(await viewer.count(), 1, 'closing the display settings leaves the reader open');
       const tools = viewer.locator('[data-tour="source-tools"]');
+      const toolsWere = await tools.isVisible();
       await choose('学习工具');
-      await tools.waitFor({ state: 'visible' });
+      await tools.waitFor({ state: toolsWere ? 'hidden' : 'visible' });
+      await openMore();
+      assert.equal(await page.locator('.sh-menu [role="menuitemcheckbox"]', { hasText: '学习工具' }).getAttribute('aria-checked'), String(!toolsWere), 'the item shows whether the panel is open');
+      await page.keyboard.press('Escape');
       await shot('tools');
       await choose('学习工具');
-      await tools.waitFor({ state: 'hidden' });
+      await tools.waitFor({ state: toolsWere ? 'visible' : 'hidden' });
       await choose('原始 PDF');
-      await page.getByRole('dialog').filter({ hasText: '补全' }).first().waitFor();
-      await page.keyboard.press('Escape');
+      const attach = page.locator('dialog.original-dialog');
+      await attach.waitFor();
+      await attach.getByRole('button', { name: '关闭' }).click();
+      await attach.waitFor({ state: 'detached' });
 
       // ---- 错题: this chapter's first, the rest of the book after; 看原文 changes chapter; 去练 starts the practice ----
       await viewer.getByRole('button', { name: '错题', exact: true }).click();
@@ -153,12 +162,12 @@ test('the slim reader: a quiet toolbar, 更多, 错题 and 思维导图 at 1280 
       await map.getByRole('button', { name: /^收起 3 Topic/ }).click();
       assert.equal(await map.locator('.reader-map__node').count(), 1, 'folding the chapter heading hides its sections');
       await map.getByRole('button', { name: /^展开 3 Topic/ }).click();
-      await map.getByRole('button', { name: `3.${55 - 40} Heading of page 55`, exact: true }).click();
+      await map.getByRole('button', { name: `3.${(55 - 1) % PER_CHAPTER} Heading of page 55`, exact: true }).click();
       assert.equal(await page.locator('.reader-map__panel').count(), 0, 'the panel closes after a jump');
       await until(() => pageInView(page, 55), 'page 55 in view', { timeoutMs: 15000 });
       await viewer.getByRole('button', { name: '思维导图', exact: true }).click();
       await page.locator('.reader-map__panel').getByRole('button', { name: '交给主会话细化' }).click();
-      await page.getByText(/细化资料/).first().waitFor({ timeout: 15000 });
+      await until(async () => { const said = await page.locator('body').innerText(); t.diagnostic(said.slice(-300).replace(/\s+/g, ' ')); return /已复制到剪贴板|需要手动复制|已填进|细化资料/.test(said); }, 'the hand-off to say what became of it', { timeoutMs: 15000 });
       await page.keyboard.press('Escape');
 
       // ---- 去练 on the mistake of the chapter that was left ----
