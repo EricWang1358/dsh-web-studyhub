@@ -14,7 +14,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { coverageForDocument, coverageForDraft } from '../lib/coverage-state.js';
-import { restampConvertedChapters } from '../lib/converted-chapter-stamps.js';
+import { restampConvertedChapters, restampSelection } from '../lib/converted-chapter-stamps.js';
 
 /* Owner report 2026-11-06: a 513-page translated textbook converted with local MinerU came out as 64 "chapters", 47 of them one page, and three 附录 headings
    swallowing pages 81-513. Its chapter titles carry no 第N章: each chapter is "<title>", then 本章要点, then sections numbered N—M (em dash; also N-M, N–M,
@@ -136,6 +136,18 @@ test('a book imported with this rule keeps the chapters it was stored with; part
   const old = `${HASH}-json-conv2`, all = stored(old, oldChapterOf), some = all.filter(source => source.document.page >= 9 && source.document.page <= 13);
   assert.deepEqual(rows(groupSourcesByDocument(some, { documents: documentsOf(all, old) })[0]).map(row => row[0]),
     ['2-1 生产函数', '2 - 2 规模报酬', '操作题', '附录:生产函数的数学']);
+});
+
+test('a few pages on their own are no book: without the library\'s record of the revision they are not read again', () => {
+  const revision = `${HASH}-json-conv2`, all = stored(revision, oldChapterOf), documents = documentsOf(all, revision);
+  const some = all.filter(source => source.document.page >= 9 && source.document.page <= 13);
+  // No record says how many pages the book has: five pages of it would otherwise make chapters of their own.
+  assert.equal(restampConvertedChapters(some), some);
+  assert.deepEqual(rows(groupSourcesByDocument(some)[0]).map(row => row[0]), ['2-1 生产函数', '2 - 2 规模报酬', '操作题', '附录:生产函数的数学']);
+  // Its records say these five pages are not the book: the stamps stay all the same.
+  assert.equal(restampConvertedChapters(some, { documents }), some);
+  // Read with the rest of its book (a draft's coverage reads it so), the same pages carry the chapters of the whole book.
+  assert.deepEqual(restampSelection(some, all, { documents }).map(source => source.document.chapter?.title), ['生产理论', '生产理论', '生产理论', '生产理论', '生产理论']);
 });
 
 /* ---------- the owner's real heading runs (coordinator's read-only run on the 513-page book, 2026-11-06) ---------- */
