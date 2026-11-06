@@ -1,0 +1,1 @@
+- **The frosted-glass background nothing was ever painted with is gone from every theme.** The two glass tokens and their lighter sibling leave the dark, light, OLED and paper themes; the desk, the card and every panel look exactly as they did. Not verified: the four appearance themes were not opened in a browser after the removal.
