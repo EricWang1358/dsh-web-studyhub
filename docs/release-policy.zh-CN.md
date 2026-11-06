@@ -53,6 +53,7 @@ PR 不直接改 `CHANGELOG.md` 和 `CHANGELOG.zh-CN.md`，而是在 `changes/unr
    - [ ] 改动涉及的模型路径：正在用的模型的推理档位，「实时输出」里已结束的调用。
    - [ ] 任务控制台在窄窗口和宽窗口、浅色和深色下的样子。
 5. 在停在 `origin/main` 的工作树里构建和打包（`node scripts/build.mjs`、`npm run release:pack`），把资源清单和上一个版本对比（11 个资源），用更新日志对应的一节作为发布说明（`npm run -s changelog:preview -- <版本>` 会打印出来），并确认远端的 `SHA256SUMS` 和主包的哈希与本地一致。
+6. 三个名字和会落后的渠道：查一下 `npm view @ericwang1358/dsh-daily-flashcard version`。这条发布流程只发布 GitHub 发布页，npm 要手动更新，所以 npm 的 `latest` 还停在上一个版本是正常的，不算发布失败；安装说明和两份 README 都以发布页为准。如果这次顺手也更新了 npm，在发布说明里写一句。
 
 ## 发布之后
 

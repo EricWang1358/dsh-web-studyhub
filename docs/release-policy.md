@@ -53,6 +53,7 @@ All of these, in this order. A box that cannot be ticked is written into the rel
    - [ ] The model path the changes touch: the reasoning level on the models in use, finished calls in 实时输出.
    - [ ] The Jobs console at a narrow and a wide window, in light and dark.
 5. Build and pack from a worktree detached at `origin/main` (`node scripts/build.mjs`, `npm run release:pack`), compare the asset list with the previous release (11 assets), publish with the changelog section as the notes (`npm run -s changelog:preview -- <version>` prints it), and check that the remote `SHA256SUMS` and the main package hash equal the local ones.
+6. The three names, and the channel that lags: check `npm view @ericwang1358/dsh-daily-flashcard version`. This workflow publishes the GitHub release only, so npm's `latest` tag stays on the previous version until npm is updated by hand; a lagging npm is therefore normal and not a failed release, and the install guide and the READMEs say the release page is the newest. If npm is updated in the same step, say so in the release notes.
 
 ## After a release
 
