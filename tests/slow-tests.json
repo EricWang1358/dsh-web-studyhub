@@ -173,6 +173,7 @@
     "tests/nonmodel-baseline-instant.test.mjs",
     "tests/original-attach.test.mjs",
     "tests/original-by-path-convert.test.mjs",
+    "tests/original-pages-guards.test.mjs",
     "tests/original-pages.test.mjs",
     "tests/pdf-console-browser.test.mjs",
     "tests/perf-budget.test.mjs",

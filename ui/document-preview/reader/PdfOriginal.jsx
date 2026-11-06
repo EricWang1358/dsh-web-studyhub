@@ -4,7 +4,7 @@ import { ui } from '../../i18n.js';
 import { Button, InlineMessage, LoadingState, Tooltip } from '../../components/index.js';
 import { stepZoom } from '../peek/peek-logic.js';
 import PdfPageBar from './PdfPageBar.jsx';
-import { isPagedUrl, originalBytes } from '../peek/paged-original.js';
+import { isPagedUrl, originalBytes, pagedFailure } from '../peek/paged-original.js';
 
 /*
  * 原始 PDF (#488): the page controls, and the page drawn in place (peek/PdfPageView.jsx). The browser's viewer stays one press away for what only it does (finding in the whole
@@ -32,7 +32,7 @@ export default function PdfOriginal({ fileUrl, title, page, total, onPage, setti
         <Button variant="link" size="sm" onClick={toggleNative}>{ui(settings.native ? '回到单页视图' : '用浏览器的查看器')}</Button>
       </Tooltip>}
     </PdfPageBar>
-    {failed && <InlineMessage tone="info">{paged ? ui('这份原文件现在打不开：它可能被移走或改动了。') : ui('这份文件在这里画不出来，已换成浏览器的查看器。')}</InlineMessage>}
+    {failed && <InlineMessage tone="info">{paged ? pagedFailure(fileUrl) || ui('这份原文件现在打不开：它可能被移走或改动了。') : ui('这份文件在这里画不出来，已换成浏览器的查看器。')}</InlineMessage>}
     {!failed && native && settings.slow && <InlineMessage tone="info">{ui('这份文件单页绘制太慢，已换成浏览器的查看器，避免翻页卡顿。')}</InlineMessage>}
     {/* A new frame per page: the browser's PDF viewer ignores a later change of #page=, so the page asked about and the page shown would differ. */}
     {native ? <iframe key={page} src={`${fileUrl}#page=${page}`} title={title} />

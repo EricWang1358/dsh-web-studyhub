@@ -19,12 +19,13 @@ const lib = module.exports;
 const PAGED = { documentId: 'doc-1', revision: 'rev-1', mime: 'application/pdf', filename: 'Textbook.pdf', totalPages: 513 };
 
 /** A backend that answers materials.document.pages with the page number as the "PDF". */
-function backend() {
+function backend({ numPages = 513, refuse = {} } = {}) {
   const asked = [];
   const call = async (action, args) => {
     asked.push([action, args]);
     if (args.from === 99999) return { status: 'unavailable', reason: 'missing' };
-    return { status: 'ok', dataBase64: Buffer.from(`page-${args.from}`).toString('base64'), mime: 'application/pdf', pages: { from: args.from, to: args.to }, numPages: 513 };
+    if (refuse[args.from]) return { status: 'unavailable', reason: refuse[args.from] };
+    return { status: 'ok', dataBase64: Buffer.from(`page-${args.from}`).toString('base64'), mime: 'application/pdf', pages: { from: args.from, to: args.to }, numPages };
   };
   return { asked, call };
 }
@@ -63,7 +64,7 @@ test('a page of the source is asked for by number, one page at a time, and comes
   const bytes = await source.fetchPage(42);
   assert.equal(Buffer.from(bytes).toString(), 'page-42');
   assert.deepEqual(world.asked, [['materials.document.pages', { documentId: 'doc-1', revision: 'rev-1', from: 42, to: 42 }]]);
-  await assert.rejects(source.fetchPage(99999), /original/i, 'a missing original is said, not drawn blank');
+  await assert.rejects(source.fetchPage(99999), /打不开/, 'a missing original is said, not drawn blank');
 });
 
 test('the paged renderer answers like the one of a whole file: the page count, the size, the drawing, the words; each page opens its own small PDF', async () => {
@@ -76,8 +77,8 @@ test('the paged renderer answers like the one of a whole file: the page count, t
   assert.deepEqual(renderer.cachedPageSize(7), { width: 612, height: 792 });
   const words = await renderer.textLayer(7, { scale: 1 });
   assert.equal(words.number, 1);
-  assert.deepEqual(world.asked.map(([, args]) => args.from), [7], 'one request served the drawing, the size and the words of page 7');
-  assert.deepEqual(fake.opened, ['page-7']);
+  assert.deepEqual(world.asked.map(([, args]) => args.from), [1, 7], 'page 1 tells the real page count; one request then served the drawing, the size and the words of page 7');
+  assert.deepEqual(fake.opened, ['page-1', 'page-7']);
   assert.equal(typeof renderer.assetStats().totalMs, 'number');
 });
 
@@ -98,14 +99,35 @@ test('two draws of one page at the same moment fetch it once', async () => {
   const world = backend(), fake = fakeOpen();
   const renderer = await lib.createPagedRenderer(await lib.originalBytes(lib.pagedFileUrl(world.call, PAGED)), fake.open);
   await Promise.all([renderer.render(9, {}), renderer.pageSize(9), renderer.textLayer(9, {})]);
-  assert.equal(world.asked.length, 1);
-  assert.equal(fake.opened.length, 1);
+  assert.equal(world.asked.length, 2, 'page 1 for the count, page 9 once');
+  assert.equal(fake.opened.length, 2);
+});
+
+test('the page count is the file\'s own, from the host\'s answer, so an edition that differs from the text is found out like with a whole file', async () => {
+  const world = backend({ numPages: 498 }), fake = fakeOpen();
+  const renderer = await lib.createPagedRenderer(await lib.originalBytes(lib.pagedFileUrl(world.call, PAGED)), fake.open);
+  assert.equal(renderer.numPages, 498, 'not the 513 the text has');
+  await renderer.destroy();
+});
+
+test('a page the host cannot give is said in plain words, whatever the reason, and no renderer is made of it', async () => {
+  for (const [reason, words] of [['encrypted', /加密/], ['page-too-big', /太大/], ['file-too-large', /2 GB/], ['missing', /打不开/], ['changed', /打不开/]]) {
+    const world = backend({ refuse: { 1: reason } }), url = lib.pagedFileUrl(world.call, PAGED);
+    await assert.rejects(lib.createPagedRenderer(await lib.originalBytes(url), fakeOpen().open), words, reason);
+    assert.match(lib.pagedFailure(url), words, `what the view says of ${reason}`);
+  }
+});
+
+test('the picture of a page for 发给主会话 is not made when its page cannot be had (never a blank picture as evidence)', async () => {
+  const world = backend({ refuse: { 1: 'encrypted' } }), source = await lib.originalBytes(lib.pagedFileUrl(world.call, PAGED));
+  await assert.rejects(lib.renderPageImages({ pages: [218], totalPages: 513, loadBytes: async () => source, openRenderer: async given => lib.createPagedRenderer(given, fakeOpen().open),
+    encode: async () => { throw new Error('a picture was made'); } }), /加密/);
 });
 
 test('createPeekRenderer takes a page source as it takes bytes (the 原始 PDF view, 看原页 and the picture of a page all open it this way)', async () => {
   const world = backend();
   const source = await lib.originalBytes(lib.pagedFileUrl(world.call, PAGED));
-  const opened = await lib.createPeekRenderer(source, {});
+  const opened = await lib.createPeekRenderer(source, { pdfjs: { getDocument: () => ({ promise: Promise.resolve({ numPages: 1 }), destroy: async () => {} }) } });
   assert.equal(opened.numPages, 513);
   await opened.destroy();
 });

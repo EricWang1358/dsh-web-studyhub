@@ -5,13 +5,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm, truncate, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, truncate, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../lib/store.js';
 import { createMaterialsOperations } from '../lib/contexts/materials/operations.js';
 import { materialsSchemas } from '../lib/contexts/materials/contracts.js';
 import { closeRecord, openRecord } from '../lib/mineru-history.js';
+import { rehashStats } from '../lib/contexts/materials/original-file.js';
 import { makeTextPdf, LECTURE_PAGES } from './helpers/text-pdf.mjs';
 
 const MB = 1024 * 1024;
@@ -129,6 +130,32 @@ test('the offer never appears for a conversion that kept no path (an upload, or 
   const { call, root, documentId } = await fixture(t);
   await converted(root, documentId, { filename: 'Textbook.pdf', bytes: BIG });
   assert.equal((await call('materials.original.status', { documentId })).convertedFrom, undefined);
+});
+
+test('a record with a hash vouches only for that hash: the same name and size with another hash is another file', async t => {
+  const { call, root, big, documentId } = await fixture(t);
+  await converted(root, documentId, { filename: 'Textbook.pdf', bytes: BIG, sourceHash: 'a'.repeat(64) });
+  const probed = await call('materials.original.probe', { documentId, path: big });
+  assert.equal(probed.verdict, 'unchecked', 'the hash on record is not this file\'s: the name and size are not enough');
+  assert.equal(probed.accepted, false);
+});
+
+test('a big referenced file whose date changed is hashed once, not on every read, and never two big files at the same time', async t => {
+  const first = await fixture(t), second = await fixture(t);
+  for (const world of [first, second]) await world.call('materials.original.attach', { documentId: world.documentId, path: world.big, mode: 'reference', confirm: true });
+  const before = rehashStats().hashes;
+  const later = new Date(Date.now() + 60_000);
+  await utimes(first.big, later, later); await utimes(second.big, later, later);
+  const reads = await Promise.all([...Array(4).fill(first), ...Array(4).fill(second)].map(world => world.call('materials.document.get', { documentId: world.documentId })));
+  assert.ok(reads.every(document => document.original.status === 'ok'), 'the same file with a newer date is still the original');
+  assert.equal(rehashStats().hashes - before, 2, 'one hash per file, shared by the eight reads');
+  assert.equal(rehashStats().peak, 1, 'never two big files hashed at once');
+  await first.call('materials.document.get', { documentId: first.documentId });
+  await first.call('materials.document.pages', { documentId: first.documentId, from: 1 }).catch(() => {});
+  assert.equal(rehashStats().hashes - before, 2, 'later reads of the same file and date do not hash again');
+  await writeFile(first.big, '%PDF-1.7\nchanged'); await truncate(first.big, BIG);
+  await utimes(first.big, new Date(Date.now() + 120_000), new Date(Date.now() + 120_000));
+  assert.equal((await first.call('materials.document.get', { documentId: first.documentId })).original.status, 'changed', 'a file whose bytes changed is still found out');
 });
 
 test('the shared contracts are unchanged: no new argument lets a caller skip the check', () => {

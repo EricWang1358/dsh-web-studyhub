@@ -25,8 +25,10 @@ export async function createPagedRenderer(source, open) {
     return entry;
   };
 
+  // The file's own page count comes with any page the host gives: page 1 is asked for now (and kept for the first draw), so the reader can check it against its text at once.
+  await pageOf(1);
   return {
-    numPages: source.total,
+    numPages: source.numPages || source.total,
     cachedPageSize: number => sizes.get(number) || null,
     assetStats: () => ({ totalMs: assetMs, active: 0 }),
     async pageSize(number) {
