@@ -89,6 +89,10 @@
        (the reading block of ui/reading-settings: size, line width, typeface, paper); the parts that are not the story are a size smaller. Inside the reading area the links, the
        角标, the dashed words and the 出处 are ink (the text colour, underlined), never cinnabar: that stays for the one primary button. */
     .book-point {
+      /* 中英混排 (#744): as in the reader (.source-md): the space between Chinese and Latin the font does not add, a property rather than a changed
+         string, so a copied answer, a quote and a search are untouched. It inherits into the body's paragraphs; the class .md belongs to
+         ui/markdown.css (#151), which is why this sits on the point rather than on .md. Engines that do not know it draw as before. */
+      text-autospace: normal;
       --sh-link-ink: var(--text);
       --sh-link-wash: var(--bg-hover);
       --md-link-ink: var(--text);
@@ -100,11 +104,6 @@
       display: grid;
       gap: var(--space-4);
       min-width: 0;
-    }
-    .book-point .md {
-      /* 中英混排 (#744): as in the reader (.source-md): the space between Chinese and Latin the font does not add, a property rather than a
-         changed string, so a copied answer, a quote and a search are untouched. Engines that do not know it draw as before. */
-      text-autospace: normal;
     }
     .book-point .md p {
       margin-bottom: 0.9em;
