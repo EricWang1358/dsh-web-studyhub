@@ -10,6 +10,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StudyService } from "../../lib/service.js";
 import { finishCli, parseQaArgs, runQa } from "./harness.mjs";
+import { chooseMore } from "./reader-more.mjs";
 
 const NOTE = '<small><span class="docvortex-page-footnote" data-block-type="page_footnote" style="color:#6b7280">① pH 是个例外，用正体。</span></small>';
 const OTHER = '<small>这个不是脚注，原样显示。</small>';
@@ -59,7 +60,7 @@ export async function runReaderFootnoteQa(options) {
       if (await learning.locator(".warning").count()) throw new Error(`the panel warns: ${await learning.locator(".warning").first().innerText()}`);
     };
     const learning = page.locator(".study-document-learning");
-    const showPanel = async () => { if (!(await page.locator('[data-tour="source-tools"]').isVisible())) { await page.locator('[data-tour="source-tools-toggle"]').click(); await wait(400); } };
+    const showPanel = async () => { if (!(await page.locator('[data-tour="source-tools"]').isVisible())) { await chooseMore(page, t("学习工具", "Study tools")); await wait(400); } };
 
     for (const { title, kind } of MATERIALS) {
       const label = (text) => `${kind} - ${text}`;

@@ -7,6 +7,7 @@
 import { join } from "node:path";
 import { createStudyRuntime } from "../../lib/runtime/builtins.js";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
+import { chooseMore } from "./reader-more.mjs";
 
 async function seed(root) {
   const runtime = createStudyRuntime(root);
@@ -64,25 +65,28 @@ export async function runOverlayQa(options) {
     await page.keyboard.press("Escape");
     await check("no horizontal overflow on the board", async () => { const probe = await page.evaluate(overflowProbe); if (probe.scrollWidth > probe.clientWidth + 1) throw new Error(JSON.stringify(probe)); });
 
-    // The reader's Aa popover: focus in, Escape back to the button, and the dialog behind stays open.
+    // 显示设置… is an item of the reader's 更多 now and opens a dialog over the reader: focus moves into it, its 关闭 button leaves the
+    // reader open and hands focus back to 更多.
     await page.locator('[data-usage="nav.sources"]').first().click();
     await sleep(600);
     await page.getByRole("button", { name: /^(全部展开|Expand all)$/ }).click().catch(() => {});
     await page.locator(".source-doc .source-main").first().click();
     await page.locator(".study-document-viewer").waitFor();
-    const aa = page.getByRole("button", { name: t("显示设置", "Display settings") });
-    await step("reader-popover", async () => {
-      await aa.click();
-      await page.getByRole("dialog", { name: t("显示设置", "Display settings") }).waitFor();
-      const state = await page.evaluate(() => ({ inPanel: !!document.activeElement?.closest(".reader-popover__panel"), pressed: document.querySelector('[data-usage="reader.display"]')?.getAttribute("aria-pressed") }));
-      if (!state.inPanel) throw new Error("focus did not move into the panel");
-      if (state.pressed !== null) throw new Error("the trigger still carries aria-pressed");
+    const more = page.locator(".study-document-viewer .reader-more__button").first();
+    const displayDialog = () => page.getByRole("dialog", { name: t("显示设置", "Display settings") });
+    await step("reader-display-dialog", async () => {
+      await chooseMore(page, t("显示设置", "Display settings"));
+      await displayDialog().waitFor();
+      const state = await page.evaluate(() => ({ inDialog: !!document.activeElement?.closest(".sh-dialog"), expanded: document.querySelector(".reader-more__button")?.getAttribute("aria-expanded") }));
+      if (!state.inDialog) throw new Error("focus did not move into the dialog");
+      if (state.expanded === "true") throw new Error("更多 still says its menu is open");
+      return state;
     });
-    await check("Escape closes the popover and returns focus, not the reader", async () => {
-      await page.keyboard.press("Escape");
-      if (await page.locator(".reader-popover__panel").count()) throw new Error("popover still open");
+    await check("closing the dialog returns focus to 更多 and leaves the reader open", async () => {
+      await displayDialog().getByRole("button", { name: t("关闭", "Close") }).click();
+      await displayDialog().waitFor({ state: "detached" });
       if (!(await page.locator(".study-document-viewer").count())) throw new Error("the reader closed too");
-      if (!(await aa.evaluate((element) => element === document.activeElement))) throw new Error("focus did not return to Aa");
+      if (!(await more.evaluate((element) => element === document.activeElement))) throw new Error("focus did not return to 更多");
     });
     await page.keyboard.press("Escape");
     await sleep(300);

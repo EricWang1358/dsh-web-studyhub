@@ -16,6 +16,7 @@ import { previewCall } from "../preview-server.mjs";
 import { makeTextPdf } from "../../tests/helpers/text-pdf.mjs";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
 import { pickNth } from "./pick.mjs";
+import { chooseMore } from "./reader-more.mjs";
 
 const PAGE_LINES = (page, word = "explains") => Array.from({ length: 10 }, (_, line) => `Page ${page} line ${line + 1} ${word} part ${page} of the scheduling lecture in plain words.`);
 export const PAGES = [1, 2, 3, 4].map((page) => PAGE_LINES(page));
@@ -53,8 +54,9 @@ export async function runPageAskQa(options) {
     const viewer = page.locator(".study-document-viewer"), tools = viewer.locator(".reader-tools"), bar = viewer.locator(".reader-pdf-bar");
     const reading = tools.locator('.reader-learning[data-scope="selection"]'), paging = tools.locator('.reader-learning[data-scope="page"]');
     const scopeLine = tools.locator(".study-page-ask__scope"), narrow = options.width < 900;
-    const mode = (zh, en) => viewer.locator(".study-document-preview-mode").getByRole("button", { name: t(zh, en), exact: true });
-    const openTools = async () => { if (await tools.isHidden()) await viewer.getByRole("button", { name: t("学习工具", "Study tools") }).first().click(); await tools.waitFor(); };
+    // The views and the study tools are items of 更多 (ui/document-preview/reader/more-items.js): press them the way a learner does.
+    const mode = async (zh, en) => { await chooseMore(page, t(zh, en)); };
+    const openTools = async () => { if (await tools.isHidden()) await chooseMore(page, t("学习工具", "Study tools")); await tools.waitFor(); };
     const closeOverlay = async () => { if (narrow && await viewer.locator(".reader-scrim").count()) await viewer.locator(".reader-scrim").click({ position: { x: 12, y: 40 } }); };
     const pageBox = () => bar.getByRole("spinbutton", { name: t("页码", "Page number") });
     const typePage = async (number) => { await closeOverlay(); await pageBox().fill(String(number)); await pageBox().press("Enter"); await openTools(); };
@@ -89,7 +91,7 @@ export async function runPageAskQa(options) {
     await step("annotated-answer-survives-a-switch-to-pdf", async () => {
       const before = await kept();
       await reading.getByRole("button", { name: t("没听懂", "I did not get it"), exact: true }).click();
-      await mode("原始 PDF", "Original PDF").click(); // while the answer is on its way (1.5 s)
+      await mode("原始 PDF", "Original PDF"); // while the answer is on its way (1.5 s)
       await bar.waitFor();
       const deadline = Date.now() + 20000;
       let after = before;
@@ -144,7 +146,7 @@ export async function runPageAskQa(options) {
       return { value };
     });
     if (!narrow) await check("ask-this-page-link-opens-the-panel", async () => {
-      await viewer.getByRole("button", { name: t("学习工具", "Study tools") }).first().click();
+      await chooseMore(page, t("学习工具", "Study tools"));
       await tools.waitFor({ state: "hidden" });
       const link = viewer.locator(".reader-pdf-note").getByRole("button", { name: t("问这一页", "Ask about this page") });
       await link.click();
@@ -225,7 +227,7 @@ export async function runPageAskQa(options) {
     });
     await step("back-to-read-keeps-the-selection-and-its-answers", async () => {
       await closeOverlay();
-      await mode("阅读", "Read").click();
+      await mode("阅读", "Read");
       await viewer.locator(".reader-pdf-bar").waitFor({ state: "detached" });
       await openTools();
       if (await paging.isVisible()) throw new Error("the page panel stayed in 阅读");
@@ -241,7 +243,7 @@ export async function runPageAskQa(options) {
       await reading.getByRole("button", { name: t("生成、审核并补充题目", "Generate, review and add questions") }).click();
       await reading.locator(".selection-job").first().waitFor({ timeout: 10000 });
       await closeOverlay();
-      await mode("原始 PDF", "Original PDF").click();
+      await mode("原始 PDF", "Original PDF");
       await bar.waitFor();
       await openTools();
       const card = tools.locator(".selection-job").first();
@@ -258,7 +260,7 @@ export async function runPageAskQa(options) {
     });
     await step("kept-annotation-opened-from-pdf-goes-to-read", async () => {
       await closeOverlay();
-      await mode("原始 PDF", "Original PDF").click();
+      await mode("原始 PDF", "Original PDF");
       await bar.waitFor();
       await openTools();
       // The kept passage is folded in the links list (with the questions the 补题 job added, when it is done): unfold them all.
@@ -272,7 +274,7 @@ export async function runPageAskQa(options) {
     });
     await step("refused-page-ask-keeps-the-page-on-retry", async () => {
       await closeOverlay();
-      await mode("原始 PDF", "Original PDF").click();
+      await mode("原始 PDF", "Original PDF");
       await bar.waitFor();
       await typePage(2);
       await expectPage(2);

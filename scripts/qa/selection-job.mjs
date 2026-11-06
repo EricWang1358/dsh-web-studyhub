@@ -14,6 +14,7 @@ import { createPreviewServer, previewCall } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
 import { pickNth } from "./pick.mjs";
+import { chooseMore } from "./reader-more.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { sampleMarkdown } from "./fixtures.mjs";
 
@@ -118,7 +119,8 @@ export async function run(options) {
       }, index);
       await sleep(400);
       const panel = page.locator('[data-tour="source-tools"]');
-      if (!(await panel.isVisible())) { await page.locator('[data-tour="source-tools-toggle"]').click(); await sleep(400); }
+      // The study tools are an item of the reader's 更多 (ui/document-preview/reader/more-items.js).
+      if (!(await panel.isVisible())) { await chooseMore(page, t("学习工具", "Study tools")); await sleep(400); }
     };
     const learning = () => page.locator(".study-document-learning");
     const deckSelect = () => learning().locator("form").nth(1).locator('[role="combobox"]').first();
