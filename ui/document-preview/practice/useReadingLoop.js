@@ -69,7 +69,12 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
 
   // 2. Where each question is in what is drawn. Pages of a PDF or slides are their own sections; anything else is read from the text.
   const [placed, setPlaced] = useState({ assigned: new Map(), unplaced: [], draftAssigned: new Map() });
-  const pageSections = useMemo(() => paged && outline.length > 0 && sections.length > 0 && outline.every(item => sections.some(section => section.id === item.id)), [paged, outline, sections]);
+  // A chaptered reader's chapter entries (reader/chapters.js) hold pages; they are no page themselves, and the questions of their pages count up to them.
+  const pageSections = useMemo(() => {
+    if (!paged || !outline.length || !sections.length) return false;
+    const ids = new Set(sections.map(section => section.id));
+    return outline.every(item => item.kind === 'chapter' || ids.has(item.id));
+  }, [paged, outline, sections]);
   useIsoLayoutEffect(() => {
     if (state.status !== 'ready') return;
     if (pageSections) {
@@ -119,7 +124,11 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
   }, [meterUpgrades, returnDelta, outline, resume?.sectionId, activeId]);
 
   const here = useMemo(() => outline.find(item => item.id === activeId) || null, [outline, activeId]);
-  const chapter = useMemo(() => chapterEntryIds(outline, activeId, { chapterLevel, chapterPages: pageSections ? chapterPagesOf(documentItem, here?.page) : null }), [outline, activeId, chapterLevel, pageSections, documentItem, here]);
+  const chapter = useMemo(() => {
+    const ids = chapterEntryIds(outline, activeId, { chapterLevel, chapterPages: pageSections ? chapterPagesOf(documentItem, here?.page) : null });
+    // A block of pages the reader shows at a time (a document without chapters) is no chapter to practise: 本章 stays for real chapters.
+    return ids && outline.some(item => item.chapter?.block && ids.includes(item.id)) ? null : ids;
+  }, [outline, activeId, chapterLevel, pageSections, documentItem, here]);
   const options = useMemo(() => state.status === 'ready'
     ? rangeOptions({ outline, activeId, visited, assigned: placed.assigned, chapter, all: state.cards, draftAssigned: placed.draftAssigned, draftAll: state.drafts }) : [],
   [state.status, outline, activeId, visited, placed.assigned, placed.draftAssigned, chapter, state.cards, state.drafts]);

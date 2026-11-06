@@ -128,5 +128,11 @@
   "问这一页": "Ask about this page",
   "原始 PDF 翻页": "Original PDF pages",
   "页码": "Page number",
-  "/ {0} 页": "of {0}"
+  "/ {0} 页": "of {0}",
+  "第 {0}–{1} 张": "Slides {0}–{1}",
+  "上一章": "Previous chapter",
+  "下一章": "Next chapter",
+  "上一章与下一章": "Previous and next chapter",
+  "其他章节": "Other chapters",
+  "{0} · {1} 处": "{0} · {1} found"
 }
