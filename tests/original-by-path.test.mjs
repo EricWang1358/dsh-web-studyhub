@@ -66,18 +66,18 @@ test('copying such a file into the library is still refused at the copy limit', 
   await assert.rejects(call('materials.original.attach', { documentId, path: big, mode: 'copy', confirm: true }), /at most 40 MB/);
 });
 
-test('a big referenced original is there for the main chat (path, size) but not served to the reader, which says why instead of loading it', async t => {
+test('a big referenced original is there for the main chat (path, size) and the reader asks for its pages instead of being sent the file', async t => {
   const { call, big, documentId } = await fixture(t);
   await call('materials.original.attach', { documentId, path: big, mode: 'reference', confirm: true });
   const document = await call('materials.document.get', { documentId });
   assert.equal(document.original.status, 'ok');
   assert.equal(document.original.path, big);
   assert.equal(document.original.tooLargeForReader, true);
-  assert.equal(document.originalAvailable, false, 'the reader has no file to open, so it keeps the extracted text without a false notice');
+  assert.equal(document.originalAvailable, true, 'the reader shows it, page by page (materials.document.pages)');
   const served = await call('materials.document.bytes', { documentId });
-  assert.equal(served.status, 'unavailable');
-  assert.equal(served.reason, 'too-large');
-  assert.equal(served.path, big);
+  assert.equal(served.status, 'paged');
+  assert.equal(served.dataBase64, undefined, 'the whole file is never sent');
+  assert.equal(served.paged.documentId, documentId);
 });
 
 test('the conversion record that names this file (same name, same size) passes the check without a confirmation', async t => {
