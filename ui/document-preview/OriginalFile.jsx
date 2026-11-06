@@ -4,7 +4,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
 import { Button, Checkbox, Dialog, FileDrop, Hint, Icon, InlineMessage, LoadingState, RadioCard, RadioCardGroup, Tooltip } from '../components/index.js';
 import css from './original-file.css';
-import { ORIGINAL_MAX_BYTES, canAttach, collapseNotice, defaultMode, explainFailure, issueOf, modeOptions, noticeCollapsed, originalLine, reportHeadline, reportLines } from './original-file.js';
+import { ORIGINAL_MAX_BYTES, bigFileLine, bigFileWhy, canAttach, collapseNotice, defaultMode, explainFailure, issueOf, modeOptions, noticeCollapsed, originalLine, reportHeadline, reportLines, tooBigForBrowser } from './original-file.js';
 import { formatBytes } from '../format.js';
 import { guidanceAllows } from '../guidance/budget.js';
 import { toBase64 } from '../upload.js';
@@ -73,7 +73,9 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
   const [mode, setMode] = useState(initial.mode ?? 'reference'), [confirmed, setConfirmed] = useState(initial.confirmed ?? false);
   const [error, setError] = useState(initial.error ?? ''), [pathText, setPathText] = useState(initial.pathText ?? '');
   const [done, setDone] = useState(initial.done ?? null), [choosing, setChoosing] = useState(initial.choosing ?? intent === 'relink');
-  const bytes = useRef(null), alive = useRef(true), pathId = useId(), modeName = useId(), hintId = useId();
+  // A file the browser chose that is too big to copy (name, size): said plainly, and the learner is taken to the path, which copies nothing and has no limit.
+  const [tooBig, setTooBig] = useState(initial.tooBig ?? null);
+  const bytes = useRef(null), alive = useRef(true), pathId = useId(), modeName = useId(), hintId = useId(), pathField = useRef(null), pickButton = useRef(null);
   const identity = identityOf(target);
   useEffect(() => () => { alive.current = false; }, []);
   useLiveEffect(live => {
@@ -102,7 +104,7 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
   async function checkPath(raw, preferred) {
     const path = unquotePath(raw);
     if (!path) return;
-    setPathText(path);
+    setTooBig(null); setPathText(path);
     if (!isAbsolutePath(path)) { setError('Document path must be absolute'); setPhase('error'); return; }
     bytes.current = null;
     setPicked({ kind: 'path', path }); setPhase('verifying');
@@ -112,6 +114,13 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
   async function chooseFile(files) {
     const file = files?.[0];
     if (!file) return;
+    if (tooBigForBrowser(file)) {
+      // Not read, not sent: the path route takes it. Focus goes where the learner types or picks next.
+      bytes.current = null; setTooBig({ name: file.name, size: file.size }); setPicked(null); setReport(null); setError(''); setPhase('idle');
+      setTimeout(() => (host?.pickFile ? pickButton.current : pathField.current)?.focus?.(), 0);
+      return;
+    }
+    setTooBig(null);
     setPicked({ kind: 'file', name: file.name, size: file.size }); setPhase('verifying'); setPathText('');
     try {
       bytes.current = { dataBase64: await readBase64(file), filename: file.name };
@@ -135,6 +144,17 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
       setInfo(result.original); setDone({ mode: result.mode }); setPhase('done'); setChoosing(false);
       onChanged?.(result);
     } catch (failure) { settle(setError, failure?.message || ''); settle(setPhase, 'verified'); }
+  }
+  /** 使用转换时的原文件: the file the book was converted from, attached in one step when the host recognises it; else the usual check (it may need the learner's word). */
+  async function useConverted() {
+    const path = info.convertedFrom.path;
+    setPhase('attaching'); setError('');
+    try {
+      const result = await call('materials.original.attach', { ...identity, mode: 'reference', path });
+      if (!alive.current) return;
+      if (result.status === 'attached') { setInfo(result.original); setDone({ mode: result.mode }); setPhase('done'); setChoosing(false); onChanged?.(result); return; }
+    } catch (failure) { settle(setError, failure?.message || ''); settle(setPhase, 'idle'); return; }
+    settle(setPhase, 'idle'); await checkPath(path);
   }
   async function detach() {
     setPhase('attaching'); setError('');
@@ -170,17 +190,22 @@ export function OriginalDialog({ target, call, host, onClose, onChanged, intent 
     {issue?.canCopy && !picked && !done && <div className="original-actions">
       <Button size="sm" variant="secondary" lock={busy} onClick={() => checkPath(info.path, 'copy')}>{ui('改为复制到资料库')}</Button></div>}
     {pickerOn && <section className="original-pick" aria-label={ui('选择原文件')}>
+      {info.convertedFrom && !picked && <div className="original-converted">
+        <Status tone="info">{uiFormat('这本书是从 {0}（{1}）转换来的，文件还在原处。', [info.convertedFrom.filename, formatBytes(info.convertedFrom.bytes)])}</Status>
+        <div className="original-actions"><Button variant="primary" busy={phase === 'attaching'} lock={busy} onClick={useConverted}>{ui('使用转换时的原文件')}</Button></div>
+      </div>}
       <p className="original-step"><strong>{ui('原文件在哪里？')}</strong> <span id={hintId} className="muted">{ui('填写完整路径，或选择文件。')}</span></p>
       <div className="original-pathrow">
-        <input id={pathId} className="original-pathrow__input" type="text" value={pathText} disabled={busy} spellCheck={false} aria-label={ui('原文件的完整路径')} aria-describedby={hintId}
+        <input id={pathId} ref={pathField} className="original-pathrow__input" type="text" value={pathText} disabled={busy} spellCheck={false} aria-label={ui('原文件的完整路径')} aria-describedby={hintId}
           placeholder={ui('例如：D:\\资料\\讲义.pdf')} onChange={event => setPathText(event.target.value)}
           onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void checkPath(pathText); } }} />
         <Button lock={busy} disabled={!pathText.trim()} onClick={() => checkPath(pathText)}>{ui('核对')}</Button>
       </div>
-      {host?.pickFile && <div className="original-actions"><Button icon="folder" lock={busy} onClick={pickNative}>{ui('选择文件…')}</Button></div>}
-      <FileDrop compact accept={[`.${format}`]} maxBytes={ORIGINAL_MAX_BYTES} disabled={busy}
+      {host?.pickFile && <div className="original-actions"><Button ref={pickButton} icon="folder" lock={busy} onClick={pickNative}>{ui('选择文件…')}</Button></div>}
+      <FileDrop compact accept={[`.${format}`]} disabled={busy} hint={`${format.toUpperCase()} · ${uiFormat('复制最多 {0}', [formatBytes(ORIGINAL_MAX_BYTES)])}`}
         label={ui('或把文件拖到这里（浏览器不提供路径，只能复制）')} buttonLabel={host?.pickFile ? ui('从浏览器选择…') : ui('选择文件…')}
         onFiles={accepted => void chooseFile(accepted)} />
+      {tooBig && <Status tone="warning" alert><Tooltip layer content={bigFileWhy()}><span tabIndex={0}>{bigFileLine(tooBig, { picker: !!host?.pickFile })}</span></Tooltip></Status>}
     </section>}
     {phase === 'verifying' && <Status tone="info">{uiFormat('正在核对文字…{0}', [picked?.size ? `（${formatBytes(picked.size)}）` : ''])} <span className="muted">{ui('大文件需要一点时间。')}</span></Status>}
     {report && phase !== 'verifying' && !done && <>
