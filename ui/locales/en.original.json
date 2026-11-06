@@ -65,7 +65,6 @@
   "怎样保存这个文件": "How to keep this file",
   "我确认这是同一份资料，仍要附上": "I confirm this is the same material; attach it anyway",
   "管理原文件…": "Manage the original file…",
-  "还没有原始 PDF，点击查看如何补全": "No original PDF yet; click to see how to add it",
   "已复制到资料库的原文件会放进备份；只记了路径的原文件留在你的电脑上，不在备份里，换电脑后需要重新指定。": "Original files copied into the library are included in the backup; files linked by path stay on your computer and are not in the backup, so link them again on another machine.",
   "备份已导出。其中 {0} 份原文件只记了路径，没有放进备份；换电脑后需要重新指定。": "Backup exported. {0} original files are linked by path and are not in the backup; link them again on another computer.",
   "「{0}」有 {1}，浏览器没法复制这么大的文件。请在上面填写路径，或点「选择文件…」，只记住它的位置（不占空间）。": "\"{0}\" is {1}. The browser cannot copy a file this big. Enter the path above, or use Choose file…, to just remember its location (no space used).",

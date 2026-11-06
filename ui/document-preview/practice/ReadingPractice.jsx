@@ -1,6 +1,6 @@
 import React, { useId } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, LoadingState, Popover, RadioCard, RadioCardGroup } from '../../components/index.js';
+import { Button, HelpTip, LoadingState, Popover, RadioCard, RadioCardGroup, Tooltip } from '../../components/index.js';
 import { useInjectCss } from '../../shared.js';
 import { MasteryMark } from './MasteryMark.jsx';
 import { countsLine, draftExtraText, draftNoneText, inclusionNote, meaningLine, noneText, questionsWord, rangeLabel, stateLabel } from './mastery-copy.js';
@@ -24,7 +24,7 @@ export function InactiveNote({ summary, courses = [] }) {
  * not practisable) are said in the same words as the 资料 rows, with the way to the draft (`onOpenDraft(draftIds)`).
  * Props: `loop` (practice/useReadingLoop), `unit` ('page' | 'slide' | 'section'), `busy`.
  */
-export default function ReadingPractice({ loop, unit = 'section', busy = false, onStart, onGenerate, onOpenDraft }) {
+export default function ReadingPractice({ loop, unit = 'section', busy = false, split = false, onStart, onGenerate, onOpenDraft }) {
   useInjectCss(css, 'study-reading-loop');
   const { open, setOpen, status, options, setKind, selected } = loop;
   const groupName = useId();
@@ -38,10 +38,14 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
   // On a narrow pane the button can sit anywhere along the wrapped toolbar: Popover slides the panel back inside the viewer.
   return <Popover open={open} onOpenChange={setOpen} label={ui('做这几页的题')} className="reader-popover reader-practice" panelClassName="reader-popover__panel reader-practice__panel"
     boundsSelector=".study-document-viewer" flip={false} data-tour="reader-practice"
-    trigger={({ props, ref }) => <Button ref={ref} size="sm" variant="secondary" icon="success" className="reader-practice__button" {...props}
-      aria-keyshortcuts="P" data-usage="reader.practice" title={ui('做这几页的题 · 快捷键 P')}>
-      <span className="reader-practice__label">{ui('做这几页的题')}</span>
-    </Button>}>
+    trigger={({ props, ref }) => split
+      // The arrow beside 出题 (the toolbar's one primary control): its words are in a tooltip, not on the button.
+      ? <Tooltip layer content={ui('做这几页的题 · 快捷键 P')}><Button ref={ref} size="sm" variant="primary" icon="chevron-down" className="reader-practice__caret sh-btn--icon" {...props}
+        aria-label={ui('做这几页的题')} aria-keyshortcuts="P" data-usage="reader.practice" /></Tooltip>
+      : <Button ref={ref} size="sm" variant="secondary" icon="success" className="reader-practice__button" {...props}
+        aria-keyshortcuts="P" data-usage="reader.practice" title={ui('做这几页的题 · 快捷键 P')}>
+        <span className="reader-practice__label">{ui('做这几页的题')}</span>
+      </Button>}>
       {status === 'loading' && <LoadingState className="reader-practice__status" label={ui('正在读取这几页的题…')} />}
       {(status === 'error' || status === 'unavailable') && <>
         <p className="reader-practice__status" role="alert">{status === 'unavailable' ? ui('这个版本暂时读不到这几页的题。') : ui('没能读取这几页的题。')}</p>
@@ -59,8 +63,8 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
         {total > 0 ? <>
           <p className="reader-practice__counts" data-testid="practice-counts">{countsLine(summary)}</p>
           <p className="reader-practice__mastery"><MasteryMark summary={summary} size={16} />
-            <span>{summary.state === 'unlearned' ? stateLabel('unlearned') : `${uiFormat('掌握 {0}%', [summary.percent])} · ${stateLabel(summary.state)}`}</span></p>
-          <p className="reader-practice__meaning">{meaningLine()}</p>
+            <span>{summary.state === 'unlearned' ? stateLabel('unlearned') : `${uiFormat('掌握 {0}%', [summary.percent])} · ${stateLabel(summary.state)}`}</span>
+            <HelpTip label={ui('掌握度是什么意思')}>{meaningLine()}</HelpTip></p>
           {coverageLine && <p className="reader-practice__coverage" data-testid="practice-coverage">{coverageLine}</p>}
           <InactiveNote summary={summary} courses={loop.inactiveCourses} />
           {drafted && <p className="reader-practice__drafts" data-testid="practice-drafts">{draftExtraText(drafted.draftCards)}</p>}
@@ -68,8 +72,8 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
           <Button variant="primary" icon="arrow-right" className="reader-practice__action" lock={busy} onClick={() => onStart(selected)}>
             {total === 1 ? ui('开始做这 1 道题') : uiFormat('开始做这 {0} 道题', [total])}</Button>
         </> : <>
-          <p className="reader-practice__none" data-testid="practice-none"><MasteryMark summary={null} size={16} /> {drafted ? draftNoneText(drafted.draftCards) : ui('这几页还没有题')}</p>
-          {drafted && <p className="reader-practice__meaning">{ui('发布草稿后才能练习这几页的题。')}</p>}
+          <p className="reader-practice__none" data-testid="practice-none"><MasteryMark summary={null} size={16} /> {drafted ? draftNoneText(drafted.draftCards) : ui('这几页还没有题')}
+            {drafted && <HelpTip label={ui('为什么还不能练')}>{ui('发布草稿后才能练习这几页的题。')}</HelpTip>}</p>
           {coverageLine && <p className="reader-practice__coverage" data-testid="practice-coverage">{coverageLine}</p>}
           {openDraft}
           <Button variant="primary" icon="sparkle" className="reader-practice__action" lock={busy} onClick={() => onGenerate(selected)}>{ui('为这几页出题')}</Button>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl } from '../../components/index.js';
+import { Button, Dialog, HelpTip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl } from '../../components/index.js';
 import { JobUsage, TokenEstimateView } from '../../TokenUsage.jsx';
 import { expectedText, rangeTok } from '../../token-usage.js';
 import { totalTokens } from '../../../lib/token-usage.js';
@@ -40,9 +40,31 @@ function scopeLine(scope) {
   return done ? uiFormat('还有 {0} 段要译 · 已译 {1} 段', [todo, done]) : uiFormat('还有 {0} 段要译', [todo]);
 }
 
-/** The 译 button of the toolbar and its popover. */
-export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvailable, stale, busy, hasTranslations, onStart, onExpandAll, onCollapseAll, onGlossary, onTarget }) {
+/** What the 译 panel holds: the target language, one section per range (this page / this chapter) with what it would cost, the actions, the glossary. */
+function TranslationPanel({ scopes, target, modelAvailable, stale, running, hasTranslations, onStart, onExpandAll, onCollapseAll, onGlossary, onTarget }) {
   const names = TARGET_NAMES();
+  return <>
+    <div className="tr-panel__head">
+      <strong>{ui('中英对照')} <HelpTip label={ui('翻译怎么进行')}>{ui('只译还没有译文的段落；在后台进行，可以继续阅读，关闭阅读器也不会中断，完成后进信箱。')}</HelpTip></strong>
+      <SegmentedControl size="sm" label={ui('译成')} value={target} onChange={onTarget} options={[{ value: 'zh', label: names.zh }, { value: 'en', label: names.en }]} />
+    </div>
+    {!modelAvailable && <ReaderModelGate feature="translate" />}
+    {scopes.map(scope => <section key={scope.id} className="tr-scope" data-status={scope.status}>
+      <div className="tr-scope__head"><strong>{scope.label}</strong><small>{scopeLine(scope)}</small></div>
+      {scope.status === 'ready' && scope.estimate && (scope.counts?.toTranslate || 0) > 0 && <TokenEstimateView state={{ status: 'ready', estimate: scope.estimate }} />}
+      {(scope.counts?.toTranslate || 0) > 0 && <Button size="sm" variant="secondary" lock={running} disabled={!modelAvailable || scope.status !== 'ready'} onClick={() => onStart(scope.id)}>{ui('开始翻译')}</Button>}
+    </section>)}
+    <div className="tr-panel__actions">
+      <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onExpandAll}>{ui('展开本页全部译文')}</Button>
+      <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onCollapseAll}>{ui('收起本页全部译文')}</Button>
+      <Button size="sm" variant="quiet" icon={<Icon name="book" size={16} />} onClick={onGlossary}>{ui('术语表…')}</Button>
+    </div>
+    {stale?.length > 0 && <p className="tr-panel__note">{uiFormat('旧版本里还有 {0} 段译文，没有套用到这个版本；文字没变的段落会直接沿用。', [stale.reduce((total, entry) => total + entry.count, 0)])}</p>}
+  </>;
+}
+
+/** The 译 button of the toolbar and its popover. */
+export function TranslationMenu({ open, onOpenChange, target, busy, ...panel }) {
   // On a narrow reader the button can sit anywhere along the wrapped toolbar: Popover slides the panel back inside the viewer.
   return <Popover open={open} onOpenChange={onOpenChange} label={ui('中英对照翻译')} className="reader-popover tr-popover" panelClassName="reader-popover__panel tr-panel"
     boundsSelector=".study-document-viewer" flip={false}
@@ -50,24 +72,14 @@ export function TranslationMenu({ open, onOpenChange, scopes, target, modelAvail
       title={ui('中英对照翻译')} data-busy={busy ? 'true' : undefined} data-tour="translation-toggle" data-usage="reader.translate">
       <span className="tr-toolbar-button__tag" aria-hidden="true">{target === 'en' ? 'EN' : ui('译')}</span><span className="tr-toolbar-button__label">{ui('翻译')}</span>
     </Button>}>
-      <div className="tr-panel__head">
-        <strong>{ui('中英对照')}</strong>
-        <SegmentedControl size="sm" label={ui('译成')} value={target} onChange={onTarget} options={[{ value: 'zh', label: names.zh }, { value: 'en', label: names.en }]} />
-      </div>
-      {!modelAvailable && <ReaderModelGate feature="translate" />}
-      {scopes.map(scope => <section key={scope.id} className="tr-scope" data-status={scope.status}>
-        <div className="tr-scope__head"><strong>{scope.label}</strong><small>{scopeLine(scope)}</small></div>
-        {scope.status === 'ready' && scope.estimate && (scope.counts?.toTranslate || 0) > 0 && <TokenEstimateView state={{ status: 'ready', estimate: scope.estimate }} />}
-        {(scope.counts?.toTranslate || 0) > 0 && <Button size="sm" variant="secondary" lock={busy} disabled={!modelAvailable || scope.status !== 'ready'} onClick={() => onStart(scope.id)}>{ui('开始翻译')}</Button>}
-      </section>)}
-      {scopes.some(scope => (scope.counts?.toTranslate || 0) > 0) && <p className="tr-panel__note">{ui('只译还没有译文的段落；在后台进行，可以继续阅读，关闭阅读器也不会中断，完成后进信箱。')}</p>}
-      <div className="tr-panel__actions">
-        <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onExpandAll}>{ui('展开本页全部译文')}</Button>
-        <Button size="sm" variant="quiet" disabled={!hasTranslations} onClick={onCollapseAll}>{ui('收起本页全部译文')}</Button>
-        <Button size="sm" variant="quiet" icon={<Icon name="book" size={16} />} onClick={onGlossary}>{ui('术语表…')}</Button>
-      </div>
-      {stale?.length > 0 && <p className="tr-panel__note">{uiFormat('旧版本里还有 {0} 段译文，没有套用到这个版本；文字没变的段落会直接沿用。', [stale.reduce((total, entry) => total + entry.count, 0)])}</p>}
+      <TranslationPanel target={target} running={busy} {...panel} />
   </Popover>;
+}
+
+/** The same panel in a dialog, for the reader's 更多 › 翻译… (the toolbar has no 译 button any more). */
+export function TranslationDialog({ open, onClose, target, busy, ...panel }) {
+  if (!open) return null;
+  return <Dialog title={ui('中英对照翻译')} size="sm" className="tr-dialog" onClose={onClose}><div className="tr-panel tr-panel--dialog"><TranslationPanel target={target} running={busy} {...panel} /></div></Dialog>;
 }
 
 /** The progress of a translation job, in the notices of the reader: counts, clock, a stop, what it used. */

@@ -12,6 +12,7 @@ import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { Store } from '../lib/store.js';
 import { PAGE_EVIDENCE_MAX } from '../lib/ask-prompt.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { chooseMore } from './helpers/reader-more.mjs';
 
 /* #488 in the browser, at 1440 and 420: 连问后面几页 names the range and sends both ends, a page turn ends it, the limit is said; on a long page 接着读后面 asks the same
    question about the next part only. What travels to the model is asserted in tests/materials-ask-shape.test.mjs; here the panel and its requests. */
@@ -52,9 +53,9 @@ test('原始 PDF: a range and 接着读 in the panel, at 1440 and 420 (#488)', {
       await (await revealNavRow(page, 'sources')).click().catch(() => {});
       await page.locator('.source-doc').first().locator('.source-main').click();
       await page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
-      await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+      await chooseMore(page, '原始 PDF');
       await page.locator('.reader-scroll[data-mode="original"]').waitFor({ timeout: 30000 });
-      if (!(await page.locator('[data-tour="source-tools"]').isVisible().catch(() => false))) await page.locator('[data-tour="source-tools-toggle"]').click();
+      if (!(await page.locator('[data-tour="source-tools"]').isVisible().catch(() => false))) await chooseMore(page, '学习工具');
       await panel.waitFor({ timeout: 30000 });
       await until(() => panel.getByRole('button', { name: '讲解这一页' }).isEnabled(), 'the model to be ready');
       asked.length = 0;

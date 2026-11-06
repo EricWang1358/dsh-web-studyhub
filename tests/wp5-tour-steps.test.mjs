@@ -77,11 +77,11 @@ test("the full tour is the explicit extra: every step but the short-tour-only on
   assert.equal(new Set(TOUR_STEPS.map((step) => step.id)).size, TOUR_STEPS.length, "unique ids");
   assert.equal(TOUR_STEPS[0].anchor, undefined, "the welcome step is centred");
   const anchors = new Set(TOUR_STEPS.flatMap((step) => [step.anchor].flat()).filter(Boolean));
-  for (const anchor of ["reader-practice", "translation-toggle", "nav-tasks", "nav-notes", "nav-examprep"]) assert.ok(anchors.has(anchor), `${anchor} is toured`);
+  for (const anchor of ["reader-practice", "reader-more", "nav-tasks", "nav-notes", "nav-examprep"]) assert.ok(anchors.has(anchor), `${anchor} is toured`);
   for (const step of TOUR_STEPS) {
     if (step.page) assert.ok(PAGES.has(step.page), `${step.id}: unknown page ${step.page}`);
-    for (const anchor of [step.anchor].flat().filter(Boolean)) assert.ok(PLAN_ANCHORS.includes(anchor) || ["source-tools", "source-tools-toggle", "draft-publish", "exam-case", "home-course",
-      "reader-practice", "translation-toggle", "nav-tasks", "nav-notes", "nav-examprep", "first-run-material"].includes(anchor), `${step.id}: anchor ${anchor} is not in the plan's list`);
+    for (const anchor of [step.anchor].flat().filter(Boolean)) assert.ok(PLAN_ANCHORS.includes(anchor) || ["source-tools", "reader-more", "draft-publish", "exam-case", "home-course",
+      "reader-practice", "nav-tasks", "nav-notes", "nav-examprep", "first-run-material"].includes(anchor), `${step.id}: anchor ${anchor} is not in the plan's list`);
   }
 });
 

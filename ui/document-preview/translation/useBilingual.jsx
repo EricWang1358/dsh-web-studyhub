@@ -14,7 +14,7 @@ import {
 import TranslationBlock from './TranslationBlock.jsx';
 import GlossaryDialog from './GlossaryDialog.jsx';
 import FloatingTranslation from './FloatingTranslation.jsx';
-import { SelectionChip, TranslationDisplayRow, TranslationJobCard, TranslationMenu } from './TranslationMenu.jsx';
+import { SelectionChip, TranslationDisplayRow, TranslationDialog, TranslationJobCard, TranslationMenu } from './TranslationMenu.jsx';
 import useRangeAnchor from './useRangeAnchor.js';
 
 /* The bilingual reading of the reader (译), as one hook the viewer calls once. It owns the translations of the document, the
@@ -457,11 +457,15 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     {glossaryOpen && <GlossaryDialog glossary={state.glossary} target={target} onSave={saveGlossary} onPrice={priceAgain} onRetranslate={retranslateMany} onClose={() => setGlossaryOpen(false)} />}
   </>;
   const hasTranslations = Object.keys(state.items).length > 0;
+  const panelProps = { scopes, target, modelAvailable: state.modelAvailable, stale: state.stale, busy: active, hasTranslations, onStart: start, onExpandAll: () => showAll(true), onCollapseAll: () => showAll(false),
+    onGlossary: () => { setMenuOpen(false); setGlossaryOpen(true); }, onTarget: setTarget };
   return {
     supported,
     displayRow: supported ? <TranslationDisplayRow mode={settings.mode} target={target} narrow={crowded} onChange={next => { dispatch({ type: 'show-reset' }); setSettings({ mode: next }); }} /> : null,
-    toolbar: supported && view !== 'original' ? <TranslationMenu open={menuOpen} onOpenChange={openMenu} scopes={scopes} target={target} modelAvailable={state.modelAvailable} stale={state.stale}
-      busy={active} mode={mode} hasTranslations={hasTranslations} onStart={start} onExpandAll={() => showAll(true)} onCollapseAll={() => showAll(false)} onGlossary={() => { setMenuOpen(false); setGlossaryOpen(true); }} onTarget={setTarget} /> : null,
+    toolbar: supported && view !== 'original' ? <TranslationMenu open={menuOpen} onOpenChange={openMenu} {...panelProps} /> : null,
+    // The reader's toolbar has no 译 button: 更多 › 翻译… opens the same panel in a dialog (openDialog).
+    dialog: supported && view !== 'original' ? <TranslationDialog open={menuOpen} onClose={() => openMenu(false)} {...panelProps} /> : null,
+    openDialog: () => { void openMenu(true); },
     notice: supported && job ? <TranslationJobCard key="translation-job" job={job} now={now} onStop={stopJob} onDismiss={() => setDismissed(set => new Set(set).add(job.id))} /> : null,
     layer: supported ? layerNodes : null,
   };

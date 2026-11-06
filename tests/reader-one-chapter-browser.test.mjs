@@ -11,6 +11,7 @@ import { planOutline } from '../lib/contexts/materials/outline.js';
 import { openPage, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { until } from './helpers/wait.mjs';
+import { chooseMore } from './helpers/reader-more.mjs';
 
 /* The reader draws one chapter (owner decision 2026-11-06; a real 513-page book blocked the page for 9.6 s with 53,687 nodes): a generated converted book of
    500 pages in 25 chapters of 20, with about 3000 inline formulas, seeded through the real store, fake model, no key. In the real page at 1280 and 420 px:
@@ -170,7 +171,7 @@ test('the reader draws one chapter of a 500-page book and every way to a page re
       await shot('outline');
 
       // ---- find in another chapter ----
-      await viewer.getByRole('button', { name: '在文中查找', exact: true }).click();
+      await chooseMore(page, '在文中查找', { viewer });
       await page.getByRole('searchbox', { name: '在文中查找' }).fill('zebracorn');
       const elsewhere = page.locator('[data-find-elsewhere] .reader-find__chapter');
       await elsewhere.first().waitFor({ timeout: 15000 });
@@ -291,7 +292,7 @@ test('with a kept AI outline: meters of every chapter, find across chapters, a c
 
   // F4: one fact, one number: the count beside another chapter is what find counts there on arrival; Shift+Enter at the first match goes to the
   // last match of the chapter before (round the book: the last chapter), Enter at its last match on to the first chapter again.
-  await viewer.getByRole('button', { name: '在文中查找', exact: true }).click();
+  await chooseMore(page, '在文中查找', { viewer });
   await searchbox.fill('C + I + G');
   await until(async () => (await findCount(page)) === `1 / ${PER_CHAPTER * 3}`, 'the matches of the chapter drawn', { timeoutMs: 15000 });
   const chip = page.locator('[data-find-elsewhere] .reader-find__chapter').first();

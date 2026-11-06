@@ -10,7 +10,7 @@ import { workflowDesignPrompt, workflowSkeletonPrompt, workflowStepPrompt } from
 import { groupPrompt } from '../topic-group-prompt.js';
 import { pathBrief } from './path.js';
 import { guideStartPrompt } from './guide.js';
-import { pageQuestionPrompt } from './reader.js';
+import { mindMapPrompt, pageQuestionPrompt } from './reader.js';
 import { coursePlanPrompt } from './plan.js';
 import { guidedStartPrompt } from './guided-start.js';
 import { courseFocusPrompt } from './focus.js';
@@ -40,6 +40,8 @@ export const HAND_OFFS = Object.freeze({
   'workflow.step': { build: (input, language) => workflowStepPrompt(input, language) },
   'path.brief': { build: (input, language) => pathBrief(input, language) },
   'reader.page': { build: (input, language) => pageQuestionPrompt(input, language), tail: 'image' },
+  // 思维导图 of the reader: the chapter's tree drawn from its headings, handed over to be refined from its pages (ui/document-preview/reader/MindMapPanel.jsx)
+  'reader.map': { build: (input, language) => mindMapPrompt(input, language) },
   'guide.start': { build: (input, language) => guideStartPrompt(input, language), skill: 'study-guide', tail: 'ask' },
   // 备考计划 on the review book page: drafted with the learner in the chat, saved only after they agree (ui/book/PlanSection.jsx)
   'course.plan': { build: (input, language) => coursePlanPrompt(input, language) },

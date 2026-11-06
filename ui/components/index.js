@@ -25,6 +25,7 @@ export { default as InlineConfirm } from './InlineConfirm.jsx';
 export { default as Popover } from './Popover.jsx';
 export { default as Menu } from './Menu.jsx';
 export { default as Tooltip } from './Tooltip.jsx';
+export { HelpTip } from './HelpTip.jsx';
 export { CloseButton } from './CloseButton.jsx';
 export { useDismiss, useAnchoredPosition, computePlacement, placeInHost } from './use-dismiss.js';
 export { default as SecretKeyForm } from './SecretKeyForm.jsx';

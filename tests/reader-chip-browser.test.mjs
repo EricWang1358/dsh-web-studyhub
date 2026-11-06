@@ -12,6 +12,7 @@ import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { bilingualMarkdown } from './helpers/bilingual-transcript.mjs';
 import { until } from './helpers/wait.mjs';
+import { chooseMore } from './helpers/reader-more.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* #231: the 译 chip of a selection sits at the end of the selection (above it, never paragraphs away), at any interface size, wide and narrow,
@@ -150,7 +151,7 @@ test('the floating translation card of the 原文 view opens at the selection un
         await (await revealNavRow(page, 'sources')).click().catch(() => {});
         await page.locator('.source-doc').first().locator('.source-main').click();
         await page.locator('.study-document-viewer').waitFor();
-        await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原文' }).click();
+        await chooseMore(page, '原文');
         await page.locator('.study-document-viewer[data-mode="text"]').waitFor();
         assert.equal(await select(page), true, `${label}: the words are in the text`);
         const first = await until(async () => { const m = await measure(page); return m.chip && m.last ? m : null; }, `${label}: the chip`);

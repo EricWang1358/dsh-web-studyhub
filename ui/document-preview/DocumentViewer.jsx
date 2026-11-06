@@ -4,7 +4,7 @@ import MathText from '../MathText.jsx';
 import { AudioCorrections } from '../audio/AudioCorrections.jsx';
 import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, IconButton, InlineMessage, LoadingState, SegmentedControl, Tooltip } from '../components/index.js';
+import { Button, HelpTip, IconButton, InlineMessage, LoadingState, Tooltip } from '../components/index.js';
 import DocumentLearning from './DocumentLearning.jsx';
 import { ReaderModelContext } from './ReaderModelGate.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
@@ -21,16 +21,23 @@ import { annotationLinks, loadAnnotationMode, saveAnnotationMode } from './annot
 import StaleAnnotations from './annotation/StaleAnnotations.jsx';
 import { isOfficeFormat, isPagedFormat, isSlideFormat } from '../../lib/office/limits.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
+import { displayTitle } from '../../lib/document-title.js';
 import ReadingPractice from './practice/ReadingPractice.jsx';
-import { MasteryLine } from './practice/MasteryMark.jsx';
-import { CoverageChip } from '../coverage/Coverage.jsx';
+import { masteryText } from './practice/mastery-copy.js';
+import { coverageChipText } from '../coverage/copy.js';
 import DocumentTopUp, { offersDocumentTopUp } from '../coverage/DocumentTopUp.jsx';
 import { modelReadiness } from '../generation-status.js';
 import { useReadingLoop } from './practice/useReadingLoop.js';
 import OutlinePanel from './reader/OutlinePanel.jsx';
 import OutlineAssist from './reader/OutlineAssist.jsx';
 import FindBar from './reader/FindBar.jsx';
-import DisplaySettings from './reader/DisplaySettings.jsx';
+import DisplayDialog from './reader/DisplayDialog.jsx';
+import ReaderMore from './reader/ReaderMore.jsx';
+import WrongPanel from './reader/WrongPanel.jsx';
+import MindMapPanel from './reader/MindMapPanel.jsx';
+import { moreItems } from './reader/more-items.js';
+import { buildMindMap, headingNode } from './reader/mind-map.js';
+import { readWrongBook } from './reader/wrong-rows.js';
 import PdfOriginal from './reader/PdfOriginal.jsx';
 import { clampPage, pageCount, pageScopeOf } from './page-scope.js';
 import ReadingSections from './reader/ReadingSections.jsx';
@@ -50,6 +57,7 @@ import { chapterName, chapterRange, chapterTitle, chapterPagerLabel, elsewhereCo
 import { useNarrow } from '../use-narrow.js';
 import css from './document-preview.css';
 import readerCss from './reader/reader.css';
+import slimCss from './reader/reader-slim.css';
 import linksCss from './links/links.css';
 import translationCss from './translation/translation.css';
 
@@ -98,8 +106,9 @@ function QuotedText({ text, quote, anchor, format }) {
 /**
  * The source reader. Three views: 阅读 (reflowed, with an outline), 原文 (the stored text
  * exactly, for checking citations) and 原始 PDF. Props: source, quote, call, data, host,
- * onOpenCard, onPublished, onCaseFromPassage(passage), onGenerate() (shows "从这份资料出题" as the
- * toolbar's primary action), generateDisabled, initialMode ('read' | 'text' | 'original').
+ * onOpenCard, onPublished, onCaseFromPassage(passage), onGenerate() (shows 「出题」 as the toolbar's primary action; its arrow opens 做这几页的题), generateDisabled, initialMode
+ * ('read' | 'text' | 'original'), moreItems (menu items the dialog adds to 更多: rename, today's tasks, the question sets).
+ * The toolbar keeps 目录, 出题, 错题, 思维导图 and 更多; everything else is in 更多 (reader/more-items.js).
  * localContent ({ id, title, markdown }) reads saved writing in the same reader without a material identity or material actions.
  * onOpenModelSettings / onOpenSettings(section): where the gates of the reader's model features and the 前往设置 link lead (ReaderModelGate.jsx); without them the app's own are used.
  */
@@ -110,11 +119,12 @@ export default function DocumentViewer(props) {
 }
 
 function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
-  onPracticePages, onGeneratePages, onOpenDraftPages, resume, backLabel, onBack, localContent }) {
+  onPracticePages, onGeneratePages, onOpenDraftPages, resume, backLabel, onBack, localContent, moreItems: extraItems }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
   useInjectCss(css, 'study-document-preview');
   useInjectCss(readerCss, 'study-reader');
+  useInjectCss(slimCss, 'study-reader-slim');
   useInjectCss(linksCss, 'study-reader-links');
   useInjectCss(translationCss, 'study-reader-translation');
   const [loadedDocument, setDocument] = useState(null), [loadedContent, setContent] = useState(''), [fileUrl, setFileUrl] = useState('');
@@ -133,6 +143,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [pdfPage, setPdfPage] = useState(() => source.document?.page || source.selection?.page || 1), [pdfView, setPdfView] = useState({ zoom: 1, native: false });
   const [attaching, setAttaching] = useState(null), [reload, setReload] = useState(0), attachTarget = useRef(null); // 补全原文件 (OriginalFile.jsx)
   const [peek, setPeek] = useState(null); // 看原页 (peek/PagePeek.jsx): { page, figure }
+  const [displayOpen, setDisplayOpen] = useState(false); // 更多 › 显示设置…
   const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
   // Narrow panes (under NARROW px of the viewer, ui/use-narrow.js): the outline and the learning panel slide over the text instead of sitting beside it.
   const narrow = useNarrow(root);
@@ -452,14 +463,14 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     if (view === 'original' && value !== 'original' && chaptered) chapter.goTo({ page: pdfPage });
     setMode(value);
   };
+  // What the original file is: nothing was kept ('none': said in 更多), or a file that went missing or changed (a fault: its notice stays).
+  const originalIssue = !localMode && document && !document.originalAvailable ? issueOf(document.original) : null;
+  const originalNone = originalIssue?.kind === 'none', originalFault = !!originalIssue && !originalNone;
   if (document) attachTarget.current = { documentId: document.documentId || document.id, revision: document.revision, title: document.filename || document.title || source.title, format };
-  const modes = [{ value: 'read', label: ui('阅读') }, { value: 'text', label: ui('原文') },
-    ...(format === 'pdf' ? [{ value: 'original', label: ui('原始 PDF'), title: fileUrl ? undefined : ui('还没有原始 PDF，点击查看如何补全') }] : [])];
   const notices = [
     loading && <LoadingState key="loading" label={ui('正在打开资料…')} />,
-    !localMode && <OriginalNotice key="original" document={document} onAction={setAttaching} />,
-    view === 'original' && !localMode && <p key="pdf" className="reader-pdf-note">{ui('在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。')}
-      {!toolsOn && <> <Button variant="link" size="sm" onClick={() => toggle('tools')}>{ui('问这一页')}</Button></>}</p>,
+    // A document that only kept its text is said in 更多 (the 原始 PDF item, or 补全原文件…); a file that went missing or changed is a fault and keeps its notice.
+    !localMode && originalFault && <OriginalNotice key="original" document={document} onAction={setAttaching} />,
     !localMode && error && <InlineMessage key="error" tone="error">{error}</InlineMessage>,
     (quoteState?.status === 'ambiguous' || (reading && placed === 'ambiguous')) && <InlineMessage key="ambiguous" tone="warning">{ui('引用在资料中出现多次，请结合上下文核对位置。')}</InlineMessage>,
     quoteState?.status === 'stale' && <InlineMessage key="stale" tone="warning">{ui('引用位置与当前文字不一致，请重新核对这段原文。')}</InlineMessage>,
@@ -483,6 +494,44 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useEffect(() => { if (!canPeek) setPeek(null); }, [canPeek]);
   const peekBytes = async () => fileUrl ? originalBytes(fileUrl) : null;
 
+  // 思维导图: the current chapter drawn from its headings, no model (reader/mind-map.js). A page-based document is read from the heading paragraphs of the pages drawn;
+  // text, and a kept AI outline, from the branch of the outline around the current entry.
+  const materialName = documentItem?.title ? displayTitle(documentItem.title) : source.title || '';
+  const chapterPages = chapter.current ? { from: chapter.current.startPage, to: chapter.current.endPage } : null;
+  const mindMap = useMemo(() => {
+    if (paged && !aiOn) {
+      const ids = new Set(sections.map(section => section.id));
+      return buildMindMap({ title: chapter.current ? chapterTitle(chapter.current) : materialName, sections, outline: outline.filter(item => ids.has(item.id)) });
+    }
+    return buildMindMap({ title: materialName, outline, activeId, branch: true });
+  }, [paged, aiOn, sections, outline, activeId, chapter.current, materialName, language]); // eslint-disable-line react-hooks/exhaustive-deps
+  const jumpMap = node => {
+    const target = node.target || {};
+    if (target.outlineId != null) { const item = outline.find(entry => entry.id === target.outlineId); if (item) jumpTo(item); return; }
+    if (view === 'original') { if (target.page) setPdfPage(target.page); return; }
+    scrollToNode(scroller.current, headingNode(scroller.current, target), { smooth: false });
+  };
+  // 错题: the rows of the 错题与待巩固 page that are questions of this material, this chapter's first (reader/wrong-rows.js).
+  const drawnIds = useMemo(() => chaptered ? new Set(sections.map(section => section.id)) : null, [chaptered, sections]);
+  const readWrong = useCallback(keys => readWrongBook({ call, keys }), [call]);
+  const seekRow = row => { const item = outline.find(entry => entry.id === row.entryId); if (item) jumpTo(item); };
+  const practiseRow = row => {
+    const cards = [{ deckId: row.deckId, cardId: row.cardId }];
+    if (onPracticePages) onPracticePages(loop.start({ kind: 'here', count: 1, cards }));
+    else onPractice?.({ deckId: row.deckId, cardIds: [row.cardId] });
+  };
+  // 更多: what the toolbar does not show (reader/more-items.js). Each item opens what it always opened; 掌握度与覆盖 and AI 整理目录 open the 目录, where they live.
+  const qualityText = [meters && masteryText(loop.current), !localMode && view !== 'original' && loop.coverage?.cards > 0 && coverageChipText(loop.coverage)].filter(Boolean).join(' · ');
+  const openOutlineAnd = focus => {
+    if (!outlineOn) toggle('outline');
+    if (focus) requestAnimationFrame(() => requestAnimationFrame(() => root.current?.querySelector(focus)?.focus?.()));
+  };
+  const menu = moreItems({ view, format, fileUrl: !!fileUrl, localMode, translate: bilingual.supported, display: true, tools: localMode ? null : { on: toolsOn, count: groups.length },
+    quality: qualityText && canOutline ? { text: qualityText } : null, assist: !!(assistTarget && call && view !== 'original'), download: originalHandling(document) === 'download',
+    hostPreview: !!(document?.preview?.kind === 'file' && host?.openDocument), attach: !localMode && format !== 'pdf' && originalNone, extra: extraItems || [] },
+  { setView: chooseView, find: openFind, translate: bilingual.openDialog, display: () => setDisplayOpen(true), tools: () => toggle('tools'), quality: () => openOutlineAnd(),
+    assist: () => openOutlineAnd('.reader-outline__foot button'), download: downloadOriginal, hostPreview: () => host.openDocument(document.preview.path), attach: () => setAttaching('attach') });
+
   return <div className="study-document-viewer reader" ref={root} data-usage-area="reader" data-mode={view} data-tone={settings.tone} data-face={settings.face}
     data-narrow={narrow || undefined} style={readerVars(settings)} onKeyDown={onKeyDown}>
     <div className="reader-toolbar">
@@ -490,33 +539,22 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         {onBack && <Button size="sm" variant="secondary" icon="arrow-left" className="reader-back-to-question" onClick={onBack}>{backLabel}</Button>}
         {canOutline && <IconButton icon="list" className="reader-toolbar__icon-btn" label={ui('目录')} aria-pressed={outlineOn} aria-controls={outlineOn ? outlineId : undefined}
           onClick={() => toggle('outline')} />}
-        <SegmentedControl size="sm" className="study-document-preview-mode" itemClassName="reader-mode__item" data-tour="reader-mode" label={ui('显示方式')} value={view} options={modes} onChange={chooseView} />
+      </div>
+      {/* 出题 is the one primary control; the arrow beside it opens 做这几页的题 (shortcut P). 错题 and 思维导图 are panels. */}
+      <div className="reader-toolbar__actions">
+        {!localMode && onGenerate && <span className="reader-split" data-tour="reader-generate">
+          <Tooltip layer content={ui('从这份资料出题')}><Button variant="primary" size="sm" icon="sparkle" className="reader-split__main" disabled={generateDisabled} onClick={onGenerate}>{ui('AI 出题')}</Button></Tooltip>
+          {view !== 'original' && onPracticePages && <ReadingPractice split loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
+        </span>}
+        {!localMode && !onGenerate && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
+        {!localMode && document && call && <WrongPanel read={readWrong} cards={loop.cards} entryOf={loop.entryOf} drawn={drawnIds} chapterTitle={chapter.current ? chapterTitle(chapter.current) : ''}
+          disabled={loop.status !== 'ready'} onPractice={practiseRow} onSeek={seekRow} />}
+        {!loading && <MindMapPanel map={mindMap} document={materialName} pages={chapterPages} onJump={jumpMap} />}
       </div>
       <p className="reader-toolbar__where">{where ? <Tooltip layer content={where}><span tabIndex={0}>{where}</span></Tooltip> : null}</p>
-      {/* Two facts, two lines, one block (a toolbar has no room for a second row of words): what was learned (掌握, only published questions) and what was asked (覆盖, drafts included). */}
-      {(meters || (!localMode && view !== 'original' && loop.coverage?.cards > 0)) && <span className="reader-toolbar__quality">
-        {meters && <span className="reader-toolbar__mastery" data-rose={loop.returnDelta > 0 ? 'true' : undefined}>
-          <MasteryLine summary={loop.current} title={ui('本节掌握度')} />
-          {loop.returnDelta > 0 && <span className="reader-toolbar__delta" role="status">{uiFormat('本轮 +{0}%', [loop.returnDelta])}</span>}
-        </span>}
-        {!localMode && view !== 'original' && loop.coverage?.cards > 0 && <span className="reader-toolbar__coverage"><CoverageChip coverage={loop.coverage} /></span>}
-      </span>}
-      <div className="reader-toolbar__group reader-toolbar__group--end">
-        {!localMode && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
-        {view !== 'original' && <>
-          <IconButton icon="search" className="reader-toolbar__icon-btn" label={ui('在文中查找')} aria-pressed={finding} onClick={() => finding ? closeFind() : openFind()} />
-          {bilingual.toolbar}
-          <DisplaySettings settings={settings} onChange={updateSettings} onReset={resetSettings} underline={!localMode} extra={bilingual.displayRow} buttonClassName="reader-toolbar__icon-btn" />
-        </>}
-        {!localMode && <IconButton icon="panel" className="reader-toolbar__icon-btn" label={ui('学习工具')} aria-pressed={toolsOn} aria-controls={toolsId} data-tour="source-tools-toggle"
-          data-attention={capture && !toolsOn ? 'true' : undefined} onClick={() => toggle('tools')}>
-          {groups.length > 0 && <span className="reader-count" aria-hidden="true">{groups.length}</span>}
-        </IconButton>}
-        {originalHandling(document) === 'download' && <Button size="sm" variant="quiet" icon="download" onClick={downloadOriginal}>{ui('下载原文件')}</Button>}
-        {document?.preview?.kind === 'file' && host?.openDocument && <Button size="sm" variant="quiet" icon="external"
-          onClick={() => host.openDocument(document.preview.path)}>{ui('使用宿主文件预览')}</Button>}
-        {!localMode && onGenerate && <Button variant="primary" icon="sparkle" data-tour="reader-generate" disabled={generateDisabled} onClick={onGenerate}>{ui('从这份资料出题')}</Button>}
-      </div>
+      {view === 'original' && !localMode && <HelpTip label={ui('在原始 PDF 里怎么提问')} placement="bottom-end">{ui('在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。')}</HelpTip>}
+      {!localMode && loop.returnDelta > 0 && <span className="reader-toolbar__delta" role="status">{uiFormat('本轮 +{0}%', [loop.returnDelta])}</span>}
+      <div className="reader-toolbar__group reader-toolbar__group--end"><ReaderMore items={menu} attention={!!capture && !toolsOn} /></div>
     </div>
     <div className="reader-progress" aria-hidden="true"><span style={{ transform: `scaleX(${view === 'original' ? 0 : position.progress})` }} /></div>
     {finding && view !== 'original' && <FindBar query={query} onQuery={setQuery} total={total} index={Math.min(match, Math.max(total - 1, 0))} elsewhere={elsewhere}
@@ -575,6 +613,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       </aside>}
     </div>
     {bilingual.layer}
+    {bilingual.dialog}
+    {displayOpen && <DisplayDialog settings={settings} onChange={updateSettings} onReset={resetSettings} underline={!localMode} extra={bilingual.displayRow} onClose={() => setDisplayOpen(false)} />}
     {peek && canPeek && <Suspense fallback={null}><PagePeek key={document.revision} page={peek.page} figure={peek.figure} totalPages={Math.max(0, ...sources.map(item => item.document?.totalPages || 0))}
       status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }}
       onShowOriginal={page => { setPeek(null); if (page) setPdfPage(page); setMode('original'); }} /></Suspense>}

@@ -1,0 +1,87 @@
+/* The slim reader toolbar (owner decision 2026-11-06): 目录, 出题, 错题, 思维导图 and 更多, with air between them; the panels of 错题 and 思维导图; the 「?」 beside what
+   used to be a paragraph of explanation. Tokens only (ui/DESIGN.md). Below 520px of viewer width the word of 更多 gives way to its dots, so the row of three
+   actions and the contents toggle stays on one line at 420 px. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* ── Toolbar ─────────────────────────────────────────────────────────── */
+    .reader-toolbar__actions { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: var(--space-1); min-width: 0; }
+    .reader-toolbar__action { flex: none; }
+    /* 出题 and the arrow that opens 做这几页的题 are one control: a primary button and its attached caret. */
+    .reader-split { display: inline-flex; flex: none; align-items: stretch; }
+    .reader-split__main { border-start-end-radius: 0; border-end-end-radius: 0; }
+    .reader-split .reader-practice__caret { border-start-start-radius: 0; border-end-start-radius: 0; margin-inline-start: var(--hairline); }
+    /* ── 错题 ──────────────────────────────────────────────────────────── */
+    .reader-wrong__panel { gap: var(--space-3); width: 360px; max-height: min(70vh, 32rem); overflow-y: auto; overscroll-behavior: contain; }
+    .reader-wrong__panel p, .reader-wrong__panel h4, .reader-wrong__panel ul { margin: 0; }
+    .reader-wrong__body { display: grid; gap: var(--space-4); }
+    .reader-wrong__heading { display: flex; align-items: baseline; gap: var(--space-2); padding-bottom: var(--space-1-5); color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
+    .reader-wrong__heading small { color: var(--text-faint); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .reader-wrong__list { display: grid; padding: 0; list-style: none; }
+    .reader-wrong__row { display: grid; gap: var(--space-1-5); padding: var(--space-2-5) 0; border-top: 1px solid var(--line-soft); }
+    .reader-wrong__list > .reader-wrong__row:first-child { border-top: 0; }
+    .reader-wrong__prompt {
+      display: -webkit-box;
+      overflow: hidden;
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+    }
+    .reader-wrong__status { margin-inline-end: var(--space-1-5); color: var(--bad); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
+    .reader-wrong__actions { display: flex; gap: var(--space-2); }
+    .reader-wrong__more, .reader-wrong__empty { color: var(--text-muted); font-size: var(--fs-sm); }
+    .reader-wrong__empty { display: grid; justify-items: start; gap: var(--space-2); }
+    /* ── 思维导图 ───────────────────────────────────────────────────────── */
+    .reader-map__panel { gap: var(--space-3); width: 380px; max-height: min(72vh, 34rem); overflow-y: auto; overscroll-behavior: contain; }
+    .reader-map__panel p { margin: 0; }
+    .reader-map__body { display: grid; gap: var(--space-3); }
+    .reader-map__root {
+      justify-self: start;
+      max-width: 100%;
+      padding: var(--space-1-5) var(--space-3);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      background: var(--bg-selected);
+      color: var(--text);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-strong);
+      overflow-wrap: anywhere;
+    }
+    /* The branches hang from a vertical line, each with a short elbow to its row: a tree read top to bottom. */
+    .reader-map__list { display: grid; gap: var(--hairline); margin: 0 0 0 var(--space-3); padding: 0; border-inline-start: 1px solid var(--line); list-style: none; }
+    .reader-map__item { position: relative; padding-inline-start: var(--space-3); }
+    .reader-map__item::before { content: ""; position: absolute; top: 17px; left: 0; width: var(--space-3); border-top: 1px solid var(--line); }
+    .reader-map__row { display: flex; align-items: flex-start; gap: var(--space-1); min-width: 0; }
+    .reader-map__twisty { display: grid; flex: none; place-items: center; width: 24px; min-height: 34px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-faint); }
+    .reader-map__twisty--none { pointer-events: none; }
+    .reader-map__node {
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 34px;
+      padding: var(--space-1-5) var(--space-2);
+      border: 0;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      text-align: left;
+      overflow-wrap: anywhere;
+    }
+    .reader-map__node:hover { background: var(--bg-hover); color: var(--text); }
+    .reader-map__item[data-depth='0'] > .reader-map__row > .reader-map__node { color: var(--text); font-weight: var(--fw-strong); }
+    .reader-map__empty { color: var(--text-muted); font-size: var(--fs-sm); }
+    .reader-map__foot { display: flex; justify-content: flex-start; padding-top: var(--space-2); border-top: 1px solid var(--line-soft); }
+  }
+  @container reader (max-width: 520px) {
+    :is(.study-app, .study-seat) {
+      .reader-more__label { display: none; }
+      /* The two panels keep their words and give up their icons, so the four controls and the contents toggle share one row at 420 px. */
+      .reader-toolbar__word-icon { display: none; }
+      .reader-wrong__panel, .reader-map__panel { width: min(360px, calc(100cqw - var(--space-6))); }
+    }
+  }
+}

@@ -51,15 +51,16 @@ export function RenameField({ title, original = '', onSave, onRestore, onCancel,
 }
 
 /**
- * The title in the reader dialog's header, with a 重命名 button; double-click or F2 on the name also edits it. The name is read
- * from the library (data.sources) so it follows a rename made anywhere; `source` is only the page that was opened.
+ * The title in the reader dialog's header; double-click or F2 on the name edits it, and so does 更多 › 重命名… of the reader's toolbar (a new `renameRequest`
+ * number opens the editor). The name is read from the library (data.sources) so it follows a rename made anywhere; `source` is only the page that was opened.
  * `edit` starts in the editor (tests, previews).
  */
-export function ReaderHeading({ data, source, act, call, onRenamed, edit = false }) {
+export function ReaderHeading({ data, source, act, call, onRenamed, edit = false, renameRequest = 0 }) {
   useInjectCss(css, 'study-rename');
   const item = useMemo(() => groupSourcesByDocument(data?.sources || []).find(group => group.sourceIds.includes(source.id)) || null, [data?.sources, source.id]);
   const [editing, setEditing] = useState(edit), name = useRef(null), wasEditing = useRef(false);
   useEffect(() => { if (wasEditing.current && !editing) name.current?.focus(); wasEditing.current = editing; }, [editing]);
+  useEffect(() => { if (renameRequest) setEditing(true); }, [renameRequest]);
   if (!item) return <>{displayTitle(source.title)}</>;
   const part = item.format === 'audio' && item.pages.length > 1 ? item.pages.find(page => page.sourceId === source.id) : null;
   const shown = displayTitle(item.title), text = part ? `${shown} · ${uiFormat('第 {0} 部分', [part.page])}` : shown;
@@ -72,6 +73,5 @@ export function ReaderHeading({ data, source, act, call, onRenamed, edit = false
     <span ref={name} className="reader-heading__text" title={[text, originalNote(item)].filter(Boolean).join('\n')} tabIndex={canRename ? 0 : undefined} aria-keyshortcuts={canRename ? 'F2' : undefined}
       onDoubleClick={canRename ? () => setEditing(true) : undefined}
       onKeyDown={canRename ? event => { if (startsEditing(event)) { event.preventDefault(); setEditing(true); } } : undefined}>{text}</span>
-    {canRename && <Button size="sm" variant="quiet" className="reader-heading__rename" onClick={() => setEditing(true)}>{ui('重命名')}</Button>}
   </span>;
 }

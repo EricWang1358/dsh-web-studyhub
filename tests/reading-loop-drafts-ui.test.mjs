@@ -104,7 +104,7 @@ test('the reader: no question and no draft keeps its panel; a draft shows the sa
   assert.ok(zh.includes('检查草稿') && zh.includes('发布草稿后才能练习这几页的题'));
   assert.ok(zh.includes('为这几页出题'), 'making new ones is still possible');
   assert.ok(!zh.includes('这几页还没有题'), 'it is not "no questions"');
-  assert.equal(buttons(zh), 3, 'the control, the way to the draft, and the generate button');
+  assert.equal(buttons(zh), 4, 'the control, the 「?」 that says why they cannot be practised yet, the way to the draft, and the generate button');
   assert.ok(!render(practice(drafted)).includes('检查草稿'), 'no way to open it where the host gave none');
   setUiLanguage('en');
   const en = render(practice(drafted, { onOpenDraft() {} }));

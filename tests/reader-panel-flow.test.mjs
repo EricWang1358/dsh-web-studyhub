@@ -456,9 +456,11 @@ test('the page chips sit in an even two-column grid; the original-PDF notice is 
   const css = await readFile(new URL('../ui/document-preview/document-preview.css', import.meta.url), 'utf8');
   assert.match(css, /\.study-page-ask \.ask-quick \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   const viewer = await readFile(new URL('../ui/document-preview/DocumentViewer.jsx', import.meta.url), 'utf8');
-  const notice = viewer.match(/view === 'original' && !localMode && <p key="pdf" className="reader-pdf-note">\{ui\('([^']+)'\)\}/)?.[1];
+  // The sentence is a 「?」 beside the page label now (HelpTip), not a paragraph under the toolbar: one line on a phone-width reader, two at most.
+  const notice = viewer.match(/view === 'original' && !localMode && <HelpTip [^>]*>\{ui\('([^']+)'\)\}<\/HelpTip>/)?.[1];
   assert.equal(notice, '在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。');
   assert.ok(notice.length <= 40, 'one line on a phone-width reader, two at most');
+  assert.doesNotMatch(viewer, /reader-pdf-note/, 'no paragraph of its own');
 });
 
 test('English: the hints and the new sentences are English', () => {

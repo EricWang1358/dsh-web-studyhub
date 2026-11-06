@@ -219,10 +219,6 @@
     border: 1px solid var(--line);
     padding: .5rem;
   }
-  .study-document-preview-mode {
-    display: flex;
-    gap: .4rem;
-  }
   @container study (max-width: 800px) {
     .study-document-side { position: static; }
     .study-document-body iframe { height: 48vh; }

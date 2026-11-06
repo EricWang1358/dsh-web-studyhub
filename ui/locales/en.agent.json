@@ -307,6 +307,12 @@
   "目标课程": "Target course",
   "重点图片路径": "Highlight image paths",
   "课程已有重点": "Existing focus topics",
+  "帮我细化资料 {0} 里「{1}」这一章的思维导图（第 {2}–{3} 页）。": "Help me refine the mind map of the chapter {1} in the material {0} (pages {2}–{3}).",
+  "帮我细化资料 {0} 里「{1}」这一章的思维导图。": "Help me refine the mind map of the chapter {1} in the material {0}.",
+  "用 source.pages 按页码读这一章的页面（一次最多 4 页，往后接着读）": "read the pages of this chapter with source.pages by page number (at most 4 pages a call, carrying on)",
+  "做法：在 data 里的标题树上细化：补上漏掉的小节和要点，合并重复的，每个节点带页码；用缩进的列表直接回复我。": "How: refine the heading tree in the data fence: add the sections and key points it misses, merge repeats, give every node its page; write it as an indented list in your reply.",
+  "说明：标题树是阅读器按标题自动画的，可能有错，以页面文字为准；这张图只留在这次回复里，不会写进学习库。": "Note: the reader drew the heading tree from the headings by itself and it may be wrong; the page text decides. This map stays in the reply and is not written into the study library.",
+  "这一章的标题树": "Heading tree of this chapter",
   "原文件：{0}（PDF 的第 {1} 页，按文件的页序，不是书上印的页码）。图表、表格和公式请打开这个 PDF 的这一页来看，不要只信转换出来的文字。": "Original file: {0} (PDF page {1}, counted in the order of the file, not the number printed in the book). Open that page of the PDF to read figures, tables and formulas; do not rely on the converted text.",
   "原文件：{0}（PDF 的第 {1} 页，按文件的页序，不是书上印的页码）。图表、表格和公式请打开这个 PDF 的这几页来看，不要只信转换出来的文字。": "Original file: {0} (PDF pages {1}, counted in the order of the file, not the numbers printed in the book). Open those pages of the PDF to read figures, tables and formulas; do not rely on the converted text."
 }

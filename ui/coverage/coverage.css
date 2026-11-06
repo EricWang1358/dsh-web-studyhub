@@ -105,8 +105,6 @@
     .reader-outline__covaction { flex-basis: 100%; }
     .reader-outline__covaction .cov-popover { width: 100%; }
     .reader-outline__covtoggle { display: inline-flex; align-items: center; gap: var(--space-1-5); margin: 0; color: var(--text-dim); font-size: var(--fs-xs); cursor: pointer; }
-    .reader-toolbar__quality { display: grid; flex: none; align-content: center; justify-items: start; gap: var(--space-half); line-height: var(--lh-snug); }
-    .reader-toolbar__coverage { display: inline-flex; align-items: center; max-width: 14em; }
     /* ── 覆盖强度 on the 创建题组 form ─────────────────────────────────── */
     .cov-strength { display: grid; gap: var(--space-2); width: 100%; min-width: 0; justify-items: start; }
     .cov-strength > * { min-width: 0; max-width: 100%; }
@@ -125,9 +123,6 @@
     /* ── In a part of a question run (the 任务 console) ────────────────── */
     .tc-cover { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-1-5); min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     .tc-cover .cov-meter__bar { width: 2.75em; }
-  }
-  @container reader (max-width: 899.98px) {
-    :where(.study-app, .study-seat) { .reader-toolbar__coverage { display: none; } }
   }
   @container study (max-width: 520px) {
     :where(.study-app, .study-seat) {

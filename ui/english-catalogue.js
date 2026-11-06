@@ -35,6 +35,7 @@ import peekCopy from './locales/en.peek.json';
 import largedocs from './locales/en.largedocs.json';
 import mineruCopy from './locales/en.mineru.json';
 import reader from './locales/en.reader.json';
+import readerSlim from './locales/en.reader-slim.json';
 import wave4 from './locales/en.wave4.json';
 import wave5a from './locales/en.wave5a.json';
 import wave5b from './locales/en.wave5b.json';
@@ -115,6 +116,7 @@ export const ENGLISH_SOURCES = {
   'en.largedocs.json': largedocs,
   'en.mineru.json': mineruCopy,
   'en.reader.json': reader,
+  'en.reader-slim.json': readerSlim,
   'en.wave4.json': wave4,
   'en.wave5a.json': wave5a,
   'en.wave5b.json': wave5b,

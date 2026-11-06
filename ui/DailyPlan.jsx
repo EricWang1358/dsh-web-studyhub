@@ -91,6 +91,15 @@ export function RelatedTasks({ plan, reference, runId, onBoard }) {
   </aside>;
 }
 
+/** The same tasks as menu items, for the reader's 更多: 我已完成 for a reading task that can be marked, and 查看待办 (the board). */
+export function relatedTaskItems({ plan, reference, onBoard }) {
+  const tasks = (plan.state?.tasks || []).filter(task => sameReference(task.studyRef, reference));
+  const items = tasks.filter(task => task.kind === 'reading' && actionable(task))
+    .map(task => ({ id: `task:${task.id}`, icon: 'success', label: uiFormat('我已完成：{0}', [task.title]), disabled: !!plan.busy, run: () => plan.complete(task.id) }));
+  if (tasks.length && onBoard) items.push({ id: 'board', icon: 'checklist', label: ui('查看待办'), hint: uiFormat('今日相关 {0} 项', [tasks.length]), run: onBoard });
+  return items;
+}
+
 /** Why the AI could not plan, next to the local suggestion that stands in for it: the reason, the fix, the provider's own words. */
 function PlanFailure({ failure, plan, onSettings }) {
   const again = () => plan.suggest({});

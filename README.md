@@ -30,7 +30,7 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 - **Find weak points.** Use **Mistakes & weak points**, **Statistics** and **Mock exam**, which offers a multiple-choice paper, a case paper or an oral interview.
 - **Finish with a daily recap.** After answering 10 distinct questions in one course on the same day, generate one recap across its chapters. Retries count once. Choose a friendly or professional tone and opt into automatic generation in Settings. Recaps use the source reader; saving one as a source and publishing on CSDN are separate actions.
 - **Turn recordings into text.** Import a lecture recording, or transcribe a **Live class** as it happens, and get a Chinese–English transcript you can generate questions from.
-- **Read and organise.** The reader has a table of contents, search, **Translate this page** and **Practise these pages**. Courses, **Study notes**, **Tasks** and a **Knowledge outline** keep a term's work together.
+- **Read and organise.** The reader keeps its toolbar short (**Contents**, **Make questions**, **Mistakes**, **Mind map**); search, **Translate…**, display settings and **Study tools** are in **More**, and **Practise these pages** is the arrow beside **Make questions**. Courses, **Study notes**, **Tasks** and a **Knowledge outline** keep a term's work together.
 - **Works well with** the open-source [Archify](https://github.com/tt-a1i/archify) (MIT licence, by tt-a1i; no partnership with StudyHub): your assistant can draw a knowledge outline as an interactive diagram with it, and StudyHub keeps and shows the file. See [Works well with other tools](docs/companions.md).
 
 ## Quick start
@@ -130,7 +130,7 @@ When DSH supports local subagents, repeated **Help me understand** on the same q
 ### Read your sources
 
 - Sources keep their original file and earlier versions, and open full screen.
-- **Original page** shows the PDF page behind a citation, **Translate this page** adds a translation, and **Practise these pages** (shortcut P) quizzes you on the pages you are reading.
+- **Original page** shows the PDF page behind a citation, **More › Translate…** adds a translation, and **Practise these pages** (the arrow beside **Make questions**, shortcut P) quizzes you on the pages you are reading.
 - Select a passage to ask about it, or to generate candidate questions that you review and add to an existing deck.
 - A source imported as text only can get its original back with **Add the original file**, with no reimport.
 - When a source changes and a linked position is no longer certain, StudyHub asks you to relocate it instead of guessing.
