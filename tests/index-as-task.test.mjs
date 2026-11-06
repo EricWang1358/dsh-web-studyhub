@@ -102,6 +102,20 @@ test('a host that cannot run jobs at all (no executor) keeps the original backgr
   assert.equal(done.added, PAGES);
 });
 
+test('with no host config and no live session to own a job (a preview), the build still runs, as the original background run', async t => {
+  await home(t);
+  const fake = fakeIndexPort(), root = await newRoot(t);
+  const gone = { assertAvailable() { throw Object.assign(new Error('no agent'), { code: 'executor-unavailable' }); }, start() { throw new Error('not admitted'); } };
+  const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: fake.port, jobExecutor: gone });
+  t.after(() => service.dispose());
+  const book = Array.from({ length: PAGES }, (_, index) => `<!-- page: ${index + 1} -->\nOS 第 ${index + 1} 页。`).join('\n\n');
+  await service.call('materials.document.import', { dataBase64: Buffer.from(book, 'utf8').toString('base64'), filename: 'OS.md', courses: ['OS'] });
+  await service.call('retrieval.index.start', { course: 'OS' });
+  const done = await until(async () => { const run = await service.call('retrieval.index.status', {}); return run.status === 'complete' ? run : null; }, 'the build');
+  assert.equal(done.added, PAGES);
+  assert.deepEqual((await service.call('snapshot')).jobs.filter(job => job.type === KIND), []);
+});
+
 test('a build the original path started is the one build of the library: the job path joins it, stops it, and then writes only the pages it did not record', async t => {
   await home(t);
   let stuck = false;
