@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useContext, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button, ConfirmDialog, Hint, InlineMessage, ProgressBar, Select, Tooltip } from './components/index.js';
@@ -10,6 +10,7 @@ import { refreshRetrievalStatus, setRetrievalStatus, useRetrievalStatus } from '
 import { useLiveEffect } from './use-async.js';
 import ExtensionNotStarted, { resetLine } from './ExtensionNotStarted.jsx';
 import { useStudy } from './study-context.jsx';
+import { AppContext } from './app/app-context.js';
 
 /* The one-click path to searching a large textbook (WP28b): install the search
    extension, then build the index of a course. No file is edited and no command is
@@ -94,6 +95,13 @@ export function ExtensionUpdateNotice({ status, onStatus, initialDone = null }) 
   );
 }
 
+/** 在任务里查看: a build that is a job of the 任务 console (it has a taskId) opens there with its pages, its stop and its whole reason.
+ * A build of the original background run has no task, and outside the app (a preview, a test) nothing is drawn. */
+function TaskLink({ run }) {
+  const show = useContext(AppContext)?.nav?.show?.task;
+  return run?.taskId && show ? <Button variant="link" size="sm" onClick={() => show(run.taskId)}>{ui('在任务里查看')}</Button> : null;
+}
+
 const names = courses => (courses || []).map(course => (typeof course === 'string' ? course : course?.name)).filter(Boolean);
 const FINISHED = new Set(['complete', 'failed', 'cancelled']);
 
@@ -154,6 +162,7 @@ function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun,
         <p role="status">{progress.label}</p>
         {run.stage === 'model' && run.firstRun && <Hint>{ui('首次需要下载约 90 MB 的检索模型，只下载一次。')}</Hint>}
         <Button size="sm" variant="quiet" onClick={stop}>{ui('停止')}</Button>
+        <TaskLink run={run} />
       </div>}
       {!running && <Tooltip layer anchorClassName="extension-panel__tip" content={`${ui('在本机把还没编目录的页编好，不调用 AI，不花 token。')}\n${ui('可以随时停止，已建好的部分会保留。')}`}>
         <span className="extension-panel__action"><Button variant={action.variant} busy={starting} disabled={starting || !!upToDate || plan?.canIndex === false} onClick={start}>{action.label}</Button></span></Tooltip>}
@@ -168,6 +177,7 @@ function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun,
       {run?.status === 'failed' && <InlineMessage tone="error" boxed title={ui('索引没有建完')}>
         {run.error}
         {run.errorCode === 'retrieval-model-download' && ` ${ui('也可以在「设置 › 检索扩展」的高级选项里填写模型下载地址。')}`}
+        <TaskLink run={run} />
       </InlineMessage>}
     </div>
   );

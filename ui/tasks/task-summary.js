@@ -47,8 +47,8 @@ export function taskTitle(job) {
   if (kind === 'coach-daily') return uiFormat('为你定制 · {0}', [dayName(title)]);
   // A new draft that will be the next part of a deck (lib/deck-parts.js): 「期中复习 · 第二部分」.
   if (detail?.part?.deckTitle) return partTitle(detail.part.deckTitle, detail.part.n);
-  // An install's title is the producer's words (安装本机 MinerU): in the learner's language like its step.
-  if (title) return kind === 'translation' ? uiFormat('翻译「{0}」', [title]) : detail?.install ? uiMessage(title) : title;
+  // An install's title is the producer's words (安装本机 MinerU), and so is a search-index build's (建立检索索引 · 课程): in the learner's language like its step.
+  if (title) return kind === 'translation' ? uiFormat('翻译「{0}」', [title]) : detail?.install || kind === 'retrieval-index' ? uiMessage(title) : title;
   return kind === 'generation' || kind === 'supplement' ? ui('新题组') : taskKindLabel(taskKindOf(job));
 }
 
@@ -72,6 +72,8 @@ export function stageLabel(stage) {
   if (family === 'task') return name === 'queued' ? ui('排队中') : ui('进行中');
   // A one-click install says its step (第 3/6 步：安装 MinerU) or how it ended, in the producer's words (lib/application-messages.js has the English).
   if (family === 'install') return stage.text ? uiMessage(stage.text) : ui('进行中');
+  // A search-index build says its pages in the producer's words (正在建立索引 3 / 513 页, lib/retrieval-messages.js).
+  if (family === 'retrieval') return stage.text ? uiMessage(stage.text) : ui('进行中');
   return stage.text || '';
 }
 

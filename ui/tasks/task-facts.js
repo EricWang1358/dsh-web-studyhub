@@ -146,6 +146,8 @@ export function taskFacts(job, now = Date.now()) {
     contract.kind === 'pdf-convert' ? { key: 'calls', label: ui('已完成的段'), value: windowsFact(job, contract) }
       // An install makes no model calls: the tile says the step it is on (the same step the list below marks).
       : contract.detail?.install?.steps ? { key: 'calls', label: ui('当前步骤'), value: installStepFact(contract.detail.install.steps) }
+      // A search-index build writes pages to the local search extension: no model, no tokens, and the tile says so instead of counting its one local call.
+      : contract.kind === 'retrieval-index' ? { key: 'calls', label: ui('运行方式'), value: ui('本机 · 不调用 AI，不花 token') }
       : { key: 'calls', label: ui('模型任务'), value: usage.tokens > 0 ? `${callsFact(contract)} · ${formatCompactTokens(usage.tokens)}` : callsFact(contract) },
     { key: 'warnings', label: ui('提醒'), value: notices ? uiFormat('{0} 条', [formatNumber(notices)]) : dash },
   ];

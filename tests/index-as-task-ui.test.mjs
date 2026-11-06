@@ -11,6 +11,7 @@ const m = await loadUi(`
   export { default as ExtensionPanel } from './ui/ExtensionPanel.jsx';
   export { AppContext } from './ui/app/app-context.js';
   export { taskFacts } from './ui/tasks/task-facts.js';
+  export { taskSummary } from './ui/tasks/task-summary.js';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement;
 const render = (element, language = 'zh') => { m.setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { m.setUiLanguage('zh'); } };
@@ -44,11 +45,23 @@ test('no link for a build of the original background run, nor outside the app (a
   assert.doesNotMatch(panel({ ...running, taskId: 'job-1' }, { inApp: false }), /在任务里查看/);
 });
 
-test('the console says a search-index build runs on this computer and asks no model, in both languages', () => {
-  const job = { id: 'job-1', type: 'retrieval-index', contract: { jobId: 'job-1', kind: 'retrieval-index', status: 'running', title: '建立检索索引 · OS',
+const indexJob = () => ({ id: 'job-1', type: 'retrieval-index', contract: { jobId: 'job-1', kind: 'retrieval-index', status: 'running', title: '建立检索索引 · OS',
     progress: { done: 3, total: 513, unit: 'pages', percent: 0, segments: [] }, usage: { tokens: null, tokenUsage: null, calls: 0 },
     calls: [{ id: 'c1', kind: 'index', status: 'running', observation: { boundary: 'local-process', requestCount: null } }], detail: { index: {} },
-    stage: { code: 'retrieval.indexing', args: { done: 3, total: 513 }, text: '正在建立索引 3 / 513 页' }, startedAt: new Date().toISOString() } };
+    stage: { code: 'retrieval.indexing', args: { done: 3, total: 513 }, text: '正在建立索引 3 / 513 页' }, startedAt: new Date().toISOString() } });
+
+test('the console names the build and its pages in the learner\'s language', () => {
+  const zh = m.taskSummary(indexJob());
+  assert.deepEqual([zh.title, zh.line, zh.state], ['建立检索索引 · OS', '正在建立索引 3 / 513 页', 'run']);
+  m.setUiLanguage('en');
+  try {
+    const en = m.taskSummary(indexJob());
+    assert.deepEqual([en.title, en.line], ['Search index · OS', 'Indexing 3 / 513 pages']);
+  } finally { m.setUiLanguage('zh'); }
+});
+
+test('the console says a search-index build runs on this computer and asks no model, in both languages', () => {
+  const job = indexJob();
   const facts = m.taskFacts(job);
   assert.equal(facts.find(fact => fact.key === 'primary').value, '3 / 513');
   const calls = facts.find(fact => fact.key === 'calls');

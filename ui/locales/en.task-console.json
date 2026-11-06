@@ -456,5 +456,7 @@
   "当前步骤": "Current step",
   "全部完成": "All done",
   "时间线": "Timeline",
-  "依次执行，没有同时进行的调用": "One after another; no two calls ran at once"
+  "依次执行，没有同时进行的调用": "One after another; no two calls ran at once",
+  "运行方式": "How it runs",
+  "本机 · 不调用 AI，不花 token": "On this computer · no AI, no tokens"
 }
