@@ -60,7 +60,7 @@ test('the console names the build and its pages in the learner\'s language', () 
   m.setUiLanguage('en');
   try {
     const en = m.taskSummary(indexJob());
-    assert.deepEqual([en.title, en.line], ['Search index · OS', 'Indexing 3 / 513 pages']);
+    assert.deepEqual([en.title, en.line], ['Build search index · OS', 'Indexing 3 / 513 pages']);
   } finally { m.setUiLanguage('zh'); }
 });
 

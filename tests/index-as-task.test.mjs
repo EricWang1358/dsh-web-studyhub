@@ -67,7 +67,7 @@ test('with no host config the build is a job of the 任务 console: titled for t
   const [job] = await lib.jobs();
   assert.ok(job, 'the build is listed in the shared job list');
   assert.equal(job.contract.title, '建立检索索引 · OS');
-  assert.equal(localizeAppMessage(job.contract.title), 'Search index · OS');
+  assert.equal(localizeAppMessage(job.contract.title), 'Build search index · OS');
   assert.deepEqual([job.contract.progress.done, job.contract.progress.total, job.contract.progress.unit], [PAGES, PAGES, 'pages']);
   assert.deepEqual(job.contract.usage, { tokens: null, tokenUsage: null, calls: 0 }, 'no model, no tokens');
   assert.equal(fake.index.size, PAGES);
@@ -114,6 +114,37 @@ test('with no host config and no live session to own a job (a preview), the buil
   const done = await until(async () => { const run = await service.call('retrieval.index.status', {}); return run.status === 'complete' ? run : null; }, 'the build');
   assert.equal(done.added, PAGES);
   assert.deepEqual((await service.call('snapshot')).jobs.filter(job => job.type === KIND), []);
+});
+
+for (const [name, pilot] of [['the resolved host config (true)', () => RuntimeConfig({}).pilot], ['an explicit true', () => ({ retrievalIndex: true })], ['no config', () => undefined]]) {
+  test(`${name} with no live session to own a job (DSH after a restart, before the conversation's agent is resumed): the build runs, never refused`, async t => {
+    await home(t);
+    const fake = fakeIndexPort(), root = await newRoot(t);
+    const gone = { assertAvailable() { throw Object.assign(new Error('A registered live Agent is required for runtime admission'), { code: 'executor-unavailable' }); }, start() { this.assertAvailable(); } };
+    const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: fake.port, jobExecutor: gone, ...(pilot() ? { runtimePilot: pilot() } : {}) });
+    t.after(() => service.dispose());
+    const book = Array.from({ length: PAGES }, (_, index) => `<!-- page: ${index + 1} -->\nOS 第 ${index + 1} 页。`).join('\n\n');
+    await service.call('materials.document.import', { dataBase64: Buffer.from(book, 'utf8').toString('base64'), filename: 'OS.md', courses: ['OS'] });
+    const started = await service.call('retrieval.index.start', { course: 'OS' });
+    assert.equal(started.status, 'running');
+    assert.equal(started.taskId, undefined, 'the original run: no task to link to');
+    const done = await until(async () => { const run = await service.call('retrieval.index.status', {}); return run.status === 'complete' ? run : null; }, 'the build');
+    assert.equal(done.added, PAGES);
+  });
+}
+
+test('an executor that passed the check but refuses at the submit still leaves a running build, on the original path', async t => {
+  await home(t);
+  const fake = fakeIndexPort(), root = await newRoot(t);
+  let checks = 0;
+  const flaky = { assertAvailable() { if (++checks > 1) throw Object.assign(new Error('agent went away'), { code: 'executor-unavailable' }); }, start() { throw Object.assign(new Error('agent went away'), { code: 'executor-unavailable' }); } };
+  const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: fake.port, jobExecutor: flaky });
+  t.after(() => service.dispose());
+  const book = Array.from({ length: PAGES }, (_, index) => `<!-- page: ${index + 1} -->\nOS 第 ${index + 1} 页。`).join('\n\n');
+  await service.call('materials.document.import', { dataBase64: Buffer.from(book, 'utf8').toString('base64'), filename: 'OS.md', courses: ['OS'] });
+  assert.equal((await service.call('retrieval.index.start', { course: 'OS' })).status, 'running');
+  const done = await until(async () => { const run = await service.call('retrieval.index.status', {}); return run.status === 'complete' ? run : null; }, 'the build');
+  assert.equal(done.added, PAGES);
 });
 
 test('a build the original path started is the one build of the library: the job path joins it, stops it, and then writes only the pages it did not record', async t => {
@@ -181,6 +212,7 @@ test('the consecutive-failures stop is the job\'s failure, with its real cause, 
 
 test('the build\'s title has its English form', () => {
   assert.equal(INDEX_TEXT.title('OS'), '建立检索索引 · OS');
-  assert.equal(localizeAppMessage(INDEX_TEXT.title()), 'Search index');
-  assert.equal(localizeAppMessage(INDEX_TEXT.title('OS')), 'Search index · OS');
+  assert.equal(localizeAppMessage(INDEX_TEXT.title()), 'Build search index');
+  assert.equal(localizeAppMessage(INDEX_TEXT.title('OS')), 'Build search index · OS');
+  assert.equal(localizeAppMessage('检索索引 · OS'), 'Search index · OS', 'a title written by an earlier version keeps its English');
 });
