@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
+import { inApp } from './helpers/fake-app.mjs';
 
 /* The search-index build in the 任务 console and in the extension panel: the console's tile says it runs locally without a model,
    and the panel's progress links to the build's task when it is one (a build of the original background run has no task). */
@@ -12,6 +13,8 @@ const m = await loadUi(`
   export { AppContext } from './ui/app/app-context.js';
   export { taskFacts } from './ui/tasks/task-facts.js';
   export { taskSummary } from './ui/tasks/task-summary.js';
+  export { default as TaskBody } from './ui/tasks/TaskBody.jsx';
+  export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';`);
 const h = React.createElement;
 const render = (element, language = 'zh') => { m.setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { m.setUiLanguage('zh'); } };
@@ -71,4 +74,37 @@ test('the console says a search-index build runs on this computer and asks no mo
     const en = m.taskFacts(job).find(fact => fact.key === 'calls');
     assert.deepEqual([en.label, en.value], ['How it runs', 'On this computer · no AI, no tokens']);
   } finally { m.setUiLanguage('zh'); }
+});
+
+const failedJob = () => {
+  const job = indexJob();
+  Object.assign(job.contract, { status: 'failed', progress: { done: 5, total: 513, unit: 'pages', percent: 0, segments: [] },
+    stage: { code: 'retrieval.failed', args: { done: 5, total: 513 }, text: '连续 5 页没能写入索引，已停止：embedding server refused the page' },
+    error: { code: 'retrieval-index-failed', message: '连续 5 页没能写入索引，已停止：embedding server refused the page' },
+    detail: { index: { course: 'OS', phase: 'failed', unchanged: 2, skipped: 1, added: 0, removed: 0, failedCount: 5,
+      failed: [{ id: 'p-1', message: 'embedding server refused the page' }, { id: 'p-2', message: 'embedding server refused the page' }], unconfirmed: [] } } });
+  job.contract.calls[0].status = 'failed';
+  return job;
+};
+const draw = (element, language = 'zh') => { m.setUiLanguage(language); try { return renderToStaticMarkup(inApp(m, element, {})); } finally { m.setUiLanguage('zh'); } };
+
+test('a failed build says its real cause in the list, in the learner\'s language', () => {
+  assert.equal(m.taskSummary(failedJob()).line, '连续 5 页没能写入索引，已停止：embedding server refused the page');
+  m.setUiLanguage('en');
+  try { assert.equal(m.taskSummary(failedJob()).line, '5 pages in a row could not be written to the index; stopped: embedding server refused the page'); }
+  finally { m.setUiLanguage('zh'); }
+});
+
+test('the detail of a build has no model-call panels, and an index section with what was written and which pages failed', () => {
+  const running = draw(h(m.TaskBody, { task: indexJob() }));
+  assert.doesNotMatch(running, /实时输出|正在进行 \d|直接模型调用/, 'a local build makes no model calls');
+  assert.match(running, />索引详情</);
+  const failed = draw(h(m.TaskBody, { task: failedJob() }));
+  assert.match(failed, /没能写入 5 页/);
+  assert.match(failed, /p-1/);
+  assert.match(failed, /embedding server refused the page/);
+  assert.match(failed, /无需更新 2 页/);
+  const en = draw(h(m.TaskBody, { task: failedJob() }), 'en');
+  assert.match(en, />Index details</);
+  assert.match(en, /5 pages not written/);
 });

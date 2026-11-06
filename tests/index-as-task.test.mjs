@@ -175,6 +175,7 @@ test('the consecutive-failures stop is the job\'s failure, with its real cause, 
   const [job] = (await service.call('snapshot')).jobs.filter(item => item.type === KIND);
   assert.equal(job.contract.status, 'failed');
   assert.match(job.contract.error.message, /连续 5 页没能写入索引，已停止：embedding server refused the page/);
+  assert.equal(job.contract.stage.text, job.contract.error.message, 'the stage the console lists is the real cause, not a generic "did not finish"');
   assert.equal(job.contract.detail.index.failedCount, 5);
 });
 
