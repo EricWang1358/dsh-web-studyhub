@@ -27,6 +27,14 @@ test('the home line names the stage and its number, in the method\'s own words',
   assert.match(english, /Method · stage 2/);
   assert.doesNotMatch(english, /[\u3400-\u9fff]/, 'no Han in the English line: the default words are translated');
   assert.match(text(draw({ ...own, own: true }, 'en')), /只练错题/, 'a learner\'s own words are theirs, in any language');
+  // #777 S3b: when the stage's check has passed, the line says the learner can move on.
+  const ready = { ...own, gate: { total: 10, passed: 8, ready: true, checkPassed: true } };
+  assert.match(text(draw(ready)), /可以进下一阶段/);
+  assert.doesNotMatch(text(draw({ ...own, gate: { total: 10, passed: 5, ready: false } })), /可以进下一阶段/);
+  assert.doesNotMatch(text(draw(own)), /可以进下一阶段/, 'no gate read: no suggestion');
+  const englishReady = text(draw({ ...ready, own: false, stage: CLASSROOM_METHOD.stages[1] }, 'en'));
+  assert.match(englishReady, /go on to the next one/);
+  assert.doesNotMatch(englishReady, /[\u3400-\u9fff]/, 'the suggestion is translated too');
   assert.equal(draw(null), '');
   assert.equal(draw({}), '');
 });

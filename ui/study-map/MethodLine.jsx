@@ -10,5 +10,6 @@ export default function MethodLine({ method }) {
   return <p className="course-method-line">
     <span className="course-method-line__label">{uiFormat('学法 · 第 {0} 阶段', [method.index + 1])}</span>
     <span className="course-method-line__stage">{name}</span>
+    {method.gate?.ready && <span className="course-method-line__ready">{ui('这一阶段过了，可以进下一阶段')}</span>}
   </p>;
 }

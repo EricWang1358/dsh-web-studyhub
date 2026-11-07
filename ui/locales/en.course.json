@@ -144,6 +144,7 @@
   "严：全部答对，错的再练一次": "Strict: all of them right, the wrong ones again",
   "保存学法": "Save the method",
   "学法 · 第 {0} 阶段": "Method · stage {0}",
+  "这一阶段过了，可以进下一阶段": "This stage is done — go on to the next one",
   "这一阶段还没有题：先用「出题」做出第一批，检验才有东西可看。": "No questions in this stage yet: make the first batch and the check has something to look at.",
   "这一阶段检验过了：{0} 道里答对 {1} 道。够了，可以进下一阶段。": "This stage is checked: {1} of {0} answered right. That is enough — go on to the next stage.",
   "这一阶段检验：{0} 道里答对 {1} 道（过四分之三才建议进下一阶段）。": "Stage check: {1} of {0} answered right (three quarters or more suggests the next stage).",
