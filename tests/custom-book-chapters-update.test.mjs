@@ -23,6 +23,8 @@ test('an edit to a chapter not built yet leaves the book as it is; an edit to a 
   const w = await world(t);
   const ids = await w.chapterIds();
   await w.build({ chapters: [ids[2], ids[3]], sample: 'skip' });
+  const firstClusters = w.fake.calls.filter(call => call.stage === 'cluster').length;
+  assert.ok(firstClusters > 0, 'the first build groups the chapters it was asked for');
   await edit(w, 380, 'Atoms Basics fact 99999: a small edit.');
   const shown = await w.shown();
   assert.equal(shown.stale, false, 'chapter 8 is not built: its edit is no change of this book');
@@ -38,6 +40,11 @@ test('an edit to a chapter not built yet leaves the book as it is; an edit to a 
   await w.build({ sample: 'skip' });
   readOnly(w.since(mark).filter(call => call.stage === 'inventory'), [3]);
   assert.ok(w.since(mark).filter(call => call.stage === 'inventory').length <= 2, 'only the range that changed is read again');
+  // #739 F5: the grouping stage is asked for the changed chapter's batches only — an update that regrouped the whole book would cost what the first build
+  // cost, every time. This is the number nobody asserted.
+  const clusters = w.since(mark).filter(call => call.stage === 'cluster');
+  assert.ok(clusters.length > 0, 'the changed chapter is grouped again');
+  assert.ok(clusters.length < firstClusters, `only the changed chapter is grouped again, not the book (${clusters.length} of ${firstClusters} calls)`);
   // Chapter 3 is grouped again (its items are; a batch boundary may move), so a point of it may be written again; never one of chapter 4.
   const again = pointTitles(w.since(mark));
   assert.ok(again.includes(topicOf(120)) && again.every(title => topicsOf([3]).includes(title)), `chapter 3 only, its changed point too (${again.join(', ')})`);
