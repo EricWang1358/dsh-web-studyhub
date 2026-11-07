@@ -188,3 +188,32 @@ test('the page with a gate still draws 生成总纲 and 生成复习全书 as be
     assert.doesNotMatch(html, /sh-dialog/, 'closed');
   }
 });
+
+test('the gate\'s one whole: the writing carries the thinking of each inventory call, and the total is the reading plus the writing (#773)', () => {
+  const scale = ui.gateScaleOf('outline', { outline: { status: 'estimate', steps: 51, estimate: { calls: 43, chars: 900000, readTokens: { low: 210000, high: 340000 },
+    writeTokens: { low: 30000, high: 320000 }, totalTokens: { low: 240000, high: 660000 } } } });
+  assert.deepEqual(scale.total, { low: 240000, high: 660000 });
+  assert.deepEqual(scale.write, { low: 30000, high: 320000 });
+  const zh = textOf(gateHtml({ scale }));
+  assert.match(zh, /整笔约 240K–660K tok：读资料 210K–340K tok，模型写出的 30K–320K tok（含思考）；提示词另计/);
+  assert.doesNotMatch(zh, /不含提示和模型写出的内容/, 'one wording for one fact: the old material-only line is gone when the whole is known');
+  const en = inLanguage('en', () => textOf(gateHtml({ scale })));
+  assert.match(en, /About 240K–660K tok in all: 210K–340K tok of material read and 30K–320K tok of writing \(thinking included\); the prompts are extra/);
+  assert.doesNotMatch(en, han);
+  assert.doesNotMatch(zh + en, /元|¥|\$|价格|费用|美元|RMB|USD|price|cost/i);
+});
+
+test('the first step of a book build never calls itself the whole: it says the step, and that the explanations come after', () => {
+  const answer = { outline: { status: 'estimate', steps: 51, estimate: { calls: 43, chars: 900000, readTokens: { low: 210000, high: 340000 },
+    writeTokens: { low: 30000, high: 320000 }, totalTokens: { low: 240000, high: 660000 } } } };
+  const scale = ui.gateScaleOf('book', answer);
+  assert.equal(scale.firstStep, true);
+  const zh = textOf(gateHtml({ kind: 'book', scale }));
+  assert.doesNotMatch(zh, /整笔|整本生成大约要/, 'a first step is not the whole, in the calls line either');
+  assert.match(zh, /第一步（整理总纲）大约要 43–51 次模型调用/);
+  assert.match(zh, /这一步约 240K–660K tok/);
+  assert.match(zh, /这只是第一步/);
+  const en = inLanguage('en', () => textOf(gateHtml({ kind: 'book', scale })));
+  assert.doesNotMatch(en, /in all|whole book takes/);
+  assert.match(en, /This step: about 240K–660K tok/);
+});

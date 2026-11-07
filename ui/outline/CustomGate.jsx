@@ -32,9 +32,12 @@ function ScaleLines({ scale }) {
   if (!scale) return null;
   return (
     <div className="custom-gate__scale" data-custom-gate-scale="">
-      <p className="custom-gate__line">{scale.points == null ? uiFormat('整本生成大约要 {0}', [callsText(scale.calls)]) : uiFormat('要写 {0} 个知识点 · {1}', [scale.points, callsText(scale.calls)])}</p>
+      <p className="custom-gate__line">{scale.points != null ? uiFormat('要写 {0} 个知识点 · {1}', [scale.points, callsText(scale.calls)])
+        : scale.firstStep ? uiFormat('第一步（整理总纲）大约要 {0}', [callsText(scale.calls)]) : uiFormat('整本生成大约要 {0}', [callsText(scale.calls)])}</p>
       {scale.total && scale.write
-        ? <p className="custom-gate__line">{uiFormat('整笔约 {0}：读资料 {1}，模型写出的 {2}；提示词另计', [rangeTok(scale.total), rangeTok(scale.tokens), rangeTok(scale.write)])}</p>
+        ? <p className="custom-gate__line">{scale.firstStep
+          ? uiFormat('这一步约 {0}：读资料 {1}，模型写出的 {2}（含思考）；提示词另计', [rangeTok(scale.total), rangeTok(scale.tokens), rangeTok(scale.write)])
+          : uiFormat('整笔约 {0}：读资料 {1}，模型写出的 {2}（含思考）；提示词另计', [rangeTok(scale.total), rangeTok(scale.tokens), rangeTok(scale.write)])}</p>
         : <p className="custom-gate__line">{uiFormat('读资料约 {0}（不含提示和模型写出的内容）', [rangeTok(scale.tokens)])}</p>}
       {scale.firstStep && <p className="custom-gate__line">{ui('这只是第一步（整理总纲）；之后还要给每个知识点写讲解，比这更多。')}</p>}
       <p className="custom-gate__line">{ui('数字只是估计，实际用量在任务页看。')}</p>
