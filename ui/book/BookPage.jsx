@@ -8,7 +8,7 @@ import { useNarrow } from '../use-narrow.js';
 import ModelSetupGate from '../ModelSetupGate.jsx';
 import { modelReadiness } from '../generation-status.js';
 import { BOOK_BUILD_KIND, runningBuild } from '../outline/model.js';
-import { writingText } from '../outline/words.js';
+import { bookCostTipText, writingText } from '../outline/words.js';
 import { ReadingBlock } from '../reading-settings/ReadingSettings.jsx';
 import BookHeader from './BookHeader.jsx';
 import BookBar from './BookBar.jsx';
@@ -160,8 +160,9 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
         {header}
         {writing ? <p className="book-writing" role="status"><LoadingState inline label={writingText(writing)} />
           {onOpenTask && <Button variant="link" size="sm" onClick={() => onOpenTask(writing.jobId)}>{ui('看进度')}</Button>}</p>
-          : <EmptyState icon="book" title={ui('还没有复习全书')} description={ui('「生成复习全书」给每个知识点写讲解；写好后在这里读，点题目链接就去练。')}
-            primary={{ label: ui('生成复习全书'), icon: 'book', onClick: writeBook, disabled: !model.ready }} />}
+          : <EmptyState icon="book" title={ui('还没有复习全书')} description={`${ui('「生成复习全书」给每个知识点写讲解；写好后在这里读，点题目链接就去练。')} ${bookCostTipText()}`}
+            primary={{ label: ui('生成复习全书'), icon: 'book', onClick: writeBook, disabled: !model.ready }}
+            secondary={onBack ? { label: ui('回到总纲'), onClick: onBack } : undefined} />}
         <ModelSetupGate variant="compact" feature="reviewBook" model={model} />
       </section>
     );

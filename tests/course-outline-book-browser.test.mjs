@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { build } from 'esbuild';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
@@ -72,6 +73,23 @@ test('总纲 as a book: chapters open, sections closed, a point opens to its mat
       assert.ok(rows.filter(row => row.kind === 'section').every(row => row.open === 'false'), 'sections closed');
       assert.ok(await page.locator('.outline-row[data-kind="part"] .outline-row__intro').count() >= 7, 'every chapter says what it teaches');
       assert.equal(await page.locator('.outline-organise .sh-btn--primary').count(), 0, 'an outline exists: no primary 生成总纲');
+      await page.locator('.outline-book-line [data-book-scale]').waitFor({ timeout: 10000 });
+      const scaleText = await page.locator('.outline-book-line [data-book-scale]').innerText();
+      assert.match(scaleText, /要写 \d+ 个知识点 · .*次模型调用 · 读资料加模型写出的约 .* tok/);
+      assert.doesNotMatch(scaleText, /元|¥|￥|\$|价格|费用|美元|RMB|USD|price|cost/i);
+      assert.match(await page.locator('.outline-book-line [data-book-cost-tip]').innerText(), /opencode \/ commandcode/);
+      const alignment = await page.evaluate(() => {
+        const line = document.querySelector('.outline-book-line').getBoundingClientRect();
+        const basis = document.querySelector('.outline-book-line__basis').getBoundingClientRect();
+        const actions = document.querySelector('.outline-book-line .outline-organise__actions').getBoundingClientRect();
+        const notes = document.querySelector('.outline-book-line .outline-organise__notes').getBoundingClientRect();
+        return { lineLeft: line.left, basisBottom: basis.bottom, actionsLeft: actions.left, actionsTop: actions.top, actionsBottom: actions.bottom, notesLeft: notes.left, notesTop: notes.top };
+      });
+      assert.ok(Math.abs(alignment.notesLeft - alignment.lineLeft) <= 1.5, `${width}px: notes align flush-left with .outline-book-line (${JSON.stringify(alignment)})`);
+      assert.ok(alignment.notesTop >= alignment.actionsBottom - 1, `${width}px: notes sit below the control row (${JSON.stringify(alignment)})`);
+      if (alignment.actionsTop >= alignment.basisBottom - 2) {
+        assert.ok(Math.abs(alignment.actionsLeft - alignment.lineLeft) <= 1.5, `${width}px: wrapped control row aligns flush-left (${JSON.stringify(alignment)})`);
+      }
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-${width}.png`), fullPage: true });
 
@@ -148,4 +166,136 @@ test('总纲 as a book: chapters open, sections closed, a point opens to its mat
       await other.context.close();
     }
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
+});
+
+test('CourseOutline container & BookPage empty state: useBookScale fetches estimate: true, clears stale scale synchronously on coverage/course change, avoids duplicate tip when picking chapters, and offers 回到总纲 on unbuilt BookPage', { timeout: 60000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  t.after(() => browser.close());
+  const bundle = await build({ stdin: { contents: `
+    import React, { useMemo, useState } from 'react';
+    import { createRoot } from 'react-dom/client';
+    import CourseOutline from './ui/outline/CourseOutline.jsx';
+    import BookPage from './ui/book/BookPage.jsx';
+    import { StudyServicesContext } from './ui/study-context.jsx';
+
+    const summary = { total: 0, counts: { new: 0, weak: 0, learning: 0, familiar: 0, mastered: 0 }, due: 0, weak: 0, fresh: 0, inactive: 0, percent: null, state: 'none' };
+    const saOutline = {
+      status: 'ok', course: 'SA', total: 0, placed: 0, summary, draftCards: 0, limit: 200, decks: [], deckId: null,
+      documents: [{ key: 'doc:t', title: 'Textbook.md', format: 'md', chapters: 2, total: 0, summary, deckCount: 0 }],
+      unplaced: { key: 'unplaced', total: 0, summary, reasons: { none: 0, uncategorised: 0, elsewhere: 0, missing: 0 }, materials: [] },
+      book: {
+        id: 'outline-sa', title: '总纲 · SA', createdAt: null, supersedes: null, papers: 0, stale: false, from: 'inventory',
+        orderBasis: { codes: ['logic'] }, counts: { units: 5, leftover: 0, invalid: 0, repeated: 0 }, other: null, notes: null,
+        parts: [{ id: 'c1', title: 'Thermodynamics', points: 2, written: 0 }, { id: 'c2', title: 'Kinetics', points: 3, written: 0 }],
+        nodes: [
+          { key: 'bk:c1', id: 'c1', title: 'Thermodynamics', total: 0, summary, deckCount: 0, depth: 1, children: [{ key: 'bk:p1', id: 'p1', title: 'Entropy', total: 0, summary, deckCount: 0, depth: 2, anchors: 1, opensRows: false }] },
+          { key: 'bk:c2', id: 'c2', title: 'Kinetics', total: 0, summary, deckCount: 0, depth: 1, children: [{ key: 'bk:p2', id: 'p2', title: 'Rate laws', total: 0, summary, deckCount: 0, depth: 2, anchors: 1, opensRows: false }] },
+        ],
+      },
+      open: {},
+    };
+    const dbOutline = { ...saOutline, course: 'DB', book: null };
+    window.bookBuildCalls = [];
+    window.backClicks = 0;
+    window.pendingFull = null;
+    let onSetCoverage = null;
+
+    const stableServices = {
+      busy: false, notify: () => {}, askInChat: () => {}, host: {}, openSettings: () => {}, navigate: () => {}, openModal: () => {},
+      call: async (action, args) => {
+        if (action === 'course.outline') return args.course === 'SA' ? saOutline : dbOutline;
+        if (action === 'generation.courseBook.build') {
+          window.bookBuildCalls.push(args);
+          if (args.chapters) {
+            return { status: 'estimate', scale: { points: 3, chapters: 1, sample: false, calls: { low: 6, high: 18 }, readTokens: { low: 15000, high: 30000 }, writeTokens: { low: 5400, high: 64800 }, totalTokens: { low: 20400, high: 94800 } } };
+          }
+          if (args.coverage === 'full') {
+            return new Promise(resolve => {
+              window.pendingFull = () => resolve({ status: 'estimate', scale: { points: 5, chapters: 2, sample: false, calls: { low: 10, high: 35 }, readTokens: { low: 25000, high: 50000 }, writeTokens: { low: 12000, high: 110000 }, totalTokens: { low: 37000, high: 160000 } } });
+            });
+          }
+          return { status: 'estimate', scale: { points: 5, chapters: 2, sample: false, calls: { low: 10, high: 30 }, readTokens: { low: 25000, high: 50000 }, writeTokens: { low: 9000, high: 108000 }, totalTokens: { low: 34000, high: 158000 } } };
+        }
+        if (action === 'course.book.open') return { status: 'ok', course: args.course, title: 'SA', revision: 1, notes: null, nodes: [], unplaced: { title: '未归位', text: '', file: 'unplaced.md' } };
+        if (action === 'course.book.crunch' || action === 'course.plan.get') return null;
+        return {};
+      },
+      act: async (action, args) => {
+        if (action === 'settings.book.set') onSetCoverage?.(args.patch.coverage || 'standard');
+      },
+    };
+    const noop = () => {};
+
+    function Harness() {
+      const [mode, setMode] = useState('outline');
+      const [course, setCourse] = useState('SA');
+      const [coverage, setCoverage] = useState('standard');
+      onSetCoverage = setCoverage;
+      const data = useMemo(() => ({
+        root: '/lib', revision: 1, focus: { course }, settings: { book: { coverage } },
+        sources: [{ id: 's1', title: 'Textbook.md', format: 'md', courses: [course] }], courses: [], jobs: [],
+        model: { ready: true },
+      }), [course, coverage]);
+      window.switchCourse = next => setCourse(next);
+      window.switchMode = next => setMode(next);
+      window.changeCoverage = next => setCoverage(next);
+      return (
+        <StudyServicesContext.Provider value={stableServices}>
+          <div className="study-app">
+            {mode === 'outline'
+              ? <CourseOutline data={data} onBack={noop} onCreate={noop} onOpenSources={noop} onPractice={noop} onOpenTask={noop} onOpenSource={noop} onOpenBook={noop} />
+              : <BookPage data={data} onBack={() => { window.backClicks += 1; }} onPractice={noop} onOpenSource={noop} onCreate={noop} onOpenTask={noop} onExamRun={noop} />}
+          </div>
+        </StudyServicesContext.Provider>
+      );
+    }
+    createRoot(document.getElementById('root')).render(<Harness />);
+  `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife',
+    loader: { '.css': 'text' }, logLevel: 'silent' });
+
+  const page = await browser.newPage({ locale: 'zh-CN' });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setContent('<main id="root"></main>');
+  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+
+  // 1. useBookScale calls generation.courseBook.build { course: 'SA', coverage: 'standard', estimate: true } and renders tokens + calls.
+  await page.locator('[data-book-scale]').waitFor();
+  assert.match(await page.locator('[data-book-scale]').innerText(), /要写 5 个知识点 · 10–30 次模型调用 · 读资料加模型写出的约 34K–158K tok/);
+  assert.deepEqual(await page.evaluate(() => window.bookBuildCalls), [{ course: 'SA', coverage: 'standard', estimate: true }]);
+
+  // 2. Opening BookPick and ticking a chapter shows chapter scale WITHOUT duplicating bookCostTipText() on the page.
+  await page.locator('.book-pick summary').click();
+  await page.locator('.book-pick__list input[type="checkbox"]').nth(1).check();
+  await page.locator('[data-book-pick-scale]').waitFor();
+  assert.match(await page.locator('[data-book-pick-scale]').innerText(), /要写 3 个知识点 · 6–18 次模型调用/);
+  const tipCount = await page.evaluate(() => (document.body.innerText.match(/opencode \/ commandcode/g) || []).length);
+  assert.equal(tipCount, 1, 'bookCostTipText() appears once on the page even when BookPick scale is open');
+
+  // 3. Changing coverage to 'full' clears stale 'standard' scale immediately while 'full' estimate is pending, then updates on resolve.
+  await page.evaluate(() => window.changeCoverage('full'));
+  await page.waitForFunction(() => typeof window.pendingFull === 'function');
+  assert.equal(await page.locator('[data-book-scale]').count(), 0, 'stale standard scale is cleared immediately while full estimate is pending');
+  await page.evaluate(() => window.pendingFull());
+  await page.locator('[data-book-scale]').waitFor();
+  assert.match(await page.locator('[data-book-scale]').innerText(), /要写 5 个知识点 · 10–35 次模型调用 · 读资料加模型写出的约 37K–160K tok/);
+
+  // 4. Switching to course 'DB' (no outline) clears [data-book-scale] immediately and makes no spurious courseBook.build call for DB.
+  const callsBeforeSwitch = await page.evaluate(() => window.bookBuildCalls.length);
+  await page.evaluate(() => window.switchCourse('DB'));
+  await page.locator('[data-book-pick-later]').waitFor();
+  assert.equal(await page.locator('[data-book-scale]').count(), 0);
+  assert.equal(await page.evaluate(() => window.bookBuildCalls.length), callsBeforeSwitch, 'no courseBook.build estimate call for a course without an outline');
+
+  // 5. BookPage empty state (`!book.notes`) shows bookCostTipText() and secondary 回到总纲 button.
+  await page.evaluate(() => { window.switchCourse('SA'); window.switchMode('book'); });
+  await page.locator('.sh-empty').waitFor();
+  const emptyText = await page.locator('.sh-empty').innerText();
+  assert.match(emptyText, /还没有复习全书/);
+  assert.match(emptyText, /opencode \/ commandcode/);
+  assert.doesNotMatch(emptyText, /元|¥|￥|\$|价格|费用|美元|RMB|USD|price|cost/i);
+  await page.locator('.sh-empty__actions button', { hasText: '回到总纲' }).click();
+  assert.equal(await page.evaluate(() => window.backClicks), 1);
+  assert.deepEqual(errors, []);
 });

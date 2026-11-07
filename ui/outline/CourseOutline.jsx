@@ -12,15 +12,15 @@ import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { COVERAGE_DEFAULT, bookCoverage } from '../../lib/book-settings.js';
 import OutlineTree from './OutlineTree.jsx';
 import BookSample from '../book/BookSample.jsx';
-import BookPick, { unbuiltText } from './BookPick.jsx';
+import BookPick, { hasUnbuiltParts, unbuiltText } from './BookPick.jsx';
 import CustomGate, { gateScaleOf } from './CustomGate.jsx';
 import { customGateOf } from '../custom-entry.js';
 import { courseNamesOf } from '../PageScope.jsx';
 import { scopeFilter } from '../SourcePicker.jsx';
 import { useHandOff } from '../hand-off/use-hand-off.js';
 import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
-import { basisText, bookCoverageText, bookIntroText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions, offerText, pickedText, readMoreStartedText, rebuildTipText, runningText,
-  startPickedText, startedText, usedPapersText, whatText, writingText, levelsText } from './words.js';
+import { basisText, bookCostTipText, bookCoverageText, bookIntroText, bookScalePointsText, bookScaleTokensText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions,
+  levelsText, offerText, pickedText, readMoreStartedText, rebuildTipText, runningText, startPickedText, startedText, usedPapersText, whatText, writingText } from './words.js';
 import css from './outline.css';
 
 /* 总纲 (course outline): the current course's materials as a tree (资料 → 章节) with the questions placed where they point (course.outline,
@@ -44,9 +44,11 @@ function useOutline({ call, course, deckId, open, revision }) {
   }, [call, course, deckId]);
   // A new course, deck filter or library revision reads everything open again; opening a row reads only what is missing.
   useEffect(() => { load([...open], false); }, [load, revision]); // eslint-disable-line react-hooks/exhaustive-deps
-  const missing = state.outline ? [...open].filter(key => !(key in state.details)) : [];
+  const sameCourse = !state.outline || !('course' in state.outline) || state.outline.course === course;
+  const current = sameCourse ? state : { outline: null, details: {}, error: null };
+  const missing = current.outline ? [...open].filter(key => !(key in current.details)) : [];
   useEffect(() => { if (missing.length) load(missing, true); }, [missing.join('\n')]); // eslint-disable-line react-hooks/exhaustive-deps
-  return { ...state, retry: () => load([...open], false) };
+  return { ...current, retry: () => load([...open], false) };
 }
 
 /** How many questions the pick is (once each), read from the backend, which knows every row's questions. */
@@ -57,6 +59,20 @@ function usePicked({ call, course, deckId, pick }) {
     call('course.outline', { course, ...(deckId ? { deckId } : {}), pick: pickArgs(pick) }).then(result => { if (isLive()) setPicked(result.practice); }, () => {});
   }, [call, course, deckId, pick]);
   return picked;
+}
+
+/** The pre-run scale of the course's unbuilt review book work (`estimate: true`, no model call, no task). */
+export function useBookScale({ call, course, coverage, book, revision }) {
+  const active = typeof course === 'string' && !!book && !book.stale && book.from !== 'descriptors' && !book.notes?.sample
+    && (!book.notes || hasUnbuiltParts(book.parts));
+  const key = active ? `${course}\n${book.id ?? ''}\n${book.notes?.id ?? ''}\n${coverage ?? ''}\n${revision ?? ''}` : '';
+  const [entry, setEntry] = useState({ key: '', scale: null });
+  useLiveEffect(isLive => {
+    if (!key) { setEntry(current => (current.key || current.scale ? { key: '', scale: null } : current)); return; }
+    call('generation.courseBook.build', { course, coverage, estimate: true })
+      .then(result => { if (isLive()) setEntry({ key, scale: result?.scale ?? null }); }, () => { if (isLive()) setEntry({ key, scale: null }); });
+  }, [call, course, coverage, key]);
+  return key && entry.key === key ? entry.scale : null;
 }
 
 /** data: the library snapshot; onBack(); onCreate() (创建题组); onOpenSources() (the 资料 page, where a material is filed under a course); onPractice(scope, { resume }) starts the round and keeps the way back here;
@@ -103,6 +119,8 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
     try { await act('settings.book.set', { patch: { coverage: level === COVERAGE_DEFAULT ? null : level } }, undefined, { rethrow: true }); }
     catch (failure) { setCoverageShown(savedCoverage); notify({ text: errorMessage(failure), tone: 'error' }); }
   }, [act, notify, savedCoverage]);
+  const currentBook = outline && ('course' in outline ? outline.course === course : true) ? outline.book : null;
+  const bookScale = useBookScale({ call, course, coverage, book: currentBook, revision: data?.revision });
   // 生成复习全书 / 更新全书: one task; it organises the outline first when there is none or it is out of date, and with papers other than the outline's only marks it again.
   const writeBook = useCallback(async (papers, extra = {}) => {
     try {
@@ -149,21 +167,23 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
   const onPracticeRow = useCallback(row => practise({ keys: [row.key] }, { resume: !!row.node.resume }), [practise]);
 
   return <CourseOutlineView course={course} outline={outline} details={details} error={error} open={open} deckId={deckId} pick={pick} picked={picked}
-    running={runningBuild(data?.jobs, course)} writing={runningBuild(data?.jobs, course, BOOK_BUILD_KIND)} model={modelReadiness(data)} coverage={coverage} gate={gate}
+    running={runningBuild(data?.jobs, course)} writing={runningBuild(data?.jobs, course, BOOK_BUILD_KIND)} model={modelReadiness(data)} coverage={coverage} gate={gate} bookScale={bookScale}
     actions={{ onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, pickScale, startCustom, gateScale, retry, toggle, onPick, onPickCard, onPracticeRow, clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
       chooseDeck: value => { setDeckId(value); setPick(emptyPick()); } }} />;
 }
 
 /**
- * 生成总纲 / 生成复习全书 (更新全书) / 重新整理: one click starts the task (no estimate, no confirmation; the task page shows what it used). Without an outline
- * 生成总纲 is the main button (the book may start at once too: it organises the outline first); with one, the book is (更新全书 when its notes are out of date,
- * quiet when they are current) and 重新整理 is quiet. With `gate` (a book of 150 pages or more and no custom plan, ui/custom-entry.js customGateOf) 生成总纲 and the first
- * 生成复习全书 ask first (ui/outline/CustomGate.jsx): 深度定制这本书（推荐）, 整本生成 (the original action) or 取消; every other button starts at once, as before. Under them, folded, the course's materials can be picked as sample papers (the likely ones first, none
+ * 生成总纲 / 生成复习全书 (生成全部其余章节 / 更新全书) / 重新整理: one click starts the task (the task page shows what it used); for unbuilt review book work
+ * (`!book?.notes` or `rest`), `bookScale` (`estimate: true`, no model call) shows pre-run points, calls and read+write tokens with the quota-saving tip below
+ * the controls. Without an outline 生成总纲 is the main button (the book may start at once too: it organises the outline first); with one, the book is
+ * (更新全书 when its notes are out of date, quiet when they are current) and 重新整理 is quiet. With `gate` (a book of 150 pages or more and no custom plan,
+ * ui/custom-entry.js customGateOf) 生成总纲 and the first 生成复习全书 ask first (ui/outline/CustomGate.jsx): 深度定制这本书（推荐）, 整本生成 (the original action)
+ * or 取消; every other button starts at once, as before. Under them, folded, the course's materials can be picked as sample papers (the likely ones first, none
  * picked): the outline is marked by them, and the book's 考情 follows. While a build of the course runs, the line says so and leads to the task.
  * `quiet`: something else on the page is the main action (the bar of picked questions). Beside the book's button, 讲解详尽程度 (`coverage`, settings.book.coverage):
- * a compact choice whose hover says what a level reads; the cost is not estimated.
+ * a compact choice whose hover says what a level covers.
  */
-function Organise({ book, documents, running, writing, model, quiet, coverage, gate, actions }) {
+function Organise({ book, documents, running, writing, model, quiet, coverage, gate, bookScale = null, actions }) {
   const { busy } = useStudy();
   // The question before a whole-book spend: which build it is for ('outline' | 'book'), and its size once the builds' own estimate answered ('loading' until then).
   const [asking, setAsking] = useState(null), [scale, setScale] = useState('loading'), [sending, setSending] = useState(false);
@@ -179,6 +199,8 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, g
   const [changed, setChanged] = useState(false);
   useEffect(() => { if (!changed) setPapers(new Set(used.map(paper => paper.key))); }, [used, changed]);
   const chosen = () => (changed ? [...papers] : null);
+
+  const sample = book?.notes?.sample ?? null, rest = !!book?.notes && hasUnbuiltParts(book.parts) && !book.stale;
   const run = writing || running;
   if (run) return (
     <p className="outline-organise__running" role="status">
@@ -190,12 +212,14 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, g
   const main = quiet ? null : mainAction(book), off = busy || !model.ready;
   const bookMain = main === 'book' || main === 'update';
   // The book's sample waits (#710): its card holds the way on (生成其余, 重做样例 with the papers chosen here), so 更新全书 is not offered beside it.
-  const sample = book?.notes?.sample ?? null;
   // Chapters may be picked (#708) on an outline the build keeps as it is: not one to organise again first, with more than one chapter, no sample waiting.
   const pickable = !!book && !sample && !book.stale && book.from !== 'descriptors' && (book.parts?.length ?? 0) > 1 && !!actions.pickScale;
   // A book of some chapters: the whole-book button writes the rest of them, and says so.
   // Out of date, the same button is 更新全书: it makes again only the built chapters that changed (lib/contexts/generation/book/part-plan.js), no other one.
-  const rest = !!book?.notes && !!unbuiltText(book.parts) && !book.stale;
+  const showTip = !sample && (!book?.notes || rest);
+  const shownBookScale = !!book && showTip && !book.stale && book.from !== 'descriptors' && bookScale?.points > 0 ? bookScale : null;
+  const scaleTokens = shownBookScale ? bookScaleTokensText(shownBookScale) : '';
+  const hasNotes = !!shownBookScale || !book || showTip || (used.length > 0 && !changed) || !model?.ready;
   const ask = !!gate && !!actions.startCustom;
   const startOutline = () => actions.organise(chosen()), startBook = () => actions.writeBook(chosen());
   const closeAsk = () => setAsking(null);
@@ -216,9 +240,7 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, g
       {actions.setCoverage && <Select className="outline-organise__level" aria-label={ui('讲解详尽程度')} value={coverage} options={levelOptions()} disabled={off}
         onChange={value => actions.setCoverage(value)} />}
       {book && <Tooltip layer content={rebuildTipText()}><Button variant="quiet" size="sm" icon="refresh" disabled={off} onClick={() => actions.organise(chosen())}>{ui('重新整理')}</Button></Tooltip>}
-      {pickable && <BookPick parts={book.parts} built={!!book.notes} off={off} onScale={actions.pickScale} onBuild={chapters => actions.writeBook(chosen(), { chapters })} />}
-      {!book && <p className="outline-papers__note" data-book-pick-later="">{ui('想先只生成几章：先点「生成总纲」（只清点资料、排章节，不写讲解），再回来选章节。')}</p>}
-      {used.length > 0 && !changed && <p className="outline-papers__used" data-papers-used="">{usedPapersText(used.map(paper => displayTitle(paper.title)), !book || book.papersBy !== 'learner')}</p>}
+      {pickable && <BookPick key={book.id} parts={book.parts} built={!!book.notes} off={off} showTip={!showTip} onScale={actions.pickScale} onBuild={chapters => actions.writeBook(chosen(), { chapters })} />}
       {choices.length > 0 && <Disclosure className="outline-papers" summary={used.length ? ui('更改样卷') : ui('提供了试卷？')} meta={papers.size ? uiFormat('已选 {0} 份', [papers.size]) : null}>
         <p className="outline-papers__note">{ui('勾选的资料当作样卷：总纲会标出样卷考过的知识点。像样卷的资料默认就用上；全部不勾选就不标。')}</p>
         {book && !sample && !rest && <p className="outline-papers__note">{ui('已有复习全书时点「更新全书」：只重新对照样卷、改写考情，讲解不变。')}</p>}
@@ -227,20 +249,27 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, g
             onChange={on => flip(choice.key, on)} /></li>)}
         </ul>
       </Disclosure>}
-      <ModelSetupGate variant="compact" feature={book ? 'courseBook' : 'courseOutline'} model={model} />
     </div>
+    {hasNotes && <div className="outline-organise__notes">
+      {shownBookScale && <p className="outline-organise__note" data-book-scale="">{scaleTokens ? `${bookScalePointsText(shownBookScale.points, shownBookScale.calls)} · ${scaleTokens}` : bookScalePointsText(shownBookScale.points, shownBookScale.calls)}</p>}
+      {!book && <p className="outline-organise__note" data-book-pick-later="">{ui('想先只生成几章：先点「生成总纲」（只清点资料、排章节，不写讲解），再回来选章节。')}</p>}
+      {showTip && <p className="outline-organise__note" data-book-cost-tip="">{bookCostTipText()}</p>}
+      {used.length > 0 && !changed && <p className="outline-organise__note" data-papers-used="">{usedPapersText(used.map(paper => displayTitle(paper.title)), !book || book.papersBy !== 'learner')}</p>}
+      <ModelSetupGate variant="compact" feature={book ? 'courseBook' : 'courseOutline'} model={model} />
+    </div>}
   </>);
 }
 
 /**
  * The page as drawn from what was read: `outline` / `details` (course.outline's answer and its opened rows), `open` (Set of keys), `deckId`,
  * `pick` (./model.js) and `picked` (its practice answer, null while counting), `running` (the course's 总纲 build in progress, ./model.js runningBuild) and `model`
- * (modelReadiness), `writing` (the course's 复习全书 build in progress, the same shape), `gate` (customGateOf's answer: the whole-book buttons ask first). actions: onBack, onCreate, onOpenSources, onOpenTask(jobId),
+ * (modelReadiness), `writing` (the course's 复习全书 build in progress, the same shape), `gate` (customGateOf's answer: the whole-book buttons ask first), and
+ * `bookScale` (`useBookScale`'s pre-run scale for unbuilt book work, or null). actions: onBack, onCreate, onOpenSources, onOpenTask(jobId),
  * onOpenSource(sourceId, quote), organise(papers), writeBook(papers), retry, toggle(key, open), onPick, onPickCard, onPracticeRow(row), clearPick, practisePicked,
  * chooseDeck(id).
  */
 export function CourseOutlineView({ course, outline, details = {}, error = null, open, deckId = '', pick, picked = null, running = null, writing = null, model = { ready: true },
-  coverage = COVERAGE_DEFAULT, gate = null, actions }) {
+  coverage = COVERAGE_DEFAULT, gate = null, bookScale = null, actions }) {
   useInjectCss(css, 'study-outline');
   const { busy } = useStudy();
   const rows = useMemo(() => outlineRows(outline, details, open), [outline, details, open]);
@@ -265,7 +294,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
   const nothing = outline.status === 'empty' || outline.total === 0, book = outline.book;
   // The one main button: none while questions are picked (the bar's is), and without an outline none while the course has no question (创建题组 is).
   const organise = <Organise book={book} documents={outline.documents} running={running} writing={writing} model={model} quiet={isPicked(pick) || (nothing && !book)}
-    coverage={coverage} gate={gate} actions={actions} />;
+    coverage={coverage} gate={gate} bookScale={bookScale} actions={actions} />;
   // With a current 复习全书 (nothing else is the main action) 打开书页 is the one primary button, and it comes first.
   const openMain = !isPicked(pick) && !mainAction(book);
   // 资料有更新: with a 复习全书, its own line (更新全书 organises the outline again too); else the outline's.

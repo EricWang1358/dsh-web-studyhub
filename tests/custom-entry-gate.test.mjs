@@ -230,9 +230,12 @@ test('a book build with an outline already organised shows reading plus writing 
   const zh = textOf(gateHtml({ kind: 'book', scale }));
   assert.match(zh, /要写 120 个知识点 · 240–480 次模型调用/);
   assert.match(zh, /读资料加模型写出的约 1\.2M–5\.8M tok（读资料 1\.2M–2\.4M tok，写出 40K–3\.4M tok，含思考）；提示词另计/);
+  assert.match(zh, /整本比较费：可以把资料交给网页版 AI 生成后导入，或者用 opencode \/ commandcode 这类套餐再生成/);
+  assert.doesNotMatch(textOf(gateHtml({ kind: 'outline' })), /opencode/);
   assert.doesNotMatch(zh, /不含提示和模型写出的内容|这只是第一步/);
   const en = inLanguage('en', () => textOf(gateHtml({ kind: 'book', scale })));
   assert.match(en, /Material read plus writing: about 1\.2M–5\.8M tok \(1\.2M–2\.4M tok read, 40K–3\.4M tok written, thinking included\); the prompts are extra/);
+  assert.match(en, /web AI.*opencode \/ commandcode/);
   assert.doesNotMatch(en, han);
   assert.doesNotMatch(zh + en, /元|¥|\$|价格|费用|美元|RMB|USD|price|cost/i);
 });
