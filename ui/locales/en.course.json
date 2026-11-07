@@ -141,7 +141,7 @@
   "第 {0} 个阶段": "Stage {0}",
   "第 {0} 个阶段的过关宽严": "Gate of stage {0}",
   "过关宽严是什么": "What the gate means",
-  "过关宽严：松一点，答过就算；适中，约三分之二答对；严格一点，全部答对。": "Gate: a little loose — answered is enough; medium — about two thirds right; a little strict — all of them right.",
+  "过关宽严：松一点，答过八成就够进下一阶段；适中，要答对八成；严格一点，要全部答对。": "Gate: a little loose — four in five answered is enough for the next stage; medium — four in five right; a little strict — all of them right.",
   "目标日期（可选）": "Target date (optional)",
   "没有考试日期的自学课，可以填想学完的日子。": "For a self-study course with no exam date: the day you want to be done by.",
   "保存学法": "Save the method",
@@ -153,5 +153,12 @@
   "适中": "Medium",
   "严格一点": "A little strict",
   "学法 · 第 {0} 阶段": "Method · stage {0}",
-  "学法：第 {0} 阶段，{1}。打开课程设置看整份学法": "Method: stage {0}, {1}. Opens the course settings with the whole method"
+  "学法：第 {0} 阶段，{1}。打开课程设置看整份学法": "Method: stage {0}, {1}. Opens the course settings with the whole method",
+  "这一阶段还没有题，出了题才有检验。": "No questions for this stage yet: the check starts once there are some.",
+  "这一阶段：{0} 道里答过 {1} 道。": "This stage: {1} of {0} answered.",
+  "这一阶段：{0} 道里答对 {1} 道。": "This stage: {1} of {0} right.",
+  "这一阶段：{0} 道里答过 {1} 道，够进下一阶段了。": "This stage: {1} of {0} answered — enough for the next stage.",
+  "这一阶段：{0} 道里答对 {1} 道，够进下一阶段了。": "This stage: {1} of {0} right — enough for the next stage.",
+  "这一阶段：{0} 道里答过 {1} 道，再答 {2} 道就够进下一阶段。": "This stage: {1} of {0} answered; {2} more and it is enough for the next stage.",
+  "这一阶段：{0} 道里答对 {1} 道，再答对 {2} 道就够进下一阶段。": "This stage: {1} of {0} right; {2} more right and it is enough for the next stage."
 }

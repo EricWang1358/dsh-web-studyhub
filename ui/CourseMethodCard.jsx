@@ -13,6 +13,16 @@ import css from './course-method-card.css';
 
 const LEVEL_LABELS = { loose: '松一点', medium: '适中', strict: '严格一点' };
 
+/** How the current stage's check stands (#777 S3a, lib/course-method-gate.js), in one sentence with one count; nothing for a stage that imports material. */
+export function checkLine(gate) {
+  if (!gate || gate.stage?.activity === 'publish') return '';
+  if (!gate.total) return ui('这一阶段还没有题，出了题才有检验。');
+  const answered = gate.counts === 'answered', counts = [gate.total, gate.passed, gate.toReady];
+  if (gate.last) return uiFormat(answered ? '这一阶段：{0} 道里答过 {1} 道。' : '这一阶段：{0} 道里答对 {1} 道。', counts);
+  if (gate.ready) return uiFormat(answered ? '这一阶段：{0} 道里答过 {1} 道，够进下一阶段了。' : '这一阶段：{0} 道里答对 {1} 道，够进下一阶段了。', counts);
+  return uiFormat(answered ? '这一阶段：{0} 道里答过 {1} 道，再答 {2} 道就够进下一阶段。' : '这一阶段：{0} 道里答对 {1} 道，再答对 {2} 道就够进下一阶段。', counts);
+}
+
 /** The method as the learner reads it: a course's own words exactly as written, the default package's from the catalogue (a draft started from it is then
     in the learner's language, not in the source words). */
 export function shownMethod(course) {
@@ -32,7 +42,7 @@ export function MethodForm({ draft, own, disabled, working, onChange, onStage, o
         <div className="course-method__gate">
           <SegmentedControl label={uiFormat('第 {0} 个阶段的过关宽严', [index + 1])} size="sm" value={stage.level} disabled={disabled}
             options={LEVELS.map(level => ({ value: level, label: ui(LEVEL_LABELS[level]) }))} onChange={level => onStage(index, { level })} />
-          {index === 0 && <HelpTip label={ui('过关宽严是什么')}>{ui('过关宽严：松一点，答过就算；适中，约三分之二答对；严格一点，全部答对。')}</HelpTip>}
+          {index === 0 && <HelpTip label={ui('过关宽严是什么')}>{ui('过关宽严：松一点，答过八成就够进下一阶段；适中，要答对八成；严格一点，要全部答对。')}</HelpTip>}
         </div>
       </li>)}
     </ol>
@@ -78,6 +88,7 @@ export default function CourseMethodCard({ course, readout = null }) {
         {index === current && <Badge size="sm" tone="accent">{ui('现在')}</Badge>}
       </li>)}
     </ol>}
+    {!draft && current >= 0 && checkLine(readout.gate) && <p className="course-settings__note course-method__check">{checkLine(readout.gate)}</p>}
     {!draft && shown.targetDate && <p className="course-settings__note">{uiFormat('目标日期：{0}', [shown.targetDate])}</p>}
     {draft && <MethodForm draft={draft} own={own} disabled={disabled} working={working} onChange={change} onStage={changeStage} onSave={() => write(draft)}
       onCancel={() => { setDraft(null); setError(''); }} onReset={() => write(null)} />}
