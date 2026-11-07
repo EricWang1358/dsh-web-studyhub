@@ -156,12 +156,19 @@ test('the current stage is read from the library: publish, then practise, then r
   assert.equal(at(own).index, 0, 'an activity nothing measures is never skipped over');
 });
 
-test('a wrong answer graded 0 is still an answer: the stage moves on once every question has one', () => {
+test('a practice stage is done when its own gate is enough: a wrong answer graded 0 is an answer, not a right one', () => {
   const COURSE = 'Net';
-  const state = { courses: [{ id: 'course-net', name: COURSE }], sources: [{ id: 's1', courses: [COURSE], text: 'Text.' }],
-    decks: [{ id: 'd1', course: COURSE, cards: [{ id: 'k1', prompt: 'p', answer: 'a' }] }], attempts: [{ deckId: 'd1', quiz_id: 'k1', grade: 0 }] };
-  assert.equal(methodProgress(state, COURSE).counts.answered, 1);
-  assert.equal(methodProgress(state, COURSE).index, 2);
+  const state = level => ({ courses: [{ id: 'course-net', name: COURSE, method: { name: 'M', stages: [{ name: '练', activity: 'practice', level }, { name: '复习', activity: 'review' }] } }],
+    sources: [], decks: [{ id: 'd1', course: COURSE, cards: [{ id: 'k1', prompt: 'p', answer: 'a' }] }], attempts: [{ deckId: 'd1', quiz_id: 'k1', grade: 0 }] });
+  assert.deepEqual(methodProgress(state('loose'), COURSE).counts, { materials: 0, cards: 1, answered: 1, right: 0 });
+  assert.equal(methodProgress(state('loose'), COURSE).index, 1, '松一点: answered is enough');
+  assert.equal(methodProgress(state('medium'), COURSE).index, 0, '适中: a wrong answer is not enough');
+  // So the card's 「再答对 N 道就够进下一阶段」 on a practice stage is exactly when the 现在 mark moves on.
+  const ten = { ...state('medium'), decks: [{ id: 'd1', course: COURSE, cards: Array.from({ length: 10 }, (_, i) => ({ id: 'k' + i, prompt: 'p', answer: 'a' })) }] };
+  const right = n => ({ ...ten, attempts: Array.from({ length: n }, (_, i) => ({ deckId: 'd1', quiz_id: 'k' + i, grade: 4 })) });
+  assert.equal(methodProgress(right(7), COURSE).index, 0);
+  assert.equal(stageGate(right(7), COURSE).toReady, 1);
+  assert.equal(methodProgress(right(8), COURSE).index, 1);
 });
 
 test('the home snapshot carries the current course\'s stage, and no new operation is listed for it', async t => {
@@ -176,7 +183,7 @@ test('the home snapshot carries the current course\'s stage, and no new operatio
   assert.equal(snapshot.focus.method.index, 0, 'nothing imported yet');
   assert.equal(snapshot.focus.method.total, 3);
   assert.equal(snapshot.focus.method.own, false, 'the default package: its words come from the catalogue');
-  assert.deepEqual(snapshot.focus.method.counts, { materials: 0, cards: 1, answered: 0 });
+  assert.deepEqual(snapshot.focus.method.counts, { materials: 0, cards: 1, answered: 0, right: 0 });
   // The library listing the host shows the chat is capped (tests/course-book-structure.test.mjs): the stage rides on the snapshot, not on an operation of its own.
   assert.equal(service.runtime.hasAction('course.method.progress'), false);
 });
