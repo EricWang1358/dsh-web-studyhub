@@ -13,10 +13,11 @@ import { DEFAULT_MIN_BODY_CHARS, OUTLINE_BUILD_OPTIONS, planOutline } from '../l
 import { courseOutlineJobSchemas } from '../lib/contexts/generation/outline/contracts.js';
 import { BODY_WARNINGS_KEPT, bodyWarningsOf } from '../lib/contexts/generation/outline/body.js';
 import { OUTLINE_LIMITS } from '../lib/course-outline-book.js';
+import { OUTPUT_PER_CALL } from '../lib/contexts/generation/outline/constants.js';
 
 const KIND = 'course-outline-build';
 /** The keys of an estimate: the same for a course with no readable text, one material or several, and with or without sample papers. */
-const ESTIMATE_KEYS = ['basis', 'bodyChars', 'calls', 'chars', 'cut', 'items', 'materials', 'nodes', 'papers', 'points', 'ranges', 'readTokens'];
+const ESTIMATE_KEYS = ['basis', 'bodyChars', 'calls', 'chars', 'cut', 'items', 'materials', 'nodes', 'papers', 'points', 'ranges', 'readTokens', 'totalTokens', 'writeTokens'];
 const leavesOf = nodes => nodes.flatMap(node => (node.children ? leavesOf(node.children) : [node]));
 /** The leaves of a review book's manifest (a leaf names itself and keeps an empty `children`). */
 const manifestLeaves = nodes => nodes.flatMap(node => (node.children?.length ? manifestLeaves(node.children) : [node]));
@@ -82,6 +83,13 @@ test('an estimate answers the same shape for a course with no readable text, one
   assert.deepEqual(answers[0].readTokens, { low: 0, high: 0 }, 'no readable text: nothing is read');
   for (const answer of answers.slice(1)) assert.ok(answer.readTokens.low > 0 && answer.readTokens.high >= answer.readTokens.low, JSON.stringify(answer.readTokens));
   assert.ok(answers[2].readTokens.high > answers[1].readTokens.high, 'more material, more tokens read');
+  // Reading plus writing (#773; the prompts are not counted, so the gate never calls it the whole): the writing carrying the thinking of every inventory call (a figure measured on a finished run).
+  for (const answer of answers) {
+    assert.deepEqual(answer.totalTokens, { low: answer.readTokens.low + answer.writeTokens.low, high: answer.readTokens.high + answer.writeTokens.high }, 'the total is the reading plus the writing');
+    assert.ok(answer.writeTokens.high >= answer.calls * OUTPUT_PER_CALL, `the writing reaches what ${answer.calls} thinking calls write`);
+    assert.ok(answer.writeTokens.low <= answer.writeTokens.high);
+  }
+  assert.ok(answers[1].calls > 0 && answers[1].writeTokens.high > answers[1].writeTokens.low, 'where calls read the material, the writing is a range');
 });
 
 test('the estimate follows the cut (coarse < medium < fine), holds maxPoints, and the sample papers never change it', async t => {
