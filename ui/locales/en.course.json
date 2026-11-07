@@ -160,5 +160,6 @@
   "这一阶段：{0} 道里答过 {1} 道，够进下一阶段了。": "This stage: {1} of {0} answered — enough for the next stage.",
   "这一阶段：{0} 道里答对 {1} 道，够进下一阶段了。": "This stage: {1} of {0} right — enough for the next stage.",
   "这一阶段：{0} 道里答过 {1} 道，再答 {2} 道就够进下一阶段。": "This stage: {1} of {0} answered; {2} more and it is enough for the next stage.",
-  "这一阶段：{0} 道里答对 {1} 道，再答对 {2} 道就够进下一阶段。": "This stage: {1} of {0} right; {2} more right and it is enough for the next stage."
+  "这一阶段：{0} 道里答对 {1} 道，再答对 {2} 道就够进下一阶段。": "This stage: {1} of {0} right; {2} more right and it is enough for the next stage.",
+  "够进下一阶段了": "Enough for the next stage"
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { uiFormat } from '../i18n.js';
+import { ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/index.js';
 
 /* 学法 on the home, under the course progress (#775 S1c): which stage of the course's own method the learner is on, in the learner's own words, as a quiet
@@ -14,5 +14,7 @@ export default function MethodLine({ method, courseId, onCourseSettings }) {
       <span className="course-method-line__label">{uiFormat('学法 · 第 {0} 阶段', [method.index + 1])}</span>
       <span className="course-method-line__stage">{method.stage.name}</span>
     </Button>
+    {/* #777 S3b: the stage's check is enough to go on (the same count as the card's; never on the last stage). */}
+    {method.gate?.ready && <span className="course-method-line__ready">{ui('够进下一阶段了')}</span>}
   </p>;
 }

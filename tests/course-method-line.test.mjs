@@ -30,3 +30,13 @@ test("the home line names the stage of a course's own method, in its own words, 
   assert.equal(draw(null), '');
   assert.equal(draw({}), '');
 });
+
+test("the line says when the stage's check is enough to go on, and nothing otherwise", () => {
+  const own = { index: 1, total: 3, own: true, stage: { ...CLASSROOM_METHOD.stages[1], name: '只练错题' } };
+  assert.match(text(draw({ ...own, gate: { total: 10, passed: 8, ready: true } })), /够进下一阶段了/);
+  assert.doesNotMatch(text(draw({ ...own, gate: { total: 10, passed: 5, ready: false } })), /下一阶段/);
+  assert.doesNotMatch(text(draw({ ...own, gate: { total: 10, passed: 10, ready: false, last: true } })), /下一阶段/, 'the last stage has no next one');
+  assert.doesNotMatch(text(draw(own)), /下一阶段/, 'no gate read: no suggestion');
+  assert.match(text(draw({ ...own, gate: { ready: true } }, 'en')), /Enough for the next stage/);
+  assert.equal(draw({ ...own, own: false, gate: { ready: true } }), '', 'the default package: no line, no suggestion');
+});

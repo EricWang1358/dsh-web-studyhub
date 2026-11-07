@@ -282,10 +282,11 @@
     .focus-progress { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--fs-md); color: var(--text-dim); }
     .focus-progress .focus-progress__summary { min-height: 0; padding: 0; font-size: inherit; font-weight: var(--fw-regular); text-align: start; }
     /* 学法 (#775): the stage of a course's own method, one quiet line under the course progress like the 重点 line; it opens the course settings. */
-    .course-method-line { margin: 0; font-size: var(--fs-md); color: var(--text-dim); }
+    .course-method-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--fs-md); color: var(--text-dim); }
     .course-method-line .course-method-line__summary { min-height: 0; padding: 0; font-size: inherit; font-weight: var(--fw-regular); text-align: start; gap: var(--space-2); }
     .course-method-line__label { color: var(--text-muted); white-space: nowrap; }
     .course-method-line__stage { min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+    .course-method-line__ready { color: var(--text-muted); font-size: var(--fs-sm); }
   }
   @container study (max-width: 760px) {
     :where(.study-app, .study-seat) {
