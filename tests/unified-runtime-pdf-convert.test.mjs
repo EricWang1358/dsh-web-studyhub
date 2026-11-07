@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
+import { dshJobExecutor } from '../lib/jobs/executor.js';
 import { convertHome } from '../lib/mineru-job.js';
 import { CONVERT_TEXT } from '../lib/contexts/audio/convert-support.js';
 import { makePdf } from './helpers/pdf.mjs';
@@ -135,6 +136,27 @@ test('without a session to run in the import is refused in words, and nothing is
   await service.call('mineru.upload.finish', { uploadId });
   await assert.rejects(service.call('mineru.import', { uploadId }), { code: 'convert-needs-session', message: CONVERT_TEXT.needsSession });
   assert.deepEqual([(await service.call('snapshot')).jobs.filter(job => job.type === KIND), await filesUnder(join(convertHome(h.root), 'jobs')), (await h.parses()).length], [[], [], 0]);
+});
+
+test('a cold DSH panel without a resumed chat agent (and standalone StudyService) admits PDF conversion on study-host and lists it in 任务', async t => {
+  for (const extra of [{ jobExecutor: dshJobExecutor({}, undefined) }, {}]) {
+    const h = await harness(t, {});
+    await h.set({ total: 3 });
+    const service = new StudyService(h.root, { runtimePilot: { pdfConvert: true }, mineru: { limits: { windowPages: 200, livenessMs: 0 }, local: { cli: h.cli, home: h.work } }, ...extra });
+    t.after(() => service.dispose());
+    const bytes = await makePdf({ pages: 3 });
+    const { uploadId, chunkBytes } = await service.call('mineru.upload.start', { name: 'Book.pdf', size: bytes.length });
+    for (let offset = 0; offset < bytes.length; offset += chunkBytes) await service.call('mineru.upload.chunk', { uploadId, offset, data: bytes.subarray(offset, offset + chunkBytes).toString('base64') });
+    await service.call('mineru.upload.finish', { uploadId });
+    const started = await service.call('mineru.import', { uploadId });
+    const done = await until(async () => {
+      const [job] = (await service.call('snapshot')).jobs.filter(item => item.type === KIND && item.id === started.jobId);
+      return job && !['queued', 'running', 'cancelling'].includes(job.status) ? job : null;
+    }, 'the study-host conversion');
+    assert.equal(done.status, 'complete', done.stage);
+    assert.equal(done.contract.runtime.attempts[0].executor.service, 'study-host');
+    assert.equal(consoleCode.taskSummary(consoleCode.tasksOf(await service.call('snapshot'))[0]).state, 'done');
+  }
 });
 
 test('every new sentence of the conversion has its English form', async () => {

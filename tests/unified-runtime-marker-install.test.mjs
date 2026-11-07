@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { stat } from 'node:fs/promises';
 import { INSTALL_MESSAGES, MARKER_INSTALL, markerInstallStatePath, venvLayout } from '../lib/marker-install.js';
 import { INSTALL_JOB_TEXT } from '../lib/marker-install-text.js';
+import { dshJobExecutor } from '../lib/jobs/executor.js';
 import { observeLocalWith } from '../lib/contexts/audio/local-process-job.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { until } from './helpers/wait.mjs';
@@ -58,6 +59,19 @@ test('without a session to run in the start is refused in words, before any job 
   await assert.rejects(h.call('marker.install.start', { confirm: true }), { code: 'needs-session', message: INSTALL_JOB_TEXT.needsSession });
   assert.deepEqual([await h.jobs(), await exists(markerInstallStatePath())], [[], false]);
   assert.ok((await h.pyLog()).every(line => /--version|"-c"/.test(line)), 'only the read-only probes of the plan ran');
+});
+
+test('a cold DSH panel without a resumed chat agent (and standalone StudyService) runs Marker install on study-host and lists it in 任务', async t => {
+  for (const jobExecutor of [dshJobExecutor({}, undefined), undefined]) {
+    const h = await harness(t, {}, { runtime: { jobExecutor } });
+    const started = await h.call('marker.install.start', { confirm: true });
+    assert.equal(started.status, 'running');
+    await h.ended('complete');
+    await until(async () => (await h.jobs())[0]?.contract.status === 'complete', 'the study-host install to settle');
+    const [job] = await h.jobs();
+    assert.equal(job.contract.runtime.attempts[0].executor.service, 'study-host');
+    assert.equal(consoleCode.taskSummary(consoleCode.tasksOf(await h.call('snapshot'))[0]).state, 'done');
+  }
 });
 
 test('the console cannot start an install again by retry, resume or pause: only the Settings start action does, and it asks for confirm', async t => {
