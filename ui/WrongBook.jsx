@@ -2,6 +2,7 @@ import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React, { memo, useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import css from "./views.css";
 import wrongCss from "./wrongbook.css";
+import overlayCss from "./components/overlays.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
 import Markdown from "./Markdown.jsx";
 import StudyInline from "./StudyInline.jsx";
@@ -228,6 +229,59 @@ const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, s
   );
 }, sameRow);
 
+/* 薄弱点分布 (#748): one bar over the groups the list is already grouped by, so where the mass of mistakes is shows before a learner opens groups one
+   by one. Hand-drawn with the rules of the dashboard's charts (ui/charts/DashboardCharts.jsx) and nothing of their code: colours from tokens, a tooltip
+   drawn over the segment it explains (aria-hidden, because the button's aria-label says the same facts), the count drawn inside the segment as the second,
+   non-colour cue, and an empty line when the current filter leaves nothing. Shown from FILTER_MIN mistakes on (#675). */
+/** What a segment says: its title, its count, its share and what a press does. The tooltip and the aria-label both read this list, so the drawn words
+    and the spoken ones cannot drift apart. */
+export function weaknessFacts(group, total) {
+  const share = Math.round((group.rows.length / Math.max(1, total)) * 100);
+  return [group.title, uiFormat("{0} 题", [group.rows.length]), uiFormat("占 {0}%", [share]),
+    group.deckIds.length === 1 ? ui("只看这个题组") : ui("展开这一组")];
+}
+export function WeaknessBar({ groups = [], onPick }) {
+  const [tip, setTip] = useState(null);
+  const bar = useRef(null);
+  const total = groups.reduce((sum, group) => sum + group.rows.length, 0);
+  const facts = (group) => weaknessFacts(group, total);
+  const point = (index, event) => {
+    const element = event.currentTarget, box = bar.current;
+    if (!element || !box) return;
+    setTip({ index, x: element.offsetLeft + element.offsetWidth / 2, y: element.offsetTop });
+  };
+  const shown = tip && groups[tip.index] ? { ...tip, facts: facts(groups[tip.index]) } : null;
+  return (
+    <section className="wb-dist" aria-label={ui("薄弱点分布")} data-tour="wrongbook-dist">
+      <div className="wb-dist-head">
+        <h2>{ui("薄弱点分布")}</h2>
+        <small className="muted">{uiFormat("{0} 组 · 共 {1} 题", [groups.length, total])}</small>
+      </div>
+      {groups.length === 0 ? <p className="wb-dist-empty">{ui("当前筛选下没有错题")}</p> : (
+        <>
+          <div className="wb-dist-bar" ref={bar} role="group" aria-label={ui("每组错题数占全部的比例")}>
+            {groups.map((group, index) => {
+              const words = facts(group);
+              return (
+                <Button key={group.key} variant="quiet" size="sm" className="wb-dist-seg" style={{ flexGrow: group.rows.length }}
+                  data-tight={group.rows.length / Math.max(1, total) < 0.08 || undefined} data-narrow={group.rows.length / Math.max(1, total) < 0.2 || undefined}
+                  aria-label={words.join(" · ")} onMouseEnter={(event) => point(index, event)} onMouseLeave={() => setTip(null)}
+                  onFocus={(event) => point(index, event)} onBlur={() => setTip(null)} onClick={() => onPick?.(group)}>
+                  <span className="wb-dist-name" aria-hidden="true">{group.title}</span>
+                  <span className="wb-dist-count" aria-hidden="true">{group.rows.length}</span>
+                </Button>
+              );
+            })}
+            {shown && <span className="sh-popover sh-tooltip sh-tooltip--point" aria-hidden="true" style={{ left: shown.x, top: shown.y }}>
+              <strong>{shown.facts[0]}</strong>
+              {shown.facts.slice(1).map((fact, at) => <span key={at}>{fact}</span>)}
+            </span>}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
 export function WrongBookView({
   data, course, onCourse, showInactive, onShowInactive, items, counts, view = "weak", onView, viewCounts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
   recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings,
@@ -236,6 +290,8 @@ export function WrongBookView({
   const { busy } = useStudy();
   useInjectCss(css, "study-views");
   useInjectCss(wrongCss, "study-wrongbook");
+  // The distribution's tooltip is the shared point tooltip surface (.sh-tooltip--point, ui/components/overlays.css).
+  useInjectCss(overlayCss, "study-overlays");
   // 待巩固 is the page; 已订正 is its history. The switch shows both counts and is only offered once there is a history; while the history is open it
   // stays (even at 0) so the learner can always come back.
   const isHistory = view === "history";
@@ -374,6 +430,12 @@ export function WrongBookView({
   const showRecs = !isHistory && total > 0 && (!!recs || recsLoading);
   const practiceRec = (rec) => onPractice([refOf(rec)]);
   const groupsId = useId();
+  // A segment of 薄弱点分布 takes the learner to its group: the row's own 只看这个题组 when the group is one deck, otherwise open it and go there.
+  const pickGroup = (group) => {
+    if (group.deckIds.length === 1) { onlyThisDeck(group); return; }
+    setOpenGroups((previous) => new Set(previous).add(group.key));
+    requestAnimationFrame?.(() => document.getElementById(`${groupsId}-${group.key}`)?.closest(".wb-group")?.scrollIntoView?.({ block: "start", behavior: "smooth" }));
+  };
   const batchButton = (
     <div className="wb-batch">
       <Tooltip layer content={generateTip()}>
@@ -562,6 +624,9 @@ export function WrongBookView({
         </div>
       )}
       {total > 0 && !showBar && showBatch && batchButton}
+      {/* Where the mistakes are, before a learner opens groups one by one (#748). The same threshold as the toolbar (#675), and it follows the
+          grouping and the filter the list uses: the bar is the list, seen at once. */}
+      {!isHistory && total >= filterMin && <WeaknessBar groups={groups} onPick={pickGroup} />}
 
       {!isHistory && gated && total > 0 && (
         <ModelSetupGate feature="variants" model={{ ready: false }} onOpenSettings={onOpenSettings} />

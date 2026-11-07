@@ -100,5 +100,11 @@
   "正在读取已订正的错题…": "Loading corrected mistakes…",
   "显示所有已订正的题。": "Shows every corrected question.",
   "已订正题分页": "Corrected-mistake pagination",
-  "服务这次不可用。等一两分钟再试一次。": "The service was unavailable this time. Wait a minute or two and try again."
+  "服务这次不可用。等一两分钟再试一次。": "The service was unavailable this time. Wait a minute or two and try again.",
+  "薄弱点分布": "Where the mistakes are",
+  "{0} 组 · 共 {1} 题": "{0} groups · {1} questions",
+  "占 {0}%": "{0}%",
+  "展开这一组": "Open this group",
+  "当前筛选下没有错题": "No mistakes match the current filter",
+  "每组错题数占全部的比例": "Each group’s share of all mistakes"
 }
