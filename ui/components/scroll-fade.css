@@ -13,6 +13,9 @@
       -webkit-mask-image: linear-gradient(to left, transparent 0, #000 var(--sh-fade-size, 28px));
       mask-image: linear-gradient(to left, transparent 0, #000 var(--sh-fade-size, 28px));
     }
+    /* A focused item that scrolls into view (Tab, the arrow keys of a tab list) stops one fade's width inside the edge, not under the fade. Opt-in: the
+       board's columns snap, and a scroll-padding would move the snap stop; the settings strip sets the same value in settings.css. */
+    .sh-fade-x--pad { scroll-padding-inline: var(--sh-fade-size, 28px); }
     .sh-fade-x[data-fade-start][data-fade-end] {
       -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--sh-fade-size, 28px), #000 calc(100% - var(--sh-fade-size, 28px)), transparent 100%);
       mask-image: linear-gradient(to right, transparent 0, #000 var(--sh-fade-size, 28px), #000 calc(100% - var(--sh-fade-size, 28px)), transparent 100%);

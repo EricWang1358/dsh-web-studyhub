@@ -40,6 +40,7 @@ test('the shared stylesheet fades one side, the other, or both, and nothing else
   assert.equal((css.match(/mask-image:/g) || []).length, 6, 'three rules, the prefixed and the plain property each');
   assert.doesNotMatch(css, /\n\s*(overflow|scroll-behavior|scroll-snap-type|position|display)\s*:/, 'a fade paints; it never moves or un-scrolls anything');
   assert.match(css, /--sh-fade-size, 28px/, 'the fade has one default width, and a strip may set its own');
+  assert.match(css, /\.sh-fade-x--pad\s*\{\s*scroll-padding-inline: var\(--sh-fade-size, 28px\)/, 'a focused item scrolls in clear of the fade');
 });
 
 test('every sideways strip in the app takes the hook and the class', async () => {

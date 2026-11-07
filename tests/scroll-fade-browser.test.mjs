@@ -67,6 +67,8 @@ test('in the browser: the narrow settings strip fades the side that still has ca
   assert.notEqual(startMask, endMask, 'the fade follows the side that has content');
   // And back: the end fades again, on the same element (a mask paints, it does not rebuild anything).
   await scrollTo(page, 'start');
+  // A category reached by the keyboard scrolls in with a fade's width to spare, not under the fade (the browser reads scroll-padding for that).
+  assert.equal(await nav.evaluate((box) => getComputedStyle(box).scrollPaddingInline), '28px', 'the strip pads its scroll by the width of its fade');
   assert.equal(await nav.getAttribute('data-fade-end'), 'true', 'the attribute is on the element itself');
   // A wide pane turns the list upright: nothing scrolls sideways, so no fade is asked for.
   await page.setViewportSize({ width: 1400, height: 900 });

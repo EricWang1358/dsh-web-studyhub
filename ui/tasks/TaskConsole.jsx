@@ -279,7 +279,7 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
   // no 退出全屏): there they stay, the one way out. They sit on the title's line (the header's action slot, under it when narrow), so the header takes as little of the
   // height the detail's panels need as a page title can.
   const filterBar = none || (full && !empty) ? null : (
-    <div className="tc-scope-wrap sh-fade-x" ref={scopeStrip} data-fade-start={scopeEdges.start || undefined} data-fade-end={scopeEdges.end || undefined} onScroll={measureScope}>
+    <div className="tc-scope-wrap sh-fade-x sh-fade-x--pad" ref={scopeStrip} data-fade-start={scopeEdges.start || undefined} data-fade-end={scopeEdges.end || undefined} onScroll={measureScope}>
       <SegmentedControl className="tc-scope" size="sm" label={ui('筛选')} value={filter} onChange={setFilter}
         options={filters.map((item) => ({ value: item.id, label: `${ui(FILTER_LABEL[item.id])} ${item.count}` }))} />
     </div>

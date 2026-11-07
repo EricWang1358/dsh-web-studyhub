@@ -65,7 +65,7 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
     <div className="tc-body">
       <div className="tc-col">
         {!callFree && <Timeline calls={calls} running={live} family={kind === 'audio' ? 'audio' : kind === 'coach' ? 'coach' : 'generation'} contractKind={contract.kind} selected={target?.callId} marks={marks} onSelect={choose} />}
-        <Tabs id={left} ref={leftStrip} className="tc-tabs sh-fade-x" data-fade-start={leftEdges.start || undefined} data-fade-end={leftEdges.end || undefined}
+        <Tabs id={left} ref={leftStrip} className="tc-tabs sh-fade-x sh-fade-x--pad" data-fade-start={leftEdges.start || undefined} data-fade-end={leftEdges.end || undefined}
           onScroll={measureLeft} itemClassName="tc-tab" label={ui('左侧面板')} value={tab} onChange={setLeftTab} items={leftItems} />
         {!callFree && <TabPanel id={left} value="running" selected={tab} className="tc-panel" tabIndex={undefined}>
           <div className="tc-scroll"><RunningCalls calls={calls} active={live} selected={target?.callId} onSelect={choose} /></div>
@@ -74,7 +74,7 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
         {planned && <TabPanel id={left} value="plan" selected={tab} className="tc-panel" tabIndex={undefined}><PlanTable contract={contract} task={task} /></TabPanel>}
       </div>
       <div className="tc-col">
-        <Tabs id={right} ref={rightStrip} className="tc-tabs sh-fade-x" data-fade-start={rightEdges.start || undefined} data-fade-end={rightEdges.end || undefined}
+        <Tabs id={right} ref={rightStrip} className="tc-tabs sh-fade-x sh-fade-x--pad" data-fade-start={rightEdges.start || undefined} data-fade-end={rightEdges.end || undefined}
           onScroll={measureRight} itemClassName="tc-tab" label={ui('右侧面板')} value={rightShown} onChange={setRightTab} items={rightItems} />
         {/* A day of 为你定制 has no sub-agent and keeps no output: its 实时输出 says so and shows the batch instead of asking job.output for nothing. */}
         {!callFree && <TabPanel id={right} value="output" selected={rightShown} className="tc-panel" tabIndex={undefined}>
