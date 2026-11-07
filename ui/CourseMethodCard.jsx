@@ -57,7 +57,7 @@ export default function CourseMethodCard({ course }) {
           <TextInput value={stage.name} maxLength={40} disabled={disabled} onChange={event => changeStage(index, { name: event.target.value })} /></Field>
         <Field label={ui('过关宽严')} width="full" hint={LEVEL_WORDS[stage.level]()}>
           <SegmentedControl label={uiFormat('第 {0} 个阶段的过关宽严', [index + 1])} size="sm" value={stage.level} disabled={disabled}
-            options={LEVELS.map(level => ({ value: level, label: ui({ loose: '松', medium: '中', strict: '严' }[level]) }))}
+            options={LEVELS.map(level => ({ value: level, label: ui({ loose: '松一点', medium: '适中', strict: '严格一点' }[level]) }))}
             onChange={level => changeStage(index, { level })} /></Field>
       </li>)}
     </ol>

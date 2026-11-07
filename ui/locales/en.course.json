@@ -139,9 +139,6 @@
   "第 {0} 个阶段": "Stage {0}",
   "过关宽严": "Gate",
   "第 {0} 个阶段的过关宽严": "Gate of stage {0}",
-  "松": "Loose",
-  "中": "Medium",
-  "严": "Strict",
   "松：练过就算过": "Loose: practising is enough",
   "中：约三分之二答对": "Medium: about two thirds right",
   "严：全部答对，错的再练一次": "Strict: all of them right, the wrong ones again",
@@ -153,4 +150,8 @@
   "课前：发资料，理出要学的点": "Before class: share the material, list what is to be learned",
   "课后：按批练，到期不超过 5 题、新题不超过 10 题": "After class: practise in batches — at most 5 due questions and 10 new ones",
   "考前：到期复习，重点与薄弱优先": "Before the exam: review what is due; focus topics and weak questions first"
+,
+  "松一点": "A little loose",
+  "适中": "Medium",
+  "严格一点": "A little strict"
 }
