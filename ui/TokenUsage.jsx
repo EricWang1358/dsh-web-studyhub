@@ -56,8 +56,9 @@ export function TokenUsage({ usage, estimate, inline = false, copy = true, class
 
 /* ---------- before a run ---------- */
 
-/* The widest line an estimate usually is: the loading line lays this out invisibly, so it takes the lines the ready one will take. */
-const GHOST_ESTIMATE = { totalTokens: { low: 88800, high: 99900 }, calls: { low: 88, high: 99 } };
+/* The widest line an estimate usually is: the loading line lays this out invisibly, so it takes the lines the ready one will take. A question estimate says
+   「（含思考）」 (lib/token-estimate.js withThinking), so the ghost does too. */
+const GHOST_ESTIMATE = { totalTokens: { low: 88800, high: 99900 }, calls: { low: 88, high: 99 }, notes: ['thinking-default'] };
 
 /**
  * The estimate line above a submit button: "预计 58.3K–96.1K tok · 8–10 次模型调用", with an ⓘ button that opens the

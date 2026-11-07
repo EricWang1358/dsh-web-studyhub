@@ -9,6 +9,10 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { estimateFromState, compactEstimate, stageTotals, calibrateEstimate } from "../lib/token-estimate.js";
 import { calibrationDir, calibrationFor, createCalibration, learningOff, observedByStage, stageOfStep } from "../lib/estimate-calibration.js";
+import { DEFAULT_OUTPUT_PER_CALL } from "../lib/stage-usage.js";
+
+/** No assumed thinking allowance: the tests that check the arithmetic of the ratios alone (production always has the allowance, lib/token-estimate.js). */
+const NO_ASSUMPTION = Object.freeze({ stages: {}, samples: 0, defaults: {} });
 
 /* #218: the estimate learns from this library's own runs. Each finished generation job records, per stage, what it used against what was
    estimated; the median ratio of the last runs scales the next estimate (stage by stage), so the range covers what a run really costs here.
@@ -41,7 +45,7 @@ test("a calibrated estimate covers what this library's runs really used, stage b
   assert.ok(totals.plan && totals.author && totals.review, JSON.stringify(Object.keys(totals)));
   const calibration = createCalibration(root);
   assert.deepEqual((await calibration.factors()).stages, {}, "no runs, no correction");
-  assert.deepEqual(calibrateEstimate(raw, await calibration.factors()), raw, "an uncalibrated estimate is returned as it is");
+  assert.deepEqual(calibrateEstimate(raw, await calibration.factors(), NO_ASSUMPTION), raw, "an uncalibrated estimate is returned as it is");
   // The reviews and writing cost 2.5x and 1.6x what was estimated, planning as estimated.
   const actual = { plan: mid("plan"), blueprint: mid("blueprint"), author: mid("author") * 1.6, review: mid("review") * 2.5 };
   for (let run = 0; run < 2; run++) await calibration.record({ stageTotals: totals, actual });
@@ -148,10 +152,10 @@ test("what each stage writes per call is measured, and the estimate takes it as 
   t.after(() => rm(dir, { recursive: true, force: true }));
   const calibration = createCalibration(dir), raw = estimate();
   assert.deepEqual((await calibration.outputPerCall()).stages, {}, "no runs, nothing measured");
-  assert.deepEqual(calibrateEstimate(raw, null, { stages: {} }), raw, "an unmeasured stage leaves the estimate as it was");
+  assert.deepEqual(calibrateEstimate(raw, null, NO_ASSUMPTION), raw, "an unmeasured stage leaves the estimate as it was");
   // A call of the writing stage really wrote 9 000 tokens (the thinking is inside the output a provider reports).
   for (let run = 0; run < 3; run++) await calibration.record({ outputs: { author: { calls: 4, output: 4 * 9_000 }, review: { calls: 2, output: 2 * 12_000 } } });
-  const perCall = { ...(await calibration.outputPerCall()), defaults: undefined };
+  const perCall = { ...(await calibration.outputPerCall()), defaults: {} };
   assert.equal(perCall.stages.author, 9_000);
   assert.equal(perCall.stages.review, 12_000);
   const raised = calibrateEstimate(raw, null, perCall);
@@ -175,7 +179,7 @@ test("one model's output does not raise another model's estimate, and a record w
   assert.deepEqual((await calibration.outputPerCall({ model: "mine" })).stages, {}, "the other model's measurements are not mine");
   assert.equal((await calibration.outputPerCall({ model: "other/model" })).stages.author, 9_000);
   assert.equal((await calibration.outputPerCall()).stages.author, 9_000, "without a model the machine's whole record is read");
-  assert.deepEqual(calibrateEstimate(raw, null, { ...(await calibration.outputPerCall({ model: "mine" })), defaults: undefined }), raw, "nothing measured for this model: the estimate is untouched");
+  assert.deepEqual(calibrateEstimate(raw, null, { ...(await calibration.outputPerCall({ model: "mine" })), defaults: {} }), raw, "nothing measured for this model: the estimate is untouched");
 });
 
 /* #772 review: the old file lived in each learning library. The machine's file takes it over once, leaves the old file where it is, and never counts a run twice. */
@@ -225,12 +229,15 @@ test("with no history, a stage's high end rises to the measured thinking allowan
   t.after(() => rm(dir, { recursive: true, force: true }));
   const raw = estimate(), perCall = await createCalibration(dir).outputPerCall();
   assert.deepEqual(perCall.stages, {}, "nothing measured on this machine");
-  for (const [id, order] of [["blueprint", 9_437], ["author", 8_662], ["review", 12_973]]) assert.equal(perCall.defaults[id], order, `${id} allowance is the order the owner's finished run measured`);
+  assert.equal(perCall.defaults, undefined, "the learning store returns what it learned, never the assumption (#771 gate M5)");
+  // #771 gate L3: the p90 of the owner's run per call is the top of the range (the p50 is no point here: the low end stays the sample estimate).
+  assert.deepEqual({ ...DEFAULT_OUTPUT_PER_CALL }, { plan: 10_632, blueprint: 13_610, author: 13_531, review: 24_253 }, "p90 per stage; no repair stage in the estimate");
   const raised = calibrateEstimate(raw, null, perCall);
+  assert.deepEqual(calibrateEstimate(raw, null, null), raised, "a calibration that could not be read still assumes the allowance");
   for (const id of ["blueprint", "author", "review"]) {
     const before = raw.stages.find(stage => stage.id === id), after = raised.stages.find(stage => stage.id === id);
     assert.equal(after.outputTokens.low, before.outputTokens.low, `${id}: a model that does not think still fits the low end`);
-    assert.equal(after.outputTokens.high, Math.max(before.outputTokens.high, perCall.defaults[id] * before.calls), `${id}: the high end is what a thinking model writes`);
+    assert.equal(after.outputTokens.high, Math.max(before.outputTokens.high, DEFAULT_OUTPUT_PER_CALL[id] * before.calls), `${id}: the high end is what a thinking model writes`);
   }
   assert.ok(raised.totalTokens.high > raw.totalTokens.high * 2, "the high end is no longer a third of a thinking run");
   assert.equal(raised.totalTokens.low, raw.totalTokens.low, "the low end is the sample estimate");
@@ -238,7 +245,7 @@ test("with no history, a stage's high end rises to the measured thinking allowan
   // One stage measured on this machine: that stage says "measured", the others stay assumed.
   const mixed = calibrateEstimate(raw, null, { ...perCall, stages: { review: 20_000 }, samples: 3 });
   assert.equal(mixed.stages.find(stage => stage.id === "review").outputTokens.high, Math.max(raw.stages.find(stage => stage.id === "review").outputTokens.high, 20_000 * raw.stages.find(stage => stage.id === "review").calls));
-  assert.ok(mixed.notes.includes("includes-thinking") && mixed.notes.includes("thinking-default"));
+  assert.deepEqual(mixed.notes.filter((code) => /thinking/.test(code)), ["thinking-default"], "one note, the one that explains the assumed stages (#771 gate L2)");
 });
 
 test("the headline range says it includes the model's thinking when the estimate raised its high end for it", async () => {
@@ -254,4 +261,161 @@ test("the headline range says it includes the model's thinking when the estimate
   m.setUiLanguage("en");
   assert.match(m.estimateSummary({ ...base, notes: ["thinking-default"] }), /tok \(thinking included\) · /);
   m.setUiLanguage("zh");
+});
+
+/* #772 gate H1: a coverage run's estimate prices its FIRST round (lib/contexts/generation/generate/estimate.js), while its steps are every round's. Recording the
+   whole run against that estimate learned a ratio of about the number of rounds, and three book runs made every estimate on the machine 4x. A run of several
+   rounds teaches what its first round used, against the estimate of that round. */
+test("a coverage run of several rounds teaches what its first round used, not the whole run against one round's estimate", async (t) => {
+  const { StudyService } = await import("../lib/service.js");
+  const { reportUsage } = await import("../lib/usage-scope.js");
+  const { settleJob } = await import("./helpers/wait.mjs");
+  const { mergedTranscript } = await import("./helpers/merged-transcript.mjs");
+  const { clusteringModel } = await import("./helpers/clustering-model.mjs");
+  const home = await mkdtemp(join(tmpdir(), "study-dsh-home-")), root = await mkdtemp(join(tmpdir(), "study-calibration-rounds-"));
+  const saved = { home: process.env.DSH_HOME, off: process.env.STUDY_NO_CALIBRATION };
+  process.env.DSH_HOME = home;
+  delete process.env.STUDY_NO_CALIBRATION;
+  const service = new StudyService(root, { coverage: { roundLimit: 8 } });
+  t.after(async () => {
+    await service.dispose();
+    for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+  });
+  const world = mergedTranscript({ recordings: 2, parts: 6, paragraphs: 4 }), model = clusteringModel();
+  service.complete = async (system, prompt, context) => { reportUsage({ uncachedInputTokens: 1000, outputTokens: 100 }); return model.complete(system, prompt, context); };
+  service.light = async (system, prompt) => JSON.stringify({ sections: JSON.parse(prompt.split("\n\n")[0]).sections.map((item) => ({ id: item.id, importance: 3, kind: "definition", reason: `Reason for ${item.title}` })) });
+  for (const source of world.sources) await service.call("source.add", { id: source.id, title: source.title, text: source.text, audio: source.audio });
+  const started = await service.call("generate", { sourceIds: world.sources.map((source) => source.id), coverageLevel: "standard", kind: "quiz" });
+  assert.equal(started.plan.rounds, 3);
+  const job = await settleJob(service, started.jobId);
+  assert.equal(job.status, "complete", job.stage);
+  const whole = observedByStage(job);
+  const runs = JSON.parse(await readFile(join(home, "study", "estimate-calibration.json"), "utf8")).runs;
+  assert.equal(runs.length, 1, "one run, one record");
+  const [stage, [estimated, used]] = Object.entries(runs[0].stages).find(([id]) => id === "author");
+  const mid = (job.estimate.stageTotals[stage].low + job.estimate.stageTotals[stage].high) / 2;
+  assert.ok(Math.abs(estimated - Math.round(mid)) <= 1, "read against the estimate the job kept (the first round's)");
+  assert.ok(used < whole.author * 0.6, `the first round's writing (${used}), not all three rounds' (${whole.author})`);
+});
+
+/* #772 gate M2-M4, L5: the machine's file is shared by every library and every StudyHub process on the machine. */
+test("the machine's file names no library: a carried-in library is kept as a short hash of its folder, once, and only when it carried runs", async (t) => {
+  const machine = await mkdtemp(join(tmpdir(), "study-calibration-machine-")), library = await mkdtemp(join(tmpdir(), "study-calibration-library-")),
+    empty = await mkdtemp(join(tmpdir(), "study-calibration-empty-"));
+  t.after(() => Promise.all([machine, library, empty].map((dir) => rm(dir, { recursive: true, force: true }))));
+  await writeFile(join(library, "estimate-calibration.json"), JSON.stringify({ runs: [1, 2, 3].map((n) => ({ at: `2026-10-0${n}T00:00:00.000Z`, stages: { author: [100, 200] } })) }));
+  const calibration = createCalibration(machine);
+  await calibration.record({ stageTotals: { author: { low: 100, high: 100 } }, actual: { author: 200 }, library: empty });
+  await calibration.record({ stageTotals: { author: { low: 100, high: 100 } }, actual: { author: 200 }, library });
+  const text = await readFile(join(machine, "estimate-calibration.json"), "utf8"), written = JSON.parse(text);
+  assert.equal(written.runs.length, 5, "three carried over and two new");
+  assert.ok(!/study-calibration-|tmp|temp/i.test(text), "no folder name in the file");
+  assert.equal(written.imported.length, 1, "a library that carried nothing leaves nothing behind");
+  assert.match(written.imported[0], /^[0-9a-f]{16}$/);
+  if (process.platform === "win32") {
+    await calibration.record({ stageTotals: { author: { low: 100, high: 100 } }, actual: { author: 200 }, library: library.toUpperCase() });
+    assert.equal((await calibration.factors({ library: library.toLowerCase() })).samples, 6, "the same folder in another case is the same library: not carried twice");
+  }
+});
+
+test("a damaged file is put aside before the next write; a file that cannot be read now is not overwritten", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const totals = { author: { low: 100, high: 100 } }, path = join(root, "estimate-calibration.json");
+  await writeFile(path, "{ not json");
+  await createCalibration(root).record({ stageTotals: totals, actual: { author: 150 } });
+  const { readdir } = await import("node:fs/promises");
+  const aside = (await readdir(root)).filter((name) => name.startsWith("estimate-calibration.json.damaged-"));
+  assert.equal(aside.length, 1, "the damaged file is kept beside the new one");
+  assert.equal(await readFile(join(root, aside[0]), "utf8"), "{ not json");
+  assert.equal(JSON.parse(await readFile(path, "utf8")).runs.length, 1);
+  const before = await readFile(path, "utf8");
+  const busy = createCalibration(root, { read: async (file) => { if (file === path) throw Object.assign(new Error("busy"), { code: "EBUSY" }); return readFile(file, "utf8"); } });
+  await assert.rejects(busy.record({ stageTotals: totals, actual: { author: 150 } }), /busy/, "a read that failed for another reason is no empty file");
+  assert.equal(await readFile(path, "utf8"), before, "the machine's history is not wiped");
+});
+
+test("two writers on the same folder (two StudyHub processes) both keep their runs", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const one = createCalibration(root), two = createCalibration(root), totals = { author: { low: 100, high: 100 } };
+  await Promise.all(Array.from({ length: 6 }, (_, n) => (n % 2 ? one : two).record({ stageTotals: totals, actual: { author: 100 + n } })));
+  assert.equal(JSON.parse(await readFile(join(root, "estimate-calibration.json"), "utf8")).runs.length, 6);
+});
+
+test("a partly bad file still calibrates from its good runs", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const good = (n) => ({ at: `2026-10-0${n}T00:00:00.000Z`, stages: { author: [100, 200] } });
+  await writeFile(join(root, "estimate-calibration.json"), JSON.stringify({ runs: [{ at: "x", stages: null }, { at: "y", stages: { author: 5 } }, { at: "z", stages: { author: [0, 10] } }, { at: "w", stages: {} }, good(1), good(2), good(3)] }));
+  const factors = await createCalibration(root).factors();
+  assert.equal(factors.samples, 3, "only the runs that carry a usable stage count");
+  assert.equal(factors.stages.author, 2);
+  assert.equal(factors.deviates, true);
+});
+
+/* #771 gate H2: the stage ratio is learned from what a run really used, thinking included, so a calibrated stage already carries the thinking. Raising its
+   output again counted the thinking twice and put the real cost below the range (probe p1: real 94,644, range 116,127-157,885). A stage with a ratio is
+   corrected by the ratio; the measured or assumed thinking only raises a stage this machine has no ratio for. */
+test("calibration and measured thinking together still put the real cost inside the range, and the thinking only ever raises the high end", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "study-calibration-both-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const raw = estimate(), totals = stageTotals(raw), calibration = createCalibration(dir);
+  // A thinking model: every call writes the mean the owner's run measured (#771 table; the gate's probe p1), the input is as estimated.
+  const MEAN = { plan: 3_568, blueprint: 9_437, author: 8_662, review: 12_973 }, actual = {}, outputs = {};
+  for (const stage of raw.stages) {
+    const written = MEAN[stage.id] * stage.calls;
+    actual[stage.id] = (stage.inputTokens.low + stage.inputTokens.high) / 2 + written;
+    outputs[stage.id] = { calls: stage.calls, output: written };
+  }
+  const real = Object.values(actual).reduce((sum, value) => sum + value, 0);
+  for (let run = 0; run < 3; run++) await calibration.record({ stageTotals: totals, actual, outputs });
+  const factors = await calibration.factors(), measured = await calibration.outputPerCall();
+  const ratioOnly = calibrateEstimate(raw, factors, NO_ASSUMPTION), both = calibrateEstimate(raw, factors, measured), assumed = calibrateEstimate(raw, factors, null);
+  assert.ok(both.totalTokens.low <= real && real <= both.totalTokens.high, `range ${both.totalTokens.low}-${both.totalTokens.high} covers ${real}`);
+  assert.deepEqual(both.totalTokens, ratioOnly.totalTokens, "every stage has a ratio: the thinking is in it already");
+  assert.deepEqual(assumed.totalTokens, ratioOnly.totalTokens, "nor is an assumption added on top of a ratio (probe p2 A: the low end fell)");
+  assert.ok(!both.notes.some((code) => /thinking/.test(code)), "no thinking note when no stage was raised for it");
+  // One stage this machine has no ratio for (plan): only it is raised, by its measured output; the low end never falls.
+  const partial = { ...factors, stages: Object.fromEntries(Object.entries(factors.stages).filter(([id]) => id !== "plan")) };
+  const partialRatio = calibrateEstimate(raw, partial, NO_ASSUMPTION), partialBoth = calibrateEstimate(raw, partial, measured);
+  const plan = raw.stages.find((stage) => stage.id === "plan"), raisedPlan = partialBoth.stages.find((stage) => stage.id === "plan");
+  assert.equal(raisedPlan.outputTokens.high, Math.max(plan.outputTokens.high, measured.stages.plan * plan.calls));
+  assert.equal(partialBoth.totalTokens.high - partialRatio.totalTokens.high, raisedPlan.outputTokens.high - plan.outputTokens.high, "the total grows by that stage's rise alone");
+  assert.ok(partialBoth.totalTokens.low >= partialRatio.totalTokens.low);
+  assert.ok(partialBoth.notes.includes("includes-thinking"));
+});
+
+test("the job keeps the notes and the per-stage range it showed, beside the raw stage totals it learns against (#771 gate L1)", async () => {
+  const raw = estimate(), shown = calibrateEstimate(raw, { stages: { review: 2 }, samples: 3 }, null), kept = compactEstimate(shown, raw);
+  assert.deepEqual(kept.stageTotals, stageTotals(raw), "the next ratio is still read against the raw estimate");
+  assert.deepEqual(kept.notes, ["calibrated", "thinking-default"], "含思考 and calibrated travel with the job; general advice stays with the form");
+  const sum = (side) => Object.values(kept.shownStageTotals).reduce((total, range) => total + range[side], 0);
+  assert.deepEqual({ low: sum("low"), high: sum("high") }, shown.totalTokens, "the stages add up to the headline: one fact, one number");
+  assert.equal(kept.shownStageTotals.review.high, stageTotals(raw).review.high * 2, "a calibrated stage shows its corrected range");
+  const require = createRequire(import.meta.url);
+  const compiled = await build({ stdin: { contents: `export { stageUsageRows } from './ui/generation-status.js';`, resolveDir: process.cwd() },
+    bundle: true, write: false, platform: "node", format: "cjs", external: ["react", "react-dom"], loader: { ".css": "text" }, logLevel: "silent" });
+  const module = { exports: {} };
+  new Function("require", "module", "exports", compiled.outputFiles[0].text)(require, module, module.exports);
+  const rows = module.exports.stageUsageRows({ estimate: kept, ...job({ plan: 1, blueprint: 1, author: 1, review: 1 }) });
+  assert.deepEqual(rows.find((row) => row.code === "review").estimate, kept.shownStageTotals.review, "the details say the range the headline was made of");
+});
+
+test("only the question pipeline gets the thinking allowance (#771 gate L4)", () => {
+  const raw = { ...estimate(), feature: "case" };
+  assert.deepEqual(calibrateEstimate(raw, null, null), raw, "a case estimate is not given the generation stages' allowance");
+});
+
+test("a run that recorded only what it wrote is no sample of the ratio, and a bad outputs entry is dropped (#772 gate L5)", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const calibration = createCalibration(root);
+  for (let run = 0; run < 3; run++) await calibration.record({ outputs: { author: { calls: 1, output: 9000 } } });
+  const factors = await calibration.factors();
+  assert.deepEqual(factors, { stages: {}, samples: 0, deviates: false });
+  await writeFile(join(root, "estimate-calibration.json"), JSON.stringify({ runs: [{ at: "a", stages: {}, outputs: { author: 5 } }, { at: "b", stages: {}, outputs: null },
+    ...[1, 2, 3].map((n) => ({ at: `c${n}`, stages: {}, outputs: { author: [2, 18000] } }))] }));
+  assert.equal((await createCalibration(root).outputPerCall()).stages.author, 9000);
 });
