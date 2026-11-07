@@ -159,7 +159,7 @@ export const autoOf = (gen) => (typeof gen?.autoComplete === 'boolean' ? gen.aut
 /** What is said under the spending limit: what it does, or that the number was not understood. */
 export const budgetNote = (text) => (String(text ?? '').trim() && !parseTokenBudget(text)
   ? ui('没看懂这个数：请写成 800K、2.5M 或 1200000（至少 1000）。')
-  : ui('一轮结束后，累计用量到了这个数就停下，已出的题都保留。不填就不设上限。'));
+  : ui('累计用量到了这个数就停下（分轮出题的任务在一轮结束后才检查），已出的题都保留。不填就不设上限。'));
 
 /** What a coverage estimate (`usage.estimate`'s `coverage`) says, as the first words of the line under the choice: 「标准：约 343 道题，覆盖 81/81 个小节，分 12 轮，」 (the estimate's tokens and calls follow). */
 export function coverageLead(coverage) {
