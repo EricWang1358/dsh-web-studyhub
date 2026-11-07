@@ -1,0 +1,20 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* 学法 on the course settings: the name and its stages as a short numbered list; the edit form only behind 「改学法」. Tokens only. */
+    .course-method__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5) var(--space-2); min-width: 0; }
+    .course-method__name { min-width: 0; overflow-wrap: anywhere; font-size: var(--fs-md); color: var(--text-dim); }
+    .course-method__head .course-method__edit { margin-inline-start: auto; }
+    .course-method__stages { margin: 0; padding-inline-start: var(--space-5); display: grid; gap: var(--space-1-5); min-width: 0; }
+    .course-method__stage { padding-inline-start: var(--space-1); font-size: var(--fs-md); line-height: var(--lh-snug); color: var(--text); }
+    .course-method__stage::marker { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .course-method__stage-name { overflow-wrap: anywhere; }
+    .course-method__level { margin-inline-start: var(--space-2); font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; }
+    .course-method__form { display: grid; gap: var(--space-4); min-width: 0; }
+    .course-method__stages--edit { list-style: none; padding: 0; gap: var(--space-4); }
+    .course-method__stage-edit { display: grid; gap: var(--space-2); min-width: 0; }
+    .course-method__gate { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+    .course-method__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+  }
+}

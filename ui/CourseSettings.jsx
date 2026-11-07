@@ -324,7 +324,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
       </section>
 
       {/* 学法 (#775): every course has one, the default package until it is changed. */}
-      <CourseMethodCard course={course} />
+      <CourseMethodCard course={course} readout={data?.focus?.courseId === course.id ? data.focus.method : null} />
 
       {/* Only a course the main chat made a custom plan for has the card. */}
       <CustomPlanCard course={course} />
