@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
 import { CLASSROOM_METHOD, METHOD_VERSION, courseMethod, checkedMethod } from '../lib/course-method.js';
+import { methodProgress } from '../lib/course-method-progress.js';
 
 /* 学法 (#775, 4.5 S1): every course has one, the default package 「课堂跟学」 until it is changed — and that package is today's behaviour said in stages, so a
    course nobody customised learns exactly as before. The record lives on the course (course.save {method}), copied there when it is attached. */
@@ -128,4 +129,64 @@ test('a draft started from the default package is in the learner\'s language, an
   assert.match(text(form(m.shownMethod(own), true)), /恢复默认学法/);
   assert.equal((form(m.shownMethod({ name: 'Net' }), false).match(/aria-label="过关宽严是什么"/g) || []).length, 1, 'what the gates mean is said once');
   assert.doesNotMatch(text(form(m.shownMethod({ name: 'Net' }), false, 'en')), /[㐀-鿿]/, 'the form is translated too');
+});
+
+
+/* Where the learner is in the method (#775 S1b): read from what the library holds, no model call — publish while there is no material, practise while a
+   question has never been answered, review once every one has. */
+test('the current stage is read from the library: publish, then practise, then review', () => {
+  const COURSE = 'Net';
+  const base = { courses: [{ id: 'course-net', name: COURSE }], sources: [], decks: [], attempts: [] };
+  const at = state => methodProgress(state, COURSE);
+  assert.equal(at(base).index, 0, 'nothing published yet');
+  assert.equal(at(base).total, 3);
+  const material = { ...base, sources: [{ id: 's1', courses: [COURSE], text: 'A material with text. '.repeat(20) }] };
+  assert.equal(at(material).index, 1, 'a material but nothing to practise yet');
+  const cards = { ...material, decks: [{ id: 'd1', course: COURSE, cards: [{ id: 'k1', prompt: 'What is it?', answer: 'x' }, { id: 'k2', prompt: 'And?', answer: 'y' }] }] };
+  assert.equal(at(cards).index, 1, 'questions nobody answered yet');
+  const first = { ...cards, attempts: [{ deckId: 'd1', quiz_id: 'k1', grade: 4, at: '2026-11-01T10:00:00.000Z' }] };
+  assert.equal(at(first).index, 1, 'one of the two answered: still practising');
+  const all = { ...cards, attempts: [{ deckId: 'd1', quiz_id: 'k1', grade: 4, at: '2026-11-01T10:00:00.000Z' }, { deckId: 'd1', quiz_id: 'k2', grade: 3, at: '2026-11-01T10:01:00.000Z' }] };
+  assert.equal(at(all).index, 2, 'every question practised at least once: review is where it rests');
+  assert.equal(at(all).stage.activity, 'review');
+  assert.match(at(all).stage.name, /考前/);
+  // A course with its own method is measured by its own stages, in its own order.
+  const own = { ...material, courses: [{ id: 'course-net', name: COURSE, method: { name: '我的', stages: [{ name: '先讲一遍', activity: 'explain' }, { name: '再练', activity: 'practice' }] } }] };
+  assert.equal(at(own).index, 0, 'an activity nothing measures is never skipped over');
+});
+
+test('a wrong answer graded 0 is still an answer: the stage moves on once every question has one', () => {
+  const COURSE = 'Net';
+  const state = { courses: [{ id: 'course-net', name: COURSE }], sources: [{ id: 's1', courses: [COURSE], text: 'Text.' }],
+    decks: [{ id: 'd1', course: COURSE, cards: [{ id: 'k1', prompt: 'p', answer: 'a' }] }], attempts: [{ deckId: 'd1', quiz_id: 'k1', grade: 0 }] };
+  assert.equal(methodProgress(state, COURSE).counts.answered, 1);
+  assert.equal(methodProgress(state, COURSE).index, 2);
+});
+
+test('the home snapshot carries the current course\'s stage, and no new operation is listed for it', async t => {
+  const service = await library(t);
+  await service.call('course.save', { name: 'Net' });
+  await service.store.update(state => {
+    state.decks.push({ id: 'd1', title: 'Net basics', course: 'Net', createdAt: '2026-11-01T00:00:00Z', cards: [{ id: 'k1', kind: 'flashcard', prompt: 'p', answer: 'a' }] });
+    state.focus = { mode: 'class', course: 'Net', role: '', jd: '', targetTopics: [] };
+  });
+  const snapshot = await service.call('snapshot', { compact: true });
+  assert.equal(snapshot.focus.method.course, 'Net');
+  assert.equal(snapshot.focus.method.index, 0, 'nothing imported yet');
+  assert.equal(snapshot.focus.method.total, 3);
+  assert.equal(snapshot.focus.method.own, false, 'the default package: its words come from the catalogue');
+  assert.deepEqual(snapshot.focus.method.counts, { materials: 0, cards: 1, answered: 0 });
+  // The library listing the host shows the chat is capped (tests/course-book-structure.test.mjs): the stage rides on the snapshot, not on an operation of its own.
+  assert.equal(service.runtime.hasAction('course.method.progress'), false);
+});
+
+test('the card marks the stage the learner is on, only when the readout is about these stages', () => {
+  const marked = (readout, course = { id: 'course-net', name: 'Net' }) => {
+    try { return renderToStaticMarkup(inApp(m, h(m.CourseMethodCard, { course, readout }), { call: async () => ({}) })); } finally { m.setUiLanguage('zh'); }
+  };
+  const html = marked({ index: 1, total: 3, own: false });
+  assert.equal((html.match(/aria-current="step"/g) || []).length, 1);
+  assert.match(text(html), /课后：出题，按批练习 适中 现在/);
+  assert.doesNotMatch(marked(null), /aria-current/, 'another course\'s card: no readout, no mark');
+  assert.doesNotMatch(marked({ index: 1, total: 5 }), /aria-current/, 'a readout of other stages is not drawn on these');
 });

@@ -9,7 +9,7 @@ import css from './course-method-card.css';
 /* 学法 (#775, 4.5 S1) on the course settings: the stages this course is learned by. It reads first — the method's name and its stages in one short list —
    and is changed behind 「改学法」, so the default package 「课堂跟学」 (today's flow said in stages; a learner who never touches it learns exactly as before)
    is a few quiet lines, not a form to fill in. Editing saves the whole method through course.save {method}; a course with its own offers the way back.
-   What each gate means is a 「?」, not a paragraph. Dragging and deleting stages and the 「也可以」 guidance are later slices. */
+   What each gate means is a 「?」, not a paragraph. The stage the learner is on is marked 现在 (from the home snapshot, current course only). Dragging and deleting stages and the 「也可以」 guidance are later slices. */
 
 const LEVEL_LABELS = { loose: '松一点', medium: '适中', strict: '严格一点' };
 
@@ -46,12 +46,14 @@ export function MethodForm({ draft, own, disabled, working, onChange, onStage, o
   </div>;
 }
 
-export default function CourseMethodCard({ course }) {
+export default function CourseMethodCard({ course, readout = null }) {
   useInjectCss(css, 'study-course-method');
   const { act, busy } = useStudy();
   const [draft, setDraft] = useState(null), [error, setError] = useState(''), [working, setWorking] = useState(false);
   if (!course) return null;
   const own = !!course.method, shown = shownMethod(course), disabled = busy || working;
+  // The stage the learner is on (#775 S1b): the home snapshot reads it for the current course only, so another course's card shows its stages without it.
+  const current = Number.isInteger(readout?.index) && readout.total === shown.stages.length ? readout.index : -1;
   const write = async method => {
     setWorking(true); setError('');
     try { await act('course.save', { id: course.id, name: course.name, method }, undefined, { rethrow: true }); setDraft(null); }
@@ -70,9 +72,10 @@ export default function CourseMethodCard({ course }) {
       {!draft && <Button variant="quiet" size="sm" className="course-method__edit" lock={disabled} onClick={() => { setDraft(shown); setError(''); }}>{ui('改学法')}</Button>}
     </div>
     {!draft && <ol className="course-method__stages">
-      {shown.stages.map((stage, index) => <li key={index} className="course-method__stage">
+      {shown.stages.map((stage, index) => <li key={index} className="course-method__stage" aria-current={index === current ? 'step' : undefined}>
         <span className="course-method__stage-name">{stage.name}</span>
         <small className="course-method__level">{ui(LEVEL_LABELS[stage.level])}</small>
+        {index === current && <Badge size="sm" tone="accent">{ui('现在')}</Badge>}
       </li>)}
     </ol>}
     {!draft && shown.targetDate && <p className="course-settings__note">{uiFormat('目标日期：{0}', [shown.targetDate])}</p>}
