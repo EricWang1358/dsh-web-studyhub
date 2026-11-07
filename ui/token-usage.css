@@ -74,6 +74,7 @@
     .token-estimate__text { display: grid; min-width: 0; }
     .token-estimate__text > * { grid-area: 1 / 1; min-width: 0; }
     .token-estimate__ghost { visibility: hidden; }
+    .token-estimate__part { white-space: nowrap; }
     .token-estimate__quiet { align-self: center; }
     .token-estimate__info--slot { visibility: hidden; pointer-events: none; }
     /* A long line (the 覆盖强度 one) wraps inside its own width and the info button stays at its end instead of dropping under it. */
