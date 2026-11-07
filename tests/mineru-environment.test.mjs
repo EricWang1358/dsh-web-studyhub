@@ -122,6 +122,10 @@ async function harness(t, { state = {}, pages = 120, limits = {}, models = true 
 
 test('a local conversion starts with its environment: what runs it, which model, that the service was up, and how it works on pages', async t => {
   const h = await harness(t, { cloud: false, limits: { windowPages: 50 }, state: { delayMs: 400 } });
+  // The first window is held at its end until this test has read the card (the fake CLI's finishSignal): the state recorded before any work is the
+  // pre-flight check, and a slow runner could otherwise let that window finish first, leaving 'window' where the start is asserted.
+  const release = join(h.fake.work, 'finish-first-window');
+  await h.fake.set({ finishSignal: release });
   await h.call('mineru.import', { uploadId: await h.upload(await makePdf({ pages: 120 })), route: 'local' });
   const [job] = await h.jobs();
   assert.equal(job.env.kind, 'local');
@@ -131,9 +135,11 @@ test('a local conversion starts with its environment: what runs it, which model,
   assert.equal(job.env.modelsPath, join(h.fake.work, 'models'));
   assert.deepEqual(job.env.windows, { kind: 'fixed', pages: 50 }, 'the window size, read from where the plan is made');
   assert.equal(job.service.state, 'running');
-  assert.equal(job.service.basis, 'check');
+  assert.equal(job.service.basis, 'check', 'the first recorded state is the pre-flight check, read before any window ran');
   assert.ok(Date.parse(job.service.at) > 0);
-  await h.finished();
+  await writeFile(release, '');
+  const done = await h.finished();
+  assert.equal(done.service.basis, 'window', 'a finished window is the later evidence, and the card is updated to it');
 });
 
 test('the service state follows the work: confirmed up when a window finishes, and nothing is asked of the CLI while a window runs', async t => {
