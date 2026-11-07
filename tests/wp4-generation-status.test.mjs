@@ -247,3 +247,20 @@ test("a finished run whose draft has been published says so; a draft still waiti
   for (const label of [inLanguage("en", () => m.jobHeadline({ ...job, deckTitle: "Indexes" }, [], published)), inLanguage("en", () => m.jobStageLabel(job, [], [], published))]) assert.doesNotMatch(label, han);
   assert.equal(inLanguage("en", () => m.jobHeadline({ ...job, deckTitle: "Indexes" }, [], published)), '"Indexes" is published');
 });
+
+// #761: a run the learner's own token ceiling ended is told apart from one the clock ended (it is not "用时到了上限", and its fix is the 花费 field, not 调整时限).
+test("a run stopped by its token budget is described as that, in both languages, and is not a time limit", () => {
+  const TEXT = "Generation reached its 3000-token budget; approved questions were retained";
+  const kept = m.describeFailure(TEXT, { hasDraft: true }), fresh = m.describeFailure(TEXT);
+  assert.equal(kept.kind, "token-budget");
+  assert.equal(kept.action, "open-draft");
+  assert.equal(fresh.action, "retry");
+  assert.match(kept.title, /token 上限/);
+  assert.match(kept.hint, /花费/);
+  assert.equal(m.hitTimeLimit(TEXT), false, "the time-limit strip and the 调整时限 button are not for a token ceiling");
+  assert.equal(m.hitTimeLimit("Generation reached its 20-minute total budget; approved questions were retained"), true, "the clock's own words are unchanged");
+  assert.equal(m.legacyStageText(TEXT), "已达到 3000 token 的预算上限；已验收题目已保留");
+  const english = inLanguage("en", () => ({ ...m.describeFailure(TEXT, { hasDraft: true }), stage: m.legacyStageText(TEXT) }));
+  assert.doesNotMatch(english.title + english.hint, han);
+  assert.match(english.title, /token budget/i);
+});

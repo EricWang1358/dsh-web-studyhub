@@ -109,6 +109,7 @@ export function legacyStageText(stage = '') {
   return String(stage).replace(/^Part (\d+)\/(\d+) · /, '第 $1/$2 批 · ')
     .replace(/Generation reached its (\d+)-minute total budget; approved questions were retained/, '已达到 $1 分钟执行时限；已验收题目已保留')
     .replace(/Generation reached its (\d+)-minute budget for this round; approved questions were retained/, '这一轮已达到 $1 分钟时限；已验收题目已保留')
+    .replace(/Generation reached its (\d+)-token budget; approved questions were retained/, '已达到 $1 token 的预算上限；已验收题目已保留')
     .replace(/Draft ready with (\d+)\/(\d+) questions; (\d+) part\(s\) failed/, '草稿已保留 $1/$2 题；$3 批未完成')
     .replace(/Group (\d+)\/(\d+)/g, '第 $1/$2 组')
     .replace(/Parallel generation · up to (\d+) batches/, '并行生成 · 最多 $1 批同时进行')
@@ -284,6 +285,8 @@ const FAILURES = [
   ['model-retired', /model[_ ]not[_ ]found|model[^.;:\n]{0,60}(does not exist|not supported|unsupported|deprecated|decommission|retired|no longer (available|supported))|unsupported model|模型[^；;。]{0,20}(已下线|已停用|不再支持|不存在)/i],
   ['rejected', /\b40[13]\b|unauthori[sz]ed|authenticat|permission[_ ]?error|forbidden|invalid api[ _-]?key|incorrect api[ _-]?key|服务拒绝/i],
   ['credential', /api[ _-]?key|credential|NO_ADAPTER|未注册模型提供方|没有可用模型|密钥|Configure a model provider/i],
+  // The learner's own token ceiling (#761) is not the clock: its own row, so the time-limit strip and the 调整时限 button stay for the clock.
+  ['token-budget', /token budget/i],
   ['budget', /total budget|time budget|minute budget|执行时限/i],
   ['timeout', /timed? ?out|timeout|超时|did not respond|没有回应/i],
   ['network', /fetch failed|ECONN|ENOTFOUND|EAI_AGAIN|socket hang up|connection (error|reset|refused|closed|terminated)|network|连不上|网络/i],
@@ -424,6 +427,8 @@ function failureKind(text = '', { hasDraft = false } = {}) {
     // The limit itself is on the 任务 page (ui/tasks/TimeLimit.jsx, with the way to change it): the hint only points there, in the same sentence as what to do next.
     case 'budget': return { kind: 'timeout', action: hasDraft ? 'open-draft' : 'retry', title: ui('生成用时到了上限，已自动停止'),
       hint: hasDraft ? ui('已通过检查的题保存在草稿里，可以打开草稿继续；时限和调整入口在「任务」页的详情里。') : ui('可以减少题数或资料后重新生成；时限和调整入口在「任务」页的详情里。') };
+    case 'token-budget': return { kind, action: hasDraft ? 'open-draft' : 'retry', title: ui('已达到你设的 token 上限，已自动停止'),
+      hint: hasDraft ? ui('已通过检查的题保存在草稿里，可以打开草稿继续；上限在「花费」里改。') : ui('可以调高「花费」里的 token 上限，或减少题数后重新生成。') };
     case 'sources': return { kind, action: 'retry', title: ui('出题用的资料已被删除'), hint: ui('重新选择资料后再生成。') };
     case 'grounding': return { kind, action: hasDraft ? 'open-draft' : 'retry', title: ui('引用的原文在资料里找不到'),
       hint: hasDraft ? ui('AI 引用的句子和资料原文对不上；通过检查的题已保存在草稿里。打开草稿用「为没覆盖的部分补题」补上缺的题，不必重新选页。')
