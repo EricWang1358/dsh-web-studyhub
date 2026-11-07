@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
 import { CLASSROOM_METHOD, METHOD_VERSION, courseMethod, checkedMethod } from '../lib/course-method.js';
+import { methodProgress } from '../lib/course-method-progress.js';
 
 /* 学法 (#775, 4.5 S1): every course has one, the default package 「课堂跟学」 until it is changed — and that package is today's behaviour said in stages, so a
    course nobody customised learns exactly as before. The record lives on the course (course.save {method}), copied there when it is attached. */
@@ -101,4 +102,40 @@ test('the card draws the default package, its stages and the gate switch; a cour
   const english = text(draw({ id: 'course-net', name: 'Net' }, 'en'));
   assert.match(english, /Learning method/);
   assert.doesNotMatch(english, /[\u3400-\u9fff]/, 'the card is translated too');
+});
+
+
+/* Where the learner is in the method (#775 S1b): read from what the library holds, no model call — publish while there is no material, practise while a
+   question has never been answered, review once every one has. */
+test('the current stage is read from the library: publish, then practise, then review', () => {
+  const COURSE = 'Net';
+  const base = { courses: [{ id: 'course-net', name: COURSE }], sources: [], decks: [], attempts: [] };
+  const at = state => methodProgress(state, COURSE);
+  assert.equal(at(base).index, 0, 'nothing published yet');
+  assert.equal(at(base).total, 3);
+  const material = { ...base, sources: [{ id: 's1', courses: [COURSE], text: 'A material with text. '.repeat(20) }] };
+  assert.equal(at(material).index, 1, 'a material but nothing to practise yet');
+  const cards = { ...material, decks: [{ id: 'd1', course: COURSE, cards: [{ id: 'k1', prompt: 'What is it?', answer: 'x' }, { id: 'k2', prompt: 'And?', answer: 'y' }] }] };
+  assert.equal(at(cards).index, 1, 'questions nobody answered yet');
+  const first = { ...cards, attempts: [{ deckId: 'd1', quiz_id: 'k1', grade: 4, at: '2026-11-01T10:00:00.000Z' }] };
+  assert.equal(at(first).index, 1, 'one of the two answered: still practising');
+  const all = { ...cards, attempts: [{ deckId: 'd1', quiz_id: 'k1', grade: 4, at: '2026-11-01T10:00:00.000Z' }, { deckId: 'd1', quiz_id: 'k2', grade: 3, at: '2026-11-01T10:01:00.000Z' }] };
+  assert.equal(at(all).index, 2, 'every question practised at least once: review is where it rests');
+  assert.equal(at(all).stage.activity, 'review');
+  assert.match(at(all).stage.name, /考前/);
+  // A course with its own method is measured by its own stages, in its own order.
+  const own = { ...material, courses: [{ id: 'course-net', name: COURSE, method: { name: '我的', stages: [{ name: '先讲一遍', activity: 'explain' }, { name: '再练', activity: 'practice' }] } }] };
+  assert.equal(at(own).index, 0, 'an activity nothing measures is never skipped over');
+});
+
+test('the op the card reads is declared read only and answers for a course by name', async t => {
+  const service = await library(t);
+  await service.call('course.save', { name: 'Net' });
+  const read = await service.call('course.method.progress', { course: 'Net' });
+  assert.equal(read.course, 'Net');
+  assert.equal(read.index, 0, 'a fresh course has nothing published');
+  assert.equal(read.total, 3);
+  assert.deepEqual(read.counts, { materials: 0, cards: 0, answered: 0 });
+  const missing = await service.call('course.method.progress', { course: 'No such course' });
+  assert.equal(missing.index, 0, 'a course nobody created is measured by the default package, not refused');
 });
