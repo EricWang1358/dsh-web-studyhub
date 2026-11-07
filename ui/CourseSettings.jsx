@@ -10,6 +10,7 @@ import CourseMethodCard from './CourseMethodCard.jsx';
 import GuidanceSuggestions, { guidanceSuggestions } from './GuidanceSuggestions.jsx';
 import { splitTopics } from './course-topics.js';
 import { useStudy } from './study-context.jsx';
+import { HandOff } from './hand-off/HandOff.jsx';
 import { useLiveEffect } from './use-async.js';
 import { joinMeta } from './format.js';
 import { ActiveSwitch, isParked } from './CourseActive.jsx';
@@ -153,6 +154,12 @@ export function NewCourse({ courses = [], disabled = false, onCreate, onOpen, in
         onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent?.isComposing && typed && !waiting) { event.preventDefault(); create(); } else if (event.key === 'Escape') close(); }} />
       {!waiting && <Button variant="primary" disabled={disabled || !typed} onClick={create}>{ui('创建')}</Button>}
       <Button variant="quiet" disabled={disabled} onClick={close}>{ui('取消')}</Button>
+    </div>
+    {/* 自学目标 (#776 S2b): no material yet is no reason not to have a course — the main chat asks at most five questions, writes a 学法 to confirm, then
+        helps with material and the first batch (skills/study-self). The name typed above is the goal it starts from. */}
+    <div className="course-list__new-self">
+      <HandOff id="self.start" shape="quiet" input={{ goal: typed }} lead={ui('手上还没有资料？')} disabled={disabled}
+        what={ui('让主会话最多问五个问题，写出一份学法给你确认；确认之前什么都不生成、也不存')} />
     </div>
     {same && <InlineMessage tone="info" action={same.id ? { label: uiFormat('打开「{0}」', [same.name]), onClick: () => openOf(same) } : undefined}>{ui('已经有这门课了。')}</InlineMessage>}
     {!same && similar.length > 0 && <InlineMessage tone="warning">

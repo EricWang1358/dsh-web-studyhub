@@ -28,6 +28,8 @@
   "名称": "Name",
   "课程名称": "Course name",
   "新建课程": "New course",
+  "手上还没有资料？": "No material yet?",
+  "让主会话最多问五个问题，写出一份学法给你确认；确认之前什么都不生成、也不存": "Let the main chat ask at most five questions and write a method for you to confirm; nothing is made or stored before you do",
   "课程名称，例如 数据结构": "Course name, e.g. Data structures",
   "创建": "Create",
   "已经有这门课了。": "That course already exists.",

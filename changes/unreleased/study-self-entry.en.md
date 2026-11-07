@@ -1,0 +1,1 @@
+- **A course can start from a goal instead of material.** The new-course form now has 「手上还没有资料？」, which hands the name you typed to the main chat as the   goal: it asks at most five questions, writes a 学法 for you to confirm, then helps with material and the first batch. Not verified: not run against a real main   chat, so how the five questions read in practice is unchecked.

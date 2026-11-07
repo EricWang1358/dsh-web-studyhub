@@ -49,6 +49,8 @@ const FIXTURES = {
   'reader.map': { input: { title: 'Macroeconomics', chapter: 'Chapter 11', from: 201, to: 220, outline: '11 Fiscal policy\n  11.1 Spending' }, fenced: ['title', 'chapter', 'outline'] },
   // 深度定制 (skills/study-custom): the course is a name span in the sentence and a JSON string in the note, the document key a JSON string
   'custom.start': { input: { course: 'SA', document: 'doc-1', pages: 512, hasCustom: false }, fenced: [] },
+
+  'self.start': { input: { goal: 'Java backend + AI jobs' }, fenced: [] },
   'course.focus': { input: { course: 'OS', files: ['studyhub-work/focus-intake/b1/01-scope.png'], notes: 'Focus on page replacement', existingTopics: ['Deadlock'], generateAfter: true }, fenced: ['course', 'files', 'notes', 'existingTopics'] },
 };
 // Inside a note on purpose in both languages: the book's own marker for text from outside the materials, in the book's language.
