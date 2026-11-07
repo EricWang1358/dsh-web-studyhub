@@ -83,7 +83,7 @@ test('an estimate answers the same shape for a course with no readable text, one
   assert.deepEqual(answers[0].readTokens, { low: 0, high: 0 }, 'no readable text: nothing is read');
   for (const answer of answers.slice(1)) assert.ok(answer.readTokens.low > 0 && answer.readTokens.high >= answer.readTokens.low, JSON.stringify(answer.readTokens));
   assert.ok(answers[2].readTokens.high > answers[1].readTokens.high, 'more material, more tokens read');
-  // One whole (#773): what is read and what is written, the writing carrying the thinking of every inventory call (a figure measured on a finished run).
+  // Reading plus writing (#773; the prompts are not counted, so the gate never calls it the whole): the writing carrying the thinking of every inventory call (a figure measured on a finished run).
   for (const answer of answers) {
     assert.deepEqual(answer.totalTokens, { low: answer.readTokens.low + answer.writeTokens.low, high: answer.readTokens.high + answer.writeTokens.high }, 'the total is the reading plus the writing');
     assert.ok(answer.writeTokens.high >= answer.calls * OUTPUT_PER_CALL, `the writing reaches what ${answer.calls} thinking calls write`);
