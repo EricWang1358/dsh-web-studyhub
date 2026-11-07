@@ -1,6 +1,9 @@
+// @ts-check
 import { reviewEntryKey } from '../async.js';
 import { mergeAssistance, restoredDraft } from './draft-persistence.js';
 import { hasOptions } from '../../lib/card-kinds.js';
+
+/** @typedef {import('../../lib/types.js').DeckProgress} DeckProgress */
 
 /* The practice session's rules without React or the DOM (ui-consistency #112): what a fresh answer entry is, when
    the autopilot moves on, what a key press means, and which late answers are still wanted. useReviewSession wires these
@@ -122,7 +125,13 @@ export function shortcutAction(event, ctx) {
   return result(null);
 }
 
-/** Is `key` (from reviewEntryKey) still the open question? needPage: also require this page (teaching answers do). */
+/**
+ * Is `key` (from reviewEntryKey) still the open question? needPage: also require this page (teaching answers do).
+ * @param {Record<string, any> | null | undefined} run
+ * @param {string} key
+ * @param {{ page?: string, needPage?: string }} [options]
+ * @returns {boolean}
+ */
 export const isCurrentEntry = (run, key, { page, needPage } = {}) => !!key && (!needPage || page === needPage) && reviewEntryKey(run) === key;
 
 /** At most one request per question: begin() is false while one is in flight (a second click joins it). */
@@ -144,6 +153,9 @@ export function createFlightSet() {
  * How many questions of a finished run's scope are still waiting: the questions of the round nobody answered (an early
  * end), plus, for deck and topic scopes, the new and due questions the snapshot's progress still shows. A scope of chosen
  * questions has none beyond the round. The whole path (no scope) never runs out.
+ * @param {Record<string, any>} run
+ * @param {Record<string, DeckProgress>} [progress] the snapshot's per-deck progress
+ * @returns {number}
  */
 export function scopeRemaining(run, progress = {}) {
   const scope = run?.scope || [];
@@ -166,6 +178,10 @@ const planActionable = (task) => task.status !== 'done' && task.available !== fa
  * snapshot (undefined when unknown); progress: the snapshot's per-deck progress; tasks: today's plan tasks (the one linked to
  * this run, if any, is skipped: it is the work just done). Returns { kind: 'original', runId } | { kind: 'scope', scope } |
  * { kind: 'plan', taskId, title } | { kind: 'path', reason: 'continuing' | 'scope-done' | 'original-gone', course? (the course whose next daily round it is) }.
+ * @param {{ run?: Record<string, any>, runs?: any[], progress?: Record<string, DeckProgress>,
+ *   tasks?: { id: string, title: string, status: string, available?: boolean, runId?: string }[] }} [options]
+ * @returns {{ kind: 'original', runId: string } | { kind: 'scope', scope: Record<string, any>[] }
+ *   | { kind: 'plan', taskId: string, title: string } | { kind: 'path', reason: 'continuing' | 'scope-done' | 'original-gone', course?: string }}
  */
 export function continueDestination({ run, runs, progress = {}, tasks = [] } = {}) {
   if (!run) return { kind: 'path', reason: 'continuing' };

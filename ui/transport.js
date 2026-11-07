@@ -1,3 +1,4 @@
+// @ts-check
 /** Match DSH's Fetch RPC carrier, with only 404/405 allowing legacy fallback. */
 const ROUTES = {
   native: ["/api", "study-workspace/call"],
@@ -11,6 +12,14 @@ const ownerOnlyError = (cause) => Object.assign(new Error("StudyHub 只对这台
   cause,
 });
 
+/** @typedef {import('../lib/types.js').StudyActionPayload} StudyActionPayload */
+
+/**
+ * One action of the panel, sent to the host (`study-workspace/call`), answering its `value`.
+ * @param {Record<string, any>} connection the DSH client connection
+ * @param {string} sessionId the session that asks
+ * @returns {(action: string, args?: Record<string, any>) => Promise<any>}
+ */
 export function createStudyCall(connection, sessionId) {
   // Switch to the legacy route only after it actually answers. While the host
   // restarts, neither route exists yet; latching onto legacy then left every
@@ -18,6 +27,7 @@ export function createStudyCall(connection, sessionId) {
   let route = "native";
   return async (action, args = {}) => {
     const signal = AbortSignal.timeout(200000),
+      /** @type {StudyActionPayload} */
       payload = { sessionId, action, args };
     const send = (which) => connection.rpc.call(...ROUTES[which], payload, signal);
     let result;
