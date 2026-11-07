@@ -11,7 +11,7 @@ import { DEFAULT_LEVEL, LEVELS } from '../lib/coverage-strength.js';
 // Every performance key that is not a number: the four reasoning levels and whether the review's suggestions are applied (off by default).
 const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low', applySuggestions: false };
 const expected = { concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS,
-  kind: 'quiz', kinds: ['quiz'], count: 10, language: 'auto', difficulty: 'mixed', focus: '', notation: 'auto', coverageLevel: 'standard' };
+  kind: 'quiz', kinds: ['quiz'], count: 10, language: 'auto', difficulty: 'mixed', focus: '', notation: 'auto', coverageLevel: 'standard', lightModel: '' };
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-generation-settings-'));
   const service = new StudyService(root);
@@ -133,4 +133,19 @@ test('saved generation preferences stay within their own library', async t => {
   await left.call('settings', { generation: { concurrency: 1, language: 'English' } });
   assert.equal((await left.call('snapshot')).settings.generation.concurrency, 1);
   assert.deepEqual((await right.call('snapshot')).settings.generation, expected);
+});
+
+test('lightModel accepts follow/empty, provider/model, { provider, model } and modelKey pairs, and refuses malformed values', async t => {
+  for (const unset of ['', null, 'follow']) assert.deepEqual(validateGenerationPatch({ lightModel: unset }), { lightModel: '' });
+  assert.deepEqual(validateGenerationPatch({ lightModel: 'preview/fast-model' }), { lightModel: JSON.stringify(['preview', 'fast-model']) });
+  assert.deepEqual(validateGenerationPatch({ lightModel: 'siliconflow/Qwen/Qwen3-235B-A22B' }), { lightModel: JSON.stringify(['siliconflow', 'Qwen/Qwen3-235B-A22B']) });
+  assert.deepEqual(validateGenerationPatch({ lightModel: { provider: 'preview', model: 'fast-model' } }), { lightModel: JSON.stringify(['preview', 'fast-model']) });
+  assert.deepEqual(validateGenerationPatch({ lightModel: JSON.stringify(['preview', 'fast-model']) }), { lightModel: JSON.stringify(['preview', 'fast-model']) });
+  for (const bad of ['fast-only', '/fast', 'preview/', 'preview /fast', '   ', 42, true, [], { provider: 'preview' }, { provider: 'preview', model: 'fast', extra: 1 }])
+    assert.throws(() => validateGenerationPatch({ lightModel: bad }), /lightModel/);
+  assert.equal(normalizeGenerationSettings({ lightModel: 'not-a-route', language: 'English' }).lightModel, '');
+  assert.equal(normalizeGenerationSettings({ lightModel: 'not-a-route', language: 'English' }).language, 'English');
+  const service = await library(t);
+  assert.equal((await service.call('settings', { generation: { lightModel: 'preview/fast-model' } })).generation.lightModel, JSON.stringify(['preview', 'fast-model']));
+  assert.equal((await service.call('settings', { generation: { lightModel: null } })).generation.lightModel, '');
 });

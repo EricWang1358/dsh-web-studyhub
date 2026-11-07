@@ -9,6 +9,7 @@ import { gate, openLibrary, restartedOver, jobsOf, soon } from './helpers/genera
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { roundList } from '../lib/coverage-run.js';
+import { stageSystem } from '../lib/prompt-order.js';
 import { requestData } from './helpers/request-data.mjs';
 
 /* S3-3: a generation run survives a restart (switch `generationRestart`). The runtime keeps the request and its own record of the job on disk; the draft stays the
@@ -38,7 +39,7 @@ async function restarted(t, root, extra) {
   const after = await restartedOver(t, root, { options: hostOf(complete, extra), model: complete });
   return { ...after, calls, use(next) { model = next; } };
 }
-const askedAuthors = () => { const log = []; const inner = authoring({ entered: true }, Infinity, 'again'); return { log, model: async (system, prompt, context) => { if (system.startsWith('You author')) log.push(requestData(prompt).count); return inner(system, prompt, context); } }; };
+const askedAuthors = () => { const log = []; const inner = authoring({ entered: true }, Infinity, 'again'); return { log, model: async (system, prompt, context) => { if (stageSystem(system, prompt).startsWith('You author')) log.push(requestData(prompt).count); return inner(system, prompt, context); } }; };
 
 describe('generation restart: checkpoint and refusal', { concurrency: 3 }, () => {
 test('a run killed after its first part is the same job after the restart, interrupted and idle; its retry continues the same draft with only what is missing', async t => {
@@ -196,7 +197,7 @@ test('a coverage run killed in round 2 is the same job after the restart; its re
   const hold = gate(), model = clusteringModel();
   let live = null;
   const complete = async (system, prompt, context = {}) => {
-    if (!hold.entered && system.startsWith(PLAN) && live) {
+    if (!hold.entered && stageSystem(system, prompt).startsWith(PLAN) && live) {
       const spec = (await live.call('export')).drafts[0]?.editorial.coverageSpec;
       if (spec?.rounds[1]?.status === 'running') { hold.entered = true; await hold.promise; }
     }

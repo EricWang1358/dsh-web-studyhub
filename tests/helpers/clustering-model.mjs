@@ -9,6 +9,7 @@
    `log.asks`: every planning call: { count, assignments, pieces, sections } so a test can read what each call was given. */
 import { sectionedModel } from './coverage-fixture.mjs';
 import { parseJson } from '../../lib/generation.js';
+import { stageSystem } from '../../lib/prompt-order.js';
 
 const SENTENCE = /Recording (\d+), part (\d+), point (\d+)\.1: [^.]{20,90}/g;
 export const sectionOfQuote = quote => { const match = /Recording (\d+), part (\d+), point/.exec(quote); return match ? `r${match[1]}.p${match[2]}` : null; };
@@ -18,7 +19,7 @@ export function clusteringModel({ mode = 'cluster', refuse = () => false, failRe
   const log = { ...inner.log, asks: [] };
   let serial = 0;
   const complete = async (system, prompt, context = {}) => {
-    if (!system.startsWith('Plan a source-grounded assessment')) return inner.complete(system, prompt, context);
+    if (!stageSystem(system, prompt).startsWith('Plan a source-grounded assessment')) return inner.complete(system, prompt, context);
     const request = parseJson(prompt.split('REQUEST DATA:\n')[1]);
     log.asks.push({ count: request.count, assignments: request.assignments || null, pieces: request.sources.map(source => ({ id: source.id, chars: source.text.length, section: source.section })), part: context.part ?? null });
     onPlan?.(request);

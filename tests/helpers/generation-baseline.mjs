@@ -7,6 +7,7 @@ import { settleJob, until } from './wait.mjs';
 import { SWITCH_MODE, switchOptions } from './runtime-switch.mjs';
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from './assessment.mjs';
 import { requestData } from './request-data.mjs';
+import { stageSystem } from '../../lib/prompt-order.js';
 
 /* Shared fixtures of the S3-0 generation-family baseline (docs/plans/unified-job-runtime/s3-0-generation-baseline.md): fake models only.
    A "crash" is a copy of the library folder while a model call is held; a "restart" is a new service over that copy, which is all a restarted host has. */
@@ -65,7 +66,8 @@ export async function finish(service, hold, jobId) { hold.open(); return settleJ
 export function stagedModel({ holdAt, hold } = {}) {
   const log = [], jobs = [];
   const complete = async (system, prompt, options = {}) => {
-    const stage = system.startsWith('Plan a source-grounded') ? 'plan' : system.startsWith('Prepare supported answers') ? 'blueprint' : system.startsWith('Act as a strict') ? 'review' : 'author';
+    const head = stageSystem(system, prompt);
+    const stage = head.startsWith('Plan a source-grounded') ? 'plan' : head.startsWith('Prepare supported answers') ? 'blueprint' : head.startsWith('Act as a strict') ? 'review' : 'author';
     log.push(stage);
     if (options.jobId && !jobs.includes(options.jobId)) jobs.push(options.jobId);
     if (stage === holdAt && hold && !hold.entered) { hold.entered = true; await hold.promise; }

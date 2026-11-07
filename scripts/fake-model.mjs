@@ -7,6 +7,7 @@
    Add a prompt family by adding one entry to HANDLERS: { name, match, reply }. */
 import { norm } from "../lib/domain.js";
 import { parseJson } from "../lib/generation.js";
+import { stageSystem } from "../lib/prompt-order.js";
 import { reportUsage } from "../lib/usage-scope.js";
 import { dshSystemTokens, dshUserTokens } from "../lib/token-estimate.js";
 import { recapLeaks } from "../lib/daily-recap.js";
@@ -830,7 +831,7 @@ export function createFakeModel({ latencyMs = 0, generationLatencyMs = latencyMs
   const nextNumber = () => ++counter;
   return async function fakeComplete(system, prompt, options = {}) {
     const input = data(prompt);
-    const handler = HANDLERS.find((entry) => entry.match(system, input));
+    const handler = HANDLERS.find((entry) => entry.match(stageSystem(system, prompt), input));
     log.push({ system, prompt, handler: handler?.name || null, stage: options?.stage });
     await wait(handler?.slow ? (handler.name === "generation.review" ? Math.round(generationLatencyMs / 2) : generationLatencyMs) : latencyMs,
       options?.signal);

@@ -6,6 +6,7 @@ import { seeded, answer, writing } from './recap-library.mjs';
 import { quote, article, approved } from './workflow-library.mjs';
 import { zh, body, upload } from './translation-library.mjs';
 import { reportUsage } from '../../lib/usage-scope.js';
+import { stageSystem } from '../../lib/prompt-order.js';
 
 /** Every switch of the model families. */
 export const ALL_FAMILIES = Object.freeze(['translation', 'generation', 'dailyRecap', 'workflow']);
@@ -30,7 +31,7 @@ export function mixedModel({ held = {}, usage = true } = {}) {
   const live = { translation: 0, generation: 0, recap: 0, workflow: 0 }, peak = { translation: 0, generation: 0, recap: 0, workflow: 0, all: 0 }, calls = [];
   const familyOf = (system, prompt) => {
     if (system.startsWith(TRANSLATOR)) return 'translation';
-    if (GENERATION.some(start => system.startsWith(start))) return 'generation';
+    if (GENERATION.some(start => stageSystem(system, prompt).startsWith(start))) return 'generation';
     if (system.startsWith('Independently')) return 'workflow';
     try { return JSON.parse(prompt).stage ? 'recap' : 'workflow'; } catch { return 'workflow'; }
   };

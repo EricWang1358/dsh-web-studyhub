@@ -1,6 +1,7 @@
 import { authorPrompts, salvageAuthoredCards } from '../../lib/generation.js';
 import { requestData } from './request-data.mjs';
 import { hasOptions } from '../../lib/card-kinds.js';
+import { stageSystem } from '../../lib/prompt-order.js';
 
 // Fixture adapter for evidence, concrete answers, author and independent review calls.
 // Changed cards require a fresh review; unchanged cards retain their receipt.
@@ -40,7 +41,8 @@ export function qualityBlueprint(request, plan, deck) {
 export function withQualityStages(complete) {
   const pending = new Map();
   const keyFor = request => JSON.stringify([request.kind, request.assessmentPlan?.targets.map(target => [target.targetId, target.objective])]);
-  return async (system, prompt) => {
+  return async (rawSystem, prompt) => {
+    const system = stageSystem(rawSystem, prompt);
     if (system.startsWith("Plan a source-grounded assessment"))
       return JSON.stringify(qualityPlan(requestData(prompt)));
     if (system.startsWith('Prepare supported answers')) {

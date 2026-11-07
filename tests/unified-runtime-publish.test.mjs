@@ -162,7 +162,7 @@ test('a card that does not pass its review stays in the draft, and the job says 
   const model = { ...stagedModel(), complete: undefined };
   const staged = stagedModel();
   model.complete = async (system, prompt, context) => {
-    if (!system.startsWith('Act as a strict')) return staged.complete(system, prompt, context);
+    if (! (await import('../lib/prompt-order.js')).stageSystem(system, prompt).startsWith('Act as a strict')) return staged.complete(system, prompt, context);
     const review = qualityReview(requestData(prompt).candidate);
     const failing = review.checks.find(check => check.cardId === 'b');
     if (failing) failing.sourceSupport = 'fail';

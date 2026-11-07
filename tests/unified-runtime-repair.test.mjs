@@ -150,7 +150,7 @@ test('without the restart switch a repair is not kept on disk: after a restart n
 
 test('a repair whose reviews fail leaves the draft with the cards still rejected, and the job is partial: nothing is claimed', async t => {
   const model = repairing(), failing = { complete: async (system, prompt, context) => {
-    if (system.startsWith('Act as a strict')) return JSON.stringify(qualityReview(requestData(prompt).candidate, ['The explanation does not follow from the evidence.']));
+    if ((await import('../lib/prompt-order.js')).stageSystem(system, prompt).startsWith('Act as a strict')) return JSON.stringify(qualityReview(requestData(prompt).candidate, ['The explanation does not follow from the evidence.']));
     return model.complete(system, prompt, context);
   } };
   const { service, args } = await library(t, failing, RUNTIME);
