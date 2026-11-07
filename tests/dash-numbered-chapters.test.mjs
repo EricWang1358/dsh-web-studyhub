@@ -150,6 +150,18 @@ test('a few pages on their own are no book: without the library\'s record of the
   assert.deepEqual(restampSelection(some, all, { documents }).map(source => source.document.chapter?.title), ['生产理论', '生产理论', '生产理论', '生产理论', '生产理论']);
 });
 
+test('the readers that hold no library records still read a whole old book again: its pages say how big the book is', () => {
+  const revision = `${HASH}-json-conv2`, all = stored(revision, oldChapterOf);
+  // Every page 1..totalPages is here: a whole book, with no record needed (the outline, translation and mastery readers pass none).
+  assert.deepEqual(rows(groupSourcesByDocument(all)[0]), CHAPTERS);
+  // A page missing from the middle: it may be part of the book, so the stamps stay.
+  const gap = all.filter(source => source.document.page !== 10);
+  assert.equal(restampConvertedChapters(gap), gap);
+  // A book that does not say how big it is cannot be told from a part.
+  const unsized = all.map(({ document: { totalPages, ...document }, ...source }) => ({ ...source, document }));
+  assert.equal(restampConvertedChapters(unsized), unsized);
+});
+
 /* ---------- the owner's real heading runs (coordinator's read-only run on the 513-page book, 2026-11-06) ---------- */
 
 /* What stands between a chapter's end block and its first N—1, as MinerU wrote it: a lead-in (本章要点) with content headings after it ([资料5-1] …,
