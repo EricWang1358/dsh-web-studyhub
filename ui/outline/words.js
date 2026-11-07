@@ -2,6 +2,7 @@
 import { ui, uiFormat } from '../i18n.js';
 import { displayTitle } from '../../lib/document-title.js';
 import { formatNumber } from '../format.js';
+import { callsText, rangeTok } from '../token-usage.js';
 
 /** A chapter's name under a leaf of the AI outline: with its material, so the learner knows which one it is. */
 function anchorTitle(node) {
@@ -152,3 +153,24 @@ export const fillGapsTip = () => ui('只为这一个知识点补上缺的概念�
 /** The book's coverage at three levels: the materials and pages the inventory read, the knowledge points complete, the concepts covered. */
 export const levelsText = levels => uiFormat('覆盖：资料用了 {0}/{1} 份、页 {2}/{3}；知识点达标 {4}/{5}；概念 {6}/{7}', [levels.documents.used, levels.documents.total,
   levels.pages.read, levels.pages.total, levels.leaves.ok, levels.leaves.total, levels.items.covered, levels.items.total]);
+
+/* ---------- Pre-run scale and quota-saving guidance (#708) ---------- */
+
+/** Quota-saving tip shown before starting an unbuilt review book build. */
+export const bookCostTipText = () => ui('整本比较费：可以把资料交给网页版 AI 生成后导入，或者用 opencode / commandcode 这类套餐再生成');
+
+/** Knowledge points to write and estimated model calls. */
+export const bookScalePointsText = (points, calls) => uiFormat('要写 {0} 个知识点 · {1}', [points, callsText(calls)]);
+
+/** Estimated read + write tokens (`book/scale.js` or `CustomGate`'s `gateScaleOf`), or read-only fallback; never a price. */
+export function bookScaleTokensText(scale) {
+  const read = scale?.readTokens ?? scale?.tokens;
+  const write = scale?.writeTokens ?? scale?.write;
+  const total = scale?.totalTokens ?? scale?.total;
+  if (total && write) {
+    return scale?.firstStep
+      ? uiFormat('这一步读资料加模型写出的约 {0}（读资料 {1}，写出 {2}，含思考）；提示词另计', [rangeTok(total), rangeTok(read), rangeTok(write)])
+      : uiFormat('读资料加模型写出的约 {0}（读资料 {1}，写出 {2}，含思考）；提示词另计', [rangeTok(total), rangeTok(read), rangeTok(write)]);
+  }
+  return read ? uiFormat('读资料约 {0}（不含提示和模型写出的内容）', [rangeTok(read)]) : '';
+}

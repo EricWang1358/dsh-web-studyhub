@@ -4,7 +4,7 @@ import { Button, Tooltip } from '../components/index.js';
 import { TokenEstimateView } from '../TokenUsage.jsx';
 import { callsText } from '../token-usage.js';
 import { useInjectCss } from '../shared.js';
-import { levelText } from '../outline/words.js';
+import { bookCostTipText, levelText } from '../outline/words.js';
 import css from './book-sample.css';
 
 /* The sample of a 复习全书 build while it waits for the learner (#710; lib/course-book-sample.js waitingSample): the 总纲's book line and the book page show it.
@@ -61,7 +61,7 @@ export default function BookSample({ sample, coverage = null, off = false, quiet
         </li>)}
       </ul>
       {sample.estimate && <Scale estimate={sample.estimate} />}
-      <p className="book-sample__tip">{ui('整本比较费：可以把资料交给网页版 AI 生成后导入，或者用 opencode / commandcode 这类套餐再生成')}</p>
+      <p className="book-sample__tip">{bookCostTipText()}</p>
       {blocked && <p className="book-sample__block" role="status">{blocked}</p>}
       <div className="book-sample__actions">
         {!blocked && <Button variant={quiet ? 'secondary' : 'primary'} icon="book" disabled={off} onClick={onRest}>{rest === null ? ui('生成其余知识点') : uiFormat('生成其余 {0} 个', [rest])}</Button>}

@@ -1,9 +1,10 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { Button, Dialog, LoadingState, Tooltip } from '../components/index.js';
-import { callsText, rangeTok } from '../token-usage.js';
+import { callsText } from '../token-usage.js';
 import { handOffTip } from '../hand-off/use-hand-off.js';
 import { CUSTOM_BOOK_WHAT } from '../custom-entry.js';
+import { bookCostTipText, bookScalePointsText, bookScaleTokensText } from './words.js';
 
 /* The one question before a whole-book spend on the 总纲 page: 生成总纲 / 生成复习全书 of a course that has a document of CUSTOM_BOOK_PAGES pages or more and no
    custom plan do not start at once (ui/custom-entry.js customGateOf). 深度定制这本书（推荐）, 整本生成 (the original action) and 取消, in that order, with a rough
@@ -33,15 +34,12 @@ export function gateScaleOf(kind, answers) {
 function ScaleLines({ scale }) {
   if (scale === 'loading') return <LoadingState inline label={ui('正在估算…')} />;
   if (!scale) return null;
+  const tokens = bookScaleTokensText(scale);
   return (
     <div className="custom-gate__scale" data-custom-gate-scale="">
-      <p className="custom-gate__line">{scale.points != null ? uiFormat('要写 {0} 个知识点 · {1}', [scale.points, callsText(scale.calls)])
+      <p className="custom-gate__line">{scale.points != null ? bookScalePointsText(scale.points, scale.calls)
         : scale.firstStep ? uiFormat('第一步（整理总纲）大约要 {0}', [callsText(scale.calls)]) : uiFormat('整本生成大约要 {0}', [callsText(scale.calls)])}</p>
-      {scale.total && scale.write
-        ? <p className="custom-gate__line">{scale.firstStep
-          ? uiFormat('这一步读资料加模型写出的约 {0}（读资料 {1}，写出 {2}，含思考）；提示词另计', [rangeTok(scale.total), rangeTok(scale.tokens), rangeTok(scale.write)])
-          : uiFormat('读资料加模型写出的约 {0}（读资料 {1}，写出 {2}，含思考）；提示词另计', [rangeTok(scale.total), rangeTok(scale.tokens), rangeTok(scale.write)])}</p>
-        : <p className="custom-gate__line">{uiFormat('读资料约 {0}（不含提示和模型写出的内容）', [rangeTok(scale.tokens)])}</p>}
+      {tokens && <p className="custom-gate__line">{tokens}</p>}
       {scale.firstStep && <p className="custom-gate__line">{ui('这只是第一步（整理总纲）；之后还要给每个知识点写讲解，比这更多。')}</p>}
       <p className="custom-gate__line">{ui('数字只是估计，实际用量在任务页看。')}</p>
     </div>
@@ -65,6 +63,7 @@ export default function CustomGate({ kind, gate, scale, onCustom, onWhole, onClo
         <Tooltip layer content={ui('什么都不生成，回到总纲')}><Button variant="quiet" lock={busy} onClick={() => onClose('button')} data-custom-gate-action="cancel">{ui('取消')}</Button></Tooltip>
       </>}>
       <ScaleLines scale={scale} />
+      {book && <p className="custom-gate__line">{bookCostTipText()}</p>}
       <p className="custom-gate__line">{ui('深度定制：先由主会话问你几个选项（学哪几章、要不要出题），确认之前不生成任何东西，只做你选的部分。')}</p>
     </Dialog>
   );

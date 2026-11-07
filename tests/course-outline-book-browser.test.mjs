@@ -72,6 +72,23 @@ test('总纲 as a book: chapters open, sections closed, a point opens to its mat
       assert.ok(rows.filter(row => row.kind === 'section').every(row => row.open === 'false'), 'sections closed');
       assert.ok(await page.locator('.outline-row[data-kind="part"] .outline-row__intro').count() >= 7, 'every chapter says what it teaches');
       assert.equal(await page.locator('.outline-organise .sh-btn--primary').count(), 0, 'an outline exists: no primary 生成总纲');
+      await page.locator('.outline-book-line [data-book-scale]').waitFor({ timeout: 10000 });
+      const scaleText = await page.locator('.outline-book-line [data-book-scale]').innerText();
+      assert.match(scaleText, /要写 \d+ 个知识点 · .*次模型调用 · 读资料加模型写出的约 .* tok/);
+      assert.doesNotMatch(scaleText, /元|¥|￥|\$|价格|费用|美元|RMB|USD|price|cost/i);
+      assert.match(await page.locator('.outline-book-line [data-book-cost-tip]').innerText(), /opencode \/ commandcode/);
+      const alignment = await page.evaluate(() => {
+        const line = document.querySelector('.outline-book-line').getBoundingClientRect();
+        const basis = document.querySelector('.outline-book-line__basis').getBoundingClientRect();
+        const actions = document.querySelector('.outline-book-line .outline-organise__actions').getBoundingClientRect();
+        const notes = document.querySelector('.outline-book-line .outline-organise__notes').getBoundingClientRect();
+        return { lineLeft: line.left, basisBottom: basis.bottom, actionsLeft: actions.left, actionsTop: actions.top, actionsBottom: actions.bottom, notesLeft: notes.left, notesTop: notes.top };
+      });
+      assert.ok(Math.abs(alignment.notesLeft - alignment.lineLeft) <= 1.5, `${width}px: notes align flush-left with .outline-book-line (${JSON.stringify(alignment)})`);
+      assert.ok(alignment.notesTop >= alignment.actionsBottom - 1, `${width}px: notes sit below the control row (${JSON.stringify(alignment)})`);
+      if (alignment.actionsTop >= alignment.basisBottom - 2) {
+        assert.ok(Math.abs(alignment.actionsLeft - alignment.lineLeft) <= 1.5, `${width}px: wrapped control row aligns flush-left (${JSON.stringify(alignment)})`);
+      }
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-${width}.png`), fullPage: true });
 
