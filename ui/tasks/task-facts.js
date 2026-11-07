@@ -113,7 +113,12 @@ export function progressHint(job) {
   const percent = cover ? (mine ? uiFormat('这个任务自己的进度：它补上的小节 ÷ 它要补的小节（开始时草稿里有 {0} 个小节没有题）。草稿原有的题和小节不算在内。', [cover.asked]) : covering)
     : own ? ui('这个任务自己的进度：它新写的题 ÷ 它要补的题。草稿里原有的题不算在内。') : Number.isFinite(run?.percent) ? covering : ui('已通过审阅并保存的题 ÷ 要求的题数。');
   const questions = own ? uiFormat('本任务新写的题 ÷ 本任务要补的题（约数）。草稿里原有的题不算在内；草稿共 {0} 题。', [contract.progress.done])
-    : run ? ui('草稿里现有的题 ÷ 出题计划的题数。题数可以超过计划；有多少小节有题，要看覆盖率。') : ui('已通过审阅并保存的题 ÷ 要求的题数。');
+    : run ? (run.dueKnown
+      // One fact, one number (#774): the tile counts questions against the PLAN's goal, while 「还要约 N 题」 counts what the sections without a question still need. They are
+      // two different facts, so they do not add up to the plan and must not be read as if they did; the tile says which one it is.
+      ? ui('草稿里现有的题 ÷ 出题计划的题数。下面的「还要约 N 题」数的是还没有题的小节，和计划里的题数不是同一个数，所以加起来不等于它。')
+      : ui('草稿里现有的题 ÷ 出题计划的题数。题数可以超过计划；有多少小节有题，要看覆盖率。'))
+    : ui('已通过审阅并保存的题 ÷ 要求的题数。');
   return { percent, questions };
 }
 

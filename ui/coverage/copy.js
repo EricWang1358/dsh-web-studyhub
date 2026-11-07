@@ -402,8 +402,8 @@ export function coverageAheadText(s) {
 export function runPathText(run) {
   const rounds = Number.isInteger(run?.roundsLeft) ? run.roundsLeft : run?.left;
   if (!run?.total || run.ended || !Number.isFinite(run.percent) || !(rounds > 0) || !(run.questionsLeft > 0)) return '';
-  return rounds === 1 ? uiFormat('覆盖现在 {0}% → 目标 100%，还要 1 轮、约 {1} 题', [run.percent, run.questionsLeft])
-    : uiFormat('覆盖现在 {0}% → 目标 100%，还要 {1} 轮、约 {2} 题', [run.percent, rounds, run.questionsLeft]);
+  return rounds === 1 ? uiFormat('覆盖现在 {0}% → 目标 100%，还要 1 轮、约 {1} 题（按还没有题的小节算）', [run.percent, run.questionsLeft])
+    : uiFormat('覆盖现在 {0}% → 目标 100%，还要 {1} 轮、约 {2} 题（按还没有题的小节算）', [run.percent, rounds, run.questionsLeft]);
 }
 
 /** 「精简：先出第 1 轮；点「自动补到完整」继续」: what a run that waits for the learner (自动补到完整 is off) has done, and how it goes on. The coverage is not repeated here: the fact line says it (#663). */

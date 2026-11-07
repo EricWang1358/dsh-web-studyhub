@@ -165,12 +165,12 @@ test('the owner\'s screen, fixed: every number of the console says the same thin
   assert.match(plain, /^出题计划 第 1\/4 轮 · 覆盖 99% · 本任务已用 212K tok · 预计还要约 200K tok（按已跑的进度估算）/, plain);
   assert.doesNotMatch(plain, /出题前估/, 'the job\'s own estimate (400K) agrees with what it used and has left: it is not said twice');
   assert.match(html, /data-run-math[^>]*>本任务已用 212K \+ 还要约 200K ≈ 共约 412K tok</, 'the sum under it says 已用 in the same words and the same figure as the line (212K, not 210K)');
-  assert.match(html, /data-coverage-path[^>]*>覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题</);
+  assert.match(html, /data-coverage-path[^>]*>覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题（按还没有题的小节算）</);
   const facts = Object.fromEntries(m.taskFacts({ ...job, contract }, T0 + 4 * MIN).map((fact) => [fact.key, fact]));
   assert.deepEqual([facts.primary.label, facts.primary.value, facts.primary.note], ['题数 · 本任务', '1 / 约 3', '草稿共 37 题'], '1 made of the 3 asked: 2 left, as the line says');
   assert.match(facts.calls.value, /212K$/, 'the tile of the model calls: the same tokens');
   const goal = m.goalLines(contract, { kindLabel: '出题' }).find((line) => line.key === 'round').text;
-  assert.equal(goal, '第 1/4 轮 · 覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题', '目标与知识点 says the same way');
+  assert.equal(goal, '第 1/4 轮 · 覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题（按还没有题的小节算）', '目标与知识点 says the same way');
   assert.equal(m.jobRunLine(job), '第 1/4 轮 · 覆盖 99% · 本任务已用 212K tok · 预计还要 200K tok、约 1 分钟', 'the home row\'s line of the job: the same 已用');
   inLanguage('en', () => {
     const english = text(lineOf(job, 'en'));
@@ -185,9 +185,9 @@ test('the words: a job that continues a run says 「本任务」 for its tokens,
   assert.equal(m.copy.runLine(facts), '第 1/4 轮 · 覆盖 99% · 本任务已用 212K tok');
   assert.equal(m.copy.runLine({ ...facts, ended: true, done: 4, state: 'complete' }), '共 4 轮 · 覆盖 99% · 本任务共用 212K tok');
   assert.equal(m.copy.runLine({ ...facts, ownTokens: undefined }), '第 1/4 轮 · 覆盖 99% · 已用 212K tok');
-  assert.equal(m.copy.runPathText(facts), '覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题');
-  assert.equal(m.copy.runPathText({ ...facts, left: 3, roundsLeft: 1 }), '覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题', 'a round whose sections all have a question is not one of the rounds left');
-  assert.equal(m.copy.runPathText({ ...facts, roundsLeft: undefined, left: 2 }), '覆盖现在 99% → 目标 100%，还要 2 轮、约 2 题', 'an older record: the rounds not done');
+  assert.equal(m.copy.runPathText(facts), '覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题（按还没有题的小节算）', 'and it says which fact the questions are (#774: they do not add up to the plan)');
+  assert.equal(m.copy.runPathText({ ...facts, left: 3, roundsLeft: 1 }), '覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题（按还没有题的小节算）', 'a round whose sections all have a question is not one of the rounds left');
+  assert.equal(m.copy.runPathText({ ...facts, roundsLeft: undefined, left: 2 }), '覆盖现在 99% → 目标 100%，还要 2 轮、约 2 题（按还没有题的小节算）', 'an older record: the rounds not done');
   const forecast = { basis: 'history', tokens: { used: 210_000, left: 200_000, total: 410_000 }, preRun: null };
   assert.equal(m.copy.forecastMath(forecast), '已用 210K + 还要约 200K ≈ 共约 410K tok');
   assert.equal(m.copy.forecastMath(forecast, { own: true }), '本任务已用 210K + 还要约 200K ≈ 共约 410K tok');
