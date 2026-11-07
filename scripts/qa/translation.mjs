@@ -298,13 +298,13 @@ export async function runTranslationQa(options) {
     });
     await step("retranslate-v2", async () => {
       await blockAfter(doc.p0).locator(".tr-ask__input").press("Enter");
-      await blockAfter(doc.p0).locator(".tr-chip", { hasText: /v2/ }).waitFor({ timeout: 15000 });
+      await blockAfter(doc.p0).locator(".tr-meta", { hasText: /v2/ }).waitFor({ timeout: 15000 });
     });
     await step("copy", async () => {
       await openBlockMenu(doc.p0);
       await page.getByRole("menuitem", { name: t("复制译文", "Copy translation") }).click();
       // The menu closes on a choice; the block says it copied (and forgets after a moment).
-      await blockAfter(doc.p0).locator(".tr-chip[role='status']", { hasText: t("已复制", "Copied") }).waitFor();
+      await blockAfter(doc.p0).locator(".tr-meta[role='status']", { hasText: t("已复制", "Copied") }).waitFor();
     });
     await step("delete-undo", async () => {
       await openBlockMenu(doc.p0);
@@ -398,7 +398,7 @@ export async function runTranslationQa(options) {
     if (options.lang === "zh") {
       await closeReader();
       await step("pdf-pages", async () => {
-        await openRow("lecture.pdf");
+        await openRow(/PDF/); // the row is titled "lecture" (no extension), its meta line says PDF
         await viewer.locator(".tr-mark").first().waitFor({ timeout: 15000 });
         if ((await viewer.locator("[data-study-page]").count()) < 2) throw new Error("the PDF is not drawn as pages");
       });

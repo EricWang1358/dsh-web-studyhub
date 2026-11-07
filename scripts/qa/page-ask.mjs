@@ -76,6 +76,9 @@ export async function runPageAskQa(options) {
     const copied = async (before) => { await page.waitForFunction((old) => navigator.clipboard.readText().then((text) => text && text !== old), before, { timeout: 10000 });
       return page.evaluate(() => navigator.clipboard.readText()); };
     const clearClipboard = () => page.evaluate(() => navigator.clipboard.writeText(""));
+    // Narrow, the sidebar is a drawer behind the menu button: open it first.
+    const drawerButton = page.locator('[data-tour="nav-menu"]:visible').first();
+    if (await drawerButton.count()) await drawerButton.click();
     await page.locator('[data-tour="nav-sources"]').first().click().catch(() => page.getByRole("button", { name: t("资料", "Sources") }).first().click());
     await sleep(800);
     await page.getByRole("button", { name: /^(全部展开|Expand all)$/ }).click().catch(() => {});
@@ -145,13 +148,12 @@ export async function runPageAskQa(options) {
       await openTools();
       return { value };
     });
-    if (!narrow) await check("ask-this-page-link-opens-the-panel", async () => {
+    // The slim reader (#783) has no "问这一页" link under the page bar any more: 更多 › 学习工具 is the one way to the page panel and back.
+    if (!narrow) await check("study-tools-item-closes-and-reopens-the-page-panel", async () => {
       await chooseMore(page, t("学习工具", "Study tools"));
       await tools.waitFor({ state: "hidden" });
-      const link = viewer.locator(".reader-pdf-note").getByRole("button", { name: t("问这一页", "Ask about this page") });
-      await link.click();
+      await chooseMore(page, t("学习工具", "Study tools"));
       await tools.waitFor();
-      if (await link.count()) throw new Error("the link stays while the panel is open");
     });
     await step("next-next-is-page-3", async () => {
       await page.evaluate(() => { document.querySelector(".reader-pdf-view").dataset.qaOld = "1"; });

@@ -19,7 +19,14 @@ async function seed(root) {
 export async function runOverlayQa(options) {
   return runQa({ name: "wp-b-overlays", options, seed, async run({ page, t, step, check }) {
     const dialog = page.locator("dialog[open]");
-    await page.locator('[data-usage="nav.board"]').first().click();
+    // A library with no question yet opens on the first-run page (no sidebar): 以后再说 puts it away (3.6), then the sidebar is there.
+    const later = page.locator('.first-run [data-first-run="later"]');
+    await later.first().waitFor({ timeout: 15000 }).catch(() => {});
+    if (await later.count()) await later.first().click();
+    // 待办看板 sits under the sidebar's 更多 until the learner opens it.
+    const board = page.locator('[data-usage="nav.board"]').first();
+    if (!(await board.isVisible())) await page.locator('[data-tour="nav-more"]').first().click();
+    await board.click();
     await page.locator(".board-page").waitFor();
     await sleep(500);
     await step("board-add-first", async () => {
@@ -101,6 +108,8 @@ export async function runOverlayQa(options) {
     if (opened) {
       await dialog.waitFor();
       await step("rename-inline-confirm", async () => {
+        // The name field is inside the dialog's 更多设置 fold.
+        if (!(await dialog.locator(".course-settings__rename").first().isVisible())) await dialog.getByText(t("更多设置", "More settings"), { exact: true }).first().click();
         const input = dialog.locator(".course-settings__rename input").first();
         await input.fill(t("平台工程", "Platform Engineering 2"));
         await dialog.getByRole("button", { name: t("改名", "Rename"), exact: true }).click();
