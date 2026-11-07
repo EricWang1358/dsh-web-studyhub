@@ -178,3 +178,95 @@ test("a test process that was not given a DSH home never writes to the real one"
     for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
   }
 });
+
+/* #772 gate H1: a coverage run's estimate prices its FIRST round (lib/contexts/generation/generate/estimate.js), while its steps are every round's. Recording the
+   whole run against that estimate learned a ratio of about the number of rounds, and three book runs made every estimate on the machine 4x. A run of several
+   rounds teaches what its first round used, against the estimate of that round. */
+test("a coverage run of several rounds teaches what its first round used, not the whole run against one round's estimate", async (t) => {
+  const { StudyService } = await import("../lib/service.js");
+  const { reportUsage } = await import("../lib/usage-scope.js");
+  const { settleJob } = await import("./helpers/wait.mjs");
+  const { mergedTranscript } = await import("./helpers/merged-transcript.mjs");
+  const { clusteringModel } = await import("./helpers/clustering-model.mjs");
+  const home = await mkdtemp(join(tmpdir(), "study-dsh-home-")), root = await mkdtemp(join(tmpdir(), "study-calibration-rounds-"));
+  const saved = { home: process.env.DSH_HOME, off: process.env.STUDY_NO_CALIBRATION };
+  process.env.DSH_HOME = home;
+  delete process.env.STUDY_NO_CALIBRATION;
+  const service = new StudyService(root, { coverage: { roundLimit: 8 } });
+  t.after(async () => {
+    await service.dispose();
+    for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+  });
+  const world = mergedTranscript({ recordings: 2, parts: 6, paragraphs: 4 }), model = clusteringModel();
+  service.complete = async (system, prompt, context) => { reportUsage({ uncachedInputTokens: 1000, outputTokens: 100 }); return model.complete(system, prompt, context); };
+  service.light = async (system, prompt) => JSON.stringify({ sections: JSON.parse(prompt.split("\n\n")[0]).sections.map((item) => ({ id: item.id, importance: 3, kind: "definition", reason: `Reason for ${item.title}` })) });
+  for (const source of world.sources) await service.call("source.add", { id: source.id, title: source.title, text: source.text, audio: source.audio });
+  const started = await service.call("generate", { sourceIds: world.sources.map((source) => source.id), coverageLevel: "standard", kind: "quiz" });
+  assert.equal(started.plan.rounds, 3);
+  const job = await settleJob(service, started.jobId);
+  assert.equal(job.status, "complete", job.stage);
+  const whole = observedByStage(job);
+  const runs = JSON.parse(await readFile(join(home, "study", "estimate-calibration.json"), "utf8")).runs;
+  assert.equal(runs.length, 1, "one run, one record");
+  const [stage, [estimated, used]] = Object.entries(runs[0].stages).find(([id]) => id === "author");
+  const mid = (job.estimate.stageTotals[stage].low + job.estimate.stageTotals[stage].high) / 2;
+  assert.ok(Math.abs(estimated - Math.round(mid)) <= 1, "read against the estimate the job kept (the first round's)");
+  assert.ok(used < whole.author * 0.6, `the first round's writing (${used}), not all three rounds' (${whole.author})`);
+});
+
+/* #772 gate M2-M4, L5: the machine's file is shared by every library and every StudyHub process on the machine. */
+test("the machine's file names no library: a carried-in library is kept as a short hash of its folder, once, and only when it carried runs", async (t) => {
+  const machine = await mkdtemp(join(tmpdir(), "study-calibration-machine-")), library = await mkdtemp(join(tmpdir(), "study-calibration-library-")),
+    empty = await mkdtemp(join(tmpdir(), "study-calibration-empty-"));
+  t.after(() => Promise.all([machine, library, empty].map((dir) => rm(dir, { recursive: true, force: true }))));
+  await writeFile(join(library, "estimate-calibration.json"), JSON.stringify({ runs: [1, 2, 3].map((n) => ({ at: `2026-10-0${n}T00:00:00.000Z`, stages: { author: [100, 200] } })) }));
+  const calibration = createCalibration(machine);
+  await calibration.record({ stageTotals: { author: { low: 100, high: 100 } }, actual: { author: 200 }, library: empty });
+  await calibration.record({ stageTotals: { author: { low: 100, high: 100 } }, actual: { author: 200 }, library });
+  const text = await readFile(join(machine, "estimate-calibration.json"), "utf8"), written = JSON.parse(text);
+  assert.equal(written.runs.length, 5, "three carried over and two new");
+  assert.ok(!/study-calibration-|tmp|temp/i.test(text), "no folder name in the file");
+  assert.equal(written.imported.length, 1, "a library that carried nothing leaves nothing behind");
+  assert.match(written.imported[0], /^[0-9a-f]{16}$/);
+  if (process.platform === "win32") {
+    await calibration.record({ stageTotals: { author: { low: 100, high: 100 } }, actual: { author: 200 }, library: library.toUpperCase() });
+    assert.equal((await calibration.factors({ library: library.toLowerCase() })).samples, 6, "the same folder in another case is the same library: not carried twice");
+  }
+});
+
+test("a damaged file is put aside before the next write; a file that cannot be read now is not overwritten", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const totals = { author: { low: 100, high: 100 } }, path = join(root, "estimate-calibration.json");
+  await writeFile(path, "{ not json");
+  await createCalibration(root).record({ stageTotals: totals, actual: { author: 150 } });
+  const { readdir } = await import("node:fs/promises");
+  const aside = (await readdir(root)).filter((name) => name.startsWith("estimate-calibration.json.damaged-"));
+  assert.equal(aside.length, 1, "the damaged file is kept beside the new one");
+  assert.equal(await readFile(join(root, aside[0]), "utf8"), "{ not json");
+  assert.equal(JSON.parse(await readFile(path, "utf8")).runs.length, 1);
+  const before = await readFile(path, "utf8");
+  const busy = createCalibration(root, { read: async (file) => { if (file === path) throw Object.assign(new Error("busy"), { code: "EBUSY" }); return readFile(file, "utf8"); } });
+  await assert.rejects(busy.record({ stageTotals: totals, actual: { author: 150 } }), /busy/, "a read that failed for another reason is no empty file");
+  assert.equal(await readFile(path, "utf8"), before, "the machine's history is not wiped");
+});
+
+test("two writers on the same folder (two StudyHub processes) both keep their runs", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const one = createCalibration(root), two = createCalibration(root), totals = { author: { low: 100, high: 100 } };
+  await Promise.all(Array.from({ length: 6 }, (_, n) => (n % 2 ? one : two).record({ stageTotals: totals, actual: { author: 100 + n } })));
+  assert.equal(JSON.parse(await readFile(join(root, "estimate-calibration.json"), "utf8")).runs.length, 6);
+});
+
+test("a partly bad file still calibrates from its good runs", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const good = (n) => ({ at: `2026-10-0${n}T00:00:00.000Z`, stages: { author: [100, 200] } });
+  await writeFile(join(root, "estimate-calibration.json"), JSON.stringify({ runs: [{ at: "x", stages: null }, { at: "y", stages: { author: 5 } }, { at: "z", stages: { author: [0, 10] } }, { at: "w", stages: {} }, good(1), good(2), good(3)] }));
+  const factors = await createCalibration(root).factors();
+  assert.equal(factors.samples, 3, "only the runs that carry a usable stage count");
+  assert.equal(factors.stages.author, 2);
+  assert.equal(factors.deviates, true);
+});
