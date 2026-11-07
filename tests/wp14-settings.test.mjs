@@ -236,7 +236,7 @@ test('a running job is said before the learner commits, with the way to it, and 
   assert.match(running, /选择备份文件…/, 'the file may still be chosen and looked at');
   const quiet = render(h(BackupSection, { root: 'D:\\Study\\library', jobs: [job('j2', 'complete')], nav: navStub, exportData: noop, onRestored: noop }));
   assert.doesNotMatch(quiet, /学习库还有任务在运行|查看任务/, 'nothing runs: no reason, no task button, and no unconditional hint either');
-  assert.doesNotMatch(quiet, /任务还在进行时不能恢复/);
+  assert.doesNotMatch(quiet, /不能恢复/);
   // The destructive button of the preview is the one the blocked state disables.
   const state = { version: 3, courses: [], sources: [], decks: [], drafts: [], runs: [], attempts: [] };
   const file = { name: 'b.json', size: 2048, state };
@@ -257,7 +257,7 @@ test('the confirmation is blocked and offers the task when the host refuses anyw
   const source = await readFile('ui/settings/BackupSection.jsx', 'utf8');
   assert.match(source, /busy=\{busy\} blocked=\{blockers\.length > 0\}/);
   assert.match(source, /errorAction=\{openTask \? \{ label: ui\('查看任务'\), onClick: openTask \} : undefined\}/);
-  assert.match(source, /\{blockers\.length > 0 && <Hint>\{ui\('任务还在进行时不能恢复。'\)\}<\/Hint>\}/, 'the old fixed hint is shown only while a job runs');
+  assert.match(source, /\{blockers\.length > 0 && <Hint>\{ui\(RUNNING_JOB\)\}<\/Hint>\}/, 'the old fixed hint is shown only while a job runs, in the same words as the block');
 });
 test('changing the coach consent or goal reloads the profile outside the single-flight act', async () => {
   const calls = [];

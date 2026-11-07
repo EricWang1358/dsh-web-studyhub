@@ -22,6 +22,8 @@ const backupsFolder = root => root ? `${root.replace(/[\\/]+$/, '')}${root.inclu
 
 /* The jobs of this library that keep a restore from running (ui/job-visibility.js `isActiveJob`, the panel's copy of the host's rule; the snapshot's jobs
    are this library's already). The host checks again when the restore arrives: this only tells the learner before they commit, it promises nothing. */
+// One sentence for the one fact, in the block and in the confirmation.
+const RUNNING_JOB = '学习库还有任务在运行，现在还不能恢复。先等任务结束，或到任务页把它停掉。';
 export const restoreBlockers = (jobs = []) => (Array.isArray(jobs) ? jobs.filter(isActiveJob) : []);
 
 /** The chosen backup: name, size and contents, with the destructive action. */
@@ -95,7 +97,7 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav }) 
           <code className="backup-path" title={folder}>{folder || ui('当前学习库的 backups 文件夹')}</code>
           {/* Said before the learner picks a file: the restore cannot run now, and the reason is a task they can open. */}
           {blockers.length > 0 && <InlineMessage tone="warning" action={openTask ? { label: ui('查看任务'), onClick: openTask } : undefined}>
-            {ui('学习库还有任务在运行，现在还不能恢复。先等任务结束，或到任务页把它停掉。')}
+            {ui(RUNNING_JOB)}
           </InlineMessage>}
           <input ref={input} type="file" hidden accept=".json,application/json" onChange={(e) => read(e.target.files?.[0])} />
           {!file && <div className="settings-actions"><Button icon="upload" lock={busy} onClick={chooseBackup}>{ui('选择备份文件…')}</Button></div>}
@@ -108,7 +110,7 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav }) 
         errorAction={openTask ? { label: ui('查看任务'), onClick: openTask } : undefined}
         description={uiFormat('当前学习库会被「{0}」替换，替换后回到学习库首页。替换前，当前数据会自动保存到 {1}。', [file.name, folder || ui('当前学习库的 backups 文件夹')])}
         onConfirm={restore}>
-        {blockers.length > 0 && <Hint>{ui('任务还在进行时不能恢复。')}</Hint>}
+        {blockers.length > 0 && <Hint>{ui(RUNNING_JOB)}</Hint>}
       </ConfirmDialog>}
     </SettingsSection>
   );

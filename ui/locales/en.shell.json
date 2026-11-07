@@ -33,7 +33,6 @@
   "当前学习库会被「{0}」替换，替换后回到学习库首页。替换前，当前数据会自动保存到 {1}。": "The current library will be replaced by “{0}”, and you return to the library home. Before that, the current data is saved to {1}.",
   "学习库还有任务在运行，现在还不能恢复。先等任务结束，或到任务页把它停掉。": "A job in this library is still running, so the library cannot be restored now. Wait for it to finish, or stop it on the Jobs page.",
   "查看任务": "View job",
-  "任务还在进行时不能恢复。": "A job is still running, so the library cannot be restored.",
   "学习库已恢复。原数据已保存到 {0}": "Library restored. The previous data was saved to {0}",
   "换一个文件": "Choose another file",
   "1 周": "1 wk",
