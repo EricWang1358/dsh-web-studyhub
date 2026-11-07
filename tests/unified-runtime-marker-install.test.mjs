@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { stat } from 'node:fs/promises';
 import { INSTALL_MESSAGES, MARKER_INSTALL, markerInstallStatePath, venvLayout } from '../lib/marker-install.js';
 import { INSTALL_JOB_TEXT } from '../lib/marker-install-text.js';
+import { dshJobExecutor } from '../lib/jobs/executor.js';
 import { observeLocalWith } from '../lib/contexts/audio/local-process-job.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { until } from './helpers/wait.mjs';
@@ -58,6 +59,31 @@ test('without a session to run in the start is refused in words, before any job 
   await assert.rejects(h.call('marker.install.start', { confirm: true }), { code: 'needs-session', message: INSTALL_JOB_TEXT.needsSession });
   assert.deepEqual([await h.jobs(), await exists(markerInstallStatePath())], [[], false]);
   assert.ok((await h.pyLog()).every(line => /--version|"-c"/.test(line)), 'only the read-only probes of the plan ran');
+});
+
+test('cold DSH panel and genuine standalone StudyService support status, wait, cancel, dismiss and archive for Marker install on study-host', async t => {
+  for (const config of [{ standalone: true }, { standalone: true, runtime: { jobExecutor: dshJobExecutor({}, undefined) } }]) {
+    const h = await harness(t, { delayPip: true }, config);
+    await h.call('marker.install.start', { confirm: true });
+    await until(async () => (await h.call('marker.install.status')).stage === 'install', 'the install stage', { timeoutMs: 240_000 });
+    const [runningJob] = await h.jobs();
+    assert.equal((await h.call('job.status', { jobId: runningJob.id })).id, runningJob.id);
+    assert.equal((await h.call('job.control', { jobId: runningJob.id, action: 'cancel' })).action, 'cancel');
+    assert.equal((await h.call('job.wait', { jobId: runningJob.id })).status, 'cancelled');
+    await h.ended('cancelled');
+    assert.deepEqual((await h.call('job.dismiss', { jobId: runningJob.id })).dismissed, [runningJob.id]);
+    await h.call('marker.install.uninstall', { confirm: true });
+
+    await h.setPy({});
+    const started = await h.call('marker.install.start', { confirm: true });
+    assert.equal(started.status, 'running');
+    const [job] = await h.jobs();
+    assert.equal(job.contract.runtime.attempts[0].executor.service, 'study-host');
+    assert.equal((await h.call('job.wait', { jobId: job.id })).status, 'complete');
+    await h.ended('complete');
+    assert.equal(consoleCode.taskSummary(consoleCode.tasksOf(await h.call('snapshot'))[0]).state, 'done');
+    assert.deepEqual((await h.call('job.archive', { jobId: job.id })).archived, [job.id]);
+  }
 });
 
 test('the console cannot start an install again by retry, resume or pause: only the Settings start action does, and it asks for confirm', async t => {

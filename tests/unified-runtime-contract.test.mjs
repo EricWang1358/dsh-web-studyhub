@@ -77,6 +77,20 @@ test('public read extensions survive; introduced metadata rejects unknown fields
   const handle = copy('running');
   handle.runtime.attempts[0].executor = { service: 'dsh-jobs', handleId: 'synthetic-handle', ownerAgentId: 'synthetic-live-agent', typo: true };
   assert.throws(() => validateRuntimeContract(handle), /executor/);
+  const hostHandle = copy('running');
+  hostHandle.runtime.attempts[0].executor = { service: 'study-host', handleId: 'synthetic-host-handle' };
+  assert.deepEqual(validateRuntimeContract(hostHandle).runtime.attempts[0].executor, { service: 'study-host', handleId: 'synthetic-host-handle' });
+  for (const bad of [
+    { service: 'study-host', handleId: 'synthetic-host-handle', ownerAgentId: 'unexpected-agent' },
+    { service: 'study-host', handleId: 'synthetic-host-handle', typo: true },
+    { service: 'study-host', handleId: '' },
+    { service: 'dsh-jobs', handleId: 'synthetic-handle' },
+    { service: 'other-service', handleId: 'synthetic-handle' },
+  ]) {
+    const invalid = copy('running');
+    invalid.runtime.attempts[0].executor = bad;
+    assert.throws(() => validateRuntimeContract(invalid), { code: 'invalid-contract-shape' });
+  }
 });
 
 test('missing observations stay null or absent, including unknown host-internal request counts', () => {

@@ -13,7 +13,7 @@ const FAKE_PYTHON = fileURLToPath(new URL('./fake-python.mjs', import.meta.url))
 const FAKE_MARKER = fileURLToPath(new URL('./fake-marker-cli.mjs', import.meta.url));
 export const INSTALL_KIND = 'marker-install';
 
-export async function harness(t, py = {}, { runtime = {} } = {}) {
+export async function harness(t, py = {}, { runtime = {}, standalone = false } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'runtime-marker-install-')), before = process.env.DSH_HOME;
   process.env.DSH_HOME = join(dir, 'home');
   const statePath = join(dir, 'py.json'), log = join(dir, 'py-log.jsonl');
@@ -22,7 +22,7 @@ export async function harness(t, py = {}, { runtime = {} } = {}) {
   const install = { pythons: [patientCli({ file: process.execPath, prefix: [FAKE_PYTHON], env })], freeMegabytes: async () => 100_000,
     venvPython: folder => patientCli({ file: process.execPath, prefix: [FAKE_PYTHON], env: { ...env, FAKE_PY_VENV: venvLayout(folder).venv } }),
     markerCli: () => patientCli({ file: process.execPath, prefix: [FAKE_MARKER], env: {} }) };
-  const { starts: _starts, ...options } = managedRuntimeOptions({ paths: ['markerInstall'] });
+  const { starts: _starts, ...options } = standalone ? { starts: () => 0, runtimePilot: { markerInstall: true } } : managedRuntimeOptions({ paths: ['markerInstall'] });
   const service = new StudyService(join(dir, 'library'), { marker: { install }, ...options, ...runtime });
   t.after(async () => {
     await service.call('marker.install.cancel').catch(() => {});

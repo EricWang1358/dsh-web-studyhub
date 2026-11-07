@@ -1,3 +1,4 @@
+import { DEFAULT_ON_SWITCHES } from '../../lib/runtime-config.js';
 // One place for "run this service test with the unified runtime switched on".
 // A controlled native executor and model host stand in for DSH; no provider is reachable.
 
@@ -27,7 +28,11 @@ export const SWITCH_MODES = Object.freeze(['legacy', 'runtime']);
 /** Extra StudyService options for one side of the switch. */
 export function switchOptions(mode, { complete, paths = ['audioSingle'], host } = {}) {
   const parallel = TRANSLATION_PARALLEL ? { translationParallel: true } : {};
-  if (mode === 'legacy') return TRANSLATION_PARALLEL ? { runtimePilot: parallel } : {};
+  if (mode === 'legacy') {
+    const off = Object.fromEntries(paths.filter(path => DEFAULT_ON_SWITCHES.includes(path)).map(path => [path, false]));
+    const pilot = { ...off, ...parallel };
+    return Object.keys(pilot).length ? { runtimePilot: pilot } : {};
+  }
   // A twin that also turns a family's follow-up switch on names it in STUDY_RUNTIME_PATHS (e.g. "generationRestart").
   const more = (process.env.STUDY_RUNTIME_PATHS || '').split(',').filter(Boolean);
   const { starts: _starts, ...options } = managedRuntimeOptions({ complete, paths: [...new Set([...paths, ...more])], host });

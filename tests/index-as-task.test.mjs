@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
+import { dshJobExecutor } from '../lib/jobs/executor.js';
 import { RuntimeConfig, MIGRATION_SWITCHES } from '../lib/runtime-config.js';
 import { readManifest } from '../lib/retrieval-index.js';
 import { INDEX_TEXT } from '../lib/retrieval-messages.js';
@@ -14,8 +15,9 @@ import { managedRuntimeOptions } from './helpers/runtime-switch.mjs';
 import { until } from './helpers/wait.mjs';
 
 /* The search-index build is a job of the 任务 console by default (owner, 2026-11-06: a 513-page build was only visible in Settings).
-   With no host config, a host that can run jobs builds the index as a `retrieval-index` job; `runtime.pilot.retrievalIndex: false` keeps
-   the original background run. Whichever path is asked, one library never has two builds, and the manifest stays the checkpoint. */
+   Even when no chat agent is resumed yet (cold DSH panel or standalone StudyService), the `retrieval-index` definition opts into the
+   in-process `study-host` executor so it still runs as a real 任务 job; `runtime.pilot.retrievalIndex: false` keeps the original background run.
+   Whichever path is asked, one library never has two builds, and the manifest stays the checkpoint. */
 
 const PAGES = 4, KIND = 'retrieval-index';
 
@@ -90,61 +92,81 @@ test('runtime.pilot.retrievalIndex: false keeps the original background run (not
   assert.equal(fake.index.size, PAGES);
 });
 
-test('a host that cannot run jobs at all (no executor) keeps the original background run', async t => {
+test('standalone StudyService (no workOwner or jobExecutor) supports status, wait, cancel, dismiss and archive on study-host', async t => {
   await home(t);
-  const fake = fakeIndexPort(), root = await newRoot(t);
+  let holdFirst = true;
+  const fake = fakeIndexPort({ onIngest: (args, count, options) => holdFirst ? untilAborted(args, count, options) : undefined });
+  const root = await newRoot(t);
   const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: fake.port });
   t.after(() => service.dispose());
   const book = Array.from({ length: PAGES }, (_, index) => `<!-- page: ${index + 1} -->\nOS 第 ${index + 1} 页。`).join('\n\n');
   await service.call('materials.document.import', { dataBase64: Buffer.from(book, 'utf8').toString('base64'), filename: 'OS.md', courses: ['OS'] });
-  await service.call('retrieval.index.start', { course: 'OS' });
-  const done = await until(async () => { const run = await service.call('retrieval.index.status', {}); return run.status === 'complete' ? run : null; }, 'the build');
-  assert.equal(done.added, PAGES);
-});
 
-test('with no host config and no live session to own a job (a preview), the build still runs, as the original background run', async t => {
-  await home(t);
-  const fake = fakeIndexPort(), root = await newRoot(t);
-  const gone = { assertAvailable() { throw Object.assign(new Error('no agent'), { code: 'executor-unavailable' }); }, start() { throw new Error('not admitted'); } };
-  const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: fake.port, jobExecutor: gone });
-  t.after(() => service.dispose());
-  const book = Array.from({ length: PAGES }, (_, index) => `<!-- page: ${index + 1} -->\nOS 第 ${index + 1} 页。`).join('\n\n');
-  await service.call('materials.document.import', { dataBase64: Buffer.from(book, 'utf8').toString('base64'), filename: 'OS.md', courses: ['OS'] });
-  await service.call('retrieval.index.start', { course: 'OS' });
-  const done = await until(async () => { const run = await service.call('retrieval.index.status', {}); return run.status === 'complete' ? run : null; }, 'the build');
-  assert.equal(done.added, PAGES);
-  assert.deepEqual((await service.call('snapshot')).jobs.filter(job => job.type === KIND), []);
+  const first = await service.call('retrieval.index.start', { course: 'OS' });
+  await until(() => fake.ingested().length === 1, 'the first ingest to start');
+  const [listed] = (await service.call('job.status', {})).jobs.filter(item => item.type === KIND);
+  assert.ok(listed, 'job.status {} sees the standalone study-host job');
+  assert.equal((await service.call('job.status', { jobId: first.taskId })).id, listed.id);
+  assert.equal((await service.call('job.status', { jobId: listed.id })).id, listed.id);
+  const cancelReply = await service.call('job.control', { jobId: listed.id, action: 'cancel' });
+  assert.equal(cancelReply.action, 'cancel');
+  assert.equal((await service.call('job.wait', { jobId: listed.id })).status, 'cancelled');
+  assert.deepEqual((await service.call('job.dismiss', { jobId: listed.id })).dismissed, [listed.id]);
+
+  holdFirst = false;
+  const second = await service.call('retrieval.index.start', { course: 'OS' });
+  assert.equal(second.status, 'running');
+  const [job] = (await service.call('snapshot')).jobs.filter(item => item.type === KIND);
+  assert.equal(second.taskId, job.contract.jobId);
+  assert.equal(job.contract.runtime.attempts[0].executor.service, 'study-host');
+  assert.equal((await service.call('job.wait', { jobId: job.id })).status, 'complete');
+  assert.equal((await service.call('retrieval.index.status', {})).added, PAGES);
+  assert.deepEqual((await service.call('job.archive', { jobId: job.id })).archived, [job.id]);
 });
 
 for (const [name, pilot] of [['the resolved host config (true)', () => RuntimeConfig({}).pilot], ['an explicit true', () => ({ retrievalIndex: true })], ['no config', () => undefined]]) {
-  test(`${name} with no live session to own a job (DSH after a restart, before the conversation's agent is resumed): the build runs, never refused`, async t => {
+  test(`${name} with no live session agent (DSH after a restart, before the conversation's agent is resumed): runs as a study-host 任务 job`, async t => {
     await home(t);
     const fake = fakeIndexPort(), root = await newRoot(t);
-    const gone = { assertAvailable() { throw Object.assign(new Error('A registered live Agent is required for runtime admission'), { code: 'executor-unavailable' }); }, start() { this.assertAvailable(); } };
-    const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: fake.port, jobExecutor: gone, ...(pilot() ? { runtimePilot: pilot() } : {}) });
+    const coldHost = { get: key => key === 'agents' ? { get: () => undefined } : undefined };
+    const service = new StudyService(root, {
+      complete: createFakeModel(), coach: false, retrieval: fake.port,
+      jobExecutor: dshJobExecutor(coldHost, undefined),
+      ...(pilot() ? { runtimePilot: pilot() } : {}),
+    });
     t.after(() => service.dispose());
     const book = Array.from({ length: PAGES }, (_, index) => `<!-- page: ${index + 1} -->\nOS 第 ${index + 1} 页。`).join('\n\n');
     await service.call('materials.document.import', { dataBase64: Buffer.from(book, 'utf8').toString('base64'), filename: 'OS.md', courses: ['OS'] });
     const started = await service.call('retrieval.index.start', { course: 'OS' });
     assert.equal(started.status, 'running');
-    assert.equal(started.taskId, undefined, 'the original run: no task to link to');
+    const [job] = (await service.call('snapshot')).jobs.filter(item => item.type === KIND);
+    assert.ok(job, 'the build is listed in 任务 even without a live session agent');
+    assert.equal(started.taskId, job.contract.jobId, 'the receipt names the task in 任务');
+    assert.equal(job.contract.runtime.attempts[0].executor.service, 'study-host');
     const done = await until(async () => { const run = await service.call('retrieval.index.status', {}); return run.status === 'complete' ? run : null; }, 'the build');
     assert.equal(done.added, PAGES);
   });
 }
 
-test('an executor that passed the check but refuses at the submit still leaves a running build, on the original path', async t => {
+test('an injected executor that explicitly refuses host admission (or refuses at submit) still leaves a running build on the fallback path', async t => {
   await home(t);
-  const fake = fakeIndexPort(), root = await newRoot(t);
-  let checks = 0;
-  const flaky = { assertAvailable() { if (++checks > 1) throw Object.assign(new Error('agent went away'), { code: 'executor-unavailable' }); }, start() { throw Object.assign(new Error('agent went away'), { code: 'executor-unavailable' }); } };
-  const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: fake.port, jobExecutor: flaky });
-  t.after(() => service.dispose());
-  const book = Array.from({ length: PAGES }, (_, index) => `<!-- page: ${index + 1} -->\nOS 第 ${index + 1} 页。`).join('\n\n');
-  await service.call('materials.document.import', { dataBase64: Buffer.from(book, 'utf8').toString('base64'), filename: 'OS.md', courses: ['OS'] });
-  assert.equal((await service.call('retrieval.index.start', { course: 'OS' })).status, 'running');
-  const done = await until(async () => { const run = await service.call('retrieval.index.status', {}); return run.status === 'complete' ? run : null; }, 'the build');
-  assert.equal(done.added, PAGES);
+  for (const mode of ['upfront', 'at-submit']) {
+    const fake = fakeIndexPort(), root = await newRoot(t);
+    let checks = 0;
+    const refusing = mode === 'upfront'
+      ? { assertAvailable() { throw Object.assign(new Error('disabled'), { code: 'executor-unavailable' }); }, start() { throw new Error('not admitted'); } }
+      : { assertAvailable() { if (++checks > 1) throw Object.assign(new Error('gone'), { code: 'executor-unavailable' }); }, start() { throw Object.assign(new Error('gone'), { code: 'executor-unavailable' }); } };
+    const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: fake.port, jobExecutor: refusing });
+    t.after(() => service.dispose());
+    const book = Array.from({ length: PAGES }, (_, index) => `<!-- page: ${index + 1} -->\nOS 第 ${index + 1} 页。`).join('\n\n');
+    await service.call('materials.document.import', { dataBase64: Buffer.from(book, 'utf8').toString('base64'), filename: 'OS.md', courses: ['OS'] });
+    const started = await service.call('retrieval.index.start', { course: 'OS' });
+    assert.equal(started.status, 'running');
+    assert.equal(started.taskId, undefined);
+    const done = await until(async () => { const run = await service.call('retrieval.index.status', {}); return run.status === 'complete' ? run : null; }, 'the build');
+    assert.equal(done.added, PAGES);
+    assert.deepEqual((await service.call('snapshot')).jobs.filter(job => job.type === KIND), []);
+  }
 });
 
 test('a build the original path started is the one build of the library: the job path joins it, stops it, and then writes only the pages it did not record', async t => {

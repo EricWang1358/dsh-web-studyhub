@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { INDEX_TOOLS, readManifest, retrievalHome, sourceKey } from '../lib/retrieval-index.js';
+import { dshJobExecutor } from '../lib/jobs/executor.js';
 import { INDEX_TEXT } from '../lib/retrieval-messages.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { fakeIndexPort, untilAborted } from './helpers/index-port.mjs';
@@ -55,6 +56,13 @@ test('without the extension the refusal comes first (no job, no write); without 
   assert.equal((await panel.service.call('retrieval.index.start', { course: 'OS' })).status, 'running');
   assert.equal((await panel.finished('the build')).status, 'complete');
   assert.deepEqual(await panel.jobs(), []); assert.equal(fake.ingested().length, PAGES);
+  const coldFake = fakeIndexPort(), coldPanel = await library(t, coldFake, { runtime: { jobExecutor: dshJobExecutor({}, undefined) } });
+  const coldStarted = await coldPanel.service.call('retrieval.index.start', { course: 'OS' });
+  assert.equal(coldStarted.status, 'running');
+  assert.equal((await coldPanel.finished('the cold-panel build')).status, 'complete');
+  const [coldJob] = await coldPanel.jobs();
+  assert.equal(coldStarted.taskId, coldJob.contract.jobId, 'cold panel with dshJobExecutor runs as a real 任务 job');
+  assert.equal(coldJob.contract.runtime.attempts[0].executor.service, 'study-host');
 });
 
 test('unchanged pages are reused, an edited page is written again under its own key, and only a page that left the library is deleted', async t => {
