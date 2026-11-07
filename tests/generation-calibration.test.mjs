@@ -8,7 +8,7 @@ import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { estimateFromState, compactEstimate, stageTotals, calibrateEstimate } from "../lib/token-estimate.js";
-import { calibrationDir, calibrationFor, createCalibration, observedByStage, stageOfStep } from "../lib/estimate-calibration.js";
+import { calibrationDir, calibrationFor, createCalibration, learningOff, observedByStage, stageOfStep } from "../lib/estimate-calibration.js";
 
 /* #218: the estimate learns from this library's own runs. Each finished generation job records, per stage, what it used against what was
    estimated; the median ratio of the last runs scales the next estimate (stage by stage), so the range covers what a run really costs here.
@@ -176,4 +176,43 @@ test("one model's output does not raise another model's estimate, and a record w
   assert.equal((await calibration.outputPerCall({ model: "other/model" })).stages.author, 9_000);
   assert.equal((await calibration.outputPerCall()).stages.author, 9_000, "without a model the machine's whole record is read");
   assert.deepEqual(calibrateEstimate(raw, null, await calibration.outputPerCall({ model: "mine" })), raw, "nothing measured for this model: the estimate is untouched");
+});
+
+/* #772 review: the old file lived in each learning library. The machine's file takes it over once, leaves the old file where it is, and never counts a run twice. */
+test("a library's own earlier file is carried into the machine's once, left untouched, and never counted twice", async (t) => {
+  const machine = await mkdtemp(join(tmpdir(), "study-calibration-machine-")), library = await mkdtemp(join(tmpdir(), "study-calibration-library-"));
+  t.after(() => Promise.all([rm(machine, { recursive: true, force: true }), rm(library, { recursive: true, force: true })]));
+  const raw = estimate(), totals = stageTotals(raw), mid = (id) => (totals[id].low + totals[id].high) / 2;
+  const old = JSON.stringify({ runs: [1, 2, 3].map((n) => ({ at: `2026-10-0${n}T00:00:00.000Z`, stages: { author: [Math.round(mid("author")), Math.round(mid("author") * 2)] } })) });
+  await writeFile(join(library, "estimate-calibration.json"), old);
+  const calibration = createCalibration(machine);
+  assert.deepEqual((await calibration.factors()).stages, {}, "without naming the library there is nothing to carry over");
+  const carried = await calibration.factors({ library });
+  assert.equal(carried.samples, 3);
+  assert.ok(Math.abs(carried.stages.author - 2) < 0.01, JSON.stringify(carried));
+  await assert.rejects(readFile(join(machine, "estimate-calibration.json"), "utf8"), "reading an estimate writes nothing");
+  await calibration.record({ stageTotals: totals, actual: { author: mid("author") * 2 }, library });
+  await calibration.record({ stageTotals: totals, actual: { author: mid("author") * 2 }, library });
+  assert.equal((await calibration.factors({ library })).samples, 5, "three carried over and two new, not three more each time");
+  assert.equal(JSON.parse(await readFile(join(machine, "estimate-calibration.json"), "utf8")).runs.length, 5);
+  assert.equal(await readFile(join(library, "estimate-calibration.json"), "utf8"), old, "the library's own file is left as it was");
+  const another = createCalibration(machine);
+  assert.equal((await another.factors({ library })).samples, 5, "a fresh process reads the same, with no second import");
+  await writeFile(join(library, "estimate-calibration.json"), "not json");
+  assert.equal((await createCalibration(await mkdtemp(join(tmpdir(), "study-calibration-machine-"))).factors({ library })).samples, 0, "a damaged old file carries nothing");
+});
+
+test("a test process that was not given a DSH home never writes to the real one", () => {
+  const saved = { home: process.env.DSH_HOME, off: process.env.STUDY_NO_CALIBRATION };
+  try {
+    delete process.env.STUDY_NO_CALIBRATION;
+    delete process.env.DSH_HOME;
+    assert.equal(learningOff(), true, "node --test with no DSH_HOME: learning is off, the real ~/.dsh stays untouched");
+    process.env.DSH_HOME = tmpdir();
+    assert.equal(learningOff(), false, "a test that names a home learns there");
+    process.env.STUDY_NO_CALIBRATION = "1";
+    assert.equal(learningOff(), true);
+  } finally {
+    for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  }
 });
