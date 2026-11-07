@@ -7,3 +7,14 @@ export async function chooseMore(page, text, { viewer = page.locator(".study-doc
   await viewer.locator(".reader-more__button").first().click();
   await page.locator('.sh-menu [role^="menuitem"]', { hasText: text }).first().click();
 }
+
+/** Open 更多, read the hint of the item that holds `text` (掌握度与覆盖 …), and close 更多 again with Escape. */
+export async function readMoreHint(page, text, { viewer = page.locator(".study-document-viewer") } = {}) {
+  await viewer.locator(".reader-more__button").first().click();
+  const item = page.locator('.sh-menu [role^="menuitem"]', { hasText: text }).first();
+  await item.waitFor();
+  const hint = (await item.locator(".sh-menu__hint").innerText()).trim();
+  await page.keyboard.press("Escape");
+  await page.locator(".sh-menu").waitFor({ state: "detached" });
+  return hint;
+}
