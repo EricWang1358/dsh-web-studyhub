@@ -106,6 +106,5 @@
   "占 {0}%": "{0}%",
   "展开这一组": "Open this group",
   "当前筛选下没有错题": "No mistakes match the current filter",
-  "每组错题数占全部的比例": "Each group’s share of all mistakes",
-  "另有 {0} 组，按数量排在后面": "{0} more groups, after the largest"
+  "每组错题数占全部的比例": "Each group’s share of all mistakes"
 }

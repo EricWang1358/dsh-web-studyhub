@@ -29,7 +29,7 @@ test('mistakes page: the distribution bar says the same words it draws, and a se
     // One segment per deck, each with its count drawn in it (the second cue beside the width).
     const segments = page.locator('.wb-dist-seg');
     assert.equal(await segments.count(), 2, 'two decks of mistakes');
-    assert.equal((await segments.first().locator('span').innerText()).trim(), '24', 'the count is drawn in the segment');
+    assert.equal((await segments.first().locator('.wb-dist-count').innerText()).trim(), '24', 'the count is drawn in the segment');
     const label = await segments.first().getAttribute('aria-label');
     assert.equal(await segments.first().evaluate((element) => element.tabIndex), 0, 'every segment is in the tab order');
 

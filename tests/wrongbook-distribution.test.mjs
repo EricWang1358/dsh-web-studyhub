@@ -49,9 +49,10 @@ test('the page draws the bar from ten mistakes on, one segment per group, in the
   assert.equal(segments.length, 2, 'one segment per group');
   assert.match(segments[0], /aria-label="期末综合卷04 · 7 题 · 占 58% · 只看这个题组"/);
   assert.match(segments[0], /style="flex-grow:7"/, 'the width is the count');
-  assert.match(segments[0], /<span aria-hidden="true">7<\/span>/, 'the number is the second, non-colour cue');
+  assert.match(segments[0], /<span class="wb-dist-count" aria-hidden="true">7<\/span>/, 'the number is drawn in the segment');
+  assert.match(segments[0], /<span class="wb-dist-name" aria-hidden="true">期末综合卷04<\/span>/, 'and so is the name, so no legend is needed to tell the segments apart');
   assert.match(segments[0], /class="[^"]*\bsh-btn\b/, 'the shared Button, not a raw button');
-  assert.equal((html.match(/wb-dist-legend"[\s\S]*?<\/ul>/)[0].match(/wb-num/g) || []).length, 2, 'the legend names every group');
+  assert.doesNotMatch(html, /wb-dist-legend/, 'the list below is the legend: no second list of the same names and counts');
 });
 
 test('the bar follows the filter and the grouping, and says so when nothing is left (#748)', () => {
@@ -68,13 +69,13 @@ test('the bar follows the filter and the grouping, and says so when nothing is l
   assert.doesNotMatch(render({ filterMin: 10, view: 'history' }), /wb-dist/);
 });
 
-test('a bar with more groups than the legend fits still draws every segment (#748)', () => {
+test('a bar with many groups still draws every segment, tiny ones without a name or a number (#748)', () => {
   setUiLanguage('zh');
   const many = [];
   for (let index = 0; index < 12; index++) for (let at = 0; at < 2; at++) many.push(row(`m${index}-${at}`, 'd4', `主题 ${index}`));
   const html = render({ filterMin: 10, items: many, counts: { ...base.counts, total: many.length }, initial: { groupBy: 'topic' } });
   assert.equal((html.match(/wb-dist-seg/g) || []).length, 12, 'every group is on the bar');
-  assert.match(html, /另有 4 组，按数量排在后面/);
+  assert.equal((html.match(/data-narrow/g) || []).length, 12, 'twelve equal groups are each under a fifth: the name is left to the tooltip and the list');
 });
 
 test('WeaknessBar alone draws the tooltip surface only when it is given a point (#748)', () => {

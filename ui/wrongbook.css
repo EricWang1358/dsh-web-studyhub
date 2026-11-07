@@ -253,9 +253,10 @@
     .wb-why-list { color: var(--accent-text); font-size: var(--fs-sm); }
     .wb-pages { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); color: var(--text-muted); font-size: var(--fs-md); }
     /* ── 薄弱点分布 (#748) ──────────────────────────────────────────────────
-       The groups of the list as one bar above it. The count is drawn inside each segment wide enough for it: the second, non-colour cue beside the
-       width, and the ink on the berry fill is the desk colour (the tone's opposite in every theme), so it reads without another token. The tooltip
-       is the shared point surface; it is drawn only while a segment has the pointer or the focus. */
+       The groups of the list as one bar above it, in the weak tone's quiet tint (a bar this wide in the full berry shouts over the list it summarises).
+       A segment says its group's name when it is wide enough and its count unless it is tiny: the width, the name and the number are the cues, colour is
+       not one of them. The list below is the legend, in the same order. The tooltip is the shared point surface, drawn only while a segment has the
+       pointer or the focus. */
     .wb-dist { display: grid; gap: var(--space-2); margin-bottom: var(--space-3); }
     .wb-dist-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); }
     .wb-dist-head h2 { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-strong); }
@@ -265,16 +266,16 @@
     .wb-dist-seg {
       flex-basis: 0; min-width: 4px; min-height: 26px;
       padding: 0; border: 0; border-radius: var(--radius-xs); box-shadow: none;
-      background: var(--bad); color: var(--bg-canvas);
+      background: var(--bad-tint); color: var(--bad-ink); box-shadow: inset 0 0 0 1px var(--bad-line);
       font-size: var(--fs-sm); line-height: 1; font-variant-numeric: tabular-nums; overflow: hidden;
+      display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding-inline: var(--space-2);
     }
+    .wb-dist-name { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: start; font-weight: var(--fw-medium); }
+    .wb-dist-count { flex: none; font-weight: var(--fw-strong); }
     /* A ring inside the segment for the pointer and the keyboard (no second colour mixed from the status tone: #96, tests/wave5a-tones.test.mjs). */
     .wb-dist-seg:hover, .wb-dist-seg:focus-visible { box-shadow: inset 0 0 0 2px var(--bad-ink); }
-    .wb-dist-seg[data-tight] > span { display: none; }
-    .wb-dist-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin: 0; padding: 0; list-style: none; color: var(--text-dim); font-size: var(--fs-sm); }
-    .wb-dist-legend li { display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; }
-    .wb-dist-legend i { flex: none; width: 8px; height: 8px; border-radius: var(--radius-xs); background: var(--bad); }
-    .wb-dist-legend .wb-num { color: var(--text-muted); }
+    .wb-dist-seg[data-narrow] { justify-content: center; padding-inline: 0; }
+    .wb-dist-seg[data-narrow] .wb-dist-name, .wb-dist-seg[data-tight] > span { display: none; }
     .wb-dist-empty { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
   }
   @container study (max-width: 640px) {

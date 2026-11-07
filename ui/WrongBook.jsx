@@ -233,7 +233,6 @@ const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, s
    by one. Hand-drawn with the rules of the dashboard's charts (ui/charts/DashboardCharts.jsx) and nothing of their code: colours from tokens, a tooltip
    drawn over the segment it explains (aria-hidden, because the button's aria-label says the same facts), the count drawn inside the segment as the second,
    non-colour cue, and an empty line when the current filter leaves nothing. Shown from FILTER_MIN mistakes on (#675). */
-const DIST_LEGEND_MAX = 8;
 /** What a segment says: its title, its count, its share and what a press does. The tooltip and the aria-label both read this list, so the drawn words
     and the spoken ones cannot drift apart. */
 export function weaknessFacts(group, total) {
@@ -265,10 +264,11 @@ export function WeaknessBar({ groups = [], onPick }) {
               const words = facts(group);
               return (
                 <Button key={group.key} variant="quiet" size="sm" className="wb-dist-seg" style={{ flexGrow: group.rows.length }}
-                  data-tight={group.rows.length / Math.max(1, total) < 0.08 || undefined}
+                  data-tight={group.rows.length / Math.max(1, total) < 0.08 || undefined} data-narrow={group.rows.length / Math.max(1, total) < 0.2 || undefined}
                   aria-label={words.join(" · ")} onMouseEnter={(event) => point(index, event)} onMouseLeave={() => setTip(null)}
                   onFocus={(event) => point(index, event)} onBlur={() => setTip(null)} onClick={() => onPick?.(group)}>
-                  <span aria-hidden="true">{group.rows.length}</span>
+                  <span className="wb-dist-name" aria-hidden="true">{group.title}</span>
+                  <span className="wb-dist-count" aria-hidden="true">{group.rows.length}</span>
                 </Button>
               );
             })}
@@ -277,12 +277,6 @@ export function WeaknessBar({ groups = [], onPick }) {
               {shown.facts.slice(1).map((fact, at) => <span key={at}>{fact}</span>)}
             </span>}
           </div>
-          <ul className="wb-dist-legend">
-            {groups.slice(0, DIST_LEGEND_MAX).map((group) => (
-              <li key={group.key}><i aria-hidden="true" />{group.title}<span className="wb-num">{group.rows.length}</span></li>
-            ))}
-            {groups.length > DIST_LEGEND_MAX && <li className="muted">{uiFormat("另有 {0} 组，按数量排在后面", [groups.length - DIST_LEGEND_MAX])}</li>}
-          </ul>
         </>
       )}
     </section>
