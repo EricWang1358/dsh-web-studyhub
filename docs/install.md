@@ -4,6 +4,14 @@ English · [简体中文](install.zh-CN.md)
 
 StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app or as a web page in your browser. You install DSH, add StudyHub through DSH's plugin manager, then connect a model for question generation. For a one-page version to open in your browser, download the [English setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.4.4/StudyHub-4.4.4-Setup.html).
 
+**Three names, one product, and the channel that is newest.** The product is **StudyHub**; DSH installs it as the package `@ericwang1358/dsh-daily-flashcard`; the code, the issues and the release notes are in the repository `dsh-web-studyhub`. A version number appears in two places, and the **GitHub release page is the newest**: npm's `latest` tag can lag behind it, so install the `.tgz` from the release page, as the steps below do.
+
+| Name | What it is | Where the newest version is |
+| --- | --- | --- |
+| **StudyHub** | the product, in DSH's plugin list and on every screen | — |
+| `@ericwang1358/dsh-daily-flashcard` | the package DSH installs and shows after install | the `.tgz` on the GitHub release page; npm's `latest` may be older |
+| `dsh-web-studyhub` | the source repository: code, issues, release notes | the GitHub release page (`vX.Y.Z`) |
+
 | Your situation | Start here |
 | --- | --- |
 | No DSH yet | [Install DSH](#install-dsh), then [install StudyHub in DSH](#install-studyhub-in-dsh) |

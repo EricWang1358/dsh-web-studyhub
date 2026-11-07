@@ -273,3 +273,20 @@ test('the key step carries one quiet line to the install guide\'s model section,
   assert.match(read('docs/install.zh-CN.md'), /^## 配置模型服务商\s*$/m);
   assert.match(read('docs/install.md'), /^## Configure a model provider\s*$/m);
 });
+
+test('the install guide names the three names and the channel that carries the newest version', () => {
+  for (const file of ['docs/install.md', 'docs/install.zh-CN.md']) {
+    const doc = read(file);
+    assert.match(doc, /@ericwang1358\/dsh-daily-flashcard/, `${file}: the package name`);
+    assert.match(doc, /dsh-web-studyhub/, `${file}: the repository name`);
+    assert.match(doc, /npm/, `${file}: npm is named as the channel that may lag`);
+    assert.match(doc, file.endsWith('zh-CN.md') ? /发布页/ : /release page/, `${file}: the release page is named`);
+  }
+  // The install step says it too, so a version read from npm is not taken for the newest one.
+  for (const file of ['README.md', 'README.zh-CN.md']) {
+    const doc = read(file);
+    assert.match(doc, /npm/, `${file}: the install step says npm may lag the release page`);
+    assert.match(doc, file.endsWith('zh-CN.md') ? /发布页/ : /release page/, `${file}: and names the newest channel`);
+  }
+});
+
