@@ -17,8 +17,6 @@
     --bg-sunken: #110f0d;
     --bg-surface: #1e1b18;
     --bg-raised: #26231f;
-    --bg-glass: #1e1b18f0;
-    --bg-glass-strong: #1e1b18fa;
     --bg-hover: #fff1dc0b;
     --bg-selected: #292623;
 
@@ -58,7 +56,6 @@
 
     --shadow-card: inset 0 1px 0 var(--edge-highlight-paper), 0 0 0 1px var(--paper-rule), 0 2px 4px #00000026, var(--shadow-lg);
     --radius-card: 16px;
-    --glass-sheen: #fff4e30a;
     --shadow-sm: 0 1px 2px #0000004d, 0 2px 8px -4px #00000080;
     --shadow-md: 0 14px 34px -20px #000000d9;
     --shadow-lg: 0 30px 70px -30px #000000f2;
@@ -127,8 +124,6 @@
     --bg-sunken: #e8e3da;
     --bg-surface: #faf8f4;
     --bg-raised: #ffffff;
-    --bg-glass: #faf8f4f0;
-    --bg-glass-strong: #faf8f4fa;
     --bg-hover: #2a1c0e0b;
     --bg-selected: #e9e4db;
 
@@ -158,7 +153,6 @@
     --paper-dim: #5f574c;
     --paper-rule: #20160c12;
 
-    --glass-sheen: #ffffffb3;
     --shadow-sm: 0 1px 2px #2a1c0e14, 0 2px 8px -4px #2a1c0e26;
     --shadow-md: 0 14px 34px -20px #2a1c0e38;
     --shadow-lg: 0 30px 70px -30px #2a1c0e45;

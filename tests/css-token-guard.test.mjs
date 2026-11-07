@@ -1,4 +1,4 @@
-/* #66 token coverage, in two small guards that only ever tighten.
+/* #66 token coverage, in three small guards that only ever tighten.
 
    1. Raw hex colours. ui/DESIGN.md: "new CSS references tokens, never raw colours". The colours that exist today are allowed per file (HEX_BASELINE
       below); a NEW raw hex in a file that has none, or more of them than its baseline, fails. Colours inside a custom-property declaration
@@ -7,7 +7,12 @@
       file and its real count; put that number in the table (delete the line at 0).
    2. Literals that equal a token. A `border-radius` of 8px / 12px / 16px and a `font-size` of 12 / 13 / 17 / 19 / 23 / 28px mean --radius-sm, --radius, --radius-card and
       --fs-xs ... --fs-3xl, so in the three high-traffic stylesheets they are written as the token (the corner style and a future
-      type scale then reach them). Other pixel values are left alone: a bespoke size is not a token. (Not migrated on purpose: 15px, the base reading size, ~170 uses, and 999px pills, which no setting scales; it would only add bytes now.) */
+      type scale then reach them). Other pixel values are left alone: a bespoke size is not a token. (Not migrated on purpose: 15px, the base reading size, ~170 uses, and 999px pills, which no setting scales; it would only add bytes now.)
+   3. Dead colour tokens. A colour token declared in ui/tokens.css that nothing reads is a value nobody can see: the --bg-glass pair and --glass-sheen came with a blur
+      the product never painted (ui/DESIGN.md: no glass). Guards 1 and 2 read the 16 global sheets of tests/helpers/global-css.mjs, so this one walks every stylesheet
+      under ui/ itself, plus the .js/.jsx sources, because an inline style names a token from JS too (style={{ stroke: 'var(--accent-soft)' }}); the appearance store
+      writes --font-custom and the science settings write three more, none of them colours, so the colour set never needs a whitelist for them. PALETTE_ONLY is the
+      short list of colour tokens ui/DESIGN.md still promises while no rule paints them yet. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
@@ -38,6 +43,29 @@ function literalsEqualToTokens(source) {
   return found;
 }
 
+const COLOUR_VALUE = /^(#[0-9a-fA-F]{3,8}|rgba?\(|hsla?\(|hwb\(|lab\(|lch\(|oklab\(|oklch\(|color\(|color-mix\(|light-dark\(|transparent$|currentcolor$)/i;
+
+/** The `--name: value` pairs a stylesheet declares, comments dropped. */
+function declarations(source) {
+  return [...stripComments(source).matchAll(/(--[a-z0-9-]+)\s*:\s*([^;{}]+)/gi)].map((match) => ({ name: match[1], value: match[2].trim() }));
+}
+
+/** The colour tokens a token block declares: a colour literal or function, or an alias of one (--warn-text: var(--warn-ink)). */
+function colourTokens(source) {
+  const own = declarations(source);
+  const colours = new Set(own.filter((token) => COLOUR_VALUE.test(token.value)).map((token) => token.name));
+  for (let pass = 0; pass < 3; pass++)
+    for (const token of own) {
+      const alias = /^var\(\s*(--[a-z0-9-]+)\s*\)$/i.exec(token.value);
+      if (alias && colours.has(alias[1])) colours.add(token.name);
+    }
+  return colours;
+}
+
+/** Every token a source reads through var(--name) / var(--name, fallback). */
+function readTokens(source) {
+  return new Set([...source.matchAll(/var\(\s*(--[a-z0-9-]+)/gi)].map((match) => match[1]));
+}
 /** Files (relative to ui/) that still hold raw hex colours, and how many. Only lower these. */
 const HEX_BASELINE = {
   'board/board.css': 2,
@@ -46,6 +74,15 @@ const HEX_BASELINE = {
   'review/question.css': 1,
 };
 
+/* Colour tokens ui/DESIGN.md still promises as a palette while no rule paints them yet. The reason names what the doc says the token is for; the test also fails
+   when one of these is no longer declared in ui/tokens.css, so the list cannot rot. A token that stops being promised goes with its line. */
+const PALETTE_ONLY = {
+  '--scrim-strong': 'page dimming behind a full-surface dialog (DESIGN.md, semantic tokens), when the 60% --scrim is too light; both themes define it',
+  '--warn-halo': 'a strength of the ochre tone (DESIGN.md: the halo/mid/mark/tint/solid family, "and the same for warn, bad, info"): a ring or glow',
+  '--bad-mid': 'a strength of the berry tone (the same family): a stroke or tick',
+  '--info-halo': 'a strength of the blue tone (the same family): a ring or glow',
+  '--info-mid': 'a strength of the blue tone (the same family): a stroke or tick',
+};
 test('the counters understand the shapes they guard (fixtures)', () => {
   assert.equal(countRawHex('a { color: #fff; background: #a1b2c3; border: 1px solid #12345678; }'), 3);
   assert.equal(countRawHex('.x {\n  --accent: #c93d22;\n  --bg: #161412;\n}'), 0, 'a token definition is the token block');
@@ -89,4 +126,28 @@ test('the blue-violet fallback colour is gone from the document preview, and the
   const source = await readFile('ui/document-preview/document-preview.css', 'utf8');
   assert.doesNotMatch(source, /#7284ef/i);
   assert.doesNotMatch(source, /var\(--accent\s*,/);
+});
+
+test('the dead-token counters read colour values, aliases and var() references (fixtures)', () => {
+  assert.deepEqual([...colourTokens('.a { --bg: #161412; --alias: var(--bg); --shadow: inset 0 0 0 1px #00000026; --space: 4px; }')], ['--bg', '--alias']);
+  assert.deepEqual([...readTokens('.a { color: var(--text); border: 1px solid var(--line, #fff); }')], ['--text', '--line']);
+});
+
+test('every colour token ui/tokens.css declares is read somewhere in ui/, and an appearance override only re-themes a token that exists', async () => {
+  const files = (await readdir('ui', { recursive: true })).map((name) => name.replace(/\\/g, '/'))
+    .filter((name) => /\.(css|jsx?)$/.test(name)).sort();
+  const reads = new Set();
+  for (const name of files) for (const token of readTokens(await readFile('ui/' + name, 'utf8'))) reads.add(token);
+  const source = await readFile('ui/tokens.css', 'utf8');
+  const declared = new Set(declarations(source).map((token) => token.name));
+  const dead = [...colourTokens(source)].filter((name) => !reads.has(name) && !(name in PALETTE_ONLY)).sort();
+  assert.deepEqual(dead, [], 'a colour token nothing reads is a value nobody can see: delete it and every override of it, or paint something with it');
+  for (const name of Object.keys(PALETTE_ONLY))
+    assert.ok(declared.has(name), name + ' is kept for the palette but ui/tokens.css no longer declares it: remove the line');
+  // An appearance sheet may only re-theme a token that exists, so deleting one cannot leave its override behind. ui/paper.css is not here: it declares the
+  // card's own padding and radius vocabulary, which ui/tokens.css does not define.
+  const orphans = [];
+  for (const file of ['ui/accent.css', 'ui/appearance-themes.css'])
+    for (const token of declarations(await readFile(file, 'utf8'))) if (!declared.has(token.name)) orphans.push(file + ': ' + token.name);
+  assert.deepEqual(orphans, []);
 });
