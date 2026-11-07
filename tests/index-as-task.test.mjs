@@ -92,21 +92,36 @@ test('runtime.pilot.retrievalIndex: false keeps the original background run (not
   assert.equal(fake.index.size, PAGES);
 });
 
-test('standalone StudyService (preview / no injected jobExecutor) runs the build as a real 任务 job on study-host', async t => {
+test('standalone StudyService (no workOwner or jobExecutor) supports status, wait, cancel, dismiss and archive on study-host', async t => {
   await home(t);
-  const fake = fakeIndexPort(), root = await newRoot(t);
+  let holdFirst = true;
+  const fake = fakeIndexPort({ onIngest: (args, count, options) => holdFirst ? untilAborted(args, count, options) : undefined });
+  const root = await newRoot(t);
   const service = new StudyService(root, { complete: createFakeModel(), coach: false, retrieval: fake.port });
   t.after(() => service.dispose());
   const book = Array.from({ length: PAGES }, (_, index) => `<!-- page: ${index + 1} -->\nOS 第 ${index + 1} 页。`).join('\n\n');
   await service.call('materials.document.import', { dataBase64: Buffer.from(book, 'utf8').toString('base64'), filename: 'OS.md', courses: ['OS'] });
-  const started = await service.call('retrieval.index.start', { course: 'OS' });
-  assert.equal(started.status, 'running');
+
+  const first = await service.call('retrieval.index.start', { course: 'OS' });
+  await until(() => fake.ingested().length === 1, 'the first ingest to start');
+  const [listed] = (await service.call('job.status', {})).jobs.filter(item => item.type === KIND);
+  assert.ok(listed, 'job.status {} sees the standalone study-host job');
+  assert.equal((await service.call('job.status', { jobId: first.taskId })).id, listed.id);
+  assert.equal((await service.call('job.status', { jobId: listed.id })).id, listed.id);
+  const cancelReply = await service.call('job.control', { jobId: listed.id, action: 'cancel' });
+  assert.equal(cancelReply.action, 'cancel');
+  assert.equal((await service.call('job.wait', { jobId: listed.id })).status, 'cancelled');
+  assert.deepEqual((await service.call('job.dismiss', { jobId: listed.id })).dismissed, [listed.id]);
+
+  holdFirst = false;
+  const second = await service.call('retrieval.index.start', { course: 'OS' });
+  assert.equal(second.status, 'running');
   const [job] = (await service.call('snapshot')).jobs.filter(item => item.type === KIND);
-  assert.ok(job, 'standalone StudyService lists the build in 任务');
-  assert.equal(started.taskId, job.contract.jobId);
+  assert.equal(second.taskId, job.contract.jobId);
   assert.equal(job.contract.runtime.attempts[0].executor.service, 'study-host');
-  const done = await until(async () => { const run = await service.call('retrieval.index.status', {}); return run.status === 'complete' ? run : null; }, 'the build');
-  assert.equal(done.added, PAGES);
+  assert.equal((await service.call('job.wait', { jobId: job.id })).status, 'complete');
+  assert.equal((await service.call('retrieval.index.status', {})).added, PAGES);
+  assert.deepEqual((await service.call('job.archive', { jobId: job.id })).archived, [job.id]);
 });
 
 for (const [name, pilot] of [['the resolved host config (true)', () => RuntimeConfig({}).pilot], ['an explicit true', () => ({ retrievalIndex: true })], ['no config', () => undefined]]) {

@@ -21,12 +21,12 @@ const KIND = 'mineru-install';
 const consoleCode = await loadUi(`export { taskSummary } from './ui/tasks/task-summary.js'; export { tasksOf, runningTaskCount } from './ui/tasks/task-model.js';`);
 const exists = file => stat(file).then(() => true, () => false);
 
-async function harness(t, options = {}, { runtime = {} } = {}) {
+async function harness(t, options = {}, { runtime = {}, standalone = false } = {}) {
   const h = await installHarness(t, options);
   const bin = join(h.dir, 'bin'), before = { PATH: process.env.PATH, Path: process.env.Path };
   await mkdir(bin, { recursive: true });
   process.env.PATH = bin; if (process.env.Path !== undefined) process.env.Path = bin;
-  const { starts: _starts, ...managed } = managedRuntimeOptions({ paths: ['mineruInstall'] });
+  const { starts: _starts, ...managed } = standalone ? { starts: () => 0, runtimePilot: { mineruInstall: true } } : managedRuntimeOptions({ paths: ['mineruInstall'] });
   const service = new StudyService(join(h.dir, 'library'), { mineru: { install: h.seams }, ...managed, ...runtime });
   t.after(async () => {
     await service.call('mineru.install.cancel').catch(() => {});
@@ -91,15 +91,27 @@ test('without a session to run in, the start is refused in words before any job,
   assert.deepEqual(await h.uvLog(), [], 'no process was started');
 });
 
-test('a cold DSH panel without a resumed chat agent (and standalone StudyService) runs MinerU install on study-host and lists it in 任务', async t => {
-  for (const jobExecutor of [dshJobExecutor({}, undefined), undefined]) {
-    const h = await harness(t, {}, { runtime: { jobExecutor } });
-    assert.equal((await h.start()).status, 'running');
-    await h.ended('complete');
-    await until(async () => (await h.jobs())[0]?.contract.status === 'complete', 'the study-host install to settle');
-    const [job] = await h.jobs();
+test('cold DSH panel and genuine standalone StudyService support status, wait, cancel, dismiss and archive for MinerU install on study-host', async t => {
+  for (const config of [{ standalone: true }, { standalone: true, runtime: { jobExecutor: dshJobExecutor({}, undefined) } }]) {
+    const slow = await harness(t, { uv: { delayPipMs: 5000 } }, config);
+    await slow.start();
+    await until(async () => (await slow.call('mineru.install.status')).stage === 'package', 'the package stage');
+    const [runningJob] = await slow.jobs();
+    assert.equal((await slow.call('job.status', { jobId: runningJob.id })).id, runningJob.id);
+    assert.equal((await slow.call('job.control', { jobId: runningJob.id, action: 'cancel' })).action, 'cancel');
+    assert.equal((await slow.call('job.wait', { jobId: runningJob.id })).status, 'cancelled');
+    await slow.ended('cancelled');
+    assert.deepEqual((await slow.call('job.dismiss', { jobId: runningJob.id })).dismissed, [runningJob.id]);
+    await slow.call('mineru.install.uninstall', { confirm: true });
+
+    const fast = await harness(t, {}, config);
+    assert.equal((await fast.start()).status, 'running');
+    const [job] = await fast.jobs();
     assert.equal(job.contract.runtime.attempts[0].executor.service, 'study-host');
-    assert.equal(consoleCode.taskSummary(consoleCode.tasksOf(await h.call('snapshot'))[0]).state, 'done');
+    assert.equal((await fast.call('job.wait', { jobId: job.id })).status, 'complete');
+    await fast.ended('complete');
+    assert.equal(consoleCode.taskSummary(consoleCode.tasksOf(await fast.call('snapshot'))[0]).state, 'done');
+    assert.deepEqual((await fast.call('job.archive', { jobId: job.id })).archived, [job.id]);
   }
 });
 

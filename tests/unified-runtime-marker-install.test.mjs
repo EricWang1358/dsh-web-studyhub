@@ -61,16 +61,28 @@ test('without a session to run in the start is refused in words, before any job 
   assert.ok((await h.pyLog()).every(line => /--version|"-c"/.test(line)), 'only the read-only probes of the plan ran');
 });
 
-test('a cold DSH panel without a resumed chat agent (and standalone StudyService) runs Marker install on study-host and lists it in 任务', async t => {
-  for (const jobExecutor of [dshJobExecutor({}, undefined), undefined]) {
-    const h = await harness(t, {}, { runtime: { jobExecutor } });
+test('cold DSH panel and genuine standalone StudyService support status, wait, cancel, dismiss and archive for Marker install on study-host', async t => {
+  for (const config of [{ standalone: true }, { standalone: true, runtime: { jobExecutor: dshJobExecutor({}, undefined) } }]) {
+    const h = await harness(t, { delayPip: true }, config);
+    await h.call('marker.install.start', { confirm: true });
+    await until(async () => (await h.call('marker.install.status')).stage === 'install', 'the install stage', { timeoutMs: 240_000 });
+    const [runningJob] = await h.jobs();
+    assert.equal((await h.call('job.status', { jobId: runningJob.id })).id, runningJob.id);
+    assert.equal((await h.call('job.control', { jobId: runningJob.id, action: 'cancel' })).action, 'cancel');
+    assert.equal((await h.call('job.wait', { jobId: runningJob.id })).status, 'cancelled');
+    await h.ended('cancelled');
+    assert.deepEqual((await h.call('job.dismiss', { jobId: runningJob.id })).dismissed, [runningJob.id]);
+    await h.call('marker.install.uninstall', { confirm: true });
+
+    await h.setPy({});
     const started = await h.call('marker.install.start', { confirm: true });
     assert.equal(started.status, 'running');
-    await h.ended('complete');
-    await until(async () => (await h.jobs())[0]?.contract.status === 'complete', 'the study-host install to settle');
     const [job] = await h.jobs();
     assert.equal(job.contract.runtime.attempts[0].executor.service, 'study-host');
+    assert.equal((await h.call('job.wait', { jobId: job.id })).status, 'complete');
+    await h.ended('complete');
     assert.equal(consoleCode.taskSummary(consoleCode.tasksOf(await h.call('snapshot'))[0]).state, 'done');
+    assert.deepEqual((await h.call('job.archive', { jobId: job.id })).archived, [job.id]);
   }
 });
 

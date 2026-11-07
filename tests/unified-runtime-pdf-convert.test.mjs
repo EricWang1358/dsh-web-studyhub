@@ -138,24 +138,40 @@ test('without a session to run in the import is refused in words, and nothing is
   assert.deepEqual([(await service.call('snapshot')).jobs.filter(job => job.type === KIND), await filesUnder(join(convertHome(h.root), 'jobs')), (await h.parses()).length], [[], [], 0]);
 });
 
-test('a cold DSH panel without a resumed chat agent (and standalone StudyService) admits PDF conversion on study-host and lists it in 任务', async t => {
+test('cold DSH panel and genuine standalone StudyService support status, wait, cancel, retry, dismiss and archive on study-host', async t => {
+  const uploadPdf = async (service, bytes, name) => {
+    const { uploadId, chunkBytes } = await service.call('mineru.upload.start', { name, size: bytes.length });
+    for (let offset = 0; offset < bytes.length; offset += chunkBytes) await service.call('mineru.upload.chunk', { uploadId, offset, data: bytes.subarray(offset, offset + chunkBytes).toString('base64') });
+    await service.call('mineru.upload.finish', { uploadId });
+    return uploadId;
+  };
   for (const extra of [{ jobExecutor: dshJobExecutor({}, undefined) }, {}]) {
     const h = await harness(t, {});
-    await h.set({ total: 3 });
     const service = new StudyService(h.root, { runtimePilot: { pdfConvert: true }, mineru: { limits: { windowPages: 200, livenessMs: 0 }, local: { cli: h.cli, home: h.work } }, ...extra });
     t.after(() => service.dispose());
     const bytes = await makePdf({ pages: 3 });
-    const { uploadId, chunkBytes } = await service.call('mineru.upload.start', { name: 'Book.pdf', size: bytes.length });
-    for (let offset = 0; offset < bytes.length; offset += chunkBytes) await service.call('mineru.upload.chunk', { uploadId, offset, data: bytes.subarray(offset, offset + chunkBytes).toString('base64') });
-    await service.call('mineru.upload.finish', { uploadId });
-    const started = await service.call('mineru.import', { uploadId });
-    const done = await until(async () => {
-      const [job] = (await service.call('snapshot')).jobs.filter(item => item.type === KIND && item.id === started.jobId);
-      return job && !['queued', 'running', 'cancelling'].includes(job.status) ? job : null;
-    }, 'the study-host conversion');
+
+    // 1. Cancel + wait + dismiss on standalone StudyService (no workOwner)
+    await h.set({ total: 3, delayMs: 60_000 });
+    const cancelledStart = await service.call('mineru.import', { uploadId: await uploadPdf(service, bytes, 'Cancel.pdf') });
+    await until(async () => (await h.parses()).length >= 1, 'the first window to run');
+    assert.equal((await service.call('job.status', { jobId: cancelledStart.jobId })).id, cancelledStart.jobId);
+    assert.equal((await service.call('job.control', { jobId: cancelledStart.jobId, action: 'cancel' })).action, 'cancel');
+    assert.equal((await service.call('job.wait', { jobId: cancelledStart.jobId })).status, 'cancelled');
+    assert.deepEqual((await service.call('job.dismiss', { jobId: cancelledStart.jobId })).dismissed, [cancelledStart.jobId]);
+
+    // 2. Fail -> job.control retry -> wait -> archive on standalone StudyService
+    await h.set({ total: 3, delayMs: 0, failWindowsOnce: [1] });
+    const started = await service.call('mineru.import', { uploadId: await uploadPdf(service, bytes, 'Book.pdf') });
+    assert.equal((await service.call('job.wait', { jobId: started.jobId })).status, 'failed');
+    const retried = await service.call('job.control', { jobId: started.jobId, action: 'retry' });
+    assert.equal(retried.action, 'retry');
+    const done = await service.call('job.wait', { jobId: retried.attemptId });
     assert.equal(done.status, 'complete', done.stage);
-    assert.equal(done.contract.runtime.attempts[0].executor.service, 'study-host');
+    const [listed] = (await service.call('snapshot')).jobs.filter(item => item.type === KIND && item.id === retried.attemptId);
+    assert.equal(listed.contract.runtime.attempts.at(-1).executor.service, 'study-host');
     assert.equal(consoleCode.taskSummary(consoleCode.tasksOf(await service.call('snapshot'))[0]).state, 'done');
+    assert.deepEqual((await service.call('job.archive', { jobId: retried.attemptId })).archived, [retried.attemptId]);
   }
 });
 
