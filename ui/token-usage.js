@@ -66,7 +66,9 @@ export const usedCallsText = (calls) => (calls === 1 ? ui('1 次调用') : uiFor
 
 /** "预计 58.3K–96.1K tok · 8–10 次模型调用": the one line above the submit button. */
 export function estimateSummary(estimate) {
-  return `${ui('预计')} ${rangeTok(estimate.totalTokens)} · ${callsText(estimate.calls)}`;
+  // The range reaches up to what a thinking model writes (lib/token-estimate.js withThinking, #771): it says so beside the number, not only in the panel.
+  const thinking = (estimate.notes || []).some((code) => code === 'includes-thinking' || code === 'thinking-default');
+  return `${ui('预计')} ${rangeTok(estimate.totalTokens)}${thinking ? ui('（含思考）') : ''} · ${callsText(estimate.calls)}`;
 }
 
 /* ---------- DSH's speed figures (会话统计) ---------- */
@@ -155,6 +157,7 @@ export function noteText(code, estimate = {}) {
     case 'effort-high': return ui('推理程度越高，推理 token 越多（计入输出）。');
     case 'cjk-higher': return ui('中文内容的实际 token 通常更接近上限。');
     case 'includes-thinking': return ui('输出按这台机器最近的调用量算，里面包含模型的思考 token。');
+    case 'thinking-default': return ui('这台机器还没有记录：输出的上限按会思考的模型的典型用量（含思考）估，不思考的模型会落在范围的下半。');
     case 'transcript-estimated': return ui('转写稿的长度按正常语速估算；中文讲课的转写稿更短，但每个字的 token 更多。');
     case 'language-unknown': return ui('录音讲的是中文还是英文，要转写之后才知道，所以这里把两种情况都算进范围。');
     case 'transcribe-separate': return ui('转写本身按音频时长计，不在这里；见「音频转写」页的用量与额度。');

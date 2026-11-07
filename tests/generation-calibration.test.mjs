@@ -151,7 +151,7 @@ test("what each stage writes per call is measured, and the estimate takes it as 
   assert.deepEqual(calibrateEstimate(raw, null, { stages: {} }), raw, "an unmeasured stage leaves the estimate as it was");
   // A call of the writing stage really wrote 9 000 tokens (the thinking is inside the output a provider reports).
   for (let run = 0; run < 3; run++) await calibration.record({ outputs: { author: { calls: 4, output: 4 * 9_000 }, review: { calls: 2, output: 2 * 12_000 } } });
-  const perCall = await calibration.outputPerCall();
+  const perCall = { ...(await calibration.outputPerCall()), defaults: undefined };
   assert.equal(perCall.stages.author, 9_000);
   assert.equal(perCall.stages.review, 12_000);
   const raised = calibrateEstimate(raw, null, perCall);
@@ -175,7 +175,7 @@ test("one model's output does not raise another model's estimate, and a record w
   assert.deepEqual((await calibration.outputPerCall({ model: "mine" })).stages, {}, "the other model's measurements are not mine");
   assert.equal((await calibration.outputPerCall({ model: "other/model" })).stages.author, 9_000);
   assert.equal((await calibration.outputPerCall()).stages.author, 9_000, "without a model the machine's whole record is read");
-  assert.deepEqual(calibrateEstimate(raw, null, await calibration.outputPerCall({ model: "mine" })), raw, "nothing measured for this model: the estimate is untouched");
+  assert.deepEqual(calibrateEstimate(raw, null, { ...(await calibration.outputPerCall({ model: "mine" })), defaults: undefined }), raw, "nothing measured for this model: the estimate is untouched");
 });
 
 /* #772 review: the old file lived in each learning library. The machine's file takes it over once, leaves the old file where it is, and never counts a run twice. */
@@ -215,4 +215,43 @@ test("a test process that was not given a DSH home never writes to the real one"
   } finally {
     for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
   }
+});
+
+/* #771 review: with no history on the machine the estimate used to stay where the sample cards put it (a third of a thinking model's run). The owner's measured
+   finished run (deepseek-v4.1-flash, 513 pages) gives a per-call allowance per stage; it only lifts the HIGH end of a stage, so a model that does not think
+   still lands inside the range, and the number says it is an assumption. */
+test("with no history, a stage's high end rises to the measured thinking allowance, its low end stays, and the note says it is assumed", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "study-calibration-default-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const raw = estimate(), perCall = await createCalibration(dir).outputPerCall();
+  assert.deepEqual(perCall.stages, {}, "nothing measured on this machine");
+  for (const [id, order] of [["blueprint", 9_437], ["author", 8_662], ["review", 12_973]]) assert.equal(perCall.defaults[id], order, `${id} allowance is the order the owner's finished run measured`);
+  const raised = calibrateEstimate(raw, null, perCall);
+  for (const id of ["blueprint", "author", "review"]) {
+    const before = raw.stages.find(stage => stage.id === id), after = raised.stages.find(stage => stage.id === id);
+    assert.equal(after.outputTokens.low, before.outputTokens.low, `${id}: a model that does not think still fits the low end`);
+    assert.equal(after.outputTokens.high, Math.max(before.outputTokens.high, perCall.defaults[id] * before.calls), `${id}: the high end is what a thinking model writes`);
+  }
+  assert.ok(raised.totalTokens.high > raw.totalTokens.high * 2, "the high end is no longer a third of a thinking run");
+  assert.equal(raised.totalTokens.low, raw.totalTokens.low, "the low end is the sample estimate");
+  assert.ok(raised.notes.includes("thinking-default") && !raised.notes.includes("includes-thinking"), "an assumption, not a measurement");
+  // One stage measured on this machine: that stage says "measured", the others stay assumed.
+  const mixed = calibrateEstimate(raw, null, { ...perCall, stages: { review: 20_000 }, samples: 3 });
+  assert.equal(mixed.stages.find(stage => stage.id === "review").outputTokens.high, Math.max(raw.stages.find(stage => stage.id === "review").outputTokens.high, 20_000 * raw.stages.find(stage => stage.id === "review").calls));
+  assert.ok(mixed.notes.includes("includes-thinking") && mixed.notes.includes("thinking-default"));
+});
+
+test("the headline range says it includes the model's thinking when the estimate raised its high end for it", async () => {
+  const require = createRequire(import.meta.url);
+  const compiled = await build({ stdin: { contents: `export { estimateSummary } from './ui/token-usage.js'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+    bundle: true, write: false, platform: "node", format: "cjs", external: ["react", "react-dom"], loader: { ".css": "text" }, logLevel: "silent" });
+  const module = { exports: {} };
+  new Function("require", "module", "exports", compiled.outputFiles[0].text)(require, module, module.exports);
+  const m = module.exports, base = { totalTokens: { low: 100_000, high: 400_000 }, calls: { low: 8, high: 10 } };
+  m.setUiLanguage("zh");
+  assert.doesNotMatch(m.estimateSummary({ ...base, notes: [] }), /含思考/, "a plain estimate says nothing about thinking");
+  for (const note of ["includes-thinking", "thinking-default"]) assert.match(m.estimateSummary({ ...base, notes: [note] }), /预计 .*tok（含思考） · /, note);
+  m.setUiLanguage("en");
+  assert.match(m.estimateSummary({ ...base, notes: ["thinking-default"] }), /tok \(thinking included\) · /);
+  m.setUiLanguage("zh");
 });
