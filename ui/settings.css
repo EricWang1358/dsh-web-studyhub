@@ -14,6 +14,13 @@
     .settings-page .settings-disclosure > .settings-disclosure__body > * { margin: 0; }
     .settings-page .audio-expert > .audio-expert__body { gap: var(--space-4); }
     /* 陪学 */
+    .coach-prefs { display: grid; gap: var(--space-2); max-width: 72ch; }
+    .coach-prefs__list { display: flex; flex-wrap: wrap; gap: var(--space-1-5); }
+    .coach-prefs__entry { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+    .coach-prefs__entry > .sh-input { flex: 1 1 16rem; min-width: 0; }
+    .coach-prefs__ideas { display: grid; gap: var(--space-1-5); }
+    .coach-prefs__ideas-lead { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .coach-prefs__chips { display: flex; flex-wrap: wrap; gap: var(--space-1-5); }
     .coach-profile { display: grid; gap: var(--space-2); max-width: 72ch; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .coach-profile__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); }
     .coach-profile__head strong { color: var(--text); font-size: var(--fs-md); }

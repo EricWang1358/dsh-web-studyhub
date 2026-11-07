@@ -5,6 +5,11 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { StudyService } from "../lib/service.js";
 import { cognitiveLevel, debriefRules, evidenceWindows, runMetrics, learnerAnswer, writeNudge, writeDebrief } from "../lib/coach.js";
+import { emptyLearner, normalizeLearner, LEARNER_PREFERENCES_MAX, LEARNER_PREFERENCE_MAX_CHARS } from "../lib/learner.js";
+import { LATEST_VERSION } from "../lib/store.js";
+import { writesFor } from "../lib/runtime/domain-contracts.js";
+import { assistantRefusal } from "../lib/assistant-boundary.js";
+import { libraryContracts } from "../lib/study-contracts.js";
 import { createFakeModel } from "../scripts/fake-model.mjs";
 import { SWITCH_MODE, switchOptions } from "./helpers/runtime-switch.mjs";
 
@@ -744,4 +749,51 @@ test("feedback rewrites for different cards run in parallel, capped at three", a
   const cards = (await service.call("export")).decks[0].cards;
   assert.ok(cards.every((c) => /已按反馈/.test(c.options[0].explanation)));
   assert.ok(status.tasks.filter((x) => x.kind === "rewrite").every((x) => x.status === "done"));
+});
+
+
+test("learner.preferences stores deduplicated free-form preferences, clears on coach.forget, and documents the explicit consent rule", async (t) => {
+  assert.equal(LATEST_VERSION, 4);
+  assert.deepEqual(emptyLearner().preferences, []);
+  const normalized = normalizeLearner({
+    preferences: ["  先给直觉例子再推导  ", "", "先给直觉例子再推导", 42, "a".repeat(200), ...Array.from({ length: 20 }, (_, i) => `pref-${i}`)],
+  });
+  assert.equal(normalized.preferences.length, LEARNER_PREFERENCES_MAX);
+  assert.equal(normalized.preferences[0], "先给直觉例子再推导");
+  assert.equal(normalized.preferences[1].length, LEARNER_PREFERENCE_MAX_CHARS);
+
+  assert.deepEqual(writesFor("coach", "coach.preferences"), ["learner"]);
+  assert.equal(assistantRefusal("coach.preferences"), null);
+  assert.match(libraryContracts.learning, /coach\.preferences/);
+  assert.match(libraryContracts.learning, /never write silently/);
+  assert.ok(libraryContracts.learning.length < 6000, `libraryContracts.learning is ${libraryContracts.learning.length} chars`);
+
+  const { service } = await setup(t, { coach: false });
+  assert.deepEqual((await service.call("coach.profile")).preferences, []);
+
+  const saved = await service.call("coach.preferences", {
+    preferences: ["  先给直觉例子再推导 ", "结合真题与评分标准", "先给直觉例子再推导", "   "],
+  });
+  assert.deepEqual(saved.preferences, ["先给直觉例子再推导", "结合真题与评分标准"]);
+  assert.deepEqual((await service.call("coach.profile")).preferences, ["先给直觉例子再推导", "结合真题与评分标准"]);
+
+  const patched = await service.call("coach.preferences", {
+    add: ["苏格拉底式提问引导", "先给直觉例子再推导"],
+    remove: "结合真题与评分标准",
+  });
+  assert.deepEqual(patched.preferences, ["先给直觉例子再推导", "苏格拉底式提问引导"]);
+
+  await assert.rejects(
+    service.call("coach.preferences", { preferences: ["x".repeat(LEARNER_PREFERENCE_MAX_CHARS + 1)] }),
+    new RegExp(`${LEARNER_PREFERENCE_MAX_CHARS}`),
+  );
+  await assert.rejects(
+    service.call("coach.preferences", { preferences: Array.from({ length: LEARNER_PREFERENCES_MAX + 1 }, (_, i) => `item-${i}`) }),
+    new RegExp(`${LEARNER_PREFERENCES_MAX}`),
+  );
+
+  const cleared = await service.call("coach.forget");
+  assert.deepEqual(cleared.preferences, []);
+  assert.deepEqual((await service.call("coach.profile")).preferences, []);
+  assert.deepEqual((await service.call("export")).learner.preferences, []);
 });
