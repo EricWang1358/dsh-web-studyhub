@@ -10,6 +10,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
 import { CLASSROOM_METHOD, METHOD_VERSION, courseMethod, checkedMethod } from '../lib/course-method.js';
 import { methodProgress } from '../lib/course-method-progress.js';
+import { stageGate } from '../lib/course-method-gate.js';
 
 /* 学法 (#775, 4.5 S1): every course has one, the default package 「课堂跟学」 until it is changed — and that package is today's behaviour said in stages, so a
    course nobody customised learns exactly as before. The record lives on the course (course.save {method}), copied there when it is attached. */
@@ -138,4 +139,43 @@ test('the op the card reads is declared read only and answers for a course by na
   assert.deepEqual(read.counts, { materials: 0, cards: 0, answered: 0 });
   const missing = await service.call('course.method.progress', { course: 'No such course' });
   assert.equal(missing.index, 0, 'a course nobody created is measured by the default package, not refused');
+});
+
+
+/* 阶段检验 (#777 S3a): the stage's check rests on the course's existing questions and the learner's answers — about two thirds passes the check, four
+   fifths suggests going on. Nothing is generated to test with. */
+test('the stage check counts what the learner answered: two thirds passes it, four fifths suggests the next stage', () => {
+  const COURSE = 'Net';
+  const cards = n => Array.from({ length: n }, (_, i) => ({ id: 'k' + i, prompt: 'p' + i, answer: 'a' }));
+  const state = (total, right) => ({
+    courses: [{ id: 'course-net', name: COURSE }],
+    sources: [],
+    decks: total ? [{ id: 'd1', course: COURSE, cards: cards(total) }] : [],
+    attempts: cards(right).map(card => ({ deckId: 'd1', quiz_id: card.id, grade: 4 })),
+  });
+  const none = stageGate(state(0, 0), COURSE);
+  assert.equal(none.total, 0);
+  assert.equal(none.ready, false);
+  assert.equal(none.checkPassed, false, 'no questions: nothing is called passed');
+  const half = stageGate(state(12, 6), COURSE);
+  assert.equal(half.checkPassed, false, 'half is not the two thirds the check asks for');
+  const twoThirds = stageGate(state(12, 8), COURSE);
+  assert.equal(twoThirds.checkPassed, true);
+  assert.equal(twoThirds.ready, false, 'two thirds passes the check, it does not suggest going on');
+  assert.equal(twoThirds.basis, 'cards');
+  const ready = stageGate(state(10, 8), COURSE);
+  assert.equal(ready.ready, true, 'four fifths suggests the next stage');
+  // A weak last answer is not a pass, and an unanswered question still counts as one to do.
+  const weak = { ...state(4, 0), attempts: [{ deckId: 'd1', quiz_id: 'k0', grade: 2 }, { deckId: 'd1', quiz_id: 'k1', grade: 4 }] };
+  assert.deepEqual([stageGate(weak, COURSE).total, stageGate(weak, COURSE).passed], [4, 1]);
+});
+
+test('the gate op answers for a course by name, read only', async t => {
+  const service = await library(t);
+  await service.call('course.save', { name: 'Net' });
+  const read = await service.call('course.method.gate', { course: 'Net' });
+  assert.equal(read.course, 'Net');
+  assert.deepEqual([read.total, read.passed, read.ready], [0, 0, false]);
+  assert.equal(read.basis, 'cards');
+  assert.equal(read.stage.activity, 'publish', 'the gate reports the stage it is checking');
 });
