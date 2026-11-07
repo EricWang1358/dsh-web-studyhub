@@ -22,6 +22,7 @@ import guided from './locales/en.guided.json';
 import copy from './locales/en.copy.json';
 import caseCopy from './locales/en.case.json';
 import course from './locales/en.course.json';
+import selfCopy from './locales/en.self.json';
 import stats from './locales/en.stats.json';
 import flow from './locales/en.flow.json';
 import skeletonCopy from './locales/en.skeleton.json';
@@ -103,6 +104,7 @@ export const ENGLISH_SOURCES = {
   'en.copy.json': copy,
   'en.case.json': caseCopy,
   'en.course.json': course,
+  'en.self.json': selfCopy,
   'en.stats.json': stats,
   'en.flow.json': flow,
   'en.skeleton.json': skeletonCopy,

@@ -1,0 +1,8 @@
+{
+  "帮我建一门自学课：{0}。先问我最多五个选项，再写出学法给我确认。": "Build me a self-study course: {0}. Ask me at most five options first, then write a method for me to confirm.",
+  "帮我建一门自学课：先问我最多五个选项，再写出学法给我确认。": "Build me a self-study course: ask me at most five options first, then write a method for me to confirm.",
+  "目标：{0}（我在这门课的「新建课程」里写的；课程名就用这个说法，除非我改了）。": "Goal: {0} (what I typed under New course; use it as the course name unless I change it).",
+  "做法：按 skill 里说的顺序一次问我一个问题，用 ask_user_question 给选项，最多五个；答过的不要再问。": "How: follow the skill's order, one question at a time with ask_user_question, at most five; never re-ask what I answered.",
+  "保存：确认之前不生成任何东西，也不存任何东西；我确认之后才用 course.save 的 method 存学法，再导入资料、出第一批题。": "Saving: nothing is generated or stored before I confirm; only then save the method with course.save, import the material and start the first batch.",
+  "说明：一条能核对的资料都没有的阶段不要出题；由你起草的讲义要标明「AI 撰写 · 未核对」。": "Note: never write questions for a stage with no checkable material; a handout you draft must be labelled as AI-written and not checked."
+}
