@@ -1,0 +1,2440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StudyHub 4.4.4 — 技术栈与开放式学习架构探索器</title>
+<meta name="description" content="交互式浏览 StudyHub 4.4.4 的插件与 19 个运行时上下文、五阶段有界出题流水线、FSRS-6 记忆排期模拟器与零外网确定性分片测试架构。">
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Ink-desk tokens — mirrored verbatim from ui/tokens.css.
+   Solid warm paper & ink surfaces only; zero translucent blur effects.
+   ───────────────────────────────────────────────────────────── */
+:root,
+:root[data-theme="dark"],
+[data-theme="dark"] {
+  --bg-canvas: #161412;
+  --bg-sunken: #110f0d;
+  --bg-surface: #1e1b18;
+  --bg-raised: #26231f;
+  --bg-selected: #292623;
+
+  --line-soft: #f5e6cf12;
+  --line: #332f2a;
+  --line-strong: #4a443c;
+
+  --text: #efe9df;
+  --text-dim: #c5bdb1;
+  --text-muted: #a59d91;
+  --text-faint: #958e84;
+
+  --accent: #c93d22;
+  --accent-soft: #ec6a4a;
+  --accent-ink: #fff8f2;
+  --accent-text: #ec6a4a;
+
+  --ok: #5fb58a;
+  --warn: #d9a441;
+  --bad: #d76c93;
+  --info: #86a9c6;
+
+  --paper: #ece4d6;
+  --paper-ink: #201b15;
+  --paper-dim: #5d5448;
+  --paper-rule: #20160c18;
+
+  --shadow-sm: 0 1px 2px #0000004d, 0 2px 8px -4px #00000080;
+  --shadow-md: 0 14px 34px -20px #000000d9;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg-canvas: #f1ede6;
+    --bg-sunken: #e8e3da;
+    --bg-surface: #faf8f4;
+    --bg-raised: #ffffff;
+    --bg-selected: #e9e4db;
+
+    --line-soft: #2a1c0e12;
+    --line: #ddd5c9;
+    --line-strong: #c5bbad;
+
+    --text: #1e1a15;
+    --text-dim: #453e35;
+    --text-muted: #635b51;
+    --text-faint: #6a635a;
+
+    --accent: #c03a1f;
+    --accent-soft: #d44f2e;
+    --accent-ink: #fffaf5;
+    --accent-text: #ad4025;
+
+    --ok: #1e724d;
+    --warn: #8b590f;
+    --bad: #ad3966;
+    --info: #376893;
+
+    --paper: #fffdf8;
+    --paper-ink: #1e1a15;
+    --paper-dim: #5f574c;
+    --paper-rule: #20160c14;
+
+    --shadow-sm: 0 1px 2px #2a1c0e14, 0 2px 8px -4px #2a1c0e26;
+    --shadow-md: 0 14px 34px -20px #2a1c0e38;
+    color-scheme: light;
+  }
+}
+
+:root[data-theme="light"],
+[data-theme="light"] {
+  --bg-canvas: #f1ede6;
+  --bg-sunken: #e8e3da;
+  --bg-surface: #faf8f4;
+  --bg-raised: #ffffff;
+  --bg-selected: #e9e4db;
+
+  --line-soft: #2a1c0e12;
+  --line: #ddd5c9;
+  --line-strong: #c5bbad;
+
+  --text: #1e1a15;
+  --text-dim: #453e35;
+  --text-muted: #635b51;
+  --text-faint: #6a635a;
+
+  --accent: #c03a1f;
+  --accent-soft: #d44f2e;
+  --accent-ink: #fffaf5;
+  --accent-text: #ad4025;
+
+  --ok: #1e724d;
+  --warn: #8b590f;
+  --bad: #ad3966;
+  --info: #376893;
+
+  --paper: #fffdf8;
+  --paper-ink: #1e1a15;
+  --paper-dim: #5f574c;
+  --paper-rule: #20160c14;
+
+  --shadow-sm: 0 1px 2px #2a1c0e14, 0 2px 8px -4px #2a1c0e26;
+  --shadow-md: 0 14px 34px -20px #2a1c0e38;
+  color-scheme: light;
+}
+
+:root {
+  --font-ui: "StudyHub Inter", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-display: "Source Serif 4", "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, var(--font-ui);
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Microsoft YaHei UI", monospace;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; background-color: var(--bg-canvas); }
+body {
+  margin: 0;
+  background-color: var(--bg-canvas);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
+  line-height: 1.68;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, p, dl, dd, pre, figure { margin: 0; }
+h1, h2, h3, h4, p, span, a, button, code, pre, dt, dd, label, output, small, strong {
+  overflow-wrap: anywhere;
+}
+a { color: inherit; }
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 10px;
+  left: 12px;
+  z-index: 100;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  text-decoration: none;
+  transform: translateY(-180%);
+  transition: transform 0.18s var(--ease);
+}
+.skip-link:focus { transform: translateY(0); }
+
+/* ── Topbar ── */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background-color: var(--bg-canvas);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-inner {
+  max-width: 1520px;
+  margin: 0 auto;
+  padding: 12px clamp(14px, 3vw, 40px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+}
+.topbar-left,
+.topbar-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background-color: var(--bg-surface);
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  transition: border-color 0.18s var(--ease), color 0.18s var(--ease), background-color 0.18s var(--ease);
+}
+.back-link:hover {
+  border-color: var(--accent-soft);
+  color: var(--text);
+  background-color: var(--bg-raised);
+}
+.brand-crumb {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.theme-toggle,
+.language-switch {
+  appearance: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  padding: 6px 13px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong);
+  background-color: var(--bg-surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: border-color 0.18s var(--ease), color 0.18s var(--ease), background-color 0.18s var(--ease);
+}
+.theme-toggle:hover,
+.language-switch:hover {
+  border-color: var(--accent-soft);
+  color: var(--text);
+  background-color: var(--bg-raised);
+}
+.theme-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  flex: none;
+}
+
+/* ── Page shell & Section rail ── */
+.page-shell {
+  max-width: 1520px;
+  margin: 0 auto;
+  padding: 0 clamp(14px, 3vw, 40px);
+  display: grid;
+  grid-template-columns: minmax(156px, 12.25rem) minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 44px);
+  align-items: start;
+}
+.rail {
+  position: sticky;
+  top: 74px;
+  padding: 28px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-right: 1px solid var(--line);
+  padding-right: 14px;
+}
+.rail-caption {
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  margin-bottom: 6px;
+}
+.rail-node {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  text-decoration: none;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  transition: background-color 0.18s var(--ease), border-color 0.18s var(--ease), color 0.18s var(--ease);
+}
+.rail-node b {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.rail-node:hover {
+  color: var(--text);
+  background-color: var(--bg-surface);
+}
+.rail-node.is-active {
+  color: var(--text);
+  background-color: var(--bg-selected);
+  border-color: var(--line-strong);
+}
+.rail-node.is-active b {
+  color: var(--accent-text);
+}
+
+main {
+  min-width: 0;
+  padding-bottom: 48px;
+}
+
+/* ── Hero & Paper Manifesto ── */
+.hero-sheet {
+  padding: clamp(32px, 6vh, 64px) 0 clamp(36px, 6vh, 56px);
+  border-bottom: 1px solid var(--line);
+  scroll-margin-top: 76px;
+}
+.hero-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-bottom: 18px;
+}
+.stamp {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 4px;
+  background-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 650;
+  letter-spacing: 0.1em;
+}
+.hero-sheet h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.85rem, 4.2vw, 3.15rem);
+  line-height: 1.16;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  max-width: 24ch;
+}
+.hero-intro {
+  margin-top: 20px;
+  max-width: 68ch;
+  font-size: clamp(0.95rem, 1.25vw, 1.08rem);
+  color: var(--text-dim);
+  line-height: 1.78;
+}
+
+.metric-strip {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 12px;
+}
+.metric-cell {
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--accent);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.metric-val {
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.metric-lbl {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+/* Physical index-paper stock callout */
+.paper-manifesto {
+  margin-top: 28px;
+  background-color: var(--paper);
+  color: var(--paper-ink);
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: clamp(18px, 2.6vw, 30px);
+  box-shadow: var(--shadow-md);
+}
+.manifesto-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 16px 28px;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--paper-rule);
+  align-items: end;
+}
+.manifesto-tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.manifesto-head h2 {
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 2.2vw, 1.65rem);
+  line-height: 1.28;
+  color: var(--paper-ink);
+}
+.manifesto-head p {
+  font-size: 0.875rem;
+  color: var(--paper-dim);
+  line-height: 1.65;
+}
+.manifesto-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 14px;
+}
+.manifesto-card {
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--paper-rule);
+  background-color: var(--bg-surface);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.manifesto-code {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  color: var(--accent-text);
+}
+.manifesto-card h3 {
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+.manifesto-card p {
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  flex: 1;
+}
+.manifesto-foot {
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-size: 0.75rem;
+}
+
+/* ── Sections ── */
+.sec {
+  padding: clamp(44px, 7vh, 76px) 0;
+  border-bottom: 1px solid var(--line);
+  scroll-margin-top: 68px;
+}
+.sec-head {
+  margin-bottom: 24px;
+}
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  font-weight: 650;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.eyebrow b {
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.eyebrow::after {
+  content: "";
+  width: 40px;
+  height: 1px;
+  background-color: var(--line-strong);
+}
+.sec-head h2 {
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 2.8vw, 2.15rem);
+  line-height: 1.24;
+  letter-spacing: -0.015em;
+}
+.sec-lede {
+  margin-top: 12px;
+  max-width: 72ch;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  line-height: 1.74;
+}
+
+.src-link {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  margin-right: 8px;
+  transition: color 0.18s var(--ease), opacity 0.18s var(--ease);
+}
+.src-link:hover {
+  color: var(--text);
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  padding: 0.12em 0.42em;
+  border-radius: 5px;
+  background-color: var(--bg-sunken);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+}
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-sunken);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+pre code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: inherit;
+}
+
+/* ── Shared chips & buttons ── */
+.filter-bar,
+.failure-toggles,
+.tier-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.chip-btn {
+  appearance: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  padding: 7px 13px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong);
+  background-color: var(--bg-surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  max-width: 100%;
+  transition: background-color 0.18s var(--ease), border-color 0.18s var(--ease), color 0.18s var(--ease);
+}
+.chip-btn:hover {
+  border-color: var(--accent-soft);
+  color: var(--text);
+  background-color: var(--bg-raised);
+}
+.chip-btn.is-active,
+.chip-btn[aria-pressed="true"] {
+  background-color: var(--bg-selected);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* ── Section 1: Component & Context Map ── */
+.explorer-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.explorer-canvas {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.node-cluster {
+  padding: 16px;
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.node-cluster[hidden] { display: none; }
+.cluster-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.cluster-head h3 {
+  font-size: 0.875rem;
+  color: var(--text-dim);
+}
+.cluster-count {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-sunken);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+}
+.node-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 158px), 1fr));
+  gap: 8px;
+}
+.arch-node {
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background-color: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  transition: border-color 0.18s var(--ease), background-color 0.18s var(--ease), transform 0.18s var(--ease);
+}
+.arch-node:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+.arch-node.is-selected {
+  background-color: var(--bg-selected);
+  border-color: var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.arch-node-badge {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+.arch-node-name {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+.inspector-card {
+  position: sticky;
+  top: 80px;
+  padding: 20px;
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--accent);
+  box-shadow: var(--shadow-md);
+  min-width: 0;
+}
+.inspector-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.inspector-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-selected);
+  border: 1px solid var(--accent);
+  color: var(--accent-text);
+}
+.inspector-card h3 {
+  font-size: 1.1rem;
+  line-height: 1.35;
+  margin-bottom: 10px;
+}
+.inspector-summary {
+  font-size: 0.875rem;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+}
+.inspector-dl {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.inspector-dl dt {
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.inspector-dl dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 0.8125rem;
+}
+
+.ref-ledger {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+  gap: 14px;
+}
+.ledger-card {
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.ledger-card h4 {
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+}
+.ledger-card p {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.ledger-links {
+  margin-top: 10px;
+}
+
+/* ── Section 2: Reliable Generation Pipeline ── */
+.stepper-rail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 168px), 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.stage-step {
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background-color: var(--bg-surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  transition: border-color 0.18s var(--ease), background-color 0.18s var(--ease), color 0.18s var(--ease);
+}
+.stage-step:hover {
+  border-color: var(--line-strong);
+  background-color: var(--bg-raised);
+}
+.stage-step.is-active {
+  background-color: var(--bg-selected);
+  border-color: var(--accent);
+  border-top: 2px solid var(--accent);
+  color: var(--text);
+}
+.stage-num {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent-text);
+  font-weight: 700;
+}
+.stage-name {
+  font-weight: 650;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.stage-fn {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.pipeline-detail {
+  padding: 22px;
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+.pipeline-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.pipeline-detail-head h3 {
+  margin-top: 8px;
+  font-size: 1.15rem;
+}
+.pipeline-summary {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  margin-bottom: 14px;
+}
+.pipe-budget {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--line);
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+}
+.pipe-budget strong {
+  color: var(--warn);
+  margin-right: 6px;
+}
+.io-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.io-box { min-width: 0; }
+.io-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.gate-callout {
+  padding: 12px 15px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-sunken);
+  border-left: 3px solid var(--ok);
+}
+.gate-callout strong {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--ok);
+  margin-bottom: 4px;
+}
+.gate-callout p {
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+}
+
+.failure-lab {
+  margin-top: 22px;
+  padding: 20px;
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--line);
+}
+.failure-head {
+  margin-bottom: 14px;
+}
+.failure-head h3 {
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+.failure-head p {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.fail-stage-pill {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: var(--bg-sunken);
+  color: var(--accent-text);
+}
+.failure-readout {
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+}
+.failure-tag {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-text);
+  margin-bottom: 6px;
+}
+.failure-what {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.failure-def {
+  font-size: 0.83rem;
+  color: var(--text-dim);
+}
+
+.stage-matrix {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+}
+.stage-mini {
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.stage-mini-top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text);
+}
+.stage-mini p {
+  font-size: 0.79rem;
+  color: var(--text-muted);
+}
+.stage-mini-budget { margin-top: auto; }
+.sec-links { margin-top: 16px; }
+
+/* ── Section 3: Live FSRS-6 & Mastery Simulator ── */
+.fsrs-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 20px;
+  align-items: start;
+}
+.fsrs-controls,
+.fsrs-display {
+  padding: 20px;
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.fsrs-display {
+  border-top: 3px solid var(--accent);
+}
+.control-group {
+  margin-bottom: 16px;
+}
+.control-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.control-label-row output {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.range-ticks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.effective-ret {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.grade-pad {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 125px), 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.grade-btn {
+  appearance: none;
+  font: inherit;
+  padding: 11px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  background-color: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  transition: border-color 0.18s var(--ease), background-color 0.18s var(--ease), transform 0.18s var(--ease);
+}
+.grade-btn:hover {
+  transform: translateY(-1px);
+  background-color: var(--bg-selected);
+}
+.grade-btn strong { font-size: 0.83rem; }
+.grade-btn small {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.grade-btn--again { border-left: 3px solid var(--bad); }
+.grade-btn--hard { border-left: 3px solid var(--warn); }
+.grade-btn--good { border-left: 3px solid var(--info); }
+.grade-btn--easy { border-left: 3px solid var(--ok); }
+
+.fsrs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.reset-btn {
+  appearance: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  background-color: var(--bg-sunken);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: border-color 0.18s var(--ease), color 0.18s var(--ease);
+}
+.reset-btn:hover {
+  border-color: var(--accent-soft);
+  color: var(--text);
+}
+
+.fsrs-readout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.stat-tile {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.stat-k {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.stat-v {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.mastery-banner {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.mastery-k {
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--text-muted);
+}
+.mastery-rule {
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.mastery-pill {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong);
+  background-color: var(--bg-sunken);
+  color: var(--text);
+}
+.mastery-pill[data-level="weak"] { border-color: var(--bad); color: var(--bad); }
+.mastery-pill[data-level="learning"] { border-color: var(--warn); color: var(--warn); }
+.mastery-pill[data-level="familiar"] { border-color: var(--info); color: var(--info); }
+.mastery-pill[data-level="mastered"] { border-color: var(--ok); color: var(--ok); }
+
+.timeline-card {
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-sunken);
+  border: 1px solid var(--line);
+}
+.timeline-head {
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+.timeline-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.t-bar-row {
+  display: grid;
+  grid-template-columns: minmax(52px, auto) minmax(0, 1fr) minmax(78px, auto);
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.t-bar-step { color: var(--text-muted); }
+.t-bar-track {
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  display: block;
+}
+.t-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background-color: var(--info);
+  transition: background-color 0.18s var(--ease);
+}
+.t-bar-fill[data-tone="weak"] { background-color: var(--bad); }
+.t-bar-fill[data-tone="learning"] { background-color: var(--warn); }
+.t-bar-fill[data-tone="familiar"] { background-color: var(--info); }
+.t-bar-fill[data-tone="mastered"] { background-color: var(--ok); }
+.t-bar-val {
+  color: var(--text-dim);
+  text-align: right;
+}
+
+/* ── Section 4: Deterministic Offline Test & Sharding ── */
+.harness-pillars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.pillar-card {
+  padding: 18px;
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.pillar-k {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent-text);
+  font-weight: 650;
+}
+.pillar-card h3 { font-size: 0.98rem; }
+.pillar-card p {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  flex: 1;
+}
+
+.shard-explorer {
+  padding: 20px;
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--accent);
+}
+.shard-slider-wrap {
+  max-width: 560px;
+  margin-bottom: 18px;
+}
+.shard-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.shard-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.shard-row {
+  appearance: none;
+  font: inherit;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background-color: var(--bg-raised);
+  color: var(--text-dim);
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: minmax(48px, auto) minmax(0, 1fr) minmax(88px, auto);
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.18s var(--ease), background-color 0.18s var(--ease), color 0.18s var(--ease);
+}
+.shard-row:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+.shard-row.is-selected {
+  background-color: var(--bg-selected);
+  border-color: var(--accent);
+  color: var(--text);
+}
+.shard-track {
+  height: 9px;
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-sunken);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  display: block;
+}
+.shard-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background-color: var(--accent-soft);
+}
+.shard-meta { text-align: right; }
+
+.shard-inspector {
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.shard-insp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.shard-balance {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--ok);
+}
+.shard-cmd { margin-bottom: 12px; }
+.shard-note {
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+.shard-heavy-k {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.shard-heavy-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ── Footer ── */
+footer {
+  max-width: 1520px;
+  margin: 0 auto;
+  padding: 24px clamp(14px, 3vw, 40px) 48px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 24px;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+}
+
+/* ── Responsive breakpoints & 200% zoom resilience ── */
+@media (max-width: 1120px) {
+  .page-shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .rail {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 12px 0;
+    gap: 6px;
+  }
+  .rail-caption { width: 100%; margin-bottom: 2px; }
+  .explorer-split,
+  .fsrs-workbench,
+  .shard-body,
+  .manifesto-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .inspector-card {
+    position: static;
+  }
+}
+
+@media (max-width: 520px) {
+  .t-bar-row,
+  .shard-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .t-bar-val,
+  .shard-meta {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+    transition: none !important;
+  }
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">跳到正文</a>
+
+<div class="topbar" role="banner">
+  <div class="topbar-inner">
+    <div class="topbar-left">
+      <a class="back-link" href="index.html">← 返回产品主页</a>
+      <span class="brand-crumb">StudyHub 4.4.4 · Architecture</span>
+    </div>
+    <div class="topbar-right">
+      <button type="button" class="theme-toggle" id="themeToggle" aria-pressed="false" aria-label="切换明暗主题">
+        <span class="theme-dot" aria-hidden="true"></span>
+        <span id="themeToggleText">浅色纸面</span>
+      </button>
+      <a class="language-switch" href="explorer-en.html" hreflang="en">English</a>
+    </div>
+  </div>
+</div>
+
+<div class="page-shell">
+  <nav class="rail" aria-label="架构章节导航">
+    <div class="rail-caption">SECTIONS</div>
+    <a class="rail-node is-active" href="#overview" data-rail-link="overview"><b>01</b><span>组件与上下文</span></a>
+    <a class="rail-node" href="#pipeline" data-rail-link="pipeline"><b>02</b><span>五阶段出题</span></a>
+    <a class="rail-node" href="#fsrs" data-rail-link="fsrs"><b>03</b><span>FSRS-6 排期</span></a>
+    <a class="rail-node" href="#testing" data-rail-link="testing"><b>04</b><span>离线分片测试</span></a>
+  </nav>
+
+  <main id="main">
+  <header class="hero-sheet" id="top">
+    <div class="hero-kicker">
+      <span class="stamp">INK DESK · ARCHITECTURE</span>
+      <span>StudyHub v4.4.4 · Node.js &ge;22.19 · Cordis Runtime</span>
+    </div>
+    <h1>把每道题锚回原页的<br>开放式学习架构</h1>
+    <p class="hero-intro">StudyHub 不是写死步骤的黑盒刷题模板，而是一套运行在 DSH 宿主内的模块化学习工作台：底层用声明式上下文边界、分片内容寻址存储与五阶段证据校验守住数据可靠；上层用可组合的技能、按需契约、动态数据围栏与可编辑课程「学法」，让学习者能和主对话一起自由定制每门课的学法。</p>
+
+    <div class="metric-strip" role="list" aria-label="核心架构指标">
+      <div class="metric-cell" role="listitem">
+        <span class="metric-val">1 + 6 + 1</span>
+        <span class="metric-lbl">工作台主包 + 6 个能力插件 + 1 个检索扩展包</span>
+      </div>
+      <div class="metric-cell" role="listitem">
+        <span class="metric-val">7 · 19</span>
+        <span class="metric-lbl">7 个 DSH 工具 · 19 个 StudyRuntime 上下文（16 业务 + 3 纯数据）</span>
+      </div>
+      <div class="metric-cell" role="listitem">
+        <span class="metric-val">5 阶段</span>
+        <span class="metric-lbl">规划 → 蓝图 → 写题硬绑定 → 六维独审 → 有界修补</span>
+      </div>
+      <div class="metric-cell" role="listitem">
+        <span class="metric-val">1300</span>
+        <span class="metric-lbl">离线确定性测试文件（1104 快速 + 196 慢速 · 0 外网请求）</span>
+      </div>
+    </div>
+
+    <div class="paper-manifesto" aria-label="开放与可组合的主对话协作设计">
+      <div class="manifesto-head">
+        <div>
+          <span class="manifesto-tag">设计哲学 · 开放可组合而非死板模板</span>
+          <h2>为什么学习者能和主对话一起「改学法」？</h2>
+        </div>
+        <p>固定按钮管高频确定动作，开放探索交给主对话：技能、契约、围栏与课程学法全部作为一等数据暴露，既防提示词注入，又不把学习锁死在单一路径里。</p>
+      </div>
+      <div class="manifesto-grid">
+        <article class="manifesto-card">
+          <div class="manifesto-code">01 · SKILLS</div>
+          <h3>6 个模块化场景技能（Skills）</h3>
+          <p>将带学（study-tutor）、导览（study-guide）、多源导入（study-import）、复习全书（study-book）、深度定制（study-custom）与目标自学建课（study-self）拆成按需挂载的 SKILL.md，而非把死板步骤硬编码进单一系统提示词。</p>
+          <div class="manifesto-foot"><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/skills/study-tutor/SKILL.md" target="_blank" rel="noopener">skills/study-tutor/SKILL.md ↗</a></div>
+        </article><article class="manifesto-card">
+          <div class="manifesto-code">02 · CONTRACTS</div>
+          <h3>19 个按需契约域与真源常量</h3>
+          <p>主对话通过 library.context 按需读取单域契约（如 guided / plan / custom / book），所有字数、页数、题型上限直接从执行校验的 JS 常量拼装，绝不手抄第二份过时文档。</p>
+          <div class="manifesto-foot"><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/study-contracts.js" target="_blank" rel="noopener">lib/study-contracts.js ↗</a></div>
+        </article><article class="manifesto-card">
+          <div class="manifesto-code">03 · DATA FENCES</div>
+          <h3>动态反引号数据围栏与缓存友好人设</h3>
+          <p>静态人设（presets/study.patch.yml）仅含模型变量以稳定命中前缀缓存；不可信课件与题面装入反引号长度动态取 max+1 的 :data 围栏，学习者意图独立装入 :request 围栏，阻断提示词注入。</p>
+          <div class="manifesto-foot"><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/ui/agent-prompts/message.js" target="_blank" rel="noopener">ui/agent-prompts/message.js ↗</a></div>
+        </article><article class="manifesto-card">
+          <div class="manifesto-code">04 · COURSE METHODS</div>
+          <h3>可与主对话共创的每课「学法」（1–12 阶段）</h3>
+          <p>每门课可独立保存由 6 类活动（publish / practice / review / explain / check / project）、最多 2 个备选动作与 3 档过关线（loose / medium 2/3 通过·0.8 进阶 / strict）组成的学法；默认 3 阶段「课堂跟学」只是普通数据，随时可与主对话协商改写。</p>
+          <div class="manifesto-foot"><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/course-method.js" target="_blank" rel="noopener">lib/course-method.js ↗</a></div>
+        </article>
+      </div>
+    </div>
+  </header>
+
+  <section class="sec" id="overview" data-stage="OVERVIEW">
+    <div class="sec-head">
+      <div class="eyebrow"><b>01</b><span>COMPONENT &amp; CONTEXT MAP</span></div>
+      <h2>插件、Agent 工具与 19 个运行时上下文</h2>
+      <p class="sec-lede">所有插件共享同一个以 Symbol.for("studyhub.runtime.scope.v1") 键控的 StudyRuntime 微内核。每个业务域只能读取 domain-contracts.js 声明的快照端口，跨上下文写操作必须经过显式 actionGrants 授权；ESLint（eslint.config.js）封锁裸存储与全局兼容层直连，架构边界测试（tests/architecture-boundaries.test.mjs）通过 esbuild 依赖图与 runtime.describe() 深度优先搜索锁死跨上下文私有隔离与单向无环图。</p>
+    </div>
+
+    <div class="filter-bar" role="toolbar" aria-label="架构层级筛选">
+      <button type="button" class="chip-btn is-active" data-map-filter="all" aria-pressed="true">全部节点 (36)</button>
+      <button type="button" class="chip-btn" data-map-filter="plugins" aria-pressed="false">插件与检索包 (8)</button>
+      <button type="button" class="chip-btn" data-map-filter="tools" aria-pressed="false">DSH 工具 (7)</button>
+      <button type="button" class="chip-btn" data-map-filter="contexts" aria-pressed="false">运行时上下文 (19)</button>
+      <button type="button" class="chip-btn" data-map-filter="storage" aria-pressed="false">分片存储与懒加载视图 (2)</button>
+    </div>
+
+    <div class="explorer-split">
+      <div class="explorer-canvas" id="overviewCanvas">
+        <div class="node-cluster" data-cluster="plugins">
+      <div class="cluster-head">
+        <h3>1 个工作台主插件 + 6 个能力插件 + 1 个检索扩展包</h3>
+        <span class="cluster-count">8</span>
+      </div>
+      <div class="node-grid">
+        <button type="button" class="arch-node is-selected" data-node-id="plugin-workbench" data-node-group="plugins" aria-pressed="true">
+            <span class="arch-node-badge">Workbench · 1</span>
+            <strong class="arch-node-name">daily-flashcard</strong>
+          </button><button type="button" class="arch-node" data-node-id="plugin-runtime" data-node-group="plugins" aria-pressed="false">
+            <span class="arch-node-badge">Capability · 1/6</span>
+            <strong class="arch-node-name">studyhub-runtime</strong>
+          </button><button type="button" class="arch-node" data-node-id="plugin-materials" data-node-group="plugins" aria-pressed="false">
+            <span class="arch-node-badge">Capability · 2/6</span>
+            <strong class="arch-node-name">studyhub-materials</strong>
+          </button><button type="button" class="arch-node" data-node-id="plugin-bank" data-node-group="plugins" aria-pressed="false">
+            <span class="arch-node-badge">Capability · 3/6</span>
+            <strong class="arch-node-name">studyhub-bank</strong>
+          </button><button type="button" class="arch-node" data-node-id="plugin-study" data-node-group="plugins" aria-pressed="false">
+            <span class="arch-node-badge">Capability · 4/6</span>
+            <strong class="arch-node-name">studyhub-study</strong>
+          </button><button type="button" class="arch-node" data-node-id="plugin-generation" data-node-group="plugins" aria-pressed="false">
+            <span class="arch-node-badge">Capability · 5/6</span>
+            <strong class="arch-node-name">studyhub-generation</strong>
+          </button><button type="button" class="arch-node" data-node-id="plugin-audio" data-node-group="plugins" aria-pressed="false">
+            <span class="arch-node-badge">Capability · 6/6</span>
+            <strong class="arch-node-name">studyhub-audio</strong>
+          </button><button type="button" class="arch-node" data-node-id="pkg-retrieval" data-node-group="plugins" aria-pressed="false">
+            <span class="arch-node-badge">Companion Package</span>
+            <strong class="arch-node-name">packages/studyhub-retrieval</strong>
+          </button>
+      </div>
+    </div>
+        <div class="node-cluster" data-cluster="tools">
+      <div class="cluster-head">
+        <h3>7 个 DSH 主对话工具（按需发现 + 类型化域工具）</h3>
+        <span class="cluster-count">7</span>
+      </div>
+      <div class="node-grid">
+        <button type="button" class="arch-node" data-node-id="tool-capabilities" data-node-group="tools" aria-pressed="false">
+            <span class="arch-node-badge">Tool · 1/7</span>
+            <strong class="arch-node-name">study_capabilities</strong>
+          </button><button type="button" class="arch-node" data-node-id="tool-materials" data-node-group="tools" aria-pressed="false">
+            <span class="arch-node-badge">Tool · 2/7</span>
+            <strong class="arch-node-name">study_materials</strong>
+          </button><button type="button" class="arch-node" data-node-id="tool-bank" data-node-group="tools" aria-pressed="false">
+            <span class="arch-node-badge">Tool · 3/7</span>
+            <strong class="arch-node-name">study_bank</strong>
+          </button><button type="button" class="arch-node" data-node-id="tool-practice" data-node-group="tools" aria-pressed="false">
+            <span class="arch-node-badge">Tool · 4/7</span>
+            <strong class="arch-node-name">study_practice</strong>
+          </button><button type="button" class="arch-node" data-node-id="tool-generate-selection" data-node-group="tools" aria-pressed="false">
+            <span class="arch-node-badge">Tool · 5/7</span>
+            <strong class="arch-node-name">study_generate_selection</strong>
+          </button><button type="button" class="arch-node" data-node-id="tool-audio" data-node-group="tools" aria-pressed="false">
+            <span class="arch-node-badge">Tool · 6/7</span>
+            <strong class="arch-node-name">study_audio</strong>
+          </button><button type="button" class="arch-node" data-node-id="tool-workspace" data-node-group="tools" aria-pressed="false">
+            <span class="arch-node-badge">Tool · 7/7</span>
+            <strong class="arch-node-name">study_workspace</strong>
+          </button>
+      </div>
+    </div>
+        <div class="node-cluster" data-cluster="contexts">
+      <div class="cluster-head">
+        <h3>19 个 StudyRuntime 上下文（16 个业务操作域 + 3 个纯数据只读域）</h3>
+        <span class="cluster-count">19</span>
+      </div>
+      <div class="node-grid">
+        <button type="button" class="arch-node" data-node-id="ctx-system" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">system</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-notifications" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">notifications</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-learner" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Data-Only Context</span>
+            <strong class="arch-node-name">learner</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-workflow-data" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Data-Only Context</span>
+            <strong class="arch-node-name">workflow-data</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-skeleton-data" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Data-Only Context</span>
+            <strong class="arch-node-name">skeleton-data</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-materials" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">materials</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-bank" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">bank</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-courses" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">courses</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-study" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">study</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-generation" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">generation</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-audio" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">audio</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-notes" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">notes</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-recording" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">recording</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-coach" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">coach</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-workflows" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">workflows</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-skeleton" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">skeleton</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-jobs" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">jobs</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-library" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">library</strong>
+          </button><button type="button" class="arch-node" data-node-id="ctx-authoring" data-node-group="contexts" aria-pressed="false">
+            <span class="arch-node-badge">Operation Context</span>
+            <strong class="arch-node-name">authoring</strong>
+          </button>
+      </div>
+    </div>
+        <div class="node-cluster" data-cluster="storage">
+      <div class="cluster-head">
+        <h3>v4 分片内容寻址存储与按需视图拆包</h3>
+        <span class="cluster-count">2</span>
+      </div>
+      <div class="node-grid">
+        <button type="button" class="arch-node" data-node-id="infra-store-v4" data-node-group="storage" aria-pressed="false">
+            <span class="arch-node-badge">Store v4 · Sharded</span>
+            <strong class="arch-node-name">study-sharded (v4)</strong>
+          </button><button type="button" class="arch-node" data-node-id="infra-lazy-ui" data-node-group="storage" aria-pressed="false">
+            <span class="arch-node-badge">UI · 8 + 7 Lazy Chunks</span>
+            <strong class="arch-node-name">deferredView() Boundaries</strong>
+          </button>
+      </div>
+    </div>
+      </div>
+
+      <aside class="inspector-card" id="nodeInspector" aria-live="polite">
+        <div class="inspector-top">
+          <span class="inspector-badge" id="inspBadge">Workbench · 1</span>
+          <code class="inspector-id" id="inspCode">daily-flashcard</code>
+        </div>
+        <h3 id="inspTitle">daily-flashcard（工作台主插件）</h3>
+        <p class="inspector-summary" id="inspSummary">挂载 StudyHub 桌面/网页工作台视图、右侧栏桥接、全局看板，并向主对话注册过渡入口工具 study_workspace。</p>
+        <dl class="inspector-dl">
+          <div>
+            <dt id="inspOwnedLabel">拥有状态与存储边界</dt>
+            <dd id="inspOwned"><code>UI shell + 15 deferredView() chunks</code> <code>panel-bridge</code> <code>global todo board</code></dd>
+          </div>
+          <div>
+            <dt id="inspDepsLabel">声明式只读端口与跨上下文授权</dt>
+            <dd id="inspDeps"><code>studyRuntime</code> <code>all 19 contexts in full workbench mode</code></dd>
+          </div>
+          <div>
+            <dt id="inspOpsLabel">暴露能力与操作集</dt>
+            <dd id="inspOps"><code>Registers study_workspace + workspace HTTP/RPC routes</code></dd>
+          </div>
+          <div>
+            <dt id="inspSrcLabel">源码定位（v4.4.4）</dt>
+            <dd id="inspLinks" class="inspector-links"><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/index.js" target="_blank" rel="noopener">lib/index.js ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/plugins/workbench.js" target="_blank" rel="noopener">lib/plugins/workbench.js ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/architecture.md" target="_blank" rel="noopener">docs/architecture.md ↗</a></dd>
+          </div>
+        </dl>
+      </aside>
+    </div>
+
+    <div class="ref-ledger" aria-label="架构静态速查表">
+      <div class="ledger-card">
+        <h4>插件拓扑（1 + 6 + 1）</h4>
+        <p>完整安装包内置主工作台 daily-flashcard 与 6 个可独立启停的能力组件（runtime / materials / bank / study / generation / audio），大教材检索由同仓包 studyhub-retrieval 在 &gt;150,000 字符时接管。</p>
+        <p class="ledger-links"><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/architecture.md" target="_blank" rel="noopener">docs/architecture.md ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/runtime/builtins.js" target="_blank" rel="noopener">lib/runtime/builtins.js ↗</a></p>
+      </div>
+      <div class="ledger-card">
+        <h4>19 个上下文无环契约</h4>
+        <p>16 个业务目录位于 <code>lib/contexts/&lt;id&gt;/</code>；<code>learner</code>、<code>workflow-data</code>、<code>skeleton-data</code> 3 个纯数据上下文仅暴露 <code>state.read</code>，使跨域共享状态无需反向 import。</p>
+        <p class="ledger-links"><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/runtime/domain-contracts.js" target="_blank" rel="noopener">lib/runtime/domain-contracts.js ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/eslint.config.js" target="_blank" rel="noopener">eslint.config.js ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/tests/architecture-boundaries.test.mjs" target="_blank" rel="noopener">tests/architecture-boundaries.test.mjs ↗</a></p>
+      </div>
+      <div class="ledger-card">
+        <h4>分片存储 v4 与 15 个懒加载块</h4>
+        <p>答题流水每 1,000 条切分一片并以 20 位 SHA-1 寻址；UI 将 8 个重型功能台与 7 个低频页面拆为 15 个 deferredView() 按需分块（外加懒加载 PagePeek）。</p>
+        <p class="ledger-links"><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/store.js" target="_blank" rel="noopener">lib/store.js ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/ui/workspace-views.jsx" target="_blank" rel="noopener">ui/workspace-views.jsx ↗</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="pipeline" data-stage="PIPELINE">
+    <div class="sec-head">
+      <div class="eyebrow"><b>02</b><span>RELIABLE GENERATION PIPELINE</span></div>
+      <h2>五阶段有界出题流水线与故障拦截演练</h2>
+      <p class="sec-lede">长资料先按 ≤ 60,000 字符分组、每批最多并行 4 组（每组 ≤ 5 题）。流水线把「找依据」「锁答案」「写题面」「独立审题」与「微调补缺」拆成五个职责隔离的阶段：能用确定性代码核对的绝不交给模型猜，重试次数严格封顶，仅统计调用次数与 Token 规则。</p>
+    </div>
+
+    <div class="stepper-rail" role="tablist" aria-label="出题流水线五阶段">
+      <button type="button" class="stage-step is-active" role="tab" aria-selected="true" data-stage-step="1">
+        <span class="stage-num">01</span>
+        <span class="stage-name">PLAN</span>
+        <small class="stage-fn">planAssessment()</small>
+      </button><button type="button" class="stage-step" role="tab" aria-selected="false" data-stage-step="2">
+        <span class="stage-num">02</span>
+        <span class="stage-name">BLUEPRINT</span>
+        <small class="stage-fn">blueprintAssessment()</small>
+      </button><button type="button" class="stage-step" role="tab" aria-selected="false" data-stage-step="3">
+        <span class="stage-num">03</span>
+        <span class="stage-name">AUTHOR</span>
+        <small class="stage-fn">authorPrompts()</small>
+      </button><button type="button" class="stage-step" role="tab" aria-selected="false" data-stage-step="4">
+        <span class="stage-num">04</span>
+        <span class="stage-name">REVIEW</span>
+        <small class="stage-fn">cardLocalIssues()</small>
+      </button><button type="button" class="stage-step" role="tab" aria-selected="false" data-stage-step="5">
+        <span class="stage-num">05</span>
+        <span class="stage-name">PATCH</span>
+        <small class="stage-fn">patchPrompts()</small>
+      </button>
+    </div>
+
+    <div class="pipeline-detail" id="pipelineDetail" aria-live="polite">
+      <div class="pipeline-detail-head">
+        <div>
+          <span class="inspector-badge" id="pipeBadge">阶段 01 / 05</span>
+          <h3 id="pipeTitle">1. 考点规划与逐字引文核验（Plan）</h3>
+        </div>
+        <span class="pipe-src" id="pipeSrc"><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/assessment-quality.js" target="_blank" rel="noopener">lib/assessment-quality.js ↗</a></span>
+      </div>
+      <p class="pipeline-summary" id="pipeSummary">模型先从资料分片中提取不重叠的考查目标（≤ 10 个），每个目标必须附带原文逐字引文（≥ 12 个字符）。本地代码用 NFKC 字母数字归一化逐页核对；若模型标错页码但引文在同批其他页逐字存在，自动重归属真实 sourceId。</p>
+      <div class="pipe-budget">
+        <strong id="pipeBudgetLabel">有界调用与重试上限:</strong>
+        <span id="pipeBudget">每组 ≤ 60,000 字符 · 每次规划 ≤ 10 个考点 · 最多 1 次纠错重问 + 逐条挽救</span>
+      </div>
+      <div class="io-grid">
+        <div class="io-box">
+          <div class="io-label" id="pipeInLabel">输入契约</div>
+          <pre id="pipeInput"><code>sources[{ id, title, text &lt;= 60000 chars }], count &lt;= 10, kind, focusTopics?, assignments?, existing[]</code></pre>
+        </div>
+        <div class="io-box">
+          <div class="io-label" id="pipeOutLabel">输出契约</div>
+          <pre id="pipeOutput"><code>targets[{ targetId: &quot;target-1&quot;, objective, knowledge, section?, focus?, citations[{ sourceId, quote &gt;= 12 chars }] }], dropped?[]</code></pre>
+        </div>
+      </div>
+      <div class="gate-callout">
+        <strong id="pipeGateLabel">确定性门禁与独立审阅机制</strong>
+        <p id="pipeGate">零模型成本校验：引文长度 ≥ 12、原文精确定位（lib/quote-match.js）、与既有题组目标去重；失败时仅对问题引文做 1 次指名重问，随后保留已核实的合法考点。</p>
+      </div>
+    </div>
+
+    <div class="failure-lab">
+      <div class="failure-head">
+        <h3>常见模型失误切换器：看哪一关拦截或挽救它</h3>
+        <p>点击任一真实故障场景，自动高亮对应防线阶段并展示代码级处置策略：</p>
+      </div>
+      <div class="failure-toggles" role="toolbar" aria-label="常见生成故障模式">
+        <button type="button" class="chip-btn is-active" data-failure-mode="hallucinated-quote" aria-pressed="true">
+          <span class="fail-stage-pill">S1</span>
+          <span>幻觉引文或跨页标错来源</span>
+        </button><button type="button" class="chip-btn" data-failure-mode="calc-mismatch" aria-pressed="false">
+          <span class="fail-stage-pill">S2</span>
+          <span>计算题算式或单位换算错位</span>
+        </button><button type="button" class="chip-btn" data-failure-mode="truncated-or-drifted" aria-pressed="false">
+          <span class="fail-stage-pill">S3</span>
+          <span>写题输出截断或擅自改动答案</span>
+        </button><button type="button" class="chip-btn" data-failure-mode="context-or-leak" aria-pressed="false">
+          <span class="fail-stage-pill">S4</span>
+          <span>“根据课件第3页”或题干/提示泄底</span>
+        </button><button type="button" class="chip-btn" data-failure-mode="wording-only-defect" aria-pressed="false">
+          <span class="fail-stage-pill">S5</span>
+          <span>证据扎实但题面措辞有小瑕疵</span>
+        </button>
+      </div>
+      <div class="failure-readout" id="failureReadout" aria-live="polite">
+        <div class="failure-tag" id="failStageTag">拦截 / 挽救于第 1 阶段</div>
+        <p class="failure-what" id="failWhat">模型编造了原文没有的句子，或引文低于 12 字，或把第 8 页的原话标到了第 5 页。</p>
+        <p class="failure-def" id="failDefense">第 1 阶段 groundedPlan() 先在已选页面中做 NFKC 归一化跨页检索：若原话在第 8 页逐字出现则自动修正 sourceId（0 次重问）；若确属编造，发起最多 1 次点名纠错，仍无实据则仅剔除该考点并保留其余合法考点。</p>
+      </div>
+    </div>
+
+    <div class="stage-matrix" aria-label="五阶段契约完整一览">
+      <article class="stage-mini">
+        <div class="stage-mini-top"><b>01 · PLAN</b> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/assessment-quality.js" target="_blank" rel="noopener">source ↗</a></div>
+        <p>模型先从资料分片中提取不重叠的考查目标（≤ 10 个），每个目标必须附带原文逐字引文（≥ 12 个字符）。本地代码用 NFKC 字母数字归一化逐页核对；若模型标错页码但引文在同批其他页逐字存在，自动重归属真实 sourceId。</p>
+        <p class="stage-mini-budget"><code>每组 ≤ 60,000 字符 · 每次规划 ≤ 10 个考点 · 最多 1 次纠错重问 + 逐条挽救</code></p>
+      </article><article class="stage-mini">
+        <div class="stage-mini-top"><b>02 · BLUEPRINT</b> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/assessment-quality.js" target="_blank" rel="noopener">source ↗</a></div>
+        <p>在动笔写题干前先锁定每道题的唯一支撑答案、推理链、比较维度（comparisonAxis）、情境类型（none | constructed | source）、干扰项错因或评分细则；计算题额外经过确定性算术与单位换算检查器。</p>
+        <p class="stage-mini-budget"><code>每批 ≤ 5 题 · 最多 1 次蓝图纠错重问 + 单题级挽救 · 确定性算式与单位核对（0 次额外调用）</code></p>
+      </article><article class="stage-mini">
+        <div class="stage-mini-top"><b>03 · AUTHOR</b> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/generation.js" target="_blank" rel="noopener">source ↗</a></div>
+        <p>模型撰写自包含题干、提示与解析；若输出在尾部被截断，括号平衡扫描器（salvageAuthoredCards）直接提取已闭合的完整题目。随后代码按 targetId 用第 2 步锁定的答案、选项、评分点与引文强制覆盖作者输出，杜绝写题阶段篡改事实。</p>
+        <p class="stage-mini-budget"><code>每批 1 次写题调用（并行度 concurrency = 4）· 仅当 0 题可恢复时重问 1 次 JSON · 绑定与自动修复 0 次模型调用</code></p>
+      </article><article class="stage-mini">
+        <div class="stage-mini-top"><b>04 · REVIEW</b> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/generation.js" target="_blank" rel="noopener">source ↗</a></div>
+        <p>先过本地规则门禁（拦截“根据课件/讲义”上下文依赖、提示泄底、空解析、填空占位符失配、正确项鹤立鸡群）；再交由不看写题推理过程的独立审阅提示词，从 6 个维度逐题打分，严格区分阻断缺陷（fail）与非阻断建议（suggest）。</p>
+        <p class="stage-mini-budget"><code>本地确定性门禁 0 次调用 + 1 次独立审阅调用 · 协议缺失最多追加补问 REVIEW_REASKS = 2 次（保前缀缓存）</code></p>
+      </article><article class="stage-mini">
+        <div class="stage-mini-top"><b>05 · PATCH</b> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/generation-yield.js" target="_blank" rel="noopener">source ↗</a></div>
+        <p>若题目证据扎实但仅因题干/提示/干扰项措辞被标 fail，执行 1 次冻结答案与引文的批量措辞改写（PATCH_FIELDS）并只复审改过的子集；若仍有数量缺口，最多携带前轮拒因摘要（priorRoundBrief）补跑 2 轮，证据不足时诚实报告实得题数，绝不死循环凑数。</p>
+        <p class="stage-mini-budget"><code>仅措辞缺陷题做 1 次批量改写 + 1 次子集复审 · 缺口补齐上限 fillRounds = 2（可设 0..4，预留槽位 ≤ 3）</code></p>
+      </article>
+    </div>
+    <p class="sec-links"><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/generation-reliability.md" target="_blank" rel="noopener">docs/generation-reliability.md ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/assessment-quality.md" target="_blank" rel="noopener">docs/assessment-quality.md ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/docs/token-usage.md" target="_blank" rel="noopener">docs/token-usage.md ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/batch.js" target="_blank" rel="noopener">lib/batch.js ↗</a></p>
+  </section>
+
+  <section class="sec" id="fsrs" data-stage="FSRS-6">
+    <div class="sec-head">
+      <div class="eyebrow"><b>03</b><span>LIVE FSRS-6 &amp; MASTERY SIMULATOR</span></div>
+      <h2>实时 FSRS-6 记忆状态与掌握度推演器</h2>
+      <p class="sec-lede">直接运行打包进本页的真实产品排期代码（lib/sm2.js 21 维默认权重 w0..w20，衰减率 w20 = 0.1542，长周期无随机抖动模式，按学习者本地日历天计数）与掌握度规则（lib/mastery.js：熟悉 ≥ 6 天；已掌握 ≥ 21 天且连对 ≥ 2 次，或自评 5 分立即达标；&lt; 3 分转入薄弱）。</p>
+    </div>
+
+    <div class="fsrs-workbench">
+      <div class="fsrs-controls">
+        <div class="control-group">
+          <div class="control-label-row">
+            <label for="fsrsRetention">目标回忆保持率（request_retention）</label>
+            <output id="fsrsRetentionOut" for="fsrsRetention">0.90</output>
+          </div>
+          <input type="range" id="fsrsRetention" min="0.7" max="0.97" step="0.01" value="0.9">
+          <div class="range-ticks"><span>0.70 (更长间隔)</span><span>0.90 (默认)</span><span>0.97 (考前高频)</span></div>
+        </div>
+
+        <div class="control-row">
+          <button type="button" class="chip-btn" id="fsrsFocusToggle" aria-pressed="false">
+            重点卡片提频（+0.04）
+          </button>
+          <span class="effective-ret" id="fsrsEffectiveNote">常规目标保持率：0.90</span>
+        </div>
+
+        <div class="grade-pad" role="group" aria-label="模拟作答评分按钮">
+          <button type="button" class="grade-btn grade-btn--again" data-fsrs-grade="1">
+            <strong>0–2 · 重来 Again</strong>
+            <small data-grade-hint="1">+1天</small>
+          </button>
+          <button type="button" class="grade-btn grade-btn--hard" data-fsrs-grade="3">
+            <strong>3 · 勉强 Hard</strong>
+            <small data-grade-hint="3">+2天</small>
+          </button>
+          <button type="button" class="grade-btn grade-btn--good" data-fsrs-grade="4">
+            <strong>4 · 熟练 Good</strong>
+            <small data-grade-hint="4">+3天</small>
+          </button>
+          <button type="button" class="grade-btn grade-btn--easy" data-fsrs-grade="5">
+            <strong>5 · 轻松 Easy</strong>
+            <small data-grade-hint="5">+8天</small>
+          </button>
+        </div>
+
+        <div class="fsrs-actions">
+          <button type="button" class="reset-btn" id="fsrsReset">重置为新卡（Reset）</button>
+          <span class="fsrs-links"><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/sm2.js" target="_blank" rel="noopener">lib/sm2.js ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/lib/mastery.js" target="_blank" rel="noopener">lib/mastery.js ↗</a></span>
+        </div>
+      </div>
+
+      <div class="fsrs-display" aria-live="polite">
+        <div class="fsrs-readout-grid">
+          <div class="stat-tile">
+            <span class="stat-k">稳定性 Stability S</span>
+            <strong class="stat-v" id="fsrsStability">0.00天</strong>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-k">难度 Difficulty D</span>
+            <strong class="stat-v" id="fsrsDifficulty">—</strong>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-k">下次复习间隔</span>
+            <strong class="stat-v" id="fsrsInterval">0天</strong>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-k">连对 / 遗忘次数</span>
+            <strong class="stat-v" id="fsrsStreak">0 / 0</strong>
+          </div>
+        </div>
+
+        <div class="mastery-banner">
+          <div>
+            <span class="mastery-k">当前推导掌握度（cardLevel）</span>
+            <p class="mastery-rule" id="fsrsRuleText">尚未作答（repetitions = 0）→ 未学（new）。</p>
+          </div>
+          <span class="mastery-pill" id="fsrsMasteryBadge" data-level="new">未学</span>
+        </div>
+
+        <div class="timeline-card">
+          <div class="timeline-head">
+            <strong id="fsrsTimelineTitle">尚未作答 —— 当前展示默认 0.90 保持率下连续 6 次「熟练 (4)」间隔预测</strong>
+          </div>
+          <div class="timeline-bars" id="fsrsTimelineBars">
+            <div class="t-bar-row">
+              <span class="t-bar-step">第 1 次</span>
+              <span class="t-bar-track"><span class="t-bar-fill" data-tone="learning" style="width:27%"></span></span>
+              <strong class="t-bar-val">+3天 (Σ 3天)</strong>
+            </div><div class="t-bar-row">
+              <span class="t-bar-step">第 2 次</span>
+              <span class="t-bar-track"><span class="t-bar-fill" data-tone="familiar" style="width:53%"></span></span>
+              <strong class="t-bar-val">+14天 (Σ 17天)</strong>
+            </div><div class="t-bar-row">
+              <span class="t-bar-step">第 3 次</span>
+              <span class="t-bar-track"><span class="t-bar-fill" data-tone="mastered" style="width:80%"></span></span>
+              <strong class="t-bar-val">+57天 (Σ 74天)</strong>
+            </div><div class="t-bar-row">
+              <span class="t-bar-step">第 4 次</span>
+              <span class="t-bar-track"><span class="t-bar-fill" data-tone="mastered" style="width:100%"></span></span>
+              <strong class="t-bar-val">+196天 (Σ 270天)</strong>
+            </div><div class="t-bar-row">
+              <span class="t-bar-step">第 5 次</span>
+              <span class="t-bar-track"><span class="t-bar-fill" data-tone="mastered" style="width:100%"></span></span>
+              <strong class="t-bar-val">+586天 (Σ 856天)</strong>
+            </div><div class="t-bar-row">
+              <span class="t-bar-step">第 6 次</span>
+              <span class="t-bar-track"><span class="t-bar-fill" data-tone="mastered" style="width:100%"></span></span>
+              <strong class="t-bar-val">+1559天 (Σ 2415天)</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="testing" data-stage="TESTING">
+    <div class="sec-head">
+      <div class="eyebrow"><b>04</b><span>DETERMINISTIC OFFLINE TEST &amp; SHARDING</span></div>
+      <h2>零外网确定性测试套件与 LPT 均衡分片器</h2>
+      <p class="sec-lede">全仓 1300 个测试文件在完全断绝外部网络的沙箱中运行：scripts/test.mjs 注入临时 DSH_HOME、清除本机密钥、设置 STUDY_NO_CALIBRATION=1 消除分片顺序漂移；test-network.mjs 拦截一切非回环请求；fake-model.mjs 用 42 类确定性提示词处理器毫秒级模拟带逐字引用的大模型响应。</p>
+    </div>
+
+    <div class="harness-pillars">
+      <article class="pillar-card">
+        <div class="pillar-k">test-network.mjs</div>
+        <h3>外网硬阻断（仅放行回环）</h3>
+        <p>通过 Node --import 预加载，接管 fetch、http、https、net、tls 与 Socket.prototype.connect，仅允许 127.0.0.1 / ::1 / localhost / 命名管道，任何外部请求立即抛出 TEST_NETWORK_BLOCKED。</p>
+        <p><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/scripts/qa/test-network.mjs" target="_blank" rel="noopener">scripts/qa/test-network.mjs ↗</a></p>
+      </article>
+      <article class="pillar-card">
+        <div class="pillar-k">fake-model.mjs · 42 handlers</div>
+        <h3>离线确定性大模型替身</h3>
+        <p>路由 preview/fake-model 识别规划、蓝图、写题、六维审阅、措辞修补、复习全书等 42 类提示词家族，直接从传入资料切片提取 ≥12 字真实引文并模拟前缀缓存 Token 账本。</p>
+        <p><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/scripts/fake-model.mjs" target="_blank" rel="noopener">scripts/fake-model.mjs ↗</a></p>
+      </article>
+      <article class="pillar-card">
+        <div class="pillar-k">STUDY_NO_CALIBRATION=1</div>
+        <h3>环境隔离与跨机器一致性</h3>
+        <p>每次运行创建独立临时 DSH_HOME、剥离 API 密钥、禁用动态 Token 校准，并发上限 max(2, min(cores - 1, 12))，单测试超时 300 秒、单文件超时 480 秒。</p>
+        <p><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/scripts/test.mjs" target="_blank" rel="noopener">scripts/test.mjs ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/scripts/qa/run-tests.mjs" target="_blank" rel="noopener">scripts/qa/run-tests.mjs ↗</a></p>
+      </article>
+    </div>
+
+    <div class="shard-explorer">
+      <div class="shard-controls">
+        <div class="tier-bar" role="toolbar" aria-label="测试分层筛选">
+          <button type="button" class="chip-btn is-active" data-test-tier="all" aria-pressed="true">全量 (1300)</button>
+          <button type="button" class="chip-btn" data-test-tier="fast" aria-pressed="false">快速层 --fast (1104)</button>
+          <button type="button" class="chip-btn" data-test-tier="slow" aria-pressed="false">慢速合集 (196)</button>
+          <button type="button" class="chip-btn" data-test-tier="browser" aria-pressed="false">browser (119)</button>
+          <button type="button" class="chip-btn" data-test-tier="cli" aria-pressed="false">cli (80)</button>
+          <button type="button" class="chip-btn" data-test-tier="ffmpeg" aria-pressed="false">ffmpeg (3)</button>
+        </div>
+
+        <div class="shard-slider-wrap">
+          <div class="control-label-row">
+            <label for="shardCountSlider">LPT 贪心负载均衡分片数（--shard=I/N，CLI 支持 1..64）</label>
+            <output id="shardCountOut" for="shardCountSlider">8</output>
+          </div>
+          <input type="range" id="shardCountSlider" min="1" max="16" step="1" value="8">
+        </div>
+      </div>
+
+      <div class="shard-body" aria-live="polite">
+        <div class="shard-bars" id="shardBars">
+          <div class="shard-row is-selected">
+            <span class="shard-lbl">#1/8</span>
+            <span class="shard-track"><span class="shard-fill" style="width:98%"></span></span>
+            <span class="shard-meta">163 个文件</span>
+          </div>
+        </div>
+
+        <div class="shard-inspector" id="shardInspector">
+          <div class="shard-insp-head">
+            <strong id="shardInspTitle">分片 1 / 8 · 全量测试集</strong>
+            <span class="shard-balance" id="shardBalanceChip">基于 tests/test-weights.json 确定性切分</span>
+          </div>
+          <pre class="shard-cmd"><code id="shardCmd">node scripts/test.mjs --shard=1/8</code></pre>
+          <p class="shard-note">shardKeys()（scripts/qa/test-schedule.mjs）只读取入库的 tests/test-weights.json（绝不读取本机缓存耗时），按权重降序依次把每个文件分给当前累计最轻的分片，保证多机并行无需协调即可精确覆盖全部文件一次。</p>
+          <div class="shard-heavy">
+            <span class="shard-heavy-k" id="shardHeavyLabel">当前选中分片内最重的测试文件:</span>
+            <div class="shard-heavy-list" id="shardHeavyList"><code>site-qa / ui / generation / store</code></div>
+          </div>
+          <p class="sec-links"><a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/scripts/qa/test-schedule.mjs" target="_blank" rel="noopener">scripts/qa/test-schedule.mjs ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/tests/slow-tests.json" target="_blank" rel="noopener">tests/slow-tests.json ↗</a> <a class="src-link" href="https://github.com/EricWang1358/dsh-web-studyhub/blob/main/tests/test-weights.json" target="_blank" rel="noopener">tests/test-weights.json ↗</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <script id="explorer-data" type="application/json">{"lang":"zh","version":"4.4.4","repoBlob":"https://github.com/EricWang1358/dsh-web-studyhub/blob/main","nodes":[{"id":"plugin-workbench","group":"plugins","badge":"Workbench · 1","label":"daily-flashcard","title":"daily-flashcard（工作台主插件）","summary":"挂载 StudyHub 桌面/网页工作台视图、右侧栏桥接、全局看板，并向主对话注册过渡入口工具 study_workspace。","owned":["UI shell + 15 deferredView() chunks","panel-bridge","global todo board"],"deps":["studyRuntime","all 19 contexts in full workbench mode"],"ops":"Registers study_workspace + workspace HTTP/RPC routes","links":[["lib/index.js","lib/index.js"],["lib/plugins/workbench.js","lib/plugins/workbench.js"],["docs/architecture.md","docs/architecture.md"]]},{"id":"plugin-runtime","group":"plugins","badge":"Capability · 1/6","label":"studyhub-runtime","title":"studyhub-runtime（共享微内核底座）","summary":"创建以 Symbol.for(\"studyhub.runtime.scope.v1\") 键控的共享运行时作用域，提供 studyRuntime 服务与零参数能力索引工具 study_capabilities，自身安装 0 个业务域。","owned":["studyRuntime service","shared Cordis runtime scope"],"deps":["lib/runtime.js","lib/store.js"],"ops":"Provides study_capabilities (compact index vs {context, operation} schema lookup)","links":[["lib/plugins/runtime.js","lib/plugins/runtime.js"],["lib/runtime.js","lib/runtime.js"],["lib/runtime/tools.js","lib/runtime/tools.js"]]},{"id":"plugin-materials","group":"plugins","badge":"Capability · 2/6","label":"studyhub-materials","title":"studyhub-materials（资料能力插件）","summary":"独立安装 materials 与基础 system 上下文，向主对话暴露类型化工具 study_materials（17 个文档导入、页码定位与选段问答操作）。","owned":["sources","documents"],"deps":["studyhub-runtime","system"],"ops":"Provides study_materials (17 typed operations)","links":[["lib/plugins/materials.js","lib/plugins/materials.js"],["lib/contexts/materials/index.js","lib/contexts/materials/index.js"]]},{"id":"plugin-bank","group":"plugins","badge":"Capability · 3/6","label":"studyhub-bank","title":"studyhub-bank（题库能力插件）","summary":"安装 bank 上下文，暴露 study_bank（list / get / cards / append 4 个操作），支持乐观并发版本号 expectedVersion 与逐字引用校验。","owned":["decks","drafts"],"deps":["studyhub-runtime","materials","system","notifications"],"ops":"Provides study_bank (list, get, cards, append)","links":[["lib/plugins/bank.js","lib/plugins/bank.js"],["lib/contexts/bank/index.js","lib/contexts/bank/index.js"]]},{"id":"plugin-study","group":"plugins","badge":"Capability · 4/6","label":"studyhub-study","title":"studyhub-study（练习与排期插件）","summary":"默认安装 bank + study（设 independent: true 时仅装 study），暴露 study_practice（10 个操作），强制揭晓前隐藏答案且禁止 AI 代答。","owned":["runs","attempts (1,000/shard)","oralRuns","teaching","studySessions"],"deps":["studyhub-runtime","bank","courses","learner"],"ops":"Provides study_practice (review.*, exam.report, teach.*)","links":[["lib/plugins/study.js","lib/plugins/study.js"],["lib/sm2.js","lib/sm2.js"],["lib/mastery.js","lib/mastery.js"]]},{"id":"plugin-generation","group":"plugins","badge":"Capability · 5/6","label":"studyhub-generation","title":"studyhub-generation（可靠出题插件）","summary":"默认安装 materials + bank + authoring + generation（independent: true 时仅 authoring + generation），暴露 study_generate_selection（4 个操作）。","owned":["selectionJobs"],"deps":["studyhub-runtime","materials","bank","authoring"],"ops":"Provides study_generate_selection (selection.supplement/get/commit/review)","links":[["lib/plugins/generation.js","lib/plugins/generation.js"],["lib/generation.js","lib/generation.js"],["docs/generation-reliability.md","docs/generation-reliability.md"]]},{"id":"plugin-audio","group":"plugins","badge":"Capability · 6/6","label":"studyhub-audio","title":"studyhub-audio（课堂音频与 PDF 转换插件）","summary":"安装独立 audio 上下文，暴露 study_audio（13 个转录、字幕校对与实时课堂保存操作），并通过显式授权端口把成稿写入资料库。","owned":["audioResults"],"deps":["studyhub-runtime","materials","bank","notifications"],"ops":"Provides study_audio (13 operations)","links":[["lib/plugins/audio.js","lib/plugins/audio.js"],["lib/contexts/audio/index.js","lib/contexts/audio/index.js"]]},{"id":"pkg-retrieval","group":"plugins","badge":"Companion Package","label":"packages/studyhub-retrieval","title":"packages/studyhub-retrieval（大教材本地检索扩展包）","summary":"可选同仓扩展包：当选中资料超过 150,000 字符（RETRIEVE_ABOVE_CHARS）时，通过 mcp:\u003ctool>、service 或 builtin 三种本地索引提供器先缩小证据窗口再规划考点。","owned":["Local retrieval index outside exported study shards"],"deps":["lib/retrieval.js","generation retrieval runtime-port"],"ops":"Providers: mcp:\u003ctool> | service | builtin (> 150,000 chars)","links":[["packages/studyhub-retrieval/package.json","packages/studyhub-retrieval/package.json"],["lib/retrieval.js","lib/retrieval.js"],["docs/architecture.md","docs/architecture.md"]]},{"id":"tool-capabilities","group":"tools","badge":"Tool · 1/7","label":"study_capabilities","title":"study_capabilities（按需契约发现工具）","summary":"无参调用仅返回紧凑的上下文与操作名索引（避免一次性塞入约 106,000 字符的全量 Schema）；传入 {context} 或 {operation} 时返回省去默认值的精确输入 Schema。","owned":["Stateless discovery over StudyRuntime.capabilities()"],"deps":["studyhub-runtime","lib/runtime/tools.js"],"ops":"{ context?: string, operation?: string }","links":[["lib/runtime/tools.js","lib/runtime/tools.js"]]},{"id":"tool-materials","group":"tools","badge":"Tool · 2/7","label":"study_materials","title":"study_materials（17 个资料与引用操作）","summary":"面向主对话的类型化资料工具：支持 PDF/Office/MD 导入、可见选段解析、基于证据提问、章节切分以及页码关联题目查询。","owned":["Delegates to materials.v1"],"deps":["studyhub-materials","materials context"],"ops":"17 ops: document.import/get/list/attach, original.*, selection.resolve/ask, outline.*, links.list, pages.cards, enrich","links":[["lib/runtime/tools.js","lib/runtime/tools.js"],["lib/contexts/materials/contracts.js","lib/contexts/materials/contracts.js"]]},{"id":"tool-bank","group":"tools","badge":"Tool · 3/7","label":"study_bank","title":"study_bank（4 个题组读取与追加操作）","summary":"读取 JSON 题组（list / get / cards）或向现有普通题组幂等追加通过校验的题目（append 强制要求 expectedVersion、operationId 与 ≥12 字逐字引用）。","owned":["Delegates to bank.v1"],"deps":["studyhub-bank","bank context"],"ops":"4 ops: list, get, cards, append","links":[["lib/runtime/tools.js","lib/runtime/tools.js"],["lib/contexts/bank/index.js","lib/contexts/bank/index.js"]]},{"id":"tool-practice","group":"tools","badge":"Tool · 4/7","label":"study_practice","title":"study_practice（10 个练习与分步讲解操作）","summary":"通过独立策略接口启动与推进练习：揭晓前隐藏答案，客观题规则判分，teach.start 显式区分理解模式与计算模式，严禁替学习者作答。","owned":["Delegates to study.v1"],"deps":["studyhub-study","study context"],"ops":"10 ops: review.start/get/reveal/answer/move/end, exam.report, teach.start/get/answer","links":[["lib/runtime/tools.js","lib/runtime/tools.js"],["lib/contexts/study/index.js","lib/contexts/study/index.js"]]},{"id":"tool-generate-selection","group":"tools","badge":"Tool · 5/7","label":"study_generate_selection","title":"study_generate_selection（4 个选段出题操作）","summary":"针对已校验的原文选段生成经独立审阅的候选题目并追加至目标题组，持久化保存候选以便查询、复审或重试。","owned":["Delegates to generation.v1"],"deps":["studyhub-generation","generation context"],"ops":"4 ops: selection.supplement, selection.get, selection.commit, selection.review","links":[["lib/runtime/tools.js","lib/runtime/tools.js"],["lib/contexts/generation/contracts.js","lib/contexts/generation/contracts.js"]]},{"id":"tool-audio","group":"tools","badge":"Tool · 6/7","label":"study_audio","title":"study_audio（13 个录音转录与实时课堂操作）","summary":"管理后台音频转录、带时间戳字幕导入、校对复核与实时课堂保存；不接受对话内明文密钥，密钥状态脱敏返回。","owned":["Delegates to audio.v1"],"deps":["studyhub-audio","audio context"],"ops":"13 ops: results, result.get, jobs, job.wait/cancel, audio.settings.get, audio.import/retry, audio.subtitles.import, audio.corrections.review, live.list/get/save","links":[["lib/runtime/tools.js","lib/runtime/tools.js"],["lib/contexts/audio/index.js","lib/contexts/audio/index.js"]]},{"id":"tool-workspace","group":"tools","badge":"Tool · 7/7","label":"study_workspace","title":"study_workspace（工作台全能力桥接工具）","summary":"主工作台动作入口（action + payload_json）：覆盖课程学法、复习全书、AI 带学、看板与深度定制，并显式拦截仅限面板点击的操作（如 usage.frequency.*、mineru.install.*）。","owned":["Dispatches across StudyRuntime + library.context"],"deps":["daily-flashcard","lib/study-contracts.js"],"ops":"library.context (19 areas) + full workspace operations","links":[["lib/index.js","lib/index.js"],["lib/study-contracts.js","lib/study-contracts.js"]]},{"id":"ctx-system","group":"contexts","badge":"Operation Context","label":"system","title":"system（业务操作上下文）","summary":"库级设置、当前课程焦点与每日模型用量账本。","owned":["settings","focus"],"deps":["reads: system"],"ops":"settings.get/update, focus.get/set, usage.estimate, usage.frequency.*","links":[["lib/contexts/system/index.js","lib/contexts/system/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-notifications","group":"contexts","badge":"Operation Context","label":"notifications","title":"notifications（业务操作上下文）","summary":"后台任务收件箱信件与未读状态。","owned":["inbox"],"deps":["reads: notifications"],"ops":"inbox.list, inbox.read, inbox.open, job.dismiss","links":[["lib/contexts/notifications/index.js","lib/contexts/notifications/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-learner","group":"contexts","badge":"Data-Only Context","label":"learner","title":"learner（纯数据只读上下文）","summary":"纯数据上下文（仅暴露 state.read）：保存学习者画像、陪学记录、反馈与预备变式，供 study / coach / workflows 按声明端口只读访问，切断循环依赖。","owned":["learner","coach","feedback","prepared"],"deps":["reads: learner"],"ops":"state.read only (no folder under lib/contexts/)","links":[["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-workflow-data","group":"contexts","badge":"Data-Only Context","label":"workflow-data","title":"workflow-data（纯数据只读上下文）","summary":"纯数据上下文（仅暴露 state.read）：保存学习流模板与会话记录，让题库发布在固定范围成员时无需反向依赖 workflows 业务层。","owned":["workflowTemplates","workflowSessions"],"deps":["reads: workflow-data"],"ops":"state.read only (no folder under lib/contexts/)","links":[["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-skeleton-data","group":"contexts","badge":"Data-Only Context","label":"skeleton-data","title":"skeleton-data（纯数据只读上下文）","summary":"纯数据上下文（仅暴露 state.read）：保存知识骨架与主题分组，供 authoring / skeleton / workflows 共享只读视图。","owned":["skeletons","topicGroups"],"deps":["reads: skeleton-data"],"ops":"state.read only (no folder under lib/contexts/)","links":[["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-materials","group":"contexts","badge":"Operation Context","label":"materials","title":"materials（业务操作上下文）","summary":"PDF / Office / Markdown 资料导入、页面文本、译文与引用定位。","owned":["sources","documents"],"deps":["reads: materials, system"],"ops":"document.import/get/list, source.add/archive/remove, selection.resolve/ask, pages.cards","links":[["lib/contexts/materials/index.js","lib/contexts/materials/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-bank","group":"contexts","badge":"Operation Context","label":"bank","title":"bank（业务操作上下文）","summary":"正式题组（decks）与待审草稿（drafts）的版本化读写与合并拆分。","owned":["decks","drafts"],"deps":["reads: bank, materials, system, notifications"],"ops":"list, get, cards, append, deck.import/merge/split, card.update/convert/link, draft.save","links":[["lib/contexts/bank/index.js","lib/contexts/bank/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-courses","group":"contexts","badge":"Operation Context","label":"courses","title":"courses（业务操作上下文）","summary":"课程档案、考试画像、重点主题、备考计划、深度定制与可编辑学法（course.method）。","owned":["courses"],"deps":["reads: courses, materials, bank, system"],"ops":"course.get/save, course.plan, course.custom.preview, course.focusProgress, course.rename/merge","links":[["lib/contexts/courses/index.js","lib/contexts/courses/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-study","group":"contexts","badge":"Operation Context","label":"study","title":"study（业务操作上下文）","summary":"FSRS-6 练习轮次、客观与案例判分、分步讲解、口试及 AI 带学会话。","owned":["runs","attempts","oralRuns","teaching","studySessions"],"deps":["reads: study, bank, materials, system, notifications, learner, workflow-data, courses","grants: bank: draft.save, card.link, card.followup.add | courses: course.profile"],"ops":"review.start/answer/end, exam.submit, card.grade, teach.start/answer, oral.*, study.session.*","links":[["lib/contexts/study/index.js","lib/contexts/study/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-generation","group":"contexts","badge":"Operation Context","label":"generation","title":"generation（业务操作上下文）","summary":"五阶段可靠出题流水线、选段补题、覆盖度续跑、复习全书与考纲构建。","owned":["selectionJobs"],"deps":["reads: generation, bank, materials, system, study, notifications, courses","grants: authoring: draft.publish, draft.publish.plan, draft.publish.quick | bank: get, append, deck.ensure, draft.save, card.answerCard.set | materials: book.aiWrite, selection.resolve, document.get, source.add, translation.translate, translation.plan, sources.ingest | study: card.grade | courses: course.profile"],"ops":"generate, supplement, selection.supplement/commit/review, courseOutline.build, courseBook.build","links":[["lib/contexts/generation/index.js","lib/contexts/generation/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-audio","group":"contexts","badge":"Operation Context","label":"audio","title":"audio（业务操作上下文）","summary":"课堂录音转录、双语字幕校对、实时课堂保存，以及本地 MinerU / Marker 转换管理。","owned":["audioResults"],"deps":["reads: audio, materials, bank, system, notifications","grants: materials: sources.ingest, document.import, original.attach | generation: generate"],"ops":"audio.import/retry, audio.subtitles.import, live.save, mineru.import/install.*, marker.import","links":[["lib/contexts/audio/index.js","lib/contexts/audio/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-notes","group":"contexts","badge":"Operation Context","label":"notes","title":"notes（业务操作上下文）","summary":"关联题目的学习长文笔记与按课程聚合的每日复盘信件。","owned":["notes","csdnHome"],"deps":["reads: notes, bank, study, system, notifications, courses"],"ops":"note.create/save/generate, note.daily.status/generate/advance, note.material.prepare","links":[["lib/contexts/notes/index.js","lib/contexts/notes/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-recording","group":"contexts","badge":"Operation Context","label":"recording","title":"recording（业务操作上下文）","summary":"粘贴错题与既有题目的原样录入（ingest）与持续监听开关。","owned":["ingest"],"deps":["reads: recording, bank, materials, study, system, notifications"],"ops":"capture, ingest, ingest.start, ingest.stop, ingest.status","links":[["lib/contexts/recording/index.js","lib/contexts/recording/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-coach","group":"contexts","badge":"Operation Context","label":"coach","title":"coach（业务操作上下文）","summary":"陪学画像、错因追问、同考点变式预备与题目重写回退。","owned":["(stateless / delegates writes via declared grants)"],"deps":["reads: learner, study, bank, materials, system, notifications, workflow-data, courses","grants: study: review.start"],"ops":"coach.profile/reply/feedback, coach.variants, coach.practice, coach.revert","links":[["lib/contexts/coach/index.js","lib/contexts/coach/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-workflows","group":"contexts","badge":"Operation Context","label":"workflows","title":"workflows（业务操作上下文）","summary":"短讲与练习交替的学习流模板、会话推进与微课生成。","owned":["(stateless / delegates writes via declared grants)"],"deps":["reads: workflow-data, skeleton-data, study, bank, materials, system, learner, notifications"],"ops":"workflow.save, workflow.quickstart, workflow.session.start/advance, workflow.teaching.start","links":[["lib/contexts/workflows/index.js","lib/contexts/workflows/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-skeleton","group":"contexts","badge":"Operation Context","label":"skeleton","title":"skeleton（业务操作上下文）","summary":"课程知识骨架树与主题分组管理。","owned":["(stateless / delegates writes via declared grants)"],"deps":["reads: skeleton-data, bank, materials, study, system"],"ops":"skeleton.save/delete, topic.groups.save","links":[["lib/contexts/skeleton/index.js","lib/contexts/skeleton/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-jobs","group":"contexts","badge":"Operation Context","label":"jobs","title":"jobs（业务操作上下文）","summary":"统一后台任务控制面（状态、等待、并发调节、中断恢复与归档）。","owned":["(stateless / delegates writes via declared grants)"],"deps":["reads: bank, notifications, study, materials","grants: audio: recover, audio.retry, mineru.retry | generation: generate, coverage.recover, supplement | study: review.start, study.question.wait, study.question.settle, study.question.release"],"ops":"job.status, job.wait, job.control, job.cancel, job.archive/unarchive","links":[["lib/contexts/jobs/index.js","lib/contexts/jobs/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-library","group":"contexts","badge":"Operation Context","label":"library","title":"library（业务操作上下文）","summary":"跨上下文门面与主对话按需契约读取（library.context 的 19 个专题域）。","owned":["(stateless / delegates writes via declared grants)"],"deps":["reads: system, notifications, learner, workflow-data, skeleton-data, materials, bank, study, generation, audio, notes, recording, courses","grants: materials: attachments.export, attachments.import | coach: coach.status, coach.activity, coach.practice, coach.variants | study: review.start, review.move | audio: recover | generation: coverage.recover, generate, courseBook.build | courses: course.save"],"ops":"library.context, snapshot, course.custom.apply/fill, attachments.export/import","links":[["lib/contexts/library/index.js","lib/contexts/library/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"ctx-authoring","group":"contexts","badge":"Operation Context","label":"authoring","title":"authoring（业务操作上下文）","summary":"草稿快发（结构校验）与严格审阅发布，衔接题库与学习流快照。","owned":["(stateless / delegates writes via declared grants)"],"deps":["reads: bank, materials, system, study, notifications, learner, workflow-data, skeleton-data, notes, recording"],"ops":"draft.publish.quick, draft.publish, draft.publish.plan","links":[["lib/contexts/authoring/index.js","lib/contexts/authoring/index.js"],["lib/runtime/domain-contracts.js","lib/runtime/domain-contracts.js"]]},{"id":"infra-store-v4","group":"storage","badge":"Store v4 · Sharded","label":"study-sharded (v4)","title":"分片内容寻址存储 v4（lib/store.js）","summary":"manifest v4（format: \"study-sharded\"）：答题记录按每片 1,000 条（ATTEMPT_CHUNK）切分，题组/资料逐条独立成片，文件名采用 20 位 SHA-1 内容哈希，解析结果深冻结（deep-freeze）后跨快照共享内存；后台任务归档上限 200 条 / 90 天。","owned":["manifest.json (v4)","1,000 attempts/shard","20-hex SHA-1 shard files","job-archive.json (\u003c= 200 / 90d)"],"deps":["Atomic temp-file + rename writes","eslint no-restricted-imports fence"],"ops":"item | chunk (1000) | whole modes via createStatePort()","links":[["lib/store.js","lib/store.js"],["lib/job-archive.js","lib/job-archive.js"],["lib/runtime/builtins.js","lib/runtime/builtins.js"]]},{"id":"infra-lazy-ui","group":"storage","badge":"UI · 8 + 7 Lazy Chunks","label":"deferredView() Boundaries","title":"按需分块加载视图边界（ui/workspace-views.jsx）","summary":"首屏仅保留高频日常闭环（资料、生成、草稿、练习、错题本）；8 个可选重型功能视图（BlogNotes、Skeleton、Workflows、Graph、TaskConsole、AudioDashboard、DocumentViewer、LiveClass）与 7 个低频页面（GuidedStudy、Dashboard、Exam、ExamPrep、CourseOutline、BookPage、Board）共 15 个 deferredView() 边界及 PagePeek 在首次打开时独立加载。","owned":["8 optional feature views + 7 occasional pages = 15 deferredView() chunks"],"deps":["ui/deferred-view.jsx","LiveClass stays mounted across route switches while recording"],"ops":"Independent error + loading boundary per surface","links":[["ui/workspace-views.jsx","ui/workspace-views.jsx"],["ui/tokens.css","ui/tokens.css"],["docs/architecture.md","docs/architecture.md"]]}],"stages":[{"step":1,"id":"plan","fn":"planAssessment() + groundedPlan()","file":"lib/assessment-quality.js","budget":"每组 ≤ 60,000 字符 · 每次规划 ≤ 10 个考点 · 最多 1 次纠错重问 + 逐条挽救","title":"1. 考点规划与逐字引文核验（Plan）","summary":"模型先从资料分片中提取不重叠的考查目标（≤ 10 个），每个目标必须附带原文逐字引文（≥ 12 个字符）。本地代码用 NFKC 字母数字归一化逐页核对；若模型标错页码但引文在同批其他页逐字存在，自动重归属真实 sourceId。","inputShape":"sources[{ id, title, text \u003c= 60000 chars }], count \u003c= 10, kind, focusTopics?, assignments?, existing[]","outputShape":"targets[{ targetId: \"target-1\", objective, knowledge, section?, focus?, citations[{ sourceId, quote >= 12 chars }] }], dropped?[]","gate":"零模型成本校验：引文长度 ≥ 12、原文精确定位（lib/quote-match.js）、与既有题组目标去重；失败时仅对问题引文做 1 次指名重问，随后保留已核实的合法考点。"},{"step":2,"id":"blueprint","fn":"blueprintAssessment() + checkCalculation()","file":"lib/assessment-quality.js","budget":"每批 ≤ 5 题 · 最多 1 次蓝图纠错重问 + 单题级挽救 · 确定性算式与单位核对（0 次额外调用）","title":"2. 答案与计算蓝图锁定（Blueprint）","summary":"在动笔写题干前先锁定每道题的唯一支撑答案、推理链、比较维度（comparisonAxis）、情境类型（none | constructed | source）、干扰项错因或评分细则；计算题额外经过确定性算术与单位换算检查器。","inputShape":"verifiedTargets[\u003c= 5], sourcePassages, notation: \"auto\" | \"text\" | \"latex\"","outputShape":"blueprintItems[{ targetId, answer, reasoning, comparisonAxis, scenario, options[] | rubric | cloze, calculation? }]","gate":"checkCalculation（lib/calculation-check.js）核验 10^-12..10^12 数量级与 mm/cm/m/km、g/kg、s/min/h、% 换算；wrapItemMath 统一公式定界符；不合格项最多重问 1 次后仅丢弃坏项。"},{"step":3,"id":"author","fn":"authorPrompts() + bindSupportedAnswers() + autofixDeck()","file":"lib/generation.js","budget":"每批 1 次写题调用（并行度 concurrency = 4）· 仅当 0 题可恢复时重问 1 次 JSON · 绑定与自动修复 0 次模型调用","title":"3. 题干撰写、支撑答案硬绑定与本地修复（Author + Bind）","summary":"模型撰写自包含题干、提示与解析；若输出在尾部被截断，括号平衡扫描器（salvageAuthoredCards）直接提取已闭合的完整题目。随后代码按 targetId 用第 2 步锁定的答案、选项、评分点与引文强制覆盖作者输出，杜绝写题阶段篡改事实。","inputShape":"lockedBlueprint[\u003c= 5], styleReferences? (untrusted form-only examples)","outputShape":"boundCards[{ id, targetId, kind, topic, prompt, answer, options?, rubric?, cloze?, hint, explanation, citations }]","gate":"bindSupportedAnswers 强制回写已锁定的答案与引文；autofixDeck（lib/card-autofix.js）本地补齐缺失主题/提示并修复裸露数学符号，不消耗任何模型 Token。"},{"step":4,"id":"review","fn":"cardLocalIssues() + singleRoundReview()","file":"lib/generation.js","budget":"本地确定性门禁 0 次调用 + 1 次独立审阅调用 · 协议缺失最多追加补问 REVIEW_REASKS = 2 次（保前缀缓存）","title":"4. 本地确定性门禁 + 六维独立审阅（Local + Independent Review）","summary":"先过本地规则门禁（拦截“根据课件/讲义”上下文依赖、提示泄底、空解析、填空占位符失配、正确项鹤立鸡群）；再交由不看写题推理过程的独立审阅提示词，从 6 个维度逐题打分，严格区分阻断缺陷（fail）与非阻断建议（suggest）。","inputShape":"boundCards[], citedSourceSnippets[] (independent editor prompt without author scratchpad)","outputShape":"{ issues: string[], suggestions: string[], summary: string, checks: [{ cardId, selfContained, answerLeak, optionQuality, learningValue, sourceSupport, explanationQuality, explanation }] }","gate":"6 个审阅维度：selfContained、answerLeak、optionQuality、learningValue、sourceSupport、explanationQuality；suggest 建议保留卡片供学习者参考，绝不误杀合格题。"},{"step":5,"id":"patch","fn":"patchPrompts() + reserve / fillRounds","file":"lib/generation-yield.js","budget":"仅措辞缺陷题做 1 次批量改写 + 1 次子集复审 · 缺口补齐上限 fillRounds = 2（可设 0..4，预留槽位 ≤ 3）","title":"5. 有界措辞修补与诚实缺口补齐（Bounded Patch + Fill）","summary":"若题目证据扎实但仅因题干/提示/干扰项措辞被标 fail，执行 1 次冻结答案与引文的批量措辞改写（PATCH_FIELDS）并只复审改过的子集；若仍有数量缺口，最多携带前轮拒因摘要（priorRoundBrief）补跑 2 轮，证据不足时诚实报告实得题数，绝不死循环凑数。","inputShape":"wordingFailedCards[] (answers & citations frozen) + shortfallCount + priorRoundBrief[]","outputShape":"acceptedDeck + omissionReport{ requested, accepted, droppedByReason, recoverableDraft }","gate":"绝不重改已验证的答案与逐字引用；改写仍不合格则果断丢弃并写入草稿缺口原因，杜绝无界 Token 消耗。"}],"failures":[{"id":"hallucinated-quote","targetStage":1,"label":"幻觉引文或跨页标错来源","what":"模型编造了原文没有的句子，或引文低于 12 字，或把第 8 页的原话标到了第 5 页。","defense":"第 1 阶段 groundedPlan() 先在已选页面中做 NFKC 归一化跨页检索：若原话在第 8 页逐字出现则自动修正 sourceId（0 次重问）；若确属编造，发起最多 1 次点名纠错，仍无实据则仅剔除该考点并保留其余合法考点。"},{"id":"calc-mismatch","targetStage":2,"label":"计算题算式或单位换算错位","what":"蓝图给出的推导算式结果与最终数值答案不符，或毫米/米、分钟/秒等单位换算漏乘系数。","defense":"第 2 阶段 checkCalculation()（lib/calculation-check.js）在写题干前用确定性解析器核验 10^-12..10^12 幂次与常用物理/百分比单位，不一致立即触发最多 1 次蓝图纠错，避免带着错答案去写题干和解析。"},{"id":"truncated-or-drifted","targetStage":3,"label":"写题输出截断或擅自改动答案","what":"长批次 JSON 在第 4 题末尾因输出上限中断，或者写题模型为了凑题面悄悄改掉了第 2 步锁定的正确选项。","defense":"第 3 阶段 salvageAuthoredCards() 通过引号感知的括号平衡扫描直接救回前 3 道完整题目（仅在救回 0 题时重问 1 次）；紧接着 bindSupportedAnswers() 按 targetId 强制覆盖答案、选项正误与引用，作者无法篡改事实。"},{"id":"context-or-leak","targetStage":4,"label":"“根据课件第3页”或题干/提示泄底","what":"题干脱离原课件就无法作答（出现“如讲义所示”），或提示/主题直接包含了标准答案关键词。","defense":"第 4 阶段本地规则（learnerContextIssues / answerLeakIssues）0 Token 先行拦截明显泄底与上下文依赖；随后独立审阅模型在 6 个维度复核，把致命问题标为 fail，而把“表述可更精炼”留作不删题的 suggest。"},{"id":"wording-only-defect","targetStage":5,"label":"证据扎实但题面措辞有小瑕疵","what":"考点与引用完全成立，但某个干扰项区分度偏弱或题干句式拗口，直接整题丢弃会浪费前四步算力。","defense":"第 5 阶段识别仅涉及 PATCH_FIELDS（topic / prompt / hint / explanation / 干扰项文本）的失败卡，冻结答案与引用做 1 次批量改写 + 1 次子集复审；剩余缺口最多跑 fillRounds = 2 轮后诚实收敛。"}],"suite":{"totalFiles":1300,"fastFiles":1104,"slowUniqueFiles":196,"browserFiles":119,"ffmpegFiles":3,"cliFiles":80,"weightedFiles":1170,"medianWeightMs":430,"items":[[1,0],[2,0],[3,0],[1,0],[6,0],[1,0],[2,0],[22,0],[7,1],[17,0],[1,0],[1,0],[1,0],[1,0],[26,0],[4,0],[16,0],[5,0],[8,0],[25,0],[1,0],[1,0],[1,0],[14,0],[11,0],[12,0],[1,0],[40,0],[40,0],[1,0],[31,0],[832,4,"audio-batch.runtime"],[832,4,"audio-batch"],[31,0],[3,0],[1,0],[1,0],[34,0],[34,0],[99,0],[99,0],[10,0],[10,0],[14,0],[14,0],[13,0],[13,0],[1,0],[66,0],[12,0],[1,6,"audio-ogg-ffmpeg"],[10,0],[4,0],[1,0],[3,0],[221,0,"audio-pool.runtime"],[221,0,"audio-pool"],[1,0],[6,0],[103,4],[103,4],[1,0],[1,0],[69,4],[1,0],[3,0],[9,0],[6,0],[2,0],[6,0],[4,0],[6,0],[2,0],[5,0],[5,0],[3,0],[156,0],[71,0],[70,0],[1,0],[1,0],[4,0],[4,0],[4,0],[4,0],[4,0],[4,0],[4,0],[4,0],[4,0],[4,0],[4,0],[6,1],[2,0],[4,0],[4,0],[4,0],[9,0],[17,0],[28,0],[55,0],[1,0],[18,0],[1,0],[2,0],[53,0],[4,0],[4,0],[4,0],[1,0],[23,0],[4,0],[4,0],[4,0],[3,0],[7,1],[1,0],[102,0],[1,0],[4,0],[4,0],[54,0],[1,0],[6,0],[8,1],[3,0],[1,0],[15,1,"calculation-guidance-browser"],[8,0],[1,0],[3,0],[8,0],[4,0],[2,0],[1,0],[16,4],[2,0],[1,0],[1,0],[47,0],[16,0],[1,0],[4,0],[4,0],[56,0],[56,0],[4,0],[89,0],[89,0],[4,0],[4,0],[1,0],[12,0],[6,5],[2,0],[418,4,"convert-edit"],[4,0],[2,0],[12,0],[1,0],[9,1],[79,0],[1,0],[4,0],[1,0],[7,1],[4,1],[7,1],[23,0],[8,1],[1,0],[62,0],[8,1],[1,0],[83,0],[7,1],[1,4],[1,0],[13,0],[22,0],[8,1],[7,1],[4,0],[288,0,"course-book-job"],[6,1],[1,0],[90,0],[7,1],[1,0],[64,0],[6,1],[3,0],[1,0],[7,1],[173,0],[25,0],[6,1],[332,0,"course-book-structure"],[5,0],[1,0],[12,0],[3,0],[4,0],[4,0],[7,1],[4,0],[1,0],[7,1],[51,0],[138,0],[5,0],[22,0],[14,0],[49,0],[2,0],[1,0],[8,1],[1,0],[1,0],[93,0],[7,0],[7,0],[1,0],[1,0],[1,0],[4,0],[56,0],[23,0],[1,0],[1,0],[1,0],[1,0],[477,0,"coverage-run-exec"],[4,0],[146,0],[5,0],[28,0],[1,0],[1,0],[35,0],[5,0],[11,0],[1,0],[3,0],[1,0],[1,0],[7,0],[1,0],[1,0],[1,0],[3,0],[4,0],[4,0],[4,0],[4,0],[4,0],[4,0],[4,0],[4,0],[4,1],[4,0],[4,0],[4,1],[4,0],[4,0],[4,1],[4,0],[4,0],[4,0],[4,0],[4,0],[4,1],[4,0],[4,0],[4,0],[4,0],[4,1],[4,0],[7,0],[32,0],[12,1],[8,0],[7,0],[1,0],[39,0],[2,0],[10,1],[2,0],[3,0],[11,1],[6,0],[6,0],[2,0],[2,0],[77,0],[77,0],[4,0],[4,0],[21,0],[13,1,"deck-archive-browser"],[3,0],[60,0],[1,0],[1,0],[1,0],[16,0],[1,0],[20,1,"delete-d2-browser"],[1,0],[19,0],[3,0],[5,0],[1,0],[4,0],[1,0],[3,0],[13,0],[1,0],[19,1,"document-toolbar-button-browser"],[84,4],[1,0],[1,0],[4,1],[4,0],[5,0],[5,0],[13,0],[13,0],[5,0],[10,0],[3,0],[11,0],[35,0],[1,0],[1,0],[122,0],[3,4],[12,0],[7,1],[1,0],[6,0],[1,0],[5,0],[1,0],[2,0],[1,0],[10,0],[1,0],[1,0],[11,0],[3,0],[7,1],[9,0],[6,0],[2,0],[2,0],[8,4],[1,0],[36,0],[3,0],[1,0],[4,1],[4,0],[4,0],[4,0],[25,0],[7,1],[2,0],[7,1],[3,0],[2,0],[8,1],[4,0],[4,1],[4,0],[4,0],[8,0],[4,0],[3,0],[4,0],[4,0],[4,0],[9,1],[4,0],[1,0],[12,0],[1,0],[1,0],[12,0],[25,0],[7,0],[20,0],[1,0],[29,0],[1,0],[8,1],[1,0],[4,0],[4,0],[7,1],[5,0],[1,0],[8,0],[1,0],[1,0],[1,0],[1,0],[15,0],[15,0],[15,0],[10,0],[10,0],[25,0],[7,0],[9,0],[6,0],[199,0],[4,0],[9,0],[5,0],[1,0],[1,0],[6,0],[1,0],[31,0],[10,0],[1,0],[2,0],[1,0],[5,0],[1,0],[20,0],[20,0],[123,0],[637,0,"generation-restart"],[6,0],[150,0],[506,4,"generation-run-crash-replace"],[387,4,"generation-run-crash-short"],[1402,4,"generation-run-crash"],[1,0],[1,0],[185,0],[71,0],[3,0],[9,0],[3,0],[12,0],[12,0],[17,0],[1,0],[8,0],[5,0],[10,0],[4,1],[1,0],[1,6,"groq-split"],[10,0],[1,0],[1,0],[5,0],[1,0],[6,0],[1,0],[73,1,"guided-drafts-browser"],[1,0],[15,0],[8,0],[1,0],[1,0],[1,0],[12,0],[1,0],[1,0],[4,0],[10,0],[1,0],[7,1],[7,1],[3,0],[7,1],[14,0],[1,0],[1,0],[4,0],[4,0],[1,0],[5,0],[1,0],[4,1],[5,0],[1,0],[42,0],[8,0],[55,1,"host-boot-lazy-browser"],[1,0],[8,1],[2,0],[31,0],[1,0],[1,0],[6,1],[1,0],[8,0],[4,0],[4,0],[1,0],[4,1],[4,0],[8,1],[1,0],[1,0],[3,0],[2,0],[1,0],[1,0],[24,0],[37,0],[1,0],[60,0],[1,0],[45,0],[17,0],[4,0],[153,0],[4,0],[1,0],[12,4],[18,4],[6,0],[13,0],[13,0],[6,0],[8,4],[13,0],[3,0],[21,4],[4,0],[9,0],[10,0],[10,0],[7,0],[4,0],[9,0],[2,0],[1,0],[2,0],[10,0],[2,0],[5,0],[1,0],[1,0],[92,0],[92,0],[17,0],[17,0],[17,0],[17,0],[30,0],[3,0],[44,0],[18,0],[8,1],[21,0],[1,0],[1,0],[5,0],[1,0],[9,0],[5,0],[176,0],[5,0],[3,0],[1,0],[1,0],[13,0],[2,0],[2,0],[13,1,"layout-late-picker"],[8,1],[8,1],[8,1],[8,1],[7,1],[1,0],[2,0],[4,0],[1,0],[2,0],[9,1],[1,0],[2,0],[1,0],[72,0],[19,0],[12,0],[5,0],[1,0],[10,0],[4,4],[1,0],[4,0],[4,0],[4,0],[4,0],[4,0],[4,0],[4,0],[129,0],[20,4],[10,1],[110,0],[35,0],[130,0],[130,0],[130,0],[18,0],[21,4],[1,0],[18,0],[18,4],[18,0],[159,4],[31,0],[96,4],[96,4],[10,0],[62,4],[62,4],[1,0],[1,0],[1,0],[18,0],[5,0],[15,0],[15,4],[8,0],[14,0],[12,0],[36,0],[26,0],[1,0],[334,4,"mineru-adaptive-service.runtime"],[334,4,"mineru-adaptive-service"],[3,0],[161,4],[1,0],[15,4],[2,0],[133,4],[339,4,"mineru-history-service.runtime"],[339,4,"mineru-history-service"],[3,0],[37,0],[333,4,"mineru-install-service.runtime"],[333,4,"mineru-install-service"],[43,0],[235,4,"mineru-install"],[13,0],[170,4],[38,4],[1,0],[202,4,"mineru-local-service.runtime"],[202,4,"mineru-local-service"],[83,4],[1,0],[1,0],[50,0],[50,4],[4,4],[14,0],[1,0],[16,0],[16,0],[12,0],[12,0],[12,0],[12,0],[32,0],[32,0],[17,0],[17,0],[14,0],[4,0],[8,1],[5,0],[1,0],[3,0],[4,1],[4,1],[7,1],[1,0],[7,1],[1,0],[6,1],[1,0],[7,1],[1,0],[7,0],[1,0],[8,0],[6,0],[6,0],[23,4],[40,4],[16,0],[1,0],[1,0],[1,0],[3,0],[1,0],[3,0],[7,0],[3,0],[2,0],[12,1],[18,1,"open-in-sidebar"],[4,0],[8,0],[353,4,"original-attach"],[4,1],[4,1],[4,4],[4,0],[4,0],[4,0],[2,0],[4,4],[4,4],[1,0],[1,0],[24,0],[1,0],[1,0],[1,0],[7,1],[3,0],[4,0],[6,0],[1,1],[1,0],[1,0],[4,0],[4,0],[1,0],[1,0],[16,0],[11,0],[5,0],[7,0],[1,0],[1,0],[8,5],[2,0],[4,0],[794,4,"perf-budget"],[13,0],[1,0],[4,0],[1,0],[10,0],[4,0],[24,0],[1,0],[3,0],[4,0],[14,0],[4,0],[1,0],[10,0],[4,0],[4,0],[1,0],[10,0],[1,0],[38,0],[2,0],[3,0],[4,0],[27,0],[11,0],[1,0],[1,0],[3,0],[1,0],[10,0],[10,0],[13,0],[7,1],[1,0],[7,1],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[6,1],[7,1],[1,0],[1,0],[7,1],[1,0],[7,1],[5,0],[7,1],[1,0],[3,0],[4,1],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[2,0],[1,0],[4,0],[4,0],[8,1],[2,0],[2,0],[11,0],[1,4],[3,0],[8,1],[8,0],[1,0],[27,0],[4,0],[4,0],[39,1,"review-run-context-browser"],[2,0],[1,0],[4,0],[3,0],[1,0],[87,0],[11,0],[5,0],[1,0],[28,0],[7,1],[1,0],[58,0],[1,0],[15,0],[1,0],[1,0],[2,0],[1,0],[3,0],[16,0],[3,0],[2,0],[2,0],[4,0],[15,1,"science-settings-browser"],[3,0],[4,1],[4,0],[2,0],[5,0],[1,0],[1,0],[1,0],[3,0],[1,1],[1,0],[2,0],[49,0],[5,0],[9,0],[1,0],[3,0],[1,0],[6,1],[9,0],[1,0],[1,0],[1,0],[4,0],[29,0],[1,0],[1,0],[9,0],[7,0],[20,0],[31,0],[2,0],[10,0],[1,0],[9,0],[2,0],[10,0],[18,0],[11,0],[4,0],[12,0],[1,0],[3,0],[6,1],[1,0],[3,0],[4,0],[4,0],[10,0],[34,4],[1,0],[1,0],[4,0],[16,0],[11,1],[1,0],[1,0],[2,0],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[2,0],[9,0],[9,0],[1,0],[7,0],[1,0],[1,0],[3,0],[9,0],[1,0],[8,1],[4,0],[1,0],[2,0],[3,0],[2,0],[1,0],[2,0],[1,0],[1,0],[2,0],[2,0],[8,1],[6,0],[1,0],[1,0],[4,4],[49,4],[33,4],[13,4],[110,4],[1,0],[1,0],[7,0],[1,0],[4,1],[4,0],[1,0],[8,0],[6,0],[1,0],[8,1],[1,0],[4,1],[1,0],[43,0],[43,0],[43,0],[43,0],[1,0],[1,0],[12,0],[1,0],[4,0],[1,0],[42,0],[1,0],[1,0],[1,0],[23,0],[1,0],[1,0],[16,1,"undoable-browser"],[1,0],[1,0],[3,0],[24,0],[151,0],[7,0],[9,0],[1017,4,"unified-runtime-audio-batch"],[996,0,"unified-runtime-audio-console-mixed"],[215,0,"unified-runtime-audio-console-off"],[688,0,"unified-runtime-audio-console-on"],[1,0],[1,0],[160,0],[244,4,"unified-runtime-audio-pilot"],[20,0],[203,4,"unified-runtime-audio-rollforward"],[109,0],[11,0],[50,0],[30,4],[19,0],[1,0],[3,0],[26,4],[20,0],[1,0],[2,0],[1,0],[1,0],[8,4],[1,0],[165,0],[135,0],[81,0],[1,0],[1,0],[9,0],[40,0],[2,0],[32,0],[1,0],[4,0],[31,0],[2,0],[1,0],[6,0],[37,4],[23,4],[4,0],[1,0],[133,0],[2,0],[15,0],[611,4,"unified-runtime-nonaudio-console"],[17,0],[1,0],[272,4,"unified-runtime-nonmodel-family"],[4,0],[64,4],[10,0],[6,0],[7,0],[1,0],[77,0],[221,4,"unified-runtime-pdf-convert"],[177,4],[1,0],[36,0],[13,4],[1,0],[10,0],[15,0],[71,0],[1,0],[1,0],[1,0],[1,0],[23,0],[3,0],[5,0],[3,0],[3,0],[1,0],[58,0],[1,0],[4,0],[11,0],[90,0],[27,0],[185,0],[25,0],[4,0],[15,0],[6,0],[4,0],[1,0],[54,0],[3,0],[15,0],[1,0],[5,0],[3,0],[4,1],[1,0],[1,0],[1,0],[2,0],[1,1],[1,0],[11,0],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[1,0],[41,1,"wave4-daily-plan-ui"],[3,0],[1,1],[2,0],[1,1],[1,0],[15,1,"wave4-menu"],[1,0],[17,1,"wave4-review-reveal"],[1,0],[15,1,"wave4-teaching-status"],[1,0],[2,0],[1,0],[1,0],[1,0],[2,0],[1,0],[4,0],[1,0],[1,0],[1,0],[18,0],[4,0],[8,1],[4,0],[1,0],[1,0],[12,0],[12,0],[5,0],[5,0],[20,0],[20,0],[5,0],[1,0],[28,0],[1,0],[5,0],[23,0],[29,0],[3,0],[1,0],[1,1],[1,0],[2,0],[6,0],[1,1],[1,0],[1,0],[1,0],[1,0],[57,0],[15,0],[11,0],[1,5],[1,0],[1,0],[1,0],[1,0],[3,0],[6,0],[24,0],[7,0],[3,0],[1,0],[1,0],[18,0],[1,0],[15,0],[5,0],[3,0],[2,0],[1,0],[4,0],[7,0],[1,0],[3,0],[2,0],[1,0],[3,0],[2,0],[40,0],[1,0],[1,0],[1,0],[4,0],[1,0],[3,0],[3,0],[17,0],[1,0],[3,0],[1,0],[2,0],[1,0],[1,0],[5,0],[10,0],[1,0],[1,0],[24,0],[3,0],[1,0],[1,0],[9,0],[43,0],[1,0],[3,0],[1,0],[3,0],[1,0],[49,0],[10,0],[9,0],[3,0],[6,0],[22,0],[11,0],[7,0],[3,0],[14,0],[1,0],[6,0],[6,0],[28,0],[1,0],[1,0],[4,0],[2,0],[58,0],[1,0],[1,0],[111,4],[3,0],[13,0],[13,0],[4,0],[5,0],[2,0],[1,0],[1,0],[1,0],[2,0],[1,0],[6,0],[1,0],[13,1],[2,0],[1,0],[1,0],[1,0],[1,0],[2,0],[1,0],[1,0],[1,0],[1,0],[3,0],[6,0],[5,0],[1,0],[5,0],[1,0],[5,0],[6,0],[22,0],[25,1,"wp5-tour-steps"],[1,0],[3,0],[5,6,"wp6-m4a"],[8,0],[4,0],[1,0],[3,0],[8,0],[1,0],[2,0],[1,0],[21,0],[2,0],[1,0],[4,1],[4,0],[8,1],[8,0],[3,0],[1,0],[4,0]]},"i18n":{"themeToDark":"深色砚台","themeToLight":"浅色纸面","ownedLabel":"拥有状态与存储边界","depsLabel":"声明式只读端口与跨上下文授权","opsLabel":"暴露能力与操作集","sourceLabel":"源码定位（v4.4.4）","stageBadge":"阶段","budgetLabel":"有界调用与重试上限","inputLabel":"输入契约","outputLabel":"输出契约","gateLabel":"确定性门禁与独立审阅机制","caughtAt":"拦截 / 挽救于第","levelNames":{"new":"未学","weak":"薄弱","learning":"学习中","familiar":"熟悉","mastered":"已掌握"},"gradeNames":{"1":"重来 (1)","3":"勉强 (3)","4":"熟练 (4)","5":"轻松 (5)"},"noReviewsYet":"尚未作答 —— 当前展示该目标保持率下连续 6 次「熟练 (4)」的默认预测曲线；点击上方任一评分按钮开始实时推演。","historyPrefix":"实时作答轨迹","dayUnit":"天","reviewLabel":"第 ","reviewSuffix":" 次","nextDuePrefix":"下次复习间隔","daysWord":"天","focusActive":"已开启重点提频（+0.04）","focusOff":"常规目标保持率","ruleNew":"尚未作答（repetitions = 0）→ 未学（new）。","ruleWeak":"最近一次有效作答 \u003c 3 分 → 薄弱（weak，连对归零，已学卡计一次遗忘 lapse）。","ruleEasy5":"自评 5 分（轻松掌握）→ 立即标为已掌握（mastered），同时继续按 FSRS-6 间隔排期复习。","ruleMastered":"间隔 ≥ 21 天且连续答对 ≥ 2 次 → 已掌握（mastered）。","ruleFamiliar":"间隔 ≥ 6 天（未满 21 天 + 连对 2 次）→ 熟悉（familiar）。","ruleLearning":"最近作答 ≥ 3 分且间隔 \u003c 6 天 → 学习中（learning）。","shardTitlePrefix":"分片","ofWord":"/","filesWord":"个测试文件","estWeightWord":"权重耗时","balanceWord":"最大/最小负载均衡比","heaviestWord":"当前选中分片内最重的测试文件","noMatchingFiles":"当前筛选层级下该分片无测试文件。","subTierCmdComment":"# CLI --shard=I/N 作用于全量（或 --fast）套件；单独运行该慢速子集请显式传入文件：","tierNames":{"all":"全量测试集","fast":"快速层（--fast）","slow":"全部慢速层文件","browser":"浏览器层（Playwright）","ffmpeg":"音视频层（FFmpeg）","cli":"子进程 / CLI 层"}}}</script>
+</main>
+</div>
+
+<footer>
+  <span>StudyHub 4.4.4 · MIT 开源学习工作台 · 本页零外部脚本与零网络请求</span>
+  <span>所有排期数字由浏览器端真实打包的 <code>lib/sm2.js</code> 与 <code>lib/mastery.js</code> 实时算出。</span>
+</footer>
+
+<script src="assets/site-demo.js"></script>
+<script>
+(function () {
+  var dataEl = document.getElementById('explorer-data');
+  if (!dataEl) return;
+  var payload;
+  try { payload = JSON.parse(dataEl.textContent); } catch (_err) { return; }
+  var isEn = payload.lang === 'en';
+  var i18n = payload.i18n;
+
+  function esc(text) {
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* ── Theme Toggle (Ink-desk dark default + daylight paper light) ── */
+  var themeBtn = document.getElementById('themeToggle');
+  var themeText = document.getElementById('themeToggleText');
+  function currentTheme() {
+    var explicit = document.documentElement.getAttribute('data-theme');
+    if (explicit === 'light' || explicit === 'dark') return explicit;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    if (document.body) document.body.setAttribute('data-theme', theme);
+    if (themeBtn) themeBtn.setAttribute('aria-pressed', theme === 'light' ? 'true' : 'false');
+    if (themeText) {
+      themeText.textContent = theme === 'light' ? i18n.themeToDark : i18n.themeToLight;
+    }
+  }
+  if (themeBtn) {
+    applyTheme(currentTheme());
+    themeBtn.addEventListener('click', function () {
+      applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+    });
+  }
+
+  /* ── Rail Active Section Highlight ── */
+  var railLinks = Array.prototype.slice.call(document.querySelectorAll('[data-rail-link]'));
+  function setActiveRail(id) {
+    railLinks.forEach(function (link) {
+      var match = link.getAttribute('data-rail-link') === id;
+      link.classList.toggle('is-active', match);
+      if (match) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
+    });
+  }
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) setActiveRail(entry.target.id);
+      });
+    }, { rootMargin: '-20% 0px -65% 0px' });
+    ['overview', 'pipeline', 'fsrs', 'testing'].forEach(function (id) {
+      var sec = document.getElementById(id);
+      if (sec) io.observe(sec);
+    });
+  }
+
+  /* ── 1. Component & Context Map Explorer ── */
+  var nodeById = {};
+  payload.nodes.forEach(function (n) { nodeById[n.id] = n; });
+  var nodeButtons = Array.prototype.slice.call(document.querySelectorAll('[data-node-id]'));
+  var filterButtons = Array.prototype.slice.call(document.querySelectorAll('[data-map-filter]'));
+  var clusters = Array.prototype.slice.call(document.querySelectorAll('[data-cluster]'));
+
+  function selectNode(nodeId) {
+    var node = nodeById[nodeId];
+    if (!node) return;
+    nodeButtons.forEach(function (btn) {
+      var active = btn.getAttribute('data-node-id') === nodeId;
+      btn.classList.toggle('is-selected', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    document.getElementById('inspBadge').textContent = node.badge;
+    document.getElementById('inspCode').textContent = node.label;
+    document.getElementById('inspTitle').textContent = node.title;
+    document.getElementById('inspSummary').textContent = node.summary;
+    document.getElementById('inspOwned').innerHTML = node.owned.map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(' ');
+    document.getElementById('inspDeps').innerHTML = node.deps.map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(' ');
+    document.getElementById('inspOps').innerHTML = '<code>' + esc(node.ops) + '</code>';
+    document.getElementById('inspLinks').innerHTML = node.links.map(function (pair) {
+      return '<a class="src-link" href="' + esc(payload.repoBlob + '/' + pair[0]) + '" target="_blank" rel="noopener">' + esc(pair[1]) + ' ↗</a>';
+    }).join(' ');
+  }
+
+  nodeButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      selectNode(btn.getAttribute('data-node-id'));
+    });
+  });
+
+  filterButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var group = btn.getAttribute('data-map-filter');
+      filterButtons.forEach(function (b) {
+        var on = b === btn;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      clusters.forEach(function (cluster) {
+        var show = group === 'all' || cluster.getAttribute('data-cluster') === group;
+        cluster.hidden = !show;
+      });
+      var selected = document.querySelector('.arch-node.is-selected');
+      if (!selected || selected.closest('[hidden]')) {
+        var firstVisible = document.querySelector('.node-cluster:not([hidden]) .arch-node');
+        if (firstVisible) selectNode(firstVisible.getAttribute('data-node-id'));
+      }
+    });
+  });
+
+  /* ── 2. Reliable Generation Pipeline Stepper & Failure Lab ── */
+  var stageByStep = {};
+  payload.stages.forEach(function (s) { stageByStep[s.step] = s; });
+  var stageButtons = Array.prototype.slice.call(document.querySelectorAll('[data-stage-step]'));
+  var failureButtons = Array.prototype.slice.call(document.querySelectorAll('[data-failure-mode]'));
+  var failureById = {};
+  payload.failures.forEach(function (f) { failureById[f.id] = f; });
+
+  function selectStage(stepNum) {
+    var stage = stageByStep[Number(stepNum)];
+    if (!stage) return;
+    stageButtons.forEach(function (btn) {
+      var on = Number(btn.getAttribute('data-stage-step')) === stage.step;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.getElementById('pipeBadge').textContent = i18n.stageBadge + ' 0' + stage.step + ' / 05';
+    document.getElementById('pipeTitle').textContent = stage.title;
+    document.getElementById('pipeSrc').innerHTML = '<a class="src-link" href="' + esc(payload.repoBlob + '/' + stage.file) + '" target="_blank" rel="noopener">' + esc(stage.file) + ' ↗</a>';
+    document.getElementById('pipeSummary').textContent = stage.summary;
+    document.getElementById('pipeBudget').textContent = stage.budget;
+    document.getElementById('pipeInput').innerHTML = '<code>' + esc(stage.inputShape) + '</code>';
+    document.getElementById('pipeOutput').innerHTML = '<code>' + esc(stage.outputShape) + '</code>';
+    document.getElementById('pipeGate').textContent = stage.gate;
+  }
+
+  stageButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      selectStage(btn.getAttribute('data-stage-step'));
+    });
+  });
+
+  failureButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var mode = failureById[btn.getAttribute('data-failure-mode')];
+      if (!mode) return;
+      failureButtons.forEach(function (b) {
+        var on = b === btn;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      document.getElementById('failStageTag').textContent = isEn
+        ? (i18n.caughtAt + ' ' + mode.targetStage)
+        : (i18n.caughtAt + ' ' + mode.targetStage + ' ' + i18n.stageBadge);
+      document.getElementById('failWhat').textContent = mode.what;
+      document.getElementById('failDefense').textContent = mode.defense;
+      selectStage(mode.targetStage);
+    });
+  });
+
+  /* ── 3. Live FSRS-6 & Mastery Simulator ── */
+  var demo = window.STUDY_DEMO;
+  var retInput = document.getElementById('fsrsRetention');
+  var retOut = document.getElementById('fsrsRetentionOut');
+  var focusBtn = document.getElementById('fsrsFocusToggle');
+  var effNote = document.getElementById('fsrsEffectiveNote');
+  var resetBtn = document.getElementById('fsrsReset');
+  var gradeButtons = Array.prototype.slice.call(document.querySelectorAll('[data-fsrs-grade]'));
+
+  if (demo && retInput) {
+    var fsrsState = {
+      review: demo.initialReview(),
+      lastGrade: undefined,
+      at: '2026-01-01T00:00:00.000Z',
+      history: [],
+      retention: Number(retInput.value) || 0.9,
+      isFocus: false,
+    };
+
+    function effectiveSettings() {
+      return demo.focusScheduleSettings({
+        request_retention: fsrsState.retention,
+        maximum_interval: demo.defaults.maximum_interval,
+      }, { isFocus: fsrsState.isFocus });
+    }
+
+    function explainLevel(level, grade) {
+      if (level === 'new') return i18n.ruleNew;
+      if (level === 'weak') return i18n.ruleWeak;
+      if (grade === 5 && level === 'mastered') return i18n.ruleEasy5;
+      if (level === 'mastered') return i18n.ruleMastered;
+      if (level === 'familiar') return i18n.ruleFamiliar;
+      return i18n.ruleLearning;
+    }
+
+    function renderFsrs() {
+      var cfg = effectiveSettings();
+      retOut.textContent = fsrsState.retention.toFixed(2);
+      focusBtn.classList.toggle('is-active', fsrsState.isFocus);
+      focusBtn.setAttribute('aria-pressed', fsrsState.isFocus ? 'true' : 'false');
+      effNote.textContent = (fsrsState.isFocus ? i18n.focusActive : i18n.focusOff) + ': ' + cfg.request_retention.toFixed(2);
+
+      var hints = demo.nextIntervals(fsrsState.review, fsrsState.at, cfg);
+      [1, 3, 4, 5].forEach(function (g) {
+        var hintEl = document.querySelector('[data-grade-hint="' + g + '"]');
+        if (hintEl) hintEl.textContent = '+' + hints[g] + i18n.dayUnit;
+      });
+
+      var mem = demo.memoryState(fsrsState.review, Date.parse(fsrsState.at));
+      var level = demo.cardLevel({ review: fsrsState.review }, fsrsState.lastGrade);
+      document.getElementById('fsrsStability').textContent = (mem.isNew ? '0.00' : mem.stability.toFixed(2)) + i18n.dayUnit;
+      document.getElementById('fsrsDifficulty').textContent = mem.isNew ? '—' : mem.difficulty.toFixed(2);
+      document.getElementById('fsrsInterval').textContent = (fsrsState.review.interval_days || 0) + i18n.dayUnit;
+      document.getElementById('fsrsStreak').textContent = (fsrsState.review.repetitions || 0) + ' / ' + (fsrsState.review.lapses || 0);
+
+      var badge = document.getElementById('fsrsMasteryBadge');
+      badge.setAttribute('data-level', level);
+      badge.textContent = i18n.levelNames[level];
+      document.getElementById('fsrsRuleText').textContent = explainLevel(level, fsrsState.lastGrade);
+
+      var titleEl = document.getElementById('fsrsTimelineTitle');
+      var barsEl = document.getElementById('fsrsTimelineBars');
+      if (fsrsState.history.length === 0) {
+        titleEl.textContent = i18n.noReviewsYet;
+        var preview = demo.previewSchedule(cfg, { grade: 4, reviews: 6 }) || [];
+        barsEl.innerHTML = preview.map(function (pt) {
+          var tone = pt.interval >= demo.MASTERED_DAYS && pt.review >= demo.MASTERED_STREAK
+            ? 'mastered'
+            : (pt.interval >= demo.FAMILIAR_DAYS ? 'familiar' : 'learning');
+          var widthPct = Math.min(100, Math.max(8, Math.round((Math.log(pt.interval + 1) / Math.log(180)) * 100)));
+          var stepLbl = i18n.reviewLabel + pt.review + i18n.reviewSuffix;
+          var valLbl = '+' + pt.interval + i18n.dayUnit + ' (' + (isEn ? ('day ' + pt.day) : ('Σ ' + pt.day + i18n.dayUnit)) + ')';
+          return '<div class="t-bar-row"><span class="t-bar-step">' + esc(stepLbl) + '</span>' +
+            '<span class="t-bar-track"><span class="t-bar-fill" data-tone="' + tone + '" style="width:' + widthPct + '%"></span></span>' +
+            '<strong class="t-bar-val">' + esc(valLbl) + '</strong></div>';
+        }).join('');
+      } else {
+        var last = fsrsState.history[fsrsState.history.length - 1];
+        titleEl.textContent = i18n.historyPrefix + ' (' + fsrsState.history.length + ') · ' + i18n.nextDuePrefix + ' ' + last.interval + ' ' + i18n.daysWord;
+        barsEl.innerHTML = fsrsState.history.slice(-8).map(function (item) {
+          var widthPct = Math.min(100, Math.max(8, Math.round((Math.log(item.interval + 1) / Math.log(180)) * 100)));
+          var stepLbl = '#' + item.step + ' ' + i18n.gradeNames[item.grade];
+          var valLbl = '+' + item.interval + i18n.dayUnit + ' · S=' + item.stability.toFixed(1);
+          return '<div class="t-bar-row"><span class="t-bar-step">' + esc(stepLbl) + '</span>' +
+            '<span class="t-bar-track"><span class="t-bar-fill" data-tone="' + item.level + '" style="width:' + widthPct + '%"></span></span>' +
+            '<strong class="t-bar-val">' + esc(valLbl) + '</strong></div>';
+        }).join('');
+      }
+    }
+
+    gradeButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var g = Number(btn.getAttribute('data-fsrs-grade'));
+        var cfg = effectiveSettings();
+        fsrsState.review = demo.schedule(fsrsState.review, g, fsrsState.at, cfg);
+        fsrsState.lastGrade = g;
+        fsrsState.at = fsrsState.review.due_at;
+        var lvl = demo.cardLevel({ review: fsrsState.review }, g);
+        fsrsState.history.push({
+          step: fsrsState.history.length + 1,
+          grade: g,
+          interval: fsrsState.review.interval_days,
+          stability: fsrsState.review.stability,
+          difficulty: fsrsState.review.difficulty,
+          level: lvl,
+        });
+        renderFsrs();
+      });
+    });
+
+    retInput.addEventListener('input', function () {
+      fsrsState.retention = Number(retInput.value);
+      renderFsrs();
+    });
+
+    focusBtn.addEventListener('click', function () {
+      fsrsState.isFocus = !fsrsState.isFocus;
+      renderFsrs();
+    });
+
+    resetBtn.addEventListener('click', function () {
+      fsrsState.review = demo.initialReview();
+      fsrsState.lastGrade = undefined;
+      fsrsState.at = '2026-01-01T00:00:00.000Z';
+      fsrsState.history = [];
+      renderFsrs();
+    });
+
+    renderFsrs();
+  }
+
+  /* ── 4. Deterministic Offline Test & LPT Sharding Explorer ── */
+  var tierButtons = Array.prototype.slice.call(document.querySelectorAll('[data-test-tier]'));
+  var shardSlider = document.getElementById('shardCountSlider');
+  var shardOut = document.getElementById('shardCountOut');
+  var shardBars = document.getElementById('shardBars');
+
+  if (shardSlider && shardBars && payload.suite && Array.isArray(payload.suite.items)) {
+    var testState = {
+      tier: 'all',
+      count: Number(shardSlider.value) || 8,
+      selected: 1,
+    };
+
+    function matchesTier(mask, tier) {
+      if (tier === 'all') return true;
+      if (tier === 'fast') return mask === 0;
+      if (tier === 'slow') return mask !== 0;
+      if (tier === 'browser') return (mask & 1) !== 0;
+      if (tier === 'ffmpeg') return (mask & 2) !== 0;
+      if (tier === 'cli') return (mask & 4) !== 0;
+      return true;
+    }
+
+    function computeShards() {
+      var filtered = payload.suite.items.filter(function (item) {
+        return matchesTier(item[1], testState.tier);
+      });
+      var count = Math.max(1, Math.min(testState.count, Math.max(1, filtered.length)));
+      var loads = [];
+      var buckets = [];
+      for (var s = 0; s < count; s++) { loads.push(0); buckets.push([]); }
+      var sorted = filtered.slice().sort(function (a, b) { return b[0] - a[0]; });
+      sorted.forEach(function (item) {
+        var minIdx = 0;
+        for (var i = 1; i < count; i++) if (loads[i] < loads[minIdx]) minIdx = i;
+        loads[minIdx] += item[0];
+        buckets[minIdx].push(item);
+      });
+      return { count: count, loads: loads, buckets: buckets };
+    }
+
+    function renderShards() {
+      shardOut.textContent = String(testState.count);
+      var plan = computeShards();
+      if (testState.selected > plan.count) testState.selected = 1;
+      var maxLoad = Math.max.apply(null, plan.loads.concat([1]));
+      var minLoad = Math.min.apply(null, plan.loads);
+      var ratio = minLoad > 0 ? (maxLoad / minLoad).toFixed(2) + 'x' : '1.00x';
+
+      shardBars.innerHTML = plan.buckets.map(function (bucket, idx) {
+        var shardNum = idx + 1;
+        var loadSec = (plan.loads[idx] / 10).toFixed(1);
+        var pct = Math.max(6, Math.round((plan.loads[idx] / maxLoad) * 100));
+        var active = shardNum === testState.selected;
+        return '<button type="button" class="shard-row' + (active ? ' is-selected' : '') + '" data-shard-index="' + shardNum + '" aria-pressed="' + (active ? 'true' : 'false') + '">' +
+          '<span class="shard-lbl">#' + shardNum + '/' + plan.count + '</span>' +
+          '<span class="shard-track"><span class="shard-fill" style="width:' + pct + '%"></span></span>' +
+          '<span class="shard-meta">' + bucket.length + ' · ' + loadSec + 's</span>' +
+          '</button>';
+      }).join('');
+
+      Array.prototype.slice.call(shardBars.querySelectorAll('[data-shard-index]')).forEach(function (row) {
+        row.addEventListener('click', function () {
+          testState.selected = Number(row.getAttribute('data-shard-index'));
+          renderShards();
+        });
+      });
+
+      var chosenIdx = testState.selected - 1;
+      var chosenBucket = plan.buckets[chosenIdx] || [];
+      var chosenSec = ((plan.loads[chosenIdx] || 0) / 10).toFixed(1);
+      document.getElementById('shardInspTitle').textContent = i18n.shardTitlePrefix + ' ' + testState.selected + ' ' + i18n.ofWord + ' ' + plan.count +
+        ' · ' + i18n.tierNames[testState.tier] + ' (' + chosenBucket.length + ' ' + i18n.filesWord + ', ' + chosenSec + 's)';
+      document.getElementById('shardBalanceChip').textContent = i18n.balanceWord + ': ' + ratio;
+
+      var named = chosenBucket.filter(function (it) { return it[2]; }).slice(0, 6);
+      var cmd;
+      if (testState.tier === 'all') {
+        cmd = plan.count > 1 ? ('node scripts/test.mjs --shard=' + testState.selected + '/' + plan.count) : 'node scripts/test.mjs';
+      } else if (testState.tier === 'fast') {
+        cmd = plan.count > 1 ? ('node scripts/test.mjs --fast --shard=' + testState.selected + '/' + plan.count) : 'npm run test:fast';
+      } else {
+        var sampleArgs = named.slice(0, 2).map(function (it) { return 'tests/' + it[2] + '.test.mjs'; }).join(' ');
+        if (!sampleArgs) sampleArgs = 'tests/*.test.mjs';
+        cmd = i18n.subTierCmdComment + '\nnode scripts/test.mjs ' + sampleArgs + (chosenBucket.length > 2 ? ' ...' : '');
+      }
+      document.getElementById('shardCmd').textContent = cmd;
+
+      document.getElementById('shardHeavyList').innerHTML = named.length
+        ? named.map(function (it) { return '<code>tests/' + esc(it[2]) + '.test.mjs (' + (it[0] / 10).toFixed(1) + 's)</code>'; }).join(' ')
+        : '<code>' + esc(chosenBucket.length ? (chosenBucket.length + ' ' + i18n.filesWord) : i18n.noMatchingFiles) + '</code>';
+    }
+
+    tierButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        testState.tier = btn.getAttribute('data-test-tier');
+        testState.selected = 1;
+        tierButtons.forEach(function (b) {
+          var on = b === btn;
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        renderShards();
+      });
+    });
+
+    shardSlider.addEventListener('input', function () {
+      testState.count = Number(shardSlider.value);
+      renderShards();
+    });
+
+    renderShards();
+  }
+})();
+</script>
+</body>
+</html>

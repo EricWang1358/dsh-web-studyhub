@@ -1,10 +1,11 @@
-// Build the existing landing page as two standalone static pages, without CDN requests.
+// Build the landing pages and architecture explorer as four standalone static pages, without CDN requests.
 import { build } from 'esbuild';
 import { parse, serialize } from 'parse5';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { renderContent } from '../site/content.mjs';
+import { renderExplorerContent } from '../site/explorer-content.mjs';
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 export const SITE_OUTPUT = resolve(repositoryRoot, 'output/site-dist');
@@ -12,6 +13,7 @@ export async function buildSite({ outdir = SITE_OUTPUT } = {}) {
   const { version } = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8'));
   if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(version)) throw new Error('Invalid package version for the site');
   const source = (await readFile(join(repositoryRoot, 'site/index.html'), 'utf8')).replaceAll('2.5.10', version);
+  const explorerSource = (await readFile(join(repositoryRoot, 'site/explorer.html'), 'utf8')).replaceAll('4.4.4', version);
   await mkdir(join(outdir, 'assets'), { recursive: true });
   await build({ absWorkingDir: repositoryRoot, entryPoints: ['site/demo.mjs'], bundle: true, platform: 'browser',
     format: 'iife', target: 'es2020', minify: true, outfile: join(outdir, 'assets/site-demo.js') });
@@ -28,15 +30,33 @@ export async function buildSite({ outdir = SITE_OUTPUT } = {}) {
       for (const [zh, en] of Object.entries(SCRIPT_ENGLISH)) html = html.replaceAll(JSON.stringify(zh), JSON.stringify(en));
     }
     const tree = parse(html);
-    visit(tree, node => {
-      if (node.tagName === 'img') {
-        for (const attribute of node.attrs) {
-          if (attribute.name === 'src') images.add(attribute.value);
-          if (attribute.name === 'srcset') attribute.value.split(',').forEach(candidate => images.add(candidate.trim().split(/\s+/)[0]));
-        }
-      }
-    });
+    collectImages(tree, images);
     const name = lang === 'en' ? 'en.html' : 'index.html';
+    await writeFile(join(outdir, name), serialize(tree));
+    pages.push(name);
+  }
+  for (const lang of ['zh', 'en']) {
+    let html = explorerSource.replace(/<main(?:\s[^>]*)?>[\s\S]*?<\/main>/, () => renderExplorerContent(lang, { version }));
+    html = html.replace(/<html lang="[^"]*">/, `<html lang="${lang === 'en' ? 'en' : 'zh-CN'}">`)
+      .replace(/<title>[\s\S]*?<\/title>/, `<title>StudyHub ${version} — ${lang === 'en' ? 'Tech Stack & Open Learning Architecture Explorer' : '技术栈与开放式学习架构探索器'}</title>`);
+    if (lang === 'en') {
+      html = html.replace(/<meta name="description"[^>]*>/, `<meta name="description" content="Interactive explorer for StudyHub ${version}: plugins and 19 StudyRuntime contexts, 5-stage grounded generation pipeline, live FSRS-6 scheduler, and zero-network deterministic LPT sharding.">`)
+        .replace('跳到正文', 'Skip to content')
+        .replace('href="index.html">← 返回产品主页', 'href="en.html">← Product overview')
+        .replace('aria-label="切换明暗主题"', 'aria-label="Toggle color theme"')
+        .replace('>浅色纸面<', '>Light paper desk<')
+        .replace('href="explorer-en.html" hreflang="en">English', 'href="explorer.html" hreflang="zh-CN" lang="zh-CN">简体中文')
+        .replace('aria-label="架构章节导航"', 'aria-label="Architecture sections"')
+        .replace('>组件与上下文<', '>Components &amp; Contexts<')
+        .replace('>五阶段出题<', '>5-Stage Pipeline<')
+        .replace('>FSRS-6 排期<', '>FSRS-6 &amp; Mastery<')
+        .replace('>离线分片测试<', '>Offline LPT Tests<')
+        .replace(`StudyHub ${version} · MIT 开源学习工作台 · 本页零外部脚本与零网络请求`, `StudyHub ${version} · MIT open-source learning workbench · zero external scripts or network calls`)
+        .replace('所有排期数字由浏览器端真实打包的 <code>lib/sm2.js</code> 与 <code>lib/mastery.js</code> 实时算出。', 'All scheduling readouts are computed in-browser by bundled <code>lib/sm2.js</code> and <code>lib/mastery.js</code>.');
+    }
+    const tree = parse(html);
+    collectImages(tree, images);
+    const name = lang === 'en' ? 'explorer-en.html' : 'explorer.html';
     await writeFile(join(outdir, name), serialize(tree));
     pages.push(name);
   }
@@ -47,6 +67,16 @@ export async function buildSite({ outdir = SITE_OUTPUT } = {}) {
   const report = { version, releaseStatus: 'local-preview', pages, assets: [...images, 'assets/site-demo.js'], externalRuntimeRequests: 0 };
   await writeFile(join(outdir, 'build-manifest.json'), JSON.stringify(report, null, 2) + '\n');
   return { outdir, ...report };
+}
+function collectImages(tree, images) {
+  visit(tree, node => {
+    if (node.tagName === 'img') {
+      for (const attribute of node.attrs) {
+        if (attribute.name === 'src') images.add(attribute.value);
+        if (attribute.name === 'srcset') attribute.value.split(',').forEach(candidate => images.add(candidate.trim().split(/\s+/)[0]));
+      }
+    }
+  });
 }
 function visit(node, inspect) { inspect(node); for (const child of node.childNodes || []) visit(child, inspect); }
 
