@@ -86,7 +86,8 @@ export function stageCodeLabel(code) {
 const STAGE_ROW_LABEL = { plan: '提取知识点与原文', blueprint: '确定答案与情景', author: '出题与自查', review: '独立审阅', repair: '修复题目' };
 /** The generation details' per-stage table: what each stage used (tokens, calls, seconds) next to what the estimate said, in stage order. */
 export function stageUsageRows(job = {}) {
-  const used = stageUsage(job), estimated = job.estimate?.stageTotals || {};
+  // The per-stage range the headline was the sum of (calibrated, thinking included), not the raw one the next ratio is read against (#771 gate L1).
+  const used = stageUsage(job), estimated = job.estimate?.shownStageTotals || job.estimate?.stageTotals || {};
   return USAGE_STAGES.filter((code) => used[code]).map((code) => ({ code, label: ui(STAGE_ROW_LABEL[code]), ...used[code],
     estimate: estimated[code] ? { low: estimated[code].low, high: estimated[code].high } : null }));
 }

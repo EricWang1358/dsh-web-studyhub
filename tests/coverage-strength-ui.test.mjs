@@ -30,7 +30,8 @@ const state = { sources: fx.sources, decks: [], drafts: [], settings: {} }, ids 
 const estimateOf = args => estimateFromState('generate', { sourceIds: ids, ...args }, state, { language: 'zh' });
 const render = (level, estimate, extra = {}) => renderToStaticMarkup(React.createElement(m.CoverageStrength, { level, customCount: '', onLevel: noop, onCustom: noop,
   state: estimate ? { status: 'ready', estimate } : { status: 'idle' }, stats: { materials: 2, pages: 0, chars: 572427 }, enabled: true, ...extra }));
-const lineOf = html => text(/<p class="token-estimate__line">([\s\S]*?)<\/p>/.exec(html)?.[1] || '');
+// The summary's parts are spans that only keep each part unbroken (ui/TokenUsage.jsx summaryParts); `text` turns a tag into a space, so they go first.
+const lineOf = html => text((/<p class="token-estimate__line">([\s\S]*?)<\/p>/.exec(html)?.[1] || '').replace(/<span class="token-estimate__part">|<\/span>/g, ''));
 
 test('the control: three levels and 自定义, 标准 on by default, the level said in words, the custom number only under 自定义', () => {
   const html = render('standard', estimateOf({ coverageLevel: 'standard' }));

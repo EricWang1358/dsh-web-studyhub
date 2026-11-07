@@ -9,6 +9,10 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { estimateFromState, compactEstimate, stageTotals, calibrateEstimate } from "../lib/token-estimate.js";
 import { calibrationDir, calibrationFor, createCalibration, learningOff, observedByStage, stageOfStep } from "../lib/estimate-calibration.js";
+import { DEFAULT_OUTPUT_PER_CALL } from "../lib/stage-usage.js";
+
+/** No assumed thinking allowance: the tests that check the arithmetic of the ratios alone (production always has the allowance, lib/token-estimate.js). */
+const NO_ASSUMPTION = Object.freeze({ stages: {}, samples: 0, defaults: {} });
 
 /* #218: the estimate learns from this library's own runs. Each finished generation job records, per stage, what it used against what was
    estimated; the median ratio of the last runs scales the next estimate (stage by stage), so the range covers what a run really costs here.
@@ -41,7 +45,7 @@ test("a calibrated estimate covers what this library's runs really used, stage b
   assert.ok(totals.plan && totals.author && totals.review, JSON.stringify(Object.keys(totals)));
   const calibration = createCalibration(root);
   assert.deepEqual((await calibration.factors()).stages, {}, "no runs, no correction");
-  assert.deepEqual(calibrateEstimate(raw, await calibration.factors()), raw, "an uncalibrated estimate is returned as it is");
+  assert.deepEqual(calibrateEstimate(raw, await calibration.factors(), NO_ASSUMPTION), raw, "an uncalibrated estimate is returned as it is");
   // The reviews and writing cost 2.5x and 1.6x what was estimated, planning as estimated.
   const actual = { plan: mid("plan"), blueprint: mid("blueprint"), author: mid("author") * 1.6, review: mid("review") * 2.5 };
   for (let run = 0; run < 2; run++) await calibration.record({ stageTotals: totals, actual });
@@ -140,6 +144,44 @@ test("a run made on one model does not correct another model's estimate, and an 
   assert.equal(legacy.samples, 4, "a record from before the model field still counts");
 });
 
+
+/* #771: the estimate sizes output from sample cards, and a thinking model writes several times that (the owner's 宏经 run: ~9k output a call where a card is
+   hundreds of tokens). Every finished run now records what each stage wrote per call; the next estimate takes that as its high end and says why. */
+test("what each stage writes per call is measured, and the estimate takes it as its output high end", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "study-calibration-thinking-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const calibration = createCalibration(dir), raw = estimate();
+  assert.deepEqual((await calibration.outputPerCall()).stages, {}, "no runs, nothing measured");
+  assert.deepEqual(calibrateEstimate(raw, null, NO_ASSUMPTION), raw, "an unmeasured stage leaves the estimate as it was");
+  // A call of the writing stage really wrote 9 000 tokens (the thinking is inside the output a provider reports).
+  for (let run = 0; run < 3; run++) await calibration.record({ outputs: { author: { calls: 4, output: 4 * 9_000 }, review: { calls: 2, output: 2 * 12_000 } } });
+  const perCall = { ...(await calibration.outputPerCall()), defaults: {} };
+  assert.equal(perCall.stages.author, 9_000);
+  assert.equal(perCall.stages.review, 12_000);
+  const raised = calibrateEstimate(raw, null, perCall);
+  const author = raised.stages.find(stage => stage.id === "author"), before = raw.stages.find(stage => stage.id === "author");
+  assert.equal(author.outputTokens.high, Math.max(before.outputTokens.high, 9_000 * before.calls), "a thinking model writes what a call really writes");
+  assert.ok(author.outputTokens.low >= before.outputTokens.low);
+  assert.ok(raised.outputTokens.high > raw.outputTokens.high, "the total grows with it");
+  assert.ok(raised.totalTokens.high > raw.totalTokens.high);
+  assert.ok(raised.notes.includes("includes-thinking"), "and says why the number grew");
+  assert.ok(raised.thinking.samples >= 3);
+  const untouched = raised.stages.find(stage => stage.id === "plan");
+  assert.deepEqual(untouched.outputTokens, raw.stages.find(stage => stage.id === "plan").outputTokens, "a stage nobody measured is left alone");
+});
+
+test("one model's output does not raise another model's estimate, and a record without measurements teaches nothing", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "study-calibration-thinking-model-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const calibration = createCalibration(dir), raw = estimate();
+  for (let run = 0; run < 3; run++) await calibration.record({ outputs: { author: { calls: 1, output: 9_000 } }, model: "other/model" });
+  for (let run = 0; run < 3; run++) await calibration.record({ stages: { author: [1, 2] }, model: "mine" });
+  assert.deepEqual((await calibration.outputPerCall({ model: "mine" })).stages, {}, "the other model's measurements are not mine");
+  assert.equal((await calibration.outputPerCall({ model: "other/model" })).stages.author, 9_000);
+  assert.equal((await calibration.outputPerCall()).stages.author, 9_000, "without a model the machine's whole record is read");
+  assert.deepEqual(calibrateEstimate(raw, null, { ...(await calibration.outputPerCall({ model: "mine" })), defaults: {} }), raw, "nothing measured for this model: the estimate is untouched");
+});
+
 /* #772 review: the old file lived in each learning library. The machine's file takes it over once, leaves the old file where it is, and never counts a run twice. */
 test("a library's own earlier file is carried into the machine's once, left untouched, and never counted twice", async (t) => {
   const machine = await mkdtemp(join(tmpdir(), "study-calibration-machine-")), library = await mkdtemp(join(tmpdir(), "study-calibration-library-"));
@@ -177,6 +219,48 @@ test("a test process that was not given a DSH home never writes to the real one"
   } finally {
     for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
   }
+});
+
+/* #771 review: with no history on the machine the estimate used to stay where the sample cards put it (a third of a thinking model's run). The owner's measured
+   finished run (deepseek-v4.1-flash, 513 pages) gives a per-call allowance per stage; it only lifts the HIGH end of a stage, so a model that does not think
+   still lands inside the range, and the number says it is an assumption. */
+test("with no history, a stage's high end rises to the measured thinking allowance, its low end stays, and the note says it is assumed", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "study-calibration-default-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const raw = estimate(), perCall = await createCalibration(dir).outputPerCall();
+  assert.deepEqual(perCall.stages, {}, "nothing measured on this machine");
+  assert.equal(perCall.defaults, undefined, "the learning store returns what it learned, never the assumption (#771 gate M5)");
+  // #771 gate L3: the p90 of the owner's run per call is the top of the range (the p50 is no point here: the low end stays the sample estimate).
+  assert.deepEqual({ ...DEFAULT_OUTPUT_PER_CALL }, { plan: 10_632, blueprint: 13_610, author: 13_531, review: 24_253 }, "p90 per stage; no repair stage in the estimate");
+  const raised = calibrateEstimate(raw, null, perCall);
+  assert.deepEqual(calibrateEstimate(raw, null, null), raised, "a calibration that could not be read still assumes the allowance");
+  for (const id of ["blueprint", "author", "review"]) {
+    const before = raw.stages.find(stage => stage.id === id), after = raised.stages.find(stage => stage.id === id);
+    assert.equal(after.outputTokens.low, before.outputTokens.low, `${id}: a model that does not think still fits the low end`);
+    assert.equal(after.outputTokens.high, Math.max(before.outputTokens.high, DEFAULT_OUTPUT_PER_CALL[id] * before.calls), `${id}: the high end is what a thinking model writes`);
+  }
+  assert.ok(raised.totalTokens.high > raw.totalTokens.high * 2, "the high end is no longer a third of a thinking run");
+  assert.equal(raised.totalTokens.low, raw.totalTokens.low, "the low end is the sample estimate");
+  assert.ok(raised.notes.includes("thinking-default") && !raised.notes.includes("includes-thinking"), "an assumption, not a measurement");
+  // One stage measured on this machine: that stage says "measured", the others stay assumed.
+  const mixed = calibrateEstimate(raw, null, { ...perCall, stages: { review: 20_000 }, samples: 3 });
+  assert.equal(mixed.stages.find(stage => stage.id === "review").outputTokens.high, Math.max(raw.stages.find(stage => stage.id === "review").outputTokens.high, 20_000 * raw.stages.find(stage => stage.id === "review").calls));
+  assert.deepEqual(mixed.notes.filter((code) => /thinking/.test(code)), ["thinking-default"], "one note, the one that explains the assumed stages (#771 gate L2)");
+});
+
+test("the headline range says it includes the model's thinking when the estimate raised its high end for it", async () => {
+  const require = createRequire(import.meta.url);
+  const compiled = await build({ stdin: { contents: `export { estimateSummary } from './ui/token-usage.js'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+    bundle: true, write: false, platform: "node", format: "cjs", external: ["react", "react-dom"], loader: { ".css": "text" }, logLevel: "silent" });
+  const module = { exports: {} };
+  new Function("require", "module", "exports", compiled.outputFiles[0].text)(require, module, module.exports);
+  const m = module.exports, base = { totalTokens: { low: 100_000, high: 400_000 }, calls: { low: 8, high: 10 } };
+  m.setUiLanguage("zh");
+  assert.doesNotMatch(m.estimateSummary({ ...base, notes: [] }), /含思考/, "a plain estimate says nothing about thinking");
+  for (const note of ["includes-thinking", "thinking-default"]) assert.match(m.estimateSummary({ ...base, notes: [note] }), /预计 .*tok（含思考） · /, note);
+  m.setUiLanguage("en");
+  assert.match(m.estimateSummary({ ...base, notes: ["thinking-default"] }), /tok \(thinking included\) · /);
+  m.setUiLanguage("zh");
 });
 
 /* #772 gate H1: a coverage run's estimate prices its FIRST round (lib/contexts/generation/generate/estimate.js), while its steps are every round's. Recording the
@@ -269,4 +353,69 @@ test("a partly bad file still calibrates from its good runs", async (t) => {
   assert.equal(factors.samples, 3, "only the runs that carry a usable stage count");
   assert.equal(factors.stages.author, 2);
   assert.equal(factors.deviates, true);
+});
+
+/* #771 gate H2: the stage ratio is learned from what a run really used, thinking included, so a calibrated stage already carries the thinking. Raising its
+   output again counted the thinking twice and put the real cost below the range (probe p1: real 94,644, range 116,127-157,885). A stage with a ratio is
+   corrected by the ratio; the measured or assumed thinking only raises a stage this machine has no ratio for. */
+test("calibration and measured thinking together still put the real cost inside the range, and the thinking only ever raises the high end", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "study-calibration-both-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const raw = estimate(), totals = stageTotals(raw), calibration = createCalibration(dir);
+  // A thinking model: every call writes the mean the owner's run measured (#771 table; the gate's probe p1), the input is as estimated.
+  const MEAN = { plan: 3_568, blueprint: 9_437, author: 8_662, review: 12_973 }, actual = {}, outputs = {};
+  for (const stage of raw.stages) {
+    const written = MEAN[stage.id] * stage.calls;
+    actual[stage.id] = (stage.inputTokens.low + stage.inputTokens.high) / 2 + written;
+    outputs[stage.id] = { calls: stage.calls, output: written };
+  }
+  const real = Object.values(actual).reduce((sum, value) => sum + value, 0);
+  for (let run = 0; run < 3; run++) await calibration.record({ stageTotals: totals, actual, outputs });
+  const factors = await calibration.factors(), measured = await calibration.outputPerCall();
+  const ratioOnly = calibrateEstimate(raw, factors, NO_ASSUMPTION), both = calibrateEstimate(raw, factors, measured), assumed = calibrateEstimate(raw, factors, null);
+  assert.ok(both.totalTokens.low <= real && real <= both.totalTokens.high, `range ${both.totalTokens.low}-${both.totalTokens.high} covers ${real}`);
+  assert.deepEqual(both.totalTokens, ratioOnly.totalTokens, "every stage has a ratio: the thinking is in it already");
+  assert.deepEqual(assumed.totalTokens, ratioOnly.totalTokens, "nor is an assumption added on top of a ratio (probe p2 A: the low end fell)");
+  assert.ok(!both.notes.some((code) => /thinking/.test(code)), "no thinking note when no stage was raised for it");
+  // One stage this machine has no ratio for (plan): only it is raised, by its measured output; the low end never falls.
+  const partial = { ...factors, stages: Object.fromEntries(Object.entries(factors.stages).filter(([id]) => id !== "plan")) };
+  const partialRatio = calibrateEstimate(raw, partial, NO_ASSUMPTION), partialBoth = calibrateEstimate(raw, partial, measured);
+  const plan = raw.stages.find((stage) => stage.id === "plan"), raisedPlan = partialBoth.stages.find((stage) => stage.id === "plan");
+  assert.equal(raisedPlan.outputTokens.high, Math.max(plan.outputTokens.high, measured.stages.plan * plan.calls));
+  assert.equal(partialBoth.totalTokens.high - partialRatio.totalTokens.high, raisedPlan.outputTokens.high - plan.outputTokens.high, "the total grows by that stage's rise alone");
+  assert.ok(partialBoth.totalTokens.low >= partialRatio.totalTokens.low);
+  assert.ok(partialBoth.notes.includes("includes-thinking"));
+});
+
+test("the job keeps the notes and the per-stage range it showed, beside the raw stage totals it learns against (#771 gate L1)", async () => {
+  const raw = estimate(), shown = calibrateEstimate(raw, { stages: { review: 2 }, samples: 3 }, null), kept = compactEstimate(shown, raw);
+  assert.deepEqual(kept.stageTotals, stageTotals(raw), "the next ratio is still read against the raw estimate");
+  assert.deepEqual(kept.notes, ["calibrated", "thinking-default"], "含思考 and calibrated travel with the job; general advice stays with the form");
+  const sum = (side) => Object.values(kept.shownStageTotals).reduce((total, range) => total + range[side], 0);
+  assert.deepEqual({ low: sum("low"), high: sum("high") }, shown.totalTokens, "the stages add up to the headline: one fact, one number");
+  assert.equal(kept.shownStageTotals.review.high, stageTotals(raw).review.high * 2, "a calibrated stage shows its corrected range");
+  const require = createRequire(import.meta.url);
+  const compiled = await build({ stdin: { contents: `export { stageUsageRows } from './ui/generation-status.js';`, resolveDir: process.cwd() },
+    bundle: true, write: false, platform: "node", format: "cjs", external: ["react", "react-dom"], loader: { ".css": "text" }, logLevel: "silent" });
+  const module = { exports: {} };
+  new Function("require", "module", "exports", compiled.outputFiles[0].text)(require, module, module.exports);
+  const rows = module.exports.stageUsageRows({ estimate: kept, ...job({ plan: 1, blueprint: 1, author: 1, review: 1 }) });
+  assert.deepEqual(rows.find((row) => row.code === "review").estimate, kept.shownStageTotals.review, "the details say the range the headline was made of");
+});
+
+test("only the question pipeline gets the thinking allowance (#771 gate L4)", () => {
+  const raw = { ...estimate(), feature: "case" };
+  assert.deepEqual(calibrateEstimate(raw, null, null), raw, "a case estimate is not given the generation stages' allowance");
+});
+
+test("a run that recorded only what it wrote is no sample of the ratio, and a bad outputs entry is dropped (#772 gate L5)", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const calibration = createCalibration(root);
+  for (let run = 0; run < 3; run++) await calibration.record({ outputs: { author: { calls: 1, output: 9000 } } });
+  const factors = await calibration.factors();
+  assert.deepEqual(factors, { stages: {}, samples: 0, deviates: false });
+  await writeFile(join(root, "estimate-calibration.json"), JSON.stringify({ runs: [{ at: "a", stages: {}, outputs: { author: 5 } }, { at: "b", stages: {}, outputs: null },
+    ...[1, 2, 3].map((n) => ({ at: `c${n}`, stages: {}, outputs: { author: [2, 18000] } }))] }));
+  assert.equal((await createCalibration(root).outputPerCall()).stages.author, 9000);
 });

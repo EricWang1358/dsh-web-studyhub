@@ -56,8 +56,11 @@ export function TokenUsage({ usage, estimate, inline = false, copy = true, class
 
 /* ---------- before a run ---------- */
 
-/* The widest line an estimate usually is: the loading line lays this out invisibly, so it takes the lines the ready one will take. */
-const GHOST_ESTIMATE = { totalTokens: { low: 88800, high: 99900 }, calls: { low: 88, high: 99 } };
+/* The widest line an estimate usually is: the loading line lays this out invisibly, so it takes the lines the ready one will take. A question estimate says
+   「（含思考）」 (lib/token-estimate.js withThinking), so the ghost does too. */
+const GHOST_ESTIMATE = { totalTokens: { low: 88800, high: 99900 }, calls: { low: 88, high: 99 }, notes: ['thinking-default'] };
+/** The summary drawn as its parts (「预计 … tok（含思考）」, 「4–11 次模型调用」): a narrow line breaks between them, never inside one (「次模型 / 调用」). */
+const summaryParts = (text) => text.split(' · ').map((part, at) => <React.Fragment key={at}>{at ? ' · ' : ''}<span className="token-estimate__part">{part}</span></React.Fragment>);
 
 /**
  * The estimate line above a submit button: "预计 58.3K–96.1K tok · 8–10 次模型调用", with an ⓘ button that opens the
@@ -75,14 +78,14 @@ export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = fa
   return <div className={`${align === 'end' ? 'token-estimate token-estimate--end' : 'token-estimate'}${tight ? ' token-estimate--tight' : ''}`} data-token-estimate data-status={state.status} aria-live="polite">
     {state.status === 'loading' && <p className="token-estimate__line token-estimate__line--loading">
       <span className="token-estimate__text">
-        <span className="token-estimate__ghost" aria-hidden="true">{estimateSummary(GHOST_ESTIMATE)}</span>
+        <span className="token-estimate__ghost" aria-hidden="true">{summaryParts(estimateSummary(GHOST_ESTIMATE))}</span>
         <small className="token-estimate__quiet">{ui('正在估算…')}</small>
       </span>
       <IconButton icon="info" size="sm" className="token-estimate__info token-estimate__info--slot" label={ui('查看估算明细')} aria-hidden="true" tabIndex={-1} disabled />
     </p>}
     {estimate && <>
       <p className="token-estimate__line">
-        <span>{lead}{estimateSummary(estimate)}</span>
+        <span>{lead}{summaryParts(estimateSummary(estimate))}</span>
         <IconButton icon="info" size="sm" className="token-estimate__info" aria-expanded={open} aria-controls={panel}
           label={ui('查看估算明细')} onClick={() => setOpen(!open)} />
       </p>
