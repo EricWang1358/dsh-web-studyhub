@@ -20,12 +20,15 @@ import { GLOBAL_CSS_FILES } from './helpers/global-css.mjs';
 
 const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '');
 
-/** Raw hex colours (#rgb, #rgba, #rrggbb, #rrggbbaa) outside custom-property declarations. */
+/** Raw hex colours (#rgb, #rgba, #rrggbb, #rrggbbaa) outside custom-property declarations. `#000` inside a mask-image gradient is the mask's opaque
+    stop rather than a colour a surface is painted with, and a token cannot be read there (the same exception the #156 raw-colour rule makes), so a fade
+    written as a mask is not a raw colour. */
 function countRawHex(source) {
   let count = 0;
   for (const declaration of stripComments(source).split(/[;{}]/)) {
     if (/^\s*--[\w-]+\s*:/.test(declaration)) continue;
-    count += (declaration.match(/#[0-9a-fA-F]{3,8}\b/g) || []).length;
+    const text = /^\s*(-webkit-)?mask(-image)?\s*:/.test(declaration) ? declaration.replace(/#000(000)?\b/g, '') : declaration;
+    count += (text.match(/#[0-9a-fA-F]{3,8}\b/g) || []).length;
   }
   return count;
 }
@@ -67,12 +70,8 @@ function readTokens(source) {
   return new Set([...source.matchAll(/var\(\s*(--[a-z0-9-]+)/gi)].map((match) => match[1]));
 }
 /** Files (relative to ui/) that still hold raw hex colours, and how many. Only lower these. */
-const HEX_BASELINE = {
-  'board/board.css': 2,
-  'components/scroll-window.css': 4,
-  'skeleton.css': 4,
-  'review/question.css': 1,
-};
+// Empty: once mask stops stopped counting, no stylesheet paints a colour of its own. A file that needs one gets a number here (never lower than its real count).
+const HEX_BASELINE = {};
 
 /* Colour tokens ui/DESIGN.md still promises as a palette while no rule paints them yet. The reason names what the doc says the token is for; the test also fails
    when one of these is no longer declared in ui/tokens.css, so the list cannot rot. A token that stops being promised goes with its line. */
@@ -88,6 +87,7 @@ test('the counters understand the shapes they guard (fixtures)', () => {
   assert.equal(countRawHex('.x {\n  --accent: #c93d22;\n  --bg: #161412;\n}'), 0, 'a token definition is the token block');
   assert.equal(countRawHex('/* #ff0000 in a comment */\n.x { color: var(--text, #8885); }'), 1, 'a fallback is a raw colour');
   assert.equal(countRawHex('a { href: url(#anchor); content: "#"; }'), 0, '#anchor is not a colour here');
+  assert.equal(countRawHex('.a { mask-image: linear-gradient(#000, transparent); color: #111; }'), 1, 'a mask\'s #000 is not a colour, a painted #111 is');
   assert.deepEqual(literalsEqualToTokens('a { border-radius: 12px; font-size: 13px; } b { border-radius: 12px 12px 0 0; }'), [
     'border-radius 12px -> var(--radius)', 'border-radius 12px -> var(--radius)', 'border-radius 12px -> var(--radius)', 'font-size 13px -> var(--fs-sm)']);
   assert.deepEqual(literalsEqualToTokens('a { border-radius: var(--radius); font-size: var(--fs-sm); font-size: 14px; border-radius: 10px; font-size: 1.12px; }'), []);

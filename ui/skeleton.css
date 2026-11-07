@@ -1156,12 +1156,10 @@
       overscroll-behavior-x: contain;
       scrollbar-width: none;
       padding: var(--space-half);
+      /* The side with more stations beyond it fades (ui/components/scroll-fade.css, #747); a little wider than the default there. */
+      --sh-fade-size: 36px;
     }
     .spine-strip::-webkit-scrollbar { display: none; }
-    /* Fade the edge that has more stations beyond it. */
-    .spine-strip[data-end] { mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
-    .spine-strip[data-start] { mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
-    .spine-strip[data-start][data-end] { mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
     .spine-track {
       position: relative;
       display: grid;

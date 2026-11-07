@@ -77,7 +77,8 @@ test('the category list sits under the three group headings, marks the selected 
   setUiLanguage('zh');
   const available = categoriesFor({ audio: true, generation: true, system: true });
   const html = renderToStaticMarkup(h(SettingsNav, { available, active: 'audio', missing: ['model', 'audio'], onSelect: noop }));
-  assert.match(html, /<nav class="settings-nav"[^>]*aria-label="设置分类"/);
+  assert.match(html, /<nav class="[^"]*\bsettings-nav\b[^"]*"[^>]*aria-label="设置分类"/);
+  assert.match(html, /<nav class="[^"]*\bsh-fade-x\b/, 'the narrow strip fades its scrolled edge (#747)');
   for (const group of SETTINGS_GROUPS) assert.match(html, new RegExp(`<p class="settings-nav__label">${group.title}</p>`));
   assert.equal((html.match(/class="settings-nav__item"/g) || []).length, available.length);
   assert.match(html, /data-category="audio"[^>]*aria-current="page"|aria-current="page"[^>]*data-category="audio"/);

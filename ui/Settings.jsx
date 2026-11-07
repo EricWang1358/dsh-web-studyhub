@@ -15,6 +15,7 @@ import { loadRetrievalStatus } from './retrieval-status.js';
 import { readText, writeText } from './storage.js';
 import { useHostQuery } from './host-query.js';
 import { useLiveEffect } from './use-async.js';
+import { useScrollEdges } from './components/use-scroll-edges.js';
 
 /* App names the file of an export with this; it lives in its own module so the page does not load the backup section for it. */
 export { backupFileName } from './settings/backup-name.js';
@@ -31,13 +32,14 @@ const writeCategory = (value) => { writeText(CATEGORY_KEY, value); /* the choice
 
 /** The list of categories under the three group headings; the selected one is marked, and one that needs attention says so in words (not by colour alone). */
 export function SettingsNav({ available, active, missing, onSelect }) {
-  const navRef = useRef(null);
-  useEffect(() => {
-    const activeBtn = navRef.current?.querySelector('[aria-current="page"]');
-    activeBtn?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
-  }, [active]);
+  // Narrow layouts turn the list into a horizontal strip: the side with more categories beyond it fades (ui/components/scroll-fade.css, #747).
+  const [navRef, edges, measureNav] = useScrollEdges();
+  // The selected category keeps itself inside the strip, by its own ref (the strip's ref belongs to the fade hook).
+  const activeBtn = useRef(null);
+  useEffect(() => { activeBtn.current?.scrollIntoView?.({ block: 'nearest', inline: 'center' }); }, [active]);
   return (
-    <nav ref={navRef} className="settings-nav" aria-label={ui('设置分类')}>
+    <nav ref={navRef} className="settings-nav sh-fade-x" data-fade-start={edges.start || undefined} data-fade-end={edges.end || undefined}
+      onScroll={measureNav} aria-label={ui('设置分类')}>
       {SETTINGS_GROUPS.map((group) => {
         const items = available.filter((category) => category.group === group.id);
         if (!items.length) return null;
@@ -47,7 +49,8 @@ export function SettingsNav({ available, active, missing, onSelect }) {
             <ul>
               {items.map((category) => (
                 <li key={category.id}>
-                  <button type="button" className="settings-nav__item" data-category={category.id} aria-current={active === category.id ? 'page' : undefined} onClick={() => onSelect(category.id)}>
+                  <button type="button" className="settings-nav__item" data-category={category.id} ref={active === category.id ? activeBtn : null}
+                    aria-current={active === category.id ? 'page' : undefined} onClick={() => onSelect(category.id)}>
                     <span>{ui(category.title)}</span>
                     {missing.includes(category.id) && <span className="settings-nav__todo">{ui('待设置')}</span>}
                   </button>

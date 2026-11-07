@@ -11,6 +11,7 @@ import DeleteCardDialog from "./board/DeleteCardDialog.jsx";
 import FilterBar from "./board/FilterBar.jsx";
 import { boardColumnLabel, cardsText, stamp, studyRefLabel } from "./board/meta.js";
 import css from "./board/board.css";
+import { useScrollEdges } from "./components/use-scroll-edges.js";
 
 export { boardColumnLabel };
 
@@ -159,6 +160,9 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
   const [announcement, setAnnouncement] = useState("");
   const [originError, setOriginError] = useState("");
   const boardRef = useRef(board), focusId = useRef(null), announced = useRef(0);
+  // The columns scroll sideways on a narrow window: the side with more of them beyond it fades (ui/components/scroll-fade.css, #747). Dragging, snap and the
+  // scroll position are untouched.
+  const [columnsStrip, columnEdges, measureColumns] = useScrollEdges();
   boardRef.current = board;
   // Opening the composer unfolds its column: a composer inside a folded column could not be seen.
   const openComposer = (id) => {
@@ -309,7 +313,8 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
           primary={{ label: ui("添加第一张卡片"), icon: "plus", disabled: readOnly || !board.columns.length, onClick: () => openComposer(board.columns[0].id) }} />}
         {filtering && matched === 0 && total > 0 && <EmptyState size="sm" icon={<Icon name="search" size={22} />} title={ui("没有符合筛选的卡片")} className="board-empty"
           secondary={{ label: ui("清除筛选"), onClick: () => setQuery({}) }} />}
-        {showColumns && <div className="board-columns" style={{ "--board-cols": board.columns.length, "--board-col-tracks": colTracks }}>
+        {showColumns && <div className="board-columns sh-fade-x" ref={columnsStrip} data-fade-start={columnEdges.start || undefined}
+          data-fade-end={columnEdges.end || undefined} onScroll={measureColumns} style={{ "--board-cols": board.columns.length, "--board-col-tracks": colTracks }}>
           {view.columns.map((column, at) => <Column key={column.id} column={board.columns[at]} view={column} board={board} today={today} library={library} drag={drag} drop={drop}
             setDrag={setDrag} setDrop={setDrop} hasDone={hasDone} composer={composer === column.id} collapsed={collapsed.has(column.id)} filtering={filtering} readOnly={readOnly} boardEmpty={empty}
             labelSuggestions={labels.map((entry) => entry.label)} studyRef={studyRef} onClearStudyRef={onClearStudyRef}

@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
 import { ui, uiFormat, uiMessage } from '../i18n.js';
 import { Tabs, TabPanel } from '../components/index.js';
+import { useScrollEdges } from '../components/use-scroll-edges.js';
 import { contractOf, isRunningTask, taskKindOf } from './task-model.js';
 import { runningCalls } from './call-model.js';
 import Timeline from './Timeline.jsx';
@@ -42,6 +43,9 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
   const install = Array.isArray(contract.detail?.install?.steps), index = contract.kind === 'retrieval-index';
   const section = contract.kind === 'audio-live-correction' ? null : contract.kind === 'course-book-build' ? BOOK_SECTION : install ? INSTALL_SECTION : index ? INDEX_SECTION : SECTIONS[kind], left = useId(), right = useId();
   const [selected, setSelected] = useState(null), [leftTab, setLeftTab] = useState('running'), [rightTab, setRightTab] = useState('output');
+  // Both tab strips fade the side that still has a panel beyond it (ui/components/scroll-fade.css, #747); the scroll position and the arrow keys are untouched.
+  const [leftStrip, leftEdges, measureLeft] = useScrollEdges();
+  const [rightStrip, rightEdges, measureRight] = useScrollEdges();
   const running = useMemo(() => runningCalls(calls), [calls]);
   const target = calls.find((call) => call.callId === selected) || running.find((call) => call.kind !== 'wait') || null;
   const choose = (callId) => { setSelected(callId); setRightTab('output'); };
@@ -61,7 +65,8 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
     <div className="tc-body">
       <div className="tc-col">
         {!callFree && <Timeline calls={calls} running={live} family={kind === 'audio' ? 'audio' : kind === 'coach' ? 'coach' : 'generation'} contractKind={contract.kind} selected={target?.callId} marks={marks} onSelect={choose} />}
-        <Tabs id={left} className="tc-tabs" itemClassName="tc-tab" label={ui('左侧面板')} value={tab} onChange={setLeftTab} items={leftItems} />
+        <Tabs id={left} ref={leftStrip} className="tc-tabs sh-fade-x sh-fade-x--pad" data-fade-start={leftEdges.start || undefined} data-fade-end={leftEdges.end || undefined}
+          onScroll={measureLeft} itemClassName="tc-tab" label={ui('左侧面板')} value={tab} onChange={setLeftTab} items={leftItems} />
         {!callFree && <TabPanel id={left} value="running" selected={tab} className="tc-panel" tabIndex={undefined}>
           <div className="tc-scroll"><RunningCalls calls={calls} active={live} selected={target?.callId} onSelect={choose} /></div>
         </TabPanel>}
@@ -69,7 +74,8 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
         {planned && <TabPanel id={left} value="plan" selected={tab} className="tc-panel" tabIndex={undefined}><PlanTable contract={contract} task={task} /></TabPanel>}
       </div>
       <div className="tc-col">
-        <Tabs id={right} className="tc-tabs" itemClassName="tc-tab" label={ui('右侧面板')} value={rightShown} onChange={setRightTab} items={rightItems} />
+        <Tabs id={right} ref={rightStrip} className="tc-tabs sh-fade-x sh-fade-x--pad" data-fade-start={rightEdges.start || undefined} data-fade-end={rightEdges.end || undefined}
+          onScroll={measureRight} itemClassName="tc-tab" label={ui('右侧面板')} value={rightShown} onChange={setRightTab} items={rightItems} />
         {/* A day of 为你定制 has no sub-agent and keeps no output: its 实时输出 says so and shows the batch instead of asking job.output for nothing. */}
         {!callFree && <TabPanel id={right} value="output" selected={rightShown} className="tc-panel" tabIndex={undefined}>
           {kind === 'coach' ? <CoachOutputNote contract={contract} call={target} /> : <OutputPanel jobId={contract.jobId} call={target} active={live} archived={archived} />}
