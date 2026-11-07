@@ -33,7 +33,9 @@ test('the default package is today\'s flow in three stages, and a course without
   assert.equal(courseMethod({ method: mine }).name, '我的学法', 'a course that has one gets its own');
   const copy = courseMethod({ method: mine });
   copy.stages[0].name = '改了';
-  assert.equal(mine.stages[0].name, CLASSROOM_METHOD.stages[0].name === mine.stages[0].name ? '课前：发资料，理出要学的点' : mine.stages[0].name, 'the copy is not the record');
+  assert.equal(mine.stages[0].name, '课前：导入资料', 'the copy is not the record');
+  // The names are what the card and the home line show: short, and no batch sizes that the practice settings own.
+  for (const entry of CLASSROOM_METHOD.stages) assert.ok(entry.name.length <= 12 && !/\d/.test(entry.name), entry.name);
 });
 
 test('a method is checked before it is stored: the sentences the chat reads out, and what null and undefined mean', () => {
@@ -75,7 +77,7 @@ test('course.save keeps the method on that course alone and course.save {null} d
 
 /* The card on the course settings (#775 S1): the default package is drawn as it is, a course's own method with its stages, and the English carries no Han. */
 const m = await loadUi(`
-  export { default as CourseMethodCard } from './ui/CourseMethodCard.jsx';
+  export { default as CourseMethodCard, MethodForm, shownMethod } from './ui/CourseMethodCard.jsx';
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';
@@ -87,18 +89,43 @@ const draw = (course, language = 'zh') => {
   try { return renderToStaticMarkup(inApp(m, h(m.CourseMethodCard, { course }), { call: async () => ({}) })); } finally { m.setUiLanguage('zh'); }
 };
 
-test('the card draws the default package, its stages and the gate switch; a course with its own method offers the way back', () => {
+test('the card reads first: the default package is its name and three short stages, no form, and the change is behind 改学法', () => {
   const html = draw({ id: 'course-net', name: 'Net' }), plain = text(html);
-  assert.match(plain, /学法/);
-  assert.match(html, /课堂跟学/, 'the method name is in the field');
-  for (const stage of CLASSROOM_METHOD.stages) assert.ok(html.includes(stage.name), `${stage.name} is a stage of the card`);
-  assert.match(plain, /过关宽严/);
-  assert.doesNotMatch(plain, /恢复默认学法/, 'nothing to go back to: the default package');
-  const ownHtml = draw({ id: 'course-net', name: 'Net', method: { ...CLASSROOM_METHOD, name: '我的学法', stages: [{ ...CLASSROOM_METHOD.stages[0], name: '只练错题' }] } }), own = text(ownHtml);
-  assert.match(ownHtml, /我的学法/);
-  assert.match(ownHtml, /只练错题/);
-  assert.match(own, /恢复默认学法/);
+  assert.match(plain, /学法 课堂跟学 默认/);
+  for (const stage of CLASSROOM_METHOD.stages) assert.ok(plain.includes(stage.name), `${stage.name} is a stage of the card`);
+  assert.doesNotMatch(html, /<input/, 'a course nobody customised is a few lines to read, not a form to fill in');
+  assert.match(plain, /改学法/);
+  assert.doesNotMatch(plain, /保存学法|恢复默认学法/, 'saving and going back are in the form');
+  assert.doesNotMatch(plain, /想改就说一声/, 'the card says how to change it: the button, or the main chat');
+  assert.match(html, /aria-label="学法是什么"/, 'what a method is: a 「?」, not a paragraph');
+  const ownHtml = draw({ id: 'course-net', name: 'Net', method: { ...CLASSROOM_METHOD, name: '我的学法', targetDate: '2027-01-20', stages: [{ ...CLASSROOM_METHOD.stages[0], name: '只练错题' }] } }), own = text(ownHtml);
+  assert.match(own, /学法 我的学法/);
+  assert.doesNotMatch(own, /默认 /, 'a course\'s own method is not called the default');
+  assert.match(own, /只练错题/);
+  assert.match(own, /目标日期：2027-01-20/);
   const english = text(draw({ id: 'course-net', name: 'Net' }, 'en'));
   assert.match(english, /Learning method/);
-  assert.doesNotMatch(english, /[\u3400-\u9fff]/, 'the card is translated too');
+  assert.doesNotMatch(english, /[㐀-鿿]/, 'the card is translated too');
+});
+
+test('a draft started from the default package is in the learner\'s language, and the form offers the way back only for a course\'s own method', () => {
+  m.setUiLanguage('en');
+  let english;
+  try { english = m.shownMethod({ id: 'course-net', name: 'Net' }); } finally { m.setUiLanguage('zh'); }
+  assert.doesNotMatch(JSON.stringify(english.stages.map(stage => stage.name)), /[㐀-鿿]/, 'editing one stage in English keeps the others English');
+  const own = { id: 'course-net', name: 'Net', method: { ...CLASSROOM_METHOD, name: 'Mine', stages: [{ ...CLASSROOM_METHOD.stages[0], name: '只练错题' }] } };
+  assert.equal(m.shownMethod(own).stages[0].name, '只练错题', 'a learner\'s own words are kept as typed');
+  const form = (draft, isOwn, language = 'zh') => {
+    m.setUiLanguage(language);
+    try { return renderToStaticMarkup(inApp(m, h(m.MethodForm, { draft, own: isOwn, disabled: false, working: false, onChange() {}, onStage() {}, onSave() {}, onCancel() {}, onReset() {} }), { call: async () => ({}) })); }
+    finally { m.setUiLanguage('zh'); }
+  };
+  const fresh = text(form(m.shownMethod({ name: 'Net' }), false));
+  assert.match(fresh, /学法名称/);
+  assert.match(fresh, /第 3 个阶段/);
+  assert.match(fresh, /保存学法 取消/);
+  assert.doesNotMatch(fresh, /恢复默认学法/, 'nothing to go back to: the default package');
+  assert.match(text(form(m.shownMethod(own), true)), /恢复默认学法/);
+  assert.equal((form(m.shownMethod({ name: 'Net' }), false).match(/aria-label="过关宽严是什么"/g) || []).length, 1, 'what the gates mean is said once');
+  assert.doesNotMatch(text(form(m.shownMethod({ name: 'Net' }), false, 'en')), /[㐀-鿿]/, 'the form is translated too');
 });
