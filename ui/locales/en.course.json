@@ -146,10 +146,8 @@
   "中：约三分之二答对": "Medium: about two thirds right",
   "严：全部答对，错的再练一次": "Strict: all of them right, the wrong ones again",
   "保存学法": "Save the method",
-  "现在在第 {0} 阶段：{1}": "Stage {0} of  now: {1}",
-  "现在在第 {0} 阶段：{1}": "Now on stage {0} of the method: {1}"
-
-,
+  "学法 · 第 {0} 阶段": "Method · stage {0}",
+  "现在在第 {0} 阶段：{1}": "Now on stage {0} of the method: {1}",
   "课前：发资料，理出要学的点": "Before class: share the material, list what is to be learned",
   "课后：按批练，到期不超过 5 题、新题不超过 10 题": "After class: practise in batches — at most 5 due questions and 10 new ones",
   "考前：到期复习，重点与薄弱优先": "Before the exam: review what is due; focus topics and weak questions first"
