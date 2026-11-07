@@ -1,6 +1,6 @@
-# StudyHub introduction site
+# StudyHub introduction site & architecture explorer
 
-This preserves the existing dark evidence-thread design. It describes the local 2.5.10 release candidate, not a published release or any proposed application redesign.
+This directory builds both the dark evidence-thread product landing page (`index.html` / `en.html`) and the Ink-desk interactive Tech Stack & Architecture Explorer (`explorer.html` / `explorer-en.html`). `package.json.version` supplies the built version at build time.
 
 From the repository root:
 
@@ -10,14 +10,16 @@ node scripts/site-server.mjs --port=4322
 node scripts/site-qa.mjs
 ```
 
-Open `http://127.0.0.1:4322/` for Chinese or `/en.html` for English. The preview builds first, binds to loopback only, and opens no study library or model. Use another port if an older preview is still running.
+Open `http://127.0.0.1:4322/` for Chinese (`/en.html` for English), or `/explorer.html` (`/explorer-en.html` for English) to inspect the interactive architecture explorer. The preview builds first, binds to loopback only, and opens no study library or model. Use another port if an older preview is still running.
 
-The deployable static directory is `output/site-dist/`: two pages, their local assets, and `build-manifest.json`. `package.json.version` supplies the built version. Copy the whole directory to a static host when publication is authorised; no backend, environment variables or model keys are needed. Nothing in this work publishes it. Download links intentionally go to the latest published release; do not advertise a 2.5.10 download before that release exists.
+The deployable static directory is `output/site-dist/`: four pages (`index.html`, `en.html`, `explorer.html`, `explorer-en.html`), their local assets (`assets/site-demo.js` and screenshots), and `build-manifest.json`. Copy the whole directory to a static host when publication is authorised; no backend, environment variables or model keys are needed. Nothing in this work publishes it.
 
-`content.mjs` contains both languages. `index.html` retains the original design and interactions, with the current Chinese content as a readable standalone source; the builder renders both languages from `content.mjs`. `demo.mjs` exposes only the product's pure FSRS-6 scheduler and mastery rules. Screenshots are existing sample-library assets and are labelled as such; they are not promises that every 2.5.10 interface detail is identical. Source captures under `assets/_src/` and `assets/shots/` are not needed in the deployed site.
+- `content.mjs` and `index.html` render the bilingual product introduction page.
+- `explorer-content.mjs` and `explorer.html` render the bilingual Tech Stack & Architecture Explorer using the real `ui/tokens.css` Ink-desk dark and light palettes, covering the component/tool/context map (`1` workbench + `6` capability plugins + `1` retrieval package + `7` DSH tools + `19` `StudyRuntime` contexts), the 5-stage reliable generation pipeline, the live FSRS-6 & mastery simulator, and the deterministic offline test & LPT sharding harness.
+- `demo.mjs` bundles only the product's pure `lib/sm2.js` FSRS-6 scheduler and `lib/mastery.js` mastery rules for in-browser simulation.
 
-`node scripts/site-artifact.mjs output/site/intro-fragment.html` creates an optional local Chinese HTML fragment with its demo and images embedded. Add `--lang=en` for English. This is an export, not a publication action.
+`node scripts/site-artifact.mjs output/site/intro-fragment.html` creates an optional local Chinese HTML fragment of the landing page with its demo and images embedded (`--lang=en` for English).
 
-The real-browser report and screenshots are under `output/site/qa-2.5.10/`. Checks cover both languages at five widths, actual interactions, default scheduler results, keyboard activation, visible focus, reduced motion, 200% text enlargement, readable no-JavaScript content, images, section targets and locally available documentation links. External runtime requests are blocked. External destinations are linked, but their live availability is not asserted by these offline checks.
+The real-browser report and screenshots are written under `output/site/qa-2.5.10/`. Checks cover all four pages across five viewport widths (`360, 420, 768, 1280, 1680`), dark and light Ink-desk themes on the explorer, interactive walkthroughs of all four explorers, live FSRS-6 parity against `lib/sm2.js`, keyboard focus and activation, reduced motion, 200% text enlargement, readable no-JavaScript progressive enhancement, disk existence of every GitHub `blob/main/...` source link, and zero external runtime requests.
 
-See [content audit](content-audit.md) for the factual changes and their local evidence. Deployment domain, public URL, release timing and any canonical URL metadata remain decisions for the integrating maintainer.
+See [content audit](content-audit.md) for the landing-page claim audit and [explorer audit](explorer-audit.md) for the exact `v4.4.4` file and line references backing every architectural figure on `explorer.html`.

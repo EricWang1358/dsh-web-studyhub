@@ -1,5 +1,41 @@
 // Only pure product rules; no library, credentials, network or model access.
-import { defaults, initialReview, previewSchedule, schedule } from '../lib/sm2.js';
-import { cardLevel } from '../lib/mastery.js';
-window.STUDY_DEMO = { defaults, initialReview, schedule, cardLevel,
-  intervals: previewSchedule(defaults, { grade: 4, reviews: 6 }).map(point => point.interval) };
+import {
+  FSRS6_WEIGHTS,
+  FOCUS_RETENTION_BOOST,
+  LIMITS,
+  defaults,
+  focusScheduleSettings,
+  initialReview,
+  memoryState,
+  nextIntervals,
+  previewSchedule,
+  ratingOfGrade,
+  schedule,
+} from '../lib/sm2.js';
+import {
+  FAMILIAR_DAYS,
+  LEVELS,
+  MASTERED_DAYS,
+  MASTERED_STREAK,
+  cardLevel,
+} from '../lib/mastery.js';
+
+globalThis.STUDY_DEMO = {
+  FSRS6_WEIGHTS,
+  FOCUS_RETENTION_BOOST,
+  LIMITS,
+  defaults,
+  focusScheduleSettings,
+  initialReview,
+  memoryState,
+  nextIntervals,
+  previewSchedule,
+  ratingOfGrade,
+  schedule,
+  FAMILIAR_DAYS,
+  LEVELS,
+  MASTERED_DAYS,
+  MASTERED_STREAK,
+  cardLevel,
+  intervals: previewSchedule(defaults, { grade: 4, reviews: 6 }).map(point => point.interval),
+};
