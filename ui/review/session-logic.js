@@ -44,6 +44,9 @@ export function shouldResetEntry(previous, run) {
 
 /** A question counts as passed with a self-grade of 3 or more, or a correct choice. */
 export const isPassed = (run) => !!run?.feedback && (run.feedback.grade !== undefined ? run.feedback.grade >= 3 : !!run.feedback.correct);
+/** The grade a shortcut answer names (a 0-5 press), or null when the key answered something else (a choice, a cloze). 0 is a grade, so a falsy
+    check here would lose 完全忘记: the practice page flashes the button this names (#745). */
+export const pressedGradeOf = (action) => (action?.type === 'answer' && Number.isInteger(action.args?.grade) ? action.args.grade : null);
 
 /** Names the question the autopilot countdown belongs to. */
 export const advanceKeyOf = (run) => (run ? `${run.id}:${run.index}:${run.queueVersion || 0}` : '');

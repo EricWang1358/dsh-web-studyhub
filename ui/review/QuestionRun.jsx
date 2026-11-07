@@ -87,7 +87,7 @@ function AssistFailure({ task, onSettings, onResubmit, onEdit }) {
 
 export default function QuestionRun({ session, data, coachProps, links = {}, context = {}, feedback }) {
   useInjectCss(reviewCss, "study-review");
-  const { run, entry, showBack, showEn, enBusyKey, teachingBusy, teachingError, choice, isCloze, autopilot, actions } = session;
+  const { run, entry, showBack, showEn, enBusyKey, keyGrade, teachingBusy, teachingError, choice, isCloze, autopilot, actions } = session;
   const { selected, hint, explain, response, teaching, teachAnswer, clozeValues } = entry;
   const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn } = actions;
   const { call, act, busy, openModal, openSettings } = useStudy();
@@ -461,26 +461,26 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       ui("勉强答对"),
                       ui("熟练"),
                       ui("轻松掌握"),
-                    ].map((label, grade) => { const gap = formatGap(run.intervals?.[grade]); return (
-                      <button
-                        className={
-                          grade < 3 ? "grade low" : "grade high"
-                        }
-                        key={grade}
-                        aria-label={gap ? uiFormat("{0} 分：{1}，{2}后再复习", [grade, label, gap]) : uiFormat("{0} 分：{1}", [grade, label])}
-                        aria-keyshortcuts={String(grade)}
-                        data-usage="review.grade"
-                        title={uiFormat("快捷键 {0}：{1}", [grade, label])}
-                        disabled={busy}
-                        onClick={() =>
-                          reviewAct("review.answer", { grade })
-                        }
-                      >
-                        <strong>{grade}</strong>
-                        <span>{label}</span>
-                        {gap && <small className="grade-gap">{gap}</small>}
-                      </button>
-                    ); })}
+                    ].map((label, grade) => {
+                      const gap = formatGap(run.intervals?.[grade]);
+                      // The tooltip says the key (#745); a number key answers from the session, which marks the button it named (keyGrade).
+                      return (
+                        <Tooltip key={grade} layer content={uiFormat("快捷键 {0}：{1}", [grade, label])} anchorClassName="grade-tip">
+                          <button
+                            className={"grade " + (grade < 3 ? "low" : "high") + (keyGrade === grade ? " is-key-pressed" : "")}
+                            aria-label={gap ? uiFormat("{0} 分：{1}，{2}后再复习", [grade, label, gap]) : uiFormat("{0} 分：{1}", [grade, label])}
+                            aria-keyshortcuts={String(grade)}
+                            data-usage="review.grade"
+                            disabled={busy}
+                            onClick={() => reviewAct("review.answer", { grade })}
+                          >
+                            <strong>{grade}</strong>
+                            <span>{label}</span>
+                            {gap && <small className="grade-gap">{gap}</small>}
+                          </button>
+                        </Tooltip>
+                      );
+                    })}
                   </div>
                 </div>
               )}

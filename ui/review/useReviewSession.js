@@ -10,7 +10,7 @@ import { EN_KEY, flag } from '../app/use-app-shell.js';
 import { resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
-  AUTO_ADVANCE_MS, advanceKeyOf, autopilotPlan, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, reviewChoiceKind,
+  AUTO_ADVANCE_MS, advanceKeyOf, autopilotPlan, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
   shortcutAction, shortcutGate, shouldResetEntry,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
@@ -18,6 +18,8 @@ import { createDraftSaver, draftKey, draftPayloadOf, draftable, entrySignature, 
 
 // These steps read the entry on the host (review.answer takes the help recorded there) or leave the question: what was typed goes first, and must arrive.
 const SAVES_FIRST = new Set(['review.answer', 'review.move']);
+// How long a number key's grade button wears its press (#745): long enough to be seen, short enough never to look stuck.
+const KEY_PRESS_MS = 220;
 
 /* The practice session (ui-consistency #112): the open run, what the learner has typed on its question, the teaching
    panel, the EN translation, the autopilot and the keyboard. It used to live in App, which re-rendered it on every
@@ -51,6 +53,17 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   }, [call, core, setError]);
   const [autoAdvance, setAutoAdvance] = useState('');
   const [shortcutHelp, setShortcutHelp] = useState(false);
+  /* A number key answers straight from here, so no <button> is ever seen going down (#745): the grade button the key names wears the same press for a
+     moment. The one key handler below is the only writer; the view only reads it. */
+  const [keyGrade, setKeyGrade] = useState(null);
+  const keyGradeTimer = useRef(null);
+  const markKeyGrade = useCallback((grade) => {
+    if (grade === null || grade === undefined) return;
+    clearTimeout(keyGradeTimer.current);
+    setKeyGrade(grade);
+    keyGradeTimer.current = setTimeout(() => { keyGradeTimer.current = null; setKeyGrade(null); }, KEY_PRESS_MS);
+  }, []);
+  useEffect(() => () => clearTimeout(keyGradeTimer.current), []);
   const [teachingPending, setTeachingPending] = useState({});
   const { setPage } = nav;
   // The rules below (and session-logic.js) call the page that shows the question 'review', whichever page that is.
@@ -360,7 +373,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     else if (action.type === 'help-close') setShortcutHelp(false);
     else if (action.type === 'autopilot') toggleAutopilot();
     else if (action.type === 'resume') late.current.resume?.();
-    else if (action.type === 'answer') reviewAct('review.answer', action.args);
+    else if (action.type === 'answer') { markKeyGrade(pressedGradeOf(action)); reviewAct('review.answer', action.args); }
     else if (action.type === 'move') reviewAct('review.move', { direction: action.direction });
     else if (action.type === 'flip') flipCard();
     else if (action.type === 'hint') toggleHint();
@@ -425,5 +438,5 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     toggleAutopilot,
   }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleHint, noteAssistance]);
   return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
-    shortcutHelp, ...kind, coach, continueTo, onCoachPractice, enterRun, reset, clearRun, patchRun, actions, flushDraft };
+    shortcutHelp, keyGrade, ...kind, coach, continueTo, onCoachPractice, enterRun, reset, clearRun, patchRun, actions, flushDraft };
 }
