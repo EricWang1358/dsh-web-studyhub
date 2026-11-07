@@ -16,7 +16,10 @@ import { CUSTOM_BOOK_WHAT } from '../custom-entry.js';
  * (organising the outline) to show: `firstStep` says so.
  */
 export function gateScaleOf(kind, answers) {
-  if (kind === 'book' && answers?.book) return { points: answers.book.points, calls: answers.book.calls, tokens: answers.book.readTokens, sample: !!answers.book.sample };
+  if (kind === 'book' && answers?.book) {
+    const write = answers.book.writeTokens || null, total = answers.book.totalTokens || null;
+    return { points: answers.book.points, calls: answers.book.calls, tokens: answers.book.readTokens, write, total, sample: !!answers.book.sample };
+  }
   const outline = answers?.outline;
   if (!outline?.estimate) return null;
   const calls = outline.estimate.calls || 0, tokens = outline.estimate.readTokens || { low: 0, high: 0 };

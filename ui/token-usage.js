@@ -125,10 +125,10 @@ export function usageNotes(job) {
 export const expectedText = (estimate) => `${ui('预计')} ${rangeTok(estimate.totalTokens)}`;
 
 const FEATURE_LABELS = () => ({
-  generate: ui('出题'), repair: ui('改题与复核'), coach: ui('陪学'), flow: ui('学习流'), case: ui('案例'), audio: ui('音频文本'), other: ui('其他'),
+  generate: ui('出题'), repair: ui('改题与复核'), book: ui('复习全书 / 总纲'), coach: ui('陪学'), flow: ui('学习流'), case: ui('案例'), audio: ui('音频文本'), other: ui('其他'),
 });
 /** Features in the product's order, with their names. */
-export const USAGE_FEATURE_ORDER = Object.freeze(['generate', 'repair', 'coach', 'flow', 'case', 'audio', 'other']);
+export const USAGE_FEATURE_ORDER = Object.freeze(['generate', 'repair', 'book', 'coach', 'flow', 'case', 'audio', 'other']);
 export const featureLabel = (id) => FEATURE_LABELS()[id] || id;
 
 /** One stage of an estimate, in plain words. */

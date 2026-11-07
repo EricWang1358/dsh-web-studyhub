@@ -243,6 +243,15 @@ test('the stats section lists the features that have usage, in the order of the 
   assert.match(english, /Total/);
   assert.match(english, /Uncached input 50,000 tok/);
   assert.match(english, /Cached input 30,000 tok/);
+  setUiLanguage('zh');
+  const withBook = { days: 7, byFeature: { book: { uncachedInputTokens: 12000, outputTokens: 8000, cacheReadTokens: 4000, cacheWriteTokens: 0, calls: 6 },
+    other: { uncachedInputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, calls: 1 } },
+  total: { uncachedInputTokens: 12100, outputTokens: 8050, cacheReadTokens: 4000, cacheWriteTokens: 0, calls: 7 }, daily: [] };
+  const zhBook = text(render(React.createElement(ModelUsageView, { state: { status: 'ready', summary: withBook }, days: 7 })));
+  assert.ok(zhBook.indexOf('复习全书 / 总纲') > 0 && zhBook.indexOf('复习全书 / 总纲') < zhBook.indexOf('其他'), zhBook);
+  setUiLanguage('en');
+  const enBook = text(render(React.createElement(ModelUsageView, { state: { status: 'ready', summary: withBook }, days: 7 })));
+  assert.ok(!han.test(enBook) && enBook.indexOf('Review book and outline') > 0 && enBook.indexOf('Review book and outline') < enBook.indexOf('Other'), enBook);
 });
 
 test('the stats section is quiet while loading, and says so when nothing was used', () => {

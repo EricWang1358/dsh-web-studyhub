@@ -12,6 +12,7 @@ import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 import { bookModel } from './helpers/course-book-model.mjs';
 import { isCourseNotesSource, isCourseOutlineSource } from '../lib/exam-point-list.js';
 import { SAMPLE_FROM } from '../lib/contexts/generation/book/constants.js';
+import { OUTPUT_PER_CALL } from '../lib/contexts/generation/outline/constants.js';
 
 const KIND = 'course-book-build', POINT_STAGES = ['write', 'review', 'repair'];
 
@@ -103,6 +104,8 @@ test('the scale of a pick before it starts: points and calls from the program, n
   assert.equal(pick.scale.chapters, 2);
   assert.ok(pick.scale.calls.low >= points * 2 && pick.scale.calls.high > pick.scale.calls.low, JSON.stringify(pick.scale.calls));
   assert.ok(pick.scale.readTokens.low > 0 && pick.scale.readTokens.high > pick.scale.readTokens.low, 'the material the calls read, in tokens');
+  assert.ok(pick.scale.writeTokens.low > 0 && pick.scale.writeTokens.high >= pick.scale.calls.high * OUTPUT_PER_CALL, 'what the calls write, thinking included at the high end');
+  assert.deepEqual(pick.scale.totalTokens, { low: pick.scale.readTokens.low + pick.scale.writeTokens.low, high: pick.scale.readTokens.high + pick.scale.writeTokens.high });
   assert.equal(pick.scale.sample, points >= SAMPLE_FROM, 'whether it starts with a sample');
   assert.doesNotMatch(JSON.stringify(pick), /price|cost|¥|\$/i, 'no price');
   const whole = await w.ask({ estimate: true });

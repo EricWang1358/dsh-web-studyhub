@@ -36,7 +36,9 @@ export function ScaleLines({ scale }) {
   return (
     <div className="book-pick__scale" data-book-pick-scale="">
       <p className="book-pick__line">{uiFormat('要写 {0} 个知识点 · {1}', [scale.points, callsText(scale.calls)])}</p>
-      <p className="book-pick__line">{uiFormat('读资料约 {0}（不含提示和模型写出的内容）', [rangeTok(scale.readTokens)])}</p>
+      <p className="book-pick__line">{scale.totalTokens && scale.writeTokens
+        ? uiFormat('读资料加模型写出的约 {0}（读资料 {1}，写出 {2}，含思考）；提示词另计', [rangeTok(scale.totalTokens), rangeTok(scale.readTokens), rangeTok(scale.writeTokens)])
+        : uiFormat('读资料约 {0}（不含提示和模型写出的内容）', [rangeTok(scale.readTokens)])}</p>
       {scale.sample && <p className="book-pick__line">{ui('先写 2 个样例，按它们实际用的 token 推算其余的，你看过再继续。')}</p>}
       <p className="book-pick__line">{ui('整本比较费：可以把资料交给网页版 AI 生成后导入，或者用 opencode / commandcode 这类套餐再生成')}</p>
     </div>
