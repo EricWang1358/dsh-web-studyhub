@@ -12,6 +12,7 @@ import { writesFor } from '../lib/runtime/domain-contracts.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { studyToolDescription, libraryContracts } from '../lib/study-contracts.js';
 import { CUSTOM_PURPOSES, customDefaults } from '../lib/custom-plan.js';
+import { tokensOfCharsRange } from '../lib/token-estimate.js';
 import { COURSE, LECTURES, outlineLibrary } from './helpers/course-outline-library.mjs';
 import { COURSE as BOOK_COURSE, service as bookService } from './helpers/crunch-library.mjs';
 
@@ -25,12 +26,12 @@ async function open(t, { paper = true } = {}) {
   return study;
 }
 /** One converted book of 10 chapters of 24 000 characters: big enough for the strength levels to differ (a course of many small materials gets a question per material at every level). */
-async function openBigBook(t) {
+async function openBigBook(t, text = 'word '.repeat(1200)) {
   const root = await mkdtemp(join(tmpdir(), 'study-custom-preview-big-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const study = new StudyService(root);
   await study.call('snapshot');
-  const sources = Array.from({ length: 40 }, (_, at) => ({ id: `big-p${at + 1}`, title: `Big Book · p. ${at + 1}`, text: 'word '.repeat(1200), createdAt: '2026-10-01T08:00:00.000Z', courses: ['Big'],
+  const sources = Array.from({ length: 40 }, (_, at) => ({ id: `big-p${at + 1}`, title: `Big Book · p. ${at + 1}`, text, createdAt: '2026-10-01T08:00:00.000Z', courses: ['Big'],
     document: { materialId: 'document-big', page: at + 1, totalPages: 40, format: 'pdf', origin: 'converted', converter: 'marker', filename: 'Big Book.pdf',
       chapter: { index: Math.floor(at / 4), title: `Chapter ${Math.floor(at / 4) + 1}`, level: 1 }, extractionVersion: 2 } }));
   await study.store.update(own => { own.sources.push(...sources); });
@@ -93,10 +94,11 @@ test('only the chosen chapters count: fewer chapters, fewer points, calls, quest
   const three = await preview(study, { custom: custom('review', { scope: { kind: 'chapters', chapters: chaptersOf(whole, [3]) } }) });
   const a = one.estimate, b = three.estimate, all = whole.estimate;
   for (const part of [['book', 'points'], ['book', 'calls'], ['questions', 'count'], ['questions', 'calls'], ['total', 'calls'], ['total', 'readTokens']]) {
-    const [group, key] = part;
-    assert.ok(a[group][key] > 0, `${group}.${key} of one chapter`);
-    assert.ok(a[group][key] <= b[group][key] && b[group][key] < all[group][key], `${group}.${key}: one ≤ three < all`);
+    const [group, key] = part, at = (view) => (key === 'readTokens' ? view[group][key].low : view[group][key]);
+    assert.ok(at(a) > 0, `${group}.${key} of one chapter`);
+    assert.ok(at(a) <= at(b) && at(b) < at(all), `${group}.${key}: one ≤ three < all`);
   }
+  assert.ok(all.total.readTokens.high > all.total.readTokens.low, 'tokens read is a range: the low end is chars/4, the high end the documented rate of the material language');
   assert.deepEqual(one.unknownChapters, []);
 });
 
@@ -132,12 +134,12 @@ test('make:false adds nothing; the plan and variants add no call; the totals are
   const base = customDefaults('review');
   const get = async over => (await preview(study, { custom: custom('review', over) })).estimate;
   const full = await get({}), noBook = await get({ book: { ...base.book, make: false } }), noQuestions = await get({ questions: { ...base.questions, make: false } });
-  assert.deepEqual(noBook.book, { points: 0, calls: 0, readTokens: 0 });
-  assert.deepEqual(noQuestions.questions, { count: 0, runs: 0, calls: 0, readTokens: 0 });
+  assert.deepEqual(noBook.book, { points: 0, calls: 0, readTokens: { low: 0, high: 0 } });
+  assert.deepEqual(noQuestions.questions, { count: 0, runs: 0, calls: 0, readTokens: { low: 0, high: 0 } });
   assert.equal(noBook.total.calls, full.questions.calls);
   assert.equal(noQuestions.total.calls, full.book.calls);
   assert.equal(full.total.calls, full.book.calls + full.questions.calls);
-  assert.equal(full.total.readTokens, full.book.readTokens + full.questions.readTokens);
+  assert.deepEqual(full.total.readTokens, { low: full.book.readTokens.low + full.questions.readTokens.low, high: full.book.readTokens.high + full.questions.readTokens.high });
   assert.deepEqual(await get({ plan: { ...base.plan, make: false } }), full, 'the schedule is the program\'s: no call');
   assert.deepEqual(await get({ questions: { ...base.questions, variants: false } }), full, 'variants are only written once an answer is wrong');
   const nothing = await get({ book: { ...base.book, make: false }, questions: { ...base.questions, make: false } });
@@ -155,7 +157,8 @@ test('the question count follows the strength level of lib/coverage-strength.js,
   assert.ok(lean.count < standard.count && standard.count < full.count, `${lean.count} < ${standard.count} < ${full.count}`);
   assert.ok(lean.calls < standard.calls && standard.calls < full.calls);
   assert.ok((await count('standard', ['quiz'])).calls < standard.calls, 'one kind is fewer parts than five');
-  assert.ok(full.readTokens > 0);
+  assert.ok(full.readTokens.low > 0, 'the material the questions read');
+  assert.ok(full.readTokens.high > full.readTokens.low, 'a range: chars/4 up to the documented CJK rate');
 });
 
 test('a plan the record refuses is refused here with the same message; no course says so; nothing is written; no price anywhere', async t => {
@@ -235,4 +238,19 @@ test('what a scope names: the chapters of the materials until the course has a c
   const stale = await written.call('course.custom.preview', { course: BOOK_COURSE });
   assert.equal(stale.skeleton.basis, 'documents');
   assert.equal(stale.skeleton.outline.stale, true);
+});
+
+/* #760 accept: the high end follows the material's language. Chinese is about 0.6 token a character, English about 0.3 (DeepSeek's documented rates); the low end is
+   chars / 4 in both. One rate for every book made an English course's range twice too high. */
+test('the read tokens are a range by the material\'s language: Chinese high ≈ 0.6 per character, English ≈ 0.3, low = chars / 4', async t => {
+  assert.deepEqual(tokensOfCharsRange(1000, 'zh'), { low: 250, high: 600 });
+  assert.deepEqual(tokensOfCharsRange(1000, 'en'), { low: 250, high: 300 });
+  assert.deepEqual(tokensOfCharsRange(1000), { low: 250, high: 600 }, 'no language known: the wider range');
+  assert.deepEqual(tokensOfCharsRange(0), { low: 0, high: 0 });
+  const english = (await preview(await openBigBook(t), { course: 'Big', custom: custom('review', { questions: { ...customDefaults('review').questions, make: false } }) })).estimate;
+  const ratio = english.total.readTokens.high / english.total.readTokens.low;
+  assert.ok(ratio > 1.15 && ratio < 1.25, `English material: high is 0.3 / 0.25 of low, got ${ratio}`);
+  const chinese = (await preview(await openBigBook(t, '知识点的讲解和例题。'.repeat(500)), { course: 'Big', custom: custom('review', { questions: { ...customDefaults('review').questions, make: false } }) })).estimate;
+  const wide = chinese.total.readTokens.high / chinese.total.readTokens.low;
+  assert.ok(wide > 2.3 && wide < 2.5, `Chinese material: high is 0.6 / 0.25 of low, got ${wide}`);
 });

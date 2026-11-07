@@ -1,7 +1,7 @@
 import { ui, uiFormat } from './i18n.js';
 import { formatList, joinMeta } from './format.js';
 import { levelText } from './outline/words.js';
-import { formatCompactTokens } from '../lib/token-usage.js';
+import { rangeTok } from './token-usage.js';
 import { BASIC_KINDS } from '../lib/generation-settings.js';
 import { closedParts, customDefaults, lockedParts, partsWithout } from '../lib/custom-plan.js';
 
@@ -66,7 +66,7 @@ export function customSummary(custom) {
 export function estimateLine(estimate) {
   if (!estimate?.total) return '';
   if (!estimate.total.calls) return ui('不需要模型调用');
-  return uiFormat('粗估：约 {0} 次模型调用，读取约 {1}', [estimate.total.calls, `${formatCompactTokens(estimate.total.readTokens)} tok`]);
+  return uiFormat('粗估：约 {0} 次模型调用，读取约 {1}', [estimate.total.calls, rangeTok(estimate.total.readTokens)]);
 }
 
 /* ---------- the changes the switches make ---------- */
