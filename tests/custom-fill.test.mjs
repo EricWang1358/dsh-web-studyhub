@@ -16,7 +16,7 @@ function waiting() {
 }
 async function world(t, over = {}) {
   const model = waiting();
-  const made = await library(t, { ...over, options: { complete: model.complete, ...switchOptions('runtime', { complete: model.complete, paths: [] }) } });
+  const made = await library(t, { ...over, options: { complete: model.complete, completeLight: model.complete, coach: true, ...switchOptions('runtime', { complete: model.complete, paths: ['coach'] }) } });
   const jobs = () => [...made.study.runtime.work.jobs.values()];
   const fill = (args = {}) => made.study.call('course.custom.fill', { course: COURSE, ...args });
   return { ...made, model, jobs, fill };
@@ -91,8 +91,12 @@ test('weak questions go to the coach\'s variants when the plan ticks them; the c
   const answer = await w.fill({ chapters: ['c1'] });
   assert.equal(answer.status, 'ok');
   assert.deepEqual({ book: answer.book, questions: answer.questions, cards: answer.variants.cards }, { book: null, questions: null, cards: 1 });
-  assert.ok(answer.started.variants, 'asked of the coach');
+  assert.equal(answer.started.variants.needsConsent, true, 'asked of the coach, which asks for consent first');
+  assert.equal(answer.started.variants.queued, 0);
   assert.equal(w.jobs().length, 0, 'no job of this library: the coach\'s own queue does it');
+  await w.study.store.update(own => { own.learner.consent.prep = true; });
+  const consented = await w.fill({ chapters: ['c1'] });
+  assert.equal(consented.started.variants.queued, 1, 'with consent, the coach queues the weak question\'s variant');
 });
 
 test('only the ticked parts: no variants when unticked, no book without the explanations, nothing to do is said', async t => {
