@@ -4,6 +4,7 @@ import { Badge, Button, SegmentedControl, Tooltip } from '../components/index.js
 import { ParkedChip, isParked } from '../CourseActive.jsx';
 import CourseRoute from '../CourseRoute.jsx';
 import FocusProgressLine from './FocusProgressLine.jsx';
+import MethodLine from './MethodLine.jsx';
 import { TERMS } from '../mastery-terms.js';
 import CourseHeading from './CourseHeading.jsx';
 import OutlineEntry from './OutlineEntry.jsx';
@@ -65,6 +66,7 @@ export default function DeskIntro({ data, home, mastery, role, start, resume, en
         <small>{ui('未激活的课程不进入到期复习和推荐；随时可以再激活')}</small></p>}
       {interview && <RoleSuggestion data={data} role={role.draft} suggestRole={suggestRole} onFocus={onFocus} start={start} />}
       {route && <CourseRoute route={route} />}
+      {!interview && <MethodLine method={data.focus?.method} courseId={data.focus?.courseId} onCourseSettings={onCourseSettings} />}
       {!interview && <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} lock={busy} start={start} onCourseSettings={onCourseSettings} />}
       {mastery.primary && <DeskMastery mastery={mastery} />}
       <p className="desk-next">

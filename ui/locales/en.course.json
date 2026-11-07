@@ -151,5 +151,7 @@
   "考前：到期复习": "Before the exam: review what is due",
   "松一点": "A little loose",
   "适中": "Medium",
-  "严格一点": "A little strict"
+  "严格一点": "A little strict",
+  "学法 · 第 {0} 阶段": "Method · stage {0}",
+  "学法：第 {0} 阶段，{1}。打开课程设置看整份学法": "Method: stage {0}, {1}. Opens the course settings with the whole method"
 }

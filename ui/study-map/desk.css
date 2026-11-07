@@ -281,6 +281,11 @@
     /* 重点 × 掌握度: one line under the course progress; the summary is a quiet button, the practice link follows it. */
     .focus-progress { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--fs-md); color: var(--text-dim); }
     .focus-progress .focus-progress__summary { min-height: 0; padding: 0; font-size: inherit; font-weight: var(--fw-regular); text-align: start; }
+    /* 学法 (#775): the stage of a course's own method, one quiet line under the course progress like the 重点 line; it opens the course settings. */
+    .course-method-line { margin: 0; font-size: var(--fs-md); color: var(--text-dim); }
+    .course-method-line .course-method-line__summary { min-height: 0; padding: 0; font-size: inherit; font-weight: var(--fw-regular); text-align: start; gap: var(--space-2); }
+    .course-method-line__label { color: var(--text-muted); white-space: nowrap; }
+    .course-method-line__stage { min-width: 0; overflow-wrap: anywhere; color: var(--text); }
   }
   @container study (max-width: 760px) {
     :where(.study-app, .study-seat) {
@@ -331,7 +336,7 @@
   :is(.study-app, .study-seat) {
     .desk-more .desk-also { margin-top: var(--space-2); }
     .desk > .desk-intro { --desk-measure: 32.5rem; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-5); min-width: 0; }
-    .desk > .desk-intro > :is(.course-route, .focus-progress, .role-prep, .desk-mastery, .desk-next, .desk-also, .desk-more, .resume-list) { width: 100%; max-width: var(--desk-measure); margin: 0; }
+    .desk > .desk-intro > :is(.course-route, .course-method-line, .focus-progress, .role-prep, .desk-mastery, .desk-next, .desk-also, .desk-more, .resume-list) { width: 100%; max-width: var(--desk-measure); margin: 0; }
     .desk > .desk-intro > .desk-next { margin-top: var(--space-2); }
     .today-card-head { align-items: baseline; }
       .desk-more {
@@ -355,6 +360,7 @@
         .desk > .desk-intro > .desk-more { order: 9; }
         .desk > .desk-intro > .course-route { order: 5; }
         .desk > .desk-intro > .focus-progress { order: 5; }
+        .desk > .desk-intro > .course-method-line { order: 5; }
         .desk > .desk-intro > .role-prep { order: 3; }
 }
   }
