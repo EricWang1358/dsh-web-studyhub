@@ -55,6 +55,23 @@ export const coverageChipText = (c) => uiFormat('覆盖 {0}%', [c.percentLeaves]
 /** 「覆盖 7/80」: the outline's header. */
 export const coverageOutlineHead = (c) => uiFormat('覆盖 {0}/{1}', [c.covered, c.leaves]);
 
+/** 「重点覆盖 3/5 · 还没有题：页面置换、TLB」 (or 「重点覆盖 5/5」 when every saved focus topic has a question): the course's focus topics against the questions here. */
+export function focusCoverageHead(focus) {
+  return focus?.total > 0 ? uiFormat('重点覆盖 {0}/{1}', [focus.covered, focus.total]) : '';
+}
+export function focusUncoveredText(uncovered = []) {
+  if (!uncovered.length) return '';
+  const shown = uncovered.slice(0, 5).join(ui('、'));
+  const list = uncovered.length > 5 ? uiFormat('{0} 等 {1} 个', [shown, uncovered.length]) : shown;
+  return uiFormat('还没有题：{0}', [list]);
+}
+export function focusCoverageLine(focus) {
+  const head = focusCoverageHead(focus);
+  if (!head) return '';
+  const rest = focusUncoveredText(focus.uncovered);
+  return rest ? `${head}${META_DOT}${rest}` : head;
+}
+
 /** What a section's state is called. `scheduled`: it is in a later round of the draft's plan. */
 export function stateWord(state, recorded = true, scheduled = false) {
   if (state === 'covered') return ui('已覆盖');

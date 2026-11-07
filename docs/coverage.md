@@ -16,12 +16,12 @@ The result carries `sections`, the counts, `percentLeaves`, `percentChars`, `per
 
 Backend views (`lib/coverage-state.js`): a draft's own coverage, a document's (every published or draft question of the library that points into it; archived decks, suspended questions and copies of published decks are left out), and the digest the snapshot keeps per document (`materialCoverage`: `[covered, plannedFailed, neverPlanned, recorded, units]`, a few characters, because the snapshot is paid for in characters).
 
-Service actions: `coverage.get { draftId }` (coverage and the round a top-up would run now, `canTopUp`) and `coverage.get { documentId | sourceId }`.
+Service actions: `coverage.get { draftId }` (coverage and the round a top-up would run now, `canTopUp`) and `coverage.get { documentId | sourceId }`. When the draft's or document's course has saved focus topics (`courseFocusTopics`), both also attach `focus: { total, covered, uncovered }` (`lib/focus-progress.js focusCoverageOf`); courses without focus topics omit `focus`.
 
 ## Where it is shown (one wording: `ui/coverage/copy.js`)
 
 - 任务 console › 轮次与批次: each batch (批次) says 覆盖 3/8 小节 for its range and a small bar; the strip names the sections of the batch with no question and the real reason of each. A finished (or archived) run has 为没覆盖的部分补题 in the header.
-- Draft page: the summary at the top (「覆盖 7/80 个小节（9%）· 3 个计划了没出成 · 70 个没计划到」), one row per recording, the list of what has no question with the way to the reader at that section, and the one top-up.
+- Draft page: the summary at the top (「覆盖 7/80 个小节（9%）· 3 个计划了没出成 · 70 个没计划到」), focus coverage when the course has focus topics (「重点覆盖 3/5 · 还没有题：…」), one row per recording, the list of what has no question with the way to the reader at that section, and the one top-up.
 - 资料 page row and the reader's 更多 menu (掌握度与覆盖, which opens the 目录): 覆盖 9% beside the mastery mark, before anything is published (drafts count).
 - Reader outline: a square mark per section (solid with a tick · hatched · dashed), a count on every recording, 覆盖 7/80 in the header and 只看没覆盖的; the 做这几页的题 panel says in one line when part of its range has no question. Coverage is *asked*, mastery is *learned*: coverage is a square, mastery a ring, and the words never mix.
 

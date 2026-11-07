@@ -4,7 +4,7 @@
    Props that are services now (busy, call, askInChat, endRun, cancelJob, dismissJob, onFocus...) are dropped: the page reads the standalone
    services unless the test provides a StudyServicesContext. */
 const ACTIONS = ['start', 'resume', 'manage', 'removeDeck', 'openDraft', 'continueDraft', 'retryGeneration', 'addSource', 'createManual', 'importLibrary',
-  'generateFromSources', 'startCourseFlow', 'onCoachPractice', 'onWeakPoints', 'onShowGraph', 'onCourseSettings'];
+  'generateFromSources', 'startCourseFlow', 'onCoachPractice', 'onWeakPoints', 'onShowGraph', 'onCourseSettings', 'onGenerateFocus'];
 
 export function mapProps(old = {}) {
   const actions = Object.fromEntries(ACTIONS.filter(key => old[key] !== undefined).map(key => [key, old[key]]));

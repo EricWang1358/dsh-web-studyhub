@@ -352,3 +352,27 @@ test('the list of what has no question and "everything is covered" speak in the 
   });
   assert.equal(m.uncoveredHead('unknown', 2), '没覆盖的小节 · 2', 'an unknown unit is called sections');
 });
+
+test('focus coverage in CoverageSummary renders only when focus topics exist, in both zh and en', () => {
+  assert.doesNotMatch(summaryHtml(view), /data-focus-coverage/);
+  const partialHtml = inLanguage('zh', () => renderToStaticMarkup(inApp(m, React.createElement(m.CoverageSummary, {
+    coverage: cov,
+    focus: { total: 4, covered: 2, uncovered: ['deadlock', 'paging'] },
+    onOpen: noop,
+  }), { data: {} })));
+  assert.match(text(partialHtml), /重点覆盖 2\/4 · 还没有题：deadlock、paging/);
+  const enHtml = inLanguage('en', () => renderToStaticMarkup(inApp(m, React.createElement(m.CoverageSummary, {
+    coverage: cov,
+    focus: { total: 4, covered: 2, uncovered: ['deadlock', 'paging'] },
+    onOpen: noop,
+  }), { data: {} })));
+  assert.doesNotMatch(text(withoutData(enHtml)), han);
+  assert.match(text(enHtml), /Focus topics covered 2\/4 · No questions yet: deadlock, paging/);
+  const fullHtml = inLanguage('zh', () => renderToStaticMarkup(inApp(m, React.createElement(m.CoverageSummary, {
+    coverage: cov,
+    focus: { total: 3, covered: 3, uncovered: [] },
+    onOpen: noop,
+  }), { data: {} })));
+  assert.match(text(fullHtml), /重点覆盖 3\/3/);
+  assert.doesNotMatch(text(fullHtml), /还没有题：/);
+});

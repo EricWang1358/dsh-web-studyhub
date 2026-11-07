@@ -31,6 +31,7 @@
     .cov-fact > * { min-width: 0; margin: 0; }
     .cov-fact__line { color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-fact__status { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-focus { color: var(--text-dim); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-groups { display: grid; gap: var(--space-1-5); margin: 0; padding: 0; list-style: none; }
     .cov-groups li { display: grid; grid-template-columns: minmax(6em, 14em) minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); font-size: var(--fs-sm); }
     .cov-groups__name { min-width: 0; color: var(--text-dim); overflow-wrap: anywhere; line-height: var(--lh-snug); }

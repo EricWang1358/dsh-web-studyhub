@@ -37,6 +37,7 @@ import { shellTitleOf } from './shell-title.js';
 import WorkspaceBindingPanel from './WorkspaceBindingPanel.jsx';
 import { RecoveryBanner } from './AppBanners.jsx';
 import { formatDateTime } from '../format.js';
+import { appendFocus } from '../generate-form.js';
 import { retryForm, retryNotice } from './retry-generation.js';
 
 /* One adapter per page: the registry (ui/pages.js) names the page, this file maps it to the component and says which of the app's
@@ -100,6 +101,7 @@ function LibraryView() {
           onOpenExamBook: pageAvailable(data, 'book') ? (course) => openCrunchBook(course, { view: 'today' }) : undefined,
           onShowGraph: (scope, options) => { set.setGraphScope(scope ?? null); set.setGraphCanvas(options?.canvas !== false); nav.navigate('graph'); },
           onCourseSettings: settingsEntry.setCourseSettings,
+          onGenerateFocus: (topics, course) => intents.goGenerate({ genPatch: (cur) => ({ ...cur, ...(course ? { course } : {}), focus: appendFocus(cur.focus, topics) }), remember: true }),
           onShowOutline: pageAvailable(data, 'outline') ? () => nav.navigate('outline') : undefined,
         }}>
         {!linePage && pageAvailable(data, 'review') && hasOwnDeck(data) && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false} onBoard={() => nav.navigate('board')}

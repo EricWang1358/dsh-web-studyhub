@@ -281,5 +281,7 @@
   "补题（约 {0} 题）": "Add questions (about {0})",
   "还有更多没出题的资料，补完上面的再看。": "More materials have no questions; add the ones above first.",
   "按你填的题数出，题仍按「{0}」的规则分到各个小节；超过 30 道的会分成几轮（每轮最多 30 题），最多 {1} 题。": "Questions are made to the number you typed, still shared over the sections by the rules of “{0}”; more than 30 are split into rounds of at most 30, up to {1}.",
-  "还没填题数，现在按「{0}」出。": "No number typed yet: questions are made by “{0}” for now."
+  "还没填题数，现在按「{0}」出。": "No number typed yet: questions are made by “{0}” for now.",
+  "重点覆盖 {0}/{1}": "Focus topics covered {0}/{1}",
+  "还没有题：{0}": "No questions yet: {0}"
 }
