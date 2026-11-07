@@ -130,11 +130,14 @@ test('a book converted before the fix (page-sized chapters) reads with its headi
     state.documents = [{ id: documentId, format: 'pdf', filename: '软件工程.json', title: '软件工程', currentRevision: old,
       versions: [{ revision: old, attachment: null, sourceIds: state.sources.map(source => source.id), importedAt: '2026-11-01T00:00:00.000Z' }] }];
   });
-  const stored = (await store.read()).sources;
+  const { sources: stored, documents } = await store.read();
   // As stored (what a book built from it saw): a chapter per page. Read now, its pages are stamped again from their own texts (lib/converted-chapter-stamps.js).
-  const built = groupSourcesByDocument(stored.map(({ text, ...source }) => ({ ...source, chars: text.length })));
+  const built = groupSourcesByDocument(stored.map(({ text, ...source }) => ({ ...source, chars: text.length })), { documents });
   assert.equal(built[0].chapters.length, 8, 'the old import as stored: a chapter per page');
-  const before = groupSourcesByDocument(stored);
+  // Without the library's records the pages still say how big their book is: all eight are here, so it is read again all the same.
+  assert.equal(groupSourcesByDocument(stored)[0].chapters.length, 4, 'no records, every page of the book: read again');
+  assert.equal(groupSourcesByDocument(stored.slice(2, 5))[0].chapters.length, 3, 'no records, a part of the book: its stored chapters stay');
+  const before = groupSourcesByDocument(stored, { documents });
   assert.deepEqual(before[0].chapters.map(chapter => chapter.title), ['软件工程课程讲义', '第一章 软件过程', '第二章 需求工程', 'Chapter 3 Design']);
   // The course's materials changed as the outline engine sees them: the book shows 需要更新 and its next update builds the outline again.
   assert.notEqual(materialsFingerprint(before), materialsFingerprint(built));
