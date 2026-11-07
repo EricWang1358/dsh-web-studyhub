@@ -8,8 +8,9 @@ import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { estimateFromState, compactEstimate, stageTotals, calibrateEstimate } from "../lib/token-estimate.js";
-import { calibrationDir, calibrationFor, createCalibration, learningOff, observedByStage, stageOfStep } from "../lib/estimate-calibration.js";
+import { calibrationDir, calibrationFor, calibrationModel, createCalibration, learningOff, observedByStage, roundCalibrationModel, stageOfStep, stampStepModel } from "../lib/estimate-calibration.js";
 import { DEFAULT_OUTPUT_PER_CALL } from "../lib/stage-usage.js";
+import { stageSystem } from "../lib/prompt-order.js";
 
 /** No assumed thinking allowance: the tests that check the arithmetic of the ratios alone (production always has the allowance, lib/token-estimate.js). */
 const NO_ASSUMPTION = Object.freeze({ stages: {}, samples: 0, defaults: {} });
@@ -418,4 +419,448 @@ test("a run that recorded only what it wrote is no sample of the ratio, and a ba
   await writeFile(join(root, "estimate-calibration.json"), JSON.stringify({ runs: [{ at: "a", stages: {}, outputs: { author: 5 } }, { at: "b", stages: {}, outputs: null },
     ...[1, 2, 3].map((n) => ({ at: `c${n}`, stages: {}, outputs: { author: [2, 18000] } }))] }));
   assert.equal((await createCalibration(root).outputPerCall()).stages.author, 9000);
+});
+
+
+test("a planned coverage run records calibration right after round 1 finishes, before round 2 ends, and cleanUp does not record a second time (#772)", async (t) => {
+  const { StudyService } = await import("../lib/service.js");
+  const { reportUsage } = await import("../lib/usage-scope.js");
+  const { settleJob } = await import("./helpers/wait.mjs");
+  const { mergedTranscript } = await import("./helpers/merged-transcript.mjs");
+  const { clusteringModel } = await import("./helpers/clustering-model.mjs");
+  const home = await mkdtemp(join(tmpdir(), "study-dsh-home-")), root = await mkdtemp(join(tmpdir(), "study-calibration-round1-"));
+  const saved = { home: process.env.DSH_HOME, off: process.env.STUDY_NO_CALIBRATION };
+  process.env.DSH_HOME = home;
+  delete process.env.STUDY_NO_CALIBRATION;
+  const service = new StudyService(root, {
+    coverage: { roundLimit: 8 },
+    ...(globalThis.STUDY_RUNTIME_MATRIX_ON ? { model: { provider: "deepseek", model: "deepseek-v4.1-flash" } } : {}),
+    jobModelHost: { route: () => ({ provider: "deepseek", model: "deepseek-v4.1-flash" }) },
+  });
+  let onRoundTwo, releaseRoundTwo;
+  const reachedRoundTwo = new Promise((resolve) => { onRoundTwo = resolve; });
+  const allowRoundTwo = new Promise((resolve) => { releaseRoundTwo = resolve; });
+  t.after(async () => {
+    releaseRoundTwo?.();
+    await service.dispose();
+    for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+  });
+  const world = mergedTranscript({ recordings: 2, parts: 6, paragraphs: 4 }), model = clusteringModel();
+  service.complete = async (system, prompt, context) => {
+    if (onRoundTwo && stageSystem(system, prompt).startsWith("Plan a source-grounded assessment")) {
+      const snap = await service.call("snapshot", {});
+      const current = snap.jobs.find((item) => item.status === "running" && item.coverageRun?.list?.[0]?.status === "done");
+      if (current) {
+        onRoundTwo();
+        onRoundTwo = null;
+        const hold = setInterval(() => {}, 50);
+        try { await allowRoundTwo; } finally { clearInterval(hold); }
+      }
+    }
+    reportUsage({ uncachedInputTokens: 1000, outputTokens: 200 });
+    return model.complete(system, prompt, context);
+  };
+  service.light = async (_system, prompt) => JSON.stringify({
+    sections: JSON.parse(prompt.split("\n\n")[0]).sections.map((item) => ({ id: item.id, importance: 3, kind: "definition", reason: `Reason for ${item.title}` })),
+  });
+  for (const source of world.sources) await service.call("source.add", { id: source.id, title: source.title, text: source.text, audio: source.audio });
+  const started = await service.call("generate", { sourceIds: world.sources.map((source) => source.id), coverageLevel: "standard", kind: "quiz" });
+  assert.equal(started.plan.rounds, 3);
+  await reachedRoundTwo;
+  const snapMidRun = await service.call("snapshot", {});
+  const liveJob = snapMidRun.jobs.find((item) => item.id === started.jobId);
+  assert.equal(liveJob?.status, "running", "round 2 is still in flight");
+  const filePath = join(home, "study", "estimate-calibration.json");
+  const midRuns = JSON.parse(await readFile(filePath, "utf8")).runs;
+  assert.equal(midRuns.length, 1, "round 1 was recorded immediately without waiting for rounds 2 and 3");
+  assert.equal(midRuns[0].model, "deepseek/deepseek-v4.1-flash");
+  releaseRoundTwo();
+  const finished = await settleJob(service, started.jobId);
+  assert.equal(finished.status, "complete", finished.stage);
+  const finalRuns = JSON.parse(await readFile(filePath, "utf8")).runs;
+  assert.equal(finalRuns.length, 1, "cleanUp did not record a duplicate entry after the whole coverage run finished");
+  assert.deepEqual(finalRuns[0], midRuns[0]);
+});
+
+test("model-keyed runs isolate two models across generate and usage.estimate while unkeyed runs and 'follow' still apply (#772)", async (t) => {
+  const { StudyService } = await import("../lib/service.js");
+  const { modelKey } = await import("../lib/job-model.js");
+  const { reportUsage } = await import("../lib/usage-scope.js");
+  const { settleJob } = await import("./helpers/wait.mjs");
+  const { mergedTranscript } = await import("./helpers/merged-transcript.mjs");
+  const { clusteringModel } = await import("./helpers/clustering-model.mjs");
+  assert.equal(calibrationModel({ provider: "deepseek", model: "deepseek-v4.1-flash" }), "deepseek/deepseek-v4.1-flash");
+  assert.equal(calibrationModel(modelKey({ provider: "deepseek", model: "deepseek-v4.1-flash" })), "deepseek/deepseek-v4.1-flash");
+  assert.equal(calibrationModel("deepseek/deepseek-v4.1-flash"), "deepseek/deepseek-v4.1-flash");
+  for (const unknown of ["follow", "", "   ", null, undefined, {}, { provider: "deepseek", model: "follow" }]) {
+    assert.equal(calibrationModel(unknown), undefined);
+  }
+  const home = await mkdtemp(join(tmpdir(), "study-dsh-home-")), root = await mkdtemp(join(tmpdir(), "study-calibration-models-e2e-"));
+  const saved = { home: process.env.DSH_HOME, off: process.env.STUDY_NO_CALIBRATION };
+  process.env.DSH_HOME = home;
+  delete process.env.STUDY_NO_CALIBRATION;
+  let activeRoute = null;
+  let usage = { uncachedInputTokens: 1_000, outputTokens: 100 };
+  const service = new StudyService(root, { jobModelHost: { route: () => activeRoute } });
+  const setRoute = (route) => {
+    activeRoute = route;
+    if (globalThis.STUDY_RUNTIME_MATRIX_ON) service.model = route ?? "follow";
+  };
+  t.after(async () => {
+    await service.dispose();
+    for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+  });
+  const world = mergedTranscript({ recordings: 1, parts: 3, paragraphs: 2 }), model = clusteringModel();
+  service.complete = async (system, prompt, context) => {
+    reportUsage(usage);
+    return model.complete(system, prompt, context);
+  };
+  const sourceIds = world.sources.map((source) => source.id);
+  for (const source of world.sources) await service.call("source.add", { id: source.id, title: source.title, text: source.text, audio: source.audio });
+  const runOnce = async () => {
+    const started = await service.call("generate", { sourceIds, count: 2, kind: "quiz" });
+    const finished = await settleJob(service, started.jobId);
+    assert.equal(finished.status, "complete", finished.stage);
+    await service.call("draft.delete", { id: finished.draftId });
+    return finished;
+  };
+  // 1 unkeyed run (model unknown) -> counts for every model.
+  setRoute(null);
+  usage = { uncachedInputTokens: 20_000, outputTokens: 5_000 };
+  await runOnce();
+  // 2 heavy runs on deepseek/reasoner -> 1 unkeyed + 2 keyed = 3 samples for deepseek/reasoner, only 1 sample for openai/gpt-4o-mini.
+  setRoute({ provider: "deepseek", model: "reasoner" });
+  usage = { uncachedInputTokens: 40_000, outputTokens: 20_000 };
+  await runOnce();
+  await runOnce();
+  // 3 light runs on openai/gpt-4o-mini -> 1 unkeyed + 3 keyed = 4 samples for openai/gpt-4o-mini.
+  setRoute({ provider: "openai", model: "gpt-4o-mini" });
+  usage = { uncachedInputTokens: 200, outputTokens: 50 };
+  await runOnce();
+  await runOnce();
+  await runOnce();
+
+  const fileRuns = JSON.parse(await readFile(join(home, "study", "estimate-calibration.json"), "utf8")).runs;
+  assert.deepEqual(fileRuns.map((entry) => entry.model), [
+    undefined,
+    "deepseek/reasoner",
+    "deepseek/reasoner",
+    "openai/gpt-4o-mini",
+    "openai/gpt-4o-mini",
+    "openai/gpt-4o-mini",
+  ]);
+
+  setRoute({ provider: "deepseek", model: "reasoner" });
+  const estHeavy = await service.call("usage.estimate", { feature: "generate", sourceIds, count: 2, kind: "quiz" });
+  const jobHeavy = await runOnce();
+  assert.equal(estHeavy.calibration.samples, 3, "heavy model sees its 2 keyed runs + 1 unkeyed run");
+  assert.equal(jobHeavy.estimate.calibration.samples, 3, "generate prices with the same model filter as usage.estimate");
+  assert.deepEqual(jobHeavy.estimate.totalTokens, estHeavy.totalTokens);
+
+  setRoute({ provider: "openai", model: "gpt-4o-mini" });
+  const estLight = await service.call("usage.estimate", { feature: "generate", sourceIds, count: 2, kind: "quiz" });
+  assert.equal(estLight.calibration.samples, 4, "light model sees its 3 keyed runs + 1 unkeyed run");
+  assert.ok(estLight.totalTokens.high < estHeavy.totalTokens.low, `light ${JSON.stringify(estLight.totalTokens)} isolated from heavy ${JSON.stringify(estHeavy.totalTokens)}`);
+
+  const explicitHeavy = await service.call("usage.estimate", {
+    feature: "generate",
+    sourceIds,
+    count: 2,
+    kind: "quiz",
+    model: modelKey({ provider: "deepseek", model: "reasoner" }),
+  });
+  assert.equal(explicitHeavy.calibration.samples, 4, "after jobHeavy finished, deepseek/reasoner has 3 keyed + 1 unkeyed = 4 samples");
+
+  activeRoute = null;
+  service.model = "follow";
+  const estUnknown = await service.call("usage.estimate", { feature: "generate", sourceIds, count: 2, kind: "quiz" });
+  assert.equal(estUnknown.calibration.samples, 7, "when model is unknown/'follow', all 7 recorded runs count");
+
+  // generate ignores an unexecuted `model` arg instead of mispricing or misrecording calibration under it.
+  if (!globalThis.STUDY_RUNTIME_MATRIX_ON) service.model = undefined;
+  setRoute({ provider: "deepseek", model: "reasoner" });
+  const startedIgnored = await service.call("generate", { sourceIds, count: 2, kind: "quiz", model: "ignored/fake-model" });
+  const finishedIgnored = await settleJob(service, startedIgnored.jobId);
+  assert.equal(finishedIgnored.status, "complete", finishedIgnored.stage);
+  await service.call("draft.delete", { id: finishedIgnored.draftId });
+  assert.deepEqual(finishedIgnored.estimate.totalTokens, explicitHeavy.totalTokens, "ignored generate model arg does not misprice the run");
+  const afterIgnored = JSON.parse(await readFile(join(home, "study", "estimate-calibration.json"), "utf8")).runs;
+  assert.equal(afterIgnored.at(-1).model, "deepseek/reasoner", "ignored generate model arg does not override the dispatched host model");
+});
+
+
+test("roundCalibrationModel distinguishes unkeyed null steps from synthetic unstamped steps, ignores light weighing, and skips mixed-model rounds (#772)", () => {
+  const planStep = { id: "s1", stage: "Planning evidence and learning targets · Group 1/1" };
+  const authorStep = { id: "s2", stage: "Part 1/1 · Writing and self-checking questions" };
+  const weighStep = { id: "w", stage: "Planning evidence and learning targets · Weighing the importance of the sections" };
+  const repairStep = { id: "r", stage: "Part 1/1 · Repairing flagged questions" };
+  assert.deepEqual(
+    roundCalibrationModel([stampStepModel({ ...planStep }, "deepseek/reasoner"), stampStepModel({ ...authorStep }, "deepseek/reasoner"), stampStepModel({ ...repairStep }, "deepseek/chat")], undefined),
+    { skip: false, model: "deepseek/reasoner" },
+    "mechanical repair step routed to lightModel does not disqualify the calibrated pipeline stages",
+  );
+  assert.deepEqual(roundCalibrationModel([planStep, authorStep], "deepseek/reasoner"), { skip: false, model: "deepseek/reasoner" }, "synthetic unstamped steps fall back");
+  assert.deepEqual(
+    roundCalibrationModel([stampStepModel({ ...planStep }, null), stampStepModel({ ...authorStep }, null)], "deepseek/reasoner"),
+    { skip: false, model: undefined },
+    "explicitly unkeyed steps (null) stay unkeyed instead of falling back to prep.model",
+  );
+  assert.deepEqual(
+    roundCalibrationModel([weighStep, stampStepModel({ ...planStep }, "openai/gpt-4o-mini"), stampStepModel({ ...authorStep }, "openai/gpt-4o-mini")], "deepseek/reasoner"),
+    { skip: false, model: "openai/gpt-4o-mini" },
+    "light weighing step never conflicts with pipeline stage steps",
+  );
+  assert.deepEqual(
+    roundCalibrationModel([stampStepModel({ ...planStep }, "deepseek/reasoner"), stampStepModel({ ...authorStep }, "openai/gpt-4o-mini")], undefined),
+    { skip: true, model: undefined },
+    "two named models in one round skip calibration",
+  );
+  assert.deepEqual(
+    roundCalibrationModel([stampStepModel({ ...planStep }, null), stampStepModel({ ...authorStep }, "openai/gpt-4o-mini")], undefined),
+    { skip: true, model: undefined },
+    "switching from unkeyed null to a named model mid-round skips calibration",
+  );
+});
+
+for (const mode of ["legacy", "runtime"]) {
+  test(`${mode}: switching job.control model while round 1's final call is in flight still records round 1 under the model round 1 dispatched on (#772)`, async (t) => {
+    const { StudyService } = await import("../lib/service.js");
+    const { modelKey } = await import("../lib/job-model.js");
+    const { reportUsage } = await import("../lib/usage-scope.js");
+    const { settleJob } = await import("./helpers/wait.mjs");
+    const { mergedTranscript } = await import("./helpers/merged-transcript.mjs");
+    const { clusteringModel } = await import("./helpers/clustering-model.mjs");
+    const { switchOptions } = await import("./helpers/runtime-switch.mjs");
+    const home = await mkdtemp(join(tmpdir(), "study-dsh-home-")), root = await mkdtemp(join(tmpdir(), `study-cal-inflight-${mode}-`));
+    const saved = { home: process.env.DSH_HOME, off: process.env.STUDY_NO_CALIBRATION };
+    process.env.DSH_HOME = home;
+    delete process.env.STUDY_NO_CALIBRATION;
+    let enterReview, releaseReview;
+    const inReview = new Promise((resolve) => { enterReview = resolve; });
+    const allowReview = new Promise((resolve) => { releaseReview = resolve; });
+    const world = mergedTranscript({ recordings: 1, parts: 4, paragraphs: 3 }), model = clusteringModel();
+    const dispatched = [];
+    const complete = async (system, prompt, options = {}) => {
+      dispatched.push(options.route?.model ?? options.model?.model ?? "reasoner");
+      if (enterReview && stageSystem(system, prompt).startsWith("Act as a strict")) {
+        enterReview();
+        enterReview = null;
+        const hold = setInterval(() => {}, 50);
+        try { await allowReview; } finally { clearInterval(hold); }
+      }
+      reportUsage({ uncachedInputTokens: 1_200, outputTokens: 300 });
+      return model.complete(system, prompt, options);
+    };
+    const light = async (_system, prompt) => JSON.stringify({
+      sections: JSON.parse(prompt.split("\n\n")[0]).sections.map((item) => ({ id: item.id, importance: 3, kind: "definition", reason: `Reason for ${item.title}` })),
+    });
+    const switched = switchOptions(mode, { complete, paths: ["generation"] });
+    const hostRoute = { provider: "deepseek", model: "reasoner" };
+    const service = new StudyService(root, {
+      complete,
+      light,
+      coverage: { roundLimit: 4 },
+
+      ...switched,
+      jobModelHost: { ...(switched.jobModelHost || { ctx: {} }), route: () => hostRoute, complete, light },
+    });
+    t.after(async () => {
+      releaseReview?.();
+      await service.dispose();
+      for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+      await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+    });
+    await service.call("settings", { generation: { concurrency: 1, batchSize: 5 } });
+    for (const source of world.sources) await service.call("source.add", { id: source.id, title: source.title, text: source.text, audio: source.audio });
+    const started = await service.call("generate", { sourceIds: world.sources.map((source) => source.id), coverageLevel: "standard", count: 8, kind: "quiz" });
+    assert.equal(started.plan.rounds, 2);
+    await inReview;
+    // Switch the task's model while Round 1's final review call is already in flight.
+    await service.call("job.control", { jobId: started.jobId, action: "set", patch: { model: modelKey({ provider: "openai", model: "gpt-4o-mini" }) } });
+    releaseReview();
+    const finished = await settleJob(service, started.jobId);
+    assert.equal(finished.status, "complete", finished.stage);
+    const expectedHost = globalThis.STUDY_RUNTIME_MATRIX_ON ? "fixture" : "reasoner";
+    const expectedKey = globalThis.STUDY_RUNTIME_MATRIX_ON ? "fixture/fixture" : "deepseek/reasoner";
+    assert.ok(dispatched.includes(expectedHost) && dispatched.includes("gpt-4o-mini"), `round 1 ran on ${expectedHost} and round 2 on gpt-4o-mini: ${dispatched.join(", ")}`);
+    const runs = JSON.parse(await readFile(join(home, "study", "estimate-calibration.json"), "utf8")).runs;
+    assert.equal(runs.length, 1, "recorded once for round 1");
+    assert.equal(runs[0].model, expectedKey, "round 1 recorded under the model its calls actually dispatched on, not the model switched to in flight");
+  });
+
+  test(`${mode}: switching job.control model mid-round across calls skips recording the hybrid round on both planned and plain runs (#772)`, async (t) => {
+    const { StudyService } = await import("../lib/service.js");
+    const { modelKey } = await import("../lib/job-model.js");
+    const { reportUsage } = await import("../lib/usage-scope.js");
+    const { settleJob } = await import("./helpers/wait.mjs");
+    const { mergedTranscript } = await import("./helpers/merged-transcript.mjs");
+    const { clusteringModel } = await import("./helpers/clustering-model.mjs");
+    const { switchOptions } = await import("./helpers/runtime-switch.mjs");
+    const home = await mkdtemp(join(tmpdir(), "study-dsh-home-")), root = await mkdtemp(join(tmpdir(), `study-cal-hybrid-${mode}-`));
+    const saved = { home: process.env.DSH_HOME, off: process.env.STUDY_NO_CALIBRATION };
+    process.env.DSH_HOME = home;
+    delete process.env.STUDY_NO_CALIBRATION;
+    let onPlanGate = null, releasePlan = null;
+    const world = mergedTranscript({ recordings: 1, parts: 4, paragraphs: 3 }), model = clusteringModel();
+    const complete = async (system, prompt, options = {}) => {
+      if (onPlanGate && stageSystem(system, prompt).startsWith("Plan a source-grounded assessment")) {
+        const notify = onPlanGate;
+        onPlanGate = null;
+        const hold = setInterval(() => {}, 50);
+        try {
+          await new Promise((resolve) => {
+            releasePlan = resolve;
+            notify();
+          });
+        } finally {
+          clearInterval(hold);
+        }
+      }
+      reportUsage({ uncachedInputTokens: 1_500, outputTokens: 400 });
+      return model.complete(system, prompt, options);
+    };
+    const light = async (_system, prompt) => JSON.stringify({
+      sections: JSON.parse(prompt.split("\n\n")[0]).sections.map((item) => ({ id: item.id, importance: 3, kind: "definition", reason: `Reason for ${item.title}` })),
+    });
+    const switched = switchOptions(mode, { complete, paths: ["generation"] });
+    const hostRoute = { provider: "deepseek", model: "reasoner" };
+    const service = new StudyService(root, {
+      complete,
+      light,
+      coverage: { roundLimit: 4 },
+
+      ...switched,
+      jobModelHost: { ...(switched.jobModelHost || { ctx: {} }), route: () => hostRoute, complete, light },
+    });
+    t.after(async () => {
+      releasePlan?.();
+      await service.dispose();
+      for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+      await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+    });
+    await service.call("settings", { generation: { concurrency: 1, batchSize: 5 } });
+    const sourceIds = world.sources.map((source) => source.id);
+    for (const source of world.sources) await service.call("source.add", { id: source.id, title: source.title, text: source.text, audio: source.audio });
+
+    // 1) Planned multi-round run switched after Round 1's planning call started -> hybrid Round 1 skipped.
+    const reachedPlanned = new Promise((resolve) => { onPlanGate = resolve; });
+    const planned = await service.call("generate", { sourceIds, coverageLevel: "standard", count: 8, kind: "quiz" });
+    await reachedPlanned;
+    await service.call("job.control", { jobId: planned.jobId, action: "set", patch: { model: modelKey({ provider: "openai", model: "gpt-4o-mini" }) } });
+    releasePlan();
+    const plannedDone = await settleJob(service, planned.jobId);
+    assert.equal(plannedDone.status, "complete", plannedDone.stage);
+    await service.call("draft.delete", { id: plannedDone.draftId });
+
+    // 2) Plain single-round run switched after its planning call started -> hybrid plain run skipped.
+    const reachedPlain = new Promise((resolve) => { onPlanGate = resolve; });
+    const plain = await service.call("generate", { sourceIds, count: 2, kind: "quiz" });
+    await reachedPlain;
+    await service.call("job.control", { jobId: plain.jobId, action: "set", patch: { model: modelKey({ provider: "openai", model: "gpt-4o-mini" }) } });
+    releasePlan();
+    const plainDone = await settleJob(service, plain.jobId);
+    assert.equal(plainDone.status, "complete", plainDone.stage);
+
+    await assert.rejects(readFile(join(home, "study", "estimate-calibration.json"), "utf8"), { code: "ENOENT" }, "neither hybrid run wrote a calibration record");
+    assert.equal((await calibrationFor().factors({ model: "deepseek/reasoner" })).samples, 0);
+    assert.equal((await calibrationFor().factors({ model: "openai/gpt-4o-mini" })).samples, 0);
+  });
+}
+
+
+test("runtime: retrying a failed run after switching the host model prices and records Attempt 2 under Model B, not Attempt 1's frozen bindings (#772)", async (t) => {
+  const { StudyService } = await import("../lib/service.js");
+  const { reportUsage } = await import("../lib/usage-scope.js");
+  const { settleJob } = await import("./helpers/wait.mjs");
+  const { mergedTranscript } = await import("./helpers/merged-transcript.mjs");
+  const { clusteringModel } = await import("./helpers/clustering-model.mjs");
+  const { managedRuntimeOptions } = await import("./helpers/runtime-switch.mjs");
+  const home = await mkdtemp(join(tmpdir(), "study-dsh-home-")), root = await mkdtemp(join(tmpdir(), "study-cal-retry-"));
+  const saved = { home: process.env.DSH_HOME, off: process.env.STUDY_NO_CALIBRATION };
+  process.env.DSH_HOME = home;
+  delete process.env.STUDY_NO_CALIBRATION;
+  const owner = Symbol("retry-model-owner");
+  const routeA = { provider: "deepseek", model: "reasoner" };
+  const routeB = { provider: "openai", model: "gpt-4o-mini" };
+  const world = mergedTranscript({ recordings: 1, parts: 3, paragraphs: 2 }), model = clusteringModel();
+  let failAttempt = false;
+  let usage = { uncachedInputTokens: 40_000, outputTokens: 20_000 };
+  const dispatched = [];
+  const makeComplete = (fallbackName) => async (system, prompt, options = {}) => {
+    dispatched.push(options.route?.model ?? fallbackName);
+    if (failAttempt) throw new Error("provider unavailable on attempt 1");
+    reportUsage(usage);
+    return model.complete(system, prompt, options);
+  };
+  const completeA = makeComplete("reasoner"), completeB = makeComplete("gpt-4o-mini");
+  const { starts: _sA, ...managedA } = managedRuntimeOptions({ complete: completeA, paths: ["generation"], owner });
+  const serviceA = new StudyService(root, {
+    complete: completeA,
+    ...(globalThis.STUDY_RUNTIME_MATRIX_ON ? { model: routeA } : {}),
+    ...managedA,
+    jobModelHost: { ...managedA.jobModelHost, route: () => routeA, complete: completeA },
+  });
+  const serviceB = new StudyService(root, {
+    runtime: serviceA.runtime,
+    storage: serviceA.store,
+    complete: completeB,
+    ...(globalThis.STUDY_RUNTIME_MATRIX_ON ? { model: routeB } : {}),
+    ...managedA,
+    jobModelHost: { ...managedA.jobModelHost, route: () => routeB, complete: completeB },
+  });
+  t.after(async () => {
+    await serviceA.dispose();
+    for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+  });
+
+  const sourceIds = world.sources.map((source) => source.id);
+  for (const source of world.sources) await serviceA.call("source.add", { id: source.id, title: source.title, text: source.text, audio: source.audio });
+
+  // Seed distinct calibration histories for Model A (3 heavy runs) and Model B (4 light runs).
+  for (let i = 0; i < 3; i += 1) {
+    const seeded = await serviceA.call("generate", { sourceIds, count: 2, kind: "quiz" });
+    const done = await settleJob(serviceA, seeded.jobId);
+    assert.equal(done.status, "complete", done.stage);
+    await serviceA.call("draft.delete", { id: done.draftId });
+  }
+  usage = { uncachedInputTokens: 200, outputTokens: 50 };
+  for (let i = 0; i < 4; i += 1) {
+    const seeded = await serviceB.call("generate", { sourceIds, count: 2, kind: "quiz" });
+    const done = await settleJob(serviceB, seeded.jobId);
+    assert.equal(done.status, "complete", done.stage);
+    await serviceB.call("draft.delete", { id: done.draftId });
+  }
+
+  const estA = await serviceA.call("usage.estimate", { feature: "generate", sourceIds, count: 2, kind: "quiz" });
+  const estB = await serviceB.call("usage.estimate", { feature: "generate", sourceIds, count: 2, kind: "quiz" });
+  assert.equal(estA.calibration.samples, 3);
+  assert.equal(estB.calibration.samples, 4);
+  assert.ok(estB.totalTokens.high < estA.totalTokens.low, "Model B's estimate is distinctly lower than Model A's");
+
+  // Attempt 1 starts on serviceA (Model A) and fails: entry.bindings closed over serviceA's frozen Request 1.
+  dispatched.length = 0;
+  failAttempt = true;
+  const started = await serviceA.call("generate", { sourceIds, count: 2, kind: "quiz" });
+  const failed = await settleJob(serviceA, started.jobId);
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.estimate.calibration.samples, 3, "Attempt 1 priced under Model A");
+  assert.equal(JSON.parse(await readFile(join(home, "study", "estimate-calibration.json"), "utf8")).runs.length, 7, "failed Attempt 1 recorded nothing");
+
+  // Retry via serviceB (Model B, fresh per-request services & jobModelHost): Attempt 2 must price AND record under Model B.
+  dispatched.length = 0;
+  failAttempt = false;
+  const retried = await serviceB.call("job.control", { jobId: started.jobId, action: "retry" });
+  const completed = await settleJob(serviceB, retried.attemptId);
+  assert.equal(completed.status, "complete", completed.stage);
+  if (!globalThis.STUDY_RUNTIME_MATRIX_ON) {
+    assert.ok(dispatched.length > 0 && dispatched.every((name) => name === "gpt-4o-mini"), `Attempt 2 dispatched on gpt-4o-mini: ${dispatched.join(", ")}`);
+  }
+  assert.equal(completed.estimate.calibration.samples, 4, "Attempt 2 re-priced under Model B instead of Attempt 1's frozen bindings");
+  assert.deepEqual(completed.estimate.totalTokens, estB.totalTokens, "Attempt 2 estimate matches Model B's estimate");
+  const runs = JSON.parse(await readFile(join(home, "study", "estimate-calibration.json"), "utf8")).runs;
+  assert.equal(runs.length, 8);
+  assert.equal(runs.at(-1).model, "openai/gpt-4o-mini", "Attempt 2 recorded calibration under Model B, not Model A");
 });
