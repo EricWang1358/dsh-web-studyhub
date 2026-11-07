@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -155,9 +154,12 @@ test('hostJobExecutor tracks alive/stopping/settled handles, idempotent cancella
   assert.deepEqual(host.inspect(ref, { ...witness, host: 'foreign:host' }), { state: 'unknown', reason: 'incompatible-executor-witness' });
   assert.deepEqual(host.inspect(ref, { ...witness, instance: 'previous-instance' }), { state: 'unknown', reason: 'executor-process-unconfirmed' });
 
-  const child = spawn(process.execPath, ['-e', 'process.exit(0)'], { stdio: 'ignore' });
-  const deadPid = child.pid;
-  await new Promise(resolve => child.once('exit', resolve));
+  let deadPid = 0;
+  for (let candidate = 999_996; candidate > 999_700; candidate -= 4) {
+    try { process.kill(candidate, 0); }
+    catch (error) { if (error.code === 'ESRCH') { deadPid = candidate; break; } }
+  }
+  assert.ok(deadPid > 0, 'found an unused PID without spawning a child process');
   assert.deepEqual(host.inspect(ref, { ...witness, pid: deadPid, instance: 'exited-instance' }), { state: 'lost', reason: 'executor-process-exited' });
 });
 
