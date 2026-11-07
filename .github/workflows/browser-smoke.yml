@@ -54,16 +54,33 @@ jobs:
       - name: Chromium
         if: steps.browsers.outputs.cache-hit != 'true'
         run: npx playwright install chromium
+      # The stall was apt waiting on one package for minutes ('Get' then 'Ign'), so apt itself is told to give up on a silent connection after 20 seconds
+      # and retry, which fails that fetch fast instead of waiting for the step limit.
+      - name: apt fails fast on a stalled mirror
+        run: |
+          sudo tee /etc/apt/apt.conf.d/80-fail-fast <<'APTCONF'
+          Acquire::Retries "3";
+          Acquire::http::Timeout "20";
+          Acquire::https::Timeout "20";
+          APTCONF
       - name: Chromium's system libraries
         id: deps
         timeout-minutes: 3
         continue-on-error: true
         run: npx playwright install-deps chromium
+      # `!= 'success'` rather than `== 'failure'`: a step stopped by its time limit may be reported as cancelled, not failed.
       - name: Chromium's system libraries (one retry)
-        if: steps.deps.outcome == 'failure'
+        id: deps-retry
+        if: steps.deps.outcome != 'success'
         timeout-minutes: 3
         continue-on-error: true
         run: npx playwright install-deps chromium
+      # Says in the run's summary that a red test step below may be this install, not a regression. The tests still run: the runner image ships
+      # most of Chromium's libraries, so they often pass without the install.
+      - name: Say so when the library install failed twice
+        if: steps.deps.outcome != 'success' && steps.deps-retry.outcome != 'success'
+        run: |
+          echo "::warning title=Chromium system libraries::Both installs of Chromium's system libraries failed or timed out (the apt mirror). A failing test step below may be missing libraries, not a regression, so rerun the job first."
       # Each test builds its own UI bundle into a temp folder (buildPreview), so no build step is needed here. scripts/test.mjs is how the shards run tests too
       # (isolated home, no real network). The files cover: the shell and navigation, the review reveal, the mistakes page, and the right-sidebar hand-off.
       - run: >-
