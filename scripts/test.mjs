@@ -37,7 +37,10 @@ const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 const handlers = new Map(signals.map(signal => [signal, () => forward(signal)]));
 for (const [signal, handler] of handlers) process.on(signal, handler);
 try {
-  const env = { STUDY_QA_ACTION_TIMEOUT_MS: '120000', ...scrubSecrets(process.env), DSH_HOME: home,
+  // STUDY_NO_CALIBRATION: the estimate's learning is machine-wide (lib/estimate-calibration.js), and a test run makes many libraries in one DSH home;
+  // letting the finished runs of one file change the estimate of the next would make the goldens depend on the shard order. The unit tests of the
+  // calibration name a folder, so they still cover it.
+  const env = { STUDY_QA_ACTION_TIMEOUT_MS: '120000', ...scrubSecrets(process.env), DSH_HOME: home, STUDY_NO_CALIBRATION: '1',
     ...(report ? { STUDY_TEST_NETWORK_REPORT_FILE: reportFile } : {}) };
   const guard = new URL('./qa/test-network.mjs', import.meta.url).href;
   // Full runs queue behind each other; a targeted or fast run does not queue but takes fewer workers while a full run is going.
