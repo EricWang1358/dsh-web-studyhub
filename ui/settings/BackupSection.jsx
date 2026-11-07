@@ -3,6 +3,7 @@ import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, ConfirmDialog, Hint, Icon, InlineMessage, SettingsSection, formatBytes } from '../components/index.js';
 import { backupFileName } from './backup-name.js';
 import { useStudy } from '../study-context.jsx';
+import { isActiveJob } from '../job-visibility.js';
 
 export { backupFileName };
 
@@ -19,27 +20,39 @@ const isFullBackup = state => state && Number.isInteger(state.version) && Array.
   Array.isArray(state.drafts) && Array.isArray(state.runs) && Array.isArray(state.attempts);
 const backupsFolder = root => root ? `${root.replace(/[\\/]+$/, '')}${root.includes('\\') ? '\\' : '/'}backups` : '';
 
+/* The jobs of this library that keep a restore from running (ui/job-visibility.js `isActiveJob`, the panel's copy of the host's rule; the snapshot's jobs
+   are this library's already). The host checks again when the restore arrives: this only tells the learner before they commit, it promises nothing. */
+// One sentence for the one fact, in the block and in the confirmation.
+const RUNNING_JOB = '学习库还有任务在运行，现在还不能恢复。先等任务结束，或到任务页把它停掉。';
+export const restoreBlockers = (jobs = []) => (Array.isArray(jobs) ? jobs.filter(isActiveJob) : []);
+
 /** The chosen backup: name, size and contents, with the destructive action. */
-export function RestorePreview({ file, busy, onConfirm, onCancel }) {
+export function RestorePreview({ file, busy, blocked = false, onConfirm, onCancel }) {
   const count = backupSummary(file.state);
   return <div className="restore-preview" role="status">
     <div className="restore-preview__file"><Icon name="file" size={18} /><strong>{file.name}</strong><small>{formatBytes(file.size)}</small></div>
     <p>{[uiFormat('{0} 门课程', [count.courses]), uiFormat('{0} 份资料', [count.sources]),
       uiFormat('{0} 个题组（{1} 道题）', [count.decks, count.cards]), uiFormat('{0} 条作答记录', [count.attempts])].join(' · ')}</p>
     <div className="settings-actions">
-      <Button variant="danger" lock={busy} onClick={onConfirm}>{ui('用此备份替换当前学习库')}</Button>
+      <Button variant="danger" lock={busy} disabled={blocked} onClick={onConfirm}>{ui('用此备份替换当前学习库')}</Button>
       <Button variant="quiet" lock={busy} onClick={onCancel}>{ui('换一个文件')}</Button>
     </div>
   </div>;
 }
 
-/** Export and restore as two blocks with the same shape: what it does, where the file goes, one action. */
-export function BackupSection({ root, exportData, onRestored }) {
+/** Export and restore as two blocks with the same shape: what it does, where the file goes, one action.
+    `jobs` is the library snapshot's job list and `nav.show.task` opens one in 任务: together they tell the learner, before they commit, that a running
+    job will stop the restore. The host still refuses at the end, so a job that starts after the preview, or one the snapshot has not shown yet, comes back
+    as an error inside the confirmation with the same 查看任务 on it. */
+export function BackupSection({ root, exportData, onRestored, jobs = [], nav }) {
   const { busy, act } = useStudy();
   const [file, setFile] = useState(null), [error, setError] = useState(''), [confirm, setConfirm] = useState(false);
   const input = useRef(null), readRequest = useRef(0);
   const exportId = useId(), restoreId = useId();
   const folder = backupsFolder(root);
+  const blockers = restoreBlockers(jobs);
+  // One job to point at: the first that is running, in the snapshot's order.
+  const openTask = blockers[0] && typeof nav?.show?.task === 'function' ? () => nav.show.task(blockers[0].id) : null;
   useEffect(() => {
     readRequest.current += 1;
     setFile(null); setError(''); setConfirm(false);
@@ -82,16 +95,22 @@ export function BackupSection({ root, exportData, onRestored }) {
           <h3 id={restoreId} className="settings-subtitle">{ui('恢复')}</h3>
           <p>{ui('用一份完整备份替换当前学习库。替换前，当前数据会自动另存一份到：')}</p>
           <code className="backup-path" title={folder}>{folder || ui('当前学习库的 backups 文件夹')}</code>
+          {/* Said before the learner picks a file: the restore cannot run now, and the reason is a task they can open. */}
+          {blockers.length > 0 && <InlineMessage tone="warning" action={openTask ? { label: ui('查看任务'), onClick: openTask } : undefined}>
+            {ui(RUNNING_JOB)}
+          </InlineMessage>}
           <input ref={input} type="file" hidden accept=".json,application/json" onChange={(e) => read(e.target.files?.[0])} />
           {!file && <div className="settings-actions"><Button icon="upload" lock={busy} onClick={chooseBackup}>{ui('选择备份文件…')}</Button></div>}
           {error && <InlineMessage>{error}</InlineMessage>}
-          {file && <RestorePreview file={file} busy={busy || confirm} onConfirm={() => setConfirm(true)} onCancel={chooseBackup} />}
+          {file && <RestorePreview file={file} busy={busy || confirm} blocked={blockers.length > 0} onConfirm={() => setConfirm(true)} onCancel={chooseBackup} />}
         </section>
       </div>
-      {confirm && file && <ConfirmDialog title={ui('用此备份替换当前学习库？')} confirmLabel={ui('用此备份替换当前学习库')} busy={busy} onClose={() => setConfirm(false)}
-        description={uiFormat('当前学习库会被「{0}」替换。替换前，当前数据会自动保存到 {1}。', [file.name, folder || ui('当前学习库的 backups 文件夹')])}
+      {confirm && file && <ConfirmDialog title={ui('用此备份替换当前学习库？')} confirmLabel={ui('用此备份替换当前学习库')} busy={busy} blocked={blockers.length > 0}
+        onClose={() => setConfirm(false)}
+        errorAction={openTask ? { label: ui('查看任务'), onClick: openTask } : undefined}
+        description={uiFormat('当前学习库会被「{0}」替换，替换后回到学习库首页。替换前，当前数据会自动保存到 {1}。', [file.name, folder || ui('当前学习库的 backups 文件夹')])}
         onConfirm={restore}>
-        <Hint>{ui('出题任务进行中时不能恢复；恢复后会回到学习库首页。')}</Hint>
+        {blockers.length > 0 && <Hint>{ui(RUNNING_JOB)}</Hint>}
       </ConfirmDialog>}
     </SettingsSection>
   );
