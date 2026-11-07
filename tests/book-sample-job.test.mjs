@@ -52,6 +52,7 @@ test('a first build writes the sample and waits; building the rest keeps it, sen
   const anchored = leaves.filter(leaf => leaf.anchors?.length).length;
   assert.deepEqual(sample.estimate.points, { total: anchored, sample: 2, rest: anchored - 2 });
   assert.ok(sample.estimate.calls.low >= (anchored - 2) * 2, `two calls a point at least (${JSON.stringify(sample.estimate.calls)})`);
+  assert.equal(sample.estimate.feature, 'book');
   assert.ok(sample.estimate.totalTokens.low > 0 && sample.estimate.concurrency >= 1);
   // The answer kit is the whole papers', not a point's: the sample asks none of it, and its calls are in the scale of the rest.
   assert.equal(w.fake.of('kit').length, 0, 'no kit call in the sample');
@@ -86,6 +87,9 @@ test('a first build writes the sample and waits; building the rest keeps it, sen
   assert.equal(rest.contract.result.completeness, 'complete');
   assert.equal(rest.contract.detail.book.sample, undefined, 'no sample in this build');
   assert.equal((await w.service.call('course.outline', { course: COURSE })).book.notes.sample, undefined, 'an approved sample is not shown');
+  const ledger = await w.service.call('usage.summary', { days: 7 });
+  assert.ok(ledger.byFeature.book?.calls > 0, 'outline, inventory and book writing calls record under book');
+  assert.equal(ledger.byFeature.other, undefined, 'none of the review book build falls into other');
 
   // A later build at the same settings: the approved sample stands, nothing to write, no call.
   const after = w.fake.calls.length;

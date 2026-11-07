@@ -220,3 +220,19 @@ test('the first step of a book build never calls itself the whole: it says the s
   assert.match(en, /This step, material read plus writing: about 240K–660K tok \(/);
   assert.doesNotMatch(en, /:[^:;]*:/, 'one colon per clause (#773 gate L6)');
 });
+
+test('a book build with an outline already organised shows reading plus writing too, not the read-only fallback (#773)', () => {
+  const scale = ui.gateScaleOf('book', { book: { points: 120, chapters: null, sample: true, inventory: 0, calls: { low: 240, high: 480 },
+    readTokens: { low: 1_200_000, high: 2_400_000 }, writeTokens: { low: 40_000, high: 3_408_000 }, totalTokens: { low: 1_240_000, high: 5_808_000 } } });
+  assert.deepEqual(scale.write, { low: 40_000, high: 3_408_000 });
+  assert.deepEqual(scale.total, { low: 1_240_000, high: 5_808_000 });
+  assert.equal(scale.firstStep, undefined);
+  const zh = textOf(gateHtml({ kind: 'book', scale }));
+  assert.match(zh, /要写 120 个知识点 · 240–480 次模型调用/);
+  assert.match(zh, /读资料加模型写出的约 1\.2M–5\.8M tok（读资料 1\.2M–2\.4M tok，写出 40K–3\.4M tok，含思考）；提示词另计/);
+  assert.doesNotMatch(zh, /不含提示和模型写出的内容|这只是第一步/);
+  const en = inLanguage('en', () => textOf(gateHtml({ kind: 'book', scale })));
+  assert.match(en, /Material read plus writing: about 1\.2M–5\.8M tok \(1\.2M–2\.4M tok read, 40K–3\.4M tok written, thinking included\); the prompts are extra/);
+  assert.doesNotMatch(en, han);
+  assert.doesNotMatch(zh + en, /元|¥|\$|价格|费用|美元|RMB|USD|price|cost/i);
+});

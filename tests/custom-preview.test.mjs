@@ -135,6 +135,8 @@ test('make:false adds nothing; the plan and variants add no call; the totals are
   const get = async over => (await preview(study, { custom: custom('review', over) })).estimate;
   const full = await get({}), noBook = await get({ book: { ...base.book, make: false } }), noQuestions = await get({ questions: { ...base.questions, make: false } });
   assert.deepEqual(noBook.book, { points: 0, calls: 0, readTokens: { low: 0, high: 0 } });
+  assert.ok(full.book.writeTokens.low > 0 && full.book.writeTokens.high > full.book.writeTokens.low);
+  assert.deepEqual(full.book.totalTokens, { low: full.book.readTokens.low + full.book.writeTokens.low, high: full.book.readTokens.high + full.book.writeTokens.high });
   assert.deepEqual(noQuestions.questions, { count: 0, runs: 0, calls: 0, readTokens: { low: 0, high: 0 } });
   assert.equal(noBook.total.calls, full.questions.calls);
   assert.equal(noQuestions.total.calls, full.book.calls);

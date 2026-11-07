@@ -189,6 +189,14 @@ test('features are mapped from the context and action that made the call', () =>
   assert.equal(featureOf('workflows', 'workflow.teaching.start'), 'flow');
   assert.equal(featureOf('skeleton', 'skeleton.generate'), 'flow');
   assert.equal(featureOf('audio', 'audio.import'), 'audio');
+  assert.ok(ledgerModule.USAGE_FEATURES.includes('book'));
+  assert.equal(featureOf('generation', 'courseOutline.build'), 'book');
+  assert.equal(featureOf('generation', 'courseBook.build'), 'book');
+  assert.equal(featureOf('generation', 'courseBook.explain'), 'book');
+  assert.equal(featureOf('courseOutline', 'courseOutline.build'), 'book');
+  assert.equal(featureOf('courseBook', 'courseBook.build'), 'book');
+  assert.equal(featureOf('book', 'x'), 'book');
+  assert.equal(featureOf('materials', 'outline.suggest'), 'other');
   assert.equal(featureOf('notes', 'note.generate'), 'other');
   assert.equal(featureOf('nonsense', 'x'), 'other');
 });
