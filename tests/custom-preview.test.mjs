@@ -12,6 +12,7 @@ import { writesFor } from '../lib/runtime/domain-contracts.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { studyToolDescription, libraryContracts } from '../lib/study-contracts.js';
 import { CUSTOM_PURPOSES, customDefaults } from '../lib/custom-plan.js';
+import { tokensOfCharsRange } from '../lib/token-estimate.js';
 import { COURSE, LECTURES, outlineLibrary } from './helpers/course-outline-library.mjs';
 import { COURSE as BOOK_COURSE, service as bookService } from './helpers/crunch-library.mjs';
 
@@ -25,12 +26,12 @@ async function open(t, { paper = true } = {}) {
   return study;
 }
 /** One converted book of 10 chapters of 24 000 characters: big enough for the strength levels to differ (a course of many small materials gets a question per material at every level). */
-async function openBigBook(t) {
+async function openBigBook(t, text = 'word '.repeat(1200)) {
   const root = await mkdtemp(join(tmpdir(), 'study-custom-preview-big-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const study = new StudyService(root);
   await study.call('snapshot');
-  const sources = Array.from({ length: 40 }, (_, at) => ({ id: `big-p${at + 1}`, title: `Big Book · p. ${at + 1}`, text: 'word '.repeat(1200), createdAt: '2026-10-01T08:00:00.000Z', courses: ['Big'],
+  const sources = Array.from({ length: 40 }, (_, at) => ({ id: `big-p${at + 1}`, title: `Big Book · p. ${at + 1}`, text, createdAt: '2026-10-01T08:00:00.000Z', courses: ['Big'],
     document: { materialId: 'document-big', page: at + 1, totalPages: 40, format: 'pdf', origin: 'converted', converter: 'marker', filename: 'Big Book.pdf',
       chapter: { index: Math.floor(at / 4), title: `Chapter ${Math.floor(at / 4) + 1}`, level: 1 }, extractionVersion: 2 } }));
   await study.store.update(own => { own.sources.push(...sources); });
@@ -97,7 +98,7 @@ test('only the chosen chapters count: fewer chapters, fewer points, calls, quest
     assert.ok(at(a) > 0, `${group}.${key} of one chapter`);
     assert.ok(at(a) <= at(b) && at(b) < at(all), `${group}.${key}: one ≤ three < all`);
   }
-  assert.ok(all.total.readTokens.high > all.total.readTokens.low * 2, 'tokens read is a range: the low end is chars/4, the high end the documented CJK rate');
+  assert.ok(all.total.readTokens.high > all.total.readTokens.low, 'tokens read is a range: the low end is chars/4, the high end the documented rate of the material language');
   assert.deepEqual(one.unknownChapters, []);
 });
 
@@ -237,4 +238,19 @@ test('what a scope names: the chapters of the materials until the course has a c
   const stale = await written.call('course.custom.preview', { course: BOOK_COURSE });
   assert.equal(stale.skeleton.basis, 'documents');
   assert.equal(stale.skeleton.outline.stale, true);
+});
+
+/* #760 accept: the high end follows the material's language. Chinese is about 0.6 token a character, English about 0.3 (DeepSeek's documented rates); the low end is
+   chars / 4 in both. One rate for every book made an English course's range twice too high. */
+test('the read tokens are a range by the material\'s language: Chinese high ≈ 0.6 per character, English ≈ 0.3, low = chars / 4', async t => {
+  assert.deepEqual(tokensOfCharsRange(1000, 'zh'), { low: 250, high: 600 });
+  assert.deepEqual(tokensOfCharsRange(1000, 'en'), { low: 250, high: 300 });
+  assert.deepEqual(tokensOfCharsRange(1000), { low: 250, high: 600 }, 'no language known: the wider range');
+  assert.deepEqual(tokensOfCharsRange(0), { low: 0, high: 0 });
+  const english = (await preview(await openBigBook(t), { course: 'Big', custom: custom('review', { questions: { ...customDefaults('review').questions, make: false } }) })).estimate;
+  const ratio = english.total.readTokens.high / english.total.readTokens.low;
+  assert.ok(ratio > 1.15 && ratio < 1.25, `English material: high is 0.3 / 0.25 of low, got ${ratio}`);
+  const chinese = (await preview(await openBigBook(t, '知识点的讲解和例题。'.repeat(500)), { course: 'Big', custom: custom('review', { questions: { ...customDefaults('review').questions, make: false } }) })).estimate;
+  const wide = chinese.total.readTokens.high / chinese.total.readTokens.low;
+  assert.ok(wide > 2.3 && wide < 2.5, `Chinese material: high is 0.6 / 0.25 of low, got ${wide}`);
 });
