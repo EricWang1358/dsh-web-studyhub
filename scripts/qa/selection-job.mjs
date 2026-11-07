@@ -14,6 +14,7 @@ import { createPreviewServer, previewCall } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { launchChromium } from "./browser.mjs";
 import { pickNth } from "./pick.mjs";
+import { chooseMore } from "./reader-more.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { sampleMarkdown } from "./fixtures.mjs";
 
@@ -118,9 +119,12 @@ export async function run(options) {
       }, index);
       await sleep(400);
       const panel = page.locator('[data-tour="source-tools"]');
-      if (!(await panel.isVisible())) { await page.locator('[data-tour="source-tools-toggle"]').click(); await sleep(400); }
+      // The study tools are an item of the reader's 更多 (ui/document-preview/reader/more-items.js).
+      if (!(await panel.isVisible())) { await chooseMore(page, t("学习工具", "Study tools")); await sleep(400); }
     };
     const learning = () => page.locator(".study-document-learning");
+    // The 补题 form's own button (the ask form has a button of the same class); it is primary only after a question was asked, so it is found by its words.
+    const submit = () => learning().getByRole("button", { name: t("生成、审核并补充题目", "Generate, review and add questions") });
     const deckSelect = () => learning().locator("form").nth(1).locator('[role="combobox"]').first();
     // The kind and the number are behind 更多设置 (they start as the ones of 设置 › 出题偏好): open the fold before changing them.
     const setCount = async (value) => {
@@ -143,7 +147,7 @@ export async function run(options) {
 
     await check("start returns at once and the job shows in place", async () => {
       const before = Date.now();
-      await learning().locator("button.primary").click();
+      await submit().click();
       await page.locator(".selection-job").first().waitFor({ timeout: 8000 });
       if (Date.now() - before > 6000) throw new Error("the panel waited for the model");
       await page.locator('.selection-job[data-phase="planning"], .selection-job[data-phase="writing"], .selection-job[data-phase="reviewing"], .selection-job[data-phase="queued"]').first().waitFor({ timeout: 8000 });
@@ -169,7 +173,7 @@ export async function run(options) {
       await check("the same passage and deck is refused with a plain message", async () => {
         const phase = await page.locator(".selection-job").first().getAttribute("data-phase");
         if (!["planning", "writing", "reviewing", "queued"].includes(phase)) throw new Error(`job already ${phase}`);
-        const button = learning().locator("button.primary");
+        const button = submit();
         if (!(await button.isDisabled())) throw new Error("the generate button is not disabled for the same passage and deck");
         const hint = await learning().getByText(t("这段原文补到这个题组的任务正在进行", "A job for this passage and deck is already running")).count();
         if (!hint) throw new Error("no explanation of why it is disabled");
@@ -181,7 +185,7 @@ export async function run(options) {
         await pickNth(page, deckSelect(), 0);
         await setCount("1");
         await sleep(500);
-        await learning().locator("button.primary").click();
+        await submit().click();
         await until(async () => (await page.locator(".selection-job").count()) >= 2, "second job card");
         const stop = page.locator(".selection-job").first().getByRole("button", { name: t("停止", "Stop"), exact: true });
         await stop.click();

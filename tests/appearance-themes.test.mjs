@@ -172,10 +172,10 @@ test('corner style scales only --radius, --radius-sm and --radius-card, in order
   }
 });
 
-test('the extra palettes override tokens only: colours, shadows and the glass fill, no layout', () => {
+test('the extra palettes override tokens only: colours and shadows, no layout', () => {
   for (const value of ['oled', 'paper']) {
     const decls = Object.assign({}, ...forAttr('data-palette', value).map(rule => rule.decls));
-    assert.ok(Object.keys(decls).length >= 10, `${value} is a real token block`);
+    assert.ok(Object.keys(decls).length >= 8, `${value} is a real token block`);
     assert.deepEqual(Object.keys(decls).filter(name => !name.startsWith('--')), [], `${value} writes custom properties only`);
     assert.deepEqual(Object.keys(decls).filter(name => /^--(space|lh|radius|fs|font)/.test(name)), [], `${value} leaves layout tokens alone`);
     assert.ok(decls['--bg-canvas'] && decls['--line'], `${value} sets canvas and line`);

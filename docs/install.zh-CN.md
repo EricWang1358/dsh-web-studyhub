@@ -4,6 +4,14 @@
 
 StudyHub 是 DeepSeek Harness（DSH）的学习插件。DSH 可以装成桌面应用，也可以在浏览器里以网页版运行。先装好 DSH，再在 DSH 的插件管理里添加 StudyHub，最后配一个模型用来出题。想在浏览器里对照着装，可以下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.4.4/StudyHub-4.4.4-Setup.zh-CN.html)。
 
+**三个名字，一个产品，最新版本只有一个地方。** 产品叫 **StudyHub**；DSH 装的是名为 `@ericwang1358/dsh-daily-flashcard` 的包；代码、问题和发布说明在仓库 `dsh-web-studyhub`。版本号会出现两个地方，其中 **GitHub 发布页永远是最新的**：npm 上的 `latest` 可能落后于它，所以按下面的步骤从发布页安装 `.tgz`。
+
+| 名字 | 是什么 | 最新版本在哪 |
+| --- | --- | --- |
+| **StudyHub** | 产品名，出现在 DSH 的插件列表和界面上 | — |
+| `@ericwang1358/dsh-daily-flashcard` | DSH 实际安装、安装后显示的包名 | GitHub 发布页上的 `.tgz`；npm 的 `latest` 可能更旧 |
+| `dsh-web-studyhub` | 源代码仓库：代码、问题与发布说明 | GitHub 发布页（`vX.Y.Z`） |
+
 | 你的情况 | 从这里开始 |
 | --- | --- |
 | 还没有 DSH | 先[安装 DSH](#安装-dsh)，再[在 DSH 中安装 StudyHub](#在-dsh-中安装-studyhub) |

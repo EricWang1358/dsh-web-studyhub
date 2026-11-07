@@ -10,7 +10,9 @@
   :where(.study-app, .study-seat) {
     ::highlight(study-find) { background-color: var(--warn-mark); color: inherit; }
     ::highlight(study-find-current) { background-color: var(--warn-solid); color: inherit; }
-    .source-md { white-space: normal; line-height: 1.8; }
+    /* 中英混排 (#744): the little space between Chinese and Latin the font itself does not give. A property, so no byte of the text changes:
+       a copied selection, a quote back to the page and a search substring stay exactly the original. Engines without it ignore the line. */
+    .source-md { white-space: normal; line-height: 1.8; text-autospace: normal; }
     .note-reader > .study-document-viewer { height: 100%; }
   }
   :is(.study-app, .study-seat) {

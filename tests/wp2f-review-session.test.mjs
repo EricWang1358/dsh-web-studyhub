@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   AUTO_ADVANCE_MS, emptyEntry, entryForRun, shouldResetEntry, isPassed, advanceKeyOf, autopilotPlan, shortcutGate, shortcutAction,
-  isCurrentEntry, createFlightSet, reviewChoiceKind,
+  isCurrentEntry, createFlightSet, pressedGradeOf, reviewChoiceKind,
 } from '../ui/review/session-logic.js';
 
 // UI wave 2 · WP-F (#112): the practice session's rules, away from the DOM.
@@ -110,6 +110,15 @@ test('shortcuts: grading keys 0-5 apply to a revealed, unanswered self-graded ca
   assert.equal(act(key('4'), { run: run({ revealed: true, feedback: {} }) }).action, null, 'already graded');
   assert.equal(act(key('4'), { ...revealed, choice: true }).action, null, 'a choice question has no self grade');
   assert.equal(act(key('4'), { ...revealed, isCloze: true }).action, null);
+});
+
+test('a grading key names the button it pressed, and 0 counts as one (#745)', () => {
+  const revealed = { run: run({ revealed: true }) };
+  assert.equal(pressedGradeOf(act(key('4'), revealed).action), 4);
+  assert.equal(pressedGradeOf(act(key('0'), revealed).action), 0, '0 is 完全忘记, not nothing');
+  assert.equal(pressedGradeOf(act(key('Enter'), { run: run({ feedback: {} }) }).action), null, 'moving on is not a grade');
+  assert.equal(pressedGradeOf({ type: 'answer', args: { selected: ['a'] } }), null, 'a choice answer carries no grade');
+  assert.equal(pressedGradeOf(null), null);
 });
 
 test('shortcuts: Enter flips, submits or moves on, depending on the card', () => {

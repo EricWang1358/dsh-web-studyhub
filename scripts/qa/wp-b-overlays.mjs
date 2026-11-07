@@ -7,6 +7,7 @@
 import { join } from "node:path";
 import { createStudyRuntime } from "../../lib/runtime/builtins.js";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
+import { chooseMore } from "./reader-more.mjs";
 
 async function seed(root) {
   const runtime = createStudyRuntime(root);
@@ -18,7 +19,14 @@ async function seed(root) {
 export async function runOverlayQa(options) {
   return runQa({ name: "wp-b-overlays", options, seed, async run({ page, t, step, check }) {
     const dialog = page.locator("dialog[open]");
-    await page.locator('[data-usage="nav.board"]').first().click();
+    // A library with no question yet opens on the first-run page (no sidebar): 以后再说 puts it away (3.6), then the sidebar is there.
+    const later = page.locator('.first-run [data-first-run="later"]');
+    await later.first().waitFor({ timeout: 15000 }).catch(() => {});
+    if (await later.count()) await later.first().click();
+    // 待办看板 sits under the sidebar's 更多 until the learner opens it.
+    const board = page.locator('[data-usage="nav.board"]').first();
+    if (!(await board.isVisible())) await page.locator('[data-tour="nav-more"]').first().click();
+    await board.click();
     await page.locator(".board-page").waitFor();
     await sleep(500);
     await step("board-add-first", async () => {
@@ -64,25 +72,28 @@ export async function runOverlayQa(options) {
     await page.keyboard.press("Escape");
     await check("no horizontal overflow on the board", async () => { const probe = await page.evaluate(overflowProbe); if (probe.scrollWidth > probe.clientWidth + 1) throw new Error(JSON.stringify(probe)); });
 
-    // The reader's Aa popover: focus in, Escape back to the button, and the dialog behind stays open.
+    // 显示设置… is an item of the reader's 更多 now and opens a dialog over the reader: focus moves into it, its 关闭 button leaves the
+    // reader open and hands focus back to 更多.
     await page.locator('[data-usage="nav.sources"]').first().click();
     await sleep(600);
     await page.getByRole("button", { name: /^(全部展开|Expand all)$/ }).click().catch(() => {});
     await page.locator(".source-doc .source-main").first().click();
     await page.locator(".study-document-viewer").waitFor();
-    const aa = page.getByRole("button", { name: t("显示设置", "Display settings") });
-    await step("reader-popover", async () => {
-      await aa.click();
-      await page.getByRole("dialog", { name: t("显示设置", "Display settings") }).waitFor();
-      const state = await page.evaluate(() => ({ inPanel: !!document.activeElement?.closest(".reader-popover__panel"), pressed: document.querySelector('[data-usage="reader.display"]')?.getAttribute("aria-pressed") }));
-      if (!state.inPanel) throw new Error("focus did not move into the panel");
-      if (state.pressed !== null) throw new Error("the trigger still carries aria-pressed");
+    const more = page.locator(".study-document-viewer .reader-more__button").first();
+    const displayDialog = () => page.getByRole("dialog", { name: t("显示设置", "Display settings") });
+    await step("reader-display-dialog", async () => {
+      await chooseMore(page, t("显示设置", "Display settings"));
+      await displayDialog().waitFor();
+      const state = await page.evaluate(() => ({ inDialog: !!document.activeElement?.closest(".sh-dialog"), expanded: document.querySelector(".reader-more__button")?.getAttribute("aria-expanded") }));
+      if (!state.inDialog) throw new Error("focus did not move into the dialog");
+      if (state.expanded === "true") throw new Error("更多 still says its menu is open");
+      return state;
     });
-    await check("Escape closes the popover and returns focus, not the reader", async () => {
-      await page.keyboard.press("Escape");
-      if (await page.locator(".reader-popover__panel").count()) throw new Error("popover still open");
+    await check("closing the dialog returns focus to 更多 and leaves the reader open", async () => {
+      await displayDialog().getByRole("button", { name: t("关闭", "Close") }).click();
+      await displayDialog().waitFor({ state: "detached" });
       if (!(await page.locator(".study-document-viewer").count())) throw new Error("the reader closed too");
-      if (!(await aa.evaluate((element) => element === document.activeElement))) throw new Error("focus did not return to Aa");
+      if (!(await more.evaluate((element) => element === document.activeElement))) throw new Error("focus did not return to 更多");
     });
     await page.keyboard.press("Escape");
     await sleep(300);
@@ -97,6 +108,8 @@ export async function runOverlayQa(options) {
     if (opened) {
       await dialog.waitFor();
       await step("rename-inline-confirm", async () => {
+        // The name field is inside the dialog's 更多设置 fold.
+        if (!(await dialog.locator(".course-settings__rename").first().isVisible())) await dialog.getByText(t("更多设置", "More settings"), { exact: true }).first().click();
         const input = dialog.locator(".course-settings__rename input").first();
         await input.fill(t("平台工程", "Platform Engineering 2"));
         await dialog.getByRole("button", { name: t("改名", "Rename"), exact: true }).click();

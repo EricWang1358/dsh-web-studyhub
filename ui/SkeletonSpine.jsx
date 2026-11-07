@@ -1,9 +1,10 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useState } from "react";
 import Icon from "./components/Icon.jsx";
 import { Button, IconButton, TabPanel, Tabs, Tooltip } from "./components/index.js";
 import { skeletonSpine, spineCounts, readSpineOpen, writeSpineOpen } from "./skeleton-spine.js";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
+import { useScrollEdges } from "./components/use-scroll-edges.js";
 
 /* 脉络：一条学习主线。一行站点条（编号圆点 + 短标题）加一个"当前站"详情：
    站点条随时标出走到第几站，详情里读到这一站的说明和全部要点（一个字都不截断）。
@@ -65,19 +66,13 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
   const [folds, setFolds] = useState({});
   const [current, setCurrent] = useState(0);
   const [all, setAll] = useState(false);
-  const [edges, setEdges] = useState({ start: false, end: false });
-  const strip = useRef(null);
+  // The strip fades the side with more stations beyond it (the shared hook and stylesheet, #747).
+  const [strip, edges, measureEdges] = useScrollEdges();
   const count = stations.length;
   const open = !collapsible || (folds[stepKind] ?? stored);
   const index = Math.min(current, Math.max(0, count - 1));
 
-  const measureEdges = () => {
-    const el = strip.current;
-    if (!el) return;
-    const next = { start: el.scrollLeft > 2, end: el.scrollLeft + el.clientWidth < el.scrollWidth - 2 };
-    setEdges((prev) => (prev.start === next.start && prev.end === next.end ? prev : next));
-  };
-  // Keep the current tab inside the strip, and tell the strip's edges whether more stations hide beyond them.
+  // Keep the current tab inside the strip; the hook fades the edge that has more stations beyond it.
   useEffect(() => {
     const box = strip.current, tab = box?.querySelector('[aria-selected="true"]');
     if (!box || !tab) return;
@@ -87,15 +82,9 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
     if (left < box.scrollLeft + pad) target = Math.max(0, left - pad);
     else if (right > box.scrollLeft + box.clientWidth - pad) target = right - box.clientWidth + pad;
     if (target !== null) box.scrollTo({ left: target, behavior: reducedMotion() ? "auto" : "smooth" });
+    // The strip has just been scrolled by code, so its scroll event may not have landed yet.
     measureEdges();
-  }, [index, open, all]);
-  useEffect(() => {
-    const box = strip.current;
-    if (!box || typeof ResizeObserver === "undefined") return undefined;
-    const watch = new ResizeObserver(measureEdges);
-    watch.observe(box);
-    return () => watch.disconnect();
-  }, [open, all]);
+  }, [index, open, all, strip, measureEdges]);
 
   if (!count) return null;
   const station = stations[index];
@@ -160,7 +149,7 @@ export default function SkeletonSpine({ skeleton, onPractice, stepKind, heading,
             <>
               <div className="spine-nav">
                 {count > 1 && arrow(-1, "spine-arrow spine-prev", ui("上一站"))}
-                <div className="spine-strip" ref={strip} data-start={edges.start ? "1" : undefined} data-end={edges.end ? "1" : undefined} onScroll={measureEdges}>
+                <div className="spine-strip sh-fade-x" ref={strip} data-fade-start={edges.start || undefined} data-fade-end={edges.end || undefined} onScroll={measureEdges}>
                   <Tabs id={uid} className="spine-track" itemClassName="spine-tab" label={ui("学习站点")} wrap={false} value={index} onChange={select}
                     items={stations.map((item, i) => ({
                       value: i, ariaLabel: `${item.step}. ${item.term}`, tooltip: item.term,

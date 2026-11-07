@@ -12,6 +12,7 @@ import { isSelectableTask, reconcileSelection, selectionSummary, toggleAll, togg
 import { batchMessage, batchRun } from './task-batch.js';
 import SelectBar from './SelectBar.jsx';
 import { useUndoable } from '../use-undoable.js';
+import { useScrollEdges } from '../components/use-scroll-edges.js';
 import { deleteNoticeText } from './delete-notice.js';
 import { taskSummary } from './task-summary.js';
 import { usageLine } from './task-facts.js';
@@ -201,6 +202,8 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
   const archived = useMemo(() => archivedTasksOf(data).filter((task) => !undoable.hidden(taskId(task))), [data, undoable, undoable.version()]); // eslint-disable-line react-hooks/exhaustive-deps
   const [filter, setFilter] = useState(initialFilter), [current, setCurrent] = useState(null), seen = useRef(null), listRef = useRef(null);
   const [selection, setSelection] = useState(() => new Set()), [working, setWorking] = useState(false);
+  // The filter strip scrolls sideways on a narrow panel: the side with more filters beyond it fades (ui/components/scroll-fade.css, #747).
+  const [scopeStrip, scopeEdges, measureScope] = useScrollEdges();
   // 全屏 folds the list away so the detail has the whole width; it is remembered for this viewer (and never needed for anything to work).
   const [full, setFull] = useState(() => readJSON('study-task-console-full', false) === true);
   const toggleFull = useCallback(() => setFull((value) => { writeJSON('study-task-console-full', !value); return !value; }), []);
@@ -276,7 +279,7 @@ export default function TaskConsole({ data, openers, initialFilter = 'all' }) {
   // no 退出全屏): there they stay, the one way out. They sit on the title's line (the header's action slot, under it when narrow), so the header takes as little of the
   // height the detail's panels need as a page title can.
   const filterBar = none || (full && !empty) ? null : (
-    <div className="tc-scope-wrap">
+    <div className="tc-scope-wrap sh-fade-x sh-fade-x--pad" ref={scopeStrip} data-fade-start={scopeEdges.start || undefined} data-fade-end={scopeEdges.end || undefined} onScroll={measureScope}>
       <SegmentedControl className="tc-scope" size="sm" label={ui('筛选')} value={filter} onChange={setFilter}
         options={filters.map((item) => ({ value: item.id, label: `${ui(FILTER_LABEL[item.id])} ${item.count}` }))} />
     </div>

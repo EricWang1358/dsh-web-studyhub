@@ -10,6 +10,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StudyService } from "../../lib/service.js";
 import { finishCli, parseQaArgs, runQa } from "./harness.mjs";
+import { chooseMore } from "./reader-more.mjs";
 
 const FORWARD = String.raw`全连接层前向：$z = Wx + b$，损失 $L = \frac{1}{2}(a - y)^2$。`;
 const DELTA = String.raw`$$\delta = (a - y) \odot \sigma'(z)$$`;
@@ -60,7 +61,7 @@ export async function runReaderFormulasQa(options) {
       body.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     }, [text, inside]);
     const learning = page.locator(".study-document-learning");
-    const showPanel = async () => { if (!(await page.locator('[data-tour="source-tools"]').isVisible())) { await page.locator('[data-tour="source-tools-toggle"]').click(); await wait(400); } };
+    const showPanel = async () => { if (!(await page.locator('[data-tour="source-tools"]').isVisible())) { await chooseMore(page, t("学习工具", "Study tools")); await wait(400); } };
     const copyOf = () => page.evaluate(() => {
       const body = document.querySelector(".study-document-body"), data = new DataTransfer();
       const event = new ClipboardEvent("copy", { clipboardData: data, bubbles: true, cancelable: true });

@@ -841,6 +841,14 @@
       grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: var(--space-1);
     }
+    /* Each cell is the tooltip's anchor (#745), so the button fills the cell the grid measured and the scale looks unchanged. */
+    .grade-scale > .grade-tip {
+      display: flex;
+      min-width: 0;
+    }
+    .grade-scale > .grade-tip > .grade {
+      flex: 1;
+    }
     .grade {
       display: flex;
       flex-direction: column;
@@ -858,13 +866,15 @@
     .grade:focus-visible { background: var(--bg-hover); }
     .grade:focus-visible { outline-offset: -3px; }
     .grade:active:not(:disabled) { background: var(--bg-selected); }
+    /* A number key answers without a click (#745): the button the key named wears the same press for a moment, so the key is seen to land. */
+    .grade.is-key-pressed { background: var(--bg-selected); }
     .grade.low {
       color: var(--bad-ink);
     }
     .grade.high {
       color: var(--ok-ink);
     }
-    .grade:nth-child(4) {
+    .grade-scale > .grade-tip:nth-child(4) .grade {
       color: var(--warn-ink);
     }
     .grade strong {

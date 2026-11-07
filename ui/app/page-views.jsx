@@ -292,7 +292,7 @@ function DraftView() {
 
 /** Settings reads the services from useStudy() and its panes draw the binding panel, the course list and the sample controls themselves. */
 function SettingsView() {
-  const { data, language, core, shell, lib, set, tour, settingsEntry, resetLibraryState } = useApp();
+  const { data, language, core, shell, lib, nav, set, tour, settingsEntry, resetLibraryState } = useApp();
   const { call, setError, notify } = core;
   const { appearance, updateAppearance } = shell;
   async function exportData() {
@@ -312,7 +312,7 @@ function SettingsView() {
     }
   }
   return (
-    <Settings data={data} settings={lib.settings} setSettings={set.setSettings}
+    <Settings data={data} nav={nav} settings={lib.settings} setSettings={set.setSettings}
       legacy={settingsEntry.legacy} setLegacy={settingsEntry.setLegacy}
       exportData={exportData}
       appearance={{ language, onLanguage: setUiLanguage, ...appearance, onTheme: shell.setTheme,

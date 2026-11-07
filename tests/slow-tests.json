@@ -45,6 +45,7 @@
     "tests/follow-label-fit-browser.test.mjs",
     "tests/generate-flow-browser.test.mjs",
     "tests/generate-short-browser.test.mjs",
+    "tests/grade-key-feedback-browser.test.mjs",
     "tests/guided-drafts-browser.test.mjs",
     "tests/hand-off-browser.test.mjs",
     "tests/hand-off-deadends-browser.test.mjs",
@@ -91,6 +92,7 @@
     "tests/review-run-context-browser.test.mjs",
     "tests/row-coverage-browser.test.mjs",
     "tests/science-settings-browser.test.mjs",
+    "tests/scroll-fade-browser.test.mjs",
     "tests/select-combobox-browser.test.mjs",
     "tests/settings-entry-targets.test.mjs",
     "tests/spine-layout.test.mjs",
@@ -115,6 +117,7 @@
     "tests/wp0-qa-tools.test.mjs",
     "tests/wp2f-shell-browser.test.mjs",
     "tests/wp5-tour-steps.test.mjs",
+    "tests/wrongbook-distribution-browser.test.mjs",
     "tests/wrongbook-filters-browser.test.mjs"
   ],
   "ffmpeg": [

@@ -4,6 +4,9 @@ name: browser-smoke
 # could pass CI. This job installs Playwright's Chromium (what scripts/qa/browser.mjs launches) and runs a short, stable list of them.
 # It does not touch verify.yml: not a shard, not the `verify` gate.
 #
+# Pinned to ubuntu-24.04, not ubuntu-latest: on the newer image the apt mirror can leave installing Chromium's system libraries running until the
+# job's limit. The install step has its own 3-minute limit and one retry below; move the pin only after a run proves the newer image behaves.
+#
 # Non-blocking for now: `continue-on-error: true` keeps the check green when the tests fail (open the run to see the red step).
 # To make it blocking: delete `continue-on-error`, let a week of runs stay green, then add `browser-smoke` to the branch protection's required checks
 # (or add it to `needs:` and to the gate's pass condition in verify.yml, which also needs the guard in tests/test-runner-shards.test.mjs updated).
@@ -22,7 +25,7 @@ concurrency:
 
 jobs:
   browser-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     continue-on-error: true
     env:
@@ -45,11 +48,39 @@ jobs:
         with:
           path: .playwright-browsers
           key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-      # A cache hit has the browser but not the system libraries it needs, so those are installed either way.
-      - if: steps.browsers.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-      - if: steps.browsers.outputs.cache-hit == 'true'
+      # A cache hit has the browser but not the system libraries it needs, so the browser is downloaded only on a miss and the libraries are
+      # installed either way. The apt mirror has stalled that install until the job limit, so it gets 3 minutes and one retry; a stalled install
+      # does not skip the tests below (the job still carries on, and the tests that need a browser fail in their own step).
+      - name: Chromium
+        if: steps.browsers.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+      # The stall was apt waiting on one package for minutes ('Get' then 'Ign'), so apt itself is told to give up on a silent connection after 20 seconds
+      # and retry, which fails that fetch fast instead of waiting for the step limit.
+      - name: apt fails fast on a stalled mirror
+        run: |
+          sudo tee /etc/apt/apt.conf.d/80-fail-fast <<'APTCONF'
+          Acquire::Retries "3";
+          Acquire::http::Timeout "20";
+          Acquire::https::Timeout "20";
+          APTCONF
+      - name: Chromium's system libraries
+        id: deps
+        timeout-minutes: 3
+        continue-on-error: true
         run: npx playwright install-deps chromium
+      # `!= 'success'` rather than `== 'failure'`: a step stopped by its time limit may be reported as cancelled, not failed.
+      - name: Chromium's system libraries (one retry)
+        id: deps-retry
+        if: steps.deps.outcome != 'success'
+        timeout-minutes: 3
+        continue-on-error: true
+        run: npx playwright install-deps chromium
+      # Says in the run's summary that a red test step below may be this install, not a regression. The tests still run: the runner image ships
+      # most of Chromium's libraries, so they often pass without the install.
+      - name: Say so when the library install failed twice
+        if: steps.deps.outcome != 'success' && steps.deps-retry.outcome != 'success'
+        run: |
+          echo "::warning title=Chromium system libraries::Both installs of Chromium's system libraries failed or timed out (the apt mirror). A failing test step below may be missing libraries, not a regression, so rerun the job first."
       # Each test builds its own UI bundle into a temp folder (buildPreview), so no build step is needed here. scripts/test.mjs is how the shards run tests too
       # (isolated home, no real network). The files cover: the shell and navigation, the review reveal, the mistakes page, and the right-sidebar hand-off.
       - run: >-
