@@ -6,6 +6,7 @@ import SourcePicker from './SourcePicker.jsx';
 import TopicChips from './TopicChips.jsx';
 import FocusProgressList from './FocusProgressList.jsx';
 import CustomPlanCard from './CustomPlanCard.jsx';
+import CourseMethodCard from './CourseMethodCard.jsx';
 import GuidanceSuggestions, { guidanceSuggestions } from './GuidanceSuggestions.jsx';
 import { splitTopics } from './course-topics.js';
 import { useStudy } from './study-context.jsx';
@@ -321,6 +322,9 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
         <Field label={ui('考试日期')} width="full" hint={ui('填了就会在首页倒数；其余都可以不填。')}>
           <TextInput type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></Field>
       </section>
+
+      {/* 学法 (#775): every course has one, the default package until it is changed. */}
+      <CourseMethodCard course={course} />
 
       {/* Only a course the main chat made a custom plan for has the card. */}
       <CustomPlanCard course={course} />
