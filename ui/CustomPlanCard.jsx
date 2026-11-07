@@ -19,10 +19,10 @@ export default function CustomPlanCard({ course }) {
   const { call, act, busy } = useStudy();
   const handOff = useHandOff();
   const custom = course?.custom ?? null;
-  const [estimate, setEstimate] = useState(null), [error, setError] = useState(''), [working, setWorking] = useState(false);
+  const [preview, setPreview] = useState(null), [error, setError] = useState(''), [working, setWorking] = useState(false);
   useLiveEffect(live => {
     if (!custom) return;
-    Promise.resolve().then(() => call('course.custom.preview', { course: course.name })).then(value => { if (live()) setEstimate(value?.estimate ?? null); }).catch(() => {});
+    Promise.resolve().then(() => call('course.custom.preview', { course: course.name })).then(value => { if (live()) setPreview(value ?? null); }).catch(() => {});
   }, [call, course?.name, custom?.updatedAt]);
   if (!custom) return null;
   const disabled = busy || working, locked = lockedPartIds(custom);
@@ -30,13 +30,13 @@ export default function CustomPlanCard({ course }) {
     setWorking(true); setError('');
     try { await act('course.save', saveArgs(course, next), undefined, { rethrow: true }); } catch (caught) { setError(errorMessage(caught)); } finally { setWorking(false); }
   };
-  const line = estimateLine(estimate), unknown = unknownChaptersText(estimate);
+  const line = estimateLine(preview?.estimate), unknown = unknownChaptersText(preview);
   return <section className="course-settings__block custom-card" aria-labelledby="custom-card-title">
     <h3 id="custom-card-title">{ui('你的定制')}</h3>
     <p className="custom-card__summary">{customSummary(custom)}</p>
     {line && <p className="custom-card__estimate" role="status">{line}</p>}
     {/* A plan whose chapters moved: the chat is where the plan was made, so the card says it once and gives the one action that re-picks them (#758). */}
-    {unknown && <InlineMessage tone="warning" secondary={handOff.action('custom.start', { course: course.name, hasCustom: true }, { what: ui('重新选这几章') })}>{unknown}</InlineMessage>}
+    {unknown && <InlineMessage tone="warning" secondary={handOff.action('custom.start', { course: course.name, hasCustom: true }, { what: '让主会话重新选这几章' })}>{unknown}</InlineMessage>}
     <ul className="custom-card__parts" aria-label={ui('复习全书的部分')}>
       {BOOK_PARTS.map(id => {
         const on = custom.book.parts.includes(id), stuck = on && locked.has(id);

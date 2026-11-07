@@ -12,6 +12,9 @@ import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { customDefaults } from '../lib/custom-plan.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 
+/* A second course shares the materials and saves a plan that also names a chapter the book no longer holds (#758): its card must say so. */
+const MOVED = 'Moved course';
+
 /* 「你的定制」 in the real course settings (深度定制, 4.4 S0), zh dark at 1280 px and en light at 420 px: the card with its sentence, the rough cost line, the parts as
    toggles and three switches; a toggle is saved through course.save {custom} (and the cost is read again); a course with no 定制方案 has no card; nothing scrolls
    sideways. Pictures go to CUSTOM_PLAN_SHOTS when set. */
@@ -22,7 +25,7 @@ async function seed(root) {
   await service.call('snapshot');
   const { sources, decks } = outlineLibrary({ paper: true });
   await service.store.update(own => {
-    own.sources.push(...sources); own.decks.push(...decks);
+    own.sources.push(...sources.map(source => ({ ...source, courses: [...source.courses, MOVED] }))); own.decks.push(...decks);
     own.focus = { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] };
   });
   const { skeleton } = await service.call('course.custom.preview', { course: COURSE });
@@ -30,6 +33,7 @@ async function seed(root) {
   const custom = { ...customDefaults('review'), scope: { kind: 'chapters', chapters: lecture.chapters.map(chapter => chapter.id) },
     book: { make: true, coverage: 'standard', parts: ['explain', 'terms', 'confusables'] } };
   await service.call('course.save', { name: COURSE, exam: { date: '2027-01-20' }, custom });
+  await service.call('course.save', { name: MOVED, custom: { ...custom, scope: { kind: 'chapters', chapters: [...custom.scope.chapters, 'document-gone#9'] } } });
   await service.call('course.save', { name: 'Plain course' });
   await service.dispose();
 }
@@ -43,7 +47,7 @@ const sideways = page => page.evaluate(() => {
 async function openSettings(page, name) {
   await (await revealNavRow(page, 'settings')).dispatchEvent('click');
   await page.locator('[data-category="courses"]').first().click();
-  await page.locator('.course-list__item', { hasText: name }).locator('.course-list__action').click();
+  await page.locator('.course-list__item', { has: page.getByText(name, { exact: true }) }).locator('.course-list__action').click();
   await page.locator('.course-settings').waitFor({ timeout: 30000 });
 }
 
@@ -76,6 +80,7 @@ test('「你的定制」: the card, a saved toggle, no card without a plan, no s
       assert.equal(await chips.nth(0).isDisabled(), true, 'explain is locked while terms is on');
       assert.equal(await chips.nth(1).isDisabled(), true, 'terms is locked while confusables is on');
       assert.equal(await chips.nth(4).isDisabled(), false);
+      assert.equal(await card.locator('[role="alert"], [role="status"]', { hasText: say('找不到了', 'no longer in the material') }).count(), 0, `${width}px: a plan whose chapters are all there says nothing of moved chapters`);
       const flat = await sideways(page);
       assert.ok(flat.doc <= 0 && flat.wide.length === 0, `${width}px: nothing scrolls sideways: ${JSON.stringify(flat)}`);
       await settleAnimations(page);
@@ -101,10 +106,24 @@ test('「你的定制」: the card, a saved toggle, no card without a plan, no s
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `card-${lang}-${theme}-${width}-after.png`) });
 
+      // A plan that names a chapter the book no longer holds (#758): the card says how many, once, and offers the one hand-off that picks them again.
+      await page.keyboard.press('Escape');
+      await page.locator('.course-settings').waitFor({ state: 'detached', timeout: 30000 });
+      await page.locator('.course-list__item', { has: page.getByText(MOVED, { exact: true }) }).locator('.course-list__action').click();
+      await page.locator('.course-settings').waitFor({ timeout: 30000 });
+      const moved = page.locator('.course-settings .custom-card');
+      const notice = moved.getByText(say('有 1 章在资料里找不到了，需要重新选', '1 chapter(s) are no longer in the material and must be picked again'));
+      await notice.waitFor({ timeout: 30000 });
+      await moved.getByRole('button', { name: say('发给主会话', 'Send to the main chat') }).waitFor({ timeout: 30000 });
+      const movedFlat = await sideways(page);
+      assert.ok(movedFlat.doc <= 0 && movedFlat.wide.length === 0, `${width}px: the notice does not scroll sideways: ${JSON.stringify(movedFlat)}`);
+      await settleAnimations(page);
+      if (shots) await page.screenshot({ path: join(shots, `card-moved-${lang}-${theme}-${width}.png`) });
+
       // A course with no 定制方案 has no card.
       await page.keyboard.press('Escape');
       await page.locator('.course-settings').waitFor({ state: 'detached', timeout: 30000 });
-      await page.locator('.course-list__item', { hasText: 'Plain course' }).locator('.course-list__action').click();
+      await page.locator('.course-list__item', { has: page.getByText('Plain course', { exact: true }) }).locator('.course-list__action').click();
       await page.locator('.course-settings').waitFor({ timeout: 30000 });
       assert.equal(await page.locator('.custom-card').count(), 0, `${width}px: no card without a plan`);
       await context.close();
