@@ -147,7 +147,11 @@
     :where(.study-app, .study-seat) {
       /* On a narrow window the column of ticks is gone: it took 28px from the card, and the card's progress bar already says where the learner is. */
       .review-navigator { display: none; }
-      .review-page.has-rail { display: block; padding-left: 0; padding-right: 0; }
+      .review-page.has-rail { display: block; }
+      /* The page keeps the app's side gutter (the main area has none at this width): the heading, the card and the grade scale all start 16px in. The heading's
+         own side padding goes, or the title would sit twice as far in as the card (#817). */
+      .review-page, .review-page.has-rail { padding-inline: var(--space-4); }
+      .review-page > .review-heading { padding-inline: 0; }
     }
   }
   @media (prefers-reduced-motion: reduce) {
