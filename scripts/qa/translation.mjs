@@ -14,6 +14,7 @@ import { createStudyRuntime } from "../../lib/runtime/builtins.js";
 import { createPreviewServer } from "../preview-server.mjs";
 import { launchChromium } from "./browser.mjs";
 import { pick } from "./pick.mjs";
+import { chooseMore } from "./reader-more.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 import { reportUsage } from "../../lib/usage-scope.js";
 
@@ -174,10 +175,14 @@ export async function runTranslationQa(options) {
     const paragraph = (text) => viewer.locator(".reader-html > p, .reader-prose > .reader-p, .reader-html li").filter({ hasText: text }).first();
     const mark = (text) => paragraph(text).locator(".tr-mark__btn");
     const blockAfter = (text) => paragraph(text).locator("xpath=following-sibling::*[1][contains(@class,'tr-host')]");
-    const openDisplay = async () => { if (!(await viewer.locator(".reader-popover__panel[aria-label]").count())) await viewer.getByRole("button", { name: t("显示设置", "Display settings"), exact: true }).click(); await viewer.locator(".tr-modes").waitFor(); };
-    const setMode = async (label) => { await openDisplay(); await viewer.locator(".tr-modes .sh-seg__item", { hasText: label }).click(); await page.keyboard.press("Escape"); await sleep(250); };
+    // 显示设置… and 学习工具 are items of the reader's 更多 now. The settings open in a dialog, closed with its 关闭 button: Escape would shut
+    // the dialog and the reader under it together (the reader is a dialog too).
+    const displayDialog = () => page.getByRole("dialog", { name: t("显示设置", "Display settings") });
+    const openDisplay = async () => { if (!(await displayDialog().count())) await chooseMore(page, t("显示设置", "Display settings")); await displayDialog().locator(".tr-modes").waitFor(); };
+    const closeDisplay = async () => { if (await displayDialog().count()) { await displayDialog().getByRole("button", { name: t("关闭", "Close") }).click(); await displayDialog().waitFor({ state: "detached" }); } };
+    const setMode = async (label) => { await openDisplay(); await displayDialog().locator(".tr-modes .sh-seg__item", { hasText: label }).click(); await closeDisplay(); await sleep(250); };
     const labels = { pairs: t("逐段对照", "Paragraph pairs"), side: t("左右分栏", "Side by side"), only: t("仅中文", "English only"), hidden: t("隐藏译文", "Hide translations") };
-    const toggleTools = async () => { await viewer.getByRole("button", { name: t("学习工具", "Study tools"), exact: true }).click(); await sleep(300); };
+    const toggleTools = async () => { await chooseMore(page, t("学习工具", "Study tools")); await sleep(300); };
     const toggleOutline = async () => { await viewer.getByRole("button", { name: t("目录", "Contents"), exact: true }).click().catch(() => {}); await sleep(300); };
     const select = (phrase) => page.evaluate((words) => {
       const body = document.querySelector(".study-document-body"), walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
@@ -192,10 +197,12 @@ export async function runTranslationQa(options) {
       return false;
     }, phrase);
     const popover = () => viewer.locator(".tr-panel");
-    const openMenu = async () => { if (!(await popover().count())) await viewer.locator(".tr-toolbar-button").click(); await popover().waitFor(); await viewer.locator(".tr-scope[data-status='ready']").first().waitFor({ timeout: 15000 }); };
+    // The toolbar has no 译 button: 更多 › 翻译… opens the same panel in a dialog, closed with its 关闭 button.
+    const translateDialog = () => page.getByRole("dialog", { name: t("中英对照翻译", "Bilingual translation") });
+    const openMenu = async () => { if (!(await popover().count())) await chooseMore(page, t("翻译", "Translate")); await popover().waitFor(); await viewer.locator(".tr-scope[data-status='ready']").first().waitFor({ timeout: 15000 }); };
     // A toast that a job left (6 seconds, held while the pointer rests on it) must not sit on the next dialog's buttons.
     const clearToasts = async () => { await page.mouse.move(2, 2); await page.waitForFunction(() => !document.querySelector(".sh-toast"), null, { timeout: 15000 }).catch(() => {}); };
-    const closeMenu = async () => { if (await popover().count()) await viewer.locator(".tr-toolbar-button").click(); await sleep(200); };
+    const closeMenu = async () => { if (await translateDialog().count()) { await translateDialog().getByRole("button", { name: t("关闭", "Close") }).click(); await translateDialog().waitFor({ state: "detached" }); } await sleep(200); };
 
     await page.goto(server.url);
     await page.locator("aside, nav").first().waitFor({ timeout: 30000 });
@@ -258,7 +265,7 @@ export async function runTranslationQa(options) {
       await viewer.locator(".tr-job[data-status='running'], .tr-job[data-status='queued']").waitFor({ timeout: 15000 });
       await sleep(500);
     });
-    await step("job-reading-stays", async () => { await page.mouse.wheel(0, 300); await sleep(300); });
+    await step("job-reading-stays", async () => { await closeMenu(); await page.mouse.wheel(0, 300); await sleep(300); });
     await step("job-done", async () => {
       await viewer.locator(".tr-job[data-status='complete']").waitFor({ timeout: 60000 });
       await page.waitForFunction(() => document.querySelectorAll(".tr-mark[data-tr-state='has']").length >= 5, null, { timeout: 15000 });
@@ -291,13 +298,13 @@ export async function runTranslationQa(options) {
     });
     await step("retranslate-v2", async () => {
       await blockAfter(doc.p0).locator(".tr-ask__input").press("Enter");
-      await blockAfter(doc.p0).locator(".tr-chip", { hasText: /v2/ }).waitFor({ timeout: 15000 });
+      await blockAfter(doc.p0).locator(".tr-meta", { hasText: /v2/ }).waitFor({ timeout: 15000 });
     });
     await step("copy", async () => {
       await openBlockMenu(doc.p0);
       await page.getByRole("menuitem", { name: t("复制译文", "Copy translation") }).click();
       // The menu closes on a choice; the block says it copied (and forgets after a moment).
-      await blockAfter(doc.p0).locator(".tr-chip[role='status']", { hasText: t("已复制", "Copied") }).waitFor();
+      await blockAfter(doc.p0).locator(".tr-meta[role='status']", { hasText: t("已复制", "Copied") }).waitFor();
     });
     await step("delete-undo", async () => {
       await openBlockMenu(doc.p0);
@@ -339,7 +346,7 @@ export async function runTranslationQa(options) {
       await sleep(900); await closeMenu();
     });
     await step("original-view", async () => {
-      await viewer.getByRole("radio", { name: t("原文", "Original text"), exact: true }).click().catch(() => viewer.getByRole("button", { name: t("原文", "Original text"), exact: true }).click());
+      await chooseMore(page, t("原文", "Original text"));
       await sleep(600); await select(doc.sentence); await page.locator(".tr-chipbtn").waitFor();
       await page.locator(".tr-chipbtn").click(); await viewer.locator(".tr-float .tr-block__text").waitFor({ timeout: 15000 });
     });
@@ -391,7 +398,7 @@ export async function runTranslationQa(options) {
     if (options.lang === "zh") {
       await closeReader();
       await step("pdf-pages", async () => {
-        await openRow("lecture.pdf");
+        await openRow(/PDF/); // the row is titled "lecture" (no extension), its meta line says PDF
         await viewer.locator(".tr-mark").first().waitFor({ timeout: 15000 });
         if ((await viewer.locator("[data-study-page]").count()) < 2) throw new Error("the PDF is not drawn as pages");
       });
