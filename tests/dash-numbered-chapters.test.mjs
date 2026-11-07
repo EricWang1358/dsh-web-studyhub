@@ -14,7 +14,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { coverageForDocument, coverageForDraft } from '../lib/coverage-state.js';
-import { restampConvertedChapters } from '../lib/converted-chapter-stamps.js';
+import { restampConvertedChapters, restampSelection } from '../lib/converted-chapter-stamps.js';
 
 /* Owner report 2026-11-06: a 513-page translated textbook converted with local MinerU came out as 64 "chapters", 47 of them one page, and three 附录 headings
    swallowing pages 81-513. Its chapter titles carry no 第N章: each chapter is "<title>", then 本章要点, then sections numbered N—M (em dash; also N-M, N–M,
@@ -30,6 +30,15 @@ test('N—M is section numbering of chapter N (the rank of 1.1), with every dash
   // A caption, a year range and a quantity are no section numbering.
   assert.deepEqual(levels(['第一章 总论', '1—1 背景', '表1-1 2001—2010年间的价格', '图1-2 曲线', '[资料1- 1] 故事', '1965—2014年间的增长', '3-5 分钟练习',
     '1—2 方法', '第二章 方法', '2—1 甲', '2—2 乙']), [1, 2, 3, 3, 3, 3, 3, 2, 1, 2, 2]);
+});
+
+test('one title that starts with a decimal is no decimal numbering: a dash-numbered book keeps its chapters', () => {
+  // The owner's book has content headings such as "1.5 亿的规模效应": one of them says nothing of how the book numbers its sections.
+  assert.deepEqual(levels(['市场导论', '本章要点', '1—1 市场的含义', '1—2 供给与需求', '1.5 亿的规模效应', '本章提要', '生产理论', '本章要点', '2—1 生产函数', '2—2 规模报酬']),
+    [1, 2, 2, 2, 2, 3, 1, 2, 2, 2]);
+  // Two titles numbered so are decimal sections (1.1, 1.2): the book is not read as a dash-numbered one (this is what one title did before the fix).
+  assert.deepEqual(levels(['市场导论', '本章要点', '1—1 市场的含义', '1—2 供给与需求', '1.1 附录甲', '1.2 附录乙', '本章提要', '生产理论', '本章要点', '2—1 生产函数', '2—2 规模报酬']),
+    [1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1]);
 });
 
 const BOOK_TITLES = ['示例教材', '版权页', '译者前言', '目录',
@@ -146,6 +155,30 @@ test('a book imported with this rule keeps the chapters it was stored with; part
   const old = `${HASH}-json-conv2`, all = stored(old, oldChapterOf), some = all.filter(source => source.document.page >= 9 && source.document.page <= 13);
   assert.deepEqual(rows(groupSourcesByDocument(some, { documents: documentsOf(all, old) })[0]).map(row => row[0]),
     ['2-1 生产函数', '2 - 2 规模报酬', '操作题', '附录:生产函数的数学']);
+});
+
+test('a few pages on their own are no book: without the library\'s record of the revision they are not read again', () => {
+  const revision = `${HASH}-json-conv2`, all = stored(revision, oldChapterOf), documents = documentsOf(all, revision);
+  const some = all.filter(source => source.document.page >= 9 && source.document.page <= 13);
+  // No record says how many pages the book has: five pages of it would otherwise make chapters of their own.
+  assert.equal(restampConvertedChapters(some), some);
+  assert.deepEqual(rows(groupSourcesByDocument(some)[0]).map(row => row[0]), ['2-1 生产函数', '2 - 2 规模报酬', '操作题', '附录:生产函数的数学']);
+  // Its records say these five pages are not the book: the stamps stay all the same.
+  assert.equal(restampConvertedChapters(some, { documents }), some);
+  // Read with the rest of its book (a draft's coverage reads it so), the same pages carry the chapters of the whole book.
+  assert.deepEqual(restampSelection(some, all, { documents }).map(source => source.document.chapter?.title), ['生产理论', '生产理论', '生产理论', '生产理论', '生产理论']);
+});
+
+test('the readers that hold no library records still read a whole old book again: its pages say how big the book is', () => {
+  const revision = `${HASH}-json-conv2`, all = stored(revision, oldChapterOf);
+  // Every page 1..totalPages is here: a whole book, with no record needed (the outline, translation and mastery readers pass none).
+  assert.deepEqual(rows(groupSourcesByDocument(all)[0]), CHAPTERS);
+  // A page missing from the middle: it may be part of the book, so the stamps stay.
+  const gap = all.filter(source => source.document.page !== 10);
+  assert.equal(restampConvertedChapters(gap), gap);
+  // A book that does not say how big it is cannot be told from a part.
+  const unsized = all.map(({ document: { totalPages, ...document }, ...source }) => ({ ...source, document }));
+  assert.equal(restampConvertedChapters(unsized), unsized);
 });
 
 /* ---------- the owner's real heading runs (coordinator's read-only run on the 513-page book, 2026-11-06) ---------- */
