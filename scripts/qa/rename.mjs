@@ -9,6 +9,7 @@ import { Store } from "../../lib/store.js";
 import { createStudyRuntime } from "../../lib/runtime/builtins.js";
 import { makeTextPdf, LECTURE_PAGES } from "../../tests/helpers/text-pdf.mjs";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
+import { chooseMore } from "./reader-more.mjs";
 
 async function seed(root) {
   const runtime = createStudyRuntime(root);
@@ -111,7 +112,8 @@ export async function runRenameQa(options) {
       if (!(await page.locator(".study-document-viewer").count())) throw new Error("Escape closed the reader instead of cancelling the edit");
     });
     await step("reader-header-saved", async () => {
-      await dialog.getByRole("button", { name: t("重命名", "Rename") }).click();
+      await chooseMore(page, t("重命名…", "Rename…"));
+      await field.waitFor();
       await field.fill("OS notes (week 1)");
       await field.press("Enter");
       await dialog.locator(".reader-heading__text", { hasText: "OS notes (week 1)" }).waitFor();

@@ -9,6 +9,7 @@ import { Store } from "../../lib/store.js";
 import { createStudyRuntime } from "../../lib/runtime/builtins.js";
 import { makeTextPdf } from "../../tests/helpers/text-pdf.mjs";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
+import { readMoreHint } from "./reader-more.mjs";
 
 const BOOK = "primer";
 const heading = (title) => `Heading ${title} body sentence number one is distinct and long enough to quote. `.repeat(8);
@@ -80,7 +81,8 @@ export async function runCoverageFormatsQa(options) {
         assert.equal(await marks("never-planned"), 4, "pages 3 to 6");
         const labelled = await viewer.locator('.reader-outline [data-coverage-mark="covered"]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute("aria-label")));
         facts.pagesCovered = labelled;
-        const toolbar = options.width >= 900 ? (await viewer.locator(".reader-toolbar__coverage").innerText()).trim() : "";
+        const toolbar = options.width >= 900 ? await readMoreHint(view, t("掌握度与覆盖", "Mastery and coverage"), { viewer }) : "";
+        if (options.width >= 900) assert.equal(toolbar, t("覆盖 33%", "Covered 33%"));
         facts.toolbarChip = toolbar;
       });
       await step("pdf-practice-panel-line", async () => {

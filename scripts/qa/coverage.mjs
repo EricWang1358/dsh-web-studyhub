@@ -15,6 +15,7 @@ import { createStudyRuntime } from "../../lib/runtime/builtins.js";
 import { previewCall } from "../preview-server.mjs";
 import { createFakeModel } from "../fake-model.mjs";
 import { finishCli, overflowProbe, parseQaArgs, runQa, sleep } from "./harness.mjs";
+import { readMoreHint } from "./reader-more.mjs";
 import { mergedTranscript, RECORDING_NAMES } from "../../tests/helpers/merged-transcript.mjs";
 
 const world = mergedTranscript();
@@ -117,7 +118,10 @@ export async function runCoverageQa(options) {
         assert.ok((await viewer.locator(".reader-outline .mastery-mark").count()) >= 4, "the mastery rings are still there beside the squares");
         const squares = await viewer.locator(".reader-outline .cov-mark svg rect").count(), circles = await viewer.locator(".reader-outline .cov-mark svg circle").count();
         assert.ok(squares >= 1 && circles === 0, "coverage is a square");
-        if (!narrow) assert.equal((await viewer.locator(".reader-toolbar__coverage").innerText()).trim(), t(`覆盖 ${doc.coverage.percentLeaves}%`, `Covered ${doc.coverage.percentLeaves}%`), "the toolbar chip");
+        if (!narrow) {
+          const hint = await readMoreHint(page, t("掌握度与覆盖", "Mastery and coverage"), { viewer });
+          assert.ok(hint.includes(t(`覆盖 ${doc.coverage.percentLeaves}%`, `Covered ${doc.coverage.percentLeaves}%`)), `更多 › 掌握度与覆盖 says ${JSON.stringify(hint)}`);
+        }
         const label = await viewer.locator('.reader-outline [data-coverage-mark="planned-failed"]').first().getAttribute("aria-label").catch(() => null);
         if (wanted.failed) assert.match(label, zh ? /计划了没出成：/ : /Planned, not produced: /);
         await noOverflow("the reader");

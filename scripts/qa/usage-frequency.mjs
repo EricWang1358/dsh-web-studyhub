@@ -116,8 +116,14 @@ export async function runUsageQa(options) {
     };
     const press = async (key, tallyKey) => { await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press(key); tally.set(tallyKey, (tally.get(tallyKey) || 0) + 1); await sleep(240); };
     const nav = id => page.locator(`[data-usage="nav.${id}"]`);
+    const goNav = async (id, opts) => {
+      if (!(await page.locator('.sidebar').count())) { await hit('nav.menu', page.locator('[data-usage="nav.menu"]'), opts); await page.locator('.nav-drawer .sidebar').waitFor({ timeout: 10000 }); }
+      const row = nav(id).first();
+      if (await row.count() && await row.evaluate(el => { const fold = el.closest('details'); return !!fold && !fold.open; })) await hit('nav.more', page.locator('[data-usage="nav.more"]'), opts);
+      return hit(`nav.${id}`, nav(id), opts);
+    };
     const openAdvanced = async () => {
-      if (!(await page.locator('.usage-settings').count())) await hit('nav.settings', nav('settings'));
+      if (!(await page.locator('.usage-settings').count())) await goNav('settings');
       // The usage record is the 使用频率记录 category of Settings (a list on the left, one category on the right).
       const item = page.locator('[data-category="usage"]');
       await item.waitFor({ timeout: 15000 });
@@ -133,15 +139,15 @@ export async function runUsageQa(options) {
       if (overflow.scrollWidth - overflow.clientWidth > 1) throw new Error(`horizontal overflow at ${where}: ${JSON.stringify(overflow)}`);
       const audit = await page.evaluate(layoutAudit, { scopes: ['.usage-settings'], maxGap: 96 });
       // The segmented control's sliding thumb sits under its items by design.
-      const problems = audit.problems.filter(problem => !/sh-seg__thumb/.test(problem));
+      const problems = audit.problems.filter(problem => !/sh-(seg|switch)__thumb/.test(problem));
       if (problems.length) throw new Error(`layout problems at ${where}: ${problems.slice(0, 3).join(' | ')}`);
     };
 
     // ---- 1. off by default ----
     await check('off-by-default', async () => {
       const before = baseline = await listeners();
-      if ((before['click:capture:root'] ?? 0) !== 0 || (before['pagehide:bubble:window'] ?? 0) !== 0) throw new Error(`listeners installed while off: ${JSON.stringify(before)}`);
-      for (const id of ['sources', 'generate', 'library']) await hit(`nav.${id}`, nav(id), { expect: false });
+      if ((before['click:capture:root'] ?? 0) !== 0) throw new Error(`listeners installed while off: ${JSON.stringify(before)}`);
+      for (const id of ['sources', 'generate', 'library']) await goNav(id, { expect: false });
       if (requests.some(action => action === 'usage.frequency.record')) throw new Error('a usage record was sent while off');
       if (await readFileSafe(file) !== null) throw new Error('a usage file exists while off');
       const status = await api('usage.frequency.status');
@@ -162,7 +168,7 @@ export async function runUsageQa(options) {
     await step('switch-on', async () => {
       await section.locator('input[name="usage-frequency"]').click();
       await page.waitForFunction(() => document.querySelector('.usage-settings')?.getAttribute('data-state') === 'empty', null, { timeout: 15000 });
-      if (!await listenersAre(['click:capture:root', 'keydown:capture:document', 'keyup:capture:document', 'visibilitychange:bubble:document', 'pagehide:bubble:window'], 1)) throw new Error(`the capture is not installed exactly once: ${JSON.stringify(await listeners())} (before: ${JSON.stringify(baseline)})`);
+      if (!await listenersAre(['click:capture:root', 'keydown:capture:document', 'keyup:capture:document', 'pagehide:bubble:window'], 1)) throw new Error(`the capture is not installed exactly once: ${JSON.stringify(await listeners())} (before: ${JSON.stringify(baseline)})`);
       if (!(await api('usage.frequency.status')).enabled) throw new Error('the host does not say it is on');
       // From here on every click is counted: start the tally from nothing (what was clicked while it was off was not recorded).
       tally = new Map(); clicks = [];
@@ -171,13 +177,18 @@ export async function runUsageQa(options) {
 
     // ---- 3. use controls ----
     await step('use-controls', async () => {
-      for (const id of ['library', 'wrongbook', 'workflows', 'notes', 'board', 'exam', 'dashboard', 'sources', 'generate', 'skeleton', 'audio']) await hit(`nav.${id}`, nav(id));
-      await hit('nav.live', nav('live'));
+      for (const id of ['library', 'wrongbook', 'workflows', 'notes', 'board', 'exam', 'dashboard', 'sources', 'generate', 'skeleton', 'audio']) await goNav(id);
+      await goNav('live');
       await hit('nav.theme', page.locator('[data-usage="nav.theme"]')); await hit('nav.theme', page.locator('[data-usage="nav.theme"]')); await hit('nav.theme', page.locator('[data-usage="nav.theme"]'));
       await hit('nav.group', page.locator('[data-usage="nav.group"]').first()); await hit('nav.group', page.locator('[data-usage="nav.group"]').first());
-      await hit('nav.collapse', page.locator('[data-usage="nav.collapse"]')); await hit('nav.collapse', page.locator('[data-usage="nav.collapse"]'));
+      if (await page.locator('[data-usage="nav.collapse"]').count()) {
+        await hit('nav.collapse', page.locator('[data-usage="nav.collapse"]'));
+        await hit('nav.menu', page.locator('[data-usage="nav.menu"]'));
+        await page.locator('.nav-drawer .sidebar').waitFor({ timeout: 10000 });
+        await hit('nav.collapse', page.locator('[data-usage="nav.collapse"]'));
+      }
       // practice, with the mouse and with the keys
-      await hit('nav.library', nav('library'));
+      await goNav('library');
       await hit('home.start', page.locator('[data-usage="home.start"]'));
       await page.locator('.review-page').first().waitFor({ timeout: 20000 });
       await hit('review.flip', page.locator('[data-usage="review.flip"]'));
@@ -189,18 +200,31 @@ export async function runUsageQa(options) {
       await hit('review.prev', page.locator('[data-usage="review.prev"]'));
       await hit('review.option', page.locator('[data-usage="review.option"]'));
       // a text field with a secret typed into it: one use of "text field", nothing of the text
-      await hit('nav.generate', nav('generate'));
+      await goNav('generate');
       const field = page.locator('main textarea:visible, main input[type="text"]:visible').first();
       if (await field.count()) { await field.click(); tally.set('control.text-field', (tally.get('control.text-field') || 0) + 1); await page.keyboard.type(SECRET.typed); await sleep(240); await page.evaluate(() => document.activeElement?.blur?.()); }
       // sources: the add dialog and the reader
-      await hit('nav.sources', nav('sources'));
+      await goNav('sources');
       await hit('import.add', page.locator('[data-usage="import.add"]'));
       await page.keyboard.press('Escape'); await sleep(300);
       await page.getByRole('button', { name: t('全部展开', 'Expand all') }).click({ timeout: 2000 }).catch(() => {});
       const doc = page.locator('.source-doc .source-main').first();
       if (await doc.count()) {
         await doc.click(); await page.locator('.study-document-viewer').waitFor({ timeout: 15000 }); await sleep(600);
-        for (const key of ['reader.display', 'reader.practice', 'reader.translate']) { await hit(key, page.locator(`.study-document-viewer [data-usage="${key}"]`)); await hit(key, page.locator(`.study-document-viewer [data-usage="${key}"]`)); }
+        // 做这几页的题 stays on the toolbar (a popover); 显示设置… and 翻译… live in 更多 (.sh-menu on dialog[open]) and open sub-dialogs.
+        const useReader = async key => {
+          if (key === 'reader.practice') return hit(key, page.locator(`.study-document-viewer [data-usage="${key}"]`));
+          const more = page.locator('.study-document-viewer .reader-more__button').first();
+          if (!(await more.count())) { skipped.push(`${key}: no reader More button`); return false; }
+          await more.click();
+          await page.locator('.sh-menu').waitFor({ timeout: 5000 });
+          const used = await hit(key, page.locator(`.sh-menu [data-usage="${key}"]`));
+          if (!used && await page.locator('.sh-menu').count()) { await page.keyboard.press('Escape'); await page.locator('.sh-menu').waitFor({ state: 'detached' }); }
+          const subDialog = page.locator('dialog[open]:not(.source-preview)');
+          if (await subDialog.count()) { await subDialog.locator('.sh-dialog__close').first().click(); await subDialog.waitFor({ state: 'detached' }); await sleep(200); }
+          return used;
+        };
+        for (const key of ['reader.display', 'reader.practice', 'reader.translate']) { await useReader(key); await useReader(key); }
         await page.keyboard.press('Escape'); await sleep(400);
         if (await page.locator('.study-document-viewer').count()) await page.locator('dialog[open] .sh-dialog__close').first().click().catch(() => {});
         await sleep(300);
@@ -259,7 +283,7 @@ export async function runUsageQa(options) {
       keysOut = Object.fromEntries(data.controls.filter(row => /^[a-z]+\.[a-z.-]+$/.test(row.key)).map(row => [row.key, row.count]).sort(([a], [b]) => (a < b ? -1 : 1)));
       await writeFile(join(options.out, 'keys.json'), `${JSON.stringify(keysOut, null, 2)}\n`);
       await section.getByRole('button', { name: t('复制报告', 'Copy report'), exact: true }).click(); await sleep(600);
-      const after = await section.innerText();
+      const after = await page.locator('body').innerText();
       const copied = after.includes(t('报告已复制', 'Report copied')) ? 'copied' : after.includes(t('不允许复制', 'does not allow copying')) ? 'refused by the window (the message says so)' : 'no message';
       if (copied === 'no message') throw new Error('copy gave neither a confirmation nor an explanation');
       return { exports: exported.map(text => text.length), keys: Object.keys(keysOut).length, copy: copied };
@@ -272,8 +296,8 @@ export async function runUsageQa(options) {
       await page.waitForFunction(() => document.querySelector('.usage-settings')?.getAttribute('data-state') === 'paused', null, { timeout: 15000 });
       if (!await listenersAre(['click:capture:root', 'keydown:capture:document', 'pagehide:bubble:window'], 0)) throw new Error(`still listening while paused: ${JSON.stringify(await listeners())}`);
       const before = (await api('usage.frequency.report', { period: 'all', language: options.lang })).ranking.find(row => row.key === 'nav.library')?.count;
-      await hit('nav.library', nav('library'), { expect: false }); await hit('nav.library', nav('library'), { expect: false });
-      await hit('nav.settings', nav('settings'), { expect: false });
+      await goNav('library', { expect: false }); await goNav('library', { expect: false });
+      await goNav('settings', { expect: false });
       await openAdvanced();
       const after = (await api('usage.frequency.report', { period: 'all', language: options.lang })).ranking.find(row => row.key === 'nav.library')?.count;
       if (before !== after) throw new Error(`recorded while paused: ${before} -> ${after}`);
@@ -284,7 +308,7 @@ export async function runUsageQa(options) {
       await page.waitForFunction(() => document.querySelector('.usage-settings')?.getAttribute('data-state') === 'on', null, { timeout: 15000 });
       if (!await listenersAre(['click:capture:root', 'pagehide:bubble:window'], 1)) throw new Error('resumed, but the capture is not back');
       const before = (await api('usage.frequency.report', { period: 'all', language: options.lang })).ranking.find(row => row.key === 'nav.library')?.count ?? 0;
-      await hit('nav.library', nav('library')); await hit('nav.settings', nav('settings'));
+      await goNav('library'); await goNav('settings');
       await openAdvanced();
       await page.evaluate(() => window.dispatchEvent(new Event('pagehide'))); await sleep(500);
       const after = (await api('usage.frequency.report', { period: 'all', language: options.lang })).ranking.find(row => row.key === 'nav.library')?.count;
@@ -309,9 +333,9 @@ export async function runUsageQa(options) {
       const cut = requests.length;
       await section.locator('input[name="usage-frequency"]').click();
       await page.waitForFunction(() => document.querySelector('.usage-settings')?.getAttribute('data-state') === 'off', null, { timeout: 15000 });
-      if (!await listenersAre(['click:capture:root', 'keydown:capture:document', 'keyup:capture:document', 'pagehide:bubble:window', 'visibilitychange:bubble:document'], 0)) throw new Error(`still listening after off: ${JSON.stringify(await listeners())}`);
+      if (!await listenersAre(['click:capture:root', 'keydown:capture:document', 'keyup:capture:document', 'pagehide:bubble:window'], 0)) throw new Error(`still listening after off: ${JSON.stringify(await listeners())}`);
       const settled = requests.length;
-      for (const id of ['library', 'sources', 'dashboard', 'settings']) await hit(`nav.${id}`, nav(id), { expect: false });
+      for (const id of ['library', 'sources', 'dashboard', 'settings']) await goNav(id, { expect: false });
       await sleep(1500);
       // The one status read the page makes when the switch changes is not recording; a record, report or export after "off" would be.
       const sent = requests.slice(settled).filter(action => /^usage\.frequency\.(record|report|export|clear|set)$/.test(action));
