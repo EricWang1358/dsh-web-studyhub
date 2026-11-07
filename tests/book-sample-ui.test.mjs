@@ -50,7 +50,8 @@ test('a waiting sample is the 总纲 line\'s one action: 生成其余 N 个; 重
   assert.match(text, /典型 Entropy/);
   assert.match(text, /较重 Enthalpy/);
   assert.match(text, /整本 40 个知识点，样例 2 个，其余 38 个/);
-  assert.match(text, /生成其余：预计 1\.2M–2\.4M tok · 76–120 次模型调用/);
+  // The estimate's parts are spans (ui/TokenUsage.jsx summaryParts) and textOf turns a tag into a space, so one may sit after the colon.
+  assert.match(text, /生成其余：\s?预计 1\.2M–2\.4M tok · 76–120 次模型调用/);
   assert.match(text, /按现在的并行 4 个，大约 18–31 分钟/);
   assert.match(text, /整本比较费：可以把资料交给网页版 AI 生成后导入，或者用 opencode \/ commandcode 这类套餐再生成/);
   assert.match(text, /重做样例/);
