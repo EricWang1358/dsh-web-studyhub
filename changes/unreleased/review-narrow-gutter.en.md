@@ -1,1 +1,0 @@
-- **On a narrow window the practice page keeps its side margin.** At phone widths (600 px and below) the title, the line under it, the question card and the grade scale started at the very edge of the screen; they now sit 16 px in on both sides, like the rest of the app. Not verified: the review page inside the real DSH host on a phone.
