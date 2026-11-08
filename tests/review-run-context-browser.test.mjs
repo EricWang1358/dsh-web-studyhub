@@ -103,6 +103,11 @@ test('the practice page names the course and how this chapter and the whole cour
         assert.match(await tip.innerText(), words.tip, `${where}: the hover says what this chapter is`);
         if (shots) await page.screenshot({ path: join(shots, `review-context-${lang}-${width}-${deckId}.png`) });
         assert.deepEqual(errors, [], `${where}: no page errors`);
+        await page.goto(server.url);
+        await page.getByRole('button', { name: `${lang === 'zh' ? '继续' : 'Continue'} ${deckTitle}` }).first().waitFor({ timeout: 15000 });
+        for (const openRun of (await previewCall(server, 'snapshot', {})).runs || []) {
+          await previewCall(server, 'review.end', { runId: openRun.id });
+        }
         await context.close();
       }
     }
@@ -124,6 +129,9 @@ test('a run over several courses shows +N after the course, and the hover names 
   // The server puts untouched questions first (db is untouched, da was learned in the fixture), so the leading deck follows from what each run holds.
   const CARD = { da: 'a1', db: 'b4', dc: 'c9', du: 'u11' };
   for (const [lead, order] of [['a', ['db', 'dc', 'du']], ['c', ['dc', 'da', 'du']]]) {
+    for (const openRun of (await previewCall(server, 'snapshot', {})).runs || []) {
+      await previewCall(server, 'review.end', { runId: openRun.id });
+    }
     // the run as the server composes it: the first question's course is the visible one, the other two are the +N
     const run = await previewCall(server, 'review.start', { mode: 'path', scope: order.map((deckId) => ({ deckId, cardId: CARD[deckId] })), fresh: true });
     assert.equal(run.deckId, order[0], 'the run opens on the deck it is led by');

@@ -93,54 +93,61 @@ const measure = (page) => page.evaluate(() => {
   };
 });
 
-test('the top bar fits from 320 to 900 px in zh and en beside a realistic folder name: the page title is kept, every label either whole or folded into its dot, the mailbox inside the bar, no sideways scroll', { timeout: 2400000 }, async (t) => {
-  const running = await environment(t);
-  if (!running) return;
-  for (const folder of FOLDERS) for (const lang of ['zh', 'en']) for (const width of WIDTHS) for (const [name, spec] of Object.entries(STATES)) {
-    // The first folder only walks the states that hold the fewest and the most words beside the title; the long one walks them all.
-    if (folder === FOLDERS[0] && !['steady', 'failed'].includes(name)) continue;
-    const tag = `${folder} ${lang} ${width}px ${name}`;
+for (const folder of FOLDERS) for (const lang of ['zh', 'en']) for (const [name, spec] of Object.entries(STATES)) {
+  // The first folder only walks the states that hold the fewest and the most words beside the title; the long one walks them all.
+  if (folder === FOLDERS[0] && !['steady', 'failed'].includes(name)) continue;
+  test(`the top bar fits from 320 to 900 px (${folder} · ${lang} · ${name}): page title kept, label whole or folded, mailbox inside bar, no sideways scroll`, { timeout: 240000 }, async (t) => {
+    const running = await environment(t);
+    if (!running) return;
     const server = running.servers[folder];
-    const { page, context, errors } = await openPage(running.browser, { server }, { lang, theme: 'dark', width, height: 844 });
+    const { page, context, errors } = await openPage(running.browser, { server }, { lang, theme: 'dark', width: WIDTHS[0], height: 844 });
     const state = { fail: '' };
     const release = await edge(page, state, spec);
-    await page.goto(server.url);
-    await page.locator('aside, nav').first().waitFor({ timeout: 30000 });
-    await page.locator('.top-status-label').waitFor({ timeout: 30000 });
-    await frames(page, 6);
-    if (spec.failAfterLoad) {
-      state.fail = spec.failAfterLoad;
-      const steady = await page.locator('.top-status-label').innerText();
-      await until(async () => (await page.locator('.top-status-label').innerText()) !== steady, `${tag}: the bar shows the failing read`, { timeoutMs: 90000 });
+    try {
+      await page.goto(server.url);
+      await page.locator('aside, nav').first().waitFor({ timeout: 30000 });
+      await page.locator('.top-status-label').waitFor({ timeout: 30000 });
+      await frames(page, 6);
+      if (spec.failAfterLoad) {
+        state.fail = spec.failAfterLoad;
+        const steady = await page.locator('.top-status-label').innerText();
+        await until(async () => (await page.locator('.top-status-label').innerText()) !== steady, `${folder} ${lang} ${name}: the bar shows the failing read`, { timeoutMs: 90000 });
+      }
+      if (spec.click) {
+        await page.locator(spec.click).first().click({ timeout: 15000 });
+        await until(async () => /正在处理|Working/.test(await page.locator('.top-status-label').innerText()), `${folder} ${lang} ${name}: the bar shows work`, { timeoutMs: 15000 });
+      }
+      if (spec.shows) await until(async () => spec.shows.test(await page.locator('.top-status-label').innerText()), `${folder} ${lang} ${name}: the patched state is shown`, { timeoutMs: 30000 });
+
+      for (const width of WIDTHS) {
+        const tag = `${folder} ${lang} ${width}px ${name}`;
+        await page.setViewportSize({ width, height: 844 });
+        await frames(page, 4);
+        const m = await measure(page);
+        assert.ok(m.text.length > 0, `${tag}: a label`);
+        // Two labels fold into their dot on purpose and stay in the page for screen readers: the steady one in a narrow pane (640 px and narrower), and an English one at
+        // phone width (320 px), where its longer words would take the room of the page title. Every label that is drawn as words is drawn whole, at every width.
+        const folded = (name === 'steady' && width <= 640) || (lang === 'en' && width <= 340 && name !== 'steady');
+        assert.equal(m.labelFolded, folded, `${tag}: the label is ${folded ? 'folded into its dot' : 'drawn as words'}`);
+        if (!folded) assert.ok(!m.labelClipped && !m.labelEllipsis, `${tag}: the label "${m.text}" is drawn whole: ${JSON.stringify(m)}`);
+        // The page title never goes to nothing, and is whole wherever there is room for it.
+        assert.ok(m.titleWidth >= 40, `${tag}: the page title "${m.title}" keeps its room (${m.titleWidth}px): ${JSON.stringify(m)}`);
+        if (width >= 390) assert.ok(!m.titleClipped, `${tag}: the page title "${m.title}" is drawn whole: ${JSON.stringify(m)}`);
+        // The folder chip, by the width it was measured at (the pane is the window minus the sidebar's rail): nothing at phone width, its icon from 420 to 450 px, its name with
+        // a readable minimum width from 480 to 640 px (the narrow-pane rule really applies), the whole chip beyond.
+        if (width <= 390) assert.equal(m.chip, null, `${tag}: no chip at phone width`);
+        if (width >= 420 && width <= 450) assert.ok(m.chip && !m.chip.name, `${tag}: the chip is its icon (${JSON.stringify(m.chip)})`);
+        if (width >= 480 && width <= 640) assert.ok(m.chip?.name && m.chip.minWidth >= 60 && m.chip.width >= 60, `${tag}: the chip keeps a readable minimum width (${JSON.stringify(m.chip)})`);
+        if (width >= 700) assert.ok(m.chip?.name && m.chip.width >= 100, `${tag}: the whole chip (${JSON.stringify(m.chip)})`);
+        assert.ok(m.mailbox, `${tag}: the mailbox button is there`);
+        assert.ok(m.mailbox.right <= m.bar.right + 0.5 && m.mailbox.left >= m.bar.left, `${tag}: the mailbox (${m.mailbox.left}–${m.mailbox.right}) stays inside the bar (${m.bar.left}–${m.bar.right})`);
+        assert.ok(m.status.right <= m.mailbox.left + 0.5, `${tag}: the status ends before the mailbox`);
+        assert.ok(m.overflow <= 0, `${tag}: no sideways scroll`);
+      }
+      assert.deepEqual(errors.filter((message) => !/Failed to load resource|Failed to fetch/.test(message)), [], `${folder} ${lang} ${name}: no page errors`);
+    } finally {
+      release();
+      await context.close().catch(() => {});
     }
-    if (spec.click) {
-      await page.locator(spec.click).first().click({ timeout: 15000 });
-      await until(async () => /正在处理|Working/.test(await page.locator('.top-status-label').innerText()), `${tag}: the bar shows work`, { timeoutMs: 15000 });
-    }
-    if (spec.shows) await until(async () => spec.shows.test(await page.locator('.top-status-label').innerText()), `${tag}: the patched state is shown`, { timeoutMs: 30000 });
-    await frames(page, 4);
-    const m = await measure(page);
-    assert.ok(m.text.length > 0, `${tag}: a label`);
-    // Two labels fold into their dot on purpose and stay in the page for screen readers: the steady one in a narrow pane (640 px and narrower), and an English one at
-    // phone width (320 px), where its longer words would take the room of the page title. Every label that is drawn as words is drawn whole, at every width.
-    const folded = (name === 'steady' && width <= 640) || (lang === 'en' && width <= 340 && name !== 'steady');
-    assert.equal(m.labelFolded, folded, `${tag}: the label is ${folded ? 'folded into its dot' : 'drawn as words'}`);
-    if (!folded) assert.ok(!m.labelClipped && !m.labelEllipsis, `${tag}: the label "${m.text}" is drawn whole: ${JSON.stringify(m)}`);
-    // The page title never goes to nothing, and is whole wherever there is room for it.
-    assert.ok(m.titleWidth >= 40, `${tag}: the page title "${m.title}" keeps its room (${m.titleWidth}px): ${JSON.stringify(m)}`);
-    if (width >= 390) assert.ok(!m.titleClipped, `${tag}: the page title "${m.title}" is drawn whole: ${JSON.stringify(m)}`);
-    // The folder chip, by the width it was measured at (the pane is the window minus the sidebar's rail): nothing at phone width, its icon from 420 to 450 px, its name with
-    // a readable minimum width from 480 to 640 px (the narrow-pane rule really applies), the whole chip beyond.
-    if (width <= 390) assert.equal(m.chip, null, `${tag}: no chip at phone width`);
-    if (width >= 420 && width <= 450) assert.ok(m.chip && !m.chip.name, `${tag}: the chip is its icon (${JSON.stringify(m.chip)})`);
-    if (width >= 480 && width <= 640) assert.ok(m.chip?.name && m.chip.minWidth >= 60 && m.chip.width >= 60, `${tag}: the chip keeps a readable minimum width (${JSON.stringify(m.chip)})`);
-    if (width >= 700) assert.ok(m.chip?.name && m.chip.width >= 100, `${tag}: the whole chip (${JSON.stringify(m.chip)})`);
-    assert.ok(m.mailbox, `${tag}: the mailbox button is there`);
-    assert.ok(m.mailbox.right <= m.bar.right + 0.5 && m.mailbox.left >= m.bar.left, `${tag}: the mailbox (${m.mailbox.left}–${m.mailbox.right}) stays inside the bar (${m.bar.left}–${m.bar.right})`);
-    assert.ok(m.status.right <= m.mailbox.left + 0.5, `${tag}: the status ends before the mailbox`);
-    assert.ok(m.overflow <= 0, `${tag}: no sideways scroll`);
-    release();
-    assert.deepEqual(errors.filter((message) => !/Failed to load resource|Failed to fetch/.test(message)), [], `${tag}: no page errors`);
-    await context.close();
-  }
-});
+  });
+}

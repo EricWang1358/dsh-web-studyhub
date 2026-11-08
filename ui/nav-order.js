@@ -108,6 +108,12 @@ export function keyMove(order, id, direction, options = DEFAULT_OPTIONS) {
   return { order: next, id, group: target, position: next[target].indexOf(id) + 1, count: next[target].length };
 }
 
+/** Entry slot when a pointer drag crosses between `main` and a `更多` section: promoting into `main` lands at the end, demoting into a home section lands at the top. */
+export function crossGroupDropIndex(from, to, targetLength) {
+  if (from === to) return targetLength;
+  return to === "main" ? targetLength : 0;
+}
+
 /** Is 「更多」 drawn open? When the learner opened it, and while the page on screen is one of its pages (the current page is always visible), unless
  *  the learner closed it on this very page (`closedOn`). */
 export function moreIsOpen({ open, activePage, order, closedOn = null }) {
@@ -179,16 +185,22 @@ export function useNavOrder(defaults, navRef, { homes = NAV_HOMES, limit = MAIN_
     quiet.current = true;
     setTimeout(() => { quiet.current = false; }, 0);
   };
-  /** Where the lifted item now sits: among the others of its group, or, once its middle is over the other group it may go to, there (the drag
-   *  ends as the row lands: it is drawn anew in its new group). */
+  /** Where the lifted item now sits: among the others of its group, or, once its middle is over the other group it may go to, at that group's
+   *  entry boundary (end of `main` when promoted from `更多`, top of home section when demoted from `main`), since the drag ends as soon as
+   *  the item crosses groups and unmounts in its old list. */
   const settle = (state) => {
     const order = latest.current, rect = state.el.getBoundingClientRect(), middle = rect.top + rect.height / 2;
     const from = groupOf(order, state.id);
     const over = targetsOf(order, state.id, homes).find((group) => { const area = group !== from && box(group); return area && area.height > 0 && middle >= area.top && middle <= area.bottom; });
     const group = over || from;
     const others = order[group].filter((id) => id !== state.id);
-    let index = others.findIndex((id) => { const at = node(id)?.getBoundingClientRect(); return at && middle < at.top + at.height / 2; });
-    if (index < 0) index = others.length;
+    let index;
+    if (group !== from) {
+      index = crossGroupDropIndex(from, group, others.length);
+    } else {
+      index = others.findIndex((id) => { const at = node(id)?.getBoundingClientRect(); return at && middle < at.top + at.height / 2; });
+      if (index < 0) index = others.length;
+    }
     const next = placeAt(order, state.id, index, group, { homes, limit });
     if (group !== from) {
       if (next === order) { if (group === "main" && !state.refused) { state.refused = true; setAnnounce({ id: state.id, refused: "full" }); } return; }

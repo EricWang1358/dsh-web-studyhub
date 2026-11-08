@@ -10,6 +10,7 @@ import { openPage, startLateServer, until } from '../scripts/qa/layout-late.mjs'
 import { makeTextPdf, LECTURE_PAGES } from './helpers/text-pdf.mjs';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { chooseMore } from './helpers/reader-more.mjs';
 
 /* 补全原文件 for a very big file, in the browser at 1280 and 420: a file over the copy limit that is dropped or chosen is not read or sent; the dialog says so in one
    sentence and the keyboard is already in the path field. A document whose original is a reference opens in 原始 PDF. Screenshots go to STUDY_QA_SHOTS when it is set. */
@@ -51,7 +52,7 @@ test('a file over the copy limit sends the learner to the path field instead of 
     for (const width of [1280, 420]) {
       await page.setViewportSize({ width, height: 900 });
       await open('Software Engineering');
-      await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+      await chooseMore(page, '原始 PDF');
       const dialog = page.locator('dialog[open].original-dialog');
       await dialog.waitFor();
       await dialog.locator('.original-pathrow__input').waitFor();
@@ -75,7 +76,7 @@ test('a file over the copy limit sends the learner to the path field instead of 
     for (const width of [1280, 420]) {
       await page.setViewportSize({ width, height: 900 });
       await open('Lecture');
-      await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+      await chooseMore(page, '原始 PDF');
       await page.locator('.reader-scroll[data-mode="original"]').waitFor({ timeout: 30000 });
       await page.locator('.reader-pdf-view').waitFor({ timeout: 30000 });
       if (shots) await page.screenshot({ path: join(shots, `original-reader-${width}.png`) });

@@ -19,7 +19,7 @@ const m = await loadUi(`
   export { jobContract } from './lib/job-contract.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
-const at = (seconds) => new Date(Date.UTC(2026, 9, 5, 10, 0, seconds)).toISOString();
+const at = (seconds) => new Date(2026, 9, 5, 10, 0, seconds).toISOString();
 const html = (element, language = 'zh') => {
   m.setUiLanguage(language);
   try { return renderToStaticMarkup(inApp(m, element, { data: {}, app: { lib: { taskFocus: null }, host: {} } })); } finally { m.setUiLanguage('zh'); }
@@ -38,7 +38,7 @@ const contractOf = (job) => m.jobContract(job);
 
 test('the timeline: a lane per file in order, a dashed wait on the file whose slot it was, every bar a named button', () => {
   const contract = contractOf(audioJob());
-  const out = html(React.createElement(m.Timeline, { calls: contract.calls, running: false, family: 'audio', selected: 'b-p', onSelect: () => {} }));
+  const out = html(React.createElement(m.Timeline, { calls: contract.calls, running: false, now: Date.parse(at(45)), family: 'audio', selected: 'b-p', onSelect: () => {} }));
   // The fixture's calls run one after another (a.wav 1–9 s, 10–30 s; b.mp3 from 31 s), so the chart does not claim to be parallel (#407).
   assert.match(out, /aria-label="时间线"/);
   assert.match(out, /<h3>时间线<small class="tc-timeline__note">依次执行，没有同时进行的调用<\/small><\/h3>/);
@@ -245,7 +245,7 @@ test('the timeline is called parallel only when two calls ran at once, and a run
   const contract = contractOf(audioJob());
   // Move b.mp3's proofreading back to 20 s, while a.wav's proofreading (10–30 s) still runs.
   const calls = contract.calls.map((call) => call.callId === 'b-p' ? { ...call, startedAt: at(20) } : call);
-  const out = html(React.createElement(m.Timeline, { calls, running: true, family: 'audio', selected: null, onSelect: () => {} }));
+  const out = html(React.createElement(m.Timeline, { calls, running: true, now: Date.parse(at(45)), family: 'audio', selected: null, onSelect: () => {} }));
   assert.match(out, /aria-label="并行时间线"/);
   assert.doesNotMatch(out, /tc-timeline__note/);
   assert.match(out, /title="校对 2\/4 · b\.mp3 · 槽 2 · 10:00:20–现在 · [^"]+"/, 'a call still running ends at now');

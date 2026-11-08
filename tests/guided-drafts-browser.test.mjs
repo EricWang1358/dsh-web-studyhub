@@ -126,6 +126,9 @@ test('the real practice page saves, restores, clears and waits for the unsubmitt
     await view.startDeck('deck-flash');
     await new Promise((done) => setTimeout(done, 900));
     assert.equal(view.saves().length, 0);
+    for (const run of (await previewCall(server, 'snapshot', {})).runs || []) {
+      await previewCall(server, 'review.end', { runId: run.id });
+    }
     await view.close();
   });
 

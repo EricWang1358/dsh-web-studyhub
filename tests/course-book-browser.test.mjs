@@ -63,6 +63,16 @@ test('复习全书 on the 总纲 page: a knowledge point opens to its notes, a �
       const refused = [];
       page.on('response', response => { if (response.status() >= 400) refused.push(/"action":"([^"]+)"/.exec(response.request().postData() || '')?.[1] ?? response.url()); });
       await page.goto(running.server.url);
+      await page.locator('.desk').first().waitFor({ timeout: 60000 });
+      await page.locator('.outline-entry').first().waitFor({ timeout: 30000 }).catch(async (error) => {
+        const diag = await page.evaluate(() => ({
+          url: window.location.href,
+          classes: [...document.querySelectorAll('main > *, .desk > *')].map(el => el.className),
+          heading: document.querySelector('.course-heading')?.innerText || null,
+          catalog: document.querySelector('.map-catalog__head')?.innerText || null,
+        })).catch(() => ({}));
+        throw new Error(`${width}px SA outline-entry missing (${JSON.stringify(diag)}, errors=${JSON.stringify(errors)}): ${error.message}`);
+      });
       await page.locator('.outline-entry').first().click({ timeout: 30000 });
       await page.locator('.outline-tree--book').waitFor({ timeout: 30000 });
       const line = page.locator('.outline-book-line');
@@ -102,6 +112,17 @@ test('复习全书 on the 总纲 page: a knowledge point opens to its notes, a �
       const other = await openPage(browser, running, { width, height: 900 });
       const held = await holdActions(other.page, ['generation.courseBook.build']);
       await other.page.goto(running.server.url);
+      await other.page.locator('.desk').first().waitFor({ timeout: 60000 });
+      await other.page.locator('.outline-entry').first().waitFor({ timeout: 30000 }).catch(async (error) => {
+        const snap = await running.api('snapshot', {}).catch(() => null);
+        const diag = await other.page.evaluate(() => ({
+          url: window.location.href,
+          classes: [...document.querySelectorAll('main > *, .desk > *')].map(el => el.className),
+          heading: document.querySelector('.course-heading')?.innerText || null,
+          catalog: document.querySelector('.map-catalog__head')?.innerText || null,
+        })).catch(() => ({}));
+        throw new Error(`${width}px DB outline-entry missing (focus=${JSON.stringify(snap?.focus)}, dom=${JSON.stringify(diag)}, errors=${JSON.stringify(other.errors)}): ${error.message}`);
+      });
       await other.page.locator('.outline-entry').first().click({ timeout: 30000 });
       const offer = other.page.locator('.outline-book-line');
       await offer.waitFor({ timeout: 30000 });

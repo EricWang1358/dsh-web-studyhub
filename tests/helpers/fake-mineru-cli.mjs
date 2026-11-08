@@ -55,7 +55,10 @@ if (state.probeDelayMs && ((command === 'server' && sub === 'status' && argv.inc
   await new Promise(resolve => setTimeout(resolve, state.probeDelayMs));
 // `readDelayMs`: every `--version`, `server status` and `config get` takes this long (a Python start-up: 2 s and 5 s on a real install), so a test can tell a read that
 // asks one after the other from one that asks together, and a read from an answer kept in memory.
-if (state.readDelayMs && (command === '--version' || command === '-V' || (command === 'server' && sub === 'status') || (command === 'config' && sub === 'get')))
+const isReadOnlyStatus = command === '--version' || command === '-V' || (command === 'server' && sub === 'status') || (command === 'config' && sub === 'get');
+if (isReadOnlyStatus && state.statusEnteredFile) writeFileSync(state.statusEnteredFile, `${process.pid}\n`);
+if (isReadOnlyStatus && state.statusHoldFile) while (existsSync(state.statusHoldFile)) pause(15);
+if (state.readDelayMs && isReadOnlyStatus)
   await new Promise(resolve => setTimeout(resolve, state.readDelayMs));
 if (command === '--version' || command === '-V') out(`mineru, version ${state.version ?? '4.0.10'}`);
 else if (command === 'config' && sub === 'show') {

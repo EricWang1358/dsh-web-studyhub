@@ -172,7 +172,8 @@ test('turned off in Settings the page has no sidebar entry and one switch there 
         await paper.getByRole('button', { name: '不用' }).click();
         await until(async () => (await page.locator('.exam-prep-docs__counts').innerText()) !== before, 'the sentence follows the role');
         assert.match(await page.locator('.exam-prep-docs__counts').innerText(), /0 份样卷/);
-        assert.match(await page.locator('.exam-prep-docs__none').innerText(), /没有样卷/);
+        assert.match(await page.locator('.exam-prep-docs__none[data-docs-none="paper"]').innerText(), /没有样卷/);
+        assert.match(await page.locator('.exam-prep-docs__none[data-docs-none="focus"]').innerText(), /录入课程重点/);
         // only some pages of a deck: the page list sits behind its row, and the row says how many are used
         const deck = page.locator('[data-doc][data-role="lecture"]').first();
         await deck.getByRole('button', { name: /选择页面/ }).click();
@@ -186,7 +187,6 @@ test('turned off in Settings the page has no sidebar entry and one switch there 
         await page.locator('.exam-prep-more > summary').click();
         await shot(page, `form-more-${width}`);
         await page.locator('.exam-prep-more__settings button').click();
-        await page.locator('[data-tour="nav-examprep"]').first().waitFor({ state: 'attached', timeout: 30000 });
         await page.locator('.exam-prep-form').waitFor({ state: 'detached', timeout: 30000 });
         await (await revealNavRow(page, 'examprep')).dispatchEvent('click');
         await page.locator('.exam-prep-form').waitFor({ timeout: 30000 });

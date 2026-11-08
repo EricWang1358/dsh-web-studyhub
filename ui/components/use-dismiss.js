@@ -80,10 +80,11 @@ export function computePlacement({ anchor, size, bounds, placement = 'bottom-end
     if (side === 'bottom' && size.height > below && above > below) side = 'top';
     else if (side === 'top' && size.height > above && below > above) side = 'bottom';
   }
-  const top = side === 'bottom' ? anchor.bottom + gap : anchor.top - gap - size.height;
+  const maxHeight = Math.max(0, Math.floor(side === 'bottom' ? below : above));
+  const top = side === 'bottom' ? anchor.bottom + gap : anchor.top - gap - Math.min(size.height, maxHeight);
   const natural = align === 'start' ? anchor.left : anchor.right - size.width;
   const left = Math.max(bounds.left + margin, Math.min(natural, bounds.right - margin - size.width));
-  return { placement: `${side}-${align === 'start' ? 'start' : 'end'}`, left, top, maxHeight: Math.max(0, Math.floor(side === 'bottom' ? below : above)) };
+  return { placement: `${side}-${align === 'start' ? 'start' : 'end'}`, left, top, maxHeight };
 }
 
 /**

@@ -40,7 +40,7 @@ export async function runRunQa(options) {
   return runQa({ name: "coverage-run", options, model: createFakeModel({ latencyMs: 90, usage: true }), latencyMs: 90, coverage: COVERAGE,
     localStorageSeed: { "study-interface": JSON.stringify({ accent: options.accent }) },
     seed: async (root) => { options.ids = await seed(root); },
-    async run({ page, server, library, t, step, check, summary }) {
+    async run({ page, server, library, distDir, t, step, check, summary }) {
       let current = server;
       const call = (action, args = {}) => previewCall(current, action, { ...args, uiLanguage: options.lang });
       const ids = options.ids, facts = {}, zh = options.lang === "zh", narrow = options.width < 700;
@@ -149,7 +149,7 @@ export async function runRunQa(options) {
         assert.ok(copy, "a consistent copy of the library while the run is paused");
         facts.copiedWhile = statuses(await draftOf(draftId));
         await current.close();
-        second = await createPreviewServer({ libraryRoot: copy, home: join(options.out, "work", "home-restart"), port: 0, coverage: COVERAGE, model: createFakeModel({ latencyMs: 90, usage: true }) });
+        second = await createPreviewServer({ libraryRoot: copy, home: join(options.out, "work", "home-restart"), distDir, port: 0, coverage: COVERAGE, model: createFakeModel({ latencyMs: 90, usage: true }) });
         current = second;
         await page.goto(second.url);
         await page.locator("aside, nav").first().waitFor({ timeout: 30000 });

@@ -9,6 +9,7 @@ import { openPage, startLateServer, until } from '../scripts/qa/layout-late.mjs'
 import { makeTextPdf } from './helpers/text-pdf.mjs';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { chooseMore } from './helpers/reader-more.mjs';
 
 /* 看原页 and 原始 PDF for a referenced original over the 40 MB copy limit, in the browser at 1280 and 420: the page is drawn from just that page (materials.document.pages), the
    file is never sent (no answer to the page is anywhere near its size), and turning the page asks for the next one. Screenshots go to STUDY_QA_SHOTS when it is set. */
@@ -65,7 +66,7 @@ test('a page of a referenced original over 40 MB is drawn from that page alone (
       if (shots) await page.screenshot({ path: join(shots, `original-bigpage-peek-${width}.png`) });
       await page.keyboard.press('Escape');
       // 原始 PDF: the page in place, with its words; the next page is the next request.
-      await page.locator('.study-document-viewer .sh-seg__item', { hasText: '原始 PDF' }).click();
+      await chooseMore(page, '原始 PDF');
       const view = page.locator('.reader-pdf-view');
       await view.waitFor({ timeout: 60000 });
       await until(async () => /Chapter page 1 of the big book/.test(await view.locator('.reader-pdf-text').innerText().catch(() => '')), 'page 1 and its words');

@@ -358,21 +358,25 @@ test('发给主会话 from the book through the real host adapter: the four rece
     assert.match((await page.evaluate(() => window.copied))[0], words.book);
     assert.equal(await page.locator('dialog[open]').count(), 0, `${tag}: no form in between`);
 
-    // 学习流 hands over through the shared unit too: its receipt is the last word there; no older toast of its own replaces it.
+    // 课程学法 (#775, replacing retired 学习流) hands over through the shared unit too: its receipt is the last word there; no older toast of its own replaces it.
     if (language === 'zh' && (shots || (width === 1280 && theme === 'light'))) {
       await reset({ composerText: '我自己先打的字' });
-      await page.getByRole('button', { name: '回到总纲' }).first().click();
-      await (await revealNavRow(page, 'workflows')).click();
-      await page.locator('details.wf-advanced > summary').click();
-      const chat = page.locator('details.wf-advanced details.wf-chat');
-      await chat.locator('summary').click();
-      await chat.locator('textarea').fill('先讲例子');
-      await chat.getByRole('button').click();
+      await page.locator('.book-bar__more').first().click();
+      const settingsItem = page.getByRole('menuitem', { name: /前往设置/ });
+      await settingsItem.scrollIntoViewIfNeeded();
+      await settingsItem.click();
+      const method = page.locator('.course-method');
+      await method.waitFor({ timeout: 10000 });
+      await method.getByRole('button', { name: '补充想法' }).click();
+      await method.locator('.course-method__note-field input').fill('先讲例子');
+      await method.locator('[data-hand-off="method.edit"]').click();
       await receiptOf('kept');
       await page.waitForTimeout(800);
       assert.equal(await page.locator('.sh-toasts').getByText(/请求已准备好/).count(), 0, `${tag}: no toast of the page's own after the hand-off`);
       assert.equal(await page.evaluate(() => window.composerText), '我自己先打的字');
-      await shot('workflows-receipt-kept');
+      assert.match((await page.evaluate(() => window.copied)).at(-1) || '', /先讲例子/);
+      await shot('method-receipt-kept');
+      await page.keyboard.press('Escape');
     }
 
     if (width < 400) assert.equal(phoneHeights.size, 1, `${tag}: every receipt is one height (${[...phoneHeights].join(', ')}px)`);

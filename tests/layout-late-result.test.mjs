@@ -24,7 +24,7 @@ test('the result page has its mastery line from the first draw, and late content
         t.diagnostic(`result ${width}px: first draw ${JSON.stringify(first)}, line y ${before.line?.y} → ${after.line?.y}, score y ${before.hero?.y} → ${after.hero?.y}, CLS ${cls}`);
         assert.deepEqual(errors, []);
         assert.equal(first?.line, true, `${width}px: the line was in the result page when it was put in the document`);
-        const [, from, to] = /^这组题掌握度 (\d+)% → (\d+)%$/.exec(first.text) || [];
+        const [, from, to] = /^这组题掌握度 (\d+)% → (\d+)%(?:\s*\+\d+%.*)?$/.exec(first.text) || [];
         assert.ok(from !== undefined && Number(to) > Number(from), `${width}px: answered well, the mastery rose: ${first.text}`);
         assert.equal(from, '0', `${width}px: three new questions start at 0%`);
         assert.equal(after.text, first.text, `${width}px: the words do not change after the first draw`);

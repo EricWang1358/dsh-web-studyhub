@@ -12,10 +12,10 @@ import { startNavServer } from '../scripts/qa/nav-layout.mjs';
    every page still reachable through its anchor, 「更多」 remembered after a reload, a keyboard move between the main list and a section (and a
    refusal when the main list is full), an order saved by the sidebar of before migrated without loss, no dot on an empty library (#655), and a
    footer of three controls (#656). Needs a Chromium; without one the test says so instead of passing silently. */
-const PAGES = ['library', 'wrongbook', 'workflows', 'notes', 'board', 'exam', 'dashboard', 'sources', 'generate', 'tasks', 'skeleton', 'audio', 'live', 'examprep', 'book'];
+const PAGES = ['library', 'wrongbook', 'notes', 'board', 'exam', 'dashboard', 'sources', 'generate', 'tasks', 'skeleton', 'audio', 'live', 'examprep', 'book'];
 const MAIN = ['library', 'sources', 'generate', 'wrongbook', 'exam', 'dashboard'];
 
-test('the sidebar: seven main entries, 「更多」 by content, all fifteen pages reachable, no dot on an empty library, three footer controls', { timeout: 300000 }, async (t) => {
+test('the sidebar: seven main entries, 「更多」 by content, all fourteen pages reachable, no dot on an empty library, three footer controls', { timeout: 300000 }, async (t) => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-groups-dist-'));
@@ -43,6 +43,7 @@ test('the sidebar: seven main entries, 「更多」 by content, all fifteen page
     assert.deepEqual(before.main.ids, MAIN);
     assert.deepEqual(Object.values(before).flatMap((group) => group.ids).sort(), [...PAGES].sort(), 'every page sits in exactly one group');
     for (const id of PAGES) assert.equal(await page.locator(`[data-tour="nav-${id}"]`).count(), 1, `${id} keeps its tour anchor`);
+    assert.equal(await page.locator('[data-tour="nav-workflows"]').count(), 0, 'retired workflows page has no sidebar row');
     // Above 「更多」: 回到题目 and the six pages, nothing else (为你定制 joins only while prepared questions are ready).
     const visibleRows = await page.evaluate(() => [...document.querySelectorAll('.side-nav [data-nav-group="main"] button.nav')].filter((row) => row.checkVisibility()).length);
     assert.ok(visibleRows <= 7, `${visibleRows} main entries`);
@@ -73,11 +74,11 @@ test('the sidebar: seven main entries, 「更多」 by content, all fifteen page
     await page.waitForTimeout(200);
     assert.deepEqual((await state()).exam.ids[0], 'dashboard');
     assert.match(await live(), /统计 已移到「更多 › 考试与统计」第 1 位/);
-    await page.locator('[data-nav-id="workflows"]').focus();
+    await page.locator('[data-nav-id="book"]').focus();
     await page.keyboard.press('Alt+ArrowUp');
     await page.waitForTimeout(200);
-    assert.deepEqual((await state()).main.ids, ['library', 'sources', 'generate', 'wrongbook', 'exam', 'workflows']);
-    await page.locator('[data-nav-id="book"]').focus();
+    assert.deepEqual((await state()).main.ids, ['library', 'sources', 'generate', 'wrongbook', 'exam', 'book']);
+    await page.locator('[data-nav-id="skeleton"]').focus();
     await page.keyboard.press('Alt+ArrowUp');
     await page.waitForTimeout(200);
     assert.equal((await state()).main.ids.length, 6, 'the main list stays at six');
@@ -85,7 +86,7 @@ test('the sidebar: seven main entries, 「更多」 by content, all fifteen page
     await page.reload();
     await page.locator('.sidebar').first().waitFor({ timeout: 30000 });
     await page.waitForTimeout(600);
-    assert.deepEqual((await state()).main.ids, ['library', 'sources', 'generate', 'wrongbook', 'exam', 'workflows'], 'the order is kept');
+    assert.deepEqual((await state()).main.ids, ['library', 'sources', 'generate', 'wrongbook', 'exam', 'book'], 'the order is kept');
     assert.deepEqual(errors, []);
   } finally {
     await context.close().catch(() => {});
@@ -119,7 +120,7 @@ test('an order saved by the sidebar of before (每天 / 阶段性 / 课程准备
     const ids = (group) => page.locator(`.sidebar [data-nav-group="${group}"] [data-nav-id]`).evaluateAll((rows) => rows.map((row) => row.dataset.navId));
     assert.deepEqual(await ids('main'), ['dashboard', 'library', 'sources', 'generate', 'wrongbook', 'exam']);
     assert.deepEqual(await ids('notes'), ['board', 'notes', 'tasks']);
-    assert.deepEqual(await ids('practice'), ['workflows', 'book', 'skeleton']);
+    assert.deepEqual(await ids('practice'), ['book', 'skeleton']);
     assert.deepEqual(await ids('material'), ['live', 'audio']);
     // The first move writes the new key and forgets the old one.
     await page.locator('[data-tour="nav-more"]').click();
