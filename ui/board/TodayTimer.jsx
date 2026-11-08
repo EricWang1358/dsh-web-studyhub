@@ -61,7 +61,7 @@ export function TodayTimerBar({
   const nowMs = nowProp ?? liveNow;
   const snap = useMemo(() => timerSnapshot(timer, nowMs), [timer, nowMs]);
   if (!snap) return null;
-  const title = snap.mode === 'break' ? ui('休息') : snap.cardTitle;
+  const title = snap.mode === 'break' ? ui('休息片刻') : snap.cardTitle;
   return (
     <aside className="board-timer-bar" aria-label={ui('专注计时')}>
       <div className="board-timer-bar__info">
@@ -322,7 +322,7 @@ export default function TodayTimer({
                 {timerStateLabel(snap)}
               </span>
               <span className="board-timer__target">
-                {snap.mode === 'break' ? ui('休息') : snap.cardTitle}
+                {snap.mode === 'break' ? ui('休息片刻') : snap.cardTitle}
               </span>
             </div>
 
@@ -570,7 +570,7 @@ export default function TodayTimer({
               {timerStateLabel(snap)}
             </span>
             <h3 className="board-focus-stage__title">
-              {snap.mode === 'break' ? ui('休息') : snap.cardTitle}
+              {snap.mode === 'break' ? ui('休息片刻') : snap.cardTitle}
             </h3>
             {snap.mode === 'work' && activeSubtitle && (
               <p className="board-focus-stage__note">{activeSubtitle}</p>

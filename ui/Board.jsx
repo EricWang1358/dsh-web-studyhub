@@ -265,7 +265,7 @@ export default function Board({ state, library, today: todayProp, view: viewProp
   const startBreak = useCallback(async (durationMinutes) => {
     const ok = await run("board.timer.start", {
       mode: "break",
-      cardTitle: ui("休息"),
+      cardTitle: ui("休息片刻"),
       ...(Number.isInteger(durationMinutes) ? { durationMinutes } : {}),
     }, { optimistic: false });
     if (ok) say(uiFormat("已开始休息 {0} 分钟", [durationMinutes]));
