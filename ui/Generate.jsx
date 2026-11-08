@@ -5,6 +5,7 @@ import React from "react";
 import Ingest from "./Ingest.jsx";
 import JsonImport from "./JsonImport.jsx";
 import { useInjectCss } from "./shared.js";
+import { pageAvailable } from "./capabilities.js";
 import KindPicker from "./KindPicker.jsx";
 import CourseField from './CourseField.jsx';
 import { courseNamesOf, usePageScope } from './PageScope.jsx';
@@ -186,7 +187,8 @@ export default function Generate({
   return (
     <section className="page generate-page">
       <PageHeader eyebrow={ui("创建题组")} title={ui("出一组新题")}
-        description={ui("用你的资料让 AI 出题；已经有现成的题目，也可以直接导入。")} />
+        description={ui("用你的资料让 AI 出题；已经有现成的题目，也可以直接导入。")}
+        actions={pageAvailable(data, 'examcoach') ? <Button variant="quiet" onClick={() => setPage?.('examcoach')}>{ui("去教练先校准考法")}</Button> : undefined} />
       {/* The row measures its own width (generate-home.css): where the cards no longer fit side by side they become one row of
           titles and the chosen way's line is said once under it (#575). The tab keeps its note, so a screen reader hears the same name. */}
       <div className="source-mode-frame">

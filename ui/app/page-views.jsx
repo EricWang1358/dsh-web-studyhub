@@ -5,7 +5,7 @@ import { pageFlag } from '../pages.js';
 import { exportAppearance, importAppearance } from '../appearance-prefs.js';
 import { normalizeScienceSettings } from '../science-settings.js';
 import { parseDraft } from '../draft-editor.js';
-import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole, GuidedStudy, Dashboard, Exam, ExamPrep, CourseOutline, BookPage } from '../workspace-views.jsx';
+import { Skeleton, Workflows, Graph, AudioDashboard, BlogNotes, TaskConsole, GuidedStudy, Dashboard, Exam, ExamPrep, ExamCoach, CourseOutline, BookPage } from '../workspace-views.jsx';
 import { useGuidedQuestion } from '../guided-study/use-guided-question.js';
 import { practiceArgs } from '../learning-navigation.js';
 import { materialOpener, resultOpener } from '../tasks/task-actions.js';
@@ -324,6 +324,38 @@ function ExamPrepView() {
   );
 }
 
+function ExamCoachView() {
+  const { data, nav, intents, settingsEntry } = useApp();
+  const onApplyToGenerate = (built) => {
+    const req = built?.request || {};
+    intents.goGenerate({
+      source: 'files',
+      sourceIds: req.sourceIds || [],
+      remember: true,
+      genPatch: (cur) => ({
+        ...cur,
+        ...(req.course ? { course: req.course } : {}),
+        ...(req.focus ? { focus: req.focus } : {}),
+        ...(req.difficulty ? { difficulty: req.difficulty } : {}),
+        ...(req.count ? { customCount: String(req.count) } : {}),
+        ...(req.kindCounts ? { kindCounts: req.kindCounts, kinds: Object.keys(req.kindCounts) } : {}),
+        ...(req.moduleOverrides ? { moduleOverrides: req.moduleOverrides } : {}),
+        ...(req.referenceSourceIds ? { referenceSourceIds: req.referenceSourceIds } : {}),
+      }),
+    });
+  };
+  return (
+    <ExamCoach
+      key={data.root}
+      data={data}
+      onGoGenerate={() => intents.goGenerate()}
+      onApplyToGenerate={onApplyToGenerate}
+      onOpenSettings={settingsEntry.openModelSettings}
+      onOpenTasks={() => nav.navigate('tasks')}
+    />
+  );
+}
+
 function GenerateView() {
   const { data, nav, lib, set, drafts, intents, connection, settingsEntry, canChat } = useApp();
   return (
@@ -520,7 +552,7 @@ function GuidedStudyView() {
 export const PAGE_VIEWS = {
   library: LibraryView, workflows: WorkflowsView, skeleton: SkeletonView, dashboard: DashboardView, exam: ExamView, wrongbook: WrongBookView, graph: GraphView,
   manage: ManageView, sources: SourcesView, audio: AudioView, tasks: TasksView, generate: GenerateView, draft: DraftView, settings: SettingsView, review: ReviewView, notes: NotesView,
-  examprep: ExamPrepView, outline: OutlineView, book: BookView, guided: GuidedStudyView,
+  examprep: ExamPrepView, examcoach: ExamCoachView, outline: OutlineView, book: BookView, guided: GuidedStudyView,
 };
 
 /** 备考补习 while the learner has it turned off in Settings (the switch is not a component, so the generic text about components would be wrong). */

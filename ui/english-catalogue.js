@@ -85,6 +85,7 @@ import customCopy from './locales/en.custom.json';
 import customPlanCopy from './locales/en.custom-plan.json';
 import indexGuidanceCopy from './locales/en.index-guidance.json';
 import taskCardCopy from './locales/en.task-card.json';
+import coachCopy from './locales/en.coach.json';
 import appMessages from '../lib/application-messages-en.js';
 
 export const ENGLISH_SOURCES = {
@@ -168,6 +169,7 @@ export const ENGLISH_SOURCES = {
   'en.custom-plan.json': customPlanCopy,
   'en.index-guidance.json': indexGuidanceCopy,
   'en.task-card.json': taskCardCopy,
+  'en.coach.json': coachCopy,
 };
 
 /** The English of lib/application-messages.js (localizeAppMessage), handed to it once this module is here. */

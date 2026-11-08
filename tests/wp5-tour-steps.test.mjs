@@ -25,14 +25,14 @@ const PLAN_ANCHORS = ["nav", "nav-library", "nav-sources", "nav-generate", "nav-
   // #654–#657: the 「更多」 fold, the 「帮助」 fold and the narrow window's menu button
   "nav-more", "nav-help", "nav-menu"];
 const PAGES = new Set(["library", "sources", "generate", "draft", "review", "wrongbook", "exam", "dashboard", "skeleton", "workflows",
-  "settings", "notes", "board", "audio", "live", "graph", "manage", "tasks", "examprep", "book"]);
+  "settings", "notes", "board", "audio", "live", "graph", "manage", "tasks", "examprep", "examcoach", "book"]);
 
 test("navigation is a main list of at most 6 pages and 「更多」 grouped by what the pages are about (#654)", () => {
   assert.deepEqual(NAV_DEFAULTS, {
     main: ["library", "sources", "generate", "wrongbook", "exam", "dashboard"],
     material: ["audio", "live"],
     practice: ["book", "skeleton"],
-    exam: ["examprep"],
+    exam: ["examprep", "examcoach"],
     notes: ["tasks", "notes", "board"],
   });
   // A learner's saved order still applies; pages it does not mention join at the end of their group.
@@ -41,7 +41,7 @@ test("navigation is a main list of at most 6 pages and 「更多」 grouped by w
     main: ["dashboard", "library", "sources", "generate", "wrongbook", "exam"],
     material: ["audio", "live"],
     practice: ["book", "skeleton"],
-    exam: ["examprep"],
+    exam: ["examprep", "examcoach"],
     notes: ["board", "tasks", "notes"],
   });
   // An order saved before the regrouping (每天 / 阶段性 / 课程准备与管理, or main / upkeep) keeps the learner's sequence inside the new groups.

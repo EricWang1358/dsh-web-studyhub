@@ -17,6 +17,7 @@ export const GuidedStudy = deferredView(() => import("./guided-study/GuidedStudy
 export const Dashboard = deferredView(() => import("./Dashboard.jsx"));
 export const Exam = deferredView(() => import("./Exam.jsx"));
 export const ExamPrep = deferredView(() => import("./exam-prep/ExamPrep.jsx"));
+export const ExamCoach = deferredView(() => import("./ExamCoachPage.jsx"));
 export const CourseOutline = deferredView(() => import("./outline/CourseOutline.jsx"));
 export const BookPage = deferredView(() => import("./book/BookPage.jsx"));
 export const Board = deferredView(() => import("./Board.jsx"));
