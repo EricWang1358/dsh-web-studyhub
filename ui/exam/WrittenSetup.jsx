@@ -28,7 +28,16 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
   const typeAvailable = typeAvailableOf(kinds, typeMode);
   const canStart = decks.length > 0 && picked.size > 0 && typeAvailable > 0;
   const pickedLine = picked.size ? uiFormat('已选 {0} 个题组 · 共 {1} 道选择题', [picked.size, pickedTotal]) : '';
-  const targetCourse = limit?.course && limit.course !== '*' ? limit.course : data?.focus?.course;
+  const course = limit?.course;
+  const targetCourse = typeof course === 'string' && course !== '*'
+    ? course
+    : course === '*'
+      ? (() => {
+        const selected = (decks || []).filter((deck) => picked?.has(deck.id));
+        const uniqueCourses = new Set(selected.map((deck) => (deck?.course ?? deck?.folder ?? '') || ''));
+        return uniqueCourses.size === 1 ? [...uniqueCourses][0] : '';
+      })()
+      : (data?.focus?.course || '');
   const examRole = (targetCourse ? (data?.courses || []).find((item) => item.name === targetCourse)?.interview?.role : '') || '';
   return (
     <div className="exam-setup">

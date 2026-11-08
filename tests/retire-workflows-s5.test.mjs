@@ -33,6 +33,7 @@ const compiled = await build({
       export { default as WorkflowPortal } from './ui/WorkflowPortal.jsx';
       export { StatsView } from './ui/Dashboard.jsx';
       export { OralSetup } from './ui/OralExam.jsx';
+      export { default as WrittenSetup } from './ui/exam/WrittenSetup.jsx';
       export { StudyServicesContext } from './ui/study-context.jsx';
       export { ui, setUiLanguage } from './ui/i18n.js';
     `,
@@ -49,7 +50,7 @@ const compiled = await build({
 });
 const uiMod = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(require, uiMod, uiMod.exports);
-const { StudyMap, CourseSettings, draftFromCourse, payloadFromDraft, Workflows, WorkflowPortal, StatsView, OralSetup, StudyServicesContext, ui, setUiLanguage } = uiMod.exports;
+const { StudyMap, CourseSettings, draftFromCourse, payloadFromDraft, Workflows, WorkflowPortal, StatsView, OralSetup, WrittenSetup, StudyServicesContext, ui, setUiLanguage } = uiMod.exports;
 
 const h = React.createElement;
 const noop = () => {};
@@ -775,13 +776,31 @@ test("written and oral exams preserve per-course interview.role across explicit 
     assert.equal(completePrompts[0].role, "后端研发", `assessment prompt includes role for course=${courseArg}`);
   }
 
-  // OralSetup UI resolves role cleanly for both explicit course and '*' fallback without relying on legacy focus.role.
+  // OralSetup UI resolves role cleanly for explicit course or single-course '*' selection without leaking onto multi-course '*'.
   const snap = await service.call("snapshot");
-  const oralSetupHtml = renderWithStudy(
-    h(OralSetup, { data: { ...snap, focus: { ...snap.focus, role: "" } }, course: "*", count: 3, onCount: noop, onStart: noop }),
+  const oralSetupScopedHtml = renderWithStudy(
+    h(OralSetup, {
+      data: { ...snap, focus: { ...snap.focus, role: "" } },
+      course: "*",
+      selection: { course: "*", scope: [{ deckId: "deck-interview" }] },
+      count: 3,
+      onCount: noop,
+      onStart: noop,
+    }),
     { data: snap },
   );
-  assert.match(oralSetupHtml, /后端研发/);
+  assert.match(oralSetupScopedHtml, /后端研发/);
+  const oralSetupMixedHtml = renderWithStudy(
+    h(OralSetup, {
+      data: { ...snap, focus: { ...snap.focus, role: "" } },
+      course: "*",
+      count: 3,
+      onCount: noop,
+      onStart: noop,
+    }),
+    { data: snap },
+  );
+  assert.doesNotMatch(oralSetupMixedHtml, /后端研发/);
 });
 
 test("snapshot.workflowSessions resolves course across historical session shapes and Dashboard filters & links >20 archived sessions", async (t) => {
@@ -1052,4 +1071,182 @@ test("migrateInterviewFocus leaves untagged decks (course: '') untouched and gui
   assert.match(settingsHtml, /还没有资料/, "CourseMethodCard calmly indicates stage 1 has no materials yet");
   assert.match(settingsHtml, /导入/, "CourseMethodCard offers direct material import");
   assert.match(settingsHtml, /请主会话起草/, "CourseMethodCard offers main-chat handout drafting");
+});
+
+test("uncategorised (course: '') and all-courses (course: '*') exams never inherit focus.course role or targetTopics", async (t) => {
+  const root = await tempDir(t);
+  await writeV4ShardedLibrary(root, {
+    focus: {
+      mode: "interview",
+      course: null,
+      role: "后端研发",
+      jd: "熟悉存储引擎与共识协议",
+      targetTopics: ["MVCC"],
+    },
+    courses: [{ id: "course-art", name: "艺术史" }],
+    decks: [
+      {
+        id: "deck-uncat",
+        title: "未分类一致性卡片",
+        course: "",
+        cards: [
+          {
+            id: "card-uncat-raft",
+            kind: "quiz",
+            topic: "Raft",
+            prompt: "Raft 的日志复制由谁发起？",
+            options: [
+              { id: "A", text: "Leader", correct: true },
+              { id: "B", text: "Follower", correct: false },
+            ],
+            answer: "Leader",
+          },
+        ],
+      },
+      {
+        id: "deck-art",
+        title: "艺术史选择题",
+        course: "艺术史",
+        cards: [
+          {
+            id: "card-art-baroque",
+            kind: "quiz",
+            topic: "巴洛克",
+            prompt: "巴洛克艺术发源于哪个国家？",
+            options: [
+              { id: "A", text: "意大利", correct: true },
+              { id: "B", text: "英国", correct: false },
+            ],
+            answer: "意大利",
+          },
+        ],
+      },
+    ],
+  });
+
+  const service = new StudyService(root);
+  t.after(() => service.dispose());
+
+  const initialSnap = await service.call("snapshot");
+  assert.equal(initialSnap.focus.course, "笔试 / 面试 · 后端研发");
+  assert.deepEqual(initialSnap.focus.targetTopics, ["MVCC"]);
+
+  // (a) Uncategorised scope (course: "") succeeds on uncategorised cards without throwing targetTopics error and has empty role.
+  const uncatOral = await service.call("oral.start", { course: "", count: 5 });
+  assert.equal(uncatOral.total, 1);
+  assert.equal(uncatOral.role, "");
+  await service.call("oral.submit", { runId: uncatOral.id });
+
+  const uncatWritten = await service.call("review.start", { mode: "exam", course: "", fresh: true });
+  assert.equal(uncatWritten.total, 1);
+  assert.equal(uncatWritten.examRole, "");
+  assert.equal((await service.call("exam.submit", { runId: uncatWritten.id })).examRole, "");
+
+  // (b) All-courses scope (course: "*") succeeds across all courses even while "笔试 / 面试 · 后端研发" itself has 0 cards, with empty role.
+  const allOral = await service.call("oral.start", { course: "*", count: 5 });
+  assert.equal(allOral.total, 2);
+  assert.equal(allOral.role, "");
+  await service.call("oral.submit", { runId: allOral.id });
+
+  const allWritten = await service.call("review.start", { mode: "exam", course: "*", fresh: true });
+  assert.equal(allWritten.total, 2);
+  assert.equal(allWritten.examRole, "");
+  assert.equal((await service.call("exam.submit", { runId: allWritten.id })).examRole, "");
+
+  // (c) Now add a deck under "笔试 / 面试 · 后端研发": explicit art deck under "*" has role "", whereas explicit backend deck under "*" preserves "后端研发".
+  await service.store.update((state) => {
+    state.decks.push({
+      id: "deck-backend",
+      title: "存储引擎题组",
+      course: "笔试 / 面试 · 后端研发",
+      cards: [
+        {
+          id: "card-mvcc",
+          kind: "quiz",
+          topic: "MVCC",
+          prompt: "InnoDB MVCC 依赖哪两个隐藏列？",
+          options: [
+            { id: "A", text: "trx_id 与 roll_pointer", correct: true },
+            { id: "B", text: "page_no 与 slot_no", correct: false },
+          ],
+          answer: "trx_id 与 roll_pointer",
+        },
+      ],
+    });
+  });
+
+  const artStarOral = await service.call("oral.start", { course: "*", scope: [{ deckId: "deck-art" }], count: 3 });
+  assert.equal(artStarOral.role, "");
+  await service.call("oral.submit", { runId: artStarOral.id });
+
+  const artStarWritten = await service.call("review.start", { mode: "exam", course: "*", scope: [{ deckId: "deck-art" }], fresh: true });
+  assert.equal(artStarWritten.examRole, "");
+
+  const backendStarOral = await service.call("oral.start", { course: "*", scope: [{ deckId: "deck-backend" }], count: 3 });
+  assert.equal(backendStarOral.role, "后端研发");
+  await service.call("oral.submit", { runId: backendStarOral.id });
+
+  const backendStarWritten = await service.call("review.start", { mode: "exam", course: "*", scope: [{ deckId: "deck-backend" }], fresh: true });
+  assert.equal(backendStarWritten.examRole, "后端研发");
+
+  // WrittenSetup & OralSetup UI previews match the exact same rule.
+  const snap = await service.call("snapshot");
+  const writtenBaseProps = {
+    data: snap,
+    decks: snap.decks,
+    deckNames: {},
+    kinds: { quiz: 3, multi: 0 },
+    typeMode: "all",
+    onTypeMode: noop,
+    count: 5,
+    onCount: noop,
+    onPick: noop,
+    onLimit: noop,
+    busy: false,
+    error: "",
+    flashOnly: false,
+    onStart: noop,
+    onCreate: noop,
+    onExit: noop,
+  };
+  // course === "" (未分类) -> no 后端研发 role note
+  const writtenUncatHtml = renderWithStudy(
+    h(WrittenSetup, {
+      ...writtenBaseProps,
+      decks: snap.decks.filter((d) => !d.course),
+      picked: new Set(["deck-uncat"]),
+      limit: { minutes: 30, defaults: { minutes: 30, source: "default" }, course: "" },
+    }),
+    { data: snap },
+  );
+  assert.doesNotMatch(writtenUncatHtml, /后端研发/);
+
+  // course === "*" + art deck picked -> no 后端研发 role note
+  const writtenArtStarHtml = renderWithStudy(
+    h(WrittenSetup, {
+      ...writtenBaseProps,
+      picked: new Set(["deck-art"]),
+      limit: { minutes: 30, defaults: { minutes: 30, source: "default" }, course: "*" },
+    }),
+    { data: snap },
+  );
+  assert.doesNotMatch(writtenArtStarHtml, /后端研发/);
+
+  // course === "*" + backend deck picked -> shows 后端研发 role note
+  const writtenBackendStarHtml = renderWithStudy(
+    h(WrittenSetup, {
+      ...writtenBaseProps,
+      picked: new Set(["deck-backend"]),
+      limit: { minutes: 30, defaults: { minutes: 30, source: "default" }, course: "*" },
+    }),
+    { data: snap },
+  );
+  assert.match(writtenBackendStarHtml, /后端研发/);
+
+  // OralSetup with course === "" -> no 后端研发 role title
+  const oralUncatHtml = renderWithStudy(
+    h(OralSetup, { data: snap, course: "", decks: snap.decks.filter((d) => !d.course), count: 3, onCount: noop, onStart: noop }),
+    { data: snap },
+  );
+  assert.doesNotMatch(oralUncatHtml, /后端研发/);
 });
