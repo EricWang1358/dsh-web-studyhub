@@ -22,7 +22,7 @@ import { practiceArgs } from "./learning-navigation.js";
 import { isBackDestination, wayBackOf } from "./review/way-back.js";
 import { resolvePracticeSettings } from "../lib/practice-settings.js";
 import { countMaterials } from "../lib/source-groups.js";
-import { resolveRoundCourse, roundEndAlternative, useMethodAlternativeOpen } from "./method-alternatives.js";
+import { currentMethodStage, resolveRoundCourse, roundEndAlternative, useMethodAlternativeOpen } from "./method-alternatives.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -102,7 +102,14 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               : destination ? { label: destination.label, run: destination.go, back: isBackDestination(destination) } : null;
   // With a way back as the main button (the book's, the 总纲's or the reader's), a next step that is just another place to go back to (回到学习路径) is left out: both would go back.
   const onward = backHere && nextStep?.back ? null : nextStep;
-  const methodAlt = run.complete && !flow && run.mode !== "exam" ? roundEndAlternative(data, resolveRoundCourse(data, run), { guidedSession: app?.lib?.guidedSession }) : null;
+  const roundCourse = run.complete ? resolveRoundCourse(data, run) : "";
+  const roundStage = roundCourse ? (currentMethodStage(data, roundCourse)?.stage?.name || "") : "";
+  const missedList = run.complete && run.mode !== "exam"
+    ? (Array.isArray(run.missedCards) && run.missedCards.length > 0
+      ? run.missedCards
+      : ((run.answered || 0) > (run.correct || 0) && run.weakTopics?.length > 0 ? run.weakTopics.map((topic) => ({ topic, prompt: topic })) : []))
+    : [];
+  const methodAlt = run.complete && !flow && run.mode !== "exam" ? roundEndAlternative(data, roundCourse, { guidedSession: app?.lib?.guidedSession }) : null;
   return (
     <section
       ref={pageRef}
@@ -208,6 +215,12 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               <Button lock={busy} onClick={() => act("generate", { kind: "case", fromDeckId: summaryCase.id },
                 () => setCaseNote(ui("已开始出一套同类案例，完成后草稿会出现在学习库。")))}>{ui("再来一个同类案例")}</Button>
             </>}
+            {missedList.length > 0 && (
+              <HandOff id="method.missed" shape="quiet" label="带着错题回主会话"
+                what="把这一轮没过关的题目带回主会话讲透，讲完再回 StudyHub 重测"
+                input={{ course: roundCourse, stage: roundStage, missed: missedList }}
+                disabled={busy} />
+            )}
             <Button onClick={() => navigate("library")}>{ui("回到学习目录")}</Button>
           </div>
           {caseNote && <p className="muted" role="status">{caseNote}</p>}

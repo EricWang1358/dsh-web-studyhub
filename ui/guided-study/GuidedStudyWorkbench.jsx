@@ -3,11 +3,13 @@ import Markdown from '../Markdown.jsx';
 import { getUiLanguage, ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/Button.jsx';
 import { Badge } from '../components/Badge.jsx';
+import { Tooltip } from '../components/index.js';
 import { joinMeta } from '../format.js';
 import { TeachingArtifactBlock } from './TeachingArtifactBlock.jsx';
 import { QuestionPrepSlot } from './QuestionPrepSlot.jsx';
 import { StudyProgressPanel } from './StudyProgressPanel.jsx';
 import { buildAskTutorPrompt, applyAskTutorMessage } from '../agent-prompts/guided-study.js';
+import { HandOff } from '../hand-off/HandOff.jsx';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import css from './guided-study.css';
@@ -56,8 +58,10 @@ export default function GuidedStudyWorkbench({
     session?.artifactRefs?.at(-1) || null;
 
   const currentCard = run?.card || (run?.entries ? run.entries[run.index]?.card : null);
+  const currentFeedback = run?.feedback || (run?.entries ? run.entries[run.index]?.feedback : null);
   const isRevealed = Boolean(run?.revealed ?? (run?.entries ? run.entries[run.index]?.revealed : false));
-  const hasFeedback = Boolean(run?.feedback || (run?.entries ? run.entries[run.index]?.feedback : false));
+  const hasFeedback = Boolean(currentFeedback);
+  const currentMissed = Boolean(hasFeedback && currentFeedback?.correct === false);
 
   const choice = hasOptions(currentCard?.kind) && Array.isArray(currentCard?.options) && currentCard.options.length > 0;
   const [selected, setSelected] = useState([]);
@@ -87,7 +91,7 @@ export default function GuidedStudyWorkbench({
       cardId: card?.id,
       stem: card?.prompt || '',
       answered: hasFeedback,
-      correct: hasFeedback ? Boolean((run?.feedback || run?.entries?.[run.index]?.feedback)?.correct) : null,
+      correct: hasFeedback ? Boolean(currentFeedback?.correct) : null,
       language: getUiLanguage(),
     });
     const result = await applyAskTutorMessage(effectiveHost, prompt, 'zh');
@@ -233,15 +237,34 @@ export default function GuidedStudyWorkbench({
                     </Button>
                   </>
                 ) : null}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="guided-study-btn"
-                  onClick={handleAskTutor}
-                  title={ui('把这道题和你的作答发给主会话')}
-                >
-                  {ui('请教主会话')}
-                </Button>
+                <Tooltip layer content={ui('把这道题和你的作答发给主会话')}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="guided-study-btn"
+                    onClick={handleAskTutor}
+                  >
+                    {ui('请教主会话')}
+                  </Button>
+                </Tooltip>
+                {(currentMissed || (derivedProgress?.needsReviewCount > 0)) && (
+                  <HandOff
+                    id="method.missed"
+                    shape="quiet"
+                    label="带着错题回主会话"
+                    what="把这道没过关的题目带回主会话讲透，讲完再回 StudyHub 重测"
+                    input={{
+                      course: session?.courseId || '',
+                      stage: session?.goal?.title || '',
+                      missed: [{
+                        deckId: run?.deckId || currentCard.deckId,
+                        cardId: currentCard.id,
+                        topic: currentCard.topic || '',
+                        prompt: String(currentCard.prompt || '').slice(0, 240),
+                      }],
+                    }}
+                  />
+                )}
               </div>
 
               {tutorMessage && (

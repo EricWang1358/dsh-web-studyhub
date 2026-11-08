@@ -9,7 +9,7 @@ import { courseMatcher, decksInCourse, writePageScope } from './PageScope.jsx';
 import { useStudy } from './study-context.jsx';
 import { useHandOff } from './hand-off/use-hand-off.js';
 import { AppContext } from './app/app-context.js';
-import { ACTIVITIES, ALTERNATIVES_MAX, atLeast, courseMethod, gateRule } from '../lib/course-method.js';
+import { ACTIVITIES, ALTERNATIVES_MAX, atLeast, courseMethod, gateRule, stageScope } from '../lib/course-method.js';
 import { isLibraryListSource } from '../lib/exam-point-list.js';
 
 /* 「也可以」 (#775, 4.5 S1): maps a stage's alternative activities onto StudyHub's single-source feature index (ui/finder/entries.js), host capability check
@@ -169,6 +169,10 @@ export function currentMethodStage(data, course) {
     const index = data.focus.method.index;
     return { index, total: method.stages.length, stage: method.stages[index], counts, own: !!record?.method };
   }
+  if (record?.method && Number.isInteger(record.method.stageIndex)) {
+    const clamped = Math.max(0, Math.min(record.method.stageIndex, method.stages.length - 1));
+    return { index: clamped, total: method.stages.length, stage: method.stages[clamped], counts, own: true };
+  }
   let index = 0;
   while (index < method.stages.length - 1) {
     const stage = method.stages[index];
@@ -322,10 +326,10 @@ export function stageNeedsMaterial(data, course, stage, { own, index = 0, curren
   const isOwn = own ?? Boolean(course?.method);
   if (!isOwn || !data || !course || !stage) return false;
   const sources = Array.isArray(data.sources) ? data.sources : null;
-  if (Array.isArray(stage.sourceIds) && stage.sourceIds.length > 0) {
+  const scopedSources = stageScope(stage)?.sourceIds || stage.sourceIds; if (Array.isArray(scopedSources) && scopedSources.length > 0) {
     if (!sources) return false;
     const validIds = new Set(sources.filter(isVerifiableMaterialSource).map(source => source.id));
-    return !stage.sourceIds.some(id => validIds.has(id));
+    return !scopedSources.some(id => validIds.has(id));
   }
   const courseName = (typeof course === 'string' ? course : course.name || '').trim();
   const hasMaterial = sources

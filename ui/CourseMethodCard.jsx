@@ -6,7 +6,10 @@ import { cx } from './components/css.js';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
 import { HandOff } from './hand-off/HandOff.jsx';
-import { ACTIVITIES, ALTERNATIVES_MAX, LEVELS, NAME_MAX, STAGES_MAX, courseMethod } from '../lib/course-method.js';
+import { ACTIVITIES, ALTERNATIVES_MAX, LEVELS, NAME_MAX, STAGES_MAX, advanceMethodStage, clampMethodStageIndices, courseMethod } from '../lib/course-method.js';
+import { methodProgress, stageCheckSatisfied } from '../lib/course-method-progress.js';
+import { stageGate } from '../lib/course-method-gate.js';
+import { methodStageSchedule } from '../lib/course-method-schedule.js';
 import { ACTIVITY_LABELS, currentMethodStage, openCourseMaterialImport, stageAlternatives, stageNeedsMaterial, useMethodAlternativeOpen } from './method-alternatives.js';
 import css from './course-method-card.css';
 
@@ -18,6 +21,12 @@ export { openCourseMaterialImport, stageNeedsMaterial };
    the way back. Current stage shows 「现在」 (from the home snapshot) and its 「也可以」 guidance. */
 
 const LEVEL_LABELS = { loose: '松一点', medium: '适中', strict: '严格一点' };
+
+const STAGE_STATUS_BADGE = {
+  verified: { label: '已检验', tone: 'success' },
+  skipped: { label: '未完成就前进', tone: 'warning' },
+  'self-reported': { label: '自报', tone: 'neutral' },
+};
 
 /** Reorder `stages` by moving the item at `from` to `to` (pure; out-of-range indices return `stages`). */
 export function moveStage(stages, from, to) {
@@ -78,6 +87,26 @@ export function shownMethod(course) {
   const method = courseMethod(course);
   if (course?.method) return method;
   return { ...method, name: ui(method.name), stages: method.stages.map(stage => ({ ...stage, name: ui(stage.name) })) };
+}
+
+function buildCourseState(resolvedData, course) {
+  const courses = Array.isArray(resolvedData?.courses) ? resolvedData.courses : [];
+  const hasCourse = courses.some(item => item && (item.id === course.id || item.name === course.name));
+  return {
+    ...(resolvedData || {}),
+    courses: hasCourse ? courses.map(item => (item && (item.id === course.id || item.name === course.name) ? { ...item, ...course } : item)) : [...courses, course],
+    decks: Array.isArray(resolvedData?.decks) ? resolvedData.decks : [],
+    sources: Array.isArray(resolvedData?.sources) ? resolvedData.sources : [],
+    attempts: Array.isArray(resolvedData?.attempts) ? resolvedData.attempts : [],
+  };
+}
+
+function resolveStageStatus(shown, effectiveGate, index) {
+  const fromGate = effectiveGate?.stages?.[index]?.status;
+  if (fromGate && fromGate !== 'pending') return fromGate;
+  if (Array.isArray(shown?.skippedStages) && shown.skippedStages.includes(index)) return 'skipped';
+  if (Array.isArray(shown?.selfReportedStages) && shown.selfReportedStages.includes(index)) return 'self-reported';
+  return 'pending';
 }
 
 /** The edit form behind 「改学法」: lightweight direct editing of name, stage order, stage count (1..12), activities, alternatives (0..2), gates, and target date. */
@@ -179,14 +208,43 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
   const [noteOpen, setNoteOpen] = useState(Boolean(initialNote)), [note, setNote] = useState(initialNote);
   if (!course) return null;
   const own = !!course.method, shown = shownMethod(course), disabled = busy || working;
-  // The stage the learner is on (#775 S1b): the home snapshot reads it for the current course only, so another course's card shows its stages without it.
-  const current = Number.isInteger(readout?.index) && readout.total === shown.stages.length ? readout.index : -1;
+  const courseState = own ? buildCourseState(resolvedData, course) : null;
+  const fallbackProgress = own && !readout && (resolvedData || Number.isInteger(shown.stageIndex) || shown.skippedStages?.length || shown.selfReportedStages?.length)
+    ? methodProgress(courseState, course.name)
+    : null;
+  const matchedReadout = readout
+    ? (Number.isInteger(readout.index) && readout.total === shown.stages.length ? readout : null)
+    : fallbackProgress;
+  // The stage the learner is on (#775 S1b): the home snapshot reads it for the current course only, so another default course's card shows its stages without it.
+  const current = Number.isInteger(matchedReadout?.index) ? matchedReadout.index : -1;
+  const effectiveGate = readout
+    ? (matchedReadout ? (readout.gate ?? null) : null)
+    : (fallbackProgress && Array.isArray(resolvedData?.decks) ? stageGate(courseState, course.name, fallbackProgress) : null);
+  const effectiveSchedule = own
+    ? (matchedReadout?.schedule ?? methodStageSchedule(courseState, course, {
+      ...(matchedReadout ? { progress: matchedReadout } : {}),
+      ...(effectiveGate ? { gate: effectiveGate } : {}),
+    }))
+    : null;
   const activeStage = current >= 0 ? shown.stages[current] : (resolvedData ? currentMethodStage(resolvedData, course)?.stage : null);
   const altItems = !draft && resolvedData && activeStage ? stageAlternatives(resolvedData, course, activeStage, { guidedSession: app?.lib?.guidedSession }) : [];
   const write = async method => {
     setWorking(true); setError('');
-    try { await act('course.save', { id: course.id, name: course.name, method }, undefined, { rethrow: true }); setDraft(null); }
+    const payload = method ? clampMethodStageIndices(method) : null;
+    try { await act('course.save', { id: course.id, name: course.name, method: payload }, undefined, { rethrow: true }); setDraft(null); }
     catch (caught) { setError(errorMessage(caught)); } finally { setWorking(false); }
+  };
+  const activeSwitchIndex = current >= 0 ? current : (Number.isInteger(shown.stageIndex) ? shown.stageIndex : 0);
+  const jumpToStage = targetIndex => {
+    const nextMethod = advanceMethodStage(shown, targetIndex, {
+      currentIndex: activeSwitchIndex,
+      stageSatisfied: idx => {
+        const summary = effectiveGate?.stages?.[idx];
+        if (summary) return summary.status === 'verified' || Boolean(summary.checkPassed);
+        return courseState ? stageCheckSatisfied(courseState, course.name, shown.stages[idx]) : false;
+      },
+    });
+    return write(nextMethod);
   };
   const change = patch => { setDraft(prev => ({ ...prev, ...patch })); setError(''); };
   const changeStage = (index, patch) => change({ stages: patchStage(draft.stages, index, patch) });
@@ -203,10 +261,21 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
     {!draft && <ol className="course-method__stages">
       {shown.stages.map((stage, index) => {
         const missingMaterial = stageNeedsMaterial(resolvedData, course, stage, { own, index, current });
+        const stageDue = own ? effectiveSchedule?.stages?.[index]?.suggestedUntil : null;
+        const stageStatus = own ? resolveStageStatus(shown, effectiveGate, index) : 'pending';
+        const statusBadge = STAGE_STATUS_BADGE[stageStatus];
         return <li key={index} className="course-method__stage" aria-current={index === current ? 'step' : undefined}>
           <span className="course-method__stage-name">{stage.name}</span>
           <small className="course-method__level">{ui(LEVEL_LABELS[stage.level])}</small>
+          {stageDue && <small className="course-method__due">{uiFormat('建议 {0} 前', [stageDue])}</small>}
           {index === current && <Badge size="sm" tone="accent" className="course-method__now">{ui('现在')}</Badge>}
+          {statusBadge && <Badge size="sm" tone={statusBadge.tone} className="course-method__status">{ui(statusBadge.label)}</Badge>}
+          {own && shown.stages.length > 1 && index !== activeSwitchIndex && (
+            <Button variant="link" size="sm" className="course-method__jump" lock={disabled}
+              onClick={() => jumpToStage(index)}>
+              {ui(index < activeSwitchIndex ? '回到这一阶段' : (index === activeSwitchIndex + 1 && effectiveGate?.ready) ? '进入这一阶段' : '跳到这一阶段')}
+            </Button>
+          )}
           {missingMaterial && <div className="course-method__missing">
             <span>{ui('还没有资料')}</span>
             <span className="course-method__missing-sep" aria-hidden="true">·</span>
@@ -223,7 +292,38 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
         </li>;
       })}
     </ol>}
-    {!draft && current >= 0 && checkLine(readout.gate) && <p className="course-settings__note course-method__note course-method__check">{checkLine(readout.gate)}</p>}
+    {!draft && current >= 0 && checkLine(effectiveGate) && <p className="course-settings__note course-method__note course-method__check">{checkLine(effectiveGate)}</p>}
+    {!draft && own && effectiveGate?.selfReported > 0 && (
+      <p className="course-settings__note course-method__note course-method__self-note">
+        {uiFormat('另有 {0} 题为自报记录，不计入已检验通过。', [effectiveGate.selfReported])}
+      </p>
+    )}
+    {!draft && own && effectiveSchedule?.behind && (
+      <p className="course-settings__note course-method__note course-method__behind">
+        {uiFormat('当前阶段比建议日期（{0}）慢了一点，按自己的节奏往前推就好。', [effectiveSchedule.currentSuggestedUntil])}
+      </p>
+    )}
+    {!draft && own && ((effectiveGate?.ready && shown.stages[current + 1]) || (effectiveGate && !effectiveGate.checkPassed && effectiveGate.missed?.length > 0)) && (
+      <div className="course-method__gate-actions">
+        {effectiveGate?.ready && shown.stages[current + 1] && (
+          <Button variant="secondary" size="sm" lock={disabled} onClick={() => jumpToStage(current + 1)}>
+            {uiFormat('进入下一阶段：{0}', [shown.stages[current + 1].name])}
+          </Button>
+        )}
+        {effectiveGate && !effectiveGate.checkPassed && effectiveGate.missed?.length > 0 && (
+          <HandOff id="method.missed" shape="quiet" label="带着错题回主会话"
+            what="把这一阶段还没过关的题目带回主会话讲透，讲完再回 StudyHub 重测"
+            input={{ course: course.name, stage: activeStage?.name || '', missed: effectiveGate.missed, note: note.trim() }}
+            disabled={disabled}
+            onSent={outcome => { if (outcome === 'filled') onClose?.('method-missed'); }} />
+        )}
+        {effectiveGate && !effectiveGate.checkPassed && effectiveGate.weakCaseDeckId && (
+          <Button variant="quiet" size="sm" lock={disabled} onClick={() => act('case.drills', { deckId: effectiveGate.weakCaseDeckId })}>
+            {ui('把薄弱项变成练习')}
+          </Button>
+        )}
+      </div>
+    )}
     {!draft && altItems.length > 0 && <div className="course-method__also" aria-label={ui('也可以')}>
       <span className="course-method__also-lead">{ui('也可以：')}</span>
       {altItems.map(item => item.blocked

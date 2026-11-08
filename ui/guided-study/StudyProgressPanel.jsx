@@ -3,7 +3,7 @@ import { Button } from '../components/Button.jsx';
 import { Badge } from '../components/Badge.jsx';
 import { TextInput } from '../components/Field.jsx';
 import Icon from '../components/Icon.jsx';
-import { ui, uiFormat } from '../i18n.js';
+import { getUiLanguage, ui, uiFormat } from '../i18n.js';
 import { LoadingState } from '../components/Loading.jsx';
 import { joinMeta } from '../format.js';
 import { exactTok } from '../token-usage.js';
@@ -12,9 +12,25 @@ import { NOT_ALONE_LABEL } from '../../lib/study-progress.js';
 const STATUS_LABELS = {
   pending: { label: '待检验', tone: 'neutral' },
   assisted: { label: NOT_ALONE_LABEL, tone: 'info' },
+  self_reported: { label: '自报', tone: 'neutral' },
   passed: { label: '已独立通过', tone: 'success' },
   needs_review: { label: '需复核', tone: 'warning' },
 };
+
+function localizedDisplayLine(progress) {
+  if (!progress?.displayLine) return '';
+  if (getUiLanguage() !== 'en') return progress.displayLine;
+  if (!Number.isFinite(progress.totalCount)) return ui(progress.displayLine);
+  if (progress.totalCount === 0) return ui('未设定检验项');
+  const pct = Math.round((progress.independentRatio || 0) * 100);
+  const head = uiFormat('独立检验 {0}/{1}（{2}%）', [progress.independentPassedCount || 0, progress.totalCount, pct]);
+  const parts = [];
+  if (progress.assistedCount > 0) parts.push(uiFormat('另 {0} 项非独立完成', [progress.assistedCount]));
+  if (progress.selfReportedCount > 0) parts.push(uiFormat('{0} 项自报', [progress.selfReportedCount]));
+  if (progress.needsReviewCount > 0) parts.push(uiFormat('{0} 项需复核', [progress.needsReviewCount]));
+  if (progress.pendingCount > 0) parts.push(uiFormat('{0} 项待检验', [progress.pendingCount]));
+  return parts.length ? `${head}; ${parts.join(', ')}` : head;
+}
 
 /* The line under the progress: the range, how firm it is, or that there is nothing to say yet. The words are the ones lib/study-time-estimate.js writes. */
 function estimateLine(estimate) {
@@ -60,6 +76,7 @@ export function StudyProgressPanel({
   const [newItemTitle, setNewItemTitle] = useState('');
 
   const items = progress.items || [];
+  const mainLine = localizedDisplayLine(progress);
 
   const handleAddItem = (e) => {
     e.preventDefault();
@@ -74,7 +91,7 @@ export function StudyProgressPanel({
       {/* 紧凑首屏概览 */}
       <div className="progress-summary-row">
         <div className="progress-main-line">
-          {progress.displayLine ? <strong>{progress.displayLine}</strong> : <LoadingState label={ui('正在计算进度…')} />}
+          {mainLine ? <strong>{mainLine}</strong> : <LoadingState label={ui('正在计算进度…')} />}
         </div>
         <div className="progress-sub-line">
           <span>{joinMeta([uiFormat('讲解已覆盖 {0} 点', [progress.lectureCoveredCount || 0]), uiFormat('隔日巩固待复习 {0} 题', [progress.nextDayDueCount || 0])])}</span>

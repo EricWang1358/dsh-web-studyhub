@@ -205,5 +205,20 @@
   "第一批题正在生成，完成后检查草稿即可发布。": "Generating the first batch; check and publish the draft once it finishes.",
   "第 1 阶段：{0}": "Stage 1: {0}",
   "资料已就绪，可以先出第一阶段题组。": "Materials are ready; generate the first stage's questions to begin.",
-  "还没有资料 · 导入，或请主会话起草": "No sources yet · Import, or ask the main chat to draft"
+  "还没有资料 · 导入，或请主会话起草": "No sources yet · Import, or ask the main chat to draft",
+  "已检验": "Verified",
+  "未完成就前进": "Moved on before finishing",
+  "自报": "Self-reported",
+  "建议 {0} 前": "Suggested by {0}",
+  "回到这一阶段": "Return to this stage",
+  "进入这一阶段": "Enter this stage",
+  "跳到这一阶段": "Skip to this stage",
+  "另有 {0} 题为自报记录，不计入已检验通过。": "{0} more self-reported, not counted as verified.",
+  "当前阶段比建议日期（{0}）慢了一点，按自己的节奏往前推就好。": "A little past the suggested date ({0}) for this stage — keep moving at your own pace.",
+  "进入下一阶段：{0}": "Next stage: {0}",
+  "这一阶段检验已达八成，可以推进：": "Check reached 80% — ready to advance:",
+  "带着错题回主会话": "Take missed questions to main chat",
+  "把这一阶段还没过关的题目带回主会话讲透，讲完再回 StudyHub 重测": "Take the missed questions in this stage to the main chat for explanation, then return to StudyHub to re-verify",
+  "把这一轮没过关的题目带回主会话讲透，讲完再回 StudyHub 重测": "Take the missed questions from this round to the main chat for explanation, then return to StudyHub to re-verify",
+  "把这道没过关的题目带回主会话讲透，讲完再回 StudyHub 重测": "Take this missed question to the main chat for explanation, then return to StudyHub to re-verify"
 }

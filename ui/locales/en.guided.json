@@ -65,5 +65,11 @@
   "修改笔记：默认关。带学不会改你的笔记，除非你明确同意。": "Editing notes: off by default. Guided study does not change your notes unless you clearly agree.",
   "支线 {0} 层，做完会回到原来那道题": "{0} side question(s) deep; you come back to the original question afterwards",
   "隔日巩固待复习 {0} 题": "due for next-day review: {0}",
-  "把这句话发给主会话，开始 AI 带学": "Send this sentence to the main chat to start AI-guided learning"
+  "把这句话发给主会话，开始 AI 带学": "Send this sentence to the main chat to start AI-guided learning",
+  "未设定检验项": "No check items set",
+  "独立检验 {0}/{1}（{2}%）": "Verified on your own: {0}/{1} ({2}%)",
+  "另 {0} 项非独立完成": "{0} with help",
+  "{0} 项自报": "{0} self-reported",
+  "{0} 项需复核": "{0} need review",
+  "{0} 项待检验": "{0} to check"
 }
