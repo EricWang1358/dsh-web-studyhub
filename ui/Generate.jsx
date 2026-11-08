@@ -39,6 +39,7 @@ import formCss from './generate-form.css';
 import focusIntakeCss from './focus-intake.css';
 import CaseCreate from './CaseCreate.jsx';
 import ReferenceQuestions from './ReferenceQuestions.jsx';
+import GenerationTransparency, { EffectiveRequirementsStrip } from './GenerationTransparency.jsx';
 import { referenceSelection } from './reference-questions.js';
 import { useLiveEffect } from './use-async.js';
 import { settingsSectionOr } from './settings-groups.js';
@@ -157,10 +158,12 @@ export default function Generate({
     ...(canChat ? [{ id: "chat", label: ui("在主会话里录题"), note: ui("题册、刷题软件、错题或截图") }] : []),
   ];
   const current = tabs.some((tab) => tab.id === genSource) ? genSource : "files";
+  const invalidQuota = Boolean(gen.kindCounts && typeof gen.kindCounts === "object" && !Array.isArray(gen.kindCounts)
+    && kindsOfForm(gen).length >= 2 && kindsOfForm(gen).reduce((sum, k) => sum + (Number(gen.kindCounts?.[k]) || 0), 0) < 1);
   function submit(event) {
     event.preventDefault();
     if (pathMode) { if (model.ready && !busy && !path.queueing && path.included.length && !referenceState.reason) path.queue(); return; }
-    if (!model.ready || busy || !selectedSources.length || advice.blocked || referenceState.reason) return;
+    if (!model.ready || busy || !selectedSources.length || advice.blocked || referenceState.reason || invalidQuota) return;
     // Land where the progress card is (P26).
     startGeneration({ act, notify, setGen, data, gen, course: generationCourse, sourceIds: selectedSources,
       then: (job) => (onStarted ? onStarted(job) : setPage("library")) });
@@ -240,8 +243,14 @@ export default function Generate({
               {/* The main path: what to make (题型), how completely (覆盖强度, with 自定义 as its fourth choice, #664) and which course the new deck goes into; everything else is behind 更多选项, in groups. */}
               <div className="generate-rows generate-rows--main">
                 <FormRow label={ui("题型")} data-tour="generate-kinds">
-                  <KindPicker className="generate-kind" value={kindsOfForm(gen)} onChange={(list) => setGen({ ...gen, ...kindsPatch(list) })} />
-                  <p className="generate-note">{kindNote(kindsOfForm(gen))}</p>
+                  <KindPicker className="generate-kind" value={kindsOfForm(gen)} onChange={(list) => setGen((prev) => {
+                    const patch = kindsPatch(list, prev.kindCounts);
+                    const next = { ...prev, kind: patch.kind, kinds: patch.kinds };
+                    if (patch.kindCounts) next.kindCounts = patch.kindCounts;
+                    else delete next.kindCounts;
+                    return next;
+                  })} />
+                  <p className="generate-note">{kindNote(kindsOfForm(gen), undefined, gen.kindCounts)}</p>
                 </FormRow>
                 {!pathMode && <FormRow label={ui("覆盖强度")} data-tour="generate-coverage">
                   <CoverageStrength compact part="choice" level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}
@@ -288,6 +297,10 @@ export default function Generate({
                     onChange={ids => setGen({ ...gen, referenceSourceIds: ids })} onImport={() => openReferenceImport()}
                     courses={data.focus?.courses} />
                 </FormGroup>
+                {!pathMode && <FormGroup title={ui("题型配额与模块化规则")}>
+                  <GenerationTransparency gen={gen} setGen={setGen} course={generationCourse} sourceIds={selectedSources}
+                    sources={data.sources} plannedGoal={plannedGoal} />
+                </FormGroup>}
                 <FormGroup title={ui("难度与语言")}>
                   <FormRow label={ui("难度")} data-tour="generate-difficulty">
                     <SegmentedControl className="generate-seg" label={ui("难度")} value={gen.difficulty} options={DIFFICULTIES.map(({ value, label }) => ({ value, label }))}
@@ -329,6 +342,7 @@ export default function Generate({
                   <small>{ui("出题时已逐题核验并审阅；生成结果先进入草稿，你看过再发布；想再检查一遍，在草稿页点「保存并校验」。")}</small>
                 </p>
               </div>
+              {!pathMode && selectedSources.length > 0 && <EffectiveRequirementsStrip gen={gen} focusCount={activeFocusCount} referenceCount={referenceSourceIds.length} />}
               {summary && <p className="generate-summary" role="status">{summary}</p>}
               {/* The plan, said once: the tokens and calls it costs, how many rounds, and whether the rest goes on by itself (the count is the line above's). */}
               {!pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason && <div className="generate-estimate" data-generate-estimate>
@@ -355,7 +369,7 @@ export default function Generate({
                       ? uiFormat("（{0} 等 {1} 步）", [group.steps.slice(0, 3).join("、"), group.steps.length]) : uiFormat("（{0}）", [group.steps.join("、")])}</small></p>)}
                   </InlineMessage>}
                 </> : (
-                  <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason}
+                  <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason || invalidQuota}
                     data-tour="generate-submit" data-usage="generate.submit">
                     {running ? ui("加入生成队列 →") : ui("生成并检查题组 →")}
                   </Button>

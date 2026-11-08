@@ -14,9 +14,19 @@ import { kindsPatch } from '../generate-form.js';
  * @param job a failed or stopped generation job (the snapshot's view of it)
  * @returns { patch, lost } `patch` is merged into the form (`gen`); `lost` names, in words, what the job did not record.
  */
-export function retryForm(job) {
+export function retryForm(job, { sources } = {}) {
   const asked = job?.asked && typeof job.asked === 'object' ? job.asked : null;
-  const patch = { course: undefined }, lost = [];
+  const available = Array.isArray(sources) ? new Set(sources.map((source) => source.id)) : null;
+  const patch = {
+    course: job?.course || undefined,
+    role: typeof asked?.role === 'string' ? asked.role : '',
+    tokenBudget: typeof asked?.tokenBudget === 'string' ? asked.tokenBudget : '',
+    autoComplete: typeof asked?.autoComplete === 'boolean' ? asked.autoComplete : undefined,
+    kindCounts: asked?.kindCounts && typeof asked.kindCounts === 'object' ? { ...asked.kindCounts } : undefined,
+    moduleOverrides: asked?.moduleOverrides && typeof asked.moduleOverrides === 'object' ? structuredClone(asked.moduleOverrides) : undefined,
+  };
+  const lost = [];
+  let goneReferences = 0;
   const kinds = Array.isArray(job?.kinds) && job.kinds.length ? job.kinds : kindsOfLegacyKind(job?.kind);
   if (kinds) Object.assign(patch, kindsPatch([...kinds]));
   else lost.push(ui('题型'));
@@ -29,17 +39,50 @@ export function retryForm(job) {
     if (typeof asked.difficulty === 'string' && asked.difficulty) patch.difficulty = asked.difficulty;
     if (typeof asked.language === 'string' && asked.language) patch.language = asked.language;
     if (typeof asked.notation === 'string' && asked.notation) patch.notation = asked.notation;
+    if (Array.isArray(asked.referenceSourceIds)) {
+      const wantedRefs = asked.referenceSourceIds.filter((id) => typeof id === 'string' && id);
+      patch.referenceSourceIds = available ? wantedRefs.filter((id) => available.has(id)) : [...wantedRefs];
+      if (available) goneReferences = wantedRefs.length - patch.referenceSourceIds.length;
+      patch.referenceFormat = typeof asked.referenceFormat === 'string' && asked.referenceFormat ? asked.referenceFormat : 'balanced';
+      patch.referenceLimits = asked.referenceLimits && typeof asked.referenceLimits === 'object' ? { ...asked.referenceLimits } : undefined;
+    } else {
+      // Legacy asked record without reference echo: never inherit another run's sample questions from the current form.
+      patch.referenceSourceIds = [];
+      patch.referenceFormat = 'balanced';
+      patch.referenceLimits = undefined;
+      lost.push(ui('参考样题'));
+    }
   } else {
-    lost.push(ui('侧重点'), ui('难度'), ui('自定义题数'));
+    patch.referenceSourceIds = [];
+    patch.referenceFormat = 'balanced';
+    patch.referenceLimits = undefined;
+    lost.push(ui('侧重点'), ui('难度'), ui('自定义题数'), ui('参考样题'));
   }
   if (typeof job?.deckTitle === 'string' && job.deckTitle.trim() && !job.continued) patch.title = job.deckTitle;
-  return { patch, lost };
+  const caseInitial = job?.kind === 'case' ? {
+    mode: asked?.styleText ? 'style' : 'new',
+    course: job.course || '',
+    sourceIds: available ? (job.sourceIds || []).filter((id) => available.has(id)) : [...(job.sourceIds || [])],
+    referenceSourceIds: patch.referenceSourceIds,
+    referenceFormat: patch.referenceFormat,
+    referenceLimits: patch.referenceLimits,
+    ...(asked?.styleText ? { styleText: asked.styleText } : {}),
+    ...(typeof asked?.focus === 'string' ? { focus: asked.focus } : {}),
+    ...(Number.isInteger(asked?.questions) ? { questions: asked.questions } : {}),
+    ...(Number.isInteger(asked?.totalMarks) ? { totalMarks: asked.totalMarks } : {}),
+  } : null;
+  return { patch, lost, goneReferences, ...(caseInitial ? { caseInitial } : {}) };
 }
 
 /** What the notice says after 按原资料重新设置: what was put back, what was not recorded, and sources that are no longer in the library (`gone`: how many of the job's source ids). */
-export function retryNotice({ lost = [], gone = 0 } = {}) {
+export function retryNotice({ lost = [], gone = 0, goneReferences = 0 } = {}) {
   const said = lost.length
     ? uiFormat('已带回可用资料和上次的设置；{0}当时没有记录，请重新选。', [formatList(lost)])
     : ui('已带回可用资料、题型、题数、覆盖强度、侧重点和难度；请核对后再生成。');
-  return gone > 0 ? `${said}${uiIsEnglish() ? ' ' : ''}${ui('另有资料已不在资料库里，没有带回。')}` : said;
+  const sep = uiIsEnglish() ? ' ' : '';
+  const tail = [
+    ...(gone > 0 ? [ui('另有资料已不在资料库里，没有带回。')] : []),
+    ...(goneReferences > 0 ? [ui('另有参考样题已不在资料库里，没有带回。')] : []),
+  ];
+  return tail.length ? [said, ...tail].join(sep) : said;
 }

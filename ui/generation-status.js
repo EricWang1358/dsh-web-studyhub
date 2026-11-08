@@ -41,9 +41,12 @@ export function syncGenerationDefaults(current, before, after) {
 }
 
 /** Start another deck with saved content defaults and the learner's role. */
-export const freshGeneration = (gen = {}, saved, language = getUiLanguage()) => { const { autoComplete: _chosen, ...rest } = gen; return { ...rest,
-  ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, kinds: GENERATION_DEFAULTS.kinds, count: GENERATION_DEFAULTS.count, focus: '', notation: GENERATION_DEFAULTS.notation, coverageLevel: GENERATION_DEFAULTS.coverageLevel, customCount: '', tokenBudget: '' }
-    : generationFormDefaults(saved, language)), role: gen.role ?? '', title: '', course: undefined }; };
+export const freshGeneration = (gen = {}, saved, language = getUiLanguage()) => {
+  const { autoComplete: _chosen, referenceSourceIds: _refs, referenceLimits: _rl, referenceFormat: _rf, kindCounts: _kc, moduleOverrides: _mo, ...rest } = gen;
+  return { ...rest,
+    ...(saved === undefined ? { kind: GENERATION_DEFAULTS.kind, kinds: GENERATION_DEFAULTS.kinds, count: GENERATION_DEFAULTS.count, focus: '', notation: GENERATION_DEFAULTS.notation, coverageLevel: GENERATION_DEFAULTS.coverageLevel, customCount: '', tokenBudget: '' }
+      : generationFormDefaults(saved, language)), role: gen.role ?? '', title: '', course: undefined };
+};
 
 /** Plan contract C3 first (`data.model`), then the legacy `modelReady` flag. */
 export function modelReadiness(data) {

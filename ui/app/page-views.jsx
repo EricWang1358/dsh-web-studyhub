@@ -90,9 +90,14 @@ function LibraryView() {
           retryGeneration: (job) => {
             // The whole request of the failed job goes back on the form, and the notice says only what was put back (ui/app/retry-generation.js).
             const available = new Set(data.sources.map((source) => source.id)), wanted = job.sourceIds || [];
-            const { patch, lost } = retryForm(job);
-            intents.goGenerate({ sourceIds: wanted.filter((id) => available.has(id)), genPatch: patch });
-            notify(retryNotice({ lost, gone: wanted.filter((id) => !available.has(id)).length }));
+            const { patch, lost, goneReferences, caseInitial } = retryForm(job, { sources: data.sources });
+            intents.goGenerate({
+              source: caseInitial ? 'case' : 'files',
+              sourceIds: wanted.filter((id) => available.has(id)),
+              genPatch: patch,
+              ...(caseInitial ? { caseInitial } : {}),
+            });
+            notify(retryNotice({ lost, gone: wanted.filter((id) => !available.has(id)).length, goneReferences }));
           },
           addSource: () => (lineShown ? tour.openFirstImport() : set.setModal(data.decks.length ? { type: 'add' } : importForQuestions(intents.goGenerate))), createManual: drafts.createManual, importLibrary: () => intents.goGenerate({ source: 'json' }),
           generateFromSources: (ids) => intents.goGenerate({ sourceIds: ids }),

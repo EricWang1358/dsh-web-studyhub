@@ -5,14 +5,16 @@ import CourseField from "./CourseField.jsx";
 import SourcePicker from "./SourcePicker.jsx";
 import ReferenceQuestions from './ReferenceQuestions.jsx';
 import { importedReferences, referenceSelection } from './reference-questions.js';
-import { Button, Hint, SegmentedControl, IconButton, Select, useToast } from "./components/index.js";
+import { Button, Hint, InlineMessage, SegmentedControl, IconButton, Select, useToast } from "./components/index.js";
 import { usePageScope } from "./PageScope.jsx";
 import { caseEvidence, takeImported } from "./generate-form.js";
 import { openingStands } from "./generate-opening.js";
 import ModelSetupGate from "./ModelSetupGate.jsx";
 import { modelReadiness, generationFormDefaults, syncGenerationDefaults } from "./generation-status.js";
 import { TokenEstimate } from "./TokenUsage.jsx";
-import { courseProfileFromState, DEFAULT_MINUTES_PER_MARK, countWords } from "../lib/case-study.js";
+import { courseProfileFromState, DEFAULT_MINUTES_PER_MARK, countWords, caseStyleLimit } from "../lib/case-study.js";
+import { QUESTION_REFERENCE_LIMITS, QUESTION_REFERENCE_HARD_LIMITS } from "../lib/question-references.js";
+import { formatNumber } from "./format.js";
 import css from "./case-study.css";
 import { useStudy } from "./study-context.jsx";
 
@@ -42,7 +44,7 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
   const evidenceIds = [...sourceIds, ...profile.guidanceSourceIds];
   const referenceState = referenceSelection(data.sources, referenceSourceIds, evidenceIds, referenceLimits, referenceFormat);
   const defaults = { totalMarks: profile.exam.totalMarks || 20, language: generationFormDefaults(data.settings?.generation).language };
-  const [form, setForm] = useState(() => ({ questions: 2, ...defaults, title: "", styleText: "" }));
+  const [form, setForm] = useState(() => ({ questions: 2, ...defaults, title: "", styleText: initial.styleText || "" }));
   const inherited = useRef({ course, ...defaults });
   const [pasted, setPasted] = useState({ title: "", scenario: "", questions: [blankQuestion()] });
   const courseRecord = (data.courses || []).find((item) => item.name === course);
@@ -55,10 +57,14 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
   }, [course, defaults.totalMarks, defaults.language]); // eslint-disable-line react-hooks/exhaustive-deps
   const answered = pasted.questions.filter((question) => question.answer.trim()).length;
   const scenarioShort = mode === "import" && countWords(pasted.scenario) < 40;
-  const styleShort = mode === "style" && form.styleText.trim().length < 80;
+  const styleLimit = caseStyleLimit(referenceLimits);
+  const styleChars = form.styleText.trim().length;
+  const styleShort = mode === "style" && styleChars < 80;
+  const styleOver = mode === "style" && styleChars > styleLimit;
+  const nextStyleLimit = Math.min(QUESTION_REFERENCE_HARD_LIMITS.chars, Math.max(20000, Math.ceil(styleChars / 1000) * 1000));
   const ready = mode === "import"
     ? !scenarioShort && pasted.questions.every((question) => question.prompt.trim().length >= 5 && Number(question.marks) > 0)
-    : sourceIds.length > 0 && !referenceState.reason && !styleShort;
+    : sourceIds.length > 0 && !referenceState.reason && !styleShort && !styleOver;
   function submit(event) {
     event.preventDefault();
     if (!model.ready || busy || !ready) return;
@@ -137,10 +143,23 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
       ) : (
         <fieldset>
           <legend>{ui("02 / 试卷")}</legend>
-          {mode === "style" && <label>{ui("往年真题（只作风格模板，不会照抄）")}
-            <textarea className="case-create__textarea" rows={8} value={form.styleText} maxLength={60000} onChange={(event) => setForm({ ...form, styleText: event.target.value })}
-              placeholder={ui("粘贴一份往年案例题。AI 只学它的结构、篇幅和提问方式，案例的公司、人物和数字都会重新编写。")} />
-            {styleShort && <Hint>{uiFormat("至少需要 {0}", [uiFormat("{0} 字", [80])])}</Hint>}</label>}
+          {mode === "style" && <>
+            <label>{ui("往年真题（只作风格模板，不会照抄）")}
+              <textarea className="case-create__textarea" rows={8} value={form.styleText} maxLength={QUESTION_REFERENCE_HARD_LIMITS.chars} onChange={(event) => setForm({ ...form, styleText: event.target.value })}
+                placeholder={ui("粘贴一份往年案例题。AI 只学它的结构、篇幅和提问方式，案例的公司、人物和数字都会重新编写。")} />
+              <small className="muted">{uiFormat("已输入 {0} / {1} 字符（不会自动截断）", [formatNumber(styleChars), formatNumber(styleLimit)])}</small>
+              {styleShort && <Hint>{uiFormat("至少需要 {0}", [uiFormat("{0} 字", [80])])}</Hint>}
+            </label>
+            {styleOver && <InlineMessage tone="error">
+              <span>{uiFormat("粘贴的真题为 {0} 字符，超过当前样题上限 {1} 字符。请精简片段，或调高样题字符上限；系统不会静默截断末尾题目或分值。", [formatNumber(styleChars), formatNumber(styleLimit)])}</span>
+              {styleChars <= QUESTION_REFERENCE_HARD_LIMITS.chars && <>
+                {" "}
+                <Button className="case-create__action" size="sm" variant="link" onClick={() => setReferenceLimits({ ...QUESTION_REFERENCE_LIMITS, ...referenceLimits, chars: nextStyleLimit })}>
+                  {uiFormat("将上限调至 {0} 字符", [formatNumber(nextStyleLimit)])}
+                </Button>
+              </>}
+            </InlineMessage>}
+          </>}
           <div className="case-create__grid">
             <label>{ui("题数")}<input type="number" min={1} max={5} value={form.questions} onChange={(event) => setForm({ ...form, questions: event.target.value })} /></label>
             <label>{ui("总分")}<input type="number" min={4} max={100} value={form.totalMarks} onChange={(event) => setForm({ ...form, totalMarks: event.target.value })} /></label>
