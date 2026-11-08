@@ -44,7 +44,7 @@ test('the facts of the five original kinds are what the code always assumed', ()
   assert.deepEqual(['quiz', 'multi', 'flashcard', 'open', 'cloze'].filter(isGraded), ['quiz', 'multi', 'cloze']);
   assert.deepEqual(['quiz', 'multi', 'flashcard', 'open', 'cloze'].filter(isExamKind), ['quiz', 'multi']);
   assert.deepEqual(INGEST_KIND_IDS.filter(id => id !== 'truefalse'), ['quiz', 'multi', 'flashcard', 'open']);
-  assert.deepEqual(GRADED_FIRST_KIND_IDS.filter(id => id !== 'truefalse'), ['quiz', 'multi', 'cloze', 'flashcard', 'open']);
+  assert.deepEqual(GRADED_FIRST_KIND_IDS.filter(id => id !== 'truefalse' && id !== 'task'), ['quiz', 'multi', 'cloze', 'flashcard', 'open']);
   assert.deepEqual(['quiz', 'multi', 'flashcard', 'open', 'cloze'].map(practiceCost), [3, 3, 2, 6, 2]);
   assert.equal(practiceCost('no-such-kind'), 2);
   assert.equal(kindOf('no-such-kind'), null);

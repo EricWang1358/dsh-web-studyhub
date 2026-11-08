@@ -26,6 +26,7 @@ import { fixSuggestionFor } from "../card-fix.js";
 import reviewCss from "./review.css";
 import { useInjectCss } from "../shared.js";
 import { RubricAnswer, ScenarioPanel } from "../CaseWorkspace.jsx";
+import TaskCardRun from "../TaskCardRun.jsx";
 import { WrongAnswerSource } from "../document-preview/practice/ReadingReturn.jsx";
 import { MasteryMark } from "../document-preview/practice/MasteryMark.jsx";
 import { NextDue } from "../NextDue.jsx";
@@ -159,6 +160,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const cardScale = Math.round((parseFloat(readingStyle["--reader-size"]) / 16 || 1) * 100) / 100;
   // Case questions (WP12): the scenario sits above the question; its highlights belong to this run.
   const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
+  const taskCard = run.mode !== "flashcard" && run.card?.kind === "task";
   const gradeTask = cardTasks.filter((task) => task.mode === "grade").at(-1);
   const caseDeck = run.card ? data?.decks?.find((deck) => deck.id === run.deckId && deck.format === "case-study") : null;
   const caseSource = caseDeck ? data?.sources?.find((source) => source.id === caseDeck.caseSourceId) : null;
@@ -215,7 +217,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
       <div
         className={
           "question-area " +
-          (!choice && !isCloze && !rubricCard ? "flash-area" : "") +
+          (!choice && !isCloze && !rubricCard && !taskCard ? "flash-area" : "") +
           (caseSource ? " has-case" : "")
         }
         style={readingMeasure ? { "--reading-measure": readingMeasure, "--review-column": "calc(var(--reading-measure) - 4px)", "--card-scale": cardScale } : undefined}
@@ -225,7 +227,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           highlights={caseHighlights} onChange={saveHighlights} />}
         {/* The card: header, stem and answers on paper stock. Toolbar,
             status and explanation sit below it on the desk. */}
-        <div className={"question-card" + (!choice && !isCloze && !rubricCard ? "" : " sh-paper-card sh-paper-card--roomy")} data-tour="review-question">
+        <div className={"question-card" + (!choice && !isCloze && !rubricCard && !taskCard ? "" : " sh-paper-card sh-paper-card--roomy")} data-tour="review-question">
           <div className="question-card__head">
             <div className="question-meta">
               <span>
@@ -417,6 +419,21 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                   }
                 >{ui("提交答案")}</Button>
               )}
+            </>
+          ) : taskCard ? (
+            <>
+              <TaskCardRun
+                run={run}
+                data={data}
+                value={response}
+                onChange={actions.setResponse}
+                onReveal={() => reviewAct("review.reveal")}
+                onSelfReport={(note) => reviewAct("review.answer", { selfReport: true, ...(note ? { note } : {}) })}
+                enOn={enOn}
+                enStem={enStem}
+                enAnswer={enAnswer}
+              />
+              {prereqStrip}
             </>
           ) : rubricCard ? (
             <>
@@ -623,7 +640,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <Markdown text={run.solution.misconception} />
             {run.solution.rubric && (
               <>
-                <h4>{ui("评分依据")}</h4>
+                <h4>{run.card?.kind === "task" ? ui("验收标准") : ui("评分依据")}</h4>
                 <Markdown text={run.solution.rubric} />
               </>
             )}

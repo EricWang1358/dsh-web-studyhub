@@ -26,6 +26,7 @@ function stabilitySteps(days) {
 
 /** 「答对了」 / 「✓ 已掌握」 / 「↻ 将继续巩固」: what the answer did, by the level the question has now. */
 export function nextDueWord(feedback = {}) {
+  if (feedback.selfReported || feedback.assessment === 'self-report') return ui('自报，未验收');
   if (!feedback.correct) return ui('↻ 将继续巩固');
   return feedback.level === 'mastered' ? ui('✓ 已掌握') : ui('答对了');
 }

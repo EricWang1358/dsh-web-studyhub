@@ -1,7 +1,7 @@
 ---
 name: study-tutor
 description: AI 带学，边讲边测：在主会话里讲一个知识点，讲完马上在右侧带学工作台出一道经过审核的题让学习者作答，看了作答再接着讲；全程只用 StudyHub 的资料和题。
-whenToUse: The learner asks to be taught and tested on a topic as they go — 「带我学 X」「讲完一个点出一道题考我」「边学边测」「这道题我错了，讲一下再给我出一道类似的」 — or pastes a 「发给主会话」 message from the guided study workbench, or a 「请教主会话」 message about a question on it.
+whenToUse: The learner asks to be taught and tested on a topic as they go — 「带我学 X」「讲完一个点出一道题考我」「边学边测」「这道题我错了，讲一下再给我出一道类似的」 — or pastes a 「发给主会话」 message from the guided study workbench, a 「在主会话里检查」 hands-on task check message (task.check), or a 「请教主会话」 message about a question on it.
 ---
 
 # AI 带学：边讲边练
@@ -35,6 +35,14 @@ whenToUse: The learner asks to be taught and tested on a topic as they go — �
 3. **等学习者自己作答**：答题、提交、揭晓答案都是学习者在卡片上做的，你不能代答（`review.answer` 不是你的动作）。
 4. **看作答再讲**：学习者说做完了、问为什么、或者发来「请教主会话」「带着错题回主会话」时，先 `study.scene.get {"sessionId"}` 看他选了什么、对不对、用没用提示，再针对他的错讲。如果是案例题 / 评分标准题（`card.grade`），评分点得分率严格过半算过检验；薄弱评分点经学习者同意可用 `case.drills` 把对应原理题推回练习。纯讲概念时不读现场。
 5. **值得留下的问答**：学习者同意（或会话开了 `autoOrganizeQA`）时，用 `study.qa.organize` 归到那道题下。
+
+## 动手任务静态检查（在主会话里检查）
+
+- 动手任务（`kind: "task"`）跨学科通用（代码实现、SQL、数学推导、实验设计、写作提纲、架构建模等），**只做静态评估，绝不运行测试**。
+- **只读指定文件**：学习者告诉你文件在哪，你就**只读学习者明确指定的文件**（还没指定时先问一句文件在哪）；**绝不扫描整个仓库，绝不评判未给出的文件**。
+- **逐条判定，最多 3 处问题**：必要时先用 `card.get` 读取完整题目与验收标准（`rubric` / `rubricCriteria`），按验收标准逐条判 **「满足 / 缺失 / 有问题（第几行）」**（`status` 取 `"satisfied"` / `"missing"` / `"issue"`，定位到具体行号时填正整数 `line`），**最多指出 3 处具体问题**。
+- **严禁代改或给完整成品**：**严禁替学习者改代码或改文件，严禁直接给出改好的完整代码、完整推导或完整成品**，只指出具体缺漏或问题所在以及修改方向。
+- **写回结果**：调用 `card.grade`（传入 `deckId`、`cardId`、`runId`、`files`、`checks: [{id, status, line?, feedback, evidence?}]` 和简短 `summary`）将逐条评估结果写回 StudyHub，再在主会话里简明反馈。
 
 ## 学习者随时可以改主意
 

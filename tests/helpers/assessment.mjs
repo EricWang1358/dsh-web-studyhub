@@ -33,7 +33,7 @@ export function qualityBlueprint(request, plan, deck) {
     scenario: { kind: 'none', facts: [], decisiveConditions: [] }, comparisonAxis: 'The supported scope of this rule',
     ...(hasOptions(request.kind) ? { options: card.options } : {}),
     ...(request.kind === 'truefalse' ? { statement: card.prompt } : {}),
-    ...(request.kind === 'open' ? { rubric: card.rubric } : {}),
+    ...((request.kind === 'open' || request.kind === 'task') ? { rubric: card.rubric, ...(Array.isArray(card.rubricCriteria) ? { rubricCriteria: card.rubricCriteria } : {}) } : {}),
     ...(request.kind === 'cloze' ? { cloze: card.cloze } : {}),
   })) };
 }
