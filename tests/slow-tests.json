@@ -5,6 +5,7 @@
     "tests/board-today-s2-browser.test.mjs",
     "tests/board-today-s3-browser.test.mjs",
     "tests/board-today-s4-browser.test.mjs",
+    "tests/board-today-s5-browser.test.mjs",
     "tests/book-entry-browser.test.mjs",
     "tests/book-send-to-chat-browser.test.mjs",
     "tests/busy-lock-browser.test.mjs",

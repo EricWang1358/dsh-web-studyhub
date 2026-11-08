@@ -208,7 +208,7 @@
   "番茄 {0} 分钟 · 休息 {1} 分钟": "Focus {0} min · Break {1} min",
   "点卡片上的「开始专注」才开始计时。": "Click \"Start focus\" on a card to start timing.",
   "休息 {0} 分钟": "Take a {0}-min break",
-  "专注时长": "Focus length",
+  "专注时长": "Focus time",
   "休息时长": "Break length",
   "分钟": "min",
   "到点声音提醒": "Play a chime when time is up",
@@ -236,5 +236,17 @@
   "已保存计时设置": "Timer settings saved",
   "已补记专注 {0} 分钟：{1}": "Logged {0} min: {1}",
   "已改为 {0} 分钟：{1}": "Updated to {0} min: {1}",
-  "已删除专注记录：{0}": "Removed focus session: {0}"
+  "已删除专注记录：{0}": "Removed focus session: {0}",
+  "专注时长说明": "About focus time",
+  "还没有专注记录。在「待办 → 今日」点击卡片上的「开始专注」后会记在这里。": "No focus sessions yet. Click \"Start focus\" on a card in To-do → Today to log your time here.",
+  "近 7 天共 {0} 分钟": "{0} min in the last 7 days",
+  "近 7 天每日专注分钟数，共 {0} 分钟": "Daily focus minutes over the last 7 days, {0} min total",
+  "今天 · {0} 分钟": "Today · {0} min",
+  "{0} · {1} 分钟": "{0} · {1} min",
+  "无专注记录": "No focus sessions",
+  "1 段专注记录": "1 focus session",
+  "{0} 段专注记录": "{0} focus sessions",
+  "专注分钟": "Focus min",
+  "段数": "Sessions",
+  "今天还没有专注记录。": "No focus sessions logged today."
 }
