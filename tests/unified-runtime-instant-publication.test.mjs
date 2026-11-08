@@ -38,6 +38,7 @@ async function library(t, { shared = true } = {}) {
   t.after(async () => { fake.gate?.release(); await service.dispose(); await resources.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   await seed(service.call.bind(service));
   const draft = await service.call('draft.import', { text: importExample('flashcard') });
+  fake.seededReviews = fake.reviews; fake.calls = 0; fake.reviews = 0; fake.peak = 0;
   return { root, service, fake, draft };
 }
 const another = f => f.service.call('card.followup.suggest', { deckId: 'd', cardId: 'q1' });
@@ -54,7 +55,7 @@ test('the review of a publication asked outside a Job takes the instant lease: a
   assert.ok(result.autoReviewed > 0);
   assert.equal(f.fake.peak, 1, 'never two instant calls at the model at once, the review included');
   const { byFeature } = await usageLedger(f.root).summary({ days: 1 });
-  assert.equal(byFeature.repair.calls, f.fake.reviews, 'every review is in the ledger once: as many as the model answered');
+  assert.equal(byFeature.repair.calls - f.fake.seededReviews, f.fake.reviews, 'every review is in the ledger once: as many as the model answered');
 });
 
 test('inside a publish Job the review is the Jobs own: it takes no instant lease', async t => {

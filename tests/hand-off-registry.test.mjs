@@ -53,6 +53,7 @@ const FIXTURES = {
   'self.start': { input: { goal: 'Java backend + AI jobs' }, fenced: [] },
   'method.edit': { input: { course: 'Biochemistry', note: 'More oral checks before lab exams', method: { version: 1, name: 'Lab track', targetDate: null, stages: [{ name: 'Read protocol', activity: 'publish', alternatives: ['explain'], level: 'loose' }] } }, fenced: ['course', 'note', 'method'] },
   'method.explain': { input: { course: 'Biochemistry', stage: 'Understand enzyme kinetics' }, fenced: ['course', 'stage'] },
+  'method.draftMaterial': { input: { course: 'Biochemistry', stage: 'Understand enzyme kinetics', stageIndex: 1, methodName: 'Lab track', note: 'Include Michaelis-Menten derivation and clinical inhibitor examples' }, fenced: ['course', 'stage', 'methodName', 'note'] },
   'course.focus': { input: { course: 'OS', files: ['studyhub-work/focus-intake/b1/01-scope.png'], notes: 'Focus on page replacement', existingTopics: ['Deadlock'], generateAfter: true }, fenced: ['course', 'files', 'notes', 'existingTopics'] },
 };
 // Inside a note on purpose in both languages: the book's own marker for text from outside the materials, in the book's language.

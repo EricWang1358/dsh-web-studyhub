@@ -6,7 +6,7 @@ import css from "./manage.css";
 import { useStudy } from "./study-context.jsx";
 import { AppContext } from "./app/app-context.js";
 import { cardMatchesReview, reviewedCardStatus } from "../lib/review-integrity.js";
-import { selfCitedCardCount } from "../lib/source-provenance.js";
+import { aiDraftedCitedCardCount, selfCitedCardCount } from "../lib/source-provenance.js";
 import { Badge, Banner, Button, CheckboxInput, Combobox, ConfirmDialog, PageHeader, Panel, SegmentedControl, useToast } from "./components/index.js";
 import { partOf, partsOf } from "../lib/deck-parts.js";
 import { partLabel, partsLine } from "./deck-parts.js";
@@ -196,6 +196,7 @@ export default function Manage({
                 {card.suspended && <Badge size="sm" tone="warning">{ui("已暂停")}</Badge>}
                 {marks && !cardMatchesReview(marks[card.id], card) && <Badge size="sm" tone="warning">{ui("未自动审阅")}</Badge>}
                 {selfCitedCardCount([card], sources) > 0 && <Badge size="sm" tone="warning">{ui("仅有导入题目引用")}</Badge>}
+                {aiDraftedCitedCardCount([card], sources) > 0 && <Badge size="sm" tone="warning">{ui("AI 撰写 · 未核对")}</Badge>}
               </div>
               <Markdown className="md-title manage-card__prompt" text={card.prompt} />
               {card.flag && <p className="muted">{ui("标记：")}{card.flag}</p>}

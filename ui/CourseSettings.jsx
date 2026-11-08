@@ -158,8 +158,8 @@ export function NewCourse({ courses = [], disabled = false, onCreate, onOpen, in
     {/* 自学目标 (#776 S2b): no material yet is no reason not to have a course — the main chat asks at most five questions, writes a 学法 to confirm, then
         helps with material and the first batch (skills/study-self). The name typed above is the goal it starts from. */}
     <div className="course-list__new-self">
-      <HandOff id="self.start" shape="quiet" input={{ goal: typed }} lead={ui('手上还没有资料？')} disabled={disabled}
-        what={ui('让主会话最多问五个问题，写出一份学法给你确认；确认之前什么都不生成、也不存')} />
+      <HandOff id="self.start" shape="quiet" label="自学目标（求职 / 考证 / 自学技能）" input={{ goal: typed }} lead="手上还没有资料？" disabled={disabled}
+        what="让主会话最多问五个问题，写出一份学法给你确认；确认之前什么都不生成、也不存" />
     </div>
     {same && <InlineMessage tone="info" action={same.id ? { label: uiFormat('打开「{0}」', [same.name]), onClick: () => openOf(same) } : undefined}>{ui('已经有这门课了。')}</InlineMessage>}
     {!same && similar.length > 0 && <InlineMessage tone="warning">

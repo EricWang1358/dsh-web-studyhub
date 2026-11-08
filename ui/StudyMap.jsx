@@ -119,7 +119,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const visibleJobs = [...shown.filter(isActiveJob), ...shown.filter((job) => !isActiveJob(job)).reverse()];
   const revealActivity = () => (activityRef.current || pageRef.current)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
   const home = buildHomePlan({ data, today: data.today || { due: 0, weak: 0, new: 0, size: 0 }, runs, runFor, activeJobs, inFocus: folders.inFocus, revealActivity, guidedSession: app.lib?.guidedSession,
-    actions: { start, resume, openDraft, addSource, importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints } });
+    actions: { start, resume, openDraft, addSource, importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onCourseSettings } });
   const drafts = data.drafts || [];
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;

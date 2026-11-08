@@ -195,7 +195,7 @@ test('English: the new course form and its question are English', () => {
 test('the new course form offers the self-study interview beside 创建 (#776 S2b), in both languages', () => {
   const zh = text(field({ initial: { open: true, name: 'Java 后端 + AI 求职' } }));
   assert.match(zh, /手上还没有资料/, 'a course with no material yet has a way in');
-  assert.match(zh, /发给主会话/, 'it is the one hand-off button');
+  assert.match(zh, /自学目标（求职 \/ 考证 \/ 自学技能）/, 'it names the self-study goal entry');
   const en = text(field({ initial: { open: true, name: 'Java backend' } }, 'en'));
   assert.match(en, /No material yet/);
   assert.doesNotMatch(en.replace(/Java backend/g, ''), han, 'the entry is translated');
