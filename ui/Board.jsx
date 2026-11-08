@@ -147,7 +147,7 @@ function ArchiveList({ board, readOnly, library, onRestore, onDelete, onBack }) 
 }
 
 export default function Board({ state, library, today: todayProp, view: viewProp, defaultView = "all", onViewChange, onOrigin, onStudyRef, studyRef, onClearStudyRef,
-  composeOnArrive = false, onComposeOpened, dailyPlan, dailyTaskIds, onBoardChanged }) {
+  composeOnArrive = false, onComposeOpened, dailyPlan, dailyTaskIds, dailyBudgetMinutes, planAnswer, onBoardChanged }) {
   useInjectCss(css, "study-board");
   const { board, error, conflict, busy, mutate, refresh, clearError } = state;
   const today = todayProp || localDate();
@@ -461,6 +461,8 @@ export default function Board({ state, library, today: todayProp, view: viewProp
           hasDone={hasDone}
           dailyPlan={dailyPlan}
           dailyTaskIds={dailyTaskIds}
+          dailyBudgetMinutes={dailyBudgetMinutes}
+          planAnswer={planAnswer}
           onToggleDone={toggleDone}
           onEdit={(card) => onAction("edit", card)}
           onAction={onAction}
