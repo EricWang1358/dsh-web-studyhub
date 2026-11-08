@@ -5,7 +5,7 @@ import { joinMeta, formatDateTime } from '../format.js';
 import { JOB_TYPES } from '../../lib/job-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import { courseMatcher } from '../PageScope.jsx';
-import { roundEndAlternative } from '../method-alternatives.js';
+import { isVerifiableMaterialSource, roundEndAlternative } from '../method-alternatives.js';
 
 /** The ids of the sample course's records (设置 › 学习画像与导览): its decks, its draft and its first material; the records themselves carry `sample` too. */
 export const sampleIdsOf = (data) => new Set([data?.sample?.deckId, data?.sample?.caseDeckId, data?.sample?.draftId, data?.sample?.sourceId].filter(Boolean));
@@ -80,7 +80,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   ].filter(Boolean);
   const later = today.more > 0 ? uiFormat('另有 {0} 题留到下一轮', [today.more]) : '';
   const withinMethodCourse = methodCourse ? courseMatcher(data, methodCourse) : () => true;
-  const courseSources = stageOneStart ? ownSources.filter((source) => !source.archived && source.role !== 'exam-point-list'
+  const courseSources = stageOneStart ? ownSources.filter((source) => isVerifiableMaterialSource(source)
     && (Array.isArray(source.courses) ? source.courses.some(withinMethodCourse) : withinMethodCourse(source.course ?? ''))) : [];
   const courseDraft = stageOneStart
     ? (data.drafts || []).filter(own).filter((draft) => !methodCourse || withinMethodCourse(draft.course ?? draft.folder ?? '')).at(-1) || (!methodCourse ? newestDraft : null)
@@ -164,8 +164,9 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
     const [course] = courses;
     return courses.size === 1 && (interview || !inFocus(course ?? '')) ? course : '';
   };
-  const baseLink = base.kind === 'path' ? uiFormat('今日学习 · {0} 题', [base.count]) : '';
-  const plan = lastOpen && lastOpen !== courseRun && lastOpen !== todayRun
+  const baseLink = base.kind === 'path' ? (stageOneStart ? base.action.label : uiFormat('今日学习 · {0} 题', [base.count])) : stageOneStart && base.action && !base.action.disabled ? base.action.label : '';
+  const resumeLastOpen = Boolean(lastOpen && lastOpen !== courseRun && lastOpen !== todayRun && !(stageOneStart && otherCourse(lastOpen)));
+  const plan = resumeLastOpen
     ? { kind: 'resume', eyebrow: ui('接着上次'), count: lastOpen.total - lastOpen.index, unit: ui('题未完成'),
       detail: uiFormat('{0} · 已做到第 {1} / {2} 题', [[otherCourse(lastOpen), lastOpen.title].filter(Boolean).join(' › '), lastOpen.index + 1, lastOpen.total]),
       action: { label: ui('接着做'), run: () => resume(lastOpen.id) },

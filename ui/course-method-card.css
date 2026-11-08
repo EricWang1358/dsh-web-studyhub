@@ -16,6 +16,7 @@
     .course-method__stage .course-method__now { margin-inline-start: var(--space-2); vertical-align: middle; }
     .course-method__missing { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-1-5); margin-top: var(--space-1-5); min-width: 0; font-size: var(--fs-sm); color: var(--text-muted); }
     .course-method__missing-sep { color: var(--text-faint); }
+    .course-method__missing-import { white-space: nowrap; }
     .course-method__also { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5) var(--space-2-5); min-width: 0; font-size: var(--fs-sm); color: var(--text-muted); }
     .course-method__also-lead { white-space: nowrap; }
     .course-method__also-item { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); min-width: 0; }

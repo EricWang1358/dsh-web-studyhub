@@ -8,12 +8,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
 import {
   AI_DRAFTED_SOURCE,
+  INDEPENDENT_SOURCE,
   JSON_CARD_SOURCE,
   aiDraftedCitedCardCount,
   isAiDraftedSource,
   normalizeSourceProvenance,
+  resolveSourceProvenance,
 } from '../lib/source-provenance.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
+import { hasCourseKnowledge } from '../lib/courses.js';
 import { libraryContracts } from '../lib/study-contracts.js';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
@@ -22,12 +25,12 @@ const ui = await loadUi(`
   export { documentNotes, default as SourcePicker } from './ui/SourcePicker.jsx';
   export { default as CitationDisclosure } from './ui/CitationDisclosure.jsx';
   export { default as Sources } from './ui/Sources.jsx';
-  export { default as Manage } from './ui/Manage.jsx';
   export {
     default as CourseMethodCard,
     stageNeedsMaterial,
     openCourseMaterialImport,
   } from './ui/CourseMethodCard.jsx';
+  export { isVerifiableMaterialSource } from './ui/method-alternatives.js';
   export { NewCourse } from './ui/CourseSettings.jsx';
   export { handOffText } from './ui/agent-prompts/index.js';
   export { deliverToChat } from './ui/hand-off/use-hand-off.js';
@@ -61,21 +64,25 @@ async function createLibrary(t) {
   return { root, service };
 }
 
-test('source-provenance: AI_DRAFTED_SOURCE validation, explicit vs legacy title inference, and cited card counting', () => {
+test('source-provenance: AI_DRAFTED_SOURCE & INDEPENDENT_SOURCE validation, explicit vs legacy title inference, and cited card counting', () => {
+  assert.equal(INDEPENDENT_SOURCE, 'independent-source');
   assert.equal(AI_DRAFTED_SOURCE, 'ai-drafted-unverified');
   assert.equal(normalizeSourceProvenance(undefined), undefined);
   assert.equal(normalizeSourceProvenance(null), undefined);
   assert.equal(normalizeSourceProvenance(''), undefined);
+  assert.equal(normalizeSourceProvenance(INDEPENDENT_SOURCE), INDEPENDENT_SOURCE);
   assert.equal(normalizeSourceProvenance(AI_DRAFTED_SOURCE), AI_DRAFTED_SOURCE);
   assert.equal(normalizeSourceProvenance(JSON_CARD_SOURCE), JSON_CARD_SOURCE);
   assert.throws(() => normalizeSourceProvenance('guessed-by-llm'), /Invalid source provenance/);
 
-  // Explicit provenance is authoritative; legacy SKILL.md titles infer only when provenance is undefined
+  // Explicit provenance is authoritative (including INDEPENDENT_SOURCE overriding legacy AI-drafted titles)
   assert.equal(isAiDraftedSource({ id: 's1', title: 'Concurrency notes', provenance: AI_DRAFTED_SOURCE }), true);
   assert.equal(isAiDraftedSource({ id: 's2', title: 'Java 并发讲义（AI 撰写 · 未核对）' }), true);
   assert.equal(isAiDraftedSource({ id: 's3', title: '民法总则提纲 AI撰写-未核对' }), true);
-  assert.equal(isAiDraftedSource({ id: 's4', title: 'AI 撰写 · 未核对（已人工核实）', provenance: 'independent-source' }), false);
+  assert.equal(isAiDraftedSource({ id: 's4', title: 'AI 撰写 · 未核对（已人工核实）', provenance: INDEPENDENT_SOURCE }), false);
   assert.equal(isAiDraftedSource({ id: 's5', title: 'Official Lecture Slides Week 3' }), false);
+  assert.equal(resolveSourceProvenance({ id: 's2', title: 'Java 并发讲义（AI 撰写 · 未核对）' }), AI_DRAFTED_SOURCE);
+  assert.equal(resolveSourceProvenance({ id: 's4', title: 'AI 撰写 · 未核对（已人工核实）', provenance: INDEPENDENT_SOURCE }), INDEPENDENT_SOURCE);
 
   const sources = [
     { id: 'ai-1', title: 'Handout', provenance: AI_DRAFTED_SOURCE },
@@ -90,7 +97,7 @@ test('source-provenance: AI_DRAFTED_SOURCE validation, explicit vs legacy title 
   assert.equal(aiDraftedCitedCardCount([cards[0]], sources), 0);
 });
 
-test('source.add and materials.document.import persist ai-drafted-unverified provenance end-to-end across queries, groups, Sources/SourcePicker, and CitationDisclosure', async t => {
+test('source.add, materials.document.import, and per-revision replacement persist and clear ai-drafted-unverified provenance cleanly without poisoning authentic revisions', async t => {
   const { root, service } = await createLibrary(t);
   await service.call('course.save', { name: 'Java 后端 + AI 求职' });
 
@@ -99,7 +106,7 @@ test('source.add and materials.document.import persist ai-drafted-unverified pro
     /Invalid source provenance/,
   );
 
-  // 1) source.add with explicit provenance + legacy title-only source
+  // 1) source.add with explicit provenance, explicit independent-source override, and legacy title-only source
   const added = await service.call('source.add', {
     title: 'JVM 内存模型讲义',
     text: '# JVM 内存区域\n\n堆与线程私有的虚拟机栈分工明确。',
@@ -108,6 +115,14 @@ test('source.add and materials.document.import persist ai-drafted-unverified pro
     provenance: AI_DRAFTED_SOURCE,
   });
   assert.equal(added.provenance, AI_DRAFTED_SOURCE);
+
+  const verifiedOverride = await service.call('source.add', {
+    title: 'AI 撰写 · 未核对：已逐字核实版',
+    text: '官方规范第 17 章明确规定先行发生关系。',
+    courses: ['Java 后端 + AI 求职'],
+    provenance: INDEPENDENT_SOURCE,
+  });
+  assert.equal(verifiedOverride.provenance, INDEPENDENT_SOURCE);
 
   const legacy = await service.call('source.add', {
     title: 'AI 撰写 · 未核对：线程池参数速查',
@@ -138,25 +153,30 @@ test('source.add and materials.document.import persist ai-drafted-unverified pro
   assert.equal(refreshed.provenance, AI_DRAFTED_SOURCE);
   assert.equal(refreshed.sources[0].provenance, AI_DRAFTED_SOURCE);
 
-  // 3) source.list (sourceSummary) + historical source lookup + materials.document.list + compact snapshot
+  // 3) source.list (flat & groupBy:document), source.coverage, and compact snapshot report provenance & inferred legacy provenance
   const listed = await service.call('source.list', { course: 'Java 后端 + AI 求职' });
   const byId = new Map(listed.sources.map(item => [item.id, item]));
   assert.equal(byId.get(added.id)?.provenance, AI_DRAFTED_SOURCE);
   assert.equal(byId.get(added.id)?.provenanceInferred, undefined);
+  assert.equal(byId.get(verifiedOverride.id)?.provenance, INDEPENDENT_SOURCE);
+  assert.equal(byId.get(verifiedOverride.id)?.provenanceInferred, undefined);
   assert.equal(byId.get(legacy.id)?.provenance, AI_DRAFTED_SOURCE);
   assert.equal(byId.get(legacy.id)?.provenanceInferred, true);
   assert.equal(byId.get(refreshed.sourceIds[0])?.provenance, AI_DRAFTED_SOURCE);
 
-  const historicalListed = await service.call('source.list', { sourceIds: [imported.sourceIds[0]] });
-  assert.equal(historicalListed.sources[0]?.provenance, AI_DRAFTED_SOURCE);
+  const groupedQuery = await service.call('source.list', { course: 'Java 后端 + AI 求职', groupBy: 'document' });
+  const legacyGroup = groupedQuery.sources.find(g => g.group.id === legacy.id);
+  assert.equal(legacyGroup?.provenance, AI_DRAFTED_SOURCE);
+  assert.equal(legacyGroup?.provenanceInferred, true);
 
-  const docList = await service.call('materials.document.list', { course: 'Java 后端 + AI 求职' });
-  for (const doc of docList.documents) {
-    assert.equal(doc.provenance, AI_DRAFTED_SOURCE, `document ${doc.title} carries provenance`);
-  }
+  const cov = await service.call('source.coverage', { course: 'Java 后端 + AI 求职' });
+  assert.equal(cov.aiDraftedReferences.sources, 3);
+  assert.equal(cov.aiDraftedReferences.unverified, true);
 
   const compact = await service.call('snapshot', { compact: true });
   assert.equal(compact.sources.find(s => s.id === added.id)?.provenance, AI_DRAFTED_SOURCE);
+  assert.equal(compact.sources.find(s => s.id === legacy.id)?.provenance, AI_DRAFTED_SOURCE);
+  assert.equal(compact.sources.find(s => s.id === legacy.id)?.provenanceInferred, true);
   assert.equal(compact.sources.find(s => s.id === refreshed.sourceIds[0])?.provenance, AI_DRAFTED_SOURCE);
 
   // 4) groupSourcesByDocument + documentNotes (lights up both Sources.jsx and SourcePicker.jsx)
@@ -177,14 +197,38 @@ test('source.add and materials.document.import persist ai-drafted-unverified pro
   }), { data: full }));
   assert.match(sourcesPageZh, /AI 撰写 · 未核对/, 'Sources.jsx displays AI 撰写 · 未核对 badge on the document row');
 
+  // 5) Replacing an AI-drafted document via materials.document.attach WITHOUT provenance clears AI-drafted on the new revision
+  //    (even when existing.title still contains "AI 撰写 · 未核对") while preserving AI-drafted on historical revision sources!
+  const authenticPath = join(workDir, 'juc-official-notes.md');
+  await writeFile(authenticPath, '# Java 并发包权威讲义\n\nDoug Lea 设计的 AQS 通过 CLH 变体队列管理同步状态。\n', 'utf8');
+  const attached = await service.call('materials.document.attach', {
+    documentId: imported.documentId,
+    path: authenticPath,
+  });
+  assert.equal(attached.document.provenance, undefined, 'authentic replacement revision clears document-level AI-drafted provenance');
+  assert.equal(isAiDraftedSource(attached.document.sources[0]), false, 'new revision source is independent even before renaming title');
+
+  const afterAttachList = await service.call('source.list', { course: 'Java 后端 + AI 求职' });
+  const afterById = new Map(afterAttachList.sources.map(item => [item.id, item]));
+  assert.equal(afterById.get(attached.sourceIds[0])?.provenance, INDEPENDENT_SOURCE);
+
+  // Historical revisions retain their exact AI-drafted provenance for older citations
+  const historicalDoc = await service.call('materials.document.get', { id: imported.documentId, revision: refreshed.revision });
+  assert.equal(historicalDoc.provenance, AI_DRAFTED_SOURCE);
+  const byHistoricalSource = await service.call('materials.document.get', { sourceId: refreshed.sourceIds[0] });
+  assert.equal(byHistoricalSource.provenance, AI_DRAFTED_SOURCE);
+  const historicalSourceSummary = await service.call('source.list', { sourceIds: [refreshed.sourceIds[0]] });
+  assert.equal(historicalSourceSummary.sources[0]?.provenance, AI_DRAFTED_SOURCE);
+  assert.equal(historicalSourceSummary.sources[0]?.historical, true);
+
+  // 6) CitationDisclosure renders provenance badge (.citations__provenance) + warning Hint in both zh-CN and English
   ui.setUiLanguage('en');
-  assert.ok(ui.documentNotes(importedDocItem).includes('AI-drafted · unverified'));
   const asciiSources = [{ id: 'en-ai-1', title: 'Stage 1 Handout', text: 'ConcurrentHashMap synchronization.', courses: ['Systems'], provenance: AI_DRAFTED_SOURCE }];
+  assert.ok(ui.documentNotes(importedDocItem).includes('AI-drafted · unverified'));
   const pickerEn = renderToStaticMarkup(h(ui.SourcePicker, { sources: asciiSources, selected: [], onChange: () => {} }));
   assert.match(pickerEn, /AI-drafted · unverified/);
   assert.doesNotMatch(pickerEn, han);
 
-  // 5) CitationDisclosure renders provenance badge (.citations__provenance) + warning Hint in both zh-CN and English
   const card = {
     id: 'card-1',
     citations: [{ sourceId: 'en-ai-1', quote: 'ConcurrentHashMap synchronization.' }],
@@ -216,7 +260,7 @@ test('source.add and materials.document.import persist ai-drafted-unverified pro
   assert.doesNotMatch(independentMarkup, /AI 撰写 · 未核对|citations__provenance/);
 });
 
-test('CourseMethodCard shows 还没有资料 · 导入，或请主会话起草 only on custom-method stages lacking material, scopes 导入 to course, and carries learner notes in method.draftMaterial', async () => {
+test('CourseMethodCard shows 还没有资料 · 导入，或请主会话起草 only on custom-method stages lacking material, rejects historical sources, scopes 导入 to course, and carries learner notes in method.draftMaterial', async () => {
   ui.setUiLanguage('zh');
   const emptyData = {
     root: '/lib/self-study',
@@ -249,24 +293,29 @@ test('CourseMethodCard shows 还没有资料 · 导入，或请主会话起草 o
   }), { data: emptyData }));
   assert.doesNotMatch(defaultHtml, /还没有资料|请主会话起草/);
 
-  // 2) Custom-method course with no materials displays 还没有资料 · 导入，或请主会话起草 on its active stage
+  // 2) Custom-method course with no materials (or only historical/archived sources) prompts on its active stage
   const customCourse = emptyData.courses[1];
+  assert.equal(ui.isVerifiableMaterialSource({ id: 'hist-1', title: 'Old rev', text: 'Old text', historical: true }), false);
   assert.equal(ui.stageNeedsMaterial(emptyData, customCourse, customCourse.method.stages[0], { own: true, index: 0, current: 0 }), true);
+  assert.equal(ui.stageNeedsMaterial({ ...emptyData, sources: [{ id: 'hist-1', title: 'Old', text: 'Old', historical: true, courses: ['民法总则考证'] }] }, customCourse, customCourse.method.stages[0], { own: true, index: 0, current: 0 }), true);
   assert.equal(ui.stageNeedsMaterial(emptyData, customCourse, customCourse.method.stages[1], { own: true, index: 1, current: 0 }), false);
 
-  // Explicit stage.sourceIds checks per-stage verifiable sources (ignoring archived/sample/empty)
+  // Explicit stage.sourceIds checks per-stage verifiable sources (ignoring archived/historical/sample/empty)
   const stageWithIds = { name: '案例研习', activity: 'practice', alternatives: [], level: 'medium', sourceIds: ['src-missing'] };
   assert.equal(ui.stageNeedsMaterial({ ...emptyData, sources: [{ id: 'src-other', title: '总则讲义', text: '法条', courses: ['民法总则考证'] }] }, customCourse, stageWithIds, { own: true, index: 1, current: 0 }), true);
   assert.equal(ui.stageNeedsMaterial({ ...emptyData, sources: [{ id: 'src-missing', title: '已归档', text: '请求权', archived: true, courses: ['民法总则考证'] }] }, customCourse, stageWithIds, { own: true, index: 1, current: 0 }), true);
+  assert.equal(ui.stageNeedsMaterial({ ...emptyData, sources: [{ id: 'src-missing', title: '历史版本', text: '请求权', historical: true, courses: ['民法总则考证'] }] }, customCourse, stageWithIds, { own: true, index: 1, current: 0 }), true);
   assert.equal(ui.stageNeedsMaterial({ ...emptyData, sources: [{ id: 'src-missing', title: '案例讲义', text: '请求权', courses: ['民法总则考证'] }] }, customCourse, stageWithIds, { own: true, index: 1, current: 0 }), false);
 
-  // 3) CourseMethodCard markup renders the missing-material row and method.draftMaterial hand-off button
+  // 3) CourseMethodCard markup renders the missing-material row (with .course-method__missing-import keeping comma flush) and method.draftMaterial hand-off
   const customHtml = renderToStaticMarkup(inApp(ui, h(ui.CourseMethodCard, {
     course: customCourse,
     readout: { index: 0, total: 2, own: true },
     data: emptyData,
     initialNote: '多结合法律行为效力与善意取得的对比案例',
   }), { data: emptyData, host: { capabilities: { chat: true } } }));
+  assert.match(customHtml, /course-method__missing-import/);
+  assert.match(customHtml, />导入<\/button>，或<\/span>/);
   assert.match(plainText(customHtml), /还没有资料 · 导入 ，或 请主会话起草/);
   assert.match(customHtml, /data-hand-off="method\.draftMaterial"/);
   assert.match(customHtml, /多结合法律行为效力与善意取得的对比案例/);
@@ -350,7 +399,8 @@ test('CourseMethodCard shows 还没有资料 · 导入，或请主会话起草 o
     readout: { index: 0, total: 1, own: true },
     data: enData,
   }), { data: enData }));
-  assert.match(plainText(enHtml), /No sources yet · Import or Ask main chat to draft/);
+  assert.match(enHtml, />Import<\/button>, or<\/span>/);
+  assert.match(plainText(enHtml), /No sources yet · Import , or Ask main chat to draft/);
   assert.doesNotMatch(plainText(enHtml), han);
   ui.setUiLanguage('zh');
 });
@@ -367,26 +417,49 @@ test('NewCourse entry, self.start prompt, SKILL.md, and libraryContracts stay al
   assert.match(plainText(enNew), /Self-study goal \(career \/ exams \/ skills\)/);
   assert.doesNotMatch(plainText(enNew), han);
 
-  // self.start carries open-ended goal and instructs ai-drafted-unverified provenance
+  // self.start carries open-ended goal, focus.set instruction, and ai-drafted-unverified provenance
   const selfZh = ui.handOffText('self.start', { goal: 'Java 后端 + AI 求职' }, 'zh');
   assert.match(selfZh, /Java 后端 \+ AI 求职/);
+  assert.match(selfZh, /focus\.set/);
   assert.match(selfZh, /ai-drafted-unverified/);
   assert.match(selfZh, /AI 撰写 · 未核对/);
 
   const skill = await readFile('skills/study-self/SKILL.md', 'utf8');
   assert.match(skill, /自学目标（求职 \/ 考证 \/ 自学技能）/);
+  assert.match(skill, /focus\.set \{"mode": "class", "course": "<课程名>"\}/);
   assert.match(skill, /document\.import/);
   assert.match(skill, /ai-drafted-unverified/);
   assert.match(skill, /还没有资料 · 导入，或请主会话起草/);
   assert.match(skill, /开始第 ① 阶段/);
 
-  assert.match(libraryContracts.sources, /source\.add \{[^}]*provenance\?:'ai-drafted-unverified'/);
-  assert.match(libraryContracts.imports, /document\.import \{[^}]*provenance\?:'ai-drafted-unverified'/);
+  assert.match(libraryContracts.sources, /source\.add \{[^}]*provenance\?:'ai-drafted-unverified'\|'independent-source'/);
+  assert.match(libraryContracts.imports, /document\.import \{[^}]*provenance\?:'ai-drafted-unverified'\|'independent-source'/);
   ui.setUiLanguage('zh');
 });
 
-test('Home main card surfaces 开始第 ① 阶段 for a new custom-method course on Stage 1 while leaving plain courses untouched', () => {
+test('StudyService course.save { name, method } + focus.set works in an empty library AND in an existing library with another course open run', async t => {
   ui.setUiLanguage('zh');
+  const { service } = await createLibrary(t);
+  const method = {
+    name: '四阶段求职推进',
+    targetDate: '2027-03-15',
+    stages: [
+      { name: '把 Java 集合和并发过一遍', activity: 'publish', alternatives: ['explain'], level: 'loose' },
+      { name: 'JVM 与高并发实战练习', activity: 'practice', alternatives: ['review'], level: 'medium' },
+    ],
+  };
+
+  // 1) Empty library (no model / learner-imports-later): course with method is a real library course immediately
+  const saved = await service.call('course.save', { name: 'Java 后端 + AI 求职', method });
+  assert.equal(hasCourseKnowledge(saved.course ?? saved), true);
+  await service.call('focus.set', { mode: 'class', course: 'Java 后端 + AI 求职' });
+
+  const emptySnap = await service.call('snapshot', {});
+  assert.equal(emptySnap.focus.course, 'Java 后端 + AI 求职');
+  assert.equal(emptySnap.focus.method?.own, true);
+  assert.equal(emptySnap.focus.method?.index, 0);
+  assert.equal(ui.firstRunLine(emptySnap).show, false, 'empty library with a saved custom-method course renders Home desk instead of generic first-run line');
+
   const actionsUsed = [];
   const makeActions = () => ({
     start: args => actionsUsed.push(['start', args]),
@@ -398,7 +471,21 @@ test('Home main card surfaces 开始第 ① 阶段 for a new custom-method cours
     onCourseSettings: id => actionsUsed.push(['onCourseSettings', id]),
   });
 
-  // 1) Plain course without custom method.own stays 100% unchanged
+  const emptyMethodHome = ui.buildHomePlan({
+    data: emptySnap,
+    today: emptySnap.today,
+    runs: [],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === 'Java 后端 + AI 求职',
+    actions: makeActions(),
+  });
+  assert.equal(emptyMethodHome.plan.eyebrow, '第 ① 阶段');
+  assert.equal(emptyMethodHome.plan.action.label, '开始第 ① 阶段');
+  emptyMethodHome.plan.action.run();
+  assert.deepEqual(actionsUsed.at(-1), ['onCourseSettings', emptySnap.focus.courseId]);
+
+  // 2) Plain course without custom method.own stays 100% unchanged
   const plainData = {
     root: '/lib/plain',
     focus: { mode: 'class', course: '数据结构', courseId: 'c-plain', method: { course: '数据结构', own: false, index: 0, total: 3, counts: { answered: 0 } } },
@@ -421,9 +508,11 @@ test('Home main card surfaces 开始第 ① 阶段 for a new custom-method cours
   assert.equal(plainHome.todayAction.label, '开始今日学习');
   assert.equal(ui.firstRunLine({ ...plainData, decks: [] }).show, true);
 
-  // 2) Custom-method course on Stage 1 before publishing any deck: firstRunLine yields to Home desk + draft opens via 开始第 ① 阶段
-  const draftStage1Data = {
-    root: '/lib/self',
+  // 3) Existing library with another course's open run (`lastOpen`): Stage 1 custom-method course keeps 开始第 ① 阶段 on main card
+  //    while keeping the other course's open run reachable in `otherRuns`!
+  const crossCourseRun = { id: 'run-ds-1', deckId: 'd-ds', title: '红黑树练习', total: 10, index: 3 };
+  const multiCourseData = {
+    root: '/lib/multi',
     focus: {
       mode: 'class',
       course: 'Java 后端 + AI 求职',
@@ -437,31 +526,52 @@ test('Home main card surfaces 开始第 ① 阶段 for a new custom-method cours
         counts: { materials: 1, cards: 0, answered: 0, right: 0 },
       },
     },
-    courses: [{ id: 'c-java', name: 'Java 后端 + AI 求职' }],
-    decks: [],
+    lastRun: { id: 'run-ds-1' },
+    courses: [{ id: 'c-ds', name: '数据结构' }, { id: 'c-java', name: 'Java 后端 + AI 求职' }],
+    decks: [{ id: 'd-ds', title: '红黑树练习', course: '数据结构', count: 10 }],
     sources: [{ id: 's-java', title: '并发讲义', text: 'ConcurrentHashMap', courses: ['Java 后端 + AI 求职'], provenance: AI_DRAFTED_SOURCE }],
     drafts: [{ id: 'draft-java-1', title: '第 1 阶段草稿', course: 'Java 后端 + AI 求职', cards: [{ id: 'c1' }, { id: 'c2' }] }],
     jobs: [],
   };
-  assert.equal(ui.firstRunLine(draftStage1Data).show, false, 'custom-method course shows Home desk instead of generic empty-library onboarding');
-  const draftHome = ui.buildHomePlan({
-    data: draftStage1Data,
+  const crossHome = ui.buildHomePlan({
+    data: multiCourseData,
     today: { course: 'Java 后端 + AI 求职', due: 0, weak: 0, new: 0, size: 0, scope: [] },
-    runs: [],
+    runs: [crossCourseRun],
     runFor: () => null,
     activeJobs: [],
     inFocus: c => c === 'Java 后端 + AI 求职',
     actions: makeActions(),
   });
-  assert.equal(draftHome.plan.eyebrow, '第 ① 阶段');
-  assert.equal(draftHome.plan.action.label, '开始第 ① 阶段');
-  assert.equal(draftHome.plan.count, 2);
-  draftHome.plan.action.run();
+  assert.equal(crossHome.plan.eyebrow, '第 ① 阶段', 'other course lastOpen does not hijack new Stage 1 course main card');
+  assert.equal(crossHome.plan.action.label, '开始第 ① 阶段');
+  assert.equal(crossHome.otherRuns.length, 1);
+  assert.equal(crossHome.otherRuns[0].id, 'run-ds-1');
+  crossHome.plan.action.run();
   assert.deepEqual(actionsUsed.at(-1), ['openDraft', 'draft-java-1']);
 
-  // 3) Custom-method course on Stage 1 with published questions ready (today.size > 0): TodayCard renders 开始第 ① 阶段 in zh & en
+  // If `lastOpen` belongs to the SAME Stage 1 course, 接着上次 resumes it AND preserves 开始第 ① 阶段 in alternatives
+  const sameCourseRun = { id: 'run-java-custom', deckId: 'd-java-1', title: '并发预热', total: 8, index: 2 };
+  const sameRunHome = ui.buildHomePlan({
+    data: {
+      ...multiCourseData,
+      lastRun: { id: 'run-java-custom' },
+      decks: [{ id: 'd-java-1', title: '并发预热', course: 'Java 后端 + AI 求职', count: 8 }],
+      drafts: [],
+    },
+    today: { course: 'Java 后端 + AI 求职', due: 0, weak: 0, new: 8, size: 8, scope: [{ deckId: 'd-java-1', cardId: 'q1' }] },
+    runs: [sameCourseRun],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === 'Java 后端 + AI 求职',
+    actions: makeActions(),
+  });
+  assert.equal(sameRunHome.plan.eyebrow, '接着上次');
+  assert.ok(sameRunHome.alternatives.some(([label]) => label === '开始第 ① 阶段'), 'preserves 开始第 ① 阶段 link when resuming same-course run');
+
+  // 4) Custom-method course on Stage 1 with published questions ready (today.size > 0): TodayCard renders 开始第 ① 阶段 in zh & en
   const publishedStage1Data = {
-    ...draftStage1Data,
+    ...multiCourseData,
+    lastRun: null,
     decks: [{ id: 'd-java-1', title: 'Java 并发第一批', course: 'Java 后端 + AI 求职', count: 8 }],
     drafts: [],
   };
@@ -497,7 +607,7 @@ test('Home main card surfaces 开始第 ① 阶段 for a new custom-method cours
   assert.doesNotMatch(readyHomeEn.plan.action.label, han);
   ui.setUiLanguage('zh');
 
-  // 4) Once the learner has answered at least 1 question, standard 今日学习 label resumes
+  // 5) Once the learner has answered at least 1 question, standard 今日学习 label resumes
   const startedData = {
     ...publishedStage1Data,
     focus: {

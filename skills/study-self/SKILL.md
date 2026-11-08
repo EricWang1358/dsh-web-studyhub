@@ -38,6 +38,7 @@ whenToUse: The learner wants a course built from a goal rather than from materia
 然后**一句话念给他听**（第一阶段做什么、一共几个阶段、目标日期），问一句「照这个学法开始，还是先改哪一段？」。他说改就改，说可以才存：
 
 `course.save {"name": "<课程名>", "method": {…整份学法…}}`
+`focus.set {"mode": "class", "course": "<课程名>"}`
 
 课程名用他的说法（「Java 后端 + AI 求职」），不要自己起名字。限度：1–12 个阶段，名称不超过 40 字，`targetDate` 可不填；不合格时 `course.save` 会退回一句原因，照着改了再存。**整份发出**，不要只发一个阶段。
 

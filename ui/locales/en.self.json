@@ -3,7 +3,7 @@
   "帮我建一门自学课：先问我最多五个选项，再写出学法给我确认。": "Build me a self-study course: ask me at most five options first, then write a method for me to confirm.",
   "目标：{0}（我在这门课的「新建课程」里写的；课程名就用这个说法，除非我改了）。": "Goal: {0} (what I typed under New course; use it as the course name unless I change it).",
   "做法：按 skill 里说的顺序一次问我一个问题，用 ask_user_question 给选项，最多五个；答过的不要再问。": "How: follow the skill's order, one question at a time with ask_user_question, at most five; never re-ask what I answered.",
-  "保存：确认之前不生成任何东西，也不存任何东西；我确认之后才用 course.save 的 method 存学法，再导入资料、出第一批题。": "Saving: nothing is generated or stored before I confirm; only then save the method with course.save, import the material and start the first batch.",
+  "保存：确认之前不生成任何东西，也不存任何东西；我确认之后才用 course.save 的 method 存学法，并用 focus.set 切到这门课，再导入资料、出第一批题。": "Saving: nothing is generated or stored before I confirm; only then save the method with course.save, switch focus to this course with focus.set, import the material and start the first batch.",
   "说明：一条能核对的资料都没有的阶段不要出题；由你起草的讲义经 study_materials 的 document.import（或 source.add）导入时要传 provenance 为 \"ai-drafted-unverified\"，如实标明「AI 撰写 · 未核对」。": "Note: never write questions for a stage with no checkable material; import any handout you draft via study_materials document.import (or source.add) with provenance \"ai-drafted-unverified\" so it is labelled as AI-drafted and unverified.",
   "帮我一起调整课程 {0} 的学法：按这门课的学科特点、我的习惯和想法，定制适合我的阶段。": "Help me tailor the study method for course {0}: shape stages that fit this subject, my habits and how I want to learn.",
   "帮我一起调整这门课的学法：按学科特点、我的习惯和想法，定制适合我的阶段。": "Help me tailor this course's study method: shape stages that fit the subject, my habits and how I want to learn.",

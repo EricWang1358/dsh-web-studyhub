@@ -210,11 +210,10 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
           {missingMaterial && <div className="course-method__missing">
             <span>{ui('还没有资料')}</span>
             <span className="course-method__missing-sep" aria-hidden="true">·</span>
-            <Button variant="link" size="sm" lock={disabled}
+            <span className="course-method__missing-import"><Button variant="link" size="sm" lock={disabled}
               onClick={() => openCourseMaterialImport({ data: resolvedData, course, navigate, appSet: app?.set, onClose })}>
               {ui('导入')}
-            </Button>
-            <span>{ui('，或')}</span>
+            </Button>{ui('，或')}</span>
             <HandOff id="method.draftMaterial" shape="link" label="请主会话起草"
               what="让主会话按这一阶段的目标起草一份 Markdown 讲义并导入（标为「AI 撰写 · 未核对」）"
               input={{ course: course.name, stage: stage.name, stageIndex: index + 1, methodName: shown.name, note: note.trim() }}

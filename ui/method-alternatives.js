@@ -81,8 +81,8 @@ export function courseCounts(data, course) {
   const hasSources = Array.isArray(data?.sources), hasDecks = Array.isArray(data?.decks);
   const within = name ? courseMatcher(data, name) : () => true;
   const materials = hasSources
-    ? data.sources.filter(source => source && !source.archived && !source.sample && source.role !== 'exam-point-list'
-      && (source.text !== undefined ? String(source.text).trim().length > 0 : (source.length ?? 1) > 0)
+    ? data.sources.filter(source => isVerifiableMaterialSource(source)
+
       && (Array.isArray(source.courses) ? source.courses.some(within) : within(source.course ?? ''))).length
     : (record?.sourcesTotal ?? record?.sources ?? 0);
   let cards = 0, answered = 0, right = 0;
@@ -308,7 +308,7 @@ export function openAlternative(item, { data, course, stage, guidedSession, navi
 }
 
 export function isVerifiableMaterialSource(source) {
-  if (!source || source.archived || source.sample || String(source.id || '').startsWith('sample-') || isLibraryListSource(source)) return false;
+  if (!source || source.archived || source.historical || source.sample || String(source.id || '').startsWith('sample-') || isLibraryListSource(source)) return false;
   if (typeof source.text === 'string') return source.text.trim().length > 0;
   return Number(source.chars ?? source.length ?? 1) > 0;
 }
