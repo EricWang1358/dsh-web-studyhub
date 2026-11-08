@@ -259,10 +259,7 @@
       background: color-mix(in srgb, var(--text) 3%, transparent);
       transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
     }
-    .board-today__lane.is-over {
-      border-color: color-mix(in srgb, var(--accent-soft) 55%, var(--line));
-      background: color-mix(in srgb, var(--accent-soft) 6%, transparent);
-    }
+    .board-today__lane.is-over { border-color: var(--line-strong); background: var(--bg-selected); }
     .board-today__lane-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-2); min-height: 28px; }
     .board-today__lane-title { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: 1.3; color: var(--text); }
     .board-today__lane-meta { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
