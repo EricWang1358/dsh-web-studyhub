@@ -4,6 +4,7 @@ import { TERMS } from '../mastery-terms.js';
 import { joinMeta, formatDateTime } from '../format.js';
 import { JOB_TYPES } from '../../lib/job-status.js';
 import { practiceArgs } from '../learning-navigation.js';
+import { roundEndAlternative } from '../method-alternatives.js';
 
 /** The ids of the sample course's records (设置 › 学习画像与导览): its decks, its draft and its first material; the records themselves carry `sample` too. */
 export const sampleIdsOf = (data) => new Set([data?.sample?.deckId, data?.sample?.caseDeckId, data?.sample?.draftId, data?.sample?.sourceId].filter(Boolean));
@@ -33,7 +34,7 @@ export const dailyPathArgs = (today) => practiceArgs(undefined, { fresh: false, 
  * detail, action: { label, run, disabled }, also: [[label, run] | { handOff: { id, input, lead, what } }], depth }. A handOff entry is drawn by the shared
  * 「发给主会话」 unit (ui/hand-off/), never as a link of its own.
  */
-export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, actions, revealActivity }) {
+export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, actions, revealActivity, guidedSession }) {
   const { start, resume, openDraft, addSource, importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints } = actions;
   const todayRun = runFor(today.scope ?? []);
   /* No decks yet: the card walks a newcomer from materials to a first deck
@@ -138,6 +139,8 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   ];
   // Cards visible behind the top one: the stack is as thick as the day.
   plan.depth = plan.kind === 'empty' ? 0 : Math.min(2, Math.max(0, (plan.count || 0) - 1));
+  const methodCourse = !interview ? (today.course ?? data.focus?.course ?? '') : '';
+  plan.methodAlt = !starter && !shownRun && Boolean(today.ahead) && methodCourse ? roundEndAlternative(data, methodCourse, { guidedSession }) : null;
   /* Today's own round (due, weak, then new), whatever else the card above resumes: the 下一步 card's facts are about these questions, so its button starts this. */
   const todayAction = { label: todayRun ? ui('继续学习') : ui('开始今日学习'), run: startPath, disabled: !today.size };
   return { interview, route, starter, headline, plan, todayAction, alternatives, shownRun, otherRuns: runs.filter((r) => r !== shownRun), otherCourse, todayLabel };
