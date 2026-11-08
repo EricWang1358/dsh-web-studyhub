@@ -57,6 +57,8 @@ import { ContextReturn, IngestBanner, StorageIssuesBanner } from './app/AppBanne
 import { DisabledPage, PageView, StartPage } from './app/page-views.jsx';
 import { useInitialLanding } from './app/use-initial-landing.js';
 import { refuseLeavingPress } from './app/leave-guard.js';
+import { keepBook } from './book/model.js';
+import { writeText } from './storage.js';
 import { installInterFace } from './fonts/inter-face.js';
 
 export { LibraryChip, libraryFolderName } from './app/AppTopbar.jsx';
@@ -147,6 +149,19 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                         dailyTaskIds={dailyPlan.state?.tasks?.map((task) => task.id)}
                         dailyBudgetMinutes={dailyPlan.state?.budgetMinutes}
                         onBoardChanged={() => dailyPlan.refresh?.()}
+                        onOpenPlan={data && (pageAvailable(data, 'book') || pageAvailable(data, 'outline')) ? async (courseName) => {
+                          const targetCourse = courseName ?? data.focus?.course ?? null;
+                          const switched = targetCourse !== null && targetCourse !== (data.focus?.course ?? null);
+                          if (switched && !await core.act('focus.set', { course: targetCourse })) return;
+                          const hasBook = targetCourse !== null && Array.isArray(data.bookCourses) && data.bookCourses.includes(targetCourse);
+                          if (hasBook && pageAvailable(data, 'book')) {
+                            writeText(`study-book-plan:${data.root}:${targetCourse}`, 'open');
+                            keepBook(data.root, targetCourse, { switched });
+                            nav.navigate('book');
+                            return;
+                          }
+                          if (pageAvailable(data, 'outline')) nav.navigate('outline');
+                        } : undefined}
                         dailyPlan={data && pageAvailable(data, 'review') ? <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan}
                           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} /> : null}
                         onClearStudyRef={() => set.setBoardStudyRef(null)} onStudyRef={learn.openBoardReference} />
