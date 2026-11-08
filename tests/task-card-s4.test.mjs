@@ -470,6 +470,8 @@ test('self-report fallback (写完了（自报）) records 自报，未验收 ho
   assert.equal(reported.feedback.assessment, 'self-report');
   assert.equal(reported.feedback.selfReported, true);
   assert.equal(reported.feedback.unverified, true);
+  assert.equal(reported.correct, 0, 'self-report does not increment verified correct counter');
+  assert.equal(reported.navigation?.[0]?.passed, false, 'self-report is not shown as verified pass dot in round rail');
   assert.ok(reported.feedback.nextDue, 'FSRS-6 nextDue scheduled');
 
   // NextDue word is honest in both zh and en, never "答对了" / "Right".
@@ -748,6 +750,9 @@ test('re-checking an active task run after fixing issues updates checks, keeps U
   });
   assert.equal(secondGrade.taskCheck.counts.satisfied, 2, 'updated checks on same file are applied, never silently dropped');
   assert.equal(secondGrade.taskCheck.counts.missing, 1);
+  const afterSecondRun = await service.call('review.get', { runId: run.id });
+  assert.equal(afterSecondRun.correct, 0, 'partial 4/6 static check with missing criterion does not increment correct');
+  assert.equal(afterSecondRun.navigation?.[0]?.passed, false, 'partial 4/6 static check shows as not-yet-passed in rail');
 
   const stateAfterSecond = await service.store.read();
   const cardAfterSecond = stateAfterSecond.decks.find((d) => d.id === 'd-tasks').cards.find((c) => c.id === 'task-recheck');
@@ -779,6 +784,8 @@ test('re-checking an active task run after fixing issues updates checks, keeps U
   const afterThirdRun = await enService.call('review.get', { runId: run.id });
   assert.equal(afterThirdRun.revealed, true, 'all-satisfied static check reveals reference solution for comparison');
   assert.equal(afterThirdRun.feedback.taskCheck.counts.satisfied, 3);
+  assert.equal(afterThirdRun.correct, 1);
+  assert.equal(afterThirdRun.navigation?.[0]?.passed, true);
 
   const finalState = await enService.store.read();
   const finalCard = finalState.decks.find((d) => d.id === 'd-tasks').cards.find((c) => c.id === 'task-recheck');

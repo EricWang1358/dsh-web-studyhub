@@ -54,7 +54,8 @@ test("rubric criteria: ids are unique and non-empty, labels and descriptors are 
   const badPoints = criteria(); badPoints[0].keyPoints = ["fine", ""];
   assert.ok(rubricCriteriaIssues(card({ rubricCriteria: badPoints })).some((issue) => /criterion c1 key points must be non-empty text/.test(issue)));
   assert.ok(rubricCriteriaIssues(card({ rubricCriteria: [] })).some((issue) => /at least one criterion/.test(issue)));
-  assert.ok(rubricCriteriaIssues(card({ kind: "quiz" })).some((issue) => /only open questions/.test(issue)));
+  assert.ok(rubricCriteriaIssues(card({ kind: "quiz" })).some((issue) => /only open or task questions/.test(issue)));
+  assert.deepEqual(rubricCriteriaIssues(card({ kind: "task" })), []);
   assert.ok(rubricCriteriaIssues(card({ marks: undefined })).some((issue) => /question marks/.test(issue)));
 });
 
