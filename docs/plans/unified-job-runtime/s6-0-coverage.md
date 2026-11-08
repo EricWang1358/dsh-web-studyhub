@@ -118,7 +118,7 @@
 |---|---|---|---|
 | `lib/contexts/coach/worker.js:63`（`coachTask`）、`:109`（`queuePrep`）、`:129`（`flushPrep`） | 备题批次的库内队列与延时合并；改题 `rewrite` 也经 `coachTask` | 队列仍走；批次本体是 Job | 保留例外：领域队列；进程内批次本体（`coach` 关闭时）S6-2 删除 |
 | `lib/contexts/notes/daily.js:95`、`:10`（`liveGenerations`） | 每日总结的待办记录（替换/追赶语义）；进程内执行（`dailyRecap` 关闭时） | 待办记录仍走；执行是 Job | 领域结构保留；进程内执行 S6-2 删除 |
-| `lib/workflow-skeleton.js:139-140`、`lib/workflow-teaching.js:185-186` | 骨架/讲解的单飞表；进程内执行（`workflow` 关闭时） | 单飞表仍走；执行是 Job | 领域结构保留；进程内执行 S6-2 删除 |
+| `lib/workflow-skeleton.js:139-140` (`lib/workflow-teaching.js` start retired in #779) | 骨架/讲解的单飞表；进程内执行（`workflow` 关闭时） | 单飞表仍走；执行是 Job | 领域结构保留；进程内执行 S6-2 删除 |
 | `lib/assist.js`（`tasks` 表与进程内请求，见 §4） | 助教请求列表；进程内执行 | 列表仍走；执行是 Job | 列表保留；进程内执行 S6-2 删除 |
 | `lib/contexts/notes/operations.js:66`（`note.generate`）、`lib/contexts/notes/note-generation.js` | 后台起草一篇博客笔记。已更新（S4-10）：本体是 Job `note-generate`（`noteGenerate`）；`pending` 记录（保存/删除/卸载靠它停止）仍在；进程内执行在开关关闭时由同一个本体承担 | pending 仍走；进程内执行不走 | pending：保留例外（领域结构）；进程内执行：S6-2 删除 |
 

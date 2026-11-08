@@ -102,13 +102,13 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 
 清单：[`s1-7-legacy-exceptions.json`](s1-7-legacy-exceptions.json)；守卫 `unified-runtime-architecture.test.mjs`、`unified-runtime-boundaries.test.mjs`、`instant-model-guard.test.mjs` 对它们做**精确**匹配：新增一处调用、一处启动点或一处模型获取，必须先在清单里有一行（含负责人、理由、移除时点），否则测试变红。清单里 **22 个**定义是 `managed`（运行时的 Job 定义，由守卫逐个审计"不得绕过网关/不得自建任务表"；第 19 个是课程总纲的整理任务 `course-outline-build`，第 20 个是复习全书的生成任务 `course-book-build`，都在 2026-10-09 加入；第 21 个是复习全书的弄懂 / 加一段 `course-book-ai`，第 22 个是分析题答案卡 `case-answer-card`，都在 2026-10-11 加入。3.6 起本机 MinerU 的旧准备任务 `mineru-setup` 删除，Marker 与 MinerU 的一键安装共用一个定义 `install-job.js`，所以比之前少一个）；其余全部在下面。
 
-**数量**：模型形状的调用点 37 行、后台启动点 39 行（合计 100 个已审查的位置）、边界例外 13 行、模型获取例外 3 行。位置的处置：
+**数量**：模型形状的调用点 37 行、后台启动点 38 行（合计 98 个已审查的位置）、边界例外 13 行、模型获取例外 3 行。位置的处置：
 
 | 处置 | 数量 | 含义 |
 |---|---|---|
 | `migrate`（开关全开后仍在运行时之外，须由某一步迁移） | **0** | 没有。每一个迁移位置都已迁移，没有"以后再迁"的静默旁路 |
-| `delete-s6-2`（旧路径，开关全开后不可达） | 21 | 24 个开关默认关闭，所以这些旧路径**就是今天的默认路径**，关闭开关即回退。只有在默认值翻转之后才能删；清单里它们的移除时点都写 `after default flip`（守卫强制）。S6-2 已经删掉了那时就无使用者的部分 |
-| `exception`（有意保留，写明类别和理由） | 79 | 见下表的类别与理由；没有"待定"类 |
+| `delete-s6-2`（旧路径，开关全开后不可达） | 20 | 24 个开关默认关闭，所以这些旧路径**就是今天的默认路径**，关闭开关即回退。只有在默认值翻转之后才能删；清单里它们的移除时点都写 `after default flip`（守卫强制）。S6-2 已经删掉了那时就无使用者的部分 |
+| `exception`（有意保留，写明类别和理由） | 78 | 见下表的类别与理由；没有"待定"类 |
 
 **不是干净清零的几处，以及所有者对它们的决定（2026-10-07）：**
 
@@ -158,7 +158,7 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `lib/translation.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The translation pipeline takes its model as an argument (the reader asks it directly; the translate card is a Job when translation is on) | retained; S6-2 (original callers) |
 | `lib/workflow-teaching.js` | existing domain maintainer | 旧路径（开关关时的默认）（删除待默认值翻转） | The in-process teaching call (the Job runs it behind the gateway when workflow is on) | after default flip |
 
-### 4.2 后台启动点（39 行）
+### 4.2 后台启动点（38 行）
 
 | 文件 | 负责人 | 类别 | 理由 | 移除时点 |
 |---|---|---|---|---|
@@ -200,7 +200,6 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `lib/runtime/tasks.js` | runtime/domain maintainer | 公开 API | extension tasks (kind extension): a published public API of the plugin; no model gateway | exception |
 | `lib/tool-install.js` | non-model family (lane D) | 领域自己的结构（缓存/队列/单飞）；服务商叶子实现；旧路径（开关关时的默认）（删除待默认值翻转） | the one install slot per tool state file (Marker, MinerU), shared by the original installer and the Job (claim/begin) | after default flip |
 | `lib/workflow-skeleton.js` | workflow family (lane C) | 领域自己的结构（缓存/队列/单飞）；旧路径（开关关时的默认）（删除待默认值翻转） | the single-flight table of skeleton generation (the run is a Job when workflow is on) | after default flip |
-| `lib/workflow-teaching.js` | workflow family (lane C) | 领域自己的结构（缓存/队列/单飞）；旧路径（开关关时的默认）（删除待默认值翻转） | the single-flight table of teachings (the run is a Job when workflow is on) | after default flip |
 
 ### 4.3 边界例外（13 行，S6-3）
 
@@ -242,7 +241,7 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 8. **即时请求没有 Job**：capture、卡片批改、追问、导入、口语考试等一次一答的请求不建任务、不出卡片；它们的排队等待计数只在内存里，随进程重置（[S6-5a](s6-5a-instant.md)）。
 9. **云端与本地 PDF 转换共用一个闸门**（D-11，同库一次一个，与 2.7.1 相同）；拆开是单独的策略开关，没做。
 10. **外部副作用的已知限制**：MinerU 云端只能按批次号查询（V-1：创建回复丢失又没存批次号时只能拒绝）；Windows `taskkill` 的真实退出时机未在真机验证（V-4）；设置只能在设置页改（D-10/V-8，#291 的产品决定）；安装与配置不持久化，重启后不主动找旧进程，只显示"已中断/空闲"（[S5-7 §8](s5-7-acceptance.md)）。
-11. **旧默认路径还在**：见 §4，21 个位置等默认值翻转；翻转前"所有开关关"就是回退，也是 2.7.1 的行为。
+11. **旧默认路径还在**：见 §4，20 个位置等默认值翻转；翻转前"所有开关关"就是回退，也是 2.7.1 的行为。
 
 ### 5.2 为历史保留的 reader
 
