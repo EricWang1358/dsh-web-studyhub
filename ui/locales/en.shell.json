@@ -1,5 +1,5 @@
 {
-  "画像只影响陪学：答错后的提示、追问、改题、强化变式题和每轮复盘的措辞与侧重；不影响出题和复习排期。": "The profile only shapes the coach: the wording and focus of hints after a wrong answer, follow-ups, question fixes, practice variations and the end-of-round debrief. It does not change question generation or review scheduling.",
+  "画像与学习偏好会随数据围栏发给陪学、讲解与划词追问以及发给主会话的消息，调整讲解措辞与侧重；不进出题提示词，也不改间隔复习排期。": "The profile and study preferences travel inside data fences to the coach, explanation and passage follow-ups, and messages sent to the main chat to shape explanations and focus. They never enter question-generation prompts or change spaced-repetition scheduling.",
   "提示语气与例子会贴近这个目标。": "The coach’s tone and examples follow this goal.",
   "画像": "Profile",
   "上次更新 {0}": "Updated {0}",

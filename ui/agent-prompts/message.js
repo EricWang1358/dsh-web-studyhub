@@ -1,5 +1,5 @@
 import { getUiLanguage } from '../i18n.js';
-import { languageTail, say } from './say.js';
+import { fenceData, languageTail, say } from './say.js';
 
 /* The one layout of every 「发给主会话」 message (output/preview-3.6/handoff-design/prompts.md, "共同模板"). A message has three parts:
      ① the learner's own sentence (what they want, and of what: names in nameData spans; no tool names, ids, payloads or JSON), and right under it, when
@@ -89,4 +89,48 @@ export function messageParts(text, language = getUiLanguage()) {
   const notes = tailed ? rest.slice(0, -2) : rest, tail = tailed ? rest.at(-1) : '';
   const fenced = top.match(/^([\s\S]*?)\n(`{3,})request [^\n]*\n([\s\S]*?)\n\2$/);
   return fenced ? { ask: fenced[1].trim(), request: fenced[3], notes, tail } : { ask: top, request: '', notes, tail };
+}
+
+const LEARNER_FENCE_LABEL = '学习者档案';
+
+/**
+ * Append a labelled data fence of `learner` (from snapshot.learner) to a hand-off message when non-empty.
+ * Returns `text` byte-for-byte unchanged when `learner` is empty or the fence is already present.
+ */
+export function withLearnerFence(text, learner, language = getUiLanguage()) {
+  const all = String(text ?? '');
+  if (!all.trim() || !learner) return all;
+  if (typeof learner === 'object' && !Object.keys(learner).length) return all;
+  const body = typeof learner === 'string' ? learner.trim() : JSON.stringify(learner);
+  if (!body) return all;
+  const labels = [say('zh', LEARNER_FENCE_LABEL), say('en', LEARNER_FENCE_LABEL)];
+  if (labels.some(label => new RegExp(`(?:\`{3,})data ${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`).test(all))) return all;
+  const headLang = [language, 'zh', 'en'].find(lang => all.includes(`\n${notesHead(lang)}\n`));
+  if (!headLang) return `${all.trimEnd()}\n\n${fenceData(LEARNER_FENCE_LABEL, body, language)}`;
+  const at = all.indexOf(`\n${notesHead(headLang)}\n`);
+  const top = all.slice(0, at);
+  const rest = all.slice(at + 1).trimEnd().split('\n');
+  const tails = Object.values(MESSAGE_TAILS).flatMap(line => [say('zh', line), say('en', line)]);
+  const tailed = rest.length > 2 && rest.at(-2) === '' && tails.includes(rest.at(-1));
+  const notes = tailed ? rest.slice(0, -2) : [...rest];
+  const tailLines = tailed ? ['', rest.at(-1)] : [];
+  const fence = dataFence(LEARNER_FENCE_LABEL, body, headLang);
+  const dataRule = say(headLang, FENCE_DATA);
+  const requestRule = say(headLang, FENCE_REQUEST);
+  const reqOnlyBullet = `- ${say(headLang, FENCES, [requestRule])}`;
+  const fullBullet = `- ${say(headLang, FENCES, [partsOf(headLang, [dataRule, requestRule])])}`;
+  const dataOnlyBullet = `- ${say(headLang, FENCES, [dataRule])}`;
+  if (!notes.some(line => line.includes(dataRule))) {
+    const reqIdx = notes.indexOf(reqOnlyBullet);
+    if (reqIdx >= 0) notes[reqIdx] = fullBullet;
+    else {
+      let lastBullet = 0;
+      for (let i = 1; i < notes.length; i++) if (notes[i].startsWith('- ')) lastBullet = i; else break;
+      notes.splice(lastBullet + 1, 0, dataOnlyBullet);
+    }
+  }
+  const langLines = [languageTail(headLang), languageTail('zh'), languageTail('en')];
+  if (langLines.includes(notes.at(-1))) notes.splice(notes.length - 1, 0, fence);
+  else notes.push(fence);
+  return `${top}\n${[...notes, ...tailLines].join('\n')}`;
 }

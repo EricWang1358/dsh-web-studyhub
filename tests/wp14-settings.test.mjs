@@ -111,7 +111,7 @@ const coach = (props = {}, language) => render(h(CoachSection, { profile, busy: 
 
 test('陪学 says exactly where the profile is used', () => {
   const html = coach();
-  assert.match(html, /画像只影响陪学：答错后的提示、追问、改题、强化变式题和每轮复盘的措辞与侧重；不影响出题和复习排期。/);
+  assert.match(html, /画像与学习偏好会随数据围栏发给陪学、讲解与划词追问以及发给主会话的消息，调整讲解措辞与侧重；不进出题提示词，也不改间隔复习排期。/);
   assert.match(html, /提示语气与例子会贴近这个目标/);
 });
 

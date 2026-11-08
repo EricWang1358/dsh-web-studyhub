@@ -40,6 +40,7 @@
 - 当前方向：课堂或面试模式、课程和目标岗位；
 - 资料数、活动题组数、归档题组数、草稿数，以及活动题组里的题目数；
 - 第一页课程名；
+- 当已有学习目标、偏好、练习记录、课程重点或考试安排时，附上实时派生的学习者档案（`learner`）；全新学习库省略这一项；
 - 契约分区列表。
 
 需要某类操作的具体参数时，读取对应分区，例如 `library.context {area:"sources"}`、`{area:"generation"}` 或 `{area:"cards"}`。分区有 `dailyPlan`、`plan`、`custom`、`sources`、`imports`、`decks`、`classroom`、`generation`、`cards`、`learning`、`panel`、`guided`、`book`、`organization`、`notes`、`board`、`workflows`、`cases` 和 `skeletons`。

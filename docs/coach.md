@@ -22,7 +22,8 @@ Open **Settings › Study profile and tour** and find the **Study coach** sectio
 
 - **Prepare variations and application questions in the background while I practise**: your consent for [personalised questions](#get-personalised-questions). It stays off until you turn it on or say yes on a result page.
 - **Learning objective**: Exam preparation, Interview preparation, Apply at work, Explore or Not set. The coach's tone and examples follow this goal.
-- **Profile**: a short summary the coach writes after a round, plus your feedback counts. It shapes the wording and focus of coach hints, question fixes, personalised questions and round summaries. It does not change question generation or review scheduling.
+- **Study preferences**: free-form explanation and practice preferences you write or confirm (up to 12 items of 120 characters each). In the main chat, the assistant saves a long-term preference only when you explicitly ask or confirm, never silently.
+- **Profile**: a short summary the coach writes after a round, plus your feedback counts. Together with your study preferences and live-computed course facts (weak topics, focus-topic progress, exam countdown and explicit formula notation), it travels inside data fences to the coach, explanation and passage follow-ups, and messages sent to the main chat (and in `library.context`), shaping explanations and focus. It never enters question-generation prompts or changes spaced-repetition scheduling.
 - **Clear profile**: see [Data and privacy](#data-and-privacy).
 
 ## Report a problem with a question
@@ -161,14 +162,14 @@ Coach data is stored in your library, not in the browser.
 
 | Record | File | Contents | Limit |
 | --- | --- | --- | --- |
-| `learner` | `study-workspace.json` (the library manifest) | Consent, goal, profile summary, feedback counts | Summary up to 400 characters |
+| `learner` | `study-workspace.json` (the library manifest) | Consent, goal, study preferences, profile summary, feedback counts | Preferences up to 12 items (120 characters each); summary up to 400 characters |
 | `coach` | `shards/misc/` | Coach notes, such as fix notices | Latest 400 entries |
 | `feedback` | `shards/misc/` | Your ratings and tags | Latest 400 records |
 | `prepared` | `shards/misc/` | Personalised questions | 12 waiting; the latest 100 used ones are kept |
 
 The Settings › Practice choices (autopilot, round size, the round review) are saved in the library settings too (`settings.practice`), not in the browser.
 
-**Clear profile** in Settings deletes the goal, the profile summary, the feedback counts and any unused personalised questions. It also resets your preparation consent, so the next result page asks again. It keeps your practice records, review progress and feedback records. Follow-up Q&A, suggested follow-ups and EN translations saved on questions are not part of the profile and stay too.
+**Clear profile** in Settings deletes the goal, the study preferences, the profile summary, the feedback counts and any unused personalised questions. It also resets your preparation consent, so the next result page asks again. It keeps your practice records, review progress and feedback records. Follow-up Q&A, suggested follow-ups and EN translations saved on questions are not part of the profile and stay too. Weak topics, focus-topic progress and exam days left are computed fresh from your attempts and course settings each time and are never stored on `learner`; a brand-new library omits the block altogether.
 
 ## Model use and tokens
 
@@ -181,7 +182,7 @@ The Settings › Practice choices (autopilot, round size, the round review) are 
 
 ## For developers
 
-- Server actions: `coach.nudge`, `coach.reply`, `coach.feedback`, `coach.consent`, `coach.goal`, `coach.debrief`, `coach.practice`, `coach.revert`, `coach.status`, `coach.profile`, `coach.forget`, `coach.prepare`, `coach.variants` and `coach.rewrite.retry`.
+- Server actions: `coach.nudge`, `coach.reply`, `coach.feedback`, `coach.consent`, `coach.goal`, `coach.preferences`, `coach.debrief`, `coach.practice`, `coach.revert`, `coach.status`, `coach.profile`, `coach.forget`, `coach.prepare`, `coach.variants` and `coach.rewrite.retry`.
 - `coach.feedback { vote, tags, rewriteVia }`: a panel that opens its own fix-the-question box (修题) for the rewrite tags sends `rewriteVia: "assist"`. The silent coach rewrite is then not started (one visible path to the background assistant), and the result carries `fix`, the rewrite tags the panel should offer as fixes; `scheduled` has no `rewrite`. A client without the flag keeps the background rewrite and gets no `fix`.
 - Since 1.0.0 the practice page has no coach column. `coach.nudge` (a hint after an objective miss or a self-rating below 3; not in mock exams) and `coach.reply` (got it, still unclear, or an answer to the hint's check; at most 2 extra explanations per hint) remain on the server, but the panel does not call them. Concurrent identical requests share one call.
 - `coach.consent {prep: true, runId}` from a result page also queues that round's application questions.

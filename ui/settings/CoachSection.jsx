@@ -64,7 +64,7 @@ export function CoachSection({ profile, setProfile, confirmForget = false }) {
   return (
     <SettingsSection className="coach-settings" tour="settings-profile" title={ui('陪学')}
       lead={ui('陪学记住的学习目标和画像只保存在这个学习库文件里，用来让变式题和建议更贴近你。模型调用使用最低思考档位。')}>
-      <Hint>{ui('画像只影响陪学：答错后的提示、追问、改题、强化变式题和每轮复盘的措辞与侧重；不影响出题和复习排期。')}</Hint>
+      <Hint>{ui('画像与学习偏好会随数据围栏发给陪学、讲解与划词追问以及发给主会话的消息，调整讲解措辞与侧重；不进出题提示词，也不改间隔复习排期。')}</Hint>
       <Checkbox label={ui('做题时在后台准备变式题和应用场景题')} checked={profile.consent === true} disabled={busy} onChange={setConsent} />
       <Field label={ui('学习目标')} hint={ui('提示语气与例子会贴近这个目标。')}>
         <Select value={profile.goal} disabled={busy} onChange={setGoal} options={GOALS.map(([id, label]) => ({ value: id, label: ui(label) }))} />

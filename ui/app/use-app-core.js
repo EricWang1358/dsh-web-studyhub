@@ -5,6 +5,7 @@ import { createActRunner } from '../act-runner.js';
 import { useQuickActionsController } from '../quick-actions.js';
 import { createToastApi } from '../components/Feedback.jsx';
 import { deliverToChat } from '../hand-off/use-hand-off.js';
+import { withLearnerFence } from '../agent-prompts/message.js';
 
 /* What every other app hook leans on: the refs that fence late answers (library epoch, navigation request), the host call that
    honours them, the single-flight act(), the quick-action controller and the feedback slots. One place, so a hook never has
@@ -38,7 +39,7 @@ export function useAppCore(transportCall, host) {
      (ui/hand-off/HandOffSheet.jsx) is `handOffSheet`, drawn by App; closeHandOffSheet() forgets it. */
   const [handOffSheet, setHandOffSheet] = useState(null);
   const closeHandOffSheet = useCallback(() => setHandOffSheet(null), []);
-  const askInChat = useCallback((prompt, { said = '', picture } = {}) => deliverToChat({ host: hostRef.current, prompt, said, picture, notify, openSheet: setHandOffSheet }), [notify]);
+  const askInChat = useCallback((prompt, { said = '', picture } = {}) => deliverToChat({ host: hostRef.current, prompt: withLearnerFence(prompt, dataRef.current?.learner, getUiLanguage()), said, picture, notify, openSheet: setHandOffSheet }), [notify]);
   // One stable bag: hooks list it as a dependency and it must never change identity.
   const refs = useMemo(() => ({ epoch, navigation, requestSequence, notebookRequest, dataRef, snapshotKey, leaveTimer, examLocation, bindingRoot, actRunner, refreshRef, noticeRef }), []);
   return { refs,
