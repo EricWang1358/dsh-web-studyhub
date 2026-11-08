@@ -145,6 +145,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                         onOrigin={host.openWorkspaceNotebook} studyRef={lib.boardStudyRef}
                         composeOnArrive={lib.boardCompose} onComposeOpened={() => set.setBoardCompose(false)}
                         dailyTaskIds={dailyPlan.state?.tasks?.map((task) => task.id)}
+                        dailyBudgetMinutes={dailyPlan.state?.budgetMinutes}
                         onBoardChanged={() => dailyPlan.refresh?.()}
                         dailyPlan={data && pageAvailable(data, 'review') ? <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan}
                           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} /> : null}

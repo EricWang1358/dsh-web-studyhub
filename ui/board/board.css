@@ -247,6 +247,35 @@
     .board-today__plan { margin: 0; font-size: var(--fs-sm); color: var(--text-dim); line-height: 1.5; overflow-wrap: anywhere; }
     .board-today__quick { display: flex; align-items: center; gap: var(--space-2); flex: 1 1 15rem; max-width: 24rem; min-width: 0; }
     .board-today__quick-input { flex: 1; min-width: 0; padding: var(--space-1-5) var(--space-2-5); font-size: var(--fs-sm); line-height: 1.5; }
+    .board-today__focus-strip {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+      gap: var(--space-2-5) var(--space-4); padding: var(--space-2-5) var(--space-3);
+      border: 1px solid var(--line-soft); border-radius: var(--radius);
+      background: color-mix(in srgb, var(--text) 2.5%, transparent);
+    }
+    .board-today__focus-main { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); flex: 1 1 18rem; min-width: 0; }
+    .board-today__focus-title {
+      display: inline-flex; align-items: center; gap: var(--space-1);
+      color: var(--text-dim); font-size: var(--fs-xs); font-weight: var(--fw-strong); white-space: nowrap;
+    }
+    .board-today__focus-help {
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--text-muted); border-radius: var(--radius-xs); cursor: help;
+    }
+    .board-today__focus-help:focus-visible, .board-today__focus-chip:focus-visible, .board-today__focus-budget-label:focus-visible {
+      outline: 2px solid var(--accent-soft); outline-offset: 2px;
+    }
+    .board-today__focus-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); min-width: 0; }
+    .board-chip.board-today__focus-chip { max-width: 100%; cursor: default; }
+    .board-chip.board-today__focus-chip[data-focus-chip="plan"] { --hue: var(--info); }
+    .board-chip.board-today__focus-chip[data-focus-chip="weak"] { --hue: var(--warn); }
+    .board-chip.board-today__focus-chip[data-focus-chip="due"] { --hue: var(--text-dim); }
+    .board-today__focus-chip-text { min-width: 0; max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .board-today__focus-budget { display: flex; flex-direction: column; gap: var(--space-1); flex: 0 1 13.5rem; min-width: 10.5rem; }
+    .board-today__focus-budget-label {
+      display: inline-block; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium);
+      font-variant-numeric: tabular-nums; white-space: nowrap; border-radius: var(--radius-xs); cursor: default;
+    }
     .board-today__list {
       min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); border-radius: var(--radius);
       transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
@@ -306,6 +335,8 @@
       .board-filter.is-open .board-filter__bar { display: flex; }
       .board-search { max-width: none; flex-basis: 100%; }
       .board-today__quick { max-width: none; flex-basis: 100%; }
+      .board-today__focus-budget { flex: 1 1 100%; }
+      .board-today__focus-chip-text { max-width: 15rem; }
       .board-today__lanes { grid-template-columns: minmax(0, 1fr); }
       .board-today__pick-title { max-width: 14rem; }
       .board-tab { padding-inline: var(--space-3); }

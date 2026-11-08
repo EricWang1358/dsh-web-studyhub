@@ -21,7 +21,7 @@ export function formatTodayHeading(today) {
   ]);
 }
 
-function activePlanCourse(library) {
+export function activePlanCourse(library) {
   const active = (library?.courses || []).filter(
     (course) => course && course.active !== false && course.plan && (course.plan.status ?? 'active') === 'active',
   );

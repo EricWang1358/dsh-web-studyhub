@@ -2,12 +2,14 @@ import React, { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { joinMeta } from '../format.js';
 import { Button } from '../components/index.js';
-import { TODAY_LANES, cardTodaySource, isMeaningfulTitle, locateCard, selectTodayBoard } from '../../lib/board-model.js';
+import { TODAY_LANES, cardTodaySource, isMeaningfulTitle, locateCard, selectTodayBoard, todayBudgetMinutes } from '../../lib/board-model.js';
 import BoardCard from './Card.jsx';
+import TodayFocusStrip from './TodayFocusStrip.jsx';
 import { formatTodayHeading, todayPlanLine } from './today-header.js';
 
 export default function TodayView({
   board, today, library, readOnly = false, hasDone = true, dailyPlan = null, dailyTaskIds,
+  dailyBudgetMinutes, planAnswer, focusedMinutes = null,
   onToggleDone, onEdit, onAction, onTodayAction, onMoveToday, onQuickAdd, onScheduleToday, onOrigin, onStudyRef,
 }) {
   const [quickTitle, setQuickTitle] = useState('');
@@ -24,8 +26,12 @@ export default function TodayView({
   const backlogRef = useRef(null);
 
   const { open, done, unscheduled, lanes } = useMemo(
-    () => selectTodayBoard(board, { today, dailyTaskIds }),
-    [board, today, dailyTaskIds],
+    () => selectTodayBoard(board, { today, dailyTaskIds, budgetMinutes: dailyBudgetMinutes }),
+    [board, today, dailyTaskIds, dailyBudgetMinutes],
+  );
+  const resolvedBudgetMinutes = useMemo(
+    () => todayBudgetMinutes(board, today, dailyBudgetMinutes),
+    [board, today, dailyBudgetMinutes],
   );
   const columns = useMemo(
     () => board.columns.map((entry) => ({ id: entry.id, title: entry.title, done: entry.done })),
@@ -202,6 +208,14 @@ export default function TodayView({
           </Button>
         </form>
       </header>
+
+      <TodayFocusStrip
+        library={library}
+        today={today}
+        budgetMinutes={resolvedBudgetMinutes}
+        planAnswer={planAnswer}
+        focusedMinutes={focusedMinutes}
+      />
 
       {dailyPlan && <div className="board-today__daily">{dailyPlan}</div>}
 
