@@ -3,7 +3,7 @@ import { Button } from '../components/Button.jsx';
 import { Badge } from '../components/Badge.jsx';
 import { TextInput } from '../components/Field.jsx';
 import Icon from '../components/Icon.jsx';
-import { getUiLanguage, ui, uiFormat } from '../i18n.js';
+import { ui, uiFormat } from '../i18n.js';
 import { LoadingState } from '../components/Loading.jsx';
 import { joinMeta } from '../format.js';
 import { exactTok } from '../token-usage.js';
@@ -19,7 +19,7 @@ const STATUS_LABELS = {
 
 function localizedDisplayLine(progress) {
   if (!progress?.displayLine) return '';
-  if (getUiLanguage() !== 'en') return progress.displayLine;
+
   if (!Number.isFinite(progress.totalCount)) return ui(progress.displayLine);
   if (progress.totalCount === 0) return ui('未设定检验项');
   const pct = Math.round((progress.independentRatio || 0) * 100);
@@ -29,7 +29,7 @@ function localizedDisplayLine(progress) {
   if (progress.selfReportedCount > 0) parts.push(uiFormat('{0} 项自报', [progress.selfReportedCount]));
   if (progress.needsReviewCount > 0) parts.push(uiFormat('{0} 项需复核', [progress.needsReviewCount]));
   if (progress.pendingCount > 0) parts.push(uiFormat('{0} 项待检验', [progress.pendingCount]));
-  return parts.length ? `${head}; ${parts.join(', ')}` : head;
+  return parts.length ? uiFormat('{0}；{1}', [head, parts.join(ui('，'))]) : head;
 }
 
 /* The line under the progress: the range, how firm it is, or that there is nothing to say yet. The words are the ones lib/study-time-estimate.js writes. */

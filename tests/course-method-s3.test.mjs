@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { build as esbuild } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
@@ -12,6 +14,8 @@ import {
   advanceMethodStage,
   checkedMethod,
   clampMethodStageIndices,
+  remapMethodOnStageMove,
+  remapMethodOnStageRemove,
   stageScope,
 } from '../lib/course-method.js';
 import {
@@ -29,6 +33,7 @@ import { latestOutcomes } from '../lib/mastery.js';
 import { computeSessionProgress } from '../lib/study-progress.js';
 import { libraryContracts } from '../lib/study-contracts.js';
 import { loadUi } from './helpers/ui-module.mjs';
+import { nativeSelects } from './helpers/native-selects.mjs';
 import { inApp } from './helpers/fake-app.mjs';
 import { reviewElement } from './helpers/review-render.mjs';
 
@@ -39,6 +44,7 @@ const ui = await loadUi(`
     default as CourseMethodCard,
     stageNeedsMaterial,
     checkLine,
+    MethodForm,
   } from './ui/CourseMethodCard.jsx';
   export { buildHomePlan } from './ui/study-map/home-plan.js';
   export { default as TodayCard } from './ui/study-map/TodayCard.jsx';
@@ -1226,4 +1232,698 @@ test('10. End-to-end Java + AI job-prep walkthrough and zero-Han English UI veri
   }, 1, { currentIndex: 0, stageSatisfied: () => false });
   assert.equal(advanced.stageIndex, 1);
   assert.deepEqual(advanced.skippedStages, [0]);
+});
+
+
+const nodeRequire = createRequire(import.meta.url);
+
+async function createStatefulMethodHarness() {
+  const compiled = await esbuild({
+    stdin: {
+      contents: `
+        export { default as CourseMethodCard, MethodForm } from './ui/CourseMethodCard.jsx';
+        export { AppContext } from './ui/app/app-context.js';
+        export { StudyServicesContext } from './ui/study-context.jsx';
+        export { setUiLanguage } from './ui/i18n.js';
+      `,
+      resolveDir: process.cwd(),
+    },
+    bundle: true,
+    write: false,
+    platform: 'node',
+    format: 'cjs',
+    external: [
+      'react', 'react-dom', 'react/*', 'react-dom/*',
+      '@codemirror/*', '@lezer/*', '@base-ui/*',
+      'markdown-it', 'markdown-it-texmath', 'dompurify',
+      'katex', 'katex/*', 'parse5', 'pdf-lib', 'yaml', 'schemastery', 'proper-lockfile',
+    ],
+    plugins: [nativeSelects],
+    loader: { '.css': 'text' },
+    logLevel: 'silent',
+  });
+  let active = null;
+  let activeCtx = { study: null, app: null };
+  let studyCtxRef = null;
+  let appCtxRef = null;
+  const readSlot = init => {
+    const idx = active.cursor++;
+    if (!(idx in active.slots)) active.slots[idx] = init();
+    return [idx, active.slots[idx]];
+  };
+  const hooks = {
+    ...React,
+    useState(initial) {
+      if (!active) return React.useState(initial);
+      const owner = active;
+      const [idx, val] = readSlot(() => (typeof initial === 'function' ? initial() : initial));
+      return [val, next => { owner.slots[idx] = typeof next === 'function' ? next(owner.slots[idx]) : next; }];
+    },
+    useRef(initial) {
+      if (!active) return React.useRef(initial);
+      return readSlot(() => ({ current: initial }))[1];
+    },
+    useId() {
+      if (!active) return React.useId();
+      return readSlot(() => `m-id-${active.cursor}`)[1];
+    },
+    useCallback(fn, deps) {
+      return active ? fn : React.useCallback(fn, deps);
+    },
+    useMemo(fn, deps) {
+      return active ? fn() : React.useMemo(fn, deps);
+    },
+    useInsertionEffect() {},
+    useContext(ctx) {
+      if (!active) return React.useContext(ctx);
+      if (ctx === studyCtxRef) return activeCtx.study;
+      if (ctx === appCtxRef) return activeCtx.app;
+      return React.useContext(ctx);
+    },
+    useEffect(cb, deps) {
+      if (!active) { React.useEffect(cb, deps); return; }
+      const [, slot] = readSlot(() => ({ deps: undefined, cleanup: null }));
+      const changed = !slot.deps || !deps || deps.length !== slot.deps.length || deps.some((v, i) => !Object.is(v, slot.deps[i]));
+      if (changed) {
+        active.effects.push(() => {
+          slot.cleanup?.();
+          slot.cleanup = cb() || null;
+        });
+        slot.deps = deps;
+      }
+    },
+  };
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(
+    id => (id === 'react' ? hooks : nodeRequire(id)),
+    mod,
+    mod.exports,
+  );
+  const components = mod.exports;
+  studyCtxRef = components.StudyServicesContext;
+  appCtxRef = components.AppContext;
+
+  const mapExpanded = (node, formOwner, ctxPair) => {
+    if (!node || typeof node !== 'object') return node;
+    if (node.type === components.MethodForm) {
+      formOwner.cursor = 0;
+      active = formOwner;
+      activeCtx = ctxPair;
+      try {
+        return components.MethodForm(node.props);
+      } finally {
+        active = null;
+      }
+    }
+    if (!node.props?.children) return node;
+    const kids = React.Children.toArray(node.props.children);
+    let mutated = false;
+    const mapped = kids.map(child => {
+      const next = mapExpanded(child, formOwner, ctxPair);
+      if (next !== child) mutated = true;
+      return next;
+    });
+    return mutated ? React.cloneElement(node, node.props, ...mapped) : node;
+  };
+
+  function findNode(tree, predicate) {
+    if (!tree || typeof tree !== 'object') return null;
+    if (predicate(tree)) return tree;
+    for (const child of React.Children.toArray(tree.props?.children)) {
+      const found = findNode(child, predicate);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function mount({ course, readout = null, data = null, call, act, busy = false }) {
+    let props = { course, readout, data };
+    let studyCall = call || (async () => ({}));
+    let studyAct = act || (async () => undefined);
+    const rootOwner = { cursor: 0, slots: [], effects: [] };
+    const formOwner = { cursor: 0, slots: [], effects: [] };
+
+    const makeCtx = () => {
+      const wrapped = inApp(components, h('div'), { data: props.data, call: studyCall, act: studyAct, busy });
+      return {
+        study: wrapped.props.value,
+        app: wrapped.props.children.props.value,
+      };
+    };
+
+    const renderTree = (patch = {}) => {
+      if ('call' in patch) { studyCall = patch.call; delete patch.call; }
+      if ('act' in patch) { studyAct = patch.act; delete patch.act; }
+      props = { ...props, ...patch };
+      const ctxPair = makeCtx();
+      rootOwner.cursor = 0;
+      active = rootOwner;
+      activeCtx = ctxPair;
+      let raw;
+      try {
+        raw = components.CourseMethodCard(props);
+      } finally {
+        active = null;
+      }
+      return mapExpanded(raw, formOwner, ctxPair);
+    };
+
+    return {
+      render: renderTree,
+      async flushEffects() {
+        for (const owner of [rootOwner, formOwner]) {
+          owner.effects.splice(0).forEach(fn => fn());
+        }
+        await new Promise(resolve => setImmediate(resolve));
+        await new Promise(resolve => setImmediate(resolve));
+      },
+      html(patch = {}) {
+        const tree = renderTree(patch);
+        return renderToStaticMarkup(inApp(components, tree, { data: props.data, call: studyCall, act: studyAct, busy }));
+      },
+      findButton(labelOrMatcher) {
+        const tree = renderTree();
+        return findNode(tree, node => {
+          if (typeof node.props?.onClick !== 'function') return false;
+          const textCandidate = typeof node.props.children === 'string'
+            ? node.props.children
+            : (typeof node.props.label === 'string' ? node.props.label : '');
+          return typeof labelOrMatcher === 'function' ? labelOrMatcher(textCandidate, node) : textCandidate === labelOrMatcher;
+        });
+      },
+      unmount() {
+        for (const owner of [rootOwner, formOwner]) {
+          owner.slots.forEach(slot => slot?.cleanup?.());
+        }
+      },
+    };
+  }
+
+  return { components, mount, findNode };
+}
+
+test('11. Non-focused course in CourseSettings uses authoritative course.method.get instead of stripped compact snapshot and preserves verified stages on jump (Blocking #1 + Minor #6)', async t => {
+  const { service } = await createLibrary(t);
+  const FOCUSED = 'Focused Systems';
+  const OTHER = 'Non-Focused Compilers';
+
+  await service.call('course.save', { name: FOCUSED });
+  const savedOther = await service.call('course.save', {
+    name: OTHER,
+    exam: { date: '2026-12-30' },
+    plan: {
+      version: 1,
+      status: 'active',
+      by: 'exam',
+      phases: [
+        { name: 'Lexing & Parsing', until: '2000-01-01' },
+        { name: 'SSA & Register Alloc', until: '2026-12-10' },
+        { name: 'Codegen Review', until: '2026-12-28' },
+      ],
+    },
+    method: {
+      name: '编译器三步走',
+      stages: [
+        { name: '词法与语法', activity: 'explain', level: 'medium', scope: { deckIds: ['d-nf-1'] } },
+        { name: 'SSA 优化', activity: 'practice', level: 'medium', scope: { deckIds: ['d-nf-2'] } },
+        { name: '冲刺复盘', activity: 'review', level: 'medium', scope: { deckIds: ['d-nf-3'] } },
+      ],
+    },
+  });
+
+  await service.call('source.add', {
+    id: 'src-nf-1',
+    title: 'Dragon Book Notes',
+    text: 'LL(1) parsers construct predictive parsing tables from FIRST and FOLLOW sets. '.repeat(5),
+    courses: [OTHER],
+  });
+
+  const nowMs = Date.now();
+  await service.store.update(state => {
+    state.decks.push(
+      { id: 'd-focus-1', title: 'Focus Set', course: FOCUSED, cards: [makeChoiceCard('fc-0', 'Focus')] },
+      { id: 'd-nf-1', title: 'Parsing Set', course: OTHER, cards: Array.from({ length: 5 }, (_, i) => makeChoiceCard(`nf1-${i}`, 'Parsing')) },
+      { id: 'd-nf-2', title: 'SSA Set', course: OTHER, cards: Array.from({ length: 5 }, (_, i) => makeChoiceCard(`nf2-${i}`, 'SSA')) },
+      { id: 'd-nf-3', title: 'Codegen Set', course: OTHER, cards: Array.from({ length: 5 }, (_, i) => makeChoiceCard(`nf3-${i}`, 'Codegen')) },
+    );
+    // Stage 0 has 4/5 verified right (80% -> ready & stageCheckSatisfied === true!)
+    for (let i = 0; i < 4; i++) {
+      state.attempts.push({ id: `nf-att-${i}`, deckId: 'd-nf-1', quiz_id: `nf1-${i}`, grade: 4, assessment: 'graded', timestamp: nowMs });
+    }
+    state.focus = { mode: 'class', course: FOCUSED, role: '', jd: '', targetTopics: [] };
+  });
+
+  // Compact snapshot strips deck.cards and source.text, and focus.method belongs to FOCUSED (so readout is null for OTHER)
+  const compact = await service.call('snapshot', { compact: true });
+  assert.equal(compact.focus.course, FOCUSED);
+  const strippedDeck = compact.decks.find(d => d.id === 'd-nf-1');
+  assert.equal(strippedDeck.cards, undefined, 'compact snapshot strips deck.cards');
+  assert.equal(compact.sources.find(s => s.id === 'src-nf-1').text, undefined, 'compact snapshot strips source.text');
+  const compactOtherCourse = compact.courses.find(c => c.name === OTHER);
+
+  const methodCalls = [];
+  const actCalls = [];
+  const harness = await createStatefulMethodHarness();
+  harness.components.setUiLanguage('zh');
+  const card = harness.mount({
+    course: compactOtherCourse,
+    readout: null,
+    data: compact,
+    call: async (op, args) => {
+      methodCalls.push([op, args]);
+      return service.call(op, args);
+    },
+    act: async (op, args) => {
+      actCalls.push([op, args]);
+      return service.call(op, args);
+    },
+  });
+  t.after(() => card.unmount());
+
+  // 1) Initial render BEFORE async course.method.get resolves: must NOT compute bogus 0-card fallback on stripped snapshot!
+  const beforeEffectText = plainText(card.html());
+  assert.doesNotMatch(beforeEffectText, /这一阶段还没有题/, 'stripped snapshot never flashes false 0-question check line');
+  assert.doesNotMatch(beforeEffectText, /慢了一点/, 'stripped snapshot never flashes false behind-schedule warning on a verified stage');
+  assert.doesNotMatch(beforeEffectText, /还没有资料/, 'stripped snapshot with chars > 0 never flashes false missing-material prompt');
+
+  // 2) Flush useLiveEffect -> course.method.get hydrates authoritative progress, gate, and schedule
+  await card.flushEffects();
+  assert.equal(methodCalls.length, 1);
+  assert.equal(methodCalls[0][0], 'course.method.get');
+  assert.equal(methodCalls[0][1].course, OTHER);
+  assert.equal(methodCalls[0][1].id, savedOther.id);
+
+  const directGet = await service.call('course.method.get', { id: savedOther.id, course: OTHER });
+  assert.ok(directGet.schedule, 'course.method.get returns authoritative schedule for custom-method courses');
+  assert.equal(directGet.schedule.behind, false, 'stage 0 at 4/5 (80%) is satisfied so behind === false even past 2000-01-01');
+
+  const hydratedHtml = card.html();
+  const hydratedText = plainText(hydratedHtml);
+  assert.match(hydratedText, /这一阶段：5 道里答对 4 道，够进下一阶段了。/);
+  assert.match(hydratedText, /建议 2000-01-01 前/);
+  assert.doesNotMatch(hydratedText, /慢了一点/, 'authoritative schedule knows Stage 0 is satisfied');
+  assert.match(hydratedText, /进入下一阶段：SSA 优化/);
+
+  // 3) Jumping from Stage 0 -> Stage 1 delegates to backend course.method.save and NEVER corrupts verified Stage 0 into skippedStages!
+  const advanceBtn = card.findButton('进入下一阶段：SSA 优化');
+  assert.ok(advanceBtn, 'hydrated non-focused card exposes stage advance button');
+  await advanceBtn.props.onClick();
+
+  assert.equal(actCalls.length, 1);
+  assert.equal(actCalls[0][0], 'course.method.save', 'jumpToStage delegates to backend course.method.save');
+  assert.deepEqual(actCalls[0][1], { id: savedOther.id, course: OTHER, stageIndex: 1 });
+
+  const gotAfterJump = await service.call('course.get', { name: OTHER });
+  const afterJump = gotAfterJump?.course ?? gotAfterJump;
+  assert.equal(afterJump.method.stageIndex, 1);
+  assert.equal(afterJump.method.skippedStages, undefined, 'verified Stage 0 is NOT corrupted into skippedStages');
+
+  const afterJumpText = plainText(card.html({ course: afterJump }));
+  assert.match(afterJumpText, /已检验/, 'Stage 0 renders as 已检验 (Verified)');
+  assert.doesNotMatch(afterJumpText, /未完成就前进/, 'zero false skipped badge');
+
+  // 4) Minor #6: course.method.save forwards selfReported: true to advanceMethodStage
+  const selfAdvance = await service.call('course.method.save', {
+    course: OTHER,
+    stageIndex: 2,
+    selfReported: true,
+  });
+  assert.equal(selfAdvance.method.stageIndex, 2);
+  assert.deepEqual(selfAdvance.method.selfReportedStages, [1], 'unverified Stage 1 advanced with selfReported: true records selfReportedStages: [1]');
+  assert.equal(selfAdvance.method.skippedStages, undefined, 'selfReported advance does not mark Stage 1 as skipped');
+});
+
+test('12. Case/rubric stage passing (> 50%) with weak criterion (< 60%) keeps case.drills visible, and dynamic stage-advance buttons carry wrap (Major #2 + Minor #5)', async t => {
+  const { service } = await createLibrary(t);
+  const COURSE = 'System Design Cases';
+  const NEXT_STAGE_TITLE = '第二阶段：高并发限流与熔断恢复演练';
+  const saved = await service.call('course.save', {
+    name: COURSE,
+    method: {
+      name: '案例实战两步法',
+      stages: [
+        { name: '第一阶段：案例拆解', activity: 'project', level: 'medium', scope: { deckIds: ['d-case-m2'] } },
+        { name: NEXT_STAGE_TITLE, activity: 'practice', level: 'medium', scope: { deckIds: ['d-drill-m2'] } },
+      ],
+    },
+  });
+
+  await service.call('source.add', {
+    id: 'src-case-m2',
+    title: 'Rate Limiter Case',
+    text: 'Token bucket and leaky bucket trade burst tolerance against smooth egress rate. '.repeat(5),
+    courses: [COURSE],
+  });
+
+  const makeCaseCard = id => ({
+    id,
+    kind: 'short',
+    topic: 'Rate Limiting',
+    prompt: `Design rate limiter scenario ${id}`,
+    answer: 'Token bucket with Redis Lua atomic script and local fallback.',
+    criteria: [
+      { id: 'c-algo', point: 'Algorithm selection', max: 2 },
+      { id: 'c-failover', point: 'Redis failure degradation', max: 2 },
+    ],
+  });
+
+  const nowMs = Date.now();
+  await service.store.update(state => {
+    state.decks.push(
+      { id: 'd-case-m2', title: 'Limiter Cases', course: COURSE, format: CASE_FORMAT, case: { title: 'Rate Limiter', background: 'Gateway burst control' }, cards: [makeCaseCard('c1'), makeCaseCard('c2'), makeCaseCard('c3')] },
+      { id: 'd-drill-m2', title: 'Limiter Drills', course: COURSE, cards: [makeChoiceCard('dr1', 'Rate Limiting')] },
+    );
+    // Answer 2 of 3 case cards at 2.5 / 4 = 62.5% (> 50% -> rubricAttemptPassed === true!),
+    // with c-failover scoring 0.5 / 2 = 25% (< 60% -> weakCaseDeckId === 'd-case-m2')!
+    for (const cardId of ['c1', 'c2']) {
+      state.attempts.push({
+        id: `att-${cardId}`,
+        deckId: 'd-case-m2',
+        quiz_id: cardId,
+        grade: 3,
+        assessment: 'rubric',
+        score: 2.5,
+        maxScore: 4,
+        rubric: {
+          total: 2.5,
+          max: 4,
+          criteria: [
+            { id: 'c-algo', point: 'Algorithm selection', score: 2, max: 2 },
+            { id: 'c-failover', point: 'Redis failure degradation', score: 0.5, max: 2 },
+          ],
+        },
+        timestamp: nowMs,
+      });
+    }
+    state.focus = { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] };
+  });
+
+  // Case A: 2/3 answered right -> checkPassed === true (2 >= ceil(3 * 2/3)), ready === false (2 < ceil(3 * 0.8) = 3), missed.length === 0, weakCaseDeckId === 'd-case-m2'
+  const stateA = await service.store.read();
+  const progA = methodProgress(stateA, COURSE);
+  const gateA = stageGate(stateA, COURSE, progA);
+  assert.equal(gateA.checkPassed, true, '2/3 rubric cards > 50% passes 2/3 check threshold');
+  assert.equal(gateA.ready, false, '2/3 is below 80% advance threshold');
+  assert.equal(gateA.missed.length, 0, 'no answered card failed');
+  assert.equal(gateA.weakCaseDeckId, 'd-case-m2', 'c-failover at 25% < 60% flags weakCaseDeckId');
+
+  const drillCalls = [];
+  const harness = await createStatefulMethodHarness();
+  harness.components.setUiLanguage('zh');
+  const cardA = harness.mount({
+    course: stateA.courses.find(c => c.name === COURSE),
+    readout: { ...progA, gate: gateA },
+    data: stateA,
+    act: async (op, args) => { drillCalls.push([op, args]); },
+  });
+  t.after(() => cardA.unmount());
+
+  const htmlA = cardA.html();
+  assert.match(plainText(htmlA), /把薄弱项变成练习/, 'case.drills button stays visible when checkPassed === true and ready === false');
+  const drillBtn = cardA.findButton('把薄弱项变成练习');
+  assert.ok(drillBtn);
+  await drillBtn.props.onClick();
+  assert.deepEqual(drillCalls, [['case.drills', { deckId: 'd-case-m2' }]]);
+
+  // Case B: Answer c3 at 2.5/4 too -> 3/3 (100% >= 80%) so BOTH ready === true AND checkPassed === true AND weakCaseDeckId === 'd-case-m2'
+  await service.store.update(state => {
+    state.attempts.push({
+      id: 'att-c3',
+      deckId: 'd-case-m2',
+      quiz_id: 'c3',
+      grade: 3,
+      assessment: 'rubric',
+      score: 2.5,
+      maxScore: 4,
+      rubric: {
+        total: 2.5,
+        max: 4,
+        criteria: [
+          { id: 'c-algo', point: 'Algorithm selection', score: 2, max: 2 },
+          { id: 'c-failover', point: 'Redis failure degradation', score: 0.5, max: 2 },
+        ],
+      },
+      timestamp: nowMs + 1000,
+    });
+  });
+
+  const stateB = await service.store.read();
+  const progB = methodProgress(stateB, COURSE);
+  const gateB = stageGate(stateB, COURSE, progB);
+  assert.equal(gateB.checkPassed, true);
+  assert.equal(gateB.ready, true);
+  assert.equal(gateB.weakCaseDeckId, 'd-case-m2');
+
+  ui.setUiLanguage('zh');
+  const cardBZhHtml = renderToStaticMarkup(inApp(ui, h(ui.CourseMethodCard, {
+    course: stateB.courses.find(c => c.name === COURSE),
+    readout: { ...progB, gate: gateB },
+    data: stateB,
+  }), { data: stateB }));
+  assert.match(plainText(cardBZhHtml), /进入下一阶段：第二阶段：高并发限流与熔断恢复演练/);
+  assert.match(plainText(cardBZhHtml), /把薄弱项变成练习/, 'case.drills stays visible alongside 80% advance button');
+
+  // Minor #5: verify sh-btn--wrap on all three dynamic `进入下一阶段：{0}` buttons (CourseMethodCard, TodayCard, MethodLine)
+  const snapB = await service.call('snapshot', { compact: true });
+  const homeB = ui.buildHomePlan({
+    data: snapB,
+    today: { course: COURSE, due: 0, weak: 0, new: 0, size: 0, scope: [] },
+    runs: [],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === COURSE,
+    actions: { start() {}, resume() {}, addSource() {} },
+  });
+  const todayBHtml = renderToStaticMarkup(inApp(ui, h(ui.TodayCard, { plan: homeB.plan, todayLabel: '周日' })));
+  const lineBHtml = renderToStaticMarkup(inApp(ui, h(ui.MethodLine, { method: snapB.focus.method, courseId: saved.id })));
+
+  for (const [surfaceName, markup] of [
+    ['CourseMethodCard', cardBZhHtml],
+    ['TodayCard', todayBHtml],
+    ['MethodLine', lineBHtml],
+  ]) {
+    const btnMatch = markup.match(/<button[^>]*>[^<]*进入下一阶段：[^<]*<\/button>/);
+    assert.ok(btnMatch, `${surfaceName} renders 进入下一阶段 button`);
+    assert.match(btnMatch[0], /\bsh-btn--wrap\b/, `${surfaceName} dynamic 进入下一阶段 button carries sh-btn--wrap`);
+  }
+
+  // Also verify zero-Han in English when case.drills + Next stage render together
+  const englishCourse = {
+    ...stateB.courses.find(c => c.name === COURSE),
+    method: {
+      ...stateB.courses.find(c => c.name === COURSE).method,
+      name: 'Two-Step Case Method',
+      stages: [
+        { name: 'Case Breakdown', activity: 'project', level: 'medium', scope: { deckIds: ['d-case-m2'] } },
+        { name: 'Drill Consolidation', activity: 'practice', level: 'medium', scope: { deckIds: ['d-drill-m2'] } },
+      ],
+    },
+  };
+  ui.setUiLanguage('en');
+  try {
+    const enHtml = renderToStaticMarkup(inApp(ui, h(ui.CourseMethodCard, {
+      course: englishCourse,
+      readout: { ...progB, gate: { ...gateB, stage: englishCourse.method.stages[0] } },
+      data: stateB,
+    }), { data: stateB }));
+    const enText = plainText(enHtml);
+    assert.match(enText, /Next stage: Drill Consolidation/);
+    assert.match(enText, /Turn weak points into practice/);
+    assert.doesNotMatch(enText, han, `English CourseMethodCard with case.drills has zero Han: ${enText}`);
+  } finally {
+    ui.setUiLanguage('zh');
+  }
+});
+
+test('13. GuidedStudyWorkbench only offers 带着错题回主会话 when the current card actually failed (including > 50% rubric rule) and StudyProgressPanel localizes cleanly without getUiLanguage (Major #3 + CI #1 + CI #2)', () => {
+  const richProgress = {
+    totalCount: 5,
+    independentPassedCount: 1,
+    independentRatio: 0.2,
+    assistedCount: 0,
+    selfReportedCount: 1,
+    needsReviewCount: 2,
+    pendingCount: 1,
+    lectureCoveredCount: 1,
+    displayLine: '独立检验 1/5（20%）；1 项自报，2 项需复核，1 项待检验',
+    items: [
+      { id: 'i1', title: 'Item 1', status: 'passed', attemptsCount: 1 },
+      { id: 'i2', title: 'Item 2', status: 'self_reported', attemptsCount: 1 },
+      { id: 'i3', title: 'Item 3', status: 'needs_review', attemptsCount: 1 },
+      { id: 'i4', title: 'Item 4', status: 'needs_review', attemptsCount: 1 },
+      { id: 'i5', title: 'Item 5', status: 'pending', attemptsCount: 0 },
+    ],
+  };
+  const baseSession = { id: 'gs-m3', courseId: 'Distributed Systems', status: 'active', goal: { title: 'Raft Safety', checkItems: [] } };
+  const card = makeChoiceCard('raft-q1', 'Raft', 'Why cannot a leader overwrite committed entries?');
+
+  ui.setUiLanguage('zh');
+
+  // 1) Unanswered card (feedback: null), even when progress.needsReviewCount === 2 > 0 -> NO 带着错题回主会话!
+  const unansweredText = plainText(renderToStaticMarkup(inApp(ui, h(ui.GuidedStudyWorkbench, {
+    session: baseSession,
+    progress: richProgress,
+    run: { id: 'r1', deckId: 'd-raft', card, revealed: false, feedback: null },
+  }))));
+  assert.doesNotMatch(unansweredText, /带着错题回主会话/, 'unanswered card never shows 带着错题回主会话 even if session has prior needsReviewCount > 0');
+
+  // 2) Rightly answered card (feedback.correct === true), even when progress.needsReviewCount === 2 > 0 -> NO 带着错题回主会话!
+  const rightText = plainText(renderToStaticMarkup(inApp(ui, h(ui.GuidedStudyWorkbench, {
+    session: baseSession,
+    progress: richProgress,
+    run: { id: 'r1', deckId: 'd-raft', card, revealed: true, feedback: { correct: true, grade: 4 } },
+  }))));
+  assert.doesNotMatch(rightText, /带着错题回主会话/, 'correctly answered card never shows 带着错题回主会话');
+
+  // 3) Rubric card scoring 2.2 / 4 (55% > 50%) with grade 2 / correct: false -> passes (> 50%), so NO 带着错题回主会话!
+  const rubricPass = { total: 2.2, max: 4, criteria: [{ id: 'c1', awarded: 1.2, max: 2 }, { id: 'c2', awarded: 1.0, max: 2 }] };
+  assert.equal(rubricAttemptPassed({ assessment: 'rubric', score: 2.2, maxScore: 4, rubric: rubricPass }), true);
+  const rubricPassText = plainText(renderToStaticMarkup(inApp(ui, h(ui.GuidedStudyWorkbench, {
+    session: baseSession,
+    progress: richProgress,
+    run: { id: 'r1', deckId: 'd-raft', card, revealed: true, feedback: { correct: false, grade: 2, rubric: rubricPass } },
+  }))));
+  assert.doesNotMatch(rubricPassText, /带着错题回主会话/, 'rubric 55% (> 50%) counts as check passed and does not trigger missed hand-off');
+
+  // 4) Rubric card scoring 2.0 / 4 (50% <= 50%) -> fails check, so 带着错题回主会话 / Take missed questions to main chat IS rendered!
+  const rubricFail = { total: 2.0, max: 4, criteria: [{ id: 'c1', awarded: 1.0, max: 2 }, { id: 'c2', awarded: 1.0, max: 2 }] };
+  assert.equal(rubricAttemptPassed({ assessment: 'rubric', score: 2.0, maxScore: 4, rubric: rubricFail }), false);
+  const rubricFailZh = plainText(renderToStaticMarkup(inApp(ui, h(ui.GuidedStudyWorkbench, {
+    session: baseSession,
+    progress: richProgress,
+    run: { id: 'r1', deckId: 'd-raft', card, revealed: true, feedback: { correct: false, grade: 2, rubric: rubricFail } },
+  }))));
+  assert.match(rubricFailZh, /带着错题回主会话/, 'rubric 50% (not strictly > 50%) offers 带着错题回主会话');
+  assert.match(rubricFailZh, /独立检验 1\/5（20%）；1 项自报，2 项需复核，1 项待检验/);
+
+  ui.setUiLanguage('en');
+  try {
+    const rubricFailEn = plainText(renderToStaticMarkup(inApp(ui, h(ui.GuidedStudyWorkbench, {
+      session: baseSession,
+      progress: richProgress,
+      estimate: { status: 'estimating' },
+      run: { id: 'r1', deckId: 'd-raft', card, revealed: true, feedback: { correct: false, grade: 2, rubric: rubricFail } },
+    }))));
+    assert.match(rubricFailEn, /Take missed questions to main chat/);
+    assert.match(rubricFailEn, /Verified on your own: 1\/5 \(20%\); 1 self-reported, 2 need review, 1 to check/);
+    assert.doesNotMatch(rubricFailEn, han, `GuidedStudyWorkbench + StudyProgressPanel English has zero Han: ${rubricFailEn}`);
+  } finally {
+    ui.setUiLanguage('zh');
+  }
+});
+
+test('14. Reordering and removing stages in MethodForm / CourseMethodCard accurately remaps stageIndex, skippedStages, and selfReportedStages (Major #4)', async t => {
+  // 1) Pure unit verification of remapMethodOnStageMove and remapMethodOnStageRemove
+  const initial = {
+    name: '三阶学法',
+    stageIndex: 0,
+    skippedStages: [1],
+    selfReportedStages: [2],
+    stages: [
+      { name: 'A', activity: 'explain', level: 'medium' },
+      { name: 'B', activity: 'practice', level: 'medium' },
+      { name: 'C', activity: 'review', level: 'medium' },
+    ],
+  };
+
+  // Move 0 -> 2: [A, B, C] -> [B, C, A]; old 0 -> 2, old 1 -> 0, old 2 -> 1
+  const movedForward = remapMethodOnStageMove(initial, 0, 2);
+  assert.deepEqual(movedForward.stages.map(s => s.name), ['B', 'C', 'A']);
+  assert.equal(movedForward.stageIndex, 2);
+  assert.deepEqual(movedForward.skippedStages, [0]);
+  assert.deepEqual(movedForward.selfReportedStages, [1]);
+
+  // Move 2 -> 0 back: [B, C, A] -> [A, B, C]; restores exact original indices
+  const movedBack = remapMethodOnStageMove(movedForward, 2, 0);
+  assert.deepEqual(movedBack.stages.map(s => s.name), ['A', 'B', 'C']);
+  assert.equal(movedBack.stageIndex, 0);
+  assert.deepEqual(movedBack.skippedStages, [1]);
+  assert.deepEqual(movedBack.selfReportedStages, [2]);
+
+  // Remove index 0 when stageIndex: 2, skippedStages: [0, 2], selfReportedStages: [1]
+  const removedFirst = remapMethodOnStageRemove({
+    ...initial,
+    stageIndex: 2,
+    skippedStages: [0, 2],
+    selfReportedStages: [1],
+  }, 0);
+  assert.deepEqual(removedFirst.stages.map(s => s.name), ['B', 'C']);
+  assert.equal(removedFirst.stageIndex, 1, 'stageIndex 2 shifts down to 1 when stage 0 is deleted');
+  assert.deepEqual(removedFirst.skippedStages, [1], 'removed stage 0 is dropped and 2 shifts to 1');
+  assert.deepEqual(removedFirst.selfReportedStages, [0], 'selfReported stage 1 shifts to 0');
+
+  // Remove active last stage (index 1 of 2): clamps stageIndex to 0 and omits empty marker arrays
+  const removedLast = remapMethodOnStageRemove({
+    name: '两阶',
+    stageIndex: 1,
+    skippedStages: [1],
+    selfReportedStages: [1],
+    stages: [
+      { name: 'X', activity: 'practice', level: 'medium' },
+      { name: 'Y', activity: 'review', level: 'medium' },
+    ],
+  }, 1);
+  assert.deepEqual(removedLast.stages.map(s => s.name), ['X']);
+  assert.equal(removedLast.stageIndex, 0);
+  assert.equal(removedLast.skippedStages, undefined);
+  assert.equal(removedLast.selfReportedStages, undefined);
+
+  // 2) Interactive CourseMethodCard + MethodForm UI flow persisted via StudyService
+  const { service } = await createLibrary(t);
+  const COURSE = 'Networks Reorder';
+  await service.call('course.save', {
+    name: COURSE,
+    method: {
+      name: '网络三步法',
+      stageIndex: 2,
+      skippedStages: [0],
+      selfReportedStages: [1],
+      stages: [
+        { name: 'Stage A', activity: 'explain', level: 'medium' },
+        { name: 'Stage B', activity: 'practice', level: 'medium' },
+        { name: 'Stage C', activity: 'review', level: 'medium' },
+      ],
+    },
+  });
+
+  const harness = await createStatefulMethodHarness();
+  harness.components.setUiLanguage('zh');
+  const raw0 = await service.store.read();
+  const card = harness.mount({
+    course: raw0.courses.find(c => c.name === COURSE),
+    data: raw0,
+    call: (op, args) => service.call(op, args),
+    act: (op, args) => service.call(op, args),
+  });
+  t.after(() => card.unmount());
+
+  // Open 改学法 -> click 下移第 1 个阶段 (moves Stage A 0 -> 1, Stage B 1 -> 0) -> click 保存学法
+  card.findButton('改学法').props.onClick();
+  const moveDownBtn = card.findButton('下移第 1 个阶段');
+  assert.ok(moveDownBtn, 'MethodForm renders 下移第 1 个阶段 IconButton');
+  moveDownBtn.props.onClick();
+  await card.findButton('保存学法').props.onClick();
+
+  const gotMove = await service.call('course.get', { name: COURSE });
+  const afterMove = gotMove?.course ?? gotMove;
+  assert.deepEqual(afterMove.method.stages.map(s => s.name), ['Stage B', 'Stage A', 'Stage C']);
+  assert.equal(afterMove.method.stageIndex, 2, 'Stage C remains at index 2');
+  assert.deepEqual(afterMove.method.skippedStages, [1], 'skipped Stage A moved 0 -> 1');
+  assert.deepEqual(afterMove.method.selfReportedStages, [0], 'self-reported Stage B moved 1 -> 0');
+
+  // Re-open 改学法 with updated course -> click 删除第 1 个阶段 (removes Stage B at index 0) -> click 保存学法
+  const raw1 = await service.store.read();
+  card.render({ course: afterMove, data: raw1 });
+  card.findButton('改学法').props.onClick();
+  const deleteFirstBtn = card.findButton('删除第 1 个阶段');
+  assert.ok(deleteFirstBtn, 'MethodForm renders 删除第 1 个阶段 IconButton');
+  deleteFirstBtn.props.onClick();
+  await card.findButton('保存学法').props.onClick();
+
+  const gotDelete = await service.call('course.get', { name: COURSE });
+  const afterDelete = gotDelete?.course ?? gotDelete;
+  assert.deepEqual(afterDelete.method.stages.map(s => s.name), ['Stage A', 'Stage C']);
+  assert.equal(afterDelete.method.stageIndex, 1, 'active Stage C shifted 2 -> 1');
+  assert.deepEqual(afterDelete.method.skippedStages, [0], 'skipped Stage A shifted 1 -> 0');
+  assert.equal(afterDelete.method.selfReportedStages, undefined, 'deleted Stage B self-reported marker removed cleanly');
 });

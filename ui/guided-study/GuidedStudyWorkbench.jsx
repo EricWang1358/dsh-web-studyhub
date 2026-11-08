@@ -16,6 +16,7 @@ import css from './guided-study.css';
 import GuidedStudyStart from './GuidedStudyStart.jsx';
 import { hasOptions } from '../../lib/card-kinds.js';
 import { fixedOptionLabel } from '../option-label.js';
+import { rubricAttemptPassed } from '../../lib/course-method.js';
 
 /* How the session's status reads to the learner (never the raw value). */
 const STATUS_WORD = { active: '带学进行中', paused: '带学已暂停', ended: '带学已结束' };
@@ -61,7 +62,14 @@ export default function GuidedStudyWorkbench({
   const currentFeedback = run?.feedback || (run?.entries ? run.entries[run.index]?.feedback : null);
   const isRevealed = Boolean(run?.revealed ?? (run?.entries ? run.entries[run.index]?.revealed : false));
   const hasFeedback = Boolean(currentFeedback);
-  const currentMissed = Boolean(hasFeedback && currentFeedback?.correct === false);
+  const currentMissed = Boolean(hasFeedback && (currentFeedback.rubric
+    ? !rubricAttemptPassed({
+      assessment: 'rubric',
+      score: currentFeedback.rubric.total,
+      maxScore: currentFeedback.rubric.max,
+      rubric: currentFeedback.rubric,
+    })
+    : currentFeedback.correct === false));
 
   const choice = hasOptions(currentCard?.kind) && Array.isArray(currentCard?.options) && currentCard.options.length > 0;
   const [selected, setSelected] = useState([]);
@@ -247,12 +255,12 @@ export default function GuidedStudyWorkbench({
                     {ui('请教主会话')}
                   </Button>
                 </Tooltip>
-                {(currentMissed || (derivedProgress?.needsReviewCount > 0)) && (
+                {currentMissed && (
                   <HandOff
                     id="method.missed"
                     shape="quiet"
-                    label="带着错题回主会话"
-                    what="把这道没过关的题目带回主会话讲透，讲完再回 StudyHub 重测"
+                    label={ui('带着错题回主会话')}
+                    what={ui('把这道没过关的题目带回主会话讲透，讲完再回 StudyHub 重测')}
                     input={{
                       course: session?.courseId || '',
                       stage: session?.goal?.title || '',

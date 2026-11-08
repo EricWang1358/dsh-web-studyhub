@@ -28,7 +28,7 @@ export default function MethodLine({ method, courseId, onCourseSettings, onAdvan
     {/* #777 S3b: the stage's check is enough to go on (the same count as the card's; never on the last stage). */}
     {method.gate?.ready && <span className="course-method-line__ready">{ui('够进下一阶段了')}</span>}
     {method.gate?.ready && method.nextStage && (
-      <Button variant="link" size="sm" className="course-method-line__advance" lock={busy} onClick={advance}>
+      <Button variant="link" size="sm" wrap className="course-method-line__advance" lock={busy} onClick={advance}>
         {uiFormat('进入下一阶段：{0}', [method.nextStage.name])}
       </Button>
     )}

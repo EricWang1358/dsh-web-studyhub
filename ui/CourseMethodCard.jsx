@@ -6,8 +6,19 @@ import { cx } from './components/css.js';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
 import { HandOff } from './hand-off/HandOff.jsx';
-import { ACTIVITIES, ALTERNATIVES_MAX, LEVELS, NAME_MAX, STAGES_MAX, advanceMethodStage, clampMethodStageIndices, courseMethod } from '../lib/course-method.js';
-import { methodProgress, stageCheckSatisfied } from '../lib/course-method-progress.js';
+import { useLiveEffect } from './use-async.js';
+import {
+  ACTIVITIES,
+  ALTERNATIVES_MAX,
+  LEVELS,
+  NAME_MAX,
+  STAGES_MAX,
+  clampMethodStageIndices,
+  courseMethod,
+  remapMethodOnStageMove,
+  remapMethodOnStageRemove,
+} from '../lib/course-method.js';
+import { methodProgress } from '../lib/course-method-progress.js';
 import { stageGate } from '../lib/course-method-gate.js';
 import { methodStageSchedule } from '../lib/course-method-schedule.js';
 import { ACTIVITY_LABELS, currentMethodStage, openCourseMaterialImport, stageAlternatives, stageNeedsMaterial, useMethodAlternativeOpen } from './method-alternatives.js';
@@ -112,9 +123,25 @@ function resolveStageStatus(shown, effectiveGate, index) {
 /** The edit form behind 「改学法」: lightweight direct editing of name, stage order, stage count (1..12), activities, alternatives (0..2), gates, and target date. */
 export function MethodForm({ draft, own, disabled, working, onChange, onStage, onMove, onAdd, onRemove, onSave, onCancel, onReset }) {
   const [dragIndex, setDragIndex] = useState(-1), [overIndex, setOverIndex] = useState(-1);
-  const move = onMove || ((from, to) => onChange({ stages: moveStage(draft.stages, from, to) }));
+  const move = onMove || ((from, to) => {
+    const next = remapMethodOnStageMove(draft, from, to);
+    onChange({
+      stages: next.stages,
+      ...(next.stageIndex !== undefined ? { stageIndex: next.stageIndex } : {}),
+      skippedStages: next.skippedStages,
+      selfReportedStages: next.selfReportedStages,
+    });
+  });
   const add = onAdd || (() => onChange({ stages: addStage(draft.stages) }));
-  const remove = onRemove || (index => onChange({ stages: removeStage(draft.stages, index) }));
+  const remove = onRemove || (index => {
+    const next = remapMethodOnStageRemove(draft, index);
+    onChange({
+      stages: next.stages,
+      ...(next.stageIndex !== undefined ? { stageIndex: next.stageIndex } : {}),
+      skippedStages: next.skippedStages,
+      selfReportedStages: next.selfReportedStages,
+    });
+  });
   const activityOptions = ACTIVITIES.map(activity => ({ value: activity, label: ui(ACTIVITY_LABELS[activity]) }));
   return <div className="course-method__form">
     <Field label={ui('学法名称')} width="full"><TextInput value={draft.name} maxLength={NAME_MAX} disabled={disabled} onChange={event => onChange({ name: event.target.value })} /></Field>
@@ -200,31 +227,73 @@ export function MethodForm({ draft, own, disabled, working, onChange, onStage, o
 
 export default function CourseMethodCard({ course, readout = null, data = null, onClose, initialNote = '' }) {
   useInjectCss(css, 'study-course-method');
-  const { act, busy, navigate } = useStudy();
+  const { act, call, busy, navigate } = useStudy();
   const app = useContext(AppContext);
   const resolvedData = data ?? app?.data ?? null;
   const openAlt = useMethodAlternativeOpen({ data: resolvedData, onClose });
   const [draft, setDraft] = useState(null), [error, setError] = useState(''), [working, setWorking] = useState(false);
   const [noteOpen, setNoteOpen] = useState(Boolean(initialNote)), [note, setNote] = useState(initialNote);
+  const [remoteView, setRemoteView] = useState(null);
+  const own = Boolean(course?.method);
+  const courseId = course?.id ?? '';
+  const courseName = course?.name ?? '';
+  const methodKey = own ? JSON.stringify(course.method) : '';
+  const dataRevision = resolvedData?.revision ?? '';
+  useLiveEffect(isLive => {
+    if (!own || readout || !courseName || typeof call !== 'function') return;
+    call('course.method.get', {
+      ...(courseId ? { id: courseId } : {}),
+      course: courseName,
+    }).then(res => {
+      if (!isLive() || !res?.progress || !res?.gate) return;
+      setRemoteView({
+        courseId,
+        courseName,
+        methodKey,
+        progress: res.progress,
+        gate: res.gate,
+        schedule: res.schedule ?? null,
+      });
+    }).catch(() => {});
+  }, [own, Boolean(readout), courseId, courseName, methodKey, dataRevision, call]);
   if (!course) return null;
-  const own = !!course.method, shown = shownMethod(course), disabled = busy || working;
-  const courseState = own ? buildCourseState(resolvedData, course) : null;
-  const fallbackProgress = own && !readout && (resolvedData || Number.isInteger(shown.stageIndex) || shown.skippedStages?.length || shown.selfReportedStages?.length)
+  const shown = shownMethod(course), disabled = busy || working;
+  // Never run synchronous methodProgress / stageGate / methodStageSchedule on stripped compact snapshots (`deck.cards === undefined` or `source.text === undefined`).
+  const hasFullState = Boolean(
+    Array.isArray(resolvedData?.decks)
+    && resolvedData.decks.every(deck => Array.isArray(deck?.cards))
+    && (!Array.isArray(resolvedData?.sources) || resolvedData.sources.every(source => !source || typeof source.text === 'string')),
+  );
+  const activeRemote = own && !readout && remoteView
+    && remoteView.courseId === courseId
+    && remoteView.courseName === courseName
+    && remoteView.progress?.total === shown.stages.length
+    ? remoteView
+    : null;
+  const courseState = own && hasFullState ? buildCourseState(resolvedData, course) : null;
+  const fallbackProgress = own && !readout && !activeRemote && courseState
     ? methodProgress(courseState, course.name)
     : null;
   const matchedReadout = readout
     ? (Number.isInteger(readout.index) && readout.total === shown.stages.length ? readout : null)
-    : fallbackProgress;
+    : (activeRemote?.progress ?? fallbackProgress);
   // The stage the learner is on (#775 S1b): the home snapshot reads it for the current course only, so another default course's card shows its stages without it.
   const current = Number.isInteger(matchedReadout?.index) ? matchedReadout.index : -1;
   const effectiveGate = readout
     ? (matchedReadout ? (readout.gate ?? null) : null)
-    : (fallbackProgress && Array.isArray(resolvedData?.decks) ? stageGate(courseState, course.name, fallbackProgress) : null);
+    : (activeRemote ? activeRemote.gate : (fallbackProgress && courseState ? stageGate(courseState, course.name, fallbackProgress) : null));
   const effectiveSchedule = own
-    ? (matchedReadout?.schedule ?? methodStageSchedule(courseState, course, {
-      ...(matchedReadout ? { progress: matchedReadout } : {}),
-      ...(effectiveGate ? { gate: effectiveGate } : {}),
-    }))
+    ? (readout
+      ? (matchedReadout?.schedule ?? (courseState && matchedReadout ? methodStageSchedule(courseState, course, {
+        progress: matchedReadout,
+        ...(effectiveGate ? { gate: effectiveGate } : {}),
+      }) : null))
+      : (activeRemote
+        ? activeRemote.schedule
+        : (courseState && fallbackProgress ? methodStageSchedule(courseState, course, {
+          progress: fallbackProgress,
+          ...(effectiveGate ? { gate: effectiveGate } : {}),
+        }) : null)))
     : null;
   const activeStage = current >= 0 ? shown.stages[current] : (resolvedData ? currentMethodStage(resolvedData, course)?.stage : null);
   const altItems = !draft && resolvedData && activeStage ? stageAlternatives(resolvedData, course, activeStage, { guidedSession: app?.lib?.guidedSession }) : [];
@@ -235,16 +304,29 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
     catch (caught) { setError(errorMessage(caught)); } finally { setWorking(false); }
   };
   const activeSwitchIndex = current >= 0 ? current : (Number.isInteger(shown.stageIndex) ? shown.stageIndex : 0);
-  const jumpToStage = targetIndex => {
-    const nextMethod = advanceMethodStage(shown, targetIndex, {
-      currentIndex: activeSwitchIndex,
-      stageSatisfied: idx => {
-        const summary = effectiveGate?.stages?.[idx];
-        if (summary) return summary.status === 'verified' || Boolean(summary.checkPassed);
-        return courseState ? stageCheckSatisfied(courseState, course.name, shown.stages[idx]) : false;
-      },
-    });
-    return write(nextMethod);
+  const jumpToStage = async targetIndex => {
+    setWorking(true); setError('');
+    try {
+      const res = await act('course.method.save', {
+        ...(course.id ? { id: course.id } : {}),
+        course: course.name,
+        stageIndex: targetIndex,
+      }, undefined, { rethrow: true });
+      if (res?.progress && res?.gate) {
+        setRemoteView({
+          courseId,
+          courseName,
+          methodKey: res.method ? JSON.stringify(res.method) : methodKey,
+          progress: res.progress,
+          gate: res.gate,
+          schedule: res.schedule ?? null,
+        });
+      }
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setWorking(false);
+    }
   };
   const change = patch => { setDraft(prev => ({ ...prev, ...patch })); setError(''); };
   const changeStage = (index, patch) => change({ stages: patchStage(draft.stages, index, patch) });
@@ -303,10 +385,14 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
         {uiFormat('当前阶段比建议日期（{0}）慢了一点，按自己的节奏往前推就好。', [effectiveSchedule.currentSuggestedUntil])}
       </p>
     )}
-    {!draft && own && ((effectiveGate?.ready && shown.stages[current + 1]) || (effectiveGate && !effectiveGate.checkPassed && effectiveGate.missed?.length > 0)) && (
+    {!draft && own && (
+      (effectiveGate?.ready && shown.stages[current + 1])
+      || (effectiveGate && !effectiveGate.checkPassed && effectiveGate.missed?.length > 0)
+      || Boolean(effectiveGate?.weakCaseDeckId)
+    ) && (
       <div className="course-method__gate-actions">
         {effectiveGate?.ready && shown.stages[current + 1] && (
-          <Button variant="secondary" size="sm" lock={disabled} onClick={() => jumpToStage(current + 1)}>
+          <Button variant="secondary" size="sm" wrap lock={disabled} onClick={() => jumpToStage(current + 1)}>
             {uiFormat('进入下一阶段：{0}', [shown.stages[current + 1].name])}
           </Button>
         )}
@@ -317,7 +403,7 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
             disabled={disabled}
             onSent={outcome => { if (outcome === 'filled') onClose?.('method-missed'); }} />
         )}
-        {effectiveGate && !effectiveGate.checkPassed && effectiveGate.weakCaseDeckId && (
+        {Boolean(effectiveGate?.weakCaseDeckId) && (
           <Button variant="quiet" size="sm" lock={disabled} onClick={() => act('case.drills', { deckId: effectiveGate.weakCaseDeckId })}>
             {ui('把薄弱项变成练习')}
           </Button>
@@ -356,9 +442,9 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
       </Field>}
     </div>}
     {draft && <MethodForm draft={draft} own={own} disabled={disabled} working={working} onChange={change} onStage={changeStage}
-      onMove={(from, to) => change({ stages: moveStage(draft.stages, from, to) })}
+      onMove={(from, to) => { setDraft(prev => remapMethodOnStageMove(prev, from, to)); setError(''); }}
       onAdd={() => change({ stages: addStage(draft.stages) })}
-      onRemove={index => change({ stages: removeStage(draft.stages, index) })}
+      onRemove={index => { setDraft(prev => remapMethodOnStageRemove(prev, index)); setError(''); }}
       onSave={() => write(draft)} onCancel={() => { setDraft(null); setError(''); }} onReset={() => write(null)} />}
     {error && <InlineMessage role="alert">{error}</InlineMessage>}
   </section>;

@@ -33,7 +33,7 @@ export default function TodayCard({ plan, todayLabel, quiet = false }) {
         {plan.stageAdvance && (
           <p className="today-stage-advance">
             <span>{plan.stageAdvance.note}</span>
-            <Button variant="link" size="sm" lock={busy} onClick={advanceStage}>{plan.stageAdvance.label}</Button>
+            <Button variant="link" size="sm" wrap lock={busy} onClick={advanceStage}>{plan.stageAdvance.label}</Button>
           </p>
         )}
         {plan.methodAlt && (
