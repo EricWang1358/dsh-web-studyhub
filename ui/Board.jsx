@@ -147,7 +147,7 @@ function ArchiveList({ board, readOnly, library, onRestore, onDelete, onBack }) 
 }
 
 export default function Board({ state, library, today: todayProp, view: viewProp, defaultView = "all", onViewChange, onOrigin, onStudyRef, studyRef, onClearStudyRef,
-  composeOnArrive = false, onComposeOpened, dailyPlan, dailyTaskIds, dailyBudgetMinutes, planAnswer, onBoardChanged }) {
+  composeOnArrive = false, onComposeOpened, dailyPlan, dailyTaskIds, dailyBudgetMinutes, planAnswer, nowMs, onBoardChanged }) {
   useInjectCss(css, "study-board");
   const { board, error, conflict, busy, mutate, refresh, clearError } = state;
   const today = todayProp || localDate();
@@ -236,12 +236,127 @@ export default function Board({ state, library, today: todayProp, view: viewProp
   const deleteCard = useCallback(async (card) => {
     const now = boardRef.current, from = locateCard(now, card.id);
     const snapshot = structuredClone(now.cards[card.id] || now.archived.find((entry) => entry.id === card.id));
+    const savedLogs = Array.isArray(now.timeLog) ? structuredClone(now.timeLog.filter((entry) => entry.cardId === card.id)) : [];
     if (!snapshot || !(await run("board.card.remove", { id: card.id }))) return false;
     onBoardChanged?.();
-    if (from) offer(uiFormat("已删除：{0}", [card.title]), async () => { const undone = await run("board.card.undelete", { card: snapshot, column: from.column, index: from.index }); if (undone) onBoardChanged?.(); return undone; });
+    if (from) offer(uiFormat("已删除：{0}", [card.title]), async () => {
+      const undone = await run("board.card.undelete", {
+        card: snapshot,
+        column: from.column,
+        index: from.index,
+        ...(savedLogs.length ? { timeLog: savedLogs } : {}),
+      });
+      if (undone) onBoardChanged?.();
+      return undone;
+    });
     else say(uiFormat("已删除：{0}", [card.title]));
     return true;
   }, [run, offer, say, onBoardChanged]);
+
+  const startTimer = useCallback(async (card) => {
+    const ok = await run("board.timer.start", { id: card.id, mode: "work" }, { optimistic: false });
+    if (ok) {
+      say(uiFormat("已开始专注：{0}", [card.title]));
+      onBoardChanged?.();
+    }
+    return ok;
+  }, [run, say, onBoardChanged]);
+
+  const startBreak = useCallback(async (durationMinutes) => {
+    const ok = await run("board.timer.start", {
+      mode: "break",
+      cardTitle: ui("休息"),
+      ...(Number.isInteger(durationMinutes) ? { durationMinutes } : {}),
+    }, { optimistic: false });
+    if (ok) say(uiFormat("已开始休息 {0} 分钟", [durationMinutes]));
+    return ok;
+  }, [run, say]);
+
+  const pauseTimer = useCallback(async () => {
+    const ok = await run("board.timer.pause", {});
+    if (ok) say(ui("已暂停专注"));
+    return ok;
+  }, [run, say]);
+
+  const resumeTimer = useCallback(async () => {
+    const ok = await run("board.timer.resume", {});
+    if (ok) say(ui("继续专注"));
+    return ok;
+  }, [run, say]);
+
+  const cancelTimer = useCallback(async () => {
+    const ok = await run("board.timer.cancel", {});
+    if (ok) say(ui("已放弃本次计时"));
+    return ok;
+  }, [run, say]);
+
+  const completeTimer = useCallback(async (snap) => {
+    const isWork = snap?.mode === "work";
+    const mins = snap?.loggedMinutes;
+    const title = snap?.cardTitle || "";
+    const ok = await run("board.timer.complete", {
+      ...(isWork && Number.isInteger(mins) ? { minutes: mins, date: today } : {}),
+    }, { optimistic: false });
+    if (ok) {
+      onBoardChanged?.();
+      say(isWork ? uiFormat("已记录专注 {0} 分钟：{1}", [mins, title]) : ui("休息已结束"));
+    }
+    return ok;
+  }, [run, today, say, onBoardChanged]);
+
+  const saveTimerPrefs = useCallback(async (prefs) => {
+    const ok = await run("board.timer.prefs", prefs);
+    if (ok) say(ui("已保存计时设置"));
+    return ok;
+  }, [run, say]);
+
+  const addTimeLog = useCallback(async (fields) => {
+    const ok = await run("board.timeLog.add", {
+      ...(fields.cardId ? { cardId: fields.cardId } : {}),
+      cardTitle: fields.cardTitle,
+      minutes: fields.minutes,
+      date: fields.date || today,
+    }, { optimistic: false });
+    if (ok) {
+      onBoardChanged?.();
+      say(uiFormat("已补记专注 {0} 分钟：{1}", [fields.minutes, fields.cardTitle]));
+    }
+    return ok;
+  }, [run, today, say, onBoardChanged]);
+
+  const editTimeLog = useCallback(async (entry, minutes) => {
+    const prevMinutes = entry.minutes;
+    const ok = await run("board.timeLog.edit", { id: entry.id, minutes });
+    if (ok) {
+      onBoardChanged?.();
+      offer(uiFormat("已改为 {0} 分钟：{1}", [minutes, entry.cardTitle]), async () => {
+        const undone = await run("board.timeLog.edit", { id: entry.id, minutes: prevMinutes });
+        if (undone) onBoardChanged?.();
+        return undone;
+      });
+    }
+    return ok;
+  }, [run, offer, onBoardChanged]);
+
+  const removeTimeLog = useCallback(async (entry) => {
+    const snapshot = structuredClone(entry);
+    const ok = await run("board.timeLog.remove", { id: entry.id });
+    if (ok) {
+      onBoardChanged?.();
+      offer(uiFormat("已删除专注记录：{0}", [entry.cardTitle]), async () => {
+        const undone = await run("board.timeLog.add", {
+          ...(snapshot.cardId ? { cardId: snapshot.cardId } : {}),
+          cardTitle: snapshot.cardTitle,
+          date: snapshot.date,
+          startedAt: snapshot.startedAt,
+          minutes: snapshot.minutes,
+        }, { optimistic: false });
+        if (undone) onBoardChanged?.();
+        return undone;
+      });
+    }
+    return ok;
+  }, [run, offer, onBoardChanged]);
 
   const toggleDone = useCallback(async (card) => {
     const target = doneToggleTarget(boardRef.current, card.id);
@@ -463,6 +578,7 @@ export default function Board({ state, library, today: todayProp, view: viewProp
           dailyTaskIds={dailyTaskIds}
           dailyBudgetMinutes={dailyBudgetMinutes}
           planAnswer={planAnswer}
+          nowMs={nowMs}
           onToggleDone={toggleDone}
           onEdit={(card) => onAction("edit", card)}
           onAction={onAction}
@@ -472,6 +588,16 @@ export default function Board({ state, library, today: todayProp, view: viewProp
           onScheduleToday={scheduleToday}
           onOrigin={openRef(onOrigin)}
           onStudyRef={openRef(onStudyRef)}
+          onStartTimer={startTimer}
+          onStartBreak={startBreak}
+          onPauseTimer={pauseTimer}
+          onResumeTimer={resumeTimer}
+          onCancelTimer={cancelTimer}
+          onCompleteTimer={completeTimer}
+          onSaveTimerPrefs={saveTimerPrefs}
+          onAddTimeLog={addTimeLog}
+          onEditTimeLog={editTimeLog}
+          onRemoveTimeLog={removeTimeLog}
         />
       </TabPanel>
       <TabPanel id={tabsId} value="all" selected={activeTab} tabIndex={undefined} className="board-panel">

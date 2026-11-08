@@ -49,7 +49,7 @@ export function cardMenuItems({ column, columns, index, count, extraItems = [] }
  * keyboard (Alt+arrows). `articleProps` carries the drag handlers.
  */
 export default function BoardCard({ card, column, columns, index, count, today, library, readOnly = false, hasDone = true, dragging = false,
-  menuOpen = false, extraItems = [], todayMeta = null, onToggleDone, onEdit, onAction, onOrigin, onStudyRef, articleProps = {} }) {
+  menuOpen = false, extraItems = [], todayMeta = null, timerActive = false, onStartTimer = null, onToggleDone, onEdit, onAction, onOrigin, onStudyRef, articleProps = {} }) {
   const done = !!column.done;
   const state = dueState(card.due, today, done);
   const progress = checklistProgress(card);
@@ -62,6 +62,9 @@ export default function BoardCard({ card, column, columns, index, count, today, 
     ? (todayMeta.source === 'mistake' ? ui('错题') : todayMeta.source === 'plan' ? ui('备考计划') : ui('自己加的'))
     : '';
   const showMinutes = Boolean(todayMeta && Number.isInteger(todayMeta.minutes) && todayMeta.minutes > 0);
+  const actualMinutes = todayMeta?.actualMinutes;
+  const showActual = Number.isInteger(actualMinutes) && actualMinutes > 0;
+  const showStartTimer = Boolean(todayMeta && !done && onStartTimer);
   const key = (event) => {
     if (readOnly) return;
     if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onEdit(card); return; }
@@ -70,7 +73,7 @@ export default function BoardCard({ card, column, columns, index, count, today, 
     if (action) { event.preventDefault(); onAction(action, card); }
   };
   return (
-    <article className={`board-card${done ? ' is-done' : ''}${dragging ? ' is-dragging' : ''}`} tabIndex={0} data-card-id={card.id}
+    <article className={`board-card${done ? ' is-done' : ''}${dragging ? ' is-dragging' : ''}${timerActive ? ' is-timing' : ''}`} tabIndex={0} data-card-id={card.id}
       draggable={!readOnly} onKeyDown={key} aria-label={card.title} {...articleProps}>
       <div className="board-card__head">
         {hasDone && <button type="button" role="checkbox" aria-checked={done} className="board-check" disabled={readOnly}
@@ -82,9 +85,10 @@ export default function BoardCard({ card, column, columns, index, count, today, 
           className="board-card__menu" onSelect={(id) => onAction(id, card)} />}
       </div>
       {card.note && <Note note={card.note} />}
-      {(!!todayMeta || !!visibleLabels.length || state || progress.total > 0) && <div className="board-card__chips">
+      {(!!todayMeta || !!visibleLabels.length || state || progress.total > 0 || showActual || showStartTimer) && <div className="board-card__chips">
         {todayMeta && <span className="board-chip board-source" data-source={todayMeta.source}>{sourceLabel}</span>}
         {showMinutes && <span className="board-duration">{uiFormat('约 {0} 分钟', [todayMeta.minutes])}</span>}
+        {showActual && <span className="board-duration board-duration--actual">{uiFormat('实际 {0} 分钟', [actualMinutes])}</span>}
         {visibleLabels.map((label) => <span key={label} className={`board-chip board-hue-${labelHue(label)}`}>{label}</span>)}
         {state && <Tooltip content={dueTitle(card.due, state.kind === 'done' ? null : state)}>
           <span className={`board-due is-${state.kind}`} tabIndex={0}><Icon name="calendar" size={13} />{state.kind === 'done' ? card.due : dueText(state)}</span>
@@ -92,6 +96,19 @@ export default function BoardCard({ card, column, columns, index, count, today, 
         {progress.total > 0 && <Tooltip layer content={uiFormat('清单 {0}/{1}', [progress.done, progress.total])}>
           <span className={`board-progress${progress.done === progress.total ? ' is-complete' : ''}`} tabIndex={0}><Icon name="checklist" size={13} />{progress.done}/{progress.total}</span>
         </Tooltip>}
+        {showStartTimer && (
+          <Button
+            variant="quiet"
+            size="sm"
+            icon={timerActive ? 'clock' : 'play'}
+            className="board-card__focus-btn"
+            disabled={readOnly}
+            aria-label={uiFormat(timerActive ? '查看专注计时：{0}' : '开始专注：{0}', [card.title])}
+            onClick={() => onStartTimer(card)}
+          >
+            {timerActive ? ui('专注中') : ui('开始专注')}
+          </Button>
+        )}
       </div>}
       {(origin || link) && <div className="board-meta">
         {origin && (onOrigin && card.origin?.workspace
