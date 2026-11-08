@@ -49,6 +49,8 @@ DSH opens at `http://127.0.0.1:3080` by default. Keep the process running while 
 
 These steps work in desktop and web DSH. Web users need no desktop client and no new profile.
 
+**A standard install needs one complete package:** `ericwang1358-dsh-daily-flashcard-4.5.1.tgz`. It includes the main StudyHub entry and six components, seven entries in total. Install from its address or the original `.tgz` file; do not extract it or merge the separate component packages on the release page.
+
 1. In DSH, open **Plugins › Add plugin**.
 2. Paste the complete package address:
 
@@ -66,10 +68,22 @@ StudyHub keeps your library in the workspace folder of the current DSH session. 
 
 ### If DSH cannot download from GitHub
 
-1. Download `ericwang1358-dsh-daily-flashcard-4.5.1.tgz` from the [4.5.1 release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.5.1). The same page lists the checksums in `SHA256SUMS-4.5.1.txt`.
-2. In **Add plugin**, enter the absolute path of that file instead of the address.
+If the download address fails, or reports `unable to get local issuer certificate`, download the package in your browser and install the local file:
+
+1. [Download the complete 4.5.1 package](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.5.1/ericwang1358-dsh-daily-flashcard-4.5.1.tgz). Its filename should be `ericwang1358-dsh-daily-flashcard-4.5.1.tgz`. The [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.5.1) lists checksums in `SHA256SUMS-4.5.1.txt`.
+2. **Keep the original `.tgz` file; do not extract it.** You do not need to download or merge the separate component packages. GitHub's **Source code** archives are not the plugin install package.
+3. In DSH, open **Plugins › Add plugin** and enter the **absolute path to the `.tgz` file itself**, including its filename and `.tgz` extension. For example, on Windows (replace this with your actual saved path):
+
+   ```text
+   C:\Users\your-name\Downloads\ericwang1358-dsh-daily-flashcard-4.5.1.tgz
+   ```
+
+   Enter the file path, rather than just the Downloads folder or an extracted `package` folder. On Windows, right-click the file and choose **Copy as path**, then remove the surrounding double quotes when pasting.
+4. After it installs, check for `@ericwang1358/dsh-daily-flashcard`, version 4.5.1, then click **Enable**.
 
 The file must be on the **computer or server that runs DSH**. With a remote DSH web server, a download path on your laptop does not exist on the server. Copy the file to the server, or use the HTTPS address above.
+
+Installing a local file skips the main package's download from GitHub. Dependencies may still need internet access. If a certificate error remains at that stage, check the network and trusted certificates on the computer or server running DSH.
 
 ## Configure a model provider
 

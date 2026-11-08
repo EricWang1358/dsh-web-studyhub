@@ -49,6 +49,8 @@ DSH 默认在 `http://127.0.0.1:3080` 打开。使用期间保持这个进程运
 
 以下步骤桌面版和网页版通用。网页版不用下载客户端，也不用新建配置。
 
+**常规安装只需一个完整主包**：`ericwang1358-dsh-daily-flashcard-4.5.1.tgz`。它包含 StudyHub 主入口和 6 个组件，共 7 项。安装时使用包地址或原始 `.tgz` 文件，不用解压，也不用合并发布页上的其他组件包。
+
 1. 在 DSH 打开「插件」页，点「添加插件」。
 2. 粘贴完整安装包地址：
 
@@ -66,10 +68,22 @@ StudyHub 的学习库放在当前 DSH 会话的工作区文件夹里。如果看
 
 ### DSH 无法从 GitHub 下载时
 
-1. 从 [4.5.1 发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.5.1)下载 `ericwang1358-dsh-daily-flashcard-4.5.1.tgz`。同一页的 `SHA256SUMS-4.5.1.txt` 列有校验值。
-2. 在「添加插件」里填这个文件的绝对路径，代替上面的地址。
+下载地址装不上，或出现 `unable to get local issuer certificate` 时，可以先用浏览器下载，再从本地文件安装：
+
+1. [下载 4.5.1 完整主包](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.5.1/ericwang1358-dsh-daily-flashcard-4.5.1.tgz)，文件名应为 `ericwang1358-dsh-daily-flashcard-4.5.1.tgz`。[发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.5.1)的 `SHA256SUMS-4.5.1.txt` 可用于核对校验值。
+2. **保留原始 `.tgz` 文件，不用解压。** 无需下载或合并其他组件包；GitHub 的「Source code」源码压缩包也不是这里的安装包。
+3. 在 DSH 打开「插件 › 添加插件」，填入**这个 `.tgz` 文件本身的绝对路径**。路径末尾应包含完整文件名和 `.tgz` 后缀，例如下面的 Windows 路径（请替换为实际保存路径）：
+
+   ```text
+   C:\Users\你的用户名\Downloads\ericwang1358-dsh-daily-flashcard-4.5.1.tgz
+   ```
+
+   填文件本身的路径，不要只填下载目录或解压后的 `package` 目录。Windows 可在文件上右键选择「复制文件地址」，粘贴时去掉路径最外层的双引号。
+4. 安装完成后，确认包名为 `@ericwang1358/dsh-daily-flashcard`、版本为 4.5.1，再点「启用」。
 
 文件必须放在**运行 DSH 的电脑或服务器上**。访问远程网页版时，你自己电脑上的下载路径在服务器上并不存在：先把文件传到服务器，或者直接用上面的 HTTPS 地址。
+
+本地文件安装可以跳过从 GitHub 下载主包这一步；安装依赖仍可能需要联网。如果这时仍报证书错误，需要检查运行 DSH 的电脑或服务器上的网络和受信任证书。
 
 <a id="配置模型-provider"></a>
 
@@ -169,7 +183,7 @@ DSH 插件不会自动更新，只重启 DSH 也不会换成新版本。每次�
 
 ## 自定义组件
 
-完整安装包包含 7 个组件，在 **DSH 自带的插件管理**里启用或停用。StudyHub 没有另外的组件管理器。
+完整安装包包含主入口和 6 个组件，共 7 项，在 **DSH 自带的插件管理**里启用或停用。StudyHub 没有另外的组件管理器。
 
 | DSH 插件管理里的组件 | 提供的功能 |
 | --- | --- |

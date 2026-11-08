@@ -56,8 +56,8 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 安装补充说明：
 
 - **已经在用 DSH**：只装插件即可。桌面版或网页版、原来的 profile、模型设置和工作区都不用动。
-- **GitHub 地址装不上**：先用浏览器从[发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.5.1)下载 `.tgz`，再在「添加插件」里填它的绝对路径。文件必须放在运行 DSH 的那台电脑或服务器上。
-- **发布页文件很多，下哪个**：只需要完整包 `ericwang1358-dsh-daily-flashcard-<版本号>.tgz`，而且一般不用下载，按第 2 步粘贴地址就行。其余文件是 6 个可单独安装的组件、检索扩展（点「安装检索扩展」时由 StudyHub 安装）、校验值清单和两份安装引导。
+- **GitHub 地址装不上，或报 `unable to get local issuer certificate`**：用浏览器[下载 4.5.1 完整主包](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.5.1/ericwang1358-dsh-daily-flashcard-4.5.1.tgz)，**保留原始 `.tgz`，不用解压**。在「添加插件」里填这个文件本身的绝对路径，例如 `C:\Users\你的用户名\Downloads\ericwang1358-dsh-daily-flashcard-4.5.1.tgz`，请替换为实际保存路径。文件必须放在运行 DSH 的那台电脑或服务器上。详见[本地文件安装步骤](docs/install.zh-CN.md#dsh-无法从-github-下载时)。
+- **发布页文件很多，下哪个**：常规安装只需要上述完整主包；它已包含主入口和 6 个组件，共 7 项，不用下载、解压或合并其他组件包。检索扩展按需由 StudyHub 的「安装检索扩展」按钮安装；校验值清单和两份安装引导供核对与查阅。
 - 命令行安装等更多方式见[安装与模型配置](docs/install.zh-CN.md)。也可以下载能在浏览器里打开的[安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.5.1/StudyHub-4.5.1-Setup.zh-CN.html)（[English](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.5.1/StudyHub-4.5.1-Setup.html)）。DSH 本身只从第 1 步的官方渠道获取。
 
 ## 使用 StudyHub
