@@ -1,28 +1,11 @@
-import React, { useContext, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { ui } from '../i18n.js';
 import { Icon, ProgressBar, Tooltip } from '../components/index.js';
-import { StudyServicesContext } from '../study-context.jsx';
-import { useLiveEffect } from '../use-async.js';
-import { activePlanCourse } from './today-header.js';
 import { selectTodayFocusStrip } from './today-focus-strip.js';
+import { useTodayCoursePlan } from './use-today-course-plan.js';
 
 export default function TodayFocusStrip({ library, today, budgetMinutes = null, focusedMinutes = null, planAnswer }) {
-  const services = useContext(StudyServicesContext);
-  const course = activePlanCourse(library);
-  const courseName = course ? course.name : null;
-  const [fetchedPlan, setFetchedPlan] = useState(null);
-
-  useLiveEffect((isLive) => {
-    if (planAnswer !== undefined || courseName === null || !services?.call) {
-      setFetchedPlan(null);
-      return;
-    }
-    services.call('course.plan', { course: courseName, date: today })
-      .then((res) => { if (isLive()) setFetchedPlan(res); })
-      .catch(() => { if (isLive()) setFetchedPlan(null); });
-  }, [planAnswer, courseName, today, library?.revision, services]);
-
-  const effectivePlan = planAnswer !== undefined ? planAnswer : fetchedPlan;
+  const effectivePlan = useTodayCoursePlan(library, today, planAnswer);
   const strip = useMemo(
     () => selectTodayFocusStrip({ library, planAnswer: effectivePlan, budgetMinutes, focusedMinutes }),
     [library, effectivePlan, budgetMinutes, focusedMinutes],

@@ -9,7 +9,9 @@ import BoardCard from './Card.jsx';
 import TodayFocusStrip from './TodayFocusStrip.jsx';
 import TodayMemos from './TodayMemos.jsx';
 import TodayTimer, { TodayTimerBar } from './TodayTimer.jsx';
+import TodayUpcomingPlan from './TodayUpcomingPlan.jsx';
 import { formatTodayHeading, todayPlanLine } from './today-header.js';
+import { useTodayCoursePlan } from './use-today-course-plan.js';
 
 export default function TodayView({
   board, today, library, readOnly = false, hasDone = true, dailyPlan = null, dailyTaskIds,
@@ -17,8 +19,9 @@ export default function TodayView({
   onToggleDone, onEdit, onAction, onTodayAction, onMoveToday, onQuickAdd, onScheduleToday, onOrigin, onStudyRef,
   onStartTimer, onStartBreak, onPauseTimer, onResumeTimer, onCancelTimer, onCompleteTimer, onSaveTimerPrefs,
   onAddTimeLog, onEditTimeLog, onRemoveTimeLog,
-  onAddMemo, onEditMemo, onArchiveMemo, onDeleteMemo,
+  onAddMemo, onEditMemo, onArchiveMemo, onDeleteMemo, onOpenPlan,
 }) {
+  const effectivePlan = useTodayCoursePlan(library, today, planAnswer);
   const [quickTitle, setQuickTitle] = useState('');
   const [quickKind, setQuickKind] = useState('task');
   const [adding, setAdding] = useState(false);
@@ -271,7 +274,7 @@ export default function TodayView({
         library={library}
         today={today}
         budgetMinutes={resolvedBudgetMinutes}
-        planAnswer={planAnswer}
+        planAnswer={effectivePlan}
         focusedMinutes={effectiveFocusedMinutes}
       />
 
@@ -449,6 +452,12 @@ export default function TodayView({
             onEditMemo={onEditMemo}
             onArchiveMemo={onArchiveMemo}
             onDeleteMemo={onDeleteMemo}
+          />
+          <TodayUpcomingPlan
+            library={library}
+            today={today}
+            planAnswer={effectivePlan}
+            onOpenPlan={onOpenPlan}
           />
         </aside>
       </div>
