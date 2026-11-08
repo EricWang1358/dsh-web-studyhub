@@ -267,7 +267,7 @@ function SectionRow({ section, index, onChange, onRemove, disabled }) {
 /**
  * Props: data (snapshot: courses, sources, focus), courseId, onClose; act (called with rethrow so errors stay in the panel) and busy come from useStudy().
  */
-export default function CourseSettings({ data, courseId, onClose, mergeFrom = [] }) {
+export default function CourseSettings({ data, courseId, onClose, mergeFrom = [], onGenerateTopic }) {
   const { act, busy, openModal } = useStudy();
   const toast = useToast();
   useInjectCss(css, 'study-course-settings');
@@ -395,7 +395,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           <Hint>{ui('复习、出题和案例分析会优先照顾这些知识点：重点题间隔更短，出题时自动提高配额并加深难度。')}</Hint>
           <TopicChips value={draft.focusTopics} disabled={disabled} suggestions={weakTopics} onChange={focusTopics => change({ focusTopics })} />
           {/* Read only, and of the saved topics: a chip not yet saved has nothing to read against. */}
-          <FocusProgressList course={course.name} saved={course.focusTopics} />
+          <FocusProgressList course={course.name} saved={course.focusTopics} lock={disabled} onGenerateTopic={onGenerateTopic} />
         </section>
 
         <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('考官指引')}

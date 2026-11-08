@@ -114,6 +114,13 @@ test('the snapshot carries the coverage of a document that only has a draft, and
   assert.equal(byDraft.canTopUp, true);
   assert.equal(byDraft.coverage.covered, byDocument.coverage.covered, 'the draft and its material tell the same story');
   assert.equal(byDraft.round.sections, 6, 'the six sections that are left');
+  assert.equal(byDraft.focus, undefined, 'no focus topics saved: focus is omitted');
+  await service.call('course.save', { name: 'OS', focusTopics: ['Scope', '完全不存在的重点'] });
+  await service.call('source.courses.set', { assignments: ids.map(sourceId => ({ id: sourceId, courses: ['OS'] })) });
+  const docWithFocus = await service.call('coverage.get', { sourceId: snapshot.sources[0].id });
+  assert.deepEqual(docWithFocus.focus, { total: 2, covered: 1, uncovered: ['完全不存在的重点'] });
+  const draftWithFocus = await service.call('coverage.get', { draftId: job.draftId });
+  assert.deepEqual(draftWithFocus.focus, { total: 2, covered: 1, uncovered: ['完全不存在的重点'] });
   assert.equal((await service.call('coverage.get', { draftId: 'gone' })).status, 'missing');
   assert.equal((await service.call('coverage.get', { documentId: 'gone' })).status, 'missing');
   await assert.rejects(() => service.call('coverage.get', {}), /needs draftId/);

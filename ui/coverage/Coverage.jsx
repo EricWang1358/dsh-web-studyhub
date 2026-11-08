@@ -4,7 +4,7 @@ import { Button, Disclosure, StackedBar, Tooltip } from '../components/index.js'
 import { useInjectCss } from '../shared.js';
 import { coverageFromDigest } from '../../lib/coverage.js';
 import css from './coverage.css';
-import { countOf, coverageChipText, coverageHead, coverageLine, planFinished, planFinishedLine, sectionName, shortfallLine, stateMeaning, stateWord, reasonWord, uncoveredHead, weightLine } from './copy.js';
+import { countOf, coverageChipText, coverageHead, coverageLine, focusCoverageLine, planFinished, planFinishedLine, sectionName, shortfallLine, stateMeaning, stateWord, reasonWord, uncoveredHead, weightLine } from './copy.js';
 
 /* 覆盖 on screen: the bar, the mark beside an outline entry, the chip beside the mastery mark and the summary of a draft. They are drawn from lib/coverage.js's result
    (`coverage.get`, the snapshot's materialCoverage) and say it in ui/coverage/copy.js, so every screen shows the same numbers in the same words. */
@@ -116,12 +116,14 @@ function UncoveredList({ coverage, onOpen }) {
  * `shortfall` the draft's (lib/shortfall.js).
  */
 /** `lead`: what is said first, above the line of the sections (the draft page: 「选了 N 份，M 份已出题」, ui/coverage/MaterialsReport.jsx). */
-export function CoverageSummary({ coverage, shortfall, onOpen, children, lead = null, className = '' }) {
+export function CoverageSummary({ coverage, focus = null, shortfall, onOpen, children, lead = null, className = '' }) {
   useInjectCss(css, 'study-coverage');
   if (!coverage?.leaves) return null;
+  const focusLine = focusCoverageLine(focus);
   return <section className={`cov-summary ${className}`.trim()} aria-label={ui('这份草稿对资料的覆盖')} data-coverage-summary data-tour="draft-coverage">
     {lead}
     <CoverageFact coverage={coverage} shortfall={shortfall} legend />
+    {focusLine && <p className="cov-focus" data-focus-coverage>{focusLine}</p>}
     {coverage.groups?.length > 1 && <ul className="cov-groups" aria-label={coverage.groups.some((group) => group.recording != null) ? ui('每段录音的覆盖') : ui('每一章的覆盖')} data-coverage-groups>
       {coverage.groups.map((group) => <li key={group.id} data-group={group.id}>
         <span className="cov-groups__name">{groupName(group)}</span>

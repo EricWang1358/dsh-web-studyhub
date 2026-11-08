@@ -1,14 +1,22 @@
 import React, { useId, useState } from 'react';
+import { LEARNER_PREFERENCES_MAX, LEARNER_PREFERENCE_MAX_CHARS } from '../../lib/learner.js';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Checkbox, ConfirmDialog, Field, Hint, Icon, Select, SettingsSection, useToast } from '../components/index.js';
+import { Button, Checkbox, Chip, ConfirmDialog, Field, Hint, Icon, Select, SettingsSection, TextInput, useToast } from '../components/index.js';
 import { formatDateTime } from '../format.js';
 import { invalidate } from '../host-query.js';
 import { useStudy } from '../study-context.jsx';
 
 const GOALS = [['', '未设定'], ['exam', '应付考试'], ['interview', '面试求职'], ['work', '工作中落地'], ['explore', '兴趣拓展']];
 
+export const PREFERENCE_IDEAS = Object.freeze([
+  '先给直觉例子再推导',
+  '结合真题与评分标准',
+  '苏格拉底式提问引导',
+  '对比易混概念与反例',
+]);
+
 /**
- * The consent and goal toggles. App's act() is single-flight, so reloading the
+ * The consent, goal and preferences actions. App's act() is single-flight, so reloading the
  * profile with a nested act() inside the first one's callback was skipped and
  * the section kept showing the old profile; the reload uses call() instead.
  */
@@ -20,17 +28,34 @@ export function coachActions({ act, call, setProfile }) {
   return {
     setConsent: (prep) => act('coach.consent', { prep }, async () => { invalidate('coach.status'); await reload(); }),
     setGoal: (goal) => act('coach.goal', { goal }, reload),
+    setPreferences: (preferences) => act('coach.preferences', { preferences }, reload),
   };
 }
 
-/** 陪学: what the profile changes, the goal, a short profile with a compact feedback row, and a confirmed reset. */
+/** 陪学: what the profile changes, the goal, free-form study preferences, a short profile with a compact feedback row, and a confirmed reset. */
 export function CoachSection({ profile, setProfile, confirmForget = false }) {
   const { busy, act, call } = useStudy();
   const toast = useToast();
   const [expanded, setExpanded] = useState(false);
   const [confirm, setConfirm] = useState(confirmForget);
+  const [draftPref, setDraftPref] = useState('');
   const summaryId = useId();
-  const { setConsent, setGoal } = coachActions({ act, call, setProfile });
+  const { setConsent, setGoal, setPreferences } = coachActions({ act, call, setProfile });
+  const preferences = Array.isArray(profile.preferences) ? profile.preferences : [];
+  const trimmedDraft = draftPref.replace(/\s+/g, ' ').trim();
+  const atMax = preferences.length >= LEARNER_PREFERENCES_MAX;
+  const addPref = (value) => {
+    const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+    if (!text || preferences.includes(text) || preferences.length >= LEARNER_PREFERENCES_MAX) return;
+    setPreferences([...preferences, text]);
+  };
+  const submitPref = () => {
+    if (!trimmedDraft || atMax) return;
+    if (!preferences.includes(trimmedDraft)) setPreferences([...preferences, trimmedDraft]);
+    setDraftPref('');
+  };
+  const removePref = (item) => setPreferences(preferences.filter(entry => entry !== item));
+  const availableIdeas = PREFERENCE_IDEAS.filter(idea => !preferences.includes(idea) && !preferences.includes(ui(idea))).map(idea => ui(idea));
   const summary = profile.summary || '';
   const long = summary.length > 60;
   const updated = formatDateTime(profile.updatedAt, 'day');
@@ -39,10 +64,42 @@ export function CoachSection({ profile, setProfile, confirmForget = false }) {
   return (
     <SettingsSection className="coach-settings" tour="settings-profile" title={ui('陪学')}
       lead={ui('陪学记住的学习目标和画像只保存在这个学习库文件里，用来让变式题和建议更贴近你。模型调用使用最低思考档位。')}>
-      <Hint>{ui('画像只影响陪学：答错后的提示、追问、改题、强化变式题和每轮复盘的措辞与侧重；不影响出题和复习排期。')}</Hint>
+      <Hint>{ui('画像与学习偏好会随数据围栏发给陪学、讲解与划词追问以及发给主会话的消息，调整讲解措辞与侧重；不进出题提示词，也不改间隔复习排期。')}</Hint>
       <Checkbox label={ui('做题时在后台准备变式题和应用场景题')} checked={profile.consent === true} disabled={busy} onChange={setConsent} />
       <Field label={ui('学习目标')} hint={ui('提示语气与例子会贴近这个目标。')}>
         <Select value={profile.goal} disabled={busy} onChange={setGoal} options={GOALS.map(([id, label]) => ({ value: id, label: ui(label) }))} />
+      </Field>
+      <Field label={ui('学习偏好')} width="full"
+        hint={ui('自由写下你喜欢的讲解或练习方式；也可以随时在主会话里直接告诉 AI 你想怎么学，经你确认后会记在这里。')}>
+        {({ id, describedBy }) => (
+          <div className="coach-prefs">
+            {preferences.length > 0 && (
+              <div className="coach-prefs__list" role="list" aria-label={ui('已保存的学习偏好')}>
+                {preferences.map(item => (
+                  <Chip key={item} role="listitem" size="sm" removeLabel={uiFormat('移除「{0}」', [item])}
+                    onRemove={busy ? undefined : () => removePref(item)}>{item}</Chip>
+                ))}
+              </div>
+            )}
+            <div className="coach-prefs__entry">
+              <TextInput id={id} className="learner-pref-input" aria-describedby={describedBy} value={draftPref} maxLength={LEARNER_PREFERENCE_MAX_CHARS}
+                disabled={busy || atMax} placeholder={ui('例如：先给直觉例子再推导、用伪代码对比边界…')}
+                onChange={event => setDraftPref(event.target.value)}
+                onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); submitPref(); } }} />
+              <Button variant="secondary" size="sm" lock={busy} disabled={!trimmedDraft || atMax} onClick={submitPref}>{ui('添加')}</Button>
+            </div>
+            {!atMax && availableIdeas.length > 0 && (
+              <div className="coach-prefs__ideas">
+                <span className="coach-prefs__ideas-lead">{ui('灵感示例（点一下加入，也可自由填写）：')}</span>
+                <div className="coach-prefs__chips">
+                  {availableIdeas.map(label => (
+                    <Chip key={label} size="sm" icon="plus" disabled={busy} onClick={() => addPref(label)}>{label}</Chip>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Field>
       <div className="coach-profile">
         <div className="coach-profile__head">
@@ -63,7 +120,7 @@ export function CoachSection({ profile, setProfile, confirmForget = false }) {
         <Button variant="secondary" lock={busy} onClick={() => setConfirm(true)}>{ui('清空画像')}</Button>
       </div>
       {confirm && <ConfirmDialog title={ui('清空陪学画像？')} confirmLabel={ui('清空画像')} busy={busy} onClose={() => setConfirm(false)}
-        description={uiFormat('将删除：学习目标、画像摘要、反馈计数和 {0} 道未使用的定制题。', [profile.ready || 0])}
+        description={uiFormat('将删除：学习目标、学习偏好、画像摘要、反馈计数和 {0} 道未使用的定制题。', [profile.ready || 0])}
         onConfirm={() => act('coach.forget', {}, (next) => {
           invalidate('coach.status'); // the debrief and the 错题 page drop what was prepared
           setProfile(next);

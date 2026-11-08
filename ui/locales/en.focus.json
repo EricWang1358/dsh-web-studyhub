@@ -75,5 +75,7 @@
   "题目按主题、考点说明或题干里出现的重点词归入重点，一道题可以属于几条重点。有薄弱题的重点算「还不会」，掌握度 80% 以上又没有薄弱题的算「已掌握」，其余算「学习中」。": "A question counts under a focus topic when its topic, its objective or its wording contains that topic, and one question can belong to several topics. A topic with a weak question is “Not yet”; at 80% mastery or more with no weak question it is “Mastered”; the rest are “Learning”.",
   "重点掌握情况": "Focus topics and how far you are",
   "1 题 · 已掌握 {0}": "1 question · Mastered {0}",
-  "{0} 题 · 已掌握 {1}": "{0} questions · Mastered {1}"
+  "{0} 题 · 已掌握 {1}": "{0} questions · Mastered {1}",
+  "去出题 →": "Generate questions →",
+  "去出缺题重点 →": "Generate for empty focus topics →"
 }

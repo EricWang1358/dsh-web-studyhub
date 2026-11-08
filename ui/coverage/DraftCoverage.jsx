@@ -15,7 +15,7 @@ export default function DraftCoverage({ draft, view, jobs = [], held = false, un
   const { busy } = useStudy();
   if (!view) return null;
   const shortfall = draftShortfall(draft, { view, jobs }), materials = view.status === 'ok' ? view.materials : null;
-  return <CoverageSummary coverage={view.coverage} shortfall={shortfall} onOpen={onOpenSource ? (section) => onOpenSource(section.sourceId, section.start) : undefined}
+  return <CoverageSummary coverage={view.coverage} focus={view.focus} shortfall={shortfall} onOpen={onOpenSource ? (section) => onOpenSource(section.sourceId, section.start) : undefined}
     lead={<MaterialsReport report={materials} disabled={busy || !!work || held || !modelReady} onTopUp={(keys) => onTopUp(draft, keys, { manual: true })} />}>
     <RunPanel draft={draft} view={view} jobs={jobs} held={held} saveThen={unsaved ? saveThen : undefined} modelReady={modelReady} onOpenSource={onOpenSource} />
     <CoverageTopUp draft={draft} view={view} jobs={jobs} held={held} modelReady={modelReady} onTopUp={onTopUp} />

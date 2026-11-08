@@ -15,6 +15,7 @@ const m = await loadUi(`
   export { default as FocusProgressLine } from './ui/study-map/FocusProgressLine.jsx';
   export { FocusProgressRows } from './ui/FocusProgressList.jsx';
   export { default as CourseSettings } from './ui/CourseSettings.jsx';
+  export { appendFocus } from './ui/generate-form.js';
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';
@@ -134,4 +135,34 @@ test('the course settings carry the list under the topic chips, for the saved to
   const course = { id: 'course-os', name: 'OS', focusTopics: ['死锁'], exam: null, aliases: [], guidanceSourceIds: [], decks: 1, sources: 0 };
   const html = render(h(m.CourseSettings, { data: { root: '/lib', courses: [course], sources: [], focus: { course: 'OS', courses: [{ name: 'OS' }] } }, courseId: 'course-os', onClose: noop }));
   assert.match(text(html), /重点知识点/);
+});
+
+test('empty focus topics offer an entry into existing generation from both course settings and the home line when no weak focus question blocks it', () => {
+  const generated = [];
+  const rowsHtml = render(h(m.FocusProgressRows, { progress, lock: false, onGenerateTopic: topic => generated.push(topic) }));
+  assert.match(text(rowsHtml), /页面置换 还没有题 去出题 →/);
+  assert.equal((rowsHtml.match(/去出题 →/g) || []).length, 1, 'only status === none topics get the generation button');
+  assert.match(text(render(h(m.FocusProgressRows, { progress, lock: false, onGenerateTopic: noop }), 'en')), /No questions Generate questions →/);
+
+  const rowsTree = m.FocusProgressRows({ progress, lock: false, onGenerateTopic: topic => generated.push(topic) });
+  const genBtn = walk(rowsTree).find(node => typeof node.props.onClick === 'function');
+  genBtn.props.onClick();
+  assert.deepEqual(generated, ['页面置换']);
+
+  const withWeak = render(h(m.FocusProgressLine, { progress, courseId: 'course-os', lock: false, start: noop, onCourseSettings: noop, onGenerateFocus: noop }));
+  assert.doesNotMatch(text(withWeak), /去出缺题重点/);
+  const noWeak = { ...progress, weak: 0, none: 2, weakScope: [], topics: [
+    { topic: '页面置换', cards: 0, counts: counts(), mastery: 0, status: 'none', weakCards: [] },
+    { topic: '银行家算法', cards: 0, counts: counts(), mastery: 0, status: 'none', weakCards: [] },
+    { topic: '内存', cards: 2, counts: counts({ mastered: 2 }), mastery: 100, status: 'done', weakCards: [] },
+  ] };
+  const lineCalls = [];
+  const lineTree = m.FocusProgressLine({ progress: noWeak, courseId: 'course-os', lock: false, start: noop, onCourseSettings: noop, onGenerateFocus: (topics, course) => lineCalls.push([topics, course]) });
+  const lineBtns = walk(lineTree).filter(node => typeof node.props.onClick === 'function');
+  assert.equal(lineBtns.length, 2);
+  assert.match(textOf(lineBtns[1]), /去出缺题重点 →/);
+  lineBtns[1].props.onClick();
+  assert.deepEqual(lineCalls, [[['页面置换', '银行家算法'], 'OS']]);
+  assert.equal(m.appendFocus('死锁', ['页面置换', '死锁', '银行家算法']), '死锁；页面置换；银行家算法');
+  assert.match(visible(render(h(m.FocusProgressLine, { progress: noWeak, courseId: 'course-os', lock: false, start: noop, onGenerateFocus: noop }), 'en')), /Generate for empty focus topics →/);
 });

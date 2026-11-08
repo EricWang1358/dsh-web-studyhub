@@ -8,7 +8,10 @@ import { createFakeModel } from '../scripts/fake-model.mjs';
 import { stageFocusImages } from '../lib/focus-image-stage.js';
 import { lengthWeights, sectionWeights } from '../lib/section-weights.js';
 import { planPrompts, blueprintPrompts } from '../lib/assessment-quality.js';
-import { authorPrompts, reviewPrompts } from '../lib/generation.js';
+import { authorPrompts, reviewPrompts, prioritizePlannedTargets, finalizePlannedTargets } from '../lib/generation.js';
+import { GENERATION_FOCUS_PRIORITY, prioritizeFocusTopics } from '../lib/focus-progress.js';
+import { escalateFocusDifficulty } from '../lib/focus-points.js';
+import { coveragePlan } from '../lib/coverage-plan.js';
 import { settleJob } from './helpers/wait.mjs';
 
 // 1x1 valid PNG (68 bytes)
@@ -210,4 +213,192 @@ test('Stages 1-4 escalate cognitive depth for focusTopics and stamp cards with f
   const deck = (await service.call('export')).decks.find((item) => item.id === published.deckId);
   assert.equal(deck.cards[0].focus, true);
   assert.equal(deck.cards[0].difficulty, 'advanced');
+});
+
+
+test('focus × mastery prioritization orders empty and weak focus topics first, keeps mastered topics at natural weight/difficulty, and never leaks focusStatus to prompts or disk', async (t) => {
+  assert.deepEqual(GENERATION_FOCUS_PRIORITY, { none: 0, weak: 1, todo: 2, active: 2, done: 3 });
+  assert.equal(escalateFocusDifficulty('foundation', { status: 'none' }), 'application');
+  assert.equal(escalateFocusDifficulty('mixed', { status: 'weak' }), 'advanced');
+  assert.equal(escalateFocusDifficulty('foundation', { status: 'done' }), 'foundation');
+  assert.equal(escalateFocusDifficulty('mixed', { status: 'done' }), 'application');
+
+  const workspace = await mkdtemp(join(tmpdir(), 'study-focus-mastery-gen-'));
+  const log = [];
+  const fake = createFakeModel({ log });
+  const service = new StudyService(workspace, { complete: fake, light: fake });
+  t.after(async () => {
+    await service.dispose();
+    await rm(workspace, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+  await service.call('course.save', { name: 'OS', focusTopics: ['TCP', '信号量', '死锁', '页面置换', 'TLB'] });
+
+  await service.store.update((own) => {
+    own.decks.push({
+      id: 'd-os-seed',
+      title: 'OS Seed',
+      course: 'OS',
+      cards: [
+        {
+          id: 'tcp-1',
+          kind: 'flashcard',
+          topic: 'TCP 拥塞窗口',
+          objective: 'Explain TCP congestion window',
+          prompt: 'What is cwnd?',
+          answer: 'Congestion window',
+          review: { repetitions: 3, interval_days: 30, ease_factor: 2.5, due_at: '2099-01-01T00:00:00Z' },
+        },
+        {
+          id: 'dead-1',
+          kind: 'flashcard',
+          topic: '死锁必要条件',
+          objective: 'List Coffman conditions',
+          prompt: 'Four conditions?',
+          answer: 'Mutual exclusion, hold and wait, no preemption, circular wait',
+          review: { repetitions: 0, interval_days: 0, ease_factor: 2.5, due_at: null },
+        },
+        {
+          id: 'sem-1',
+          kind: 'flashcard',
+          topic: '信号量 PV 操作',
+          objective: 'Understand P/V',
+          prompt: 'What does P do?',
+          answer: 'Decrements semaphore',
+          review: { repetitions: 0, interval_days: 0, ease_factor: 2.5, due_at: null },
+        },
+      ],
+    });
+    own.attempts.push(
+      { deckId: 'd-os-seed', quiz_id: 'tcp-1', grade: 5, timestamp: '2026-10-04T08:00:00Z' },
+      { deckId: 'd-os-seed', quiz_id: 'dead-1', grade: 1, timestamp: '2026-10-04T08:00:00Z' },
+    );
+  });
+
+  const seeded = await service.call('export');
+  const ordered = prioritizeFocusTopics(seeded, 'OS', ['TCP', '信号量', '死锁', '页面置换', 'TLB']);
+  assert.deepEqual(ordered.topics, ['页面置换', 'TLB', '死锁', '信号量', 'TCP']);
+  assert.deepEqual(ordered.statusByTopic, {
+    TCP: 'done',
+    信号量: 'todo',
+    死锁: 'weak',
+    页面置换: 'none',
+    TLB: 'none',
+  });
+
+  const sDone = 'TCP 协议拥塞窗口控制。'.repeat(60);
+  const sWeak = '死锁处理预防与银行家算法。'.repeat(60);
+  const sNone = '页面置换算法 LRU 与工作集。'.repeat(60);
+  const weightSources = [{ id: 'doc1', title: 'OS Notes', text: `${sDone}\n\n${sWeak}\n\n${sNone}` }];
+  const sections = [
+    { id: 's-done', key: 'doc1#s-done', sourceId: 'doc1', title: 'TCP 协议', start: 0, end: sDone.length, chars: sDone.length, length: sDone.length },
+    { id: 's-weak', key: 'doc1#s-weak', sourceId: 'doc1', title: '死锁处理', start: sDone.length + 2, end: sDone.length + 2 + sWeak.length, chars: sWeak.length, length: sWeak.length },
+    { id: 's-none', key: 'doc1#s-none', sourceId: 'doc1', title: '页面置换算法', start: sDone.length + sWeak.length + 4, end: weightSources[0].text.length, chars: sNone.length, length: sNone.length },
+  ];
+  const weighed = lengthWeights(sections, { focusTopics: ordered.topics, focusStatus: ordered.statusByTopic, sources: weightSources });
+  const byId = Object.fromEntries(weighed.map((s) => [s.sectionId, s]));
+  assert.equal(byId['doc1#s-none'].importance, 5);
+  assert.equal(byId['doc1#s-weak'].importance, 5);
+  assert.equal(byId['doc1#s-done'].importance, 3, 'mastered focus topic keeps natural importance instead of forced 5');
+  const { rounds } = coveragePlan({ leaves: sections, weights: weighed, level: 'full', goalCount: 3, limit: 1 });
+  assert.deepEqual(rounds.map((r) => r.assignments[0].key), ['doc1#s-none', 'doc1#s-weak', 'doc1#s-done'], 'empty focus section comes ahead of weak, and weak ahead of mastered');
+
+  const planned = prioritizePlannedTargets([
+    { targetId: 't-plain', topic: '进程状态', conceptKey: 'proc-state', focus: false },
+    { targetId: 't-done', topic: 'TCP', conceptKey: 'tcp', focusStatus: 'done' },
+    { targetId: 't-weak', topic: '死锁', conceptKey: 'deadlock', focus: true, focusStatus: 'weak' },
+    { targetId: 't-none', topic: '页面置换', conceptKey: 'paging', focus: true, focusStatus: 'none' },
+  ]);
+  assert.deepEqual(planned.map((t) => t.targetId), ['t-none', 't-weak', 't-plain', 't-done']);
+  const finalized = finalizePlannedTargets(planned);
+  assert.equal(finalized.targets.some((t) => 'focusStatus' in t), false, 'transient focusStatus is stripped before Stage 2-4 prompts');
+  assert.equal(finalized.statusByTargetId.get('t-done'), 'done');
+
+  const docPage = await service.call('source.add', {
+    title: 'OS 讲义',
+    courses: ['OS'],
+    text: [
+      '# 页面置换算法\nLRU 与时钟页面置换用于缺页中断处理。',
+      '# 死锁条件\n互斥、占有并等待、不可抢占、循环等待是死锁四个必要条件。',
+      '# TCP 拥塞窗口\n慢启动和拥塞避免共同调节发送窗口。',
+    ].join('\n\n'),
+  });
+
+  const unprioritized = await service.call('generate', {
+    sourceIds: [docPage.id],
+    course: 'OS',
+    kind: 'flashcard',
+    difficulty: 'foundation',
+    count: 2,
+    prioritizeFocus: false,
+  });
+  await settleJob(service, unprioritized.jobId);
+  const rawDraft = (await service.call('export')).drafts.at(-1);
+  assert.deepEqual(rawDraft.editorial.generation.focusTopics, ['TCP', '信号量', '死锁', '页面置换', 'TLB']);
+
+  const run = await service.call('generate', {
+    sourceIds: [docPage.id],
+    course: 'OS',
+    kind: 'flashcard',
+    difficulty: 'foundation',
+    count: 2,
+  });
+  await settleJob(service, run.jobId);
+  const after = await service.call('export');
+  const draft = after.drafts.at(-1);
+  assert.deepEqual(draft.editorial.generation.focusTopics, ['页面置换', 'TLB', '死锁', '信号量', 'TCP']);
+  assert.equal('focusStatus' in draft.editorial.generation, false, 'focusStatus is never persisted to editorial.generation');
+  for (const call of log) {
+    assert.equal(JSON.stringify(call).includes('focusStatus'), false, 'focusStatus never leaks into model prompts');
+  }
+
+  // Mastered (`done`) focus targets omit `target.focus` in assessmentPlan so Stage 4 `reviewPrompts` does NOT demand deeper discrimination,
+  // while `bound.focus === true` is still preserved on the published card at its natural `foundation` difficulty.
+  const doneOnlyReview = reviewPrompts({
+    sources: [{ id: 's-tcp', title: 'TCP', text: 'TCP 拥塞窗口通过慢启动调节速率。' }],
+    deck: { title: 'D', cards: [{ id: 'q-done', targetId: 't-done', kind: 'flashcard', focus: true, difficulty: 'foundation' }] },
+    kind: 'flashcard',
+    count: 1,
+    structuralErrors: [],
+    difficulty: 'foundation',
+    focusTopics: ['TCP'],
+    assessmentPlan: { targets: [{ targetId: 't-done', objective: 'TCP 拥塞窗口', knowledge: 'TCP 拥塞窗口通过慢启动调节速率。' }] },
+  });
+  assert.equal(doneOnlyReview.payload.includes('course exam focus highlights'), false);
+
+  const escalatedPlanReview = reviewPrompts({
+    sources: [{ id: 's-tcp', title: 'TCP', text: 'TCP 拥塞窗口通过慢启动调节速率。' }],
+    deck: { title: 'D', cards: [{ id: 'q-weak', targetId: 't-weak', kind: 'flashcard', focus: true, difficulty: 'application' }] },
+    kind: 'flashcard',
+    count: 1,
+    structuralErrors: [],
+    difficulty: 'foundation',
+    focusTopics: ['死锁'],
+    assessmentPlan: { targets: [{ targetId: 't-weak', objective: '死锁条件', knowledge: '互斥与占有并等待', focus: true }] },
+  });
+  assert.ok(escalatedPlanReview.payload.includes('Targets in assessmentPlan marked focus: true are course exam focus highlights'));
+
+  const tcpOnlySource = await service.call('source.add', {
+    title: 'TCP 专章',
+    courses: ['OS'],
+    text: 'TCP 协议通过拥塞窗口 cwnd 和接收窗口 rwnd 共同控制发送端注入网络的字节数，防止链路队列溢出。',
+  });
+  log.length = 0;
+  const doneRun = await service.call('generate', {
+    sourceIds: [tcpOnlySource.id],
+    course: 'OS',
+    kind: 'flashcard',
+    difficulty: 'foundation',
+    count: 1,
+  });
+  await settleJob(service, doneRun.jobId);
+  const reviewCalls = log.filter((entry) => String(entry.system || '').includes('Act as a strict assessment editor.') || String(entry.prompt || '').includes('Act as a strict assessment editor.'));
+  assert.ok(reviewCalls.length >= 1, 'Stage 4 review ran');
+  for (const call of reviewCalls) {
+    assert.equal(call.prompt.includes('course exam focus highlights'), false, 'done-only batch does not inject focus escalation into reviewPrompts');
+  }
+  const doneDraft = (await service.call('export')).drafts.at(-1);
+  const donePublished = await service.call('draft.publish.quick', { id: doneDraft.id, draftVersion: doneDraft.draftVersion });
+  const doneDeck = (await service.call('export')).decks.find((item) => item.id === donePublished.deckId);
+  assert.equal(doneDeck.cards[0].focus, true, 'published card still carries bound.focus === true');
+  assert.equal(doneDeck.cards[0].difficulty, 'foundation', 'published card keeps natural foundation difficulty');
 });

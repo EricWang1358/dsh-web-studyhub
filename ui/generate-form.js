@@ -248,8 +248,9 @@ export function summaryLine({ materials = 0, pages = 0, count = null, difficulty
 const SEPARATOR = '；';
 const parts = (text) => String(text || '').split(/[；;\n]/).map((item) => item.trim()).filter(Boolean);
 export const focusIncludes = (text, item) => parts(text).includes(String(item).trim());
-/** Add one focus phrase to the box once; the learner's own words stay. */
+/** Add one or more focus phrases to the box once each; the learner's own words stay. */
 export function appendFocus(text, item) {
+  if (Array.isArray(item)) return item.reduce((acc, entry) => appendFocus(acc, entry), String(text || ''));
   const phrase = String(item || '').trim();
   if (!phrase || focusIncludes(text, phrase)) return String(text || '');
   const current = String(text || '').trim();

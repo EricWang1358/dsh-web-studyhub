@@ -111,7 +111,7 @@ const coach = (props = {}, language) => render(h(CoachSection, { profile, busy: 
 
 test('陪学 says exactly where the profile is used', () => {
   const html = coach();
-  assert.match(html, /画像只影响陪学：答错后的提示、追问、改题、强化变式题和每轮复盘的措辞与侧重；不影响出题和复习排期。/);
+  assert.match(html, /画像与学习偏好会随数据围栏发给陪学、讲解与划词追问以及发给主会话的消息，调整讲解措辞与侧重；不进出题提示词，也不改间隔复习排期。/);
   assert.match(html, /提示语气与例子会贴近这个目标/);
 });
 
@@ -134,7 +134,7 @@ test('清空画像 asks first and says what goes', () => {
   const html = coach({ confirmForget: true });
   assert.match(html, /role="dialog"|<dialog/);
   assert.match(html, /清空陪学画像？/);
-  assert.match(html, /学习目标、画像摘要、反馈计数和 3 道未使用的定制题/);
+  assert.match(html, /学习目标、学习偏好、画像摘要、反馈计数和 3 道未使用的定制题/);
   assert.match(html, /练习记录和复习进度不受影响/);
 });
 
@@ -270,10 +270,18 @@ test('changing the coach consent or goal reloads the profile outside the single-
   };
   const call = async (action) => { calls.push(`call ${action}`); return { ...profile, goal: 'work' }; };
   let shown = null;
-  const { setConsent, setGoal } = coachActions({ act, call, setProfile: value => { shown = value; } });
+  const { setConsent, setGoal, setPreferences } = coachActions({ act, call, setProfile: value => { shown = value; } });
   await setGoal('work');
   assert.deepEqual(calls, ['coach.goal', 'call coach.profile']);
   assert.equal(shown.goal, 'work');
   await setConsent(false);
   assert.deepEqual(calls.slice(2), ['coach.consent', 'call coach.profile']);
+  await setPreferences(['先给直觉例子再推导']);
+  assert.deepEqual(calls.slice(4), ['coach.preferences', 'call coach.profile']);
+  const withPrefs = coach({ profile: { ...profile, preferences: ['先给直觉例子再推导', '用 Python 伪代码举例'] } });
+  assert.match(withPrefs, /学习偏好/);
+  assert.match(withPrefs, /先给直觉例子再推导/);
+  assert.match(withPrefs, /用 Python 伪代码举例/);
+  assert.match(withPrefs, /结合真题与评分标准/, 'unselected quick inspiration chips remain available');
+  assert.doesNotMatch(coach({ profile: { ...profile, preferences: ['Contrast edge cases'] } }, 'en').replace(/偏好[^<]*/g, ''), han);
 });

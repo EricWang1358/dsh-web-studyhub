@@ -51,7 +51,7 @@ function quoteFor(source, index, focusTopics) {
   if (list.length) {
     if (Array.isArray(focusTopics) && focusTopics.length) {
       const lowered = focusTopics.map((item) => String(item || "").trim().toLowerCase()).filter(Boolean);
-      const focused = list.filter((sentence) => lowered.some((term) => sentence.toLowerCase().includes(term)));
+      const focused = [...new Set(lowered.flatMap((term) => list.filter((sentence) => sentence.toLowerCase().includes(term))))];
       const rest = list.filter((sentence) => !focused.includes(sentence));
       const ordered = [...focused, ...rest];
       return ordered[index % ordered.length].slice(0, 90);

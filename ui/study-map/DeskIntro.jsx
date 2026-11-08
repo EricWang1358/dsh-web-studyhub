@@ -51,7 +51,7 @@ function OtherRuns({ runs, otherCourse, resume, endRun }) {
 }
 
 /** The left of the home desk: study mode, the course (or role) heading, the way to the 总纲 beside the course title, the course route, mastery, the next step and the other ways to start. */
-export default function DeskIntro({ data, home, mastery, role, start, resume, endRun, onFocus, onCourseSettings, onShowOutline, suggestRole }) {
+export default function DeskIntro({ data, home, mastery, role, start, resume, endRun, onFocus, onCourseSettings, onGenerateFocus, onShowOutline, suggestRole }) {
   const { busy } = useStudy();
   const { interview, route, starter, headline, plan, alternatives, otherRuns, otherCourse } = home;
   const currentEntry = (data.focus?.courses || []).find((course) => course.name === data.focus?.course);
@@ -67,7 +67,7 @@ export default function DeskIntro({ data, home, mastery, role, start, resume, en
       {interview && <RoleSuggestion data={data} role={role.draft} suggestRole={suggestRole} onFocus={onFocus} start={start} />}
       {route && <CourseRoute route={route} />}
       {!interview && <MethodLine method={data.focus?.method} courseId={data.focus?.courseId} onCourseSettings={onCourseSettings} />}
-      {!interview && <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} lock={busy} start={start} onCourseSettings={onCourseSettings} />}
+      {!interview && <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} lock={busy} start={start} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} />}
       {mastery.primary && <DeskMastery mastery={mastery} />}
       <p className="desk-next">
         {data.next ? (

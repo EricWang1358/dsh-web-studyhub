@@ -65,7 +65,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const quick = useQuickActions();
   const openModelSettings = useContext(ModelSettingsContext) || undefined;
   const { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual, importLibrary,
-    generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onOpenExamBook, onShowGraph, onCourseSettings, onShowOutline } = actions;
+    generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onOpenExamBook, onShowGraph, onCourseSettings, onGenerateFocus, onShowOutline } = actions;
   const endRun = (runId) => act("review.end", { runId });
   const restoreDeck = (id) => act("deck.archive", { id, archived: false }, () => toast.success(ui("题组已恢复。")));
   /* 归档 from the deck row's ⋯ menu: the same call, the same notice (撤销, then 永久删除…) as the Manage page's button (ui/archive-entries.js).
@@ -162,7 +162,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       {hasOwnDeck(data) && <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} on={setupHandlers} />}
       <div className={"desk" + (home.plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
         <DeskIntro data={data} home={home} mastery={mastery} role={role} start={start} resume={resume} endRun={endRun}
-          onFocus={onFocus} onCourseSettings={onCourseSettings} onShowOutline={onShowOutline} suggestRole={suggestRole} />
+          onFocus={onFocus} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} onShowOutline={onShowOutline} suggestRole={suggestRole} />
         {line.show
           ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} plan={firstRun?.plan} /></div>
           : <TodayCard plan={home.plan} todayLabel={home.todayLabel} quiet={nextHasButton} />}

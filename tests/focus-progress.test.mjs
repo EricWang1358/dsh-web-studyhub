@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
 import { emptyState } from "../lib/store.js";
-import { focusProgress, FOCUS_PRACTICE_LIMIT } from "../lib/focus-progress.js";
+import { focusProgress, focusCoverageOf, FOCUS_PRACTICE_LIMIT } from "../lib/focus-progress.js";
 import { libraryContracts, studyToolDescription } from "../lib/study-contracts.js";
 import { writesFor } from "../lib/runtime/domain-contracts.js";
 import { assistantRefusal } from "../lib/assistant-boundary.js";
@@ -152,4 +152,17 @@ test("course.focusProgress is declared read only, listed for discovery and descr
   assert.match(libraryContracts.plan, /course\.focusProgress \{course\?\} reads the course's saved focus topics/);
   assert.match(libraryContracts.plan, /weakScope/);
   assert.ok(libraryContracts.plan.length < 3000, "the plan area stays short enough to read in one go");
+});
+
+test("focusCoverageOf counts which saved focus topics have a matching active question and returns null without focus topics", () => {
+  const state = library();
+  assert.equal(focusCoverageOf(emptyState(), { course: "OS", cards: [] }), null);
+  assert.equal(focusCoverageOf(state, { course: "*", cards: state.decks[0].cards }), null);
+  const partial = focusCoverageOf(state, { course: "OS", cards: state.decks[0].cards });
+  assert.deepEqual(partial, { total: 4, covered: 2, uncovered: ["页面置换", "TLB"] }, "suspended cards do not count; chapter focus topics are included");
+  const full = focusCoverageOf(state, {
+    course: "OS",
+    cards: [...state.decks[0].cards, card("p1", "页面置换 LRU"), card("t1", "TLB 快表")],
+  });
+  assert.deepEqual(full, { total: 4, covered: 4, uncovered: [] });
 });

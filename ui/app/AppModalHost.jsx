@@ -9,6 +9,7 @@ import FlagDialog from './modals/FlagDialog.jsx';
 import SourceListDialog from './modals/SourceListDialog.jsx';
 import SourceReaderDialog from './modals/SourceReaderDialog.jsx';
 import { practiceArgs } from '../learning-navigation.js';
+import { appendFocus } from '../generate-form.js';
 import { useApp } from './app-context.js';
 
 /* The app's dialogs, each in its own file. `modal` (library state) says which one is open; any other value is the reader. */
@@ -49,15 +50,21 @@ export function ModalRouter() {
 
 export default function AppModalHost() {
   const app = useApp();
-  const { data, core, nav, lib, set, tour, settingsEntry } = app;
+  const { data, core, nav, lib, set, tour, settingsEntry, intents } = app;
   const { courseSettings, setCourseSettings } = settingsEntry;
+  const openCourseId = courseSettings?.id || courseSettings;
+  const openCourse = openCourseId ? (data?.courses || []).find((item) => item.id === openCourseId) : null;
   const removing = lib.removingDeck?.root === data?.root ? data?.decks.find((deck) => deck.id === lib.removingDeck?.id) : null;
   return (
     <>
       {courseSettings && (
         <CourseSettings key={courseSettings.id ? `${courseSettings.id}:${courseSettings.mergeFrom.join(',')}` : courseSettings} data={data}
-          courseId={courseSettings.id || courseSettings} mergeFrom={courseSettings.mergeFrom}
-          onClose={() => setCourseSettings(null)} />
+          courseId={openCourseId} mergeFrom={courseSettings.mergeFrom}
+          onClose={() => setCourseSettings(null)}
+          onGenerateTopic={openCourse && intents?.goGenerate ? (topic) => {
+            setCourseSettings(null);
+            intents.goGenerate({ genPatch: (cur) => ({ ...cur, course: openCourse.name, focus: appendFocus(cur.focus, topic) }), remember: true });
+          } : undefined} />
       )}
       {tour.removingSample && <RemoveSampleDialog busy={tour.sampleBusy} onConfirm={tour.removeSampleData} onClose={() => tour.setRemovingSample(false)} />}
       {removing && (
