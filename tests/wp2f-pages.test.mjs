@@ -61,6 +61,7 @@ test('availability reads the registry and matches the table it replaced', () => 
     sources: ['materials'], audio: ['audio'], live: ['audio', 'recording'],
     workflows: ['workflows', 'bank', 'study'], skeleton: ['skeleton'], notes: ['notes'],
     examprep: ['materials', 'generation'], // added later, behind a host switch (pages.js `flag`)
+    examcoach: ['materials', 'bank', 'study', 'generation'], // #853: 考试教练
     outline: ['bank', 'study', 'materials'], // added later: the 总纲 page, reached from the home's course area
     book: ['bank', 'study', 'materials'], // added later: the 复习全书 page, reached from the sidebar and the 总纲 page
     guided: ['study'], // added in 4.0: 带学工作台

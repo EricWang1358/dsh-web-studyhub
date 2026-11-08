@@ -63,7 +63,7 @@ test('the sidebar pages of the registry are the sidebar pages of the app, in the
   // The groups are by content since #654, so a tier (when a page is used, docs/feature-tiers.md) no longer follows from the group: it is the
   // page's own, unchanged by the regrouping.
   const tiers = { library: 'daily', sources: 'daily', generate: 'daily', tasks: 'daily', wrongbook: 'daily', notes: 'daily', board: 'daily',
-    exam: 'periodic', examprep: 'periodic', book: 'periodic', dashboard: 'periodic', skeleton: 'once', audio: 'once', live: 'once' };
+    exam: 'periodic', examprep: 'periodic', examcoach: 'periodic', book: 'periodic', dashboard: 'periodic', skeleton: 'once', audio: 'once', live: 'once' };
   assert.deepEqual(Object.values(NAV_DEFAULTS).flat().sort(), Object.keys(tiers).sort());
   for (const [page, tier] of Object.entries(tiers)) assert.equal(usageEntry(`nav.${page}`).tier, tier, `${page}: tier`);
   // The report names a group as the sidebar does: 主导航, or 更多 › the section's label (ui/pages.js NAV_SECTIONS).
@@ -94,7 +94,7 @@ test('CI-style: every data-usage a page marks is registered, and every registere
   }
   // template keys such as nav.${id} stand for every page of the sidebar
   const templates = [...marked.keys()].filter(key => key.includes('${'));
-  const expand = key => key.replace('${id}', '(?:library|wrongbook|workflows|notes|board|exam|examprep|book|dashboard|sources|generate|tasks|skeleton|audio|live)');
+  const expand = key => key.replace('${id}', '(?:library|wrongbook|workflows|notes|board|exam|examprep|examcoach|book|dashboard|sources|generate|tasks|skeleton|audio|live)');
   for (const [key, file] of marked) {
     if (key.includes('${')) { assert.ok(USAGE_REGISTRY.some(item => new RegExp(`^${expand(key).replace('.', '\\.')}$`).test(item.key)), `${key} (${file}) matches no registered control`); continue; }
     assert.ok(usageEntry(key), `${key} is marked in ${file} but not registered`);

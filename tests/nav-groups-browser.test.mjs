@@ -12,7 +12,7 @@ import { startNavServer } from '../scripts/qa/nav-layout.mjs';
    every page still reachable through its anchor, 「更多」 remembered after a reload, a keyboard move between the main list and a section (and a
    refusal when the main list is full), an order saved by the sidebar of before migrated without loss, no dot on an empty library (#655), and a
    footer of three controls (#656). Needs a Chromium; without one the test says so instead of passing silently. */
-const PAGES = ['library', 'wrongbook', 'notes', 'board', 'exam', 'dashboard', 'sources', 'generate', 'tasks', 'skeleton', 'audio', 'live', 'examprep', 'book'];
+const PAGES = ['library', 'wrongbook', 'notes', 'board', 'exam', 'dashboard', 'sources', 'generate', 'tasks', 'skeleton', 'audio', 'live', 'examprep', 'examcoach', 'book'];
 const MAIN = ['library', 'sources', 'generate', 'wrongbook', 'exam', 'dashboard'];
 
 test('the sidebar: seven main entries, 「更多」 by content, all fourteen pages reachable, no dot on an empty library, three footer controls', { timeout: 300000 }, async (t) => {

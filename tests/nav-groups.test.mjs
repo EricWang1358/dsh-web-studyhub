@@ -24,7 +24,7 @@ const html = (element) => renderToStaticMarkup(element);
 const h = React.createElement;
 
 /** Every page the sidebar had before #654 (15 pages, grouped then as 每天 / 阶段性 / 课程准备与管理). */
-const BEFORE = ['library', 'sources', 'generate', 'tasks', 'wrongbook', 'notes', 'board', 'exam', 'examprep', 'book', 'dashboard', 'skeleton', 'audio', 'live'];
+const BEFORE = ['library', 'sources', 'generate', 'tasks', 'wrongbook', 'notes', 'board', 'exam', 'examprep', 'examcoach', 'book', 'dashboard', 'skeleton', 'audio', 'live'];
 
 function store(entries = {}) {
   const map = new Map(Object.entries(entries));
@@ -48,7 +48,7 @@ test('「更多」 is in sections by what the pages are about, and every label s
   for (const section of NAV_SECTIONS) assert.doesNotMatch(section.label, /每天|阶段性|常用|偶尔|准备与管理/, `${section.id}: a label about content, not about how often`);
   assert.deepEqual(NAV_DEFAULTS.material, ['audio', 'live']);
   assert.deepEqual(NAV_DEFAULTS.practice, ['book', 'skeleton']);
-  assert.deepEqual(NAV_DEFAULTS.exam, ['examprep']);
+  assert.deepEqual(NAV_DEFAULTS.exam, ['examprep', 'examcoach']);
   assert.deepEqual(NAV_DEFAULTS.notes, ['tasks', 'notes', 'board']);
   for (const id of BEFORE) assert.ok(NAV_SECTIONS.some((section) => section.id === NAV_HOMES[id]), `${id} has a home section to go back to`);
 });
@@ -78,10 +78,10 @@ test('a learner who reordered the old sidebar keeps their order: it is migrated 
 });
 
 test('a page dragged from 「更多」 into the main list stays there after a reload, and the main list keeps its limit', () => {
-  const local = store({ [NAV_ORDER_KEY]: JSON.stringify({ main: ['library', 'sources', 'generate', 'wrongbook', 'book'], practice: ['skeleton'], exam: ['exam', 'dashboard', 'examprep'] }) });
+  const local = store({ [NAV_ORDER_KEY]: JSON.stringify({ main: ['library', 'sources', 'generate', 'wrongbook', 'book'], practice: ['skeleton'], exam: ['exam', 'dashboard', 'examprep', 'examcoach'] }) });
   const order = readNavOrder(local);
   assert.deepEqual(order.main, ['library', 'sources', 'generate', 'wrongbook', 'book']);
-  assert.deepEqual(order.exam, ['exam', 'dashboard', 'examprep'], 'pages taken out of the main list are in their own section');
+  assert.deepEqual(order.exam, ['exam', 'dashboard', 'examprep', 'examcoach'], 'pages taken out of the main list are in their own section');
   const crowded = readNavOrder(store({ [NAV_ORDER_KEY]: JSON.stringify({ main: BEFORE }) }));
   assert.equal(crowded.main.length, MAIN_LIMIT);
 });

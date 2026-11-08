@@ -28,6 +28,7 @@ export const PAGES = Object.freeze({
   board: { label: '待办', title: '待办看板', glyph: 'board', group: 'notes', needs: [], onEnter: user((ctx) => ctx.openBoardFresh()), purpose: '把要做的事排成看板，可以设截止日期' },
   exam: { label: '模拟考试', title: '模拟考试', glyph: 'exam', group: 'exam', main: true, needs: ['bank', 'study'], onEnter: (ctx) => ctx.resetExam(), purpose: '按考试的时间和题型做一整套，交卷后看批改' },
   examprep: { label: '备考补习', title: '备考补习', glyph: 'examprep', group: 'exam', needs: ['materials', 'generation'], flag: 'examBlueprint', purpose: '按考试大纲整理要复习的清单，缺什么补什么' },
+  examcoach: { label: '教练', title: '考试教练', glyph: 'coach', group: 'exam', needs: ['materials', 'bank', 'study', 'generation'], purpose: '先校准考察方式、代表变式和常见错因，再按要求出题并核对能力证据' },
   book: { label: '复习全书', title: '复习全书', glyph: 'book', group: 'practice', needs: ['bank', 'study', 'materials'], back: '回到复习全书', purpose: '把这门课的题和讲解串成一本能读的书' },
   dashboard: { label: '统计', title: '学习统计', glyph: 'dashboard', group: 'exam', main: true, needs: ['bank', 'study'], purpose: '练了多少、掌握得怎么样、哪一块还薄弱' },
   skeleton: { label: '知识骨架', title: '知识骨架', glyph: 'skeleton', group: 'practice', needs: ['skeleton'], purpose: '把一门课的知识点画成骨架，先看清结构' },

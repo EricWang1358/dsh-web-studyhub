@@ -40,10 +40,10 @@ test('备考补习 is a sidebar page of 更多 › 考试与统计, titled and l
   assert.equal(m.PAGES.examprep.label, '备考补习');
   assert.equal(m.PAGES.examprep.title, '备考补习');
   assert.equal(m.PAGES.examprep.group, 'exam');
-  assert.deepEqual(m.NAV_DEFAULTS.exam, ['examprep'], 'the pages of 考试与统计 that are not in the main list');
+  assert.deepEqual(m.NAV_DEFAULTS.exam, ['examprep', 'examcoach'], 'the pages of 考试与统计 that are not in the main list');
   // A learner who put 统计 back into its section keeps the order they made there.
   const merged = m.mergeOrder({ main: ['library', 'sources', 'generate', 'wrongbook', 'exam'], exam: ['dashboard', 'examprep'] }, m.NAV_DEFAULTS).exam;
-  assert.deepEqual(merged, ['dashboard', 'examprep']);
+  assert.deepEqual(merged, ['dashboard', 'examprep', 'examcoach']);
   for (const word of [m.PAGES.examprep.label, m.PAGES.examprep.title]) assert.doesNotMatch(word, /蓝图|blueprint/i);
 });
 
