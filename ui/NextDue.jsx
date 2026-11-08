@@ -26,6 +26,7 @@ function stabilitySteps(days) {
 
 /** 「答对了」 / 「✓ 已掌握」 / 「↻ 将继续巩固」: what the answer did, by the level the question has now. */
 export function nextDueWord(feedback = {}) {
+  if (feedback.selfReported || feedback.assessment === 'self-report') return ui('自报，未验收');
   if (!feedback.correct) return ui('↻ 将继续巩固');
   return feedback.level === 'mastered' ? ui('✓ 已掌握') : ui('答对了');
 }
@@ -47,12 +48,13 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
   const meta = telemetry || feedback;
   const promoted = meta.beforeLevel && feedback.level && (LEVEL_RANK[feedback.level] ?? -1) > (LEVEL_RANK[meta.beforeLevel] ?? -1)
     && LEVEL_WORDS[meta.beforeLevel] && LEVEL_WORDS[feedback.level];
+  const selfReported = !!(feedback.selfReported || feedback.assessment === 'self-report');
   const hasAfterDays = Number.isFinite(meta.afterDays) && meta.afterDays > 0;
   const beforeDays = Number.isFinite(meta.beforeDays) ? meta.beforeDays : 0;
   const gapChip = hasAfterDays
     ? (beforeDays > 0 && meta.afterDays !== beforeDays
       ? uiFormat('间隔 {0} 天 → {1} 天', [beforeDays, meta.afterDays])
-      : (!beforeDays && feedback.correct ? uiFormat('首轮间隔 {0} 天', [meta.afterDays]) : ''))
+      : (!beforeDays && (feedback.correct || selfReported) ? uiFormat('首轮间隔 {0} 天', [meta.afterDays]) : ''))
     : '';
   const lit = stabilitySteps(meta.stability);
   const credited = Number.isInteger(feedback.credited) && feedback.credited > 0 ? feedback.credited : 0;
@@ -60,7 +62,7 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
   // The numbers behind the date: shown only when the learner asks, each with its plain meaning.
   const hasWhy = !!(promoted || gapChip || lit > 0 || feedback.nextDue);
   return (
-    <div className={`next-due${feedback.correct ? '' : ' retry'}`} data-level={feedback.level || undefined}>
+    <div className={`next-due${feedback.correct || selfReported ? '' : ' retry'}`} data-level={feedback.level || undefined}>
       <p className="next-due__lead">
         {uiFormat('{0} · {1}', [nextDueWord(feedback), nextDueWhen(feedback, now)])}
         {feedback.retryQueued && <span>{' · '}{ui('这道题放到了本轮最后，会再出现一次')}</span>}

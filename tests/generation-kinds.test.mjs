@@ -19,7 +19,7 @@ import { requestData } from './helpers/request-data.mjs';
 const source = { id: 's1', title: 'Notes', text: 'Architecture connects business goals to technical decisions through principles.\n'.repeat(40) };
 
 test('the basic kinds, and how a legacy kind reads as a list and a list as a legacy kind', () => {
-  assert.deepEqual([...BASIC_KINDS], ['quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze']);
+  assert.deepEqual([...BASIC_KINDS], ['quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze', 'task']);
   assert.deepEqual(kindsOfLegacyKind('mixed'), ['quiz', 'flashcard']);
   assert.deepEqual(kindsOfLegacyKind('cloze'), ['cloze']);
   assert.equal(kindsOfLegacyKind('case'), null);
@@ -168,7 +168,7 @@ const cardOf = (kind, target, index) => ({ id: `${kind}-${index + 1}`, targetId:
   ...(kind === 'quiz' || kind === 'multi' ? { options: ['a', 'b', 'c'].map(id => ({ id, text: `${id} option ${index}`, correct: kind === 'multi' ? id !== 'c' : id === 'a', explanation: `Reason ${id} for ${index}` })) } : {}),
   ...(kind === 'truefalse' ? { prompt: `Architecture connects business goals to technical decisions, as ${target.objective} says.`,
     options: [{ id: 'a', text: '正确', correct: index % 2 === 0, explanation: `Why true or not ${index}` }, { id: 'b', text: '错误', correct: index % 2 === 1, explanation: `Why false or not ${index}` }] } : {}),
-  ...(kind === 'open' ? { rubric: 'Full credit for linking business goals to technical decisions; half for naming only one side.' } : {}),
+  ...(kind === 'open' || kind === 'task' ? { rubric: 'Full credit for linking business goals to technical decisions; half for naming only one side.' } : {}),
   ...(kind === 'cloze' ? { cloze: { text: `Architecture connects business goals to {{b1}} decisions, as ${target.objective} asks.`, answers: [{ id: 'b1', value: 'technical' }] } } : {}) });
 function kindModel() {
   const asked = [];

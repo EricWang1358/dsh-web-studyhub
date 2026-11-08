@@ -104,8 +104,9 @@ export function shortcutAction(event, ctx) {
   // S from anywhere: resume the last round or start today's path.
   if (letter === 's' && !busy && (ctx.page !== 'review' || !run || run.complete)) return result({ type: 'resume' }, true);
   if (ctx.page !== 'review' || !run?.card || busy) return result(null);
-  const flipsOnly = !choice && !isCloze && !rubricCard;
-  if (!choice && !isCloze && run.revealed && !run.feedback && /^[0-5]$/.test(event.key)) return result({ type: 'answer', args: { grade: Number(event.key) } }, true);
+  const taskCard = run.mode !== 'flashcard' && run.card.kind === 'task';
+  const flipsOnly = !choice && !isCloze && !rubricCard && !taskCard;
+  if (!choice && !isCloze && !taskCard && run.revealed && !run.feedback && /^[0-5]$/.test(event.key)) return result({ type: 'answer', args: { grade: Number(event.key) } }, true);
   if (event.key === 'Enter') {
     if (run.feedback) return result({ type: 'move', direction: 1 }, true);
     if (choice && run.card.multiple && ctx.selected.length) return result({ type: 'answer', args: { selected: ctx.selected } }, true);

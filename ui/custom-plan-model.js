@@ -17,7 +17,7 @@ const PART_TIPS = { explain: () => ui('每个知识点的讲解；术语卡、�
   formulas: () => ui('公式页：把讲解里的公式按章节列成一页，不需要再调用模型。'), index: () => ui('索引：按字母排的术语表和按章节的卡片目录，不需要再调用模型。'),
   confusables: () => ui('易混对照：把相反或并列的术语成对比较，会多调用几次模型。'), answerKit: () => ui('答题模板：从样卷里的题归纳答题套路；没有样卷就不会生成。'),
   cheatSheet: () => ui('速查表：把卡片、模板、对照和公式排成可打印的一页，不需要再调用模型。') };
-const KIND_WORDS = { quiz: () => ui('选择'), multi: () => ui('多选'), truefalse: () => ui('判断'), flashcard: () => ui('闪卡'), open: () => ui('开放问答'), cloze: () => ui('填空') };
+const KIND_WORDS = { quiz: () => ui('选择'), multi: () => ui('多选'), truefalse: () => ui('判断'), flashcard: () => ui('闪卡'), open: () => ui('开放问答'), cloze: () => ui('填空'), task: () => ui('动手') };
 
 export const partWord = id => PART_WORDS[id]();
 export const partTip = id => PART_TIPS[id]();

@@ -535,19 +535,20 @@ export function CaseDraftHeader({ draft, data }) {
 }
 
 /** Rubric criteria of one question; the question's marks follow their sum and the plain rubric text is rewritten. */
-export function CriteriaEditor({ criteria = [], onChange, disabled }) {
+export function CriteriaEditor({ criteria = [], onChange, disabled, variant = "rubric" }) {
   useInjectCss(css, "study-case-workspace");
+  const isTask = variant === "task";
   const total = criteria.reduce((sum, criterion) => sum + (Number(criterion.marks) || 0), 0);
   const set = (index, patch) => onChange(criteria.map((criterion, at) => at === index ? { ...criterion, ...patch } : criterion));
   return (
     <fieldset className="criteria-editor" disabled={disabled}>
-      <legend>{uiFormat("评分标准 · 共 {0} 分", [total])}</legend>
+      <legend>{uiFormat(isTask ? "验收标准 · 共 {0} 分" : "评分标准 · 共 {0} 分", [total])}</legend>
       {criteria.map((criterion, index) => (
         <div key={criterion.id || index} className="criteria-editor__row">
-          <label>{ui("评分项")}<input value={criterion.label} onChange={(event) => set(index, { label: event.target.value })} /></label>
+          <label>{ui(isTask ? "验收项" : "评分项")}<input value={criterion.label} onChange={(event) => set(index, { label: event.target.value })} /></label>
           <label>{ui("分值")}<input type="number" min={0.5} step={0.5} value={criterion.marks}
             onChange={(event) => set(index, { marks: Math.max(0.5, Number(event.target.value) || 0.5) })} /></label>
-          <label className="criteria-editor__wide">{ui("得分要求")}<textarea rows={2} value={criterion.descriptor}
+          <label className="criteria-editor__wide">{ui(isTask ? "验收要求" : "得分要求")}<textarea rows={2} value={criterion.descriptor}
             onChange={(event) => set(index, { descriptor: event.target.value })} /></label>
           <label className="criteria-editor__wide">{ui("要点（每行一条）")}<textarea rows={2} value={(criterion.keyPoints || []).join("\n")}
             onChange={(event) => set(index, { keyPoints: event.target.value.split("\n").map((point) => point.trim()).filter(Boolean) })} /></label>
@@ -555,7 +556,7 @@ export function CriteriaEditor({ criteria = [], onChange, disabled }) {
         </div>
       ))}
       <Button size="sm" variant="link" icon="plus" onClick={() => onChange([...criteria, { id: `c${Date.now().toString(36)}`, label: "", marks: 1, descriptor: "", keyPoints: [] }])}>
-        {ui("添加评分项")}</Button>
+        {ui(isTask ? "添加验收项" : "添加评分项")}</Button>
     </fieldset>
   );
 }

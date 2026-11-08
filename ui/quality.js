@@ -21,6 +21,7 @@ export function readableQualityIssue(issue) {
     "unknown source": "引用的资料已不存在",
     "quote must match a source passage (at least 12 characters)": "引用须是资料中至少 12 字的原文",
     "open response needs a scoring rubric": "开放题需要评分标准",
+    "hands-on task needs acceptance criteria (rubric)": "动手任务需要验收标准",
     "need 3–6 options": "选择题需要 3 到 6 个选项",
     "invalid correct option count": "正确选项数量不符合题型要求",
     "duplicate option id": "选项编号重复",

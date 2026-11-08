@@ -258,7 +258,7 @@ export default function Draft({
                 </span>
               </summary>
               {experimentalShown(data) && <JevCardSignals signal={draft.editorial?.jev?.signals?.[q.id]} threshold={draft.editorial?.jev?.threshold} />}
-              <label>{ui("问题")}<textarea
+              <label>{q.kind === "task" ? ui("任务说明") : ui("问题")}<textarea
                   rows={3}
                   value={q.prompt}
                   onChange={(e) =>
@@ -288,16 +288,16 @@ export default function Draft({
                 "hint",
                 "explanation",
                 "misconception",
-                ...(q.kind === "open" && !q.rubricCriteria ? ["rubric"] : []),
+                ...((q.kind === "open" || q.kind === "task") && !q.rubricCriteria ? ["rubric"] : []),
               ].map((key) => (
                 <React.Fragment key={key}><label>
                   {
                     {
-                      answer: ui("答案"),
+                      answer: q.kind === "task" ? ui("参考实现") : ui("答案"),
                       hint: ui("提示"),
                       explanation: ui("讲解"),
                       misconception: ui("易错点"),
-                      rubric: ui("评分标准"),
+                      rubric: q.kind === "task" ? ui("验收标准") : ui("评分标准"),
                     }[key]
                   }
                   <textarea
@@ -311,7 +311,7 @@ export default function Draft({
                 {science.localImages && ['answer', 'explanation'].includes(key) && <LocalImagePicker key={JSON.stringify([data.root, draft.id, q.id, key])} disabled={busy} onInsert={markdown => appendImage(q.id, key, markdown)} />}
                 </React.Fragment>
               ))}
-              {q.rubricCriteria && <CriteriaEditor criteria={q.rubricCriteria} onChange={(criteria) => {
+              {q.rubricCriteria && <CriteriaEditor criteria={q.rubricCriteria} variant={q.kind === "task" ? "task" : "rubric"} onChange={(criteria) => {
                 // Case questions (WP12): marks follow the criteria; the plain rubric text is rewritten for older readers.
                 patchCard(i, "rubricCriteria", criteria);
                 patchCard(i, "marks", criteria.reduce((sum, criterion) => sum + (Number(criterion.marks) || 0), 0));

@@ -139,6 +139,14 @@ const COPY = {
     open: (n, topic, quote) => `（第 ${n} 题）结合一个例子，说明「${clip(quote, 30)}」在「${topic}」中为什么重要。`,
     openAnswer: (quote) => `参考答案：${quote}`,
     rubric: "说出作用 1 分；说出成立条件 1 分；举出恰当例子 1 分。",
+    task: (n, topic, quote) => `（第 ${n} 题 · 动手任务）围绕「${topic}」，针对「${clip(quote, 30)}」完成一份独立可检验的方案、推导或实现，并逐条满足验收标准。`,
+    taskAnswer: (quote) => `参考实现：先明确前提与边界条件，再按「${quote}」完成关键步骤，最后核对边界与异常情形。`,
+    taskRubric: "1. 前提与边界（1 分）：明确写出成立条件与输入/适用范围。\n2. 核心步骤完整（1 分）：关键推导、结构或实现步骤自洽且不跳步。\n3. 边界与反例保护（1 分）：覆盖不满足条件或极端情形的处理。",
+    taskCriteria: [
+      { id: "c1", label: "前提与边界", marks: 1, descriptor: "明确写出成立条件与输入/适用范围。", keyPoints: ["写出关键前提条件"] },
+      { id: "c2", label: "核心步骤完整", marks: 1, descriptor: "关键推导、结构或实现步骤自洽且不跳步。", keyPoints: ["步骤衔接清楚"] },
+      { id: "c3", label: "边界与反例保护", marks: 1, descriptor: "覆盖不满足条件或极端情形的处理。", keyPoints: ["处理极端或异常边界"] },
+    ],
     trueStatement: (n, topic, quote) => `（第 ${n} 题）在「${topic}」中，「${clip(quote, 36)}」说明的是这条要点本身的作用和成立条件。`,
     falseStatement: (n, topic, quote) => `（第 ${n} 题）在「${topic}」中，「${clip(quote, 36)}」说明的其实是另一个相邻概念的职责。`,
     trueWhy: "原句直接说明了这一点，所以说法成立。", falseWhy: "原句讲的是这条要点本身，不是相邻概念；正确说法是：它说明了这条要点的作用和成立条件。",
@@ -158,6 +166,14 @@ const COPY = {
     open: (n, topic, quote) => `(Q${n}) Using an example, explain why “${clip(quote, 50)}” matters for ${topic}.`,
     openAnswer: (quote) => `Reference answer: ${quote}`,
     rubric: "1 point for the role; 1 point for the condition; 1 point for a fitting example.",
+    task: (n, topic, quote) => `(Q${n} · Hands-on task) For ${topic}, produce a complete deliverable (implementation, derivation, design or outline) grounded in “${clip(quote, 50)}” that satisfies each acceptance criterion.`,
+    taskAnswer: (quote) => `Reference solution: state the preconditions and boundaries first, execute the core steps grounded in “${quote}”, and guard edge cases.`,
+    taskRubric: "1. Preconditions and scope (1 mark): Explicitly states when the rule applies and its input/scope bounds.\n2. Core steps (1 mark): Carries out the key derivation, structure or implementation coherently without skipping steps.\n3. Edge-case handling (1 mark): Handles boundary or invalid conditions safely.",
+    taskCriteria: [
+      { id: "c1", label: "Preconditions and scope", marks: 1, descriptor: "Explicitly states when the rule applies and its input/scope bounds.", keyPoints: ["States preconditions"] },
+      { id: "c2", label: "Core steps", marks: 1, descriptor: "Carries out the key derivation, structure or implementation coherently without skipping steps.", keyPoints: ["Complete core steps"] },
+      { id: "c3", label: "Edge-case handling", marks: 1, descriptor: "Handles boundary or invalid conditions safely.", keyPoints: ["Guards edge cases"] },
+    ],
     trueStatement: (n, topic, quote) => `(Q${n}) In ${topic}, “${clip(quote, 60)}” states the role of the idea itself and when it holds.`,
     falseStatement: (n, topic, quote) => `(Q${n}) In ${topic}, “${clip(quote, 60)}” actually describes the job of a neighbouring concept.`,
     trueWhy: "The statement says exactly this, so it is true.",
@@ -200,6 +216,7 @@ function authorDeck(request) {
       explanation: copy.explanation(topic, quote), misconception: copy.misconception, citations: [{ sourceId: citation.sourceId, quote }] };
     if (kind === "flashcard") return { ...common, prompt: copy.flashcard(n, topic, quote), answer: quote };
     if (kind === "open") return { ...common, prompt: copy.open(n, topic, quote), answer: copy.openAnswer(quote), rubric: copy.rubric };
+    if (kind === "task") return { ...common, prompt: copy.task(n, topic, quote), answer: copy.taskAnswer(quote), marks: 3, rubric: copy.taskRubric, rubricCriteria: copy.taskCriteria };
     if (kind === "cloze") {
       const blank = clozeBlank(quote, n, english, [copy.hint, topic]);
       if (blank) {
@@ -245,6 +262,7 @@ function answerBlueprint(request) {
   return { items: cards.map(card => ({ targetId: card.targetId, answer: card.answer, reasoning: card.explanation,
     scenario: { kind: 'none', facts: [], decisiveConditions: [] }, comparisonAxis: 'The specific role and condition of the quoted statement',
     ...(card.options ? { options: card.options } : {}), ...(card.rubric ? { rubric: card.rubric } : {}),
+    ...(card.rubricCriteria ? { rubricCriteria: card.rubricCriteria, marks: card.marks } : {}),
     ...(card.kind === "truefalse" ? { statement: card.prompt } : {}),
     ...(card.cloze ? { cloze: card.cloze } : {}) })) };
 }
@@ -610,6 +628,18 @@ const HANDLERS = [
     reply: ({ prompt }) => importedCriteria(payload(prompt)) },
   { name: "case.grade", match: (s) => s.startsWith("You grade a learner's answers"),
     reply: ({ prompt, english }) => gradeCaseAnswers(payload(prompt), english) },
+  { name: "task.grade", match: (s) => s.startsWith("You statically evaluate a learner's hands-on task submission"),
+    reply: ({ input, english }) => ({
+      summary: english
+        ? "Preview static check (fake model): core structure is present; check boundary handling."
+        : "预览静态评估（模拟模型）：核心结构已具备，请核对边界条件处理。",
+      checks: (input.criteria || []).map((criterion, index) => ({
+        id: criterion.id,
+        status: ["satisfied", "issue", "missing"][index % 3],
+        ...(index % 3 === 1 ? { line: 12 + index * 4, detail: english ? "Boundary condition is not guarded here." : "此处尚未覆盖边界条件保护。" } : {}),
+        ...(index % 3 === 2 ? { detail: english ? "This requirement is not yet present in the file." : "文件中尚未体现该条验收要求。" } : {}),
+      })),
+    }) },
   { name: "capture.card", match: (s) => s.startsWith("You write one rigorous study card"),
     reply: ({ prompt, nextNumber }) => {
       const kind = (prompt.match(/as an? (\w+) card/) || [])[1] || "flashcard";
@@ -623,7 +653,8 @@ const HANDLERS = [
         misconception: COPY.zh.misconception, citations: [{ sourceId: source ? source.id : "NOTE", quote }],
         ...(kind === "quiz" || kind === "multi" ? { options: COPY.zh.options.map((text, at) => ({ id: "abcd"[at], text,
           correct: at === 0 || (kind === "multi" && at === 1), explanation: at === 0 || (kind === "multi" && at === 1) ? COPY.zh.right : COPY.zh.wrong })) } : {}),
-        ...(kind === "open" ? { rubric: COPY.zh.rubric } : {}) };
+        ...(kind === "open" ? { rubric: COPY.zh.rubric } : {}),
+        ...(kind === "task" ? { marks: 3, rubric: COPY.zh.taskRubric, rubricCriteria: COPY.zh.taskCriteria } : {}) };
       return source ? { grounded: true, card } : { grounded: false, note, card };
     } },
   { name: "ingest.parse", match: (s) => s.startsWith("You convert a learner's pasted study questions"),

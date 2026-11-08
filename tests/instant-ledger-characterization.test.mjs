@@ -23,7 +23,7 @@ const PINNED = {
   "card.followup.suggest": {"coach":[1,230,19,0,0]},
   "card.followup": {"coach":[1,304,34,0,0]},
   "card.translate": {"coach":[1,285,108,0,0]},
-  "generate.suggest": {"generate":[2,532,2,387,0]},
+  "generate.suggest": {"generate":[2,536,2,391,0]}, // was [2,532,2,387,0]: generatable kinds include 'task' (lib/card-kinds.js)
   "ingest": {"generate":[1,572,194,0,0]},
   "focus.suggest": {"coach":[1,88,1,0,0]},
   "oral.followup": {"coach":[1,88,9,0,0]},
