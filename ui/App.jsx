@@ -55,6 +55,7 @@ import AppTopbar from './app/AppTopbar.jsx';
 import AppModalHost, { readerOpen } from './app/AppModalHost.jsx';
 import { ContextReturn, IngestBanner, StorageIssuesBanner } from './app/AppBanners.jsx';
 import { DisabledPage, PageView, StartPage } from './app/page-views.jsx';
+import { useInitialLanding } from './app/use-initial-landing.js';
 import { refuseLeavingPress } from './app/leave-guard.js';
 import { installInterFace } from './fonts/inter-face.js';
 
@@ -100,6 +101,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const selectionNotices = useSelectionNotices({ core, learn, data });
   const { courseActive } = useHostLinks({ host, core, nav, session, learn, lib: handle, rootRef: shell.rootRef, data, loading: connection.loading });
   const boardState = useBoard(core.call, nav.page === 'board');
+  useInitialLanding({ loading: connection.loading, data, boardState, nav, setBoardView: set.setBoardView, navigationCount: () => core.refs.navigation.current });
   // Cards due today or overdue light the badge, so a deadline shows from any page.
   const board = { state: boardState, count: boardState.board?.columns.reduce((total, column) => total + (column.done ? 0 : column.cardIds.length), 0),
     due: boardState.board ? dueSummary(boardState.board) : { overdue: 0, today: 0 } };
@@ -139,8 +141,11 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                       onSettings={() => nav.navigate('settings')} onSources={() => nav.navigate('sources')}
                       onJobs={() => { void core.refresh().catch((failure) => core.setError(failure.message)); }} />}
                     {page === 'board' ? (
-                      <Board state={boardState} library={data} onOrigin={host.openWorkspaceNotebook} studyRef={lib.boardStudyRef}
+                      <Board state={boardState} library={data} view={lib.boardView} onViewChange={set.setBoardView}
+                        onOrigin={host.openWorkspaceNotebook} studyRef={lib.boardStudyRef}
                         composeOnArrive={lib.boardCompose} onComposeOpened={() => set.setBoardCompose(false)}
+                        dailyTaskIds={dailyPlan.state?.tasks?.map((task) => task.id)}
+                        onBoardChanged={() => dailyPlan.refresh?.()}
                         dailyPlan={data && pageAvailable(data, 'review') ? <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan}
                           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} /> : null}
                         onClearStudyRef={() => set.setBoardStudyRef(null)} onStudyRef={learn.openBoardReference} />

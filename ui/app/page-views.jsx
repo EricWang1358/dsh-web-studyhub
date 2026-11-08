@@ -104,7 +104,8 @@ function LibraryView() {
           onGenerateFocus: (topics, course) => intents.goGenerate({ genPatch: (cur) => ({ ...cur, ...(course ? { course } : {}), focus: appendFocus(cur.focus, topics) }), remember: true }),
           onShowOutline: pageAvailable(data, 'outline') ? () => nav.navigate('outline') : undefined,
         }}>
-        {!linePage && pageAvailable(data, 'review') && hasOwnDeck(data) && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false} onBoard={() => nav.navigate('board')}
+        {!linePage && pageAvailable(data, 'review') && hasOwnDeck(data) && <DailyPlan key={`${data.root}:${dailyPlan.date}`} plan={dailyPlan} primaryAction={false}
+          onBoard={() => { set.setBoardView('today'); nav.navigate('board'); }}
           modelReady={data.model?.ready !== false} openModelSettings={settingsEntry.openModelSettings} />}
         {!linePage && pageAvailable(data, 'book') && <CrunchCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
         {!linePage && pageAvailable(data, 'book') && <WeeklyCard data={data} onOpenBook={openCrunchBook} onPractice={practiseCrunch} onExamRun={startMock} />}
@@ -115,10 +116,11 @@ function LibraryView() {
 }
 
 function WorkflowsView() {
-  const { data, nav, lib, intents, dailyPlan, settingsEntry } = useApp();
+  const { data, nav, lib, set, intents, dailyPlan, settingsEntry } = useApp();
   return (
     <Workflows key={lib.workflowReturn?.nonce || 'workflows'} data={data} onOpenSettings={settingsEntry.openModelSettings}
-      renderRelated={(sessionId) => <RelatedTasks plan={dailyPlan} reference={{ root: data.root, kind: 'workflow', sessionId }} onBoard={() => nav.navigate('board')} />}
+      renderRelated={(sessionId) => <RelatedTasks plan={dailyPlan} reference={{ root: data.root, kind: 'workflow', sessionId }}
+        onBoard={() => { set.setBoardView('today'); nav.navigate('board'); }} />}
       openSession={lib.workflowReturn?.sessionId} openRun={intents.openRun} />
   );
 }
@@ -366,7 +368,7 @@ function ReviewView({ feedback }) {
   };
   return (
     <>
-      <RelatedTasks plan={dailyPlan} runId={run.id} onBoard={() => nav.navigate('board')} />
+      <RelatedTasks plan={dailyPlan} runId={run.id} onBoard={() => { set.setBoardView('today'); nav.navigate('board'); }} />
       <Review session={session} data={data} shellTitle={shellTitleOf('review', { run, decks: data?.decks })} feedback={feedback}
         coachProps={data ? { ...session.coach, destination: run.complete ? session.continueTo(dailyPlan) : undefined } : undefined} links={links}
         context={{ label: learn.trailLabel, onReturn: learn.returnFromContext, detour, onReturnFromDetour: learn.returnFromDetour, kind: learn.trailPage, place: learn.trailPlace }} />

@@ -8,6 +8,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layout-late.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { COURSE, library } from './helpers/crunch-library.mjs';
 
 /* 深度定制 (4.4 S3): a weekly 备考计划 with no exam date in the real pages. The home has a 本周 card (「本周：第 1 章」, today's day, the way into the book) and the review book's
@@ -43,6 +44,8 @@ test('a weekly plan with no exam date: 「本周：第 1 章」 on the home and 
       await running.api('focus.set', { course: COURSE });
       const { page, errors } = await openPage(browser, running, { lang, theme, width, height: 900 });
       await page.goto(running.server.url);
+      await page.locator('.board-today').waitFor({ timeout: 30000 });
+      await (await revealNavRow(page, 'library')).click();
       const home = page.locator('.crunch-card[data-tour="home-weekly"]');
       await home.waitFor({ timeout: 30000 });
       const text = await home.innerText();

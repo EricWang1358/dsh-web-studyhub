@@ -19,7 +19,8 @@
     .daily-plan__summary {
       flex: 1 1 12rem; min-width: 0; margin: 0; color: var(--text-muted); font-family: var(--font-ui); font-size: var(--fs-sm); overflow-wrap: anywhere;
     }
-    .daily-plan__menu { margin-inline-start: auto; }
+    .daily-plan__board-link, .daily-plan__menu { margin-inline-start: auto; }
+    .daily-plan__board-link + .daily-plan__menu { margin-inline-start: 0; }
     .daily-plan__body { padding: var(--space-3) 0 var(--space-3); border-top: 1px solid var(--line-soft); }
     .daily-plan__body[hidden] { display: none; }
     .daily-plan__body > * + * { margin-top: var(--space-4); }
