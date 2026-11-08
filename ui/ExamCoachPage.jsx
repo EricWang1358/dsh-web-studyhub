@@ -7,6 +7,7 @@ import { useLiveEffect } from './use-async.js';
 import { modelReadiness } from './generation-status.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import {
+  Badge,
   Button,
   Checkbox,
   EmptyState,
@@ -290,13 +291,13 @@ export default function ExamCoachPage({
             <Select options={courseOptions} value={course} onChange={(val) => setCourse(val)} />
           </Field>
           {spec && (
-            <div className="exam-coach-badges">
-              <span className="exam-coach-badge exam-coach-badge--info">
+            <div className="exam-coach-meta-row">
+              <Badge tone="info" size="sm">
                 {uiFormat('规格版本 {0}', [spec.specVersion])}
-              </span>
-              <span className={`exam-coach-badge ${calibratedCount === totalFamilies && totalFamilies > 0 ? 'exam-coach-badge--ok' : 'exam-coach-badge--warn'}`}>
+              </Badge>
+              <Badge tone={calibratedCount === totalFamilies && totalFamilies > 0 ? 'success' : 'warning'} size="sm">
                 {uiFormat('已校准 {0}/{1} 项任务族', [calibratedCount, totalFamilies])}
-              </span>
+              </Badge>
             </div>
           )}
         </div>
@@ -360,12 +361,12 @@ export default function ExamCoachPage({
               <div className="exam-coach-grid">
                 {spec.taskFamilies.map((f) => (
                   <div key={f.id} className="exam-coach-card exam-coach-card--raised">
-                    <div className="exam-coach-badges">
-                      <span className="exam-coach-badge exam-coach-badge--info">{originLabel(f.origin)}</span>
-                      <span className="exam-coach-badge">{uiFormat('主形式：{0}', [formatLabel(f.primaryFormat)])}</span>
-                      <span className="exam-coach-badge">
+                    <div className="exam-coach-meta-row">
+                      <Badge tone="info" size="sm">{originLabel(f.origin)}</Badge>
+                      <Badge size="sm">{uiFormat('主形式：{0}', [formatLabel(f.primaryFormat)])}</Badge>
+                      <Badge size="sm">
                         {uiFormat('允许形式：{0}', [f.allowedFormats.map(formatLabel).join(' / ')])}
-                      </span>
+                      </Badge>
                     </div>
                     <h3 className="exam-coach-card__title">{f.title}</h3>
                     <p className="exam-coach-meta">{f.formatTradeoff}</p>
@@ -415,13 +416,13 @@ export default function ExamCoachPage({
                     ])}
                   </p>
                 </div>
-                <div className="exam-coach-badges">
+                <div className="exam-coach-meta-row">
                   {f.calibrated ? (
-                    <span className="exam-coach-badge exam-coach-badge--ok">{ui('三项校准已就绪')}</span>
+                    <Badge tone="success" size="sm">{ui('三项校准已就绪')}</Badge>
                   ) : (
-                    <span className="exam-coach-badge exam-coach-badge--warn">
+                    <Badge tone="warning" size="sm">
                       {f.confirmations?.staleReason === 'rules-updated' ? ui('规则已变更，需重新确认') : ui('待完成三项确认')}
-                    </span>
+                    </Badge>
                   )}
                 </div>
               </div>
@@ -885,13 +886,13 @@ export default function ExamCoachPage({
 
             {mockReport && (
               <div className="exam-coach-sample" data-testid="coach-strict-mock-report">
-                <div className="exam-coach-badges">
-                  <span className={`exam-coach-badge ${mockReport.complete ? 'exam-coach-badge--ok' : 'exam-coach-badge--warn'}`}>
+                <div className="exam-coach-meta-row">
+                  <Badge tone={mockReport.complete ? 'success' : 'warning'} size="sm">
                     {mockReport.complete ? ui('可完整组成同型卷') : uiFormat('存在 {0} 处结构缺口（未凑数）', [mockReport.shortfalls.length])}
-                  </span>
-                  <span className="exam-coach-badge">
+                  </Badge>
+                  <Badge size="sm">
                     {uiFormat('可达分值：{0} / {1} 分', [mockReport.totalMarks, mockReport.targetMarks])}
-                  </span>
+                  </Badge>
                 </div>
                 {mockReport.shortfalls?.map((sf) => (
                   <div key={sf.sectionId} className="exam-coach-note exam-coach-note--warn">

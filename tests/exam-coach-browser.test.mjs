@@ -157,7 +157,7 @@ test('#853 browser: Exam Coach 4-stage calibration, sample exposure guard, rule 
     await firstFamily.locator('label.sh-check', { hasText: '答案已核实' }).click();
     await until(async () => /三项校准已就绪/.test(await firstFamily.innerText()), 'all 3 confirmations calibrate family 0');
 
-    const versionBadgeBefore = await page.locator('.exam-coach-badge--info').first().innerText();
+    const versionBadgeBefore = await page.locator('.exam-coach-toolbar .sh-badge[data-tone="info"]').first().innerText();
 
     // Edit reasoning steps -> specVersion advances and confirmations reset to `规则已变更，需重新确认`
     await firstFamily.getByRole('button', { name: '编辑推理步骤与评分规则' }).click();
@@ -165,7 +165,7 @@ test('#853 browser: Exam Coach 4-stage calibration, sample exposure guard, rule 
     await reasoningBox.fill('识别题干限定条件\n排除前提不符的干扰项\n补充核对极端边界值');
     await firstFamily.getByRole('button', { name: '保存规则修改' }).click();
     await until(async () => /规则已变更，需重新确认/.test(await firstFamily.innerText()), 'rule edit invalidates prior intent/answer confirmation');
-    const versionBadgeAfter = await page.locator('.exam-coach-badge--info').first().innerText();
+    const versionBadgeAfter = await page.locator('.exam-coach-toolbar .sh-badge[data-tone="info"]').first().innerText();
     assert.notEqual(versionBadgeAfter, versionBadgeBefore, 'specVersion bumped on substantive rule edit');
 
     // Stage 3: Configure non-uniform quota (set second family quota = 0) & crunch mode
