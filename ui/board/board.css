@@ -220,16 +220,16 @@
       color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-medium); white-space: nowrap;
     }
     .board-tab:hover:not(:disabled) { border-color: transparent; background: transparent; color: var(--text); }
-    .board-tab:is(.is-active, [aria-selected="true"]) {
+    .board-tab[aria-selected="true"] {
       border-color: transparent; background: transparent;
       box-shadow: inset 0 -2px 0 var(--text); color: var(--text); font-weight: var(--fw-strong);
     }
-    .board-tab .sh-tab__note { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .board-tab__note { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     .board-panel { min-width: 0; display: flex; flex-direction: column; gap: var(--space-4); }
     .board-panel[hidden] { display: none; }
     /* Today view (#855) */
     .board-today { min-width: 0; max-width: 52rem; display: flex; flex-direction: column; gap: var(--space-4); }
-    .board-today > .daily-plan { margin-bottom: 0; }
+    .board-today__daily > * { margin-bottom: 0; }
     .board-today__head {
       display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
       gap: var(--space-3) var(--space-4); padding-bottom: var(--space-3); border-bottom: 1px solid var(--line-soft);

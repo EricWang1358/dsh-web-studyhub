@@ -347,9 +347,17 @@ export default function Board({ state, library, today: todayProp, view: viewProp
     ? `${view.columns.map((_, at) => (collapsed.has(board.columns[at].id) ? "2.75rem" : "minmax(16rem, 1fr)")).join(" ")}${!readOnly ? " minmax(10.5rem, 13rem)" : ""}`
     : undefined;
   const tabItems = [
-    { value: "today", label: ui("今日"), note: board && todaySummary.open.length ? `(${todaySummary.open.length})` : undefined },
+    {
+      value: "today",
+      label: ui("今日"),
+      content: <>{ui("今日")}{board && todaySummary.open.length ? <small className="board-tab__note"> ({todaySummary.open.length})</small> : null}</>,
+    },
     { value: "all", label: ui("全部待办") },
-    { value: "archive", label: ui("归档"), note: board ? `(${board.archived.length})` : undefined },
+    {
+      value: "archive",
+      label: ui("归档"),
+      content: <>{ui("归档")}{board ? <small className="board-tab__note"> ({board.archived.length})</small> : null}</>,
+    },
   ];
 
   return <section className="page board-page">

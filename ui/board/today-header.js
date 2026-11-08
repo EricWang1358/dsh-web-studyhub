@@ -1,5 +1,5 @@
-import { ui, uiLocale } from '../i18n.js';
-import { joinMeta } from '../format.js';
+import { ui } from '../i18n.js';
+import { formatDateTime, joinMeta } from '../format.js';
 import { countdownText } from '../book/crunch-words.js';
 import { courseMethod } from '../../lib/course-method.js';
 
@@ -15,10 +15,9 @@ export function formatTodayHeading(today) {
   const [y, m, d] = String(today || '').split('-').map(Number);
   if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return '';
   const date = new Date(y, m - 1, d, 12, 0, 0);
-  const locale = uiLocale();
   return joinMeta([
-    date.toLocaleDateString(locale, { month: 'long', day: 'numeric' }),
-    date.toLocaleDateString(locale, { weekday: 'long' }),
+    formatDateTime(date, 'monthDay'),
+    formatDateTime(date, 'weekdayLong'),
   ]);
 }
 

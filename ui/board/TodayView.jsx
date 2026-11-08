@@ -108,7 +108,7 @@ export default function TodayView({
         </form>
       </header>
 
-      {dailyPlan}
+      {dailyPlan && <div className="board-today__daily">{dailyPlan}</div>}
 
       <section
         className={`board-today__list${overToday ? ' is-over' : ''}`}
