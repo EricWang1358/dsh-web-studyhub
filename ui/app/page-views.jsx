@@ -136,9 +136,57 @@ function SkeletonView() {
 }
 
 function DashboardView() {
-  const { data, nav, intents } = useApp();
+  const { data, core, nav, set, intents, board, dailyPlan } = useApp();
+  const offerUndo = (message, undo) => {
+    core.toast.show({
+      tone: 'success',
+      message,
+      undo: true,
+      timeout: 8000,
+      action: undo ? {
+        label: ui('撤销'),
+        onClick: async () => { core.toast.dismiss(); await undo(); },
+      } : undefined,
+    });
+  };
+  const editTimeLog = async (entry, minutes) => {
+    const prevMinutes = entry.minutes;
+    const ok = await board.state.mutate('board.timeLog.edit', { id: entry.id, minutes });
+    if (ok) {
+      dailyPlan.refresh?.();
+      offerUndo(uiFormat('已改为 {0} 分钟：{1}', [minutes, entry.cardTitle]), async () => {
+        const undone = await board.state.mutate('board.timeLog.edit', { id: entry.id, minutes: prevMinutes });
+        if (undone) dailyPlan.refresh?.();
+        return undone;
+      });
+    }
+    return ok;
+  };
+  const removeTimeLog = async (entry) => {
+    const snapshot = structuredClone(entry);
+    const ok = await board.state.mutate('board.timeLog.remove', { id: entry.id });
+    if (ok) {
+      dailyPlan.refresh?.();
+      offerUndo(uiFormat('已删除专注记录：{0}', [entry.cardTitle]), async () => {
+        const undone = await board.state.mutate('board.timeLog.add', {
+          ...(snapshot.cardId ? { cardId: snapshot.cardId } : {}),
+          cardTitle: snapshot.cardTitle,
+          date: snapshot.date,
+          startedAt: snapshot.startedAt,
+          minutes: snapshot.minutes,
+        }, { optimistic: false });
+        if (undone) dailyPlan.refresh?.();
+        return undone;
+      });
+    }
+    return ok;
+  };
   return (
-    <Dashboard data={data} onStartScope={(scope) => intents.practice(scope, { fresh: false })} onLibrary={() => nav.navigate('library')}
+    <Dashboard data={data} board={board.state.board} boardReadOnly={Boolean(board.state.board?.readOnly)}
+      onRefreshBoard={() => board.state.refresh({ force: true })}
+      onEditTimeLog={editTimeLog} onRemoveTimeLog={removeTimeLog}
+      onOpenToday={pageAvailable(data, 'board') ? () => { set.setBoardView('today'); nav.navigate('board'); } : undefined}
+      onStartScope={(scope) => intents.practice(scope, { fresh: false })} onLibrary={() => nav.navigate('library')}
       onCreate={() => intents.goGenerate()} onSources={() => nav.navigate('sources')} onAudioUsage={() => nav.navigate('audio')}
       onOpenWorkflowSession={pageAvailable(data, 'workflows') ? (sessionId) => nav.show.workflow(sessionId) : undefined}
       onOpenWorkflowArchive={pageAvailable(data, 'workflows') ? () => nav.navigate('workflows') : undefined} />

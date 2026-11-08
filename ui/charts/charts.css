@@ -136,5 +136,43 @@
   :where(.study-app, .study-seat) {
     /* 有效课程: what the forecast counts, and what sits in parked courses. */
     .dash-scope-note { margin: var(--space-2) 0 0; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); }
+    /* Focus duration (#859) */
+    .dash-focus__title-row { display: inline-flex; align-items: center; gap: var(--space-1-5); }
+    .dash-focus__help {
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--text-muted); border-radius: var(--radius-xs); cursor: help;
+    }
+    .dash-focus__help:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
+    .dash-focus__empty-line { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); }
+    .dash-focus__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; min-width: 0; }
+    .dash-focus__records {
+      min-width: 0; display: flex; flex-direction: column; gap: var(--space-2);
+      padding-top: var(--space-1);
+    }
+    .dash-focus__subhead { margin: 0; font-size: var(--fs-sm); font-weight: var(--fw-strong); color: var(--text-dim); }
+    .dash-focus__none { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+    .dash-focus__logs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+    .dash-focus__log {
+      display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+      min-width: 0; padding: var(--space-1-5) var(--space-2-5);
+      border: 1px solid var(--line-soft); border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--text) 2%, transparent);
+    }
+    .dash-focus__log-main { display: flex; align-items: baseline; gap: var(--space-2); flex: 1; min-width: 0; }
+    .dash-focus__log-time { flex: none; font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .dash-focus__log-title {
+      flex: 1; min-width: 0; font-size: var(--fs-sm); color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .dash-focus__log-side { display: inline-flex; align-items: center; gap: var(--space-1); flex: none; }
+    .dash-focus__log-mins { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .dash-focus__log-edit { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-1-5); }
+    .dash-focus__log-edit-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); }
+  }
+  @container study (min-width: 900px) {
+    :where(.study-app, .study-seat) {
+      .dash-charts > .dash-focus-panel { grid-column: 1 / -1; }
+      .dash-focus__grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: var(--space-5); }
+    }
   }
 }

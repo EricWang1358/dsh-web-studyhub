@@ -1,9 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, uiLabels } from '../i18n.js';
-import { Button, Panel, ProgressBar, SegmentedControl } from '../components/index.js';
+import { formatDateTime } from '../format.js';
+import { Button, Icon, IconButton, NumberInput, Panel, ProgressBar, SegmentedControl, Tooltip } from '../components/index.js';
 import { dateLabel, evenTicks, fillTrend, linePath, linearScale, niceTicks } from './chart-math.js';
 import { MEASURES, THIN_DATA } from '../mastery-terms.js';
 import { CARD_KIND_LIST } from '../../lib/card-kinds.js';
+import { ACTUAL_MINUTES_MAX, summarizeFocusDuration } from '../../lib/board-model.js';
 
 /* The dashboard's three charts, all plain inline SVG / CSS (no chart library):
    a wide score trend, a 14-day due forecast and mastery bars. Each draws at
@@ -297,3 +299,265 @@ export function MasteryPanel({ mastery, defaultView = 'level' }) {
     </Panel>
   );
 }
+
+/* ── Focus duration (#859) ───────────────────────────────────────────── */
+
+export function FocusDurationPanel({
+  board, today, timeZone, nowMs, readOnly = false, onEditLog, onRemoveLog, onOpenToday,
+}) {
+  const [boxRef, width] = useChartWidth(440);
+  const [active, setActive] = useState(null);
+  const [editingId, setEditingId] = useState('');
+  const [editingMinutes, setEditingMinutes] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const summary = useMemo(
+    () => summarizeFocusDuration(board, { now: nowMs, today, timeZone, windowDays: 7 }),
+    [board, nowMs, today, timeZone],
+  );
+  const days = summary.days;
+  const narrow = width < NARROW;
+  const height = narrow ? 168 : 196;
+  const L = 34, R = 8, T = 22, B = 28;
+  const max = days.reduce((m, d) => Math.max(m, d.minutes), 0);
+  const ticks = niceTicks(max, 4);
+  const y = linearScale([0, ticks.at(-1)], [height - B, T]);
+  const band = (width - L - R) / Math.max(1, days.length);
+  const barW = Math.max(8, Math.min(36, band * 0.56));
+  const lastIndex = days.length - 1;
+
+  const dayTitle = (d, i) => (i === lastIndex
+    ? uiFormat('今天 · {0} 分钟', [d.minutes])
+    : uiFormat('{0} · {1} 分钟', [dateLabel(d.date), d.minutes]));
+  const sessionCountText = (count) => {
+    if (!count) return ui('无专注记录');
+    return count === 1 ? ui('1 段专注记录') : uiFormat('{0} 段专注记录', [count]);
+  };
+
+  const tip = active == null || !days[active] ? null : (() => {
+    const d = days[active];
+    return {
+      x: L + band * (active + 0.5),
+      y: (d.minutes ? y(d.minutes) : height - B - 2) - 6,
+      title: dayTitle(d, active),
+      lines: [sessionCountText(d.sessions)],
+    };
+  })();
+
+  const parsedEditMinutes = Number(editingMinutes);
+  const validEditMinutes = Number.isInteger(parsedEditMinutes) && parsedEditMinutes >= 1 && parsedEditMinutes <= ACTUAL_MINUTES_MAX;
+
+  const startEdit = (entry) => {
+    setEditingId(entry.id);
+    setEditingMinutes(String(entry.minutes));
+  };
+
+  const submitEdit = async (event, entry) => {
+    event.preventDefault();
+    if (readOnly || savingEdit || !validEditMinutes || !onEditLog) return;
+    if (parsedEditMinutes === entry.minutes) {
+      setEditingId('');
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const ok = await onEditLog(entry, parsedEditMinutes);
+      if (ok !== false) setEditingId('');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const titleNode = (
+    <span className="dash-focus__title-row">
+      <span>{ui('专注时长')}</span>
+      <Tooltip
+        layer
+        content={ui('只计算手动点击「开始专注」或「补记一段」的时长；数据仅保存在本机，不会上传。')}
+      >
+        <span className="dash-focus__help" tabIndex={0} role="img" aria-label={ui('专注时长说明')}>
+          <Icon name="help" size={14} />
+        </span>
+      </Tooltip>
+    </span>
+  );
+
+  const actionsNode = onOpenToday ? (
+    <Button variant="quiet" size="sm" iconEnd="arrow-right" onClick={onOpenToday}>
+      {ui('去今日')}
+    </Button>
+  ) : undefined;
+
+  if (!summary.hasData) {
+    return (
+      <Panel className="dash-chart dash-focus-panel is-empty" headClassName="dash-chart__head" title={titleNode} actions={actionsNode}>
+        <p className="dash-focus__empty-line">
+          {ui('还没有专注记录。在「待办 → 今日」点击卡片上的「开始专注」后会记在这里。')}
+        </p>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel className="dash-chart dash-focus-panel" headClassName="dash-chart__head" title={titleNode} actions={actionsNode}>
+      <p className="dash-chart-summary">
+        <span data-focus-today-total>{uiFormat('今日已专注 {0} 分钟', [summary.todayMinutes])}</span>
+        <span data-focus-week-total>{uiFormat('近 7 天共 {0} 分钟', [summary.weekMinutes])}</span>
+      </p>
+      <div className="dash-focus__grid">
+        <div className="dash-chart-box dash-focus__chart" ref={boxRef}>
+          <div className="dash-plot">
+            <svg
+              className="dash-svg"
+              role="img"
+              viewBox={`0 0 ${width} ${height}`}
+              width={width}
+              height={height}
+              aria-labelledby="dash-focus-title"
+              onMouseLeave={() => setActive(null)}
+            >
+              <title id="dash-focus-title">
+                {uiFormat('近 7 天每日专注分钟数，共 {0} 分钟', [summary.weekMinutes])}
+              </title>
+              {ticks.map((t) => (
+                <g key={t}>
+                  <line className="dash-grid" x1={L} x2={width - R} y1={y(t)} y2={y(t)} />
+                  <text className="dash-axis" x={L - 8} y={y(t) + 4} textAnchor="end">{t}</text>
+                </g>
+              ))}
+              {days.map((d, i) => {
+                const cx = L + band * (i + 0.5);
+                const isToday = i === lastIndex;
+                return (
+                  <g
+                    key={d.date}
+                    className={`dash-bar${isToday ? ' today' : ''}${d.minutes ? '' : ' zero'}`}
+                    tabIndex={0}
+                    aria-label={`${dayTitle(d, i)} · ${sessionCountText(d.sessions)}`}
+                    onMouseEnter={() => setActive(i)}
+                    onFocus={() => setActive(i)}
+                    onBlur={() => setActive(null)}
+                  >
+                    <rect className="dash-bar-hit" x={cx - band / 2} y={T} width={band} height={height - B - T} />
+                    <rect
+                      className="dash-bar-fill"
+                      x={cx - barW / 2}
+                      y={d.minutes ? y(d.minutes) : height - B - 2}
+                      width={barW}
+                      height={d.minutes ? height - B - y(d.minutes) : 2}
+                      rx={3}
+                    />
+                    {d.minutes > 0 && (
+                      <text className="dash-bar-value" x={cx} y={y(d.minutes) - 6} textAnchor="middle">
+                        {d.minutes}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+              {days.map((d, i) => {
+                const isToday = i === lastIndex;
+                return (
+                  <text
+                    key={`l${d.date}`}
+                    className={`dash-axis${isToday ? ' today' : ''}`}
+                    x={L + band * (i + 0.5)}
+                    y={height - 8}
+                    textAnchor="middle"
+                  >
+                    {isToday ? ui('今天') : dateLabel(d.date)}
+                  </text>
+                );
+              })}
+            </svg>
+            <Tip tip={tip} width={width} />
+          </div>
+          <table className="sh-visually-hidden">
+            <caption>{ui('专注时长')}</caption>
+            <tbody>
+              <tr>
+                <th scope="col">{ui('日期')}</th>
+                <th scope="col">{ui('专注分钟')}</th>
+                <th scope="col">{ui('段数')}</th>
+              </tr>
+              {days.map((d, i) => (
+                <tr key={d.date}>
+                  <th scope="row">{i === lastIndex ? `${d.date} ${ui('今天')}` : d.date}</th>
+                  <td>{d.minutes}</td>
+                  <td>{d.sessions}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="dash-focus__records">
+          <h4 className="dash-focus__subhead">{ui('今日专注记录')}</h4>
+          {summary.todayEntries.length > 0 ? (
+            <ul className="dash-focus__logs" aria-label={ui('今日专注记录')}>
+              {[...summary.todayEntries].reverse().map((entry) => {
+                const timeText = entry.startedAt ? formatDateTime(entry.startedAt, 'time') : '';
+                const isEditing = editingId === entry.id;
+                return (
+                  <li key={entry.id} className="dash-focus__log" data-focus-log-id={entry.id}>
+                    {isEditing ? (
+                      <form className="dash-focus__log-edit" onSubmit={(e) => submitEdit(e, entry)}>
+                        <span className="dash-focus__log-title">{entry.cardTitle}</span>
+                        <div className="dash-focus__log-edit-row">
+                          <NumberInput
+                            min={1}
+                            max={ACTUAL_MINUTES_MAX}
+                            step={1}
+                            suffix={ui('分钟')}
+                            aria-label={uiFormat('修改时长：{0}', [entry.cardTitle])}
+                            value={editingMinutes}
+                            onChange={(e) => setEditingMinutes(e.target.value)}
+                          />
+                          <Button type="submit" variant="primary" size="sm" busy={savingEdit} disabled={readOnly || savingEdit || !validEditMinutes}>
+                            {ui('保存')}
+                          </Button>
+                          <Button variant="quiet" size="sm" onClick={() => setEditingId('')}>
+                            {ui('取消')}
+                          </Button>
+                        </div>
+                      </form>
+                    ) : (
+                      <>
+                        <div className="dash-focus__log-main">
+                          {timeText && <span className="dash-focus__log-time">{timeText}</span>}
+                          <span className="dash-focus__log-title">{entry.cardTitle}</span>
+                        </div>
+                        <div className="dash-focus__log-side">
+                          <span className="dash-focus__log-mins">{uiFormat('{0} 分钟', [entry.minutes])}</span>
+                          {!readOnly && onEditLog && (
+                            <IconButton
+                              icon={<Icon name="edit" size={14} />}
+                              size="sm"
+                              label={uiFormat('修改时长：{0}', [entry.cardTitle])}
+                              onClick={() => startEdit(entry)}
+                            />
+                          )}
+                          {!readOnly && onRemoveLog && (
+                            <IconButton
+                              icon={<Icon name="trash" size={14} />}
+                              size="sm"
+                              label={uiFormat('删除记录：{0}', [entry.cardTitle])}
+                              onClick={() => onRemoveLog(entry)}
+                            />
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="dash-focus__none">{ui('今天还没有专注记录。')}</p>
+          )}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+

@@ -8,7 +8,7 @@ import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { courseMatcher, decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { useCourseActive } from './CourseActive.jsx';
-import { ForecastPanel, MasteryPanel, TrendPanel } from "./charts/DashboardCharts.jsx";
+import { FocusDurationPanel, ForecastPanel, MasteryPanel, TrendPanel } from "./charts/DashboardCharts.jsx";
 import { shortDeckTitles } from "./charts/chart-math.js";
 import { ModelUsage } from "./TokenUsage.jsx";
 import { Button, EmptyState, ErrorState, LoadingState, PageHeader, Tooltip } from "./components/index.js";
@@ -64,7 +64,11 @@ function RateTile({ measure, rate, answers, minimum, markClass }) {
   );
 }
 
-export function StatsView({ stats, course = "*", data, localDecks, onStartScope, onLibrary, onCreate, onSources, onManageCourses, onOpenWorkflowSession, onOpenWorkflowArchive }) {
+export function StatsView({
+  stats, course = "*", data, localDecks, board, focusToday, boardReadOnly = false,
+  onEditTimeLog, onRemoveTimeLog, onOpenToday,
+  onStartScope, onLibrary, onCreate, onSources, onManageCourses, onOpenWorkflowSession, onOpenWorkflowArchive,
+}) {
   const decks = localDecks ?? decksInCourse(data, course);
   const scopedAttempts = useMemo(() => {
     const attempts = data?.attempts;
@@ -199,6 +203,16 @@ export function StatsView({ stats, course = "*", data, localDecks, onStartScope,
           <TrendPanel trend={trend} today={stats?.today} />
           <ForecastPanel forecast={stats?.forecast} onStart={onStartScope} parked={{ included: stats?.inactive?.included === true && showsParked(data, course), onManage: onManageCourses }} />
           <MasteryPanel mastery={stats?.mastery} />
+          {board && (
+            <FocusDurationPanel
+              board={board}
+              today={focusToday}
+              readOnly={boardReadOnly}
+              onEditLog={onEditTimeLog}
+              onRemoveLog={onRemoveTimeLog}
+              onOpenToday={onOpenToday}
+            />
+          )}
           {(historicalFlows.length > 0 || (truncatedWorkflowHistory && onOpenWorkflowArchive)) && (onOpenWorkflowSession || onOpenWorkflowArchive) && (
             <section className="dash-section dash-workflows" aria-label={ui("历史学习流记录（只读）")}>
               <h2>
@@ -244,7 +258,10 @@ export function StatsView({ stats, course = "*", data, localDecks, onStartScope,
   );
 }
 
-export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onSources, onAudioUsage, onOpenWorkflowSession, onOpenWorkflowArchive }) {
+export default function Dashboard({
+  data, board, focusToday, boardReadOnly = false, onRefreshBoard, onEditTimeLog, onRemoveTimeLog, onOpenToday,
+  onStartScope, onLibrary, onCreate, onSources, onAudioUsage, onOpenWorkflowSession, onOpenWorkflowArchive,
+}) {
   const { call } = useStudy();
   useInjectCss(css, "study-views");
   useInjectCss(chartCss, "study-dash-charts");
@@ -259,10 +276,14 @@ export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onS
   const stats = savedStats?.course === scopeKey ? savedStats.value : null;
   const localDecks = decksInCourse(data, course, showInactive);
 
+  const refreshBoardRef = useRef(onRefreshBoard);
+  refreshBoardRef.current = onRefreshBoard;
+
   const load = useCallback(async () => {
     const request = ++seq.current;
     setLoading(true);
     setErr("");
+    refreshBoardRef.current?.();
     try {
       const value = await call('stats', scopeArgs(course, showInactive));
       if (request === seq.current) setStats({ course: scopeKey, value });
@@ -288,6 +309,8 @@ export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onS
 
       {stats && (
         <StatsView stats={stats} course={course} data={data} localDecks={localDecks}
+          board={board} focusToday={focusToday} boardReadOnly={boardReadOnly}
+          onEditTimeLog={onEditTimeLog} onRemoveTimeLog={onRemoveTimeLog} onOpenToday={onOpenToday}
           onStartScope={onStartScope} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onManageCourses={courseActive?.manage} onOpenWorkflowSession={onOpenWorkflowSession} onOpenWorkflowArchive={onOpenWorkflowArchive} />
       )}
       {/* What the study model used, by feature (WP27); the library's own ledger, not the course view. */}
