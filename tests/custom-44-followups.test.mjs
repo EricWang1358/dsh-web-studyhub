@@ -5,7 +5,8 @@ import { settleJob } from './helpers/wait.mjs';
 import { BIG_COURSE, bookPaper, chapterTitle } from './helpers/big-book-library.mjs';
 import { bigBookWorld as world, leavesOf, written } from './helpers/big-book-world.mjs';
 import { courseOutlineMaterial, legacyMaterialsFingerprint, legacyPartPrint, materialsFingerprint, outlineStale, partPrint, partsNow } from '../lib/course-outline-book.js';
-import { normalizeInventory } from '../lib/course-book-inventory.js';
+import { currentInventory, normalizeInventory } from '../lib/course-book-inventory.js';
+import { readPaper } from '../lib/contexts/generation/outline/read.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { stampSegmentations } from '../lib/document-outline.js';
 
@@ -30,8 +31,9 @@ test('#739 item 1: a changed chapter whose items all sit in other chapters settl
   assert.equal((await w.shown()).stale, false, '更新 settles chapter 4 instead of leaving the book stale forever');
   assert.equal(written(await w.notes()).length, countBefore, 'existing explanations are kept');
 
-  // Multi-chapter adds: chapter 4 changes again (still 0 unheld items) while chapter 5 is added in the same build.
+  // Multi-chapter adds: chapter 4 shrinks to 10 pages (still 0 unheld items, shifting chapter 5 into @s160..199) while chapter 5 is added in the same build.
   await w.service.store.update(state => {
+    state.sources = state.sources.filter(source => !(source.document?.chapter?.index === 3 && source.document.page > 160));
     for (const source of state.sources) if (source.document?.chapter?.index === 3) source.text = `${page3Text} second edit.`;
   });
   assert.equal((await w.shown()).stale, true);
@@ -213,7 +215,7 @@ test('#739 item 5: parts saved without a print count as unchanged while found, c
   assert.equal(outlineStale(legacy.courseOutline, withoutCh2), true);
 });
 
-test('#739 item 6 & gate 2: renamed + moved chapters match by page overlap or textPrint, and standalone rename+move (0 text edits) settles in 0 calls without building unbuilt chapters', async t => {
+test('#739 item 6 & gate 2: cross-chapter rename+move (0 text edits) and lost-chapter deletion sync leaf anchors in 0 calls and never collide on later builds', async t => {
   const w = await world(t);
   const ids = await w.chapterIds();
   await w.build({ chapters: [ids[2], ids[3]], sample: 'skip' });
@@ -245,54 +247,90 @@ test('#739 item 6 & gate 2: renamed + moved chapters match by page overlap or te
   assert.equal((await w.shown()).stale, false);
   assert.equal(written(await w.notes()).length, beforeCount);
 
-  // Case B (gate 2): Standalone rename + move with ZERO text edits anywhere, while 8 chapters remain unbuilt!
+  // Case B (gate v2): Built Chapter 4 (idx=3, pages 151..200) genuinely moves PAST Chapter 10 to pages 501..550 (index: 10, 0 text edits),
+  // while unbuilt Chapter 5 (idx=4, pages 201..250) stays put and shifts into doc.sourceIds[150..199]!
   const w2 = await world(t);
   const ids2 = await w2.chapterIds();
   await w2.build({ chapters: [ids2[2], ids2[3]], sample: 'skip' });
+  const outlineBeforeMove = await w2.outline(), notesBeforeMove = await w2.notes();
+  const savedCh4Bodies = new Map(leavesOf([outlineBeforeMove.courseOutline.nodes[1]]).map(leaf => [
+    leaf.id, notesBeforeMove.courseNotes.leaves.find(entry => entry.id === leaf.id)?.body,
+  ]));
   await w2.service.store.update(state => {
     for (const source of state.sources) {
       const idx = source.document?.chapter?.index;
-      if (idx === 2) {
-        source.document.page += 15;
-        source.document.chapter = { index: 12, title: 'Part A — Heat', level: 1 };
-      } else if (idx === 3) {
-        source.document.page += 200;
-        source.document.chapter = { index: 13, title: 'Part B — Motion', level: 1 };
-      } else if (idx >= 4) {
-        source.document.page += 250;
-        source.document.chapter = { ...source.document.chapter, index: idx + 15 };
+      if (idx === 2) source.document.chapter = { index: 2, title: 'Part A — Heat', level: 1 };
+      else if (idx === 3) {
+        source.document.page += 350;
+        source.document.chapter = { index: 10, title: 'Part B — Motion', level: 1 };
       }
     }
   });
-  assert.equal((await w2.shown()).stale, true, 'standalone rename + move marks the outline stale via metadata drift');
-  assert.equal((await w2.ask({ estimate: true })).scale.calls.low, 0, 'standalone rename + move settle estimates 0 calls');
+  assert.equal((await w2.shown()).stale, true, 'cross-chapter rename + move marks the outline stale');
+  assert.equal((await w2.ask({ estimate: true })).scale.calls.low, 0, '0-edit cross-chapter move estimates 0 calls');
   const markZero = w2.fake.calls.length;
   await run(w2);
-  assert.equal(w2.since(markZero).length, 0, 'settled in 0 model calls');
-  assert.equal((await w2.shown()).stale, false, 'outline is fresh after settling metadata');
-  assert.deepEqual((await w2.outline()).courseOutline.nodes.map(node => node.title), ['Part A — Heat', 'Part B — Motion'],
-    'top-level node titles synced and no unbuilt chapters were built');
-  assert.equal((await w2.shown()).parts.filter(part => part.pending).length, 8, 'all 8 unbuilt chapters remain unbuilt');
-  assert.deepEqual((await w2.outline()).courseOutline.parts.map(part => [part.title, part.pages]),
-    [['Part A — Heat', [116, 165]], ['Part B — Motion', [351, 400]]]);
+  assert.equal(w2.since(markZero).length, 0, 'cross-chapter move settled in 0 model calls');
+  assert.equal((await w2.shown()).stale, false, 'outline is fresh after settling metadata and anchors');
+  const movedOutline = await w2.outline(), movedNotes = await w2.notes();
+  assert.deepEqual(movedOutline.courseOutline.nodes.map(node => node.title), ['Part A — Heat', 'Part B — Motion']);
+  const movedCh4Leaves = leavesOf([movedOutline.courseOutline.nodes[1]]);
+  assert.ok(movedCh4Leaves.every(leaf => leaf.anchors.length > 0 && leaf.anchors.every(anchor => /@s4[5-9]\d-4[5-9]\d$/.test(anchor))),
+    `moved Chapter 4 anchors shifted to @s450..499 (${movedCh4Leaves.flatMap(leaf => leaf.anchors).join(', ')})`);
+  for (const [id, body] of savedCh4Bodies) assert.deepEqual(movedNotes.courseNotes.leaves.find(entry => entry.id === id)?.body, body);
+
+  // Now build Chapter 5 (which shifted into doc.sourceIds[150..199]): must NOT throw `Anchor in two places`!
+  const chap5 = (await w2.shown()).parts.find(part => part.pending && part.title === chapterTitle(5)).id;
+  await w2.build({ chapters: [chap5], sample: 'skip' });
+  assert.deepEqual((await w2.outline()).courseOutline.nodes.map(node => node.title), ['Part A — Heat', chapterTitle(5), 'Part B — Motion']);
+
+  // Case C (gate v2): Deleting built Chapter 4 (`lost: true`) shifts Chapter 5 into doc.sourceIds[150..199]; settling keeps all 10 bodies in 0 calls,
+  // and later building Chapter 5 succeeds without `Anchor in two places`!
+  const w3 = await world(t);
+  const ids3 = await w3.chapterIds();
+  await w3.build({ chapters: [ids3[2], ids3[3]], sample: 'skip' });
+  assert.equal(written(await w3.notes()).length, 10);
+  await w3.service.store.update(state => { state.sources = state.sources.filter(source => source.document?.chapter?.index !== 3); });
+  const markLost = w3.fake.calls.length;
+  await run(w3);
+  assert.equal(w3.since(markLost).length, 0, 'lost chapter settles in 0 model calls');
+  assert.equal(written(await w3.notes()).length, 10, 'lost chapter explanations are kept, not overwritten with empty');
+  const chap5AfterLoss = (await w3.shown()).parts.find(part => part.pending && part.title === chapterTitle(5)).id;
+  await w3.build({ chapters: [chap5AfterLoss], sample: 'skip' });
+  assert.equal(written(await w3.notes()).length, 15, 'shifted Chapter 5 builds cleanly alongside kept lost Chapter 4');
 });
 
-test('#739 item 7 & gate 4: incremental paper matching bounds same-line questions and warms cache.papers in both part and papers modes', async t => {
-  // Part A: Same-line questions (no newline between Q5 and Q6!) + mode === 'papers' warming courseInventory.cache.papers.
+test('#739 item 7 & gate 4: incremental paper matching bounds same-line questions, dedupes before bounds, and warms cache.papers in part and papersOnly modes', async t => {
+  // Pure check: repeated `{ quote }` in model output is deduped before computing `nextBound` so Q5's extracted slice is not clamped to Q5's quote end.
+  const dupParsed = readPaper(JSON.stringify({
+    questions: [
+      { label: 'Q5', quote: 'Explain Heat Basics', points: ['p1'] },
+      { label: 'Q5', quote: 'Explain Heat Basics', points: ['p2'] },
+      { label: 'Q6', quote: 'State Forces Laws', points: ['p2'] },
+    ],
+  }), { paper: 'doc:p', sources: [{ id: 's1', text: 'Q5 Explain Heat Basics with a full worked example. (10 marks)\nQ6 State Forces Laws clearly. (10 marks)' }] });
+  assert.equal(dupParsed.extracted.length, 2);
+  assert.ok(dupParsed.extracted[0].text.includes('(10 marks)'), `duplicate quote did not clamp Q5 slice (${dupParsed.extracted[0].text})`);
+
+  // Standalone `generation.courseOutline.build { papersOnly: true }` warms courseInventory.cache.papers via planPapersOnly.previousInventory,
+  // and bounds same-line questions (no \n between Q5 and Q6).
   const w = await world(t);
   const ids = await w.chapterIds();
-  // First build chapter 3 and 4 WITHOUT any paper.
   await w.build({ chapters: [ids[2], ids[3]], sample: 'skip' });
   assert.equal(w.fake.of('paper').length, 0);
 
-  // Add a sample paper where Q5 and Q6 sit on the EXACT SAME LINE (no \n between them), then run 更新 (which runs mode === 'papers' / paperStage!).
   const sameLinePaper = {
     ...bookPaper(['Explain Heat Basics with an example.', 'State Forces Laws and use them.']),
     text: '2025 Past Paper\nQ5 Explain Heat Basics with an example. (10 marks) Q6 State Forces Laws and use them. (10 marks)',
   };
   await w.service.store.update(state => { state.sources.push(sameLinePaper); });
-  await run(w, { chapters: [ids[2], ids[3]] });
-  assert.equal(w.fake.of('paper').length, 1, 'papers-only update runs paperStage once and warms cache.papers');
+  const papersJob = await w.service.call('generation.courseOutline.build', {
+    course: BIG_COURSE, language: 'en', papers: [ `doc:${sameLinePaper.document.materialId}` ], papersOnly: true,
+  });
+  await settleJob(w.service, papersJob.jobId);
+  assert.equal(w.fake.of('paper').length, 1, 'standalone papersOnly runs paperStage once');
+  const cachedInv = currentInventory((await w.service.store.read()).sources, BIG_COURSE);
+  assert.equal(cachedInv?.courseInventory.cache?.papers?.length, 1, 'standalone papersOnly warmed courseInventory.cache.papers');
 
   // Verify normalizeInventory sanitizes cached paper question entries.
   const sanitized = normalizeInventory({ course: 'C', ranges: [], items: [], documents: [],
