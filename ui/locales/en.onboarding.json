@@ -97,6 +97,7 @@
   "已带回可用资料和上次的设置；{0}当时没有记录，请重新选。": "The sources that still exist and your earlier settings are back on the form; {0} were not recorded, so choose them again.",
   "已带回可用资料、题型、题数、覆盖强度、侧重点和难度；请核对后再生成。": "The sources that still exist, question type, count, coverage strength, focus and difficulty are back on the form; check them, then generate.",
   "另有资料已不在资料库里，没有带回。": "Some sources are no longer in the library and were not brought back.",
+  "另有参考样题已不在资料库里，没有带回。": "Some reference questions are no longer in the library and were not brought back.",
   "配一个 AI 模型，出题要用它": "Set up an AI model: making questions needs one",
   "添加一份资料：讲义、课件或笔记": "Add a source: a handout, slides or notes",
   "{0} 等 {1} 份资料 · 已添加": "{0} and the rest: {1} sources added",

@@ -140,8 +140,10 @@ export function coverageChoicePatch(choice, { suggested } = {}) {
 
 /** The generation request the form sends: the form as typed, the 覆盖强度 and, only when the learner typed one, a total number of questions. A request without a count is planned by its level. */
 export function generationRequest(gen, { course, sourceIds }) {
-  const { count: _saved, customCount: _typed, autoComplete: _chosen, tokenBudget: _budget, ...rest } = gen, custom = customCountOf(gen), budget = parseTokenBudget(gen.tokenBudget);
-  return { ...rest, ...kindsPatch(kindsOfForm(gen)), course, sourceIds, notation: normalizeNotation(gen.notation), coverageLevel: levelOf(gen.coverageLevel), autoComplete: autoOf(gen), ...(budget ? { tokenBudget: budget } : {}), ...(custom ? { count: custom } : {}) };
+  const { count: _saved, customCount: _typed, autoComplete: _chosen, tokenBudget: _budget, kindCounts: _kc, ...rest } = gen, custom = customCountOf(gen), budget = parseTokenBudget(gen.tokenBudget);
+  const patchedKinds = kindsPatch(kindsOfForm(gen), gen.kindCounts);
+  const cleanedKinds = patchedKinds.kindCounts ? patchedKinds : { kind: patchedKinds.kind, kinds: patchedKinds.kinds };
+  return { ...rest, ...cleanedKinds, course, sourceIds, notation: normalizeNotation(gen.notation), coverageLevel: levelOf(gen.coverageLevel), autoComplete: autoOf(gen), ...(budget ? { tokenBudget: budget } : {}), ...(custom ? { count: custom } : {}) };
 }
 
 /** What `usage.estimate` is asked for the same form and materials: the plan of the chosen 覆盖强度 (or the typed number), priced from the real prompts. The
@@ -149,8 +151,9 @@ export function generationRequest(gen, { course, sourceIds }) {
 export function estimateRequestOf(gen, { course, sourceIds, reasoningEffort = '' }) {
   const custom = customCountOf(gen);
   return { feature: 'generate', sourceIds, referenceSourceIds: gen.referenceSourceIds || [], referenceLimits: gen.referenceLimits, referenceFormat: gen.referenceFormat,
-    coverageLevel: levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), ...(custom ? { count: custom } : {}), kind: gen.kind, kinds: kindsOfForm(gen), difficulty: gen.difficulty,
-    language: gen.language, course, ...(reasoningEffort ? { reasoningEffort } : {}) };
+    coverageLevel: levelOf(gen.coverageLevel ?? DEFAULT_LEVEL), ...(custom ? { count: custom } : {}), kind: gen.kind, kinds: kindsOfForm(gen),
+    ...(gen.kindCounts ? { kindCounts: gen.kindCounts } : {}), ...(gen.moduleOverrides ? { moduleOverrides: gen.moduleOverrides } : {}),
+    difficulty: gen.difficulty, language: gen.language, course, ...(reasoningEffort ? { reasoningEffort } : {}) };
 }
 
 /** Whether the run goes on by itself (「自动补到完整」): what the learner chose, else what the level's row of the table says (lib/coverage-strength.js: 精简 waits for the learner, 标准 and 完整 go on). */
@@ -196,8 +199,19 @@ export function difficultyNote(value) {
 
 /** The kinds a form (or a saved setting) asks for, in the order of the checkboxes. `kind` alone (an older form state) reads as a list too. */
 export const kindsOfForm = (gen) => requestKinds({ kind: gen?.kind, kinds: gen?.kinds });
-/** The two fields that go together: the list and the legacy `kind` of it (the old 测验 + 闪卡 is 'mixed'). */
-export const kindsPatch = (list) => ({ kind: legacyKindOf(list), kinds: list });
+/** The two fields that go together: the list and the legacy `kind` of it (the old 测验 + 闪卡 is 'mixed'), preserving custom quotas across ticked kinds. */
+export const kindsPatch = (list, currentKindCounts) => {
+  const patch = { kind: legacyKindOf(list), kinds: list };
+  if (currentKindCounts && typeof currentKindCounts === 'object' && !Array.isArray(currentKindCounts)) {
+    if (list.length < 2) patch.kindCounts = undefined;
+    else {
+      const nextCounts = {};
+      for (const k of list) nextCounts[k] = Number.isInteger(currentKindCounts[k]) && currentKindCounts[k] >= 0 ? currentKindCounts[k] : 1;
+      patch.kindCounts = nextCounts;
+    }
+  }
+  return patch;
+};
 /** Tick or untick one kind. The list stays in the order of the checkboxes; the last ticked kind cannot be unticked. */
 export function toggleKind(list, kind, on) {
   const next = BASIC_KINDS.filter((item) => (item === kind ? on : list.includes(item)));
@@ -205,9 +219,13 @@ export function toggleKind(list, kind, on) {
 }
 /** The kinds in words: 「单选测验 + 闪卡」 (what was one preset, 测验 + 闪卡, is just this combination). */
 export const kindsLabel = (list) => list.map((kind) => kindNames[kind]).join(' + ');
-/** How `count` questions are shared over several kinds, in words: 「共 3 种题型，按 10 题平均分配：4 + 3 + 3」. With fewer questions than kinds only the first kinds get one. */
-export function kindSplitLine(list, count) {
+/** How `count` questions are shared over several kinds, in words: uniform split by default, or explicit non-uniform quotas when configured (#852). */
+export function kindSplitLine(list, count, kindCounts) {
   if (list.length < 2) return '';
+  if (kindCounts && typeof kindCounts === 'object' && !Array.isArray(kindCounts)) {
+    const items = list.map((k) => `${kindNames[k]} ${Number.isInteger(kindCounts[k]) && kindCounts[k] >= 0 ? kindCounts[k] : 0}`);
+    return uiFormat('按自定义配额分配：{0}', [items.join(' · ')]);
+  }
   if (!(Number(count) >= 1)) return ui('总题数按题型平均分配，多出的几题依次给排在前面的题型。');
   const total = Math.round(Number(count));
   if (total < list.length) return uiFormat('共 {0} 种题型，但只有 {1} 题：前 {1} 种题型各出 1 道，其余这次不出。', [list.length, total]);
@@ -215,8 +233,8 @@ export function kindSplitLine(list, count) {
 }
 
 /** One line on what the chosen question type (or combination of types) is; `count` is the total the combination is shared out of, when known. */
-export function kindNote(list, count) {
-  if (list.length > 1) return `${kindsLabel(list)} · ${kindSplitLine(list, count)} ${ui('合并为一个待审题组，每种题型各按自己的规则出题和审阅。')}`;
+export function kindNote(list, count, kindCounts) {
+  if (list.length > 1) return `${kindsLabel(list)} · ${kindSplitLine(list, count, kindCounts)} ${ui('合并为一个待审题组，每种题型各按自己的规则出题和审阅。')}`;
   return ({
     quiz: ui('单选题：一个正确答案，干扰项逐项解释。'),
     multi: ui('多选题：选出所有正确的选项。'),
@@ -284,6 +302,8 @@ export const courseLine = (course = '') => uiFormat('新题组放进课程：{0}
 export function moreValuesOf(gen = {}, defaults = {}) {
   const typed = key => String(gen[key] ?? '').trim() !== '';
   if (['focus', 'title', 'role', 'tokenBudget'].some(typed) || (gen.referenceSourceIds || []).length > 0) return true;
+  if (gen.kindCounts && typeof gen.kindCounts === 'object' && Object.keys(gen.kindCounts).length > 0) return true;
+  if (gen.moduleOverrides && typeof gen.moduleOverrides === 'object' && Object.keys(gen.moduleOverrides).length > 0) return true;
   if (['difficulty', 'language'].some(key => defaults[key] !== undefined && gen[key] !== undefined && gen[key] !== defaults[key])) return true;
   return (gen.notation ?? 'auto') !== (defaults.notation ?? 'auto');
 }

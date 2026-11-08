@@ -17,6 +17,7 @@ import { PdfDetail } from '../PdfConvertJob.jsx';
 import BookBoard from './BookBoard.jsx';
 import InstallStages from '../install/InstallStages.jsx';
 import IndexDetail from './IndexDetail.jsx';
+import RequestTracePanel from './RequestTracePanel.jsx';
 
 /* The two columns under the controls, one template for every kind of job: on the left the parallel timeline above the tabs 「正在进行」 and the kind's own
    section (文件 for audio, 轮次与批次 for a question run); on the right the tabs 「实时输出」 and 「日志」. Both columns are as tall as the window leaves them and
@@ -48,7 +49,7 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
   const [rightStrip, rightEdges, measureRight] = useScrollEdges();
   const running = useMemo(() => runningCalls(calls), [calls]);
   const target = calls.find((call) => call.callId === selected) || running.find((call) => call.kind !== 'wait') || null;
-  const choose = (callId) => { setSelected(callId); setRightTab('output'); };
+  const choose = (callId) => { setSelected(callId); setRightTab((cur) => (cur === 'trace' ? 'trace' : 'output')); };
   useEffect(() => { if (focusCall?.id) { setSelected(focusCall.id); setRightTab('output'); } }, [focusCall]);
   // A PDF conversion, an install and a search-index build make no model calls: no timeline, no 正在进行 and no 实时输出 (they would only say there are none); a
   // conversion's windows are in 转换详情, an install's steps in 安装步骤, a build's pages in 索引详情, and the story of each in 日志.
@@ -56,9 +57,14 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
   const leftItems = [...(callFree ? [] : [{ value: 'running', label: uiFormat('正在进行 {0}', [running.length]) }]), ...(section ? [{ value: section.value, label: `${ui(section.label)} ${section.count(contract)}`.trim() }] : [])];
   // 目标与知识点: a question run or a top-up lists the points its plan holds (ui/tasks/PlanTable.jsx), as a third tab beside the two.
   const planned = kind === 'generation' || kind === 'supplement';
+  const hasRequestTrace = planned || kind === 'repair';
   if (planned) leftItems.push(planTabItem(contract));
   const tab = leftItems.some((item) => item.value === leftTab) ? leftTab : leftItems[0].value;
-  const rightItems = [...(callFree ? [] : [{ value: 'output', label: ui('实时输出') }]), { value: 'log', label: ui('日志') }];
+  const rightItems = [
+    ...(callFree ? [] : [{ value: 'output', label: ui('实时输出') }]),
+    ...(hasRequestTrace ? [{ value: 'trace', label: ui('实际请求') }] : []),
+    { value: 'log', label: ui('日志') },
+  ];
   const rightShown = rightItems.some((item) => item.value === rightTab) ? rightTab : 'log';
   const View = section?.View;
   return (
@@ -79,6 +85,9 @@ export default function TaskBody({ task, archived = false, marks, focusCall }) {
         {/* A day of 为你定制 has no sub-agent and keeps no output: its 实时输出 says so and shows the batch instead of asking job.output for nothing. */}
         {!callFree && <TabPanel id={right} value="output" selected={rightShown} className="tc-panel" tabIndex={undefined}>
           {kind === 'coach' ? <CoachOutputNote contract={contract} call={target} /> : <OutputPanel jobId={contract.jobId} call={target} active={live} archived={archived} />}
+        </TabPanel>}
+        {hasRequestTrace && <TabPanel id={right} value="trace" selected={rightShown} className="tc-panel" tabIndex={undefined}>
+          <RequestTracePanel jobId={contract.jobId} selectedCallId={target?.callId || null} callCount={calls.length} archived={archived} />
         </TabPanel>}
         <TabPanel id={right} value="log" selected={rightShown} className="tc-panel" tabIndex={undefined}><LogPanel contract={contract} /></TabPanel>
       </div>
