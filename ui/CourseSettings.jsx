@@ -53,10 +53,14 @@ export function payloadFromDraft(course, draft) {
     ...(number(section.marks) !== undefined ? { marks: number(section.marks) } : {}), topics: splitTopics(section.topics) }));
   const stated = course.exam || draft.format !== 'other' || Object.keys(numbers).length || draft.date || sections.length;
   const role = String(draft.interviewRole ?? '').trim(), jd = String(draft.interviewJd ?? '').trim();
-  const hasInterview = Boolean(course.interview || role || jd);
+  const migratedFromFocus = course?.interview?.migratedFromFocus === true;
+  const hasInterview = Boolean(course?.interview || role || jd);
+  const interviewPayload = role || jd
+    ? { ...(role ? { role } : {}), ...(jd ? { jd } : {}), ...(migratedFromFocus ? { migratedFromFocus: true } : {}) }
+    : (migratedFromFocus ? { migratedFromFocus: true } : null);
   return { id: course.id, name: course.name,
     ...(stated ? { exam: { format: draft.format, ...numbers, ...(draft.date ? { date: draft.date } : {}), sections } } : {}),
-    ...(hasInterview ? { interview: role || jd ? { ...(role ? { role } : {}), ...(jd ? { jd } : {}) } : null } : {}),
+    ...(hasInterview ? { interview: interviewPayload } : {}),
     guidanceSourceIds: draft.guidanceSourceIds, focusTopics: splitTopics(draft.focusTopics) };
 }
 

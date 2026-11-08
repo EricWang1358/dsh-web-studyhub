@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -212,8 +212,13 @@ test('the stored format is additive: one optional field, and a library that hold
   const older = join(repo, 'output', 'old-3.0.0');
   try { await extractRelease(repo, 'v3.0.0', older); } catch (error) { t.skip(`release 3.0.0 cannot be extracted here: ${error.message}`); return; }
   if (!existsSync(join(older, 'lib', 'store.js'))) { t.skip('release 3.0.0 has no tree here'); return; }
-  const { Store: OlderStore } = await import(pathToFileURL(join(older, 'lib', 'store.js')).href);
+  const { Store: OlderStore, LATEST_VERSION: olderVersion } = await import(pathToFileURL(join(older, 'lib', 'store.js')).href);
   const { createMaterialsOperations: olderOperations } = await import(pathToFileURL(join(older, 'lib', 'contexts', 'materials', 'operations.js')).href);
+  await assert.rejects(() => new OlderStore(f.root).read(), /newer than this build supports/);
+  const manifestPath = join(f.root, 'study-workspace.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  manifest.version = olderVersion;
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
   const store = new OlderStore(f.root), state = await store.read();
   const ops = olderOperations({ root: f.root, read: async () => ({ sources: state.sources, documents: state.documents || [] }), update: async () => { throw new Error('read only'); } });
   const listed = await ops.handlers['materials.document.list']({});

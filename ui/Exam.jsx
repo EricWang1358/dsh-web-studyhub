@@ -135,6 +135,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
     return exam.perform(async () => {
       const r = await call("review.start", {
         mode: "exam",
+        course,
         scope: [...pickedDecks].map((deckId) => ({ deckId })),
         count,
         examKinds: typeMode,
@@ -252,7 +253,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
     initialRunId={deepRun("oral")} onLocation={onLocation} onStartRun={onStartRun} onSetupModel={onSetupModel}
     header={header} recent={recent}
     course={course} onCourseChange={chooseCourse}
-    selection={explicitDecks ? { scope: [...pickedDecks].map(deckId => ({ deckId })) } : scopeArgs(course, showInactive)} />;
+    selection={explicitDecks ? { course, scope: [...pickedDecks].map(deckId => ({ deckId })) } : scopeArgs(course, showInactive)} />;
 
   return (
     <section ref={pageRef} className="page exam">

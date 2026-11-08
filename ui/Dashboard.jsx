@@ -64,12 +64,12 @@ function RateTile({ measure, rate, answers, minimum, markClass }) {
   );
 }
 
-export function StatsView({ stats, course = "*", data, localDecks, onStartScope, onLibrary, onCreate, onSources, onManageCourses, onOpenWorkflowSession }) {
+export function StatsView({ stats, course = "*", data, localDecks, onStartScope, onLibrary, onCreate, onSources, onManageCourses, onOpenWorkflowSession, onOpenWorkflowArchive }) {
   const decks = localDecks ?? decksInCourse(data, course);
   const scopedAttempts = useMemo(() => {
     const attempts = data?.attempts;
     if (!Array.isArray(attempts) || !attempts.length) return attempts;
-    const matchCourse = courseMatcher(course);
+    const matchCourse = courseMatcher(data, course);
     const deckIds = new Set((decks || []).map((deck) => deck.id));
     const knownDecks = new Map((data?.decks || []).map((deck) => [deck.id, deck]));
     return attempts.filter((attempt) => {
@@ -77,13 +77,17 @@ export function StatsView({ stats, course = "*", data, localDecks, onStartScope,
       if (typeof attempt?.course === "string") return matchCourse(attempt.course);
       return course === "*";
     });
-  }, [data?.attempts, data?.decks, decks, course]);
+  }, [data, decks, course]);
   const historicalFlows = useMemo(() => {
     const list = data?.workflowSessions;
     if (!Array.isArray(list) || !list.length) return [];
-    const matchCourse = courseMatcher(course);
+    const matchCourse = courseMatcher(data, course);
     return list.filter((item) => course === "*" || matchCourse(item?.course || ""));
-  }, [data?.workflowSessions, course]);
+  }, [data, course]);
+  const totalWorkflowSessions = Number.isInteger(data?.workflowSessionTotal)
+    ? data.workflowSessionTotal
+    : (data?.workflowSessions?.length || 0);
+  const truncatedWorkflowHistory = totalWorkflowSessions > (data?.workflowSessions?.length || 0);
   const totals = stats?.totals || {},
     heat = stats?.heatmap || [],
     trend = stats?.trend || [],
@@ -195,23 +199,43 @@ export function StatsView({ stats, course = "*", data, localDecks, onStartScope,
           <TrendPanel trend={trend} today={stats?.today} />
           <ForecastPanel forecast={stats?.forecast} onStart={onStartScope} parked={{ included: stats?.inactive?.included === true && showsParked(data, course), onManage: onManageCourses }} />
           <MasteryPanel mastery={stats?.mastery} />
-          {historicalFlows.length > 0 && onOpenWorkflowSession && (
+          {(historicalFlows.length > 0 || (truncatedWorkflowHistory && onOpenWorkflowArchive)) && (onOpenWorkflowSession || onOpenWorkflowArchive) && (
             <section className="dash-section dash-workflows" aria-label={ui("历史学习流记录（只读）")}>
-              <h2>{ui("历史学习流记录")}<small>{" · "}{ui("只读")}</small></h2>
+              <h2>
+                {ui("历史学习流记录")}
+                <small>{" · "}{totalWorkflowSessions > historicalFlows.length && course === "*"
+                  ? uiFormat("最近 {0} / 共 {1} 条 · 只读", [historicalFlows.length, totalWorkflowSessions])
+                  : ui("只读")}</small>
+              </h2>
               <p className="muted small">{ui("学习流已退役，现由每门课的「学法」与主会话带学替代；此前的学习记录保留供随时查阅。")}</p>
-              <ul className="dash-weak">
-                {historicalFlows.map((item) => (
-                  <li key={item.id} className="dash-weak-row">
-                    <span className="dash-weak-name">
-                      <strong>{item.topic || item.title || ui("学习记录")}</strong>
-                      <small>{[course === "*" && item.course ? item.course : "", item.title, item.updatedAt ? item.updatedAt.slice(0, 10) : ""].filter(Boolean).join(" · ")}</small>
-                    </span>
-                    <Button variant="link" size="sm" iconEnd="arrow-right" className="dash-weak-start" onClick={() => onOpenWorkflowSession(item.id)}>
-                      {ui("查看记录")}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
+              {historicalFlows.length > 0 ? (
+                <ul className="dash-weak">
+                  {historicalFlows.map((item) => (
+                    <li key={item.id} className="dash-weak-row">
+                      <span className="dash-weak-name">
+                        <strong>{item.topic || item.title || ui("学习记录")}</strong>
+                        <small>{[course === "*" && item.course ? item.course : "", item.title, item.updatedAt ? item.updatedAt.slice(0, 10) : ""].filter(Boolean).join(" · ")}</small>
+                      </span>
+                      {onOpenWorkflowSession && (
+                        <Button variant="link" size="sm" iconEnd="arrow-right" className="dash-weak-start" onClick={() => onOpenWorkflowSession(item.id)}>
+                          {ui("查看记录")}
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted small">{uiFormat("当前范围在最近 {0} 条中暂无匹配记录，可打开全部 {1} 条历史记录查看。", [data?.workflowSessions?.length || 0, totalWorkflowSessions])}</p>
+              )}
+              {onOpenWorkflowArchive && (
+                <p className="dash-footnote">
+                  <Button variant="link" size="sm" iconEnd="arrow-right" onClick={onOpenWorkflowArchive}>
+                    {totalWorkflowSessions > historicalFlows.length
+                      ? uiFormat("查看全部历史记录（共 {0} 条）", [totalWorkflowSessions])
+                      : ui("查看全部历史记录")}
+                  </Button>
+                </p>
+              )}
             </section>
           )}
         </div>
@@ -220,7 +244,7 @@ export function StatsView({ stats, course = "*", data, localDecks, onStartScope,
   );
 }
 
-export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onSources, onAudioUsage, onOpenWorkflowSession }) {
+export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onSources, onAudioUsage, onOpenWorkflowSession, onOpenWorkflowArchive }) {
   const { call } = useStudy();
   useInjectCss(css, "study-views");
   useInjectCss(chartCss, "study-dash-charts");
@@ -264,7 +288,7 @@ export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onS
 
       {stats && (
         <StatsView stats={stats} course={course} data={data} localDecks={localDecks}
-          onStartScope={onStartScope} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onManageCourses={courseActive?.manage} onOpenWorkflowSession={onOpenWorkflowSession} />
+          onStartScope={onStartScope} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onManageCourses={courseActive?.manage} onOpenWorkflowSession={onOpenWorkflowSession} onOpenWorkflowArchive={onOpenWorkflowArchive} />
       )}
       {/* What the study model used, by feature (WP27); the library's own ledger, not the course view. */}
       <ModelUsage onAudio={onAudioUsage} />

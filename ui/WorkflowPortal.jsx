@@ -206,7 +206,7 @@ function PortalBody({ id, onOpenRun, onBack, revision, initialResult = null }) {
           {step.kind === "skeleton" && (resources.skeleton
             ? <div className="wf-skeleton"><h3>{resources.skeleton.title}</h3>{resources.skeleton.overview && <Markdown text={resources.skeleton.overview} />}<SkeletonSpine skeleton={resources.skeleton} stepKind="skeleton" /></div>
             : <p className="muted">{ui("该步骤当时未关联知识骨架。")}</p>)}
-          {step.kind === "lesson" && <WorkflowLesson key={step.id} topic={session.topic} content={content} record={record} resources={resources} disabled readOnly sessionId={id} stepId={step.id} />}
+          {step.kind === "lesson" && <WorkflowLesson key={step.id} content={content} record={record} resources={resources} />}
           {step.kind !== "lesson" && content && (
             <section className="wf-material" aria-label={ui("本步材料")}>
               <p className="wf-material-head"><span className="wf-eyebrow">{!record.content ? ui("本步材料") : record.materialBy === "ai" ? ui("AI 补充的材料") : ui("主会话补充的材料")}</span>{record.materialAt && <time>{stamp(record.materialAt)}</time>}</p>

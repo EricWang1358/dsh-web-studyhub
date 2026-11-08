@@ -138,7 +138,8 @@ function DashboardView() {
   return (
     <Dashboard data={data} onStartScope={(scope) => intents.practice(scope, { fresh: false })} onLibrary={() => nav.navigate('library')}
       onCreate={() => intents.goGenerate()} onSources={() => nav.navigate('sources')} onAudioUsage={() => nav.navigate('audio')}
-      onOpenWorkflowSession={pageAvailable(data, 'workflows') ? (sessionId) => nav.show.workflow(sessionId) : undefined} />
+      onOpenWorkflowSession={pageAvailable(data, 'workflows') ? (sessionId) => nav.show.workflow(sessionId) : undefined}
+      onOpenWorkflowArchive={pageAvailable(data, 'workflows') ? () => nav.navigate('workflows') : undefined} />
   );
 }
 

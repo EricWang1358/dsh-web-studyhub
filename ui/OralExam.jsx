@@ -185,7 +185,7 @@ export function OralSetup({ data, course = '*', count, onCount, onStart, busy = 
   useInjectCss(css, "study-oral-exam");
   const model = modelReadiness(data);
   const targetCourse = course && course !== '*' ? course : data?.focus?.course;
-  const role = (targetCourse ? (data?.courses || []).find((item) => item.name === targetCourse)?.interview?.role : '') || (course === '*' || !course ? data?.focus?.role : '') || '';
+  const role = (targetCourse ? (data?.courses || []).find((item) => item.name === targetCourse)?.interview?.role : '') || '';
   return <ExamSetupCard data-tour="exam-start" title={role || ui("口头面试")}
     intro={ui("像面试官当面提问：你回答，可以被追问，整场结束后一次性给出反馈。")}
     steps={[

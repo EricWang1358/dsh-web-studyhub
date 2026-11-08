@@ -46,5 +46,9 @@
   "这次学习没有记录步骤完成事件。": "No step completion events were recorded in this session.",
 
   "回到学习流 →": "Back to learning flow →",
-  "学习流已退役，现由每门课的「学法」与主会话带学替代；此前的学习记录保留供随时查阅。": "Learning flows have been retired and replaced by each course's study method and main-chat guided study; earlier records remain available here for reference."
+  "学习流已退役，现由每门课的「学法」与主会话带学替代；此前的学习记录保留供随时查阅。": "Learning flows have been retired and replaced by each course's study method and main-chat guided study; earlier records remain available here for reference.",
+  "最近 {0} / 共 {1} 条 · 只读": "Latest {0} of {1} · Read-only",
+  "当前范围在最近 {0} 条中暂无匹配记录，可打开全部 {1} 条历史记录查看。": "No matching records in the latest {0} items for this scope; open all {1} archived records to browse.",
+  "查看全部历史记录": "View all archived records",
+  "查看全部历史记录（共 {0} 条）": "View all archived records ({0})"
 }

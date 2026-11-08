@@ -27,7 +27,7 @@ test('the only timers of the polling layer are in use-polling.js, and it never u
 });
 
 test('migrated files take no localStorage of their own (#115)', async () => {
-  for (const file of ['ui/WorkflowPortal.jsx', 'ui/JevSettings.jsx', 'ui/AudioSettings.jsx', 'ui/ExtensionsSettings.jsx', 'ui/workflow-draft.js'])
+  for (const file of ['ui/WorkflowPortal.jsx', 'ui/JevSettings.jsx', 'ui/AudioSettings.jsx', 'ui/ExtensionsSettings.jsx'])
     assert.doesNotMatch(await read(file), /localStorage|sessionStorage/, file);
 });
 

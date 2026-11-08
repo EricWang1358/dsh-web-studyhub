@@ -28,10 +28,11 @@ const compiled = await build({
   stdin: {
     contents: `
       export { default as StudyMap } from './ui/StudyMap.jsx';
-      export { default as CourseSettings } from './ui/CourseSettings.jsx';
+      export { default as CourseSettings, draftFromCourse, payloadFromDraft } from './ui/CourseSettings.jsx';
       export { default as Workflows } from './ui/Workflows.jsx';
       export { default as WorkflowPortal } from './ui/WorkflowPortal.jsx';
       export { StatsView } from './ui/Dashboard.jsx';
+      export { OralSetup } from './ui/OralExam.jsx';
       export { StudyServicesContext } from './ui/study-context.jsx';
       export { ui, setUiLanguage } from './ui/i18n.js';
     `,
@@ -48,7 +49,7 @@ const compiled = await build({
 });
 const uiMod = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(require, uiMod, uiMod.exports);
-const { StudyMap, CourseSettings, Workflows, WorkflowPortal, StatsView, StudyServicesContext, ui, setUiLanguage } = uiMod.exports;
+const { StudyMap, CourseSettings, draftFromCourse, payloadFromDraft, Workflows, WorkflowPortal, StatsView, OralSetup, StudyServicesContext, ui, setUiLanguage } = uiMod.exports;
 
 const h = React.createElement;
 const noop = () => {};
@@ -647,4 +648,408 @@ test("sidebar navigation, tour, feature finder, and English UI have zero dead li
   } finally {
     setUiLanguage("zh");
   }
+});
+
+test("written and oral exams preserve per-course interview.role across explicit deck scopes and '*' scope without leaking across courses", async (t) => {
+  const root = await tempDir(t);
+  await writeV4ShardedLibrary(root, {
+    focus: {
+      mode: "interview",
+      course: "艺术史",
+      role: "后端研发",
+      jd: "熟悉分布式共识与高并发服务",
+      targetTopics: ["Raft"],
+    },
+    courses: [{ id: "course-art", name: "艺术史" }],
+    decks: [
+      {
+        id: "deck-interview",
+        title: "分布式一致性题组",
+        course: "笔试 / 面试 · 后端研发",
+        cards: [
+          {
+            id: "card-raft",
+            kind: "quiz",
+            topic: "Raft",
+            prompt: "Raft 如何保证单个任期内最多选出一个 Leader？",
+            options: [
+              { id: "A", text: "多数派投票且每节点每任期只投一票", correct: true },
+              { id: "B", text: "随机休眠后直接当选", correct: false },
+            ],
+            answer: "多数派投票且每节点每任期只投一票",
+          },
+        ],
+      },
+      {
+        id: "deck-art",
+        title: "西方艺术史题组",
+        course: "艺术史",
+        cards: [
+          {
+            id: "card-art",
+            kind: "quiz",
+            topic: "Baroque",
+            prompt: "巴洛克时期的代表画家是谁？",
+            options: [
+              { id: "A", text: "卡拉瓦乔", correct: true },
+              { id: "B", text: "莫奈", correct: false },
+            ],
+            answer: "卡拉瓦乔",
+          },
+        ],
+      },
+    ],
+  });
+
+  const lightPrompts = [];
+  const completePrompts = [];
+  const service = new StudyService(root, {
+    light: async (_sys, user) => {
+      lightPrompts.push(JSON.parse(user));
+      return "如果网络分区持续存在，选票瓜分如何收敛？";
+    },
+    complete: async (_sys, user) => {
+      completePrompts.push(JSON.parse(user));
+      return JSON.stringify({ results: [{ cardId: "card-raft", band: "strong", reason: "准确点出多数派交集与任期单票约束" }] });
+    },
+  });
+  t.after(() => service.dispose());
+
+  // (a) Written exam started with explicit course + deck scope AND with '*' + deck scope when focus.course is the interview course.
+  const writtenScoped = await service.call("review.start", {
+    mode: "exam",
+    course: "笔试 / 面试 · 后端研发",
+    scope: [{ deckId: "deck-interview" }],
+    fresh: true,
+  });
+  assert.equal(writtenScoped.examRole, "后端研发");
+  await service.call("review.answer", { runId: writtenScoped.id, cardId: "card-raft", selected: ["A"] });
+  const writtenScopedReport = await service.call("exam.submit", { runId: writtenScoped.id });
+  assert.equal(writtenScopedReport.examRole, "后端研发");
+
+  const writtenWildcard = await service.call("review.start", {
+    mode: "exam",
+    course: "*",
+    scope: [{ deckId: "deck-interview" }],
+    fresh: true,
+  });
+  assert.equal(writtenWildcard.examRole, "后端研发");
+  const writtenWildcardReport = await service.call("exam.submit", { runId: writtenWildcard.id });
+  assert.equal(writtenWildcardReport.examRole, "后端研发");
+  assert.equal((await service.call("exam.report", { runId: writtenWildcard.id })).examRole, "后端研发");
+
+  // Unrelated course's explicit deck does not inherit the interview course's role when course is '艺术史' or omitted.
+  const artWritten = await service.call("review.start", {
+    mode: "exam",
+    course: "艺术史",
+    scope: [{ deckId: "deck-art" }],
+    fresh: true,
+  });
+  assert.equal(artWritten.examRole, "");
+  const artExplicitOnly = await service.call("review.start", {
+    mode: "exam",
+    scope: [{ deckId: "deck-art" }],
+    fresh: true,
+  });
+  assert.equal(artExplicitOnly.examRole, "");
+
+  // (b) Oral exam started with explicit course + deck scope AND with '*' + deck scope preserves role in session, prompts, and report.
+  for (const courseArg of ["笔试 / 面试 · 后端研发", "*"]) {
+    lightPrompts.length = 0;
+    completePrompts.length = 0;
+    const oral = await service.call("oral.start", {
+      course: courseArg,
+      scope: [{ deckId: "deck-interview" }],
+      count: 1,
+    });
+    assert.equal(oral.role, "后端研发", `oral.start preserves role for course=${courseArg}`);
+    await service.call("oral.answer", { runId: oral.id, cardId: "card-raft", answer: "每任期每节点只投一票，且需获得多数派选票" });
+    const afterFollowup = await service.call("oral.followup", { runId: oral.id, cardId: "card-raft" });
+    assert.equal(afterFollowup.role, "后端研发");
+    assert.equal(lightPrompts.length, 1);
+    assert.equal(lightPrompts[0].role, "后端研发", `followup prompt includes role for course=${courseArg}`);
+    const report = await service.call("oral.submit", { runId: oral.id });
+    assert.equal(report.role, "后端研发", `oral.submit report preserves role for course=${courseArg}`);
+    assert.equal((await service.call("oral.report", { runId: oral.id })).role, "后端研发");
+    assert.equal(completePrompts.length, 1);
+    assert.equal(completePrompts[0].role, "后端研发", `assessment prompt includes role for course=${courseArg}`);
+  }
+
+  // OralSetup UI resolves role cleanly for both explicit course and '*' fallback without relying on legacy focus.role.
+  const snap = await service.call("snapshot");
+  const oralSetupHtml = renderWithStudy(
+    h(OralSetup, { data: { ...snap, focus: { ...snap.focus, role: "" } }, course: "*", count: 3, onCount: noop, onStart: noop }),
+    { data: snap },
+  );
+  assert.match(oralSetupHtml, /后端研发/);
+});
+
+test("snapshot.workflowSessions resolves course across historical session shapes and Dashboard filters & links >20 archived sessions", async (t) => {
+  const root = await tempDir(t);
+  const template = {
+    id: "tpl-hist",
+    title: "历史流程",
+    steps: [{ id: "s-1", kind: "lesson", title: "概念梳理" }],
+  };
+  const olderSessions = Array.from({ length: 5 }, (_, idx) => ({
+    id: `ws-old-${idx + 1}`,
+    templateId: "tpl-hist",
+    template,
+    topic: `操作系统旧记录 ${idx + 1}`,
+    course: "CS2106",
+    status: "completed",
+    currentStepId: "s-1",
+    updatedAt: `2026-09-${String(idx + 1).padStart(2, "0")}T08:00:00.000Z`,
+    records: {},
+    history: [],
+  }));
+  const recentFiller = Array.from({ length: 17 }, (_, idx) => ({
+    id: `ws-art-${idx + 1}`,
+    templateId: "tpl-hist",
+    template,
+    topic: `艺术史记录 ${idx + 1}`,
+    course: "艺术史",
+    status: "completed",
+    currentStepId: "s-1",
+    updatedAt: `2026-10-${String(idx + 1).padStart(2, "0")}T08:00:00.000Z`,
+    records: {},
+    history: [],
+  }));
+  const csSessions = [
+    // Shape 1: quickstart object { name }
+    {
+      id: "ws-quickstart",
+      templateId: "tpl-hist",
+      template,
+      topic: "Paxos 与 Raft 对比",
+      course: { name: "CS3219 / 共识" },
+      status: "completed",
+      currentStepId: "s-1",
+      updatedAt: "2026-10-25T08:00:00.000Z",
+      records: {},
+      history: [],
+    },
+    // Shape 2: plain string session.course
+    {
+      id: "ws-string",
+      templateId: "tpl-hist",
+      template,
+      topic: "主从复制延迟",
+      course: "CS3219 / 复制",
+      status: "completed",
+      currentStepId: "s-1",
+      updatedAt: "2026-10-26T08:00:00.000Z",
+      records: {},
+      history: [],
+    },
+    // Shape 3: scope: [{ deckId }] with no session.course
+    {
+      id: "ws-scoped-deck",
+      templateId: "tpl-hist",
+      template,
+      topic: "两阶段提交阻塞问题",
+      scope: [{ deckId: "deck-2pc" }],
+      status: "completed",
+      currentStepId: "s-1",
+      updatedAt: "2026-10-27T08:00:00.000Z",
+      records: {},
+      history: [],
+    },
+  ];
+
+  await writeV4ShardedLibrary(root, {
+    focus: { mode: "class", course: "CS3219" },
+    courses: [
+      { id: "c-parent", name: "CS3219" },
+      { id: "c-sub1", name: "CS3219 / 共识" },
+      { id: "c-sub2", name: "CS3219 / 复制" },
+      { id: "c-os", name: "CS2106" },
+      { id: "c-art", name: "艺术史" },
+    ],
+    decks: [
+      {
+        id: "deck-2pc",
+        title: "分布式事务",
+        course: "CS3219 / 共识",
+        cards: [{ id: "c-2pc", kind: "flashcard", topic: "2PC", front: "2PC 缺点？", back: "同步阻塞与单点故障" }],
+      },
+    ],
+    workflowTemplates: [template],
+    workflowSessions: [...olderSessions, ...recentFiller, ...csSessions],
+  });
+
+  const service = new StudyService(root);
+  t.after(() => service.dispose());
+
+  const snap = await service.call("snapshot");
+  assert.equal(snap.workflowSessionTotal, 25, "snapshot reports total archived session count (>20)");
+  assert.equal(snap.workflowSessions.length, 20, "snapshot keeps latest 20 sessions compactly");
+
+  const byId = new Map(snap.workflowSessions.map((item) => [item.id, item]));
+  assert.equal(byId.get("ws-quickstart")?.course, "CS3219 / 共识");
+  assert.equal(byId.get("ws-string")?.course, "CS3219 / 复制");
+  assert.equal(byId.get("ws-scoped-deck")?.course, "CS3219 / 共识");
+
+  // Full archive via workflow.list retains all 25 historical sessions.
+  const fullArchive = await service.call("workflow.list");
+  assert.equal(fullArchive.sessions.length, 25);
+
+  const stats = {
+    today: "2026-10-28",
+    totals: { attempts: 5, activeDays: 2, streak: 2, due: 0 },
+    heatmap: [],
+    trend: [],
+    forecast: [],
+    mastery: { total: 1, counts: { mastered: 1, familiar: 0, learning: 0, weak: 0, new: 0 } },
+    weakTopics: [],
+  };
+
+  // Hierarchical parent course 'CS3219' matches sub-courses via courseMatcher(data, course) and excludes '艺术史'.
+  setUiLanguage("zh");
+  const csDashHtml = renderWithStudy(
+    h(StatsView, { stats, course: "CS3219", data: snap, onOpenWorkflowSession: noop, onOpenWorkflowArchive: noop }),
+    { data: snap },
+  );
+  assert.match(csDashHtml, /Paxos 与 Raft 对比/);
+  assert.match(csDashHtml, /主从复制延迟/);
+  assert.match(csDashHtml, /两阶段提交阻塞问题/);
+  assert.doesNotMatch(csDashHtml, /艺术史记录/);
+  assert.match(csDashHtml, /查看全部历史记录（共 25 条）/);
+
+  // Scope 'CS2106' whose 5 sessions are older than the latest 20 still offers the archive action to reach all 25 records.
+  const olderScopeHtml = renderWithStudy(
+    h(StatsView, { stats, course: "CS2106", data: snap, onOpenWorkflowSession: noop, onOpenWorkflowArchive: noop }),
+    { data: snap },
+  );
+  assert.match(olderScopeHtml, /查看全部历史记录（共 25 条）/);
+
+  // '*' scope shows Latest 20 / Total 25 and translates cleanly in English.
+  setUiLanguage("en");
+  try {
+    const enSnap = {
+      ...snap,
+      workflowSessions: snap.workflowSessions.map((s) => ({ ...s, topic: "Consensus Topic", title: "Archived Flow", course: "CS3219" })),
+    };
+    const enDashHtml = renderWithStudy(
+      h(StatsView, { stats, course: "*", data: enSnap, onOpenWorkflowSession: noop, onOpenWorkflowArchive: noop }),
+      { data: enSnap },
+    );
+    assert.match(enDashHtml, /Latest 20 of 25 · Read-only/);
+    assert.match(enDashHtml, /View all archived records \(25\)/);
+    assert.doesNotMatch(enDashHtml, han, "Dashboard archived workflow section in English has zero Chinese residue");
+  } finally {
+    setUiLanguage("zh");
+  }
+});
+
+test("saving CourseSettings on a migrated role-less interview course preserves interview.migratedFromFocus and focus.targetTopics", async (t) => {
+  const root = await tempDir(t);
+  await writeV4ShardedLibrary(root, {
+    focus: {
+      mode: "interview",
+      course: null,
+      role: "",
+      jd: "",
+      targetTopics: ["死锁", "虚拟内存"],
+    },
+  });
+
+  const service = new StudyService(root);
+  t.after(() => service.dispose());
+
+  const beforeSnap = await service.call("snapshot");
+  const migrated = beforeSnap.courses.find((c) => c.name === "笔试 / 面试");
+  assert.ok(migrated, "role-less migrated course exists");
+  assert.equal(migrated.interview?.migratedFromFocus, true);
+  assert.deepEqual(beforeSnap.focus.targetTopics, ["死锁", "虚拟内存"]);
+
+  // Simulate editing exam date and focusTopics in CourseSettings while leaving role and jd blank.
+  const draft = draftFromCourse(migrated);
+  assert.equal(draft.interviewRole, "");
+  assert.equal(draft.interviewJd, "");
+  draft.date = "2026-12-20";
+  draft.focusTopics = "死锁; 虚拟内存; 页面置换";
+  const payload = payloadFromDraft(migrated, draft);
+  assert.deepEqual(payload.interview, { migratedFromFocus: true }, "payloadFromDraft keeps migratedFromFocus marker instead of null");
+
+  await service.call("course.save", payload);
+
+  const afterSnap = await service.call("snapshot");
+  const updated = afterSnap.courses.find((c) => c.id === migrated.id);
+  assert.equal(updated.exam?.date, "2026-12-20");
+  assert.equal(updated.interview?.migratedFromFocus, true, "course.save preserves stored.interview.migratedFromFocus");
+  assert.deepEqual(afterSnap.focus.targetTopics, ["死锁", "虚拟内存", "页面置换"], "focusView.targetTopics stays active after saving CourseSettings");
+});
+
+test("migrateInterviewFocus leaves untagged decks (course: '') untouched and guides empty migrated interview courses calmly", async (t) => {
+  const root = await tempDir(t);
+  await writeV4ShardedLibrary(root, {
+    focus: {
+      mode: "interview",
+      course: null,
+      role: "后端研发",
+      jd: "熟悉存储引擎与事务隔离级别",
+      targetTopics: ["MVCC", "LSM-Tree"],
+    },
+    decks: [
+      {
+        id: "deck-untagged",
+        title: "未分课零散卡片",
+        course: "",
+        cards: [
+          { id: "c-u1", kind: "flashcard", topic: "MVCC", front: "ReadView 包含哪些字段？", back: "m_ids, min_trx_id, max_trx_id, creator_trx_id" },
+        ],
+      },
+    ],
+  });
+
+  const service = new StudyService(root);
+  t.after(() => service.dispose());
+
+  const state = await service.store.read();
+  assert.equal(state.decks.length, 1);
+  assert.equal(state.decks[0].id, "deck-untagged");
+  assert.equal(state.decks[0].course, "", "untagged decks stay untouched with course: ''");
+
+  const snap = await service.call("snapshot");
+  assert.equal(snap.focus.course, "笔试 / 面试 · 后端研发", "focus points to the migrated interview course");
+  assert.equal(snap.focus.role, "后端研发");
+  assert.deepEqual(snap.focus.targetTopics, ["MVCC", "LSM-Tree"]);
+
+  const migrated = snap.courses.find((c) => c.name === "笔试 / 面试 · 后端研发");
+  assert.ok(migrated);
+  assert.equal(migrated.decks, 0, "migrated course starts empty without hijacking untagged decks");
+
+  // Home StudyMap and CourseSettings / CourseMethodCard guide the empty migrated course calmly.
+  setUiLanguage("zh");
+  const homeHtml = renderWithStudy(
+    h(StudyMap, mapProps({
+      data: snap,
+      busy: false,
+      start: noop,
+      resume: noop,
+      endRun: noop,
+      manage: noop,
+      openDraft: noop,
+      continueDraft: noop,
+      retryGeneration: noop,
+      addSource: noop,
+      createManual: noop,
+      importLibrary: noop,
+      askInChat: noop,
+      notebooks: [],
+      onFocus: noop,
+    })),
+    { data: snap },
+  );
+  assert.match(homeHtml, /笔试 \/ 面试 · 后端研发/);
+  assert.doesNotMatch(homeHtml, /focus-switch/);
+
+  const settingsHtml = renderWithStudy(
+    h(CourseSettings, { data: snap, courseId: migrated.id, onClose: noop }),
+    { data: snap },
+  );
+  assert.match(settingsHtml, /还没有资料/, "CourseMethodCard calmly indicates stage 1 has no materials yet");
+  assert.match(settingsHtml, /导入/, "CourseMethodCard offers direct material import");
+  assert.match(settingsHtml, /请主会话起草/, "CourseMethodCard offers main-chat handout drafting");
 });
