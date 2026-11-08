@@ -55,7 +55,7 @@ export function CoachSection({ profile, setProfile, confirmForget = false }) {
     setDraftPref('');
   };
   const removePref = (item) => setPreferences(preferences.filter(entry => entry !== item));
-  const availableIdeas = PREFERENCE_IDEAS.map(idea => ui(idea)).filter(label => !preferences.includes(label));
+  const availableIdeas = PREFERENCE_IDEAS.filter(idea => !preferences.includes(idea) && !preferences.includes(ui(idea))).map(idea => ui(idea));
   const summary = profile.summary || '';
   const long = summary.length > 60;
   const updated = formatDateTime(profile.updatedAt, 'day');
@@ -82,7 +82,7 @@ export function CoachSection({ profile, setProfile, confirmForget = false }) {
               </div>
             )}
             <div className="coach-prefs__entry">
-              <TextInput id={id} aria-describedby={describedBy} value={draftPref} maxLength={LEARNER_PREFERENCE_MAX_CHARS}
+              <TextInput id={id} className="learner-pref-input" aria-describedby={describedBy} value={draftPref} maxLength={LEARNER_PREFERENCE_MAX_CHARS}
                 disabled={busy || atMax} placeholder={ui('例如：先给直觉例子再推导、用伪代码对比边界…')}
                 onChange={event => setDraftPref(event.target.value)}
                 onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); submitPref(); } }} />

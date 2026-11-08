@@ -12,6 +12,10 @@ import { assistantRefusal } from "../lib/assistant-boundary.js";
 import { libraryContracts } from "../lib/study-contracts.js";
 import { createFakeModel } from "../scripts/fake-model.mjs";
 import { SWITCH_MODE, switchOptions } from "./helpers/runtime-switch.mjs";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { loadUi } from "./helpers/ui-module.mjs";
+import { inApp } from "./helpers/fake-app.mjs";
 
 const source = {
   id: "src",
@@ -796,4 +800,31 @@ test("learner.preferences stores deduplicated free-form preferences, clears on c
   assert.deepEqual(cleared.preferences, []);
   assert.deepEqual((await service.call("coach.profile")).preferences, []);
   assert.deepEqual((await service.call("export")).learner.preferences, []);
+
+  // English UI renders translated remove chip labels with zero CJK characters and filters out already-saved zh ideas
+  const uiMod = await loadUi(`
+    export { CoachSection } from './ui/settings/CoachSection.jsx';
+    export { AppContext } from './ui/app/app-context.js';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage } from './ui/i18n.js';
+  `);
+  uiMod.setUiLanguage("en");
+  let enHtml = "";
+  let crossLangHtml = "";
+  try {
+    enHtml = renderToStaticMarkup(inApp(uiMod, React.createElement(uiMod.CoachSection, {
+      profile: { consent: false, goal: "exam", preferences: ["Socratic guiding questions"], summary: "", signals: {}, ready: 0 },
+      setProfile: () => {},
+    }), { data: {} }));
+    crossLangHtml = renderToStaticMarkup(inApp(uiMod, React.createElement(uiMod.CoachSection, {
+      profile: { consent: false, goal: "exam", preferences: ["先给直觉例子再推导"], summary: "", signals: {}, ready: 0 },
+      setProfile: () => {},
+    }), { data: {} }));
+  } finally {
+    uiMod.setUiLanguage("zh");
+  }
+  assert.match(enHtml, /aria-label="Remove &quot;Socratic guiding questions&quot;"/);
+  assert.doesNotMatch(enHtml, /[\u3400-\u9fff]/, "English CoachSection contains zero CJK characters");
+  const chipsBlock = crossLangHtml.match(/<div class="coach-prefs__chips">[\s\S]*?<\/div>/)?.[0] || "";
+  assert.doesNotMatch(chipsBlock, /Intuition and examples before derivation/, "raw zh preference suppresses duplicate translated idea chip");
 });

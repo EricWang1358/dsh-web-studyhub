@@ -17,7 +17,7 @@
     .coach-prefs { display: grid; gap: var(--space-2); max-width: 72ch; }
     .coach-prefs__list { display: flex; flex-wrap: wrap; gap: var(--space-1-5); }
     .coach-prefs__entry { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-    .coach-prefs__entry > .sh-input { flex: 1 1 16rem; min-width: 0; }
+    .coach-prefs__entry > .learner-pref-input { flex: 1 1 16rem; min-width: 0; }
     .coach-prefs__ideas { display: grid; gap: var(--space-1-5); }
     .coach-prefs__ideas-lead { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
     .coach-prefs__chips { display: flex; flex-wrap: wrap; gap: var(--space-1-5); }

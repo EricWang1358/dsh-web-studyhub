@@ -40,7 +40,7 @@ This page writes a call as `action {arguments}`, for example `source.list {impor
 - the current focus: class or interview mode, course and target role;
 - counts of sources, active decks, archived decks, drafts and questions in active decks;
 - the first page of course names;
-- live-computed learner facts (`learner`: goal, study preferences, explicit formula notation, weak topics, focus-topic progress and exam countdown) when any are set or recorded, omitted on a brand-new library;
+- live-computed learner facts (`learner`: goal, study preferences, explicit formula notation, weak topics, focus-topic progress, exam countdown, and—when preparation consent and round reviews are both on—the coach's profile summary) when any are set or recorded, omitted on a brand-new library;
 - the list of contract areas.
 
 For the exact arguments of a group of actions, request one area, such as `library.context {area:"sources"}`, `{area:"generation"}` or `{area:"cards"}`. The areas are `dailyPlan`, `plan`, `custom`, `sources`, `imports`, `decks`, `classroom`, `generation`, `cards`, `learning`, `panel`, `guided`, `book`, `organization`, `notes`, `board`, `workflows`, `cases` and `skeletons`.

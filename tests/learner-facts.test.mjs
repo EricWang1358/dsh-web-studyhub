@@ -36,6 +36,7 @@ test('learnerFacts gathers goal, clipped summary, preferences, explicit notation
   const state = {
     focus: { mode: 'class', course: 'OS' },
     learner: {
+      consent: { prep: true },
       goal: 'exam',
       summary: longSummary,
       preferences: ['先给直觉例子再推导', '  先给直觉例子再推导  ', '对比易混概念与反例'],
@@ -232,4 +233,51 @@ test('library.context, snapshot, materials.selection.ask, card.followup and coac
   assert.deepEqual(nudgePayload.learner.preferences, ['先给直觉例子再推导']);
   assert.deepEqual(nudgePayload.learner.focus.weakTopics, ['死锁']);
   assert.deepEqual(nudgePayload.learner.focus.emptyTopics, ['银行家算法']);
+
+  // Model-authored `learner.summary` is gated on explicit preparation consent (`consent.prep === true`) AND `settings.practice.debrief !== false`
+  assert.equal(learnerFacts({
+    learner: { goal: '', summary: '已有旧摘要', preferences: [], signals: {}, levels: {}, consent: { prep: null } },
+    settings: {},
+    sources: [], decks: [], drafts: [], courses: [], attempts: [],
+  }), null);
+
+  await service.store.update((own) => {
+    own.learner.summary = '容易把循环等待与饥饿混淆。';
+    own.learner.consent = { prep: null };
+  });
+  for (const prep of [null, false]) {
+    if (prep !== null) await service.call('coach.consent', { prep });
+    const ctx = await service.call('library.context', {});
+    const snap = await service.call('snapshot', {});
+    assert.equal(Object.hasOwn(ctx.learner, 'summary'), false, `library.context omits summary when consent.prep=${prep}`);
+    assert.equal(Object.hasOwn(snap.learner, 'summary'), false, `snapshot.learner omits summary when consent.prep=${prep}`);
+    seen.length = 0;
+    await service.call('materials.selection.ask', { selection: sel.selection, question: `Check summary gate (${prep})` });
+    assert.equal(Object.hasOwn(JSON.parse(seen.at(-1).prompt).learner, 'summary'), false, `selection.ask omits summary when consent.prep=${prep}`);
+    seen.length = 0;
+    await service.call('card.followup', { deckId: 'd-os', cardId: 'q-os-1', question: `追问摘要门控 (${prep})` });
+    assert.equal(Object.hasOwn(JSON.parse(seen.at(-1).prompt).learner, 'summary'), false, `card.followup omits summary when consent.prep=${prep}`);
+  }
+
+  // Turning on preparation consent while `debrief` is enabled includes `summary`
+  await service.call('coach.consent', { prep: true });
+  assert.equal((await service.call('library.context', {})).learner.summary, '容易把循环等待与饥饿混淆。');
+  assert.equal((await service.call('snapshot', {})).learner.summary, '容易把循环等待与饥饿混淆。');
+  seen.length = 0;
+  await service.call('materials.selection.ask', { selection: sel.selection, question: 'Check summary allowed' });
+  assert.equal(JSON.parse(seen.at(-1).prompt).learner.summary, '容易把循环等待与饥饿混淆。');
+  seen.length = 0;
+  await service.call('card.followup', { deckId: 'd-os', cardId: 'q-os-1', question: '追问摘要放行' });
+  assert.equal(JSON.parse(seen.at(-1).prompt).learner.summary, '容易把循环等待与饥饿混淆。');
+
+  // Turning off `settings.practice.debrief` suppresses `summary` again even when `consent.prep === true`
+  await service.call('settings.practice.set', { patch: { debrief: false } });
+  assert.equal(Object.hasOwn((await service.call('library.context', {})).learner, 'summary'), false);
+  assert.equal(Object.hasOwn((await service.call('snapshot', {})).learner, 'summary'), false);
+  seen.length = 0;
+  await service.call('materials.selection.ask', { selection: sel.selection, question: 'Check debrief off' });
+  assert.equal(Object.hasOwn(JSON.parse(seen.at(-1).prompt).learner, 'summary'), false);
+  seen.length = 0;
+  await service.call('card.followup', { deckId: 'd-os', cardId: 'q-os-1', question: '追问本轮点评关闭' });
+  assert.equal(Object.hasOwn(JSON.parse(seen.at(-1).prompt).learner, 'summary'), false);
 });

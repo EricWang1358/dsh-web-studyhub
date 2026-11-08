@@ -350,4 +350,55 @@ test('focus × mastery prioritization orders empty and weak focus topics first, 
   for (const call of log) {
     assert.equal(JSON.stringify(call).includes('focusStatus'), false, 'focusStatus never leaks into model prompts');
   }
+
+  // Mastered (`done`) focus targets omit `target.focus` in assessmentPlan so Stage 4 `reviewPrompts` does NOT demand deeper discrimination,
+  // while `bound.focus === true` is still preserved on the published card at its natural `foundation` difficulty.
+  const doneOnlyReview = reviewPrompts({
+    sources: [{ id: 's-tcp', title: 'TCP', text: 'TCP 拥塞窗口通过慢启动调节速率。' }],
+    deck: { title: 'D', cards: [{ id: 'q-done', targetId: 't-done', kind: 'flashcard', focus: true, difficulty: 'foundation' }] },
+    kind: 'flashcard',
+    count: 1,
+    structuralErrors: [],
+    difficulty: 'foundation',
+    focusTopics: ['TCP'],
+    assessmentPlan: { targets: [{ targetId: 't-done', objective: 'TCP 拥塞窗口', knowledge: 'TCP 拥塞窗口通过慢启动调节速率。' }] },
+  });
+  assert.equal(doneOnlyReview.payload.includes('course exam focus highlights'), false);
+
+  const escalatedPlanReview = reviewPrompts({
+    sources: [{ id: 's-tcp', title: 'TCP', text: 'TCP 拥塞窗口通过慢启动调节速率。' }],
+    deck: { title: 'D', cards: [{ id: 'q-weak', targetId: 't-weak', kind: 'flashcard', focus: true, difficulty: 'application' }] },
+    kind: 'flashcard',
+    count: 1,
+    structuralErrors: [],
+    difficulty: 'foundation',
+    focusTopics: ['死锁'],
+    assessmentPlan: { targets: [{ targetId: 't-weak', objective: '死锁条件', knowledge: '互斥与占有并等待', focus: true }] },
+  });
+  assert.ok(escalatedPlanReview.payload.includes('Targets in assessmentPlan marked focus: true are course exam focus highlights'));
+
+  const tcpOnlySource = await service.call('source.add', {
+    title: 'TCP 专章',
+    courses: ['OS'],
+    text: 'TCP 协议通过拥塞窗口 cwnd 和接收窗口 rwnd 共同控制发送端注入网络的字节数，防止链路队列溢出。',
+  });
+  log.length = 0;
+  const doneRun = await service.call('generate', {
+    sourceIds: [tcpOnlySource.id],
+    course: 'OS',
+    kind: 'flashcard',
+    difficulty: 'foundation',
+    count: 1,
+  });
+  await settleJob(service, doneRun.jobId);
+  const reviewCalls = log.filter((entry) => String(entry.system || '').includes('Act as a strict assessment editor.') || String(entry.prompt || '').includes('Act as a strict assessment editor.'));
+  assert.ok(reviewCalls.length >= 1, 'Stage 4 review ran');
+  for (const call of reviewCalls) {
+    assert.equal(call.prompt.includes('course exam focus highlights'), false, 'done-only batch does not inject focus escalation into reviewPrompts');
+  }
+  const doneDraft = (await service.call('export')).drafts.at(-1);
+  const donePublished = await service.call('draft.publish.quick', { id: doneDraft.id, draftVersion: doneDraft.draftVersion });
+  const doneDeck = (await service.call('export')).decks.find((item) => item.id === donePublished.deckId);
+  assert.equal(doneDeck.cards[0].focus, true, 'published card still carries bound.focus === true');
+  assert.equal(doneDeck.cards[0].difficulty, 'foundation', 'published card keeps natural foundation difficulty');
 });
