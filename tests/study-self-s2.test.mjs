@@ -205,12 +205,33 @@ test('source.add, materials.document.import, and per-revision replacement persis
     documentId: imported.documentId,
     path: authenticPath,
   });
-  assert.equal(attached.document.provenance, undefined, 'authentic replacement revision clears document-level AI-drafted provenance');
+  assert.equal(attached.document.provenance, INDEPENDENT_SOURCE, 'authentic replacement revision stamps independent-source so retained title never triggers AI-drafted');
+  assert.equal(isAiDraftedSource(attached.document), false, 'described document is independent even before renaming title');
   assert.equal(isAiDraftedSource(attached.document.sources[0]), false, 'new revision source is independent even before renaming title');
+
+  const afterAttachSnap = await service.call('snapshot', {});
+  const afterAttachGrouped = groupSourcesByDocument(afterAttachSnap.sources);
+  const replacedDocItem = afterAttachGrouped.find(item => item.sourceIds.includes(attached.sourceIds[0]));
+  assert.equal(replacedDocItem?.provenance, INDEPENDENT_SOURCE);
+  assert.equal(isAiDraftedSource(replacedDocItem), false);
+  assert.equal(ui.documentNotes(replacedDocItem).includes('AI 撰写 · 未核对'), false, 'groupSourcesByDocument + documentNotes clear AI-drafted badge on Rev 2');
+
+  // A second authentic attach (Rev 3) without provenance also keeps INDEPENDENT_SOURCE instead of resurrecting AI-drafted from retained title
+  await writeFile(authenticPath, '# Java 并发包权威讲义（第 2 版）\n\nDoug Lea 设计的 AQS 通过 CLH 变体队列与 CAS 管理同步状态。\n', 'utf8');
+  const attachedRev3 = await service.call('materials.document.attach', {
+    documentId: imported.documentId,
+    path: authenticPath,
+  });
+  assert.equal(attachedRev3.document.provenance, INDEPENDENT_SOURCE);
+  assert.equal(isAiDraftedSource(attachedRev3.document), false);
+  const afterRev3Snap = await service.call('snapshot', {});
+  const rev3DocItem = groupSourcesByDocument(afterRev3Snap.sources).find(item => item.sourceIds.includes(attachedRev3.sourceIds[0]));
+  assert.equal(rev3DocItem?.provenance, INDEPENDENT_SOURCE);
+  assert.equal(ui.documentNotes(rev3DocItem).includes('AI 撰写 · 未核对'), false, 'Rev 3 also has zero AI 撰写 · 未核对 badge');
 
   const afterAttachList = await service.call('source.list', { course: 'Java 后端 + AI 求职' });
   const afterById = new Map(afterAttachList.sources.map(item => [item.id, item]));
-  assert.equal(afterById.get(attached.sourceIds[0])?.provenance, INDEPENDENT_SOURCE);
+  assert.equal(afterById.get(attachedRev3.sourceIds[0])?.provenance, INDEPENDENT_SOURCE);
 
   // Historical revisions retain their exact AI-drafted provenance for older citations
   const historicalDoc = await service.call('materials.document.get', { id: imported.documentId, revision: refreshed.revision });
@@ -430,6 +451,7 @@ test('NewCourse entry, self.start prompt, SKILL.md, and libraryContracts stay al
   assert.match(skill, /document\.import/);
   assert.match(skill, /ai-drafted-unverified/);
   assert.match(skill, /还没有资料 · 导入，或请主会话起草/);
+  assert.match(skill, /不要把第 1 阶段实质内容标成 `publish`/);
   assert.match(skill, /开始第 ① 阶段/);
 
   assert.match(libraryContracts.sources, /source\.add \{[^}]*provenance\?:'ai-drafted-unverified'\|'independent-source'/);
@@ -437,15 +459,15 @@ test('NewCourse entry, self.start prompt, SKILL.md, and libraryContracts stay al
   ui.setUiLanguage('zh');
 });
 
-test('StudyService course.save { name, method } + focus.set works in an empty library AND in an existing library with another course open run', async t => {
+test('StudyService course.save { name, method } + focus.set works across full S2 lifecycle, publish Stage-1 auto-advance, and multi-course/system-deck open runs', async t => {
   ui.setUiLanguage('zh');
-  const { service } = await createLibrary(t);
+  const { root, service } = await createLibrary(t);
   const method = {
     name: '四阶段求职推进',
     targetDate: '2027-03-15',
     stages: [
-      { name: '把 Java 集合和并发过一遍', activity: 'publish', alternatives: ['explain'], level: 'loose' },
-      { name: 'JVM 与高并发实战练习', activity: 'practice', alternatives: ['review'], level: 'medium' },
+      { name: '把 Java 集合和并发过一遍', activity: 'practice', alternatives: ['explain'], level: 'loose' },
+      { name: 'JVM 与高并发实战练习', activity: 'review', alternatives: ['check'], level: 'medium' },
     ],
   };
 
@@ -484,6 +506,141 @@ test('StudyService course.save { name, method } + focus.set works in an empty li
   assert.equal(emptyMethodHome.plan.action.label, '开始第 ① 阶段');
   emptyMethodHome.plan.action.run();
   assert.deepEqual(actionsUsed.at(-1), ['onCourseSettings', emptySnap.focus.courseId]);
+
+  // Full S2 lifecycle against real StudyService: import AI-drafted handout -> generateFromSources -> draft ready -> publish deck -> practice Stage 1
+  const s2WorkDir = join(root, 'studyhub-work');
+  await mkdir(s2WorkDir, { recursive: true });
+  const handoutPath = join(s2WorkDir, 'stage1-juc.md');
+  await writeFile(handoutPath, '# 第 1 阶段讲义（AI 撰写 · 未核对）\n\nConcurrentHashMap 采用桶级 CAS 与细粒度同步。\n', 'utf8');
+  const stage1Doc = await service.call('materials.document.import', {
+    path: handoutPath,
+    course: 'Java 后端 + AI 求职',
+    title: '第 1 阶段讲义（AI 撰写 · 未核对）',
+    provenance: AI_DRAFTED_SOURCE,
+  });
+  const afterMatSnap = await service.call('snapshot', {});
+  assert.equal(afterMatSnap.focus.method?.index, 0, 'Stage 1 practice stays at index 0 after importing handout');
+  const afterMatHome = ui.buildHomePlan({
+    data: afterMatSnap,
+    today: afterMatSnap.today,
+    runs: [],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === 'Java 后端 + AI 求职',
+    actions: makeActions(),
+  });
+  assert.equal(afterMatHome.plan.action.label, '开始第 ① 阶段');
+  assert.equal(Boolean(afterMatHome.plan.action.disabled), false);
+  afterMatHome.plan.action.run();
+  assert.deepEqual(actionsUsed.at(-1), ['generateFromSources', stage1Doc.sourceIds]);
+
+  const importedDraft = await service.call('draft.import', {
+    course: 'Java 后端 + AI 求职',
+    text: JSON.stringify({
+      title: 'Java 并发第 1 阶段草稿',
+      course: 'Java 后端 + AI 求职',
+      cards: [{
+        kind: 'flashcard',
+        prompt: 'ConcurrentHashMap 如何降低写竞争？',
+        answer: '桶级 CAS 与细粒度同步',
+        explanation: '采用桶级 CAS 与细粒度同步控制。',
+        citations: [{ sourceId: stage1Doc.sourceIds[0], quote: 'ConcurrentHashMap 采用桶级 CAS 与细粒度同步。' }],
+      }],
+    }),
+  });
+  const afterDraftSnap = await service.call('snapshot', {});
+  const afterDraftHome = ui.buildHomePlan({
+    data: afterDraftSnap,
+    today: afterDraftSnap.today,
+    runs: [],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === 'Java 后端 + AI 求职',
+    actions: makeActions(),
+  });
+  assert.equal(afterDraftHome.plan.action.label, '开始第 ① 阶段');
+  afterDraftHome.plan.action.run();
+  assert.deepEqual(actionsUsed.at(-1), ['openDraft', importedDraft.id]);
+
+  await service.store.update(state => {
+    const published = state.drafts.find(d => d.id === importedDraft.id);
+    state.drafts = state.drafts.filter(d => d.id !== importedDraft.id);
+    state.decks.push({ ...published, id: 'd-s2-stage1', createdAt: '2026-11-08T00:00:00Z' });
+  });
+  const afterPubSnap = await service.call('snapshot', {});
+  assert.equal(afterPubSnap.focus.method?.index, 0);
+  assert.equal(afterPubSnap.today?.size, 1);
+  const afterPubHome = ui.buildHomePlan({
+    data: afterPubSnap,
+    today: afterPubSnap.today,
+    runs: [],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === 'Java 后端 + AI 求职',
+    actions: makeActions(),
+  });
+  assert.equal(afterPubHome.plan.eyebrow, '第 ① 阶段');
+  assert.equal(afterPubHome.plan.action.label, '开始第 ① 阶段');
+  assert.equal(Boolean(afterPubHome.plan.action.disabled), false);
+  afterPubHome.plan.action.run();
+  assert.equal(actionsUsed.at(-1)[0], 'start');
+
+  // 1b) Custom method that explicitly uses `activity: 'publish'` for Stage 1: importing material advances index to 1,
+  //     and buildHomePlan offers actionable `用这 1 份资料出题` / `检查草稿` instead of a disabled `开始今日学习`!
+  const { root: pubRoot, service: pubService } = await createLibrary(t);
+  await pubService.call('course.save', {
+    name: '系统设计冲刺',
+    method: {
+      name: '先导资料再练',
+      targetDate: null,
+      stages: [
+        { name: '收集并导入核心架构讲义', activity: 'publish', alternatives: [], level: 'loose' },
+        { name: '缓存与限流专题练习', activity: 'practice', alternatives: ['explain'], level: 'medium' },
+      ],
+    },
+  });
+  await pubService.call('focus.set', { mode: 'class', course: '系统设计冲刺' });
+  const pubMd = join(pubRoot, 'arch.md');
+  await writeFile(pubMd, '# 架构讲义\n\n令牌桶支持突发流量平滑限流。\n', 'utf8');
+  const pubDoc = await pubService.call('materials.document.import', { path: pubMd, course: '系统设计冲刺', title: '架构讲义' });
+  const pubMatSnap = await pubService.call('snapshot', {});
+  assert.equal(pubMatSnap.focus.method?.index, 1, 'publish Stage 1 auto-advances to Stage 2 once material is imported');
+  const pubMatHome = ui.buildHomePlan({
+    data: pubMatSnap,
+    today: pubMatSnap.today,
+    runs: [],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === '系统设计冲刺',
+    actions: makeActions(),
+  });
+  assert.equal(pubMatHome.plan.action.label, '用这 1 份资料出题', 'publish Stage-1 auto-advance offers actionable generation instead of disabled 开始今日学习');
+  assert.equal(Boolean(pubMatHome.plan.action.disabled), false);
+  pubMatHome.plan.action.run();
+  assert.deepEqual(actionsUsed.at(-1), ['generateFromSources', pubDoc.sourceIds]);
+
+  const pubDraft = await pubService.call('draft.import', {
+    course: '系统设计冲刺',
+    text: JSON.stringify({
+      title: '限流第一批草稿',
+      course: '系统设计冲刺',
+      cards: [{ kind: 'flashcard', prompt: '令牌桶特点？', answer: '支持突发流量平滑限流', citations: [{ sourceId: pubDoc.sourceIds[0], quote: '令牌桶支持突发流量平滑限流。' }] }],
+    }),
+  });
+  const pubDraftSnap = await pubService.call('snapshot', {});
+  const pubDraftHome = ui.buildHomePlan({
+    data: pubDraftSnap,
+    today: pubDraftSnap.today,
+    runs: [],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === '系统设计冲刺',
+    actions: makeActions(),
+  });
+  assert.equal(pubDraftHome.plan.action.label, '检查草稿');
+  assert.equal(Boolean(pubDraftHome.plan.action.disabled), false);
+  pubDraftHome.plan.action.run();
+  assert.deepEqual(actionsUsed.at(-1), ['openDraft', pubDraft.id]);
 
   // 2) Plain course without custom method.own stays 100% unchanged
   const plainData = {
@@ -548,6 +705,32 @@ test('StudyService course.save { name, method } + focus.set works in an empty li
   assert.equal(crossHome.otherRuns[0].id, 'run-ds-1');
   crossHome.plan.action.run();
   assert.deepEqual(actionsUsed.at(-1), ['openDraft', 'draft-java-1']);
+
+  // Multi-course `一起学` across two other courses AND `为你定制` system-deck runs also do not hijack Stage 1
+  for (const foreignRun of [
+    { id: 'run-multi-other', deckIds: ['d-ds', 'd-os'], title: '跨课一起学', total: 12, index: 4 },
+    { id: 'run-coach-sys', deckId: 'd-coach', title: '为你定制', total: 6, index: 1 },
+  ]) {
+    const foreignHome = ui.buildHomePlan({
+      data: {
+        ...multiCourseData,
+        lastRun: { id: foreignRun.id },
+        decks: [
+          { id: 'd-ds', title: '红黑树练习', course: '数据结构', count: 10 },
+          { id: 'd-os', title: '进程调度', course: '操作系统', count: 10 },
+          { id: 'd-coach', title: '为你定制', systemKind: 'coach', count: 6 },
+        ],
+      },
+      today: { course: 'Java 后端 + AI 求职', due: 0, weak: 0, new: 0, size: 0, scope: [] },
+      runs: [foreignRun],
+      runFor: () => null,
+      activeJobs: [],
+      inFocus: c => c === 'Java 后端 + AI 求职',
+      actions: makeActions(),
+    });
+    assert.equal(foreignHome.plan.eyebrow, '第 ① 阶段', `${foreignRun.id} does not hijack Stage 1`);
+    assert.equal(foreignHome.plan.action.label, '开始第 ① 阶段');
+  }
 
   // If `lastOpen` belongs to the SAME Stage 1 course, 接着上次 resumes it AND preserves 开始第 ① 阶段 in alternatives
   const sameCourseRun = { id: 'run-java-custom', deckId: 'd-java-1', title: '并发预热', total: 8, index: 2 };

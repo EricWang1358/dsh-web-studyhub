@@ -31,7 +31,7 @@ whenToUse: The learner wants a course built from a goal rather than from materia
 按这门课的学科特点与学习者的自定义想法，灵活写一份阶段列表（通常 3–5 个阶段，限度 1–12 个阶段），不要锁死成固定模板。每个阶段：
 
 - `name`：一句大白话，写清这一阶段在干什么（「把 Java 集合和并发过一遍」「精读民法总则核心法条与典型案例」）。
-- `activity`：主活动，`publish`（发资料）/ `practice`（练）/ `review`（复习）/ `explain`（讲）/ `check`（检验）/ `project`（整理笔记）。
+- `activity`：主活动，`publish`（导入资料，资料导入后即自动进入下一阶段；实质学习阶段请按第 3 问的水平选 `explain` 或 `practice`，不要把第 1 阶段实质内容标成 `publish`）/ `practice`（练）/ `review`（复习）/ `explain`（讲）/ `check`（检验）/ `project`（整理笔记）。
 - `alternatives`：最多两个「也可以」的活动。
 - `level`：过关宽严，`loose`（答过八成就算）/ `medium`（约八成答对）/ `strict`（全部答对）。
 

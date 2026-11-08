@@ -51,20 +51,29 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
      A course that already has its own confirmed 学法 (`focusMethod`) renders the stage card instead. */
   const sampleIds = sampleIdsOf(data), own = (item) => !item.sample && !sampleIds.has(item.id);
   const ownSources = (data.sources || []).filter(own);
-  const materials = documentCount(ownSources), newestDraft = (data.drafts || []).filter(own).at(-1);
+  const withinMethodCourse = methodCourse ? courseMatcher(data, methodCourse) : () => true;
+  const courseSources = focusMethod ? ownSources.filter((source) => isVerifiableMaterialSource(source)
+    && (Array.isArray(source.courses) ? source.courses.some(withinMethodCourse) : withinMethodCourse(source.course ?? ''))) : [];
+  const newestDraft = (data.drafts || []).filter(own).at(-1);
+  const courseDraft = focusMethod
+    ? (data.drafts || []).filter(own).filter((draft) => !methodCourse || withinMethodCourse(draft.course ?? draft.folder ?? '')).at(-1) || (!methodCourse ? newestDraft : null)
+    : null;
+  const starterSources = focusMethod && methodCourse ? courseSources : ownSources;
+  const materials = documentCount(starterSources), starterDraft = focusMethod && methodCourse ? courseDraft : newestDraft;
   const generating = activeJobs.some((job) => job.type !== JOB_TYPES.DRAFT_REPAIR);
   const jsonLink = [ui('已有题目？导入 JSON 题组'), importLibrary];
+  const methodNeedsFirstDeck = Boolean(focusMethod && !stageOneStart && !today.ahead && today.size === 0 && (focusMethod.counts?.cards ?? 0) === 0);
   /* The sample course (设置 › 学习画像与导览) can stay after its tour; it is not the learner's library, so its material, its draft and its decks neither hide the way to a first deck of their own nor tick a step of it. */
-  const starter = (hasOwnDeck(data) || focusMethod) ? null
-    : newestDraft ? { kind: 'empty', step: 2, eyebrow: ui('下一步'), headline: ui('检查草稿，就能开始练习'),
+  const starter = (!hasOwnDeck(data) && !(stageOneStart && !today.ahead)) || methodNeedsFirstDeck
+    ? starterDraft ? { kind: 'empty', step: 2, eyebrow: ui('下一步'), headline: ui('检查草稿，就能开始练习'),
       title: ui('草稿已生成'), next: ui('草稿里的每道题都能修改。出题时已审阅过，发布时再检查一遍题目的结构。'),
-      action: { label: ui('检查草稿'), run: () => openDraft(newestDraft) }, also: [jsonLink] }
+      action: { label: ui('检查草稿'), run: () => openDraft(starterDraft) }, also: [jsonLink] }
       : generating ? { kind: 'empty', step: 1, eyebrow: ui('正在出题'), headline: ui('第一组题正在生成'),
         title: ui('正在出第一组题'), next: ui('出题在后台进行，离开这一页也不会中断；完成后草稿会出现在上方。'),
         action: { label: ui('查看进度'), run: revealActivity }, also: [] }
         : materials ? { kind: 'empty', step: 1, eyebrow: ui('下一步'), headline: ui('用资料出第一组题'),
           title: uiFormat('{0} 份资料已就绪', [materials]), next: ui('选好资料、题型和题数，AI 出题后会逐题检查，再交给你确认。'),
-          action: { label: uiFormat('用这 {0} 份资料出题', [materials]), run: () => generateFromSources?.(ownSources.map((source) => source.id)) },
+          action: { label: uiFormat('用这 {0} 份资料出题', [materials]), run: () => generateFromSources?.(starterSources.map((source) => source.id)) },
           also: [[ui('＋ 再添加资料'), addSource], jsonLink] }
           : { kind: 'empty', step: 0, eyebrow: ui('开始'), headline: ui('从一份资料开始'),
             title: ui('还没有资料'), next: ui('添加讲义、笔记或 PDF，AI 会据此出题；发布后这里会给出学习路径。'),
@@ -72,19 +81,14 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
             // A file already in the workspace: the main chat adds it and makes a first set from it (the hand-off plan item 5; offered with or without a
             // chat: without one the message is copied).
             also: [jsonLink, { handOff: { id: 'import.file', input: { purpose: 'material', goal: 'generate', area: '学习库' }, lead: '用工作区里的文件出题：',
-              what: '让主会话把工作区里的文件加为资料，再出 10 道题；文件在输入框里用 @ 选' } }] };
+              what: '让主会话把工作区里的文件加为资料，再出 10 道题；文件在输入框里用 @ 选' } }] }
+    : null;
   const breakdown = [
     today.due && uiFormat('{0} 题到期', [today.due]),
     today.weak && uiFormat('{0} 题薄弱', [today.weak]),
     today.new && uiFormat('{0} 题未学', [today.new]),
   ].filter(Boolean);
   const later = today.more > 0 ? uiFormat('另有 {0} 题留到下一轮', [today.more]) : '';
-  const withinMethodCourse = methodCourse ? courseMatcher(data, methodCourse) : () => true;
-  const courseSources = stageOneStart ? ownSources.filter((source) => isVerifiableMaterialSource(source)
-    && (Array.isArray(source.courses) ? source.courses.some(withinMethodCourse) : withinMethodCourse(source.course ?? ''))) : [];
-  const courseDraft = stageOneStart
-    ? (data.drafts || []).filter(own).filter((draft) => !methodCourse || withinMethodCourse(draft.course ?? draft.folder ?? '')).at(-1) || (!methodCourse ? newestDraft : null)
-    : null;
   const headline = starter ? starter.headline
     : today.ahead ? ui('今天的任务都完成了')
       : breakdown.join(' · ') || (stageOneStart && courseDraft ? ui('检查草稿，就能开始练习') : stageOneStart && generating ? ui('第一组题正在生成') : ui('这个范围里还没有可学习的题'));
@@ -164,8 +168,9 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
     const [course] = courses;
     return courses.size === 1 && (interview || !inFocus(course ?? '')) ? course : '';
   };
-  const baseLink = base.kind === 'path' ? (stageOneStart ? base.action.label : uiFormat('今日学习 · {0} 题', [base.count])) : stageOneStart && base.action && !base.action.disabled ? base.action.label : '';
-  const resumeLastOpen = Boolean(lastOpen && lastOpen !== courseRun && lastOpen !== todayRun && !(stageOneStart && otherCourse(lastOpen)));
+  const inCurrentCourse = (r) => (r.deckIds || [r.deckId]).map((id) => data.decks.find((d) => d.id === id)).some((d) => d && !d.systemKind && inFocus(d.course ?? ''));
+  const baseLink = base.kind === 'path' ? (stageOneStart ? base.action.label : uiFormat('今日学习 · {0} 题', [base.count])) : (stageOneStart || methodNeedsFirstDeck) && base.action && !base.action.disabled ? base.action.label : '';
+  const resumeLastOpen = Boolean(lastOpen && lastOpen !== courseRun && lastOpen !== todayRun && !((stageOneStart || methodNeedsFirstDeck) && !inCurrentCourse(lastOpen)));
   const plan = resumeLastOpen
     ? { kind: 'resume', eyebrow: ui('接着上次'), count: lastOpen.total - lastOpen.index, unit: ui('题未完成'),
       detail: uiFormat('{0} · 已做到第 {1} / {2} 题', [[otherCourse(lastOpen), lastOpen.title].filter(Boolean).join(' › '), lastOpen.index + 1, lastOpen.total]),
