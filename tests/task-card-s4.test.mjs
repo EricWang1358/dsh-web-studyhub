@@ -15,18 +15,22 @@ import { importExample } from '../lib/deck-format.js';
 import { TASK_RULE, blueprintPrompts, qualityCriteriaFor } from '../lib/assessment-quality.js';
 import { authorPrompts, reviewPrompts } from '../lib/generation.js';
 import { generateBatched } from '../lib/batch.js';
-import { MAX_TASK_ISSUES, normalizeTaskStaticCheck } from '../lib/case-study.js';
+import { MAX_TASK_ISSUES, normalizeTaskStaticCheck, publicTaskRubric, renderRubric } from '../lib/case-study.js';
 import { gradeTaskStatic } from '../lib/rubric-grading.js';
+import { stageGate } from '../lib/course-method-gate.js';
+import { methodProgress } from '../lib/course-method-progress.js';
 import { deriveItemStatus } from '../lib/study-progress.js';
 import { libraryContracts } from '../lib/study-contracts.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { reviewChoiceKind, shortcutAction } from '../ui/review/session-logic.js';
+import { daysAgo, service as readinessService } from './helpers/readiness-library.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 const uiMod = await loadUi(`
   export { default as TaskCardRun } from './ui/TaskCardRun.jsx';
   export { default as QuestionRun } from './ui/review/QuestionRun.jsx';
   export { default as Draft } from './ui/Draft.jsx';
+  export { CriteriaEditor } from './ui/CaseWorkspace.jsx';
   export { NextDue, nextDueWord } from './ui/NextDue.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { handOffText } from './ui/agent-prompts/index.js';
@@ -481,7 +485,7 @@ test('self-report fallback (写完了（自报）) records 自报，未验收 ho
   assert.equal(attempt.assessment, 'self-report');
   assert.equal(attempt.selfReported, true);
   assert.equal(attempt.unverified, true);
-  assert.equal(deriveItemStatus({ id: 'item-deriv', targetCardIds: ['task-self'] }, stateAfterSelf.attempts, []).status, 'assisted');
+  assert.equal(deriveItemStatus({ id: 'item-deriv', targetCardIds: ['task-self'] }, stateAfterSelf.attempts, []).status, 'self_reported');
 
   // Close first run and bring card due in FSRS-6 to verify due-review reminder & honest history badge!
   await service.call('review.end', { runId: firstRun.id });
@@ -667,4 +671,409 @@ test('UI rendering: bilingual zh/en (zero Han leakage), hand-off dispatch, Draft
   assert.match(cssText, /flex-wrap:\s*wrap/, 'actions and metadata wrap cleanly at 420px narrow width');
   assert.match(cssText, /overflow-wrap:\s*anywhere/, 'long file paths and identifiers wrap without horizontal overflow at 420px and 1280px');
   assert.match(cssText, /@media\s*\(max-width:\s*480px\)/, 'narrow-screen adaptation rule is present for 420px viewports');
+});
+
+test('re-checking an active task run after fixing issues updates checks, keeps UI re-check controls visible, normalizes blank runId, localizes en output, and increments FSRS reps once', async (t) => {
+  const { root, service } = await setupLibrary(t, [makeTaskCard('task-recheck')]);
+  const run = await service.call('review.start', { deckId: 'd-tasks', mode: 'quiz' });
+
+  // 1. Initial check with blank runId: "" normalizes cleanly and binds to the active task run.
+  const firstGrade = await service.call('card.grade', {
+    deckId: 'd-tasks',
+    cardId: 'task-recheck',
+    runId: '   ',
+    files: ['src/stock.lua'],
+    summary: 'Two criteria still have issues.',
+    checks: [
+      { id: 'c1', status: 'issue', line: 12, feedback: 'GET and DECRBY are split across two calls.' },
+      { id: 'c2', status: 'satisfied', feedback: 'Validates positive integer.' },
+      { id: 'c3', status: 'missing', feedback: 'Missing insufficient-stock sentinel.' },
+    ],
+  });
+  assert.equal(firstGrade.runId, run.id, 'blank runId normalizes and resolves the active task run');
+  assert.equal(firstGrade.taskCheck.counts.satisfied, 1);
+  assert.equal(firstGrade.taskCheck.counts.issue, 1);
+  assert.equal(firstGrade.taskCheck.counts.missing, 1);
+
+  const afterFirstRun = await service.call('review.get', { runId: run.id });
+  assert.equal(afterFirstRun.revealed, false, 'incomplete static check keeps reference solution unrevealed');
+
+  // UI keeps re-check button & optional file input visible after static-check feedback in both zh and en.
+  const decksData = { decks: [{ id: 'd-tasks', title: 'Hands-on Workshop' }] };
+  uiMod.setUiLanguage('zh');
+  const zhFeedbackHtml = renderToStaticMarkup(
+    React.createElement(uiMod.TaskCardRun, { run: afterFirstRun, data: decksData, value: '' }),
+  );
+  assert.ok(zhFeedbackHtml.includes('data-testid="task-check-main-chat"'), 're-check button remains visible after static check');
+  assert.ok(zhFeedbackHtml.includes('重新在主会话里检查'), 'zh shows re-check label');
+  assert.ok(zhFeedbackHtml.includes('data-testid="task-file-input"'), 'file path input remains visible for revision');
+  assert.ok(zhFeedbackHtml.includes('看参考实现'), 'View reference solution button stays available while unrevealed');
+
+  uiMod.setUiLanguage('en');
+  const enFeedbackHtml = renderToStaticMarkup(
+    React.createElement(uiMod.TaskCardRun, { run: afterFirstRun, data: decksData, value: '' }),
+  );
+  assert.ok(enFeedbackHtml.includes('Re-check in main chat'));
+  assert.doesNotMatch(enFeedbackHtml, han, 'zero Chinese characters in English re-check TaskCardRun');
+  uiMod.setUiLanguage('zh');
+
+  // Exact duplicate check on the same runId is idempotent (no duplicate attempt or extra reps).
+  const attemptsAfterFirst = (await service.store.read()).attempts.length;
+  await service.call('card.grade', {
+    deckId: 'd-tasks',
+    cardId: 'task-recheck',
+    runId: run.id,
+    files: ['src/stock.lua'],
+    summary: 'Two criteria still have issues.',
+    checks: [
+      { id: 'c1', status: 'issue', line: 12, feedback: 'GET and DECRBY are split across two calls.' },
+      { id: 'c2', status: 'satisfied', feedback: 'Validates positive integer.' },
+      { id: 'c3', status: 'missing', feedback: 'Missing insufficient-stock sentinel.' },
+    ],
+  });
+  assert.equal((await service.store.read()).attempts.length, attemptsAfterFirst, 'identical static check is idempotent');
+
+  // 2. Learner fixes c1 in the SAME file (src/stock.lua -> same fallback answer string!) and re-checks on the same runId.
+  const secondGrade = await service.call('card.grade', {
+    deckId: 'd-tasks',
+    cardId: 'task-recheck',
+    runId: run.id,
+    files: ['src/stock.lua'],
+    summary: 'Atomic EVAL fixed; sentinel still missing.',
+    checks: [
+      { id: 'c1', status: 'satisfied', feedback: 'Now atomic inside one EVAL script.' },
+      { id: 'c2', status: 'satisfied', feedback: 'Validates positive integer.' },
+      { id: 'c3', status: 'missing', feedback: 'Still missing -1 sentinel.' },
+    ],
+  });
+  assert.equal(secondGrade.taskCheck.counts.satisfied, 2, 'updated checks on same file are applied, never silently dropped');
+  assert.equal(secondGrade.taskCheck.counts.missing, 1);
+
+  const stateAfterSecond = await service.store.read();
+  const cardAfterSecond = stateAfterSecond.decks.find((d) => d.id === 'd-tasks').cards.find((c) => c.id === 'task-recheck');
+  assert.equal(cardAfterSecond.review.reps, 1, 're-check on same runId recomputes from reviewBefore (reps stays 1)');
+  const practiceProgress = { index: 1, total: 3, own: false, stage: { name: '课后：出题，按批练习', activity: 'practice', level: 'medium' } };
+  assert.equal(stageGate(stateAfterSecond, 'CS4224', practiceProgress).passed, 0, 'task static check with >50% partial marks (4/6) but a missing criterion does NOT pass medium stageGate');
+  assert.equal(deriveItemStatus({ id: 'i-re', targetCardIds: ['task-recheck'] }, stateAfterSecond.attempts).status, 'pending');
+
+  // 3. Learner refactors across CHANGED files and re-checks under English service language.
+  const enService = new StudyService(root, { language: 'en' });
+  t.after(() => enService.dispose());
+  const thirdGrade = await enService.call('card.grade', {
+    deckId: 'd-tasks',
+    cardId: 'task-recheck',
+    runId: run.id,
+    files: ['src/stock.lua', 'src/sentinel.lua'],
+    summary: 'All acceptance criteria satisfied.',
+    checks: [
+      { id: 'c1', status: 'satisfied', feedback: 'Atomic Lua script.' },
+      { id: 'c2', status: 'satisfied', feedback: 'Rejects non-positive quantities.' },
+      { id: 'c3', status: 'satisfied', feedback: 'Returns -1 when stock < qty.' },
+    ],
+  });
+  assert.equal(thirdGrade.total, 6);
+  assert.equal(thirdGrade.message, 'Static check complete: 6/6 marks');
+  assert.doesNotMatch(thirdGrade.message, han, 'English card.grade message has zero Chinese leakage');
+  assert.deepEqual(thirdGrade.taskCheck.files, ['src/stock.lua', 'src/sentinel.lua']);
+
+  const afterThirdRun = await enService.call('review.get', { runId: run.id });
+  assert.equal(afterThirdRun.revealed, true, 'all-satisfied static check reveals reference solution for comparison');
+  assert.equal(afterThirdRun.feedback.taskCheck.counts.satisfied, 3);
+
+  const finalState = await enService.store.read();
+  const finalCard = finalState.decks.find((d) => d.id === 'd-tasks').cards.find((c) => c.id === 'task-recheck');
+  assert.equal(finalCard.review.reps, 1, 'FSRS reps incremented only once across initial check + two re-checks on same run');
+  assert.equal(finalCard.review.repetitions, 1);
+  assert.equal(stageGate(finalState, 'CS4224', practiceProgress).passed, 1, 'task static check with ALL criteria satisfied passes medium stageGate');
+  assert.equal(deriveItemStatus({ id: 'i-re', targetCardIds: ['task-recheck'] }, finalState.attempts).status, 'passed');
+  assert.equal(finalState.attempts.at(-1).learnerAnswer, '[Static check files] src/stock.lua, src/sentinel.lua');
+  assert.doesNotMatch(finalState.attempts.at(-1).learnerAnswer, han);
+
+  // Contract documents rubricCriteria & marks on card.update.
+  assert.match(libraryContracts.cards, /card\.update[\s\S]*rubricCriteria\/marks/);
+});
+
+test('unverified self-report NEVER counts as verified pass in creditPrerequisites, course-method gates, study.scene.get, or custom-readiness', async (t) => {
+  const prereqCard = {
+    id: 'pre-lua',
+    kind: 'flashcard',
+    topic: 'Redis EVAL basics',
+    objective: 'State atomicity guarantee of Redis EVAL',
+    prompt: 'Why is a single Redis Lua script atomic with respect to other commands?',
+    answer: 'Redis executes the entire Lua script sequentially without interleaving other client commands.',
+    hint: 'Think about single-threaded command execution.',
+    explanation: `"${REDIS_QUOTE}" Redis runs the script atomically.`,
+    misconception: 'Assuming Lua scripts run in parallel threads.',
+    citations: [{ sourceId: 's-code', quote: REDIS_QUOTE }],
+  };
+  const { service } = await setupLibrary(t, [makeTaskCard('task-self-gate'), prereqCard]);
+  await service.call('card.link', {
+    deckId: 'd-tasks',
+    cardId: 'task-self-gate',
+    requires: { deckId: 'd-tasks', cardId: 'pre-lua' },
+  });
+
+  // Start guided study session to inspect study.scene.get after self-report.
+  const session = await service.call('study.session.start', {
+    courseId: 'CS4224',
+    scope: [{ kind: 'deck', id: 'd-tasks' }],
+  });
+
+  const run = await service.call('review.start', {
+    deckId: 'd-tasks',
+    mode: 'new',
+    ordered: true,
+  });
+  const selfRes = await service.call('review.answer', {
+    runId: run.id,
+    cardId: 'task-self-gate',
+    selfReport: true,
+    note: 'sketched locally without checking',
+  });
+
+  // 1. creditPrerequisites is NEVER called for selfReport, and feedback.correct is false.
+  assert.equal(selfRes.feedback.correct, false);
+  assert.equal(selfRes.feedback.credited, 0);
+  const stateAfterSelf = await service.store.read();
+  const preLive = stateAfterSelf.decks.find((d) => d.id === 'd-tasks').cards.find((c) => c.id === 'pre-lua');
+  assert.equal(preLive.review.repetitions, 0, 'prerequisite card schedule was NOT implicitly credited by self-report');
+  assert.equal(preLive.review.due_at, null);
+  assert.equal(stateAfterSelf.attempts.some((a) => a.quiz_id === 'pre-lua'), false, 'zero implicit attempts pushed');
+
+  // 2. course-method progress & stageGate exclude self-report under BOTH medium (right) and loose (answered) stage gates.
+  await service.call('course.method.save', {
+    name: 'CS4224',
+    method: {
+      version: 1,
+      name: 'Workshop Method',
+      stages: [
+        { name: '动手闯关', activity: 'practice', level: 'medium' },
+        { name: '间隔复习', activity: 'review', level: 'medium' },
+      ],
+    },
+  });
+  let stateForGate = await service.store.read();
+  let progMedium = methodProgress(stateForGate, 'CS4224');
+  let gateMedium = stageGate(stateForGate, 'CS4224', progMedium);
+  assert.equal(progMedium.counts.right, 0, 'self-report does not count as right in methodProgress');
+  assert.equal(progMedium.counts.answered, 0, 'self-report does not count as verified answered in methodProgress');
+  assert.equal(gateMedium.passed, 0, 'medium stageGate passed stays 0');
+  assert.equal(gateMedium.checkPassed, false);
+
+  await service.call('course.method.save', {
+    name: 'CS4224',
+    method: {
+      version: 1,
+      name: 'Loose Workshop Method',
+      stages: [
+        { name: '初练', activity: 'practice', level: 'loose' },
+        { name: '复习', activity: 'review', level: 'medium' },
+      ],
+    },
+  });
+  stateForGate = await service.store.read();
+  const progLoose = methodProgress(stateForGate, 'CS4224');
+  const gateLoose = stageGate(stateForGate, 'CS4224', progLoose);
+  assert.equal(gateLoose.counts, 'answered');
+  assert.equal(gateLoose.passed, 0, 'loose stageGate also excludes unverified self-report');
+  assert.equal(progLoose.index, 0, 'stage does not advance on unverified self-reports');
+
+  // 3. study.scene.get marks recentAttempts with correct: false, selfReported: true, unverified: true, assessment: 'self-report'.
+  const scene = await service.call('study.scene.get', { sessionId: session.id });
+  const latestSceneAttempt = scene.recentAttempts.find((a) => a.assessment === 'self-report') || scene.recentAttempts.at(-1);
+  assert.ok(latestSceneAttempt);
+  assert.equal(latestSceneAttempt.correct, false, 'study.scene.get never reports an unverified self-report as correct');
+  assert.equal(latestSceneAttempt.selfReported, true);
+  assert.equal(latestSceneAttempt.unverified, true);
+  assert.equal(latestSceneAttempt.assessment, 'self-report');
+
+  // 4. custom-readiness never counts unverified self-reports toward solid or practised, even across multiple days / high interval.
+  const { study: rStudy, ids: rIds } = await readinessService(t);
+  await rStudy.store.update((own) => {
+    own.attempts = own.attempts.filter((a) => !rIds.who.includes(a.quiz_id));
+    own.attempts.push(
+      { id: 'sr-w1-d2', quiz_id: rIds.who[0], deckId: 'deck-l1', timestamp: daysAgo(2), grade: 3, correct: false, assessment: 'self-report', selfReported: true, unverified: true },
+      { id: 'sr-w1-d0', quiz_id: rIds.who[0], deckId: 'deck-l1', timestamp: daysAgo(0), grade: 3, correct: false, assessment: 'self-report', selfReported: true, unverified: true },
+      { id: 'sr-w2-d3', quiz_id: rIds.who[1], deckId: 'deck-l1', timestamp: daysAgo(3), grade: 3, correct: false, assessment: 'self-report', selfReported: true, unverified: true },
+      { id: 'sr-w2-d1', quiz_id: rIds.who[1], deckId: 'deck-l1', timestamp: daysAgo(1), grade: 3, correct: false, assessment: 'self-report', selfReported: true, unverified: true },
+    );
+  });
+  const readinessAfterSelf = await rStudy.call('course.custom.readiness');
+  const c1Self = readinessAfterSelf.chapters.find((ch) => ch.id === 'c1');
+  assert.equal(c1Self.solid, 0, 'point with only unverified self-reports is NOT solid in custom-readiness');
+  assert.equal(c1Self.practised, 1, 'only the other verified point (what) is practised; self-reported point (who) is not');
+});
+
+test('upgrading a self-report via card.grade on the same runId schedules FSRS-6 once and preserves revealedBeforeAnswer if solution was viewed', async (t) => {
+  const prereqA = {
+    id: 'pre-a',
+    kind: 'flashcard',
+    topic: 'Atomicity A',
+    objective: 'Atomicity prerequisite A',
+    prompt: 'Prerequisite A?',
+    answer: 'Answer A.',
+    hint: 'Hint A.',
+    explanation: `"${REDIS_QUOTE}" Explanation A.`,
+    misconception: 'Misconception A.',
+    citations: [{ sourceId: 's-code', quote: REDIS_QUOTE }],
+  };
+  const prereqB = {
+    ...prereqA,
+    id: 'pre-b',
+    topic: 'Atomicity B',
+    objective: 'Atomicity prerequisite B',
+    prompt: 'Prerequisite B?',
+  };
+  const { service } = await setupLibrary(t, [
+    makeTaskCard('task-up-clean', { prompt: 'Implement atomic Redis + Lua stock deduction (clean path) without overselling.' }),
+    makeTaskCard('task-up-peek', { prompt: 'Implement atomic Redis + Lua stock deduction (peek path) without overselling.' }),
+    prereqA,
+    prereqB,
+  ]);
+  await service.call('card.link', { deckId: 'd-tasks', cardId: 'task-up-clean', requires: { deckId: 'd-tasks', cardId: 'pre-a' } });
+  await service.call('card.link', { deckId: 'd-tasks', cardId: 'task-up-peek', requires: { deckId: 'd-tasks', cardId: 'pre-b' } });
+
+  // Path A: Self-report (without viewing reference solution) -> card.grade pass on same runId.
+  const runA = await service.call('review.start', { deckId: 'd-tasks', mode: 'new', ordered: true });
+  const selfA = await service.call('review.answer', { runId: runA.id, cardId: 'task-up-clean', selfReport: true });
+  assert.equal(selfA.revealed, false, 'self-report does NOT auto-reveal reference solution');
+  assert.equal(selfA.solution, undefined, 'solution stays hidden after self-report');
+
+  const gradeA = await service.call('card.grade', {
+    deckId: 'd-tasks',
+    cardId: 'task-up-clean',
+    runId: runA.id,
+    files: ['src/stock.lua'],
+    checks: [
+      { id: 'c1', status: 'satisfied', feedback: 'Atomic.' },
+      { id: 'c2', status: 'satisfied', feedback: 'Validated.' },
+      { id: 'c3', status: 'satisfied', feedback: 'Sentinel returned.' },
+    ],
+  });
+  assert.equal(gradeA.credited, 1, 'verified unassisted upgrade credits prerequisite once');
+  const stateA = await service.store.read();
+  const cardA = stateA.decks.find((d) => d.id === 'd-tasks').cards.find((c) => c.id === 'task-up-clean');
+  assert.equal(cardA.review.reps, 1, 'FSRS-6 scheduled from reviewBefore (reps === 1, never 2)');
+  assert.equal(cardA.review.repetitions, 1);
+  const attA = stateA.attempts.filter((a) => a.quiz_id === 'task-up-clean').at(-1);
+  assert.equal(attA.assistance.used, false);
+  assert.equal(attA.assistance.revealedBeforeAnswer, false);
+  assert.equal(deriveItemStatus({ id: 'i-a', targetCardIds: ['task-up-clean'] }, stateA.attempts.filter((a) => a.quiz_id === 'task-up-clean')).status, 'passed');
+
+  // Path B: Self-report -> learner clicks 看参考实现 (review.reveal) -> card.grade pass on same runId.
+  const idxB = (await service.store.read()).runs.find((r) => r.id === runA.id).entries.findIndex((e) => e.card.id === 'task-up-peek');
+  const runB = await service.call('review.move', { runId: runA.id, index: idxB });
+  await service.call('review.answer', { runId: runB.id, cardId: 'task-up-peek', selfReport: true });
+  const revealedB = await service.call('review.reveal', { runId: runB.id, cardId: 'task-up-peek' });
+  assert.equal(revealedB.revealed, true);
+  assert.equal(revealedB.assistance?.revealedBeforeAnswer, true, 'revealing after self-report records revealedBeforeAnswer');
+
+  const gradeB = await service.call('card.grade', {
+    deckId: 'd-tasks',
+    cardId: 'task-up-peek',
+    runId: runB.id,
+    files: ['src/stock.lua'],
+    checks: [
+      { id: 'c1', status: 'satisfied', feedback: 'Atomic.' },
+      { id: 'c2', status: 'satisfied', feedback: 'Validated.' },
+      { id: 'c3', status: 'satisfied', feedback: 'Sentinel returned.' },
+    ],
+  });
+  assert.equal(gradeB.credited ?? 0, 0, 'assisted upgrade (viewed reference solution) does NOT credit prerequisites');
+  const stateB = await service.store.read();
+  const cardB = stateB.decks.find((d) => d.id === 'd-tasks').cards.find((c) => c.id === 'task-up-peek');
+  assert.equal(cardB.review.reps, 1, 'FSRS-6 reps still 1 after self-report + reveal + card.grade');
+  const attB = stateB.attempts.filter((a) => a.quiz_id === 'task-up-peek').at(-1);
+  assert.equal(attB.assistance.used, true);
+  assert.equal(attB.assistance.revealedBeforeAnswer, true, 'revealedBeforeAnswer preserved in commitRubricGrade');
+  assert.equal(deriveItemStatus({ id: 'i-b', targetCardIds: ['task-up-peek'] }, stateB.attempts.filter((a) => a.quiz_id === 'task-up-peek')).status, 'assisted');
+});
+
+test('publicCard, task.check prompt, and CriteriaEditor (variant="task") never leak keyPoints after renderRubric edits', () => {
+  const base = makeTaskCard('task-noleak');
+  const zhRenderedCard = { ...base, rubric: renderRubric(base.rubricCriteria, 'zh') };
+  const enRenderedCard = { ...base, rubric: renderRubric(base.rubricCriteria, 'en') };
+  assert.ok(zhRenderedCard.rubric.includes('要点：Single EVAL script'), 'sanity: renderRubric zh embeds 要点');
+  assert.ok(enRenderedCard.rubric.includes('Key points: Single EVAL script'), 'sanity: renderRubric en embeds Key points');
+
+  for (const candidate of [
+    zhRenderedCard,
+    enRenderedCard,
+    { ...zhRenderedCard, rubricCriteria: undefined },
+    { ...enRenderedCard, rubricCriteria: undefined },
+  ]) {
+    const pub = publicCard(candidate);
+    assert.ok(pub.rubric.includes('Atomic check-and-decrement'), 'criterion label preserved');
+    assert.equal(pub.rubric.includes('Single EVAL script'), false, 'keyPoint never leaks in publicCard.rubric');
+    assert.equal(pub.rubric.includes('tonumber check'), false, 'second keyPoint never leaks in publicCard.rubric');
+    assert.equal(pub.rubric.includes('要点：'), false);
+    assert.equal(pub.rubric.includes('Key points:'), false);
+    if (pub.rubricCriteria) {
+      assert.equal(pub.rubricCriteria.some((c) => 'keyPoints' in c), false);
+    }
+  }
+
+  // Hand-off prompt in zh and en never leaks keyPoints whether rubricCriteria is present or rubric-only fallback is used.
+  for (const lang of ['zh', 'en']) {
+    uiMod.setUiLanguage(lang);
+    for (const criteriaArg of [base.rubricCriteria, []]) {
+      const promptText = uiMod.handOffText('task.check', {
+        deckId: 'd-tasks',
+        cardId: 'task-noleak',
+        runId: 'run-1',
+        deckTitle: 'Hands-on Workshop',
+        topic: base.topic,
+        prompt: base.prompt,
+        rubric: renderRubric(base.rubricCriteria, lang),
+        rubricCriteria: criteriaArg,
+        filePath: 'src/stock.lua',
+      });
+      assert.ok(promptText.includes('Atomic check-and-decrement'));
+      assert.equal(promptText.includes('Single EVAL script'), false, `${lang} task.check prompt never leaks keyPoints`);
+      assert.equal(promptText.includes('tonumber check'), false);
+      assert.equal(promptText.includes('要点：'), false);
+      assert.equal(promptText.includes('Key points:'), false);
+    }
+  }
+
+  // Draft editor with rubricCriteria renders CriteriaEditor(variant="task") using 验收标准 terminology in zh & en, and edited criteria strip keyPoints in publicCard.
+  uiMod.setUiLanguage('zh');
+  const draftWithCriteria = { id: 'dr-crit', title: 'Task Criteria Draft', cards: [zhRenderedCard], quality: { errors: [], warnings: [] } };
+  const zhDraftCriteriaHtml = renderToStaticMarkup(
+    React.createElement(uiMod.Draft, {
+      draft: draftWithCriteria,
+      data: { root: '/tmp/lib', sources, decks: [], drafts: [draftWithCriteria], jobs: [], courses: [], settings: {} },
+    }),
+  );
+  for (const term of ['验收标准 · 共 6 分', '验收项', '验收要求', '添加验收项']) {
+    assert.ok(zhDraftCriteriaHtml.includes(term), `zh Draft CriteriaEditor uses "${term}"`);
+  }
+  assert.equal(zhDraftCriteriaHtml.includes('评分标准 · 共'), false, 'task card Draft does not show exam-marking legend');
+
+  uiMod.setUiLanguage('en');
+  const enDraftCriteriaHtml = renderToStaticMarkup(
+    React.createElement(uiMod.Draft, {
+      draft: draftWithCriteria,
+      data: { root: '/tmp/lib', sources, decks: [], drafts: [draftWithCriteria], jobs: [], courses: [], settings: {} },
+    }),
+  );
+  for (const term of ['Acceptance criteria · 6 marks', 'Criterion', 'Requirement', 'Add criterion']) {
+    assert.ok(enDraftCriteriaHtml.includes(term), `en Draft CriteriaEditor uses "${term}"`);
+  }
+  assert.doesNotMatch(enDraftCriteriaHtml, han, 'zero Chinese characters in English Draft CriteriaEditor for task card');
+  uiMod.setUiLanguage('zh');
+
+  // Simulate CriteriaEditor edit adding a brand-new secret keyPoint -> renderRubric -> publicCard & publicTaskRubric strip it.
+  const editedCriteria = zhRenderedCard.rubricCriteria.map((c, idx) => (
+    idx === 0 ? { ...c, keyPoints: [...c.keyPoints, 'HIDDEN_REDIS_SECRET_TOKEN'] } : c
+  ));
+  const editedCard = {
+    ...zhRenderedCard,
+    rubricCriteria: editedCriteria,
+    rubric: renderRubric(editedCriteria, 'zh'),
+  };
+  assert.ok(editedCard.rubric.includes('HIDDEN_REDIS_SECRET_TOKEN'));
+  const editedPub = publicCard(editedCard);
+  assert.equal(editedPub.rubric.includes('HIDDEN_REDIS_SECRET_TOKEN'), false, 'edited keyPoint stripped from publicCard');
+  assert.equal(publicTaskRubric(editedCard).includes('HIDDEN_REDIS_SECRET_TOKEN'), false);
 });

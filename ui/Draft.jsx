@@ -311,7 +311,7 @@ export default function Draft({
                 {science.localImages && ['answer', 'explanation'].includes(key) && <LocalImagePicker key={JSON.stringify([data.root, draft.id, q.id, key])} disabled={busy} onInsert={markdown => appendImage(q.id, key, markdown)} />}
                 </React.Fragment>
               ))}
-              {q.rubricCriteria && <CriteriaEditor criteria={q.rubricCriteria} onChange={(criteria) => {
+              {q.rubricCriteria && <CriteriaEditor criteria={q.rubricCriteria} variant={q.kind === "task" ? "task" : "rubric"} onChange={(criteria) => {
                 // Case questions (WP12): marks follow the criteria; the plain rubric text is rewritten for older readers.
                 patchCard(i, "rubricCriteria", criteria);
                 patchCard(i, "marks", criteria.reduce((sum, criterion) => sum + (Number(criterion.marks) || 0), 0));

@@ -1,4 +1,5 @@
 import { getUiLanguage } from '../i18n.js';
+import { stripRubricKeyPoints } from '../../lib/card-kinds.js';
 import { nameData, say } from './say.js';
 
 /* 'task.check': 「在主会话里检查」 on ui/TaskCardRun.jsx (#778). Hands a hands-on task card (any discipline: code, SQL, derivation,
@@ -32,7 +33,15 @@ function formatTaskCriteria(rubric, rubricCriteria) {
         return `[${cid}] ${label}${marks}${desc ? ` - ${desc}` : ''}`;
       })
     : [];
-  const raw = String(rubric ?? '').trim();
+  let raw = stripRubricKeyPoints(rubric);
+  if (raw && Array.isArray(rubricCriteria)) {
+    for (const item of rubricCriteria) {
+      for (const kp of item?.keyPoints || []) {
+        const token = String(kp ?? '').trim();
+        if (token) raw = raw.split(token).join('').trim();
+      }
+    }
+  }
   if (structured.length && raw) return `${structured.join('\n')}\n\n${raw}`;
   if (structured.length) return structured.join('\n');
   return raw;

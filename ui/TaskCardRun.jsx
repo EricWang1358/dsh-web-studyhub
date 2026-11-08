@@ -85,6 +85,7 @@ export default function TaskCardRun({
   const deckTitle = data?.decks?.find((deck) => deck.id === run.deckId)?.title || "";
   const marks = Number(card.marks) || 0;
   const trimmedInput = String(value ?? "").trim();
+  const previousFiles = Array.isArray(taskCheck?.files) ? taskCheck.files.join(", ") : "";
 
   useEffect(() => {
     setReferenceOpen(!!run?.revealed && !run?.feedback);
@@ -104,7 +105,7 @@ export default function TaskCardRun({
         prompt: card.prompt || "",
         rubric: card.rubric || "",
         rubricCriteria: Array.isArray(card.rubricCriteria) ? card.rubricCriteria : [],
-        filePath: trimmedInput,
+        filePath: trimmedInput || previousFiles,
       });
     } finally {
       flight.current = false;
@@ -319,26 +320,60 @@ export default function TaskCardRun({
               <p className="task-run__self-report-text">
                 {ui("本次记录为「自报，未验收」，已排入后续间隔复习，不计入 AI 静态验收通过。想补做验收也可以发给主会话检查。")}
               </p>
-              <div className="task-run__actions">
-                <Tooltip layer content={handOffTip("让主会话只读你指定的文件，按验收标准逐条静态检查并把结果写回这张卡")}>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    data-hand-off="task.check"
-                    busy={sending}
-                    lock={busy}
-                    onClick={handleCheckInMainChat}
-                  >
-                    {ui("在主会话里检查")}
-                  </Button>
-                </Tooltip>
-              </div>
             </section>
           )}
 
-          {run.solution?.answer && (
-            <Disclosure className="task-run__solution-fold" summary={ui("参考实现")}>
-              <TaskReferenceSolution solution={run.solution} enOn={enOn} enAnswer={enAnswer} />
+          <div className="task-run__workspace task-run__workspace--followup">
+            <Field
+              label={ui("文件路径或补充说明（可选）")}
+              hint={ui("主会话只读你指定的文件，不扫整个仓库、不跑测试，最多指出 3 处问题，也不会替你改文件。")}
+              width="full"
+            >
+              <TextInput
+                value={value}
+                maxLength={500}
+                readOnly={sending}
+                data-testid="task-file-input"
+                placeholder={previousFiles || ui("例如：src/stock.lua、queries.sql、proof.md（也可切到主会话再选文件）")}
+                onChange={(event) => onChange?.(event.target.value)}
+              />
+            </Field>
+            <div className="task-run__actions">
+              <Tooltip layer content={handOffTip("让主会话只读你指定的文件，按验收标准逐条静态检查并把结果写回这张卡")}>
+                <Button
+                  variant={!allSatisfied ? "primary" : "secondary"}
+                  size={!allSatisfied ? undefined : "sm"}
+                  data-testid="task-check-main-chat"
+                  data-hand-off="task.check"
+                  busy={sending}
+                  lock={busy}
+                  onClick={handleCheckInMainChat}
+                >
+                  {selfReported ? ui("在主会话里检查") : ui("重新在主会话里检查")}
+                </Button>
+              </Tooltip>
+              {!run.revealed && (
+                <Button
+                  variant="secondary"
+                  size={!allSatisfied ? undefined : "sm"}
+                  data-testid="task-view-reference"
+                  lock={busy}
+                  onClick={handleViewReference}
+                >
+                  {ui("看参考实现")}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {run.revealed && run.solution?.answer && (
+            <Disclosure className="task-run__solution-fold" summary={ui("参考实现")} defaultOpen={referenceOpen}>
+              <TaskReferenceSolution
+                solution={run.solution}
+                enOn={enOn}
+                enAnswer={enAnswer}
+                viewedBeforeAnswer={viewedBeforeAnswer}
+              />
             </Disclosure>
           )}
         </>
