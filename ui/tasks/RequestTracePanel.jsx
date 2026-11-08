@@ -4,6 +4,7 @@ import { Button, InlineMessage, LoadingState } from '../components/index.js';
 import { useApp } from '../app/app-context.js';
 import { useInjectCss } from '../shared.js';
 import { joinMeta } from '../format.js';
+import { useLiveEffect } from '../use-async.js';
 import traceCss from './request-trace.css';
 
 function wrapperNote(wrapperBoundary) {
@@ -25,21 +26,17 @@ export default function RequestTracePanel({ jobId, selectedCallId = null, callCo
     if (selectedCallId) setPickedId(selectedCallId);
   }, [selectedCallId]);
 
-  useEffect(() => {
-    if (archived || !jobId) return undefined;
-    let alive = true;
+  useLiveEffect((isLive) => {
+    if (archived || !jobId) return;
     setState((prev) => (prev.trace ? prev : { phase: 'loading', trace: null, error: '' }));
     core.call('job.trace', { jobId, revealSolutions: false }).then(
       (reply) => {
-        if (!alive) return;
-        setState({ phase: 'ready', trace: reply, error: '' });
+        if (isLive()) setState({ phase: 'ready', trace: reply, error: '' });
       },
       (error) => {
-        if (!alive) return;
-        setState({ phase: 'error', trace: null, error: String(error?.message || error) });
+        if (isLive()) setState({ phase: 'error', trace: null, error: String(error?.message || error) });
       },
     );
-    return () => { alive = false; };
   }, [core, jobId, callCount, archived]);
 
   if (archived) {
