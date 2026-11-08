@@ -48,6 +48,9 @@ export function useShowInactive(root, page) {
 
 /** The arguments a page sends with its scope: the course, and `includeInactive` when the learner chose to show parked courses. */
 export const scopeArgs = (course, showInactive = false) => showInactive ? { course, includeInactive: true } : { course };
+/** Pin a page's course scope before navigating to it (e.g. from a course's 学法 「也可以」). */
+export const writePageScope = (root, page, value, storage = browserSession()) => writeJSON(storageKey(root, page), value, storage);
+export const readPageScope = (root, page, storage = browserSession()) => readJSON(storageKey(root, page), undefined, storage);
 
 /**
  * Unchosen follows the visible default; explicit all (*) and unassigned ('') persist per library/page.

@@ -59,8 +59,9 @@ import { AppContext } from "./app/app-context.js";
                     compact card. */
 export default function StudyMap({ data, actions = {}, setupHandlers, notebooks, reveal, onRevealed, firstRun, children }) {
   const { call, act, host } = useStudy();
-  const publishDraft = (useContext(AppContext) || {}).drafts?.publishAndPractice;
-  const refreshLibrary = (useContext(AppContext) || {}).core?.refresh;
+  const app = useContext(AppContext) || {};
+  const publishDraft = app.drafts?.publishAndPractice;
+  const refreshLibrary = app.core?.refresh;
   const toast = useToast();
   const quick = useQuickActions();
   const openModelSettings = useContext(ModelSettingsContext) || undefined;
@@ -117,7 +118,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const shown = visibleGenerationJobs(jobs);
   const visibleJobs = [...shown.filter(isActiveJob), ...shown.filter((job) => !isActiveJob(job)).reverse()];
   const revealActivity = () => (activityRef.current || pageRef.current)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
-  const home = buildHomePlan({ data, today: data.today || { due: 0, weak: 0, new: 0, size: 0 }, runs, runFor, activeJobs, inFocus: folders.inFocus, revealActivity,
+  const home = buildHomePlan({ data, today: data.today || { due: 0, weak: 0, new: 0, size: 0 }, runs, runFor, activeJobs, inFocus: folders.inFocus, revealActivity, guidedSession: app.lib?.guidedSession,
     actions: { start, resume, openDraft, addSource, importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints } });
   const drafts = data.drafts || [];
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);

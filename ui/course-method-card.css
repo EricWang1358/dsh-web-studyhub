@@ -3,6 +3,8 @@
 @layer study.features {
   :is(.study-app, .study-seat) {
     /* 学法 on the course settings: the name and its stages as a short numbered list; the edit form only behind 「改学法」. Tokens only. */
+    .course-method { display: grid; gap: var(--space-2-5); min-width: 0; }
+    .course-method .course-method__note { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
     .course-method__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5) var(--space-2); min-width: 0; }
     .course-method__name { min-width: 0; overflow-wrap: anywhere; font-size: var(--fs-md); color: var(--text-dim); }
     .course-method__head .course-method__edit { margin-inline-start: auto; }
@@ -11,10 +13,41 @@
     .course-method__stage::marker { color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .course-method__stage-name { overflow-wrap: anywhere; }
     .course-method__level { margin-inline-start: var(--space-2); font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; }
+    .course-method__stage .course-method__now { margin-inline-start: var(--space-2); vertical-align: middle; }
+    .course-method__also { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5) var(--space-2-5); min-width: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+    .course-method__also-lead { white-space: nowrap; }
+    .course-method__also-item { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); min-width: 0; }
+    .course-method__also-blocked { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1); color: var(--text-muted); }
+    .course-method__also-why { font-size: var(--fs-xs); color: var(--text-faint); }
+    .course-method__chat { display: grid; gap: var(--space-2); min-width: 0; }
+    .course-method__chat-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
     .course-method__form { display: grid; gap: var(--space-4); min-width: 0; }
-    .course-method__stages--edit { list-style: none; padding: 0; gap: var(--space-4); }
-    .course-method__stage-edit { display: grid; gap: var(--space-2); min-width: 0; }
-    .course-method__gate { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+    .course-method__stages--edit { list-style: none; padding: 0; gap: var(--space-3); }
+    .course-method__stage-edit {
+      display: grid;
+      gap: var(--space-2-5);
+      min-width: 0;
+      padding: var(--space-3);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+      transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+    }
+    .course-method__stage-edit.is-dragging { opacity: 0.55; }
+    .course-method__stage-edit.is-drop-target { border-color: var(--line-strong); background: var(--bg-selected); }
+    .course-method__stage-top { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-2); min-width: 0; }
+    .course-method__stage-field { flex: 1 1 200px; min-width: 0; }
+    .course-method__stage-tools { display: inline-flex; align-items: center; gap: var(--space-1); margin-inline-start: auto; }
+    .course-method__drag { display: inline-flex; align-items: center; justify-content: center; padding: var(--space-1); color: var(--text-muted); cursor: grab; touch-action: none; user-select: none; }
+    .course-method__drag:active { cursor: grabbing; }
+    .course-method__stage-meta { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); min-width: 0; }
+    .course-method__activity { flex: 1 1 150px; min-width: 0; }
+    .course-method__gate { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2); min-width: 0; }
+    .course-method__alts-edit { display: grid; gap: var(--space-1-5); min-width: 0; }
+    .course-method__alts-label { font-size: var(--fs-xs); color: var(--text-muted); }
+    .course-method__alts-chips { display: flex; flex-wrap: wrap; gap: var(--space-1-5); min-width: 0; }
+    .course-method__add-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2-5); min-width: 0; }
+    .course-method__count { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .course-method__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
   }
 }

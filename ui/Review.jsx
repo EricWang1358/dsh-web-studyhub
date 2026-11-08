@@ -13,6 +13,7 @@ import { Badge, Button, PageHeader, Tooltip } from "./components/index.js";
 import { cx } from "./components/css.js";
 import { uiRich } from "./i18n-rich.jsx";
 import { useStudy } from "./study-context.jsx";
+import { AppContext } from "./app/app-context.js";
 import { HandOff } from "./hand-off/HandOff.jsx";
 import reviewCss from "./review/review.css";
 import { useInjectCss } from "./shared.js";
@@ -21,6 +22,7 @@ import { practiceArgs } from "./learning-navigation.js";
 import { isBackDestination, wayBackOf } from "./review/way-back.js";
 import { resolvePracticeSettings } from "../lib/practice-settings.js";
 import { countMaterials } from "../lib/source-groups.js";
+import { resolveRoundCourse, roundEndAlternative, useMethodAlternativeOpen } from "./method-alternatives.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -51,6 +53,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const { onBackToWorkflow, onCourseFlow, openSkeleton, onOpenNote, onRecapSettings, onModelSettings, onReturnToReading } = links;
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const enterRun = session.enterRun;
+  const app = React.useContext(AppContext);
+  const openAlt = useMethodAlternativeOpen({ data, enterRun });
   // 在右栏打开: busy until the sidebar has the run; when it cannot, say why (never a silent click).
   const [movingToSidebar, setMovingToSidebar] = React.useState(false);
   const moveToSidebar = async () => {
@@ -98,6 +102,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               : destination ? { label: destination.label, run: destination.go, back: isBackDestination(destination) } : null;
   // With a way back as the main button (the book's, the 总纲's or the reader's), a next step that is just another place to go back to (回到学习路径) is left out: both would go back.
   const onward = backHere && nextStep?.back ? null : nextStep;
+  const methodAlt = run.complete && !flow && run.mode !== "exam" ? roundEndAlternative(data, resolveRoundCourse(data, run), { guidedSession: app?.lib?.guidedSession }) : null;
   return (
     <section
       ref={pageRef}
@@ -206,6 +211,14 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <Button onClick={() => navigate("library")}>{ui("回到学习目录")}</Button>
           </div>
           {caseNote && <p className="muted" role="status">{caseNote}</p>}
+          {methodAlt && (
+            <p className="summary-method-alt">
+              <span className="summary-method-alt__lead">{ui("也可以：")}</span>
+              <Tooltip layer content={methodAlt.detail}>
+                <Button variant="link" size="sm" lock={busy} onClick={() => openAlt(methodAlt)}>{methodAlt.title}</Button>
+              </Tooltip>
+            </p>
+          )}
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>
             <p className="muted">{ui("每道题的下次复习时间已保存。")}</p>
