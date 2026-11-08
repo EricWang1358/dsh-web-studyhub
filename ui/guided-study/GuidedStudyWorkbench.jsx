@@ -3,17 +3,20 @@ import Markdown from '../Markdown.jsx';
 import { getUiLanguage, ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/Button.jsx';
 import { Badge } from '../components/Badge.jsx';
+import { Tooltip } from '../components/index.js';
 import { joinMeta } from '../format.js';
 import { TeachingArtifactBlock } from './TeachingArtifactBlock.jsx';
 import { QuestionPrepSlot } from './QuestionPrepSlot.jsx';
 import { StudyProgressPanel } from './StudyProgressPanel.jsx';
 import { buildAskTutorPrompt, applyAskTutorMessage } from '../agent-prompts/guided-study.js';
+import { HandOff } from '../hand-off/HandOff.jsx';
 import { useStudy } from '../study-context.jsx';
 import { useInjectCss } from '../shared.js';
 import css from './guided-study.css';
 import GuidedStudyStart from './GuidedStudyStart.jsx';
 import { hasOptions } from '../../lib/card-kinds.js';
 import { fixedOptionLabel } from '../option-label.js';
+import { rubricAttemptPassed } from '../../lib/course-method.js';
 
 /* How the session's status reads to the learner (never the raw value). */
 const STATUS_WORD = { active: '带学进行中', paused: '带学已暂停', ended: '带学已结束' };
@@ -56,8 +59,17 @@ export default function GuidedStudyWorkbench({
     session?.artifactRefs?.at(-1) || null;
 
   const currentCard = run?.card || (run?.entries ? run.entries[run.index]?.card : null);
+  const currentFeedback = run?.feedback || (run?.entries ? run.entries[run.index]?.feedback : null);
   const isRevealed = Boolean(run?.revealed ?? (run?.entries ? run.entries[run.index]?.revealed : false));
-  const hasFeedback = Boolean(run?.feedback || (run?.entries ? run.entries[run.index]?.feedback : false));
+  const hasFeedback = Boolean(currentFeedback);
+  const currentMissed = Boolean(hasFeedback && (currentFeedback.rubric
+    ? !rubricAttemptPassed({
+      assessment: 'rubric',
+      score: currentFeedback.rubric.total,
+      maxScore: currentFeedback.rubric.max,
+      rubric: currentFeedback.rubric,
+    })
+    : currentFeedback.correct === false));
 
   const choice = hasOptions(currentCard?.kind) && Array.isArray(currentCard?.options) && currentCard.options.length > 0;
   const [selected, setSelected] = useState([]);
@@ -87,7 +99,7 @@ export default function GuidedStudyWorkbench({
       cardId: card?.id,
       stem: card?.prompt || '',
       answered: hasFeedback,
-      correct: hasFeedback ? Boolean((run?.feedback || run?.entries?.[run.index]?.feedback)?.correct) : null,
+      correct: hasFeedback ? Boolean(currentFeedback?.correct) : null,
       language: getUiLanguage(),
     });
     const result = await applyAskTutorMessage(effectiveHost, prompt, 'zh');
@@ -233,15 +245,34 @@ export default function GuidedStudyWorkbench({
                     </Button>
                   </>
                 ) : null}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="guided-study-btn"
-                  onClick={handleAskTutor}
-                  title={ui('把这道题和你的作答发给主会话')}
-                >
-                  {ui('请教主会话')}
-                </Button>
+                <Tooltip layer content={ui('把这道题和你的作答发给主会话')}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="guided-study-btn"
+                    onClick={handleAskTutor}
+                  >
+                    {ui('请教主会话')}
+                  </Button>
+                </Tooltip>
+                {currentMissed && (
+                  <HandOff
+                    id="method.missed"
+                    shape="quiet"
+                    label={ui('带着错题回主会话')}
+                    what={ui('把这道没过关的题目带回主会话讲透，讲完再回 StudyHub 重测')}
+                    input={{
+                      course: session?.courseId || '',
+                      stage: session?.goal?.title || '',
+                      missed: [{
+                        deckId: run?.deckId || currentCard.deckId,
+                        cardId: currentCard.id,
+                        topic: currentCard.topic || '',
+                        prompt: String(currentCard.prompt || '').slice(0, 240),
+                      }],
+                    }}
+                  />
+                )}
               </div>
 
               {tutorMessage && (

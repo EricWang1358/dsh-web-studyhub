@@ -17,21 +17,23 @@ whenToUse: The learner asks to be taught and tested on a topic as they go — �
 ## 开会话
 
 - `study.session.start {"courseId": "…", "scope": [{"kind":"source","id":"…"}], "goal": {"title": "带我学条件概率"}, "settings": {"allowNewQuestions": true}}`。`courseId` 必填；`scope` 是 `[{kind,id}]` 的列表，只放这次讲的资料或题组。没同意的设置不要打开。
+- 如果这门课定制了自己的学法（`course.method.get` 里 `own: true`），`study.session.start` 会自动按当前阶段已有的题填充检验清单（每项指向现有题的 `targetCardIds`），不用手抄一份。
 - 返回 `queued_for_sidebar`：说「已请求在右侧打开带学工作台」，不要说「已经打开」。
 - 学习者想接着昨天的：`study.session.resume {"courseId": "…"}`，有 `staleWarnings` 时先说哪份资料或哪道题变了。
 
 ## 每一个知识点的循环
 
 1. **讲一段**：用资料里的话讲清一个点，长的推导、对照表、公式放进 `study.session.artifact.save {"sessionId","title","markdown"}`（公式用 `$…$`），聊天里只说要点。讲的内容必须能在资料里找到；资料里没有的，明说是资料以外的补充。
-2. **出一道题**：
-   - 先找已有的：`card.search {"query": "…", "course": "…"}`，有合适的就 `study.branch.open {"sessionId","targetDeckId","targetCardId","reason"}` 打开它。
-   - 没有合适的、并且 `allowNewQuestions` 是开的：`study.question.prepare {"sessionId","deckId","focus": "这一点要考什么"}`。`deckId` 必须是这门课里已有的普通题组。题由 StudyHub 按资料写、核对引文、独立审核，**你不写题目内容**。
+2. **出一道题（排进检验）**：
+   - 优先用本范围已有的题：`card.search {"query": "…", "course": "…"}`，有合适的就 `study.branch.open {"sessionId","targetDeckId","targetCardId","reason"}`（或整组检验题用 `panel.open`）排到右侧展示。
+   - 没有现成题、并且学习者同意补题时：趁聊天在后台用 `study.question.prepare {"sessionId","deckId","focus": "这一点要考什么"}`（或整批补进现有题组用 `supplement`）。`deckId` 必须是这门课里已有的普通题组。题由 StudyHub 按资料写、核对引文、独立审核，**你不写题目内容，绝不现造无出处题**。
    - `job.wait {"jobId"}` 等它结束，再 `study.question.result {"sessionId"}`：
-     - `ready`：这道题已经作为只有一道题的一轮排到右侧。说「题已经在右侧，做完告诉我」，不要在聊天里重复题干或选项，更不要说答案。
+     - `ready`：这道题已经作为只有一道题的一轮排到右侧。
      - `failed`：说出 `reason`（比如没通过审核），然后改用已有的题；题组没有任何变化。
      - `model_unavailable`：没有模型，只用已有的题。
+   - **讲解告一段落时**，排进检验并明确告诉学习者「**回 StudyHub 做检验题**」，不要在聊天里重复题干或选项，更不要说答案。
 3. **等学习者自己作答**：答题、提交、揭晓答案都是学习者在卡片上做的，你不能代答（`review.answer` 不是你的动作）。
-4. **看作答再讲**：学习者说做完了、问为什么、或者发来「请教主会话」时，先 `study.scene.get {"sessionId"}` 看他选了什么、对不对、用没用提示，再针对他的错讲。纯讲概念时不读现场。
+4. **看作答再讲**：学习者说做完了、问为什么、或者发来「请教主会话」「带着错题回主会话」时，先 `study.scene.get {"sessionId"}` 看他选了什么、对不对、用没用提示，再针对他的错讲。如果是案例题 / 评分标准题（`card.grade`），评分点得分率严格过半算过检验；薄弱评分点经学习者同意可用 `case.drills` 把对应原理题推回练习。纯讲概念时不读现场。
 5. **值得留下的问答**：学习者同意（或会话开了 `autoOrganizeQA`）时，用 `study.qa.organize` 归到那道题下。
 
 ## 学习者随时可以改主意

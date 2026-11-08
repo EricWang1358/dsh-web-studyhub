@@ -16,7 +16,7 @@ import { guidedStartPrompt } from './guided-start.js';
 import { courseFocusPrompt } from './focus.js';
 import { customStartPrompt } from './custom.js';
 import { selfStartPrompt } from './self.js';
-import { methodDraftMaterialPrompt, methodEditPrompt, methodExplainPrompt } from './method.js';
+import { methodDraftMaterialPrompt, methodEditPrompt, methodExplainPrompt, methodMissedPrompt } from './method.js';
 
 /* The registry of 「发给主会话」 messages (the hand-off plan, section 1.3): every message a StudyHub page hands to the main chat has an id here, and
    ui/hand-off/ sends only ids from it. An entry's builder returns the parts of one message (ui/agent-prompts/message.js: the learner's sentence, the notes
@@ -61,6 +61,8 @@ export const HAND_OFFS = Object.freeze({
   'method.explain': { build: (input, language) => methodExplainPrompt(input, language), skill: 'study-tutor' },
   // 缺资料阶段「请主会话起草」 (#776): draft a Markdown handout for a stage and import it as AI 撰写 · 未核对 (ui/CourseMethodCard.jsx)
   'method.draftMaterial': { build: (input, language) => methodDraftMaterialPrompt(input, language), skill: 'study-import' },
+  // 带着错题回主会话 (#777): manual return to main chat when stage checks or practice questions are missed (ui/CourseMethodCard.jsx, ui/Review.jsx, ui/guided-study/GuidedStudyWorkbench.jsx)
+  'method.missed': { build: (input, language) => methodMissedPrompt(input, language), skill: 'study-tutor' },
 });
 
 /** Whether `id` names a registered hand-off. */
