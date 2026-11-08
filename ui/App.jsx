@@ -13,7 +13,7 @@ import DailyPlan from './DailyPlan.jsx';
 import ShortcutHelp from './ShortcutHelp.jsx';
 import ActionFeedback, { useNotice, reviewNoticeScope } from './ActionFeedback.jsx';
 import { useDailyPlan } from './daily-plan.js';
-import { dueSummary } from '../lib/board-model.js';
+import { dueSummary, isMemoCard } from '../lib/board-model.js';
 import { appearanceStyle } from './appearance-prefs.js';
 import { scienceVars } from './science-settings.js';
 import { SciencePreferencesContext } from './SciencePreferences.jsx';
@@ -103,7 +103,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const boardState = useBoard(core.call, nav.page === 'board' || nav.page === 'dashboard');
   useInitialLanding({ loading: connection.loading, data, boardState, nav, setBoardView: set.setBoardView, navigationCount: () => core.refs.navigation.current });
   // Cards due today or overdue light the badge, so a deadline shows from any page.
-  const board = { state: boardState, count: boardState.board?.columns.reduce((total, column) => total + (column.done ? 0 : column.cardIds.length), 0),
+  const board = { state: boardState, count: boardState.board?.columns.reduce((total, column) => total + (column.done ? 0 : column.cardIds.filter((id) => !isMemoCard(boardState.board.cards?.[id])).length), 0),
     due: boardState.board ? dueSummary(boardState.board) : { overdue: 0, today: 0 } };
   const dailyPlan = useDailyPlan({ call: core.call, root: data && pageAvailable(data, 'review') ? data.root : null, navigation: () => core.refs.navigation.current,
     progressKey: session.run ? `${session.run.id}:${session.run.answered}:${session.run.complete}` : '',
