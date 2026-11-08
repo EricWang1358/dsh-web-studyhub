@@ -26,7 +26,7 @@ import NextStepCard from "./study-map/NextStepCard.jsx";
 import { nextCardView } from "./study-map/next-card-view.js";
 import { nextStep, nextStepFacts } from "./study-map/next-step.js";
 import { useNextCardDismissal } from "./study-map/next-dismiss.js";
-import { useRoleDraft } from "./study-map/RoleSuggestion.jsx";
+
 import CatalogHeading from "./study-map/CatalogHeading.jsx";
 import CatalogToolbar from "./study-map/CatalogToolbar.jsx";
 import TopicGroupReminder from "./study-map/TopicGroupReminder.jsx";
@@ -66,7 +66,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const quick = useQuickActions();
   const openModelSettings = useContext(ModelSettingsContext) || undefined;
   const { start, resume, manage, removeDeck, openDraft, topUpDraft, retryGeneration, addSource, createManual, importLibrary,
-    generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onOpenExamBook, onShowGraph, onCourseSettings, onGenerateFocus, onShowOutline } = actions;
+    generateFromSources, onCoachPractice, onWeakPoints, onOpenExamBook, onShowGraph, onCourseSettings, onGenerateFocus, onShowOutline } = actions;
   const endRun = (runId) => act("review.end", { runId });
   const restoreDeck = (id) => act("deck.archive", { id, archived: false }, () => toast.success(ui("题组已恢复。")));
   /* 归档 from the deck row's ⋯ menu: the same call, the same notice (撤销, then 永久删除…) as the Manage page's button (ui/archive-entries.js).
@@ -84,7 +84,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const cancelJob = (jobId) => act("job.cancel", jobId ? { jobId } : { all: true });
   const dismissJob = (jobId, alsoIds) => dismissJobs(quick, jobId, alsoIds);
   const onFocus = (next) => act("focus.set", next);
-  const suggestRole = (args) => call("focus.suggest", args);
+
   const suggestMerges = (args) => call("deck.merge.suggest", args);
   const mergeDecks = (args) => act("deck.merge", args, null, { rethrow: true });
   useInjectCss(focusCss, "study-focus");
@@ -105,7 +105,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
     [showArchived, setShowArchived] = useState(false);
   const tree = useDeckTree(data.root, data.decks);
   const merge = useMergeSuggestions({ suggestMerges, mergeDecks, course: data.focus?.course });
-  const role = useRoleDraft(data.focus?.role);
+
   const query = search.trim().toLowerCase();
   const folders = useCourseFolders(data, { query, showArchived, showOtherCourses, showParked });
   const progress = data.progress || EMPTY_PROGRESS, runs = data.runs || [];
@@ -119,7 +119,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const visibleJobs = [...shown.filter(isActiveJob), ...shown.filter((job) => !isActiveJob(job)).reverse()];
   const revealActivity = () => (activityRef.current || pageRef.current)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
   const home = buildHomePlan({ data, today: data.today || { due: 0, weak: 0, new: 0, size: 0 }, runs, runFor, activeJobs, inFocus: folders.inFocus, revealActivity, guidedSession: app.lib?.guidedSession,
-    actions: { start, resume, openDraft, addSource, importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onCourseSettings } });
+    actions: { start, resume, openDraft, addSource, importLibrary, generateFromSources, onCoachPractice, onWeakPoints, onCourseSettings } });
   const drafts = data.drafts || [];
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;
@@ -162,8 +162,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       {/* 课程准备: what is done once per course, above the day's work while it is open and one quiet line after; it waits until the learner has published a deck of their own. */}
       {hasOwnDeck(data) && <SetupChecklist key={`${data.root}:${data.focus?.course ?? ""}`} data={data} on={setupHandlers} />}
       <div className={"desk" + (home.plan.kind === "empty" ? " is-empty" : "")} data-tour="home-hero">
-        <DeskIntro data={data} home={home} mastery={mastery} role={role} start={start} resume={resume} endRun={endRun}
-          onFocus={onFocus} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} onShowOutline={onShowOutline} suggestRole={suggestRole} />
+        <DeskIntro data={data} home={home} mastery={mastery} start={start} resume={resume} endRun={endRun}
+          onFocus={onFocus} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} onShowOutline={onShowOutline} />
         {line.show
           ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} plan={firstRun?.plan} /></div>
           : <TodayCard plan={home.plan} todayLabel={home.todayLabel} quiet={nextHasButton} />}

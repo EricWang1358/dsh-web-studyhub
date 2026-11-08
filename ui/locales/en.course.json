@@ -220,5 +220,16 @@
   "带着错题回主会话": "Take missed questions to main chat",
   "把这一阶段还没过关的题目带回主会话讲透，讲完再回 StudyHub 重测": "Take the missed questions in this stage to the main chat for explanation, then return to StudyHub to re-verify",
   "把这一轮没过关的题目带回主会话讲透，讲完再回 StudyHub 重测": "Take the missed questions from this round to the main chat for explanation, then return to StudyHub to re-verify",
-  "把这道没过关的题目带回主会话讲透，讲完再回 StudyHub 重测": "Take this missed question to the main chat for explanation, then return to StudyHub to re-verify"
+  "把这道没过关的题目带回主会话讲透，讲完再回 StudyHub 重测": "Take this missed question to the main chat for explanation, then return to StudyHub to re-verify",
+  "笔试 / 面试准备": "Written / interview prep",
+  "梳理岗位考点与题库": "Map role topics & question bank",
+  "分批练习与复盘": "Practise in batches & review",
+  "限时笔试与口头模拟": "Timed written & oral mock",
+  "岗位与面试（可选）": "Role & interview (optional)",
+  "准备笔试或面试时，可保存目标岗位方向和岗位说明（JD）；口头模拟与选择题笔试会按这门课的范围和重点出题。": "When preparing for a written test or interview, save a target role and job description (JD); oral mocks and multiple-choice exams draw from this course's scope and focus topics.",
+  "输入岗位方向": "Enter target role",
+  "岗位说明 / JD": "Job description / JD",
+  "粘贴岗位要求或 JD 要点（可选）": "Paste role requirements or JD highlights (optional)",
+  "已填岗位": "Role set",
+  "选择题限时闭卷、案例卷逐项批改、口头面试模拟追问。口头模拟默认按当前课程出题，也可在课程设置中填写岗位方向。": "Timed closed-book multiple choice, criterion-graded case papers, and oral interview mocks with follow-ups. Oral mocks draw from the current course by default, with an optional target role in Course settings."
 }

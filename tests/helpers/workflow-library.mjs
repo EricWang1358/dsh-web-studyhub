@@ -1,5 +1,6 @@
 /* The library and the model the learning-workflow tests share (the S4-0 baseline and the runtime tests). Fakes only: no model, no network. */
 import { StudyService } from '../../lib/service.js';
+import { saveWorkflow, startSession } from '../../lib/workflows.js';
 import { until } from './wait.mjs';
 import { privateRoot } from './model-family-baseline.mjs';
 import { SWITCH_MODE, switchOptions } from './runtime-switch.mjs';
@@ -24,15 +25,14 @@ export async function library(t, options = {}, sessions = 1, mode = SWITCH_MODE)
   const root = await privateRoot(t, 'model-baseline-workflow-');
   const service = new StudyService(root, { ...options, ...switchOptions(mode, { complete: options.complete, paths: ['workflow', ...(options.pilotPaths || [])], host: options.nativeHost }) });
   t.after(() => service.dispose());
+  const started = [];
   await service.store.update(state => {
     state.sources.push({ id: 'source', title: '缓存资料', text: `${quote}未命中时仍需访问原始服务。` });
     state.decks.push({ id: 'deck', title: '缓存', cards: [{ id: 'card', topic: '缓存', kind: 'flashcard', prompt: '如何判断可复用？', answer: '检查请求和有效期', explanation: quote, citations: [{ sourceId: 'source', quote }] }] });
+    const template = saveWorkflow(state, { title: '讲解与复述', steps: [{ id: 'lesson', kind: 'lesson', title: '概念与例子' }, { id: 'recall', kind: 'recall', title: '复述' }] });
+    for (let i = 0; i < sessions; i++) started.push(startSession(state, { templateId: template.id, topic: `缓存 ${i}`, scope: [{ deckId: 'deck' }], requestId: `start-${i}` }));
   });
-  const template = await service.call('workflow.save', { title: '讲解与复述', steps: [{ id: 'lesson', kind: 'lesson', title: '概念与例子' }, { id: 'recall', kind: 'recall', title: '复述' }] });
-  const started = [];
-  for (let i = 0; i < sessions; i++) started.push(await service.call('workflow.session.start', { templateId: template.id, topic: `缓存 ${i}`, scope: [{ deckId: 'deck' }], requestId: `start-${i}` }));
   return { root, service, session: started[0], sessions: started };
 }
 export const teach = (call, session, extra = {}) => call('workflow.teaching.start', { id: session.id, version: session.version, stepId: 'lesson', mode: 'lesson', ...extra });
 export const finished = (call, id) => until(async () => { const { session } = await call('workflow.session.get', { id }); return session.records.lesson?.teaching?.status !== 'running' && session; }, 'the teaching to end');
-

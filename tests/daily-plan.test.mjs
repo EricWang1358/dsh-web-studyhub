@@ -4,7 +4,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { boardAction } from '../lib/board.js';
+import { boardAction, boardTransaction } from '../lib/board.js';
+import { planKey, planner, recordAllocation } from '../lib/daily-plan/budget.js';
 
 async function isolated(fn) {
   const home = await mkdtemp(join(tmpdir(), 'daily-plan-'));
@@ -263,12 +264,21 @@ test('carryover reading completion contributes only its real completion day to h
   assert.equal(finished.profile.sampleDays,1);
 }));
 
-test('existing learning flows link to real sessions and derive completed steps', () => isolated(async service=> {
+test('historical learning-flow board tasks stay viewable while new proposals skip retired workflows', () => isolated(async (service, root)=> {
   await service.store.update(state=>state.workflowSessions.push({id:'flow',topic:'Probability recap',status:'active',version:1,currentStepId:'a',template:{steps:[{id:'a',kind:'reading'},{id:'b',kind:'reflection'}]},records:{},scope:[{deckId:'deck'}]}));
-  service.light=async(_system,prompt)=>JSON.stringify({items:JSON.parse(prompt).candidates.filter(candidate=>candidate.kind==='workflow').map(candidate=>({candidateId:candidate.candidateId}))});
-  const proposed=await service.call('daily.plan.suggest',{date,minutes:20});
-  const accepted=await service.call('daily.plan.accept',{date,proposalId:proposed.proposal.id});
-  const taskId=accepted.tasks[0].id;
+  let seen=[];
+  service.light=async(_system,prompt)=>{seen=JSON.parse(prompt).candidates;return JSON.stringify({items:[]});};
+  await service.call('daily.plan.suggest',{date,minutes:20});
+  assert.equal(seen.some(candidate=>candidate.kind==='workflow'),false);
+  const taskId='legacy-flow-task';
+  const stateSnap=await service.call('export');
+  await boardTransaction(board=>{
+    board.cards[taskId]={id:taskId,title:'Probability recap',note:'legacy',due:date,labels:['学习计划'],createdAt:date,updatedAt:date,origin:{workspace:root,workspaceTitle:'library'},studyRef:{root,kind:'workflow',sessionId:'flow'},learningTask:{version:1,kind:'workflow',minutes:20,reason:'legacy',scope:[],createdDate:date,initialDone:0,stepCount:2}};
+    board.columns[0].cardIds.push(taskId);
+    const data=planner(board,true);
+    data.plans[planKey(root,date)]={date,budgetMinutes:20,budgetBasis:'profile',taskIds:[taskId],allocations:{[taskId]:20},acceptedId:'legacy'};
+    recordAllocation(data.plans[planKey(root,date)],stateSnap,board.cards[taskId]);
+  });
   assert.equal((await service.call('daily.plan.start',{date,taskId})).studyRef.sessionId,'flow');
   await assert.rejects(service.call('daily.plan.complete',{date,taskId}),/实际完成/);
   await service.store.update(state=>{state.workflowSessions[0].records.a={outcome:'done'};});
@@ -447,32 +457,28 @@ test('positive tiny observed habits are never converted into a rest day', () => 
   assert.equal((await service.call('daily.plan.get',{date:'2026-10-12'})).budgetMinutes,1);
 }));
 
-test('partly completed workflow replanning retains its ten-minute remaining step', () => isolated(async service=> {
-  await service.store.update(state=>state.workflowSessions.push({id:'flow',topic:'Recap',status:'active',version:1,currentStepId:'a',template:{steps:[{id:'a',kind:'reading'},{id:'b',kind:'reflection'}]},records:{},scope:[{deckId:'deck'}]}));
-  service.light=async(_s,prompt)=>JSON.stringify({items:JSON.parse(prompt).candidates.filter(item=>item.kind==='workflow').map(item=>({candidateId:item.candidateId}))});
-  const suggestion=await service.call('daily.plan.suggest',{date,minutes:20});
+test('partly completed practice replanning retains its remaining allocated minutes', () => isolated(async service=> {
+  service.light=async(_s,prompt)=>JSON.stringify({items:JSON.parse(prompt).candidates.filter(item=>item.kind==='practice').slice(0,1).map(item=>({candidateId:item.candidateId}))});
+  const suggestion=await service.call('daily.plan.suggest',{date,minutes:10});
   const accepted=await service.call('daily.plan.accept',{date,proposalId:suggestion.proposal.id});
-  await service.store.update(state=>{state.workflowSessions[0].records.a={outcome:'done'};});
-  const revised=await service.call('daily.plan.suggest',{date,minutes:20});
-  assert.equal(revised.spentMinutes,10);
+  const started=await service.call('daily.plan.start',{date,taskId:accepted.tasks[0].id});
+  await service.call('review.reveal',{runId:started.run.id,cardId:started.run.card.id});
+  await service.call('review.answer',{runId:started.run.id,cardId:started.run.card.id,grade:4});
+  const revised=await service.call('daily.plan.suggest',{date,minutes:10});
+  assert.equal(revised.spentMinutes,2);
   assert.equal(revised.proposal.items.length,1);
   assert.equal(revised.proposal.items[0].taskId,accepted.tasks[0].id);
-  assert.equal(revised.proposal.items[0].minutes,10);
-  await service.call('daily.plan.accept',{date,proposalId:revised.proposal.id});
-  await service.store.update(state=>{state.workflowSessions[0].records.b={outcome:'done'};state.workflowSessions[0].status='completed';});
-  assert.equal((await service.call('daily.plan.get',{date})).spentMinutes,20);
+  assert.equal(revised.proposal.items[0].minutes,8);
 }));
 
-test('a new workflow task with an already completed step charges the remaining allocated ten minutes', () => isolated(async service=> {
+test('retired unfinished workflow board cards are not carried forward when replanning', () => isolated(async (service, root)=> {
   await service.store.update(state=>state.workflowSessions.push({id:'flow',topic:'Recap',status:'active',version:1,currentStepId:'b',template:{steps:[{id:'a',kind:'reading'},{id:'b',kind:'reflection'}]},records:{a:{outcome:'done'}},scope:[{deckId:'deck'}]}));
-  service.light=async(_s,prompt)=>JSON.stringify({items:JSON.parse(prompt).candidates.filter(item=>item.kind==='workflow').map(item=>({candidateId:item.candidateId}))});
-  const suggestion=await service.call('daily.plan.suggest',{date,minutes:10});
-  assert.equal(suggestion.proposal.items[0].minutes,10);
-  const accepted=await service.call('daily.plan.accept',{date,proposalId:suggestion.proposal.id});
-  assert.equal(accepted.spentMinutes,0);
-  await service.store.update(state=>{state.workflowSessions[0].records.b={outcome:'done'};state.workflowSessions[0].status='completed';});
-  const finished=await service.call('daily.plan.get',{date});
-  assert.equal(finished.spentMinutes,10);
+  await boardTransaction(board=>{
+    board.cards['old-flow']={id:'old-flow',title:'Recap',note:'legacy',due:'2026-10-04',labels:['学习计划'],createdAt:'2026-10-04',updatedAt:'2026-10-04',origin:{workspace:root,workspaceTitle:'library'},studyRef:{root,kind:'workflow',sessionId:'flow'},learningTask:{version:1,kind:'workflow',minutes:20,reason:'legacy',scope:[],createdDate:'2026-10-04',initialDone:0,stepCount:2}};
+    board.columns[0].cardIds.push('old-flow');
+  });
+  const suggestion=await service.call('daily.plan.suggest',{date,minutes:20});
+  assert.ok(suggestion.proposal.items.every(item=>item.kind!=='workflow'));
 }));
 
 test('the focus review block takes the weak focus questions first, then the due ones, then those never answered', () => isolated(async service => {

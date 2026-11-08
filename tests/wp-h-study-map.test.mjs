@@ -15,7 +15,8 @@ const compiled = await build({ stdin: { contents: `
   export { default as StudyMap } from './ui/StudyMap.jsx';
   export * from './ui/study-map/map-model.js';
   export { default as CourseHeading } from './ui/study-map/CourseHeading.jsx';
-  export { default as RoleSuggestion } from './ui/study-map/RoleSuggestion.jsx';
+
+
   export { default as MergeSuggestions, useMergeSuggestions } from './ui/study-map/MergeSuggestions.jsx';
   export { default as DeckTree } from './ui/study-map/DeckTree.jsx';
   export { default as HomeActivity } from './ui/study-map/HomeActivity.jsx';
@@ -45,7 +46,7 @@ test('StudyMap.jsx is a small composition: at most 400 lines and 6 useState (#13
   const source = read('ui/StudyMap.jsx');
   assert.ok(source.split('\n').length <= 400, `${source.split('\n').length} lines`);
   assert.ok((source.match(/\buseState\(/g) || []).length <= 6);
-  for (const file of ['useDeckTree.js', 'CourseHeading.jsx', 'RoleSuggestion.jsx', 'MergeSuggestions.jsx', 'DeckTree.jsx', 'HomeActivity.jsx', 'NotebookDirectory.jsx', 'JobCard.jsx'])
+  for (const file of ['useDeckTree.js', 'CourseHeading.jsx', 'MergeSuggestions.jsx', 'DeckTree.jsx', 'HomeActivity.jsx', 'NotebookDirectory.jsx', 'JobCard.jsx'])
     assert.ok(readdirSync(new URL('../ui/study-map/', import.meta.url)).includes(file), file);
 });
 
@@ -131,19 +132,19 @@ test('the course heading is a named course switcher, or the role input in interv
   assert.doesNotMatch(heading, /▾/);
   assert.match(heading, /data-combobox="heading"/, 'the switcher is the searchable Combobox with the heading as its trigger');
   assert.match(heading, /<span class="sh-combobox__heading-text">/, 'the heading text is the trigger content');
-  const interview = html(m.CourseHeading, { data: baseData({ focus: { ...data.focus, mode: 'interview', role: '后端' } }), headline: '今天', onFocus: noop, role: { draft: '后端', setDraft: noop } });
-  assert.match(interview, /<input[^>]*aria-label="岗位方向"[^>]*value="后端"/);
-  assert.match(interview, /<h1[^>]*><input/, 'the role input is inside the h1: the page keeps its title in interview mode');
+
+
+
 });
 
-test('role suggestions keep their own state and speak an error as an alert', () => {
+test('CourseHeading stays a course switcher regardless of legacy focus.mode (#779)', () => {
   m.setUiLanguage('zh');
-  const data = baseData({ focus: { mode: 'interview', role: '后端', jd: '', courses: [], roleWeak: [{ deckId: 'd1', topic: 'Memento', weak: 2 }] } });
-  const out = html(m.RoleSuggestion, { data, role: '后端', busy: false, suggestRole: noop, onFocus: noop, start: noop });
-  assert.match(out, /用岗位描述细化练习范围/);
-  assert.match(out, /AI 匹配知识点/);
-  assert.match(out, /优先练这些薄弱点/);
-  assert.match(out, /Memento · 2 道薄弱题/);
+  const data = baseData({ focus: { mode: 'interview', role: '后端', jd: '', course: 'CS3219', courses: [{ name: 'CS3219' }] } });
+  const out = html(m.CourseHeading, { data, headline: '今天', onFocus: noop });
+  assert.match(out, /<select[^>]*aria-label="切换当前课程"/);
+  assert.doesNotMatch(out, /<input[^>]*aria-label="岗位方向"/);
+
+
 });
 
 test('generation jobs render as compact cards with a real progress bar and one dismiss (#98)', () => {

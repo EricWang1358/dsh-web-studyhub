@@ -6,7 +6,7 @@ import { MODEL_DRIVERS } from './helpers/console-families-model.mjs';
 import { readActions, readCard, plain, refuse, ui } from './helpers/console-card.mjs';
 
 const DRIVERS = [...GENERATION_DRIVERS, ...MODEL_DRIVERS.filter(driver => driver.id !== 'coach')];
-const LEGACY_HIDDEN = new Set(['recap', 'workflow:teaching', 'workflow:skeleton', 'assist', 'note']);
+const LEGACY_HIDDEN = new Set(['recap', 'assist', 'note']);
 const UI_KIND = { generation: 'generation', supplement: 'supplement', 'draft-repair': 'repair', 'draft-publish': 'publish', translation: 'translation', 'coach-daily': 'coach' };
 const rowsOf = async (world, driver) => (await world.service.call('snapshot')).jobs.filter(row => driver.kinds.includes(row.contract?.kind ?? row.type));
 const drawing = row => ({ uiKind: UI_KIND[row.contract.kind] ?? 'extension',

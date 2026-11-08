@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Badge, Button, SegmentedControl, Tooltip } from '../components/index.js';
+import { Badge, Button, Tooltip } from '../components/index.js';
 import { ParkedChip, isParked } from '../CourseActive.jsx';
 import CourseRoute from '../CourseRoute.jsx';
 import FocusProgressLine from './FocusProgressLine.jsx';
@@ -8,7 +8,6 @@ import MethodLine from './MethodLine.jsx';
 import { TERMS } from '../mastery-terms.js';
 import CourseHeading from './CourseHeading.jsx';
 import OutlineEntry from './OutlineEntry.jsx';
-import RoleSuggestion from './RoleSuggestion.jsx';
 import MasteryBar from './MasteryBar.jsx';
 import { HandOff } from '../hand-off/HandOff.jsx';
 import { META_DOT } from '../format.js';
@@ -50,24 +49,20 @@ function OtherRuns({ runs, otherCourse, resume, endRun }) {
   );
 }
 
-/** The left of the home desk: study mode, the course (or role) heading, the way to the 总纲 beside the course title, the course route, mastery, the next step and the other ways to start. */
-export default function DeskIntro({ data, home, mastery, role, start, resume, endRun, onFocus, onCourseSettings, onGenerateFocus, onShowOutline, suggestRole }) {
+/** The left of the home desk: the course heading, the way to the 总纲 beside the course title, the course route, method, mastery, the next step and the other ways to start. */
+export default function DeskIntro({ data, home, mastery, start, resume, endRun, onFocus, onCourseSettings, onGenerateFocus, onShowOutline }) {
   const { busy } = useStudy();
-  const { interview, route, starter, headline, plan, alternatives, otherRuns, otherCourse } = home;
+  const { route, starter, headline, plan, alternatives, otherRuns, otherCourse } = home;
   const currentEntry = (data.focus?.courses || []).find((course) => course.name === data.focus?.course);
   return (
     <div className="desk-intro">
-      {/* The study-mode switch matters once there is something to study (P12). */}
-      {(data.decks.length > 0 || interview) && <SegmentedControl className="focus-switch" label={ui('学习模式')} value={interview ? 'interview' : 'class'}
-        onChange={(mode) => onFocus?.({ mode })} options={[{ value: 'class', label: ui('课堂跟学') }, { value: 'interview', label: ui('笔试 / 面试') }]} />}
-      <CourseHeading data={data} headline={headline} onFocus={onFocus} onCourseSettings={onCourseSettings} role={role}
+      <CourseHeading data={data} headline={headline} onFocus={onFocus} onCourseSettings={onCourseSettings}
         aside={route?.chapters?.length && onShowOutline ? <OutlineEntry onShowOutline={onShowOutline} /> : undefined} />
-      {!interview && isParked(currentEntry) && <p className="course-parked-line"><ParkedChip course={currentEntry} />
+      {isParked(currentEntry) && <p className="course-parked-line"><ParkedChip course={currentEntry} />
         <small>{ui('未激活的课程不进入到期复习和推荐；随时可以再激活')}</small></p>}
-      {interview && <RoleSuggestion data={data} role={role.draft} suggestRole={suggestRole} onFocus={onFocus} start={start} />}
       {route && <CourseRoute route={route} />}
-      {!interview && <MethodLine method={data.focus?.method} courseId={data.focus?.courseId} onCourseSettings={onCourseSettings} />}
-      {!interview && <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} lock={busy} start={start} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} />}
+      <MethodLine method={data.focus?.method} courseId={data.focus?.courseId} onCourseSettings={onCourseSettings} />
+      <FocusProgressLine progress={data.focus?.progress} courseId={data.focus?.courseId} lock={busy} start={start} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} />
       {mastery.primary && <DeskMastery mastery={mastery} />}
       <p className="desk-next">
         {data.next ? (

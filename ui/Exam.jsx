@@ -38,7 +38,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
   useInjectCss(css, "study-views");
   useInjectCss(caseCss, "study-case-workspace");
   useInjectCss(examCss, "study-exam");
-  const [course, setCourse] = usePageScope(data?.root, 'exam', data?.focus?.mode === 'interview' ? '*' : data?.focus?.course ?? '*');
+  const [course, setCourse] = usePageScope(data?.root, 'exam', data?.focus?.course ?? '*');
   const [showInactive, setShowInactive] = useShowInactive(data?.root, 'exam');
   const [deckChoice, setDeckChoice] = usePageScope(data?.root, 'exam-decks', '');
   // The time limit the learner chose for this course (kept for this tab like the decks); unchosen follows the course's own 作答时间.

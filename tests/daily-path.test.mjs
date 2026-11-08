@@ -64,14 +64,19 @@ test('the home number is the current course alone: its round, its breakdown, and
   assert.equal(map.today.ahead, false);
 });
 
-test('the other course becomes the number when the learner switches to it; without a course (or in interview mode) it is every active course', () => {
+test('the other course becomes the number when the learner switches to it; an interview course stays scoped to itself, and with no courses it is null', () => {
   const b = studyMap(library({ focus: { mode: 'class', course: 'B' } }), NOW);
   assert.deepEqual([b.today.course, b.today.size, b.today.due, b.today.elsewhere], ['B', 4, 4, 5], 'A has 3 due and 2 weak');
-  const interview = studyMap(library({ focus: { mode: 'interview', role: '后端' } }), NOW);
-  assert.equal(interview.today.course, null);
-  assert.deepEqual([interview.today.due, interview.today.weak, interview.today.new, interview.today.size], [7, 2, 10, 19]);
-  assert.equal(interview.today.elsewhere, 0);
+  const interviewState = library({ focus: { mode: 'class', course: '笔试 / 面试' } });
+  interviewState.courses = [{ id: 'course-iv', name: '笔试 / 面试', interview: { role: '后端' } }];
+  const interview = studyMap(interviewState, NOW);
+  assert.equal(interview.today.course, '笔试 / 面试');
+  assert.deepEqual([interview.today.due, interview.today.weak, interview.today.new, interview.today.size], [0, 0, 0, 0]);
+  assert.equal(interview.today.elsewhere, 9, 'interview prep is its own course rather than mixing A and B');
   assert.deepEqual(interview.today.scope, []);
+  const empty = studyMap({ ...emptyState(), focus: { mode: 'class' } }, NOW);
+  assert.equal(empty.today.course, null);
+  assert.deepEqual(empty.today.scope, []);
 });
 
 test('a course with nothing to do says so and still points at the work elsewhere', () => {

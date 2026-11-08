@@ -16,7 +16,7 @@ import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
    Each place: the shared control (one label, its rule in a layered Tooltip, never a title attribute), the shared receipt after it (no line of the page's
    own), the message in the composer by setDraft alone (the learner's sentence first), the learner's own words in the composer kept. Places: 创建题组 › 录题, the library home (a deck's ⋯,
    a topic's icon, the topic-group reminder), 知识骨架 (the groups, the primary button, an open skeleton's two links, its extension box, a concept's),
-   the result page, 学习流 (the list, the editor, the start page, a step; for the editor and the step also the save that is refused, which hands nothing over), 分步出题, 音频.
+   the result page, 分步出题, 音频. (学习流 retired as read-only archive in #779.)
    MIGRATE_SHOTS=<dir> writes screenshots (zh; 1280×800 and 390×844, light and dark); otherwise only 1280 light runs. */
 
 const host = await build({ stdin: { contents: `
@@ -98,8 +98,6 @@ test('发给主会话 on the places that handed over before: the shared control,
   const server = await createPreviewServer({ port: 0, libraryRoot: join(root, 'library'), home: join(root, 'home'), model: createFakeModel() });
   t.after(() => server.close());
   if (shots) await mkdir(shots, { recursive: true });
-  // Study actions the server refuses on purpose (a save that fails): the hand-off that needs the save must then hand nothing over.
-  const refused = new Set();
   for (const [width, height, theme] of views) {
     const context = await browser.newContext({ viewport: { width, height }, locale: 'zh-CN', colorScheme: theme, reducedMotion: 'reduce' });
     const page = await context.newPage();
@@ -107,13 +105,11 @@ test('发给主会话 on the places that handed over before: the shared control,
     page.on('pageerror', (error) => errors.push(error.message));
     if (process.env.MIGRATE_DEBUG) page.on('console', (message) => console.error(`[console ${message.type()}] ${message.text().slice(0, 300)}`));
     await page.exposeFunction('invokeStudy', async (action, args) => {
-      if (refused.has(action)) return { ok: false, error: `refused for the test: ${action}` };
       try { return { ok: true, value: await previewCall(server, action, args) }; } catch (error) { return { ok: false, error: error.message, code: error.code }; }
     });
     await context.addInitScript(([chosen]) => {
       try { localStorage.setItem('study-ui-language', 'zh'); localStorage.setItem('study-theme', chosen); } catch { /* blocked */ }
       window.composerText = ''; window.copied = [];
-      // The page is served from a made-up http host (not a secure context): crypto.randomUUID, which the learning-flow editor calls, exists only in secure ones.
       if (!crypto.randomUUID) crypto.randomUUID = () => '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) => (Number(c) ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(c) / 4)))).toString(16));
       Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => { window.copied.push(text); } } });
     }, [theme]);
@@ -292,100 +288,6 @@ test('发给主会话 on the places that handed over before: the shared control,
     const weak = details.locator('[data-hand-off="review.weakTopics"]');
     text = await handOver(weak, { shotName: 'result-weak' });
     assert.match(text, /(`主题\d+`、)+`主题\d+` 还没掌握稳|下面这 \d+ 个主题还没掌握稳/);
-
-    // ---------------- 学习流: the list, the editor, the start page, a step ----------------
-    await go('workflows');
-    await page.locator('details.wf-advanced > summary').click();
-    const listChat = page.locator('details.wf-advanced details.wf-chat');
-    await listChat.locator('summary').click();
-    const listForm = listChat.locator('[data-hand-off-form="workflow.design"]');
-    await listForm.locator('textarea').fill('先讲例子');
-    await reset();
-    await shot('workflows-list');
-    await listForm.getByRole('button', { name: '发给主会话' }).click();
-    await receipt('filled', FILLED).waitFor({ timeout: 15000 });
-    assert.match((await state()).text, /先讲例子/);
-    // With words already in the box: kept, copied, and the notice is the last word.
-    await listForm.locator('textarea').fill('先讲例子');
-    await reset({ composerText: '我自己先打的字' });
-    await listForm.getByRole('button', { name: '发给主会话' }).click();
-    await receipt('kept', KEPT).waitFor({ timeout: 15000 });
-    assert.equal((await state()).text, '我自己先打的字');
-    await page.waitForTimeout(600);
-    assert.equal(await page.locator('.sh-toasts').getByText(/请求已准备好/).count(), 0, `${tag}: no toast of the page's own`);
-
-    // The editor: save first, then hand over; the notice says both.
-    await page.getByRole('button', { name: '编辑并保存这条流程' }).click();
-    const editorChat = page.locator('.wf-editor details.wf-chat');
-    await editorChat.locator('summary').click();
-    const editorForm = editorChat.locator('[data-hand-off-form="workflow.design"]');
-    await editorForm.waitFor({ timeout: 15000 });
-    await editorForm.locator('textarea').fill('不用选择题');
-    // The save is refused: nothing is handed over, the page says why, and the typed words stay.
-    refused.add('workflow.save');
-    await reset();
-    await editorForm.getByRole('button', { name: '保存并发给主会话' }).click();
-    await page.getByText('refused for the test: workflow.save').first().waitFor({ timeout: 15000 });
-    await page.waitForTimeout(300);
-    let after = await state();
-    assert.deepEqual(after.log.filter((entry) => entry !== 'selectPanel:null'), [], `${tag}: a refused save hands nothing over`);
-    assert.equal(after.text, '', `${tag}: the box is untouched`);
-    assert.equal(await page.locator('.sh-toasts').getByText(/已填进|已复制/).count(), 0, `${tag}: no hand-off notice after a refused save`);
-    assert.equal(await editorForm.locator('textarea').inputValue(), '不用选择题', `${tag}: the typed words stay`);
-    refused.delete('workflow.save');
-    await reset();
-    await shot('workflows-editor');
-    await editorForm.getByRole('button', { name: '保存并发给主会话' }).click();
-    await receipt('filled', `学习流已保存；正在进行的学习保持原来的步骤。${FILLED}`).waitFor({ timeout: 20000 });
-    text = (await state()).text;
-    assert.match(text, /^帮我调整学习流 `/);
-    assert.match(text, /不用选择题/);
-    await page.getByRole('button', { name: /学习流工作台/ }).first().click();
-    // The start page (使用): 生成知识骨架 is a hand-off with a lead; it needs topics ticked.
-    await page.locator('details.wf-advanced > summary').click({ timeout: 30000 });
-    await page.getByRole('button', { name: '使用', exact: true }).first().click({ timeout: 30000 });
-    const skeletonLink = page.locator('.wf-skeleton-shortcut [data-hand-off="workflow.skeleton"]');
-    await skeletonLink.waitFor({ timeout: 30000 });
-    assert.equal(await skeletonLink.isDisabled(), true, `${tag}: nothing ticked yet`);
-    await page.locator('.wf-topic-list input[type="checkbox"]').first().check();
-    text = await handOver(skeletonLink, { shotName: 'workflows-start' });
-    assert.match(text, /skeleton\.context/);
-
-    // One step of a running learning (#19): the notes are saved first, then the prompt is handed over; a refused save hands nothing over.
-    const topicBox = page.getByLabel('这次学什么');
-    if (!(await topicBox.inputValue())) await topicBox.fill('进程调度');
-    await page.getByRole('button', { name: '进入学习 Portal' }).click();
-    await page.locator('.wf-activity').waitFor({ timeout: 30000 });
-    const stepTitle = (await page.locator('.wf-activity h2').first().innerText()).trim();
-    await page.locator('details.wf-notes > summary').click();
-    await page.locator('details.wf-notes textarea').fill('我的笔记：进程和线程的区别');
-    await page.locator('details.wf-chat > summary').click();
-    const stepForm = page.locator('[data-hand-off-form="workflow.step"]');
-    await stepForm.locator('textarea').fill('多举一个例子');
-    refused.add('workflow.session.record');
-    await reset();
-    await stepForm.getByRole('button', { name: '保存笔记并发给主会话' }).click();
-    await page.getByText('refused for the test: workflow.session.record').first().waitFor({ timeout: 15000 });
-    await page.waitForTimeout(300);
-    after = await state();
-    assert.deepEqual(after.log.filter((entry) => entry !== 'selectPanel:null'), [], `${tag}: a refused note save hands nothing over`);
-    assert.equal(after.text, '', `${tag}: the box is untouched`);
-    assert.equal(await page.locator('.sh-toasts').getByText(/已填进|已复制|笔记已保存/).count(), 0, `${tag}: no hand-off notice after a refused save`);
-    assert.equal(await stepForm.locator('textarea').inputValue(), '多举一个例子', `${tag}: the typed wish stays`);
-    assert.equal(await page.locator('details.wf-notes textarea').inputValue(), '我的笔记：进程和线程的区别', `${tag}: the notes stay`);
-    refused.delete('workflow.session.record');
-    await reset();
-    await shot('workflows-step');
-    await stepForm.getByRole('button', { name: '保存笔记并发给主会话' }).click();
-    await receipt('filled', `笔记已保存。${FILLED}`).waitFor({ timeout: 20000 });
-    after = await state();
-    assert.deepEqual(after.log.filter((entry) => entry !== 'selectPanel:null'), ['setDraft'], `${tag}: setDraft and nothing else`);
-    assert.ok(after.text.includes(`的 \`${stepTitle}\` 这一步`), `${tag}: the message names the step ${stepTitle}: ${after.text.slice(0, 120)}`);
-    assert.match(after.text, /```request 我的要求\n多举一个例子\n```/, `${tag}: the wish sits in a request fence`);
-    assert.equal(await stepForm.locator('textarea').inputValue(), '', `${tag}: the box empties once handed over`);
-    const sessionId = after.text.match(/"sessionId":"([^"]+)"/)?.[1];
-    assert.ok(sessionId, `${tag}: the prompt carries the session id`);
-    assert.match(JSON.stringify((await previewCall(server, 'workflow.session.get', { id: sessionId })).session.records), /进程和线程的区别/, `${tag}: the notes were saved`);
 
     // ---------------- 分步出题 and 音频 ----------------
     await go('generate');

@@ -64,7 +64,7 @@ function RateTile({ measure, rate, answers, minimum, markClass }) {
   );
 }
 
-export function StatsView({ stats, course = "*", data, localDecks, onStartScope, onLibrary, onCreate, onSources, onManageCourses }) {
+export function StatsView({ stats, course = "*", data, localDecks, onStartScope, onLibrary, onCreate, onSources, onManageCourses, onOpenWorkflowSession }) {
   const decks = localDecks ?? decksInCourse(data, course);
   const scopedAttempts = useMemo(() => {
     const attempts = data?.attempts;
@@ -78,6 +78,12 @@ export function StatsView({ stats, course = "*", data, localDecks, onStartScope,
       return course === "*";
     });
   }, [data?.attempts, data?.decks, decks, course]);
+  const historicalFlows = useMemo(() => {
+    const list = data?.workflowSessions;
+    if (!Array.isArray(list) || !list.length) return [];
+    const matchCourse = courseMatcher(course);
+    return list.filter((item) => course === "*" || matchCourse(item?.course || ""));
+  }, [data?.workflowSessions, course]);
   const totals = stats?.totals || {},
     heat = stats?.heatmap || [],
     trend = stats?.trend || [],
@@ -189,13 +195,32 @@ export function StatsView({ stats, course = "*", data, localDecks, onStartScope,
           <TrendPanel trend={trend} today={stats?.today} />
           <ForecastPanel forecast={stats?.forecast} onStart={onStartScope} parked={{ included: stats?.inactive?.included === true && showsParked(data, course), onManage: onManageCourses }} />
           <MasteryPanel mastery={stats?.mastery} />
+          {historicalFlows.length > 0 && onOpenWorkflowSession && (
+            <section className="dash-section dash-workflows" aria-label={ui("历史学习流记录（只读）")}>
+              <h2>{ui("历史学习流记录")}<small>{" · "}{ui("只读")}</small></h2>
+              <p className="muted small">{ui("学习流已退役，现由每门课的「学法」与主会话带学替代；此前的学习记录保留供随时查阅。")}</p>
+              <ul className="dash-weak">
+                {historicalFlows.map((item) => (
+                  <li key={item.id} className="dash-weak-row">
+                    <span className="dash-weak-name">
+                      <strong>{item.topic || item.title || ui("学习记录")}</strong>
+                      <small>{[course === "*" && item.course ? item.course : "", item.title, item.updatedAt ? item.updatedAt.slice(0, 10) : ""].filter(Boolean).join(" · ")}</small>
+                    </span>
+                    <Button variant="link" size="sm" iconEnd="arrow-right" className="dash-weak-start" onClick={() => onOpenWorkflowSession(item.id)}>
+                      {ui("查看记录")}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
       </div>
     </>
   );
 }
 
-export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onSources, onAudioUsage }) {
+export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onSources, onAudioUsage, onOpenWorkflowSession }) {
   const { call } = useStudy();
   useInjectCss(css, "study-views");
   useInjectCss(chartCss, "study-dash-charts");
@@ -239,7 +264,7 @@ export default function Dashboard({ data, onStartScope, onLibrary, onCreate, onS
 
       {stats && (
         <StatsView stats={stats} course={course} data={data} localDecks={localDecks}
-          onStartScope={onStartScope} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onManageCourses={courseActive?.manage} />
+          onStartScope={onStartScope} onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onManageCourses={courseActive?.manage} onOpenWorkflowSession={onOpenWorkflowSession} />
       )}
       {/* What the study model used, by feature (WP27); the library's own ledger, not the course view. */}
       <ModelUsage onAudio={onAudioUsage} />

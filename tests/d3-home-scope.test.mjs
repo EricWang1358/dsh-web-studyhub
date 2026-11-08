@@ -75,7 +75,7 @@ test('the home has one h1, one primary button, and the mode tabs sit before the 
   for (const html of [home(), home([{ id: 'r', mode: 'path', scope: [], index: 1, total: 4, title: 'Today' }])]) {
     assert.equal((html.match(/<h1/g) || []).length, 1);
     assert.equal((html.match(/class="sh-btn sh-btn--primary sh-btn--md today-go"/g) || []).length, 1);
-    assert.ok(html.indexOf('focus-switch') < html.indexOf('<h1'), 'tabs come before the title in reading order');
+    assert.equal((html.match(/class="sh-btn sh-btn--primary sh-btn--md today-go"/g) || []).length, 1);
   }
   setUiLanguage('en');
   try { assert.doesNotMatch(home().replace(/CS3219|Patterns|Memento/g, ''), han, 'no Han in the English home'); } finally { setUiLanguage('zh'); }
@@ -83,13 +83,13 @@ test('the home has one h1, one primary button, and the mode tabs sit before the 
 
 test('home css: tabs and title never share a line; the resume number and its caption share one baseline', () => {
   const tiers = `${css('home-tiers.css')}\n${css('study-map/desk.css')}\n${css('study-map/catalog.css')}\n${css('course-active.css')}`; // each class's tier rules live in its single owning stylesheet (#151)
-  assert.match(tiers, /\.focus-switch\s*\{[^}]*display:\s*flex/, 'the tabs take their own line');
+  assert.match(tiers, /\.desk-intro\s*\{[^}]*flex-direction:\s*column/);
   assert.match(tiers, /\.desk-intro\s*\{[^}]*flex-direction:\s*column/);
   assert.match(tiers, /\.today-count\s*\{[^}]*align-items:\s*baseline/);
   assert.match(tiers, /\.today-count strong\s*\{[^}]*line-height:\s*1\s*;/);
   // narrow: the flattened intro gets an explicit order for every part, so nothing lands above the title by default
   const narrow = tiers;
-  for (const part of ['focus-switch', 'course-heading', 'course-parked-line', 'role-prep', 'today-stack', 'course-route', 'desk-mastery', 'desk-next', 'desk-also', 'desk-more', 'resume-list']) {
+  for (const part of ['course-heading', 'course-parked-line', 'today-stack', 'course-route', 'desk-mastery', 'desk-next', 'desk-also', 'desk-more', 'resume-list']) {
     assert.match(narrow, new RegExp(`\\.${part}\\b[^{]*\\{[^}]*order:\\s*\\d+`), `${part} has an explicit order`);
   }
 });

@@ -32,7 +32,7 @@ Every architectural figure, identifier, boundary rule, pipeline budget, schedule
 | `study_capabilities` compact zero-arg index avoids ~`106,000` characters of full tool schemas and omits default fields | `lib/runtime/tools.js:56-104` |
 | `19` `StudyRuntime` contexts: `16` operation contexts (`system`, `notifications`, `materials`, `bank`, `courses`, `study`, `authoring`, `generation`, `audio`, `notes`, `recording`, `coach`, `workflows`, `skeleton`, `jobs`, `library`) + `3` data-only `state.read` contexts (`learner`, `workflow-data`, `skeleton-data`) | `lib/runtime/domain-contracts.js:2-43`, `lib/runtime/builtins.js:101-102` |
 | Context boundary enforcement: ESLint `no-restricted-imports` blocks raw store/global bypasses; architecture boundary tests enforce cross-context private-import isolation (`esbuild` metafile, allowing foreign `/contracts.js` only) and acyclic `runtime.describe()` API dependency graph via DFS | `eslint.config.js:38-58`, `tests/architecture-boundaries.test.mjs:23-60` |
-| Sharded store `LATEST_VERSION = 4` (`study-sharded`), `ATTEMPT_CHUNK = 1000` attempts/shard, 20-hex SHA-1 shard filenames, deep-frozen parsed shard cache | `lib/store.js:46-58,205-215,264-280`, `lib/runtime/builtins.js:106-107` |
+| Sharded store `LATEST_VERSION = 5` (`study-sharded`), `ATTEMPT_CHUNK = 1000` attempts/shard, 20-hex SHA-1 shard filenames, deep-frozen parsed shard cache | `lib/store.js:46-59,205-215,264-280`, `lib/runtime/builtins.js:106-107` |
 | `job-archive.json` bounded to `200` records / `90` days | `lib/job-archive.js`, `docs/architecture.md:350`, `docs/case-study/facts.snapshot.json:96-99` |
 | `8` optional feature surfaces (`BlogNotes`, `Skeleton`, `Workflows`, `Graph`, `TaskConsole`, `AudioDashboard`, `DocumentViewer`, `LiveClass`) + `7` occasional pages (`GuidedStudy`, `Dashboard`, `Exam`, `ExamPrep`, `CourseOutline`, `BookPage`, `Board`) = `15` `deferredView()` chunks (plus lazy `PagePeek`) | `ui/workspace-views.jsx:8-22`, `docs/architecture.md:452`, `docs/case-study/facts.snapshot.json:54` |
 
@@ -61,7 +61,7 @@ Every architectural figure, identifier, boundary rule, pipeline budget, schedule
 
 | Explorer claim / figure | Exact codebase source (`v4.4.5`) |
 | --- | --- |
-| `1,305` `tests/*.test.mjs` files (`1,109` fast-tier + `196` unique slow-listed files across `browser: 119`, `ffmpeg: 3`, `cli: 80`), dynamically counted at build time | `site/explorer-content.mjs:17-50`, `tests/slow-tests.json`, `tests/slow-tests-list.test.mjs` |
+| `1,308` `tests/*.test.mjs` files (`1,112` fast-tier + `196` unique slow-listed files across `browser: 119`, `ffmpeg: 3`, `cli: 80`), dynamically counted at build time | `site/explorer-content.mjs:17-50`, `tests/slow-tests.json`, `tests/slow-tests-list.test.mjs` |
 | Temp `DSH_HOME`, `scrubSecrets`, `STUDY_NO_CALIBRATION=1`, concurrency `max(2, min(availableParallelism - 1, 12))` | `scripts/test.mjs:20,43-58`, `scripts/qa/test-schedule.mjs:38-41` |
 | Per-test timeout `300,000 ms` (`300s`) and per-file timeout `480,000 ms` (`480s`) | `scripts/qa/run-tests.mjs:35-36` |
 | Loopback-only network blocker preloaded via `--import` (`TEST_NETWORK_BLOCKED`) | `scripts/qa/test-network.mjs`, `scripts/test.mjs:45,60` |

@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
+import { startQuickSession } from "../lib/workflows.js";
 
 const cards = (prefix, n) => Array.from({ length: n }, (_, i) => ({ id: `${prefix}${i + 1}`, kind: "flashcard", topic: `${prefix}-topic`, prompt: `${prefix}${i + 1}?`, answer: "a" }));
 async function setup(t) {
@@ -88,24 +89,22 @@ test("a fully mastered course without due cards has no next batch", async (t) =>
   await assert.rejects(service.call("review.start", { mode: "course" }), /全部学完/);
 });
 
-test("先讲后练 opens a guided session on exactly the next batch", async (t) => {
+test("先讲后练 workflow.quickstart is retired while historical route sessions remain readable", async (t) => {
   const service = await setup(t);
-  const { session, resources, method } = await service.call("workflow.quickstart", { course: true, requestId: "course-1" });
-  assert.equal(method, "route");
+  await assert.rejects(() => service.call("workflow.quickstart", { course: true, requestId: "course-1" }), { code: "WORKFLOW_RETIRED" });
+  let seeded;
+  await service.store.update((state) => {
+    seeded = startQuickSession(state, {
+      goal: "01 概览 · 第 7–12 题 · 进入下一章",
+      title: "01 概览 · 第 7–12 题 · 进入下一章",
+      scope: [{ deckId: "c1", cardId: "a2" }, { deckId: "c1", cardId: "a7" }],
+      course: { name: "Cloud Native", label: "01 概览 · 第 7–12 题 · 进入下一章" },
+      method: "route",
+      requestId: "legacy-route",
+    });
+  });
+  const { session, resources } = await service.call("workflow.session.get", { id: seeded.id });
   assert.equal(session.pickedBy, "route");
-  assert.equal(session.topic, "01 概览 · 第 7–12 题 · 进入下一章");
-  assert.deepEqual(session.course, { name: "Cloud Native", label: session.topic });
-  assert.equal(resources.cardCount, 10);
-  assert.equal(session.template.steps.find((s) => s.kind === "practice").count, 10, "it practises the batch it taught");
-  await service.call('focus.set', { course: 'PE' });
-  const next = await service.call('workflow.quickstart', { course: session.course.name, requestId: 'same-course' });
-  assert.equal(next.session.course.name, 'Cloud Native');
-  assert.ok(next.session.scope.every(ref => ['c1', 'c2'].includes(ref.deckId)));
-});
-
-test('guided fallback uses course ownership instead of chapter folder', async t => {
-  const service = await setup(t);
-  await service.store.update(s => { s.decks[0].course = 'Cloud Native'; s.decks[0].folder = 'Chapter folder'; });
-  const result = await service.call('workflow.quickstart', { goal: 'unmatched subject xyz', requestId: 'fallback' });
-  assert.ok(result.session.scope.some(ref => ref.deckId === 'c1'));
+  assert.equal(session.course.name, "Cloud Native");
+  assert.equal(resources.cardCount, 2);
 });

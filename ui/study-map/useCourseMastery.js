@@ -15,7 +15,7 @@ const measure = (decks, progress) => {
 export function useCourseMastery(data, progress) {
   return useMemo(() => {
     const live = data.decks.filter((deck) => !deck.archived);
-    const name = data.focus?.mode === 'interview' ? null : data.focus?.course;
+    const name = data.focus?.course;
     // A parent course measures the courses inside it too.
     const within = name != null ? courseMatcher(data, name) : null;
     const inCourse = within ? live.filter((deck) => !deck.systemKind && within(deck.course ?? deck.folder ?? '')) : [];

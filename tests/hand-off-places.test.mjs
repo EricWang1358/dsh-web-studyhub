@@ -48,9 +48,9 @@ test('each migrated place hands over with its id (before: a prompt builder and a
   assert.deepEqual(at('skeleton.archify'), ['ui/Skeleton.jsx']);
   assert.deepEqual(at('skeleton.extend'), ['ui/Skeleton.jsx', 'ui/SkeletonCanvas.jsx']);
   assert.deepEqual(at('review.weakTopics'), ['ui/Review.jsx']);
-  assert.deepEqual(at('workflow.design'), ['ui/Workflows.jsx', 'ui/Workflows.jsx']);
-  assert.deepEqual(at('workflow.skeleton'), ['ui/Workflows.jsx']);
-  assert.deepEqual(at('workflow.step'), ['ui/WorkflowPortal.jsx']);
+  assert.deepEqual(at('review.weakTopics'), ['ui/Review.jsx']);
+  assert.deepEqual(at('path.brief'), ['ui/GenerationPath.jsx']);
+  assert.deepEqual(at('book.edit'), ['ui/book/send-to-chat.js']);
   assert.deepEqual(at('path.brief'), ['ui/GenerationPath.jsx']);
   // import.file and job.failed: the dead ends of adding files and of jobs (S3), and the empty home's link (plan item 5); tests/hand-off-deadends.test.mjs has them
   assert.deepEqual(at('import.file'), ['ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/ImportHub.jsx', 'ui/ImportHub.jsx', 'ui/Ingest.jsx',

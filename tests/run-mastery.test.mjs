@@ -84,12 +84,12 @@ test('the weak-question round and a prerequisite-style round (review.start insid
   await assertStoredBefore(f, weak, 'review.weak.start');
 });
 
-test('a learning-flow practice step and a daily-plan task store it when they start their round', async t => {
+test('a daily-plan practice task stores mastery.before when it starts its round, while retired workflow practice rejects', async t => {
   const f = await fixture(t);
-  const template = await f.service.call('workflow.save', { title: '练习', steps: [{ id: 'practice', kind: 'practice', title: '题目练习', count: 3 }] });
-  const session = await f.service.call('workflow.session.start', { templateId: template.id, topic: 'CAP', scope: [{ deckId: 'd' }], requestId: 'start' });
-  const { run } = await f.service.call('workflow.practice.start', { id: session.id, version: session.version });
-  await assertStoredBefore(f, run, 'workflow.practice.start');
+  await assert.rejects(() => f.service.call('workflow.practice.start', { id: 'any', version: 1 }), { code: 'WORKFLOW_RETIRED' });
+
+
+
 
   const scope = [{ deckId: 'd', cardId: 'q2' }, { deckId: 'd', cardId: 'q3' }];
   const card = { id: 'task-1', learningTask: { kind: 'practice', scope }, studyRef: { id: 'd', root: f.root } };

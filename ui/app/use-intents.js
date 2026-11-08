@@ -51,10 +51,6 @@ export function useIntents({ core, lib, nav, session, learn }) {
       then: (started) => { setModal(null); session.enterRun(started); setFocusRequest({}); } });
   }, [practice, session, setModal, setFocusRequest]);
 
-  /** 先讲后练: a guided learning flow on the course route's next batch. */
-  const startCourseFlow = useCallback((extra = {}) => act('workflow.quickstart', { course: true, requestId: crypto.randomUUID(), ...extra },
-    (result) => nav.show.workflow(result.session.id)), [act, nav.show]);
-
   /** S from anywhere: resume the last round, start today's path (the one the home card starts), or (with no decks) go and make some. */
   const resumeOrStart = useCallback(() => {
     setError('');
@@ -68,7 +64,6 @@ export function useIntents({ core, lib, nav, session, learn }) {
     });
   }, [act, goGenerate, nav, openRun, refs, session.enterRun, setError]);
 
-  return useMemo(() => ({ genSource, setGenSource, revealHome, setRevealHome, goGenerate, openDeck, practice, startReview, openRun, practiceFromReading,
-    startCourseFlow, resumeOrStart }),
-  [genSource, revealHome, goGenerate, openDeck, practice, startReview, openRun, practiceFromReading, startCourseFlow, resumeOrStart]);
+  return useMemo(() => ({ genSource, setGenSource, revealHome, setRevealHome, goGenerate, openDeck, practice, startReview, openRun, practiceFromReading, resumeOrStart }),
+  [genSource, revealHome, goGenerate, openDeck, practice, startReview, openRun, practiceFromReading, resumeOrStart]);
 }

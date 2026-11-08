@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
+import { saveWorkflow, startSession } from '../lib/workflows.js';
 import { importExample } from '../ui/json-prompts.js';
 
 async function setup(t, complete) {
@@ -236,9 +237,14 @@ for (const action of ['draft.publish.quick', 'draft.publish', 'draft.publish.sta
     const service = await setup(t);
     const original = await service.call('draft.import', { text: JSON.stringify(input('Original')) });
     await service.call('draft.publish.quick', { id: original.id, draftVersion: original.draftVersion });
-    const template = await service.call('workflow.save', { title: 'Recall', steps: [{ id: 'recall', kind: 'recall', title: 'Recall' }] });
-    const session = await service.call('workflow.session.start', { templateId: template.id, topic: 'Original', scope: [{ deckId: original.id }], requestId: 'original' });
-    const unrelated = await service.call('workflow.session.start', { templateId: template.id, topic: 'Other', scope: [], requestId: 'other' });
+    let session, unrelated;
+    await service.store.update(state => {
+      const template = saveWorkflow(state, { title: 'Recall', steps: [{ id: 'recall', kind: 'recall', title: 'Recall' }] });
+      session = startSession(state, { templateId: template.id, topic: 'Original', scope: [{ deckId: original.id }], requestId: 'original' });
+      unrelated = startSession(state, { templateId: template.id, topic: 'Other', scope: [], requestId: 'other' });
+    });
+
+
     if (action === 'deck.import') {
       const result = await service.call(action, { text: JSON.stringify(input('Additional')), into: original.id });
       assert.equal(result.failed, 0, JSON.stringify(result.results));

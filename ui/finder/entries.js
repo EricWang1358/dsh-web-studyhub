@@ -327,7 +327,7 @@ export const FEATURES = Object.freeze([
     what: '同一天、同一课程只保留一篇合集，累计完成 10 道不同题目才生成；默认关闭，开启后会用当前 AI 模型。生成的合集收在「学习笔记」里。',
     needs: { model: true } }),
   feature({ id: 'guided-study', area: 'daily', title: 'AI 带学', page: 'guided', anchors: ['hand-off'],
-    aliases: ['带学', '讲给我听', '先讲后练', '主会话带学', 'guided study', 'explain to me', 'tutor'],
+    aliases: ['带学', '讲给我听', '先讲后练', '主会话带学', '学习流', 'guided study', 'explain to me', 'tutor', 'learning flow', 'workflow'],
     path: ['许多页面', '发给主会话'],
     what: '把这一阶段的资料交给主会话一步步讲清楚、边讲边问，不懂的地方当场追问。',
     needs: { capability: ['study'], model: true } }),
@@ -357,11 +357,11 @@ export const FEATURES = Object.freeze([
 
   // ── 课程与录音 ──
   feature({ id: 'course-settings', area: 'course', title: '课程设置', page: 'library', anchors: ['home-course'],
-    aliases: ['考试日期', '分值', '总分', '重点', '重点知识点', '考试说明', '倒计时', '考试信息', 'course settings', 'exam date', 'exam info'],
+    aliases: ['考试日期', '分值', '总分', '重点', '重点知识点', '考试说明', '倒计时', '考试信息', '岗位', '岗位方向', '岗位说明', 'jd', '面试', '笔试 / 面试', 'course settings', 'exam date', 'exam info', 'role', 'job description', 'interview'],
     path: ['学习库', '课程标题', '课程设置…'],
-    what: '每门课可以记下考试形式、总分、作答和阅读时间、考试日期，也能放入老师的考试说明和重点知识点；课程标题旁会显示距考试还有几天。在课程标题的下拉菜单最后选「课程设置…」，或到「设置 › 课程」。' }),
+    what: '每门课可以记下考试形式、总分、作答和阅读时间、考试日期，也能放入老师的考试说明、重点知识点，以及可选的岗位方向与 JD（供笔试或口头面试准备使用）；课程标题旁会显示距考试还有几天。在课程标题的下拉菜单最后选「课程设置…」，或到「设置 › 课程」。' }),
   feature({ id: 'course-method', area: 'course', title: '学法', page: 'library', anchors: ['course-method', 'home-course'],
-    aliases: ['学法', '学法卡', '阶段', '课堂跟学', '过关宽严', '也可以', '改学法', '和主会话改学法', 'study method', 'learning method', 'course method', 'stages'],
+    aliases: ['学法', '学法卡', '阶段', '课堂跟学', '学习流', '自定义流程', '笔试 / 面试准备', '过关宽严', '也可以', '改学法', '和主会话改学法', 'study method', 'learning method', 'course method', 'stages', 'learning flow', 'workflow'],
     path: ['学习库', '课程标题', '课程设置…', '学法'],
     what: '每门课按哪几个阶段学、过关宽严怎么算，以及当前阶段「也可以」用哪些功能；默认是课堂跟学，不改也照常学，随时可以轻改或和主会话一起改。' }),
   feature({ id: 'custom-readiness', area: 'course', title: '章节准备度与补齐', page: 'library', anchors: ['custom-readiness', 'home-course'],

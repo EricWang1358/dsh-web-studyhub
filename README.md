@@ -25,7 +25,7 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 
 - **Make questions from your own sources.** Pick pages or chapters and generate flashcards, single- or multiple-choice, open-response or fill-in-the-blank questions. Every question cites its passage, and you review the draft before you publish it.
 - **Move between questions and sources.** A citation opens the passage it came from. In a source, paragraph and table markers lead to the questions and explanations linked to them.
-- **Practise and review.** Start today's study from the **Study library**, follow a **Learning flow** (a short lesson, then practice), click **Help me understand** on any question, and let FSRS-6 schedule your reviews.
+- **Practise and review.** Start today's study from the **Study library**, shape each course's **Learning method** (`学法`) or ask the main chat for **AI-guided study** (`AI 带学`), click **Help me understand** on any question, and let FSRS-6 schedule your reviews.
 - **Add exam focus highlights, even from screenshots.** Drop chat screenshots, whiteboard photos or scope notes into **Add exam focus…** (works with both vision and text-only models such as DeepSeek): focus topics schedule at shorter intervals, go first in daily rounds and study plans, and generate deeper application and advanced questions. Once topics are saved, the home shows how many are mastered, not yet and without questions, with a link to practise the ones you can't do yet; **Course settings** lists each topic with its questions.
 - **Find weak points.** Use **Mistakes & weak points**, **Statistics** and **Mock exam**, which offers a multiple-choice paper, a case paper or an oral interview.
 - **Finish with a daily recap.** After answering 10 distinct questions in one course on the same day, generate one recap across its chapters. Retries count once. Choose a friendly or professional tone and opt into automatic generation in Settings. Recaps use the source reader; saving one as a source and publishing on CSDN are separate actions.
@@ -110,7 +110,7 @@ Save a default question type, count, content language, difficulty and focus in *
 
 ### Practise and review
 
-Today's learning plan connects tasks to the library home. Ask AI for a plan based on real due reviews, weak areas, available materials, unfinished learning flows and accepted tasks. Give feedback to revise it, or accept. Each action has a reason and estimated duration; suggestions become board tasks only after acceptance, with direct start and resume controls.
+Today's learning plan connects tasks to the library home. Ask AI for a plan based on real due reviews, weak areas, available materials and accepted tasks. Give feedback to revise it, or accept. Each action has a reason and estimated duration; suggestions become board tasks only after acceptance, with direct start and resume controls.
 
 Today's time budget is separate from your saved weekday/weekend pace; zero minutes supports a rest day. Unfinished actions are allocated within the budget, and completed actions still count toward today's workload. Record actual time after completion. After at least five comparable completed-day records, the median estimates your usual pace; explicitly saved preferences always take priority.
 
@@ -251,7 +251,7 @@ npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output
 - **Sources:** [PDF to quizzes and flashcards](docs/pdf-workflow.md) · [large textbooks](docs/large-documents.md) · [MinerU conversion](docs/mineru-conversion.md) · [JSON deck import](docs/json-import.md)
 - **Science tools and media:** [display settings and local tools](docs/science-settings.md) · [images and formulas](docs/images-latex.md) · [calculation guidance](docs/calculation-guidance.md)
 - **Questions:** [quality checks](docs/assessment-quality.md) · [your own reference questions](docs/reference-questions.md) · [adding questions to a deck](docs/supplementation.md) · [retiring a question](docs/slay.md) · [showing questions in English](docs/translate-en.md) · [token usage](docs/token-usage.md)
-- **Studying:** [learning flows](docs/study-workflows.md) · [coaching and personalised questions](docs/coach.md) · [follow-up questions](docs/followup.md)
+- **Studying:** [course study, archived learning flows and study notes](docs/study-workflows.md) · [coaching and personalised questions](docs/coach.md) · [follow-up questions](docs/followup.md)
 - **Audio:** [audio import](docs/audio-import.md) · [live class](docs/live-class.md)
 - **Chat and tasks:** [main chat queries](docs/main-session-queries.md) · [background tasks and the sidebar](docs/generation-agents-sidebar.md)
 - **Works well with:** [Archify and other companion tools](docs/companions.md)

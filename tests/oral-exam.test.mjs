@@ -5,15 +5,21 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { StudyService } from "../lib/service.js";
 
+const COURSE = "笔试 / 面试 · Platform Engineer";
 const card = (id, topic) => ({ id, kind: "flashcard", topic, prompt: `${topic} 是什么？`,
   answer: `${topic} 的参考要点`, citations: [] });
 async function fixture(options = {}) {
   const root = await mkdtemp(join(tmpdir(), "study-oral-"));
   const service = new StudyService(root, options);
   await service.store.update((state) => {
-    state.decks.push({ id: "d", title: "岗位基础", cards: [card("a", "架构"), card("b", "性能"), card("c", "安全")] });
-    state.focus = { mode: "interview", role: "Platform Engineer", targetTopics: ["架构", "性能"] };
+    state.decks.push({ id: "d", title: "岗位基础", course: COURSE, cards: [card("a", "架构"), card("b", "性能"), card("c", "安全")] });
   });
+  await service.call("course.save", {
+    name: COURSE,
+    interview: { role: "Platform Engineer", jd: "分布式系统与容量规划" },
+    focusTopics: ["架构", "性能"],
+  });
+  await service.call("focus.set", { course: COURSE });
   return service;
 }
 
@@ -78,7 +84,7 @@ test("oral feedback is recorded separately after submission and updates shared r
   assert.equal((await service.call("export")).attempts.length, 2);
 });
 
-test("written mock in interview mode covers target topics and reserves a small weak-card share", async () => {
+test("written mock in an interview course covers course target topics and reserves a small weak-card share", async () => {
   const service = await fixture();
   await service.store.update((state) => {
     state.decks[0].cards = [
@@ -99,18 +105,21 @@ test("written mock in interview mode covers target topics and reserves a small w
   assert.ok(stored.entries.some((entry) => entry.card.id === "architecture-1"));
   assert.deepEqual(stored.examTargetTopics, ["架构", "性能"]);
   const explicit = await service.call('review.start', { mode: 'exam', scope: [{ deckId: 'd', cardId: 'safety-1' }], count: 4, fresh: true });
-  assert.equal(explicit.total, 1, 'an explicit written question wins over the old JD');
+  assert.equal(explicit.total, 1, 'an explicit written question wins over course focus topics');
   assert.equal(explicit.card.id, 'safety-1');
   assert.deepEqual((await service.call('export')).runs.find(item => item.id === explicit.id).examTargetTopics, []);
 });
 
-test('oral class ignores an old JD while explicit card and topic scopes override interview targets', async () => {
+test('another course ignores interview course role while explicit card and topic scopes override course targets', async () => {
   const service = await fixture();
-  await service.store.update(state => { state.focus.mode = 'class'; });
+  await service.store.update(state => {
+    state.decks.push({ id: 'cls', title: '课堂基础', course: '操作系统', cards: [card('x', '进程'), card('y', '内存'), card('z', '文件')] });
+  });
+  await service.call('focus.set', { course: '操作系统' });
   const classRun = await service.call('oral.start', { count: 3 });
   assert.equal(classRun.total, 3);
   assert.equal(classRun.role, '');
-  await service.store.update(state => { state.focus.mode = 'interview'; });
+  await service.call('focus.set', { course: COURSE });
   const exact = await service.call('oral.start', { scope: [{ deckId: 'd', cardId: 'c' }], count: 3 });
   assert.equal(exact.total, 1);
   assert.equal(exact.entry.cardId, 'c');

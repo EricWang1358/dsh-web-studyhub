@@ -234,19 +234,19 @@ test('the receipt as the region draws it: its own seal, title and line, a quiet 
 });
 
 test('the full-text card: the message once, in a box: the learner\'s sentence, their words, the notes folded under the prompt\'s own head; one copy action; shown asks with the filled button, copied with the quiet one', () => {
-  const text = m.handOffText('workflow.design', { template: { id: 'wf1', title: 'Daily flow', version: 2 }, wish: '讲慢一点' }, 'zh');
+  const text = m.handOffText('skeleton.extend', { skeleton: { id: 'sk1', title: 'Daily flow' }, text: '讲慢一点' }, 'zh');
   const card = (mode) => renderToStaticMarkup(h(m.StudyServicesContext.Provider, { value: services }, h(m.HandOffSheet, { sheet: { text, mode, lead: '' }, onClose() {} })));
   const shown = card('shown');
   assert.match(shown, /<span class="sh-seal sh-seal--lg" data-o="shown"/);
   assert.match(shown, /需要手动复制/);
   assert.match(shown, /浏览器没让复制/);
-  assert.match(shown, /<p class="sh-handoff-sheet__ask">帮我调整学习流 <span class="sh-handoff-sheet__name">Daily flow<\/span>：<\/p>/);
+  assert.match(shown, /<p class="sh-handoff-sheet__ask">帮我按下面的要求扩展知识骨架 <span class="sh-handoff-sheet__name">Daily flow<\/span>：<\/p>/);
   assert.match(shown, /<blockquote class="sh-handoff-sheet__request"><span class="sh-handoff-sheet__label">我的要求<\/span>讲慢一点<\/blockquote>/);
   const notes = m.messageParts(text, 'zh').notes.length;
   assert.match(shown, new RegExp(`<summary>StudyHub 附注（给助手）· ${notes} 行</summary>`), 'the fold says the head the message itself has');
   assert.match(shown, /<details class="sh-handoff-sheet__fold">/, 'folded until asked');
   // the message once: the drawn sentence and the quote are the top of the selectable box, not a summary above a raw copy of the same words
-  assert.equal(shown.match(/帮我调整学习流/g).length, 1, 'the learner\'s sentence once');
+  assert.equal(shown.match(/帮我按下面的要求扩展知识骨架/g).length, 1, 'the learner\'s sentence once');
   assert.equal(shown.match(/讲慢一点/g).length, 1, 'their words once');
   assert.doesNotMatch(shown, /```request|sh-handoff-sheet__top|sh-handoff-sheet__summary/, 'no raw fence on show');
   assert.match(shown, /<div class="sh-handoff-sheet__box" data-hand-off-text=""><p class="sh-handoff-sheet__ask">/);

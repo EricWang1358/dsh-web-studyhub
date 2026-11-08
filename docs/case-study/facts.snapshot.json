@@ -52,7 +52,7 @@
     "interrupted"
   ],
   "deferredViews": 15,
-  "storeVersion": 4,
+  "storeVersion": 5,
   "generation": {
     "parallelParts": 4,
     "partSize": 5,

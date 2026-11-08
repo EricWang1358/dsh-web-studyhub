@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Button, Checkbox, Dialog, Disclosure, EmptyState, Field, Hint, Icon, IconButton, InlineConfirm, InlineMessage, NumberInput, ScrollWindow, SegmentedControl, SettingsSection, TextInput, Tooltip, useToast } from './components/index.js';
+import { Button, Checkbox, Dialog, Disclosure, EmptyState, Field, Hint, Icon, IconButton, InlineConfirm, InlineMessage, NumberInput, ScrollWindow, SegmentedControl, SettingsSection, TextArea, TextInput, Tooltip, useToast } from './components/index.js';
 import SourcePicker from './SourcePicker.jsx';
 import TopicChips from './TopicChips.jsx';
 import FocusProgressList from './FocusProgressList.jsx';
@@ -40,6 +40,7 @@ export function draftFromCourse(course = {}) {
     sections: (exam.sections || []).map(section => ({ title: section.title || '', lecturer: section.lecturer || '',
       marks: text(section.marks), topics: (section.topics || []).join('; ') })),
     focusTopics: (course.focusTopics || []).join('; '), guidanceSourceIds: [...(course.guidanceSourceIds || [])],
+    interviewRole: course.interview?.role || '', interviewJd: course.interview?.jd || '',
   };
 }
 
@@ -51,14 +52,18 @@ export function payloadFromDraft(course, draft) {
     title: section.title.trim(), ...(section.lecturer.trim() ? { lecturer: section.lecturer.trim() } : {}),
     ...(number(section.marks) !== undefined ? { marks: number(section.marks) } : {}), topics: splitTopics(section.topics) }));
   const stated = course.exam || draft.format !== 'other' || Object.keys(numbers).length || draft.date || sections.length;
+  const role = String(draft.interviewRole ?? '').trim(), jd = String(draft.interviewJd ?? '').trim();
+  const hasInterview = Boolean(course.interview || role || jd);
   return { id: course.id, name: course.name,
     ...(stated ? { exam: { format: draft.format, ...numbers, ...(draft.date ? { date: draft.date } : {}), sections } } : {}),
+    ...(hasInterview ? { interview: role || jd ? { ...(role ? { role } : {}), ...(jd ? { jd } : {}) } : null } : {}),
     guidanceSourceIds: draft.guidanceSourceIds, focusTopics: splitTopics(draft.focusTopics) };
 }
 
 /** Does the course already carry anything the fold holds (everything but the exam date)? Then the fold is open when the panel opens. */
 const hasMoreValues = draft => draft.format !== 'other' || ['totalMarks', 'writingMinutes', 'readingMinutes', 'minutesPerMark'].some(key => draft[key] !== '')
-  || draft.sections.length > 0 || splitTopics(draft.focusTopics).length > 0 || draft.guidanceSourceIds.length > 0;
+  || draft.sections.length > 0 || splitTopics(draft.focusTopics).length > 0 || draft.guidanceSourceIds.length > 0
+  || Boolean(String(draft.interviewRole ?? '').trim() || String(draft.interviewJd ?? '').trim());
 
 /** The learner's weakest topics of a course, from their own answers (local, no model): offered as suggestions for the focus topics, never added by themselves. */
 function useWeakTopics(course) {
@@ -337,7 +342,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
       <CustomPlanCard course={course} />
 
       <Disclosure className="course-settings__more" bodyClassName="course-settings__more-body" summary={ui('更多设置')} defaultOpen={startOpen}
-        meta={joinMeta([draft.format !== 'other' ? examFormatLabel(draft.format) : '', splitTopics(draft.focusTopics).length ? uiFormat('{0} 个重点知识点', [splitTopics(draft.focusTopics).length]) : '',
+        meta={joinMeta([draft.format !== 'other' ? examFormatLabel(draft.format) : '', String(draft.interviewRole ?? '').trim(), splitTopics(draft.focusTopics).length ? uiFormat('{0} 个重点知识点', [splitTopics(draft.focusTopics).length]) : '',
           draft.guidanceSourceIds.length ? uiFormat('考官指引 {0} 份', [draft.guidanceSourceIds.length]) : ''])}>
         <section className="course-settings__block" aria-labelledby="course-settings-name">
           <h3 id="course-settings-name">{ui('名称')}</h3>
@@ -396,6 +401,19 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           <TopicChips value={draft.focusTopics} disabled={disabled} suggestions={weakTopics} onChange={focusTopics => change({ focusTopics })} />
           {/* Read only, and of the saved topics: a chip not yet saved has nothing to read against. */}
           <FocusProgressList course={course.name} saved={course.focusTopics} lock={disabled} onGenerateTopic={onGenerateTopic} />
+        </section>
+
+        <section className="course-settings__block" aria-labelledby="course-settings-interview">
+          <h3 id="course-settings-interview">{ui('岗位与面试（可选）')}</h3>
+          <Hint>{ui('准备笔试或面试时，可保存目标岗位方向和岗位说明（JD）；口头模拟与选择题笔试会按这门课的范围和重点出题。')}</Hint>
+          <Field label={ui('岗位方向')} width="full">
+            <TextInput value={draft.interviewRole ?? ''} maxLength={200} placeholder={ui('输入岗位方向')} disabled={disabled}
+              onChange={event => change({ interviewRole: event.target.value })} />
+          </Field>
+          <Field label={ui('岗位说明 / JD')} width="full">
+            <TextArea rows={3} value={draft.interviewJd ?? ''} maxLength={20000} placeholder={ui('粘贴岗位要求或 JD 要点（可选）')} disabled={disabled}
+              onChange={event => change({ interviewJd: event.target.value })} />
+          </Field>
         </section>
 
         <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('考官指引')}

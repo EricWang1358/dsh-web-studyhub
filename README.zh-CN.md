@@ -25,7 +25,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 
 - **用自己的资料出题**：按页或按章节选资料，生成闪卡、单选、多选、开放问答或填空题。每道题都标明引用的原文，你检查草稿后再发布。
 - **题目和原文互相跳转**：点引用就回到原文段落；资料里的段落、表格角标能打开关联的题目和讲解。
-- **练习与复习**：在「学习库」开始今日学习，或进入「学习流」先讲后练；任何一道题都能点「帮我弄懂」；FSRS-6 会把到期的题按时推给你。
+- **练习与复习**：在「学习库」开始今日学习，按每门课的「学法」推进或在主对话里开始「AI 带学」；任何一道题都能点「帮我弄懂」；FSRS-6 会把到期的题按时推给你。
 - **录入考试重点（只有图片也能用）**：在「录入重点…」拖入或粘贴划重点截图、板书照片或范围消息（同时支持看图模型与 DeepSeek 等纯文本主会话模型）；重点题间隔更短、优先进入每日学习与备考计划，出题时自动提高配额并加深到应用 / 进阶难度。存好重点后，首页会写出「重点 N 条：已掌握、还不会、还没有题」各几条，并给一个「练还不会的重点」的入口；课程设置里逐条列出每条重点有几道题、掌握了几道。
 - **找出薄弱点**：用「错题与待巩固」「统计」和「模拟考试」。模拟考试有选择题笔试、案例分析卷和口头面试三种形式。
 - **学完读一篇今日总结**：同一天同一课程累计完成 10 道不同题目后，可以生成错题讲解合集；不同章节合成一篇，重练不重复计数。设置里可选亲切或专业口吻、主动开启自动生成。合集沿用资料阅读器，「转成资料」和 CSDN 发布是单独的操作。
@@ -110,7 +110,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 
 ### 练习与复习
 
-「今日学习安排」把待办接进学习库首页。先请 AI 根据真实的待复习题、薄弱点、已有资料、未完成学习流和已接受任务提出安排，再写下意见让它调整，或直接接受。每项显示建议理由和预计分钟数；接受前不会创建待办，接受后可直接开始或继续。
+「今日学习安排」把待办接进学习库首页。先请 AI 根据真实的待复习题、薄弱点、已有资料和已接受任务提出安排，再写下意见让它调整，或直接接受。每项显示建议理由和预计分钟数；接受前不会创建待办，接受后可直接开始或继续。
 
 今天的时间预算和长期工作日／周末习惯分开保存，0 分钟可以安排休息日。未完成行动重新纳入预算，已完成行动也计入当天学习量，避免重复加量。完成后可记录实际用时；累积至少 5 个同类日的有效记录后，系统用中位数估计通常学习量，明确保存的习惯始终优先。
 
@@ -251,7 +251,7 @@ npm run release:pack   # 全部发布包和 SHA256SUMS-<版本号>.txt，输出�
 - **资料**：[PDF 出测验与闪卡](docs/pdf-workflow.zh-CN.md) · [大教材](docs/large-documents.zh-CN.md) · [用 MinerU 转换 PDF](docs/mineru-conversion.zh-CN.md) · [JSON 题组导入](docs/json-import.zh-CN.md)
 - **科学工具与媒体**：[公式、图片与计算工具设置](docs/science-settings.md) · [图片与公式显示](docs/images-latex.zh-CN.md) · [计算题逐步引导](docs/calculation-guidance.md)
 - **题目**：[出题与质量检查](docs/assessment-quality.zh-CN.md) · [自己的参考样题](docs/reference-questions.zh-CN.md) · [向已有题组补题](docs/supplementation.zh-CN.md) · [斩题](docs/slay.zh-CN.md) · [题目英文对照](docs/translate-en.zh-CN.md) · [Token 用量与估算](docs/token-usage.md)
-- **学习**：[学习流](docs/study-workflows.zh-CN.md) · [陪学、自动驾驶与定制题](docs/coach.zh-CN.md) · [讲解追问](docs/followup.zh-CN.md)
+- **学习**：[课程跟学、历史学习流与学习笔记](docs/study-workflows.zh-CN.md) · [陪学、自动驾驶与定制题](docs/coach.zh-CN.md) · [讲解追问](docs/followup.zh-CN.md)
 - **音频**：[音频导入](docs/audio-import.zh-CN.md) · [课堂实录](docs/live-class.zh-CN.md)
 - **对话与任务**：[在主对话里查询资料与题组](docs/main-session-queries.zh-CN.md) · [后台任务与侧栏](docs/generation-agents-sidebar.zh-CN.md)
 - **搭配工具**：[Archify 与其他搭配工具](docs/companions.zh-CN.md)

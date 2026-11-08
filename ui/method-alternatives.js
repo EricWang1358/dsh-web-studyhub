@@ -198,7 +198,7 @@ export function resolveRoundCourse(data, run) {
     deckIds.map(id => data?.decks?.find(deck => deck.id === id)).filter(deck => deck && !deck.systemKind && deck.course).map(deck => deck.course),
   );
   if (courses.size === 1) return [...courses][0];
-  return data?.focus?.mode !== 'interview' ? (data?.focus?.course || '') : '';
+  return data?.focus?.course || '';
 }
 
 /**

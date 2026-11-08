@@ -6,7 +6,7 @@ import { importFilePrompt } from './import.js';
 import { jobFailedPrompt } from './job.js';
 import { deckAnalysisPrompt, topicExplainPrompt, weakTopicsPrompt } from './library.js';
 import { archifySkeletonPrompt, designSkeletonPrompt, extendSkeletonPrompt } from './skeleton.js';
-import { workflowDesignPrompt, workflowSkeletonPrompt, workflowStepPrompt } from './workflow.js';
+
 import { groupPrompt } from '../topic-group-prompt.js';
 import { pathBrief } from './path.js';
 import { guideStartPrompt } from './guide.js';
@@ -38,9 +38,9 @@ export const HAND_OFFS = Object.freeze({
   'skeleton.archify': { build: (input, language) => archifySkeletonPrompt(input, language) },
   'skeleton.extend': { build: (input, language) => extendSkeletonPrompt(input, language) },
   'review.weakTopics': { build: (input, language) => weakTopicsPrompt(input, language) },
-  'workflow.design': { build: (input, language) => workflowDesignPrompt(input, language) },
-  'workflow.skeleton': { build: (input, language) => workflowSkeletonPrompt(input, language) },
-  'workflow.step': { build: (input, language) => workflowStepPrompt(input, language) },
+
+
+
   'path.brief': { build: (input, language) => pathBrief(input, language) },
   'reader.page': { build: (input, language) => pageQuestionPrompt(input, language), tail: 'image' },
   // 思维导图 of the reader: the chapter's tree drawn from its headings, handed over to be refined from its pages (ui/document-preview/reader/MindMapPanel.jsx)
