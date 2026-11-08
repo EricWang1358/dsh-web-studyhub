@@ -16,7 +16,7 @@ import { guidedStartPrompt } from './guided-start.js';
 import { courseFocusPrompt } from './focus.js';
 import { customStartPrompt } from './custom.js';
 import { selfStartPrompt } from './self.js';
-import { methodEditPrompt, methodExplainPrompt } from './method.js';
+import { methodDraftMaterialPrompt, methodEditPrompt, methodExplainPrompt } from './method.js';
 
 /* The registry of 「发给主会话」 messages (the hand-off plan, section 1.3): every message a StudyHub page hands to the main chat has an id here, and
    ui/hand-off/ sends only ids from it. An entry's builder returns the parts of one message (ui/agent-prompts/message.js: the learner's sentence, the notes
@@ -59,6 +59,8 @@ export const HAND_OFFS = Object.freeze({
   'method.edit': { build: (input, language) => methodEditPrompt(input, language) },
   // 学法「也可以 · AI 带学」 (#775): start guided study scoped to the course and current stage (ui/method-alternatives.js)
   'method.explain': { build: (input, language) => methodExplainPrompt(input, language), skill: 'study-tutor' },
+  // 缺资料阶段「请主会话起草」 (#776): draft a Markdown handout for a stage and import it as AI 撰写 · 未核对 (ui/CourseMethodCard.jsx)
+  'method.draftMaterial': { build: (input, language) => methodDraftMaterialPrompt(input, language), skill: 'study-import' },
 });
 
 /** Whether `id` names a registered hand-off. */

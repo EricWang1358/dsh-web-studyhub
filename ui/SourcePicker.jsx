@@ -4,6 +4,7 @@ import { useInjectCss } from './shared.js';
 import { Button, CheckboxInput, EmptyState, ScrollWindow, filterItems } from './components/index.js';
 import PageScope from './PageScope.jsx';
 import { groupSourcesByDocument, isLegacyExtraction, sourceFormat } from '../lib/source-groups.js';
+import { isAiDraftedSource } from '../lib/source-provenance.js';
 import { courseScope } from '../lib/course-tree.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { materialRelations } from '../lib/source-relations.js';
@@ -104,7 +105,8 @@ export const SOURCE_PICKER_FIRST_ROWS = 24;
 /** Small notes a learner should check before generating. */
 export function documentNotes(item) {
   return [item.warnings.includes('sparse') && ui('文字偏少，核对正文'), item.warnings.includes('layout') && ui('排版复杂，建议对照原文'),
-    item.warnings.includes('legacy-extraction') && ui('含旧版提取页，建议重新导入')].filter(Boolean);
+    item.warnings.includes('legacy-extraction') && ui('含旧版提取页，建议重新导入'),
+    isAiDraftedSource(item) && ui('AI 撰写 · 未核对')].filter(Boolean);
 }
 
 /** What the picker's filter searches: title, file name, the title before a rename, courses and format. */

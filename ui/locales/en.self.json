@@ -4,7 +4,7 @@
   "目标：{0}（我在这门课的「新建课程」里写的；课程名就用这个说法，除非我改了）。": "Goal: {0} (what I typed under New course; use it as the course name unless I change it).",
   "做法：按 skill 里说的顺序一次问我一个问题，用 ask_user_question 给选项，最多五个；答过的不要再问。": "How: follow the skill's order, one question at a time with ask_user_question, at most five; never re-ask what I answered.",
   "保存：确认之前不生成任何东西，也不存任何东西；我确认之后才用 course.save 的 method 存学法，再导入资料、出第一批题。": "Saving: nothing is generated or stored before I confirm; only then save the method with course.save, import the material and start the first batch.",
-  "说明：一条能核对的资料都没有的阶段不要出题；由你起草的讲义要标明「AI 撰写 · 未核对」。": "Note: never write questions for a stage with no checkable material; a handout you draft must be labelled as AI-written and not checked.",
+  "说明：一条能核对的资料都没有的阶段不要出题；由你起草的讲义经 study_materials 的 document.import（或 source.add）导入时要传 provenance 为 \"ai-drafted-unverified\"，如实标明「AI 撰写 · 未核对」。": "Note: never write questions for a stage with no checkable material; import any handout you draft via study_materials document.import (or source.add) with provenance \"ai-drafted-unverified\" so it is labelled as AI-drafted and unverified.",
   "帮我一起调整课程 {0} 的学法：按这门课的学科特点、我的习惯和想法，定制适合我的阶段。": "Help me tailor the study method for course {0}: shape stages that fit this subject, my habits and how I want to learn.",
   "帮我一起调整这门课的学法：按学科特点、我的习惯和想法，定制适合我的阶段。": "Help me tailor this course's study method: shape stages that fit the subject, my habits and how I want to learn.",
   "现状：先调用 course.method.get 读这门课当前的学法、所在阶段和题目检验进度（下方 data 围栏也附了面上的学法快照）。": "Current state: call course.method.get first to read this course's current study method, stage progress and question gate (the panel's method snapshot is also in the data fence below).",
@@ -17,5 +17,11 @@
   "带我学课程 {0} 这一阶段的内容：结合资料一步步讲清楚，边讲边确认我真听懂了。": "Guide me through this stage of course {0}: explain step by step from the materials and check my understanding as we go.",
   "带我学这一阶段的内容：结合资料一步步讲清楚，边讲边确认我真听懂了。": "Guide me through this stage: explain step by step from the materials and check my understanding as we go.",
   "范围：先调用 course.method.get 看这门课当前的阶段与资料，按这一阶段的目标用 study.session.start 开始带学。": "Scope: call course.method.get first to see this course's current stage and materials, then start guided study for that stage with study.session.start.",
-  "确认：现场出新题、修改笔记或归档问答前先征得我同意，默认只结合已有资料讲解与提问。": "Consent: ask me before generating new questions, editing notes or filing Q&A; by default explain and ask from the existing materials only."
+  "确认：现场出新题、修改笔记或归档问答前先征得我同意，默认只结合已有资料讲解与提问。": "Consent: ask me before generating new questions, editing notes or filing Q&A; by default explain and ask from the existing materials only.",
+  "帮我为课程 {0} 的第 {1} 阶段（{2}）起草一份 Markdown 讲义并导入到这门课，方便我核对和学习。": "Please draft a Markdown handout for stage {1} ({2}) of course {0} and import it into this course so I can check and study from it.",
+  "帮我为课程 {0} 当前阶段起草一份 Markdown 讲义并导入到这门课，方便我核对和学习。": "Please draft a Markdown handout for the current stage of course {0} and import it into this course so I can check and study from it.",
+  "帮我为当前阶段起草一份 Markdown 讲义并导入，方便我核对和学习。": "Please draft a Markdown handout for the current stage and import it so I can check and study from it.",
+  "现状：先调用 course.method.get 查看这门课的学法、这一阶段的目标与已有资料，结合我的学科方向、备考或项目要求组织章节。": "Current state: call course.method.get first to check this course's study method, this stage's goal and existing materials, then organize sections around my subject, exam or project needs.",
+  "导入：把讲义写成结构清晰的 Markdown 文件存到工作区 studyhub-work/ 下，再用 study_materials 的 document.import 导入这门课并传 provenance 为 \"ai-drafted-unverified\"（或用 source.add 传 provenance 为 \"ai-drafted-unverified\"），标题与正文都如实标明「AI 撰写 · 未核对」，不要冒充我的原件。": "Importing: write a clear Markdown handout under studyhub-work/ in the workspace, then import it into this course via study_materials document.import with provenance \"ai-drafted-unverified\" (or via source.add with provenance \"ai-drafted-unverified\"), labelling both title and body as AI-drafted and unverified rather than my own original.",
+  "核对：一条能核对的资料都没有的阶段不要直接出题；讲义导入后先列出章节让我核对，确认无误再问我要不要出这一阶段的第一批题。": "Verification: never generate questions for a stage without checkable material; once the handout is imported, list its sections for me to check before asking whether to generate the stage's first batch."
 }

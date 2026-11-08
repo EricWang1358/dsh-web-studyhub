@@ -76,5 +76,7 @@
   "生成总纲要调用 AI 模型；没有总纲时这里按资料列出。": "Generating the outline calls an AI model; until there is one, this page lists your materials.",
   "回到这里，点「生成总纲」": "Come back here and select “Generate outline”",
   "生成总纲需要先配置模型；没有总纲时这里按资料列出。": "Generating the outline needs a model first; until there is one, this page lists your materials.",
-  "没有总纲时这里按资料列出；生成总纲前需要先配置模型。": "Until there is an outline, this page lists your materials; a model is needed before generating one."
+  "没有总纲时这里按资料列出；生成总纲前需要先配置模型。": "Until there is an outline, this page lists your materials; a model is needed before generating one.",
+  "AI 撰写 · 未核对": "AI-drafted · unverified",
+  "这些引用含「AI 撰写 · 未核对」讲义，请结合权威资料核实。": "These citations include an AI-drafted, unverified handout; verify key claims against authoritative sources."
 }

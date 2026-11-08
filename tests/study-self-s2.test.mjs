@@ -1,0 +1,518 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { StudyService } from '../lib/service.js';
+import {
+  AI_DRAFTED_SOURCE,
+  JSON_CARD_SOURCE,
+  aiDraftedCitedCardCount,
+  isAiDraftedSource,
+  normalizeSourceProvenance,
+} from '../lib/source-provenance.js';
+import { groupSourcesByDocument } from '../lib/source-groups.js';
+import { libraryContracts } from '../lib/study-contracts.js';
+import { loadUi } from './helpers/ui-module.mjs';
+import { inApp } from './helpers/fake-app.mjs';
+
+const ui = await loadUi(`
+  export { documentNotes, default as SourcePicker } from './ui/SourcePicker.jsx';
+  export { default as CitationDisclosure } from './ui/CitationDisclosure.jsx';
+  export { default as Sources } from './ui/Sources.jsx';
+  export { default as Manage } from './ui/Manage.jsx';
+  export {
+    default as CourseMethodCard,
+    stageNeedsMaterial,
+    openCourseMaterialImport,
+  } from './ui/CourseMethodCard.jsx';
+  export { NewCourse } from './ui/CourseSettings.jsx';
+  export { handOffText } from './ui/agent-prompts/index.js';
+  export { deliverToChat } from './ui/hand-off/use-hand-off.js';
+  export { buildHomePlan } from './ui/study-map/home-plan.js';
+  export { default as TodayCard } from './ui/study-map/TodayCard.jsx';
+  export { firstRunLine } from './ui/first-run/line.js';
+  export { readPageScope } from './ui/PageScope.jsx';
+  export { AppContext } from './ui/app/app-context.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';
+  export { setUiLanguage } from './ui/i18n.js';
+`);
+
+const h = React.createElement;
+const han = /[\u3400-\u9fff]/;
+const plainText = markup => markup.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim();
+
+function memoryStorage() {
+  const map = new Map();
+  return {
+    getItem: key => (map.has(key) ? map.get(key) : null),
+    setItem: (key, value) => { map.set(key, String(value)); },
+    removeItem: key => { map.delete(key); },
+  };
+}
+
+async function createLibrary(t) {
+  const root = await mkdtemp(join(tmpdir(), 'study-self-s2-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const service = new StudyService(root, { coverage: { roundLimit: 8 } });
+  t.after(() => service.dispose());
+  return { root, service };
+}
+
+test('source-provenance: AI_DRAFTED_SOURCE validation, explicit vs legacy title inference, and cited card counting', () => {
+  assert.equal(AI_DRAFTED_SOURCE, 'ai-drafted-unverified');
+  assert.equal(normalizeSourceProvenance(undefined), undefined);
+  assert.equal(normalizeSourceProvenance(null), undefined);
+  assert.equal(normalizeSourceProvenance(''), undefined);
+  assert.equal(normalizeSourceProvenance(AI_DRAFTED_SOURCE), AI_DRAFTED_SOURCE);
+  assert.equal(normalizeSourceProvenance(JSON_CARD_SOURCE), JSON_CARD_SOURCE);
+  assert.throws(() => normalizeSourceProvenance('guessed-by-llm'), /Invalid source provenance/);
+
+  // Explicit provenance is authoritative; legacy SKILL.md titles infer only when provenance is undefined
+  assert.equal(isAiDraftedSource({ id: 's1', title: 'Concurrency notes', provenance: AI_DRAFTED_SOURCE }), true);
+  assert.equal(isAiDraftedSource({ id: 's2', title: 'Java 并发讲义（AI 撰写 · 未核对）' }), true);
+  assert.equal(isAiDraftedSource({ id: 's3', title: '民法总则提纲 AI撰写-未核对' }), true);
+  assert.equal(isAiDraftedSource({ id: 's4', title: 'AI 撰写 · 未核对（已人工核实）', provenance: 'independent-source' }), false);
+  assert.equal(isAiDraftedSource({ id: 's5', title: 'Official Lecture Slides Week 3' }), false);
+
+  const sources = [
+    { id: 'ai-1', title: 'Handout', provenance: AI_DRAFTED_SOURCE },
+    { id: 'own-1', title: 'Textbook Ch.2' },
+  ];
+  const cards = [
+    { id: 'c1', citations: [{ sourceId: 'own-1', quote: 'A' }] },
+    { id: 'c2', citations: [{ sourceId: 'own-1', quote: 'A' }, { sourceId: 'ai-1', quote: 'B' }] },
+    { id: 'c3', selections: [{ sourceId: 'ai-1', quote: 'C' }] },
+  ];
+  assert.equal(aiDraftedCitedCardCount(cards, sources), 2);
+  assert.equal(aiDraftedCitedCardCount([cards[0]], sources), 0);
+});
+
+test('source.add and materials.document.import persist ai-drafted-unverified provenance end-to-end across queries, groups, Sources/SourcePicker, and CitationDisclosure', async t => {
+  const { root, service } = await createLibrary(t);
+  await service.call('course.save', { name: 'Java 后端 + AI 求职' });
+
+  await assert.rejects(
+    () => service.call('source.add', { title: 'Bad provenance', text: 'Content', courses: ['Java 后端 + AI 求职'], provenance: 'bogus' }),
+    /Invalid source provenance/,
+  );
+
+  // 1) source.add with explicit provenance + legacy title-only source
+  const added = await service.call('source.add', {
+    title: 'JVM 内存模型讲义',
+    text: '# JVM 内存区域\n\n堆与线程私有的虚拟机栈分工明确。',
+    courses: ['Java 后端 + AI 求职'],
+    format: 'md',
+    provenance: AI_DRAFTED_SOURCE,
+  });
+  assert.equal(added.provenance, AI_DRAFTED_SOURCE);
+
+  const legacy = await service.call('source.add', {
+    title: 'AI 撰写 · 未核对：线程池参数速查',
+    text: '核心线程数、最大线程数与阻塞队列共同决定拒绝时机。',
+    courses: ['Java 后端 + AI 求职'],
+  });
+  assert.equal(legacy.provenance, undefined);
+
+  // 2) materials.document.import with provenance: 'ai-drafted-unverified' + refresh preservation
+  const workDir = join(root, 'studyhub-work');
+  await mkdir(workDir, { recursive: true });
+  const mdPath = join(workDir, 'juc-stage1.md');
+  await writeFile(mdPath, '# Java 集合与并发基础（AI 撰写 · 未核对）\n\nConcurrentHashMap 采用节点细粒度同步控制以降低锁竞争。\n', 'utf8');
+
+  const imported = await service.call('materials.document.import', {
+    path: mdPath,
+    course: 'Java 后端 + AI 求职',
+    title: 'Java 集合与并发基础（AI 撰写 · 未核对）',
+    provenance: AI_DRAFTED_SOURCE,
+  });
+  assert.equal(imported.document.provenance, AI_DRAFTED_SOURCE);
+  assert.ok(imported.sourceIds.length >= 1);
+  assert.equal(imported.document.sources[0].provenance, AI_DRAFTED_SOURCE);
+
+  // Refreshing from externalPath creates a new revision and preserves provenance on both current and historical revisions
+  await writeFile(mdPath, '# Java 集合与并发基础（AI 撰写 · 未核对）\n\nConcurrentHashMap 采用节点细粒度同步控制以降低锁竞争，并避免整表锁。\n', 'utf8');
+  const refreshed = await service.call('materials.document.get', { id: imported.documentId, refresh: true });
+  assert.equal(refreshed.provenance, AI_DRAFTED_SOURCE);
+  assert.equal(refreshed.sources[0].provenance, AI_DRAFTED_SOURCE);
+
+  // 3) source.list (sourceSummary) + historical source lookup + materials.document.list + compact snapshot
+  const listed = await service.call('source.list', { course: 'Java 后端 + AI 求职' });
+  const byId = new Map(listed.sources.map(item => [item.id, item]));
+  assert.equal(byId.get(added.id)?.provenance, AI_DRAFTED_SOURCE);
+  assert.equal(byId.get(added.id)?.provenanceInferred, undefined);
+  assert.equal(byId.get(legacy.id)?.provenance, AI_DRAFTED_SOURCE);
+  assert.equal(byId.get(legacy.id)?.provenanceInferred, true);
+  assert.equal(byId.get(refreshed.sourceIds[0])?.provenance, AI_DRAFTED_SOURCE);
+
+  const historicalListed = await service.call('source.list', { sourceIds: [imported.sourceIds[0]] });
+  assert.equal(historicalListed.sources[0]?.provenance, AI_DRAFTED_SOURCE);
+
+  const docList = await service.call('materials.document.list', { course: 'Java 后端 + AI 求职' });
+  for (const doc of docList.documents) {
+    assert.equal(doc.provenance, AI_DRAFTED_SOURCE, `document ${doc.title} carries provenance`);
+  }
+
+  const compact = await service.call('snapshot', { compact: true });
+  assert.equal(compact.sources.find(s => s.id === added.id)?.provenance, AI_DRAFTED_SOURCE);
+  assert.equal(compact.sources.find(s => s.id === refreshed.sourceIds[0])?.provenance, AI_DRAFTED_SOURCE);
+
+  // 4) groupSourcesByDocument + documentNotes (lights up both Sources.jsx and SourcePicker.jsx)
+  const full = await service.call('snapshot', {});
+  const grouped = groupSourcesByDocument(full.sources);
+  const importedDocItem = grouped.find(item => item.sourceIds.includes(refreshed.sourceIds[0]));
+  assert.equal(importedDocItem?.provenance, AI_DRAFTED_SOURCE);
+
+  ui.setUiLanguage('zh');
+  assert.ok(ui.documentNotes(importedDocItem).includes('AI 撰写 · 未核对'));
+  const pickerZh = renderToStaticMarkup(h(ui.SourcePicker, { sources: full.sources, selected: [], onChange: () => {} }));
+  assert.match(pickerZh, /AI 撰写 · 未核对/);
+  const sourcesPageZh = renderToStaticMarkup(inApp(ui, h(ui.Sources, {
+    data: full,
+    onAdd: () => {},
+    onGenerateFrom: () => {},
+    onOpenDocument: () => {},
+  }), { data: full }));
+  assert.match(sourcesPageZh, /AI 撰写 · 未核对/, 'Sources.jsx displays AI 撰写 · 未核对 badge on the document row');
+
+  ui.setUiLanguage('en');
+  assert.ok(ui.documentNotes(importedDocItem).includes('AI-drafted · unverified'));
+  const asciiSources = [{ id: 'en-ai-1', title: 'Stage 1 Handout', text: 'ConcurrentHashMap synchronization.', courses: ['Systems'], provenance: AI_DRAFTED_SOURCE }];
+  const pickerEn = renderToStaticMarkup(h(ui.SourcePicker, { sources: asciiSources, selected: [], onChange: () => {} }));
+  assert.match(pickerEn, /AI-drafted · unverified/);
+  assert.doesNotMatch(pickerEn, han);
+
+  // 5) CitationDisclosure renders provenance badge (.citations__provenance) + warning Hint in both zh-CN and English
+  const card = {
+    id: 'card-1',
+    citations: [{ sourceId: 'en-ai-1', quote: 'ConcurrentHashMap synchronization.' }],
+  };
+  for (const [lang, badgeText, hintText] of [
+    ['zh', 'AI 撰写 · 未核对', '这些引用含「AI 撰写 · 未核对」讲义，请结合权威资料核实。'],
+    ['en', 'AI-drafted · unverified', 'These citations include an AI-drafted, unverified handout; verify key claims against authoritative sources.'],
+  ]) {
+    ui.setUiLanguage(lang);
+    const closedMarkup = renderToStaticMarkup(h(ui.CitationDisclosure, { card, sources: asciiSources, onOpenSource: () => {} }));
+    assert.doesNotMatch(closedMarkup, /citations__provenance/, `${lang}: collapsed disclosure stays compact`);
+
+    const openMarkup = renderToStaticMarkup(h(ui.CitationDisclosure, { card, sources: asciiSources, onOpenSource: () => {}, defaultOpen: true }));
+    assert.match(openMarkup, /citations__provenance/, `${lang}: expanded disclosure carries citations__provenance badge`);
+    const text = plainText(openMarkup);
+    assert.ok(text.includes(badgeText), `${lang}: renders provenance badge (${text})`);
+    assert.ok(text.includes(hintText), `${lang}: renders warning hint (${text})`);
+    if (lang === 'en') assert.doesNotMatch(text, han, 'English CitationDisclosure has zero leftover Chinese');
+  }
+
+  // Independent source citation shows neither badge nor AI-drafted warning
+  ui.setUiLanguage('zh');
+  const independentMarkup = renderToStaticMarkup(h(ui.CitationDisclosure, {
+    card: { id: 'card-2', citations: [{ sourceId: 'own-src', quote: 'Authoritative theorem.' }] },
+    sources: [{ id: 'own-src', title: 'Textbook Chapter 4', text: 'Authoritative theorem.' }],
+    onOpenSource: () => {},
+    defaultOpen: true,
+  }));
+  assert.doesNotMatch(independentMarkup, /AI 撰写 · 未核对|citations__provenance/);
+});
+
+test('CourseMethodCard shows 还没有资料 · 导入，或请主会话起草 only on custom-method stages lacking material, scopes 导入 to course, and carries learner notes in method.draftMaterial', async () => {
+  ui.setUiLanguage('zh');
+  const emptyData = {
+    root: '/lib/self-study',
+    courses: [
+      { id: 'c-default', name: '数据结构' },
+      {
+        id: 'c-custom',
+        name: '民法总则考证',
+        method: {
+          version: 1,
+          name: '法考三轮推进',
+          targetDate: '2027-09-15',
+          stages: [
+            { name: '精读核心法条与请求权基础', activity: 'publish', alternatives: ['explain'], level: 'loose' },
+            { name: '真题案例拆解与巩固', activity: 'practice', alternatives: ['review'], level: 'medium' },
+          ],
+        },
+      },
+    ],
+    sources: [],
+    decks: [],
+    attempts: [],
+  };
+
+  // 1) Untouched default classroom course (!own) shows ZERO missing-material clutter
+  const defaultHtml = renderToStaticMarkup(inApp(ui, h(ui.CourseMethodCard, {
+    course: emptyData.courses[0],
+    readout: { index: 0, total: 3, own: false },
+    data: emptyData,
+  }), { data: emptyData }));
+  assert.doesNotMatch(defaultHtml, /还没有资料|请主会话起草/);
+
+  // 2) Custom-method course with no materials displays 还没有资料 · 导入，或请主会话起草 on its active stage
+  const customCourse = emptyData.courses[1];
+  assert.equal(ui.stageNeedsMaterial(emptyData, customCourse, customCourse.method.stages[0], { own: true, index: 0, current: 0 }), true);
+  assert.equal(ui.stageNeedsMaterial(emptyData, customCourse, customCourse.method.stages[1], { own: true, index: 1, current: 0 }), false);
+
+  // Explicit stage.sourceIds checks per-stage verifiable sources (ignoring archived/sample/empty)
+  const stageWithIds = { name: '案例研习', activity: 'practice', alternatives: [], level: 'medium', sourceIds: ['src-missing'] };
+  assert.equal(ui.stageNeedsMaterial({ ...emptyData, sources: [{ id: 'src-other', title: '总则讲义', text: '法条', courses: ['民法总则考证'] }] }, customCourse, stageWithIds, { own: true, index: 1, current: 0 }), true);
+  assert.equal(ui.stageNeedsMaterial({ ...emptyData, sources: [{ id: 'src-missing', title: '已归档', text: '请求权', archived: true, courses: ['民法总则考证'] }] }, customCourse, stageWithIds, { own: true, index: 1, current: 0 }), true);
+  assert.equal(ui.stageNeedsMaterial({ ...emptyData, sources: [{ id: 'src-missing', title: '案例讲义', text: '请求权', courses: ['民法总则考证'] }] }, customCourse, stageWithIds, { own: true, index: 1, current: 0 }), false);
+
+  // 3) CourseMethodCard markup renders the missing-material row and method.draftMaterial hand-off button
+  const customHtml = renderToStaticMarkup(inApp(ui, h(ui.CourseMethodCard, {
+    course: customCourse,
+    readout: { index: 0, total: 2, own: true },
+    data: emptyData,
+    initialNote: '多结合法律行为效力与善意取得的对比案例',
+  }), { data: emptyData, host: { capabilities: { chat: true } } }));
+  assert.match(plainText(customHtml), /还没有资料 · 导入 ，或 请主会话起草/);
+  assert.match(customHtml, /data-hand-off="method\.draftMaterial"/);
+  assert.match(customHtml, /多结合法律行为效力与善意取得的对比案例/);
+
+  // 4) Clicking 导入 scopes `sources` to course.name, clears sourceFocusId, navigates to 'sources', and closes with 'import-material'
+  const navCalls = [];
+  const closedReasons = [];
+  const scopeCalls = [];
+  let focusCleared = false;
+  const scopeStorage = memoryStorage();
+
+  ui.openCourseMaterialImport({
+    data: emptyData,
+    course: customCourse,
+    navigate: page => navCalls.push(page),
+    appSet: {
+      setPageScopeCourse: name => scopeCalls.push(name),
+      setSourceFocusId: value => { if (value === null) focusCleared = true; },
+    },
+    onClose: reason => closedReasons.push(reason),
+    scopeStorage,
+  });
+  assert.equal(ui.readPageScope('/lib/self-study', 'sources', scopeStorage), '民法总则考证');
+  assert.deepEqual(scopeCalls, ['民法总则考证']);
+  assert.equal(focusCleared, true);
+  assert.deepEqual(navCalls, ['sources']);
+  assert.deepEqual(closedReasons, ['import-material']);
+
+  // 5) method.draftMaterial prompt carries course, stage, methodName, and custom learner note into main chat
+  const promptText = ui.handOffText('method.draftMaterial', {
+    course: customCourse.name,
+    stage: customCourse.method.stages[0].name,
+    stageIndex: 1,
+    methodName: customCourse.method.name,
+    note: '多结合法律行为效力与善意取得的对比案例',
+  }, 'zh');
+  const sentChat = [];
+  const outcome = await ui.deliverToChat({
+    host: { askInChat: text => { sentChat.push(text); return 'filled'; } },
+    prompt: promptText,
+    notify: () => {},
+    openSheet: () => {},
+  });
+  assert.equal(outcome, 'filled');
+  assert.equal(sentChat.length, 1);
+  assert.match(sentChat[0], /民法总则考证/);
+  assert.match(sentChat[0], /精读核心法条与请求权基础/);
+  assert.match(sentChat[0], /法考三轮推进/);
+  assert.match(sentChat[0], /```request 我的补充说明\n多结合法律行为效力与善意取得的对比案例\n```/);
+  assert.match(sentChat[0], /document\.import/);
+  assert.match(sentChat[0], /ai-drafted-unverified/);
+  assert.match(sentChat[0], /不要直接出题/);
+
+  // 6) Once verifiable material is added to the course, the missing-material row disappears cleanly
+  const withMaterial = {
+    ...emptyData,
+    sources: [{ id: 's-law-1', title: '民法总则讲义', text: '民事法律行为自成立时生效。', courses: ['民法总则考证'] }],
+  };
+  const populatedHtml = renderToStaticMarkup(inApp(ui, h(ui.CourseMethodCard, {
+    course: customCourse,
+    readout: { index: 0, total: 2, own: true },
+    data: withMaterial,
+  }), { data: withMaterial }));
+  assert.doesNotMatch(populatedHtml, /还没有资料|请主会话起草/);
+
+  // 7) English UI renders zero Chinese when course/stage names are English
+  ui.setUiLanguage('en');
+  const enCourse = {
+    id: 'c-en',
+    name: 'Clinical Pharmacology',
+    method: {
+      version: 1,
+      name: 'Board Prep',
+      targetDate: null,
+      stages: [{ name: 'Autonomic receptor mechanisms', activity: 'publish', alternatives: [], level: 'medium' }],
+    },
+  };
+  const enData = { ...emptyData, courses: [enCourse] };
+  const enHtml = renderToStaticMarkup(inApp(ui, h(ui.CourseMethodCard, {
+    course: enCourse,
+    readout: { index: 0, total: 1, own: true },
+    data: enData,
+  }), { data: enData }));
+  assert.match(plainText(enHtml), /No sources yet · Import or Ask main chat to draft/);
+  assert.doesNotMatch(plainText(enHtml), han);
+  ui.setUiLanguage('zh');
+});
+
+test('NewCourse entry, self.start prompt, SKILL.md, and libraryContracts stay aligned across both entry points', async () => {
+  ui.setUiLanguage('zh');
+  const zhNew = renderToStaticMarkup(inApp(ui, h(ui.NewCourse, { initial: { open: true, name: '临床执业医师二试冲刺' } })));
+  assert.match(plainText(zhNew), /手上还没有资料？/);
+  assert.match(plainText(zhNew), /自学目标（求职 \/ 考证 \/ 自学技能）/);
+
+  ui.setUiLanguage('en');
+  const enNew = renderToStaticMarkup(inApp(ui, h(ui.NewCourse, { initial: { open: true, name: 'Bar Exam Torts' } })));
+  assert.match(plainText(enNew), /No material yet\?/);
+  assert.match(plainText(enNew), /Self-study goal \(career \/ exams \/ skills\)/);
+  assert.doesNotMatch(plainText(enNew), han);
+
+  // self.start carries open-ended goal and instructs ai-drafted-unverified provenance
+  const selfZh = ui.handOffText('self.start', { goal: 'Java 后端 + AI 求职' }, 'zh');
+  assert.match(selfZh, /Java 后端 \+ AI 求职/);
+  assert.match(selfZh, /ai-drafted-unverified/);
+  assert.match(selfZh, /AI 撰写 · 未核对/);
+
+  const skill = await readFile('skills/study-self/SKILL.md', 'utf8');
+  assert.match(skill, /自学目标（求职 \/ 考证 \/ 自学技能）/);
+  assert.match(skill, /document\.import/);
+  assert.match(skill, /ai-drafted-unverified/);
+  assert.match(skill, /还没有资料 · 导入，或请主会话起草/);
+  assert.match(skill, /开始第 ① 阶段/);
+
+  assert.match(libraryContracts.sources, /source\.add \{[^}]*provenance\?:'ai-drafted-unverified'/);
+  assert.match(libraryContracts.imports, /document\.import \{[^}]*provenance\?:'ai-drafted-unverified'/);
+  ui.setUiLanguage('zh');
+});
+
+test('Home main card surfaces 开始第 ① 阶段 for a new custom-method course on Stage 1 while leaving plain courses untouched', () => {
+  ui.setUiLanguage('zh');
+  const actionsUsed = [];
+  const makeActions = () => ({
+    start: args => actionsUsed.push(['start', args]),
+    resume: id => actionsUsed.push(['resume', id]),
+    openDraft: draft => actionsUsed.push(['openDraft', draft.id]),
+    addSource: () => actionsUsed.push(['addSource']),
+    importLibrary: () => actionsUsed.push(['importLibrary']),
+    generateFromSources: ids => actionsUsed.push(['generateFromSources', ids]),
+    onCourseSettings: id => actionsUsed.push(['onCourseSettings', id]),
+  });
+
+  // 1) Plain course without custom method.own stays 100% unchanged
+  const plainData = {
+    root: '/lib/plain',
+    focus: { mode: 'class', course: '数据结构', courseId: 'c-plain', method: { course: '数据结构', own: false, index: 0, total: 3, counts: { answered: 0 } } },
+    courses: [{ id: 'c-plain', name: '数据结构' }],
+    decks: [{ id: 'd-plain', title: '数组与链表', course: '数据结构', count: 10 }],
+    sources: [{ id: 's-plain', title: '讲义 1', text: '链表', courses: ['数据结构'] }],
+    drafts: [],
+    jobs: [],
+  };
+  const plainHome = ui.buildHomePlan({
+    data: plainData,
+    today: { course: '数据结构', due: 0, weak: 0, new: 10, size: 10, scope: [{ deckId: 'd-plain', cardId: 'q1' }] },
+    runs: [],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === '数据结构',
+    actions: makeActions(),
+  });
+  assert.equal(plainHome.plan.action.label, '开始今日学习');
+  assert.equal(plainHome.todayAction.label, '开始今日学习');
+  assert.equal(ui.firstRunLine({ ...plainData, decks: [] }).show, true);
+
+  // 2) Custom-method course on Stage 1 before publishing any deck: firstRunLine yields to Home desk + draft opens via 开始第 ① 阶段
+  const draftStage1Data = {
+    root: '/lib/self',
+    focus: {
+      mode: 'class',
+      course: 'Java 后端 + AI 求职',
+      courseId: 'c-java',
+      method: {
+        course: 'Java 后端 + AI 求职',
+        own: true,
+        index: 0,
+        total: 4,
+        stage: { name: '把 Java 集合和并发过一遍', activity: 'practice', alternatives: ['explain'], level: 'medium' },
+        counts: { materials: 1, cards: 0, answered: 0, right: 0 },
+      },
+    },
+    courses: [{ id: 'c-java', name: 'Java 后端 + AI 求职' }],
+    decks: [],
+    sources: [{ id: 's-java', title: '并发讲义', text: 'ConcurrentHashMap', courses: ['Java 后端 + AI 求职'], provenance: AI_DRAFTED_SOURCE }],
+    drafts: [{ id: 'draft-java-1', title: '第 1 阶段草稿', course: 'Java 后端 + AI 求职', cards: [{ id: 'c1' }, { id: 'c2' }] }],
+    jobs: [],
+  };
+  assert.equal(ui.firstRunLine(draftStage1Data).show, false, 'custom-method course shows Home desk instead of generic empty-library onboarding');
+  const draftHome = ui.buildHomePlan({
+    data: draftStage1Data,
+    today: { course: 'Java 后端 + AI 求职', due: 0, weak: 0, new: 0, size: 0, scope: [] },
+    runs: [],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === 'Java 后端 + AI 求职',
+    actions: makeActions(),
+  });
+  assert.equal(draftHome.plan.eyebrow, '第 ① 阶段');
+  assert.equal(draftHome.plan.action.label, '开始第 ① 阶段');
+  assert.equal(draftHome.plan.count, 2);
+  draftHome.plan.action.run();
+  assert.deepEqual(actionsUsed.at(-1), ['openDraft', 'draft-java-1']);
+
+  // 3) Custom-method course on Stage 1 with published questions ready (today.size > 0): TodayCard renders 开始第 ① 阶段 in zh & en
+  const publishedStage1Data = {
+    ...draftStage1Data,
+    decks: [{ id: 'd-java-1', title: 'Java 并发第一批', course: 'Java 后端 + AI 求职', count: 8 }],
+    drafts: [],
+  };
+  const readyHome = ui.buildHomePlan({
+    data: publishedStage1Data,
+    today: { course: 'Java 后端 + AI 求职', due: 0, weak: 0, new: 8, size: 8, scope: [{ deckId: 'd-java-1', cardId: 'q1' }] },
+    runs: [],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === 'Java 后端 + AI 求职',
+    actions: makeActions(),
+  });
+  assert.equal(readyHome.plan.eyebrow, '第 ① 阶段');
+  assert.equal(readyHome.plan.action.label, '开始第 ① 阶段');
+  assert.equal(readyHome.todayAction.label, '开始第 ① 阶段');
+
+  const todayCardHtml = renderToStaticMarkup(inApp(ui, h(ui.TodayCard, { plan: readyHome.plan, todayLabel: '11月8日周日' })));
+  assert.match(plainText(todayCardHtml), /第 ① 阶段/);
+  assert.match(plainText(todayCardHtml), /开始第 ① 阶段/);
+
+  ui.setUiLanguage('en');
+  const readyHomeEn = ui.buildHomePlan({
+    data: { ...publishedStage1Data, focus: { ...publishedStage1Data.focus, course: 'Java Backend', method: { ...publishedStage1Data.focus.method, course: 'Java Backend' } } },
+    today: { course: 'Java Backend', due: 0, weak: 0, new: 8, size: 8, scope: [{ deckId: 'd-java-1', cardId: 'q1' }] },
+    runs: [],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === 'Java Backend',
+    actions: makeActions(),
+  });
+  assert.equal(readyHomeEn.plan.eyebrow, 'Stage 1');
+  assert.equal(readyHomeEn.plan.action.label, 'Start stage 1');
+  assert.doesNotMatch(readyHomeEn.plan.action.label, han);
+  ui.setUiLanguage('zh');
+
+  // 4) Once the learner has answered at least 1 question, standard 今日学习 label resumes
+  const startedData = {
+    ...publishedStage1Data,
+    focus: {
+      ...publishedStage1Data.focus,
+      method: { ...publishedStage1Data.focus.method, counts: { materials: 1, cards: 8, answered: 3, right: 2 } },
+    },
+  };
+  const progressedHome = ui.buildHomePlan({
+    data: startedData,
+    today: { course: 'Java 后端 + AI 求职', due: 0, weak: 1, new: 5, size: 6, scope: [{ deckId: 'd-java-1', cardId: 'q4' }] },
+    runs: [],
+    runFor: () => null,
+    activeJobs: [],
+    inFocus: c => c === 'Java 后端 + AI 求职',
+    actions: makeActions(),
+  });
+  assert.equal(progressedHome.plan.action.label, '开始今日学习');
+});

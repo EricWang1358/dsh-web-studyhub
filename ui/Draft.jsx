@@ -10,7 +10,7 @@ import { cardMatchesReview, reviewedCardStatus } from "../lib/review-integrity.j
 import { readableQualityIssue } from "./quality.js";
 import { JevCardBadge, JevCardSignals, JevDecidedBadge, JevDecidedNote } from "./JevBadge.jsx";
 import { experimentalShown } from "./experimental-flag.js";
-import { selfCitedCardCount } from "../lib/source-provenance.js";
+import { aiDraftedCitedCardCount, selfCitedCardCount } from "../lib/source-provenance.js";
 import { repairSourcesForCard } from "../lib/repair-evidence.js";
 import { CaseDraftHeader, CriteriaEditor } from "./CaseWorkspace.jsx";
 import { renderRubric } from "../lib/case-study.js";
@@ -252,6 +252,7 @@ export default function Draft({
                   {!cardMatchesReview(draft.editorial?.reviewedCards?.[q.id], q) &&
                     <small>{ui("未自动审阅")}</small>}
                   {selfCitedCardCount([q], data.sources) > 0 && <small>{ui("仅有导入题目引用")}</small>}
+                  {aiDraftedCitedCardCount([q], data.sources) > 0 && <small>{ui("AI 撰写 · 未核对")}</small>}
                   {experimentalShown(data) && <JevCardBadge signal={draft.editorial?.jev?.signals?.[q.id]} />}
                   {experimentalShown(data) && draft.editorial?.jevDecided?.cards?.[q.id] && <JevDecidedBadge />}
                 </span>

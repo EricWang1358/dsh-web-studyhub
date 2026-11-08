@@ -10,6 +10,7 @@ import { useStudy } from './study-context.jsx';
 import { useHandOff } from './hand-off/use-hand-off.js';
 import { AppContext } from './app/app-context.js';
 import { ACTIVITIES, ALTERNATIVES_MAX, atLeast, courseMethod, gateRule } from '../lib/course-method.js';
+import { isLibraryListSource } from '../lib/exam-point-list.js';
 
 /* 「也可以」 (#775, 4.5 S1): maps a stage's alternative activities onto StudyHub's single-source feature index (ui/finder/entries.js), host capability check
    (ui/finder/availability.js), model readiness, and usage/history records — no parallel feature table.
@@ -304,6 +305,51 @@ export function openAlternative(item, { data, course, stage, guidedSession, navi
       if (item.page) navigate?.(item.page);
       return true;
   }
+}
+
+export function isVerifiableMaterialSource(source) {
+  if (!source || source.archived || source.sample || String(source.id || '').startsWith('sample-') || isLibraryListSource(source)) return false;
+  if (typeof source.text === 'string') return source.text.trim().length > 0;
+  return Number(source.chars ?? source.length ?? 1) > 0;
+}
+
+/**
+ * Whether a custom-method stage should display 「还没有资料 · 导入，或请主会话起草」 (#776 S2):
+ * untouched default 「课堂跟学」 courses (`!own`) always return false so existing courses see zero extra UI;
+ * stages with explicit `sourceIds` check those ids, otherwise an empty custom-method course prompts on its active stage.
+ */
+export function stageNeedsMaterial(data, course, stage, { own, index = 0, current = -1 } = {}) {
+  const isOwn = own ?? Boolean(course?.method);
+  if (!isOwn || !data || !course || !stage) return false;
+  const sources = Array.isArray(data.sources) ? data.sources : null;
+  if (Array.isArray(stage.sourceIds) && stage.sourceIds.length > 0) {
+    if (!sources) return false;
+    const validIds = new Set(sources.filter(isVerifiableMaterialSource).map(source => source.id));
+    return !stage.sourceIds.some(id => validIds.has(id));
+  }
+  const courseName = (typeof course === 'string' ? course : course.name || '').trim();
+  const hasMaterial = sources
+    ? (() => {
+      const within = courseName ? courseMatcher(data, courseName) : () => true;
+      return sources.some(source => isVerifiableMaterialSource(source)
+        && (Array.isArray(source.courses) ? source.courses.some(within) : within(source.course ?? '')));
+    })()
+    : (courseCounts(data, courseName).materials || 0) > 0;
+  if (hasMaterial) return false;
+  const activeIndex = current >= 0 ? current : 0;
+  return index === activeIndex;
+}
+
+/** Navigate to `资料` (`sources`) pre-scoped to `course` so the learner can import verifiable material for this stage. */
+export function openCourseMaterialImport({ data, course, navigate, appSet, onClose, scopeStorage = browserSession() } = {}) {
+  const root = data?.root || '';
+  const courseName = (typeof course === 'string' ? course : course?.name || '').trim();
+  if (courseName) writePageScope(root, 'sources', courseName, scopeStorage);
+  appSet?.setPageScopeCourse?.(courseName);
+  appSet?.setSourceFocusId?.(null);
+  (navigate || appSet?.navigate)?.('sources');
+  onClose?.('import-material');
+  return true;
 }
 
 /** React hook wiring `openAlternative` to `useStudy()`, `useHandOff()` and optional `AppContext` without prop-drilling study services. */

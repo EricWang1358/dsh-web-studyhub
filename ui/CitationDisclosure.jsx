@@ -1,10 +1,10 @@
 import { ui, uiFormat } from "./i18n.js";
 import React from "react";
-import { Button, Hint } from "./components/index.js";
-import { selfCitedCardCount } from "../lib/source-provenance.js";
+import { Badge, Button, Hint } from "./components/index.js";
+import { aiDraftedCitedCardCount, isAiDraftedSource, selfCitedCardCount } from "../lib/source-provenance.js";
 
-export default function CitationDisclosure({ card, sources = [], onOpenSource }) {
-  const [open, setOpen] = React.useState(false);
+export default function CitationDisclosure({ card, sources = [], onOpenSource, defaultOpen = false }) {
+  const [open, setOpen] = React.useState(Boolean(defaultOpen));
   const selections = card?.selections || [];
   const selectionKey = s => JSON.stringify([s?.documentId, s?.revision, s?.sourceId, s?.start, s?.end, s?.quote]);
   const citations = (card?.citations || []).map(citation => ({ ...citation,
@@ -15,21 +15,24 @@ export default function CitationDisclosure({ card, sources = [], onOpenSource })
   if (!citations.length) return null;
   const sourceById = new Map(sources.map((source) => [source.id, source]));
   const selfCited = selfCitedCardCount([card], sources) > 0;
+  const aiDraftedCited = aiDraftedCitedCardCount([card], sources) > 0;
   return (
-    <details className="citation-disclosure" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details className="citation-disclosure" open={open || undefined} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>{ui("引用与来源核对")}{" "}<span>{uiFormat("· {0} 条", [citations.length])}</span></summary>
       {open && <>
         <div className="citations">
           {citations.map((citation, index) => {
             const source = sourceById.get(citation.sourceId);
+            const aiDrafted = isAiDraftedSource(source);
             return <Button key={index} className="citations__button" variant="quiet" wrap block align="start" icon="external"
               onClick={() => onOpenSource(source && citation.selection ? { ...source, selection: citation.selection } : source, citation.quote)}>
-              <span>{source?.title || ui("资料")}
+              <span>{source?.title || ui("资料")}{aiDrafted && <>{" "}<Badge size="sm" tone="warning" className="citations__provenance">{ui("AI 撰写 · 未核对")}</Badge></>}
                 <blockquote>{citation.quote}</blockquote></span>
             </Button>;
           })}
         </div>
         {selfCited && <Hint tone="warning" role="note">{ui("这些引用来自导入的题目自身，不能独立核实答案。请对照原始资料判断。")}</Hint>}
+        {aiDraftedCited && <Hint tone="warning" role="note">{ui("这些引用含「AI 撰写 · 未核对」讲义，请结合权威资料核实。")}</Hint>}
       </>}
     </details>
   );

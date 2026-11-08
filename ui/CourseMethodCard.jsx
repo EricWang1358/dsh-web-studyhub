@@ -7,8 +7,10 @@ import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { ACTIVITIES, ALTERNATIVES_MAX, LEVELS, NAME_MAX, STAGES_MAX, courseMethod } from '../lib/course-method.js';
-import { ACTIVITY_LABELS, currentMethodStage, stageAlternatives, useMethodAlternativeOpen } from './method-alternatives.js';
+import { ACTIVITY_LABELS, currentMethodStage, openCourseMaterialImport, stageAlternatives, stageNeedsMaterial, useMethodAlternativeOpen } from './method-alternatives.js';
 import css from './course-method-card.css';
+
+export { openCourseMaterialImport, stageNeedsMaterial };
 
 /* 学法 (#775, 4.5 S1) on the course settings: the stages this course is learned by. It reads first — the method's name and its stages in one short list —
    and is changed behind 「改学法」 or 「和主会话改学法」, so the default package 「课堂跟学」 (today's flow said in stages; a learner who never touches it learns
@@ -167,19 +169,20 @@ export function MethodForm({ draft, own, disabled, working, onChange, onStage, o
   </div>;
 }
 
-export default function CourseMethodCard({ course, readout = null, data = null, onClose }) {
+export default function CourseMethodCard({ course, readout = null, data = null, onClose, initialNote = '' }) {
   useInjectCss(css, 'study-course-method');
-  const { act, busy } = useStudy();
+  const { act, busy, navigate } = useStudy();
   const app = useContext(AppContext);
-  const openAlt = useMethodAlternativeOpen({ data, onClose });
+  const resolvedData = data ?? app?.data ?? null;
+  const openAlt = useMethodAlternativeOpen({ data: resolvedData, onClose });
   const [draft, setDraft] = useState(null), [error, setError] = useState(''), [working, setWorking] = useState(false);
-  const [noteOpen, setNoteOpen] = useState(false), [note, setNote] = useState('');
+  const [noteOpen, setNoteOpen] = useState(Boolean(initialNote)), [note, setNote] = useState(initialNote);
   if (!course) return null;
   const own = !!course.method, shown = shownMethod(course), disabled = busy || working;
   // The stage the learner is on (#775 S1b): the home snapshot reads it for the current course only, so another course's card shows its stages without it.
   const current = Number.isInteger(readout?.index) && readout.total === shown.stages.length ? readout.index : -1;
-  const activeStage = current >= 0 ? shown.stages[current] : (data ? currentMethodStage(data, course)?.stage : null);
-  const altItems = !draft && data && activeStage ? stageAlternatives(data, course, activeStage, { guidedSession: app?.lib?.guidedSession }) : [];
+  const activeStage = current >= 0 ? shown.stages[current] : (resolvedData ? currentMethodStage(resolvedData, course)?.stage : null);
+  const altItems = !draft && resolvedData && activeStage ? stageAlternatives(resolvedData, course, activeStage, { guidedSession: app?.lib?.guidedSession }) : [];
   const write = async method => {
     setWorking(true); setError('');
     try { await act('course.save', { id: course.id, name: course.name, method }, undefined, { rethrow: true }); setDraft(null); }
@@ -198,11 +201,28 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
       {!draft && <Button variant="quiet" size="sm" className="course-method__edit" lock={disabled} onClick={() => { setDraft(shown); setError(''); }}>{ui('改学法')}</Button>}
     </div>
     {!draft && <ol className="course-method__stages">
-      {shown.stages.map((stage, index) => <li key={index} className="course-method__stage" aria-current={index === current ? 'step' : undefined}>
-        <span className="course-method__stage-name">{stage.name}</span>
-        <small className="course-method__level">{ui(LEVEL_LABELS[stage.level])}</small>
-        {index === current && <Badge size="sm" tone="accent" className="course-method__now">{ui('现在')}</Badge>}
-      </li>)}
+      {shown.stages.map((stage, index) => {
+        const missingMaterial = stageNeedsMaterial(resolvedData, course, stage, { own, index, current });
+        return <li key={index} className="course-method__stage" aria-current={index === current ? 'step' : undefined}>
+          <span className="course-method__stage-name">{stage.name}</span>
+          <small className="course-method__level">{ui(LEVEL_LABELS[stage.level])}</small>
+          {index === current && <Badge size="sm" tone="accent" className="course-method__now">{ui('现在')}</Badge>}
+          {missingMaterial && <div className="course-method__missing">
+            <span>{ui('还没有资料')}</span>
+            <span className="course-method__missing-sep" aria-hidden="true">·</span>
+            <Button variant="link" size="sm" lock={disabled}
+              onClick={() => openCourseMaterialImport({ data: resolvedData, course, navigate, appSet: app?.set, onClose })}>
+              {ui('导入')}
+            </Button>
+            <span>{ui('，或')}</span>
+            <HandOff id="method.draftMaterial" shape="link" label="请主会话起草"
+              what="让主会话按这一阶段的目标起草一份 Markdown 讲义并导入（标为「AI 撰写 · 未核对」）"
+              input={{ course: course.name, stage: stage.name, stageIndex: index + 1, methodName: shown.name, note: note.trim() }}
+              disabled={disabled}
+              onSent={outcome => { if (outcome === 'filled') onClose?.('draft-material'); }} />
+          </div>}
+        </li>;
+      })}
     </ol>}
     {!draft && current >= 0 && checkLine(readout.gate) && <p className="course-settings__note course-method__note course-method__check">{checkLine(readout.gate)}</p>}
     {!draft && altItems.length > 0 && <div className="course-method__also" aria-label={ui('也可以')}>

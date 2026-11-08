@@ -38,6 +38,10 @@
       font-size: var(--fs-md);
       color: var(--text-dim);
     }
+    .citations .citations__provenance {
+      margin-inline-start: var(--space-2);
+      vertical-align: middle;
+    }
     .citation-disclosure {
       margin-top: var(--space-4);
       border-top: 1px solid var(--line-soft);

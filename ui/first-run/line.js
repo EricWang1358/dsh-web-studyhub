@@ -47,7 +47,7 @@ export function firstRunDraft(data) {
  * The second step is never locked behind the first: a material can be added before the model is set up.
  */
 export function firstRunLine(data, { publishAtOnce = false, shortfallAction = null } = {}) {
-  if (!data || hasOwnDeck(data)) return { show: false, step: -1, steps: [] };
+  if (!data || hasOwnDeck(data) || data.focus?.method?.own) return { show: false, step: -1, steps: [] };
   const sample = sampleIdsOf(data);
   const own = (item) => !!item && !item.sample && !sample.has(item.id);
   const readiness = modelReadiness(data);
