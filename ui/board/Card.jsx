@@ -49,12 +49,19 @@ export function cardMenuItems({ column, columns, index, count, extraItems = [] }
  * keyboard (Alt+arrows). `articleProps` carries the drag handlers.
  */
 export default function BoardCard({ card, column, columns, index, count, today, library, readOnly = false, hasDone = true, dragging = false,
-  menuOpen = false, extraItems = [], onToggleDone, onEdit, onAction, onOrigin, onStudyRef, articleProps = {} }) {
+  menuOpen = false, extraItems = [], todayMeta = null, onToggleDone, onEdit, onAction, onOrigin, onStudyRef, articleProps = {} }) {
   const done = !!column.done;
   const state = dueState(card.due, today, done);
   const progress = checklistProgress(card);
   const link = card.studyRef ? studyRefLabel(card.studyRef, library) : null;
   const origin = card.origin?.workspaceTitle || card.origin?.workspace || '';
+  const visibleLabels = todayMeta && card.learningTask
+    ? (card.labels || []).filter((label) => label !== '学习计划')
+    : (card.labels || []);
+  const sourceLabel = todayMeta
+    ? (todayMeta.source === 'mistake' ? ui('错题') : todayMeta.source === 'plan' ? ui('备考计划') : ui('自己加的'))
+    : '';
+  const showMinutes = Boolean(todayMeta && Number.isInteger(todayMeta.minutes) && todayMeta.minutes > 0);
   const key = (event) => {
     if (readOnly) return;
     if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onEdit(card); return; }
@@ -75,8 +82,10 @@ export default function BoardCard({ card, column, columns, index, count, today, 
           className="board-card__menu" onSelect={(id) => onAction(id, card)} />}
       </div>
       {card.note && <Note note={card.note} />}
-      {(!!card.labels?.length || state || progress.total > 0) && <div className="board-card__chips">
-        {(card.labels || []).map((label) => <span key={label} className={`board-chip board-hue-${labelHue(label)}`}>{label}</span>)}
+      {(!!todayMeta || !!visibleLabels.length || state || progress.total > 0) && <div className="board-card__chips">
+        {todayMeta && <span className="board-chip board-source" data-source={todayMeta.source}>{sourceLabel}</span>}
+        {showMinutes && <span className="board-duration">{uiFormat('约 {0} 分钟', [todayMeta.minutes])}</span>}
+        {visibleLabels.map((label) => <span key={label} className={`board-chip board-hue-${labelHue(label)}`}>{label}</span>)}
         {state && <Tooltip content={dueTitle(card.due, state.kind === 'done' ? null : state)}>
           <span className={`board-due is-${state.kind}`} tabIndex={0}><Icon name="calendar" size={13} />{state.kind === 'done' ? card.due : dueText(state)}</span>
         </Tooltip>}
