@@ -69,7 +69,16 @@
     </ol>
     <code class="address">https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.5.1/ericwang1358-dsh-daily-flashcard-4.5.1.tgz</code>
     <p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.5.1">查看 4.5.1 安装包与校验值</a> · <a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.5.1/ericwang1358-dsh-daily-flashcard-4.5.1.tgz">直接下载 StudyHub 安装包</a></p>
-    <p class="muted">DSH 无法从 GitHub 下载时，先下载 .tgz，再在「添加插件」里填这个文件的绝对路径。文件必须放在运行 DSH 的电脑或服务器上：访问远程网页版时，你自己电脑上的路径在服务器上并不存在。也可以直接用上方的 HTTPS 地址。</p>
+    <p class="note"><strong>常规安装只需上方完整主包：主入口和 6 个组件，共 7 项。不用解压，也不用合并其他组件包。</strong></p>
+    <h3>下载地址装不上？从本地文件安装</h3>
+    <p>如果下载失败，或出现 <code>unable to get local issuer certificate</code>，按下面的步骤操作：</p>
+    <ol>
+      <li>用浏览器点击上方「直接下载 StudyHub 安装包」，保存 <code>ericwang1358-dsh-daily-flashcard-4.5.1.tgz</code>。<strong>保留原始 .tgz 文件，不用解压。</strong>GitHub 的「Source code」源码压缩包不是这里的安装包。</li>
+      <li>在 DSH「插件 › 添加插件」里填<strong>这个 .tgz 文件本身的绝对路径</strong>，包括完整文件名和 <code>.tgz</code> 后缀。例如下方 Windows 路径，请替换为实际保存路径；不要只填下载目录或解压后的 <code>package</code> 目录。Windows 可右键文件选择「复制文件地址」，粘贴时去掉路径最外层的双引号。</li>
+      <li>安装完成后，确认包名为 <code>@ericwang1358/dsh-daily-flashcard</code>、版本为 <code>4.5.1</code>，再点「启用」。</li>
+    </ol>
+    <code class="address">C:\Users\你的用户名\Downloads\ericwang1358-dsh-daily-flashcard-4.5.1.tgz</code>
+    <p class="muted">文件必须放在运行 DSH 的电脑或服务器上：访问远程网页版时，你自己电脑上的路径在服务器上并不存在，请先把文件传到服务器。本地文件安装跳过从 GitHub 下载主包这一步；安装依赖仍可能需要联网。如果仍报证书错误，需要检查运行 DSH 的电脑或服务器上的网络和受信任证书。</p>
     <details>
       <summary>高级：自定义组件</summary>
       <p>完整安装包包含 7 个组件：StudyHub、StudyHub · 核心、StudyHub · 资料、StudyHub · 题库、StudyHub · 出题、StudyHub · 练习与复习、StudyHub · 音频转写。在 <strong>DSH 自带的插件管理</strong>里启用或停用。发布页也提供每个组件的独立安装包。</p>
