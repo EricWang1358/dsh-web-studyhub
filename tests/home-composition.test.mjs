@@ -61,7 +61,7 @@ test('the other ways to start sit under one folded line: new questions, due revi
   const more = html.slice(html.indexOf('<details class="desk-more">'), html.indexOf('</details>', html.indexOf('<details class="desk-more">')));
   assert.match(more, /课程下一批 · 3 题/);
   assert.match(more, /只学当前课程新题 · 10 题/);
-  assert.match(more, /先讲后练 · 学习流/);
+  assert.doesNotMatch(more, /先讲后练 · 学习流/);
   assert.match(more, /刷 4 道为你定制的题/);
   assert.match(more, /2 题薄弱/);
   assert.doesNotMatch(html.replace(more, ''), /课程下一批 · 3 题/, 'not shown twice');

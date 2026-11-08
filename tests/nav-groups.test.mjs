@@ -24,7 +24,7 @@ const html = (element) => renderToStaticMarkup(element);
 const h = React.createElement;
 
 /** Every page the sidebar had before #654 (15 pages, grouped then as 每天 / 阶段性 / 课程准备与管理). */
-const BEFORE = ['library', 'sources', 'generate', 'tasks', 'wrongbook', 'workflows', 'notes', 'board', 'exam', 'examprep', 'book', 'dashboard', 'skeleton', 'audio', 'live'];
+const BEFORE = ['library', 'sources', 'generate', 'tasks', 'wrongbook', 'notes', 'board', 'exam', 'examprep', 'book', 'dashboard', 'skeleton', 'audio', 'live'];
 
 function store(entries = {}) {
   const map = new Map(Object.entries(entries));
@@ -47,7 +47,7 @@ test('「更多」 is in sections by what the pages are about, and every label s
   assert.deepEqual(NAV_GROUPS.map((group) => group.id), ['main', 'material', 'practice', 'exam', 'notes']);
   for (const section of NAV_SECTIONS) assert.doesNotMatch(section.label, /每天|阶段性|常用|偶尔|准备与管理/, `${section.id}: a label about content, not about how often`);
   assert.deepEqual(NAV_DEFAULTS.material, ['audio', 'live']);
-  assert.deepEqual(NAV_DEFAULTS.practice, ['workflows', 'book', 'skeleton']);
+  assert.deepEqual(NAV_DEFAULTS.practice, ['book', 'skeleton']);
   assert.deepEqual(NAV_DEFAULTS.exam, ['examprep']);
   assert.deepEqual(NAV_DEFAULTS.notes, ['tasks', 'notes', 'board']);
   for (const id of BEFORE) assert.ok(NAV_SECTIONS.some((section) => section.id === NAV_HOMES[id]), `${id} has a home section to go back to`);
@@ -63,7 +63,7 @@ test('a learner who reordered the old sidebar keeps their order: it is migrated 
   const order = readNavOrder(local);
   assert.deepEqual(order.main, ['wrongbook', 'library', 'sources', 'generate', 'dashboard', 'exam'], 'the main list in the learner\'s sequence');
   assert.deepEqual(order.material, ['live', 'audio']);
-  assert.deepEqual(order.practice, ['workflows', 'book', 'skeleton'], 'workflows (每天) came before book (阶段性) and skeleton (setup) in their sequence');
+  assert.deepEqual(order.practice, ['book', 'skeleton'], 'book (阶段性) came before skeleton (setup) in their sequence, and retired workflows is dropped');
   assert.deepEqual(order.notes, ['notes', 'tasks', 'board']);
   writeNavOrder(order, local);
   assert.equal(local.map.has(LEGACY_ORDER_KEY), false, 'read once: the old key is removed');
@@ -78,7 +78,7 @@ test('a learner who reordered the old sidebar keeps their order: it is migrated 
 });
 
 test('a page dragged from 「更多」 into the main list stays there after a reload, and the main list keeps its limit', () => {
-  const local = store({ [NAV_ORDER_KEY]: JSON.stringify({ main: ['library', 'sources', 'generate', 'wrongbook', 'book'], practice: ['workflows', 'skeleton'], exam: ['exam', 'dashboard', 'examprep'] }) });
+  const local = store({ [NAV_ORDER_KEY]: JSON.stringify({ main: ['library', 'sources', 'generate', 'wrongbook', 'book'], practice: ['skeleton'], exam: ['exam', 'dashboard', 'examprep'] }) });
   const order = readNavOrder(local);
   assert.deepEqual(order.main, ['library', 'sources', 'generate', 'wrongbook', 'book']);
   assert.deepEqual(order.exam, ['exam', 'dashboard', 'examprep'], 'pages taken out of the main list are in their own section');
@@ -92,7 +92,7 @@ test('「更多」 is open when the learner opened it, and while the page on scr
   assert.equal(moreIsOpen({ open: false, activePage: 'book', order: NAV_DEFAULTS }), true, 'the current page stays visible');
   assert.equal(moreIsOpen({ open: false, activePage: 'book', order: NAV_DEFAULTS, closedOn: 'book' }), false, 'closed by the learner on this page');
   assert.equal(moreIsOpen({ open: false, activePage: 'review', order: NAV_DEFAULTS }), false);
-  assert.equal(moreIsOpen({ open: false, activePage: 'book', order: { ...NAV_DEFAULTS, main: [...NAV_DEFAULTS.main.slice(0, 5), 'book'], practice: ['workflows', 'skeleton'] } }), false,
+  assert.equal(moreIsOpen({ open: false, activePage: 'book', order: { ...NAV_DEFAULTS, main: [...NAV_DEFAULTS.main.slice(0, 5), 'book'], practice: ['skeleton'] } }), false,
     'a page dragged into the main list is not in 「更多」');
 });
 

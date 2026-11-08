@@ -292,7 +292,7 @@ test('a case paper, a rubric answer and a lesson each carry their estimate where
   assert.doesNotMatch(answer(''), /data-token-estimate/, 'nothing typed, nothing to grade');
   const lesson = (record) => render(React.createElement(WorkflowLesson, { topic: '缓存', content: '', record, resources: { modelReady: true }, disabled: false,
     onTeach() {}, onUndo() {}, call: () => Promise.resolve({}), sessionId: 'session', stepId: 'lesson' }));
-  assert.match(lesson({}), /data-token-estimate/, 'the empty lesson shows what the full explanation is expected to use');
+  assert.doesNotMatch(lesson({}), /data-token-estimate/, 'retired read-only lesson offers no new generation estimate');
   const done = text(render(React.createElement(WorkflowLesson, { topic: '缓存', content: '## 讲解\n\n内容', resources: { modelReady: true }, disabled: false, onTeach() {}, onUndo() {},
     record: { teaching: { status: 'done', tokenUsage: session } } })));
   assert.match(done, /本次讲解的用量/);

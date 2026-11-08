@@ -46,25 +46,6 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .course-heading-input {
-      display: block;
-      margin: 0;
-      padding: var(--space-1) 0 var(--space-2);
-      max-width: 520px;
-      border: 0;
-      border-bottom: 1px dashed var(--line-strong);
-      border-radius: 0;
-      background: transparent;
-      font-family: var(--font-display);
-      font-size: clamp(var(--fs-2xl), 3.6cqi, var(--fs-4xl));
-      font-weight: var(--fw-strong);
-      letter-spacing: -0.02em;
-    }
-    .course-heading-input:focus {
-      background: transparent;
-      box-shadow: none;
-      border-bottom-color: var(--accent-soft);
-    }
     /* ── Catalog ───────────────────────────────────────────────────────────
        An index, not a wall of cards: courses are headings, decks are ruled
        lines, and only a row's own play button may turn cinnabar. */
@@ -510,7 +491,6 @@
       letter-spacing: -0.025em;
       line-height: var(--lh-tight);
     }
-    .course-header .course-heading-title { display: block; font-size: clamp(var(--fs-2xl), 3.6cqi, calc(var(--fs-3xl) * 1.3)); }
     .desk > .desk-intro > :is(.course-heading, .course-heading-input) { margin: 0; }
   }
   @container study (max-width: 760px) {

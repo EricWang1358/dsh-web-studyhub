@@ -6,8 +6,6 @@
   "讲解口吻 · {0}": "Tone · {0}",
   "整理合集需要先配置模型；已经写好的合集仍可阅读。": "Writing the recap needs a model first; a recap that is already written can still be read.",
   "好的，不备题。想开启时可以在设置里打开「陪学」。": "OK, no questions will be prepared. You can turn on Study coach in Settings whenever you like.",
-  "已填好推荐的下一个主题，直接点「开始学」；也可以改成别的。": "The recommended next topic is already filled in: just press Start, or change it to something else.",
-  "不用等它，学习照常开始；会在后台多调用一次模型，不想花这一次就取消勾选。": "No need to wait for it; study starts as usual. It makes one more model call in the background: untick it to skip that call.",
   "按到期、薄弱程度和你的时间排出，没有调用模型。": "Ordered by what is due, how weak it is and your time; no model was used.",
   "AI 重排": "Re-plan with AI",
   "另有 {0} 题留到下一轮": "{0} more for the next round",

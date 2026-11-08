@@ -65,14 +65,14 @@ test("an empty library asks for a first material, with JSON import as the second
 test("an empty library hides advanced blocks", () => {
   const html = render();
   assert.doesNotMatch(html, /全局笔记本/);
-  assert.doesNotMatch(html, /笔试 \/ 面试/);
+  assert.doesNotMatch(html, /切换当前课程/);
   assert.doesNotMatch(html, /查看图谱/);
   const elsewhere = render({}, { notebooks: { notebooks: [{ root: "/other", title: "别的学习库", workspace: "/w", exists: true, current: false, decks: [], deckCount: 2 }] } });
   assert.match(elsewhere, /全局笔记本/, "published notebooks elsewhere stay reachable");
   const full = render({ decks: [deck], progress, sources: pdfPages, today: { due: 1, weak: 2, new: 0, size: 3 },
     focus: { mode: "class", course: "CS3219", courses: [{ name: "CS3219" }], fresh: [] } });
   assert.match(full, /全局笔记本/);
-  assert.match(full, /笔试 \/ 面试/);
+  assert.match(full, /切换当前课程/);
 });
 
 test("with materials and no decks the home offers to generate from them, counted per document", () => {

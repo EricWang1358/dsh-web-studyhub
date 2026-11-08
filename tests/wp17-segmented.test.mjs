@@ -108,7 +108,7 @@ test('the recording setup rows are segmented controls with the same labels and p
 test('every single-choice segment row uses the shared control and the old hand-rolled CSS is gone', () => {
   const rows = [
     ['ui/exam/WrittenSetup.jsx', '考试题型'], ['ui/Skeleton.jsx', '主题视图'], ['ui/Skeleton.jsx', '骨架视图'], ['ui/Graph.jsx', '视图模式'],
-    ['ui/Ingest.jsx', null], ['ui/Generate.jsx', null], ['ui/study-map/DeskIntro.jsx', '学习模式'], ['ui/SkeletonCanvas.jsx', '想做什么'],
+    ['ui/Ingest.jsx', null], ['ui/Generate.jsx', null], ['ui/SkeletonCanvas.jsx', '想做什么'],
   ];
   for (const [file, label] of rows) {
     const src = read(file);

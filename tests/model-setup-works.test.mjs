@@ -209,7 +209,7 @@ test('合并建议 without a model is the compact gate, not plain text', () => {
 test('学习流 and the daily plan use the compact gate where they had plain text, and the portal keeps the app\'s way to the settings', () => {
   const flows = read('ui/Workflows.jsx'), lesson = read('ui/WorkflowLesson.jsx'), portal = read('ui/WorkflowPortal.jsx'), plan = read('ui/DailyPlan.jsx');
   assert.match(plan, /<ModelSetupGate variant="compact" feature="plan"/);
-  assert.match(lesson, /<ModelSetupGate variant="compact" feature="lesson"/);
+  assert.doesNotMatch(lesson, /<ModelSetupGate/, 'retired read-only lesson offers no generation gate');
   assert.match(portal, /useContext\(ModelSettingsContext\)/);
   assert.match(plan, /<ModelSetupGate variant="compact" feature="plan"/);
   assert.doesNotMatch(flows, /还没有连接模型：会按主题/);

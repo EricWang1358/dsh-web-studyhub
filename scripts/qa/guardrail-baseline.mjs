@@ -55,7 +55,6 @@ const ACCENT_FILL_ALLOW = [
   { file: 'ui/book/book-bar.css', selector: /\.book-bar__line/, why: 'progress' },
   { file: 'ui/coach.css', selector: /\.autopilot-bar/, why: 'progress' },
   { file: 'ui/focus.css', selector: /\.course-route-bar/, why: 'progress' },
-  { file: 'ui/workflows.css', selector: /\.wf-progress-mark/, why: 'progress' },
   { file: 'ui/tasks/task-console.css', selector: /\.tc-segment|\.tc-legend i|\.tc-callbar|\.tc-cells|\.tc-steps__mark|\.tc-dot\[data-state='run'\]|\.tc-output__caret/, why: 'progress and the running call of a job' },
   { file: 'ui/tasks/compact-card.css', selector: /\.cjc__dot\[data-state='run'\]/, why: 'progress (the running dot)' },
   // #658 (owner, 2026-11-05): the accent also marks where a dragged file will land, and the step you are on.

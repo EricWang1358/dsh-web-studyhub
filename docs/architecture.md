@@ -308,7 +308,6 @@ How the choice is used:
 - Contexts reach the host through `ports.retrieval` (`{ tools(), call(), service() }`), never through `ctx` itself.
 - The jobs context reads a finished DSH sub-agent's final reply through `ports.sessions.lastReply(childId)` (`lib/session-reply.js`, over `ctx.get('sessionQuery')`, passed to the runtime as the request service `sessionQuery`); it never throws and answers `null` when the session cannot be read.
 - `generate` narrows a selection to the retrieved pages (`narrowSelection`) when it is above 150,000 characters or the request asks for retrieval, and a provider and a topic (`focus`) are set. It records `job.retrieval`.
-- The guided flow uses retrieval to rank topics (`lib/workflow-retrieval.js`).
 
 The search extension is a companion bundle (`packages/studyhub-retrieval`), published as a release asset by `npm run release:pack`:
 
