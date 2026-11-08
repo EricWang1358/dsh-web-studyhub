@@ -4,7 +4,7 @@ import { planPrompts, blueprintPrompts } from '../lib/assessment-quality.js';
 import { authorPrompts, reviewPrompts, parseJson, generateDeck } from '../lib/generation.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { patchPrompts } from '../lib/generation-yield.js';
-import { LEAD_SOURCE_CHARS, REQUEST_DATA, GENERATION_SYSTEM, leadsWithSources, promptOrder, withField, dataPayload, stageRequest } from '../lib/prompt-order.js';
+import { LEAD_SOURCE_CHARS, REQUEST_DATA, GENERATION_SYSTEM, leadsWithSources, promptOrder, withField, dataPayload, stageRequest, stageSystem } from '../lib/prompt-order.js';
 import { requestData } from './helpers/request-data.mjs';
 
 /* Token cost (prompt cache): a provider reuses the longest IDENTICAL prefix of earlier prompts, so what varies from call to call (the count, ids, the plan so far) goes
@@ -91,6 +91,17 @@ test('a prompt that does not lead with its sources (small sources, other feature
   const all = part(small, 4);
   for (const [stage, prompt] of Object.entries(all)) assert.deepEqual(stageRequest(SYSTEMS[stage], prompt), { system: SYSTEMS[stage], prompt }, stage);
   assert.deepEqual(stageRequest('You proofread speech-to-text transcripts.', '{"text":"x"}'), { system: 'You proofread speech-to-text transcripts.', prompt: '{"text":"x"}' });
+});
+
+test('stageRequest is strictly idempotent when called more than once', () => {
+  for (const [stage, prompt] of Object.entries(part(big, 4))) {
+    const once = stageRequest(SYSTEMS[stage], prompt);
+    assert.equal(stageSystem(SYSTEMS[stage], prompt), SYSTEMS[stage], `${stage}: stageSystem before stageRequest`);
+    assert.equal(stageSystem(once.system, once.prompt), SYSTEMS[stage], `${stage}: stageSystem recovers exact stage system text`);
+    assert.deepEqual(stageRequest(once.system, once.prompt), once, `${stage}: second stageRequest is a no-op`);
+    const localized = `${once.system}\nSession interface language: English.`;
+    assert.deepEqual(stageRequest(localized, once.prompt), { system: localized, prompt: once.prompt }, `${stage}: localized system remains idempotent`);
+  }
 });
 
 test('sources first (switched on): every stage of a part starts with the same marker and source block', () => sourcesFirst(true, () => {

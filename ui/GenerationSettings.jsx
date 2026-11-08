@@ -5,13 +5,15 @@ import KindPicker from './KindPicker.jsx';
 import { COVERAGE_LEVELS, kindNote, kindsPatch, levelNote } from './generate-form.js';
 import { GENERATION_SETTINGS_DEFAULTS, GENERATION_SETTINGS_LIMITS, GENERATION_LANGUAGES,
   GENERATION_DIFFICULTIES, GENERATION_NOTATIONS, normalizeGenerationSettings, validateGenerationPatch } from '../lib/generation-settings.js';
+import { lightModelOf, modelKey } from '../lib/job-model.js';
 import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
 import { useStudy } from './study-context.jsx';
 
 const labels = { kinds: '默认题型', coverageLevel: '默认覆盖强度', count: '主会话里出题的默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
   concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', fillRounds: '自动补题轮数',
-  effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目', applySuggestions: '采纳审阅建议' };
+  effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目',
+  lightModel: '机械步骤轻量模型', applySuggestions: '采纳审阅建议' };
 const languages = { auto: '跟随界面语言', 中文: '中文', English: 'English', 中英双语: '中英双语' };
 const difficulties = { mixed: '混合难度', foundation: '基础理解', application: '应用迁移', advanced: '深入辨析' };
 const notations = { auto: '自动', text: '纯文本', latex: '公式（LaTeX）' };
@@ -19,6 +21,18 @@ const numeric = ['count', 'concurrency', 'batchSize', 'jobTimeoutMinutes', 'fill
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 const numbers = values => ({ ...values, ...Object.fromEntries(numeric.map(key =>
   [key, typeof values[key] === 'string' && !values[key].trim() ? NaN : Number(values[key])])) });
+
+function lightModelOptions(value, groups) {
+  const lists = (Array.isArray(groups) ? groups : []).filter(group => group?.id && Array.isArray(group.models) && group.models.length);
+  const chosen = lightModelOf(value);
+  const listed = chosen && lists.some(group => group.id === chosen.provider && group.models.some(model => model.id === chosen.model));
+  return [
+    { value: '', label: ui('跟随出题模型（低推理）') },
+    ...lists.map(group => ({ group: group.name || group.id,
+      options: group.models.map(model => ({ value: modelKey({ provider: group.id, model: model.id }), label: model.name || model.id })) })),
+    ...(chosen && !listed ? [{ value: modelKey(chosen), label: `${chosen.provider} / ${chosen.model}` }] : []),
+  ];
+}
 
 /** Preserve unfinished numeric input in the form, but validate the exact shared contract before saving. */
 export function generationFormErrors(values) {
@@ -40,8 +54,8 @@ export default function GenerationSettings(props) {
 }
 
 /** `efforts` are the reasoning levels of the model in use ([{ id, name }], null until known): the stage selects offer those, like the audio settings. */
-export function GenerationSettingsForm({ root, saved, efforts = null, session }) {
-  const { busy, act } = useStudy();
+export function GenerationSettingsForm({ root, saved, efforts = null, session, modelGroups }) {
+  const { busy, act, host } = useStudy();
   const toast = useToast();
   const savedKey = JSON.stringify(normalizeGenerationSettings(saved));
   const [editor, setEditor] = useState(() => ({ observed: savedKey, baseline: JSON.parse(savedKey), values: JSON.parse(savedKey) }));
@@ -89,6 +103,7 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session })
   const numberField = (key, note) => field(key, <NumberInput {...propsFor(key)} required inputMode="numeric" step="1"
     min={GENERATION_SETTINGS_LIMITS[key].min} max={GENERATION_SETTINGS_LIMITS[key].max} />, note);
   const choiceField = (key, choices, label) => field(key, <Select {...propsFor(key)} onChange={value => edit(key, value)} options={choices.map(value => ({ value, label: label(value) }))} />);
+  const availableGroups = modelGroups ?? host?.modelGroups;
   return <form className="settings-form" onSubmit={save}>
     <SettingsSection className="generation-settings" tour="settings-generation" disabled={disabled} title={ui('出题偏好')}
       lead={ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}>
@@ -112,6 +127,9 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session })
       <Hint>{ui('规划和审阅决定题目对不对，值得多想；按答案设计写题、写替换题和改措辞可以少想，更快也更省。按模型实际提供的档位取最接近的一档，没有对应档位时会在生成详情里注明。')}</Hint>
       {EFFORT_STAGES.map(stage => <EffortSelect key={stage} follow session={session} name={effortKey(stage)} label={ui(labels[effortKey(stage)])} value={editor.values[effortKey(stage)]}
         efforts={efforts} disabled={disabled} error={errors[effortKey(stage)]} onChange={value => edit(effortKey(stage), value)} />)}
+      {field('lightModel', <Select {...propsFor('lightModel')} onChange={value => edit('lightModel', value)}
+        options={lightModelOptions(editor.values.lightModel, availableGroups)} />,
+        ui('可选。只用于不共享原文前缀缓存的机械步骤（评估小节权重、单题措辞修补、未过审题改写）；规划、答案设计、出题和审阅仍用出题模型以保留缓存与质量。'))}
       <h3 className="settings-subtitle">{ui('审阅建议')}</h3>
       <Checkbox name="applySuggestions" label={ui(labels.applySuggestions)} checked={editor.values.applySuggestions === true} disabled={disabled}
         hint={ui('审阅已通过、但附了优化建议的题，多花一次改写和一次复核来采纳建议；复核不过就保持原题。会多用 token 和时间，默认关闭；任务运行中也可以在「即时控制」里随时开关。')}

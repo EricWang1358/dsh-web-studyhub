@@ -4,6 +4,7 @@
 import { mergedTranscript } from './merged-transcript.mjs';
 import { sectionsOf } from '../../lib/sections.js';
 import { parseJson } from '../../lib/generation.js';
+import { stageSystem } from '../../lib/prompt-order.js';
 import { qualityReview } from './assessment.mjs';
 
 export function transcriptFixture(options) {
@@ -33,7 +34,8 @@ export function sectionedModel({ failReview = () => false, onPlan } = {}) {
   const log = { plans: [], reviews: [], authors: [], quoteOf: new Map() };
   let serial = 0;
   const ordinals = new Map();
-  const complete = async (system, prompt, context = {}) => {
+  const complete = async (rawSystem, prompt, context = {}) => {
+    const system = stageSystem(rawSystem, prompt);
     const part = context.part ?? null, data = () => parseJson(prompt.split('REQUEST DATA:\n')[1]);
     if (system.startsWith('Plan a source-grounded assessment')) {
       const request = data(), bySection = new Map();

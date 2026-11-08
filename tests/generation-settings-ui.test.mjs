@@ -51,13 +51,13 @@ const edit = (view, key, value) => { const { props } = control(view, key); retur
 const submit = view => view.render().props.onSubmit({ preventDefault() {} });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 
-test('the generation settings section renders twenty-one usable controls (six of them the question types) with shared limits in both languages', () => {
+test('the generation settings section renders twenty-two usable controls (six of them the question types) with shared limits in both languages', () => {
   for (const language of ['zh', 'en']) {
     ssr.setUiLanguage(language);
     const html = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
     assert.match(html, /data-tour="settings-generation"/);
     assert.match(html, /data-tour="settings-generation-time"[^>]*>(?:(?!<div class="sh-field).)*name="jobTimeoutMinutes"/, 'the Jobs page links to the field of the time limit');
-    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 21);
+    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 22);
     const types = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*name="kinds-(\w+)"[^>]*>/g)];
     assert.deepEqual(types.map(match => match[1]), ['quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze'], 'the default question types are six checkboxes, not a select');
     assert.deepEqual(types.map(match => /checked/.test(match[0])), [true, false, false, false, false, false], 'single choice is ticked by default');
@@ -221,4 +221,23 @@ test('the checkbox group cannot reach an empty list, and keeps the order of the 
   assert.deepEqual(toggleKind(['cloze', 'quiz'], 'open', true), ['quiz', 'open', 'cloze'], 'always the order of the boxes');
   assert.deepEqual(toggleKind(['quiz', 'open'], 'quiz', false), ['open']);
   assert.deepEqual(toggleKind(['multi', 'open'], 'multi', true), ['multi', 'open']);
+});
+
+test('lightModel offers following the generation model by default, lists host model groups, and saves or resets cleanly', async () => {
+  const modelGroups = [{ id: 'preview', name: 'Preview', models: [{ id: 'fast-model', name: 'Fast Model' }, { id: 'strong-model', name: 'Strong Model' }] }];
+  for (const [language, followLabel] of [['zh', '跟随出题模型（低推理）'], ['en', 'Same as generation model (low reasoning)']]) {
+    ssr.setUiLanguage(language);
+    const markup = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop, modelGroups }));
+    assert.ok(markup.includes(followLabel), `${language}: default option`);
+    assert.ok(markup.includes('Fast Model'), `${language}: host model listed`);
+    assert.doesNotMatch(markup, /[$¥€£]\s*\d/, `${language}: no currency prices`);
+  }
+  ssr.setUiLanguage('zh');
+  const calls = [];
+  const view = editor({ modelGroups, act: async (action, args, after) => { calls.push({ action, args }); after({ generation: args.generation }); } });
+  view.render(); view.effects();
+  assert.equal(control(view, 'lightModel').props.value, '');
+  edit(view, 'lightModel', JSON.stringify(['preview', 'fast-model']));
+  await submit(view);
+  assert.equal(calls[0].args.generation.lightModel, JSON.stringify(['preview', 'fast-model']));
 });

@@ -7,6 +7,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
+import { stageSystem } from '../lib/prompt-order.js';
 import { roundList, resetRunning } from '../lib/coverage-run.js';
 import { interruptedRuns } from '../lib/contexts/generation/coverage-runs.js';
 import { clusteringModel } from './helpers/clustering-model.mjs';
@@ -27,7 +28,7 @@ const pinned = (name, actual) => {
 };
 
 const world = corpusWorld(), names = Object.keys(corpus.drafts);
-const stageOf = system => system.startsWith('Plan a source-grounded') ? 'plan' : system.startsWith('Prepare supported answers') ? 'blueprint' : system.startsWith('Act as a strict') ? 'review' : 'other';
+const stageOf = (system, prompt) => { const head = stageSystem(system, prompt); return head.startsWith('Plan a source-grounded') ? 'plan' : head.startsWith('Prepare supported answers') ? 'blueprint' : head.startsWith('Act as a strict') ? 'review' : 'other'; };
 
 /** A library folder holding the materials and these drafts, as a new process finds it. */
 async function libraryWith(t, drafts, { manifests = {}, options = {} } = {}) {
@@ -41,7 +42,7 @@ async function libraryWith(t, drafts, { manifests = {}, options = {} } = {}) {
     for (const [name, manifest] of Object.entries(manifests)) await writeFile(join(root, 'generation-runs', name), JSON.stringify(manifest));
   }
   const model = clusteringModel(), calls = {};
-  const complete = async (system, prompt, context = {}) => { calls[stageOf(system)] = (calls[stageOf(system)] || 0) + 1; return model.complete(system, prompt, context); };
+  const complete = async (system, prompt, context = {}) => { const k = stageOf(system, prompt); calls[k] = (calls[k] || 0) + 1; return model.complete(system, prompt, context); };
   const service = new StudyService(root, { coverage: { roundLimit: CORPUS_ROUND_LIMIT }, ...options });
   service.light = weighing;
   service.complete = complete;

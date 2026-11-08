@@ -6,6 +6,8 @@ import { ONE_BY_ONE } from './helpers/supplement-fixtures.mjs';
 import { mergedTranscript } from './helpers/merged-transcript.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
 import { parseJson } from '../lib/generation.js';
+import { stageSystem } from '../lib/prompt-order.js';
+import { requestData } from './helpers/request-data.mjs';
 import { gate, openLibrary, restartedOver, jobsOf, soon } from './helpers/generation-baseline.mjs';
 
 /* S3-7 (the S3-0 matrix row "mixed before its first draft", V3): a run of mixed kinds (quizzes and flashcards, the odd question of a call a quiz) is planned from the request, and the
@@ -25,9 +27,9 @@ const ASK = { count: 4, kind: 'mixed', performance: ONE_BY_ONE };
 function recorded(model) {
   const planned = [], written = [], writtenCards = [];
   const complete = async (system, prompt, context = {}) => {
-    const reply = await model.complete(system, prompt, context);
-    if (system.startsWith('Plan a source-grounded assessment')) planned.push(...(parseJson(reply).targets ?? []).map(target => target.objective));
-    if (system.startsWith('You author')) { const value = parseJson(reply), cards = value.deck?.cards ?? value.cards ?? []; written.push(...cards.map(card => card.objective)); writtenCards.push(...cards); }
+    const reply = await model.complete(system, prompt, context), head = stageSystem(system, prompt);
+    if (head.startsWith('Plan a source-grounded assessment')) planned.push(...(parseJson(reply).targets ?? []).map(target => target.objective));
+    if (head.startsWith('You author')) { const value = parseJson(reply), cards = value.deck?.cards ?? value.cards ?? []; written.push(...cards.map(card => card.objective)); writtenCards.push(...cards); }
     return reply;
   };
   return { complete, planned, written, writtenCards };
@@ -39,11 +41,15 @@ const PLAN = 'Plan a source-grounded assessment';
  * `quoteOf` is what the planner of the first process planned each objective from. */
 function remembering(model, quoteOf, seenExisting) {
   const complete = async (system, prompt, context = {}) => {
-    if (!system.startsWith(PLAN)) return model.complete(system, prompt, context);
-    const [head, data] = prompt.split('REQUEST DATA:\n'), request = parseJson(data);
+    if (!stageSystem(system, prompt).startsWith(PLAN)) return model.complete(system, prompt, context);
+    const request = requestData(prompt);
     seenExisting.push(request.existing ?? []);
     const already = (request.existing ?? []).map(objective => quoteOf.get(objective)).filter(Boolean);
-    return model.complete(system, `${head}REQUEST DATA:\n${JSON.stringify({ ...request, assignments: [{ alreadyPlanned: already }] })}`, context);
+    const updated = JSON.stringify({ ...request, assignments: [{ alreadyPlanned: already }] });
+    const nextPrompt = prompt.startsWith('REQUEST DATA:\n')
+      ? `REQUEST DATA:\n${updated}${prompt.slice(prompt.indexOf('\n\n'))}`
+      : `${prompt.split('REQUEST DATA:\n')[0]}REQUEST DATA:\n${updated}`;
+    return model.complete(system, nextPrompt, context);
   };
   return { complete, log: model.log };
 }
@@ -60,7 +66,7 @@ async function uninterrupted(t, ids) {
 async function retried(t, ids, again) {
   const hold = gate(), planner = clusteringModel(), first = { ...recorded(planner), planner }; let authors = 0;
   const complete = async (system, prompt, context = {}) => {
-    if (system.startsWith('You author') && ++authors === 2 && !hold.entered) { hold.entered = true; await hold.promise; }
+    if (stageSystem(system, prompt).startsWith('You author') && ++authors === 2 && !hold.entered) { hold.entered = true; await hold.promise; }
     return first.complete(system, prompt, context);
   };
   const live = await openLibrary(t, { model: complete, hold, options: hostOf(complete) });
