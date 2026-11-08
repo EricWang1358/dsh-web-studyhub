@@ -1,5 +1,5 @@
 // Bilingual content and structured codebase metadata for StudyHub's Tech Stack & Architecture Explorer.
-// Every figure, symbol, context dependency, pipeline bound, scheduler default and test metric is verified against v4.4.5.
+// Every figure, symbol, context dependency, pipeline bound, scheduler default and test metric is verified against v4.5.0.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -666,7 +666,7 @@ export const FAILURE_MODES = [
   },
 ];
 
-export function renderExplorerContent(lang = 'zh', { version = '4.4.5' } = {}) {
+export function renderExplorerContent(lang = 'zh', { version = '4.5.0' } = {}) {
   const c = (zh, en) => (lang === 'en' ? en : zh);
   const doc = (path, label) => `<a class="src-link" href="${escHtml(`${REPO_BLOB}/${path}`)}" target="_blank" rel="noopener">${escHtml(label || path)}</a>`;
   const nodes = buildExplorerNodes();
