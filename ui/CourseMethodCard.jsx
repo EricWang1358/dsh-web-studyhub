@@ -249,7 +249,7 @@ export default function CourseMethodCard({ course, readout = null, data = null, 
         </Button>
       </div>
       {noteOpen && <Field className="course-method__note-field" label={ui('想怎么学（可选）')} width="full"
-        hint={ui('写下你的目标、习惯或特殊学法想法，点「和主会话改学法」时会一起带上。')}>
+        hint={ui('写下你的目标、习惯或特殊学法想法，点「和主会话改学法」或「请主会话起草」时会一起带上。')}>
         <TextInput value={note} maxLength={300} disabled={disabled}
           placeholder={ui('例如：每周只有周末有空，考前两周想多做口头抽查')}
           onChange={event => setNote(event.target.value)} />

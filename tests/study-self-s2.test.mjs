@@ -25,6 +25,8 @@ const ui = await loadUi(`
   export { documentNotes, default as SourcePicker } from './ui/SourcePicker.jsx';
   export { default as CitationDisclosure } from './ui/CitationDisclosure.jsx';
   export { default as Sources } from './ui/Sources.jsx';
+  export { default as Draft } from './ui/Draft.jsx';
+  export { default as Manage } from './ui/Manage.jsx';
   export {
     default as CourseMethodCard,
     stageNeedsMaterial,
@@ -242,13 +244,142 @@ test('source.add, materials.document.import, and per-revision replacement persis
   assert.equal(historicalSourceSummary.sources[0]?.provenance, AI_DRAFTED_SOURCE);
   assert.equal(historicalSourceSummary.sources[0]?.historical, true);
 
-  // 6) CitationDisclosure renders provenance badge (.citations__provenance) + warning Hint in both zh-CN and English
+  // 5b) Same-byte re-imports & verifications keep state.sources[].provenance and state.documents[].provenance strictly in sync:
+  //     (i) Omitted provenance first -> re-import same file with ai-drafted-unverified stamps both document & source;
+  //     (ii) Re-import same file into another course without documentId/provenance preserves ai-drafted-unverified on both;
+  //     (iii) Verifying the exact same bytes via attach(documentId) OR import(provenance: 'independent-source') clears AI-drafted everywhere.
+  const sameBytePath = join(workDir, 'same-byte-handout.md');
+  await writeFile(sameBytePath, '# Distributed Locks\n\nFencing tokens prevent split-brain writes when a lease expires.\n', 'utf8');
+  const firstPlain = await service.call('materials.document.import', {
+    path: sameBytePath,
+    course: 'Java 后端 + AI 求职',
+    title: 'Distributed Locks Handout',
+  });
+  assert.equal(firstPlain.document.provenance, undefined);
+
+  const stampedSameByte = await service.call('materials.document.import', {
+    path: sameBytePath,
+    course: 'Java 后端 + AI 求职',
+    provenance: AI_DRAFTED_SOURCE,
+  });
+  assert.equal(stampedSameByte.document.provenance, AI_DRAFTED_SOURCE, 'retroactive provenance stamp on same-byte import updates source & document');
+  assert.equal(stampedSameByte.document.sources[0].provenance, AI_DRAFTED_SOURCE);
+
+  const sharedAcrossCourse = await service.call('materials.document.import', {
+    path: sameBytePath,
+    course: '分布式系统',
+  });
+  assert.equal(sharedAcrossCourse.document.provenance, AI_DRAFTED_SOURCE, 'adding another course without documentId preserves ai-drafted-unverified');
+  assert.equal(sharedAcrossCourse.document.sources[0].provenance, AI_DRAFTED_SOURCE);
+  const rawAfterShare = JSON.parse(await readFile(join(root, 'library.json'), 'utf8').catch(async () => JSON.stringify(await service.call('snapshot', {}))));
+  const sharedDocRecord = (rawAfterShare.documents || []).find(item => item.id === firstPlain.documentId);
+  if (sharedDocRecord) assert.equal(sharedDocRecord.provenance, AI_DRAFTED_SOURCE, 'stored document.provenance stays aligned on cross-course re-import');
+
+  // Verify exact same bytes via materials.document.attach (no provenance argument) -> flips to INDEPENDENT_SOURCE across all surfaces
+  const verifiedSameByte = await service.call('materials.document.attach', {
+    documentId: firstPlain.documentId,
+    path: sameBytePath,
+  });
+  assert.equal(verifiedSameByte.document.provenance, INDEPENDENT_SOURCE);
+  assert.equal(verifiedSameByte.document.sources[0].provenance, INDEPENDENT_SOURCE);
+  assert.equal(isAiDraftedSource(verifiedSameByte.document), false);
+  const listedAfterSameByteVerify = await service.call('source.list', { sourceIds: verifiedSameByte.sourceIds });
+  assert.equal(listedAfterSameByteVerify.sources[0]?.provenance, INDEPENDENT_SOURCE);
+  const snapAfterSameByteVerify = await service.call('snapshot', {});
+  const groupedSameByteVerify = groupSourcesByDocument(snapAfterSameByteVerify.sources).find(item => item.sourceIds.includes(verifiedSameByte.sourceIds[0]));
+  assert.equal(groupedSameByteVerify?.provenance, INDEPENDENT_SOURCE);
+  assert.equal(ui.documentNotes(groupedSameByteVerify).includes('AI 撰写 · 未核对'), false);
+
+  // Also check explicit provenance: 'independent-source' via materials.document.import (without documentId) on an AI-titled same-byte file
+  const aiTitledSameBytePath = join(workDir, 'ai-titled-same-byte.md');
+  await writeFile(aiTitledSameBytePath, '# Redis Cluster（AI 撰写 · 未核对）\n\n16384 hash slots partition keys across master nodes.\n', 'utf8');
+  const aiTitledImported = await service.call('materials.document.import', {
+    path: aiTitledSameBytePath,
+    course: 'Java 后端 + AI 求职',
+    title: 'Redis Cluster（AI 撰写 · 未核对）',
+    provenance: AI_DRAFTED_SOURCE,
+  });
+  assert.equal(aiTitledImported.document.provenance, AI_DRAFTED_SOURCE);
+  const verifiedViaImport = await service.call('materials.document.import', {
+    path: aiTitledSameBytePath,
+    course: 'Java 后端 + AI 求职',
+    provenance: INDEPENDENT_SOURCE,
+  });
+  assert.equal(verifiedViaImport.document.provenance, INDEPENDENT_SOURCE);
+  assert.equal(isAiDraftedSource(verifiedViaImport.document.sources[0]), false);
+
+  // 6) CitationDisclosure, Draft.jsx, and Manage.jsx render provenance badge in both zh-CN and English
   ui.setUiLanguage('en');
   const asciiSources = [{ id: 'en-ai-1', title: 'Stage 1 Handout', text: 'ConcurrentHashMap synchronization.', courses: ['Systems'], provenance: AI_DRAFTED_SOURCE }];
   assert.ok(ui.documentNotes(importedDocItem).includes('AI-drafted · unverified'));
   const pickerEn = renderToStaticMarkup(h(ui.SourcePicker, { sources: asciiSources, selected: [], onChange: () => {} }));
   assert.match(pickerEn, /AI-drafted · unverified/);
   assert.doesNotMatch(pickerEn, han);
+
+  const sampleDraftObj = {
+    id: 'draft-s2-1',
+    title: 'Concurrency Draft',
+    course: 'Systems',
+    cards: [{
+      id: 'dc-1',
+      kind: 'flashcard',
+      topic: 'Concurrency',
+      objective: 'Understand synchronization',
+      prompt: 'How does ConcurrentHashMap synchronize updates?',
+      answer: 'Node-level locking and CAS.',
+      explanation: 'Avoids locking the whole table.',
+      citations: [{ sourceId: 'en-ai-1', quote: 'ConcurrentHashMap synchronization.' }],
+    }],
+  };
+  const sampleManagedDeck = {
+    id: 'deck-s2-1',
+    title: 'Concurrency Deck',
+    course: 'Systems',
+    cards: sampleDraftObj.cards,
+  };
+  for (const [lang, expectedBadge] of [['zh', 'AI 撰写 · 未核对'], ['en', 'AI-drafted · unverified']]) {
+    ui.setUiLanguage(lang);
+    const draftHtml = renderToStaticMarkup(inApp(ui, h(ui.Draft, {
+      data: { root, sources: asciiSources, decks: [sampleManagedDeck], drafts: [sampleDraftObj], jobs: [], focus: { course: 'Systems', courses: [{ name: 'Systems' }] } },
+      draft: sampleDraftObj,
+      draftLoaded: true,
+      setDraft: () => {},
+      draftText: '',
+      setDraftText: () => {},
+      jsonMode: false,
+      setJsonMode: () => {},
+      openDraft: () => {},
+      topUpDraft: () => {},
+      openSourceAt: () => {},
+      onOpenPublished: () => {},
+      onStartPublished: () => {},
+      clearRecovery: () => {},
+      setPage: () => {},
+      setModal: () => {},
+      blankCard: () => sampleDraftObj.cards[0],
+      patchCard: () => {},
+      parseDraft: () => sampleDraftObj,
+    })));
+    assert.ok(plainText(draftHtml).includes(expectedBadge), `${lang}: Draft.jsx renders ${expectedBadge}`);
+    if (lang === 'en') assert.doesNotMatch(plainText(draftHtml), han, 'English Draft.jsx has zero CJK leaks');
+
+    const manageHtml = renderToStaticMarkup(inApp(ui, h(ui.Manage, {
+      openDraft: () => {},
+      setPage: () => {},
+      managedDeck: sampleManagedDeck,
+      decks: [sampleManagedDeck],
+      focus: { course: 'Systems', courses: [{ name: 'Systems' }] },
+      sources: asciiSources,
+      setManagedDeck: () => {},
+      folderDraft: '',
+      setFolderDraft: () => {},
+      onRemoveDeck: () => {},
+      runs: [],
+    })));
+    assert.ok(plainText(manageHtml).includes(expectedBadge), `${lang}: Manage.jsx renders ${expectedBadge}`);
+    if (lang === 'en') assert.doesNotMatch(plainText(manageHtml), han, 'English Manage.jsx has zero CJK leaks');
+  }
+  ui.setUiLanguage('en');
 
   const card = {
     id: 'card-1',
