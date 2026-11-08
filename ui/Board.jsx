@@ -189,11 +189,13 @@ export default function Board({ state, library, today: todayProp, view: viewProp
     openComposer(firstColumn);
     onComposeOpened?.();
   }, [composeOnArrive, studyRef, firstColumn, onComposeOpened, setTab]);
-  // Keyboard moves keep focus on the card that moved.
   useEffect(() => {
     if (!focusId.current) return;
     const id = focusId.current;
-    const frame = requestAnimationFrame(() => { document.querySelector(`[data-card-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: false }); focusId.current = null; });
+    const frame = requestAnimationFrame(() => {
+      document.querySelector(`.board-panel:not([hidden]) [data-card-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: false });
+      focusId.current = null;
+    });
     return () => cancelAnimationFrame(frame);
   }, [board]);
   const say = useCallback((message) => { announced.current += 1; setAnnouncement(announced.current % 2 ? message : `${message}​`); }, []);
@@ -277,17 +279,68 @@ export default function Board({ state, library, today: todayProp, view: viewProp
     return true;
   }, [run, offer, onBoardChanged]);
 
-  const quickAddToday = useCallback(async (title) => {
+  const quickAddToday = useCallback(async (title, slot = "am") => {
     const columns = boardRef.current?.columns || [];
     const destination = columns.find((entry) => !entry.done) || columns[0];
     if (!destination) return false;
-    const ok = await run("board.card.add", { column: destination.id, title, plannedDate: today }, { optimistic: false });
+    const lane = slot === "pm" ? "pm" : "am";
+    const ok = await run("board.card.add", { column: destination.id, title, plannedDate: today, slot: lane, slotDate: today }, { optimistic: false });
     if (ok) {
-      say(uiFormat("已排到今天：{0}", [title]));
+      say(lane === "pm" ? uiFormat("已加到下午：{0}", [title]) : uiFormat("已加到上午：{0}", [title]));
       onBoardChanged?.();
     }
     return ok;
   }, [run, today, say, onBoardChanged]);
+
+  const moveTodayCard = useCallback(async (id, targetSlot, targetIndex, { quiet = false } = {}) => {
+    const now = boardRef.current;
+    const card = now?.cards?.[id];
+    if (!card || (targetSlot !== "am" && targetSlot !== "pm")) return false;
+    const { lanes } = selectTodayBoard(now, { today, dailyTaskIds });
+    const prevAm = lanes.am.cards.map((entry) => entry.id);
+    const prevPm = lanes.pm.cards.map((entry) => entry.id);
+    const prevLane = prevAm.includes(id) ? "am" : prevPm.includes(id) ? "pm" : null;
+    const prevIndex = prevLane === "am" ? prevAm.indexOf(id) : prevLane === "pm" ? prevPm.indexOf(id) : -1;
+    const amIds = prevAm.filter((entry) => entry !== id);
+    const pmIds = prevPm.filter((entry) => entry !== id);
+    const dest = targetSlot === "pm" ? pmIds : amIds;
+    const clamped = Math.max(0, Math.min(targetIndex ?? dest.length, dest.length));
+    if (prevLane === targetSlot && prevIndex === clamped) return false;
+    dest.splice(clamped, 0, id);
+    const order = [...amIds, ...pmIds];
+    const prevSlot = card.slotDate === today && card.slot ? card.slot : "";
+    const prevPlannedDate = card.plannedDate || "";
+    const prevOrder = now.todayOrder?.date === today && Array.isArray(now.todayOrder.ids)
+      ? [...now.todayOrder.ids]
+      : [];
+    const ok = await run("board.today.move", {
+      id,
+      date: today,
+      slot: targetSlot,
+      order,
+      ...(!prevLane ? { schedule: true } : {}),
+    });
+    if (!ok) return false;
+    onBoardChanged?.();
+    const message = prevLane === targetSlot
+      ? uiFormat("已移到第 {0} 位（共 {1} 张）", [clamped + 1, dest.length])
+      : targetSlot === "pm"
+        ? uiFormat("已移到下午：{0}", [card.title])
+        : uiFormat("已移到上午：{0}", [card.title]);
+    if (quiet) say(message);
+    else offer(message, async () => {
+      const undone = await run("board.today.move", {
+        id,
+        date: today,
+        slot: prevSlot,
+        order: prevOrder,
+        ...(!prevLane ? { plannedDate: prevPlannedDate } : {}),
+      });
+      if (undone) onBoardChanged?.();
+      return undone;
+    });
+    return true;
+  }, [run, today, dailyTaskIds, say, offer, onBoardChanged]);
 
   const onAction = useCallback(async (action, card) => {
     const now = boardRef.current, from = locateCard(now, card.id);
@@ -313,6 +366,35 @@ export default function Board({ state, library, today: todayProp, view: viewProp
       await moveCard(card.id, next.id, Math.min(from.index, next.cardIds.length), { quiet: true });
     }
   }, [moveCard, archiveCard, scheduleToday, unscheduleToday]);
+
+  const onTodayAction = useCallback(async (action, card, laneId) => {
+    const now = boardRef.current;
+    if (!now?.cards?.[card.id]) return;
+    if (action === "slot:am" || action === "slot:pm") {
+      await moveTodayCard(card.id, action.slice(5));
+      return;
+    }
+    if (action === "up" || action === "down" || action === "left" || action === "right") {
+      const { lanes } = selectTodayBoard(now, { today, dailyTaskIds });
+      const own = lanes[laneId]?.cards.map((entry) => entry.id) || [];
+      const currentIndex = own.indexOf(card.id);
+      if (currentIndex < 0) return;
+      if (action === "up" || action === "down") {
+        const nextIndex = currentIndex + (action === "up" ? -1 : 1);
+        if (nextIndex < 0 || nextIndex >= own.length) return;
+        focusId.current = card.id;
+        await moveTodayCard(card.id, laneId, nextIndex, { quiet: true });
+        return;
+      }
+      const nextLane = action === "left" ? (laneId === "pm" ? "am" : null) : (laneId === "am" ? "pm" : null);
+      if (!nextLane) return;
+      const targetCount = lanes[nextLane]?.cards.length ?? 0;
+      focusId.current = card.id;
+      await moveTodayCard(card.id, nextLane, Math.min(currentIndex, targetCount), { quiet: true });
+      return;
+    }
+    await onAction(action, card);
+  }, [today, dailyTaskIds, moveTodayCard, onAction]);
 
   const addCard = useCallback(async (column, fields) => {
     const args = { column: column.id, title: fields.title, labels: fields.labels, ...(fields.note ? { note: fields.note } : {}), ...(fields.due ? { due: fields.due } : {}),
@@ -382,6 +464,8 @@ export default function Board({ state, library, today: todayProp, view: viewProp
           onToggleDone={toggleDone}
           onEdit={(card) => onAction("edit", card)}
           onAction={onAction}
+          onTodayAction={onTodayAction}
+          onMoveToday={moveTodayCard}
           onQuickAdd={quickAddToday}
           onScheduleToday={scheduleToday}
           onOrigin={openRef(onOrigin)}

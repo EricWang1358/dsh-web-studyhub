@@ -142,5 +142,21 @@
   "还没排的待办": "Unscheduled",
   "已排到今天：{0}": "Scheduled for today: {0}",
   "已移出今天：{0}": "Removed from today: {0}",
-  "去今日": "Open Today"
+  "去今日": "Open Today",
+  "上午": "Morning",
+  "下午": "Afternoon",
+  "1 项": "1 item",
+  "{0} 项": "{0} items",
+  "自己加的": "Added by me",
+  "加到上午…": "Add to morning…",
+  "加到下午…": "Add to afternoon…",
+  "加到上午": "Add to morning",
+  "加到下午": "Add to afternoon",
+  "移到上午": "Move to morning",
+  "移到下午": "Move to afternoon",
+  "已加到上午：{0}": "Added to morning: {0}",
+  "已加到下午：{0}": "Added to afternoon: {0}",
+  "已移到上午：{0}": "Moved to morning: {0}",
+  "已移到下午：{0}": "Moved to afternoon: {0}",
+  "这一段还没有安排，拖卡片到这里或在下面添加。": "Nothing scheduled in this slot yet. Drop a card here or add one below."
 }
