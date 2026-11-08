@@ -8,6 +8,7 @@ import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layout-late.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { localDate } from '../lib/board-model.js';
 import { addDays } from '../lib/crunch-plan.js';
 import { COURSE, library } from './helpers/crunch-library.mjs';
@@ -48,6 +49,10 @@ const flat = overflow => overflow.doc <= 0 && overflow.wide.length === 0;
 /** The book page of the course: 总纲 › 打开书页. */
 async function openBook(page, running, open = '打开书页') {
   await page.goto(running.server.url);
+  await page.locator('.board-today, .outline-entry').first().waitFor({ timeout: 30000 });
+  if (await page.locator('.board-today').count()) {
+    await (await revealNavRow(page, 'library')).click();
+  }
   await page.locator('.outline-entry').first().click({ timeout: 30000 });
   await page.locator('.outline-book-line').getByRole('button', { name: open }).click({ timeout: 30000 });
   await page.locator('.book-bar').waitFor({ timeout: 30000 });

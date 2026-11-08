@@ -2,13 +2,14 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInjectCss } from "./shared.js";
 import { readJSON, writeJSON } from "./storage.js";
-import { Button, EmptyState, Icon, IconButton, InlineMessage, LoadingState, Menu, PageHeader, useToast } from "./components/index.js";
-import { doneToggleTarget, filterCards, isFiltering, labelCounts, localDate, locateCard } from "../lib/board-model.js";
+import { Button, EmptyState, Icon, IconButton, InlineMessage, LoadingState, Menu, PageHeader, TabPanel, Tabs, useToast } from "./components/index.js";
+import { doneToggleTarget, filterCards, isFiltering, labelCounts, localDate, locateCard, selectTodayBoard } from "../lib/board-model.js";
 import BoardCard from "./board/Card.jsx";
 import Composer from "./board/Composer.jsx";
 import CardEditor from "./board/CardEditor.jsx";
 import DeleteCardDialog from "./board/DeleteCardDialog.jsx";
 import FilterBar from "./board/FilterBar.jsx";
+import TodayView from "./board/TodayView.jsx";
 import { boardColumnLabel, cardsText, stamp, studyRefLabel } from "./board/meta.js";
 import css from "./board/board.css";
 import { useScrollEdges } from "./components/use-scroll-edges.js";
@@ -83,10 +84,13 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
       }}>
         {shown.map((id, slot) => {
           const card = board.cards[id];
+          const extraItems = column.done ? [] : (card.plannedDate === today
+            ? [{ id: "unplan-today", label: ui("移出今天"), icon: "close" }]
+            : [{ id: "plan-today", label: ui("排到今天"), icon: "calendar" }]);
           return <React.Fragment key={id}>
             {showLine(slot) && <div className="board-drop-line" aria-hidden="true" />}
             <BoardCard card={card} column={column} columns={columns} index={column.cardIds.indexOf(id)} count={column.cardIds.length} today={today} library={library}
-              readOnly={readOnly} hasDone={hasDone} dragging={drag?.id === id} onToggleDone={onToggleDone} onEdit={onEdit} onAction={onAction}
+              readOnly={readOnly} hasDone={hasDone} dragging={drag?.id === id} extraItems={extraItems} onToggleDone={onToggleDone} onEdit={onEdit} onAction={onAction}
               onOrigin={onOrigin} onStudyRef={onStudyRef}
               articleProps={{
                 onDragStart: (event) => { event.dataTransfer.setData("application/x-study-board-card", id); event.dataTransfer.effectAllowed = "move"; setDrag({ id }); },
@@ -142,12 +146,18 @@ function ArchiveList({ board, readOnly, library, onRestore, onDelete, onBack }) 
   </section>;
 }
 
-export default function Board({ state, library, today: todayProp, onOrigin, onStudyRef, studyRef, onClearStudyRef, composeOnArrive = false, onComposeOpened, dailyPlan }) {
+export default function Board({ state, library, today: todayProp, view: viewProp, defaultView = "all", onViewChange, onOrigin, onStudyRef, studyRef, onClearStudyRef,
+  composeOnArrive = false, onComposeOpened, dailyPlan, dailyTaskIds, onBoardChanged }) {
   useInjectCss(css, "study-board");
   const { board, error, conflict, busy, mutate, refresh, clearError } = state;
   const today = todayProp || localDate();
+  const [ownView, setOwnView] = useState(() => (composeOnArrive && studyRef ? "all" : defaultView));
+  const activeTab = viewProp ?? ownView;
+  const setTab = useCallback((next) => {
+    setOwnView(next);
+    onViewChange?.(next);
+  }, [onViewChange]);
   const [editing, setEditing] = useState(null);
-  const [archive, setArchive] = useState(false);
   const [query, setQuery] = useState({});
   const [filterOpen, setFilterOpen] = useState(false);
   const [composer, setComposer] = useState(() => composeOnArrive && studyRef && board?.columns?.length ? board.columns[0].id : null);
@@ -159,7 +169,7 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
   const [saving, setSaving] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [originError, setOriginError] = useState("");
-  const boardRef = useRef(board), focusId = useRef(null), announced = useRef(0);
+  const boardRef = useRef(board), focusId = useRef(null), announced = useRef(0), tabsId = "board-view-tabs";
   // The columns scroll sideways on a narrow window: the side with more of them beyond it fades (ui/components/scroll-fade.css, #747). Dragging, snap and the
   // scroll position are untouched.
   const [columnsStrip, columnEdges, measureColumns] = useScrollEdges();
@@ -175,9 +185,10 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
   const firstColumn = board?.columns?.[0]?.id;
   useEffect(() => {
     if (!composeOnArrive || !studyRef || !firstColumn) return;
+    setTab("all");
     openComposer(firstColumn);
     onComposeOpened?.();
-  }, [composeOnArrive, studyRef, firstColumn, onComposeOpened]);
+  }, [composeOnArrive, studyRef, firstColumn, onComposeOpened, setTab]);
   // Keyboard moves keep focus on the card that moved.
   useEffect(() => {
     if (!focusId.current) return;
@@ -201,31 +212,34 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
     const title = now.cards[id].title;
     const ok = await run("board.card.move", { id, column, ...(index === undefined ? {} : { index }) });
     if (!ok) return false;
+    onBoardChanged?.();
     const to = locateCard(boardRef.current, id);
     const total = boardRef.current.columns.find((entry) => entry.id === column)?.cardIds.length || 0;
     const message = column === from.column
       ? uiFormat("已移到第 {0} 位（共 {1} 张）", [(to?.index ?? 0) + 1, total])
       : uiFormat("已移到「{0}」：{1}", [columnName(column), title]);
     if (quiet) say(message);
-    else offer(message, () => run("board.card.move", { id, column: from.column, index: from.index }));
+    else offer(message, async () => { const undone = await run("board.card.move", { id, column: from.column, index: from.index }); if (undone) onBoardChanged?.(); return undone; });
     return true;
-  }, [run, offer, say]);
+  }, [run, offer, say, onBoardChanged]);
 
   const archiveCard = useCallback(async (card) => {
     const from = locateCard(boardRef.current, card.id);
     if (!from || !(await run("board.card.archive", { id: card.id }))) return false;
-    offer(uiFormat("已归档：{0}", [card.title]), () => run("board.card.restore", { id: card.id, column: from.column, index: from.index }));
+    onBoardChanged?.();
+    offer(uiFormat("已归档：{0}", [card.title]), async () => { const undone = await run("board.card.restore", { id: card.id, column: from.column, index: from.index }); if (undone) onBoardChanged?.(); return undone; });
     return true;
-  }, [run, offer]);
+  }, [run, offer, onBoardChanged]);
 
   const deleteCard = useCallback(async (card) => {
     const now = boardRef.current, from = locateCard(now, card.id);
     const snapshot = structuredClone(now.cards[card.id] || now.archived.find((entry) => entry.id === card.id));
     if (!snapshot || !(await run("board.card.remove", { id: card.id }))) return false;
-    if (from) offer(uiFormat("已删除：{0}", [card.title]), () => run("board.card.undelete", { card: snapshot, column: from.column, index: from.index }));
+    onBoardChanged?.();
+    if (from) offer(uiFormat("已删除：{0}", [card.title]), async () => { const undone = await run("board.card.undelete", { card: snapshot, column: from.column, index: from.index }); if (undone) onBoardChanged?.(); return undone; });
     else say(uiFormat("已删除：{0}", [card.title]));
     return true;
-  }, [run, offer, say]);
+  }, [run, offer, say, onBoardChanged]);
 
   const toggleDone = useCallback(async (card) => {
     const target = doneToggleTarget(boardRef.current, card.id);
@@ -233,14 +247,54 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
     const wasDone = !!boardRef.current.columns.find((entry) => entry.cardIds.includes(card.id))?.done;
     const from = locateCard(boardRef.current, card.id);
     if (!(await run("board.card.move", { id: card.id, column: target.column, index: target.index }))) return;
+    onBoardChanged?.();
     offer(wasDone ? uiFormat("已移回「{0}」：{1}", [columnName(target.column), card.title]) : uiFormat("已完成：{0}", [card.title]),
-      () => run("board.card.move", { id: card.id, column: from.column, index: from.index }));
-  }, [run, offer]);
+      async () => { const undone = await run("board.card.move", { id: card.id, column: from.column, index: from.index }); if (undone) onBoardChanged?.(); return undone; });
+  }, [run, offer, onBoardChanged]);
+
+  const scheduleToday = useCallback(async (card) => {
+    const prev = card.plannedDate || "";
+    if (prev === today) return true;
+    if (!(await run("board.card.edit", { id: card.id, plannedDate: today }))) return false;
+    onBoardChanged?.();
+    offer(uiFormat("已排到今天：{0}", [card.title]), async () => {
+      const undone = await run("board.card.edit", { id: card.id, plannedDate: prev });
+      if (undone) onBoardChanged?.();
+      return undone;
+    });
+    return true;
+  }, [run, offer, today, onBoardChanged]);
+
+  const unscheduleToday = useCallback(async (card) => {
+    const prev = card.plannedDate || "";
+    if (!prev || !(await run("board.card.edit", { id: card.id, plannedDate: "" }))) return false;
+    onBoardChanged?.();
+    offer(uiFormat("已移出今天：{0}", [card.title]), async () => {
+      const undone = await run("board.card.edit", { id: card.id, plannedDate: prev });
+      if (undone) onBoardChanged?.();
+      return undone;
+    });
+    return true;
+  }, [run, offer, onBoardChanged]);
+
+  const quickAddToday = useCallback(async (title) => {
+    const columns = boardRef.current?.columns || [];
+    const destination = columns.find((entry) => !entry.done) || columns[0];
+    if (!destination) return false;
+    const ok = await run("board.card.add", { column: destination.id, title, plannedDate: today }, { optimistic: false });
+    if (ok) {
+      say(uiFormat("已排到今天：{0}", [title]));
+      onBoardChanged?.();
+    }
+    return ok;
+  }, [run, today, say, onBoardChanged]);
 
   const onAction = useCallback(async (action, card) => {
     const now = boardRef.current, from = locateCard(now, card.id);
     if (!from) return;
     const position = now.columns.findIndex((entry) => entry.id === from.column);
+    if (action === "plan-today") { await scheduleToday(card); return; }
+    if (action === "unplan-today") { await unscheduleToday(card); return; }
     if (action.startsWith("to:")) { await moveCard(card.id, action.slice(3)); return; }
     if (action === "edit") { setEditing({ id: card.id, revision: now.revision }); return; }
     if (action === "archive") { await archiveCard(card); return; }
@@ -258,15 +312,15 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
       focusId.current = card.id;
       await moveCard(card.id, next.id, Math.min(from.index, next.cardIds.length), { quiet: true });
     }
-  }, [moveCard, archiveCard]);
+  }, [moveCard, archiveCard, scheduleToday, unscheduleToday]);
 
   const addCard = useCallback(async (column, fields) => {
     const args = { column: column.id, title: fields.title, labels: fields.labels, ...(fields.note ? { note: fields.note } : {}), ...(fields.due ? { due: fields.due } : {}),
       ...(studyRef ? { studyRef } : {}) };
     const ok = await run("board.card.add", args, { optimistic: false });
-    if (ok) { onClearStudyRef?.(); say(uiFormat("已添加到「{0}」：{1}", [boardColumnLabel(column), fields.title])); }
+    if (ok) { onClearStudyRef?.(); onBoardChanged?.(); say(uiFormat("已添加到「{0}」：{1}", [boardColumnLabel(column), fields.title])); }
     return ok;
-  }, [run, studyRef, onClearStudyRef, say]);
+  }, [run, studyRef, onClearStudyRef, onBoardChanged, say]);
 
   const openRef = (fn) => fn ? async (value) => { try { setOriginError(""); await fn(value); } catch (e) { setOriginError(e.message); } } : undefined;
   const flip = (column) => setCollapsed((current) => { const next = new Set(current); if (!next.delete(column.id)) next.add(column.id); writeCollapsed(next); return next; });
@@ -275,6 +329,7 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
   const filtering = isFiltering(query);
   const view = useMemo(() => board ? filterCards(board, { ...query, today }) : null, [board, query, today]);
   const labels = useMemo(() => board ? labelCounts(board) : [], [board]);
+  const todaySummary = useMemo(() => board ? selectTodayBoard(board, { today, dailyTaskIds }) : { open: [], done: [], unscheduled: [] }, [board, today, dailyTaskIds]);
   const total = board ? Object.keys(board.cards).length : 0;
   // An empty board shows one empty state and one way in; its columns appear with the first card, or when the learner starts writing it.
   const empty = !!board && total === 0;
@@ -291,22 +346,50 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
   const colTracks = view && board
     ? `${view.columns.map((_, at) => (collapsed.has(board.columns[at].id) ? "2.75rem" : "minmax(16rem, 1fr)")).join(" ")}${!readOnly ? " minmax(10.5rem, 13rem)" : ""}`
     : undefined;
+  const tabItems = [
+    {
+      value: "today",
+      label: ui("今日"),
+      content: <>{ui("今日")}{board && todaySummary.open.length ? <small className="board-tab__note"> ({todaySummary.open.length})</small> : null}</>,
+    },
+    { value: "all", label: ui("全部待办") },
+    {
+      value: "archive",
+      label: ui("归档"),
+      content: <>{ui("归档")}{board ? <small className="board-tab__note"> ({board.archived.length})</small> : null}</>,
+    },
+  ];
 
   return <section className="page board-page">
     <PageHeader className="board-page__header" title={ui("待办看板")} eyebrow={ui("所有工作区")} description={ui("所有工作区共用。把想做的事记下来，逐步完成。")}
       actions={<>
         <IconButton icon={<Icon name="sync" size={18} />} label={ui("刷新")} size="sm" lock={busy} onClick={() => refresh({ force: true })} />
-        <Button variant="quiet" size="sm" icon={<Icon name="archive" />} aria-pressed={archive} onClick={() => setArchive(!archive)}>{ui("归档")}{board ? ` (${board.archived.length})` : ""}</Button>
-        {!archive && !empty && <Button variant="primary" icon="plus" disabled={readOnly || !board?.columns.length} onClick={() => openComposer(board.columns[0].id)}>{ui("添加卡片")}</Button>}
+        {activeTab === "all" && !empty && <Button variant="primary" icon="plus" disabled={readOnly || !board?.columns.length} onClick={() => openComposer(board.columns[0].id)}>{ui("添加卡片")}</Button>}
       </>} />
+    <Tabs id={tabsId} className="board-tabs" itemClassName="board-tab" label={ui("待办视图")} value={activeTab} onChange={setTab} items={tabItems} />
     {message && <InlineMessage tone={board?.readOnly ? "error" : conflict ? "warning" : "error"} boxed onDismiss={board?.readOnly ? undefined : () => { setOriginError(""); clearError?.(); }}>{message}</InlineMessage>}
-    {!archive && dailyPlan}
     {!board && <LoadingState className="board-loading" label={ui("正在读取待办…")} />}
-    {board && (archive
-      ? <ArchiveList board={board} readOnly={readOnly} library={library} onBack={() => setArchive(false)}
-        onRestore={async (card) => { if (await run("board.card.restore", { id: card.id })) say(uiFormat("已恢复：{0}", [card.title])); }}
-        onDelete={(card) => setConfirm({ kind: "purge", card })} />
-      : <>
+    {board && <>
+      <TabPanel id={tabsId} value="today" selected={activeTab} tabIndex={undefined} className="board-panel">
+        <TodayView
+          board={board}
+          today={today}
+          library={library}
+          readOnly={readOnly}
+          hasDone={hasDone}
+          dailyPlan={dailyPlan}
+          dailyTaskIds={dailyTaskIds}
+          onToggleDone={toggleDone}
+          onEdit={(card) => onAction("edit", card)}
+          onAction={onAction}
+          onQuickAdd={quickAddToday}
+          onScheduleToday={scheduleToday}
+          onOrigin={openRef(onOrigin)}
+          onStudyRef={openRef(onStudyRef)}
+        />
+      </TabPanel>
+      <TabPanel id={tabsId} value="all" selected={activeTab} tabIndex={undefined} className="board-panel">
+        {dailyPlan}
         {(total > 0 || filtering) && <FilterBar query={query} labels={labels} onChange={setQuery} open={filterOpen} onToggle={() => setFilterOpen(!filterOpen)} matched={matched} total={total} />}
         {empty && !showColumns && <EmptyState icon="check" title={ui("还没有待办")} className="board-empty"
           description={ui("把想做的事记在这里。在复习、题目或学习流里点「加入待办」，会把当前内容一起记下来。")}
@@ -325,10 +408,16 @@ export default function Board({ state, library, today: todayProp, onOrigin, onSt
             onOrigin={openRef(onOrigin)} onStudyRef={openRef(onStudyRef)} />)}
           {!readOnly && <NewColumn onAdd={(title) => run("board.column.add", { title }, { optimistic: false })} />}
         </div>}
-      </>)}
+      </TabPanel>
+      <TabPanel id={tabsId} value="archive" selected={activeTab} tabIndex={undefined} className="board-panel">
+        <ArchiveList board={board} readOnly={readOnly} library={library} onBack={() => setTab("all")}
+          onRestore={async (card) => { if (await run("board.card.restore", { id: card.id })) { onBoardChanged?.(); say(uiFormat("已恢复：{0}", [card.title])); } }}
+          onDelete={(card) => setConfirm({ kind: "purge", card })} />
+      </TabPanel>
+    </>}
     {editingCard && <CardEditor key={editing.id} card={editingCard} board={board} baseRevision={editing.revision} library={library} today={today}
       labelSuggestions={labels.map((entry) => entry.label)} saving={saving} error={message} conflict={conflict} onClose={() => { setEditing(null); clearError?.(); }}
-      onSave={async (fields) => { setSaving(true); const ok = await run("board.card.edit", { id: editingCard.id, revision: editing.revision, ...fields }, { optimistic: false }); setSaving(false); return ok; }}
+      onSave={async (fields) => { setSaving(true); const ok = await run("board.card.edit", { id: editingCard.id, revision: editing.revision, ...fields }, { optimistic: false }); setSaving(false); if (ok) onBoardChanged?.(); return ok; }}
       onArchive={async (card) => { setEditing(null); await archiveCard(card); }} onDelete={async (card) => { const ok = await deleteCard(card); if (ok) setEditing(null); return ok; }}
       onOrigin={openRef(onOrigin) && ((workspace) => { setEditing(null); return openRef(onOrigin)(workspace); })}
       onStudyRef={openRef(onStudyRef) && ((ref) => { setEditing(null); return openRef(onStudyRef)(ref); })} />}

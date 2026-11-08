@@ -21,6 +21,9 @@ const DATE_SHAPES = {
   timeSeconds: { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' },
   // October 4 Sun  /  10月4日周日: today's date as a heading
   longDay: { month: 'long', day: 'numeric', weekday: 'short' },
+  // October 4  /  10月4日  and  Sunday  /  星期日: parts for headings like "10月4日 · 星期日"
+  monthDay: { month: 'long', day: 'numeric' },
+  weekdayLong: { weekday: 'long' },
 };
 
 const timeOf = (value) => {

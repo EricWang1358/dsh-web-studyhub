@@ -28,7 +28,7 @@ function Note({ note }) {
 }
 
 /** The ⋯ menu entries for a card; ids are `to:<columnId>` or an action name. */
-export function cardMenuItems({ column, columns, index, count }) {
+export function cardMenuItems({ column, columns, index, count, extraItems = [] }) {
   const others = columns.filter((entry) => entry.id !== column.id);
   return [
     ...(others.length ? [{ heading: true, label: ui('移到') }, ...others.map((entry) => ({ id: `to:${entry.id}`, label: boardColumnLabel(entry), icon: 'move' }))] : []),
@@ -36,6 +36,7 @@ export function cardMenuItems({ column, columns, index, count }) {
     { id: 'up', label: ui('上移'), icon: 'arrow-up', disabled: index <= 0 },
     { id: 'down', label: ui('下移'), icon: 'arrow-down', disabled: index >= count - 1 },
     { heading: true, label: ui('卡片') },
+    ...extraItems,
     { id: 'edit', label: ui('编辑'), icon: 'edit' },
     { id: 'archive', label: ui('归档'), icon: 'archive' },
     { id: 'delete', label: ui('删除'), icon: 'trash', danger: true },
@@ -48,7 +49,7 @@ export function cardMenuItems({ column, columns, index, count }) {
  * keyboard (Alt+arrows). `articleProps` carries the drag handlers.
  */
 export default function BoardCard({ card, column, columns, index, count, today, library, readOnly = false, hasDone = true, dragging = false,
-  menuOpen = false, onToggleDone, onEdit, onAction, onOrigin, onStudyRef, articleProps = {} }) {
+  menuOpen = false, extraItems = [], onToggleDone, onEdit, onAction, onOrigin, onStudyRef, articleProps = {} }) {
   const done = !!column.done;
   const state = dueState(card.due, today, done);
   const progress = checklistProgress(card);
@@ -70,7 +71,7 @@ export default function BoardCard({ card, column, columns, index, count, today, 
           <Icon name="check" size={14} strokeWidth={2.4} />
         </button>}
         <button type="button" tabIndex={-1} className="board-card__title" disabled={readOnly} onClick={() => onEdit(card)} title={card.title}>{card.title}</button>
-        {!readOnly && <Menu label={uiFormat('更多操作：{0}', [card.title])} items={cardMenuItems({ column, columns, index, count })} defaultOpen={menuOpen}
+        {!readOnly && <Menu label={uiFormat('更多操作：{0}', [card.title])} items={cardMenuItems({ column, columns, index, count, extraItems })} defaultOpen={menuOpen}
           className="board-card__menu" onSelect={(id) => onAction(id, card)} />}
       </div>
       {card.note && <Note note={card.note} />}

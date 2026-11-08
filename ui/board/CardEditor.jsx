@@ -9,7 +9,7 @@ import { dueText, stamp, studyRefLabel } from './meta.js';
 const newItemId = () => `i${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 const sameList = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
 
-const fromCard = (card) => ({ title: card.title, note: card.note || '', due: card.due || '', labels: [...(card.labels || [])],
+const fromCard = (card) => ({ title: card.title, note: card.note || '', due: card.due || '', plannedDate: card.plannedDate || '', labels: [...(card.labels || [])],
   checklist: (card.checklist || []).map((item) => ({ ...item })) });
 
 /**
@@ -54,11 +54,13 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
     setTouched(true);
     if (problem || stale || readOnly || saving) return;
     const fields = { title: draft.title.trim(), note: draft.note, due: draft.due, labels: draft.labels };
+    if (draft.plannedDate || card.plannedDate) fields.plannedDate = draft.plannedDate;
     const checklist = draft.checklist.filter((item) => item.text.trim()).map((item) => ({ ...item, text: item.text.trim() }));
     if (checklist.length || card.checklist) fields.checklist = checklist;
     if (await onSave(fields)) onClose();
   };
-  const dirty = draft.title !== card.title || draft.note !== (card.note || '') || draft.due !== (card.due || '') || !sameList(draft.labels, card.labels) || !sameList(draft.checklist, card.checklist);
+  const dirty = draft.title !== card.title || draft.note !== (card.note || '') || draft.due !== (card.due || '')
+    || draft.plannedDate !== (card.plannedDate || '') || !sameList(draft.labels, card.labels) || !sameList(draft.checklist, card.checklist);
 
   const footer = (
     <>
@@ -101,6 +103,16 @@ export default function CardEditor({ card, board, baseRevision, library, today, 
               <input className="board-input" type="date" aria-label={ui('截止日期')} value={draft.due} onChange={(event) => set({ due: event.target.value })} />
               {draft.due && <IconButton icon="close" size="sm" label={ui('清除截止日期')} onClick={() => set({ due: '' })} />}
               {state && <span className={`board-due is-${state.kind}`}><Icon name="calendar" size={13} />{dueText(state)}</span>}
+            </div>
+          </div>
+
+          <div className="board-field">
+            <span>{ui('排在哪天')}</span>
+            <div className="board-editor__due">
+              <input className="board-input" type="date" aria-label={ui('排在哪天')} value={draft.plannedDate} onChange={(event) => set({ plannedDate: event.target.value })} />
+              {today && draft.plannedDate !== today && <Button variant="quiet" size="sm" onClick={() => set({ plannedDate: today })}>{ui('排到今天')}</Button>}
+              {draft.plannedDate && <IconButton icon="close" size="sm" label={ui('取消排期')} onClick={() => set({ plannedDate: '' })} />}
+              <span className="board-editor__subhint">{ui('只排在哪天做，不改截止日期')}</span>
             </div>
           </div>
 

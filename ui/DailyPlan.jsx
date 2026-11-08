@@ -255,6 +255,7 @@ export default function DailyPlan({ plan, onBoard, modelReady = true, openModelS
       <DisclosureToggle open={open} onToggle={setOpen} controls={bodyId} label={foldLabel(open, ui('今天先做什么'))} />
       <h2>{ui('今天先做什么')}</h2>
       {summary && <p className="daily-plan__summary">{summary}</p>}
+      {onBoard && <Button variant="quiet" size="sm" className="daily-plan__board-link" onClick={onBoard}>{ui('去今日')}</Button>}
       {state && <Menu className="daily-plan__menu" label={ui('调整')} items={items} onSelect={choose}
         trigger={({ props, ref }) => { menuTrigger.current = ref; return <Button ref={ref} variant="quiet" size="sm" {...props}>{ui('调整')}</Button>; }} />}
     </header>
