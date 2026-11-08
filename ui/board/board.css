@@ -446,9 +446,9 @@
     .board-memos__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
     .board-memo {
       min-width: 0; padding: var(--space-2-5); display: flex; flex-direction: column; gap: var(--space-1-5);
-      border: 1px solid color-mix(in srgb, var(--warn) 22%, var(--line));
+      border: 1px solid var(--warn-line);
       border-radius: var(--radius-sm);
-      background: color-mix(in srgb, var(--warn-bg) 42%, var(--bg-surface));
+      background: var(--warn-bg);
     }
     .board-memo__edit { padding: 0; border: 0; background: transparent; }
     .board-memo__meta { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
