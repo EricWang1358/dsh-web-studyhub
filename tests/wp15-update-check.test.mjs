@@ -7,7 +7,7 @@ import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkForUpdate, setUpdatePreferences, readUpdateView, currentVersion, releaseFromGithub, updateStatePath,
-  RELEASES_API_URL, RELEASES_PAGE_URL, CHECK_INTERVAL_MS, FAILURE_RETRY_MS, NOTES_LIMIT } from '../lib/update-check.js';
+  RELEASES_API_URL, RELEASES_PAGE_URL, CHECK_INTERVAL_MS, FAILURE_RETRY_MS, NOTES_LIMIT, clampReleaseNotes, selectReleaseNotes } from '../lib/update-check.js';
 import { StudyService } from '../lib/service.js';
 import { githubRelease, REPO } from './helpers/wp15-release.mjs';
 
@@ -33,7 +33,7 @@ test('the running version comes from package.json', async () => {
 
 test('a newer GitHub release is reported with its notes, page, package and checksum addresses', async t => {
   const dir = await home(t);
-  const net = github(() => json(githubRelease('v2.1.1', { body: 'x'.repeat(5000) })));
+  const net = github(() => json(githubRelease('v2.1.1', { body: 'x'.repeat(NOTES_LIMIT + 1000) })));
   const view = await checkForUpdate({ fetch: net.fetch, now: () => T0, current: '2.1.0' });
   assert.equal(net.calls.length, 1);
   assert.equal(net.calls[0].url, RELEASES_API_URL);
@@ -244,4 +244,28 @@ test('a loopback QA feed (STUDYHUB_QA_UPDATE_FEED) may stand in for GitHub; any 
     assert.equal(other.calls[0].url, RELEASES_API_URL, ignored);
     assert.equal(result.assetUrl, `${REPO}/releases/download/v2.1.1/ericwang1358-dsh-daily-flashcard-2.1.1.tgz`);
   }
+});
+
+test('bilingual release notes keep both English and Chinese halves and select the active UI language cleanly', () => {
+  const bilingual = [
+    '## 4.5.0 — 2026-11-08',
+    '',
+    '- **Hands-on task (`动手任务`) question type.** Learners can check tasks in the main chat (' + 'detail '.repeat(260) + '). Not verified: live desktop.',
+    '',
+    '## 4.5.0 — 2026-11-08',
+    '',
+    '- **新增通用「动手任务」题型与主会话静态验收。** 学习者可以在主会话里检查任务并收到反馈。未验证：桌面端实测。',
+  ].join('\n');
+  assert.equal(clampReleaseNotes(bilingual, NOTES_LIMIT), bilingual, 'a full bilingual release fits without cutting off Chinese');
+  assert.match(selectReleaseNotes(bilingual, 'zh'), /^-\s+\*\*新增通用「动手任务」/, 'zh selects Chinese and drops the redundant version heading');
+  assert.doesNotMatch(selectReleaseNotes(bilingual, 'zh'), /Hands-on task|## 4\.5\.0/);
+  assert.match(selectReleaseNotes(bilingual, 'en'), /^-\s+\*\*Hands-on task/, 'en selects English even when English quotes a CJK UI term');
+  assert.doesNotMatch(selectReleaseNotes(bilingual, 'en'), /新增通用|## 4\.5\.0/);
+  assert.equal(selectReleaseNotes("## What's new\n- calmer update check", 'zh'), "## What's new\n- calmer update check", 'single-language semantic headings stay intact');
+  const hugeEn = `## 5.0.0 — 2026-12-01\n\n- **Big release.** ${'english '.repeat(2000)}`;
+  const hugeZh = `## 5.0.0 — 2026-12-01\n\n- **大版本更新。** ${'中文说明'.repeat(1200)}`;
+  const clamped = clampReleaseNotes(`${hugeEn}\n\n${hugeZh}`, 4000);
+  assert.ok(clamped.length <= 4000);
+  assert.match(selectReleaseNotes(clamped, 'zh'), /大版本更新/, 'huge English notes never starve the Chinese section');
+  assert.match(selectReleaseNotes(clamped, 'en'), /Big release/);
 });
