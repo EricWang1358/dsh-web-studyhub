@@ -31,20 +31,23 @@ export function parseQaArgs(argv, name, extra = {}) {
  * latencyMs: how long each fake model answer takes (a job that stays running for a screenshot needs more). model: "fake" (default), "none", or a model function (system, prompt, options) => reply.
  * context: { page, browser, browserContext, server, options, summary, t(zh, en), step(name, fn), shot(name), sleep, library, distDir }
  */
+export const resolveQaDistDir = (options) => (options.distDir ? resolve(options.distDir) : join(options.out, "work", "dist"));
+
 export async function runQa({ name, options, seed, run, model = "fake", localStorageSeed = {}, latencyMs = 300, coverage = null }) {
   const removed = scrubProcessEnv();
   await rm(options.out, { recursive: true, force: true });
   await mkdir(options.out, { recursive: true });
   const library = join(options.out, "work", "library");
-  const distDir = options.distDir ? resolve(options.distDir) : join(options.out, "work", "dist");
+  const distDir = resolveQaDistDir(options);
   await mkdir(library, { recursive: true });
   if (!options.distDir) await buildPreview({ outdir: distDir });
   await seed(library);
   const server = await createPreviewServer({ libraryRoot: library, home: join(options.out, "work", "home"), distDir, port: 0, ...(coverage ? { coverage } : {}),
     model: model === "none" ? null : typeof model === "function" ? model : createFakeModel({ latencyMs, usage: true }) });
-  const browser = await launchChromium({ args: [`--lang=${options.lang === "en" ? "en-US" : "zh-CN"}`, "--enable-precise-memory-info", "--js-flags=--expose-gc"] });
   const summary = { name, startedAt: new Date().toISOString(), options, url: server.url, scrubbedEnv: removed, steps: [], consoleErrors: [], pageErrors: [], apiErrors: [] };
+  let browser = null;
   try {
+    browser = await launchChromium({ args: [`--lang=${options.lang === "en" ? "en-US" : "zh-CN"}`, "--enable-precise-memory-info", "--js-flags=--expose-gc"] });
     const browserContext = await browser.newContext({ viewport: { width: options.width, height: options.height }, deviceScaleFactor: 1,
       locale: options.lang === "en" ? "en-US" : "zh-CN", colorScheme: options.theme });
     await browserContext.addInitScript(([lang, theme, extra]) => {
@@ -89,7 +92,7 @@ export async function runQa({ name, options, seed, run, model = "fake", localSto
     summary.finishedAt = new Date().toISOString();
     summary.ok = !summary.pageErrors.length && !summary.consoleErrors.length && summary.steps.every((item) => item.status === "ok");
     await writeFile(join(options.out, "summary.json"), JSON.stringify(summary, null, 2) + "\n");
-    await browser.close().catch(() => {});
+    await browser?.close().catch(() => {});
     await server.close();
   }
   return summary;

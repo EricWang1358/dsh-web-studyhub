@@ -3,9 +3,35 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseQaArgs, runQa } from '../scripts/qa/harness.mjs';
+import { launchChromium } from '../scripts/qa/browser.mjs';
+import { parseQaArgs, resolveQaDistDir, runQa } from '../scripts/qa/harness.mjs';
+
+test('#840: resolveQaDistDir isolates each QA output root while honoring explicit distDir overrides', async (t) => {
+  const outA = await mkdtemp(join(tmpdir(), 'study-qa-dist-a-'));
+  const outB = await mkdtemp(join(tmpdir(), 'study-qa-dist-b-'));
+  t.after(async () => {
+    await rm(outA, { recursive: true, force: true });
+    await rm(outB, { recursive: true, force: true });
+  });
+  const optsA = parseQaArgs(['--out', outA], 'dist-a');
+  const optsB = parseQaArgs(['--out', outB], 'dist-b');
+  assert.equal(resolveQaDistDir(optsA), join(outA, 'work', 'dist'));
+  assert.equal(resolveQaDistDir(optsB), join(outB, 'work', 'dist'));
+  assert.notEqual(resolveQaDistDir(optsA), resolveQaDistDir(optsB));
+  const shared = join(outA, 'shared-dist');
+  const optsShared = parseQaArgs(['--out', outB, '--distDir', shared], 'dist-shared', { distDir: null });
+  assert.equal(resolveQaDistDir(optsShared), shared);
+});
 
 test('#840: runQa builds and serves its own isolated preview bundle under <out>/work/dist', async (t) => {
+  try {
+    const probe = await launchChromium();
+    await probe.close();
+  } catch (error) {
+    t.skip(`Chromium unavailable: ${String(error.message).split('\n')[0]}`);
+    return;
+  }
+
   const out = await mkdtemp(join(tmpdir(), 'study-qa-dist-isolation-'));
   t.after(() => rm(out, { recursive: true, force: true }));
 
