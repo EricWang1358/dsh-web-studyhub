@@ -248,5 +248,20 @@
   "{0} 段专注记录": "{0} focus sessions",
   "专注分钟": "Focus min",
   "段数": "Sessions",
-  "今天还没有专注记录。": "No focus sessions logged today."
+  "今天还没有专注记录。": "No focus sessions logged today.",
+  "备忘": "Memos",
+  "新备忘": "New memo",
+  "写下你的想法…": "Jot down your thoughts…",
+  "记一条类型": "Quick add type",
+  "备忘内容": "Memo text",
+  "挂到日期": "Pin to day",
+  "不选则一直显示，直到归档": "Stays visible until archived if left blank",
+  "一直显示": "Keep visible",
+  "挂在 {0}": "On {0}",
+  "保存备忘": "Save memo",
+  "编辑备忘：{0}": "Edit memo: {0}",
+  "归档备忘：{0}": "Archive memo: {0}",
+  "删除备忘：{0}": "Delete memo: {0}",
+  "已记下备忘：{0}": "Saved memo: {0}",
+  "已更新备忘：{0}": "Updated memo: {0}"
 }

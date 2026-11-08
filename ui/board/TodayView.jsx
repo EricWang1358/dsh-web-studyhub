@@ -1,12 +1,13 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { joinMeta } from '../format.js';
-import { Button } from '../components/index.js';
+import { Button, SegmentedControl } from '../components/index.js';
 import {
-  TODAY_LANES, cardActualMinutes, cardTodaySource, isMeaningfulTitle, locateCard, selectTodayBoard, selectTodayTimeLog, todayBudgetMinutes,
+  TODAY_LANES, cardActualMinutes, cardTodaySource, isMeaningfulTitle, locateCard, selectTodayBoard, selectTodayTimeLog, splitMemoDraft, todayBudgetMinutes,
 } from '../../lib/board-model.js';
 import BoardCard from './Card.jsx';
 import TodayFocusStrip from './TodayFocusStrip.jsx';
+import TodayMemos from './TodayMemos.jsx';
 import TodayTimer, { TodayTimerBar } from './TodayTimer.jsx';
 import { formatTodayHeading, todayPlanLine } from './today-header.js';
 
@@ -16,8 +17,10 @@ export default function TodayView({
   onToggleDone, onEdit, onAction, onTodayAction, onMoveToday, onQuickAdd, onScheduleToday, onOrigin, onStudyRef,
   onStartTimer, onStartBreak, onPauseTimer, onResumeTimer, onCancelTimer, onCompleteTimer, onSaveTimerPrefs,
   onAddTimeLog, onEditTimeLog, onRemoveTimeLog,
+  onAddMemo, onEditMemo, onArchiveMemo, onDeleteMemo,
 }) {
   const [quickTitle, setQuickTitle] = useState('');
+  const [quickKind, setQuickKind] = useState('task');
   const [adding, setAdding] = useState(false);
   const [laneTitles, setLaneTitles] = useState({ am: '', pm: '' });
   const [addingLane, setAddingLane] = useState('');
@@ -64,12 +67,17 @@ export default function TodayView({
     onStartTimer?.(card);
   };
 
+  const quickMemoDraft = quickKind === 'memo' ? splitMemoDraft(quickTitle) : null;
+  const quickValid = quickMemoDraft ? isMeaningfulTitle(quickMemoDraft.title) : isMeaningfulTitle(quickTitle);
+
   const submitQuick = async (event) => {
     event.preventDefault();
     const trimmed = quickTitle.trim();
-    if (!canAdd || adding || !isMeaningfulTitle(trimmed)) return;
+    if (!canAdd || adding || !quickValid) return;
     setAdding(true);
-    const ok = await onQuickAdd(trimmed, 'am');
+    const ok = quickKind === 'memo' && onAddMemo
+      ? await onAddMemo({ ...splitMemoDraft(trimmed), plannedDate: '' })
+      : await onQuickAdd(trimmed, 'am');
     setAdding(false);
     if (ok) setQuickTitle('');
   };
@@ -219,13 +227,30 @@ export default function TodayView({
           {planLine && <p className="board-today__plan">{planLine}</p>}
         </div>
         <form className="board-today__quick" onSubmit={submitQuick}>
+          {onAddMemo && (
+            <SegmentedControl
+              size="xs"
+              className="board-today__quick-kind"
+              label={ui('记一条类型')}
+              value={quickKind}
+              disabled={!canAdd || adding}
+              options={[
+                { value: 'task', label: ui('待办') },
+                { value: 'memo', label: ui('备忘') },
+              ]}
+              onChange={(next) => {
+                setQuickKind(next);
+                requestAnimationFrame(() => quickInputRef.current?.focus());
+              }}
+            />
+          )}
           <input
             ref={quickInputRef}
             className="board-input board-today__quick-input"
             value={quickTitle}
-            maxLength={500}
+            maxLength={quickKind === 'memo' ? 2000 : 500}
             disabled={!canAdd || adding}
-            placeholder={ui('记一条今天要做的事…')}
+            placeholder={quickKind === 'memo' ? ui('写下你的想法…') : ui('记一条今天要做的事…')}
             aria-label={ui('记一条')}
             onChange={(event) => setQuickTitle(event.target.value)}
           />
@@ -235,7 +260,7 @@ export default function TodayView({
             size="sm"
             icon="plus"
             busy={adding}
-            disabled={!canAdd || !isMeaningfulTitle(quickTitle)}
+            disabled={!canAdd || adding || !quickValid}
           >
             {ui('记一条')}
           </Button>
@@ -415,6 +440,15 @@ export default function TodayView({
             onAddLog={onAddTimeLog}
             onEditLog={onEditTimeLog}
             onRemoveLog={onRemoveTimeLog}
+          />
+          <TodayMemos
+            board={board}
+            today={today}
+            readOnly={readOnly}
+            onAddMemo={onAddMemo}
+            onEditMemo={onEditMemo}
+            onArchiveMemo={onArchiveMemo}
+            onDeleteMemo={onDeleteMemo}
           />
         </aside>
       </div>

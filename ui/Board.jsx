@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInjectCss } from "./shared.js";
 import { readJSON, writeJSON } from "./storage.js";
 import { Button, EmptyState, Icon, IconButton, InlineMessage, LoadingState, Menu, PageHeader, TabPanel, Tabs, useToast } from "./components/index.js";
-import { doneToggleTarget, filterCards, isFiltering, labelCounts, localDate, locateCard, selectTodayBoard } from "../lib/board-model.js";
+import { doneToggleTarget, filterCards, isFiltering, isMemoCard, labelCounts, localDate, locateCard, selectTodayBoard, taskCardCount } from "../lib/board-model.js";
 import BoardCard from "./board/Card.jsx";
 import Composer from "./board/Composer.jsx";
 import CardEditor from "./board/CardEditor.jsx";
@@ -27,6 +27,7 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
   studyRef, onClearStudyRef, onOpenComposer, onCloseComposer, onAdd, onToggleDone, onEdit, onAction, onDropTo, onRename, onFold, onRemove, onOrigin, onStudyRef }) {
   const label = boardColumnLabel(column);
   const shown = view.cardIds;
+  const taskIds = column.cardIds.filter((id) => !isMemoCard(board.cards[id]));
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(column.title);
   const columns = board.columns.map((entry) => ({ id: entry.id, title: entry.title, done: entry.done }));
@@ -49,8 +50,8 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
   const items = [
     { id: "rename", label: ui("重命名"), icon: "edit" },
     { id: "fold", label: collapsed ? ui("展开列") : ui("折叠"), icon: "chevron-down" },
-    { id: "remove", label: ui("删除空列"), icon: "trash", danger: true, disabled: column.cardIds.length > 0 || board.columns.length <= 1,
-      hint: column.cardIds.length > 0 ? ui("只能删除空列") : undefined },
+    { id: "remove", label: ui("删除空列"), icon: "trash", danger: true, disabled: taskIds.length > 0 || board.columns.length <= 1,
+      hint: taskIds.length > 0 ? ui("只能删除空列") : undefined },
   ];
   const showLine = (slot) => dropHere && drop.slot === slot && !(drag && column.cardIds.includes(drag.id)
     && [column.cardIds.indexOf(drag.id), column.cardIds.indexOf(drag.id) + 1].includes(realIndex(slot)));
@@ -66,7 +67,7 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
             onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setRenaming(false); } }} onBlur={() => setRenaming(false)} />
         </form>
         : <h2 className="board-column__title">{label}</h2>}
-      <span className="board-count" aria-label={cardsText(column.cardIds.length)}>{filtering && shown.length !== column.cardIds.length ? `${shown.length}/${column.cardIds.length}` : column.cardIds.length}</span>
+      <span className="board-count" aria-label={cardsText(taskIds.length)}>{filtering && shown.length !== taskIds.length ? `${shown.length}/${taskIds.length}` : taskIds.length}</span>
       {!readOnly && <Menu label={uiFormat("列设置：{0}", [label])} items={items} className="board-column__menu"
         onSelect={(id) => { if (id === "rename") { if (collapsed) onFold(column); setName(column.title); setRenaming(true); } else if (id === "fold") onFold(column); else onRemove(column); }} />}
     </header>
@@ -89,7 +90,7 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
             : [{ id: "plan-today", label: ui("排到今天"), icon: "calendar" }]);
           return <React.Fragment key={id}>
             {showLine(slot) && <div className="board-drop-line" aria-hidden="true" />}
-            <BoardCard card={card} column={column} columns={columns} index={column.cardIds.indexOf(id)} count={column.cardIds.length} today={today} library={library}
+            <BoardCard card={card} column={column} columns={columns} index={taskIds.indexOf(id)} count={taskIds.length} today={today} library={library}
               readOnly={readOnly} hasDone={hasDone} dragging={drag?.id === id} extraItems={extraItems} onToggleDone={onToggleDone} onEdit={onEdit} onAction={onAction}
               onOrigin={onOrigin} onStudyRef={onStudyRef}
               articleProps={{
@@ -100,7 +101,7 @@ function Column({ column, view, board, today, library, drag, drop, setDrag, setD
         })}
         {showLine(shown.length) && <div className="board-drop-line" aria-hidden="true" />}
         {/* While the whole board is empty the page says so once (#576); an empty column among filled ones still says so. */}
-        {!shown.length && !composer && !boardEmpty && (filtering && column.cardIds.length
+        {!shown.length && !composer && !boardEmpty && (filtering && taskIds.length
           ? <p className="board-column__none">{ui("没有符合筛选的卡片")}</p>
           : <EmptyState className="board-column__empty" size="sm" title={ui("这一列没有卡片")} description={ui("把卡片拖到这里，或点下面添加。")} />)}
       </div>
@@ -136,7 +137,7 @@ function ArchiveList({ board, readOnly, library, onRestore, onDelete, onBack }) 
     <ul>
       {[...board.archived].reverse().map((card) => <li key={card.id}>
         <div className="board-archive-list__text">
-          <span className="board-archive-list__title">{card.title}</span>
+          <span className="board-archive-list__title">{isMemoCard(card) && <span className="board-chip board-archive-list__kind">{ui("备忘")}</span>}{card.title}</span>
           <span className="board-archive-list__meta">{uiFormat("更新于 {0}", [stamp(card.updatedAt)])}{card.studyRef ? ` · ${studyRefLabel(card.studyRef, library).text}` : ""}</span>
         </div>
         <Button variant="secondary" size="sm" icon={<Icon name="undo" />} disabled={readOnly || !board.columns.length} onClick={() => onRestore(card)}>{ui("恢复")}</Button>
@@ -407,6 +408,47 @@ export default function Board({ state, library, today: todayProp, view: viewProp
     return ok;
   }, [run, today, say, onBoardChanged]);
 
+  const addMemo = useCallback(async (fields) => {
+    const columns = boardRef.current?.columns || [];
+    const destination = columns.find((entry) => !entry.done) || columns[0];
+    if (!destination) return false;
+    const ok = await run("board.card.add", {
+      column: destination.id,
+      kind: "memo",
+      title: fields.title,
+      ...(fields.note ? { note: fields.note } : {}),
+      ...(fields.plannedDate ? { plannedDate: fields.plannedDate } : {}),
+    }, { optimistic: false });
+    if (ok) {
+      say(uiFormat("已记下备忘：{0}", [fields.title]));
+      onBoardChanged?.();
+    }
+    return ok;
+  }, [run, say, onBoardChanged]);
+
+  const editMemo = useCallback(async (memo, fields) => {
+    const prev = {
+      title: memo.title,
+      note: memo.note || "",
+      plannedDate: memo.plannedDate || "",
+    };
+    const ok = await run("board.card.edit", {
+      id: memo.id,
+      title: fields.title,
+      note: fields.note ?? "",
+      plannedDate: fields.plannedDate ?? "",
+    });
+    if (ok) {
+      onBoardChanged?.();
+      offer(uiFormat("已更新备忘：{0}", [fields.title]), async () => {
+        const undone = await run("board.card.edit", { id: memo.id, ...prev });
+        if (undone) onBoardChanged?.();
+        return undone;
+      });
+    }
+    return ok;
+  }, [run, offer, onBoardChanged]);
+
   const moveTodayCard = useCallback(async (id, targetSlot, targetIndex, { quiet = false } = {}) => {
     const now = boardRef.current;
     const card = now?.cards?.[id];
@@ -527,7 +569,7 @@ export default function Board({ state, library, today: todayProp, view: viewProp
   const view = useMemo(() => board ? filterCards(board, { ...query, today }) : null, [board, query, today]);
   const labels = useMemo(() => board ? labelCounts(board) : [], [board]);
   const todaySummary = useMemo(() => board ? selectTodayBoard(board, { today, dailyTaskIds }) : { open: [], done: [], unscheduled: [] }, [board, today, dailyTaskIds]);
-  const total = board ? Object.keys(board.cards).length : 0;
+  const total = board ? taskCardCount(board) : 0;
   // An empty board shows one empty state and one way in; its columns appear with the first card, or when the learner starts writing it.
   const empty = !!board && total === 0;
   const showColumns = !empty || composer !== null;
@@ -598,6 +640,10 @@ export default function Board({ state, library, today: todayProp, view: viewProp
           onAddTimeLog={addTimeLog}
           onEditTimeLog={editTimeLog}
           onRemoveTimeLog={removeTimeLog}
+          onAddMemo={addMemo}
+          onEditMemo={editMemo}
+          onArchiveMemo={archiveCard}
+          onDeleteMemo={deleteCard}
         />
       </TabPanel>
       <TabPanel id={tabsId} value="all" selected={activeTab} tabIndex={undefined} className="board-panel">
