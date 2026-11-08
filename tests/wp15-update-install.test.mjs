@@ -238,3 +238,98 @@ test('a delayed release response preserves a newer install receipt and does not 
   await readUpdateView({ current: '101.0.0' });
   assert.equal(Object.hasOwn(JSON.parse(await readFile(updateStatePath(), 'utf8')), 'pending'), false, 'a running version beyond the installed marker also confirms the restart');
 });
+
+test('transient CDN resets and 5xx answers retry automatically and resume partial downloads via HTTP Range', async t => {
+  await home(t);
+  const full = Buffer.from('0123456789abcdef'.repeat(64));
+  const sums = `${sha(full)}  ericwang1358-dsh-daily-flashcard-99.0.0.tgz\n`;
+  const seenRanges = [];
+  let sumCalls = 0, pkgCalls = 0;
+  const fetch = async (url, init = {}) => {
+    const headers = new Headers(init.headers);
+    if (String(url).includes('SHA256SUMS')) {
+      if (++sumCalls === 1) return new Response('gateway timeout', { status: 504 });
+      return new Response(sums, { status: 200 });
+    }
+    seenRanges.push(headers.get('range'));
+    pkgCalls++;
+    if (pkgCalls === 1) {
+      let step = 0;
+      const body = new ReadableStream({
+        pull(controller) {
+          if (step++ === 0) controller.enqueue(full.subarray(0, 300));
+          else controller.error(Object.assign(new TypeError('terminated'), { code: 'ECONNRESET' }));
+        },
+      });
+      return new Response(body, { status: 200, headers: { etag: '"v99"' } });
+    }
+    if (pkgCalls === 2) throw new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } });
+    assert.equal(headers.get('range'), 'bytes=300-');
+    assert.equal(headers.get('if-range'), '"v99"');
+    return new Response(full.subarray(300), {
+      status: 206,
+      headers: { 'content-range': `bytes 300-${full.length - 1}/${full.length}` },
+    });
+  };
+  const verified = await prepareVerifiedPackage({ view: view(), fetch, sleep: async () => {} });
+  assert.equal(verified.sha256, sha(full));
+  assert.deepEqual(await readFile(verified.path), full);
+  assert.equal(sumCalls, 2);
+  assert.deepEqual(seenRanges, [null, 'bytes=300-', 'bytes=300-']);
+});
+
+test('an exhausted interrupted download keeps partial bytes on disk so clicking Retry upgrade resumes from where it stopped', async t => {
+  const dir = await home(t);
+  const full = Buffer.from('resumable-studyhub-tarball-payload-'.repeat(40));
+  const sums = `${sha(full)}  ericwang1358-dsh-daily-flashcard-99.0.0.tgz\n`;
+  let phase = 'drop';
+  const ranges = [];
+  const fetch = async (url, init = {}) => {
+    if (String(url).includes('SHA256SUMS')) return new Response(sums, { status: 200 });
+    const range = new Headers(init.headers).get('range');
+    ranges.push(range);
+    if (phase === 'drop') {
+      let sent = false;
+      const body = new ReadableStream({
+        pull(controller) {
+          if (!sent && !range) { sent = true; controller.enqueue(full.subarray(0, 500)); }
+          else controller.error(new TypeError('terminated'));
+        },
+      });
+      return new Response(body, { status: range ? 206 : 200, headers: range ? { 'content-range': `bytes 500-${full.length - 1}/${full.length}` } : {} });
+    }
+    assert.equal(range, 'bytes=500-', 'second click resumes from saved .part bytes');
+    return new Response(full.subarray(500), { status: 206, headers: { 'content-range': `bytes 500-${full.length - 1}/${full.length}` } });
+  };
+  await assert.rejects(
+    prepareVerifiedPackage({ view: view(), fetch, attempts: 2, sleep: async () => {} }),
+    error => error.code === 'UPDATE_DOWNLOAD' && error.detail === 'network' && error.savedBytes === 500,
+  );
+  phase = 'finish';
+  const verified = await prepareVerifiedPackage({ view: view(), fetch, attempts: 2, sleep: async () => {} });
+  assert.equal(verified.sha256, sha(full));
+  assert.deepEqual(await readFile(verified.path), full);
+  const files = await readdir(join(dir, 'study', 'updates'));
+  assert.deepEqual(files, ['ericwang1358-dsh-daily-flashcard-99.0.0.tgz'], 'the temporary .part file is cleaned up after verification');
+});
+
+test('a corrupted partial file on disk is discarded and re-downloaded cleanly from byte 0', async t => {
+  const dir = await home(t), updates = join(dir, 'study', 'updates');
+  await mkdir(updates, { recursive: true });
+  const full = Buffer.from('clean-verified-release-archive-bytes');
+  const digest = sha(full);
+  await writeFile(join(updates, `ericwang1358-dsh-daily-flashcard-99.0.0.tgz.${digest.slice(0, 12)}.part`), Buffer.from('corrupt!'));
+  const ranges = [];
+  const fetch = async (url, init = {}) => {
+    if (String(url).includes('SHA256SUMS')) return new Response(`${digest}  ericwang1358-dsh-daily-flashcard-99.0.0.tgz\n`, { status: 200 });
+    const range = new Headers(init.headers).get('range');
+    ranges.push(range);
+    if (range === 'bytes=8-') {
+      return new Response(full.subarray(8), { status: 206, headers: { 'content-range': `bytes 8-${full.length - 1}/${full.length}` } });
+    }
+    return new Response(full, { status: 200 });
+  };
+  const verified = await prepareVerifiedPackage({ view: view(), fetch, sleep: async () => {} });
+  assert.deepEqual(ranges, ['bytes=8-', null], 'retries once from byte 0 when resumed bytes fail SHA-256');
+  assert.equal(verified.sha256, digest);
+});

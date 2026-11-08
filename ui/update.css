@@ -49,8 +49,11 @@
       color: var(--text-dim);
       font-size: var(--fs-sm);
       line-height: var(--lh-snug);
-      white-space: pre-wrap;
       overflow-wrap: anywhere;
+    }
+    .update-dialog .update-notes strong {
+      color: var(--text);
+      font-weight: var(--fw-strong);
     }
     .update-dialog .update-lead {
       margin: 0 0 var(--space-3);

@@ -170,3 +170,64 @@ test('pending restart instructions remain visible alongside a failed latest chec
   }
   assert.match(settings, /手动检查立即查询/);
 });
+
+test('bilingual release notes render formatted Markdown in the active UI language, and retryable errors offer one-click Retry upgrade', async () => {
+  const bilingual = [
+    '## 4.5.0 — 2026-11-08',
+    '',
+    '- **Hands-on task (`动手任务`) check.** Main-chat verification for tasks.',
+    '',
+    '## 4.5.0 — 2026-11-08',
+    '',
+    '- **新增通用「动手任务」题型。** 支持在主会话里静态验收。',
+  ].join('\n');
+  const zhHtml = render(h(UpdateDialog, {
+    update: update({ latest: '4.5.0', notes: bilingual, install: { available: true, desktop: true } }),
+    call: async () => ({}),
+    onClose() {},
+  }), 'zh');
+  assert.match(zhHtml, /<strong>新增通用「动手任务」题型。<\/strong>/, 'bold Markdown lead renders as semantic <strong>');
+  assert.doesNotMatch(zhHtml, /Hands-on task|## 4\.5\.0|\*\*/, 'English section, duplicate version heading and raw ** are hidden in zh UI');
+
+  const enHtml = render(h(UpdateDialog, {
+    update: update({ latest: '4.5.0', notes: bilingual, install: { available: true, desktop: true } }),
+    call: async () => ({}),
+    onClose() {},
+  }), 'en');
+  assert.match(enHtml, /<strong>Hands-on task/, 'English section renders in en UI');
+  assert.doesNotMatch(enHtml, /新增通用|## 4\.5\.0|\*\*/);
+
+  const dropped = await startUpgrade(
+    async () => ({ status: 'failed', code: 'UPDATE_DOWNLOAD', detail: 'network', savedBytes: 2048 }),
+    update(),
+  );
+  assert.equal(dropped.phase, 'error');
+  assert.match(dropped.message, /已收到的部分会保留/);
+  const droppedZh = render(h(UpdateDialog, {
+    update: update({ install: { available: true, desktop: true } }),
+    call: async () => ({}),
+    onClose() {},
+    initialPhase: dropped,
+  }), 'zh');
+  assert.match(droppedZh, /重试升级/, 'primary button retries directly without going back through confirmation');
+  assert.doesNotMatch(droppedZh, /一键升级到/);
+
+  const http502En = render(h(UpdateDialog, {
+    update: update({ install: { available: true, desktop: true } }),
+    call: async () => ({}),
+    onClose() {},
+    initialPhase: { phase: 'error', code: 'UPDATE_DOWNLOAD', detail: 'http', httpStatus: 502 },
+  }), 'en');
+  assert.match(http502En, /HTTP 502/);
+  assert.match(http502En, /Retry upgrade/);
+  assert.doesNotMatch(http502En, han);
+
+  const staleZh = render(h(UpdateDialog, {
+    update: update({ install: { available: true, desktop: true } }),
+    call: async () => ({}),
+    onClose() {},
+    initialPhase: { phase: 'error', code: 'UPDATE_STALE' },
+  }), 'zh');
+  assert.match(staleZh, /知道了/);
+  assert.doesNotMatch(staleZh, /重试升级/);
+});

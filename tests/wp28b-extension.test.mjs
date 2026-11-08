@@ -68,8 +68,10 @@ test('install: a package that does not match its checksum is never installed', a
 test('install: an unpublished or unreachable release is explained', async t => {
   await assert.rejects(installExtension({ manager: managerOf(applied), version: VERSION, fetch: fetchOf({ missing: true }).fetch, dir: await dir(t) }),
     error => error.code === 'EXTENSION_DOWNLOAD' && /GitHub/.test(error.message));
-  await assert.rejects(installExtension({ manager: managerOf(applied), version: VERSION, fetch: async () => { throw new Error('offline'); }, dir: await dir(t) }),
+  let attempts = 0;
+  await assert.rejects(installExtension({ manager: managerOf(applied), version: VERSION, sleep: async () => {}, fetch: async () => { attempts++; throw new Error('offline'); }, dir: await dir(t) }),
     error => error.code === 'EXTENSION_DOWNLOAD' && /网络/.test(error.message));
+  assert.equal(attempts, 4, 'retries transient offline errors before failing');
 });
 
 test('install: build scripts pnpm holds back need the learner\'s yes; the retry carries exactly the approved names', async t => {

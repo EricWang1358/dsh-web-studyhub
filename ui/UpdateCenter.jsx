@@ -5,13 +5,15 @@
    reports DSH's plugin manager (`update.install`), otherwise it guides a
    reinstall from the exact package address. */
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
-import { ui, uiFormat, errorMessage } from './i18n.js';
+import { ui, uiFormat, errorMessage, useUiLanguage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Banner, Button, Checkbox, Dialog, Hint, Icon, InlineMessage, useToast } from './components/index.js';
+import Markdown from './Markdown.jsx';
 import { formatDateTime } from './format.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
 import { ExtensionUpdateNotice } from './ExtensionPanel.jsx';
 import { isNewerVersion } from '../lib/semver.js';
+import { selectReleaseNotes } from '../lib/release-notes.js';
 import css from './update.css';
 import { setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 import { useStudy } from './study-context.jsx';
@@ -78,12 +80,21 @@ export function updateErrorText(update, { manual = false } = {}) {
 }
 
 /** Plain-language reasons for the refusals update.install answers with. */
-export function failureMessage(code) {
+export function failureMessage(code, extra = {}) {
   switch (code) {
     case 'UPDATE_STALE': return ui('版本信息已经变化，请关闭窗口后重新打开。');
     case 'UPDATE_NO_INSTALLER': return ui('这个 DSH 不支持在应用内安装插件。');
     case 'UPDATE_UNAVAILABLE': return ui('这个版本没有可一键安装的安装包。');
-    case 'UPDATE_DOWNLOAD': return ui('无法从 GitHub 下载安装包，可能是网络暂时不可用。');
+    case 'UPDATE_DOWNLOAD':
+      if (extra?.detail === 'http' && Number.isInteger(extra.httpStatus))
+        return uiFormat('GitHub 下载安装包时返回了 HTTP {0}，可以点「重试升级」，或改用手动升级。', [extra.httpStatus]);
+      if (extra?.savedBytes > 0)
+        return extra.detail === 'timeout'
+          ? ui('从 GitHub 下载安装包超时了；已收到的部分会保留，点「重试升级」会接着下载。')
+          : ui('从 GitHub 下载安装包时连接中断了；已收到的部分会保留，点「重试升级」会接着下载。');
+      if (extra?.detail === 'timeout')
+        return ui('连接 GitHub 下载安装包超时了，可以点「重试升级」，或改用手动升级。');
+      return ui('无法从 GitHub 下载安装包，可能是网络暂时不可用。');
     case 'UPDATE_CHECKSUM': return ui('下载的安装包没有通过 SHA-256 校验，已停止升级，没有做任何改动。');
     case 'UPDATE_INSTALL': return ui('DSH 没能安装新版本，原来的版本保持不变。');
     default: return ui('升级没有完成。');
@@ -95,7 +106,16 @@ export async function startUpgrade(call, update, { confirmJobs = false } = {}) {
   try {
     const result = await call('update.install', { version: update.latest, ...(confirmJobs ? { confirmJobs: true } : {}) });
     if (result?.status === 'jobs-running') return { phase: 'jobs', jobs: result.jobs };
-    if (result?.status === 'failed') return { phase: 'error', code: result.code, message: failureMessage(result.code) };
+    if (result?.status === 'failed') {
+      return {
+        phase: 'error',
+        code: result.code,
+        ...(result.detail ? { detail: result.detail } : {}),
+        ...(Number.isInteger(result.httpStatus) ? { httpStatus: result.httpStatus } : {}),
+        ...(result.savedBytes > 0 ? { savedBytes: result.savedBytes } : {}),
+        message: failureMessage(result.code, result),
+      };
+    }
     return { phase: 'installed', version: result.version, restartRequired: result.restartRequired !== false, desktop: !!result.desktop };
   } catch (error) { return { phase: 'error', message: errorMessage(error) }; }
 }
@@ -161,9 +181,12 @@ function Installed({ phase, host }) {
   );
 }
 
+const NON_RETRYABLE_INSTALL_CODES = new Set(['UPDATE_STALE', 'UPDATE_NO_INSTALLER', 'UPDATE_UNAVAILABLE']);
+
 /** The upgrade dialog: version, release notes, and one-click or guided upgrade. */
 export function UpdateDialog({ update, onClose, initialPhase = null }) {
   const { call, host } = useStudy();
+  const language = useUiLanguage();
   useInjectCss(css, 'study-update');
   const toast = useToast();
   const available = canUpgrade(update);
@@ -179,6 +202,7 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
   const [guided, setGuided] = useState(false);
   const inApp = update.install?.available === true && !guided && !!update.assetUrl;
   const working = phase.phase === 'working';
+  const notes = selectReleaseNotes(update.notes, language);
   async function upgrade(confirmJobs = false) {
     setPhase({ phase: 'working' });
     const next = await startUpgrade(call, update, { confirmJobs });
@@ -194,9 +218,11 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
   const description = uiFormat('当前版本 {0}', [update.current]) + (published ? ` · ${uiFormat('发布于 {0}', [published])}` : '');
   let primary = null;
   if (phase.phase === 'installed') primary = <Button variant="primary" onClick={() => onClose('done')}>{ui('知道了')}</Button>;
+  else if (phase.phase === 'error' && phase.code === 'UPDATE_STALE') primary = <Button variant="primary" onClick={() => onClose('stale')}>{ui('知道了')}</Button>;
+  else if (inApp && phase.phase === 'error' && !NON_RETRYABLE_INSTALL_CODES.has(phase.code)) primary = <Button variant="primary" onClick={() => upgrade(false)}>{ui('重试升级')}</Button>;
   else if (inApp && phase.phase === 'confirm') primary = <Button variant="primary" onClick={() => upgrade(false)}>{ui('确认升级')}</Button>;
   else if (inApp && phase.phase === 'jobs') primary = <Button variant="primary" onClick={() => upgrade(true)}>{ui('停止任务并升级')}</Button>;
-  else if (inApp) primary = <Button variant="primary" icon="sparkle" busy={working} onClick={() => setPhase({ phase: 'confirm' })}>{uiFormat('一键升级到 {0}', [update.latest])}</Button>;
+  else if (inApp && phase.phase !== 'error') primary = <Button variant="primary" icon="sparkle" busy={working} onClick={() => setPhase({ phase: 'confirm' })}>{uiFormat('一键升级到 {0}', [update.latest])}</Button>;
   const footer = (
     <div className="update-footer">
       <a className="update-release-link" href={update.url} target="_blank" rel="noreferrer">{ui('查看发布页')}<Icon name="external" size={14} /></a>
@@ -211,9 +237,9 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
       className="update-dialog" bodyLabel={ui('升级说明')}>
       {phase.phase === 'installed' ? <Installed phase={phase} host={host} /> : <>
         {update.pendingRestart && available && <p className="update-lead">{uiFormat('已安装 {0}，尚未重启。可以直接安装 {1}，然后重启一次 DSH。', [update.pendingRestart, update.latest])}</p>}
-        {update.notes ? <section className="update-notes-wrap" aria-label={ui('更新内容')}>
+        {notes ? <section className="update-notes-wrap" aria-label={ui('更新内容')}>
           <h3>{ui('更新内容')}</h3>
-          <div className="update-notes">{update.notes}</div>
+          <div className="update-notes"><Markdown links={false} text={notes} /></div>
         </section> : update.source === 'fallback' && <p className="update-note">{ui('这次没能取得更新内容，请点「查看发布页」阅读。')}</p>}
         {inApp && phase.phase === 'idle' && <p className="update-lead">{ui('StudyHub 会从 GitHub 发布页下载安装包，核对 SHA256 校验值后交给 DSH 插件管理安装；安装后重启 DSH 即可使用新版本。')}</p>}
         {inApp && phase.phase === 'confirm' && <InlineMessage tone="info" boxed title={ui('确认升级？')}>
@@ -224,7 +250,7 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
           {ui('升级会先停止这些任务；已完成的部分会保留。也可以等任务结束后再升级。')}
         </InlineMessage>}
         {phase.phase === 'error' && <InlineMessage tone="error" boxed title={ui('这次没有升级成功')}
-          action={{ label: ui('改用手动升级'), onClick: () => { setGuided(true); setPhase({ phase: 'idle' }); } }}>{phase.message || failureMessage(phase.code)}</InlineMessage>}
+          action={{ label: ui('改用手动升级'), onClick: () => { setGuided(true); setPhase({ phase: 'idle' }); } }}>{phase.message || failureMessage(phase.code, phase)}</InlineMessage>}
         {!inApp && <GuidedUpgrade update={update} host={host} />}
       </>}
     </Dialog>
