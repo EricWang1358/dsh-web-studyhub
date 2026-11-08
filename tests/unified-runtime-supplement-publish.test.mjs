@@ -70,14 +70,19 @@ test('restart, the supplement was cut short before its publication: the retry go
   first.hold.open();
 });
 
+import { saveWorkflow, startSession } from '../lib/workflows.js';
 for (const mode of ['legacy', 'runtime']) test(`${mode}: supplement publishes into a deck with an active workflow`, async t => {
   const model = authoring({ entered: true }, Infinity, 'workflow');
   const { service } = await openLibrary(t, { prefix: 'study-pub-', model,
     options: mode === 'runtime' ? hostOf(model, ['generation', 'generationPublish']) : { runtimePilot: {} } });
   await service.call('source.add', { id: 'p1', title: 'Page 1', text: evidence });
   await service.store.update(state => state.decks.push({ id: 'target', title: 'Chapter', cards: [card('original')] }));
-  const template = await service.call('workflow.save', { title: 'Recall', steps: [{ id: 'recall', kind: 'recall', title: 'Recall' }] });
-  const session = await service.call('workflow.session.start', { templateId: template.id, topic: 'Bridge', scope: [{ deckId: 'target' }], requestId: 'target' });
+  let session;
+  await service.store.update(state => {
+    const template = saveWorkflow(state, { title: 'Recall', steps: [{ id: 'recall', kind: 'recall', title: 'Recall' }] });
+    session = startSession(state, { templateId: template.id, topic: 'Bridge', scope: [{ deckId: 'target' }], requestId: 'target' });
+  });
+
   const started = await service.call('supplement', { sourceIds: ['p1'], deckId: 'target', count: 1, kind: 'flashcard', performance: ONE_BY_ONE });
   const done = await settleJob(service, started.jobId);
   assert.equal(done.status, 'complete', done.error || done.stage);

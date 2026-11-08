@@ -757,7 +757,7 @@ test("feedback rewrites for different cards run in parallel, capped at three", a
 
 
 test("learner.preferences stores deduplicated free-form preferences, clears on coach.forget, and documents the explicit consent rule", async (t) => {
-  assert.equal(LATEST_VERSION, 4);
+  assert.equal(LATEST_VERSION, 5);
   assert.deepEqual(emptyLearner().preferences, []);
   const normalized = normalizeLearner({
     preferences: ["  先给直觉例子再推导  ", "", "先给直觉例子再推导", 42, "a".repeat(200), ...Array.from({ length: 20 }, (_, i) => `pref-${i}`)],

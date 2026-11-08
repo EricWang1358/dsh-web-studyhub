@@ -87,7 +87,7 @@ test('an old library reads with virtual course entities and ids; the first write
   const root = await directory(t, 'study-wp13-v3-');
   await writeVersion3Library(root);
   const read = await new Store(root).read();
-  assert.equal(LATEST_VERSION, 4);
+  assert.equal(LATEST_VERSION, 5);
   assert.equal(read.version, LATEST_VERSION, 'migrated in memory on read');
   assert.equal((await manifestOf(root)).version, 3, 'reading never rewrites the library');
   const names = courseEntities(read).map(course => course.name).sort();

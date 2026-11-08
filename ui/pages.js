@@ -23,7 +23,7 @@ export const PAGES = Object.freeze({
   generate: { label: '创建题组', title: '创建题组', glyph: 'generate', group: 'material', main: true, needs: ['materials', 'bank', 'authoring', 'generation'], purpose: '选好资料出题；出之前能看到大概要花多少' },
   tasks: { label: '任务', title: '任务', glyph: 'tasks', group: 'notes', needs: [], purpose: '后台正在做什么、做完没有，都可以在这里看' },
   wrongbook: { label: '错题与待巩固', title: '错题与待巩固', glyph: 'wrongbook', group: 'practice', main: true, needs: ['bank', 'study'], purpose: '答错的题和还没巩固的题收在这里，可以只练它们' },
-  workflows: { label: '学习流', title: '学习流', glyph: 'workflows', group: 'practice', needs: ['workflows', 'bank', 'study'], purpose: '按一门课从头到尾走一遍固定的学习流程' },
+  workflows: { label: '学习流', title: '学习流', glyph: null, group: null, needs: ['workflows', 'bank', 'study'] },
   notes: { label: '学习笔记', title: '学习笔记', glyph: 'notes', group: 'notes', needs: ['notes'], onEnter: user((ctx) => ctx.clearNote()), purpose: '把做过的题写成笔记，也可以发布出去' },
   board: { label: '待办', title: '待办看板', glyph: 'board', group: 'notes', needs: [], onEnter: user((ctx) => ctx.openBoardFresh()), purpose: '把要做的事排成看板，可以设截止日期' },
   exam: { label: '模拟考试', title: '模拟考试', glyph: 'exam', group: 'exam', main: true, needs: ['bank', 'study'], onEnter: (ctx) => ctx.resetExam(), purpose: '按考试的时间和题型做一整套，交卷后看批改' },

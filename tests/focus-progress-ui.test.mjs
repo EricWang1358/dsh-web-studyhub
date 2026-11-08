@@ -69,10 +69,10 @@ test('every topic still being learned: the line says so instead of ending at the
   assert.match(visible(render(h(m.FocusProgressLine, { progress: learning, courseId: 'c', start: noop }), 'en')), /Learning 2/);
 });
 
-test('the line is hidden without focus topics, in 笔试 / 面试 mode, and when the readout is empty', () => {
+test('the line is hidden without focus topics and when the readout is empty', () => {
   assert.doesNotMatch(desk({ progress: undefined }), /focus-progress/);
   assert.doesNotMatch(desk({ progress: { ...progress, total: 0, topics: [] } }), /focus-progress/);
-  assert.doesNotMatch(desk({}, { home: { interview: true } }), /class="focus-progress"/);
+
 });
 
 test('how it is counted is a hover Tooltip, never a title attribute', () => {

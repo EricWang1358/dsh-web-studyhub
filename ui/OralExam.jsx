@@ -119,7 +119,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
     {!loading && (run || report) ? heading : header || heading}
     {loading && <LoadingState label={ui("正在恢复口头模拟…")} />}
     {!loading && !run && !report && <>
-      <OralSetup data={data} count={count} onCount={setCount} onStart={start} busy={busy} canStart={availableDecks.length > 0}
+      <OralSetup data={data} course={course} decks={availableDecks} selection={selection} count={count} onCount={setCount} onStart={start} busy={busy} canStart={availableDecks.length > 0}
         scopeNote={scopeNote} onSetupModel={onSetupModel} />
       {recent}
     </>}
@@ -181,10 +181,23 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
 }
 
 /** The oral interview's setup card: how it works, how many questions, what is sent to the model. */
-export function OralSetup({ data, count, onCount, onStart, busy = false, canStart = true, scopeNote = "", onSetupModel }) {
+export function OralSetup({ data, course, decks, selection, count, onCount, onStart, busy = false, canStart = true, scopeNote = "", onSetupModel }) {
   useInjectCss(css, "study-oral-exam");
   const model = modelReadiness(data);
-  const role = data?.focus?.mode === 'interview' && data.focus.role;
+  const targetCourse = typeof course === 'string' && course !== '*'
+    ? course
+    : course === '*'
+      ? (() => {
+        const selected = Array.isArray(decks)
+          ? decks
+          : decksInCourse(data, '*', selection?.includeInactive === true).filter((deck) =>
+            (deck.available !== undefined ? deck.available > 0 : (deck.cards ? deck.cards.length > 0 : true)) &&
+            (!selection?.scope || selection.scope.some((ref) => ref.deckId === deck.id)));
+        const uniqueCourses = new Set(selected.map((deck) => (deck?.course ?? deck?.folder ?? '') || ''));
+        return uniqueCourses.size === 1 ? [...uniqueCourses][0] : '';
+      })()
+      : (data?.focus?.course || '');
+  const role = (targetCourse ? (data?.courses || []).find((item) => item.name === targetCourse)?.interview?.role : '') || '';
   return <ExamSetupCard data-tour="exam-start" title={role || ui("口头面试")}
     intro={ui("像面试官当面提问：你回答，可以被追问，整场结束后一次性给出反馈。")}
     steps={[

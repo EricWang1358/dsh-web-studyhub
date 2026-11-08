@@ -45,7 +45,7 @@ test('the other ways to start are links: the course batch, new questions only, t
   m.setUiLanguage('zh');
   const route = { course: 'A', current: 0, chapters: [{}, {}], next: { label: '第一章', fresh: 5, reviews: 2 } };
   const { home, started } = plan({ route, todayPatch: { elsewhere: 6 } });
-  assert.deepEqual(labels(home), ['课程下一批 · 7 题', '只学当前课程新题 · 10 题', '先讲后练 · 学习流', '其他课程另有 6 题到期或薄弱 · 一起学']);
+  assert.deepEqual(labels(home), ['课程下一批 · 7 题', '只学当前课程新题 · 10 题', '其他课程另有 6 题到期或薄弱 · 一起学']);
   home.alternatives.at(-1)[1]();
   assert.deepEqual(started, [{ mode: 'path' }], 'together with every active course');
   assert.deepEqual(labels(plan().home).filter((label) => /其他课程/.test(label)), [], 'nothing elsewhere: no link');

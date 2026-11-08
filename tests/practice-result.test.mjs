@@ -74,7 +74,7 @@ test('the way back to an original question or a workflow is the next step, and n
   assert.match(back.slice(at(back, 'class="result-next"'), at(back, 'coach-debrief')), /回到原题/);
   assert.doesNotMatch(back, /继续学习/);
   const flow = result({ run: { workflow: { sessionId: 's', stepIndex: 0, stepCount: 3, stepTitle: 'x', current: true } }, onBackToWorkflow: noop });
-  assert.match(flow.slice(at(flow, 'class="result-next"'), at(flow, 'coach-debrief')), /回到学习流，继续下一步/);
+  assert.match(flow.slice(at(flow, 'class="result-next"'), at(flow, 'coach-debrief')), /回到学习流/);
   assert.equal(primaries(flow), 1);
   const course = result({ run: { course: { name: '网络', next: { label: 'x', fresh: 3 }, learned: 1, cards: 5 } } });
   assert.match(course.slice(at(course, 'class="result-next"'), at(course, 'coach-debrief')), /继续课程下一批/);

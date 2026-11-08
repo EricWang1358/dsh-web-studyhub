@@ -1,22 +1,27 @@
-# Course study, Learning flow and study notes
+# Course study, archived Learning flows and study notes
 
 [中文](study-workflows.zh-CN.md)
 
-This page covers three ways to study in StudyHub today:
+This page covers how courses, study methods, historical Learning flows and study notes work in StudyHub today:
 
-- [Follow a course](#follow-a-course-from-the-home-page) from the **Study library** home page, one batch at a time.
-- [Learn a topic in Learning flow](#learn-a-topic-in-learning-flow): an explanation, a retelling in your own words, practice and a short reflection in one session.
+- [Follow a course from the home page](#follow-a-course-from-the-home-page) from the **Study library** home page, one batch at a time, with each course's own **Learning method** (`course.method`) and optional role / interview settings.
+- [Archived Learning flows (retired, read-only)](#archived-learning-flows-retired-read-only): Learning flow and custom flow templates have been retired in favour of per-course study methods and main-chat **AI-guided study** (`study.session.*`), while historical sessions remain openable read-only.
 - [Turn questions into a public study note](#turn-questions-into-a-public-study-note) and link it to the article you publish on CSDN.
 
-[Proposed system learning](#proposed-system-learning) at the end is a design. It is not built.
+[Proposed system learning](#proposed-system-learning) at the end is an earlier design document. It is not built.
 
-Checked against the code on 2026-10-03.
+Checked against the code on 2026-11-08.
 
 ## Follow a course from the home page
 
 The library remembers your current course. Its name is the home page heading: choose another course there to switch. The current course stays until you change it, including when you continue practice from another course.
 
-This is the **Course study** mode under **Study mode**. The other mode, **Written / oral interview**, practises by job role and does not use the course route below.
+### Interview preparation as a course (`v4 → v5` migration)
+
+Written tests and oral interview preparation are regular courses rather than a separate global mode switch on the home page:
+
+- In **Course settings**, any course can store an optional **Target role** and **Job description / JD**, alongside **Focus topics** and its **Learning method** (`学法`). Oral mock exams and multiple-choice written exams draw from the selected course's scope and focus topics.
+- When an older library (`v4` or earlier) that was in global `interview` mode or had saved a non-empty `role`, `jd` or `targetTopics` is opened, Store migration `v4 → v5` idempotently creates (or reuses) a course (`笔试 / 面试 · <role>` or `笔试 / 面试`), moves `role`, `jd` and `targetTopics` into that course's `interview` profile, `focusTopics` and `笔试 / 面试准备` study method, points `focus.course` to that course if the library was in `interview` mode, and resets global `focus.mode` to `'class'`. Running the migration repeatedly never creates duplicate courses or drops saved settings.
 
 ### What the main card offers
 
@@ -32,7 +37,7 @@ The main card on the home page offers one action. It shows the first row that ap
 
 A half-done session in an **Inactive** course is not put on the card. It stays in the list of unfinished sessions.
 
-The other ways to start are folded under **Other ways to start**. Depending on the card, they include the next course batch, **Learn before practice · learning flow** (see [Learn a course batch in Learning flow](#learn-a-course-batch-in-learning-flow)), **Due reviews & reinforcement**, personalised questions and weak points. Due reviews keep their own entry, separate from the course batch.
+The other ways to start are folded under **Other ways to start**. Depending on the card, they include the next course batch, **Due reviews & reinforcement**, personalised questions and weak points. Due reviews keep their own entry, separate from the course batch. Stage-level alternatives such as **Explain it to me** (`AI 带学`), **Oral check** and **Write notes** appear on the course's **Learning method** (`学法`) line and in **Course settings**.
 
 Other unfinished sessions sit under **Plus N unfinished sessions**. Each one names its course when that is not the current course. **End** closes a session and keeps the answers you gave.
 
@@ -51,7 +56,7 @@ The **Study directory** below the card lists the current course, newest publishe
 
 **Publish and practise** on a draft starts a round of up to 10 new questions from that deck, in deck order. This applies to generated decks and imported JSON decks.
 
-When a round ends, you choose what comes next. After a round of new questions, **Continue with new questions** starts the next 10 when there are more. After a course batch, the result page shows course progress and offers **Continue to next course batch** and **Learn before practising the next batch**.
+When a round ends, you choose what comes next. After a round of new questions, **Continue with new questions** starts the next 10 when there are more. After a course batch, the result page shows course progress and offers **Continue to next course batch**.
 
 Nothing starts by itself unless you turned on **Autopilot** (shortcut A). Autopilot is described on the [study coach page](coach.md).
 
@@ -68,84 +73,21 @@ In practice:
 ### Organise decks
 
 - **Organise & add › Organise decks** next to the **Study directory** heading asks a model for up to 8 merge suggestions among the current course's decks. Nothing changes until you click **Confirm merge** on a suggestion. Without a model, merge by hand on the **Manage deck** page.
-- A merge keeps every question with its ID, answer history, review schedule, prerequisite links and note links. Learning flow sessions keep the same questions in scope. Outside Learning flow, an unfinished practice session that contains moved questions ends, and its answers are kept.
+- A merge keeps every question with its ID, answer history, review schedule, prerequisite links and note links. Archived Learning flow sessions keep the same questions in scope. Outside archived Learning flows, an unfinished practice session that contains moved questions ends, and its answers are kept.
 - **Split by topic** on the **Manage deck** page moves the questions of the chosen topics into a new deck in the same course. Both decks must keep at least one question.
 - You cannot merge or split a deck while it has a draft being edited or repaired. Restore an archived deck first.
 
-## Learn a topic in Learning flow
+## Archived Learning flows (retired, read-only)
 
-**Learning flow** (sidebar, **Every day** group) guides one study session. It is optional: the home page, decks and outlines work the same without it.
+**Learning flow** (`学习流`) and custom flow templates (up to 5 saved templates) have been retired:
 
-Completing a step records the activity only. Question grades and FSRS-6 review schedules are saved as usual, and nothing marks you as having mastered a topic.
-
-### Start a session
-
-1. Open **Learning flow**.
-2. Under **What do you want to study today?**, write one sentence of up to 500 characters.
-3. Click **Start learning**.
-
-StudyHub then picks topics from your current course:
-
-- With a model connected, AI picks up to 12 topics and orders them foundations first.
-- If you set up the search extension, topics whose questions cite pages that match your sentence come first. See [Large textbooks](large-documents.md).
-- Without a model, StudyHub matches your words against topic and deck names.
-- If nothing matches, the session starts with the course's largest topics.
-
-The top of the session page says which course the topics came from, how they were chosen and how many questions are in scope. Your sentence is saved as the goal, so the session opens at the first content step.
-
-**Build an outline in the background if this scope has none** is on by default and remembered on this device. The session starts at once. When the outline is ready, it appears folded at the top of the session page and is saved as an ordinary knowledge outline.
-
-To come back later, click the session shown after **Continue where you left off** at the top of the Learning flow page, or **Continue learning** next to the session under **Study records**.
-
-### Steps in a session
-
-The table describes a session started from a sentence. Such a session leaves out the outline step when no outline matches the scope, and the practice step when the scope has no questions.
-
-| Step | What you do | What to know |
-| --- | --- | --- |
-| **Knowledge outline** | Read how the concepts connect | Appears only when a matching outline existed at the start |
-| **Concepts and examples** | Read the explanation | It is written when you arrive. **Another example**, **Break it down**, **Prerequisites** and **Improve explanation** add or rewrite text; **Undo last rewrite** brings back the previous version. **Add my specific question** asks about one point. |
-| **Active recall** | Close the material and retell it in writing, or click **I retold it aloud** | You need a retelling to complete this step. **Ask AI to review my retelling** (Ctrl/⌘ + Enter) lists what you covered, up to 4 gaps and one guiding question. It is feedback, not a grade. **Revisit the explanation** goes back, and the explanation then covers those gaps first. |
-| **Practice** | Answer questions from the scope on the normal practice page | 10 questions by default. Answers are graded and scheduled as usual. **Back to learning flow** returns you. The step completes once every question is answered; **Practise again** starts another round. |
-| **Reflection and next steps** | Choose what fits, such as **The main ideas are clear** or **I need more examples**, or write a summary | You need a choice or some text to complete this step |
-
-### Move through a session
-
-- The main button at the bottom completes the step and moves on. Under **Needs review, skipping & step order** you can record **Needs reinforcement** or **Skip this step** instead. Each outcome is recorded as what it is; a skip never counts as completion.
-- Click any step you have done to look at it again. The step marked **Current progress · return here** takes you back. Moving between steps records nothing.
-- **Save & pause** pauses the session and **Continue learning** resumes it. Your notes are saved when you continue to the next step or go back with the button at the top. Text you have typed but not saved is kept on this device.
-- Each step has a section that asks DSH's main chat for help, such as **Ask the main chat for an explanation**. **Save notes & send to main chat** prepares the request there for you to send. What the main chat writes is added to the step. Up to 10 earlier versions stay under **Previous versions**, and **Restore this version** brings one back. The request tells the main chat not to write your answers or judge whether you have mastered a topic.
-- **Switch course** at the top of a session started from a sentence picks topics again in another course and keeps your notes. Once you have answered a practice question, it offers to start a new session for that course instead, and this session stays as it was.
-- Finished and unfinished sessions stay under **Study records**. **Delete** removes a session's notes and progress; your practice history stays.
-
-### Learn a course batch in Learning flow
-
-On the home page, **Other ways to start › Learn before practice · learning flow** opens a session for the next course batch's new questions. You read an explanation of those questions, retell it and then practise exactly that batch.
-
-When the session ends, it offers **Continue to next course batch** and **Learn before practising the next batch too**.
-
-### Build your own flow
-
-Open **Advanced: customise learning steps** on the Learning flow page.
-
-- You can save up to 5 flows. Each has 1–16 steps built from six components: **Set a goal**, **Knowledge outline**, **Concepts and examples**, **Active recall**, **Practice** and **Reflection and next steps**.
-- Each step has a name, instructions and optional preset material in Markdown. A **Practice** step also has a question count from 1 to 50.
-- Each step has two branches, **After completing or skipping** and **When more review is needed**. Each branch goes to **Continue to the next step**, **Stay on this step**, **End this study session** or a numbered step. Every step must be reachable from the first one.
-- To begin, use **Start from a suggestion** (**Edit & save this flow**), **＋ Build my own** or **Build with the main chat**. The suggested flow does not take one of your 5 places until you save it.
-- Editing a flow changes later sessions only; a session keeps the copy it started with. Deleting a flow keeps its sessions.
-- **Use** starts a custom flow. Choose topics and questions (optional), fill in **What will you study?**, and link an outline if you like. **Generate knowledge outline** asks the main chat to draft one from the questions you chose. Then click **Enter learning portal**. With no questions chosen, the session uses the linked outline's questions; with neither, it starts with reading, explanation and retelling.
-
-### What calls a model
-
-Model calls are billed by your provider. Without a connected model, the page says so: name matching still works, and explanations, retelling feedback and background outlines are unavailable.
-
-- Picking topics: one call each time you start from a sentence or switch course.
-- Explanations: when you arrive at **Concepts and examples**, and each time you use one of its help buttons.
-- Retelling feedback: only when you ask for it.
-- Background outline: only when the option is on and no outline matches.
-- Answering and review scheduling make no model calls.
-
-What each call sends is listed in [Token usage](token-usage.md).
+- **What replaced it.** Each course now owns an editable **Learning method** (`学法`, `course.method.*`) that defines its stages, gates and optional stage activities, and the main chat guides interactive explanation-and-practice sessions directly through **AI-guided study** (`AI 带学`, `study.session.*`). Custom flow templates are retired directly and are not converted into course methods.
+- **Entry points removed.** **Learning flow** is no longer shown in the sidebar navigation, the feature tour, or under **Other ways to start** on the home page. Searching for "Learning flow" / "学习流" in **Find a feature** (`Ctrl/⌘ K`) leads to **AI-guided study** and **Learning method**.
+- **Historical records stay read-only.** Earlier sessions stored in `workflowSessions` are preserved without loss:
+  - When a library has historical sessions, **Statistics** (`学习统计`) shows an **Archived learning flows · Read-only** section that opens any session in the read-only viewer.
+  - Existing board items or practice runs with a `studyRef` (`kind: 'workflow'`) still open the same read-only session viewer, with a calm notice at the top explaining that Learning flows have been replaced by per-course study methods and main-chat guided study.
+  - In the read-only viewer you can switch between steps and read saved explanations, recall notes, AI retelling feedback, linked knowledge outlines, practice results and the step activity log, without creating, editing, deleting or advancing steps.
+- **Runtime API boundary.** Read operations (`workflow.list`, `workflow.session.get`, `workflow.context`, and read-only `workflow.teaching.estimate`) remain available for inspecting archived records. Every mutating action (`workflow.save`, `workflow.delete`, `workflow.quickstart`, `workflow.rescope`, `workflow.feedback`, `workflow.session.start`, `workflow.session.record`, `workflow.session.material`, `workflow.session.material.restore`, `workflow.session.advance`, `workflow.session.goto`, `workflow.session.status`, `workflow.session.delete`, `workflow.practice.start`, `workflow.teaching.start`, `workflow.teaching.undo`, `workflow.skeleton.generate`) rejects with `WORKFLOW_RETIRED` and directs callers to `course.method.*` and `study.session.*`.
 
 ## Turn questions into a public study note
 
@@ -170,7 +112,7 @@ The loop StudyHub supports today:
 
 1. Get a deck: generate one from your sources, or import JSON that an external AI wrote from them.
 2. Check the draft and confirm its title and course, then **Publish and practise**.
-3. Practise up to 10 new questions.
+3. Practise up to 10 new questions, or ask the main chat for **AI-guided study** along the course's **Learning method**.
 4. Answer, or flip a card and rate yourself.
 5. Read the explanation; FSRS-6 schedules the next review.
 6. When you need it, ask for help, a prerequisite question or a repair.
@@ -193,11 +135,11 @@ flowchart TD
 Limits of today's behaviour:
 
 - **Today's study** orders due, then weak, then new questions (up to 10 new and 20 in all). It places unlearned prerequisites before the questions that need them, so it can pull in prerequisites without being asked. That differs from the preference for prerequisites only on request, so the proposed design below must not reuse this queue unchanged.
-- Personalised questions, step-by-step explanations, Learning flow, the oral exam and the knowledge outline all exist. None of them, alone or together, certifies evidence for every required core concept. Learning flow records what you report doing, not mastery.
+- Personalised questions, step-by-step explanations, per-course study methods, AI-guided study, the oral exam and the knowledge outline all exist. None of them, alone or together, certifies evidence for every required core concept.
 
 ## Proposed system learning
 
-Everything in this section is a design. None of it is implemented; the code still runs the course study and interview flows above. Learning flow is a smaller, optional feature, built separately; it does not implement this design.
+Everything in this section is a historical design proposal. None of it is implemented; the code runs course study, per-course study methods (`course.method`) and main-chat guided study above.
 
 The rules and the development breakdown are in the [development plan](plans/2026-09-27-1945-feat-evidence-based-learning-plan.md). Its status at hand-over is in the [handoff](handoffs/2026-09-27-learning-workflow-redesign.md).
 
@@ -205,7 +147,7 @@ The rules and the development breakdown are in the [development plan](plans/2026
 
 ### Entry and modes
 
-- **Course study** and **Written / oral interview** stay. The learner chooses system learning explicitly and sets only the scope, starting point and goal. The default goal is the known "close to zero background; understand and apply". Nothing already confirmed is asked again.
+- Course-based study stays. The learner chooses system learning explicitly and sets only the scope, starting point and goal. The default goal is the known "close to zero background; understand and apply". Nothing already confirmed is asked again.
 - The main button would be **Continue system learning**, with one sentence of reason, for example "First see how a request reaches the service; the release troubleshooting later depends on it."
 - Published questions can be studied at once. With JSON only, the page says "Decks ready; source coverage not verified". Linking the original PDFs starts a scope audit in the background. The learner never has to review every question before starting.
 - A round would hold at most 5 learning tasks; one practical may take a whole round. The current 10-new-question rounds stay. The next round always starts by the learner's choice.
@@ -292,9 +234,10 @@ Units U1–U9, acceptance examples AE1–AE16 and the test files are listed in t
 
 ## Code boundaries (for developers)
 
-- `lib/focus.js` holds the current course and the order of new questions. `lib/course-route.js` builds chapters and course batches.
+- `lib/focus.js` holds the current course and the order of new questions. `lib/course-route.js` builds chapters and course batches, and `lib/course-method.js` defines per-course study methods (`学法`).
+- `lib/store.js` (`LATEST_VERSION = 5`) migrates legacy global interview focus settings (`mode: 'interview'`, `role`, `jd`, `targetTopics`) idempotently into a course record (`interview`, `focusTopics`, `method`).
 - `lib/deck-organization.js` merges, splits and reorders decks and moves every reference to the moved questions. `lib/deck-merge-suggestions.js` checks model suggestions; they never change the library directly.
 - `lib/blog-notes.js` holds note state and question links. `lib/adapters/csdn-public.js` only reads public CSDN pages.
-- `lib/workflows.js` and `lib/workflow-contract.js` hold Learning flow templates, sessions and components. `lib/workflow-guide.js`, `lib/workflow-teaching.js` and `lib/workflow-skeleton.js` hold the model-backed parts.
+- `lib/workflows.js` and `lib/contexts/workflows/operations.js` preserve read-only inspection of archived Learning flow records while refusing retired mutations with `WORKFLOW_RETIRED`.
 - Operations live in `lib/contexts/<domain>/operations.js` and own persistence and rules. `lib/service.js` is only a compatibility facade; see [Architecture](architecture.md). `ui/` shows state and collects your confirmation; it never decides merges, grading or link safety.
 - The home-page rules above follow owner decisions F-006 and F-023 in [user feedback](user-feedback-intake.md).

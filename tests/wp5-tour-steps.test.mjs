@@ -17,9 +17,9 @@ const catalogue = Object.assign({}, ...await Promise.all((await readdir("ui/loca
    WP3 and WP4 have merged, so every anchor must exist now. */
 const PARALLEL = {};
 const PLAN_ANCHORS = ["nav", "nav-library", "nav-sources", "nav-generate", "nav-wrongbook", "nav-exam", "nav-dashboard", "nav-skeleton",
-  "nav-workflows", "nav-settings", "tour-reopen", "home-hero", "home-today", "home-catalog", "sources-list", "sources-add", "import-drop",
+  "nav-settings", "tour-reopen", "home-hero", "home-today", "home-catalog", "sources-list", "sources-add", "import-drop",
   "generate-from-sources", "generate-submit", "review-question", "review-help", "wrongbook-list", "exam-start", "dashboard-summary",
-  "skeleton-main", "workflows-main", "settings-model", "settings-audio", "settings-sample",
+  "skeleton-main", "settings-model", "settings-audio", "settings-sample",
   // 2.1.2 refresh (WP29)
   "generate-sources", "generate-options", "generate-summary", "wrongbook-recs", "dashboard-charts", "settings-extensions", "settings-update",
   // #654–#657: the 「更多」 fold, the 「帮助」 fold and the narrow window's menu button
@@ -31,7 +31,7 @@ test("navigation is a main list of at most 6 pages and 「更多」 grouped by w
   assert.deepEqual(NAV_DEFAULTS, {
     main: ["library", "sources", "generate", "wrongbook", "exam", "dashboard"],
     material: ["audio", "live"],
-    practice: ["workflows", "book", "skeleton"],
+    practice: ["book", "skeleton"],
     exam: ["examprep"],
     notes: ["tasks", "notes", "board"],
   });
@@ -40,7 +40,7 @@ test("navigation is a main list of at most 6 pages and 「更多」 grouped by w
   assert.deepEqual(mergeOrder(saved, NAV_DEFAULTS), {
     main: ["dashboard", "library", "sources", "generate", "wrongbook", "exam"],
     material: ["audio", "live"],
-    practice: ["workflows", "book", "skeleton"],
+    practice: ["book", "skeleton"],
     exam: ["examprep"],
     notes: ["board", "tasks", "notes"],
   });
@@ -71,7 +71,7 @@ test("the default tour is the first-run line's order in 7 steps: 欢迎, 设置�
 
 test("the full tour is the explicit extra: every step but the short-tour-only ones, in order, with 任务, notes, 备考补习 and the reader's two controls", () => {
   assert.deepEqual(idsOf({ full: true }), ["welcome", "nav", "home", "course", "sources", "document", "reader-practice", "translation", "generate", "generate-tune", "generate-cost",
-    "tasks", "draft", "practice", "help", "guided-study", "wrongbook", "exam", "examprep", "dashboard", "notes", "skeleton", "workflows", "settings-model", "settings-audio", "settings-extensions", "finish"]);
+    "tasks", "draft", "practice", "help", "guided-study", "wrongbook", "exam", "examprep", "dashboard", "notes", "skeleton", "settings-model", "settings-audio", "settings-extensions", "finish"]);
   assert.ok(!idsOf({ full: true }).includes("generate-quick"), "the short generate step has longer siblings in the full tour");
   assert.deepEqual(idsOf({ full: true, line: true }), idsOf({ full: true }), "the full tour is the same whether or not the line is up");
   assert.equal(new Set(TOUR_STEPS.map((step) => step.id)).size, TOUR_STEPS.length, "unique ids");
@@ -127,7 +127,7 @@ test("steps that need sample data, a page or a component are left out when it is
   for (const id of ["welcome", "nav", "home", "sources", "generate", "tasks", "wrongbook", "settings-model", "finish"]) assert.ok(bare.includes(id), id);
   assert.ok(!ids({ ...all, sample: { ...all.sample, draftId: null } }).includes("draft"), "a published sample draft drops the draft step");
   assert.ok(!ids({ ...all, hasContext: (id) => id !== "audio" }).includes("settings-audio"));
-  assert.ok(!ids({ ...all, pageAvailable: (page) => page !== "workflows" }).includes("workflows"));
+  assert.ok(!ids({ ...all, hasContext: (id) => id !== "audio" }).includes("settings-audio"));
   assert.ok(!ids({ ...all, pageAvailable: (page) => page !== "examprep" }).includes("examprep"), "备考补习 is toured only while the host has it on");
   // Without the sample the short tour is still a tour: the model, add, make, then the line's step 2.
   assert.deepEqual(ids({ ...ALL, sample: { loaded: false }, line: true }), ["welcome", "settings-model", "sources", "generate-quick", "finish-line"]);

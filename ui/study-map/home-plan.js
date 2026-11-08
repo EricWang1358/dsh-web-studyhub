@@ -36,9 +36,9 @@ export const dailyPathArgs = (today) => practiceArgs(undefined, { fresh: false, 
  * 「发给主会话」 unit (ui/hand-off/), never as a link of its own.
  */
 export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, actions, revealActivity, guidedSession }) {
-  const { start, resume, openDraft, addSource, importLibrary, generateFromSources, startCourseFlow, onCoachPractice, onWeakPoints, onCourseSettings, onAdvanceStage } = actions;
+  const { start, resume, openDraft, addSource, importLibrary, generateFromSources, onCoachPractice, onWeakPoints, onCourseSettings, onAdvanceStage } = actions;
   const todayRun = runFor(today.scope ?? []);
-  const interview = data.focus?.mode === 'interview';
+  const interview = false;
   const methodCourse = !interview ? (today.course ?? data.focus?.course ?? '') : '';
   const focusMethod = !interview && data.focus?.method?.own
     && (!methodCourse || !data.focus.method.course || data.focus.method.course === methodCourse)
@@ -102,7 +102,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   const route = !interview ? data.focus?.route : null;
   const courseRun = route && runs.find((r) => r.purpose === 'course' && r.course === route.course);
   const startCourse = () => (courseRun ? resume(courseRun.id) : start({ mode: 'course' }));
-  const flowLink = startCourseFlow && route?.next?.fresh ? [[ui('先讲后练 · 学习流'), () => startCourseFlow()]] : [];
+  const flowLink = [];
   /* The ways to start that are not the round: the course's next batch (chapter order), new questions only, and whatever waits in the other courses. */
   const otherStarts = [
     ...(!interview && today.focusTotal > 0 ? [[uiFormat('只练重点 · {0} 题', [today.focusTotal]), startFocusOnly]] : []),

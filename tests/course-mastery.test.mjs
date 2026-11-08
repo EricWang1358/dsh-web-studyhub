@@ -28,10 +28,19 @@ test("map leads with the current course's mastery and keeps the whole library as
   await service.call("focus.set", { course: "Cloud Native" });
   ({ mastery } = await service.call("map"));
   assert.deepEqual([mastery.course.name, mastery.course.value], ["Cloud Native", 0]);
-  await service.call("focus.set", { mode: "interview", role: "SRE" });
+  await assert.rejects(() => service.call("focus.set", { mode: "interview", role: "SRE" }), /课程|course/i);
+  await service.call("course.save", { name: "笔试 / 面试 · SRE", interview: { role: "SRE" } });
+  await service.call("focus.set", { course: "笔试 / 面试 · SRE" });
   ({ mastery } = await service.call("map"));
-  assert.equal(mastery.course, null, "interview focus has no course headline");
+  assert.equal(mastery.course, null, "an empty interview course has no mastery figure yet");
   assert.equal(mastery.library.cards, 16);
+  await service.store.update((s) => {
+    s.decks.push({ id: "sre", title: "SRE 真题", course: "笔试 / 面试 · SRE", cards: cards("s", 2) });
+  });
+  ({ mastery } = await service.call("map"));
+  assert.equal(mastery.course.name, "笔试 / 面试 · SRE", "interview prep is now its own course");
+  assert.equal(mastery.course.cards, 2);
+  assert.equal(mastery.library.cards, 18);
 });
 
 test("skeleton.topics pages the ungrouped topics so a large library never needs a shell to read", async (t) => {

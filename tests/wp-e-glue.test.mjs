@@ -139,7 +139,7 @@ test('the transcript button of a finished audio job is the card\'s one primary b
 /* ---------- 5. Question counts (#121) ---------- */
 
 test('the exam, its setup field and the workflow editor read the question-count range from lib/limits', async () => {
-  for (const file of ['ui/exam/exam-written.js', 'ui/exam/WrittenSetup.jsx', 'ui/ExamShell.jsx', 'ui/Workflows.jsx']) {
+  for (const file of ['ui/exam/exam-written.js', 'ui/exam/WrittenSetup.jsx', 'ui/ExamShell.jsx']) {
     const page = await source(file);
     assert.match(page, /QUESTION_COUNT/, file);
     assert.doesNotMatch(page, /max=\{50\}|max = 50\b|Math\.min\(50|1–50/, `${file}: no literal 1-50`);

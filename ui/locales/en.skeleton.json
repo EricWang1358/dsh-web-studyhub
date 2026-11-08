@@ -10,7 +10,6 @@
   "只看一站": "One station at a time",
   "当前站": "Current station",
   "学习站点": "Stations",
-  "骨架名称": "Outline name",
   "想要更漂亮、可以交互的图？推荐开源插件 Archify": "Want a nicer, interactive diagram? Try the open-source plugin Archify",
   "Archify 能把描述、方案或代码库画成一份自包含的交互式 HTML 图，有架构图、流程图、时序图、数据流图和生命周期图五种，离线也能在浏览器里打开。": "Archify turns a description, a plan or a codebase into one self-contained, interactive HTML diagram: architecture, workflow, sequence, data-flow and lifecycle diagrams. It opens offline in a browser.",
   "MIT 开源，作者 tt-a1i；与 StudyHub 没有合作关系。": "MIT licence, by tt-a1i; it has no partnership with StudyHub.",

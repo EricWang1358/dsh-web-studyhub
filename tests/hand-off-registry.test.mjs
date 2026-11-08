@@ -33,9 +33,9 @@ const FIXTURES = {
   'skeleton.archify': { input: { skeleton: { id: 'sk1', title: 'Physics map' } }, fenced: [] },
   'skeleton.extend': { input: { skeleton: { id: 'sk1', title: 'Physics map' }, nodeId: 'n1', term: 'Entropy', intent: 'contrast', text: 'Enthalpy' }, fenced: ['term', 'text'] },
   'review.weakTopics': { input: { title: 'Round 1', topics: ['Entropy', 'Heat'] }, fenced: ['title', 'topics'] },
-  'workflow.design': { input: { template: { id: 'wf1', title: 'Daily flow', version: 2 }, wish: 'one more example' }, fenced: ['wish'] },
-  'workflow.skeleton': { input: { topic: '', topicNames: ['Entropy'], workflowTitle: 'Daily flow', scope: [{ deckId: 'd1', cardId: 'c1' }] }, fenced: ['topicNames', 'workflowTitle', 'scope'] },
-  'workflow.step': { input: { session: { id: 's1', version: 3, topic: 'Entropy' }, step: { title: 'Recall', kind: 'recall' }, wish: 'one more example' }, fenced: ['wish'] },
+
+
+
   'path.brief': { input: { steps: [{ order: 1, title: 'Chapter 1', pages: 10, chars: 5000, count: 5, sourceIds: ['a', 'b'], ranges: [{ document: 'Physics book', from: 1, to: 10 }] }], course: 'SA', goal: 'pass', indexed: false },
     fenced: ['course', 'goal'] },
   // the main chat's front door (skills/study-guide): no learner data, so nothing is fenced
@@ -100,7 +100,7 @@ test('the tails: the questions follow 第一批题目： at the very end, files 
     // the regroup offered at the end of topics.group needs a line to say it on
     assert.ok(ui.handOffText('topics.group', FIXTURES['topics.group'].input, language).endsWith(language === 'zh' ? '\n\n我想：' : '\n\nWhat I want:'));
     assert.ok(ui.handOffText('topics.group', { ...FIXTURES['topics.group'].input, alternative: false }, language).endsWith(ui.languageTail(language)));
-    for (const id of ['book.edit', 'deck.ask', 'topic.explain', 'review.weakTopics', 'workflow.design', 'path.brief', 'skeleton.design'])
+    for (const id of ['book.edit', 'deck.ask', 'topic.explain', 'review.weakTopics', 'method.edit', 'path.brief', 'skeleton.design'])
       assert.ok(ui.handOffText(id, FIXTURES[id].input, language).endsWith(ui.languageTail(language)), `${id}/${language}: no bare 我想： after a sentence that already asks`);
   }
   // a made-up entry: a builder that returns text is the sentence; the skill opens the notes
@@ -239,17 +239,17 @@ test('the fences: a request and a library text each in a fence longer than any b
 });
 
 test('messageParts: the sentence, the learner\'s own words, the notes and the tail of a laid-out message; any other text is all sentence', () => {
-  const text = ui.handOffText('workflow.design', FIXTURES['workflow.design'].input, 'zh');
+  const text = ui.handOffText('method.edit', FIXTURES['method.edit'].input, 'zh');
   const parts = ui.messageParts(text, 'zh');
-  assert.equal(parts.ask, '帮我调整学习流 `Daily flow`：');
-  assert.equal(parts.request, 'one more example');
+  assert.equal(parts.ask, '帮我一起调整课程 `Biochemistry` 的学法：按这门课的学科特点、我的习惯和想法，定制适合我的阶段。');
+  assert.equal(parts.request, 'More oral checks before lab exams');
   assert.equal(parts.notes[0], '—— StudyHub 附注（给助手）——');
   assert.equal(parts.tail, '');
   const ingest = ui.messageParts(ui.handOffText('ingest.start', FIXTURES['ingest.start'].input, 'en'), 'en');
   assert.equal(ingest.tail, 'First batch of questions:');
   assert.equal(ingest.notes.at(-1), ui.languageTail('en'));
   // a message copied before the language was switched is still read
-  assert.equal(ui.messageParts(text, 'en').request, 'one more example');
+  assert.equal(ui.messageParts(text, 'en').request, 'More oral checks before lab exams');
   assert.deepEqual(ui.messageParts('请帮我看看。', 'zh'), { ask: '请帮我看看。', request: '', notes: [], tail: '' });
 });
 

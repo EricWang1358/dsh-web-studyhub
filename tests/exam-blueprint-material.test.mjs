@@ -4,7 +4,7 @@
    sample paper reached it, 补充 when only the slides did. Fakes only: no model, no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
@@ -187,9 +187,16 @@ test('a library holding an exam point list stays readable, and is not damaged by
   // A checkout without tags (CI clones shallowly) cannot name the release: skip, as the neighbouring materials-annotation drill does.
   try { await extractRelease(repo, 'v3.0.0', older); } catch (error) { t.skip(`release 3.0.0 cannot be extracted here: ${error.message}`); return; }
   if (!existsSync(join(older, 'lib', 'store.js'))) { t.skip('release 3.0.0 has no tree here'); return; }
-  const { Store: OlderStore } = await import(pathToFileURL(join(older, 'lib', 'store.js')).href);
+  const { Store: OlderStore, LATEST_VERSION: olderVersion } = await import(pathToFileURL(join(older, 'lib', 'store.js')).href);
   const { createMaterialsOperations } = await import(pathToFileURL(join(older, 'lib', 'contexts', 'materials', 'operations.js')).href);
   const { groupSourcesByDocument: olderGroups } = await import(pathToFileURL(join(older, 'lib', 'source-groups.js')).href);
+  // Since #779 bumped LATEST_VERSION to 5, release 3.0.0 (v4) explicitly refuses an un-downgraded v5 manifest;
+  // at manifest version 4, the exam-blueprint shard record itself remains 100% additive for release 3.0.0.
+  await assert.rejects(() => new OlderStore(root).read(), /newer than this build supports/);
+  const manifestPath = join(root, 'study-workspace.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  manifest.version = olderVersion;
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
   const store = new OlderStore(root);
   const state = await store.read();
   const source = state.sources.find(item => item.id === record.id);

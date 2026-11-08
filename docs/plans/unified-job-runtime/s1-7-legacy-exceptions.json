@@ -1904,39 +1904,6 @@
         }
       ],
       "removeAt": "after default flip"
-    },
-    {
-      "file": "lib/workflow-teaching.js",
-      "calls": [
-        {
-          "callee": "jobs.set",
-          "count": 1
-        },
-        {
-          "callee": "ownWork",
-          "count": 1
-        }
-      ],
-      "owner": "workflow family (lane C)",
-      "evidence": "s4-6 workflow record; s6-0-coverage.md",
-      "sites": [
-        {
-          "what": "the single-flight table of teachings (the run is a Job when workflow is on)",
-          "disposition": "exception",
-          "kind": "domain-structure",
-          "reached": true
-        },
-        {
-          "what": "the in-process execution of a teaching",
-          "disposition": "delete-s6-2",
-          "kind": "legacy-bypass",
-          "reached": false,
-          "switches": [
-            "workflow"
-          ]
-        }
-      ],
-      "removeAt": "after default flip"
     }
   ],
   "dispositions": {

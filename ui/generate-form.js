@@ -272,7 +272,7 @@ export const hasSettings = (suggestion = {}) => LEVELS.includes(suggestion.cover
 /* ---------- defaults ---------- */
 
 /** The target role is for interview preparation; a role already typed stays visible. */
-export const roleOpenByDefault = ({ goal, focus, role } = {}) => goal === 'interview' || focus?.mode === 'interview' || !!String(role || '').trim();
+export const roleOpenByDefault = ({ goal, focus, course, role } = {}) => goal === 'interview' || !!String(focus?.role || '').trim() || !!String(course?.interview?.role || '').trim() || !!String(course?.interview?.jd || '').trim() || !!course?.interview?.migratedFromFocus || !!String(role || '').trim();
 
 /** The one line of the main path about where the new deck goes: the course it is filed under (the page infers it from the ticked materials and the 课程范围; 更改 edits it). */
 export const courseLine = (course = '') => uiFormat('新题组放进课程：{0}', [course || ui('未分类')]);

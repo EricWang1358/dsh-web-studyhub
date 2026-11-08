@@ -1,52 +1,65 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 
-// #115: a guided-study step keeps its unsaved text through the shared recovery-draft format instead of its own
-// localStorage code; drafts from the old format are adopted once.
-globalThis.crypto ??= (await import('node:crypto')).webcrypto;
-const m = await loadUi(`export * from './ui/workflow-draft.js'; export { draftKey } from './ui/writing-drafts.js';`);
-const memory = () => { const map = new Map(); return { map, getItem: key => (map.has(key) ? map.get(key) : null), setItem: (key, value) => void map.set(key, String(value)), removeItem: key => void map.delete(key) }; };
-const session = { id: 's1', currentStepId: 'recall', version: 4, records: { recall: { output: 'saved text' } } };
-const broken = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('quota'); }, removeItem() { throw new Error('denied'); } };
+// #779: workflow draft and workflow prompt builders are retired and deleted; WorkflowLesson is strictly a read-only archive view.
+const m = await loadUi(`
+  export { default as WorkflowLesson } from './ui/WorkflowLesson.jsx';
+  export { setUiLanguage } from './ui/i18n.js';
+`);
 
-test('a kept draft comes back with the text, the saved text it was written over and the session version', () => {
-  const store = memory();
-  m.keepStepDraft(session, 'typing…', 'lib-a', store);
-  assert.deepEqual(m.readStepDraft(session, 'lib-a', store), { output: 'typing…', base: 'saved text', version: 4 });
-  assert.equal(m.readStepDraft(session, 'lib-b', store), null, 'another library has its own draft');
-  assert.equal(m.readStepDraft({ ...session, currentStepId: 'other' }, 'lib-a', store), null, 'and so does another step');
+test('retired workflow-draft and workflow agent-prompt modules are removed (#779)', () => {
+  assert.equal(existsSync(new URL('../ui/workflow-draft.js', import.meta.url)), false);
+  assert.equal(existsSync(new URL('../ui/agent-prompts/workflow.js', import.meta.url)), false);
 });
 
-test('the draft is stored in the shared writing-draft format (versioned, with a revision)', () => {
-  const store = memory();
-  m.keepStepDraft(session, 'x', 'lib-a', store);
-  const [[key, raw]] = [...store.map];
-  assert.equal(key, m.draftKey('lib-a', 'workflow-step', ['s1', 'recall']));
-  const saved = JSON.parse(raw);
-  assert.equal(saved.version, 1);
-  assert.equal(typeof saved.revision, 'string');
-});
+test('WorkflowLesson renders archived explanations, citations, remedy notes, and help items strictly read-only (#779)', () => {
+  m.setUiLanguage('zh');
+  const html = renderToStaticMarkup(
+    React.createElement(m.WorkflowLesson, {
+      content: '## 核心直觉\n\n多数派交集保证安全性。',
+      record: {
+        citations: [{ sourceId: 's-1', quote: 'At most one leader can be elected in a given term.' }],
+        teaching: { status: 'done', tokenUsage: { promptTokens: 100, completionTokens: 80, totalTokens: 180 } },
+        help: [
+          { id: 'h-remedy', kind: 'remedy', request: '为什么需要任期号？；选举超时作用', content: '任期号充当逻辑时钟。', citations: [] },
+          { id: 'h-example', kind: 'example', content: '以 3 节点集群为例。', citations: [] },
+        ],
+      },
+      resources: { sources: [{ id: 's-1', title: 'Raft Paper' }] },
+    }),
+  );
+  assert.match(html, /本步讲解/);
+  assert.match(html, /多数派交集保证安全性/);
+  assert.match(html, /Raft Paper/);
+  assert.match(html, /针对你复述里漏掉的地方/);
+  assert.match(html, /想一想：为什么需要任期号？/);
+  assert.match(html, /换个例子/);
+  assert.doesNotMatch(html, /生成完整讲解|重新生成|帮我弄懂|提升讲解质量|撤销上次改写|补充我的具体疑问|<textarea/i);
 
-test('clearing removes it, and a blocked storage never throws', () => {
-  const store = memory();
-  m.keepStepDraft(session, 'x', 'lib-a', store);
-  m.clearStepDraft(session, 'lib-a', store);
-  assert.equal(m.readStepDraft(session, 'lib-a', store), null);
-  assert.doesNotThrow(() => { m.keepStepDraft(session, 'x', 'lib-a', broken); m.clearStepDraft(session, 'lib-a', broken); });
-  assert.equal(m.readStepDraft(session, 'lib-a', broken), null);
-});
+  const emptyHtml = renderToStaticMarkup(
+    React.createElement(m.WorkflowLesson, { content: '', record: {}, resources: { sources: [] } }),
+  );
+  assert.match(emptyHtml, /本步未保存讲解/);
+  assert.match(emptyHtml, /该历史步骤没有已保存的讲解正文/);
+  assert.doesNotMatch(emptyHtml, /生成完整讲解|<button.*生成/i);
 
-test('a draft from the old format is adopted once and then removed', () => {
-  const store = memory();
-  const legacy = 'study-workflow-output:lib-a:s1:recall';
-  store.setItem(legacy, JSON.stringify({ output: 'old draft', base: 'saved text', version: 3 }));
-  assert.deepEqual(m.readStepDraft(session, 'lib-a', store), { output: 'old draft', base: 'saved text', version: 3 });
-  assert.equal(store.map.has(legacy), false);
-  assert.equal(m.readStepDraft(session, 'lib-a', store), null);
-});
-
-test('savedOutput is the recorded text of the current step', () => {
-  assert.equal(m.savedOutput(session), 'saved text');
-  assert.equal(m.savedOutput({ ...session, currentStepId: 'none' }), '');
+  m.setUiLanguage('en');
+  try {
+    const enHtml = renderToStaticMarkup(
+      React.createElement(m.WorkflowLesson, {
+        content: 'Quorum intersection guarantees safety.',
+        record: {
+          help: [{ id: 'h-ex', kind: 'example', content: 'Consider a 3-node cluster.', citations: [] }],
+        },
+        resources: { sources: [] },
+      }),
+    );
+    assert.doesNotMatch(enHtml, /[\u3400-\u9fff]/, 'English read-only WorkflowLesson has zero Chinese residue');
+  } finally {
+    m.setUiLanguage('zh');
+  }
 });

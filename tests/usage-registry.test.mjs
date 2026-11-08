@@ -62,7 +62,7 @@ test('the sidebar pages of the registry are the sidebar pages of the app, in the
   }
   // The groups are by content since #654, so a tier (when a page is used, docs/feature-tiers.md) no longer follows from the group: it is the
   // page's own, unchanged by the regrouping.
-  const tiers = { library: 'daily', sources: 'daily', generate: 'daily', tasks: 'daily', wrongbook: 'daily', workflows: 'daily', notes: 'daily', board: 'daily',
+  const tiers = { library: 'daily', sources: 'daily', generate: 'daily', tasks: 'daily', wrongbook: 'daily', notes: 'daily', board: 'daily',
     exam: 'periodic', examprep: 'periodic', book: 'periodic', dashboard: 'periodic', skeleton: 'once', audio: 'once', live: 'once' };
   assert.deepEqual(Object.values(NAV_DEFAULTS).flat().sort(), Object.keys(tiers).sort());
   for (const [page, tier] of Object.entries(tiers)) assert.equal(usageEntry(`nav.${page}`).tier, tier, `${page}: tier`);

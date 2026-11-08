@@ -171,7 +171,7 @@ test('putting a step off keeps it out of the count; when nothing is left the lin
 });
 
 test('interview preparation, an archived-only course and the sample course get no checklist', () => {
-  assert.equal(courseSetup(library({ focus: { mode: 'interview', course: COURSE, courses: [] }, sources: [note()] })).mode, 'none');
+  assert.equal(courseSetup(library({ courses: [{ id: 'course-1', name: COURSE, interview: { role: 'Platform Engineer' } }], sources: [note()] })).mode, 'none');
   assert.equal(courseSetup(library({ sources: [note()], sample: { loaded: true, course: COURSE } })).mode, 'none');
   const archived = courseSetup(library({ sources: [note()], decks: [deck('d1', COURSE, { archived: true })] }));
   assert.equal(step(archived, 'deck').status, 'todo', 'an archived deck is not a first batch of questions');

@@ -28,6 +28,17 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
   const typeAvailable = typeAvailableOf(kinds, typeMode);
   const canStart = decks.length > 0 && picked.size > 0 && typeAvailable > 0;
   const pickedLine = picked.size ? uiFormat('已选 {0} 个题组 · 共 {1} 道选择题', [picked.size, pickedTotal]) : '';
+  const course = limit?.course;
+  const targetCourse = typeof course === 'string' && course !== '*'
+    ? course
+    : course === '*'
+      ? (() => {
+        const selected = (decks || []).filter((deck) => picked?.has(deck.id));
+        const uniqueCourses = new Set(selected.map((deck) => (deck?.course ?? deck?.folder ?? '') || ''));
+        return uniqueCourses.size === 1 ? [...uniqueCourses][0] : '';
+      })()
+      : (data?.focus?.course || '');
+  const examRole = (targetCourse ? (data?.courses || []).find((item) => item.name === targetCourse)?.interview?.role : '') || '';
   return (
     <div className="exam-setup">
       {header}
@@ -45,8 +56,8 @@ export default function WrittenSetup({ data, header, recent, decks, deckNames, p
         action={<Button variant="primary" busy={busy} disabled={!canStart} onClick={onStart}>
           {busy ? ui('正在出卷…') : decks.length && !picked.size ? ui('先勾选题组') : decks.length && !typeAvailable ? ui('没有符合题型的题') : ui('开始考试')}
         </Button>}>
-        {data?.focus?.mode === 'interview' && data.focus.role && <p className="es-note"><Icon name="info" size={16} />
-          <span>{uiFormat('目标岗位：{0}。本次按上方范围和勾选题组出题。', [data.focus.role])}</span></p>}
+        {examRole && <p className="es-note"><Icon name="info" size={16} />
+          <span>{uiFormat('目标岗位：{0}。本次按上方范围和勾选题组出题。', [examRole])}</span></p>}
         {decks.length ? (
           <>
             <div className="es-section">

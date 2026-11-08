@@ -101,7 +101,7 @@ const OP_CONTEXT_META = {
   },
   authoring: {
     file: 'lib/contexts/authoring/index.js',
-    zhRole: '草稿快发（结构校验）与严格审阅发布，衔接题库与学习流快照。',
+    zhRole: '草稿快发（结构校验）与严格审阅发布，将草稿发布入正式题组。',
     enRole: 'Quick structural publication and reviewed draft publication into active decks.',
     ops: 'draft.publish.quick, draft.publish, draft.publish.plan',
   },
@@ -137,9 +137,9 @@ const OP_CONTEXT_META = {
   },
   workflows: {
     file: 'lib/contexts/workflows/index.js',
-    zhRole: '短讲与练习交替的学习流模板、会话推进与微课生成。',
-    enRole: 'Short-lesson-plus-practice workflow templates, session progression, and micro-lesson generation.',
-    ops: 'workflow.save, workflow.quickstart, workflow.session.start/advance, workflow.teaching.start',
+    zhRole: '已退役学习流的历史会话与模板只读归档查询。',
+    enRole: 'Read-only historical archive queries for retired learning flow templates and sessions.',
+    ops: 'workflow.list, workflow.session.get, workflow.context, workflow.teaching.estimate',
   },
   skeleton: {
     file: 'lib/contexts/skeleton/index.js',
@@ -455,15 +455,15 @@ export function buildExplorerNodes() {
 
   const storageAndUi = [
     {
-      id: 'infra-store-v4',
+      id: 'infra-store-v5',
       group: 'storage',
-      badge: 'Store v4 · Sharded',
-      label: 'study-sharded (v4)',
-      zhTitle: '分片内容寻址存储 v4（lib/store.js）',
-      enTitle: 'Sharded Content-Addressed Store v4 (lib/store.js)',
-      zhSummary: 'manifest v4（format: "study-sharded"）：答题记录按每片 1,000 条（ATTEMPT_CHUNK）切分，题组/资料逐条独立成片，文件名采用 20 位 SHA-1 内容哈希，解析结果深冻结（deep-freeze）后跨快照共享内存；后台任务归档上限 200 条 / 90 天。',
-      enSummary: 'Manifest v4 (format: "study-sharded"): chunks attempts at 1,000 records/shard (ATTEMPT_CHUNK), stores sources and decks per item under 20-hex SHA-1 content-addressed filenames, deep-freezes parsed shards in memory, and caps job-archive.json at 200 records / 90 days.',
-      owned: ['manifest.json (v4)', '1,000 attempts/shard', '20-hex SHA-1 shard files', 'job-archive.json (<= 200 / 90d)'],
+      badge: 'Store v5 · Sharded',
+      label: 'study-sharded (v5)',
+      zhTitle: '分片内容寻址存储 v5（lib/store.js）',
+      enTitle: 'Sharded Content-Addressed Store v5 (lib/store.js)',
+      zhSummary: 'manifest v5（format: "study-sharded"）：答题记录按每片 1,000 条（ATTEMPT_CHUNK）切分，题组/资料逐条独立成片，文件名采用 20 位 SHA-1 内容哈希，解析结果深冻结（deep-freeze）后跨快照共享内存；后台任务归档上限 200 条 / 90 天。',
+      enSummary: 'Manifest v5 (format: "study-sharded"): chunks attempts at 1,000 records/shard (ATTEMPT_CHUNK), stores sources and decks per item under 20-hex SHA-1 content-addressed filenames, deep-freezes parsed shards in memory, and caps job-archive.json at 200 records / 90 days.',
+      owned: ['manifest.json (v5)', '1,000 attempts/shard', '20-hex SHA-1 shard files', 'job-archive.json (<= 200 / 90d)'],
       deps: ['Atomic temp-file + rename writes', 'eslint no-restricted-imports fence'],
       ops: 'item | chunk (1000) | whole modes via createStatePort()',
       links: [
@@ -906,7 +906,7 @@ export function renderExplorerContent(lang = 'zh', { version = '4.4.5' } = {}) {
       <button type="button" class="chip-btn" data-map-filter="plugins" aria-pressed="false">${c('插件与检索包 (8)', 'Plugins & Retrieval (8)')}</button>
       <button type="button" class="chip-btn" data-map-filter="tools" aria-pressed="false">${c('DSH 工具 (7)', 'DSH Agent Tools (7)')}</button>
       <button type="button" class="chip-btn" data-map-filter="contexts" aria-pressed="false">${c('运行时上下文 (19)', 'Runtime Contexts (19)')}</button>
-      <button type="button" class="chip-btn" data-map-filter="storage" aria-pressed="false">${c('分片存储与懒加载视图 (2)', 'Store v4 & Lazy UI (2)')}</button>
+      <button type="button" class="chip-btn" data-map-filter="storage" aria-pressed="false">${c('分片存储与懒加载视图 (2)', 'Store v5 & Lazy UI (2)')}</button>
     </div>
 
     <div class="explorer-split">
@@ -914,7 +914,7 @@ export function renderExplorerContent(lang = 'zh', { version = '4.4.5' } = {}) {
         ${renderGroupButtons('plugins', '1 个工作台主插件 + 6 个能力插件 + 1 个检索扩展包', '1 Workbench + 6 Capability Plugins + 1 Retrieval Package')}
         ${renderGroupButtons('tools', '7 个 DSH 主对话工具（按需发现 + 类型化域工具）', '7 DSH Agent Tools (Compact Discovery + Typed Domain Tools)')}
         ${renderGroupButtons('contexts', '19 个 StudyRuntime 上下文（16 个业务操作域 + 3 个纯数据只读域）', '19 StudyRuntime Contexts (16 Operation + 3 Data-Only)')}
-        ${renderGroupButtons('storage', 'v4 分片内容寻址存储与按需视图拆包', 'Sharded Store v4 & Deferred UI View Chunks')}
+        ${renderGroupButtons('storage', 'v5 分片内容寻址存储与按需视图拆包', 'Sharded Store v5 & Deferred UI View Chunks')}
       </div>
 
       <aside class="inspector-card" id="nodeInspector" aria-live="polite">
@@ -963,7 +963,7 @@ export function renderExplorerContent(lang = 'zh', { version = '4.4.5' } = {}) {
         <p class="ledger-links">${doc('lib/runtime/domain-contracts.js', 'lib/runtime/domain-contracts.js ↗')} ${doc('eslint.config.js', 'eslint.config.js ↗')} ${doc('tests/architecture-boundaries.test.mjs', 'tests/architecture-boundaries.test.mjs ↗')}</p>
       </div>
       <div class="ledger-card">
-        <h4>${c('分片存储 v4 与 15 个懒加载块', 'Store v4 & 15 Lazy UI Chunks')}</h4>
+        <h4>${c('分片存储 v5 与 15 个懒加载块', 'Store v5 & 15 Lazy UI Chunks')}</h4>
         <p>${c(
           '答题流水每 1,000 条切分一片并以 20 位 SHA-1 寻址；UI 将 8 个重型功能台与 7 个低频页面拆为 15 个 deferredView() 按需分块（外加懒加载 PagePeek）。',
           'Attempts shard at 1,000 records per 20-hex SHA-1 file; UI splits 8 optional feature surfaces and 7 occasional pages into 15 deferredView() chunks (plus lazy PagePeek).'

@@ -279,7 +279,7 @@
       background: color-mix(in srgb, var(--paper-ink) 7%, transparent);
       color: var(--paper-dim);
     }
-    .role-prep { margin: calc(var(--space-2) * -1) 0 var(--space-4-5); }
+
     .course-route { display: grid; gap: var(--space-2); max-width: 520px; margin: var(--space-4-5) 0 var(--space-5-5); font-size: var(--fs-md); }
     /* 重点 × 掌握度: one line under the course progress; the summary is a quiet button, the practice link follows it. */
     .focus-progress { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--fs-md); color: var(--text-dim); }
@@ -340,7 +340,7 @@
   :is(.study-app, .study-seat) {
     .desk-more .desk-also { margin-top: var(--space-2); }
     .desk > .desk-intro { --desk-measure: 32.5rem; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-5); min-width: 0; }
-    .desk > .desk-intro > :is(.course-route, .course-method-line, .focus-progress, .role-prep, .desk-mastery, .desk-next, .desk-also, .desk-more, .resume-list) { width: 100%; max-width: var(--desk-measure); margin: 0; }
+    .desk > .desk-intro > :is(.course-route, .course-method-line, .focus-progress, .desk-mastery, .desk-next, .desk-also, .desk-more, .resume-list) { width: 100%; max-width: var(--desk-measure); margin: 0; }
     .desk > .desk-intro > .desk-next { margin-top: var(--space-2); }
     .today-card-head { align-items: baseline; }
       .desk-more {
@@ -365,7 +365,7 @@
         .desk > .desk-intro > .course-route { order: 5; }
         .desk > .desk-intro > .focus-progress { order: 5; }
         .desk > .desk-intro > .course-method-line { order: 5; }
-        .desk > .desk-intro > .role-prep { order: 3; }
+
 }
   }
 }

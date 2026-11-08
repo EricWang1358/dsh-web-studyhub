@@ -38,7 +38,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
   useInjectCss(css, "study-views");
   useInjectCss(caseCss, "study-case-workspace");
   useInjectCss(examCss, "study-exam");
-  const [course, setCourse] = usePageScope(data?.root, 'exam', data?.focus?.mode === 'interview' ? '*' : data?.focus?.course ?? '*');
+  const [course, setCourse] = usePageScope(data?.root, 'exam', data?.focus?.course ?? '*');
   const [showInactive, setShowInactive] = useShowInactive(data?.root, 'exam');
   const [deckChoice, setDeckChoice] = usePageScope(data?.root, 'exam-decks', '');
   // The time limit the learner chose for this course (kept for this tab like the decks); unchosen follows the course's own 作答时间.
@@ -135,6 +135,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
     return exam.perform(async () => {
       const r = await call("review.start", {
         mode: "exam",
+        course,
         scope: [...pickedDecks].map((deckId) => ({ deckId })),
         count,
         examKinds: typeMode,
@@ -252,7 +253,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
     initialRunId={deepRun("oral")} onLocation={onLocation} onStartRun={onStartRun} onSetupModel={onSetupModel}
     header={header} recent={recent}
     course={course} onCourseChange={chooseCourse}
-    selection={explicitDecks ? { scope: [...pickedDecks].map(deckId => ({ deckId })) } : scopeArgs(course, showInactive)} />;
+    selection={explicitDecks ? { course, scope: [...pickedDecks].map(deckId => ({ deckId })) } : scopeArgs(course, showInactive)} />;
 
   return (
     <section ref={pageRef} className="page exam">

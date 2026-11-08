@@ -156,7 +156,8 @@ test('tier 2 pages delete through the shared undo, with no dialog of their own f
   const later = {
     'ui/tasks/TaskConsole.jsx': /job\.dismiss|batchRun\('delete'/,
     'ui/BlogNotes.jsx': /note\.delete/,
-    'ui/Workflows.jsx': /workflow\.session\.delete/,
+
+
     'ui/PdfConvertJob.jsx': /mineru\.history\.remove/,
     'ui/LiveClass.jsx': /live\.delete/,
     'ui/SkeletonDiagrams.jsx': /skeleton\.diagram\.remove/,

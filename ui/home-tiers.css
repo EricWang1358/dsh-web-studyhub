@@ -10,11 +10,8 @@
       color: var(--text-muted);
     }
     .desk-more > summary:hover { color: var(--text); }
-    /* D3 (2.5.9): the home's hierarchy. One column down the left (mode tabs, the course title on its own line, the progress and
+    /* D3 (2.5.9): the home's hierarchy. One column down the left (the course title on its own line, the progress and
        mastery on one measure, the next step), one paper card on the right; every gap is one spacing token. */
-    .desk > .desk-intro > .focus-switch { margin: 0; }
-    /* The tabs take their own line above the title and sit close to it: one group. */
-    .desk > .desk-intro > .focus-switch { display: flex; width: fit-content; max-width: 100%; margin-bottom: calc(var(--space-2) * -1); }
     /* The card's number and its caption are one line, on one baseline. */
     .today-count { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); margin: var(--space-4) 0 var(--space-2); }
     .today-count strong { font-family: var(--font-display); font-size: var(--fs-8xl); font-weight: var(--fw-light); line-height: 1; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
@@ -24,8 +21,7 @@
   }
   @container study (max-width: 760px) {
     :is(.study-app, .study-seat) {
-      /* Narrow: the intro is flattened into the desk's one column, so every part says where it goes: tabs, title, card, details. */
-      .desk > .desk-intro > .focus-switch { order: 0; justify-self: start; }
+      /* Narrow: the intro is flattened into the desk's one column, so every part says where it goes: title, card, details. */
       .today-card-head time { margin-left: auto; }
       .today-count { margin-top: var(--space-3); }
       .today-count strong { font-size: var(--fs-7xl); }

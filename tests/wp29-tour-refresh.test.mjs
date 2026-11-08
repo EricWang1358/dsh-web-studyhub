@@ -64,7 +64,7 @@ test("copy matches 2.1.x: Word and PowerPoint, one exam page with three formats,
   for (const format of ["选择题笔试", "案例分析卷", "口头面试"]) assert.match(step("exam").body, new RegExp(format));
   assert.match(step("dashboard").body, /14 天/);
   assert.match(step("dashboard").body, /模型用量/);
-  assert.match(step("workflows").body, /换课程/);
+  assert.equal(TOUR_STEPS.some((item) => item.id === "workflows"), false);
   assert.match(step("nav").body, /待办/);
   assert.match(step("nav").body, /语言/);
   assert.match(step("settings-extensions").body, /大教材/);

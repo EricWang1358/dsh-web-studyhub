@@ -76,7 +76,7 @@ test('the target role is not on the regular path: folded inside 更多选项 (op
   assert.doesNotMatch(role[1], /\sopen/, 'shut for an ordinary course');
   assert.match(fold, /data-tour="generate-role"/, 'the anchor stays for 找功能');
   assert.match(/<details class="sh-disclosure[^"]*generate-role"([^>]*)>/.exec(parts(render({}, { gen: { ...gen, role: '后端工程师' } })).fold)[1], /\sopen/, 'a typed role stays visible');
-  assert.match(/<details class="sh-disclosure[^"]*generate-role"([^>]*)>/.exec(parts(render({ focus: { course: '数据库', courses: [{ name: '数据库' }], mode: 'interview' } })).fold)[1], /\sopen/, 'and so does an interview course');
+  assert.match(/<details class="sh-disclosure[^"]*generate-role"([^>]*)>/.exec(parts(render({ courses: [{ name: '数据库', interview: { role: '后端工程师' } }], focus: { course: '数据库', courses: [{ name: '数据库' }] } })).fold)[1], /\sopen/, 'and so does an interview course');
 });
 
 test('the 覆盖强度 draws only its choices: the plan, the count and the estimate are said once, under the form', () => {

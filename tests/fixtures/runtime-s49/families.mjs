@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { managedRuntimeOptions } from '../../helpers/runtime-switch.mjs';
 import { until } from '../../helpers/wait.mjs';
 import { createFakeModel } from '../../../scripts/fake-model.mjs';
+import { saveWorkflow, startSession } from '../../../lib/workflows.js';
 import { seed as seedCoachLibrary, miss } from '../../helpers/coach-library.mjs';
 
 /* The model families of the S4-9 rollback drill. Every family says how its library is seeded (`seed`), how a run is started (`start`, also how it is started AGAIN after a rollback),
@@ -97,15 +98,15 @@ const workflow = {
     await service.store.update(state => {
       state.sources.push({ id: 'source', title: '缓存资料', text: `${QUOTE}未命中时仍需访问原始服务。` });
       state.decks.push({ id: 'deck', title: '缓存', cards: [{ id: 'card', topic: '缓存', kind: 'flashcard', prompt: '如何判断可复用？', answer: '检查请求和有效期', explanation: QUOTE, citations: [{ sourceId: 'source', quote: QUOTE }] }] });
+      const template = saveWorkflow(state, { title: '讲解与复述', steps: [{ id: 'lesson', kind: 'lesson', title: '概念与例子' }, { id: 'recall', kind: 'recall', title: '复述' }] });
+      startSession(state, { templateId: template.id, topic: '缓存', scope: [{ deckId: 'deck' }], requestId: 'start-0' });
     });
-    const template = await service.call('workflow.save', { title: '讲解与复述', steps: [{ id: 'lesson', kind: 'lesson', title: '概念与例子' }, { id: 'recall', kind: 'recall', title: '复述' }] });
-    await service.call('workflow.session.start', { templateId: template.id, topic: '缓存', scope: [{ deckId: 'deck' }], requestId: 'start-0' });
   },
   async start(service) {
     const session = (await service.call('export')).workflowSessions[0];
-    return service.call('workflow.teaching.start', { id: session.id, version: session.version, stepId: 'lesson', mode: 'lesson' });
+    return service.call('workflow.session.get', { id: session.id });
   },
-  ended: service => until(async () => (await service.call('export')).workflowSessions[0].records.lesson?.teaching?.status !== 'running', 'the teaching', WAIT),
+  ended: () => Promise.resolve(),
   async view(service) {
     const session = (await service.call('export')).workflowSessions[0], teaching = session?.records?.lesson?.teaching;
     return { status: teaching?.status ?? null, text: hash(teaching?.markdown ?? teaching?.text ?? teaching?.article ?? null) };

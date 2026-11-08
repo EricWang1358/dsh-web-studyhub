@@ -40,7 +40,7 @@ const primary = html => buttons(html).filter(item => /sh-btn--primary/.test(item
 // #654: the sidebar's groups are by content, so 复习全书 sits in 「更多 › 练习与复习」 (it was in 阶段性 after 备考补习).
 test('the registry row: 复习全书 is a sidebar page of 更多 › 练习与复习, with a book icon, and its way back keeps its own words', () => {
   assert.deepEqual([ui.PAGES.book.label, ui.PAGES.book.group, ui.PAGES.book.glyph], ['复习全书', 'practice', 'book']);
-  assert.deepEqual(ui.NAV_DEFAULTS.practice, ['workflows', 'book', 'skeleton']);
+  assert.deepEqual(ui.NAV_DEFAULTS.practice, ['book', 'skeleton']);
   assert.equal(ui.backLabelOf('book'), '回到复习全书', 'a practice round started in the book still says 回到复习全书, not 返回复习全书');
   assert.equal(ui.PAGES.outline.group, null, 'the 总纲 page itself is still reached from the home and from here');
   const entry = ui.USAGE_REGISTRY.find(item => item.key === 'nav.book');

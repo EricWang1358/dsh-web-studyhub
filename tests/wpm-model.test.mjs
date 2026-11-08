@@ -81,7 +81,7 @@ test('ModelErrorNote is an alert with the plain title, a fix and the raw text be
 
 test('the learning flow and the helper notes show model errors through ModelErrorNote (#105)', () => {
   for (const file of ['ui/WorkflowScope.jsx', 'ui/WorkflowPortal.jsx', 'ui/WorkflowLesson.jsx']) lacks(file, /\bModelError\b/, /wf-model-error/);
-  for (const file of ['ui/WorkflowPortal.jsx', 'ui/WorkflowLesson.jsx']) has(file, /ModelErrorNote/);
+  has('ui/WorkflowPortal.jsx', /ModelErrorNote/);
   has('ui/AiHelperNote.jsx', /ModelErrorNote|FAILURE_COPY|describeModelError/);
   lacks('ui/workflow-scope.css', /wf-model-error/);
 });

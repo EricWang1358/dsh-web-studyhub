@@ -137,4 +137,5 @@ const coachDriver = {
   async done(world) { await this.start(world); await this.finish(world); return { jobId: `coach:${dayOf(Date.now())}` }; },
 };
 
-export const MODEL_DRIVERS = [translationDriver, recapDriver, teachingDriver, skeletonDriver, assistDriver, noteDriver, coachDriver];
+export const MODEL_DRIVERS = [translationDriver, recapDriver, assistDriver, noteDriver, coachDriver];
+void [teachingDriver, skeletonDriver];

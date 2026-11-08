@@ -95,7 +95,7 @@ function LibraryView() {
             notify(retryNotice({ lost, gone: wanted.filter((id) => !available.has(id)).length }));
           },
           addSource: () => (lineShown ? tour.openFirstImport() : set.setModal(data.decks.length ? { type: 'add' } : importForQuestions(intents.goGenerate))), createManual: drafts.createManual, importLibrary: () => intents.goGenerate({ source: 'json' }),
-          generateFromSources: (ids) => intents.goGenerate({ sourceIds: ids }), startCourseFlow: intents.startCourseFlow,
+          generateFromSources: (ids) => intents.goGenerate({ sourceIds: ids }),
           onCoachPractice: pageAvailable(data, 'review') ? session.onCoachPractice : undefined,
           onWeakPoints: pageAvailable(data, 'wrongbook') ? () => nav.navigate('wrongbook') : undefined,
           onOpenExamBook: pageAvailable(data, 'book') ? (course) => openCrunchBook(course, { view: 'today' }) : undefined,
@@ -137,7 +137,9 @@ function DashboardView() {
   const { data, nav, intents } = useApp();
   return (
     <Dashboard data={data} onStartScope={(scope) => intents.practice(scope, { fresh: false })} onLibrary={() => nav.navigate('library')}
-      onCreate={() => intents.goGenerate()} onSources={() => nav.navigate('sources')} onAudioUsage={() => nav.navigate('audio')} />
+      onCreate={() => intents.goGenerate()} onSources={() => nav.navigate('sources')} onAudioUsage={() => nav.navigate('audio')}
+      onOpenWorkflowSession={pageAvailable(data, 'workflows') ? (sessionId) => nav.show.workflow(sessionId) : undefined}
+      onOpenWorkflowArchive={pageAvailable(data, 'workflows') ? () => nav.navigate('workflows') : undefined} />
   );
 }
 
@@ -340,7 +342,7 @@ function SettingsView() {
 }
 
 function ReviewView({ feedback }) {
-  const { data, core, nav, lib, set, session, learn, intents, dailyPlan, settingsEntry } = useApp();
+  const { data, core, nav, lib, set, session, learn, dailyPlan, settingsEntry } = useApp();
   const run = session.run;
   // A finished round may change what today's plan shows next (practice progress is counted from the answers), so read it again once.
   useEffect(() => { if (run?.complete) dailyPlan.refresh?.(); }, [run?.id, run?.complete]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -348,7 +350,7 @@ function ReviewView({ feedback }) {
   const detour = lib.detour && !(lib.detour.runId === run.id && lib.detour.index === run.index) ? lib.detour : null;
   const links = {
     onBackToWorkflow: (sessionId) => { set.setWorkflowReturn({ sessionId, nonce: Date.now() }); nav.navigate('workflows'); },
-    onCourseFlow: intents.startCourseFlow,
+
     onOpenNote: (noteId) => learn.openLearningTarget({ kind: 'note', id: noteId }),
     onRecapSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-daily-recap'); nav.show.page('settings'); },
     onPracticeSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-practice'); nav.show.page('settings'); },

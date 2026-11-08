@@ -159,7 +159,7 @@ test("focus chips append once and the form applies a suggestion without touching
 
 test("the target role shows by default only for interview preparation", () => {
   assert.equal(form.roleOpenByDefault({ goal: "interview" }), true);
-  assert.equal(form.roleOpenByDefault({ focus: { mode: "interview" } }), true);
+  assert.equal(form.roleOpenByDefault({ course: { name: "笔试 / 面试", interview: { role: "后端工程师" } } }), true);
   assert.equal(form.roleOpenByDefault({ goal: "exam", focus: { mode: "class" } }), false);
   assert.equal(form.roleOpenByDefault({}), false);
   assert.equal(form.roleOpenByDefault({ role: "后端工程师" }), true, "an already-typed role stays visible");
@@ -236,7 +236,7 @@ test("the title and role sit under a collapsed 更多选项; the role opens for 
   assert.match(details, /题组名称/);
   assert.match(details, /目标岗位/);
   assert.doesNotMatch(closed.slice(0, closed.indexOf("更多选项")), /目标岗位|题组名称/, "both live inside the disclosure");
-  const interview = formOf(render({ focus: { course: "数据库", courses: [{ name: "数据库" }], mode: "interview" } }));
+  const interview = formOf(render({ courses: [{ name: "数据库", interview: { role: "后端工程师" } }], focus: { course: "数据库", courses: [{ name: "数据库" }] } }));
   assert.match(interview, /<details class="sh-disclosure[^"]*"[^>]*\sopen/);
   const typed = formOf(render({}, { gen: { ...gen, role: "后端工程师" } }));
   assert.match(typed, /<details class="sh-disclosure[^"]*"[^>]*\sopen/);
@@ -307,7 +307,7 @@ test("the English form has no Chinese UI text", () => {
     setUiLanguage("en");
     const english = { ...gen, language: "English" };
     for (const html of [render({}, { gen: english }), render({ modelReady: false }, { gen: english }),
-      render({ courses: [{ name: "数据库", exam: { format: "open-book-case" } }], focus: { course: "数据库", courses: [], mode: "interview" } }, { gen: english })]) {
+      render({ courses: [{ name: "数据库", exam: { format: "open-book-case" }, interview: { role: "Backend" } }], focus: { course: "数据库", courses: [] } }, { gen: english })]) {
       const visible = text(html).replace(/索引笔记|事务笔记(?:\.md)?|数据库/g, "");
       assert.doesNotMatch(visible, han, visible.match(/.{0,30}[㐀-鿿].{0,30}/)?.[0]);
     }

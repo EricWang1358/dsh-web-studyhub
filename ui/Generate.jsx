@@ -108,7 +108,9 @@ export default function Generate({
   const saved = React.useMemo(() => generationFormDefaults(data.settings?.generation), [data.settings?.generation]);
   const [moreChoice, setMoreChoice] = React.useState(null);
   const [courseOpen, setCourseOpen] = React.useState(false);
-  const foldOpen = moreChoice ?? (moreValuesOf(gen, saved) || roleOpenByDefault({ goal, focus: data.focus, role: gen.role }) || retrievalMode);
+
+  const activeCourseRecord = (data.courses || []).find((course) => course?.name === generationCourse);
+  const foldOpen = moreChoice ?? (moreValuesOf(gen, saved) || roleOpenByDefault({ goal, focus: data.focus, course: activeCourseRecord, role: gen.role }) || retrievalMode);
   const setMoreOpen = (open) => setMoreChoice(open);
   // The steps' buttons: 只出这一步 narrows the selection to the step and goes back to the ordinary form with the step's own count.
   const narrowToStep = (step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, customCount: String(step.count), ...(step.focus ? { focus: step.focus } : {}) }); setChosenMode(MODES.single); };
@@ -166,7 +168,7 @@ export default function Generate({
   // The case form opens with the materials ticked on this tab (its own selection when it comes from the reader): the learner already chose them, and the form says so.
   const carried = caseEvidence(data.sources, referenceSourceIds).filter((source) => selectedSources.includes(source.id)).map((source) => source.id);
   const caseStart = caseInitial?.sourceIds ? caseInitial : { ...(carried.length ? { sourceIds: carried, broughtOver: carried.length, ...(generationCourse ? { course: generationCourse } : {}) } : {}), ...caseInitial };
-  const activeCourseRecord = (data.courses || []).find((course) => course?.name === generationCourse);
+
   const activeFocusCount = activeCourseRecord?.focusTopics?.length || 0;
   const openFocusDialog = () => (setModal || openModal)?.({ type: 'focusIntake', course: generationCourse || '' });
   const caseExam = courseHasCaseExam(activeCourseRecord);
@@ -311,7 +313,7 @@ export default function Generate({
                     <input id="generate-title" className="generate-row__input" value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如 SWE5001 · Solution Architecture")} />
                   </FormRow>
                   {/* For interview preparation only: folded away unless the learner's goal is an interview or a role is already typed (#666). */}
-                  <Disclosure className="generate-role" summary={ui("面试方向（可选）")} meta={ui("目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, role: gen.role })}>
+                  <Disclosure className="generate-role" summary={ui("面试方向（可选）")} meta={ui("目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, course: activeCourseRecord, role: gen.role })}>
                     <FormRow label={ui("目标岗位 / 面试方向（可选）")} htmlFor="generate-role" data-tour="generate-role">
                       <input id="generate-role" className="generate-row__input" value={gen.role} onChange={(e) => setGen({ ...gen, role: e.target.value })} placeholder={ui("例如：后端工程师 · 系统设计")} />
                     </FormRow>

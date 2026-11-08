@@ -7,28 +7,25 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readAppSource } from './helpers/app-source.mjs';
 
-/* D2 (2.5.9): 学习流, 课堂实录 and 音频转录 sit in the same page frame as 资料: the shared PageHeader carries each
+/* D2 (2.5.9) + #779: 历史学习流记录, 课堂实录 and 音频转录 sit in the same page frame as 资料: the shared PageHeader carries each
    page's only <h1>, its actions are shared Buttons, and the content starts at the page's own left edge. */
 
 const compiled = await build({ stdin: { contents: `
-  export { default as Workflows, FlowEditor, StartFlow } from './ui/Workflows.jsx';
+  export { default as Workflows } from './ui/Workflows.jsx';
   export { default as LiveClass } from './ui/LiveClass.jsx';
   export { AudioHeader } from './ui/app/page-views.jsx';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
 bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text', '.json': 'json' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Workflows, FlowEditor, StartFlow, LiveClass, AudioHeader, setUiLanguage } = module.exports;
+const { Workflows, LiveClass, AudioHeader, setUiLanguage } = module.exports;
 const h = React.createElement;
 const noop = () => {};
 const HAN = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
 
-const step = { id: 's1', kind: 'lesson', title: '讲解', instructions: '', content: '', next: '$next', retry: '$stay', count: 10 };
-const listing = { components: [{ kind: 'lesson', title: '讲解', prompt: 'p', description: 'd' }], templates: [], sessions: [], topics: [], skeletons: [],
-  groups: { groups: [] }, limit: 5, suggested: { id: 'sg', title: '建议流程', description: '先讲后练', steps: [step] } };
+const listing = { retired: true, templates: [], sessions: [{ id: 'ws1', topic: 'OS', title: 'Flow', stepTitle: 'Step 1', status: 'completed', updatedAt: '2026-10-01T00:00:00Z' }] };
 const data = { root: 'frame', focus: { course: 'OS', courses: [{ name: 'OS' }] }, modelReady: true };
-const template = { id: 't1', version: 1, title: '我的流程', description: '先讲再练', steps: [step] };
 
 const headerOf = (html) => html.match(/<header class="sh-page-header[^"]*"[^>]*>[\s\S]*?<\/header>/)?.[0] || '';
 function assertOneH1InHeader(html, label) {
@@ -39,10 +36,8 @@ const button = (html, text) => html.match(new RegExp(`<button[^>]*>(?:(?!</butto
 const isShButton = (html, text) => /class="sh-btn /.test(button(html, text));
 
 const screens = {
-  'prompt page': (language) => render(h(Workflows, { call: noop, askInChat: noop, data, initialListing: listing }), language),
-  'loading': (language) => render(h(Workflows, { call: noop, askInChat: noop, data }), language),
-  'editor': (language) => render(h(FlowEditor, { initial: { title: '', description: '', steps: [step] }, components: listing.components, call: noop, askInChat: noop, storageKey: 'k', draftName: 'new', onSaved: noop, onBack: noop }), language),
-  'start': (language) => render(h(StartFlow, { template, listing, call: noop, askInChat: noop, onRefresh: noop, onStarted: noop, onBack: noop }), language),
+  'archive list': (language) => render(h(Workflows, { data, initialListing: listing }), language),
+  'loading': (language) => render(h(Workflows, { data }), language),
   'live class': (language) => render(h(LiveClass, { data, call: noop, visible: true, onSettings: noop, initialReadiness: { live: false } }), language),
   'live class form': (language) => render(h(LiveClass, { data, call: noop, visible: true, onSettings: noop, initialReadiness: { live: true } }), language),
   'audio': (language) => render(h(AudioHeader, { onSettings: noop, onSources: noop }), language),
@@ -53,14 +48,14 @@ for (const [name, page] of Object.entries(screens)) {
     assertOneH1InHeader(page('zh'), `${name} zh`);
     const english = page('en');
     assertOneH1InHeader(english, `${name} en`);
-    assert.doesNotMatch(english.replace(/frame|OS|我的流程|先讲再练|建议流程|先讲后练|讲解/g, ''), HAN, `${name}: no Han in the English UI`);
+    assert.doesNotMatch(english.replace(/frame|OS/g, ''), HAN, `${name}: no Han in the English UI`);
   });
 }
 
 const page = (name) => screens[name]('zh');
 test('the page-level wrappers use the page frame, not a narrow centred column', async () => {
   assert.match(page('live class'), /<section class="page live-class"/);
-  assert.match(page('prompt page'), /<section class="page workflow-page"/);
+  assert.match(page('archive list'), /<section class="page workflow-page"/);
   const css = await Promise.all(['ui/live-class.css', 'ui/workflows.css'].map((file) => readFile(file, 'utf8')));
   assert.doesNotMatch(css[0], /\.live-class\s*\{[^}]*max-width/, 'live class no longer caps and centres its own column');
   assert.doesNotMatch(css[1], /\.workflow-page\s*\{[^}]*(max-width|margin-inline)/, 'workflow page no longer caps and centres its own column');
@@ -76,23 +71,10 @@ test('the old bare-text actions are shared Buttons', () => {
   assert.ok(isShButton(english, 'Audio settings') && isShButton(english, 'View sources'));
 });
 
-test('the prompt page has one primary: 开始学, a shared primary Button that is only grey while disabled', () => {
-  const html = screens['prompt page']('zh');
-  assert.equal((html.match(/sh-btn--primary/g) || []).length, 1, 'one primary on the page');
-  const go = button(html, '开始学');
-  assert.match(go, /class="sh-btn sh-btn--primary/, '开始学 is the shared primary');
-  assert.doesNotMatch(go, /disabled/, 'the course is in the box already, so the one click works');
-  const empty = render(h(Workflows, { call: noop, askInChat: noop, data: { root: 'frame', modelReady: true }, initialListing: listing }));
-  assert.match(button(empty, '开始学'), /disabled/, 'disabled with no input (the neutral disabled style is the Button\'s own)');
+test('the archive list uses shared Buttons and keeps zero hand-rolled .primary buttons', () => {
+  const html = screens['archive list']('zh');
+  assert.ok(isShButton(html, '查看记录'), '查看记录 is a shared Button');
   assert.doesNotMatch(html, /class="primary"/, 'no hand-rolled .primary buttons are left on the page');
-});
-
-test('the editor and the start page each keep a single shared primary', () => {
-  for (const name of ['editor', 'start']) {
-    const html = screens[name]('zh');
-    assert.equal((html.match(/sh-btn--primary/g) || []).length, 1, `${name}: one primary`);
-    assert.doesNotMatch(html, /class="primary"/, `${name}: no hand-rolled .primary`);
-  }
 });
 
 test('the portal header is the shared PageHeader and keeps its heading ref for scrolling', async () => {

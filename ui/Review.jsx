@@ -50,7 +50,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const { run, choice, actions } = session;
   const { reviewAct } = actions;
   const { call, act, busy, host, navigate, openModal, openSettings, notify } = useStudy();
-  const { onBackToWorkflow, onCourseFlow, openSkeleton, onOpenNote, onRecapSettings, onModelSettings, onReturnToReading } = links;
+  const { onBackToWorkflow, openSkeleton, onOpenNote, onRecapSettings, onModelSettings, onReturnToReading } = links;
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const enterRun = session.enterRun;
   const app = React.useContext(AppContext);
@@ -93,7 +93,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   /* The one next step of a finished round, by what the round was: a learning flow, a detour, the question a prerequisite round came from, the next
      course batch or batch of new questions, else wherever the page decided 继续学习 goes. null: nothing to offer (a mock exam, no library). */
   const nextStep = !run.complete ? null
-    : flow ? { label: flow.current ? ui("回到学习流，继续下一步 →") : ui("回到学习流 →"), run: () => onBackToWorkflow(flow.sessionId) }
+    : flow ? { label: ui("回到学习流 →"), run: () => onBackToWorkflow(flow.sessionId) }
       : detour ? { label: uiFormat("回到之前的第 {0} 题 →", [detour.index + 1]), run: onReturnFromDetour }
         : destination?.kind === "original" ? { label: destination.label, run: destination.go }
           : run.course?.next ? { label: ui("继续课程下一批 →"), run: () => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun) }
@@ -168,7 +168,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <div className={cx("result-next", wayBack && "result-next--back")}>
               {wayBack && <ReturnPrimary arrow oneLine label={wayBack.label} place={wayBack.place} disabled={busy} onReturn={wayBack.go} />}
               {onward && <Button variant={backHere ? "secondary" : "primary"} align={backHere ? "start" : undefined} iconEnd="arrow-right" lock={busy} onClick={onward.run}>{onward.label.replace(/\s*→$/, "")}</Button>}
-              {onward && run.course?.next?.fresh > 0 && onCourseFlow && <Button lock={busy} onClick={() => onCourseFlow({ course: run.course.name })}>{ui("先讲后练下一批")}</Button>}
+
               {onward && !backHere && contextReturnLabel && <Button icon="arrow-left" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
             </div>
           )}
