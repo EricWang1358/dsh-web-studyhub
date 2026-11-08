@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { groupOf, keyMove, mergeOrder, migrateOrder, placeAt, sameOrder } from "../ui/nav-order.js";
+import { crossGroupDropIndex, groupOf, keyMove, mergeOrder, migrateOrder, placeAt, sameOrder } from "../ui/nav-order.js";
 
 /* The rules of the sidebar's order on a small made-up sidebar (#654): a main list and the sections of 「更多」. Every page has a home section; it
    sits either in the main list or in its home, never in another section, and the main list has a limit. */
@@ -56,6 +56,11 @@ test("the keyboard moves past the end of a group into the main list or back home
   assert.deepEqual(keyMove(defaults, "y", -1, options), { refused: "full", id: "y" }, "a full main list says so");
   assert.equal(keyMove(roomy, "a", -1, options), null, "nothing above the first main page");
   assert.equal(keyMove(roomy, "z", 1, options), null, "nothing below the last page of a section");
+});
+
+test("cross-group pointer drops append at the end of main and insert at the top of a 更多 section", () => {
+  assert.equal(crossGroupDropIndex("s1", "main", 5), 5, "promoted into main lands at the last slot");
+  assert.equal(crossGroupDropIndex("main", "s2", 3), 0, "demoted from main lands at the top of its home section");
 });
 
 test("orders are compared item by item", () => {

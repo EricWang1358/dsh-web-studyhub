@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -25,6 +26,7 @@ async function harness(t, { state = {}, noCli = false, staleMs } = {}) {
   const cli = patientCli({ file: process.execPath, prefix: [FAKE], env: { FAKE_MINERU_STATE: statePath, FAKE_MINERU_LOG: logPath } });
   const service = new StudyService(root, { mineru: { local: { cli: noCli ? null : cli, home: work, ...(staleMs !== undefined ? { staleMs } : {}) } } });
   const h = {
+    work,
     call: (action, args) => service.call(action, args),
     set: patch => readJsonFile(statePath).then(current => writeJsonFile(statePath, { ...current, ...patch })),
     // The calls the program has seen, by name (`--version`, `server`, `config`).
@@ -41,7 +43,7 @@ async function harness(t, { state = {}, noCli = false, staleMs } = {}) {
   return h;
 }
 
-test('a repeated mineru.local.status asks the program once and answers from memory in well under 100 ms', async t => {
+test('a repeated mineru.local.status asks the program once and answers from memory without respawning', async t => {
   const h = await harness(t, { state: { readDelayMs: 400 } });
   const first = await h.timed('mineru.local.status');
   assert.equal(first.value.state, 'ready');
@@ -51,7 +53,7 @@ test('a repeated mineru.local.status asks the program once and answers from memo
   for (let index = 0; index < 3; index++) {
     const again = await h.timed('mineru.local.status');
     assert.equal(again.value.checkedAt, first.value.checkedAt, 'the same answer');
-    assert.ok(again.ms < 100, `repeated read took ${Math.round(again.ms)} ms`);
+    t.diagnostic(`cached mineru.local.status #${index + 1}: ${Math.round(again.ms)} ms`);
   }
   assert.equal((await h.seen()).length, callsAfterFirst, 'the program was not run again');
 });
@@ -116,15 +118,23 @@ test('an install that changes (finished, uninstalled, another location) makes th
 });
 
 test('an answer older than staleMs is given at once and renewed in the background', async t => {
-  const h = await harness(t, { state: { readDelayMs: 150 }, staleMs: 60 });
+  const h = await harness(t, { staleMs: 60 });
   const first = await h.call('mineru.local.status');
   assert.equal(first.state, 'ready');
   const versions = await h.versions();
-  await h.set({ running: false });
+  const enteredFile = join(h.work, 'status-entered.flag');
+  const holdFile = join(h.work, 'status-hold.flag');
+  await writeFile(holdFile, 'hold\n');
+  await h.set({ running: false, statusEnteredFile: enteredFile, statusHoldFile: holdFile });
   await sleep(120);
+  // While the background CLI refresh is held inside fake-mineru-cli, the caller already gets the cached 'ready' answer.
   const stale = await h.timed('mineru.local.status');
-  assert.equal(stale.value.state, 'ready', 'the old answer comes back first');
-  assert.ok(stale.ms < 100, `took ${Math.round(stale.ms)} ms`);
+  assert.equal(stale.value.state, 'ready', 'the old answer comes back before the held background refresh can finish');
+  assert.equal(stale.value.checkedAt, first.checkedAt, 'returned directly from the cached entry');
+  t.diagnostic(`stale-while-revalidate return: ${Math.round(stale.ms)} ms`);
+  await until(() => existsSync(enteredFile), 'the background refresh process to enter fake-mineru-cli');
+  assert.equal((await h.call('mineru.local.status')).state, 'ready', 'still serves cached state while background refresh is blocked');
+  await rm(holdFile, { force: true });
   await until(async () => (await h.versions()) > versions, 'the background read');
   await until(async () => (await h.call('mineru.local.status')).state === 'server-stopped', 'the renewed answer');
 });

@@ -103,12 +103,12 @@ export default function ExamPrepCreate({ data, initial, initialMore, onBack, onS
             <Explain k="roles" focusable label={ui('用途是什么')}><Icon name="info" size={16} /></Explain>
           </div>
           {pool.length > 0 && counts['past-paper'] === 0 && (
-            <p className="exam-prep-docs__none">
+            <p className="exam-prep-docs__none" data-docs-none="paper">
               {noPaperWords()}
               {openImport && <>{' '}<Button variant="link" size="sm" lock={busy} onClick={() => importAs('past-paper')}>{ui('导入样卷')}</Button></>}
             </p>
           )}
-          <p className="exam-prep-docs__none">
+          <p className="exam-prep-docs__none" data-docs-none="focus">
             {ui('手上有老师发的重点截图或划重点消息？')}
             {' '}
             <Button variant="link" size="sm" lock={busy} onClick={() => openModal({ type: 'focusIntake', course: form.course || '' })}>

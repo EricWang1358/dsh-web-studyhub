@@ -1363,8 +1363,16 @@ async function createStatefulMethodHarness() {
     const rootOwner = { cursor: 0, slots: [], effects: [] };
     const formOwner = { cursor: 0, slots: [], effects: [] };
 
+    const pending = new Set();
+    const track = fn => (...args) => {
+      const promise = Promise.resolve().then(() => fn(...args));
+      pending.add(promise);
+      promise.finally(() => pending.delete(promise));
+      return promise;
+    };
+
     const makeCtx = () => {
-      const wrapped = inApp(components, h('div'), { data: props.data, call: studyCall, act: studyAct, busy });
+      const wrapped = inApp(components, h('div'), { data: props.data, call: track(studyCall), act: track(studyAct), busy });
       return {
         study: wrapped.props.value,
         app: wrapped.props.children.props.value,
@@ -1395,11 +1403,15 @@ async function createStatefulMethodHarness() {
           owner.effects.splice(0).forEach(fn => fn());
         }
         await new Promise(resolve => setImmediate(resolve));
+        while (pending.size > 0) {
+          await Promise.allSettled([...pending]);
+          await new Promise(resolve => setImmediate(resolve));
+        }
         await new Promise(resolve => setImmediate(resolve));
       },
       html(patch = {}) {
         const tree = renderTree(patch);
-        return renderToStaticMarkup(inApp(components, tree, { data: props.data, call: studyCall, act: studyAct, busy }));
+        return renderToStaticMarkup(inApp(components, tree, { data: props.data, call: track(studyCall), act: track(studyAct), busy }));
       },
       findButton(labelOrMatcher) {
         const tree = renderTree();

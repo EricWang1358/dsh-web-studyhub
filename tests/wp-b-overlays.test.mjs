@@ -163,6 +163,11 @@ test('computePlacement flips to the roomier side, clamps into the bounds and lim
   assert.equal(noFlip.maxHeight, 600 - 8 - 576, 'the panel is limited to the room that is left');
   const right = m.computePlacement({ anchor: { left: 960, right: 990, top: 40, bottom: 72 }, size: { width: 300, height: 50 }, bounds, placement: 'bottom-start' });
   assert.equal(right.left, 1000 - 8 - 300);
+  const tallTop = m.computePlacement({ anchor: { left: 800, right: 860, top: 480, bottom: 520 }, size: { width: 220, height: 700 }, bounds, placement: 'bottom-end' });
+  assert.equal(tallTop.placement, 'top-end');
+  assert.equal(tallTop.maxHeight, 480 - 4 - 8);
+  assert.equal(tallTop.top + tallTop.maxHeight, 480 - 4, 'an upward-flipped menu limited by maxHeight keeps its bottom edge flush against the trigger');
+  assert.ok(tallTop.top >= bounds.top + 8, 'an upward-flipped menu stays inside top bounds');
 });
 
 test('an undo toast may leave on its own but a plain action toast may not', () => {

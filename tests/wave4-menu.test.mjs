@@ -57,6 +57,26 @@ test('the review 更多 menu and the library ⋯ menu open against their trigger
     page.on('pageerror', (error) => errors.push(error.message));
     await page.addInitScript((value) => { localStorage.setItem('study-ui-language', 'en'); localStorage.setItem('study-autopilot', 'off'); localStorage.setItem('study-interface', JSON.stringify({ scale: value })); }, scale);
     await page.goto(server.url);
+    // 1. Library ⋯ menu: hand-off item carries an icon, so plain items reserve .sh-menu__gap and all labels align cleanly.
+    const libTrigger = '[data-deck-id="d"] .map-menu-wrap button';
+    await page.locator(libTrigger).waitFor({ timeout: 30000 });
+    await page.locator(libTrigger).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    await page.locator(libTrigger).click();
+    const libMenu = page.getByRole('menu');
+    await libMenu.waitFor();
+    await page.waitForTimeout(200);
+    const libLabel = `library ${width}px @${scale}%`;
+    check(libLabel, await rects(page, libTrigger));
+    const libItems = await libMenu.locator('.sh-menu__item').count();
+    const libIcons = await libMenu.locator('.sh-menu__item svg').count();
+    const libGaps = await libMenu.locator('.sh-menu__gap').count();
+    assert.equal(libIcons + libGaps, libIcons > 0 ? libItems : 0, `${libLabel}: icon column reserved iff at least one item has an icon`);
+    const libOffsets = await libMenu.evaluate((element) => [...element.querySelectorAll('.sh-menu__item .sh-menu__label')].map((node) => node.getBoundingClientRect().left));
+    assert.ok(Math.max(...libOffsets) - Math.min(...libOffsets) <= 1.5, `${libLabel}: item labels line up (${JSON.stringify(libOffsets)})`);
+    await page.keyboard.press('Escape');
+
+    // 2. Review 更多 menu: includes menuitemcheckbox toggles, so plain items reserve .sh-menu__gap and all labels align cleanly.
     await page.getByRole('button', { name: 'Start studying Flash deck' }).first().click();
     await page.locator('.flashcard').waitFor();
     await page.waitForTimeout(1500); // the toolbar is rebuilt once when the run's first refresh lands
@@ -68,12 +88,15 @@ test('the review 更多 menu and the library ⋯ menu open against their trigger
     await page.waitForTimeout(250);
     const label = `review ${width}px @${scale}%`;
     check(label, await rects(page, '.review-more-trigger'));
-    assert.equal(await menu.locator('.sh-menu__gap').count(), 0, `${label}: no icon column when no item has an icon`);
-    const textLeft = await menu.evaluate((element) => ({ item: element.querySelector('.sh-menu__item .sh-menu__label').getBoundingClientRect().left, panel: element.getBoundingClientRect().left }));
-    assert.ok(textLeft.item - textLeft.panel < 24, `${label}: text starts near the panel's left padding (${(textLeft.item - textLeft.panel).toFixed(1)})`);
+    assert.ok((await menu.locator('[role="menuitemcheckbox"]').count()) > 0, `${label}: review menu includes checkbox items`);
+    const labelOffsets = await menu.evaluate((element) => [...element.querySelectorAll('.sh-menu__item .sh-menu__label')].map((node) => node.getBoundingClientRect().left));
+    assert.ok(Math.max(...labelOffsets) - Math.min(...labelOffsets) <= 1.5, `${label}: checked and plain item labels line up (${JSON.stringify(labelOffsets)})`);
     await page.screenshot({ path: join(tmpdir(), `wave4-menu-review-${width}-${scale}.png`) });
     await page.keyboard.press('Escape');
     assert.deepEqual(errors, [], label);
     await page.close();
+    for (const run of (await service.call('snapshot')).runs || []) {
+      await service.call('review.end', { runId: run.id });
+    }
   }
 });

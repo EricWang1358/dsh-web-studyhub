@@ -31,8 +31,9 @@ const barTitle = (bar, live) => joinMeta([named(bar), span(bar, live)]);
 /** A bar the strip points at (time-limit.js slowSteps): its title also says how long the call took and why it is marked. */
 const markTitle = (bar, mark, ms) => joinMeta([named(bar), ms === null ? '' : formatElapsed(ms), mark === 'long' ? longRuleText() : slowestText()]);
 
-export default function Timeline({ calls, running, family, contractKind, selected, marks, onSelect }) {
-  const now = useNow(2000, { enabled: running });
+export default function Timeline({ calls, running, family, contractKind, selected, marks, onSelect, now: fixedNow }) {
+  const liveNow = useNow(2000, { enabled: running && fixedNow === undefined });
+  const now = fixedNow ?? liveNow;
   const model = useMemo(() => timelineModel(calls, { now, running, pinned: marks ? [...marks.keys()] : [] }), [calls, now, running, marks]);
   const legend = useMemo(() => timelineLegend(family, contractKind), [family, contractKind]);
   const byId = useMemo(() => new Map((calls || []).map((call) => [call.callId, call])), [calls]);

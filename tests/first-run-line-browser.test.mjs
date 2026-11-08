@@ -113,7 +113,7 @@ test('the first-run line from no model to the first question: one primary per st
         assert.ok(arrived.ok, `${width}px: the estimate's arrival moved the page: ${arrived.message}`);
         const planText = (await plan.innerText()).replace(/\s+/g, ' ');
         assert.match(planText, /将从 1 份资料出 \d+ 题 · 混合难度 · 中文 · 单选测验/, '创建题组\'s summary sentence and the types');
-        assert.match(planText, /预计 [\d.]+K?–[\d.]+K? tok · [\d–]+ 次模型调用/, '创建题组\'s estimate line');
+        assert.match(planText, /预计 [\d.]+K?(?:–[\d.]+K?)? tok(?:（含思考）)? · [\d–]+ 次模型调用/, '创建题组\'s estimate line');
         const onScreen = (locator) => locator.evaluate((element) => { const box = element.getBoundingClientRect(); return box.height > 0 && box.top >= 0 && box.bottom <= window.innerHeight; });
         assert.ok(await onScreen(plan.locator('[data-token-estimate]')), `${width}px: the estimate is on the first screen`);
         assert.ok(await onScreen(page.locator('.first-run [data-first-run="generate"]')), `${width}px: 出第一组题 is on the first screen, no scrolling (创建题组's button was 1.75 screens down at 390)`);
