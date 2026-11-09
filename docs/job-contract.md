@@ -4,6 +4,8 @@ Every background job of StudyHub (audio import, PDF conversion, question run, tr
 
 The snapshot (`snapshot`, panel only) puts it on each job as `job.contract`. The lean job the chat tools read (`job.status`, `job.wait`, the compact snapshot) does not carry it.
 
+While a job is active (queued, running, stopping), the snapshot's fingerprint holds only its structure (`lib/job-structure.js`: the row's `id`, `type`, `status` and the contract's `jobId`, `attemptId`, `kind`, `title`, `status`, `endReason`, `continuedBy`, `actions`, `result`, `error`, `startedAt`, `finishedAt`), so its progress, usage, calls, log and streamed output do not make every poll a whole snapshot. Between two snapshots the panel reads `job.live.list` (panel only, #886): the rows of the library's active jobs exactly as `snapshot.jobs` has them, which it puts over the snapshot's own rows (`ui/app/live-jobs.js`). A job that is not active is in the fingerprint whole.
+
 ## Shape
 
 ```
