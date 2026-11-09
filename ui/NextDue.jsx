@@ -60,7 +60,7 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
   const credited = Number.isInteger(feedback.credited) && feedback.credited > 0 ? feedback.credited : 0;
   const gap = nextDueGap(feedback, now);
   // The numbers behind the date: shown only when the learner asks, each with its plain meaning.
-  const hasWhy = !!(promoted || gapChip || lit > 0 || feedback.nextDue);
+  const hasWhy = !!(promoted || gapChip || lit > 0 || feedback.nextDue || meta.examAligned);
   return (
     <div className={`next-due${feedback.correct || selfReported ? '' : ' retry'}`} data-level={feedback.level || undefined}>
       <p className="next-due__lead">
@@ -89,6 +89,7 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
               </span>
             )}
             {gapChip && <span className="next-due__chip">{gapChip}</span>}
+            {meta.examAligned && <span className="next-due__chip">{ui('考试前先回来一次')}</span>}
             {lit > 0 && (
               <span className="next-due__chip next-due__chip--stability">
                 <span>{uiFormat('稳定度 {0} 天', [meta.stability])}</span>
@@ -101,6 +102,7 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
           <p className="muted small next-due__explain">
             {ui('复习间隔：这道题隔多少天再出现。答对会拉长，答错会缩短。')}
             {lit > 0 && <>{' '}{ui('稳定度：系统估计你能把这道题记住多久，越稳，下次隔得越久。')}</>}
+            {meta.examAligned && <>{' '}{ui('考前对齐：按这个间隔它会排到考试之后，所以提前到考试当天或更早回来；掌握程度仍按这个间隔算。')}</>}
           </p>
         </Disclosure>
       )}

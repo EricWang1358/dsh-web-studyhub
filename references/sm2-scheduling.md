@@ -44,12 +44,25 @@ The library settings hold two optional numbers (设置 › 导入、计划与备
 
 - `request_retention`: target recall, 0.7–0.97, default 0.9;
 - `maximum_interval`: the most days between two reviews, 1–36500, default 36500.
+- `exam_alignment`: `false` switches exam alignment (below) off; absent or `true`, it is on.
 
 The SM-2 keys `minimum_ease_factor`, `initial_ease_factor`, `first_interval_days` and `second_interval_days` are ignored when a library is read and dropped on the next save.
 
 ## The stored review
 
 A review keeps the fields older code reads (`repetitions`, `interval_days`, `ease_factor`, `due_at`) and adds `algorithm: "fsrs-6"`, `stability`, `difficulty`, `reps`, `lapses`, `elapsed_days` and `last_review`. `ease_factor` is derived from difficulty only so that an older build reading the library after a downgrade can keep scheduling.
+
+## Exam alignment
+
+One function derives the settings a question is scheduled with (`lib/card-schedule.js` `cardScheduleSettings`): the library settings, the raised target recall of a focus question, and the exam date of the question's course (`exam.date` on the course record; a chapter course without its own date takes its parent course's). Every path that schedules a question uses it: a practice answer and the answer buttons' gaps, the mock exam, prerequisite credit, rubric grading, the oral mock and the sample library.
+
+When the course has an exam on a later local day than the answer, the answer's next review is no later than the exam day (same time of day). An answer on the exam day itself, or after it, is scheduled as usual: there is no earlier day left. Nothing about the memory state changes:
+
+- `interval_days` stays the gap FSRS gave, so the mastery lines (`lib/mastery.js`) read the level the answer earned, the same with alignment on or off;
+- `due_at` is when the question really comes back;
+- `unaligned_due_at` keeps the due date FSRS gave; it is on the review only while the exam has moved `due_at` earlier, and the next answer writes a review without it unless the exam moves that one too.
+
+The exam is never written as `maximum_interval`, which keeps meaning only the learner's own maximum. A library or a review without these fields reads as before.
 
 ## Moving from SM-2
 

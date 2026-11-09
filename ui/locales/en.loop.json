@@ -75,5 +75,7 @@
   "新学 {0} 题": "{0} new started",
   "消除薄弱 {0} 题": "{0} weak cleared",
   "完成待复习 {0} 题": "{0} due reviewed",
-  "整组达标": "All mastered"
+  "整组达标": "All mastered",
+  "考试前先回来一次": "Back once before the exam",
+  "考前对齐：按这个间隔它会排到考试之后，所以提前到考试当天或更早回来；掌握程度仍按这个间隔算。": "Exam alignment: this interval would put it after the exam, so it comes back on the exam day or earlier; its mastery still counts the interval."
 }
