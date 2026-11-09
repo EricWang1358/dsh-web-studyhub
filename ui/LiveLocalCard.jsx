@@ -107,7 +107,7 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
   const line = <p className="live-local-card__line" role="status" aria-live="polite">{text.sentence(status)}</p>;
   const displayedModel = modelId || status?.modelId || DEFAULT_LOCAL_MODEL;
   const modelChoice = <>
-    <Select aria-label={ui('本地转写模型')} value={displayedModel} disabled={!!working || shown.state === 'installing'}
+    <Select aria-label={ui('本地模型档位')} value={displayedModel} disabled={!!working || shown.state === 'installing'}
       options={LOCAL_MODELS.map(model => ({ value: model.id, label: `${ui(model.tier === 'speed' ? '速度档' : '质量档')} · ${model.name} · ${sizeLabel(model.modelMb)}` }))}
       onChange={value => { modelEpoch.current += 1; skipPlan.current = false; setModelId(value); setStatus(null); setPlan(null); setLocation(''); setChoosing(false); setError(''); }} />
     <Hint>{displayedModel === 'whisper-turbo'

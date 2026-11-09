@@ -115,7 +115,7 @@
   "下次点「开始实录」或「接着录」时生效；正在录的课不变。": "Takes effect the next time you press Start recording or Continue recording; a class that is already recording keeps its value.",
   "讲得很快、一直没有断句？到 音频设置 › 断句停顿 选『短』，下次开始或接着录时生效。": "Speaking fast and no sentences yet? Go to Audio settings › Sentence pause and choose “Short”; it takes effect the next time you start or continue recording.",
   "打开断句停顿设置": "Open the sentence pause setting",
-  "本地转写模型": "Local transcription model",
+  "本地模型档位": "Local model tier",
   "速度档": "Speed",
   "质量档": "Quality",
   "更大的多语种模型，内存和 CPU 占用更高，可能跟不上实时播放。自然停顿或每 15 秒提交文字，临时文字预览关闭。本机合成语音测试内存峰值约 1.6 GiB，真实网课效果仍需对比。": "A larger multilingual model with higher memory and CPU use. It may lag behind playback. Text is finalized at pauses or every 15 seconds; partial previews are disabled. A synthetic-speech test on this computer peaked at about 1.6 GiB. Compare results on your own lectures.",
