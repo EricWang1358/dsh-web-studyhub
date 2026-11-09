@@ -7,7 +7,7 @@ import { performance } from "node:perf_hooks";
 import { StudyService } from "../lib/service.js";
 import { writesFor } from "../lib/runtime/domain-contracts.js";
 import { assistantRefusal } from "../lib/assistant-boundary.js";
-import { studyToolDescription } from "../lib/study-contracts.js";
+import { libraryContracts, studyToolDescription } from "../lib/study-contracts.js";
 import { similarQuestions } from "../lib/contexts/authoring/similar-questions.js";
 
 /* #890 S1: `draft.similar {id}` says which questions of a draft are near-duplicates (the shared stemSimilarity, lib/stem-similarity.js) of another
@@ -69,7 +69,7 @@ test("a question is never similar to itself: not in its own draft, not as the pu
   assert.deepEqual((await service.call("draft.similar", { id: "d1" })).similar, []);
 });
 
-test("draft.similar reads without writing, is declared read only and is listed for the main chat", async (t) => {
+test("draft.similar reads without writing, is declared read only and is described in the cards area for the main chat", async (t) => {
   const draft = { id: "d1", title: "草稿", course: "信息论", draftVersion: 1, cards: [quiz("a", ENTROPY), quiz("c", ENTROPY_AGAIN)] };
   const service = await library(t, { drafts: [draft] });
   const before = JSON.stringify(await service.call("export"));
@@ -78,7 +78,9 @@ test("draft.similar reads without writing, is declared read only and is listed f
   await assert.rejects(service.call("draft.similar", { id: "missing" }), /Draft/);
   assert.deepEqual(writesFor("authoring", "draft.similar"), []);
   assert.equal(assistantRefusal("draft.similar"), null);
-  assert.match(studyToolDescription, /draft\.similar/);
+  // Described in the lazily read `cards` area only: the always-on description does not grow with every read (#891).
+  assert.match(libraryContracts.cards, /draft\.similar \{id\} reads which questions of a draft resemble another/);
+  assert.doesNotMatch(studyToolDescription, /draft\.similar/);
 });
 
 /* The budget of #890: a coverage draft holds up to 500 questions and a course a few thousand. Comparing every pair took 10.6 s for 500 x 3 000
