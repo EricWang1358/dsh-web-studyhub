@@ -29,7 +29,7 @@ test("stemSimilarity keeps its meaning: punctuation, spacing and case do not cou
 /* A small deterministic generator: stems built from a few shared phrases, so that some pairs are near-duplicates and most are not. */
 function corpus(count, seed = 7) {
   let x = seed;
-  const next = () => { x = (x * 1103515245 + 12345) % 2147483648; return x; };
+  const next = () => { x = (Math.imul(x, 1664525) + 1013904223) >>> 0; return x >>> 16; };
   const parts = ["进程调度", "页面置换", "死锁的必要条件", "信号量", "下列哪一项", "关于", "正确的是", "请解释", "的含义", "TCP 握手", "虚拟内存", "缓存一致性", "为什么", "举例说明"];
   return Array.from({ length: count }, () => Array.from({ length: 2 + (next() % 4) }, () => parts[next() % parts.length]).join(next() % 2 ? "，" : ""));
 }
