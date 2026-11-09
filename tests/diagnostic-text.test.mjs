@@ -40,14 +40,72 @@ test('the diagnostic text of a crash holds none of the private content that was 
 });
 
 test('what a bug report needs is still there: version, language, page, the kind of error and where it broke', () => {
-  const text = diagnosticText({ version: '4.6.2', language: 'en', page: 'wrongbook', error: leakyError(), data: snapshot() });
+  const error = Object.assign(new TypeError("Cannot read properties of undefined (reading 'map')"), { stack: leakyError().stack });
+  const text = diagnosticText({ version: '4.6.2', language: 'en', page: 'wrongbook', error, data: snapshot() });
   assert.match(text, /StudyHub version: 4\.6\.2/);
   assert.match(text, /Interface language: en/);
   assert.match(text, /Page: wrongbook/);
   assert.match(text, /TypeError/);
   assert.match(text, /Cannot read properties of undefined \(reading 'map'\)/);
-  assert.match(text, /at render \(\[path\]/, 'a frame keeps the function that broke; its file path is hidden');
+  assert.match(text, /^  at render$/m, 'a frame keeps only the function that broke: no URL, path or position');
   assert.match(text, /DSH version: .*手动|DSH version: .*by hand/, 'the one thing the page cannot know is left to be filled in by hand');
+});
+
+/* Counter-examples from the review of #905: each is a message a learner's own data can end up in, on its own and again as the first line of a stack. */
+const LEAKS = [
+  ['题组「期中冲刺卷」没有题目', ['期中冲刺卷']],
+  ['Restore the archived deck "期中" before opening it', ['期中']],
+  ["Cannot read properties of undefined (reading '数据库系统概论')", ['数据库系统概论']],
+  ['Failed to open 期中复习笔记.pdf', ['期中复习笔记']],
+  ['C:\Users\Eric Wang\Desktop\期中 笔记 final.pdf', ['Eric Wang', '期中 笔记', 'final.pdf']],
+  ['/Users/Eric Wang/Documents/week 3.pdf', ['Eric Wang', 'week 3']],
+  ['\\fileserver\students\e0123456\notes.pdf', ['fileserver', 'e0123456', 'notes.pdf']],
+  ['AIzaSyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q', ['AIzaSy']],
+  ['request failed with gsk_abcdefghijklmnopqrstuvwxyz0123456789', ['gsk_']],
+  ['download failed hf_AbCdEfGhIjKlMnOpQrStUvWxYz012345', ['hf_']],
+  ['bad config api_key=veryprivatevalue12345', ['veryprivatevalue']],
+  ['sent to student.name@school.example.edu failed', ['student.name', 'school.example']],
+  ['Unexpected token \'T\', "The mitoch"... is not valid JSON', ['mitoch']],
+];
+const FRAMES = [
+  'at Page (file:///Users/ericwang/dsh/ui/page.js:10:5)',
+  'at Object.run (C:\\Users\\Eric Wang\\dsh\\ui.js:3:9)',
+  'at 期中复习笔记.pdf (https://localhost/x.js?token=SECRET-SIG-99:1:2)',
+  'at https://localhost/client.js:5:5',
+  'render@file:///Users/ericwang/dsh/ui.js:1:1',
+];
+
+test('nothing a learner\'s data can put in an error message or a stack frame reaches the text', () => {
+  for (const [message, parts] of LEAKS) {
+    const error = new Error(message);
+    error.stack = `Error: ${message}\n    ${FRAMES.join('\n    ')}`;
+    for (const variant of [error, message, Object.assign(new Error('x'), { message: 'x', stack: error.stack })]) {
+      const text = diagnosticText({ version: '4.6.2', language: 'zh', page: 'library', error: variant });
+      for (const part of [...parts, 'ericwang', 'Eric Wang', 'SECRET-SIG', 'file://', 'https://', '期中复习笔记']) assert.ok(!text.includes(part), `"${part}" leaked from "${message}" into:\n${text}`);
+    }
+  }
+});
+
+test('an error message that is not one of the engine\'s own is replaced by its length', () => {
+  const text = diagnosticText({ version: '1', language: 'zh', page: 'library', error: new Error('题组「期中冲刺卷」没有题目') });
+  assert.match(text, /Message: \(not copied: 13 characters; see 技术详情\)/);
+});
+
+test('the engine\'s own messages are kept: they say what broke and hold nothing of the learner\'s', () => {
+  for (const message of ["Cannot read properties of undefined (reading 'map')", 'e.cards.map is not a function', 'Minified React error #31']) {
+    const lines = diagnosticText({ version: '1', language: 'zh', page: 'library', error: new Error(message) }).split('\n');
+    assert.ok(lines.includes(`Message: ${message}`), lines.join('\n'));
+  }
+  const react = diagnosticText({ version: '1', language: 'zh', page: 'library', error: new Error('Minified React error #31; visit https://react.dev/errors/31?args[]=object%20with%20keys%20%7B期中%7D for the full message') });
+  assert.match(react, /Message: Minified React error #31$/m);
+  assert.ok(!react.includes('期中') && !react.includes('react.dev'));
+  assert.match(diagnosticText({ version: '1', language: 'zh', page: 'library', error: new Error('Maximum update depth exceeded. This can happen when a component calls setState') }), /Message: Maximum update depth exceeded$/m);
+});
+
+test('the error name is a plain token, else just Error', () => {
+  const error = new Error("Cannot read properties of null (reading 'x')");
+  error.name = '期中冲刺卷 failed';
+  assert.match(diagnosticText({ version: '1', language: 'zh', page: 'library', error }), /^Error: Error$/m);
 });
 
 test('the library is described by counts, the jobs by kind and status, the switches by name, and nothing else', () => {
