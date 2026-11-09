@@ -19,10 +19,13 @@ const TOKEN = /^[\w.-]{1,40}$/;
 const token = (value, fallback = 'unknown') => (typeof value === 'string' && TOKEN.test(value) ? value : fallback);
 const count = value => (Number.isSafeInteger(value) && value >= 0 ? value : 0);
 
-/* The messages that are copied whole: an identifier-shaped subject (ASCII letters, digits, _ $ . ? [ ]), never a quoted word of any other kind. */
+/* The messages that are copied whole. The subject of "is not ..." is code-shaped: V8 writes "is not defined" for a bare identifier only, and the
+   others for a member-access path, whose last part is not a file extension (a file name is the learner's, not the engine's). */
+const FILE_EXTENSION = 'pdf|docx?|pptx?|xlsx?|md|txt|csv|json|html?|epub|png|jpe?g|gif|webp|mp3|m4a|wav|mp4|zip';
 const ENGINE_WHOLE = [
   /^Cannot (?:read|set) properties of (?:undefined|null) \((?:reading|setting) '[\w$]{1,60}'\)$/,
-  /^[\w$.?[\]]{1,120} is not (?:a function|iterable|a constructor|defined)$/,
+  /^[A-Za-z_$][\w$]{0,60} is not defined$/,
+  new RegExp(`^(?![\\w$.?[\\]]*\\.(?:${FILE_EXTENSION}) is not )[A-Za-z_$][\\w$]*(?:\\??\\.[A-Za-z_$][\\w$]*|\\[\\d{1,6}\\]){0,8} is not (?:a function|iterable|a constructor)$`),
   /^Cannot destructure property '[\w$]{1,60}' of '[\w$.?[\]]{1,120}' as it is (?:undefined|null)\.$/,
 ];
 /* The messages whose start is the whole point (React appends a URL with the arguments, which can hold anything): only the matched part is copied. */
@@ -39,13 +42,16 @@ function messageLine(message) {
   return `(not copied: ${text.length} characters; see 技术详情)`;
 }
 
-/* A frame is its function name and nothing else: a URL, a path and a position say who the learner is. A frame without a plain name is <anonymous>. */
-const CHROME_FRAME = /^\s*at\s+(?:async\s+)?([A-Za-z_$][\w$.]{0,80})\s+\(/;
-const FIREFOX_FRAME = /^\s*([A-Za-z_$][\w$.]{0,80})@/;
+/* A frame is its function name and nothing else: a URL, a path and a position say who the learner is. A line is a frame only when it ends in a
+   position (:line:column) and its name is an ASCII identifier; any other name is <anonymous>. A line without a position is no frame, so the lines of a
+   multi-line message cannot pass for one. */
+const CHROME_FRAME = /^\s*at\s+(?:async\s+)?([A-Za-z_$][\w$.]{0,80})\s+\(.*:\d+:\d+\)$/;
+const CHROME_ANONYMOUS = /^\s*at\s.*:\d+:\d+\)?$/;
+const FIREFOX_FRAME = /^\s*([A-Za-z_$][\w$.]{0,80})?@.*:\d+:\d+$/;
 function frameLine(line) {
-  if (/^\s*at\s/.test(line)) return `  at ${CHROME_FRAME.exec(line)?.[1] ?? '<anonymous>'}`;
-  const name = FIREFOX_FRAME.exec(line)?.[1];
-  return name ? `  at ${name}` : null;
+  const named = CHROME_FRAME.exec(line) ?? FIREFOX_FRAME.exec(line);
+  if (named) return `  at ${named[1] ?? '<anonymous>'}`;
+  return CHROME_ANONYMOUS.test(line) ? '  at <anonymous>' : null;
 }
 
 function errorLines(error) {
@@ -54,7 +60,8 @@ function errorLines(error) {
   const { name, message, stack } = typeof source === 'object' ? source : {};
   const lines = [`Error: ${typeof name === 'string' && /^[A-Za-z][\w$]{0,39}$/.test(name) ? name : 'Error'}`, `Message: ${messageLine(message)}`];
   // The stack's first line repeats the message and is dropped; the frames after it say where it broke.
-  const frames = typeof stack === 'string' ? stack.split('\n').map(frameLine).filter(Boolean).slice(0, DIAGNOSTIC_LIMITS.stackLines) : [];
+  // The message is taken out of the stack first: in Chrome the stack begins with the whole message, every line of it.
+  const frames = typeof stack === 'string' ? (typeof message === 'string' && message ? stack.replace(message, '') : stack).split('\n').map(frameLine).filter(Boolean).slice(0, DIAGNOSTIC_LIMITS.stackLines) : [];
   if (frames.length) lines.push('Stack:', ...frames);
   return lines;
 }

@@ -57,9 +57,9 @@ const LEAKS = [
   ['Restore the archived deck "期中" before opening it', ['期中']],
   ["Cannot read properties of undefined (reading '数据库系统概论')", ['数据库系统概论']],
   ['Failed to open 期中复习笔记.pdf', ['期中复习笔记']],
-  ['C:\Users\Eric Wang\Desktop\期中 笔记 final.pdf', ['Eric Wang', '期中 笔记', 'final.pdf']],
+  [String.raw`C:\Users\Eric Wang\Desktop\期中 笔记 final.pdf`, ['Eric Wang', '期中 笔记', 'final.pdf']],
   ['/Users/Eric Wang/Documents/week 3.pdf', ['Eric Wang', 'week 3']],
-  ['\\fileserver\students\e0123456\notes.pdf', ['fileserver', 'e0123456', 'notes.pdf']],
+  [String.raw`\\fileserver\students\e0123456\notes.pdf`, ['fileserver', 'e0123456', 'notes.pdf']],
   ['AIzaSyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q', ['AIzaSy']],
   ['request failed with gsk_abcdefghijklmnopqrstuvwxyz0123456789', ['gsk_']],
   ['download failed hf_AbCdEfGhIjKlMnOpQrStUvWxYz012345', ['hf_']],
@@ -84,6 +84,27 @@ test('nothing a learner\'s data can put in an error message or a stack frame rea
       for (const part of [...parts, 'ericwang', 'Eric Wang', 'SECRET-SIG', 'file://', 'https://', '期中复习笔记']) assert.ok(!text.includes(part), `"${part}" leaked from "${message}" into:\n${text}`);
     }
   }
+});
+
+test('the lines of a multi-line message are not read as stack frames, in the message or at the top of the stack', () => {
+  const message = 'line one\nericwang@gmail.com\n  at Deck_Midterm (x)';
+  const stack = `Error: ${message}\n    at render (https://localhost/client.js:10:5)\n    at Object.run (C:\\Users\\a\\x.js:3:9)\n    at https://localhost/client.js:5:5\n    mount@https://localhost/client.js:1:1`;
+  for (const error of [Object.assign(new Error(message), { stack }), Object.assign(new Error(message), { stack: `${message}\n${stack}`.replace(`Error: ${message}\n`, '') })]) {
+    const text = diagnosticText({ version: '1', language: 'zh', page: 'library', error });
+    for (const part of ['ericwang', 'gmail', 'Deck_Midterm', 'line one']) assert.ok(!text.includes(part), `"${part}" leaked into:\n${text}`);
+    for (const frame of ['  at render', '  at Object.run', '  at <anonymous>', '  at mount']) assert.ok(text.split('\n').includes(frame), `${frame} missing from:\n${text}`);
+  }
+  // a line that only looks like a frame has no position at its end, so it is no frame
+  const text = diagnosticText({ version: '1', language: 'zh', page: 'library', error: Object.assign(new Error('x'), { stack: 'Error: x\n    at Deck_Midterm_Review (x)\n    notes.pdf@x\n    ericwang@gmail.com' }) });
+  assert.doesNotMatch(text, /Deck_Midterm|notes|ericwang/);
+});
+
+test('the "is not ..." messages are copied only for a code-shaped subject, never a file name', () => {
+  const kept = ['e.cards.map is not a function', 'data?.decks is not iterable', 'a[0].b is not a function', 'Foo is not a constructor', 'React is not defined'];
+  const withheld = ['notes.pdf is not defined', 'midterm.docx is not a function', 'x.json is not iterable', 'lecture-07.pdf is not defined', '期中.cards is not iterable'];
+  const messageOf = text => diagnosticText({ version: '1', language: 'zh', page: 'library', error: new Error(text) }).split('\n').find(line => line.startsWith('Message: '));
+  for (const text of kept) assert.equal(messageOf(text), `Message: ${text}`);
+  for (const text of withheld) assert.match(messageOf(text), /^Message: \(not copied: \d+ characters; see 技术详情\)$/, text);
 });
 
 test('an error message that is not one of the engine\'s own is replaced by its length', () => {

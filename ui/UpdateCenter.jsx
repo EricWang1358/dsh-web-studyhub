@@ -313,7 +313,7 @@ export function UpdateSettings({ update, onOpen, checking = false, extension, on
       <p className="settings-section__lead">{ui('自动检查通常间隔 6 小时，失败后稍后重试；手动检查立即查询，不自动安装，也不发送学习数据。')}</p>
       {diagnostic && <div className="update-settings__diagnostic" data-tour="settings-diagnostic">
         <CopyDiagnosticsButton describe={diagnostic} variant="secondary" />
-        <Hint className="update-settings__hint">{ui('报问题时点「复制诊断信息」，把文字贴给开发者；点「看看会复制什么」可以先读一遍。里面只有版本、页面、出错类型、程序自带的报错短句、任务类型和数量；别的报错内容不会复制，只写字数。DSH 版本请自己补上。')}</Hint>
+        <Hint className="update-settings__hint">{ui('报问题时点「复制诊断信息」，把文字贴给开发者；点「看看会复制什么」可以先读一遍。里面只有版本、界面语言、页面、出错类型、程序自带的报错短句、出错位置的函数名、任务类型和状态、资料/题组/题目的数量，以及实验性功能是否开启；别的报错内容不会复制，只写字数。DSH 版本请自己补上。')}</Hint>
       </div>}
     </fieldset>
   );

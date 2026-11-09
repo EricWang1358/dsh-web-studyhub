@@ -37,18 +37,18 @@ export function ErrorState({ error, onRetry, retryLabel, compact = false, title,
 export function CopyDiagnosticsButton({ describe, variant = 'quiet', size = 'sm', className }) {
   const text = describe();
   const { copied, copy } = useCopyFeedback(text);
-  const [refused, setRefused] = useState(false), [open, setOpen] = useState(false);
+  const [refusals, setRefusals] = useState(0), [open, setOpen] = useState(false);
   const field = useRef(null);
-  useEffect(() => { if (refused) field.current?.focus(); }, [refused]);
+  useEffect(() => { if (refusals) field.current?.focus(); }, [refusals]);
   const press = async () => {
     const worked = await copy();
-    setRefused(!worked);
+    setRefusals(count => (worked ? 0 : count + 1));
     if (!worked) setOpen(true);
   };
   return (
     <span className={cx('sh-diagnostic-copy', className)}>
       <Button size={size} variant={variant} icon="copy" onClick={press}>{copied ? ui('已复制') : ui('复制诊断信息')}</Button>
-      {refused && <small className="sh-diagnostic-copy__refused" role="status">{ui('没能复制，请选中下面的文字再复制')}</small>}
+      {refusals > 0 && <small className="sh-diagnostic-copy__refused" role="status">{ui('没能复制，请选中下面的文字再复制')}</small>}
       <Disclosure className="sh-diagnostic-copy__fold" summary={ui('看看会复制什么')} open={open} onToggle={setOpen}>
         <textarea ref={field} className="sh-diagnostic-copy__text" readOnly rows={8} value={text} aria-label={ui('诊断信息')} onFocus={event => event.target.select()} />
       </Disclosure>
