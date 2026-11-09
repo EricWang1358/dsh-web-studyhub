@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 import { mkdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { healIndex } from './heal.js';
 
 export const name = 'studyhub-retrieval';
@@ -41,7 +41,7 @@ export function serverConfig({ home, entry, execPath = process.execPath, electro
     serverName: SERVER_NAME,
     transport: 'stdio',
     command: execPath,
-    args: [entry],
+    args: [fileURLToPath(new URL('./server.mjs', import.meta.url)), entry],
     env: {
       DB_PATH: join(data, 'lancedb'),
       CACHE_DIR: join(data, 'models'),

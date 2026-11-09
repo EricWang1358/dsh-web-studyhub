@@ -6,6 +6,10 @@ It contains one small DSH plugin that mounts DSH's MCP client for [mcp-local-rag
 
 The first index build downloads the embedding model (about 90 MB, per the server's documentation). The default model favours English; keyword matching still helps Chinese text. To download from another address, set `hfEndpoint` (an https URL) in `<DSH home>/study/retrieval.json`, which StudyHub's Settings also offers under Advanced; the server's documentation describes this as `HF_ENDPOINT`.
 
+Index builds group the pages needing updates with `min(8, ceil(pendingPages / 8))` pages per request, calculated once at the start. Each page keeps its own source identity and rollback behavior. The companion finishes index maintenance once per batch before confirming its results, and StudyHub saves a checkpoint after each confirmed batch. Searches wait for a running batch to finish its maintenance. Searches report a maintenance failure until a later maintenance succeeds. Cancellation stops between pages and finalizes writes already accepted. Pages whose results could not be confirmed are written again under the same keys on the next build.
+
+Update the search extension in Settings and restart DSH to enable batching. An older extension continues to support single-page index builds.
+
 Before the server starts, the extension checks its index. An index the server could not open (for example one whose newest files a crash left empty) is moved aside to `chunks.lance.broken-<time>` (kept, never deleted), `<DSH home>/study/retrieval/reset.json` records when and why, and the server starts on an empty index; StudyHub then asks for the index to be built again. The check opens the table with the server's own LanceDB in a separate process, and only when its newest version changed since the last check passed.
 
 License: MIT.

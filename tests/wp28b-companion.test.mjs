@@ -1,12 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join, isAbsolute } from 'node:path';
+import { dirname, join, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
 import { SERVER_NAME, serverConfig, mount, readEndpoint } from '../packages/studyhub-retrieval/index.js';
+import { EXTENSION_BUILD } from '../lib/retrieval-extension.js';
+import { compareVersions } from '../lib/semver.js';
 
 /* WP28b: the companion bundle @ericwang1358/studyhub-retrieval. DSH installs it like any bundle; its own
    plugin mounts DSH's MCP client for a local search server that DSH's own runtime starts, so no config file
@@ -23,6 +26,7 @@ test('the bundle declares what DSH needs: a patch layer, a pinned server depende
   assert.ok(manifest.peerDependencies['@deepseek-ai/dsh-mcp-client']);
   assert.equal(manifest.peerDependenciesMeta['@deepseek-ai/dsh-mcp-client'].optional, true);
   assert.ok(manifest.files.includes('index.js') && manifest.files.some(file => file.startsWith('locale')));
+  assert.ok(manifest.files.includes('server.mjs') && manifest.files.includes('batch-server.js'));
   for (const language of ['en', 'zh']) {
     const locale = JSON.parse(await readFile(join(root, `packages/studyhub-retrieval/locale/${language}.json`), 'utf8'));
     assert.ok(locale.meta.title && locale.meta.description);
@@ -48,6 +52,8 @@ test('the server runs on DSH\'s own Node with absolute paths under the StudyHub 
   assert.equal(config.transport, 'stdio');
   assert.equal(config.command, process.execPath);
   assert.ok(isAbsolute(config.args[0]));
+  assert.equal(config.args[0], join(root, 'packages/studyhub-retrieval/server.mjs'));
+  assert.equal(config.args[1], join(home, 'node_modules', 'mcp-local-rag', 'dist', 'index.js'));
   for (const key of ['DB_PATH', 'CACHE_DIR', 'BASE_DIR']) assert.ok(config.env[key].startsWith(join(home, 'study', 'retrieval')), key);
   assert.equal(config.env.ELECTRON_RUN_AS_NODE, undefined);
   assert.ok(config.toolCallTimeoutMs >= 10 * 60 * 1000, 'the first call downloads the embedding model');
@@ -105,17 +111,38 @@ test('the release pack builds the companion as an asset with its checksum, at th
   t.after(() => rm(outdir, { recursive: true, force: true }));
   const main = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   const env = { ...process.env }; delete env.npm_execpath;
-  await run(process.execPath, [join(root, 'scripts/release-alpha.mjs'), `--outdir=${outdir}`], { cwd: root, env });
+  // A PR can introduce the next extension before the main package's release version is bumped.
+  if (compareVersions(EXTENSION_BUILD.since, main.version) > 0) {
+    await assert.rejects(run(process.execPath, [join(root, 'scripts/release-alpha.mjs'), `--outdir=${outdir}`], { cwd: root, env }), /above the release being packed/);
+  }
+  const fixture = await mkdtemp(join(tmpdir(), 'wp28b-release-source-'));
+  t.after(() => rm(fixture, { recursive: true, force: true }));
+  const paths = new Set([...main.files, 'packages/studyhub-retrieval', 'scripts/release-alpha.mjs', 'scripts/extension-fingerprint.mjs']);
+  await Promise.all([...paths].map(async path => {
+    await mkdir(dirname(join(fixture, path)), { recursive: true });
+    await cp(join(root, path), join(fixture, path), { recursive: true });
+  }));
+  const version = compareVersions(EXTENSION_BUILD.since, main.version) > 0 ? EXTENSION_BUILD.since : main.version;
+  await writeFile(join(fixture, 'package.json'), JSON.stringify({ ...main, version }));
+  // Reuse installed runtime dependencies without installing or changing the real checkout.
+  await symlink(join(root, 'node_modules'), join(fixture, 'node_modules'), 'junction');
+  try {
+    await run(process.execPath, [join(fixture, 'scripts/release-alpha.mjs'), `--outdir=${outdir}`], { cwd: fixture, env });
+  } finally { await unlink(join(fixture, 'node_modules')); }
   const artifacts = JSON.parse(await readFile(join(outdir, 'artifacts.json'), 'utf8'));
   const companion = artifacts.archives.find(archive => archive.name === '@ericwang1358/studyhub-retrieval');
   assert.ok(companion, 'the companion is an archive of the release');
-  assert.equal(companion.version, main.version);
-  assert.equal(companion.filename, `ericwang1358-studyhub-retrieval-${main.version}.tgz`);
-  const sums = await readFile(join(outdir, `SHA256SUMS-${main.version}.txt`), 'utf8');
+  assert.equal(companion.version, version);
+  assert.equal(companion.filename, `ericwang1358-studyhub-retrieval-${version}.tgz`);
+  assert.equal(companion.sha256, createHash('sha256').update(await readFile(join(outdir, companion.filename))).digest('hex'));
+  const sums = await readFile(join(outdir, `SHA256SUMS-${version}.txt`), 'utf8');
   assert.match(sums, new RegExp(`^${companion.sha256}  ${companion.filename}$`, 'm'));
   const packed = JSON.parse(await run('tar', ['-xzOf', companion.filename, 'package/package.json'], { cwd: outdir }));
-  assert.equal(packed.version, main.version);
+  assert.equal(packed.version, version);
   assert.equal(packed.dependencies['mcp-local-rag'], manifest.dependencies['mcp-local-rag']);
   assert.equal(packed.dsh.bundle.patch, './cordis.patch.yml');
   assert.ok((await run('tar', ['-tzf', companion.filename], { cwd: outdir })).includes('package/index.js'));
+  for (const file of ['server.mjs', 'batch-server.js']) {
+    assert.equal(await run('tar', ['-xzOf', companion.filename, `package/${file}`], { cwd: outdir }), await readFile(join(root, 'packages/studyhub-retrieval', file), 'utf8'));
+  }
 });
