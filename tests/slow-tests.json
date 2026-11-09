@@ -9,6 +9,7 @@
     "tests/board-today-s6-browser.test.mjs",
     "tests/board-today-s7-browser.test.mjs",
     "tests/book-entry-browser.test.mjs",
+    "tests/book-html-browser.test.mjs",
     "tests/book-send-to-chat-browser.test.mjs",
     "tests/busy-lock-browser.test.mjs",
     "tests/calculation-guidance-browser.test.mjs",

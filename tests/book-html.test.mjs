@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { exportBook as runExport } from '../lib/course-book-export.js';
-import { bookHtml, bookHtmlFilename, withoutSourceQuotes } from '../ui/book/book-html.js';
+import { bookHtml, bookHtmlFile, bookHtmlFilename, withoutSourceQuotes } from '../ui/book/book-html.js';
 import { cardOf, exportBook, GEN } from './helpers/course-book-export-book.mjs';
 
 const exported = (patch, options = {}) => runExport(exportBook(patch), { cardOf, answerKey: true, questions: 'all', ...options });
@@ -159,4 +159,10 @@ test('the file is named after the Markdown file of the export', () => {
   assert.equal(bookHtmlFilename('复习全书-SA-含答案册.md'), '复习全书-SA-含答案册.html');
   assert.equal(bookHtmlFilename('book'), 'book.html');
   assert.equal(bookHtmlFilename(''), 'book.html');
+});
+
+test('the file the dialog saves: made from the text and language of the export, named after its file', () => {
+  const book = exported();
+  assert.deepEqual(bookHtmlFile(book, { quotes: false }), { filename: '复习全书-SA-含答案册.html', html: bookHtml(book.text, { language: 'zh', quotes: false }) });
+  assert.equal(bookHtmlFile(book).html, bookHtml(book.text, { language: 'zh', quotes: true }), 'with the quotes by default');
 });

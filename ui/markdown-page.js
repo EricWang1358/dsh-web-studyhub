@@ -246,6 +246,7 @@ h2{margin:1.8rem 0 .6rem;padding:.3rem .55rem;font-size:1.25rem;line-height:1.3;
 h3{margin:1.3rem 0 .4rem;font-size:1.08rem;line-height:1.3;break-after:avoid}
 h4,h5,h6{margin:1rem 0 .3rem;font-size:1rem;break-after:avoid}
 p{margin:.45rem 0}
+p,li,blockquote,h1,h2,h3,h4,h5,h6{overflow-wrap:anywhere}
 ul,ol{margin:.4rem 0;padding-left:1.4rem}
 li{margin:.15rem 0}
 blockquote{margin:.6rem 0;padding:.1rem .8rem;border-left:3px solid var(--line);color:var(--mute)}

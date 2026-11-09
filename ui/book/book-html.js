@@ -1,6 +1,6 @@
 import { BASE_CSS, esc, staticPage } from '../static-page.js';
 import { MARKDOWN_CSS, contentsList, renderMarkdown } from '../markdown-page.js';
-import { DEFINITION, isLabelLine } from '../../lib/book-footnotes.js';
+import { DEFINITION, isLabelLine } from '../../lib/footnote-syntax.js';
 import { answerCardWords } from '../../lib/answer-card.js';
 
 /* The 复习全书 as ONE self-contained HTML page (#896): the Markdown of the export (lib/course-book-export.js, the text the dialog already holds) made into a
@@ -94,3 +94,6 @@ ${contentsList(headings, { label: words.contents })}
 ${html}</main>`;
   return staticPage({ lang: words.lang, title: name, css: CSS, body });
 }
+
+/** What the export dialog saves: the page of an export's answer (course.book.export, the single form), named after its Markdown file. */
+export const bookHtmlFile = (done, { quotes = true } = {}) => ({ filename: bookHtmlFilename(done.filename), html: bookHtml(done.text, { language: done.language, quotes }) });
