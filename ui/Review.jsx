@@ -23,6 +23,8 @@ import { isBackDestination, wayBackOf } from "./review/way-back.js";
 import { resolvePracticeSettings } from "../lib/practice-settings.js";
 import { countMaterials } from "../lib/source-groups.js";
 import { currentMethodStage, resolveRoundCourse, roundEndAlternative, useMethodAlternativeOpen } from "./method-alternatives.js";
+import { pageAvailable } from "./capabilities.js";
+import { askForLeeches } from "./wrongbook-model.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -109,6 +111,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
       ? run.missedCards
       : ((run.answered || 0) > (run.correct || 0) && run.weakTopics?.length > 0 ? run.weakTopics.map((topic) => ({ topic, prompt: topic })) : []))
     : [];
+  // 顽固题 of this round that the wrong book still holds (lib/leech.js, computed with the run): one line, and it opens the wrong book on them.
+  const leechCount = run.complete && run.mode !== "exam" && pageAvailable(data, "wrongbook") ? (run.leechCards || []).length : 0;
   const methodAlt = run.complete && !flow && run.mode !== "exam" ? roundEndAlternative(data, roundCourse, { guidedSession: app?.lib?.guidedSession }) : null;
   return (
     <section
@@ -202,6 +206,12 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               <p className="muted summary-topics__empty">{ui("本轮没有低分记录，继续按间隔复习巩固。")}</p>
             )}
           </div>
+          {leechCount > 0 && (
+            <p className="summary-leech">
+              {leechCount === 1 ? ui("本轮有 1 道题你已经反复答错。") : uiFormat("本轮有 {0} 道题你已经反复答错。", [leechCount])}
+              <Button variant="link" size="sm" lock={busy} onClick={() => { askForLeeches(data?.root); navigate("wrongbook"); }}>{ui("在错题本里看看")}</Button>
+            </p>
+          )}
           {run.course && (
             <p className="summary-course">{uiRich("课程进度 · 已学 {0} 题", <strong>{run.course.learned ?? 0} / {run.course.cards ?? 0}</strong>)}{" · "}{run.course.chapter ? uiFormat("第 {0} / {1} 章「{2}」{3}/{4}", [run.course.chapter.index + 1, run.course.chapters, run.course.chapter.title, run.course.chapter.learned, run.course.chapter.total]) : ui("全部章节都学过了")}
               {run.course.next?.label ? <span>{" · "}{uiFormat("下一批：{0}", [run.course.next.label])}</span> : null}

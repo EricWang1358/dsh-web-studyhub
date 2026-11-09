@@ -2,7 +2,7 @@ import { ui, uiFormat } from './i18n.js';
 import { normalizeTopic, deckShortTitles } from '../lib/recommend-text.js';
 import { queryTokens } from './components/option-list.js';
 import { plainPrompt } from './shared.js';
-import { browserSession, browserStorage, readJSON, readText, writeJSON, writeText } from './storage.js';
+import { browserSession, browserStorage, readJSON, readText, removeKey, writeJSON, writeText } from './storage.js';
 
 /* Pure helpers behind the wrong-book page: grouping, filtering, variant state,
    retrain options and the plain-language copy for recommendation reasons. */
@@ -155,10 +155,10 @@ export const groupSummary = (rows = []) => {
 /** "答错 2 · 未掌握 1". */
 export const groupSummaryText = (rows = []) => groupSummary(rows).map(({ kind, count }) => `${statusLabel(kind)} ${count}`).join(' · ');
 
-/** The page's filter: one deck, one status ('all' or a kind), and words that must all appear in the question or its topic. */
-export const NO_FILTER = Object.freeze({ deck: '', status: 'all', query: '' });
+/** The page's filter: one deck, one status ('all' or a kind), words that must all appear in the question or its topic, and `leech`: only the 顽固题. */
+export const NO_FILTER = Object.freeze({ deck: '', status: 'all', query: '', leech: false });
 
-export const filterActive = (filter) => !!filter && (!!filter.deck || (!!filter.status && filter.status !== 'all') || queryTokens(filter.query).length > 0);
+export const filterActive = (filter) => !!filter && (!!filter.deck || (!!filter.status && filter.status !== 'all') || !!filter.leech || queryTokens(filter.query).length > 0);
 
 /** The rows a filter lets through, in their order. Cloze markers are not question text; the same rule as the list. */
 export function filterRows(rows = [], filter = NO_FILTER) {
@@ -167,11 +167,52 @@ export function filterRows(rows = [], filter = NO_FILTER) {
   return rows.filter((item) => {
     if (filter.deck && item.deckId !== filter.deck) return false;
     if (filter.status && filter.status !== 'all' && statusOf(item) !== filter.status) return false;
+    if (filter.leech && !item.leech) return false;
     if (!words.length) return true;
     const text = `${plainPrompt(item.prompt)}
 ${item.topic ?? ''}`.toLowerCase();
     return words.every((word) => text.includes(word));
   });
+}
+
+/* ---- 顽固题 (lib/leech.js): the service marks a row `leech`; these are the page's words and count for it ---- */
+
+const ARRIVAL_KEY = (root) => `study-wrongbook-arrival:v1:${JSON.stringify([root || ''])}`;
+/** Another page (the result page of a round, ui/Review.jsx) asks the wrong book to open on the 顽固题, in every course: written before navigating, kept for this tab. */
+export const askForLeeches = (root, storage = browserSession()) => writeJSON(ARRIVAL_KEY(root), 'leech', storage);
+/** The wrong book, on opening: what it was asked to open on (`{ filter, course }`, or none), and forgets it, so the next visit starts clean. */
+export function takeArrival(root, storage = browserSession()) {
+  if (readJSON(ARRIVAL_KEY(root), '', storage) !== 'leech') return {};
+  removeKey(ARRIVAL_KEY(root), storage);
+  return { filter: { leech: true }, course: '*' };
+}
+
+/** How many of these rows are 顽固题. */
+export const leechCount = (rows = []) => (rows || []).filter((item) => item.leech).length;
+
+/** What the 顽固 mark says, from the learner's own thresholds ({ failures, window, rate } of lib/leech.js leechLimits): one sentence, and what follows from it. */
+export const leechWords = ({ failures, window, rate }) => ({
+  sentence: uiFormat('累计答错 {0} 次，或最近 {1} 次作答里答错的占 {2}% 以上。', [failures, window, rate]),
+  consequence: uiFormat('最近 {0} 次全部答对后，这个标记就会消失。题目本身也可能有问题：展开这一行，有几个办法。', [window]),
+});
+
+/** The service call of each of 顽固题's rescue actions, each one that already exists elsewhere: the 👎 record that starts the background repair (no `rewriteVia`: this
+ *  page has no 修题 box to open, so the silent repair of the coach is what "this question has a problem" is here), the same record for "too hard" (it prepares a
+ *  prerequisite card once preparation is agreed), and the suspend of the manage page. `ref`: { deckId, cardId }. */
+export const rescueCall = (kind, ref) => kind === 'pause'
+  ? { action: 'card.suspend', args: { ...ref, suspended: true } }
+  : { action: 'coach.feedback', args: { ...ref, vote: 'down', tags: [kind === 'fix' ? 'general-quality' : 'too-hard'] } };
+
+/** What to tell the learner after a rescue click, from what the service answered: { tone, text }. Only what happened is said. */
+export function rescueNote(kind, result) {
+  if (kind === 'pause') return { tone: 'success', text: ui('已暂停这道题：它不再出现在练习和错题里。在题组的管理页点「恢复学习」可以恢复。') };
+  const recorded = (result?.tags || []).length > 0, scheduled = result?.scheduled || [];
+  if (kind === 'fix') {
+    if (scheduled.includes('rewrite')) return { tone: 'success', text: ui('已交给后台修这道题，改好后信箱里会告诉你，也可以在那里撤回。') };
+    return { tone: 'info', text: recorded ? ui('已记下这个反馈，但当前没有可用的模型，所以没有开始修题。') : ui('刚刚已经为这道题记过同样的反馈，不会重复修题。') };
+  }
+  if (scheduled.includes('prep')) return { tone: 'success', text: ui('已记下，会为这道题准备一张更基础的前置小卡，写好后放进「为你定制」。') };
+  return { tone: 'info', text: recorded ? ui('已记下这个反馈。要准备前置小卡，需要先在「设置 › 学习画像与导览」同意后台准备，并且有可用的模型。') : ui('刚刚已经为这道题记过同样的反馈。') };
 }
 
 /** The decks that have mistakes, for the deck picker: [{ value, label, count }], newest miss first. */
