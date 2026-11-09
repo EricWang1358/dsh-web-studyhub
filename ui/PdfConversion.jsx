@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, Checkbox, Disclosure, Hint, Icon, InlineMessage, ProgressBar, RadioCard, RadioCardGroup, SegmentedControl, Tooltip } from './components/index.js';
-import { localEstimate, minutesOf, pageRange } from './mineru-flow.js';
+import { isConvertJob, localEstimate, minutesOf, pageRange } from './mineru-flow.js';
 import { canPickNative, isNativeSource, pickNativePdf, prepareSource, sourceArgs } from './pdf-source.js';
 import { formatBytes } from './components/FileDrop.jsx';
 import { PdfConvertHistory } from './PdfConvertJob.jsx';
@@ -12,6 +12,7 @@ import { STATUS_TEXT, cardState, mineruUsable } from './mineru-install-flow.js';
 import MineruInstallCard from './MineruInstallCard.jsx';
 import { useLiveEffect } from './use-async.js';
 import { StudyServicesContext, useStudy } from './study-context.jsx';
+import { isActiveJob } from './job-visibility.js';
 
 /* Both entry points share one staged PDF. Choosing a converter never reuploads it;
    only an explicit start hands the file to a background conversion job. The converter is chosen once, here (MinerU or Marker), and both run on this
@@ -192,6 +193,10 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
 
         {usable && <p className="mineru-acked"><Icon name="success" size={16} />{isMarker ? (review ? ui('在 StudyHub 所在电脑运行，转换好后先等你改。') : ui('在 StudyHub 所在电脑运行，结果自动导入。')) : ui('本地解析：不会上传任何内容。')}</p>}
         {usable && stopped && <Hint>{ui('本机服务没在运行，开始解析时会先自动启动（约 1 分钟）。')}</Hint>}
+        {usable && (() => {
+          const active = Array.isArray(jobs) ? jobs.find(j => isConvertJob(j) && isActiveJob(j)) : null;
+          return active ? <Hint>{uiFormat('当前本机引擎正在解析「{0}」；点开始后会加入队列，前序完成后自动开始。', [active.filename || ui('另一份 PDF')])}</Hint> : null;
+        })()}
 
         {problem && <InlineMessage tone="error" boxed>{problem}</InlineMessage>}
         {usable && <Disclosure lazy summary={ui('更多设置')} className="mineru-more">

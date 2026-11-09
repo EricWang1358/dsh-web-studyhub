@@ -34,6 +34,7 @@
     .cjc__pct[data-state='interrupted'] { color: var(--warn-ink); }
     .cjc__pct[data-state='held'] { color: var(--info-ink, var(--text)); }
     .cjc__line { min-width: 0; overflow: hidden; font-size: var(--fs-xs); color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }
+    .cjc[data-state='run'] .cjc__line, .cjc[data-state='queued'] .cjc__line { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
     /* A run that ended before it was done says why and what 接着做 will do before its button: that sentence is read, not cut to one line (three at most). */
     .cjc[data-state='fail'] .cjc__line, .cjc[data-state='stopped'] .cjc__line, .cjc[data-state='interrupted'] .cjc__line { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; white-space: normal; overflow-wrap: anywhere; }
     .cjc__slot { display: flex; justify-content: flex-end; min-width: 0; }

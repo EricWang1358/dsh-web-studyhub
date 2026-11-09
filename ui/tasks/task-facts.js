@@ -1,9 +1,8 @@
 import { ui, uiFormat, uiMessage } from '../i18n.js';
-import { formatElapsed, formatNumber } from '../format.js';
+import { formatDateTime, formatDuration, formatElapsed, formatNumber, joinMeta } from '../format.js';
 import { formatCompactTokens } from '../../lib/token-usage.js';
 import { runForecast } from '../../lib/coverage-run.js';
 import { forecastTime } from '../coverage/copy.js';
-import { joinMeta } from '../format.js';
 import { parallelNote, reuseNote } from '../audio/audio-notes.js';
 import { audioCallKinds } from './call-model.js';
 import { contractOf, isRunningTask, taskKindOf } from './task-model.js';
@@ -56,13 +55,126 @@ export function forecastOf(contract, now = Date.now()) {
     ...(run?.dueKnown ? { left: run.questionsLeft } : {}) });
 }
 
+const MAX_CLOCK_DRIFT_MS = 12 * 3600 * 1000;
+const TIER_SECONDS_PER_PAGE = { basic: 1.6, standard: 2.5 };
+
+function quantizeEtaSeconds(seconds) {
+  const s = Math.max(0, Number(seconds) || 0);
+  if (s < 300) return Math.max(1, Math.round(s));
+  if (s < 1800) return Math.round(s / 10) * 10;
+  return Math.round(s / 60) * 60;
+}
+
+function windowDeltaSeconds(window, now) {
+  const started = Date.parse(window?.startedAt || '');
+  const expected = Number(window?.expectedSeconds) > 0 ? Number(window.expectedSeconds) : 0;
+  if (!Number.isFinite(started) || !(expected > 0) || Math.abs(now - started) > MAX_CLOCK_DRIFT_MS) return null;
+  const elapsed = Math.max(0, (now - started) / 1000);
+  if (elapsed <= expected) return { elapsed, expected, delta: -Math.min(elapsed, expected * 0.85) };
+  return { elapsed, expected, delta: -expected * 0.85 + (elapsed - expected) * 0.5 };
+}
+
 /**
- * The one quiet fact an audio run adds to its card on a page (CompactJobCard): how long it has run and the tokens its model calls used, the values of the console's 已用 tile and of the tokens
- * after 模型任务. '' for any other kind of task, a task that is not running (a queued one has not begun), and tokens nobody reported (not shown as zero).
+ * Dynamic expected completion estimate for an active PDF conversion card (`CompactJobCard`):
+ * counts down inside the active window, gently extends if the current window runs slower than expected,
+ * estimates queue + own duration when queued behind another PDF, and explains Window-1 speed probing.
+ */
+export function pdfEtaOf(job, now = Date.now()) {
+  const contract = contractOf(job);
+  if (contract.kind !== 'pdf-convert' || !isRunningTask(job)) return null;
+  const { status, detail = {}, progress = {}, stage } = contract;
+  if (['paused', 'pausing', 'cancelling'].includes(status)) return null;
+  if (typeof detail.note === 'string' && /正忙|正在就绪|busy|warming/i.test(detail.note)) return null;
+  const phase = String(stage?.code || '').split('.')[1] || '';
+  if (status === 'running' && (phase === 'merge' || phase === 'save')) return { kind: 'finishing' };
+
+  const total = Number(progress.total) || 0, done = Number(progress.done) || 0, leftPages = Math.max(0, total - done);
+  if (status === 'queued') {
+    const perPage = Number(detail.pace?.secondsPerPage) > 0 ? Number(detail.pace.secondsPerPage) : TIER_SECONDS_PER_PAGE[detail.tier] || 0;
+    const ownSeconds = leftPages > 0 && perPage > 0 ? Math.round(leftPages * perPage) : null;
+    const aheadSeconds = Number(detail.queue?.aheadSeconds) > 0 ? Math.round(Number(detail.queue.aheadSeconds)) : null;
+    if (aheadSeconds > 0 && ownSeconds > 0) {
+      const seconds = aheadSeconds + ownSeconds;
+      return { kind: 'queued-total', seconds, aheadSeconds, ownSeconds, finishAt: now + seconds * 1000 };
+    }
+    if (aheadSeconds > 0) return { kind: 'queued-wait', seconds: aheadSeconds, finishAt: now + aheadSeconds * 1000 };
+    if (ownSeconds > 0) return { kind: 'queued-own', seconds: ownSeconds };
+    return null;
+  }
+
+  const win = detail.window || null, liveWin = windowDeltaSeconds(win, now);
+  if (detail.eta && Number.isFinite(detail.eta.seconds) && detail.eta.seconds > 0) {
+    const shift = liveWin ? liveWin.delta : 0;
+    const floor = detail.eta.seconds >= 30 ? 5 : 1;
+    const seconds = Math.max(floor, Math.round(detail.eta.seconds + shift));
+    if (detail.eta.stable === false && Number.isFinite(detail.eta.lowSeconds) && Number.isFinite(detail.eta.highSeconds)) {
+      const lowSeconds = Math.max(floor, Math.round(detail.eta.lowSeconds + shift));
+      const highSeconds = Math.max(lowSeconds, Math.round(detail.eta.highSeconds + shift));
+      return { kind: 'range', seconds, lowSeconds, highSeconds, finishLowAt: now + lowSeconds * 1000, finishHighAt: now + highSeconds * 1000 };
+    }
+    return { kind: 'steady', seconds, finishAt: now + seconds * 1000 };
+  }
+
+  const chunks = Array.isArray(job?.chunks) ? job.chunks : Array.isArray(detail.legacy?.chunks) ? detail.legacy.chunks : [];
+  const timed = chunks.filter((chunk) => chunk?.state === 'done' && Number(chunk.seconds) > 0 && Number(chunk.pages) > 0);
+  if (timed.length > 0 && leftPages > 0) {
+    const pages = timed.reduce((sum, chunk) => sum + Number(chunk.pages), 0);
+    const secs = timed.reduce((sum, chunk) => sum + Number(chunk.seconds), 0);
+    const perPage = pages > 0 ? secs / pages : 0;
+    if (perPage > 0) {
+      const shift = liveWin ? liveWin.delta : 0;
+      const seconds = Math.max(5, Math.round(leftPages * perPage + shift));
+      return { kind: 'steady', seconds, finishAt: now + seconds * 1000 };
+    }
+  }
+
+  if (Number(win?.pages) > 0 && done === 0 && Number(win?.expectedSeconds) > 0) {
+    if (liveWin && liveWin.elapsed < liveWin.expected) {
+      return { kind: 'probing', windowLeftSeconds: Math.max(5, Math.round(liveWin.expected - liveWin.elapsed)) };
+    }
+    return { kind: 'probing-loading' };
+  }
+  return null;
+}
+
+/** One compact phrase for a PDF card's dynamic expected completion time. */
+export function formatPdfCardEta(eta) {
+  if (!eta) return '';
+  if (eta.kind === 'finishing') return ui('即将完成');
+  if (eta.kind === 'probing') return uiFormat('首段测速中（约 {0}后估算总时间）', [formatDuration(quantizeEtaSeconds(eta.windowLeftSeconds) * 1000)]);
+  if (eta.kind === 'probing-loading') return ui('首段加载模型与测速中（完成后显示预计时间）');
+  if (eta.kind === 'queued-wait') return uiFormat('前序预计约 {0}完成', [formatDuration(quantizeEtaSeconds(eta.seconds) * 1000)]);
+  if (eta.kind === 'queued-own') return uiFormat('轮到后预计约 {0}', [formatDuration(quantizeEtaSeconds(eta.seconds) * 1000)]);
+  if (eta.kind === 'range') {
+    if (eta.highSeconds < 30) return ui('即将完成（不到 1 分钟）');
+    const lowDur = formatDuration(Math.max(60, quantizeEtaSeconds(eta.lowSeconds)) * 1000);
+    const highDur = formatDuration(Math.max(60, quantizeEtaSeconds(eta.highSeconds)) * 1000);
+    if (lowDur === highDur) {
+      const clock = eta.seconds < 12 * 3600 && Number.isFinite(eta.finishLowAt) ? formatDateTime(eta.finishLowAt, 'time') : '';
+      return clock ? uiFormat('预计约 {0}后完成（约 {1}）', [lowDur, clock]) : uiFormat('预计约 {0}后完成', [lowDur]);
+    }
+    const lowClock = eta.highSeconds < 12 * 3600 && Number.isFinite(eta.finishLowAt) ? formatDateTime(eta.finishLowAt, 'time') : '';
+    const highClock = eta.highSeconds < 12 * 3600 && Number.isFinite(eta.finishHighAt) ? formatDateTime(eta.finishHighAt, 'time') : '';
+    return lowClock && highClock && lowClock !== highClock
+      ? uiFormat('预计约 {0}–{1}后完成（{2}–{3}）', [lowDur, highDur, lowClock, highClock])
+      : uiFormat('预计约 {0}–{1}后完成', [lowDur, highDur]);
+  }
+  if (eta.seconds < 30) return ui('即将完成（不到 1 分钟）');
+  const dur = formatDuration(quantizeEtaSeconds(eta.seconds) * 1000);
+  const clock = eta.seconds < 12 * 3600 && Number.isFinite(eta.finishAt) ? formatDateTime(eta.finishAt, 'time') : '';
+  return clock ? uiFormat('预计约 {0}后完成（约 {1}）', [dur, clock]) : uiFormat('预计约 {0}后完成', [dur]);
+}
+
+/**
+ * The quiet live fact a card on a page (`CompactJobCard`) shows beside its progress:
+ * - Audio runs: elapsed run time and metered model tokens.
+ * - PDF conversions: dynamic expected completion time (ticking countdown + estimated wall-clock finish).
  */
 export function runFacts(job, now = Date.now()) {
+  const kind = taskKindOf(job);
+  if (kind === 'pdf') return formatPdfCardEta(pdfEtaOf(job, now));
   const contract = contractOf(job);
-  if (taskKindOf(job) !== 'audio' || !isRunningTask(job) || contract.status === 'queued') return '';
+  if (kind !== 'audio' || !isRunningTask(job) || contract.status === 'queued') return '';
   const elapsed = elapsedOf(contract, true, now);
   return joinMeta([elapsed === dash ? '' : `${ui('已用')} ${elapsed}`, contract.usage.tokens > 0 ? uiFormat('{0} tok', [formatCompactTokens(contract.usage.tokens)]) : '']);
 }

@@ -143,5 +143,7 @@
   "讲义和笔记保存为资料，原文件一并保留；JSON 题组存为草稿；字幕和录音在「音频 / 录音」里确认用量后导入。": "Lecture notes are saved as sources and the original files kept; JSON decks are saved as drafts; subtitles and recordings are imported under \"Audio / recording\" after you confirm the usage.",
   "设置好之后回来继续解析「{0}」：文件还在。": "After setting it up, come back to convert \"{0}\": the file is still here.",
   "继续解析": "Continue converting",
-  "用它出题：{0}": "Generate questions: {0}"
+  "用它出题：{0}": "Generate questions: {0}",
+  "{0} · {1} 页 · 已加入解析队列（前序完成后自动开始）": "{0} · {1} pages · Queued for conversion (starts automatically next)",
+  "{0} · {1} 页 · 正在后台解析": "{0} · {1} pages · Parsing in the background"
 }

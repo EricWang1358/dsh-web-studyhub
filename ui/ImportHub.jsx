@@ -234,13 +234,14 @@ export async function runImport(files, { call, courses = [], known = [], audio =
   return results;
 }
 
-/** { done, failed, documents, decks, sourceIds } of finished imports. */
+/** { done, failed, documents, decks, sourceIds, conversions? } of finished imports. */
 export function importSummary(results) {
   const done = results.filter(item => item.status === 'done' && item.result);
   const of = kind => done.map(item => item.result).filter(result => result.kind === kind);
-  const documents = of('document');
+  const documents = of('document'), conversions = of('conversion');
   return { done: done.length, failed: results.filter(item => item.status === 'error').length, documents,
-    decks: of('deck').map(result => result.deck), sourceIds: documents.flatMap(document => document.sourceIds) };
+    decks: of('deck').map(result => result.deck), sourceIds: documents.flatMap(document => document.sourceIds),
+    ...(conversions.length ? { conversions } : {}) };
 }
 
 /** The confirmation toast: “已导入「X」（N 页）” and what else happened. */
@@ -319,6 +320,12 @@ export function itemDetail(item) {
   if (item.status !== 'done') return PENDING[item.kind] ? ui(PENDING[item.kind]) : '';
   const result = item.result;
   if (result.kind === 'deck') return uiFormat('已存为草稿「{0}」 · {1} 题', [result.title, result.count]);
+  if (result.kind === 'conversion') {
+    const tool = result.converter === 'marker' ? 'Marker' : 'MinerU';
+    return result.queuedBehind > 0
+      ? uiFormat('{0} · {1} 页 · 已加入解析队列（前序完成后自动开始）', [tool, result.pages || 0])
+      : uiFormat('{0} · {1} 页 · 正在后台解析', [tool, result.pages || 0]);
+  }
   const label = result.format === 'docx' ? ui('Word') : isSlideFormat(result.format)
     ? (result.sourceIds.length === 1 ? ui('PowerPoint · 1 页') : uiFormat('PowerPoint · {0} 页', [result.sourceIds.length]))
     : sourceFormatLabel({ format: result.format, sourceIds: result.sourceIds });
@@ -467,9 +474,21 @@ export default function ImportHub({
   const coursesOf = file => (file ? coursesForFile(file, { chosen: courses, known }).courses : courses);
   // Leaving for Settings with a PDF in hand: the caller keeps it so the learner can come back to it.
   const settingsFor = (section, extra) => onOpenSettings?.(section, { ...extra, courses: courseText });
-  // The conversion runs in the background as a job (progress is on the Sources page); the hub reports it and closes.
-  async function conversionStarted(job) {
-    const summary = { done: 1, failed: 0, documents: [], decks: [], sourceIds: [], conversions: [{ name: job.filename, pages: job.pages, route: job.route, converter: job.converter, jobId: job.jobId }] };
+  // The conversion runs in the background as a job (progress is on the Sources page); in a multi-file drop each PDF queues in turn and the hub closes once all items are handled.
+  async function conversionStarted(job, sourceItem = null) {
+    const entry = { kind: 'conversion', name: job.filename, pages: job.pages, route: job.route, converter: job.converter, jobId: job.jobId, queuedBehind: job.queuedBehind || 0 };
+    if (sourceItem) {
+      setItems(current => current.map(item => item.id === sourceItem.id
+        ? { ...item, status: 'done', error: undefined, large: undefined, scanned: undefined, result: entry }
+        : item));
+      const summary = importSummary(itemsRef.current);
+      await onImported?.(summary);
+      if (!alive.current) return;
+      const open = itemsRef.current.some(item => item.status !== 'done');
+      if (!open) onComplete?.(summary);
+      return;
+    }
+    const summary = { done: 1, failed: 0, documents: [], decks: [], sourceIds: [], conversions: [entry] };
     await onImported?.(summary);
     if (alive.current) onComplete?.(summary);
   }
@@ -563,12 +582,12 @@ export default function ImportHub({
           onFiles={accepted => add(accepted)} data-tour="import-drop" />}
         {/* A finished book long enough for 深度定制 and not indexed yet: one quiet line with the way to build the index (ui/IndexHint.jsx), once per book. */}
         {!running && <IndexHint docs={items.filter(item => item.status === 'done' && customOfferOf(item.result)).map(item => hintDocOf(item.result))} onOpenSettings={settingsFor} />}
-        {largeItem && <LargeDocumentCard reason={largeItem.large} detail={{ name: largeItem.name, file: largeItem.file }} retrieval={retrieval} onOpenSettings={settingsFor}
+        {largeItem && <LargeDocumentCard key={largeItem.id} reason={largeItem.large} detail={{ name: largeItem.name, file: largeItem.file }} retrieval={retrieval} onOpenSettings={settingsFor}
           runnable courses={data?.focus?.courses} defaultCourse={parseCourses(courseText)[0] || data?.focus?.course}
-          conversionAvailable={convertible} courseNames={coursesOf(largeItem.file)} onConversionStarted={conversionStarted} />}
+          conversionAvailable={convertible} courseNames={coursesOf(largeItem.file)} jobs={data?.jobs} onConversionStarted={job => conversionStarted(job, largeItem)} />}
         {/* A PDF with no text: the same staged converter, one press from started. Nothing runs before that press. */}
-        {!largeItem && scannedItem && <div ref={converterBox}><ConverterMain available={convertible} runnable file={scannedItem.file} courses={coursesOf(scannedItem.file)}
-          onOpenSettings={settingsFor} onStarted={conversionStarted} why={scannedItem.error} scanned /></div>}
+        {!largeItem && scannedItem && <div ref={converterBox}><ConverterMain key={scannedItem.id} available={convertible} runnable file={scannedItem.file} courses={coursesOf(scannedItem.file)}
+          jobs={data?.jobs} onOpenSettings={settingsFor} onStarted={job => conversionStarted(job, scannedItem)} why={scannedItem.error} scanned /></div>}
         {staged && <>
           <Button variant="link" size="sm" onClick={() => { setConversionOpen(false); setConversionHistory(false); setConversionFile(null); }}>{ui('返回文件导入')}</Button>
           <PdfConversion available={convertible} file={conversionFile} onFile={setConversionFile} courses={coursesOf(conversionFile)} onStarted={conversionStarted} onOpenSettings={settingsFor}

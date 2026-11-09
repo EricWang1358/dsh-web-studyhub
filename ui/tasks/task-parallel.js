@@ -40,10 +40,24 @@ export const badgeTip = () => ({ lead: ui('这个任务按你的要求，和排�
 /** The default queue rule, naming the job ahead when the data has it. */
 export function queueTip(queue) {
   const head = queue?.head?.title;
+  if (queue?.reason === 'single-engine') {
+    return {
+      lead: head
+        ? uiFormat('本机 PDF 解析引擎一次只处理一份文档，避免显存或内存占满报错；排在前面的是「{0}」。', [head])
+        : ui('本机 PDF 解析引擎一次只处理一份文档，避免显存或内存占满报错；前面还有 PDF 在解析。'),
+      more: ui('前序完成后会自动开始，无需重新上传。'),
+    };
+  }
   return { lead: head ? uiFormat('同一个资料库里的任务默认一个接一个，免得同时占满模型额度；排在前面的是「{0}」。', [head]) : ui('同一个资料库里的任务默认一个接一个，免得同时占满模型额度；前面还有任务在进行。'),
     more: ui('想让它现在就开始，可以点「要求并行」。') };
 }
-export const queueLine = (queue) => (queue?.head?.title ? uiFormat('排队中 · 等「{0}」完成后自动开始', [queue.head.title]) : ui('排队中 · 等前面的任务完成后自动开始'));
+export function queueLine(queue) {
+  if (queue?.reason === 'single-engine') {
+    if (queue.count > 1 && queue.head?.title) return uiFormat('排队等待本机引擎（前面有 {0} 份 PDF，正在解析「{1}」，完成后自动开始）', [queue.count, queue.head.title]);
+    return queue.head?.title ? uiFormat('排队等待本机引擎（正在解析「{0}」，完成后自动开始）', [queue.head.title]) : ui('排队等待本机引擎空闲后自动开始');
+  }
+  return queue?.head?.title ? uiFormat('排队中 · 等「{0}」完成后自动开始', [queue.head.title]) : ui('排队中 · 等前面的任务完成后自动开始');
+}
 
 /** A job sent back to the queue by a model error: the line that stays visible, and what the tooltip adds. */
 export const requeuedLine = (requeued) => uiFormat('模型报错，已退回排队：等前面的任务完成后自动继续（原因：{0}）', [causeWord(requeued?.cause)]);

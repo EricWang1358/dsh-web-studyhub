@@ -95,13 +95,13 @@ export const converterHandOffWhat = scanned => scanned
  * many pages or too much text; `scanned`: no text in it); given, the card also offers 「不想装转换工具：发给主会话」 (the hand-off plan N10), so Settings, which
  * only explains, and the advice for material already imported (a selection too big, a long book) have none.
  */
-export function ConverterMain({ available = true, runnable = false, file = null, courses = [], onOpenSettings, onStarted, why = '', scanned = false }) {
+export function ConverterMain({ available = true, runnable = false, file = null, courses = [], jobs, onOpenSettings, onStarted, why = '', scanned = false }) {
   const [picked, setPicked] = useState(null);
   return (
     <div className="large-doc__group" data-role="converter">
       <h3 className="large-doc__group-title">{ui('转换：把 PDF 变成带页码的文字')}</h3>
       {runnable
-        ? <PdfConversion available={available} compact file={file || picked} onFile={file ? undefined : setPicked} courses={courses} onOpenSettings={onOpenSettings} onStarted={onStarted} />
+        ? <PdfConversion available={available} compact file={file || picked} onFile={file ? undefined : setPicked} courses={courses} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onStarted} />
         : <div className="large-doc__tools"><ToolCard tool={byId('mineru-local')} /></div>}
       <Hint>{ui('转换结果带页码，StudyHub 才能按页引用；大书会按这台电脑的速度分段处理。')}</Hint>
       {why && <HandOff id="import.file" input={{ purpose: 'material', area: '添加资料', error: why, files: [file?.name || picked?.name].filter(Boolean), facts: courses.length ? { courses } : null }}
@@ -172,7 +172,7 @@ export function DetectionLine({ retrieval, onOpenSettings }) {
  * initialRun / initialApproval (previews and tests), className. Extra props land on the root.
  */
 export default function LargeDocumentCard({ reason, detail = {}, document, retrieval = null, onOpenSettings, runnable = false, courses = [], defaultCourse = '', onRetrieval,
-  conversionAvailable = true, courseNames = [], onConversionStarted, initialPlan, initialRun, initialApproval, className, ...rest }) {
+  conversionAvailable = true, courseNames = [], jobs, onConversionStarted, initialPlan, initialRun, initialApproval, className, ...rest }) {
   useInjectCss(css, 'study-large-documents');
   const titleId = useId();
   const converting = reason === 'pdf-size' || reason === 'pdf-pages' || reason === 'text-chars';
@@ -198,11 +198,11 @@ export default function LargeDocumentCard({ reason, detail = {}, document, retri
       </header>
       <ol className="large-doc__steps">{steps.map((step, index) => <li key={index} className="large-doc__step">{step()}</li>)}</ol>
       {converting ? <>
-        <ConverterMain available={conversionAvailable} runnable={runnable} file={detail.file} courses={courseNames} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} why={reasonText(reason, detail)} />
+        <ConverterMain available={conversionAvailable} runnable={runnable} file={detail.file} courses={courseNames} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} why={reasonText(reason, detail)} />
         <Disclosure summary={ui('需要整本检索时')} meta={ui('可选')} className="large-doc__more" defaultOpen={retrieval?.extension?.installed === true}>{search}</Disclosure>
       </> : <>
         {search}
-        <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain available={conversionAvailable} runnable={runnable} courses={courseNames} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} /></Disclosure>
+        <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain available={conversionAvailable} runnable={runnable} courses={courseNames} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} /></Disclosure>
       </>}
       <AdvancedTools />
       <DetectionLine retrieval={retrieval} onOpenSettings={onOpenSettings} />
