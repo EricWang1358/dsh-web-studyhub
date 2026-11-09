@@ -303,11 +303,34 @@ test('a window that takes longer than its bounded wait is stopped and reported a
 
 test('every message of the local route has an English form', async () => {
   const { localizeAppMessage } = await import('../lib/application-messages.js');
-  const { LOCAL_MESSAGES } = await import('../lib/mineru-local.js');
-  const samples = [...Object.values(LOCAL_MESSAGES),
+  const { LOCAL_MESSAGES, SERVICE_START_TEXT } = await import('../lib/mineru-local.js');
+  const samples = [...Object.values(LOCAL_MESSAGES), ...Object.values(SERVICE_START_TEXT),
     ...[() => parseLocalMarkdown(marker(1), { startPage: 1, endPage: 3, totalPages: 9 }), () => parseLocalMarkdown(marker(1), { startPage: 5, endPage: 5, totalPages: 9 }), () => parseLocalMarkdown(marker(1, 7), { startPage: 1, endPage: 1, totalPages: 9 }), () => parseLocalMarkdown(`${marker(1)}
 ${marker(1)}`, { startPage: 1, endPage: 2, totalPages: 120 })]
       .map(run => { try { run(); return ''; } catch (error) { return error.message; } })];
   assert.ok(samples.filter(Boolean).length >= 9);
   for (const text of samples.filter(Boolean)) assert.doesNotMatch(localizeAppMessage(text, 'en'), han, text);
 });
+
+test('a service that prints "still starting (PID ...)" is server-stopped with starting: true, and startServer waits out a brief cold boot', async t => {
+  const warming = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, stillStartingOnce: 'Server is still starting (PID 12345).' });
+  const detected = await detectLocal({ cli: warming.cli, home: warming.dir });
+  assert.deepEqual([detected.state, detected.next, detected.running, detected.starting], ['server-stopped', 'start-server', false, true]);
+  const cold = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startStillStarting: '服务仍在启动中(PID 12345)。', stillStartingOnce: true });
+  const after = await startServer({ cli: cold.cli, home: cold.dir, pollMs: 20 });
+  assert.deepEqual([after.state, after.running], ['ready', true]);
+});
+
+test('startServer attaches <home>/logs/doclib.stderr.log on daemon crash and classifies private credential ACL errors as not-writable', async t => {
+  const acl = "PermissionError: Credential configuration directory 'D:\\\\StudyHub\\\\MinerU\\\\home' has insecure permissions (cannot enforce private credential)";
+  const fake = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true, serverLogError: acl });
+  const home = join(fake.dir, 'home');
+  await assert.rejects(startServer({ cli: fake.cli, home }), error =>
+    error instanceof LocalMineruError
+    && error.code === 'server-start-failed'
+    && error.reason === 'not-writable'
+    && /配置文件夹的权限/.test(error.message)
+    && /\[doclib\.stderr\.log\]/.test(error.detail)
+    && /Credential configuration directory/.test(error.detail));
+});
+

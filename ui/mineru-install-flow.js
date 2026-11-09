@@ -50,6 +50,7 @@ const TIER_TIP = {
 const SERVICE_REASON = {
   'port-in-use': local => (local?.external ? ui('本机服务没能启动：另一份 MinerU 占用了它要用的端口。') : ui('本机服务没能启动：它要用的端口被别的程序占用了。')),
   'vc-runtime': () => ui('本机服务没能启动：这台电脑缺少微软 VC++ 运行库。'),
+  'not-writable': () => ui('本机服务没能启动：配置文件夹的权限不符合要求，或没有写入权限。'),
   'service-timeout': () => ui('本机服务没能启动：等了很久它还没有准备好。'),
   'models-missing': () => ui('本机服务没能启动：模型文件不完整。'),
   'service-failed': () => ui('本机服务没能启动：它一启动就退出了。'),

@@ -4,6 +4,7 @@ import { bookEditPrompt } from './book.js';
 import { ingestPrompt } from './ingest.js';
 import { importFilePrompt } from './import.js';
 import { jobFailedPrompt } from './job.js';
+import { converterFailedPrompt } from './converter.js';
 import { deckAnalysisPrompt, topicExplainPrompt, weakTopicsPrompt } from './library.js';
 import { archifySkeletonPrompt, designSkeletonPrompt, extendSkeletonPrompt } from './skeleton.js';
 
@@ -34,6 +35,7 @@ export const HAND_OFFS = Object.freeze({
   'topics.group': { build: (input, language) => groupPrompt(input, language) },
   'import.file': { build: (input, language) => importFilePrompt(input, language), skill: 'study-import', tail: 'file' },
   'job.failed': { build: (input, language) => jobFailedPrompt(input, language) },
+  'converter.failed': { build: (input, language) => converterFailedPrompt(input, language), skill: 'study-import' },
   'skeleton.design': { build: (input, language) => designSkeletonPrompt(input, language) },
   'skeleton.archify': { build: (input, language) => archifySkeletonPrompt(input, language) },
   'skeleton.extend': { build: (input, language) => extendSkeletonPrompt(input, language) },

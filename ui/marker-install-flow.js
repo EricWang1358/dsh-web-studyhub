@@ -41,7 +41,10 @@ export function failureHint(code) {
     case 'network': return ui('换用「国内直连」的下载源，或检查网络和代理后，点「重试」。');
     case 'no-space': return ui('清理磁盘，或点「更改位置」换到空间更大的磁盘后重试。');
     case 'not-writable': return ui('点「更改位置」换一个你有写入权限的文件夹后重试。');
+    case 'path-too-long': return ui('点「更改位置」换一个短一些的路径（例如 D:\\Tools\\marker）后重试。');
     case 'python-too-old': return ui('安装 Python 3.10 – 3.12 后重试。');
+    case 'python-too-new':
+    case 'pip-build': return ui('安装 Python 3.12（Marker 目前支持 Python 3.10–3.13），装好后点「重新检测」再重试。');
     case 'configure-failed': return ui('把安装位置里 venv 的 marker_single 路径填到下面的输入框，点「检测并保存」。');
     case 'cancelled': return ui('没有改动任何设置。需要时点「重试」。');
     case 'interrupted': return ui('点「重试」接着安装，已下载的内容会被 pip 缓存复用。');

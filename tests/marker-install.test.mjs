@@ -289,3 +289,34 @@ test('repair (修复安装（改装 1.x）): the install again into the folder i
   assert.ok(pips.every(line => line.endsWith(` ${MARKER_INSTALL.requirement}`)) && MARKER_INSTALL.requirement === 'marker-pdf>=1.10,<2');
   assert.ok(!repaired.log.some(line => /removed the previous environment/.test(line)), 'nothing is removed');
 });
+
+test('plan: Python 3.14+ is reported as python-too-new with download channels, and a 3.12 candidate is preferred when both exist', async t => {
+  const h = await harness(t, { py: { version: '3.14.2' } });
+  const tooNew = await h.installer.plan({});
+  assert.equal(tooNew.ok, false);
+  assert.deepEqual(tooNew.problems.map(p => p.code), ['python-too-new']);
+  assert.equal(tooNew.tooNewPython, '3.14');
+  assert.equal(tooNew.maxPython, '3.13');
+  assert.ok(tooNew.channels?.length > 0);
+  await assert.rejects(h.installer.start({ confirm: true }), error => error.code === 'python-too-new');
+  const compatible = { ...h.python, env: { ...h.env, FAKE_PY_STATE: join(h.dir, 'py-312.json') } };
+  await writeFile(compatible.env.FAKE_PY_STATE, JSON.stringify({ version: '3.12.6' }));
+  const both = createMarkerInstaller({ ...h.options, pythons: [h.python, compatible] });
+  const plan = await both.plan({});
+  assert.equal(plan.ok, true);
+  assert.equal(plan.python.version, '3.12.6');
+});
+
+test('failure: C-extension wheel build failure (Pillow/regex on unsupported Python) and Windows path-too-long get specific codes', async t => {
+  const h = await harness(t, { py: { failPip: true, pipError: 'ERROR: Failed to build installable wheels for some pyproject.toml based projects (Pillow, regex)' } });
+  await h.installer.start({ confirm: true }); await h.installer.idle();
+  const buildFailed = await h.installer.status();
+  assert.equal(buildFailed.error.code, 'pip-build');
+  assert.match(buildFailed.error.message, /编译失败.*Python 版本太新/);
+  await h.setPy({ failPip: true, pipError: 'OSError: [WinError 206] 文件名或扩展名太长。 (os error 206)' });
+  await h.installer.start({ confirm: true }); await h.installer.idle();
+  const longPath = await h.installer.status();
+  assert.equal(longPath.error.code, 'path-too-long');
+  assert.match(longPath.error.message, /路径太长/);
+});
+

@@ -343,3 +343,47 @@ test('moving the install stops the old folder\'s service (with its own MINERU_HO
   assert.ok(stopOld >= 0, 'the old service was stopped');
   assert.ok(stopOld < startNew, 'before the new one started');
 });
+
+test('POSIX permissions: writeMineruConfig tightens MINERU_HOME to 0700 and config.yaml to 0600 even when config.yaml already existed', { skip: process.platform === 'win32' }, async t => {
+  const { chmod } = await import('node:fs/promises');
+  const h = await installHarness(t);
+  const layout = mineruLayout(h.location);
+  await writeMineruConfig(h.location);
+  assert.equal((await stat(layout.home)).mode & 0o777, 0o700);
+  assert.equal((await stat(layout.config)).mode & 0o777, 0o600);
+  await chmod(layout.home, 0o775);
+  await chmod(layout.config, 0o664);
+  assert.equal(await writeMineruConfig(h.location), false);
+  assert.equal((await stat(layout.home)).mode & 0o777, 0o700);
+  assert.equal((await stat(layout.config)).mode & 0o777, 0o600);
+});
+
+test('enable stage: captures redacted doclib.stderr.log for private credential errors, retries lock contention, and waits out cold boot', async t => {
+  const acl = "PermissionError: Credential configuration directory 'D:\\\\StudyHub\\\\MinerU\\\\home' cannot enforce private credential (https://user:secret-token@example.com/a)";
+  const h = await installHarness(t, { mineru: { startSilentFail: true, serverLogError: acl }, extra: { checkPauseMs: 10, startPollTries: 5 } });
+  const installer = createMineruInstaller(h.seams);
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  const failed = await installer.status();
+  assert.deepEqual([failed.status, failed.stage, failed.error.code], ['failed', 'enable', 'not-writable']);
+  assert.ok(failed.log.some(line => line.includes('[doclib.stderr.log]')));
+  assert.ok(failed.log.some(line => line.includes('Credential configuration directory')));
+  assert.ok(!failed.log.join('\n').includes('secret-token'), 'credentials in daemon logs are redacted');
+  await h.setMineru({ startSilentFail: false, serverLogError: undefined, startStillStarting: true, stillStartingOnce: true, startBusyOnce: true });
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  assert.equal((await installer.status()).status, 'complete');
+});
+
+test('systemPythons: rejects Python 3.10 (mineru 4.x requires >=3.11) and accepts 3.12', async t => {
+  const h = await installHarness(t);
+  const oldState = join(h.dir, 'py310.json'), okState = join(h.dir, 'py312.json');
+  await writeFile(oldState, JSON.stringify({ version: '3.10.14', executable: join('C:', 'Py310', 'python.exe') }));
+  await writeFile(okState, JSON.stringify({ version: '3.12.8', executable: join('C:', 'Py312', 'python.exe') }));
+  const fakePy = fileURLToPath(new URL('./helpers/fake-python.mjs', import.meta.url));
+  h.seams.pythons = [
+    { file: process.execPath, prefix: [fakePy], env: { FAKE_PY_STATE: oldState } },
+    { file: process.execPath, prefix: [fakePy], env: { FAKE_PY_STATE: okState } },
+  ];
+  const plan = await createMineruInstaller(h.seams).plan({ location: h.location });
+  assert.deepEqual(plan.pythons, [{ version: '3.12.8', path: join('C:', 'Py312', 'python.exe') }]);
+});
+
