@@ -22,4 +22,4 @@ The deployable static directory is `output/site-dist/`: four pages (`index.html`
 
 The real-browser report and screenshots are written under `output/site/qa-2.5.10/`. Checks cover all four pages across five viewport widths (`360, 420, 768, 1280, 1680`), dark and light Ink-desk themes on the explorer, interactive walkthroughs of all four explorers, live FSRS-6 parity against `lib/sm2.js`, keyboard focus and activation, reduced motion, 200% text enlargement, readable no-JavaScript progressive enhancement, disk existence of every GitHub `blob/main/...` source link, and zero external runtime requests.
 
-See [content audit](content-audit.md) for the landing-page claim audit and [explorer audit](explorer-audit.md) for the exact `v4.6.0` file and line references backing every architectural figure on `explorer.html`.
+See [content audit](content-audit.md) for the landing-page claim audit and [explorer audit](explorer-audit.md) for the exact `v4.6.1` file and line references backing every architectural figure on `explorer.html`.
