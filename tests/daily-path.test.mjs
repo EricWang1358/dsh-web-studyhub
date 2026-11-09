@@ -87,6 +87,15 @@ test('a prerequisite is still placed before the due question that needs it, afte
   assert.deepEqual(plan.entries.map((entry) => entry.card.id), ['focus-safe', 'pre', 'short-gap', 'legacy', 'twin-1', 'twin-2', 'long-gap', 'new-1']);
 });
 
+test('a due FSRS record with no known last review is reached: first in its tier, inside a round smaller than the backlog', () => {
+  const cards = backlog();
+  cards.push({ ...make('no-last'), review: { algorithm: 'fsrs-6', stability: 20, difficulty: 5, repetitions: 3, interval_days: 20, due_at: at(4) } });
+  const plan = planPath([{ id: 'a', title: 'a', cards }], () => undefined, { now: NOW, limit: 3 });
+  assert.equal(plan.counts.due, 7, 'a backlog of 7 due questions');
+  assert.deepEqual(plan.entries.map((entry) => entry.card.id), ['focus-safe', 'no-last', 'short-gap'],
+    'the 重点 question, then the record without a last review (recall 0), then the lowest recall');
+});
+
 test('one now, one round: the home card and the round 开始今日学习 starts hold the same questions in the same order', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: NOW });
   const root = await mkdtemp(join(tmpdir(), 'study-daily-path-'));

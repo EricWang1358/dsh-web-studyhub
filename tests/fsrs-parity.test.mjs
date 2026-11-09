@@ -166,6 +166,15 @@ test("every FSRS-6 curve falls with elapsed days / stability alone, so own weigh
   }
 });
 
+test("retrievability is 0 for an FSRS record whose last review is unknown: the same rule as a record the scheduler cannot read", () => {
+  process.env.TZ = "UTC";
+  const at = Date.parse("2026-03-10T12:00:00.000Z");
+  // A review written from outside (bank.append keeps a caller's card.review; schedule.update stores any review object).
+  const noLast = { algorithm: "fsrs-6", stability: 20, difficulty: 5, repetitions: 3, interval_days: 20, due_at: "2026-02-01T00:00:00.000Z" };
+  assert.equal(retrievability(noLast, at), 0);
+  assert.equal(retrievabilityAt({ w: [...FSRS6_WEIGHTS.slice(0, 20), 0.5] })(noLast, at), 0, "whatever the weights");
+});
+
 test("retrievability is 0 for a question with no memory state yet, as ts-fsrs says for a new card", () => {
   process.env.TZ = "UTC";
   const at = Date.parse("2026-03-10T12:00:00.000Z");
