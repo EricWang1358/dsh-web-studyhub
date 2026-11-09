@@ -83,6 +83,21 @@ for (const [name, kind] of Object.entries(KINDS)) {
   });
 }
 
+test('a tail retry is not rescheduled, so it is not described as coming back sooner (the attempt keeps grade 3)', async (t) => {
+  const service = await library(t, quiz);
+  const run = await service.call('review.start', { mode: 'path', fresh: true, scope: [{ deckId: 'd', cardId: 'q1' }] });
+  await service.call('review.answer', { runId: run.id, cardId: 'q1', selected: ['b'] });
+  const moved = await service.call('review.move', { runId: run.id, direction: 1 });
+  assert.equal(moved.retry, true);
+  await service.call('review.draft.save', { runId: run.id, cardId: 'q1', index: moved.index, assistance: { hintUsed: true } });
+  const done = await service.call('review.answer', { runId: run.id, cardId: 'q1', selected: ['a'], index: moved.index });
+  const retry = (await service.store.read()).attempts.filter((att) => att.quiz_id === 'q1').at(-1);
+  assert.equal(retry.retry, true);
+  assert.equal(retry.grade, 3);
+  assert.deepEqual(retry.after, retry.before, 'a retry does not move the schedule');
+  assert.equal('hintGraded' in done.feedback, false);
+});
+
 test('flashcard mode self-grading is unchanged by the hint', async (t) => {
   const service = await library(t, quiz);
   const run = await service.call('review.start', { deckId: 'd', mode: 'flashcard', fresh: true });
