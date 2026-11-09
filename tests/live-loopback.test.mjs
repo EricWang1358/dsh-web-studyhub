@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -193,6 +193,45 @@ test('hot-installer lifecycle: plan, local compile, sha256 tamper detection, rep
   const removed = await installer.uninstall({ confirm: true });
   assert.ok(removed.removed >= 1);
   assert.equal(await effectiveLiveLoopback({ seams }), null);
+});
+
+test('probeLoopbackHelper tolerates loader banners and non-JSON output, and compile classifies permissions and long paths', async t => {
+  const { dir } = await withHome(t);
+  if (process.platform !== 'win32') {
+    const bannerScript = join(dir, 'banner-probe.sh');
+    await writeFile(bannerScript, '#!/bin/sh\nprintf "CLR host warning: profile loaded\\n{\\"ok\\":true,\\"device\\":\\"USB DAC\\"}\\n"\n');
+    await chmod(bannerScript, 0o755);
+    assert.deepEqual(await probeLoopbackHelper({ exePath: bannerScript }), { ok: true, device: 'USB DAC' });
+
+    const brokenJsonScript = join(dir, 'broken-json-probe.sh');
+    await writeFile(brokenJsonScript, '#!/bin/sh\nprintf "{not-json\\n"\n');
+    await chmod(brokenJsonScript, 0o755);
+    await assert.rejects(
+      probeLoopbackHelper({ exePath: brokenJsonScript }),
+      err => !(err instanceof SyntaxError) && /not-json|invalid probe output/.test(err.message),
+    );
+  }
+
+  const baseSeams = {
+    osPlatform: 'win32',
+    arch: 'x64',
+    cscPath: 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe',
+    drives: async () => [{ root: 'D:\\', freeMb: 50_000, totalMb: 200_000, system: false }],
+    freeMegabytes: async () => 50_000,
+    probeHelper: async () => ({ ok: true }),
+  };
+  for (const [expectedCode, expectedMessage, stderr] of [
+    ['not-writable', LIVE_LOOPBACK_MESSAGES.notWritable, 'error CS0016: Access to the path \'D:\\Locked\\helper.exe\' is denied.'],
+    ['path-too-long', LIVE_LOOPBACK_MESSAGES.pathTooLong, 'ENAMETOOLONG: name too long, open \'D:\\very-long\\helper.exe\''],
+  ]) {
+    const inst = createLiveLoopbackInstaller({ ...baseSeams, compile: async () => ({ code: 1, stdout: '', stderr }) });
+    await inst.start({ confirm: true, location: join(dir, expectedCode) });
+    await inst.idle();
+    const view = await inst.status();
+    assert.equal(view.status, 'failed');
+    assert.equal(view.error?.code, expectedCode);
+    assert.equal(view.error?.message, expectedMessage);
+  }
 });
 
 test('all backend loopback messages and stage names localize cleanly into English', () => {

@@ -12,6 +12,7 @@ import CompactJobCard from './tasks/CompactJobCard.jsx';
 import { followUpLink } from './job-follow-up.js';
 import { ConvertEditDialog, HELD_ENTRY, HeldEntry } from './ConvertEdit.jsx';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { DiagnosticBar } from './install/DiagnosticActions.jsx';
 import { FAILED_HAND_OFF_WHAT, failedHandOffInput, failureText } from './tasks/failed-hand-off.js';
 import { isHeldTask } from './tasks/task-model.js';
 import css from './mineru.css';
@@ -125,13 +126,8 @@ export function PdfConvertJobs({ data, jobs, ids, act, onOpenSources, onOpenSett
  * diagnosis to the main chat (the hand-off plan N11, 'job.failed'; the same rule as the card and the console line).
  */
 function FailureDetail({ failure, job }) {
-  const [copied, setCopied] = useState('');
   const lines = Array.isArray(failure.lines) ? failure.lines : [];
   const handOff = failedHandOffInput(job);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(failureText(failure)); setCopied('done'); }
-    catch { setCopied('failed'); }
-  };
   return (
     <div className="pdf-failure" role="group" aria-label={ui('失败原因')} data-fix={failure.fix || undefined}>
       <strong className="pdf-failure__title">{ui('失败原因')}</strong>
@@ -140,12 +136,10 @@ function FailureDetail({ failure, job }) {
         <small className="pdf-failure__label">{Number.isInteger(failure.exitCode) ? uiFormat('转换程序最后输出的几行（退出码 {0}）：', [failure.exitCode]) : ui('转换程序最后输出的几行：')}</small>
         <pre className="pdf-failure__lines" translate="no">{lines.join('\n')}</pre>
       </>}
-      <p className="pdf-failure__actions">
-        {/* The card keeps no live region of its own (#98): the button itself says it copied. */}
-        <Button size="sm" variant="quiet" icon="copy" onClick={copy}>{copied === 'done' ? ui('已复制') : ui('复制诊断信息')}</Button>
+      {/* The card keeps no live region of its own (#98): the button itself says it copied. */}
+      <DiagnosticBar text={() => failureText(failure)} resetKey={job?.id} fallback={ui('没能复制，请直接选中上面的文字')} className="pdf-failure__actions">
         {handOff && <HandOff id="job.failed" input={handOff} what={FAILED_HAND_OFF_WHAT} />}
-        {copied === 'failed' && <span className="pdf-failure__copied">{ui('没能复制，请直接选中上面的文字')}</span>}
-      </p>
+      </DiagnosticBar>
     </div>
   );
 }

@@ -248,7 +248,7 @@ test('python-too-new shows the found version, download channels (mainland first)
   assert.match(text, /找到的 Python 3\.14\.2 版本太新/);
   assert.match(html, /href="https:\/\/registry\.npmmirror\.com\/binary\.html\?path=python\/"/);
   assert.match(text, /复制诊断信息/);
-  assert.match(html, /data-hand-off="converter\.failed"/);
+  assert.match(html, /data-hand-off="setup\.failed"/);
   const en = render({ initialInstall: idle, initialPlan: tooNew }, 'en');
   assert.doesNotMatch(textOf(en), han, textOf(en));
   assert.match(failureHint('pip-build'), /3\.12/);
@@ -260,15 +260,11 @@ test('failed Marker install offers 复制诊断信息 (with credential redaction
   const errHtml = render({ initialInstall: failed, initialPlan: plan() });
   assert.match(textOf(errHtml), /复制诊断信息/);
   assert.match(textOf(errHtml), /发给主会话/);
-  assert.match(errHtml, /data-hand-off="converter\.failed"/);
+  assert.match(errHtml, /data-hand-off="setup\.failed"/);
   const cancelledHtml = render({ initialInstall: { ...failed, status: 'cancelled', error: { code: 'cancelled', message: INSTALL_MESSAGES.cancelled } }, initialPlan: plan() });
   assert.doesNotMatch(textOf(cancelledHtml), /复制诊断信息/);
-  assert.doesNotMatch(cancelledHtml, /data-hand-off="converter\.failed"/);
+  assert.doesNotMatch(cancelledHtml, /data-hand-off="setup\.failed"/);
 
-  let copied = '';
-  const prevDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
-  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: { writeText: async text => { copied = text; } } } });
-  t.after(() => { if (prevDescriptor) Object.defineProperty(globalThis, 'navigator', prevDescriptor); else delete globalThis.navigator; });
   const failedWithSecret = {
     ...failed,
     error: { code: 'pip-build', message: INSTALL_MESSAGES.pipBuild },
@@ -278,13 +274,16 @@ test('failed Marker install offers 复制诊断信息 (with credential redaction
     call: async action => (action === 'marker.install.status' ? failedWithSecret : action === 'marker.install.plan' ? plan() : {}),
   });
   mounted.render(); await flush(); await flush();
-  await find(mounted.render(), named('复制诊断信息')).props.onClick();
-  await flush();
+  const actions = find(mounted.render(), item => typeof item.props?.diagnostic === 'function');
+  assert.ok(actions, 'DiagnosticActions is rendered on failed Marker install');
+  const { text: copied, input } = actions.props.diagnostic();
+  assert.equal(input.tool, 'marker');
   assert.match(copied, /^\[Marker\]/);
   assert.match(copied, /code: pip-build/);
   assert.match(copied, /stage: 下载并安装 marker-pdf/);
   assert.match(copied, /https:\/\/\*\*\*@pypi\.example\.com\/simple/);
   assert.ok(!copied.includes('my-token'), 'credentials are redacted before copying');
+  assert.ok(!input.log.includes('my-token'), 'credentials are redacted before hand-off');
   mounted.close();
 });
 

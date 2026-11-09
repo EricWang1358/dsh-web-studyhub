@@ -10,8 +10,9 @@ import { refreshMineruLocal, useMineruInstall, useMineruState } from './use-mine
 import { usePolling } from './use-polling.js';
 import InstallStages from './install/InstallStages.jsx';
 import LocationChooser from './install/LocationChooser.jsx';
-import { CONVERTER_FAILED_WHAT, mineruDiagnosticText, mineruHandOffInput } from './install/install-diagnostics.js';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { DiagnosticBar } from './install/DiagnosticActions.jsx';
+import { SETUP_FAILED_WHAT, mineruDiagnostic } from './install/install-diagnostics.js';
 import css from './mineru-install.css';
 
 /* One-click local MinerU (settings › PDF 转换, and inline wherever a PDF is converted): a status line that always says where it stands, one location row and
@@ -54,7 +55,6 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
   const [location, setLocation] = useState(''), [choosing, setChoosing] = useState(false), [moving, setMoving] = useState(false), [asking, setAsking] = useState(false);
   const [tier, setTier] = useState(''), [source, setSource] = useState(''), [python, setPython] = useState('');
   const [plan, setPlan] = useState(initialPlan), [planning, setPlanning] = useState(false), [moreOpen, setMoreOpen] = useState(initialMore), [nonce, setNonce] = useState(0);
-  const [copied, setCopied] = useState('');
   const flight = useRef(false), alive = useRef(true), skipPlan = useRef(!!initialPlan);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
@@ -63,7 +63,6 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
     onEnded: async ended => { await refresh(); if (alive.current && ended.status === 'complete') toast.success(ui('本机 MinerU 可以用了。')); } });
   const view = local && install ? { ...local, install, ...(install.status === 'running' ? { state: 'installing' } : {}) } : local;
   const shown = cardState(view);
-  useEffect(() => { setCopied(''); }, [shown.state, shown.code]);
   // The status is asked again now and then while there is a service to watch (it stops on a reboot); the poll pauses while the page is hidden.
   usePolling(() => refresh(false).then(() => ({ unchanged: true })), { intervalMs: 30_000, enabled: usable && ['stopped', 'ready'].includes(shown.state), backoff: true });
 
@@ -231,10 +230,6 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
   else if (failure) {
     const { action, context } = failure, said = errorHint(shown.code, context);
     const diagArgs = { view, install, plan, shown, summary: errorReason(view, shown.code, shown.origin), stageLabel: install?.stage ? stageName(install.stage) : '' };
-    const copyDiag = async () => {
-      try { await navigator.clipboard.writeText(mineruDiagnosticText(diagArgs)); if (alive.current) setCopied('done'); }
-      catch { if (alive.current) setCopied('failed'); }
-    };
     const button = <Button variant="primary" icon={action.icon} busy={['start', 'service', 'recheck'].includes(working)} disabled={!!working} onClick={() => void fix(action)}>{action.label}</Button>;
     // While the location chooser is open its confirm is the one primary: the error's own fix (换位置) gives way to it.
     body = <div className="mineru-install__problem">
@@ -244,9 +239,9 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
         {action.tip ? <Tooltip layer content={action.tip}>{button}</Tooltip> : button}
         {action.id === 'vc-runtime' && <Button variant="quiet" size="sm" lock={!!working}
           onClick={() => void (shown.origin === 'service' ? startService({ restart: true }) : start({ location: fixFolder() }))}>{ui('重试')}</Button>}
-        <Button variant="quiet" size="sm" icon="copy" onClick={copyDiag}>{copied === 'done' ? ui('已复制') : ui('复制诊断信息')}</Button>
-        <HandOff id="converter.failed" input={() => mineruHandOffInput(diagArgs)} what={CONVERTER_FAILED_WHAT} />
-        {copied === 'failed' && <span className="mineru-install__copied">{ui('没能复制，请展开日志手动复制')}</span>}
+        <DiagnosticBar resetKey={`${shown.state}:${shown.code}:${shown.origin}`} diagnostic={() => mineruDiagnostic(diagArgs)}>
+          {input => <HandOff id="setup.failed" input={input} what={SETUP_FAILED_WHAT} />}
+        </DiagnosticBar>
       </div>}
       {choosing && chooser}
       {choosing && plan && <div className="mineru-install__row">
@@ -315,7 +310,12 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
   return <section className={`mineru-install${compact ? ' mineru-install--compact' : ''}${className ? ` ${className}` : ''}`} data-state={shown.state} aria-label={ui('本机 MinerU')}>
     {status}
     <div className="mineru-install__body">{body}</div>
-    {error && <InlineMessage tone="error">{error}</InlineMessage>}
+    {error && <>
+      <InlineMessage tone="error">{error}</InlineMessage>
+      <DiagnosticBar row resetKey={error} diagnostic={() => mineruDiagnostic({ view, install, plan, shown, summary: error })}>
+        {input => <HandOff id="setup.failed" input={input} what={SETUP_FAILED_WHAT} />}
+      </DiagnosticBar>
+    </>}
     {more}
     {compact && shown.state !== 'ready' && onOpenSettings && <Button variant="quiet" size="sm" className="mineru-install__settings" onClick={() => onOpenSettings('settings-mineru')}>{ui('更多选项')}</Button>}
     {asking && <ConfirmDialog title={ui('卸载本机 MinerU？')} confirmLabel={ui('卸载')} onConfirm={uninstall} onClose={() => setAsking(false)}>

@@ -56,6 +56,10 @@ test('each migrated place hands over with its id (before: a prompt builder and a
   assert.deepEqual(at('import.file'), ['ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/ImportHub.jsx', 'ui/ImportHub.jsx', 'ui/Ingest.jsx',
     'ui/JsonImport.jsx', 'ui/JsonImport.jsx', 'ui/JsonImport.jsx', 'ui/LargeDocumentCard.jsx']);
   assert.deepEqual(at('job.failed'), ['ui/PdfConvertJob.jsx', 'ui/tasks/CompactJobCard.jsx', 'ui/tasks/RunLine.jsx']);
+  assert.deepEqual([...new Set(at('setup.failed'))], [
+    'ui/ExtensionNotStarted.jsx', 'ui/ExtensionPanel.jsx', 'ui/LiveLocalCard.jsx', 'ui/LiveLoopbackCard.jsx',
+    'ui/MarkerInstall.jsx', 'ui/MarkerSettings.jsx', 'ui/MineruInstallCard.jsx',
+  ]);
   assert.deepEqual(at('book.edit'), ['ui/book/send-to-chat.js']);
   // the page question of the reader's 原始 PDF (#456): a quiet link under the answers, and the way forward on a page without saved text
   assert.deepEqual(at('reader.page'), ['ui/document-preview/PageAsk.jsx', 'ui/document-preview/PageAsk.jsx']);

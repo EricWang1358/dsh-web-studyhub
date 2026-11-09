@@ -29,7 +29,7 @@ const FIXTURES = {
   'topics.group': { input: { mode: 'merge', ungrouped: 12, topicCount: 40, course: 'SA', alternative: true }, fenced: [] },
   'import.file': { input: { purpose: 'audio', error: 'unsupported', files: ['lecture1.mp4'] }, fenced: ['error', 'files'] },
   'job.failed': { input: { jobId: 'j1', kind: 'audio-import', title: 'Week 3', status: 'failed', line: 'ffmpeg missing', error: 'ffmpeg missing', sourceIds: ['s1'] }, fenced: ['title', 'line', 'error'] },
-  'converter.failed': { input: { tool: 'mineru', status: 'error (install)', stage: '5/6 enable', code: 'not-writable', summary: 'Permission denied on home folder', folder: '/opt/studyhub/mineru', tier: 'basic', source: 'mainland', python: 'Python 3', log: 'PermissionError: Credential configuration directory' },
+  'setup.failed': { input: { tool: 'mineru', status: 'error (install)', stage: '5/6 enable', code: 'not-writable', summary: 'Permission denied on home folder', folder: '/opt/studyhub/mineru', tier: 'basic', source: 'mainland', python: 'Python 3', log: 'PermissionError: Credential configuration directory' },
     fenced: ['stage', 'code', 'summary', 'folder', 'python', 'log'] },
   'skeleton.design': { input: { scope: [{ deckId: 'd1', topic: 'Entropy' }], lint: null, topics: ['Entropy', 'Heat'], update: { id: 'sk1', title: 'Physics map' } }, fenced: ['topics', 'scope'] },
   'skeleton.archify': { input: { skeleton: { id: 'sk1', title: 'Physics map' } }, fenced: [] },

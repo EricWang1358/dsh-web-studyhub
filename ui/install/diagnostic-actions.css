@@ -1,0 +1,23 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.components {
+  :where(.study-app, .study-seat) {
+    .sh-diag-actions {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-3);
+      min-width: 0;
+      max-width: 100%;
+    }
+    .sh-diag-actions--row {
+      display: flex;
+      margin: var(--space-1) 0 0;
+    }
+    .sh-diag-actions__note {
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      line-height: var(--lh-snug);
+    }
+  }
+}

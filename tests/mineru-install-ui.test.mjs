@@ -496,24 +496,20 @@ test('the path field\'s placeholder reads as an example, and 取消 and 收起 a
   assert.match(source, /\{draft === null && <div className="mineru-install__row">/, 'the 收起 row shows only while the path field is closed');
 });
 
-test('error states offer 复制诊断信息 (with credential redaction) and 发给主会话 (converter.failed); non-error states do not', async t => {
+test('error states offer 复制诊断信息 (with credential redaction) and 发给主会话 (setup.failed); non-error states do not', async t => {
   for (const errState of [local.enableService, local.network, local.port]) {
     const html = render({ initialLocal: errState, initialPlan: plan() });
     assert.match(textOf(html), /复制诊断信息/);
     assert.match(textOf(html), /发给主会话/);
-    assert.match(html, /data-hand-off="converter\.failed"/);
+    assert.match(html, /data-hand-off="setup\.failed"/);
     assert.equal(primaries(html), 1);
     assert.doesNotMatch(html, /\stitle="/);
   }
   for (const okState of [local.missing, local.cancelled, local.ready, local.stopped]) {
     const html = render({ initialLocal: okState, initialPlan: plan() });
     assert.doesNotMatch(textOf(html), /复制诊断信息/);
-    assert.doesNotMatch(html, /data-hand-off="converter\.failed"/);
+    assert.doesNotMatch(html, /data-hand-off="setup\.failed"/);
   }
-  let copied = '';
-  const prevDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
-  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: { writeText: async text => { copied = text; } } } });
-  t.after(() => { if (prevDescriptor) Object.defineProperty(globalThis, 'navigator', prevDescriptor); else delete globalThis.navigator; });
   const status = {
     ...local.enableService,
     install: {
@@ -522,11 +518,14 @@ test('error states offer 复制诊断信息 (with credential redaction) and 发�
     },
   };
   const mounted = await remount(t, status);
-  await find(mounted.card.render(), named('复制诊断信息')).props.onClick();
-  await flush();
+  const actions = find(mounted.card.render(), item => typeof item.props?.diagnostic === 'function');
+  assert.ok(actions, 'DiagnosticActions is rendered on error states');
+  const { text: copied, input } = actions.props.diagnostic();
+  assert.equal(input.tool, 'mineru');
   assert.match(copied, /^\[MinerU\]/);
   assert.match(copied, /stage: 5\/6 启用本机服务/);
   assert.match(copied, /folder: D:\\StudyHub\\MinerU/);
   assert.match(copied, /https:\/\/\*\*\*@pypi\.example\.com\/simple/);
   assert.ok(!copied.includes('secret-pass'), 'credentials are redacted before copying');
+  assert.ok(!input.log.includes('secret-pass'), 'credentials are redacted before hand-off');
 });

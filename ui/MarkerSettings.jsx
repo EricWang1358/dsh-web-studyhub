@@ -7,8 +7,9 @@ import { useInjectCss } from './shared.js';
 import css from './marker-install.css';
 import { useLiveEffect } from './use-async.js';
 import { useStudy } from './study-context.jsx';
-import { CONVERTER_FAILED_WHAT, markerDiagnosticText, markerHandOffInput } from './install/install-diagnostics.js';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { DiagnosticBar } from './install/DiagnosticActions.jsx';
+import { SETUP_FAILED_WHAT, markerDiagnostic } from './install/install-diagnostics.js';
 
 export default function MarkerSettings({ disabled = false, available = true }) {
   const { call } = useStudy();
@@ -16,7 +17,6 @@ export default function MarkerSettings({ disabled = false, available = true }) {
   useInjectCss(css, 'study-marker-install');
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const [command, setCommand] = useState(''), [status, setStatus] = useState(null), [working, setWorking] = useState(false), [error, setError] = useState('');
-  const [copied, setCopied] = useState('');
   const [loading, setLoading] = useState(available && !!call);
   useLiveEffect(live => {
     if (!available || !call) { setLoading(false); return; }
@@ -34,7 +34,7 @@ export default function MarkerSettings({ disabled = false, available = true }) {
     if (!available || !call || loading || saving.current) return;
     saving.current = true;
     const generation = ++revision.current;
-    setWorking(true); setStatus(null); setError(''); setCopied('');
+    setWorking(true); setStatus(null); setError('');
     try {
       // 检测并保存: the path in the box is checked first and saved only when it passes, so a path that does not work never replaces one that does. A blank box has nothing to save: it only checks what is in use now.
       const wanted = command.trim();
@@ -52,14 +52,15 @@ export default function MarkerSettings({ disabled = false, available = true }) {
     const generation = ++revision.current;
     try {
       const [settings, result] = await Promise.all([call('marker.settings.get', {}), call('marker.local.status', {})]);
-      if (alive.current && revision.current === generation) { setCommand(settings.command || ''); setStatus(result); setError(''); setCopied(''); }
+      if (alive.current && revision.current === generation) { setCommand(settings.command || ''); setStatus(result); setError(''); }
     } catch (failure) { if (alive.current) setError(errorMessage(failure)); }
   }
-  const manualDiag = () => ({ markerStatus: status, command: command.trim() });
-  const copyManual = async () => {
-    try { await navigator.clipboard.writeText(markerDiagnosticText(manualDiag())); if (alive.current) setCopied('done'); }
-    catch { if (alive.current) setCopied('failed'); }
-  };
+  const manualDiag = (extra = {}) => markerDiagnostic({ markerStatus: status, command: command.trim(), ...extra });
+  const diagRow = (resetKey, extra) => (
+    <DiagnosticBar row className="marker-install__diag" resetKey={resetKey} diagnostic={() => manualDiag(extra)}>
+      {input => <HandOff id="setup.failed" input={input} what={SETUP_FAILED_WHAT} />}
+    </DiagnosticBar>
+  );
   return <div className="marker-settings">
     <p>{ui('选好 PDF 后，StudyHub 会调用本机 Marker，显示进度并自动导入结果。')}</p>
     {!available && <InlineMessage tone="info">{ui('此安装未启用 PDF 解析组件。启用 StudyHub 的音频组件后可在应用内解析；也可用下面的脚本手动转换。')}</InlineMessage>}
@@ -67,19 +68,15 @@ export default function MarkerSettings({ disabled = false, available = true }) {
     <div className="marker-settings__manual">
     <h4>{ui('已经有 Marker？手动指定程序路径')}</h4>
     <Field label={ui('Marker 程序路径')} hint={ui('留空会先用 StudyHub 装好的那份，没有再自动查找 marker_single。也可以填写虚拟环境中该程序的完整路径。')}>
-      <TextInput value={command} placeholder="marker_single" disabled={disabled || working || loading || !available} onChange={event => { ++revision.current; setStatus(null); setError(''); setCopied(''); setCommand(event.target.value); }} />
+      <TextInput value={command} placeholder="marker_single" disabled={disabled || working || loading || !available} onChange={event => { ++revision.current; setStatus(null); setError(''); setCommand(event.target.value); }} />
     </Field>
     {!command.trim() && status?.command && <Hint>{uiFormat('正在使用：{0}', [status.command])}</Hint>}
     <div className="marker-settings__actions"><Button disabled={disabled || !call || loading || !available} busy={working} onClick={save}>{ui('检测并保存')}</Button></div>
     <Hint>{ui('程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用，会启动一次 Marker，第一次可能要一两分钟；模型和 OCR 后端会在实际解析时检查。')}</Hint>
     {status && <p role="status" className="marker-settings__status" data-ready={status.state === 'ready'}><Icon name={status.state === 'ready' ? 'success' : 'info'} size={16} />{status.state === 'ready' ? ui('Marker 已就绪') : status.state === 'needs-docker' ? ui('Marker 需要 Docker') : ui('Marker 尚未就绪')}{status.message ? ` · ${uiMessage(status.message)}` : ''}</p>}
     {status?.notSaved && <Hint>{ui('没有通过检测，所以没有保存；原来的路径没有改动。')}</Hint>}
-    {status?.notSaved && <p className="marker-install__diag">
-      <Button size="sm" variant="quiet" icon="copy" onClick={copyManual}>{copied === 'done' ? ui('已复制') : ui('复制诊断信息')}</Button>
-      <HandOff id="converter.failed" input={() => markerHandOffInput(manualDiag())} what={CONVERTER_FAILED_WHAT} />
-      {copied === 'failed' && <span className="marker-install__copied">{ui('没能复制，请展开日志手动复制')}</span>}
-    </p>}
-    {error && <InlineMessage tone="error">{error}</InlineMessage>}
+    {status?.notSaved && diagRow(`${status.state}:${command}`)}
+    {error && <><InlineMessage tone="error">{error}</InlineMessage>{diagRow(error, { summary: error })}</>}
     </div>
     <Disclosure summary={ui('安装与使用说明')}>
       <p>{ui('按官方指南准备 Python 环境并安装 marker-pdf。建议使用独立虚拟环境，核对当前版本的系统与硬件要求。')}{' '}<a className="marker-link" href="https://github.com/datalab-to/marker#installation" target="_blank" rel="noreferrer">{ui('Marker 安装指南')}</a></p>

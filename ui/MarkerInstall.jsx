@@ -9,8 +9,9 @@ import { STAGES, canInstall, defaultMirror, failureHint, installMode, stageName,
 import css from './marker-install.css';
 import { useLiveEffect } from './use-async.js';
 import InstallStages from './install/InstallStages.jsx';
-import { CONVERTER_FAILED_WHAT, markerDiagnosticText, markerHandOffInput } from './install/install-diagnostics.js';
 import { HandOff } from './hand-off/HandOff.jsx';
+import { DiagnosticBar } from './install/DiagnosticActions.jsx';
+import { SETUP_FAILED_WHAT, markerDiagnostic } from './install/install-diagnostics.js';
 
 /* One-click Marker (settings › PDF 转换 › Marker). Nothing is installed until the learner presses the one primary button: a private
    Python environment with marker-pdf, in the StudyHub data folder or a folder they choose, then the program path is filled in for them.
@@ -101,11 +102,10 @@ export default function MarkerInstall({ disabled = false, markerReady = false, m
   const [install, setInstall] = useState(initialInstall), [plan, setPlan] = useState(initialPlan);
   const [mirror, setMirror] = useState(initialMirror || defaultMirror(getUiLanguage())), [location, setLocation] = useState('');
   const [draft, setDraft] = useState(null), [moving, setMoving] = useState(false), [asking, setAsking] = useState(false), [opened, setOpened] = useState(false);
-  const [working, setWorking] = useState(''), [error, setError] = useState(''), [nonce, setNonce] = useState(0), [copied, setCopied] = useState('');
+  const [working, setWorking] = useState(''), [error, setError] = useState(''), [nonce, setNonce] = useState(0);
   const alive = useRef(true), skipFirstPlan = useRef(!!initialPlan), flight = useRef(false);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const mode = installMode({ install, markerReady, moving });
-  useEffect(() => { setCopied(''); }, [mode, install?.status, install?.error?.code, markerStatus?.state]);
   const planned = !!install && (mode === 'offer' || mode === 'problem' || (mode === 'manual' && opened));
   useLiveEffect(live => {
     if (initialInstall || typeof call !== 'function') return;
@@ -153,15 +153,13 @@ export default function MarkerInstall({ disabled = false, markerReady = false, m
     stageLabel: install?.stage && install.stage !== 'done' ? stageName(install.stage) : '',
     ...extra,
   });
-  const copyDiag = async (extra = {}) => {
-    try { await navigator.clipboard.writeText(markerDiagnosticText(diagArgs(extra))); if (alive.current) setCopied('done'); }
-    catch { if (alive.current) setCopied('failed'); }
-  };
-  const diagRow = (extra = {}) => <p className="marker-install__diag">
-    <Button size="sm" variant="quiet" icon="copy" onClick={() => copyDiag(extra)}>{copied === 'done' ? ui('已复制') : ui('复制诊断信息')}</Button>
-    <HandOff id="converter.failed" input={() => markerHandOffInput(diagArgs(extra))} what={CONVERTER_FAILED_WHAT} />
-    {copied === 'failed' && <span className="marker-install__copied">{ui('没能复制，请展开日志手动复制')}</span>}
-  </p>;
+  const diagRow = (extra = {}) => (
+    <DiagnosticBar row className="marker-install__diag"
+      resetKey={`${mode}:${install?.status}:${install?.error?.code}:${markerStatus?.state}`}
+      diagnostic={() => markerDiagnostic(diagArgs(extra))}>
+      {input => <HandOff id="setup.failed" input={input} what={SETUP_FAILED_WHAT} />}
+    </DiagnosticBar>
+  );
 
   const folderLine = (folder, custom) => <p className="marker-install__where">
     <span>{ui('安装位置')}</span><code translate="no">{folder}</code>
@@ -263,6 +261,6 @@ export default function MarkerInstall({ disabled = false, markerReady = false, m
   else body = <>{needsDocker && <DockerChoice status={markerStatus} recheck={checkAgain} busy={working} locked={locked} />}{offer(true)}</>;
   return <section className="marker-install" data-mode={mode} aria-label={ui('一键安装 Marker')}>
     {body}
-    {error && <InlineMessage tone="error">{error}</InlineMessage>}
+    {error && <>{<InlineMessage tone="error">{error}</InlineMessage>}{diagRow({ summary: error })}</>}
   </section>;
 }
