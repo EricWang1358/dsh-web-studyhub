@@ -19,7 +19,7 @@ import {
 } from '../lib/live-loopback-install.js';
 import { LIVE_LOOPBACK_JOB_TEXT, LIVE_LOOPBACK_MESSAGES, LIVE_LOOPBACK_STAGE_NAMES } from '../lib/live-loopback-install-text.js';
 import { LIVE_LOOPBACK_CS_SOURCE } from '../lib/live-loopback-source.js';
-import { loopbackInUse, loopbackProcessRunning } from '../lib/live-loopback.js';
+import { createSystemAudioCapture, loopbackInUse, loopbackProcessRunning } from '../lib/live-loopback.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { assistantArgsRefusal, assistantRefusal } from '../lib/assistant-boundary.js';
 import { writesFor } from '../lib/runtime/domain-contracts.js';
@@ -37,7 +37,7 @@ const loudPcm = seconds => {
   return buffer;
 };
 
-function makeFakeHelperSpawn({ noDevice = false, crashCode = null } = {}) {
+function makeFakeHelperSpawn({ noDevice = false, crashCode = null, stateErrorOnSpawn = 0 } = {}) {
   const children = [];
   const spawnImpl = () => {
     const child = new EventEmitter();
@@ -62,15 +62,48 @@ function makeFakeHelperSpawn({ noDevice = false, crashCode = null } = {}) {
         closeWith(2);
         return;
       }
-      child.stderr.write('STATE:{"ready":true,"label":"Speakers (Realtek Audio)","muted":false}\n');
+      const ready = 'STATE:{"ready":true,"label":"Speakers (Realtek Audio)","muted":false}\n';
+      child.stderr.write(ready + (children.length === stateErrorOnSpawn ? 'STATE:{"error":"init-resume-failed"}\n' : ''));
       if (crashCode !== null) setImmediate(() => closeWith(crashCode));
     });
     child.pushPcm = buf => child.stdout.write(buf);
+    child.exitWith = closeWith;
     children.push(child);
     return child;
   };
   return { spawnImpl, children };
 }
+
+test('system capture reports runtime failures once, pauses, and can resume with a fresh helper', async t => {
+  for (const failure of ['no-device', 'init-0x88890008', 'exit', 'error']) {
+    await t.test(failure, async () => {
+      const helper = makeFakeHelperSpawn();
+      const errors = [];
+      const capture = createSystemAudioCapture({ resolveHelper: async () => ({ exePath: 'fake' }),
+        spawnImpl: helper.spawnImpl, onPcm: () => true, onUnexpectedError: message => errors.push(message) });
+      try {
+        await capture.start();
+        const child = helper.children[0];
+        child.pushPcm(loudPcm(1));
+        if (failure === 'exit') child.exitWith(4);
+        else if (failure === 'error') child.emit('error', new Error('capture pipe failed'));
+        else child.stderr.write(`STATE:${JSON.stringify({ error: failure })}\n`);
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(errors.length, 1, 'a failure after ready must reach the session exactly once');
+        assert.equal(capture.snapshot().phase, 'paused');
+        assert.equal(capture.snapshot().capturedMs, 1000);
+        assert.ok(capture.snapshot().error);
+        if (failure.startsWith('init-')) assert.match(errors[0], /init-0x88890008/);
+        await capture.resume();
+        assert.equal(helper.children.length, 2);
+        assert.equal(capture.snapshot().phase, 'running');
+        assert.equal(capture.snapshot().error, undefined);
+        await capture.pause();
+        assert.equal(errors.length, 1, 'an intentional pause is not another failure');
+      } finally { await capture.stop(); }
+    });
+  }
+});
 
 async function withHome(t) {
   const dir = await mkdtemp(join(tmpdir(), 'study-live-loopback-'));
@@ -210,7 +243,7 @@ test('system-audio session lifecycle: zero helper process while paused or stoppe
     async compile({ outExe }) { await writeFile(outExe, Buffer.from('MZ-shared-loopback')); return { code: 0 }; },
     probeHelper: async () => ({ ok: true, device: 'Headphones' }),
   };
-  const { spawnImpl, children } = makeFakeHelperSpawn();
+  const { spawnImpl, children } = makeFakeHelperSpawn({ stateErrorOnSpawn: 2 });
   const makeService = name => track(new StudyService(join(dir, name), {
     liveLocal: { engine: { enginePath: FAKE_ENGINE, modelDir } },
     liveLoopback: { install: fakeInstall, spawn: spawnImpl },
@@ -249,6 +282,13 @@ test('system-audio session lifecycle: zero helper process while paused or stoppe
   assert.equal(polled.inputAudio?.acceptedMs, 500);
   assert.ok(polled.inputAudio?.level > 40);
 
+  children[0].stderr.write('STATE:{"error":"init-0x88890008"}\n');
+  await new Promise(resolve => setImmediate(resolve));
+  const failed = await libA.call('live.poll', { id: started.id });
+  assert.equal(failed.status, 'paused', 'a dead capture cannot leave the class live');
+  assert.equal(failed.inputAudio.phase, 'paused');
+  assert.match(failed.message, /init-0x88890008/);
+
   // Pausing exits the helper process immediately so zero WASAPI handles remain open while paused!
   const paused = await libA.call('live.pause', { id: started.id });
   assert.equal(paused.status, 'paused');
@@ -259,14 +299,20 @@ test('system-audio session lifecycle: zero helper process while paused or stoppe
   await assert.rejects(libB.call('live.loopback.uninstall', { confirm: true }), { code: 'live-running' });
 
   // Resuming spawns a fresh helper process.
+  const failedResume = await libA.call('live.resume', { id: started.id });
+  assert.equal(failedResume.status, 'paused', 'ready and error in one batch cannot mark capture live');
+  assert.equal(failedResume.inputAudio.phase, 'paused');
+  assert.match((await libA.call('live.poll', { id: started.id })).message, /init-resume-failed/);
+  assert.equal(children.length, 2, 'no unobserved automatic retry');
   const resumed = await libA.call('live.resume', { id: started.id });
   assert.equal(resumed.status, 'live');
-  assert.equal(children.length, 2, 'fresh helper spawned on resume');
+  assert.equal((await libA.call('live.poll', { id: started.id })).message, '');
+  assert.equal(children.length, 3, 'fresh helper spawned on resume');
   assert.equal(loopbackProcessRunning(), true);
 
   // Stopping exits the helper immediately and allows clean uninstall.
   await libA.call('live.stop', { id: started.id });
-  assert.equal(children[1].exitCode, 0, 'helper exited on stop');
+  assert.equal(children[2].exitCode, 0, 'helper exited on stop');
   assert.equal(loopbackProcessRunning(), false);
   assert.equal(loopbackInUse(), false);
   const uninstalled = await libB.call('live.loopback.uninstall', { confirm: true });

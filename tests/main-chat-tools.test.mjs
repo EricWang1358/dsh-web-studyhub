@@ -193,6 +193,15 @@ test('study_materials takes every parameter document.import declares, typed the 
   assert.doesNotMatch(tool.description, /\{context:"materials"\}/);
 });
 
+test('study_audio exposes read-only per-model local status and install planning', () => {
+  const parameters = parametersOf(domainTool('audio', {}));
+  assert.ok(parameters.operation.enum.includes('live.local.status'));
+  assert.ok(parameters.operation.enum.includes('live.local.plan'));
+  assert.ok(!parameters.operation.enum.includes('live.local.select'), 'selection remains a learner click');
+  assert.deepEqual(parameters.modelId.enum, ['sense-voice', 'whisper-turbo']);
+  assert.match(libraryContracts.classroom, /live\.local\.status\/plan.*modelId/);
+});
+
 test('the user docs list every library.context area', async () => {
   for (const [file, lead] of [['main-session-queries.md', 'The areas are '], ['main-session-queries.zh-CN.md', '分区有']]) {
     const line = (await readFile(new URL(`../docs/${file}`, import.meta.url), 'utf8')).split(/\r?\n/).find(row => row.includes(lead));

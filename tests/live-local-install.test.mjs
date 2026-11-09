@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { LIVE_LOCAL, createLiveLocalInstaller, effectiveLiveLocal, installSizes, liveLocalInstallStatePath, liveLocalLayout } from '../lib/live-local-install.js';
+import { LIVE_LOCAL, WHISPER_ENGINE, WHISPER_TURBO_FILES, createLiveLocalInstaller, effectiveLiveLocal, installSizes, liveLocalInstallStatePath, liveLocalLayout } from '../lib/live-local-install.js';
 import { extractPackage } from '../lib/npm-tarball.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { LIVE_LOCAL_JOB_TEXT, LIVE_LOCAL_MESSAGES, LIVE_LOCAL_STAGE_NAMES, LIVE_PROVIDER_TEXT } from '../lib/live-local-install-text.js';
 import { fakeFetch, fakePins, liveLocalHome } from './helpers/live-local-fakes.mjs';
-import { makeTgz } from './helpers/make-tgz.mjs';
+import { makeTgz, sha256Hex } from './helpers/make-tgz.mjs';
 
 /* The one-click local engine of 课堂实录 with tiny pinned files and a fetch from memory: the state machine (plan, start, stages, cancel, retry,
    uninstall), the sha512/sha256 pins, resumable .part files and no corrupt leftovers. Nothing is downloaded, nothing native is loaded. */
@@ -57,6 +57,58 @@ test('the plan creates nothing; an unsupported computer is said so up front', as
   assert.equal(refused.problems[0].code, 'unsupported');
   await assert.rejects(other.start({ confirm: true, location: h.location }), { code: 'unsupported' });
   await assert.rejects(h.installer.start({ location: h.location }), { code: 'need-confirm' });
+});
+
+test('quality model pins and isolated installs preserve the existing speed model through failure, retry and removal', async t => {
+  const h = await harness(t);
+  assert.equal(WHISPER_TURBO_FILES.length, 3);
+  assert.equal(WHISPER_ENGINE.engineVersion, '2.0.1', 'Chinese Whisper tokens require the fixed native engine');
+  for (const pin of [WHISPER_ENGINE.engine, ...Object.values(WHISPER_ENGINE.platforms)]) {
+    assert.match(pin.integrity, /^sha512-[A-Za-z0-9+/]{86}==$/);
+    assert.ok(pin.path.endsWith('-2.0.1.tgz'));
+  }
+  for (const file of WHISPER_TURBO_FILES) {
+    assert.match(file.sha256, /^[0-9a-f]{64}$/);
+    assert.match(file.url, /resolve\/[0-9a-f]{40}\//);
+  }
+  const sizes = installSizes({ platform: 'win32', arch: 'x64', seams: { modelId: 'whisper-turbo' } });
+  assert.ok(sizes.download > 1_000_000_000);
+  assert.ok(sizes.files.some(file => file.name === 'turbo-decoder.int8.onnx'));
+  await h.start(); await h.ended();
+  const speed = await effectiveLiveLocal({ seams: h.seams });
+  let checkedModel = '', rejectCheck = true;
+  const qualityFiles = WHISPER_TURBO_FILES.map(file => {
+    const body = Buffer.alloc(300, 5);
+    h.fake.files.set(file.url, body);
+    h.fake.files.set(`https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/2ca6ff69fc878651b770880507669577ac41c2ff/${file.name}`, body);
+    return { ...file, bytes: body.length, sha256: sha256Hex(body) };
+  });
+  h.net.rules.set(qualityFiles[0].url, { stall: true });
+  const qualitySeams = { ...h.seams, modelId: 'whisper-turbo', downloadIdleMs: 30,
+    pins: { ...h.seams.pins, model: [...qualityFiles, h.seams.pins.model[2]] }, checkEngine: async ({ modelId }) => {
+      checkedModel = modelId;
+      if (rejectCheck) throw new Error('test failed check');
+    } };
+  const quality = createLiveLocalInstaller(qualitySeams), location = join(h.dir, 'Quality');
+  for (const child of LIVE_LOCAL.children) {
+    const unsafe = join(h.location, child, 'quality-model');
+    assert.equal((await quality.plan({ location: unsafe })).ok, false, `cannot place another install inside ${child}`);
+    await assert.rejects(quality.start({ confirm: true, location: unsafe }), { code: 'folder-in-use' });
+  }
+  await quality.start({ confirm: true, location }); await quality.idle();
+  assert.equal((await quality.status()).status, 'failed');
+  assert.equal(await effectiveLiveLocal({ seams: qualitySeams }), null);
+  assert.deepEqual(await effectiveLiveLocal({ seams: h.seams }), speed);
+  rejectCheck = false;
+  await quality.start({ confirm: true, location }); await quality.idle();
+  assert.equal((await quality.status()).ready, true);
+  assert.equal(checkedModel, 'whisper-turbo');
+  assert.ok(h.net.requests.some(request => request.url.startsWith('https://huggingface.co/') && request.range === 'bytes=100-'), 'a stalled source falls back and continues the verified file');
+  assert.notEqual(liveLocalInstallStatePath(), liveLocalInstallStatePath('whisper-turbo'));
+  assert.match((await effectiveLiveLocal({ seams: qualitySeams })).modelDir, /whisper-turbo$/);
+  assert.equal((await h.installer.plan({ location: join(location, 'models', 'speed') })).ok, false, 'the containment guard works in both directions');
+  await quality.uninstall({ confirm: true });
+  assert.deepEqual(await effectiveLiveLocal({ seams: h.seams }), speed);
 });
 
 test('one click installs the engine and the model, verified, into the chosen folder; .part files and temp files are gone; the engine is found', async t => {

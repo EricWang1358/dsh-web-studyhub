@@ -38,9 +38,9 @@ export const localFacts = () => ui('不需要密钥 · 转写在这台电脑上�
 
 /** The hover explanation of the local engine: what runs where, the sizes, and accuracy and speed as they really are. */
 export const localTip = status => [
-  ui('SenseVoice 语音识别（普通话、英语、粤语、日语、韩语）在这台电脑的 CPU 上运行，声音不上传。'),
+  ui('本地语音识别在这台电脑的 CPU 上运行，声音不上传。可选速度档 SenseVoice 和质量档 Whisper。'),
   uiFormat('首次安装下载约 {0}：识别模型约 {1}、语音检测模型约 2 MB，其余是识别引擎。之后不再下载。', [sizeLabel(status?.downloadMb || 240), sizeLabel(status?.modelMb || 228)]),
-  ui('准确度：发音清楚时普通话和英语都不错，口音重、噪音大或专业术语多时比云端差一些；中文直接写成中文。速度：一句话说完后约 1 秒出字。'),
+  ui('识别质量和速度取决于模型、电脑性能、口音、噪音和专业术语。中文直接写成中文，请对照录音核对。'),
   ui('翻译和上下文润色仍用你设置的文字模型（文字会发给模型服务商）；没有文字模型时只有原文。'),
 ].join('\n');
 

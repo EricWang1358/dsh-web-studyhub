@@ -118,7 +118,8 @@ export function ResumeControl({ session, readiness, disabled, busy = false, lock
   const held = lock || disabled;
   const recorded = session.engine === 'local' ? 'local' : 'gemini';
   if (!readiness?.liveLocal) return readiness?.live === false ? null : <Button busy={busy} lock={held} onClick={() => onResume(undefined)}>{ui('接着录')}</Button>;
-  const can = { local: !!readiness.liveLocal.ready, gemini: !!(readiness.providers?.free || readiness.providers?.paid) };
+  const localReady = recorded === 'local' ? readiness.liveLocalModels?.[session.localModel || 'sense-voice'] ?? readiness.liveLocal.ready : readiness.liveLocal.ready;
+  const can = { local: !!localReady, gemini: !!(readiness.providers?.free || readiness.providers?.paid) };
   if (can[recorded]) return <Button busy={busy} lock={held} onClick={() => onResume(recorded)}>{ui('接着录')}</Button>;
   const other = recorded === 'local' ? 'gemini' : 'local';
   return <span className="live-resume-blocked" data-resume-blocked={recorded}>
