@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Badge, Button, Dialog, Field, Hint, LoadingState, NumberInput, RadioCard, RadioCardGroup, SegmentedControl, Tooltip } from '../components/index.js';
+import { Badge, Button, Checkbox, Dialog, Field, Hint, LoadingState, NumberInput, RadioCard, RadioCardGroup, SegmentedControl, Tooltip } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useLiveEffect } from '../use-async.js';
 import { PAGE_LIMIT_MAX } from '../../lib/book-settings.js';
@@ -10,8 +10,9 @@ import { zipTextFiles } from './zip.js';
 
 /* 「导出」 of the review book (M6, docs/plans/review-book.md): the book as the learner's printable CP (course.book.export, lib/course-book-export.js):
    查找页 first, question links as numbered questions, with or without the 答案册; one Markdown file to download, or the files of the folder in one .zip
-   with book.yaml listing their order (ui/book/zip.js). The A4 page estimate of each choice, and the page limit the learner may set
-   (settings.book.pageLimit), compared with it. */
+   with book.yaml listing their order (ui/book/zip.js); or the whole book as ONE offline, printable .html page (ui/book/book-html.js, #896), made from the
+   Markdown the dialog already holds, with or without the words quoted from the materials. The A4 page estimate of each choice, and the page limit the
+   learner may set (settings.book.pageLimit), compared with it. */
 
 /** The three choices of which questions are printed (lib/course-book-export.js QUESTION_MODES). */
 const questionChoices = () => [
@@ -32,6 +33,8 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
   const [answerKey, setAnswerKey] = useState(false);
   // Which questions are printed (course.book.export `questions`): only the linked ones by default.
   const [questions, setQuestions] = useState('linked');
+  // 「整本书页面不含原文引文」: only the .html page; the Markdown is the Pandoc route and stays as it was.
+  const [noQuotes, setNoQuotes] = useState(false);
   const [state, setState] = useState({ done: null, error: null });
   const zipping = useRef(false);
   const [limit, setLimit] = useState(pageLimit ? String(pageLimit) : '');
@@ -55,6 +58,14 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
       downloadBytes(`${folder.filename}.zip`, zipTextFiles([folder.manifest, ...folder.files]));
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); } finally { zipping.current = false; }
   };
+  const downloadPage = async () => {
+    try {
+      // The page maker (markdown-it rules, maths) is not part of the dialog's load: it comes when a page is asked for.
+      const { bookHtmlFile } = await import('./book-html.js');
+      const file = bookHtmlFile(done, { quotes: !noQuotes });
+      downloadText(file.filename, file.html, 'text/html');
+    } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
+  };
   const downloadSheet = async () => {
     try { await downloadCheatSheet(book); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   };
@@ -62,6 +73,9 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
   const footer = <>
     <Tooltip layer content={ui('每个知识点一份文件，打包成一个 zip；book.yaml 记着顺序，用 pandoc 按这个顺序读就是整本书。')}>
       <Button variant="secondary" icon="download" className="book-export__zip" disabled={!done} onClick={downloadZip}>{ui('分文件下载（zip）')}</Button></Tooltip>
+    <Tooltip layer content={ui('整本书做成一个能离线打开、也能打印的页面：每章另起一页，出处在章末，手机上也能看。印哪些题、含不含答案册跟上面的选择一致。')}>
+      <Button variant="secondary" icon="download" className="book-export__page" disabled={!done} onClick={downloadPage}>
+        {estimate ? uiFormat('整本书（.html，约 {0} 页）', [estimate.pages]) : ui('整本书（.html）')}</Button></Tooltip>
     {book && <Tooltip layer content={ui('一个能离线打开、也能打印的页面：答题模板、易混对照、公式和术语卡，手机上也能看。')}>
       <Button variant="secondary" icon="download" className="book-export__sheet" onClick={downloadSheet}>{ui('速查表（.html）')}</Button></Tooltip>}
     <Button variant="primary" icon="download" disabled={!done} onClick={() => downloadText(done.filename, done.text)}>{ui('下载 Markdown')}</Button>
@@ -77,6 +91,8 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
         <SegmentedControl label={ui('答案册')} className="book-export__key" value={answerKey ? 'with' : 'without'} wrap onChange={value => setAnswerKey(value === 'with')}
           options={[{ value: 'without', label: estimate ? uiFormat('不含答案册 · 约 {0} 页', [estimate.book]) : ui('不含答案册') },
             { value: 'with', label: estimate ? uiFormat('含答案册 · 约 {0} 页', [estimate.withAnswers]) : ui('含答案册') }]} />
+        <Checkbox className="book-export__quotes" checked={noQuotes} onChange={setNoQuotes} label={ui('整本书页面不含原文引文')}
+          hint={ui('发给别人时用：脚注和答案册概念里逐字摘自资料的原文去掉，只留出处和页码。只对整本书页面起作用。')} />
         {state.error ? <Hint tone="error">{errorMessage(state.error)}</Hint> : !done ? <LoadingState inline label={ui('正在准备导出…')} /> : <div className="book-export__estimate" role="status">
           <p className="book-export__pages">{uiFormat('约 {0} 页 A4', [estimate.pages])} {budget && <Badge size="sm" tone={budget.tone}>{budget.text}</Badge>}</p>
           <Hint>{uiFormat('这是估计：每页约 {0} 行，每行约 {1} 个汉字；标了不打印的段落不算。题目 {2} 道。', [estimate.rows, estimate.columns, done.questions])}</Hint>
