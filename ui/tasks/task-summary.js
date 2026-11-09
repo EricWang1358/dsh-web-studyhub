@@ -60,6 +60,9 @@ const AUDIO_PHASES = { queued: '排队中', read: '读取并切分音频', trans
 const PDF_PHASES = { held: '等你导入', queued: '排队中', 'start-service': '启动本机服务', split: '切分', upload: '上传', parse: '解析文档', local: '本地解析', download: '下载', merge: '合并', save: '保存', interrupted: '已中断', done: '完成' };
 const withCount = (label, { done, total } = {}) => (total > 0 && done !== undefined ? uiFormat('{0} · {1}/{2}', [label, Math.min(done + 1, total), total]) : label);
 
+const BARE_STAGES = { queued: '排队中', running: '进行中', pausing: '正在暂停', paused: '已暂停', [STATUS.CANCELLING]: '正在停止…',
+  complete: '已完成', failed: '失败', cancelled: '已停止', interrupted: '已中断' };
+
 /** A stage of a contract in words: `{ code, args }` to a short phrase. An unknown code falls back to the producer's own prose. */
 export function stageLabel(stage) {
   if (!stage) return '';
@@ -74,7 +77,8 @@ export function stageLabel(stage) {
   if (family === 'install') return stage.text ? uiMessage(stage.text) : ui('进行中');
   // A search-index build says its pages in the producer's words (正在建立索引 3 / 513 页, lib/retrieval-messages.js).
   if (family === 'retrieval') return stage.text ? uiMessage(stage.text) : ui('进行中');
-  return stage.text || '';
+  if (stage.text) return stage.text;
+  return BARE_STAGES[stage.code] ? ui(BARE_STAGES[stage.code]) : '';
 }
 
 /** The one status line under the title. */

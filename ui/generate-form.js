@@ -13,6 +13,7 @@ import { countOf, levelLabel } from './coverage/copy.js';
 import { META_DOT } from './format.js';
 import { kinds as kindNames } from './shared.js';
 import { BASIC_KINDS, kindsOfLegacyKind, legacyKindOf, requestKinds, splitCount } from '../lib/generation-settings.js';
+import { isGenerationRun } from '../lib/job-status.js';
 
 export const COUNT_MIN = 1;
 /** The most questions a request may ask for (lib/limits.js GOAL_QUESTIONS_MAX): what does not fit in one round of 30 becomes rounds. */
@@ -73,7 +74,7 @@ const GENERATION_JOBS_USED = 5;
 /** { low, high } minutes for `count` questions from the learner's own finished generation jobs, or null. */
 export function estimateMinutes(jobs = [], count = COUNT_DEFAULT) {
   const finished = (Array.isArray(jobs) ? jobs : [])
-    .filter((job) => job?.status === 'complete' && !job.type && job.kind !== 'case' && Number(job.count) > 0)
+    .filter((job) => job?.status === 'complete' && isGenerationRun(job) && job.kind !== 'case' && Number(job.count) > 0)
     .map((job) => ({ seconds: (Date.parse(job.finishedAt) - Date.parse(job.startedAt)) / 1000, count: Number(job.count), at: Date.parse(job.startedAt) }))
     .filter((job) => Number.isFinite(job.seconds) && job.seconds > 0)
     .sort((a, b) => b.at - a.at).slice(0, GENERATION_JOBS_USED);

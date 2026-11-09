@@ -4,7 +4,7 @@ import { modelReadiness } from '../generation-status.js';
 import { sampleIdsOf } from './home-plan.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { daysUntilExam } from '../../lib/courses.js';
-import { isActiveJob } from '../../lib/job-status.js';
+import { isActiveJob, isDeckJob } from '../../lib/job-status.js';
 
 /* The home's one 「下一步」 card (3.7 guidance, step 3): what the learner should do NOW, worked out from the library snapshot alone (no model call, no
    daily.plan.get: everything here is already in `data`). Pure; ui/study-map/NextStepCard.jsx draws it and ui/study-map/next-card-view.js says it in words.
@@ -47,7 +47,7 @@ const count = (value) => (Number.isFinite(value) && value > 0 ? value : 0);
 /** Materials of the learner's own that were imported lately, have no questions (published, drafted or covered) and are not being made into some. Newest first. */
 function newSourcesOf(data, now) {
   const sample = sampleIdsOf(data);
-  const making = new Set((data.jobs || []).filter(isActiveJob).flatMap((job) => job.sourceIds || []));
+  const making = new Set((data.jobs || []).filter((job) => isActiveJob(job) && isDeckJob(job)).flatMap((job) => job.sourceIds || []));
   const since = now.getTime() - NEW_SOURCE_DAYS * DAY;
   const own = (data.sources || []).filter((source) => !source.sample && !sample.has(source.id));
   const items = groupSourcesByDocument(own)

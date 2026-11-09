@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import CompactJobCard from '../tasks/CompactJobCard.jsx';
-import { isActiveJob } from '../job-visibility.js';
+import { isActiveJob, isDeckJob } from '../job-visibility.js';
 import { shortfall as shortfallReport } from '../draft-shortfall.js';
 import { joinMeta } from '../format.js';
 import { describeFailure, hitTimeLimit, jobCode, jobHeadline, jobSavedProgress, jobStageLabel } from '../generation-status.js';
@@ -26,8 +26,9 @@ export default function JobCard({ job: j, jobs = [], drafts, data, openDraft, ca
   const { act, notify, openSettings, busy } = useStudy();
   const publishDraft = (useContext(AppContext) || {}).drafts?.publishAndPractice;
   const active = isActiveJob(j);
-  const draft = j.draftId ? drafts.find((d) => d.id === j.draftId) : null;
-  const generation = !['draft-publish', 'draft-repair'].includes(j.type);
+  const deckJob = isDeckJob(j);
+  const draft = deckJob && j.draftId ? drafts.find((d) => d.id === j.draftId) : null;
+  const generation = deckJob && !['draft-publish', 'draft-repair'].includes(j.type);
   const failure = j.status === 'failed' && generation ? describeFailure(j.stage, { hasDraft: !!draft }) : null;
   const progress = active && jobSavedProgress(j, drafts);
   // Where the draft stands (ask the coverage once per draft: the 待发布 row below shares the answer). A run that is paused is still a live job, and it stands still: its action is 继续.
@@ -35,6 +36,9 @@ export default function JobCard({ job: j, jobs = [], drafts, data, openDraft, ca
   // A run that ended before it was done and can be continued (the time limit, a failure, a stop) is the record the shortfall says how it ended by, and 接着做 acts on.
   const ended = !active && ['failed', 'cancelled'].includes(j.status) && !j.continuedBy && (j.contract?.actions?.retry?.available === true || j.retryable === true) ? j : undefined;
   const { view, shortfall } = useDraftShortfall((!active || pausedRun) && generation && j.type !== JOB_TYPES.SUPPLEMENT && j.origin !== 'selection' ? draft : null, data || { jobs }, { job: ended });
+  if (!deckJob) {
+    return <CompactJobCard job={j} onStop={cancelJob ? () => cancelJob(j.id) : undefined} onDismiss={dismissJob ? () => dismissJob(j.id) : undefined} />;
+  }
   // The shortfall says where the draft stands once it knows the sections (the coverage view) or the run (the draft's plan); a draft with neither keeps the words of its job.
   // A plain run that owes questions needs neither: its count and its record are enough to continue it.
   const owes = shortfall?.action === 'continue' && shortfall.continueKind === 'count' && (!!shortfall.ended || !!failure);
