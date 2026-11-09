@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { EventEmitter } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -86,6 +87,23 @@ test('partials arrive while someone is still speaking, as interimInputTranscript
   socket.close();
 });
 
+test('continuous speech becomes bounded final segments before recording stops, including the short tail', async t => {
+  const modelDir = await modelFolder(t);
+  const socket = new LoopbackWebSocket('local://live', { modelDir, enginePath: FAKE_ENGINE });
+  t.after(() => socket.close());
+  const { seen, done } = record(socket);
+  await waitFor(() => socket.readyState === 1, 'open');
+  socket.send(JSON.stringify(audioMessage(pcm(32))));
+  await waitFor(() => seen.filter(item => item.serverContent?.inputTranscription).length >= 2, 'bounded finals during continuous speech', 1000);
+  socket.send(JSON.stringify(endMessage()));
+  assert.equal((await done).code, 1000);
+  const finals = seen.filter(item => item.serverContent?.inputTranscription).map(item => item.serverContent.inputTranscription.text);
+  assert.equal(finals.length, 3);
+  const tenths = finals.map(text => Number(/句（(\d+)）/.exec(text)[1]));
+  assert.ok(tenths.every(length => length <= 151), 'a segment stays near the 15-second target');
+  assert.equal(tenths.reduce((sum, length) => sum + length, 0), 320, 'forced segmentation keeps the entire input');
+});
+
 test('an engine that cannot load fails the connection (error, then close 1011 with the reason): nothing pretends to transcribe', async t => {
   const modelDir = await modelFolder(t);
   const missing = join(modelDir, 'no-such-engine');
@@ -152,4 +170,84 @@ test('with a translator, a local class still skips sentences that are already Ch
 test('saving a local class: a sentence the engine wrote in Chinese fills the Chinese column itself; an untranslated English one says so', () => {
   const [part] = quickParts([{ id: 1, t: 0, en: '今天讲数据库的分区和索引。', zh: '', zhState: 'none' }, { id: 2, t: 900, en: 'Partitions skip data.', zh: '', zhState: 'none' }]);
   assert.equal(part.chinese[0], '今天讲数据库的分区和索引。（这句没有译文）');
+});
+
+test('stopping a local class drains queued audio before ending and saving its final transcript', async t => {
+  const modelDir = await modelFolder(t);
+  const enginePath = join(modelDir, 'slow-engine.cjs');
+  const engine = await readFile(FAKE_ENGINE, 'utf8');
+  await writeFile(enginePath, engine.replace('decode() {}', 'decode() { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 90); }'));
+  let saved;
+  const session = new LiveSession({ title: 'Backlogged local class', tiers: new LocalTiers(),
+    WebSocketImpl: loopbackFactory({ modelDir, enginePath }), translate: null, save: async snapshot => { saved = snapshot; },
+    timing: { stopWaitMs: 20 } });
+  await session.start();
+  const socket = session.conn.ws;
+  for (let i = 0; i < 40; i++) {
+    session.push(pcm(0.6));
+    session.push(pcm(0.6, false));
+  }
+  const firstStop = session.stop();
+  await session.stop();
+  assert.equal(session.status, 'ended', 'concurrent stop callers wait for the same completed transcript');
+  await firstStop;
+  assert.equal(session.snapshot().total, 40, 'all accepted utterances must finish before stop returns');
+  assert.equal(saved.segments.length, 40, 'the final save includes the queued tail');
+  assert.equal(socket.acceptedSamples, 48 * 16000, 'transferring a buffer must not erase the input counter');
+  assert.equal(socket.processedSamples, socket.acceptedSamples);
+  const revision = session.snapshot().revision;
+  await sleep(50);
+  assert.equal(session.snapshot().revision, revision, 'an ended class cannot acquire delayed transcript segments');
+});
+
+function controlledWorker() {
+  const worker = new EventEmitter();
+  worker.sent = [];
+  worker.postMessage = message => worker.sent.push(message);
+  worker.terminate = async () => { worker.terminated = true; };
+  queueMicrotask(() => worker.emit('message', { type: 'ready' }));
+  return worker;
+}
+
+test('local drain waits for progress and sends only one end marker', async () => {
+  const worker = controlledWorker();
+  const socket = new LoopbackWebSocket('local://live', { createWorker: () => worker, timing: { drainIdleMs: 100 } });
+  await waitFor(() => socket.readyState === 1, 'open');
+  for (let i = 0; i < 3; i++) socket.send(JSON.stringify(audioMessage(pcm(0.1))));
+  const drained = socket.drain();
+  socket.drain();
+  socket.send(JSON.stringify(audioMessage(pcm(0.1))));
+  for (let i = 1; i <= 3; i++) {
+    await sleep(50);
+    worker.emit('message', { type: 'progress', samples: i * 1600 });
+  }
+  worker.emit('message', { type: 'done' });
+  await drained;
+  assert.equal(worker.sent.filter(message => message.type === 'end').length, 1);
+  assert.equal(worker.sent.filter(message => message.type === 'audio').length, 3, 'no new audio enters a draining worker');
+  assert.equal(socket.readyState, 3);
+});
+
+test('a stalled local drain ends with an explicit incomplete-transcript warning', async () => {
+  const worker = controlledWorker();
+  const session = new LiveSession({ title: 'Stalled local class', tiers: new LocalTiers(),
+    WebSocketImpl: loopbackFactory({ createWorker: () => worker, timing: { drainIdleMs: 40 } }), translate: null, save: async () => {} });
+  await session.start();
+  session.push(pcm(1));
+  await Promise.all([session.stop(), sleep(100)]);
+  assert.equal(session.status, 'ended');
+  assert.match(session.snapshot().message, /收尾.*超时/);
+  assert.match(session.snapshot().message, /1\.0/);
+  assert.equal(worker.terminated, true);
+});
+
+test('a stalled final decode warns about the unfinished tail even when the input queue is empty', async () => {
+  const worker = controlledWorker();
+  const socket = new LoopbackWebSocket('local://live', { createWorker: () => worker, timing: { drainIdleMs: 30 } });
+  await waitFor(() => socket.readyState === 1, 'open');
+  socket.send(JSON.stringify(audioMessage(pcm(1))));
+  worker.emit('message', { type: 'progress', samples: 16000 });
+  const keepAlive = setTimeout(() => {}, 1000);
+  try { await assert.rejects(socket.drain(), /0\.0.*尾段也可能尚未定稿/); }
+  finally { clearTimeout(keepAlive); }
 });

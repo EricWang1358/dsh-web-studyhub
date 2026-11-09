@@ -23,7 +23,7 @@ async function home(t) {
   process.env.DSH_HOME = join(dir, 'home');
   const modelDir = join(dir, 'model');
   await mkdir(modelDir, { recursive: true });
-  for (const name of ['model.int8.onnx', 'tokens.txt', 'silero_vad.onnx']) await writeFile(join(modelDir, name), 'fake');
+  for (const name of ['model.int8.onnx', 'tokens.txt', 'silero_vad.onnx', 'turbo-encoder.int8.onnx', 'turbo-decoder.int8.onnx', 'turbo-tokens.txt']) await writeFile(join(modelDir, name), 'fake');
   const services = [];
   t.after(async () => {
     for (const service of services) {
@@ -74,6 +74,7 @@ test('a resumed class keeps its engine: local by default even when a Gemini key 
 });
 
 test('the assistant boundary: no liveProvider in audio settings, and no live.start engine other than the learner\'s saved choice', () => {
+  assert.match(assistantArgsRefusal('audio.settings.set', { liveLocalModel: 'whisper-turbo' }), /not available to the assistant/);
   assert.match(assistantArgsRefusal('audio.settings.set', { liveProvider: 'gemini' }), /liveProvider.*not available to the assistant/);
   assert.equal(assistantArgsRefusal('audio.settings.set', { mode: 'VERBATIM' }), null);
   assert.match(assistantArgsRefusal('live.start', { provider: 'gemini' }, { liveProvider: 'local' }), /provider.*not available to the assistant/);
@@ -82,9 +83,36 @@ test('the assistant boundary: no liveProvider in audio settings, and no live.sta
   assert.equal(assistantArgsRefusal('live.start', { title: 'x' }, { liveProvider: 'local' }), null);
 });
 
+test('model selection is durable, new classes use it, and continuing a saved class keeps its own model', async t => {
+  const h = await home(t), call = h.library('model-choice');
+  const first = await call('live.start', { title: 'Speed class' });
+  assert.equal(first.localModel, 'sense-voice');
+  await call('live.stop', { id: first.id });
+  const selected = await call('live.local.select', { modelId: 'whisper-turbo' });
+  assert.equal(selected.selectedModelId, 'whisper-turbo');
+  assert.equal((await call('audio.settings.get', {})).liveLocalModel, 'whisper-turbo');
+  const quality = await call('live.start', { title: 'Quality class' });
+  assert.equal(quality.localModel, 'whisper-turbo');
+  await call('live.audio', { id: quality.id, data: loud(0.8).toString('base64') });
+  await call('live.stop', { id: quality.id });
+  assert.equal((await readSaved(join(h.dir, 'model-choice'), quality.id)).localModel, 'whisper-turbo');
+  await call('live.local.select', { modelId: 'sense-voice' });
+  const resumed = await call('live.start', { resumeId: quality.id });
+  assert.equal(resumed.localModel, 'whisper-turbo');
+  await call('live.stop', { id: quality.id });
+  const old = await call('live.start', { resumeId: first.id });
+  assert.equal(old.localModel, 'sense-voice');
+  await call('live.stop', { id: first.id });
+  await assert.rejects(call('live.local.select', { modelId: 'unknown' }), /未知/);
+  const missing = h.library('missing-model', { engine: false });
+  await assert.rejects(missing('live.local.select', { modelId: 'whisper-turbo' }), /尚未安装/);
+  assert.equal((await call('audio.settings.get', {})).liveLocalModel, 'sense-voice', 'failed selection preserves the current choice');
+});
+
 test('through both doors: the assistant cannot switch local to Gemini; the learner\'s panel can', async t => {
   const h = await assistantDoors(t);
   await assert.rejects(h.assistant('audio.settings.set', { liveProvider: 'gemini' }), /not available to the assistant/);
+  await assert.rejects(h.assistant('live.local.select', { modelId: 'whisper-turbo' }), /not available to the assistant/);
   assert.equal((await h.panel('audio.settings.set', { liveProvider: 'local' })).liveProvider, 'local');
   await assert.rejects(h.assistant('live.start', { provider: 'gemini' }), /not available to the assistant/);
   // Without a provider the learner's own choice decides (here: local, not installed, so it says so).

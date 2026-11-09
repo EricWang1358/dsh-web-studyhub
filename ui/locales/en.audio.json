@@ -114,5 +114,14 @@
   "选得太短，可能把一句话切成两句。": "Too short can cut one sentence in two.",
   "下次点「开始实录」或「接着录」时生效；正在录的课不变。": "Takes effect the next time you press Start recording or Continue recording; a class that is already recording keeps its value.",
   "讲得很快、一直没有断句？到 音频设置 › 断句停顿 选『短』，下次开始或接着录时生效。": "Speaking fast and no sentences yet? Go to Audio settings › Sentence pause and choose “Short”; it takes effect the next time you start or continue recording.",
-  "打开断句停顿设置": "Open the sentence pause setting"
+  "打开断句停顿设置": "Open the sentence pause setting",
+  "本地模型档位": "Local model tier",
+  "速度档": "Speed",
+  "质量档": "Quality",
+  "更大的多语种模型，内存和 CPU 占用更高，可能跟不上实时播放。自然停顿或每 15 秒提交文字，临时文字预览关闭。本机合成语音测试内存峰值约 1.6 GiB，真实网课效果仍需对比。": "A larger multilingual model with higher memory and CPU use. It may lag behind playback. Text is finalized at pauses or every 15 seconds; partial previews are disabled. A synthetic-speech test on this computer peaked at about 1.6 GiB. Compare results on your own lectures.",
+  "较小的模型，优先速度，支持普通话、英语、粤语、日语和韩语。识别质量取决于口音、噪音和专业术语。": "A smaller model focused on speed, supporting Mandarin, English, Cantonese, Japanese and Korean. Accuracy depends on accents, noise and terminology.",
+  "新实录使用此模型": "Use for new recordings",
+  "模型切换用于新实录。接着录会保留原模型；两档可分别安装、暂停下载和删除。": "The choice applies to new recordings. Continuing a class keeps its original model. Each model can be installed, paused during download and removed separately.",
+  "本地语音识别在这台电脑的 CPU 上运行，声音不上传。可选速度档 SenseVoice 和质量档 Whisper。": "Local speech recognition runs on this computer’s CPU. Audio stays here. Choose SenseVoice for speed or Whisper for quality.",
+  "识别质量和速度取决于模型、电脑性能、口音、噪音和专业术语。中文直接写成中文，请对照录音核对。": "Accuracy and speed depend on the model, computer, accents, noise and terminology. Chinese is written directly in Chinese. Check against the recording."
 }

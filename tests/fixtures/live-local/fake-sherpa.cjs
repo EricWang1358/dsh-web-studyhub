@@ -10,7 +10,10 @@ let finals = 0;
 class OfflineRecognizer {
   constructor(config) {
     if (process.env.FAKE_SHERPA_FAIL === 'load') throw new Error('Failed to load model');
-    const model = config?.modelConfig?.senseVoice?.model;
+    const whisper = config?.modelConfig?.whisper;
+    if (whisper && (whisper.language !== '' || whisper.task !== 'transcribe' || whisper.tailPaddings !== 300
+      || !fs.existsSync(whisper.decoder) || !fs.existsSync(config.modelConfig.tokens))) throw new Error('invalid whisper config');
+    const model = whisper?.encoder || config?.modelConfig?.senseVoice?.model;
     if (!model || !fs.existsSync(model)) throw new Error(`model not found: ${model}`);
     this.config = config;
   }

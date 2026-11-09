@@ -1,7 +1,8 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, ConfirmDialog, Hint, InlineMessage, JobRow, LoadingState, Tooltip, useToast } from './components/index.js';
+import { Badge, Button, ConfirmDialog, Hint, InlineMessage, JobRow, LoadingState, Select, Tooltip, useToast } from './components/index.js';
+import { DEFAULT_LOCAL_MODEL, LOCAL_MODELS } from '../lib/live-local-models.js';
 import { useLiveEffect } from './use-async.js';
 import { usePolling } from './use-polling.js';
 import { StudyServicesContext, useStudy } from './study-context.jsx';
@@ -34,18 +35,26 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
   const [status, setStatus] = useState(initialStatus), [plan, setPlan] = useState(initialPlan), [planning, setPlanning] = useState(false);
   const [location, setLocation] = useState(''), [choosing, setChoosing] = useState(false), [asking, setAsking] = useState(false);
   const [working, setWorking] = useState(''), [error, setError] = useState('');
-  const alive = useRef(true), flight = useRef(false), skipPlan = useRef(!!initialPlan), readyOnce = useRef(onReady);
+  const [modelId, setModelId] = useState(initialStatus?.modelId || '');
+  const alive = useRef(true), flight = useRef(false), skipPlan = useRef(!!initialPlan), readyOnce = useRef(onReady), modelEpoch = useRef(0);
   useEffect(() => { readyOnce.current = onReady; });
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
-  const read = () => (usable ? Promise.resolve(call('live.local.status', {})).then(next => { if (alive.current) setStatus(next); return next; },
-    failure => { if (alive.current) setError(errorMessage(failure)); return null; }) : Promise.resolve(null));
-  useLiveEffect(live => { if (!initialStatus && usable) void read().then(next => { if (!live()) return; if (next?.ready) readyOnce.current?.(next); }); }, [usable]);
+  const viewedModel = modelId || status?.modelId;
+  const modelArgs = viewedModel ? { modelId: viewedModel } : {};
+  const read = () => {
+    const epoch = modelEpoch.current;
+    return usable ? Promise.resolve(call('live.local.status', modelArgs)).then(next => {
+      if (!alive.current || epoch !== modelEpoch.current) return null;
+      setStatus(next); return next;
+    }, failure => { if (alive.current && epoch === modelEpoch.current) setError(errorMessage(failure)); return null; }) : Promise.resolve(null);
+  };
+  useLiveEffect(live => { if (usable && (!initialStatus || modelId)) void read().then(next => { if (!live()) return; if (next?.ready && next.modelId === next.selectedModelId) readyOnce.current?.(next); }); }, [usable, modelId]);
   const shown = localCardState(status);
   usePolling(async () => {
     const next = await read();
     if (next && next.status !== 'running') {
-      if (next.ready) { toast.success(ui('本地转写可以用了。')); readyOnce.current?.(next); }
+      if (next.ready) { toast.success(ui('本地转写可以用了。')); if (next.modelId === next.selectedModelId) readyOnce.current?.(next); }
       return { running: false };
     }
     return { running: true };
@@ -56,10 +65,10 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
     if (!wantsPlan) return;
     if (skipPlan.current) { skipPlan.current = false; return; }
     setPlanning(true);
-    Promise.resolve(call('live.local.plan', location ? { location } : {}))
+    Promise.resolve(call('live.local.plan', { ...modelArgs, ...(location ? { location } : {}) }))
       .then(value => { if (live()) setPlan(value); }, failure => { if (live()) setError(errorMessage(failure)); })
       .finally(() => { if (live()) setPlanning(false); });
-  }, [wantsPlan, location]);
+  }, [wantsPlan, location, modelId]);
 
   const act = async (name, work) => {
     if (flight.current || !usable) return;
@@ -69,13 +78,17 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
   const folder = () => location || status?.folder || plan?.folder || '';
   const install = (where = folder()) => act('start', async () => {
     // Another folder than the one in use (换位置, or a broken install moved elsewhere): the old one is removed once the new one works.
-    setStatus(await call('live.local.install', installArgs({ location: where, current: status?.folder || '' })));
+    setStatus(await call('live.local.install', { ...installArgs({ location: where, current: status?.folder || '' }), ...modelArgs }));
     setChoosing(false);
     toast.info(ui('已开始安装：进度在这里和「任务」里。'));
   });
-  const cancel = () => act('cancel', async () => { setStatus(await call('live.local.cancel', {})); toast.info(ui('已暂停安装。')); });
+  const cancel = () => act('cancel', async () => { setStatus(await call('live.local.cancel', modelArgs)); toast.info(ui('已暂停安装。')); });
+  const selectModel = () => act('select', async () => {
+    const next = await call('live.local.select', { modelId: status.modelId });
+    setStatus(next); readyOnce.current?.(next);
+  });
   const remove = async () => {
-    const result = await call('live.local.uninstall', { confirm: true });
+    const result = await call('live.local.uninstall', { confirm: true, ...modelArgs });
     setStatus(result);
     toast.success(uiFormat('已删除，移除了 {0} 里 StudyHub 创建的内容。', [(result.removedFolders || []).join('、')]));
   };
@@ -92,6 +105,19 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
     <Tooltip layer content={localTip(status)}><span tabIndex={0} className="live-local-card__about">{ui('它怎么工作')}</span></Tooltip>
   </div>;
   const line = <p className="live-local-card__line" role="status" aria-live="polite">{text.sentence(status)}</p>;
+  const displayedModel = modelId || status?.modelId || DEFAULT_LOCAL_MODEL;
+  const modelChoice = <>
+    <Select aria-label={ui('本地模型档位')} value={displayedModel} disabled={!!working || shown.state === 'installing'}
+      options={LOCAL_MODELS.map(model => ({ value: model.id, label: `${ui(model.tier === 'speed' ? '速度档' : '质量档')} · ${model.name} · ${sizeLabel(model.modelMb)}` }))}
+      onChange={value => { modelEpoch.current += 1; skipPlan.current = false; setModelId(value); setStatus(null); setPlan(null); setLocation(''); setChoosing(false); setError(''); }} />
+    <Hint>{displayedModel === 'whisper-turbo'
+      ? ui('更大的多语种模型，内存和 CPU 占用更高，可能跟不上实时播放。自然停顿或每 15 秒提交文字，临时文字预览关闭。本机合成语音测试内存峰值约 1.6 GiB，真实网课效果仍需对比。')
+      : ui('较小的模型，优先速度，支持普通话、英语、粤语、日语和韩语。识别质量取决于口音、噪音和专业术语。')}</Hint>
+    {status?.ready && <div className="mineru-install__row">{status.modelId === status.selectedModelId
+      ? <Badge size="sm" tone="success">{ui('新实录使用此模型')}</Badge>
+      : <Button variant="secondary" busy={working === 'select'} disabled={!!working} onClick={selectModel}>{ui('新实录使用此模型')}</Button>}</div>}
+    <Hint>{ui('模型切换用于新实录。接着录会保留原模型；两档可分别安装、暂停下载和删除。')}</Hint>
+  </>;
 
   const blocking = plan?.problems?.[0] || null;
   const canStart = !!plan && !blocking && !planning && !working;
@@ -144,6 +170,7 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
 
   return <section className={['live-local-card', className].filter(Boolean).join(' ')} data-state={shown.state} aria-label={ui('本地转写（声音不上传）')}>
     {head}
+    {modelChoice}
     {line}
     {body}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}

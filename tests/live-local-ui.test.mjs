@@ -87,6 +87,15 @@ test('English: no Chinese on the card in any state', () => {
   assert.match(textOf(render({ initialStatus: status.missing, initialPlan: plan }, 'en')), /No key needed · transcription runs on this computer[\s\S]*The first install downloads about 239 MB · uses about 253 MB once installed/);
 });
 
+test('the quality model is named with its size and CPU tradeoff, and installed models can be selected for new recordings', () => {
+  const quality = { ...status.ready, modelId: 'whisper-turbo', selectedModelId: 'sense-voice', modelMb: 989, downloadMb: 1000, diskMb: 1014 };
+  const zh = textOf(render({ initialStatus: quality, settings: true }));
+  assert.match(zh, /质量档 · Whisper large-v3-turbo int8 · 989 MB/);
+  assert.match(zh, /内存和 CPU 占用更高/);
+  assert.match(zh, /新实录使用此模型/);
+  assert.doesNotMatch(textOf(render({ initialStatus: quality, settings: true }, 'en')), han);
+});
+
 test('the live class gate: without a key the local engine comes first; Gemini where the computer has no local engine or the learner chose Gemini', () => {
   const html = renderToStaticMarkup(h(LiveSetup, { readiness: { live: false, liveReason: 'no-provider', liveLocal: { supported: true, ready: false } }, call, onSettings() {}, initialLocal: status.missing }));
   assert.match(textOf(html), /先装一个转写引擎/);
@@ -139,6 +148,13 @@ test('moving to another folder sends removePrevious; installing where it already
 test('接着录 keeps the engine of the class; when it cannot run it says so and offers the other engine, never a silent switch', () => {
   const both = { live: true, providers: { free: true }, liveLocal: { supported: true, ready: true } };
   const asked = [];
+  const savedModelReady = renderToStaticMarkup(h(ResumeControl, { session: { engine: 'local', localModel: 'whisper-turbo' },
+    readiness: { ...both, liveLocal: { ready: false }, liveLocalModels: { 'sense-voice': false, 'whisper-turbo': true } }, onResume() {} }));
+  assert.match(textOf(savedModelReady), /接着录/);
+  assert.doesNotMatch(savedModelReady, /data-resume-blocked/);
+  const savedModelMissing = renderToStaticMarkup(h(ResumeControl, { session: { engine: 'local', localModel: 'whisper-turbo' },
+    readiness: { ...both, liveLocalModels: { 'sense-voice': true, 'whisper-turbo': false } }, onResume() {} }));
+  assert.match(savedModelMissing, /data-resume-blocked/);
   const tree = ResumeControl({ session: { engine: 'local' }, readiness: both, onResume: value => asked.push(value) });
   tree.props.onClick();
   assert.deepEqual(asked, ['local'], 'a local class resumes on local even with a Gemini key');
