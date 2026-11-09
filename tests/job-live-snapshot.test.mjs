@@ -31,13 +31,13 @@ async function fixture(t) {
   const panel = { held: null, texts: {}, full: 0, partial: 0, unchanged: 0, bytes: 0, liveCalls: 0, liveBytes: 0 };
   const call = async (action, args) => {
     const value = await service.call(action, args);
-    if (action === LIVE_JOBS) { panel.liveCalls++; panel.liveBytes += JSON.stringify(value).length; }
+    if (action === LIVE_JOBS) { panel.liveCalls++; panel.liveBytes += Buffer.byteLength(JSON.stringify(value)); }
     return value;
   };
   const poll = async () => {
     const since = panel.held?.fingerprint;
     const answer = await service.call("snapshot", since ? { since, partial: true } : {});
-    panel.bytes += JSON.stringify(answer).length;
+    panel.bytes += Buffer.byteLength(JSON.stringify(answer));
     let shared;
     if (answer.unchanged) { panel.unchanged++; shared = null; }
     else if (answer.partial) { panel.partial++; shared = mergePartial(panel.held, answer, panel.texts); }
