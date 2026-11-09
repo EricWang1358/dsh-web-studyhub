@@ -1,1 +1,0 @@
-- **Building a search index groups pending pages into batches of up to eight.** Small updates use smaller batches, and each completed batch saves a checkpoint for resuming after interruption. Update the search extension in Settings and restart DSH to enable this. Not verified: speed and search quality on large Chinese textbooks across different computers.

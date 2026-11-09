@@ -2,6 +2,12 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 4.6.2 — 2026-11-09
+
+- **Importing multiple PDFs queues them cleanly and shows a live completion estimate.** When you convert more than one large or scanned PDF at a time, StudyHub now queues the remaining PDFs behind the one using the local engine instead of failing with a raw `engine_unavailable` JSON message, waits automatically if the local parse service is still warming up, and shows a dynamic expected completion countdown (plus estimated finish time) on each PDF task card. Not verified: live end-to-end parsing against a real multi-GB MinerU GPU/CPU process under OS memory pressure.
+- **Background tasks no longer impersonate deck generation on Home.** Building a local search index, installing a local parser, or running course/notebook/coach background tasks no longer renders a misleading "Generating New Deck · Authoring questions" banner on Home or hijacks the first-run onboarding line; each task keeps its real title and progress text across compact task cards and the Tasks console. Not verified: third-party extension background tasks registered outside built-in StudyHub workflows.
+- **Building a search index groups pending pages into batches of up to eight.** Small updates use smaller batches, and each completed batch saves a checkpoint for resuming after interruption. Update the search extension in Settings and restart DSH to enable this. Not verified: speed and search quality on large Chinese textbooks across different computers.
+
 ## 4.6.1 — 2026-11-09
 
 - **Live classes keep finalising continuous speech and wait for local transcription to finish.** Continuous speech produces a final segment about every 15 seconds, including the trailing words when recording ends. A system-audio capture failure pauses recording with a reason so it can be resumed after checking the device. A stalled local finish reports the queued audio duration and warns that the trailing segment may still be unfinished. Not verified: recognition accuracy on real lectures, sound-card and Bluetooth device switching across hardware.
