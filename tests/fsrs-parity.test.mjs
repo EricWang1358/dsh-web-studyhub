@@ -8,7 +8,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fsrs, generatorParameters, createEmptyCard, Rating, State, forgetting_curve } from "ts-fsrs";
-import { schedule, initialReview, ratingOfGrade, nextIntervals, retrievability, FSRS6_WEIGHTS } from "../lib/sm2.js";
+import { schedule, initialReview, ratingOfGrade, nextIntervals, retrievability, retrievabilityAt, FSRS6_WEIGHTS } from "../lib/sm2.js";
 
 const DAY = 864e5;
 const ZONES = ["Asia/Shanghai", "America/New_York", "UTC"];
@@ -145,6 +145,25 @@ for (const zone of ZONES) test(`retrievability matches ts-fsrs 5.4.2 get_retriev
     }
   }
   assert.equal(checks, 2 * 7 * 7 + 2 * 5 * 7);
+});
+
+test("every FSRS-6 curve falls with elapsed days / stability alone, so own weights rank questions as the defaults do (why the round orders with the defaults)", () => {
+  process.env.TZ = "UTC";
+  const at = Date.parse("2026-06-01T12:00:00.000Z");
+  const states = [];
+  for (const stability of [0.5, 1, 2.5, 3, 9, 20, 40, 60, 365]) for (const days of [1, 2, 4, 6, 10, 30, 65, 400])
+    states.push({ algorithm: "fsrs-6", stability, difficulty: 5, reps: 2, repetitions: 2, interval_days: 1, ease_factor: 2.5,
+      last_review: new Date(at - days * DAY).toISOString(), due_at: new Date(at - DAY).toISOString() });
+  const rank = (settings) => {
+    const recall = retrievabilityAt(settings);
+    return states.map((review, index) => [recall(review, at), index]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, index]) => index);
+  };
+  const reference = rank(undefined);
+  for (const decay of [0.1, 0.3, 0.5, 0.8]) {
+    const w = [...FSRS6_WEIGHTS.slice(0, 20), decay];
+    assert.deepEqual(rank({ w }), reference, `decay ${decay}`);
+    assert.notEqual(retrievabilityAt({ w })(states[5], at), retrievabilityAt()(states[5], at), "the values differ; only the order is shared");
+  }
 });
 
 test("retrievability is 0 for a question with no memory state yet, as ts-fsrs says for a new card", () => {

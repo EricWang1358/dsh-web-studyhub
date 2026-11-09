@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { planPath } from '../lib/mastery.js';
 import { studyMap } from '../lib/insights.js';
+import { dailyPlan } from '../lib/daily-path.js';
 import { emptyState } from '../lib/store.js';
 
 const NOW = Date.parse('2026-10-08T08:00:00Z');
@@ -49,8 +50,59 @@ test('planPath reports what the round holds, counted over its own cards, and how
   assert.deepEqual(plan.counts, { due: 3, weak: 2, new: 30 }, 'the pool counts stay as they were');
   const capped = planPath(state.decks, (deckId, cardId) => state.attempts.findLast((x) => x.deckId === deckId && x.quiz_id === cardId)?.grade, { now: NOW, limit: 8, newLimit: 4 });
   assert.equal(capped.size, 8);
-  assert.deepEqual(capped.round, { due: 7, weak: 1, new: 0 }, 'a round of 8 holds the 7 earliest due cards and the first weak one');
+  assert.deepEqual(capped.round, { due: 7, weak: 1, new: 0 }, 'a round of 8 holds all 7 due cards (the least likely to be recalled first) and the first weak one');
   assert.equal(capped.more, 3 + 4 + 2 + 30 - 8);
+});
+
+/* Due questions are ordered by predicted recall (#881): within the 重点 tier, the question least likely to be recalled now comes first;
+   equal recall goes by due date, then by the library's own order. */
+const DAY = 864e5;
+const at = (daysAgo) => new Date(NOW - daysAgo * DAY).toISOString();
+/** A question answered `lastDaysAgo` days before NOW with this stability, due `dueDaysAgo` days before NOW (FSRS form). */
+const dueCard = (id, stability, lastDaysAgo, dueDaysAgo, extra = {}) => ({ ...make(id), ...extra, review: { algorithm: 'fsrs-6', stability, difficulty: 5, reps: 3, lapses: 0,
+  repetitions: 3, interval_days: lastDaysAgo - dueDaysAgo, ease_factor: 2.5, last_review: at(lastDaysAgo), due_at: at(dueDaysAgo) } });
+/** A backlog whose due-date order and recall order differ. Recall at NOW in the comments (FSRS-6 default weights). */
+const backlog = () => [
+  dueCard('twin-1', 20, 30, 10), //            R 0.870, due first by date
+  dueCard('twin-2', 20, 30, 10), //            the same state: stays after twin-1
+  dueCard('long-gap', 60, 65, 5), //           R 0.894: a long gap a little overdue
+  dueCard('short-gap', 3, 6, 3), //            R 0.846: a short gap long overdue
+  { ...make('legacy'), review: { repetitions: 2, interval_days: 2, ease_factor: 2.5, due_at: at(2) } }, // SM-2: last answer 4 days ago, R(4, 2) = R(6, 3)
+  dueCard('focus-safe', 100, 101, 1, { focus: true }), // R 0.900, but a 重点 question
+];
+const BY_RECALL = ['focus-safe', 'short-gap', 'legacy', 'twin-1', 'twin-2', 'long-gap'];
+
+test('due questions come least likely to be recalled first, inside the 重点 tier; equal recall goes by due date, then library order', () => {
+  const plan = planPath([{ id: 'a', title: 'a', cards: backlog() }], () => undefined, { now: NOW });
+  assert.deepEqual(plan.entries.map((entry) => entry.card.id), BY_RECALL,
+    'by due date this was focus-safe, twin-1, twin-2, long-gap, short-gap, legacy');
+  assert.deepEqual(plan.round, { due: 6, weak: 0, new: 0 });
+});
+
+test('a prerequisite is still placed before the due question that needs it, after the recall order', () => {
+  const cards = backlog();
+  cards.find((card) => card.id === 'short-gap').requires = [{ deckId: 'a', cardId: 'pre' }];
+  cards.push(make('pre'), make('new-1'));
+  const plan = planPath([{ id: 'a', title: 'a', cards }], (_deck, card) => (card === 'pre' ? 1 : undefined), { now: NOW });
+  assert.deepEqual(plan.entries.map((entry) => entry.card.id), ['focus-safe', 'pre', 'short-gap', 'legacy', 'twin-1', 'twin-2', 'long-gap', 'new-1']);
+});
+
+test('one now, one round: the home card and the round 开始今日学习 starts hold the same questions in the same order', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: NOW });
+  const root = await mkdtemp(join(tmpdir(), 'study-daily-path-'));
+  const study = new StudyService(root);
+  t.after(async () => { study.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
+  const attempts = [];
+  const a = deckOf('a', 'A', { weak: 2, fresh: 3 }, attempts), b = deckOf('b', 'B', { due: 2 }, attempts);
+  a.cards.unshift(...backlog());
+  await study.store.update((s) => Object.assign(s, { decks: [a, b], attempts, focus: { mode: 'class', course: 'A' } }));
+  const snapshot = await study.call('snapshot');
+  const home = dailyPlan(await study.store.read(), { now: NOW });
+  const run = await study.call('review.start', { mode: 'path', fresh: false, course: 'A', daily: true });
+  const started = (await study.store.read()).runs.find((item) => item.id === run.id).entries.map((entry) => entry.card.id);
+  assert.deepEqual(started, home.plan.entries.map((entry) => entry.card.id), 'the started round is the home plan, card for card');
+  assert.equal(snapshot.today.size, started.length, 'and the home number counts it');
+  assert.deepEqual(started, [...BY_RECALL, 'a-weak0', 'a-weak1', 'a-new0', 'a-new1', 'a-new2']);
 });
 
 test('the home number is the current course alone: its round, its breakdown, and the others said once', () => {

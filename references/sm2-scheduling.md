@@ -23,6 +23,10 @@ The formulas, the 21 default weights, the clamps and the ordering of the four ca
 
 The weights are the published defaults; StudyHub does not optimise them per learner. Benchmarks of FSRS were run on long-time Anki users, so for a learner with a handful of answers per card the predictions are an estimate.
 
+## Which due question comes first
+
+A round of 今日学习 takes the due questions before the weak and the new ones (`planPath` in `lib/mastery.js`). Among the due questions the 重点 ones come first; inside each of those two groups the question with the lowest predicted recall at that moment comes first (`retrievability` in `lib/sm2.js`: `R(t)` above, `t` being the whole local days since the last review, as an answer at that moment would count them), then the one due earlier, then library order. So a question with a 3-day gap that is 3 days overdue (R about 0.85) comes before one with a 60-day gap that is 5 days overdue (R about 0.89), which the due date alone put first. A due record the scheduler cannot read a memory state from counts as R = 0, as ts-fsrs says of a new card, and comes first in its group. The order uses the default weights: every FSRS-6 curve falls with `t / S` alone, so a learner's own weights would order the same questions the same way. For one moment the home card's count and the round 开始今日学习 starts hold the same questions in the same order (`tests/daily-path.test.mjs`), and recall moves only when the local day changes, so ordering by it adds no drift between the two beyond what due times already had; a started round keeps its order.
+
 ## Grades and ratings
 
 Stored grades stay 0–5. The scheduler maps them to the four FSRS ratings:
