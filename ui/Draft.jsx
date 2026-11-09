@@ -32,6 +32,8 @@ import DeleteDraftDialog from './DeleteDraftDialog.jsx';
 import DraftBar from './DraftBar.jsx';
 import { fixedOptionsOf, hasOptions, kindOf, oneAnswer } from "../lib/card-kinds.js";
 import { fixedOptionLabel } from "./option-label.js";
+import { SimilarDetail, SimilarTag, plainStem } from "./DraftSimilar.jsx";
+import { useSimilarQuestions } from "./draft-similar.js";
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
    发布需先保存再 draft.publish（draftVersion 乐观锁）。blankCard /
@@ -121,6 +123,8 @@ export default function Draft({
     (jsonMode && draftText !== JSON.stringify(draft, null, 2));
   // 覆盖: which sections of the material have a question (the saved draft's own, asked again whenever the library or the draft changes).
   const covered = useCoverage(draft.draftVersion > 0 && !missingDraft ? { draftId: draft.id } : null, { version: `${data.revision}:${draft.draftVersion}` });
+  // Questions that are near-duplicates of another one of the same kind, in this draft or the course's decks (#890): asked with the draft, again when it changes.
+  const similar = useSimilarQuestions(draft.id, { version: `${data.revision}:${draft.draftVersion}`, enabled: draft.draftVersion > 0 && !missingDraft });
   // Live (the coverage of the draft now, every run of it), never the snapshot of the last run (`editorial.coverage.selected` counts that run's sources only): pages of a PDF, else materials.
   const liveView = covered.view?.status === "ok" ? covered.view : null;
   const liveCited = !liveView ? null : coverageCount ? (liveView.coverage?.units === "page" ? [liveView.coverage.covered, liveView.coverage.leaves] : null)
@@ -246,7 +250,7 @@ export default function Draft({
               {/* One row layout for every question (#670): the number, the question (two lines at most, whole when the row is open) and, at the end, the kind and what is not as it should be. */}
               <summary className="draft-card__row">
                 <span className="draft-card__no">{formatNumber(i + 1, { minimumIntegerDigits: 2 })}</span>
-                <span className="draft-card__prompt">{q.prompt.replace(/!\[([^\]]*)\]\(data:image\/[^)]+\)/g, '[$1]')}</span>
+                <span className="draft-card__prompt">{plainStem(q.prompt)}</span>
                 <span className="draft-card__tags">
                   <small>{kinds[q.kind]}</small>
                   {!cardMatchesReview(draft.editorial?.reviewedCards?.[q.id], q) &&
@@ -255,8 +259,11 @@ export default function Draft({
                   {aiDraftedCitedCardCount([q], data.sources) > 0 && <small>{ui("AI 撰写 · 未核对")}</small>}
                   {experimentalShown(data) && <JevCardBadge signal={draft.editorial?.jev?.signals?.[q.id]} />}
                   {experimentalShown(data) && draft.editorial?.jevDecided?.cards?.[q.id] && <JevDecidedBadge />}
+                  {/* Last, so it takes a line of its own under the short tags and the closed row stays two lines high (#670). */}
+                  <SimilarTag match={similar.get(q.id)} />
                 </span>
               </summary>
+              <SimilarDetail match={similar.get(q.id)} />
               {experimentalShown(data) && <JevCardSignals signal={draft.editorial?.jev?.signals?.[q.id]} threshold={draft.editorial?.jev?.threshold} />}
               <label>{q.kind === "task" ? ui("任务说明") : ui("问题")}<textarea
                   rows={3}

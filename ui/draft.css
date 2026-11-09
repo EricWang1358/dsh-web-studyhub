@@ -52,6 +52,25 @@
     .draft-card__tags small {
       white-space: nowrap;
     }
+    /* The near-duplicate notice (#890) takes one line of the tags at most, so a closed row stays two lines high: a long deck title is cut with an ellipsis
+       here and read whole at the top of the opened question. */
+    .draft-card__tags .draft-card__similar {
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--warn-text);
+    }
+    .draft-similar {
+      margin: var(--space-2) 0 var(--space-3);
+    }
+    .draft-similar__stem {
+      margin: var(--space-1) 0 0;
+      padding: var(--space-1) var(--space-3);
+      border-left: 2px solid var(--line);
+      color: var(--text-muted);
+      overflow-wrap: anywhere;
+    }
     .edit-option {
       background: var(--bg-surface);
       border-radius: var(--radius-sm);
