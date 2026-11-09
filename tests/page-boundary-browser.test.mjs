@@ -1,4 +1,4 @@
-/* global window */
+/* global window, document */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
@@ -14,18 +14,21 @@ test('a page that throws keeps the sidebar, offers retry and a copyable diagnost
     import { createRoot } from 'react-dom/client';
     import { AppContext } from './ui/app/app-context.js';
     import { PAGE_VIEWS, PageView } from './ui/app/page-views.jsx';
+    import { deferredView } from './ui/deferred-view.jsx';
     window.pageBreaks = true;
     PAGE_VIEWS.library = function Breaks() {
       if (window.pageBreaks) throw new TypeError('Cannot read properties of undefined (reading "map") in C:\\\\Users\\\\student\\\\Documents\\\\midterm-notes.docx');
       return <p id="page-ok">the library page</p>;
     };
+    // 13 of the 21 pages are made with deferredView, which has a boundary of its own: its notice must offer the button too.
+    PAGE_VIEWS.exam = deferredView(async () => ({ default: function LazyBreaks() { throw new TypeError("Cannot read properties of null (reading 'cards')"); } }));
     PAGE_VIEWS.review = function Fine() { return <p id="review-ok">the review page</p>; };
     function Harness() {
       const [page, setPage] = useState('library');
       const app = { language: 'zh', nav: { page }, data: { sources: [{}, {}], decks: [{ count: 5 }], jobs: [{ type: 'generation', status: 'failed' }] } };
       return <AppContext.Provider value={app}>
         <div className="study-app">
-          <nav id="sidebar"><button id="go-library" onClick={() => setPage('library')}>library</button><button id="go-review" onClick={() => setPage('review')}>review</button></nav>
+          <nav id="sidebar"><button id="go-library" onClick={() => setPage('library')}>library</button><button id="go-review" onClick={() => setPage('review')}>review</button><button id="go-exam" onClick={() => setPage('exam')}>exam</button></nav>
           <main><PageView page={page} feedback={null} /></main>
         </div>
       </AppContext.Provider>;
@@ -51,12 +54,25 @@ test('a page that throws keeps the sidebar, offers retry and a copyable diagnost
   assert.equal(await page.locator('#sidebar').count(), 1, 'the sidebar is still drawn beside the crashed page');
   assert.match(await crash.innerText(), /这个页面没能显示/);
 
+  // The text can be read before it is copied.
+  await page.getByText('看看会复制什么').click();
+  const shown = await page.locator('.sh-diagnostic-copy__text').inputValue();
+  assert.match(shown, /Page: library/);
+  assert.match(shown, /Message: \(not copied: \d+ characters; see 技术详情\)/, 'a message that is not an engine one is withheld');
   await page.getByRole('button', { name: '复制诊断信息' }).click();
   const text = await page.evaluate(() => window.copied.at(-1));
   assert.match(text, /Page: library/);
-  assert.match(text, /Cannot read properties of undefined/);
+  assert.equal(text, shown, 'what is copied is what was shown');
   assert.match(text, /sources 2, decks 1, questions 5/);
   assert.doesNotMatch(text, /midterm-notes|student|C:\\/, 'no path or file name in the text');
+
+  await page.locator('#go-exam').click();
+  await page.locator('.sh-crash').waitFor();
+  assert.equal(await page.locator('#sidebar').count(), 1);
+  await page.getByRole('button', { name: '复制诊断信息' }).click();
+  const lazy = await page.evaluate(() => window.copied.at(-1));
+  assert.match(lazy, /Page: exam/);
+  assert.match(lazy, /Message: Cannot read properties of null \(reading 'cards'\)/, 'an engine message is copied whole');
 
   await page.locator('#go-review').click();
   await page.locator('#review-ok').waitFor();
@@ -64,6 +80,11 @@ test('a page that throws keeps the sidebar, offers retry and a copyable diagnost
 
   await page.locator('#go-library').click();
   await page.locator('.sh-crash').waitFor();
+  // The clipboard refuses: the note says so and the text is in front of the learner, selected by hand.
+  await page.evaluate(() => { navigator.clipboard.writeText = async () => { throw new Error('refused'); }; });
+  await page.getByRole('button', { name: '复制诊断信息' }).click();
+  await page.locator('.sh-diagnostic-copy__refused[role="status"]').waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.className), 'sh-diagnostic-copy__text');
   await page.evaluate(() => { window.pageBreaks = false; });
   await page.getByRole('button', { name: '重试' }).click();
   await page.locator('#page-ok').waitFor();

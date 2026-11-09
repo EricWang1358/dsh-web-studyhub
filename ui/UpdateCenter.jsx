@@ -25,6 +25,8 @@ const setStore = patch => { snapshot = { ...snapshot, ...patch }; listeners.forE
 const subscribe = listener => { listeners.add(listener); return () => listeners.delete(listener); };
 const read = () => snapshot;
 export const useUpdateStore = () => useSyncExternalStore(subscribe, read, read);
+/** StudyHub's running version as the last check reported it (undefined before the first one), read when asked, with no subscription. */
+export const currentStudyHubVersion = () => snapshot.update?.current;
 
 let started = false;
 /**
@@ -311,7 +313,7 @@ export function UpdateSettings({ update, onOpen, checking = false, extension, on
       <p className="settings-section__lead">{ui('自动检查通常间隔 6 小时，失败后稍后重试；手动检查立即查询，不自动安装，也不发送学习数据。')}</p>
       {diagnostic && <div className="update-settings__diagnostic" data-tour="settings-diagnostic">
         <CopyDiagnosticsButton describe={diagnostic} variant="secondary" />
-        <Hint className="update-settings__hint">{ui('报问题时点「复制诊断信息」，把这段文字贴给开发者。里面只有版本、页面、出错信息、任务类型和数量，没有资料、题目、文件名、路径或密钥；DSH 版本请自己补上。')}</Hint>
+        <Hint className="update-settings__hint">{ui('报问题时点「复制诊断信息」，把文字贴给开发者；点「看看会复制什么」可以先读一遍。里面只有版本、页面、出错类型、程序自带的报错短句、任务类型和数量；别的报错内容不会复制，只写字数。DSH 版本请自己补上。')}</Hint>
       </div>}
     </fieldset>
   );
@@ -329,7 +331,7 @@ export function UpdateSettingsPanel() {
   // Whether the search extension is behind this StudyHub rides along with the retrieval status (the shared store: an install elsewhere shows here).
   const retrieval = useRetrievalStatus({ call });
   const extension = retrieval.data?.extension;
-  const describe = useDiagnostics(update?.current);
+  const describe = useDiagnostics(currentStudyHubVersion);
   return <>
     <UpdateSettings update={update} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setRetrievalStatus(value)} onCheck={retrieval.refresh}
       diagnostic={() => describe()} />

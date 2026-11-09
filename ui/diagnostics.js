@@ -71,7 +71,7 @@ export function diagnosticText({ version, language, page, error, data } = {}) {
   return [
     'StudyHub diagnostic info',
     `StudyHub version: ${plainReason(typeof version === 'string' ? version : '', { limit: DIAGNOSTIC_LIMITS.version }) || 'unknown'}`,
-    'DSH version: (fill in by hand / 请手动填写)',
+    'DSH version: (fill in by hand)',
     `Interface language: ${token(language)}`,
     `Page: ${token(page)}`,
     ...errorLines(error),

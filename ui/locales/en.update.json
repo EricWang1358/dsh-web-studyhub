@@ -74,5 +74,5 @@
   "DSH 没能安装新版本，原来的版本保持不变。": "DSH did not install the new version; the current version stays as it was.",
   "升级没有完成。": "The upgrade did not finish.",
   "StudyHub {0} 等待重启": "StudyHub {0} is waiting for a restart",
-  "报问题时点「复制诊断信息」，把这段文字贴给开发者。里面只有版本、页面、出错信息、任务类型和数量，没有资料、题目、文件名、路径或密钥；DSH 版本请自己补上。": "When you report a problem, press Copy diagnostic information and paste the text to the developers. It holds only the version, page, error, job kinds and counts: no materials, questions, file names, paths or keys. Fill in the DSH version yourself."
+  "报问题时点「复制诊断信息」，把文字贴给开发者；点「看看会复制什么」可以先读一遍。里面只有版本、页面、出错类型、程序自带的报错短句、任务类型和数量；别的报错内容不会复制，只写字数。DSH 版本请自己补上。": "When you report a problem, press Copy diagnostic information and paste the text to the developers; press See what will be copied to read it first. It holds only the version, page, error type, the program's own short error phrase, job kinds and counts. Any other error text is not copied, only its length. Fill in the DSH version yourself."
 }

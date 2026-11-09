@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, uiMessage } from '../i18n.js';
 import css from './feedback.css';
 import { useComponentCss, cx } from './css.js';
@@ -7,6 +7,7 @@ import { InlineMessage } from './Feedback.jsx';
 import { Disclosure } from './Panel.jsx';
 import Icon from './Icon.jsx';
 import { useCopyFeedback } from '../use-copy-feedback.js';
+import { DiagnosticContext } from './diagnostic-context.js';
 
 /** The words of an error, localized: backend messages go through uiMessage, an empty one says something generic. */
 export const errorText = error => {
@@ -29,20 +30,28 @@ export function ErrorState({ error, onRetry, retryLabel, compact = false, title,
 }
 
 /**
- * 复制诊断信息: writes `describe()` (the text of ui/diagnostics.js) to the clipboard and says 已复制 for a moment. When the browser refuses the
- * clipboard, the text is shown in a box to select by hand, so a bug report is never blocked on it.
+ * 复制诊断信息: writes `describe()` (the text of ui/diagnostics.js) to the clipboard and says 已复制 for a moment. The text itself is always one fold
+ * away (看看会复制什么), so the learner reads what leaves the app before it does. When the browser refuses the clipboard, the fold opens and the text
+ * is selected, so a bug report is never blocked on it.
  */
 export function CopyDiagnosticsButton({ describe, variant = 'quiet', size = 'sm', className }) {
   const text = describe();
   const { copied, copy } = useCopyFeedback(text);
-  const [refused, setRefused] = useState(false);
+  const [refused, setRefused] = useState(false), [open, setOpen] = useState(false);
+  const field = useRef(null);
+  useEffect(() => { if (refused) field.current?.focus(); }, [refused]);
+  const press = async () => {
+    const worked = await copy();
+    setRefused(!worked);
+    if (!worked) setOpen(true);
+  };
   return (
     <span className={cx('sh-diagnostic-copy', className)}>
-      <Button size={size} variant={variant} icon="copy" onClick={async () => setRefused(!(await copy()))}>{copied ? ui('已复制') : ui('复制诊断信息')}</Button>
-      {refused && <>
-        <small className="sh-diagnostic-copy__refused">{ui('没能复制，请选中下面的文字再复制')}</small>
-        <textarea className="sh-diagnostic-copy__text" readOnly rows={8} value={text} aria-label={ui('诊断信息')} onFocus={event => event.target.select()} />
-      </>}
+      <Button size={size} variant={variant} icon="copy" onClick={press}>{copied ? ui('已复制') : ui('复制诊断信息')}</Button>
+      {refused && <small className="sh-diagnostic-copy__refused" role="status">{ui('没能复制，请选中下面的文字再复制')}</small>}
+      <Disclosure className="sh-diagnostic-copy__fold" summary={ui('看看会复制什么')} open={open} onToggle={setOpen}>
+        <textarea ref={field} className="sh-diagnostic-copy__text" readOnly rows={8} value={text} aria-label={ui('诊断信息')} onFocus={event => event.target.select()} />
+      </Disclosure>
     </span>
   );
 }
@@ -53,8 +62,10 @@ export function CopyDiagnosticsButton({ describe, variant = 'quiet', size = 'sm'
  * gives it), and the raw error behind a disclosure for whoever needs to
  * report it.
  */
-export function CrashFallback({ error, onRetry, retryLabel, title, hint, diagnostic, className, ...rest }) {
+export function CrashFallback({ error, onRetry, retryLabel, title, hint, diagnostic: given, className, ...rest }) {
   useComponentCss(css, 'study-feedback');
+  // The page's boundary provides the text (DiagnosticContext), so a boundary inside the page offers the button too.
+  const inherited = useContext(DiagnosticContext), diagnostic = given || inherited;
   const detail = typeof error === 'string' ? error : error?.message;
   return (
     <div className={cx('sh-crash', className)} role="alert" {...rest}>
