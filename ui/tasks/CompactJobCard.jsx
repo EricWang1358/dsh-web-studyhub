@@ -54,20 +54,33 @@ export function cardLine(job, clock = Date.now()) {
       : result.refs.some((ref) => ref.kind === 'draft') ? ui('草稿已生成') : ui('已完成'),
       result.completeness === 'partial' ? ui('只完成了一部分') : '', ownCount || (progress.unit && progress.total > 0 ? uiFormat('{0}/{1} {2}', [progress.done, progress.total, ui(UNIT[progress.unit])]) : ''), noticed]);
   }
+  if (contract.kind === 'pdf-convert' && status === 'queued') {
+    const pages = progress.done > 0 && progress.total > 0
+      ? uiFormat('{0}/{1} {2}完成', [progress.done, progress.total, ui(UNIT.pages)])
+      : progress.total > 0 ? uiFormat('共 {0} 页', [progress.total]) : '';
+    const q = contract.detail?.queue, head = q?.head?.title || '';
+    const waiting = q?.count > 1 && head
+      ? uiFormat('排队等待本机引擎（前面有 {0} 份 PDF，正在解析「{1}」，完成后自动开始）', [q.count, head])
+      : head
+        ? uiFormat('排队等待本机引擎（正在解析「{0}」，完成后自动开始）', [head])
+        : ui('排队等待本机引擎空闲后自动开始');
+    return joinMeta([pages, waiting, runFacts(job, clock), noticed]);
+  }
   const now = runningCalls(contract.calls).find((call) => call.kind !== 'wait');
   const count = progress.total > 0 && ['files', 'pages', 'paragraphs'].includes(progress.unit) ? uiFormat('{0}/{1} {2}完成', [progress.done, progress.total, ui(UNIT[progress.unit])]) : '';
   const doing = now ? uiFormat('正在{0}', [callLabel(now, { file: true })]) : stageLabel(contract.stage);
+  const pdfNote = contract.kind === 'pdf-convert' && status === 'running' && contract.detail?.note ? uiMessage(contract.detail.note) : '';
   // 要求并行: a job beside the queue is marked; one a model error sent back says so.
   const queue = contract.detail?.requeued && status === 'queued' ? ui('已退回排队，等前面的任务完成后自动继续') : contract.detail?.parallel ? badgeText() : '';
-  return joinMeta([contract.status === 'paused' ? ui('已暂停') : contract.status === 'pausing' ? ui('正在暂停') : '', queue, count, doing, pieceOf(contract), runFacts(job, clock), noticed]);
+  return joinMeta([contract.status === 'paused' ? ui('已暂停') : contract.status === 'pausing' ? ui('正在暂停') : '', queue, count, doing, pieceOf(contract), pdfNote, runFacts(job, clock), noticed]);
 }
 
 export default function CompactJobCard({ job, onStop, onDismiss, primary, links, title, line, onOpenConsole, className, ...rest }) {
   useInjectCss(css, 'study-compact-card');
   const app = useContext(AppContext) || {}, quick = useQuickActions(), toast = useToast();
   const contract = contractOf(job), summary = { ...taskSummary(job) }, percentHint = progressHint(job).percent, live = isRunningTask(job), unknown = summary.percent === null && live;
-  // The clock ticks only for a running audio card: its line carries the time the run has taken (runFacts); any other card does not subscribe.
-  const now = useNow(1000, { enabled: live && taskKindOf(job) === 'audio' });
+  // The clock ticks for running audio cards (elapsed run time) and active PDF cards (dynamic expected completion countdown); other cards do not subscribe.
+  const now = useNow(1000, { enabled: live && ['audio', 'pdf'].includes(taskKindOf(job)) });
   const openConsole = onOpenConsole || (() => app.nav?.show?.task?.(contract.jobId));
   const cancel = onStop || (() => app.core?.act?.('job.control', { jobId: contract.jobId, action: 'cancel' }));
   // 归档 puts the task in 已归档 (nothing is deleted); the notice says so and offers 撤销 (job.unarchive), from whichever page the card is on. A card that folds older

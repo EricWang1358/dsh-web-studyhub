@@ -100,6 +100,15 @@ export function taskLine(job) {
   if (run && contract.status === STATUS.COMPLETE && run.waiting) return waitingText(run);
   // A run that ended short of its plan is 部分完成, here as in the header and the badge (not 「已完成」).
   if (state === 'partial' && run) return ui('部分完成');
+  if (contract.kind === 'pdf-convert' && contract.status === STATUS.QUEUED) {
+    const q = contract.detail?.queue, head = q?.head?.title || '';
+    if (q?.count > 1 && head) return uiFormat('排队等待本机引擎 · 前面有 {0} 份 PDF（正在解析「{1}」）', [q.count, head]);
+    if (head) return uiFormat('排队等待本机引擎 · 等「{0}」完成后自动开始', [head]);
+    return ui('排队等待本机引擎空闲后自动开始');
+  }
+  if (contract.kind === 'pdf-convert' && contract.status === STATUS.RUNNING && contract.detail?.note) {
+    return joinMeta([stageLabel(contract.stage), uiMessage(contract.detail.note)]);
+  }
   // 要求并行 (lib/job-parallel.js): a job a model error sent back to the queue says so; one that runs beside the queue is marked.
   if (contract.detail?.requeued && contract.status === STATUS.QUEUED) return ui('已退回排队 · 等前面的任务完成后自动继续');
   const beside = contract.detail?.parallel && isRunningTask(job) ? badgeText() : '';
