@@ -1,4 +1,7 @@
 import React, { useEffect } from 'react';
+import { PageBoundary } from './page-boundary.jsx';
+import { useDiagnostics } from '../diagnostics.js';
+import { useUpdateStore } from '../UpdateCenter.jsx';
 import { ui, uiFormat, setUiLanguage, errorMessage } from '../i18n.js';
 import { pageAvailable } from '../capabilities.js';
 import { pageFlag } from '../pages.js';
@@ -600,6 +603,8 @@ export function StartPage() {
 
 /** The registry's component for a page (ui/pages.js names it, PAGE_VIEWS draws it). */
 export function PageView({ page, feedback }) {
+  const describe = useDiagnostics(useUpdateStore().update?.current);
   const View = PAGE_VIEWS[page];
-  return View ? <View feedback={feedback} /> : null;
+  // One boundary for every page, keyed by the page: a page that throws leaves the sidebar and the top bar in place, and another page opens fresh.
+  return View ? <PageBoundary key={page} describe={describe}><View feedback={feedback} /></PageBoundary> : null;
 }

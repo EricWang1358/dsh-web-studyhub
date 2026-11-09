@@ -47,7 +47,7 @@ export function diagnosticText({ version, language, page, error, data } = {}) {
     'StudyHub diagnostic info',
     `StudyHub version: ${plainReason(typeof version === 'string' ? version : '', { limit: DIAGNOSTIC_LIMITS.version }) || 'unknown'}`,
     'DSH version: (fill in by hand / 请手动填写)',
-    `Interface language: ${language === 'zh' || language === 'en' ? language : 'unknown'}`,
+    `Interface language: ${token(language)}`,
     `Page: ${token(page)}`,
     ...errorLines(error),
     `Library: sources ${Array.isArray(data?.sources) ? data.sources.length : 0}, decks ${decks.length}, questions ${decks.reduce((total, deck) => total + count(deck?.count), 0)}`,

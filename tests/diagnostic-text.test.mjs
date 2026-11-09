@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { diagnosticText } from '../ui/diagnostics.js';
 import { plainReason } from '../lib/plain-reason.js';
@@ -76,4 +77,11 @@ test('a snapshot that is missing, or has strange fields, gives a short text and 
 test('plainReason also removes an API key, so every caller of it gains the same cover', () => {
   assert.equal(plainReason(`key ${KEY} end`), 'key end');
   assert.equal(plainReason('model gpt-4 is not sk-ill, nor a task-list'), 'model gpt-4 is not sk-ill, nor a task-list');
+});
+
+test('the page boundary sits inside <main> beside the sidebar, so a crashed page cannot take the sidebar with it', () => {
+  const app = readFileSync(new URL('../ui/App.jsx', import.meta.url), 'utf8');
+  const views = readFileSync(new URL('../ui/app/page-views.jsx', import.meta.url), 'utf8');
+  assert.ok(app.indexOf('<AppSidebar />') < app.indexOf('<main') && app.indexOf('<main') < app.indexOf('<PageView'), 'AppSidebar and <main> are siblings, PageView is inside <main>');
+  assert.match(views, /<PageBoundary key=\{page\}[^>]*><View /, 'every page goes through the one boundary, keyed by the page so another page opens clean');
 });

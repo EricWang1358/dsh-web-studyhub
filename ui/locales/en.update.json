@@ -73,5 +73,6 @@
   "下载的安装包没有通过 SHA-256 校验，已停止升级，没有做任何改动。": "The downloaded package failed its SHA-256 check. The upgrade stopped and nothing was changed.",
   "DSH 没能安装新版本，原来的版本保持不变。": "DSH did not install the new version; the current version stays as it was.",
   "升级没有完成。": "The upgrade did not finish.",
-  "StudyHub {0} 等待重启": "StudyHub {0} is waiting for a restart"
+  "StudyHub {0} 等待重启": "StudyHub {0} is waiting for a restart",
+  "报问题时点「复制诊断信息」，把这段文字贴给开发者。里面只有版本、页面、出错信息、任务类型和数量，没有资料、题目、文件名、路径或密钥；DSH 版本请自己补上。": "When you report a problem, press Copy diagnostic information and paste the text to the developers. It holds only the version, page, error, job kinds and counts: no materials, questions, file names, paths or keys. Fill in the DSH version yourself."
 }

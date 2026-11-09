@@ -7,7 +7,7 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { ui, uiFormat, errorMessage, useUiLanguage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Banner, Button, Checkbox, Dialog, Hint, Icon, InlineMessage, useToast } from './components/index.js';
+import { Badge, Banner, Button, Checkbox, CopyDiagnosticsButton, Dialog, Hint, Icon, InlineMessage, useToast } from './components/index.js';
 import Markdown from './Markdown.jsx';
 import { formatDateTime } from './format.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
@@ -17,6 +17,7 @@ import { selectReleaseNotes } from '../lib/release-notes.js';
 import css from './update.css';
 import { setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 import { useStudy } from './study-context.jsx';
+import { useDiagnostics } from './diagnostics.js';
 
 let snapshot = { update: null, checking: false };
 const listeners = new Set();
@@ -258,7 +259,7 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
 }
 
 /** Settings › 关于与更新. */
-export function UpdateSettings({ update, onOpen, checking = false, extension, onExtension, onCheck, initialCheckError = '', initialSaveError = '' }) {
+export function UpdateSettings({ update, onOpen, checking = false, extension, onExtension, onCheck, diagnostic, initialCheckError = '', initialSaveError = '' }) {
   const { call } = useStudy();
   useInjectCss(css, 'study-update');
   const [saving, setSaving] = useState(false), [checkError, setCheckError] = useState(initialCheckError), [saveError, setSaveError] = useState(initialSaveError);
@@ -308,6 +309,10 @@ export function UpdateSettings({ update, onOpen, checking = false, extension, on
         <Checkbox checked={update?.autoCheck !== false} disabled={saving || !update} onChange={toggle} label={ui('自动检查更新')} />
       </div>
       <p className="settings-section__lead">{ui('自动检查通常间隔 6 小时，失败后稍后重试；手动检查立即查询，不自动安装，也不发送学习数据。')}</p>
+      {diagnostic && <div className="update-settings__diagnostic" data-tour="settings-diagnostic">
+        <CopyDiagnosticsButton describe={diagnostic} variant="secondary" />
+        <Hint className="update-settings__hint">{ui('报问题时点「复制诊断信息」，把这段文字贴给开发者。里面只有版本、页面、出错信息、任务类型和数量，没有资料、题目、文件名、路径或密钥；DSH 版本请自己补上。')}</Hint>
+      </div>}
     </fieldset>
   );
 }
@@ -324,8 +329,10 @@ export function UpdateSettingsPanel() {
   // Whether the search extension is behind this StudyHub rides along with the retrieval status (the shared store: an install elsewhere shows here).
   const retrieval = useRetrievalStatus({ call });
   const extension = retrieval.data?.extension;
+  const describe = useDiagnostics(update?.current);
   return <>
-    <UpdateSettings update={update} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setRetrievalStatus(value)} onCheck={retrieval.refresh} />
+    <UpdateSettings update={update} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setRetrievalStatus(value)} onCheck={retrieval.refresh}
+      diagnostic={() => describe()} />
     {open && update && <UpdateDialog update={update} onClose={() => setOpen(false)} />}
   </>;
 }
