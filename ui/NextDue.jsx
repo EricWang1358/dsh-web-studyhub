@@ -66,6 +66,7 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
       <p className="next-due__lead">
         {uiFormat('{0} · {1}', [nextDueWord(feedback), nextDueWhen(feedback, now)])}
         {feedback.retryQueued && <span>{' · '}{ui('这道题放到了本轮最后，会再出现一次')}</span>}
+        {feedback.hintGraded && <span>{' · '}{ui('用了提示，按「勉强答对」安排，这道题会更早回来')}</span>}
       </p>
       {(feedback.focusScheduled || credited > 0) && (
         <div className="next-due__telemetry">
