@@ -147,7 +147,7 @@ for (const zone of ZONES) test(`retrievability matches ts-fsrs 5.4.2 get_retriev
   assert.equal(checks, 2 * 7 * 7 + 2 * 5 * 7);
 });
 
-test("every FSRS-6 curve falls with elapsed days / stability alone, so own weights rank questions as the defaults do (why the round orders with the defaults)", () => {
+test("every FSRS-6 curve falls with elapsed days / stability alone, so own weights rank questions as the defaults do", () => {
   process.env.TZ = "UTC";
   const at = Date.parse("2026-06-01T12:00:00.000Z");
   const states = [];

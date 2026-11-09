@@ -8,10 +8,13 @@ const writeText = async (text) => {
   await navigator.clipboard.writeText(text);
 };
 
+/* The one rule for "the text to copy": a function is called when `copy()` runs, anything else is the text. */
+const resolve = value => typeof value === 'function' ? value() : value;
+
 /** `text` is the string to copy, or a function that reads it when `copy()` runs. */
 export function createCopyFeedback({ text, resetMs = 2500, write = writeText, onChange = () => {}, setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = id => clearTimeout(id) }) {
   let timer = null, alive = true;
-  const read = typeof text === 'function' ? text : () => text;
+  const read = () => resolve(text);
   const stop = () => { if (timer !== null) { clearTimer(timer); timer = null; } };
   return {
     /** Resolves true when the text was written. A second copy restarts the countdown. */
@@ -41,7 +44,7 @@ export function useCopyFeedback(text, { resetMs = 2500 } = {}) {
   const latest = useRef(text), feedback = useRef(null);
   latest.current = text;
   useEffect(() => {
-    feedback.current = createCopyFeedback({ text: () => latest.current, resetMs, onChange: setCopied });
+    feedback.current = createCopyFeedback({ text: () => resolve(latest.current), resetMs, onChange: setCopied });
     return () => feedback.current.dispose();
   }, [resetMs]);
   return { copied, copy: () => feedback.current?.copy() ?? Promise.resolve(false) };

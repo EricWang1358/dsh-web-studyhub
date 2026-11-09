@@ -169,11 +169,13 @@ test('the real practice page saves, restores, clears and waits for the unsubmitt
     await helped.page.getByRole('button', { name: '提示', exact: true }).click();
     await helped.page.locator('.hint').waitFor();
     // At once, without waiting for the debounce: the step sends what is waiting first.
-    await helped.page.locator('[data-usage="review.option"]').first().click();
+    // The right one, whatever order the options are shown in: the grade below is for a right answer.
+    await helped.page.locator('[data-usage="review.option"]', { hasText: 'Right one' }).click();
     await until(async () => (await attemptsOf(service, 'q-hint')).length, 'the attempt');
     const [attempt] = await attemptsOf(service, 'q-hint');
     assert.equal(attempt.assistance.hintUsed, true);
     assert.equal(attempt.assistance.used, true);
+    assert.equal(attempt.grade, 3, 'right with the hint is 勉强答对 (#883)');
     const order = helped.calls.map((call) => call.action);
     assert.ok(order.indexOf('review.draft.save') > -1 && order.indexOf('review.draft.save') < order.indexOf('review.answer'), 'saved before the answer');
     await helped.close();
