@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
 import { courseKey } from "../lib/courses.js";
+import { planPath } from "../lib/mastery.js";
 import { buildCompactScene } from "../lib/study-scene.js";
 import { seedLibrary } from "../scripts/qa/perf-seed.mjs";
 import { Probe, settledMemory } from "../scripts/qa/perf-probe.mjs";
@@ -129,6 +130,30 @@ test("course names are normalised once each, however often they are asked for", 
   for (let name = 0; name < 10000; name++) courseKey(`Name ${name}`);
   assert.equal(courseKey("  Name   5 "), "Name 5", "the memo is bounded and still right after it was dropped");
   assert.equal(courseKey(undefined), "");
+});
+
+test("ordering 3 000 due questions by predicted recall builds the forgetting curve once, not once per question (ordering budget, #881)", (t) => {
+  // Counted, not timed: each question's recall is one Math.pow on a curve built once per pass (two more). A model built per
+  // question (lib/sm2.js retrievability called in the loop) makes three per question and fails the budget.
+  const DAY = 864e5, now = Date.parse("2026-10-08T08:00:00Z");
+  const cards = Array.from({ length: 3000 }, (_, i) => {
+    const interval = 1 + (i * 37) % 200, over = 1 + (i * 11) % 30;
+    return { id: `c${i}`, kind: "quiz", topic: `T${i % 40}`, prompt: "?", answer: "a", ...(i % 9 === 0 ? { focus: true } : {}),
+      review: i % 4 === 0 ? { repetitions: 2, interval_days: interval, ease_factor: 2.5, due_at: new Date(now - over * DAY).toISOString() }
+        : { algorithm: "fsrs-6", stability: interval * 0.9, difficulty: 5, reps: 3, repetitions: 3, interval_days: interval, ease_factor: 2.5,
+          last_review: new Date(now - (interval + over) * DAY).toISOString(), due_at: new Date(now - over * DAY).toISOString() } };
+  });
+  const decks = [{ id: "d", title: "d", cards }], order = () => planPath(decks, () => undefined, { now });
+  const pow = Math.pow;
+  let calls = 0, plan;
+  Math.pow = function (...args) { calls++; return pow.apply(this, args); };
+  try { plan = order(); } finally { Math.pow = pow; }
+  assert.equal(plan.counts.due, 3000);
+  assert.ok(calls <= 3000 * 1.5, `${calls} Math.pow calls to order 3000 due questions; budget 4500`);
+  const times = [];
+  for (let i = 0; i < 21; i++) { const started = performance.now(); order(); times.push(performance.now() - started); }
+  times.sort((a, b) => a - b);
+  t.diagnostic(`planPath over 3000 due questions: ${calls} Math.pow calls; median ${times[10].toFixed(2)} ms, max ${times[20].toFixed(2)} ms (21 calls, not asserted)`);
 });
 
 test("opening a page does not copy the library to read it (read budget)", async (t) => {

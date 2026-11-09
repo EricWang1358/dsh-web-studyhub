@@ -165,7 +165,8 @@ Deterministic bounds on a seeded library (`scripts/qa/perf-seed.mjs`: 160 source
 - every page read copies <= 2x its answer plus 2% of the library;
 - a write that copies a whole collection reads no shard file back;
 - 300 click+poll cycles grow the heap <= 12 MB after a collection;
-- course names are normalised once each; `yaml`, `pdf-lib` and `pdfjs-dist` are not imported statically anywhere in `lib/`.
+- course names are normalised once each; `yaml`, `pdf-lib` and `pdfjs-dist` are not imported statically anywhere in `lib/`;
+- ordering 3 000 due questions by predicted recall makes <= 1.5 `Math.pow` calls per question (one curve value each on a model built once per pass; a model built per question makes 3).
 
 `tests/store-sharing.test.mjs`, `tests/runtime-view.test.mjs`, `tests/snapshot-share.test.mjs`, `tests/poll-schedule.test.mjs` and `tests/scroll-window-chunks.test.mjs` pin the mechanisms.
 
@@ -184,6 +185,18 @@ Deterministic bounds on a seeded library (`scripts/qa/perf-seed.mjs`: 160 source
 - Client bundle (`npm run build`: 3.45 MB in 27 files; `client.workspace` 1.0 MB, KaTeX 628 KB, the English dictionary 563 KB load at start): KaTeX and the dictionary are candidates for lazy loading but sit in the reader and i18n code. The preview's `dist/app.js` is 6.7 MB unminified.
 - `content-visibility: auto` on source rows was rejected: its paint containment would clip the row's "more" menu and the new-import glow. The sources page with every group expanded is still 6 155 nodes.
 - A second hour-long growth run: the 10-minute loops show a flat heap, not a proof for a day.
+
+## Ordering a round's due questions by predicted recall (#881)
+
+Since #881 `planPath` (`lib/mastery.js`) orders due questions by the scheduler's predicted recall (`retrievabilityAt` in `lib/sm2.js`) instead of by due date. One pass over a synthetic deck of 3 000 due questions (stability 0.5-200 days, 1-30 days overdue, a quarter of them SM-2 records, every ninth a focus question), `planPath` with the default round size, Node 22.22, median of 101 calls after 20 warm-up calls, on the Windows 11 laptop shared with other agents' test runs, two runs:
+
+| | median ms | p90 ms | `Math.pow` calls |
+| --- | --- | --- | --- |
+| recall order (this change) | 23.1 / 42.2 | 35.1 / 50.2 | 3 002 |
+| due-date order (4.6.2) | 73.9 / 85.6 | 101.1 / 105.0 | 0 |
+| recall alone with the model built per question (the regression the budget catches) | 41.3 / 39.5 | 54.0 / 51.2 | 9 000 |
+
+The new order is faster than the old one: the old comparator parsed both due dates on every comparison (about 2 n log n `Date.parse` calls); the new pass computes each question's recall and due time once, then sorts. `tests/perf-budget.test.mjs` holds the count (<= 4 500 `Math.pow` calls for 3 000 questions) and prints the median, which is not asserted (35.5 ms on its own deterministic deck of the same shape, same machine).
 
 ## UI smoothness: how to measure it (2.5.5)
 
