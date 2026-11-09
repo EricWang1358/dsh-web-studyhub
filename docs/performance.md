@@ -167,6 +167,8 @@ Deterministic bounds on a seeded library (`scripts/qa/perf-seed.mjs`: 160 source
 - 300 click+poll cycles grow the heap <= 12 MB after a collection;
 - course names are normalised once each; `yaml`, `pdf-lib` and `pdfjs-dist` are not imported statically anywhere in `lib/`.
 
+The near-duplicate check of a draft (`draft.similar`, #890) has a budget of its own in `tests/draft-similar-890.test.mjs`: a 500-question draft against 3 000 published questions of its course (synthetic stems of 45 characters). Comparing every pair took 10.6 s; `similarStemPairs` (`lib/stem-similarity.js`) indexes each stem by its rarest bigrams (prefix filtering) and compares only the stems that share one, which took 67-72 ms on a Windows developer machine (up to 160 ms while other test runs shared it). The target is under 300 ms; the test's limit is 3 s, loose enough for a slow CI runner.
+
 `tests/store-sharing.test.mjs`, `tests/runtime-view.test.mjs`, `tests/snapshot-share.test.mjs`, `tests/poll-schedule.test.mjs` and `tests/scroll-window-chunks.test.mjs` pin the mechanisms.
 
 ## Switches and contracts
