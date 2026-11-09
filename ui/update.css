@@ -142,6 +142,7 @@
     .update-settings .update-facts dt { color: var(--text-muted); font-size: var(--fs-xs); }
     .update-settings .update-facts dd { margin: 0; color: var(--text); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
     .update-settings > .update-settings__banner, .update-settings > .update-settings__inline, .update-settings > .update-settings__hint { margin: 0 0 var(--space-3); }
+    .update-settings .update-settings__diagnostic { display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-3); }
     .update-settings .update-settings__actions {
       display: flex;
       align-items: center;
