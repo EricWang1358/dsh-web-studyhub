@@ -5,7 +5,7 @@ import { useStudy } from "./study-context.jsx";
 import { ModelSettingsContext, useModelSettingsLabel } from "./ModelErrorNote.jsx";
 import { dismissJobs, useQuickActions } from "./quick-actions.js";
 import { offerDeckArchived, openRunsOn } from "./archive-entries.js";
-import { isActiveJob, visibleGenerationJobs } from "./job-visibility.js";
+import { isActiveJob, isDeckJob, visibleGenerationJobs } from "./job-visibility.js";
 import { modelReadiness } from "./generation-status.js";
 import focusCss from "./focus.css";
 import homeCss from "./generate-home.css";
@@ -35,7 +35,7 @@ import MergeSuggestions, { useMergeSuggestions } from "./study-map/MergeSuggesti
 import DeckTree from "./study-map/DeckTree.jsx";
 import NotebookDirectory from "./study-map/NotebookDirectory.jsx";
 import SelectionBar from "./study-map/SelectionBar.jsx";
-import { isAudioJob, JOB_TYPES } from '../lib/job-status.js';
+import { JOB_TYPES } from '../lib/job-status.js';
 import FirstRunLine from "./first-run/FirstRunLine.jsx";
 import { useFirstRunLine } from "./first-run/use-first-run-line.js";
 import { AppContext } from "./app/app-context.js";
@@ -111,8 +111,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const progress = data.progress || EMPTY_PROGRESS, runs = data.runs || [];
   const mastery = useCourseMastery(data, progress);
   const runFor = (scope) => runs.find((run) => run.mode === "path" && sameScope(run.scope, scope));
-  // Audio imports and PDF conversions report progress in the Sources page, not among question generations.
-  const jobs = (data.jobs || []).filter((job) => !isAudioJob(job) && job.type !== JOB_TYPES.PDF_CONVERT && job.type !== JOB_TYPES.TRANSLATION && job.type !== JOB_TYPES.COACH_DAILY);
+  // Only deck jobs belong in the home's question-generation banner; search-index builds, PDF/audio conversions, installs, outlines, etc. report on their own pages and in 任务.
+  const jobs = (data.jobs || []).filter(isDeckJob);
   const activeJobs = jobs.filter((job) => isActiveJob(job) && job.type !== JOB_TYPES.DRAFT_PUBLISH);
   // Top of the home: what is still running first, then the newest finished cards.
   const shown = visibleGenerationJobs(jobs);

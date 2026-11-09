@@ -66,8 +66,9 @@ export function cardLine(job, clock = Date.now()) {
         : ui('排队等待本机引擎空闲后自动开始');
     return joinMeta([pages, waiting, runFacts(job, clock), noticed]);
   }
-  const now = runningCalls(contract.calls).find((call) => call.kind !== 'wait');
-  const count = progress.total > 0 && ['files', 'pages', 'paragraphs'].includes(progress.unit) ? uiFormat('{0}/{1} {2}完成', [progress.done, progress.total, ui(UNIT[progress.unit])]) : '';
+  const isIndex = contract.kind === 'retrieval-index';
+  const now = isIndex ? null : runningCalls(contract.calls).find((call) => call.kind !== 'wait');
+  const count = !isIndex && progress.total > 0 && ['files', 'pages', 'paragraphs'].includes(progress.unit) ? uiFormat('{0}/{1} {2}完成', [progress.done, progress.total, ui(UNIT[progress.unit])]) : '';
   const doing = now ? uiFormat('正在{0}', [callLabel(now, { file: true })]) : stageLabel(contract.stage);
   const pdfNote = contract.kind === 'pdf-convert' && status === 'running' && contract.detail?.note ? uiMessage(contract.detail.note) : '';
   // 要求并行: a job beside the queue is marked; one a model error sent back says so.
@@ -104,10 +105,10 @@ export default function CompactJobCard({ job, onStop, onDismiss, primary, links,
     });
   };
   const result = !live && contract.status === 'complete' ? resultOpener(job, app) : null;
-  const go = primary || result || (!live && summary.state !== 'held' && ['failed', 'interrupted', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? { label: ui('看原因并继续'), run: openConsole }
+  const go = primary || result || (!live && summary.state !== 'held' && ['failed', 'interrupted', 'cancelled'].includes(contract.status) && contract.actions?.retry?.available ? { label: ui('看原因并继续'), run: openConsole }
     : { label: ui('查看详情'), run: openConsole });
   if (title) summary.title = title;
-  const stoppable = contract.actions.cancel.available && live, tone = summary.state, dismissFailure = quick?.failures[job.id];
+  const stoppable = contract.actions?.cancel?.available && live, tone = summary.state, dismissFailure = quick?.failures[job.id];
   // A run that failed, was interrupted or was stopped: 「发给主会话」 is the last quiet way on (the hand-off plan N8; the console's line is N9).
   const handOff = failedHandOffInput(job, { line: line || cardLine(job, now) });
   const goButton = <Button className="cjc__go" size="sm" disabled={go.disabled} aria-label={`${go.label}：${summary.title}`} iconEnd={<span aria-hidden="true">→</span>} onClick={go.run}>{go.label}</Button>;

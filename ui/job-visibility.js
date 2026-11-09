@@ -1,6 +1,6 @@
-import { JOB_STATUS, isActiveJob } from '../lib/job-status.js';
+import { JOB_STATUS, isActiveJob, isDeckJob, isGenerationRun } from '../lib/job-status.js';
 
-export { isActiveJob, isCancellable } from '../lib/job-status.js';
+export { isActiveJob, isCancellable, isDeckJob, isGenerationRun } from '../lib/job-status.js';
 
 export function supplementJobLabel(job) {
   if (job.status === JOB_STATUS.QUEUED) return { text: '补题排队中' };
@@ -17,7 +17,7 @@ export function supplementJobLabel(job) {
 /* One card per deck (#200, #203): the generation jobs of one draft (a first run and every top-up or fill after it) are one story. The newest job is the
    card; the older ones fold into it, so a running fill is not shown above the old 草稿待补齐 card of the same deck, and two finished partial runs are not
    two identical cards with numbers of one and a process log of the other. Publish, repair and supplement jobs are their own cards. */
-const foldable = (job) => !!job?.draftId && (job.type === undefined || job.type === 'generate');
+const foldable = (job) => !!job?.draftId && isGenerationRun(job);
 const startedAt = (job) => Date.parse(job?.startedAt);
 /**
  * `jobs` as cards, in their order: `[{ job, earlier }]` where `earlier` are the older generation jobs of the same draft, newest first.
@@ -41,7 +41,8 @@ export function foldJobsByDraft(jobs = []) {
 }
 
 export function visibleGenerationJobs(jobs = []) {
-  const recentFinishedIds = new Set(jobs.filter((job) => !isActiveJob(job))
+  const deckJobs = jobs.filter(isDeckJob);
+  const recentFinishedIds = new Set(deckJobs.filter((job) => !isActiveJob(job))
     .slice(-3).map((job) => job.id));
-  return jobs.filter((job) => isActiveJob(job) || recentFinishedIds.has(job.id));
+  return deckJobs.filter((job) => isActiveJob(job) || recentFinishedIds.has(job.id));
 }

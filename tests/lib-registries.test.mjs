@@ -31,13 +31,15 @@ test('job status: what is active, what can be stopped, and the job types', async
   assert.equal(isCancellable({ status: 'running' }), true);
   assert.equal(isCancellable({ status: 'cancelling' }), false, 'already stopping');
   assert.equal(isCancellable({ status: 'complete' }), false);
-  assert.deepEqual(JOB_TYPES, { AUDIO_IMPORT: 'audio-import', AUDIO_BATCH: 'audio-batch', AUDIO_SUBTITLES: 'audio-subtitles', AUDIO_REVIEW: 'audio-review', AUDIO_LIVE_SAVE: 'audio-live-save', AUDIO_LIVE_CORRECTION: 'audio-live-correction', PDF_CONVERT: 'pdf-convert', TRANSLATION: 'translation', SUPPLEMENT: 'supplement', DRAFT_REPAIR: 'draft-repair', DRAFT_PUBLISH: 'draft-publish', COACH_DAILY: 'coach-daily' });
+  assert.deepEqual(JOB_TYPES, { GENERATION: 'generation', AUDIO_IMPORT: 'audio-import', AUDIO_BATCH: 'audio-batch', AUDIO_SUBTITLES: 'audio-subtitles', AUDIO_REVIEW: 'audio-review', AUDIO_LIVE_SAVE: 'audio-live-save', AUDIO_LIVE_CORRECTION: 'audio-live-correction', PDF_CONVERT: 'pdf-convert', TRANSLATION: 'translation', SUPPLEMENT: 'supplement', DRAFT_REPAIR: 'draft-repair', DRAFT_PUBLISH: 'draft-publish', COACH_DAILY: 'coach-daily' });
   assert.ok(Object.isFrozen(JOB_STATUS) && Object.isFrozen(JOB_TYPES));
   const visibility = await loadUi(`export * from './ui/job-visibility.js';`);
   assert.equal(visibility.isActiveJob({ status: 'cancelling' }), true, 'job-visibility keeps its export');
   assert.equal(visibility.isCancellable({ status: 'cancelling' }), false, 'and the new predicate is available there too');
+  assert.equal(visibility.isGenerationRun({ type: JOB_TYPES.GENERATION }), true);
+  assert.equal(visibility.isDeckJob({ type: 'retrieval-index' }), false);
   assert.match(await source('ui/job-visibility.js'), /from '\.\.\/lib\/job-status\.js'/, 'it re-exports the registry, it does not copy it');
-  assert.doesNotMatch(await source('ui/job-visibility.js'), /const ACTIVE/);
+  assert.doesNotMatch(await source('ui/job-visibility.js'), /const ACTIVE /);
   assert.deepEqual(visibility.visibleGenerationJobs([{ id: 'a', status: 'running' }, { id: 'b', status: 'complete' }]).map(job => job.id), ['a', 'b']);
 });
 

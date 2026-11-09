@@ -1,7 +1,7 @@
 import { hasOwnDeck, sampleIdsOf } from '../study-map/home-plan.js';
 import { modelReadiness } from '../generation-status.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
-import { isActiveJob, isAudioJob, JOB_STATUS, JOB_TYPES } from '../../lib/job-status.js';
+import { isActiveJob, isGenerationRun, JOB_STATUS } from '../../lib/job-status.js';
 
 /* The first-run line (3.6 D2): 配模型 → 加资料 → 做第一组, the one way from an empty library to a first deck of the learner's own. Pure: what the line shows is
    read off the library snapshot, and ui/first-run/FirstRunLine.jsx draws it (the whole first screen, or the compact card after 「以后再说」). The line is there
@@ -17,13 +17,10 @@ export const DECK_STATES = Object.freeze(['waiting', 'ready', 'generating', 'fai
 
 // The shortfall actions (lib/shortfall.js) that say a draft's run is not done: 接着做, 去配置模型, 继续, 为没覆盖的部分补题.
 const STANDING = new Set(['continue', 'model-settings', 'resume', 'topup']);
-
-// The jobs of the home's question runs (the cards the home draws), not a conversion, an audio import, a translation, 为你定制, a repair, a publication or a supplement to a deck.
-const NOT_A_RUN = new Set([JOB_TYPES.PDF_CONVERT, JOB_TYPES.TRANSLATION, JOB_TYPES.COACH_DAILY, JOB_TYPES.DRAFT_PUBLISH, JOB_TYPES.DRAFT_REPAIR, JOB_TYPES.SUPPLEMENT]);
 const ENDED = new Set([JOB_STATUS.FAILED, JOB_STATUS.CANCELLED, JOB_STATUS.INTERRUPTED]);
 
 /** Is this job a question run of the first deck (the card the line's third step carries)? */
-export const isFirstRunJob = (job) => !!job && !isAudioJob(job) && !NOT_A_RUN.has(job.type) && job.origin !== 'selection';
+export const isFirstRunJob = (job) => isGenerationRun(job) && job.origin !== 'selection';
 
 /** The newest draft of the learner's own (the sample's does not count), or null. The third step publishes or opens this one. */
 export function firstRunDraft(data) {
