@@ -6,6 +6,7 @@ import { forecastTime } from '../coverage/copy.js';
 import { parallelNote, reuseNote } from '../audio/audio-notes.js';
 import { audioCallKinds } from './call-model.js';
 import { contractOf, isRunningTask, taskKindOf } from './task-model.js';
+import { JOB_STATUS } from '../../lib/job-status.js';
 
 /* The four facts beside a task's progress and the stage segments of its bar, read from the job's contract. */
 
@@ -83,7 +84,7 @@ export function pdfEtaOf(job, now = Date.now()) {
   const contract = contractOf(job);
   if (contract.kind !== 'pdf-convert' || !isRunningTask(job)) return null;
   const { status, detail = {}, progress = {}, stage } = contract;
-  if (['paused', 'pausing', 'cancelling'].includes(status)) return null;
+  if ([JOB_STATUS.PAUSED, JOB_STATUS.PAUSING, JOB_STATUS.CANCELLING].includes(status)) return null;
   if (typeof detail.note === 'string' && /正忙|正在就绪|busy|warming/i.test(detail.note)) return null;
   const phase = String(stage?.code || '').split('.')[1] || '';
   if (status === 'running' && (phase === 'merge' || phase === 'save')) return { kind: 'finishing' };
