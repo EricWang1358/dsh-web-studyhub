@@ -50,6 +50,16 @@ How a repair behaves:
 - A fix never changes a result already on screen. If the question is open and unanswered, you answer the version you saw. The fixed version is used from the next attempt, such as the end-of-round retry or a later review.
 - Up to 3 questions are repaired at the same time. Repeating a tag on the same question does not start a second repair. More tags on one question within 10 minutes join the same feedback record.
 
+## Questions you keep failing
+
+A question you keep getting wrong is marked **Stubborn** on **Mistakes & weak points**, in both the **To review** and the **Corrected** views. The mark is told from your answer log alone, so it costs no model call, and it does not use the scheduler's `lapses` count (older libraries start that at 0).
+
+- A question is stubborn when it was failed **4 times in all**, or when **60% or more of its latest 5 attempts** failed (a grade under 3 is a failure; at least 5 attempts are needed for the second rule). Retries, answers given after the question was opened up again and unverified self-reports do not count.
+- It recovers: once the latest 5 attempts are all right, the mark goes away, however often the question was failed before. With 4 right answers after the failures it still counts.
+- Change the numbers in **Settings › Practice** (**How many wrong answers make a question stubborn**, **What share of the latest attempts failed makes a question stubborn**).
+- A collapsed row gains no button, only the mark. Open the row for **This question keeps being missed**, with four ways out that already exist elsewhere: **Report a problem: fix it in the background** (the thumbs-down "needs work" record, which starts the background repair), **Too hard: add a prerequisite card** (the "too hard" record, which prepares a prerequisite card once preparation is on), **Send to the main chat** (the same hand-off as after a round) and **Suspend question** (the same as on the deck's manage page; **Resume studying** brings it back). Each runs only when you click it; a model is used only by the first two, one light call each.
+- **Stubborn** above the list shows just these questions. When a finished round held any, the result page says so in one line, with a link that opens the wrong book on them.
+
 ## Read the round summary
 
 When an ordinary practice round ends, the **Coach · next step** card appears right under your score. Mock exams have their own report instead. Code works out the numbers and the recommendation, so the card works without a model.
@@ -167,7 +177,7 @@ Coach data is stored in your library, not in the browser.
 | `feedback` | `shards/misc/` | Your ratings and tags | Latest 400 records |
 | `prepared` | `shards/misc/` | Personalised questions | 12 waiting; the latest 100 used ones are kept |
 
-The Settings › Practice choices (autopilot, round size, the round review) are saved in the library settings too (`settings.practice`), not in the browser.
+The Settings › Practice choices (autopilot, round size, the round review, what counts as a stubborn question) are saved in the library settings too (`settings.practice`), not in the browser.
 
 **Clear profile** in Settings deletes the goal, the study preferences, the profile summary, the feedback counts and any unused personalised questions. It also resets your preparation consent, so the next result page asks again. It keeps your practice records, review progress and feedback records. Follow-up Q&A, suggested follow-ups and EN translations saved on questions are not part of the profile and stay too. Weak topics, focus-topic progress and exam days left are computed fresh from your attempts and course settings each time and are never stored on `learner`; a brand-new library omits the block altogether.
 

@@ -10,6 +10,9 @@ import { useStudy } from '../study-context.jsx';
 /* 设置 › 练习: the learner's personal defaults for the daily practice, saved at once (settings.practice.set); 恢复默认 forgets them (settings.practice.reset).
    Autopilot and the round size are what the practice page and the home card read; 本轮点评 is the one place that says the result page asks the model. */
 export const ROUND_SIZES = [10, 15, 20, 30, 40, 50];
+/** 顽固题 (lib/leech.js): how many wrong answers, and what share of the latest few attempts (per cent), make a question stubborn; inside PRACTICE_LIMITS. */
+export const LEECH_FAILURES = [3, 4, 5, 6, 8, 10];
+export const LEECH_RATES = [50, 60, 70, 80, 100];
 /** How long before an exam its 期末一周 plan shows (settings.book.crunchWindowDays, lib/book-settings.js). */
 export const CRUNCH_WINDOWS = [7, 14, 21, 30, 45, 60];
 /** How many minutes a day of that plan holds (settings.book.crunchMinutes). */
@@ -83,6 +86,14 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
         hint={ui('每轮做完、答了 3 题以上时，结果页会请较轻量的模型写一句点评并更新你的学习画像摘要，这是练习里唯一自动调用模型的地方。关掉后不再调用模型：点评卡片只按作答统计给出建议。')} />
       <Switch name="qaToBook" label={ui('自动加入复习全书')} checked={bookMode === 'auto'} disabled={disabled} onChange={(on) => setBook(on ? 'auto' : 'manual')}
         hint={ui('练习时得到的追问和「帮我弄懂」的回答，打开后会自动放进这门课的复习全书（这道题所在知识点的问答里）；关着时在每条问答旁点「加入复习全书」才放进去。题目自己的问答记录不受影响，加进书里的随时可以撤回。只影响之后的问答。')} />
+      <Field label={ui('多少次答错算顽固题')} hint={ui('一道题累计答错这么多次，错题本里会标上「顽固」，展开后有修题、补前置小卡、发给主会话和暂停几个办法。只看作答记录，不调用模型。')}>
+        <Select name="leechFailures" value={String(values.leechFailures)} disabled={disabled} onChange={(leechFailures) => set({ leechFailures: Number(leechFailures) })}
+          options={withSaved(LEECH_FAILURES, values.leechFailures).map((count) => ({ value: String(count), label: uiFormat('{0} 次', [count]) }))} />
+      </Field>
+      <Field label={ui('最近几次里答错的占多少算顽固题')} hint={uiFormat('只看最近 {0} 次作答：答错的占这个比例以上也算顽固，哪怕累计次数还不到。最近 {0} 次全部答对，标记就会消失。', [values.leechWindow])}>
+        <Select name="leechRate" value={String(values.leechRate)} disabled={disabled} onChange={(leechRate) => set({ leechRate: Number(leechRate) })}
+          options={withSaved(LEECH_RATES, values.leechRate).map((rate) => ({ value: String(rate), label: uiFormat('{0}%', [rate]) }))} />
+      </Field>
       <Field label={ui('期末一周提前几天出现')} hint={ui('课程设了考试日期、也有复习全书时，离考试这么多天起，首页和复习全书里会排出每天读哪几节：前面的日子读书练题，最后两天翻看全书和易错点、做模拟卷。')}>
         <Select name="crunchWindowDays" value={String(crunch.crunchWindowDays)} disabled={disabled} onChange={(days) => setCrunchValue('crunchWindowDays', Number(days), CRUNCH_WINDOW.days)}
           options={withSaved(CRUNCH_WINDOWS, crunch.crunchWindowDays).map((days) => ({ value: String(days), label: uiFormat('考前 {0} 天', [days]) }))} />
