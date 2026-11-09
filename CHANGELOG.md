@@ -9,6 +9,8 @@ English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
 This patch is being released immediately to address missing live-class transcript segments. It has not had a full day of experience-channel use. Real local engines were checked with synthetic Chinese speech, including 80 seconds of continuous input. Actual lectures, mixed Chinese/English speech, ordinary-laptop performance and sound-card/Bluetooth switching remain unverified. This release updates GitHub downloads. The npm latest tag remains on the previously published version.
 
+Known issue. Ending a class while its recognizer is disconnected and reconnecting can still leave buffered audio untranscribed. This pre-existing recovery path remains tracked separately from draining audio already accepted by a running local recognizer.
+
 ## 4.6.0 — 2026-11-08
 
 - **The task board opens on a Today view alongside All tasks and Archive.** `Today` brings together accepted daily-plan actions, cards due today or overdue, and cards scheduled onto today (`Scheduled day`), keeps tasks finished today visible with a strikethrough until the end of the day, lets you jot down a card or pull unscheduled cards into today in one click, and becomes the opening screen when you have an active study plan or open items for today. Not verified: drag-and-drop scheduling on touch-only mobile browsers without HTML5 drag events (clicking unscheduled chips and card menus works everywhere).
