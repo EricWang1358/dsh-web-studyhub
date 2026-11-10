@@ -378,7 +378,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
               {ui("质量检测")}
             </Button>
             {/* This page's main action IS the hand-off: its own primary button; the shared notice says what happened (no line of its own). */}
-            <Tooltip layer content={handOffTip("让主会话设计骨架并修题；保存后骨架会出现在下方，修过的题会进信箱")}>
+            <Tooltip layer content={handOffTip("让主会话设计骨架并直接改有问题的题卡；保存后骨架出现在下方，改好题卡时信箱会提醒你")}>
               <Button variant="primary"
                 disabled={!picked.size || pickedCards > 200}
                 onClick={() => {

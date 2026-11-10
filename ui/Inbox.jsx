@@ -22,7 +22,7 @@ const PANEL_ROWS = { "--sh-scroll-max": "min(360px, 55vh)" };
 function EmptyMailbox({ onOpenTasks }) {
   const topics = new Intl.ListFormat(uiLocale(), { style: "long", type: "conjunction" }).format(inboxTopics().map((topic) => ui(topic)));
   return <EmptyState size="sm" icon="mail" className="mailbox__empty" title={ui("信箱是空的")}
-    description={uiFormat("{0}的结果会放在这里，点一下就能回到对应的地方。", [topics])}
+    description={uiFormat("{0}完成后会在这里提醒你，点一下就能跳回对应的地方。", [topics])}
     secondary={onOpenTasks && { label: ui("看后台任务"), onClick: onOpenTasks }} />;
 }
 
@@ -104,7 +104,7 @@ export default function Inbox({ inbox, onOpen, onReadAll, onUndo, readError = ""
         aria-expanded={open}
         aria-haspopup="dialog"
         label={unread ? uiFormat("信箱，{0} 条未读", [unread]) : ui("信箱")}
-        title={unread ? uiFormat("{0} 条后台结果待查看", [unread]) : ui("信箱")}
+        title={unread ? uiFormat("{0} 条完成提醒未读", [unread]) : ui("信箱")}
         onClick={() => setOpen((v) => !v)}
       >
         {unread > 0 && <span className="mailbox__count">{unread > 99 ? "99+" : unread}</span>}

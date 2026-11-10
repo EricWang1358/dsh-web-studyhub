@@ -20,7 +20,7 @@
   "让主会话按知识域把主题归并成主题组（不改题目）": "Ask the main chat to group the topics by knowledge domain (questions stay as they are)",
   "让主会话重新归并全部主题，替换现有主题组": "Ask the main chat to regroup all topics, replacing the current topic groups",
   "让主会话只重新归并这门课程的主题，其他课程的主题组保持不变": "Ask the main chat to regroup only this course’s topics; other courses’ topic groups stay as they are",
-  "让主会话设计骨架并修题；保存后骨架会出现在下方，修过的题会进信箱": "Ask the main chat to design the outline and fix questions; after it saves, the outline appears below and edited questions arrive in the inbox",
+  "让主会话设计骨架并直接改有问题的题卡；保存后骨架出现在下方，改好题卡时信箱会提醒你": "Ask the main chat to design the outline and directly update flawed cards; once saved, the outline appears below and your inbox notifies you when cards are updated",
   "在主会话里生成骨架": "Generate outline in the main chat",
   "更新这份骨架：": "Update this outline:",
   "让主会话按现在的题目更新这份骨架": "Ask the main chat to update this outline from the current questions",

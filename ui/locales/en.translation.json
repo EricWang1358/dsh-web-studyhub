@@ -77,7 +77,7 @@
   "中英对照": "Bilingual",
   "译成": "Translate into",
   "开始翻译": "Start translating",
-  "只译还没有译文的段落；在后台进行，可以继续阅读，关闭阅读器也不会中断，完成后进信箱。": "Only paragraphs without a translation are translated. It runs in the background: keep reading, closing the reader does not stop it, and a letter arrives in the inbox when it finishes.",
+  "只译还没有译文的段落；译文会显示在对应段落旁。在后台进行，关闭阅读器也不会中断，完成时信箱会提醒你。": "Only paragraphs without a translation are translated, and translations appear beside each paragraph. It runs in the background even if you close the reader, and your inbox notifies you when it finishes.",
   "展开本页全部译文": "Expand all translations here",
   "收起本页全部译文": "Collapse all translations here",
   "旧版本里还有 {0} 段译文，没有套用到这个版本；文字没变的段落会直接沿用。": "{0} translated paragraphs belong to an older version and are not applied to this one; paragraphs whose words did not change are reused.",
@@ -106,7 +106,7 @@
   "本章": "This chapter",
   "这里没有还需要翻译的段落。": "Nothing is left to translate here.",
   "这部分已经在翻译了。": "This part is already being translated.",
-  "已开始翻译，共 {0} 段，后台进行，完成后进信箱。": "Translation started: {0} paragraphs, in the background; a letter arrives in the inbox when it finishes.",
+  "已开始翻译，共 {0} 段，后台进行；译文会显示在对应段落旁，完成时信箱会提醒你。": "Translation started ({0} paragraphs, in the background). Translations will appear beside each paragraph, and your inbox notifies you when it finishes.",
   "术语表更新": "Glossary update",
   "打开这份资料": "Open this material"
 }

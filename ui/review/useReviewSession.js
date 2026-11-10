@@ -351,7 +351,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
         mode, text: text.trim(), helpChoices, ...(derive ? { derive } : {}), uiLanguage: getUiLanguage() });
       notify(mode === 'ask' ? ui('后台助教正在解答。讲解会出现在这道题下面的问答里，完成时信箱会提醒你。')
         : mode === 'derive' ? ui('后台助教正在出题。新题会放进同一题组，完成时信箱会提醒你。')
-          : mode === 'grade' ? { text: ui('已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，也会进信箱。'), tone: 'success' }
+          : mode === 'grade' ? { text: ui('已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，完成时信箱也会提醒你。'), tone: 'success' }
             : ui('后台助教正在改这道题，会直接改这张卡。完成时信箱会提醒你，在信箱里可以一步撤销。'));
       core.refresh().catch(() => {});
       return true;

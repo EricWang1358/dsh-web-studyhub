@@ -36,7 +36,7 @@ test('the three reasons, and the filter wins when a filter is what emptied the a
 test('an empty inbox says what lands there and offers the one way on, and no second primary action', () => {
   const zh = mailbox({ onOpenTasks: noop });
   assert.match(zh, /信箱是空的/);
-  assert.match(zh, /的结果会放在这里/, 'what this place holds');
+  assert.match(zh, /完成后会在这里提醒你/, 'what this place holds');
   assert.match(zh, /sh-btn--quiet[^"]*"[^>]*>看后台任务</, 'the one way on is the quiet button, not a second primary');
   assert.doesNotMatch(zh, /sh-btn--primary/, 'the bar has no primary action');
 });

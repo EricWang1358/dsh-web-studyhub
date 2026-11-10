@@ -210,7 +210,7 @@ test('priority order: due and resume outrank draft; draft outranks new-source, w
   // When due === 0 and resumeOpen === false, draft outranks new-source, wrong, exam, learn, and done!
   assert.deepEqual(m.nextStep(m.nextStepFacts(base(), { now: NOW, resumeOpen: false })), { id: 'draft', surface: 'card' });
 
-  // Sample draft, archived draft, and draft still being written by an active generation job do NOT trigger 'draft'.
+  // Sample, archived, active-job, deck-edit, and post-publish leftover repair drafts do NOT trigger 'draft'.
   const ignored = m.nextStepFacts({
     root: '/lib',
     model: READY,
@@ -222,6 +222,9 @@ test('priority order: due and resume outrank draft; draft outranks new-source, w
       makeDraft('sample-by-id', { course: 'CS3219' }),
       makeDraft('archived-dr', { archived: true, course: 'CS3219' }),
       makeDraft('generating-dr', { course: 'CS3219' }),
+      makeDraft('editing-dr', { editingDeckId: 'd1', course: 'CS3219' }),
+      makeDraft('repair-dr', { title: 'Services · 待处理', course: 'CS3219', editorial: { repairOfDeckId: 'd1' } }),
+      makeDraft('partial-edit-dr', { editingDeckId: 'd1', course: 'CS3219', editorial: { partialEdit: true } }),
     ],
     jobs: [{ id: 'j-run', type: 'generate', status: 'running', draftId: 'generating-dr' }],
     today: quietToday,
@@ -229,6 +232,39 @@ test('priority order: due and resume outrank draft; draft outranks new-source, w
   }, { now: NOW });
   assert.equal(ignored.drafts.count, 0);
   assert.deepEqual(m.nextStep(ignored), { id: 'done', surface: 'card' });
+
+  // Right after a first deck publishes accepted cards into d1 and leaves rejected cards in a repairOfDeckId draft, 'learn' wins.
+  const partialPublished = m.nextStepFacts({
+    root: '/lib',
+    model: READY,
+    decks: [makeDeck('d1', { course: 'CS3219' })],
+    sources: [],
+    drafts: [makeDraft('repair-dr', { title: 'Services · 待处理', cards: 1, course: 'CS3219', editorial: { repairOfDeckId: 'd1' } })],
+    jobs: [],
+    today: { due: 0, weak: 0, new: 2, size: 2, ahead: false },
+    focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }] },
+  }, { now: NOW });
+  assert.equal(partialPublished.drafts.count, 0);
+  assert.deepEqual(m.nextStep(partialPublished), { id: 'learn', surface: 'card' });
+
+  // A new part top-up draft or an all-rejected unpublished draft (no repairOfDeckId) still triggers 'draft'.
+  for (const freshDraft of [
+    makeDraft('part-dr', { title: '第二部分补题', cards: 8, course: 'CS3219', editorial: { part: { deckId: 'd1', n: 2 } } }),
+    makeDraft('all-rejected-dr', { title: '待修正新题', cards: 5, course: 'CS3219', editorial: { rejectedIssues: { 'c-1': ['duplicate'] } } }),
+  ]) {
+    const facts = m.nextStepFacts({
+      root: '/lib',
+      model: READY,
+      decks: [makeDeck('d1', { course: 'CS3219' })],
+      sources: [],
+      drafts: [freshDraft],
+      jobs: [],
+      today: quietToday,
+      focus: { mode: 'class', course: 'CS3219', courses: [{ name: 'CS3219' }] },
+    }, { now: NOW });
+    assert.equal(facts.drafts.count, 1);
+    assert.deepEqual(m.nextStep(facts), { id: 'draft', surface: 'card' });
+  }
 });
 
 test('course filter scoping: drafts for the selected course (and sub-courses) surface, while other courses stay scoped out', () => {
@@ -383,6 +419,15 @@ test('TodayCard (buildHomePlan) and StudyMap HomeDrafts surface pending drafts a
   assert.match(htmlWithDue, /data-next="due"/);
   assert.match(htmlWithDue, /<details class="sh-disclosure home-drafts"(?![^>]*\sopen)/);
   assert.equal(primaryCount(htmlWithDue), 1);
+
+  // 4b) When due === 0 but unlearned cards exist (today.new > 0, today.size > 0), NextStepCard is 'draft' and HomeDrafts also auto-opens.
+  const htmlNewOnlyWithDrafts = renderMap({
+    drafts: [dr25, dr15],
+    today: { due: 0, weak: 0, new: 3, size: 3, ahead: false },
+  });
+  assert.match(htmlNewOnlyWithDrafts, /data-next="draft"/);
+  assert.match(htmlNewOnlyWithDrafts, /<details class="sh-disclosure home-drafts"[^>]*\sopen(?:=|\s|>)/);
+  assert.equal(primaryCount(htmlNewOnlyWithDrafts), 1);
 
   // 5) English UI renders cleanly with zero untranslated Chinese characters.
   m.setUiLanguage('en');

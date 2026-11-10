@@ -18,9 +18,9 @@ export default function CitationDisclosure({ card, sources = [], onOpenSource, d
   const aiDraftedCited = aiDraftedCitedCardCount([card], sources) > 0;
   return (
     <details className="citation-disclosure" open={open || undefined} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{ui("引用与来源核对")}{" "}<span>{uiFormat("· {0} 条", [citations.length])}</span>
-        {selfCited && <>{" "}<Badge size="sm" tone="warning">{ui("题目自引")}</Badge></>}
-        {aiDraftedCited && <>{" "}<Badge size="sm" tone="warning">{ui("AI 撰写 · 未核对")}</Badge></>}
+      <summary>{ui("引用与来源核对")}{" "}<span className="citation-disclosure__count">{uiFormat("· {0} 条", [citations.length])}</span>
+        {selfCited && <>{" "}<Badge size="sm" tone="warning" className="citation-disclosure__badge">{ui("题目自引")}</Badge></>}
+        {aiDraftedCited && <>{" "}<Badge size="sm" tone="warning" className="citation-disclosure__badge">{ui("AI 撰写 · 未核对")}</Badge></>}
       </summary>
       {open && <>
         <div className="citations">

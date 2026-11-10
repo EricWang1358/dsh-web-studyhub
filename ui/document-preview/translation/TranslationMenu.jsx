@@ -45,7 +45,7 @@ function TranslationPanel({ scopes, target, modelAvailable, stale, running, hasT
   const names = TARGET_NAMES();
   return <>
     <div className="tr-panel__head">
-      <strong>{ui('中英对照')} <HelpTip label={ui('翻译怎么进行')}>{ui('只译还没有译文的段落；在后台进行，可以继续阅读，关闭阅读器也不会中断，完成后进信箱。')}</HelpTip></strong>
+      <strong>{ui('中英对照')} <HelpTip label={ui('翻译怎么进行')}>{ui('只译还没有译文的段落；译文会显示在对应段落旁。在后台进行，关闭阅读器也不会中断，完成时信箱会提醒你。')}</HelpTip></strong>
       <SegmentedControl size="sm" label={ui('译成')} value={target} onChange={onTarget} options={[{ value: 'zh', label: names.zh }, { value: 'en', label: names.en }]} />
     </div>
     {!modelAvailable && <ReaderModelGate feature="translate" />}

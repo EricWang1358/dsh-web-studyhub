@@ -77,7 +77,7 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
         ...(mode === "style" ? { styleText: form.styleText } : {}) };
     act("generate", args, () => {
       toast.success(mode === "import"
-        ? answered ? uiFormat("已开始导入案例并批改你的 {0} 个回答；结果会进信箱。", [answered]) : ui("已开始导入案例；评分标准写好后草稿出现在学习库。")
+        ? answered ? uiFormat("已开始导入案例并批改你的 {0} 个回答；案例会加入学习库、得分显示在各题下方，完成时信箱会提醒你。", [answered]) : ui("已开始导入案例；评分标准写好后草稿出现在学习库。")
         : ui("已开始出一套案例题：写案例、出题、独立审阅。完成后草稿出现在学习库。"));
       onStarted?.();
     });

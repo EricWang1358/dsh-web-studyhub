@@ -14,6 +14,7 @@
     .reader-p--figure { color: var(--text-muted); }
     .reader-peek-mark { user-select: none; }
     .reader-section__head .reader-peek { margin-left: var(--space-3); }
+    .reader-aux .reader-peek { flex: none; margin-left: 0; }
     .page-peek {
       position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: var(--z-overlay);
       display: flex; flex-direction: column; box-sizing: border-box;

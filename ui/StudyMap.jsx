@@ -142,7 +142,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
     : null;
   const showNext = !!nextView && !nextDismissed, nextHasButton = showNext && !!nextView.action;
   const shownDraftIds = new Set(visibleJobs.map((job) => job.draftId).filter(Boolean));
-  const autoOpenDrafts = !activeJobs.length && nextFacts.drafts.draftIds.some((id) => !shownDraftIds.has(id)) && (!ownDeck || !today.size || !!today.ahead);
+  const autoOpenDrafts = !activeJobs.length && nextFacts.drafts.draftIds.some((id) => !shownDraftIds.has(id)) && (next.id === "draft" || !ownDeck || !today.size || !!today.ahead);
   // 出第一组题 runs the request itself (firstRun.on.generate, the app's); without it the step offers only 改题型和题数, which opens 创建题组 with the materials ticked.
   const lineOn = { importFirst: addSource, tune: generateFromSources, openDraft, publish: publishDraft, ...firstRun?.on };
   if (line.show && firstRun?.form === "page") {

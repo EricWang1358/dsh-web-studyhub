@@ -189,7 +189,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
     await act('note.generate', { id: saved.id, expectedRevision: saved.revision }, () => {
       if (!live()) return;
       applyNote({ ...current.current, generation: { status: 'running' } });
-      toast.info(ui("正在后台起草；完成后会进入信箱，你可以继续学习。"));
+      toast.info(ui("正在后台起草，你可以继续学习；写好后正文会直接写进这篇笔记，完成时信箱会提醒你。"));
     });
   });
   const cancelDraft = () => perform(async live => {

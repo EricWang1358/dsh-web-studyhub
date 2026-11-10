@@ -29,14 +29,27 @@
       color: var(--accent-soft);
       flex: none;
     }
+    .citations__row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: var(--space-1-5) var(--space-2);
+      margin-top: var(--space-3);
+    }
     .citations .citations__button {
       display: block;
-      width: 100%;
+      flex: 1 1 16rem;
+      min-width: 0;
+      width: auto;
       text-align: left;
       padding: var(--space-3);
-      margin-top: var(--space-3);
+      margin-top: 0;
       font-size: var(--fs-md);
       color: var(--text-dim);
+    }
+    .citations .citations__peek {
+      flex: none;
+      margin-top: var(--space-1-5);
     }
     .citations .citations__provenance {
       margin-inline-start: var(--space-2);
@@ -53,7 +66,8 @@
       padding: var(--space-3) 0;
       cursor: pointer;
     }
-    .citation-disclosure > summary span { color: var(--text-faint); }
+    .citation-disclosure > summary > .citation-disclosure__count { color: var(--text-faint); }
+    .citation-disclosure > summary .citation-disclosure__badge { margin-inline-start: var(--space-2); vertical-align: middle; }
     .citations blockquote {
       color: var(--text-dim);
       font-size: var(--fs-md);

@@ -160,7 +160,7 @@ test('the 译 popover prices each scope before anything starts, says what is lef
   assert.match(markup, /预计/, 'the price (the shared token estimate line) comes first');
   assert.match(markup, /已经全部译好。/);
   assert.equal(count(markup, />开始翻译</g), 1, 'a scope with nothing to do has no start button');
-  assert.match(markup, /后台进行，可以继续阅读，关闭阅读器也不会中断，完成后进信箱。/);
+  assert.match(markup, /译文会显示在对应段落旁。在后台进行，关闭阅读器也不会中断，完成时信箱会提醒你。/);
   for (const text of ['展开本页全部译文', '收起本页全部译文', '术语表…', '简体中文', 'English']) assert.match(markup, new RegExp(text));
   assert.match(markup, /aria-pressed="true"[^>]*>简体中文</);
 });

@@ -21,6 +21,10 @@
     .sh-handoff__tip {
       display: inline-flex;
     }
+    .sh-diag-actions .sh-handoff__tip {
+      align-items: center;
+      min-height: var(--control-h-sm, 32px);
+    }
     /* The button while it hands over: the same label at the same width, only quieter (no spinner is added beside it, so the line never moves). */
     .sh-handoff__btn[aria-busy="true"] {
       opacity: 0.62;

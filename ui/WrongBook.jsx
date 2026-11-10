@@ -80,9 +80,9 @@ function LeechMark({ limits }) {
 
 /** What each rescue action does, said where its button is. */
 const rescueTip = (kind) => kind === 'fix'
-  ? tip(ui('记下「这题有问题」，由后台助教检查并修这道题；没有可用模型时只记下反馈，不会修题。有模型时会调用轻量模型，出错时最多再试 2 次。'), ui('会直接改这张卡；完成时信箱会提醒你，在信箱里可以一步撤销。'))
+  ? tip(ui('记下「这题有问题」，由后台助教检查并修这道题；没有可用模型时会提示先配好模型。有模型时会调用轻量模型，出错时最多再试 2 次。'), ui('会直接改这张卡；完成时信箱会提醒你，在信箱里可以一步撤销。'))
   : kind === 'easier'
-    ? tip(ui('记下「太难」：同意后台准备且有可用模型时，会写一张更基础的前置小卡（调用轻量模型）；否则只记下反馈。'), ui('写好后放进「为你定制」。'))
+    ? tip(ui('记下「太难」，写一张更基础的前置小卡（调用轻量模型）；没有可用模型时会提示先配好模型，未开启后台准备时会先在这里请你确认。'), ui('写好后放进「为你定制」。'))
     : tip(ui('暂停后，这道题不再出现在练习和错题里，也不调用模型。'), ui('在题组的管理页点「恢复学习」可以恢复。'));
 
 /** The four ways out for a question that keeps being failed: the actions that exist elsewhere, called from here (the opened row only; a collapsed row has no menu, #675). */
@@ -111,7 +111,7 @@ function LeechRescue({ item, course, disabled, rescuePrompt, rescuing, canOpenMo
         </div>
       )}
       {rescuePrompt?.type === "no-model" && (
-        <InlineMessage tone="warning" boxed
+        <InlineMessage className="wb-leech__notice" tone="warning" boxed actionsBelow
           action={canOpenModel ? { label: ui("打开模型设置"), onClick: onOpenModel } : undefined}
           onDismiss={onDismissRescue}>
           {rescueGate(rescuePrompt.kind, { modelReady: false }).text}

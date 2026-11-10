@@ -165,10 +165,13 @@
     }
     .case-report__hero {
       display: flex;
-      gap: var(--space-5);
+      flex-wrap: wrap;
+      gap: var(--space-3) var(--space-5);
       align-items: center;
     }
+    .case-report__hero > div { flex: 1 1 16rem; min-width: 0; }
     .case-report__hero p { margin: var(--space-1) 0 0; }
+    .case-report__hero > p.rubric-score { margin: 0; }
     .case-report__pending {
       display: flex;
       align-items: center;

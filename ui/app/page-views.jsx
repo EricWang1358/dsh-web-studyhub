@@ -253,7 +253,7 @@ function SourcesView() {
 /** The 音频转写 page's header: the shared PageHeader, its two links to neighbouring pages as quiet Buttons. */
 export function AudioHeader({ onSettings, onSources }) {
   return (
-    <PageHeader title={ui('音频转写')} description={ui('导入录音文件，后台完成转录、校对和翻译；进度与完成通知会进入信箱。')}
+    <PageHeader title={ui('音频转写')} description={ui('导入录音文件，后台完成转录、校对和翻译；实时进度在本页和「任务」查看，转好后存入「资料」，完成时信箱会提醒你。')}
       actions={<>
         <Button variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>
         <Button variant="quiet" onClick={onSources}>{ui('查看资料')}</Button>
