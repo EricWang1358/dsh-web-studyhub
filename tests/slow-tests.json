@@ -161,6 +161,8 @@
     "tests/jev-eval.test.mjs",
     "tests/jev-live-check.test.mjs",
     "tests/jev-providers-scripts.test.mjs",
+    "tests/lib-graph.test.mjs",
+    "tests/lib-top-level.test.mjs",
     "tests/live-loopback.test.mjs",
     "tests/local-command.test.mjs",
     "tests/marker-external.test.mjs",
