@@ -81,7 +81,9 @@ test('the compact cards on the audio page and the library line up, and 查看详
         assert.equal(card.box.height, cards[0].box.height, `${nav}: the cards are the same height`);
         assert.equal(card.go.width, cards[0].go.width, `${nav}: the buttons are the same width`);
         assert.equal(card.go.x, cards[0].go.x, `${nav}: the buttons line up`);
-        assert.ok(card.line.height <= 20, `${nav}: the status is ONE line`);
+        // A card in flight may take a second line for the time left (#876); any other card says its state in one.
+        const lines = card.state === 'run' || card.state === 'queued' ? 2 : 1;
+        assert.ok(card.line.height <= 20 * lines, `${nav}: the status of a ${card.state} card is at most ${lines} line(s)`);
       }
       if (width === 1280) assert.equal(cards[0].go.width, 168);
       const id = cards[0].id;
