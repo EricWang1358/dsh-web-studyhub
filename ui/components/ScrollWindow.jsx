@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import css from './scroll-window.css';
 import { useComponentCss, cx } from './css.js';
 import { ui, uiFormat } from '../i18n.js';
 import { edgeTracker } from './scroll-edges.js';
+import { REVEAL_ANCHORS_EVENT } from '../tour/anchor.js';
 
 // The edge rules moved to ./scroll-edges.js (the horizontal strips share them); re-exported here because they were published from this module.
 export { createEdgeTracker, edgeTracker, scrollEdges, scrollEdgesX } from './scroll-edges.js';
@@ -26,8 +28,75 @@ export const SCROLL_WINDOW_CHUNK = 120;
 /** The rows to draw: the first `limit` of `items`, and always up to the active one. */
 export const windowRows = (items, limit, activeIndex = -1) => items.slice(0, Math.max(limit, activeIndex + 1));
 
+/** How far below the bottom of the viewport the last drawn row may still be before the next chunk is drawn: about a screen. */
+const NEAR_END_PX = 320;
+
+/** The one rule of "near the end": `remaining` is how many pixels lie between the bottom of the viewport and the last drawn row (negative: it is already inside). */
+export const withinReach = remaining => remaining < NEAR_END_PX;
+
 /** Is the viewport within a screen of its last drawn row? Then the next chunk is drawn. */
-export const nearEnd = element => element.scrollTop + element.clientHeight > element.scrollHeight - 320;
+export const nearEnd = element => withinReach(element.scrollHeight - element.scrollTop - element.clientHeight);
+
+/** The limit after one more chunk: it adds to what is drawn now, which a jump to a row far down may have made more than the limit. */
+export const nextLimit = (drawn, chunk = SCROLL_WINDOW_CHUNK) => drawn + chunk;
+
+/** `anchors` maps an anchor name to the row of this list that holds it (-1: none). The row of the first of `wanted` this list holds, or -1. */
+export const anchorRow = (anchors, wanted) => {
+  for (const name of wanted || []) if (anchors?.[name] >= 0) return anchors[name];
+  return -1;
+};
+
+/** Is the marker after the last drawn row in sight or about to be: not above the top of the window (those rows are behind the learner), and within a screen of the bottom? */
+const endReached = marker => {
+  const box = marker.getBoundingClientRect();
+  return box.bottom > 0 && withinReach(box.top - window.innerHeight);
+};
+
+/**
+ * The rows of a list on a page that scrolls as a whole (the sources page, the wrong book, a long draft), drawn in growing chunks with the same helpers as
+ * ScrollWindow: the first `chunk` rows, then one more chunk each time the end comes within a screen of the bottom (scrolling or tabbing there; no timer).
+ * Rows are never removed and the rows already drawn never move. A row something jumps to is drawn first: `reveal` is its index (-1: none), and `anchors`
+ * says which row holds a `data-tour` anchor, so 找功能 can draw it before it looks (ui/tour/anchor.js). `resetKey` starts again from the first chunk when
+ * it changes (a new filter); folding the group away unmounts the list, which does the same. `render(item, index)` returns the row with its key;
+ * `as` is the end marker's tag ('li' inside a <ul>).
+ */
+export function ChunkedRows({ items, render, chunk = SCROLL_WINDOW_CHUNK, reveal = -1, anchors, resetKey = '', as: Marker = 'div' }) {
+  useComponentCss(css, 'study-scroll-window');
+  const [grown, setGrown] = useState({ key: resetKey, rows: chunk });
+  const rows = grown.key === resetKey ? grown.rows : chunk;
+  const drawn = windowRows(items, rows, reveal);
+  const more = drawn.length < items.length;
+  const marker = useRef(null), latest = useRef(null), holdsAnchors = !!anchors;
+  latest.current = { drawn: drawn.length, resetKey, anchors, chunk };
+  // A row that was drawn for a jump stays drawn once the jump is over.
+  const needed = Math.min(reveal + 1, items.length);
+  useEffect(() => { if (needed > rows) setGrown({ key: resetKey, rows: needed }); }, [needed, rows, resetKey]);
+  useEffect(() => {
+    if (!more) return undefined;
+    const check = () => {
+      if (marker.current && endReached(marker.current)) setGrown({ key: latest.current.resetKey, rows: nextLimit(latest.current.drawn, latest.current.chunk) });
+    };
+    // Scrolling anywhere (the page or a pane around it) and focus moving into the rows; and once now, in case the chunk just drawn does not fill the screen.
+    document.addEventListener('scroll', check, { capture: true, passive: true });
+    document.addEventListener('focusin', check, true);
+    check();
+    return () => { document.removeEventListener('scroll', check, true); document.removeEventListener('focusin', check, true); };
+  }, [more, drawn.length]);
+  // 找功能 asks before it looks for an anchor: the row that holds it is drawn at once, so the look finds it.
+  useEffect(() => {
+    if (!holdsAnchors) return undefined;
+    const reveals = event => {
+      const at = anchorRow(latest.current.anchors, event.detail?.anchors);
+      if (at >= latest.current.drawn) flushSync(() => setGrown({ key: latest.current.resetKey, rows: at + 1 }));
+    };
+    document.addEventListener(REVEAL_ANCHORS_EVENT, reveals);
+    return () => document.removeEventListener(REVEAL_ANCHORS_EVENT, reveals);
+  }, [holdsAnchors]);
+  return <>
+    {drawn.map((item, index) => render(item, index))}
+    {more && <Marker ref={marker} className="sh-chunk-end" data-chunk-end="" aria-hidden="true" />}
+  </>;
+}
 
 /** "共 N 项", or "共 N 项 / 显示 M 项" while a filter hides some. */
 export const scrollWindowCount = (total, shown, filtering) => filtering

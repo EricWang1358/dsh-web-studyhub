@@ -172,6 +172,24 @@ The near-duplicate check of a draft (`draft.similar`, #890) has a budget of its 
 
 `tests/store-sharing.test.mjs`, `tests/runtime-view.test.mjs`, `tests/snapshot-share.test.mjs`, `tests/poll-schedule.test.mjs` and `tests/scroll-window-chunks.test.mjs` pin the mechanisms.
 
+## Long lists draw their rows in chunks (#900)
+
+The sources page (each day group and the pinned group), the wrong book (each group) and a draft of more than 80 questions no longer draw every row when they open. A list draws its first chunk (120 rows; 80 questions for a draft, because a question is a fold with its whole editor inside) and one more chunk each time the end of what is drawn comes within a screen of the window (320 px: scrolling there, or focus moving into the last rows). It is the picker's helper (`windowRows`, `nearEnd` in `ui/components/ScrollWindow.jsx`) applied to a page that scrolls as a whole (`ChunkedRows`): no timer, rows are never removed, so the rows already drawn do not move when a chunk is appended. Folding a group away or changing the filter starts it from the first chunk again.
+
+- What still covers every row: the counts in the headers, 选择当前范围 and 归档所选, the filters and the search, 练这一组 and the batch buttons, publishing a draft. They read the data, not the drawn rows.
+- What draws a row first: the material just imported, the anchors 找功能 looks for (`ui/tour/anchor.js` asks the lists before it looks), a question added to a draft, and 查看详情 on a draft (the details follow the last question, so every question is drawn before it scrolls). The jumps (the wrong book's group, the new import, 找功能) scroll without animation: a smooth scroll let the open groups it passed draw their next chunk and move the row it was going to (`tests/chunked-lists-browser.test.mjs` fails with the animation back). Known limit: a row that lands within half a window below the end of a long open list is next to that list's end, which is then in sight, so the list draws its next chunk and pushes the row down; nothing handles this yet.
+- Browser find-in-page cannot find a row that is not drawn yet; searching inside the app can.
+
+`node scripts/qa/chunked-lists.mjs --rounds 5` builds the preview, writes the fixture (one day group of 1 001 materials and a 160-page book, 1 000 mistakes in two decks, a draft of 500 questions) and prints the DOM nodes of the first paint and the time from pressing the sidebar row (or the draft's row) to the first rows being on screen. Headless Chromium on the Windows development machine, five visits per page, two runs of each build; the times are the medians of a run, written run 1 / run 2 (they move by a few hundred milliseconds between runs, the node counts do not):
+
+| list | DOM nodes, first paint | rows drawn | page switch, ms |
+|---|---|---|---|
+| sources, the day group open | 31 562 -> 4 080 | 1 005 -> 120 | 2 451 / 2 751 -> 42 / 393 |
+| wrong book, the first group (500) opened | 10 461 -> 2 862 | 500 -> 120 | 686 / 741 -> 213 / 220 |
+| draft, 500 questions | 23 833 -> 4 094 | 500 -> 80 | 573 / 592 -> 179 / 226 |
+
+Not measured: a real library, a real DSH window, memory, and `scripts/qa/page-switch-perf.mjs` (the fixture above is the probe of these three lists). `tests/chunked-lists-browser.test.mjs` walks the same fixture and pins the behaviour; `tests/scroll-window-chunks.test.mjs` and `tests/anchor-reveal.test.mjs` pin the helpers.
+
 ## Switches and contracts
 
 - `STUDY_STORE_PRIVATE=1` turns the shared parsed shards off: every transaction parses private copies, as in 2.4.0. `STUDY_STORE_FREEZE=1` still deep-freezes the whole cached state for tests.
@@ -186,7 +204,7 @@ The near-duplicate check of a draft (`draft.similar`, #890) has a budget of its 
 - `mineru.local.status` took 8.6-10.3 s on this Windows machine when Settings opened (probing a local MinerU install). It is MinerU code being changed elsewhere and was only observed.
 - `review.answer` still copies and rewrites every deck (a `decks: 'all'` hint): ~0.9 MB parsed, ~100 ms. A precise hint (the answered deck plus its prerequisite decks) would cut it; the click is already 1.7x faster and its snapshot 5.6x.
 - Client bundle (`npm run build`: 3.45 MB in 27 files; `client.workspace` 1.0 MB, KaTeX 628 KB, the English dictionary 563 KB load at start): KaTeX and the dictionary are candidates for lazy loading but sit in the reader and i18n code. The preview's `dist/app.js` is 6.7 MB unminified.
-- `content-visibility: auto` on source rows was rejected: its paint containment would clip the row's "more" menu and the new-import glow. The sources page with every group expanded is still 6 155 nodes.
+- `content-visibility: auto` on source rows was rejected: its paint containment would clip the row's "more" menu and the new-import glow. The sources page with every group expanded was 6 155 nodes then; since #900 a group draws its rows in chunks (see above).
 - A second hour-long growth run: the 10-minute loops show a flat heap, not a proof for a day.
 
 ## UI smoothness: how to measure it (2.5.5)

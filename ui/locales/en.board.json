@@ -283,5 +283,9 @@
   "读 {0} 等 {1} 节 · 约 {2} 分钟": "Read {0} ({1} sections) · ~{2} min",
   "读 {0} 等 {1} 节": "Read {0} ({1} sections)",
   "今天考试，之后没有新的排期。": "Exam is today; no further days scheduled.",
-  "接下来没有排新的日程。": "No upcoming days scheduled."
+  "接下来没有排新的日程。": "No upcoming days scheduled.",
+  "按现在的进度，第 {0} 章到考试日会掉": "At this pace, by the exam day these chapters will slip: {0}",
+  "按现在的进度，第 {0} 章等 {1} 章到考试日会掉": "At this pace, by the exam day {1} chapters will slip, among them {0}",
+  "按不再复习推算：这几章里有考点今天稳，照复习排期的记忆曲线，不再复习的话到考试日会忘到不稳。按钮把其中最容易忘的题排成一轮，最多是你的每轮题数。": "Projected with no further review: these chapters have points that are solid today but, on the review schedule’s own forgetting curve, would no longer be solid by the exam day. The button makes one round of their questions most likely to be forgotten, at most your round size.",
+  "练这几章最容易忘的 {0} 道": "Practise their most at-risk questions ({0})"
 }

@@ -148,7 +148,7 @@ function ArchiveList({ board, readOnly, library, onRestore, onDelete, onBack }) 
 }
 
 export default function Board({ state, library, today: todayProp, view: viewProp, defaultView = "all", onViewChange, onOrigin, onStudyRef, studyRef, onClearStudyRef,
-  composeOnArrive = false, onComposeOpened, dailyPlan, dailyTaskIds, dailyBudgetMinutes, planAnswer, nowMs, onBoardChanged, onOpenPlan }) {
+  composeOnArrive = false, onComposeOpened, dailyPlan, dailyTaskIds, dailyBudgetMinutes, planAnswer, nowMs, onBoardChanged, onOpenPlan, onPracticeScope }) {
   useInjectCss(css, "study-board");
   const { board, error, conflict, busy, mutate, refresh, clearError } = state;
   const today = todayProp || localDate();
@@ -645,6 +645,7 @@ export default function Board({ state, library, today: todayProp, view: viewProp
           onArchiveMemo={archiveCard}
           onDeleteMemo={deleteCard}
           onOpenPlan={onOpenPlan}
+          onPracticeScope={onPracticeScope}
         />
       </TabPanel>
       <TabPanel id={tabsId} value="all" selected={activeTab} tabIndex={undefined} className="board-panel">

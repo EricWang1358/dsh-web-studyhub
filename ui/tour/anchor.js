@@ -4,6 +4,15 @@
 /** How long a page may take to draw an anchor after it was switched to (the lazy panes of Settings, a page that loads its data first). */
 export const ANCHOR_WAIT_MS = 4000;
 
+/** The event that asks the lists which draw their rows in chunks (ui/components/ScrollWindow.jsx ChunkedRows) to draw the row that holds one of `detail.anchors`. */
+export const REVEAL_ANCHORS_EVENT = 'study-reveal-anchors';
+
+/** Before looking: an anchor that is not in the document may be on a row a list has not drawn yet. The lists that hold such a row draw it before this returns. */
+function askForRows(root, anchors) {
+  const missing = anchors.filter((anchor) => !root.querySelector(`[data-tour="${anchor}"]`));
+  if (missing.length && typeof root.dispatchEvent === 'function') root.dispatchEvent(new CustomEvent(REVEAL_ANCHORS_EVENT, { bubbles: true, composed: true, detail: { anchors: missing } }));
+}
+
 const hasSize = (element) => {
   const box = element.getBoundingClientRect();
   return box.width > 0 && box.height > 0;
@@ -30,9 +39,10 @@ export function closedFolds(element) {
  * opening the folds around it (the page's own toggle handler hears it, as it would a click); an anchor that is a closed <details> itself is opened too,
  * because the control it stands for is inside. `opened` says a fold was opened, so the caller lets it finish drawing. A closed fold is no measure of
  * absence: the shared Disclosure keeps its content laid out inside a clipped box of no height, so an element in it still has a size. One that has none
- * (hidden by its page) is skipped for the next.
+ * (hidden by its page) is skipped for the next. An anchor that is not there yet may sit on a row of a long list that is drawn in chunks: the list is asked to draw it first.
  */
 export function locateAnchor(root, anchors) {
+  if (root) askForRows(root, anchors);
   for (let index = 0; index < anchors.length; index += 1) {
     const element = root?.querySelector(`[data-tour="${anchors[index]}"]`);
     if (!element?.isConnected) continue;
