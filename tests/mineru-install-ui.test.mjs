@@ -473,7 +473,10 @@ test('a service that does not start never shows a traceback or English CLI text 
       lastError: { code, message: `本机服务没能启动：${raw}`, detail: raw, at: '2026-10-16T00:00:00Z' } };
     const html = render({ initialLocal: status });
     assert.equal(sentenceOf(html), line, code);
-    assert.doesNotMatch(textOf(html), /Traceback|RuntimeError|worker exited|server\.py/, code);
+    // 复制诊断信息 keeps what it would copy one fold away (看看会复制什么, closed): the learner reads it only by opening it, like 详细信息.
+    const preview = /<details(?![^>]*\sopen)[^>]*sh-diagnostic-copy__fold[^>]*>[\s\S]*?<\/details>/g;
+    assert.ok(html.match(preview)?.length >= 1, `${code}: the copy preview is folded`);
+    assert.doesNotMatch(textOf(html.replace(preview, '')), /Traceback|RuntimeError|worker exited|server\.py/, code);
     const more = render({ initialLocal: status, initialPlan: plan(), initialMore: true });
     assert.match(textOf(more), /详细信息/);
     assert.doesNotMatch(sentenceOf(more), /Traceback/);
