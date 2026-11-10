@@ -188,3 +188,11 @@ test('course.plan reads the same points: a whole-period plan carries the band to
   const plan = await study.call('course.plan', { course: COURSE, date: localDate() });
   assert.equal(plan.points.find(point => point.id === what.hid).examDay.band, 'slip');
 });
+test('an answered question with no stored review (an imported or stale attempt) has no recall to keep: it is always at risk', () => {
+  // lib/sm2.js retrievabilityAt gives 0 without a review, so such a question never holds the target (the review of #922 asked for this pin).
+  const bare = { review: null, answered: true, solid: true, weak: false, focus: false };
+  const band = examDayBand([bare], at(3));
+  assert.equal(band.band, 'slip');
+  assert.deepEqual(band.atRisk.map(item => item.index), [0]);
+  assert.equal(examDayBand([bare, solidQuestion(), solidQuestion()], at(3)).band, 'solid', 'one bare question out of three does not tip a point');
+});
