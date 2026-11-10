@@ -45,12 +45,12 @@ A **True/False** question (判断题) is one statement the learner judges true o
 
 ### Course generation rules
 
-A course can keep up to 12 generation rules (出题守则) of its own, one sentence of at most 200 characters each. Every generation for that course carries them: knowledge extraction, answer preparation, writing and the independent review receive them in the same requirements brief as the other generation settings. With long sources the brief comes after the sources, so the cached part of the prompt does not change. A rule never overrides the evidence, the JSON protocol or the checks. Case papers do not take rules.
+A course can keep up to 12 generation rules (出题守则) of its own, one sentence of at most 200 characters each. Every generation for that course carries them: knowledge extraction, answer preparation, writing and the independent review receive them in the same requirements brief as the other generation settings. With sources longer than 4,000 characters the brief comes after the sources, so the cached part of the prompt does not change; with shorter sources the brief comes before them, so a change of rules also changes that short cached part. Questions written from a selected passage into a deck take the rules of that deck's course. A rule never overrides the evidence, the JSON protocol or the checks. Case papers do not take rules.
 
-- **See them before a run.** The zero-call requirements preview lists the course rules on a row of their own, and they count in the requirements the draft records.
+- **See them before a run.** The zero-call requirements preview lists the course rules on a row of their own, they count in the requirements the draft records, and the cost estimate before a run includes them.
 - **Add one while practising.** Type a sentence in the **Improve question** box, or pick tags on the 👎 tray, then press **Make it a course rule**. The confirmation names the course and shows the exact rules before anything is saved. A text that is already a rule, is longer than 200 characters, or would make a 13th rule is not added, and the confirmation says why.
 - **Change or delete them** in the course settings under **More settings › Generation rules**.
-- **Which rules a run takes.** The rules of the exact course the run is for, as they are when the run starts. A parent course does not pass its rules to a chapter.
+- **Which rules a run takes.** The rules of the exact course the run is for, as they are when the run starts. A parent course does not pass its rules to a chapter, and a chapter does not pass its rules to its parent: a rule added while practising a chapter's questions applies to runs for that chapter only.
 - **After a change**, the review of a draft reviewed under the old rules no longer counts, and the draft page says so. Reviewed publication reviews every question again against the rules as they are now. Quick publication asks no model, so it publishes those questions as **Not automatically reviewed**.
 
 ### Model calls
