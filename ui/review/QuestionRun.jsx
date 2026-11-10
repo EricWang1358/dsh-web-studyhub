@@ -589,7 +589,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 <FixPhraseChips phrases={fixPhrases.phrases} onPick={setAssistText} onRemove={fixPhrases.remove} />
               </>}
               <label className="assist-form__field">
-                {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : assistMode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : ui("这道题哪里不好？后台助教会直接改这张卡，可一步撤销")}
+                {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : assistMode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : ui("这道题哪里不好？后台助教会直接改这张卡，改完可在信箱里一步撤销")}
                 <textarea
                   className="assist-form__input"
                   autoFocus
@@ -608,7 +608,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                   disabled={!assistText.trim() && !(assistMode === "ask" && helpChoices.length)}>{ui("提交到后台")}</Button>
                 <Button size="sm" className="assist-actions__btn" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
               </div>
-              {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教；完成结果进信箱，做题和主会话可继续。")}</p>}
+              {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教。讲解会出现在这道题下面的问答里，完成时信箱会提醒你；做题和主会话可以继续。")}</p>}
             </form>
           )}
           {runningTask && (

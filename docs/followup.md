@@ -26,7 +26,7 @@ Under each saved Q&A:
 - **Make a prerequisite question** writes a new flashcard and links it as a prerequisite of this question.
 - **Make a separate question** writes a new flashcard on its own.
 
-A background assistant writes the flashcard into the same deck, and the result arrives in the **Inbox**. If the deck already has a question with the same prompt, StudyHub reuses it as the prerequisite, or does not save a duplicate. If the link would create a loop or pass the prerequisite limit, the new question is kept without the link.
+A background assistant writes the flashcard into the same deck, and the **Inbox** tells you when it is done. If the deck already has a question with the same prompt, StudyHub reuses it as the prerequisite, or does not save a duplicate. If the link would create a loop or pass the prerequisite limit, the new question is kept without the link.
 
 ## What follow-ups do not change
 
