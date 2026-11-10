@@ -19,7 +19,7 @@ export function citedPages(card, sources = []) {
   const seen = new Set(), found = [];
   for (const citation of usableCitations(card, sources)) {
     const { document } = citation.source;
-    if (!Number.isInteger(document?.page) || document.page < 1 || (document.format || 'pdf') !== 'pdf' || seen.has(citation.source.id)) continue;
+    if (!Number.isInteger(document?.page) || document.page < 1 || (citation.source.format || document.format || 'pdf') !== 'pdf' || seen.has(citation.source.id)) continue;
     seen.add(citation.source.id);
     found.push({ ...citationTarget(citation), page: document.page });
   }
@@ -28,8 +28,9 @@ export function citedPages(card, sources = []) {
 
 /**
  * The first cited page that has a figure while its material still has an original file: `{ source, quote, page }`, else null. Reads only what it needs:
- * nothing for a card with no cited page; one `materials.original.status` per material (asked before any text, so a material without an original costs
- * one call); one `source.get` per page until the first hit. A call that fails counts as "no" (the entry is a shortcut, never a gate).
+ * nothing for a card with no cited page; one `source.get` per page until the first hit; `materials.original.status` (which hashes the whole kept file)
+ * only for a page that does have a figure, once per material, so a native PDF, whose pages never hold a figure placeholder, never pays for it; once a
+ * material is known to have no original its other pages are not read. A call that fails counts as "no" (the entry is a shortcut, never a gate).
  * `call(name, params)` is the study context's.
  */
 export async function findFigurePage({ pages, call }) {
@@ -40,9 +41,10 @@ export async function findFigurePage({ pages, call }) {
     return originals.get(key);
   };
   for (const found of pages) {
-    if (!await hasOriginal(found.source)) continue;
+    const known = originals.get(materialOf(found.source));
+    if (known && !await known) continue;
     const read = await Promise.resolve().then(() => call('source.get', { id: found.source.id })).catch(() => null);
-    if (read && pageHasFigure(read.text)) return found;
+    if (read && pageHasFigure(read.text) && await hasOriginal(found.source)) return found;
   }
   return null;
 }

@@ -20,7 +20,7 @@ const bundle = await build({ stdin: { contents: `
   setUiLanguage('zh');
   const style = document.createElement('style'); style.textContent = css; document.head.append(style);
   window.calls = []; window.opened = [];
-  const page = (id, number) => ({ id, title: 'OS book', text: 'page ' + number, document: { id: 'doc', materialId: 'doc', page: number, totalPages: 3, format: 'pdf' } });
+  const page = (id, number) => ({ id, title: 'OS book', format: 'pdf', text: 'page ' + number, document: { id: 'doc', materialId: 'doc', page: number, totalPages: 3 } });
   const sources = [page('p1', 1), page('p2', 2), page('p3', 3), { id: 'notes', title: 'notes', text: 'plain notes' }];
   const texts = { p1: 'plain page', p2: 'Intro.\\n\\n[Figure]\\n\\nMore.', p3: 'As Figure 3 shows, [Figure] inside a sentence is only text.' };
   const call = async (name, params) => {
@@ -34,7 +34,8 @@ const bundle = await build({ stdin: { contents: `
     options: [{ id: 'a', correct: true, explanation: 'yes' }, { id: 'b', correct: false, explanation: 'no' }] });
   const root = createRoot(document.getElementById('root'));
   window.showQuestion = ({ citations, revealed = true, key = 'q' }) => {
-    const run = { id: key, index: 0, total: 1, mode: 'path', card, ...(revealed ? { revealed: true, feedback: { correct: true, selected: ['a'], level: 'learning' }, solution: solution(citations) } : {}) };
+    // Before the answer the card itself carries the citations, so an entry mounted outside the revealed-answer block would show (and read) here.
+    const run = { id: key, index: 0, total: 1, mode: 'path', card: revealed ? card : { ...card, citations, selections: [] }, ...(revealed ? { revealed: true, feedback: { correct: true, selected: ['a'], level: 'learning' }, solution: solution(citations) } : {}) };
     const { services, props } = reviewParts({ run, data: { sources }, call, setModal: modal => window.opened.push(modal) });
     root.render(<StudyServicesContext.Provider value={services}><div key={key} className="study-app"><QuestionRun {...props} /></div></StudyServicesContext.Provider>);
   };
@@ -94,7 +95,7 @@ test('after the answer, a cited page with a figure and an original gives one ent
   const entry = page.getByRole('button', { name: '看原页图' });
   await entry.waitFor();
   assert.equal(await entry.count(), 1);
-  assert.deepEqual(await names(page), ['materials.original.status', 'source.get', 'source.get'], 'one status for the material, then the pages up to the first with a figure');
+  assert.deepEqual(await names(page), ['source.get', 'source.get', 'materials.original.status'], 'the pages up to the first with a figure, then one status for the material');
   await entry.click();
   const modals = await page.evaluate(() => window.opened.map(modal => ({ type: modal.type, id: modal.source.id, quote: modal.quote, peekPage: modal.peekPage })));
   assert.deepEqual(modals, [{ type: 'source', id: 'p2', quote: 'quote of p2', peekPage: 2 }]);
@@ -110,12 +111,13 @@ test('no entry when the original is missing, when the page has no figure, or whe
   await page.evaluate(() => { window.originalStatus = 'missing'; window.showQuestion({ citations: [{ sourceId: 'p2', quote: 'q' }], key: 'missing' }); });
   await page.locator('.explanation').waitFor(); await settle(page);
   assert.equal(await entry.count(), 0, 'original missing');
-  assert.deepEqual(await names(page), ['materials.original.status'], 'the text of the page is not read without an original');
+  assert.deepEqual(await names(page), ['source.get', 'materials.original.status'], 'the page with a figure is read, the original is missing, and no other page is read');
 
   await reset();
   await page.evaluate(() => { window.originalStatus = 'ok'; window.showQuestion({ citations: [{ sourceId: 'p1', quote: 'q' }, { sourceId: 'p3', quote: 'q' }], key: 'plain' }); });
   await page.locator('.explanation').waitFor(); await settle(page);
   assert.equal(await entry.count(), 0, 'no figure on the cited pages (a sentence that mentions one is not a figure)');
+  assert.deepEqual(await names(page), ['source.get', 'source.get'], 'and the original (a whole-file hash) is not asked about at all');
 
   await reset();
   await page.evaluate(() => window.showQuestion({ citations: [], key: 'none' }));
