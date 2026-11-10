@@ -44,12 +44,27 @@ The library settings hold two optional numbers (设置 › 导入、计划与备
 
 - `request_retention`: target recall, 0.7–0.97, default 0.9;
 - `maximum_interval`: the most days between two reviews, 1–36500, default 36500.
+- `exam_alignment`: `false` switches exam alignment (below) off; absent or `true`, it is on.
 
 The SM-2 keys `minimum_ease_factor`, `initial_ease_factor`, `first_interval_days` and `second_interval_days` are ignored when a library is read and dropped on the next save.
 
 ## The stored review
 
 A review keeps the fields older code reads (`repetitions`, `interval_days`, `ease_factor`, `due_at`) and adds `algorithm: "fsrs-6"`, `stability`, `difficulty`, `reps`, `lapses`, `elapsed_days` and `last_review`. `ease_factor` is derived from difficulty only so that an older build reading the library after a downgrade can keep scheduling.
+
+## Exam alignment
+
+One function derives the settings a question is scheduled with (`lib/card-schedule.js` `cardScheduleSettings`): the library settings, the raised target recall of a focus question, and the exam date of the question's course (`exam.date` on the course record; a chapter course without its own date takes its parent course's). Every path that schedules a question uses it: a practice answer and the answer buttons' gaps, the mock exam, prerequisite credit, rubric grading, the oral mock and the sample library.
+
+When the course has an exam on a later local day than the answer and the gap FSRS gives reaches the exam day, the review is due from local 00:00 of the exam day (computed from the calendar date, so a daylight-saving change in between moves nothing), so the practice queue serves it before a daytime exam. An answer on the exam day itself, or after it, is scheduled as usual: there is no earlier day left. Nothing about the memory state changes:
+
+- `interval_days` stays the gap FSRS gave, so the mastery lines (`lib/mastery.js`) read the level the answer earned, the same with alignment on or off;
+- `due_at` is when the question really comes back;
+- `unaligned_due_at` keeps the due date FSRS gave; it is on the review only while the exam has moved `due_at` to an earlier day (a gap that ends exactly on the exam day only moves to 00:00 and writes none), and the next answer writes a review without it unless the exam moves that one too.
+
+The exam is never written as `maximum_interval`, which keeps meaning only the learner's own maximum. A library or a review without these fields reads as before.
+
+Questions already due after the exam do not come back by themselves, so a pass over the library (`lib/exam-alignment.js` `alignDueDates`) gives each a due date before it. It runs when a course write changes the exam a deck sits (`course.save` with a new, changed or cleared date, `course.merge`, `course.rename`), bringing forward only those decks' questions and returning `alignment: { pulled, restored }`; and when the learner switches it or presses 现在对齐 (`course.examAlignment.set`, the only write of `exam_alignment`, every course; the `settings` write refuses it). A library whose exam date was set before this existed is therefore on but not aligned until 现在对齐: Settings and the course's exam date say how many questions wait (`course.examAlignment.preview` `pending`). The questions are spread over the days left, from today to the day before the exam, the lowest recall now (`retrievabilityAt`) first, each due from the start of its day. Only `due_at` moves and the old one is kept in `unaligned_due_at`. Only answered questions are moved (a never-answered one is new, as the due forecast counts it), and not a suspended one, one in an archived deck or one in a parked course (parking never touches a schedule). The pass is idempotent: a question already due before its exam keeps its date; on the exam day nothing moves; a moved question whose exam was removed, switched off, is no longer its deck's, moved to on or after its own due date, or is over (the day after the exam) gets `unaligned_due_at` back as `due_at`. Nothing runs when the exam day passes: after the exam day new answers are scheduled as usual; questions that were brought forward and not answered stay due until they are answered or their dates are restored in Settings (`course.examAlignment.restore`, the same pass without bringing anything forward; any other pass restores them too). Moving a deck to another course (`deck.course`, `deck.move`, `deck.merge`, `deck.split`) does not run the pass. An SM-2 review moved this way still reads its last review from `unaligned_due_at − interval_days`.
 
 ## Moving from SM-2
 

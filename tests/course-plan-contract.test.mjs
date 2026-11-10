@@ -38,9 +38,10 @@ test('the assistant may read the plan and may save it (on request, with the lear
   assert.match(libraryContracts.learning, /course\.save [^.]*only on request/);
 });
 
-test('course.plan reads and writes no library field; course.save writes the courses', () => {
+test('course.plan reads and writes no library field; course.save writes the courses, and the decks for an exam date (#882)', () => {
   assert.deepEqual(writesFor('library', 'course.plan'), []);
-  assert.deepEqual(writesFor('library', 'course.save'), ['courses']);
+  // A new, changed or cleared exam date moves the stored due dates of the course's questions (lib/exam-alignment.js).
+  assert.deepEqual(writesFor('library', 'course.save'), ['courses', 'decks']);
 });
 
 test('the review book docs name 备考计划 and its relation to 期末一周, in both languages', () => {
