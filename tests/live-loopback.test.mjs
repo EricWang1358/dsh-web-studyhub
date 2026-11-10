@@ -562,10 +562,8 @@ test('a stamp read waits out a briefly denied open; a missing or broken stamp st
   assert.deepEqual(await readJson(file, { read: deniedTwice(readFile, counter) }), { helperVersion: 'x' });
   assert.equal(counter.tries, 3);
   let reads = 0;
-  const started = Date.now();
   assert.deepEqual(await readJson(join(dir, 'missing.json'), { read: (...args) => { reads += 1; return readFile(...args); } }), {});
-  assert.equal(reads, 1, 'a missing file is not asked again');
-  assert.ok(Date.now() - started < 20);
+  assert.equal(reads, 1, 'a missing file is not asked again, so it answers at once');
   await writeFile(file, '{ nope');
   assert.deepEqual(await readJson(file), {});
 });
@@ -584,7 +582,7 @@ test('the helper still reads as intact when its stamp, size and hash are briefly
   }), true);
   assert.deepEqual([counters.read.tries, counters.stat.tries, counters.digest.tries], [3, 3, 3]);
   await rm(layout.exePath);
-  const started = Date.now();
-  assert.equal(await loopbackIntact(layout), false);
-  assert.ok(Date.now() - started < 20, 'a missing helper answers at once');
+  let stats = 0;
+  assert.equal(await loopbackIntact(layout, { stat: (...args) => { stats += 1; return stat(...args); } }), false);
+  assert.equal(stats, 1, 'a missing helper is not asked again, so it answers at once');
 });

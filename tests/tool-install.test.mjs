@@ -231,3 +231,18 @@ test('while the replace stays denied, timer writes do not pile up behind the fin
   const settled = Date.now() - last;
   assert.ok(settled < 1000, `the final write waited ${settled} ms behind earlier timer writes (${attempts} replace attempts)`);
 });
+
+test('a log line pushed while a timer write is in flight still reaches the state file without another push', async t => {
+  const h = await toy(t);
+  let slow = false;
+  const slowOnce = async (from, to) => { if (slow) { slow = false; await wait(100); } await rename(from, to); };
+  let onDisk = '';
+  const stage = { id: 'one', mutating: false, run: async ctx => {
+    slow = true; ctx.push('first'); await wait(40); ctx.push('late'); await wait(400);
+    onDisk = JSON.parse(await readFile(h.stateFile, 'utf8')).lastLine;
+  } };
+  const installer = createToolInstaller({ ...h.spec, stages: [stage] }, { flushMs: 20, stateRename: slowOnce });
+  await installer.start({ confirm: true, location: h.location });
+  await installer.idle();
+  assert.equal(onDisk, 'late', 'the write that found one in flight is asked again when that one ends');
+});
