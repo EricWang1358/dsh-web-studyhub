@@ -113,6 +113,7 @@
  "tests/chat-ask-before-removing.test.mjs": 200,
  "tests/chem-text.test.mjs": 30,
  "tests/chemistry-balance.test.mjs": 30,
+ "tests/chunked-lists-browser.test.mjs": 45620,
  "tests/client-boundaries.test.mjs": 4740,
  "tests/client-bundle.test.mjs": 1590,
  "tests/cloze-formulas.test.mjs": 60,

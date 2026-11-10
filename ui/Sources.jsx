@@ -6,7 +6,7 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { Badge, Button, Checkbox, CheckboxInput, Dialog, Disclosure, Icon, InlineMessage, PageHeader, Tooltip, useToast } from "./components/index.js";
+import { Badge, Button, Checkbox, CheckboxInput, ChunkedRows, Dialog, Disclosure, Icon, InlineMessage, PageHeader, Tooltip, useToast } from "./components/index.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { displayTitle } from '../lib/document-title.js';
 import { bigDocuments } from '../lib/large-documents.js';
@@ -187,7 +187,8 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
   const chaptered = !!item.chapters?.length;
   useEffect(() => {
     if (!isNew || !row.current) return;
-    row.current.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    // In one scroll, not an animation: an open group above draws its next chunk whenever its end passes through the window, which would move the row being scrolled to.
+    row.current.scrollIntoView?.({ block: "center", behavior: "auto" });
     row.current.querySelector(".source-main")?.focus({ preventScroll: true });
   }, [isNew]);
   const corrections = source?.audio ? uiFormat("校对 {0} 处", [source.audio.corrections?.appliedCount ?? 0]) : "";
@@ -482,6 +483,11 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     offerCache.current = next;
     return next;
   }, [items, data.courses, showArchived]);
+  // A group draws its rows in chunks (ChunkedRows); the rows something goes to are drawn even past the first chunk: the new import, and the 深度定制 button 找功能 looks for.
+  // A new course scope or the archive starts every group from its first chunk again.
+  const chunkKey = `${scope}|${showArchived}`;
+  const rowOf = (rows, keys) => rows.findIndex(item => keys.has(item.key));
+  const anchorsOf = rows => ({ 'custom-book-row': rowOf(rows, offers) });
   // One row, in a day group or in the pinned group (`pin`: where it stands among the pinned rows).
   const renderRow = (item, pin = {}) => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])}
     isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} actions={actions}
@@ -584,7 +590,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
               <strong>{ui("已置顶")}</strong>
               <small className="muted">{uiFormat("{0} 份 · {1} 字符", [pinned.length, formatNumber(pinned.reduce((n, item) => n + item.chars, 0))])}</small>
             </GroupHead>
-            {pinnedOpen && pinned.map((item, at) => renderRow(item, { pinned: true, first: at === 0, last: at === pinned.length - 1 }))}
+            {pinnedOpen && <ChunkedRows items={pinned} resetKey={chunkKey} reveal={rowOf(pinned, fresh)} anchors={anchorsOf(pinned)}
+              render={(item, at) => renderRow(item, { pinned: true, first: at === 0, last: at === pinned.length - 1 })} />}
           </div>}
           {groups.map((g) => {
             const expanded = isOpen(g);
@@ -595,7 +602,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                   {g.inferred && <Badge size="sm" title={ui("这些资料保存时没有记录日期，按最早引用它们的题组推断")}>{ui("推断")}</Badge>}
                   <small className="muted">{uiFormat("{0} 份 · {1} 字符", [g.rows.length, formatNumber(g.chars)])}</small>
                 </GroupHead>
-                {expanded && g.rows.map(item => renderRow(item))}
+                {expanded && <ChunkedRows items={g.rows} resetKey={chunkKey} reveal={rowOf(g.rows, fresh)} anchors={anchorsOf(g.rows)} render={item => renderRow(item)} />}
               </div>
             );
           })}
