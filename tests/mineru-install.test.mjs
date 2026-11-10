@@ -416,6 +416,16 @@ test('#936: a permission failure names the settings folder only when the denied 
   assert.doesNotMatch(localizeAppMessage(config.message, 'en'), /[㐀-鿿]/);
 });
 
+test('#942 M2: during an install, a home path printed beside a denial elsewhere is not a settings-folder failure; a full disk is still no-space', async () => {
+  const { explainMineruFailure } = await import('../lib/mineru-install.js');
+  const folder = 'D:\\StudyHub\\MinerU', py = path => path.replace(/\\/g, '\\\\');
+  const venvDenied = `see D:\\StudyHub\\MinerU\\home\\logs\\doclib.stderr.log\n[WinError 5] Access is denied: '${py('D:\\StudyHub\\MinerU\\venv\\Lib\\site-packages\\torch\\lib\\c10.dll')}'`;
+  assert.equal(explainMineruFailure('enable', venvDenied, { folder, platform: 'win32' }).code, 'not-writable');
+  const configMentioned = `Loading config from D:\\StudyHub\\MinerU\\home\\config.yaml\nPermissionError: [Errno 13] Permission denied: '${py('D:\\StudyHub\\MinerU\\venv\\Lib\\x.pyd')}'`;
+  assert.equal(explainMineruFailure('package', configMentioned, { folder, platform: 'win32' }).code, 'not-writable');
+  assert.equal(explainMineruFailure('models', `OSError: [Errno 28] No space left on device: '${py('D:\\StudyHub\\MinerU\\home\\models\\a.onnx')}'`, { folder, platform: 'win32' }).code, 'no-space');
+});
+
 test('enable stage: the failure code comes from what this start printed and wrote to the error logs, not from older lines or the general doclib.log', async t => {
   const h = await installHarness(t, { mineru: { startSilentFail: true }, extra: { checkPauseMs: 10, startPollTries: 5 } });
   const installer = createMineruInstaller(h.seams), logs = join(mineruLayout(h.location).home, 'logs');

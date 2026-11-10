@@ -13,6 +13,8 @@ const INSTALL_ENDED = ['failed', 'cancelled', 'interrupted'];
 /** An install the learner stopped (取消) or that StudyHub's restart stopped: a pause, not a failure. */
 const INSTALL_PAUSED = ['cancelled', 'interrupted'];
 const ourInstall = local => local?.origin === 'installed';
+/** A MinerU StudyHub did not install (MINERU_BIN, PATH): its folders are its own, StudyHub changes nothing in them. */
+const theirs = local => local?.origin === 'env' || local?.origin === 'search';
 
 /**
  * The card's state from mineru.local.status (null while it is read): checking, not-installed, installing, paused (with `code` cancelled or
@@ -51,10 +53,15 @@ const SERVICE_REASON = {
   'port-in-use': local => (local?.external ? ui('本机服务没能启动：另一份 MinerU 占用了它要用的端口。') : ui('本机服务没能启动：它要用的端口被别的程序占用了。')),
   'vc-runtime': () => ui('本机服务没能启动：这台电脑缺少微软 VC++ 运行库。'),
   'not-writable': () => ui('本机服务没能启动：配置文件夹的权限不符合要求，或没有写入权限。'),
-  // A file of the settings folder (the backend names it when MinerU said which): the location is fine, the files' permissions are repaired in place.
-  'home-permissions': local => (local?.lastError?.file
-    ? uiFormat('本机服务没能启动：MinerU 读不了配置文件夹里的 {0}。安装位置没问题，不用换位置。', [local.lastError.file])
-    : ui('本机服务没能启动：MinerU 读不了配置文件夹里的文件，或认为它们不够私有。安装位置没问题，不用换位置。')),
+  // A file of the settings folder (the backend names it when MinerU said which): the location is fine, the files' permissions are repaired in place. Another
+  // MinerU's settings folder is its own: no StudyHub location to speak of, and StudyHub changes nothing there.
+  'home-permissions': local => (theirs(local)
+    ? (local?.lastError?.file
+      ? uiFormat('本机服务没能启动：这份 MinerU 读不了 {0}，那是它自己的配置文件夹里的文件。StudyHub 不改不是它创建的文件夹的权限。', [local.lastError.file])
+      : ui('本机服务没能启动：这份 MinerU 读不了它自己的配置文件夹里的文件，或认为它们不够私有。StudyHub 不改不是它创建的文件夹的权限。'))
+    : local?.lastError?.file
+      ? uiFormat('本机服务没能启动：MinerU 读不了配置文件夹里的 {0}。安装位置没问题，不用换位置。', [local.lastError.file])
+      : ui('本机服务没能启动：MinerU 读不了配置文件夹里的文件，或认为它们不够私有。安装位置没问题，不用换位置。')),
   'service-timeout': () => ui('本机服务没能启动：等了很久它还没有准备好。'),
   'models-missing': () => ui('本机服务没能启动：模型文件不完整。'),
   'service-failed': () => ui('本机服务没能启动：它一启动就退出了。'),
@@ -112,10 +119,12 @@ const HINT = {
   'service-failed': ({ origin = '' } = {}) => (origin === 'install' ? ui('点「修复」会重新启用本机服务，已装好的步骤不会重做。') : ''),
   'service-timeout': () => ui('电脑较慢时第一次启动可能要几分钟，可以再试一次。'),
   unreadable: () => ui('它可能正忙或刚启动，过一会儿再检测。'),
-  // Inside an install the repair continues it (the service's own line already says the location is fine and the button says the rest).
-  'home-permissions': ({ origin = '' } = {}) => (origin === 'install' ? ui('点「修复权限」会修好这些文件的权限，再从停下的那一步接着装；已下载的不会重下。') : ''),
+  // Inside an install the repair continues it (the service's own line already says the location is fine and the button says the rest). Another MinerU's
+  // folder is not StudyHub's to repair: a restart, then the hand-off.
+  'home-permissions': ({ origin = '', ours = true } = {}) => (origin === 'install' ? ui('点「修复权限」会修好这些文件的权限，再从停下的那一步接着装；已下载的不会重下。')
+    : !ours ? ui('可以先点「重新启动服务」再试；还是不行就点「发给主会话」。') : ''),
 };
-/** context: { attempts, source, external, origin } of the failure, for the hints that depend on them. '' when there is nothing to add. */
+/** context: { attempts, source, external, origin, ours } of the failure, for the hints that depend on them. '' when there is nothing to add. */
 export const errorHint = (code, context) => HINT[code]?.(context) || '';
 
 /** The one fix button of each failure code (id is what the card does). */
@@ -139,14 +148,16 @@ export const otherSourceId = id => (id === 'global' ? 'mainland' : 'global');
  * steps are skipped; 启用本机服务 and 检查 run again), after stopping the other MinerU when there is one.
  * Permissions (#936): a file of the settings folder is repaired where it is (修复权限: the install continues, and every install step and every service start
  * repairs the folder's files first; 修复权限并重启: a service restart). A service refused for its folder's permissions repairs first too, with 换位置 as a
- * quiet `secondary`; a location an install cannot write keeps 换位置.
+ * quiet `secondary`; a location an install cannot write keeps 换位置. `ours` false (a MinerU StudyHub did not install): StudyHub never changes permissions in a
+ * folder it did not create and has no location there to move, so a permission failure of its service is a plain restart (the card adds the hand-off).
  */
-export function fixFor(code, { attempts = 1, external = false, source = 'mainland', origin = '' } = {}) {
+export function fixFor(code, { attempts = 1, external = false, source = 'mainland', origin = '', ours = true } = {}) {
   let id = FIX_FOR[code] || 'repair';
   if (id === 'retry' && attempts >= 2) id = 'switch-source';
   if (id === 'stop-external' && !external) id = 'restart-service';
   if (id === 'restart-service' && origin === 'install') id = 'repair';
   if (code === 'not-writable' && origin === 'service') id = 'repair-permissions';
+  if (!ours && origin === 'service' && (code === 'not-writable' || code === 'home-permissions')) id = 'restart-service';
   switch (id) {
     case 'repair-permissions': return { id, label: origin === 'service' ? ui('修复权限并重启') : ui('修复权限'), icon: 'key',
       tip: code === 'not-writable' ? ui('把配置文件夹和里面文件的权限改回只有你自己能用，再重新启动本机服务；还是不行再换位置。')

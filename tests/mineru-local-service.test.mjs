@@ -110,6 +110,20 @@ test('starting the stopped service is an explicit step; its failure is a plain m
   assert.match(english, /could not start/);
 });
 
+test('#942 M1: a MinerU StudyHub did not install that cannot read its own settings: the start says so without a word about StudyHub\'s location, and StudyHub changes no permission there', async t => {
+  const h = await harness(t, { state: { running: false, startSilentFail: true } });
+  await h.set({ serverLogError: `PermissionError: [Errno 13] Permission denied: '${join(h.work, 'config.yaml').replace(/\\/g, '\\\\')}'` });
+  const failure = await h.call('mineru.local.start', {}).catch(error => error);
+  assert.ok(failure instanceof Error);
+  assert.doesNotMatch(failure.message, /安装位置/, 'there is no StudyHub location to talk about');
+  assert.match(failure.message, /它自己的配置文件夹/);
+  const status = await h.call('mineru.local.status', { fresh: true });
+  assert.deepEqual([status.lastError.code, status.lastError.file], ['home-permissions', 'config.yaml'], 'the code and the file stay: the card words them for another MinerU');
+  assert.match(status.lastError.detail, /left the permissions of .* as they are/, 'the folder is not StudyHub\'s: nothing was changed there');
+  const english = await h.call('mineru.local.start', { uiLanguage: 'en' }).catch(error => error.message);
+  assert.doesNotMatch(english, han);
+});
+
 /* ---------- converting ---------- */
 
 test('a 120-page PDF is parsed locally in windows of 50 pages as one job, with nothing uploaded and no token', async t => {

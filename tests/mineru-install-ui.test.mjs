@@ -729,7 +729,66 @@ test('#936–#938 in English: the repair, the notes, the change of tier and ever
   } finally { mod.setUiLanguage('zh'); }
   // The dialogs and the ⋯ button's own words.
   const english = JSON.parse(readFileSync(new URL('../ui/locales/en.mineru-install.json', import.meta.url), 'utf8'));
-  for (const key of ['卸载后重装本机 MinerU？', '其他办法', '其他办法：旁边的按钮不管用时，这里还有别的路。', '改装 {0} 档',
-    '会先停止本机服务并卸载 StudyHub 在 {0} 里装的 MinerU，再在同一个位置用 {1} 档重新安装。程序、Python 和模型都要重新下载。已经转换好的资料不受影响。'])
+  for (const key of ['卸载后重装本机 MinerU？', '其他办法', '其他办法：旁边的按钮不管用时，这里还有别的路。', '改装 {0} 档', '（约 {0}）', REINSTALL_SENTENCE])
     assert.doesNotMatch(english[key] || '中', han, key);
+});
+
+const REINSTALL_SENTENCE = '会先停止本机服务并卸载 StudyHub 在 {0} 里装的 MinerU，再在同一个位置用 {1} 档重新安装（那里如果还留着不是 StudyHub 创建的文件，会装进里面新建的「StudyHub-MinerU」文件夹）。程序、Python 和模型都要重新下载，磁盘上要留出和新装一样多的空间{2}。已经转换好的资料不受影响。';
+
+/* ---------- #942 review: another MinerU is not StudyHub's to repair; the reinstall says what it costs; the labels the hand-off prompt names ---------- */
+
+const otherHome = { state: 'server-stopped', origin: 'search', exe: 'C:\\Users\\lee\\.local\\bin\\mineru.exe', install: idle, external: null, version: '4.0.10',
+  lastError: { code: 'home-permissions', file: 'config.yaml', message: '本机服务没能启动：这份 MinerU 读不了它自己的配置文件夹里的文件，或认为它们不够私有。StudyHub 不改不是它创建的文件夹的权限。', at: '2026-11-10T00:00:00Z' } };
+
+test('#942 M1: a MinerU StudyHub did not install is never offered 修复权限: its fix is a plain restart and the hand-off, and its line names the file in that MinerU\'s own settings folder (no 安装位置)', async t => {
+  assert.equal(fixFor('home-permissions', { origin: 'service', ours: false }).id, 'restart-service');
+  const writable = fixFor('not-writable', { origin: 'service', ours: false });
+  assert.deepEqual([writable.id, writable.secondary], ['restart-service', undefined], 'not 换位置 either: there is no StudyHub location to move');
+  assert.equal(fixFor('home-permissions', { origin: 'service' }).id, 'repair-permissions', 'StudyHub\'s own install still repairs');
+  assert.match(errorHint('home-permissions', { origin: 'service', ours: false }), /重新启动服务.*「发给主会话」/);
+  const html = render({ initialLocal: otherHome });
+  assert.equal(sentenceOf(html), '本机服务没能启动：这份 MinerU 读不了 config.yaml，那是它自己的配置文件夹里的文件。StudyHub 不改不是它创建的文件夹的权限。');
+  assert.doesNotMatch(textOf(html), /安装位置|修复权限/);
+  assert.equal(primaries(html), 1);
+  assert.match(html, /sh-btn--primary[^>]*>(?:(?!<\/button>).)*重新启动服务/s);
+  assert.match(html, /data-hand-off="setup\.failed"/);
+  assert.equal((html.match(/aria-haspopup="menu"/g) || []).length, 0, 'nothing of StudyHub\'s to uninstall or change');
+  const bare = render({ initialLocal: { ...otherHome, lastError: { ...otherHome.lastError, file: '' } } });
+  assert.equal(sentenceOf(bare), '本机服务没能启动：这份 MinerU 读不了它自己的配置文件夹里的文件，或认为它们不够私有。StudyHub 不改不是它创建的文件夹的权限。');
+  assert.doesNotMatch(textOf(render({ initialLocal: otherHome }, 'en')), han);
+  const [restarted] = await pressFix(t, otherHome, '重新启动服务');
+  assert.deepEqual(restarted, { action: 'mineru.local.start', args: { restart: true } });
+});
+
+test('#942 L5: StudyHub\'s own unfinished install keeps its ⋯ menu when another MinerU is also found (the failure is the install\'s)', () => {
+  const both = { state: 'server-stopped', origin: 'search', exe: 'C:\\Users\\lee\\.local\\bin\\mineru.exe', install: ended('failed', 'models-failed', 'models', { tier: 'standard' }), lastError: null, external: null };
+  assert.deepEqual(cardState(both), { state: 'error', code: 'models-failed', origin: 'install' });
+  assert.equal((render({ initialLocal: both }).match(/aria-haspopup="menu"/g) || []).length, 1);
+});
+
+test('#942 L5: 卸载后重装 says it downloads everything again and needs the room of a new install, and where it lands when the folder keeps files StudyHub did not create', async t => {
+  const status = { state: 'server-stopped', origin: 'installed', folder: FOLDER, install: { ...complete, tier: 'standard', installedTier: 'standard' }, external: null,
+    lastError: { code: 'service-failed', message: '本机服务没能启动：它一启动就退出了。', at: '2026-11-10T00:00:00Z' } };
+  const withTiers = plan({ tiers: [{ id: 'basic', modelsMb: 800, neededMb: 2500 }, { id: 'standard', modelsMb: 2000, neededMb: 4000 }] });
+  const saved = globalThis.document;
+  globalThis.document = { hidden: false, addEventListener() {}, removeEventListener() {} };
+  t.after(() => { if (saved === undefined) delete globalThis.document; else globalThis.document = saved; });
+  const card = await mount({ call: async action => (action === 'mineru.install.plan' ? withTiers : action === 'mineru.local.status' ? status : {}), initialLocal: status, initialPlan: withTiers });
+  t.after(() => card.close());
+  card.render(); await flush();
+  find(card.render(), item => Array.isArray(item.props?.items) && typeof item.props?.onSelect === 'function').props.onSelect('reinstall');
+  const dialog = find(card.render(), item => typeof item.props?.onConfirm === 'function');
+  const said = textOf(renderToStaticMarkup(h('div', null, dialog.props.children)));
+  assert.match(said, /都要重新下载，磁盘上要留出和新装一样多的空间（约 3\.9 GB）/);
+  assert.match(said, /不是 StudyHub 创建的文件，会装进里面新建的「StudyHub-MinerU」文件夹/);
+});
+
+test('#940 pins these labels: the hand-off prompt tells the chat to have the learner press exactly 「修复权限」 / 「修复权限并重启」 (Repair permissions / Repair permissions and restart)', () => {
+  assert.equal(fixFor('home-permissions', { origin: 'install' }).label, '修复权限');
+  assert.equal(fixFor('home-permissions', { origin: 'service' }).label, '修复权限并重启');
+  mod.setUiLanguage('en');
+  try {
+    assert.equal(fixFor('home-permissions', { origin: 'install' }).label, 'Repair permissions');
+    assert.equal(fixFor('home-permissions', { origin: 'service' }).label, 'Repair permissions and restart');
+  } finally { mod.setUiLanguage('zh'); }
 });

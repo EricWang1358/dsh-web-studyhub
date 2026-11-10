@@ -132,6 +132,7 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
     toast.success(uiFormat('已卸载，删除了 {0} 里 StudyHub 创建的内容。', [(result?.removedFolders || [installedFolder]).filter(Boolean).join('、')]));
   };
   // 卸载后重装 (#938): the place and the tier are read before the uninstall forgets them; an uninstall that fails throws (the dialog says why) and nothing starts.
+  const reinstallMb = plan?.tiers?.find(each => each.id === fixTier)?.neededMb || 0;
   const reinstall = async () => {
     const where = installedFolder || fixFolder(), keep = fixTier;
     await remove();
@@ -153,11 +154,13 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
       default: return start({ location: fixFolder() });
     }
   };
-  const failure = shown.state === 'error' ? { context: { attempts: install?.attempts || 1, source: install?.source?.id || plan?.source?.id, external: !!view?.external, origin: shown.origin } } : null;
+  // `ours`: the failure is StudyHub's own install's (its unfinished install, or the MinerU it installed); another MinerU's folders are never changed (#942 M1).
+  const ours = shown.origin === 'install' || !view?.origin || view.origin === 'installed';
+  const failure = shown.state === 'error' ? { context: { attempts: install?.attempts || 1, source: install?.source?.id || plan?.source?.id, external: !!view?.external, origin: shown.origin, ours } } : null;
   if (failure) failure.action = fixFor(shown.code, failure.context);
 
   /* The ⋯ menu beside the one fix (#938), and how often that fix was pressed while the same failure came back (a note under it after one or two). */
-  const menuItems = fixMenu({ shown, install, installed, ours: !view?.origin || view.origin === 'installed', tierInHand: fixTier, action: failure?.action, compact });
+  const menuItems = fixMenu({ shown, install, installed, ours, tierInHand: fixTier, action: failure?.action, compact });
   const tryKey = failure ? `${shown.code}:${shown.origin}:${failure.action.id}` : '';
   const pressFix = fixAction => { setTries(prev => ({ key: tryKey, n: prev.key === tryKey ? prev.n + 1 : 1 })); return fix(fixAction); };
   const failedTimes = tryKey && tries.key === tryKey && !working ? tries.n : 0;
@@ -378,8 +381,10 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
       <p>{uiFormat('会先停止本机服务，再删除 StudyHub 在 {0} 里创建的程序、Python 和模型。这个文件夹里不是 StudyHub 创建的文件不会被动。已经转换好的资料不受影响。', [installedFolder || install?.folder || ''])}</p>
     </ConfirmDialog>}
     {asking === 'reinstall' && <ConfirmDialog title={ui('卸载后重装本机 MinerU？')} confirmLabel={ui('卸载后重装')} onConfirm={reinstall} onClose={() => setAsking('')}>
-      <p>{uiFormat('会先停止本机服务并卸载 StudyHub 在 {0} 里装的 MinerU，再在同一个位置用 {1} 档重新安装。程序、Python 和模型都要重新下载。已经转换好的资料不受影响。',
-        [installedFolder || install?.folder || '', fixTier])}</p>
+      {/* The install goes where a new one would (lib/tool-install.js resolveInstallFolder: a folder still holding files StudyHub did not create gets a
+          StudyHub-MinerU folder inside it), and needs the room of a new one: everything is downloaded again. */}
+      <p>{uiFormat('会先停止本机服务并卸载 StudyHub 在 {0} 里装的 MinerU，再在同一个位置用 {1} 档重新安装（那里如果还留着不是 StudyHub 创建的文件，会装进里面新建的「StudyHub-MinerU」文件夹）。程序、Python 和模型都要重新下载，磁盘上要留出和新装一样多的空间{2}。已经转换好的资料不受影响。',
+        [installedFolder || install?.folder || '', fixTier, reinstallMb ? uiFormat('（约 {0}）', [sizeLabel(reinstallMb)]) : ''])}</p>
     </ConfirmDialog>}
     {logOpen && <Dialog size="lg" title={ui('安装日志')} onClose={() => setLogOpen(false)}>
       <pre className="mineru-install__pre"><code translate="no">{(install?.log || []).slice(-200).join('\n') || ui('还没有安装记录。')}</code></pre>
