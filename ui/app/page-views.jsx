@@ -42,6 +42,7 @@ import { RecoveryBanner } from './AppBanners.jsx';
 import { formatDateTime } from '../format.js';
 import { appendFocus } from '../generate-form.js';
 import { retryForm, retryNotice } from './retry-generation.js';
+import { practiseRound } from './practise-round.js';
 
 /* One adapter per page: the registry (ui/pages.js) names the page, this file maps it to the component and says which of the app's
    state and verbs the component is given. A page owned by someone else keeps its props; the adapter is the only place that knows them. */
@@ -64,8 +65,7 @@ function LibraryView() {
       const { practice } = await core.call('course.outline', { course, pick: { keys: [point.key] } });
       const scope = practice?.scope.slice(0, 5) || [];
       if (!scope.length) { notify(ui('这个知识点还没有题。先到「创建题组」从资料出题。')); return; }
-      const origin = learn.captureContext();
-      intents.practice(scope, { fresh: false, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
+      practiseRound({ intents, learn, session }, scope);
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   };
   const startMock = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };

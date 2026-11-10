@@ -57,6 +57,13 @@ export const pointMeta = point => joinMeta([
   point.pitfalls ? uiFormat('{0} 条易错点', [point.pitfalls]) : '',
 ]);
 
+/** A crunch point's exam-day band (#894, lib/exam-day-band.js) in one word; '' for a point without one (no exam date ahead, nothing answered yet). */
+export const examBandText = band => (band === 'solid' ? ui('到考试日仍稳') : band === 'slip' ? ui('到考试日会掉') : band === 'weak' ? ui('已经不稳') : '');
+/** What the three bands mean and what they rest on (a projection with no further review; never a percentage). */
+export const examBandHelp = () => ui('按不再复习推算到考试日（照复习排期的记忆曲线）：「到考试日仍稳」今天稳，不再复习到考试日也还稳；「到考试日会掉」今天稳，到考试日会忘到不稳；「已经不稳」今天就还没稳。');
+/** The tone of a band's word: 会掉 is the news and stands out; 已经不稳 stays quiet, the row's own 「N 题薄弱」 already says it. */
+export const EXAM_BAND_TONE = Object.freeze({ solid: 'success', slip: 'warning', weak: 'neutral' });
+
 /** One 易错点 of a point (lib/book-flip.js): what was asked, an answer card's pitfall, what was explained. */
 export const mistakeText = item => uiFormat(item.kind === 'asked' ? '问过：{0}' : item.kind === 'explained' ? '弄懂：{0}' : '易错：{0}', [item.text]);
 
