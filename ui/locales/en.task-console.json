@@ -54,7 +54,7 @@
   "✓ 已存为默认": "✓ Saved as default",
   "改动从下一次调用生效": "Changes apply from the next call",
   "模型和推理档位会明显改变用量。": "Model and reasoning level change the usage a lot.",
-  "出题前的估算只在任务开始时按典型用量算一次，不随推理档位变化；只有这台电脑以前跑完足够多的任务后，才会按实际用量校正。推理档位调高，或换成想得更多的模型，会多写 token（算作输出），实际用量可能超出估算，包括它的上限。在这里做的改动从下一次调用生效，不会重新估算。": "The estimate is made once, when the task starts, from typical usage. It does not change with the reasoning level; it is corrected by the real usage of earlier tasks only after this computer has finished enough of them. A higher level, or a model that thinks more, writes more tokens (counted as output), so the real usage can end above the estimate, even above its upper end. A change made here applies from the next call and does not redo the estimate.",
+  "出题前的估算只在任务开始时按典型用量算一次，不随推理档位变化；有了足够多跑完的任务记录后，才会按实测修正。推理档位调高，或换成想得更多的模型，会多写 token（算作输出），实际用量可能超出估算，包括它的上限。在这里做的改动从下一次调用生效，不会重新估算。": "The estimate is made once, when the task starts, from typical usage. It does not change with the reasoning level; it is corrected by measured usage only once enough finished tasks have been recorded. A higher level, or a model that thinks more, writes more tokens (counted as output), so the real usage can end above the estimate, even above its upper end. A change made here applies from the next call and does not redo the estimate.",
   "已继续": "Resumed",
   "{0} → {1}": "{0} → {1}",
   "✓ 已生效 · {0}": "✓ Applied · {0}",

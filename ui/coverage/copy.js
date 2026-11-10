@@ -275,7 +275,7 @@ export function projectionText(projection) {
 
 /**
  * What is left of a running run, from `runForecast` (lib/coverage-run.js), with the basis said: 「预计还要约 2.7M tok（按已跑的进度估算）」, or, before this run has a pace of its own, the upper end of what was
- * priced before the run: 「预计最多还要约 3.3M tok（出题前估的上限）」; when the two differ by more than a quarter both are said: 「… · 出题前估最多 4.8M tok」 (the same upper end, either way). '' when nothing may be said.
+ * priced before the run: 「预计最多还要约 3.3M tok（出题前估的上限）」; when the run is heading more than a quarter ABOVE that upper end both are said: 「… · 出题前估最多 4.8M tok」 (below it, the one number alone). '' when nothing may be said.
  */
 export function forecastText(forecast) {
   const tokens = forecast?.tokens;

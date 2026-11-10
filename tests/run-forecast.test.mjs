@@ -60,7 +60,7 @@ test('a run that costs far more than was said shows both: the live number and th
   assert.deepEqual(dear.tokens, { used: 2_400_000, left: 5_300_000, total: 7_700_000 });
   assert.equal(dear.preRun, 4_800_000, 'the upper end, not the 3.9M middle');
   const cheap = runForecast(base({ tokens: 400_000, kept: 24, elapsedMs: 20 * MIN }));
-  assert.equal(cheap.preRun, 4_800_000, 'cheaper than the upper end by more than a quarter: the same, and it is good news');
+  assert.equal(cheap.preRun, null, 'cheaper than the upper end, even by far: ONE number (the owner does not want two); the upper end is shown beside a number only when the run is heading above it (#943)');
 });
 
 test('no junk: nothing is made of zero progress, zero time, a missing goal, numbers that are not numbers, or more used than was ever estimated', () => {

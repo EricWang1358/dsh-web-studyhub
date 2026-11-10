@@ -129,8 +129,18 @@ test('the number the card takes from the estimate made before the run is the UPP
   const facts = (tokens) => runFacts({ rounds, run: { autoComplete: true, state: 'running', ...(tokens ? { estimate: { tokens } } : {}) }, percent: 0 });
   assert.equal(facts({ low: 2, high: 10 }).estimateTokens, 10, 'low 2, high 10: 10, not the middle 6');
   const fresh = facts({ low: 2, high: 10 });
-  assert.deepEqual(fresh.projection, { tokens: 10, minutes: null, basis: 'estimate' }, 'the home row and the draft page read the projection: the same upper end as the console (estimateTokens)');
+  assert.deepEqual(fresh.projection, { tokens: 10, minutes: null, basis: 'estimate' }, 'nothing used yet: the whole upper end is what is left, at most');
   assert.equal(fresh.estimateTokens, 10);
+  // The same fact, one number (#943 F2): with tokens already used, what is LEFT is the upper end less what was used on the home row and the draft page (the projection) as on the console.
+  const spent = (tokensUsed) => runFacts({ rounds, run: { autoComplete: true, state: 'running', tokensUsed, estimate: { tokens: { low: 1_000_000, high: 4_800_000 } } }, percent: 0 });
+  assert.deepEqual(spent(1_500_000).projection, { tokens: 3_300_000, minutes: null, basis: 'estimate' }, 'upper end 4.8M less the 1.5M used');
+  assert.equal(spent(1_500_000).estimateTokens, 4_800_000, 'the whole upper end stays what the console sets against what was used');
+  assert.equal(spent(4_800_000).projection, null, 'all of the upper end used: nothing is left to say');
+  assert.equal(spent(6_000_000).projection, null, 'more than the upper end used: no number rather than a wrong one');
+  const home = m.copy.runLine(spent(1_500_000)), onConsole = runForecast({ phase: 'running', projection: spent(1_500_000).projection, estimate: spent(1_500_000).estimateTokens, tokens: 1_500_000, kept: 0, goal: 77, base: 0, left: 77 });
+  assert.match(home, /已用 1\.5M tok · 预计最多还要约 3\.3M tok（出题前估的上限）/, 'the home row and the draft page');
+  assert.equal(m.copy.forecastText(onConsole), '预计最多还要约 3.3M tok（出题前估的上限）', 'the console says the same number in the same words');
+  assert.equal(m.copy.forecastMath(onConsole), '已用 1.5M + 最多还要约 3.3M ≈ 最多共约 4.8M tok');
   assert.equal(facts({ low: 7, high: 7 }).estimateTokens, 7, 'a range of one point is that point');
   assert.equal(facts(undefined).estimateTokens, null, 'no estimate: nothing');
   assert.equal(facts({ low: 0, high: 0 }).estimateTokens, null, 'an empty range (high 0): nothing');
@@ -140,7 +150,7 @@ test('the number the card takes from the estimate made before the run is the UPP
   assert.deepEqual(upper.tokens, { used: 4, left: 6, total: 10 }, 'what is left, at most, is the upper end less what was used');
 });
 
-test('before the by-progress number starts, a run that has already used more than the upper end says no number rather than a wrong one; once it has a pace the pre-run figure is shown beside it in both directions', () => {
+test('before the by-progress number starts, a run that has already used more than the upper end says no number rather than a wrong one; once it has a pace the upper end is shown beside the number only when the run is heading ABOVE it', () => {
   const base = { phase: 'running', estimate: 1_000_000, goal: 80, base: 0, left: 60 };
   const spent = runForecast({ ...base, tokens: 1_200_000, kept: 5, elapsedMs: 5 * 60_000 });
   assert.equal(spent.tokens, null, 'past the upper end with no pace: nothing is said (as it was past the middle)');
@@ -148,13 +158,19 @@ test('before the by-progress number starts, a run that has already used more tha
   assert.equal(spent.preRun, null);
   const over = runForecast({ ...base, tokens: 1_200_000, kept: 20, goal: 80, left: 60, elapsedMs: 20 * 60_000 });
   assert.equal(over.basis, 'live');
-  assert.equal(over.preRun, 1_000_000, 'on its way ABOVE the upper end: the upper end is shown beside the number');
+  assert.equal(over.preRun, 1_000_000, 'on its way ABOVE the upper end by more than a quarter (3.6M + 1.2M against 1M): the upper end is shown beside the number');
   const under = runForecast({ ...base, tokens: 100_000, kept: 20, elapsedMs: 20 * 60_000 });
   assert.equal(under.basis, 'live');
-  assert.equal(under.preRun, 1_000_000, 'on its way far BELOW the upper end: shown too, and it still reads as a ceiling');
+  assert.equal(under.preRun, null, 'on its way far BELOW the upper end: one number only (the owner: not two numbers)');
+  // the three cases that matter, with a pace of 100 000 a question (24 kept of 77, 2.4M used: the whole is 7.7M): 0.6 x the upper end, exactly the upper end, 2 x the upper end
+  const pace = (upper) => runForecast({ phase: 'running', estimate: upper, tokens: 2_400_000, kept: 24, goal: 77, base: 0, left: 53, elapsedMs: 20 * 60_000 });
+  assert.equal(pace(12_833_333).preRun, null, 'the whole (7.7M) is 0.6 x the upper end: the common run, one number');
+  assert.equal(pace(7_700_000).preRun, null, 'exactly the upper end: one number');
+  assert.equal(pace(7_700_000 / 1.25).preRun, null, 'above it by exactly a quarter: not MORE than a quarter');
+  assert.equal(pace(3_850_000).preRun, 3_900_000, 'twice the upper end: both are said (the upper end to two digits)');
   inLanguage('zh', () => {
     assert.equal(m.copy.forecastText(over), '预计还要约 3.6M tok（按已跑的进度估算） · 出题前估最多 1M tok');
-    assert.equal(m.copy.forecastText(under), '预计还要约 300K tok（按已跑的进度估算） · 出题前估最多 1M tok');
+    assert.equal(m.copy.forecastText(under), '预计还要约 300K tok（按已跑的进度估算）', 'below the upper end: the number alone');
   });
 });
 
