@@ -213,7 +213,28 @@ const SECRETS = [
   ['open /Users/ericw/Library/x failed', 'ericw'],
   ['blob QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5YWJjZGVmZ2hpams= end', 'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5YWJjZGVmZ2hpams='],
   ['GET https://alice:s3cret-pass@mirror.example.com/pkg', 's3cret-pass'],
+  ['open C:\\Users\\Eric Wang\\x failed', 'Wang'],
+  ['HF_TOKEN=hf_live_value_123', 'hf_live_value_123'],
+  ['client_secret: abcdef123', 'abcdef123'],
+  ['x-api-key: k-123456', 'k-123456'],
 ];
+
+test('redactSecrets keeps a path its drive and depth and a model URL whole, still removes a base64 token and a JWT, and is linear on a long line', async () => {
+  const { redactSecrets } = await import('../lib/plain-reason.js');
+  assert.equal(redactSecrets('File "/home/eric/StudyHub/mineru/venv/lib/python3/site/x.py", line 3'), 'File "~/StudyHub/mineru/venv/lib/python3/site/x.py", line 3');
+  const url = 'https://huggingface.co/opendatalab/PDF-Extract-Kit-1.0/resolve/main/models/Layout/YOLO/doclayout_yolo_docstructbench_imgsz1280_2501.pt';
+  assert.equal(redactSecrets(`GET ${url}`), `GET ${url}`);
+  const dll = 'D:/StudyHub/mineru/venv/Lib/site-packages/nvidia/Torch2Cuda12Runtime/x.dll';
+  assert.equal(redactSecrets(dll), dll);
+  const token = 'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5';
+  assert.equal(token.length, 48);
+  assert.equal(redactSecrets(`cookie value ${token} end`), 'cookie value *** end');
+  assert.equal(redactSecrets('id eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJl end'), 'id *** end');
+  const line = 'a-'.repeat(30_000);
+  const started = performance.now();
+  redactSecrets(line);
+  assert.ok(performance.now() - started < 200, `a 60 KB line took ${Math.round(performance.now() - started)} ms`);
+});
 
 test('one redactor (lib/plain-reason.js redactSecrets) for the copied report, the hand-off and the MinerU daemon log: no secret survives, an ordinary line does', async t => {
   const { redactSecrets } = await import('../lib/plain-reason.js');
