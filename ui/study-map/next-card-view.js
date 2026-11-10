@@ -18,7 +18,7 @@ const act = (label, run, disabled = false, usage = 'home.next') => (typeof run =
  */
 export function nextCardView(id, facts, handlers = {}) {
   const eyebrow = ui('下一步');
-  const { today, newSources, exam } = facts;
+  const { today, drafts = { count: 0, cards: 0, draft: null, title: '' }, newSources, exam } = facts;
   const plan = handlers.plan;
   const planAction = plan?.action ? act(plan.action.label, plan.action.run, plan.action.disabled, 'home.start') : null;
   const todayAction = handlers.today ? act(handlers.today.label, handlers.today.run, handlers.today.disabled, 'home.start') : planAction;
@@ -31,6 +31,18 @@ export function nextCardView(id, facts, handlers = {}) {
       return { id, eyebrow, headline: uiFormat('今天有 {0} 题待学', [today.size]), detail: breakdown(today), action: todayAction };
     case 'resume':
       return { id, eyebrow, headline: ui('有一组练习没做完'), detail: plan?.detail || '', action: planAction };
+    case 'draft': {
+      const viewAll = handlers.viewDrafts || (handlers.openDraft && drafts.draft ? () => handlers.openDraft(drafts.draft) : undefined);
+      return drafts.count === 1
+        ? { id, eyebrow,
+          headline: drafts.cards > 0 ? uiFormat('有 1 份草稿（{0} 题）待检查发布', [drafts.cards]) : ui('有 1 份草稿待检查发布'),
+          detail: drafts.title ? uiFormat('「{0}」发布后就能开始练习和计入复习。', [drafts.title]) : ui('检查并发布后就能开始练习和计入复习。'),
+          action: act(ui('检查并发布'), () => handlers.openDraft?.(drafts.draft), !handlers.openDraft || !drafts.draft) }
+        : { id, eyebrow,
+          headline: drafts.cards > 0 ? uiFormat('有 {0} 份草稿（共 {1} 题）待检查发布', [drafts.count, drafts.cards]) : uiFormat('有 {0} 份草稿待检查发布', [drafts.count]),
+          detail: ui('检查并发布后就能开始练习和计入复习。'),
+          action: act(ui('查看待发布草稿'), viewAll, !viewAll) };
+    }
     case 'new-source':
       return newSources.count === 1
         ? { id, eyebrow, headline: uiFormat('「{0}」还没出过题', [newSources.title]), detail: ui('选好题型和题数就能出，出好的题先放进草稿。'),

@@ -49,21 +49,23 @@ test('the priority list, row by row: the first condition that holds names the on
 
 test('turning the conditions off one at a time walks the whole list in its fixed order', () => {
   const all = facts({ line: { show: false, step: -1 }, modelReady: false, today: { due: 2, weak: 1, new: 1, size: 4, ahead: false }, resumeOpen: true,
+    drafts: { count: 1, cards: 10, draft: { id: 'dr1' }, title: '草稿', draftIds: ['dr1'] },
     newSources: { count: 1, title: 'a', sourceIds: ['a'] }, wrong: 3, exam: { course: 'x', days: 2 } });
   const seen = [];
   const off = [(f) => ({ ...f, modelReady: true }), (f) => ({ ...f, today: { ...f.today, due: 0 } }), (f) => ({ ...f, resumeOpen: false }),
+    (f) => ({ ...f, drafts: { count: 0, cards: 0, draft: null, title: '', draftIds: [] } }),
     (f) => ({ ...f, newSources: { count: 0, title: '', sourceIds: [] } }), (f) => ({ ...f, wrong: 0 }), (f) => ({ ...f, exam: null }),
     (f) => ({ ...f, today: { ...quiet } })];
   let current = all;
   seen.push(m.nextStep(current).id);
   for (const turn of off) { current = turn(current); seen.push(m.nextStep(current).id); }
-  assert.deepEqual(seen, ['model', 'due', 'resume', 'new-source', 'wrong', 'exam', 'learn', 'done']);
-  assert.deepEqual(m.NEXT_STEP_IDS, ['model', 'sources', 'questions', 'due', 'resume', 'new-source', 'wrong', 'exam', 'learn', 'done'], 'the ids, in priority order (the first three are the first-run line)');
+  assert.deepEqual(seen, ['model', 'due', 'resume', 'draft', 'new-source', 'wrong', 'exam', 'learn', 'done']);
+  assert.deepEqual(m.NEXT_STEP_IDS, ['model', 'sources', 'questions', 'due', 'resume', 'draft', 'new-source', 'wrong', 'exam', 'learn', 'done'], 'the ids, in priority order (the first three are the first-run line)');
   assert.deepEqual(m.FIRST_RUN_SURFACE, ['model', 'sources', 'questions'], 'the line\'s three steps are the first three states');
 });
 
 test('only the states with something to press carry a primary button', () => {
-  for (const id of ['model', 'due', 'resume', 'new-source', 'wrong', 'exam', 'learn']) assert.equal(m.hasPrimaryAction(id), true, id);
+  for (const id of ['model', 'due', 'resume', 'draft', 'new-source', 'wrong', 'exam', 'learn']) assert.equal(m.hasPrimaryAction(id), true, id);
   assert.equal(m.hasPrimaryAction('done'), false);
   assert.equal(m.hasPrimaryAction('questions'), false, 'the line draws its own button');
 });
@@ -199,7 +201,7 @@ test('the card never leans on the learner: facts and a next step, no guilt about
 test('every sentence has its English pair, with the placeholders kept', async () => {
   const pairs = JSON.parse(await readFile(new URL('../ui/locales/en.next-step.json', import.meta.url), 'utf8'));
   m.setUiLanguage('en');
-  const handlers = { plan: plan('Start today', () => {}, 'Reached question 3 / 10'), today: { label: 'Start today', run() {} }, generate() {}, wrong() {}, exam() {}, modelSettings() {}, settingsLabel: 'Open settings' };
+  const handlers = { plan: plan('Start today', () => {}, 'Reached question 3 / 10'), today: { label: 'Start today', run() {} }, openDraft() {}, viewDrafts() {}, generate() {}, wrong() {}, exam() {}, modelSettings() {}, settingsLabel: 'Open settings' };
   const views = [
     m.nextCardView('due', facts({ today: { due: 12, weak: 2, new: 5, size: 19, ahead: false } }), handlers),
     m.nextCardView('resume', facts({ resumeOpen: true }), handlers),
@@ -213,6 +215,8 @@ test('every sentence has its English pair, with the placeholders kept', async ()
     m.nextCardView('done', facts({ today: { ...quiet, ahead: true } }), handlers),
     m.nextCardView('done', facts(), handlers),
     m.nextCardView('learn', facts({ today: { ...quiet, weak: 1, new: 2, size: 3 } }), handlers),
+    m.nextCardView('draft', facts({ drafts: { count: 1, cards: 25, draft: { id: 'dr1' }, title: 'Quiz 1', draftIds: ['dr1'] } }), handlers),
+    m.nextCardView('draft', facts({ drafts: { count: 2, cards: 40, draft: { id: 'dr2' }, title: 'Quiz 2', draftIds: ['dr1', 'dr2'] } }), handlers),
   ];
   for (const shown of views) for (const sentence of [shown.eyebrow, shown.headline, shown.detail, shown.action?.label].filter(Boolean))
     assert.doesNotMatch(sentence, /[㐀-鿿]/, `English UI, no Chinese left: ${sentence}`);
