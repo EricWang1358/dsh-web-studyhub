@@ -7,7 +7,7 @@ import { reviewEntryKey } from './async.js';
      trail: false                  opening it leaves no way back (a source opens over the page it was opened from)
    and the way back from a page is RETURN_PAGES. Adding a kind means adding its row here, nowhere else.
    env: { live(): still the current request, data(): the library snapshot, refresh() }.
-   nav: enterRun, showSource, showNote, showSkeleton, showDeck, showWorkflow, showExam, showLibrary, showPage, showManagedDeck.
+   nav: enterRun, enterMovedRun, showSource, showNote, showSkeleton, showDeck, showWorkflow, showExam, showLibrary, showPage, showManagedDeck.
    Free of ui() so the table stays plain data and logic; messages are Chinese source text that the shell localizes. */
 
 /** What load() answers when the request went stale: the caller drops it silently. */
@@ -131,7 +131,7 @@ export function captureContext(state, overrides = {}) {
 export const RETURN_PAGES = {
   review: {
     load: (origin, call) => origin.runComplete ? call('review.get', { runId: origin.runId }) : call('review.move', { runId: origin.runId, index: origin.index }),
-    open: (result, origin, nav) => nav.enterRun(result, origin.input),
+    open: (result, origin, nav) => nav.enterMovedRun(result, origin.input), // review.move restarted the question's timer
   },
   notes: {
     load: async (origin, call) => { if (origin.noteId) await call('note.get', { id: origin.noteId }); },

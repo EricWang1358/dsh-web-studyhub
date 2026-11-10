@@ -70,3 +70,13 @@ test('with no clock at all (nothing opened yet) nothing is reported', () => {
   assert.equal(hiddenMsOf(undefined, KEY, 1000), 0);
   assert.equal(hiddenMsOf(null, '', 1000), 0);
 });
+
+test('the same question moved back to restarts the count: the host restarts its timer there, so the old hidden time must not come along', () => {
+  let clock = openClock(KEY, 0, false);
+  clock = noteVisibility(clock, true, 1000);
+  clock = noteVisibility(clock, false, 9000);
+  assert.equal(hiddenMsOf(clock, KEY, 9500), 8000);
+  const reopened = openClock(KEY, 9500, false); // what useReviewSession does when a move or the way back from a detour enters the question
+  assert.equal(hiddenMsOf(reopened, KEY, 20000), 0);
+  assert.equal(hiddenMsOf(noteVisibility(noteVisibility(reopened, true, 12000), false, 15000), KEY, 20000), 3000);
+});
