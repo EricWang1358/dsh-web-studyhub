@@ -1,17 +1,19 @@
 import React, { useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Badge, Button, Dialog, Field, Hint, LoadingState, NumberInput, RadioCard, RadioCardGroup, SegmentedControl, Tooltip } from '../components/index.js';
+import { Badge, Button, Checkbox, Dialog, Field, Hint, LoadingState, NumberInput, RadioCard, RadioCardGroup, SegmentedControl, Tooltip } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useLiveEffect } from '../use-async.js';
 import { PAGE_LIMIT_MAX } from '../../lib/book-settings.js';
 import { downloadBytes, downloadText } from './download.js';
 import { downloadCheatSheet } from './cheat-sheet-file.js';
+import { bookHtmlFile } from './book-html.js';
 import { zipTextFiles } from './zip.js';
 
 /* 「导出」 of the review book (M6, docs/plans/review-book.md): the book as the learner's printable CP (course.book.export, lib/course-book-export.js):
    查找页 first, question links as numbered questions, with or without the 答案册; one Markdown file to download, or the files of the folder in one .zip
-   with book.yaml listing their order (ui/book/zip.js). The A4 page estimate of each choice, and the page limit the learner may set
-   (settings.book.pageLimit), compared with it. */
+   with book.yaml listing their order (ui/book/zip.js); or the whole book as ONE offline, printable .html page (ui/book/book-html.js, #896), made from the
+   Markdown the dialog already holds, with or without the words quoted from the materials. The A4 page estimate of each choice, and the page limit the
+   learner may set (settings.book.pageLimit), compared with it. */
 
 /** The three choices of which questions are printed (lib/course-book-export.js QUESTION_MODES). */
 const questionChoices = () => [
@@ -32,6 +34,8 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
   const [answerKey, setAnswerKey] = useState(false);
   // Which questions are printed (course.book.export `questions`): only the linked ones by default.
   const [questions, setQuestions] = useState('linked');
+  // 「整本书页面不含原文引文」: only the .html page; the Markdown is the Pandoc route and stays as it was.
+  const [noQuotes, setNoQuotes] = useState(false);
   const [state, setState] = useState({ done: null, error: null });
   const zipping = useRef(false);
   const [limit, setLimit] = useState(pageLimit ? String(pageLimit) : '');
@@ -54,6 +58,13 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
       const folder = await call('course.book.export', { course, answerKey, questions, form: 'folder' });
       downloadBytes(`${folder.filename}.zip`, zipTextFiles([folder.manifest, ...folder.files]));
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); } finally { zipping.current = false; }
+  };
+  const downloadPage = async () => {
+    try {
+      // A static import: a chunk of its own, reached only from a click, is a module the host's classic chunk loading never materializes (tests/client-boundaries.test.mjs).
+      const file = bookHtmlFile(done, { quotes: !noQuotes });
+      downloadText(file.filename, file.html, 'text/html');
+    } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   };
   const downloadSheet = async () => {
     try { await downloadCheatSheet(book); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
@@ -85,6 +96,14 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
           <NumberInput inputMode="numeric" min={1} max={PAGE_LIMIT_MAX} step={1} value={limit} suffix={ui('页')} placeholder={ui('不限')}
             onChange={event => setLimit(event.target.value)} onBlur={saveLimit} onKeyDown={event => { if (event.key === 'Enter') saveLimit(); }} />
         </Field>
+        {/* The whole-book page and its one option stand together: the option does nothing for the other downloads, so it is not among them. */}
+        <div className="book-export__page-row">
+          <Tooltip layer content={ui('整本书做成一个能离线打开、也能打印的页面：每章另起一页，出处在章末，手机上也能看。印哪些题、含不含答案册跟上面的选择一致。')}>
+            <Button variant="secondary" icon="download" className="book-export__page" disabled={!done} onClick={downloadPage}>
+              {estimate ? uiFormat('整本书（.html，约 {0} 页）', [estimate.pages]) : ui('整本书（.html）')}</Button></Tooltip>
+          <Checkbox className="book-export__quotes" checked={noQuotes} onChange={setNoQuotes} label={ui('整本书页面不含原文引文')}
+            hint={ui('发给别人时用：脚注和答案册概念里逐字摘自资料的原文去掉，只留出处（资料名）。只对整本书页面起作用。')} />
+        </div>
       </div>
     </Dialog>
   );

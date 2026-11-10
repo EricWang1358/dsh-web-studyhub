@@ -570,5 +570,10 @@
   "是什么": "What it is",
   "什么时候用": "When to use it",
   "关键区别": "Key difference",
-  "常见误区": "Common mistake"
+  "常见误区": "Common mistake",
+  "整本书（.html）": "Whole book (.html)",
+  "整本书（.html，约 {0} 页）": "Whole book (.html, about {0} pages)",
+  "整本书做成一个能离线打开、也能打印的页面：每章另起一页，出处在章末，手机上也能看。印哪些题、含不含答案册跟上面的选择一致。": "The whole book as one page that opens offline and prints cleanly: each chapter starts a new page, sources stand at the end of the chapter, and it reads on a phone. Which questions are printed and whether the answer key is in follow your choices above.",
+  "整本书页面不含原文引文": "Leave quotes from the materials out of the book page",
+  "发给别人时用：脚注和答案册概念里逐字摘自资料的原文去掉，只留出处（资料名）。只对整本书页面起作用。": "For sharing: the words quoted from your materials, in the footnotes and in the concepts of the answer key, are left out and only the source (its title) stays. It applies to the book page only."
 }
