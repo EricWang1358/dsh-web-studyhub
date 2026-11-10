@@ -27,3 +27,19 @@ export async function readLiveJobs(call, held, texts) {
   const { jobs } = await call(LIVE_JOBS, {});
   return mergePartial(held, { jobs: withLiveJobs(held.jobs, jobs) }, texts);
 }
+
+/**
+ * The panel's step after a snapshot answer that was not whole: read the live rows and draw them. Best effort: the snapshot answer already succeeded, so a failed
+ * live read keeps what the panel holds (the next poll asks again) and never fails the refresh. A later request (`sequence`), a library switch (`started`, the
+ * epoch) or a snapshot drawn while the read was in flight owns the panel, and the answer is dropped. Answers the data the panel holds afterwards.
+ */
+export async function applyLiveJobs({ call, refs, started, sequence, setData }) {
+  const held = refs.dataRef.current;
+  let shared;
+  try { shared = await readLiveJobs(call, held, refs.snapshotKey.current); } catch { return refs.dataRef.current; }
+  if (!shared?.changed || started !== refs.epoch.current || sequence !== refs.requestSequence.current || refs.dataRef.current !== held) return refs.dataRef.current;
+  refs.dataRef.current = shared.value;
+  refs.snapshotKey.current = shared.texts;
+  setData(shared.value);
+  return shared.value;
+}

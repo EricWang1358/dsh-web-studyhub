@@ -10,6 +10,8 @@ import { readLiveJobs, LIVE_JOBS } from "../ui/app/live-jobs.js";
 import { taskBadge } from "../ui/tasks/task-model.js";
 import { goldenRuntimeContracts } from "./fixtures/unified-runtime-contract.mjs";
 import { fingerprintDiff } from "./helpers/fingerprint-diff.mjs";
+import { assistantRefusal } from "../lib/assistant-boundary.js";
+import { capabilityIndex } from "../lib/runtime/tools.js";
 
 /* #886: while a job runs, its progress, stage, usage, calls and streamed output no longer move the library snapshot's fingerprint. The panel polls the
    snapshot every 2.5 s (ui/poll-schedule.js); a running job used to make every one of those polls a whole snapshot (1.96 MB on a 1 012-material library,
@@ -208,9 +210,44 @@ test("job.live.list answers the library's active jobs as the snapshot shows them
   for (const job of [run.job, runtime.job, ended, elsewhere, part]) work.jobs.set(job.id, job);
   run.tick(work, 3); runtime.tick(work, 0); runtime.tick(work, 1);
   tick();
-  // In the panel's order: the snapshot first (its read of the jobs writes the log's status and stage lines, lib/job-calls.js observeJob), then the live read.
   const snapshot = await service.call("snapshot"), live = await service.call(LIVE_JOBS);
   assert.deepEqual(live.jobs.map((job) => job.id).sort(), [run.job.id, runtime.job.id].sort(), "the active rows of this library only");
   for (const row of live.jobs) assert.deepEqual(row, rowOf(snapshot, row.id), `${row.id}: the same row the snapshot sends`);
   assert.equal(rowOf(live, runtime.job.id).contract.calls[0].outputPreview, "streamed 0 streamed 1", "the runtime call's output preview");
+});
+
+test("job.live.list asked first, before any snapshot, answers the same rows, the newest status and stage lines of the log included", async (t) => {
+  const { service, work, root, tick } = await fixture(t);
+  const run = questionRun(root), runtime = runtimeJob(root);
+  for (const job of [run.job, runtime.job]) work.jobs.set(job.id, job);
+  const same = async (when) => {
+    const live = await service.call(LIVE_JOBS), snapshot = await service.call("snapshot");
+    assert.equal(live.jobs.length, 2, when);
+    for (const row of live.jobs) assert.deepEqual(row, rowOf(snapshot, row.id), `${when}: ${row.id} is the row the snapshot sends`);
+    return rowOf(live, run.job.id);
+  };
+  run.tick(work, 0); runtime.tick(work, 0);
+  tick();
+  const first = await same("the first read");
+  assert.ok(first.contract.events.some((event) => event.code === "status"), "the status line of the log is there on the first read");
+  run.tick(work, 7);
+  tick();
+  const moved = await same("after the stage moved");
+  assert.equal(moved.contract.events.at(-1).code, "stage");
+  assert.equal(moved.contract.events.at(-1).text, run.job.stage, "the stage line is the newest one");
+});
+
+test("the real capability index of a library lists job.status and not job.live.list", async (t) => {
+  const { service } = await fixture(t);
+  const jobs = capabilityIndex(service.runtime.capabilities()).contexts.find((context) => context.id === "jobs");
+  assert.match(jobs.operations, /(^| )job\.[a-z/]*\bstatus\b/, "job.status, written in the index's group form (job.message/status/wait)");
+  assert.doesNotMatch(jobs.operations, /live/);
+});
+
+test("job.live.list is the panel's: the main chat is refused it and the capability index does not list it, job.status stays", () => {
+  assert.match(assistantRefusal(LIVE_JOBS) || "", /not available to the assistant/);
+  assert.equal(assistantRefusal("job.status"), null, "the main chat keeps its own read of a job");
+  const index = JSON.stringify(capabilityIndex([{ id: "jobs", api: "jobs.v1", operations: ["job.status", LIVE_JOBS, "job.wait"].map((name) => ({ name, available: true })) }]));
+  assert.doesNotMatch(index, /live/, "not listed to the assistant");
+  assert.match(index, /job\.status\/wait/);
 });
