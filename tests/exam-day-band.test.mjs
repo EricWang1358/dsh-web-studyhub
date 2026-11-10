@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { examDayBand, examDayStart } from '../lib/exam-day-band.js';
-import { schedule } from '../lib/sm2.js';
+import { examDayBand } from '../lib/exam-day-band.js';
+import { examDayStart, schedule } from '../lib/sm2.js';
 import { StudyService } from '../lib/service.js';
 import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outline-book.js';
 import { courseNotesMaterial } from '../lib/course-book.js';
@@ -28,7 +28,7 @@ const learnt = (now = NOON) => ({ algorithm: 'fsrs-6', stability: 30, difficulty
 const solidQuestion = (review = learnt()) => ({ review, answered: true, solid: true, weak: false, focus: false });
 const at = days => ({ examDate: addDays(TODAY, days), today: TODAY, settings: {} });
 
-test('the exam day is local 00:00 of the exam date (the convention of #916)', () => {
+test('the exam day is local 00:00 of the exam date, the instant the scheduler itself uses (#916)', () => {
   assert.equal(examDayStart('2026-12-01'), new Date(2026, 11, 1).getTime());
 });
 
