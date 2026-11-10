@@ -59,7 +59,7 @@ export const LOOPBACK_STATUS = Object.freeze({
     sentence: status => (status?.error?.message ? uiMessage(status.error.message) : ui('安装没有完成。')) },
 });
 
-const RELOCATE = ['no-space', 'not-writable', 'folder-in-use', 'bad-location'];
+const RELOCATE = ['no-space', 'not-writable', 'folder-in-use', 'bad-location', 'path-too-long'];
 export function loopbackFix(code) {
   if (PAUSED.includes(code)) return { id: 'continue', label: ui('重新安装'), icon: 'play' };
   if (RELOCATE.includes(code)) return { id: 'relocate', label: ui('换位置'), icon: 'location' };

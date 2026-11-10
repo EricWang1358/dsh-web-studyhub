@@ -466,13 +466,17 @@ test('a change of tier that did not finish: the ready state of the installed tie
 test('a service that does not start never shows a traceback or English CLI text on the status line: a plain reason by its code; the raw text only in 更多 › 详细信息', () => {
   const raw = 'Traceback (most recent call last):\n  File "mineru\\cli\\server.py", line 88, in start\nRuntimeError: worker exited with code 3';
   for (const [code, line] of [['service-failed', '本机服务没能启动：它一启动就退出了。'], ['service-timeout', '本机服务没能启动：等了很久它还没有准备好。'],
+    ['not-writable', '本机服务没能启动：配置文件夹的权限不符合要求，或没有写入权限。'],
     ['models-missing', '本机服务没能启动：模型文件不完整。'], ['port-in-use', '本机服务没能启动：它要用的端口被别的程序占用了。'], ['vc-runtime', '本机服务没能启动：这台电脑缺少微软 VC++ 运行库。'],
     ['something-new', '本机服务没能启动：它一启动就退出了。']]) {
     const status = { state: 'server-stopped', origin: 'installed', folder: FOLDER, install: complete, external: null,
       lastError: { code, message: `本机服务没能启动：${raw}`, detail: raw, at: '2026-10-16T00:00:00Z' } };
     const html = render({ initialLocal: status });
     assert.equal(sentenceOf(html), line, code);
-    assert.doesNotMatch(textOf(html), /Traceback|RuntimeError|worker exited|server\.py/, code);
+    // 复制诊断信息 keeps what it would copy one fold away (看看会复制什么, closed): the learner reads it only by opening it, like 详细信息.
+    const preview = /<details(?![^>]*\sopen)[^>]*sh-diagnostic-copy__fold[^>]*>[\s\S]*?<\/details>/g;
+    assert.ok(html.match(preview)?.length >= 1, `${code}: the copy preview is folded`);
+    assert.doesNotMatch(textOf(html.replace(preview, '')), /Traceback|RuntimeError|worker exited|server\.py/, code);
     const more = render({ initialLocal: status, initialPlan: plan(), initialMore: true });
     assert.match(textOf(more), /详细信息/);
     assert.doesNotMatch(sentenceOf(more), /Traceback/);
@@ -493,4 +497,38 @@ test('the path field\'s placeholder reads as an example, and 取消 and 收起 a
   const source = await (await import('node:fs/promises')).readFile(new URL('../ui/install/LocationChooser.jsx', import.meta.url), 'utf8');
   assert.match(source, /placeholder=\{uiFormat\('例如 \{0\}'/);
   assert.match(source, /\{draft === null && <div className="mineru-install__row">/, 'the 收起 row shows only while the path field is closed');
+});
+
+test('error states offer 复制诊断信息 (with credential redaction) and 发给主会话 (setup.failed); non-error states do not', async t => {
+  for (const errState of [local.enableService, local.network, local.port]) {
+    const html = render({ initialLocal: errState, initialPlan: plan() });
+    assert.match(textOf(html), /复制诊断信息/);
+    assert.match(textOf(html), /发给主会话/);
+    assert.match(html, /data-hand-off="setup\.failed"/);
+    assert.equal(primaries(html), 1);
+    assert.doesNotMatch(html, /\stitle="/);
+  }
+  for (const okState of [local.missing, local.cancelled, local.ready, local.stopped]) {
+    const html = render({ initialLocal: okState, initialPlan: plan() });
+    assert.doesNotMatch(textOf(html), /复制诊断信息/);
+    assert.doesNotMatch(html, /data-hand-off="setup\.failed"/);
+  }
+  const status = {
+    ...local.enableService,
+    install: {
+      ...local.enableService.install,
+      log: ['GET https://user:secret-pass@pypi.example.com/simple/mineru/', '[doclib.stderr.log]', 'PermissionError: Credential configuration directory'],
+    },
+  };
+  const mounted = await remount(t, status);
+  const actions = find(mounted.card.render(), item => typeof item.props?.diagnostic === 'function');
+  assert.ok(actions, 'DiagnosticActions is rendered on error states');
+  const { text: copied, input } = actions.props.diagnostic();
+  assert.equal(input.tool, 'mineru');
+  assert.match(copied, /^\[MinerU\]/);
+  assert.match(copied, /stage: 5\/6 启用本机服务/);
+  assert.match(copied, /folder: D:\\StudyHub\\MinerU/);
+  assert.match(copied, /https:\/\/\*\*\*@pypi\.example\.com\/simple/);
+  assert.ok(!copied.includes('secret-pass'), 'credentials are redacted before copying');
+  assert.ok(!input.log.includes('secret-pass'), 'credentials are redacted before hand-off');
 });

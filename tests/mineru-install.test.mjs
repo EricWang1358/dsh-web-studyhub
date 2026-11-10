@@ -134,6 +134,32 @@ test('install: six stages in order, all inside the folder, the models from the c
   assert.equal(found.cli.env.FAKE_MINERU_STATE, h.mineruEnv.FAKE_MINERU_STATE, 'the stand-in program keeps its own variables');
 });
 
+test('install: MINERU_HOME is secured before config.yaml is written, and a permission change that did not work is said once per run, never after a cancel', async t => {
+  // The permission change is a stand-in (seams.secureHome): it records whether config.yaml was there when it ran, and always fails.
+  const h = await installHarness(t);
+  const layout = mineruLayout(h.location), seen = [];
+  const installer = createMineruInstaller({ ...h.seams, secureHome: async (home, { signal }) => { seen.push({ home, config: await exists(layout.config), aborted: !!signal?.aborted }); return { ok: false, error: 'stand-in refusal' }; } });
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  const done = await installer.status();
+  assert.equal(done.status, 'complete', JSON.stringify(done.error));
+  assert.ok(seen.length >= 3, 'package, models and enable each make sure of the home');
+  assert.deepEqual([seen[0].home, seen[0].config], [layout.home, false], 'the folder is secured before config.yaml exists');
+  assert.ok(await exists(layout.config));
+  assert.equal(done.log.filter(line => /could not restrict permissions/.test(line)).length, 1, done.log.join('\n'));
+  // A cancel while the permission change runs: the refusal it then reports is the cancel, not a permission problem, and is not logged.
+  const h2 = await installHarness(t);
+  let cancelling = null;
+  const cancelled = createMineruInstaller({ ...h2.seams, secureHome: async (_home, { signal }) => {
+    cancelling = cancelled.cancel();
+    for (let i = 0; i < 400 && !signal?.aborted; i++) await new Promise(resolve => setTimeout(resolve, 5));
+    return { ok: false, error: 'aborted' };
+  } });
+  await cancelled.start({ confirm: true, location: h2.location }); await cancelled.idle(); await cancelling;
+  const stopped = await cancelled.status();
+  assert.equal(stopped.status, 'cancelled');
+  assert.ok(!stopped.log.some(line => /could not restrict permissions/.test(line)), stopped.log.join('\n'));
+});
+
 test('effectiveMineru: StudyHub\'s install first, then MINERU_BIN, then the PATH', async t => {
   const h = await installHarness(t);
   const bin = join(h.dir, 'bin', process.platform === 'win32' ? 'mineru.exe' : 'mineru');
@@ -343,3 +369,67 @@ test('moving the install stops the old folder\'s service (with its own MINERU_HO
   assert.ok(stopOld >= 0, 'the old service was stopped');
   assert.ok(stopOld < startNew, 'before the new one started');
 });
+
+test('POSIX permissions: writeMineruConfig tightens MINERU_HOME to 0700 and config.yaml to 0600 even when config.yaml already existed', { skip: process.platform === 'win32' }, async t => {
+  const { chmod } = await import('node:fs/promises');
+  const h = await installHarness(t);
+  const layout = mineruLayout(h.location);
+  await writeMineruConfig(h.location);
+  assert.equal((await stat(layout.home)).mode & 0o777, 0o700);
+  assert.equal((await stat(layout.config)).mode & 0o777, 0o600);
+  await chmod(layout.home, 0o775);
+  await chmod(layout.config, 0o664);
+  assert.equal(await writeMineruConfig(h.location), false);
+  assert.equal((await stat(layout.home)).mode & 0o777, 0o700);
+  assert.equal((await stat(layout.config)).mode & 0o777, 0o600);
+});
+
+test('enable stage: captures redacted doclib.stderr.log for private credential errors, retries lock contention, and waits out cold boot', async t => {
+  const acl = "PermissionError: Credential configuration directory 'D:\\\\StudyHub\\\\MinerU\\\\home' cannot enforce private credential (https://user:secret-token@example.com/a)";
+  const h = await installHarness(t, { mineru: { startSilentFail: true, serverLogError: acl }, extra: { checkPauseMs: 10, startPollTries: 5 } });
+  const installer = createMineruInstaller(h.seams);
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  const failed = await installer.status();
+  assert.deepEqual([failed.status, failed.stage, failed.error.code], ['failed', 'enable', 'not-writable']);
+  assert.ok(failed.log.some(line => line.includes('[doclib.stderr.log]')));
+  assert.ok(failed.log.some(line => line.includes('Credential configuration directory')));
+  assert.ok(!failed.log.join('\n').includes('secret-token'), 'credentials in daemon logs are redacted');
+  await h.setMineru({ startSilentFail: false, serverLogError: undefined, startStillStarting: true, stillStartingOnce: true, startBusyOnce: true });
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  assert.equal((await installer.status()).status, 'complete');
+});
+
+test('enable stage: the failure code comes from what this start printed and wrote to the error logs, not from older lines or the general doclib.log', async t => {
+  const h = await installHarness(t, { mineru: { startSilentFail: true }, extra: { checkPauseMs: 10, startPollTries: 5 } });
+  const installer = createMineruInstaller(h.seams), logs = join(mineruLayout(h.location).home, 'logs');
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  assert.deepEqual([(await installer.status()).stage, (await installer.status()).error.code], ['enable', 'service-failed']);
+  // What an earlier run left: a permission traceback in the error log, an ordinary INFO line in the general log.
+  await mkdir(logs, { recursive: true });
+  await writeFile(join(logs, 'doclib.stderr.log'), 'PermissionError: [WinError 5] Access is denied: an earlier run\n', 'utf8');
+  await writeFile(join(logs, 'doclib.log'), 'INFO Connection pool ready (an ordinary line)\n', 'utf8');
+  await h.setMineru({ startSilentFail: true, serverLogError: 'requests.exceptions.ConnectionError: HTTPSConnectionPool: Max retries exceeded' });
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  const network = await installer.status();
+  assert.deepEqual([network.stage, network.error.code], ['enable', 'network']);
+  assert.ok(network.log.some(line => line.includes('Access is denied: an earlier run')), 'the older lines are still shown in the log');
+  // Nothing new in the error logs this time: the INFO line in doclib.log does not make it a network failure.
+  await h.setMineru({ startSilentFail: true, serverLogError: undefined });
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  assert.equal((await installer.status()).error.code, 'service-failed');
+});
+
+test('systemPythons: rejects Python 3.10 (mineru 4.x requires >=3.11) and accepts 3.12', async t => {
+  const h = await installHarness(t);
+  const oldState = join(h.dir, 'py310.json'), okState = join(h.dir, 'py312.json');
+  await writeFile(oldState, JSON.stringify({ version: '3.10.14', executable: join('C:', 'Py310', 'python.exe') }));
+  await writeFile(okState, JSON.stringify({ version: '3.12.8', executable: join('C:', 'Py312', 'python.exe') }));
+  const fakePy = fileURLToPath(new URL('./helpers/fake-python.mjs', import.meta.url));
+  h.seams.pythons = [
+    { file: process.execPath, prefix: [fakePy], env: { FAKE_PY_STATE: oldState } },
+    { file: process.execPath, prefix: [fakePy], env: { FAKE_PY_STATE: okState } },
+  ];
+  const plan = await createMineruInstaller(h.seams).plan({ location: h.location });
+  assert.deepEqual(plan.pythons, [{ version: '3.12.8', path: join('C:', 'Py312', 'python.exe') }]);
+});
+
