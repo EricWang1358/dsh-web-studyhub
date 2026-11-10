@@ -27,8 +27,8 @@ const MIN = 60_000;
 
 /* ---------- the pure core ---------- */
 
-/** A run of 77 questions in 3 rounds (30, 30, 17), the pre-run estimate 3.0M to 4.8M (3.9M in the middle). */
-const base = (over = {}) => ({ phase: 'running', ended: false, projection: { tokens: 3_900_000, minutes: null, basis: 'estimate' }, estimate: 3_900_000, tokens: 0, kept: 0, goal: 77, base: 0, elapsedMs: 0, ...over });
+/** A run of 77 questions in 3 rounds (30, 30, 17), the pre-run estimate 3.0M to 4.8M: the card takes the UPPER end (4.8M, #943), not the middle (3.9M). */
+const base = (over = {}) => ({ phase: 'running', ended: false, projection: { tokens: 4_800_000, minutes: null, basis: 'estimate' }, estimate: 4_800_000, tokens: 0, kept: 0, goal: 77, base: 0, elapsedMs: 0, ...over });
 
 test('the threshold is written down once: at least 8 questions of this run AND 15% of the work it has to do, a change of more than 25% shows both numbers', () => {
   assert.deepEqual({ ...FORECAST }, { minKept: 8, minShare: 0.15, divergence: 0.25 });
@@ -37,7 +37,7 @@ test('the threshold is written down once: at least 8 questions of this run AND 1
 test('the first minutes: the owner\'s screenshot (5 of 77, 1.55M tokens) gives no silly number; the estimate made before the run, less what was used, is shown and labelled', () => {
   const early = runForecast(base({ tokens: 1_546_895, kept: 5, elapsedMs: 9 * MIN }));
   assert.equal(early.basis, 'estimate', '5 questions is a batch, not a pace');
-  assert.deepEqual(early.tokens, { used: 1_500_000, left: 2_400_000, total: 3_900_000 }, 'the 3.9M is the whole run as priced before it started, so what is LEFT is the whole less what was used; the parts are rounded to two digits and add up');
+  assert.deepEqual(early.tokens, { used: 1_500_000, left: 3_300_000, total: 4_800_000 }, 'the 4.8M is the upper end of the whole run as priced before it started, so what is LEFT (at most) is the whole less what was used; the parts are rounded to two digits and add up');
   assert.equal(early.preRun, null, 'the same number is not said twice');
   assert.deepEqual(early.time, { state: 'thin', elapsedMs: 9 * MIN });
 });
@@ -47,7 +47,7 @@ test('a steady pace: tokens per kept question of THIS run give what is left; use
   assert.equal(mid.basis, 'live');
   // 1 240 000 / 24 = 51 667 a question; 53 questions left = 2.74M
   assert.deepEqual(mid.tokens, { used: 1_200_000, left: 2_700_000, total: 3_900_000 });
-  assert.equal(mid.preRun, null, 'within 25% of what was said before the run');
+  assert.equal(mid.preRun, null, 'within 25% of the upper end said before the run (3.98M of 4.8M)');
   // 20 min over 24 of 77: 20 x 53 / 24 = 44 min; the pace is still noisy (a third of the work), so a range: 25% either side, to five minutes
   assert.deepEqual(mid.time, { state: 'ok', elapsedMs: 20 * MIN, lowMin: 35, highMin: 55 });
   const late = runForecast(base({ tokens: 3_000_000, kept: 60, elapsedMs: 50 * MIN }));
@@ -58,15 +58,15 @@ test('a run that costs far more than was said shows both: the live number and th
   const dear = runForecast(base({ tokens: 2_400_000, kept: 24, elapsedMs: 20 * MIN }));
   assert.equal(dear.basis, 'live');
   assert.deepEqual(dear.tokens, { used: 2_400_000, left: 5_300_000, total: 7_700_000 });
-  assert.equal(dear.preRun, 3_900_000);
+  assert.equal(dear.preRun, 4_800_000, 'the upper end, not the 3.9M middle');
   const cheap = runForecast(base({ tokens: 400_000, kept: 24, elapsedMs: 20 * MIN }));
-  assert.equal(cheap.preRun, 3_900_000, 'cheaper by more than a quarter: the same');
+  assert.equal(cheap.preRun, 4_800_000, 'cheaper than the upper end by more than a quarter: the same, and it is good news');
 });
 
 test('no junk: nothing is made of zero progress, zero time, a missing goal, numbers that are not numbers, or more used than was ever estimated', () => {
   const zero = runForecast(base());
   assert.equal(zero.basis, 'estimate');
-  assert.deepEqual(zero.tokens, { used: 0, left: 3_900_000, total: 3_900_000 });
+  assert.deepEqual(zero.tokens, { used: 0, left: 4_800_000, total: 4_800_000 });
   assert.equal(zero.time.state, 'thin');
   for (const bad of [{ tokens: NaN, kept: NaN, elapsedMs: NaN }, { tokens: -5, kept: -1, elapsedMs: -9 }, { tokens: Infinity, kept: 30, elapsedMs: 30 * MIN }, { tokens: 1e6, kept: 30, elapsedMs: 0 }]) {
     const forecast = runForecast(base(bad)), everything = JSON.stringify(forecast);
@@ -74,8 +74,9 @@ test('no junk: nothing is made of zero progress, zero time, a missing goal, numb
   }
   assert.equal(runForecast(base({ goal: 0, kept: 3, tokens: 10_000 })), null, 'no goal: no forecast');
   assert.equal(runForecast(base({ goal: null })), null);
-  // everything of the estimate used up and no pace yet: no number rather than 「还要 0」
-  const spent = runForecast(base({ tokens: 4_000_000, kept: 5, elapsedMs: 30 * MIN }));
+  // everything of the upper end used up and no pace yet: no number rather than 「还要 0」 (4.0M is still under the 4.8M upper end: 0.8M may come)
+  assert.deepEqual(runForecast(base({ tokens: 4_000_000, kept: 5, elapsedMs: 30 * MIN })).tokens, { used: 4_000_000, left: 800_000, total: 4_800_000 });
+  const spent = runForecast(base({ tokens: 5_000_000, kept: 5, elapsedMs: 30 * MIN }));
   assert.equal(spent.tokens, null);
   assert.equal(spent.basis, null);
   // no estimate at all and no pace: nothing
@@ -118,12 +119,14 @@ test('the words: the basis in the run line, both numbers when they differ, the s
   const early = runForecast(base({ tokens: 1_546_895, kept: 5, elapsedMs: 9 * MIN }));
   const mid = runForecast(base({ tokens: 1_240_000, kept: 24, elapsedMs: 20 * MIN }));
   const dear = runForecast(base({ tokens: 2_400_000, kept: 24, elapsedMs: 20 * MIN }));
-  assert.equal(m.copy.forecastText(early), '预计还要约 2.4M tok（出题前的估算）');
+  assert.equal(m.copy.forecastText(early), '预计最多还要约 3.3M tok（出题前估的上限）');
   assert.equal(m.copy.forecastText(mid), '预计还要约 2.7M tok（按已跑的进度估算）');
-  assert.equal(m.copy.forecastText(dear), '预计还要约 5.3M tok（按已跑的进度估算） · 出题前估 3.9M tok');
-  assert.equal(m.copy.forecastMath(early), '已用 1.5M + 还要约 2.4M ≈ 共约 3.9M tok');
+  assert.equal(m.copy.forecastText(dear), '预计还要约 5.3M tok（按已跑的进度估算） · 出题前估最多 4.8M tok');
+  assert.equal(m.copy.forecastMath(early), '已用 1.5M + 最多还要约 3.3M ≈ 最多共约 4.8M tok', 'the sum under an upper estimate says so in each part');
+  assert.equal(m.copy.forecastMath(mid), '已用 1.2M + 还要约 2.7M ≈ 共约 3.9M tok', 'a number from the progress is not an upper end: the sum is plain');
   assert.equal(m.copy.forecastMath(dear), '已用 2.4M + 还要约 5.3M ≈ 共约 7.7M tok');
   assert.equal(m.copy.forecastMath(runForecast(base())), '', 'nothing used yet: nothing to add up');
+  assert.equal(m.copy.forecastMath(early, { own: true }), '本任务已用 1.5M + 最多还要约 3.3M ≈ 最多共约 4.8M tok');
   assert.equal(m.copy.forecastText(runForecast(base({ estimate: null, projection: null, tokens: 1e5, kept: 1 }))), '');
   assert.equal(m.copy.forecastTime(mid.time), '预计还要约 35–55 分钟');
   assert.equal(m.copy.forecastTime(runForecast(base({ tokens: 3_000_000, kept: 60, elapsedMs: 50 * MIN })).time), '预计还要约 15 分钟');
@@ -134,10 +137,12 @@ test('the words: the basis in the run line, both numbers when they differ, the s
   assert.equal(m.copy.forecastTime({ state: 'finishing', elapsedMs: 5 }), '就快做完了');
   assert.equal(m.copy.forecastTime(null), '');
   inLanguage('en', () => {
-    assert.equal(m.copy.forecastText(early), 'About 2.4M tok to go (the estimate made before the run)');
+    assert.equal(m.copy.forecastText(early), 'Up to about 3.3M tok to go (upper estimate from before the run)');
     assert.equal(m.copy.forecastText(mid), 'About 2.7M tok to go (from the progress so far)');
-    assert.equal(m.copy.forecastText(dear), 'About 5.3M tok to go (from the progress so far) · Before the run: 3.9M tok');
-    assert.equal(m.copy.forecastMath(early), 'Used 1.5M + about 2.4M to go ≈ about 3.9M tok in all');
+    assert.equal(m.copy.forecastText(dear), 'About 5.3M tok to go (from the progress so far) · Before the run: up to 4.8M tok');
+    assert.equal(m.copy.forecastMath(early), 'Used 1.5M + up to about 3.3M to go ≈ up to about 4.8M tok in all');
+    assert.equal(m.copy.forecastMath(early, { own: true }), 'This task used 1.5M + up to about 3.3M to go ≈ up to about 4.8M tok in all');
+    assert.equal(m.copy.forecastMath(mid), 'Used 1.2M + about 2.7M to go ≈ about 3.9M tok in all');
     assert.equal(m.copy.forecastTime(mid.time), 'About 35–55 min to go');
     assert.equal(m.copy.forecastTime(early.time), 'Not enough progress yet to estimate the time');
     assert.equal(m.copy.forecastTime({ state: 'queued' }), 'The time is estimated once it starts running');
@@ -147,11 +152,11 @@ test('the words: the basis in the run line, both numbers when they differ, the s
 });
 
 test('the run line says the forecast instead of the projection of runFacts; without one it is what it was', () => {
-  const facts = { total: 3, rounds: 3, round: 1, done: 0, left: 3, percent: 38, tokensUsed: 0, state: 'running', ended: false, waiting: false, projection: { tokens: 3_900_000, minutes: null, basis: 'estimate' } };
-  assert.equal(m.copy.runLine(facts), '第 1/3 轮 · 覆盖 38% · 预计还要约 3.9M tok（出题前的估算）');
+  const facts = { total: 3, rounds: 3, round: 1, done: 0, left: 3, percent: 38, tokensUsed: 0, state: 'running', ended: false, waiting: false, projection: { tokens: 4_800_000, minutes: null, basis: 'estimate' } };
+  assert.equal(m.copy.runLine(facts), '第 1/3 轮 · 覆盖 38% · 预计最多还要约 4.8M tok（出题前估的上限）', 'the home row says the same thing as the console: the upper end, labelled');
   const forecast = runForecast(base({ tokens: 1_240_000, kept: 24, elapsedMs: 20 * MIN }));
   assert.equal(m.copy.runLine(facts, { forecast }), '第 1/3 轮 · 覆盖 38% · 预计还要约 2.7M tok（按已跑的进度估算）');
-  assert.equal(m.copy.runLine(facts, { forecast: null }), '第 1/3 轮 · 覆盖 38% · 预计还要约 3.9M tok（出题前的估算）', 'no forecast: the old projection');
+  assert.equal(m.copy.runLine(facts, { forecast: null }), '第 1/3 轮 · 覆盖 38% · 预计最多还要约 4.8M tok（出题前估的上限）', 'no forecast: the old projection');
   assert.equal(m.copy.runLine({ ...facts, ended: true }, { forecast }), '共 0 轮 · 覆盖 38%', 'an ended run says nothing of what is left');
 });
 
@@ -244,12 +249,12 @@ test('the run line of the console: the forecast and, under it, the sum; the slot
   assert.match(plain, /第 1\/3 轮 · 覆盖 38% · 预计还要约 2\.7M tok（按已跑的进度估算）/);
   assert.match(html, /data-run-math[^>]*>已用 1\.2M \+ 还要约 2\.7M ≈ 共约 3\.9M tok</);
   const early = lineOf(job({ savedCount: 5, tokenUsage: usage(1_546_895) }), 9);
-  assert.match(text(early), /预计还要约 2\.4M tok（出题前的估算）/);
-  assert.match(early, /data-run-math[^>]*>已用 1\.5M \+ 还要约 2\.4M ≈ 共约 3\.9M tok</);
+  assert.match(text(early), /预计最多还要约 3\.3M tok（出题前估的上限）/);
+  assert.match(early, /data-run-math[^>]*>已用 1\.5M \+ 最多还要约 3\.3M ≈ 最多共约 4\.8M tok</);
   const nothing = lineOf(job({ savedCount: 0, tokenUsage: undefined, coverageRun: { ...job().coverageRun, estimate: undefined } }), 1);
   assert.match(nothing, /data-run-math[^>]*>\u00a0<\/span>/, 'empty, but there');
   const diverging = lineOf(job({ tokenUsage: usage(2_400_000) }), 20);
-  assert.match(text(diverging), /预计还要约 5\.3M tok（按已跑的进度估算） · 出题前估 3\.9M tok/);
+  assert.match(text(diverging), /预计还要约 5\.3M tok（按已跑的进度估算） · 出题前估最多 4\.8M tok/);
   const queued = lineOf(job({ status: 'queued', runStartedAt: undefined, savedCount: 0, tokenUsage: undefined }), 40);
   assert.match(queued, /data-run-math/, 'a queued run has the slot too: the page does not move when it starts');
   const done = lineOf(job({ status: 'complete', savedCount: 77, finishedAt: at(60), coverageRun: { ...job().coverageRun, state: 'complete', list: list(['done', 'done', 'done']) } }), 90);

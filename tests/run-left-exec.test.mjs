@@ -97,7 +97,7 @@ test('a top-up of the one section left of a failed round: what is left is that s
   // The estimate before the run priced this job's one round; it is not scaled by the 21 questions round 2 was planned for.
   const priced = contract.detail.estimate?.totalTokens;
   assert.ok(priced?.high > 0, 'the job has an estimate');
-  assert.ok(contract.detail.run.estimateTokens <= priced.high, `出题前估 ${contract.detail.run.estimateTokens} is the job's own estimate (at most ${priced.high})`);
+  assert.ok(contract.detail.run.estimateTokens > 0 && contract.detail.run.estimateTokens <= priced.high, `出题前估 ${contract.detail.run.estimateTokens} is the upper end of the job's own estimate (at most ${priced.high})`);
 
   phase.holdPlan.open();
   await until(() => phase.holdReview.entered, 'the top-up to reach its first review (its plan has returned)');
