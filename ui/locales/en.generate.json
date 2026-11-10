@@ -330,5 +330,8 @@
   "配额来源：{0}": "Quota origin: {0}",
   "重点来源：{0}": "Focus origin: {0}",
   "已确定输入：": "Determined inputs: ",
-  "运行后产生：": "Produced during run: "
+  "运行后产生：": "Produced during run: ",
+  "本课出题守则 {0} 条": "{0} course generation rules",
+  "本课出题守则（{0} 条，规划、出题和审阅都带上）：": "Course generation rules ({0}, carried by planning, writing and review): ",
+  "本课出题守则：未设置（在课程设置的「更多设置」里添加）": "Course generation rules: none (add them in the course settings under More settings)"
 }
