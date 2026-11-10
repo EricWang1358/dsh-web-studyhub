@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getEventListeners } from 'node:events';
-import { LOCAL, LocalMineruError, detectLocal, locateMineru, markServerLogs, parseLocalMarkdown, parseWindow, readMineruServerLogs, secureMineruHome, serverErrorsSince, startServer, windowPlan } from '../lib/mineru-local.js';
+import { LOCAL, LocalMineruError, detectLocal, homeNote, homePermissionFailure, locateMineru, markServerLogs, parseLocalMarkdown, parseWindow, readMineruServerLogs, secureMineruHome, serverErrorsSince,
+  startServer, windowPlan, explainStartFailure } from '../lib/mineru-local.js';
 import { mergeChunkResults } from '../lib/mineru-merge.js';
 import { parseConvertedDocument } from '../lib/converted-document.js';
 import { patientCli, readJsonFile, until, writeJsonFile } from './helpers/wait.mjs';
@@ -324,22 +325,26 @@ test('a service that prints "still starting (PID ...)" is server-stopped with st
   assert.equal(getEventListeners(controller.signal, 'abort').length, 0, 'a pause that ended leaves no listener on the signal');
 });
 
-test('startServer attaches <home>/logs/doclib.stderr.log on daemon crash and classifies private credential ACL errors as not-writable', async t => {
+test('startServer attaches <home>/logs/doclib.stderr.log on daemon crash and classifies private credential ACL errors as home-permissions (the settings folder, not the location: #936)', async t => {
   const acl = "PermissionError: Credential configuration directory 'D:\\\\StudyHub\\\\MinerU\\\\home' has insecure permissions (cannot enforce private credential)";
   const fake = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true, serverLogError: acl });
   const home = join(fake.dir, 'home');
   await assert.rejects(startServer({ cli: fake.cli, home }), error =>
     error instanceof LocalMineruError
     && error.code === 'server-start-failed'
-    && error.reason === 'not-writable'
-    && /配置文件夹的权限/.test(error.message)
+    && error.reason === 'home-permissions'
+    && /配置文件夹/.test(error.message) && /不用换位置/.test(error.message)
     && /\[doclib\.stderr\.log\]/.test(error.detail)
     && /Credential configuration directory/.test(error.detail));
 });
 
+/** A folder as StudyHub's install leaves it: its sentinel, so secureMineruHome may change the permissions of the `home` inside it (#942 L2). */
+const ourFolder = async dir => { await writeFile(join(dir, LOCAL.studyhubSentinel), JSON.stringify({ createdBy: 'studyhub', version: 1 })); return join(dir, 'home'); };
+
 test('secureMineruHome says when the permission change failed instead of swallowing it (a stand-in Python, a temp folder: no real permission is changed)', { skip: process.platform !== 'win32' }, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'study-secure-home-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
+  await ourFolder(dir);
   const refusing = join(dir, 'refusing-python.mjs');
   await writeFile(refusing, 'process.stderr.write("PermissionError: [WinError 5] Access is denied\\n"); process.exit(1);\n');
   const failed = await secureMineruHome(join(dir, 'home'), { platform: 'win32', pythonCli: { file: process.execPath, prefix: [refusing], env: {} } });
@@ -347,6 +352,255 @@ test('secureMineruHome says when the permission change failed instead of swallow
   const agreeing = join(dir, 'agreeing-python.mjs');
   await writeFile(agreeing, 'process.exit(0);\n');
   assert.deepEqual(await secureMineruHome(join(dir, 'home'), { platform: 'win32', pythonCli: { file: process.execPath, prefix: [agreeing], env: {} } }), { ok: true });
+});
+
+/* ---------- #936: the settings folder's permissions on Windows ---------- */
+
+/** A real Python of this computer (the way the install's 更多 › Python finds one), or null. */
+const realPython = () => (process.platform === 'win32' ? import('../lib/mineru-install.js').then(module => module.systemPythons()).then(list => list[0] || null, () => null) : Promise.resolve(null));
+/** The DACL of a file or folder, read back with `icacls /save` (SDDL, so no localized account names): { protectedDacl, aces: [{ flags, rights, sid }] }. */
+async function aclOf(target, scratch) {
+  const { execFileSync } = await import('node:child_process');
+  const saved = join(scratch, `acl-${Math.random().toString(36).slice(2)}.txt`);
+  execFileSync('icacls', [target, '/save', saved], { stdio: 'ignore' });
+  const sddl = (await readFile(saved, 'utf16le')).replace(/^﻿/, '').split(/\r?\n/)[1] || '';
+  await rm(saved, { force: true });
+  const dacl = /D:([A-Z]*)((?:\([^)]*\))*)/.exec(sddl) || ['', '', ''];
+  return { protectedDacl: dacl[1].includes('P'), aces: [...dacl[2].matchAll(/\(([^)]*)\)/g)].map(match => { const [, flags, rights, , , sid] = match[1].split(';'); return { flags, rights, sid }; }) };
+}
+
+test('secureMineruHome makes the settings folder private AND heals what is already inside it: an empty access list (D:PAI, the learner\'s case) and old inherited entries go back to the three the folder gives (a real Python and icacls, a temp folder)', { skip: process.platform !== 'win32' }, async t => {
+  const python = await realPython();
+  if (!python) { t.skip('no Python 3.11-3.14 on this computer: the permission change needs one'); return; }
+  const { execFileSync } = await import('node:child_process');
+  const dir = await mkdtemp(join(tmpdir(), 'study-secure-home-real-'));
+  // A file whose access list is empty cannot even be deleted by its owner until its permissions are reset: the cleanup resets the whole tree first.
+  t.after(async () => { try { execFileSync('icacls', [dir, '/reset', '/T', '/C', '/Q'], { stdio: 'ignore' }); } catch { /* best effort */ } await rm(dir, { recursive: true, force: true }); });
+  const home = await ourFolder(dir);
+  const files = ['config.yaml', join('logs', 'doclib.stderr.log'), join('logs', 'broken.log'), join('models', 'MinerU-4_models_onnx', 'layout.onnx'), join('models', 'MinerU-4_models_onnx', 'broken.onnx')];
+  for (const file of files) { await mkdir(join(home, file, '..'), { recursive: true }); await writeFile(join(home, file), 'x'); }
+  // What the learner's machine had: files with no access entry at all, which not even their own account could read.
+  for (const file of [join('logs', 'broken.log'), join('models', 'MinerU-4_models_onnx', 'broken.onnx')]) execFileSync('icacls', [join(home, file), '/inheritance:r'], { stdio: 'ignore' });
+  assert.deepEqual((await aclOf(join(home, 'logs', 'broken.log'), dir)).aces, [], 'the broken file has an empty access list');
+  await assert.rejects(readFile(join(home, 'logs', 'broken.log')), error => error.code === 'EPERM' || error.code === 'EACCES');
+
+  const result = await secureMineruHome(home, { platform: 'win32', pythonCli: { file: python.path, prefix: [], env: {} } });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  // `healed` counts what was changed (#942 L4): at least the two broken files; entries that already inherit exactly what the home gives are only read.
+  assert.ok(result.healed >= 2 && result.healed <= files.length + 3, `the broken entries were repaired (${result.healed})`);
+
+  const folder = await aclOf(home, dir);
+  assert.equal(folder.protectedDacl, true, 'the home itself stays private (never reset)');
+  const user = folder.aces.map(ace => ace.sid).find(sid => !['SY', 'BA'].includes(sid));
+  const three = ['BA', 'SY', user].sort();
+  assert.deepEqual(folder.aces.map(ace => ace.sid).sort(), three);
+  for (const entry of [...files, 'logs', 'models', join('models', 'MinerU-4_models_onnx')]) {
+    const acl = await aclOf(join(home, entry), dir);
+    assert.equal(acl.protectedDacl, false, `${entry}: inherits from the home again`);
+    assert.deepEqual(acl.aces.map(ace => ace.sid).sort(), three, `${entry}: exactly the three entries the home gives`);
+    assert.ok(acl.aces.every(ace => ace.flags.includes('ID') && ace.rights === 'FA'), `${entry}: inherited, full control (${JSON.stringify(acl.aces)})`);
+  }
+  for (const file of files) assert.equal(await readFile(join(home, file), 'utf8'), 'x', `${file} is readable again`);
+  // Twice is the same as once (it runs before every start of the service and in several install steps), and a healthy home is only read: nothing is changed.
+  assert.deepEqual(await secureMineruHome(home, { platform: 'win32', pythonCli: { file: python.path, prefix: [], env: {} } }), { ok: true });
+  assert.deepEqual((await aclOf(join(home, 'config.yaml'), dir)).aces.map(ace => ace.sid).sort(), three);
+  // An entry with an extra explicit allow, or a deny, is not healthy: it is written again (and only it).
+  execFileSync('icacls', [join(home, 'config.yaml'), '/grant', '*S-1-5-11:(R)'], { stdio: 'ignore' });
+  execFileSync('icacls', [join(home, 'logs', 'doclib.stderr.log'), '/deny', '*S-1-5-11:(W)'], { stdio: 'ignore' });
+  assert.deepEqual(await secureMineruHome(home, { platform: 'win32', pythonCli: { file: python.path, prefix: [], env: {} } }), { ok: true, healed: 2 });
+  for (const entry of ['config.yaml', join('logs', 'doclib.stderr.log')]) assert.deepEqual((await aclOf(join(home, entry), dir)).aces.map(ace => ace.sid).sort(), three, entry);
+});
+
+test('secureMineruHome repairs at most LOCAL.homeHealMaxEntries entries below the home and says when it stopped there (a real Python, a temp folder)', { skip: process.platform !== 'win32' }, async t => {
+  const python = await realPython();
+  if (!python) { t.skip('no Python 3.11-3.14 on this computer: the permission change needs one'); return; }
+  const { execFileSync } = await import('node:child_process');
+  const dir = await mkdtemp(join(tmpdir(), 'study-secure-home-bound-'));
+  t.after(async () => { try { execFileSync('icacls', [dir, '/reset', '/T', '/C', '/Q'], { stdio: 'ignore' }); } catch { /* best effort */ } await rm(dir, { recursive: true, force: true }); });
+  const home = await ourFolder(dir);
+  await mkdir(join(home, 'logs'), { recursive: true });
+  // Six files that each need a repair (an empty access list) in a folder made before the home was private (it still carries what the temp folder gave):
+  // the walk visits the folder and two of the files, writes all three, then stops.
+  for (let i = 0; i < 6; i++) { await writeFile(join(home, 'logs', `${i}.log`), 'x'); execFileSync('icacls', [join(home, 'logs', `${i}.log`), '/inheritance:r'], { stdio: 'ignore' }); }
+  const bounded = await secureMineruHome(home, { platform: 'win32', pythonCli: { file: python.path, prefix: [], env: {} }, maxEntries: 3 });
+  assert.deepEqual(bounded, { ok: true, healed: 3, partial: true });
+  assert.ok(LOCAL.homeHealMaxEntries >= 1000, 'the real bound leaves room for a home with models (about a hundred files)');
+});
+
+test('secureMineruHome with no Python to change the permissions with is "not done", not "ok" (Windows)', { skip: process.platform !== 'win32' }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-secure-home-none-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const result = await secureMineruHome(await ourFolder(dir), { platform: 'win32', cli: { file: join(dir, 'not-mineru.exe'), prefix: [], env: {} } });
+  assert.equal(result.ok, false);
+  assert.equal(result.skipped, 'no-python');
+  assert.match(result.error, /no Python/);
+});
+
+test('#942 L4: a repair that ran too long, or a Python that cannot be run, says so in its own words (never a sentence about parsing or about MinerU missing)', { skip: process.platform !== 'win32' }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-secure-home-words-'));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  const home = await ourFolder(dir);
+  const slow = join(dir, 'slow-python.mjs');
+  await writeFile(slow, 'setTimeout(() => {}, 20000);\n');
+  const late = await secureMineruHome(home, { platform: 'win32', pythonCli: { file: process.execPath, prefix: [slow], env: {} }, timeoutMs: 300 });
+  assert.equal(late.ok, false);
+  assert.match(homeNote(late, home), /permission repair took longer than/);
+  const missing = await secureMineruHome(home, { platform: 'win32', pythonCli: { file: join(dir, 'no-such-python.exe'), prefix: [], env: {} } });
+  assert.equal(missing.ok, false);
+  assert.match(homeNote(missing, home), /Python .*could not be run/);
+  for (const note of [homeNote(late, home), homeNote(missing, home)]) {
+    assert.doesNotMatch(note, han, 'a line of the install log and of the detail, in the program\'s words');
+    assert.ok(!/MinerU|pars/i.test(note.replace(home, '')), note);
+  }
+});
+
+test('#942 L2: the permissions are changed only in the settings folder of a StudyHub install: never a folder named otherwise, one without the sentinel next to it, a drive root, the user\'s own folder, or a link', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-secure-home-guard-'));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  const { homedir } = await import('node:os');
+  const { parse } = await import('node:path');
+  const { existsSync } = await import('node:fs');
+  const refused = async (home, why) => {
+    const result = await secureMineruHome(home, { platform: process.platform, pythonCli: { file: join(dir, 'never-run.exe'), prefix: [], env: {} } });
+    assert.equal(result.ok, false, why);
+    assert.equal(result.skipped, 'not-ours', why);
+    assert.match(homeNote(result, home), /left the permissions of .* as they are/, why);
+  };
+  await refused(join(dir, 'home'), 'no sentinel beside it (another MinerU\'s folder, or MINERU_HOME pointing anywhere)');
+  assert.equal(existsSync(join(dir, 'home')), false, 'nothing is even created');
+  await ourFolder(dir);
+  await refused(join(dir, 'settings'), 'not named home');
+  await refused(parse(dir).root, 'a drive root');
+  await refused(homedir(), 'the user\'s own folder');
+  await refused(join(dir, 'home', '..', 'home', '..'), 'a path that only looks like it at first');
+});
+
+test('#942 L2: a home that is a junction to another folder is refused, and a file hard-linked from outside is never changed (a real Python and icacls, temp folders)', { skip: process.platform !== 'win32' }, async t => {
+  const python = await realPython();
+  if (!python) { t.skip('no Python 3.11-3.14 on this computer: the permission change needs one'); return; }
+  const { execFileSync } = await import('node:child_process');
+  const { link } = await import('node:fs/promises');
+  const dir = await mkdtemp(join(tmpdir(), 'study-secure-home-links-'));
+  t.after(async () => { try { execFileSync('icacls', [dir, '/reset', '/T', '/C', '/Q'], { stdio: 'ignore' }); } catch { /* best effort */ } await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
+  const pythonCli = { file: python.path, prefix: [], env: {} };
+  // 1. <ours>\home is a junction to a folder elsewhere, whose file has its own protected list: it stays exactly as it was.
+  const elsewhere = join(dir, 'elsewhere'), ours = join(dir, 'ours');
+  await mkdir(elsewhere, { recursive: true }); await mkdir(ours, { recursive: true });
+  await writeFile(join(elsewhere, 'kept.txt'), 'x');
+  execFileSync('icacls', [join(elsewhere, 'kept.txt'), '/inheritance:d'], { stdio: 'ignore' });
+  const before = await aclOf(join(elsewhere, 'kept.txt'), dir), folderBefore = await aclOf(elsewhere, dir);
+  await ourFolder(ours);
+  await symlink(elsewhere, join(ours, 'home'), 'junction');
+  const junction = await secureMineruHome(join(ours, 'home'), { platform: 'win32', pythonCli });
+  assert.deepEqual([junction.ok, junction.skipped], [false, 'not-ours']);
+  assert.deepEqual(await aclOf(join(elsewhere, 'kept.txt'), dir), before, 'the target\'s file is untouched');
+  assert.deepEqual(await aclOf(elsewhere, dir), folderBefore, 'the target folder is untouched');
+  // 2. A real home with a hard link to a file outside it: the walk leaves that file (and so its other name outside) alone.
+  const real = join(dir, 'real');
+  await mkdir(real, { recursive: true });
+  const home = await ourFolder(real);
+  await mkdir(home, { recursive: true });
+  await writeFile(join(dir, 'outside.txt'), 'x');
+  execFileSync('icacls', [join(dir, 'outside.txt'), '/inheritance:d'], { stdio: 'ignore' });
+  const outside = await aclOf(join(dir, 'outside.txt'), dir);
+  await link(join(dir, 'outside.txt'), join(home, 'linked.txt'));
+  const result = await secureMineruHome(home, { platform: 'win32', pythonCli });
+  assert.deepEqual(await aclOf(join(dir, 'outside.txt'), dir), outside, 'a file with another name outside the home keeps its list');
+  // #942 N1: that file's list is not what the home gives, and it was left as it is: the repair is not complete, and the result says so with the count.
+  assert.deepEqual([result.ok, result.linked], [false, 1], JSON.stringify(result));
+  assert.match(homeNote(result, home), /1 file\(s\) below it .*left alone because .*linked from elsewhere.*not complete/, homeNote(result, home));
+  // A healthy hard-linked file (its list is what the home gives) is not counted: nothing broken was skipped.
+  const clean = join(dir, 'clean');
+  await mkdir(clean, { recursive: true });
+  const cleanHome = await ourFolder(clean);
+  await mkdir(cleanHome, { recursive: true });
+  assert.equal((await secureMineruHome(cleanHome, { platform: 'win32', pythonCli })).ok, true);
+  await writeFile(join(cleanHome, 'a.txt'), 'x');
+  await link(join(cleanHome, 'a.txt'), join(cleanHome, 'b.txt'));
+  assert.deepEqual(await secureMineruHome(cleanHome, { platform: 'win32', pythonCli }), { ok: true });
+});
+
+test('#942 N1: a start that fails after the permission step left linked files alone carries their count, for the card to say', () => {
+  const failure = explainStartFailure({ code: 'server-start-failed', reason: 'home-permissions', file: 'config.yaml', detail: 'x', linked: 2 });
+  assert.deepEqual([failure.code, failure.file, failure.linked], ['home-permissions', 'config.yaml', 2]);
+  assert.equal(Object.hasOwn(explainStartFailure({ code: 'server-start-failed', reason: 'home-permissions', file: '', detail: 'x' }), 'linked'), false, 'no count, no field');
+  assert.match(homeNote({ ok: false, linked: 3, error: 'ignored' }, 'D:\\x\\home'), /3 file\(s\) below it/);
+});
+
+test('POSIX: the home is 0700 and the files directly in it (config.yaml, credentials) 0600; logs keep theirs', { skip: process.platform === 'win32' }, async t => {
+  const { chmod, stat: statOf } = await import('node:fs/promises');
+  const dir = await mkdtemp(join(tmpdir(), 'study-secure-home-posix-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const home = await ourFolder(dir);
+  await mkdir(join(home, 'logs'), { recursive: true });
+  for (const file of ['config.yaml', 'credentials.yaml', join('logs', 'a.log')]) { await writeFile(join(home, file), 'x'); await chmod(join(home, file), 0o664); }
+  await chmod(home, 0o775);
+  assert.deepEqual(await secureMineruHome(home, { platform: process.platform }), { ok: true });
+  const mode = async file => (await statOf(join(home, file))).mode & 0o777;
+  assert.deepEqual([await mode(''), await mode('config.yaml'), await mode('credentials.yaml'), await mode(join('logs', 'a.log'))], [0o700, 0o600, 0o600, 0o664]);
+});
+
+test('a start that failed carries what the permission step did not do in its detail (no Python found here: the fake is not a mineru.exe)', { skip: process.platform !== 'win32' }, async t => {
+  const fake = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true, serverLogError: 'RuntimeError: worker exited with code 3' });
+  const home = await ourFolder(fake.dir);
+  await assert.rejects(startServer({ cli: fake.cli, home }), error => error.reason === 'service-failed'
+    && /could not restrict permissions on .*home: no Python/.test(error.detail) && /worker exited/.test(error.detail));
+});
+
+test('#942 N2: a denied path with the long-path prefix (\\\\?\\ and \\\\?\\UNC\\) is compared without it', () => {
+  const home = 'D:\\StudyHub\\MinerU\\home';
+  const py = path => path.replace(/\\/g, '\\\\');
+  const cases = [
+    [`PermissionError: [WinError 5] Access is denied: '${py(`\\\\?\\${home}\\config.yaml`)}'`, home, 'config.yaml'],
+    [`System.UnauthorizedAccessException: Access to the path '\\\\?\\${home}\\models\\a.onnx' is denied.`, home, 'models\\a.onnx'],
+    [`PermissionError: [WinError 5] Access is denied: '${py('\\\\?\\UNC\\server\\share\\MinerU\\home\\config.yaml')}'`, '\\\\server\\share\\MinerU\\home', 'config.yaml'],
+    [`PermissionError: [WinError 5] Access is denied: '${py('\\\\?\\D:\\StudyHub\\MinerU\\venv\\x.pyd')}'`, home, null],
+  ];
+  for (const [said, where, file] of cases) assert.deepEqual(homePermissionFailure(said, where), file === null ? null : { file }, said);
+});
+
+test('#942 M2: a denial is about the settings folder only when the path IN the denial is inside it; a home path printed elsewhere in the text decides nothing', () => {
+  const home = 'D:\\StudyHub\\MinerU\\home';
+  const py = path => path.replace(/\\/g, '\\\\');
+  const cases = [
+    // The two cases the review reproduced: the home is mentioned, the denied file is in the venv.
+    [`see ${home}\\logs\\doclib.stderr.log\n[WinError 5] Access is denied: '${py('D:\\StudyHub\\MinerU\\venv\\Lib\\site-packages\\torch\\lib\\c10.dll')}'`, home, null],
+    [`Loading config from ${home}\\config.yaml\nPermissionError: [Errno 13] Permission denied: '${py('D:\\StudyHub\\MinerU\\venv\\Lib\\x.pyd')}'`, home, null],
+    // Inside: Python's doubled backslashes, mixed slashes and case, a trailing separator on the home, the Chinese form, .NET, Node, Rust (uv).
+    [`PermissionError: [Errno 13] Permission denied: '${py(`${home}\\config.yaml`)}'`, home, 'config.yaml'],
+    ["PermissionError: [Errno 13] Permission denied: 'd:/studyhub/MinerU\\\\HOME/logs/a.log'", home, 'logs/a.log'],
+    [`PermissionError: [Errno 13] Permission denied: '${py(`${home}\\config.yaml`)}'`, `${home}\\`, 'config.yaml'],
+    [`PermissionError: [WinError 5] 拒绝访问。: '${py(`${home}\\config.yaml`)}'`, home, 'config.yaml'],
+    [`System.UnauthorizedAccessException: Access to the path '${home}\\models\\a.onnx' is denied.`, home, 'models\\a.onnx'],
+    [`Error: EACCES: permission denied, open '${home}\\config.yaml'`, home, 'config.yaml'],
+    [`error: failed to open file \`${home}\\config.yaml\`: Access is denied. (os error 5)`, home, 'config.yaml'],
+    ["PermissionError: [Errno 13] Permission denied: '/home/lee/StudyHub/MinerU/home/config.yaml'", '/home/lee/StudyHub/MinerU/home', 'config.yaml'],
+    [`PermissionError: [Errno 13] Permission denied: '${py('D:\\My Files\\MinerU\\home\\config.yaml')}'`, 'D:\\My Files\\MinerU\\home', 'config.yaml'],
+    // Not inside: a sibling that starts with the same name, a relative path, no folder to compare with, no path at all.
+    [`PermissionError: [Errno 13] Permission denied: '${py('D:\\StudyHub\\MinerU\\home2\\config.yaml')}'`, home, null],
+    ["PermissionError: [Errno 13] Permission denied: 'config.yaml'", home, null],
+    [`PermissionError: [Errno 13] Permission denied: '${py(`${home}\\config.yaml`)}'`, '', null],
+    ['PermissionError: [WinError 5] Access is denied', home, null],
+    // MinerU's privacy complaint is about the settings folder whatever else is printed; a log path elsewhere never becomes its file.
+    [`see ${home}\\logs\\doclib.stderr.log\nPermissionError: Credential configuration directory '${py(home)}' has insecure permissions`, home, ''],
+    [`PermissionError: Credential configuration file '${py(`${home}\\credentials.json`)}' is not private (cannot enforce private credential)`, home, 'credentials.json'],
+  ];
+  for (const [said, where, file] of cases) assert.deepEqual(homePermissionFailure(said, where), file === null ? null : { file }, said);
+});
+
+test('a permission failure on a file inside the settings folder is home-permissions (which file, nothing to move); one outside it, or naming no path, stays not-writable', async t => {
+  const fake = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true });
+  const home = join(fake.dir, 'home');
+  // What Python prints: the path inside quotes with its backslashes doubled.
+  const python = path => `PermissionError: [Errno 13] Permission denied: '${path.replace(/\\/g, '\\\\')}'`;
+  await fake.set({ serverLogError: python(join(home, 'config.yaml')) });
+  await assert.rejects(startServer({ cli: fake.cli, home }), error => error.reason === 'home-permissions' && error.file === 'config.yaml' && /不用换位置/.test(error.message));
+  await fake.set({ serverLogError: python(join(home, 'logs', 'doclib.log')) });
+  await assert.rejects(startServer({ cli: fake.cli, home }), error => error.reason === 'home-permissions' && error.file === join('logs', 'doclib.log'));
+  await fake.set({ serverLogError: python(join(fake.dir, 'venv', 'Lib', 'site-packages', 'x.pyd')) });
+  await assert.rejects(startServer({ cli: fake.cli, home }), error => error.reason === 'not-writable');
+  await fake.set({ serverLogError: 'PermissionError: [WinError 5] Access is denied' });
+  await assert.rejects(startServer({ cli: fake.cli, home }), error => error.reason === 'not-writable');
 });
 
 /** <home>/logs/<name> written before a start: what an earlier run left behind. */

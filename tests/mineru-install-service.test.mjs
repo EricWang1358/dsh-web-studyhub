@@ -240,3 +240,48 @@ test('cancel keeps what was downloaded; 继续安装 skips the finished steps; a
   for (const child of MINERU_INSTALL.children) assert.equal(await exists(join(h.location, child)), false, child);
   assert.equal((await h.call('mineru.local.status', { fresh: true })).state, 'not-installed');
 });
+
+test('#936, a learner\'s case: mineru cannot read its own config.yaml (an empty access list) during 安装 MinerU: the install says which file and that the location is fine (home-permissions, not 换位置); after the repair 修复权限 continues in the same folder and downloads nothing again', async t => {
+  const h = await serviceHarness(t);
+  await h.start(); await h.ended('complete');
+  const layout = mineruLayout(h.location);
+  const denied = `PermissionError: [Errno 13] Permission denied: '${layout.config.replace(/\\/g, '\\\\')}'`;
+  await h.setMineru({ versionFails: denied });
+  await h.start();
+  const failed = await h.ended('failed');
+  assert.deepEqual([failed.error.code, failed.stage], ['home-permissions', 'package']);
+  assert.match(failed.error.message, /config\.yaml/, 'which file');
+  assert.match(failed.error.message, /不用换位置/, 'the location is fine');
+  // The location really is writable: the plan of the same folder finds no problem, so nothing points the learner to another one.
+  assert.deepEqual((await h.call('mineru.install.plan', { location: failed.folder, tier: failed.tier })).problems, []);
+  // The permissions are repaired (here: the stand-in reads its config again); 重新检测 is a read, and the card's one button is 修复权限 = the install again.
+  await h.setMineru({ versionFails: undefined });
+  const seen = await h.call('mineru.local.status', { fresh: true });
+  assert.equal(seen.install.error.code, 'home-permissions', 'the status still carries the stopped install, so the card keeps offering its button');
+  const before = { mineru: (await h.mineruLog()).length, uv: (await h.uvLog()).length };
+  await h.call('mineru.install.start', { confirm: true, location: failed.folder, tier: failed.tier });
+  const done = await h.ended('complete');
+  assert.equal(done.installedFolder, h.location);
+  const mineruCalls = (await h.mineruLog()).slice(before.mineru), uvCalls = (await h.uvLog()).slice(before.uv);
+  assert.ok(!mineruCalls.some(entry => entry.argv.join(' ').startsWith('models download')), 'the models on disk are kept');
+  assert.ok(!uvCalls.some(entry => entry.args[0] === 'venv'), 'Python is kept');
+  assert.equal((await h.call('mineru.local.status', { fresh: true })).state, 'ready');
+});
+
+test('#937: an unfinished install continues in another tier when asked (same folder): Python and the program are kept, only the new tier\'s models are downloaded', async t => {
+  const h = await serviceHarness(t, { mineru: { downloadFails: true, downloadError: 'model.onnx: checksum mismatch, the download was cut' } });
+  await h.start({ tier: 'standard' });
+  const failed = await h.ended('failed');
+  assert.deepEqual([failed.tier, failed.stage, failed.installed, failed.done], ['standard', 'models', false, ['tools', 'python', 'package']]);
+  await h.setMineru({ downloadFails: false });
+  const before = { mineru: (await h.mineruLog()).length, uv: (await h.uvLog()).length };
+  const plan = await h.call('mineru.install.plan', { location: failed.folder, tier: 'basic' });
+  assert.deepEqual([plan.ok, plan.folder, plan.tier], [true, h.location, 'basic']);
+  await h.call('mineru.install.start', { confirm: true, location: failed.folder, tier: 'basic' });
+  const done = await h.ended('complete');
+  assert.deepEqual([done.tier, done.installedTier, done.installedFolder], ['basic', 'basic', h.location]);
+  const mineruCalls = (await h.mineruLog()).slice(before.mineru), uvCalls = (await h.uvLog()).slice(before.uv);
+  assert.deepEqual(mineruCalls.filter(entry => entry.argv[0] === 'models' && entry.argv[1] === 'download').map(entry => entry.argv[3]), ['basic']);
+  assert.ok(!uvCalls.some(entry => entry.args[0] === 'venv'), 'Python is kept');
+  assert.ok(mineruCalls.some(entry => entry.argv.join(' ') === 'config set parse_server.local.managed_tier basic'));
+});

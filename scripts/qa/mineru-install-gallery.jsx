@@ -101,6 +101,15 @@ const CASES = {
   ready: { local: local('ready', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12', tier: 'basic', running: true }) },
   external: { local: local('ready', { origin: 'search', exe: 'C:\\Users\\student\\.local\\bin\\mineru.exe', version: '4.0.10', tier: 'standard', running: true }) },
   more: { local: local('ready', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12', tier: 'basic', running: true }), plan: plan({ existing: true }), more: true },
+  // #936: a file of the settings folder MinerU cannot read: 修复权限 continues the install; after the install, 修复权限并重启. A service refused for its
+  // folder's permissions repairs first too, 换位置 second and quiet.
+  'home-install': { local: failedAt('home-permissions', 'package', TEXT.homePermissions('config.yaml')), plan: plan() },
+  'home-service': { local: local('server-stopped', { origin: 'installed', folder: FOLDER, install: { ...complete, tier: 'standard', installedTier: 'standard' }, version: '4.0.12',
+    lastError: { code: 'home-permissions', file: 'config.yaml', message: '本机服务没能启动：MinerU 读不了配置文件夹里的文件，或认为它们不够私有。安装位置没问题，不用换位置。', at: new Date().toISOString() } }), plan: plan() },
+  'writable-service': { local: local('server-stopped', { origin: 'installed', folder: FOLDER, install: complete, version: '4.0.12',
+    lastError: { code: 'not-writable', message: '本机服务没能启动：配置文件夹的权限不符合要求，或没有写入权限。', at: new Date().toISOString() } }), plan: plan() },
+  // #937: a standard install that stopped at the models, 更多 open (pick basic there: the one primary becomes 改装 basic 档).
+  'tier-change': { local: local('not-installed', { install: { ...ended('failed', 'models-failed', 'models', TEXT.modelsFailed), tier: 'standard' } }), plan: plan({ tier: 'standard' }), more: true },
 };
 const spec = CASES[which] || CASES.missing;
 

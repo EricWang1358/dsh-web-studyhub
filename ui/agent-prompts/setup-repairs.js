@@ -5,12 +5,15 @@
    Every sentence is a catalogue key (ui/locales/en.agent.json) and holds an idea, never a pasted command (the same command is wrong on another system).
    What every repair shares (say what a step changes first; ask before ending a process, deleting files or changing permissions; verify read-only; never start
    or stop the tool's service) is said once, in the HOW line of setup.js, not here. Values a sentence takes, by position: {0} the address of the VC++ runtime,
-   {1} the tool's install button, {2} its repair button, {3} its uninstall button, {4} its move button, {5} where its download source is chosen, {6} the button that
-   resets the permissions of the files in MinerU's settings folder (the card does it itself, #942). */
+   {1} the tool's install button, {2} its repair button, {3} its uninstall button, {4} its move button, {5} where its download source is chosen, {6} the card's
+   own fix for this failure (for MinerU's home-permissions: 修复权限 / 修复权限并重启, which resets the files of its settings folder itself, #942; for a MinerU
+   StudyHub did not install: 重新启动服务, ui/mineru-install-flow.js fixFor). */
 
 export const SETUP_REPAIRS = Object.freeze({
   perms: '配置文件夹的权限：只查「情况」里 folder 这个安装位置之内、这个工具自己的文件夹和里面的文件（MinerU 是它的配置文件夹），没有任何账户能读、或权限被改乱的文件，恢复成继承所在文件夹的权限；不要动安装位置以外的任何东西（包括用户主目录里的其他文件），不要放宽任何文件夹的权限；报错里被拒绝的路径如果在安装位置之外，不要改，告诉我它是什么就停下',
   'home-perms': '配置文件夹里的文件权限不对：先让我点卡片上的「{6}」（它会把配置文件夹里的文件恢复成继承所在文件夹的权限）；只有这个按钮已经点过、卡片说还是没修好，才由你动手：只限安装位置之内这个配置文件夹和里面的文件，恢复成继承所在文件夹的权限，不要动安装位置以外的任何东西（包括用户主目录里的其他文件），不要放宽任何文件夹的权限，被拒绝的路径在安装位置之外就停下，告诉我它是什么',
+  // A MinerU StudyHub did not install (#942 N3): the card has no permission repair for it (StudyHub never changes a folder it did not create) and no install location.
+  'other-home-perms': '这份 MinerU 不是 StudyHub 装的，它的配置文件夹里的文件权限不对：先让我点卡片上的「{6}」再试一次；还是不行才由你动手：只限报错里被拒绝的那个路径所在的、这份 MinerU 自己的配置文件夹和里面的文件，让我自己能读写、并且只有我、系统和管理员能用；改权限之前先问我；不要动这份 MinerU 的其他任何东西（程序、模型、它的安装文件夹），不要动配置文件夹以外的任何东西，不要放宽任何文件夹的权限；报错里没有写出被拒绝的路径、或被拒绝的路径不在这份 MinerU 的配置文件夹（MINERU_HOME，没有的话是用户主目录下的 .mineru）里时，什么都不要改，告诉我它是什么就停下',
   location: '位置本身不能写、路径太长或没有足够空间：在剩余空间够、路径尽量短、我有写入权限的磁盘上新建一个空文件夹，告诉我在「{4}」里选它',
   port: '端口被占用：找出占用端口的进程，告诉我它是什么',
   'in-use': '文件夹被别的程序占用：找出占用它的进程，告诉我它是什么',
@@ -34,7 +37,7 @@ export const SETUP_REPAIRS = Object.freeze({
 });
 
 /* The repairs that change files or permissions: only these need the chat to be allowed to write outside the workspace (the others read, test or tell me). */
-const WRITES = Object.freeze(['perms', 'home-perms', 'location']);
+const WRITES = Object.freeze(['perms', 'home-perms', 'other-home-perms', 'location']);
 
 const LOCATION = ['location'];
 const NETWORK = ['net'];
@@ -74,10 +77,23 @@ export const TOOL_REPAIRS = Object.freeze({
   },
 });
 
-const codesOf = tool => (Object.hasOwn(TOOL_REPAIRS, tool) ? TOOL_REPAIRS[tool] : TOOL_REPAIRS.mineru);
+/* The codes whose repairs differ when the tool was NOT installed by StudyHub (the diagnostic's `installedBy: 'other'`, the card's `ours` false): a MinerU found
+   through MINERU_BIN or the PATH has no install location and gets no 修复权限 (ui/mineru-install-flow.js fixFor), so its permission repairs are scoped to its own
+   settings folder instead. Every other code keeps the table above. */
+export const OTHER_INSTALL_REPAIRS = Object.freeze({
+  // not-writable is a denied path OUTSIDE its settings folder (lib/mineru-local.js startFailureCode): Temp, an output folder, a cache, none of them its own to
+  // change, so it only reads; so does a start that failed for another reason (the scoped repair of the install location, 'perms', has no location here).
+  mineru: { 'home-permissions': ['other-home-perms'], 'not-writable': ['service'], 'service-failed': ['service'], 'server-start-failed': ['service'] },
+});
 
-/** The repair ids for a failure code of a tool: [] when the code is not in the table (an inherited name such as 'toString' is not a code). */
-export function repairIdsFor(tool, code) {
+const codesOf = tool => (Object.hasOwn(TOOL_REPAIRS, tool) ? TOOL_REPAIRS[tool] : TOOL_REPAIRS.mineru);
+const toolOf = tool => (Object.hasOwn(TOOL_REPAIRS, tool) ? tool : 'mineru');
+
+/** The repair ids for a failure code of a tool: [] when the code is not in the table (an inherited name such as 'toString' is not a code). `installedBy`
+ *  'other': the tool StudyHub did not install (OTHER_INSTALL_REPAIRS first). */
+export function repairIdsFor(tool, code, installedBy = '') {
+  const other = installedBy === 'other' && Object.hasOwn(OTHER_INSTALL_REPAIRS, toolOf(tool)) ? OTHER_INSTALL_REPAIRS[toolOf(tool)] : null;
+  if (other && Object.hasOwn(other, code)) return other[code];
   const codes = codesOf(tool);
   return Object.hasOwn(codes, code) ? codes[code] : [];
 }
@@ -87,8 +103,8 @@ export function repairIdsFor(tool, code) {
  * permission line of the prompt). A known code: any of its repairs writes. An unknown code gets the general entry, which may make small reversible repairs, so it
  * counts as writing wherever the tool has a repair that writes at all.
  */
-export function needsWrite(tool, code) {
-  const codes = codesOf(tool), ids = repairIdsFor(tool, code);
+export function needsWrite(tool, code, installedBy = '') {
+  const codes = codesOf(tool), ids = repairIdsFor(tool, code, installedBy);
   if (ids.length) return ids.some(id => WRITES.includes(id));
   return Object.values(codes).some(list => list.some(id => WRITES.includes(id)));
 }
