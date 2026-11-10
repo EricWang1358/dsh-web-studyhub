@@ -103,7 +103,7 @@ function fixIdOf(tool, { code, status, external, source }) {
 function pressPhrase(tool, input, language) {
   if (tool === 'retrieval-extension') return say(language, Object.hasOwn(EXTENSION_PRESS, input.code) ? EXTENSION_PRESS[input.code] : EXTENSION_PRESS_INDEX);
   const id = fixIdOf(tool, input);
-  const label = tool === 'live-loopback' && id === 'continue' ? LOOPBACK_CONTINUE : BUTTONS[id];
+  const label = tool === 'live-loopback' && id === 'continue' ? LOOPBACK_CONTINUE : (Object.hasOwn(BUTTONS, id) ? BUTTONS[id] : BUTTONS.repair); // a fix added later: the card's default
   return say(language, PRESS, [say(language, label)]);
 }
 
