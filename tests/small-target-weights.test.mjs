@@ -46,9 +46,8 @@ test('the estimate prices no importance calls for a small custom total, and stil
 
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-small-weights-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root);
-  t.after(() => service.dispose());
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   service.complete = clusteringModel().complete;
   const lightCalls = [];
   service.light = async (system, prompt) => {

@@ -24,9 +24,8 @@ const TOTAL_MS = 20 * 60 * 1000;
 
 async function library(t, { model = clusteringModel(), wrap, coverage = { roundLimit: 8 } } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-failed-continue-'));
-  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   const service = new StudyService(root, { coverage });
-  t.after(() => service.dispose());
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   service.complete = wrap ? wrap(model.complete, service) : model.complete;
   service.light = async (system, prompt) => JSON.stringify({ sections: JSON.parse(prompt.split('\n\n')[0]).sections.map(item => ({ id: item.id, importance: 3, kind: 'definition', reason: `Reason for ${item.title}` })) });
   for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });

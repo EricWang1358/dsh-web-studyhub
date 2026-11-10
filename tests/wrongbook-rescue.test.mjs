@@ -43,18 +43,12 @@ const render = (items, extra = {}) => renderToStaticMarkup(
 );
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
-async function makeTempRoot(t) {
-  const root = await mkdtemp(join(tmpdir(), 'study-wb-rescue-'));
-  t.after(async () => { await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
-  return root;
-}
-
 test('coach.feedback 10-minute dedupe: unconsented too-hard tap followed by consent within 10 minutes schedules prep once, then dedupes', async (t) => {
-  const root = await makeTempRoot(t);
+  const root = await mkdtemp(join(tmpdir(), 'study-wb-rescue-'));
   const log = [];
   const model = createFakeModel({ latencyMs: 0, log });
   const service = new StudyService(root, { complete: model, completeLight: model, coach: true });
-  t.after(() => service.dispose());
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   await seed((action, args) => service.call(action, args));
 
   const ref = { deckId: 'd', cardId: 'q1' };
@@ -80,7 +74,7 @@ test('coach.feedback 10-minute dedupe: unconsented too-hard tap followed by cons
 });
 
 test('coach.feedback 10-minute dedupe: unscheduled tap without a model allows rewrite and inline-consented prep once a model is configured, then dedupes', async (t) => {
-  const root = await makeTempRoot(t);
+  const root = await mkdtemp(join(tmpdir(), 'study-wb-rescue-'));
   const withoutModel = new StudyService(root);
   await seed((action, args) => withoutModel.call(action, args));
 
@@ -88,11 +82,11 @@ test('coach.feedback 10-minute dedupe: unscheduled tap without a model allows re
   assert.deepEqual([fixFirst.tags, fixFirst.scheduled], [['general-quality'], []]);
   const prepFirst = await withoutModel.call('coach.feedback', { deckId: 'd', cardId: 'q2', vote: 'down', tags: ['too-hard'] });
   assert.deepEqual([prepFirst.tags, prepFirst.scheduled], [['too-hard'], []]);
-  withoutModel.dispose();
+  await withoutModel.dispose();
 
   const model = createFakeModel({ latencyMs: 0, log: [] });
   const withModel = new StudyService(root, { complete: model, completeLight: model, coach: true });
-  t.after(() => withModel.dispose());
+  t.after(async () => { await withModel.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
 
   const fixSecond = await withModel.call('coach.feedback', { deckId: 'd', cardId: 'q1', vote: 'down', tags: ['general-quality'] });
   assert.deepEqual([fixSecond.tags, fixSecond.scheduled], [[], ['rewrite']], 'rewrite schedules immediately once a model is available');

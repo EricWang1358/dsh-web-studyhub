@@ -71,9 +71,8 @@ test('the part that records a short section keeps the numbers on the draft (addi
 const world = mergedTranscript({ recordings: 2, parts: 6, paragraphs: 4 });
 async function library(t, model) {
   const root = await mkdtemp(join(tmpdir(), 'study-plain-failure-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root, { coverage: { roundLimit: 8 } });
-  t.after(() => service.dispose());
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   service.complete = model.complete;
   service.light = async (system, prompt) => JSON.stringify({ sections: JSON.parse(prompt.split('\n\n')[0]).sections.map(item => ({ id: item.id, importance: 3, kind: 'definition', reason: `Reason for ${item.title}` })) });
   for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
