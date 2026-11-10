@@ -42,7 +42,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-method-gate.js`: 1 ui file; contexts courses, library; 1 other lib file
 - `lib/course-method-progress.js`: 1 ui file; contexts courses, library; 7 other lib files
 - `lib/course-method-schedule.js`: 1 ui file; contexts courses, library
-- `lib/course-method.js`: 4 ui files; context courses; 5 other lib files
+- `lib/course-method.js`: 4 ui files; context courses; 4 other lib files
 - `lib/course-rules.js`: 3 ui files; context authoring; 3 other lib files
 - `lib/course-setup.js`: 1 ui file
 - `lib/course-tree.js`: 8 ui files; contexts generation, materials; 14 other lib files
@@ -55,7 +55,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/deck-format.js`: 1 ui file; 1 other lib file
 - `lib/deck-parts.js`: 2 ui files; contexts authoring, generation, library; 1 other lib file
 - `lib/document-title.js`: 17 ui files; contexts generation, materials; 9 other lib files
-- `lib/draft-continuation.js`: 2 ui files; contexts generation, jobs, library; 2 other lib files
+- `lib/draft-continuation.js`: 1 ui file; contexts generation, jobs, library; 2 other lib files
 - `lib/draft-fields.js`: 1 ui file; context bank; 4 other lib files
 - `lib/exam-point-list.js`: 3 ui files; contexts generation, library, materials; 18 other lib files
 - `lib/exam-prep-roles.js`: 3 ui files; context generation
@@ -75,10 +75,10 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/jev-providers.js`: 1 ui file; 3 other lib files
 - `lib/job-contract.js`: 4 ui files; contexts audio, generation, jobs; 3 other lib files
 - `lib/job-model.js`: 3 ui files; context generation; 4 other lib files
-- `lib/job-status.js`: 28 ui files; contexts audio, jobs, library; 5 other lib files
+- `lib/job-status.js`: 27 ui files; contexts audio, jobs, library; 5 other lib files
 - `lib/job-timing.js`: 1 ui file
 - `lib/large-documents.js`: 10 ui files; context generation; 6 other lib files
-- `lib/learner.js`: 1 ui file; context coach; 5 other lib files
+- `lib/learner.js`: 1 ui file; context coach; 4 other lib files
 - `lib/leech.js`: 3 ui files; 2 other lib files
 - `lib/limits.js`: 6 ui files; contexts generation, materials, study; 12 other lib files
 - `lib/live-correction-settings.js`: 1 ui file; context audio; 2 other lib files
@@ -87,7 +87,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/live-loopback-install-text.js`: 1 ui file; context audio; 2 other lib files
 - `lib/marker-external.js`: 1 ui file
 - `lib/material-pins.js`: 1 ui file; context library
-- `lib/material-summary.js`: 4 ui files; 3 other lib files
+- `lib/material-summary.js`: 4 ui files; 2 other lib files
 - `lib/math-scan.js`: 1 ui file; 3 other lib files
 - `lib/mineru-install-text.js`: 1 ui file; context audio; 1 other lib file
 - `lib/model-effort.js`: 4 ui files; contexts audio, generation; 9 other lib files
@@ -116,7 +116,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/stage-effort.js`: 1 ui file; context generation; 3 other lib files
 - `lib/stage-usage.js`: 1 ui file; context generation; 2 other lib files
 - `lib/study-image-markdown.js`: 1 ui file; context authoring; 3 other lib files
-- `lib/study-image-policy.js`: 3 ui files; 2 other lib files
+- `lib/study-image-policy.js`: 2 ui files; 2 other lib files
 - `lib/study-progress.js`: 2 ui files; context study; 4 other lib files
 - `lib/symbolic-proof.js`: 1 ui file
 - `lib/token-usage.js`: 8 ui files; contexts audio, generation, materials; 10 other lib files
@@ -136,7 +136,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-active.js`: contexts generation, library; 11 other lib files
 - `lib/course-book-files.js`: contexts generation, library; 14 other lib files
 - `lib/course-book.js`: contexts generation, library; 8 other lib files
-- `lib/coverage-state.js`: contexts generation, library; 2 other lib files
+- `lib/coverage-state.js`: contexts generation, library; 1 other lib file
 - `lib/custom-skeleton.js`: contexts courses, generation; 4 other lib files
 - `lib/daily-recap-settings.js`: contexts notes, system; 2 other lib files
 - `lib/deck-organization.js`: contexts authoring, bank
@@ -187,7 +187,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/answer-card-materials.js`: context generation
 - `lib/answer-time.js`: context study
 - `lib/atomic-json.js`: context generation; 8 other lib files
-- `lib/audio-batch-members.js`: context audio; 3 other lib files
+- `lib/audio-batch-members.js`: context audio; 2 other lib files
 - `lib/audio-batch-runtime-store.js`: context audio
 - `lib/audio-batch-skip.js`: context audio
 - `lib/audio-batch.js`: context audio; 5 other lib files
@@ -232,7 +232,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-book-structure.js`: context library
 - `lib/course-book-term-cards.js`: context generation; 2 other lib files
 - `lib/course-book-writer.js`: context library; 2 other lib files
-- `lib/course-outline-book.js`: context generation; 10 other lib files
+- `lib/course-outline-book.js`: context generation; 9 other lib files
 - `lib/course-outline-index.js`: context generation; 8 other lib files
 - `lib/course-outline-qa.js`: context library
 - `lib/course-outline.js`: context library; 6 other lib files
@@ -303,7 +303,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/review-draft.js`: context study; 1 other lib file
 - `lib/round-position.js`: context library; 2 other lib files
 - `lib/rubric-grading.js`: context study; 4 other lib files
-- `lib/run-mastery.js`: context study; 4 other lib files
+- `lib/run-mastery.js`: context study; 3 other lib files
 - `lib/run-title.js`: context library; 1 other lib file
 - `lib/section-weights.js`: context generation; 1 other lib file
 - `lib/snapshot-time.js`: context library
@@ -356,7 +356,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/code-comment.js`: 2 other lib files
 - `lib/course-book-cards.js`: 2 other lib files
 - `lib/course-book-export.js`: 1 other lib file
-- `lib/course-book-remap.js`: 3 other lib files
+- `lib/course-book-remap.js`: 2 other lib files
 - `lib/course-book-sample.js`: 3 other lib files
 - `lib/course-book-unplaced.js`: 3 other lib files
 - `lib/course-book-view.js`: 2 other lib files
@@ -375,7 +375,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/groq.js`: 6 other lib files
 - `lib/heading-levels.js`: 1 other lib file
 - `lib/host-service.js`: 3 other lib files
-- `lib/host.js`: 3 other lib files
+- `lib/host.js`: 2 other lib files
 - `lib/http.js`: 3 other lib files
 - `lib/index.js`: 2 other lib files
 - `lib/install-drives.js`: 3 other lib files
@@ -411,7 +411,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/plan-schedule.js`: 1 other lib file
 - `lib/plan-split.js`: 2 other lib files
 - `lib/plan-target-record.js`: 1 other lib file
-- `lib/quote-match.js`: 4 other lib files
+- `lib/quote-match.js`: 3 other lib files
 - `lib/reasoning-effort.js`: 6 other lib files
 - `lib/retrieval-extension.js`: 1 other lib file
 - `lib/retrieval-host.js`: 2 other lib files
@@ -434,7 +434,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/study-tool-mode.js`: 1 other lib file
 - `lib/subagent-api.js`: 2 other lib files
 - `lib/tex-text.js`: 7 other lib files
-- `lib/translation-source.js`: 4 other lib files
+- `lib/translation-source.js`: 3 other lib files
 - `lib/true-false.js`: 4 other lib files
 - `lib/types.js`: no import found in ui/ or lib/
 - `lib/update-install.js`: 2 other lib files
@@ -442,7 +442,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/usage-report.js`: 1 other lib file
 - `lib/uv-bootstrap.js`: 3 other lib files
 - `lib/workflow-contract.js`: 1 other lib file
-- `lib/workflow-course.js`: 2 other lib files
+- `lib/workflow-course.js`: 1 other lib file
 - `lib/workflow-guide.js`: 1 other lib file
 - `lib/workflow-skeleton.js`: 1 other lib file
 - `lib/workflow-teaching.js`: 1 other lib file

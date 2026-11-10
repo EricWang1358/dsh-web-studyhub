@@ -5,7 +5,7 @@
    Rebuild both committed files with one command:  npm run lib-graph          (check only: node scripts/qa/lib-graph.mjs --check) */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, posix, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 
@@ -14,7 +14,10 @@ export const ALLOW_LIST_FILE = join(ROOT, 'tests/fixtures/ui-lib-allow-list.txt'
 export const REPORT_FILE = join(ROOT, 'docs/lib-classification.md');
 export const REFRESH_COMMAND = 'npm run lib-graph';
 export const ALLOW_LIST_PATH = 'tests/fixtures/ui-lib-allow-list.txt';
-const SOURCE = /\.(?:jsx?|mjs)$/;
+// Every extension the bundler reads as code (js, jsx, mjs, cjs, ts, tsx, mts, cts). A tracked file of a shape this lets through but the bundler has no loader for
+// makes the scan throw instead of skipping the file: the scan fails closed.
+const SOURCE = /\.(?:[cm]?[jt]sx?)$/;
+const PACKAGE_NAME = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).name;
 
 /** The files git tracks (never the disk: build output and local files do not count). Fails loudly when git cannot answer. */
 export function trackedFiles(root = ROOT, git = 'git') {
@@ -32,7 +35,19 @@ export function trackedFiles(root = ROOT, git = 'git') {
 /** Every tracked top-level lib/*.js file, sorted. */
 export const topLevelLib = (files) => files.filter((file) => /^lib\/[^/]+\.js$/.test(file)).sort();
 
-/** { from, to, kind } for every import of a tracked ui/ or lib/ source file that lands on another tracked ui/ or lib/ source file. */
+/** An import the bundler could not resolve to one file but that may reach lib/: a pattern (a template or a concatenation: `../lib/**\/*.js`), a relative path into lib/,
+ *  or this package under its own name (its exports map to lib/ files). The allow-list cannot see where these land, so a ui file may not have one. */
+export function reachesLibOpaquely(from, path, packageName = PACKAGE_NAME) {
+  if (path === packageName || path.startsWith(`${packageName}/`)) return true;
+  if (!path.startsWith('.')) return false;
+  const target = posix.normalize(posix.join(posix.dirname(from), path)), star = target.indexOf('*');
+  if (star < 0) return /^lib(?:\/|$)/.test(target);
+  const head = target.slice(0, star); // what is fixed before the first wildcard: the pattern can land in lib/ unless that already points elsewhere
+  return 'lib/'.startsWith(head) || head.startsWith('lib/');
+}
+
+/** { from, to, kind } for every import of a tracked ui/ or lib/ source file that lands on another tracked ui/ or lib/ source file.
+ *  A ui/ import that the bundler leaves external but that reaches lib/ opaquely (see reachesLibOpaquely) is an edge of kind 'opaque' whose `to` is the path as written. */
 export async function importEdges(files = trackedFiles(), root = ROOT) {
   const sources = files.filter((file) => SOURCE.test(file) && /^(?:ui|lib)\//.test(file)).sort();
   const known = new Set(sources);
@@ -46,6 +61,7 @@ export async function importEdges(files = trackedFiles(), root = ROOT) {
   for (const [from, input] of Object.entries(metafile.inputs)) {
     if (!known.has(from)) continue;
     for (const imported of input.imports) {
+      if (imported.external && from.startsWith('ui/') && reachesLibOpaquely(from, imported.path)) edges.push({ from, to: imported.path, kind: 'opaque' });
       if (imported.external || !known.has(imported.path)) continue;
       edges.push({ from, to: imported.path, kind: imported.kind === 'dynamic-import' ? 'dynamic' : 'static' });
     }
@@ -66,22 +82,27 @@ export function uiLibImports(edges) {
 const HEADER = [
   '# The lib modules that ui/ imports, static and dynamic (#902). One path per line, sorted.',
   '# This list is a picture of the code, not a permission slip that nobody reads: a ui file importing a lib module that is not here fails',
-  '# tests/ui-lib-allow-list.test.mjs, and so does a line here that no ui file imports any more.',
+  '# tests/lib-graph.test.mjs, and so does a line here that no ui file imports any more. The scan reads git-tracked files: `git add` a new file',
+  '# before the check sees it on your machine (CI always sees it).',
   `# To add or drop an entry run \`${REFRESH_COMMAND}\` and commit the diff; the reviewer sees the new coupling there.`,
 ];
 export const allowListText = (targets) => `${[...HEADER, ...targets].join('\n')}\n`;
 export const parseAllowList = (text) => text.replace(/\r\n/g, '\n').split('\n').filter((line) => line && !line.startsWith('#'));
 
-/** What is wrong between the imports found in the code (Map from uiLibImports) and the committed list; each message says how to fix it. [] when they agree. */
-export function allowListProblems(imports, allowed) {
+/** The ui/ imports that reach lib/ in a way the list cannot see (see reachesLibOpaquely): [{ from, to }] from importEdges, sorted. */
+export const opaqueUiImports = (edges) => edges.filter((edge) => edge.kind === 'opaque').map(({ from, to }) => ({ from, to })).sort((a, b) => (a.from + a.to < b.from + b.to ? -1 : 1));
+
+/** What is wrong between the imports found in the code (Map from uiLibImports, plus the opaque ones from opaqueUiImports) and the committed list; each message says how to fix it. [] when they agree. */
+export function allowListProblems(imports, allowed, opaque = []) {
   const listed = new Set(allowed), how = `run \`${REFRESH_COMMAND}\` and commit the change to ${ALLOW_LIST_PATH}`;
+  const hidden = opaque.map(({ from, to }) => `${from} imports lib through a pattern or the package name (\`${to}\`); import the module by its relative path so the allow-list can see it.`);
   const unlisted = [...imports].filter(([target]) => !listed.has(target)).map(([target, users]) => {
-    const where = users.map(({ from, kind }) => `${from} (${kind === 'dynamic' ? 'dynamic import()' : 'import'})`).join(', ');
+    const where = [...new Set(users.map(({ from, kind }) => `${from} (${kind === 'dynamic' ? 'dynamic import()' : 'import'})`))].join(', ');
     return `${where} imports ${target}, which is not in ${ALLOW_LIST_PATH}. ui/ may import only the lib modules on that list. If ui really needs this one, add it: ${how}; the review then sees the new coupling. Otherwise take the import out.`;
   });
   const stale = allowed.filter((target) => !imports.has(target)).map((target) => `${target} is in ${ALLOW_LIST_PATH} but no ui file imports it any more. To drop the entry, ${how}.`);
   const unsorted = allowed.some((target, index) => index && allowed[index - 1] >= target) ? [`${ALLOW_LIST_PATH} must be sorted with no duplicates: ${how}.`] : [];
-  return [...unlisted, ...stale, ...unsorted];
+  return [...hidden, ...unlisted, ...stale, ...unsorted];
 }
 
 /** The context that owns a file ('lib/contexts/<id>/...'), 'ui' for ui/, otherwise a plain label for what kind of file it is. */
@@ -106,17 +127,18 @@ export const CLASSES = [
 
 /** For every top-level lib module: which ui files and which contexts import it directly, how many other lib files do, and its class. */
 export function classify(files, edges) {
-  const users = new Map(topLevelLib(files).map((module) => [module, { contexts: new Set(), ui: 0, lib: 0 }]));
+  const users = new Map(topLevelLib(files).map((module) => [module, { contexts: new Set(), ui: new Set(), lib: new Set() }]));
   for (const { from, to } of edges) {
     const entry = users.get(to), owner = ownerOf(from);
     if (!entry || from === to) continue;
-    if (owner === 'ui') entry.ui += 1;
+    // Distinct importing files: a file that imports the module twice counts once.
+    if (owner === 'ui') entry.ui.add(from);
     else if (owner.startsWith('context:')) entry.contexts.add(owner.slice('context:'.length));
-    else entry.lib += 1;
+    else entry.lib.add(from);
   }
   return [...users].map(([module, { contexts, ui, lib }]) => {
-    const id = ui ? 'ui' : contexts.size > 1 ? 'several' : contexts.size === 1 ? 'one' : 'none';
-    return { module, class: id, contexts: [...contexts].sort(), ui, lib };
+    const id = ui.size ? 'ui' : contexts.size > 1 ? 'several' : contexts.size === 1 ? 'one' : 'none';
+    return { module, class: id, contexts: [...contexts].sort(), ui: ui.size, lib: lib.size };
   });
 }
 

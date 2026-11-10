@@ -5,7 +5,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
-  ALLOW_LIST_FILE, ALLOW_LIST_PATH, REFRESH_COMMAND, REPORT_FILE, allowListProblems, allowListText, classify, importEdges, parseAllowList, reportText, trackedFiles, uiLibImports,
+  ALLOW_LIST_FILE, ALLOW_LIST_PATH, REFRESH_COMMAND, REPORT_FILE, allowListProblems, allowListText, classify, importEdges, opaqueUiImports, parseAllowList, reachesLibOpaquely, reportText,
+  trackedFiles, uiLibImports,
 } from '../scripts/qa/lib-graph.mjs';
 
 /* #902 S1 and S3. ui/ may import only the lib modules on tests/fixtures/ui-lib-allow-list.txt, and docs/lib-classification.md is what the code says now
@@ -18,11 +19,12 @@ const edges = await importEdges(files);
 const imports = uiLibImports(edges);
 
 test('the allow-list is exactly the lib modules ui/ imports today, static and dynamic, in both directions', () => {
-  assert.deepEqual(allowListProblems(imports, parseAllowList(read(ALLOW_LIST_FILE))), []);
+  assert.deepEqual(allowListProblems(imports, parseAllowList(read(ALLOW_LIST_FILE)), opaqueUiImports(edges)), []);
 });
 
 test('the allow-list file is the one `npm run lib-graph` writes (sorted, LF, the same header)', () => {
-  assert.equal(read(ALLOW_LIST_FILE), allowListText([...imports.keys()]), `${ALLOW_LIST_PATH} is not what ${REFRESH_COMMAND} writes`);
+  // Its own entries in the canonical form: a stray comment or blank line is caught here, a wrong entry is the test above.
+  assert.equal(read(ALLOW_LIST_FILE), allowListText(parseAllowList(read(ALLOW_LIST_FILE))), `${ALLOW_LIST_PATH} is not in the form ${REFRESH_COMMAND} writes`);
 });
 
 test('the scan sees dynamic imports, and nothing that is only a comment or build output', () => {
@@ -33,19 +35,23 @@ test('the scan sees dynamic imports, and nothing that is only a comment or build
 });
 
 test('an import that is not on the list fails the check and names the list, the file and the way to add it', () => {
-  const synthetic = new Map([...imports, ['lib/brand-new.js', [{ from: 'ui/Thing.jsx', kind: 'static' }]], ['lib/lazy-new.js', [{ from: 'ui/Lazy.jsx', kind: 'dynamic' }]]]);
-  const problems = allowListProblems(synthetic, parseAllowList(read(ALLOW_LIST_FILE)));
+  // A fixed picture, not the live graph: a real violation fails the first test only.
+  const synthetic = new Map([['lib/brand-new.js', [{ from: 'ui/Thing.jsx', kind: 'static' }, { from: 'ui/Thing.jsx', kind: 'static' }]], ['lib/known.js', [{ from: 'ui/A.jsx', kind: 'static' }]],
+    ['lib/lazy-new.js', [{ from: 'ui/Lazy.jsx', kind: 'dynamic' }]]]);
+  const problems = allowListProblems(synthetic, ['lib/known.js']);
   assert.equal(problems.length, 2);
+  assert.match(problems[0], /^ui\/Thing\.jsx \(import\) imports lib\/brand-new\.js,/, 'a file that imports it twice is named once');
   assert.match(problems[0], /ui\/Thing\.jsx \(import\) imports lib\/brand-new\.js, which is not in tests\/fixtures\/ui-lib-allow-list\.txt/);
   assert.match(problems[1], /ui\/Lazy\.jsx \(dynamic import\(\)\) imports lib\/lazy-new\.js/);
   assert.match(problems[0], /add it: run `npm run lib-graph` and commit the change to tests\/fixtures\/ui-lib-allow-list\.txt; the review then sees the new coupling/);
 });
 
 test('an entry that nothing imports any more, or an unsorted list, fails too', () => {
-  const listed = [...parseAllowList(read(ALLOW_LIST_FILE)), 'lib/gone.js'];
-  const [stale, ...rest] = allowListProblems(imports, listed);
+  const fixed = new Map([['lib/a.js', [{ from: 'ui/A.jsx', kind: 'static' }]], ['lib/z.js', [{ from: 'ui/Z.jsx', kind: 'static' }]]]);
+  const [stale, ...rest] = allowListProblems(fixed, ['lib/a.js', 'lib/gone.js', 'lib/z.js']);
   assert.match(stale, /^lib\/gone\.js is in tests\/fixtures\/ui-lib-allow-list\.txt but no ui file imports it any more\. To drop the entry, run `npm run lib-graph`/);
-  assert.match(rest.join('\n'), /sorted/, 'lib/gone.js sorts before the last entries');
+  assert.deepEqual(rest, []);
+  assert.match(allowListProblems(fixed, ['lib/a.js', 'lib/z.js', 'lib/gone.js']).join('\n'), /sorted/, 'lib/gone.js is out of order');
   assert.deepEqual(allowListProblems(new Map([['lib/a.js', []], ['lib/b.js', []]]), ['lib/b.js', 'lib/a.js']).length, 1);
 });
 
@@ -121,4 +127,60 @@ test('the report is stable and complete: every tracked top-level lib module once
   assert.doesNotMatch(text, /[A-Za-z]:[\\/]|\\|\r|\b20\d\d-\d\d-\d\d\b|[一-鿿]/, 'LF only, no absolute path, date or Han character');
   assert.ok(!allowListText([...imports.keys()]).includes('\r'));
   assert.equal(reportText(files, edges), text, 'two runs give the same text');
+});
+
+function scratchRepository(t, sources) {
+  const root = mkdtempSync(join(tmpdir(), 'lib-graph-scratch-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  for (const [file, text] of Object.entries(sources)) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), text); }
+  return { root, files: Object.keys(sources) };
+}
+
+test('an import of lib through a template, a concatenation or the package name is a problem of its own, not silence', async (t) => {
+  const { root, files: scratch } = scratchRepository(t, {
+    'lib/one.js': 'export const one = 1;\n',
+    'lib/service.js': 'export const service = 1;\n',
+    'ui/locales/en.json': '{}\n',
+    'ui/locales.js':'export const load = (l) => import(`./locales/${l}.json`);\n',
+    'ui/Template.js': 'export const load = (n) => import(`../lib/${n}.js`);\n',
+    'ui/Concat.js': "export const load = (n) => import('../lib/' + n + '.js');\n",
+    'ui/Package.js': "export const load = () => import('@ericwang1358/dsh-daily-flashcard/service');\n",
+    'ui/Plain.js': "export const load = () => import('../lib/one.js');\n",
+    'ui/External.js': "import React from 'react';\nexport const R = React;\n",
+  });
+  const found = await importEdges(scratch, root);
+  const opaque = opaqueUiImports(found);
+  assert.deepEqual(opaque.map(({ from }) => from), ['ui/Concat.js', 'ui/Package.js', 'ui/Template.js'], 'the plain import, react and a pattern into ui/ are not opaque');
+  const problems = allowListProblems(uiLibImports(found), ['lib/one.js'], opaque);
+  assert.equal(problems.length, 3);
+  for (const problem of problems) assert.match(problem, /^ui\/\w+\.js imports lib through a pattern or the package name \(`.+`\); import the module by its relative path so the allow-list can see it\.$/);
+  assert.match(problems[2], /ui\/Template\.js .*`\.\.\/lib\/\*\*\/\*\.js`/, 'the metafile spells the template as a pattern');
+});
+
+test('which unresolved imports can reach lib/: patterns that may land there, relative paths into it, the package itself', () => {
+  const reaches = (from, path) => reachesLibOpaquely(from, path, '@scope/pkg');
+  assert.ok(reaches('ui/a.js', '../lib/**/*.js') && reaches('ui/deep/a.js', '../../lib/*.js') && reaches('ui/a.js', '../*/x.js') && reaches('ui/a.js', '../**'));
+  assert.ok(reaches('ui/a.js', '@scope/pkg') && reaches('ui/a.js', '@scope/pkg/service') && reaches('ui/a.js', '../lib/x.js'));
+  assert.ok(!reaches('ui/a.js', './locales/*.json') && !reaches('ui/a.js', '../locale/*.json') && !reaches('ui/a.js', 'react') && !reaches('ui/a.js', '@scope/pkg-other'));
+});
+
+test('TypeScript and CommonJS files are read too, and a file type the bundler cannot read fails the scan instead of being skipped', async (t) => {
+  const { root, files: scratch } = scratchRepository(t, {
+    'lib/store.js': 'export const store = 1;\n',
+    'lib/other.js': 'export const other = 1;\n',
+    'ui/Typed.ts': "import { store } from '../lib/store.js';\nexport const typed: number = store;\n",
+    'ui/View.tsx': "import { other } from '../lib/other.js';\nexport const View = () => <b>{other}</b>;\n",
+  });
+  assert.deepEqual([...uiLibImports(await importEdges(scratch, root))].map(([target, users]) => [target, users.map(({ from }) => from)]),
+    [['lib/other.js', ['ui/View.tsx']], ['lib/store.js', ['ui/Typed.ts']]]);
+  const cjs = scratchRepository(t, { 'lib/store.js': 'exports.store = 1;\n', 'ui/Old.cjs': "const { store } = require('../lib/store.js');\nmodule.exports = store;\n" });
+  assert.deepEqual([...uiLibImports(await importEdges(cjs.files, cjs.root)).keys()], ['lib/store.js']);
+  const odd = scratchRepository(t, { 'lib/store.js': 'export const store = 1;\n', 'ui/Odd.mjsx': "import '../lib/store.js';\n" });
+  await assert.rejects(() => importEdges(odd.files, odd.root), /No loader is configured/);
+});
+
+test('a file that imports a module twice counts once in the report', () => {
+  const edge = (from, to) => ({ from, to, kind: 'static' });
+  const [row] = classify(['lib/x.js'], [edge('ui/A.jsx', 'lib/x.js'), edge('ui/A.jsx', 'lib/x.js'), edge('ui/B.jsx', 'lib/x.js'), edge('lib/y.js', 'lib/x.js'), edge('lib/y.js', 'lib/x.js')]);
+  assert.deepEqual([row.ui, row.lib], [2, 1]);
 });

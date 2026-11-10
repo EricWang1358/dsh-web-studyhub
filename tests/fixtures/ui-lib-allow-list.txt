@@ -1,6 +1,7 @@
 # The lib modules that ui/ imports, static and dynamic (#902). One path per line, sorted.
 # This list is a picture of the code, not a permission slip that nobody reads: a ui file importing a lib module that is not here fails
-# tests/ui-lib-allow-list.test.mjs, and so does a line here that no ui file imports any more.
+# tests/lib-graph.test.mjs, and so does a line here that no ui file imports any more. The scan reads git-tracked files: `git add` a new file
+# before the check sees it on your machine (CI always sees it).
 # To add or drop an entry run `npm run lib-graph` and commit the diff; the reviewer sees the new coupling there.
 lib/annotation.js
 lib/answer-card.js
