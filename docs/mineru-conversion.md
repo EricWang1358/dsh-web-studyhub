@@ -111,6 +111,21 @@ Each failure shows where it stopped, the reason, and one button:
 
 **More** also has the install log (the last 200 lines) and the commands the install runs.
 
+### Let the main chat repair it
+
+The card's sentence is a guess from the error text. When a local tool (MinerU, Marker, local transcription, the system-audio component or the search extension) fails to install or start, its card also has **Copy diagnostic information** and **Send to the main chat**. The message names the failure's code and lets the main chat find the real cause, then repair this computer's environment step by step: it says what a step changes before it does it, asks before it ends a process or deletes files, checks the result with the tool's own harmless commands, and stops whatever it started for the check. What it may do depends on the code, for example:
+
+- **Folder permissions:** the settings folder and the files already in it are made readable and writable only by your account (never a looser folder).
+- **Port in use:** it finds the process and asks you before ending it.
+- **VC++ runtime:** it gives you Microsoft's address and you install it.
+- **Location cannot be written, path too long:** it makes a short folder you can write to, and you choose it in **Choose another location**.
+- **Broken install:** it may delete only what StudyHub created inside the install folder, after asking, and then you press the install button yourself.
+- **Network:** it tests the download source and suggests the other one.
+
+Because the repair changes things outside StudyHub's folder, switch the permission in the main chat's input box (the menu at its bottom-left) to the full-permission option before you send, and back to your previous option afterwards. The card says so beside **Send to the main chat**. StudyHub cannot switch it for you and cannot read the chat's current setting, so the sentence is always there; full permission lets that chat change any file on this computer. If a command is refused, the main chat tells you to switch and retries the same step.
+
+Installing and uninstalling stay your buttons: the main chat never calls them. At the end it tells you what was wrong, what it changed, which button to press back in StudyHub, what you should see, and what to send back if the same error returns.
+
 ## A MinerU you installed yourself
 
 When `MINERU_BIN` is set, or `mineru` is on the search path, StudyHub uses it and says **Ready · installed by you**. It only calls it and never changes its settings. StudyHub's own install comes first when both exist; **More** then lists the other one. If both services want the same port, the error offers to stop the other one.
