@@ -52,6 +52,34 @@
     .draft-card__tags small {
       white-space: nowrap;
     }
+    /* The near-duplicate notice (#890) leads the question inside its two clamped lines, so it never makes a closed row taller, whatever tags the row has.
+       Only the deck's title is cut (its own span, a few characters at most), so 「相似」 and the number always show; the opened question says it whole. */
+    .draft-card__prompt .draft-card__similar {
+      margin-inline-end: var(--space-2);
+      color: var(--warn-text);
+      font-weight: var(--fw-medium);
+    }
+    .draft-card[open] > .draft-card__row .draft-card__similar {
+      display: none;
+    }
+    .draft-card__similar-title {
+      display: inline-block;
+      max-width: 5em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: bottom;
+    }
+    .draft-similar {
+      margin: var(--space-2) 0 var(--space-3);
+    }
+    .draft-similar__stem {
+      margin: var(--space-1) 0 0;
+      padding: var(--space-1) var(--space-3);
+      border-left: 2px solid var(--line);
+      color: var(--text-muted);
+      overflow-wrap: anywhere;
+    }
     .edit-option {
       background: var(--bg-surface);
       border-radius: var(--radius-sm);

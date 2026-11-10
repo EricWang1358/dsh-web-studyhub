@@ -38,7 +38,7 @@ export const SETTINGS_CATEGORIES = Object.freeze([
   category({ id: 'generation', group: 'common', title: '出题偏好', anchors: ['settings-generation', 'settings-generation-time'], needs: 'generation',
     purpose: '新出题任务的默认值：题型、覆盖强度、语言、难度、公式写法，以及同时处理几批、每轮运行时限、自动再补几轮' }, () => import('./settings/GenerationPane.jsx')),
   category({ id: 'daily-recap', group: 'common', title: '每日讲解合集', anchors: ['settings-daily-recap'], purpose: '把一天里答错的题整理成一篇讲解合集：是否自动准备、默认的讲解口吻和按哪个时区算一天' }, () => import('./settings/DailyRecapPane.jsx')),
-  category({ id: 'practice', group: 'common', title: '练习', anchors: ['settings-practice'], purpose: '每天的练习怎么走：每轮题数、自动跳下一步、本轮点评，以及期末一周的安排' }, () => import('./settings/PracticePane.jsx')),
+  category({ id: 'practice', group: 'common', title: '练习', anchors: ['settings-practice'], purpose: '每天的练习怎么走：每轮题数、自动跳下一步、本轮点评、多少次答错算顽固题，以及期末一周的安排' }, () => import('./settings/PracticePane.jsx')),
   category({ id: 'courses', group: 'once', title: '课程', anchors: ['settings-courses'], purpose: '列出每门课；点开一门课可以记下考试形式、日期、总分和重点知识点，也能把两门课合并' }, () => import('./settings/CoursesPane.jsx')),
   category({ id: 'exam-prep', group: 'once', title: '备考补习', anchors: ['settings-exam-prep'], needs: 'generation', purpose: '备考补习的个人默认值：是否自动识别资料用途、清单语言，以及是否默认列出其它课程的资料' }, () => import('./settings/ExamPrepPane.jsx')),
   category({ id: 'audio', group: 'once', title: '音频转写', anchors: ['settings-audio', 'settings-live-pause'], needs: 'audio', purpose: '填转写用的密钥（Gemini 或国内能直连的硅基流动），也选课堂实录用云端还是本地转写' }, () => import('./settings/AudioPane.jsx')),
