@@ -20,21 +20,27 @@ const reviewDueIn = (dueIn, ago = 20) => ({ ...schedule(schedule(initialReview()
 const quiz = (id, review, extra = {}) => ({ id, kind: "flashcard", topic: id, prompt: `${id}?`, answer: "a", citations: [], review, ...extra });
 const library = (examIn = 8) => ({
   settings: { request_retention: 0.9, maximum_interval: 36500 },
-  courses: [{ id: "os", name: "OS", exam: { format: "closed-book", date: dateOf(examIn) }, focusTopics: [] }, { id: "net", name: "Networks", focusTopics: [] }],
+  courses: [{ id: "os", name: "OS", exam: { format: "closed-book", date: dateOf(examIn) }, focusTopics: [] }, { id: "net", name: "Networks", focusTopics: [] },
+    { id: "old", name: "Old", active: false, exam: { format: "closed-book", date: dateOf(examIn) }, focusTopics: [] }],
   decks: [
     { id: "os", title: "OS", course: "OS", cards: [
       ...Array.from({ length: 12 }, (_, i) => quiz(`late-${i}`, reviewDueIn(20 + i, 1 + i))),
       quiz("soon", reviewDueIn(3)), quiz("overdue", reviewDueIn(-2)), quiz("parked", reviewDueIn(30), { suspended: true }),
+      // Never answered, though it has a due date: new, so neither the forecast nor the preview counts it, and the pass leaves it.
+      quiz("fresh", { repetitions: 0, interval_days: 0, ease_factor: 2.5, due_at: at(1) }),
     ] },
+    // A parked course: out of the forecast and of the pass (parking never touches a schedule).
+    { id: "old", title: "Old", course: "Old", cards: [quiz("o1", reviewDueIn(2)), quiz("o2", reviewDueIn(30))] },
     { id: "net", title: "Net", course: "Networks", cards: [quiz("n1", reviewDueIn(4)), quiz("n2", reviewDueIn(40))] },
   ],
 });
-/** Each of the next 14 days' due count after a pass, overdue folded into today, as the preview counts. */
+/** Each of the next 14 days' due count after a pass, overdue folded into today, as the forecast counts: answered questions of
+    active decks only. */
 function counts(state) {
   const start = new Date(new Date(NOW).getFullYear(), new Date(NOW).getMonth(), new Date(NOW).getDate()).getTime();
   const days = Array(14).fill(0);
   for (const deck of state.decks) for (const card of deck.cards) {
-    if (deck.archived || card.suspended || !card.review?.due_at) continue;
+    if (deck.archived || deck.course === "Old" || card.suspended || !card.review?.due_at || card.id === "fresh") continue;
     const t = Date.parse(card.review.due_at);
     const d = new Date(t), day = t < start ? 0 : Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - start) / 864e5);
     if (day < 14) days[day]++;
@@ -47,7 +53,8 @@ test("the preview of switching on is what the switch then does, day by day, and 
   state.settings.exam_alignment = false;
   const preview = examAlignmentPreview(state, NOW);
   assert.equal(preview.enabled, false);
-  assert.deepEqual(preview.courses, [{ name: "OS", date: dateOf(8) }]);
+  assert.deepEqual(preview.courses, [{ name: "OS", date: dateOf(8), pending: 0 }], "a parked course's exam is not offered");
+  assert.equal(preview.restorable, 0);
   assert.equal(preview.days.length, 14);
   assert.deepEqual(preview.days[0].date, dateOf(0));
   assert.deepEqual(preview.days.map((day) => day.before), counts(state));
@@ -79,6 +86,7 @@ test("a library whose exam was set before this version is on but not aligned yet
   const preview = examAlignmentPreview(state, NOW);
   assert.equal(preview.enabled, true);
   assert.equal(preview.pending, 12);
+  assert.deepEqual(preview.courses, [{ name: "OS", date: dateOf(8), pending: 12 }]);
   assert.equal(preview.on.reduce((sum, day) => sum + day.after - day.before, 0), 12);
   assert.deepEqual(state, library(), "the preview never writes");
 });

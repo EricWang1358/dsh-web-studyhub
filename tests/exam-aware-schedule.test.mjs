@@ -27,6 +27,8 @@ const dayOf = (iso) => {
 const EXAM = 30;
 const plain = { request_retention: 0.9, maximum_interval: 36500 };
 const withExam = { ...plain, exam_date: dateOf(EXAM) };
+/** Local 00:00 of the exam day: from then on a question due "on the exam day" is served. */
+const examStart = new Date(BASE.getFullYear(), BASE.getMonth(), BASE.getDate() + EXAM).toISOString();
 /** Everything on a review except the two fields the exam may change. */
 const memory = ({ due_at: _due, unaligned_due_at: _unaligned, ...rest }) => rest;
 
@@ -43,7 +45,11 @@ test("(a) the exam moves only the due date: memory state, streak, gap and master
         capped++;
         assert.equal(on.unaligned_due_at, off.due_at, "the due date FSRS gave is kept");
         assert.ok(Date.parse(on.due_at) < Date.parse(off.due_at));
-      } else assert.equal(on.due_at, off.due_at);
+      } else if (on.due_at !== off.due_at) {
+        // FSRS's own date is the exam day: the review is due from the start of that day, not from the answer's clock time.
+        assert.equal(dayOf(on.due_at), dayOf(off.due_at));
+        assert.equal(on.due_at, examStart);
+      }
     }
     if (maximum === 36500) assert.ok(capped >= 3, `the history crosses the exam several times (${capped})`);
   }
@@ -75,6 +81,32 @@ test("(b) an answer on any day before the exam is due on or before the exam day;
       }
     }
   }
+});
+
+test("(b) a capped answer is due from local 00:00 of the exam day, whatever the clock time of the answer, also when the gap equals the days left", () => {
+  const stable = schedule(schedule(schedule(initialReview(), 4, at(-40)), 4, at(-35)), 4, at(-20));
+  let equal = 0, capped = 0;
+  for (const [hh, mm] of [[21, 0], [23, 50], [9, 30]]) {
+    for (let day = 0; day < EXAM; day++) {
+      for (const grade of [0, 2, 3, 4, 5]) {
+        const answeredAt = at(day, hh, mm);
+        const review = schedule(stable, grade, answeredAt, withExam);
+        const plainReview = schedule(stable, grade, answeredAt, plain);
+        assert.ok(Date.parse(review.due_at) <= Date.parse(examStart), `day ${day} ${hh}:${mm} grade ${grade}: due ${review.due_at}`);
+        if (review.interval_days >= EXAM - day) {
+          assert.equal(review.due_at, examStart, `day ${day} ${hh}:${mm} grade ${grade}: gap ${review.interval_days} reaches the exam`);
+          if (review.interval_days === EXAM - day) {
+            equal++;
+            assert.equal(review.unaligned_due_at, undefined, "FSRS's own date is the exam day: nothing moved earlier");
+          } else {
+            capped++;
+            assert.equal(review.unaligned_due_at, plainReview.due_at);
+          }
+        } else assert.equal(review.due_at, plainReview.due_at, "a gap that ends before the exam is FSRS's own");
+      }
+    }
+  }
+  assert.ok(equal > 0 && capped > 0, `both cases are covered (equal ${equal}, capped ${capped})`);
 });
 
 test("(c) after the exam day the scheduling is the ordinary one, with nothing extra on the review", () => {
@@ -172,6 +204,11 @@ test("the line under an answer says the exam brought the question back, in both 
   assert.match(html, /下次大约 5 天后再见/);
   assert.match(html, /考试前先回来一次/);
   assert.match(html, /考前对齐/);
+  assert.match(html, /记忆间隔 9 天 → 24 天/, "the gap chip is the memory gap, not a second 'next review' number");
+  assert.doesNotMatch(html, /复习间隔：/, "the generic sentence about the review gap gives way to the exam sentence");
+  const ordinary = renderToStaticMarkup(React.createElement(m.NextDue, { feedback: { ...feedback, examAligned: undefined }, now }));
+  assert.match(ordinary, /间隔 9 天 → 24 天/);
+  assert.doesNotMatch(ordinary, /记忆间隔/);
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(m.NextDue, { feedback: { ...feedback, examAligned: undefined }, now })), /考试前先回来一次/);
   m.setUiLanguage("en");
   try {

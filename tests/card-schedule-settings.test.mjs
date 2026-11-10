@@ -132,6 +132,11 @@ test("the sample library's three weeks of history are scheduled with the shared 
   assert.equal((await res.json()).ok, true);
   const state = await new Store(libraryRoot).read();
   const sample = state.attempts.filter((attempt) => attempt.sample);
-  // The sample has no focus question today, so this holds before and after the move; it pins the path for what the settings gain later.
   assertEveryAttemptUsesCardSettings({ ...state, attempts: sample }, 30);
+  // The sample has no focus question, but its course has an exam ahead: with the library's plain settings some answers would
+  // come back after it, so the stored history really carries what the shared function adds (here the exam date).
+  const plain = sample.filter((attempt) => attempt.after && !attempt.retry)
+    .filter((attempt) => JSON.stringify(schedule(attempt.before ?? initialReview(), attempt.grade, attempt.timestamp, state.settings)) !== JSON.stringify(attempt.after));
+  assert.ok(plain.length > 0, "the library's own settings would have scheduled some sample answers differently");
+  assert.ok(plain.every((attempt) => attempt.after.unaligned_due_at || attempt.after.due_at !== schedule(attempt.before ?? initialReview(), attempt.grade, attempt.timestamp, state.settings).due_at));
 });
