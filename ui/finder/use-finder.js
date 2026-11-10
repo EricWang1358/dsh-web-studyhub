@@ -89,7 +89,8 @@ export function useFinder({ nav, settingsEntry, core, tour, rootRef }) {
       const element = hit.element.isConnected ? hit.element : findAnchor(root, entry.anchors);
       if (element) {
         // Settings scrolls to the anchor of its own link, but not when the page was already there (no link) and not to a control inside a fold it could not see yet (hit.opened).
-        if (!linked || hit.opened) element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
+        // In one scroll, not an animation: a list that draws in chunks adds the next one whenever its end passes through the window, which would move the row being scrolled to.
+        if (!linked || hit.opened) element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
         focusTarget(element);
       }
     }

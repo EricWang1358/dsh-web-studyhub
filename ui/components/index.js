@@ -11,7 +11,7 @@ export { default as SetupRequired } from './SetupRequired.jsx';
 export { default as FileDrop, partitionFiles, formatBytes, describeAccept, createDropHandlers, guardFileDrag } from './FileDrop.jsx';
 export { default as Dialog } from './Dialog.jsx';
 export { useTopDialog } from './dialog-stack.js';
-export { default as ScrollWindow, filterItems, scrollWindowCount, scrollEdges, edgeTracker } from './ScrollWindow.jsx';
+export { default as ScrollWindow, ChunkedRows, filterItems, scrollWindowCount, scrollEdges, edgeTracker } from './ScrollWindow.jsx';
 export { Badge, Chip } from './Badge.jsx';
 export { Hint } from './Hint.jsx';
 export { ProgressBar, StackedBar } from './Progress.jsx';

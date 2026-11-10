@@ -46,6 +46,8 @@
     .sh-scroll__list { list-style: none; margin: 0; padding: 0; min-width: 0; }
     .sh-scroll__item { min-width: 0; }
     .sh-scroll__empty { margin: 0; padding: var(--space-4); color: var(--text-muted); font-size: var(--fs-sm); text-align: center; }
+    /* The end of the rows a page has drawn so far (ChunkedRows): a line of no height that only says where to measure from. */
+    .sh-chunk-end { display: block; height: 0; margin: 0; padding: 0; border: 0; list-style: none; pointer-events: none; }
   }
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {
