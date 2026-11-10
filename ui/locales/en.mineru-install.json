@@ -145,5 +145,6 @@
   "先停掉另一份 MinerU 的服务，再启动这一份；那一份的文件不会被改动。": "Stops the other MinerU's service first, then starts this one; the other copy's files are not changed.",
   "换成 {0} 档没有完成": "The switch to the {0} tier did not finish",
   "已暂停；已下载的部分会保留。": "Paused; what was downloaded is kept.",
-  "详细信息": "Details"
+  "详细信息": "Details",
+  "本机服务没能启动：配置文件夹的权限不符合要求，或没有写入权限。": "The local service could not start: the configuration folder permissions are invalid, or it cannot be written to."
 }

@@ -4,7 +4,8 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LOCAL, LocalMineruError, detectLocal, locateMineru, parseLocalMarkdown, parseWindow, startServer, windowPlan } from '../lib/mineru-local.js';
+import { getEventListeners } from 'node:events';
+import { LOCAL, LocalMineruError, detectLocal, locateMineru, markServerLogs, parseLocalMarkdown, parseWindow, readMineruServerLogs, secureMineruHome, serverErrorsSince, startServer, windowPlan } from '../lib/mineru-local.js';
 import { mergeChunkResults } from '../lib/mineru-merge.js';
 import { parseConvertedDocument } from '../lib/converted-document.js';
 import { patientCli, readJsonFile, until, writeJsonFile } from './helpers/wait.mjs';
@@ -303,11 +304,95 @@ test('a window that takes longer than its bounded wait is stopped and reported a
 
 test('every message of the local route has an English form', async () => {
   const { localizeAppMessage } = await import('../lib/application-messages.js');
-  const { LOCAL_MESSAGES } = await import('../lib/mineru-local.js');
-  const samples = [...Object.values(LOCAL_MESSAGES),
+  const { LOCAL_MESSAGES, SERVICE_START_TEXT } = await import('../lib/mineru-local.js');
+  const samples = [...Object.values(LOCAL_MESSAGES), ...Object.values(SERVICE_START_TEXT),
     ...[() => parseLocalMarkdown(marker(1), { startPage: 1, endPage: 3, totalPages: 9 }), () => parseLocalMarkdown(marker(1), { startPage: 5, endPage: 5, totalPages: 9 }), () => parseLocalMarkdown(marker(1, 7), { startPage: 1, endPage: 1, totalPages: 9 }), () => parseLocalMarkdown(`${marker(1)}
 ${marker(1)}`, { startPage: 1, endPage: 2, totalPages: 120 })]
       .map(run => { try { run(); return ''; } catch (error) { return error.message; } })];
   assert.ok(samples.filter(Boolean).length >= 9);
   for (const text of samples.filter(Boolean)) assert.doesNotMatch(localizeAppMessage(text, 'en'), han, text);
 });
+
+test('a service that prints "still starting (PID ...)" is server-stopped with starting: true, and startServer waits out a brief cold boot', async t => {
+  const warming = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, stillStartingOnce: 'Server is still starting (PID 12345).' });
+  const detected = await detectLocal({ cli: warming.cli, home: warming.dir });
+  assert.deepEqual([detected.state, detected.next, detected.running, detected.starting], ['server-stopped', 'start-server', false, true]);
+  const cold = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startStillStarting: '服务仍在启动中(PID 12345)。', stillStartingOnce: true });
+  const controller = new AbortController();
+  const after = await startServer({ cli: cold.cli, home: cold.dir, pollPauseMs: 20, signal: controller.signal });
+  assert.deepEqual([after.state, after.running], ['ready', true]);
+  assert.equal(getEventListeners(controller.signal, 'abort').length, 0, 'a pause that ended leaves no listener on the signal');
+});
+
+test('startServer attaches <home>/logs/doclib.stderr.log on daemon crash and classifies private credential ACL errors as not-writable', async t => {
+  const acl = "PermissionError: Credential configuration directory 'D:\\\\StudyHub\\\\MinerU\\\\home' has insecure permissions (cannot enforce private credential)";
+  const fake = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true, serverLogError: acl });
+  const home = join(fake.dir, 'home');
+  await assert.rejects(startServer({ cli: fake.cli, home }), error =>
+    error instanceof LocalMineruError
+    && error.code === 'server-start-failed'
+    && error.reason === 'not-writable'
+    && /配置文件夹的权限/.test(error.message)
+    && /\[doclib\.stderr\.log\]/.test(error.detail)
+    && /Credential configuration directory/.test(error.detail));
+});
+
+test('secureMineruHome says when the permission change failed instead of swallowing it (a stand-in Python, a temp folder: no real permission is changed)', { skip: process.platform !== 'win32' }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-secure-home-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const refusing = join(dir, 'refusing-python.mjs');
+  await writeFile(refusing, 'process.stderr.write("PermissionError: [WinError 5] Access is denied\\n"); process.exit(1);\n');
+  const failed = await secureMineruHome(join(dir, 'home'), { platform: 'win32', pythonCli: { file: process.execPath, prefix: [refusing], env: {} } });
+  assert.deepEqual(failed, { ok: false, error: 'PermissionError: [WinError 5] Access is denied' });
+  const agreeing = join(dir, 'agreeing-python.mjs');
+  await writeFile(agreeing, 'process.exit(0);\n');
+  assert.deepEqual(await secureMineruHome(join(dir, 'home'), { platform: 'win32', pythonCli: { file: process.execPath, prefix: [agreeing], env: {} } }), { ok: true });
+});
+
+/** <home>/logs/<name> written before a start: what an earlier run left behind. */
+const oldLog = async (home, name, text) => { await mkdir(join(home, 'logs'), { recursive: true }); await writeFile(join(home, 'logs', name), `${text}\n`, 'utf8'); };
+
+test('startServer decides why a start failed from what THIS start wrote to the error logs, never from an old traceback or the general log', async t => {
+  // An earlier run's permission traceback is still in doclib.stderr.log; this start crashes because the models are missing.
+  const stale = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true, serverLogError: 'RuntimeError: requires model files that are not ready' });
+  const staleHome = join(stale.dir, 'home');
+  await oldLog(staleHome, 'doclib.stderr.log', 'PermissionError: [WinError 5] Access is denied: old run');
+  await assert.rejects(startServer({ cli: stale.cli, home: staleHome }), error => error.reason === 'models-missing' && /Access is denied: old run/.test(error.detail));
+  // The other way round: an old failure that is not about permissions, and a fresh access-denied line.
+  const fresh = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true, serverLogError: 'PermissionError: [WinError 5] Access is denied' });
+  const freshHome = join(fresh.dir, 'home');
+  await oldLog(freshHome, 'doclib.stderr.log', 'requests.exceptions.ConnectionError: Max retries exceeded (old run)');
+  await assert.rejects(startServer({ cli: fresh.cli, home: freshHome }), error => error.reason === 'not-writable');
+  // The general log is shown, never read for the reason: an ordinary line there that mentions permissions decides nothing.
+  const general = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true });
+  const generalHome = join(general.dir, 'home');
+  await oldLog(generalHome, 'doclib.log', 'INFO checked folder permissions: Permission denied entries are ignored');
+  await assert.rejects(startServer({ cli: general.cli, home: generalHome }), error => error.reason === 'service-failed' && /\[doclib\.log\]/.test(error.detail));
+});
+
+test('the daemon logs are read from their end, at most 64 KB of each, and a log now shorter than its mark (replaced since) is read whole', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'study-mineru-logs-'));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  // 4000 numbered lines of 50 bytes (200 000 bytes): only the last 64 KB (~1310 lines) is read, and it holds the last line.
+  const lines = Array.from({ length: 4000 }, (_, i) => `line ${String(i).padStart(5, '0')} ${'x'.repeat(38)}`);
+  await oldLog(home, 'doclib.stderr.log', lines.join('\n'));
+  const shown = await readMineruServerLogs(home, { maxLines: 1e6, maxChars: 1e7 });
+  const numbers = [...shown.matchAll(/line (\d{5})/g)].map(match => Number(match[1]));
+  assert.equal(numbers.at(-1), 3999, 'the end of the log is read');
+  assert.ok(numbers[0] >= 4000 - Math.ceil(64 * 1024 / 50) - 1 && numbers.length <= Math.ceil(64 * 1024 / 50) + 1, `read from line ${numbers[0]}: no more than 64 KB`);
+  // A mark past the end of the file: the file was replaced, so all of it is new (bounded the same way), and its last line decides.
+  const mark = await markServerLogs(home);
+  assert.equal(mark['doclib.stderr.log'], 200_000);
+  await writeFile(join(home, 'logs', 'doclib.stderr.log'), 'PermissionError: [WinError 5] Access is denied (after a restart)\n', 'utf8');
+  assert.match(await serverErrorsSince(home, mark), /Access is denied \(after a restart\)/);
+  // A mark at the end of an unchanged file: nothing new.
+  assert.equal(await serverErrorsSince(home, await markServerLogs(home)), '');
+});
+
+test('startServer reads a missing VC++ runtime in its English Windows forms as vc-runtime, as the installer does', async t => {
+  for (const said of ['OSError: [WinError 126] The specified module could not be found. Error loading "torch\\lib\\c10.dll"', "Error: ... code: 'ERR_DLOPEN_FAILED'"]) {
+    const fake = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true, serverLogError: said });
+    await assert.rejects(startServer({ cli: fake.cli, home: join(fake.dir, 'home') }), error => error.reason === 'vc-runtime' && /VC\+\+/.test(error.message), said);
+  }
+});
+
