@@ -36,7 +36,8 @@ test('the release of an older holder does not free a newer one', () => {
 
 test('no page change goes around the gate: the hook hands out only gated ways, the raw setter stays inside it', async () => {
   const source = await readFile('ui/app/use-navigation.js', 'utf8');
-  assert.match(source, /\[page, rawSetPage\] = useState/);
+  assert.match(source, /\[page, setPageState\] = useState/);
+  assert.equal(source.split('\n').filter(line => /setPageState\(/.test(line)).length, 1, 'the state setter itself is used once, inside rawSetPage (which also starts the performance clock, #893 S4)');
   // show.* and setPage go through `to`; navigate through the gate; only forcePage (a library that is already gone) and the navigator's own arrival use the raw one.
   const raw = source.split('\n').filter(line => /rawSetPage\(/.test(line));
   assert.equal(raw.length, 2, raw.join('\n'));
