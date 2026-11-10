@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { exportBook as runExport } from '../lib/course-book-export.js';
+import { QUOTE_PAIRS } from '../lib/footnote-syntax.js';
 import { bookHtml, bookHtmlFile, bookHtmlFilename, withoutSourceQuotes } from '../ui/book/book-html.js';
 import { cardOf, exportBook, GEN } from './helpers/course-book-export-book.mjs';
 
@@ -159,6 +160,44 @@ test('the file is named after the Markdown file of the export', () => {
   assert.equal(bookHtmlFilename('复习全书-SA-含答案册.md'), '复习全书-SA-含答案册.html');
   assert.equal(bookHtmlFilename('book'), 'book.html');
   assert.equal(bookHtmlFilename(''), 'book.html');
+});
+
+test('withoutSourceQuotes: a definition the renderer reads in any of its shapes is cut: indented, in a blockquote or a list, over several lines', () => {
+  const left = '（已省略）';
+  const cut = text => withoutSourceQuotes(text, left);
+  assert.equal(cut('  [^1]: 「indented words」 · L'), `  [^1]: ${left} · L`);
+  assert.equal(cut('> [^1]: 「quoted words」 · L'), `> [^1]: ${left} · L`);
+  assert.equal(cut('> > [^1]: 「twice quoted」 · L'), `> > [^1]: ${left} · L`);
+  assert.equal(cut('- [^1]: 「listed words」 · L'), `- [^1]: ${left} · L`);
+  assert.equal(cut('1. [^1]: 「numbered words」 · L'), `1. [^1]: ${left} · L`);
+  assert.equal(cut('[^1]: 「first line\n    line two」 · L\nnext'), `[^1]: ${left} · L\nnext`, 'the continuation lines are part of the note');
+  assert.equal(cut('[^1]: 「first line\n\tline two」 · L\n\nnext'), `[^1]: ${left} · L\n\nnext`, 'a tab indents too');
+  assert.equal(cut('> [^1]: 「first\n>     second」 · L'), `> [^1]: ${left} · L`, 'in a blockquote too');
+  assert.equal(cut('[^1]: my note\n    goes on'), '[^1]: my note\n    goes on', 'a note of the learner\'s is left as it was, its lines too');
+  assert.equal(cut('[^1]: 「a」 · L\nnot indented'), `[^1]: ${left} · L\nnot indented`, 'a line that is not indented ends the note');
+  const html = bookHtml(['# T', '', '## C {#c}', '', 'Word [^1] and [^2] and [^3].', '', '  [^1]: 「indentedsecret」 · L1', '', '> [^2]: 「quotedsecret」 · L2', '',
+    '[^3]: 「twolinesecret', '    second」 · L3'].join('\n'), { language: 'zh', quotes: false });
+  assert.doesNotMatch(html, /secret/);
+  assert.match(html, /<li id="fn-1">（原文引文已省略） · L1/);
+  assert.match(html, /<li id="fn-3">（原文引文已省略） · L3/);
+});
+
+test('withoutSourceQuotes: the quotation marks are the writer\'s own table (lib/book-footnotes.js), the plain apostrophe included', () => {
+  const left = '（已省略）';
+  assert.equal(withoutSourceQuotes('[^1]: \'exact words\' (s1)', left), `[^1]: ${left}`);
+  assert.equal(withoutSourceQuotes('[^1]: \'exact words\' · L', left), `[^1]: ${left} · L`);
+  for (const [open, close] of Object.entries(QUOTE_PAIRS)) assert.equal(withoutSourceQuotes(`[^1]: ${open}some words${close} · L`, left), `[^1]: ${left} · L`, `${open}…${close}`);
+  assert.ok(Object.keys(QUOTE_PAIRS).includes('「') && Object.keys(QUOTE_PAIRS).includes('“') && Object.keys(QUOTE_PAIRS).includes("'"));
+});
+
+test('with or without quotes the page has the same footnotes, also when the colon is full width', () => {
+  const md = ['# T', '', '## C {#c}', '', 'Word [^x].', '', '[^x]：「q words」 · L'].join('\n');
+  for (const quotes of [true, false]) {
+    const html = bookHtml(md, { language: 'zh', quotes });
+    assert.match(html, /class="fnref"><a href="#fn-x"/, `quotes ${quotes}: the mark is a reference`);
+    assert.match(html, /<li id="fn-x">/, `quotes ${quotes}: with its footnote`);
+    assert.doesNotMatch(html, /\[\^|：「/);
+  }
 });
 
 test('the file the dialog saves: made from the text and language of the export, named after its file', () => {

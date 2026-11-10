@@ -17,10 +17,11 @@ import { cardOf, exportBook as book, GEN } from './helpers/course-book-export-bo
 const LONG = 'unbreakableword'.repeat(14);
 const WIDE = ['| Column one | Column two | Column three | Column four |', '| --- | --- | --- | --- |',
   `| ${LONG} | ${'wide cell text '.repeat(8)} | x | y |`].join('\n');
+const INLINE = '$' + Array.from({ length: 40 }, (_, at) => `y_{${at}}`).join('') + '$';
 const FORMULA = '$$' + Array.from({ length: 24 }, (_, at) => `x_{${at}}`).join(' + ') + '$$';
 
 function sample() {
-  const done = exportBook(book({ gen: GEN.replace('串联时 A = A1 x A2。', () => `串联时 $A = A_1 \\times A_2$。\n\n${FORMULA}\n\n${WIDE}\n\n${LONG}\n\n\`${LONG}\`\n`) }), { cardOf, answerKey: true, questions: 'all' });
+  const done = exportBook(book({ gen: GEN.replace('串联时 A = A1 x A2。', () => `串联时 $A = A_1 \\times A_2$。 A long one in a line: ${INLINE} and on.\n\n${FORMULA}\n\n${WIDE}\n\n${LONG}\n\n\`${LONG}\`\n`) }), { cardOf, answerKey: true, questions: 'all' });
   return bookHtml(done.text, { language: done.language });
 }
 

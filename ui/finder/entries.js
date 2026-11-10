@@ -304,7 +304,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'book-export', area: 'practice', title: '导出复习全书', page: 'book', anchors: ['book-more', 'nav-book'], prepare: 'book',
     aliases: ['导出', '导出全书', '导出 html', '整本书网页', '离线打开', '打印整本书', '发给同学', '不含原文引文', '去掉引文', '分享', 'markdown', 'pandoc', 'zip', 'export book', 'export html', 'whole book page', 'offline book', 'print the book', 'share the book', 'without quotes'],
     path: ['复习全书', '更多', '导出…'],
-    what: '「更多 › 导出…」把整本书存成三种：一个 Markdown 文件（给 Pandoc 用）、分文件的 zip，或「整本书（.html）」，一个能离线打开、也能打印的页面：每章另起一页，出处在章末，手机上也能看，按钮上写着约多少页 A4。发给别人时勾「整本书页面不含原文引文」：脚注和答案册概念里逐字摘自资料的原文去掉，只留出处和页码；这个选项只对整本书页面起作用。印哪些题、含不含答案册，三种都一样。' }),
+    what: '「更多 › 导出…」把整本书存成三种：一个 Markdown 文件（给 Pandoc 用）、分文件的 zip，或「整本书（.html）」，一个能离线打开、也能打印的页面：每章另起一页，出处在章末，手机上也能看，按钮上写着约多少页 A4。发给别人时勾「整本书页面不含原文引文」：脚注和答案册概念里逐字摘自资料的原文去掉，只留出处（资料名）；这个选项只对整本书页面起作用。印哪些题、含不含答案册，三种都一样。' }),
   feature({ id: 'custom-book-menu', area: 'practice', title: '深度定制', page: 'book', anchors: ['book-more', 'nav-book'], prepare: 'book',
     aliases: ['深度定制', '定制', '定制方案', '定制这本书', '只学考试范围', '挑几章', '复习全书要哪些部分', '要不要出题', 'customize', 'customise', 'custom plan', 'customize in depth'],
     path: ['复习全书', '更多', '深度定制…'],

@@ -52,6 +52,26 @@ test('one footnote marked in two chapters has its own list entry and ids in each
   for (const href of hrefsOf(html)) assert.ok(ids.includes(href.slice(1)), `${href} exists`);
 });
 
+test('a definition with a full-width colon is a definition (the one pattern of lib/footnote-syntax.js)', () => {
+  const { html } = renderMarkdown(['## A', '', 'Word [^x].', '', '[^x]：Full width note'].join('\n'));
+  assert.match(html, /<li id="fn-x">Full width note/);
+  assert.doesNotMatch(html, /\[\^/);
+});
+
+test('ids: a footnote label cannot make another chapter\'s ids collide, a heading cannot take a footnote\'s id', () => {
+  const md = ['## A', '', 'One [^x].', '', '## B', '', 'Two [^x] and [^x-c2].', '', '## C', '', 'Three [^x].', '', '[^x]: N', '[^x-c2]: M', '', '### Heading {#fn-x}', '', '#### Other {#fnref-x}'].join('\n');
+  const { html, headings } = renderMarkdown(md);
+  const ids = idsOf(html);
+  assert.equal(ids.length, new Set(ids).size, 'no id twice');
+  for (const href of hrefsOf(html)) assert.ok(ids.includes(href.slice(1)), `${href} exists`);
+  assert.ok(headings.every(item => !/^fn(?:ref)?-/.test(item.id)), 'a heading id never looks like a footnote id');
+});
+
+test('a link or picture that runs script or draws a vector is only its words', () => {
+  const { html } = renderMarkdown('[x](javascript:alert(1)) ![y](data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=) [z](data:text/html;base64,PGI+) ![w](javascript:alert(2))');
+  assert.doesNotMatch(html, /<a\b|<img\b|href=|src=/);
+});
+
 test('a mark with no footnote is dropped, not shown raw; a definition inside a code fence is code', () => {
   const { html } = renderMarkdown('## A\n\nText [^gone] end.\n\n```\n[^x]: code\n```\n');
   assert.doesNotMatch(html, /\[\^gone\]|<sup/);

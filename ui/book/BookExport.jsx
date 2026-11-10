@@ -73,9 +73,6 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
   const footer = <>
     <Tooltip layer content={ui('每个知识点一份文件，打包成一个 zip；book.yaml 记着顺序，用 pandoc 按这个顺序读就是整本书。')}>
       <Button variant="secondary" icon="download" className="book-export__zip" disabled={!done} onClick={downloadZip}>{ui('分文件下载（zip）')}</Button></Tooltip>
-    <Tooltip layer content={ui('整本书做成一个能离线打开、也能打印的页面：每章另起一页，出处在章末，手机上也能看。印哪些题、含不含答案册跟上面的选择一致。')}>
-      <Button variant="secondary" icon="download" className="book-export__page" disabled={!done} onClick={downloadPage}>
-        {estimate ? uiFormat('整本书（.html，约 {0} 页）', [estimate.pages]) : ui('整本书（.html）')}</Button></Tooltip>
     {book && <Tooltip layer content={ui('一个能离线打开、也能打印的页面：答题模板、易混对照、公式和术语卡，手机上也能看。')}>
       <Button variant="secondary" icon="download" className="book-export__sheet" onClick={downloadSheet}>{ui('速查表（.html）')}</Button></Tooltip>}
     <Button variant="primary" icon="download" disabled={!done} onClick={() => downloadText(done.filename, done.text)}>{ui('下载 Markdown')}</Button>
@@ -91,8 +88,6 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
         <SegmentedControl label={ui('答案册')} className="book-export__key" value={answerKey ? 'with' : 'without'} wrap onChange={value => setAnswerKey(value === 'with')}
           options={[{ value: 'without', label: estimate ? uiFormat('不含答案册 · 约 {0} 页', [estimate.book]) : ui('不含答案册') },
             { value: 'with', label: estimate ? uiFormat('含答案册 · 约 {0} 页', [estimate.withAnswers]) : ui('含答案册') }]} />
-        <Checkbox className="book-export__quotes" checked={noQuotes} onChange={setNoQuotes} label={ui('整本书页面不含原文引文')}
-          hint={ui('发给别人时用：脚注和答案册概念里逐字摘自资料的原文去掉，只留出处和页码。只对整本书页面起作用。')} />
         {state.error ? <Hint tone="error">{errorMessage(state.error)}</Hint> : !done ? <LoadingState inline label={ui('正在准备导出…')} /> : <div className="book-export__estimate" role="status">
           <p className="book-export__pages">{uiFormat('约 {0} 页 A4', [estimate.pages])} {budget && <Badge size="sm" tone={budget.tone}>{budget.text}</Badge>}</p>
           <Hint>{uiFormat('这是估计：每页约 {0} 行，每行约 {1} 个汉字；标了不打印的段落不算。题目 {2} 道。', [estimate.rows, estimate.columns, done.questions])}</Hint>
@@ -101,6 +96,14 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
           <NumberInput inputMode="numeric" min={1} max={PAGE_LIMIT_MAX} step={1} value={limit} suffix={ui('页')} placeholder={ui('不限')}
             onChange={event => setLimit(event.target.value)} onBlur={saveLimit} onKeyDown={event => { if (event.key === 'Enter') saveLimit(); }} />
         </Field>
+        {/* The whole-book page and its one option stand together: the option does nothing for the other downloads, so it is not among them. */}
+        <div className="book-export__page-row">
+          <Tooltip layer content={ui('整本书做成一个能离线打开、也能打印的页面：每章另起一页，出处在章末，手机上也能看。印哪些题、含不含答案册跟上面的选择一致。')}>
+            <Button variant="secondary" icon="download" className="book-export__page" disabled={!done} onClick={downloadPage}>
+              {estimate ? uiFormat('整本书（.html，约 {0} 页）', [estimate.pages]) : ui('整本书（.html）')}</Button></Tooltip>
+          <Checkbox className="book-export__quotes" checked={noQuotes} onChange={setNoQuotes} label={ui('整本书页面不含原文引文')}
+            hint={ui('发给别人时用：脚注和答案册概念里逐字摘自资料的原文去掉，只留出处（资料名）。只对整本书页面起作用。')} />
+        </div>
       </div>
     </Dialog>
   );

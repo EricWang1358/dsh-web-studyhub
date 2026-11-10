@@ -1,6 +1,6 @@
 import { BASE_CSS, esc, staticPage } from '../static-page.js';
 import { MARKDOWN_CSS, contentsList, renderMarkdown } from '../markdown-page.js';
-import { DEFINITION, isLabelLine } from '../../lib/footnote-syntax.js';
+import { DEFINITION, QUOTE_PAIRS, isLabelLine } from '../../lib/footnote-syntax.js';
 import { answerCardWords } from '../../lib/answer-card.js';
 
 /* The 复习全书 as ONE self-contained HTML page (#896): the Markdown of the export (lib/course-book-export.js, the text the dialog already holds) made into a
@@ -14,7 +14,8 @@ import { answerCardWords } from '../../lib/answer-card.js';
    (lib/book-footnotes.js writes it, lib/course-book-files.js writes the same form for a book made by the notes pass); the export has already turned the
    link around the quote into its words. (2) the 概念 lines of an answer card in the 答案册 (lib/answer-card.js renderAnswerCard): `- **name**（资料：title）：「the
    material's own slice」`. Both are cut at ONE point, the Markdown, by withoutSourceQuotes: the quote becomes a note that it is left out, and what stands
-   after it stays (a footnote's ` · title, page`; a concept's flag). Not cut, on purpose: a footnote the learner typed (it does not begin with a quotation
+   after it stays (a footnote's ` · title`, a page only when the title holds one; a concept's flag). A definition is cut in any shape the renderer reads (indented, in a
+   blockquote or a list, over several lines), by the quotation marks of the writer's own table (lib/footnote-syntax.js). Not cut, on purpose: a footnote the learner typed (it does not begin with a quotation
    mark), the words of a question's stem that an answer card quotes (the question's, not the material's), and the learner's and the AI's own text. */
 
 const WORDS = {
@@ -23,8 +24,11 @@ const WORDS = {
 };
 const wordsOf = language => WORDS[Object.hasOwn(WORDS, language) ? language : 'zh'];
 
-/** The quotation marks a quote is put in (the book writes 「」 and “”). */
-const PAIRS = { '「': '」', '『': '』', '“': '”', '‘': '’', '"': '"' };
+const PAIRS = QUOTE_PAIRS;
+/** Where a definition line really starts: after the blockquote and list markers and the indent the renderer (ui/markdown-page.js) reads it through. */
+const LINE_PREFIX = /^(?:[ \t]*>[ \t]?|[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+)*[ \t]*/;
+/** A line that goes on with the definition above it: blockquote markers, then four spaces or a tab. */
+const CONTINUATION = /^(?:[ \t]*>)*(?: {4}|\t)\s*(\S.*)$/;
 const FENCE = /^\s*(```|~~~)/;
 const SOURCE_LINK = /^\[(.*)\]\(studyhub:\/\/source\/[^)\s]*\)(.*)$/;
 const PLACE = /^\s*·\s*(\S[\s\S]*)$/;
@@ -52,21 +56,30 @@ function conceptWithout(line, left) {
 
 /** The Markdown with the words quoted from the materials left out (see the top of this file). `left`: what stands in their place. */
 export function withoutSourceQuotes(markdown, left) {
+  const lines = String(markdown ?? '').split(/\r?\n/), out = [];
   let fenced = false, concepts = 0;
-  return String(markdown ?? '').split(/\r?\n/).map(line => {
-    if (FENCE.test(line)) { fenced = !fenced; return line; }
-    if (fenced) return line;
+  for (let at = 0; at < lines.length; at++) {
+    const line = lines[at];
+    if (FENCE.test(line)) { fenced = !fenced; out.push(line); continue; }
+    if (fenced) { out.push(line); continue; }
     // The 概念 lines of an answer card: after the label, one blank line, then the bullets up to the next blank line.
-    if (CONCEPT_LABELS.has(line.trim())) { concepts = 1; return line; }
+    if (CONCEPT_LABELS.has(line.trim())) { concepts = 1; out.push(line); continue; }
     if (concepts) {
-      if (!line.trim()) { if (concepts === 2) concepts = 0; return line; }
-      if (CONCEPT_BULLET.test(line)) { concepts = 2; return conceptWithout(line, left); }
+      if (!line.trim()) { if (concepts === 2) concepts = 0; out.push(line); continue; }
+      if (CONCEPT_BULLET.test(line)) { concepts = 2; out.push(conceptWithout(line, left)); continue; }
       concepts = 0;
     }
-    const found = DEFINITION.exec(line);
-    const body = found ? footnoteWithout(found[2].trim(), left) : null;
-    return body === null ? line : `[^${found[1]}]: ${body}`;
-  }).join('\n');
+    // A definition, in any shape the renderer reads: its lines are the first line's rest and the lines indented under it.
+    const prefix = LINE_PREFIX.exec(line)[0], found = DEFINITION.exec(line.slice(prefix.length));
+    if (!found) { out.push(line); continue; }
+    const more = [];
+    for (let next = at + 1; next < lines.length && CONTINUATION.test(lines[next]); next++) more.push(CONTINUATION.exec(lines[next])[1]);
+    const body = footnoteWithout([found[2].trim(), ...more].filter(Boolean).join(' '), left);
+    if (body === null) { out.push(line); continue; }
+    out.push(`${prefix}[^${found[1]}]: ${body}`);
+    at += more.length;
+  }
+  return out.join('\n');
 }
 
 /** The name of the saved page: the Markdown file's, as .html. */

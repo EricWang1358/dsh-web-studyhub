@@ -1,6 +1,7 @@
 import { createMarkdown } from './note-markdown.js';
 import { renderStudyFormula } from './study-math-render.js';
 import { esc, withoutNamespace } from './static-page.js';
+import { DEFINITION } from '../lib/footnote-syntax.js';
 
 /* Markdown as the BODY of one self-contained static page (#896): the part every page the app saves as a file from Markdown shares (the whole review book,
    ui/book/book-html.js; the pocket review page, #887). Pure, no React, no script, no address: the page it builds names none.
@@ -21,7 +22,6 @@ import { esc, withoutNamespace } from './static-page.js';
      isFootnoteLabel(markdown of a paragraph): a paragraph that only announces the definitions that follow it (the book's 出处 line) goes with them.
    contentsList(headings, { label, level = 2 }) -> the contents as a <nav> list of links to the headings of that level ('' when none). */
 
-const DEFINITION = /^\[\^([\w-]{1,44})\]:[ \t]*(.*)$/;
 const MARK = /^\[\^([\w-]{1,44})\]/;
 const ANCHOR = /\s*\{#([^\s{}]+)\}\s*$/;
 const BACK = '↩︎';
@@ -84,8 +84,8 @@ function placeRule(options) {
   return state => {
     const { defs, chapters } = footnotesOf(state.env), out = [];
     let chapter = new Map();
-    // A footnote marked in several chapters stands in each of them; its ids are told apart by how many chapters had it before.
-    const uidOf = label => { const before = chapters.get(label) ?? 0; chapters.set(label, before + 1); return before ? `${label}-c${before + 1}` : label; };
+    // A footnote marked in several chapters stands in each of them; its ids are told apart by how many chapters had it before (a `~`, which no label holds).
+    const uidOf = label => { const before = chapters.get(label) ?? 0; chapters.set(label, before + 1); return before ? `${label}~c${before + 1}` : label; };
     const listOf = () => {
       const tokens = [];
       const open = new state.Token('footnote_block_open', '', 1);
@@ -144,9 +144,11 @@ function headingRule(options) {
     });
     const taken = new Set(written.values());
     const assign = (wanted, n) => {
-      if (wanted && !used.has(wanted)) { used.add(wanted); return wanted; }
+      // The footnotes' ids (fn-…, fnref-…) are theirs: a heading that writes one is given its own.
+      const own = wanted && !/^fn(?:ref)?-/.test(wanted) ? wanted : null;
+      if (own && !used.has(own)) { used.add(own); return own; }
       // A repeated id or none at all: never one the text writes somewhere else.
-      const base = wanted ?? `section-${n}`;
+      const base = own ?? `section-${n}`;
       let id = base, k = 1;
       while (used.has(id) || taken.has(id)) id = `${base}-${++k}`;
       used.add(id);
@@ -214,7 +216,7 @@ function markdownOf(options) {
   // Only a picture that is part of the text; the note renderer would let an address through.
   rules.image = (tokens, at, ...rest) => (/^data:/i.test(tokens[at].attrGet('src') ?? '') ? picture(tokens, at, ...rest) : esc(tokens[at].content));
   rules.footnote_ref = (tokens, at) => {
-    const { uid, number, mark } = tokens[at].meta, id = mark > 1 ? `fnref-${uid}-${mark}` : `fnref-${uid}`;
+    const { uid, number, mark } = tokens[at].meta, id = mark > 1 ? `fnref-${uid}~${mark}` : `fnref-${uid}`;
     return `<sup class="fnref"><a href="#fn-${esc(uid)}" id="${esc(id)}">${number}</a></sup>`;
   };
   rules.footnote_block_open = (tokens, at) => `<section class="footnotes" role="doc-endnotes">${tokens[at].meta.label ? `<p class="fn-title">${esc(tokens[at].meta.label)}</p>` : ''}<ol>\n`;
@@ -222,7 +224,7 @@ function markdownOf(options) {
   rules.footnote_open = (tokens, at) => `<li id="fn-${esc(tokens[at].meta.uid)}">`;
   rules.footnote_close = (tokens, at) => {
     const { uid, marks } = tokens[at].meta, named = options.backLabel ? ` aria-label="${esc(options.backLabel)}"` : '';
-    return `${Array.from({ length: marks }, (_, k) => ` <a class="fnback" href="#fnref-${esc(uid)}${k ? `-${k + 1}` : ''}"${named}>${BACK}</a>`).join('')}</li>\n`;
+    return `${Array.from({ length: marks }, (_, k) => ` <a class="fnback" href="#fnref-${esc(uid)}${k ? `~${k + 1}` : ''}"${named}>${BACK}</a>`).join('')}</li>\n`;
   };
   return md;
 }
@@ -259,6 +261,7 @@ img{max-width:100%;height:auto}
 hr{border:0;border-top:1px solid var(--line)}
 .math-block{display:block;max-width:100%;margin:.5rem 0;overflow-x:auto}
 .math-block math{font-size:1.1em}
+.math{display:inline-block;max-width:100%;overflow-x:auto;vertical-align:middle}
 .eqno{margin-left:1em;color:var(--mute)}
 .fnref{font-size:.75em;line-height:0}
 .fnref a{padding:0 .1em}
