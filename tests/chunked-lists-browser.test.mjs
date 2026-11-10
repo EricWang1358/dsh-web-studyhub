@@ -1,0 +1,257 @@
+/* global document, window, getComputedStyle -- page.evaluate callbacks run in the browser */
+import test from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { buildPreview } from "../scripts/build.mjs";
+import { launchChromium } from "../scripts/qa/browser.mjs";
+import { frames, openPage, settleAnimations, startLateServer, until } from "../scripts/qa/layout-late.mjs";
+import { revealNavRow } from "../scripts/qa/nav-reveal.mjs";
+import { noonZone, seedChunkLibrary, SHORT_DRAFT, SIMILAR_AT } from "../scripts/qa/chunked-lists.mjs";
+
+/* #900: the sources page, the wrong book and a long draft draw their rows in growing chunks, on the fixture of scripts/qa/chunked-lists.mjs (1000 notes and a 160-page book
+   in one day group, 1000 wrong answers in two decks, a draft of 500 questions with two near-duplicates far down). What it proves, in a browser: the first paint draws one
+   chunk; the next chunk comes when the end is near (scrolling, or focus moving there) and the first visible row stays where it is; folding a group or changing the filter starts
+   from the first chunk; every way of jumping to a row (a new import, 找功能 anchors, the wrong book's group jump, adding a question) lands on a row that is drawn;
+   and what counts or acts on all rows still does (the group's count, 选择当前范围). */
+
+const CHUNK = 120, DRAFT_CHUNK = 80;
+const DOCUMENTS = 1000, MISTAKES = 1000, QUESTIONS = 500;
+/** Every document of the page: the notes, the book, and the four sources scripts/qa/perf-seed.mjs writes. */
+const ALL_DOCUMENTS = DOCUMENTS + 1 + 4;
+/* The notes are dated up to 150 minutes after now, so a note imported "now" lands at index 300 of the day group: beyond the first chunk, not at the end. */
+const NEWER_THAN_NOW = 300;
+
+const count = (page, selector) => page.locator(selector).count();
+/** Scroll the page (or the pane it sits in) to its end, the way the wheel would: one scroll event, at the very end. */
+const scrollToEnd = (page) => page.evaluate(() => {
+  let element = document.querySelector(".page");
+  while (element && !(element.scrollHeight > element.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(element).overflowY))) element = element.parentElement;
+  const scroller = element || document.scrollingElement;
+  scroller.scrollTop = scroller.scrollHeight;
+});
+/** Scroll to a hundred pixels from the end of the page (the end of the drawn rows is then within a screen), and say which row is first in sight and where, in the same breath:
+    the next chunk is drawn after this returns. */
+const scrollNearEnd = (page, selector, attribute) => page.evaluate(([rows, name]) => {
+  let element = document.querySelector(".page");
+  while (element && !(element.scrollHeight > element.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(element).overflowY))) element = element.parentElement;
+  const scroller = element || document.scrollingElement;
+  scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight - 100;
+  for (const row of document.querySelectorAll(rows)) {
+    const box = row.getBoundingClientRect();
+    if (box.bottom > 0 && box.top < window.innerHeight) return { key: row.getAttribute(name), top: Math.round(box.top * 10) / 10 };
+  }
+  return null;
+}, [selector, attribute]);
+const topOfKey = (page, attribute, key) => page.evaluate(([name, value]) => { const row = document.querySelector(`[${name}="${value}"]`); return row ? Math.round(row.getBoundingClientRect().top * 10) / 10 : null; }, [attribute, key]);
+const inView = (page, selector) => page.evaluate((query) => {
+  const element = document.querySelector(query);
+  if (!element) return false;
+  const box = element.getBoundingClientRect();
+  return box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < window.innerHeight;
+}, selector);
+
+async function openApp(browser, running, zone, { width = 1280, height = 900 } = {}) {
+  const opened = await openPage(browser, running, { lang: "zh", theme: "light", width, height, timezoneId: zone });
+  await opened.page.goto(running.server.url);
+  await opened.page.locator(".sidebar, .nav-menu-toggle").first().waitFor({ timeout: 30000 });
+  return opened;
+}
+async function openNav(page, id) {
+  await (await revealNavRow(page, id)).dispatchEvent("click");
+}
+/** 找功能: Ctrl K, the search words, and 带我去 on the entry; the focus starts inside the app, as the shortcut needs. */
+async function goViaFinder(page, focusSelector, words, entry) {
+  await page.locator(focusSelector).first().focus();
+  await page.keyboard.press("Control+K");
+  await page.getByRole("combobox", { name: "搜索功能" }).fill(words);
+  const row = page.locator(`[role="option"][data-entry="${entry}"]`);
+  await row.waitFor({ timeout: 10000 });
+  await row.hover();
+  await row.locator(".finder-row__go").click();
+}
+
+test("the sources page, the wrong book and a long draft draw their rows in chunks, and every jump to a row still lands", { timeout: 900000 }, async (t) => {
+  let browser;
+  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split("\n")[0]}`); return; }
+  const dist = await mkdtemp(join(tmpdir(), "study-chunk-dist-"));
+  await buildPreview({ outdir: dist });
+  const now = Date.now(), zone = noonZone(now);
+  const running = await startLateServer({ distDir: dist, seed: (root) => seedChunkLibrary(root, { documents: DOCUMENTS, mistakes: MISTAKES, questions: QUESTIONS, newest: now + NEWER_THAN_NOW * 30_000 }) });
+  try {
+    await t.test("资料: one chunk at first, the next at the end, the first visible row stays, folding starts again, counts and 选择当前范围 cover all rows", async () => {
+      const { page, context, errors } = await openApp(browser, running, zone);
+      await openNav(page, "sources");
+      const rows = ".sources-page .source-doc";
+      await page.locator(rows).first().waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      assert.equal(await count(page, rows), CHUNK, "the newest day opens with one chunk");
+      assert.match(await page.locator(".source-group--open .source-group-head").first().innerText(), new RegExp(`${DOCUMENTS + 1} 份`), "the group's count is of all its rows");
+
+      // Near the end: the next chunk is drawn after the first one, and the row that was first in sight has not moved; the same again for the third.
+      for (const chunks of [2, 3]) {
+        const sight = await scrollNearEnd(page, rows, "data-document-key");
+        await until(async () => (await count(page, rows)) === chunks * CHUNK, `${chunks} chunks drawn after scrolling to the end`, { timeoutMs: 15000 });
+        await frames(page, 3);
+        const after = await topOfKey(page, "data-document-key", sight.key);
+        assert.notEqual(after, null);
+        assert.ok(Math.abs(after - sight.top) <= 1, `the first visible row moved from ${sight.top} to ${after} when chunk ${chunks} was appended`);
+      }
+
+      // 选择当前范围 selects every row of the page, drawn or not; the header says so.
+      await page.locator(".source-organize > summary").click();
+      await page.getByRole("button", { name: "选择当前范围" }).click();
+      assert.match(await page.locator(".source-organize").innerText(), new RegExp(`已选择 ${ALL_DOCUMENTS} 份资料`));
+      await page.locator(".source-organize > summary").click();
+
+      // Folding the group and opening it again: one chunk.
+      const head = page.locator(".source-group-head").first();
+      await head.click();
+      await until(async () => (await count(page, rows)) === 0, "the group folded");
+      await head.click();
+      await until(async () => (await count(page, rows)) > 0, "the group opened");
+      assert.equal(await count(page, rows), CHUNK, "a group that is opened again starts from the first chunk");
+
+      // The keyboard: focus moving to the last rows of the chunk draws the next one.
+      await page.locator(`${rows} .source-main`).nth(CHUNK - 3).focus();
+      await until(async () => (await count(page, rows)) > CHUNK, "the next chunk after focus reached the end", { timeoutMs: 15000 });
+      assert.deepEqual(errors.filter((error) => !/favicon/.test(error)), []);
+      await context.close();
+    });
+
+    await t.test("资料: a note imported now lands beyond the first chunk, and the row is drawn, in view and focused", async () => {
+      const { page, context, errors } = await openApp(browser, running, zone);
+      await openNav(page, "sources");
+      await page.locator(".sources-page .source-doc").first().waitFor({ timeout: 30000 });
+      await page.locator('[data-tour="sources-add"]').first().click();
+      const dialog = page.locator("dialog[open], [role=\"dialog\"]").first();
+      await dialog.waitFor({ timeout: 30000 });
+      await dialog.locator(".sh-drop input[type=\"file\"]").first().setInputFiles([{ name: "fresh-note.md", mimeType: "text/markdown", buffer: Buffer.from("# Fresh\n\nA note imported just now about quorum reads.\n") }]);
+      await until(async () => (await count(page, "dialog[open]")) === 0, "the dialog closed after the import", { timeoutMs: 60000 });
+      const fresh = '.source-doc[data-new="true"]';
+      await page.locator(fresh).first().waitFor({ timeout: 30000 });
+      // The notes dated after the import come first (about NEWER_THAN_NOW of them: the clock has moved on since the library was written): the new row is far past two chunks.
+      const at = await page.evaluate(() => [...document.querySelectorAll(".sources-page .source-doc")].findIndex((row) => row.dataset.new === "true"));
+      assert.ok(at > 2 * CHUNK, `the new row is beyond the first chunks: index ${at}`);
+      const drawn = await count(page, ".sources-page .source-doc");
+      assert.equal(drawn, at + 1, `the group draws up to the new row and no further: ${drawn} rows for index ${at}`);
+      await until(() => inView(page, fresh), "the new row scrolled into view", { timeoutMs: 15000 });
+      assert.equal(await page.evaluate(() => document.activeElement?.closest?.(".source-doc")?.getAttribute("data-new")), "true", "the focus is on the new row");
+      assert.deepEqual(errors.filter((error) => !/favicon/.test(error)), []);
+      await context.close();
+    });
+
+    await t.test("找功能: the anchor on a row beyond the first chunk (the book's 深度定制) is drawn and shown", async () => {
+      const { page, context } = await openApp(browser, running, zone);
+      await openNav(page, "sources");
+      await page.locator(".sources-page .source-doc").first().waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      assert.equal(await count(page, '[data-tour="custom-book-row"]'), 0, "the book's row is not drawn yet");
+      await goViaFinder(page, '[data-tour="sources-archived"]', "资料那一行", "custom-book-row");
+      await until(() => inView(page, '[data-tour="custom-book-row"]'), "the 深度定制 button of the book in view", { timeoutMs: 20000 });
+      await context.close();
+    });
+
+    await t.test("错题: one chunk of a group, the next at the end, a new filter starts again, the group jump lands, 练这一组 takes every row", async () => {
+      const { page, context, errors } = await openApp(browser, running, zone);
+      await page.evaluate(() => { try { sessionStorage.clear(); } catch { /* blocked */ } });
+      await openNav(page, "wrongbook");
+      await page.locator(".wb-retrain").waitFor({ timeout: 30000 });
+      const rows = ".wb-row";
+      const toggles = page.locator(".wb-group .wb-group-toggle");
+      await toggles.first().click();
+      await page.locator(rows).first().waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      assert.equal(await count(page, rows), CHUNK, "the opened group draws one chunk");
+      assert.match(await page.locator(".wb-group").first().locator(".wb-group-title").innerText(), new RegExp(`${MISTAKES / 2} 题`), "the group's count is of all its rows");
+
+      // The group jump (a topic spans both decks, so its segment of 薄弱点分布 goes to the group instead of filtering): three groups are open, the sixth is far below,
+      // and the jump lands on its head in one scroll, without drawing the chunks of the open groups it passes.
+      await page.locator(".wb-view").getByText("按主题", { exact: true }).click();
+      await page.locator(".wb-group").nth(5).waitFor();
+      // (Bottom up: a group's end that is in sight draws its next chunk, so opening a group right under an open one would do that.)
+      for (const at of [2, 1, 0]) await toggles.nth(at).click();
+      await until(async () => (await count(page, rows)) === 3 * CHUNK, "three open groups, one chunk each");
+      await page.locator(".wb-dist-seg").nth(5).click();
+      await until(async () => (await page.evaluate(() => { const top = document.querySelectorAll(".wb-group")[5].getBoundingClientRect().top; return top >= -2 && top < 250; })), "the sixth group's head at the top of the window", { timeoutMs: 15000 });
+      await frames(page, 6);
+      assert.equal(await count(page, rows), 4 * CHUNK, "the jump opened the sixth group (one chunk) and drew no other chunk of the groups it passed");
+      assert.ok(await page.evaluate(() => { const top = document.querySelectorAll(".wb-group")[5].getBoundingClientRect().top; return top >= -2 && top < 250; }), "and the head is still where the jump put it");
+
+      // At the end of the open groups: the next chunk of the last one; a search starts every group from its first chunk again.
+      await scrollToEnd(page);
+      await until(async () => (await count(page, rows)) > 4 * CHUNK, "the next chunk after scrolling to the end", { timeoutMs: 15000 });
+      // (Every prompt ends with a full stop, so the search keeps every row: only the chunk can change.)
+      await page.locator(".wb-search-input").fill(".");
+      await until(async () => (await count(page, rows)) === 4 * CHUNK, "a new filter starts every group from the first chunk", { timeoutMs: 15000 });
+      await page.locator(".wb-search-input").fill("");
+
+      // 练这一组 takes the rows of the group, all of them, drawn or not: the round that opens counts every one. (A round holds at most 200 questions: a topic of both decks is 168.)
+      const size = Number((await page.locator(".wb-group").filter({ hasText: "Topic 1" }).first().locator(".wb-group-title small").first().innerText()).match(/\d+/)[0]);
+      assert.ok(size > CHUNK && size <= 200, `a group of ${size} rows, more than a chunk`);
+      await page.getByRole("button", { name: /练这一组：Topic 1/ }).click();
+      await page.getByText(`所选 ${size} 道题`).first().waitFor({ timeout: 30000 });
+      assert.deepEqual(errors.filter((error) => !/favicon/.test(error)), []);
+      await context.close();
+    });
+
+    await t.test("草稿: one chunk of 80 questions, the next at the end, 找功能 to a similar question beyond it, adding a question draws it", async () => {
+      const { page, context, errors } = await openApp(browser, running, zone);
+      await openNav(page, "library");
+      const fold = page.locator("details.home-drafts").first();
+      if (await fold.count() && !await fold.evaluate((element) => element.open)) await fold.locator("summary").first().click();
+      const asked = page.waitForResponse((response) => /\/api\/call/.test(response.url()) && /"draft\.similar"/.test(response.request().postData() || ""), { timeout: 60000 });
+      await page.locator(".draft-row").filter({ hasText: "A long draft" }).locator(".draft-open").click();
+      const cards = ".draft-card";
+      await page.locator(cards).first().waitFor({ timeout: 30000 });
+      await asked;
+      await frames(page, 4);
+      await settleAnimations(page);
+      assert.equal(await count(page, cards), DRAFT_CHUNK, "a draft of more than 80 questions draws 80 first");
+      assert.match(await page.locator(".draft-edit-heading").innerText(), new RegExp(`${QUESTIONS} 题`), "the heading counts all the questions");
+
+      // The near-duplicate notice is on question SIMILAR_AT (index 100): past the first chunk, so 找功能 has to ask for it. (What it does with a notice it finds is not this
+      // test's: the notice sits in the fold's summary and the finder opens the fold, which hides it, wherever the question is. Here it is only drawn.)
+      assert.equal(await count(page, '[data-tour="draft-similar"]'), 0);
+      await goViaFinder(page, ".draft-title-field__input", "相似题", "draft-similar");
+      await until(async () => (await count(page, '[data-tour="draft-similar"]')) > 0, "the question with the similar-question notice drawn", { timeoutMs: 20000 });
+      const drawn = await count(page, cards);
+      assert.equal(drawn, SIMILAR_AT + 1, `the list drew up to the question with the notice and no further: ${drawn} cards`);
+
+      // The end: the next chunk.
+      await scrollToEnd(page);
+      await until(async () => (await count(page, cards)) > drawn, "the next chunk after scrolling to the end", { timeoutMs: 15000 });
+
+      assert.deepEqual(errors.filter((error) => !/favicon/.test(error)), []);
+      await context.close();
+    });
+
+    await t.test("草稿: a question added to a draft of 90 is drawn, and 查看详情 draws every question before it scrolls to the details after them", async () => {
+      const { page, context, errors } = await openApp(browser, running, zone);
+      await openNav(page, "library");
+      const fold = page.locator("details.home-drafts").first();
+      if (await fold.count() && !await fold.evaluate((element) => element.open)) await fold.locator("summary").first().click();
+      await page.locator(".draft-row").filter({ hasText: "A draft of ninety" }).locator(".draft-open").click();
+      const cards = ".draft-card";
+      await page.locator(cards).first().waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      assert.equal(await count(page, cards), DRAFT_CHUNK, "ninety questions: one chunk of 80 at first");
+
+      // 查看详情 (a question was sent back) goes to the details that follow the last question: all ninety are drawn first, and the details are in view.
+      await page.getByRole("button", { name: "查看详情" }).click();
+      await until(async () => (await count(page, cards)) === SHORT_DRAFT, "every question drawn for the details", { timeoutMs: 15000 });
+      await until(() => inView(page, ".draft-generation-details"), "the details in view", { timeoutMs: 15000 });
+      await frames(page, 6);
+      assert.equal(await count(page, cards), SHORT_DRAFT);
+      assert.ok(await inView(page, ".draft-generation-details"), "and still in view");
+      assert.equal(await page.locator(".draft-generation-details").evaluate((element) => element.open), true);
+
+      // 添加闪卡 appends question 91: it is drawn.
+      await page.getByRole("button", { name: /添加闪卡/ }).click();
+      await until(async () => (await count(page, cards)) === SHORT_DRAFT + 1, "the added question drawn", { timeoutMs: 15000 });
+      assert.deepEqual(errors.filter((error) => !/favicon/.test(error)), []);
+      await context.close();
+    });
+  } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
+});

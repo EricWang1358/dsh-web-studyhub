@@ -114,8 +114,8 @@ export async function startLateServer({ distDir, seed, lang = "zh" } = {}) {
     close: async () => { await server.close(); await rm(base, { recursive: true, force: true }); } };
 }
 
-export async function openPage(browser, running, { lang = "zh", theme = "dark", width = 1280, height = 900 } = {}) {
-  const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, locale: lang === "en" ? "en-US" : "zh-CN", colorScheme: theme });
+export async function openPage(browser, running, { lang = "zh", theme = "dark", width = 1280, height = 900, timezoneId } = {}) {
+  const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, locale: lang === "en" ? "en-US" : "zh-CN", colorScheme: theme, ...(timezoneId ? { timezoneId } : {}) });
   await context.addInitScript(([l, t]) => { try { localStorage.setItem("study-ui-language", l); localStorage.setItem("study-theme", t); } catch { /* blocked */ } }, [lang, theme]);
   await context.addInitScript(installLayoutObserver);
   const page = await context.newPage();

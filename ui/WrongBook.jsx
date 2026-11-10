@@ -10,7 +10,7 @@ import { usePolling } from "./use-polling.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { Badge, Banner, Button, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, TextInput, Tooltip, Chip, useToast } from './components/index.js';
+import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, TextInput, Tooltip, Chip, useToast } from './components/index.js';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { leechLimits } from '../lib/leech.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
@@ -481,11 +481,14 @@ export function WrongBookView({
   const showRecs = !isHistory && total > 0 && (!!recs || recsLoading);
   const practiceRec = (rec) => onPractice([refOf(rec)]);
   const groupsId = useId();
+  // A group draws its rows in chunks (ChunkedRows); another filter, grouping, view, scope or page starts every group from its first chunk again.
+  const chunkKey = useMemo(() => JSON.stringify([scopeKey, applied, groupBy, view, page]), [scopeKey, applied, groupBy, view, page]);
   // A segment of 薄弱点分布 takes the learner to its group: the row's own 只看这个题组 when the group is one deck, otherwise open it and go there.
   const pickGroup = (group) => {
     if (group.deckIds.length === 1) { onlyThisDeck(group); return; }
     setOpenGroups((previous) => new Set(previous).add(group.key));
-    requestAnimationFrame?.(() => document.getElementById(`${groupsId}-${group.key}`)?.closest(".wb-group")?.scrollIntoView?.({ block: "start", behavior: "smooth" }));
+    // In one scroll, not an animation: an open group above draws its next chunk whenever its end passes through the window, which would move the head being scrolled to.
+    requestAnimationFrame?.(() => document.getElementById(`${groupsId}-${group.key}`)?.closest(".wb-group")?.scrollIntoView?.({ block: "start", behavior: "auto" }));
   };
   const batchButton = (
     <div className="wb-batch">
@@ -763,12 +766,12 @@ export function WrongBookView({
             </div>
             {isOpen && (
               <ul className="wb-rows" id={rowsId}>
-                {group.rows.map((it) => (
+                <ChunkedRows as="li" items={group.rows} resetKey={chunkKey} render={(it) => (
                   <Row key={it.cardId} it={it} metaText={group.mode === "topic" ? shortName(it.deckTitle) : it.topic || ui("未分类")}
                     isOpen={expanded.has(it.cardId)} state={stateOf(it.cardId)} detail={details[it.cardId]} recItems={recItems} shortName={shortName}
                     canGenerate={!isHistory && canGenerate} canPracticePrepared={!!onPracticePrepared} disabled={busy} variantDisabled={busy || working} handlers={handlers} limits={limits} course={courseOfDeck.get(it.deckId) || ''} showPractice={isHistory || total !== 1}
                     history={isHistory} mistake={isHistory ? joinMeta([uiFormat("答错 {0} 次", [it.wrongCount ?? 0]), uiFormat("最近答错 {0}", [formatDateTime(it.lastWrongAt, "stamp")])]) : ""} />
-                ))}
+                )} />
               </ul>
             )}
           </div>
