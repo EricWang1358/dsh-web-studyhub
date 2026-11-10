@@ -22,7 +22,7 @@ const PERMISSION_WHY = '主会话要改 StudyHub 文件夹以外的东西（比�
 export function DiagnosticBar({ diagnostic, text, resetKey, row = false, className = '', children }) {
   useInjectCss(css, 'study-diagnostic-actions');
   const read = () => (typeof diagnostic === 'function' ? diagnostic() : diagnostic);
-  const failure = diagnostic != null ? read()?.input : null, asks = !!failure && needsWrite(failure.tool, failure.code);
+  const failure = diagnostic != null ? read()?.input : null, asks = !!failure && needsWrite(failure.tool, failure.code, failure.installedBy);
   const beside = typeof children === 'function' ? children(() => read()?.input || {}) : children;
   const hint = asks && <Tooltip layer content={ui(PERMISSION_WHY)} anchorClassName="sh-diag-actions__hint-row"><span tabIndex={0} className="sh-diag-actions__hint">{ui(PERMISSION_HINT)}</span></Tooltip>;
   const describe = () => (typeof text === 'function' ? text() : text) || read()?.text || '';
