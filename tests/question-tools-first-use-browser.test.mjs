@@ -72,6 +72,7 @@ const boxes = (page) => page.evaluate(() => {
     help: rect(document.querySelector('[data-usage="review.help"]')), fix: rect(document.querySelector('[data-usage="review.improve"]')),
     derive: rect([...document.querySelectorAll('[data-usage="review.derive-prereq"]')].find((link) => link.getClientRects().length)),
     toolbar: rect(document.querySelector('.question-toolbar')), more: rect(document.querySelector('.question-navigation .review-more-trigger')),
+    message: rect([...document.querySelectorAll('.action-feedback-slot > *')].find((element) => element.getClientRects().length)),
     focus: document.activeElement?.tagName || '', scrollWidth: document.documentElement.scrollWidth };
 });
 const covers = (a, b) => !!a && !!b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
@@ -117,6 +118,7 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       assert.ok(!covers(before.tip, before.help) && !covers(before.tip, before.fix), `${where}: nor the controls it is about`);
       assert.match(await tipOf(page, 'practice.help-first').innerText(), new RegExp(words.help.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${where}: the words`);
       assert.equal(await anyTip(page).count(), 1, `${where}: one tip at a time`);
+      if (lang === 'en') assert.doesNotMatch(await tipOf(page, 'practice.help-first').innerText(), /[㐀-鿿]/, `${where}: the English tip has no Chinese`);
       assert.ok(before.scrollWidth <= before.viewport.width, `${where}: no sideways scroll`);
       if (lang === 'zh') await shot(page, `help-first-${width}`);
       // the tip takes no focus: the next key still moves on
@@ -197,6 +199,7 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       assert.ok(insideWindow(fix.tip, fix.viewport), `${where}: inside the window ${JSON.stringify(fix)}`);
       for (const [name, control] of [['下一题', fix.next], ['上一题', fix.prev], ['更多', fix.more]]) assert.ok(!covers(fix.tip, control), `${where}: the tip does not cover ${name}`);
       assert.match(await tipOf(page, 'practice.fix-first').innerText(), new RegExp(words.fix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      assert.ok(!covers(fix.tip, fix.message), `${where}: the page's own message of the vote stays readable under or beside the tip ${JSON.stringify(fix.message)}`);
       assert.equal(await anyTip(page).count(), 1);
       if (lang === 'zh') await shot(page, `fix-first-${width}`);
       await page.locator('[data-usage="review.improve"]').click();
@@ -219,6 +222,7 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       assert.ok(prereq.derive, `${where}: the link it points at is on screen`);
       assert.ok(insideWindow(prereq.tip, prereq.viewport), `${where}: inside the window ${JSON.stringify(prereq.tip)}`);
       assert.ok(!covers(prereq.tip, prereq.derive), `${where}: it does not cover the link`);
+      for (const [name, control] of [['下一题', prereq.next], ['上一题', prereq.prev], ['更多', prereq.more]]) assert.ok(!covers(prereq.tip, control), `${where}: the tip does not cover ${name}`);
       assert.match(await tipOf(page, 'practice.prereq-first').innerText(), new RegExp(words.prereq.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
       if (lang === 'zh') await shot(page, `prereq-first-${width}`);
       await page.locator('[data-practice-tip]').getByRole('button', { name: words.ok, exact: true }).click();

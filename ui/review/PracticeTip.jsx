@@ -20,6 +20,7 @@ export const PRACTICE_TIP_TARGET = Object.freeze({
 const AVOID = '.question-navigation button';
 const YIELD_TO = '.thumb-tray, .sh-menu';
 const BAR_HEIGHT = 56; // the top bar: a control under it is not on screen
+const MESSAGE = '.action-feedback-slot > *'; // the page's own message of what the learner just did (a vote, a saved note): the tip goes under it, not over it
 
 const visible = element => element.getClientRects().length > 0;
 
@@ -39,11 +40,13 @@ export default function PracticeTip({ id, onClose, onShown }) {
       const target = [...document.querySelectorAll(control)].find(visible), at = target?.getBoundingClientRect();
       // Only next to a control that is on screen (a link far down the page waits until the learner scrolls to it), and not on top of an open menu or the tray.
       if (!at || at.top < BAR_HEIGHT || at.bottom > window.innerHeight || document.querySelector(YIELD_TO)) { hide(); return; }
+      const message = [...document.querySelectorAll(MESSAGE)].find(visible)?.getBoundingClientRect();
+      const anchor = message && message.top >= at.bottom - 2 && message.top < at.bottom + 40 ? { left: at.left, right: at.right, top: at.top, bottom: message.bottom } : at;
       card.style.visibility = 'hidden';
       if (card.showPopover && !open()) card.showPopover();
       // Top-layer coordinates are the window's, through the interface zoom (the way <Tooltip layer> measures).
       const box = card.getBoundingClientRect(), scale = card.offsetWidth ? box.width / card.offsetWidth : 1;
-      const spot = tipSpot({ anchor: at, size: { width: box.width, height: box.height },
+      const spot = tipSpot({ anchor, size: { width: box.width, height: box.height },
         bounds: { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight },
         avoid: [...document.querySelectorAll(AVOID)].filter(visible).map(button => button.getBoundingClientRect()), gap: 4 * scale, margin: 8 * scale });
       card.style.left = `${spot.left / scale}px`;
