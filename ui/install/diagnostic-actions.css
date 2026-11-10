@@ -11,6 +11,21 @@
       min-width: 0;
       max-width: 100%;
     }
+    /* The permission sentence (#939) has a row of its own under 复制诊断信息 and 发给主会话 and above the fold: the copy button's wrapper gives its children to the
+       bar, and the DOM order is the visual order: button, hand-off, sentence, refusal note, fold (the wrapper is the copy button's own className). Its Tooltip says why. */
+    .sh-diag-actions > .sh-diag-actions__copy { display: contents; }
+    .sh-diag-actions > .sh-diag-actions__copy > .sh-diag-actions__hint-row, .sh-diag-actions > .sh-diag-actions__copy > small, .sh-diag-actions > .sh-diag-actions__copy > :last-child { flex: 1 0 100%; min-width: 0; }
+    .sh-diag-actions__hint {
+      display: inline;
+      border-radius: var(--radius-xs);
+      color: var(--text-dim);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
+      text-decoration: underline dotted;
+      text-underline-offset: 3px;
+      cursor: help;
+    }
+    .sh-diag-actions__hint:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .sh-diag-actions--row {
       display: flex;
       margin: var(--space-1) 0 0;

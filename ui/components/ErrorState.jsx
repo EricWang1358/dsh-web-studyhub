@@ -34,7 +34,7 @@ export function ErrorState({ error, onRetry, retryLabel, compact = false, title,
  * away (看看会复制什么), so the learner reads what leaves the app before it does. When the browser refuses the clipboard, the fold opens and the text
  * is selected, so a bug report is never blocked on it. `describe()` runs only when the text is needed: on copy, and while the fold is open.
  */
-export function CopyDiagnosticsButton({ describe, variant = 'quiet', size = 'sm', className }) {
+export function CopyDiagnosticsButton({ describe, variant = 'quiet', size = 'sm', className, children }) {
   const { copied, copy } = useCopyFeedback(describe);
   const [refusals, setRefusals] = useState(0), [open, setOpen] = useState(false);
   const field = useRef(null);
@@ -47,6 +47,7 @@ export function CopyDiagnosticsButton({ describe, variant = 'quiet', size = 'sm'
   return (
     <span className={cx('sh-diagnostic-copy', className)}>
       <Button size={size} variant={variant} icon="copy" onClick={press}>{copied ? ui('已复制') : ui('复制诊断信息')}</Button>
+      {children}
       {refusals > 0 && <small className="sh-diagnostic-copy__refused" role="status">{ui('没能复制，请选中下面的文字再复制')}</small>}
       <Disclosure className="sh-diagnostic-copy__fold" summary={ui('看看会复制什么')} open={open} onToggle={setOpen}>
         {open && <textarea ref={field} className="sh-diagnostic-copy__text" readOnly rows={8} value={describe()} aria-label={ui('诊断信息')} onFocus={event => event.target.select()} />}
