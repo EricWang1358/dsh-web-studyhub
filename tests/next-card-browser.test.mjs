@@ -13,6 +13,7 @@ import { SEEDS } from '../scripts/qa/tiers.mjs';
 import { seedBookFixture } from './helpers/book-fixtures.mjs';
 import { drainLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
 /* 3.7 guidance step 3 in the browser preview: the home's one 下一步 card, on a temporary library with a deck of the learner's own. States walked: a round left open
    (接着做, and 今天先不 hides it for the day, across a reload), no model (the settings), a new material without questions (创建题组 with it ticked), an exam in three days (the review book), everything done (no
@@ -63,6 +64,12 @@ async function seed(api, state) {
   }
 }
 
+/** The home, reached the way a learner reaches it. Since 4.6.0 a library with an open to-do for today opens on 待办 → 今日 (#855), and the daily seed has one, so the home is one press of 学习库 away. */
+async function openHome(page) {
+  await (await revealNavRow(page, 'library')).click();
+  await page.locator('.desk').waitFor({ timeout: 30000 });
+}
+
 async function walk({ browser, dist, state, lang, theme, width, check }) {
   const base = await mkdtemp(join(tmpdir(), 'study-next-card-'));
   // An exam card needs a course with a review book: the book fixture (a 总纲 and its notes, an exam in five days, questions not yet learned), written before the server starts.
@@ -73,7 +80,7 @@ async function walk({ browser, dist, state, lang, theme, width, check }) {
     if (state !== 'exam') await seed((action, input = {}) => previewCall(server, action, { ...input, uiLanguage: lang }), state);
     const { page, errors, context } = await openPage(browser, { server }, { lang, theme, width, height: width < 700 ? 844 : 800 });
     await page.goto(server.url);
-    await page.locator('.desk').waitFor({ timeout: 30000 });
+    await openHome(page);
     await settleAnimations(page);
     await check(page, { server, errors });
     assert.deepEqual(errors.filter((error) => !/favicon|Failed to load resource/.test(error)), [], `${state} ${width}px: no console or page errors`);
@@ -142,12 +149,13 @@ test('the 下一步 card on the home: a round left open, no model, a new materia
         assert.equal(stored.length, 1, 'one mark for the library');
         assert.match(stored[0][1], /^\d{4}-\d{2}-\d{2}$/, 'the mark is the local day');
         await page.reload();
-        await page.locator('.desk').waitFor({ timeout: 30000 });
+        await openHome(page);
         await settleAnimations(page);
         assert.equal(await card(page).count(), 0, `${tag}: still put off after a reload`);
         // 设置 › 引导 lists the card as seen and can bring it back.
         await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.startsWith('study-next-card:')) localStorage.setItem(key, '2000-01-01'); });
         await page.reload();
+        await openHome(page);
         await card(page).waitFor({ timeout: 30000 });
         assert.equal(await card(page).getAttribute('data-next'), 'resume', `${tag}: another day, the card is back`);
         assert.equal(await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('study-next-card:')).length), 0, 'the mark of an earlier day is forgotten');
