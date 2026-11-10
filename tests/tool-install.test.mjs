@@ -177,12 +177,19 @@ test('a state write survives a briefly denied replace, and writes to one file ne
   await writeState(file, { status: 'complete', stage: 'done' }, { ...store, rename: flaky });
   assert.equal(calls, 3, 'the same finished file is replaced again until the replace is allowed');
   assert.deepEqual([(await readState(file, 'markerInstall')).status, (await readdir(join(dir, 'state'))).length], ['complete', 1], 'no half-written copy is left');
+});
 
-  calls = 100; widest = 0;
-  const state = { status: 'running' };
-  const first = writeState(file, state, { ...store, rename: flaky });
-  state.status = 'failed';
-  const second = writeState(file, state, { ...store, rename: flaky });
+test('writes to one file land in the order they were asked, even when the first replace is slower', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'tool-state-'));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  const file = join(dir, 'toy.json'), store = { versionKey: 'markerInstall', label: 'Toy' };
+  let calls = 0, open = 0, widest = 0;
+  const slowFirst = async (from, to) => {
+    const mine = ++calls; open += 1; widest = Math.max(widest, open);
+    try { await wait(mine === 1 ? 80 : 0); await rename(from, to); } finally { open -= 1; }
+  };
+  const first = writeState(file, { status: 'running' }, { ...store, rename: slowFirst });
+  const second = writeState(file, { status: 'failed' }, { ...store, rename: slowFirst });
   await Promise.all([first, second]);
   assert.equal(widest, 1, 'two writes never replace the file at the same time');
   assert.equal((await readState(file, 'markerInstall')).status, 'failed', 'the later state is the one on disk');
@@ -208,4 +215,19 @@ test('a state read survives a briefly denied open; a missing or broken file stil
   assert.deepEqual(await readState(join(dir, 'missing.json'), 'markerInstall'), {});
   await writeFile(file, '{ not json');
   assert.deepEqual(await readState(file, 'markerInstall'), {});
+});
+
+test('while the replace stays denied, timer writes do not pile up behind the final one', async t => {
+  const h = await toy(t);
+  const saved = process.env.STUDY_FS_RETRY_MS;
+  process.env.STUDY_FS_RETRY_MS = '2'; // a whole retry cycle of a denied replace is then about 140 ms
+  t.after(() => { if (saved === undefined) delete process.env.STUDY_FS_RETRY_MS; else process.env.STUDY_FS_RETRY_MS = saved; });
+  let attempts = 0, last = 0;
+  const alwaysDenied = async () => { attempts += 1; throw denied(); };
+  const busy = { id: 'one', mutating: false, run: async ctx => { for (let i = 0; i < 30; i++) { ctx.push(`line ${i}`); await wait(20); } last = Date.now(); } };
+  const installer = createToolInstaller({ ...h.spec, stages: [busy] }, { flushMs: 20, stateRename: alwaysDenied });
+  await installer.start({ confirm: true, location: h.location });
+  await installer.idle();
+  const settled = Date.now() - last;
+  assert.ok(settled < 1000, `the final write waited ${settled} ms behind earlier timer writes (${attempts} replace attempts)`);
 });

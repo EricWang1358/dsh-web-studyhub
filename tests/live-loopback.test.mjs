@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,8 +16,11 @@ import {
   effectiveLiveLoopback,
   findWindowsCsc,
   liveLoopbackLayout,
+  loopbackIntact,
   probeLoopbackHelper,
 } from '../lib/live-loopback-install.js';
+import { readJson } from '../lib/live-local-files.js';
+import { digestOf } from '../lib/uv-bootstrap.js';
 import { LIVE_LOOPBACK_JOB_TEXT, LIVE_LOOPBACK_MESSAGES, LIVE_LOOPBACK_STAGE_NAMES } from '../lib/live-loopback-install-text.js';
 import { LIVE_LOOPBACK_CS_SOURCE } from '../lib/live-loopback-source.js';
 import { createSystemAudioCapture, loopbackInUse, loopbackProcessRunning } from '../lib/live-loopback.js';
@@ -542,4 +546,45 @@ test('Windows integration: compiles LIVE_LOOPBACK_CS_SOURCE with real csc.exe, r
   });
   assert.match(stderr, /STATE:\{/);
   assert.ok(exitCode === 0 || (stderr.includes('"no-device"') && exitCode === 3), `unexpected exit ${exitCode}: ${stderr}`);
+});
+
+/* A scanner can hold the freshly compiled helper or its stamp for a moment: a read that gives up on the first denial reports a finished install
+   as not ready (issue #920, the second cause: status complete, installed true, ready false). */
+const denied = code => Object.assign(new Error(`${code}: operation not permitted`), { code });
+const deniedTwice = (work, counter) => async (...args) => { counter.tries += 1; if (counter.tries <= 2) throw denied('EBUSY'); return work(...args); };
+
+test('a stamp read waits out a briefly denied open; a missing or broken stamp still reads as empty at once', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'loopback-stamp-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, '.verified.json');
+  await writeFile(file, JSON.stringify({ helperVersion: 'x' }));
+  const counter = { tries: 0 };
+  assert.deepEqual(await readJson(file, { read: deniedTwice(readFile, counter) }), { helperVersion: 'x' });
+  assert.equal(counter.tries, 3);
+  let reads = 0;
+  const started = Date.now();
+  assert.deepEqual(await readJson(join(dir, 'missing.json'), { read: (...args) => { reads += 1; return readFile(...args); } }), {});
+  assert.equal(reads, 1, 'a missing file is not asked again');
+  assert.ok(Date.now() - started < 20);
+  await writeFile(file, '{ nope');
+  assert.deepEqual(await readJson(file), {});
+});
+
+test('the helper still reads as intact when its stamp, size and hash are briefly denied; a missing helper is not intact at once', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'loopback-intact-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const layout = liveLoopbackLayout(dir);
+  await mkdir(layout.binDir, { recursive: true });
+  const exe = Buffer.from('MZ-intact-helper');
+  await writeFile(layout.exePath, exe);
+  await writeFile(layout.stamp, JSON.stringify({ helperVersion: LIVE_LOOPBACK.helperVersion, sourceSha256: LIVE_LOOPBACK.sourceSha256, exeBytes: exe.length, exeSha256: createHash('sha256').update(exe).digest('hex') }));
+  const counters = { read: { tries: 0 }, stat: { tries: 0 }, digest: { tries: 0 } };
+  assert.equal(await loopbackIntact(layout, {
+    read: deniedTwice(readFile, counters.read), stat: deniedTwice(stat, counters.stat), digest: deniedTwice(digestOf, counters.digest),
+  }), true);
+  assert.deepEqual([counters.read.tries, counters.stat.tries, counters.digest.tries], [3, 3, 3]);
+  await rm(layout.exePath);
+  const started = Date.now();
+  assert.equal(await loopbackIntact(layout), false);
+  assert.ok(Date.now() - started < 20, 'a missing helper answers at once');
 });
