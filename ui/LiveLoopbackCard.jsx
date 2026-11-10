@@ -127,9 +127,9 @@ export default function LiveLoopbackCard({ call: given, settings = false, hideUn
     const progress = loopbackProgress(status);
     body = <JobRow status="running" stage={loopbackStageName(status?.stage)} title={ui('正在安装电脑声音组件')} meta={status?.folder || undefined}
       progress={{ value: progress.value, max: progress.max, label: ui('安装进度') }}
-      actions={[{ label: ui('取消'), onClick: cancel, busy: working === 'cancel', disabled: !!working && working !== 'cancel' }]}>
+      actions={status?.otherProcess ? undefined : [{ label: ui('取消'), onClick: cancel, busy: working === 'cancel', disabled: !!working && working !== 'cancel' }]}>
       {stages}
-      <Hint>{ui('通常只需 1–3 秒。')}</Hint>
+      <Hint>{status?.otherProcess ? ui('另一个 StudyHub 窗口正在安装，这里会同步显示进度；要取消请去那个窗口操作。') : ui('通常只需 1–3 秒。')}</Hint>
     </JobRow>;
   } else if (['paused', 'error', 'repair'].includes(shown.state)) {
     const action = loopbackFix(shown.code);

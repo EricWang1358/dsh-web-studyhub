@@ -213,9 +213,9 @@ export default function MarkerInstall({ disabled = false, markerReady = false, m
       meta={uiFormat('第 {0}/{1} 步 · {2} · {3}', [step, STAGES.length, stageName(install.stage), install.folder])}
       progress={{ value: done, max: STAGES.length, ahead: 1, label: ui('Marker 安装进度'),
         summary: install.lastLine ? <code className="marker-install__line" translate="no">{install.lastLine}</code> : null }}
-      actions={[{ label: ui('取消'), onClick: cancel, busy: working === 'cancel', disabled: !!working && working !== 'cancel' }]}>
+      actions={install.otherProcess ? undefined : [{ label: ui('取消'), onClick: cancel, busy: working === 'cancel', disabled: !!working && working !== 'cancel' }]}>
       <Stages install={install} />
-      <Hint>{ui('下载没有精确的百分比；只要上面这一行在变化，就是在进行。请不要关闭 StudyHub。')}</Hint>
+      <Hint>{install.otherProcess ? ui('另一个 StudyHub 窗口正在安装，这里会同步显示进度；要取消请去那个窗口操作。') : ui('下载没有精确的百分比；只要上面这一行在变化，就是在进行。请不要关闭 StudyHub。')}</Hint>
     </JobRow>;
   };
 

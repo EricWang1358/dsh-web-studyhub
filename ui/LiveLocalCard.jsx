@@ -156,9 +156,9 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
     const progress = localProgress(status);
     body = <JobRow status="running" stage={localStageName(status?.stage)} title={ui('正在安装本地转写引擎')} meta={status?.folder || undefined}
       progress={{ value: progress.value, max: progress.max, label: ui('安装进度') }}
-      actions={[{ label: ui('暂停'), onClick: cancel, busy: working === 'cancel', disabled: !!working && working !== 'cancel' }]}>
+      actions={status?.otherProcess ? undefined : [{ label: ui('暂停'), onClick: cancel, busy: working === 'cancel', disabled: !!working && working !== 'cancel' }]}>
       {stages}
-      <Hint>{ui('可以离开这个页面；进度也在「任务」里。请不要关闭 StudyHub。')}</Hint>
+      <Hint>{status?.otherProcess ? ui('另一个 StudyHub 窗口正在安装，这里会同步显示进度；要暂停请去那个窗口操作。') : ui('可以离开这个页面；进度也在「任务」里。请不要关闭 StudyHub。')}</Hint>
     </JobRow>;
   } else if (['paused', 'error', 'repair'].includes(shown.state)) {
     // repair: installed once, its files changed since (a quarantined addon): 修复 re-installs only that part, here and in Settings.
