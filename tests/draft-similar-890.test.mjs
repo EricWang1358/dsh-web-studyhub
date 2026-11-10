@@ -183,3 +183,17 @@ test("asked again while nothing it reads has changed, the answer is the last one
   assert.deepEqual(similarQuestionsOf({ ...state, drafts: [next] }, "memo", { stats: edited }).similar, []);
   assert.ok("candidates" in edited, "a new draft version is searched again");
 });
+
+test("only the last answer is kept: asking about another draft forgets the first one and the library it was computed from (#845)", () => {
+  const one = { id: "one", title: "草稿", course: "信息论", draftVersion: 1, cards: [quiz("a", ENTROPY), quiz("b", ENTROPY_AGAIN)] };
+  const two = { id: "two", title: "草稿", course: "信息论", draftVersion: 1, cards: [quiz("c", SCHEDULING), quiz("d", SCHEDULING_AGAIN)] };
+  const state = { drafts: [one, two], decks: [], sources: [], courses: [] };
+  const first = {}, other = {}, again = {}, same = {};
+  similarQuestionsOf(state, "one", { stats: first });
+  similarQuestionsOf(state, "two", { stats: other });
+  similarQuestionsOf(state, "one", { stats: again });
+  assert.ok(first.compared > 0 && other.compared > 0);
+  assert.ok(again.compared > 0, "the first draft's answer was not kept once another draft was asked about");
+  similarQuestionsOf(state, "one", { stats: same });
+  assert.deepEqual(same, {}, "the latest one is");
+});
