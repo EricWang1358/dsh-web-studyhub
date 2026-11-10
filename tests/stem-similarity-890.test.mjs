@@ -60,3 +60,30 @@ test("without probes every stem is searched; identical stems are found both ways
   const pairs = shared.similarStemPairs(["什么是熵？", "什么是熵", "完全无关的题目"]);
   assert.deepEqual(sorted(pairs), sorted([[0, 1, 1], [1, 0, 1]]));
 });
+
+/* Stems of a small English vocabulary share many bigrams: the case where the position filter, not the prefix alone, keeps the exact checks few. */
+function englishCorpus(count, seed = 11) {
+  let x = seed;
+  const next = () => { x = (Math.imul(x, 1664525) + 1013904223) >>> 0; return x >>> 16; };
+  const words = ["process", "thread", "scheduler", "deadlock", "semaphore", "page", "memory", "cache", "kernel", "mode", "aaaa", "ssss", "is"];
+  const frames = [["Which statement about ", " is correct?"], ["Explain ", "."], ["What is the purpose of ", "?"]];
+  return Array.from({ length: count }, () => { const [head, tail] = frames[next() % frames.length]; return `${head}${Array.from({ length: 1 + (next() % 5) }, () => words[next() % words.length]).join(" ")}${tail}`; });
+}
+
+test("on a small English vocabulary the search still equals comparing every pair, and compares far fewer pairs", () => {
+  const texts = englishCorpus(300);
+  const probes = texts.map((_, index) => index).filter((index) => index % 5 === 0);
+  for (const threshold of [shared.NEAR_DUPLICATE_SIMILARITY, 0.4, 0.95]) {
+    const stats = {};
+    const found = shared.similarStemPairs(texts, { probes, threshold, stats });
+    assert.deepEqual(sorted(found), sorted(brute(texts, probes, threshold)), `threshold ${threshold}`);
+    assert.ok(stats.compared <= stats.candidates && stats.candidates <= probes.length * texts.length, JSON.stringify(stats));
+  }
+  const stats = {};
+  shared.similarStemPairs(texts, { probes, stats });
+  assert.ok(stats.compared < (probes.length * texts.length) / 4, `exact checks ${stats.compared} of ${probes.length * texts.length} pairs`);
+});
+
+test("a threshold outside (0, 1] is refused: at 0 every pair would match", () => {
+  for (const threshold of [0, -0.1, 1.5, Number.NaN]) assert.throws(() => shared.similarStemPairs(["a", "b"], { threshold }), RangeError);
+});
