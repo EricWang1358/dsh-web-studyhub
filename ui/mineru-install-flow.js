@@ -13,6 +13,8 @@ const INSTALL_ENDED = ['failed', 'cancelled', 'interrupted'];
 /** An install the learner stopped (取消) or that StudyHub's restart stopped: a pause, not a failure. */
 const INSTALL_PAUSED = ['cancelled', 'interrupted'];
 const ourInstall = local => local?.origin === 'installed';
+/** A MinerU StudyHub did not install (MINERU_BIN, PATH): its folders are its own, StudyHub changes nothing in them. */
+const theirs = local => local?.origin === 'env' || local?.origin === 'search';
 
 /**
  * The card's state from mineru.local.status (null while it is read): checking, not-installed, installing, paused (with `code` cancelled or
@@ -51,6 +53,15 @@ const SERVICE_REASON = {
   'port-in-use': local => (local?.external ? ui('本机服务没能启动：另一份 MinerU 占用了它要用的端口。') : ui('本机服务没能启动：它要用的端口被别的程序占用了。')),
   'vc-runtime': () => ui('本机服务没能启动：这台电脑缺少微软 VC++ 运行库。'),
   'not-writable': () => ui('本机服务没能启动：配置文件夹的权限不符合要求，或没有写入权限。'),
+  // A file of the settings folder (the backend names it when MinerU said which): the location is fine, the files' permissions are repaired in place. Another
+  // MinerU's settings folder is its own: no StudyHub location to speak of, and StudyHub changes nothing there.
+  'home-permissions': local => (theirs(local)
+    ? (local?.lastError?.file
+      ? uiFormat('本机服务没能启动：这份 MinerU 读不了 {0}，那是它自己的配置文件夹里的文件。StudyHub 不改不是它创建的文件夹的权限。', [local.lastError.file])
+      : ui('本机服务没能启动：这份 MinerU 读不了它自己的配置文件夹里的文件，或认为它们不够私有。StudyHub 不改不是它创建的文件夹的权限。'))
+    : local?.lastError?.file
+      ? uiFormat('本机服务没能启动：MinerU 读不了配置文件夹里的 {0}。安装位置没问题，不用换位置。', [local.lastError.file])
+      : ui('本机服务没能启动：MinerU 读不了配置文件夹里的文件，或认为它们不够私有。安装位置没问题，不用换位置。')),
   'service-timeout': () => ui('本机服务没能启动：等了很久它还没有准备好。'),
   'models-missing': () => ui('本机服务没能启动：模型文件不完整。'),
   'service-failed': () => ui('本机服务没能启动：它一启动就退出了。'),
@@ -108,8 +119,16 @@ const HINT = {
   'service-failed': ({ origin = '' } = {}) => (origin === 'install' ? ui('点「修复」会重新启用本机服务，已装好的步骤不会重做。') : ''),
   'service-timeout': () => ui('电脑较慢时第一次启动可能要几分钟，可以再试一次。'),
   unreadable: () => ui('它可能正忙或刚启动，过一会儿再检测。'),
+  // Inside an install the repair continues it (the service's own line already says the location is fine and the button says the rest). Another MinerU's
+  // folder is not StudyHub's to repair: a restart, then the hand-off.
+  // `linked`: files the last repair left alone because they are hard links (lib/mineru-local.js secureMineruHome): that repair was not complete.
+  'home-permissions': ({ origin = '', ours = true, linked = 0 } = {}) => [
+    origin === 'install' ? ui('点「修复权限」会修好这些文件的权限，再从停下的那一步接着装；已下载的不会重下。')
+      : !ours ? ui('可以先点「重新启动服务」再试；还是不行就点「发给主会话」。') : '',
+    ours && linked > 0 ? uiFormat('有 {0} 个文件同时链接在别的位置，StudyHub 为了不改到别处的文件没有动它们，所以这次修复不完整。', [linked]) : '',
+  ].filter(Boolean).join(' '),
 };
-/** context: { attempts, source, external, origin } of the failure, for the hints that depend on them. '' when there is nothing to add. */
+/** context: { attempts, source, external, origin, ours, linked } of the failure, for the hints that depend on them. '' when there is nothing to add. */
 export const errorHint = (code, context) => HINT[code]?.(context) || '';
 
 /** The one fix button of each failure code (id is what the card does). */
@@ -119,6 +138,7 @@ export const FIX_FOR = Object.freeze({
   'no-space': 'relocate', 'not-writable': 'relocate', 'folder-in-use': 'relocate', 'bad-location': 'relocate', 'path-too-long': 'relocate',
   'tools-failed': 'repair', 'python-failed': 'repair', 'package-failed': 'repair', 'models-failed': 'repair', 'check-failed': 'repair', 'needs-models': 'repair', 'models-missing': 'repair',
   'service-failed': 'restart-service', 'service-timeout': 'restart-service', 'port-in-use': 'stop-external', 'vc-runtime': 'vc-runtime', unreadable: 'recheck',
+  'home-permissions': 'repair-permissions',
 });
 
 const SOURCE_NAME = { mainland: () => ui('国内镜像'), global: () => ui('海外官方源') };
@@ -130,13 +150,24 @@ export const otherSourceId = id => (id === 'global' ? 'mainland' : 'global');
  * network failure in a row on one source offers the other source; a port held by another MinerU stops it only when there is one. origin: 'install': the
  * service failed inside an install that has not finished, so there is no installed program to restart yet: the fix starts the install again (the finished
  * steps are skipped; 启用本机服务 and 检查 run again), after stopping the other MinerU when there is one.
+ * Permissions (#936): a file of the settings folder is repaired where it is (修复权限: the install continues, and every install step and every service start
+ * repairs the folder's files first; 修复权限并重启: a service restart). A service refused for its folder's permissions repairs first too, with 换位置 as a
+ * quiet `secondary`; a location an install cannot write keeps 换位置. `ours` false (a MinerU StudyHub did not install): StudyHub never changes permissions in a
+ * folder it did not create and has no location there to move, so a permission failure of its service is a plain restart (the card adds the hand-off).
  */
-export function fixFor(code, { attempts = 1, external = false, source = 'mainland', origin = '' } = {}) {
+export function fixFor(code, { attempts = 1, external = false, source = 'mainland', origin = '', ours = true } = {}) {
   let id = FIX_FOR[code] || 'repair';
   if (id === 'retry' && attempts >= 2) id = 'switch-source';
   if (id === 'stop-external' && !external) id = 'restart-service';
   if (id === 'restart-service' && origin === 'install') id = 'repair';
+  if (code === 'not-writable' && origin === 'service') id = 'repair-permissions';
+  if (!ours && origin === 'service' && (code === 'not-writable' || code === 'home-permissions')) id = 'restart-service';
   switch (id) {
+    case 'repair-permissions': return { id, label: origin === 'service' ? ui('修复权限并重启') : ui('修复权限'), icon: 'key',
+      tip: code === 'not-writable' ? ui('把配置文件夹和里面文件的权限改回只有你自己能用，再重新启动本机服务；还是不行再换位置。')
+        : origin === 'service' ? ui('把配置文件夹里文件的权限改回只有你自己能用，再重新启动本机服务。安装位置没问题，不用换位置。')
+          : ui('把配置文件夹里文件的权限改回只有你自己能用，再从停下的那一步接着装。安装位置没问题，不用换位置。'),
+      ...(code === 'not-writable' ? { secondary: { id: 'relocate', label: ui('换位置') } } : {}) };
     case 'retry': return { id, label: ui('重试'), icon: 'refresh', tip: ui('从停下的那一步接着装，已下载的部分不会重下。') };
     case 'switch-source': return { id, label: ui('换下载源重试'), icon: 'sync', tip: uiFormat('换成{0}再试；已装好的步骤不会重做。', [sourceName(otherSourceId(source))]), source: otherSourceId(source) };
     case 'continue': return { id, label: ui('继续安装'), icon: 'play' };
@@ -149,6 +180,68 @@ export function fixFor(code, { attempts = 1, external = false, source = 'mainlan
   }
 }
 export const VC_REDIST_URL = 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
+
+/**
+ * What the card adds when the same fix was pressed and the same failure came back (`failedTimes`): a repair of permissions that did not help says so and
+ * points to 发给主会话 (#936); any fix that failed twice points to the ⋯ menu beside it, when there is one (#938). '' otherwise.
+ */
+export function retryNote({ action, failedTimes = 0, menu = false } = {}) {
+  const notes = [];
+  if (action?.id === 'repair-permissions' && failedTimes >= 1) notes.push(ui('修复权限后还是不行：点「发给主会话」，让主会话帮你查是哪个文件、谁改了它的权限。'));
+  if (menu && failedTimes >= 2) notes.push(ui('同一个修复已经失败两次：可以试试右边「⋯」里的其他办法。'));
+  return notes.join(' ');
+}
+
+const DEFAULT_TIER = 'basic';
+const unfinished = install => INSTALL_ENDED.includes(install?.status) && !!install?.tier;
+
+/**
+ * The tier a start asks for (#937), never the backend's default: a tier picked here wins; else the tier of the install that did not finish (a fix continues
+ * it); else the installed tier; else the plan's; else basic. A move keeps the tier that works unless one was picked.
+ */
+export function tierFor({ picked = '', install = null, installedTier = '', planTier = '', moving = false } = {}) {
+  if (moving) return picked || installedTier || install?.tier || planTier || DEFAULT_TIER;
+  return picked || (unfinished(install) ? install.tier : '') || installedTier || install?.tier || planTier || DEFAULT_TIER;
+}
+
+/**
+ * A tier picked here for an install that has not finished in another tier: { from, to, kept } ('program' when the program and Python are installed
+ * already, else 'steps'), or null. An installed MinerU changes tier from 更多 (换成 X 档) instead.
+ */
+export function tierChange({ picked = '', install = null } = {}) {
+  if (!picked || !unfinished(install) || install.installed || picked === install.tier) return null;
+  return { from: install.tier, to: picked, kept: (install.done || []).includes('package') ? 'program' : 'steps' };
+}
+
+/**
+ * The one true sentence of a change of tier: what the install keeps and what it downloads. No size here: the tier's size is said once, beside the tier
+ * in 更多 (one fact, one number). The old tier's models stay on disk, unused, until the next uninstall.
+ */
+export function tierChangeLine(change) {
+  if (!change) return '';
+  return change.kept === 'program'
+    ? uiFormat('已下载的程序和 Python 会保留，只换模型：改下 {0} 档的模型。', [change.to])
+    : uiFormat('会从停下的那一步接着装，模型换成 {0} 档。', [change.to]);
+}
+
+/**
+ * The ⋯ menu beside the one fix (#938): other ways on when the fix does not help. Only in the error state (and, in Settings, the paused state), only for
+ * StudyHub's own install (`ours` false: another MinerU, not StudyHub's to uninstall or change). 换成 basic 档 only when the tier in hand is not basic;
+ * 安装到其他位置 only when neither the fix nor its second button already is 换位置. [{ id, label, icon }]: no item Tooltips, because the menu focuses its
+ * first item on open and a Tooltip shown on focus would cover the items below it on a phone; 卸载后重装 says what it does in its confirmation.
+ */
+export function fixMenu({ shown, install = null, installed = false, ours = true, tierInHand = DEFAULT_TIER, action = null, compact = false } = {}) {
+  const state = shown?.state;
+  if (!(state === 'error' || (state === 'paused' && !compact))) return [];
+  if (!ours || !(installed || install?.folder)) return [];
+  const relocating = action?.id === 'relocate' || action?.secondary?.id === 'relocate';
+  return [
+    tierInHand !== 'basic' && { id: 'tier-basic', label: ui('换成 basic 档'), icon: 'sync' },
+    { id: 'reinstall', label: ui('卸载后重装'), icon: 'refresh' },
+    !relocating && { id: 'relocate', label: ui('安装到其他位置…'), icon: 'location' },
+    { id: 'log', label: ui('查看安装日志'), icon: 'file' },
+  ].filter(Boolean);
+}
 
 /** The six steps of an install: [{ id, name, state: done | active | failed | pending }]. */
 export function stageStates(install) {

@@ -88,6 +88,9 @@ export function mineruDiagnostic({ view, install, plan, shown, summary = '', sta
     ['version', view?.version || install?.mineruVersion || ''],
     ['external', view?.external?.exe || ''],
     ['attempts', install?.attempts > 1 ? install.attempts : ''],
+    // Who installed the MinerU this failure is about, the card's own `ours` (MineruInstallCard.jsx): StudyHub's unfinished install, or the one it installed, or
+    // nothing found yet; otherwise a MinerU found through MINERU_BIN or the PATH, whose folders StudyHub never changes (the prompt's repairs differ, #942).
+    ['installedBy', shown?.origin === 'install' || !view?.origin || view.origin === 'installed' ? 'studyhub' : 'other'],
   ];
   return buildSetupDiagnostic({ tool: 'mineru', label: 'MinerU', platform: plan?.platform || '', status, stage, code, summary, facts, logs: [view?.lastError?.detail, install?.log] });
 }

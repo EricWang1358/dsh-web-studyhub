@@ -21,7 +21,7 @@ const ui = await loadUi(`
   export { fixFor, FIX_FOR, VC_REDIST_URL } from './ui/mineru-install-flow.js';
   export { localFix } from './ui/live-local-flow.js';
   export { loopbackFix } from './ui/live-loopback-flow.js';
-  export { SETUP_REPAIRS, TOOL_REPAIRS, repairIdsFor, needsWrite } from './ui/agent-prompts/setup-repairs.js';
+  export { SETUP_REPAIRS, TOOL_REPAIRS, OTHER_INSTALL_REPAIRS, repairIdsFor, needsWrite } from './ui/agent-prompts/setup-repairs.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
 
@@ -137,6 +137,55 @@ test('home-permissions (the MinerU card of #942): the card own 修复权限 firs
   assert.ok(done({ tool: 'mineru', status: 'error (install)', code: 'home-permissions' }, 'en').includes('this time press “Repair permissions”'));
 });
 
+test('#942 N3: home-permissions of a MinerU StudyHub did not install: the diagnostic says so, the chat may repair only that MinerU\'s own settings folder after asking, and the closing line names the card\'s real button', () => {
+  const other = { state: 'server-stopped', origin: 'search', exe: 'C:\\Tools\\mineru.exe',
+    lastError: { code: 'home-permissions', file: 'config.yaml', detail: "PermissionError: [Errno 13] Permission denied: 'C:\\\\Tools\\\\.mineru\\\\config.yaml'" } };
+  const shown = { state: 'error', code: 'home-permissions', origin: 'service' };
+  const { input } = ui.mineruDiagnostic({ view: other, shown });
+  assert.equal(input.installedBy, 'other');
+  assert.equal(ui.mineruDiagnostic({ view: { ...other, origin: 'installed' }, shown }).input.installedBy, 'studyhub');
+  assert.equal(ui.mineruDiagnostic({ view: other, shown: { ...shown, origin: 'install' } }).input.installedBy, 'studyhub', 'StudyHub\'s own unfinished install, beside another MinerU');
+  assert.equal(ui.mineruDiagnostic({ shown }).input.installedBy, 'studyhub', 'nothing found yet: the card counts it as its own');
+  assert.match(ui.mineruDiagnostic({ view: other, shown }).text, /installedBy: other/, 'the copied report says it too');
+  const zh = bullet(input, 'zh', '修复：'), en = bullet(input, 'en', 'Repairs:');
+  assert.match(zh, /先让我点卡片上的「重新启动服务」再试一次.*只限报错里被拒绝的那个路径所在的、这份 MinerU 自己的配置文件夹.*改权限之前先问我.*不要动这份 MinerU 的其他任何东西.*不要放宽任何文件夹的权限/, zh);
+  assert.doesNotMatch(zh, /修复权限|安装位置之内/, 'no button the card does not show, no install location it does not have');
+  assert.match(en, /first I press “Restart the service” on the card.*only the settings folder of this MinerU that holds the path refused.*ask me before changing any permission.*touch nothing else of this MinerU.*never loosen a folder/is, en);
+  assert.doesNotMatch(prompt(input, 'en'), han);
+  assert.ok(done(input, 'zh').includes('这次点「重新启动服务」'), done(input, 'zh'));
+  assert.ok(done(input, 'en').includes('this time press “Restart the service”'), done(input, 'en'));
+  assert.ok(bullet(input, 'zh', '权限：'), 'it writes: the permission line');
+  assert.equal(ui.needsWrite('mineru', 'home-permissions', 'other'), true);
+  const bar = render(h(ui.DiagnosticBar, { diagnostic: () => ({ text: 'report', input }), resetKey: 'a' }, h('button', { 'data-hand-off': 'setup.failed' }, '发给主会话')));
+  assert.match(bar, /sh-diag-actions__hint/, 'the permission hint on the bar shows');
+  // StudyHub's own install: unchanged
+  const ours = { ...input, installedBy: 'studyhub' };
+  assert.match(bullet(ours, 'zh', '修复：'), /「修复权限并重启」/);
+  assert.ok(done(ours, 'zh').includes('这次点「修复权限并重启」'));
+  assert.deepEqual(ui.repairIdsFor('mineru', 'home-permissions', 'other'), ['other-home-perms']);
+  assert.deepEqual(ui.repairIdsFor('mineru', 'home-permissions', 'studyhub'), ['home-perms']);
+  assert.deepEqual(ui.repairIdsFor('mineru', 'home-permissions'), ['home-perms'], 'no fact: as before');
+  // the repair stops when the refused path is not in that MinerU's own settings folder
+  assert.ok(zh.includes('被拒绝的路径不在这份 MinerU 的配置文件夹（MINERU_HOME，没有的话是用户主目录下的 .mineru）里时，什么都不要改，告诉我它是什么就停下'), zh);
+  assert.ok(en.includes('if the refused path is not inside this MinerU’s settings folder (MINERU_HOME, else .mineru in the user’s home folder), change nothing: tell me what it is and stop'), en);
+});
+
+test('#942 not-writable of a MinerU StudyHub did not install: the refused path is outside its settings folder (Temp, an output folder, a cache), so the chat changes no permission there', () => {
+  const input = { tool: 'mineru', status: 'error (service)', code: 'not-writable', installedBy: 'other',
+    log: "PermissionError: [Errno 13] Permission denied: 'C:\\\\Users\\\\lee\\\\AppData\\\\Local\\\\Temp\\\\mineru\\\\a.tmp'" };
+  assert.deepEqual(ui.repairIdsFor('mineru', 'not-writable', 'other'), ['service'], 'read-only');
+  for (const language of ['zh', 'en']) {
+    const repairs = bullet(input, language, language === 'zh' ? '修复：' : 'Repairs:');
+    assert.doesNotMatch(repairs, /权限不对|恢复成|wrong permissions|inherit|only I, the system/, `${language}: no repair that changes permissions: ${repairs}`);
+    assert.equal(bullet(input, language, language === 'zh' ? '权限：' : 'Permission:'), undefined, `${language}: no permission line`);
+    assert.doesNotMatch(done(input, language), /换回原来的选项|permission back/, `${language}: nothing to switch back`);
+  }
+  assert.equal(ui.needsWrite('mineru', 'not-writable', 'other'), false);
+  const bar = render(h(ui.DiagnosticBar, { diagnostic: () => ({ text: 'report', input }), resetKey: 'a' }, h('button', { 'data-hand-off': 'setup.failed' }, '发给主会话')));
+  assert.doesNotMatch(bar, /sh-diag-actions__hint/, 'no permission hint on the bar');
+  assert.ok(done(input, 'zh').includes('再点「重新启动服务」'), 'the card\'s fix for that state');
+});
+
 test('an antivirus is never reconfigured by the chat: it says where I can restore the files or add an exception', () => {
   const input = { tool: 'live-local', status: 'error', code: 'needs-repair' };
   assert.match(bullet(input, 'zh', '修复：'), /在杀毒软件的哪里可以恢复或加例外，由我自己去做；你不要改杀毒软件的任何设置/);
@@ -187,14 +236,24 @@ test('what to press back: the card\'s check first and its fix only if the error 
   assert.ok(done({ ...network, attempts: '2' }, 'en').includes('Retry with the other download source'));
   // the VC++ card button only downloads: after the install it is 重试
   assert.ok(done({ tool: 'mineru', status: 'error (install)', code: 'vc-runtime' }, 'zh').includes('再点「重试」'));
-  // every MinerU code names what fixFor gives it (from the card's own rules), after the check
-  for (const code of Object.keys(ui.FIX_FOR)) for (const origin of ['install', 'service']) {
-    const fix = ui.fixFor(code, { origin, source: 'mainland' });
+  // every MinerU code names what fixFor gives it (from the card's own rules), after the check; for StudyHub's own install and for another MinerU (#942 N3:
+  // the card offers another MinerU no 修复权限, so the prompt must not name it either)
+  for (const code of Object.keys(ui.FIX_FOR)) for (const origin of ['install', 'service']) for (const ours of [true, false]) {
+    // another MinerU's permission failures are always its service's (the card has no install of it): its fix is the service's, whatever the status says
+    const own = !ours && (code === 'home-permissions' || code === 'not-writable') ? 'service' : origin;
+    const fix = ui.fixFor(code, { origin: own, source: 'mainland', ours });
     // the download button opens the address, once it is installed the learner presses 重试; the permission repair of the card is named by origin (#942)
-    const label = fix.id === 'vc-runtime' ? '重试' : fix.id === 'repair-permissions' ? (origin === 'service' ? '修复权限并重启' : '修复权限') : fix.label;
-    const text = done({ tool: 'mineru', status: `error (${origin})`, code, source: 'mainland' }, 'zh');
-    const moveOnly = ui.repairIdsFor('mineru', code).join() === 'location';
-    assert.ok(text.includes(moveOnly ? '这次点「换位置」' : label === '重新检测' ? '先点「重新检测」' : `再点「${label}」`), `${code}/${origin}: ${label}\n${text}`);
+    const label = fix.id === 'vc-runtime' ? '重试' : fix.id === 'repair-permissions' ? (own === 'service' ? '修复权限并重启' : '修复权限') : fix.label;
+    const input = { tool: 'mineru', status: `error (${origin})`, code, source: 'mainland', installedBy: ours ? 'studyhub' : 'other' };
+    const text = done(input, 'zh');
+    const moveOnly = ui.repairIdsFor('mineru', code, input.installedBy).join() === 'location';
+    // the card's own fix is the one button to press for a settings-folder failure: no 重新检测 before it (the repair line already says to press it first)
+    const pressed = moveOnly ? '这次点「换位置」' : label === '重新检测' ? '先点「重新检测」' : code === 'home-permissions' ? `这次点「${label}」` : `再点「${label}」`;
+    assert.ok(text.includes(pressed), `${code}/${origin}/${ours ? 'ours' : 'other'}: ${label}\n${text}`);
+    if (code === 'home-permissions') assert.ok(bullet(input, 'zh', '修复：').includes(`「${label}」`), `${origin}/${ours}: the repair line names the same button`);
+    // another MinerU: never 修复权限 for any code, and never 换位置 for a permission failure, whatever the origin
+    if (!ours) assert.doesNotMatch(`${text}\n${bullet(input, 'zh', '修复：')}`, /修复权限/, `${code}/${origin}: another MinerU is never offered 修复权限`);
+    if (!ours && (code === 'home-permissions' || code === 'not-writable')) assert.doesNotMatch(`${text}\n${bullet(input, 'zh', '修复：')}`, /换位置/, `${code}/${origin}: nor 换位置`);
   }
   // Marker: no 重新检测 on the failed install, 检测并保存 once it is installed and the check failed, its own move button
   assert.ok(done({ tool: 'marker', status: 'failed', code: 'pip-build' }, 'zh').includes('这次点「重试」'));
@@ -293,7 +352,13 @@ test('every failure code the tools raise is in the table or on an explicit allow
   // a table entry only names repairs that exist, and every repair is used
   for (const [tool, codes] of Object.entries(ui.TOOL_REPAIRS)) for (const [code, ids] of Object.entries(codes))
     for (const id of ids) assert.ok(Object.hasOwn(ui.SETUP_REPAIRS, id), `${tool}/${code}: repair ${id} exists`);
-  for (const id of Object.keys(ui.SETUP_REPAIRS)) assert.ok(Object.values(ui.TOOL_REPAIRS).some(codes => Object.values(codes).some(ids => ids.includes(id))), `repair ${id} is used by a tool`);
+  const tables = [...Object.values(ui.TOOL_REPAIRS), ...Object.values(ui.OTHER_INSTALL_REPAIRS)];
+  for (const id of Object.keys(ui.SETUP_REPAIRS)) assert.ok(tables.some(codes => Object.values(codes).some(ids => ids.includes(id))), `repair ${id} is used by a tool`);
+  // the table of a tool StudyHub did not install only changes codes the tool has, with repairs that exist
+  for (const [tool, codes] of Object.entries(ui.OTHER_INSTALL_REPAIRS)) for (const [code, ids] of Object.entries(codes)) {
+    assert.ok(Object.hasOwn(ui.TOOL_REPAIRS[tool], code), `${tool}/${code}`);
+    for (const id of ids) assert.ok(Object.hasOwn(ui.SETUP_REPAIRS, id), `${tool}/${code}: repair ${id} exists`);
+  }
 });
 
 /** The lines of a message outside its data and request fences, and whether every fence was closed. */
@@ -334,8 +399,8 @@ test('a hostile log keeps no user name and no key: the diagnostic redacts it bef
 test('the size of our own text in the prompt is bounded for every tool and every code (what is outside the data fences: the facts and the log belong to the learner)', () => {
   const log = 'PermissionError: [Errno 13] Permission denied';
   const worst = { zh: [0, ''], en: [0, ''] };
-  for (const tool of TOOLS) for (const code of [...Object.keys(ui.TOOL_REPAIRS[tool]), 'unknown-code']) {
-    const input = { tool, status: tool === 'marker' ? 'failed' : 'error (install)', stage: '5/6 enable', code, summary: 'Permission denied on the home folder', folder: 'D:\StudyHub\MinerU', tier: 'basic', source: 'mainland', python: '3.11', version: '4.0.12', log };
+  for (const tool of TOOLS) for (const code of [...Object.keys(ui.TOOL_REPAIRS[tool]), 'unknown-code']) for (const installedBy of ['studyhub', 'other']) {
+    const input = { tool, status: tool === 'marker' ? 'failed' : 'error (install)', stage: '5/6 enable', code, summary: 'Permission denied on the home folder', folder: 'D:\StudyHub\MinerU', tier: 'basic', source: 'mainland', python: '3.11', version: '4.0.12', log, installedBy };
     for (const language of ['zh', 'en']) {
       const length = outsideFences(prompt(input, language)).outside.join(' ').length;
       if (length > worst[language][0]) worst[language] = [length, `${tool}/${code}`];
@@ -361,8 +426,8 @@ test('the bar of a local tool carries one sentence about the permission, on its 
   for (const input of [{ tool: 'retrieval-extension', code: 'companion-not-started' }, { tool: 'mineru', code: 'port-in-use' }, { tool: 'live-local', code: 'vc-runtime' }])
     assert.doesNotMatch(bar(input), /sh-diag-actions__hint/, `${input.tool}/${input.code}: its repairs only read`);
   // the same decision as the prompt's permission line
-  for (const tool of TOOLS) for (const code of [...Object.keys(ui.TOOL_REPAIRS[tool]), 'unknown-code'])
-    assert.equal(/sh-diag-actions__hint/.test(bar({ tool, code })), bullet({ tool, code }, 'zh', '权限：') !== undefined, `${tool}/${code}: the hint and the permission line agree`);
+  for (const tool of TOOLS) for (const code of [...Object.keys(ui.TOOL_REPAIRS[tool]), 'unknown-code']) for (const installedBy of ['', 'studyhub', 'other'])
+    assert.equal(/sh-diag-actions__hint/.test(bar({ tool, code, installedBy })), bullet({ tool, code, installedBy }, 'zh', '权限：') !== undefined, `${tool}/${code}/${installedBy}: the hint and the permission line agree`);
   const job = render(h(ui.DiagnosticBar, { text: () => 'report', resetKey: 'b' }, h('button', null, '发给主会话')));
   assert.doesNotMatch(job, /sh-diag-actions__hint/, 'job.failed has no permission hint: it changes nothing outside StudyHub');
 });

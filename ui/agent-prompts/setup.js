@@ -86,8 +86,9 @@ const EXTENSION_PRESS = Object.freeze({
 });
 const EXTENSION_PRESS_INDEX = '再点一次建立索引的按钮';
 
-/** The card's controls for this failure: { fix, check } as Chinese labels ('' when it has none): the check control first, the fix button if the card still shows the error. */
-function controlsOf(tool, spec, { code, status, external, source, attempts }) {
+/** The card's controls for this failure: { fix, check } as Chinese labels ('' when it has none): the check control first, the fix button if the card still shows the error.
+ *  `installedBy` 'other': a MinerU StudyHub did not install, whose card offers no permission repair (fixFor with `ours` false, #942). */
+function controlsOf(tool, spec, { code, status, external, source, attempts, installedBy }) {
   if (tool === 'marker') {
     if (ENDED.includes(status)) return { fix: '重试', check: '' };
     return { fix: '', check: status === 'blocked' || status === 'needs-docker' ? '重新检测' : '检测并保存' };
@@ -97,8 +98,12 @@ function controlsOf(tool, spec, { code, status, external, source, attempts }) {
     const id = (tool === 'live-local' ? localFix : loopbackFix)(code).id, fix = tool === 'live-loopback' && id === 'continue' ? LOOPBACK_CONTINUE : buttonOf(id);
     return { fix, check: fix === spec.move ? spec.repair : '' };
   }
-  // home-permissions is named here too, so this fits whether or not fixFor knows the new fix id yet
-  const id = code === 'home-permissions' ? 'repair-permissions' : fixFor(code, { origin: originOf(status), external: !!external, source, attempts: Number(attempts) || 1 }).id;
+  const ours = installedBy !== 'other';
+  // Another MinerU's permission failures are always its service's (the card has no install of it to repair or move): never 修复权限 or 换位置 for it.
+  const origin = !ours && (code === 'home-permissions' || code === 'not-writable') ? 'service' : originOf(status);
+  // home-permissions of StudyHub's own install is named here too, so this fits whether or not fixFor knows the fix id
+  const id = code === 'home-permissions' && ours ? 'repair-permissions'
+    : fixFor(code, { origin, external: !!external, source, attempts: Number(attempts) || 1, ours }).id;
   return { fix: id === 'repair-permissions' ? permissionButton(status) : buttonOf(id), check: '重新检测' };
 }
 
@@ -106,34 +111,37 @@ function controlsOf(tool, spec, { code, status, external, source, attempts }) {
 function pressPhrase(tool, spec, input, language) {
   if (tool === 'retrieval-extension') return say(language, Object.hasOwn(EXTENSION_PRESS, input.code) ? EXTENSION_PRESS[input.code] : EXTENSION_PRESS_INDEX);
   if (input.code === 'unsupported' && Object.hasOwn(UNSUPPORTED_PRESS, tool)) return say(language, UNSUPPORTED_PRESS[tool]);
-  // MinerU's own permission repair is the one button for this code (it resets the files itself, #942)
-  if (tool === 'mineru' && input.code === 'home-permissions') return say(language, PRESS_FIX, [say(language, permissionButton(input.status))]);
-  const ids = repairIdsFor(tool, input.code), { fix, check } = controlsOf(tool, spec, input);
+  // The card's own fix is the one button for this code: StudyHub's permission repair (it resets the files itself, #942), or for another MinerU a restart
+  if (tool === 'mineru' && input.code === 'home-permissions') return say(language, PRESS_FIX, [say(language, controlsOf(tool, spec, input).fix)]);
+  const ids = repairIdsFor(tool, input.code, input.installedBy), { fix, check } = controlsOf(tool, spec, input);
   // The location truly cannot be used: the move button is the answer, whatever the card's fix is called.
   if (ids.length === 1 && ids[0] === 'location' && spec.move) return say(language, PRESS_FIX, [say(language, spec.move)]);
   if (check && fix && fix !== check) return say(language, PRESS_CHECK, [say(language, check), say(language, fix)]);
   return say(language, check ? PRESS_CHECK_ONLY : PRESS_FIX, [say(language, check || fix)]);
 }
 
-function repairsLine(tool, spec, code, status, language) {
-  const ids = repairIdsFor(tool, code);
+function repairsLine(tool, spec, input, language) {
+  const ids = repairIdsFor(tool, input.code, input.installedBy);
   if (!ids.length) return say(language, REPAIRS_UNKNOWN);
-  const values = [VC_REDIST_URL, ...['install', 'repair', 'uninstall', 'move', 'source'].map(key => (spec[key] ? say(language, spec[key]) : '')), say(language, permissionButton(status))];
+  // {6}: the card's own fix for this failure, the same button the closing line names
+  const cardFix = tool === 'mineru' ? controlsOf(tool, spec, input).fix : '';
+  const values = [VC_REDIST_URL, ...['install', 'repair', 'uninstall', 'move', 'source'].map(key => (spec[key] ? say(language, spec[key]) : '')), cardFix ? say(language, cardFix) : ''];
   return say(language, REPAIRS, [partsOf(language, ids.map(id => say(language, SETUP_REPAIRS[id], values)))]);
 }
 
 /**
  * input: { tool ('mineru' | 'marker' | 'live-local' | 'live-loopback' | 'retrieval-extension'), status, stage, code, summary,
- *   folder, tier, model, source, python, version, command, external, course, attempts, log }.
+ *   folder, tier, model, source, python, version, command, external, course, attempts, log, installedBy ('studyhub' | 'other': who installed the tool; MinerU only) }.
  */
 export function setupFailedPrompt({
   tool = 'mineru', status = '', stage = '', code = '', summary = '', folder = '', tier = '', model = '',
-  source = '', python = '', version = '', command = '', external = '', course = '', attempts = '', log = '',
+  source = '', python = '', version = '', command = '', external = '', course = '', attempts = '', log = '', installedBy = '',
 } = {}, language = getUiLanguage()) {
   const key = Object.hasOwn(SETUP_TOOLS, tool) ? tool : 'mineru';
   const spec = SETUP_TOOLS[key];
   const error = [summary, log].filter(Boolean).join('\n\n');
-  const writes = needsWrite(key, code);
+  const writes = needsWrite(key, code, installedBy);
+  const failure = { code, status, external, source, attempts, installedBy };
   // The notes only name things from the tables above; the failure's own fields (code, stage, log…) stay in the data fence.
   return situationMessage({
     area: spec.area,
@@ -141,13 +149,13 @@ export function setupFailedPrompt({
     context: spec.tail ? 'imports' : '', // only the tools with an import fallback read the library's imports area
     how: say(language, HOW) + (spec.tail ? say(language, spec.tail) : ''), // (an English tail starts with its space)
     hints: [
-      repairsLine(key, spec, code, status, language),
+      repairsLine(key, spec, failure, language),
       ...(writes ? [say(language, PERMISSION)] : []),
       say(language, BOUNDARY, [say(language, spec.place), spec.tail ? say(language, EXCEPTION) : '']),
     ],
     never: say(language, NEVER),
-    report: say(language, DONE, [pressPhrase(key, spec, { code, status, external, source, attempts }, language), writes ? say(language, DONE_PERMISSION) : '']),
-    facts: { tool: spec.label, status, stage, code, folder, tier, model, source, python, version, command, external, course },
+    report: say(language, DONE, [pressPhrase(key, spec, failure, language), writes ? say(language, DONE_PERMISSION) : '']),
+    facts: { tool: spec.label, status, stage, code, folder, tier, model, source, python, version, command, external, course, installedBy },
     error,
   }, language);
 }

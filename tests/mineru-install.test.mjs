@@ -390,13 +390,61 @@ test('enable stage: captures redacted doclib.stderr.log for private credential e
   const installer = createMineruInstaller(h.seams);
   await installer.start({ confirm: true, location: h.location }); await installer.idle();
   const failed = await installer.status();
-  assert.deepEqual([failed.status, failed.stage, failed.error.code], ['failed', 'enable', 'not-writable']);
+  // MinerU's own "not private" complaint is about the settings folder, not the location (#936): 修复权限, not 换位置.
+  assert.deepEqual([failed.status, failed.stage, failed.error.code], ['failed', 'enable', 'home-permissions']);
   assert.ok(failed.log.some(line => line.includes('[doclib.stderr.log]')));
   assert.ok(failed.log.some(line => line.includes('Credential configuration directory')));
   assert.ok(!failed.log.join('\n').includes('secret-token'), 'credentials in daemon logs are redacted');
   await h.setMineru({ startSilentFail: false, serverLogError: undefined, startStillStarting: true, stillStartingOnce: true, startBusyOnce: true });
   await installer.start({ confirm: true, location: h.location }); await installer.idle();
   assert.equal((await installer.status()).status, 'complete');
+});
+
+test('#936: a permission failure names the settings folder only when the denied path is inside it; the shared classifier of every tool still says not-writable', async () => {
+  const { explainMineruFailure } = await import('../lib/mineru-install.js');
+  const { classifyFailure } = await import('../lib/tool-install.js');
+  const folder = 'D:\\StudyHub\\MinerU';
+  const quoted = path => `PermissionError: [Errno 13] Permission denied: '${path.replace(/\\/g, '\\\\')}'`;
+  const config = explainMineruFailure('package', quoted('D:\\StudyHub\\MinerU\\home\\config.yaml'), { folder, platform: 'win32' });
+  assert.deepEqual(config, { code: 'home-permissions', message: 'MinerU 读不了配置文件夹里的 config.yaml（权限不对）。安装位置没问题，不用换位置。' });
+  assert.equal(explainMineruFailure('models', quoted('d:\\studyhub\\minerU\\HOME\\models\\x\\a.onnx'), { folder, platform: 'win32' }).code, 'home-permissions', 'Windows paths compare without case');
+  for (const outside of [quoted('D:\\StudyHub\\MinerU\\venv\\Lib\\site-packages\\a.pyd'), quoted('D:\\StudyHub\\MinerU\\home2\\x'), 'error: failed to remove file: Access is denied. (os error 5)'])
+    assert.equal(explainMineruFailure('package', outside, { folder, platform: 'win32' }).code, 'not-writable', outside);
+  assert.equal(explainMineruFailure('package', quoted('D:\\StudyHub\\MinerU\\home\\config.yaml')).code, 'not-writable', 'without the folder nothing is assumed');
+  assert.equal(classifyFailure(quoted('D:\\StudyHub\\MinerU\\home\\config.yaml')), 'not-writable', 'Marker and the transcription installs read it as before');
+  const { localizeAppMessage } = await import('../lib/application-messages.js');
+  assert.doesNotMatch(localizeAppMessage(config.message, 'en'), /[㐀-鿿]/);
+});
+
+test('#942 N1: linked files the permission step left alone are counted on the install (homeLinked), for the card to say; a run that skipped none has no count', async t => {
+  const h = await installHarness(t);
+  const linked = createMineruInstaller({ ...h.seams, secureHome: async () => ({ ok: false, linked: 2, error: 'stand-in' }) });
+  await linked.start({ confirm: true, location: h.location }); await linked.idle();
+  assert.equal((await linked.status()).homeLinked, 2);
+  const h2 = await installHarness(t);
+  const clean = createMineruInstaller({ ...h2.seams, secureHome: async () => ({ ok: true }) });
+  await clean.start({ confirm: true, location: h2.location }); await clean.idle();
+  assert.equal(Object.hasOwn(await clean.status(), 'homeLinked'), false);
+  // The same run: the first permission step left linked files alone, a later one (package, models and enable each run it) had none left: the count is gone
+  // from the state and the view.
+  const h3 = await installHarness(t);
+  let calls = 0;
+  const later = createMineruInstaller({ ...h3.seams, secureHome: async () => (++calls === 1 ? { ok: false, linked: 2, error: 'stand-in' } : { ok: true }) });
+  await later.start({ confirm: true, location: h3.location }); await later.idle();
+  assert.ok(calls >= 2, 'the step ran more than once in the run');
+  assert.equal(Object.hasOwn(await later.status(), 'homeLinked'), false, 'the view');
+  const { readFile: readText } = await import('node:fs/promises');
+  assert.doesNotMatch(await readText(join(h3.dir, 'home', 'study', 'mineru-install.json'), 'utf8'), /homeLinked/, 'the saved state');
+});
+
+test('#942 M2: during an install, a home path printed beside a denial elsewhere is not a settings-folder failure; a full disk is still no-space', async () => {
+  const { explainMineruFailure } = await import('../lib/mineru-install.js');
+  const folder = 'D:\\StudyHub\\MinerU', py = path => path.replace(/\\/g, '\\\\');
+  const venvDenied = `see D:\\StudyHub\\MinerU\\home\\logs\\doclib.stderr.log\n[WinError 5] Access is denied: '${py('D:\\StudyHub\\MinerU\\venv\\Lib\\site-packages\\torch\\lib\\c10.dll')}'`;
+  assert.equal(explainMineruFailure('enable', venvDenied, { folder, platform: 'win32' }).code, 'not-writable');
+  const configMentioned = `Loading config from D:\\StudyHub\\MinerU\\home\\config.yaml\nPermissionError: [Errno 13] Permission denied: '${py('D:\\StudyHub\\MinerU\\venv\\Lib\\x.pyd')}'`;
+  assert.equal(explainMineruFailure('package', configMentioned, { folder, platform: 'win32' }).code, 'not-writable');
+  assert.equal(explainMineruFailure('models', `OSError: [Errno 28] No space left on device: '${py('D:\\StudyHub\\MinerU\\home\\models\\a.onnx')}'`, { folder, platform: 'win32' }).code, 'no-space');
 });
 
 test('enable stage: the failure code comes from what this start printed and wrote to the error logs, not from older lines or the general doclib.log', async t => {
