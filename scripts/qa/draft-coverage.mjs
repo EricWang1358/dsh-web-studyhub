@@ -15,9 +15,23 @@ import { revealNavRow } from "./nav-reveal.mjs";
 
 const world = mergedTranscript({ recordings: 1, parts: 5, paragraphs: 3 });
 
-async function seed(root) {
-  const store = new Store(root), iso = new Date(Date.now() - 60000).toISOString();
-  await store.update((state) => { world.sources.forEach((source, index) => state.sources.push({ id: source.id, createdAt: iso, text: source.text, courses: ["QA"], title: `${source.title} ${index + 1}` })); });
+/* The fullest closed row (#890): a question with the kind, 未自动审阅, AI 撰写 · 未核对 (it cites an AI-written note) and the near-duplicate notice of a
+   published deck of the course with a long title. It must stay as high as the others. */
+const AI_NOTE = { id: "qa-ai-note", text: "间隔重复在快要忘记之前安排复习。Spaced repetition schedules a review just before you would forget." };
+const SIMILAR_DECK = { id: "qa-similar-deck", title: { zh: "操作系统原理与设计第二版·第三章进程管理与调度算法（含历年真题）", en: "Operating Systems, Principles and Design, 2nd edition: chapter 3, processes and scheduling (with past papers)" } };
+const SIMILAR_PROMPT = {
+  zh: "关于「操作系统的进程调度」，下列哪一项最准确地说明了时间片轮转调度在交互式系统中的作用：它让每个就绪进程轮流获得一小段处理器时间，从而缩短响应时间、避免某个进程长期独占处理器？",
+  en: "About process scheduling, which option best explains the role of round-robin scheduling in an interactive system: every ready process gets a short slice of processor time in turn, which shortens the response time and keeps any one process from holding the processor for long?",
+};
+
+async function seed(root, lang) {
+  const store = new Store(root), iso = new Date(Date.now() - 60000).toISOString(), pick = (text) => (lang === "en" ? text.en : text.zh);
+  await store.update((state) => {
+    world.sources.forEach((source, index) => state.sources.push({ id: source.id, createdAt: iso, text: source.text, courses: ["QA"], title: `${source.title} ${index + 1}` }));
+    state.sources.push({ ...AI_NOTE, createdAt: iso, courses: ["QA"], provenance: "ai-drafted-unverified", title: "AI note" });
+    state.decks.push({ id: SIMILAR_DECK.id, title: pick(SIMILAR_DECK.title), course: "QA", createdAt: iso, cards: [{ id: "qa-similar-1", kind: "quiz", topic: "Scheduling", objective: "Explain round robin",
+      prompt: pick(SIMILAR_PROMPT), answer: "a", hint: "h", explanation: "e", misconception: "m", citations: [], options: [{ id: "a", text: "Right", correct: true }, { id: "b", text: "Wrong", correct: false }] }] });
+  });
   return world.sources.map((source) => source.id);
 }
 
@@ -39,7 +53,7 @@ const scrollerProbe = () => {
 export async function runDraftQa(options) {
   return runQa({ name: "draft-coverage", options, model: createFakeModel({ latencyMs: 20, usage: true }), latencyMs: 20,
     localStorageSeed: { "study-interface": JSON.stringify({ accent: "cinnabar" }) },
-    seed: async (root) => { options.ids = await seed(root); },
+    seed: async (root) => { options.ids = await seed(root, options.lang); },
     async run({ page, server, t, step, check, summary }) {
       const call = (action, args = {}) => previewCall(server, action, { ...args, uiLanguage: options.lang });
       const facts = {}, narrow = options.width < 700, strict = !!options.check;
@@ -70,7 +84,9 @@ export async function runDraftQa(options) {
       const long = t("关于「间隔重复与遗忘曲线」，哪一项最准确地概括了这句话：「间隔重复的核心做法是在快要忘记之前安排下一次复习，从而用较少的次数维持长期记忆，这样复习负担不会随着卡片数量增加而失控，而且每次成功回忆之后下一次复习的间隔都会被拉长。」？",
         "About spaced repetition and the forgetting curve, which option best sums up this sentence: 'The core of spaced repetition is to schedule the next review just before you would forget, so that a long-term memory is kept with few reviews and the load does not grow without bound as the cards pile up, and each successful recall stretches the next interval.'?");
       const current = snapshot.drafts.at(-1);
-      await call("draft.save", { deck: { ...current, cards: current.cards.map((card, index) => (index === 1 ? { ...card, prompt: t("短题？", "A short one?") } : { ...card, prompt: long })) } });
+      // The first question is the fullest row: like the seeded deck's question, and citing the AI-written note too (#890).
+      const fullest = (card) => ({ ...card, prompt: t(SIMILAR_PROMPT.zh, SIMILAR_PROMPT.en), citations: [...(card.citations || []), { sourceId: AI_NOTE.id, quote: AI_NOTE.text.slice(0, 16) }] });
+      await call("draft.save", { deck: { ...current, course: current.course || "QA", cards: current.cards.map((card, index) => (index === 0 ? fullest(card) : index === 1 ? { ...card, prompt: t("短题？", "A short one?") } : { ...card, prompt: long })) } });
       snapshot = await call("snapshot", {});
       const draft = snapshot.drafts.at(-1), view = await call("coverage.get", { draftId: draft.id }), coverage = view.coverage;
       facts.draft = { cards: draft.cards.length, run: draft.editorial?.coverageRun?.state, stop: draft.editorial?.coverageRun?.stop?.reason, goal: draft.editorial?.coverageSpec?.goal };
@@ -134,9 +150,16 @@ export async function runDraftQa(options) {
 
       await step("draft-rows", async () => {
         await scrollTo(0);
-        const rows = await page.evaluate(() => [...document.querySelectorAll(".draft-card")].map((card) => { const rect = card.getBoundingClientRect(); return { height: Math.round(rect.height), summary: card.querySelector("summary")?.children.length }; }));
+        await page.locator("[data-similar-title]").first().waitFor({ state: "attached", timeout: 15000 }).catch(() => {});
+        const rows = await page.evaluate(() => [...document.querySelectorAll(".draft-card")].map((card) => { const rect = card.getBoundingClientRect(); return { height: Math.round(rect.height), summary: card.querySelector("summary")?.children.length,
+          tags: [...card.querySelectorAll(".draft-card__tags small")].map((tag) => tag.textContent), notice: card.querySelector("summary [data-similar]")?.textContent ?? null, deckNotice: !!card.querySelector("[data-similar-title]") }; }));
         facts.rows = rows;
+        const fullest = rows.find((row) => row.deckNotice);
+        facts.fullestRow = fullest ?? null;
         if (strict) {
+          // The draft.similar notice (#890) is asked for once the page is open: wait for it, then the fullest row must be as high as the others.
+          assert.ok(fullest, `a row names the seeded deck as similar: ${JSON.stringify(rows.map((row) => row.tags))}`);
+          assert.ok(fullest.tags.length >= 3 && fullest.notice, `the fullest row has the kind, 未自动审阅, AI 撰写 · 未核对 and the notice: ${JSON.stringify(fullest)}`);
           assert.ok(rows.length >= 3, "the draft has several questions");
           assert.ok(rows.every((row) => row.height <= 72 + (narrow ? 44 : 0)), `every closed row is at most 72px${narrow ? " (+44 on a phone: the kind goes under the question, and in English may take two lines)" : ""}: ${JSON.stringify(rows)}`);
           assert.equal(new Set(rows.map((row) => row.summary)).size, 1, "every row has the same structure");

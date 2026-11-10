@@ -102,5 +102,12 @@
   "以后给这门课出题，规划、出题和审阅都会照这几条来；可以在课程设置的「更多设置 › 出题守则」里改或删。": "From now on, planning, writing and review of this course’s questions follow these rules; change or delete them in the course settings under More settings › Generation rules.",
   "把这句话存成这门课的出题守则：以后给这门课出题都会带上": "Save this sentence as a generation rule of this course: every later run for the course carries it",
   "设为本课守则": "Make it a course rule",
-  "这门课的出题守则在这份草稿审阅之后改过，原来的审阅不再算数：「发布并开始练」会把这些题记为未自动审阅；经审阅的发布会按现在的守则重新审阅。": "This course’s generation rules changed after the draft was reviewed, so that review no longer counts: Publish and practise marks these questions as not automatically reviewed; a reviewed publication reviews them again against the rules as they are now."
+  "这门课的出题守则在这份草稿审阅之后改过，原来的审阅不再算数：「发布并开始练」会把这些题记为未自动审阅；经审阅的发布会按现在的守则重新审阅。": "This course’s generation rules changed after the draft was reviewed, so that review no longer counts: Publish and practise marks these questions as not automatically reviewed; a reviewed publication reviews them again against the rules as they are now.",
+  "本轮有 1 道题你已经反复答错。": "1 question in this round is one you keep missing.",
+  "本轮有 {0} 道题你已经反复答错。": "{0} questions in this round are ones you keep missing.",
+  "在错题本里看看": "Look in the wrong book",
+  "多少次答错算顽固题": "How many wrong answers make a question stubborn",
+  "一道题累计答错这么多次，错题本里会标上「顽固」，展开后有修题、补前置小卡、发给主会话和暂停几个办法。只看作答记录，不调用模型。": "A question failed this many times in all is marked “Stubborn” in the wrong book; open it for ways out: fix it, add a prerequisite card, send it to the main chat, or pause it. Read from your answer log only, no model call.",
+  "最近几次里答错的占多少算顽固题": "What share of the latest attempts failed makes a question stubborn",
+  "只看最近 {0} 次作答：答错 {1} 次以上也算顽固，哪怕累计次数还不到；作答不满 {0} 次时也这样算。最近 {0} 次作答全部答对，标记就会消失。": "Looks only at the latest {0} attempts: {1} or more misses also count as stubborn, even when the total is not reached, and this counts the same way with fewer than {0} attempts so far. Once the latest {0} attempts are all right, the mark goes away."
 }
