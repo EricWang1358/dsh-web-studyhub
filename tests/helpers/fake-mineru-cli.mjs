@@ -60,7 +60,9 @@ if (isReadOnlyStatus && state.statusEnteredFile) writeFileSync(state.statusEnter
 if (isReadOnlyStatus && state.statusHoldFile) while (existsSync(state.statusHoldFile)) pause(15);
 if (state.readDelayMs && isReadOnlyStatus)
   await new Promise(resolve => setTimeout(resolve, state.readDelayMs));
-if (command === '--version' || command === '-V') out(`mineru, version ${state.version ?? '4.0.10'}`);
+// `versionFails`: what a mineru that cannot read its own config.yaml prints and exits with (a learner's machine, #936).
+if ((command === '--version' || command === '-V') && state.versionFails) fail(state.versionFails);
+else if (command === '--version' || command === '-V') out(`mineru, version ${state.version ?? '4.0.10'}`);
 else if (command === 'config' && sub === 'show') {
   needService();
   out(`parse_server:\n  local:\n    mode: ${state.mode ?? 'disabled'}\n    managed_tier: ${state.tier ?? 'flash'}${state.device ? `\n    device: ${state.device}` : ''}`);

@@ -390,13 +390,30 @@ test('enable stage: captures redacted doclib.stderr.log for private credential e
   const installer = createMineruInstaller(h.seams);
   await installer.start({ confirm: true, location: h.location }); await installer.idle();
   const failed = await installer.status();
-  assert.deepEqual([failed.status, failed.stage, failed.error.code], ['failed', 'enable', 'not-writable']);
+  // MinerU's own "not private" complaint is about the settings folder, not the location (#936): 修复权限, not 换位置.
+  assert.deepEqual([failed.status, failed.stage, failed.error.code], ['failed', 'enable', 'home-permissions']);
   assert.ok(failed.log.some(line => line.includes('[doclib.stderr.log]')));
   assert.ok(failed.log.some(line => line.includes('Credential configuration directory')));
   assert.ok(!failed.log.join('\n').includes('secret-token'), 'credentials in daemon logs are redacted');
   await h.setMineru({ startSilentFail: false, serverLogError: undefined, startStillStarting: true, stillStartingOnce: true, startBusyOnce: true });
   await installer.start({ confirm: true, location: h.location }); await installer.idle();
   assert.equal((await installer.status()).status, 'complete');
+});
+
+test('#936: a permission failure names the settings folder only when the denied path is inside it; the shared classifier of every tool still says not-writable', async () => {
+  const { explainMineruFailure } = await import('../lib/mineru-install.js');
+  const { classifyFailure } = await import('../lib/tool-install.js');
+  const folder = 'D:\\StudyHub\\MinerU';
+  const quoted = path => `PermissionError: [Errno 13] Permission denied: '${path.replace(/\\/g, '\\\\')}'`;
+  const config = explainMineruFailure('package', quoted('D:\\StudyHub\\MinerU\\home\\config.yaml'), { folder, platform: 'win32' });
+  assert.deepEqual(config, { code: 'home-permissions', message: 'MinerU 读不了配置文件夹里的 config.yaml（权限不对）。安装位置没问题，不用换位置。' });
+  assert.equal(explainMineruFailure('models', quoted('d:\\studyhub\\minerU\\HOME\\models\\x\\a.onnx'), { folder, platform: 'win32' }).code, 'home-permissions', 'Windows paths compare without case');
+  for (const outside of [quoted('D:\\StudyHub\\MinerU\\venv\\Lib\\site-packages\\a.pyd'), quoted('D:\\StudyHub\\MinerU\\home2\\x'), 'error: failed to remove file: Access is denied. (os error 5)'])
+    assert.equal(explainMineruFailure('package', outside, { folder, platform: 'win32' }).code, 'not-writable', outside);
+  assert.equal(explainMineruFailure('package', quoted('D:\\StudyHub\\MinerU\\home\\config.yaml')).code, 'not-writable', 'without the folder nothing is assumed');
+  assert.equal(classifyFailure(quoted('D:\\StudyHub\\MinerU\\home\\config.yaml')), 'not-writable', 'Marker and the transcription installs read it as before');
+  const { localizeAppMessage } = await import('../lib/application-messages.js');
+  assert.doesNotMatch(localizeAppMessage(config.message, 'en'), /[㐀-鿿]/);
 });
 
 test('enable stage: the failure code comes from what this start printed and wrote to the error logs, not from older lines or the general doclib.log', async t => {
