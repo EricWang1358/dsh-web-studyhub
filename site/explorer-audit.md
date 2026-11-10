@@ -1,19 +1,19 @@
-# Architecture Explorer Fact Audit · StudyHub 4.6.2
+# Architecture Explorer Fact Audit · StudyHub 4.7.0
 
-Every architectural figure, identifier, boundary rule, pipeline budget, scheduler parameter, mastery threshold, and offline test metric presented on `site/explorer.html` and `explorer-en.html` was verified directly against the local `v4.6.2` codebase. No currency prices, throughput promises, or live network calls are included.
+Every architectural figure, identifier, boundary rule, pipeline budget, scheduler parameter, mastery threshold, and offline test metric presented on `site/explorer.html` and `explorer-en.html` was verified directly against the local `v4.7.0` codebase. No currency prices, throughput promises, or live network calls are included.
 
 ## 1. Release, Runtime & Design Tokens
 
-| Explorer claim / figure | Exact codebase source (`v4.6.2`) |
+| Explorer claim / figure | Exact codebase source (`v4.7.0`) |
 | --- | --- |
-| Package version `4.6.2`, Node.js `>=22.19` | `package.json:3`, `package.json:131` |
+| Package version `4.7.0`, Node.js `>=22.19` | `package.json:3`, `package.json:131` |
 | Ink-desk dark tokens (`#161412`, `#110f0d`, `#1e1b18`, `#26231f`, `#292623`, `#332f2a`, `#4a443c`, `#efe9df`, `#c5bdb1`, `#a59d91`, `#958e84`, `#c93d22`, `#ec6a4a`, `#5fb58a`, `#d9a441`, `#d76c93`, `#86a9c6`, `#ece4d6`) | `ui/tokens.css:16-50` |
 | Ink-desk light tokens (`#f1ede6`, `#e8e3da`, `#faf8f4`, `#ffffff`, `#e9e4db`, `#ddd5c9`, `#c5bbad`, `#1e1a15`, `#453e35`, `#635b51`, `#6a635a`, `#c03a1f`, `#d44f2e`, `#ad4025`, `#1e724d`, `#8b590f`, `#ad3966`, `#376893`, `#fffdf8`) | `ui/tokens.css:123-152` |
 | Shared runtime scope key `Symbol.for("studyhub.runtime.scope.v1")` | `docs/architecture.md:79`, `lib/plugins/composition.js` |
 
 ## 2. Open & Composable Main-Chat Collaboration
 
-| Explorer claim / figure | Exact codebase source (`v4.6.2`) |
+| Explorer claim / figure | Exact codebase source (`v4.7.0`) |
 | --- | --- |
 | `6` modular agent skills (`study-tutor`, `study-guide`, `study-import`, `study-book`, `study-custom`, and goal-driven self-study setup `study-self`) shipped in `"files"` and registered via `ctx.skills.register` | `skills/*/SKILL.md`, `skills/study-self/SKILL.md:1-10`, `lib/study-skills.js:8-38`, `lib/index.js:5,495`, `package.json:46` |
 | `19` on-demand `library.context` contract areas interpolated from live enforcement constants | `lib/study-contracts.js:17-37` |
@@ -23,7 +23,7 @@ Every architectural figure, identifier, boundary rule, pipeline budget, schedule
 
 ## 3. Section 1 (`#overview`) — Plugins, Tools, Contexts, Store & Lazy UI
 
-| Explorer claim / figure | Exact codebase source (`v4.6.2`) |
+| Explorer claim / figure | Exact codebase source (`v4.7.0`) |
 | --- | --- |
 | `1` workbench plugin (`daily-flashcard`) | `package.json:28,38`, `lib/index.js`, `lib/plugins/workbench.js` |
 | `6` capability plugins (`studyhub-runtime`, `studyhub-materials`, `studyhub-bank`, `studyhub-study`, `studyhub-generation`, `studyhub-audio`) | `package.json:32-37`, `lib/plugins/runtime.js`, `lib/plugins/materials.js`, `lib/plugins/bank.js`, `lib/plugins/study.js`, `lib/plugins/generation.js`, `lib/plugins/audio.js` |
@@ -38,7 +38,7 @@ Every architectural figure, identifier, boundary rule, pipeline budget, schedule
 
 ## 4. Section 2 (`#pipeline`) — 5-Stage Reliable Generation Pipeline
 
-| Explorer claim / figure | Exact codebase source (`v4.6.2`) |
+| Explorer claim / figure | Exact codebase source (`v4.7.0`) |
 | --- | --- |
 | Selection chunking `<= 60,000` chars (`CHUNK_CHARS`), `<= 10` targets/group (`MAX_PLAN_TARGETS`), authoring parts of `<= 5` cards, `concurrency = 4` | `lib/batch.js:23-31`, `lib/limits.js`, `docs/case-study/facts.snapshot.json:57-71` |
 | Stage 1 (`Plan`): `planAssessment` (`targets[{ targetId: "target-1", objective, knowledge, section?, focus?, citations[...] }]`) + `groundedPlan`, verbatim quote `>= 12` chars, NFKC alphanumeric matching, automatic cross-page `sourceId` reattribution, `1` corrective retry + target-level salvage | `lib/assessment-quality.js:275-309,352-409`, `lib/quote-match.js` |
@@ -49,7 +49,7 @@ Every architectural figure, identifier, boundary rule, pipeline budget, schedule
 
 ## 5. Section 3 (`#fsrs`) — Live FSRS-6 & Mastery Simulator
 
-| Explorer claim / figure | Exact codebase source (`v4.6.2`) |
+| Explorer claim / figure | Exact codebase source (`v4.7.0`) |
 | --- | --- |
 | `21` FSRS-6 default weights `FSRS6_WEIGHTS` (`w0..w20`), decay `w20 = 0.1542`, `enable_short_term = false`, `enable_fuzz = false`, local calendar `dayDiff` | `lib/sm2.js:34-42,77-84,137-189` |
 | `request_retention` default `0.90`, allowed range `0.70–0.97`, `maximum_interval = 36500` days | `lib/sm2.js:46-54` |
@@ -59,7 +59,7 @@ Every architectural figure, identifier, boundary rule, pipeline budget, schedule
 
 ## 6. Section 4 (`#testing`) — Deterministic Offline Test & Sharding Explorer
 
-| Explorer claim / figure | Exact codebase source (`v4.6.2`) |
+| Explorer claim / figure | Exact codebase source (`v4.7.0`) |
 | --- | --- |
 | `1,308` `tests/*.test.mjs` files (`1,112` fast-tier + `196` unique slow-listed files across `browser: 119`, `ffmpeg: 3`, `cli: 80`), dynamically counted at build time | `site/explorer-content.mjs:17-50`, `tests/slow-tests.json`, `tests/slow-tests-list.test.mjs` |
 | Temp `DSH_HOME`, `scrubSecrets`, `STUDY_NO_CALIBRATION=1`, concurrency `max(2, min(availableParallelism - 1, 12))` | `scripts/test.mjs:20,43-58`, `scripts/qa/test-schedule.mjs:38-41` |
