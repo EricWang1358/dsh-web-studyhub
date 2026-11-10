@@ -61,7 +61,7 @@ Every architectural figure, identifier, boundary rule, pipeline budget, schedule
 
 | Explorer claim / figure | Exact codebase source (`v4.7.0`) |
 | --- | --- |
-| `1,365` `tests/*.test.mjs` files (`1,153` fast-tier + `212` unique slow-listed files across `browser: 133`, `ffmpeg: 3`, `cli: 82`; six files are in two lists), dynamically counted at build time | `site/explorer-content.mjs:24-63`, `tests/slow-tests.json`, `tests/slow-tests-list.test.mjs` |
+| `1,366` `tests/*.test.mjs` files (`1,154` fast-tier + `212` unique slow-listed files across `browser: 133`, `ffmpeg: 3`, `cli: 82`; six files are in two lists), dynamically counted at build time | `site/explorer-content.mjs:24-63`, `tests/slow-tests.json`, `tests/slow-tests-list.test.mjs` |
 | Temp `DSH_HOME`, `scrubSecrets`, `STUDY_NO_CALIBRATION=1`, concurrency `max(2, min(availableParallelism - 1, 12))` | `scripts/test.mjs:20,43-58`, `scripts/qa/test-schedule.mjs:38-41` |
 | Per-test timeout `300,000 ms` (`300s`) and per-file timeout `480,000 ms` (`480s`) | `scripts/qa/run-tests.mjs:35-36` |
 | Loopback-only network blocker preloaded via `--import` (`TEST_NETWORK_BLOCKED`) | `scripts/qa/test-network.mjs`, `scripts/test.mjs:45,60` |
