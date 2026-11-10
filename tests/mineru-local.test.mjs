@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getEventListeners } from 'node:events';
-import { LOCAL, LocalMineruError, detectLocal, locateMineru, parseLocalMarkdown, parseWindow, secureMineruHome, startServer, windowPlan } from '../lib/mineru-local.js';
+import { LOCAL, LocalMineruError, detectLocal, locateMineru, markServerLogs, parseLocalMarkdown, parseWindow, readMineruServerLogs, secureMineruHome, serverErrorsSince, startServer, windowPlan } from '../lib/mineru-local.js';
 import { mergeChunkResults } from '../lib/mineru-merge.js';
 import { parseConvertedDocument } from '../lib/converted-document.js';
 import { patientCli, readJsonFile, until, writeJsonFile } from './helpers/wait.mjs';
@@ -368,6 +368,25 @@ test('startServer decides why a start failed from what THIS start wrote to the e
   const generalHome = join(general.dir, 'home');
   await oldLog(generalHome, 'doclib.log', 'INFO checked folder permissions: Permission denied entries are ignored');
   await assert.rejects(startServer({ cli: general.cli, home: generalHome }), error => error.reason === 'service-failed' && /\[doclib\.log\]/.test(error.detail));
+});
+
+test('the daemon logs are read from their end, at most 64 KB of each, and a log now shorter than its mark (replaced since) is read whole', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'study-mineru-logs-'));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  // 4000 numbered lines of 50 bytes (200 000 bytes): only the last 64 KB (~1310 lines) is read, and it holds the last line.
+  const lines = Array.from({ length: 4000 }, (_, i) => `line ${String(i).padStart(5, '0')} ${'x'.repeat(38)}`);
+  await oldLog(home, 'doclib.stderr.log', lines.join('\n'));
+  const shown = await readMineruServerLogs(home, { maxLines: 1e6, maxChars: 1e7 });
+  const numbers = [...shown.matchAll(/line (\d{5})/g)].map(match => Number(match[1]));
+  assert.equal(numbers.at(-1), 3999, 'the end of the log is read');
+  assert.ok(numbers[0] >= 4000 - Math.ceil(64 * 1024 / 50) - 1 && numbers.length <= Math.ceil(64 * 1024 / 50) + 1, `read from line ${numbers[0]}: no more than 64 KB`);
+  // A mark past the end of the file: the file was replaced, so all of it is new (bounded the same way), and its last line decides.
+  const mark = await markServerLogs(home);
+  assert.equal(mark['doclib.stderr.log'], 200_000);
+  await writeFile(join(home, 'logs', 'doclib.stderr.log'), 'PermissionError: [WinError 5] Access is denied (after a restart)\n', 'utf8');
+  assert.match(await serverErrorsSince(home, mark), /Access is denied \(after a restart\)/);
+  // A mark at the end of an unchanged file: nothing new.
+  assert.equal(await serverErrorsSince(home, await markServerLogs(home)), '');
 });
 
 test('startServer reads a missing VC++ runtime in its English Windows forms as vc-runtime, as the installer does', async t => {
