@@ -43,6 +43,16 @@ A **True/False** question (判断题) is one statement the learner judges true o
 - True and false roughly balanced within a batch. When answer preparation returns 4 or more statements that are all true or all false, the program asks once for the later half to be rewritten the other way; it never drops a statement for this.
 - The explanation quotes the evidence; for a false statement it gives the true statement.
 
+### Course generation rules
+
+A course can keep up to 12 generation rules (出题守则) of its own, one sentence of at most 200 characters each. Every generation for that course carries them: knowledge extraction, answer preparation, writing and the independent review receive them in the same requirements brief as the other generation settings. With long sources the brief comes after the sources, so the cached part of the prompt does not change. A rule never overrides the evidence, the JSON protocol or the checks. Case papers do not take rules.
+
+- **See them before a run.** The zero-call requirements preview lists the course rules on a row of their own, and they count in the requirements the draft records.
+- **Add one while practising.** Type a sentence in the **Improve question** box, or pick tags on the 👎 tray, then press **Make it a course rule**. The confirmation names the course and shows the exact rules before anything is saved. A text that is already a rule, is longer than 200 characters, or would make a 13th rule is not added, and the confirmation says why.
+- **Change or delete them** in the course settings under **More settings › Generation rules**.
+- **Which rules a run takes.** The rules of the exact course the run is for, as they are when the run starts. A parent course does not pass its rules to a chapter.
+- **After a change**, the review of a draft reviewed under the old rules no longer counts, and the draft page says so. Reviewed publication reviews every question again against the rules as they are now. Quick publication asks no model, so it publishes those questions as **Not automatically reviewed**.
+
 ### Model calls
 
 | Stage | Calls | Retries |
@@ -82,7 +92,7 @@ The draft page's main button is **Publish and practise**. It reads **Save & upda
 
 1. saves the draft and checks its structure question by question;
 2. publishes every question, without a model review;
-3. marks questions without a current review record **Not automatically reviewed**;
+3. marks questions without a current review record **Not automatically reviewed** (a review made before the course's [generation rules](#course-generation-rules) changed is not current);
 4. opens a practice round of up to 10 new questions from the deck.
 
 Questions with structural problems still publish. During practice they carry a **Needs verification** mark that lists the problems and offers **Send for background repair**. A question with nothing to grade can be skipped without recording a result.
@@ -93,6 +103,7 @@ Questions with structural problems still publish. During practice they carry a *
 
 - **Local checks first**: structure, duplicates within the draft and against the target deck, dependence on slides or notes the learner cannot see, stems that ask what the source says, explanations that only repeat the answer, and answers leaked in the topic or hint.
 - **Then an independent review** of every question that is new, edited or has no review record, in groups of 5. If a group's review raises a problem it cannot pin on one question, or the group request fails, the questions are reviewed one at a time, so one question cannot hold back the rest.
+- If the course's [generation rules](#course-generation-rules) changed after the draft was reviewed, every question is reviewed again, against the rules as they are now.
 - Accepted questions publish. Questions with confirmed defects stay behind in a draft of pending questions, linked to the published deck.
 - If one question's review request fails, its review is incomplete. A structurally valid question then publishes with **Not automatically reviewed**. In supplementation it is not added; it stays in the draft.
 - Without a model, publication still works. The number of unreviewed questions is shown and kept. Running reviewed publication again once a model is available completes the review.
