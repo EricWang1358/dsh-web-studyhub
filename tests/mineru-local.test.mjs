@@ -369,6 +369,22 @@ async function aclOf(target, scratch) {
   return { protectedDacl: dacl[1].includes('P'), aces: [...dacl[2].matchAll(/\(([^)]*)\)/g)].map(match => { const [, flags, rights, , , sid] = match[1].split(';'); return { flags, rights, sid }; }) };
 }
 
+/** Writes a genuine protected empty DACL (D:PAI) onto each path — unlike `icacls /inheritance:r`, which leaves explicit ACEs intact on Windows Server `runneradmin`. */
+function setEmptyProtectedDacl(pythonPath, execFileSync, targets) {
+  const py = [
+    'import ctypes, sys',
+    'from ctypes import wintypes as w',
+    'p = ctypes.c_void_p; a = ctypes.WinDLL("advapi32", use_last_error=True)',
+    'a.InitializeAcl.argtypes = [p, w.DWORD, w.DWORD]; a.InitializeAcl.restype = w.BOOL',
+    'a.SetNamedSecurityInfoW.argtypes = [w.LPWSTR, ctypes.c_int, w.DWORD, p, p, p, p]; a.SetNamedSecurityInfoW.restype = w.DWORD',
+    'acl = ctypes.create_string_buffer(64); assert a.InitializeAcl(acl, 64, 2)',
+    'for path in sys.argv[1:]:',
+    '  r = a.SetNamedSecurityInfoW(path, 1, 0x80000004, None, None, acl, None)',
+    '  if r: raise ctypes.WinError(r)',
+  ].join('\n');
+  execFileSync(pythonPath, ['-c', py, ...targets], { stdio: 'ignore' });
+}
+
 test('secureMineruHome makes the settings folder private AND heals what is already inside it: an empty access list (D:PAI, the learner\'s case) and old inherited entries go back to the three the folder gives (a real Python and icacls, a temp folder)', { skip: process.platform !== 'win32' }, async t => {
   const python = await realPython();
   if (!python) { t.skip('no Python 3.11-3.14 on this computer: the permission change needs one'); return; }
@@ -379,8 +395,8 @@ test('secureMineruHome makes the settings folder private AND heals what is alrea
   const home = await ourFolder(dir);
   const files = ['config.yaml', join('logs', 'doclib.stderr.log'), join('logs', 'broken.log'), join('models', 'MinerU-4_models_onnx', 'layout.onnx'), join('models', 'MinerU-4_models_onnx', 'broken.onnx')];
   for (const file of files) { await mkdir(join(home, file, '..'), { recursive: true }); await writeFile(join(home, file), 'x'); }
-  // What the learner's machine had: files with no access entry at all, which not even their own account could read.
-  for (const file of [join('logs', 'broken.log'), join('models', 'MinerU-4_models_onnx', 'broken.onnx')]) execFileSync('icacls', [join(home, file), '/inheritance:r'], { stdio: 'ignore' });
+  // What the learner's machine had: files with no access entry at all (D:PAI), which not even their own account could read.
+  setEmptyProtectedDacl(python.path, execFileSync, [join(home, 'logs', 'broken.log'), join(home, 'models', 'MinerU-4_models_onnx', 'broken.onnx')]);
   assert.deepEqual((await aclOf(join(home, 'logs', 'broken.log'), dir)).aces, [], 'the broken file has an empty access list');
   await assert.rejects(readFile(join(home, 'logs', 'broken.log')), error => error.code === 'EPERM' || error.code === 'EACCES');
 
@@ -392,7 +408,7 @@ test('secureMineruHome makes the settings folder private AND heals what is alrea
   const folder = await aclOf(home, dir);
   assert.equal(folder.protectedDacl, true, 'the home itself stays private (never reset)');
   const user = folder.aces.map(ace => ace.sid).find(sid => !['SY', 'BA'].includes(sid));
-  const three = ['BA', 'SY', user].sort();
+  const three = [...new Set(['BA', 'SY', ...(user ? [user] : [])])].sort();
   assert.deepEqual(folder.aces.map(ace => ace.sid).sort(), three);
   for (const entry of [...files, 'logs', 'models', join('models', 'MinerU-4_models_onnx')]) {
     const acl = await aclOf(join(home, entry), dir);
@@ -419,9 +435,12 @@ test('secureMineruHome repairs at most LOCAL.homeHealMaxEntries entries below th
   t.after(async () => { try { execFileSync('icacls', [dir, '/reset', '/T', '/C', '/Q'], { stdio: 'ignore' }); } catch { /* best effort */ } await rm(dir, { recursive: true, force: true }); });
   const home = await ourFolder(dir);
   await mkdir(join(home, 'logs'), { recursive: true });
-  // Six files that each need a repair (an empty access list) in a folder made before the home was private (it still carries what the temp folder gave):
-  // the walk visits the folder and two of the files, writes all three, then stops.
-  for (let i = 0; i < 6; i++) { await writeFile(join(home, 'logs', `${i}.log`), 'x'); execFileSync('icacls', [join(home, 'logs', `${i}.log`), '/inheritance:r'], { stdio: 'ignore' }); }
+  // Give `logs` an explicit Authenticated Users ACE so it needs healing even on Windows Server where %TEMP% defaults to [SY, BA, LA].
+  execFileSync('icacls', [join(home, 'logs'), '/grant', '*S-1-5-11:(OI)(CI)(R)'], { stdio: 'ignore' });
+  // Six files that each need a repair (an empty access list): the walk visits the folder and two of the files, writes all three, then stops.
+  const logFiles = Array.from({ length: 6 }, (_, i) => join(home, 'logs', `${i}.log`));
+  for (const file of logFiles) await writeFile(file, 'x');
+  setEmptyProtectedDacl(python.path, execFileSync, logFiles);
   const bounded = await secureMineruHome(home, { platform: 'win32', pythonCli: { file: python.path, prefix: [], env: {} }, maxEntries: 3 });
   assert.deepEqual(bounded, { ok: true, healed: 3, partial: true });
   assert.ok(LOCAL.homeHealMaxEntries >= 1000, 'the real bound leaves room for a home with models (about a hundred files)');
