@@ -2,7 +2,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { documentCount } from '../generation-status.js';
 import { TERMS } from '../mastery-terms.js';
 import { joinMeta, formatDateTime } from '../format.js';
-import { JOB_TYPES } from '../../lib/job-status.js';
+import { JOB_TYPES, isActiveJob, isDeckJob } from '../../lib/job-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import { courseMatcher } from '../PageScope.jsx';
 import { isVerifiableMaterialSource, roundEndAlternative } from '../method-alternatives.js';
@@ -35,7 +35,7 @@ export const dailyPathArgs = (today) => practiceArgs(undefined, { fresh: false, 
  * detail, action: { label, run, disabled }, also: [[label, run] | { handOff: { id, input, lead, what } }], depth }. A handOff entry is drawn by the shared
  * 「发给主会话」 unit (ui/hand-off/), never as a link of its own.
  */
-export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, actions, revealActivity, guidedSession }) {
+export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, actions, revealActivity, revealDrafts, guidedSession }) {
   const { start, resume, openDraft, addSource, importLibrary, generateFromSources, onCoachPractice, onWeakPoints, onCourseSettings, onAdvanceStage } = actions;
   const todayRun = runFor(today.scope ?? []);
   const interview = false;
@@ -50,6 +50,12 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
      JSON import stays one link away for people who already have questions.
      A course that already has its own confirmed 学法 (`focusMethod`) renders the stage card instead. */
   const sampleIds = sampleIdsOf(data), own = (item) => !item.sample && !sampleIds.has(item.id);
+  const workingDraftIds = new Set((data.jobs || []).filter((job) => isActiveJob(job) && isDeckJob(job)).map((job) => job.draftId).filter(Boolean));
+  const hasCourseScope = methodCourse !== '' || Boolean(data.focus?.courses?.length && data.focus?.course !== undefined);
+  const withinDraftScope = hasCourseScope ? courseMatcher(data, methodCourse) : () => true;
+  const pendingDrafts = (data.drafts || []).filter((draft) => draft && own(draft) && !draft.archived && !workingDraftIds.has(draft.id) && withinDraftScope(draft.course ?? draft.folder ?? ''));
+  const pendingDraftCards = pendingDrafts.reduce((sum, draft) => sum + Math.max(0, Number(Array.isArray(draft.cards) ? draft.cards.length : (draft.cardCount ?? draft.count)) || 0), 0);
+  const latestPendingDraft = pendingDrafts.at(-1) || null;
   const ownSources = (data.sources || []).filter(own);
   const withinMethodCourse = methodCourse ? courseMatcher(data, methodCourse) : () => true;
   const courseSources = focusMethod ? ownSources.filter((source) => isVerifiableMaterialSource(source)
@@ -66,6 +72,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   /* The sample course (设置 › 学习画像与导览) can stay after its tour; it is not the learner's library, so its material, its draft and its decks neither hide the way to a first deck of their own nor tick a step of it. */
   const starter = (!hasOwnDeck(data) && !(stageOneStart && !today.ahead)) || methodNeedsFirstDeck
     ? starterDraft ? { kind: 'empty', step: 2, eyebrow: ui('下一步'), headline: ui('检查草稿，就能开始练习'),
+      count: Math.max(0, Number(starterDraft.cards?.length ?? starterDraft.cardCount ?? 0)), unit: ui('题草稿'), detail: ui('草稿已生成'),
       title: ui('草稿已生成'), next: ui('草稿里的每道题都能修改。出题时已审阅过，发布时再检查一遍题目的结构。'),
       action: { label: ui('检查草稿'), run: () => openDraft(starterDraft) }, also: [jsonLink] }
       : generating ? { kind: 'empty', step: 1, eyebrow: ui('正在出题'), headline: ui('第一组题正在生成'),
@@ -90,8 +97,8 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   ].filter(Boolean);
   const later = today.more > 0 ? uiFormat('另有 {0} 题留到下一轮', [today.more]) : '';
   const headline = starter ? starter.headline
-    : today.ahead ? ui('今天的任务都完成了')
-      : breakdown.join(' · ') || (stageOneStart && courseDraft ? ui('检查草稿，就能开始练习') : stageOneStart && generating ? ui('第一组题正在生成') : ui('这个范围里还没有可学习的题'));
+    : today.ahead ? (pendingDrafts.length ? ui('检查草稿，就能开始练习') : ui('今天的任务都完成了'))
+      : breakdown.join(' · ') || (pendingDrafts.length || (stageOneStart && courseDraft) ? ui('检查草稿，就能开始练习') : stageOneStart && generating ? ui('第一组题正在生成') : ui('这个范围里还没有可学习的题'));
   const freshCount = Math.min(10, data.focus?.fresh?.length || 0);
   const todayLabel = formatDateTime(new Date(), 'longDay');
   const startFresh = () => start({ mode: 'new', currentCourse: true, count: 10, fresh: true });
@@ -137,6 +144,20 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
       detail: ui('还没有资料 · 导入，或请主会话起草'),
       action: { label: ui('开始第 ① 阶段'), run: openMethodOrImport || startPath, disabled: !openMethodOrImport }, also: otherStarts };
   };
+  const viewPendingDrafts = revealDrafts || (openDraft && latestPendingDraft ? () => openDraft(latestPendingDraft) : undefined);
+  const pendingDraftCard = () => ({
+    kind: 'clear',
+    eyebrow: ui('待发布草稿'),
+    count: pendingDraftCards || pendingDrafts.length,
+    unit: pendingDraftCards ? ui('题草稿') : ui('份草稿'),
+    detail: pendingDrafts.length === 1
+      ? (latestPendingDraft?.title ? uiFormat('「{0}」发布后就能开始练习和计入复习。', [latestPendingDraft.title]) : ui('有 1 份草稿待检查发布'))
+      : uiFormat('有 {0} 份草稿待检查发布', [pendingDrafts.length]),
+    action: pendingDrafts.length === 1
+      ? { label: ui('检查并发布'), run: () => openDraft?.(latestPendingDraft), disabled: !openDraft }
+      : { label: ui('查看待发布草稿'), run: viewPendingDrafts || startPath, disabled: !viewPendingDrafts },
+    also: [...(today.ahead && today.size ? [[ui('提前巩固'), startPath]] : []), ...otherStarts],
+  });
   const base = starter
     ? starter
     : courseRun
@@ -149,11 +170,13 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
           action: { label: ui('继续学习'), run: startPath }, also: otherStarts }
         : stageOneStart && !today.ahead
           ? stageOneCard()
-          : { kind: today.size ? 'path' : 'clear', eyebrow: today.ahead ? ui('提前巩固') : ui('今日学习'),
-            count: today.size, unit: ui('题待学'),
-            detail: today.ahead ? ui('今天的任务都完成了') : today.size ? joinMeta([breakdown.join(' · '), later]) : ui('这里还没有可以学的题'),
-            action: { label: today.ahead ? ui('提前巩固') : ui('开始今日学习'), run: startPath, disabled: !today.size },
-            also: otherStarts };
+          : (!today.size || today.ahead) && pendingDrafts.length
+            ? pendingDraftCard()
+            : { kind: today.size ? 'path' : 'clear', eyebrow: today.ahead ? ui('提前巩固') : ui('今日学习'),
+              count: today.size, unit: ui('题待学'),
+              detail: today.ahead ? ui('今天的任务都完成了') : today.size ? joinMeta([breakdown.join(' · '), later]) : ui('这里还没有可以学的题'),
+              action: { label: today.ahead ? ui('提前巩固') : ui('开始今日学习'), run: startPath, disabled: !today.size },
+              also: otherStarts };
   /* The run the learner was last inside (the rail's 回到题目) outranks a new
      batch: a deck, topic or 为你定制 run left half done must not sink into
      the fold below while the big button quietly starts something else. */

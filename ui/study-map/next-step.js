@@ -1,7 +1,8 @@
 import { firstRunLine } from '../first-run/line.js';
 import { hasQuestions } from '../generate-opening.js';
 import { modelReadiness } from '../generation-status.js';
-import { sampleIdsOf } from './home-plan.js';
+import { courseMatcher } from '../PageScope.jsx';
+import { hasOwnDeck, sampleIdsOf } from './home-plan.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { daysUntilExam } from '../../lib/courses.js';
 import { isActiveJob, isDeckJob } from '../../lib/job-status.js';
@@ -15,6 +16,7 @@ import { isActiveJob, isDeckJob } from '../../lib/job-status.js';
      questions    a material, but no questions made yet      } own the line IS these three states, so they are named here and drawn there
      due          questions due today
      resume       no question due, but a round left open (接着做)
+     draft        unpublished draft(s) waiting to be checked and published
      new-source   a material imported in the last two weeks that has no questions yet
      wrong        wrong answers not yet reviewed (待巩固)
      exam         an exam within a week, for a course that has a review book (the snapshot's bookCourses: the book page is the card's button and its promise)
@@ -26,7 +28,7 @@ import { isActiveJob, isDeckJob } from '../../lib/job-status.js';
    below still has questions to learn); and "newly imported" is NEW_SOURCE_DAYS. */
 
 /** The states, in priority order. */
-export const NEXT_STEP_IDS = Object.freeze(['model', 'sources', 'questions', 'due', 'resume', 'new-source', 'wrong', 'exam', 'learn', 'done']);
+export const NEXT_STEP_IDS = Object.freeze(['model', 'sources', 'questions', 'due', 'resume', 'draft', 'new-source', 'wrong', 'exam', 'learn', 'done']);
 
 /** The first-run line's three steps (ui/first-run/line.js FIRST_RUN_STEPS: model, material, deck) as states, by the index of the open step. */
 export const FIRST_RUN_SURFACE = Object.freeze(['model', 'sources', 'questions']);
@@ -37,12 +39,29 @@ export const NEW_SOURCE_DAYS = 14;
 export const EXAM_SOON_DAYS = 7;
 
 const DAY = 86400000;
-const PRIMARY = new Set(['model', 'due', 'resume', 'new-source', 'wrong', 'exam', 'learn']);
+const PRIMARY = new Set(['model', 'due', 'resume', 'draft', 'new-source', 'wrong', 'exam', 'learn']);
 
 /** Does the state's card carry a primary button (the others are drawn by the first-run line, or say there is nothing to do)? */
 export const hasPrimaryAction = (id) => PRIMARY.has(id);
 
 const count = (value) => (Number.isFinite(value) && value > 0 ? value : 0);
+
+/** Unpublished drafts of the learner's own in the current course scope that are not still being written by an active generation job. Newest first. */
+function draftsOf(data, course) {
+  const sample = sampleIdsOf(data);
+  const working = new Set((data.jobs || []).filter((job) => isActiveJob(job) && isDeckJob(job)).map((job) => job.draftId).filter(Boolean));
+  const focusCourses = (data.focus?.courses || []).map((item) => (typeof item === 'string' ? item : item?.name)).filter(Boolean);
+  const scope = course !== undefined ? course : (data.focus?.course === '' && !focusCourses.length ? undefined : data.focus?.course);
+  const names = new Set(focusCourses);
+  for (const item of [...(data.decks || []), ...(data.drafts || [])]) if (item?.course || item?.folder) names.add(item.course ?? item.folder);
+  for (const item of data.courses || []) if (item?.name) names.add(item.name);
+  const within = courseMatcher({ focus: { courses: [...names].map((name) => ({ name })) } }, scope);
+  const items = (data.drafts || [])
+    .filter((draft) => draft && !draft.sample && !sample.has(draft.id) && !draft.archived && !working.has(draft.id) && within(draft.course ?? draft.folder ?? ''))
+    .reverse();
+  const cards = items.reduce((sum, draft) => sum + count(Array.isArray(draft.cards) ? draft.cards.length : (draft.cardCount ?? draft.count)), 0);
+  return { count: items.length, cards, draft: items[0] || null, title: items[0]?.title || '', draftIds: items.map((draft) => draft.id).filter(Boolean) };
+}
 
 /** Materials of the learner's own that were imported lately, have no questions (published, drafted or covered) and are not being made into some. Newest first. */
 function newSourcesOf(data, now) {
@@ -72,16 +91,18 @@ function examOf(data, now) {
  * offers to resume a round), `canWrong` / `canExam` (the wrong-answers page and the review book are there to open; a state whose page is missing is
  * not offered), `now` (tests).
  */
-export function nextStepFacts(data, { line, resumeOpen = false, canWrong = true, canExam = true, now = new Date() } = {}) {
+export function nextStepFacts(data, { line, resumeOpen = false, canWrong = true, canExam = true, course, now = new Date() } = {}) {
   const snapshot = data || {};
   const first = line || firstRunLine(snapshot);
   const today = snapshot.today || {};
   const wrong = canWrong ? (snapshot.decks || []).filter((deck) => !deck.archived && !deck.inactive && !deck.sample).reduce((sum, deck) => sum + count(deck.wrong), 0) : 0;
   return {
     line: { show: !!first.show, step: first.show ? first.step : -1 },
+    hasOwnDeck: hasOwnDeck(snapshot),
     modelReady: modelReadiness(snapshot).ready,
     today: { due: count(today.due), weak: count(today.weak), new: count(today.new), size: count(today.size), ahead: !!today.ahead },
     resumeOpen: !!resumeOpen,
+    drafts: draftsOf(snapshot, course),
     newSources: newSourcesOf(snapshot, now),
     wrong,
     exam: canExam ? examOf(snapshot, now) : null,
@@ -92,12 +113,13 @@ export function nextStepFacts(data, { line, resumeOpen = false, canWrong = true,
  * The one next step: { id, surface }. `surface` is 'line' while the first-run line draws it (the learner has no deck of their own yet), else 'card'.
  */
 export function nextStep(facts) {
-  const { line, modelReady, today, resumeOpen, newSources, wrong, exam } = facts;
-  if (line?.show) return { id: FIRST_RUN_SURFACE[line.step] || 'questions', surface: 'line' };
+  const { line, hasOwnDeck: ownDeck = true, modelReady, today, resumeOpen, drafts, newSources, wrong, exam } = facts;
+  if (line?.show && !drafts?.count) return { id: FIRST_RUN_SURFACE[line.step] || 'questions', surface: 'line' };
   const card = (id) => ({ id, surface: 'card' });
-  if (!modelReady) return card('model');
+  if (!modelReady && (ownDeck || !drafts?.count)) return card('model');
   if (today.due > 0) return card('due');
   if (resumeOpen) return card('resume');
+  if (drafts?.count > 0) return card('draft');
   if (newSources.count > 0) return card('new-source');
   if (wrong > 0) return card('wrong');
   if (exam) return card('exam');
