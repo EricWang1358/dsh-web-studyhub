@@ -219,5 +219,12 @@
   "生成答题卡要调用 AI 模型；参考答案和已经生成的答题卡不需要模型也能看。": "Generating an answer card calls an AI model; the reference answer and cards already made need no model.",
   "回到这道题，点「生成答题卡」": "Come back to this question and click \"Generate answer card\"",
   "生成答题卡需要先配置模型；参考答案照常能看。": "Generating an answer card needs a model first; the reference answer is still shown.",
-  "参考答案照常能看；生成答题卡前需要先配置模型。": "The reference answer is still shown; set up a model before generating an answer card."
+  "参考答案照常能看；生成答题卡前需要先配置模型。": "The reference answer is still shown; set up a model before generating an answer card.",
+  "停止起草": "Stop drafting",
+  "已停止 AI 起草，当前已保存的内容不受影响。": "AI drafting stopped; your saved content is untouched.",
+  "上次 AI 起草已中断，已保存的内容仍然保留。你可以直接编辑，或点「AI 起草解析」重新起草。": "The previous AI draft was interrupted; your saved content is still here. Edit it directly, or click \"Draft explanation with AI\" to start again.",
+  "已停止 AI 起草，已保存的内容仍然保留。你可以直接编辑，或点「AI 起草解析」重新起草。": "AI drafting was stopped; your saved content is still here. Edit it directly, or click \"Draft explanation with AI\" to start again.",
+  "批改未完成": "Grading did not finish",
+  "已批改 {0}/{1} 题，其余未完成批改": "{0}/{1} questions graded; the rest did not finish grading",
+  "上次批改没有完成，你的作答已保存。点「重新提交批改」继续批改其余题目；完成后结果会显示在这里，信箱也会提醒你。": "The previous grading did not finish; your answers are saved. Click \"Submit for grading again\" to grade the remaining questions — results appear here first, and your inbox will let you know when done."
 }
