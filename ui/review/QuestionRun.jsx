@@ -12,6 +12,8 @@ import { asksWhatTheSourceSays, SOURCE_VOICE_FIX } from "../../lib/question-voic
 import ChoiceFeedback from "../ChoiceFeedback.jsx";
 import { fixedOptionLabel, optionMark } from "../option-label.js";
 import ThumbFeedback from "../ThumbFeedback.jsx";
+import PracticeTip from "./PracticeTip.jsx";
+import { usePracticeTip } from "./use-practice-tip.js";
 import { reviewEntryKey } from "../async.js";
 import ModelErrorNote from "../ModelErrorNote.jsx";
 import TeachingStatus from "./TeachingStatus.jsx";
@@ -104,7 +106,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   }, [act, run?.card?.focus, run?.card?.id, run?.deckId, session]);
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
-  const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader } = context;
+  const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader, tourRunning } = context;
   const contextReturnLabel = inHeader ? '' : contextLabel;
   const assistTasks = data?.assist;
   // 自动加入复习全书 (settings.book.qaToBook): what was just chosen shows at once, until the library says the same.
@@ -144,6 +146,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const thumbsRef = React.useRef(null);
   const [thumbVote, setThumbVote] = React.useState(null);
   const [assistText, setAssistText] = React.useState("");
+  // The three first-use tips under the question (#948): which one shows, if any, is ui/guidance/practice-tips.js; it says nothing before the learner has acted.
+  const practiceTip = usePracticeTip({ run, assistMode, tourRunning: !!tourRunning, votedDown: thumbVote === "down", answerShown: !!run.feedback && (run.solution?.followups?.length ?? 0) > 0 });
   const [helpChoices, setHelpChoices] = React.useState([]);
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
   // 我的常用语句: the learner's own chips of the 修题 box (settings.practice.fixPhrases).
@@ -541,6 +545,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               onVote={setThumbVote} onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} courseRules={courseRules} />
           )}
         />
+        {practiceTip.tip && <PracticeTip id={practiceTip.tip} onClose={practiceTip.close} onShown={practiceTip.onShown} />}
         {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
         {/* A stem that asks what the source says tests memory of a document's wording, not the concept: say so and offer the fix, so the learner never has to find the words. */}
         {!assistMode && !runningTask && run.mode !== "exam" && asksWhatTheSourceSays(run.card?.prompt) && (

@@ -109,5 +109,8 @@
   "多少次答错算顽固题": "How many wrong answers make a question stubborn",
   "一道题累计答错这么多次，错题本里会标上「顽固」，展开后有修题、补前置小卡、发给主会话和暂停几个办法。只看作答记录，不调用模型。": "A question failed this many times in all is marked “Stubborn” in the wrong book; open it for ways out: fix it, add a prerequisite card, send it to the main chat, or pause it. Read from your answer log only, no model call.",
   "最近几次里答错的占多少算顽固题": "What share of the latest attempts failed makes a question stubborn",
-  "只看最近 {0} 次作答：答错 {1} 次以上也算顽固，哪怕累计次数还不到；作答不满 {0} 次时也这样算。最近 {0} 次作答全部答对，标记就会消失。": "Looks only at the latest {0} attempts: {1} or more misses also count as stubborn, even when the total is not reached, and this counts the same way with fewer than {0} attempts so far. Once the latest {0} attempts are all right, the mark goes away."
+  "只看最近 {0} 次作答：答错 {1} 次以上也算顽固，哪怕累计次数还不到；作答不满 {0} 次时也这样算。最近 {0} 次作答全部答对，标记就会消失。": "Looks only at the latest {0} attempts: {1} or more misses also count as stubborn, even when the total is not reached, and this counts the same way with fewer than {0} attempts so far. Once the latest {0} attempts are all right, the mark goes away.",
+  "没懂？点「帮我弄懂」，讲解会直接出现在这道题下面。": "Still not clear? Choose “Help me understand”: the explanation appears right under this question.",
+  "觉得题目本身有问题？点「修题」，助教会直接改这张卡；改完在信箱里一步就能撤销。": "Think the question itself is wrong? Choose “Improve question”: the assistant edits this card directly, and you can undo it from the inbox in one step.",
+  "这一点基础不牢？点「出成前置题」，它会在同一题组里变成一道更基础的题，练完再回到这道题。": "Is this point shaky? Choose “Turn into a prerequisite question”: it becomes an easier question in the same deck; practise it, then come back to this one."
 }

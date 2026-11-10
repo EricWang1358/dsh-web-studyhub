@@ -55,3 +55,35 @@
     .assist-actions > .assist-actions__btn { white-space: normal; }
   }
 }
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* A first-use tip under a practice question (ui/review/PracticeTip.jsx): a manual popover in the top layer, placed from the control it points at, so nothing
+       moves for it. The raised surface and its words match the tooltips; it has no motion. Tokens only. */
+    .practice-tip[popover] {
+      position: fixed;
+      inset: auto;
+      margin: 0;
+      box-sizing: border-box;
+      width: max-content;
+      max-width: min(320px, calc(100vw / var(--study-ui-scale, 1) - var(--space-4)));
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--bg-raised);
+      box-shadow: var(--shadow-popover);
+      color: var(--text);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug, 1.4);
+      text-align: left;
+      overflow: visible;
+    }
+    /* Closed (a menu or the tag tray is open, or its control is not on screen): not drawn at all; display above would otherwise beat the popover's own rule. */
+    .practice-tip[popover]:not(:popover-open) { display: none; }
+    .practice-tip__words { margin: 0; }
+  }
+}

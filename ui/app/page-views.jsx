@@ -432,7 +432,7 @@ function SettingsView() {
 }
 
 function ReviewView({ feedback }) {
-  const { data, core, nav, lib, set, session, learn, dailyPlan, settingsEntry } = useApp();
+  const { data, core, nav, lib, set, session, learn, dailyPlan, settingsEntry, tour } = useApp();
   const run = session.run;
   // A finished round may change what today's plan shows next (practice progress is counted from the answers), so read it again once.
   useEffect(() => { if (run?.complete) dailyPlan.refresh?.(); }, [run?.id, run?.complete]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -459,7 +459,7 @@ function ReviewView({ feedback }) {
       <RelatedTasks plan={dailyPlan} runId={run.id} onBoard={() => { set.setBoardView('today'); nav.navigate('board'); }} />
       <Review session={session} data={data} shellTitle={shellTitleOf('review', { run, decks: data?.decks })} feedback={feedback}
         coachProps={data ? { ...session.coach, destination: run.complete ? session.continueTo(dailyPlan) : undefined } : undefined} links={links}
-        context={{ label: learn.trailLabel, onReturn: learn.returnFromContext, detour, onReturnFromDetour: learn.returnFromDetour, kind: learn.trailPage, place: learn.trailPlace }} />
+        context={{ label: learn.trailLabel, onReturn: learn.returnFromContext, detour, onReturnFromDetour: learn.returnFromDetour, kind: learn.trailPage, place: learn.trailPlace, tourRunning: !!tour.tourStep }} />
     </>
   );
 }
