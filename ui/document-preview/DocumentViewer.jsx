@@ -110,6 +110,7 @@ function QuotedText({ text, quote, anchor, format }) {
  * ('read' | 'text' | 'original'), moreItems (menu items the dialog adds to 更多: rename, today's tasks, the question sets).
  * The toolbar keeps 目录, 出题, 错题, 思维导图 and 更多; everything else is in 更多 (reader/more-items.js).
  * localContent ({ id, title, markdown }) reads saved writing in the same reader without a material identity or material actions.
+ * peekPage: a page number to open the 看原页 panel at once the document can show it (a question's 看原页图 sets it).
  * onOpenModelSettings / onOpenSettings(section): where the gates of the reader's model features and the 前往设置 link lead (ReaderModelGate.jsx); without them the app's own are used.
  */
 export default function DocumentViewer(props) {
@@ -119,7 +120,7 @@ export default function DocumentViewer(props) {
 }
 
 function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
-  onPracticePages, onGeneratePages, onOpenDraftPages, resume, backLabel, onBack, localContent, moreItems: extraItems }) {
+  onPracticePages, onGeneratePages, onOpenDraftPages, resume, backLabel, onBack, localContent, moreItems: extraItems, peekPage }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
   useInjectCss(css, 'study-document-preview');
@@ -492,6 +493,9 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const canPeek = paged && format === 'pdf' && view !== 'original' && !loading && !!document;
   const openPeek = useCallback((page, { figure = false } = {}) => setPeek({ page, figure }), []);
   useEffect(() => { if (!canPeek) setPeek(null); }, [canPeek]);
+  // Opened from a question's 看原页图: the original page is up as soon as the document can show it, once (closing it does not bring it back).
+  const peekOnOpen = useRef(peekPage);
+  useEffect(() => { if (canPeek && peekOnOpen.current) { openPeek(peekOnOpen.current, { figure: true }); peekOnOpen.current = 0; } }, [canPeek, openPeek]);
   const peekBytes = async () => fileUrl ? originalBytes(fileUrl) : null;
 
   // 思维导图: the current chapter drawn from its headings, no model (reader/mind-map.js). A page-based document is read from the heading paragraphs of the pages drawn;

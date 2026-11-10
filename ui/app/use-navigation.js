@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { leaveDelayMs } from '../appearance-prefs.js';
 import { createLeaveGate, createNavigator } from './navigator.js';
+import { markPageSwitch } from '../use-session-performance.js';
 
 /* Which page is showing, and the one way to change it (ui/app/navigator.js). The `show*` verbs are what a learning
    target does when it arrives: they set the page's own state and the page together, so nothing else does it by hand.
    Every way out handed out here passes the leave gate (createLeaveGate, #489): a page with unsaved work holds it (`holdLeave`) and is asked first. The one exception is
    `forcePage`, for a library that is already gone: there is nothing left to stay on. */
 export function useNavigation({ core, lib, motion, rootRef }) {
-  const [page, rawSetPage] = useState('library');
+  const [page, setPageState] = useState('library');
+  // The one setter of the page: the session's performance log (ui/session-performance.js) starts the clock of a page switch here, whichever way it came.
+  const rawSetPage = useCallback((id) => { markPageSwitch(id); setPageState(id); }, []);
   const [pageTarget, setPageTarget] = useState(null);
   const { setError } = core;
   const { setContextTrail, setExamRunId, setExamKind, setBoardStudyRef, setBoardCompose, setNoteInitialId, setGraphScope, setSkeletonFocus, setManagedDeck,
@@ -56,9 +59,9 @@ export function useNavigation({ core, lib, motion, rootRef }) {
       library: () => to('library'),
       page: (id) => to(id),
     };
-  }, [gate, setNoteInitialId, setSkeletonFocus, setManagedDeck, setFolderDraft, setWorkflowReturn, setTaskFocus, setExamKind, setExamRunId]);
+  }, [gate, setNoteInitialId, setSkeletonFocus, setManagedDeck, setFolderDraft, setWorkflowReturn, setTaskFocus, setExamKind, setExamRunId, rawSetPage]);
   const setPage = show.page;
-  const forcePage = useCallback((id) => rawSetPage(id), []);
+  const forcePage = useCallback((id) => rawSetPage(id), [rawSetPage]);
   // A change that is no page but replaces the one on screen (a link that first switches the course) asks before it starts.
   const leaving = useCallback((go) => gate.leave(null, go), [gate]);
   return { page, setPage, forcePage, pageTarget, setPageTarget, navPage: pageTarget || page, navigate, show, leaving, holdLeave: gate.hold, referenceRef };

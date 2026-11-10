@@ -15,7 +15,7 @@ const recorder = () => {
 const nav = () => {
   const log = [];
   const record = (name) => (...args) => log.push([name, ...args]);
-  return { log, enterRun: record('enterRun'), showSource: record('showSource'), showNote: record('showNote'), showSkeleton: record('showSkeleton'),
+  return { log, enterRun: record('enterRun'), enterMovedRun: record('enterMovedRun'), showSource: record('showSource'), showNote: record('showNote'), showSkeleton: record('showSkeleton'),
     showDeck: record('showDeck'), showWorkflow: record('showWorkflow'), showExam: record('showExam'), showLibrary: record('showLibrary'),
     showPage: record('showPage'), showManagedDeck: record('showManagedDeck') };
 };
@@ -165,7 +165,7 @@ test('returning: a finished round reloads the run, an open one moves to where th
   const loaded = await loadReturnTarget(returnTargetFor(done), done, call);
   assert.deepEqual(calls.at(-1), ['review.get', { runId: 'r' }]);
   openReturnTarget(returnTargetFor(done), loaded, done, sink);
-  assert.deepEqual(sink.log.at(-1), ['enterRun', loaded, { key: 'k' }]);
+  assert.deepEqual(sink.log.at(-1), ['enterMovedRun', loaded, { key: 'k' }]);
   const open = { page: 'review', runId: 'r', index: 3, runComplete: false };
   await loadReturnTarget(returnTargetFor(open), open, call);
   assert.deepEqual(calls.at(-1), ['review.move', { runId: 'r', index: 3 }]);

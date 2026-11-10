@@ -7,10 +7,10 @@ import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { nativeSelects } from './helpers/native-selects.mjs';
-import { PRACTICE_DEFAULTS } from '../lib/practice-settings.js';
+import { PRACTICE_DEFAULTS, PRACTICE_LIMITS } from '../lib/practice-settings.js';
 
 const require = createRequire(import.meta.url);
-const built = await build({ stdin: { contents: `export { default as PracticePane, ROUND_SIZES } from './ui/settings/PracticePane.jsx';
+const built = await build({ stdin: { contents: `export { default as PracticePane, ROUND_SIZES, LEECH_FAILURES, LEECH_RATES } from './ui/settings/PracticePane.jsx';
   export { SETTINGS_CATEGORIES, categoriesFor, categoryForAnchor } from './ui/settings-groups.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node',
   format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
@@ -154,4 +154,48 @@ test('恢复默认 forgets the saved choices', async () => {
   const { view, calls } = paneView({ data: { settings: { practice: { autopilot: true } } } });
   await button(view, '恢复默认').props.onClick();
   assert.deepEqual(calls[0].slice(0, 2), ['settings.practice.reset', {}]);
+});
+
+/* ---------- 顽固题 (#884): the two thresholds, off the main path ---------- */
+
+test('顽固题: the two thresholds are plain selects with the defaults, choices inside the limits, and the saved values shown', () => {
+  ssr.setUiLanguage('zh');
+  const html = pane();
+  assert.match(words(html), /多少次答错算顽固题/);
+  assert.match(words(html), /最近几次里答错的占多少算顽固题/);
+  assert.match(html, /<option[^>]*value="4"[^>]*selected|<option[^>]*selected[^>]*value="4"/);
+  assert.match(html, /<option[^>]*value="60"[^>]*selected|<option[^>]*selected[^>]*value="60"/);
+  for (const [key, choices] of [['leechFailures', ssr.LEECH_FAILURES], ['leechRate', ssr.LEECH_RATES]]) {
+    const { min, max } = PRACTICE_LIMITS[key];
+    assert.ok(choices.includes(PRACTICE_DEFAULTS[key]), `${key}: the default is a choice`);
+    assert.ok(choices.every(value => value >= min && value <= max), `${key}: every choice is inside the limits`);
+  }
+  const saved = pane({ data: { settings: { practice: { leechFailures: 6, leechRate: 80 } } } });
+  assert.match(saved, /<option[^>]*value="6"[^>]*selected|<option[^>]*selected[^>]*value="6"/);
+  assert.match(saved, /<option[^>]*value="80"[^>]*selected|<option[^>]*selected[^>]*value="80"/);
+});
+
+test('顽固题: the hint says what the numbers mean, with the window the settings hold', () => {
+  ssr.setUiLanguage('zh');
+  assert.match(words(pane()), /最近 5 次/);
+  assert.match(words(pane({ data: { settings: { practice: { leechWindow: 8 } } } })), /最近 8 次/);
+});
+
+test('顽固题: choosing saves just that number at once', async () => {
+  const { view, calls } = paneView();
+  await named(view, 'leechFailures').props.onChange('6');
+  assert.deepEqual(calls[0].slice(0, 2), ['settings.practice.set', { patch: { leechFailures: 6 } }]);
+  assert.equal(named(view, 'leechFailures').props.value, '6');
+  await named(view, 'leechRate').props.onChange('80');
+  assert.deepEqual(calls[1].slice(0, 2), ['settings.practice.set', { patch: { leechRate: 80 } }]);
+  assert.equal(named(view, 'leechFailures').props.value, '6', 'the earlier choice stays');
+});
+
+test('顽固题: English words, and a saved value outside the choices is kept', () => {
+  ssr.setUiLanguage('en');
+  try {
+    assert.doesNotMatch(words(pane()), han);
+    assert.match(words(pane()), /stubborn/i);
+  } finally { ssr.setUiLanguage('zh'); }
+  assert.match(pane({ data: { settings: { practice: { leechFailures: 7 } } } }), /<option[^>]*value="7"[^>]*selected|<option[^>]*selected[^>]*value="7"/);
 });

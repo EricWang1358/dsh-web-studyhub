@@ -6,6 +6,7 @@ import FlipCard from "../FlipCard.jsx";
 import SmoothHeight from "../SmoothHeight.jsx";
 import ReviewToolbar from "../ReviewToolbar.jsx";
 import CitationDisclosure from "../CitationDisclosure.jsx";
+import FigurePageLink from "../document-preview/practice/FigurePageLink.jsx";
 import ExplanationFollowup from "../ExplanationFollowup.jsx";
 import { asksWhatTheSourceSays, SOURCE_VOICE_FIX } from "../../lib/question-voice.js";
 import ChoiceFeedback from "../ChoiceFeedback.jsx";
@@ -22,6 +23,8 @@ import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES } from "../agent-prompts/card.js";
 import { FixPhraseChips, FixPhraseSave } from "./FixPhrases.jsx";
 import { useFixPhrases } from "./use-fix-phrases.js";
+import { CourseRuleAdd } from "../course-rules/CourseRuleAdd.jsx";
+import { useCourseRules } from "../course-rules/use-course-rules.js";
 import { fixSuggestionFor } from "../card-fix.js";
 import reviewCss from "./review.css";
 import { useInjectCss } from "../shared.js";
@@ -145,6 +148,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
   // 我的常用语句: the learner's own chips of the 修题 box (settings.practice.fixPhrases).
   const fixPhrases = useFixPhrases(data);
+  // 出题守则 of the question's course (#889): 「设为本课守则」 under the 修题 box and on the 👎 tray add to them.
+  const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
+  const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
   React.useEffect(() => {
     setAssistMode("");
     setAssistText("");
@@ -532,7 +538,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           thumbVote={thumbVote} onThumb={coachProps && run.mode !== "exam" ? (vote) => thumbsRef.current?.[vote === "up" ? "up" : "down"]() : undefined}
           thumbs={coachProps && run.mode !== "exam" && (
             <ThumbFeedback ref={thumbsRef} buttons={false} run={run} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()}
-              onVote={setThumbVote} onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} />
+              onVote={setThumbVote} onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} courseRules={courseRules} />
           )}
         />
         {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
@@ -590,6 +596,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 />
               </label>
               {assistMode === "improve" && <FixPhraseSave phrases={fixPhrases.phrases} text={assistText} onSave={fixPhrases.add} />}
+              {assistMode === "improve" && <CourseRuleAdd courseRules={courseRules} text={assistText} />}
               <div className="action-feedback-slot">{feedback}</div>
               <div className="assist-actions">
                 <Button type="submit" variant="primary" size="sm" className="assist-actions__btn"
@@ -646,6 +653,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             )}
             <CitationDisclosure key={"citations:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
               onOpenSource={(source, quote) => openModal({ type: "source", source, quote })} />
+            <FigurePageLink key={"figure:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
+              onOpen={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage })} />
             {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly
               onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
               bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }} />}

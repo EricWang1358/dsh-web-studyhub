@@ -31,13 +31,21 @@ export function nextDueWord(feedback = {}) {
   return feedback.level === 'mastered' ? ui('✓ 已掌握') : ui('答对了');
 }
 
-/** How long until the question comes back, in the learner's words: 「3 天」 (formatGap), or '' when it is due within the day. */
+/** The local calendar date of an instant, as a day number. */
+const calendarDay = (ms) => {
+  const day = new Date(ms);
+  return Date.UTC(day.getFullYear(), day.getMonth(), day.getDate()) / DAY;
+};
+
+/** How long until the question comes back, in the learner's words: 「3 天」 (formatGap), or '' when it is due later the same day.
+    Counted in local calendar days, as the grade buttons are (lib/sm2.js): a question 考前对齐 made due at 00:00 of the exam day
+    is 「1 天」 when the exam is tomorrow, whatever the clock time now; an ordinary answer (due N days after it) stays N. */
 export function nextDueGap(feedback = {}, now = Date.now()) {
   const due = Date.parse(feedback.nextDue);
-  return Number.isFinite(due) ? formatGap(Math.round((due - now) / DAY)) : '';
+  return Number.isFinite(due) ? formatGap(Math.round(calendarDay(due) - calendarDay(now))) : '';
 }
 
-/** 「下次大约 3 天后再见」, or 「下次今天内再见」 when the question is due within the day. */
+/** 「下次大约 3 天后再见」, or 「下次今天内再见」 when the question is due later the same day. */
 export const nextDueWhen = (feedback = {}, now = Date.now()) => {
   const gap = nextDueGap(feedback, now);
   return gap ? uiFormat('下次大约 {0}后再见', [gap]) : ui('下次今天内再见');
@@ -51,16 +59,19 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
   const selfReported = !!(feedback.selfReported || feedback.assessment === 'self-report');
   const hasAfterDays = Number.isFinite(meta.afterDays) && meta.afterDays > 0;
   const beforeDays = Number.isFinite(meta.beforeDays) ? meta.beforeDays : 0;
+  // 考前对齐 brought the question back before the exam: the lead line says when it really comes back, so the gap here is the memory
+  // gap (what mastery reads), named as such: one fact, one number.
+  const aligned = !!meta.examAligned;
   const gapChip = hasAfterDays
     ? (beforeDays > 0 && meta.afterDays !== beforeDays
-      ? uiFormat('间隔 {0} 天 → {1} 天', [beforeDays, meta.afterDays])
-      : (!beforeDays && (feedback.correct || selfReported) ? uiFormat('首轮间隔 {0} 天', [meta.afterDays]) : ''))
+      ? uiFormat(aligned ? '记忆间隔 {0} 天 → {1} 天' : '间隔 {0} 天 → {1} 天', [beforeDays, meta.afterDays])
+      : (!beforeDays && (feedback.correct || selfReported) ? uiFormat(aligned ? '首轮记忆间隔 {0} 天' : '首轮间隔 {0} 天', [meta.afterDays]) : ''))
     : '';
   const lit = stabilitySteps(meta.stability);
   const credited = Number.isInteger(feedback.credited) && feedback.credited > 0 ? feedback.credited : 0;
   const gap = nextDueGap(feedback, now);
   // The numbers behind the date: shown only when the learner asks, each with its plain meaning.
-  const hasWhy = !!(promoted || gapChip || lit > 0 || feedback.nextDue);
+  const hasWhy = !!(promoted || gapChip || lit > 0 || feedback.nextDue || meta.examAligned);
   return (
     <div className={`next-due${feedback.correct || selfReported ? '' : ' retry'}`} data-level={feedback.level || undefined}>
       <p className="next-due__lead">
@@ -89,6 +100,7 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
               </span>
             )}
             {gapChip && <span className="next-due__chip">{gapChip}</span>}
+            {meta.examAligned && <span className="next-due__chip">{ui('考试当天或之前先回来一次')}</span>}
             {lit > 0 && (
               <span className="next-due__chip next-due__chip--stability">
                 <span>{uiFormat('稳定度 {0} 天', [meta.stability])}</span>
@@ -99,7 +111,9 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
             )}
           </div>
           <p className="muted small next-due__explain">
-            {ui('复习间隔：这道题隔多少天再出现。答对会拉长，答错会缩短。')}
+            {aligned
+              ? ui('记忆间隔：按这次作答，这道题本可以隔这么多天再出现，掌握程度按它算。考前对齐让它在考试当天或更早先回来一次。')
+              : ui('复习间隔：这道题隔多少天再出现。答对会拉长，答错会缩短。')}
             {lit > 0 && <>{' '}{ui('稳定度：系统估计你能把这道题记住多久，越稳，下次隔得越久。')}</>}
           </p>
         </Disclosure>
