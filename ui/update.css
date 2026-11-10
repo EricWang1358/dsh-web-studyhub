@@ -24,6 +24,8 @@
       white-space: nowrap;
     }
     .update-chip svg { flex-shrink: 0; }
+    /* The Tooltip's anchor around the chip: a full-width row, so the chip keeps its place and size whether or not it has an explanation. */
+    .update-chip-anchor { display: flex; width: 100%; }
     .update-chip:hover .update-chip__badge { background: color-mix(in srgb, var(--sh-tone) 22%, transparent); }
     .update-chip:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
     .update-chip.is-compact {
@@ -116,6 +118,9 @@
     .update-dialog .update-steps strong { color: var(--text); font-weight: var(--fw-strong); }
     .update-dialog .update-steps span { color: var(--text-muted); }
     .update-dialog .update-done { display: grid; gap: var(--space-2); justify-items: start; }
+    .update-dialog .update-stuck, .update-dialog .update-dialog__inline { margin-bottom: var(--space-3); }
+    .update-dialog .update-stuck p { margin: 0; }
+    .update-dialog .update-stuck p + p { margin-top: var(--space-2); }
     .update-dialog .update-footer {
       display: flex;
       align-items: center;

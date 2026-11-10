@@ -88,18 +88,24 @@ function performanceLines(session, chinese) {
   ];
 }
 
+/* The upgrade a check saw (#951): the version the last one-click install left waiting, or a newer package found on disk, and whether a restart since then took effect. A version-shaped token only. */
+const VERSION_TOKEN = /^\d{1,6}\.\d{1,6}\.\d{1,6}(?:-[\w.]{1,30})?$/;
+const upgradeLine = upgrade => (typeof upgrade?.version === 'string' && VERSION_TOKEN.test(upgrade.version)
+  ? [`Upgrade seen: ${upgrade.version}, ${upgrade.restartFailed === true ? 'restart did not take effect' : 'waiting for a restart'}`] : []);
+
 /**
  * The text to copy. `data` is the client snapshot (or nothing): only its counts, the kind and status of its jobs and its experimental switch are read.
  * `error`: an Error (or a string) when a page crashed; left out when the learner copies from Settings.
  * `session`: the summary of this session's performance (ui/session-performance.js); no section when it is left out.
  */
-export function diagnosticText({ version, language, page, error, data, session } = {}) {
+export function diagnosticText({ version, language, page, error, data, session, upgrade } = {}) {
   const jobs = Array.isArray(data?.jobs) ? data.jobs.slice(-DIAGNOSTIC_LIMITS.jobs) : [];
   const decks = Array.isArray(data?.decks) ? data.decks : [];
   return [
     'StudyHub diagnostic info',
     `StudyHub version: ${plainReason(typeof version === 'string' ? version : '', { limit: DIAGNOSTIC_LIMITS.version }) || 'unknown'}`,
     'DSH version: (fill in by hand)',
+    ...upgradeLine(upgrade),
     `Interface language: ${token(language)}`,
     `Page: ${token(page)}`,
     ...errorLines(error),
@@ -112,9 +118,9 @@ export function diagnosticText({ version, language, page, error, data, session }
 
 /**
  * `describe(error)` for the page the learner is on: the text of `diagnosticText` with the app's own snapshot, language and page.
- * `getVersion()` is StudyHub's version, read when the text is built (not on every render of the page).
+ * `getVersion()` is StudyHub's version, read when the text is built (not on every render of the page). `getUpgrade()`: { version, restartFailed } of the upgrade seen, or nothing.
  */
-export function useDiagnostics(getVersion) {
+export function useDiagnostics(getVersion, getUpgrade) {
   const { data, language, nav } = useApp();
-  return error => diagnosticText({ version: getVersion?.(), language, page: nav?.page, error, data, session: sessionPerformance.summary() });
+  return error => diagnosticText({ version: getVersion?.(), language, page: nav?.page, error, data, session: sessionPerformance.summary(), upgrade: getUpgrade?.() });
 }

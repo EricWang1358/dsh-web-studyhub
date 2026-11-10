@@ -164,6 +164,8 @@ Automatic update checks normally use a 6-hour cache and retry sooner after a fai
 
 Reloading the browser alone does not load new plugin code.
 
+If the sidebar still says **Restart DSH to finish the upgrade** after you restarted, make sure DSH was really quit (on desktop, from the tray icon) before you opened it again: a DSH that was only closed to the tray keeps its old process, and StudyHub cannot tell. If DSH was started again after the install and the old version still runs (for example another StudyHub profile on this computer took the upgrade), the chip says **Upgrade did not take effect**. Its page and Settings › About & updates explain the possible causes and offer **Reinstall x.y.z** when a newer release is known, plus the manual steps below. The record of the last install is kept, because another profile may really be waiting for its restart.
+
 **Remind me later** hides the chip for that version. You can still upgrade from **Settings › About & updates**, where **Check for updates** checks at once and **Check for updates automatically** turns the 6-hour check off. If GitHub cannot be reached, StudyHub tries again later.
 
 ### Upgrade manually
