@@ -134,6 +134,32 @@ test('install: six stages in order, all inside the folder, the models from the c
   assert.equal(found.cli.env.FAKE_MINERU_STATE, h.mineruEnv.FAKE_MINERU_STATE, 'the stand-in program keeps its own variables');
 });
 
+test('install: MINERU_HOME is secured before config.yaml is written, and a permission change that did not work is said once per run, never after a cancel', async t => {
+  // The permission change is a stand-in (seams.secureHome): it records whether config.yaml was there when it ran, and always fails.
+  const h = await installHarness(t);
+  const layout = mineruLayout(h.location), seen = [];
+  const installer = createMineruInstaller({ ...h.seams, secureHome: async (home, { signal }) => { seen.push({ home, config: await exists(layout.config), aborted: !!signal?.aborted }); return { ok: false, error: 'stand-in refusal' }; } });
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  const done = await installer.status();
+  assert.equal(done.status, 'complete', JSON.stringify(done.error));
+  assert.ok(seen.length >= 3, 'package, models and enable each make sure of the home');
+  assert.deepEqual([seen[0].home, seen[0].config], [layout.home, false], 'the folder is secured before config.yaml exists');
+  assert.ok(await exists(layout.config));
+  assert.equal(done.log.filter(line => /could not restrict permissions/.test(line)).length, 1, done.log.join('\n'));
+  // A cancel while the permission change runs: the refusal it then reports is the cancel, not a permission problem, and is not logged.
+  const h2 = await installHarness(t);
+  let cancelling = null;
+  const cancelled = createMineruInstaller({ ...h2.seams, secureHome: async (_home, { signal }) => {
+    cancelling = cancelled.cancel();
+    for (let i = 0; i < 400 && !signal?.aborted; i++) await new Promise(resolve => setTimeout(resolve, 5));
+    return { ok: false, error: 'aborted' };
+  } });
+  await cancelled.start({ confirm: true, location: h2.location }); await cancelled.idle(); await cancelling;
+  const stopped = await cancelled.status();
+  assert.equal(stopped.status, 'cancelled');
+  assert.ok(!stopped.log.some(line => /could not restrict permissions/.test(line)), stopped.log.join('\n'));
+});
+
 test('effectiveMineru: StudyHub\'s install first, then MINERU_BIN, then the PATH', async t => {
   const h = await installHarness(t);
   const bin = join(h.dir, 'bin', process.platform === 'win32' ? 'mineru.exe' : 'mineru');
