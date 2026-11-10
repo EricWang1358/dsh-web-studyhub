@@ -173,8 +173,8 @@ const SESSION = {
 };
 const sessionLines = text => text.split('\n').slice(text.split('\n').findIndex(line => line.startsWith('Session performance')));
 
-test('the performance section follows the diagnostic style: short lines, labelled in both languages, numbers and page ids', () => {
-  const text = diagnosticText({ version: '4.6.2', language: 'en', page: 'library', session: SESSION });
+test('the performance section follows the diagnostic style: short lines, numbers and page ids; Chinese labels follow the English ones only in a Chinese interface', () => {
+  const text = diagnosticText({ version: '4.6.2', language: 'zh', page: 'library', session: SESSION });
   const lines = sessionLines(text);
   assert.equal(lines.length, 4, text);
   assert.match(lines[0], /^Session performance .*本次会话.*in memory/);
@@ -182,6 +182,11 @@ test('the performance section follows the diagnostic style: short lines, labelle
   assert.equal(lines[2], 'Long tasks 长任务 (over 50 ms): 3, total 315 ms, worst 180 ms');
   assert.equal(lines[3], 'Snapshots 快照 (changed ones): 4, size 3000/250000 chars, apply 4/40 ms');
   assert.match(text, /^Library: sources/m, 'the existing lines are as they were');
+  const english = sessionLines(diagnosticText({ version: '4.6.2', language: 'en', page: 'library', session: SESSION })).join('\n');
+  const wide = /[^\x00-\x7f]/;
+  assert.doesNotMatch(english, wide, 'an English interface gets no Han at all');
+  assert.equal(english.split('\n').length, lines.length, 'and the same four lines');
+  assert.match(lines.join('\n'), wide, 'while a Chinese interface gets the Chinese words');
 });
 
 test('a webview that does not report long tasks says so, and a session with nothing yet says none yet: no invented zeros', () => {

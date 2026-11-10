@@ -72,17 +72,19 @@ function errorLines(error) {
 const jobLine = job => `${token(job?.type, '?')}/${token(job?.status, '?')}`;
 
 /* The performance section (#893 S4). `session` is the summary of ui/session-performance.js, but whatever it holds is read as untrusted: a number is a
-   whole number or 0, a page is printed only when it is one of the app's own page ids. Each label is in both languages, as the one Chinese phrase above is. */
+   whole number or 0, a page is printed only when it is one of the app's own page ids. With a Chinese interface each label carries its Chinese words after
+   the English ones (the developer reads both); with an English interface the text stays pure English, as the rest of it is. */
 const NONE_YET = 'none yet';
 const pair = stat => `${count(stat?.median)}/${count(stat?.worst)}`;
-function performanceLines(session) {
+function performanceLines(session, chinese) {
+  const zh = words => (chinese ? ` ${words}` : '');
   const switches = (Array.isArray(session.switches?.byPage) ? session.switches.byPage : []).filter(entry => pageOf(entry?.page)).slice(0, PAGE_IDS.length);
   const tasks = session.longTasks, { chars, applyMs } = session.snapshots ?? {};
   return [
-    'Session performance 本次会话性能 (in memory only, this session 仅存内存、只含本次)',
-    `Page switches 页面切换 (ms, median/worst): ${switches.length ? switches.map(entry => `${entry.page} ${count(entry.count)}x ${pair(entry)}`).join(', ') : NONE_YET}`,
-    `Long tasks 长任务 (over ${PERFORMANCE_LIMITS.longTaskMs} ms): ${tasks && typeof tasks === 'object' ? `${count(tasks.count)}, total ${count(tasks.totalMs)} ms, worst ${count(tasks.worstMs)} ms` : 'not reported by this webview 此环境不提供'}`,
-    `Snapshots 快照 (changed ones): ${count(chars?.count) ? `${count(chars.count)}, size ${pair(chars)} chars, apply ${pair(applyMs)} ms` : NONE_YET}`,
+    `Session performance${zh('本次会话性能')} (in memory only, this session${zh('仅存内存、只含本次')})`,
+    `Page switches${zh('页面切换')} (ms, median/worst): ${switches.length ? switches.map(entry => `${entry.page} ${count(entry.count)}x ${pair(entry)}`).join(', ') : NONE_YET}`,
+    `Long tasks${zh('长任务')} (over ${PERFORMANCE_LIMITS.longTaskMs} ms): ${tasks && typeof tasks === 'object' ? `${count(tasks.count)}, total ${count(tasks.totalMs)} ms, worst ${count(tasks.worstMs)} ms` : `not reported by this webview${zh('此环境不提供')}`}`,
+    `Snapshots${zh('快照')} (changed ones): ${count(chars?.count) ? `${count(chars.count)}, size ${pair(chars)} chars, apply ${pair(applyMs)} ms` : NONE_YET}`,
   ];
 }
 
@@ -104,7 +106,7 @@ export function diagnosticText({ version, language, page, error, data, session }
     `Library: sources ${Array.isArray(data?.sources) ? data.sources.length : 0}, decks ${decks.length}, questions ${decks.reduce((total, deck) => total + count(deck?.count), 0)}`,
     `Experimental features: ${data?.experimental === true ? 'on' : 'off'}`,
     `Last jobs (kind/status, oldest first): ${jobs.length ? jobs.map(jobLine).join(', ') : 'none'}`,
-    ...(session && typeof session === 'object' ? performanceLines(session) : []),
+    ...(session && typeof session === 'object' ? performanceLines(session, token(language) === 'zh') : []),
   ].join('\n');
 }
 

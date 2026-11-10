@@ -92,10 +92,10 @@ test('the category list sits under the three group headings, marks the selected 
   } finally { setUiLanguage('zh'); }
 });
 
-const page = (props = {}) => {
+const page = (props = {}, app) => {
   const view = props.data || data();
   return renderToStaticMarkup(inApp(mod.exports, h(Settings, { settings: { ...defaults }, setSettings: noop, legacy: '', setLegacy: noop, exportData: noop, onRestored: noop,
-    initialProfile: { consent: true, goal: 'exam', summary: '', signals: {}, ready: 0 }, ...props, data: view }), { data: view, call: noop, act: noop }));
+    initialProfile: { consent: true, goal: 'exam', summary: '', signals: {}, ready: 0 }, ...props, data: view }), { data: view, call: noop, act: noop, app }));
 };
 
 test('the page is the category list and ONE category: the first one by default, the one a deep link points at, everything for the tour', () => {
@@ -135,7 +135,7 @@ test('the English page has no Han outside user data', () => {
   try {
     const appearance = { language: 'en', onLanguage: noop, theme: 'dark', themes: [['auto', '跟随系统'], ['dark', '深色'], ['light', '浅色']], onTheme: noop };
     for (const props of [{ tourActive: true, appearance }, { appearance }, { appearance, focusSection: 'settings-model' }]) {
-      const html = page(props);
+      const html = page(props, { language: 'en' });
       // The language names are written in their own language, on purpose (the sidebar's switch does the same).
       assert.doesNotMatch(html.replace(/D:\\Study\\library/g, '').replaceAll('>中文<', '><')
         .replace(/\bvalue="(?:中文|中英双语)"/g, ''), han);
