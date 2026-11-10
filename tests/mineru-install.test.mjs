@@ -416,6 +416,17 @@ test('#936: a permission failure names the settings folder only when the denied 
   assert.doesNotMatch(localizeAppMessage(config.message, 'en'), /[㐀-鿿]/);
 });
 
+test('#942 N1: linked files the permission step left alone are counted on the install (homeLinked), for the card to say; a run that skipped none has no count', async t => {
+  const h = await installHarness(t);
+  const linked = createMineruInstaller({ ...h.seams, secureHome: async () => ({ ok: false, linked: 2, error: 'stand-in' }) });
+  await linked.start({ confirm: true, location: h.location }); await linked.idle();
+  assert.equal((await linked.status()).homeLinked, 2);
+  const h2 = await installHarness(t);
+  const clean = createMineruInstaller({ ...h2.seams, secureHome: async () => ({ ok: true }) });
+  await clean.start({ confirm: true, location: h2.location }); await clean.idle();
+  assert.equal(Object.hasOwn(await clean.status(), 'homeLinked'), false);
+});
+
 test('#942 M2: during an install, a home path printed beside a denial elsewhere is not a settings-folder failure; a full disk is still no-space', async () => {
   const { explainMineruFailure } = await import('../lib/mineru-install.js');
   const folder = 'D:\\StudyHub\\MinerU', py = path => path.replace(/\\/g, '\\\\');

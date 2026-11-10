@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getEventListeners } from 'node:events';
 import { LOCAL, LocalMineruError, detectLocal, homeNote, homePermissionFailure, locateMineru, markServerLogs, parseLocalMarkdown, parseWindow, readMineruServerLogs, secureMineruHome, serverErrorsSince,
-  startServer, windowPlan } from '../lib/mineru-local.js';
+  startServer, windowPlan, explainStartFailure } from '../lib/mineru-local.js';
 import { mergeChunkResults } from '../lib/mineru-merge.js';
 import { parseConvertedDocument } from '../lib/converted-document.js';
 import { patientCli, readJsonFile, until, writeJsonFile } from './helpers/wait.mjs';
@@ -505,8 +505,26 @@ test('#942 L2: a home that is a junction to another folder is refused, and a fil
   const outside = await aclOf(join(dir, 'outside.txt'), dir);
   await link(join(dir, 'outside.txt'), join(home, 'linked.txt'));
   const result = await secureMineruHome(home, { platform: 'win32', pythonCli });
-  assert.equal(result.ok, true, JSON.stringify(result));
   assert.deepEqual(await aclOf(join(dir, 'outside.txt'), dir), outside, 'a file with another name outside the home keeps its list');
+  // #942 N1: that file's list is not what the home gives, and it was left as it is: the repair is not complete, and the result says so with the count.
+  assert.deepEqual([result.ok, result.linked], [false, 1], JSON.stringify(result));
+  assert.match(homeNote(result, home), /1 file\(s\) below it .*left alone because .*linked from elsewhere.*not complete/, homeNote(result, home));
+  // A healthy hard-linked file (its list is what the home gives) is not counted: nothing broken was skipped.
+  const clean = join(dir, 'clean');
+  await mkdir(clean, { recursive: true });
+  const cleanHome = await ourFolder(clean);
+  await mkdir(cleanHome, { recursive: true });
+  assert.equal((await secureMineruHome(cleanHome, { platform: 'win32', pythonCli })).ok, true);
+  await writeFile(join(cleanHome, 'a.txt'), 'x');
+  await link(join(cleanHome, 'a.txt'), join(cleanHome, 'b.txt'));
+  assert.deepEqual(await secureMineruHome(cleanHome, { platform: 'win32', pythonCli }), { ok: true });
+});
+
+test('#942 N1: a start that fails after the permission step left linked files alone carries their count, for the card to say', () => {
+  const failure = explainStartFailure({ code: 'server-start-failed', reason: 'home-permissions', file: 'config.yaml', detail: 'x', linked: 2 });
+  assert.deepEqual([failure.code, failure.file, failure.linked], ['home-permissions', 'config.yaml', 2]);
+  assert.equal(Object.hasOwn(explainStartFailure({ code: 'server-start-failed', reason: 'home-permissions', file: '', detail: 'x' }), 'linked'), false, 'no count, no field');
+  assert.match(homeNote({ ok: false, linked: 3, error: 'ignored' }, 'D:\\x\\home'), /3 file\(s\) below it/);
 });
 
 test('POSIX: the home is 0700 and the files directly in it (config.yaml, credentials) 0600; logs keep theirs', { skip: process.platform === 'win32' }, async t => {
@@ -527,6 +545,18 @@ test('a start that failed carries what the permission step did not do in its det
   const home = await ourFolder(fake.dir);
   await assert.rejects(startServer({ cli: fake.cli, home }), error => error.reason === 'service-failed'
     && /could not restrict permissions on .*home: no Python/.test(error.detail) && /worker exited/.test(error.detail));
+});
+
+test('#942 N2: a denied path with the long-path prefix (\\\\?\\ and \\\\?\\UNC\\) is compared without it', () => {
+  const home = 'D:\\StudyHub\\MinerU\\home';
+  const py = path => path.replace(/\\/g, '\\\\');
+  const cases = [
+    [`PermissionError: [WinError 5] Access is denied: '${py(`\\\\?\\${home}\\config.yaml`)}'`, home, 'config.yaml'],
+    [`System.UnauthorizedAccessException: Access to the path '\\\\?\\${home}\\models\\a.onnx' is denied.`, home, 'models\\a.onnx'],
+    [`PermissionError: [WinError 5] Access is denied: '${py('\\\\?\\UNC\\server\\share\\MinerU\\home\\config.yaml')}'`, '\\\\server\\share\\MinerU\\home', 'config.yaml'],
+    [`PermissionError: [WinError 5] Access is denied: '${py('\\\\?\\D:\\StudyHub\\MinerU\\venv\\x.pyd')}'`, home, null],
+  ];
+  for (const [said, where, file] of cases) assert.deepEqual(homePermissionFailure(said, where), file === null ? null : { file }, said);
 });
 
 test('#942 M2: a denial is about the settings folder only when the path IN the denial is inside it; a home path printed elsewhere in the text decides nothing', () => {

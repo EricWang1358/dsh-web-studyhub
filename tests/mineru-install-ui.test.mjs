@@ -784,6 +784,19 @@ test('#942 L5: 卸载后重装 says it downloads everything again and needs the 
   assert.match(said, /不是 StudyHub 创建的文件，会装进里面新建的「StudyHub-MinerU」文件夹/);
 });
 
+test('#942 N1: files the repair left alone because they are linked from elsewhere are said under the error (the repair is not complete), in both languages', () => {
+  const said = '有 2 个文件同时链接在别的位置，StudyHub 为了不改到别处的文件没有动它们，所以这次修复不完整。';
+  assert.ok(errorHint('home-permissions', { origin: 'service', linked: 2 }).includes(said));
+  assert.ok(errorHint('home-permissions', { origin: 'install', linked: 2 }).includes(said));
+  assert.doesNotMatch(errorHint('home-permissions', { origin: 'service' }), /链接/, 'no count, no sentence');
+  assert.ok(textOf(render({ initialLocal: { ...local.homeService, lastError: { ...local.homeService.lastError, linked: 2 } } })).includes(said));
+  const install = { ...local.homeInstall, install: { ...local.homeInstall.install, homeLinked: 1 } };
+  assert.ok(textOf(render({ initialLocal: install })).includes('有 1 个文件同时链接在别的位置'));
+  const english = textOf(render({ initialLocal: { ...local.homeService, lastError: { ...local.homeService.lastError, linked: 2 } } }, 'en'));
+  assert.match(english, /2 file\(s\) are also linked from another place.*this repair is not complete/);
+  assert.doesNotMatch(english, han);
+});
+
 test('#940 pins these labels: the hand-off prompt tells the chat to have the learner press exactly 「修复权限」 / 「修复权限并重启」 (Repair permissions / Repair permissions and restart)', () => {
   assert.equal(fixFor('home-permissions', { origin: 'install' }).label, '修复权限');
   assert.equal(fixFor('home-permissions', { origin: 'service' }).label, '修复权限并重启');

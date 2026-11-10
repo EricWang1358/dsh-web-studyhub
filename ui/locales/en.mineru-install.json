@@ -150,6 +150,7 @@
   "本机服务没能启动：MinerU 读不了配置文件夹里的 {0}。安装位置没问题，不用换位置。": "The local service could not start: MinerU cannot read {0} in its settings folder. The install location is fine; there is no need to move it.",
   "本机服务没能启动：这份 MinerU 读不了 {0}，那是它自己的配置文件夹里的文件。StudyHub 不改不是它创建的文件夹的权限。": "The local service could not start: this MinerU cannot read {0}, a file in its own settings folder. StudyHub does not change permissions in a folder it did not create.",
   "本机服务没能启动：这份 MinerU 读不了它自己的配置文件夹里的文件，或认为它们不够私有。StudyHub 不改不是它创建的文件夹的权限。": "The local service could not start: this MinerU cannot read a file in its own settings folder, or finds them not private enough. StudyHub does not change permissions in a folder it did not create.",
+  "有 {0} 个文件同时链接在别的位置，StudyHub 为了不改到别处的文件没有动它们，所以这次修复不完整。": "{0} file(s) are also linked from another place, so StudyHub left them alone to avoid changing files elsewhere: this repair is not complete.",
   "可以先点「重新启动服务」再试；还是不行就点「发给主会话」。": "Try “Restart the service” first; if it still fails, choose “Send to the main chat”.",
   "点「修复权限」会修好这些文件的权限，再从停下的那一步接着装；已下载的不会重下。": "“Repair permissions” fixes the permissions of these files, then continues from the step where it stopped; nothing downloaded is downloaded again.",
   "本机服务没能启动：MinerU 读不了配置文件夹里的文件，或认为它们不够私有。安装位置没问题，不用换位置。": "The local service could not start: MinerU cannot read files in its settings folder, or thinks they are not private enough. The install location is fine; there is no need to move it.",

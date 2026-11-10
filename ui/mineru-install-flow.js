@@ -121,10 +121,14 @@ const HINT = {
   unreadable: () => ui('它可能正忙或刚启动，过一会儿再检测。'),
   // Inside an install the repair continues it (the service's own line already says the location is fine and the button says the rest). Another MinerU's
   // folder is not StudyHub's to repair: a restart, then the hand-off.
-  'home-permissions': ({ origin = '', ours = true } = {}) => (origin === 'install' ? ui('点「修复权限」会修好这些文件的权限，再从停下的那一步接着装；已下载的不会重下。')
-    : !ours ? ui('可以先点「重新启动服务」再试；还是不行就点「发给主会话」。') : ''),
+  // `linked`: files the last repair left alone because they are hard links (lib/mineru-local.js secureMineruHome): that repair was not complete.
+  'home-permissions': ({ origin = '', ours = true, linked = 0 } = {}) => [
+    origin === 'install' ? ui('点「修复权限」会修好这些文件的权限，再从停下的那一步接着装；已下载的不会重下。')
+      : !ours ? ui('可以先点「重新启动服务」再试；还是不行就点「发给主会话」。') : '',
+    ours && linked > 0 ? uiFormat('有 {0} 个文件同时链接在别的位置，StudyHub 为了不改到别处的文件没有动它们，所以这次修复不完整。', [linked]) : '',
+  ].filter(Boolean).join(' '),
 };
-/** context: { attempts, source, external, origin, ours } of the failure, for the hints that depend on them. '' when there is nothing to add. */
+/** context: { attempts, source, external, origin, ours, linked } of the failure, for the hints that depend on them. '' when there is nothing to add. */
 export const errorHint = (code, context) => HINT[code]?.(context) || '';
 
 /** The one fix button of each failure code (id is what the card does). */

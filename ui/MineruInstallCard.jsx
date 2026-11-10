@@ -156,7 +156,8 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
   };
   // `ours`: the failure is StudyHub's own install's (its unfinished install, or the MinerU it installed); another MinerU's folders are never changed (#942 M1).
   const ours = shown.origin === 'install' || !view?.origin || view.origin === 'installed';
-  const failure = shown.state === 'error' ? { context: { attempts: install?.attempts || 1, source: install?.source?.id || plan?.source?.id, external: !!view?.external, origin: shown.origin, ours } } : null;
+  const failure = shown.state === 'error' ? { context: { attempts: install?.attempts || 1, source: install?.source?.id || plan?.source?.id, external: !!view?.external, origin: shown.origin, ours,
+    linked: (shown.origin === 'install' ? install?.homeLinked : view?.lastError?.linked) || 0 } } : null;
   if (failure) failure.action = fixFor(shown.code, failure.context);
 
   /* The ⋯ menu beside the one fix (#938), and how often that fix was pressed while the same failure came back (a note under it after one or two). */
