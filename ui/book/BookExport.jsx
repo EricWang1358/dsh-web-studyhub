@@ -6,6 +6,7 @@ import { useLiveEffect } from '../use-async.js';
 import { PAGE_LIMIT_MAX } from '../../lib/book-settings.js';
 import { downloadBytes, downloadText } from './download.js';
 import { downloadCheatSheet } from './cheat-sheet-file.js';
+import { bookHtmlFile } from './book-html.js';
 import { zipTextFiles } from './zip.js';
 
 /* 「导出」 of the review book (M6, docs/plans/review-book.md): the book as the learner's printable CP (course.book.export, lib/course-book-export.js):
@@ -60,8 +61,7 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
   };
   const downloadPage = async () => {
     try {
-      // The page maker (markdown-it rules, maths) is not part of the dialog's load: it comes when a page is asked for.
-      const { bookHtmlFile } = await import('./book-html.js');
+      // A static import: a chunk of its own, reached only from a click, is a module the host's classic chunk loading never materializes (tests/client-boundaries.test.mjs).
       const file = bookHtmlFile(done, { quotes: !noQuotes });
       downloadText(file.filename, file.html, 'text/html');
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
