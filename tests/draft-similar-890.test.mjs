@@ -111,7 +111,8 @@ test("a 500-question draft against 3 000 published questions of the course is ch
 
 /* A harder corpus: course-like English stems built from a few frames and 40 words of one subject, so almost every stem shares many bigrams with almost
    every other one (like the corpus of the review of #909, which took 1.1-1.6 s before the position filter). Its own budget: under 1 s on a developer
-   machine (docs/performance.md); the limit here is loose for a busy CI runner. */
+   machine (docs/performance.md), about 2 s while a full parallel test run shares it; the limit here (10 s) is loose for a busy CI runner,
+   and the count of exact comparisons is what guards the index. */
 test("500 course-like English questions against 3 000 of a small vocabulary stay under their own budget", (t) => {
   let seed = 7;
   const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
@@ -131,7 +132,7 @@ test("500 course-like English questions against 3 000 of a small vocabulary stay
   t.diagnostic(`small vocabulary, 500 x 3000: ${elapsed.toFixed(1)} ms, ${read.similar.length} flagged, ${stats.compared} exact checks of ${500 * 3500} pairs`);
   assert.ok(draftCards.every((card, i) => i % 10 || read.similar.some((item) => item.cardId === card.id)), "every planted near-duplicate is found");
   assert.ok(stats.compared < (500 * 3500) / 3, `${stats.compared} exact checks`);
-  assert.ok(elapsed < 5000, `took ${elapsed.toFixed(0)} ms`);
+  assert.ok(elapsed < 10000, `took ${elapsed.toFixed(0)} ms`);
 });
 
 const IMAGE = `![图 1](data:image/png;base64,${"iVBORw0KGgo".repeat(4000)})`;
