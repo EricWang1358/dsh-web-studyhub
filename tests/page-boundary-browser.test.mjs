@@ -15,6 +15,9 @@ test('a page that throws keeps the sidebar, offers retry and a copyable diagnost
     import { AppContext } from './ui/app/app-context.js';
     import { PAGE_VIEWS, PageView } from './ui/app/page-views.jsx';
     import { deferredView } from './ui/deferred-view.jsx';
+    import { markPageSwitch } from './ui/use-session-performance.js';
+    import { sessionPerformance } from './ui/session-performance.js';
+    window.sessionPerformance = sessionPerformance;
     window.pageBreaks = true;
     PAGE_VIEWS.library = function Breaks() {
       if (window.pageBreaks) throw new TypeError('Cannot read properties of undefined (reading "map") in C:\\\\Users\\\\student\\\\Documents\\\\midterm-notes.docx');
@@ -28,7 +31,7 @@ test('a page that throws keeps the sidebar, offers retry and a copyable diagnost
       const app = { language: 'zh', nav: { page }, data: { sources: [{}, {}], decks: [{ count: 5 }], jobs: [{ type: 'generation', status: 'failed' }] } };
       return <AppContext.Provider value={app}>
         <div className="study-app">
-          <nav id="sidebar"><button id="go-library" onClick={() => setPage('library')}>library</button><button id="go-review" onClick={() => setPage('review')}>review</button><button id="go-exam" onClick={() => setPage('exam')}>exam</button></nav>
+          <nav id="sidebar"><button id="go-library" onClick={() => { markPageSwitch('library'); setPage('library'); }}>library</button><button id="go-review" onClick={() => { markPageSwitch('review'); setPage('review'); }}>review</button><button id="go-exam" onClick={() => { markPageSwitch('exam'); setPage('exam'); }}>exam</button></nav>
           <main><PageView page={page} feedback={null} /></main>
         </div>
       </AppContext.Provider>;
@@ -73,6 +76,16 @@ test('a page that throws keeps the sidebar, offers retry and a copyable diagnost
   const lazy = await page.evaluate(() => window.copied.at(-1));
   assert.match(lazy, /Page: exam/);
   assert.match(lazy, /Message: Cannot read properties of null \(reading 'cards'\)/, 'an engine message is copied whole');
+
+  // #893 S4: the switch to exam was timed to its first frame and a task over 50 ms is counted; both are in the text, which still holds nothing private.
+  // (The text is built when the button draws: opening the fold draws it again, with the numbers that arrived since.)
+  await page.evaluate(() => { const end = performance.now() + 120; while (performance.now() < end); });
+  await page.waitForFunction(() => window.sessionPerformance.summary().switches.all.count >= 1 && window.sessionPerformance.summary().longTasks?.count >= 1);
+  await page.getByText('看看会复制什么').click();
+  const withSession = await page.locator('.sh-diagnostic-copy__text').inputValue();
+  assert.match(withSession, /^Page switches .*: exam 1x \d+\/\d+$/m);
+  assert.match(withSession, /^Long tasks .*\(over 50 ms\): [1-9]\d*, total \d+ ms, worst \d+ ms$/m);
+  assert.doesNotMatch(withSession, /midterm-notes|student|C:\\/);
 
   await page.locator('#go-review').click();
   await page.locator('#review-ok').waitFor();

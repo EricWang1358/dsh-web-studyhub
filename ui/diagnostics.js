@@ -1,11 +1,14 @@
 import { plainReason } from '../lib/plain-reason.js';
 import { useApp } from './app/app-context.js';
+import { PAGE_IDS, pageOf } from './pages.js';
+import { PERFORMANCE_LIMITS, sessionPerformance } from './session-performance.js';
 
 /* The diagnostic text a learner copies into a bug report (#893): the crash notice and Settings › 关于与更新 both offer it.
 
    It is built from a short whitelist and nothing else: StudyHub's version, the interface language, the page id, the error (its name as a plain token,
    its message only when it is one of the engine's own, the function names of the first stack frames), the kind and status of the last jobs, the
-   size of the library as counts, and whether the experimental features are shown. It never reads a title, a file name, a text, a question or a path;
+   size of the library as counts, whether the experimental features are shown, and a few numbers about this session's speed (ui/session-performance.js:
+   page switches, long tasks, snapshots; in memory only, left out when the app passes none). It never reads a title, a file name, a text, a question or a path;
    the snapshot is only counted. The DSH version is not known here, so one line asks for it. Nothing is stored or sent: the text exists while the
    button is pressed, and the learner can read it before copying (CopyDiagnosticsButton).
 
@@ -68,11 +71,27 @@ function errorLines(error) {
 
 const jobLine = job => `${token(job?.type, '?')}/${token(job?.status, '?')}`;
 
+/* The performance section (#893 S4). `session` is the summary of ui/session-performance.js, but whatever it holds is read as untrusted: a number is a
+   whole number or 0, a page is printed only when it is one of the app's own page ids. Each label is in both languages, as the one Chinese phrase above is. */
+const NONE_YET = 'none yet';
+const pair = stat => `${count(stat?.median)}/${count(stat?.worst)}`;
+function performanceLines(session) {
+  const switches = (Array.isArray(session.switches?.byPage) ? session.switches.byPage : []).filter(entry => pageOf(entry?.page)).slice(0, PAGE_IDS.length);
+  const tasks = session.longTasks, { chars, applyMs } = session.snapshots ?? {};
+  return [
+    'Session performance 本次会话性能 (in memory only, this session 仅存内存、只含本次)',
+    `Page switches 页面切换 (ms, median/worst): ${switches.length ? switches.map(entry => `${entry.page} ${count(entry.count)}x ${pair(entry)}`).join(', ') : NONE_YET}`,
+    `Long tasks 长任务 (over ${PERFORMANCE_LIMITS.longTaskMs} ms): ${tasks && typeof tasks === 'object' ? `${count(tasks.count)}, total ${count(tasks.totalMs)} ms, worst ${count(tasks.worstMs)} ms` : 'not reported by this webview 此环境不提供'}`,
+    `Snapshots 快照 (changed ones): ${count(chars?.count) ? `${count(chars.count)}, size ${pair(chars)} chars, apply ${pair(applyMs)} ms` : NONE_YET}`,
+  ];
+}
+
 /**
  * The text to copy. `data` is the client snapshot (or nothing): only its counts, the kind and status of its jobs and its experimental switch are read.
  * `error`: an Error (or a string) when a page crashed; left out when the learner copies from Settings.
+ * `session`: the summary of this session's performance (ui/session-performance.js); no section when it is left out.
  */
-export function diagnosticText({ version, language, page, error, data } = {}) {
+export function diagnosticText({ version, language, page, error, data, session } = {}) {
   const jobs = Array.isArray(data?.jobs) ? data.jobs.slice(-DIAGNOSTIC_LIMITS.jobs) : [];
   const decks = Array.isArray(data?.decks) ? data.decks : [];
   return [
@@ -85,6 +104,7 @@ export function diagnosticText({ version, language, page, error, data } = {}) {
     `Library: sources ${Array.isArray(data?.sources) ? data.sources.length : 0}, decks ${decks.length}, questions ${decks.reduce((total, deck) => total + count(deck?.count), 0)}`,
     `Experimental features: ${data?.experimental === true ? 'on' : 'off'}`,
     `Last jobs (kind/status, oldest first): ${jobs.length ? jobs.map(jobLine).join(', ') : 'none'}`,
+    ...(session && typeof session === 'object' ? performanceLines(session) : []),
   ].join('\n');
 }
 
@@ -94,5 +114,5 @@ export function diagnosticText({ version, language, page, error, data } = {}) {
  */
 export function useDiagnostics(getVersion) {
   const { data, language, nav } = useApp();
-  return error => diagnosticText({ version: getVersion?.(), language, page: nav?.page, error, data });
+  return error => diagnosticText({ version: getVersion?.(), language, page: nav?.page, error, data, session: sessionPerformance.summary() });
 }
