@@ -23,6 +23,8 @@ The formulas, the 21 default weights, the clamps and the ordering of the four ca
 
 The weights are the published defaults; StudyHub does not optimise them per learner. Benchmarks of FSRS were run on long-time Anki users, so for a learner with a handful of answers per card the predictions are an estimate.
 
+`retrievability(review, at, settings)` in `lib/sm2.js` gives this `R` for a stored review at an instant, with `t` counted as an answer at that instant would count it (whole local days); `retrievabilityAt(settings)` builds the model once for a pass over many reviews. A review with no memory state (a new card, or a record with neither an FSRS state nor an SM-2 interval) and an FSRS review without `last_review` give 0, as ts-fsrs says of a new card. A migrated SM-2 review is read as the scheduler reads it (below). It matches ts-fsrs's `get_retrievability` (`tests/fsrs-parity.test.mjs`), except that ts-fsrs counts whole 24-hour periods.
+
 ## Grades and ratings
 
 Stored grades stay 0–5. The scheduler maps them to the four FSRS ratings:

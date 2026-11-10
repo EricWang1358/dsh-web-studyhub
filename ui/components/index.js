@@ -16,7 +16,7 @@ export { Badge, Chip } from './Badge.jsx';
 export { Hint } from './Hint.jsx';
 export { ProgressBar, StackedBar } from './Progress.jsx';
 export { Spinner, LoadingState } from './Loading.jsx';
-export { ErrorState, CrashFallback, errorText } from './ErrorState.jsx';
+export { ErrorState, CrashFallback, CopyDiagnosticsButton, errorText } from './ErrorState.jsx';
 export { JobRow, jobAnnouncement } from './JobRow.jsx';
 export { useNow, createClock } from './use-now.js';
 export { TONES, toneOf, TONE_ICONS } from './tones.js';
