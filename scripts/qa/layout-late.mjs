@@ -243,7 +243,9 @@ export async function sourcesScenario({ browser, running, lang = "zh", theme = "
   if (shots) await page.screenshot({ path: join(shots, "before-arrival.png") });
   const snapshot = await running.api("snapshot");
   const ids = snapshot.sources.map((source) => source.id);
-  const partial = new Set(ids.filter((id) => id.startsWith("pdf-0-p")).slice(0, 2));
+  // The newest PDF: the page draws its rows in chunks (#900), so the one whose badge is watched must be among the first rows (the oldest is far past the first chunk).
+  const watched = Math.max(...ids.map((id) => Number(id.match(/^pdf-(\d+)-p/)?.[1] ?? -1)));
+  const partial = new Set(ids.filter((id) => id.startsWith(`pdf-${watched}-p`)).slice(0, 2));
   const answer = (done) => ({ indexed: ids.filter((id) => done || !partial.has(id)), stale: [], missing: done ? [] : [...partial], hasIndex: true, canIndex: true,
     building: done ? null : { course: "*", stage: "embedding", done: 12, total: 40 } });
   hold.release("retrieval.index.coverage", answer(false));
@@ -261,9 +263,9 @@ export async function sourcesScenario({ browser, running, lang = "zh", theme = "
   await frames(page, 6);
   const pollLog = await drainLayoutStability(page);
   const poll = await readRowTracker(page);
-  // The build finishes: the first PDF goes from "building" to "indexed", and only its row is redrawn.
+  // The build finishes: the newest PDF goes from "building" to "indexed", and only its row is redrawn.
   hold.release("retrieval.index.coverage", answer(true));
-  await until(() => page.locator(`.sources-page .source-doc[data-document-key="pdf:${hash(0)}"] .index-badge[data-state="indexed"]`).count(), "the first PDF's badge to turn indexed", { timeoutMs: 30000 });
+  await until(() => page.locator(`.sources-page .source-doc[data-document-key="pdf:${hash(watched)}"] .index-badge[data-state="indexed"]`).count(), "the newest PDF's badge to turn indexed", { timeoutMs: 30000 });
   await frames(page, 6);
   const change = await readRowTracker(page);
   const verdict = judgeLayoutStability(log);
