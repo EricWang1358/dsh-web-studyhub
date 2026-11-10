@@ -5,7 +5,7 @@ import { kinds as kindNames, useInjectCss } from './shared.js';
 import { useStudy } from './study-context.jsx';
 import { customCountOf, generationRequest, kindsOfForm } from './generate-form.js';
 import { splitCount } from '../lib/generation-settings.js';
-import { MODULE_INSTRUCTION_MAX, TEMPLATE_NAME_MAX, detectRequirementConflicts, normalizeModuleOverrides } from '../lib/generation-modules.js';
+import { MODULE_INSTRUCTION_MAX, TEMPLATE_NAME_MAX, detectRequirementConflicts, normalizeModuleOverrides, withCourseRules } from '../lib/generation-modules.js';
 import transparencyCss from './generation-transparency.css';
 
 function originBadge(origin) {
@@ -20,7 +20,7 @@ function originBadge(origin) {
   })[origin] || ui('默认规则');
 }
 
-export function EffectiveRequirementsStrip({ gen, focusCount = 0, referenceCount = 0 }) {
+export function EffectiveRequirementsStrip({ gen, focusCount = 0, referenceCount = 0, ruleCount = 0 }) {
   useInjectCss(transparencyCss, 'study-generation-transparency');
   const kinds = kindsOfForm(gen);
   const customQuotas = gen.kindCounts && typeof gen.kindCounts === 'object' && !Array.isArray(gen.kindCounts);
@@ -29,14 +29,26 @@ export function EffectiveRequirementsStrip({ gen, focusCount = 0, referenceCount
       ? uiFormat('非均分配额：{0}', [kinds.map((k) => `${kindNames[k]} ${gen.kindCounts[k] ?? 0}`).join(' / ')])
       : uiFormat('{0} 种题型均分', [kinds.length]))
     : kindNames[kinds[0]];
-  const overrides = normalizeModuleOverrides(gen.moduleOverrides);
+  // The run's own modules only: the course's 出题守则 (#889) have their own item.
+  const overrides = withCourseRules(gen.moduleOverrides, []);
   return (
     <div className="gen-trans-strip" data-effective-summary>
       <strong>{ui('本次生效要求：')}</strong>
       <span className="gen-trans-strip__item">{quotaText}</span>
       {focusCount > 0 && <span className="gen-trans-strip__item">{uiFormat('课程重点继承 {0} 项', [focusCount])}</span>}
       {referenceCount > 0 && <span className="gen-trans-strip__item">{uiFormat('参考样题 {0} 份（仅作形式参考）', [referenceCount])}</span>}
+      {ruleCount > 0 && <span className="gen-trans-strip__item">{uiFormat('本课出题守则 {0} 条', [ruleCount])}</span>}
       {overrides && <span className="gen-trans-strip__item">{overrides.templateName ? uiFormat('自定义模块：{0}', [overrides.templateName]) : ui('已启用自定义推理/错因模块')}</span>}
+    </div>
+  );
+}
+
+/** The preview's own row for the course's 出题守则 (#889): every rule, or that the course has none. */
+function CourseRulesRow({ rules }) {
+  return (
+    <div className="gen-trans-preview__rules" data-preview-course-rules>
+      <strong>{rules.length ? uiFormat('本课出题守则（{0} 条，规划、出题和审阅都带上）：', [rules.length]) : ui('本课出题守则：未设置（在课程设置的「更多设置」里添加）')}</strong>
+      {rules.length > 0 && <ol>{rules.map((rule) => <li key={rule}>{rule}</li>)}</ol>}
     </div>
   );
 }
@@ -259,6 +271,7 @@ export default function GenerationTransparency({ gen, setGen, course = '', sourc
             <span>{uiFormat('配额来源：{0}', [originBadge(previewState.data.origins?.quota)])}</span>
             <span>{uiFormat('重点来源：{0}', [originBadge(previewState.data.origins?.focusTopics)])}</span>
           </p>
+          <CourseRulesRow rules={previewState.data.modules?.find((module) => module.id === 'course_rules')?.rules || []} />
           <ul className="gen-trans-preview__stages">
             {(previewState.data.stages || []).map((stage) => (
               <li key={stage.id} className="gen-trans-preview__stage">

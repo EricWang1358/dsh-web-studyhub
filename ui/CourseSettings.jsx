@@ -7,6 +7,7 @@ import TopicChips from './TopicChips.jsx';
 import FocusProgressList from './FocusProgressList.jsx';
 import CustomPlanCard from './CustomPlanCard.jsx';
 import CourseMethodCard from './CourseMethodCard.jsx';
+import CourseRulesEditor from './course-rules/CourseRulesEditor.jsx';
 import GuidanceSuggestions, { guidanceSuggestions } from './GuidanceSuggestions.jsx';
 import { splitTopics } from './course-topics.js';
 import { useStudy } from './study-context.jsx';
@@ -41,6 +42,7 @@ export function draftFromCourse(course = {}) {
       marks: text(section.marks), topics: (section.topics || []).join('; ') })),
     focusTopics: (course.focusTopics || []).join('; '), guidanceSourceIds: [...(course.guidanceSourceIds || [])],
     interviewRole: course.interview?.role || '', interviewJd: course.interview?.jd || '',
+    generationRules: [...(course.generationRules || [])],
   };
 }
 
@@ -61,13 +63,15 @@ export function payloadFromDraft(course, draft) {
   return { id: course.id, name: course.name,
     ...(stated ? { exam: { format: draft.format, ...numbers, ...(draft.date ? { date: draft.date } : {}), sections } } : {}),
     ...(hasInterview ? { interview: interviewPayload } : {}),
-    guidanceSourceIds: draft.guidanceSourceIds, focusTopics: splitTopics(draft.focusTopics) };
+    guidanceSourceIds: draft.guidanceSourceIds, focusTopics: splitTopics(draft.focusTopics),
+    // 出题守则 (#889): sent when the course has some or the form added some; [] removes them.
+    ...(course.generationRules?.length || draft.generationRules?.length ? { generationRules: draft.generationRules || [] } : {}) };
 }
 
 /** Does the course already carry anything the fold holds (everything but the exam date)? Then the fold is open when the panel opens. */
 const hasMoreValues = draft => draft.format !== 'other' || ['totalMarks', 'writingMinutes', 'readingMinutes', 'minutesPerMark'].some(key => draft[key] !== '')
   || draft.sections.length > 0 || splitTopics(draft.focusTopics).length > 0 || draft.guidanceSourceIds.length > 0
-  || Boolean(String(draft.interviewRole ?? '').trim() || String(draft.interviewJd ?? '').trim());
+  || Boolean(String(draft.interviewRole ?? '').trim() || String(draft.interviewJd ?? '').trim()) || draft.generationRules.length > 0;
 
 /** The learner's weakest topics of a course, from their own answers (local, no model): offered as suggestions for the focus topics, never added by themselves. */
 function useWeakTopics(course) {
@@ -347,7 +351,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
 
       <Disclosure className="course-settings__more" bodyClassName="course-settings__more-body" summary={ui('更多设置')} defaultOpen={startOpen}
         meta={joinMeta([draft.format !== 'other' ? examFormatLabel(draft.format) : '', String(draft.interviewRole ?? '').trim(), splitTopics(draft.focusTopics).length ? uiFormat('{0} 个重点知识点', [splitTopics(draft.focusTopics).length]) : '',
-          draft.guidanceSourceIds.length ? uiFormat('考官指引 {0} 份', [draft.guidanceSourceIds.length]) : ''])}>
+          draft.guidanceSourceIds.length ? uiFormat('考官指引 {0} 份', [draft.guidanceSourceIds.length]) : '', draft.generationRules.length ? uiFormat('出题守则 {0} 条', [draft.generationRules.length]) : ''])}>
         <section className="course-settings__block" aria-labelledby="course-settings-name">
           <h3 id="course-settings-name">{ui('名称')}</h3>
           <div className="course-settings__rename">
@@ -406,6 +410,11 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           {/* Read only, and of the saved topics: a chip not yet saved has nothing to read against. */}
           <FocusProgressList course={course.name} saved={course.focusTopics} lock={disabled} onGenerateTopic={onGenerateTopic} />
         </section>
+
+        <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('出题守则')}
+          meta={draft.generationRules.length ? uiFormat('{0} 条守则', [draft.generationRules.length]) : ui('未设置')} defaultOpen={draft.generationRules.length > 0}>
+          <CourseRulesEditor value={draft.generationRules} disabled={disabled} onChange={generationRules => change({ generationRules })} />
+        </Disclosure>
 
         <section className="course-settings__block" aria-labelledby="course-settings-interview">
           <h3 id="course-settings-interview">{ui('岗位与面试（可选）')}</h3>

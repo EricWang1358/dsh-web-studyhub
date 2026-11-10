@@ -31,6 +31,11 @@
     .course-settings__alias { padding: var(--space-half) var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--text-dim); background: var(--bg-sunken); }
     .course-settings__subhead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); font-size: var(--fs-sm); color: var(--text-dim); }
     .course-settings__sections { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+    /* 出题守则 (#889): one editable line per rule, its delete beside it; the add line below. */
+    .course-rules { display: grid; gap: var(--space-2); }
+    .course-rules__list { margin: 0; padding-left: var(--space-5); display: grid; gap: var(--space-1); }
+    .course-rules__row, .course-rules__add { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+    .course-rules__input { flex: 1; min-width: 0; }
     .course-settings__section-row { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .course-settings__section-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-sm); color: var(--text-dim); }
     .course-settings .sh-inline p { margin: var(--space-1) 0 0; }
