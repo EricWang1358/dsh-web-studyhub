@@ -120,7 +120,8 @@ const snap = async (tab, name, where, target = '.gallery') => {
 };
 const SETTINGS = ['checking', 'missing', 'only-c', 'chooser', 'chooser-path', 'no-space', 'installing-2', 'installing-4', 'cancelled', 'interrupted', 'network-1', 'network-2',
   'package-failed', 'install-no-space', 'install-service', 'install-port', 'vc-runtime', 'service-failed', 'port-in-use', 'unreadable', 'needs-models', 'stopped', 'ready', 'external',
-  'more', 'moving', 'tier-switch', 'uninstall-confirm', 'tier-unfinished', 'relocate-choosing', 'service-detail'];
+  'more', 'moving', 'tier-switch', 'uninstall-confirm', 'tier-unfinished', 'relocate-choosing', 'service-detail',
+  'home-install', 'home-service', 'writable-service', 'tier-change-picked', 'menu-open', 'reinstall-confirm'];
 // A case that is another case after some clicks: [gallery case, what to do].
 const CLICKED = {
   'chooser-path': ['missing', async tab => { await tab.getByRole('button', { name: /选择位置|Choose location/ }).click(); await tab.getByRole('button', { name: /其他文件夹|Another folder/ }).click(); }],
@@ -131,6 +132,12 @@ const CLICKED = {
   // What the program printed when the service did not start: 更多 › 详细信息 only.
   'service-detail': ['service-failed', async tab => { await tab.locator('.mineru-install__more > summary').click(); await tab.getByText(/^详细信息$|^Details$/).click(); }],
   'uninstall-confirm': ['more', async tab => { await tab.getByRole('button', { name: /^卸载$|^Uninstall$/ }).click(); await tab.waitForSelector('[role="dialog"], [role="alertdialog"]'); }],
+  // #937: basic picked for the unfinished standard install: the one primary is 改装 basic 档, with what it keeps.
+  'tier-change-picked': ['tier-change', async tab => { await tab.locator('input[name="mineru-install-tier"][value="basic"]').check({ force: true }); }],
+  // #938: the ⋯ menu beside the one fix, open; 卸载后重装's confirmation.
+  'menu-open': ['service-failed', async tab => { await tab.getByRole('button', { name: /^其他办法$|^Other ways$/ }).click(); await tab.waitForSelector('[role="menu"]'); }],
+  'reinstall-confirm': ['service-failed', async tab => { await tab.getByRole('button', { name: /^其他办法$|^Other ways$/ }).click();
+    await tab.getByRole('menuitem', { name: /卸载后重装|Uninstall and reinstall/ }).click(); await tab.waitForSelector('[role="dialog"]'); }],
 };
 // One open Tooltip of each kind: [name, gallery case, the element hovered].
 const TIPS = [['tip-badge-ready', 'ready', '.mineru-install__line .mineru-install__tipped'], ['tip-badge-stopped', 'stopped', '.mineru-install__line .mineru-install__tipped'],
@@ -152,7 +159,7 @@ try {
       if (name === 'chooser') { await tab.getByRole('button', { name: /选择位置|Choose location/ }).click(); await tab.waitForSelector('.mineru-install__chooser'); }
       if (clicks) { await clicks(tab); await sleep(300); }
       // The uninstall confirmation is a dialog in the top layer: the whole viewport is the shot.
-      if (name === 'uninstall-confirm') { await sleep(200); const path = join(out, `settings-${name}-${tag}.png`); await tab.screenshot({ path }); shots.push(path); }
+      if (['uninstall-confirm', 'reinstall-confirm', 'menu-open'].includes(name)) { await sleep(200); const path = join(out, `settings-${name}-${tag}.png`); await tab.screenshot({ path }); shots.push(path); }
       else await snap(tab, `settings-${name}-${tag}`, where);
       await tab.close();
     }

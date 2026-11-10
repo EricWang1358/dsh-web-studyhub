@@ -77,6 +77,7 @@
     "tests/layout-stability-guard.test.mjs",
     "tests/live-capture-browser.test.mjs",
     "tests/local-study-image.test.mjs",
+    "tests/mineru-fix-menu-browser.test.mjs",
     "tests/model-setup-browser.test.mjs",
     "tests/nav-drag-promote-browser.test.mjs",
     "tests/nav-drawer-frame-browser.test.mjs",
