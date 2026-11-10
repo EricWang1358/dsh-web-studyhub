@@ -344,7 +344,7 @@ export default function Generate({
                   <small>{ui("出题时已逐题核验并审阅；生成结果先进入草稿，你看过再发布；想再检查一遍，在草稿页点「保存并校验」。")}</small>
                 </p>
               </div>
-              {!pathMode && selectedSources.length > 0 && <EffectiveRequirementsStrip gen={gen} focusCount={activeFocusCount} referenceCount={referenceSourceIds.length} />}
+              {!pathMode && selectedSources.length > 0 && <EffectiveRequirementsStrip gen={gen} focusCount={activeFocusCount} referenceCount={referenceSourceIds.length} ruleCount={activeCourseRecord?.generationRules?.length || 0} />}
               {summary && <p className="generate-summary" role="status">{summary}</p>}
               {/* The plan, said once: the tokens and calls it costs, how many rounds, and whether the rest goes on by itself (the count is the line above's). */}
               {!pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason && <div className="generate-estimate" data-generate-estimate>

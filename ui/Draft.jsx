@@ -7,6 +7,7 @@ import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS, JOB_TYPES } from "../lib/job-status.js";
 import { kinds } from "./shared.js";
 import { cardMatchesReview, reviewedCardStatus } from "../lib/review-integrity.js";
+import { draftCourseRulesChanged } from "../lib/courses.js";
 import { readableQualityIssue } from "./quality.js";
 import { JevCardBadge, JevCardSignals, JevDecidedBadge, JevDecidedNote } from "./JevBadge.jsx";
 import { experimentalShown } from "./experimental-flag.js";
@@ -92,6 +93,8 @@ export default function Draft({
   const reviewStatus = Object.keys(draft.editorial?.reviewedCards || {}).length
     ? reviewedCardStatus(draft) : null;
   const needsReview = reviewStatus ? reviewStatus.changed : draft.cards.length;
+  // 出题守则 (#889): the course's rules changed after this draft was reviewed, so publication reviews it again against the rules as they are now.
+  const rulesChanged = draftCourseRulesChanged(data, draft);
   const selfCited = selfCitedCardCount(draft.cards, data.sources);
   const rejectedIssues = draft.editorial?.rejectedIssues || {};
   const rejectedCards = draft.cards.filter((card) => rejectedIssues[card.id]);
@@ -492,6 +495,7 @@ export default function Draft({
               : ui("这份草稿没有可核对的逐题审阅版本。"),
             needsReview > 0 ? uiFormat("{0} 题未经过模型审阅。", [needsReview]) : ""].filter(Boolean).join(" ")}
           </Hint>
+          {rulesChanged && <Banner tone="info" role="status" data-course-rules-changed="">{ui("这门课的出题守则在这份草稿审阅之后改过，原来的审阅不再算数：「发布并开始练」会把这些题记为未自动审阅；经审阅的发布会按现在的守则重新审阅。")}</Banner>}
         </>
       )}
       {!draft.editorial && <Banner tone="info" role="status">{ui("这份草稿尚未经过模型审阅。直接发布会保留未审阅标记。")}</Banner>}

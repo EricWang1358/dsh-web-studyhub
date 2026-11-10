@@ -225,5 +225,19 @@
   "准备笔试或面试时，可保存目标岗位方向和岗位说明（JD）；口头模拟与选择题笔试会按这门课的范围和重点出题。": "When preparing for a written test or interview, save a target role and job description (JD); oral mocks and multiple-choice exams draw from this course's scope and focus topics.",
   "输入岗位方向": "Enter target role",
   "岗位说明 / JD": "Job description / JD",
-  "粘贴岗位要求或 JD 要点（可选）": "Paste role requirements or JD highlights (optional)"
+  "粘贴岗位要求或 JD 要点（可选）": "Paste role requirements or JD highlights (optional)",
+  "出题守则": "Generation rules",
+  "出题守则 {0} 条": "{0} generation rules",
+  "{0} 条守则": "{0} rules",
+  "未设置": "Not set",
+  "已经有这条守则": "This rule is already there",
+  "每条最多 {0} 字": "At most {0} characters per rule",
+  "最多 {0} 条，先删掉一条": "At most {0} rules; delete one first",
+  "给这门课出题时，规划、出题和审阅都会照这些守则来，每次出题前的「预览生效要求」里也能看到。每条一句话，最多 {0} 条；改了守则，之前审阅过的草稿原来的审阅就不再算数。": "When questions are made for this course, planning, writing and review follow these rules, and the requirements preview before each run lists them. One sentence each, at most {0}; after a change, the review of drafts reviewed earlier no longer counts.",
+  "第 {0} 条守则": "Rule {0}",
+  "删除第 {0} 条守则": "Delete rule {0}",
+  "还没有守则。练习时在「修题」框或 👎 的标签旁点「设为本课守则」，也会加到这里。": "No rules yet. While practising, “Make it a course rule” under the Improve question box or beside the 👎 tags adds one here too.",
+  "新守则": "New rule",
+  "例如：题干要自带情境和条件，不出只有一句空问的题": "For example: every stem carries its own scenario and conditions; no bare one-line questions",
+  "添加守则": "Add rule"
 }
