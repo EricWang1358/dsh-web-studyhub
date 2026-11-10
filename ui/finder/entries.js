@@ -527,7 +527,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'update', area: 'settings', title: '检查更新', page: 'settings', anchors: ['settings-update'],
     aliases: ['更新', '升级', '版本', '新版本', 'update', 'upgrade', 'version', 'check for updates'],
     path: ['设置', '关于与更新'],
-    what: '看当前版本、已安装版本和最新已知版本，检查更新；有新版本时，侧栏底部也会提示。' }),
+    what: '看当前版本、已安装版本和最新已知版本，检查更新；有新版本时，侧栏底部也会提示。升级后重启 DSH 仍没生效时，侧栏和这里会说明原因，并可以重新安装或改用手动升级。' }),
   feature({ id: 'diagnostics', area: 'settings', title: '复制诊断信息', page: 'settings', anchors: ['settings-diagnostic'],
     aliases: ['诊断信息', '诊断', '报问题', '反馈问题', '报错', '出错', '崩溃', 'diagnostic', 'diagnostics', 'diagnostic info', 'bug report', 'crash', 'error report'],
     path: ['设置', '关于与更新'],

@@ -74,5 +74,17 @@
   "DSH 没能安装新版本，原来的版本保持不变。": "DSH did not install the new version; the current version stays as it was.",
   "升级没有完成。": "The upgrade did not finish.",
   "StudyHub {0} 等待重启": "StudyHub {0} is waiting for a restart",
-  "报问题时点「复制诊断信息」，把文字贴给开发者；点「看看会复制什么」可以先读一遍。里面只有版本、界面语言、页面、出错类型、程序自带的报错短句、出错位置的函数名、任务类型和状态、资料/题组/题目的数量、实验性功能是否开启，以及本次打开期间换页的快慢、卡顿次数和数据更新的耗时（只存在内存里，关掉就没了）；别的报错内容不会复制，只写字数。DSH 版本请自己补上。": "When you report a problem, press Copy diagnostic information and paste the text to the developers; press See what will be copied to read it first. It holds only the version, interface language, page, error type, the program's own short error phrase, the names of the functions where it broke, job kinds and statuses, the number of sources, decks and questions, whether experimental features are on, and a few timings from the time StudyHub has been open (how long switching pages took, how many long tasks over 50 ms ran, how large the library data was and how long it took to apply), kept in memory only and gone when you close it. Any other error text is not copied, only its length. Fill in the DSH version yourself."
+  "报问题时点「复制诊断信息」，把文字贴给开发者；点「看看会复制什么」可以先读一遍。里面只有版本、界面语言、页面、出错类型、程序自带的报错短句、出错位置的函数名、任务类型和状态、资料/题组/题目的数量、实验性功能是否开启，以及本次打开期间换页的快慢、卡顿次数和数据更新的耗时（只存在内存里，关掉就没了）；别的报错内容不会复制，只写字数。DSH 版本请自己补上。": "When you report a problem, press Copy diagnostic information and paste the text to the developers; press See what will be copied to read it first. It holds only the version, interface language, page, error type, the program's own short error phrase, the names of the functions where it broke, job kinds and statuses, the number of sources, decks and questions, whether experimental features are on, and a few timings from the time StudyHub has been open (how long switching pages took, how many long tasks over 50 ms ran, how large the library data was and how long it took to apply), kept in memory only and gone when you close it. Any other error text is not copied, only its length. Fill in the DSH version yourself.",
+  "升级没有生效": "Upgrade did not take effect",
+  "StudyHub {0} 没有生效": "StudyHub {0} did not take effect",
+  "现在运行的是 {0}。{1} 安装过 {2}，之后 DSH 重新启动过，运行的仍是 {0}。": "Version {0} is running now. {2} was installed on {1}, DSH has been started again since, and {0} is still what runs.",
+  "常见原因：DSH 没有完全退出就又打开了（托盘里还留着）；或者这台电脑上有另一份 StudyHub（另一个配置）升了级，这一份没有。": "Common causes: DSH was opened again without being quit completely (it was still in the tray), or another copy of StudyHub on this computer (another profile) was upgraded and this one was not.",
+  "重新安装 {0}": "Reinstall {0}",
+  "还没查到比 {0} 更新的版本。点「检查更新」再查一次，或者按下面的步骤手动安装发布页上的最新版。": "No version newer than {0} is known yet. Press Check for updates to look again, or install the latest version from the release page by hand with the steps below.",
+  "DSH 重启过，运行的仍是 {0}。点开看原因和办法。": "DSH was restarted and {0} is still what runs. Open this for the reasons and what to do.",
+  "StudyHub {0} 没有生效：DSH 重启过，运行的仍是 {1}。": "StudyHub {0} did not take effect: DSH was restarted and {1} is still what runs.",
+  "查看处理办法": "See what to do",
+  "重启后还看到这个提示？先确认已经从托盘退出 DSH；还是不行，可以改用手动升级。": "Still seeing this after a restart? Make sure you quit DSH from the tray icon first; if that does not help, upgrade manually instead.",
+  "重启后还看到这个提示？先确认 DSH 服务已经停止、重新启动过，并刷新了页面；还是不行，可以改用手动升级。": "Still seeing this after a restart? Make sure the DSH service was stopped, started again and the page reloaded; if that does not help, upgrade manually instead.",
+  "查看手动升级步骤": "Show the manual steps"
 }

@@ -241,3 +241,129 @@ test('bilingual release notes render formatted Markdown in the active UI languag
   assert.match(staleZh, /知道了/);
   assert.doesNotMatch(staleZh, /重试升级/);
 });
+
+/* Issue #951: a restart that did not take effect has its own chip, dialog and settings line; a restart still to come explains what restarting means. */
+const INSTALLED_AT = '2026-11-10T08:00:00.000Z';
+const stuckView = (extra = {}, state = {}, current = '4.7.0') => ({
+  ...updateView({ pending: '4.7.1', installedAt: INSTALLED_AT, release: releaseFromGithub(githubRelease('v4.7.1')), ...state }, current, current, Date.parse('2026-11-10T09:00:00Z')),
+  install: { available: true, desktop: true }, ...extra });
+const waitingView = (extra = {}) => ({ ...updateView({ pending: '4.7.1', installedAt: INSTALLED_AT, release: releaseFromGithub(githubRelease('v4.7.1')) }, '4.7.0', '4.7.0', Date.parse('2026-11-10T07:00:00Z')),
+  install: { available: true, desktop: true }, ...extra });
+const noop = { call: async () => ({}), onOpen() {}, onClose() {} };
+
+test('the chip has three states and a failed restart outranks a new-version nudge, a snooze and switched-off checks', () => {
+  assert.equal(chipState(waitingView()), 'restart');
+  assert.equal(chipState(stuckView()), 'stuck');
+  assert.equal(chipState(update()), 'new');
+  for (const quiet of [{}, { snoozed: true }, { autoCheck: false }]) assert.equal(chipState(stuckView(quiet)), 'stuck', JSON.stringify(quiet));
+  assert.equal(chipState(stuckView({ upgradeAvailable: false, newer: false })), 'stuck', 'nothing to install is still a failed restart');
+});
+
+test('the stuck chip says so, in a warning tone, keeps the compact name and uses no title attribute', () => {
+  const zh = render(h(UpdateChip, { update: stuckView(), onOpen() {} }));
+  assert.match(zh, /升级没有生效/);
+  assert.match(zh, /class="update-chip update-chip--stuck"/);
+  assert.match(zh, /<span class="sh-badge[^"]*"[^>]*data-tone="warning"/, 'the chip\'s own badge, a warning tone');
+  assert.match(zh, /DSH 重启过，运行的仍是 4\.7\.0/, 'hover and focus explain it');
+  const compact = render(h(UpdateChip, { update: stuckView(), onOpen() {}, compact: true }));
+  assert.match(compact, /aria-label="升级没有生效"/);
+  assert.doesNotMatch(compact, /update-chip__label/);
+  const en = render(h(UpdateChip, { update: stuckView(), onOpen() {} }), 'en');
+  assert.match(en, /Upgrade did not take effect/);
+  assert.doesNotMatch(en, han);
+  for (const html of [zh, compact, en, render(h(UpdateChip, { update: waitingView(), onOpen() {} })), render(h(UpdateChip, { update: update(), onOpen() {} }))])
+    assert.doesNotMatch(html, /\stitle="/, 'an explanation is a Tooltip, never title=');
+  assert.match(render(h(UpdateChip, { update: waitingView(), onOpen() {} })), /class="update-chip update-chip--restart"/, 'the other states keep their classes');
+});
+
+test('the restart chip explains what restarting means: the same sentence the dialog gives, desktop or service', () => {
+  const desktop = render(h(UpdateChip, { update: waitingView(), onOpen() {} }));
+  assert.match(desktop, /role="tooltip"[^>]*>请完全退出 DSH 桌面版（包括托盘图标）后重新打开，新版本才会生效。</);
+  assert.match(desktop, /aria-describedby="/);
+  const web = render(h(UpdateChip, { update: waitingView({ install: { available: true, desktop: false } }), onOpen() {} }));
+  assert.match(web, /role="tooltip"[^>]*>请重启 DSH 服务（停止后用原来的方式重新启动），再刷新页面，新版本才会生效。</);
+  const en = render(h(UpdateChip, { update: waitingView(), onOpen() {} }), 'en');
+  assert.match(en, /Quit DSH desktop fully \(including the tray icon\)/);
+  assert.doesNotMatch(en, han);
+  const dialog = render(h(UpdateDialog, { ...noop, update: waitingView() }));
+  assert.ok(dialog.includes('请完全退出 DSH 桌面版（包括托盘图标）后重新打开，新版本才会生效。'), 'the dialog says the same words');
+});
+
+test('the dialog of a failed restart: what happened, the usual causes, and a way out', () => {
+  const html = render(h(UpdateDialog, { ...noop, update: stuckView() }));
+  assert.match(html, /StudyHub 4\.7\.1 没有生效/);
+  assert.match(html, /现在运行的是 4\.7\.0。/);
+  assert.match(html, /安装过 4\.7\.1，之后 DSH 重新启动过，运行的仍是 4\.7\.0。/);
+  assert.match(html, /DSH 没有完全退出就又打开了（托盘里还留着）/);
+  assert.match(html, /另一份 StudyHub（另一个配置）升了级，这一份没有/);
+  assert.match(html, /重新安装 4\.7\.1/, 'the one-click flow, offered again');
+  assert.match(html, /改用手动升级/);
+  assert.doesNotMatch(html, /等待重启|稍后提醒|一键升级到|复制安装地址/, 'no waiting page, no snooze, and the manual steps stay behind their button');
+  const en = render(h(UpdateDialog, { ...noop, update: stuckView() }), 'en');
+  assert.match(en, /StudyHub 4\.7\.1 did not take effect/);
+  assert.match(en, /Reinstall 4\.7\.1/);
+  assert.match(en, /Upgrade manually instead/);
+  assert.doesNotMatch(en.replace(/calmer update check|What's new/g, ''), han);
+});
+
+test('the reinstall of a failed restart is the existing confirm flow, and its result is the normal "installed, restart" page', () => {
+  const confirm = render(h(UpdateDialog, { ...noop, update: stuckView(), initialPhase: { phase: 'confirm' } }));
+  assert.match(confirm, /确认升级/);
+  const done = render(h(UpdateDialog, { ...noop, update: stuckView(), initialPhase: { phase: 'installed', version: '4.7.1', restartRequired: true, desktop: true } }));
+  assert.match(done, /StudyHub 4\.7\.1 等待重启/);
+  assert.doesNotMatch(done, /没有生效/);
+});
+
+test('a failed restart with nothing newer to install: 检查更新 and the manual steps from the release page', () => {
+  const none = stuckView({}, { release: releaseFromGithub(githubRelease('v4.7.0')) });
+  assert.equal(none.upgradeAvailable, false);
+  const html = render(h(UpdateDialog, { ...noop, update: none }));
+  assert.match(html, /StudyHub 4\.7\.1 没有生效/);
+  assert.match(html, /还没查到比 4\.7\.0 更新的版本/);
+  assert.match(html, /sh-btn--primary[^>]*>(?:<[^>]+>)*检查更新</);
+  assert.match(html, /复制安装地址/, 'the manual way is always there');
+  assert.ok(html.includes(none.url), 'from the release page, not the package of a version this copy already has');
+  assert.ok(!html.includes(none.assetUrl));
+  assert.doesNotMatch(html, /重新安装|稍后提醒/);
+  const noRelease = stuckView({}, { release: undefined });
+  assert.match(render(h(UpdateDialog, { ...noop, update: noRelease })), /检查更新/);
+  const withoutInstaller = render(h(UpdateDialog, { ...noop, update: stuckView({ install: { available: false } }) }));
+  assert.match(withoutInstaller, /复制安装地址/);
+  assert.doesNotMatch(withoutInstaller, /重新安装/);
+  const en = render(h(UpdateDialog, { ...noop, update: none }), 'en');
+  assert.match(en, /Check for updates/);
+  assert.doesNotMatch(en.replace(/calmer update check|What's new/g, ''), han);
+});
+
+test('the normal "waiting for a restart" page adds one quiet line for a restart that did not really end the old process', () => {
+  const desktop = render(h(UpdateDialog, { ...noop, update: waitingView() }));
+  assert.match(desktop, /重启后还看到这个提示？先确认已经从托盘退出 DSH；还是不行，可以改用手动升级。/);
+  assert.match(desktop, /查看手动升级步骤/);
+  assert.doesNotMatch(desktop, /复制安装地址/, 'the steps open on request');
+  const web = render(h(UpdateDialog, { ...noop, update: waitingView({ install: { available: true, desktop: false } }) }));
+  assert.match(web, /重启后还看到这个提示？先确认 DSH 服务已经停止、重新启动过，并刷新了页面；还是不行，可以改用手动升级。/);
+  const en = render(h(UpdateDialog, { ...noop, update: waitingView() }), 'en');
+  assert.match(en, /Still seeing this after a restart\?/);
+  assert.match(en, /Show the manual steps/);
+  assert.doesNotMatch(en, han);
+  assert.doesNotMatch(render(h(UpdateDialog, { ...noop, update: stuckView() })), /重启后还看到这个提示/, 'the failed-restart dialog does not repeat it');
+});
+
+test('Settings › 关于与更新 says a failed restart in a warning line with the way to the dialog, and keeps one number per fact', () => {
+  const props = { ...noop, update: stuckView() };
+  const html = render(h(UpdateSettings, props));
+  assert.match(html, /sh-inline--warning/);
+  assert.match(html, /StudyHub 4\.7\.1 没有生效：DSH 重启过，运行的仍是 4\.7\.0。/);
+  assert.match(html, /查看处理办法/);
+  assert.match(html, /<dt>当前版本<\/dt><dd>4\.7\.0<\/dd>/);
+  assert.match(html, /<dt>已安装版本<\/dt><dd>4\.7\.0<\/dd>/, 'this copy\'s version; the marker\'s is named in the sentence');
+  assert.match(html, /<dt>最新已知版本<\/dt><dd>4\.7\.1<\/dd>/);
+  assert.doesNotMatch(html, /重启 DSH 后生效|当前版本是正在运行的代码|有新版本|已是最新版本/, 'no second wording of the same fact');
+  const en = render(h(UpdateSettings, props), 'en');
+  assert.match(en, /StudyHub 4\.7\.1 did not take effect: DSH was restarted and 4\.7\.0 is still what runs\./);
+  assert.match(en, /See what to do/);
+  assert.doesNotMatch(en, han);
+  const waiting = render(h(UpdateSettings, { ...noop, update: waitingView() }));
+  assert.match(waiting, /已安装 4\.7\.1，重启 DSH 后生效/, 'a restart still to come reads as before');
+  assert.doesNotMatch(waiting, /没有生效/);
+});
