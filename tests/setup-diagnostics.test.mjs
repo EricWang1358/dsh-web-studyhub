@@ -121,10 +121,33 @@ test('DiagnosticBar copies through the one CopyDiagnosticsButton: text read when
   const button = find(bar, node => node.type === harness.exports.CopyDiagnosticsButton);
   assert.ok(button, 'DiagnosticBar renders CopyDiagnosticsButton');
   assert.equal(button.key, 'a');
-  assert.equal(count, 0, 'the text is not read before the button asks for it');
+  assert.equal(count, 0, 'the bar itself does not read the text: it hands the button a function');
   assert.equal(button.props.describe(), 'lazy-report-1');
   const fromDiagnostic = harness.run(({ DiagnosticBar }) => DiagnosticBar({ diagnostic: () => ({ text: 'the report', input: {} }), resetKey: 'b', children: null }));
   assert.equal(find(fromDiagnostic, node => node.type === harness.exports.CopyDiagnosticsButton).props.describe(), 'the report');
+
+  // The button reads the text only when it is needed: not when it is drawn (twice), but when the fold opens and when copy is pressed.
+  const lazy = await mountCopyHarness();
+  t.after(() => lazy.close());
+  let reads = 0;
+  const describe = () => `report-${++reads}`;
+  const draw = () => lazy.run(({ CopyDiagnosticsButton }) => CopyDiagnosticsButton({ describe }));
+  const textareaOf = tree => find(tree, node => node.type === 'textarea');
+  const foldOf = tree => find(tree, node => typeof node.props?.onToggle === 'function');
+  draw();
+  let shown = draw();
+  assert.equal(reads, 0, 'drawing the button reads nothing');
+  assert.equal(textareaOf(shown), null, 'the closed fold holds no text');
+  foldOf(shown).props.onToggle(true);
+  shown = draw();
+  assert.equal(reads, 1, 'opening the fold reads the text');
+  assert.equal(textareaOf(shown).props.value, 'report-1');
+  foldOf(shown).props.onToggle(false);
+  shown = draw();
+  assert.equal(reads, 1, 'a closed fold reads nothing again');
+  await find(shown, node => typeof node.props?.onClick === 'function').props.onClick();
+  await flush();
+  assert.deepEqual([reads, written], [2, 'report-2'], 'copy reads the text when pressed');
 
   // The button: copies, says so, and when the clipboard refuses, says so (role="status") and opens the text to select by hand.
   const onClickOf = tree => find(tree, node => typeof node.props?.onClick === 'function');
