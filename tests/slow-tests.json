@@ -86,6 +86,7 @@
     "tests/open-in-sidebar.test.mjs",
     "tests/original-bigpage-browser.test.mjs",
     "tests/original-by-path-browser.test.mjs",
+    "tests/page-boundary-browser.test.mjs",
     "tests/page-counts-browser.test.mjs",
     "tests/page-peek-decode.test.mjs",
     "tests/pdf-console-browser.test.mjs",
