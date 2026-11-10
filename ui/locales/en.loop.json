@@ -77,5 +77,9 @@
   "新学 {0} 题": "{0} new started",
   "消除薄弱 {0} 题": "{0} weak cleared",
   "完成待复习 {0} 题": "{0} due reviewed",
-  "整组达标": "All mastered"
+  "整组达标": "All mastered",
+  "考试当天或之前先回来一次": "Back once by the exam day",
+  "记忆间隔：按这次作答，这道题本可以隔这么多天再出现，掌握程度按它算。考前对齐让它在考试当天或更早先回来一次。": "Memory gap: from this answer, the question could have waited this many days, and its mastery counts that gap. Exam alignment brings it back once on the exam day or earlier.",
+  "记忆间隔 {0} 天 → {1} 天": "Memory gap {0}d → {1}d",
+  "首轮记忆间隔 {0} 天": "First memory gap {0}d"
 }
