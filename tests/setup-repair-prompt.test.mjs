@@ -165,6 +165,25 @@ test('#942 N3: home-permissions of a MinerU StudyHub did not install: the diagno
   assert.deepEqual(ui.repairIdsFor('mineru', 'home-permissions', 'other'), ['other-home-perms']);
   assert.deepEqual(ui.repairIdsFor('mineru', 'home-permissions', 'studyhub'), ['home-perms']);
   assert.deepEqual(ui.repairIdsFor('mineru', 'home-permissions'), ['home-perms'], 'no fact: as before');
+  // the repair stops when the refused path is not in that MinerU's own settings folder
+  assert.ok(zh.includes('被拒绝的路径不在这份 MinerU 的配置文件夹（MINERU_HOME，没有的话是用户主目录下的 .mineru）里时，什么都不要改，告诉我它是什么就停下'), zh);
+  assert.ok(en.includes('if the refused path is not inside this MinerU’s settings folder (MINERU_HOME, else .mineru in the user’s home folder), change nothing: tell me what it is and stop'), en);
+});
+
+test('#942 not-writable of a MinerU StudyHub did not install: the refused path is outside its settings folder (Temp, an output folder, a cache), so the chat changes no permission there', () => {
+  const input = { tool: 'mineru', status: 'error (service)', code: 'not-writable', installedBy: 'other',
+    log: "PermissionError: [Errno 13] Permission denied: 'C:\\\\Users\\\\lee\\\\AppData\\\\Local\\\\Temp\\\\mineru\\\\a.tmp'" };
+  assert.deepEqual(ui.repairIdsFor('mineru', 'not-writable', 'other'), ['service'], 'read-only');
+  for (const language of ['zh', 'en']) {
+    const repairs = bullet(input, language, language === 'zh' ? '修复：' : 'Repairs:');
+    assert.doesNotMatch(repairs, /权限不对|恢复成|wrong permissions|inherit|only I, the system/, `${language}: no repair that changes permissions: ${repairs}`);
+    assert.equal(bullet(input, language, language === 'zh' ? '权限：' : 'Permission:'), undefined, `${language}: no permission line`);
+    assert.doesNotMatch(done(input, language), /换回原来的选项|permission back/, `${language}: nothing to switch back`);
+  }
+  assert.equal(ui.needsWrite('mineru', 'not-writable', 'other'), false);
+  const bar = render(h(ui.DiagnosticBar, { diagnostic: () => ({ text: 'report', input }), resetKey: 'a' }, h('button', { 'data-hand-off': 'setup.failed' }, '发给主会话')));
+  assert.doesNotMatch(bar, /sh-diag-actions__hint/, 'no permission hint on the bar');
+  assert.ok(done(input, 'zh').includes('再点「重新启动服务」'), 'the card\'s fix for that state');
 });
 
 test('an antivirus is never reconfigured by the chat: it says where I can restore the files or add an exception', () => {
@@ -220,9 +239,11 @@ test('what to press back: the card\'s check first and its fix only if the error 
   // every MinerU code names what fixFor gives it (from the card's own rules), after the check; for StudyHub's own install and for another MinerU (#942 N3:
   // the card offers another MinerU no 修复权限, so the prompt must not name it either)
   for (const code of Object.keys(ui.FIX_FOR)) for (const origin of ['install', 'service']) for (const ours of [true, false]) {
-    const fix = ui.fixFor(code, { origin, source: 'mainland', ours });
+    // another MinerU's permission failures are always its service's (the card has no install of it): its fix is the service's, whatever the status says
+    const own = !ours && (code === 'home-permissions' || code === 'not-writable') ? 'service' : origin;
+    const fix = ui.fixFor(code, { origin: own, source: 'mainland', ours });
     // the download button opens the address, once it is installed the learner presses 重试; the permission repair of the card is named by origin (#942)
-    const label = fix.id === 'vc-runtime' ? '重试' : fix.id === 'repair-permissions' ? (origin === 'service' ? '修复权限并重启' : '修复权限') : fix.label;
+    const label = fix.id === 'vc-runtime' ? '重试' : fix.id === 'repair-permissions' ? (own === 'service' ? '修复权限并重启' : '修复权限') : fix.label;
     const input = { tool: 'mineru', status: `error (${origin})`, code, source: 'mainland', installedBy: ours ? 'studyhub' : 'other' };
     const text = done(input, 'zh');
     const moveOnly = ui.repairIdsFor('mineru', code, input.installedBy).join() === 'location';
@@ -230,7 +251,9 @@ test('what to press back: the card\'s check first and its fix only if the error 
     const pressed = moveOnly ? '这次点「换位置」' : label === '重新检测' ? '先点「重新检测」' : code === 'home-permissions' ? `这次点「${label}」` : `再点「${label}」`;
     assert.ok(text.includes(pressed), `${code}/${origin}/${ours ? 'ours' : 'other'}: ${label}\n${text}`);
     if (code === 'home-permissions') assert.ok(bullet(input, 'zh', '修复：').includes(`「${label}」`), `${origin}/${ours}: the repair line names the same button`);
-    if (!ours && origin === 'service') assert.doesNotMatch(`${text}\n${bullet(input, 'zh', '修复：')}`, /修复权限/, `${code}: another MinerU is never offered 修复权限`);
+    // another MinerU: never 修复权限 for any code, and never 换位置 for a permission failure, whatever the origin
+    if (!ours) assert.doesNotMatch(`${text}\n${bullet(input, 'zh', '修复：')}`, /修复权限/, `${code}/${origin}: another MinerU is never offered 修复权限`);
+    if (!ours && (code === 'home-permissions' || code === 'not-writable')) assert.doesNotMatch(`${text}\n${bullet(input, 'zh', '修复：')}`, /换位置/, `${code}/${origin}: nor 换位置`);
   }
   // Marker: no 重新检测 on the failed install, 检测并保存 once it is installed and the check failed, its own move button
   assert.ok(done({ tool: 'marker', status: 'failed', code: 'pip-build' }, 'zh').includes('这次点「重试」'));

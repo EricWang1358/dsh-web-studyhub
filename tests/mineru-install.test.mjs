@@ -425,6 +425,16 @@ test('#942 N1: linked files the permission step left alone are counted on the in
   const clean = createMineruInstaller({ ...h2.seams, secureHome: async () => ({ ok: true }) });
   await clean.start({ confirm: true, location: h2.location }); await clean.idle();
   assert.equal(Object.hasOwn(await clean.status(), 'homeLinked'), false);
+  // The same run: the first permission step left linked files alone, a later one (package, models and enable each run it) had none left: the count is gone
+  // from the state and the view.
+  const h3 = await installHarness(t);
+  let calls = 0;
+  const later = createMineruInstaller({ ...h3.seams, secureHome: async () => (++calls === 1 ? { ok: false, linked: 2, error: 'stand-in' } : { ok: true }) });
+  await later.start({ confirm: true, location: h3.location }); await later.idle();
+  assert.ok(calls >= 2, 'the step ran more than once in the run');
+  assert.equal(Object.hasOwn(await later.status(), 'homeLinked'), false, 'the view');
+  const { readFile: readText } = await import('node:fs/promises');
+  assert.doesNotMatch(await readText(join(h3.dir, 'home', 'study', 'mineru-install.json'), 'utf8'), /homeLinked/, 'the saved state');
 });
 
 test('#942 M2: during an install, a home path printed beside a denial elsewhere is not a settings-folder failure; a full disk is still no-space', async () => {

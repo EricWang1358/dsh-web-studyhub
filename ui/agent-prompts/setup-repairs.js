@@ -13,7 +13,7 @@ export const SETUP_REPAIRS = Object.freeze({
   perms: '配置文件夹的权限：只查「情况」里 folder 这个安装位置之内、这个工具自己的文件夹和里面的文件（MinerU 是它的配置文件夹），没有任何账户能读、或权限被改乱的文件，恢复成继承所在文件夹的权限；不要动安装位置以外的任何东西（包括用户主目录里的其他文件），不要放宽任何文件夹的权限；报错里被拒绝的路径如果在安装位置之外，不要改，告诉我它是什么就停下',
   'home-perms': '配置文件夹里的文件权限不对：先让我点卡片上的「{6}」（它会把配置文件夹里的文件恢复成继承所在文件夹的权限）；只有这个按钮已经点过、卡片说还是没修好，才由你动手：只限安装位置之内这个配置文件夹和里面的文件，恢复成继承所在文件夹的权限，不要动安装位置以外的任何东西（包括用户主目录里的其他文件），不要放宽任何文件夹的权限，被拒绝的路径在安装位置之外就停下，告诉我它是什么',
   // A MinerU StudyHub did not install (#942 N3): the card has no permission repair for it (StudyHub never changes a folder it did not create) and no install location.
-  'other-home-perms': '这份 MinerU 不是 StudyHub 装的，它的配置文件夹里的文件权限不对：先让我点卡片上的「{6}」再试一次；还是不行才由你动手：只限报错里被拒绝的那个路径所在的、这份 MinerU 自己的配置文件夹和里面的文件，让我自己能读写、并且只有我、系统和管理员能用；改权限之前先问我；不要动这份 MinerU 的其他任何东西（程序、模型、它的安装文件夹），不要动配置文件夹以外的任何东西，不要放宽任何文件夹的权限；报错里没有写出被拒绝的路径时什么都不要改，告诉我就停下',
+  'other-home-perms': '这份 MinerU 不是 StudyHub 装的，它的配置文件夹里的文件权限不对：先让我点卡片上的「{6}」再试一次；还是不行才由你动手：只限报错里被拒绝的那个路径所在的、这份 MinerU 自己的配置文件夹和里面的文件，让我自己能读写、并且只有我、系统和管理员能用；改权限之前先问我；不要动这份 MinerU 的其他任何东西（程序、模型、它的安装文件夹），不要动配置文件夹以外的任何东西，不要放宽任何文件夹的权限；报错里没有写出被拒绝的路径、或被拒绝的路径不在这份 MinerU 的配置文件夹（MINERU_HOME，没有的话是用户主目录下的 .mineru）里时，什么都不要改，告诉我它是什么就停下',
   location: '位置本身不能写、路径太长或没有足够空间：在剩余空间够、路径尽量短、我有写入权限的磁盘上新建一个空文件夹，告诉我在「{4}」里选它',
   port: '端口被占用：找出占用端口的进程，告诉我它是什么',
   'in-use': '文件夹被别的程序占用：找出占用它的进程，告诉我它是什么',
@@ -81,8 +81,9 @@ export const TOOL_REPAIRS = Object.freeze({
    through MINERU_BIN or the PATH has no install location and gets no 修复权限 (ui/mineru-install-flow.js fixFor), so its permission repairs are scoped to its own
    settings folder instead. Every other code keeps the table above. */
 export const OTHER_INSTALL_REPAIRS = Object.freeze({
-  // A start that failed for another reason only reads: the scoped repair of the install location ('perms') has no location to apply to here.
-  mineru: { 'home-permissions': ['other-home-perms'], 'not-writable': ['other-home-perms'], 'service-failed': ['service'], 'server-start-failed': ['service'] },
+  // not-writable is a denied path OUTSIDE its settings folder (lib/mineru-local.js startFailureCode): Temp, an output folder, a cache, none of them its own to
+  // change, so it only reads; so does a start that failed for another reason (the scoped repair of the install location, 'perms', has no location here).
+  mineru: { 'home-permissions': ['other-home-perms'], 'not-writable': ['service'], 'service-failed': ['service'], 'server-start-failed': ['service'] },
 });
 
 const codesOf = tool => (Object.hasOwn(TOOL_REPAIRS, tool) ? TOOL_REPAIRS[tool] : TOOL_REPAIRS.mineru);

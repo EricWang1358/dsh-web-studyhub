@@ -99,9 +99,11 @@ function controlsOf(tool, spec, { code, status, external, source, attempts, inst
     return { fix, check: fix === spec.move ? spec.repair : '' };
   }
   const ours = installedBy !== 'other';
+  // Another MinerU's permission failures are always its service's (the card has no install of it to repair or move): never 修复权限 or 换位置 for it.
+  const origin = !ours && (code === 'home-permissions' || code === 'not-writable') ? 'service' : originOf(status);
   // home-permissions of StudyHub's own install is named here too, so this fits whether or not fixFor knows the fix id
   const id = code === 'home-permissions' && ours ? 'repair-permissions'
-    : fixFor(code, { origin: originOf(status), external: !!external, source, attempts: Number(attempts) || 1, ours }).id;
+    : fixFor(code, { origin, external: !!external, source, attempts: Number(attempts) || 1, ours }).id;
   return { fix: id === 'repair-permissions' ? permissionButton(status) : buttonOf(id), check: '重新检测' };
 }
 
