@@ -14,6 +14,8 @@ import { HandOff } from './hand-off/HandOff.jsx';
 import { useLiveEffect } from './use-async.js';
 import { joinMeta } from './format.js';
 import { ActiveSwitch, isParked } from './CourseActive.jsx';
+import { ExamAlignmentPointer } from './ExamAlignmentPointer.jsx';
+import { alignmentReceipt } from './exam-alignment-words.js';
 import { daysUntilExam, examProfile, EXAM_SETTING_LIMITS } from '../lib/courses.js';
 import { courseNameKey, findDuplicateCourses, groupCourseNames, rankCourses, similarCourses } from './course-names.js';
 import css from './course-settings.css';
@@ -307,8 +309,10 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
     catch (caught) { setError(errorMessage(caught)); }
     finally { setWorking(false); }
   };
-  const save = () => run('course.save', payloadFromDraft(course, draft), () => {
-    toast.success(uiFormat('已保存「{0}」的课程信息', [course.name]));
+  const save = () => run('course.save', payloadFromDraft(course, draft), result => {
+    // 考前对齐 (#882): a changed exam date may have moved this course's questions; the receipt says how many.
+    const moved = alignmentReceipt(result?.alignment);
+    toast.success([uiFormat('已保存「{0}」的课程信息', [course.name]), moved].filter(Boolean).join(ui('；')));
     onClose?.('saved');
   });
   const rename = () => run('course.rename', { id: course.id, name: name.trim() }, result => {
@@ -337,6 +341,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
       <section className="course-settings__block course-settings__first" aria-label={ui('考试日期')}>
         <Field label={ui('考试日期')} width="full" hint={ui('填了就会在首页倒数；其余都可以不填。')}>
           <TextInput type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></Field>
+        <ExamAlignmentPointer course={course.name} onLeave={() => onClose?.('dismiss')} />
       </section>
 
       {/* 学法 (#775): every course has one, the default package until it is changed. */}

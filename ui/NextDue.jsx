@@ -51,10 +51,13 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
   const selfReported = !!(feedback.selfReported || feedback.assessment === 'self-report');
   const hasAfterDays = Number.isFinite(meta.afterDays) && meta.afterDays > 0;
   const beforeDays = Number.isFinite(meta.beforeDays) ? meta.beforeDays : 0;
+  // 考前对齐 brought the question back before the exam: the lead line says when it really comes back, so the gap here is the memory
+  // gap (what mastery reads), named as such: one fact, one number.
+  const aligned = !!meta.examAligned;
   const gapChip = hasAfterDays
     ? (beforeDays > 0 && meta.afterDays !== beforeDays
-      ? uiFormat('间隔 {0} 天 → {1} 天', [beforeDays, meta.afterDays])
-      : (!beforeDays && (feedback.correct || selfReported) ? uiFormat('首轮间隔 {0} 天', [meta.afterDays]) : ''))
+      ? uiFormat(aligned ? '记忆间隔 {0} 天 → {1} 天' : '间隔 {0} 天 → {1} 天', [beforeDays, meta.afterDays])
+      : (!beforeDays && (feedback.correct || selfReported) ? uiFormat(aligned ? '首轮记忆间隔 {0} 天' : '首轮间隔 {0} 天', [meta.afterDays]) : ''))
     : '';
   const lit = stabilitySteps(meta.stability);
   const credited = Number.isInteger(feedback.credited) && feedback.credited > 0 ? feedback.credited : 0;
@@ -100,9 +103,10 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
             )}
           </div>
           <p className="muted small next-due__explain">
-            {ui('复习间隔：这道题隔多少天再出现。答对会拉长，答错会缩短。')}
+            {aligned
+              ? ui('记忆间隔：按这次作答，这道题本可以隔这么多天再出现，掌握程度按它算。考前对齐让它在考试当天或更早先回来一次。')
+              : ui('复习间隔：这道题隔多少天再出现。答对会拉长，答错会缩短。')}
             {lit > 0 && <>{' '}{ui('稳定度：系统估计你能把这道题记住多久，越稳，下次隔得越久。')}</>}
-            {meta.examAligned && <>{' '}{ui('考前对齐：按这个间隔它会排到考试之后，所以提前到考试当天或更早回来；掌握程度仍按这个间隔算。')}</>}
           </p>
         </Disclosure>
       )}

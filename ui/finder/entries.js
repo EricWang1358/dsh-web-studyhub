@@ -484,7 +484,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'exam-alignment', area: 'settings', title: '考前对齐', page: 'settings', anchors: ['settings-exam-alignment', 'settings-data'],
     aliases: ['考试前复习', '考前复习', '考试日', '复习排到考试之后', '最长间隔', '复习日期', 'exam alignment', 'exam date', 'reviews before the exam', 'due after the exam'],
     path: ['设置', '导入、计划与备份', '间隔复习 · FSRS-6', '考前对齐'],
-    what: '给课程填了考试日期后，这门课每次作答的下次复习不晚于考试日，已经排到考试之后的题会分散提前到考试前、最容易忘的先回来；只改复习日期，不改记忆估计和掌握程度。考试当天作答的题只能排到考试之后；考试过后、删掉考试日期或关掉开关，都恢复原来的日期。开关旁写着打开或关掉后未来 14 天每天大约多几道、少几道。只有课程有将来的考试日期时才显示，默认打开。' }),
+    what: '给课程填了考试日期后，这门课每次作答的下次复习不晚于考试日（当天 0 点起出现）；保存考试日期时，这门课已经排到考试之后的题会分散提前到考试前、最容易忘的先回来，这个版本之前填的考试日期要在开关旁点「现在对齐」（课程设置的考试日期下会写还有几道题在等）。只改复习日期，不改记忆估计和掌握程度。考试当天作答的题只能排到考试之后；删掉考试日期或关掉开关，恢复原来的日期。考试日过后，新的作答照常安排；提前了还没作答的题仍然到期，直到作答，或在这里点「恢复原来的日期」。开关旁写着打开或关掉后未来 14 天每天大约多几道、少几道。只有课程有将来的考试日期时才显示开关，默认打开。' }),
   feature({ id: 'update', area: 'settings', title: '检查更新', page: 'settings', anchors: ['settings-update'],
     aliases: ['更新', '升级', '版本', '新版本', 'update', 'upgrade', 'version', 'check for updates'],
     path: ['设置', '关于与更新'],

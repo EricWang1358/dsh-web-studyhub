@@ -77,5 +77,7 @@
   "完成待复习 {0} 题": "{0} due reviewed",
   "整组达标": "All mastered",
   "考试前先回来一次": "Back once before the exam",
-  "考前对齐：按这个间隔它会排到考试之后，所以提前到考试当天或更早回来；掌握程度仍按这个间隔算。": "Exam alignment: this interval would put it after the exam, so it comes back on the exam day or earlier; its mastery still counts the interval."
+  "记忆间隔：按这次作答，这道题本可以隔这么多天再出现，掌握程度按它算。考前对齐让它在考试当天或更早先回来一次。": "Memory gap: from this answer, the question could have waited this many days, and its mastery counts that gap. Exam alignment brings it back once on the exam day or earlier.",
+  "记忆间隔 {0} 天 → {1} 天": "Memory gap {0}d → {1}d",
+  "首轮记忆间隔 {0} 天": "First memory gap {0}d"
 }
