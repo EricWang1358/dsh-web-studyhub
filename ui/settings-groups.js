@@ -48,7 +48,7 @@ export const SETTINGS_CATEGORIES = Object.freeze([
   category({ id: 'profile', group: 'once', title: '学习画像与导览', anchors: ['settings-profile', 'settings-sample'], purpose: '载入或移除示例课程、重新看功能导览，也管理陪学的学习画像' }, () => import('./settings/ProfilePane.jsx')),
   category({ id: 'guidance', group: 'once', title: '引导', anchors: ['settings-guidance'], purpose: '各处提示和引导什么时候出现，以及 AI 带学的默认设置' }, () => import('./settings/GuidancePane.jsx')),
   category({ id: 'data', group: 'once', title: '导入、计划与备份', anchors: ['settings-data', 'settings-exam-alignment', 'settings-backup', 'settings-legacy-import'], purpose: '从旧学习库导入、间隔复习（FSRS-6）的参数，以及整个学习库的备份与恢复' }, () => import('./settings/DataPane.jsx')),
-  category({ id: 'update', group: 'once', title: '关于与更新', anchors: ['settings-update'], purpose: '看当前版本和最新已知版本，检查更新；有新版本时在这里升级' }, () => import('./settings/UpdatePane.jsx')),
+  category({ id: 'update', group: 'once', title: '关于与更新', anchors: ['settings-update', 'settings-diagnostic'], purpose: '看当前版本和最新已知版本，检查更新；有新版本时在这里升级' }, () => import('./settings/UpdatePane.jsx')),
   category({ id: 'usage', group: 'advanced', title: '使用频率记录', anchors: ['settings-usage'], needs: 'system', purpose: '只在这台电脑上记你用了哪些功能、各用了几次；默认关闭，可以随时查看、导出、暂停和删除' }, () => import('./settings/UsagePane.jsx')),
   category({ id: 'experimental', group: 'advanced', title: '实验性功能', anchors: ['settings-experimental', 'settings-jev'], needs: 'system', purpose: '显示实验性功能的总开关；默认关闭，打开后才出现还在试验的功能' }, () => import('./settings/ExperimentalPane.jsx')),
 ]);
