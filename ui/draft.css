@@ -57,7 +57,7 @@
     .draft-card__prompt .draft-card__similar {
       margin-inline-end: var(--space-2);
       color: var(--warn-text);
-      font-weight: 500;
+      font-weight: var(--fw-medium);
     }
     .draft-card[open] > .draft-card__row .draft-card__similar {
       display: none;
