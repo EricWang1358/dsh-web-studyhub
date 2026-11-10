@@ -15,7 +15,7 @@ import { HandOff } from './hand-off/HandOff.jsx';
 import { leechLimits } from '../lib/leech.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { modelReadiness } from './generation-status.js';
-import { FILTER_MIN, NO_FILTER, RECS_PREVIEW, STATUS_KINDS, VARIANT_BATCH_CAP, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, leechCount, leechWords, readGroupBy, readOpenGroups, reasonText, retrainOptions,
+import { FILTER_MIN, NO_FILTER, PRACTICE_SCOPE_CAP, RECS_PREVIEW, STATUS_KINDS, VARIANT_BATCH_CAP, capPracticeScope, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, leechCount, leechWords, practiceCappedText, readGroupBy, readOpenGroups, reasonText, retrainOptions,
   sameVariantState, saveGroupBy, rescueCall, rescueGate, rescueNote, takeArrival, undoPauseCall, readSignature, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
 import { peekQuery, refreshQuery, setQueryData, useHostQuery } from './host-query.js';
@@ -347,7 +347,7 @@ export function WeaknessBar({ groups = [], onPick }) {
 export function WrongBookView({
   data, course, onCourse, showInactive, onShowInactive, items, counts, view = "weak", onView, viewCounts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
   recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings,
-  onLibrary, onCreate, onSources, onRescue, arrival, openKey, initial = {}, filterMin = FILTER_MIN,
+  onLibrary, onCreate, onSources, onRescue, onNotify, arrival, openKey, initial = {}, filterMin = FILTER_MIN,
 }) {
   const { busy } = useStudy();
   useInjectCss(css, "study-views");
@@ -453,12 +453,27 @@ export function WrongBookView({
     [option.label, option.value === "variants" && coach?.preparing ? ui("变式正在生成") : option.reason]));
   if (options.some((option) => option.value === "variants" && option.disabled) && canGenerate && !coach?.preparing) unavailable.push(ui("先为错题生成变式，写好后就能选。"));
   const unavailableTip = unavailable.length ? unavailable.map((line, index) => <React.Fragment key={index}>{index > 0 && <br />}{line}</React.Fragment>) : null;
+  const practiceScope = (refs, { group = false } = {}) => {
+    const { scope, total: count, capped } = capPracticeScope(refs);
+    if (capped) {
+      const note = practiceCappedText(count, { group });
+      if (onNotify) onNotify(note);
+      else setMessage({ tone: "info", text: note });
+    }
+    onPractice(scope);
+  };
   const startRetrain = () => {
     const mistakes = rows.map(refOf);
-    if (picked === "similar") onPractice([...mistakes, ...recItems.map(refOf)]);
-    else if (picked === "variants" && onPracticePrepared)
-      onPracticePrepared({ scope: mistakes, originCardIds: [...new Set(readyHere.map((variant) => variant.originCardId))] });
-    else onPractice(mistakes);
+    if (picked === "similar") practiceScope([...mistakes, ...recItems.map(refOf)]);
+    else if (picked === "variants" && onPracticePrepared) {
+      const { scope, total: count, capped } = capPracticeScope(mistakes);
+      if (capped) {
+        const note = practiceCappedText(count, { group: false });
+        if (onNotify) onNotify(note);
+        else setMessage({ tone: "info", text: note });
+      }
+      onPracticePrepared({ scope, originCardIds: [...new Set(readyHere.map((variant) => variant.originCardId))] });
+    } else practiceScope(mistakes);
   };
 
   async function run(cards, consent) {
@@ -620,8 +635,8 @@ export function WrongBookView({
             </Button>
             {/* The start takes the whole page, whatever the filter shows; with a filter on, what is shown has its own, quieter button. */}
             {filteredSubset && (
-              <Tooltip layer content={ui("只练下面筛选出来的错题")}>
-                <Button className="wb-retrain__btn" variant="secondary" icon="arrow-right" lock={busy || loading} onClick={() => onPractice(shown.map(refOf))}>
+              <Tooltip layer content={shown.length > PRACTICE_SCOPE_CAP ? practiceCappedText(shown.length, { group: false }) : ui("只练下面筛选出来的错题")}>
+                <Button className="wb-retrain__btn" variant="secondary" icon="arrow-right" lock={busy || loading} onClick={() => practiceScope(shown.map(refOf))}>
                   {uiFormat("练筛选的 {0} 道", [shown.length])}
                 </Button>
               </Tooltip>
@@ -805,8 +820,15 @@ export function WrongBookView({
               {/* With one group these would say what the page's own buttons already say: the start, the filter and the batch. */}
               {!oneGroup && (
                 <div className="wb-group-actions">
-                  <Button variant="quiet" size="sm" icon="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
-                    onClick={() => onPractice(group.rows.map(refOf))}>{ui("练这一组")}</Button>
+                  {group.rows.length > PRACTICE_SCOPE_CAP ? (
+                    <Tooltip layer content={practiceCappedText(group.rows.length, { group: true })}>
+                      <Button variant="quiet" size="sm" icon="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
+                        onClick={() => practiceScope(group.rows.map(refOf), { group: true })}>{ui("练这一组")}</Button>
+                    </Tooltip>
+                  ) : (
+                    <Button variant="quiet" size="sm" icon="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
+                      onClick={() => practiceScope(group.rows.map(refOf), { group: true })}>{ui("练这一组")}</Button>
+                  )}
                   {showBar && group.deckIds.length === 1 && applied.deck !== group.deckIds[0] && (
                     <Tooltip layer content={tip(ui('只显示这个题组里的错题。'), ui('点「清除筛选」可以回到全部。'))}>
                       <Button variant="quiet" size="sm" icon="filter" onClick={() => onlyThisDeck(group)}>{ui("只看这个题组")}</Button>
@@ -1063,6 +1085,6 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
       page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
       recs={recs?.key === key ? recs : null} recsLoading={view === "weak" && !!items?.length && recs?.key !== key} coach={coach} details={details} onLoadDetail={loadDetail}
       onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings} onSettings={openSettings}
-      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onRescue={rescue} arrival={arrived ? arrival : null} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
+      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onRescue={rescue} onNotify={(text) => toast.info(text)} arrival={arrived ? arrival : null} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
   );
 }
