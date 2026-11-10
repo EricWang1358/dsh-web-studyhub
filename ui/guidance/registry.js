@@ -11,6 +11,7 @@ import { BOOK_BACKUP_PREFIX } from '../study-map/BookBackupHint.jsx';
 import { JEV_GUIDE_KEY } from '../jev-flow.js';
 import { NAV_REORDER_HINT_ID, NAV_REORDER_HINT_KEY } from '../nav-reorder-hint.js';
 import { NEXT_CARD_PREFIX } from '../study-map/next-dismiss.js';
+import { PRACTICE_TIP, PRACTICE_TIPS_KEY } from './practice-tips.js';
 
 /*
  * The guidance registry (3.7 guidance, step 0): every tip, card, tour and nudge that remembers "seen" or "put off" in the browser, in one list, so
@@ -38,7 +39,8 @@ import { NEXT_CARD_PREFIX } from '../study-map/next-dismiss.js';
  *                'list'    one id (`item`) inside the JSON list stored under `key` (the reader's hints share one list)
  *   dismiss    'forever' (closed once, gone) | 'per-session' (back in a new tab) | 'until-condition' (back when what it is about changes)
  *   proactive  true when it appears without being asked for: the master switch and the item's own switch of Settings › 引导 apply to it, and the
- *              daily budget is for such items. Not proactive, and never hidden by the switch: the first-run line, the model-setup gate, the help of
+ *              daily budget is for the ones that ask it (claimProactiveTip); the three tips of the practice page (ui/guidance/practice-tips.js) are
+ *              proactive but never go through the budget: they come after an answer, once each, and spend nothing of the day. Not proactive, and never hidden by the switch: the first-run line, the model-setup gate, the help of
  *              an error or an empty page, the course-setup checklist and its one 「全部完成」 confirmation (a status, not a tip).
  *   needs      (optional) 'experimental': listed only while 显示实验性功能 is on and the host has the system component (guidanceItemsFor).
  *   until      (optional) 'own-deck': it can never appear again once the library has a deck of its own (canComeBack).
@@ -57,6 +59,11 @@ export const GUIDANCE_ITEMS = Object.freeze([
   { id: 'setup.done', kind: 'card', where: '学习库首页 · 课程准备', title: '课程准备「全部完成」', trigger: '一门课的准备步骤都做完时，说一次就收起。', again: '这门课的准备都做完后，下次打开学习库首页时', memory: local(SETUP_DONE_PREFIX, 'prefix'), dismiss: 'forever', proactive: false },
   { id: hintItem(READER_HINTS.page), kind: 'tip', where: '阅读 · 原始 PDF', title: '提问的是哪一页', trigger: '第一次在原始 PDF 旁提问时，说明问的是哪一页、怎么换页。', again: '下次在原始 PDF 旁提问时', memory: local(HINTS_KEY, 'list', READER_HINTS.page), dismiss: 'forever', proactive: true },
   { id: hintItem(READER_HINTS.presets), kind: 'tip', where: '阅读 · 原始 PDF', title: '预设问题和发给主会话', trigger: '第一次看到预设问题时，说明点一下就提问，图表或扫描页可以发给主会话。', again: '下次在原始 PDF 旁看到预设问题时', memory: local(HINTS_KEY, 'list', READER_HINTS.presets), dismiss: 'forever', proactive: true },
+  // The three first-use tips under a practice question (#948): each on a control that is already there, after the learner acted, once. Proactive (the switches apply), but not the daily
+  // budget's (ui/guidance/practice-tips.js says why); the rule that picks one is practiceTipFor, the memory is one list like the reader's hints.
+  { id: PRACTICE_TIP.help, kind: 'tip', where: '练习', title: '答错后提示「帮我弄懂」', trigger: '第一次答错一道题（闪卡：自评没掌握）、看到解析时，在「帮我弄懂」旁提示：讲解会直接出现在这道题下面。', again: '下次答错一道题时', memory: local(PRACTICE_TIPS_KEY, 'list', 'help-first'), dismiss: 'forever', proactive: true },
+  { id: PRACTICE_TIP.fix, kind: 'tip', where: '练习', title: '标记「这题有问题」后提示「修题」', trigger: '第一次标记「这题有问题」时，在「修题」旁提示：助教直接改这张卡，改完可以在信箱里一步撤销。', again: '下次标记「这题有问题」时', memory: local(PRACTICE_TIPS_KEY, 'list', 'fix-first'), dismiss: 'forever', proactive: true },
+  { id: PRACTICE_TIP.prereq, kind: 'tip', where: '练习', title: '看到讲解后提示「出成前置题」', trigger: '第一次在题目下看到讲解（帮我弄懂或追问的回答）时，在讲解下面的「出成前置题」旁提示它能做什么。', again: '下次在题目下看到讲解时', memory: local(PRACTICE_TIPS_KEY, 'list', 'prereq-first'), dismiss: 'forever', proactive: true },
   { id: 'reader.original-notice', kind: 'card', where: '阅读页', title: '「补全原文件」的说明', trigger: '打开只保存了文字的资料时，说明可以补上原文件；关掉后缩成一行。', again: '下次打开只保存了文字的资料时', memory: local(NOTICE_KEY), dismiss: 'forever', proactive: true },
   { id: 'library.topic-groups', kind: 'nudge', where: '学习库首页', title: '主题还没归入主题组', trigger: '主题多、还没归入主题组时提醒；点「稍后」后，等未归组的主题有变化再提醒。', again: '还有主题没归入主题组时，下次打开学习库首页时', memory: local(TOPIC_GROUP_LATER_PREFIX, 'prefix'), dismiss: 'until-condition', proactive: true },
   // Not proactive: a warning about losing text, not a tip; 3.5 以下 cannot be stopped from here (#487), so the tips' switches do not turn it off. 再显示一次 here brings it back.

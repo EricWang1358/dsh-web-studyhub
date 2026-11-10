@@ -42,6 +42,7 @@ const SEEN = {
   'study-setup-later:/lib:Cloud': JSON.stringify(['goal']),
   'study-setup-done:/lib:Cloud': '1',
   'study-reader-hints': JSON.stringify(['pdf-page', 'page-presets']),
+  'study-practice-tips': JSON.stringify(['help-first', 'fix-first', 'prereq-first']),
   'study-original-notice': JSON.stringify(['doc-1']),
   'study-topic-group-later:/lib': '3:12',
   'study-archify-card:/lib': JSON.stringify('later'),
@@ -60,7 +61,7 @@ const UNRELATED = {
 };
 
 test('every entry is well formed, ids are unique, kinds are tip/card/tour/nudge, and the tour resume point is not an entry', () => {
-  assert.equal(GUIDANCE_ITEMS.length, 13, 'the 「从这里开始」 dots left with #655: a new learner is led by the home first-run line, not by dots');
+  assert.equal(GUIDANCE_ITEMS.length, 16, 'the 「从这里开始」 dots left with #655: a new learner is led by the home first-run line, not by dots');
   for (const item of GUIDANCE_ITEMS) assert.deepEqual(entryProblems(item), [], item.id);
   const ids = GUIDANCE_ITEMS.map(item => item.id);
   assert.equal(new Set(ids).size, ids.length, 'ids are unique');
@@ -69,7 +70,7 @@ test('every entry is well formed, ids are unique, kinds are tip/card/tour/nudge,
   assert.ok(entryProblems({ id: 'x', kind: 'popup', dismiss: 'never', proactive: 'yes', memory: { store: 'cookie' } }).length > 3, 'a bad entry is caught');
   assert.equal(guidanceItem('reader.pdf-page').memory.item, 'pdf-page');
   assert.deepEqual(GUIDANCE_ITEMS.filter(item => item.proactive).map(item => item.id).sort(),
-    ['book.moves', 'library.topic-groups', 'reader.original-notice', 'reader.page-presets', 'reader.pdf-page', 'skeleton.archify'],
+    ['book.moves', 'library.topic-groups', 'practice.fix-first', 'practice.help-first', 'practice.prereq-first', 'reader.original-notice', 'reader.page-presets', 'reader.pdf-page', 'skeleton.archify'],
     'what appears by itself (the master switch hint names exactly these; the setup "all done" note is a status, not a tip)');
 });
 

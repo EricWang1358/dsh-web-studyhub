@@ -12,6 +12,8 @@ import { asksWhatTheSourceSays, SOURCE_VOICE_FIX } from "../../lib/question-voic
 import ChoiceFeedback from "../ChoiceFeedback.jsx";
 import { fixedOptionLabel, optionMark } from "../option-label.js";
 import ThumbFeedback from "../ThumbFeedback.jsx";
+import PracticeTip from "./PracticeTip.jsx";
+import { usePracticeTip } from "./use-practice-tip.js";
 import { reviewEntryKey } from "../async.js";
 import ModelErrorNote from "../ModelErrorNote.jsx";
 import TeachingStatus from "./TeachingStatus.jsx";
@@ -104,7 +106,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   }, [act, run?.card?.focus, run?.card?.id, run?.deckId, session]);
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
-  const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader } = context;
+  const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader, tourRunning } = context;
   const contextReturnLabel = inHeader ? '' : contextLabel;
   const assistTasks = data?.assist;
   // 自动加入复习全书 (settings.book.qaToBook): what was just chosen shows at once, until the library says the same.
@@ -144,6 +146,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const thumbsRef = React.useRef(null);
   const [thumbVote, setThumbVote] = React.useState(null);
   const [assistText, setAssistText] = React.useState("");
+  // The three first-use tips under the question (#948): which one shows, if any, is ui/guidance/practice-tips.js; it says nothing before the learner has acted.
+  const practiceTip = usePracticeTip({ run, assistMode, tourRunning: !!tourRunning, votedDown: thumbVote === "down", answerShown: !!run.feedback && (run.solution?.followups?.length ?? 0) > 0 });
   const [helpChoices, setHelpChoices] = React.useState([]);
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
   // 我的常用语句: the learner's own chips of the 修题 box (settings.practice.fixPhrases).
@@ -541,6 +545,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               onVote={setThumbVote} onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} courseRules={courseRules} />
           )}
         />
+        {practiceTip.tip && <PracticeTip id={practiceTip.tip} onClose={practiceTip.close} onShown={practiceTip.onShown} />}
         {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
         {/* A stem that asks what the source says tests memory of a document's wording, not the concept: say so and offer the fix, so the learner never has to find the words. */}
         {!assistMode && !runningTask && run.mode !== "exam" && asksWhatTheSourceSays(run.card?.prompt) && (
@@ -584,7 +589,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 <FixPhraseChips phrases={fixPhrases.phrases} onPick={setAssistText} onRemove={fixPhrases.remove} />
               </>}
               <label className="assist-form__field">
-                {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : assistMode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : ui("这道题哪里不好？后台助教会直接改这张卡，可一步撤销")}
+                {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : assistMode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : ui("这道题哪里不好？后台助教会直接改这张卡，改完可在信箱里一步撤销")}
                 <textarea
                   className="assist-form__input"
                   autoFocus
@@ -603,7 +608,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                   disabled={!assistText.trim() && !(assistMode === "ask" && helpChoices.length)}>{ui("提交到后台")}</Button>
                 <Button size="sm" className="assist-actions__btn" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
               </div>
-              {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教；完成结果进信箱，做题和主会话可继续。")}</p>}
+              {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教。讲解会出现在这道题下面的问答里，完成时信箱会提醒你；做题和主会话可以继续。")}</p>}
             </form>
           )}
           {runningTask && (
