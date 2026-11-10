@@ -57,7 +57,7 @@ export const LOCAL_STATUS = Object.freeze({
   error: { badge: () => ui('出错'), tone: 'error', sentence: status => (status?.error?.message ? uiMessage(status.error.message) : ui('安装没有完成。')) },
 });
 
-const RELOCATE = ['no-space', 'not-writable', 'folder-in-use', 'bad-location'];
+const RELOCATE = ['no-space', 'not-writable', 'folder-in-use', 'bad-location', 'path-too-long'];
 /** The one fix of a failure: { id, label, icon, tip? }. */
 export function localFix(code) {
   if (PAUSED.includes(code)) return { id: 'continue', label: ui('继续安装'), icon: 'play' };

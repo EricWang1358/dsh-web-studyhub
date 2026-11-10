@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { LIVE_LOCAL, WHISPER_ENGINE, WHISPER_TURBO_FILES, createLiveLocalInstaller, effectiveLiveLocal, installSizes, liveLocalInstallStatePath, liveLocalLayout } from '../lib/live-local-install.js';
+import { LIVE_LOCAL, WHISPER_ENGINE, WHISPER_TURBO_FILES, checkEngine, createLiveLocalInstaller, effectiveLiveLocal, installSizes, liveLocalInstallStatePath, liveLocalLayout } from '../lib/live-local-install.js';
 import { extractPackage } from '../lib/npm-tarball.js';
 import { localizeAppMessage } from '../lib/application-messages.js';
 import { LIVE_LOCAL_JOB_TEXT, LIVE_LOCAL_MESSAGES, LIVE_LOCAL_STAGE_NAMES, LIVE_PROVIDER_TEXT } from '../lib/live-local-install-text.js';
@@ -213,6 +213,19 @@ test('an engine that cannot load fails the check: not installed, and the reason 
   const vc = await harness(t, { checkEngine: async () => { throw new Error('DLL load failed: vcruntime140.dll'); } });
   await vc.start();
   assert.equal((await vc.ended()).error.code, 'vc-runtime');
+
+  // End-to-end worker stderr capture: an abrupt native exit in the worker thread preserves stderr (e.g. vcruntime140_1.dll) instead of losing it.
+  const crashScript = join(vc.dir, 'fake-native-crash.cjs');
+  await writeFile(crashScript, 'process.stderr.write("ImportError: DLL load failed while importing addon: vcruntime140_1.dll\\n"); process.exit(127);\n');
+  await assert.rejects(
+    checkEngine({ enginePath: crashScript, modelDir: vc.dir, timeoutMs: 5000 }),
+    err => /代码 127/.test(err.message) && /vcruntime140_1\.dll/.test(err.message),
+  );
+  const workerCrash = await harness(t, { checkEngine: () => checkEngine({ enginePath: crashScript, modelDir: vc.dir, timeoutMs: 5000 }) });
+  await workerCrash.start();
+  const crashedView = await workerCrash.ended();
+  assert.equal(crashedView.error.code, 'vc-runtime');
+  assert.ok(crashedView.log.some(line => line.includes('vcruntime140_1.dll')), 'worker stderr is preserved in install log');
 });
 
 test('a model the community package downloaded earlier is reused when it verifies; a wrong copy is not', async t => {

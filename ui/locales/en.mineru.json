@@ -154,7 +154,6 @@
   "转换程序最后输出的几行（退出码 {0}）：": "The last lines the converter printed (exit code {0}):",
   "转换程序最后输出的几行：": "The last lines the converter printed:",
   "复制诊断信息": "Copy diagnostic information",
-  "没能复制，请直接选中上面的文字": "Could not copy; select the text above instead",
   "导入": "Import",
   "修改并导入": "Edit and import",
   "修改并导入「{0}」": "Edit and import “{0}”",

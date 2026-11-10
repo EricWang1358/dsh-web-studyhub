@@ -12,6 +12,15 @@ import ExtensionNotStarted, { resetLine } from './ExtensionNotStarted.jsx';
 import IndexNote from './IndexNote.jsx';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
+import { HandOff } from './hand-off/HandOff.jsx';
+import { DiagnosticBar } from './install/DiagnosticActions.jsx';
+import { SETUP_FAILED_WHAT, extensionDiagnostic } from './install/install-diagnostics.js';
+
+const diagRow = (resetKey, diagnostic) => (
+  <DiagnosticBar row resetKey={resetKey} diagnostic={diagnostic}>
+    {input => <HandOff id="setup.failed" input={input} what={SETUP_FAILED_WHAT} />}
+  </DiagnosticBar>
+);
 
 /* The one-click path to searching a large textbook (WP28b): install the search
    extension, then build the index of a course. No file is edited and no command is
@@ -90,7 +99,10 @@ export function ExtensionUpdateNotice({ status, onStatus, initialDone = null }) 
       <InlineMessage tone="warning" boxed title={ui('检索扩展需要更新')}>{uiFormat('这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后要重启 DSH。', [extension.version, extension.expected])}</InlineMessage>
       <div><Button variant="primary" icon="download" busy={flow.busy} disabled={flow.busy} onClick={() => flow.install()}>{flow.busy ? ui('正在更新…') : ui('更新检索扩展')}</Button></div>
       {flow.busy && <Hint role="status">{ui('正在下载并安装检索扩展，通常几分钟。期间可以继续学习，不要关闭 DSH。')}</Hint>}
-      {flow.error && <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>}
+      {flow.error && <>
+        <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>
+        {diagRow(flow.error, () => extensionDiagnostic({ status, stage: 'update', code: 'extension-update-failed', error: flow.error }))}
+      </>}
       <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} />
     </div>
   );
@@ -106,7 +118,7 @@ function TaskLink({ run }) {
 const names = courses => (courses || []).map(course => (typeof course === 'string' ? course : course?.name)).filter(Boolean);
 const FINISHED = new Set(['complete', 'failed', 'cancelled']);
 
-function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun, document }) {
+function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, initialRun, document }) {
   const { call } = useStudy();
   const list = names(courses);
   const [course, setCourse] = useState(defaultCourse && list.includes(defaultCourse) ? defaultCourse : '');
@@ -166,18 +178,24 @@ function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun,
       </div>}
       {!running && <Tooltip layer anchorClassName="extension-panel__tip" content={`${ui('在本机把还没编目录的页编好，不调用 AI，不花 token。')}\n${ui('可以随时停止，已建好的部分会保留。')}`}>
         <span className="extension-panel__action"><Button variant={action.variant} busy={starting} disabled={starting || !!upToDate || plan?.canIndex === false} onClick={start}>{action.label}</Button></span></Tooltip>}
-      {problem && <InlineMessage>{problem}</InlineMessage>}
+      {problem && <>
+        <InlineMessage>{problem}</InlineMessage>
+        {diagRow(problem, () => extensionDiagnostic({ status, stage: 'index-start', course, error: problem }))}
+      </>}
       {run?.status === 'complete' && <InlineMessage tone="success" boxed>
         {uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题和 AI 带学现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])}
         {run.skipped > 0 && ` ${uiFormat('{0} 页无检索文字（跳过）。', [run.skipped])}`}
         {run.failedCount > 0 && ` ${uiFormat('{0} 页没能写入索引，下次建立时会重试。', [run.failedCount])}`}
       </InlineMessage>}
       {run?.status === 'cancelled' && <InlineMessage tone="info">{ui('已停止。建好的部分会保留，下次接着建。')}</InlineMessage>}
-      {run?.status === 'failed' && <InlineMessage tone="error" boxed title={ui('索引没有建完')}>
-        {run.error}
-        {run.errorCode === 'retrieval-model-download' && ` ${ui('也可以在「设置 › 检索扩展」的高级选项里填写模型下载地址。')}`}
-        <TaskLink run={run} />
-      </InlineMessage>}
+      {run?.status === 'failed' && <>
+        <InlineMessage tone="error" boxed title={ui('索引没有建完')}>
+          {run.error}
+          {run.errorCode === 'retrieval-model-download' && ` ${ui('也可以在「设置 › 检索扩展」的高级选项里填写模型下载地址。')}`}
+          <TaskLink run={run} />
+        </InlineMessage>
+        {diagRow(`${run.errorCode}:${run.error}`, () => extensionDiagnostic({ status, run, course: run.course || course }))}
+      </>}
     </div>
   );
 }
@@ -221,8 +239,11 @@ export default function ExtensionPanel({ status, onStatus, courses = [], default
         {restart && !restartDone(boot, status.boot) && <InlineMessage tone="warning" boxed>{ui('这次更新要重启 DSH 之后才会生效。')}</InlineMessage>}
         <ExtensionUpdateNotice status={status} onStatus={onStatus} />
       </>}
-      {error && <InlineMessage boxed title={ui('没能完成')}>{error}</InlineMessage>}
-      {running && <IndexBuilder courses={courses} defaultCourse={defaultCourse} document={document} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
+      {error && <>
+        <InlineMessage boxed title={ui('没能完成')}>{error}</InlineMessage>
+        {diagRow(error, () => extensionDiagnostic({ status, stage: 'install', code: 'extension-install-failed', error }))}
+      </>}
+      {running && <IndexBuilder status={status} courses={courses} defaultCourse={defaultCourse} document={document} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
       {extension.canInstall && extension.installed && <div>
         <Button size="sm" variant="quiet" lock={busy} onClick={() => setConfirmRemove(true)}>{ui('卸载检索扩展')}</Button>
       </div>}

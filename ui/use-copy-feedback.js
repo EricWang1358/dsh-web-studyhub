@@ -12,7 +12,7 @@ const writeText = async (text) => {
 const resolve = value => typeof value === 'function' ? value() : value;
 
 /** `text` is the string to copy, or a function that reads it when `copy()` runs. */
-export function createCopyFeedback({ text, resetMs = 2500, write = writeText, onChange = () => {}, setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = id => clearTimeout(id) }) {
+export function createCopyFeedback({ text, resetMs = 2500, write = writeText, onChange = () => {}, onStatus = () => {}, setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = id => clearTimeout(id) }) {
   let timer = null, alive = true;
   const read = () => resolve(text);
   const stop = () => { if (timer !== null) { clearTimer(timer); timer = null; } };
@@ -23,29 +23,37 @@ export function createCopyFeedback({ text, resetMs = 2500, write = writeText, on
         await write(read());
         if (!alive) return true;
         onChange(true);
+        onStatus('copied');
         stop();
-        timer = setTimer(() => { timer = null; if (alive) onChange(false); }, resetMs);
+        timer = setTimer(() => { timer = null; if (alive) { onChange(false); onStatus('idle'); } }, resetMs);
         return true;
       } catch {
-        if (alive) onChange(false);
+        stop();
+        if (alive) { onChange(false); onStatus('failed'); }
         return false;
       }
     },
+    reset() { stop(); if (alive) { onChange(false); onStatus('idle'); } },
     dispose() { alive = false; stop(); },
   };
 }
 
 /**
- * `{ copied, copy }` for a "copy" button: `copied` is true for `resetMs` (2.5 s unless asked) after a successful `copy()`, which
- * resolves whether it worked. The timer goes with the component.
+ * `{ copied, failed, copy, reset }` for a "copy" button: `copied` is true for `resetMs` (2.5 s unless asked) after a successful `copy()`,
+ * `failed` is true when the clipboard refused the write, and `text` may be a string or a lazy function evaluated at click time.
  */
 export function useCopyFeedback(text, { resetMs = 2500 } = {}) {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState('idle');
   const latest = useRef(text), feedback = useRef(null);
   latest.current = text;
   useEffect(() => {
-    feedback.current = createCopyFeedback({ text: () => resolve(latest.current), resetMs, onChange: setCopied });
+    feedback.current = createCopyFeedback({ text: () => resolve(latest.current), resetMs, onStatus: setStatus });
     return () => feedback.current.dispose();
   }, [resetMs]);
-  return { copied, copy: () => feedback.current?.copy() ?? Promise.resolve(false) };
+  return {
+    copied: status === 'copied',
+    failed: status === 'failed',
+    copy: () => feedback.current?.copy() ?? Promise.resolve(false),
+    reset: () => feedback.current?.reset(),
+  };
 }

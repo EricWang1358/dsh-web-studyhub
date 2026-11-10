@@ -7,6 +7,9 @@ import { useInjectCss } from './shared.js';
 import css from './marker-install.css';
 import { useLiveEffect } from './use-async.js';
 import { useStudy } from './study-context.jsx';
+import { HandOff } from './hand-off/HandOff.jsx';
+import { DiagnosticBar } from './install/DiagnosticActions.jsx';
+import { SETUP_FAILED_WHAT, markerDiagnostic } from './install/install-diagnostics.js';
 
 export default function MarkerSettings({ disabled = false, available = true }) {
   const { call } = useStudy();
@@ -52,6 +55,12 @@ export default function MarkerSettings({ disabled = false, available = true }) {
       if (alive.current && revision.current === generation) { setCommand(settings.command || ''); setStatus(result); setError(''); }
     } catch (failure) { if (alive.current) setError(errorMessage(failure)); }
   }
+  const manualDiag = (extra = {}) => markerDiagnostic({ markerStatus: status, command: command.trim(), ...extra });
+  const diagRow = (resetKey, extra) => (
+    <DiagnosticBar row className="marker-install__diag" resetKey={resetKey} diagnostic={() => manualDiag(extra)}>
+      {input => <HandOff id="setup.failed" input={input} what={SETUP_FAILED_WHAT} />}
+    </DiagnosticBar>
+  );
   return <div className="marker-settings">
     <p>{ui('选好 PDF 后，StudyHub 会调用本机 Marker，显示进度并自动导入结果。')}</p>
     {!available && <InlineMessage tone="info">{ui('此安装未启用 PDF 解析组件。启用 StudyHub 的音频组件后可在应用内解析；也可用下面的脚本手动转换。')}</InlineMessage>}
@@ -66,7 +75,8 @@ export default function MarkerSettings({ disabled = false, available = true }) {
     <Hint>{ui('程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用，会启动一次 Marker，第一次可能要一两分钟；模型和 OCR 后端会在实际解析时检查。')}</Hint>
     {status && <p role="status" className="marker-settings__status" data-ready={status.state === 'ready'}><Icon name={status.state === 'ready' ? 'success' : 'info'} size={16} />{status.state === 'ready' ? ui('Marker 已就绪') : status.state === 'needs-docker' ? ui('Marker 需要 Docker') : ui('Marker 尚未就绪')}{status.message ? ` · ${uiMessage(status.message)}` : ''}</p>}
     {status?.notSaved && <Hint>{ui('没有通过检测，所以没有保存；原来的路径没有改动。')}</Hint>}
-    {error && <InlineMessage tone="error">{error}</InlineMessage>}
+    {status?.notSaved && diagRow(`${status.state}:${command}`)}
+    {error && <><InlineMessage tone="error">{error}</InlineMessage>{diagRow(error, { summary: error })}</>}
     </div>
     <Disclosure summary={ui('安装与使用说明')}>
       <p>{ui('按官方指南准备 Python 环境并安装 marker-pdf。建议使用独立虚拟环境，核对当前版本的系统与硬件要求。')}{' '}<a className="marker-link" href="https://github.com/datalab-to/marker#installation" target="_blank" rel="noreferrer">{ui('Marker 安装指南')}</a></p>
