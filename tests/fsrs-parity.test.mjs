@@ -7,8 +7,8 @@
      time zones, one with daylight saving time. */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fsrs, generatorParameters, createEmptyCard, Rating } from "ts-fsrs";
-import { schedule, initialReview, ratingOfGrade, nextIntervals } from "../lib/sm2.js";
+import { fsrs, generatorParameters, createEmptyCard, Rating, State, forgetting_curve } from "ts-fsrs";
+import { schedule, initialReview, ratingOfGrade, nextIntervals, retrievability, retrievabilityAt, FSRS6_WEIGHTS } from "../lib/sm2.js";
 
 const DAY = 864e5;
 const ZONES = ["Asia/Shanghai", "America/New_York", "UTC"];
@@ -115,4 +115,84 @@ for (const zone of ZONES) test(`a migrated SM-2 review continues as ts-fsrs cont
 test("the zones really differ (the runtime honours TZ)", () => {
   const offsets = ZONES.map((zone) => { process.env.TZ = zone; return new Date("2026-07-01T00:00:00Z").getTimezoneOffset(); });
   assert.deepEqual(offsets, [-480, 240, 0]);
+});
+
+/* retrievability (#881): the chance of still recalling a question at an instant, the number the daily round orders its due questions by.
+   ts-fsrs's get_retrievability counts whole 24-hour periods since the last review; this module counts local calendar days, as its
+   scheduler does. The instants below are 08:00 and 14:00 local, so both counts agree and the rest must match exactly. */
+const SLOW_DECAY = Object.freeze([...FSRS6_WEIGHTS.slice(0, 20), 0.5]);
+for (const zone of ZONES) test(`retrievability matches ts-fsrs 5.4.2 get_retrievability for FSRS and migrated SM-2 reviews, default and own weights (${zone})`, () => {
+  process.env.TZ = zone;
+  let checks = 0;
+  for (const w of [FSRS6_WEIGHTS, SLOW_DECAY]) {
+    const f = fsrs(generatorParameters({ w: [...w], enable_fuzz: false, enable_short_term: false }));
+    const settings = w === FSRS6_WEIGHTS ? undefined : { w: [...w] };
+    for (const stability of [0.5, 1, 2.5, 9, 40, 365, 4000]) for (const days of [0, 1, 2, 7, 30, 180, 1500]) {
+      const last = new Date(2026, 2, 1, 8, 0).getTime(), at = new Date(2026, 2, 1 + days, 14, 0).getTime();
+      const review = { algorithm: "fsrs-6", stability, difficulty: 5, reps: 3, lapses: 0, repetitions: 3, interval_days: Math.max(1, Math.round(stability)),
+        ease_factor: 2.5, last_review: new Date(last).toISOString(), due_at: new Date(last + Math.max(1, Math.round(stability)) * DAY).toISOString() };
+      const card = { ...createEmptyCard(shifted(last)), state: State.Review, stability, difficulty: 5, reps: 3, last_review: shifted(last) };
+      const theirs = f.get_retrievability(card, shifted(at), false);
+      const where = `weights ${w === FSRS6_WEIGHTS ? "default" : "own"}, stability ${stability}, ${days} days`;
+      assert.equal(retrievability(review, at, settings), theirs, where);
+      checks++;
+      // A review the SM-2 builds wrote: stability = its interval, last review = due - interval (references/sm2-scheduling.md).
+      if (Number.isInteger(stability)) {
+        const sm2 = { repetitions: 3, interval_days: stability, ease_factor: 2.5, due_at: new Date(last + stability * DAY).toISOString() };
+        assert.equal(retrievability(sm2, at, settings), theirs, `SM-2 review, ${where}`);
+        checks++;
+      }
+    }
+  }
+  assert.equal(checks, 2 * 7 * 7 + 2 * 5 * 7);
+});
+
+test("every FSRS-6 curve falls with elapsed days / stability alone, so own weights rank questions as the defaults do", () => {
+  process.env.TZ = "UTC";
+  const at = Date.parse("2026-06-01T12:00:00.000Z");
+  const states = [];
+  for (const stability of [0.5, 1, 2.5, 3, 9, 20, 40, 60, 365]) for (const days of [1, 2, 4, 6, 10, 30, 65, 400])
+    states.push({ algorithm: "fsrs-6", stability, difficulty: 5, reps: 2, repetitions: 2, interval_days: 1, ease_factor: 2.5,
+      last_review: new Date(at - days * DAY).toISOString(), due_at: new Date(at - DAY).toISOString() });
+  const rank = (settings) => {
+    const recall = retrievabilityAt(settings);
+    return states.map((review, index) => [recall(review, at), index]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, index]) => index);
+  };
+  const reference = rank(undefined);
+  for (const decay of [0.1, 0.3, 0.5, 0.8]) {
+    const w = [...FSRS6_WEIGHTS.slice(0, 20), decay];
+    assert.deepEqual(rank({ w }), reference, `decay ${decay}`);
+    assert.notEqual(retrievabilityAt({ w })(states[5], at), retrievabilityAt()(states[5], at), "the values differ; only the order is shared");
+  }
+});
+
+test("retrievability is 0 for an FSRS record whose last review is unknown: the same rule as a record the scheduler cannot read", () => {
+  process.env.TZ = "UTC";
+  const at = Date.parse("2026-03-10T12:00:00.000Z");
+  // A review written from outside (bank.append keeps a caller's card.review; schedule.update stores any review object).
+  const noLast = { algorithm: "fsrs-6", stability: 20, difficulty: 5, repetitions: 3, interval_days: 20, due_at: "2026-02-01T00:00:00.000Z" };
+  assert.equal(retrievability(noLast, at), 0);
+  assert.equal(retrievabilityAt({ w: [...FSRS6_WEIGHTS.slice(0, 20), 0.5] })(noLast, at), 0, "whatever the weights");
+});
+
+test("retrievability is 0 for a question with no memory state yet, as ts-fsrs says for a new card", () => {
+  process.env.TZ = "UTC";
+  const at = Date.parse("2026-03-10T12:00:00.000Z");
+  const f = fsrs(generatorParameters({ enable_fuzz: false, enable_short_term: false }));
+  assert.equal(f.get_retrievability(createEmptyCard(new Date(at - 5 * DAY)), new Date(at), false), 0);
+  for (const review of [initialReview(), undefined, null, {}, { repetitions: 2, interval_days: 0, due_at: "2026-03-01T00:00:00.000Z" }])
+    assert.equal(retrievability(review, at), 0, JSON.stringify(review));
+});
+
+test("retrievability counts the learner's local days, the days the scheduler counts for an answer at that instant", () => {
+  process.env.TZ = "Asia/Shanghai";
+  const last = Date.parse("2026-03-01T15:00:00.000Z"), at = Date.parse("2026-03-01T23:00:00.000Z"); // 23:00, then 07:00 the next morning in Beijing
+  const review = { algorithm: "fsrs-6", stability: 3, difficulty: 5, reps: 2, repetitions: 2, interval_days: 3, ease_factor: 2.5,
+    last_review: new Date(last).toISOString(), due_at: new Date(last + 3 * DAY).toISOString() };
+  assert.equal(schedule(review, 4, new Date(at).toISOString()).elapsed_days, 1, "the scheduler counts one day");
+  assert.equal(retrievability(review, at), forgetting_curve([...FSRS6_WEIGHTS], 1, 3), "so does retrievability");
+  assert.ok(retrievability(review, at) < 1);
+  assert.equal(retrievability(review, new Date(at).toISOString()), retrievability(review, at), "an ISO time is the same instant");
+  assert.equal(retrievability(review, new Date(at)), retrievability(review, at), "so is a Date");
+  assert.throws(() => retrievability(review, "not a time"), /Invalid timestamp/);
 });
