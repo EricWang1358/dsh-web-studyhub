@@ -114,3 +114,18 @@ test('a crunch point row says its band in one word with a Tooltip; a never-answe
   assert.match(english, /Already shaky/);
   setUiLanguage('zh');
 });
+/* The review of PR #922: the round's contents are the lowest projected recall N, but review.start's path mode orders a round its own way
+   (lib/mastery.js planPath: due first, then weak, then new; then prerequisites), so no word may promise "the most at risk first". */
+test('the words promise what the round holds, not an order the practice does not keep; the finder says the date must still be ahead', async () => {
+  const { FEATURES } = await import('../ui/finder/entries.js');
+  setUiLanguage('zh');
+  const zh = selectTodayFocusStrip({ library: library(), planAnswer: planAnswer() }).slip;
+  assert.doesNotMatch(`${zh.tooltip} ${zh.action}`, /先做|先练/);
+  setUiLanguage('en');
+  const en = selectTodayFocusStrip({ library: library(), planAnswer: planAnswer() }).slip;
+  assert.doesNotMatch(`${en.tooltip} ${en.action}`, /\bfirst\b/i);
+  setUiLanguage('zh');
+  const entry = FEATURES.find(item => item.id === 'exam-day-band');
+  assert.doesNotMatch(entry.what, /先做/);
+  assert.match(entry.what, /考试日期还没到时/);
+});

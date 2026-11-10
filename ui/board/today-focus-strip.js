@@ -139,7 +139,7 @@ const chapterOf = (point) => String(point?.number ?? '').split('.')[0];
 
 /**
  * 到考试日会掉 (#894): the chapters with a crunch point that is solid today and, projected with no further review, not on the exam day
- * (`examDay.band` 'slip', lib/exam-day-band.js), and the round of their at-risk questions, lowest projected recall first (`examDay.atRisk[].rank`,
+ * (`examDay.band` 'slip', lib/exam-day-band.js), and the round of their at-risk questions with the lowest projected recall (picked by `examDay.atRisk[].rank`,
  * lib/course-book-crunch.js), at most `roundSize`. null when no chapter slips (no exam date ahead gives no band at all).
  */
 export function selectSlippingRound(planAnswer, roundSize) {
@@ -165,7 +165,7 @@ function selectSlip(library, planAnswer) {
     label: chapters.length > SLIP_CHAPTERS_SHOWN
       ? uiFormat('按现在的进度，第 {0} 章等 {1} 章到考试日会掉', [formatList(chapters.slice(0, SLIP_CHAPTERS_SHOWN)), chapters.length])
       : uiFormat('按现在的进度，第 {0} 章到考试日会掉', [formatList(chapters)]),
-    tooltip: ui('按不再复习推算：这几章里有考点今天稳，照复习排期的记忆曲线，不再复习的话到考试日会忘到不稳。按钮把其中最容易忘的题排成一轮，最容易忘的先做。'),
+    tooltip: ui('按不再复习推算：这几章里有考点今天稳，照复习排期的记忆曲线，不再复习的话到考试日会忘到不稳。按钮把其中最容易忘的题排成一轮，最多是你的每轮题数。'),
     action: uiFormat('练这几章最容易忘的 {0} 道', [scope.length]),
   };
 }
