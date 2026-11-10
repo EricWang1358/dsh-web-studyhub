@@ -294,14 +294,16 @@ test('the dialog of a failed restart: what happened, the usual causes, and a way
   assert.match(html, /StudyHub 4\.7\.1 没有生效/);
   assert.match(html, /现在运行的是 4\.7\.0。/);
   assert.match(html, /安装过 4\.7\.1，之后 DSH 重新启动过，运行的仍是 4\.7\.0。/);
-  assert.match(html, /DSH 没有完全退出就又打开了（托盘里还留着）/);
-  assert.match(html, /另一份 StudyHub（另一个配置）升了级，这一份没有/);
+  assert.match(html, /可能的原因：升级装进了这台电脑上的另一份 StudyHub（另一个配置），这一份还是旧的；或者新版本的文件没有真正换上。/);
+  assert.doesNotMatch(html, /托盘|常见原因/, 'a DSH left in the tray keeps its old process and can never produce this state: the tray advice stays on the waiting page');
   assert.match(html, /重新安装 4\.7\.1/, 'the one-click flow, offered again');
   assert.match(html, /改用手动升级/);
   assert.doesNotMatch(html, /等待重启|稍后提醒|一键升级到|复制安装地址/, 'no waiting page, no snooze, and the manual steps stay behind their button');
   const en = render(h(UpdateDialog, { ...noop, update: stuckView() }), 'en');
   assert.match(en, /StudyHub 4\.7\.1 did not take effect/);
   assert.match(en, /Reinstall 4\.7\.1/);
+  assert.match(en, /Possible causes: the upgrade went into another copy of StudyHub on this computer \(another profile\)/);
+  assert.doesNotMatch(en, /tray|Common causes/i);
   assert.match(en, /Upgrade manually instead/);
   assert.doesNotMatch(en.replace(/calmer update check|What's new/g, ''), han);
 });
@@ -319,11 +321,13 @@ test('a failed restart with nothing newer to install: 检查更新 and the manua
   assert.equal(none.upgradeAvailable, false);
   const html = render(h(UpdateDialog, { ...noop, update: none }));
   assert.match(html, /StudyHub 4\.7\.1 没有生效/);
-  assert.match(html, /还没查到比 4\.7\.0 更新的版本/);
+  assert.match(html, /4\.7\.1 的安装包地址在下面，可以按步骤手动安装；也可以点「检查更新」看有没有更新的版本。/);
+  assert.doesNotMatch(html, /还没查到比/, 'reads true next to 「安装过 4.7.1」');
   assert.match(html, /sh-btn--primary[^>]*>(?:<[^>]+>)*检查更新</);
   assert.match(html, /复制安装地址/, 'the manual way is always there');
-  assert.ok(html.includes(none.url), 'from the release page, not the package of a version this copy already has');
-  assert.ok(!html.includes(none.assetUrl));
+  assert.ok(html.includes(none.restartFailed.assetUrl), 'the marker version\'s package address, which DSH can install');
+  assert.match(none.restartFailed.assetUrl, /\/download\/v4\.7\.1\/ericwang1358-dsh-daily-flashcard-4\.7\.1\.tgz$/);
+  assert.ok(!html.includes(none.assetUrl), 'not the package of the version this copy already has');
   assert.doesNotMatch(html, /重新安装|稍后提醒/);
   const noRelease = stuckView({}, { release: undefined });
   assert.match(render(h(UpdateDialog, { ...noop, update: noRelease })), /检查更新/);
@@ -366,4 +370,23 @@ test('Settings › 关于与更新 says a failed restart in a warning line with 
   const waiting = render(h(UpdateSettings, { ...noop, update: waitingView() }));
   assert.match(waiting, /已安装 4\.7\.1，重启 DSH 后生效/, 'a restart still to come reads as before');
   assert.doesNotMatch(waiting, /没有生效/);
+});
+
+test('the Settings 复制诊断信息 and the crash page both carry the upgrade line, and its label is true for a version seen on disk too (#951)', async () => {
+  const { upgradeMarkerOf } = module.exports;
+  assert.deepEqual(upgradeMarkerOf(stuckView()), { version: '4.7.1', restartFailed: true });
+  assert.deepEqual(upgradeMarkerOf(waitingView()), { version: '4.7.1', restartFailed: false });
+  assert.equal(upgradeMarkerOf(update()), undefined);
+  assert.equal(upgradeMarkerOf(null), undefined);
+  const { diagnosticText } = await import('../ui/diagnostics.js');
+  const text = view => diagnosticText({ version: '4.7.0', language: 'en', page: 'settings', upgrade: upgradeMarkerOf(view) });
+  assert.match(text(stuckView()), /^Upgrade seen: 4\.7\.1, restart did not take effect$/m);
+  assert.match(text(waitingView()), /^Upgrade seen: 4\.7\.1, waiting for a restart$/m);
+  assert.doesNotMatch(text(update()), /Upgrade seen/);
+  // A pending restart that comes only from the package on disk (no install marker) is still a version seen, not a "marker".
+  assert.doesNotMatch(text(updateView({}, '4.7.0', '4.7.1')), /Upgrade marker/);
+  // Both places that build the text hand the getter over (the panel's hook is not callable without the whole app).
+  const { readFileSync } = await import('node:fs');
+  assert.match(readFileSync('ui/UpdateCenter.jsx', 'utf8'), /useDiagnostics\(currentStudyHubVersion, currentUpgradeMarker\)/);
+  assert.match(readFileSync('ui/app/page-views.jsx', 'utf8'), /useDiagnostics\(currentStudyHubVersion, currentUpgradeMarker\)/);
 });

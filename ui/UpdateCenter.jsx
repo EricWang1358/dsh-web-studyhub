@@ -27,11 +27,12 @@ const read = () => snapshot;
 export const useUpdateStore = () => useSyncExternalStore(subscribe, read, read);
 /** StudyHub's running version as the last check reported it (undefined before the first one), read when asked, with no subscription. */
 export const currentStudyHubVersion = () => snapshot.update?.current;
-/** The install marker as the last check reported it, for the diagnostic text: { marker, restartFailed }, or nothing when no install is waiting or failed. */
-export function currentUpgradeMarker() {
-  const update = snapshot.update, marker = update?.restartFailed?.pending || update?.pendingRestart;
-  return marker ? { marker, restartFailed: !!update.restartFailed } : undefined;
+/** The upgrade version a check saw (the install marker, or a newer package found on disk) and whether the restart since then failed, for the diagnostic text; nothing when none is waiting or failed. */
+export function upgradeMarkerOf(update) {
+  const version = update?.restartFailed?.pending || update?.pendingRestart;
+  return version ? { version, restartFailed: !!update.restartFailed } : undefined;
 }
+export const currentUpgradeMarker = () => upgradeMarkerOf(snapshot.update);
 
 let started = false;
 /**
@@ -272,9 +273,9 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
       {phase.phase === 'installed' ? <><Installed phase={phase} host={host} onGuided={guided ? undefined : () => setGuided(true)} />{guided && <GuidedUpgrade update={update} host={host} />}</> : <>
         {stuck && <InlineMessage tone="warning" boxed actionsBelow className="update-stuck" action={inApp ? { label: ui('改用手动升级'), onClick: () => { setGuided(true); setPhase({ phase: 'idle' }); } } : undefined}>
           <p>{uiFormat('现在运行的是 {0}。{1} 安装过 {2}，之后 DSH 重新启动过，运行的仍是 {0}。', [stuck.running, formatDateTime(stuck.installedAt), stuck.pending])}</p>
-          <p>{ui('常见原因：DSH 没有完全退出就又打开了（托盘里还留着）；或者这台电脑上有另一份 StudyHub（另一个配置）升了级，这一份没有。')}</p>
+          <p>{ui('可能的原因：升级装进了这台电脑上的另一份 StudyHub（另一个配置），这一份还是旧的；或者新版本的文件没有真正换上。')}</p>
         </InlineMessage>}
-        {stuck && !available && <p className="update-lead">{uiFormat('还没查到比 {0} 更新的版本。点「检查更新」再查一次，或者按下面的步骤手动安装发布页上的最新版。', [update.installed])}</p>}
+        {stuck && !available && <p className="update-lead">{uiFormat('{0} 的安装包地址在下面，可以按步骤手动安装；也可以点「检查更新」看有没有更新的版本。', [stuck.pending])}</p>}
         {checkError && <InlineMessage tone="warning" className="update-dialog__inline">{updateErrorText({ ...update, error: checkError }, { manual: true })}</InlineMessage>}
         {update.pendingRestart && available && <p className="update-lead">{uiFormat('已安装 {0}，尚未重启。可以直接安装 {1}，然后重启一次 DSH。', [update.pendingRestart, update.latest])}</p>}
         {notes && (!stuck || available) ? <section className="update-notes-wrap" aria-label={ui('更新内容')}>
@@ -291,7 +292,7 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
         </InlineMessage>}
         {phase.phase === 'error' && <InlineMessage tone="error" boxed title={ui('这次没有升级成功')}
           action={{ label: ui('改用手动升级'), onClick: () => { setGuided(true); setPhase({ phase: 'idle' }); } }}>{phase.message || failureMessage(phase.code, phase)}</InlineMessage>}
-        {!inApp && <GuidedUpgrade update={update} host={host} address={stuck && !available ? update.url : undefined} />}
+        {!inApp && <GuidedUpgrade update={update} host={host} address={stuck && !available ? stuck.assetUrl || update.url : undefined} />}
       </>}
     </Dialog>
   );
@@ -369,7 +370,7 @@ export function UpdateSettingsPanel() {
   // Whether the search extension is behind this StudyHub rides along with the retrieval status (the shared store: an install elsewhere shows here).
   const retrieval = useRetrievalStatus({ call });
   const extension = retrieval.data?.extension;
-  const describe = useDiagnostics(currentStudyHubVersion);
+  const describe = useDiagnostics(currentStudyHubVersion, currentUpgradeMarker);
   return <>
     <UpdateSettings update={update} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setRetrievalStatus(value)} onCheck={retrieval.refresh}
       diagnostic={() => describe()} />

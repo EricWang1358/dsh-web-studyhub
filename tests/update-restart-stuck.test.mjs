@@ -37,7 +37,8 @@ test('the process started before the install: a restart is still to come (today\
 
 test('the process started after the install and still runs older code: the restart did not take effect', () => {
   const view = updateView(state(), '4.7.0', '4.7.0', after);
-  assert.deepEqual(view.restartFailed, { pending: '4.7.1', running: '4.7.0', installedAt: INSTALLED_AT });
+  assert.deepEqual(view.restartFailed, { pending: '4.7.1', running: '4.7.0', installedAt: INSTALLED_AT,
+    assetUrl: 'https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.1/ericwang1358-dsh-daily-flashcard-4.7.1.tgz' });
   assert.equal(view.pendingRestart, null, 'one meaning per field: "waiting for a restart" is not said while the restart is known to have failed');
   assert.equal(view.current, '4.7.0');
   assert.equal(view.installed, '4.7.0', 'what this copy has: not the marker');
@@ -92,7 +93,7 @@ test('stuck with a later release known: that release is the one to install', () 
 
 test('reading a failed restart leaves the marker on disk; a satisfied marker is still removed (the 3.0.0 fix)', async t => {
   await home(t);
-  await markUpdateInstalled('99.0.0', { now: () => T0 });
+  await markUpdateInstalled('99.0.0', { now: () => T0, startedAt: 0 });
   const stuck = await readUpdateView({ current: '98.0.0', startedAt: after });
   assert.equal(stuck.restartFailed?.pending, '99.0.0');
   const file = await saved();
@@ -100,7 +101,7 @@ test('reading a failed restart leaves the marker on disk; a satisfied marker is 
   assert.equal(file.installedAt, INSTALLED_AT);
   for (const read of [() => readUpdateView({ current: '99.0.0', startedAt: after }), () => checkForUpdate({ current: '99.0.0', startedAt: after, fetch: async () => new Response(JSON.stringify(githubRelease('v99.0.0'))), now: () => T0 }),
     () => setUpdatePreferences({ autoCheck: false }, { current: '99.0.0', startedAt: after })]) {
-    await markUpdateInstalled('99.0.0', { now: () => T0 });
+    await markUpdateInstalled('99.0.0', { now: () => T0, startedAt: 0 });
     const view = await read();
     assert.equal(view.restartFailed, null);
     assert.equal(Object.hasOwn(await saved(), 'pending'), false, 'the running version reached the marker: it is consumed');
@@ -109,7 +110,7 @@ test('reading a failed restart leaves the marker on disk; a satisfied marker is 
 
 test('every way the host answers a view carries the same verdict', async t => {
   await home(t);
-  await markUpdateInstalled('99.0.0', { now: () => T0 });
+  await markUpdateInstalled('99.0.0', { now: () => T0, startedAt: 0 });
   const net = () => new Response(JSON.stringify(githubRelease('v99.0.0')), { status: 200 });
   assert.equal((await checkForUpdate({ force: true, current: '98.0.0', startedAt: after, fetch: async () => net(), now: () => T0 + 1000 })).restartFailed?.pending, '99.0.0');
   assert.equal((await setUpdatePreferences({ autoCheck: true }, { current: '98.0.0', startedAt: after })).restartFailed?.pending, '99.0.0');
@@ -118,9 +119,9 @@ test('every way the host answers a view carries the same verdict', async t => {
 
 test('a new install while stuck is "restart needed" again, because it is newer than this process', async t => {
   await home(t);
-  await markUpdateInstalled('99.0.0', { now: () => T0 });
+  await markUpdateInstalled('99.0.0', { now: () => T0, startedAt: 0 });
   assert.equal((await readUpdateView({ current: '98.0.0', startedAt: after })).restartFailed?.pending, '99.0.0');
-  await markUpdateInstalled('99.0.0', { now: () => after + 1000 });
+  await markUpdateInstalled('99.0.0', { now: () => after + 1000, startedAt: 0 });
   const again = await readUpdateView({ current: '98.0.0', startedAt: after });
   assert.equal(again.restartFailed, null);
   assert.equal(again.pendingRestart, '99.0.0');
@@ -184,4 +185,46 @@ test('the host answers update.install for a failed restart and then reports the 
   const next = (await handle('call', { sessionId: 's', action: 'update.check', args: {} })).value;
   assert.equal(next.restartFailed, null, 'the new receipt is newer than this process: a restart is still to come');
   assert.equal(next.pendingRestart, '99.0.0');
+});
+
+test('the marker\'s package address is built only from the fixed release prefix and the standard asset name (copy text, never installed by the plugin)', () => {
+  for (const pending of ['4.7.1', 'v4.7.1', '4.8.0-rc.1']) {
+    const text = pending.replace(/^v/, '');
+    assert.equal(updateView(state({ pending }), '4.7.0', '4.7.0', after).restartFailed.assetUrl,
+      `https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v${text}/ericwang1358-dsh-daily-flashcard-${text}.tgz`, pending);
+  }
+  // A marker is a local file: anything that is not a version is never turned into an address (and is not a failed restart at all).
+  for (const pending of ['../../evil', '4.7.1/../../x', 'https://evil.example/x', '4.7.1?x=1'])
+    assert.equal(updateView(state({ pending }), '4.7.0', '4.7.0', after).restartFailed, null, pending);
+});
+
+test('the process that wrote the marker is never told its own install did not take effect, even after the wall clock stepped back (L1)', async t => {
+  await home(t);
+  // The clock moved back after this process started: its start now looks later than the install it wrote.
+  const clockBack = T0 + 60_000;
+  await markUpdateInstalled('99.0.0', { now: () => T0, startedAt: clockBack });
+  assert.equal((await saved()).installedBy, clockBack, 'the installing process\'s start is stored: a number, no identifier');
+  const same = await readUpdateView({ current: '98.0.0', startedAt: clockBack });
+  assert.equal(same.restartFailed, null);
+  assert.equal(same.pendingRestart, '99.0.0');
+  // Within a few seconds counts as the same process (the start is worked out from a clock and a float).
+  assert.equal((await readUpdateView({ current: '98.0.0', startedAt: clockBack + 2000 })).restartFailed, null);
+  // A different process that started after the install: a failed restart.
+  const other = await readUpdateView({ current: '98.0.0', startedAt: clockBack + 120_000 });
+  assert.equal(other.restartFailed?.pending, '99.0.0');
+  assert.equal((await saved()).pending, '99.0.0', 'the marker is still left alone');
+});
+
+test('a marker without the installer\'s start behaves as before, and a later install replaces the stored start', async t => {
+  const dir = await home(t);
+  await mkdir(join(dir, 'study'), { recursive: true });
+  await writeFile(updateStatePath(), JSON.stringify({ pending: '99.0.0', installedAt: INSTALLED_AT }));
+  assert.equal((await readUpdateView({ current: '98.0.0', startedAt: after })).restartFailed?.pending, '99.0.0');
+  assert.equal((await readUpdateView({ current: '98.0.0', startedAt: before })).pendingRestart, '99.0.0');
+  await markUpdateInstalled('99.0.1', { now: () => T0, startedAt: 12345 });
+  assert.equal((await saved()).installedBy, 12345);
+  await markUpdateInstalled('99.0.2', { now: () => T0, startedAt: undefined });
+  const file = await saved();
+  assert.equal(file.pending, '99.0.2');
+  assert.equal(Number.isFinite(file.installedBy), true, 'the default is this process\'s own start');
 });

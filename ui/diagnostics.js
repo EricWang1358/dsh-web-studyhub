@@ -88,10 +88,10 @@ function performanceLines(session, chinese) {
   ];
 }
 
-/* The install marker (#951): the version the last one-click install left waiting, and whether a restart since then took effect. A version-shaped token only. */
+/* The upgrade a check saw (#951): the version the last one-click install left waiting, or a newer package found on disk, and whether a restart since then took effect. A version-shaped token only. */
 const VERSION_TOKEN = /^\d{1,6}\.\d{1,6}\.\d{1,6}(?:-[\w.]{1,30})?$/;
-const upgradeLine = upgrade => (typeof upgrade?.marker === 'string' && VERSION_TOKEN.test(upgrade.marker)
-  ? [`Upgrade marker: ${upgrade.marker}, ${upgrade.restartFailed === true ? 'restart did not take effect' : 'waiting for a restart'}`] : []);
+const upgradeLine = upgrade => (typeof upgrade?.version === 'string' && VERSION_TOKEN.test(upgrade.version)
+  ? [`Upgrade seen: ${upgrade.version}, ${upgrade.restartFailed === true ? 'restart did not take effect' : 'waiting for a restart'}`] : []);
 
 /**
  * The text to copy. `data` is the client snapshot (or nothing): only its counts, the kind and status of its jobs and its experimental switch are read.
@@ -118,7 +118,7 @@ export function diagnosticText({ version, language, page, error, data, session, 
 
 /**
  * `describe(error)` for the page the learner is on: the text of `diagnosticText` with the app's own snapshot, language and page.
- * `getVersion()` is StudyHub's version, read when the text is built (not on every render of the page). `getUpgrade()`: { marker, restartFailed } of the install marker, or nothing.
+ * `getVersion()` is StudyHub's version, read when the text is built (not on every render of the page). `getUpgrade()`: { version, restartFailed } of the upgrade seen, or nothing.
  */
 export function useDiagnostics(getVersion, getUpgrade) {
   const { data, language, nav } = useApp();

@@ -218,14 +218,14 @@ test('the performance section holds no path, title, question or source text, wha
   for (const line of lines.slice(1)) assert.match(line.replace(/^[^:]*:/, ''), /^[\sa-z0-9,./()-]*$/i, line);
 });
 
-test('an upgrade marker adds one line with its version and whether the restart took effect; no marker, no line (#951)', () => {
+test('an upgrade seen adds one line with its version and whether the restart took effect; no marker, no line (#951)', () => {
   const at = upgrade => diagnosticText({ version: '4.7.0', language: 'en', page: 'settings', upgrade });
-  assert.doesNotMatch(at(undefined), /Upgrade marker/);
-  assert.doesNotMatch(at({}), /Upgrade marker/);
-  assert.match(at({ marker: '4.7.1', restartFailed: true }), /^Upgrade marker: 4\.7\.1, restart did not take effect$/m);
-  assert.match(at({ marker: '4.7.1', restartFailed: false }), /^Upgrade marker: 4\.7\.1, waiting for a restart$/m);
-  assert.match(at({ marker: '4.7.1', restartFailed: true }), /^StudyHub version: 4\.7\.0$/m, 'the running version stays on its own line');
+  assert.doesNotMatch(at(undefined), /Upgrade seen/);
+  assert.doesNotMatch(at({}), /Upgrade seen/);
+  assert.match(at({ version: '4.7.1', restartFailed: true }), /^Upgrade seen: 4\.7\.1, restart did not take effect$/m);
+  assert.match(at({ version: '4.7.1', restartFailed: false }), /^Upgrade seen: 4\.7\.1, waiting for a restart$/m);
+  assert.match(at({ version: '4.7.1', restartFailed: true }), /^StudyHub version: 4\.7\.0$/m, 'the running version stays on its own line');
   // Only a version-shaped token is copied: whatever else a marker held (a path, a sentence) is not.
-  for (const marker of ['C:\\Users\\student\\Documents\\x', 'a sentence with spaces and 线粒体', '/home/student/x'])
-    assert.doesNotMatch(at({ marker, restartFailed: true }), /Upgrade marker/, marker);
+  for (const version of ['C:\\Users\\student\\Documents\\x', 'a sentence with spaces and 线粒体', '/home/student/x'])
+    assert.doesNotMatch(at({ version, restartFailed: true }), /Upgrade seen/, version);
 });
