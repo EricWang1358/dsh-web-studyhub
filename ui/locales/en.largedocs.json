@@ -180,5 +180,22 @@
   "；有 {0} 页的旧索引要清理，{1} 页无检索文字（跳过）。": "; the old index of {0} pages will be cleaned up; {1} pages have no searchable text (skipped).",
   "；{0} 页已经建好，{1} 页无检索文字（跳过）。": "; {0} pages are built; {1} pages have no searchable text (skipped).",
   "{0} 页无检索文字（跳过）。": "{0} pages have no searchable text (skipped).",
-  "这些页只有标题、图或很短的行，检索服务切不出可检索的段落，所以跳过；页面内容改了会重新尝试。": "These pages have only a title, figures or very short lines, so the search service finds no passage in them; they are skipped, and tried again if their text changes."
+  "这些页只有标题、图或很短的行，检索服务切不出可检索的段落，所以跳过；页面内容改了会重新尝试。": "These pages have only a title, figures or very short lines, so the search service finds no passage in them; they are skipped, and tried again if their text changes.",
+  "检索扩展已安装。请完全退出 DSH 桌面版（包括托盘图标）后重新打开，检索扩展才会启动。": "The search extension is installed. Quit DSH desktop fully (including the tray icon) and reopen it so the search extension starts.",
+  "只关掉窗口不会换上新版检索扩展，旧服务还在后台运行。完全退出 DSH 桌面版（包括托盘图标）后重新打开，新版才会接手；在此之前旧版本继续运行，建索引和检索都照常可用。": "Closing the window alone does not load the updated search extension while the old service stays running in the background. Quit DSH desktop fully (including the tray icon) and reopen it for the new version to take over; until then the old version keeps running, and indexing and search work as usual.",
+  "这次更新要完全退出 DSH 桌面版（包括托盘图标）后重新打开才会生效。": "This update takes effect after you quit DSH desktop fully (including the tray icon) and reopen it.",
+  "检索扩展 {0} 没有生效": "Search extension {0} did not take effect",
+  "DSH 重新启动过，现在安装的仍是检索扩展 {0}（之前安装过 {1}）。": "DSH was restarted, and search extension {0} is still what is installed ({1} was installed earlier).",
+  "DSH 重新启动过，但检索扩展 {0} 没有装上。": "DSH was restarted, but search extension {0} is not installed.",
+  "可能的原因：更新装进了这台电脑上的另一份 DSH 配置，这一份还是旧的；或者新版文件没有真正换上。点下面的按钮在这份 DSH 里重新安装。": "Possible causes: the update went into another DSH profile on this computer while this one is still old, or the new version's files were not put in place. Click below to reinstall it in this DSH.",
+  "重新安装检索扩展": "Reinstall the search extension",
+  "这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后要完全退出 DSH 桌面版（包括托盘图标）后重新打开。": "This StudyHub comes with an updated search extension (installed: {0}, new: {1}). Quit DSH desktop fully (including the tray icon) and reopen it after updating.",
+  "之后完全退出 DSH 桌面版（包括托盘图标）后重新打开，再重新建立索引。": "Then quit DSH desktop fully (including the tray icon), reopen it, and build the index again.",
+  "上次已重置过索引并重启了 DSH，检索服务还是没有启动，说明问题不在索引损坏。请点下面的「发给主会话」或复制诊断信息排查运行环境。": "The index was already reset and DSH restarted, yet the search service still did not start, so a damaged index is not the cause. Use “Send to the main chat” below or copy the diagnostic information to check the runtime environment.",
+  "已修复。请完全退出 DSH 桌面版（包括托盘图标）后重新打开，然后重新建立索引。": "Repaired. Quit DSH desktop fully (including the tray icon) and reopen it, then build the index again.",
+  "先完全退出 DSH 桌面版（包括托盘图标）后重新打开再看；还不行就点修复。": "First quit DSH desktop fully (including the tray icon) and reopen it; if it still does not start, choose Repair.",
+  "现在的索引会移到一旁（不删除），这份资料库的索引记录会清空。之后完全退出 DSH 桌面版（包括托盘图标）后重新打开，再重新建立索引；资料多的话要花一些时间。": "The current index is moved aside (nothing is deleted) and this library's index record is cleared. Then quit DSH desktop fully (including the tray icon), reopen it, and build the index again; with many materials this takes a while.",
+  "已保存模型下载地址。完全退出 DSH 桌面版（包括托盘图标）后重新打开生效。": "Model download address saved. Quit DSH desktop fully (including the tray icon) and reopen it for this to take effect.",
+  "已恢复默认的模型下载地址。完全退出 DSH 桌面版（包括托盘图标）后重新打开生效。": "Default model download address restored. Quit DSH desktop fully (including the tray icon) and reopen it for this to take effect.",
+  "检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在完全退出 DSH 桌面版（包括托盘图标）后重新打开时生效。": "The first time the search extension builds an index, it downloads the search model from this address. If the default address cannot be reached from your network, set another one; leave it empty for the default. Changes take effect after you quit DSH desktop fully (including the tray icon) and reopen it."
 }

@@ -189,7 +189,8 @@ const settings = (status, language) => render(h(ExtensionsSettings, { initialSta
 test('(a) in Settings: the service did not start, what to do, one repair; never the advice to enable it in DSH', () => {
   const html = settings(notStarted);
   assert.match(html, /检索扩展装好了，但检索服务没有启动/);
-  assert.match(html, /重启 DSH 后再看；还不行就点修复。/);
+  assert.match(html, /先完全退出 DSH 桌面版（包括托盘图标）后重新打开再看；还不行就点修复。/);
+  assert.match(settings({ ...notStarted, extension: { ...installed, desktop: false } }), /重启 DSH 后再看；还不行就点修复。/);
   assert.equal(html.match(/>修复</g)?.length, 1, 'one repair action');
   assert.doesNotMatch(html, /请确认它在 DSH 里已启用/);
   assert.doesNotMatch(html, /索引坏了/);
@@ -197,7 +198,7 @@ test('(a) in Settings: the service did not start, what to do, one repair; never 
 });
 
 test('(a) with the marker: the likely reason comes first', () => {
-  assert.match(settings(withReset('no-text-field')), /索引坏了，已经重置，需要重新建立索引。[\s\S]*重启 DSH 后再看；还不行就点修复。/);
+  assert.match(settings(withReset('no-text-field')), /索引坏了，已经重置，需要重新建立索引。[\s\S]*先完全退出 DSH 桌面版（包括托盘图标）后重新打开再看；还不行就点修复。/);
   assert.match(settings(withReset('repair')), /索引已经重置，需要重新建立索引。/);
 });
 

@@ -109,5 +109,6 @@
   "安装 Python {0}（Marker 目前支持 Python {1}–{2}），装好后点「重新检测」再重试。": "Install Python {0} (Marker supports Python {1}–{2}), press Check again, then retry.",
   "找到的 Python 版本太新（Marker 目前支持 Python 3.10–3.13，推荐 3.12）。请安装 Python 3.12 后重试。": "The Python found is too new (Marker currently supports Python 3.10–3.13; 3.12 is recommended). Install Python 3.12 and retry.",
   "安装路径太长，Windows 写不下深层文件。": "The install path is too long for Windows to write deep files.",
-  "安装依赖包时编译失败：有一个依赖包没有现成安装包，要在本机编译。": "Building a dependency package failed: one dependency has no ready-made package for this computer and must be compiled here."
+  "安装依赖包时编译失败：有一个依赖包没有现成安装包，要在本机编译。": "Building a dependency package failed: one dependency has no ready-made package for this computer and must be compiled here.",
+  "另一个 StudyHub 窗口正在安装，这里会同步显示进度；要取消请去那个窗口操作。": "Another StudyHub window is installing this; progress updates here automatically. Cancel it from that window if needed."
 }

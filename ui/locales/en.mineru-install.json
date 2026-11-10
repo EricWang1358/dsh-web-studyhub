@@ -171,5 +171,6 @@
   "其他办法：旁边的按钮不管用时，这里还有别的路。": "Other ways: when the button beside it does not help, there are more options here.",
   "卸载后重装本机 MinerU？": "Uninstall and reinstall MinerU on this computer?",
   "会先停止本机服务并卸载 StudyHub 在 {0} 里装的 MinerU，再在同一个位置用 {1} 档重新安装（那里如果还留着不是 StudyHub 创建的文件，会装进里面新建的「StudyHub-MinerU」文件夹）。程序、Python 和模型都要重新下载，磁盘上要留出和新装一样多的空间{2}。已经转换好的资料不受影响。": "This first stops the local service and uninstalls the MinerU StudyHub installed in {0}, then installs the {1} tier again in the same place (if files StudyHub did not create are still there, it goes into a new “StudyHub-MinerU” folder inside it). The program, Python and the models are all downloaded again, so it needs as much free disk space as a new install{2}. Materials already converted are not affected.",
-  "（约 {0}）": " (about {0})"
+  "（约 {0}）": " (about {0})",
+  "另一个 StudyHub 窗口正在安装，这里会同步显示进度；要暂停请去那个窗口操作。": "Another StudyHub window is installing this; progress updates here automatically. Pause it from that window if needed."
 }

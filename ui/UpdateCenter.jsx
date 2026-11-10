@@ -299,12 +299,16 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
 }
 
 /** Settings › 关于与更新. */
-export function UpdateSettings({ update, onOpen, checking = false, extension, onExtension, onCheck, diagnostic, initialCheckError = '', initialSaveError = '' }) {
+export function UpdateSettings({ update, onOpen, checking = false, extension, retrievalStatus = null, onExtension, onCheck, diagnostic, initialCheckError = '', initialSaveError = '' }) {
   const { call } = useStudy();
   useInjectCss(css, 'study-update');
   const [saving, setSaving] = useState(false), [checkError, setCheckError] = useState(initialCheckError), [saveError, setSaveError] = useState(initialSaveError);
+  const resolvedRetrieval = retrievalStatus || (extension ? { extension } : null);
+  const resolvedExtension = resolvedRetrieval?.extension || extension;
   // The check compares StudyHub only; the search extension is installed once and is not updated with it.
-  const staleExtension = extension?.installed && extension.outdated ? extension : null;
+  const staleExtension = resolvedExtension?.installed && (resolvedExtension.outdated || resolvedExtension.pendingRestart || resolvedExtension.restartFailed)
+    ? resolvedExtension
+    : null;
   async function checkUpdates() {
     setCheckError('');
     const result = await refreshUpdate(call, { force: true });
@@ -344,7 +348,7 @@ export function UpdateSettings({ update, onOpen, checking = false, extension, on
         : update?.error ? <InlineMessage className="update-settings__inline" tone="warning" action={retry}>{failure(update.error, false)}</InlineMessage> : null}
       {!checkError && status && (status.tone === 'hint' ? <Hint className="update-settings__hint">{status.text}</Hint> : <InlineMessage className="update-settings__inline" tone={status.tone} action={status.action}>{status.text}</InlineMessage>)}
       {saveError && <InlineMessage className="update-settings__inline" tone="error" onDismiss={() => setSaveError('')}>{ui('没能保存这个设置，已恢复原来的选择。')}</InlineMessage>}
-      {extension?.installed && <ExtensionUpdateNotice status={{ extension }} onStatus={onExtension} />}
+      {resolvedExtension?.installed && <ExtensionUpdateNotice status={resolvedRetrieval} onStatus={onExtension} />}
       <div className="update-settings__actions">
         <Button size="sm" busy={checking} onClick={checkUpdates}>{ui('检查更新')}</Button>
         <Checkbox checked={update?.autoCheck !== false} disabled={saving || !update} onChange={toggle} label={ui('自动检查更新')} />
@@ -372,7 +376,7 @@ export function UpdateSettingsPanel() {
   const extension = retrieval.data?.extension;
   const describe = useDiagnostics(currentStudyHubVersion, currentUpgradeMarker);
   return <>
-    <UpdateSettings update={update} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setRetrievalStatus(value)} onCheck={retrieval.refresh}
+    <UpdateSettings update={update} checking={checking} onOpen={() => setOpen(true)} extension={extension} retrievalStatus={retrieval.data} onExtension={value => setRetrievalStatus(value)} onCheck={retrieval.refresh}
       diagnostic={() => describe()} />
     {open && update && <UpdateDialog update={update} onClose={() => setOpen(false)} />}
   </>;
