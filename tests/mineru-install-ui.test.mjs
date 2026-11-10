@@ -748,7 +748,8 @@ test('#942 M1: a MinerU StudyHub did not install is never offered 修复权限: 
   assert.match(errorHint('home-permissions', { origin: 'service', ours: false }), /重新启动服务.*「发给主会话」/);
   const html = render({ initialLocal: otherHome });
   assert.equal(sentenceOf(html), '本机服务没能启动：这份 MinerU 读不了 config.yaml，那是它自己的配置文件夹里的文件。StudyHub 不改不是它创建的文件夹的权限。');
-  assert.doesNotMatch(textOf(html), /安装位置|修复权限/);
+  assert.doesNotMatch(textOf(html), /修复权限/, 'no permission repair is offered anywhere on the card');
+  assert.doesNotMatch(`${sentenceOf(html)} ${errorHint('home-permissions', { origin: 'service', ours: false })}`, /安装位置/, 'the card\'s own sentences name no StudyHub location (the hover text of the hand-off bar may)');
   assert.equal(primaries(html), 1);
   assert.match(html, /sh-btn--primary[^>]*>(?:(?!<\/button>).)*重新启动服务/s);
   assert.match(html, /data-hand-off="setup\.failed"/);
