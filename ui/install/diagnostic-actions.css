@@ -11,10 +11,15 @@
       min-width: 0;
       max-width: 100%;
     }
-    /* The permission sentence beside 发给主会话 (#939): quiet text that wraps under the buttons when the row is full; its Tooltip says why. */
+    /* The permission sentence (#939) has a row of its own under 复制诊断信息 and 发给主会话 and above the fold: the copy button's wrapper gives its children to the
+       bar, so the order here is button, hand-off, sentence, refusal note, fold (the wrapper is the copy button's own className). Its Tooltip says why. */
+    .sh-diag-actions > .sh-diag-actions__copy { display: contents; }
+    .sh-diag-actions > * { order: 1; }
+    .sh-diag-actions > .sh-diag-actions__copy > * { order: 3; flex: 1 0 100%; }
+    .sh-diag-actions > .sh-diag-actions__copy > :first-child { order: 0; flex: 0 0 auto; }
+    .sh-diag-actions > .sh-diag-actions__hint-row { order: 2; flex: 1 0 100%; min-width: 0; }
     .sh-diag-actions__hint {
-      align-self: center;
-      min-width: 0;
+      display: inline;
       border-radius: var(--radius-xs);
       color: var(--text-dim);
       font-size: var(--fs-sm);

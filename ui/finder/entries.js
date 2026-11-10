@@ -539,7 +539,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'repair-local-tool', area: 'settings', title: '让主会话修复本地工具', page: null, anchors: ['hand-off'], prepare: 'tool-failed',
     aliases: ['本地工具出错', '安装失败', '启动失败', '修复权限', '完全权限', '权限菜单', '主会话修复', 'MinerU 出错', 'Marker 出错', 'repair local tool', 'tool failed', 'full access', 'permission menu', 'main chat repair'],
     path: ['设置', '出错的工具卡片', '发给主会话'],
-    what: '本地工具（MinerU、Marker、本地转写、电脑声音组件、检索扩展）安装或启动失败时，它出错的卡片上才有「发给主会话」：主会话先查清真正的原因，再一步步修这台电脑上的环境，结束进程或删除文件之前先问你。它要改 StudyHub 文件夹以外的东西，所以发送前先在主会话输入框左下角的权限菜单里选「完全权限」，修完换回原来的选项（StudyHub 切换不了这个权限）。修好后主会话会告诉你回卡片点哪个按钮；安装和卸载仍然只能你自己点。' }),
+    what: '本地工具（MinerU、Marker、本地转写、电脑声音组件、检索扩展）安装或启动失败时，它出错的卡片上才有「发给主会话」：主会话先查清真正的原因，再一步步修这台电脑上的环境，结束进程、删除文件或改权限之前先问你。要改文件或权限的修复，要在 StudyHub 文件夹以外动手，所以卡片上会提示：发送前先在主会话输入框左下角的权限菜单里选「完全权限」，修完换回原来的选项（StudyHub 切换不了这个权限）。主会话不会启动或停止工具的服务，也不会改系统设置；修好后它会告诉你回卡片点哪个按钮，安装和卸载仍然只能你自己点。' }),
   // ── the sidebar itself (#654–#657) ──
   feature({ id: 'nav-more', area: 'settings', title: '侧栏的「更多」', page: null, anchors: ['nav-more', NAV_MENU],
     aliases: ['更多', '每天', '阶段性', '课程准备与管理', '侧栏分组', '其他功能', '调整顺序', '固定到侧栏', 'more', 'sidebar groups', 'reorder', 'pin'],

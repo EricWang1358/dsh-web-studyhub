@@ -73,7 +73,7 @@ function buildSetupDiagnostic({ tool, label, platform = '', status = 'error', st
 }
 
 /** The Tooltip sentence for 'setup.failed' hand-offs across local setup and companion error states. */
-export const SETUP_FAILED_WHAT = '把报错和诊断信息发给主会话，让它先查清原因；它可以一步步修这台电脑上的环境，结束进程或删除文件之前会先问你';
+export const SETUP_FAILED_WHAT = '把报错和诊断信息发给主会话，让它先查清原因；它可以一步步修这台电脑上的环境，结束进程、删除文件或改权限之前会先问你';
 
 /** Diagnostic bundle `{ input, text }` for MinerU install, service, or check errors. */
 export function mineruDiagnostic({ view, install, plan, shown, summary = '', stageLabel = '' } = {}) {
@@ -87,6 +87,7 @@ export function mineruDiagnostic({ view, install, plan, shown, summary = '', sta
     ['python', install?.python || plan?.python || ''],
     ['version', view?.version || install?.mineruVersion || ''],
     ['external', view?.external?.exe || ''],
+    ['attempts', install?.attempts > 1 ? install.attempts : ''],
   ];
   return buildSetupDiagnostic({ tool: 'mineru', label: 'MinerU', platform: plan?.platform || '', status, stage, code, summary, facts, logs: [view?.lastError?.detail, install?.log] });
 }
@@ -162,7 +163,7 @@ export function liveLoopbackDiagnostic({ status: raw, plan, shown, summary = '',
 /** Diagnostic bundle `{ input, text }` for the search extension install, companion startup, or index build (`ExtensionPanel`, `ExtensionNotStarted`). */
 export function extensionDiagnostic({ status: raw, run, stage = '', code = '', summary = '', error = '', course = '' } = {}) {
   const ext = raw?.extension || {}, comp = raw?.companion || {};
-  const resolvedCode = code || run?.errorCode || (comp.notStarted ? 'companion-not-started' : '');
+  const resolvedCode = code || run?.errorCode || (comp.notStarted ? 'companion-not-started' : '') || (stage === 'index-start' ? 'index-start-failed' : '');
   const state = run?.status === 'failed' ? 'index-failed' : comp.notStarted ? 'not-started' : 'error';
   const cause = summary || error || run?.error || '';
   const version = [ext.version, ext.outdated && ext.expected ? `-> ${ext.expected}` : ''].filter(Boolean).join(' ');
