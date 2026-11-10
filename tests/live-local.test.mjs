@@ -211,11 +211,11 @@ function controlledWorker() {
 
 test('local drain waits for progress and sends only one end marker', async () => {
   const worker = controlledWorker();
-  const socket = new LoopbackWebSocket('local://live', { createWorker: () => worker, timing: { drainIdleMs: 100 } });
+  // The idle limit is far above the progress interval: a slow runner stretching one sleep must not end the drain; `done` still ends it at once.
+  const socket = new LoopbackWebSocket('local://live', { createWorker: () => worker, timing: { drainIdleMs: 5000 } });
   await waitFor(() => socket.readyState === 1, 'open');
   for (let i = 0; i < 3; i++) socket.send(JSON.stringify(audioMessage(pcm(0.1))));
-  const drained = socket.drain();
-  socket.drain();
+  const drained = Promise.all([socket.drain(), socket.drain()]);
   socket.send(JSON.stringify(audioMessage(pcm(0.1))));
   for (let i = 1; i <= 3; i++) {
     await sleep(50);
