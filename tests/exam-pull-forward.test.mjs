@@ -344,17 +344,16 @@ test("a pile answered today is spread over the days left, not put on tomorrow", 
   assert.ok(Math.max(...perDay.values()) <= 4, `27 questions over 9 days: ${JSON.stringify([...perDay])}`);
 });
 
-test("questions answered yesterday or earlier can still land on today, the ones answered today cannot", () => {
-  const cards = [
-    ...Array.from({ length: 3 }, (_, i) => quiz(`y${i}`, answeredAgo(1, 40 + i))),
-    ...Array.from({ length: 3 }, (_, i) => quiz(`o${i}`, answeredAgo(9, 50 + i))),
-    ...Array.from({ length: 3 }, (_, i) => quiz(`t${i}`, answeredAgo(0, 60 + i))),
-  ];
+test("a question answered yesterday can still land on today, the ones answered today cannot", () => {
+  // An answer from today has full recall (no whole day has passed), so it sorts after every older one; the old spread still gave
+  // today's share, here two of the six, to the first two in that order: the older question and one answered today.
+  const cards = [quiz("y0", answeredAgo(1, 40)), ...Array.from({ length: 5 }, (_, i) => quiz(`t${i}`, answeredAgo(0, 50 + i)))];
   const state = examLibrary(3, cards);
-  assert.deepEqual(alignDueDates(state, NOW), { pulled: 9, restored: 0 });
+  assert.deepEqual(alignDueDates(state, NOW), { pulled: 6, restored: 0 });
   const dayOfCard = (id) => dayOf(state.decks[0].cards.find((item) => item.id === id).review.due_at);
-  assert.ok(["y0", "y1", "y2", "o0", "o1", "o2"].some((id) => dayOfCard(id) === 0), "an older answer takes the today share");
-  for (const id of ["t0", "t1", "t2"]) assert.ok(dayOfCard(id) >= 1 && dayOfCard(id) <= 2, `${id}: tomorrow at the earliest`);
+  assert.equal(dayOfCard("y0"), 0, "answered yesterday: due today");
+  for (let i = 0; i < 5; i++) assert.ok(dayOfCard(`t${i}`) >= 1 && dayOfCard(`t${i}`) <= 2, `t${i}: tomorrow at the earliest, by the day before the exam`);
+  assert.equal(dueDays(state).filter((day) => day === 0).length, 1, "today holds the one older answer only");
 });
 
 test("answered today with the exam tomorrow: due from 00:00 on the exam day; answered yesterday, it can be due today", () => {
@@ -384,20 +383,23 @@ test("the floor changes nothing about the rest: running twice, giving back and a
   assert.deepEqual(state, expected, "every own date is back");
 });
 
-test("a saved exam date does not bring a question answered a moment ago forward to today", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "study-exam-floor-"));
-  const study = new StudyService(root);
-  t.after(async () => { study.dispose?.(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
-  const today = new Date();
-  const date = (days) => {
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + days);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  };
-  const answered = schedule(initialReview(), 5, new Date(Date.now() - 6e4).toISOString());
-  const due = new Date(Date.now() + 40 * 864e5).toISOString();
-  await study.store.update((s) => { s.decks.push({ id: "os", title: "OS", course: "OS", cards: Array.from({ length: 5 }, (_, i) => quiz(`q${i}`, { ...answered, due_at: due })) }); });
-  const saved = await study.call("course.save", { name: "OS", exam: { format: "closed-book", date: date(3) } });
-  assert.deepEqual(saved.alignment, { pulled: 5, restored: 0 });
-  const startOfTomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).getTime();
-  for (const item of (await study.call("export")).decks[0].cards) assert.ok(Date.parse(item.review.due_at) >= startOfTomorrow, "not before tomorrow");
-});
+/* The clock is faked (Date only), so the day cannot change under the test: once at 00:00:30, where an answer "a minute ago" would have
+   been given yesterday, and once at noon. The answer is given at the faked now, certainly today. */
+for (const [label, hh, mm, ss] of [["just after midnight", 0, 0, 30], ["at noon", 12, 0, 0]]) {
+  test(`a saved exam date does not bring a question answered now forward to today (${label})`, async (t) => {
+    const today = new Date();
+    const now = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hh, mm, ss).getTime();
+    t.mock.timers.enable({ apis: ["Date"], now });
+    const root = await mkdtemp(join(tmpdir(), "study-exam-floor-"));
+    const study = new StudyService(root);
+    t.after(async () => { study.dispose?.(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
+    const day = (days) => new Date(new Date(now).getFullYear(), new Date(now).getMonth(), new Date(now).getDate() + days);
+    const date = (days) => { const d = day(days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+    const answered = schedule(initialReview(), 5, new Date(now).toISOString());
+    const due = new Date(now + 40 * 864e5).toISOString();
+    await study.store.update((s) => { s.decks.push({ id: "os", title: "OS", course: "OS", cards: Array.from({ length: 5 }, (_, i) => quiz(`q${i}`, { ...answered, due_at: due })) }); });
+    const saved = await study.call("course.save", { name: "OS", exam: { format: "closed-book", date: date(3) } });
+    assert.deepEqual(saved.alignment, { pulled: 5, restored: 0 });
+    for (const item of (await study.call("export")).decks[0].cards) assert.ok(Date.parse(item.review.due_at) >= day(1).getTime(), "not before tomorrow");
+  });
+}
