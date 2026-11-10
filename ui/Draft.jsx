@@ -124,7 +124,8 @@ export default function Draft({
   // 覆盖: which sections of the material have a question (the saved draft's own, asked again whenever the library or the draft changes).
   const covered = useCoverage(draft.draftVersion > 0 && !missingDraft ? { draftId: draft.id } : null, { version: `${data.revision}:${draft.draftVersion}` });
   // Questions that are near-duplicates of another one of the same kind, in this draft or the course's decks (#890): asked with the draft, again when it changes.
-  const similar = useSimilarQuestions(draft.id, { version: `${data.revision}:${draft.draftVersion}`, enabled: draft.draftVersion > 0 && !missingDraft });
+  // Not while a job is still changing the draft (it would ask after every batch): the last answer stays on screen, and the page asks once the job is done.
+  const similar = useSimilarQuestions(draft.id, { version: `${data.revision}:${draft.draftVersion}`, enabled: draft.draftVersion > 0 && !missingDraft && !updatingDraft });
   // Live (the coverage of the draft now, every run of it), never the snapshot of the last run (`editorial.coverage.selected` counts that run's sources only): pages of a PDF, else materials.
   const liveView = covered.view?.status === "ok" ? covered.view : null;
   const liveCited = !liveView ? null : coverageCount ? (liveView.coverage?.units === "page" ? [liveView.coverage.covered, liveView.coverage.leaves] : null)
@@ -250,7 +251,8 @@ export default function Draft({
               {/* One row layout for every question (#670): the number, the question (two lines at most, whole when the row is open) and, at the end, the kind and what is not as it should be. */}
               <summary className="draft-card__row">
                 <span className="draft-card__no">{formatNumber(i + 1, { minimumIntegerDigits: 2 })}</span>
-                <span className="draft-card__prompt">{plainStem(q.prompt)}</span>
+                {/* The near-duplicate notice (#890) leads the question, inside its two lines: however many tags the row has, it adds no height. */}
+                <span className="draft-card__prompt"><SimilarTag match={similar.get(q.id)} />{plainStem(q.prompt)}</span>
                 <span className="draft-card__tags">
                   <small>{kinds[q.kind]}</small>
                   {!cardMatchesReview(draft.editorial?.reviewedCards?.[q.id], q) &&
@@ -259,8 +261,6 @@ export default function Draft({
                   {aiDraftedCitedCardCount([q], data.sources) > 0 && <small>{ui("AI 撰写 · 未核对")}</small>}
                   {experimentalShown(data) && <JevCardBadge signal={draft.editorial?.jev?.signals?.[q.id]} />}
                   {experimentalShown(data) && draft.editorial?.jevDecided?.cards?.[q.id] && <JevDecidedBadge />}
-                  {/* Last, so it takes a line of its own under the short tags and the closed row stays two lines high (#670). */}
-                  <SimilarTag match={similar.get(q.id)} />
                 </span>
               </summary>
               <SimilarDetail match={similar.get(q.id)} />

@@ -14,7 +14,7 @@ const m = await loadUi(`
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { default as Draft } from './ui/Draft.jsx';
-  export { seedSimilar, forgetSimilar } from './ui/draft-similar.js';
+  export { askSimilar, seedSimilar, forgetSimilar } from './ui/draft-similar.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
 const noop = () => {};
@@ -26,25 +26,27 @@ const answer = { status: 'ok', draftId: 'd1', draftVersion: 3, threshold: 0.72, 
   { cardId: 'c3', n: 3, similarity: 0.85, other: { where: 'deck', deckId: 'deck', deckTitle: '信息论基础', cardId: 'old', n: 12, prompt: '熵在信息论中的含义是什么？' } },
 ] };
 const data = { sources: [], decks: [], drafts: [draft], jobs: [], modelReady: true, runs: [], revision: 'r7' };
-const page = (language = 'zh', seeded = answer) => {
+const page = (language = 'zh', seeded = answer, shown = draft) => {
   m.setUiLanguage(language);
   try {
     m.forgetSimilar();
     if (seeded) m.seedSimilar('d1', 'r7:3', seeded);
-    return renderToStaticMarkup(inApp(m, React.createElement(m.Draft, { data, draft, draftLoaded: JSON.stringify(draft), setDraft: noop, draftText: '', setDraftText: noop, jsonMode: false,
+    return renderToStaticMarkup(inApp(m, React.createElement(m.Draft, { data: { ...data, drafts: [shown] }, draft: shown, draftLoaded: JSON.stringify(shown), setDraft: noop, draftText: '', setDraftText: noop, jsonMode: false,
       setJsonMode: noop, openDraft: noop, onOpenPublished: noop, onStartPublished: noop, clearRecovery: noop, setPage: noop, setModal: noop, blankCard: noop, patchCard: noop,
-      parseDraft: JSON.parse, topUpDraft: noop }), { data }));
+      parseDraft: JSON.parse, topUpDraft: noop }), { data: { ...data, drafts: [shown] } }));
   } finally { m.setUiLanguage('zh'); }
 };
 const questions = (html) => html.split('<details class="').filter((part) => part.startsWith('draft-card') || part.includes(' draft-card')).slice(0, 3);
 const rowOf = (part) => part.slice(part.indexOf('<summary'), part.indexOf('</summary>'));
+/** The notice of a row as its text, and the part of it that is not the (cut-short) deck title. */
+const notice = (part) => { const tag = rowOf(part).match(/<small[^>]*data-similar[^>]*>([\s\S]*?)<\/small>/)?.[1] ?? ''; return { text: tag.replace(/<[^>]+>/g, ''), fixed: tag.replace(/<span[^>]*data-similar-title[^>]*>[\s\S]*?<\/span>/, '') }; };
 
 test('only the flagged questions carry the notice, in their row, naming the draft number or the deck and its number', () => {
   const [first, second, third] = questions(page());
-  assert.match(rowOf(first), /data-similar[^>]*>与本草稿第 3 题相似</);
+  assert.equal(notice(first).text, '与本草稿第 3 题相似');
   assert.doesNotMatch(second, /data-similar/, 'a question with no near-duplicate has no notice');
-  assert.match(rowOf(third), /data-similar[^>]*>与《信息论基础》第 12 题相似</);
-  for (const part of [first, third]) assert.equal(rowOf(part).split('data-similar').length - 1, 1, 'one notice per question');
+  assert.equal(notice(third).text, '与《信息论基础》第 12 题相似');
+  for (const part of [first, third]) assert.equal(rowOf(part).split('data-similar=').length - 1, 1, 'one notice per question');
 });
 
 test('opening a flagged question shows the other question\'s stem and says nothing is blocked; no button is added', () => {
@@ -59,12 +61,50 @@ test('opening a flagged question shows the other question\'s stem and says nothi
 
 test('in English the notice reads naturally and keeps the numbers', () => {
   const [first, , third] = questions(page('en'));
-  assert.match(rowOf(first), /data-similar[^>]*>Similar to question 3 of this draft</);
-  assert.match(rowOf(third), /data-similar[^>]*>Similar to question 12 of “信息论基础”</);
+  assert.equal(notice(first).text, 'Similar to question 3 of this draft');
+  assert.equal(notice(third).text, 'Similar to question 12 of “信息论基础”');
   assert.match(third, /85% similar/);
 });
 
 test('without an answer for this draft (not loaded yet, or one about another draft) the page shows no notice', () => {
   assert.doesNotMatch(page('zh', null), /data-similar/);
   assert.doesNotMatch(page('zh', { ...answer, draftId: 'other' }), /data-similar/, 'an answer about another draft is not shown');
+});
+
+test('a long deck title is cut in its own span: 「相似」 and the number are outside it and always show', () => {
+  const title = '操作系统原理与设计第二版·第三章进程管理与调度算法（含历年真题）';
+  const long = { ...answer, similar: [{ ...answer.similar[1], other: { ...answer.similar[1].other, deckTitle: title } }] };
+  for (const [language, said] of [['zh', /^与第 12 题相似$/], ['en', /^Similar to question 12 of $/]]) {
+    m.setUiLanguage(language);
+    const [, , third] = questions(page(language, long));
+    m.setUiLanguage('zh');
+    const { text, fixed } = notice(third);
+    assert.ok(text.includes(title), 'the whole title is in the page (cut by the stylesheet, not by the text)');
+    assert.match(fixed, said, `the words and the number are not in the part that is cut: ${fixed}`);
+    assert.match(rowOf(third), /<span class="draft-card__similar-title" data-similar-title="true">/);
+  }
+});
+
+test('an embedded image in a question is named in its row, never drawn or spelled out', () => {
+  const pictured = { ...draft, cards: [card('c1', `![电路图](data:image/png;base64,${'A'.repeat(2000)})图中电路的输出是什么？`), ...draft.cards.slice(1)] };
+  const [first] = questions(page('zh', null, pictured));
+  assert.match(rowOf(first), /\[电路图\]图中电路的输出是什么？/);
+  assert.doesNotMatch(rowOf(first), /data:image/);
+});
+
+test('one question in flight per draft and at most one more: asks made meanwhile share the later answer', async () => {
+  const asked = [], waiting = [];
+  const call = (action, args) => { asked.push([action, args.id]); return new Promise((resolve) => waiting.push(resolve)); };
+  const first = m.askSimilar(call, 'd1');
+  const meanwhile = [m.askSimilar(call, 'd1'), m.askSimilar(call, 'd1'), m.askSimilar(call, 'd1')];
+  assert.deepEqual(asked, [['draft.similar', 'd1']], 'one question while the first is out');
+  waiting.shift()({ status: 'ok', draftId: 'd1', similar: [], answer: 1 });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(asked.length, 2, 'asked once more, for everything that changed meanwhile');
+  waiting.shift()({ status: 'ok', draftId: 'd1', similar: [], answer: 2 });
+  assert.deepEqual((await Promise.all([first, ...meanwhile])).map((item) => item.answer), [2, 2, 2, 2]);
+  const later = m.askSimilar(call, 'd1');
+  assert.equal(asked.length, 3, 'a question after the answer asks again');
+  waiting.shift()({ status: 'ok', draftId: 'd1', similar: [], answer: 3 });
+  assert.equal((await later).answer, 3);
 });

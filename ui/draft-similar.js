@@ -12,6 +12,24 @@ const remember = (key, view) => { remembered.delete(key); remembered.set(key, vi
 export const seedSimilar = (draftId, version, view) => remember(keyOf(draftId, version), view);
 export const forgetSimilar = () => remembered.clear();
 
+/* One question in flight per draft, and at most one more after it: the library moves on every commit of a running job, and a version that changes while
+   a question is out only asks once more when the answer is in (whoever asked meanwhile gets that later answer). Like `asking` in ui/coverage/use-coverage.js. */
+const asking = new Map();
+export function askSimilar(call, draftId) {
+  const flight = asking.get(draftId);
+  if (flight) { flight.again = true; return flight.answer; }
+  const entry = { again: false };
+  entry.answer = (async () => {
+    try {
+      let answer;
+      do { entry.again = false; answer = await call('draft.similar', { id: draftId }); } while (entry.again);
+      return answer;
+    } finally { asking.delete(draftId); }
+  })();
+  asking.set(draftId, entry);
+  return entry.answer;
+}
+
 /** The flagged questions of draft `draftId` as a Map from card id to { similarity, other }; empty until an answer for this draft is here. */
 export function useSimilarQuestions(draftId, { version = '', enabled = true } = {}) {
   const { call } = useStudy();
@@ -19,7 +37,7 @@ export function useSimilarQuestions(draftId, { version = '', enabled = true } = 
   const [view, setView] = useState(() => remembered.get(key) ?? null);
   useLiveEffect((live) => {
     if (!enabled || !draftId || typeof call !== 'function') return;
-    Promise.resolve().then(() => call('draft.similar', { id: draftId })).then((answer) => {
+    askSimilar(call, draftId).then((answer) => {
       if (answer?.status !== 'ok') return;
       remember(key, answer);
       if (live()) setView(answer);
