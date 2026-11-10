@@ -59,7 +59,9 @@ test("#672: the line says when the question comes back in days, in plain words, 
 });
 
 test("#672: a question due within the day, a miss and the re-ask note", () => {
-  assert.match(due({ correct: true, level: "learning", nextDue: days(0.2) }), /^答对了 · 下次今天内再见/);
+  // Later the same local day (the gap is counted in calendar days, #882 review 2): 23:59 of NOW's own day.
+  const lateToday = new Date(new Date(NOW).setHours(23, 59, 0, 0)).toISOString();
+  assert.match(due({ correct: true, level: "learning", nextDue: lateToday }), /^答对了 · 下次今天内再见/);
   assert.match(due({ correct: false, level: "weak", nextDue: days(1), retryQueued: true }), /^↻ 将继续巩固 · 下次大约 1 天后再见 · 这道题放到了本轮最后，会再出现一次/);
   assert.match(due({ correct: true, level: "mastered", nextDue: days(40) }), /^✓ 已掌握 · 下次大约 40 天后再见/);
   assert.match(due({ correct: true, level: "mastered", nextDue: days(120) }), /下次大约 4 个月后再见/);

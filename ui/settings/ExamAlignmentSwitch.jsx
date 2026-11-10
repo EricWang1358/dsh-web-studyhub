@@ -42,12 +42,12 @@ export function ExamAlignmentView({ preview, working = null, onSet, onAlign, onR
         label={<>{ui('考前对齐')}{' '}<Tooltip layer content={ui(RULE)}>
           <span tabIndex={0} className="sm2-field-tip" aria-label={uiFormat('「{0}」是什么', [ui('考前对齐')])}><Icon name="info" size={16} /></span>
         </Tooltip></>}
-        hint={uiFormat('考试日：{0}。复习不会排到考试之后。', [exams])} />}
+        hint={uiFormat(preview.enabled ? '考试日：{0}。之后的作答不晚于考试日。' : '考试日：{0}。已关闭：复习按平常安排。', [exams])} />}
       {showSwitch && (waiting
         ? <Hint>{uiFormat('还有 {0} 道题排在考试之后，现在对齐会把它们提前。', [preview.pending])}{' '}{previewLine(preview, true)}{' '}
             <Button variant="quiet" size="sm" busy={working === 'align'} lock={busy} onClick={() => onAlign?.()}>{ui('现在对齐')}</Button></Hint>
         : <Hint>{previewLine(preview, !preview.enabled)}</Hint>)}
-      {restorable > 0 && <Hint>{uiFormat('{0} 道题是为已经过去或已删除的考试提前的，还没作答，仍按提前的日子到期。', [restorable])}{' '}
+      {restorable > 0 && <Hint>{uiFormat('{0} 道题之前为考试提前了（考试已经过去，或题组已不在那门课），之后还没再作答，仍按提前的日子到期。', [restorable])}{' '}
         <Button variant="quiet" size="sm" busy={working === 'restore'} lock={busy} onClick={() => onRestore?.()}>{ui('恢复原来的日期')}</Button></Hint>}
     </div>
   );

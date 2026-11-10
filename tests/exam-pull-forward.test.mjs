@@ -151,6 +151,28 @@ test("on the exam day nothing moves: the questions brought forward stay before t
   assert.deepEqual(state, aligned);
 });
 
+test("an exam moved earlier to today: a moved question still due after it is due from the start of today, its own date kept", () => {
+  const state = library();
+  state.decks[0].cards = Array.from({ length: 10 }, (_, i) => quiz(`q${i}`, reviewDueIn(20 + i, 1 + i)));
+  alignDueDates(state, NOW);
+  const before = structuredClone(state), later = (item) => dayOf(item.review.due_at) > 3;
+  assert.ok(before.decks[0].cards.some(later) && before.decks[0].cards.some((item) => !later(item)), "some are due after day 3, some by it");
+  state.courses[0].exam.date = dateOf(3);
+  const restoreOnly = structuredClone(state);
+  assert.deepEqual(restoreDueDates(restoreOnly, local(3, 15)), { pulled: 0, restored: 0 }, "the restore pass moves nothing forward");
+  const result = alignDueDates(state, local(3, 15));
+  assert.deepEqual(result, { pulled: before.decks[0].cards.filter(later).length, restored: 0 });
+  for (const [index, item] of state.decks[0].cards.entries()) {
+    const was = before.decks[0].cards[index].review;
+    assert.equal(item.review.unaligned_due_at, was.unaligned_due_at, `${item.id}: its own date is kept`);
+    if (dayOf(was.due_at) > 3) assert.equal(item.review.due_at, new Date(local(3, 0)).toISOString(), `${item.id}: due from 00:00 of the exam day`);
+    else assert.equal(item.review.due_at, was.due_at, `${item.id}: already before the exam, left alone`);
+  }
+  const again = structuredClone(state);
+  assert.deepEqual(alignDueDates(again, local(3, 18)), { pulled: 0, restored: 0 }, "idempotent on the exam day");
+  assert.deepEqual(again, state);
+});
+
 test("after the exam day a pass gives back what it brought forward; the restore pass does only that", () => {
   const state = library();
   alignDueDates(state, NOW);
@@ -282,7 +304,12 @@ test("merging a course into one with an exam brings the merged decks' questions 
   await study.store.update((s) => { s.decks.push({ id: "old", title: "OS old", course: "OS 2", cards: [quiz("q1", { ...reviewDueIn(0), due_at: due })] }); });
   const os = await study.call("course.save", { name: "OS", exam: { format: "closed-book", date: examDate } });
   const other = await study.call("course.get", { name: "OS 2" });
-  await study.call("course.merge", { from: [other.id], into: os.id });
+  const merged = await study.call("course.merge", { from: [other.id], into: os.id });
+  assert.deepEqual(merged.alignment, { pulled: 1, restored: 0 }, "the merge says what moved, as course.save does");
   const review = (await study.call("export")).decks[0].cards[0].review;
   assert.equal(review.unaligned_due_at, due);
+  const renamed = await study.call("course.rename", { id: os.id, name: "OS final" });
+  assert.equal(renamed.course.name, "OS final");
+  assert.equal(renamed.alignment, undefined, "the decks keep their exam: nothing moved, nothing said");
+  assert.equal((await study.call("export")).decks[0].cards[0].review.unaligned_due_at, due);
 });

@@ -202,17 +202,45 @@ test("the line under an answer says the exam brought the question back, in both 
   const feedback = { correct: true, level: "familiar", nextDue: new Date(now + 5 * 864e5).toISOString(), beforeLevel: "familiar", beforeDays: 9, afterDays: 24, stability: 20, examAligned: true };
   const html = renderToStaticMarkup(React.createElement(m.NextDue, { feedback, now }));
   assert.match(html, /下次大约 5 天后再见/);
-  assert.match(html, /考试前先回来一次/);
+  assert.match(html, /考试当天或之前先回来一次/);
   assert.match(html, /考前对齐/);
   assert.match(html, /记忆间隔 9 天 → 24 天/, "the gap chip is the memory gap, not a second 'next review' number");
   assert.doesNotMatch(html, /复习间隔：/, "the generic sentence about the review gap gives way to the exam sentence");
   const ordinary = renderToStaticMarkup(React.createElement(m.NextDue, { feedback: { ...feedback, examAligned: undefined }, now }));
   assert.match(ordinary, /间隔 9 天 → 24 天/);
   assert.doesNotMatch(ordinary, /记忆间隔/);
-  assert.doesNotMatch(renderToStaticMarkup(React.createElement(m.NextDue, { feedback: { ...feedback, examAligned: undefined }, now })), /考试前先回来一次/);
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(m.NextDue, { feedback: { ...feedback, examAligned: undefined }, now })), /先回来一次/);
   m.setUiLanguage("en");
   try {
     const english = renderToStaticMarkup(React.createElement(m.NextDue, { feedback, now }));
     assert.doesNotMatch(english, /[㐀-鿿]/, "every word has its English");
+    assert.match(english, /Back once by the exam day/);
   } finally { m.setUiLanguage("zh"); }
+});
+
+test("a capped answer: the line, its 'why N days' and the grade button count the same calendar days (review 2, item 2)", async () => {
+  const React = (await import("react")).default;
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { loadUi } = await import("./helpers/ui-module.mjs");
+  const m = await loadUi(`
+    export { NextDue, nextDueWhen } from './ui/NextDue.jsx';
+  `);
+  const stable = schedule(schedule(schedule(initialReview(), 4, at(-40)), 4, at(-35)), 4, at(-20));
+  const text = (html) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  for (const [left, hh] of [[1, 14], [3, 14], [1, 23], [3, 0]]) {
+    const answeredAt = at(EXAM - left, hh, 0), now = Date.parse(answeredAt);
+    const review = schedule(stable, 4, answeredAt, withExam);
+    assert.ok(review.unaligned_due_at, `exam in ${left} days at ${hh}:00: the answer is capped`);
+    assert.equal(nextIntervals(stable, answeredAt, withExam)[4], left, "the button");
+    const feedback = { correct: true, level: "familiar", nextDue: review.due_at, beforeDays: 9, afterDays: review.interval_days, stability: 20, examAligned: true };
+    assert.equal(m.nextDueWhen(feedback, now), `下次大约 ${left} 天后再见`, `exam in ${left} days at ${hh}:00: the line`);
+    assert.match(text(renderToStaticMarkup(React.createElement(m.NextDue, { feedback, now }))), new RegExp(`为什么是 ${left} 天`), "the why summary");
+  }
+  // An ordinary answer (due = answer + N days) keeps its number, at any clock time.
+  for (const hh of [0, 9, 14, 23]) {
+    const answeredAt = at(0, hh, 30), review = schedule(initialReview(), 4, answeredAt, plain);
+    const gap = Math.round((Date.parse(review.due_at) - Date.parse(answeredAt)) / 864e5);
+    assert.equal(m.nextDueWhen({ correct: true, nextDue: review.due_at }, Date.parse(answeredAt)), `下次大约 ${gap} 天后再见`);
+    assert.equal(nextIntervals(initialReview(), answeredAt, plain)[4], gap);
+  }
 });

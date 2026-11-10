@@ -12,10 +12,12 @@ import { loadUi } from "./helpers/ui-module.mjs";
 
 const m = await loadUi(`
   export { ExamAlignmentView, changeList, previewLine } from './ui/settings/ExamAlignmentSwitch.jsx';
-  export { ExamAlignmentPointerView } from './ui/ExamAlignmentPointer.jsx';
+  export { ExamAlignmentPointerView, examPointerShown } from './ui/ExamAlignmentPointer.jsx';
   export { alignmentReceipt, examDateText } from './ui/exam-alignment-words.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { setUiLanguage } from './ui/i18n.js';
+  export { FINDER_ENTRIES } from './ui/finder/entries.js';
+  export { searchFeatures } from './ui/finder/search.js';
 `);
 const han = /[㐀-鿿]/;
 const day = (date, before, after = before) => ({ date, before, after });
@@ -43,7 +45,8 @@ test("the switch names the exam on the calendar, says one sentence, keeps the ru
   assert.match(html, /data-tour="settings-exam-alignment"/);
   assert.match(html, /role="switch"/);
   assert.doesNotMatch(html, /checked=""/, "off as read");
-  assert.match(html, /考试日：OS 2026年11月20日。复习不会排到考试之后。/, "the shared date formatter, not raw ISO");
+  assert.match(html, /考试日：OS 2026年11月20日。已关闭：复习按平常安排。/, "the shared date formatter, not raw ISO; switched off, the sentence says so");
+  assert.doesNotMatch(html, /复习不会排到考试之后|不晚于考试日。/, "no promise the switch is not keeping");
   assert.doesNotMatch(html, /2026-11-20/);
   assert.match(html, /role="tooltip"[^>]*>[^<]*考试当天 0 点起就会出现/, "the whole rule is in the Tooltip");
   assert.match(html, /考试当天作答的题只能排到考试之后/);
@@ -56,6 +59,7 @@ test("the switch names the exam on the calendar, says one sentence, keeps the ru
 test("switched on: previews switching off; with questions waiting it offers 现在对齐; the press in flight shows on its button", () => {
   const on = view({ preview: preview({ enabled: true, off: [day("2026-11-10", 6, 4), day("2026-11-11", 4, 2), day("2026-11-12", 0)] }) });
   assert.match(on, /checked=""/);
+  assert.match(on, /考试日：OS 2026年11月20日。之后的作答不晚于考试日。/, "switched on: what it does to answers from now on");
   assert.match(on, /关闭后，未来 14 天每天的复习量（估计）：11月10日 −2 · 11月11日 −2。/);
   assert.doesNotMatch(on, /<button/, "nothing waits: no 现在对齐 button");
   const waiting = view({ preview: preview({ enabled: true, pending: 7 }) });
@@ -70,7 +74,7 @@ test("switched on: previews switching off; with questions waiting it offers 现�
 test("moved questions of an exam that is over are counted and can be given back, also when the switch itself is hidden", () => {
   const html = view({ preview: preview({ courses: [], restorable: 4 }) });
   assert.doesNotMatch(html, /role="switch"/);
-  assert.match(html, /4 道题是为已经过去或已删除的考试提前的，还没作答，仍按提前的日子到期。/);
+  assert.match(html, /4 道题之前为考试提前了（考试已经过去，或题组已不在那门课），之后还没再作答，仍按提前的日子到期。/);
   assert.match(html, /<button[^>]*>[\s\S]*?恢复原来的日期/);
 });
 
@@ -86,12 +90,36 @@ test("the receipts say what moved, and the course settings point at the switch o
   assert.equal(pointer({ preview: null, course: "OS" }), "");
 });
 
+test("the course settings mount the pointer (and read the preview) only for a course whose exam date is after today", () => {
+  const now = new Date(2026, 10, 10, 15, 0).getTime();
+  assert.equal(m.examPointerShown(null, now), false, "no exam");
+  assert.equal(m.examPointerShown({ format: "closed-book" }, now), false, "an exam without a date");
+  assert.equal(m.examPointerShown({ date: "2026-11-09" }, now), false, "over");
+  assert.equal(m.examPointerShown({ date: "2026-11-10" }, now), false, "today: nothing can move before it");
+  assert.equal(m.examPointerShown({ date: "2026-11-11" }, now), true, "tomorrow");
+});
+
+test("找功能 finds the switch by its two buttons and by the course line that points at it", () => {
+  for (const query of ["现在对齐", "恢复原来的日期", "题仍排在考试之后", "align now", "restore original dates"])
+    assert.equal(m.searchFeatures(m.FINDER_ENTRIES, query)[0]?.id, "exam-alignment", query);
+});
+
 test("English: every line is in English and the dates are written the English way", () => {
   for (const shown of [preview(), preview({ enabled: true, pending: 3 }), preview({ enabled: true }), preview({ on: preview().off }), preview({ courses: [], restorable: 2 })]) {
     const html = view({ preview: shown }, "en");
     assert.doesNotMatch(html, han, html);
   }
-  assert.match(view({ preview: preview() }, "en"), /Exam alignment[\s\S]*Exam day: OS Nov 20, 2026\./);
+  assert.match(view({ preview: preview() }, "en"), /Exam alignment[\s\S]*Exam day: OS Nov 20, 2026\. Switched off: reviews are scheduled as usual\./);
+  assert.match(view({ preview: preview({ enabled: true }) }, "en"), /Exam day: OS Nov 20, 2026\. Answers from now on come back by the exam day\./);
+  // Counts follow the catalogue's way with a number that may be 1: "question(s)", never "1 questions".
+  const counted = [view({ preview: preview({ enabled: true, pending: 1 }) }, "en"), view({ preview: preview({ courses: [], restorable: 1 }) }, "en"),
+    render(React.createElement(m.ExamAlignmentPointerView, { preview: preview({ enabled: true, courses: [{ name: "OS", date: "2026-11-20", pending: 1 }] }), course: "OS" }), "en")];
+  m.setUiLanguage("en");
+  try { counted.push(m.alignmentReceipt({ pulled: 1, restored: 1 })); } finally { m.setUiLanguage("zh"); }
+  for (const shown of counted) {
+    assert.match(shown, /\b1 question\(s\)/, shown);
+    assert.doesNotMatch(shown, /\b1 questions\b/, shown);
+  }
   assert.match(view({ preview: preview() }, "en"), /November 10 \+2/);
   m.setUiLanguage("en");
   try { assert.doesNotMatch(m.alignmentReceipt({ pulled: 1, restored: 1 }), han); } finally { m.setUiLanguage("zh"); }
