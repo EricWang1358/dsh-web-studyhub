@@ -180,7 +180,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/token-estimate.js`: contexts generation, library, materials; 5 other lib files
 - `lib/update-check.js`: contexts generation, system; 4 other lib files
 - `lib/usage-scope.js`: contexts authoring, coach, generation, materials, workflows; 6 other lib files
-- `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 43 other lib files
+- `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 44 other lib files
 
 ## Used by exactly one context (139)
 
