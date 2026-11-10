@@ -370,3 +370,10 @@ test('startServer decides why a start failed from what THIS start wrote to the e
   await assert.rejects(startServer({ cli: general.cli, home: generalHome }), error => error.reason === 'service-failed' && /\[doclib\.log\]/.test(error.detail));
 });
 
+test('startServer reads a missing VC++ runtime in its English Windows forms as vc-runtime, as the installer does', async t => {
+  for (const said of ['OSError: [WinError 126] The specified module could not be found. Error loading "torch\\lib\\c10.dll"', "Error: ... code: 'ERR_DLOPEN_FAILED'"]) {
+    const fake = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true, serverLogError: said });
+    await assert.rejects(startServer({ cli: fake.cli, home: join(fake.dir, 'home') }), error => error.reason === 'vc-runtime' && /VC\+\+/.test(error.message), said);
+  }
+});
+

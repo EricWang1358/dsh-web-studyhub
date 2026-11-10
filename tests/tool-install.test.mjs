@@ -155,6 +155,7 @@ test('the shared failure reading', () => {
   // A native addon that cannot load on English Windows (a missing VC++ runtime DLL), and Node's own code for it; a module Node or Python cannot resolve is not that.
   assert.equal(classifyFailure('Error: The specified module could not be found.\r\n\\\\?\\D:\\StudyHub\\live\\sherpa-onnx.node'), 'vc-runtime');
   assert.equal(classifyFailure("Error: ... code: 'ERR_DLOPEN_FAILED'"), 'vc-runtime');
+  assert.equal(classifyFailure('OSError: [WinError 126] Error loading "c10.dll" or one of its dependencies.'), 'vc-runtime');
   for (const unresolved of ["Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'D:\\x\\worker.mjs'", "Error: Cannot find module 'sherpa-onnx-node'", "ModuleNotFoundError: No module named 'mineru'"])
     assert.notEqual(classifyFailure(unresolved), 'vc-runtime', unresolved);
   assert.ok(new InstallError('x', 'y') instanceof Error);
