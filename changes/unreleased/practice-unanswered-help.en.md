@@ -1,0 +1,1 @@
+- **“Help me understand” answers now appear directly below an unanswered question without revealing the answer first.** Inbox reminders for new explanations stay unread until the Q&A is actually shown on screen, and opening an “Explanation ready” item in the Inbox expands the Q&A even before you submit an answer. Not verified: live multi-window sync with an external chat session.

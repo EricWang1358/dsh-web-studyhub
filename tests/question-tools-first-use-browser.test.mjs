@@ -126,6 +126,14 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       await answer(page, 'wrong');
       await toTools(page);
       await tipOf(page, 'practice.help-first').waitFor({ state: 'visible', timeout: 10000 });
+      // #960: a quick advance before the 1500 ms dwell does NOT spend the first-use tip
+      await page.keyboard.press('Enter');
+      await page.locator('.options .option:not([disabled])').first().waitFor({ timeout: 15000 });
+      assert.equal(await anyTip(page).count(), 0, `${where}: moving on right away takes the tip away`);
+      assert.deepEqual(await stored(page), [], `${where}: a glance shorter than 1500 ms does not spend the tip`);
+      await answer(page, 'wrong');
+      await toTools(page);
+      await tipOf(page, 'practice.help-first').waitFor({ state: 'visible', timeout: 10000 });
       assert.deepEqual(await offenders(page), [], `${where}: the 帮我弄懂 tip lies over empty space only`);
       assert.deepEqual(await ringed(page), ['review.help'], `${where}: its control carries the ring while the tip is open`);
       const before = await boxes(page);
@@ -142,13 +150,14 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       // the tip takes no focus: the next key still moves on
       assert.notEqual(before.focus, 'BUTTON', `${where}: focus is not on a button`);
       assert.ok(await page.locator('[data-practice-tip] button').evaluate((button) => document.activeElement !== button), `${where}: the tip's button has no focus`);
+      await page.waitForTimeout(1600);
       await page.keyboard.press('Enter');
       await page.locator('.options .option:not([disabled])').first().waitFor({ timeout: 15000 });
       assert.equal(await anyTip(page).count(), 0, `${where}: moving on takes the tip away`);
-      assert.deepEqual(await stored(page), ['help-first'], `${where}: it was shown, so it is seen`);
+      assert.deepEqual(await stored(page), ['help-first'], `${where}: after >= 1500 ms visible dwell, it is seen`);
       await answer(page, 'wrong');
       await page.waitForTimeout(1500);
-      assert.equal(await anyTip(page).count(), 0, `${where}: a second wrong answer shows nothing: once`);
+      assert.equal(await anyTip(page).count(), 0, `${where}: a subsequent wrong answer shows nothing: once`);
       assert.deepEqual(errors, [], `${where}: no page errors`);
       await context.close();
     }

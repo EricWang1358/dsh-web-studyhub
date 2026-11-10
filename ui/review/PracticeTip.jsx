@@ -18,7 +18,8 @@ export const PRACTICE_TIP_TARGET = Object.freeze({
   [PRACTICE_TIP.fix]: { control: '[data-usage="review.improve"]', words: '觉得题目有问题？点「修题」，助教直接改这张卡，改完在信箱里能一步撤销。' },
   [PRACTICE_TIP.prereq]: { control: '[data-usage="review.derive-prereq"]', words: '基础不牢？点「出成前置题」，在同一题组里补一道更基础的题，练完再回到这道题。' },
 });
-const YIELD_TO = '.thumb-tray, .sh-menu';
+export const PRACTICE_TIP_YIELD_TO = '.thumb-tray, .sh-menu, .shortcut-sheet';
+export const PRACTICE_TIP_DWELL_MS = 1500;
 const BAR_HEIGHT = 56; // the top bar: a control under it is not on screen
 const NARROW = 300; // the narrower card tried when the wide one cannot pass a button at the side
 const RING = 'data-practice-tip-ring'; // the control the open tip is about gets a quiet outline (review.css); the tip may sit a little away from it
@@ -51,22 +52,24 @@ function keepClear(area, card) {
 
 export default function PracticeTip({ id, onClose, onShown }) {
   const element = useRef(null);
+  const visibleNow = useRef(false);
   const latest = useRef({});
   latest.current = { onClose, onShown };
   const { control, words } = PRACTICE_TIP_TARGET[id];
   useIsoLayoutEffect(() => {
     const card = element.current;
     if (!card) return undefined;
-    let frame = 0, reported = false, ringed = null;
+    let frame = 0, reported = false, ringed = null, dwellTimer = 0;
     const open = () => card.matches?.(':popover-open');
+    const clearDwell = () => { if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = 0; } };
     const ring = target => { if (ringed !== target) { ringed?.removeAttribute(RING); target?.setAttribute(RING, ''); ringed = target; } };
-    const hide = () => { ring(null); if (open()) card.hidePopover(); };
+    const hide = () => { visibleNow.current = false; clearDwell(); ring(null); if (open()) card.hidePopover(); };
     const measure = () => { const box = card.getBoundingClientRect(); return { width: box.width, height: box.height }; };
     const place = () => {
       frame = 0;
       const target = [...document.querySelectorAll(control)].find(visible), at = target?.getBoundingClientRect();
-      // Only next to a control that is on screen (a link far down the page waits until the learner scrolls to it), and not on top of an open menu or the tray.
-      if (!at || at.top < BAR_HEIGHT || at.bottom > window.innerHeight || document.querySelector(YIELD_TO)) { hide(); return; }
+      // Only next to a control that is on screen (a link far down the page waits until the learner scrolls to it), and not on top of an open menu, sheet or tray.
+      if (!at || at.top < BAR_HEIGHT || at.bottom > window.innerHeight || document.querySelector(PRACTICE_TIP_YIELD_TO)) { hide(); return; }
       card.style.visibility = 'hidden';
       card.style.maxWidth = '';
       if (card.showPopover && !open()) card.showPopover();
@@ -89,7 +92,13 @@ export default function PracticeTip({ id, onClose, onShown }) {
       card.style.top = `${spot.top / scale}px`;
       card.style.visibility = '';
       ring(target);
-      if (!reported) { reported = true; latest.current.onShown?.(); }
+      visibleNow.current = true;
+      if (!reported && !dwellTimer) {
+        dwellTimer = setTimeout(() => {
+          dwellTimer = 0;
+          if (visibleNow.current && !reported) { reported = true; latest.current.onShown?.(); }
+        }, PRACTICE_TIP_DWELL_MS);
+      }
     };
     const soon = () => { if (!frame) frame = requestAnimationFrame(place); };
     place();
@@ -102,6 +111,7 @@ export default function PracticeTip({ id, onClose, onShown }) {
     changes?.observe(document.body, { childList: true, subtree: true, characterData: true });
     return () => {
       cancelAnimationFrame(frame);
+      clearDwell();
       window.removeEventListener('scroll', soon, true);
       window.removeEventListener('resize', soon);
       observer?.disconnect();
@@ -109,9 +119,14 @@ export default function PracticeTip({ id, onClose, onShown }) {
       hide();
     };
   }, [control]);
-  // Esc closes it from anywhere (it never has the focus); a menu or the tray that Esc closes first stops the event before it gets here.
+  // Esc closes it from anywhere while it is actually visible (it never has the focus); a menu, sheet or tray that Esc closes first prevents default before it gets here.
   useEffect(() => {
-    const key = event => { if (event.key === 'Escape' && !event.defaultPrevented) latest.current.onClose?.(); };
+    const key = event => {
+      if (event.key === 'Escape' && visibleNow.current && !event.defaultPrevented && !document.querySelector(PRACTICE_TIP_YIELD_TO)) {
+        event.preventDefault();
+        latest.current.onClose?.();
+      }
+    };
     document.addEventListener('keydown', key);
     return () => document.removeEventListener('keydown', key);
   }, []);

@@ -16,38 +16,41 @@ const SHOW_AFTER_MS = 450; // the options of a just-answered question open one a
 const CONTROL_OF = Object.freeze({ 'review.help': PRACTICE_TIP.help, 'review.improve': PRACTICE_TIP.fix, 'review.derive-prereq': PRACTICE_TIP.prereq });
 
 /** { tip, close, onShown }: `tip` is the id of the tip to draw, or null. `answerShown`: an answer of 帮我弄懂 or 追问 stands under the question; `votedDown`: 「这题有问题」 is marked. */
-export function usePracticeTip({ run, votedDown = false, answerShown = false, tourRunning = false, assistMode = '' }) {
+export function usePracticeTip({ run, votedDown = false, tooHard = false, answerShown = false, tourRunning = false, modelReady = true, assistMode = '' }) {
   const [tip, setTip] = useState(null);
   const active = useRef({ id: null, shown: false });
   const held = useRef({ key: '', ids: [] });
-  const key = reviewEntryKey(run), exam = run?.mode === 'exam', feedbackWrong = !!run?.feedback && !isPassed(run);
+  const modelReadyRef = useRef(modelReady);
+  modelReadyRef.current = modelReady;
+  const key = reviewEntryKey(run), exam = run?.mode === 'exam', feedbackWrong = !!run?.feedback && (!isPassed(run) || tooHard);
   const choose = useCallback(id => { active.current = { id, shown: false }; setTip(id); }, []);
   const seen = useCallback(id => { markPracticeTipSeen(id); if (active.current.id === id) choose(null); }, [choose]);
 
   // Leaving the question with a tip on screen: it was shown, so it is seen.
   useEffect(() => () => { if (active.current.id && active.current.shown) markPracticeTipSeen(active.current.id); choose(null); }, [key, choose]);
-  // Using the control a tip points at.
+  // Using the control a tip points at (only counts when a model is ready to back it up).
   useEffect(() => {
-    const used = event => { const id = CONTROL_OF[event.target?.closest?.('[data-usage]')?.getAttribute('data-usage')]; if (id) seen(id); };
+    const used = event => { const id = CONTROL_OF[event.target?.closest?.('[data-usage]')?.getAttribute('data-usage')]; if (id && modelReadyRef.current) seen(id); };
     document.addEventListener('click', used, true);
     return () => document.removeEventListener('click', used, true);
   }, [seen]);
-  useEffect(() => { if (assistMode === 'improve') seen(PRACTICE_TIP.fix); }, [assistMode, seen]);
-  // The tour or an exam run takes it away without spending it.
-  useEffect(() => { if ((tourRunning || exam) && active.current.id) choose(null); }, [tourRunning, exam, choose]);
+  useEffect(() => { if (assistMode === 'improve' && modelReady) seen(PRACTICE_TIP.fix); }, [assistMode, modelReady, seen]);
+  // The tour, an exam run, an unready model, or switching a 👎 to difficulty-only tags before the tip appeared takes it away without spending it.
+  useEffect(() => { if ((tourRunning || exam || !modelReady) && active.current.id) choose(null); }, [tourRunning, exam, modelReady, choose]);
+  useEffect(() => { if (active.current.id === PRACTICE_TIP.fix && !votedDown && !active.current.shown) choose(null); }, [votedDown, choose]);
   // Which one, if any, once the question has settled.
   useEffect(() => {
     if (tip) return undefined;
     const timer = setTimeout(() => {
       const state = practiceTipState(), waiting = held.current.key === key ? held.current.ids : [];
-      const next = practiceTipFor({ feedbackWrong, votedDown, answerShown, exam, tourRunning, seen: [...state.seen, ...waiting], allowed: state.allowed });
+      const next = practiceTipFor({ feedbackWrong, votedDown, answerShown, exam, tourRunning, modelReady, seen: [...state.seen, ...waiting], allowed: state.allowed });
       if (!next) return;
       const holding = Object.entries({ [PRACTICE_TIP.help]: feedbackWrong, [PRACTICE_TIP.fix]: votedDown, [PRACTICE_TIP.prereq]: answerShown }).filter(([, now]) => now).map(([id]) => id);
       held.current = { key, ids: [...new Set([...waiting, ...holding])].filter(id => id !== next) };
       choose(next);
     }, SHOW_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [tip, key, feedbackWrong, votedDown, answerShown, exam, tourRunning, choose]);
+  }, [tip, key, feedbackWrong, votedDown, answerShown, exam, tourRunning, modelReady, choose]);
 
   return {
     tip,

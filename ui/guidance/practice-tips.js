@@ -28,10 +28,17 @@ const has = (list, id) => (list instanceof Set ? list.has(id) : Array.isArray(li
  * `votedDown`: 「这题有问题」 was marked; `answerShown`: an answer of 帮我弄懂 or 追问 is shown under the question; `exam`: the run is a mock exam;
  * `tourRunning`: the feature tour is on; `seen` / `allowed`: ids (an array or a Set) of the tips already seen and of those the switches allow. Pure.
  */
-export function practiceTipFor({ feedbackWrong = false, votedDown = false, answerShown = false, exam = false, tourRunning = false, seen = [], allowed = [] } = {}) {
-  if (exam || tourRunning) return null;
-  const moments = { [PRACTICE_TIP.help]: feedbackWrong, [PRACTICE_TIP.fix]: votedDown, [PRACTICE_TIP.prereq]: answerShown };
+export function practiceTipFor({ feedbackWrong = false, tooHard = false, votedDown = false, answerShown = false, exam = false, tourRunning = false, modelReady = true, seen = [], allowed = [] } = {}) {
+  if (exam || tourRunning || !modelReady) return null;
+  const moments = { [PRACTICE_TIP.help]: feedbackWrong || tooHard, [PRACTICE_TIP.fix]: votedDown, [PRACTICE_TIP.prereq]: answerShown };
   return PRACTICE_TIP_ORDER.find(id => moments[id] === true && has(allowed, id) && !has(seen, id)) ?? null;
+}
+
+/** What a 👎 vote means for the first-use tips: difficulty-only tags (too-hard / too-easy) are not about fixing a flawed question (#960). */
+export function voteTipMoments(vote, tags = [], answered = false) {
+  if (vote !== 'down') return { votedDown: false, tooHard: false };
+  const difficultyOnly = Array.isArray(tags) && tags.length > 0 && tags.every(tag => tag === 'too-hard' || tag === 'too-easy');
+  return { votedDown: !difficultyOnly, tooHard: !!answered && Array.isArray(tags) && tags.includes('too-hard') };
 }
 
 /* The id inside the stored list ('practice.help-first' → 'help-first'): the registry entry's memory.item. */

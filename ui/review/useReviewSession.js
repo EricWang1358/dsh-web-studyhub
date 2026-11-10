@@ -8,6 +8,7 @@ import { usePersistentState } from '../storage.js';
 import { usePolling } from '../use-polling.js';
 import { EN_KEY, flag } from '../app/use-app-shell.js';
 import { resolvePracticeSettings } from '../../lib/practice-settings.js';
+import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
   AUTO_ADVANCE_MS, advanceKeyOf, autopilotPlan, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
@@ -21,6 +22,14 @@ import { hiddenMsOf, noteVisibility, openClock } from './hidden-time.js';
 const SAVES_FIRST = new Set(['review.answer', 'review.move']);
 // How long a number key's grade button wears its press (#745): long enough to be seen, short enough never to look stuck.
 const KEY_PRESS_MS = 220;
+
+export function mergeReviewPollWithFollowups(current, next) {
+  const merged = mergeReviewPoll(current, next);
+  if (!current || !next || current.id !== next.id || (current.queueVersion || 0) !== (next.queueVersion || 0)
+    || current.index !== next.index || current.revealed !== next.revealed || !!current.feedback !== !!next.feedback) return merged;
+  if (JSON.stringify(merged.followups) === JSON.stringify(next.followups)) return merged;
+  return { ...merged, followups: next.followups };
+}
 
 /* The practice session (ui-consistency #112): the open run, what the learner has typed on its question, the teaching
    panel, the EN translation, the autopilot and the keyboard. It used to live in App, which re-rendered it on every
@@ -182,12 +191,13 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   useEffect(() => { setShowBack(!!run?.revealed); }, [run?.id, run?.card?.id, run?.index, run?.queueVersion, run?.revealed]);
 
   /* Links and fixes made in the conversation reach the open question without a reload. */
-  usePolling(async () => {
+  const pollRun = useCallback(async () => {
     const current = runRef.current;
     if (!current?.id) return;
     const next = await call('review.get', { runId: current.id });
-    setRun((existing) => mergeReviewPoll(existing, next));
-  }, { intervalMs: 4000, enabled: page === 'review' && !!run?.card?.id });
+    setRun((existing) => mergeReviewPollWithFollowups(existing, next));
+  }, [call]);
+  usePolling(pollRun, { intervalMs: 4000, enabled: page === 'review' && !!run?.card?.id });
 
   /* ── one step of the round ── */
   const stepWaiting = useRef(false);
@@ -263,14 +273,18 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     try {
       await call('card.translate', { deckId: target.deckId, cardId: target.card.id });
       const next = await call('review.get', { runId: target.id });
-      setRun((current) => (reviewEntryKey(current) === key ? mergeReviewPoll(current, next) : current));
+      setRun((current) => (reviewEntryKey(current) === key ? mergeReviewPollWithFollowups(current, next) : current));
     } catch (failure) {
-      if (isCurrentEntry(runRef.current, key)) setError(errorMessage(failure));
+      const msg = errorMessage(failure);
+      if (!modelReadiness(refs.dataRef.current).ready || describeModelError(msg).action === 'settings' || /没有可用的.*模型|未配置|密钥/.test(String(failure?.message || failure))) {
+        setShowEn(false);
+      }
+      if (isCurrentEntry(runRef.current, key)) setError(msg);
     } finally {
       enFlights.current.end(key);
       setEnBusyKey((current) => (current === key ? '' : current));
     }
-  }, [call, setError]);
+  }, [call, refs, setError, setShowEn]);
   // With EN on, each newly opened card gets translated once (server caches it).
   useEffect(() => {
     if (page !== 'review' || !showEn || !run?.card || run.complete || run.mode === 'exam') return;
@@ -330,7 +344,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const current = runRef.current;
     if (!current?.card || (!text.trim() && !(mode === 'ask' && helpChoices.length) && !(mode === 'derive' && derive?.followupId))) return false;
     // Only asking helps with the answer: 修题 and 出题 change the bank, and 批改 is the answer itself, which reads what was recorded.
-    if (mode === 'ask') noteAssistance('askedTutorBeforeAnswer');
+    if (mode === 'ask') { noteAssistance('askedTutorBeforeAnswer'); patch({ explain: true }); }
     if (mode === 'grade' && !(await flushDraft())) return false;
     try {
       await submitAssist(call, { deckId: current.deckId, cardId: current.card.id, runId: current.id,
@@ -345,7 +359,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       setError(failure.message || ui('这次没有提交成功，也没有拿到具体原因。可以再提交一次。'));
       return false;
     }
-  }, [call, notify, setError, core, noteAssistance, flushDraft]);
+  }, [call, notify, setError, core, noteAssistance, patch, flushDraft]);
   // Slaying is one click next to other tools; offer an immediate undo instead of sending the learner to the slay deck in 管理题组.
   const slayCard = useCallback(async () => {
     const current = runRef.current, ref = { deckId: current.deckId, cardId: current.card.id };
@@ -382,14 +396,17 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     inEditable: !!event.target.closest?.('input,textarea,select,[contenteditable],dialog'), onButton: !!event.target.closest?.('button') });
   const canShortcut = (event) => shortcutGate(eventShape(event), gateContext()) && !event.defaultPrevented && !event.repeat && !event.shiftKey && page === 'review' && !!run?.card;
   keyHandler.current = (event) => {
-    const outcome = shortcutAction(eventShape(event), { ...gateContext(), page, run, busy, shortcutHelp, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
+    const shape = eventShape(event);
+    const k = shape.key?.toLowerCase();
+    if ((k === 'g' || k === 'b') && !shape.repeat && !shape.shiftKey && page === 'review' && run?.card && shortcutGate(shape, gateContext())) cancelAutoAdvance();
+    const outcome = shortcutAction(shape, { ...gateContext(), page, run, busy, shortcutHelp, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
     if (!outcome) return;
     cancelAutoAdvance();
     if (outcome.preventDefault) event.preventDefault();
     const action = outcome.action;
     if (!action) return;
     if (action.type === 'help') setShortcutHelp((value) => !value);
-    else if (action.type === 'help-close') setShortcutHelp(false);
+    else if (action.type === 'help-close') { event.preventDefault(); setShortcutHelp(false); }
     else if (action.type === 'autopilot') toggleAutopilot();
     else if (action.type === 'resume') late.current.resume?.();
     else if (action.type === 'answer') { markKeyGrade(pressedGradeOf(action)); reviewAct('review.answer', action.args); }
@@ -440,7 +457,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     autopilot, onStatus: () => core.refresh().catch(() => {}), onPractice: onCoachPractice,
     onContinue: () => continueTo(null).go(),
     onReviewWeak: () => act('review.weak.start', { runId: run.id }, enterRun),
-    canShortcut, autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0, debrief: null,
+    canShortcut, cancelAutoAdvance, autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0, debrief: null,
   };
   const actions = useMemo(() => ({
     reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn,
@@ -457,5 +474,5 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     toggleAutopilot,
   }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleHint, noteAssistance]);
   return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
-    shortcutHelp, keyGrade, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, actions, flushDraft };
+    shortcutHelp, keyGrade, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, actions, flushDraft };
 }
