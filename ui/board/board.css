@@ -278,6 +278,9 @@
     .board-chip.board-today__focus-chip[data-focus-chip="weak"] { --hue: var(--warn); }
     .board-chip.board-today__focus-chip[data-focus-chip="due"] { --hue: var(--text-dim); }
     .board-today__focus-chip-text { min-width: 0; max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .board-today__focus-slip { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); flex: 1 1 100%; min-width: 0; }
+    .board-today__focus-slip-text { min-width: 0; color: var(--text); font-size: var(--fs-sm); border-radius: var(--radius-xs); cursor: default; }
+    .board-today__focus-slip-text:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .board-today__focus-budget { display: flex; flex-direction: column; gap: var(--space-1); flex: 0 1 13.5rem; min-width: 10.5rem; }
     .board-today__focus-budget-label {
       display: inline-block; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium);

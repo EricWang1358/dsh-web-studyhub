@@ -1,7 +1,8 @@
 import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
-import { Banner, Button, Disclosure, Hint, InlineMessage, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
+import { flushSync } from "react-dom";
+import { Banner, Button, ChunkedRows, Disclosure, Hint, InlineMessage, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
 import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS, JOB_TYPES } from "../lib/job-status.js";
@@ -40,6 +41,9 @@ import { useSimilarQuestions } from "./draft-similar.js";
    发布需先保存再 draft.publish（draftVersion 乐观锁）。blankCard /
    patchCard / parseDraft 由 App 传入：blankCard 依赖当前资料列表，
    parseDraft 同时被恢复暂存的 JSON 校验使用。 */
+/** A draft of more questions than this draws its questions in chunks of this many (ChunkedRows); a question is a fold with its whole editor inside, so a chunk is smaller than a list's. */
+const DRAFT_CHUNK = 80;
+
 export default function Draft({
   data,
   draft,
@@ -66,6 +70,9 @@ export default function Draft({
   // 删除草稿 asks once, in the shared dialog (ui/DeleteDraftDialog.jsx; the 待发布 row opens the same one): the draft's unpublished questions cost tokens.
   const [deletingId, setDeletingId] = React.useState(null);
   const detailsRef = React.useRef(null);
+  // A question something goes to is drawn even past the first chunk: the one just added, and every question when 查看详情 goes to the details that follow them (ChunkedRows `reveal`).
+  const [drawnTo, setDrawnTo] = React.useState({ id: "", index: -1 });
+  const revealCard = drawnTo.id === draft.id ? drawnTo.index : -1;
   // A draft made as the next part of a published deck (lib/deck-parts.js): where it goes is chosen here, when it is published; nothing touches the deck before.
   const targets = partTargets(draft, data), [partTarget, setPartTarget] = React.useState(undefined);
   const intoDeck = !targets ? null : partTarget === NEW_DECK ? NEW_DECK : targets.candidates.some((item) => item.id === partTarget) ? partTarget : defaultPartTarget(targets);
@@ -217,6 +224,8 @@ export default function Draft({
       {!updatingDraft && (rejectedCount > 0 || qualityErrorCount > 0) && (
         <InlineMessage tone="warning" boxed className="draft-blocker-summary"
           action={{ label: ui("查看详情"), onClick: () => {
+            // The details follow the last question: all of them are drawn first, or the next chunk would be drawn between them and the details just scrolled to.
+            flushSync(() => setDrawnTo({ id: draft.id, index: draft.cards.length - 1 }));
             if (detailsRef.current) {
               detailsRef.current.open = true;
               detailsRef.current.scrollIntoView?.({ block: "nearest" });
@@ -250,7 +259,7 @@ export default function Draft({
         />
       ) : (
         <>
-          {draft.cards.map((q, i) => (
+          <ChunkedRows items={draft.cards} chunk={DRAFT_CHUNK} resetKey={draft.id} reveal={revealCard} anchors={{ "draft-similar": draft.cards.findIndex((card) => similar.get(card.id)) }} render={(q, i) => (
             <Panel as="details" className="draft-card" key={q.id}>
               {/* One row layout for every question (#670): the number, the question (two lines at most, whole when the row is open) and, at the end, the kind and what is not as it should be. */}
               <summary className="draft-card__row">
@@ -470,15 +479,16 @@ export default function Draft({
                     { sourceId: data.sources[0].id, quote: "" }])}>{ui("添加原文引用")}</Button>
               </div>
             </Panel>
-          ))}
+          )} />
           <Button
             icon="plus" disabled={draft.cards.length >= 100}
-            onClick={() =>
+            onClick={() => {
+              setDrawnTo({ id: draft.id, index: draft.cards.length });
               setDraft({
                 ...draft,
                 cards: [...draft.cards, blankCard()],
-              })
-            }
+              });
+            }}
           >{ui("添加闪卡")}</Button>
         </>
       )}

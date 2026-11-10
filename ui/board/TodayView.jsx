@@ -19,7 +19,7 @@ export default function TodayView({
   onToggleDone, onEdit, onAction, onTodayAction, onMoveToday, onQuickAdd, onScheduleToday, onOrigin, onStudyRef,
   onStartTimer, onStartBreak, onPauseTimer, onResumeTimer, onCancelTimer, onCompleteTimer, onSaveTimerPrefs,
   onAddTimeLog, onEditTimeLog, onRemoveTimeLog,
-  onAddMemo, onEditMemo, onArchiveMemo, onDeleteMemo, onOpenPlan,
+  onAddMemo, onEditMemo, onArchiveMemo, onDeleteMemo, onOpenPlan, onPracticeScope,
 }) {
   const effectivePlan = useTodayCoursePlan(library, today, planAnswer);
   const [quickTitle, setQuickTitle] = useState('');
@@ -276,6 +276,7 @@ export default function TodayView({
         budgetMinutes={resolvedBudgetMinutes}
         planAnswer={effectivePlan}
         focusedMinutes={effectiveFocusedMinutes}
+        onPracticeScope={onPracticeScope}
       />
 
       <div className="board-today__workspace">

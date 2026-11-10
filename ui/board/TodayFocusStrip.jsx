@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react';
 import { ui } from '../i18n.js';
-import { Icon, ProgressBar, Tooltip } from '../components/index.js';
+import { Button, Icon, ProgressBar, Tooltip } from '../components/index.js';
 import { selectTodayFocusStrip } from './today-focus-strip.js';
 import { useTodayCoursePlan } from './use-today-course-plan.js';
 
-export default function TodayFocusStrip({ library, today, budgetMinutes = null, focusedMinutes = null, planAnswer }) {
+/* onPracticeScope(scope): starts a round of these questions, the way a crunch point's 练 5 道 does (ui/app/practise-round.js); without it (a read-only
+   board) the 会掉 sentence shows without its button. */
+export default function TodayFocusStrip({ library, today, budgetMinutes = null, focusedMinutes = null, planAnswer, onPracticeScope }) {
   const effectivePlan = useTodayCoursePlan(library, today, planAnswer);
   const strip = useMemo(
     () => selectTodayFocusStrip({ library, planAnswer: effectivePlan, budgetMinutes, focusedMinutes }),
@@ -36,6 +38,14 @@ export default function TodayFocusStrip({ library, today, budgetMinutes = null, 
           </div>
         )}
       </div>
+      {strip.slip && (
+        <div className="board-today__focus-slip" data-tour="today-focus-slip" data-focus-slip={strip.slip.chapters.join(' ')}>
+          <Tooltip layer group="today-focus-strip" content={strip.slip.tooltip}>
+            <span className="board-today__focus-slip-text" tabIndex={0}>{strip.slip.label}</span>
+          </Tooltip>
+          {onPracticeScope && <Button variant="secondary" size="sm" onClick={() => onPracticeScope(strip.slip.scope)}>{strip.slip.action}</Button>}
+        </div>
+      )}
       {strip.budget && (
         <div className="board-today__focus-budget">
           <Tooltip layer group="today-focus-strip" content={strip.budget.tooltip}>
