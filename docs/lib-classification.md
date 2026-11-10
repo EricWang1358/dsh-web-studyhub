@@ -186,7 +186,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 
 - `lib/answer-card-materials.js`: context generation
 - `lib/answer-time.js`: context study
-- `lib/atomic-json.js`: context generation; 8 other lib files
+- `lib/atomic-json.js`: context generation; 11 other lib files
 - `lib/audio-batch-members.js`: context audio; 2 other lib files
 - `lib/audio-batch-runtime-store.js`: context audio
 - `lib/audio-batch-skip.js`: context audio

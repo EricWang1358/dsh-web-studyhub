@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { InstallError, classifyFailure, createToolInstaller, liveRun } from '../lib/tool-install.js';
+import { InstallError, classifyFailure, createToolInstaller, liveRun, readState, writeState } from '../lib/tool-install.js';
 
 /* The install engine shared by Marker and MinerU, with a toy tool whose stages only write files: the order, the done-checks, cancel and resume, the
    restart, the format version, the one slot per state file, the uninstall rules and the task-console row. */
@@ -159,4 +159,90 @@ test('the shared failure reading', () => {
   for (const unresolved of ["Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'D:\\x\\worker.mjs'", "Error: Cannot find module 'sherpa-onnx-node'", "ModuleNotFoundError: No module named 'mineru'"])
     assert.notEqual(classifyFailure(unresolved), 'vc-runtime', unresolved);
   assert.ok(new InstallError('x', 'y') instanceof Error);
+});
+
+/* Windows scanners and indexers briefly deny replacing or reading a file. The state file is how a restart (and the next status) learns the result of a run,
+   so a denied write that is dropped reads as "interrupted" and a denied read as "idle" while the tool is in fact installed (issue #920). */
+const denied = (code = 'EPERM') => Object.assign(new Error(`${code}: operation not permitted`), { code });
+
+test('a state write survives a briefly denied replace, and writes to one file never overlap', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'tool-state-'));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  const file = join(dir, 'state', 'toy.json'), store = { versionKey: 'markerInstall', label: 'Toy' };
+  let calls = 0, open = 0, widest = 0;
+  const flaky = async (from, to) => {
+    calls += 1; open += 1; widest = Math.max(widest, open);
+    try { await wait(15); if (calls <= 2) throw denied(); await rename(from, to); } finally { open -= 1; }
+  };
+  await writeState(file, { status: 'complete', stage: 'done' }, { ...store, rename: flaky });
+  assert.equal(calls, 3, 'the same finished file is replaced again until the replace is allowed');
+  assert.deepEqual([(await readState(file, 'markerInstall')).status, (await readdir(join(dir, 'state'))).length], ['complete', 1], 'no half-written copy is left');
+});
+
+test('writes to one file land in the order they were asked, even when the first replace is slower', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'tool-state-'));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  const file = join(dir, 'toy.json'), store = { versionKey: 'markerInstall', label: 'Toy' };
+  let calls = 0, open = 0, widest = 0;
+  const slowFirst = async (from, to) => {
+    const mine = ++calls; open += 1; widest = Math.max(widest, open);
+    try { await wait(mine === 1 ? 80 : 0); await rename(from, to); } finally { open -= 1; }
+  };
+  const first = writeState(file, { status: 'running' }, { ...store, rename: slowFirst });
+  const second = writeState(file, { status: 'failed' }, { ...store, rename: slowFirst });
+  await Promise.all([first, second]);
+  assert.equal(widest, 1, 'two writes never replace the file at the same time');
+  assert.equal((await readState(file, 'markerInstall')).status, 'failed', 'the later state is the one on disk');
+});
+
+test('a state write that stays denied gives up with the error and leaves no temporary file', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'tool-state-'));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  const file = join(dir, 'toy.json');
+  await assert.rejects(writeState(file, { status: 'complete' }, { versionKey: 'markerInstall', label: 'Toy', rename: async () => { throw denied('EBUSY'); } }), { code: 'EBUSY' });
+  assert.deepEqual(await readdir(dir), []);
+});
+
+test('a state read survives a briefly denied open; a missing or broken file still reads as empty', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'tool-state-'));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  const file = join(dir, 'toy.json');
+  await writeFile(file, JSON.stringify({ version: 1, status: 'complete' }));
+  let tries = 0;
+  const flaky = async (...args) => { tries += 1; if (tries <= 2) throw denied('EBUSY'); return readFile(...args); };
+  assert.equal((await readState(file, 'markerInstall', { read: flaky })).status, 'complete');
+  assert.equal(tries, 3);
+  assert.deepEqual(await readState(join(dir, 'missing.json'), 'markerInstall'), {});
+  await writeFile(file, '{ not json');
+  assert.deepEqual(await readState(file, 'markerInstall'), {});
+});
+
+test('while the replace stays denied, timer writes do not pile up behind the final one', async t => {
+  const h = await toy(t);
+  const saved = process.env.STUDY_FS_RETRY_MS;
+  process.env.STUDY_FS_RETRY_MS = '2'; // a whole retry cycle of a denied replace is then about 140 ms
+  t.after(() => { if (saved === undefined) delete process.env.STUDY_FS_RETRY_MS; else process.env.STUDY_FS_RETRY_MS = saved; });
+  let attempts = 0, last = 0;
+  const alwaysDenied = async () => { attempts += 1; throw denied(); };
+  const busy = { id: 'one', mutating: false, run: async ctx => { for (let i = 0; i < 30; i++) { ctx.push(`line ${i}`); await wait(20); } last = Date.now(); } };
+  const installer = createToolInstaller({ ...h.spec, stages: [busy] }, { flushMs: 20, stateRename: alwaysDenied });
+  await installer.start({ confirm: true, location: h.location });
+  await installer.idle();
+  const settled = Date.now() - last;
+  assert.ok(settled < 1000, `the final write waited ${settled} ms behind earlier timer writes (${attempts} replace attempts)`);
+});
+
+test('a log line pushed while a timer write is in flight still reaches the state file without another push', async t => {
+  const h = await toy(t);
+  let slow = false;
+  const slowOnce = async (from, to) => { if (slow) { slow = false; await wait(100); } await rename(from, to); };
+  let onDisk = '';
+  const stage = { id: 'one', mutating: false, run: async ctx => {
+    slow = true; ctx.push('first'); await wait(40); ctx.push('late'); await wait(400);
+    onDisk = JSON.parse(await readFile(h.stateFile, 'utf8')).lastLine;
+  } };
+  const installer = createToolInstaller({ ...h.spec, stages: [stage] }, { flushMs: 20, stateRename: slowOnce });
+  await installer.start({ confirm: true, location: h.location });
+  await installer.idle();
+  assert.equal(onDisk, 'late', 'the write that found one in flight is asked again when that one ends');
 });
