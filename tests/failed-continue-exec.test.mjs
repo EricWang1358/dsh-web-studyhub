@@ -24,7 +24,7 @@ const TOTAL_MS = 20 * 60 * 1000;
 
 async function library(t, { model = clusteringModel(), wrap, coverage = { roundLimit: 8 } } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-failed-continue-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   const service = new StudyService(root, { coverage });
   t.after(() => service.dispose());
   service.complete = wrap ? wrap(model.complete, service) : model.complete;
