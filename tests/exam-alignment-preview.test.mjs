@@ -117,3 +117,20 @@ test("course.examAlignment.preview and .set through the service: right after the
   const after = await study.call("course.examAlignment.preview", {});
   assert.deepEqual(after.days.map((day) => day.before), preview.on.map((day) => day.after), "each day's count is what the preview said");
 });
+
+test("the preview counts what the pass then does with questions answered today (#931)", () => {
+  const state = library();
+  state.decks = [{ id: "os", title: "OS", course: "OS", cards: [
+    ...Array.from({ length: 6 }, (_, i) => quiz(`today-${i}`, { ...schedule(initialReview(), 5, at(0, 9)), due_at: at(30 + i) })),
+    ...Array.from({ length: 4 }, (_, i) => quiz(`old-${i}`, reviewDueIn(40 + i, 5 + i))),
+  ] }];
+  state.settings.exam_alignment = false;
+  const preview = examAlignmentPreview(state, NOW);
+  const switched = structuredClone(state);
+  switched.settings.exam_alignment = true;
+  alignDueDates(switched, NOW);
+  assert.deepEqual(preview.on.map((day) => day.after), counts(switched), "day by day, the pass's own result");
+  assert.equal(preview.on[0].after, preview.on[0].before + 2, "only the older answers share today: the two with the lowest recall of the four");
+  assert.equal(preview.pending, 0);
+  assert.equal(examAlignmentPreview(switched, NOW).pending, 0, "once aligned, nothing waits");
+});
