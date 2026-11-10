@@ -70,6 +70,7 @@ async function mountCopyHarness() {
       contents: `
         export { default as DiagnosticActions, DiagnosticBar } from './ui/install/DiagnosticActions.jsx';
         export { useCopyFeedback } from './ui/use-copy-feedback.js';
+        export { CopyDiagnosticsButton } from './ui/components/ErrorState.jsx';
       `,
       resolveDir: process.cwd(),
     },
@@ -96,7 +97,7 @@ test('tool-install classifyFailure detects ENAMETOOLONG and Windows/POSIX access
   assert.equal(classifyFailure('Error: EACCES: permission denied, mkdir /opt/locked'), 'not-writable');
 });
 
-test('useCopyFeedback evaluates lazy getter functions, tracks refused clipboards, and resets cleanly via DiagnosticBar', async t => {
+test('DiagnosticBar copies through the one CopyDiagnosticsButton: text read when asked, a fresh button per resetKey, an honest note and selectable text when the clipboard refuses', async t => {
   const prevDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
   let written = '', shouldFail = false;
   Object.defineProperty(globalThis, 'navigator', {
@@ -108,33 +109,39 @@ test('useCopyFeedback evaluates lazy getter functions, tracks refused clipboards
   const harness = await mountCopyHarness();
   t.after(() => harness.close());
 
-  let count = 0;
-  let bar = harness.run(({ DiagnosticBar }) => DiagnosticBar({ text: () => `lazy-report-${++count}`, resetKey: 'a', children: null }));
-  const findBtn = node => {
+  const find = (node, match) => {
     if (!node || typeof node !== 'object') return null;
-    if (typeof node.props?.onClick === 'function') return node;
-    for (const child of [node.props?.children].flat()) { const hit = findBtn(child); if (hit) return hit; }
+    if (match(node)) return node;
+    for (const child of [node.props?.children].flat()) { const hit = find(child, match); if (hit) return hit; }
     return null;
   };
-  assert.equal(count, 0, 'lazy getter is not called before clicking copy');
-  await findBtn(bar).props.onClick();
+  // The bar hands its text to the app's one CopyDiagnosticsButton, read only when the button asks; a new resetKey is a new button.
+  let count = 0;
+  const bar = harness.run(({ DiagnosticBar }) => DiagnosticBar({ text: () => `lazy-report-${++count}`, resetKey: 'a', children: null }));
+  const button = find(bar, node => node.type === harness.exports.CopyDiagnosticsButton);
+  assert.ok(button, 'DiagnosticBar renders CopyDiagnosticsButton');
+  assert.equal(button.key, 'a');
+  assert.equal(count, 0, 'the text is not read before the button asks for it');
+  assert.equal(button.props.describe(), 'lazy-report-1');
+  const fromDiagnostic = harness.run(({ DiagnosticBar }) => DiagnosticBar({ diagnostic: () => ({ text: 'the report', input: {} }), resetKey: 'b', children: null }));
+  assert.equal(find(fromDiagnostic, node => node.type === harness.exports.CopyDiagnosticsButton).props.describe(), 'the report');
+
+  // The button: copies, says so, and when the clipboard refuses, says so (role="status") and opens the text to select by hand.
+  const onClickOf = tree => find(tree, node => typeof node.props?.onClick === 'function');
+  let copy = harness.run(({ CopyDiagnosticsButton }) => CopyDiagnosticsButton({ describe: () => 'the report' }));
+  await onClickOf(copy).props.onClick();
   await flush();
-  assert.equal(written, 'lazy-report-1');
-  bar = harness.run(({ DiagnosticBar }) => DiagnosticBar({ text: () => `lazy-report-${++count}`, resetKey: 'a', children: null }));
-  assert.equal(findBtn(bar).props.children, '已复制');
-
-  // Changing resetKey resets copied state back to 复制诊断信息.
-  bar = harness.run(({ DiagnosticBar }) => DiagnosticBar({ text: () => `lazy-report-${++count}`, resetKey: 'b', children: null }));
-  bar = harness.run(({ DiagnosticBar }) => DiagnosticBar({ text: () => `lazy-report-${++count}`, resetKey: 'b', children: null }));
-  assert.equal(findBtn(bar).props.children, '复制诊断信息');
-
-  // Clipboard rejection surfaces the fallback note instead of throwing.
+  assert.equal(written, 'the report');
+  copy = harness.run(({ CopyDiagnosticsButton }) => CopyDiagnosticsButton({ describe: () => 'the report' }));
+  assert.equal(onClickOf(copy).props.children, '已复制');
   shouldFail = true;
-  await findBtn(bar).props.onClick();
+  await onClickOf(copy).props.onClick();
   await flush();
-  bar = harness.run(({ DiagnosticBar }) => DiagnosticBar({ text: () => 'x', resetKey: 'b', children: null }));
-  const flatText = JSON.stringify(bar);
-  assert.match(flatText, /没能复制，请点「发给主会话」查看全文/);
+  copy = harness.run(({ CopyDiagnosticsButton }) => CopyDiagnosticsButton({ describe: () => 'the report' }));
+  const refused = find(copy, node => node.props?.role === 'status');
+  assert.match(JSON.stringify(refused), /没能复制，请选中下面的文字再复制/);
+  assert.equal(find(copy, node => node.type === 'textarea').props.value, 'the report');
+  assert.ok(!JSON.stringify(copy).includes('发给主会话'), 'no promise that the hand-off shows the same text');
 });
 
 test('redactDiagnosticText and all 5 setup.failed tool prompts stay credential-free, fence-safe, and Han-free in English', () => {
@@ -188,6 +195,69 @@ test('redactDiagnosticText and all 5 setup.failed tool prompts stay credential-f
     assert.match(en, /^In StudyHub’s .+ I want to find out why/);
     assert.doesNotMatch(en, han, `${input.tool} English prompt contains Han: ${en}`);
   }
+});
+
+/* Every kind of secret the review found surviving the installer redactors, with the secret part that must be gone. */
+const SECRETS = [
+  ['Authorization: Bearer abc.def', 'abc.def'],
+  ['{"token": "xxxxxxxxxxxx"}', 'xxxxxxxxxxxx'],
+  ['{"api_key": "sk-abcdefghijkl"}', 'sk-abcdefghijkl'],
+  ['using ghp_0123456789abcdefABCDEF0123456789abcd now', 'ghp_0123456789abcdefABCDEF0123456789abcd'],
+  ['key sk-proj-AbCdEf0123456789xyzXYZ in env', 'sk-proj-AbCdEf0123456789xyzXYZ'],
+  ['hf token hf_AbCdEfGhIjKlMnOpQrStUvWxYz012345 here', 'hf_AbCdEfGhIjKlMnOpQrStUvWxYz012345'],
+  ['Authorization: Basic dXNlcjpwYXNz', 'dXNlcjpwYXNz'],
+  ['password=hunter2', 'hunter2'],
+  ['secret_key=abc123', 'abc123'],
+  ['PermissionError: C:\\Users\\EricW\\.mineru\\config.yaml', 'EricW'],
+  ['open /home/ericw/.mineru/config.yaml failed', 'ericw'],
+  ['open /Users/ericw/Library/x failed', 'ericw'],
+  ['blob QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5YWJjZGVmZ2hpams= end', 'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5YWJjZGVmZ2hpams='],
+  ['GET https://alice:s3cret-pass@mirror.example.com/pkg', 's3cret-pass'],
+];
+
+test('one redactor (lib/plain-reason.js redactSecrets) for the copied report, the hand-off and the MinerU daemon log: no secret survives, an ordinary line does', async t => {
+  const { redactSecrets } = await import('../lib/plain-reason.js');
+  for (const [text, secret] of SECRETS) {
+    assert.ok(!redactSecrets(text).includes(secret), `${text} -> ${redactSecrets(text)}`);
+    assert.ok(!uiMod.redactDiagnosticText(text).includes(secret), `copied report: ${text}`);
+  }
+  // A log line is kept as it was, and a path keeps its drive and depth: path-too-long and not-writable are read from it.
+  for (const line of ["  Building wheel for pillow (pyproject.toml): finished with status 'done'", 'D:\\StudyHub\\MinerU\\home\\config.yaml', 'max_tokens=4096 tokenizer: bert-base', 'Basic setup complete',
+    'File "site-packages/huggingface_hub/file_download.py", line 1010, in hf_hub_download'])
+    assert.equal(redactSecrets(line), line);
+  assert.equal(redactSecrets('C:\\Users\\EricW\\AppData\\Local\\x.log'), '%USERPROFILE%\\AppData\\Local\\x.log');
+  assert.equal(redactSecrets('/home/ericw/.mineru/x'), '~/.mineru/x');
+  // The hand-off input says nothing a summary could hide either: status, stage and code go through the same redactor.
+  const { input } = uiMod.mineruDiagnostic({ shown: { state: 'error password=hunter2', code: 'token=abcdefgh', origin: 'install' }, install: { step: 5, stage: 'enable' }, stageLabel: 'secret_key=abc123' });
+  assert.ok(!JSON.stringify(input).includes('hunter2') && !JSON.stringify(input).includes('abcdefgh') && !JSON.stringify(input).includes('abc123'), JSON.stringify(input));
+  // The daemon log the MinerU install shows is redacted by the same rules.
+  const { mkdtemp, mkdir: makeDir, writeFile: write, rm: remove } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os'), { join } = await import('node:path');
+  const { readMineruServerLogs } = await import('../lib/mineru-local.js');
+  const home = await mkdtemp(join(tmpdir(), 'study-redact-home-'));
+  t.after(() => remove(home, { recursive: true, force: true }));
+  await makeDir(join(home, 'logs'), { recursive: true });
+  await write(join(home, 'logs', 'doclib.stderr.log'), `${SECRETS.map(([text]) => text).join('\n')}\n`, 'utf8');
+  const shown = await readMineruServerLogs(home, { maxLines: 100, maxChars: 100_000 });
+  for (const [text, secret] of SECRETS) assert.ok(!shown.includes(secret), `daemon log: ${text}`);
+});
+
+test('the log tail of a report is bounded in characters too: each line and the whole log keep their END', () => {
+  const long = `${'x'.repeat(5000)}END-OF-LINE`;
+  const report = uiMod.mineruDiagnostic({ shown: { state: 'error', code: 'service-failed', origin: 'install' }, install: { log: [long, ...Array.from({ length: 39 }, (_, at) => `${'y'.repeat(390)} line ${at}`)] } });
+  assert.ok(report.input.log.length <= 6000, `log is ${report.input.log.length} characters`);
+  assert.ok(report.input.log.endsWith('line 38'), 'the end of the log is kept');
+  assert.ok(report.input.log.split('\n').every(line => line.length <= 400), 'no line is longer than 400 characters');
+  const one = uiMod.mineruDiagnostic({ shown: { state: 'error', code: 'service-failed', origin: 'install' }, install: { log: [long] } });
+  assert.ok(one.input.log.endsWith('END-OF-LINE') && one.input.log.length <= 400, 'a long line keeps its end');
+});
+
+test('the live-local hand-off names the tool that owns audio.import (study_audio) and asks before sending a recording to cloud transcription', () => {
+  const zh = uiMod.handOffText('setup.failed', { tool: 'live-local', status: 'error' }, 'zh');
+  const en = uiMod.handOffText('setup.failed', { tool: 'live-local', status: 'error' }, 'en');
+  assert.match(zh, /先问我是否改用云端转写，再用 study_audio 的 audio\.import 导入/);
+  assert.match(en, /ask me whether to use cloud transcription instead, then import it with study_audio audio\.import/);
+  assert.doesNotMatch(`${zh}\n${en}`, /study_materials\S* (?:的 )?audio\.import/);
 });
 
 test('LiveLocalCard, LiveLoopbackCard, ExtensionPanel, ExtensionNotStarted, and MarkerSettings wire 复制诊断信息 + setup.failed without extra primary buttons or Chinese in English', () => {

@@ -251,9 +251,21 @@ test('python-too-new shows the found version, download channels (mainland first)
   assert.match(html, /data-hand-off="setup\.failed"/);
   const en = render({ initialInstall: idle, initialPlan: tooNew }, 'en');
   assert.doesNotMatch(textOf(en), han, textOf(en));
-  assert.match(failureHint('pip-build'), /3\.12/);
+  // The versions come from the server's plan (MARKER_INSTALL), never written in the hint by hand.
+  const range = { minPython: '3.10', maxPython: '3.13', recommendedPython: '3.12' };
+  assert.match(failureHint('pip-build', { plan: range }), /安装 Python 3\.12（Marker 目前支持 Python 3\.10–3\.13）/);
+  assert.match(failureHint('pip-build', { plan: range, python: '3.11.9' }), /安装 Python 3\.12/, 'an older supported Python: try the recommended one');
   assert.match(failureHint('path-too-long'), /更改位置/);
-  assert.match(failureHint('python-too-new'), /3\.12/);
+  assert.match(failureHint('python-too-new', { plan: range }), /安装 Python 3\.12（Marker 目前支持 Python 3\.10–3\.13）/);
+  assert.equal(failureHint('python-too-old', { plan: range }), '安装 Python 3.10–3.13 后重试。');
+  assert.match(failureHint('python-too-old', { plan: { ...range, maxPython: '3.14' } }), /3\.10–3\.14/);
+  // A Python that is already the recommended one or newer: installing 3.12 again would not help; the hint says so and points to the hand-off.
+  for (const python of ['3.12.6', '3.13.1']) {
+    const hint = failureHint('pip-build', { plan: range, python });
+    assert.doesNotMatch(hint, /安装 Python 3\.12/, python);
+    assert.match(hint, /不是版本问题[\s\S]*发给主会话/, python);
+  }
+  assert.doesNotMatch(failureHint('pip-build', {}), /\{\d\}|undefined/, 'no plan yet: no placeholder left in the words');
 });
 
 test('failed Marker install offers 复制诊断信息 (with credential redaction) and 发给主会话; cancelled install does not', async t => {

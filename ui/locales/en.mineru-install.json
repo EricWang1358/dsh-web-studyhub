@@ -146,6 +146,5 @@
   "换成 {0} 档没有完成": "The switch to the {0} tier did not finish",
   "已暂停；已下载的部分会保留。": "Paused; what was downloaded is kept.",
   "详细信息": "Details",
-  "本机服务没能启动：配置文件夹的权限不符合要求，或没有写入权限。": "The local service could not start: the configuration folder permissions are invalid, or it cannot be written to.",
-  "没能复制，请点「发给主会话」查看全文": "Could not copy; choose “Send to the main chat” to view the full text"
+  "本机服务没能启动：配置文件夹的权限不符合要求，或没有写入权限。": "The local service could not start: the configuration folder permissions are invalid, or it cannot be written to."
 }

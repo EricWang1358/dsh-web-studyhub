@@ -137,7 +137,7 @@ function FailureDetail({ failure, job }) {
         <pre className="pdf-failure__lines" translate="no">{lines.join('\n')}</pre>
       </>}
       {/* The card keeps no live region of its own (#98): the button itself says it copied. */}
-      <DiagnosticBar text={() => failureText(failure)} resetKey={job?.id} fallback={ui('没能复制，请直接选中上面的文字')} className="pdf-failure__actions">
+      <DiagnosticBar text={() => failureText(failure)} resetKey={job?.id} className="pdf-failure__actions">
         {handOff && <HandOff id="job.failed" input={handOff} what={FAILED_HAND_OFF_WHAT} />}
       </DiagnosticBar>
     </div>

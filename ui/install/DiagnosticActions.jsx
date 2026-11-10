@@ -1,29 +1,22 @@
-import React, { useEffect } from 'react';
-import { ui } from '../i18n.js';
-import { Button } from '../components/index.js';
+import React from 'react';
+import { CopyDiagnosticsButton } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
-import { useCopyFeedback } from '../use-copy-feedback.js';
 import css from './diagnostic-actions.css';
 
 /* Shared one-click diagnostic copy (复制诊断信息) + main-chat hand-off (发给主会话) bar.
-   DiagnosticBar deliberately avoids importing HandOff.jsx: HandOff already sits at wave depth 3 in the workspace bundle, so callers pass
-   their HandOff element ('setup.failed' or 'job.failed') via `children` (node or `input => ...`), keeping this shared module at depth 2
-   and preserving the 6-wave workspace static closure ceiling. */
+   The copy is the app's one CopyDiagnosticsButton (ui/components/ErrorState.jsx): the text is one fold away (看看会复制什么) and, when the clipboard
+   refuses, the fold opens with the text selected. DiagnosticBar deliberately avoids importing HandOff.jsx: HandOff already sits at wave depth 3 in the
+   workspace bundle, so callers pass their HandOff element ('setup.failed' or 'job.failed') via `children` (node or `input => ...`), keeping this shared
+   module at depth 2 and preserving the 6-wave workspace static closure ceiling. `resetKey` starts the button afresh when what it reports changes. */
 
-export function DiagnosticBar({ diagnostic, text, resetKey, fallback = '', row = false, className = '', children }) {
+export function DiagnosticBar({ diagnostic, text, resetKey, row = false, className = '', children }) {
   useInjectCss(css, 'study-diagnostic-actions');
   const read = () => (typeof diagnostic === 'function' ? diagnostic() : diagnostic);
-  const { copied, failed, copy, reset } = useCopyFeedback(text || (() => read()?.text || ''));
-  useEffect(() => {
-    if (resetKey !== undefined) reset();
-  }, [resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const describe = () => (typeof text === 'function' ? text() : text) || read()?.text || '';
   return (
     <span className={['sh-diag-actions', row && 'sh-diag-actions--row', className].filter(Boolean).join(' ')}>
-      <Button size="sm" variant="quiet" icon={copied ? 'check' : 'copy'} onClick={() => void copy()}>
-        {copied ? ui('已复制') : ui('复制诊断信息')}
-      </Button>
+      <CopyDiagnosticsButton key={resetKey} describe={describe} />
       {typeof children === 'function' ? children(() => read()?.input || {}) : children}
-      {failed && <span className="sh-diag-actions__note">{fallback || ui('没能复制，请点「发给主会话」查看全文')}</span>}
     </span>
   );
 }

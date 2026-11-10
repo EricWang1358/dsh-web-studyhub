@@ -1,21 +1,31 @@
 import { ui, uiMessage } from '../i18n.js';
+import { redactSecrets } from '../../lib/plain-reason.js';
 
 /* Shared diagnostic report formatter (复制诊断信息) and main-chat hand-off input builder (发给主会话, 'setup.failed') across all
    local tool and extension cards: MinerU, Marker, live-local speech engine, live-loopback system-audio helper, and retrieval extension.
    One redactor, one log tailer, and one declarative report builder keep every surface consistent with zero duplicated formatting logic. */
 
-const MAX_LOG_LINES = 40;
+/** The bounds of a log tail in a report: its last lines, each cut to its end, and the whole cut to its end (the cause of a failure is printed last). */
+const MAX_LOG_LINES = 40, MAX_LINE_CHARS = 400, MAX_LOG_CHARS = 6000;
 
-/** Redact URL userinfo (`//user:pass@`) and key/token assignments before copying or handing diagnostics to chat. */
-export const redactDiagnosticText = text => String(text ?? '')
-  .replace(/\/\/[^/\s@]+@/g, '//***@')
-  .replace(/((?:authorization|api[_-]?key|access[_-]?token|secret|token)\s*(?:[:=]\s*(?:bearer\s+)?|bearer\s+)['"]?)[A-Za-z0-9._~+/=-]{8,}/gi, '$1***');
+/** The one redactor of the server and the client (lib/plain-reason.js), before copying or handing diagnostics to chat. */
+export const redactDiagnosticText = redactSecrets;
+
+const lineEnd = line => (line.length > MAX_LINE_CHARS ? line.slice(-MAX_LINE_CHARS) : line);
 
 function tailLines(lines, max = MAX_LOG_LINES) {
   const list = (Array.isArray(lines) ? lines : String(lines ?? '').split(/\r?\n/))
-    .map(line => redactDiagnosticText(line).trimEnd())
+    .map(line => lineEnd(redactDiagnosticText(line).trimEnd()))
     .filter(Boolean);
   return list.slice(-max).join('\n');
+}
+
+/** The last whole lines of `text` that fit in MAX_LOG_CHARS. */
+function endOf(text) {
+  const lines = text.split('\n');
+  let length = text.length;
+  while (lines.length > 1 && length > MAX_LOG_CHARS) length -= lines.shift().length + 1;
+  return lines.join('\n');
 }
 
 export function joinLogBlocks(blocks, max = MAX_LOG_LINES) {
@@ -26,7 +36,7 @@ export function joinLogBlocks(blocks, max = MAX_LOG_LINES) {
     seen.add(chunk);
     kept.push(chunk);
   }
-  return kept.join('\n\n');
+  return endOf(kept.join('\n\n'));
 }
 
 /** Shared plain-text diagnostic layout (`[Tool] summary`, `key: value` facts, and redacted log tail). */
@@ -43,7 +53,7 @@ export function formatDiagnosticReport({ label, summary = '', facts = [], log = 
 function buildSetupDiagnostic({ tool, label, platform = '', status = 'error', stage = '', code = '', summary = '', facts = [], reportFacts, logs = [] }) {
   const cleanSummary = redactDiagnosticText(summary);
   const log = joinLogBlocks(logs);
-  const input = { tool, status, stage, code, summary: cleanSummary, log };
+  const input = { tool, status: redactDiagnosticText(status), stage: redactDiagnosticText(stage), code: redactDiagnosticText(code), summary: cleanSummary, log };
   for (const [key, value] of facts) {
     if (value !== undefined && value !== null && String(value) !== '') input[key] = redactDiagnosticText(value);
   }
