@@ -162,7 +162,7 @@ Materials, bank, study, authoring, generation and audio are the optional context
 | Coach | `coach.v1` | – | Coaching and prepared-practice workflows |
 | Workflows | `workflows.v1` | – | Read-only inspection of archived learning flow sessions (`workflow.list`, `workflow.session.get`, `workflow.context`, `workflow.teaching.estimate`); mutating `workflow.*` actions are retired in favour of `course.method.*` and `study.session.*` |
 | Skeleton | `skeleton.v1` | – | Knowledge outline topics, checks, authoring context, saving, patching and topic groups |
-| Jobs | `jobs.v1` | – | Public background job status, waiting, messages, archiving (`job.archive`, `job.unarchive`), deletion (`job.delete`, `job.dismiss`) and cancellation |
+| Jobs | `jobs.v1` | – | Public background job status, waiting, messages, archiving (`job.archive`, `job.unarchive`), deletion (`job.delete`, `job.dismiss`), cancellation, and the running jobs' rows the panel reads between snapshots (`job.live.list`) |
 | Library | `library.v1` | – | Workspace snapshots, export and restore (administrative backups), cross-domain presentation (statistics, map, graph, mistakes), source organisation and removal, course rename and merge |
 
 To list the current operations of every context, call `describe()` on a runtime.

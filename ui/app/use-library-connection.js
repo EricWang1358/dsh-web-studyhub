@@ -11,6 +11,7 @@ import { isActiveJob, isCancellable } from '../job-visibility.js';
 import { JOB_TYPES } from '../../lib/job-status.js';
 import { uiFormat } from '../i18n.js';
 import { attachWake, createSnapshotPoll } from './snapshot-poll.js';
+import { applyLiveJobs } from './live-jobs.js';
 import { flushUndoable } from '../undoable.js';
 
 /* The connection to the library: the binding (which folder, which model), the snapshot the whole app reads, how it is kept
@@ -38,11 +39,15 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
     const sequence = ++refs.requestSequence.current;
     const started = refs.epoch.current;
     const since = refs.dataRef.current?.fingerprint;
+    /* A running job's progress, usage, calls and output are not in the fingerprint (lib/job-structure.js): an answer that is not a whole snapshot is followed by
+       the small read of the running jobs, put over the snapshot's own rows (ui/app/live-jobs.js); nothing is asked when no job runs. A later request, or a
+       snapshot that landed meanwhile, owns the panel; a failed live read keeps what the panel holds and never fails the refresh (applyLiveJobs). */
+    const liveJobs = () => applyLiveJobs({ call, refs, started, sequence, setData });
     // `partial`: when only the clock moved since `since`, the host answers just the parts that read it (#567); older hosts ignore it.
     let next = await call('snapshot', since ? { since, partial: true } : {});
     if (started !== refs.epoch.current) return refs.dataRef.current;
     // Nothing visible changed: skip transferring, diffing and re-rendering.
-    if (next.unchanged && refs.dataRef.current) return refs.dataRef.current;
+    if (next.unchanged && refs.dataRef.current) return liveJobs();
     // A partial answer only applies on top of the snapshot it was asked against; a later request owns the panel, and one that finds
     // a snapshot other than `since` under it asks for the whole snapshot instead.
     if (next.partial) {
@@ -77,7 +82,7 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
         result = value;
       } else result = cur;
     }
-    return result;
+    return next.partial ? liveJobs() : result;
   }, [call, refs, resetLibraryState, libApi, host.defaultContentLanguage]); // eslint-disable-line react-hooks/exhaustive-deps
   refs.refreshRef.current = refresh;
 
