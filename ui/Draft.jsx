@@ -94,9 +94,10 @@ export default function Draft({
   const uncoveredCount = uncoveredPages.reduce((sum, group) => sum + group.rows.length, 0);
   const reviewStatus = Object.keys(draft.editorial?.reviewedCards || {}).length
     ? reviewedCardStatus(draft) : null;
-  const needsReview = reviewStatus ? reviewStatus.changed : draft.cards.length;
-  // 出题守则 (#889): the course's rules changed after this draft was reviewed, so publication reviews it again against the rules as they are now.
+  // 出题守则 (#889): the course's rules changed after this draft was reviewed, so publication reviews it again against the rules as they are now, and no
+  // question counts as reviewed until then.
   const rulesChanged = draftCourseRulesChanged(data, draft);
+  const needsReview = rulesChanged || !reviewStatus ? draft.cards.length : reviewStatus.changed;
   const selfCited = selfCitedCardCount(draft.cards, data.sources);
   const rejectedIssues = draft.editorial?.rejectedIssues || {};
   const rejectedCards = draft.cards.filter((card) => rejectedIssues[card.id]);

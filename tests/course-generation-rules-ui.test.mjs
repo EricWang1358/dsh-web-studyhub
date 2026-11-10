@@ -4,6 +4,8 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { loadUi } from "./helpers/ui-module.mjs";
+import { inApp } from "./helpers/fake-app.mjs";
 
 /* 出题守则 (#889) on the page: 「设为本课守则」 under the 修题 box and on the 👎 tray shows the course and the rules before anything is saved, says what cannot
    be added, and adds only on 加为守则; the course settings list the rules to edit and delete. The markup is rendered on the server; click handlers are caught
@@ -105,4 +107,37 @@ test("the course settings list each rule to edit and delete, add a new one, and 
   assert.deepEqual(draft.generationRules, ["第一条"]);
   assert.deepEqual(payloadFromDraft(course, { ...draft, generationRules: [] }).generationRules, [], "deleting every rule sends an empty list");
   assert.equal(payloadFromDraft({ id: "c2", name: "无守则" }, draftFromCourse({ id: "c2", name: "无守则" })).generationRules, undefined, "a course without rules sends none");
+});
+
+/* The draft page after the course's rules changed (#889 review follow-up): the banner says the review no longer counts, and the hint's count of questions not
+   reviewed by a model says the same, instead of the questions the old review vouched for. */
+const draftPage = await loadUi(`
+  export { AppContext } from './ui/app/app-context.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';
+  export { default as Draft } from './ui/Draft.jsx';
+  export { setUiLanguage } from './ui/i18n.js';
+  export { reviewedCardFingerprint } from './lib/review-integrity.js';
+`);
+
+test("the draft page counts every question as not reviewed once the course's rules changed after its review", () => {
+  const m = draftPage;
+  m.setUiLanguage("zh");
+  const card = (id) => ({ id, kind: "quiz", topic: "t", prompt: `问题 ${id}`, answer: "a", hint: "h", explanation: "e", misconception: "x", options: [], citations: [] });
+  const cards = [card("c1"), card("c2")];
+  const draft = { id: "d1", title: "T", draftVersion: 1, course: "数据库", cards, editorial: {
+    generation: { kind: "quiz", course: "数据库", moduleOverrides: { courseRules: [RULE] } }, reviewedRequirementsDigest: "req",
+    reviewedCards: Object.fromEntries(cards.map((item) => [item.id, m.reviewedCardFingerprint(item)])) } };
+  const noop = () => {};
+  const page = (rules) => {
+    const data = { sources: [], decks: [], drafts: [draft], jobs: [], runs: [], modelReady: true, revision: "r1", courses: [{ id: "course-1", name: "数据库", generationRules: rules }] };
+    return renderToStaticMarkup(inApp(m, React.createElement(m.Draft, { data, draft, draftLoaded: JSON.stringify(draft), setDraft: noop, draftText: "", setDraftText: noop, jsonMode: false,
+      setJsonMode: noop, openDraft: noop, onOpenPublished: noop, onStartPublished: noop, clearRecovery: noop, setPage: noop, setModal: noop, blankCard: noop, patchCard: noop,
+      parseDraft: JSON.parse, topUpDraft: noop }), { data }));
+  };
+  const unchanged = page([RULE]);
+  assert.doesNotMatch(unchanged, /data-course-rules-changed/);
+  assert.doesNotMatch(unchanged, /题未经过模型审阅/, "the review still vouches for every question");
+  const changed = page([RULE, "另一条守则"]);
+  assert.match(changed, /data-course-rules-changed/);
+  assert.match(changed, /2 题未经过模型审阅/, "no question counts as reviewed under rules the course no longer has");
 });
