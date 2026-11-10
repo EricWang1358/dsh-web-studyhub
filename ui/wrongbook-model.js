@@ -210,12 +210,37 @@ export const leechWords = ({ failures, window, rate }) => ({
   consequence: uiFormat('最近 {0} 次全部答对后，这个标记就会消失。题目本身也可能有问题：展开这一行，有几个办法。', [window]),
 });
 
+/** Whether a 顽固题 rescue click can run right now, or should first offer inline model setup / inline background-prep consent (#963). */
+export function rescueGate(kind, { modelReady = true, consent = false } = {}) {
+  if (kind === 'pause') return { type: 'run' };
+  if (!modelReady) {
+    return {
+      type: 'no-model',
+      kind,
+      text: kind === 'fix'
+        ? ui('还没有可用的 AI 模型，修题要先配好模型；配好后回到这里再点一次。')
+        : ui('还没有可用的 AI 模型，补前置小卡要先配好模型；配好后回到这里再点一次。'),
+    };
+  }
+  if (kind === 'easier' && consent !== true) return { type: 'consent', kind: 'easier' };
+  return { type: 'run' };
+}
+
 /** The service call of each of 顽固题's rescue actions, each one that already exists elsewhere: the 👎 record that starts the background repair (no `rewriteVia`: this
  *  page has no 修题 box to open, so the silent repair of the coach is what "this question has a problem" is here), the same record for "too hard" (it prepares a
  *  prerequisite card once preparation is agreed), and the suspend of the manage page. `ref`: { deckId, cardId }. */
-export const rescueCall = (kind, ref) => kind === 'pause'
+export const rescueCall = (kind, ref, { consent = false, flush = false } = {}) => kind === 'pause'
   ? { action: 'card.suspend', args: { ...ref, suspended: true } }
-  : { action: 'coach.feedback', args: { ...ref, vote: 'down', tags: [kind === 'fix' ? 'general-quality' : 'too-hard'] } };
+  : {
+    action: 'coach.feedback',
+    args: {
+      ...ref,
+      vote: 'down',
+      tags: [kind === 'fix' ? 'general-quality' : 'too-hard'],
+      ...(consent ? { consent: true } : {}),
+      ...(flush ? { flush: true } : {}),
+    },
+  };
 
 /** The way back from a suspend: the same call with the flag off (the manage page's 恢复学习). */
 export const undoPauseCall = (ref) => ({ action: 'card.suspend', args: { ...ref, suspended: false } });
@@ -225,7 +250,7 @@ export function rescueNote(kind, result) {
   if (kind === 'pause') return { tone: 'success', text: ui('已暂停这道题：它不再出现在练习和错题里。在题组的管理页点「恢复学习」可以恢复。') };
   const recorded = (result?.tags || []).length > 0, scheduled = result?.scheduled || [];
   if (kind === 'fix') {
-    if (scheduled.includes('rewrite')) return { tone: 'success', text: ui('已交给后台修这道题，改好后信箱里会告诉你，也可以在那里撤回。') };
+    if (scheduled.includes('rewrite')) return { tone: 'success', text: ui('已交给后台修这道题，会直接改这张卡。完成时信箱会提醒你，在信箱里可以一步撤销。') };
     return { tone: 'info', text: recorded ? ui('已记下这个反馈，但当前没有可用的模型，所以没有开始修题。') : ui('刚刚已经为这道题记过同样的反馈，不会重复修题。') };
   }
   if (scheduled.includes('prep')) return { tone: 'success', text: ui('已记下，会为这道题准备一张更基础的前置小卡，写好后放进「为你定制」。') };
