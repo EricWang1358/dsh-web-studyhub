@@ -224,6 +224,10 @@ export const FEATURES = Object.freeze([
     aliases: ['json 编辑', '改 json', 'edit json', 'advanced edit'],
     path: ['草稿与发布', '题目', '高级编辑'],
     what: '草稿页「题目」一栏里折叠着「高级编辑」，里面的「JSON 编辑」可以直接用 JSON 改这份草稿。' }),
+  feature({ id: 'draft-similar', area: 'generate', title: '相似题提醒', page: 'draft', anchors: ['draft-similar', 'draft-publish'], prepare: 'draft',
+    aliases: ['重复题', '题目重复', '换个说法', '近似重复', '查重', 'duplicate', 'near-duplicate', 'similar question'],
+    path: ['草稿与发布', '题目', '与…相似'],
+    what: '草稿里一道题和本草稿或同一课程已发布题组里的同类题很像时，它那一行开头写着「与《题组》第几题相似」；点开这道题能读到相似的那道题。只是提醒：两道题都会保留，保存和发布不受影响。' }),
 
   // ── 练习与复习 ──
   feature({ id: 'hint', area: 'practice', title: '提示', page: 'review', anchors: ['review-hint'], prepare: 'run',
