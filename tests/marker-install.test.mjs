@@ -312,7 +312,9 @@ test('failure: C-extension wheel build failure (Pillow/regex on unsupported Pyth
   await h.installer.start({ confirm: true }); await h.installer.idle();
   const buildFailed = await h.installer.status();
   assert.equal(buildFailed.error.code, 'pip-build');
-  assert.match(buildFailed.error.message, /编译失败.*Python 版本太新/);
+  // The message names what happened only: the cause can be the Python version or a missing compiler, and the hint says what to do for this Python.
+  assert.match(buildFailed.error.message, /编译失败/);
+  assert.doesNotMatch(buildFailed.error.message, /Python 版本/);
   await h.setPy({ failPip: true, pipError: 'OSError: [WinError 206] 文件名或扩展名太长。 (os error 206)' });
   await h.installer.start({ confirm: true }); await h.installer.idle();
   const longPath = await h.installer.status();

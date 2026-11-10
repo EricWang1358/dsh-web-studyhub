@@ -56,7 +56,7 @@ export function failureHint(code, { plan, python = '' } = {}) {
     case 'python-too-old': return range ? uiFormat('安装 Python {0}–{1} 后重试。', [range.minPython, range.maxPython]) : installSupportedPython(null);
     case 'python-too-new': return installSupportedPython(range);
     case 'pip-build': return recommendedOrNewer(python, range)
-      ? uiFormat('你的 Python {0} 在支持范围内，这次不是版本问题：有一个依赖包没有现成的安装包，要在本机编译，但缺少编译工具。点「发给主会话」让主会话看日志、给出办法。', [python])
+      ? uiFormat('你的 Python {0} 在支持范围内，这次不是版本问题，而是本机缺少编译工具。点「发给主会话」让主会话看日志、给出办法。', [python])
       : installSupportedPython(range);
     case 'configure-failed': return ui('把安装位置里 venv 的 marker_single 路径填到下面的输入框，点「检测并保存」。');
     case 'cancelled': return ui('没有改动任何设置。需要时点「重试」。');
