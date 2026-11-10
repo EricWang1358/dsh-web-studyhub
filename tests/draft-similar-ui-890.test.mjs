@@ -61,8 +61,8 @@ test('opening a flagged question shows the other question\'s stem and says nothi
 
 test('in English the notice reads naturally and keeps the numbers', () => {
   const [first, , third] = questions(page('en'));
-  assert.equal(notice(first).text, 'Similar to question 3 of this draft');
-  assert.equal(notice(third).text, 'Similar to question 12 of “信息论基础”');
+  assert.equal(notice(first).text, 'Similar to Q3 here');
+  assert.equal(notice(third).text, 'Similar to Q12 of “信息论基础”');
   assert.match(third, /85% similar/);
 });
 
@@ -74,7 +74,7 @@ test('without an answer for this draft (not loaded yet, or one about another dra
 test('a long deck title is cut in its own span: 「相似」 and the number are outside it and always show', () => {
   const title = '操作系统原理与设计第二版·第三章进程管理与调度算法（含历年真题）';
   const long = { ...answer, similar: [{ ...answer.similar[1], other: { ...answer.similar[1].other, deckTitle: title } }] };
-  for (const [language, said] of [['zh', /^与第 12 题相似$/], ['en', /^Similar to question 12 of $/]]) {
+  for (const [language, said] of [['zh', /^与第 12 题相似$/], ['en', /^Similar to Q12 of $/]]) {
     m.setUiLanguage(language);
     const [, , third] = questions(page(language, long));
     m.setUiLanguage('zh');

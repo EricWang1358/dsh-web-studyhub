@@ -1,9 +1,9 @@
 {
-  "与{0}第 {1} 题相似": "Similar to question {1} of {0}",
+  "与{0}第 {1} 题相似": "Similar to Q{1} of {0}",
   "《{0}》": "“{0}”",
-  "与本草稿第 {0} 题相似": "Similar to question {0} of this draft",
+  "与本草稿第 {0} 题相似": "Similar to Q{0} here",
   "{0} · 相似度 {1}%。只是提醒：两道题都会保留，改不改由你决定。": "{0} · {1}% similar. Only a heads-up: both questions stay, and whether to change one is up to you.",
   "相似题提醒": "Similar-question notice",
   "与…相似": "Similar to …",
-  "草稿里一道题和本草稿或同一课程已发布题组里的同类题很像时，它那一行开头写着「与《题组》第几题相似」；点开这道题能读到相似的那道题。只是提醒：两道题都会保留，保存和发布不受影响。": "When a draft question closely resembles a question of the same kind in this draft or in a published deck of the same course, its row starts by saying which one (“Similar to question 12 of …”); open the question to read the similar one. It is only a heads-up: both questions stay, and saving and publishing are not affected."
+  "草稿里一道题和本草稿或同一课程已发布题组里的同类题很像时，它那一行开头写着「与《题组》第几题相似」；点开这道题能读到相似的那道题。只是提醒：两道题都会保留，保存和发布不受影响。": "When a draft question closely resembles a question of the same kind in this draft or in a published deck of the same course, its row starts by saying which one (“Similar to Q12 of …”); open the question to read the similar one. It is only a heads-up: both questions stay, and saving and publishing are not affected."
 }
