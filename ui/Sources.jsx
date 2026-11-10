@@ -187,7 +187,8 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
   const chaptered = !!item.chapters?.length;
   useEffect(() => {
     if (!isNew || !row.current) return;
-    row.current.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    // In one scroll, not an animation: an open group above draws its next chunk whenever its end passes through the window, which would move the row being scrolled to.
+    row.current.scrollIntoView?.({ block: "center", behavior: "auto" });
     row.current.querySelector(".source-main")?.focus({ preventScroll: true });
   }, [isNew]);
   const corrections = source?.audio ? uiFormat("校对 {0} 处", [source.audio.corrections?.appliedCount ?? 0]) : "";

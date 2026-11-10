@@ -42,9 +42,9 @@ const stem = (index) => {
 };
 const NEAR = "Explain in your own words why a leader based replication protocol needs a quorum before it acknowledges a write to the client";
 
-/** The library: `documents` notes in one local day, the newest at `newest` (first on the page), a 160-page book older than all of them, two decks with every card answered
+/** The library (`bookOlderDays` and `pinned`: see the line that uses them): `documents` notes in one local day, the newest at `newest` (first on the page), a 160-page book older than all of them, two decks with every card answered
     badly, and two drafts. Returns the ids the tests look for. */
-export async function seedChunkLibrary(root, { documents = 1000, mistakes = 1000, questions = 500, newest = DAY, similarAt = SIMILAR_AT } = {}) {
+export async function seedChunkLibrary(root, { documents = 1000, mistakes = 1000, questions = 500, newest = DAY, similarAt = SIMILAR_AT, bookOlderDays = 0, pinned = 0 } = {}) {
   const perDeck = Math.ceil(mistakes / 2);
   await seedLibrary(root, { sources: 4, decks: 2, cardsPerDeck: perDeck, runs: 2, attempts: 0, courses: 1, largeSources: 0 });
   const store = new Store(root);
@@ -52,7 +52,9 @@ export async function seedChunkLibrary(root, { documents = 1000, mistakes = 1000
     for (let n = 0; n < documents; n++)
       library.sources.push({ id: `note-${n}`, title: `Reading note ${String(n).padStart(4, "0")} consistency models`, text: `Note ${n}: linearizability and eventual consistency compared.`,
         createdAt: new Date(newest - n * 30_000).toISOString(), courses: [COURSE] });
-    const filename = "Distributed Systems Textbook.pdf", old = new Date(newest - (documents + 5) * 30_000).toISOString();
+    // The oldest `pinned` notes are pinned (a group of its own above the days); the book is `bookOlderDays` days older than the others (0: in the same day group, at its end).
+    if (pinned) library.settings = { ...library.settings, materialPins: Array.from({ length: pinned }, (_, n) => `source:note-${documents - 1 - n}`) };
+    const filename = "Distributed Systems Textbook.pdf", old = new Date(newest - (documents + 5) * 30_000 - bookOlderDays * 86_400_000).toISOString();
     for (let page = 1; page <= BOOK_PAGES; page++)
       library.sources.push({ id: `book-p${page}`, title: `${filename} · ${page}`, text: `Page ${page} of the textbook: replication, consensus and the CAP trade-off.`, createdAt: old, courses: [COURSE],
         document: { id: hash(1), filename, page, totalPages: BOOK_PAGES, extractionVersion: 2, format: "pdf" } });
