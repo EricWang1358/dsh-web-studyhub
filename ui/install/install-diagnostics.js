@@ -73,7 +73,7 @@ function buildSetupDiagnostic({ tool, label, platform = '', status = 'error', st
 }
 
 /** The Tooltip sentence for 'setup.failed' hand-offs across local setup and companion error states. */
-export const SETUP_FAILED_WHAT = '把报错和诊断信息发给主会话排查；动手改环境之前会先问你';
+export const SETUP_FAILED_WHAT = '把报错和诊断信息发给主会话，让它先查清原因；它可以一步步修这台电脑上的环境，结束进程或删除文件之前会先问你';
 
 /** Diagnostic bundle `{ input, text }` for MinerU install, service, or check errors. */
 export function mineruDiagnostic({ view, install, plan, shown, summary = '', stageLabel = '' } = {}) {

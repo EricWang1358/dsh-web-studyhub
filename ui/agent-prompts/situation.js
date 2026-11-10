@@ -32,16 +32,16 @@ function factLines(facts) {
  * situationMessage({ area (the StudyHub place, in the learner's words), goal (what they wanted, a verb phrase), facts, error (the message as it was shown),
  * files (file names), excerpt ({ text, total? }: the start of a long text, said to be cut when total is longer), context (the library.context area), hints
  * (the entry's own notes, each one catalogue key "标签：…。"), extract (false: the files are not documents, so no word about StudyHub's text extraction),
- * how (the entry's own way of working, a catalogue key, in place of the import one) }, language) -> the parts of the message (the registry entry adds the skill).
+ * how (the entry's own way of working, a catalogue key, in place of the import one), report (the entry's own closing line, in place of the 做完 one) }, language) -> the parts of the message (the registry entry adds the skill).
  * area and goal go in 「」 as written by the caller (StudyHub's own words, catalogue keys); facts, error, files and the excerpt are data and sit in fences.
  */
-export function situationMessage({ area = '', goal = '', facts = null, learner = null, error = '', files = [], excerpt = null, context = 'imports', hints = [], extract = true, how = '' } = {},
+export function situationMessage({ area = '', goal = '', facts = null, learner = null, error = '', files = [], excerpt = null, context = 'imports', hints = [], extract = true, how = '', report = '' } = {},
   language = getUiLanguage()) {
   const cut = excerpt?.text && excerpt.total > excerpt.text.length ? say(language, CUT, [excerpt.text.length, excerpt.total]) : '';
   return {
     ask: say(language, ASK, [say(language, area), say(language, goal)]),
     first: say(language, FIRST, [context]),
-    notes: [say(language, how || (extract ? HOW : HOW_NO_EXTRACT)), ...(hints || []).map(line => say(language, line)), cut, say(language, NEVER), say(language, ASK_FIRST), say(language, REPORT)].filter(Boolean),
+    notes: [say(language, how || (extract ? HOW : HOW_NO_EXTRACT)), ...(hints || []).map(line => say(language, line)), cut, say(language, NEVER), say(language, ASK_FIRST), say(language, report || REPORT)].filter(Boolean),
     data: [['情况', factLines(facts)], ['错误原文', error], ['文件', (files || []).filter(Boolean).join('\n')], ['内容开头', excerpt?.text || ''],
       ...(learner ? [['学习者档案', typeof learner === 'string' ? learner : JSON.stringify(learner)]] : [])],
   };

@@ -59,6 +59,7 @@ export const PREPARE_STEPS = Object.freeze({
   'add-dialog': { text: '点「添加资料」，在弹出的窗口里就有这一项。' },
   'live-class': { text: '先在「课堂实录」里开始或打开一场实录，这一项才会出现。' },
   outline: { text: '先在首页点「总纲」，打开这门课的总纲页。' },
+  'tool-failed': { text: '本地工具（MinerU、Marker、本地转写、电脑声音组件、检索扩展）安装或启动失败时，出错的那张卡片上才有这一项；没出错时这里没有它。' },
 });
 
 const feature = (entry) => ({ kind: 'feature', aliases: [], anchors: [], ...entry });
@@ -535,6 +536,10 @@ export const FEATURES = Object.freeze([
     aliases: ['主会话', '交给主会话', '让主会话做', '发给 agent', 'hand off', 'main chat', 'send to chat', 'agent'],
     path: ['许多页面', '发给主会话'],
     what: '内置功能做不了的事，点「发给主会话」：StudyHub 把写好的话填进主会话的输入框，由你按发送；没有主会话时，复制到剪贴板。' }),
+  feature({ id: 'repair-local-tool', area: 'settings', title: '让主会话修复本地工具', page: null, anchors: ['hand-off'], prepare: 'tool-failed',
+    aliases: ['本地工具出错', '安装失败', '启动失败', '修复权限', '完全权限', '权限菜单', '主会话修复', 'MinerU 出错', 'Marker 出错', 'repair local tool', 'tool failed', 'full access', 'permission menu', 'main chat repair'],
+    path: ['设置', '出错的工具卡片', '发给主会话'],
+    what: '本地工具（MinerU、Marker、本地转写、电脑声音组件、检索扩展）安装或启动失败时，它出错的卡片上才有「发给主会话」：主会话先查清真正的原因，再一步步修这台电脑上的环境，结束进程或删除文件之前先问你。它要改 StudyHub 文件夹以外的东西，所以发送前先在主会话输入框左下角的权限菜单里选「完全权限」，修完换回原来的选项（StudyHub 切换不了这个权限）。修好后主会话会告诉你回卡片点哪个按钮；安装和卸载仍然只能你自己点。' }),
   // ── the sidebar itself (#654–#657) ──
   feature({ id: 'nav-more', area: 'settings', title: '侧栏的「更多」', page: null, anchors: ['nav-more', NAV_MENU],
     aliases: ['更多', '每天', '阶段性', '课程准备与管理', '侧栏分组', '其他功能', '调整顺序', '固定到侧栏', 'more', 'sidebar groups', 'reorder', 'pin'],
