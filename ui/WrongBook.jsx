@@ -111,7 +111,7 @@ function LeechRescue({ item, course, disabled, rescuePrompt, rescuing, canOpenMo
         </div>
       )}
       {rescuePrompt?.type === "no-model" && (
-        <InlineMessage tone="warning" boxed actionsBelow
+        <InlineMessage className="wb-leech__notice" tone="warning" boxed actionsBelow
           action={canOpenModel ? { label: ui("打开模型设置"), onClick: onOpenModel } : undefined}
           onDismiss={onDismissRescue}>
           {rescueGate(rescuePrompt.kind, { modelReady: false }).text}

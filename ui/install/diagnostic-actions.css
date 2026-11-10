@@ -30,9 +30,5 @@
       display: flex;
       margin: var(--space-1) 0 0;
     }
-    .sh-diag-actions .sh-handoff__tip {
-      align-items: center;
-      min-height: var(--control-h-sm, 32px);
-    }
   }
 }

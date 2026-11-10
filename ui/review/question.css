@@ -66,8 +66,8 @@
       padding: var(--space-3) 0;
       cursor: pointer;
     }
-    .citation-disclosure > summary > span:not(.sh-badge) { color: var(--text-faint); }
-    .citation-disclosure > summary .sh-badge { margin-inline-start: var(--space-2); vertical-align: middle; }
+    .citation-disclosure > summary > .citation-disclosure__count { color: var(--text-faint); }
+    .citation-disclosure > summary .citation-disclosure__badge { margin-inline-start: var(--space-2); vertical-align: middle; }
     .citations blockquote {
       color: var(--text-dim);
       font-size: var(--fs-md);
