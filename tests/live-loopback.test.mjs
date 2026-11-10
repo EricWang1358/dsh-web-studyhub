@@ -37,6 +37,19 @@ const loudPcm = seconds => {
   return buffer;
 };
 
+/** Wait until the install run is over (any status but running, within the time limit) and say how it ended when it did not complete (issue #920). */
+async function installEnded(service, { timeoutMs = 20000 } = {}) {
+  const until = Date.now() + timeoutMs;
+  let seen = await service.call('live.loopback.status', {});
+  while (seen.status === 'running') {
+    assert.ok(Date.now() < until, `the install was still running after ${timeoutMs} ms (stage ${seen.stage})`);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    seen = await service.call('live.loopback.status', {});
+  }
+  assert.equal(seen.status, 'complete', `the install ended as ${seen.status} (stage ${seen.stage}, error ${JSON.stringify(seen.error)}), log ${JSON.stringify(seen.log)}`);
+  return seen;
+}
+
 function makeFakeHelperSpawn({ noDevice = false, crashCode = null, stateErrorOnSpawn = 0 } = {}) {
   const children = [];
   const spawnImpl = () => {
@@ -297,8 +310,8 @@ test('system-audio session lifecycle: zero helper process while paused or stoppe
   await assert.rejects(libA.call('live.start', { audioSource: 'system' }), { message: LIVE_LOOPBACK_MESSAGES.needsInstall });
 
   await libA.call('live.loopback.install', { confirm: true, location: installTarget });
-  while ((await libA.call('live.loopback.status', {})).status === 'running') await new Promise(r => setTimeout(r, 20));
-  assert.deepEqual((await libA.call('audio.preflight', {})).liveLoopback, { supported: true, ready: true });
+  const finished = await installEnded(libA);
+  assert.deepEqual((await libA.call('audio.preflight', {})).liveLoopback, { supported: true, ready: true }, `after the install ended: ${JSON.stringify({ ...finished, log: undefined })}`);
   assert.equal(loopbackProcessRunning(), false, 'zero helper process when idle after install');
   assert.equal(loopbackInUse(), false);
 
