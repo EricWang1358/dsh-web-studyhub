@@ -34,6 +34,7 @@ import { useAppShell } from './app/use-app-shell.js';
 import { useAppCore } from './app/use-app-core.js';
 import { useLibraryReset, useLibraryState } from './app/library-state.js';
 import { useNavigation } from './app/use-navigation.js';
+import { useSessionPerformance } from './use-session-performance.js';
 import { useLearningNavigation } from './app/use-learning-navigation.js';
 import { useIntents } from './app/use-intents.js';
 import { useDrafts } from './app/use-drafts.js';
@@ -83,6 +84,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const handle = { state: lib, set };
   const late = useRef({});
   const nav = useNavigation({ core, lib: handle, motion: shell.motion, rootRef: shell.rootRef });
+  useSessionPerformance(nav.page); // here, not in PageView: the board and the start page are drawn beside it, and the observer stays for the whole session
   const session = useReviewSession({ core, nav, modalOpen: !!lib.modal, host, rootRef: shell.rootRef, late });
   const resetLibraryState = useLibraryReset({ core, libApi: set, nav, session, defaultGen: () => freshGeneration(core.refs.dataRef.current?.settings),
     abandonPending: abandonUndoable, unsentText: (count) => uiFormat('学习库已更换：刚才的 {0} 项删除没有执行，它们还在原来的学习库里。', [count]) });

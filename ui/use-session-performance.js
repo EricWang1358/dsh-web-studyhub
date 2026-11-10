@@ -3,7 +3,8 @@ import { sessionPerformance } from './session-performance.js';
 
 /* What feeds the session's performance log (ui/session-performance.js, #893 S4), with the cheapest hooks that are still correct: the call that
    switches the page, one animation frame after the page committed, and the browser's own long-task observer. No polling, no forced layout, no timer.
-   While the page is hidden nothing is timed: a frame that waits for the learner to come back would say the switch took minutes. */
+   While the page is hidden nothing is timed: browsers hold the animation frame until the learner is back, so a switch that spans a change of visibility
+   (the page hid or showed between the commit and the frame) is dropped, not recorded as minutes. */
 
 const visible = () => typeof document === 'undefined' || document.visibilityState !== 'hidden';
 
@@ -20,8 +21,10 @@ export function markPageSwitch(page, log = sessionPerformance) {
 function usePageSwitchEnd(page, log) {
   useLayoutEffect(() => {
     if (typeof requestAnimationFrame !== 'function') return undefined;
-    const frame = requestAnimationFrame(() => { if (visible()) log.endSwitch(page, performance.now()); });
-    return () => cancelAnimationFrame(frame);
+    const frame = requestAnimationFrame(() => { document.removeEventListener('visibilitychange', cancel); if (visible()) log.endSwitch(page, performance.now()); });
+    function cancel() { cancelAnimationFrame(frame); }
+    document.addEventListener('visibilitychange', cancel, { once: true });
+    return () => { document.removeEventListener('visibilitychange', cancel); cancelAnimationFrame(frame); };
   }, [page, log]);
 }
 
@@ -34,7 +37,7 @@ function useLongTasks(log) {
       observer = new PerformanceObserver(list => { for (const entry of list.getEntries()) log.recordLongTask(entry.duration); });
       // buffered: the tasks that ran before this effect (the start-up of the app) count too. The log restarts its count with the observer.
       observer.observe({ type: 'longtask', buffered: true });
-    } catch { return undefined; }
+    } catch { observer?.disconnect(); return undefined; }
     log.observeLongTasks();
     return () => observer.disconnect();
   }, [log]);

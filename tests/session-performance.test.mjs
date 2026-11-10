@@ -107,7 +107,8 @@ test('every way of switching page starts the clock in the one setter, the page v
   const navigation = read('../ui/app/use-navigation.js');
   assert.match(navigation, /const rawSetPage = useCallback\(\(id\) => \{ markPageSwitch\(id\); setPageState\(id\); \}, \[\]\)/);
   assert.equal((navigation.match(/setPageState\(/g) ?? []).length, 1, 'the raw state setter is used in that one place only');
-  assert.match(read('../ui/app/page-views.jsx'), /useSessionPerformance\(page\);/);
+  assert.match(read('../ui/App.jsx'), /useSessionPerformance\(nav\.page\);/, 'the app shell times every page, the board and the start page included, and keeps one observer for the whole session');
+  assert.doesNotMatch(read('../ui/app/page-views.jsx'), /useSessionPerformance/, 'PageView is not drawn for the board, so it must not own the clock');
   const connection = read('../ui/app/use-library-connection.js');
   assert.match(connection, /sessionPerformance\.recordSnapshot\(snapshotChars\(shared\.texts, next\), performance\.now\(\) - applyStarted\)/);
   assert.match(connection, /if \(!sameExceptFingerprint\(cur, value\)\) sessionPerformance/, 'a snapshot where only the clock moved is not a change worth timing');

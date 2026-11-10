@@ -180,7 +180,7 @@ test('the performance section follows the diagnostic style: short lines, numbers
   assert.match(lines[0], /^Session performance .*本次会话.*in memory/);
   assert.equal(lines[1], 'Page switches 页面切换 (ms, median/worst): library 3x 50/90, sources 2x 12/13');
   assert.equal(lines[2], 'Long tasks 长任务 (over 50 ms): 3, total 315 ms, worst 180 ms');
-  assert.equal(lines[3], 'Snapshots 快照 (changed ones): 4, size 3000/250000 chars, apply 4/40 ms');
+  assert.equal(lines[3], 'Snapshots 快照 (changed ones): 4, size 3000/250000 chars, diff and apply 4/40 ms');
   assert.match(text, /^Library: sources/m, 'the existing lines are as they were');
   const english = sessionLines(diagnosticText({ version: '4.6.2', language: 'en', page: 'library', session: SESSION })).join('\n');
   const wide = /[^\x00-\x7f]/;

@@ -84,7 +84,7 @@ function performanceLines(session, chinese) {
     `Session performance${zh('本次会话性能')} (in memory only, this session${zh('仅存内存、只含本次')})`,
     `Page switches${zh('页面切换')} (ms, median/worst): ${switches.length ? switches.map(entry => `${entry.page} ${count(entry.count)}x ${pair(entry)}`).join(', ') : NONE_YET}`,
     `Long tasks${zh('长任务')} (over ${PERFORMANCE_LIMITS.longTaskMs} ms): ${tasks && typeof tasks === 'object' ? `${count(tasks.count)}, total ${count(tasks.totalMs)} ms, worst ${count(tasks.worstMs)} ms` : `not reported by this webview${zh('此环境不提供')}`}`,
-    `Snapshots${zh('快照')} (changed ones): ${count(chars?.count) ? `${count(chars.count)}, size ${pair(chars)} chars, apply ${pair(applyMs)} ms` : NONE_YET}`,
+    `Snapshots${zh('快照')} (changed ones): ${count(chars?.count) ? `${count(chars.count)}, size ${pair(chars)} chars, diff and apply ${pair(applyMs)} ms` : NONE_YET}`,
   ];
 }
 

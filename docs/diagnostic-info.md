@@ -19,9 +19,9 @@ It never holds a title, a file name, a text, a question, a path or a key.
 
 They exist so that "it is slow" comes with facts. They are kept in memory only, as the last 60 page switches and the last 40 library updates, and are gone when you close the panel. The section is written in English; with a Chinese interface each label is followed by its Chinese words. They are not written to disk or to browser storage, not sent anywhere, and not shown anywhere else. They are separate from the [usage frequency record](usage-frequency.md): turning that record on or off changes nothing here.
 
-- **Page switch**: from the moment the page is switched to the first frame the browser starts after the new page is in place. A page that loads its code on demand counts to its loading notice, not to its content.
+- **Page switch**: from the moment the page is switched to the first frame the browser starts after the new page is in place (every page is timed, the to-do board included). The sidebar's leave animation is not counted, and neither is the browser's own drawing of that frame. A page that loads its code on demand counts to its loading notice, not to its content. If the window is hidden or shown again before that frame, the switch is left out rather than counted as the time you were away.
 - **Long tasks**: counted with the browser's long-task observer. Where the webview does not offer it, the line says so instead of showing 0.
-- **Library update**: the size is the length of the update's text (characters, not bytes), read from the text StudyHub already made to compare it with the last one. The time covers that comparison and handing the data to the page, not drawing it.
+- **Library update**: the size is the length of the update's text (characters, not bytes), read from the text StudyHub already made to compare it with the last one. The time (printed as "diff and apply") covers that comparison and handing the data to the page, not drawing it.
 
 ## Development
 
