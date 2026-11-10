@@ -37,6 +37,11 @@ const MISSED_GENERIC = '我有几道没过关的题，带我把卡住的地方�
 const MISSED_DIAGNOSE = '诊断：结合下方 data 围栏里的错题（必要时用 card.get 读原题与引文，或用 course.method.get 看当前阶段），先问我当时怎么想的，再对照资料把卡住的概念讲透。';
 const MISSED_DRILL = '回流：若是案例评分标准题的薄弱评分点，经我同意可用 case.drills 生成对应原理练习题；讲解告一段落时用 panel.open 或 study.branch.open 排好检验题，并明确提醒我「回 StudyHub 做检验题」，绝不现造无出处题。';
 
+const STUBBORN_COURSE = '课程 {0} 里有一道题我反复答错：带我弄清是我没弄懂，还是这道题本身有问题；讲完我再回 StudyHub 重测。';
+const STUBBORN_GENERIC = '有一道题我反复答错：带我弄清是我没弄懂，还是这道题本身有问题；讲完我再回 StudyHub 重测。';
+const STUBBORN_DIAGNOSE = '诊断：先用 card.get 读下方 data 围栏里这道题的完整内容（答案、解析、引文），再问我每次是怎么想的；对照资料判断题干是否有歧义、是否超出资料、是否一题问了两件事。';
+const STUBBORN_FIX = '处理：若是题目的问题，先说明依据，经我同意再用 card.update 改（保持考点不变，引文逐字摘自资料）；若是我没弄懂，把卡住的概念讲透，再用 panel.open 排一道检验题，并提醒我「回 StudyHub 重测」。';
+
 function formatMissedList(missed) {
   if (!Array.isArray(missed) || !missed.length) return '';
   return missed.slice(0, 20).map((item, idx) => {
@@ -128,6 +133,28 @@ export function methodDraftMaterialPrompt({ course = '', stage = '', stageIndex 
       ['目标课程', courseText],
       ['当前学法', methodText],
       ['当前阶段', stageSummary],
+    ],
+  };
+}
+
+/**
+ * 'question.stubborn': 「发给主会话」 on one question the wrong book marks 顽固 (a question the learner keeps failing): is it the learner, or the question?
+ * input: { course?: string, deckId?: string, cardId?: string, topic?: string, prompt?: string, note?: string }.
+ */
+export function stubbornQuestionPrompt({ course = '', deckId = '', cardId = '', topic = '', prompt = '', note = '' } = {}, language = getUiLanguage()) {
+  const courseText = String(course ?? '').trim();
+  const noteText = String(note ?? '').trim();
+  const ref = deckId || cardId ? JSON.stringify({ deckId, cardId }) : '';
+  return {
+    ask: courseText ? say(language, STUBBORN_COURSE, [nameData(courseText)]) : say(language, STUBBORN_GENERIC),
+    request: noteText,
+    requestLabel: '我的补充说明',
+    first: say(language, FIRST, ['guided']),
+    notes: [say(language, STUBBORN_DIAGNOSE), say(language, STUBBORN_FIX)],
+    data: [
+      ['目标课程', courseText],
+      ['待补错题', formatMissedList([{ cardId, topic, prompt }])],
+      ['题库定位', ref],
     ],
   };
 }
