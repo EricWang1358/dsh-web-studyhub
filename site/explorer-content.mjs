@@ -190,7 +190,7 @@ export function buildExplorerNodes() {
       enTitle: 'daily-flashcard (Workbench Plugin)',
       zhSummary: '挂载 StudyHub 桌面/网页工作台视图、右侧栏桥接、全局看板，并向主对话注册过渡入口工具 study_workspace。',
       enSummary: 'Mounts the StudyHub workspace UI, right-panel bridge, global todo board, and registers the study_workspace transition tool.',
-      owned: ['UI shell + 15 deferredView() chunks', 'panel-bridge', 'global todo board'],
+      owned: ['UI shell + 16 deferredView() chunks', 'panel-bridge', 'global todo board'],
       deps: ['studyRuntime', 'all 19 contexts in full workbench mode'],
       ops: 'Registers study_workspace + workspace HTTP/RPC routes',
       links: [
@@ -294,11 +294,11 @@ export function buildExplorerNodes() {
       label: 'studyhub-audio',
       zhTitle: 'studyhub-audio（课堂音频与 PDF 转换插件）',
       enTitle: 'studyhub-audio (Audio & Local PDF Capability)',
-      zhSummary: '安装独立 audio 上下文，暴露 study_audio（13 个转录、字幕校对与实时课堂保存操作），并通过显式授权端口把成稿写入资料库。',
-      enSummary: 'Installs the audio context, exposes study_audio (13 transcription, subtitle review, and live recording operations), and publishes transcripts through declared material grants.',
+      zhSummary: '安装独立 audio 上下文，暴露 study_audio（15 个转录、字幕校对与实时课堂保存、本地转写操作），并通过显式授权端口把成稿写入资料库。',
+      enSummary: 'Installs the audio context, exposes study_audio (15 transcription, subtitle review, live recording, and local live-class operations), and publishes transcripts through declared material grants.',
       owned: ['audioResults'],
       deps: ['studyhub-runtime', 'materials', 'bank', 'notifications'],
-      ops: 'Provides study_audio (13 operations)',
+      ops: 'Provides study_audio (15 operations)',
       links: [
         ['lib/plugins/audio.js', 'lib/plugins/audio.js'],
         ['lib/contexts/audio/index.js', 'lib/contexts/audio/index.js'],
@@ -400,13 +400,13 @@ export function buildExplorerNodes() {
       group: 'tools',
       badge: 'Tool · 6/7',
       label: 'study_audio',
-      zhTitle: 'study_audio（13 个录音转录与实时课堂操作）',
-      enTitle: 'study_audio (13 Audio & Live Class Operations)',
+      zhTitle: 'study_audio（15 个录音转录与实时课堂操作）',
+      enTitle: 'study_audio (15 Audio & Live Class Operations)',
       zhSummary: '管理后台音频转录、带时间戳字幕导入、校对复核与实时课堂保存；不接受对话内明文密钥，密钥状态脱敏返回。',
       enSummary: 'Manages background audio transcription, timestamped subtitle imports, correction review, and live recordings while masking provider keys.',
       owned: ['Delegates to audio.v1'],
       deps: ['studyhub-audio', 'audio context'],
-      ops: '13 ops: results, result.get, jobs, job.wait/cancel, audio.settings.get, audio.import/retry, audio.subtitles.import, audio.corrections.review, live.list/get/save',
+      ops: '15 ops: results, result.get, jobs, job.wait/cancel, audio.settings.get, audio.import/retry, audio.subtitles.import, audio.corrections.review, live.list/get/save, live.local.status/plan',
       links: [['lib/runtime/tools.js', 'lib/runtime/tools.js'], ['lib/contexts/audio/index.js', 'lib/contexts/audio/index.js']],
     },
     {
@@ -475,13 +475,13 @@ export function buildExplorerNodes() {
     {
       id: 'infra-lazy-ui',
       group: 'storage',
-      badge: 'UI · 8 + 7 Lazy Chunks',
+      badge: 'UI · 8 + 8 Lazy Chunks',
       label: 'deferredView() Boundaries',
       zhTitle: '按需分块加载视图边界（ui/workspace-views.jsx）',
       enTitle: 'Lazy UI View Boundaries (ui/workspace-views.jsx)',
-      zhSummary: '首屏仅保留高频日常闭环（资料、生成、草稿、练习、错题本）；8 个可选重型功能视图（BlogNotes、Skeleton、Workflows、Graph、TaskConsole、AudioDashboard、DocumentViewer、LiveClass）与 7 个低频页面（GuidedStudy、Dashboard、Exam、ExamPrep、CourseOutline、BookPage、Board）共 15 个 deferredView() 边界及 PagePeek 在首次打开时独立加载。',
-      enSummary: 'Keeps the daily study loop in the initial bundle while isolating 8 optional feature views (BlogNotes, Skeleton, Workflows, Graph, TaskConsole, AudioDashboard, DocumentViewer, LiveClass) plus 7 occasional pages (GuidedStudy, Dashboard, Exam, ExamPrep, CourseOutline, BookPage, Board) into 15 deferredView() chunks (plus lazy PagePeek).',
-      owned: ['8 optional feature views + 7 occasional pages = 15 deferredView() chunks'],
+      zhSummary: '首屏仅保留高频日常闭环（资料、生成、草稿、练习、错题本）；8 个可选重型功能视图（BlogNotes、Skeleton、Workflows、Graph、TaskConsole、AudioDashboard、DocumentViewer、LiveClass）与 8 个低频页面（GuidedStudy、Dashboard、Exam、ExamPrep、ExamCoach、CourseOutline、BookPage、Board）共 16 个 deferredView() 边界及 PagePeek 在首次打开时独立加载。',
+      enSummary: 'Keeps the daily study loop in the initial bundle while isolating 8 optional feature views (BlogNotes, Skeleton, Workflows, Graph, TaskConsole, AudioDashboard, DocumentViewer, LiveClass) plus 8 occasional pages (GuidedStudy, Dashboard, Exam, ExamPrep, ExamCoach, CourseOutline, BookPage, Board) into 16 deferredView() chunks (plus lazy PagePeek).',
+      owned: ['8 optional feature views + 8 occasional pages = 16 deferredView() chunks'],
       deps: ['ui/deferred-view.jsx', 'LiveClass stays mounted across route switches while recording'],
       ops: 'Independent error + loading boundary per surface',
       links: [
@@ -963,10 +963,10 @@ export function renderExplorerContent(lang = 'zh', { version = '4.7.0' } = {}) {
         <p class="ledger-links">${doc('lib/runtime/domain-contracts.js', 'lib/runtime/domain-contracts.js ↗')} ${doc('eslint.config.js', 'eslint.config.js ↗')} ${doc('tests/architecture-boundaries.test.mjs', 'tests/architecture-boundaries.test.mjs ↗')}</p>
       </div>
       <div class="ledger-card">
-        <h4>${c('分片存储 v5 与 15 个懒加载块', 'Store v5 & 15 Lazy UI Chunks')}</h4>
+        <h4>${c('分片存储 v5 与 16 个懒加载块', 'Store v5 & 16 Lazy UI Chunks')}</h4>
         <p>${c(
-          '答题流水每 1,000 条切分一片并以 20 位 SHA-1 寻址；UI 将 8 个重型功能台与 7 个低频页面拆为 15 个 deferredView() 按需分块（外加懒加载 PagePeek）。',
-          'Attempts shard at 1,000 records per 20-hex SHA-1 file; UI splits 8 optional feature surfaces and 7 occasional pages into 15 deferredView() chunks (plus lazy PagePeek).'
+          '答题流水每 1,000 条切分一片并以 20 位 SHA-1 寻址；UI 将 8 个重型功能台与 8 个低频页面拆为 16 个 deferredView() 按需分块（外加懒加载 PagePeek）。',
+          'Attempts shard at 1,000 records per 20-hex SHA-1 file; UI splits 8 optional feature surfaces and 8 occasional pages into 16 deferredView() chunks (plus lazy PagePeek).'
         )}</p>
         <p class="ledger-links">${doc('lib/store.js', 'lib/store.js ↗')} ${doc('ui/workspace-views.jsx', 'ui/workspace-views.jsx ↗')}</p>
       </div>
@@ -1150,8 +1150,8 @@ export function renderExplorerContent(lang = 'zh', { version = '4.7.0' } = {}) {
       <div class="eyebrow"><b>04</b><span>DETERMINISTIC OFFLINE TEST &amp; SHARDING</span></div>
       <h2>${c('零外网确定性测试套件与 LPT 均衡分片器', 'Zero-Network Deterministic Tests & LPT Sharding')}</h2>
       <p class="sec-lede">${c(
-        `全仓 ${suite.totalFiles} 个测试文件在完全断绝外部网络的沙箱中运行：scripts/test.mjs 注入临时 DSH_HOME、清除本机密钥、设置 STUDY_NO_CALIBRATION=1 消除分片顺序漂移；test-network.mjs 拦截一切非回环请求；fake-model.mjs 用 42 类确定性提示词处理器毫秒级模拟带逐字引用的大模型响应。`,
-        `All ${suite.totalFiles} test files run inside a hermetic loopback-only harness: scripts/test.mjs creates a temporary DSH_HOME, scrubs host secrets, and sets STUDY_NO_CALIBRATION=1; test-network.mjs blocks every non-loopback socket; fake-model.mjs serves 42 deterministic prompt-family handlers with grounded verbatim quotes.`
+        `全仓 ${suite.totalFiles} 个测试文件在完全断绝外部网络的沙箱中运行：scripts/test.mjs 注入临时 DSH_HOME、清除本机密钥、设置 STUDY_NO_CALIBRATION=1 消除分片顺序漂移；test-network.mjs 拦截一切非回环请求；fake-model.mjs 用 43 类确定性提示词处理器毫秒级模拟带逐字引用的大模型响应。`,
+        `All ${suite.totalFiles} test files run inside a hermetic loopback-only harness: scripts/test.mjs creates a temporary DSH_HOME, scrubs host secrets, and sets STUDY_NO_CALIBRATION=1; test-network.mjs blocks every non-loopback socket; fake-model.mjs serves 43 deterministic prompt-family handlers with grounded verbatim quotes.`
       )}</p>
     </div>
 
@@ -1166,11 +1166,11 @@ export function renderExplorerContent(lang = 'zh', { version = '4.7.0' } = {}) {
         <p>${doc('scripts/qa/test-network.mjs', 'scripts/qa/test-network.mjs ↗')}</p>
       </article>
       <article class="pillar-card">
-        <div class="pillar-k">fake-model.mjs · 42 handlers</div>
-        <h3>${c('离线确定性大模型替身', '42-Handler Offline Fake LLM')}</h3>
+        <div class="pillar-k">fake-model.mjs · 43 handlers</div>
+        <h3>${c('离线确定性大模型替身', '43-Handler Offline Fake LLM')}</h3>
         <p>${c(
-          '路由 preview/fake-model 识别规划、蓝图、写题、六维审阅、措辞修补、复习全书等 42 类提示词家族，直接从传入资料切片提取 ≥12 字真实引文并模拟前缀缓存 Token 账本。',
-          'Routes preview/fake-model across 42 prompt-family handlers (planning, blueprints, authoring, 6D review, patching, review books), extracting real >= 12-char quotes and simulating cache token accounting.'
+          '路由 preview/fake-model 识别规划、蓝图、写题、六维审阅、措辞修补、复习全书等 43 类提示词家族，直接从传入资料切片提取 ≥12 字真实引文并模拟前缀缓存 Token 账本。',
+          'Routes preview/fake-model across 43 prompt-family handlers (planning, blueprints, authoring, 6D review, patching, review books), extracting real >= 12-char quotes and simulating cache token accounting.'
         )}</p>
         <p>${doc('scripts/fake-model.mjs', 'scripts/fake-model.mjs ↗')}</p>
       </article>
