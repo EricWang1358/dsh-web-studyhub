@@ -114,7 +114,7 @@ The loop StudyHub supports today:
 2. Check the draft and confirm its title and course, then **Publish and practise**.
 3. Practise up to 10 new questions, or ask the main chat for **AI-guided study** along the course's **Learning method**.
 4. Answer, or flip a card and rate yourself.
-5. Read the explanation; FSRS-6 schedules the next review.
+5. Read the explanation; FSRS-6 schedules the next review. When the course has an exam date ahead, **Exam alignment** (Settings › Import, schedule and backup › Spaced repetition · FSRS-6, on by default) keeps that review no later than the exam day and brings questions already due after the exam back over the days before it, the ones you are most likely to forget first. Only review dates move; the memory estimate and mastery stay as FSRS-6 gave them, and the old dates come back after the exam, when the date is removed or when you switch it off. A question answered on the exam day itself comes back after the exam. You do not need to lower the maximum gap for an exam.
 6. When you need it, ask for help, a prerequisite question or a repair.
 7. Read the round summary, then continue by choice or come back later.
 
