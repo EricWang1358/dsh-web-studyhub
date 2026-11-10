@@ -375,7 +375,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
             <Why off={!canGenerate && !disabled} reason={generateWhy}><Button className="live-selection-btn" variant="primary" busy={activeOp === 'generate'} lock={disabled} disabled={!canGenerate}
               onClick={() => void perform('generate', async () => {
                 const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count, language: GENERATION_LANGUAGE[language] });
-                toast.success(ui('已加入出题任务；课堂实录会继续。完成后在收件箱打开草稿。'));
+                toast.success(ui('已加入出题任务；课堂实录会继续。草稿会出现在「学习库 › 待发布草稿」，进度在「任务」。'));
                 setSelected(new Set()); await client.poll(); onJobs?.(result);
               })}>{ui('选中内容出题')}</Button></Why></div></div>
       </div>

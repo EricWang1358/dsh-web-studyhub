@@ -69,7 +69,7 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
       {phase !== 'queued' && phase !== JOB_STATUS.CANCELLING && <PhaseStrip phase={phase} />}
       <p className="selection-job__stage" role="status" aria-live="polite">{phaseLabel(phase)}</p>
       {phase !== 'queued' && <p className="selection-job__meta">{countsText(job)}{clock && <> · {uiFormat('已用 {0}', [clock])}</>}</p>}
-      <small className="muted">{ui('后台继续生成，关闭阅读器也不会中断；完成后进信箱。')}</small>
+      <small className="muted">{ui('后台继续生成，关闭阅读器也不会中断；通过审阅的新题会直接加入所选题组，完成时信箱会提醒你。')}</small>
       <JobUsage job={job} />
       <Steps job={job} />
       {onCancel && isCancellable(job) && <div className="selection-job__actions">

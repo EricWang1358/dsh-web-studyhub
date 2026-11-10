@@ -55,7 +55,7 @@
   "再多选约 {0} 个字符才能出题": "select about {0} more characters to create questions",
   "至少选约 120 个原文字符": "Select at least 120 original characters",
   "至少约 {0} 个原文字符，目前 {1}": "At least about {0} original characters; now {1}",
-  "已加入出题任务；课堂实录会继续。完成后在收件箱打开草稿。": "Question generation queued; recording continues. Open the draft from the inbox when it is ready.",
+  "已加入出题任务；课堂实录会继续。草稿会出现在「学习库 › 待发布草稿」，进度在「任务」。": "Question generation started; recording continues. The draft will appear in Library › Drafts to publish, with live progress in Jobs.",
   "选中内容出题": "Create questions from selection",
   "付费转写估算": "Estimated paid transcription",
   "不含翻译费用": "translation excluded",

@@ -2,20 +2,20 @@
 
 English · [简体中文](followup.zh-CN.md)
 
-Each question keeps the extra explanations you ask for, as Q&A. They are saved on the question, appear with its explanation after you answer, and can become new questions.
+Each question keeps the extra explanations you ask for, as Q&A. They are saved on the question, appear right below it, and can become new questions.
 
 ## Ask about a question
 
 Both ways need a model.
 
-- **While practising:** click **Help me understand** in the question toolbar. Choose one or more of **Explain simply**, **Another perspective**, **A concrete example**, **Step by step**, **Review prerequisites** and, after you answer, **Explain my mistake**. You can add your own question of up to 1,000 characters. Click **Send to background assistant**. The answer is added to the question as a Q&A and also arrives in the **Inbox**, so you can keep practising meanwhile. [Background tasks and the right sidebar](generation-agents-sidebar.md#get-help-on-a-question-in-the-background) explains how the assistant runs.
+- **While practising:** click **Help me understand** in the question toolbar. Choose one or more of **Explain simply**, **Another perspective**, **A concrete example**, **Step by step**, **Review prerequisites** and, after you answer, **Explain my mistake**. You can add your own question of up to 1,000 characters. Click **Send to background assistant**. The answer is added to the question as a Q&A, and the **Inbox** notifies you when it is ready so you can keep practising meanwhile. [Background tasks and the right sidebar](generation-agents-sidebar.md#get-help-on-a-question-in-the-background) explains how the assistant runs.
 - **In the main chat:** ask about the question. StudyHub can save an explanation from the chat to the question, answer a follow-up and save it, or suggest 3 follow-up questions.
 
 ## Read saved Q&A
 
-- After you answer, the explanation (**Understand this question**) opens with the saved Q&A at its end. When the answer is shown before you have answered, click **Explanation** in the toolbar to open it.
+- After you answer, the explanation (**Understand this question**) opens with the saved Q&A at its end. Before you answer, if you asked **Help me understand** on this question (or opened its answer from the **Inbox**), the Q&A appears below the question without revealing the answer; when the answer is shown before you have answered, click **Explanation** in the toolbar to open it.
 - The newest Q&A is open and the earlier ones are folded. With more than one, use **Expand all** or **Collapse all**. **Collapse** at the end of a long answer folds it back to its question.
-- Q&A stay hidden until the answer is shown, and mock exams never show them.
+- Mock exams never show Q&A.
 - Q&A are saved on the question. They stay after you switch questions, refresh or restart, and in every later review.
 - In the document reader, **Questions and explanations linked to this source** lists each linked question with its Q&A under **Follow-ups**, newest first.
 

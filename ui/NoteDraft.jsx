@@ -19,7 +19,7 @@ export default function NoteDraft({ note, model, running = false, disabled = fal
         {model?.ready && !running && <TokenEstimate request={{ feature: 'note', id: note.id }} />}
       </div>
       {running
-        ? <p role="status">{ui('AI 正在起草这篇笔记，你可以继续学习；完成后会进信箱。')}</p>
+        ? <p role="status">{ui('AI 正在起草这篇笔记，你可以继续学习；写好后正文会直接写进这篇笔记，完成时信箱会提醒你。')}</p>
         : <p className="muted note-draft__about">{ui('AI 会按这几道题写一篇可以公开发布的通用文章：不写课程、课件或个人信息，也不照抄原题。文中出现「课件」「讲义」「PPT」「本课程」或文件路径这类字样时，这篇草稿会被拒绝，已用的用量不退。')}</p>}
       {!model?.ready && <ModelSetupGate variant="inline" feature="note" model={model} onOpenSettings={onModelSettings} />}
     </section>

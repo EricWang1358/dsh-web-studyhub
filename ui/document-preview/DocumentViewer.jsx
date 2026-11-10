@@ -565,8 +565,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       onStep={stepFind} onClose={closeFind} inputRef={findInput} />}
     <div className="study-document-notices reader-notices">{notices}</div>
     <div className="reader-aux">
-      {quote && <blockquote className="highlight-quote reader-aux__quote"><MathText text={quote} /></blockquote>}
-      {quote && canPeek && !!fileUrl && Number.isInteger(source.document?.page) && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={source.document.page} title={ui('看原页')} onClick={() => openPeek(source.document.page)}>{ui('看原页')}</Button>}
+      {quote && <div className="reader-aux__bar"><blockquote className="highlight-quote reader-aux__quote"><MathText text={quote} /></blockquote>
+        {canPeek && !!fileUrl && Number.isInteger(source.document?.page) && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={source.document.page} title={ui('看原页')} onClick={() => openPeek(source.document.page)}>{ui('看原页')}</Button>}</div>}
       {!localMode && <AudioCorrections audio={source.audio} onReview={call && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />}
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>

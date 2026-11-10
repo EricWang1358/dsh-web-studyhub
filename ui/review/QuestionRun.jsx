@@ -664,7 +664,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             </>}
             {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly
               onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
-              onAskMore={() => { setAssistMode("ask"); requestAnimationFrame(() => document.querySelector(".assist-form__input")?.focus()); }}
+              onAskMore={() => { setAssistMode("ask"); requestAnimationFrame(() => { document.querySelector(".assist-area")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); document.querySelector(".assist-form__input")?.focus(); }); }}
               bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }} />}
           </ReadingBlock>
         )}

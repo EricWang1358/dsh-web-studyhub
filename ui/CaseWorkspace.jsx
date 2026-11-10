@@ -189,7 +189,7 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
           <TokenEstimate enabled={!!call && !!draft.trim() && !rubric}
             request={{ feature: "grade", deckId: run.deckId, cardId: card.id, answerChars: draft.length }} />
           {grading && <p className="assist-status" role="status"><Spinner size="sm" />
-            {ui("正在按评分标准逐项批改：完成后结果显示在这里，也会进信箱。可以先去做别的题。")}</p>}
+            {ui("正在按评分标准逐项批改：完成后结果显示在这里，完成时信箱也会提醒你。可以先去做别的题。")}</p>}
           {task?.status === "failed" && <InlineMessage>{uiFormat("批改没有完成：{0}。可以重新提交。", [task.message || ui("任务失败")])}</InlineMessage>}
         </>
       )}
@@ -539,7 +539,7 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
           ui("选一套案例卷，或点「新出一份案例卷」让 AI 按课程资料出一套。"),
           ui("先读：阅读时间里只能看案例和题目，用不同颜色高亮线索。"),
           ui("再写：按每题分值分配作答时间，页面会显示每题的建议用时。"),
-          ui("交卷后按评分标准逐条给分，并给出改写建议；批改由 AI 模型完成，结果也会进信箱。"),
+          ui("交卷后按评分标准逐条给分，并给出改写建议；批改由 AI 模型完成，结果显示在考试报告页，完成时信箱也会提醒你。"),
         ]}
         summary={deck ? [uiFormat("满分 {0} 分", [deck.caseMarks]),
           uiFormat("阅读 {0} 分钟 · 作答 {1} 分钟（每分约 {2} 分钟）· 共 {3} 分钟", [reading, writing, settings.minutesPerMark, reading + writing])].join(" · ")

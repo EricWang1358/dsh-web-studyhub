@@ -2,7 +2,7 @@ import { firstRunLine } from '../first-run/line.js';
 import { hasQuestions } from '../generate-opening.js';
 import { modelReadiness } from '../generation-status.js';
 import { courseMatcher } from '../PageScope.jsx';
-import { hasOwnDeck, sampleIdsOf } from './home-plan.js';
+import { hasOwnDeck, isFreshDraft, sampleIdsOf } from './home-plan.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { daysUntilExam } from '../../lib/courses.js';
 import { isActiveJob, isDeckJob } from '../../lib/job-status.js';
@@ -57,7 +57,7 @@ function draftsOf(data, course) {
   for (const item of data.courses || []) if (item?.name) names.add(item.name);
   const within = courseMatcher({ focus: { courses: [...names].map((name) => ({ name })) } }, scope);
   const items = (data.drafts || [])
-    .filter((draft) => draft && !draft.sample && !sample.has(draft.id) && !draft.archived && !working.has(draft.id) && within(draft.course ?? draft.folder ?? ''))
+    .filter((draft) => isFreshDraft(draft) && !draft.sample && !sample.has(draft.id) && !draft.archived && !working.has(draft.id) && within(draft.course ?? draft.folder ?? ''))
     .reverse();
   const cards = items.reduce((sum, draft) => sum + count(Array.isArray(draft.cards) ? draft.cards.length : (draft.cardCount ?? draft.count)), 0);
   return { count: items.length, cards, draft: items[0] || null, title: items[0]?.title || '', draftIds: items.map((draft) => draft.id).filter(Boolean) };

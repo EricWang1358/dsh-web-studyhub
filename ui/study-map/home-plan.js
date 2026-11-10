@@ -16,6 +16,9 @@ export const sampleIdsOf = (data) => new Set([data?.sample?.deckId, data?.sample
  */
 export const hasOwnDeck = (data) => { const sample = sampleIdsOf(data); return (data?.decks || []).some((deck) => !deck.sample && !deck.systemKind && !sample.has(deck.id)); };
 
+/** Whether a draft is an unpublished new question set (or deck part), not an edit or post-publish leftover repair of an already-published deck. */
+export const isFreshDraft = (draft) => Boolean(draft && !draft.editingDeckId && !draft.editorial?.repairOfDeckId && !draft.editorial?.partialEdit);
+
 /**
  * What `start` is given for today's path: the current course's round (due, weak, then new, at most the round size), which is the number the home card
  * counts (lib/daily-path.js); every active course's path in 笔试 / 面试 mode and when no course is current. `today` is the snapshot's `data.today`.
@@ -53,7 +56,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   const workingDraftIds = new Set((data.jobs || []).filter((job) => isActiveJob(job) && isDeckJob(job)).map((job) => job.draftId).filter(Boolean));
   const hasCourseScope = methodCourse !== '' || Boolean(data.focus?.courses?.length && data.focus?.course !== undefined);
   const withinDraftScope = hasCourseScope ? courseMatcher(data, methodCourse) : () => true;
-  const pendingDrafts = (data.drafts || []).filter((draft) => draft && own(draft) && !draft.archived && !workingDraftIds.has(draft.id) && withinDraftScope(draft.course ?? draft.folder ?? ''));
+  const pendingDrafts = (data.drafts || []).filter((draft) => isFreshDraft(draft) && own(draft) && !draft.archived && !workingDraftIds.has(draft.id) && withinDraftScope(draft.course ?? draft.folder ?? ''));
   const pendingDraftCards = pendingDrafts.reduce((sum, draft) => sum + Math.max(0, Number(Array.isArray(draft.cards) ? draft.cards.length : (draft.cardCount ?? draft.count)) || 0), 0);
   const latestPendingDraft = pendingDrafts.at(-1) || null;
   const ownSources = (data.sources || []).filter(own);

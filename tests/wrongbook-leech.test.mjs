@@ -154,7 +154,7 @@ test('the note after a rescue click says what really happened, never more', () =
 test('the rescue note and tooltip do not promise a model call that may not happen', () => {
   setUiLanguage('zh');
   const html = render([row('c1', true)], { initial: { expanded: ['c1'] }, details: detail });
-  assert.match(text(html), /没有可用模型时只记下反馈，不会修题/, 'the fix tooltip says what happens without a model');
+  assert.match(text(html), /没有可用模型时会提示先配好模型/, 'the fix tooltip says what happens without a model');
   assert.doesNotMatch(text(html), /检查并修这道题，约 1 次/, 'and no longer states a count it cannot keep');
   assert.match(leechWords({ failures: 4, window: 5, rate: 60 }).sentence, /3 次以上/);
 });

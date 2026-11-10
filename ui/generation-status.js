@@ -246,7 +246,7 @@ export function jobHeadline(job = {}, drafts = [], { decks } = {}) {
 /** The card's second line: the stage in plain words, its batch and what is saved. */
 export function jobStageLabel(job = {}, drafts = [], jobs = [], { includeSaved = true, decks } = {}) {
   const code = jobCode(job), draft = draftOf(job, drafts);
-  if (job.kind === 'case' && job.publication && code === 'done') return ui('批改结果已进信箱；这套案例在学习库里，可以随时再练。');
+  if (job.kind === 'case' && job.publication && code === 'done') return ui('这套案例已存入学习库，批改结果在各题下方，信箱里也有完成提醒。');
   // A passage supplement saves into the deck itself: there is no draft to check.
   if (job.origin === 'selection' && !isActiveJob(job)) {
     if (code === 'cancelled') return ui('已停止，题组没有变化。');

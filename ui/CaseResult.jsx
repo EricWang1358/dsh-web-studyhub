@@ -137,9 +137,9 @@ export function CaseReport({ report, busy, assistTasks, submitting = false, onDr
             : ui("全部批改完成")}</strong>
           <p className="muted">{joinMeta([uiFormat("阅读 {0} 分钟 · 作答 {1} 分钟", [minutes(paper.pacing.readingMs), minutes(paper.pacing.writingMs)]),
             paper.handwriting ? uiFormat("录入 {0} 分钟（不计入考试时间）", [minutes(paper.pacing.transcribeMs)]) : ""])}</p>
-          {paper.pending > 0 && running && <p className="case-report__pending" role="status"><Spinner size="sm" />{ui("批改结果会自动出现在这里，也会进信箱。")}</p>}
-          {grading.errors.length > 0 && <InlineMessage tone="error" action={!running && onRetryGrading ? { label: ui("重新提交批改"), onClick: onRetryGrading } : undefined}>{grading.errors.join("；")}</InlineMessage>}
-          {grading.phase === "interrupted" && <InlineMessage tone="warning" action={onRetryGrading ? { label: ui("重新提交批改"), onClick: onRetryGrading } : undefined}>{ui("上次批改没有完成，你的作答已保存。点「重新提交批改」继续批改其余题目；完成后结果会显示在这里，信箱也会提醒你。")}</InlineMessage>}
+          {paper.pending > 0 && running && <p className="case-report__pending" role="status"><Spinner size="sm" />{ui("批改结果会自动出现在这里，完成时信箱也会提醒你。")}</p>}
+          {grading.errors.length > 0 && <InlineMessage tone="error" actionsBelow action={!running && onRetryGrading ? { label: ui("重新提交批改"), onClick: onRetryGrading } : undefined}>{grading.errors.join("；")}</InlineMessage>}
+          {grading.phase === "interrupted" && <InlineMessage tone="warning" actionsBelow action={onRetryGrading ? { label: ui("重新提交批改"), onClick: onRetryGrading } : undefined}>{ui("上次批改没有完成，你的作答已保存。点「重新提交批改」继续批改其余题目；完成后结果会显示在这里，信箱也会提醒你。")}</InlineMessage>}
         </div>
       </div>
       <section className="case-report__section">

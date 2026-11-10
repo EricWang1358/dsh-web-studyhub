@@ -62,7 +62,7 @@
   "选一套案例卷，或点「新出一份案例卷」让 AI 按课程资料出一套。": "Pick a case paper, or press New case paper to have the AI write one from your course materials.",
   "先读：阅读时间里只能看案例和题目，用不同颜色高亮线索。": "Read first: during reading time you can only read the case and the questions, and highlight clues in different colours.",
   "再写：按每题分值分配作答时间，页面会显示每题的建议用时。": "Then write: split your writing time by marks. The page shows each question's suggested time.",
-  "交卷后按评分标准逐条给分，并给出改写建议；批改由 AI 模型完成，结果也会进信箱。": "After you hand in, each marking criterion is scored and you get rewrite suggestions. The AI model does the marking, and results also reach your inbox.",
+  "交卷后按评分标准逐条给分，并给出改写建议；批改由 AI 模型完成，结果显示在考试报告页，完成时信箱也会提醒你。": "After you hand in, each marking criterion is scored and you get rewrite suggestions. The AI model does the marking, results appear on the exam report page, and your inbox notifies you when done.",
   "满分 {0} 分": "{0} marks in total",
   "先选一套案例卷": "Pick a case paper first",
   "案例卷": "Case papers",

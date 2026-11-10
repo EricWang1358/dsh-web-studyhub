@@ -117,7 +117,9 @@
     .study-document-viewer .reader-notices:not(:empty) { padding-block: var(--space-2); border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
     .reader-aux { flex: none; padding: 0 var(--space-5); }
     .reader-aux:empty { display: none; }
-    .reader-aux .reader-aux__quote { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); font-size: var(--fs-md); line-height: 1.7; }
+    .reader-aux__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: var(--space-3) 0; }
+    .reader-aux .reader-aux__quote { flex: 1 1 18rem; min-width: 0; margin: 0; padding: var(--space-2-5) var(--space-4); font-size: var(--fs-md); line-height: 1.7; }
+    .reader-aux .reader-peek { flex: none; margin-left: 0; }
     /* ── Layout: outline | reading column | learning panel ───────────────── */
     .reader-layout { position: relative; display: flex; flex: 1 1 auto; min-height: 0; }
     .reader-scroll {

@@ -138,7 +138,7 @@ The meter shows the relative level of the audio actually sent for transcription.
 2. Select at least about 120 characters of original text and no more than 400 sentences. The selection bar shows how many more characters you need. **Clear** empties the selection.
 3. Set **Questions** to a number from 1 to 15. The default is 5.
 4. Click **Create questions from selection**. Recording continues.
-5. When the draft is ready, open it from the **Inbox**, then review and publish it as usual.
+5. Follow live progress in **Jobs**; when the draft is ready, it appears in **Library › Drafts to publish** for you to review and publish as usual.
 
 What happens:
 
