@@ -8,7 +8,7 @@ import { StudyService } from "../lib/service.js";
 import { writesFor } from "../lib/runtime/domain-contracts.js";
 import { assistantRefusal } from "../lib/assistant-boundary.js";
 import { libraryContracts, studyToolDescription } from "../lib/study-contracts.js";
-import { similarQuestions } from "../lib/contexts/authoring/similar-questions.js";
+import { STEM_PREVIEW_CHARS, similarQuestions, similarQuestionsOf, stemOf } from "../lib/contexts/authoring/similar-questions.js";
 
 /* #890 S1: `draft.similar {id}` says which questions of a draft are near-duplicates (the shared stemSimilarity, lib/stem-similarity.js) of another
    question of the SAME kind, in the draft itself or in the published decks of the draft's course, and where that other question is. It reads only. */
@@ -99,10 +99,86 @@ test("a 500-question draft against 3 000 published questions of the course is ch
   // Some of the new questions are a published one with one character changed: the check must still find them.
   for (let i = 0; i < 50; i += 1) { const old = decks[i % 10].cards[i]; draftCards[i * 10] = { ...old, id: `n${i * 10}`, prompt: `${old.prompt.slice(0, 20)}乙${old.prompt.slice(21)}` }; }
   const state = { drafts: [{ id: "big", title: "覆盖草稿", course: "OS", draftVersion: 1, cards: draftCards }], decks, sources: [], courses: [] };
-  const started = performance.now();
-  const read = similarQuestions(state, "big");
+  const stats = {}, started = performance.now();
+  const read = similarQuestions(state, "big", { stats });
   const elapsed = performance.now() - started;
-  t.diagnostic(`500 x 3000: ${elapsed.toFixed(1)} ms, ${read.similar.length} flagged`);
+  t.diagnostic(`500 x 3000: ${elapsed.toFixed(1)} ms, ${read.similar.length} flagged, ${stats.compared} exact checks`);
   assert.ok(read.similar.length >= 50, "every planted near-duplicate is found");
+  // The index, not the clock, is what keeps this fast: only a small share of the 500 x 3 500 pairs is ever compared exactly.
+  assert.ok(stats.compared < (500 * 3500) / 50, `${stats.compared} exact checks`);
   assert.ok(elapsed < 3000, `took ${elapsed.toFixed(0)} ms`);
+});
+
+/* A harder corpus: course-like English stems built from a few frames and 40 words of one subject, so almost every stem shares many bigrams with almost
+   every other one (like the corpus of the review of #909, which took 1.1-1.6 s before the position filter). Its own budget: under 1 s on a developer
+   machine (docs/performance.md); the limit here is loose for a busy CI runner. */
+test("500 course-like English questions against 3 000 of a small vocabulary stay under their own budget", (t) => {
+  let seed = 7;
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  const pick = (list) => list[Math.floor(random() * list.length)];
+  const words = ["process", "thread", "scheduler", "deadlock", "semaphore", "mutex", "page", "replacement", "virtual", "memory", "cache", "interrupt", "system", "call",
+    "file", "disk", "allocation", "segment", "critical", "section", "priority", "quantum", "context", "switch", "kernel", "user", "mode", "address", "space", "fault",
+    "working", "set", "producer", "consumer", "reader", "writer", "starvation", "preemption", "response", "time"];
+  const frames = [["Which statement about ", " is correct?"], ["Explain the role of ", " in an operating system."], ["What is the main purpose of ", "?"],
+    ["Which of the following best describes ", "?"], ["Why does ", " cause problems?"]];
+  const stem = () => { const [head, tail] = pick(frames); return `${head}${Array.from({ length: 3 + Math.floor(random() * 4) }, () => pick(words)).join(" ")}${tail}`; };
+  const decks = Array.from({ length: 10 }, (_, d) => ({ id: `deck${d}`, title: `Deck ${d}`, course: "OS", cards: Array.from({ length: 300 }, (_, i) => quiz(`p${d}-${i}`, stem())) }));
+  const draftCards = Array.from({ length: 500 }, (_, i) => quiz(`n${i}`, i % 10 ? stem() : `x${decks[i % 10].cards[i % 300].prompt}`));
+  const state = { drafts: [{ id: "big", title: "Coverage draft", course: "OS", draftVersion: 1, cards: draftCards }], decks, sources: [], courses: [] };
+  const stats = {}, started = performance.now();
+  const read = similarQuestions(state, "big", { stats });
+  const elapsed = performance.now() - started;
+  t.diagnostic(`small vocabulary, 500 x 3000: ${elapsed.toFixed(1)} ms, ${read.similar.length} flagged, ${stats.compared} exact checks of ${500 * 3500} pairs`);
+  assert.ok(draftCards.every((card, i) => i % 10 || read.similar.some((item) => item.cardId === card.id)), "every planted near-duplicate is found");
+  assert.ok(stats.compared < (500 * 3500) / 3, `${stats.compared} exact checks`);
+  assert.ok(elapsed < 5000, `took ${elapsed.toFixed(0)} ms`);
+});
+
+const IMAGE = `![图 1](data:image/png;base64,${"iVBORw0KGgo".repeat(4000)})`;
+
+test("an embedded image is its alt text: two questions that share only a picture are not alike, and no answer carries image bytes", async (t) => {
+  const draft = { id: "d1", title: "草稿", course: "信息论", draftVersion: 1, cards: [quiz("a", `${IMAGE}\n图中电路的输出是什么？`), quiz("b", `${IMAGE}\n这条曲线说明了什么规律？`), quiz("c", `${ENTROPY}${IMAGE}`)] };
+  const decks = [{ id: "deck", title: "信息论", course: "信息论", cards: [quiz("old", `${ENTROPY_AGAIN}\n${IMAGE}`)] }];
+  const service = await library(t, { drafts: [draft], decks });
+  const read = await service.call("draft.similar", { id: "d1" });
+  assert.deepEqual(read.similar.map((item) => [item.cardId, item.other.cardId]), [["c", "old"]], "a and b share a 44 000-character picture and nothing else");
+  assert.doesNotMatch(JSON.stringify(read), /data:/);
+  assert.match(read.similar[0].other.prompt, /\[图 1\]/);
+});
+
+test("the answer stays small: the other question's stem is cut at a fixed length however long the stems are", () => {
+  const long = (n) => `第${n}组：${"关于信息熵与编码长度之间关系的一段很长的叙述，".repeat(80)}${IMAGE}`;
+  const decks = [{ id: "deck", title: "信息论", course: "信息论", cards: Array.from({ length: 60 }, (_, i) => quiz(`old${i}`, long(i))) }];
+  const draft = { id: "d1", title: "草稿", course: "信息论", draftVersion: 1, cards: Array.from({ length: 60 }, (_, i) => quiz(`new${i}`, `${long(i)}。`)) };
+  const read = similarQuestions({ drafts: [draft], decks, sources: [], courses: [] }, "d1");
+  assert.equal(read.similar.length, 60);
+  assert.ok(read.similar.every((item) => item.other.prompt.length <= STEM_PREVIEW_CHARS));
+  const size = JSON.stringify(read).length;
+  // 60 flagged questions with 2 000-character stems and a picture each: at most STEM_PREVIEW_CHARS + 200 characters per flagged question.
+  assert.ok(size < 60 * (STEM_PREVIEW_CHARS + 200), `${size} characters`);
+});
+
+test("a cloze is compared without its {{id}} markers: the same sentence with other blank ids is the same question", () => {
+  assert.equal(stemOf(cloze("c", "熵是{{b1}}的度量，单位是{{b2}}")), "熵是＿＿的度量，单位是＿＿");
+  const draft = { id: "d1", title: "草稿", course: "信息论", draftVersion: 1, cards: [cloze("c", "信息熵是{{answer_first_blank}}的度量")] };
+  const decks = [{ id: "deck", title: "信息论", course: "信息论", cards: [cloze("old", "信息熵是{{x}}的度量")] }];
+  const read = similarQuestions({ drafts: [draft], decks, sources: [], courses: [] }, "d1");
+  assert.deepEqual(read.similar.map((item) => [item.cardId, item.similarity, item.other.prompt]), [["c", 1, "信息熵是＿＿的度量"]]);
+});
+
+test("asked again while nothing it reads has changed, the answer is the last one; a changed deck or a new draft version computes again", () => {
+  const draft = { id: "memo", title: "草稿", course: "信息论", draftVersion: 1, cards: [quiz("a", ENTROPY), quiz("b", ENTROPY_AGAIN)] };
+  const state = { drafts: [draft], decks: [], sources: [], courses: [] };
+  const first = {}, again = {}, moved = {}, edited = {};
+  const answer = similarQuestionsOf(state, "memo", { stats: first });
+  assert.equal(answer.similar.length, 2);
+  assert.ok(first.compared > 0);
+  // The draft page asks on every commit (a running job's progress); the same frozen records give the same answer, without a search.
+  assert.deepEqual(similarQuestionsOf({ ...state, jobs: ["tick"] }, "memo", { stats: again }), answer);
+  assert.deepEqual(again, {}, "no search the second time");
+  similarQuestionsOf({ ...state, decks: [{ id: "deck", title: "信息论", course: "信息论", cards: [] }] }, "memo", { stats: moved });
+  assert.ok(moved.compared > 0, "a changed deck collection is searched again");
+  const next = { ...draft, draftVersion: 2, cards: [quiz("a", ENTROPY), quiz("b", SCHEDULING)] };
+  assert.deepEqual(similarQuestionsOf({ ...state, drafts: [next] }, "memo", { stats: edited }).similar, []);
+  assert.ok("candidates" in edited, "a new draft version is searched again");
 });
