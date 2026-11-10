@@ -9,8 +9,8 @@
    resets the permissions of the files in MinerU's settings folder (the card does it itself, #942). */
 
 export const SETUP_REPAIRS = Object.freeze({
-  perms: '配置文件夹的权限：只查「情况」里 folder 这个安装位置之内、这个工具自己的文件夹和里面的文件（MinerU 是它的配置文件夹），没有任何账户能读、或权限被改乱的文件，恢复成继承所在文件夹的权限；不要动用户主目录和安装位置以外的任何东西，不要放宽任何文件夹的权限；报错里被拒绝的路径如果在安装位置之外，不要改，告诉我它是什么就停下',
-  'home-perms': '配置文件夹里的文件权限不对：先让我点卡片上的「{6}」（它会把配置文件夹里的文件恢复成继承所在文件夹的权限）；只有这个按钮已经点过、卡片说还是没修好，才由你动手：只处理安装位置之内这个配置文件夹和里面的文件，恢复成继承所在文件夹的权限，不要动用户主目录和安装位置以外的任何东西，不要放宽任何文件夹的权限，被拒绝的路径在安装位置之外就不要改，告诉我它是什么就停下',
+  perms: '配置文件夹的权限：只查「情况」里 folder 这个安装位置之内、这个工具自己的文件夹和里面的文件（MinerU 是它的配置文件夹），没有任何账户能读、或权限被改乱的文件，恢复成继承所在文件夹的权限；不要动安装位置以外的任何东西（包括用户主目录里的其他文件），不要放宽任何文件夹的权限；报错里被拒绝的路径如果在安装位置之外，不要改，告诉我它是什么就停下',
+  'home-perms': '配置文件夹里的文件权限不对：先让我点卡片上的「{6}」（它会把配置文件夹里的文件恢复成继承所在文件夹的权限）；只有这个按钮已经点过、卡片说还是没修好，才由你动手：只限安装位置之内这个配置文件夹和里面的文件，恢复成继承所在文件夹的权限，不要动安装位置以外的任何东西（包括用户主目录里的其他文件），不要放宽任何文件夹的权限，被拒绝的路径在安装位置之外就停下，告诉我它是什么',
   location: '位置本身不能写、路径太长或没有足够空间：在剩余空间够、路径尽量短、我有写入权限的磁盘上新建一个空文件夹，告诉我在「{4}」里选它',
   port: '端口被占用：找出占用端口的进程，告诉我它是什么',
   'in-use': '文件夹被别的程序占用：找出占用它的进程，告诉我它是什么',
@@ -18,6 +18,10 @@ export const SETUP_REPAIRS = Object.freeze({
   net: '网络或下载源：只读地测一下现在的下载源连不连得通，再建议我换成另一个下载源（{5}）',
   'net-fixed': '网络：只读地测一下下载地址连不连得通，告诉我结果（这个工具没有别的下载源可换）',
   broken: '安装可能损坏：只列出看起来坏了或缺了的东西，什么都不要删；由我点「{2}」，不行就先点「{3}」，再点「{1}」重装',
+  'broken-retry': '安装可能损坏：只列出看起来坏了或缺了的东西，什么都不要删；由我点「{2}」，不行就在「{4}」里换一个位置重新安装',
+  docker: 'Docker 没有运行：只读地查 Docker Desktop 有没有装好、是不是在运行，告诉我结果，由我自己启动它',
+  'marker-missing': 'Marker 程序找不到：只读地查配置的程序路径还在不在、这台电脑上有没有 marker_single，告诉我；由我点「{1}」重装，或自己填路径',
+  'marker-unavailable': 'Marker 程序暂时用不了：只读地看它的版本检查报了什么（第一次启动慢是正常的），告诉我结果',
   service: '本地服务起不来：只读地找原因（读它的日志、查端口有没有被占、看文件权限）',
   models: '模型文件不完整：只查哪些缺了或坏了，不要手动补；由我点「{2}」重新下载缺的部分',
   python: 'Python 版本不对或没有：看这台电脑上有没有这个工具支持的版本；没有就告诉我去哪里下载，由我自己安装',
@@ -49,8 +53,10 @@ export const TOOL_REPAIRS = Object.freeze({
   },
   marker: {
     network: NETWORK, 'no-space': LOCATION, 'path-too-long': LOCATION, 'not-writable': LOCATION, 'bad-location': LOCATION, 'folder-in-use': STUCK_FOLDER,
-    'python-missing': ['python'], 'python-too-old': ['python'], 'python-too-new': ['python'], 'pip-build': ['build', 'python'], 'pip-failed': REINSTALL,
-    'venv-failed': ['python', 'broken'], 'configure-failed': ['broken'], 'verify-failed': ['python', 'broken'], 'verify-missing': ['broken'], 'no-venv': ['broken'],
+    'python-missing': ['python'], 'python-too-old': ['python'], 'python-too-new': ['python'], 'pip-build': ['build', 'python'], 'pip-failed': ['net', 'broken-retry'],
+    'venv-failed': ['python', 'broken-retry'], 'configure-failed': ['broken-retry'], 'verify-failed': ['python', 'broken-retry'], 'verify-missing': ['broken-retry'], 'no-venv': ['broken-retry'],
+    // the states of marker_single's own check (lib/marker-local.js), which markerDiagnostic uses as the code when no install failed
+    'needs-docker': ['docker'], 'not-installed': ['marker-missing'], unavailable: ['marker-unavailable'], 'not-ready': ['marker-unavailable'],
   },
   'live-local': {
     'vc-runtime': ['vc'], network: ['net-fixed'], checksum: ['net-fixed'], 'model-failed': ['net-fixed'],

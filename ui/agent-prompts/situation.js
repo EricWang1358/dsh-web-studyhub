@@ -40,7 +40,7 @@ export function situationMessage({ area = '', goal = '', facts = null, learner =
   const cut = excerpt?.text && excerpt.total > excerpt.text.length ? say(language, CUT, [excerpt.text.length, excerpt.total]) : '';
   return {
     ask: say(language, ASK, [say(language, area), say(language, goal)]),
-    first: say(language, FIRST, [context]),
+    first: context ? say(language, FIRST, [context]) : '',
     notes: [say(language, how || (extract ? HOW : HOW_NO_EXTRACT)), ...(hints || []).map(line => say(language, line)), cut, say(language, never || NEVER), say(language, ASK_FIRST), say(language, report || REPORT)].filter(Boolean),
     data: [['情况', factLines(facts)], ['错误原文', error], ['文件', (files || []).filter(Boolean).join('\n')], ['内容开头', excerpt?.text || ''],
       ...(learner ? [['学习者档案', typeof learner === 'string' ? learner : JSON.stringify(learner)]] : [])],

@@ -18,7 +18,11 @@ import { loopbackFix } from '../live-loopback-flow.js';
 
 const PDF_TAIL = '如果我急着导入 PDF，也可以先帮我把转换结果写到工作区的 studyhub-work/ 下再用 study_materials 的 document.import 导入。';
 const AUDIO_TAIL = '如果我急着处理已有录音，也可以先问我是否改用云端转写，再用 study_audio 的 audio.import 导入。';
-const EXCEPTION = '（「做法」里导入的备选是唯一的例外）';
+const EXCEPTION = '（读 library.context 和「做法」里导入的备选是仅有的例外）';
+const UNSUPPORTED_PRESS = Object.freeze({
+  'live-local': '这台电脑跑不了它，没有按钮可点：课堂实录请用 Gemini，或课后在「音频转写」里导入录音',
+  'live-loopback': '这台电脑跑不了它，没有按钮可点：请在独立浏览器窗口里选「标签页共享」，或改用「麦克风」',
+});
 
 /* The names of each card's own controls: install (the primary one of a tool that is not there), repair, uninstall, move (the location), where the download
    source is chosen (none: the tool has no other source). */
@@ -48,8 +52,8 @@ const SETUP_TOOLS = Object.freeze({
 const HOW = '做法：先根据下面的「情况」和「错误原文」查清真正的原因，用大白话告诉我；卡片上的说法只是从报错原文猜的，不要照单全收，要自己检查。查清后可以直接动手修这台电脑上与它有关的环境，一步一步来：每一步先说明做什么、会改哪里，再去做；要结束进程、删除文件或改权限的步骤先问我，我说好再动手；验证只用只读的办法（看版本、读日志、查端口、看文件权限），不要启动或停止这个工具的服务。';
 const REPAIRS = '修复：按「情况」里 code 的这个原因，你可以做：{0}。';
 const REPAIRS_UNKNOWN = '修复：「情况」里的 code 不在已知清单里：先查清原因，只做和它直接有关、能撤回的修复，拿不准的先问我。';
-const PERMISSION = '权限：这些修复多半要改 StudyHub 文件夹以外的东西。命令被文件权限拒绝时，不要放弃，也不要把命令丢给我自己敲；告诉我在主会话输入框左下角的权限菜单里选「完全权限」（每个会话单独设置，StudyHub 替我切不了），再重试同一步。';
-const BOUNDARY = '边界：修复时不要读取或修改学习库{1}和 DSH 自己的设置，不要动与这次修复无关的文件，不要保存或打印任何密钥，不要改系统设置（PATH、注册表、防火墙、代理、执行策略、杀毒软件），不要提权；要管理员权限、或在「完全权限」下还是被拒绝时，停下来告诉我。不要自己安装、卸载这个工具，也不要启动或停止它的服务（StudyHub 的安装、卸载操作对你是关着的）；这些只能由我在{0}里点按钮完成。';
+const PERMISSION = '权限：命令被文件权限拒绝时，不要放弃，也不要把命令丢给我自己敲；告诉我在主会话输入框左下角的权限菜单里选「完全权限」（每个会话单独设置，StudyHub 替我切不了），再重试同一步。';
+const BOUNDARY = '边界：修复时不要读取或修改学习库{1}和 DSH 自己的设置，不要动与这次修复无关的文件，不要保存或打印任何密钥，不要改这个工具自己的设置（例如它的配置文件或 config 命令），不要改系统设置（PATH、注册表、防火墙、代理、执行策略、杀毒软件），不要提权；要管理员权限、或在「完全权限」下还是被拒绝时，停下来告诉我。不要自己安装、卸载这个工具，也不要启动或停止它的服务；这些只能由我在{0}里点按钮完成。';
 const NEVER = '不要：没问过我就装软件；删除或覆盖我的原文件；改 StudyHub 设置（需要时让我去设置页）。';
 const DONE = '做完：用几句话告诉我：原来哪里不对、你改了什么、回 StudyHub 点哪个按钮（{0}）、点完会看到什么，以及再出同样的错时要把什么发回来{1}。';
 const DONE_PERMISSION = '；最后提醒我把权限换回原来的选项';
@@ -83,13 +87,16 @@ const EXTENSION_PRESS = Object.freeze({
 const EXTENSION_PRESS_INDEX = '再点一次建立索引的按钮';
 
 /** The card's controls for this failure: { fix, check } as Chinese labels ('' when it has none): the check control first, the fix button if the card still shows the error. */
-function controlsOf(tool, { code, status, external, source, attempts }) {
+function controlsOf(tool, spec, { code, status, external, source, attempts }) {
   if (tool === 'marker') {
     if (ENDED.includes(status)) return { fix: '重试', check: '' };
     return { fix: '', check: status === 'blocked' || status === 'needs-docker' ? '重新检测' : '检测并保存' };
   }
-  if (tool === 'live-local') return { fix: buttonOf(localFix(code).id), check: '' };
-  if (tool === 'live-loopback') { const id = loopbackFix(code).id; return { fix: id === 'continue' ? LOOPBACK_CONTINUE : buttonOf(id), check: '' }; }
+  // the speech engine and the system-audio helper have no 重新检测: when their fix would be the move button, their 修复 (it checks every step again) comes first
+  if (tool === 'live-local' || tool === 'live-loopback') {
+    const id = (tool === 'live-local' ? localFix : loopbackFix)(code).id, fix = tool === 'live-loopback' && id === 'continue' ? LOOPBACK_CONTINUE : buttonOf(id);
+    return { fix, check: fix === spec.move ? spec.repair : '' };
+  }
   // home-permissions is named here too, so this fits whether or not fixFor knows the new fix id yet
   const id = code === 'home-permissions' ? 'repair-permissions' : fixFor(code, { origin: originOf(status), external: !!external, source, attempts: Number(attempts) || 1 }).id;
   return { fix: id === 'repair-permissions' ? permissionButton(status) : buttonOf(id), check: '重新检测' };
@@ -98,7 +105,10 @@ function controlsOf(tool, { code, status, external, source, attempts }) {
 /** What to press back in StudyHub, as one phrase in `language`. */
 function pressPhrase(tool, spec, input, language) {
   if (tool === 'retrieval-extension') return say(language, Object.hasOwn(EXTENSION_PRESS, input.code) ? EXTENSION_PRESS[input.code] : EXTENSION_PRESS_INDEX);
-  const ids = repairIdsFor(tool, input.code), { fix, check } = controlsOf(tool, input);
+  if (input.code === 'unsupported' && Object.hasOwn(UNSUPPORTED_PRESS, tool)) return say(language, UNSUPPORTED_PRESS[tool]);
+  // MinerU's own permission repair is the one button for this code (it resets the files itself, #942)
+  if (tool === 'mineru' && input.code === 'home-permissions') return say(language, PRESS_FIX, [say(language, permissionButton(input.status))]);
+  const ids = repairIdsFor(tool, input.code), { fix, check } = controlsOf(tool, spec, input);
   // The location truly cannot be used: the move button is the answer, whatever the card's fix is called.
   if (ids.length === 1 && ids[0] === 'location' && spec.move) return say(language, PRESS_FIX, [say(language, spec.move)]);
   if (check && fix && fix !== check) return say(language, PRESS_CHECK, [say(language, check), say(language, fix)]);
@@ -128,7 +138,7 @@ export function setupFailedPrompt({
   return situationMessage({
     area: spec.area,
     goal: spec.goal,
-    context: 'imports',
+    context: spec.tail ? 'imports' : '', // only the tools with an import fallback read the library's imports area
     how: say(language, HOW) + (spec.tail ? say(language, spec.tail) : ''), // (an English tail starts with its space)
     hints: [
       repairsLine(key, spec, code, status, language),

@@ -27,6 +27,8 @@ const ui = await loadUi(`
 
 const h = React.createElement;
 const han = /[\u3400-\u9fff]/;
+// What is outside the data fences of the longest prompt (MinerU not-writable): 1346 zh and 3503 en characters; with its facts and a one-line log the whole prompt is 1621 and 3795. Before #939 the same text was zh 979 and en 2073 in all (fences included).
+const ZH_CAP = 1400, EN_CAP = 3550;
 const TOOLS = ['mineru', 'marker', 'live-local', 'live-loopback', 'retrieval-extension'];
 const prompt = (input, language = 'zh') => ui.handOffText('setup.failed', input, language);
 const notes = (input, language = 'zh') => ui.messageParts(prompt(input, language), language).notes.filter(line => line.startsWith('- '));
@@ -44,7 +46,7 @@ const CASES = [
   ['live-local', { tool: 'live-local', status: 'error', stage: '3/3 check', code: 'vc-runtime', summary: 'Missing VC++', folder: 'D:\\StudyHub\\LiveLocal', model: 'sense-voice', log: 'vcruntime140.dll missing' },
     /缺 VC\+\+ 运行库：/, /Missing VC\+\+ runtime: /, false],
   ['live-loopback', { tool: 'live-loopback', status: 'error', stage: '1/2 compile', code: 'path-too-long', summary: 'Path too long', folder: 'D:\\StudyHub\\LiveLoopback', log: 'CS0016' },
-    /位置本身不能写、路径太长或没有足够空间：/, /Location itself not writable, path too long or not enough space: /, true],
+    /位置本身不能写、路径太长或没有足够空间：/, /Location itself unusable \(not writable, path too long, no space\): /, true],
   ['retrieval-extension', { tool: 'retrieval-extension', status: 'index-failed', stage: 'model', code: 'retrieval-model-download', summary: 'timed out', course: 'OS', log: 'timeout' },
     /检索模型下载失败：/, /Search model download failed: /, false],
 ];
@@ -68,12 +70,15 @@ test('every tool, both languages: the repairs for its code, the how, the permiss
       assert.equal(bullet(input, 'en', 'Permission:'), undefined, `${tool}/en: read-only repairs ask for no permission`);
     }
     // the forbidden list, plainly, with no system settings and no elevation
-    assert.match(bullet(input, 'zh', '边界：'), /学习库.*DSH 自己的设置.*无关的文件.*密钥.*系统设置（PATH、注册表、防火墙、代理、执行策略、杀毒软件）.*不要提权.*停下来告诉我.*不要自己安装、卸载这个工具，也不要启动或停止它的服务/, tool);
-    assert.match(bullet(input, 'en', 'Boundary:'), /study library.*DSH.s own settings.*unrelated to the repair.*key.*system settings \(PATH, registry, firewall, proxy, execution policy, antivirus\).*elevate.*stop and tell me.*do not install or uninstall the tool or start or stop its service/is, tool);
+    assert.match(bullet(input, 'zh', '边界：'), /学习库.*DSH 自己的设置.*无关的文件.*密钥.*不要改这个工具自己的设置（例如它的配置文件或 config 命令）.*系统设置（PATH、注册表、防火墙、代理、执行策略、杀毒软件）.*不要提权.*停下来告诉我.*不要自己安装、卸载这个工具，也不要启动或停止它的服务/, tool);
+    assert.match(bullet(input, 'en', 'Boundary:'), /study library.*DSH.s own settings.*unrelated to the repair.*key.*the tool.s own settings \(for example its config file or config command\).*system settings \(PATH, registry, firewall, proxy, execution policy, antivirus\).*elevate.*stop and tell me.*do not install or uninstall the tool or start or stop its service/is, tool);
     // the exception of the import fallback is said only where the fallback is
     const imports = ['mineru', 'marker', 'live-local'].includes(tool);
-    assert.equal(bullet(input, 'zh', '边界：').includes('唯一的例外'), imports, `${tool}/zh: the import exception`);
-    assert.equal(bullet(input, 'en', 'Boundary:').includes('one exception'), imports, `${tool}/en: the import exception`);
+    assert.equal(bullet(input, 'zh', '边界：').includes('仅有的例外'), imports, `${tool}/zh: the import exception`);
+    assert.equal(bullet(input, 'en', 'Boundary:').includes('only exceptions'), imports, `${tool}/en: the import exception`);
+    // the library's imports area is read only by the tools that have the import fallback, so the boundary never contradicts the first line
+    assert.equal(bullet(input, 'zh', '先读：').includes('library.context'), imports, `${tool}/zh: the first line`);
+    assert.equal(bullet(input, 'en', 'First:').includes('library.context'), imports, `${tool}/en: the first line`);
     // its own never line: no word about installing MinerU or Marker for the tools that are not PDF converters
     assert.doesNotMatch(bullet(input, 'zh', '不要：'), /MinerU、Marker/, tool);
     assert.doesNotMatch(bullet(input, 'en', 'Never:'), /MinerU or Marker/, tool);
@@ -91,7 +96,8 @@ test('every tool, both languages: the repairs for its code, the how, the permiss
 test('the chat never deletes what the tool is made of: a broken install is listed, and the learner presses the card\'s repair, then uninstall and the install button', () => {
   const cases = [
     [{ tool: 'mineru', status: 'error (install)', code: 'package-failed' }, /什么都不要删.*「修复」.*「卸载」.*「一键安装」重装/, /delete nothing.*“Repair”.*“Uninstall”.*“One-click install”/is],
-    [{ tool: 'marker', status: 'failed', code: 'pip-failed' }, /什么都不要删.*「重试」.*「卸载」.*「一键安装 Marker」重装/, /delete nothing.*“Retry”.*“Uninstall”.*“One-click install Marker”/is],
+    // Marker's failed view has no 卸载: only the buttons that exist there
+    [{ tool: 'marker', status: 'failed', code: 'pip-failed' }, /什么都不要删.*「重试」.*「更改位置」里换一个位置重新安装/, /delete nothing.*“Retry”.*“Change location”/is],
     [{ tool: 'live-local', status: 'error', code: 'needs-repair' }, /什么都不要删.*「修复」.*「删除本地转写引擎」.*「安装本地转写引擎」重装/, /delete nothing.*“Repair”/is],
     [{ tool: 'live-loopback', status: 'error', code: 'needs-repair' }, /什么都不要删.*「修复」.*「卸载电脑声音组件」.*「安装电脑声音组件」重装/, /delete nothing.*“Repair”/is],
   ];
@@ -99,6 +105,7 @@ test('the chat never deletes what the tool is made of: a broken install is liste
     assert.match(bullet(input, 'zh', '修复：'), zh, input.tool);
     assert.match(bullet(input, 'en', 'Repairs:'), en, input.tool);
     for (const language of ['zh', 'en']) assert.doesNotMatch(prompt(input, language), /删除安装位置里|delete what StudyHub created|only delete what/i, `${input.tool}/${language}: no deletion by the chat`);
+    if (input.tool === 'marker') assert.doesNotMatch(bullet(input, 'zh', '修复：'), /卸载/, 'Marker\'s failed view has no 卸载');
   }
 });
 
@@ -106,8 +113,8 @@ test('the permission case of the real repair: scoped to the tool\'s own folder i
   for (const status of ['error (install)', 'error (service)']) {
     const input = { ...CASES[0][1], status };
     const zh = bullet(input, 'zh', '修复：'), en = bullet(input, 'en', 'Repairs:');
-    assert.match(zh, /「情况」里 folder 这个安装位置之内、这个工具自己的文件夹和里面的文件.*恢复成继承所在文件夹的权限.*不要动用户主目录和安装位置以外的任何东西.*不要放宽任何文件夹的权限.*在安装位置之外，不要改，告诉我它是什么就停下/, status);
-    assert.match(en, /inside the install location given as folder in “Situation”.*inherit its folder.s permissions again.*never touch the home folder or anything outside the install location.*never loosen a folder.*outside the install location, change nothing: tell me what it is and stop/is, status);
+    assert.match(zh, /「情况」里 folder 这个安装位置之内、这个工具自己的文件夹和里面的文件.*恢复成继承所在文件夹的权限.*不要动安装位置以外的任何东西（包括用户主目录里的其他文件）.*不要放宽任何文件夹的权限.*在安装位置之外，不要改，告诉我它是什么就停下/, status);
+    assert.match(en, /inside the install location given as folder in “Situation”.*inherit its folder.s permissions again.*never touch anything outside the install location \(including other files in the user.s home folder\).*never loosen a folder.*the refused path is outside it, change nothing: tell me what it is and stop/is, status);
   }
   // "the chosen location itself cannot be written" is the location repair alone
   const location = { tool: 'mineru', status: 'error (install)', code: 'path-too-long' };
@@ -121,12 +128,13 @@ test('home-permissions (the MinerU card of #942): the card own 修复权限 firs
   for (const [status, button] of [['error (install)', '修复权限'], ['error (service)', '修复权限并重启']]) {
     const input = { tool: 'mineru', status, code: 'home-permissions', folder: 'D:\StudyHub\MinerU' };
     assert.deepEqual(ui.repairIdsFor('mineru', 'home-permissions'), ['home-perms']);
-    assert.match(bullet(input, 'zh', '修复：'), new RegExp(`先让我点卡片上的「${button}」.*只有这个按钮已经点过、卡片说还是没修好，才由你动手.*安装位置之内这个配置文件夹.*不要动用户主目录和安装位置以外的任何东西.*不要放宽任何文件夹的权限`), status);
-    assert.match(bullet(input, 'en', 'Repairs:'), /first I press “Repair permissions( and restart)?” on the card.*only if that was already pressed and the card says it did not help.*never touch the home folder or anything outside the install location.*never loosen a folder/is, status);
-    assert.ok(done(input, 'zh').includes(`先点「重新检测」，卡片还显示出错的话再点「${button}」`), done(input, 'zh'));
+    assert.match(bullet(input, 'zh', '修复：'), new RegExp(`先让我点卡片上的「${button}」.*只有这个按钮已经点过、卡片说还是没修好，才由你动手.*安装位置之内这个配置文件夹.*不要动安装位置以外的任何东西（包括用户主目录里的其他文件）.*不要放宽任何文件夹的权限`), status);
+    assert.match(bullet(input, 'en', 'Repairs:'), /first I press “Repair permissions( and restart)?” on the card.*only if that was already pressed and the card says it did not help.*never touch anything outside the install location.*never loosen a folder/is, status);
+    // the repair line says to press the card's own button first, so the closing line names that button only (no 重新检测 before it)
+    assert.ok(done(input, 'zh').includes(`这次点「${button}」`) && !done(input, 'zh').includes('重新检测'), done(input, 'zh'));
     assert.ok(bullet(input, 'zh', '权限：'), 'the hand repair writes, so the permission line and the hint are there');
   }
-  assert.ok(done({ tool: 'mineru', status: 'error (install)', code: 'home-permissions' }, 'en').includes('Repair permissions'));
+  assert.ok(done({ tool: 'mineru', status: 'error (install)', code: 'home-permissions' }, 'en').includes('this time press “Repair permissions”'));
 });
 
 test('an antivirus is never reconfigured by the chat: it says where I can restore the files or add an exception', () => {
@@ -206,20 +214,68 @@ test('what to press back: the card\'s check first and its fix only if the error 
   assert.match(done({ tool: 'retrieval-extension', code: 'companion-not-started' }, 'zh'), /重启 DSH.*卡片会自己消失/);
 });
 
+test('the speech engine and the system-audio helper: a folder in use names 修复 first and the move button only if it still fails; an unsupported system names no button', () => {
+  for (const tool of ['live-local', 'live-loopback']) {
+    const stuck = { tool, status: 'error', code: 'folder-in-use' };
+    assert.ok(done(stuck, 'zh').includes('先点「修复」，卡片还显示出错的话再点「换位置」'), `${tool}: ${done(stuck, 'zh')}`);
+    assert.ok(done(stuck, 'en').includes('first press “Repair”, and if the card still shows the error press “Choose another location”'), tool);
+    const unsupported = { tool, status: 'error', code: 'unsupported' };
+    assert.match(bullet(unsupported, 'zh', '修复：'), /没有什么可以修复的/);
+    assert.ok(done(unsupported, 'zh').includes('没有按钮可点'), done(unsupported, 'zh'));
+    assert.ok(done(unsupported, 'en').includes('there is no button to press'), tool);
+    assert.doesNotMatch(done(unsupported, 'zh'), /点「/, `${tool}: no button is named`);
+    assert.equal(ui.needsWrite(tool, 'unsupported'), false);
+  }
+  assert.ok(done({ tool: 'live-local', status: 'error', code: 'unsupported' }, 'zh').includes('课堂实录请用 Gemini'), 'the card own alternative');
+  assert.ok(done({ tool: 'live-loopback', status: 'error', code: 'unsupported' }, 'zh').includes('「标签页共享」'));
+  // the location itself unusable is still the move button
+  assert.ok(done({ tool: 'live-local', status: 'error', code: 'no-space' }, 'zh').includes('这次点「换位置」'));
+});
+
+test('Marker\'s own status states (lib/marker-local.js) have entries: read-only where nothing is written, so no permission line and no hint', () => {
+  for (const code of ['needs-docker', 'not-installed', 'unavailable', 'not-ready']) {
+    const input = { tool: 'marker', status: code, code };
+    assert.ok(ui.repairIdsFor('marker', code).length, `${code} has repairs`);
+    assert.doesNotMatch(prompt(input, 'zh'), /不在已知清单里/, code);
+    assert.equal(ui.needsWrite('marker', code), false, `${code}: nothing to write`);
+    assert.equal(bullet(input, 'zh', '权限：'), undefined, code);
+  }
+  assert.match(bullet({ tool: 'marker', status: 'needs-docker', code: 'needs-docker' }, 'zh', '修复：'), /Docker 没有运行.*由我自己启动它/);
+  assert.ok(done({ tool: 'marker', status: 'needs-docker', code: 'needs-docker' }, 'zh').includes('先点「重新检测」'));
+  assert.ok(done({ tool: 'marker', status: 'not-ready', code: 'not-ready' }, 'zh').includes('先点「检测并保存」'));
+});
+
+test('the bar of a local tool is in tab order the way it looks: the copy button, the hand-off, the sentence, then the fold; a failed job\'s bar keeps its own order', () => {
+  const html = render(h(ui.DiagnosticBar, { diagnostic: () => ({ text: 'report', input: { tool: 'mineru', code: 'not-writable' } }), resetKey: 'a' }, h('button', { 'data-hand-off': 'setup.failed' }, '发给主会话')));
+  const at = needle => { const index = html.indexOf(needle); assert.ok(index >= 0, needle); return index; };
+  assert.ok(at('复制诊断信息') < at('data-hand-off="setup.failed"') && at('data-hand-off="setup.failed"') < at('sh-diag-actions__hint') && at('sh-diag-actions__hint') < at('看看会复制什么'), 'DOM order = visual order');
+  // no CSS `order` moves anything: the DOM is the order
+  const css = readFileSync(new URL('../ui/install/diagnostic-actions.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, ''), /\border\s*:/, 'no order: in diagnostic-actions.css');
+  // the failed job's bar: the copy button and its fold, then the hand-off, as before
+  const job = render(h(ui.DiagnosticBar, { text: () => 'report', resetKey: 'b' }, h('button', { 'data-hand-off': 'job.failed' }, '发给主会话')));
+  assert.ok(job.indexOf('复制诊断信息') < job.indexOf('看看会复制什么') && job.indexOf('看看会复制什么') < job.indexOf('data-hand-off="job.failed"'), 'the job bar is unchanged');
+  assert.doesNotMatch(job, /sh-diag-actions__copy/, 'the job bar has no slot wrapper');
+});
+
 test('every failure code the tools raise is in the table or on an explicit allow-list with its reason', () => {
   // codes that are not a failure of the tool: the plan refuses a bad value, another job holds the tool, a warning, or the learner paused (the card has no hand-off there)
   const ALLOWED = {
     'bad-python': 'a bad value passed to the plan', 'bad-source': 'a bad value passed to the plan', 'bad-tier': 'a bad value passed to the plan', 'bad-mirror': 'a bad value passed to the plan',
     busy: 'another job holds the tool: wait', 'conversion-running': 'a conversion holds the tool: wait', 'live-running': 'a live class holds the tool: wait',
     'non-ascii': 'a warning about the path, not a failure', cancelled: 'the learner paused: no hand-off', interrupted: 'StudyHub was closed: no hand-off',
+    'not-ours': 'an uninstall refused on a folder StudyHub did not make: not a failed install', 'need-confirm': 'an uninstall asked without its confirmation: not a failed install',
+    ready: 'the healthy state of marker_single: not a failure',
   };
   const scan = file => {
     const source = readFileSync(new URL(`../lib/${file}`, import.meta.url), 'utf8');
-    return [...source.matchAll(/(?:InstallError|MarkerInstallError|RetrievalError|problem|error)\('([a-z][a-z-]+)'|code: '([a-z][a-z-]+)'/g)].map(match => match[1] || match[2]);
+    // InstallError('x'), problem('x'), fail('x'), { problem: 'x' } and code: 'x'
+    return [...source.matchAll(/(?:InstallError|MarkerInstallError|RetrievalError|problem|error|fail)\('([a-z][a-z-]+)'|(?:code|problem): '([a-z][a-z-]+)'/g)].map(match => match[1] || match[2]);
   };
+  const states = file => [...readFileSync(new URL(`../lib/${file}`, import.meta.url), 'utf8').matchAll(/state: '([a-z][a-z-]+)'/g)].map(match => match[1]);
   const real = {
     mineru: [...Object.keys(ui.FIX_FOR), ...scan('mineru-install.js'), ...scan('mineru-local.js')],
-    marker: scan('marker-install.js'),
+    marker: [...scan('marker-install.js'), ...states('marker-local.js')],
     'live-local': [...Object.keys(LIVE_LOCAL_FAILURE_TEXT), ...scan('live-local-install.js')],
     'live-loopback': [...Object.keys(LIVE_LOOPBACK_FAILURE_TEXT), ...scan('live-loopback-install.js')],
     'retrieval-extension': scan('retrieval-index.js'),
@@ -227,6 +283,9 @@ test('every failure code the tools raise is in the table or on an explicit allow
   const missing = [];
   for (const [tool, codes] of Object.entries(real)) for (const code of new Set(codes))
     if (!Object.hasOwn(ui.TOOL_REPAIRS[tool], code) && !Object.hasOwn(ALLOWED, code)) missing.push(`${tool}: ${code}`);
+  // lib/tool-install.js is the installer all of them share: each code it raises is the table of at least one tool
+  for (const code of new Set(scan('tool-install.js')))
+    if (!Object.values(ui.TOOL_REPAIRS).some(codes => Object.hasOwn(codes, code)) && !Object.hasOwn(ALLOWED, code)) missing.push(`tool-install: ${code}`);
   assert.deepEqual(missing, [], 'a code the tool raises has neither repairs nor a reason');
   // the codes the cards themselves put in the diagnostic
   for (const code of ['companion-not-started', 'extension-install-failed', 'extension-update-failed', 'index-start-failed']) assert.ok(Object.hasOwn(ui.TOOL_REPAIRS['retrieval-extension'], code), code);
@@ -272,15 +331,18 @@ test('a hostile log keeps no user name and no key: the diagnostic redacts it bef
   }
 });
 
-test('the size of the prompt is bounded for every tool and every code with a realistic log (before #939 the same inputs gave zh 773–979 and en 1809–2073 characters; the worst now is zh 1611 and en 3799, MinerU not-writable)', () => {
+test('the size of our own text in the prompt is bounded for every tool and every code (what is outside the data fences: the facts and the log belong to the learner)', () => {
   const log = 'PermissionError: [Errno 13] Permission denied';
-  let worst = { zh: 0, en: 0 };
+  const worst = { zh: [0, ''], en: [0, ''] };
   for (const tool of TOOLS) for (const code of [...Object.keys(ui.TOOL_REPAIRS[tool]), 'unknown-code']) {
-    const input = { tool, status: tool === 'marker' ? 'failed' : 'error (install)', stage: '5/6 enable', code, summary: 'Permission denied on the home folder', folder: 'D:\\StudyHub\\MinerU', tier: 'basic', source: 'mainland', python: '3.11', version: '4.0.12', log };
-    for (const language of ['zh', 'en']) worst[language] = Math.max(worst[language], prompt(input, language).length);
+    const input = { tool, status: tool === 'marker' ? 'failed' : 'error (install)', stage: '5/6 enable', code, summary: 'Permission denied on the home folder', folder: 'D:\StudyHub\MinerU', tier: 'basic', source: 'mainland', python: '3.11', version: '4.0.12', log };
+    for (const language of ['zh', 'en']) {
+      const length = outsideFences(prompt(input, language)).outside.join(' ').length;
+      if (length > worst[language][0]) worst[language] = [length, `${tool}/${code}`];
+    }
   }
-  assert.ok(worst.zh <= 1650, `zh worst is ${worst.zh}`);
-  assert.ok(worst.en <= 3850, `en worst is ${worst.en}`);
+  assert.ok(worst.zh[0] <= ZH_CAP, `zh worst is ${worst.zh}`);
+  assert.ok(worst.en[0] <= EN_CAP, `en worst is ${worst.en}`);
 });
 
 test('the bar of a local tool carries one sentence about the permission, on its own row, with a Tooltip, when the repairs write; the search extension and a failed job do not', () => {
