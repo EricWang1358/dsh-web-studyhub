@@ -66,24 +66,24 @@
       margin: 0;
       box-sizing: border-box;
       width: max-content;
-      max-width: min(320px, calc(100vw / var(--study-ui-scale, 1) - var(--space-4)));
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: var(--space-2);
-      padding: var(--space-3);
+      max-width: min(640px, calc(100vw / var(--study-ui-scale, 1) - var(--space-4) * 2));
+      padding: var(--space-1) var(--space-3);
       border: 1px solid var(--line-strong);
       border-radius: var(--radius);
       background: var(--bg-raised);
       box-shadow: var(--shadow-popover);
       color: var(--text);
       font-size: var(--fs-sm);
-      line-height: var(--lh-snug, 1.4);
+      line-height: 1.35;
       text-align: left;
       overflow: visible;
     }
     /* Closed (a menu or the tag tray is open, or its control is not on screen): not drawn at all; display above would otherwise beat the popover's own rule. */
     .practice-tip[popover]:not(:popover-open) { display: none; }
-    .practice-tip__words { margin: 0; }
+    /* The words and 知道了 are one flow: the button follows the last line of text. */
+    .practice-tip__words { margin: 0; line-height: inherit; }
+    .practice-tip__words .practice-tip__ok { min-height: 0; padding: 0 var(--space-3); line-height: 1.2; margin-inline-start: var(--space-2); vertical-align: top; }
+    /* The control an open tip is about (it may sit a little away from the tip): a quiet outline, no size change, no motion. */
+    [data-practice-tip-ring] { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
   }
 }

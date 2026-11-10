@@ -1,4 +1,4 @@
-/* global document, window, localStorage, getComputedStyle */
+/* global document, window, localStorage, getComputedStyle, NodeFilter */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -75,12 +75,28 @@ const boxes = (page) => page.evaluate(() => {
     message: rect([...document.querySelectorAll('.action-feedback-slot > *')].find((element) => element.getClientRects().length)),
     focus: document.activeElement?.tagName || '', scrollWidth: document.documentElement.scrollWidth };
 });
+/** What the open tip lies over: any line of text or button of the question's column, and the elements the owner named (explanation heading, next-due line, the 为什么 row, the vote message, the nav buttons, the tools). [] when it lies over empty space only. */
+const offenders = (page) => page.evaluate(() => {
+  const tip = document.querySelector('[data-practice-tip]'), t = tip.getBoundingClientRect(), out = [];
+  const hit = (r) => r.width > 1 && r.height > 1 && r.left < t.right && r.right > t.left && r.top < t.bottom && r.bottom > t.top;
+  const walker = document.createTreeWalker(document.querySelector('.question-area'), NodeFilter.SHOW_TEXT), range = document.createRange();
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.nodeValue.trim() || tip.contains(node) || node.parentElement.checkVisibility?.() === false) continue;
+    range.selectNodeContents(node);
+    for (const r of range.getClientRects()) if (hit(r)) out.push(`text: ${node.nodeValue.trim().slice(0, 24)}`);
+  }
+  for (const selector of ['.explanation h3', '.question-card .next-due', '.question-card .option', '.action-feedback-slot > *', '.question-navigation button', '.question-tools button', '[data-usage="review.derive-prereq"]', '.followup-fold'])
+    for (const element of document.querySelectorAll(selector)) if (!tip.contains(element) && element.getClientRects().length && hit(element.getBoundingClientRect())) out.push(selector);
+  return [...new Set(out)];
+});
+/** The control the open tip is about carries the ring, and nothing else does. */
+const ringed = (page) => page.evaluate(() => [...document.querySelectorAll('[data-practice-tip-ring]')].map((element) => element.getAttribute('data-usage')));
 const covers = (a, b) => !!a && !!b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 const insideWindow = (tip, viewport) => tip.left >= 0 && tip.top >= 0 && tip.right <= viewport.width && tip.bottom <= viewport.height;
 const shot = async (page, name) => { if (SHOTS) { await mkdir(SHOTS, { recursive: true }); await page.screenshot({ path: join(SHOTS, `${name}.png`) }); } };
 const WORDS = {
-  zh: { help: '没懂？点「帮我弄懂」，讲解会直接出现在这道题下面。', fix: '觉得题目本身有问题？点「修题」', prereq: '这一点基础不牢？点「出成前置题」', ok: '知道了', more: '更多', thumbDown: /这题有问题/ },
-  en: { help: 'Still not clear? Choose “Help me understand”', fix: 'Think the question itself is wrong? Choose “Improve question”', prereq: 'Is this point shaky? Choose “Turn into a prerequisite question”', ok: 'Got it', more: 'More', thumbDown: /Something is wrong with it/ },
+  zh: { help: '没懂？点「帮我弄懂」，讲解会直接出现在这道题下面。', fix: '觉得题目有问题？点「修题」', prereq: '基础不牢？点「出成前置题」', ok: '知道了', more: '更多', thumbDown: /这题有问题/ },
+  en: { help: 'Still not clear? Choose “Help me understand”', fix: 'Question wrong? Choose “Improve question”', prereq: 'Shaky basics? Choose “Turn into a prerequisite question”', ok: 'Got it', more: 'More', thumbDown: /Something is wrong with it/ },
 };
 const voteDown = async (page, words) => {
   await page.evaluate(() => document.querySelector('.question-toolbar').scrollIntoView({ block: 'center' }));
@@ -110,6 +126,8 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       await answer(page, 'wrong');
       await toTools(page);
       await tipOf(page, 'practice.help-first').waitFor({ state: 'visible', timeout: 10000 });
+      assert.deepEqual(await offenders(page), [], `${where}: the 帮我弄懂 tip lies over empty space only`);
+      assert.deepEqual(await ringed(page), ['review.help'], `${where}: its control carries the ring while the tip is open`);
       const before = await boxes(page);
       assert.equal(before.position, 'fixed', `${where}: the tip is an overlay, not in the flow`);
       assert.ok(before.open, `${where}: in the top layer`);
@@ -150,6 +168,7 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       const shown = await boxes(page);
       await page.locator('[data-practice-tip]').getByRole('button', { name: words.ok, exact: true }).click();
       assert.equal(await anyTip(page).count(), 0, `${where}: 知道了 closes it`);
+      assert.deepEqual(await ringed(page), [], `${where}: and the ring goes`);
       const after = await boxes(page);
       for (const name of ['toolbar', 'next', 'help', 'fix']) assert.deepEqual(after[name], shown[name], `${where}: ${name} did not move when the tip came or went`);
       assert.deepEqual(await stored(page), ['help-first']);
@@ -195,6 +214,8 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       assert.equal(await anyTip(page).count(), 0, `${where}: voting is the moment, not the answer`);
       await voteDown(page, words);
       await tipOf(page, 'practice.fix-first').waitFor({ state: 'visible', timeout: 15000 });
+      assert.deepEqual(await offenders(page), [], `${where}: the 修题 tip lies over empty space only`);
+      assert.deepEqual(await ringed(page), ['review.improve'], `${where}: its control carries the ring`);
       const fix = await boxes(page);
       assert.ok(insideWindow(fix.tip, fix.viewport), `${where}: inside the window ${JSON.stringify(fix)}`);
       for (const [name, control] of [['下一题', fix.next], ['上一题', fix.prev], ['更多', fix.more]]) assert.ok(!covers(fix.tip, control), `${where}: the tip does not cover ${name}`);
@@ -218,6 +239,8 @@ test('the three first-use tips of the practice page (zh 1280 and 420 px, en 420 
       assert.equal(await page.locator('[data-practice-tip]').isVisible(), (await boxes(page)).derive?.bottom <= 900, `${where}: shown only when the link is on screen`);
       await page.locator('[data-usage="review.derive-prereq"]').first().scrollIntoViewIfNeeded();
       await tipOf(page, 'practice.prereq-first').waitFor({ state: 'visible', timeout: 10000 });
+      assert.deepEqual(await offenders(page), [], `${where}: the 出成前置题 tip lies over empty space only`);
+      assert.deepEqual(await ringed(page), ['review.derive-prereq'], `${where}: its link carries the ring`);
       const prereq = await boxes(page);
       assert.ok(prereq.derive, `${where}: the link it points at is on screen`);
       assert.ok(insideWindow(prereq.tip, prereq.viewport), `${where}: inside the window ${JSON.stringify(prereq.tip)}`);

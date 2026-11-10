@@ -96,8 +96,8 @@ test('every new or changed sentence has its English, and the English has no Chin
     step('practice').body, step('help').body, entry('help-me-understand').what, entry('fix-question').what, entry('derive-prerequisite').what, entry('mailbox').what,
     entry('derive-prerequisite').title, entry('derive-prerequisite').path.at(-1),
     '这道题哪里不好？后台助教会直接改这张卡，改完可在信箱里一步撤销',
-    '没懂？点「帮我弄懂」，讲解会直接出现在这道题下面。', '觉得题目本身有问题？点「修题」，助教会直接改这张卡；改完在信箱里一步就能撤销。',
-    '这一点基础不牢？点「出成前置题」，它会在同一题组里变成一道更基础的题，练完再回到这道题。',
+    '没懂？点「帮我弄懂」，讲解会直接出现在这道题下面。', '觉得题目有问题？点「修题」，助教直接改这张卡，改完在信箱里能一步撤销。',
+    '基础不牢？点「出成前置题」，在同一题组里补一道更基础的题，练完再回到这道题。',
   ];
   assert.ok(texts.length >= 14);
   for (const text of texts) {
