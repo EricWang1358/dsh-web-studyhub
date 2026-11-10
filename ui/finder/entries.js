@@ -300,7 +300,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'leech-settings', area: 'practice', title: '顽固题的标准', page: 'settings', anchors: ['settings-practice'],
     aliases: ['多少次答错算顽固', '顽固题标准', '顽固题阈值', '答错几次', 'leech threshold', 'stubborn threshold'],
     path: ['设置', '练习', '多少次答错算顽固题'],
-    what: '在「设置 › 练习」里改两个数：累计答错几次算顽固题，以及最近几次作答里答错占多少算顽固题。默认是答错 4 次，或最近 5 次里答错 60% 以上。改动立即保存，只影响之后看到的标记。' }),
+    what: '在「设置 › 练习」里改两个数：累计答错几次算顽固题，以及最近几次作答里答错占多少算顽固题。默认是累计答错 4 次，或最近 5 次里答错 3 次以上（60%，不满 5 次时也这样算）。改动立即保存，只影响之后看到的标记。' }),
   feature({ id: 'wrongbook-refresh', area: 'practice', title: '刷新错题', page: 'wrongbook', anchors: ['wrongbook-list', 'nav-wrongbook'],
     aliases: ['刷新', '重新读取', '更新错题', 'refresh', 'reload mistakes'],
     path: ['错题与待巩固'],

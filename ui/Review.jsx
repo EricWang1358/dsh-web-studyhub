@@ -209,7 +209,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           {leechCount > 0 && (
             <p className="summary-leech">
               {leechCount === 1 ? ui("本轮有 1 道题你已经反复答错。") : uiFormat("本轮有 {0} 道题你已经反复答错。", [leechCount])}
-              <Button variant="link" size="sm" lock={busy} onClick={() => { askForLeeches(data?.root); navigate("wrongbook"); }}>{ui("在错题本里看看")}</Button>
+              <Button variant="link" size="sm" lock={busy} onClick={() => { askForLeeches(data?.root, run.leechCards); navigate("wrongbook"); }}>{ui("在错题本里看看")}</Button>
             </p>
           )}
           {run.course && (

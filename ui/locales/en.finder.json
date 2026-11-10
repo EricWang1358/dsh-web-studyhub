@@ -243,5 +243,5 @@
   "顽固题标准": "Stubborn question rule",
   "顽固题阈值": "Stubborn question threshold",
   "答错几次": "How many wrong answers",
-  "在「设置 › 练习」里改两个数：累计答错几次算顽固题，以及最近几次作答里答错占多少算顽固题。默认是答错 4 次，或最近 5 次里答错 60% 以上。改动立即保存，只影响之后看到的标记。": "Change two numbers in Settings › Practice: how many wrong answers in all make a question stubborn, and what share of the latest attempts failing does. The default is 4 wrong answers, or 60% or more of the latest 5. Changes save at once and only affect the marks you see afterwards."
+  "在「设置 › 练习」里改两个数：累计答错几次算顽固题，以及最近几次作答里答错占多少算顽固题。默认是累计答错 4 次，或最近 5 次里答错 3 次以上（60%，不满 5 次时也这样算）。改动立即保存，只影响之后看到的标记。": "Change two numbers in Settings › Practice: how many wrong answers in all make a question stubborn, and what share of the latest attempts failing does. The default is 4 wrong answers in all, or 3 or more misses in the latest 5 (60%; with fewer than 5 attempts it counts the same way). Changes save at once and only affect the marks you see afterwards."
 }

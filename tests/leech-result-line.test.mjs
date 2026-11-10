@@ -55,12 +55,32 @@ test('English', () => {
   } finally { setUiLanguage('zh'); }
 });
 
-test('the line opens the wrong book on the 顽固题 once: asked before navigating, taken and forgotten on arrival', () => {
+const memory = () => {
   const store = new Map();
-  const storage = { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, String(value)), removeItem: (key) => store.delete(key) };
+  return { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, String(value)), removeItem: (key) => store.delete(key) };
+};
+
+test('the line opens the wrong book on the questions the round counted, once: asked before navigating, taken and forgotten on arrival', () => {
+  const storage = memory(), refs = leeches(2);
   assert.deepEqual(takeArrival('root', storage), {}, 'nobody asked');
-  askForLeeches('root', storage);
+  askForLeeches('root', refs, storage);
   assert.deepEqual(takeArrival('other', storage), {}, 'another library is not asked');
-  assert.deepEqual(takeArrival('root', storage), { filter: { leech: true }, course: '*' });
+  assert.deepEqual(takeArrival('root', storage), { refs }, 'exactly the questions the line counted');
   assert.deepEqual(takeArrival('root', storage), {}, 'read once');
+});
+
+test('a wrong book that mounts before the library root is known leaves the request for the real one', () => {
+  const storage = memory(), refs = leeches(3);
+  askForLeeches('root', refs, storage);
+  assert.deepEqual(takeArrival(undefined, storage), {}, 'no root yet: nothing is read, nothing is taken');
+  assert.deepEqual(takeArrival('', storage), {});
+  assert.deepEqual(takeArrival('root', storage), { refs }, 'the real root still gets it');
+});
+
+test('a request with nothing in it, or damaged, opens nothing', () => {
+  const storage = memory();
+  askForLeeches('root', [], storage);
+  assert.deepEqual(takeArrival('root', storage), {});
+  storage.setItem(`study-wrongbook-arrival:v1:${JSON.stringify(['root'])}`, '{"refs":[{"deckId":1},null,"x"]}');
+  assert.deepEqual(takeArrival('root', storage), {});
 });

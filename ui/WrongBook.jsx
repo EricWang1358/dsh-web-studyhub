@@ -15,7 +15,7 @@ import { HandOff } from './hand-off/HandOff.jsx';
 import { leechLimits } from '../lib/leech.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { FILTER_MIN, NO_FILTER, RECS_PREVIEW, STATUS_KINDS, VARIANT_BATCH_CAP, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, leechCount, leechWords, readGroupBy, readOpenGroups, reasonText, retrainOptions,
-  sameVariantState, saveGroupBy, rescueCall, rescueNote, takeArrival, readSignature, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
+  sameVariantState, saveGroupBy, rescueCall, rescueNote, takeArrival, undoPauseCall, readSignature, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
 import { setQueryData, useHostQuery } from './host-query.js';
 import { formatDateTime, joinMeta, META_DOT } from "./format.js";
@@ -24,6 +24,8 @@ import { formatDateTime, joinMeta, META_DOT } from "./format.js";
 const FETCH_LIMIT = 100;
 const PAGE_SIZE = 1000;
 const POLL_MS = 2500;
+// How long the offer to undo a suspend stays (hovering or focusing it holds it).
+const UNDO_TIMEOUT = 8000;
 // How often the open page asks whether the list changed (one row is read; the whole list only when it did). It slows down by itself while nothing moves.
 const WATCH_MS = 8000;
 const refOf = ({ deckId, cardId }) => ({ deckId, cardId });
@@ -77,13 +79,13 @@ function LeechMark({ limits }) {
 
 /** What each rescue action does, said where its button is. */
 const rescueTip = (kind) => kind === 'fix'
-  ? tip(ui('记下「这题有问题」，由后台助教检查并修这道题，约 1 次轻量模型调用。'), ui('改好后信箱里会告诉你，也可以在那里撤回。'))
+  ? tip(ui('记下「这题有问题」，由后台助教检查并修这道题；没有可用模型时只记下反馈，不会修题。有模型时会调用轻量模型，出错时最多再试 2 次。'), ui('改好后信箱里会告诉你，也可以在那里撤回。'))
   : kind === 'easier'
-    ? tip(ui('记下「太难」：同意后台准备时，会写一张更基础的前置小卡，约 1 次轻量模型调用。'), ui('写好后放进「为你定制」。'))
+    ? tip(ui('记下「太难」：同意后台准备且有可用模型时，会写一张更基础的前置小卡（调用轻量模型）；否则只记下反馈。'), ui('写好后放进「为你定制」。'))
     : tip(ui('暂停后，这道题不再出现在练习和错题里，也不调用模型。'), ui('在题组的管理页点「恢复学习」可以恢复。'));
 
 /** The four ways out for a question that keeps being failed: the actions that exist elsewhere, called from here (the opened row only; a collapsed row has no menu, #675). */
-function LeechRescue({ item, disabled, onRescue }) {
+function LeechRescue({ item, course, disabled, onRescue }) {
   return (
     <div className="wb-sub wb-leech">
       <h4>{ui("这道题总是答错")}</h4>
@@ -91,8 +93,8 @@ function LeechRescue({ item, disabled, onRescue }) {
       <div className="wb-leech__actions">
         <Tooltip layer content={rescueTip('fix')}><Button variant="quiet" size="sm" data-rescue="fix" disabled={disabled} onClick={() => onRescue('fix', item)}>{ui("这题有问题，交给后台修")}</Button></Tooltip>
         <Tooltip layer content={rescueTip('easier')}><Button variant="quiet" size="sm" data-rescue="easier" disabled={disabled} onClick={() => onRescue('easier', item)}>{ui("太难了，补一张前置小卡")}</Button></Tooltip>
-        <HandOff id="method.missed" shape="quiet" what="让主会话和你一起看这道题：是你还没弄懂，还是题目本身有问题" disabled={disabled}
-          input={{ missed: [{ cardId: item.cardId, topic: item.topic || '', prompt: plainPrompt(item.prompt) }], note: ui('这道题我已经反复答错了，请先帮我看看是我没弄懂，还是题目本身有问题。') }} />
+        <HandOff id="question.stubborn" shape="quiet" what="让主会话和你一起看这道题：是你还没弄懂，还是题目本身有问题" disabled={disabled}
+          input={{ course, deckId: item.deckId, cardId: item.cardId, topic: item.topic || '', prompt: plainPrompt(item.prompt) }} />
         <Tooltip layer content={rescueTip('pause')}><Button variant="quiet" size="sm" data-rescue="pause" disabled={disabled} onClick={() => onRescue('pause', item)}>{ui("暂停此题")}</Button></Tooltip>
       </div>
     </div>
@@ -162,7 +164,7 @@ function DetailLine({ label, children, plain = false }) {
   return children ? <div className="wb-fact"><dt>{label}</dt><dd>{shown}</dd></div> : null;
 }
 
-function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, onRescue, disabled }) {
+function RowDetail({ id, item, course, detail, variants, recs, shortName, onPractice, onRescue, disabled }) {
   return (
     <div className="wb-detail" id={id}>
       {detail === "loading" || detail === undefined ? <LoadingState label={ui("正在读取详情…")} />
@@ -176,7 +178,7 @@ function RowDetail({ id, item, detail, variants, recs, shortName, onPractice, on
               <DetailLine label={ui("易错点")}>{detail.misconception}</DetailLine>
             </dl>
           )}
-      {item.leech && onRescue && <LeechRescue item={item} disabled={disabled} onRescue={onRescue} />}
+      {item.leech && onRescue && <LeechRescue item={item} course={course} disabled={disabled} onRescue={onRescue} />}
       {variants.length > 0 && (
         <div className="wb-sub">
           <h4>{ui("这道题的变式")}</h4>
@@ -214,7 +216,7 @@ const sameRow = (a, b) => Object.keys(a).every((key) => (key === 'state' ? sameV
 
 /* One question. Memoised, so opening a group, typing in the search box or a status poll redraws only the rows whose own props changed (the
    `handlers` are stable). */
-const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers, limits, history = false, mistake = "", showPractice = true }) {
+const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers, limits, course, history = false, mistake = "", showPractice = true }) {
   const detailId = `wb-detail-${it.cardId}`;
   const recs = useMemo(() => (isOpen ? relatedTo(recItems, it.cardId) : []), [isOpen, recItems, it.cardId]);
   const fullPrompt = plainPrompt(it.prompt);
@@ -254,7 +256,7 @@ const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, s
         )}
       </div>
       {isOpen && (
-        <RowDetail id={detailId} item={it} detail={detail} shortName={shortName} disabled={disabled}
+        <RowDetail id={detailId} item={it} course={course} detail={detail} shortName={shortName} disabled={disabled}
           variants={state.kind === "ready" ? state.prompts : []}
           recs={recs}
           onPractice={handlers.practiceRec} onRescue={handlers.rescue} />
@@ -319,7 +321,7 @@ export function WeaknessBar({ groups = [], onPick }) {
 export function WrongBookView({
   data, course, onCourse, showInactive, onShowInactive, items, counts, view = "weak", onView, viewCounts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
   recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings,
-  onLibrary, onCreate, onSources, onRescue, openKey, initial = {}, filterMin = FILTER_MIN,
+  onLibrary, onCreate, onSources, onRescue, arrival, openKey, initial = {}, filterMin = FILTER_MIN,
 }) {
   const { busy } = useStudy();
   useInjectCss(css, "study-views");
@@ -374,7 +376,19 @@ export function WrongBookView({
   const kindsShown = useMemo(() => statusCounts(filterRows(rows, { ...applied, status: 'all' })), [rows, applied]);
   // 顽固题 (lib/leech.js): the thresholds are the learner's own (设置 › 练习); how many of the rows the other filters leave are one.
   const limits = useMemo(() => leechLimits(data?.settings?.practice), [data?.settings?.practice]);
-  const leechShown = useMemo(() => leechCount(filterRows(rows, { ...applied, leech: false })), [rows, applied]);
+  const leechShown = useMemo(() => leechCount(filterRows(rows, { ...applied, leech: false, only: null })), [rows, applied]);
+  const onlyShown = useMemo(() => (Array.isArray(applied.only) ? filterRows(rows, { ...NO_FILTER, only: applied.only }).length : 0), [rows, applied]);
+  const courseOfDeck = useMemo(() => new Map((data?.decks || []).map((deck) => [deck.id, deck.course ?? deck.folder ?? ''])), [data?.decks]);
+  // The result page of a round asked to open on exactly its 顽固题 (ui/Review.jsx; the container read the request once): applied when the list of that scope has come, with
+  // the groups holding them open, so the rows shown are the ones the line counted. The chip below widens it to every 顽固题.
+  const appliedArrival = useRef(null);
+  useEffect(() => {
+    if (!arrival?.refs || !items || appliedArrival.current === arrival) return;
+    appliedArrival.current = arrival;
+    const filterNow = { ...NO_FILTER, only: arrival.refs };
+    setFilterState({ scope: scopeKey, filter: filterNow });
+    setOpenGroups((previous) => new Set([...previous, ...groupRows(filterRows(items, filterNow), groupBy, data?.decks).map((group) => group.key)]));
+  }, [arrival, items, scopeKey, groupBy, data?.decks]);
   const hasCoach = !!coach;
   const gated = hasCoach && !coach.enabled;
   const canGenerate = hasCoach && coach.enabled && !!onGenerate;
@@ -646,7 +660,14 @@ export function WrongBookView({
                   </Chip>
                 </Tooltip>
               ))}
-              {(leechShown > 0 || filter.leech) && (
+              {Array.isArray(filter.only) && (
+                <Tooltip layer content={tip(ui('只看刚练完的这一轮里的顽固题。'), ui('点一下，改看所有顽固题。'))}>
+                  <Chip size="sm" selected onClick={() => patchFilter({ only: null, leech: true })}>
+                    {ui("本轮的顽固题")} <span className="wb-num">{onlyShown}</span>
+                  </Chip>
+                </Tooltip>
+              )}
+              {!Array.isArray(filter.only) && (leechShown > 0 || filter.leech) && (
                 <Tooltip layer content={(() => { const words = leechWords(limits); return tip(words.sentence, words.consequence); })()}>
                   <Chip size="sm" selected={!!filter.leech} onClick={() => patchFilter({ leech: !filter.leech })}>
                     {ui("顽固")} <span className="wb-num">{leechShown}</span>
@@ -745,7 +766,7 @@ export function WrongBookView({
                 {group.rows.map((it) => (
                   <Row key={it.cardId} it={it} metaText={group.mode === "topic" ? shortName(it.deckTitle) : it.topic || ui("未分类")}
                     isOpen={expanded.has(it.cardId)} state={stateOf(it.cardId)} detail={details[it.cardId]} recItems={recItems} shortName={shortName}
-                    canGenerate={!isHistory && canGenerate} canPracticePrepared={!!onPracticePrepared} disabled={busy} variantDisabled={busy || working} handlers={handlers} limits={limits} showPractice={isHistory || total !== 1}
+                    canGenerate={!isHistory && canGenerate} canPracticePrepared={!!onPracticePrepared} disabled={busy} variantDisabled={busy || working} handlers={handlers} limits={limits} course={courseOfDeck.get(it.deckId) || ''} showPractice={isHistory || total !== 1}
                     history={isHistory} mistake={isHistory ? joinMeta([uiFormat("答错 {0} 次", [it.wrongCount ?? 0]), uiFormat("最近答错 {0}", [formatDateTime(it.lastWrongAt, "stamp")])]) : ""} />
                 ))}
               </ul>
@@ -765,11 +786,22 @@ export function WrongBookView({
 
 export default function WrongBook({ data, onPractice, onPracticePrepared, onOpenSettings, onLibrary, onCreate, onSources }) {
   const { call, act, openSettings, busy } = useStudy();
-  // The result page's line about 顽固题 asked this page to open on them (ui/Review.jsx): read once, then forgotten, so the next visit starts clean. It shows every
-  // course unless the learner pinned a scope of their own.
-  const [arrival] = useState(() => takeArrival(data?.root));
-  const [course, setCourse] = usePageScope(data?.root, 'wrongbook', arrival.course ?? data?.focus?.course ?? '*');
-  const [showInactive, setShowInactive] = useShowInactive(data?.root, 'wrongbook');
+  const [pinnedCourse, setCourse] = usePageScope(data?.root, 'wrongbook', data?.focus?.course ?? '*');
+  const [pinnedInactive, setShowInactive] = useShowInactive(data?.root, 'wrongbook');
+  // The result page's line about 顽固题 asked this page to open on exactly those questions (ui/Review.jsx). The request waits under the library's root, so it is read in
+  // an effect keyed on the root (a page that mounts before the library has loaded takes nothing), once, and forgotten. Those questions can be in any course, parked
+  // ones included, so on arrival the page shows every course and the parked ones, whatever scope the learner pinned, until the learner picks a scope of their own.
+  const [arrival, setArrival] = useState(null);
+  const [released, setReleased] = useState(false);
+  useEffect(() => {
+    const taken = takeArrival(data?.root);
+    if (taken.refs) { setArrival(taken); setReleased(false); }
+  }, [data?.root]);
+  const arrived = !!arrival && !released;
+  const course = arrived ? '*' : pinnedCourse, showInactive = arrived ? true : pinnedInactive;
+  const chooseCourse = (value) => { setReleased(true); setCourse(value); };
+  chooseCourse.scope = setCourse.scope;
+  const chooseInactive = (value) => { setReleased(true); setShowInactive(value); };
   // 待巩固 is the page and 已订正 the mistakes it kept: the service reads the chosen view, so neither list is filtered apart here.
   const [view, setView] = useState('weak');
   const toast = useToast();
@@ -907,7 +939,13 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
         const done = await act(action, args, undefined, { rethrow: true });
         if (done === undefined) { toast.info(ui('刚才还有操作在进行，请稍后再点一次。')); return; }
         await load(pageRef.current, { quiet: true });
-        toast.success(rescueNote(kind, done).text);
+        // The row is gone from the page at once, so the way back is here, not only on the manage page.
+        toast.show({ tone: 'success', message: rescueNote(kind, done).text, undo: true, timeout: UNDO_TIMEOUT,
+          action: { label: ui('撤销'), onClick: async () => {
+            toast.dismiss();
+            const back = undoPauseCall({ deckId: item.deckId, cardId: item.cardId });
+            try { await act(back.action, back.args, undefined, { rethrow: true }); await load(pageRef.current, { quiet: true }); toast.info(ui('已恢复这道题。')); } catch (failure) { toast.error(failure); }
+          } } });
         return;
       }
       const note = rescueNote(kind, await call(action, args));
@@ -930,11 +968,11 @@ export default function WrongBook({ data, onPractice, onPracticePrepared, onOpen
   }, [call, view]);
 
   return (
-    <WrongBookView data={data} course={course} onCourse={setCourse} showInactive={showInactive} onShowInactive={setShowInactive} items={items} counts={counts}
+    <WrongBookView data={data} course={course} onCourse={chooseCourse} showInactive={showInactive} onShowInactive={chooseInactive} items={items} counts={counts}
       view={view} onView={setView} viewCounts={current?.viewCounts || knownViewCounts} loading={loading} err={err}
       page={page} pageSize={PAGE_SIZE} hasMore={counts.total > PAGE_SIZE} onReload={load} onPage={load}
       recs={recs?.key === key ? recs : null} recsLoading={view === "weak" && !!items?.length && recs?.key !== key} coach={coach} details={details} onLoadDetail={loadDetail}
       onPractice={onPractice} onPracticePrepared={onPracticePrepared} onGenerate={generate} onOpenSettings={onOpenSettings} onSettings={openSettings}
-      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onRescue={rescue} initial={{ filter: arrival.filter }} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
+      onLibrary={onLibrary} onCreate={onCreate} onSources={onSources} onRescue={rescue} arrival={arrived ? arrival : null} openKey={`study-wrongbook-open:v1:${data?.root || ""}`} />
   );
 }

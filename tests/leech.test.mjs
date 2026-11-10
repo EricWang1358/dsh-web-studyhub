@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { leechLimits, leechOf, openLeeches } from '../lib/leech.js';
+import { leechLimits, leechMisses, leechOf, openLeeches } from '../lib/leech.js';
 import { PRACTICE_DEFAULTS, PRACTICE_LIMITS, normalizePracticeSettings, validatePracticePatch } from '../lib/practice-settings.js';
 import { emptyState } from '../lib/store.js';
 import { wrongBook } from '../lib/insights.js';
@@ -33,19 +33,23 @@ test('the settings validate the three numbers like the round size: whole numbers
   }
 });
 
-test('failed 4 times in total is a leech; 3 is not', () => {
+test('failed 4 times in total is a leech; 3 spread out is not', () => {
   assert.equal(leechOf(log('xxxx')), true);
-  assert.equal(leechOf(log('xxx')), false);
   // spread out, with right answers between them: the total counts, but see below for the recovery
   assert.equal(leechOf(log('xoxoxox')), true);
   assert.equal(leechOf(log('xoxoxo')), false, '3 failures in 6');
 });
 
-test('the latest 5 attempts with at least 60 per cent failed is a leech even with fewer than 4 failures in all', () => {
+test('3 misses in the latest 5 attempts (60 per cent of the window) is a leech even with fewer than 4 failures in all, whether or not there are 5 attempts yet', () => {
   assert.equal(leechOf(log('xxxoo')), true, '3 of 5 is 60 per cent: the edge counts');
   assert.equal(leechOf(log('xxooo')), false, '2 of 5');
-  assert.equal(leechOf(log('xxxo')), false, 'only 4 attempts: the window is not full yet, and 3 failures is below the total');
+  assert.equal(leechOf(log('xxx')), true, 'three attempts, all missed: the window is not full, the misses already reach 3');
+  assert.equal(leechOf(log('xxxo')), true);
+  assert.equal(leechOf(log('xx')), false);
+  assert.equal(leechOf(log('xox')), false);
   assert.equal(leechOf(log('ooxxx')), true, 'the latest 5, not the first 5');
+  assert.equal(leechMisses({ window: 5, rate: 60 }), 3);
+  assert.equal(leechMisses({ window: 8, rate: 75 }), 6);
   assert.equal(leechOf(log('xxxxoooo')), true, 'the total rule: 4 failures stand while fewer than 5 right answers followed');
 });
 
@@ -54,19 +58,28 @@ test('the thresholds come from the settings: a stricter or looser learner moves 
   assert.equal(leechOf(log('xxx'), strict), true);
   assert.equal(leechOf(log('xxxo'), strict), true, '3 of 4 is 75 per cent');
   assert.equal(leechOf(log('xxoo'), strict), false);
-  const loose = leechLimits({ leechFailures: 8 });
+  const loose = leechLimits({ leechFailures: 8, leechRate: 100 });
   assert.equal(leechOf(log('xxxx'), loose), false);
   assert.equal(leechOf(log('xxxxxxxx'), loose), true);
 });
 
 test('a retry, an answer after the question was opened up again, and an unverified self-report are not counted', () => {
-  assert.equal(leechOf([...log('xxx'), { ...log('x')[0], timestamp: at(9), retry: true }]), false, 'a retry is extra practice of the same answer');
-  assert.equal(leechOf([...log('xxx'), { ...log('x')[0], timestamp: at(9), updatedAfterOpening: true }]), false);
-  assert.equal(leechOf([...log('xxx'), { ...log('x')[0], timestamp: at(9), selfReported: true }]), false, 'a self-report is not a verified failure');
-  assert.equal(leechOf([...log('xxx'), { ...log('x')[0], timestamp: at(9), assessment: 'self-report' }]), false);
-  assert.equal(leechOf([...log('xxx'), { ...log('x')[0], timestamp: at(9) }]), true, 'the same fourth attempt, counted');
+  assert.equal(leechOf([...log('xx'), { ...log('x')[0], timestamp: at(9), retry: true }]), false, 'a retry is extra practice of the same answer');
+  assert.equal(leechOf([...log('xx'), { ...log('x')[0], timestamp: at(9), updatedAfterOpening: true }]), false);
+  assert.equal(leechOf([...log('xx'), { ...log('x')[0], timestamp: at(9), selfReported: true }]), false, 'a self-report is not a verified failure');
+  assert.equal(leechOf([...log('xx'), { ...log('x')[0], timestamp: at(9), assessment: 'self-report' }]), false);
+  assert.equal(leechOf([...log('xx'), { ...log('x')[0], timestamp: at(9) }]), true, 'the same third attempt, counted');
   // and they do not dilute the window either
   assert.equal(leechOf([...log('xxxoo'), ...log('oooo', { retry: true }).map((a, n) => ({ ...a, timestamp: at(20 + n) }))]), true);
+});
+
+test('an implicit credit (a prerequisite passed on the way to a dependent question) is not an answer: it neither clears a leech nor counts as a failure', () => {
+  const credits = n => Array.from({ length: n }, (_, k) => ({ deckId: 'd', quiz_id: 'q', grade: 4, implicit: true, timestamp: at(20 + k) }));
+  assert.equal(leechOf([...log('xxxx'), ...credits(5)]), true, 'four misses, then five credits the learner never answered');
+  assert.equal(leechOf([...log('xxxx'), ...credits(9)]), true);
+  assert.equal(leechOf([...log('xxxx'), ...log('ooooo').map((a, k) => ({ ...a, timestamp: at(30 + k) }))]), false, 'five real right answers do clear it');
+  assert.equal(leechOf([...log('xx'), ...credits(3)]), false);
+  assert.equal(leechOf([...log('xx'), { ...log('x')[0], timestamp: at(40), implicit: true, grade: 1 }]), false, 'an implicit record is never a miss either');
 });
 
 test('only the grade decides: 2 is a failure and 3 is not', () => {
@@ -90,6 +103,18 @@ test('a question failed 4 times long ago and answered right in the whole latest 
   assert.equal(leechOf(log('xxxxoooooxx')), true, '6 failures in all, 2 of the latest 5 failed');
 });
 
+test('answering right never makes a question a leech: appending a right answer to any sequence of up to 9 attempts never turns a non-leech into a leech', () => {
+  const sequences = function* (length) { for (let bits = 0; bits < 2 ** length; bits++) yield Array.from({ length }, (_, k) => ((bits >> k) & 1 ? 'x' : 'o')).join(''); };
+  for (const limits of [LIMITS, leechLimits({ leechFailures: 3, leechWindow: 4, leechRate: 75 }), leechLimits({ leechFailures: 6, leechWindow: 3, leechRate: 100 })]) {
+    let checked = 0;
+    for (let length = 0; length <= 9; length++) for (const marks of sequences(length)) {
+      checked++;
+      if (!leechOf(log(marks), limits)) assert.equal(leechOf(log(`${marks}o`), limits), false, `${marks} + a right answer (${JSON.stringify(limits)})`);
+    }
+    assert.equal(checked, 1023);
+  }
+});
+
 test('no attempts, or attempts that do not count, is not a leech', () => {
   assert.equal(leechOf([]), false);
   assert.equal(leechOf(undefined), false);
@@ -109,18 +134,18 @@ function stateOf(attemptsByCard, settings) {
 const flags = (state, options) => Object.fromEntries(wrongBook(state, options).items.map(item => [item.cardId, item.leech]));
 
 test('both wrong-book views mark a leech, whatever the card record says (lapses 0 from the older format)', () => {
-  const state = stateOf({ again: 'xxxx', once: 'x', cured: 'xxxo', history: 'xxxxo' });
+  const state = stateOf({ again: 'xxxx', once: 'x', cured: 'xxo', history: 'xxxxo' });
   for (const item of state.decks[0].cards) item.review = { lapses: 0, repetitions: 0 };
   assert.deepEqual(flags(state), { again: true, once: false }, 'weak: the last answer of each is still wrong');
   assert.deepEqual(flags(state, { view: 'history' }), { cured: false, history: true }, 'history: failed 4 times and then put right');
-  assert.deepEqual(wrongBook(state, { view: 'history' }).items.map(item => item.wrongCount), [4, 3]);
+  assert.deepEqual(wrongBook(state, { view: 'history' }).items.map(item => item.wrongCount), [4, 2]);
 });
 
 test('the wrong book reads the thresholds from the practice settings', () => {
   const attempts = { two: 'xx', four: 'xxxx' };
   assert.deepEqual(flags(stateOf(attempts)), { two: false, four: true });
   assert.deepEqual(flags(stateOf(attempts, { leechFailures: 2 })), { two: true, four: true });
-  assert.deepEqual(flags(stateOf(attempts, { leechFailures: 8 })), { two: false, four: false });
+  assert.deepEqual(flags(stateOf(attempts, { leechFailures: 8, leechRate: 100 })), { two: false, four: false });
 });
 
 test('the flag is computed for the page that is returned, not for the whole list', () => {

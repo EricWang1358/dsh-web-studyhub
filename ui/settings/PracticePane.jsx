@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Field, Hint, Select, SettingsSection, Switch, useToast } from '../components/index.js';
 import { PRACTICE_DEFAULTS, resolvePracticeSettings } from '../../lib/practice-settings.js';
+import { leechMisses } from '../../lib/leech.js';
 import { COVERAGE_DEFAULT, CRUNCH_MINUTES, CRUNCH_WINDOW, bookCoverage, crunchMinutes, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { levelHint, levelOptions } from '../outline/words.js';
 import { AUTO_ADVANCE_MS, RESULT_COUNTDOWN_SECONDS } from '../review/session-logic.js';
@@ -90,7 +91,7 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
         <Select name="leechFailures" value={String(values.leechFailures)} disabled={disabled} onChange={(leechFailures) => set({ leechFailures: Number(leechFailures) })}
           options={withSaved(LEECH_FAILURES, values.leechFailures).map((count) => ({ value: String(count), label: uiFormat('{0} 次', [count]) }))} />
       </Field>
-      <Field label={ui('最近几次里答错的占多少算顽固题')} hint={uiFormat('只看最近 {0} 次作答：答错的占这个比例以上也算顽固，哪怕累计次数还不到。最近 {0} 次全部答对，标记就会消失。', [values.leechWindow])}>
+      <Field label={ui('最近几次里答错的占多少算顽固题')} hint={uiFormat('只看最近 {0} 次作答：答错 {1} 次以上也算顽固，哪怕累计次数还不到；作答不满 {0} 次时也这样算。最近 {0} 次作答全部答对，标记就会消失。', [values.leechWindow, leechMisses({ window: values.leechWindow, rate: values.leechRate })])}>
         <Select name="leechRate" value={String(values.leechRate)} disabled={disabled} onChange={(leechRate) => set({ leechRate: Number(leechRate) })}
           options={withSaved(LEECH_RATES, values.leechRate).map((rate) => ({ value: String(rate), label: uiFormat('{0}%', [rate]) }))} />
       </Field>

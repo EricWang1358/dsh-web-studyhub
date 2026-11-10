@@ -8,8 +8,9 @@ import { loadUi } from './helpers/ui-module.mjs';
 import { withStudy } from './helpers/study-services.mjs';
 
 const m = await loadUi(`export { WrongBookView } from './ui/WrongBook.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';
-  export { NO_FILTER, filterActive, filterRows, leechCount, leechWords, rescueCall, rescueNote } from './ui/wrongbook-model.js';`);
-const { WrongBookView, setUiLanguage, NO_FILTER, filterActive, filterRows, leechCount, leechWords, rescueCall, rescueNote } = m;
+  export { NO_FILTER, filterActive, filterRows, leechCount, leechWords, rescueCall, rescueNote, undoPauseCall, refKey } from './ui/wrongbook-model.js';
+  export { handOffText } from './ui/agent-prompts/index.js';`);
+const { WrongBookView, setUiLanguage, NO_FILTER, filterActive, filterRows, leechCount, leechWords, rescueCall, rescueNote, undoPauseCall, refKey, handOffText } = m;
 const noop = () => {};
 const han = /\p{Script=Han}/u;
 const decks = [{ id: 'd4', course: 'PE', title: 'Platform Engineering｜期末综合卷04｜90题' }];
@@ -41,9 +42,10 @@ test('the mark\'s words give the thresholds from the settings, in plain words', 
   setUiLanguage('zh');
   const words = leechWords({ failures: 4, window: 5, rate: 60 });
   assert.match(words.sentence, /答错 4 次/);
-  assert.match(words.sentence, /最近 5 次/);
+  assert.match(words.sentence, /最近 5 次作答里答错 3 次以上/);
+  assert.match(words.sentence, /不满 5 次时也这样算/);
   assert.match(words.sentence, /60%/);
-  assert.match(leechWords({ failures: 7, window: 8, rate: 75 }).sentence, /答错 7 次.*最近 8 次.*75%/);
+  assert.match(leechWords({ failures: 7, window: 8, rate: 75 }).sentence, /答错 7 次.*最近 8 次.*答错 6 次以上.*75%/);
   assert.ok(words.consequence);
   setUiLanguage('en');
   try {
@@ -94,7 +96,7 @@ test('the actions of the group call the page\'s handler with the kind and the ro
   assert.match(html, /data-rescue="fix"/);
   assert.match(html, /data-rescue="easier"/);
   assert.match(html, /data-rescue="pause"/);
-  assert.match(html, /data-hand-off="method\.missed"/);
+  assert.match(html, /data-hand-off="question\.stubborn"/);
 });
 
 test('the filter chip: shown with the count when there are leeches, and a filter on leaves only them', () => {
@@ -147,4 +149,42 @@ test('the note after a rescue click says what really happened, never more', () =
     for (const [kind, result] of [['fix', { tags: ['x'], scheduled: ['rewrite'] }], ['fix', { tags: ['x'], scheduled: [] }], ['fix', { tags: [], scheduled: [] }], ['easier', { tags: ['x'], scheduled: ['prep'] }],
       ['easier', { tags: ['x'], scheduled: [] }], ['easier', { tags: [], scheduled: [] }], ['pause', {}]]) assert.doesNotMatch(rescueNote(kind, result).text, han, `${kind} ${JSON.stringify(result)}`);
   } finally { setUiLanguage('zh'); }
+});
+
+test('the rescue note and tooltip do not promise a model call that may not happen', () => {
+  setUiLanguage('zh');
+  const html = render([row('c1', true)], { initial: { expanded: ['c1'] }, details: detail });
+  assert.match(text(html), /没有可用模型时只记下反馈，不会修题/, 'the fix tooltip says what happens without a model');
+  assert.doesNotMatch(text(html), /检查并修这道题，约 1 次/, 'and no longer states a count it cannot keep');
+  assert.match(leechWords({ failures: 4, window: 5, rate: 60 }).sentence, /3 次以上/);
+});
+
+test('the way back from a suspend is the same call with the flag off', () => {
+  const ref = { deckId: 'd4', cardId: 'c1' };
+  assert.deepEqual(undoPauseCall(ref), { action: 'card.suspend', args: { ...ref, suspended: false } });
+});
+
+test('only: a filter on exactly the questions the round counted shows as many rows as the line counted, and a way to widen it', () => {
+  const rows = [row('c1', true), row('c2', true), row('c3', false), row('c4', true)];
+  const refs = [{ deckId: 'd4', cardId: 'c1' }, { deckId: 'd4', cardId: 'c4' }];
+  const only = { ...NO_FILTER, only: refs };
+  assert.equal(filterActive(only), true);
+  assert.deepEqual(filterRows(rows, only).map((r) => r.cardId), ['c1', 'c4']);
+  assert.equal(filterRows(rows, only).length, refs.length, 'one number: the line said 2, the page shows 2');
+  assert.deepEqual(filterRows(rows, { ...only, leech: true }).map((r) => r.cardId), ['c1', 'c4']);
+  assert.deepEqual(filterRows(rows, { ...NO_FILTER, leech: true }).map((r) => r.cardId), ['c1', 'c2', 'c4'], 'widening to all leeches is the same filter with `only` off');
+  assert.equal(refKey(refs[0]), JSON.stringify(['d4', 'c1']));
+  assert.deepEqual(filterRows(rows, { ...NO_FILTER, only: [] }), [], 'an empty list shows nothing, not everything');
+});
+
+test('the one-question hand-off is about this question, in its course, not a plural "a few questions"', () => {
+  const input = { course: 'PE', deckId: 'd4', cardId: 'c1', topic: '保护状态', prompt: '熔断器处于哪种状态会拒绝请求？' };
+  const zh = handOffText('question.stubborn', input, 'zh');
+  assert.match(zh, /一道题我反复答错/);
+  assert.match(zh, /PE/);
+  assert.match(zh, /熔断器处于哪种状态会拒绝请求/);
+  assert.match(zh, /"deckId":"d4","cardId":"c1"/);
+  assert.doesNotMatch(zh, /几道没过关/);
+  assert.doesNotMatch(handOffText('question.stubborn', { ...input, course: '' }, 'zh'), /课程/);
+  assert.match(handOffText('question.stubborn', input, 'en'), /I keep missing a question in course/);
 });
