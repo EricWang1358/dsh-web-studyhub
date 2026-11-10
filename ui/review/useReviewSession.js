@@ -15,6 +15,7 @@ import {
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
 import { createDraftSaver, draftKey, draftPayloadOf, draftable, entrySignature, keepTyped, savedSignature } from './draft-persistence.js';
+import { hiddenMsOf, noteVisibility, openClock } from './hidden-time.js';
 
 // These steps read the entry on the host (review.answer takes the help recorded there) or leave the question: what was typed goes first, and must arrive.
 const SAVES_FIRST = new Set(['review.answer', 'review.move']);
@@ -125,8 +126,24 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     };
   }, []);
 
+  /* ── time away (#883): how long the page was hidden while this question was open, sent with its answer so the recorded time leaves it out ── */
+  const questionKey = draftKey(refs.dataRef.current?.root, run);
+  const awayClock = useRef(null);
+  // Each question (a tail retry is another) opens its own clock; a reload opens a new one, so a restored draft brings no time with it.
+  useEffect(() => { awayClock.current = openClock(questionKey, Date.now(), document.hidden === true); }, [questionKey]);
+  useEffect(() => {
+    const seen = () => { awayClock.current = noteVisibility(awayClock.current, document.hidden === true, Date.now()); };
+    document.addEventListener('visibilitychange', seen);
+    return () => document.removeEventListener('visibilitychange', seen);
+  }, []);
+  const awayArgs = useCallback((action, current) => {
+    const hiddenMs = action === 'review.answer' ? hiddenMsOf(awayClock.current, draftKey(refs.dataRef.current?.root, current), Date.now()) : 0;
+    return hiddenMs > 0 ? { hiddenMs } : {};
+  }, [refs]);
+
   /* ── entering and leaving a question ── */
-  const enterRun = useCallback((next, input) => {
+  // `moved`: the host restarted the question's timer (a move, or the way back to it), so the hidden time counted so far no longer belongs to it.
+  const enterRun = useCallback((next, input, moved = false) => {
     if (!next) return;
     const root = refs.dataRef.current?.root;
     // The same open question handed back (a reveal's answer, the conversation opening it again): what is on screen is newer than what the library had when it answered.
@@ -134,11 +151,13 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     syncDraft();
     runRef.current = next;
     if (next.mode === 'exam') { nav.show.exam('exam', next.id); return; }
+    if (moved && draftable(next)) awayClock.current = openClock(draftKey(root, next), Date.now(), document.hidden === true);
     setRun(next);
     if (!embeddedIn && nav.page !== 'guided') setPage('review');
     const opened = entryForRun(next, input, { draft: (teaching) => readTeachingDraft(refs.dataRef.current?.root, teaching) });
     setEntry(same ? keepTyped(opened, entryRef.current) : opened);
   }, [nav.show, setPage, refs, embeddedIn, nav.page, syncDraft]);
+  const enterMovedRun = useCallback((next, input) => enterRun(next, input, true), [enterRun]);
   const reset = useCallback(() => { draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; setRun(null); setEntry(emptyEntry()); }, []);
   const clearRun = useCallback(() => setRun(null), []);
   const patchRun = useCallback((change) => setRun(change), []);
@@ -174,7 +193,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const stepWaiting = useRef(false);
   const reviewAct = useCallback((action, args = {}) => {
     const current = runRef.current;
-    const step = () => act(action, { runId: current.id, cardId: current.card?.id, queueVersion: current.queueVersion || 0, ...args }, (result) => enterRun(result),
+    const step = () => act(action, { runId: current.id, cardId: current.card?.id, queueVersion: current.queueVersion || 0, ...args, ...awayArgs(action, current) }, (result) => enterRun(result, undefined, action === 'review.move'),
       // Practice steps return the run they changed; the snapshot catches up on the next poll.
       // Only a finished round reloads the library (its result page needs fresh counts).
       { refreshAfter: (result) => action === 'review.move' ? !!result.complete : action !== 'review.answer' && action !== 'review.reveal' });
@@ -187,7 +206,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const root = refs.dataRef.current?.root, key = draftKey(root, current);
     return flushDraft().then((saved) => (saved && draftKey(refs.dataRef.current?.root, runRef.current) === key ? step() : undefined))
       .finally(() => { stepWaiting.current = false; });
-  }, [act, enterRun, flushDraft, refs, syncDraft]);
+  }, [act, awayArgs, enterRun, flushDraft, refs, syncDraft]);
   const reviewActRef = useRef(reviewAct);
   reviewActRef.current = reviewAct;
 
@@ -438,5 +457,5 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     toggleAutopilot,
   }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleHint, noteAssistance]);
   return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
-    shortcutHelp, keyGrade, ...kind, coach, continueTo, onCoachPractice, enterRun, reset, clearRun, patchRun, actions, flushDraft };
+    shortcutHelp, keyGrade, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, actions, flushDraft };
 }
