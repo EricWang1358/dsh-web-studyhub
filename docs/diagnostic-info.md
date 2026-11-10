@@ -17,7 +17,7 @@ It never holds a title, a file name, a text, a question, a path or a key.
 
 ## The session numbers
 
-They exist so that "it is slow" comes with facts. They are kept in memory only, as the last 60 page switches and the last 40 library updates, and are gone when you close the panel. They are not written to disk or to browser storage, not sent anywhere, and not shown anywhere else. They are separate from the [usage frequency record](usage-frequency.md): turning that record on or off changes nothing here.
+They exist so that "it is slow" comes with facts. They are kept in memory only, as the last 60 page switches and the last 40 library updates, and are gone when you close the panel. The section is written in English; with a Chinese interface each label is followed by its Chinese words. They are not written to disk or to browser storage, not sent anywhere, and not shown anywhere else. They are separate from the [usage frequency record](usage-frequency.md): turning that record on or off changes nothing here.
 
 - **Page switch**: from the moment the page is switched to the first frame the browser starts after the new page is in place. A page that loads its code on demand counts to its loading notice, not to its content.
 - **Long tasks**: counted with the browser's long-task observer. Where the webview does not offer it, the line says so instead of showing 0.
