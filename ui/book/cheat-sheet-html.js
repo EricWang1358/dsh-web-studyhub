@@ -1,4 +1,5 @@
 import { templateParts } from './exam-kit-model.js';
+import { BASE_CSS, esc, staticPage, withoutNamespace } from '../static-page.js';
 
 /* The 速查表 of the review book as ONE self-contained HTML page (#710 S5): the page the 速查表 view shows in a frame, the browser prints (its @media print
    makes A4 pages of two columns without anything around them), and the learner saves as a .html file that opens offline on a computer or a phone. Inline
@@ -23,8 +24,6 @@ const WORDS = {
 /** The words of a book's language (a book is in zh or en; the sheet is the book's, not the interface's). */
 const wordsOf = language => WORDS[Object.hasOwn(WORDS, language) ? language : 'zh'];
 
-const esc = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
 /** The name a saved sheet gets: the book's title and the sheet's word, with no character a file name cannot hold. */
 export function cheatSheetFilename({ title, language }) {
   const safe = String(title ?? '').replace(/[\\/:*?"<>|\s]+/g, ' ').trim();
@@ -36,17 +35,12 @@ const isFormula = source => /[\\^_{}$]/.test(source) || (/[=<>≤≥≈≠]/.tes
 function drawFormula(source, formula) {
   const tex = String(source ?? '').replace(/^\s*\$\$?|\$\$?\s*$/g, '').trim();
   // The MathML namespace address is an HTML parser's business, not the page's: it reads <math> without it, and the file then names no address at all.
-  const drawn = tex && isFormula(source) && formula ? formula(tex, false)?.replace(/ xmlns="[^"]*"/g, '') : null;
+  const drawn = tex && isFormula(source) && formula ? withoutNamespace(formula(tex, false)) : null;
   return drawn ? `<span class="math">${drawn}</span>` : `<code>${esc(source)}</code>`;
 }
 
 const CSS = `
-:root{color-scheme:light;--ink:#15171a;--mute:#555b63;--line:#c9ced4;--soft:#f2f4f6;--accent:#1f4f8a;--mark:#fff3bf}
-*{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
-body{margin:0;padding:12px 16px 32px;font:14px/1.45 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:#fff}
-a{color:var(--accent);text-decoration:none}
-a:hover{text-decoration:underline}
+${BASE_CSS}
 h1{margin:0;font-size:1.35rem;line-height:1.25}
 h1 small{font-weight:500;color:var(--mute);font-size:.65em;margin-left:.4em}
 h2{margin:1.4rem 0 .5rem;padding:.25rem .5rem;font-size:1.05rem;background:var(--soft);border-left:4px solid var(--ink);break-after:avoid}
@@ -167,22 +161,10 @@ export function cheatSheetHtml(sheet, { formula = null, links = false } = {}) {
   if (sheet.chapters.length) parts.push(['sheet-cards', words.cards, part('sheet-cards', words.cards, sheet.chapters.map(chapter => `<h3>${esc([chapter.number, chapter.title].filter(Boolean).join(' '))}</h3>
 <div class="cols">${chapter.cards.map(card => cardBox(card, words, known, links)).join('\n')}</div>`).join('\n'))]);
   const { counts } = sheet, name = [sheet.title, words.sheet].filter(Boolean).join(' · ');
-  return `<!doctype html>
-<html lang="${words.lang}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(name)}</title>
-<style>${CSS}</style>
-</head>
-<body>
-<header><h1>${esc(sheet.title)}<small>${esc(words.sheet)}</small></h1>
+  return staticPage({ lang: words.lang, title: name, css: CSS, body: `<header><h1>${esc(sheet.title)}<small>${esc(words.sheet)}</small></h1>
 <p class="sub">${esc(Object.keys(words.counts).filter(key => counts[key]).map(key => `${words.counts[key]} ${counts[key]}`).join(' · '))}</p>
 <nav class="nav" aria-label="${esc(words.nav)}">${parts.map(([id, title]) => `<a href="#${id}">${esc(title)}</a>`).join('')}</nav></header>
 <main>
 ${parts.map(item => item[2]).join('\n')}
-</main>
-</body>
-</html>
-`;
+</main>` });
 }
