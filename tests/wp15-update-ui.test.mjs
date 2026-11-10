@@ -83,6 +83,16 @@ test('the settings section shows the version, the last check, 检查更新 and t
   assert.doesNotMatch(en, han);
 });
 
+test('the settings section offers 复制诊断信息 when it is given the text, in both languages, and not otherwise (#893)', () => {
+  const diagnostic = () => 'StudyHub diagnostic info';
+  const zh = render(h(UpdateSettings, { update: update(), call: async () => ({}), onOpen() {}, diagnostic }));
+  for (const text of ['复制诊断信息', 'data-tour="settings-diagnostic"', 'DSH 版本请自己补上']) assert.ok(zh.includes(text), text);
+  const en = render(h(UpdateSettings, { update: update(), call: async () => ({}), onOpen() {}, diagnostic }), 'en');
+  assert.ok(en.includes('Copy diagnostic information'));
+  assert.doesNotMatch(en, han);
+  assert.ok(!render(h(UpdateSettings, { update: update(), call: async () => ({}), onOpen() {} })).includes('复制诊断信息'));
+});
+
 test('startUpgrade asks before stopping running jobs and reports the restart DSH needs', async () => {
   const calls = [];
   const replies = [{ status: 'jobs-running', jobs: 2 }, { status: 'installed', version: '2.1.1', restartRequired: true, desktop: true }];

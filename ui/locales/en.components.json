@@ -28,5 +28,9 @@
   "没有叫「{0}」的题组": "No deck called “{0}”",
   "没有叫「{0}」的课程或章节": "No course or chapter called “{0}”",
   "新建题组「{0}」": "New deck “{0}”",
-  "新建题组": "New deck"
+  "新建题组": "New deck",
+  "这个页面没能显示": "This page could not be shown",
+  "诊断信息": "Diagnostic info",
+  "看看会复制什么": "See what will be copied",
+  "没能复制，请选中下面的文字再复制": "Could not copy. Select the text below and copy it yourself."
 }
