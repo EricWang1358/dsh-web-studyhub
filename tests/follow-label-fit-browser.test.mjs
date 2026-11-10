@@ -125,6 +125,9 @@ test('the follow-session select reads clearly and the 即时控制 row holds tog
         await page.locator('.sh-pop__popup:not([data-closed]) .sh-opt').nth(0).click();
         await until(async () => (await planning.innerText()).trim() === words.short, 'the select to follow the session again');
         await page.locator('.sh-pop__popup[data-closed]').first().waitFor({ state: 'attached' }).catch(() => {});
+        // The pointer is still where the option was, which may be over another select that follows the session (its own tooltip would open on hover): it is moved off the controls,
+        // so the one tooltip counted below is the one keyboard focus brings.
+        await page.mouse.move(1, 1);
         await planning.blur();
         await planning.focus();
         await until(async () => (await page.locator('.sh-tooltip:popover-open').count()) === 1, 'the tooltip on focus');
