@@ -373,6 +373,26 @@ test('enable stage: captures redacted doclib.stderr.log for private credential e
   assert.equal((await installer.status()).status, 'complete');
 });
 
+test('enable stage: the failure code comes from what this start printed and wrote to the error logs, not from older lines or the general doclib.log', async t => {
+  const h = await installHarness(t, { mineru: { startSilentFail: true }, extra: { checkPauseMs: 10, startPollTries: 5 } });
+  const installer = createMineruInstaller(h.seams), logs = join(mineruLayout(h.location).home, 'logs');
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  assert.deepEqual([(await installer.status()).stage, (await installer.status()).error.code], ['enable', 'service-failed']);
+  // What an earlier run left: a permission traceback in the error log, an ordinary INFO line in the general log.
+  await mkdir(logs, { recursive: true });
+  await writeFile(join(logs, 'doclib.stderr.log'), 'PermissionError: [WinError 5] Access is denied: an earlier run\n', 'utf8');
+  await writeFile(join(logs, 'doclib.log'), 'INFO Connection pool ready (an ordinary line)\n', 'utf8');
+  await h.setMineru({ startSilentFail: true, serverLogError: 'requests.exceptions.ConnectionError: HTTPSConnectionPool: Max retries exceeded' });
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  const network = await installer.status();
+  assert.deepEqual([network.stage, network.error.code], ['enable', 'network']);
+  assert.ok(network.log.some(line => line.includes('Access is denied: an earlier run')), 'the older lines are still shown in the log');
+  // Nothing new in the error logs this time: the INFO line in doclib.log does not make it a network failure.
+  await h.setMineru({ startSilentFail: true, serverLogError: undefined });
+  await installer.start({ confirm: true, location: h.location }); await installer.idle();
+  assert.equal((await installer.status()).error.code, 'service-failed');
+});
+
 test('systemPythons: rejects Python 3.10 (mineru 4.x requires >=3.11) and accepts 3.12', async t => {
   const h = await installHarness(t);
   const oldState = join(h.dir, 'py310.json'), okState = join(h.dir, 'py312.json');

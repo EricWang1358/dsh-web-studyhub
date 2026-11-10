@@ -4,7 +4,8 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LOCAL, LocalMineruError, detectLocal, locateMineru, parseLocalMarkdown, parseWindow, startServer, windowPlan } from '../lib/mineru-local.js';
+import { getEventListeners } from 'node:events';
+import { LOCAL, LocalMineruError, detectLocal, locateMineru, parseLocalMarkdown, parseWindow, secureMineruHome, startServer, windowPlan } from '../lib/mineru-local.js';
 import { mergeChunkResults } from '../lib/mineru-merge.js';
 import { parseConvertedDocument } from '../lib/converted-document.js';
 import { patientCli, readJsonFile, until, writeJsonFile } from './helpers/wait.mjs';
@@ -317,8 +318,10 @@ test('a service that prints "still starting (PID ...)" is server-stopped with st
   const detected = await detectLocal({ cli: warming.cli, home: warming.dir });
   assert.deepEqual([detected.state, detected.next, detected.running, detected.starting], ['server-stopped', 'start-server', false, true]);
   const cold = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startStillStarting: '服务仍在启动中(PID 12345)。', stillStartingOnce: true });
-  const after = await startServer({ cli: cold.cli, home: cold.dir, pollMs: 20 });
+  const controller = new AbortController();
+  const after = await startServer({ cli: cold.cli, home: cold.dir, pollPauseMs: 20, signal: controller.signal });
   assert.deepEqual([after.state, after.running], ['ready', true]);
+  assert.equal(getEventListeners(controller.signal, 'abort').length, 0, 'a pause that ended leaves no listener on the signal');
 });
 
 test('startServer attaches <home>/logs/doclib.stderr.log on daemon crash and classifies private credential ACL errors as not-writable', async t => {
@@ -332,5 +335,38 @@ test('startServer attaches <home>/logs/doclib.stderr.log on daemon crash and cla
     && /配置文件夹的权限/.test(error.message)
     && /\[doclib\.stderr\.log\]/.test(error.detail)
     && /Credential configuration directory/.test(error.detail));
+});
+
+test('secureMineruHome says when the permission change failed instead of swallowing it (a stand-in Python, a temp folder: no real permission is changed)', { skip: process.platform !== 'win32' }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-secure-home-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const refusing = join(dir, 'refusing-python.mjs');
+  await writeFile(refusing, 'process.stderr.write("PermissionError: [WinError 5] Access is denied\\n"); process.exit(1);\n');
+  const failed = await secureMineruHome(join(dir, 'home'), { platform: 'win32', pythonCli: { file: process.execPath, prefix: [refusing], env: {} } });
+  assert.deepEqual(failed, { ok: false, error: 'PermissionError: [WinError 5] Access is denied' });
+  const agreeing = join(dir, 'agreeing-python.mjs');
+  await writeFile(agreeing, 'process.exit(0);\n');
+  assert.deepEqual(await secureMineruHome(join(dir, 'home'), { platform: 'win32', pythonCli: { file: process.execPath, prefix: [agreeing], env: {} } }), { ok: true });
+});
+
+/** <home>/logs/<name> written before a start: what an earlier run left behind. */
+const oldLog = async (home, name, text) => { await mkdir(join(home, 'logs'), { recursive: true }); await writeFile(join(home, 'logs', name), `${text}\n`, 'utf8'); };
+
+test('startServer decides why a start failed from what THIS start wrote to the error logs, never from an old traceback or the general log', async t => {
+  // An earlier run's permission traceback is still in doclib.stderr.log; this start crashes because the models are missing.
+  const stale = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true, serverLogError: 'RuntimeError: requires model files that are not ready' });
+  const staleHome = join(stale.dir, 'home');
+  await oldLog(staleHome, 'doclib.stderr.log', 'PermissionError: [WinError 5] Access is denied: old run');
+  await assert.rejects(startServer({ cli: stale.cli, home: staleHome }), error => error.reason === 'models-missing' && /Access is denied: old run/.test(error.detail));
+  // The other way round: an old failure that is not about permissions, and a fresh access-denied line.
+  const fresh = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true, serverLogError: 'PermissionError: [WinError 5] Access is denied' });
+  const freshHome = join(fresh.dir, 'home');
+  await oldLog(freshHome, 'doclib.stderr.log', 'requests.exceptions.ConnectionError: Max retries exceeded (old run)');
+  await assert.rejects(startServer({ cli: fresh.cli, home: freshHome }), error => error.reason === 'not-writable');
+  // The general log is shown, never read for the reason: an ordinary line there that mentions permissions decides nothing.
+  const general = await fakeCli(t, { mode: 'managed', tier: 'basic', running: false, startSilentFail: true });
+  const generalHome = join(general.dir, 'home');
+  await oldLog(generalHome, 'doclib.log', 'INFO checked folder permissions: Permission denied entries are ignored');
+  await assert.rejects(startServer({ cli: general.cli, home: generalHome }), error => error.reason === 'service-failed' && /\[doclib\.log\]/.test(error.detail));
 });
 

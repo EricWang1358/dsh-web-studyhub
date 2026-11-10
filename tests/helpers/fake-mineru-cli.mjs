@@ -101,7 +101,8 @@ else if (command === 'config' && sub === 'show') {
   if (state.startBusyOnce) { delete state.startBusyOnce; save(); fail('Error: doclib.home.lock is being used by another process'); }
   if (state.startSilentFail) {
     const home = process.env.MINERU_HOME || state.home;
-    if (home && state.serverLogError) { mkdirSync(join(home, 'logs'), { recursive: true }); writeFileSync(join(home, 'logs', 'doclib.stderr.log'), `${state.serverLogError}\n`, 'utf8'); }
+    // Appended, like the real daemon log: what an earlier run wrote stays above it.
+    if (home && state.serverLogError) { mkdirSync(join(home, 'logs'), { recursive: true }); appendFileSync(join(home, 'logs', 'doclib.stderr.log'), `${state.serverLogError}\n`, 'utf8'); }
     fail('服务启动失败：进程退出');
   }
   if (state.startStillStarting) {
