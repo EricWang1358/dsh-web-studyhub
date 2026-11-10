@@ -10,11 +10,12 @@ import ModelSetupGate from './ModelSetupGate.jsx';
  * that is said before the click, with what the call is expected to use. `model` is the readiness ({ ready, reason, label }); without it the gate says what to do.
  * running: a draft is being written; disabled: the note is busy with something else.
  */
-export default function NoteDraft({ note, model, running = false, disabled = false, onStart, onModelSettings }) {
+export default function NoteDraft({ note, model, running = false, disabled = false, onStart, onCancel, onModelSettings }) {
   return (
     <section className="note-draft" aria-label={ui('AI 起草')} data-running={running || undefined}>
       <div className="note-draft__row">
         <Button variant="primary" icon="sparkle" disabled={disabled || !model?.ready} lock={running} onClick={onStart}>{ui('AI 起草解析')}</Button>
+        {running && onCancel && <Button size="sm" variant="quiet" disabled={disabled} onClick={onCancel}>{ui('停止起草')}</Button>}
         {model?.ready && !running && <TokenEstimate request={{ feature: 'note', id: note.id }} />}
       </div>
       {running
