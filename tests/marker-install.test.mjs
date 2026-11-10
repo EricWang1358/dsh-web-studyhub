@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MARKER_INSTALL, MarkerInstallError, createMarkerInstaller, defaultMarkerFolder, venvLayout } from '../lib/marker-install.js';
+import { MARKER_INSTALL, MarkerInstallError, createMarkerInstaller, defaultMarkerFolder, explainFailure, venvLayout } from '../lib/marker-install.js';
 import { readMarkerSettings, saveMarkerSettings } from '../lib/marker-settings.js';
 import { patientCli, until, writeJsonFile } from './helpers/wait.mjs';
 
@@ -318,5 +318,35 @@ test('failure: C-extension wheel build failure (Pillow/regex on unsupported Pyth
   const longPath = await h.installer.status();
   assert.equal(longPath.error.code, 'path-too-long');
   assert.match(longPath.error.message, /路径太长/);
+});
+
+test('failure: a dropped connection after an ordinary wheel build, or while pip fetches build tools, is network, not pip-build; a real build failure is pip-build', () => {
+  // pip prints "Building wheel for ..." for every source package it builds: progress, not an error. The tail the installer reads can hold it before a network failure.
+  const builtThenDropped = [
+    'Building wheel for pylatexenc (setup.py): started',
+    "Building wheel for pylatexenc (setup.py): finished with status 'done'",
+    'Successfully built pylatexenc',
+    "WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ReadTimeoutError(\"HTTPSConnectionPool(host='files.pythonhosted.org', port=443): Read timed out. (read timeout=60)\")'",
+    "ERROR: Could not install packages due to an OSError: HTTPSConnectionPool(host='files.pythonhosted.org', port=443): Max retries exceeded with url: /packages/torch.whl",
+  ].join('\n');
+  assert.equal(explainFailure('install', builtThenDropped).code, 'network');
+  // pip installs setuptools to build a package; that download fails: the subprocess error wraps a network failure.
+  const buildToolsUnreachable = [
+    '  error: subprocess-exited-with-error',
+    '  × pip subprocess to install build dependencies did not run successfully.',
+    '  │ exit code: 1',
+    '  ╰─> [3 lines of output]',
+    '      ERROR: Could not find a version that satisfies the requirement setuptools>=40.8.0 (from versions: none)',
+    '      ERROR: No matching distribution found for setuptools>=40.8.0',
+  ].join('\n');
+  assert.equal(explainFailure('install', buildToolsUnreachable).code, 'network');
+  assert.equal(explainFailure('install', "  Building wheel for pillow (pyproject.toml): finished with status 'error'\n  ERROR: Failed building wheel for pillow\nFailed to build pillow").code, 'pip-build');
+  assert.equal(explainFailure('install', 'error: Microsoft Visual C++ 14.0 or greater is required. Get it with "Microsoft C++ Build Tools"').code, 'pip-build');
+});
+
+test('failure: pip\'s own Windows long-path error (Errno 2 with the Long Path support hint) is path-too-long', () => {
+  const said = "ERROR: Could not install packages due to an OSError: [Errno 2] No such file or directory: 'D:\\\\very\\\\deep\\\\venv\\\\Lib\\\\site-packages\\\\torch\\\\include\\\\x.h'\n"
+    + 'HINT: This error might have occurred since this system does not have Windows Long Path support enabled. You can find information on how to enable this at https://pip.pypa.io/warnings/enable-long-paths';
+  assert.equal(explainFailure('install', said).code, 'path-too-long');
 });
 
