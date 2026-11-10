@@ -1,14 +1,15 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Badge, Button, Checkbox } from '../components/index.js';
+import { Badge, Button, Checkbox, Tooltip } from '../components/index.js';
 import MockPaper from './MockPaper.jsx';
-import { countdownText, dayKind, pointMeta, reasonText } from './crunch-words.js';
+import { EXAM_BAND_TONE, countdownText, dayKind, examBandHelp, examBandText, pointMeta, reasonText } from './crunch-words.js';
 
 /* One day of the 期末一周 plan (M7, lib/crunch-plan.js) or of the 备考计划 (lib/plan-schedule.js): what kind of day it is, why it holds what it holds (one line), its
    points with 去读 / 练 5 道 (a learn day) or 翻看 (a 翻看 day of the final week, a 复习日 of the plan), 读完了 for a point without questions, 翻看全书 on such a day and
    the mock paper (of the day's points; on the plan's 模拟考 day of the whole book). The same component on the home's 期末一周 card, under the book's
    「今天读哪几节」 and in the 备考计划 section.
-   day: the plan's day; points: its points ({ id, key, code, title, questions, tested, weak, pitfalls }); max: how many are listed before 还有 N 节 (onMore);
+   day: the plan's day; points: its points ({ id, key, code, title, questions, tested, weak, pitfalls, examDay? }: examDay.band is the point's exam-day band, #894,
+   one word beside the title); max: how many are listed before 还有 N 节 (onMore);
    daysLeft: the countdown beside the kind of day (none: the place already says it). */
 export default function CrunchDay({ course, daysLeft, day, points, max = Infinity, onRead, onPractice, onMarkRead, onFlip, onMore, onMockStarted }) {
   if (!day) return null;
@@ -21,7 +22,10 @@ export default function CrunchDay({ course, daysLeft, day, points, max = Infinit
         {shown.map(point => <li key={point.id} className="crunch-day__point" data-point={point.id}>
           <div className="crunch-day__copy">
             <span className="crunch-day__title"><span className="book-node__code">{point.code}</span> {point.title}
-              {done.has(point.id) && <Badge tone="success">{ui('已完成')}</Badge>}</span>
+              {done.has(point.id) && <Badge tone="success">{ui('已完成')}</Badge>}
+              {examBandText(point.examDay?.band) && <Tooltip layer content={examBandHelp()}>
+                <Badge size="sm" tone={EXAM_BAND_TONE[point.examDay.band]} tabIndex={0} data-exam-band={point.examDay.band}>{examBandText(point.examDay.band)}</Badge>
+              </Tooltip>}</span>
             <span className="crunch-day__muted">{pointMeta(point)}</span>
           </div>
           <div className="crunch-day__actions">

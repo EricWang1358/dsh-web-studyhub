@@ -30,6 +30,7 @@ import coachCss from './coach.css';
 import libraryChipCss from './library-location.css';
 import localeCss from './language.css';
 import { AppContext } from './app/app-context.js';
+import { practiseRound } from './app/practise-round.js';
 import { useAppShell } from './app/use-app-shell.js';
 import { useAppCore } from './app/use-app-core.js';
 import { useLibraryReset, useLibraryState } from './app/library-state.js';
@@ -151,6 +152,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                         dailyTaskIds={dailyPlan.state?.tasks?.map((task) => task.id)}
                         dailyBudgetMinutes={dailyPlan.state?.budgetMinutes}
                         onBoardChanged={() => dailyPlan.refresh?.()}
+                        onPracticeScope={data && pageAvailable(data, 'review') ? (scope) => practiseRound(app, scope) : undefined}
                         onOpenPlan={data && (pageAvailable(data, 'book') || pageAvailable(data, 'outline')) ? async (courseName) => {
                           const targetCourse = courseName ?? data.focus?.course ?? null;
                           const switched = targetCourse !== null && targetCourse !== (data.focus?.course ?? null);
