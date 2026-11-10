@@ -6,6 +6,7 @@ import FlipCard from "../FlipCard.jsx";
 import SmoothHeight from "../SmoothHeight.jsx";
 import ReviewToolbar from "../ReviewToolbar.jsx";
 import CitationDisclosure from "../CitationDisclosure.jsx";
+import FigurePageLink from "../document-preview/practice/FigurePageLink.jsx";
 import ExplanationFollowup from "../ExplanationFollowup.jsx";
 import { asksWhatTheSourceSays, SOURCE_VOICE_FIX } from "../../lib/question-voice.js";
 import ChoiceFeedback from "../ChoiceFeedback.jsx";
@@ -646,6 +647,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             )}
             <CitationDisclosure key={"citations:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
               onOpenSource={(source, quote) => openModal({ type: "source", source, quote })} />
+            <FigurePageLink key={"figure:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
+              onOpen={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage })} />
             {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly
               onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
               bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }} />}

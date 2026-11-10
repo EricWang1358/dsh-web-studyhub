@@ -136,7 +136,7 @@
       .result-next--back > [type='button'] { justify-content: flex-start; text-align: start; }
       .result-next--back .reading-result__return { width: 100%; max-width: 100%; }
     }
-    .reading-source { margin-top: var(--space-2); }
+    .reading-source, .figure-page-link { margin-top: var(--space-2); }
     .reader-back-to-question { color: var(--text); }
   }
   @container reader (max-width: 640px) {
