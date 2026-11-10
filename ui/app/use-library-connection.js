@@ -13,6 +13,7 @@ import { uiFormat } from '../i18n.js';
 import { attachWake, createSnapshotPoll } from './snapshot-poll.js';
 import { applyLiveJobs } from './live-jobs.js';
 import { flushUndoable } from '../undoable.js';
+import { sessionPerformance, snapshotChars } from '../session-performance.js';
 
 /* The connection to the library: the binding (which folder, which model), the snapshot the whole app reads, how it is kept
    fresh (the first handshake, then the shared polling loop) and what happens when the library underneath changes. */
@@ -63,6 +64,7 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
       // Compare the public snapshot key by key before skipping a render; a key that did not change keeps its
       // identity, so memoised views over data.sources, data.decks ... survive a poll that only moved `progress`.
       const cur = refs.dataRef.current;
+      const applyStarted = performance.now();
       const shared = next.partial ? mergePartial(cur, next, refs.snapshotKey.current) : shareUnchanged(cur, next, refs.snapshotKey.current);
       const value = shared.value;
       if (shared.changed) {
@@ -80,6 +82,8 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
         setData(value);
         libApi.setSettings((current) => syncScheduleSettings(current, cur?.settings, value.settings));
         result = value;
+        // Only a snapshot that changed more than the clock counts; its size is read from the texts the diff above made, not measured again.
+        if (!sameExceptFingerprint(cur, value)) sessionPerformance.recordSnapshot(snapshotChars(shared.texts, next), performance.now() - applyStarted);
       } else result = cur;
     }
     return next.partial ? liveJobs() : result;

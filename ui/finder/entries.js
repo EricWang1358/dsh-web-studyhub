@@ -516,7 +516,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'diagnostics', area: 'settings', title: '复制诊断信息', page: 'settings', anchors: ['settings-diagnostic'],
     aliases: ['诊断信息', '诊断', '报问题', '反馈问题', '报错', '出错', '崩溃', 'diagnostic', 'diagnostics', 'diagnostic info', 'bug report', 'crash', 'error report'],
     path: ['设置', '关于与更新'],
-    what: '报问题时用：复制一段文字，里面只有版本、界面语言、页面、出错类型、程序自带的报错短句、出错位置的函数名、任务类型和状态、资料/题组/题目的数量，以及实验性功能是否开启；别的报错内容只写字数，不复制。复制前可以先读一遍，DSH 版本要自己补上。某个页面出错时，出错页上也有同名按钮。' }),
+    what: '报问题时用：复制一段文字，里面只有版本、界面语言、页面、出错类型、程序自带的报错短句、出错位置的函数名、任务类型和状态、资料/题组/题目的数量、实验性功能是否开启，以及本次打开期间换页的快慢、卡顿次数和数据更新的耗时（只存在内存里，关掉就没了）；别的报错内容只写字数，不复制。复制前可以先读一遍，DSH 版本要自己补上。某个页面出错时，出错页上也有同名按钮。' }),
   feature({ id: 'usage-record', area: 'settings', title: '使用频率记录', page: 'settings', anchors: ['settings-usage'],
     aliases: ['使用记录', '使用频率', '隐私', '统计使用', 'usage', 'usage record', 'telemetry', 'privacy'],
     path: ['设置', '使用频率记录'],

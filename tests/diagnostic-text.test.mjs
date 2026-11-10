@@ -164,3 +164,56 @@ test('the page boundary sits inside <main> beside the sidebar, so a crashed page
   assert.ok(app.indexOf('<AppSidebar />') < app.indexOf('<main') && app.indexOf('<main') < app.indexOf('<PageView'), 'AppSidebar and <main> are siblings, PageView is inside <main>');
   assert.match(views, /<PageBoundary key=\{page\}[^>]*><View /, 'every page goes through the one boundary, keyed by the page so another page opens clean');
 });
+
+/* #893 S4: the in-memory performance summary of this session. It is built from numbers and the ids of the app's own pages, whatever it is given. */
+const SESSION = {
+  switches: { all: { count: 5, median: 30, worst: 90 }, byPage: [{ page: 'library', count: 3, median: 50, worst: 90 }, { page: 'sources', count: 2, median: 12, worst: 13 }] },
+  longTasks: { count: 3, totalMs: 315, worstMs: 180 },
+  snapshots: { chars: { count: 4, median: 3000, worst: 250000 }, applyMs: { count: 4, median: 4, worst: 40 } },
+};
+const sessionLines = text => text.split('\n').slice(text.split('\n').findIndex(line => line.startsWith('Session performance')));
+
+test('the performance section follows the diagnostic style: short lines, numbers and page ids; Chinese labels follow the English ones only in a Chinese interface', () => {
+  const text = diagnosticText({ version: '4.6.2', language: 'zh', page: 'library', session: SESSION });
+  const lines = sessionLines(text);
+  assert.equal(lines.length, 4, text);
+  assert.match(lines[0], /^Session performance .*本次会话.*in memory/);
+  assert.equal(lines[1], 'Page switches 页面切换 (ms, median/worst): library 3x 50/90, sources 2x 12/13');
+  assert.equal(lines[2], 'Long tasks 长任务 (over 50 ms): 3, total 315 ms, worst 180 ms');
+  assert.equal(lines[3], 'Snapshots 快照 (changed ones): 4, size 3000/250000 chars, diff and apply 4/40 ms');
+  assert.match(text, /^Library: sources/m, 'the existing lines are as they were');
+  const english = sessionLines(diagnosticText({ version: '4.6.2', language: 'en', page: 'library', session: SESSION })).join('\n');
+  const wide = /[^\x00-\x7f]/;
+  assert.doesNotMatch(english, wide, 'an English interface gets no Han at all');
+  assert.equal(english.split('\n').length, lines.length, 'and the same four lines');
+  assert.match(lines.join('\n'), wide, 'while a Chinese interface gets the Chinese words');
+});
+
+test('a webview that does not report long tasks says so, and a session with nothing yet says none yet: no invented zeros', () => {
+  const none = { switches: { all: { count: 0, median: 0, worst: 0 }, byPage: [] }, longTasks: null, snapshots: { chars: { count: 0, median: 0, worst: 0 }, applyMs: { count: 0, median: 0, worst: 0 } } };
+  const lines = sessionLines(diagnosticText({ version: '1', language: 'zh', page: 'library', session: none }));
+  assert.match(lines[1], /^Page switches .*: none yet$/);
+  assert.match(lines[2], /^Long tasks .*: not reported by this webview 此环境不提供$/);
+  assert.match(lines[3], /^Snapshots .*: none yet$/);
+});
+
+test('without a session there is no performance section, so the text only gains it when the app passes one', () => {
+  assert.doesNotMatch(diagnosticText({ version: '1', language: 'zh', page: 'library' }), /Session performance/);
+});
+
+test('the performance section holds no path, title, question or source text, whatever the summary it is given holds', () => {
+  const hostile = {
+    switches: { all: { count: WINDOWS, median: MATERIAL_EN, worst: -5 },
+      byPage: [{ page: WINDOWS, count: 1, median: 1, worst: 1 }, { page: 'ZZ-Deck 期中冲刺卷', count: 1, median: 1, worst: 1 }, { page: '__proto__', count: 1, median: 1, worst: 1 },
+        { page: 'review', count: MATERIAL_ZH, median: 7.5, worst: KEY }, null, 'library', { page: 'wrongbook', count: 2, median: 5, worst: 9, title: 'ZZ-Question what is a transaction' }] },
+    longTasks: { count: BEARER, totalMs: POSIX, worstMs: JWT },
+    snapshots: { chars: { count: 'many', median: QUERY, worst: {} }, applyMs: null },
+    title: 'ZZ-job-title 私人笔记转写', extra: MATERIAL_EN,
+  };
+  const text = diagnosticText({ version: '4.6.2', language: 'zh', page: 'library', data: snapshot(), session: hostile });
+  for (const piece of PRIVATE) assert.ok(!text.includes(piece), `"${piece}" leaked into:\n${text}`);
+  const lines = sessionLines(text);
+  assert.match(lines[1], /: review 0x 0\/0, wrongbook 2x 5\/9$/, 'known page ids stay, with their numbers made safe; any other entry is dropped');
+  assert.match(lines[2], /: 0, total 0 ms, worst 0 ms$/, 'a number that is not a number is 0');
+  for (const line of lines.slice(1)) assert.match(line.replace(/^[^:]*:/, ''), /^[\sa-z0-9,./()-]*$/i, line);
+});
