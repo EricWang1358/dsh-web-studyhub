@@ -48,7 +48,7 @@ export default function SourceReaderDialog({ modal, onClose }) {
               if (!draft) { toast.error(ui('这份草稿已经不在了，可能已发布或删除。')); return; }
               onClose(); drafts.openDraft(draft, { navigation: true });
             }}
-            backLabel={modal.back ? ui('回到这道题') : undefined} onBack={modal.back ? onClose : undefined}
+            backLabel={modal.back ? ui('回到这道题') : undefined} onBack={modal.back ? onClose : undefined} peekPage={modal.peekPage}
             onStarted={(started) => { selectionNotices.track(started.jobId); return refresh(); }}
             onCaseFromPassage={(passage) => intents.goGenerate({ source: 'case', remember: true, closeModal: true,
               caseInitial: { sourceIds: documentSourceIds(data.sources, source.id), focus: passage.quote, nonce: Date.now() } })} />

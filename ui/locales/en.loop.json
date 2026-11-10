@@ -51,6 +51,8 @@
   "回到阅读": "Back to reading",
   "回到原文": "Back to the text",
   "看这题的原文": "See this question’s source text",
+  "看原页图": "See the figure on the original page",
+  "这道题引用的那一页有图。文字版不保存图片，点它直接看原文件的这一页。": "The page this question cites has a figure. The text keeps no pictures, so this opens that page of the original file.",
   "回到这道题": "Back to this question",
   "资料已更新，已回到该章节大致的位置。": "The material has been updated; you are back at roughly the same place.",
   "这份资料已不在资料库里，无法回到阅读。": "This material is no longer in the library, so there is nothing to go back to.",
