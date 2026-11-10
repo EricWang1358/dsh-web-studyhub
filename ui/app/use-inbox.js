@@ -2,6 +2,17 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { markInboxRead } from '../quick-actions.js';
 import { openInboxResult } from './inbox-open.js';
 
+export function seenInboxLetterIds({ page, run, entry, items = [] }) {
+  const onScreenCardId = page === 'review' && run?.card ? run.card.id : null;
+  if (!onScreenCardId) return [];
+  const followupVisible = run?.mode !== 'exam' && (
+    (run?.solution && (entry?.explain || !!run?.feedback))
+    || (!run?.revealed && !!(entry?.explain || entry?.assistance?.askedTutorBeforeAnswer) && (run?.followups?.length ?? 0) > 0)
+  );
+  return items.filter((letter) => !letter.read && letter.cardId === onScreenCardId && letter.kind !== 'variant'
+    && (letter.kind !== 'followup' || followupVisible)).map((letter) => letter.id);
+}
+
 /* The mailbox as the shell uses it: open a letter (it jumps to its card, run or material, keeping the way back), and letters
    about the question on screen are read by looking at it. Both go through the quick path of ui/quick-actions.js. */
 export function useInbox({ core, lib, nav, session, learn, data }) {
@@ -23,9 +34,8 @@ export function useInbox({ core, lib, nav, session, learn, data }) {
     act('inbox.open', { id: item.id, ...(fromReview ? { runId: from.runId } : {}) }, (result) => openInboxResult({ item, result, from, fromReview }, verbs));
   }), [act, learn, nav, verbs]);
 
-  // Letters about the question already on screen are read by looking at it. 定制题 letters stay: the variants themselves are not on this card.
-  const onScreenCardId = nav.page === 'review' && session.run?.card ? session.run.card.id : null;
-  const seen = onScreenCardId ? (data?.inbox?.items || []).filter((letter) => !letter.read && letter.cardId === onScreenCardId && letter.kind !== 'variant').map((letter) => letter.id) : [];
+  // Letters about the question already on screen are read by looking at what they show. 定制题 letters stay: the variants themselves are not on this card.
+  const seen = seenInboxLetterIds({ page: nav.page, run: session.run, entry: session.entry, items: data?.inbox?.items || [] });
   const seenKey = seen.join(',');
   useEffect(() => {
     if (!seen.length) return;

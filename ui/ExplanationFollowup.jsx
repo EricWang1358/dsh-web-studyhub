@@ -8,7 +8,7 @@ import BookQaButton, { BookQaAuto } from "./book/BookQaButton.jsx";
 /* bookQa (optional): { course, mode: 'manual' | 'auto', onMode(mode), book (ui/book/BookQaButton.jsx useBookQa, shared with the page), note } — the card's
    course and the 自动加入复习全书 setting (settings.book.qaToBook). With a book for that course each Q&A has 「加入复习全书」. The automatic adds are made by
    the practice page (ui/review/QuestionRun.jsx), which is on screen even while this list is folded away; `note` says when one failed. */
-export default function ExplanationFollowup({ run, readOnly = false, onDerive, deriving = false, bookQa = null }) {
+export default function ExplanationFollowup({ run, readOnly = false, onDerive, onAskMore = null, deriving = false, bookQa = null }) {
   const { call } = useStudy();
   const book = bookQa?.book;
   const withBook = !!book && book.ready && book.courses.has(bookQa.course ?? "");
@@ -21,7 +21,8 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
   const [error, setError] = React.useState("");
   const lock = React.useRef(false);
   const ref = { deckId: run.deckId, cardId: run.card.id };
-  const items = [...new Map([...(run.solution.followups || []), ...added].map((item) => [item.id, item])).values()];
+  const baseFollowups = run.solution?.followups ?? run.followups ?? [];
+  const items = [...new Map([...baseFollowups, ...added].map((item) => [item.id, item])).values()];
   // Each Q&A folds. The newest starts open and the rest closed, so a card with
   // many follow-ups stays short; an answer that arrives later opens by itself.
   const [openIds, setOpenIds] = React.useState(() => new Set(items.length ? [items.at(-1).id] : []));
@@ -107,6 +108,9 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, d
           }}>{ui("收起")}</Button>
         </details>
       ))}
+      {readOnly && onAskMore && items.length > 0 && (
+        <Button size="sm" variant="secondary" onClick={onAskMore}>{ui("继续追问")}</Button>
+      )}
       {!readOnly && <><Button size="sm" aria-expanded={open} disabled={!call} lock={!!pending}
         onClick={() => open ? setOpen(false) : suggest()}>{ui("追问？")}</Button>
       {" "}

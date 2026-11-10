@@ -27,7 +27,7 @@ const IDLE_MS = 1200;
 /* On the practice page the two thumbs are items of the toolbar's 更多 menu (ui/ReviewToolbar.jsx, #671): it passes `buttons={false}`, and this component then keeps
    the vote, the tag tray and the G / B keys, and hands the menu two calls through `ref` ({ up(), down() }) and the vote through `onVote`.
    `courseRules` (ui/course-rules/use-course-rules.js): with it the tray offers 「设为本课守则」 for the chosen tags (#889); the confirmation stays after the tray closes. */
-export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onFix, onVote, buttons = true, courseRules = null }, ref) {
+export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onFix, onVote, onInteract, buttons = true, courseRules = null }, ref) {
   const { call } = useStudy();
   const [vote, setVote] = useState(run.vote?.vote || null),
     [tags, setTags] = useState(run.vote?.tags || []),
@@ -38,7 +38,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
   const toast = useToast(), trayId = useId(), voteId = useId();
   // The timers and queued posts outlive the render that created them: they read the latest callbacks.
   const callbacks = useRef({});
-  callbacks.current = { toast, onFix, onSent };
+  callbacks.current = { toast, onFix, onSent, onInteract };
   const sent = useRef(new Set(run.vote?.tags || [])),
     submitting = useRef(new Set()),
     saved = useRef({ vote: run.vote?.vote || null, tags: run.vote?.tags || [] }),
@@ -106,6 +106,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
     if (note) callbacks.current.toast.info(note);
   }
   function thumb(next) {
+    callbacks.current.onInteract?.();
     setVote(next);
     setError("");
     if (next === "up") {
@@ -133,6 +134,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
   tagsRef.current = tags;
   function toggle(tag) {
     if (sent.current.has(tag) || submitting.current.has(tag)) return;
+    callbacks.current.onInteract?.();
     const list = tagsRef.current;
     const nextList = list.includes(tag) ? list.filter((t) => t !== tag) : [...list, tag];
     tagsRef.current = nextList;
@@ -154,12 +156,13 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
 
   const latest = useRef({});
   latest.current = { open, thumb, toggle, canShortcut };
-  useImperativeHandle(ref, () => ({ up: () => latest.current.thumb("up"), down: () => (latest.current.open ? setOpen(false) : latest.current.thumb("down")) }), []);
-  useEffect(() => { onVote?.(vote); }, [vote]); // eslint-disable-line react-hooks/exhaustive-deps -- the menu reads the vote; the callback is not a trigger
+  useImperativeHandle(ref, () => ({ up: () => latest.current.thumb("up"), down: () => (latest.current.open ? (callbacks.current.onInteract?.(), setOpen(false)) : latest.current.thumb("down")) }), []);
+  useEffect(() => { onVote?.(vote, tags); }, [vote, tags]); // eslint-disable-line react-hooks/exhaustive-deps -- the menu and tips read the vote and tags; the callback is not a trigger
   useEffect(() => {
     function key(e) {
       const { open, thumb, toggle, canShortcut } = latest.current;
       if (e.key === "Escape" && open) {
+        e.preventDefault();
         setOpen(false);
         return;
       }
@@ -170,6 +173,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
         thumb("up");
       } else if (k === "b") {
         e.preventDefault();
+        callbacks.current.onInteract?.();
         if (open) setOpen(false);
         else thumb("down");
       } else if (open && /^[1-7]$/.test(e.key)) {
