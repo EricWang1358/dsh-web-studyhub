@@ -64,6 +64,8 @@ When the course has an exam on a later local day than the answer, the answer's n
 
 The exam is never written as `maximum_interval`, which keeps meaning only the learner's own maximum. A library or a review without these fields reads as before.
 
+Questions already due after the exam do not come back by themselves, so a pass over the library (`lib/exam-alignment.js` `alignDueDates`) gives each a due date before it: when a course's exam date is set, changed or cleared (`course.save`) and when the switch is turned on or off (`course.examAlignment.set`, the only write of `exam_alignment`; the `settings` write refuses it). The questions are spread over the days left, from today to the day before the exam, the lowest recall now (`retrievabilityAt`) first, each due from the start of its day. Only `due_at` moves and the old one is kept in `unaligned_due_at`; a suspended question or one in an archived deck is not pulled. The pass is idempotent: a question already due before its exam keeps its date, and one whose exam was removed, has passed, moved past its own due date, or whose alignment was switched off gets `unaligned_due_at` back as `due_at`. An SM-2 review moved this way still reads its last review from `unaligned_due_at − interval_days`.
+
 ## Moving from SM-2
 
 Nothing is rewritten when the plugin updates, and no due date moves. A card's SM-2 state is converted at its next answer:

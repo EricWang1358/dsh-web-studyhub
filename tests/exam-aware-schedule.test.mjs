@@ -148,7 +148,7 @@ test("a practice answer in a course with an exam ahead comes back by the exam, a
   assert.equal(run.feedback.level, cardLevel({ review: { ...answered, due_at: answered.unaligned_due_at } }, 4));
   assert.equal(run.feedbackTelemetry.examAligned, true, "the line under the answer can say the exam brought it back");
 
-  await study.call("settings", { exam_alignment: false });
+  await study.call("course.examAlignment.set", { enabled: false });
   let second = await study.call("review.start", { mode: "path", scope: [{ deckId: "os", cardId: "q2" }], fresh: true });
   second = await study.call("review.answer", { runId: second.id, cardId: "q2", selected: ["a"] });
   const after = (await study.call("export")).decks[0].cards.find((card) => card.id === "q2").review;
