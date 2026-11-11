@@ -338,11 +338,11 @@ export default function DocumentLearning({ call, document, capture, scope = null
         return true;
       } });
   }
-  // Selecting a passage that was kept (批注 mode) brings its thread back, and a term asked before is found, not asked again.
+  // Selecting a passage that was kept (批注 mode) brings its thread back, and a term asked before is found, not asked again. A 词解 (right-click › AI 词解) comes back in 阅读 too.
   useEffect(() => {
-    if (mode !== 'annotate' || resolution?.status !== 'resolved' || resolution.scope === 'page' || threadRef.current.nodes.length) return;
+    if (resolution?.status !== 'resolved' || resolution.scope === 'page' || threadRef.current.nodes.length) return;
     const kept = itemsOfPassage(annotation?.items, resolution.selection);
-    if (kept.length) commit(threadFromItems(kept));
+    if (kept.length && (mode === 'annotate' || kept.some(item => item.kind === 'explain'))) commit(threadFromItems(kept));
   }, [mode, resolution, annotation?.items]);
   /**
    * A new first-level question: the box's own, or a chip's (which asks at once, and does not touch what the learner typed). It joins the answers already on this passage, so a

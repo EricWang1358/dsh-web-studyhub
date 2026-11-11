@@ -43,7 +43,7 @@ export function nodesToKeep(thread, id = '') {
 }
 const pathIds = (thread, id) => { const ids = []; for (let node = nodeOf(thread, id); node; node = nodeOf(thread, node.parentId)) ids.push(node.id); return ids; };
 
-/** One link per annotated passage, shaped like the links of questions so the reader's marks and list take them without a second system. */
+/** One link per annotated passage, shaped like the links of questions so the reader's marks and list take them without a second system. A 词解 (kind explain) says so: the reader shows its answer on hover. */
 export function annotationLinks(items) {
   const threads = new Map();
   for (const item of items || []) {
@@ -54,6 +54,7 @@ export function annotationLinks(items) {
   return [...threads.values()].map(({ first, nodes }) => {
     const root = nodes.find(item => (item.parentId ?? null) === null) || first;
     return { kind: 'annotation', annotationKey: first.key, deckId: '', cardId: `annotation:${first.key}`, prompt: root.label || root.question, answer: root.answer, nodes: nodes.length,
+      ...(root.kind === 'explain' ? { explain: true, term: root.term || first.selection?.quote || '' } : {}),
       selection: { ...first.selection }, status: 'resolved' };
   });
 }

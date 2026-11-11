@@ -132,7 +132,8 @@ test('a material opened from its 资料 row goes back to where it was last read;
   await viewer.waitFor({ timeout: 30000 });
   await waitChapter(3, '「查看 N 章」 to open chapter 4');
   await closeReader();
-  // A seeded book has no materials record, so its translations (materials.translation.list) are refused, as in reader-one-chapter-browser: those 400s only.
-  assert.ok(refused.every(action => action === 'materials.translation.list'), `only the translation list is refused: ${JSON.stringify(refused)}`);
+  // A seeded book has no materials record, so its per-material lists (translations, the 批注 that carry 词解, the learner's marks) are refused, as in
+  // reader-one-chapter-browser: those 400s only.
+  assert.ok(refused.every(action => ['materials.translation.list', 'materials.annotation.list', 'materials.marks.list'].includes(action)), `only the per-material lists are refused: ${JSON.stringify(refused)}`);
   assert.deepEqual(errors.filter(error => error !== REFUSED), [], 'no other console or page errors');
 });

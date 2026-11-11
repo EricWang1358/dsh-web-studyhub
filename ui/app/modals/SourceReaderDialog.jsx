@@ -50,6 +50,7 @@ export default function SourceReaderDialog({ modal, onClose }) {
             }}
             backLabel={modal.back ? ui('回到这道题') : undefined} onBack={modal.back ? onClose : undefined} peekPage={modal.peekPage} pickPages={!!modal.pickPages}
             onStarted={(started) => { selectionNotices.track(started.jobId); return refresh(); }}
+            onGenerateStarted={() => refresh()}
             onCaseFromPassage={(passage) => intents.goGenerate({ source: 'case', remember: true, closeModal: true,
               caseInitial: { sourceIds: documentSourceIds(data.sources, source.id), focus: passage.quote, nonce: Date.now() } })} />
         </>
