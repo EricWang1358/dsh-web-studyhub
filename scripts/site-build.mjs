@@ -13,7 +13,7 @@ export async function buildSite({ outdir = SITE_OUTPUT } = {}) {
   const { version } = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8'));
   if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(version)) throw new Error('Invalid package version for the site');
   const source = (await readFile(join(repositoryRoot, 'site/index.html'), 'utf8')).replaceAll('2.5.10', version);
-  const explorerSource = (await readFile(join(repositoryRoot, 'site/explorer.html'), 'utf8')).replaceAll('4.7.3', version);
+  const explorerSource = (await readFile(join(repositoryRoot, 'site/explorer.html'), 'utf8')).replaceAll('4.7.4', version);
   await mkdir(join(outdir, 'assets'), { recursive: true });
   await build({ absWorkingDir: repositoryRoot, entryPoints: ['site/demo.mjs'], bundle: true, platform: 'browser',
     format: 'iife', target: 'es2020', minify: true, outfile: join(outdir, 'assets/site-demo.js') });

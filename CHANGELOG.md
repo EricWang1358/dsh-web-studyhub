@@ -2,6 +2,13 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 4.7.4 — 2026-11-11
+
+- **New questions follow material reading order by default.** Practice rounds and newly generated or continued decks now walk pages and chapters from front to back instead of pulling highlighted later pages first or shuffling unread cards; you can switch new-question order (`Material order`, `Focus first`, `Shuffled`) in `Settings › Practice`, defer unread later pages from an active round via `More`, or jump straight to the material reader to practise selected pages. Not verified: manually reordered custom JSON imports without source page citations keep their authored card sequence.
+- **A material opens where you last read it.** Opening a material from its row in Sources goes back to the chapter and the spot you were reading when you closed it, the way the review book already does. Opening it at a quote, a question's source, a chosen chapter or the way back from practice still goes to that place. Scrolling back to the start forgets the spot. The spot is kept in this browser only, per library. Not verified: inside the DSH app window (checked in the preview build), and the Original PDF view, whose page is not kept.
+
+Not checked before this release: `main` did not run for a day of real use on the experience channel, and nothing here was tried with a real library and a real model in a real DSH desktop window. The changes were checked with the automated tests, headless Chromium browser checks and the built-in fake model only. Opening a material where it was last read was checked in the preview build with a generated 100-page book, not inside the DSH app window; new-question reading order was checked with seeded libraries rather than a learner's own decks. npm's `latest` tag is updated separately, so the release page is the newest version.
+
 ## 4.7.3 — 2026-11-11
 
 - **The coverage line on a running question task now says "rounds left including this one".** Next to "Round 1/2", the coverage estimate previously wrote "2 more rounds", which read like two rounds on top of the current one; it now writes "2 rounds left including this one" (or "1 round left including this one") without changing how the round count is estimated. Not verified: read in Chinese and English task-card previews and unit tests, not with a first-time learner during a live multi-round run.
