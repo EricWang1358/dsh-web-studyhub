@@ -288,7 +288,7 @@ export function RemoveDialog({ item, onClose, onRemoved }) {
   const { busy, act } = useStudy();
   const appData = useContext(AppContext)?.data;
   const canRemove = hasContext(appData, 'bank') && hasContext(appData, 'study');
-  const blocked = !canRemove || item.usedBy.length > 0 || !item.archived;
+  const blocked = item.usedBy.length > 0 || !item.archived || !canRemove;
   async function confirm() {
     const result = await removeDocument(item, { act });
     if (!result.failed.length) return;
@@ -315,7 +315,7 @@ export function BatchRemoveDialog({ items, onClose, onRemoved }) {
   const canRemove = hasContext(appData, 'bank') && hasContext(appData, 'study');
   const cited = items.filter(item => item.usedBy.length > 0);
   const unarchived = items.filter(item => !item.archived);
-  const blocked = !canRemove || cited.length > 0 || unarchived.length > 0;
+  const blocked = cited.length > 0 || unarchived.length > 0 || !canRemove;
   async function confirm() {
     const result = await removeDocuments(items, { act });
     if (!result.failed.length) return;
