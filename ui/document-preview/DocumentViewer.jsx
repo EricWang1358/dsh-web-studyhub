@@ -59,6 +59,7 @@ import { chapterFindGroups, chapterOutline, findStop, withElsewhere } from './re
 import { useChapterGoal, useReaderChapters } from './reader/useReaderChapters.js';
 import { chapterName, chapterRange, chapterTitle, chapterPagerLabel, elsewhereCount, nextChapterWord, previousChapterWord } from './reader/chapter-copy.js';
 import { useNarrow } from '../use-narrow.js';
+import { hasContext } from '../capabilities.js';
 
 /** Under this width of the viewer the toolbar's controls fill one row (reader-slim.css, @container reader 520px): 待出题 moves into 更多. */
 const COMPACT_TOOLBAR = 520;
@@ -385,11 +386,15 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [explainShown, setExplainShown] = useState(null);
   const explainOf = group => { const link = group.links.find(item => item.explain); return link ? { term: link.term, answer: link.answer } : null; };
   usePassageLinkLayer({ body, groups: model.groups, rendered, underline: underlineShown(settings), onOpen: openGroup, titleOf: linkTitle, cardOf: explainOf, onCard: setExplainShown });
+  const canStudyBank = hasContext(data, 'bank') && hasContext(data, 'study');
+  const canBatchTranslate = hasContext(data, 'generation');
+  const canAudio = hasContext(data, 'audio');
+  const canQueueGenerate = hasContext(data, 'generation') && hasContext(data, 'bank') && hasContext(data, 'authoring');
   // Right-click on the text: 下划线 / 加粗 / 荧光笔, 加入待出题 and AI 词解 (marks/useReaderMarks.jsx); 待出题 N in the toolbar starts one run for the list.
   const marks = useReaderMarks({ call, document: learningDocument, data, body, rendered, enabled: !localMode && view !== 'original' && !!document, compact,
-    onExplained: () => setKeptReload(count => count + 1), onBatchStarted: onGenerateStarted, busy: generateDisabled });
+    canQueue: canQueueGenerate, onExplained: () => setKeptReload(count => count + 1), onBatchStarted: onGenerateStarted, busy: generateDisabled });
   // The bilingual reading (译): marks and blocks beside the paragraphs, the page / chapter job, the glossary (translation/useBilingual.jsx).
-  const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, enabled: !localMode });
+  const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, enabled: !localMode, batchEnabled: canBatchTranslate });
   const quoteText = sources.find(item => item.id === source.id)?.text || content;
   const quoteState = useMemo(() => !quote ? null : view === 'text' ? resolveQuote(quoteText, quote, source.selection) : locateQuote(quoteText, quote, source.selection),
     [quote, quoteText, source.selection, view === 'text']); // eslint-disable-line react-hooks/exhaustive-deps
@@ -585,7 +590,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
           {view !== 'original' && onPracticePages && <ReadingPractice split loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
         </span>}
         {!localMode && !onGenerate && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
-        {!localMode && document && call && <WrongPanel read={readWrong} cards={loop.cards} entryOf={loop.entryOf} drawn={drawnIds} chapterTitle={chapter.current ? chapterTitle(chapter.current) : ''}
+        {!localMode && document && call && canStudyBank && <WrongPanel read={readWrong} cards={loop.cards} entryOf={loop.entryOf} drawn={drawnIds} chapterTitle={chapter.current ? chapterTitle(chapter.current) : ''}
           disabled={loop.status !== 'ready'} onPractice={practiseRow} onSeek={seekRow} />}
         {!loading && <MindMapPanel map={mindMap} document={materialName} pages={chapterPages} onJump={jumpMap} />}
         {marks.chip}
@@ -602,13 +607,13 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     <div className="reader-aux">
       {quote && <div className="reader-aux__bar"><blockquote className="highlight-quote reader-aux__quote"><MathText text={quote} /></blockquote>
         {canPeek && !!fileUrl && Number.isInteger(source.document?.page) && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={source.document.page} title={ui('看原页')} onClick={() => openPeek(source.document.page)}>{ui('看原页')}</Button>}</div>}
-      {!localMode && <AudioCorrections audio={source.audio} onReview={call && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />}
+      {!localMode && <AudioCorrections audio={source.audio} onReview={call && canAudio && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />}
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
       {outlineOn && <OutlinePanel id={outlineId} data-tour="reader-outline" items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters} upgradedIds={loop.upgradedIds}
         coverage={!localMode && view !== 'original' && loop.coverage?.cards > 0 ? loop.outlineCoverage : null} coverageTotals={loop.coverage}
-        coverageAction={!localMode && data && offersDocumentTopUp({ item: documentItem, coverage: loop.coverage, jobs: data.jobs, modelReady: modelReadiness(data).ready })
+        coverageAction={!localMode && data && canQueueGenerate && offersDocumentTopUp({ item: documentItem, coverage: loop.coverage, jobs: data.jobs, modelReady: modelReadiness(data).ready })
           ? <DocumentTopUp item={documentItem} revision={data.revision} placement="bottom-start" block /> : null}
         footer={assistTarget && call && view !== 'original' ? <OutlineAssist call={call} target={assistTarget} current={outline} saved={aiOutline} stale={document?.outlineStale}
           missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}

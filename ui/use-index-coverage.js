@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
+import { AppContext } from "./app/app-context.js";
+import { hasContext } from "./capabilities.js";
 import { usePolling } from "./use-polling.js";
 
 /* The search index coverage of the library (retrieval.index.coverage), read once when a page that shows material opens, and again every few seconds
@@ -8,6 +10,8 @@ const POLL_MS = 3000;
 /* Third value, `status`: "loading" until the first answer, "ready" once there is one, "unavailable" when the first read failed or `call` is missing.
    A list that shows a badge per row keeps the badge's line while it is "loading" or "ready" (#205), so the answer changes no row height. */
 export default function useIndexCoverage(call, { enabled = true } = {}) {
+  const app = useContext(AppContext);
+  const active = enabled && hasContext(app?.data, "generation");
   const [coverage, setCoverage] = useState(null);
   const [failed, setFailed] = useState(typeof call !== "function");
   const refresh = useCallback(async () => {
@@ -16,8 +20,8 @@ export default function useIndexCoverage(call, { enabled = true } = {}) {
     setFailed(true);
     return null;
   }, [call]);
-  useEffect(() => { if (enabled) refresh(); }, [enabled, refresh]);
+  useEffect(() => { if (active) refresh(); }, [active, refresh]);
   const building = !!coverage?.building;
-  usePolling(refresh, { intervalMs: POLL_MS, enabled: enabled && building });
-  return [coverage, refresh, coverage ? "ready" : failed ? "unavailable" : "loading"];
+  usePolling(refresh, { intervalMs: POLL_MS, enabled: active && building });
+  return [coverage, refresh, coverage ? "ready" : (!active || failed) ? "unavailable" : "loading"];
 }

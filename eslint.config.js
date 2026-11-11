@@ -1,6 +1,44 @@
+import { dirname, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
+
+const repoRoot = fileURLToPath(new URL(".", import.meta.url));
+const contextOwnerOf = (filePath) =>
+  relative(repoRoot, resolve(filePath))
+    .replaceAll("\\", "/")
+    .match(/^lib\/contexts\/([^/]+)\//)?.[1];
+
+const contextBoundaries = {
+  rules: {
+    "no-private-context-import": {
+      meta: { type: "problem", schema: [] },
+      create(context) {
+        const owner = contextOwnerOf(context.filename);
+        if (!owner) return {};
+        const check = (sourceNode) => {
+          const raw = sourceNode?.value;
+          if (typeof raw !== "string" || !raw.startsWith(".")) return;
+          const target = resolve(dirname(context.filename), raw);
+          const foreign = contextOwnerOf(target);
+          if (foreign && foreign !== owner && !target.replaceAll("\\", "/").endsWith(`/lib/contexts/${foreign}/contracts.js`)) {
+            context.report({
+              node: sourceNode,
+              message: `Context "${owner}" must not import private module "${raw}" from context "${foreign}"; import "../${foreign}/contracts.js" or use a declared runtime API port.`,
+            });
+          }
+        };
+        return {
+          ImportDeclaration: (node) => check(node.source),
+          ExportNamedDeclaration: (node) => check(node.source),
+          ExportAllDeclaration: (node) => check(node.source),
+          ImportExpression: (node) => check(node.source),
+        };
+      },
+    },
+  },
+};
 
 /* Lint guards against real bugs (unused vars, stale hooks deps, undefined
    globals); style is deliberately not enforced — formatting stays manual. */
@@ -36,7 +74,9 @@ export default [
   },
   {
     files: ["lib/contexts/**/*.js"],
+    plugins: { "context-boundaries": contextBoundaries },
     rules: {
+      "context-boundaries/no-private-context-import": "error",
       "no-restricted-imports": ["error", {
         patterns: [{
           group: ["**/legacy-kernel.js", "**/legacy-registration.js", "**/store.js"],
