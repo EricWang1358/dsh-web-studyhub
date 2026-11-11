@@ -37,6 +37,7 @@ const statusLabels = {
   ambiguous: '原文中有多处相同文字，请缩小选区或加入前后文后重新选择。',
   stale: '资料已更新，这段引用需要在当前原文中重新选择。',
   missing: '无法在已保存的资料中核实这段文字，请重新选择。',
+  crossPage: '选区跨了多页，请在一页内选择。',
   unavailable: '当前未安装所需能力，或没有可用模型。',
 };
 
@@ -203,6 +204,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
       if (selection) { setResolution({ status: 'resolved', scope: 'page', selection }); setPageCut(cuts.current.get(pageKey(selection)) || null); }
       return undefined;
     }
+    if (capture?.crossPage) { setResolution({ status: 'crossPage' }); return undefined; }
     const request = selectionRequest(document, capture);
     if (!request) return undefined;
     setResolving(true);

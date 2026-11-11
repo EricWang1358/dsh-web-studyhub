@@ -51,11 +51,14 @@ const supported = () => typeof window !== 'undefined' && window.CSS?.highlights 
 /** The marks a selection lies in or covers: the same passage, or one that contains it (so 去掉下划线 is offered on any part of an underline). */
 export function marksAt(items = [], capture) {
   if (!capture?.quote) return [];
-  const quote = capture.quote.replace(/\s+/g, ''), source = capture.sourceId;
-  return items.filter(item => item.status === 'resolved' && (!source || item.selection.sourceId === source)
-    && (Number.isInteger(capture.start) && Number.isInteger(item.selection.start)
-      ? capture.start >= item.selection.start && capture.end <= item.selection.end
-      : item.selection.quote.replace(/\s+/g, '').includes(quote)));
+  const quote = capture.quote.replace(/\s+/g, ''), plain = quote.replace(/[*_\\`~]/g, ''), hasWords = /[\p{L}\p{N}]/u.test(plain), source = capture.sourceId;
+  return items.filter(item => {
+    if (item.status !== 'resolved' || (source && item.selection.sourceId !== source)) return false;
+    if (Number.isInteger(capture.start) && Number.isInteger(item.selection.start))
+      return capture.start >= item.selection.start && capture.end <= item.selection.end;
+    const stored = item.selection.quote.replace(/\s+/g, '');
+    return stored.includes(quote) || (hasWords && stored.replace(/[*_\\`~]/g, '').includes(plain));
+  });
 }
 
 /**

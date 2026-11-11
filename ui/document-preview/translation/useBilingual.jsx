@@ -237,7 +237,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     const container = body.current;
     if (!capture || !container) return;
     const tempKey = `tmp:${nextId('sel')}`;
-    const block = reading ? paragraphAround(capture.range.endContainer, layer.current.byElement) : null;
+    const block = reading ? paragraphAround(capture.lastNode || capture.range.endContainer, layer.current.byElement) : null;
     if (block) layer.current.pinned.set(tempKey, block);
     else {
       floatRange.current = capture.range.cloneRange();
@@ -297,7 +297,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       frame = 0;
       const container = body.current, area = container?.closest('.reader-page');
       const capture = container ? captureSelection(container) : null;
-      if (!capture || !area || !needsTranslation(capture.quote, target) || capture.quote.trim().length < 2) { setChip(current => current ? null : current); return; }
+      if (!capture || capture.crossPage || !area || !needsTranslation(capture.quote, target) || capture.quote.trim().length < 2) { setChip(current => current ? null : current); return; }
       if (!capture.range.getClientRects().length) { setChip(null); return; }
       // Only the live range and the words are kept: where the chip goes is measured against the range (useRangeAnchor), never copied into state.
       chipRange.current = capture.range.cloneRange();
@@ -312,7 +312,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
 
   const translateCurrent = useCallback(() => {
     const capture = captureSelection(body.current);
-    if (capture && needsTranslation(capture.quote, target)) { translateSelection(capture); return; }
+    if (capture && !capture.crossPage && needsTranslation(capture.quote, target)) { translateSelection(capture); return; }
     const own = layer.current, area = scroller.current?.getBoundingClientRect();
     const paragraph = own.active ? own.byElement.get(own.active) : own.paragraphs.find(item => item.offered && (!area || item.element.getBoundingClientRect().bottom > area.top + 40));
     if (paragraph?.offered) onMark(paragraph.key);
