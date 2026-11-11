@@ -42,9 +42,19 @@ test('the study-tutor skill is shipped, takes 「带我学」, and every action 
   for (const action of named) assert.ok(study.runtime.hasAction(action), `${action} is an action of the study workspace`);
 });
 
-test('study-guide stays the front door: no plan-document section numbers, and 带学 goes to study-tutor', async () => {
+test('study-guide stays the front door: no plan-document section numbers, no bare-greeting hijack, and 带学 goes to study-tutor', async () => {
   const guide = parseSkill(await read('skills/study-guide/SKILL.md'));
+  assert.doesNotMatch(guide.description, /\bgreets you\b/i);
+  assert.doesNotMatch(guide.whenToUse, /\bgreets you\b/i);
+  assert.match(guide.description, /not on a bare "hi"/i);
+  assert.match(guide.description, /non-StudyHub coding\/repo questions/);
+  assert.ok(guide.description.length <= 500, 'bare-greeting exclusion stays inside DSH\'s 500-char skill catalog ceiling');
+  assert.match(guide.whenToUse, /Do not trigger on a bare greeting/);
+  assert.match(guide.whenToUse, /unrelated to StudyHub/);
   assert.doesNotMatch(guide.content, /Section \d/);
+  assert.match(guide.content, /只是打个招呼.*不要读学习库.*不要弹选项卡片/);
+  assert.match(guide.content, /不要在回复里播报/);
+  assert.match(guide.content, /先把上面那 3–5 句正文写进回复消息，再在同一条回复里用 `ask_user_question`/);
   assert.match(guide.content, /交给 skill `study-tutor`/);
   assert.match(guide.content, /这一步不生成任何内容/);
   for (const name of SHIPPED_SKILLS) assert.doesNotMatch(parseSkill(await read(`skills/${name}/SKILL.md`)).content, /Section \d+\.\d+/, name);
