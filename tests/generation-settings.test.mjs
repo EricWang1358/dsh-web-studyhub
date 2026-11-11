@@ -11,7 +11,7 @@ import { DEFAULT_LEVEL, LEVELS } from '../lib/coverage-strength.js';
 // Every performance key that is not a number: the four reasoning levels and whether the review's suggestions are applied (off by default).
 const EFFORTS = { effortPlanning: 'follow', effortReview: 'follow', effortWriting: 'low', effortRepair: 'low', applySuggestions: false };
 const expected = { concurrency: 4, batchSize: 5, jobTimeoutMinutes: 20, fillRounds: 2, ...EFFORTS,
-  kind: 'quiz', kinds: ['quiz'], count: 10, language: 'auto', difficulty: 'mixed', focus: '', notation: 'auto', coverageLevel: 'standard', lightModel: '' };
+  kind: 'quiz', kinds: ['quiz'], count: 10, selectionCount: 3, language: 'auto', difficulty: 'mixed', focus: '', notation: 'auto', coverageLevel: 'standard', lightModel: '' };
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-generation-settings-'));
   const service = new StudyService(root);
@@ -48,7 +48,8 @@ test('invalid generation setting patches are refused without a partial write', a
   const before = await service.call('export');
   for (const generation of [null, [], 'fast', { concurrency: 0 }, { concurrency: 9 }, { concurrency: '3' },
     { batchSize: 6 }, { batchSize: 2.5 }, { jobTimeoutMinutes: 4 }, { jobTimeoutMinutes: 181 },
-    { count: 0 }, { count: 501 }, { kind: 'case' }, { language: 'Klingon' }, { difficulty: 'hard' },
+    { count: 0 }, { count: 501 }, { selectionCount: 0 }, { selectionCount: 21 }, { selectionCount: 2.5 }, { selectionCount: '3' },
+    { kind: 'case' }, { language: 'Klingon' }, { difficulty: 'hard' },
     { focus: 4 }, { focus: 'x'.repeat(2001) }, { phaseTimeoutMinutes: 30 }]) {
     await assert.rejects(service.call('settings', { maximum_interval: 400, generation }), /generation/i);
     assert.deepEqual(await service.call('export'), before);
@@ -148,4 +149,16 @@ test('lightModel accepts follow/empty, provider/model, { provider, model } and m
   const service = await library(t);
   assert.equal((await service.call('settings', { generation: { lightModel: 'preview/fast-model' } })).generation.lightModel, JSON.stringify(['preview', 'fast-model']));
   assert.equal((await service.call('settings', { generation: { lightModel: null } })).generation.lightModel, '');
+});
+
+test('selectionCount defaults to 3 even when count: 10 was already persisted, validates 1..20, and stays off deck generation requests', async t => {
+  assert.equal(GENERATION_SETTINGS_DEFAULTS.selectionCount, 3);
+  assert.equal(normalizeGenerationSettings({ count: 10 }).selectionCount, 3, 'an existing library with count: 10 still gets selectionCount: 3');
+  assert.equal(normalizeGenerationSettings({ selectionCount: 5, count: 10 }).selectionCount, 5);
+  assert.equal(normalizeGenerationSettings({ selectionCount: 99, language: 'English' }).selectionCount, 3);
+  assert.equal('selectionCount' in resolveGenerationRequest({ ...expected, selectionCount: 6 }), false);
+  const service = await library(t);
+  assert.equal((await service.call('snapshot')).settings.generation.selectionCount, 3);
+  assert.equal((await service.call('settings', { generation: { selectionCount: 5 } })).generation.selectionCount, 5);
+  assert.equal((await service.call('snapshot')).settings.generation.selectionCount, 5);
 });

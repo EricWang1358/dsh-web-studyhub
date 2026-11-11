@@ -41,7 +41,7 @@ test("the stage of a recorded step, and the tokens a job used per stage", () => 
 
 test("a calibrated estimate covers what this library's runs really used, stage by stage", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const raw = estimate(), totals = stageTotals(raw), mid = (id) => (totals[id].low + totals[id].high) / 2;
   assert.ok(totals.plan && totals.author && totals.review, JSON.stringify(Object.keys(totals)));
   const calibration = createCalibration(root);
@@ -68,7 +68,7 @@ test("a calibrated estimate covers what this library's runs really used, stage b
 
 test("calibration keeps only recent runs, clamps wild ratios and starts afresh from a damaged file", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const calibration = createCalibration(root, { keep: 4 });
   const totals = { author: { low: 100, high: 200 } };
   for (const ratio of [1, 1, 1, 50, 50, 50, 50]) await calibration.record({ stageTotals: totals, actual: { author: 150 * ratio } });
@@ -118,7 +118,7 @@ test("the correction lives on the machine, beside the usage ledger, so a new boo
   t.after(async () => {
     if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous;
     if (previousOff !== undefined) process.env.STUDY_NO_CALIBRATION = previousOff;
-    await rm(home, { recursive: true, force: true });
+    await rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
   const machine = createCalibration(calibrationDir()), raw = estimate(), totals = stageTotals(raw), mid = (id) => (totals[id].low + totals[id].high) / 2;
   assert.equal(calibrationDir(), join(home, "study"), "the DSH home the host set, not the library");
@@ -131,7 +131,7 @@ test("the correction lives on the machine, beside the usage ledger, so a new boo
 
 test("a run made on one model does not correct another model's estimate, and an older record without a model still counts", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "study-calibration-model-"));
-  t.after(() => rm(dir, { recursive: true, force: true }));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const calibration = createCalibration(dir), raw = estimate(), totals = stageTotals(raw), mid = (id) => (totals[id].low + totals[id].high) / 2;
   const at = (id, ratio) => ({ plan: mid("plan"), blueprint: mid("blueprint"), author: mid("author"), review: mid("review"), [id]: mid(id) * ratio });
   for (let run = 0; run < 3; run++) await calibration.record({ stageTotals: totals, actual: at("author", 2), model: "deepseek/deepseek-v4.1-flash" });
@@ -150,7 +150,7 @@ test("a run made on one model does not correct another model's estimate, and an 
    hundreds of tokens). Every finished run now records what each stage wrote per call; the next estimate takes that as its high end and says why. */
 test("what each stage writes per call is measured, and the estimate takes it as its output high end", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "study-calibration-thinking-"));
-  t.after(() => rm(dir, { recursive: true, force: true }));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const calibration = createCalibration(dir), raw = estimate();
   assert.deepEqual((await calibration.outputPerCall()).stages, {}, "no runs, nothing measured");
   assert.deepEqual(calibrateEstimate(raw, null, NO_ASSUMPTION), raw, "an unmeasured stage leaves the estimate as it was");
@@ -173,7 +173,7 @@ test("what each stage writes per call is measured, and the estimate takes it as 
 
 test("one model's output does not raise another model's estimate, and a record without measurements teaches nothing", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "study-calibration-thinking-model-"));
-  t.after(() => rm(dir, { recursive: true, force: true }));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const calibration = createCalibration(dir), raw = estimate();
   for (let run = 0; run < 3; run++) await calibration.record({ outputs: { author: { calls: 1, output: 9_000 } }, model: "other/model" });
   for (let run = 0; run < 3; run++) await calibration.record({ stages: { author: [1, 2] }, model: "mine" });
@@ -186,7 +186,7 @@ test("one model's output does not raise another model's estimate, and a record w
 /* #772 review: the old file lived in each learning library. The machine's file takes it over once, leaves the old file where it is, and never counts a run twice. */
 test("a library's own earlier file is carried into the machine's once, left untouched, and never counted twice", async (t) => {
   const machine = await mkdtemp(join(tmpdir(), "study-calibration-machine-")), library = await mkdtemp(join(tmpdir(), "study-calibration-library-"));
-  t.after(() => Promise.all([rm(machine, { recursive: true, force: true }), rm(library, { recursive: true, force: true })]));
+  t.after(() => Promise.all([rm(machine, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }), rm(library, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })]));
   const raw = estimate(), totals = stageTotals(raw), mid = (id) => (totals[id].low + totals[id].high) / 2;
   const old = JSON.stringify({ runs: [1, 2, 3].map((n) => ({ at: `2026-10-0${n}T00:00:00.000Z`, stages: { author: [Math.round(mid("author")), Math.round(mid("author") * 2)] } })) });
   await writeFile(join(library, "estimate-calibration.json"), old);
@@ -227,7 +227,7 @@ test("a test process that was not given a DSH home never writes to the real one"
    still lands inside the range, and the number says it is an assumption. */
 test("with no history, a stage's high end rises to the measured thinking allowance, its low end stays, and the note says it is assumed", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "study-calibration-default-"));
-  t.after(() => rm(dir, { recursive: true, force: true }));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const raw = estimate(), perCall = await createCalibration(dir).outputPerCall();
   assert.deepEqual(perCall.stages, {}, "nothing measured on this machine");
   assert.equal(perCall.defaults, undefined, "the learning store returns what it learned, never the assumption (#771 gate M5)");
@@ -281,7 +281,7 @@ test("a coverage run of several rounds teaches what its first round used, not th
   t.after(async () => {
     await service.dispose();
     for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+    await Promise.all([rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }), rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })]);
   });
   const world = mergedTranscript({ recordings: 2, parts: 6, paragraphs: 4 }), model = clusteringModel();
   service.complete = async (system, prompt, context) => { reportUsage({ uncachedInputTokens: 1000, outputTokens: 100 }); return model.complete(system, prompt, context); };
@@ -304,7 +304,7 @@ test("a coverage run of several rounds teaches what its first round used, not th
 test("the machine's file names no library: a carried-in library is kept as a short hash of its folder, once, and only when it carried runs", async (t) => {
   const machine = await mkdtemp(join(tmpdir(), "study-calibration-machine-")), library = await mkdtemp(join(tmpdir(), "study-calibration-library-")),
     empty = await mkdtemp(join(tmpdir(), "study-calibration-empty-"));
-  t.after(() => Promise.all([machine, library, empty].map((dir) => rm(dir, { recursive: true, force: true }))));
+  t.after(() => Promise.all([machine, library, empty].map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }))));
   await writeFile(join(library, "estimate-calibration.json"), JSON.stringify({ runs: [1, 2, 3].map((n) => ({ at: `2026-10-0${n}T00:00:00.000Z`, stages: { author: [100, 200] } })) }));
   const calibration = createCalibration(machine);
   await calibration.record({ stageTotals: { author: { low: 100, high: 100 } }, actual: { author: 200 }, library: empty });
@@ -322,7 +322,7 @@ test("the machine's file names no library: a carried-in library is kept as a sho
 
 test("a damaged file is put aside before the next write; a file that cannot be read now is not overwritten", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const totals = { author: { low: 100, high: 100 } }, path = join(root, "estimate-calibration.json");
   await writeFile(path, "{ not json");
   await createCalibration(root).record({ stageTotals: totals, actual: { author: 150 } });
@@ -339,7 +339,7 @@ test("a damaged file is put aside before the next write; a file that cannot be r
 
 test("two writers on the same folder (two StudyHub processes) both keep their runs", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const one = createCalibration(root), two = createCalibration(root), totals = { author: { low: 100, high: 100 } };
   await Promise.all(Array.from({ length: 6 }, (_, n) => (n % 2 ? one : two).record({ stageTotals: totals, actual: { author: 100 + n } })));
   assert.equal(JSON.parse(await readFile(join(root, "estimate-calibration.json"), "utf8")).runs.length, 6);
@@ -347,7 +347,7 @@ test("two writers on the same folder (two StudyHub processes) both keep their ru
 
 test("a partly bad file still calibrates from its good runs", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const good = (n) => ({ at: `2026-10-0${n}T00:00:00.000Z`, stages: { author: [100, 200] } });
   await writeFile(join(root, "estimate-calibration.json"), JSON.stringify({ runs: [{ at: "x", stages: null }, { at: "y", stages: { author: 5 } }, { at: "z", stages: { author: [0, 10] } }, { at: "w", stages: {} }, good(1), good(2), good(3)] }));
   const factors = await createCalibration(root).factors();
@@ -361,7 +361,7 @@ test("a partly bad file still calibrates from its good runs", async (t) => {
    corrected by the ratio; the measured or assumed thinking only raises a stage this machine has no ratio for. */
 test("calibration and measured thinking together still put the real cost inside the range, and the thinking only ever raises the high end", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "study-calibration-both-"));
-  t.after(() => rm(dir, { recursive: true, force: true }));
+  t.after(() => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const raw = estimate(), totals = stageTotals(raw), calibration = createCalibration(dir);
   // A thinking model: every call writes the mean the owner's run measured (#771 table; the gate's probe p1), the input is as estimated.
   const MEAN = { plan: 3_568, blueprint: 9_437, author: 8_662, review: 12_973 }, actual = {}, outputs = {};
@@ -411,7 +411,7 @@ test("only the question pipeline gets the thinking allowance (#771 gate L4)", ()
 
 test("a run that recorded only what it wrote is no sample of the ratio, and a bad outputs entry is dropped (#772 gate L5)", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "study-calibration-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const calibration = createCalibration(root);
   for (let run = 0; run < 3; run++) await calibration.record({ outputs: { author: { calls: 1, output: 9000 } } });
   const factors = await calibration.factors();
@@ -444,7 +444,7 @@ test("a planned coverage run records calibration right after round 1 finishes, b
     releaseRoundTwo?.();
     await service.dispose();
     for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+    await Promise.all([rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }), rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })]);
   });
   const world = mergedTranscript({ recordings: 2, parts: 6, paragraphs: 4 }), model = clusteringModel();
   service.complete = async (system, prompt, context) => {
@@ -510,7 +510,7 @@ test("model-keyed runs isolate two models across generate and usage.estimate whi
   t.after(async () => {
     await service.dispose();
     for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+    await Promise.all([rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }), rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })]);
   });
   const world = mergedTranscript({ recordings: 1, parts: 3, paragraphs: 2 }), model = clusteringModel();
   service.complete = async (system, prompt, context) => {
@@ -670,7 +670,7 @@ for (const mode of ["legacy", "runtime"]) {
       releaseReview?.();
       await service.dispose();
       for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
-      await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+      await Promise.all([rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }), rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })]);
     });
     await service.call("settings", { generation: { concurrency: 1, batchSize: 5 } });
     for (const source of world.sources) await service.call("source.add", { id: source.id, title: source.title, text: source.text, audio: source.audio });
@@ -738,7 +738,7 @@ for (const mode of ["legacy", "runtime"]) {
       releasePlan?.();
       await service.dispose();
       for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
-      await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+      await Promise.all([rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }), rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })]);
     });
     await service.call("settings", { generation: { concurrency: 1, batchSize: 5 } });
     const sourceIds = world.sources.map((source) => source.id);
@@ -813,7 +813,7 @@ test("runtime: retrying a failed run after switching the host model prices and r
   t.after(async () => {
     await serviceA.dispose();
     for (const [key, value] of [["DSH_HOME", saved.home], ["STUDY_NO_CALIBRATION", saved.off]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    await Promise.all([rm(home, { recursive: true, force: true }), rm(root, { recursive: true, force: true })]);
+    await Promise.all([rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }), rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })]);
   });
 
   const sourceIds = world.sources.map((source) => source.id);

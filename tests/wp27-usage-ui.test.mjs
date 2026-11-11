@@ -201,6 +201,31 @@ test('a job shows what it used, set beside what was expected; an old job shows n
   assert.match(english, /Estimated 58\.3K–96\.1K tok/);
 });
 
+test('totalOnly mode shows only total tokens without cache breakdown, copy button, info popover or cache-miss notes', () => {
+  setUiLanguage('zh');
+  assert.equal(format.totalUsageText(session), 'Token 用量 2,111,680 tok');
+  assert.equal(format.totalEstimateSummary(estimate), '预计 58.3K–96.1K tok');
+  assert.equal(format.totalEstimateSummary({ ...estimate, notes: ['thinking-default'] }), '预计 58.3K–96.1K tok（含思考）');
+  const noCacheJob = {
+    tokenUsage: { uncachedInputTokens: 5200, outputTokens: 1500, cacheReadTokens: 0, cacheWriteTokens: 0, calls: 3 },
+    estimate: { totalTokens: range(4000, 8000), calls: range(2, 3), inputTokens: range(3000, 6000), outputTokens: range(1000, 2000) },
+  };
+  const jobHtml = render(React.createElement(JobUsage, { job: noCacheJob, totalOnly: true }));
+  assert.equal(text(jobHtml), 'Token 用量 6,700 tok');
+  assert.doesNotMatch(jobHtml, /缓存命中|未缓存输入|缓存读取|缓存写入|输出|没有命中缓存|复制|次调用/);
+  const runningHtml = render(React.createElement(JobUsage, { job: { estimate: noCacheJob.estimate, status: 'running' }, totalOnly: true }));
+  assert.equal(text(runningHtml), '预计 4K–8K tok');
+  const usageHtml = render(React.createElement(TokenUsage, { usage: session, totalOnly: true }));
+  assert.equal(text(usageHtml), 'Token 用量 2,111,680 tok');
+  assert.doesNotMatch(usageHtml, /<dl|缓存命中|复制|次调用/);
+  const estHtml = render(React.createElement(TokenEstimateView, { state: { status: 'ready', estimate }, totalOnly: true }));
+  assert.equal(text(estHtml), '预计 58.3K–96.1K tok');
+  assert.doesNotMatch(estHtml, /查看估算明细|次模型调用|缓存命中/);
+  setUiLanguage('en');
+  assert.equal(text(render(React.createElement(JobUsage, { job: noCacheJob, totalOnly: true }))), 'Token usage 6,700 tok');
+  assert.equal(text(render(React.createElement(TokenEstimateView, { state: { status: 'ready', estimate }, totalOnly: true }))), 'Estimated 58.3K–96.1K tok');
+});
+
 test('the generation trace carries the usage of the job and of each step', () => {
   setUiLanguage('zh');
   const job = { id: 'j', status: 'complete', steps: [{ id: 's1', stage: 'Planning evidence and learning targets · Group 1/1', status: 'complete', tokenUsage: { uncachedInputTokens: 900, outputTokens: 300, cacheReadTokens: 0, cacheWriteTokens: 0, calls: 1 } }],

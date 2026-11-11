@@ -9,7 +9,7 @@ import { useLiveEffect } from './use-async.js';
 import { formatDuration } from './format.js';
 import {
   USAGE_FEATURE_ORDER, callsText, estimateRows, estimateSummary, estimateText, expectedText, featureLabel, joinRows, methodNote, noteText,
-  rangeTok, stageLabel, usageNotes, usageRows, usageText, usedCallsText,
+  rangeTok, stageLabel, totalEstimateSummary, totalUsageText, usageNotes, usageRows, usageText, usedCallsText,
 } from './token-usage.js';
 
 /* Token usage the way DSH's session panel shows it (WP27): one layout for a job,
@@ -36,9 +36,13 @@ function CopyButton({ text, label }) {
  * The rows of one usage (exact counts) or one estimate (ranges), in DSH's order and wording.
  * `inline` sets the rows side by side; `copy` is the copy button (on by default).
  */
-export function TokenUsage({ usage, estimate, inline = false, copy = true, className = '' }) {
+export function TokenUsage({ usage, estimate, inline = false, copy = true, totalOnly = false, className = '' }) {
   useInjectCss(css, 'study-token-usage');
   if (!usage && !estimate) return null;
+  if (totalOnly) {
+    const totalLine = estimate ? totalEstimateSummary(estimate) : totalUsageText(usage);
+    return <p className={['token-usage token-usage--total', className].filter(Boolean).join(' ')} data-token-usage>{totalLine}</p>;
+  }
   const rows = estimate ? estimateRows(estimate) : usageRows(usage);
   const line = estimate ? estimateText(estimate) : usageText(usage);
   return <div className={['token-usage', inline ? 'token-usage--inline' : '', className].filter(Boolean).join(' ')} data-token-usage>
@@ -69,28 +73,29 @@ const summaryParts = (text) => text.split(' · ').map((part, at) => <React.Fragm
  * A selection over the limit says so in plain sight, not only in the panel. `tight` keeps the info button at the end of a long line instead of under it. `lead` is what goes before the figures (the 覆盖强度 line: 「标准：约 343 道题，覆盖 81/81 个部分，分 12 轮，」).
  * `method`: how the figures were made, the panel's last line (default: DSH's fixed estimate; a scale measured from a sample run says so instead).
  */
-export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = false, align = 'start', lead = '', tight = false, method = null }) {
+export function TokenEstimateView({ state = { status: 'idle' }, defaultOpen = false, align = 'start', lead = '', tight = false, method = null, totalOnly = false }) {
   useInjectCss(css, 'study-token-usage');
   const [open, setOpen] = useState(defaultOpen);
   const panel = useId();
   const estimate = state.status === 'ready' ? state.estimate : null;
   const notes = (estimate?.notes || []).filter((code) => code !== 'over-limit').map((code) => noteText(code, estimate)).filter(Boolean);
+  const summarize = totalOnly ? totalEstimateSummary : estimateSummary;
   return <div className={`${align === 'end' ? 'token-estimate token-estimate--end' : 'token-estimate'}${tight ? ' token-estimate--tight' : ''}`} data-token-estimate data-status={state.status} aria-live="polite">
     {state.status === 'loading' && <p className="token-estimate__line token-estimate__line--loading">
       <span className="token-estimate__text">
-        <span className="token-estimate__ghost" aria-hidden="true">{summaryParts(estimateSummary(GHOST_ESTIMATE))}</span>
+        <span className="token-estimate__ghost" aria-hidden="true">{summaryParts(summarize(GHOST_ESTIMATE))}</span>
         <small className="token-estimate__quiet">{ui('正在估算…')}</small>
       </span>
-      <IconButton icon="info" size="sm" className="token-estimate__info token-estimate__info--slot" label={ui('查看估算明细')} aria-hidden="true" tabIndex={-1} disabled />
+      {!totalOnly && <IconButton icon="info" size="sm" className="token-estimate__info token-estimate__info--slot" label={ui('查看估算明细')} aria-hidden="true" tabIndex={-1} disabled />}
     </p>}
     {estimate && <>
       <p className="token-estimate__line">
-        <span>{lead}{summaryParts(estimateSummary(estimate))}</span>
-        <IconButton icon="info" size="sm" className="token-estimate__info" aria-expanded={open} aria-controls={panel}
-          label={ui('查看估算明细')} onClick={() => setOpen(!open)} />
+        <span>{lead}{summaryParts(summarize(estimate))}</span>
+        {!totalOnly && <IconButton icon="info" size="sm" className="token-estimate__info" aria-expanded={open} aria-controls={panel}
+          label={ui('查看估算明细')} onClick={() => setOpen(!open)} />}
       </p>
       {estimate.blocked && <p className="token-estimate__warn" role="status">{noteText('over-limit', estimate)}</p>}
-      {open && <div className="token-estimate__panel" id={panel}>
+      {!totalOnly && open && <div className="token-estimate__panel" id={panel}>
         <ul className="token-estimate__stages">
           {estimate.stages.map((stage) => <li key={stage.id}>
             <span>{stageLabel(stage.id, estimate.feature)} <small>×{stage.calls}</small></span>
@@ -138,19 +143,23 @@ export function useUsageEstimate(call, request, { enabled = true, delay = 450 } 
 }
 
 /** The estimate line, connected: `request` is what `usage.estimate` takes (with `feature`); `action` overrides the action name. */
-export function TokenEstimate({ request, action, enabled = true, align }) {
+export function TokenEstimate({ request, action, enabled = true, align, totalOnly = false }) {
   const { call } = useStudy();
   const state = useUsageEstimate(call, action ? { action, args: request } : request, { enabled });
   if (!enabled) return null;
-  return <TokenEstimateView state={state} align={align} />;
+  return <TokenEstimateView state={state} align={align} totalOnly={totalOnly} />;
 }
 
 /* ---------- after a run ---------- */
 
 /** What a job used, set beside what was expected. Jobs from before usage was recorded show nothing. */
-export function JobUsage({ job }) {
+export function JobUsage({ job, totalOnly = false }) {
   useInjectCss(css, 'study-token-usage');
   if (!job?.tokenUsage && !job?.estimate) return null;
+  if (totalOnly) {
+    const totalLine = job.tokenUsage ? totalUsageText(job.tokenUsage) : expectedText(job.estimate);
+    return <p className="job-usage job-usage--total" data-job-usage>{totalLine}</p>;
+  }
   return <div className="job-usage" data-job-usage>
     {job.tokenUsage && <>
       <strong className="job-usage__title">{ui('实际用量')}</strong>

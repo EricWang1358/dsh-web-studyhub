@@ -51,13 +51,13 @@ const edit = (view, key, value) => { const { props } = control(view, key); retur
 const submit = view => view.render().props.onSubmit({ preventDefault() {} });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 
-test('the generation settings section renders twenty-three usable controls (seven of them the question types) with shared limits in both languages', () => {
+test('the generation settings section renders twenty-four usable controls (seven of them the question types) with shared limits in both languages', () => {
   for (const language of ['zh', 'en']) {
     ssr.setUiLanguage(language);
     const html = renderToStaticMarkup(React.createElement(ssr.GenerationSettings, { root: '/temporary/library', act: noop }));
     assert.match(html, /data-tour="settings-generation"/);
     assert.match(html, /data-tour="settings-generation-time"[^>]*>(?:(?!<div class="sh-field).)*name="jobTimeoutMinutes"/, 'the Jobs page links to the field of the time limit');
-    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 23);
+    assert.equal((html.match(/<(?:input|select|textarea)\b/g) || []).length, 24);
     const types = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*name="kinds-(\w+)"[^>]*>/g)];
     assert.deepEqual(types.map(match => match[1]), ['quiz', 'multi', 'truefalse', 'flashcard', 'open', 'cloze', 'task'], 'the default question types are seven checkboxes, not a select');
     assert.deepEqual(types.map(match => /checked/.test(match[0])), [true, false, false, false, false, false, false], 'single choice is ticked by default');
@@ -65,7 +65,7 @@ test('the generation settings section renders twenty-three usable controls (seve
     assert.equal((html.match(/name="kind"/g) || []).length, 0);
     const check = html.match(/<input[^>]*name="applySuggestions"[^>]*>/);
     assert.ok(check && /type="checkbox"/.test(check[0]) && !/checked/.test(check[0]), 'applying the review suggestions is a checkbox, off by default');
-    for (const [name, min, max] of [['count', 1, 500], ['concurrency', 1, 8], ['batchSize', 1, 5], ['jobTimeoutMinutes', 5, 180], ['fillRounds', 0, 4]]) {
+    for (const [name, min, max] of [['selectionCount', 1, 20], ['count', 1, 500], ['concurrency', 1, 8], ['batchSize', 1, 5], ['jobTimeoutMinutes', 5, 180], ['fillRounds', 0, 4]]) {
       const input = html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))[0];
       assert.match(input, new RegExp(`min="${min}"`)); assert.match(input, new RegExp(`max="${max}"`));
     }
@@ -85,9 +85,11 @@ test('覆盖强度 is the default the page really uses, and the count the page i
   }
   const zh = html('zh', GENERATION_SETTINGS_DEFAULTS);
   assert.match(zh, /默认覆盖强度/);
+  assert.match(zh, /选段补题默认题数/);
   assert.match(zh, /主会话里出题的默认题数/, 'the count is named for where it applies');
   assert.match(zh, /创建题组页按「覆盖强度」出题，不用它/, 'and the hint says the page does not use it');
-  assert.ok(zh.indexOf('默认覆盖强度') < zh.indexOf('主会话里出题的默认题数'), 'the default the page uses comes before the one it does not');
+  assert.ok(zh.indexOf('默认覆盖强度') < zh.indexOf('选段补题默认题数'), 'passage count sits right near the top defaults');
+  assert.ok(zh.indexOf('选段补题默认题数') < zh.indexOf('主会话里出题的默认题数'), 'and before the main-chat fallback count');
   assert.match(html('zh', { ...GENERATION_SETTINGS_DEFAULTS, coverageLevel: 'lean' }), /精简：只给最重要的小节出题/, 'the hint explains the chosen level');
   const calls = [];
   const view = editor({ act: async (action, args, after) => { calls.push({ action, args }); after({ generation: args.generation }); } });
@@ -106,13 +108,16 @@ test('saving submits exact numeric settings and reset only edits the pending for
   const view = editor({ saved: { ...GENERATION_SETTINGS_DEFAULTS, concurrency: 5 },
     act: async (action, args, after) => { calls.push({ action, args }); after({ generation: args.generation }); } });
   view.render(); view.effects();
-  edit(view, 'count', '18'); edit(view, 'batchSize', '2'); edit(view, 'focus', '  Explain conditions  ');
+  edit(view, 'count', '18'); edit(view, 'selectionCount', '5'); edit(view, 'batchSize', '2'); edit(view, 'focus', '  Explain conditions  ');
+  assert.equal(find(view.render(), node => node.props?.className === 'generation-settings__save')?.props['data-dirty'], 'true', 'unsaved edits pin the save bar');
   await submit(view);
-  assert.deepEqual(calls, [{ action: 'settings', args: { generation: { ...GENERATION_SETTINGS_DEFAULTS, concurrency: 5, count: 18, batchSize: 2, focus: 'Explain conditions' } } }]);
+  assert.deepEqual(calls, [{ action: 'settings', args: { generation: { ...GENERATION_SETTINGS_DEFAULTS, concurrency: 5, count: 18, selectionCount: 5, batchSize: 2, focus: 'Explain conditions' } } }]);
+  assert.equal(find(view.render(), node => node.props?.className === 'generation-settings__save')?.props['data-dirty'], undefined);
   assert.equal(notices.length, 1);
   delete globalThis.__toast;
   find(view.render(), node => node.props?.onClick && node.props.children === '恢复默认值（待保存）').props.onClick();
   assert.equal(control(view, 'count').props.value, 10);
+  assert.equal(control(view, 'selectionCount').props.value, 3);
   assert.equal(control(view, 'concurrency').props.value, 4);
   assert.equal(calls.length, 1, 'reset does not save or call the model');
 });

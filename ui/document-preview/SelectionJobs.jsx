@@ -70,7 +70,7 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
       <p className="selection-job__stage" role="status" aria-live="polite">{phaseLabel(phase)}</p>
       {phase !== 'queued' && <p className="selection-job__meta">{countsText(job)}{clock && <> · {uiFormat('已用 {0}', [clock])}</>}</p>}
       <small className="muted">{ui('后台继续生成，关闭阅读器也不会中断；通过审阅的新题会直接加入所选题组，完成时信箱会提醒你。')}</small>
-      <JobUsage job={job} />
+      <JobUsage job={job} totalOnly />
       <Steps job={job} />
       {onCancel && isCancellable(job) && <div className="selection-job__actions">
         <Button size="sm" variant="quiet" className="selection-job__btn" onClick={() => onCancel(job)}>{ui('停止')}</Button>
@@ -79,7 +79,7 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
     {finished && <div className="selection-job__result" role="status">
       <p className="selection-job__meta">{countsText(job)}{clock && <> · {uiFormat('用时 {0}', [clock])}</>}</p>
       <Reasons job={job} />
-      <JobUsage job={job} />
+      <JobUsage job={job} totalOnly />
       <div className="selection-job__actions">
         {canPractice && onPractice && added > 0 && <Button size="sm" variant="primary" iconEnd="arrow-right" className="selection-job__btn"
           onClick={() => onPractice({ deckId: job.publication.deckId, cardIds: job.publication.cardIds })}>
@@ -95,7 +95,7 @@ export function SelectionJobCard({ job, now = Date.now(), canPractice = false, o
         : <InlineMessage tone={copy.kind === 'conflict' ? 'warning' : 'error'} title={copy.title}>{copy.hint}</InlineMessage>}
       {copy.kind !== 'cancelled' && copy.kind !== 'conflict' && <small className="muted">{ui('题组没有变化，已通过审阅的题才会保存。')}</small>}
       <p className="selection-job__meta">{countsText(job)}{clock && <> · {uiFormat('用时 {0}', [clock])}</>}</p>
-      <JobUsage job={job} />
+      <JobUsage job={job} totalOnly />
       {copy.kind !== 'cancelled' && job.stage && <details className="selection-job__raw"><summary>{ui('技术详情')}</summary><code>{job.stage}</code></details>}
       <div className="selection-job__actions">
         {onRetry && <Button size="sm" variant="secondary" className="selection-job__btn" onClick={() => onRetry(job, copy.retry)}>{copy.retryLabel}</Button>}

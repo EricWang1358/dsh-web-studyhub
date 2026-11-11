@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from '../../i18n.js';
 import { Button, Dialog, HelpTip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl } from '../../components/index.js';
-import { JobUsage, TokenEstimateView } from '../../TokenUsage.jsx';
+import { TokenEstimateView } from '../../TokenUsage.jsx';
 import { expectedText, rangeTok } from '../../token-usage.js';
 import { totalTokens } from '../../../lib/token-usage.js';
 import { isCancellable, JOB_STATUS } from '../../../lib/job-status.js';
@@ -51,7 +51,7 @@ function TranslationPanel({ scopes, target, modelAvailable, stale, running, hasT
     {!modelAvailable && <ReaderModelGate feature="translate" />}
     {scopes.map(scope => <section key={scope.id} className="tr-scope" data-status={scope.status}>
       <div className="tr-scope__head"><strong>{scope.label}</strong><small>{scopeLine(scope)}</small></div>
-      {scope.status === 'ready' && scope.estimate && (scope.counts?.toTranslate || 0) > 0 && <TokenEstimateView state={{ status: 'ready', estimate: scope.estimate }} />}
+      {scope.status === 'ready' && scope.estimate && (scope.counts?.toTranslate || 0) > 0 && <TokenEstimateView state={{ status: 'ready', estimate: scope.estimate }} totalOnly />}
       {(scope.counts?.toTranslate || 0) > 0 && <Button size="sm" variant="secondary" lock={running} disabled={!modelAvailable || scope.status !== 'ready'} onClick={() => onStart(scope.id)}>{ui('开始翻译')}</Button>}
     </section>)}
     <div className="tr-panel__actions">
@@ -106,7 +106,7 @@ export function TranslationJobCard({ job, now = Date.now(), onStop, onDismiss })
     {active && <small className="tr-job__note">{ui('后台继续翻译，可以接着读、接着提问；停止后已译的段落会保留。')}</small>}
     {!active && job.rejected > 0 && <InlineMessage tone="warning" className="tr-job__note">{uiFormat('有 {0} 段没通过检查，没有保存；可以在那几段上点 译 再试。', [job.rejected])}</InlineMessage>}
     {failed && job.stage && <details className="tr-job__raw"><summary>{ui('技术详情')}</summary><code>{job.stage}</code></details>}
-    {summary && <details className="tr-job__usage"><summary>{summary}</summary><JobUsage job={job} /></details>}
+    {summary && <small className="tr-job__usage">{summary}</small>}
   </div>;
 }
 

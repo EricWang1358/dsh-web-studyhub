@@ -31,8 +31,8 @@ export function rememberDeck(deckId, storage = browserStorage()) {
   if (typeof deckId === 'string' && deckId) writeJSON(LAST_DECK_KEY, deckId, storage);
 }
 
-/** The kind and the number a top-up starts with, from the saved generation settings (any shape the library may hold): the first ticked kind, and at most what a top-up accepts. */
+/** The kind and the number a top-up starts with, from the saved generation settings (any shape the library may hold): the first ticked kind, and the saved passage count (default 3, at most 20). */
 export function supplementDefaults(generation) {
   const settings = normalizeGenerationSettings(generation);
-  return { kind: settings.kinds[0], count: Math.min(SUPPLEMENT_MAX, settings.count) };
+  return { kind: settings.kinds[0], count: Math.min(SUPPLEMENT_MAX, settings.selectionCount) };
 }

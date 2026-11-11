@@ -56,7 +56,7 @@ export default function GlossaryDialog({ glossary, target, onSave, onPrice, onRe
         <p>{ui('术语表已保存。')}</p>
         {saved.affected.count > 0 ? <>
           <p>{uiFormat('有 {0} 段已有的译文用到了这些词，可能和新术语不一致。不会自动重译，由你决定。', [saved.affected.count])}</p>
-          {estimate && <TokenEstimateView state={{ status: 'ready', estimate }} />}
+          {estimate && <TokenEstimateView state={{ status: 'ready', estimate }} totalOnly />}
           <Button size="sm" variant="secondary" busy={busyAction === 'retranslate'} lock={busyAction === 'save'} onClick={again}>{uiFormat('重新翻译这 {0} 段', [saved.affected.count])}</Button>
         </> : <p className="muted">{ui('已有的译文都不受影响。')}</p>}
       </div>}
