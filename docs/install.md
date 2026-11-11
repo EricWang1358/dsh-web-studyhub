@@ -2,7 +2,7 @@
 
 English · [简体中文](install.zh-CN.md)
 
-StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app or as a web page in your browser. You install DSH, add StudyHub through DSH's plugin manager, then connect a model for question generation. For a one-page version to open in your browser, download the [English setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.6/StudyHub-4.7.6-Setup.html).
+StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app or as a web page in your browser. You install DSH, add StudyHub through DSH's plugin manager, then connect a model for question generation. For a one-page version to open in your browser, download the [English setup guide](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.7/StudyHub-4.7.7-Setup.html).
 
 **Three names, one product, and the channel that is newest.** The product is **StudyHub**; DSH installs it as the package `@ericwang1358/dsh-daily-flashcard`; the code, the issues and the release notes are in the repository `dsh-web-studyhub`. A version number appears in two places, and the **GitHub release page is the newest**: npm's `latest` tag can lag behind it, so install the `.tgz` from the release page, as the steps below do.
 
@@ -20,8 +20,8 @@ StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app
 
 **What you need**
 
-- **DSH 0.2.** StudyHub 4.7.6 declares DSH `>=0.2.0-rc.2 <0.3`. DSH and StudyHub have separate version numbers.
-- **DSH versions tested.** StudyHub 3.7.3 was tested in isolated DSH hosts 0.2.0-rc.2 and 0.2.1-rc.2. The 4.0.0 release was checked in DSH 0.2.1-rc.2; 4.0.1–4.3.5 were not checked in a DSH host before release; 4.4.4 passed the DSH end-to-end check (`npm run qa:dsh`, fake model) in DSH 0.2.0-rc.2 and 0.2.1-rc.2; 4.4.5–4.7.6 were not checked in a DSH host before release. On DSH 0.2.1-rc.2 use StudyHub 4.0.1 or later: in 3.5.0–3.5.5 every message in 学习模式 fails with `unknown prompt variable "{{cwd}}"`.
+- **DSH 0.2.** StudyHub 4.7.7 declares DSH `>=0.2.0-rc.2 <0.3`. DSH and StudyHub have separate version numbers.
+- **DSH versions tested.** StudyHub 3.7.3 was tested in isolated DSH hosts 0.2.0-rc.2 and 0.2.1-rc.2. The 4.0.0 release was checked in DSH 0.2.1-rc.2; 4.0.1–4.3.5 were not checked in a DSH host before release; 4.4.4 passed the DSH end-to-end check (`npm run qa:dsh`, fake model) in DSH 0.2.0-rc.2 and 0.2.1-rc.2; 4.4.5–4.7.7 were not checked in a DSH host before release. On DSH 0.2.1-rc.2 use StudyHub 4.0.1 or later: in 3.5.0–3.5.5 every message in 学习模式 fails with `unknown prompt variable "{{cwd}}"`.
 - **A supported computer.** The desktop installers in this guide are for Windows x64 and Macs with Apple silicon. On any other system, check the official DSH site or use the DSH web version with Node.js 22.19 or later.
 - **A model, only for AI features.** Generation and explanations need one; see [Configure a model provider](#configure-a-model-provider). Installing, the sample tour, browsing sources and practising existing decks do not.
 
@@ -49,16 +49,16 @@ DSH opens at `http://127.0.0.1:3080` by default. Keep the process running while 
 
 These steps work in desktop and web DSH. Web users need no desktop client and no new profile.
 
-**A standard install needs one complete package:** `ericwang1358-dsh-daily-flashcard-4.7.6.tgz`. It includes the main StudyHub entry and six components, seven entries in total. Install from its address or the original `.tgz` file; do not extract it or merge the separate component packages on the release page.
+**A standard install needs one complete package:** `ericwang1358-dsh-daily-flashcard-4.7.7.tgz`. It includes the main StudyHub entry and six components, seven entries in total. Install from its address or the original `.tgz` file; do not extract it or merge the separate component packages on the release page.
 
 1. In DSH, open **Plugins › Add plugin**.
 2. Paste the complete package address:
 
    ```text
-   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.6/ericwang1358-dsh-daily-flashcard-4.7.6.tgz
+   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.7/ericwang1358-dsh-daily-flashcard-4.7.7.tgz
    ```
 
-3. After it installs, check that the package is `@ericwang1358/dsh-daily-flashcard`, version 4.7.6.
+3. After it installs, check that the package is `@ericwang1358/dsh-daily-flashcard`, version 4.7.7.
 4. Click **Enable** for StudyHub and the components you want. If DSH asks to reload, finish or cancel background tasks first.
 5. StudyHub opens by itself the first time. Later, open **StudyHub** from DSH's left sidebar; you do not need to send a chat message first. StudyHub is also a tab in each session and in DSH's right sidebar.
 
@@ -70,16 +70,16 @@ StudyHub keeps your library in the workspace folder of the current DSH session. 
 
 If the download address fails, or reports `unable to get local issuer certificate`, download the package in your browser and install the local file:
 
-1. [Download the complete 4.7.6 package](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.6/ericwang1358-dsh-daily-flashcard-4.7.6.tgz). Its filename should be `ericwang1358-dsh-daily-flashcard-4.7.6.tgz`. The [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.7.6) lists checksums in `SHA256SUMS-4.7.6.txt`.
+1. [Download the complete 4.7.7 package](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.7/ericwang1358-dsh-daily-flashcard-4.7.7.tgz). Its filename should be `ericwang1358-dsh-daily-flashcard-4.7.7.tgz`. The [release page](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.7.7) lists checksums in `SHA256SUMS-4.7.7.txt`.
 2. **Keep the original `.tgz` file; do not extract it.** You do not need to download or merge the separate component packages. GitHub's **Source code** archives are not the plugin install package.
 3. In DSH, open **Plugins › Add plugin** and enter the **absolute path to the `.tgz` file itself**, including its filename and `.tgz` extension. For example, on Windows (replace this with your actual saved path):
 
    ```text
-   C:\Users\your-name\Downloads\ericwang1358-dsh-daily-flashcard-4.7.6.tgz
+   C:\Users\your-name\Downloads\ericwang1358-dsh-daily-flashcard-4.7.7.tgz
    ```
 
    Enter the file path, rather than just the Downloads folder or an extracted `package` folder. On Windows, right-click the file and choose **Copy as path**, then remove the surrounding double quotes when pasting.
-4. After it installs, check for `@ericwang1358/dsh-daily-flashcard`, version 4.7.6, then click **Enable**.
+4. After it installs, check for `@ericwang1358/dsh-daily-flashcard`, version 4.7.7, then click **Enable**.
 
 The file must be on the **computer or server that runs DSH**. With a remote DSH web server, a download path on your laptop does not exist on the server. Copy the file to the server, or use the HTTPS address above.
 
