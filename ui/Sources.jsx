@@ -6,12 +6,12 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { Badge, Button, Checkbox, CheckboxInput, ChunkedRows, Dialog, Disclosure, Icon, InlineMessage, PageHeader, Tooltip, useToast } from "./components/index.js";
+import { Badge, Button, Checkbox, CheckboxInput, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Icon, InlineMessage, PageHeader, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
 import { scrollToAnchor } from "./tour/anchor.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { displayTitle } from '../lib/document-title.js';
 import { bigDocuments } from '../lib/large-documents.js';
-import { chapterLabel, documentNotes, inScope, relationNote, sameIndexInfo, sourceFormatLabel } from './SourcePicker.jsx';
+import { chapterLabel, documentNotes, documentSearchText, inScope, relationNote, sameIndexInfo, sourceFormatLabel } from './SourcePicker.jsx';
 import { materialRelations } from '../lib/source-relations.js';
 import { dropRequest, pinnedKeys, splitPinned, stepRequest } from '../lib/material-pins.js';
 import { MasteryLine } from './document-preview/practice/MasteryMark.jsx';
@@ -37,6 +37,7 @@ import PermanentDeleteDialog from './components/PermanentDeleteDialog.jsx';
 import { idsOfDocuments, offerDocumentsArchived } from './archive-entries.js';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
+import { hasContext } from './capabilities.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { CUSTOM_ROW_EDIT_LABEL, CUSTOM_ROW_EDIT_WHAT, CUSTOM_ROW_LABEL, CUSTOM_BOOK_WHAT, customRowOffer } from './custom-entry.js';
@@ -85,15 +86,21 @@ function groupByDay(items) {
     }));
 }
 
+/** Delete all pages of one or more documents in one checked transaction; failures retain every page. */
+export async function removeDocuments(items, { act }) {
+  const sourceIds = idsOfDocuments(items);
+  try {
+    const result = await act('source.remove', { sourceIds, confirm: true }, undefined, { rethrow: true });
+    if (result === undefined) throw new Error(ui('上一个操作还没结束，这次点击没有生效。等它结束后再点一次。'));
+    return { removed: sourceIds, failed: [] };
+  } catch (error) {
+    return { removed: [], failed: sourceIds.map(id => ({ id, error: errorMessage(error) })) };
+  }
+}
+
 /** Delete all pages in one checked transaction; failures retain every page. */
 export async function removeDocument(item, { act }) {
-  try {
-    const result = await act('source.remove', { sourceIds: item.sourceIds, confirm: true }, undefined, { rethrow: true });
-    if (result === undefined) throw new Error(ui('上一个操作还没结束，这次点击没有生效。等它结束后再点一次。'));
-    return { removed: item.sourceIds, failed: [] };
-  } catch (error) {
-    return { removed: [], failed: item.sourceIds.map(id => ({ id, error: errorMessage(error) })) };
-  }
+  return removeDocuments([item], { act });
 }
 
 /** source.courses.set assignments for every page of the chosen documents. */
@@ -275,33 +282,13 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
   );
 }, sourceRowPropsEqual);
 
-/** Fix where one document belongs, on its own row: the same field and the same source.courses.set as 整理课程归属, for one document. */
-/** Saves the courses of a document through act(). Resolves '' when it worked, else the plain reason, so the dialog can say it where the learner is looking instead of in a notice that lands on top of its own buttons. */
-export async function saveDocumentCourses(act, assignments, onDone) {
-  try { await act('source.courses.set', { assignments }, onDone, { rethrow: true }); return ''; }
-  catch (error) { return errorMessage(error); }
-}
-
-export function CourseDialog({ item, items, byId, courses, onClose }) {
-  const { busy, act } = useStudy();
-  const [text, setText] = useState(item.courses.join('; ')), [error, setError] = useState('');
-  const save = async () => setError(await saveDocumentCourses(act, courseAssignments(items, [item.key], parseCourses(text), byId), onClose));
-  return (
-    <Dialog size="sm" title={uiFormat("修改「{0}」的课程", [displayTitle(item.title)])} busy={busy} onClose={onClose}
-      footer={<>
-        <Button variant="quiet" lock={busy} onClick={onClose}>{ui("取消")}</Button>
-        <Button variant="primary" busy={busy} disabled={busy} onClick={save}>{ui("保存课程")}</Button>
-      </>}>
-      <p className="muted">{ui('只更改归属，原文与引用保持不变。留空就是「未分类」。')}</p>
-      <CourseField value={text} onChange={value => { setText(value); setError(''); }} courses={courses} multiple disabled={busy} />
-      {error && <InlineMessage>{error}</InlineMessage>}
-    </Dialog>
-  );
-}
+const removePluginWarning = () => ui('删除资料前请启用题库和学习组件，以检查已保存题目与学习记录的引用');
 
 export function RemoveDialog({ item, onClose, onRemoved }) {
   const { busy, act } = useStudy();
-  const blocked = item.usedBy.length > 0 || !item.archived;
+  const appData = useContext(AppContext)?.data;
+  const canRemove = hasContext(appData, 'bank') && hasContext(appData, 'study');
+  const blocked = item.usedBy.length > 0 || !item.archived || !canRemove;
   async function confirm() {
     const result = await removeDocument(item, { act });
     if (!result.failed.length) return;
@@ -312,11 +299,38 @@ export function RemoveDialog({ item, onClose, onRemoved }) {
     <PermanentDeleteDialog title={displayTitle(item.title)} busy={busy} blocked={blocked}
       onConfirm={confirm} onDeleted={() => onRemoved(item)} onClose={onClose}>
       <p>{item.format === 'pdf' && pages > 1 ? uiFormat("这份 PDF 的 {0} 页文字都会永久删除，不能撤销。", [pages]) : ui("这份资料会永久删除，不能撤销。")}</p>
+      {!canRemove && <InlineMessage tone="warning">{removePluginWarning()}</InlineMessage>}
       {!item.archived && <InlineMessage>{ui('这份资料需要先归档，才能永久删除。')}</InlineMessage>}
       {item.usedBy.length > 0 && <InlineMessage tone="warning" boxed title={ui("有题组引用这份资料，不能永久删除")}>
         {uiFormat("引用它的题组：{0}。先删除或改写这些题，再永久删除资料。", [item.usedBy.map(deck => deck.title).join(" · ")])}
       </InlineMessage>}
     </PermanentDeleteDialog>
+  );
+}
+
+export function BatchRemoveDialog({ items, onClose, onRemoved }) {
+  const { busy, act } = useStudy();
+  const appData = useContext(AppContext)?.data;
+  if (items.length === 1) return <RemoveDialog item={items[0]} onClose={onClose} onRemoved={item => onRemoved([item])} />;
+  const canRemove = hasContext(appData, 'bank') && hasContext(appData, 'study');
+  const cited = items.filter(item => item.usedBy.length > 0);
+  const unarchived = items.filter(item => !item.archived);
+  const blocked = cited.length > 0 || unarchived.length > 0 || !canRemove;
+  async function confirm() {
+    const result = await removeDocuments(items, { act });
+    if (!result.failed.length) return;
+    throw new Error(result.failed[0].error);
+  }
+  return (
+    <ConfirmDialog title={uiFormat('永久删除这 {0} 份资料？', [items.length])} confirmLabel={ui('确认永久删除')}
+      busy={busy} blocked={blocked} onConfirm={confirm} onDone={() => onRemoved(items)} onClose={onClose}>
+      <p>{uiFormat('这 {0} 份资料会永久删除，不能撤销。', [items.length])}</p>
+      {!canRemove && <InlineMessage tone="warning">{removePluginWarning()}</InlineMessage>}
+      {unarchived.length > 0 && <InlineMessage>{ui('所选资料需要先归档，才能永久删除。')}</InlineMessage>}
+      {cited.length > 0 && <InlineMessage tone="warning" boxed title={uiFormat('其中 {0} 份资料有题组引用，不能永久删除', [cited.length])}>
+        {uiFormat('受引用保护的资料：{0}。先取消勾选这些资料，或先删除引用它们的题目。', [cited.map(item => displayTitle(item.title)).join(' · ')])}
+      </InlineMessage>}
+    </ConfirmDialog>
   );
 }
 
@@ -335,11 +349,14 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const toast = useToast();
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
   const [showArchived, setShowArchived] = useState(false);
+  const [query, setQuery] = useState('');
   const allItems = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
   const items = useMemo(() => allItems.filter(item => item.archived === showArchived), [allItems, showArchived]);
   const byId = useMemo(() => new Map(data.sources.map(source => [source.id, source])), [data.sources]);
   const known = useMemo(() => courseNamesOf(data), [data.focus?.courses]); // eslint-disable-line react-hooks/exhaustive-deps
-  const filtered = useMemo(() => items.filter(item => inScope(item, scope, known)), [items, scope, known]);
+  const scoped = useMemo(() => items.filter(item => inScope(item, scope, known)), [items, scope, known]);
+  const filtering = !!query.trim();
+  const filtered = useMemo(() => filtering ? filterItems(scoped, query, documentSearchText) : scoped, [scoped, filtering, query]);
   // Books of more than 300 pages get the 大教材建议; what DSH can search with is read once, and only then (WP28).
   const bigKeys = useMemo(() => new Set(bigDocuments(items).map(item => item.key)), [items]);
   // Whether each material's search index is built (the rows say so); read once, and followed while a build runs.
@@ -363,11 +380,11 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     return next;
   }, [items, indexCoverage, bigKeys]);
   // The materials of this page that are not fully indexed: one line under the header says how many, and goes to where the index is built.
-  const gap = useMemo(() => (onBuildIndex && !showArchived ? indexGap(filtered.map(item => ({ item, info: infos.get(item.key) }))) : null), [onBuildIndex, showArchived, filtered, infos]);
+  const gap = useMemo(() => (onBuildIndex && !showArchived ? indexGap(scoped.map(item => ({ item, info: infos.get(item.key) }))) : null), [onBuildIndex, showArchived, scoped, infos]);
   const fresh = useMemo(() => new Set(items.filter(item => item.sourceIds.some(id => highlight?.ids?.includes(id))).map(item => item.key)), [items, highlight]);
-  // Explicit choices win; otherwise the newest day and any day holding a fresh import are open.
+  // Explicit choices win; while filtering, every matching group opens so hits are visible at once; otherwise the newest day and any day holding a fresh import are open.
   const [opened, setOpened] = useState(() => new Set()), [closed, setClosed] = useState(() => new Set());
-  const isOpen = group => opened.has(group.key) || (!closed.has(group.key) && (group === groups[0] || group.rows.some(item => fresh.has(item.key))));
+  const isOpen = group => filtering || opened.has(group.key) || (!closed.has(group.key) && (group === groups[0] || group.rows.some(item => fresh.has(item.key))));
   // A new import reopens its day even if the learner had closed it.
   useEffect(() => {
     if (!highlight?.at) return;
@@ -390,6 +407,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // EXPERIMENTAL (hidden unless "Show experimental features" is on, off by default): Jev's course suggestions share the AI suggestions' rows and apply button.
   const experimental = experimentalShown(data), jevOn = useJevCourseSuggest(call, experimental ? undefined : false), [jevNote, setJevNote] = useState(''), [jevRun, setJevRun] = useState(null);
   const [removing, setRemoving] = useState(null);
+  const [removingBatch, setRemovingBatch] = useState(null);
   const [editingCourse, setEditingCourse] = useState(null);
   const [segmenting, setSegmenting] = useState(null);
   // A rename in the row says nothing more: the row shows the new name the moment the field closes (a toast that repeats it is noise, #677).
@@ -399,7 +417,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   }) : undefined;
   const selectedItems = items.filter(item => selected.includes(item.key));
   const finish = () => { setProposals(null); setSelected([]); setJevRun(null); };
-  // 归档所选: only what the page shows (a checked row the course filter now hides is not archived unseen); one source.archive call, one notice.
+  // 归档所选 / 恢复所选 / 永久删除所选: only what the page currently shows (a checked row hidden by course scope or text filter is not acted on unseen).
   const chosen = filtered.filter(item => selected.includes(item.key));
   const archiveChosen = async () => {
     if (!chosen.length) return;
@@ -408,14 +426,23 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     finish();
     offerArchived(chosen);
   };
+  const restoreChosen = async () => {
+    if (!chosen.length) return;
+    const done = await act('source.archive', { sourceIds: idsOfDocuments(chosen), archived: false });
+    if (!done) return;
+    finish();
+    toast.success(chosen.length === 1
+      ? uiFormat('已取消归档「{0}」', [displayTitle(chosen[0].title)])
+      : uiFormat('已恢复 {0} 份资料', [chosen.length]));
+  };
   const toggle = group => {
     const open = isOpen(group);
     setOpened(current => { const next = new Set(current); open ? next.delete(group.key) : next.add(group.key); return next; });
     setClosed(current => { const next = new Set(current); open ? next.add(group.key) : next.delete(group.key); return next; });
   };
   const allOpen = groups.length > 0 && groups.every(isOpen);
-  // The pinned group is open unless the learner closed it.
-  const pinnedOpen = !closed.has(PINNED);
+  // The pinned group is open unless the learner closed it (or while filtering so matching pinned rows stay visible).
+  const pinnedOpen = filtering || !closed.has(PINNED);
   const togglePinned = () => setClosed(current => { const next = new Set(current); pinnedOpen ? next.add(PINNED) : next.delete(PINNED); return next; });
   // Dragging a pinned row: `drag` is { key, over, side }; only the rows whose own flag changes are drawn again.
   const [drag, setDrag] = useState(null);
@@ -486,8 +513,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     return next;
   }, [items, data.courses, showArchived]);
   // A group draws its rows in chunks (ChunkedRows); the rows something goes to are drawn even past the first chunk: the new import, and the 深度定制 button 找功能 looks for.
-  // A new course scope or the archive starts every group from its first chunk again.
-  const chunkKey = `${scope}|${showArchived}`;
+  // A new course scope, filter query or archive toggle starts every group from its first chunk again.
+  const chunkKey = `${scope}|${showArchived}|${query.trim()}`;
   const rowOf = (rows, keys) => rows.findIndex(item => keys.has(item.key));
   const anchorsOf = rows => ({ 'custom-book-row': rowOf(rows, offers) });
   // One row, in a day group or in the pinned group (`pin`: where it stands among the pinned rows).
@@ -508,7 +535,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           (pinned.length ? (rest.length ? uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。", [filtered.length, pinned.length, groups.length]) : uiFormat(" 共 {0} 份资料，全部置顶。", [filtered.length]))
             : uiFormat(" 共 {0} 份资料，按导入日期分为 {1} 组。", [filtered.length, groups.length]))}</>}
         actions={<>
-          <Button variant="quiet" data-archive-toggle data-tour="sources-archived" aria-pressed={showArchived} onClick={() => { setShowArchived(value => !value); setSelected([]); setProposals(null); }}>{showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [allItems.filter(item => item.archived).length])}</Button>
+          <Button variant="quiet" data-archive-toggle data-tour="sources-archived" aria-pressed={showArchived} onClick={() => { setShowArchived(value => !value); setSelected([]); setProposals(null); setRemovingBatch(null); }}>{showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [allItems.filter(item => item.archived).length])}</Button>
           {groups.length > 1 && <Button variant="quiet" onClick={() => {
             if (allOpen) { setOpened(new Set()); setClosed(new Set(groups.map(group => group.key))); }
             else { setOpened(new Set(groups.map(group => group.key))); setClosed(new Set()); }
@@ -518,11 +545,21 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}
       {items.length > 0 && <>
         <PageScope value={scope} onChange={setScope} courses={data.focus?.courses} />
+        <div className="sources-filter">
+          <TextInput type="search" className="sources-filter__input" value={query} placeholder={ui('筛选资料…')} aria-label={ui('筛选资料…')}
+            autoComplete="off" spellCheck={false}
+            onChange={event => setQuery(event.target.value)}
+            onKeyDown={event => { if (event.key === 'Escape' && query) { event.preventDefault(); event.stopPropagation(); setQuery(''); } }} />
+          {filtering && <>
+            <small className="sources-filter__count muted" aria-live="polite">{scrollWindowCount(scoped.length, filtered.length, true)}</small>
+            <Button variant="quiet" size="sm" onClick={() => setQuery('')}>{ui('清除筛选')}</Button>
+          </>}
+        </div>
         <details className="source-organize" data-tour="sources-organize" onToggle={event => setOrganizing(event.currentTarget.open)}>
-          <summary>{ui('整理课程归属')}</summary>
-          <p className="muted">{ui('勾选资料后统一整理。改课程归属时，原文与引用保持不变。')}</p>
+          <summary>{showArchived ? ui('批量管理已归档资料') : ui('整理课程归属')}</summary>
+          <p className="muted">{showArchived ? ui('勾选已归档资料后，可批量恢复、统一永久删除，或整理课程归属。') : ui('勾选资料后统一整理。改课程归属时，原文与引用保持不变。')}</p>
           <p>{uiFormat('已选择 {0} 份资料', [selectedItems.length])}{' '}
-            <Button onClick={() => { setSelected(filtered.map(item => item.key)); setProposals(null); }}>{ui('选择当前范围')}</Button>{' '}
+            <Button disabled={!filtered.length} onClick={() => { setSelected(filtered.map(item => item.key)); setProposals(null); }}>{filtering ? ui('选择筛选结果') : ui('选择当前范围')}</Button>{' '}
             {selected.length > 0 && <Button onClick={finish}>{ui('清空选择')}</Button>}
           </p>
           <CourseField value={courseText} onChange={setCourseText} courses={data.focus?.courses} multiple disabled={busy} />
@@ -551,10 +588,14 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           <ModelSetupGate variant="compact" feature="organize" model={modelReadiness(data)} />
           {experimental && <JevNote note={jevNote} />}
           {experimental && <JevRunNote jev={jevRun} />}
-          {/* 归档所选: the checked documents in one go (a material is archived before it can be deleted; each one is deleted for good from 已归档). */}
-          {!showArchived && <div className="source-organization-actions source-archive-actions">
+          {/* 归档所选: the checked documents in one go (a material is archived before it can be deleted; in 已归档, checked ones can be restored or permanently deleted together). */}
+          {!showArchived ? <div className="source-organization-actions source-archive-actions">
             <Button disabled={!chosen.length} lock={busy} data-archive-selected onClick={archiveChosen}>{chosen.length ? uiFormat('归档所选（{0}）', [chosen.length]) : ui('归档所选')}</Button>
             <span className="muted">{ui('归档会把它们从这个列表收起，可以在「已归档」里恢复。')}</span>
+          </div> : <div className="source-organization-actions source-archive-actions">
+            <Button disabled={!chosen.length} lock={busy} data-restore-selected onClick={restoreChosen}>{chosen.length ? uiFormat('恢复所选（{0}）', [chosen.length]) : ui('恢复所选')}</Button>
+            <Button variant="danger" disabled={!chosen.length} lock={busy} data-delete-selected onClick={() => setRemovingBatch(chosen)}>{chosen.length ? uiFormat('永久删除所选（{0}）', [chosen.length]) : ui('永久删除所选')}</Button>
+            <span className="muted">{ui('恢复会把它们放回资料列表；永久删除不可撤销。')}</span>
           </div>}
           {proposals &&<div className="source-course-proposals">
             <p className="muted">{ui('建议尚未保存，可先修改课程，再确认应用。')}</p>
@@ -572,7 +613,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             }, finish)}>{ui('确认应用建议')}</Button>
           </div>}
         </details>
-        {!filtered.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
+        {!scoped.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
+        {scoped.length > 0 && !filtered.length && <p className="muted">{uiFormat('没有匹配“{0}”的资料', [query.trim()])}</p>}
       </>}
       <AudioJobs data={data} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} onGenerate={onGenerate} />
       <PdfConvertJobs data={data} act={act} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onGenerate={onGenerate} />
@@ -615,6 +657,38 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       {segmenting && <OutlineDialog item={segmenting} onClose={() => setSegmenting(null)} />}
       {removing && <RemoveDialog item={removing} onClose={closeRemoving}
         onRemoved={item => { setRemoving(null); toast.success(uiFormat("已永久删除「{0}」", [displayTitle(item.title)])); }} />}
+      {removingBatch && <BatchRemoveDialog items={removingBatch} onClose={() => setRemovingBatch(null)}
+        onRemoved={removed => {
+          setRemovingBatch(null);
+          finish();
+          toast.success(removed.length === 1
+            ? uiFormat('已永久删除「{0}」', [displayTitle(removed[0].title)])
+            : uiFormat('已永久删除 {0} 份资料', [removed.length]));
+        }} />}
     </section>
+  );
+}
+
+/** Fix where one document belongs, on its own row: the same field and the same source.courses.set as 整理课程归属, for one document. */
+/** Saves the courses of a document through act(). Resolves '' when it worked, else the plain reason, so the dialog can say it where the learner is looking instead of in a notice that lands on top of its own buttons. */
+export async function saveDocumentCourses(act, assignments, onDone) {
+  try { await act('source.courses.set', { assignments }, onDone, { rethrow: true }); return ''; }
+  catch (error) { return errorMessage(error); }
+}
+
+export function CourseDialog({ item, items, byId, courses, onClose }) {
+  const { busy, act } = useStudy();
+  const [text, setText] = useState(item.courses.join('; ')), [error, setError] = useState('');
+  const save = async () => setError(await saveDocumentCourses(act, courseAssignments(items, [item.key], parseCourses(text), byId), onClose));
+  return (
+    <Dialog size="sm" title={uiFormat("修改「{0}」的课程", [displayTitle(item.title)])} busy={busy} onClose={onClose}
+      footer={<>
+        <Button variant="quiet" lock={busy} onClick={onClose}>{ui("取消")}</Button>
+        <Button variant="primary" busy={busy} disabled={busy} onClick={save}>{ui("保存课程")}</Button>
+      </>}>
+      <p className="muted">{ui('只更改归属，原文与引用保持不变。留空就是「未分类」。')}</p>
+      <CourseField value={text} onChange={value => { setText(value); setError(''); }} courses={courses} multiple disabled={busy} />
+      {error && <InlineMessage>{error}</InlineMessage>}
+    </Dialog>
   );
 }

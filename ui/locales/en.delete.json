@@ -65,5 +65,19 @@
   "已恢复 {0} 份资料": "Restored {0} sources",
   "归档所选": "Archive selected",
   "归档所选（{0}）": "Archive selected ({0})",
-  "归档会把它们从这个列表收起，可以在「已归档」里恢复。": "Archiving takes them out of this list; you can restore them under Archived."
+  "归档会把它们从这个列表收起，可以在「已归档」里恢复。": "Archiving takes them out of this list; you can restore them under Archived.",
+  "批量管理已归档资料": "Manage archived sources",
+  "勾选已归档资料后，可批量恢复、统一永久删除，或整理课程归属。": "Select archived sources to restore them in bulk, permanently delete them together, or update their courses.",
+  "恢复所选": "Restore selected",
+  "恢复所选（{0}）": "Restore selected ({0})",
+  "永久删除所选": "Permanently delete selected",
+  "永久删除所选（{0}）": "Permanently delete selected ({0})",
+  "恢复会把它们放回资料列表；永久删除不可撤销。": "Restoring returns them to the sources list; permanent deletion can’t be undone.",
+  "永久删除这 {0} 份资料？": "Permanently delete these {0} sources?",
+  "这 {0} 份资料会永久删除，不能撤销。": "These {0} sources will be permanently deleted. This can’t be undone.",
+  "所选资料需要先归档，才能永久删除。": "Selected sources must be archived before they can be permanently deleted.",
+  "其中 {0} 份资料有题组引用，不能永久删除": "{0} selected source(s) are cited by decks and can’t be permanently deleted",
+  "受引用保护的资料：{0}。先取消勾选这些资料，或先删除引用它们的题目。": "Cited sources: {0}. Uncheck them first, or delete the questions that cite them.",
+  "删除资料前请启用题库和学习组件，以检查已保存题目与学习记录的引用": "Turn on the question bank and study components before permanently deleting sources, so saved question and study citations can be checked.",
+  "已永久删除 {0} 份资料": "Permanently deleted {0} sources"
 }

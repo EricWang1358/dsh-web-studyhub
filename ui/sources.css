@@ -6,6 +6,9 @@
        highlighted. Builds on the .source-group/.source-row rules in style.css;
        tokens only. */
     .sources-page .sources-page__header { margin-bottom: var(--space-4); }
+    .sources-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); }
+    .sources-filter > .sources-filter__input { flex: 1 1 14rem; max-width: 24rem; }
+    .sources-filter__count { font-size: var(--fs-sm); }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
     & .source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     /* A material is a row on the desk under its day's rule, not a card in a box (#570, ui/DESIGN.md "the card is the only physical object"): no border, no stock,

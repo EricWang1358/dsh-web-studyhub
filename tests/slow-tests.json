@@ -114,6 +114,7 @@
     "tests/scroll-fade-browser.test.mjs",
     "tests/select-combobox-browser.test.mjs",
     "tests/settings-entry-targets.test.mjs",
+    "tests/sources-filter-archive-batch-browser.test.mjs",
     "tests/spine-layout.test.mjs",
     "tests/study-image-cards.test.mjs",
     "tests/task-console-browser.test.mjs",
