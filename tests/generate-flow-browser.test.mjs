@@ -21,6 +21,8 @@ import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
    GENERATE_SHOTS=<dir> writes screenshots at 1280 and 420 px. */
 
 const SHOTS = process.env.GENERATE_SHOTS || '';
+// each test takes well under a minute; three of these stay under the runner's 480 s for the whole file
+const TEST_MS = 150000;
 const STAMP = '2026-10-01T08:00:00.000Z';
 const SENTENCES = n => Array.from({ length: 14 }, (_, i) => `第 ${n} 节的第 ${i + 1} 个要点说明数据库索引、事务与范式之间的关系。`).join('');
 const longText = Array.from({ length: 6 }, (_, i) => `## 第 ${i + 1} 节\n\n${SENTENCES(i + 1)}\n\n`).join('');
@@ -61,7 +63,9 @@ async function start(distDir, control) {
   const root = join(base, 'library');
   await seed(root);
   const server = await createPreviewServer({ libraryRoot: root, home: join(base, 'home'), port: 0, model: model(control), distDir });
-  return { server, base, close: async () => { await server.close(); await rm(base, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 }); } };
+  let closing;
+  const close = () => closing ||= (async () => { await server.close(); await rm(base, { recursive: true, force: true, maxRetries: 20, retryDelay: 150 }); })();
+  return { server, base, close };
 }
 
 async function openApp(browser, running, { lang = 'zh', width = 1280, height = 900 } = {}) {
@@ -75,8 +79,18 @@ const overflow = page => page.evaluate(() => document.documentElement.scrollWidt
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: false }); };
 const area = page => page.locator('.study-app').first().getAttribute('data-usage-area');
 const nav = async (page, id) => { await (await revealNavRow(page, id)).dispatchEvent('click'); };
+/** The 待发布 fold, open: it may already be (a new draft opens it), and a press on its summary would shut it. */
+const openDrafts = async page => {
+  const fold = page.locator('details.home-drafts').first();
+  await fold.waitFor({ timeout: 30000 });
+  await until(async () => {
+    if (await page.locator('.draft-open').first().isVisible()) return true;
+    if (!(await fold.evaluate(el => el.open))) await fold.locator('summary').first().click();
+    return false;
+  }, 'the 待发布 fold is open');
+};
 
-test('a finished run of a clean draft is published and practised from its card in one press, and the draft page can be reached from a quiet link', { timeout: 900000 }, async t => {
+test('a finished run of a clean draft is published and practised from its card in one press, and the draft page can be reached from a quiet link', { timeout: TEST_MS }, async t => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-generate-flow-dist-'));
@@ -85,6 +99,7 @@ test('a finished run of a clean draft is published and practised from its card i
   try {
     for (const width of [1280, 420]) {
       const running = await start(dist, control);
+      t.after(running.close);
       const { page, errors, context } = await openApp(browser, running, { width });
       await nav(page, 'generate');
       await page.locator('.generate-page form').waitFor({ timeout: 30000 });
@@ -116,12 +131,13 @@ test('a finished run of a clean draft is published and practised from its card i
   } finally { await browser.close(); await rm(dist, { recursive: true, force: true }); }
 });
 
-test('a failed run: the time limit is one press from its setting, a run the contract can retry is one press, and a run it cannot keeps the form again', { timeout: 900000 }, async t => {
+test('a failed run: the time limit is one press from its setting, a run the contract can retry is one press, and a run it cannot keeps the form again', { timeout: TEST_MS }, async t => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-generate-flow-dist-'));
   await buildPreview({ outdir: dist });
   const running = await start(dist, {});
+  t.after(running.close);
   // The preview has no way to make a real run hit its 20-minute limit, so the snapshot the page reads carries two failed runs of the shape the host publishes: one that hit the limit, and one whose
   // contract can retry (a retry the host would answer; here the request is recorded and refused, which is all this test asks of it).
   const now = Date.now(), at = seconds => new Date(now - seconds * 1000).toISOString();
@@ -169,7 +185,7 @@ test('a failed run: the time limit is one press from its setting, a run the cont
   } finally { await running.close(); await browser.close(); await rm(dist, { recursive: true, force: true }); }
 });
 
-test('a draft with sections without a question: unsaved edits are saved by the top-up, the page says why it waits and 停止 frees it', { timeout: 900000 }, async t => {
+test('a draft with sections without a question: unsaved edits are saved by the top-up, the page says why it waits and 停止 frees it', { timeout: TEST_MS }, async t => {
   let browser;
   try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to measure with: ${String(error.message).split('\n')[0]}`); return; }
   const dist = await mkdtemp(join(tmpdir(), 'study-generate-flow-dist-'));
@@ -178,6 +194,7 @@ test('a draft with sections without a question: unsaved edits are saved by the t
   try {
     for (const width of [1280, 420]) {
       const running = await start(dist, control);
+      t.after(running.close);
       const { page, context } = await openApp(browser, running, { width });
       // the 资料 row of the published deck: the confirm button carries the estimate
       await nav(page, 'sources');
@@ -191,7 +208,7 @@ test('a draft with sections without a question: unsaved edits are saved by the t
       await page.keyboard.press('Escape');
       // the draft page
       await nav(page, 'library');
-      await page.locator('.home-drafts > summary, .home-drafts summary').first().click();
+      await openDrafts(page);
       await page.locator('.draft-open').first().click();
       await page.locator('.draft-page').waitFor({ timeout: 30000 });
       const title = page.locator('.draft-title-field input');
