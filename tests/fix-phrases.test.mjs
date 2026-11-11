@@ -11,7 +11,7 @@ import { FIX_PHRASE_LIMITS, addFixPhrase, canAddFixPhrase, normalizeFixPhrases, 
 import { mergePracticeSettings, normalizePracticeSettings, resolvePracticeSettings, validatePracticePatch } from '../lib/practice-settings.js';
 
 const OWN = '请采用代码块格式改写题目的原有口述代码形式';
-const defaults = { autopilot: false, roundSize: 20, debrief: true, leechFailures: 4, leechWindow: 5, leechRate: 60 };
+const defaults = { autopilot: false, roundSize: 20, newCardOrder: 'reading', debrief: true, leechFailures: 4, leechWindow: 5, leechRate: 60 };
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-fix-phrases-'));
   const service = new StudyService(root);
