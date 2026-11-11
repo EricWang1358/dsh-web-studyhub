@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { cp, readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { parse as parseYaml } from 'yaml';
 import { BUNDLED_SKILL_RANK, parseSkill, registerStudySkills, SHIPPED_SKILLS, STUDY_SKILL_PROVIDER, studySkills } from '../lib/study-skills.js';
 import { StudyService } from '../lib/service.js';
 
@@ -25,6 +26,20 @@ test('the study-book skill parses: name, description and whenToUse in the frontm
   assert.match(skill.content, /结束时用中文简短汇报/);
   assert.throws(() => parseSkill('no frontmatter'), /frontmatter/);
   assert.throws(() => parseSkill('---\nname: x\n---\nbody'), /description/);
+  assert.throws(() => parseSkill('---\nname: \ndescription: hi\n---\nbody'), /name and a description/);
+  assert.equal(Object.hasOwn(parseSkill('---\nname: x\ndescription: hi\nwhenToUse: \n---\nbody'), 'whenToUse'), false, 'empty whenToUse omitted');
+});
+
+test('every shipped skill parses identically under YAML and stays within DSH\'s 500-char catalog description limit', async () => {
+  for (const name of SHIPPED_SKILLS) {
+    const raw = await readFile(new URL(`../skills/${name}/SKILL.md`, import.meta.url), 'utf8');
+    const front = parseYaml(/^---\r?\n([\s\S]*?)\r?\n---/.exec(raw)[1]);
+    const parsed = parseSkill(raw);
+    assert.equal(parsed.name, front.name, `${name}: YAML name`);
+    assert.equal(parsed.description, front.description, `${name}: YAML description`);
+    assert.equal(parsed.whenToUse, front.whenToUse, `${name}: YAML whenToUse`);
+    assert.ok(parsed.description.length <= 500, `${name}: description (${parsed.description.length} chars) fits in <available_skills> without truncation`);
+  }
 });
 
 test('every action the skill names is an action of the study workspace', async t => {
@@ -75,6 +90,64 @@ test('when the host exposes registerProvider, bundled skills register at BUNDLED
   await writeFile(guidePath, original.replace('# StudyHub 的门口', '# StudyHub 门口（热更新验证）'), 'utf8');
   const loaded = await provider.get(guide, {});
   assert.match(loaded.content, /热更新验证/, 'get() reads current SKILL.md from disk rather than freezing startup memory');
+});
+
+test('provider tolerates missing, half-written or renamed SKILL.md files, isolates per-skill failures, and honours AbortSignal', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-skills-resilience-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await cp(new URL('../skills/', import.meta.url), dir, { recursive: true });
+  const lifecycle = new AbortController();
+  let provider, invalidations = 0;
+  const warnings = [];
+  registerStudySkills({
+    logger: { warn: msg => warnings.push(msg) },
+    skills: {
+      registerProvider: create => { provider = create({ signal: lifecycle.signal, invalidate: () => { invalidations += 1; } }); return () => {}; },
+    },
+  }, { root: dir });
+  const candidates = await provider.list({});
+  const guide = candidates.find(c => c.name === 'study-guide');
+  const guidePath = join(dir, 'study-guide', 'SKILL.md');
+
+  // Half-written / corrupt file during hot sync: returns undefined, warns, and invalidates stale catalog cache.
+  await writeFile(guidePath, 'half-written without frontmatter', 'utf8');
+  assert.equal(await provider.get(guide, {}), undefined);
+  assert.equal(invalidations, 1);
+  assert.ok(warnings.some(msg => msg.includes('study-guide') && msg.includes('frontmatter')));
+
+  // Renamed frontmatter mismatch on disk: returns undefined, warns, and invalidates.
+  await writeFile(guidePath, '---\nname: wrong-name\ndescription: mismatch\n---\nbody\n', 'utf8');
+  assert.equal(await provider.get(guide, {}), undefined);
+  assert.equal(invalidations, 2);
+
+  // Deleted file on disk (ENOENT): returns undefined quietly and invalidates; remaining 5 skills still list as incomplete observation.
+  const warnCountBeforeRm = warnings.length;
+  await rm(guidePath);
+  assert.equal(await provider.get(guide, {}), undefined);
+  assert.equal(invalidations, 3);
+  assert.equal(warnings.length, warnCountBeforeRm, 'ENOENT on get() returns undefined without noisy parse warning');
+  const partial = await provider.list({});
+  assert.equal(partial.complete, false, 'missing shipped skill marks observation incomplete so registry retries later');
+  assert.equal(partial.candidates.length, SHIPPED_SKILLS.length - 1);
+  assert.ok(!partial.candidates.some(c => c.name === 'study-guide'));
+
+  // Fresh registration with 1 missing skill still registers the remaining 5 in both register and registerProvider modes.
+  const fallbackRegistered = [], fallbackWarnings = [];
+  registerStudySkills({
+    logger: { warn: msg => fallbackWarnings.push(msg) },
+    skills: { register: skill => { fallbackRegistered.push(skill.name); return () => {}; } },
+  }, { root: dir });
+  assert.equal(fallbackRegistered.length, SHIPPED_SKILLS.length - 1);
+  assert.ok(fallbackWarnings.some(msg => msg.includes('study-guide')));
+
+  // Caller and lifecycle AbortSignals propagate as rejections rather than silently returning empty/undefined.
+  const aborted = new AbortController();
+  aborted.abort(new Error('caller cancelled'));
+  await assert.rejects(() => provider.list({ signal: aborted.signal }), /caller cancelled/);
+  await assert.rejects(() => provider.get(candidates[0], { signal: aborted.signal }), /caller cancelled/);
+  lifecycle.abort(new Error('provider disposed'));
+  await assert.rejects(() => provider.list({}), /provider disposed/);
+  await assert.rejects(() => provider.get(candidates[0], {}), /provider disposed/);
 });
 
 test('the skill ships in the package and the plugin registers it when the host has a skill registry', async () => {

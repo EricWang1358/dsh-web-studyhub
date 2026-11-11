@@ -48,6 +48,7 @@ test('study-guide stays the front door: no plan-document section numbers, no bar
   assert.doesNotMatch(guide.whenToUse, /\bgreets you\b/i);
   assert.match(guide.description, /not on a bare "hi"/i);
   assert.match(guide.description, /non-StudyHub coding\/repo questions/);
+  assert.ok(guide.description.length <= 500, 'bare-greeting exclusion stays inside DSH\'s 500-char skill catalog ceiling');
   assert.match(guide.whenToUse, /Do not trigger on a bare greeting/);
   assert.match(guide.whenToUse, /unrelated to StudyHub/);
   assert.doesNotMatch(guide.content, /Section \d/);
