@@ -21,7 +21,7 @@ import { formatNumber } from './format.js';
    documents. The selection itself stays a list of source ids, so the generate
    action is unchanged. */
 
-const FORMAT_LABELS = { pdf: 'PDF', docx: 'Word', pptx: 'PowerPoint', ppt: 'PowerPoint', md: 'Markdown', html: 'HTML', txt: 'TXT', audio: '录音逐字稿', json: 'JSON 题组', text: '文本' };
+const FORMAT_LABELS = { pdf: 'PDF', docx: 'Word', pptx: 'PowerPoint', ppt: 'PowerPoint', md: 'Markdown', tex: 'LaTeX', html: 'HTML', txt: 'TXT', audio: '录音逐字稿', json: 'JSON 题组', text: '文本' };
 
 /**
  * The one label for where a material came from. Accepts a source or a

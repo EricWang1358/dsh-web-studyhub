@@ -34,9 +34,12 @@ export function looksLikeHeading(line) {
     && splitStudyMath(text).every(piece => typeof piece === 'string');
 }
 
+const outsideMath = text => splitStudyMath(String(text || '')).map(piece => typeof piece === 'string' ? piece : 'math').join('');
+
 /** 'layout' keeps every space and break, 'lines' keeps the breaks of a list, 'prose' reflows. */
 export function classifyParagraph(lines) {
-  if (lines.some(line => LAYOUT.test(line))) return 'layout';
+  const plain = outsideMath(lines.join('\n')).split('\n');
+  if (plain.some(line => LAYOUT.test(line))) return 'layout';
   if (lines.length > 1 && lines.some(line => LIST_MARK.test(line))) return 'lines';
   return 'prose';
 }

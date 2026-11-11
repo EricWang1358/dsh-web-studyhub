@@ -135,6 +135,7 @@ test('extractLatex turns a real lecture .tex into clean sections, expanded KaTeX
   assert.match(result.text, /^- First bullet with emphasis and grad_step\.$/m);
   assert.match(result.text, /^- Complexity: Runs in \$O\(n \\log n\)\$ steps\.$/m);
   assert.match(result.text, /\| Method \| Rate \| Space \|/);
+  assert.match(result.text, /^\| --- \| --- \| --- \|$/m);
   assert.match(result.text, /% literal comment inside verbatim/);
 
   const sections = sectionsOf([{ id: 's1', text: result.text }], { windows: false });

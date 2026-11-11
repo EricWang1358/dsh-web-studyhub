@@ -22,7 +22,7 @@ function accepts(file, rules) {
   return rules.some(rule => !rule.includes('/') ? extension === rule
     : rule.endsWith('/*') ? type.startsWith(rule.slice(0, -1)) : type === rule);
 }
-const FORMAT_NAMES = { '.md': 'Markdown', '.markdown': 'Markdown', '.htm': 'HTML', '.jpeg': 'JPG' };
+const FORMAT_NAMES = { '.md': 'Markdown', '.markdown': 'Markdown', '.tex': 'LaTeX', '.ltx': 'LaTeX', '.latex': 'LaTeX', '.htm': 'HTML', '.jpeg': 'JPG' };
 /** "PDF · Markdown · 音频" for hints and rejection messages. */
 export function describeAccept(accept) {
   const names = rulesOf(accept).map(rule => rule.startsWith('.') ? FORMAT_NAMES[rule] || rule.slice(1).toUpperCase()

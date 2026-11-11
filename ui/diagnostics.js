@@ -24,7 +24,7 @@ const count = value => (Number.isSafeInteger(value) && value >= 0 ? value : 0);
 
 /* The messages that are copied whole. The subject of "is not ..." is code-shaped: V8 writes "is not defined" for a bare identifier only, and the
    others for a member-access path, whose last part is not a file extension (a file name is the learner's, not the engine's). */
-const FILE_EXTENSION = 'pdf|docx?|pptx?|xlsx?|md|txt|csv|json|html?|epub|png|jpe?g|gif|webp|mp3|m4a|wav|mp4|zip';
+const FILE_EXTENSION = 'pdf|docx?|pptx?|xlsx?|tex|ltx|latex|md|txt|csv|json|html?|epub|png|jpe?g|gif|webp|mp3|m4a|wav|mp4|zip';
 const ENGINE_WHOLE = [
   /^Cannot (?:read|set) properties of (?:undefined|null) \((?:reading|setting) '[\w$]{1,60}'\)$/,
   /^[A-Za-z_$][\w$]{0,60} is not defined$/,

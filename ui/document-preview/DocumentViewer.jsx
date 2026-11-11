@@ -97,7 +97,7 @@ export const sourceTextClass = ({ format } = {}) => format === 'pdf' ? 'source-t
 export function originalHandling(value) {
   if (!value?.originalAvailable) return 'none';
   if (value.format === 'pdf') return 'pdf';
-  return isOfficeFormat(value.format) ? 'download' : 'text';
+  return isOfficeFormat(value.format) || value.format === 'tex' ? 'download' : 'text';
 }
 
 /** The format the viewer lays out: the loaded document's, else the source's own (a slide is a slide before loading). */
@@ -281,9 +281,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const textOutline = useMemo(() => outlineFromSections(allSections), [allSections]);
   const chapterEntries = useMemo(() => chaptered ? chapterOutline(chapter.chapters.map(entry => ({ ...entry, title: chapterTitle(entry) })), textOutline) : null,
     [chaptered, chapter.chapters, textOutline, language]); // eslint-disable-line react-hooks/exhaustive-deps
-  const autoOutline = reading && html ? headings : chapterEntries || textOutline;
+  const collectDomHeadings = reading && (html || (!paged && !textOutline.length));
+  const autoOutline = collectDomHeadings ? headings : chapterEntries || textOutline;
   // The labels of a bilingual Markdown transcript (### 英文原句, ### 中文对照) stay in the text; they are not sections of it.
-  useEffect(() => { setHeadings(reading && html ? withoutLabels(collectHeadings(body.current)) : []); }, [reading, html]);
+  useEffect(() => { setHeadings(collectDomHeadings ? withoutLabels(collectHeadings(body.current, { markedOnly: !html })) : []); }, [collectDomHeadings, html, sections]);
   // A kept AI outline (materials.outline.*) replaces the automatic one wherever its entries can be placed in what is drawn.
   useEffect(() => { setAiOutline(document?.outline ?? null); }, [document]);
   useIsoLayoutEffect(() => {
