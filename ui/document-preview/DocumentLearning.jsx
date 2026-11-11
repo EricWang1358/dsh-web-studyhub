@@ -21,6 +21,7 @@ import { addNode, answerNode, emptyThread, failNode, nodeOf, planAsk, retryNode,
 import { createThreadMemory } from './thread-memory.js';
 import { recallDeck, rememberDeck, suggestDeck, supplementDefaults } from './supplement-defaults.js';
 import ReaderModelGate, { useReaderServices } from './ReaderModelGate.jsx';
+import { hasContext } from '../capabilities.js';
 import { deckChoices, deckEntries } from '../deck-picker-entries.js';
 import { JOB_STATUS } from '../../lib/job-status.js';
 import { useUndoable } from '../use-undoable.js';
@@ -172,7 +173,8 @@ export default function DocumentLearning({ call, document, capture, scope = null
   useEffect(() => {
     let current = true;
     setFallbackSnapshot(null);
-    Promise.allSettled([call('runtime.capabilities'), call('bank.decks.list'), call('snapshot')]).then(([capability, bank, state]) => {
+    const bankPromise = hasContext(data, 'bank') ? call('bank.decks.list') : Promise.resolve({ decks: [] });
+    Promise.allSettled([call('runtime.capabilities'), bankPromise, call('snapshot')]).then(([capability, bank, state]) => {
       if (!current) return;
       setCapabilities(capability.status === 'fulfilled' ? capability.value : []);
       if (bank.status === 'fulfilled') setBankDecks(bank.value.decks || []);

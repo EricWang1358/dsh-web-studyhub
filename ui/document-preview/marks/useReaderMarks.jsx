@@ -39,7 +39,7 @@ const pointOf = (event, capture) => {
  * `onBatchStarted(job)`: 一次性出题 started a run (the host refreshes and follows it). `busy`: the host is busy, nothing starts.
  * Returns { onContextMenu, menu, chip, moreItems }.
  */
-export function useReaderMarks({ call, document, data, body, rendered, enabled, compact = false, onExplained, onBatchStarted, busy = false }) {
+export function useReaderMarks({ call, document, data, body, rendered, enabled, compact = false, canQueue = true, onExplained, onBatchStarted, busy = false }) {
   const toast = useToast(), services = useContext(ReaderModelContext);
   const model = services?.model, ready = !!model?.ready;
   const [items, setItems] = useState([]), [reload, setReload] = useState(0), [pending, setPending] = useState([]), [menu, setMenu] = useState(null), [queueOpen, setQueueOpen] = useState(false), [queueLimit, setQueueLimit] = useState(QUEUE_LIMIT);
@@ -142,10 +142,10 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
   return {
     onContextMenu,
     menu: menu && <ContextMenu label={ui('选中文字的操作')} within={body.current} point={menu.point} onClose={() => setMenu(null)} onSelect={choose}
-      items={selectionMenu({ here: menu.here, explain: model ? (ready ? 'ready' : 'no-model') : 'unavailable', queueFull: queue.length >= queueLimit })} />,
-    chip: live && queue.length > 0 ? <QueueChip queue={queue} disabled={busy} modelReady={ready} onOpenModelSettings={services?.openModelSettings} compact={compact}
+      items={selectionMenu({ here: menu.here, explain: model ? (ready ? 'ready' : 'no-model') : 'unavailable', queueFull: queue.length >= queueLimit, canQueue })} />,
+    chip: canQueue && live && queue.length > 0 ? <QueueChip queue={queue} disabled={busy} modelReady={ready} onOpenModelSettings={services?.openModelSettings} compact={compact}
       open={queueOpen} onOpenChange={setQueueOpen} onRemove={item => remove([item.id])} onStart={startBatch} body={body} /> : null,
     // At the narrowest the toolbar has no room for a fifth control: the same panel opens from 更多.
-    moreItems: live && compact && queue.length > 0 ? [{ id: 'queue', icon: 'checklist', label: uiFormat('待出题 {0}…', [queue.length]), run: () => setQueueOpen(true) }] : [],
+    moreItems: canQueue && live && compact && queue.length > 0 ? [{ id: 'queue', icon: 'checklist', label: uiFormat('待出题 {0}…', [queue.length]), run: () => setQueueOpen(true) }] : [],
   };
 }

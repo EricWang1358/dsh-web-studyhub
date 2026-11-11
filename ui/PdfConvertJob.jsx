@@ -16,6 +16,7 @@ import { DiagnosticBar } from './install/DiagnosticActions.jsx';
 import { FAILED_HAND_OFF_WHAT, failedHandOffInput, failureText } from './tasks/failed-hand-off.js';
 import { isHeldTask } from './tasks/task-model.js';
 import css from './mineru.css';
+import { hasContext } from './capabilities.js';
 import { useStudy } from './study-context.jsx';
 import { RepeatedNote } from './RepeatedNote.jsx';
 import { CUSTOM_BOOK_LABEL, CUSTOM_BOOK_WHAT, customOffered, markCustomOffered, offersCustom } from './custom-entry.js';
@@ -369,6 +370,7 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
   const alive = useRef(true), heading = useRef(null);
   const undoable = useUndoable();
   const key = historyRefreshKey(jobs ?? data?.jobs);
+  const mineruAvailable = hasContext(data, 'audio');
   const send = (action, args) => (act ? act(action, args) : call(action, args));
   const load = useCallback(async () => {
     try {
@@ -377,10 +379,15 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
     } catch (error) { if (alive.current) setReadError(errorMessage(error)); }
   }, [call]);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  useEffect(() => { if (!initialRecords && typeof call === 'function') void load(); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!initialRecords && typeof call === 'function') {
+      if (!mineruAvailable) { setRecords([]); setReadError(''); return; }
+      void load();
+    }
+  }, [key, mineruAvailable]); // eslint-disable-line react-hooks/exhaustive-deps
   const running = !!records?.some(row => row.status === 'running');
   // Running rows are read again every few seconds; the times ("3 分钟前") are refreshed every half minute.
-  const live = !initialRecords && fixedNow === undefined && typeof call === 'function';
+  const live = !initialRecords && fixedNow === undefined && typeof call === 'function' && mineruAvailable;
   const tick = useNow(30_000, { enabled: live && !!records?.length });
   const clock = fixedNow ?? tick;
   usePolling(load, { intervalMs: 5000, enabled: live && running });

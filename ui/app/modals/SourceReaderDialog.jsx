@@ -6,6 +6,7 @@ import { DocumentViewer } from '../../workspace-views.jsx';
 import { ReaderHeading } from '../../document-preview/RenameTitle.jsx';
 import { documentSourceIds } from '../../../lib/source-groups.js';
 import { draftToOpen } from '../../document-preview/practice/practice-range.js';
+import { hasContext, pageAvailable } from '../../capabilities.js';
 import { useApp } from '../app-context.js';
 
 /** The reader: a material full-size, with the questions and tasks that belong to it. Opens at a quote or where the learner stopped reading. */
@@ -14,6 +15,10 @@ export default function SourceReaderDialog({ modal, onClose }) {
   const { call, act, busy, refresh } = core;
   const toast = useToast();
   const source = modal.source;
+  const canGenerate = pageAvailable(data, 'generate');
+  const canPractice = hasContext(data, 'bank') && hasContext(data, 'study');
+  const canDraft = pageAvailable(data, 'draft');
+  const canBank = hasContext(data, 'bank');
   // The reader is a dialog over the page: a Settings page opened from it is not seen unless the dialog goes (the host's own model settings open beside it and the reader stays).
   const openSettings = (section) => { onClose(); settingsEntry.openSettings(section); };
   const openModelSettings = () => { if (!host.openModelSettings) onClose(); settingsEntry.openModelSettings(); };
@@ -22,8 +27,8 @@ export default function SourceReaderDialog({ modal, onClose }) {
   const moreItems = !source ? [] : [
     ...(data.sources?.some(item => item.id === source.id) ? [{ id: 'rename', icon: 'edit', label: ui('重命名…'), run: () => setRenameRequest(count => count + 1) }] : []),
     ...(dailyPlan ? relatedTaskItems({ plan: dailyPlan, reference: { root: data.root, kind: 'source', id: source.id }, onBoard: () => { onClose(); nav.navigate('board'); } }) : []),
-    ...(source.usedBy || []).map(deck => ({ id: `deck:${deck.kind}:${deck.id}`, icon: 'book', label: deck.archived ? uiFormat('{0} · 已归档', [deck.title]) : deck.title, hint: ui('题组'),
-      disabled: busy || deck.kind === 'draft', run: () => learn.openLearningTarget({ kind: 'deck', id: deck.id }) })),
+    ...(canBank ? (source.usedBy || []) : []).map(deck => ({ id: `deck:${deck.kind}:${deck.id}`, icon: 'book', label: deck.archived ? uiFormat('{0} · 已归档', [deck.title]) : deck.title, hint: ui('题组'),
+      disabled: busy || deck.kind === 'draft' || !canPractice, run: () => learn.openLearningTarget({ kind: 'deck', id: deck.id }) })),
   ];
   const title = source
     ? <ReaderHeading data={data} source={source} act={act} call={call} renameRequest={renameRequest}
@@ -36,23 +41,23 @@ export default function SourceReaderDialog({ modal, onClose }) {
         <>
           <DocumentViewer source={source} quote={modal.quote} moreItems={moreItems} call={call} data={data} host={host} generateDisabled={busy}
             onOpenModelSettings={openModelSettings} onOpenSettings={openSettings}
-            onGenerate={() => intents.goGenerate({ sourceIds: documentSourceIds(data.sources, source.id), remember: true, closeModal: true })}
-            onPublished={() => refresh()} onOpenCard={(reference) => { onClose(); learn.openLearningTarget({ kind: 'card', ...reference }); }}
-            onOpenDeck={(deckId) => learn.openLearningTarget({ kind: 'deck', id: deckId })}
-            onPractice={({ deckId, cardIds }) => learn.openLearningTarget({ kind: 'cards', deckId, cardIds })}
-            onPracticePages={intents.practiceFromReading}
-            onGeneratePages={(ids) => intents.goGenerate({ sourceIds: ids, remember: true, closeModal: true })} resume={modal.resume}
-            onOpenDraftPages={(draftIds) => {
+            onGenerate={canGenerate ? () => intents.goGenerate({ sourceIds: documentSourceIds(data.sources, source.id), remember: true, closeModal: true }) : undefined}
+            onPublished={() => refresh()} onOpenCard={canBank ? (reference) => { onClose(); learn.openLearningTarget({ kind: 'card', ...reference }); } : undefined}
+            onOpenDeck={canPractice ? (deckId) => learn.openLearningTarget({ kind: 'deck', id: deckId }) : undefined}
+            onPractice={canPractice ? ({ deckId, cardIds }) => learn.openLearningTarget({ kind: 'cards', deckId, cardIds }) : undefined}
+            onPracticePages={canPractice ? intents.practiceFromReading : undefined}
+            onGeneratePages={canGenerate ? (ids) => intents.goGenerate({ sourceIds: ids, remember: true, closeModal: true }) : undefined} resume={modal.resume}
+            onOpenDraftPages={canDraft ? (draftIds) => {
               // The questions of these pages are still in a draft: the same 草稿 page the home card and 检查草稿 open.
               const draft = draftToOpen(draftIds, data.drafts);
               if (!draft) { toast.error(ui('这份草稿已经不在了，可能已发布或删除。')); return; }
               onClose(); drafts.openDraft(draft, { navigation: true });
-            }}
+            } : undefined}
             backLabel={modal.back ? ui('回到这道题') : undefined} onBack={modal.back ? onClose : undefined} peekPage={modal.peekPage} pickPages={!!modal.pickPages}
             onStarted={(started) => { selectionNotices.track(started.jobId); return refresh(); }}
             onGenerateStarted={() => refresh()}
-            onCaseFromPassage={(passage) => intents.goGenerate({ source: 'case', remember: true, closeModal: true,
-              caseInitial: { sourceIds: documentSourceIds(data.sources, source.id), focus: passage.quote, nonce: Date.now() } })} />
+            onCaseFromPassage={canGenerate ? (passage) => intents.goGenerate({ source: 'case', remember: true, closeModal: true,
+              caseInitial: { sourceIds: documentSourceIds(data.sources, source.id), focus: passage.quote, nonce: Date.now() } }) : undefined} />
         </>
       ) : <p className="muted">{ui('无法找到此资料。')}</p>}
     </Dialog>

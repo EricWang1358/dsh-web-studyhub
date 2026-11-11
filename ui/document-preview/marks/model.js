@@ -63,7 +63,7 @@ export function marksAt(items = [], capture) {
  * (marksAt); `explain`: 'ready' | 'no-model' | 'unavailable'; `queueFull`: the list is at its limit.
  * Each stroke turns into its 去掉 when the selection is already in one; 复制 is first, so the browser's own copy is never lost.
  */
-export function selectionMenu({ here = [], explain = 'ready', queueFull = false, canMark = true } = {}) {
+export function selectionMenu({ here = [], explain = 'ready', queueFull = false, canMark = true, canQueue = true } = {}) {
   const has = style => here.some(item => item.style === style);
   const stroke = (style, add, remove, icon) => ({ id: has(style) ? `unmark:${style}` : `mark:${style}`, label: has(style) ? remove : add, icon, disabled: !canMark });
   return [
@@ -71,8 +71,11 @@ export function selectionMenu({ here = [], explain = 'ready', queueFull = false,
     stroke('underline', ui('下划线'), ui('去掉下划线'), 'underline'),
     stroke('bold', ui('加粗'), ui('去掉加粗'), 'bold'),
     stroke('highlight', ui('荧光笔'), ui('去掉荧光笔'), 'highlighter'),
-    has('queue') ? { id: 'unmark:queue', label: ui('移出待出题'), icon: 'close', disabled: !canMark }
-      : { id: 'mark:queue', label: ui('加入待出题'), icon: 'plus', disabled: !canMark || queueFull, ...(queueFull ? { tip: ui('待出题已满，先一次性出题或移出一些。') } : {}) },
+    ...(has('queue')
+      ? [{ id: 'unmark:queue', label: ui('移出待出题'), icon: 'close', disabled: !canMark }]
+      : canQueue
+        ? [{ id: 'mark:queue', label: ui('加入待出题'), icon: 'plus', disabled: !canMark || queueFull, ...(queueFull ? { tip: ui('待出题已满，先一次性出题或移出一些。') } : {}) }]
+        : []),
     ...(explain === 'unavailable' ? [] : [{ id: 'explain', label: ui('AI 词解'), icon: 'sparkle', disabled: !canMark,
       tip: explain === 'no-model' ? ui('需要先连接模型；点一下去设置。') : ui('让 AI 用通俗、具体的话解释选中的词，解释留在原文上，鼠标移上去就能看。') }]),
     ...(here.length > 1 ? [{ id: 'unmark:all', label: ui('去掉这里的所有标记'), icon: 'trash', danger: true, disabled: !canMark }] : []),
