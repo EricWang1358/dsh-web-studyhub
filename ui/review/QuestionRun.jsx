@@ -43,7 +43,8 @@ import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 import { roundAt, roundWords } from "./round-words.js";
 import { fixedOptionsOf } from "../../lib/card-kinds.js";
-import { deferUnstudiedPagesPlan, openReaderForPages } from "../document-preview/practice/open-reader-pages.js";
+import { deferUnstudiedPagesPlan, runDeferUnstudiedPages } from "../document-preview/practice/open-reader-pages.js";
+import QuestionSourcePage from "./QuestionSourcePage.jsx";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -107,18 +108,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     });
   }, [act, run?.card?.focus, run?.card?.id, run?.deckId, session]);
   const canDeferPages = !run?.feedback && !!deferUnstudiedPagesPlan(run);
-  const deferUnstudiedPages = React.useCallback(() => {
-    const plan = deferUnstudiedPagesPlan(run);
-    if (!plan) return;
-    if (plan.kind === "open-reader") {
-      openReaderForPages({ sources: data?.sources, sourceIds: run.sourceIds, openModal, back: true });
-      notify(uiFormat("本轮题目都在第 {0} 页及之后，已打开资料阅读器；翻到已学页点「做这几页的题」即可。", [plan.page]));
-      return;
-    }
-    Promise.resolve(reviewAct("review.queue.edit", { removeIndices: plan.removeIndices, allowCurrent: true })).then((nextRun) => {
-      if (nextRun) notify(uiFormat("已从本轮移出第 {0} 页及之后的 {1} 道未答题，题库中仍保留。", [plan.page, plan.removedCount]));
-    });
-  }, [data?.sources, notify, openModal, reviewAct, run]);
+  const deferUnstudiedPages = React.useCallback(
+    () => runDeferUnstudiedPages({ run, sources: data?.sources, openModal, reviewAct, notify }),
+    [data?.sources, notify, openModal, reviewAct, run],
+  );
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
   const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader, tourRunning } = context;
@@ -291,26 +284,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 {run.card.focus && <Badge size="sm" tone="accent" className="origin-note">{ui("重点")}</Badge>}
                 {run.card.importedFromJson && <Badge size="sm" className="origin-note">{ui("外部导入")}</Badge>}
                 {run.card.sourceQa && <Badge size="sm" className="origin-note">{ui("问答")}</Badge>}
-                {run.mode !== "exam" && Number.isInteger(run.cardSource?.page) && (() => {
-                  const pageLabel = run.cardSource.unit === "slide" ? uiFormat("第 {0} 张", [run.cardSource.page])
-                    : run.cardSource.unit === "part" ? uiFormat("第 {0} 节", [run.cardSource.page])
-                    : uiFormat("第 {0} 页", [run.cardSource.page]);
-                  const sourceObj = data?.sources?.find((item) => item.id === run.cardSource.sourceId)
-                    || data?.sources?.find((item) => item.id === run.cardSource.documentSourceId);
-                  const tip = run.cardSource.title
-                    ? uiFormat("出自「{0}」{1} · 点此打开阅读器按页做题", [run.cardSource.title, pageLabel])
-                    : ui("点此打开阅读器按页做题");
-                  return sourceObj ? (
-                    <Tooltip layer content={tip}>
-                      <Button variant="quiet" size="sm" className="question-meta__action question-source-page"
-                        onClick={() => openModal({ type: "source", source: sourceObj, pickPages: !run.reading, back: true })}>
-                        {pageLabel}
-                      </Button>
-                    </Tooltip>
-                  ) : (
-                    <Badge size="sm" className="origin-note">{pageLabel}</Badge>
-                  );
-                })()}
+                <QuestionSourcePage run={run} sources={data?.sources} />
                 <span>{run.card.topic}</span>
                 {!!publicationIssues.length && !run.card.publicationUngrable &&
                   <Popover label={ui("待核对")} className="publication-mark" panelClassName="publication-mark__panel"

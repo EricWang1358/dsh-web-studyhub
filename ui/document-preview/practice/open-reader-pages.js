@@ -1,6 +1,7 @@
 import { groupSourcesByDocument } from '../../../lib/source-groups.js';
 import { isJsonCardSource } from '../../../lib/source-provenance.js';
 import { isLibraryListSource } from '../../../lib/exam-point-list.js';
+import { uiFormat } from '../../i18n.js';
 
 /** Whether a source record can be opened in the material reader for page/section practice (excludes JSON-card imports and exam-point lists). */
 export function isReadableMaterial(source) {
@@ -97,4 +98,18 @@ export function deferUnstudiedPagesPlan(run) {
     return { kind: 'open-reader', page, removeIndices: [], removedCount: 0 };
   }
   return { kind: 'remove', page, removeIndices, removedCount: removeIndices.length };
+}
+
+/** Execute `deferUnstudiedPagesPlan` inside an active practice run (either opens the reader or trims `>= page` unanswered entries). */
+export function runDeferUnstudiedPages({ run, sources, openModal, reviewAct, notify }) {
+  const plan = deferUnstudiedPagesPlan(run);
+  if (!plan) return;
+  if (plan.kind === 'open-reader') {
+    openReaderForPages({ sources, sourceIds: run.sourceIds, openModal, back: true });
+    notify?.(uiFormat('本轮题目都在第 {0} 页及之后，已打开资料阅读器；翻到已学页点「做这几页的题」即可。', [plan.page]));
+    return;
+  }
+  Promise.resolve(reviewAct('review.queue.edit', { removeIndices: plan.removeIndices, allowCurrent: true })).then((nextRun) => {
+    if (nextRun) notify?.(uiFormat('已从本轮移出第 {0} 页及之后的 {1} 道未答题，题库中仍保留。', [plan.page, plan.removedCount]));
+  });
 }

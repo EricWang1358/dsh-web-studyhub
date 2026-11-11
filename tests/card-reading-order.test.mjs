@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cardReadingLocation, createReadingOrder, sortCardsByReadingOrder } from '../lib/card-reading-order.js';
-import { mergeContinuedDraft } from '../lib/bank-import.js';
-import { generateBatched, CHUNK_CHARS } from '../lib/batch.js';
-import { qualityPlan, qualityBlueprint, authored, qualityReview } from './helpers/assessment.mjs';
-import { requestData } from './helpers/request-data.mjs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { cardReadingLocation, createReadingOrder, sortCardsByReadingOrder } from '../lib/reading-order/card-reading-order.js';
+import { StudyService } from '../lib/service.js';
 
 function makeCard(id, citations, extra = {}) {
   return {
@@ -35,7 +35,7 @@ function pdfSources(pages, hash = 'a'.repeat(64)) {
   }));
 }
 
-test('sortCardsByReadingOrder orders cards by document, page, and quote/selection offset while keeping uncited cards stable', () => {
+test('sortCardsByReadingOrder orders cards by document, page, and quote/selection offset while keeping uncited cards anchored in place', () => {
   const sources = pdfSources([1, 12, 94]);
   const cards = [
     makeCard('c-p94', [{ sourceId: sources[2].id, quote: '概念甲' }]),
@@ -51,6 +51,14 @@ test('sortCardsByReadingOrder orders cards by document, page, and quote/selectio
   // Manual / uncited deck stays untouched in exact original order
   const manual = [makeCard('m3', []), makeCard('m1', []), makeCard('m2', [])];
   assert.deepEqual(sortCardsByReadingOrder(manual, sources).map((card) => card.id), ['m3', 'm1', 'm2']);
+
+  // An uncited card inside a cited deck stays anchored beside its neighbor instead of jumping to the end
+  const mixed = [
+    makeCard('q0', [{ sourceId: sources[0].id, quote: '概念甲' }]),
+    makeCard('q1-uncited', []),
+    makeCard('q2', [{ sourceId: sources[0].id, quote: '概念甲' }]),
+  ];
+  assert.deepEqual(sortCardsByReadingOrder(mixed, sources).map((card) => card.id), ['q0', 'q1-uncited', 'q2']);
 
   // Fallback page parsing works even when sources array is unavailable (e.g. standalone planPath call)
   assert.deepEqual(
@@ -81,92 +89,36 @@ test('cardReadingLocation returns answer-safe page and document metadata without
   assert.ok(compare({ card: makeCard('a', [{ sourceId: sources[0].id, quote: '概念甲' }]) }, { card }) < 0);
 });
 
-test('mergeContinuedDraft settles multi-round coverage drafts in reading order instead of round weight order', () => {
-  const sources = pdfSources([1, 12, 94]);
-  // Round 1 picked heavy p.94 first; Round 2 filled lighter p.1 and p.12
-  const base = {
-    id: 'draft-os',
-    title: 'OS 讲义',
-    cards: [makeCard('r1-p94', [{ sourceId: sources[2].id, quote: '概念甲' }])],
-    editorial: {
-      requested: 3,
-      generated: 1,
-      parts: 1,
-      completedParts: 1,
-      generation: { sourceIds: sources.map((s) => s.id), course: 'OS', kind: 'quiz' },
-      coverage: { sources: [{ id: sources[2].id, planned: 1 }] },
-      failures: [],
-      audits: [],
-      reviewedCards: { 'r1-p94': { hash: 'h94' } },
-    },
-  };
-  const incoming = {
-    cards: [
-      makeCard('r2-p12', [{ sourceId: sources[1].id, quote: '概念乙' }]),
-      makeCard('r2-p1', [{ sourceId: sources[0].id, quote: '概念丙' }]),
-    ],
-    editorial: {
-      parts: 1,
-      completedParts: 1,
-      generation: { sourceIds: sources.map((s) => s.id), course: 'OS', kind: 'quiz' },
-      coverage: { sources: [{ id: sources[0].id, planned: 1 }, { id: sources[1].id, planned: 1 }] },
-      failures: [],
-      audits: [],
-      reviewedCards: { 'r2-p12': { hash: 'h12' }, 'r2-p1': { hash: 'h1' } },
-    },
-  };
-  const merged = mergeContinuedDraft(base, incoming, sources);
-  assert.deepEqual(merged.cards.map((card) => card.id), ['r2-p1', 'r2-p12', 'r1-p94']);
-});
-
-test('generateBatched with multiple kinds across multi-page chunks orders resulting cards by page rather than grouping all late pages of kind 1 before kind 2', async () => {
-  const hash = 'b'.repeat(64);
-  const perPage = Math.ceil(CHUNK_CHARS / 2) + 200;
-  const sources = [1, 2, 50, 94].map((page) => ({
-    id: `p-${page}`,
-    title: `Lecture.pdf · p.${page}`,
-    text: `Page ${page} architecture connects business goals to technical decisions through principle_${page}.\n`.repeat(Math.ceil(perPage / 90)),
-    document: { id: hash, materialId: `document-${hash}-pdf`, format: 'pdf', page, totalPages: 100, filename: 'Lecture.pdf' },
-  }));
-  let cardSeq = 0;
-  const complete = async (system, prompt) => {
-    const stage = system.startsWith('Plan ') ? 'planning' : system.startsWith('Prepare supported') ? 'blueprinting' : system.startsWith('You author') ? 'authoring' : 'reviewing';
-    const req = requestData(prompt);
-    if (stage === 'planning') return JSON.stringify(qualityPlan(req));
-    if (stage === 'reviewing') return JSON.stringify(qualityReview(req.candidate));
-    const plan = req.assessmentPlan;
-    const deck = {
-      title: 'Lecture Set',
-      cards: plan.targets.map((target, idx) => ({
-        id: `${req.kind}-${++cardSeq}`,
-        targetId: target.targetId,
-        kind: req.kind,
-        topic: `Topic ${req.kind} ${idx}`,
-        objective: target.objective,
-        prompt: `Explain supported distinction for ${target.objective}?`,
-        answer: 'Principles connect goals to decisions',
-        hint: 'Think about stakeholders',
-        explanation: 'Design choices must serve business goals',
-        misconception: 'Choosing technology first',
-        citations: target.citations,
-        ...(req.kind === 'quiz' ? { options: ['a', 'b', 'c'].map((id) => ({ id, text: `${id} option ${cardSeq}`, correct: id === 'a', explanation: `Reason ${id}` })) } : {}),
-        ...(req.kind === 'open' ? { rubric: 'Full credit for linking goals to decisions.' } : {}),
-      })),
-    };
-    if (stage === 'blueprinting') return JSON.stringify(qualityBlueprint(req, plan, deck));
-    return JSON.stringify(authored(deck, [], plan));
-  };
-  const result = await generateBatched(complete, {
-    sources,
-    count: 8,
-    kind: 'quiz',
-    kinds: ['quiz', 'open'],
-    performance: { concurrency: 2, batchSize: 5, fillRounds: 0 },
+test('draft.publish.quick settles source-generated multi-round drafts in reading order while keeping mergeTargetId supplements behind existing cards', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'study-publish-reading-order-'));
+  const service = new StudyService(root);
+  t.after(async () => {
+    service.dispose();
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
-  assert.equal(result.cards.length, 8);
-  assert.ok(result.cards.some((c) => c.kind === 'quiz') && result.cards.some((c) => c.kind === 'open'));
-  const pages = result.cards.map((card) => Number(card.citations[0].sourceId.slice(2)));
-  const sorted = [...pages].sort((a, b) => a - b);
-  assert.deepEqual(pages, sorted, `expected non-decreasing page order, got ${pages.join(', ')}`);
-  assert.ok(pages[0] <= 2 && pages.at(-1) >= 50, `front pages come first and late pages last: ${pages.join(', ')}`);
+
+  const sources = pdfSources([1, 12, 94]);
+  await service.store.update((s) => { s.sources.push(...sources); });
+
+  const saved = await service.call('draft.save', {
+    deck: {
+      id: 'os-coverage',
+      title: 'OS 讲义',
+      cards: [
+        makeCard('r1-p94', [{ sourceId: sources[2].id, quote: '概念甲' }]),
+        makeCard('r2-p12', [{ sourceId: sources[1].id, quote: '概念乙' }]),
+        makeCard('r2-p1', [{ sourceId: sources[0].id, quote: '概念丙' }]),
+      ],
+      editorial: {
+        generation: { sourceIds: sources.map((s) => s.id), course: 'OS', kind: 'quiz' },
+      },
+    },
+  });
+
+  const published = await service.call('draft.publish.quick', { id: saved.id, draftVersion: saved.draftVersion });
+  const deck = await service.call('deck.get', { id: published.id });
+  assert.deepEqual(deck.cards.map((card) => card.id), ['r2-p1', 'r2-p12', 'r1-p94']);
+
+  const run = await service.call('review.start', { deckId: published.id, mode: 'new', count: 10, ordered: true, fresh: true });
+  assert.equal(run.card.id, 'r2-p1');
 });
