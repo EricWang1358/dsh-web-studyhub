@@ -158,6 +158,7 @@ test('the 译 popover prices each scope before anything starts, says what is lef
   assert.match(markup, /翻译本页/);
   assert.match(markup, /还有 8 段要译 · 已译 4 段/);
   assert.match(markup, /预计/, 'the price (the shared token estimate line) comes first');
+  assert.doesNotMatch(markup, /查看估算明细|缓存命中/, 'reader translation popover shows total tokens only');
   assert.match(markup, /已经全部译好。/);
   assert.equal(count(markup, />开始翻译</g), 1, 'a scope with nothing to do has no start button');
   assert.match(markup, /译文会显示在对应段落旁。在后台进行，关闭阅读器也不会中断，完成时信箱会提醒你。/);
@@ -201,6 +202,7 @@ test('a running job shows counts, the clock, a progress bar, what it used agains
   assert.match(markup, /后台继续翻译/);
   assert.match(markup, /实际用量/);
   assert.match(markup, /预计/);
+  assert.doesNotMatch(markup, /缓存命中|未缓存输入|没有命中缓存/, 'reader translation job notice omits cache breakdown');
   assert.doesNotMatch(markup, />知道了</);
 });
 

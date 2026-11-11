@@ -47,7 +47,7 @@ export function ProposalPreview({ current, entries, usage, coverage, warnings = 
     </div>
     <p className="reader-assist__note">{coverageText(coverage)}</p>
     {warnings.includes('levels-adjusted') && <p className="reader-assist__note">{ui('有几条的层级已按规则调整。')}</p>}
-    {usage && <TokenUsage usage={usage} />}
+    {usage && <TokenUsage usage={usage} totalOnly />}
   </div>;
 }
 
@@ -62,7 +62,7 @@ export function OutlineAssistView({ state, saved, stale, missing = 0, variant = 
   if (phase === 'estimating') return <p className="reader-assist__status" role="status">{ui('正在估算用量…')}</p>;
   if (phase === 'ready') return <div className="reader-assist" data-phase="ready">
     <p className="reader-assist__note">{coverageText(state.coverage)}</p>
-    <TokenEstimateView state={{ status: 'ready', estimate: state.estimate }} />
+    <TokenEstimateView state={{ status: 'ready', estimate: state.estimate }} totalOnly />
     <p className="reader-assist__note">{ui('只调用一次模型；不会改动资料的原文、引用、选区和题目。')}</p>
     <div className="reader-assist__actions"><Button size="sm" variant="primary" className="reader-assist__btn" onClick={onRun}>{ui('开始')}</Button><Button size="sm" variant="quiet" className="reader-assist__btn" onClick={onCancel}>{ui('取消')}</Button></div>
   </div>;
@@ -82,7 +82,7 @@ export function OutlineAssistView({ state, saved, stale, missing = 0, variant = 
   </div>;
   if (phase === 'rejected') return <div className="reader-assist" data-phase="rejected">
     <InlineMessage tone="error" className="reader-assist__note">{rejectionText(state.code)}</InlineMessage>
-    {state.usage && <TokenUsage usage={state.usage} />}
+    {state.usage && <TokenUsage usage={state.usage} totalOnly />}
     <div className="reader-assist__actions"><Button size="sm" className="reader-assist__btn" onClick={() => onStart(state.mode)}>{ui('重新生成')}</Button><Button size="sm" variant="quiet" className="reader-assist__btn" onClick={onDiscard}>{ui('关闭')}</Button></div>
   </div>;
   if (phase === 'failed') return <div className="reader-assist" data-phase="failed">

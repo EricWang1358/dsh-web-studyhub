@@ -197,9 +197,7 @@
     .tr-job__actions { display: inline-flex; margin-left: auto; }
     .tr-job__meter { height: 3px; background: var(--line); box-shadow: none; }
     .tr-job__note { color: var(--text-muted); font-size: var(--fs-xs); }
-    .tr-job__usage { font-size: var(--fs-xs); color: var(--text-muted); }
-    .tr-job__usage summary { width: fit-content; cursor: pointer; font-variant-numeric: tabular-nums; }
-    .tr-job__usage[open] { padding-bottom: var(--space-2); }
+    .tr-job__usage { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .tr-job__raw code { display: block; margin-top: var(--space-1); overflow-wrap: anywhere; white-space: pre-wrap; }
     .tr-job[data-status='failed'] .tr-job__title { color: var(--bad-ink); }
     /* ── The glossary dialog ── */

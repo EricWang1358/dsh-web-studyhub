@@ -94,7 +94,8 @@ test('a running job shows its stage, counts, elapsed time, expected usage and a 
   assert.match(words, /正在出题/);
   assert.match(words, /已写出 2 题，等待独立审阅 · 已通过 0 \/ 共 2/);
   assert.match(words, /已用 0:42/);
-  assert.match(words, /预计 12K–20K tok · 3–4 次模型调用/);
+  assert.match(words, /预计 12K–20K tok/);
+  assert.doesNotMatch(words, /次模型调用|缓存命中|未缓存输入/, 'reader supplement card shows total tokens only');
   assert.match(markup, /role="status"/);
   assert.match(words, /停止/);
   assert.match(words, /Architecture includes the principles guiding design\./, 'the passage it works on');
@@ -120,6 +121,13 @@ test('a finished job says what was added and what did not pass, why, and jumps t
   assert.match(full, /马上练这 2 张/);
   const noPractice = text(render(SelectionJobCard, { job: done(), now: at(9999) }));
   assert.doesNotMatch(noPractice, /马上练/, 'a host that cannot start a run shows no such button');
+  const withUsage = render(SelectionJobCard, {
+    job: done({ tokenUsage: { uncachedInputTokens: 5200, outputTokens: 1500, cacheReadTokens: 0, cacheWriteTokens: 0, calls: 3 },
+      estimate: { totalTokens: { low: 4000, high: 8000 }, calls: { low: 2, high: 3 } } }),
+    now: at(9999),
+  });
+  assert.match(text(withUsage), /Token 用量 6,700 tok/);
+  assert.doesNotMatch(withUsage, /缓存命中|未缓存输入|缓存读取|缓存写入|输出|没有命中缓存|复制|次调用/, 'no cache-hit breakdown clutter in reader supplement card');
 });
 
 test('a failed, stopped or conflicting job says why in plain words and offers the right retry', () => {

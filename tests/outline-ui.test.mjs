@@ -103,7 +103,8 @@ test('estimating and ready: the price comes before the call, and the learner sta
   assert.match(ready, /tok/);
   assert.match(ready, /73/);
   assert.match(ready, /开始/);
-  assert.match(ready, /1 次模型调用/);
+  assert.match(ready, /只调用一次模型/);
+  assert.doesNotMatch(ready, /查看估算明细|缓存命中|1 次模型调用/);
   const condensed = view({ phase: 'ready', coverage: { blocks: 1500, units: 240, chars: 150000, condensed: true }, estimate });
   assert.match(condensed, /1500/);
   assert.match(condensed, /240/);
@@ -133,7 +134,8 @@ test('a rejected answer: a plain reason by kind, what it cost, the automatic out
   const grounding = view({ phase: 'rejected', code: 'ungrounded', usage });
   assert.match(grounding, /role="alert"/);
   assert.match(grounding, /找不到依据/);
-  assert.match(grounding, /Token 用量/);
+  assert.match(grounding, /Token 用量 2,710 tok/);
+  assert.doesNotMatch(grounding, /缓存命中|未缓存输入|复制/);
   assert.match(grounding, /重新生成/);
   assert.match(view({ phase: 'rejected', code: 'not-json', usage: null }), /不是目录/);
   assert.match(view({ phase: 'rejected', code: 'bad-start', usage }), /位置或层级/);
@@ -172,7 +174,8 @@ test('the proposal is shown beside the current outline, each with its count, lab
   assert.match(markup, /当前目录 · 28 项/);
   assert.match(markup, /AI 建议 · 3 项/);
   assert.match(markup, /概括/);
-  assert.match(markup, /Token 用量/);
+  assert.match(markup, /Token 用量 2,710 tok/);
+  assert.doesNotMatch(markup, /缓存命中|未缓存输入|复制/);
   assert.match(markup, /1500/);
   assert.match(markup, /层级/);
   const english = html(h(ProposalPreview, { current: structureOutline([{ id: 'a', level: 1, title: 'A' }]), entries: [{ title: 'Intro', level: 1, startBlock: 0, kind: 'label' }], usage, coverage, warnings: [] }), 'en');

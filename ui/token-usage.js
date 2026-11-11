@@ -36,6 +36,8 @@ export function usageRows(usage) {
 /** The plain-text line the copy button puts on the clipboard. */
 export const joinRows = (rows) => rows.map((row) => `${row.label} ${row.value}`).join(' · ');
 export const usageText = (usage) => joinRows(usageRows(usage));
+/** Total tokens only, for compact material and reader surfaces: "Token 用量 6,700 tok". */
+export const totalUsageText = (usage) => `${ui('Token 用量')} ${exactTok(totalTokens(usage))}`;
 
 /** "12.2K–20.1K tok", or one number when the range is a point. */
 export function rangeTok(range) {
@@ -64,11 +66,16 @@ export function callsText(calls) {
 /** The call count of a finished job, as small print. */
 export const usedCallsText = (calls) => (calls === 1 ? ui('1 次调用') : uiFormat('{0} 次调用', [calls]));
 
-/** "预计 58.3K–96.1K tok · 8–10 次模型调用": the one line above the submit button. */
-export function estimateSummary(estimate) {
+/** Total token range only (without call count), for compact material and reader surfaces: "预计 58.3K–96.1K tok". */
+export function totalEstimateSummary(estimate) {
   // The range reaches up to what a thinking model writes (lib/token-estimate.js withThinking, #771): it says so beside the number, not only in the panel.
   const thinking = (estimate.notes || []).some((code) => code === 'includes-thinking' || code === 'thinking-default');
-  return `${ui('预计')} ${rangeTok(estimate.totalTokens)}${thinking ? ui('（含思考）') : ''} · ${callsText(estimate.calls)}`;
+  return `${ui('预计')} ${rangeTok(estimate.totalTokens)}${thinking ? ui('（含思考）') : ''}`;
+}
+
+/** "预计 58.3K–96.1K tok · 8–10 次模型调用": the one line above the submit button. */
+export function estimateSummary(estimate) {
+  return `${totalEstimateSummary(estimate)} · ${callsText(estimate.calls)}`;
 }
 
 /* ---------- DSH's speed figures (会话统计) ---------- */

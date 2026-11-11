@@ -115,6 +115,8 @@
     .token-estimate__notes li { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     /* ── A job's usage ─────────────────────────────────────────────────────── */
     .job-usage { display: grid; gap: var(--space-2); margin-block: var(--space-3); }
+    .token-usage--total,
+    .job-usage--total { display: block; margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
     .job-usage__title { font-size: var(--fs-sm); }
     .job-usage__expected { color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .job-usage__note { color: var(--text-dim); line-height: var(--lh-snug); }

@@ -135,7 +135,7 @@ export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHan
             {openSettings && <> <Button variant="link" size="sm" onClick={() => openSettings('settings-generation')}>{ui('前往设置')}</Button></>}</p>
         </Disclosure>
         <HelpTip label={ui('生成之后会怎样')}>{ui('生成后独立审核，通过的题目增量保存到所选题组，并与此段原文关联。')}</HelpTip>
-        {generateReady && deckId && typeof call === 'function' && <TokenEstimate enabled
+        {generateReady && deckId && typeof call === 'function' && <TokenEstimate enabled totalOnly
           request={{ feature: 'selection', selection: resolution.selection, deckId, count: Number(count) || 1, kind, language: uiLanguageName() }} />}
         {blocking && <p className="muted" role="status">{ui('这段原文补到这个题组的任务正在进行，请等它完成，或先停止它。')}</p>}
         <Button type="submit" className="study-learning-submit" variant={primary ? 'primary' : 'secondary'} busy={starting} busyLabel={ui('正在启动…')} disabled={!generateReady || !deckId || !!blocking}>{ui('生成、审核并补充题目')}</Button>
