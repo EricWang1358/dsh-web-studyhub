@@ -3,10 +3,10 @@
    names is an action of the study workspace. No model, no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { cp, readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseSkill, registerStudySkills, SHIPPED_SKILLS, studySkills } from '../lib/study-skills.js';
+import { BUNDLED_SKILL_RANK, parseSkill, registerStudySkills, SHIPPED_SKILLS, STUDY_SKILL_PROVIDER, studySkills } from '../lib/study-skills.js';
 import { StudyService } from '../lib/service.js';
 
 const text = await readFile(new URL('../skills/study-book/SKILL.md', import.meta.url), 'utf8');
@@ -48,6 +48,33 @@ test('the shipped skills are registered with the host\'s registry as bundled, mo
   assert.equal(skill.content, studySkills()[0].content);
   assert.throws(() => registerStudySkills({ skills: { register: () => { throw new Error('refused'); } } }), /refused/, 'a registry that refuses is the host\'s error, not hidden');
   assert.deepEqual(registerStudySkills({}), [], 'no registry: nothing registered');
+});
+
+test('when the host exposes registerProvider, bundled skills register at BUNDLED_SKILL_RANK (600) so user skills (400) outrank them and edits reload from disk', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-skills-provider-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await cp(new URL('../skills/', import.meta.url), dir, { recursive: true });
+  let provider;
+  const disposers = registerStudySkills({
+    skills: {
+      registerProvider: create => { provider = create({ signal: new AbortController().signal, invalidate() {} }); return () => {}; },
+      register: () => { throw new Error('registerProvider must win over runtime register (rank 250)'); },
+    },
+  }, { root: dir });
+  assert.equal(disposers.length, 1);
+  assert.equal(provider.name, STUDY_SKILL_PROVIDER);
+  const candidates = await provider.list({});
+  assert.deepEqual(candidates.map(c => c.name), SHIPPED_SKILLS);
+  const guide = candidates.find(c => c.name === 'study-guide');
+  assert.equal(guide.rank, BUNDLED_SKILL_RANK);
+  assert.ok(guide.rank > 400, 'user ~/.dsh/skills (rank 400) outranks bundled StudyHub skills (rank 600)');
+  assert.equal(guide.source, 'bundled');
+  assert.equal(guide.provider, STUDY_SKILL_PROVIDER);
+  const guidePath = join(dir, 'study-guide', 'SKILL.md');
+  const original = await readFile(guidePath, 'utf8');
+  await writeFile(guidePath, original.replace('# StudyHub 的门口', '# StudyHub 门口（热更新验证）'), 'utf8');
+  const loaded = await provider.get(guide, {});
+  assert.match(loaded.content, /热更新验证/, 'get() reads current SKILL.md from disk rather than freezing startup memory');
 });
 
 test('the skill ships in the package and the plugin registers it when the host has a skill registry', async () => {
