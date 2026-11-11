@@ -10,8 +10,8 @@ The report moves nothing (#902): it is the data for deciding what could later go
 | Class | Modules |
 | --- | ---: |
 | Used by ui | 105 |
-| Used by several contexts | 57 |
-| Used by exactly one context | 139 |
+| Used by several contexts | 58 |
+| Used by exactly one context | 138 |
 | Used by none of these (other lib files, entry points, scripts and tests only) | 121 |
 
 ## Used by ui (105)
@@ -122,7 +122,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/token-usage.js`: 8 ui files; contexts audio, generation, materials; 10 other lib files
 - `lib/usage-registry.js`: 1 ui file; 2 other lib files
 
-## Used by several contexts (57)
+## Used by several contexts (58)
 
 - `lib/assessment-quality.js`: contexts authoring, generation; 7 other lib files
 - `lib/audio-messages.js`: contexts audio, jobs; 4 other lib files
@@ -166,6 +166,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/mastery.js`: contexts generation, library, study; 27 other lib files
 - `lib/mineru-history.js`: contexts audio, jobs, materials; 1 other lib file
 - `lib/mineru-job.js`: contexts audio, jobs; 1 other lib file
+- `lib/model-retry.js`: contexts coach, generation; 7 other lib files
 - `lib/oral-exam.js`: contexts library, study; 1 other lib file
 - `lib/prereq.js`: contexts bank, coach, library, recording, study; 10 other lib files
 - `lib/publication-fingerprint.js`: contexts authoring, generation
@@ -182,7 +183,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/usage-scope.js`: contexts authoring, coach, generation, materials, workflows; 6 other lib files
 - `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 44 other lib files
 
-## Used by exactly one context (139)
+## Used by exactly one context (138)
 
 - `lib/answer-card-materials.js`: context generation
 - `lib/answer-time.js`: context study
@@ -283,7 +284,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/material-mastery.js`: context library; 3 other lib files
 - `lib/mineru-install.js`: context audio
 - `lib/mineru-local.js`: context audio; 2 other lib files
-- `lib/model-retry.js`: context coach; 7 other lib files
 - `lib/model-usage.js`: context generation; 5 other lib files
 - `lib/note-material.js`: context notes
 - `lib/part-plan.js`: context generation; 3 other lib files
