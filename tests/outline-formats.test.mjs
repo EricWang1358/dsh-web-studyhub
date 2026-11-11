@@ -92,6 +92,11 @@ test('Word: paragraphs and headings, chapters as one text', async t => {
   await through(t, { name: 'lecture.docx', bytes: docxFile(body), pages: 1, unit: 'text' });
 });
 
+test('LaTeX: sections and prose, chapters as one text', async t => {
+  const tex = `\\documentclass{article}\\begin{document}\n${CHAPTERS.map(([title, text]) => `\\section{${title}}\n${text}\n`).join('\n')}\\end{document}`;
+  await through(t, { name: 'lecture.tex', bytes: tex, pages: 1, unit: 'text' });
+});
+
 test('PowerPoint: a source per slide, so a chapter holds whole slides', async t => {
   const slides = CHAPTERS.flatMap(([title, text], index) => [{ shapes: [shape([apara(title)], { ph: 'title' }), shape([apara(text)], { ph: 'body', id: 3 })] },
     { shapes: [shape([apara(`${title} continued`)], { ph: 'title' }), shape([apara(`${text} More about it on this second slide of the part.`)], { ph: 'body', id: 3 })] }]
