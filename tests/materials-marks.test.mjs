@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../lib/store.js';
 import { createMaterialsOperations } from '../lib/contexts/materials/operations.js';
-import { MARK_LIMITS, markStyle } from '../lib/reader-marks.js';
+import { MARK_LIMITS, markStyle } from '../lib/contexts/materials/mark-model.js';
 import { normalizeNode } from '../lib/annotation.js';
 import { markSchemas } from '../lib/contexts/materials/mark-contracts.js';
 

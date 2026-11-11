@@ -1,7 +1,8 @@
 /* The reader's own marks and its 待出题 list as plain data (owner request 2026-11-11): what the right-click menu offers, how marks are painted with
    the link layer's ranges, and the ONE ordinary question run a list of waiting passages becomes. Pure, so it runs under node:test; the
    components are marks/SelectionMenu.jsx and marks/QueueChip.jsx, the store is materials.marks.* (lib/contexts/materials/mark-operations.js). */
-import { DRAWN_STYLES } from '../../../lib/reader-marks.js';
+/** The marks drawn as such (lib/contexts/materials/mark-model.js DRAWN_STYLES); 'queue' is drawn as the 待出题 wash. ui/ does not import lib/ for this. */
+const DRAWN_STYLES = Object.freeze(['underline', 'bold', 'highlight']);
 import { generationFormDefaults } from '../../generation-status.js';
 import { generationRequest } from '../../generate-form.js';
 import { ui, uiFormat } from '../../i18n.js';

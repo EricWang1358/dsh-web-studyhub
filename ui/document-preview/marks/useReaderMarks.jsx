@@ -9,7 +9,6 @@ import { copyText } from '../reader/formula.js';
 import { supportsHighlights } from '../reader/find.js';
 import { ReaderModelContext } from '../ReaderModelGate.jsx';
 import { batchRequest, batchStartedText, clipText, drawnMarks, explainQuestion, marksAt, paintMarks, queueOf, selectionMenu } from './model.js';
-import { MARK_LIMITS } from '../../../lib/reader-marks.js';
 import QueueChip from './QueueChip.jsx';
 
 /* The reader's right-click menu (owner request 2026-11-11): select, right-click, and mark the passage (下划线 / 加粗 / 荧光笔), put it on the
@@ -22,8 +21,10 @@ import QueueChip from './QueueChip.jsx';
    - Shift + right-click, and a right-click with nothing selected and no mark under the pointer, leave the browser's own menu alone. */
 
 const READY = new Set(['saved', 'unchanged']);
-const REFUSED = () => ({ stale: ui('这段文字与资料对不上了，请重新选择。'), ambiguous: ui('这段文字在资料里出现了不止一次，请多选一点上下文。'), missing: ui('这段文字不在这份资料里。'),
-  full: ui('这份资料的标记已满，先去掉一些。'), 'queue-full': uiFormat('待出题最多 {0} 段，先一次性出题或移出一些。', [MARK_LIMITS.queue]) });
+const REFUSED = queueLimit => ({ stale: ui('这段文字与资料对不上了，请重新选择。'), ambiguous: ui('这段文字在资料里出现了不止一次，请多选一点上下文。'), missing: ui('这段文字不在这份资料里。'),
+  full: ui('这份资料的标记已满，先去掉一些。'), 'queue-full': uiFormat('待出题最多 {0} 段，先一次性出题或移出一些。', [queueLimit]) });
+/** The list's own limit (materials.marks.list `limits.queue`) until it has answered. */
+const QUEUE_LIMIT = 40;
 const nodeId = () => `explain-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 /** Where a menu opened from the keyboard (no pointer) goes: under the selection. */
 const pointOf = (event, capture) => {
@@ -41,7 +42,7 @@ const pointOf = (event, capture) => {
 export function useReaderMarks({ call, document, data, body, rendered, enabled, compact = false, onExplained, onBatchStarted, busy = false }) {
   const toast = useToast(), services = useContext(ReaderModelContext);
   const model = services?.model, ready = !!model?.ready;
-  const [items, setItems] = useState([]), [reload, setReload] = useState(0), [pending, setPending] = useState([]), [menu, setMenu] = useState(null), [queueOpen, setQueueOpen] = useState(false);
+  const [items, setItems] = useState([]), [reload, setReload] = useState(0), [pending, setPending] = useState([]), [menu, setMenu] = useState(null), [queueOpen, setQueueOpen] = useState(false), [queueLimit, setQueueLimit] = useState(QUEUE_LIMIT);
   const located = useRef([]);
   const documentId = document?.documentId || document?.id, revision = document?.revision;
   const live = enabled && !!documentId && !!call;
@@ -50,7 +51,7 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
   useEffect(() => {
     if (!live) { setItems([]); return undefined; }
     let current = true;
-    call('materials.marks.list', { documentId, revision }).then(value => { if (current) setItems(value.items || []); }).catch(() => { if (current) setItems([]); });
+    call('materials.marks.list', { documentId, revision }).then(value => { if (current) { setItems(value.items || []); if (value.limits?.queue) setQueueLimit(value.limits.queue); } }).catch(() => { if (current) setItems([]); });
     return () => { current = false; };
   }, [call, live, documentId, revision, reload]);
 
@@ -86,7 +87,7 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
   const marksCall = (action, args) => call(`materials.marks.${action}`, { documentId, revision, ...args });
   const save = async (capture, style) => {
     const result = await marksCall('save', { selection: selectionRequest(document, capture), style });
-    if (!READY.has(result.status)) { say(REFUSED()[result.status] || result.message || ui('暂时无法保存这个标记。'), 'warning'); return; }
+    if (!READY.has(result.status)) { say(REFUSED(queueLimit)[result.status] || result.message || ui('暂时无法保存这个标记。'), 'warning'); return; }
     if (style === 'queue' && result.status === 'saved') say(uiFormat('已加入待出题（共 {0} 段），继续读吧。', [queueOf(items).length + 1]), 'success');
     setReload(count => count + 1);
   };
@@ -98,10 +99,10 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
     setPending(list => [...list, drawn]);
     try {
       const resolved = await call('materials.selection.resolve', selectionRequest(document, capture));
-      if (resolved.status !== 'resolved') throw new Error(REFUSED()[resolved.status] || ui('这段文字暂时无法解释。'));
+      if (resolved.status !== 'resolved') throw new Error(REFUSED(queueLimit)[resolved.status] || ui('这段文字暂时无法解释。'));
       const term = clipText(capture.quote, 80), question = explainQuestion(term), language = uiLanguageName();
       const answer = await call('materials.selection.ask', askRequest({ selection: resolved.selection, question, term, language }));
-      if (answer.status !== 'answered') throw new Error(REFUSED()[answer.status] || ui('这段文字暂时无法解释。'));
+      if (answer.status !== 'answered') throw new Error(REFUSED(queueLimit)[answer.status] || ui('这段文字暂时无法解释。'));
       const kept = await call('materials.annotation.save', { documentId, revision, selection: resolved.selection,
         nodes: [{ id, parentId: null, question, term, label: ui('词解'), answer: answer.answer, language, kind: 'explain' }] });
       if (kept.status !== 'saved') throw new Error(kept.message || ui('词解没能保存。'));
@@ -141,7 +142,7 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
   return {
     onContextMenu,
     menu: menu && <ContextMenu label={ui('选中文字的操作')} within={body.current} point={menu.point} onClose={() => setMenu(null)} onSelect={choose}
-      items={selectionMenu({ here: menu.here, explain: model ? (ready ? 'ready' : 'no-model') : 'unavailable', queueFull: queue.length >= MARK_LIMITS.queue })} />,
+      items={selectionMenu({ here: menu.here, explain: model ? (ready ? 'ready' : 'no-model') : 'unavailable', queueFull: queue.length >= queueLimit })} />,
     chip: live && queue.length > 0 ? <QueueChip queue={queue} disabled={busy} modelReady={ready} onOpenModelSettings={services?.openModelSettings} compact={compact}
       open={queueOpen} onOpenChange={setQueueOpen} onRemove={item => remove([item.id])} onStart={startBatch} body={body} /> : null,
     // At the narrowest the toolbar has no room for a fifth control: the same panel opens from 更多.
