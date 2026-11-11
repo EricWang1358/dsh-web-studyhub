@@ -1,0 +1,66 @@
+/* The learner's own marks in the reader (owner request 2026-11-11), the 待出题 chip and the 词解 card. Tokens only (ui/DESIGN.md).
+   Marks are Custom Highlight API ranges like the link underlines (links.css), so they can only change colour, background, decoration and
+   shadow: 加粗 is drawn as a thin shadow on both sides of each glyph, never by changing the text. The learner's underline is the ink colour and
+   sits under the link underlines' colours; 荧光笔 is the warning tone's highlighter strength; a passage waiting under 待出题 has the info tone's faint halo (the accent is kept for the primary action); a 词解 being written
+   has a dotted line until its wavy annotation line replaces it. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :where(.study-app, .study-seat) {
+    ::highlight(study-mark-underline) {
+      text-decoration-line: underline;
+      text-decoration-style: solid;
+      text-decoration-thickness: 2px;
+      text-decoration-color: var(--text);
+      text-underline-offset: 0.18em;
+    }
+    ::highlight(study-mark-bold) {
+      color: var(--text);
+      text-shadow: 0.025em 0 0 currentColor, -0.025em 0 0 currentColor;
+    }
+    ::highlight(study-mark-highlight) {
+      background-color: var(--warn-mark);
+    }
+    ::highlight(study-mark-queue) {
+      background-color: var(--info-halo);
+    }
+    ::highlight(study-mark-pending) {
+      text-decoration-line: underline;
+      text-decoration-style: dotted;
+      text-decoration-thickness: 2px;
+      text-decoration-color: var(--text-muted);
+    }
+  }
+  :is(.study-app, .study-seat) {
+    .sh-menu--context { min-width: 11rem; }
+
+    .reader-queue__chip { font-variant-numeric: tabular-nums; }
+    .reader-queue__panel { display: grid; gap: var(--space-3); width: 360px; max-height: min(70vh, 32rem); overflow-y: auto; overscroll-behavior: contain; }
+    .reader-queue__panel p, .reader-queue__panel ol { margin: 0; }
+    .reader-queue__lead, .reader-queue__note { color: var(--text-muted); font-size: var(--fs-sm); }
+    .reader-queue__list { display: grid; padding: 0; list-style: none; counter-reset: queue; }
+    .reader-queue__row { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: var(--space-2); padding: var(--space-2) 0; border-top: 1px solid var(--line-soft); counter-increment: queue; }
+    .reader-queue__row:first-child { border-top: 0; }
+    .reader-queue__row::before { content: counter(queue); color: var(--text-faint); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; padding-top: 0.15em; }
+    .reader-queue__quote { justify-self: stretch; min-height: 0; padding: 0 var(--space-1); color: var(--text); font-weight: var(--fw-regular); font-size: var(--fs-sm); line-height: 1.5; text-align: start; overflow-wrap: anywhere; }
+    .reader-queue__quote:hover { text-decoration: underline; text-decoration-color: var(--line-strong); }
+    .reader-queue__per { display: flex; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: var(--fs-sm); }
+    .reader-queue__start { justify-self: stretch; }
+
+    .reader-explain {
+      position: fixed; z-index: var(--z-popover, 40); max-width: min(22rem, calc(100vw - 16px)); display: grid; gap: var(--space-1-5);
+      padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg-raised);
+      box-shadow: var(--shadow-popover); color: var(--text); font-size: var(--fs-sm); line-height: 1.6; pointer-events: none;
+    }
+    .reader-explain p { margin: 0; }
+    .reader-explain__term { display: flex; align-items: baseline; gap: var(--space-2); font-weight: var(--fw-strong); }
+    .reader-explain__tag { color: var(--accent); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
+    .reader-explain__answer { max-height: 14rem; overflow: hidden; }
+    .reader-explain__hint { color: var(--text-faint); font-size: var(--fs-xs); }
+  }
+  :is(.study-app, .study-seat) .reader-queue__anchor { display: inline-block; width: 0; height: 1.5rem; }
+  @container reader (max-width: 520px) {
+    :is(.study-app, .study-seat) .reader-queue__panel { width: min(360px, calc(100cqw - var(--space-6))); }
+  }
+}

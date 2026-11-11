@@ -23,7 +23,7 @@ export { TONES, toneOf, TONE_ICONS } from './tones.js';
 export { default as ConfirmDialog } from './ConfirmDialog.jsx';
 export { default as InlineConfirm } from './InlineConfirm.jsx';
 export { default as Popover } from './Popover.jsx';
-export { default as Menu } from './Menu.jsx';
+export { default as Menu, ContextMenu } from './Menu.jsx';
 export { default as Tooltip } from './Tooltip.jsx';
 export { HelpTip } from './HelpTip.jsx';
 export { CloseButton } from './CloseButton.jsx';

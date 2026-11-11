@@ -19,6 +19,8 @@ import { usePassageLinkLayer } from './links/usePassageLinkLayer.js';
 import useBilingual from './translation/useBilingual.jsx';
 import { annotationLinks, loadAnnotationMode, saveAnnotationMode } from './annotation/model.js';
 import StaleAnnotations from './annotation/StaleAnnotations.jsx';
+import { useReaderMarks } from './marks/useReaderMarks.jsx';
+import ExplainCard from './marks/ExplainCard.jsx';
 import { isOfficeFormat, isPagedFormat, isSlideFormat } from '../../lib/office/limits.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { displayTitle } from '../../lib/document-title.js';
@@ -57,10 +59,14 @@ import { chapterFindGroups, chapterOutline, findStop, withElsewhere } from './re
 import { useChapterGoal, useReaderChapters } from './reader/useReaderChapters.js';
 import { chapterName, chapterRange, chapterTitle, chapterPagerLabel, elsewhereCount, nextChapterWord, previousChapterWord } from './reader/chapter-copy.js';
 import { useNarrow } from '../use-narrow.js';
+
+/** Under this width of the viewer the toolbar's controls fill one row (reader-slim.css, @container reader 520px): 待出题 moves into 更多. */
+const COMPACT_TOOLBAR = 520;
 import css from './document-preview.css';
 import readerCss from './reader/reader.css';
 import slimCss from './reader/reader-slim.css';
 import linksCss from './links/links.css';
+import marksCss from './marks/marks.css';
 import translationCss from './translation/translation.css';
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
@@ -110,7 +116,7 @@ function QuotedText({ text, quote, anchor, format }) {
 /**
  * The source reader. Three views: 阅读 (reflowed, with an outline), 原文 (the stored text
  * exactly, for checking citations) and 原始 PDF. Props: source, quote, call, data, host,
- * onOpenCard, onPublished, onCaseFromPassage(passage), onGenerate() (shows 「出题」 as the toolbar's primary action; its arrow opens 做这几页的题), generateDisabled, initialMode
+ * onGenerateStarted(job) (一次性出题 of the 待出题 list started a run; the reader stays), onOpenCard, onPublished, onCaseFromPassage(passage), onGenerate() (shows 「出题」 as the toolbar's primary action; its arrow opens 做这几页的题), generateDisabled, initialMode
  * ('read' | 'text' | 'original'), moreItems (menu items the dialog adds to 更多: rename, today's tasks, the question sets).
  * The toolbar keeps 目录, 出题, 错题, 思维导图 and 更多; everything else is in 更多 (reader/more-items.js).
  * localContent ({ id, title, markdown }) reads saved writing in the same reader without a material identity or material actions.
@@ -123,7 +129,7 @@ export default function DocumentViewer(props) {
   return <ReaderModelContext.Provider value={services}><DocumentReader {...props} /></ReaderModelContext.Provider>;
 }
 
-function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
+function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, onGenerateStarted, generateDisabled = false, initialMode = 'read',
   onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
@@ -131,6 +137,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useInjectCss(readerCss, 'study-reader');
   useInjectCss(slimCss, 'study-reader-slim');
   useInjectCss(linksCss, 'study-reader-links');
+  useInjectCss(marksCss, 'study-reader-marks');
   useInjectCss(translationCss, 'study-reader-translation');
   const [loadedDocument, setDocument] = useState(null), [loadedContent, setContent] = useState(''), [fileUrl, setFileUrl] = useState('');
   const [error, setError] = useState(''), [fetching, setLoading] = useState(true), [mode, setMode] = useState(initialMode);
@@ -153,7 +160,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useEffect(() => { setPickPagesGuide(!!pickPages); }, [pickPages, source.id]);
   const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
   // Narrow panes (under NARROW px of the viewer, ui/use-narrow.js): the outline and the learning panel slide over the text instead of sitting beside it.
-  const narrow = useNarrow(root);
+  const narrow = useNarrow(root), compact = useNarrow(root, COMPACT_TOOLBAR);
   const outlineId = useId(), toolsId = useId();
   useEffect(() => {
     let current = true, objectUrl = '';
@@ -205,15 +212,16 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) { setError(e.message); }
   };
+  // The kept 批注 are read in both modes: 批注 marks them all, 阅读 only the 词解 among them (right-click › AI 词解), which show on hover.
   useEffect(() => {
-    if (localMode || annotationMode !== 'annotate' || !document) return undefined;
+    if (localMode || !document) return undefined;
     let current = true;
     call('materials.annotation.list', { documentId: document.documentId || document.id, revision: document.revision })
       .then(value => { if (current) setKept({ items: value.items || [], stale: value.stale || [] }); })
       .catch(() => { if (current) setKept({ items: [], stale: [] }); });
     return () => { current = false; };
   }, [call, document, annotationMode, keptReload, localMode]);
-  const annotationMarks = useMemo(() => (annotationMode === 'annotate' && !localMode ? annotationLinks(kept.items) : []), [annotationMode, kept.items, localMode]);
+  const annotationMarks = useMemo(() => (localMode ? [] : annotationLinks(kept.items).filter(link => annotationMode === 'annotate' || link.explain)), [annotationMode, kept.items, localMode]);
   const groups = useMemo(() => groupPassageLinks(localMode ? [] : [...links, ...annotationMarks]), [links, annotationMarks, localMode]);
   const annotation = useMemo(() => ({ mode: annotationMode, items: kept.items, stale: kept.stale,
     onMode: next => { setAnnotationMode(next); saveAnnotationMode(next); }, onChanged: () => setKeptReload(count => count + 1) }), [annotationMode, kept]);
@@ -373,7 +381,13 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     if (note) openAnnotation(note);
     else if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true });
   };
-  usePassageLinkLayer({ body, groups: model.groups, rendered, underline: underlineShown(settings), onOpen: openGroup, titleOf: linkTitle });
+  // A 词解 shows its answer in a card while the pointer is on its line (marks/ExplainCard.jsx), not in hover text.
+  const [explainShown, setExplainShown] = useState(null);
+  const explainOf = group => { const link = group.links.find(item => item.explain); return link ? { term: link.term, answer: link.answer } : null; };
+  usePassageLinkLayer({ body, groups: model.groups, rendered, underline: underlineShown(settings), onOpen: openGroup, titleOf: linkTitle, cardOf: explainOf, onCard: setExplainShown });
+  // Right-click on the text: 下划线 / 加粗 / 荧光笔, 加入待出题 and AI 词解 (marks/useReaderMarks.jsx); 待出题 N in the toolbar starts one run for the list.
+  const marks = useReaderMarks({ call, document: learningDocument, data, body, rendered, enabled: !localMode && view !== 'original' && !!document, compact,
+    onExplained: () => setKeptReload(count => count + 1), onBatchStarted: onGenerateStarted, busy: generateDisabled });
   // The bilingual reading (译): marks and blocks beside the paragraphs, the page / chapter job, the glossary (translation/useBilingual.jsx).
   const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, enabled: !localMode });
   const quoteText = sources.find(item => item.id === source.id)?.text || content;
@@ -552,7 +566,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   };
   const menu = moreItems({ view, format, fileUrl: !!fileUrl, localMode, translate: bilingual.supported, display: true, tools: localMode ? null : { on: toolsOn, count: groups.length },
     quality: qualityText && canOutline ? { text: qualityText } : null, assist: !!(assistTarget && call && view !== 'original'), download: originalHandling(document) === 'download',
-    hostPreview: !!(document?.preview?.kind === 'file' && host?.openDocument), attach: !localMode && format !== 'pdf' && originalNone, extra: extraItems || [] },
+    hostPreview: !!(document?.preview?.kind === 'file' && host?.openDocument), attach: !localMode && format !== 'pdf' && originalNone, extra: [...marks.moreItems, ...(extraItems || [])] },
   { setView: chooseView, find: openFind, translate: bilingual.openDialog, display: () => setDisplayOpen(true), tools: () => toggle('tools'), quality: () => openOutlineAnd(),
     assist: () => openOutlineAnd('.reader-outline__foot button'), download: downloadOriginal, hostPreview: () => host.openDocument(document.preview.path), attach: () => setAttaching('attach') });
 
@@ -574,11 +588,12 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         {!localMode && document && call && <WrongPanel read={readWrong} cards={loop.cards} entryOf={loop.entryOf} drawn={drawnIds} chapterTitle={chapter.current ? chapterTitle(chapter.current) : ''}
           disabled={loop.status !== 'ready'} onPractice={practiseRow} onSeek={seekRow} />}
         {!loading && <MindMapPanel map={mindMap} document={materialName} pages={chapterPages} onJump={jumpMap} />}
+        {marks.chip}
       </div>
       <p className="reader-toolbar__where">{where ? <Tooltip layer content={where}><span tabIndex={0}>{where}</span></Tooltip> : null}</p>
       {view === 'original' && !localMode && <HelpTip label={ui('在原始 PDF 里怎么提问')} placement="bottom-end">{ui('在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。')}</HelpTip>}
       {!localMode && loop.returnDelta > 0 && <span className="reader-toolbar__delta" role="status">{uiFormat('本轮 +{0}%', [loop.returnDelta])}</span>}
-      <div className="reader-toolbar__group reader-toolbar__group--end"><ReaderMore items={menu} attention={!!capture && !toolsOn} /></div>
+      <div className="reader-toolbar__group reader-toolbar__group--end"><ReaderMore items={menu} attention={(!!capture && !toolsOn) || marks.moreItems.length > 0} /></div>
     </div>
     <div className="reader-progress" aria-hidden="true"><span style={{ transform: `scaleX(${view === 'original' ? 0 : position.progress})` }} /></div>
     {finding && view !== 'original' && <FindBar query={query} onQuery={setQuery} total={total} index={Math.min(match, Math.max(total - 1, 0))} elsewhere={elsewhere}
@@ -599,7 +614,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
           missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}
       <div className="reader-scroll" ref={scroller} tabIndex={0} role="region" aria-label={localMode ? localContent.title || source.title || ui('资料内容') : ui('资料内容')} data-mode={view}>
         <div className="reader-page">
-          <div className="study-document-body" ref={body} onMouseUp={select} onKeyUp={select} onTouchEnd={select} onClick={pick} onCopy={copy}>
+          <div className="study-document-body" ref={body} onMouseUp={select} onKeyUp={select} onTouchEnd={select} onClick={pick} onCopy={copy} onContextMenu={marks.onContextMenu}>
             {view === 'original'
               ? <PdfOriginal fileUrl={fileUrl} title={source.title || ui('原始 PDF')} page={pdfPage} total={totalPages} onPage={goToPage} settings={pdfView} onSettings={change => setPdfView(current => ({ ...current, ...change }))} />
               : reading
@@ -639,6 +654,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     </div>
     {bilingual.layer}
     {bilingual.dialog}
+    {marks.menu}
+    <ExplainCard shown={explainShown} />
     {displayOpen && <DisplayDialog settings={settings} onChange={updateSettings} onReset={resetSettings} underline={!localMode} extra={bilingual.displayRow} onClose={() => setDisplayOpen(false)} />}
     {peek && canPeek && <Suspense fallback={null}><PagePeek key={document.revision} page={peek.page} figure={peek.figure} totalPages={Math.max(0, ...sources.map(item => item.document?.totalPages || 0))}
       status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }}

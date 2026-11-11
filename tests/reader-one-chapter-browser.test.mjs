@@ -253,8 +253,9 @@ test('the reader draws one chapter of a 500-page book and every way to a page re
 
       const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       assert.ok(sideways <= 0, `${width}px: the page does not scroll sideways (${sideways})`);
-      // A seeded book has no materials record, so the reader's translations (materials.translation.list) are refused for it, as before this change: those 400s only.
-      assert.ok(refused.every(action => action === 'materials.translation.list'), `only the translation list is refused: ${JSON.stringify(refused)}`);
+      // A seeded book has no materials record, so the reader's per-material lists (translations, the 批注 that carry 词解, the learner's marks) are refused
+      // for it: those 400s only.
+      assert.ok(refused.every(action => ['materials.translation.list', 'materials.annotation.list', 'materials.marks.list'].includes(action)), `only the per-material lists are refused: ${JSON.stringify(refused)}`);
       assert.deepEqual(errors.filter(error => error !== REFUSED), [], 'no other console or page errors');
       await context.close();
     } finally {

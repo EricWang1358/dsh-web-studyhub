@@ -18,7 +18,8 @@ function insertMarkers(container, entries, open, titleOf) {
   return () => { markers.forEach(marker => marker.remove()); container.normalize(); };
 }
 
-const caretAt = (doc, x, y) => {
+/** The text node and offset under a point (client pixels), in either browser's API. */
+export const caretAt = (doc, x, y) => {
   const position = doc.caretPositionFromPoint?.(x, y);
   if (position) return [position.offsetNode, position.offset];
   const range = doc.caretRangeFromPoint?.(x, y);
@@ -34,10 +35,12 @@ const caretAt = (doc, x, y) => {
  * - [n] markers stay whatever `underline` says: they are the keyboard path to a passage's links.
  * - Underlines are Custom Highlight API ranges, so the text and every stored character stay exactly as they were.
  * - A click or tap on underlined text (not a drag that selects) opens its links; hovering shows what is linked.
+ * - `cardOf(group)` (optional): what a hovered passage shows in a card instead of the hover text (a 词解's answer); `onCard({ card, rect } | null)`
+ *   is called as the pointer comes onto such a passage and leaves it. The card is the page's to draw.
  */
-export function usePassageLinkLayer({ body, groups, rendered, underline, onOpen, titleOf }) {
-  const located = useRef([]), latest = useRef({ onOpen, titleOf });
-  useEffect(() => { latest.current = { onOpen, titleOf }; });
+export function usePassageLinkLayer({ body, groups, rendered, underline, onOpen, titleOf, cardOf, onCard }) {
+  const located = useRef([]), latest = useRef({ onOpen, titleOf, cardOf, onCard });
+  useEffect(() => { latest.current = { onOpen, titleOf, cardOf, onCard }; });
 
   // 1. Where the passages are, and their markers.
   useEffect(() => {
@@ -59,16 +62,24 @@ export function usePassageLinkLayer({ body, groups, rendered, underline, onOpen,
       const [node, offset] = caretAt(doc, event.clientX, event.clientY);
       return hitTest(located.current, node, offset).filter(entry => overText(entry.range, event.clientX, event.clientY));
     };
-    let frame = 0, shown = '';
+    let frame = 0, shown = '', carded = null;
+    const card = (group, range) => {
+      if (group === carded) return;
+      carded = group;
+      latest.current.onCard?.(group ? { card: latest.current.cardOf(group), rect: range.getBoundingClientRect(), key: group.key } : null);
+    };
     const hover = event => {
       if (frame) return;
       const { clientX, clientY } = event;
       frame = requestAnimationFrame(() => {
         frame = 0;
-        const [first] = under({ clientX, clientY }), title = first ? latest.current.titleOf(first.group) : '';
+        const [first] = under({ clientX, clientY }), withCard = first && latest.current.cardOf?.(first.group) ? first : null;
+        card(withCard?.group ?? null, withCard?.range);
+        const title = first && !withCard ? latest.current.titleOf(first.group) : '';
+        if (withCard) container.dataset.linkHover = 'true';
         if (title === shown) return;
         shown = title;
-        if (title) { container.title = title; container.dataset.linkHover = 'true'; } else { container.removeAttribute('title'); delete container.dataset.linkHover; }
+        if (title) { container.title = title; container.dataset.linkHover = 'true'; } else { container.removeAttribute('title'); if (!withCard) delete container.dataset.linkHover; }
       });
     };
     const click = event => {
@@ -78,7 +89,7 @@ export function usePassageLinkLayer({ body, groups, rendered, underline, onOpen,
       const [first] = under(event);
       if (first) latest.current.onOpen(first.group);
     };
-    const leave = () => { shown = ''; container.removeAttribute('title'); delete container.dataset.linkHover; };
+    const leave = () => { shown = ''; card(null); container.removeAttribute('title'); delete container.dataset.linkHover; };
     container.addEventListener('click', click);
     container.addEventListener('pointermove', hover);
     container.addEventListener('pointerleave', leave);
