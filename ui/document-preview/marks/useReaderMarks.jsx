@@ -86,6 +86,7 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
 
   const marksCall = (action, args) => call(`materials.marks.${action}`, { documentId, revision, ...args });
   const save = async (capture, style) => {
+    if (capture?.crossPage) { say(ui('选区跨了多页，请在一页内选择。'), 'warning'); return; }
     const result = await marksCall('save', { selection: selectionRequest(document, capture), style });
     if (!READY.has(result.status)) { say(REFUSED(queueLimit)[result.status] || result.message || ui('暂时无法保存这个标记。'), 'warning'); return; }
     if (style === 'queue' && result.status === 'saved') say(uiFormat('已加入待出题（共 {0} 段），继续读吧。', [queueOf(items).length + 1]), 'success');
@@ -94,6 +95,7 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
   const remove = async ids => { if (ids.length) await marksCall('delete', { ids }); setReload(count => count + 1); };
 
   const explain = async capture => {
+    if (capture?.crossPage) { say(ui('选区跨了多页，请在一页内选择。'), 'warning'); return; }
     if (!ready) { services?.openModelSettings?.(); return; }
     const id = nodeId(), drawn = { id: `pending:${id}`, selection: { sourceId: capture.sourceId || document.sourceId, quote: capture.quote, prefix: capture.prefix, suffix: capture.suffix } };
     setPending(list => [...list, drawn]);

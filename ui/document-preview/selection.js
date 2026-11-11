@@ -54,7 +54,7 @@ export function locateVisibleQuote(text, anchor) {
 }
 
 export function selectionRequest(document, capture) {
-  if (!capture?.quote?.trim()) return null;
+  if (!capture?.quote?.trim() || capture.crossPage) return null;
   return { ...(document?.documentId || document?.id ? { documentId: document.documentId || document.id } : {}),
     ...(document?.revision ? { revision: document.revision } : {}),
     ...(capture.sourceId || document?.sourceId ? { sourceId: capture.sourceId || document.sourceId } : {}),
@@ -79,26 +79,68 @@ export function groupPassageLinks(links = []) {
   return [...groups.values()].map((group, index) => ({ ...group, number: index + 1 }));
 }
 
+const elementOf = node => (node?.nodeType === 1 ? node : node?.parentElement);
+const BLOCK_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, tr, div, section, article, aside, header, footer, figure, figcaption, dt, dd, hr';
+const CELL_SELECTOR = 'td, th';
+const isSkippedElement = node => node.hasAttribute?.('data-study-marker') || node.hasAttribute?.('data-tr-key')
+  || node.hasAttribute?.('data-find-skip') || node.classList?.contains?.('reader-section__label') || node.classList?.contains?.('md-image-caption');
+const isLineBreak = node => node.nodeType === 1 && (node.nodeName === 'BR' || node.tagName === 'br');
+
 /**
- * The selected text and what surrounds it inside `owner`, without the text of the marks the reader adds (data-study-marker:
- * the [n] passage marks, the 译 marks and the translation blocks), so a selection that crosses one still quotes the document.
- * null when the walk finds none of the selection (a boundary outside `owner`).
+ * The selected text and what surrounds it inside `owner`, without the text of the marks or UI labels the reader adds
+ * (data-study-marker, data-tr-key, data-find-skip, .reader-section__label), keeping block, cell and <br> boundaries as
+ * line/tab breaks so multi-paragraph selections preserve line breaks and verify against the stored projection.
  */
 function selectionTexts(owner, range) {
-  const walker = owner.ownerDocument.createTreeWalker(owner, 1 | 4, { acceptNode: node => node.nodeType === 3 ? 1 : node.hasAttribute?.('data-study-marker') ? 2 : 3 });
-  let before = '', quote = '', after = '', node;
+  const walker = owner.ownerDocument.createTreeWalker(owner, 1 | 4, {
+    acceptNode: node => {
+      if (node.nodeType === 3) return 1;
+      if (isSkippedElement(node)) return 2;
+      return isLineBreak(node) ? 1 : 3;
+    },
+  });
+  let before = '', quote = '', after = '', quoteBlock = null, quoteCell = null, firstNode = null, lastNode = null, afterBr = false, node;
+  const appendQuote = (text, current) => {
+    if (!text) return;
+    let piece = text;
+    if (afterBr && piece.startsWith('\n')) piece = piece.slice(1);
+    afterBr = false;
+    if (!piece) return;
+    const parent = current.parentElement;
+    const block = parent?.closest?.(BLOCK_SELECTOR) ?? null, cell = parent?.closest?.(CELL_SELECTOR) ?? null;
+    if (quote && !piece.startsWith('\n')) {
+      if (quoteBlock && block && quoteBlock !== block) {
+        if (!/\n[ \t]*$/.test(quote)) quote = `${quote.replace(/[ \t]+$/, '')}\n`;
+      } else if (quoteCell && cell && quoteCell !== cell && !/\s$/.test(quote) && !/^\s/.test(piece)) {
+        quote += '\t';
+      }
+    }
+    quote += piece;
+    if (piece.trim()) {
+      quoteBlock = block; quoteCell = cell;
+      if (!firstNode) firstNode = current;
+      lastNode = current;
+    }
+  };
   while ((node = walker.nextNode())) {
+    if (node.nodeType === 1) {
+      if (!(node === range.endContainer && range.endOffset === 0) && range.comparePoint?.(node, 0) === 0) {
+        if (quote && !quote.endsWith('\n')) quote += '\n';
+        afterBr = true;
+      }
+      continue;
+    }
     const data = node.data, starts = node === range.startContainer, ends = node === range.endContainer;
-    if (starts && ends) { before = (before + data.slice(0, range.startOffset)).slice(-80); quote += data.slice(range.startOffset, range.endOffset); after += data.slice(range.endOffset); }
-    else if (starts) { before = (before + data.slice(0, range.startOffset)).slice(-80); quote += data.slice(range.startOffset); }
-    else if (ends) { quote += data.slice(0, range.endOffset); after += data.slice(range.endOffset); }
+    if (starts && ends) { before = (before + data.slice(0, range.startOffset)).slice(-80); appendQuote(data.slice(range.startOffset, range.endOffset), node); after += data.slice(range.endOffset); }
+    else if (starts) { before = (before + data.slice(0, range.startOffset)).slice(-80); appendQuote(data.slice(range.startOffset), node); }
+    else if (ends) { appendQuote(data.slice(0, range.endOffset), node); after += data.slice(range.endOffset); }
     else {
       const side = range.comparePoint(node, 0);
-      if (side < 0) before = (before + data).slice(-80); else if (side > 0) after += data; else quote += data;
+      if (side < 0) before = (before + data).slice(-80); else if (side > 0) after += data; else appendQuote(data, node);
     }
     if (after.length >= 80) break;
   }
-  return quote ? { quote, prefix: before, suffix: after.slice(0, 80) } : null;
+  return quote ? { quote, prefix: before, suffix: after.slice(0, 80), firstNode, lastNode } : null;
 }
 
 /** Capture before a toolbar takes focus. Only the caller's own preview can supply selection. */
@@ -108,20 +150,30 @@ export function captureSelection(container, selection = window.getSelection()) {
   if (container && (!container.contains(range.startContainer) || !container.contains(range.endContainer))) return null;
   // A formula is quoted whole: a selection that starts or ends inside a drawn one is widened, on screen too.
   if (spanFormulas(range)) { selection.removeAllRanges(); selection.addRange(range); }
+  const startElement = elementOf(range.startContainer), endElement = elementOf(range.endContainer);
   // A translation block (data-tr-key) is not the document: text selected inside one is never a passage of it.
-  if (range.startContainer.parentElement?.closest('[data-tr-key]') || range.endContainer.parentElement?.closest('[data-tr-key]')) return null;
+  if (startElement?.closest?.('[data-tr-key]') || endElement?.closest?.('[data-tr-key]')) return null;
   const quote = range.toString();
   if (!quote.trim()) return null;
-  const textOwner = range.startContainer.parentElement?.closest('[data-study-text]');
-  const owner = textOwner?.contains(range.endContainer) ? textOwner : container || (range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement);
+  const textOwner = startElement?.closest?.('[data-study-text]'), pageOwner = startElement?.closest?.('[data-study-page]');
+  const owner = textOwner?.contains?.(range.endContainer) ? textOwner
+    : pageOwner?.contains?.(range.endContainer) ? pageOwner
+    : container || elementOf(range.commonAncestorContainer);
   if (!owner) return null;
-  const texts = selectionTexts(owner, range);
+  let texts = selectionTexts(owner, range);
   if (texts && !texts.quote.trim()) return null;
+  if (!texts && owner.contains?.(range.startContainer) && owner.contains?.(range.endContainer)) return null;
+  const startPage = elementOf(texts?.firstNode)?.closest?.('[data-study-page]') || pageOwner;
+  const endPage = elementOf(texts?.lastNode)?.closest?.('[data-study-page]') || endElement?.closest?.('[data-study-page]');
+  if (texts && startPage && (!endPage || startPage === endPage) && owner !== startPage && !startPage.contains?.(owner)) {
+    texts = selectionTexts(startPage, range) || texts;
+  }
+  const crossPage = !!(startPage?.dataset?.studySource && endPage?.dataset?.studySource && startPage.dataset.studySource !== endPage.dataset.studySource);
   const before = range.cloneRange(), after = range.cloneRange();
   if (!texts) { before.selectNodeContents(owner); before.setEnd(range.startContainer, range.startOffset); after.selectNodeContents(owner); after.setStart(range.endContainer, range.endOffset); }
-  const pageElement = range.startContainer.parentElement?.closest('[data-study-page]');
   return { quote: texts?.quote ?? quote, prefix: texts ? texts.prefix : before.toString().slice(-80), suffix: texts ? texts.suffix : after.toString().slice(0, 80),
-    ...(pageElement ? { page: Number(pageElement.dataset.studyPage), sourceId: pageElement.dataset.studySource } : {}), range: range.cloneRange(), element: owner };
+    ...(startPage?.dataset ? { page: Number(startPage.dataset.studyPage), sourceId: startPage.dataset.studySource } : {}),
+    ...(crossPage ? { crossPage: true } : {}), range: range.cloneRange(), element: startPage && !crossPage && !startPage.contains?.(owner) ? startPage : owner };
 }
 
 /** The text the reader draws for one source (the page of a paged document, else all of it), without its own marks and without translation blocks, and the text nodes it came from. */
@@ -131,7 +183,7 @@ function renderedText(container, sourceId) {
   const walker = container.ownerDocument.createTreeWalker(passageContainer, 4), nodes = [];
   let text = '', node;
   while ((node = walker.nextNode())) {
-    if (node.parentElement?.closest('[data-study-marker], [data-tr-key]')) continue;
+    if (node.parentElement?.closest('[data-study-marker], [data-tr-key], [data-find-skip], .reader-section__label')) continue;
     nodes.push({ node, start: text.length }); text += node.textContent;
   }
   return { text, nodes };

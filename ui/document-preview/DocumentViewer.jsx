@@ -371,9 +371,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // A kept thread is opened in the learning panel: its passage becomes the selection there, and the panel brings its answers back.
   const openAnnotation = link => {
     const at = link.selection;
+    const fullQuote = (Number.isInteger(at.start) && Number.isInteger(at.end) && textBySource.get(at.sourceId)?.slice(at.start, at.end)) || at.quote;
     if (view === 'original') setMode('read'); // a kept passage is shown where it can be selected
     setCapture(previous => previous?.sourceId === at.sourceId && previous?.start === at.start && previous?.end === at.end ? previous
-      : { quote: at.quote, prefix: at.prefix || '', suffix: at.suffix || '', sourceId: at.sourceId, start: at.start, end: at.end, ...(at.page ? { page: at.page } : {}) });
+      : { quote: fullQuote, prefix: at.prefix || '', suffix: at.suffix || '', sourceId: at.sourceId, start: at.start, end: at.end, ...(at.page ? { page: at.page } : {}) });
     if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true });
   };
   const openGroup = group => {
@@ -418,7 +419,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     setPlaced(how);
     // Not found in the drawn text: the page it belongs to is shown, and the notice says the place is not exact.
     if (!range) { showSourcePage(); return undefined; }
-    scrollToNode(scroller.current, range.startContainer.parentElement, { center: true, smooth: false });
+    scrollToNode(scroller.current, range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement, { center: true, smooth: false });
     if (window.CSS?.highlights && window.Highlight) {
       window.CSS.highlights.set('study-source-quote', new window.Highlight(range));
       return () => window.CSS.highlights.delete('study-source-quote');
@@ -650,7 +651,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
               onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
           </div>)}
           {/* Case practice (WP12): a passage can be the seed of a case paper. */}
-          {onCaseFromPassage && view !== 'original' && <Button className="study-document-wide" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}
+          {onCaseFromPassage && view !== 'original' && <Button className="study-document-wide" disabled={!capture?.quote || !!capture.crossPage} title={!capture?.quote ? ui('先在原文中选中一段文字') : capture.crossPage ? ui('选区跨了多页，请在一页内选择。') : undefined}
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}
         </div>
         <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} onAnnotation={openAnnotation} />

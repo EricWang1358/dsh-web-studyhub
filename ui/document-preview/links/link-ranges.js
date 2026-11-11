@@ -25,7 +25,7 @@ function indexText(container, root) {
   const walker = container.ownerDocument.createTreeWalker(root, SHOW_TEXT), nodes = [], map = [];
   let raw = 0, text = '', node;
   while ((node = walker.nextNode())) {
-    if (node.parentElement?.closest('[data-study-marker]')) continue;
+    if (node.parentElement?.closest('[data-study-marker], [data-tr-key], [data-find-skip], .reader-section__label')) continue;
     const value = node.textContent;
     nodes.push({ node, start: raw });
     for (let index = 0; index < value.length; index++) if (!isSpace(value[index])) { map.push(raw + index); text += value[index]; }
