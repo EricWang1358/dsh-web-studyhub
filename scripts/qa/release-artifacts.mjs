@@ -16,6 +16,14 @@ assert.equal(receipt.version, manifest.version);
 assert.equal(receipt.archives.length, 8);
 const checksums = new Map((await readFile(join(target, `SHA256SUMS-${manifest.version}.txt`), 'utf8')).trim().split(/\r?\n/)
   .map(line => { const [hash, filename] = line.split(/\s+/); return [filename, hash]; }));
+const UI_ONLY_DEPENDENCIES = [
+  '@base-ui/react',
+  '@codemirror/lang-markdown',
+  '@uiw/react-codemirror',
+  'dompurify',
+  'katex',
+  'markdown-it-texmath',
+];
 const checked = [];
 for (const artifact of [...receipt.archives, receipt.setup, receipt.setupZh]) {
   assert.equal(artifact.filename, artifact.filename.replaceAll(/[/\\]/g, ''), 'artifact names stay in the release directory');
@@ -36,6 +44,14 @@ for (const artifact of [...receipt.archives, receipt.setup, receipt.setupZh]) {
     assert.equal(packed.name, artifact.name);
     assert.equal(packed.version, manifest.version);
     await access(resolve(packageRoot, packed.main));
+    if (packed.name === '@ericwang1358/dsh-daily-flashcard') {
+      assert.ok(files.includes('package/lib/client.js'), 'workbench archive includes built UI client bundle');
+    } else if (packed.name.startsWith('@ericwang1358/dsh-study-')) {
+      assert.equal(files.some(file => /^package\/lib\/client(?:\.[A-Za-z0-9._-]+)?\.js$/.test(file)), false,
+        `${packed.name} omits built UI client bundles`);
+      assert.deepEqual(UI_ONLY_DEPENDENCIES.filter(dep => dep in (packed.dependencies || {})), [],
+        `${packed.name} omits UI-only dependencies`);
+    }
     if (packed.name !== '@ericwang1358/studyhub-retrieval') {
       for (const language of ['en', 'zh']) {
         const localePath = packed.exports['./locale/*'].replace('*', `${language}.json`);
