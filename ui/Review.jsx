@@ -22,6 +22,7 @@ import { practiceArgs } from "./learning-navigation.js";
 import { isBackDestination, wayBackOf } from "./review/way-back.js";
 import { resolvePracticeSettings } from "../lib/practice-settings.js";
 import { countMaterials } from "../lib/source-groups.js";
+import { openReaderForPages, readableMaterialItems } from "./document-preview/practice/open-reader-pages.js";
 import { currentMethodStage, resolveRoundCourse, roundEndAlternative, useMethodAlternativeOpen } from "./method-alternatives.js";
 import { pageAvailable } from "./capabilities.js";
 import { askForLeeches } from "./wrongbook-model.js";
@@ -140,6 +141,13 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         </>}>
         <div className="review-heading-links">
           <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [countMaterials(data?.sources, run.sourceIds)])}</Button>
+          {!run.complete && !run.reading && run.mode !== "exam" && readableMaterialItems(data?.sources, run.sourceIds).length > 0 && (
+            <Tooltip layer content={ui("打开资料阅读器，翻到已学章节或页码后点「做这几页的题」，避开还没学到的后续页。")}>
+              <Button variant="quiet" size="sm" onClick={() => openReaderForPages({ sources: data?.sources, sourceIds: run.sourceIds, openModal, back: true })}>
+                {ui("去资料选页做题")}
+              </Button>
+            </Tooltip>
+          )}
           <RunContext data={data} deckId={run.deckId} run={run} />
           {skeletonHere && openSkeleton && (
             <Button variant="quiet" size="sm" title={uiFormat("这道题在知识骨架「{0}」里", [skeletonHere.title])} onClick={() => openSkeleton(skeletonHere.id)}>{ui("知识骨架")}</Button>

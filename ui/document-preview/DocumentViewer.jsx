@@ -120,7 +120,7 @@ export default function DocumentViewer(props) {
 }
 
 function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
-  onPracticePages, onGeneratePages, onOpenDraftPages, resume, backLabel, onBack, localContent, moreItems: extraItems, peekPage }) {
+  onPracticePages, onGeneratePages, onOpenDraftPages, resume, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
   useInjectCss(css, 'study-document-preview');
@@ -145,6 +145,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [attaching, setAttaching] = useState(null), [reload, setReload] = useState(0), attachTarget = useRef(null); // 补全原文件 (OriginalFile.jsx)
   const [peek, setPeek] = useState(null); // 看原页 (peek/PagePeek.jsx): { page, figure }
   const [displayOpen, setDisplayOpen] = useState(false); // 更多 › 显示设置…
+  const [pickPagesGuide, setPickPagesGuide] = useState(!!pickPages);
+  useEffect(() => { setPickPagesGuide(!!pickPages); }, [pickPages, source.id]);
   const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
   // Narrow panes (under NARROW px of the viewer, ui/use-narrow.js): the outline and the learning panel slide over the text instead of sitting beside it.
   const narrow = useNarrow(root);
@@ -337,6 +339,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const resumeAt = useMemo(() => resume && (place?.kind === 'recording' || place?.kind === 'part') ? { ...resume, sectionId: place.sectionId } : resume, [resume, place]);
   const unit = aiOn || !paged ? 'section' : isSlideFormat(format) ? 'slide' : 'page';
   const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections: allSections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt });
+  useEffect(() => { if (loop.open && pickPagesGuide) setPickPagesGuide(false); }, [loop.open, pickPagesGuide]);
   const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
   const openDraftPages = draftIds => { loop.setOpen(false); onOpenDraftPages?.(draftIds); };
@@ -470,6 +473,12 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   if (document) attachTarget.current = { documentId: document.documentId || document.id, revision: document.revision, title: document.filename || document.title || source.title, format };
   const notices = [
     loading && <LoadingState key="loading" label={ui('正在打开资料…')} />,
+    !localMode && pickPagesGuide && view !== 'original' && onPracticePages && (
+      <InlineMessage key="pick-pages" tone="info" onDismiss={() => setPickPagesGuide(false)}
+        action={{ label: ui('做这几页的题'), disabled: generateDisabled, onClick: () => loop.setOpen(!loop.open) }}>
+        {ui('先翻到正在看的那一章或那几页，再点「做这几页的题」（或「AI 出题」旁的箭头 / 快捷键 P），就只会抽已学范围的题。')}
+      </InlineMessage>
+    ),
     // A document that only kept its text is said in 更多 (the 原始 PDF item, or 补全原文件…); a file that went missing or changed is a fault and keeps its notice.
     !localMode && originalFault && <OriginalNotice key="original" document={document} onAction={setAttaching} />,
     !localMode && error && <InlineMessage key="error" tone="error">{error}</InlineMessage>,

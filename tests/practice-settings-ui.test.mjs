@@ -10,7 +10,7 @@ import { nativeSelects } from './helpers/native-selects.mjs';
 import { PRACTICE_DEFAULTS, PRACTICE_LIMITS } from '../lib/practice-settings.js';
 
 const require = createRequire(import.meta.url);
-const built = await build({ stdin: { contents: `export { default as PracticePane, ROUND_SIZES, LEECH_FAILURES, LEECH_RATES } from './ui/settings/PracticePane.jsx';
+const built = await build({ stdin: { contents: `export { default as PracticePane, ROUND_SIZES, NEW_CARD_ORDER_LABELS, LEECH_FAILURES, LEECH_RATES } from './ui/settings/PracticePane.jsx';
   export { SETTINGS_CATEGORIES, categoriesFor, categoryForAnchor } from './ui/settings-groups.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node',
   format: 'cjs', external: ['react', 'react-dom'], plugins: [nativeSelects], loader: { '.css': 'text' }, logLevel: 'silent' });
@@ -198,4 +198,27 @@ test('顽固题: English words, and a saved value outside the choices is kept', 
     assert.match(words(pane()), /stubborn/i);
   } finally { ssr.setUiLanguage('zh'); }
   assert.match(pane({ data: { settings: { practice: { leechFailures: 7 } } } }), /<option[^>]*value="7"[^>]*selected|<option[^>]*selected[^>]*value="7"/);
+});
+
+test('新题出场顺序 (#976): defaults to reading order, offers focus and shuffle, saves at once, and translates cleanly', async () => {
+  ssr.setUiLanguage('zh');
+  const html = pane();
+  assert.match(words(html), /新题出场顺序/);
+  assert.match(words(html), /按资料顺序（从前往后）/);
+  assert.match(html, /<option[^>]*value="reading"[^>]*selected|<option[^>]*selected[^>]*value="reading"/);
+  const savedFocus = pane({ data: { settings: { practice: { newCardOrder: 'focus' } } } });
+  assert.match(savedFocus, /<option[^>]*value="focus"[^>]*selected|<option[^>]*selected[^>]*value="focus"/);
+  assert.doesNotMatch(savedFocus.match(/<button[^>]*>(?:(?!<\/button>).)*恢复默认/)[0], /disabled/);
+
+  const { view, calls } = paneView();
+  assert.deepEqual(named(view, 'newCardOrder').props.options.map(option => option.value), ['reading', 'focus', 'shuffle']);
+  await named(view, 'newCardOrder').props.onChange('shuffle');
+  assert.deepEqual(calls[0].slice(0, 2), ['settings.practice.set', { patch: { newCardOrder: 'shuffle' } }]);
+  assert.equal(named(view, 'newCardOrder').props.value, 'shuffle');
+
+  ssr.setUiLanguage('en');
+  try {
+    assert.doesNotMatch(words(pane({ data: { settings: { practice: { newCardOrder: 'focus' } } } })), han);
+    assert.match(words(pane()), /New-question order/i);
+  } finally { ssr.setUiLanguage('zh'); }
 });
