@@ -28,6 +28,29 @@ const SERVLET_BOOK = [
   { type: 'text', text: '下一章介绍服务端动态页面模板与内置对象。', page_idx: 3 },
 ];
 
+const LONG_LINES = Array.from({ length: 95 }, (_, i) => `长段第 ${i + 1} 节持续展开多行长选区在真实浏览器高亮层中的全量覆盖能力与超过四千字符裁剪恢复表现（标识 L-${String(i + 1).padStart(2, '0')}）。`);
+const MD_NOTE = [
+  '# 矩阵与请求流笔记',
+  '',
+  '前导说明段。',
+  '',
+  '![架构流程图](images/arch.png)',
+  '',
+  '图后第一行紧接说明，',
+  '图后第二行给出乘积 $a*b + c*d$。',
+  '',
+  '$$A = x_1 + x_2$$',
+  '',
+  '$$\\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}$$',
+  '',
+  '矩阵后第一行结论，',
+  '矩阵后第二行推论。',
+  '',
+  ...LONG_LINES,
+  '',
+  '超长段收束尾句终章。',
+].join('\n\n');
+
 let built = null;
 const previewDist = () => built ??= (async () => {
   const dist = await mkdtemp(join(tmpdir(), 'study-multiline-dist-'));
@@ -52,17 +75,30 @@ const selectSpan = (page, startWords, endWords) => page.evaluate(({ from, to }) 
   const range = document.createRange();
   range.setStart(startNode, startOffset);
   range.setEnd(endNode, endOffset);
-  startNode.parentElement.scrollIntoView({ block: 'center' });
+  endNode.parentElement.scrollIntoView({ block: 'center' });
   const selection = getSelection();
   selection.removeAllRanges();
   selection.addRange(range);
   body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-  const rect = [...range.getClientRects()].at(-1);
+  const rect = [...range.getClientRects()].reverse().find(r => r.width > 1 && r.height > 1) || range.getBoundingClientRect();
   return { x: rect.left + Math.min(rect.width / 2, 20), y: rect.top + rect.height / 2 };
 }, { from: startWords, to: endWords });
 
 const painted = (page, name) => page.evaluate(key => CSS.highlights.get(key)?.size ?? 0, name);
 const menu = page => page.getByRole('menu', { name: '选中文字的操作' });
+const rightClickSelection = async page => {
+  const pt = await page.evaluate(() => {
+    const sel = getSelection();
+    if (!sel?.rangeCount || sel.isCollapsed) return null;
+    const range = sel.getRangeAt(0);
+    const el = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
+    el?.scrollIntoView?.({ block: 'center' });
+    const rect = [...range.getClientRects()].reverse().find(r => r.width > 1 && r.height > 1) || range.getBoundingClientRect();
+    return { x: rect.left + Math.min(rect.width / 2, 20), y: rect.top + rect.height / 2 };
+  });
+  assert.ok(pt, 'live selection rect available for right-click');
+  await page.mouse.click(pt.x, pt.y, { button: 'right' });
+};
 
 test('multi-paragraph selection on Page 2 of a converted book preserves line breaks, resolves in 学习, marks, queues, explains, handles triple-click and warns on cross-page', { timeout: 300000 }, async t => {
   let browser;
@@ -77,6 +113,11 @@ test('multi-paragraph selection on Page 2 of a converted book preserves line bre
       dataBase64: Buffer.from(JSON.stringify(SERVLET_BOOK)).toString('base64'),
       courses: ['JavaWeb'],
     })).documentId;
+    await runtime.call('materials.document.import', {
+      filename: '矩阵与请求流笔记.md',
+      dataBase64: Buffer.from(MD_NOTE).toString('base64'),
+      courses: ['JavaWeb'],
+    });
     runtime.dispose();
   } });
   t.after(() => running.close?.());
@@ -85,7 +126,7 @@ test('multi-paragraph selection on Page 2 of a converted book preserves line bre
   try {
     await page.goto(running.server.url);
     await (await revealNavRow(page, 'sources')).dispatchEvent('click');
-    const row = page.locator('.source-doc').first();
+    const row = page.locator('.source-doc', { hasText: 'JavaWeb教材' }).first();
     await row.waitFor({ timeout: 60000 });
     await row.locator('.source-main').click({ timeout: 30000 });
     const viewer = page.locator('.study-document-viewer');
@@ -156,6 +197,57 @@ test('multi-paragraph selection on Page 2 of a converted book preserves line bre
     await menu(page).waitFor({ state: 'detached' });
     await page.getByText('选区跨了多页，请在一页内选择。').first().waitFor({ timeout: 10000 });
     assert.equal(await page.getByText('这段文字不在这份资料里。').count(), 0);
+
+    // 5. Close the first reader dialog, then open the Markdown material: verify relative image ![alt](local.png), $a*b + c*d$, 1 \\ 2, adjacent plain lines, and >4000-char underline.
+    await page.keyboard.press('Escape');
+    await until(async () => !(await viewer.count()), 'first reader dialog closed', { timeoutMs: 15000 });
+    const mdRow = page.locator('.source-doc', { hasText: '矩阵与请求流笔记' }).first();
+    await mdRow.waitFor({ timeout: 30000 });
+    await mdRow.locator('.source-main').click({ timeout: 30000 });
+    await viewer.locator('.study-document-body .reader-html').getByText('矩阵与请求流笔记').waitFor({ timeout: 60000 });
+
+    const mdPoint = await selectSpan(page, '前导说明段。', '矩阵后第二行推论。');
+    assert.ok(mdPoint, 'Markdown multi-block formula/image selection placed');
+    await until(async () => {
+      const text = await tools.locator('#study-passage-quote').textContent();
+      return text.includes('前导说明段。') && text.includes('矩阵后第二行推论。') && !text.includes('架构流程图');
+    }, 'Markdown selection omits relative image alt text and keeps lines');
+    await tools.getByRole('button', { name: '依据原文回答' }).waitFor({ timeout: 15000 });
+    assert.equal(await tools.getByText('无法在已保存的资料中核实这段文字，请重新选择。').count(), 0);
+
+    await rightClickSelection(page);
+    await menu(page).waitFor();
+    await menu(page).getByRole('menuitem', { name: '下划线', exact: true }).click();
+    await menu(page).waitFor({ state: 'detached' });
+    await until(async () => (await painted(page, 'study-mark-underline')) === 1, 'Markdown formula underline painted');
+
+    // Re-selecting the underlined formula passage offers 去掉下划线.
+    await selectSpan(page, '前导说明段。', '矩阵后第二行推论。');
+    await rightClickSelection(page);
+    await menu(page).waitFor();
+    await menu(page).getByRole('menuitem', { name: '去掉下划线', exact: true }).click();
+    await menu(page).waitFor({ state: 'detached' });
+    await until(async () => (await painted(page, 'study-mark-underline')) === 0, 'Markdown formula underline removed');
+
+    // Plain lines right below 1 \\ 2 resolve cleanly without prefix escape mismatch.
+    await selectSpan(page, '矩阵后第一行结论', '矩阵后第二行推论。');
+    await until(async () => (await tools.locator('#study-passage-quote').textContent()).startsWith('矩阵后第一行结论'), 'plain lines after matrix captured');
+    await tools.getByRole('button', { name: '依据原文回答' }).waitFor({ timeout: 15000 });
+    assert.equal(await tools.getByText('无法在已保存的资料中核实这段文字，请重新选择。').count(), 0);
+
+    // >4000-char multi-paragraph underline paints all the way to the final paragraph past 4000 chars.
+    const longPoint = await selectSpan(page, '长段第 1 节', '超长段收束尾句终章。');
+    assert.ok(longPoint);
+    await rightClickSelection(page);
+    await menu(page).waitFor();
+    await menu(page).getByRole('menuitem', { name: '下划线', exact: true }).click();
+    await menu(page).waitFor({ state: 'detached' });
+    await until(async () => page.evaluate(() => {
+      const hl = CSS.highlights.get('study-mark-underline');
+      if (!hl || hl.size !== 1) return false;
+      const [range] = [...hl];
+      return range.toString().endsWith('超长段收束尾句终章。') && range.toString().length > 4100;
+    }), '>4000-char underline spans the full passage through the end');
 
     assert.deepEqual(errors, [], 'no console or page errors');
   } finally {

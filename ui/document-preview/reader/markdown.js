@@ -10,7 +10,7 @@ const formulaRule = (display, numbered) => (tokens, index) => {
   return formulaHtml({ source: content, display, raw: `${mark}${content}${mark}${label ? ` (${label})` : ''}`, label });
 };
 
-const renderer = createMarkdown({ math_inline: formulaRule(false), math_inline_double: formulaRule(true), math_block: formulaRule(true), math_block_eqno: formulaRule(true, true) });
+const renderer = createMarkdown({ math_inline: formulaRule(false), math_inline_double: formulaRule(true), math_block: formulaRule(true), math_block_eqno: formulaRule(true, true) }, { markerCaptions: true });
 
 /* A converter's page footnote (lib/footnote-html.js: `<small><span class="docvortex-page-footnote">…</span></small>`) is a block of its own: a note
    paragraph whose words go through the same inline Markdown (emphasis, formulas, entities) as any text. Raw HTML stays off (html: false); the stored tags

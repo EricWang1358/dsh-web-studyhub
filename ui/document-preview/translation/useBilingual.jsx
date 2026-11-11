@@ -237,7 +237,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     const container = body.current;
     if (!capture || !container) return;
     const tempKey = `tmp:${nextId('sel')}`;
-    const block = reading ? paragraphAround(capture.range.endContainer, layer.current.byElement) : null;
+    const block = reading ? paragraphAround(capture.lastNode || capture.range.endContainer, layer.current.byElement) : null;
     if (block) layer.current.pinned.set(tempKey, block);
     else {
       floatRange.current = capture.range.cloneRange();

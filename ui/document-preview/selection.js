@@ -42,6 +42,8 @@ export function resolveQuote(text, quote, anchor = {}) {
 /** A quote that has a place in the text (as written or by its letters), so the reader scrolls to it and not to the page it is on. */
 export const isPlaced = status => status === 'resolved' || status === 'fuzzy';
 
+const stripMarkdownInline = value => String(value || '').replace(/[\s*_\\`~]/g, '');
+
 /** Renderer whitespace differs from source projection separators; map only a unique contextual match. */
 export function locateVisibleQuote(text, anchor) {
   const compact = value => String(value || '').replace(/\s/g, '');
@@ -50,7 +52,16 @@ export function locateVisibleQuote(text, anchor) {
     if (!/\s/.test(text[index])) { map.push(index); characters.push(text[index]); }
   }
   const hit = locateQuote(characters.join(''), compact(anchor.quote), { prefix: compact(anchor.prefix), suffix: compact(anchor.suffix) });
-  return hit.status === 'resolved' ? { status: 'resolved', start: map[hit.start], end: map[hit.end - 1] + 1 } : hit;
+  if (hit.status === 'resolved') return { status: 'resolved', start: map[hit.start], end: map[hit.end - 1] + 1 };
+  if (hit.status !== 'missing') return hit;
+  const plainQuote = stripMarkdownInline(anchor.quote);
+  if (!plainQuote || !/[\p{L}\p{N}]/u.test(plainQuote)) return hit;
+  const plainMap = [], plainChars = [];
+  for (let index = 0; index < characters.length; index++) {
+    if (!/[*_\\`~]/.test(characters[index])) { plainMap.push(map[index]); plainChars.push(characters[index]); }
+  }
+  const plainHit = locateQuote(plainChars.join(''), plainQuote, { prefix: stripMarkdownInline(anchor.prefix), suffix: stripMarkdownInline(anchor.suffix) });
+  return plainHit.status === 'resolved' ? { status: 'resolved', start: plainMap[plainHit.start], end: plainMap[plainHit.end - 1] + 1 } : plainHit;
 }
 
 export function selectionRequest(document, capture) {
@@ -80,16 +91,17 @@ export function groupPassageLinks(links = []) {
 }
 
 const elementOf = node => (node?.nodeType === 1 ? node : node?.parentElement);
-const BLOCK_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, tr, div, section, article, aside, header, footer, figure, figcaption, dt, dd, hr';
+const BLOCK_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, tr, div, section, article, aside, header, footer, figure, figcaption, dt, dd, hr, .reader-math--display';
 const CELL_SELECTOR = 'td, th';
+const SKIPPED_SELECTOR = '[data-study-marker], [data-tr-key], [data-find-skip], .reader-section__label, .md-image-caption';
 const isSkippedElement = node => node.hasAttribute?.('data-study-marker') || node.hasAttribute?.('data-tr-key')
   || node.hasAttribute?.('data-find-skip') || node.classList?.contains?.('reader-section__label') || node.classList?.contains?.('md-image-caption');
 const isLineBreak = node => node.nodeType === 1 && (node.nodeName === 'BR' || node.tagName === 'br');
 
 /**
  * The selected text and what surrounds it inside `owner`, without the text of the marks or UI labels the reader adds
- * (data-study-marker, data-tr-key, data-find-skip, .reader-section__label), keeping block, cell and <br> boundaries as
- * line/tab breaks so multi-paragraph selections preserve line breaks and verify against the stored projection.
+ * (data-study-marker, data-tr-key, data-find-skip, .reader-section__label, .md-image-caption), keeping block, cell and <br>
+ * boundaries as line/tab breaks so multi-paragraph selections preserve line breaks and verify against the stored projection.
  */
 function selectionTexts(owner, range) {
   const walker = owner.ownerDocument.createTreeWalker(owner, 1 | 4, {
@@ -109,7 +121,10 @@ function selectionTexts(owner, range) {
     const parent = current.parentElement;
     const block = parent?.closest?.(BLOCK_SELECTOR) ?? null, cell = parent?.closest?.(CELL_SELECTOR) ?? null;
     if (quote && !piece.startsWith('\n')) {
-      if (quoteBlock && block && quoteBlock !== block) {
+      const sameRowDifferentCell = quoteCell && cell && quoteCell !== cell && cell.closest?.('tr') === quoteCell.closest?.('tr');
+      if (sameRowDifferentCell) {
+        if (!/\s$/.test(quote) && !/^\s/.test(piece)) quote += '\t';
+      } else if (quoteBlock && block && quoteBlock !== block) {
         if (!/\n[ \t]*$/.test(quote)) quote = `${quote.replace(/[ \t]+$/, '')}\n`;
       } else if (quoteCell && cell && quoteCell !== cell && !/\s$/.test(quote) && !/^\s/.test(piece)) {
         quote += '\t';
@@ -151,15 +166,14 @@ export function captureSelection(container, selection = window.getSelection()) {
   // A formula is quoted whole: a selection that starts or ends inside a drawn one is widened, on screen too.
   if (spanFormulas(range)) { selection.removeAllRanges(); selection.addRange(range); }
   const startElement = elementOf(range.startContainer), endElement = elementOf(range.endContainer);
-  // A translation block (data-tr-key) is not the document: text selected inside one is never a passage of it.
-  if (startElement?.closest?.('[data-tr-key]') || endElement?.closest?.('[data-tr-key]')) return null;
+  // A translation block (data-tr-key) is not the document: text selected purely inside one is never a passage of it.
+  if (startElement?.closest?.('[data-tr-key]') && endElement?.closest?.('[data-tr-key]')) return null;
   const quote = range.toString();
   if (!quote.trim()) return null;
-  const textOwner = startElement?.closest?.('[data-study-text]'), pageOwner = startElement?.closest?.('[data-study-page]');
-  const owner = textOwner?.contains?.(range.endContainer) ? textOwner
-    : pageOwner?.contains?.(range.endContainer) ? pageOwner
-    : container || elementOf(range.commonAncestorContainer);
-  if (!owner) return null;
+  const pageOwner = startElement?.closest?.('[data-study-page]'), textOwner = startElement?.closest?.('[data-study-text]');
+  const owner = pageOwner?.contains?.(range.endContainer) ? pageOwner
+    : container || (textOwner?.contains?.(range.endContainer) ? textOwner : elementOf(range.commonAncestorContainer));
+  if (!owner || owner.closest?.(SKIPPED_SELECTOR)) return null;
   let texts = selectionTexts(owner, range);
   if (texts && !texts.quote.trim()) return null;
   if (!texts && owner.contains?.(range.startContainer) && owner.contains?.(range.endContainer)) return null;
@@ -173,6 +187,7 @@ export function captureSelection(container, selection = window.getSelection()) {
   if (!texts) { before.selectNodeContents(owner); before.setEnd(range.startContainer, range.startOffset); after.selectNodeContents(owner); after.setStart(range.endContainer, range.endOffset); }
   return { quote: texts?.quote ?? quote, prefix: texts ? texts.prefix : before.toString().slice(-80), suffix: texts ? texts.suffix : after.toString().slice(0, 80),
     ...(startPage?.dataset ? { page: Number(startPage.dataset.studyPage), sourceId: startPage.dataset.studySource } : {}),
+    ...(texts?.lastNode ? { lastNode: texts.lastNode } : {}),
     ...(crossPage ? { crossPage: true } : {}), range: range.cloneRange(), element: startPage && !crossPage && !startPage.contains?.(owner) ? startPage : owner };
 }
 
@@ -183,7 +198,7 @@ function renderedText(container, sourceId) {
   const walker = container.ownerDocument.createTreeWalker(passageContainer, 4), nodes = [];
   let text = '', node;
   while ((node = walker.nextNode())) {
-    if (node.parentElement?.closest('[data-study-marker], [data-tr-key], [data-find-skip], .reader-section__label')) continue;
+    if (node.parentElement?.closest(SKIPPED_SELECTOR)) continue;
     nodes.push({ node, start: text.length }); text += node.textContent;
   }
   return { text, nodes };

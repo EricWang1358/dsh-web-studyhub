@@ -222,16 +222,31 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       .catch(() => { if (current) setKept({ items: [], stale: [] }); });
     return () => { current = false; };
   }, [call, document, annotationMode, keptReload, localMode]);
-  const annotationMarks = useMemo(() => (localMode ? [] : annotationLinks(kept.items).filter(link => annotationMode === 'annotate' || link.explain)), [annotationMode, kept.items, localMode]);
-  const groups = useMemo(() => groupPassageLinks(localMode ? [] : [...links, ...annotationMarks]), [links, annotationMarks, localMode]);
-  const annotation = useMemo(() => ({ mode: annotationMode, items: kept.items, stale: kept.stale,
-    onMode: next => { setAnnotationMode(next); saveAnnotationMode(next); }, onChanged: () => setKeptReload(count => count + 1) }), [annotationMode, kept]);
+  const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
+  const sources = useMemo(() => localMode ? [{ id: localContent.id, title: localContent.title, text: content, format: 'md' }] : document?.sources || [source], [localMode, localContent?.id, localContent?.title, content, document, source]);
+  // A page section's text is its source's (readingSections makes one section per source); find reads the chapters not drawn from it.
+  const textBySource = useMemo(() => new Map(sources.map(item => [item.id, item.text ?? ''])), [sources]);
+  const expandSelection = useCallback(at => {
+    if (!at || !Number.isInteger(at.start) || !Number.isInteger(at.end) || at.end <= at.start) return at;
+    const sliced = textBySource.get(at.sourceId)?.slice(at.start, at.end);
+    return sliced && sliced !== at.quote ? { ...at, quote: sliced } : at;
+  }, [textBySource]);
+  const keptItems = useMemo(() => kept.items.map(item => {
+    const selection = expandSelection(item.selection);
+    return selection === item.selection ? item : { ...item, selection };
+  }), [kept.items, expandSelection]);
+  const annotationMarks = useMemo(() => (localMode ? [] : annotationLinks(keptItems).filter(link => annotationMode === 'annotate' || link.explain)), [annotationMode, keptItems, localMode]);
+  const expandedLinks = useMemo(() => links.map(link => {
+    const selection = expandSelection(link.selection);
+    return selection === link.selection ? link : { ...link, selection };
+  }), [links, expandSelection]);
+  const groups = useMemo(() => groupPassageLinks(localMode ? [] : [...expandedLinks, ...annotationMarks]), [expandedLinks, annotationMarks, localMode]);
+  const annotation = useMemo(() => ({ mode: annotationMode, items: keptItems, stale: kept.stale,
+    onMode: next => { setAnnotationMode(next); saveAnnotationMode(next); }, onChanged: () => setKeptReload(count => count + 1) }), [annotationMode, keptItems, kept.stale]);
   const clearStaleAnnotations = async () => {
     await call('materials.annotation.delete', { documentId: document.documentId || document.id, revision: document.revision, stale: true });
     setKeptReload(count => count + 1);
   };
-  const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
-  const sources = useMemo(() => localMode ? [{ id: localContent.id, title: localContent.title, text: content, format: 'md' }] : document?.sources || [source], [localMode, localContent?.id, localContent?.title, content, document, source]);
   // 原始 PDF: the learning panel asks about the page our own controls show (page-scope.js). It is a panel of its own, mounted the first time the
   // view is opened and then kept: the reading panel (its selection, its thread, a question still being answered and kept as 批注) is only hidden
   // meanwhile, so it is never shown with an old quote in 原始 PDF and is all there again on the way back to 阅读.
@@ -271,8 +286,6 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     [resume, source.id, source.document?.page]);
   const chapter = useReaderChapters({ paged, sections: allSections, chapters: documentChapters, opening, openKey: `${source.id}:${resume?.nonce ?? ''}` });
   const chaptered = chapter.chapters.length > 0, sections = chapter.sections;
-  // A page section's text is its source's (readingSections makes one section per source); find reads the chapters not drawn from it.
-  const textBySource = useMemo(() => new Map(sources.map(item => [item.id, item.text ?? ''])), [sources]);
   const slides = isSlideFormat(format);
   const pageLabel = useCallback(page => slides ? uiFormat('第 {0} 张', [page]) : uiFormat('第 {0} 页', [page]), [slides]);
   // A recording's entry says which one it is; a part that carries on from the previous volume says so.
@@ -370,11 +383,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const linkTitle = group => groupTitle(group, linkTitleWords());
   // A kept thread is opened in the learning panel: its passage becomes the selection there, and the panel brings its answers back.
   const openAnnotation = link => {
-    const at = link.selection;
-    const fullQuote = (Number.isInteger(at.start) && Number.isInteger(at.end) && textBySource.get(at.sourceId)?.slice(at.start, at.end)) || at.quote;
+    const at = expandSelection(link.selection);
     if (view === 'original') setMode('read'); // a kept passage is shown where it can be selected
     setCapture(previous => previous?.sourceId === at.sourceId && previous?.start === at.start && previous?.end === at.end ? previous
-      : { quote: fullQuote, prefix: at.prefix || '', suffix: at.suffix || '', sourceId: at.sourceId, start: at.start, end: at.end, ...(at.page ? { page: at.page } : {}) });
+      : { quote: at.quote, prefix: at.prefix || '', suffix: at.suffix || '', sourceId: at.sourceId, start: at.start, end: at.end, ...(at.page ? { page: at.page } : {}) });
     if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true });
   };
   const openGroup = group => {

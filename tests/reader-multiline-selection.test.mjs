@@ -9,16 +9,19 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { resolvePosition } from '../lib/contexts/materials/positions.js';
+import { locateParagraph } from '../lib/passage-translation.js';
 import { readingSections } from '../ui/document-preview/reader/text-sections.js';
 
 const {
   ReadingSections, renderReaderMarkdown, captureSelection, selectionRequest,
-  renderedPassageRange, locateGroups, LearningPanel, setUiLanguage,
+  renderedPassageRange, locateGroups, LearningPanel, setUiLanguage, marksAt, paragraphAround,
 } = await loadUi(`
   export { default as ReadingSections } from './ui/document-preview/reader/ReadingSections.jsx';
   export { renderReaderMarkdown } from './ui/document-preview/reader/markdown.js';
   export { captureSelection, selectionRequest, renderedPassageRange } from './ui/document-preview/selection.js';
   export { locateGroups } from './ui/document-preview/links/link-ranges.js';
+  export { marksAt } from './ui/document-preview/marks/model.js';
+  export { paragraphAround } from './ui/document-preview/translation/dom.js';
   export { LearningPanel } from './ui/document-preview/DocumentLearning.jsx';
   export { setUiLanguage } from './ui/i18n.js';
 `);
@@ -511,4 +514,158 @@ test('locateGroups and renderedPassageRange ignore page header labels when body 
   const located = locateGroups(dom.root, [{ key: 'm1', selection: { sourceId: 'src-p2', quote: '看原页', prefix: '', suffix: '' } }]);
   assert.equal(located.length, 1);
   assert.equal(located[0].range.toString(), '看原页');
+});
+
+test('bilingual [data-tr-key] blocks: triple-click and drag overshoot capture document text and anchor to the selected paragraph while pure translation selection returns null', () => {
+  const dom = buildDom(
+    '<div class="reader-prose" data-study-text="true">'
+      + '<p class="reader-p">A platform lets two groups find each other.</p>'
+      + '<div class="tr-host" data-study-marker="true" data-tr-key="s|k|0"><div class="tr-block">平台让两类用户找到彼此。</div></div>'
+      + '<p class="reader-p">Network effects make it more valuable.</p>'
+      + '</div>'
+  );
+  const [p1, p2] = dom.root.querySelectorAll('.reader-p');
+  const trHost = dom.root.querySelector('[data-tr-key]');
+  const byElement = new Map([[p1, { key: 'k0' }], [p2, { key: 'k1' }]]);
+
+  // 1. Browser triple-click on Paragraph 1 ends at offset 0 of the sibling [data-tr-key] host.
+  const triple = dom.createRange();
+  triple.setStart(p1, 0);
+  triple.setEnd(trHost, 0);
+  const tripleCap = captureSelection(dom.root, dom.makeSelection(triple));
+  assert.ok(tripleCap, 'triple-click before [data-tr-key] is not discarded');
+  assert.equal(tripleCap.quote, 'A platform lets two groups find each other.');
+  assert.doesNotMatch(tripleCap.suffix, /平台让两类用户/);
+  assert.equal(paragraphAround(tripleCap.lastNode || tripleCap.range.endContainer, byElement), p1,
+    'lastNode pins selection translation to Paragraph 1 rather than falling off onto trHost');
+
+  // 2. Dragging across Paragraph 1 and releasing slightly inside trHost still quotes only Paragraph 1.
+  const overshoot = dom.selectBetween('A platform', '找到彼此');
+  const overCap = captureSelection(dom.root, overshoot);
+  assert.ok(overCap);
+  assert.equal(overCap.quote, 'A platform lets two groups find each other.');
+
+  // 3. Selecting purely inside the translation block still returns null.
+  assert.equal(captureSelection(dom.root, dom.selectBetween('平台让', '找到彼此')), null);
+  assert.equal(captureSelection(null, dom.selectBetween('平台让', '找到彼此')), null);
+});
+
+test('non-paged multi-section transcript retains section title and sibling context across .reader-prose boundaries', async t => {
+  const runtime = await withRuntime(t);
+  const transcript = [
+    '## 1. Lecture_01.mp3',
+    '',
+    '【第一部分：容器概述】',
+    '',
+    'Servlet 容器负责管理生命周期，',
+    '并在请求到达时调度线程。',
+    '',
+    '【第二部分：深入细节】',
+    '',
+    'Servlet 容器负责管理生命周期，',
+    '并在请求到达时调度线程。',
+  ].join('\n');
+  const imported = await runtime.call('materials.document.import', {
+    filename: 'transcript.txt',
+    dataBase64: Buffer.from(transcript).toString('base64'),
+  });
+  const doc = await runtime.call('materials.document.get', { documentId: imported.documentId });
+  const sections = readingSections({ paged: false, sources: doc.sources, text: doc.sources[0].text, sourceId: doc.sources[0].id });
+  assert.ok(sections.length >= 2, 'transcript splits into multiple non-paged sections');
+  const html = renderToStaticMarkup(React.createElement(ReadingSections, {
+    sections,
+    labelOf: s => (s.kind === 'recording' ? `录音 ${s.recording}` : ''),
+  }));
+  const dom = buildDom(html);
+
+  // Select the SECOND occurrence inside section 2's .reader-prose.
+  const proseBlocks = dom.root.querySelectorAll('.reader-prose');
+  const secondP = proseBlocks.at(-1).querySelector('.reader-p');
+  const range = dom.createRange();
+  range.selectNodeContents(secondP);
+  const capture = captureSelection(dom.root, dom.makeSelection(range));
+  assert.ok(capture);
+  assert.match(capture.prefix, /【第二部分：深入细节】/, 'section heading above .reader-prose stays in prefix');
+  assert.doesNotMatch(capture.prefix, /录音 1/, 'UI recording badge is excluded from prefix');
+
+  const resolved = await runtime.call('materials.selection.resolve', selectionRequest(doc, capture));
+  assert.equal(resolved.status, 'resolved', 'disambiguates repeated multi-line passage across sections');
+  assert.equal(resolved.selection.start, transcript.lastIndexOf('Servlet 容器负责管理生命周期'));
+});
+
+test('Markdown relative images, LaTeX *, _, \\\\ formulas, back-to-back display math, and block-in-td tables resolve and paint cleanly', async t => {
+  const runtime = await withRuntime(t);
+  const mdSource = [
+    '# 矩阵与请求流',
+    '',
+    '前导说明段。',
+    '',
+    '![请求流程图](images/servlet-flow.png)',
+    '',
+    '图后第一行紧接说明，',
+    '图后第二行给出内联乘积 $a*b + c*d$ 与下标 $_i + _j$。',
+    '',
+    '$$A = x_1 + x_2$$',
+    '',
+    '$$\\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}$$',
+    '',
+    '公式后第一行结论，',
+    '公式后第二行推论。',
+  ].join('\n');
+  const imported = await runtime.call('materials.document.import', {
+    filename: 'matrix-notes.md',
+    dataBase64: Buffer.from(mdSource).toString('base64'),
+  });
+  const doc = await runtime.call('materials.document.get', { documentId: imported.documentId });
+  const dom = buildDom(`<div class="reader-html source-md" data-study-text="true">${renderReaderMarkdown(mdSource)}</div>`);
+
+  // 1. Selecting plain multi-line text right after ![alt](local.png) excludes unstored alt text from prefix.
+  const afterImg = captureSelection(dom.root, dom.selectBetween('图后第一行紧接说明', '图后第二行给出内联乘积'));
+  assert.doesNotMatch(afterImg.prefix, /请求流程图/);
+  assert.equal((await runtime.call('materials.selection.resolve', selectionRequest(doc, afterImg))).status, 'resolved');
+
+  // 2. Selecting across ![alt](local.png), $a*b + c*d$, back-to-back display formulas, and 1 \\ 2 preserves newlines and resolves.
+  const acrossAll = captureSelection(dom.root, dom.selectBetween('前导说明段。', '公式后第二行推论。'));
+  assert.doesNotMatch(acrossAll.quote, /请求流程图/, 'unsafe/relative Markdown image caption is skipped as marker');
+  assert.doesNotMatch(acrossAll.quote, /\$\$A = x_1 \+ x_2\$\$\$\$\\begin/, 'adjacent display formulas keep a newline separator');
+  assert.match(acrossAll.quote, /\$\$A = x_1 \+ x_2\$\$\n\$\$\\begin\{pmatrix\}/);
+  const resolvedAll = await runtime.call('materials.selection.resolve', selectionRequest(doc, acrossAll));
+  assert.equal(resolvedAll.status, 'resolved');
+
+  // 3. Saved mark/link with CommonMark-projected quote ($ab + cd$, 1 \ 2) still locates in rendered DOM and matches marksAt & locateParagraph!
+  const located = locateGroups(dom.root, [{ key: 'm-math', selection: resolvedAll.selection }]);
+  assert.equal(located.length, 1);
+  assert.ok(located[0].range.toString().includes('公式后第二行推论。'));
+  assert.ok(renderedPassageRange(dom.root, resolvedAll.selection));
+  assert.equal(marksAt([{ status: 'resolved', style: 'underline', selection: resolvedAll.selection }], acrossAll).length, 1);
+  assert.equal(locateParagraph(doc.sources[0].text, acrossAll.quote, undefined, { prefix: acrossAll.prefix, suffix: acrossAll.suffix }).status, 'resolved');
+
+  // 4. Selecting ONLY the plain multi-line text right below 1 \\ 2 resolves despite \\ vs \ in prefix.
+  const afterMatrix = captureSelection(dom.root, dom.selectBetween('公式后第一行结论', '公式后第二行推论。'));
+  assert.equal((await runtime.call('materials.selection.resolve', selectionRequest(doc, afterMatrix))).status, 'resolved');
+
+  // 5. HTML table cells wrapping <p> blocks use \t across cells in the same row and \n across paragraphs in the same cell.
+  const cellP = buildDom('<div class="reader-html" data-study-text="true"><table><tr><td><p>左一</p><p>左二</p></td><td><p>右一</p></td></tr></table></div>');
+  assert.equal(captureSelection(cellP.root, cellP.selectBetween('左一', '右一')).quote, '左一\n左二\t右一');
+});
+
+test('expanded >4000-char selections underline the full span through the end and disambiguate identical 4000-char prefixes', () => {
+  const lead = Array.from({ length: 130 }, (_, i) => `长段第 ${i + 1} 行用于构造超过四千字符的共享前缀以检验裁剪恢复与末尾定位准确性。`).join('\n');
+  assert.ok(lead.length > 4200);
+  const firstFull = `${lead}\n分支结尾甲。`;
+  const secondFull = `${lead}\n分支结尾乙。`;
+  const fullText = `${firstFull}\n\n${secondFull}`;
+  const html = `<div class="reader-prose" data-study-text="true">${fullText.split(/\n+/).map(line => `<p class="reader-p">${line}</p>`).join('')}</div>`;
+  const dom = buildDom(html);
+
+  const secondStart = fullText.indexOf(secondFull), secondEnd = secondStart + secondFull.length;
+  const clippedSelection = { sourceId: 's1', quote: secondFull.slice(0, 4000), prefix: '分支结尾甲。\n\n', suffix: '', start: secondStart, end: secondEnd };
+  const expandedSelection = { ...clippedSelection, quote: fullText.slice(clippedSelection.start, clippedSelection.end) };
+
+  const located = locateGroups(dom.root, [{ key: 'long-2', selection: expandedSelection }]);
+  assert.equal(located.length, 1);
+  assert.ok(located[0].range.toString().endsWith('分支结尾乙。'), 'underline extends past 4000 chars all the way to 分支结尾乙。');
+  const badgeRange = renderedPassageRange(dom.root, expandedSelection);
+  assert.ok(badgeRange);
+  assert.ok(badgeRange.toString().endsWith('分支结尾乙。'), '[1] badge anchors at true end of >4000-char passage');
 });

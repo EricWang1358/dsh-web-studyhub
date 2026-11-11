@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ContextMenu, useToast } from '../../components/index.js';
 import { errorMessage, ui, uiFormat, uiLanguageName } from '../../i18n.js';
 import { captureSelection, selectionRequest } from '../selection.js';
@@ -55,22 +55,34 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
     return () => { current = false; };
   }, [call, live, documentId, revision, reload]);
 
+  // Stored marks clip quote to 4000 chars while retaining full [start, end]; recover the full span so long marks paint and hit-test completely.
+  const resolvedItems = useMemo(() => {
+    if (!items.length || !document?.sources?.length) return items;
+    const bySource = new Map(document.sources.map(source => [source.id, source.text ?? '']));
+    return items.map(item => {
+      const at = item.selection;
+      if (!at || !Number.isInteger(at.start) || !Number.isInteger(at.end) || at.end <= at.start) return item;
+      const sliced = bySource.get(at.sourceId)?.slice(at.start, at.end);
+      return sliced && sliced !== at.quote ? { ...item, selection: { ...at, quote: sliced } } : item;
+    });
+  }, [items, document?.sources]);
+
   // Located once per change of the marks or the text, painted from the cached ranges (the link layer's way).
   useEffect(() => {
     const container = body.current;
     located.current = [];
     if (!live || !container) return undefined;
-    located.current = locateGroups(container, drawnMarks(items, pending));
+    located.current = locateGroups(container, drawnMarks(resolvedItems, pending));
     if (!supportsHighlights()) return undefined;
     const clear = paintMarks(located.current);
     return () => { clear(); located.current = []; };
-  }, [body, items, pending, rendered, live]);
+  }, [body, resolvedItems, pending, rendered, live]);
 
   const onContextMenu = event => {
     if (!live || event.shiftKey || event.defaultPrevented) return;
     const container = body.current;
     let capture = captureSelection(container), here;
-    if (capture) here = marksAt(items, capture);
+    if (capture) here = marksAt(resolvedItems, capture);
     else {
       // Nothing selected: a right-click on a mark offers to take it off; anywhere else the browser's own menu opens.
       const [node, offset] = caretAt(container.ownerDocument, event.clientX, event.clientY);
@@ -78,7 +90,7 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
       if (!hits.length) return;
       const first = hits[0].group;
       capture = { ...first.selection };
-      here = items.filter(item => item.key === first.key);
+      here = resolvedItems.filter(item => item.key === first.key);
     }
     event.preventDefault();
     setMenu({ point: pointOf(event, capture), capture, here, selected: !!capture.range });
@@ -89,7 +101,7 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
     if (capture?.crossPage) { say(ui('选区跨了多页，请在一页内选择。'), 'warning'); return; }
     const result = await marksCall('save', { selection: selectionRequest(document, capture), style });
     if (!READY.has(result.status)) { say(REFUSED(queueLimit)[result.status] || result.message || ui('暂时无法保存这个标记。'), 'warning'); return; }
-    if (style === 'queue' && result.status === 'saved') say(uiFormat('已加入待出题（共 {0} 段），继续读吧。', [queueOf(items).length + 1]), 'success');
+    if (style === 'queue' && result.status === 'saved') say(uiFormat('已加入待出题（共 {0} 段），继续读吧。', [queueOf(resolvedItems).length + 1]), 'success');
     setReload(count => count + 1);
   };
   const remove = async ids => { if (ids.length) await marksCall('delete', { ids }); setReload(count => count + 1); };
@@ -130,7 +142,7 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
     else if (id.startsWith('mark:')) save(capture, id.slice(5)).catch(error => say(error.message, 'error'));
   };
 
-  const queue = queueOf(items);
+  const queue = queueOf(resolvedItems);
   const startBatch = async perPassage => {
     const used = queue;
     const request = batchRequest({ queue: used, perPassage, settings: data?.settings, title: document?.title || document?.filename || '' });
