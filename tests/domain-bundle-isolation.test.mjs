@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { builtinModules } from 'node:module';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 import { Context } from '@deepseek-ai/cordis';
 import * as hostModel from '../lib/runtime/host-model.js';
@@ -124,3 +124,51 @@ test('standalone materials plugin resolves defaultServices via host-model withou
   assert.equal(turns.length, 1);
   assert.equal(turns[0].source.kind, 'plugin:daily-flashcard');
 });
+
+test('all 6 domain plugins load and execute from an isolated package tree without lib/client*.js, UI deps, or optional DSH peers', async t => {
+  const isolated = await mkdtemp(join(tmpdir(), 'study-airgapped-domain-pkg-'));
+  t.after(() => rm(isolated, { recursive: true, force: true }));
+
+  const manifest = JSON.parse(await readFile(join(repoRoot, 'package.json'), 'utf8'));
+  const clientBundleRe = /[/\\]lib[/\\]client(?:\.[A-Za-z0-9._-]+)?\.js$/;
+  await cp(join(repoRoot, 'lib'), join(isolated, 'lib'), { recursive: true, filter: src => !clientBundleRe.test(src) });
+  for (const dir of ['skills', 'references', 'locale', 'presets']) {
+    await cp(join(repoRoot, dir), join(isolated, dir), { recursive: true });
+  }
+  const runtimeDeps = Object.keys(manifest.dependencies).filter(pkg => !UI_ONLY_DEPENDENCIES.includes(pkg));
+  await writeFile(join(isolated, 'package.json'), JSON.stringify({
+    name: '@ericwang1358/dsh-study-materials',
+    version: manifest.version,
+    type: 'module',
+    main: './lib/plugins/materials.js',
+    dependencies: Object.fromEntries(runtimeDeps.map(pkg => [pkg, manifest.dependencies[pkg]])),
+  }, null, 2));
+
+  // Link only the 7 backend dependencies + host @deepseek-ai/cordis (no UI packages, no react, no optional dsh-llm/dsh-tools).
+  for (const pkg of [...runtimeDeps, '@deepseek-ai/cordis']) {
+    const dest = join(isolated, 'node_modules', ...pkg.split('/'));
+    await mkdir(dirname(dest), { recursive: true });
+    await symlink(join(repoRoot, 'node_modules', ...pkg.split('/')), dest, 'junction');
+  }
+
+  for (const domain of DOMAIN_PLUGINS) {
+    const mod = await import(pathToFileURL(join(isolated, `lib/plugins/${domain}.js`)).href);
+    assert.equal(typeof mod.apply, 'function', `isolated ${domain} plugin exports apply()`);
+  }
+
+  const { Context: IsolatedContext } = await import(pathToFileURL(join(isolated, 'node_modules/@deepseek-ai/cordis/lib/index.mjs')).href)
+    .catch(() => import('@deepseek-ai/cordis'));
+  const isolatedMaterials = await import(pathToFileURL(join(isolated, 'lib/plugins/materials.js')).href);
+  const libraryDir = join(isolated, 'library');
+  const ctx = new IsolatedContext();
+  await ctx.plugin(isolatedMaterials, { libraryRoot: libraryDir });
+  t.after(() => ctx.fiber.dispose());
+
+  const rt = ctx.studyRuntime.runtimeForLibrary(libraryDir);
+  const imported = await rt.call('materials.document.import', {
+    filename: 'isolated.md',
+    dataBase64: Buffer.from('# Air-gapped Domain Bundle\n\nRuns without client bundles or UI deps.\n').toString('base64'),
+  });
+  assert.equal(imported.sourceIds.length, 1);
+});
+

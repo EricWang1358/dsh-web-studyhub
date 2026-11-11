@@ -156,13 +156,13 @@
 | `lib/contexts/notes/daily-generation.js:39,48`、`lib/daily-recap.js:256` | 仍走 | 例外：共享流水线 | 每日总结的模型由调用方传入 |
 | `lib/followup.js:50`、`lib/ingest.js:59`、`lib/oral-exam-service.js:36`、`lib/rubric-grading.js:29` | 仍走 | 例外：即时请求 | 单次等待的请求，无任务记录 |
 | `lib/generation.js:96,101,142,272,273,756` | 仍走 | 例外：共享流水线 | |
-| `lib/index.js:168,214,218,227,237,248,251,257` | 仍走 | 例外：provider 实现 | DSH `ctx.llm.stream` 与宿主子代理路由；网关经它到模型 |
 | `lib/jobs/gateway.js:138` | 仍走 | 例外：内核 | 批准的模型网关 |
 | `lib/library-usage.js:46`、`lib/sample-library.js:89` | 仍走 | 例外：误报 | |
 | `lib/live-job.js:39,42` | 不走（已更新：`audioLiveSave`） | S6-2 删除 | 原课堂保存运行器；Job 共用 `translateLive` |
 | `lib/live-job.js` `liveNotesModel`、`lib/live-notes-fallback.js` | 仍走 | 例外：会话子系统 | 快速保存时，校正没留下课堂笔记就用文字稿补一份（2026-11-05，PR #696）；至多 8 次有界请求；随课堂保存迁到网关 |
 | `lib/live.js:553` | 仍走 | 例外：会话子系统 | 逐句实时翻译 |
 | `lib/runtime/builtins.js`、`lib/runtime/domain-contracts.js` | — | 例外：误报（静态数组） | |
+| `lib/runtime/host-model.js:132,185,189,198,208,225,228,234` | 仍走 | 例外：provider 实现 | DSH `ctx.llm.stream` 与宿主子代理路由；网关经它到模型 |
 | `lib/runtime/models.js:30` | 仍走 | 例外：provider 实现 | 宿主模型适配 |
 | `lib/runtime/tasks.js:9` | 仍走 | 例外：公开 API | 扩展任务队列 |
 | `lib/runtime/work.js:11-30` | 仍走 | 例外：内核（`jobs`，控制台读的表）+ 领域单飞/队列表；`queues`/`settled` 仍被出题与翻译 Job 排队使用（S3-1 保留，S6-5 由内核调度取代） | |

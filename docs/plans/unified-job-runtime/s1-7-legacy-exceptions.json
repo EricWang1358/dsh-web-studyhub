@@ -498,31 +498,6 @@
       ]
     },
     {
-      "file": "lib/index.js",
-      "calls": [
-        {
-          "callee": "complete",
-          "count": 7
-        },
-        {
-          "callee": "ctx.llm.stream",
-          "count": 1
-        }
-      ],
-      "owner": "existing domain maintainer",
-      "reason": "The host model adapter: DSH ctx.llm.stream and the host sub-agent route; the gateway reaches the model through it",
-      "removeAt": "retained: the provider leaf",
-      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
-      "sites": [
-        {
-          "what": "modelCompletion and its light and correction variants",
-          "disposition": "exception",
-          "kind": "provider-leaf",
-          "reached": true
-        }
-      ]
-    },
-    {
       "file": "lib/ingest.js",
       "calls": [
         {
@@ -749,6 +724,31 @@
           "what": "static arrays named jobs/queue",
           "disposition": "exception",
           "kind": "not-a-job",
+          "reached": true
+        }
+      ]
+    },
+    {
+      "file": "lib/runtime/host-model.js",
+      "calls": [
+        {
+          "callee": "complete",
+          "count": 7
+        },
+        {
+          "callee": "ctx.llm.stream",
+          "count": 1
+        }
+      ],
+      "owner": "existing domain maintainer",
+      "reason": "The host model adapter: DSH ctx.llm.stream and the host sub-agent route; the gateway reaches the model through it",
+      "removeAt": "retained: the provider leaf",
+      "evidence": "s1-0-runtime-audit.md; s1-7-handoff.md; s6-0-coverage.md",
+      "sites": [
+        {
+          "what": "modelCompletion and its light and correction variants",
+          "disposition": "exception",
+          "kind": "provider-leaf",
           "reached": true
         }
       ]

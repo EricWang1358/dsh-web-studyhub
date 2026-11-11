@@ -140,7 +140,6 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `lib/daily-recap.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The recap rewrite takes its model as an argument | S6-2 (original caller) |
 | `lib/followup.js` | existing domain maintainer | 前台即时请求 | A follow-up question: one awaited request (decision S4-0) | decided in S6-5a (#345): no Job, metered through the gateway |
 | `lib/generation.js` | existing domain maintainer | 共享流水线（模型由调用方传入） | The generation pipeline takes its model as an argument (the gateway step when generation is on) | S6-2 (original callers) |
-| `lib/index.js` | existing domain maintainer | 服务商叶子实现 | The host model adapter: DSH ctx.llm.stream and the host sub-agent route; the gateway reaches the model through it | retained: the provider leaf |
 | `lib/ingest.js` | existing domain maintainer | 前台即时请求 | Pasted-material ingest: one awaited request | decided in S6-5a (#345): no Job, metered through the gateway |
 | `lib/jobs/gateway.js` | runtime kernel maintainer | 内核 | The approved model gateway of the runtime | retained |
 | `lib/library-usage.js` | runtime/domain maintainer | 不是任务 | Directory traversal queue of the storage-usage report | retained |
@@ -151,6 +150,7 @@ R 的定义见 [sprints-2-6.md 的 Requirements](sprints-2-6.md#requirements)。
 | `lib/rubric-grading.js` | existing domain maintainer | 前台即时请求 | Rubric grading of one answer: one awaited request (card.grade) | decided in S6-5a (#345): no Job, metered through the gateway |
 | `lib/runtime/builtins.js` | runtime/domain maintainer | 不是任务 | Static capability and name arrays, not live task collections | retained |
 | `lib/runtime/domain-contracts.js` | runtime/domain maintainer | 不是任务 | Static schema and capability arrays, not live task collections | retained |
+| `lib/runtime/host-model.js` | existing domain maintainer | 服务商叶子实现 | The host model adapter: DSH ctx.llm.stream and the host sub-agent route; the gateway reaches the model through it | retained: the provider leaf |
 | `lib/runtime/models.js` | existing domain maintainer | 服务商叶子实现 | The host model adapter handed to the contexts (prepares the request, keeps spawnCorrection) | retained: the provider leaf |
 | `lib/runtime/tasks.js` | runtime/domain maintainer | 公开 API | Extension task queues (public API) | retained (S6-1 checks the compatibility) |
 | `lib/runtime/work.js` | runtime/domain maintainer | 内核；领域自己的结构（缓存/队列/单飞） | The work object: the job table the console reads plus the domain single-flight tables of the legacy executors | retained: the console reads the job table and the library queue is the domain's admission order (S6-7) |
