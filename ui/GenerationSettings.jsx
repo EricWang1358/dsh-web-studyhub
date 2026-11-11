@@ -60,7 +60,7 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
   const savedKey = JSON.stringify(normalizeGenerationSettings(saved));
   const [editor, setEditor] = useState(() => ({ observed: savedKey, baseline: JSON.parse(savedKey), values: JSON.parse(savedKey) }));
   const [working, setWorking] = useState(false), [error, setError] = useState('');
-  const scope = useRef({ root, live: true }), version = useRef(0), pending = useRef(null);
+  const scope = useRef({ root, live: true }), version = useRef(0), pending = useRef(null), formRef = useRef(null), saveRef = useRef(null);
   useEffect(() => {
     const owner = { root, live: true }; scope.current = owner;
     return () => { owner.live = false; };
@@ -80,6 +80,17 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
   };
   const errors = generationFormErrors(editor.values), invalid = Object.keys(errors).length > 0;
   const dirty = !same(numbers(editor.values), editor.baseline), disabled = busy || working;
+  useEffect(() => {
+    if (!dirty || typeof document === 'undefined') return;
+    const active = document.activeElement, bar = saveRef.current;
+    if (!active || !bar || !formRef.current?.contains(active)) return;
+    const fieldBox = (active.closest?.('.sh-field') || active).getBoundingClientRect(), barBox = bar.getBoundingClientRect();
+    if (barBox.height > 0 && fieldBox.bottom > barBox.top - 12) {
+      let node = formRef.current.parentElement;
+      while (node && !(node.scrollHeight > node.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(node).overflowY))) node = node.parentElement;
+      (node || document.scrollingElement)?.scrollBy?.({ top: fieldBox.bottom - barBox.top + 16 });
+    }
+  }, [dirty]);
   const save = async event => {
     event.preventDefault();
     if (busy || pending.current || invalid || !dirty || typeof act !== 'function') return;
@@ -104,7 +115,7 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
     min={GENERATION_SETTINGS_LIMITS[key].min} max={GENERATION_SETTINGS_LIMITS[key].max} />, note);
   const choiceField = (key, choices, label) => field(key, <Select {...propsFor(key)} onChange={value => edit(key, value)} options={choices.map(value => ({ value, label: label(value) }))} />);
   const availableGroups = modelGroups ?? host?.modelGroups;
-  return <form className="settings-form" onSubmit={save}>
+  return <form ref={formRef} className="settings-form" onSubmit={save}>
     <SettingsSection className="generation-settings" tour="settings-generation" disabled={disabled} title={ui('出题偏好')}
       lead={ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}>
       {field('kinds', <KindPicker name="kinds" value={editor.values.kinds} disabled={disabled} onChange={list => edit('kinds', list, kindsPatch(list))} />,
@@ -136,7 +147,7 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
         hint={ui('审阅已通过、但附了优化建议的题，多花一次改写和一次复核来采纳建议；复核不过就保持原题。会多用 token 和时间，默认关闭；任务运行中也可以在「即时控制」里随时开关。')}
         onChange={value => edit('applySuggestions', value === true)} />
       {error && <Hint tone="error" role="alert">{error}</Hint>}
-      <div className="generation-settings__save" data-dirty={dirty ? 'true' : undefined}>
+      <div ref={saveRef} className="generation-settings__save" data-dirty={dirty ? 'true' : undefined}>
         <div className="settings-actions">
           <Button variant="primary" type="submit" busy={working} disabled={busy || !dirty || invalid}>{ui('保存出题偏好')}</Button>
           <Button disabled={disabled} onClick={reset}>{ui('恢复默认值（待保存）')}</Button>
