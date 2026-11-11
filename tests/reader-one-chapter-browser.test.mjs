@@ -91,6 +91,7 @@ const answer = async page => {
   await page.keyboard.press('5'); await page.waitForTimeout(400);
 };
 const chapterPages = index =>Array.from({ length: PER_CHAPTER }, (_, n) => index * PER_CHAPTER + n + 1);
+const waitOneChapter = (page, what) => until(async () => { const pages = (await drawn(page)).pages; return pages.length === PER_CHAPTER && pages[0] % PER_CHAPTER === 1; }, what, { timeoutMs: 30000 });
 const waitChapter = (page, index, what) => until(async () => JSON.stringify((await drawn(page)).pages) === JSON.stringify(chapterPages(index)), what, { timeoutMs: 30000 });
 
 test('the reader draws one chapter of a 500-page book and every way to a page reaches its chapter (1280 and 420 px)', { timeout: 900000 }, async t => {
@@ -231,7 +232,8 @@ test('the reader draws one chapter of a 500-page book and every way to a page re
       // ---- the way back from a practice run: 回到原文 reopens the chapter at the page it left ----
       await (await revealNavRow(page, 'sources')).dispatchEvent('click');
       await row.locator('.source-main').click();
-      await waitChapter(page, 0, 'the reader opens at the first chapter again');
+      // The row opens where the book was last read (上次读到: reader-last-read-browser), one chapter drawn.
+      await waitOneChapter(page, 'the reader opens at the chapter last read');
       await openOutline();
       await outline.getByRole('searchbox', { name: '在目录中查找' }).fill(`Heading ${PRACTICE_PAGE}`);
       await outline.locator('.reader-outline__link', { hasText: `Heading ${PRACTICE_PAGE}` }).first().click();
@@ -344,7 +346,8 @@ test('with a kept AI outline: meters of every chapter, find across chapters, a c
   // F1: practice started under an AI entry of chapter 11 (opened from the first chapter), then 回到原文: chapter 11 again, at that entry.
   await (await revealNavRow(page, 'sources')).dispatchEvent('click');
   await row.locator('.source-main').click();
-  await waitChapter(page, 0, 'the reader opens at the first chapter');
+  // The row opens where the book was last read (上次读到: reader-last-read-browser), one chapter drawn.
+  await waitOneChapter(page, 'the reader opens at the chapter last read');
   await openOutline();
   await outline.locator('.reader-outline__link', { hasText: AI_PRACTICE }).first().click();
   await waitChapter(page, chapterOf(PRACTICE_PAGE), 'the AI entry to draw its chapter');

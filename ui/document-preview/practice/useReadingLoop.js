@@ -148,16 +148,18 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
   const selected = (choice && options.find(option => option.kind === choice)) || fallback;
   const setOpen = useCallback(next => { setOpenState(next); setChoice(null); }, []);
 
-  // The reading context to keep with a practice run: where the viewport is, in terms that survive another window width.
+  // The reading context to keep with a practice run (or, without `option`, the place itself): where the viewport is, in terms that survive another window width.
   const capture = useCallback(option => {
     const element = scroller.current, node = activeId !== null && element ? outlineNode(element, activeId) : null;
     const anchor = captureAnchor({ scrollTop: element?.scrollTop || 0, clientHeight: element?.clientHeight || 0, scrollHeight: element?.scrollHeight || 0, sectionTop: node ? nodeTop(element, node) : undefined });
     // The page the reading position is on, as drawn (an AI outline's entry has no page of its own): the way back opens that page's chapter.
     const page = pageOfNode(node ?? here?.range?.startContainer?.parentElement) ?? here?.page ?? source.document?.page ?? null;
     return { documentId, revision: document?.revision || '', sourceId: source.id, page, sectionId: activeId ?? null,
-      sectionTitle: here?.title || '', ...anchor, scope: { kind: option.kind, count: Math.max(1, option.count), label: rangeLabel(option, unit) } };
+      sectionTitle: here?.title || '', ...anchor, ...(option ? { scope: { kind: option.kind, count: Math.max(1, option.count), label: rangeLabel(option, unit) } } : {}) };
   }, [scroller, activeId, documentId, document?.revision, source, here, unit]);
   const start = useCallback(option => ({ refs: refsOf(option.cards), reading: capture(option) }), [capture]);
+  // Where the reader is now, without a practice range: the place 上次读到 keeps (reader/useLastRead.js).
+  const herePlace = useCallback(() => capture(null), [capture]);
   const generateIds = useCallback(option => sourceIdsOf(option.ids, { sections: pageSections ? sections : [], documentSourceIds: document?.sourceIds || [source.id] }), [pageSections, sections, document?.sourceIds, source.id]);
 
   // 4. Back to a stored position: the section and the offset into it lead, the scroll offset and the progress follow.
@@ -195,6 +197,6 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
   const documentSummary = state.summary;
   const current = (activeId !== null && meters.get(activeId)) || (outline.length ? summarizeLinked([]) : documentSummary);
   return { status: state.status, message: state.message, cards: state.cards, options, selected, kind: selected?.kind, setKind: setChoice, open, setOpen, reload, inactiveCourses: state.inactiveCourses,
-    meters, entryOf, current, documentSummary, start, generateIds, resumeNote: note, returnDelta, upgradedIds, total: state.cards.length,
+    meters, entryOf, current, documentSummary, start, here: herePlace, generateIds, resumeNote: note, returnDelta, upgradedIds, total: state.cards.length,
     coverage: coverage.view?.coverage || null, outlineCoverage: outlineCov };
 }

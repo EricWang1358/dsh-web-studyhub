@@ -45,6 +45,8 @@ import { renderReaderMarkdown } from './reader/markdown.js';
 import { copyText, pickFormula } from './reader/formula.js';
 import { useReaderSettings } from './reader/useReaderSettings.js';
 import { useReadingPosition, scrollToNode } from './reader/useReadingPosition.js';
+import { lastReadKey } from './reader/last-read.js';
+import { useLastReadOpening, useKeepLastRead } from './reader/useLastRead.js';
 import { readerVars, underlineShown } from './reader/settings.js';
 import { readingSections } from './reader/text-sections.js';
 import { sectionAtOffset } from '../../lib/sections.js';
@@ -64,6 +66,8 @@ import translationCss from './translation/translation.css';
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 // 看原页 (pdf.js and its worker) is fetched on the first peek, never with the reader.
 const PagePeek = lazy(() => import('./peek/PagePeek.jsx'));
+/* Within this many pixels of the first chapter's top, the learner is at the material's start: 上次读到 is forgotten, not kept. */
+const START_PX = 80;
 
 /** HTML is inert reading content. Only Markdown already filtered by renderNoteMarkdown may keep its safe images. */
 export function safeDocumentHtml(text, { markdownImages = false } = {}) {
@@ -120,7 +124,7 @@ export default function DocumentViewer(props) {
 }
 
 function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
-  onPracticePages, onGeneratePages, onOpenDraftPages, resume, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false }) {
+  onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
   useInjectCss(css, 'study-document-preview');
@@ -247,6 +251,12 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     const items = groupSourcesByDocument(sources);
     return (items.find(item => item.sourceIds.includes(source.id)) || items[0])?.chapters ?? null;
   }, [paged, localMode, sources, source.id]);
+  // The material this source belongs to (its 资料 row).
+  const documentItem = useMemo(() => data?.sources ? groupSourcesByDocument(data.sources).find(item => item.sourceIds.includes(source.id)) || null : null, [data?.sources, source.id]);
+  // 上次读到 (reader/useLastRead.js): opened plainly from its 资料 row, a material goes back to where it was last read; the reader keeps that place while the learner reads.
+  const materialKey = lastReadKey(data?.root, documentItem?.key);
+  const lastReadOpening = useLastReadOpening({ key: materialKey, sourceId: source.id, firstSourceId: documentItem?.sourceIds?.[0], quote, resume: resumeProp, peekPage, localMode });
+  const resume = resumeProp || lastReadOpening;
   // Where the reader opens: a stored reading position (its section, its page), else the source it was opened with (a page, a chapter's first page, a citation).
   const opening = useMemo(() => resume?.sectionId || Number.isInteger(resume?.page) ? { sectionId: resume.sectionId, page: resume.page } : { sourceId: source.id, page: source.document?.page },
     [resume, source.id, source.document?.page]);
@@ -331,7 +341,6 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // Link layer: [n] markers, underlines (when shown) and their click. Ranges are located once per links/text change.
   const rendered = useMemo(() => ({ html, content, view, sections, document, language }), [html, content, view, sections, document, language]);
   // 读 → 做这几页的题 → 回到阅读 → 掌握度: the questions linked to this document placed under the outline, the range chooser, and the way back to a stored position.
-  const documentItem = useMemo(() => data?.sources ? groupSourcesByDocument(data.sources).find(item => item.sourceIds.includes(source.id)) || null : null, [data?.sources, source.id]);
   // A place named by its offset into the text (在资料中查看 on a part of a question run) is the section that offset is in (lib/sections.js; ids are the outline's own); a page of a PDF opens at its page.
   const place = useMemo(() => resume && Number.isInteger(resume.at) && !paged && !html && !resume.sectionId ? sectionAtOffset([{ id: sources[0]?.id ?? source.id, text: sources[0]?.text || content }], sources[0]?.id ?? source.id, resume.at) : null,
     [resume, paged, html, sources, content, source.id]);
@@ -339,6 +348,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const resumeAt = useMemo(() => resume && (place?.kind === 'recording' || place?.kind === 'part') ? { ...resume, sectionId: place.sectionId } : resume, [resume, place]);
   const unit = aiOn || !paged ? 'section' : isSlideFormat(format) ? 'slide' : 'page';
   const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections: allSections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt });
+  useKeepLastRead({ key: materialKey, enabled: !localMode && view !== 'original' && !loading, root, scroller, here: loop.here, watch: chapter.current?.id,
+    atStart: () => (!chaptered || chapter.index <= 0) && (scroller.current?.scrollTop ?? 0) < START_PX });
   useEffect(() => { if (loop.open && pickPagesGuide) setPickPagesGuide(false); }, [loop.open, pickPagesGuide]);
   const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };

@@ -860,6 +860,7 @@
  "tests/reader-defaults.test.mjs": 10,
  "tests/reader-footnote.test.mjs": 80,
  "tests/reader-formula.test.mjs": 70,
+ "tests/reader-last-read-browser.test.mjs": 60,
  "tests/reader-map-hand-off.test.mjs": 10,
  "tests/reader-math.test.mjs": 60,
  "tests/reader-mind-map.test.mjs": 10,
