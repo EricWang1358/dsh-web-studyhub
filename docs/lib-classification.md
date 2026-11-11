@@ -377,7 +377,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/host-service.js`: 3 other lib files
 - `lib/host.js`: 2 other lib files
 - `lib/http.js`: 3 other lib files
-- `lib/index.js`: 2 other lib files
+- `lib/index.js`: 1 other lib file
 - `lib/install-drives.js`: 3 other lib files
 - `lib/install-sources.js`: 1 other lib file
 - `lib/jev-decide.js`: 2 other lib files
@@ -412,7 +412,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/plan-split.js`: 2 other lib files
 - `lib/plan-target-record.js`: 1 other lib file
 - `lib/quote-match.js`: 3 other lib files
-- `lib/reasoning-effort.js`: 6 other lib files
+- `lib/reasoning-effort.js`: 7 other lib files
 - `lib/retrieval-extension.js`: 1 other lib file
 - `lib/retrieval-host.js`: 2 other lib files
 - `lib/retrieval-index-ingest.js`: 1 other lib file
