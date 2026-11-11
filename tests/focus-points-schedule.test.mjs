@@ -172,9 +172,17 @@ test("planPath, focusOnly mode, courseBatch, snapshot, and crunch/period plans a
     s.focus = { mode: "class", course: "OS" };
   });
 
+  // Default reading order ('reading') keeps new cards in chapter/material order without jumping p.94 focus ahead of p.1
+  const defaultSnap = await study.call("snapshot");
+  assert.equal(defaultSnap.today.focusTotal, 2);
+  assert.equal(defaultSnap.today.focusRound, 0, "reading-order default starts with the first 10 chapter cards rather than jumping ahead");
+  assert.equal(defaultSnap.next.topic, "普通章节 1");
+
+  // Opting into 'focus' newCardOrder pulls focus new cards to the front for pre-exam cramming
+  await study.call("settings.practice.set", { patch: { newCardOrder: "focus" } });
   const snap = await study.call("snapshot");
   assert.equal(snap.today.focusTotal, 2);
-  assert.equal(snap.today.focusRound, 2, "both focus cards enter the 10-new-card daily round despite sitting at index 15 and 16");
+  assert.equal(snap.today.focusRound, 2, "with newCardOrder=focus, both focus cards enter the 10-new-card daily round despite sitting at index 15 and 16");
   assert.equal(snap.next.topic, "银行家算法安全性检查");
   assert.equal(snap.next.focus, true);
 

@@ -54,10 +54,10 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/custom-plan.js`: 2 ui files; 3 other lib files
 - `lib/deck-format.js`: 1 ui file; 1 other lib file
 - `lib/deck-parts.js`: 2 ui files; contexts authoring, generation, library; 1 other lib file
-- `lib/document-title.js`: 17 ui files; contexts generation, materials; 9 other lib files
+- `lib/document-title.js`: 17 ui files; contexts generation, materials; 10 other lib files
 - `lib/draft-continuation.js`: 1 ui file; contexts generation, jobs, library; 2 other lib files
 - `lib/draft-fields.js`: 1 ui file; context bank; 4 other lib files
-- `lib/exam-point-list.js`: 3 ui files; contexts generation, library, materials; 18 other lib files
+- `lib/exam-point-list.js`: 4 ui files; contexts generation, library, materials; 18 other lib files
 - `lib/exam-prep-roles.js`: 3 ui files; context generation
 - `lib/exam-prep-settings.js`: 2 ui files; contexts generation, system; 2 other lib files
 - `lib/exam-timing.js`: 3 ui files; context study; 2 other lib files
@@ -96,7 +96,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/passage-translation.js`: 2 ui files; contexts generation, materials; 1 other lib file
 - `lib/plain-reason.js`: 2 ui files; 2 other lib files
 - `lib/plan-weekly.js`: 1 ui file; 2 other lib files
-- `lib/practice-settings.js`: 5 ui files; contexts coach, system; 5 other lib files
+- `lib/practice-settings.js`: 5 ui files; contexts coach, study, system; 8 other lib files
 - `lib/question-references.js`: 3 ui files; context generation; 5 other lib files
 - `lib/question-voice.js`: 3 ui files; 3 other lib files
 - `lib/quote-locate.js`: 1 ui file; context generation; 12 other lib files
@@ -110,8 +110,8 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/shortfall.js`: 2 ui files
 - `lib/sm2.js`: 2 ui files; 5 other lib files
 - `lib/source-courses.js`: 7 ui files; contexts audio, bank, courses, generation, library, materials, recording; 24 other lib files
-- `lib/source-groups.js`: 21 ui files; contexts generation, materials; 9 other lib files
-- `lib/source-provenance.js`: 5 ui files; contexts library, materials; 5 other lib files
+- `lib/source-groups.js`: 23 ui files; contexts generation, materials; 9 other lib files
+- `lib/source-provenance.js`: 6 ui files; contexts library, materials; 6 other lib files
 - `lib/source-relations.js`: 2 ui files
 - `lib/stage-effort.js`: 1 ui file; context generation; 3 other lib files
 - `lib/stage-usage.js`: 1 ui file; context generation; 2 other lib files
@@ -143,7 +143,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/deck-title.js`: contexts bank, library; 3 other lib files
 - `lib/document-outline.js`: contexts library, materials; 3 other lib files
 - `lib/documents.js`: contexts library, materials; 1 other lib file
-- `lib/domain.js`: contexts authoring, bank, coach, generation, recording, study, system; 23 other lib files
+- `lib/domain.js`: contexts authoring, bank, coach, generation, recording, study, system; 24 other lib files
 - `lib/estimate-calibration.js`: contexts generation, library; 1 other lib file
 - `lib/exam-alignment.js`: contexts courses, library
 - `lib/experimental.js`: contexts generation, library, system
@@ -351,7 +351,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/calculation-check.js`: 2 other lib files
 - `lib/calculation-teaching.js`: 1 other lib file
 - `lib/card-autofix.js`: 2 other lib files
-- `lib/card-places.js`: 5 other lib files
+- `lib/card-places.js`: 6 other lib files
 - `lib/chem-text.js`: 3 other lib files
 - `lib/code-comment.js`: 2 other lib files
 - `lib/course-book-cards.js`: 2 other lib files

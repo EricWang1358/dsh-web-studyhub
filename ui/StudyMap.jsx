@@ -19,6 +19,7 @@ import { useDeckTree } from "./study-map/useDeckTree.js";
 import { useCourseFolders } from "./study-map/useCourseFolders.js";
 import { useCourseMastery } from "./study-map/useCourseMastery.js";
 import { buildHomePlan, hasOwnDeck } from "./study-map/home-plan.js";
+import { openReaderForPages } from "./document-preview/practice/open-reader-pages.js";
 import HomeActivity, { HomeDrafts } from "./study-map/HomeActivity.jsx";
 import DeskIntro from "./study-map/DeskIntro.jsx";
 import TodayCard from "./study-map/TodayCard.jsx";
@@ -58,7 +59,7 @@ import { AppContext } from "./app/app-context.js";
                     'compact' puts the line's card in the today slot; `plan` is the third step's summary and estimate (useFirstDeck). Left out, the line is the
                     compact card. */
 export default function StudyMap({ data, actions = {}, setupHandlers, notebooks, reveal, onRevealed, firstRun, children }) {
-  const { call, act, host } = useStudy();
+  const { call, act, host, openModal } = useStudy();
   const app = useContext(AppContext) || {};
   const publishDraft = app.drafts?.publishAndPractice;
   const refreshLibrary = app.core?.refresh;
@@ -124,7 +125,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   };
   const today = data.today || { due: 0, weak: 0, new: 0, size: 0 };
   const home = buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus: folders.inFocus, revealActivity, revealDrafts, guidedSession: app.lib?.guidedSession,
-    actions: { start, resume, openDraft, addSource, importLibrary, generateFromSources, onCoachPractice, onWeakPoints, onCourseSettings } });
+    actions: { start, resume, openDraft, addSource, importLibrary, generateFromSources, onCoachPractice, onWeakPoints, onCourseSettings,
+      onPickPages: (sourceIds) => openReaderForPages({ sources: data.sources, sourceIds, openModal }) } });
   const drafts = data.drafts || [];
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;

@@ -43,6 +43,8 @@ import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 import { roundAt, roundWords } from "./round-words.js";
 import { fixedOptionsOf } from "../../lib/card-kinds.js";
+import { deferUnstudiedPagesPlan, runDeferUnstudiedPages } from "../document-preview/practice/open-reader-pages.js";
+import QuestionSourcePage from "./QuestionSourcePage.jsx";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -97,7 +99,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const { run, entry, showBack, showEn, enBusyKey, keyGrade, teachingBusy, teachingError, choice, isCloze, autopilot, actions } = session;
   const { selected, hint, explain, response, teaching, teachAnswer, clozeValues } = entry;
   const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn } = actions;
-  const { call, act, busy, openModal, openSettings } = useStudy();
+  const { call, act, busy, openModal, openSettings, notify } = useStudy();
   const toggleCardFocus = React.useCallback(() => {
     if (!run?.card?.id) return;
     const nextFocus = !run.card.focus;
@@ -105,6 +107,11 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
       session.patchRun?.((prev) => prev?.card ? { ...prev, card: { ...prev.card, focus: !!res?.focus, focusSource: res?.focus ? "card" : null } } : prev);
     });
   }, [act, run?.card?.focus, run?.card?.id, run?.deckId, session]);
+  const canDeferPages = !run?.feedback && !!deferUnstudiedPagesPlan(run);
+  const deferUnstudiedPages = React.useCallback(
+    () => runDeferUnstudiedPages({ run, sources: data?.sources, openModal, reviewAct, notify }),
+    [data?.sources, notify, openModal, reviewAct, run],
+  );
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
   const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader, tourRunning } = context;
@@ -277,6 +284,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 {run.card.focus && <Badge size="sm" tone="accent" className="origin-note">{ui("重点")}</Badge>}
                 {run.card.importedFromJson && <Badge size="sm" className="origin-note">{ui("外部导入")}</Badge>}
                 {run.card.sourceQa && <Badge size="sm" className="origin-note">{ui("问答")}</Badge>}
+                <QuestionSourcePage run={run} sources={data?.sources} />
                 <span>{run.card.topic}</span>
                 {!!publicationIssues.length && !run.card.publicationUngrable &&
                   <Popover label={ui("待核对")} className="publication-mark" panelClassName="publication-mark__panel"
@@ -519,7 +527,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
           onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
           onDerive={() => setAssistMode((m) => (m === "derive" ? "" : "derive"))}
-          onSlay={slayCard} onToggleFocus={run.mode !== "exam" ? toggleCardFocus : undefined} onReviewAction={reviewAct}
+          onSlay={slayCard} onToggleFocus={run.mode !== "exam" ? toggleCardFocus : undefined}
+          onDeferUnstudiedPages={canDeferPages ? deferUnstudiedPages : undefined}
+          onReviewAction={reviewAct}
           onNote={onMakeNote}
           onTask={onMakeTask}
           enOn={enOn}

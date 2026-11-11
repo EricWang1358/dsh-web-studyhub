@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Field, Hint, Select, SettingsSection, Switch, useToast } from '../components/index.js';
-import { PRACTICE_DEFAULTS, resolvePracticeSettings } from '../../lib/practice-settings.js';
+import { NEW_CARD_ORDERS, PRACTICE_DEFAULTS, resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { leechMisses } from '../../lib/leech.js';
 import { COVERAGE_DEFAULT, CRUNCH_MINUTES, CRUNCH_WINDOW, bookCoverage, crunchMinutes, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { levelHint, levelOptions } from '../outline/words.js';
@@ -11,6 +11,11 @@ import { useStudy } from '../study-context.jsx';
 /* 设置 › 练习: the learner's personal defaults for the daily practice, saved at once (settings.practice.set); 恢复默认 forgets them (settings.practice.reset).
    Autopilot and the round size are what the practice page and the home card read; 本轮点评 is the one place that says the result page asks the model. */
 export const ROUND_SIZES = [10, 15, 20, 30, 40, 50];
+export const NEW_CARD_ORDER_LABELS = Object.freeze({
+  reading: '按资料顺序（从前往后）',
+  focus: '重点优先（适合考前冲刺）',
+  shuffle: '随机穿插（适合通读后自测）',
+});
 /** 顽固题 (lib/leech.js): how many wrong answers, and what share of the latest few attempts (per cent), make a question stubborn; inside PRACTICE_LIMITS. */
 export const LEECH_FAILURES = [3, 4, 5, 6, 8, 10];
 export const LEECH_RATES = [50, 60, 70, 80, 100];
@@ -80,6 +85,10 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
       <Field label={ui('每轮题数')} hint={uiFormat('首页的「今日学习」每轮最多这么多题：先排到期复习，再排薄弱题，最后补新题，新题最多占一半。当前是 {0} 题一轮，新题最多 {1} 道。', [values.roundSize, Math.ceil(values.roundSize / 2)])}>
         <Select name="roundSize" value={String(values.roundSize)} disabled={disabled} onChange={(roundSize) => set({ roundSize: Number(roundSize) })}
           options={sizes.map((size) => ({ value: String(size), label: uiFormat('{0} 题', [size]) }))} />
+      </Field>
+      <Field label={ui('新题出场顺序')} hint={ui('还没学过的新题按什么顺序排进每一轮：默认顺着资料页码或章节从前往后学，避免还没看过的后半本突然跳出来；到期复习和薄弱题仍优先巩固，前置题也会排在依赖它的题前面。')}>
+        <Select name="newCardOrder" value={values.newCardOrder} disabled={disabled} onChange={(newCardOrder) => set({ newCardOrder })}
+          options={NEW_CARD_ORDERS.map((order) => ({ value: order, label: ui(NEW_CARD_ORDER_LABELS[order]) }))} />
       </Field>
       <Switch name="autopilot" label={ui('自动跳下一步')} checked={values.autopilot} disabled={disabled} onChange={(autopilot) => set({ autopilot })}
         hint={uiFormat('答对（或自评达标）后，等 {0} 秒自动进入下一题；一轮做完，结果页也会在 {1} 秒后自动开始建议的下一步（学习流和「回到原题」的练习除外）。点任意处或按任意键就能停下。练习页的工具栏里也有这个开关，按 A 键同样可以切换。', [seconds(AUTO_ADVANCE_MS), RESULT_COUNTDOWN_SECONDS])} />

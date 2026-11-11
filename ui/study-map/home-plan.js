@@ -6,6 +6,7 @@ import { JOB_TYPES, isActiveJob, isDeckJob } from '../../lib/job-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import { courseMatcher } from '../PageScope.jsx';
 import { isVerifiableMaterialSource, roundEndAlternative } from '../method-alternatives.js';
+import { readableMaterialItems } from '../document-preview/practice/open-reader-pages.js';
 
 /** The ids of the sample course's records (设置 › 学习画像与导览): its decks, its draft and its first material; the records themselves carry `sample` too. */
 export const sampleIdsOf = (data) => new Set([data?.sample?.deckId, data?.sample?.caseDeckId, data?.sample?.draftId, data?.sample?.sourceId].filter(Boolean));
@@ -39,7 +40,7 @@ export const dailyPathArgs = (today) => practiceArgs(undefined, { fresh: false, 
  * 「发给主会话」 unit (ui/hand-off/), never as a link of its own.
  */
 export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, actions, revealActivity, revealDrafts, guidedSession }) {
-  const { start, resume, openDraft, addSource, importLibrary, generateFromSources, onCoachPractice, onWeakPoints, onCourseSettings, onAdvanceStage } = actions;
+  const { start, resume, openDraft, addSource, importLibrary, generateFromSources, onCoachPractice, onWeakPoints, onCourseSettings, onAdvanceStage, onPickPages } = actions;
   const todayRun = runFor(today.scope ?? []);
   const interview = false;
   const methodCourse = !interview ? (today.course ?? data.focus?.course ?? '') : '';
@@ -113,11 +114,18 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   const courseRun = route && runs.find((r) => r.purpose === 'course' && r.course === route.course);
   const startCourse = () => (courseRun ? resume(courseRun.id) : start({ mode: 'course' }));
   const flowLink = [];
-  /* The ways to start that are not the round: the course's next batch (chapter order), new questions only, and whatever waits in the other courses. */
+  const scopeSources = hasCourseScope
+    ? ownSources.filter((source) => (Array.isArray(source.courses) ? source.courses.some(withinDraftScope) : withinDraftScope(source.course ?? '')))
+    : ownSources;
+  const pickPagesItems = readableMaterialItems(scopeSources.length ? scopeSources : ownSources);
+  const pickPagesSourceIds = pickPagesItems.map((item) => item.pages[0]?.sourceId ?? item.sourceIds[0]).filter(Boolean);
+  const canPickPages = !interview && !starter && (today.new > 0 || freshCount > 0) && pickPagesItems.length > 0 && typeof onPickPages === 'function';
+  /* The ways to start that are not the round: the course's next batch (chapter order), new questions only, reader page-picking, and whatever waits in the other courses. */
   const otherStarts = [
     ...(!interview && today.focusTotal > 0 ? [[uiFormat('只练重点 · {0} 题', [today.focusTotal]), startFocusOnly]] : []),
     ...(route?.next ? [[uiFormat('课程下一批 · {0} 题', [route.next.fresh + route.next.reviews]), startCourse]] : []),
     ...(!interview && freshCount ? [[uiFormat('只学当前课程新题 · {0} 题', [freshCount]), startFresh]] : []),
+    ...(canPickPages ? [[ui('打开资料按页做题'), () => onPickPages(pickPagesSourceIds)]] : []),
     ...flowLink,
     ...(today.elsewhere > 0 ? [[uiFormat('其他课程另有 {0} 题到期或薄弱 · 一起学', [today.elsewhere]), startEverywhere]] : []),
   ];
@@ -216,6 +224,14 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   // Cards visible behind the top one: the stack is as thick as the day.
   plan.depth = plan.kind === 'empty' ? 0 : Math.min(2, Math.max(0, (plan.count || 0) - 1));
   plan.methodAlt = !starter && !shownRun && Boolean(today.ahead) && methodCourse ? roundEndAlternative(data, methodCourse, { guidedSession }) : null;
+  plan.pickPages = !starter && !today.ahead && today.new > 0 && pickPagesItems.length > 0 && typeof onPickPages === 'function'
+    ? {
+      note: ui('还没学完全文？'),
+      label: ui('去资料选页做题'),
+      detail: ui('打开资料阅读器，翻到正在看的那一章或那几页，点「做这几页的题」，就不会抽到后面的未学页。'),
+      run: () => onPickPages(pickPagesSourceIds),
+    }
+    : null;
   plan.stageAdvance = !starter && focusMethod?.own && focusMethod.gate?.ready && focusMethod.nextStage
     ? {
       course: methodCourse,

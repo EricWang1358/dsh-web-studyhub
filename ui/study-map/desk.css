@@ -260,9 +260,10 @@
       line-height: 1.6;
       color: var(--paper-dim);
     }
-    .today-detail:has(+ :is(.today-stage-advance, .today-method-alt)) { margin-bottom: var(--space-2); }
-    .today-stage-advance:has(+ .today-method-alt) { margin-bottom: var(--space-2); }
-    .today-stage-advance, .today-method-alt { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1-5); margin: 0 0 var(--space-5-5); font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--paper-dim); }
+    .today-detail:has(+ :is(.today-stage-advance, .today-method-alt, .today-pick-pages)) { margin-bottom: var(--space-2); }
+    .today-stage-advance:has(+ :is(.today-method-alt, .today-pick-pages)),
+    .today-method-alt:has(+ .today-pick-pages) { margin-bottom: var(--space-2); }
+    .today-stage-advance, .today-method-alt, .today-pick-pages { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1-5); margin: 0 0 var(--space-5-5); font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--paper-dim); }
     .today-card .today-go {
       display: flex;
       justify-content: space-between;
