@@ -8,7 +8,15 @@ const repoRoot = fileURLToPath(new URL(".", import.meta.url));
 const contextOwnerOf = (filePath) =>
   relative(repoRoot, resolve(filePath))
     .replaceAll("\\", "/")
-    .match(/^lib\/contexts\/([^/]+)\//)?.[1];
+    .match(/^lib\/contexts\/([^/]+)(?:\/|$)/)?.[1];
+
+const staticSpecifier = (sourceNode) => {
+  if (typeof sourceNode?.value === "string") return sourceNode.value;
+  if (sourceNode?.type === "TemplateLiteral" && sourceNode.expressions.length === 0) {
+    return sourceNode.quasis[0]?.value?.cooked ?? null;
+  }
+  return null;
+};
 
 const contextBoundaries = {
   rules: {
@@ -18,9 +26,10 @@ const contextBoundaries = {
         const owner = contextOwnerOf(context.filename);
         if (!owner) return {};
         const check = (sourceNode) => {
-          const raw = sourceNode?.value;
+          const raw = staticSpecifier(sourceNode);
           if (typeof raw !== "string" || !raw.startsWith(".")) return;
-          const target = resolve(dirname(context.filename), raw);
+          const clean = raw.split(/[?#]/)[0];
+          const target = resolve(dirname(context.filename), clean);
           const foreign = contextOwnerOf(target);
           if (foreign && foreign !== owner && !target.replaceAll("\\", "/").endsWith(`/lib/contexts/${foreign}/contracts.js`)) {
             context.report({

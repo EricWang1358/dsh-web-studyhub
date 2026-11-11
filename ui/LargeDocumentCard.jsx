@@ -1,4 +1,6 @@
-import React, { useId, useState } from 'react';
+import React, { useContext, useId, useState } from 'react';
+import { AppContext } from './app/app-context.js';
+import { hasContext } from './capabilities.js';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Badge, Button, Disclosure, Hint, Icon, Tooltip } from './components/index.js';
@@ -172,14 +174,17 @@ export function DetectionLine({ retrieval, onOpenSettings }) {
  * initialRun / initialApproval (previews and tests), className. Extra props land on the root.
  */
 export default function LargeDocumentCard({ reason, detail = {}, document, retrieval = null, onOpenSettings, runnable = false, courses = [], defaultCourse = '', onRetrieval,
-  conversionAvailable = true, courseNames = [], jobs, onConversionStarted, initialPlan, initialRun, initialApproval, className, ...rest }) {
+  conversionAvailable, courseNames = [], jobs, onConversionStarted, initialPlan, initialRun, initialApproval, className, ...rest }) {
   useInjectCss(css, 'study-large-documents');
+  const app = useContext(AppContext);
+  const canConvert = conversionAvailable ?? hasContext(app?.data, 'audio');
+  const canRetrieve = runnable && hasContext(app?.data, 'generation');
   const titleId = useId();
   const converting = reason === 'pdf-size' || reason === 'pdf-pages' || reason === 'text-chars';
   const steps = converting ? STEPS.convert : STEPS.select;
   const search = <div className="large-doc__group" data-role="retrieval">
     <h3 className="large-doc__group-title">{ui('检索：只让 AI 看相关页面')}</h3>
-    {runnable
+    {canRetrieve
       ? <ExtensionPanel status={retrieval} onStatus={onRetrieval} courses={courses} defaultCourse={defaultCourse} document={document}
         initialPlan={initialPlan} initialRun={initialRun} initialApproval={initialApproval} />
       : <Hint>{ui('在「设置 › 检索扩展」里一键安装检索扩展，再为这门课建立检索索引。')}</Hint>}
@@ -198,11 +203,11 @@ export default function LargeDocumentCard({ reason, detail = {}, document, retri
       </header>
       <ol className="large-doc__steps">{steps.map((step, index) => <li key={index} className="large-doc__step">{step()}</li>)}</ol>
       {converting ? <>
-        <ConverterMain available={conversionAvailable} runnable={runnable} file={detail.file} courses={courseNames} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} why={reasonText(reason, detail)} />
+        <ConverterMain available={canConvert} runnable={runnable && canConvert} file={detail.file} courses={courseNames} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} why={reasonText(reason, detail)} />
         <Disclosure summary={ui('需要整本检索时')} meta={ui('可选')} className="large-doc__more" defaultOpen={retrieval?.extension?.installed === true}>{search}</Disclosure>
       </> : <>
         {search}
-        <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain available={conversionAvailable} runnable={runnable} courses={courseNames} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} /></Disclosure>
+        <Disclosure summary={ui('还没有转换过 PDF？')} meta={ui('转换工具')} className="large-doc__more"><ConverterMain available={canConvert} runnable={runnable && canConvert} courses={courseNames} jobs={jobs} onOpenSettings={onOpenSettings} onStarted={onConversionStarted} /></Disclosure>
       </>}
       <AdvancedTools />
       <DetectionLine retrieval={retrieval} onOpenSettings={onOpenSettings} />

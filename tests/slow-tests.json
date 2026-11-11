@@ -79,6 +79,7 @@
     "tests/local-study-image.test.mjs",
     "tests/mineru-fix-menu-browser.test.mjs",
     "tests/model-setup-browser.test.mjs",
+    "tests/modular-materials-guards-browser.test.mjs",
     "tests/nav-drag-promote-browser.test.mjs",
     "tests/nav-drawer-frame-browser.test.mjs",
     "tests/nav-groups-browser.test.mjs",

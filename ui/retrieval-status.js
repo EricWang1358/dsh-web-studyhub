@@ -1,3 +1,6 @@
+import { useContext } from 'react';
+import { AppContext } from './app/app-context.js';
+import { hasContext } from './capabilities.js';
 import { useHostQuery } from './host-query.js';
 import { fetchQuery, refreshQuery, invalidate, setQueryData } from './host-query-store.js';
 
@@ -7,7 +10,11 @@ import { fetchQuery, refreshQuery, invalidate, setQueryData } from './host-query
 const ACTION = 'retrieval.status';
 
 /** { data, error, loading, refresh } of retrieval.status; `data` is undefined until the host answered (or `initialData`). */
-export const useRetrievalStatus = (options) => useHostQuery(ACTION, {}, options);
+export function useRetrievalStatus(options = {}) {
+  const app = useContext(AppContext);
+  const enabled = (options?.enabled ?? true) && hasContext(app?.data, 'generation');
+  return useHostQuery(ACTION, {}, { ...options, enabled });
+}
 /** Ask now (through the shared store, so a request in flight is joined); resolves the status, or the last good one on failure. */
 export const loadRetrievalStatus = (call) => fetchQuery(call, ACTION, {});
 /** After a write (install, removal, a setting): ask again, joining no request that began before it; resolves the fresh status. Every mounted reader gets it. */
