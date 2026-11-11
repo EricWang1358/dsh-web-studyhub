@@ -2,7 +2,7 @@
 
 [English](install.md) · 中文
 
-StudyHub 是 DeepSeek Harness（DSH）的学习插件。DSH 可以装成桌面应用，也可以在浏览器里以网页版运行。先装好 DSH，再在 DSH 的插件管理里添加 StudyHub，最后配一个模型用来出题。想在浏览器里对照着装，可以下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.3/StudyHub-4.7.3-Setup.zh-CN.html)。
+StudyHub 是 DeepSeek Harness（DSH）的学习插件。DSH 可以装成桌面应用，也可以在浏览器里以网页版运行。先装好 DSH，再在 DSH 的插件管理里添加 StudyHub，最后配一个模型用来出题。想在浏览器里对照着装，可以下载[浏览器安装引导](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.4/StudyHub-4.7.4-Setup.zh-CN.html)。
 
 **三个名字，一个产品，最新版本只有一个地方。** 产品叫 **StudyHub**；DSH 装的是名为 `@ericwang1358/dsh-daily-flashcard` 的包；代码、问题和发布说明在仓库 `dsh-web-studyhub`。版本号会出现两个地方，其中 **GitHub 发布页永远是最新的**：npm 上的 `latest` 可能落后于它，所以按下面的步骤从发布页安装 `.tgz`。
 
@@ -20,8 +20,8 @@ StudyHub 是 DeepSeek Harness（DSH）的学习插件。DSH 可以装成桌面�
 
 **需要准备**
 
-- **DSH 0.2**：StudyHub 4.7.3 要求 DSH `>=0.2.0-rc.2 <0.3`。DSH 和 StudyHub 的版本号各自独立。
-- **测试过的 DSH 版本**：StudyHub 3.7.3 在隔离的 DSH 0.2.0-rc.2 和 0.2.1-rc.2 宿主里测试过；4.0.0 在 DSH 0.2.1-rc.2 中复测；4.0.1–4.3.5 发布前没有在 DSH 宿主里复测；4.4.4 发布前在 DSH 0.2.0-rc.2 和 0.2.1-rc.2 里跑过端到端检查（`npm run qa:dsh`，模拟模型）；4.4.5–4.7.3 发布前没有在 DSH 宿主里复测。DSH 0.2.1-rc.2 请用 StudyHub 4.0.1 或更新版本：3.5.0–3.5.5 在「学习模式」里发任何消息都会报 `unknown prompt variable "{{cwd}}"`。
+- **DSH 0.2**：StudyHub 4.7.4 要求 DSH `>=0.2.0-rc.2 <0.3`。DSH 和 StudyHub 的版本号各自独立。
+- **测试过的 DSH 版本**：StudyHub 3.7.3 在隔离的 DSH 0.2.0-rc.2 和 0.2.1-rc.2 宿主里测试过；4.0.0 在 DSH 0.2.1-rc.2 中复测；4.0.1–4.3.5 发布前没有在 DSH 宿主里复测；4.4.4 发布前在 DSH 0.2.0-rc.2 和 0.2.1-rc.2 里跑过端到端检查（`npm run qa:dsh`，模拟模型）；4.4.5–4.7.4 发布前没有在 DSH 宿主里复测。DSH 0.2.1-rc.2 请用 StudyHub 4.0.1 或更新版本：3.5.0–3.5.5 在「学习模式」里发任何消息都会报 `unknown prompt variable "{{cwd}}"`。
 - **能装 DSH 的电脑**：本文提供的桌面安装器适用于 Windows x64 和 Apple 芯片（M 系列）的 Mac。其他电脑先查看 DSH 官网，或用 DSH 网页版（需要 Node.js 22.19 或以上）。
 - **模型，只在用 AI 功能时需要**：出题和讲解要用模型，见[配置模型服务商](#配置模型服务商)。安装、示例导览、浏览资料和练习已有题组都不需要模型。
 
@@ -49,16 +49,16 @@ DSH 默认在 `http://127.0.0.1:3080` 打开。使用期间保持这个进程运
 
 以下步骤桌面版和网页版通用。网页版不用下载客户端，也不用新建配置。
 
-**常规安装只需一个完整主包**：`ericwang1358-dsh-daily-flashcard-4.7.3.tgz`。它包含 StudyHub 主入口和 6 个组件，共 7 项。安装时使用包地址或原始 `.tgz` 文件，不用解压，也不用合并发布页上的其他组件包。
+**常规安装只需一个完整主包**：`ericwang1358-dsh-daily-flashcard-4.7.4.tgz`。它包含 StudyHub 主入口和 6 个组件，共 7 项。安装时使用包地址或原始 `.tgz` 文件，不用解压，也不用合并发布页上的其他组件包。
 
 1. 在 DSH 打开「插件」页，点「添加插件」。
 2. 粘贴完整安装包地址：
 
    ```text
-   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.3/ericwang1358-dsh-daily-flashcard-4.7.3.tgz
+   https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.4/ericwang1358-dsh-daily-flashcard-4.7.4.tgz
    ```
 
-3. 安装完成后，确认包名是 `@ericwang1358/dsh-daily-flashcard`，版本是 4.7.3。
+3. 安装完成后，确认包名是 `@ericwang1358/dsh-daily-flashcard`，版本是 4.7.4。
 4. 为 StudyHub 和你需要的组件点「启用」。如果 DSH 提示重新加载，先等后台任务完成或取消它们。
 5. 第一次启用后，StudyHub 会自动打开。之后从 DSH 左栏的「StudyHub」进入，不用先发消息。每个会话里和 DSH 右侧栏也有「StudyHub」标签。
 
@@ -70,16 +70,16 @@ StudyHub 的学习库放在当前 DSH 会话的工作区文件夹里。如果看
 
 下载地址装不上，或出现 `unable to get local issuer certificate` 时，可以先用浏览器下载，再从本地文件安装：
 
-1. [下载 4.7.3 完整主包](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.3/ericwang1358-dsh-daily-flashcard-4.7.3.tgz)，文件名应为 `ericwang1358-dsh-daily-flashcard-4.7.3.tgz`。[发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.7.3)的 `SHA256SUMS-4.7.3.txt` 可用于核对校验值。
+1. [下载 4.7.4 完整主包](https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.7.4/ericwang1358-dsh-daily-flashcard-4.7.4.tgz)，文件名应为 `ericwang1358-dsh-daily-flashcard-4.7.4.tgz`。[发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.7.4)的 `SHA256SUMS-4.7.4.txt` 可用于核对校验值。
 2. **保留原始 `.tgz` 文件，不用解压。** 无需下载或合并其他组件包；GitHub 的「Source code」源码压缩包也不是这里的安装包。
 3. 在 DSH 打开「插件 › 添加插件」，填入**这个 `.tgz` 文件本身的绝对路径**。路径末尾应包含完整文件名和 `.tgz` 后缀，例如下面的 Windows 路径（请替换为实际保存路径）：
 
    ```text
-   C:\Users\你的用户名\Downloads\ericwang1358-dsh-daily-flashcard-4.7.3.tgz
+   C:\Users\你的用户名\Downloads\ericwang1358-dsh-daily-flashcard-4.7.4.tgz
    ```
 
    填文件本身的路径，不要只填下载目录或解压后的 `package` 目录。Windows 可在文件上右键选择「复制文件地址」，粘贴时去掉路径最外层的双引号。
-4. 安装完成后，确认包名为 `@ericwang1358/dsh-daily-flashcard`、版本为 4.7.3，再点「启用」。
+4. 安装完成后，确认包名为 `@ericwang1358/dsh-daily-flashcard`、版本为 4.7.4，再点「启用」。
 
 文件必须放在**运行 DSH 的电脑或服务器上**。访问远程网页版时，你自己电脑上的下载路径在服务器上并不存在：先把文件传到服务器，或者直接用上面的 HTTPS 地址。
 
