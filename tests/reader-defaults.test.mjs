@@ -37,12 +37,13 @@ test('the last deck is remembered in the browser and a blocked storage changes n
   assert.doesNotThrow(() => rememberDeck('b', blocked));
 });
 
-test('kind and number come from the saved 出题偏好, within what a top-up accepts', () => {
-  assert.deepEqual(supplementDefaults({ kinds: ['quiz'], count: 10 }), { kind: 'quiz', count: 10 });
-  assert.deepEqual(supplementDefaults({ kinds: ['cloze', 'quiz'], count: 6 }), { kind: 'cloze', count: 6 }, 'a top-up writes one kind: the first one ticked');
-  assert.deepEqual(supplementDefaults({ kinds: ['flashcard'], count: 200 }), { kind: 'flashcard', count: 20 }, 'a top-up writes at most 20');
-  assert.deepEqual(supplementDefaults(undefined), { kind: 'quiz', count: 10 }, 'no saved settings: the shipped defaults of 出题偏好');
-  assert.deepEqual(supplementDefaults({ kind: 'open', count: 4 }), { kind: 'open', count: 4 }, 'a library from an older version has only `kind`');
+test('kind and number come from the saved 出题偏好 (selectionCount, default 3), within what a top-up accepts', () => {
+  assert.deepEqual(supplementDefaults(undefined), { kind: 'quiz', count: 3 }, 'no saved settings: default 3 questions for a selected sentence/passage');
+  assert.deepEqual(supplementDefaults({ kinds: ['quiz'], count: 10 }), { kind: 'quiz', count: 3 }, 'existing libraries with count: 10 also start at 3 until selectionCount is changed');
+  assert.deepEqual(supplementDefaults({ kinds: ['cloze', 'quiz'], selectionCount: 6, count: 10 }), { kind: 'cloze', count: 6 }, 'a top-up writes one kind (first ticked) and saved selectionCount');
+  assert.deepEqual(supplementDefaults({ kinds: ['flashcard'], selectionCount: 20 }), { kind: 'flashcard', count: 20 }, 'a top-up writes up to 20');
+  assert.deepEqual(supplementDefaults({ kinds: ['flashcard'], selectionCount: 200 }), { kind: 'flashcard', count: 3 }, 'out-of-range persisted value falls back cleanly to 3');
+  assert.deepEqual(supplementDefaults({ kind: 'open', selectionCount: 4 }), { kind: 'open', count: 4 }, 'a library from an older version has only `kind`');
 });
 
 test('an unsaved thread comes back with its saved ids when its passage is selected again, and it is forgotten when the learner deletes it', () => {

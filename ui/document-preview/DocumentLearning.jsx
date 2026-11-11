@@ -75,7 +75,7 @@ export function ModeSwitch({ mode, onMode }) {
  * this material. Nothing here waits: asking is only blocked while it is itself answering, and the supplement form stays
  * editable while a job runs (the same passage and deck is refused, another one is fine).
  */
-export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHandOff = null, pageCut = null, pageRefusal = null, pageTotal = 0, onPage, onRange, onContinue, resolution, resolving = false, error = '', question = '', thread = emptyThread(), notice = '', noticeWhy = '', mode = 'read', onMode, annotateReady = false, savedIds, keepBusy = false, keepError = '', onKeep, onDeleteThread, deckId = '', deckNote = '', count = 10, kind = 'quiz',
+export function LearningPanel({ capture, scope = null, jobsOnly = false, pageHandOff = null, pageCut = null, pageRefusal = null, pageTotal = 0, onPage, onRange, onContinue, resolution, resolving = false, error = '', question = '', thread = emptyThread(), notice = '', noticeWhy = '', mode = 'read', onMode, annotateReady = false, savedIds, keepBusy = false, keepError = '', onKeep, onDeleteThread, deckId = '', deckNote = '', count = 3, kind = 'quiz',
   decks = [], askReady = false, generateReady = false, modelReady = false, starting = false, primary = true, jobs = [], now = Date.now(), call, sectionRef,
   onQuestion, onAsk, onQuick, onAskInside, onRetryNode, onToggleNode, onDeck, onCount, onKind, onStart, saveReady = false, onSaved, isCurrent, ...jobHandlers }) {
   const resolved = resolution?.status === 'resolved';
@@ -167,15 +167,16 @@ export default function DocumentLearning({ call, document, capture, scope = null
   const sectionRef = useRef(null), [reveal, setReveal] = useState('');
   const jobsRef = useRef(jobs), noticeRef = useRef(null), publishedRef = useRef(onPublished);
   jobsRef.current = jobs; noticeRef.current = notice => toast.show({ tone: notice.tone, message: notice.text }); publishedRef.current = onPublished;
-  const snapshot = data ?? fallbackSnapshot;
+  const snapshot = fallbackSnapshot?.settings ? fallbackSnapshot : (data ?? fallbackSnapshot);
   const documentId = document?.documentId || document?.id;
   useEffect(() => {
     let current = true;
-    Promise.allSettled([call('runtime.capabilities'), call('bank.decks.list'), data ? Promise.resolve(data) : call('snapshot')]).then(([capability, bank, state]) => {
+    setFallbackSnapshot(null);
+    Promise.allSettled([call('runtime.capabilities'), call('bank.decks.list'), call('snapshot')]).then(([capability, bank, state]) => {
       if (!current) return;
       setCapabilities(capability.status === 'fulfilled' ? capability.value : []);
       if (bank.status === 'fulfilled') setBankDecks(bank.value.decks || []);
-      if (!data && state.status === 'fulfilled') setFallbackSnapshot(state.value);
+      if (state.status === 'fulfilled' && state.value) setFallbackSnapshot(state.value);
     });
     return () => { current = false; };
   }, [call, data]);
@@ -211,6 +212,8 @@ export default function DocumentLearning({ call, document, capture, scope = null
   const guess = suggestDeck({ usedBy, decks, last: lastDeck }), deckId = pickedDeck ?? guess.deckId;
   const deckNote = pickedDeck === null && guess.reason ? (guess.reason === 'material' ? ui('已选这份资料唯一的题组。') : ui('已选你上次补题用的题组。')) : '';
   const defaults = supplementDefaults(snapshot?.settings?.generation), kind = pickedKind ?? defaults.kind, count = pickedCount ?? defaults.count;
+  useEffect(() => { setPickedCount(null); }, [defaults.count]);
+  useEffect(() => { setPickedKind(null); }, [defaults.kind]);
   const available = (domain, operation) => (capabilities || []).find(item => item.id === domain)?.operations
     ?.some(item => item.name === operation && item.available !== false) === true;
   const askReady = available('materials', 'selection.ask'), generateReady = available('generation', 'selection.start'), modelReady = askReady || generateReady;

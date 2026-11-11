@@ -10,14 +10,14 @@ import { EFFORT_STAGES, effortKey } from '../lib/stage-effort.js';
 import { EffortSelect } from './EffortSelect.jsx';
 import { useStudy } from './study-context.jsx';
 
-const labels = { kinds: '默认题型', coverageLevel: '默认覆盖强度', count: '主会话里出题的默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
+const labels = { kinds: '默认题型', coverageLevel: '默认覆盖强度', selectionCount: '选段补题默认题数', count: '主会话里出题的默认题数', language: '默认语言', difficulty: '默认难度', focus: '默认侧重点', notation: '默认公式写法',
   concurrency: '同时生成的批数', batchSize: '每批题数', jobTimeoutMinutes: '每轮运行时限（分钟）', fillRounds: '自动补题轮数',
   effortPlanning: '规划考点与答案设计', effortReview: '独立审阅', effortWriting: '出题与替换题', effortRepair: '修复题目',
   lightModel: '机械步骤轻量模型', applySuggestions: '采纳审阅建议' };
 const languages = { auto: '跟随界面语言', 中文: '中文', English: 'English', 中英双语: '中英双语' };
 const difficulties = { mixed: '混合难度', foundation: '基础理解', application: '应用迁移', advanced: '深入辨析' };
 const notations = { auto: '自动', text: '纯文本', latex: '公式（LaTeX）' };
-const numeric = ['count', 'concurrency', 'batchSize', 'jobTimeoutMinutes', 'fillRounds'];
+const numeric = ['selectionCount', 'count', 'concurrency', 'batchSize', 'jobTimeoutMinutes', 'fillRounds'];
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 const numbers = values => ({ ...values, ...Object.fromEntries(numeric.map(key =>
   [key, typeof values[key] === 'string' && !values[key].trim() ? NaN : Number(values[key])])) });
@@ -109,9 +109,10 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
       lead={ui('保存在当前学习库，作为新出题任务的默认值。每次出题时仍可单独调整；已开始的任务不受影响。')}>
       {field('kinds', <KindPicker name="kinds" value={editor.values.kinds} disabled={disabled} onChange={list => edit('kinds', list, kindsPatch(list))} />,
         kindNote(editor.values.kinds), true)}
-      {/* The one default the 创建题组 page plans by (it also decides whether the rounds go on by themselves); the count below is for requests made without a level. */}
+      {/* The one default the 创建题组 page plans by (it also decides whether the rounds go on by themselves); selectionCount is for reader passage supplements, and count below is for main-chat requests without a level. */}
       {field('coverageLevel', <Select {...propsFor('coverageLevel')} onChange={value => edit('coverageLevel', value)} options={COVERAGE_LEVELS.map(({ value, label }) => ({ value, label }))} />,
         levelNote(editor.values.coverageLevel))}
+      {numberField('selectionCount', ui('在资料阅读器里选中一段文字「补充到现有题组」时的默认题数；每次补题仍可在「更多设置」里临时调整。'))}
       {choiceField('language', GENERATION_LANGUAGES, value => ui(languages[value]))}
       {choiceField('difficulty', GENERATION_DIFFICULTIES, value => ui(difficulties[value]))}
       {choiceField('notation', GENERATION_NOTATIONS, value => ui(notations[value]))}
@@ -135,11 +136,13 @@ export function GenerationSettingsForm({ root, saved, efforts = null, session, m
         hint={ui('审阅已通过、但附了优化建议的题，多花一次改写和一次复核来采纳建议；复核不过就保持原题。会多用 token 和时间，默认关闭；任务运行中也可以在「即时控制」里随时开关。')}
         onChange={value => edit('applySuggestions', value === true)} />
       {error && <Hint tone="error" role="alert">{error}</Hint>}
-      <div className="settings-actions">
-        <Button variant="primary" type="submit" busy={working} disabled={busy || !dirty || invalid}>{ui('保存出题偏好')}</Button>
-        <Button disabled={disabled} onClick={reset}>{ui('恢复默认值（待保存）')}</Button>
+      <div className="generation-settings__save" data-dirty={dirty ? 'true' : undefined}>
+        <div className="settings-actions">
+          <Button variant="primary" type="submit" busy={working} disabled={busy || !dirty || invalid}>{ui('保存出题偏好')}</Button>
+          <Button disabled={disabled} onClick={reset}>{ui('恢复默认值（待保存）')}</Button>
+        </div>
+        <Hint role="status">{ui(dirty ? '有未保存的修改；保存后用于新的出题任务。' : '更改这些偏好不会自动开始出题。')}</Hint>
       </div>
-      <Hint role="status">{ui(dirty ? '有未保存的修改；保存后用于新的出题任务。' : '更改这些偏好不会自动开始出题。')}</Hint>
     </SettingsSection>
   </form>;
 }

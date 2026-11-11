@@ -2,6 +2,8 @@
   "出题偏好": "Question defaults",
   "默认题型": "Default question type",
   "默认题数": "Default question count",
+  "选段补题默认题数": "Default question count for selected passages",
+  "在资料阅读器里选中一段文字「补充到现有题组」时的默认题数；每次补题仍可在「更多设置」里临时调整。": "Default count when adding questions to an existing deck from a selected passage in the reader; you can still adjust it per run under More settings.",
   "默认语言": "Default language",
   "默认难度": "Default difficulty",
   "默认侧重点": "Default focus",

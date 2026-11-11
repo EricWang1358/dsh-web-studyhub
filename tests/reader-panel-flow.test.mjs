@@ -37,7 +37,7 @@ const render = (element, services = null) => renderToStaticMarkup(services ? wit
 
 const selection = { sourceId: 's1', documentId: 'doc', revision: 'r1', quote: 'We ship logs to ELK.', start: 0, end: 20 };
 const panel = (extra = {}) => ({ capture: { quote: selection.quote }, resolution: { status: 'resolved', selection }, question: '', thread: emptyThread(),
-  deckId: 'd', decks: [{ id: 'd', title: 'Deck' }], kind: 'quiz', count: 10, askReady: true, generateReady: true, modelReady: true, jobs: [], now: 0, call() {}, saveReady: true, ...extra });
+  deckId: 'd', decks: [{ id: 'd', title: 'Deck' }], kind: 'quiz', askReady: true, generateReady: true, modelReady: true, jobs: [], now: 0, call() {}, saveReady: true, ...extra });
 const gone = { model: { ready: false, reason: 'no-route' }, openModelSettings() {}, openSettings() {} };
 
 test('the first-level questions are buttons that ask on their own, and say so', () => {
@@ -63,7 +63,7 @@ test('the top-up form keeps its kind and number behind 更多设置, which says 
   lib.setUiLanguage('zh');
   const out = render(React.createElement(lib.LearningPanel, panel({ deckNote: '已选这份资料唯一的题组。' })), { openSettings() {} });
   const fold = out.slice(out.indexOf('更多设置') - 120);
-  assert.match(out, /<summary[^>]*>[\s\S]*?更多设置[\s\S]*?单选测验 · 10 题/, 'the fold says what it holds');
+  assert.match(out, /<summary[^>]*>[\s\S]*?更多设置[\s\S]*?单选测验 · 3 题/, 'the fold says what it holds (3 questions by default)');
   assert.ok(out.indexOf('更多设置') > out.indexOf('补充到现有题组'), 'it sits under the deck');
   assert.ok(out.indexOf('更多设置') < out.indexOf('生成、审核并补充题目'), 'and above the button');
   assert.match(text(fold), /题型/); assert.match(text(fold), /题数/);
