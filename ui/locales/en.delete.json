@@ -78,5 +78,6 @@
   "所选资料需要先归档，才能永久删除。": "Selected sources must be archived before they can be permanently deleted.",
   "其中 {0} 份资料有题组引用，不能永久删除": "{0} selected source(s) are cited by decks and can’t be permanently deleted",
   "受引用保护的资料：{0}。先取消勾选这些资料，或先删除引用它们的题目。": "Cited sources: {0}. Uncheck them first, or delete the questions that cite them.",
+  "删除资料前请启用题库和学习组件，以检查已保存题目与学习记录的引用": "Turn on the question bank and study components before permanently deleting sources, so saved question and study citations can be checked.",
   "已永久删除 {0} 份资料": "Permanently deleted {0} sources"
 }

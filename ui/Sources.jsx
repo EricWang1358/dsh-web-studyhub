@@ -37,6 +37,7 @@ import PermanentDeleteDialog from './components/PermanentDeleteDialog.jsx';
 import { idsOfDocuments, offerDocumentsArchived } from './archive-entries.js';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
+import { hasContext } from './capabilities.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { CUSTOM_ROW_EDIT_LABEL, CUSTOM_ROW_EDIT_WHAT, CUSTOM_ROW_LABEL, CUSTOM_BOOK_WHAT, customRowOffer } from './custom-entry.js';
@@ -281,33 +282,13 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
   );
 }, sourceRowPropsEqual);
 
-/** Fix where one document belongs, on its own row: the same field and the same source.courses.set as 整理课程归属, for one document. */
-/** Saves the courses of a document through act(). Resolves '' when it worked, else the plain reason, so the dialog can say it where the learner is looking instead of in a notice that lands on top of its own buttons. */
-export async function saveDocumentCourses(act, assignments, onDone) {
-  try { await act('source.courses.set', { assignments }, onDone, { rethrow: true }); return ''; }
-  catch (error) { return errorMessage(error); }
-}
-
-export function CourseDialog({ item, items, byId, courses, onClose }) {
-  const { busy, act } = useStudy();
-  const [text, setText] = useState(item.courses.join('; ')), [error, setError] = useState('');
-  const save = async () => setError(await saveDocumentCourses(act, courseAssignments(items, [item.key], parseCourses(text), byId), onClose));
-  return (
-    <Dialog size="sm" title={uiFormat("修改「{0}」的课程", [displayTitle(item.title)])} busy={busy} onClose={onClose}
-      footer={<>
-        <Button variant="quiet" lock={busy} onClick={onClose}>{ui("取消")}</Button>
-        <Button variant="primary" busy={busy} disabled={busy} onClick={save}>{ui("保存课程")}</Button>
-      </>}>
-      <p className="muted">{ui('只更改归属，原文与引用保持不变。留空就是「未分类」。')}</p>
-      <CourseField value={text} onChange={value => { setText(value); setError(''); }} courses={courses} multiple disabled={busy} />
-      {error && <InlineMessage>{error}</InlineMessage>}
-    </Dialog>
-  );
-}
+const removePluginWarning = () => ui('删除资料前请启用题库和学习组件，以检查已保存题目与学习记录的引用');
 
 export function RemoveDialog({ item, onClose, onRemoved }) {
   const { busy, act } = useStudy();
-  const blocked = item.usedBy.length > 0 || !item.archived;
+  const appData = useContext(AppContext)?.data;
+  const canRemove = hasContext(appData, 'bank') && hasContext(appData, 'study');
+  const blocked = !canRemove || item.usedBy.length > 0 || !item.archived;
   async function confirm() {
     const result = await removeDocument(item, { act });
     if (!result.failed.length) return;
@@ -318,6 +299,7 @@ export function RemoveDialog({ item, onClose, onRemoved }) {
     <PermanentDeleteDialog title={displayTitle(item.title)} busy={busy} blocked={blocked}
       onConfirm={confirm} onDeleted={() => onRemoved(item)} onClose={onClose}>
       <p>{item.format === 'pdf' && pages > 1 ? uiFormat("这份 PDF 的 {0} 页文字都会永久删除，不能撤销。", [pages]) : ui("这份资料会永久删除，不能撤销。")}</p>
+      {!canRemove && <InlineMessage tone="warning">{removePluginWarning()}</InlineMessage>}
       {!item.archived && <InlineMessage>{ui('这份资料需要先归档，才能永久删除。')}</InlineMessage>}
       {item.usedBy.length > 0 && <InlineMessage tone="warning" boxed title={ui("有题组引用这份资料，不能永久删除")}>
         {uiFormat("引用它的题组：{0}。先删除或改写这些题，再永久删除资料。", [item.usedBy.map(deck => deck.title).join(" · ")])}
@@ -328,10 +310,12 @@ export function RemoveDialog({ item, onClose, onRemoved }) {
 
 export function BatchRemoveDialog({ items, onClose, onRemoved }) {
   const { busy, act } = useStudy();
+  const appData = useContext(AppContext)?.data;
   if (items.length === 1) return <RemoveDialog item={items[0]} onClose={onClose} onRemoved={item => onRemoved([item])} />;
+  const canRemove = hasContext(appData, 'bank') && hasContext(appData, 'study');
   const cited = items.filter(item => item.usedBy.length > 0);
   const unarchived = items.filter(item => !item.archived);
-  const blocked = cited.length > 0 || unarchived.length > 0;
+  const blocked = !canRemove || cited.length > 0 || unarchived.length > 0;
   async function confirm() {
     const result = await removeDocuments(items, { act });
     if (!result.failed.length) return;
@@ -341,6 +325,7 @@ export function BatchRemoveDialog({ items, onClose, onRemoved }) {
     <ConfirmDialog title={uiFormat('永久删除这 {0} 份资料？', [items.length])} confirmLabel={ui('确认永久删除')}
       busy={busy} blocked={blocked} onConfirm={confirm} onDone={() => onRemoved(items)} onClose={onClose}>
       <p>{uiFormat('这 {0} 份资料会永久删除，不能撤销。', [items.length])}</p>
+      {!canRemove && <InlineMessage tone="warning">{removePluginWarning()}</InlineMessage>}
       {unarchived.length > 0 && <InlineMessage>{ui('所选资料需要先归档，才能永久删除。')}</InlineMessage>}
       {cited.length > 0 && <InlineMessage tone="warning" boxed title={uiFormat('其中 {0} 份资料有题组引用，不能永久删除', [cited.length])}>
         {uiFormat('受引用保护的资料：{0}。先取消勾选这些资料，或先删除引用它们的题目。', [cited.map(item => displayTitle(item.title)).join(' · ')])}
@@ -681,5 +666,29 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             : uiFormat('已永久删除 {0} 份资料', [removed.length]));
         }} />}
     </section>
+  );
+}
+
+/** Fix where one document belongs, on its own row: the same field and the same source.courses.set as 整理课程归属, for one document. */
+/** Saves the courses of a document through act(). Resolves '' when it worked, else the plain reason, so the dialog can say it where the learner is looking instead of in a notice that lands on top of its own buttons. */
+export async function saveDocumentCourses(act, assignments, onDone) {
+  try { await act('source.courses.set', { assignments }, onDone, { rethrow: true }); return ''; }
+  catch (error) { return errorMessage(error); }
+}
+
+export function CourseDialog({ item, items, byId, courses, onClose }) {
+  const { busy, act } = useStudy();
+  const [text, setText] = useState(item.courses.join('; ')), [error, setError] = useState('');
+  const save = async () => setError(await saveDocumentCourses(act, courseAssignments(items, [item.key], parseCourses(text), byId), onClose));
+  return (
+    <Dialog size="sm" title={uiFormat("修改「{0}」的课程", [displayTitle(item.title)])} busy={busy} onClose={onClose}
+      footer={<>
+        <Button variant="quiet" lock={busy} onClick={onClose}>{ui("取消")}</Button>
+        <Button variant="primary" busy={busy} disabled={busy} onClick={save}>{ui("保存课程")}</Button>
+      </>}>
+      <p className="muted">{ui('只更改归属，原文与引用保持不变。留空就是「未分类」。')}</p>
+      <CourseField value={text} onChange={value => { setText(value); setError(''); }} courses={courses} multiple disabled={busy} />
+      {error && <InlineMessage>{error}</InlineMessage>}
+    </Dialog>
   );
 }
