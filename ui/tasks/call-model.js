@@ -224,7 +224,9 @@ const sameStep = (a, b) => a.kind === b.kind && (a.file ?? '') === (b.file ?? ''
 // How the learner goes on after a failed call that was not retried, by what the call was; a question run's batch: 补题 in its draft.
 const AUDIO_NEXT = '可点「接着做」补上';
 const NEXT_STEP = { transcribe: AUDIO_NEXT, proofread: AUDIO_NEXT, translate: AUDIO_NEXT, prep: '可在「错题与待巩固」里再点「生成变式」',
-  index: '再点「建立索引」会接着写还没建好的页' };
+  index: '再点「建立索引」会接着写还没建好的页',
+  // A 清点 range that was not read stays unread in the inventory: 接着做 (the retry), or the next 整理, reads it again.
+  inventory: '没读成的这段，点「接着做」或下次整理时会再读' };
 
 /**
  * What came of a failed call. The later calls of the same step (same kind, file and part) are its retries (only a rate limit is retried by itself).
@@ -287,7 +289,17 @@ export function logLines(contract, filter = 'all') {
   const told = new Set((contract?.events || []).filter((event) => event.code === 'convert-failed' && event.text).map((event) => event.text));
   // A conversion that waits before the import did not fail, whatever this attempt's log holds (a restart writes no line): no status line calls it a failure.
   const waiting = !!contract?.detail?.held;
-  for (const raw of contract?.events || []) {
+  // The runtime's own end (lib/jobs/lifecycle/settlement.js: { type: 'settled', status }) is the status line of the end, with the reason a failed one ended for;
+  // a producer that wrote its own status line for that end is not repeated.
+  const ended = (raw) => {
+    if (raw.type !== 'settled' || raw.code) return raw;
+    if ((contract?.events || []).some((event) => event.code === 'status' && event.args?.status === raw.status)) return null;
+    const short = ['failed', 'interrupted'].includes(raw.status);
+    return { ...raw, id: raw.eventId, code: 'status', args: { status: raw.status }, level: short ? 'warn' : 'done', text: short ? contract?.error?.message : undefined };
+  };
+  for (const each of contract?.events || []) {
+    const raw = ended(each);
+    if (!raw) continue;
     if (raw.code === 'status' && ['failed', 'interrupted'].includes(raw.args?.status) && (waiting || told.has(raw.text))) continue;
     const event = raw.code === 'window-failed' && told.has(raw.text) ? { ...raw, text: undefined } : raw;
     const text = eventText(event);

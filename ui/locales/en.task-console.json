@@ -476,6 +476,7 @@
   "停止时有 {0} 页正在写入，不确定是否写进去了；下次建立会重新写它。": "{0} page was being written when it stopped, so it may or may not be in the index; the next build writes it again.",
   "写入检索索引": "Write the search index",
   "再点「建立索引」会接着写还没建好的页": "Start the index again to write the pages not built yet",
+  "没读成的这段，点「接着做」或下次整理时会再读": "This range was not read; Continue or the next build reads it again",
   "实际请求": "Actual requests",
   "子代理模式：StudyHub 将经过阶段前缀排序的 system 与 prompt 合并发给独立子代理；宿主外层工具与会话协议不在插件内存轨迹内。": "Sub-agent mode: StudyHub combines the prefix-ordered system and prompt for an isolated sub-agent; outer host tool/session wrappers are outside in-memory plugin traces.",
   "直连模型调用：StudyHub 直接发送本条经过阶段前缀排序的 system 与 prompt；宿主底层传输头不在插件内存轨迹内。": "Direct model call: StudyHub sends this prefix-ordered system and prompt directly; low-level host transport headers are outside in-memory plugin traces.",
