@@ -11,6 +11,7 @@ import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
 import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, TextInput, Tooltip, Chip, useToast } from './components/index.js';
+import { scrollToAnchor } from './tour/anchor.js';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { leechLimits } from '../lib/leech.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
@@ -453,26 +454,30 @@ export function WrongBookView({
     [option.label, option.value === "variants" && coach?.preparing ? ui("变式正在生成") : option.reason]));
   if (options.some((option) => option.value === "variants" && option.disabled) && canGenerate && !coach?.preparing) unavailable.push(ui("先为错题生成变式，写好后就能选。"));
   const unavailableTip = unavailable.length ? unavailable.map((line, index) => <React.Fragment key={index}>{index > 0 && <br />}{line}</React.Fragment>) : null;
+  const notifyCapped = (count, { group = false } = {}) => {
+    const note = practiceCappedText(count, { group });
+    if (onNotify) onNotify(note);
+    else setMessage({ tone: "info", text: note });
+  };
+  const afterPracticeStart = (result, count, options) => {
+    if (result && typeof result.then === "function") {
+      result.then((started) => { if (started) notifyCapped(count, options); }, () => {});
+      return;
+    }
+    if (result !== false) notifyCapped(count, options);
+  };
   const practiceScope = (refs, { group = false } = {}) => {
     const { scope, total: count, capped } = capPracticeScope(refs);
-    if (capped) {
-      const note = practiceCappedText(count, { group });
-      if (onNotify) onNotify(note);
-      else setMessage({ tone: "info", text: note });
-    }
-    onPractice(scope);
+    const result = onPractice(scope);
+    if (capped) afterPracticeStart(result, count, { group });
   };
   const startRetrain = () => {
     const mistakes = rows.map(refOf);
     if (picked === "similar") practiceScope([...mistakes, ...recItems.map(refOf)]);
     else if (picked === "variants" && onPracticePrepared) {
       const { scope, total: count, capped } = capPracticeScope(mistakes);
-      if (capped) {
-        const note = practiceCappedText(count, { group: false });
-        if (onNotify) onNotify(note);
-        else setMessage({ tone: "info", text: note });
-      }
-      onPracticePrepared({ scope, originCardIds: [...new Set(readyHere.map((variant) => variant.originCardId))] });
+      const result = onPracticePrepared({ scope, originCardIds: [...new Set(readyHere.map((variant) => variant.originCardId))] });
+      if (capped) afterPracticeStart(result, count, { group: false });
     } else practiceScope(mistakes);
   };
 
@@ -539,8 +544,11 @@ export function WrongBookView({
   const pickGroup = (group) => {
     if (group.deckIds.length === 1) { onlyThisDeck(group); return; }
     setOpenGroups((previous) => new Set(previous).add(group.key));
-    // In one scroll, not an animation: an open group above draws its next chunk whenever its end passes through the window, which would move the head being scrolled to.
-    requestAnimationFrame?.(() => document.getElementById(`${groupsId}-${group.key}`)?.closest(".wb-group")?.scrollIntoView?.({ block: "start", behavior: "auto" }));
+    // In one scroll, not an animation, and re-checked once frames settle in case an open chunked group right above appended a batch (#900, #930).
+    requestAnimationFrame?.(() => {
+      const target = document.getElementById(`${groupsId}-${group.key}`)?.closest(".wb-group");
+      if (target) scrollToAnchor(target, { block: "start" });
+    });
   };
   const batchButton = (
     <div className="wb-batch">

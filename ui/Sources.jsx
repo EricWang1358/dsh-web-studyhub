@@ -7,6 +7,7 @@ import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
 import { Badge, Button, Checkbox, CheckboxInput, ChunkedRows, Dialog, Disclosure, Icon, InlineMessage, PageHeader, Tooltip, useToast } from "./components/index.js";
+import { scrollToAnchor } from "./tour/anchor.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { displayTitle } from '../lib/document-title.js';
 import { bigDocuments } from '../lib/large-documents.js';
@@ -186,10 +187,11 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
   // A converted book with chapters is browsed by chapter (WP28); its pages stay one click further in the picker.
   const chaptered = !!item.chapters?.length;
   useEffect(() => {
-    if (!isNew || !row.current) return;
-    // In one scroll, not an animation: an open group above draws its next chunk whenever its end passes through the window, which would move the row being scrolled to.
-    row.current.scrollIntoView?.({ block: "center", behavior: "auto" });
+    if (!isNew || !row.current) return undefined;
+    // In one scroll, not an animation, and re-checked once frames settle in case an open chunked group right above appended a batch (#900, #930).
+    const jump = scrollToAnchor(row.current, { block: "center" });
     row.current.querySelector(".source-main")?.focus({ preventScroll: true });
+    return jump.cancel;
   }, [isNew]);
   const corrections = source?.audio ? uiFormat("校对 {0} 处", [source.audio.corrections?.appliedCount ?? 0]) : "";
   // The facts only (#676): what it is, how big, and how it relates to the others. What the learner has to check is a Badge beside the title (below), the start of the text is not in the row.

@@ -225,6 +225,23 @@ test("the sources page, the wrong book and a long draft draw their rows in chunk
       }, { height: 600 });
     });
 
+    await t.test("#930: 找功能 lands on the book's 深度定制 button even when its day sits immediately below an open >120-row day", async () => {
+      // Group 0 (today): 300 notes (120 drawn initially). Group 1 (yesterday, bookOlderDays: 1): the book alone, right under Group 0's end marker.
+      // Landing on the book brings Group 0's end marker into the viewport so Group 0 appends chunks; scrollToAnchor re-checks and keeps the book in view.
+      await withLibrary({ documents: 300, bookOlderDays: 1 }, async (page) => {
+        await page.locator(".source-group-head").nth(1).dispatchEvent("click");
+        await page.locator('[data-tour="custom-book-row"]').first().waitFor({ timeout: 15000 });
+        await scrollerTop(page, 0);
+        await frames(page, 6);
+        assert.equal(await count(page, ".source-group--open:first-child .source-doc"), CHUNK, "the open day right above draws one chunk at first");
+        await goViaFinder(page, '[data-tour="sources-archived"]', "资料那一行", "custom-book-row");
+        await scrollSettled(page);
+        assert.ok(await inView(page, '[data-tour="custom-book-row"]'), "the 深度定制 button of the book stays in view after adjacent chunks settle");
+        const scrolls = await scrollsOf(page);
+        assert.ok(scrolls.calls > 0 && scrolls.smooth === 0, `every scroll is instant: ${JSON.stringify(scrolls)}`);
+      }, { height: 600 });
+    });
+
     await t.test("错题: one chunk of a group, the next at the end, a new filter starts again, the group jump lands, 练这一组 takes every row", async () => {
       const { page, context, errors } = await openApp(browser, running, zone);
       await page.evaluate(() => { try { sessionStorage.clear(); } catch { /* blocked */ } });
@@ -265,6 +282,14 @@ test("the sources page, the wrong book and a long draft draw their rows in chunk
       // (A programmatic click: the way to the button passes the end of open groups, which draw a chunk and move the button while a pointer click is on its way.)
       await page.getByRole("button", { name: /练这一组：Topic 1/ }).dispatchEvent("click");
       await page.getByText(`所选 ${size} 道题`).locator("visible=true").first().waitFor({ timeout: 30000 }); // (the visible one: the navigation also names the round in a tooltip)
+
+      // #928: a deck group of 500 (> 200) caps to the first 200 with a toast instead of failing checkScope.
+      await openNav(page, "wrongbook");
+      await page.locator(".wb-view").getByText("按题组", { exact: true }).click();
+      await page.locator(".wb-group").first().waitFor();
+      await page.locator(".wb-group").first().getByRole("button", { name: /练这一组/ }).dispatchEvent("click");
+      await page.getByText("所选 200 道题").locator("visible=true").first().waitFor({ timeout: 30000 });
+      await page.getByText(/一次最多 200 道：先练前 200 道/).first().waitFor({ timeout: 15000 });
       assert.deepEqual(errors.filter((error) => !/favicon/.test(error)), []);
       await context.close();
     });
@@ -284,13 +309,15 @@ test("the sources page, the wrong book and a long draft draw their rows in chunk
       assert.equal(await count(page, cards), DRAFT_CHUNK, "a draft of more than 80 questions draws 80 first");
       assert.match(await page.locator(".draft-edit-heading").innerText(), new RegExp(`${QUESTIONS} 题`), "the heading counts all the questions");
 
-      // The near-duplicate notice is on question SIMILAR_AT (index 100): past the first chunk, so 找功能 has to ask for it. (What it does with a notice it finds is not this
-      // test's: the notice sits in the fold's summary and the finder opens the fold, which hides it, wherever the question is. Here it is only drawn.)
+      // #927: the near-duplicate notice is on question SIMILAR_AT (index 100): past the first chunk, inside the fold's summary. 找功能 reveals the row, keeps the question's own
+      // fold closed so the summary notice stays visible, scrolls it into view and focuses it.
       assert.equal(await count(page, '[data-tour="draft-similar"]'), 0);
       await goViaFinder(page, ".draft-title-field__input", "相似题", "draft-similar");
-      await until(async () => (await count(page, '[data-tour="draft-similar"]')) > 0, "the question with the similar-question notice drawn", { timeoutMs: 20000 });
+      await until(() => inView(page, '[data-tour="draft-similar"]'), "the similar-question notice visible and in view", { timeoutMs: 20000 });
+      await until(() => page.evaluate(() => !!document.activeElement?.closest('[data-tour="draft-similar"]')), "the similar-question notice focused", { timeoutMs: 10000 });
+      assert.equal(await page.evaluate(() => document.querySelector('[data-tour="draft-similar"]')?.closest("details.draft-card")?.open), false, "its card stayed closed");
       const drawn = await count(page, cards);
-      assert.equal(drawn, SIMILAR_AT + 1, `the list drew up to the question with the notice and no further: ${drawn} cards`);
+      assert.ok(drawn >= SIMILAR_AT + 1 && drawn < QUESTIONS, `the list drew the question with the notice without drawing the whole draft: ${drawn} cards`);
 
       // The end: the next chunk.
       await scrollToEnd(page);
