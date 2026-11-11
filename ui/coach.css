@@ -218,6 +218,13 @@
       color: var(--text-muted);
       font-size: var(--fs-md);
     }
+    div.assist-status {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    div.assist-status > p {
+      margin: 0;
+    }
     .assist-status.failed {
       color: var(--warn-ink);
     }

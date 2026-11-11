@@ -123,7 +123,7 @@ test('progress of a round: the sections it covered that had none; a round that c
   assert.deepEqual(progressOf(new Set(), new Set()), { gained: 0, progress: false });
 });
 
-test('the numbers every screen shows are one function: round i of n, coverage, tokens used, and a projection from the rounds done', () => {
+test('the numbers every screen shows are one function: round i of n, coverage, tokens used, and a projection from the rounds done (or the upper end of the estimate before the run)', () => {
   let marked = spec();
   marked = finishRound(marked, 0, { status: 'done', kept: 4, covered: 2, tokens: 400_000, ms: 600_000 });
   marked = finishRound(marked, 1, { status: 'done', kept: 4, covered: 2, tokens: 600_000, ms: 600_000 });
@@ -133,7 +133,8 @@ test('the numbers every screen shows are one function: round i of n, coverage, t
   assert.deepEqual(facts.projection, { tokens: 500_000, minutes: 10, basis: 'history' }, '125 000 tokens and 150 seconds per planned question, 4 questions left');
   const none = runFacts({ rounds: roundList(spec()), run: run({ estimate: { tokens: { low: 100_000, high: 300_000 } } }), percent: 0 });
   assert.deepEqual({ round: none.round, done: none.done }, { round: 1, done: 0 });
-  assert.deepEqual(none.projection, { tokens: 200_000, minutes: null, basis: 'estimate' }, 'no history: the estimator, labelled as such, no minutes');
+  assert.deepEqual(none.projection, { tokens: 300_000, minutes: null, basis: 'estimate' }, 'no history: the estimator, labelled as such, no minutes; its UPPER end (high 300 000), not the middle 200 000 (#943)');
+  assert.equal(none.estimateTokens, 300_000, 'the same upper end is what the console sets against what was used');
   assert.equal(runFacts({ rounds: roundList(spec()), run: run(), percent: 0 }).projection, null, 'nothing known: nothing is made up');
   const finished = runFacts({ rounds: roundList(spec(['done', 'done', 'done'])), run: run({ state: 'complete' }), percent: 100 });
   assert.equal(finished.projection, null);

@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale } from "../i18n.js";
+import { ui, uiFormat, uiLocale, uiMessage } from "../i18n.js";
 import React from "react";
 import Markdown from "../Markdown.jsx";
 import Cloze from "../Cloze.jsx";
@@ -6,15 +6,20 @@ import FlipCard from "../FlipCard.jsx";
 import SmoothHeight from "../SmoothHeight.jsx";
 import ReviewToolbar from "../ReviewToolbar.jsx";
 import CitationDisclosure from "../CitationDisclosure.jsx";
+import FigurePageLink from "../document-preview/practice/FigurePageLink.jsx";
 import ExplanationFollowup from "../ExplanationFollowup.jsx";
 import { asksWhatTheSourceSays, SOURCE_VOICE_FIX } from "../../lib/question-voice.js";
 import ChoiceFeedback from "../ChoiceFeedback.jsx";
 import { fixedOptionLabel, optionMark } from "../option-label.js";
 import ThumbFeedback from "../ThumbFeedback.jsx";
+import PracticeTip from "./PracticeTip.jsx";
+import { usePracticeTip } from "./use-practice-tip.js";
+import { voteTipMoments } from "../guidance/practice-tips.js";
 import { reviewEntryKey } from "../async.js";
 import ModelErrorNote from "../ModelErrorNote.jsx";
+import ModelSetupGate from "../ModelSetupGate.jsx";
 import TeachingStatus from "./TeachingStatus.jsx";
-import { describeModelError, plainAssistFailure } from "../generation-status.js";
+import { describeModelError, modelReadiness, plainAssistFailure } from "../generation-status.js";
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
 import { Badge, Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
@@ -22,6 +27,8 @@ import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES } from "../agent-prompts/card.js";
 import { FixPhraseChips, FixPhraseSave } from "./FixPhrases.jsx";
 import { useFixPhrases } from "./use-fix-phrases.js";
+import { CourseRuleAdd } from "../course-rules/CourseRuleAdd.jsx";
+import { useCourseRules } from "../course-rules/use-course-rules.js";
 import { fixSuggestionFor } from "../card-fix.js";
 import reviewCss from "./review.css";
 import { useInjectCss } from "../shared.js";
@@ -36,6 +43,8 @@ import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 import { roundAt, roundWords } from "./round-words.js";
 import { fixedOptionsOf } from "../../lib/card-kinds.js";
+import { deferUnstudiedPagesPlan, runDeferUnstudiedPages } from "../document-preview/practice/open-reader-pages.js";
+import QuestionSourcePage from "./QuestionSourcePage.jsx";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -62,26 +71,25 @@ const CALCULATION_STAGE_LABELS = {
 /* A failed background-assistant task. A model failure goes through the one model note: a key or model problem points to the settings
    (sending the same request again cannot work, so there is no 重新提交), a busy or slow service keeps 重新提交. Anything else is about the
    content: the plain line, 重新提交, and 改一改再提交 when there is a question to edit. */
-function AssistFailure({ task, onSettings, onResubmit, onEdit }) {
+function AssistFailure({ task, modelReady = false, onSettings, onResubmit, onEdit }) {
   const { busy } = useStudy();
   const text = plainAssistFailure(task.message) || ui("没有拿到具体原因");
   const info = describeModelError(text);
   const resubmit = <Button className="assist-actions__btn" variant="primary" size="sm" lock={busy} onClick={onResubmit}>{ui("重新提交")}</Button>;
+  const edit = onEdit && <Button className="assist-actions__btn" size="sm" onClick={onEdit}>{ui("改一改再提交")}</Button>;
   if (info.kind !== "unknown") {
+    const canRetry = info.action === "retry" || modelReady;
     return (
       <div className="assist-note assist-failed" data-kind={info.kind}>
         <ModelErrorNote error={text} context="assist" onSettings={onSettings} />
-        {info.action === "retry" && <div className="assist-actions">{resubmit}</div>}
+        {(canRetry || edit) && <div className="assist-actions">{canRetry && resubmit}{edit}</div>}
       </div>
     );
   }
   return (
     <div className="assist-status failed assist-failed" role="status">
       <p>{uiFormat("后台助教没能完成：{0}", [text])}</p>
-      <div className="assist-actions">
-        {resubmit}
-        {onEdit && <Button className="assist-actions__btn" size="sm" onClick={onEdit}>{ui("改一改再提交")}</Button>}
-      </div>
+      <div className="assist-actions">{resubmit}{edit}</div>
     </div>
   );
 }
@@ -91,7 +99,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const { run, entry, showBack, showEn, enBusyKey, keyGrade, teachingBusy, teachingError, choice, isCloze, autopilot, actions } = session;
   const { selected, hint, explain, response, teaching, teachAnswer, clozeValues } = entry;
   const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn } = actions;
-  const { call, act, busy, openModal, openSettings } = useStudy();
+  const { call, act, busy, openModal, openSettings, notify } = useStudy();
   const toggleCardFocus = React.useCallback(() => {
     if (!run?.card?.id) return;
     const nextFocus = !run.card.focus;
@@ -99,9 +107,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
       session.patchRun?.((prev) => prev?.card ? { ...prev, card: { ...prev.card, focus: !!res?.focus, focusSource: res?.focus ? "card" : null } } : prev);
     });
   }, [act, run?.card?.focus, run?.card?.id, run?.deckId, session]);
+  const canDeferPages = !run?.feedback && !!deferUnstudiedPagesPlan(run);
+  const deferUnstudiedPages = React.useCallback(
+    () => runDeferUnstudiedPages({ run, sources: data?.sources, openModal, reviewAct, notify }),
+    [data?.sources, notify, openModal, reviewAct, run],
+  );
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
-  const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader } = context;
+  const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader, tourRunning } = context;
   const contextReturnLabel = inHeader ? '' : contextLabel;
   const assistTasks = data?.assist;
   // 自动加入复习全书 (settings.book.qaToBook): what was just chosen shows at once, until the library says the same.
@@ -119,15 +132,16 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const bookCourse = data?.decks?.find((deck) => deck.id === run.deckId)?.course ?? "";
   const [bookNote, setBookNote] = React.useState("");
   const qaSeen = React.useRef(null), qaTried = React.useRef(new Set());
-  const followupKey = (run.solution?.followups || []).map((item) => item.id).join("|");
+  const allFollowups = run.solution?.followups ?? run.followups ?? [];
+  const followupKey = allFollowups.map((item) => item.id).join("|");
   React.useEffect(() => {
-    const seen = seeFollowups(qaSeen.current, reviewEntryKey(run), (run.solution?.followups || []).map((item) => item.id), !!run.solution);
+    const seen = seeFollowups(qaSeen.current, reviewEntryKey(run), allFollowups.map((item) => item.id), !!(run.solution || run.followups));
     qaSeen.current = seen.state;
     for (const id of autoAddPlan({ mode: qaToBook, withBook: book.ready && book.courses.has(bookCourse), fresh: seen.fresh, tried: qaTried.current, added: book.ids })) {
       qaTried.current.add(id);
       book.add({ deckId: run.deckId, cardId: run.card.id, followupId: id }).catch((failure) => setBookNote(failure?.code === 'course-book-rebuild-pending' ? qaAddFailureText(failure) : failure?.message || ui("没能加入复习全书，可以点「加入复习全书」再试。")));
     }
-  }, [followupKey, run.id, run.index, !!run.solution]); // eslint-disable-line react-hooks/exhaustive-deps -- keyed on the question and its Q&A ids
+  }, [followupKey, run.id, run.index, !!(run.solution || run.followups)]); // eslint-disable-line react-hooks/exhaustive-deps -- keyed on the question and its Q&A ids
   const multiple = run.card?.multiple || run.card?.kind === "multi";
   // 判断题: two large 对 / 错 buttons instead of lettered options.
   const verdict = !!fixedOptionsOf(run.card?.kind);
@@ -137,22 +151,38 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const enOn = !!showEn && run.mode !== "exam" && !run.complete;
   const enStem = enOn ? run.card?.translation : null;
   const enAnswer = enOn && run.solution ? run.solution.translation : null;
+  const model = modelReadiness(data);
+  const modelSettings = onModelSettings || (() => openSettings("settings-model"));
   const [assistMode, setAssistMode] = React.useState("");
   const thumbsRef = React.useRef(null);
-  const [thumbVote, setThumbVote] = React.useState(null);
+  const [thumbState, setThumbState] = React.useState({ vote: null, tags: [] });
+  const thumbVote = thumbState.vote;
   const [assistText, setAssistText] = React.useState("");
+  const [dismissedTaskId, setDismissedTaskId] = React.useState("");
+  const [teachGate, setTeachGate] = React.useState(false);
+  const showSolution = !!(run.solution && (explain || !!run.feedback));
+  const showUnansweredFollowups = !run.revealed && !showSolution && run.mode !== "exam" && !!(explain || entry.assistance?.askedTutorBeforeAnswer) && (run.followups?.length ?? 0) > 0;
+  const voteMoments = voteTipMoments(thumbVote, thumbState.tags, !!run.feedback);
+  // The three first-use tips under the question (#948): which one shows, if any, is ui/guidance/practice-tips.js; it says nothing before the learner has acted.
+  const practiceTip = usePracticeTip({ run, assistMode, tourRunning: !!tourRunning, modelReady: model.ready, votedDown: voteMoments.votedDown, tooHard: voteMoments.tooHard,
+    answerShown: run.mode !== "exam" && ((showSolution && (run.solution?.followups?.length ?? 0) > 0) || showUnansweredFollowups) });
   const [helpChoices, setHelpChoices] = React.useState([]);
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
   // 我的常用语句: the learner's own chips of the 修题 box (settings.practice.fixPhrases).
   const fixPhrases = useFixPhrases(data);
-  React.useEffect(() => {
-    setAssistMode("");
-    setAssistText("");
-    setHelpChoices([]);
-  }, [run.id, run.index, run.card?.id]);
+  // 出题守则 of the question's course (#889): 「设为本课守则」 under the 修题 box and on the 👎 tray add to them.
+  const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
+  const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
+  React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); setTeachGate(false); }, [run.id, run.index, run.card?.id]);
+  React.useEffect(() => { if (model.ready) setTeachGate(false); }, [model.ready]);
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
+  const wasRunningRef = React.useRef("");
+  React.useEffect(() => {
+    if (runningTask?.id) wasRunningRef.current = runningTask.id;
+    else if (wasRunningRef.current && lastTask?.id === wasRunningRef.current && lastTask.status === "done") { wasRunningRef.current = ""; session.pollRun?.(); }
+  }, [runningTask?.id, lastTask?.id, lastTask?.status, session]);
   // The question column follows the chosen reading width (the card, the toolbar and the explanation share it), not a fixed 700px: 窄 / 标准 / 宽 in the Aa popover.
   const readingStyle = useReadingProps().style || {};
   const readingMeasure = readingStyle["--reading-measure"];
@@ -197,12 +227,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
       <ul>
         {run.prerequisites.map((p) => (
           <li key={p.deckId + p.cardId}>
-            <button
-              className="prereq-item"
-              disabled={busy}
-              title={ui("只练这一道，做完回到这道题")}
-              onClick={() => studyPrerequisites([p])}
-            >
+            <button className="prereq-item" disabled={busy} title={ui("只练这一道，做完回到这道题")} onClick={() => studyPrerequisites([p])}>
               <span className={"map-dot lv-" + p.level} />
               <Markdown className="md-compact" links={false} text={p.prompt} />
               <span className="prereq-go" aria-hidden="true">→</span>
@@ -259,6 +284,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 {run.card.focus && <Badge size="sm" tone="accent" className="origin-note">{ui("重点")}</Badge>}
                 {run.card.importedFromJson && <Badge size="sm" className="origin-note">{ui("外部导入")}</Badge>}
                 {run.card.sourceQa && <Badge size="sm" className="origin-note">{ui("问答")}</Badge>}
+                <QuestionSourcePage run={run} sources={data?.sources} />
                 <span>{run.card.topic}</span>
                 {!!publicationIssues.length && !run.card.publicationUngrable &&
                   <Popover label={ui("待核对")} className="publication-mark" panelClassName="publication-mark__panel"
@@ -422,17 +448,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             </>
           ) : taskCard ? (
             <>
-              <TaskCardRun
-                run={run}
-                data={data}
-                value={response}
-                onChange={actions.setResponse}
-                onReveal={() => reviewAct("review.reveal")}
-                onSelfReport={(note) => reviewAct("review.answer", { selfReport: true, ...(note ? { note } : {}) })}
-                enOn={enOn}
-                enStem={enStem}
-                enAnswer={enAnswer}
-              />
+              <TaskCardRun run={run} data={data} value={response} onChange={actions.setResponse} onReveal={() => reviewAct("review.reveal")}
+                onSelfReport={(note) => reviewAct("review.answer", { selfReport: true, ...(note ? { note } : {}) })} enOn={enOn} enStem={enStem} enAnswer={enAnswer} />
               {prereqStrip}
             </>
           ) : rubricCard ? (
@@ -443,22 +460,11 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             </>
           ) : (
             <>
-              <FlipCard
-                key={run.card.id}
-                run={run}
-                showBack={showBack}
-                flipCard={flipCard}
-                enOn={enOn}
-              />
+              <FlipCard key={run.card.id} run={run} showBack={showBack} flipCard={flipCard} enOn={enOn} />
               <SmoothHeight className="flash-follow" key={"follow:" + run.card.id}>
               {run.card.kind === "open" && !run.revealed && (
-                <label className="response-label">{ui("先组织你的回答")}<textarea
-                    rows={3}
-                    value={response}
-                    onChange={(e) => actions.setResponse(e.target.value)}
-                    placeholder={ui("在脑中作答，或在这里写下思路（提交前会自动保存）")}
-                  />
-                </label>
+                <label className="response-label">{ui("先组织你的回答")}<textarea rows={3} value={response} onChange={(e) => actions.setResponse(e.target.value)}
+                    placeholder={ui("在脑中作答，或在这里写下思路（提交前会自动保存）")} /></label>
               )}
               {run.revealed && !run.feedback && (
                 <div className="grading">
@@ -521,7 +527,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           onAsk={() => setAssistMode((m) => (m === "ask" ? "" : "ask"))}
           onImprove={() => setAssistMode((m) => (m === "improve" ? "" : "improve"))}
           onDerive={() => setAssistMode((m) => (m === "derive" ? "" : "derive"))}
-          onSlay={slayCard} onToggleFocus={run.mode !== "exam" ? toggleCardFocus : undefined} onReviewAction={reviewAct}
+          onSlay={slayCard} onToggleFocus={run.mode !== "exam" ? toggleCardFocus : undefined}
+          onDeferUnstudiedPages={canDeferPages ? deferUnstudiedPages : undefined}
+          onReviewAction={reviewAct}
           onNote={onMakeNote}
           onTask={onMakeTask}
           enOn={enOn}
@@ -531,10 +539,12 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           // 这题不错 / 这题有问题 are items of 更多; ThumbFeedback keeps the vote, the tag tray and the G / B keys (#671).
           thumbVote={thumbVote} onThumb={coachProps && run.mode !== "exam" ? (vote) => thumbsRef.current?.[vote === "up" ? "up" : "down"]() : undefined}
           thumbs={coachProps && run.mode !== "exam" && (
-            <ThumbFeedback ref={thumbsRef} buttons={false} run={run} canShortcut={coachProps.canShortcut} onSent={(r) => r.scheduled?.length && coachProps.onStatus()}
-              onVote={setThumbVote} onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} />
+            <ThumbFeedback ref={thumbsRef} buttons={false} run={run} canShortcut={coachProps.canShortcut} onInteract={coachProps.cancelAutoAdvance}
+              onSent={(r) => r.scheduled?.length && coachProps.onStatus()} onVote={(vote, tags = []) => setThumbState({ vote, tags })}
+              onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} courseRules={courseRules} />
           )}
         />
+        {practiceTip.tip && <PracticeTip id={practiceTip.tip} onClose={practiceTip.close} onShown={practiceTip.onShown} />}
         {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
         {/* A stem that asks what the source says tests memory of a document's wording, not the concept: say so and offer the fix, so the learner never has to find the words. */}
         {!assistMode && !runningTask && run.mode !== "exam" && asksWhatTheSourceSays(run.card?.prompt) && (
@@ -544,7 +554,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           </p>
         )}
         <SmoothHeight className="assist-area">
-          {assistMode && (
+          {assistMode && (!model.ready ? (
+            <div className="assist-form assist-gate">
+              <ModelSetupGate variant="inline" feature={assistMode === "derive" ? "generate" : "welcome"} model={model} onOpenSettings={modelSettings} />
+              <div className="assist-actions">
+                <Button size="sm" className="assist-actions__btn" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
+              </div>
+            </div>
+          ) : (
             <form
               className="assist-form"
               onSubmit={async (event) => {
@@ -578,40 +595,50 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 <FixPhraseChips phrases={fixPhrases.phrases} onPick={setAssistText} onRemove={fixPhrases.remove} />
               </>}
               <label className="assist-form__field">
-                {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : assistMode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : ui("这道题哪里不好？后台助教会直接改这张卡，可一步撤销")}
-                <textarea
-                  className="assist-form__input"
-                  autoFocus
-                  rows={2}
-                  value={assistText}
-                  maxLength={1000}
+                {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : assistMode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : ui("这道题哪里不好？后台助教会直接改这张卡，改完可在信箱里一步撤销")}
+                <textarea className="assist-form__input" autoFocus rows={2} value={assistText} maxLength={1000}
                   placeholder={assistMode === "ask" ? ui("例如：不懂为什么重试会放大负载") : assistMode === "derive" ? ui("例如：什么是聚合根；为什么重试要幂等") : ui("例如：选项 B 和 C 说的是一回事；解析没说清为什么 A 错")}
-                  onChange={(event) => setAssistText(event.target.value)}
-                />
+                  onChange={(event) => setAssistText(event.target.value)} />
               </label>
               {assistMode === "improve" && <FixPhraseSave phrases={fixPhrases.phrases} text={assistText} onSave={fixPhrases.add} />}
+              {assistMode === "improve" && <CourseRuleAdd courseRules={courseRules} text={assistText} />}
               <div className="action-feedback-slot">{feedback}</div>
               <div className="assist-actions">
                 <Button type="submit" variant="primary" size="sm" className="assist-actions__btn"
                   disabled={!assistText.trim() && !(assistMode === "ask" && helpChoices.length)}>{ui("提交到后台")}</Button>
                 <Button size="sm" className="assist-actions__btn" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
               </div>
-              {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教；完成结果进信箱，做题和主会话可继续。")}</p>}
+              {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教。讲解会出现在这道题下面的问答里，完成时信箱会提醒你；做题和主会话可以继续。")}</p>}
             </form>
-          )}
+          ))}
           {runningTask && (
             <p className="assist-status" role="status">
               <Spinner size="sm" />{uiFormat(runningTask.mode === "ask" ? "后台助教正在解答：{0}" : runningTask.mode === "derive" ? "后台助教正在出新题：{0}" : "后台助教正在改题：{0}", [runningTask.text])}
             </p>
           )}
-          {!runningTask && lastTask?.status === "failed" && (
-            <AssistFailure task={lastTask} onSettings={onModelSettings}
-              onResubmit={() => assistCard(lastTask.mode, lastTask.question || "", lastTask.mode === "ask" ? lastTask.choices || [] : [],
-                lastTask.mode === "derive" ? { relation: lastTask.relation, followupId: lastTask.followupId } : undefined)}
-              onEdit={(lastTask.mode === "ask" || lastTask.mode === "improve" || (lastTask.mode === "derive" && !lastTask.followupId))
-                ? () => { setAssistMode(lastTask.mode); setAssistText(lastTask.question || ""); setHelpChoices(lastTask.mode === "ask" ? lastTask.choices || [] : []); if (lastTask.mode === "derive") setDeriveRelation(lastTask.relation || "prerequisite"); }
-                : null} />
-          )}
+          {(() => {
+            const editLastTask = lastTask && (lastTask.mode === "ask" || lastTask.mode === "improve" || (lastTask.mode === "derive" && !lastTask.followupId))
+              ? () => { setAssistMode(lastTask.mode); setAssistText(lastTask.question || ""); setHelpChoices(lastTask.mode === "ask" ? lastTask.choices || [] : []); if (lastTask.mode === "derive") setDeriveRelation(lastTask.relation || "prerequisite"); setDismissedTaskId(lastTask.id); }
+              : null;
+            if (!runningTask && lastTask?.status === "failed") {
+              return <AssistFailure task={lastTask} modelReady={model.ready} onSettings={modelSettings}
+                onResubmit={() => assistCard(lastTask.mode, lastTask.question || "", lastTask.mode === "ask" ? lastTask.choices || [] : [],
+                  lastTask.mode === "derive" ? { relation: lastTask.relation, followupId: lastTask.followupId } : undefined)}
+                onEdit={editLastTask} />;
+            }
+            if (!runningTask && !assistMode && lastTask?.status === "done" && (lastTask.outcome === "no-change" || lastTask.outcome === "unlinked") && dismissedTaskId !== lastTask.id) {
+              return (
+                <div className="assist-status" role="status">
+                  <p>{uiMessage(lastTask.message)}</p>
+                  <div className="assist-actions">
+                    {editLastTask && <Button className="assist-actions__btn" size="sm" onClick={editLastTask}>{ui("改一改再提交")}</Button>}
+                    <Button className="assist-actions__btn" size="sm" variant="quiet" onClick={() => setDismissedTaskId(lastTask.id)}>{ui("知道了")}</Button>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </SmoothHeight>
         {coachProps?.autoAdvance > 0 && (
           <>
@@ -620,109 +647,85 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           </>
         )}
         {hint && !run.revealed && (
-          <div className="hint">
-            <Icon name="help" className="hint__icon" />
-            <Markdown text={run.card.hint} />
-          </div>
+          <div className="hint"><Icon name="help" className="hint__icon" /><Markdown text={run.card.hint} /></div>
         )}
         <WrongAnswerSource run={run} sources={data.sources} onOpen={(source, quote) => openModal({ type: "source", source, quote, back: true })} />
-        {run.solution && (explain || !!run.feedback) && (
+        {(showSolution || showUnansweredFollowups) && (
           <ReadingBlock measure className="explanation">
-            <h3>{ui("理解这道题")}</h3>
-            <Markdown text={run.solution.explanation} />
-            {enOn && enAnswer?.explanation && (
-              <div className="en-block">
-                <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
-                <Markdown links={false} className="md-compact" text={enAnswer.explanation} />
-              </div>
-            )}
-            <h4>{ui("容易混淆的地方")}</h4>
-            <Markdown text={run.solution.misconception} />
-            {run.solution.rubric && (
-              <>
+            {showSolution && <>
+              <h3>{ui("理解这道题")}</h3>
+              <Markdown text={run.solution.explanation} />
+              {enOn && enAnswer?.explanation && (
+                <div className="en-block">
+                  <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
+                  <Markdown links={false} className="md-compact" text={enAnswer.explanation} />
+                </div>
+              )}
+              <h4>{ui("容易混淆的地方")}</h4>
+              <Markdown text={run.solution.misconception} />
+              {run.solution.rubric && <>
                 <h4>{run.card?.kind === "task" ? ui("验收标准") : ui("评分依据")}</h4>
                 <Markdown text={run.solution.rubric} />
-              </>
-            )}
-            <CitationDisclosure key={"citations:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
-              onOpenSource={(source, quote) => openModal({ type: "source", source, quote })} />
+              </>}
+              <CitationDisclosure key={"citations:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
+                onOpenSource={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage, back: true })} />
+              <FigurePageLink key={"figure:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
+                onOpen={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage, back: true })} />
+            </>}
             {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly
               onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
+              onAskMore={() => { setAssistMode("ask"); requestAnimationFrame(() => { document.querySelector(".assist-area")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); document.querySelector(".assist-form__input")?.focus(); }); }}
               bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }} />}
           </ReadingBlock>
         )}
-        {run.feedback && run.mode !== "exam" && (
+        {run.feedback && run.mode !== "exam" && <>
           <div className="assist-actions" aria-label={ui("引导学习方式")}>
             <Chip selected={teaching?.mode === "understanding"}
-              onClick={() => { if (!teachingBusy) teachingAct("teach.start", { mode: "understanding", language: uiLocale().startsWith("en") ? "en" : "zh" }); }}>{ui("逐步理解")}</Chip>
+              onClick={() => { if (!model.ready) setTeachGate(true); else if (!teachingBusy) teachingAct("teach.start", { mode: "understanding", language: uiLocale().startsWith("en") ? "en" : "zh" }); }}>{ui("逐步理解")}</Chip>
             <Chip selected={teaching?.mode === "calculation"}
-              onClick={() => { if (!teachingBusy) teachingAct("teach.start", { mode: "calculation", language: uiLocale().startsWith("en") ? "en" : "zh" }); }}>{ui("计算题引导练习")}</Chip>
+              onClick={() => { if (!model.ready) setTeachGate(true); else if (!teachingBusy) teachingAct("teach.start", { mode: "calculation", language: uiLocale().startsWith("en") ? "en" : "zh" }); }}>{ui("计算题引导练习")}</Chip>
             <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={cancelTeaching} onRetry={retryTeaching} />
           </div>
-        )}
+          {teachGate && !model.ready && <ModelSetupGate variant="inline" feature="welcome" model={model} onOpenSettings={modelSettings} />}
+        </>}
         {teaching && <div className="teaching-panel">
-          {teaching && (
-            <ReadingBlock as="section" measure className="explanation">
-              <div className="eyebrow">
-                {uiFormat("{0} · {1} / {2}", [teaching.mode === "calculation" ? ui("计算题引导练习") : ui("逐步理解"), Math.min(teaching.index + 1, teaching.total), teaching.total])}
-              </div>
-              <ProgressBar className="teaching-progress" size="sm" value={teaching.index} max={teaching.total}
-                label={teaching.mode === "calculation" ? ui("计算题引导练习") : ui("逐步理解")} />
-              {teaching.mode === "calculation" && (
-                <p className="muted small">{ui("每次只练当前步骤。AI 反馈用于辅助学习，不能证明计算正确。")}</p>
-              )}
-              {teaching.feedback && (
-                <Markdown className="teaching-feedback" text={teaching.feedback} />
-              )}
-              {teaching.complete ? (
-                <>
-                  <h3>{ui("把理解迁移到下一题")}</h3>
-                  <Markdown text={teaching.transfer} />
-                </>
-              ) : (
-                <>
-                  {teaching.mode === "calculation" && <>
-                    <h3>{ui(CALCULATION_STAGE_LABELS[teaching.stage] || "计算题引导练习")}</h3>
-                  </>}
-                  <Markdown text={teaching.lesson} />
-                  {teaching.mode === "calculation" && <>
-                    <dl className="teaching-context">
-                      <div><dt>{ui("本步假设")}</dt><dd><Markdown text={teaching.assumptions} /></dd></div>
-                      <div><dt>{ui("本步单位")}</dt><dd><Markdown text={teaching.units} /></dd></div>
-                      <div><dt>{ui("精度与舍入")}</dt><dd><Markdown text={teaching.rounding} /></dd></div>
-                    </dl>
-                    <CitationDisclosure card={teaching} sources={data.sources}
-                      onOpenSource={(source, quote) => openModal({ type: "source", source, quote })} />
-                  </>}
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      teachingAct(
-                        "teach.answer",
-                        { id: teaching.id, stepIndex: teaching.index, answer: teachAnswer },
-                      );
-                    }}
-                  >
-                    <label className="teaching-panel__field">
-                      <Markdown text={teaching.check} />
-                      <textarea
-                        required
-                        maxLength={10000}
-                        rows={3}
-                        aria-label={ui("当前步骤的回答")}
-                        value={teachAnswer}
-                        onChange={(e) => actions.setTeachAnswer(e.target.value)}
-                      />
-                    </label>
-                    <Button className="teaching-panel__submit" variant="primary"
-                      disabled={teachingBusy || !teachAnswer.trim()}
-                      onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })}
-                     type="submit">{ui("检查理解 →")}</Button>
-                  </form>
-                </>
-              )}
-            </ReadingBlock>
-          )}
+          <ReadingBlock as="section" measure className="explanation">
+            <div className="eyebrow">
+              {uiFormat("{0} · {1} / {2}", [teaching.mode === "calculation" ? ui("计算题引导练习") : ui("逐步理解"), Math.min(teaching.index + 1, teaching.total), teaching.total])}
+            </div>
+            <ProgressBar className="teaching-progress" size="sm" value={teaching.index} max={teaching.total}
+              label={teaching.mode === "calculation" ? ui("计算题引导练习") : ui("逐步理解")} />
+            {teaching.mode === "calculation" && <p className="muted small">{ui("每次只练当前步骤。AI 反馈用于辅助学习，不能证明计算正确。")}</p>}
+            {teaching.feedback && <Markdown className="teaching-feedback" text={teaching.feedback} />}
+            {teaching.complete ? (
+              <>
+                <h3>{ui("把理解迁移到下一题")}</h3>
+                <Markdown text={teaching.transfer} />
+              </>
+            ) : (
+              <>
+                {teaching.mode === "calculation" && <h3>{ui(CALCULATION_STAGE_LABELS[teaching.stage] || "计算题引导练习")}</h3>}
+                <Markdown text={teaching.lesson} />
+                {teaching.mode === "calculation" && <>
+                  <dl className="teaching-context">
+                    <div><dt>{ui("本步假设")}</dt><dd><Markdown text={teaching.assumptions} /></dd></div>
+                    <div><dt>{ui("本步单位")}</dt><dd><Markdown text={teaching.units} /></dd></div>
+                    <div><dt>{ui("精度与舍入")}</dt><dd><Markdown text={teaching.rounding} /></dd></div>
+                  </dl>
+                  <CitationDisclosure card={teaching} sources={data.sources}
+                    onOpenSource={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage, back: true })} />
+                </>}
+                <form onSubmit={(e) => { e.preventDefault(); teachingAct("teach.answer", { id: teaching.id, stepIndex: teaching.index, answer: teachAnswer }); }}>
+                  <label className="teaching-panel__field">
+                    <Markdown text={teaching.check} />
+                    <textarea required maxLength={10000} rows={3} aria-label={ui("当前步骤的回答")} value={teachAnswer} onChange={(e) => actions.setTeachAnswer(e.target.value)} />
+                  </label>
+                  <Button className="teaching-panel__submit" variant="primary" disabled={teachingBusy || !teachAnswer.trim()}
+                    onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })} type="submit">{ui("检查理解 →")}</Button>
+                </form>
+              </>
+            )}
+          </ReadingBlock>
         </div>}
       </div>
     </div>

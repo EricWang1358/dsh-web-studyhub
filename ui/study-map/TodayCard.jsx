@@ -44,6 +44,14 @@ export default function TodayCard({ plan, todayLabel, quiet = false }) {
             </Tooltip>
           </p>
         )}
+        {plan.pickPages && (
+          <p className="today-pick-pages">
+            <span>{plan.pickPages.note}</span>
+            <Tooltip layer content={plan.pickPages.detail}>
+              <Button variant="link" size="sm" wrap lock={busy} onClick={plan.pickPages.run}>{plan.pickPages.label}</Button>
+            </Tooltip>
+          </p>
+        )}
         {plan.action && (
           <Button variant={quiet ? "secondary" : "primary"} className="today-go" iconEnd="arrow-right" disabled={plan.action.disabled} lock={busy} data-usage="home.start" onClick={plan.action.run}>
             {plan.action.label}

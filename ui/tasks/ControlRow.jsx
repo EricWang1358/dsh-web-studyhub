@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Checkbox, IconButton, Select } from '../components/index.js';
+import { Button, Checkbox, IconButton, Select, Tooltip } from '../components/index.js';
 import { useApp } from '../app/app-context.js';
 import { failureText } from '../failure.js';
 import { contractOf, isRunningTask } from './task-model.js';
@@ -11,7 +11,9 @@ import { useRouteEfforts } from '../use-model-efforts.js';
    and applies from the job's next call (a call in flight is never interrupted); the reply says what is now in force and the row says so. The row is
    always there, so a job that cannot be adjusted, or has ended, says that in the same place (with the contract's own reason) instead of the row
    appearing or going away. A bar on top (the name and 存为默认, what the row cannot do, and under them a line of its own for what is in force, so a longer sentence there moves nothing) and the controls under it, which wrap as whole
-   units (a label never leaves its select); a select is as wide as its longest word needs, whatever it shows. */
+   units (a label never leaves its select); a select is as wide as its longest word needs, whatever it shows.
+   A job that has a model or a level of reasoning to change also says, in one line of its own, that they change the usage a lot (#944); the detail (what the estimate before the run does and does not
+   take into account) is in a Tooltip. Whether the line is there follows the contract's settings, which are in the first poll, not the choices that load later, so nothing moves when they arrive. */
 
 function Stepper({ item, disabled, onChange }) {
   const id = useId();
@@ -51,6 +53,7 @@ export default function ControlRow({ job }) {
   const items = controlItems(job, data?.model?.session, { groups: host?.modelGroups, generation: data?.model, efforts }), defaults = defaultsPatch(job);
   const saves = defaults ? Object.keys(defaults.action === 'settings' ? defaults.args.generation : defaults.args) : [];
   const ownModel = items.some((item) => item.key === 'model');
+  const changesUsage = items.length > 0 && (set.settings || []).some((setting) => setting.key === 'model' || setting.key.startsWith('effort'));
   const send = async (patch) => {
     if (working) return;
     setWorking(true);
@@ -67,6 +70,9 @@ export default function ControlRow({ job }) {
     <div className="tc-controls" role="group" aria-label={ui('即时控制')} data-empty={items.length ? undefined : 'true'}>
       <div className="tc-controls__bar">
         <span className="tc-controls__title">{ui('即时控制')}</span>
+        {changesUsage && <Tooltip layer content={ui('出题前的估算只在任务开始时按典型用量算一次，不随推理档位变化；有了足够多跑完的任务记录后，才会按实测修正。推理档位调高，或换成想得更多的模型，会多写 token（算作输出），实际用量可能超出估算，包括它的上限。在这里做的改动从下一次调用生效，不会重新估算。')} anchorClassName="tc-controls__usage-anchor">
+          <span className="tc-controls__usage" tabIndex={0}>{ui('模型和推理档位会明显改变用量。')}</span>
+        </Tooltip>}
         {items.length === 0 && <span className="tc-controls__idle">{set.available ? ui('这个任务现在没有可以调整的设置。') : set.reason?.code === 'capability-unsupported' && isRunningTask(job) ? ui('这类任务没有可以调整的设置。')
           : contract.status === 'interrupted' && contract.actions.retry.available ? endedNote(job, true)
             : ['failed', 'cancelled'].includes(contract.status) && contract.actions.retry.available ? endedNote(job) : reasonText(set)}</span>}

@@ -241,7 +241,7 @@ test('the running job comes first and older results fold away, so progress never
 test('notices: a start says it continues in the background, a finish names the deck and carries the jump', () => {
   const { startedNotice, finishedNotice } = lib;
   lib.setUiLanguage('zh');
-  assert.equal(startedNotice({ status: 'running' }, 'Architecture basics').text, '已开始补题「Architecture basics」，后台继续生成，完成后进信箱。');
+  assert.equal(startedNotice({ status: 'running' }, 'Architecture basics').text, '已开始补题「Architecture basics」，后台继续生成；通过审阅的新题会直接加入题组，完成时信箱会提醒你。');
   assert.match(startedNotice({ status: 'queued', queuedBehind: 2 }, 'Architecture basics').text, /排在 2 个任务之后/);
   const notice = finishedNotice(done());
   assert.equal(notice.text, '已加入「Architecture basics」1 张，1 张未通过审阅');

@@ -19,10 +19,11 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   // The verbs a learning target is shown with: the page's own state and the page are set together.
   const verbs = useMemo(() => ({
     enterRun: session.enterRun,
+    enterMovedRun: session.enterMovedRun,
     showSource: (source, quote) => setModal({ type: 'source', source, quote }),
     showNote: nav.show.note, showSkeleton: nav.show.skeleton, showDeck: nav.show.deck, showManagedDeck: nav.show.managedDeck,
     showWorkflow: nav.show.workflow, showExam: nav.show.exam, showLibrary: nav.show.library, showPage: nav.show.page,
-  }), [session.enterRun, nav.show, setModal]);
+  }), [session.enterRun, session.enterMovedRun, nav.show, setModal]);
 
   const captureContext = useCallback((overrides = {}) => {
     const { page, run, entry, state } = latest.current;
@@ -133,7 +134,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
     try {
       const next = await call('review.move', { runId: back.runId, index: back.index });
       if (!live()) return;
-      session.enterRun(next, back.input);
+      session.enterMovedRun(next, back.input);
       setDetour(null);
       setFocusRequest({ element: back.invoker });
     } catch (error) { if (live()) setError(error.message); }
@@ -150,7 +151,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   // Letters about a transcript or a conversion open the sources they produced; a letter about several opens the list.
   const openAudioSources = useCallback((sourceIds) => {
     const available = sourceIds.map((id) => (refs.dataRef.current?.sources || []).find((source) => source.id === id)).filter(Boolean);
-    if (!available.length) { notify(ui('逐字稿资料已被删除。')); return; }
+    if (!available.length) { notify(ui('这份资料已被删除。')); return; }
     setModal(available.length === 1 ? { type: 'source', source: available[0] } : { type: 'sources', sourceIds });
   }, [notify, refs, setModal]);
 
@@ -158,7 +159,7 @@ export function useLearningNavigation({ core, lib, nav, session, rootRef }) {
   // do it here), the way the way back to a stored reading position hands it a section.
   const openSourceAt = useCallback((sourceId, offset) => {
     const source = (refs.dataRef.current?.sources || []).find((item) => item.id === sourceId);
-    if (!source) { notify(ui('逐字稿资料已被删除。')); return; }
+    if (!source) { notify(ui('这份资料已被删除。')); return; }
     setModal({ type: 'source', source, resume: { at: Math.max(0, Number(offset) || 0), sectionOffset: 0, scrollTop: 0, progress: 0, nonce: Date.now() } });
   }, [notify, refs, setModal]);
 

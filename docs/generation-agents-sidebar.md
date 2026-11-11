@@ -81,7 +81,7 @@ These actions start a background assistant for the current question:
 
 How these tasks behave:
 
-- The assistant starts only when you click **Send to background assistant** (or a button under a Q&A). A status line shows what it is doing. You can keep practising or chatting, and the result arrives in the **Inbox**.
+- The assistant starts only when you click **Send to background assistant** (or a button under a Q&A). A status line shows what it is doing. You can keep practising or chatting. The explanation of **Help me understand** appears under the question, in its Q&A; a question made from a Q&A goes into the same deck; **Improve question** edits the card in place. The **Inbox** tells you when each is done, and holds the one-step undo of an edit.
 - The model is fixed when you submit. Choosing another model later does not change a request that is already running.
 - A task stops after 8 minutes. Nothing is saved on a timeout.
 - If a task fails, the question shows the reason with **Submit again** and **Edit, then submit again**.

@@ -1,4 +1,4 @@
-import { ui } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import React from "react";
 import { Button, Menu } from "./components/index.js";
 import { ReadingSettingsDialog } from "./reading-settings/ReadingSettings.jsx";
@@ -14,7 +14,7 @@ const NEXT_HINT_ID = "review-next-hint";
  * (mark it, note, task, derive a prerequisite, slay). `moreDefaultOpen` opens the menu at first render.
  * `onThumb('up' | 'down')` and `thumbVote` are the page's 评价: its ThumbFeedback keeps the vote and the keys; `thumbs` is that component (it draws only the tag tray).
  */
-export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, moreDefaultOpen = false }) {
+export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, moreDefaultOpen = false }) {
   const { busy } = useStudy();
   const [readingOpen, setReadingOpen] = React.useState(false);
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer; a pending step is still saving.
@@ -22,6 +22,13 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
   const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
   const exam = run.mode === "exam";
   const last = roundAt(run).last;
+  const deferLabel = onDeferUnstudiedPages && !exam && !run.reading && !run.feedback && Number.isInteger(run.cardSource?.page)
+    ? (run.cardSource.unit === "slide"
+        ? uiFormat("还没学到第 {0} 张（本轮移出后续页）", [run.cardSource.page])
+        : run.cardSource.unit === "part"
+          ? uiFormat("还没学到第 {0} 节（本轮移出后续节）", [run.cardSource.page])
+          : uiFormat("还没学到第 {0} 页（本轮移出后续页）", [run.cardSource.page]))
+    : "";
   const more = [
     { heading: true, label: ui("显示与节奏") },
     !exam && { id: "en", label: ui("显示英文"), checked: !!enOn, disabled: !!enBusy && !enOn, hint: enBusy ? "EN…" : undefined,
@@ -34,6 +41,7 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
     onThumb && { id: "thumb-up", label: ui("这题不错"), checked: thumbVote === "up", hint: "G", attrs: { "aria-keyshortcuts": "G" }, run: () => onThumb("up") },
     onThumb && { id: "thumb-down", label: ui("这题有问题…"), checked: thumbVote === "down", hint: "B", attrs: { "aria-keyshortcuts": "B" }, run: () => onThumb("down") },
     { heading: true, label: ui("这道题") },
+    deferLabel && { id: "defer-pages", label: deferLabel, disabled: busy, run: onDeferUnstudiedPages },
     onToggleFocus && { id: "focus", label: run.card?.focus ? ui("取消重点标记") : ui("标为重点"), disabled: busy, run: onToggleFocus },
     { id: "note", label: ui("写笔记"), disabled: busy, run: onNote },
     onTask && { id: "task", label: ui("记待办"), disabled: busy, run: onTask },

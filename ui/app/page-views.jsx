@@ -1,4 +1,7 @@
 import React, { useEffect } from 'react';
+import { PageBoundary } from './page-boundary.jsx';
+import { useDiagnostics } from '../diagnostics.js';
+import { currentStudyHubVersion, currentUpgradeMarker } from '../UpdateCenter.jsx';
 import { ui, uiFormat, setUiLanguage, errorMessage } from '../i18n.js';
 import { pageAvailable } from '../capabilities.js';
 import { pageFlag } from '../pages.js';
@@ -39,6 +42,7 @@ import { RecoveryBanner } from './AppBanners.jsx';
 import { formatDateTime } from '../format.js';
 import { appendFocus } from '../generate-form.js';
 import { retryForm, retryNotice } from './retry-generation.js';
+import { practiseRound } from './practise-round.js';
 
 /* One adapter per page: the registry (ui/pages.js) names the page, this file maps it to the component and says which of the app's
    state and verbs the component is given. A page owned by someone else keeps its props; the adapter is the only place that knows them. */
@@ -61,8 +65,7 @@ function LibraryView() {
       const { practice } = await core.call('course.outline', { course, pick: { keys: [point.key] } });
       const scope = practice?.scope.slice(0, 5) || [];
       if (!scope.length) { notify(ui('这个知识点还没有题。先到「创建题组」从资料出题。')); return; }
-      const origin = learn.captureContext();
-      intents.practice(scope, { fresh: false, then: (run) => { learn.rememberContext(origin); session.enterRun(run); } });
+      practiseRound({ intents, learn, session }, scope);
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   };
   const startMock = (run) => { learn.rememberContext(learn.captureContext()); session.enterRun(run); };
@@ -250,7 +253,7 @@ function SourcesView() {
 /** The 音频转写 page's header: the shared PageHeader, its two links to neighbouring pages as quiet Buttons. */
 export function AudioHeader({ onSettings, onSources }) {
   return (
-    <PageHeader title={ui('音频转写')} description={ui('导入录音文件，后台完成转录、校对和翻译；进度与完成通知会进入信箱。')}
+    <PageHeader title={ui('音频转写')} description={ui('导入录音文件，后台完成转录、校对和翻译；实时进度在本页和「任务」查看，转好后存入「资料」，完成时信箱会提醒你。')}
       actions={<>
         <Button variant="quiet" onClick={onSettings}>{ui('音频设置')}</Button>
         <Button variant="quiet" onClick={onSources}>{ui('查看资料')}</Button>
@@ -429,7 +432,7 @@ function SettingsView() {
 }
 
 function ReviewView({ feedback }) {
-  const { data, core, nav, lib, set, session, learn, dailyPlan, settingsEntry } = useApp();
+  const { data, core, nav, lib, set, session, learn, dailyPlan, settingsEntry, tour } = useApp();
   const run = session.run;
   // A finished round may change what today's plan shows next (practice progress is counted from the answers), so read it again once.
   useEffect(() => { if (run?.complete) dailyPlan.refresh?.(); }, [run?.id, run?.complete]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -456,7 +459,7 @@ function ReviewView({ feedback }) {
       <RelatedTasks plan={dailyPlan} runId={run.id} onBoard={() => { set.setBoardView('today'); nav.navigate('board'); }} />
       <Review session={session} data={data} shellTitle={shellTitleOf('review', { run, decks: data?.decks })} feedback={feedback}
         coachProps={data ? { ...session.coach, destination: run.complete ? session.continueTo(dailyPlan) : undefined } : undefined} links={links}
-        context={{ label: learn.trailLabel, onReturn: learn.returnFromContext, detour, onReturnFromDetour: learn.returnFromDetour, kind: learn.trailPage, place: learn.trailPlace }} />
+        context={{ label: learn.trailLabel, onReturn: learn.returnFromContext, detour, onReturnFromDetour: learn.returnFromDetour, kind: learn.trailPage, place: learn.trailPlace, tourRunning: !!tour.tourStep }} />
     </>
   );
 }
@@ -600,6 +603,8 @@ export function StartPage() {
 
 /** The registry's component for a page (ui/pages.js names it, PAGE_VIEWS draws it). */
 export function PageView({ page, feedback }) {
+  const describe = useDiagnostics(currentStudyHubVersion, currentUpgradeMarker);
   const View = PAGE_VIEWS[page];
-  return View ? <View feedback={feedback} /> : null;
+  // One boundary for every page, keyed by the page: a page that throws leaves the sidebar and the top bar in place, and another page opens fresh.
+  return View ? <PageBoundary key={page} describe={describe}><View feedback={feedback} /></PageBoundary> : null;
 }

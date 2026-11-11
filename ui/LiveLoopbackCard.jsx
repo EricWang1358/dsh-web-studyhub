@@ -8,6 +8,9 @@ import { StudyServicesContext, useStudy } from './study-context.jsx';
 import { LOOPBACK_STATUS, installArgs, loopbackCardState, loopbackFix, loopbackProgress, loopbackStageName, loopbackStageStates, loopbackTip } from './live-loopback-flow.js';
 import InstallStages from './install/InstallStages.jsx';
 import LocationChooser from './install/LocationChooser.jsx';
+import { HandOff } from './hand-off/HandOff.jsx';
+import { DiagnosticBar } from './install/DiagnosticActions.jsx';
+import { SETUP_FAILED_WHAT, liveLoopbackDiagnostic } from './install/install-diagnostics.js';
 import mineruCss from './mineru-install.css';
 import css from './live-local.css';
 
@@ -15,7 +18,7 @@ import css from './live-local.css';
    Shown inline in 课堂实录 when computer audio is selected on Windows before the helper is installed, and in Settings › 音频转写 (`settings`: with one-click uninstall).
    Reuses the single-owner classes of ui/live-local.css and ui/mineru-install.css. */
 
-const LOCATION_PROBLEMS = ['no-space', 'not-writable', 'folder-in-use', 'bad-location'];
+const LOCATION_PROBLEMS = ['no-space', 'not-writable', 'folder-in-use', 'bad-location', 'path-too-long'];
 
 const TipBadge = ({ tip, tone, children }) => (tip
   ? <Tooltip layer content={tip}><span tabIndex={0} className="live-local-card__tipped"><Badge size="sm" tone={tone}>{children}</Badge></span></Tooltip>
@@ -124,16 +127,21 @@ export default function LiveLoopbackCard({ call: given, settings = false, hideUn
     const progress = loopbackProgress(status);
     body = <JobRow status="running" stage={loopbackStageName(status?.stage)} title={ui('正在安装电脑声音组件')} meta={status?.folder || undefined}
       progress={{ value: progress.value, max: progress.max, label: ui('安装进度') }}
-      actions={[{ label: ui('取消'), onClick: cancel, busy: working === 'cancel', disabled: !!working && working !== 'cancel' }]}>
+      actions={status?.otherProcess ? undefined : [{ label: ui('取消'), onClick: cancel, busy: working === 'cancel', disabled: !!working && working !== 'cancel' }]}>
       {stages}
-      <Hint>{ui('通常只需 1–3 秒。')}</Hint>
+      <Hint>{status?.otherProcess ? ui('另一个 StudyHub 窗口正在安装，这里会同步显示进度；要取消请去那个窗口操作。') : ui('通常只需 1–3 秒。')}</Hint>
     </JobRow>;
   } else if (['paused', 'error', 'repair'].includes(shown.state)) {
     const action = loopbackFix(shown.code);
     const button = <Button variant="primary" icon={action.icon} busy={working === 'start'} disabled={!!working} onClick={() => void fix(action)}>{action.label}</Button>;
+    const diag = shown.state !== 'paused' && <DiagnosticBar resetKey={`${shown.state}:${shown.code}`}
+      diagnostic={() => liveLoopbackDiagnostic({ status, plan, shown, summary: text.sentence(status), stageLabel: status?.stage ? loopbackStageName(status.stage) : '' })}>
+      {input => <HandOff id="setup.failed" input={input} what={SETUP_FAILED_WHAT} />}
+    </DiagnosticBar>;
     body = <div className="mineru-install__problem">{shown.state !== 'repair' && stages}
       <div className="mineru-install__row">{action.tip ? <Tooltip layer content={action.tip}>{button}</Tooltip> : button}
-        {shown.state === 'repair' && settings && <Button variant="quiet" size="sm" lock={!!working} onClick={() => setAsking(true)}>{ui('卸载电脑声音组件')}</Button>}</div></div>;
+        {shown.state === 'repair' && settings && <Button variant="quiet" size="sm" lock={!!working} onClick={() => setAsking(true)}>{ui('卸载电脑声音组件')}</Button>}
+        {diag}</div></div>;
   } else if (shown.state === 'unsupported') body = <Hint>{ui('macOS 与 Linux 请在独立浏览器窗口里选「标签页共享」，或改用「麦克风」。')}</Hint>;
   else if (shown.state === 'ready' && settings) body = <div className="mineru-install__row">
     <Button variant="quiet" size="sm" lock={!!working} onClick={() => setAsking(true)}>{ui('卸载电脑声音组件')}</Button></div>;
@@ -142,7 +150,12 @@ export default function LiveLoopbackCard({ call: given, settings = false, hideUn
     {head}
     {line}
     {body}
-    {error && <InlineMessage tone="error">{error}</InlineMessage>}
+    {error && <>
+      <InlineMessage tone="error">{error}</InlineMessage>
+      <DiagnosticBar row resetKey={error} diagnostic={() => liveLoopbackDiagnostic({ status, plan, shown, error })}>
+        {input => <HandOff id="setup.failed" input={input} what={SETUP_FAILED_WHAT} />}
+      </DiagnosticBar>
+    </>}
     {asking && <ConfirmDialog title={ui('卸载电脑声音组件？')} confirmLabel={ui('卸载')} onConfirm={remove} onClose={() => setAsking(false)}>
       <p>{uiFormat('会删除 StudyHub 在 {0} 里生成的采音组件（小于 1 MB）。已经保存的课堂实录不受影响；以后要用再点安装即可。', [status?.installedFolder || status?.folder || ''])}</p>
     </ConfirmDialog>}

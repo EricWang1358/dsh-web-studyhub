@@ -19,6 +19,7 @@ import { useDeckTree } from "./study-map/useDeckTree.js";
 import { useCourseFolders } from "./study-map/useCourseFolders.js";
 import { useCourseMastery } from "./study-map/useCourseMastery.js";
 import { buildHomePlan, hasOwnDeck } from "./study-map/home-plan.js";
+import { openReaderForPages } from "./document-preview/practice/open-reader-pages.js";
 import HomeActivity, { HomeDrafts } from "./study-map/HomeActivity.jsx";
 import DeskIntro from "./study-map/DeskIntro.jsx";
 import TodayCard from "./study-map/TodayCard.jsx";
@@ -58,7 +59,7 @@ import { AppContext } from "./app/app-context.js";
                     'compact' puts the line's card in the today slot; `plan` is the third step's summary and estimate (useFirstDeck). Left out, the line is the
                     compact card. */
 export default function StudyMap({ data, actions = {}, setupHandlers, notebooks, reveal, onRevealed, firstRun, children }) {
-  const { call, act, host } = useStudy();
+  const { call, act, host, openModal } = useStudy();
   const app = useContext(AppContext) || {};
   const publishDraft = app.drafts?.publishAndPractice;
   const refreshLibrary = app.core?.refresh;
@@ -118,8 +119,14 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const shown = visibleGenerationJobs(jobs);
   const visibleJobs = [...shown.filter(isActiveJob), ...shown.filter((job) => !isActiveJob(job)).reverse()];
   const revealActivity = () => (activityRef.current || pageRef.current)?.scrollIntoView?.({ block: "start", behavior: "smooth" });
-  const home = buildHomePlan({ data, today: data.today || { due: 0, weak: 0, new: 0, size: 0 }, runs, runFor, activeJobs, inFocus: folders.inFocus, revealActivity, guidedSession: app.lib?.guidedSession,
-    actions: { start, resume, openDraft, addSource, importLibrary, generateFromSources, onCoachPractice, onWeakPoints, onCourseSettings } });
+  const revealDrafts = () => {
+    const el = pageRef.current?.querySelector?.("details.home-drafts");
+    if (el) { el.open = true; el.scrollIntoView?.({ block: "start", behavior: "smooth" }); el.querySelector?.(".draft-open")?.focus?.(); }
+  };
+  const today = data.today || { due: 0, weak: 0, new: 0, size: 0 };
+  const home = buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus: folders.inFocus, revealActivity, revealDrafts, guidedSession: app.lib?.guidedSession,
+    actions: { start, resume, openDraft, addSource, importLibrary, generateFromSources, onCoachPractice, onWeakPoints, onCourseSettings,
+      onPickPages: (sourceIds) => openReaderForPages({ sources: data.sources, sourceIds, openModal }) } });
   const drafts = data.drafts || [];
   const showNotebooks = data.decks.length > 0 || (notebooks?.notebooks?.notebooks || []).some((notebook) => !notebook.current);
   const selectedRun = tree.scope.length ? runFor(tree.scope) : null;
@@ -131,10 +138,13 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
   const resumeOpen = home.plan.kind === "resume", canWrong = !!onWeakPoints, canExam = !!onOpenExamBook;
   const nextFacts = useMemo(() => nextStepFacts(data, { line, resumeOpen, canWrong, canExam }), [data, line.show, line.step, resumeOpen, canWrong, canExam]); // eslint-disable-line react-hooks/exhaustive-deps
   const next = nextStep(nextFacts);
-  const nextView = next.surface === "card" && hasOwnDeck(data)
-    ? nextCardView(next.id, nextFacts, { plan: home.plan, today: home.todayAction, generate: generateFromSources, wrong: onWeakPoints, exam: onOpenExamBook, modelSettings: openModelSettings, settingsLabel })
+  const ownDeck = hasOwnDeck(data);
+  const nextView = !line.show && next.surface === "card" && (ownDeck || next.id === "draft")
+    ? nextCardView(next.id, nextFacts, { plan: home.plan, today: home.todayAction, openDraft, viewDrafts: revealDrafts, generate: generateFromSources, wrong: onWeakPoints, exam: onOpenExamBook, modelSettings: openModelSettings, settingsLabel })
     : null;
   const showNext = !!nextView && !nextDismissed, nextHasButton = showNext && !!nextView.action;
+  const shownDraftIds = new Set(visibleJobs.map((job) => job.draftId).filter(Boolean));
+  const autoOpenDrafts = !activeJobs.length && nextFacts.drafts.draftIds.some((id) => !shownDraftIds.has(id)) && (next.id === "draft" || !ownDeck || !today.size || !!today.ahead);
   // 出第一组题 runs the request itself (firstRun.on.generate, the app's); without it the step offers only 改题型和题数, which opens 创建题组 with the materials ticked.
   const lineOn = { importFirst: addSource, tune: generateFromSources, openDraft, publish: publishDraft, ...firstRun?.on };
   if (line.show && firstRun?.form === "page") {
@@ -168,8 +178,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
           ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} plan={firstRun?.plan} /></div>
           : <TodayCard plan={home.plan} todayLabel={home.todayLabel} quiet={nextHasButton} />}
       </div>
-      {/* 待发布 is folded and sits under the day's work, not above it. */}
-      <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} />
+      {/* 待发布 sits under the day's work; it opens on its own when unpublished drafts wait and today's round is empty or finished. */}
+      <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} defaultOpen={autoOpenDrafts} />
       <CatalogHeading count={data.decks.filter((deck) => !!deck.archived === showArchived).length} showArchived={showArchived} hasDecks={data.decks.length > 0}
         hasSources={data.sources.length > 0} course={data.focus?.course} merge={merge} slain={data.decks.find((deck) => deck.systemKind === "slain")}
         addSource={addSource} createManual={createManual} importLibrary={importLibrary} manage={manage} onShowGraph={onShowGraph}

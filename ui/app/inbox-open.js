@@ -28,5 +28,5 @@ export function openInboxResult({ item, result, from, fromReview }, verbs) {
   if (fromReview && (result.id !== from.runId || result.index !== from.index)) verbs.detour(from);
   else if (!fromReview) verbs.remember(from);
   // Show what arrived: the Q&A and revised explanation live in 讲解.
-  if (opensExplanation(item.kind) && result.revealed) verbs.explain();
+  if (opensExplanation(item.kind) && (result.revealed || (item.kind === 'followup' && result.followups?.length > 0))) verbs.explain();
 }

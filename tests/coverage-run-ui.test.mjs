@@ -49,7 +49,7 @@ test('the line of a run: the round, the coverage, what it used and what is left,
   assert.equal(m.copy.runLine(facts), '第 3/12 轮 · 覆盖 31% · 已用 1.2M tok · 预计还要 4M tok、约 1 小时 40 分钟', 'the projection is the rounds done (about 16 700 tokens and 25 seconds per planned question) over the 240 questions still to make');
   inLanguage('en', () => assert.equal(m.copy.runLine(facts), 'Round 3/12 · Covered 31% · 1.2M tok used · About 4M tok and 1 h 40 min to go'));
   const first = m.runFacts({ rounds: m.roundList({ rounds: list(['running', ...Array(11).fill('pending')]) }), run: { autoComplete: true, state: 'running', estimate: { tokens: { low: 2_000_000, high: 4_000_000 } } }, percent: 0 });
-  assert.equal(m.copy.runLine(first), '第 1/12 轮 · 覆盖 0% · 预计还要约 3M tok（出题前的估算）', 'no history yet: the estimator\'s number, labelled');
+  assert.equal(m.copy.runLine(first), '第 1/12 轮 · 覆盖 0% · 预计最多还要约 4M tok（出题前估的上限）', 'no history yet: the upper end of the estimator\'s range (2M to 4M, not its middle 3M), labelled');
   const paused = m.runFacts({ rounds: m.roundList({ rounds: list(['done', 'pending', 'pending']) }), run: { autoComplete: true, state: 'paused', tokensUsed: 400_000 }, percent: 9 });
   assert.match(m.copy.runLine(paused), /^暂停于第 1 轮之后 · 覆盖 9% · 已用 400K tok/);
   const waiting = m.runFacts({ rounds: m.roundList({ rounds: list(['done', ...Array(11).fill('pending')]) }), run: { autoComplete: false, state: 'waiting' }, percent: 9 });

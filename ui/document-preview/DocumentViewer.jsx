@@ -110,6 +110,7 @@ function QuotedText({ text, quote, anchor, format }) {
  * ('read' | 'text' | 'original'), moreItems (menu items the dialog adds to 更多: rename, today's tasks, the question sets).
  * The toolbar keeps 目录, 出题, 错题, 思维导图 and 更多; everything else is in 更多 (reader/more-items.js).
  * localContent ({ id, title, markdown }) reads saved writing in the same reader without a material identity or material actions.
+ * peekPage: a page number to open the 看原页 panel at once the document can show it (a question's 看原页图 sets it).
  * onOpenModelSettings / onOpenSettings(section): where the gates of the reader's model features and the 前往设置 link lead (ReaderModelGate.jsx); without them the app's own are used.
  */
 export default function DocumentViewer(props) {
@@ -119,7 +120,7 @@ export default function DocumentViewer(props) {
 }
 
 function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, generateDisabled = false, initialMode = 'read',
-  onPracticePages, onGeneratePages, onOpenDraftPages, resume, backLabel, onBack, localContent, moreItems: extraItems }) {
+  onPracticePages, onGeneratePages, onOpenDraftPages, resume, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
   useInjectCss(css, 'study-document-preview');
@@ -144,6 +145,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [attaching, setAttaching] = useState(null), [reload, setReload] = useState(0), attachTarget = useRef(null); // 补全原文件 (OriginalFile.jsx)
   const [peek, setPeek] = useState(null); // 看原页 (peek/PagePeek.jsx): { page, figure }
   const [displayOpen, setDisplayOpen] = useState(false); // 更多 › 显示设置…
+  const [pickPagesGuide, setPickPagesGuide] = useState(!!pickPages);
+  useEffect(() => { setPickPagesGuide(!!pickPages); }, [pickPages, source.id]);
   const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
   // Narrow panes (under NARROW px of the viewer, ui/use-narrow.js): the outline and the learning panel slide over the text instead of sitting beside it.
   const narrow = useNarrow(root);
@@ -336,6 +339,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const resumeAt = useMemo(() => resume && (place?.kind === 'recording' || place?.kind === 'part') ? { ...resume, sectionId: place.sectionId } : resume, [resume, place]);
   const unit = aiOn || !paged ? 'section' : isSlideFormat(format) ? 'slide' : 'page';
   const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections: allSections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt });
+  useEffect(() => { if (loop.open && pickPagesGuide) setPickPagesGuide(false); }, [loop.open, pickPagesGuide]);
   const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
   const openDraftPages = draftIds => { loop.setOpen(false); onOpenDraftPages?.(draftIds); };
@@ -469,6 +473,12 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   if (document) attachTarget.current = { documentId: document.documentId || document.id, revision: document.revision, title: document.filename || document.title || source.title, format };
   const notices = [
     loading && <LoadingState key="loading" label={ui('正在打开资料…')} />,
+    !localMode && pickPagesGuide && view !== 'original' && onPracticePages && (
+      <InlineMessage key="pick-pages" tone="info" onDismiss={() => setPickPagesGuide(false)}
+        action={{ label: ui('做这几页的题'), disabled: generateDisabled, onClick: () => loop.setOpen(!loop.open) }}>
+        {ui('先翻到正在看的那一章或那几页，再点「做这几页的题」（或「AI 出题」旁的箭头 / 快捷键 P），就只会抽已学范围的题。')}
+      </InlineMessage>
+    ),
     // A document that only kept its text is said in 更多 (the 原始 PDF item, or 补全原文件…); a file that went missing or changed is a fault and keeps its notice.
     !localMode && originalFault && <OriginalNotice key="original" document={document} onAction={setAttaching} />,
     !localMode && error && <InlineMessage key="error" tone="error">{error}</InlineMessage>,
@@ -492,6 +502,9 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const canPeek = paged && format === 'pdf' && view !== 'original' && !loading && !!document;
   const openPeek = useCallback((page, { figure = false } = {}) => setPeek({ page, figure }), []);
   useEffect(() => { if (!canPeek) setPeek(null); }, [canPeek]);
+  // Opened from a question's 看原页图: the original page is up as soon as the document can show it, once (closing it does not bring it back).
+  const peekOnOpen = useRef(peekPage);
+  useEffect(() => { if (canPeek && peekOnOpen.current) { openPeek(peekOnOpen.current, { figure: true }); peekOnOpen.current = 0; } }, [canPeek, openPeek]);
   const peekBytes = async () => fileUrl ? originalBytes(fileUrl) : null;
 
   // 思维导图: the current chapter drawn from its headings, no model (reader/mind-map.js). A page-based document is read from the heading paragraphs of the pages drawn;
@@ -561,7 +574,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       onStep={stepFind} onClose={closeFind} inputRef={findInput} />}
     <div className="study-document-notices reader-notices">{notices}</div>
     <div className="reader-aux">
-      {quote && <blockquote className="highlight-quote reader-aux__quote"><MathText text={quote} /></blockquote>}
+      {quote && <div className="reader-aux__bar"><blockquote className="highlight-quote reader-aux__quote"><MathText text={quote} /></blockquote>
+        {canPeek && !!fileUrl && Number.isInteger(source.document?.page) && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={source.document.page} title={ui('看原页')} onClick={() => openPeek(source.document.page)}>{ui('看原页')}</Button>}</div>}
       {!localMode && <AudioCorrections audio={source.audio} onReview={call && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />}
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>

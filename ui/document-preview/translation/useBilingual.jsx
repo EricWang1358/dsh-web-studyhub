@@ -107,14 +107,15 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   useEffect(() => { saveTranslationSettings(settings); }, [settings]);
 
   /* ---------- the translations of this revision ---------- */
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async ({ revealNew = false, revealKeys } = {}) => {
     if (!enabled || !identityKey) return;
     try {
       const list = await call('materials.translation.list', JSON.parse(identityKey));
-      if (list?.items) { dispatch({ type: 'loaded', list }); setSupported(true); } else setSupported(false);
+      if (list?.items) { dispatch({ type: 'loaded', list, revealNew, revealKeys }); setSupported(true); } else setSupported(false);
     } catch { setSupported(false); }
   }, [call, identityKey, enabled]);
-  useEffect(() => { dispatch({ type: 'reset' }); void refresh(); }, [refresh]);
+  const startedScopeKeys = useRef(new Set());
+  useEffect(() => { startedScopeKeys.current.clear(); dispatch({ type: 'reset' }); void refresh(); }, [refresh]);
 
   /* ---------- the layer in the reading column ---------- */
   // Marks: one 译 at the end of each paragraph that has something to translate. The glyph is CSS, so it is no text of the paragraph.
@@ -362,7 +363,10 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       const before = seen.current.get(item.id);
       seen.current.set(item.id, jobActive(item) ? 'active' : 'done');
       if (before === 'active' && !jobActive(item)) {
-        void refresh();
+        const revealHidden = latest.current.mode === 'hidden';
+        const revealKeys = revealHidden ? [...startedScopeKeys.current] : undefined;
+        startedScopeKeys.current.clear();
+        void refresh({ revealNew: revealHidden, revealKeys });
         setFinishedHere(set => new Set(set).add(item.id));
         const tone = item.status === 'complete' ? (item.rejected ? 'warning' : 'success') : item.status === 'cancelled' ? 'info' : 'error';
         announce({ text: item.status === 'complete' ? uiFormat('已译好 {0} 段。', [item.savedCount ?? item.translated ?? 0]) : item.status === 'cancelled' ? ui('已停止翻译，已译的段落保留。') : ui('翻译没有完成，已译的段落保留。'), tone });
@@ -394,7 +398,8 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       if (started?.available === false) { dispatch({ type: 'unavailable', keys: [] }); return; }
       setMenuOpen(false);
       if (started.status === 'nothing') { announce({ text: ui('这里没有还需要翻译的段落。'), tone: 'info' }); return; }
-      announce({ text: started.alreadyRunning ? ui('这部分已经在翻译了。') : uiFormat('已开始翻译，共 {0} 段，后台进行，完成后进信箱。', [started.job?.total ?? 0]), tone: 'info' });
+      for (const paragraph of def.paragraphs) startedScopeKeys.current.add(paragraph.key);
+      announce({ text: started.alreadyRunning ? ui('这部分已经在翻译了。') : uiFormat('已开始翻译，共 {0} 段，后台进行；译文会显示在对应段落旁，完成时信箱会提醒你。', [started.job?.total ?? 0]), tone: 'info' });
       await loadJobs();
     } catch (error) { announce({ text: error?.message || ui('出现未知错误'), tone: 'error' }); }
   }, [call, identity, target, loadJobs, announce]);

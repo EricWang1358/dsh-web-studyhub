@@ -11,6 +11,9 @@ import { VC_REDIST_URL } from './mineru-install-flow.js';
 import { LOCAL_STATUS, installArgs, localCardState, localFix, localProgress, localStageName, localStageStates, localTip } from './live-local-flow.js';
 import InstallStages from './install/InstallStages.jsx';
 import LocationChooser from './install/LocationChooser.jsx';
+import { HandOff } from './hand-off/HandOff.jsx';
+import { DiagnosticBar } from './install/DiagnosticActions.jsx';
+import { SETUP_FAILED_WHAT, liveLocalDiagnostic } from './install/install-diagnostics.js';
 import mineruCss from './mineru-install.css';
 import css from './live-local.css';
 
@@ -19,7 +22,7 @@ import css from './live-local.css';
    removed). Nothing is installed before the click; the backend (lib/live-local-install.js) verifies every file against its pinned checksum, can be
    paused and continued, and shows in the task console. The location row and its chooser are the one-click MinerU install's (ui/install/). */
 
-const LOCATION_PROBLEMS = ['no-space', 'not-writable', 'folder-in-use', 'bad-location'];
+const LOCATION_PROBLEMS = ['no-space', 'not-writable', 'folder-in-use', 'bad-location', 'path-too-long'];
 
 /** A Badge that explains itself on hover and keyboard focus (never a title attribute). */
 const TipBadge = ({ tip, tone, children }) => (tip
@@ -153,17 +156,23 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
     const progress = localProgress(status);
     body = <JobRow status="running" stage={localStageName(status?.stage)} title={ui('正在安装本地转写引擎')} meta={status?.folder || undefined}
       progress={{ value: progress.value, max: progress.max, label: ui('安装进度') }}
-      actions={[{ label: ui('暂停'), onClick: cancel, busy: working === 'cancel', disabled: !!working && working !== 'cancel' }]}>
+      actions={status?.otherProcess ? undefined : [{ label: ui('暂停'), onClick: cancel, busy: working === 'cancel', disabled: !!working && working !== 'cancel' }]}>
       {stages}
-      <Hint>{ui('可以离开这个页面；进度也在「任务」里。请不要关闭 StudyHub。')}</Hint>
+      <Hint>{status?.otherProcess ? ui('另一个 StudyHub 窗口正在安装，这里会同步显示进度；要暂停请去那个窗口操作。') : ui('可以离开这个页面；进度也在「任务」里。请不要关闭 StudyHub。')}</Hint>
     </JobRow>;
   } else if (['paused', 'error', 'repair'].includes(shown.state)) {
     // repair: installed once, its files changed since (a quarantined addon): 修复 re-installs only that part, here and in Settings.
     const action = localFix(shown.code);
     const button = <Button variant="primary" icon={action.icon} busy={working === 'start'} disabled={!!working} onClick={() => void fix(action)}>{action.label}</Button>;
+    const diag = shown.state !== 'paused' && <DiagnosticBar resetKey={`${shown.state}:${shown.code}:${displayedModel}`}
+      diagnostic={() => liveLocalDiagnostic({ status, plan, shown, modelId: displayedModel, summary: text.sentence(status), stageLabel: status?.stage ? localStageName(status.stage) : '' })}>
+      {input => <HandOff id="setup.failed" input={input} what={SETUP_FAILED_WHAT} />}
+    </DiagnosticBar>;
     body = <div className="mineru-install__problem">{shown.state !== 'repair' && stages}
       <div className="mineru-install__row">{action.tip ? <Tooltip layer content={action.tip}>{button}</Tooltip> : button}
-        {shown.state === 'repair' && settings && <Button variant="quiet" size="sm" lock={!!working} onClick={() => setAsking(true)}>{ui('删除本地转写引擎')}</Button>}</div></div>;
+        {action.id === 'vc-runtime' && <Button variant="quiet" size="sm" lock={!!working} onClick={() => void install(status?.folder || folder())}>{ui('重试')}</Button>}
+        {shown.state === 'repair' && settings && <Button variant="quiet" size="sm" lock={!!working} onClick={() => setAsking(true)}>{ui('删除本地转写引擎')}</Button>}
+        {diag}</div></div>;
   } else if (shown.state === 'unsupported') body = <Hint>{ui('课堂实录请用 Gemini，或课后在「音频转写」里导入录音。')}</Hint>;
   else if (shown.state === 'ready' && settings) body = <div className="mineru-install__row">
     <Button variant="quiet" size="sm" lock={!!working} onClick={() => setAsking(true)}>{ui('删除本地转写引擎')}</Button></div>;
@@ -173,7 +182,12 @@ export default function LiveLocalCard({ call: given, settings = false, initialSt
     {modelChoice}
     {line}
     {body}
-    {error && <InlineMessage tone="error">{error}</InlineMessage>}
+    {error && <>
+      <InlineMessage tone="error">{error}</InlineMessage>
+      <DiagnosticBar row resetKey={error} diagnostic={() => liveLocalDiagnostic({ status, plan, shown, modelId: displayedModel, error })}>
+        {input => <HandOff id="setup.failed" input={input} what={SETUP_FAILED_WHAT} />}
+      </DiagnosticBar>
+    </>}
     {asking && <ConfirmDialog title={ui('删除本地转写引擎？')} confirmLabel={ui('删除')} onConfirm={remove} onClose={() => setAsking(false)}>
       <p>{uiFormat('会删除 StudyHub 在 {0} 里装的识别引擎和模型（约 {1}）。已经保存的课堂实录不受影响；以后要用再装一次。', [status?.installedFolder || status?.folder || '', sizeLabel(status?.diskMb || 260)])}</p>
     </ConfirmDialog>}

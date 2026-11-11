@@ -1,1 +1,0 @@
-- **The copy buttons for the import prompt, the diagram file and a translated passage now copy the text.** Before, clicking them put a few lines of program code on the clipboard instead of the prompt, the diagram or the translation. Not verified: clicking each button in a real DSH window and pasting the result.

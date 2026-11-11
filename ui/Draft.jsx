@@ -1,12 +1,14 @@
 import { ui, uiFormat } from "./i18n.js";
 import { uiRich } from "./i18n-rich.jsx";
 import React from "react";
-import { Banner, Button, Disclosure, Hint, InlineMessage, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
+import { flushSync } from "react-dom";
+import { Banner, Button, ChunkedRows, Disclosure, Hint, InlineMessage, LoadingState, PageHeader, Panel, Select, useToast } from "./components/index.js";
 import { formatNumber } from "./format.js";
 import { isActiveJob, isCancellable } from "./job-visibility.js";
 import { JOB_STATUS, JOB_TYPES } from "../lib/job-status.js";
 import { kinds } from "./shared.js";
 import { cardMatchesReview, reviewedCardStatus } from "../lib/review-integrity.js";
+import { draftCourseRulesChanged } from "../lib/courses.js";
 import { readableQualityIssue } from "./quality.js";
 import { JevCardBadge, JevCardSignals, JevDecidedBadge, JevDecidedNote } from "./JevBadge.jsx";
 import { experimentalShown } from "./experimental-flag.js";
@@ -32,11 +34,16 @@ import DeleteDraftDialog from './DeleteDraftDialog.jsx';
 import DraftBar from './DraftBar.jsx';
 import { fixedOptionsOf, hasOptions, kindOf, oneAnswer } from "../lib/card-kinds.js";
 import { fixedOptionLabel } from "./option-label.js";
+import { SimilarDetail, SimilarTag, plainStem } from "./DraftSimilar.jsx";
+import { useSimilarQuestions } from "./draft-similar.js";
 
 /* 草稿审阅视图：逐题表单 / JSON 文本两种编辑模式。保存走 draft.save，
    发布需先保存再 draft.publish（draftVersion 乐观锁）。blankCard /
    patchCard / parseDraft 由 App 传入：blankCard 依赖当前资料列表，
    parseDraft 同时被恢复暂存的 JSON 校验使用。 */
+/** A draft of more questions than this draws its questions in chunks of this many (ChunkedRows); a question is a fold with its whole editor inside, so a chunk is smaller than a list's. */
+const DRAFT_CHUNK = 80;
+
 export default function Draft({
   data,
   draft,
@@ -63,6 +70,9 @@ export default function Draft({
   // 删除草稿 asks once, in the shared dialog (ui/DeleteDraftDialog.jsx; the 待发布 row opens the same one): the draft's unpublished questions cost tokens.
   const [deletingId, setDeletingId] = React.useState(null);
   const detailsRef = React.useRef(null);
+  // A question something goes to is drawn even past the first chunk: the one just added, and every question when 查看详情 goes to the details that follow them (ChunkedRows `reveal`).
+  const [drawnTo, setDrawnTo] = React.useState({ id: "", index: -1 });
+  const revealCard = drawnTo.id === draft.id ? drawnTo.index : -1;
   // A draft made as the next part of a published deck (lib/deck-parts.js): where it goes is chosen here, when it is published; nothing touches the deck before.
   const targets = partTargets(draft, data), [partTarget, setPartTarget] = React.useState(undefined);
   const intoDeck = !targets ? null : partTarget === NEW_DECK ? NEW_DECK : targets.candidates.some((item) => item.id === partTarget) ? partTarget : defaultPartTarget(targets);
@@ -91,7 +101,10 @@ export default function Draft({
   const uncoveredCount = uncoveredPages.reduce((sum, group) => sum + group.rows.length, 0);
   const reviewStatus = Object.keys(draft.editorial?.reviewedCards || {}).length
     ? reviewedCardStatus(draft) : null;
-  const needsReview = reviewStatus ? reviewStatus.changed : draft.cards.length;
+  // 出题守则 (#889): the course's rules changed after this draft was reviewed, so publication reviews it again against the rules as they are now, and no
+  // question counts as reviewed until then.
+  const rulesChanged = draftCourseRulesChanged(data, draft);
+  const needsReview = rulesChanged || !reviewStatus ? draft.cards.length : reviewStatus.changed;
   const selfCited = selfCitedCardCount(draft.cards, data.sources);
   const rejectedIssues = draft.editorial?.rejectedIssues || {};
   const rejectedCards = draft.cards.filter((card) => rejectedIssues[card.id]);
@@ -121,6 +134,9 @@ export default function Draft({
     (jsonMode && draftText !== JSON.stringify(draft, null, 2));
   // 覆盖: which sections of the material have a question (the saved draft's own, asked again whenever the library or the draft changes).
   const covered = useCoverage(draft.draftVersion > 0 && !missingDraft ? { draftId: draft.id } : null, { version: `${data.revision}:${draft.draftVersion}` });
+  // Questions that are near-duplicates of another one of the same kind, in this draft or the course's decks (#890): asked with the draft, again when it changes.
+  // Not while a job is still changing the draft (it would ask after every batch): the last answer stays on screen, and the page asks once the job is done.
+  const similar = useSimilarQuestions(draft.id, { version: `${data.revision}:${draft.draftVersion}`, enabled: draft.draftVersion > 0 && !missingDraft && !updatingDraft });
   // Live (the coverage of the draft now, every run of it), never the snapshot of the last run (`editorial.coverage.selected` counts that run's sources only): pages of a PDF, else materials.
   const liveView = covered.view?.status === "ok" ? covered.view : null;
   const liveCited = !liveView ? null : coverageCount ? (liveView.coverage?.units === "page" ? [liveView.coverage.covered, liveView.coverage.leaves] : null)
@@ -208,6 +224,8 @@ export default function Draft({
       {!updatingDraft && (rejectedCount > 0 || qualityErrorCount > 0) && (
         <InlineMessage tone="warning" boxed className="draft-blocker-summary"
           action={{ label: ui("查看详情"), onClick: () => {
+            // The details follow the last question: all of them are drawn first, or the next chunk would be drawn between them and the details just scrolled to.
+            flushSync(() => setDrawnTo({ id: draft.id, index: draft.cards.length - 1 }));
             if (detailsRef.current) {
               detailsRef.current.open = true;
               detailsRef.current.scrollIntoView?.({ block: "nearest" });
@@ -241,12 +259,13 @@ export default function Draft({
         />
       ) : (
         <>
-          {draft.cards.map((q, i) => (
+          <ChunkedRows items={draft.cards} chunk={DRAFT_CHUNK} resetKey={draft.id} reveal={revealCard} anchors={{ "draft-similar": draft.cards.findIndex((card) => similar.get(card.id)) }} render={(q, i) => (
             <Panel as="details" className="draft-card" key={q.id}>
               {/* One row layout for every question (#670): the number, the question (two lines at most, whole when the row is open) and, at the end, the kind and what is not as it should be. */}
               <summary className="draft-card__row">
                 <span className="draft-card__no">{formatNumber(i + 1, { minimumIntegerDigits: 2 })}</span>
-                <span className="draft-card__prompt">{q.prompt.replace(/!\[([^\]]*)\]\(data:image\/[^)]+\)/g, '[$1]')}</span>
+                {/* The near-duplicate notice (#890) leads the question, inside its two lines: however many tags the row has, it adds no height. */}
+                <span className="draft-card__prompt"><SimilarTag match={similar.get(q.id)} />{plainStem(q.prompt)}</span>
                 <span className="draft-card__tags">
                   <small>{kinds[q.kind]}</small>
                   {!cardMatchesReview(draft.editorial?.reviewedCards?.[q.id], q) &&
@@ -257,6 +276,7 @@ export default function Draft({
                   {experimentalShown(data) && draft.editorial?.jevDecided?.cards?.[q.id] && <JevDecidedBadge />}
                 </span>
               </summary>
+              <SimilarDetail match={similar.get(q.id)} />
               {experimentalShown(data) && <JevCardSignals signal={draft.editorial?.jev?.signals?.[q.id]} threshold={draft.editorial?.jev?.threshold} />}
               <label>{q.kind === "task" ? ui("任务说明") : ui("问题")}<textarea
                   rows={3}
@@ -459,15 +479,16 @@ export default function Draft({
                     { sourceId: data.sources[0].id, quote: "" }])}>{ui("添加原文引用")}</Button>
               </div>
             </Panel>
-          ))}
+          )} />
           <Button
             icon="plus" disabled={draft.cards.length >= 100}
-            onClick={() =>
+            onClick={() => {
+              setDrawnTo({ id: draft.id, index: draft.cards.length });
               setDraft({
                 ...draft,
                 cards: [...draft.cards, blankCard()],
-              })
-            }
+              });
+            }}
           >{ui("添加闪卡")}</Button>
         </>
       )}
@@ -492,6 +513,7 @@ export default function Draft({
               : ui("这份草稿没有可核对的逐题审阅版本。"),
             needsReview > 0 ? uiFormat("{0} 题未经过模型审阅。", [needsReview]) : ""].filter(Boolean).join(" ")}
           </Hint>
+          {rulesChanged && <Banner tone="info" role="status" data-course-rules-changed="">{ui("这门课的出题守则在这份草稿审阅之后改过，原来的审阅不再算数：「发布并开始练」会把这些题记为未自动审阅；经审阅的发布会按现在的守则重新审阅。")}</Banner>}
         </>
       )}
       {!draft.editorial && <Banner tone="info" role="status">{ui("这份草稿尚未经过模型审阅。直接发布会保留未审阅标记。")}</Banner>}

@@ -12,6 +12,15 @@ import ExtensionNotStarted, { resetLine } from './ExtensionNotStarted.jsx';
 import IndexNote from './IndexNote.jsx';
 import { useStudy } from './study-context.jsx';
 import { AppContext } from './app/app-context.js';
+import { HandOff } from './hand-off/HandOff.jsx';
+import { DiagnosticBar } from './install/DiagnosticActions.jsx';
+import { SETUP_FAILED_WHAT, extensionDiagnostic } from './install/install-diagnostics.js';
+
+const diagRow = (resetKey, diagnostic) => (
+  <DiagnosticBar row resetKey={resetKey} diagnostic={diagnostic}>
+    {input => <HandOff id="setup.failed" input={input} what={SETUP_FAILED_WHAT} />}
+  </DiagnosticBar>
+);
 
 /* The one-click path to searching a large textbook (WP28b): install the search
    extension, then build the index of a course. No file is edited and no command is
@@ -28,9 +37,15 @@ const COMPONENTS = {
 const COMPONENT_UNKNOWN = '检索扩展依赖的组件；脚本用来准备适合你电脑的文件。';
 
 /** Installed but not running: ask the learner to restart DSH, and meanwhile check quietly in case it comes up anyway. */
-function StartupWait({ refresh }) {
+function StartupWait({ desktop = false, refresh }) {
   usePolling(() => refresh(), { intervalMs: 3000 });
-  return <p className="extension-panel__lead" role="status">{ui('检索扩展已安装。请手动重启 DSH 以应用。')}</p>;
+  return (
+    <p className="extension-panel__lead" role="status">
+      {desktop
+        ? ui('检索扩展已安装。请完全退出 DSH 桌面版（包括托盘图标）后重新打开，检索扩展才会启动。')
+        : ui('检索扩展已安装。请手动重启 DSH 以应用。')}
+    </p>
+  );
 }
 
 /** Install (or update) the extension: the approval step, the busy state, the error. Shared by the panel and the update notice. */
@@ -65,32 +80,64 @@ function ApprovalDialog({ approval, busy, install, close }) {
 }
 
 /** An installed extension older than the one this StudyHub ships (DSH's update of StudyHub does not touch it): say so, and update it in one click.
- *  Stays mounted once the update finished, so the outcome (and whether DSH must restart) is not lost when the status refresh
- *  clears `outdated`: the parent keeps rendering it for any installed extension. */
+ *  Pending-restart and failed-restart markers come from the host (`extension.pendingRestart`, `extension.restartFailed`), so switching tabs
+ *  or closing the window to the tray never loses the restart notice. */
 export function ExtensionUpdateNotice({ status, onStatus, initialDone = null }) {
   const { call } = useStudy();
   const flow = useExtensionInstall({ onStatus, initialDone });
   const extension = status?.extension;
-  // After an update that needs a restart, ask the host now and then which run it is: a different one means DSH was restarted, and the notice has done its work.
-  const waiting = flow.done && flow.restart && !!flow.boot;
+  const desktop = !!extension?.desktop;
   const { data: shared } = useRetrievalStatus({ call, enabled: false });
   const restarted = restartDone(flow.boot, status?.boot ?? shared?.boot);
-  usePolling(() => refreshRetrievalStatus(call), { intervalMs: 5000, enabled: waiting && !restarted && typeof call === 'function' });
-  if (!extension?.installed || (!extension.outdated && !flow.done) || (flow.done && flow.restart && restarted)) return null;
-  if (flow.done) return (
+  const stuck = (!flow.done || restarted) ? extension?.restartFailed || null : null;
+  const pendingRestart = !flow.done && extension?.pendingRestart
+    ? extension.pendingRestart
+    : (flow.done && flow.restart && !restarted ? (extension?.expected || extension?.version || true) : null);
+  const appliedNow = flow.done && !flow.restart;
+  usePolling(() => refreshRetrievalStatus(call), { intervalMs: 5000, enabled: !!pendingRestart && typeof call === 'function' });
+  if (!extension?.installed || (!extension.outdated && !pendingRestart && !appliedNow && !stuck)) return null;
+  if (pendingRestart || appliedNow) return (
     <div className="extension-panel__update">
-      <InlineMessage tone={flow.restart ? 'warning' : 'success'} boxed title={ui('检索扩展已更新')}>
-        {flow.restart ? <Tooltip layer content={`${ui('重启 DSH 才会换上刚更新的检索扩展；在此之前旧版本继续运行，建索引和检索都照常可用。')}\n${ui('重启之后这条提示就会消失。')}`}>
-          <span tabIndex={0}>{ui('这次更新要重启 DSH 之后才会生效。')}</span></Tooltip> : ui('已更新，无需重启。')}
+      <InlineMessage tone={pendingRestart ? 'warning' : 'success'} boxed title={ui('检索扩展已更新')}>
+        {pendingRestart ? (desktop
+          ? <Tooltip layer content={`${ui('只关掉窗口不会换上新版检索扩展，旧服务还在后台运行。完全退出 DSH 桌面版（包括托盘图标）后重新打开，新版才会接手；在此之前旧版本继续运行，建索引和检索都照常可用。')}\n${ui('重启之后这条提示就会消失。')}`}>
+            <span tabIndex={0}>{ui('这次更新要完全退出 DSH 桌面版（包括托盘图标）后重新打开才会生效。')}</span></Tooltip>
+          : <Tooltip layer content={`${ui('重启 DSH 才会换上刚更新的检索扩展；在此之前旧版本继续运行，建索引和检索都照常可用。')}\n${ui('重启之后这条提示就会消失。')}`}>
+            <span tabIndex={0}>{ui('这次更新要重启 DSH 之后才会生效。')}</span></Tooltip>)
+          : ui('已更新，无需重启。')}
       </InlineMessage>
+    </div>
+  );
+  if (stuck) return (
+    <div className="extension-panel__update">
+      <InlineMessage tone="warning" boxed title={uiFormat('检索扩展 {0} 没有生效', [stuck.pending])}>
+        <p>{stuck.running
+          ? uiFormat('DSH 重新启动过，现在安装的仍是检索扩展 {0}（之前安装过 {1}）。', [stuck.running, stuck.pending])
+          : uiFormat('DSH 重新启动过，但检索扩展 {0} 没有装上。', [stuck.pending])}</p>
+        <p>{ui('可能的原因：更新装进了这台电脑上的另一份 DSH 配置，这一份还是旧的；或者新版文件没有真正换上。点下面的按钮在这份 DSH 里重新安装。')}</p>
+      </InlineMessage>
+      <div><Button variant="primary" icon="download" busy={flow.busy} disabled={flow.busy} onClick={() => flow.install()}>{flow.busy ? ui('正在更新…') : ui('重新安装检索扩展')}</Button></div>
+      {flow.busy && <Hint role="status">{ui('正在下载并安装检索扩展，通常几分钟。期间可以继续学习，不要关闭 DSH。')}</Hint>}
+      {flow.error && <>
+        <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>
+        {diagRow(flow.error, () => extensionDiagnostic({ status, stage: 'update', code: 'extension-update-failed', error: flow.error }))}
+      </>}
+      <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} />
     </div>
   );
   return (
     <div className="extension-panel__update">
-      <InlineMessage tone="warning" boxed title={ui('检索扩展需要更新')}>{uiFormat('这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后要重启 DSH。', [extension.version, extension.expected])}</InlineMessage>
+      <InlineMessage tone="warning" boxed title={ui('检索扩展需要更新')}>
+        {desktop
+          ? uiFormat('这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后要完全退出 DSH 桌面版（包括托盘图标）后重新打开。', [extension.version, extension.expected])
+          : uiFormat('这一版 StudyHub 带了更新过的检索扩展（已安装 {0}，新版 {1}）。更新后要重启 DSH。', [extension.version, extension.expected])}
+      </InlineMessage>
       <div><Button variant="primary" icon="download" busy={flow.busy} disabled={flow.busy} onClick={() => flow.install()}>{flow.busy ? ui('正在更新…') : ui('更新检索扩展')}</Button></div>
       {flow.busy && <Hint role="status">{ui('正在下载并安装检索扩展，通常几分钟。期间可以继续学习，不要关闭 DSH。')}</Hint>}
-      {flow.error && <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>}
+      {flow.error && <>
+        <InlineMessage boxed title={ui('没能完成')}>{flow.error}</InlineMessage>
+        {diagRow(flow.error, () => extensionDiagnostic({ status, stage: 'update', code: 'extension-update-failed', error: flow.error }))}
+      </>}
       <ApprovalDialog approval={flow.approval} busy={flow.busy} install={flow.install} close={() => flow.setApproval(null)} />
     </div>
   );
@@ -106,7 +153,7 @@ function TaskLink({ run }) {
 const names = courses => (courses || []).map(course => (typeof course === 'string' ? course : course?.name)).filter(Boolean);
 const FINISHED = new Set(['complete', 'failed', 'cancelled']);
 
-function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun, document }) {
+function IndexBuilder({ status, courses, defaultCourse, onDone, initialPlan, initialRun, document }) {
   const { call } = useStudy();
   const list = names(courses);
   const [course, setCourse] = useState(defaultCourse && list.includes(defaultCourse) ? defaultCourse : '');
@@ -166,18 +213,24 @@ function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun,
       </div>}
       {!running && <Tooltip layer anchorClassName="extension-panel__tip" content={`${ui('在本机把还没编目录的页编好，不调用 AI，不花 token。')}\n${ui('可以随时停止，已建好的部分会保留。')}`}>
         <span className="extension-panel__action"><Button variant={action.variant} busy={starting} disabled={starting || !!upToDate || plan?.canIndex === false} onClick={start}>{action.label}</Button></span></Tooltip>}
-      {problem && <InlineMessage>{problem}</InlineMessage>}
+      {problem && <>
+        <InlineMessage>{problem}</InlineMessage>
+        {diagRow(problem, () => extensionDiagnostic({ status, stage: 'index-start', course, error: problem }))}
+      </>}
       {run?.status === 'complete' && <InlineMessage tone="success" boxed>
         {uiFormat('已为「{0}」建立索引：新增 {1} 页，移除 {2} 页，{3} 页无需更新。出题和 AI 带学现在会用它挑选相关页面。', [run.course || ui('全部资料'), run.added ?? 0, run.removed ?? 0, run.unchanged ?? 0])}
         {run.skipped > 0 && ` ${uiFormat('{0} 页无检索文字（跳过）。', [run.skipped])}`}
         {run.failedCount > 0 && ` ${uiFormat('{0} 页没能写入索引，下次建立时会重试。', [run.failedCount])}`}
       </InlineMessage>}
       {run?.status === 'cancelled' && <InlineMessage tone="info">{ui('已停止。建好的部分会保留，下次接着建。')}</InlineMessage>}
-      {run?.status === 'failed' && <InlineMessage tone="error" boxed title={ui('索引没有建完')}>
-        {run.error}
-        {run.errorCode === 'retrieval-model-download' && ` ${ui('也可以在「设置 › 检索扩展」的高级选项里填写模型下载地址。')}`}
-        <TaskLink run={run} />
-      </InlineMessage>}
+      {run?.status === 'failed' && <>
+        <InlineMessage tone="error" boxed title={ui('索引没有建完')}>
+          {run.error}
+          {run.errorCode === 'retrieval-model-download' && ` ${ui('也可以在「设置 › 检索扩展」的高级选项里填写模型下载地址。')}`}
+          <TaskLink run={run} />
+        </InlineMessage>
+        {diagRow(`${run.errorCode}:${run.error}`, () => extensionDiagnostic({ status, run, course: run.course || course }))}
+      </>}
     </div>
   );
 }
@@ -190,7 +243,7 @@ function IndexBuilder({ courses, defaultCourse, onDone, initialPlan, initialRun,
 export default function ExtensionPanel({ status, onStatus, courses = [], defaultCourse = '', document, initialApproval = null, initialPlan, initialRun }) {
   useInjectCss(css, 'study-large-documents');
   const { call } = useStudy();
-  const { busy, error, approval, restart, done, boot, install, setApproval } = useExtensionInstall({ onStatus, initialApproval });
+  const { busy, error, approval, done, install, setApproval } = useExtensionInstall({ onStatus, initialApproval });
   const [confirmRemove, setConfirmRemove] = useState(false);
   const extension = status?.extension;
   if (!status || !extension) return null;
@@ -215,14 +268,18 @@ export default function ExtensionPanel({ status, onStatus, courses = [], default
         <div><Button variant="primary" icon="download" busy={busy} onClick={() => install()}>{ui('安装检索扩展')}</Button></div>
       </>}
       {extension.canInstall && extension.installed && <>
-        {running ? <p className="extension-panel__lead extension-panel__lead--ok">{ui('检索扩展已安装并在运行。')}</p> : extension.outdated ? null
-          : stopped ? <ExtensionNotStarted status={status} refresh={refresh} repair={() => call('retrieval.index.repair', {})} /> : <StartupWait refresh={refresh} />}
+        {running ? <p className="extension-panel__lead extension-panel__lead--ok">{ui('检索扩展已安装并在运行。')}</p>
+          : (extension.outdated || extension.pendingRestart || extension.restartFailed) ? null
+            : stopped ? <ExtensionNotStarted status={status} refresh={refresh} repair={() => call('retrieval.index.repair', {})} />
+              : <StartupWait desktop={!!extension.desktop} refresh={refresh} />}
         {running && reset?.pages > 0 && <InlineMessage tone="warning">{resetLine(reset)}</InlineMessage>}
-        {restart && !restartDone(boot, status.boot) && <InlineMessage tone="warning" boxed>{ui('这次更新要重启 DSH 之后才会生效。')}</InlineMessage>}
         <ExtensionUpdateNotice status={status} onStatus={onStatus} />
       </>}
-      {error && <InlineMessage boxed title={ui('没能完成')}>{error}</InlineMessage>}
-      {running && <IndexBuilder courses={courses} defaultCourse={defaultCourse} document={document} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
+      {error && <>
+        <InlineMessage boxed title={ui('没能完成')}>{error}</InlineMessage>
+        {diagRow(error, () => extensionDiagnostic({ status, stage: 'install', code: 'extension-install-failed', error }))}
+      </>}
+      {running && <IndexBuilder status={status} courses={courses} defaultCourse={defaultCourse} document={document} onDone={() => refresh()} initialPlan={initialPlan} initialRun={initialRun} />}
       {extension.canInstall && extension.installed && <div>
         <Button size="sm" variant="quiet" lock={busy} onClick={() => setConfirmRemove(true)}>{ui('卸载检索扩展')}</Button>
       </div>}

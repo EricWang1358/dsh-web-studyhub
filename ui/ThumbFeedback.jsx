@@ -1,11 +1,13 @@
 import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React, { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { asksWhatTheSourceSays } from "../lib/question-voice.js";
-import { Chip, Icon, InlineMessage, useToast } from "./components/index.js";
+import { Button, Chip, Icon, InlineMessage, useToast } from "./components/index.js";
 import { feedbackOutcome } from "./card-fix.js";
 import { useComponentCss } from "./components/css.js";
 import thumbCss from "./thumb-feedback.css";
 import { useStudy } from "./study-context.jsx";
+import { CourseRuleConfirm } from "./course-rules/CourseRuleAdd.jsx";
+import { ruleTextsForTags } from "./course-rules/tag-rules.js";
 
 /* 👍/👎 一键反馈。👎 立即记录并展开标签，停手 1.2 秒把新选的标签一次提交，
    服务端据此备更难/更基础的题；改题类标签交给复习页的「修题」（onFix），不再静默改题。G/B 与标签数字键由这里自己处理，
@@ -23,18 +25,20 @@ const TAGS = [
 const IDLE_MS = 1200;
 
 /* On the practice page the two thumbs are items of the toolbar's 更多 menu (ui/ReviewToolbar.jsx, #671): it passes `buttons={false}`, and this component then keeps
-   the vote, the tag tray and the G / B keys, and hands the menu two calls through `ref` ({ up(), down() }) and the vote through `onVote`. */
-export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onFix, onVote, buttons = true }, ref) {
+   the vote, the tag tray and the G / B keys, and hands the menu two calls through `ref` ({ up(), down() }) and the vote through `onVote`.
+   `courseRules` (ui/course-rules/use-course-rules.js): with it the tray offers 「设为本课守则」 for the chosen tags (#889); the confirmation stays after the tray closes. */
+export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onFix, onVote, onInteract, buttons = true, courseRules = null }, ref) {
   const { call } = useStudy();
   const [vote, setVote] = useState(run.vote?.vote || null),
     [tags, setTags] = useState(run.vote?.tags || []),
     [open, setOpen] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [ruleTexts, setRuleTexts] = useState(null);
   useComponentCss(thumbCss, "study-thumb-feedback");
   const toast = useToast(), trayId = useId(), voteId = useId();
   // The timers and queued posts outlive the render that created them: they read the latest callbacks.
   const callbacks = useRef({});
-  callbacks.current = { toast, onFix, onSent };
+  callbacks.current = { toast, onFix, onSent, onInteract };
   const sent = useRef(new Set(run.vote?.tags || [])),
     submitting = useRef(new Set()),
     saved = useRef({ vote: run.vote?.vote || null, tags: run.vote?.tags || [] }),
@@ -54,6 +58,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
     saved.current = { vote: run.vote?.vote || null, tags: run.vote?.tags || [] };
     setOpen(false);
     setError("");
+    setRuleTexts(null);
     activeKey.current = cardKey;
     clearTimeout(timer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,6 +106,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
     if (note) callbacks.current.toast.info(note);
   }
   function thumb(next) {
+    callbacks.current.onInteract?.();
     setVote(next);
     setError("");
     if (next === "up") {
@@ -128,6 +134,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
   tagsRef.current = tags;
   function toggle(tag) {
     if (sent.current.has(tag) || submitting.current.has(tag)) return;
+    callbacks.current.onInteract?.();
     const list = tagsRef.current;
     const nextList = list.includes(tag) ? list.filter((t) => t !== tag) : [...list, tag];
     tagsRef.current = nextList;
@@ -149,12 +156,13 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
 
   const latest = useRef({});
   latest.current = { open, thumb, toggle, canShortcut };
-  useImperativeHandle(ref, () => ({ up: () => latest.current.thumb("up"), down: () => (latest.current.open ? setOpen(false) : latest.current.thumb("down")) }), []);
-  useEffect(() => { onVote?.(vote); }, [vote]); // eslint-disable-line react-hooks/exhaustive-deps -- the menu reads the vote; the callback is not a trigger
+  useImperativeHandle(ref, () => ({ up: () => latest.current.thumb("up"), down: () => (latest.current.open ? (callbacks.current.onInteract?.(), setOpen(false)) : latest.current.thumb("down")) }), []);
+  useEffect(() => { onVote?.(vote, tags); }, [vote, tags]); // eslint-disable-line react-hooks/exhaustive-deps -- the menu and tips read the vote and tags; the callback is not a trigger
   useEffect(() => {
     function key(e) {
       const { open, thumb, toggle, canShortcut } = latest.current;
       if (e.key === "Escape" && open) {
+        e.preventDefault();
         setOpen(false);
         return;
       }
@@ -165,6 +173,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
         thumb("up");
       } else if (k === "b") {
         e.preventDefault();
+        callbacks.current.onInteract?.();
         if (open) setOpen(false);
         else thumb("down");
       } else if (open && /^[1-7]$/.test(e.key)) {
@@ -196,8 +205,12 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
             </Chip>
           ))}
           <small>{ui("选好停一下就自动提交；已提交的标签不能撤销。改题类问题会带到下方的「修题」。")}</small>
+          {courseRules?.course && ruleTextsForTags(tags).length > 0 && (
+            <Button variant="link" size="sm" data-usage="review.course-rule" onClick={() => setRuleTexts(ruleTextsForTags(tags))}>{ui("设为本课守则")}</Button>
+          )}
         </span>
       )}
+      {ruleTexts && courseRules?.course && <CourseRuleConfirm courseRules={courseRules} texts={ruleTexts} onClose={() => setRuleTexts(null)} />}
     </span>
   );
 });

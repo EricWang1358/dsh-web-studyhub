@@ -263,33 +263,38 @@ export const tokensText = (value) => uiFormat('{0} tok', [formatCompactTokens(Ma
 
 const minutesText = (minutes) => (minutes >= 90 ? uiFormat('{0} 小时 {1} 分钟', [Math.floor(minutes / 60), minutes % 60]) : uiFormat('{0} 分钟', [minutes]));
 
-/** What is left, from the rounds done (「预计还要 2.0M tok、约 25 分钟」), or, with no history yet, from the estimate made before the run, said to be that. */
+/** What the estimate made before the run says is left: its UPPER end (#943), said to be that and to come from before the run. The one wording of it, for the console and the home row. */
+const upperLeftText = (tokens) => uiFormat('预计最多还要约 {0}（出题前估的上限）', [tokensText(tokens)]);
+
+/** What is left, from the rounds done (「预计还要 2.0M tok、约 25 分钟」), or, with no history yet, from the estimate made before the run (its upper end), said to be that. */
 export function projectionText(projection) {
   if (!projection || !(projection.tokens > 0)) return '';
-  if (projection.basis === 'estimate') return uiFormat('预计还要约 {0}（出题前的估算）', [tokensText(projection.tokens)]);
+  if (projection.basis === 'estimate') return upperLeftText(projection.tokens);
   return projection.minutes ? uiFormat('预计还要 {0}、约 {1}', [tokensText(projection.tokens), minutesText(projection.minutes)]) : uiFormat('预计还要 {0}', [tokensText(projection.tokens)]);
 }
 
 /**
- * What is left of a running run, from `runForecast` (lib/coverage-run.js), with the basis said: 「预计还要约 2.7M tok（按已跑的进度估算）」, or, before this run has a pace of its own, 「…（出题前的估算）」; when the two
- * differ by more than a quarter both are said: 「… · 出题前估 3.9M tok」. '' when nothing may be said.
+ * What is left of a running run, from `runForecast` (lib/coverage-run.js), with the basis said: 「预计还要约 2.7M tok（按已跑的进度估算）」, or, before this run has a pace of its own, the upper end of what was
+ * priced before the run: 「预计最多还要约 3.3M tok（出题前估的上限）」; when the run is heading more than a quarter ABOVE that upper end both are said: 「… · 出题前估最多 4.8M tok」 (below it, the one number alone). '' when nothing may be said.
  */
 export function forecastText(forecast) {
   const tokens = forecast?.tokens;
   if (!(tokens?.left > 0)) return '';
-  const head = uiFormat(forecast.basis === 'estimate' ? '预计还要约 {0}（出题前的估算）' : '预计还要约 {0}（按已跑的进度估算）', [tokensText(tokens.left)]);
-  return forecast.preRun > 0 ? joinMeta([head, uiFormat('出题前估 {0}', [tokensText(forecast.preRun)])]) : head;
+  const head = forecast.basis === 'estimate' ? upperLeftText(tokens.left) : uiFormat('预计还要约 {0}（按已跑的进度估算）', [tokensText(tokens.left)]);
+  return forecast.preRun > 0 ? joinMeta([head, uiFormat('出题前估最多 {0}', [tokensText(forecast.preRun)])]) : head;
 }
 
-/** The sum behind the number, to be checked by eye: 「已用 1.5M + 还要约 2.4M ≈ 共约 3.9M tok」 (the parts are rounded to two digits, the whole is their sum). '' while nothing was used or nothing is said.
+/** The sum behind the number, to be checked by eye: 「已用 1.5M + 还要约 2.4M ≈ 共约 3.9M tok」 (the parts are rounded to two digits, the whole is their sum); on the upper end of the estimate before the run both
+    parts of the sum are at most: 「已用 1.5M + 最多还要约 3.3M ≈ 最多共约 4.8M tok」. '' while nothing was used or nothing is said.
     `used`: the tokens as the line above says them (the job's count, runFacts tokensUsed): 已用 is then the same figure there and here (「本任务已用 212K」 twice, never 212K and 210K), and the whole is it
     plus what is left. `own`: the job continues a run that spent tokens before it (runFacts ownTokens): its 已用 is said as its own, in the same words as the line above. */
 export function forecastMath(forecast, { own = false, used } = {}) {
   const tokens = forecast?.tokens;
   if (!(tokens?.left > 0) || !(tokens.used > 0)) return '';
   const compact = (value) => formatCompactTokens(Math.round(value)), spent = Number.isFinite(used) && used > 0 ? used : null;
-  return uiFormat(own ? '本任务已用 {0} + 还要约 {1} ≈ 共约 {2} tok' : '已用 {0} + 还要约 {1} ≈ 共约 {2} tok',
-    [compact(spent ?? tokens.used), compact(tokens.left), compact(spent === null ? tokens.total : spent + tokens.left)]);
+  const parts = [compact(spent ?? tokens.used), compact(tokens.left), compact(spent === null ? tokens.total : spent + tokens.left)];
+  if (forecast.basis === 'estimate') return uiFormat(own ? '本任务已用 {0} + 最多还要约 {1} ≈ 最多共约 {2} tok' : '已用 {0} + 最多还要约 {1} ≈ 最多共约 {2} tok', parts);
+  return uiFormat(own ? '本任务已用 {0} + 还要约 {1} ≈ 共约 {2} tok' : '已用 {0} + 还要约 {1} ≈ 共约 {2} tok', parts);
 }
 
 /** The time left: a figure or a range, or plainly why there is none (too little progress, still queued, paused, nearly done). It is the pace of THIS run, not the limit of a round. */
@@ -414,13 +419,13 @@ export function coverageAheadText(s) {
   return uiFormat('本轮后约 {0}%，到 100% 还要 {1} 轮、约 {2} 题', [s.afterRoundPercent, s.roundsToFull, s.questionsToFull]);
 }
 
-/** The same way, said by a run that works (its rounds are the job's): 「覆盖现在 31% → 目标 100%，还要 3 轮、约 90 题」. The questions are what is LEFT (runFacts questionsLeft: the sections that still have
-    no question, the points the planner returned for the round in flight), the rounds those that still have something to make (`roundsLeft`; a round whose sections all have a question is skipped). */
+/** The same way, said by a run that works (its rounds are the job's): 「覆盖现在 31% → 目标 100%，含本轮还要 3 轮、约 90 题」. The questions are what is LEFT (runFacts questionsLeft: the sections that still have
+    no question, the points the planner returned for the round in flight), the rounds those that still have something to make (`roundsLeft`, including the round in flight; a round whose sections all have a question is skipped). */
 export function runPathText(run) {
   const rounds = Number.isInteger(run?.roundsLeft) ? run.roundsLeft : run?.left;
   if (!run?.total || run.ended || !Number.isFinite(run.percent) || !(rounds > 0) || !(run.questionsLeft > 0)) return '';
-  return rounds === 1 ? uiFormat('覆盖现在 {0}% → 目标 100%，还要 1 轮、约 {1} 题（按还没有题的小节算）', [run.percent, run.questionsLeft])
-    : uiFormat('覆盖现在 {0}% → 目标 100%，还要 {1} 轮、约 {2} 题（按还没有题的小节算）', [run.percent, rounds, run.questionsLeft]);
+  return rounds === 1 ? uiFormat('覆盖现在 {0}% → 目标 100%，含本轮还要 1 轮、约 {1} 题（按还没有题的小节算）', [run.percent, run.questionsLeft])
+    : uiFormat('覆盖现在 {0}% → 目标 100%，含本轮还要 {1} 轮、约 {2} 题（按还没有题的小节算）', [run.percent, rounds, run.questionsLeft]);
 }
 
 /** 「精简：先出第 1 轮；点「自动补到完整」继续」: what a run that waits for the learner (自动补到完整 is off) has done, and how it goes on. The coverage is not repeated here: the fact line says it (#663). */

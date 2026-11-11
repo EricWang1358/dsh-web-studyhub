@@ -119,3 +119,37 @@ test('a host that lists no models draws the box as it was', () => {
   assert.doesNotMatch(row, /data-control="model"/);
   assert.match(row, /改动从下一次调用生效</);
 });
+
+/* #944: the box says that the model and the levels change what a run uses, and what the estimate made before the run does about them. Every clause is a fact of the code:
+   the estimate is made once when the job starts (lib/contexts/generation/generate/estimate.js estimateInto), it reads no reasoning level (lib/token-estimate.js: a high level is only noted), and
+   a change made here goes to job.control and applies from the next call. */
+const USAGE_ZH = '模型和推理档位会明显改变用量。';
+
+test('the box says in one short line that the model and the levels change the usage, the detail in a tooltip, and only on a job that has one of them', () => {
+  const row = render(generation());
+  assert.match(row, /<span class="tc-controls__usage"[^>]*tabindex="0"[^>]*>模型和推理档位会明显改变用量。<\/span>/, 'the visible sentence, reachable by keyboard');
+  const tip = /role="tooltip"[^>]*>(出题前的估算[^<]*)</.exec(row)?.[1] ?? '';
+  assert.match(tip, /只在任务开始时/, 'made once, when the job starts');
+  assert.match(tip, /不随推理档位变化/, 'not scaled by the level');
+  assert.match(tip, /算作输出/, 'more thinking is more output');
+  assert.match(tip, /超出估算，包括它的上限/, 'the real usage may end above the estimate, even above its upper end');
+  assert.match(tip, /下一次调用生效，不会重新估算/, 'a change here does not redo the estimate');
+  assert.doesNotMatch(row, /title="[^"]*明显改变用量/, 'a Tooltip, never title=');
+  // the slot is in the first render, whatever the host lists: a host that lists no models still has the levels of the stages
+  assert.match(render(generation(), { host: {} }), /tc-controls__usage/);
+  // a job with neither a model nor a level to change (here only the parallel count), and a job that has ended: nothing new
+  const plain = { ...generation(), control: { values: { concurrency: 4 }, limits: { concurrency: { type: 'int', min: 1, max: 8 } } } };
+  assert.doesNotMatch(render(plain), /tc-controls__usage/);
+  assert.doesNotMatch(render({ ...generation(), status: 'complete', finishedAt: '2026-10-08T10:30:00.000Z' }), /tc-controls__usage/);
+  assert.ok(!render(plain).includes(USAGE_ZH));
+});
+
+test('the sentence has its English, and the English box stays free of Chinese', () => {
+  const en = render(generation(), { language: 'en' });
+  assert.match(en, /<span class="tc-controls__usage"[^>]*>Model and reasoning level change the usage a lot\.<\/span>/);
+  assert.match(en, /role="tooltip"[^>]*>The estimate is made once, when the task starts, from typical usage\./);
+  assert.match(en, /counted as output/);
+  assert.match(en, /even above its upper end/);
+  assert.match(en, /does not redo the estimate/);
+  assert.doesNotMatch(en, /[一-鿿]/, 'no Chinese left in the English box');
+});

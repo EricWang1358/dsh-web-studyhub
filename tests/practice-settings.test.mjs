@@ -7,10 +7,10 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { LATEST_VERSION, normalizeState } from '../lib/store.js';
 import { writesFor } from '../lib/runtime/domain-contracts.js';
-import { PRACTICE_DEFAULTS, PRACTICE_LIMITS, mergePracticeSettings, normalizePracticeSettings, resolvePracticeSettings, roundLimits,
+import { NEW_CARD_ORDERS, PRACTICE_DEFAULTS, PRACTICE_LIMITS, mergePracticeSettings, normalizePracticeSettings, resolvePracticeSettings, roundLimits,
   validatePracticePatch } from '../lib/practice-settings.js';
 
-const expected = { autopilot: false, roundSize: 20, debrief: true };
+const expected = { autopilot: false, roundSize: 20, newCardOrder: 'reading', debrief: true, leechFailures: 4, leechWindow: 5, leechRate: 60 };
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-practice-settings-'));
   const service = new StudyService(root);
@@ -23,6 +23,7 @@ const saved = async service => (await service.call('snapshot')).settings.practic
 
 test('defaults and limits are the agreed ones: autopilot off, 20 questions a round, the debrief on; and they cannot be changed by a caller', () => {
   assert.deepEqual(PRACTICE_DEFAULTS, expected);
+  assert.deepEqual(NEW_CARD_ORDERS, ['reading', 'focus', 'shuffle']);
   assert.deepEqual(PRACTICE_LIMITS.roundSize, { min: 5, max: 50 });
   assert.throws(() => { 'use strict'; PRACTICE_DEFAULTS.debrief = false; });
   assert.throws(() => { 'use strict'; PRACTICE_LIMITS.roundSize.max = 99; });
@@ -37,23 +38,26 @@ test('resolve gives the full object whether or not anything was saved', () => {
 test('normalize is lenient: a wrong value falls back to its default and valid siblings survive', () => {
   for (const raw of [undefined, null, [], 'x', 7]) assert.deepEqual(normalizePracticeSettings(raw), expected);
   assert.deepEqual(normalizePracticeSettings({ autopilot: 'yes', roundSize: '20', debrief: 0, unknown: 1 }), expected);
-  assert.deepEqual(normalizePracticeSettings({ autopilot: true, roundSize: 30, debrief: false }), { autopilot: true, roundSize: 30, debrief: false });
+  assert.deepEqual(normalizePracticeSettings({ autopilot: true, roundSize: 30, debrief: false }), { ...expected, autopilot: true, roundSize: 30, debrief: false });
   for (const roundSize of [4, 51, 12.5, NaN, Infinity, -1, 0]) assert.equal(normalizePracticeSettings({ roundSize, autopilot: true }).roundSize, 20, String(roundSize));
   assert.equal(normalizePracticeSettings({ roundSize: 5 }).roundSize, 5);
   assert.equal(normalizePracticeSettings({ roundSize: 50 }).roundSize, 50);
-  assert.equal(normalizePracticeSettings({ roundSize: 7, autopilot: 'x' }).roundSize, 7, 'a wrong sibling does not cost a good value');
+  assert.equal(normalizePracticeSettings({ roundSize: 7, autopilot: 'x', newCardOrder: 'backwards' }).roundSize, 7, 'a wrong sibling does not cost a good value');
+  assert.equal(normalizePracticeSettings({ newCardOrder: 'focus' }).newCardOrder, 'focus');
+  assert.equal(normalizePracticeSettings({ newCardOrder: 'shuffle' }).newCardOrder, 'shuffle');
+  assert.equal(normalizePracticeSettings({ newCardOrder: 'invalid' }).newCardOrder, 'reading');
 });
 
 test('a patch is strict: it names known keys with valid values, and a refused patch throws', () => {
-  assert.deepEqual(validatePracticePatch({ autopilot: true, roundSize: 10 }), { autopilot: true, roundSize: 10 });
+  assert.deepEqual(validatePracticePatch({ autopilot: true, roundSize: 10, newCardOrder: 'focus' }), { autopilot: true, roundSize: 10, newCardOrder: 'focus' });
   assert.deepEqual(validatePracticePatch({}), {});
   for (const patch of [null, [], 'fast', 3, { unknown: true }, { autopilot: 'yes' }, { debrief: 1 }, { debrief: null }, { roundSize: '20' }, { roundSize: 4 },
-    { roundSize: 51 }, { roundSize: 10.5 }, { roundSize: null }]) assert.throws(() => validatePracticePatch(patch), /practice/i, JSON.stringify(patch));
+    { roundSize: 51 }, { roundSize: 10.5 }, { roundSize: null }, { newCardOrder: 'random' }, { newCardOrder: null }]) assert.throws(() => validatePracticePatch(patch), /practice/i, JSON.stringify(patch));
 });
 
 test('merge keeps the saved siblings and applies the patch on top', () => {
   assert.deepEqual(mergePracticeSettings(undefined, { debrief: false }), { ...expected, debrief: false });
-  assert.deepEqual(mergePracticeSettings({ roundSize: 30, autopilot: true }, { debrief: false }), { autopilot: true, roundSize: 30, debrief: false });
+  assert.deepEqual(mergePracticeSettings({ roundSize: 30, autopilot: true }, { debrief: false }), { ...expected, autopilot: true, roundSize: 30, debrief: false });
   assert.throws(() => mergePracticeSettings({ roundSize: 30 }, { roundSize: 1 }));
 });
 
@@ -79,8 +83,8 @@ test('settings.practice.set merges per field into the saved settings and returns
   const { service } = await library(t);
   assert.deepEqual(await service.call('settings.practice.set', { patch: { debrief: false } }), { ...expected, debrief: false });
   assert.deepEqual(await service.call('settings.practice.set', { patch: { roundSize: 30 } }), { ...expected, debrief: false, roundSize: 30 });
-  assert.deepEqual(await service.call('settings.practice.set', { patch: { autopilot: true } }), { autopilot: true, roundSize: 30, debrief: false });
-  assert.deepEqual(await saved(service), { autopilot: true, roundSize: 30, debrief: false });
+  assert.deepEqual(await service.call('settings.practice.set', { patch: { autopilot: true } }), { ...expected, autopilot: true, roundSize: 30, debrief: false });
+  assert.deepEqual(await saved(service), { ...expected, autopilot: true, roundSize: 30, debrief: false });
   assert.deepEqual(await service.call('settings.practice.set', { patch: {} }), await saved(service), 'an empty patch changes nothing');
 });
 
@@ -133,7 +137,7 @@ test('stored format: one optional key inside the library settings; no version mo
   const after = JSON.parse(await readFile(join(root, 'study-workspace.json'), 'utf8'));
   assert.equal(after.version, LATEST_VERSION);
   assert.equal(after.version, before.version);
-  assert.deepEqual(after.settings.practice, { autopilot: false, roundSize: 30, debrief: false });
+  assert.deepEqual(after.settings.practice, { ...expected, autopilot: false, roundSize: 30, debrief: false });
   const { practice, ...rest } = after.settings;
   assert.deepEqual(rest, before.settings, 'every other setting is as it was');
   assert.deepEqual(Object.keys(after).filter(key => !(key in before)), [], 'no top-level field was added');
@@ -154,7 +158,7 @@ test('backup and restore carry it like the other settings; a corrupt value falls
   const { service } = await library(t);
   await service.call('settings.practice.set', { patch: { autopilot: true, roundSize: 25, debrief: false } });
   const backup = await service.call('export');
-  assert.deepEqual(backup.settings.practice, { autopilot: true, roundSize: 25, debrief: false });
+  assert.deepEqual(backup.settings.practice, { ...expected, autopilot: true, roundSize: 25, debrief: false });
   await service.call('settings.practice.reset');
   assert.equal(await saved(service), undefined);
   await service.call('restore', { state: backup });
@@ -162,7 +166,7 @@ test('backup and restore carry it like the other settings; a corrupt value falls
   const corrupt = JSON.parse(JSON.stringify(backup));
   corrupt.settings.practice = { autopilot: 'x', roundSize: 12, debrief: 'y', extra: 1 };
   await service.call('restore', { state: corrupt });
-  assert.deepEqual(await saved(service), { autopilot: false, roundSize: 12, debrief: true });
+  assert.deepEqual(await saved(service), { ...expected, autopilot: false, roundSize: 12, debrief: true });
   corrupt.settings.practice = 'garbage';
   await service.call('restore', { state: corrupt });
   assert.deepEqual(await saved(service), expected);

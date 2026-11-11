@@ -107,6 +107,15 @@
       font-size: var(--fs-xs);
       font-variant-numeric: tabular-nums;
     }
+    /* The course's 出题守则 (#889): their own row above the stages. */
+    .gen-trans-preview__rules {
+      font-size: var(--fs-xs);
+      line-height: var(--lh-snug);
+    }
+    .gen-trans-preview__rules ol {
+      margin: var(--space-1) 0 0;
+      padding-left: var(--space-5);
+    }
     .gen-trans-preview__stages {
       display: grid;
       gap: var(--space-2);

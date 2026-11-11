@@ -122,6 +122,58 @@ test('已用: a job\'s live copy says the job\'s own tokens (the same number as 
   assert.equal(runFacts({ rounds: restored.list, run: restored, job: { status: 'interrupted' } }).tokensUsed, 4_800_000, 'a record rebuilt from the draft after a restart has no tokens of its own: the run\'s');
 });
 
+/* ---------- the pre-run estimate is the UPPER end (#943) ---------- */
+
+test('the number the card takes from the estimate made before the run is the UPPER end of its range, never the middle; no estimate, or an empty one, says nothing', () => {
+  const rounds = listOf(plan([{ round: 1, questions: 8, sectionIds: ['a'] }, { round: 2, questions: 8, sectionIds: ['b'] }], { a: 4, b: 4 }));
+  const facts = (tokens) => runFacts({ rounds, run: { autoComplete: true, state: 'running', ...(tokens ? { estimate: { tokens } } : {}) }, percent: 0 });
+  assert.equal(facts({ low: 2, high: 10 }).estimateTokens, 10, 'low 2, high 10: 10, not the middle 6');
+  const fresh = facts({ low: 2, high: 10 });
+  assert.deepEqual(fresh.projection, { tokens: 10, minutes: null, basis: 'estimate' }, 'nothing used yet: the whole upper end is what is left, at most');
+  assert.equal(fresh.estimateTokens, 10);
+  // The same fact, one number (#943 F2): with tokens already used, what is LEFT is the upper end less what was used on the home row and the draft page (the projection) as on the console.
+  const spent = (tokensUsed) => runFacts({ rounds, run: { autoComplete: true, state: 'running', tokensUsed, estimate: { tokens: { low: 1_000_000, high: 4_800_000 } } }, percent: 0 });
+  assert.deepEqual(spent(1_500_000).projection, { tokens: 3_300_000, minutes: null, basis: 'estimate' }, 'upper end 4.8M less the 1.5M used');
+  assert.equal(spent(1_500_000).estimateTokens, 4_800_000, 'the whole upper end stays what the console sets against what was used');
+  assert.equal(spent(4_800_000).projection, null, 'all of the upper end used: nothing is left to say');
+  assert.equal(spent(6_000_000).projection, null, 'more than the upper end used: no number rather than a wrong one');
+  const home = m.copy.runLine(spent(1_500_000)), onConsole = runForecast({ phase: 'running', projection: spent(1_500_000).projection, estimate: spent(1_500_000).estimateTokens, tokens: 1_500_000, kept: 0, goal: 77, base: 0, left: 77 });
+  assert.match(home, /已用 1\.5M tok · 预计最多还要约 3\.3M tok（出题前估的上限）/, 'the home row and the draft page');
+  assert.equal(m.copy.forecastText(onConsole), '预计最多还要约 3.3M tok（出题前估的上限）', 'the console says the same number in the same words');
+  assert.equal(m.copy.forecastMath(onConsole), '已用 1.5M + 最多还要约 3.3M ≈ 最多共约 4.8M tok');
+  assert.equal(facts({ low: 7, high: 7 }).estimateTokens, 7, 'a range of one point is that point');
+  assert.equal(facts(undefined).estimateTokens, null, 'no estimate: nothing');
+  assert.equal(facts({ low: 0, high: 0 }).estimateTokens, null, 'an empty range (high 0): nothing');
+  assert.equal(facts({ low: 5 }).estimateTokens, null, 'half a range: nothing');
+  // A run recorded before this change has the same { low, high }: nothing is migrated, it now reads as its upper end.
+  const upper = runForecast({ phase: 'running', projection: { tokens: 10, minutes: null, basis: 'estimate' }, estimate: 10, tokens: 4, kept: 0, goal: 8, base: 0, left: 8 });
+  assert.deepEqual(upper.tokens, { used: 4, left: 6, total: 10 }, 'what is left, at most, is the upper end less what was used');
+});
+
+test('before the by-progress number starts, a run that has already used more than the upper end says no number rather than a wrong one; once it has a pace the upper end is shown beside the number only when the run is heading ABOVE it', () => {
+  const base = { phase: 'running', estimate: 1_000_000, goal: 80, base: 0, left: 60 };
+  const spent = runForecast({ ...base, tokens: 1_200_000, kept: 5, elapsedMs: 5 * 60_000 });
+  assert.equal(spent.tokens, null, 'past the upper end with no pace: nothing is said (as it was past the middle)');
+  assert.equal(spent.basis, null);
+  assert.equal(spent.preRun, null);
+  const over = runForecast({ ...base, tokens: 1_200_000, kept: 20, goal: 80, left: 60, elapsedMs: 20 * 60_000 });
+  assert.equal(over.basis, 'live');
+  assert.equal(over.preRun, 1_000_000, 'on its way ABOVE the upper end by more than a quarter (3.6M + 1.2M against 1M): the upper end is shown beside the number');
+  const under = runForecast({ ...base, tokens: 100_000, kept: 20, elapsedMs: 20 * 60_000 });
+  assert.equal(under.basis, 'live');
+  assert.equal(under.preRun, null, 'on its way far BELOW the upper end: one number only (the owner: not two numbers)');
+  // the three cases that matter, with a pace of 100 000 a question (24 kept of 77, 2.4M used: the whole is 7.7M): 0.6 x the upper end, exactly the upper end, 2 x the upper end
+  const pace = (upper) => runForecast({ phase: 'running', estimate: upper, tokens: 2_400_000, kept: 24, goal: 77, base: 0, left: 53, elapsedMs: 20 * 60_000 });
+  assert.equal(pace(12_833_333).preRun, null, 'the whole (7.7M) is 0.6 x the upper end: the common run, one number');
+  assert.equal(pace(7_700_000).preRun, null, 'exactly the upper end: one number');
+  assert.equal(pace(7_700_000 / 1.25).preRun, null, 'above it by exactly a quarter: not MORE than a quarter');
+  assert.equal(pace(3_850_000).preRun, 3_900_000, 'twice the upper end: both are said (the upper end to two digits)');
+  inLanguage('zh', () => {
+    assert.equal(m.copy.forecastText(over), '预计还要约 3.6M tok（按已跑的进度估算） · 出题前估最多 1M tok');
+    assert.equal(m.copy.forecastText(under), '预计还要约 300K tok（按已跑的进度估算）', 'below the upper end: the number alone');
+  });
+});
+
 /* ---------- the forecast ---------- */
 
 test('the forecast counts the questions that are left (runFacts\'), not the goal less what the draft holds; its share is measured against what this job makes plus what is left', () => {
@@ -163,19 +215,19 @@ test('the owner\'s screen, fixed: every number of the console says the same thin
   assert.deepEqual(contract.detail.own, { made: 1, asked: 3, base: 36 });
   const html = lineOf(job), plain = text(html);
   assert.match(plain, /^出题计划 第 1\/4 轮 · 覆盖 99% · 本任务已用 212K tok · 预计还要约 200K tok（按已跑的进度估算）/, plain);
-  assert.doesNotMatch(plain, /出题前估/, 'the job\'s own estimate (400K) agrees with what it used and has left: it is not said twice');
+  assert.doesNotMatch(plain, /出题前估/, 'the job\'s own estimate (the upper end, 460K) agrees with what it used and has left (412K, within a quarter): it is not said twice');
   assert.match(html, /data-run-math[^>]*>本任务已用 212K \+ 还要约 200K ≈ 共约 412K tok</, 'the sum under it says 已用 in the same words and the same figure as the line (212K, not 210K)');
-  assert.match(html, /data-coverage-path[^>]*>覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题（按还没有题的小节算）</);
+  assert.match(html, /data-coverage-path[^>]*>覆盖现在 99% → 目标 100%，含本轮还要 1 轮、约 2 题（按还没有题的小节算）</);
   const facts = Object.fromEntries(m.taskFacts({ ...job, contract }, T0 + 4 * MIN).map((fact) => [fact.key, fact]));
   assert.deepEqual([facts.primary.label, facts.primary.value, facts.primary.note], ['题数 · 本任务', '1 / 约 3', '草稿共 37 题'], '1 made of the 3 asked: 2 left, as the line says');
   assert.match(facts.calls.value, /212K$/, 'the tile of the model calls: the same tokens');
   const goal = m.goalLines(contract, { kindLabel: '出题' }).find((line) => line.key === 'round').text;
-  assert.equal(goal, '第 1/4 轮 · 覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题（按还没有题的小节算）', '目标与知识点 says the same way');
+  assert.equal(goal, '第 1/4 轮 · 覆盖现在 99% → 目标 100%，含本轮还要 1 轮、约 2 题（按还没有题的小节算）', '目标与知识点 says the same way');
   assert.equal(m.jobRunLine(job), '第 1/4 轮 · 覆盖 99% · 本任务已用 212K tok · 预计还要 200K tok、约 1 分钟', 'the home row\'s line of the job: the same 已用');
   inLanguage('en', () => {
     const english = text(lineOf(job, 'en'));
     assert.match(english, /212K tok used by this task/);
-    assert.match(english, /Coverage now 99% → target 100%, 1 more round, about 2 questions/);
+    assert.match(english, /Coverage now 99% → target 100%, 1 round left including this one, about 2 questions/);
     assert.match(lineOf(job, 'en'), /This task used 212K \+ about 200K to go ≈ about 412K tok in all/);
   });
 });
@@ -185,9 +237,9 @@ test('the words: a job that continues a run says 「本任务」 for its tokens,
   assert.equal(m.copy.runLine(facts), '第 1/4 轮 · 覆盖 99% · 本任务已用 212K tok');
   assert.equal(m.copy.runLine({ ...facts, ended: true, done: 4, state: 'complete' }), '共 4 轮 · 覆盖 99% · 本任务共用 212K tok');
   assert.equal(m.copy.runLine({ ...facts, ownTokens: undefined }), '第 1/4 轮 · 覆盖 99% · 已用 212K tok');
-  assert.equal(m.copy.runPathText(facts), '覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题（按还没有题的小节算）', 'and it says which fact the questions are (#774: they do not add up to the plan)');
-  assert.equal(m.copy.runPathText({ ...facts, left: 3, roundsLeft: 1 }), '覆盖现在 99% → 目标 100%，还要 1 轮、约 2 题（按还没有题的小节算）', 'a round whose sections all have a question is not one of the rounds left');
-  assert.equal(m.copy.runPathText({ ...facts, roundsLeft: undefined, left: 2 }), '覆盖现在 99% → 目标 100%，还要 2 轮、约 2 题（按还没有题的小节算）', 'an older record: the rounds not done');
+  assert.equal(m.copy.runPathText(facts), '覆盖现在 99% → 目标 100%，含本轮还要 1 轮、约 2 题（按还没有题的小节算）', 'and it says which fact the questions are (#774) and that the running round is included (#941)');
+  assert.equal(m.copy.runPathText({ ...facts, left: 3, roundsLeft: 1 }), '覆盖现在 99% → 目标 100%，含本轮还要 1 轮、约 2 题（按还没有题的小节算）', 'a round whose sections all have a question is not one of the rounds left');
+  assert.equal(m.copy.runPathText({ ...facts, roundsLeft: undefined, left: 2 }), '覆盖现在 99% → 目标 100%，含本轮还要 2 轮、约 2 题（按还没有题的小节算）', 'an older record: the rounds not done');
   const forecast = { basis: 'history', tokens: { used: 210_000, left: 200_000, total: 410_000 }, preRun: null };
   assert.equal(m.copy.forecastMath(forecast), '已用 210K + 还要约 200K ≈ 共约 410K tok');
   assert.equal(m.copy.forecastMath(forecast, { own: true }), '本任务已用 210K + 还要约 200K ≈ 共约 410K tok');
@@ -195,5 +247,6 @@ test('the words: a job that continues a run says 「本任务」 for its tokens,
   inLanguage('en', () => {
     assert.equal(m.copy.runLine(facts), 'Round 1/4 · Covered 99% · 212K tok used by this task');
     assert.equal(m.copy.runLine({ ...facts, ended: true, done: 4, state: 'complete' }), '4 rounds in all · Covered 99% · 212K tok in all by this task');
+    assert.equal(m.copy.runPathText({ ...facts, roundsLeft: 7, percent: 11, questionsLeft: 174 }), 'Coverage now 11% → target 100%, 7 rounds left including this one, about 174 questions (counted by the sections still without one)');
   });
 });

@@ -107,8 +107,8 @@ export function mergeJobs(jobs = [], found = []) {
 /** The toast when a supplement starts: it goes on without the reader. */
 export function startedNotice(started, title) {
   const text = started.status === 'queued'
-    ? uiFormat('补题「{0}」已排队，排在 {1} 个任务之后，完成后进信箱。', [title, started.queuedBehind ?? 1])
-    : uiFormat('已开始补题「{0}」，后台继续生成，完成后进信箱。', [title]);
+    ? uiFormat('补题「{0}」已排队（排在 {1} 个任务之后）；通过审阅的新题会直接加入题组，完成时信箱会提醒你。', [title, started.queuedBehind ?? 1])
+    : uiFormat('已开始补题「{0}」，后台继续生成；通过审阅的新题会直接加入题组，完成时信箱会提醒你。', [title]);
   return { text, tone: 'info' };
 }
 

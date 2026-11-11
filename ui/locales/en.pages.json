@@ -4,7 +4,7 @@
   "生成变式需要先配置模型。": "Generating variants needs a model first.",
   "「为你推荐」现在就能练；生成变式前需要先配置模型。": "“Recommended for you” can be practised now; set up a model before generating variants.",
   "音频 / 用量": "Audio / usage",
-  "导入录音文件，后台完成转录、校对和翻译；进度与完成通知会进入信箱。": "Import a recording. Transcription, proofreading and translation run in the background; updates arrive in your inbox.",
+  "导入录音文件，后台完成转录、校对和翻译；实时进度在本页和「任务」查看，转好后存入「资料」，完成时信箱会提醒你。": "Import a recording for background transcription, proofreading and translation. Follow live progress here and in Jobs; transcripts are saved to Sources, and your inbox notifies you when done.",
   "音频设置": "Audio settings",
   "查看资料": "View sources",
   "题组「{0}」· 主题「{1}」\n题目：{2}{3}": "Deck “{0}” · Topic “{1}”\nQuestion: {2}{3}",

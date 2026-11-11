@@ -155,6 +155,24 @@ test('复习全书: 查找 from the book, a code opens its heading; 导出 with 
       assert.equal(bytes.readUInt32LE(0), 0x04034b50, `${width}px: a zip`);
       assert.equal(bytes.toString('utf8', 30, 39), 'book.yaml', `${width}px: its first file names the order`);
       assert.ok(bytes.readUInt16LE(bytes.length - 12) >= 4, `${width}px: the folder's files are all in it`);
+      // The whole book as one offline page (#896): the same choices, its name, no address; with 「不含原文引文」 the footnote quotes are gone and their places stay.
+      const asPage = page.waitForEvent('download');
+      await dialog.locator('.book-export__page').click();
+      const pageFile = await asPage;
+      assert.equal(pageFile.suggestedFilename(), '复习全书-SA-含答案册.html');
+      const html = await readFile(await pageFile.path(), 'utf8');
+      assert.match(html, /^<!doctype html>\n<html lang="zh-CN">/);
+      assert.doesNotMatch(html, /https?:\/\/|<script|<link|<img|\[\^|\{#|studyhub:\/\//, `${width}px: the page names no address and shows no raw marker`);
+      assert.match(html, /<h2 id="answers" class="chapter">/, `${width}px: the answer key chosen above is in it`);
+      const quote = /<li id="fn-[^"]+">([^<]{6,}?)(?: · [^<]*)? <a class="fnback"/.exec(html)?.[1];
+      assert.ok(quote && !quote.includes('已省略'), `${width}px: a footnote carries its quote`);
+      await dialog.getByText('整本书页面不含原文引文').click();
+      const withoutQuotes = page.waitForEvent('download');
+      await dialog.locator('.book-export__page').click();
+      const bare = await readFile(await (await withoutQuotes).path(), 'utf8');
+      assert.ok(!bare.includes(quote), `${width}px: with the option on the quote is not in the file`);
+      assert.match(bare, /<li id="fn-[^"]+">（原文引文已省略）/, `${width}px: but its footnote is`);
+      await dialog.getByText('整本书页面不含原文引文').click();
       if (shots) await page.screenshot({ path: join(shots, `export-files-${width}.png`) });
       // The focus stayed on the button (a busy button is disabled and drops it, and then Esc reaches nothing): Esc hides its tooltip, as any tooltip's, and the next one closes the dialog.
       await page.keyboard.press('Escape');

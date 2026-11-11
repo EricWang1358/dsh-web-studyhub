@@ -22,7 +22,7 @@ import {
   HIGHLIGHT_COLORS, addHighlight, removeHighlight, recolorHighlight, annotateHighlight, segmentParagraph,
   paperPhase, phaseRemaining, canType, livePace, tickQuestion, paperTimings, readSession, writeSession,
 } from "./case-session.js";
-import { RubricResult, CaseReport } from "./CaseResult.jsx";
+import { RubricResult, CaseReport, caseGradingState } from "./CaseResult.jsx";
 import AnswerCardSection from "./AnswerCard.jsx";
 import { useStudy } from "./study-context.jsx";
 import css from "./case-study.css";
@@ -189,7 +189,7 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
           <TokenEstimate enabled={!!call && !!draft.trim() && !rubric}
             request={{ feature: "grade", deckId: run.deckId, cardId: card.id, answerChars: draft.length }} />
           {grading && <p className="assist-status" role="status"><Spinner size="sm" />
-            {ui("正在按评分标准逐项批改：完成后结果显示在这里，也会进信箱。可以先去做别的题。")}</p>}
+            {ui("正在按评分标准逐项批改：完成后结果显示在这里，完成时信箱也会提醒你。可以先去做别的题。")}</p>}
           {task?.status === "failed" && <InlineMessage>{uiFormat("批改没有完成：{0}。可以重新提交。", [task.message || ui("任务失败")])}</InlineMessage>}
         </>
       )}
@@ -203,8 +203,43 @@ const phaseLabel = (phase, handwriting) => ({ reading: ui("阅读时间"), writi
   transcribe: ui("录入答案（不计时）"), over: ui("时间到"), submitted: ui("已交卷") })[phase] || "";
 const paceLabel = (pace) => ({ ahead: ui("节奏从容"), "on-track": ui("节奏正常"), behind: ui("时间偏紧：先保证每题都写到") })[pace];
 
+/** Answers from a saved case report fill in missing browser state without overwriting newer edits. */
+export function hydrateReportAnswers(report, current = {}) {
+  let next = current;
+  for (const question of report?.case?.questions || []) {
+    if (!next[question.cardId] && question.response) {
+      if (next === current) next = { ...current };
+      next[question.cardId] = question.response;
+    }
+  }
+  return next;
+}
+
+/** Submit background or direct grading for every still-pending question of a case report, falling back to saved responses on the report. */
+export async function submitCasePaperGrades({ call, report, answers = {}, uiLanguage = getUiLanguage() }) {
+  const errors = [], tasks = [];
+  let gradedDirect = false;
+  for (const question of (report?.case?.questions || []).filter((item) => item.status === "pending")) {
+    const text = answers?.[question.cardId] || question.response || "";
+    const request = { mode: "grade", deckId: question.deckId, cardId: question.cardId, runId: report.runId, text, uiLanguage };
+    try {
+      const task = await submitAssist(call, request);
+      if (task?.id) tasks.push(task);
+    } catch (failure) {
+      // Hosts without background help grade through the runtime action instead.
+      if (/assist\.start/.test(failure.message)) {
+        try {
+          await call("card.grade", { deckId: question.deckId, cardId: question.cardId, runId: report.runId, answer: request.text });
+          gradedDirect = true;
+        } catch (inner) { errors.push(inner.message); }
+      } else errors.push(failure.message);
+    }
+  }
+  return { errors, tasks, gradedDirect };
+}
+
 export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, onLocation, header, recent, course: courseProp, onCourseChange, onSetupModel }) {
-  const { call } = useStudy();
+  const { call, act } = useStudy();
   useInjectCss(css, "study-case-workspace");
   const toast = useToast();
   // 模拟考试 owns the course scope and the header; used on its own the paper keeps its own scope.
@@ -223,14 +258,48 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
   const [answers, setAnswers] = useState({}), [highlights, setHighlights] = useState([]), [session, setSession] = useState(null);
   const [activeId, setActiveId] = useState(null), [view, setView] = useState("questions");
   const [confirming, setConfirming] = useState(false), [gradingErrors, setGradingErrors] = useState([]);
-  // A typed paper is submitted when its time is up; paper practice moves on to transcription instead. The report follows the background grading.
-  const exam = useExamRun({ kind: "case", call, initialRunId, onLocation, pollReport: (value) => !!value?.case?.pending,
+  const [submittingGrade, setSubmittingGrade] = useState(false), [localGradeTasks, setLocalGradeTasks] = useState([]);
+  const [syncedDoneStamp, setSyncedDoneStamp] = useState("");
+  const shouldPollRef = useRef(false);
+  // A typed paper is submitted when its time is up; paper practice moves on to transcription instead. The report follows active background grading.
+  const exam = useExamRun({ kind: "case", call, initialRunId, onLocation, pollReport: (value) => !!value?.case?.pending && shouldPollRef.current,
     autoSubmit: { when: () => currentPhase === "over", run: () => submit() } });
   const { phase, run, report, busy, error, now } = exam;
   const writes = useRef(createWriteQueue()), savedHighlights = useRef(""), lastTick = useRef(Date.now());
   const activeRef = useRef(activeId);
   activeRef.current = activeId;
   const model = modelReadiness(data);
+  useEffect(() => { setLocalGradeTasks([]); }, [data?.assist]);
+  const assistTasks = useMemo(() => {
+    const live = Array.isArray(data?.assist) ? data.assist : [];
+    const extras = localGradeTasks.filter((task) => !live.some((item) => item.id === task.id));
+    return [...live, ...extras];
+  }, [data?.assist, localGradeTasks]);
+  const doneStamp = useMemo(() => {
+    if (!report?.case?.pending || !report.runId) return "";
+    const pendingIds = new Set(report.case.questions.filter((q) => q.status === "pending").map((q) => q.cardId));
+    return assistTasks
+      .filter((task) => task?.mode === "grade" && task.status === "done" && task.runId === report.runId && pendingIds.has(task.cardId))
+      .map((task) => task.id)
+      .join("|");
+  }, [assistTasks, report]);
+  const syncingDone = Boolean(doneStamp) && doneStamp !== syncedDoneStamp;
+  const gradingState = useMemo(
+    () => caseGradingState(report, assistTasks, gradingErrors, submittingGrade || syncingDone),
+    [report, assistTasks, gradingErrors, submittingGrade, syncingDone],
+  );
+  shouldPollRef.current = gradingState.phase === "running";
+  useEffect(() => {
+    if (phase !== "report" || !doneStamp || doneStamp === syncedDoneStamp) return;
+    let cancelled = false;
+    void Promise.resolve(exam.refreshReport()).finally(() => {
+      if (!cancelled) setSyncedDoneStamp(doneStamp);
+    });
+    return () => { cancelled = true; };
+  }, [phase, doneStamp, syncedDoneStamp, exam]);
+  useEffect(() => {
+    if (phase === "report" && report) setAnswers((current) => hydrateReportAnswers(report, current));
+  }, [phase, report]);
 
   useEffect(() => {
     setSettings((current) => ({ ...current, minutesPerMark: profile.exam.minutesPerMark || DEFAULT_MINUTES_PER_MARK,
@@ -268,7 +337,10 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
         if (!value.closed) return { phase: "running", run: value };
         return initialRunId ? { phase: "report", run: value, report: await call("exam.report", { runId: id }) } : { stop: true };
       },
-      onFound: (found) => { if (found.phase === "running") setUpPaper(found.run); },
+      onFound: (found) => {
+        if (found.phase === "running") setUpPaper(found.run);
+        else if (found.phase === "report") setAnswers((current) => hydrateReportAnswers(found.report, current));
+      },
       // Not a paper any more, or not readable: try the next candidate.
       onError: () => "continue" });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -324,23 +396,24 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
   };
 
   const grade = useCallback(async (value, responses) => {
-    const errors = [];
-    for (const question of value.case.questions.filter((item) => item.status === "pending")) {
-      const request = { mode: "grade", deckId: question.deckId, cardId: question.cardId, runId: value.runId, text: responses[question.cardId] || "", uiLanguage: getUiLanguage() };
-      try { await submitAssist(call, request); }
-      catch (failure) {
-        // Hosts without background help grade through the runtime action instead.
-        if (/assist\.start/.test(failure.message)) {
-          try { await call("card.grade", { deckId: question.deckId, cardId: question.cardId, runId: value.runId, answer: request.text }); }
-          catch (inner) { errors.push(inner.message); }
-        } else errors.push(failure.message);
+    setGradingErrors([]);
+    setSubmittingGrade(true);
+    try {
+      const result = await submitCasePaperGrades({ call, report: value, answers: responses });
+      if (result.tasks.length) {
+        setLocalGradeTasks((prev) => [...prev.filter((item) => !result.tasks.some((next) => next.id === item.id)), ...result.tasks]);
+        void act("snapshot", { compact: true });
       }
+      if (result.gradedDirect) await exam.refreshReport();
+      setGradingErrors(result.errors);
+    } finally {
+      setSubmittingGrade(false);
     }
-    setGradingErrors(errors);
-  }, [call]);
+  }, [act, call, exam]);
 
   function submit() {
     setConfirming(false);
+    if (model.ready) setSubmittingGrade(true);
     return exam.submit({
       before: async () => {
         for (const timer of Object.values(saveTimers.current)) clearTimeout(timer);
@@ -354,7 +427,7 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
         if (model.ready) await grade(value, answers);
         else setGradingErrors([uiFormat("{0}，答案已保存；配置模型后点「重新提交批改」。", [gateTitle("inline")])]);
       },
-    });
+    }).finally(() => setSubmittingGrade(false));
   }
 
   const drills = (criteria) => exam.perform(async () => {
@@ -372,7 +445,8 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
     <section className="page exam case-paper">
       <PageHeader eyebrow={ui("案例分析卷")} title={ui("案例分析卷 · 报告")} description={report.case?.title}
         back={{ label: ui("回到模拟考试"), onClick: () => exam.leave() }} />
-      <CaseReport report={report} busy={busy} gradingErrors={gradingErrors}
+      <CaseReport report={report} busy={busy || submittingGrade} assistTasks={assistTasks} submitting={submittingGrade || syncingDone}
+        gradingErrors={gradingErrors}
         onRetryGrading={() => grade(report, answers)}
         onDrills={model.ready ? drills : undefined} onAgain={model.ready ? again : undefined}
         onPracticeDeck={onStartRun ? async () => {
@@ -465,7 +539,7 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
           ui("选一套案例卷，或点「新出一份案例卷」让 AI 按课程资料出一套。"),
           ui("先读：阅读时间里只能看案例和题目，用不同颜色高亮线索。"),
           ui("再写：按每题分值分配作答时间，页面会显示每题的建议用时。"),
-          ui("交卷后按评分标准逐条给分，并给出改写建议；批改由 AI 模型完成，结果也会进信箱。"),
+          ui("交卷后按评分标准逐条给分，并给出改写建议；批改由 AI 模型完成，结果显示在考试报告页，完成时信箱也会提醒你。"),
         ]}
         summary={deck ? [uiFormat("满分 {0} 分", [deck.caseMarks]),
           uiFormat("阅读 {0} 分钟 · 作答 {1} 分钟（每分约 {2} 分钟）· 共 {3} 分钟", [reading, writing, settings.minutesPerMark, reading + writing])].join(" · ")

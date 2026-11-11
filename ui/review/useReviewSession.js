@@ -8,6 +8,7 @@ import { usePersistentState } from '../storage.js';
 import { usePolling } from '../use-polling.js';
 import { EN_KEY, flag } from '../app/use-app-shell.js';
 import { resolvePracticeSettings } from '../../lib/practice-settings.js';
+import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
   AUTO_ADVANCE_MS, advanceKeyOf, autopilotPlan, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
@@ -15,11 +16,20 @@ import {
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
 import { createDraftSaver, draftKey, draftPayloadOf, draftable, entrySignature, keepTyped, savedSignature } from './draft-persistence.js';
+import { hiddenMsOf, noteVisibility, openClock } from './hidden-time.js';
 
 // These steps read the entry on the host (review.answer takes the help recorded there) or leave the question: what was typed goes first, and must arrive.
 const SAVES_FIRST = new Set(['review.answer', 'review.move']);
 // How long a number key's grade button wears its press (#745): long enough to be seen, short enough never to look stuck.
 const KEY_PRESS_MS = 220;
+
+export function mergeReviewPollWithFollowups(current, next) {
+  const merged = mergeReviewPoll(current, next);
+  if (!current || !next || current.id !== next.id || (current.queueVersion || 0) !== (next.queueVersion || 0)
+    || current.index !== next.index || current.revealed !== next.revealed || !!current.feedback !== !!next.feedback) return merged;
+  if (JSON.stringify(merged.followups) === JSON.stringify(next.followups)) return merged;
+  return { ...merged, followups: next.followups };
+}
 
 /* The practice session (ui-consistency #112): the open run, what the learner has typed on its question, the teaching
    panel, the EN translation, the autopilot and the keyboard. It used to live in App, which re-rendered it on every
@@ -125,8 +135,24 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     };
   }, []);
 
+  /* ── time away (#883): how long the page was hidden while this question was open, sent with its answer so the recorded time leaves it out ── */
+  const questionKey = draftKey(refs.dataRef.current?.root, run);
+  const awayClock = useRef(null);
+  // Each question (a tail retry is another) opens its own clock; a reload opens a new one, so a restored draft brings no time with it.
+  useEffect(() => { awayClock.current = openClock(questionKey, Date.now(), document.hidden === true); }, [questionKey]);
+  useEffect(() => {
+    const seen = () => { awayClock.current = noteVisibility(awayClock.current, document.hidden === true, Date.now()); };
+    document.addEventListener('visibilitychange', seen);
+    return () => document.removeEventListener('visibilitychange', seen);
+  }, []);
+  const awayArgs = useCallback((action, current) => {
+    const hiddenMs = action === 'review.answer' ? hiddenMsOf(awayClock.current, draftKey(refs.dataRef.current?.root, current), Date.now()) : 0;
+    return hiddenMs > 0 ? { hiddenMs } : {};
+  }, [refs]);
+
   /* ── entering and leaving a question ── */
-  const enterRun = useCallback((next, input) => {
+  // `moved`: the host restarted the question's timer (a move, or the way back to it), so the hidden time counted so far no longer belongs to it.
+  const enterRun = useCallback((next, input, moved = false) => {
     if (!next) return;
     const root = refs.dataRef.current?.root;
     // The same open question handed back (a reveal's answer, the conversation opening it again): what is on screen is newer than what the library had when it answered.
@@ -134,11 +160,13 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     syncDraft();
     runRef.current = next;
     if (next.mode === 'exam') { nav.show.exam('exam', next.id); return; }
+    if (moved && draftable(next)) awayClock.current = openClock(draftKey(root, next), Date.now(), document.hidden === true);
     setRun(next);
     if (!embeddedIn && nav.page !== 'guided') setPage('review');
     const opened = entryForRun(next, input, { draft: (teaching) => readTeachingDraft(refs.dataRef.current?.root, teaching) });
     setEntry(same ? keepTyped(opened, entryRef.current) : opened);
   }, [nav.show, setPage, refs, embeddedIn, nav.page, syncDraft]);
+  const enterMovedRun = useCallback((next, input) => enterRun(next, input, true), [enterRun]);
   const reset = useCallback(() => { draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; setRun(null); setEntry(emptyEntry()); }, []);
   const clearRun = useCallback(() => setRun(null), []);
   const patchRun = useCallback((change) => setRun(change), []);
@@ -163,18 +191,19 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   useEffect(() => { setShowBack(!!run?.revealed); }, [run?.id, run?.card?.id, run?.index, run?.queueVersion, run?.revealed]);
 
   /* Links and fixes made in the conversation reach the open question without a reload. */
-  usePolling(async () => {
+  const pollRun = useCallback(async () => {
     const current = runRef.current;
     if (!current?.id) return;
     const next = await call('review.get', { runId: current.id });
-    setRun((existing) => mergeReviewPoll(existing, next));
-  }, { intervalMs: 4000, enabled: page === 'review' && !!run?.card?.id });
+    setRun((existing) => mergeReviewPollWithFollowups(existing, next));
+  }, [call]);
+  usePolling(pollRun, { intervalMs: 4000, enabled: page === 'review' && !!run?.card?.id });
 
   /* ── one step of the round ── */
   const stepWaiting = useRef(false);
   const reviewAct = useCallback((action, args = {}) => {
     const current = runRef.current;
-    const step = () => act(action, { runId: current.id, cardId: current.card?.id, queueVersion: current.queueVersion || 0, ...args }, (result) => enterRun(result),
+    const step = () => act(action, { runId: current.id, cardId: current.card?.id, queueVersion: current.queueVersion || 0, ...args, ...awayArgs(action, current) }, (result) => enterRun(result, undefined, action === 'review.move'),
       // Practice steps return the run they changed; the snapshot catches up on the next poll.
       // Only a finished round reloads the library (its result page needs fresh counts).
       { refreshAfter: (result) => action === 'review.move' ? !!result.complete : action !== 'review.answer' && action !== 'review.reveal' });
@@ -187,7 +216,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const root = refs.dataRef.current?.root, key = draftKey(root, current);
     return flushDraft().then((saved) => (saved && draftKey(refs.dataRef.current?.root, runRef.current) === key ? step() : undefined))
       .finally(() => { stepWaiting.current = false; });
-  }, [act, enterRun, flushDraft, refs, syncDraft]);
+  }, [act, awayArgs, enterRun, flushDraft, refs, syncDraft]);
   const reviewActRef = useRef(reviewAct);
   reviewActRef.current = reviewAct;
 
@@ -244,14 +273,18 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     try {
       await call('card.translate', { deckId: target.deckId, cardId: target.card.id });
       const next = await call('review.get', { runId: target.id });
-      setRun((current) => (reviewEntryKey(current) === key ? mergeReviewPoll(current, next) : current));
+      setRun((current) => (reviewEntryKey(current) === key ? mergeReviewPollWithFollowups(current, next) : current));
     } catch (failure) {
-      if (isCurrentEntry(runRef.current, key)) setError(errorMessage(failure));
+      const msg = errorMessage(failure);
+      if (!modelReadiness(refs.dataRef.current).ready || describeModelError(msg).action === 'settings' || /没有可用的.*模型|未配置|密钥/.test(String(failure?.message || failure))) {
+        setShowEn(false);
+      }
+      if (isCurrentEntry(runRef.current, key)) setError(msg);
     } finally {
       enFlights.current.end(key);
       setEnBusyKey((current) => (current === key ? '' : current));
     }
-  }, [call, setError]);
+  }, [call, refs, setError, setShowEn]);
   // With EN on, each newly opened card gets translated once (server caches it).
   useEffect(() => {
     if (page !== 'review' || !showEn || !run?.card || run.complete || run.mode === 'exam') return;
@@ -311,22 +344,22 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const current = runRef.current;
     if (!current?.card || (!text.trim() && !(mode === 'ask' && helpChoices.length) && !(mode === 'derive' && derive?.followupId))) return false;
     // Only asking helps with the answer: 修题 and 出题 change the bank, and 批改 is the answer itself, which reads what was recorded.
-    if (mode === 'ask') noteAssistance('askedTutorBeforeAnswer');
+    if (mode === 'ask') { noteAssistance('askedTutorBeforeAnswer'); patch({ explain: true }); }
     if (mode === 'grade' && !(await flushDraft())) return false;
     try {
       await submitAssist(call, { deckId: current.deckId, cardId: current.card.id, runId: current.id,
         mode, text: text.trim(), helpChoices, ...(derive ? { derive } : {}), uiLanguage: getUiLanguage() });
-      notify(mode === 'ask' ? ui('后台助教正在解答，完成后会出现在这道题的问答里，并进信箱。')
-        : mode === 'derive' ? ui('后台助教正在出题，完成后新题会放进同一题组，并进信箱。')
-          : mode === 'grade' ? { text: ui('已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，也会进信箱。'), tone: 'success' }
-            : ui('后台助教正在改这道题，改完会进信箱，可一步撤销。'));
+      notify(mode === 'ask' ? ui('后台助教正在解答。讲解会出现在这道题下面的问答里，完成时信箱会提醒你。')
+        : mode === 'derive' ? ui('后台助教正在出题。新题会放进同一题组，完成时信箱会提醒你。')
+          : mode === 'grade' ? { text: ui('已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，完成时信箱也会提醒你。'), tone: 'success' }
+            : ui('后台助教正在改这道题，会直接改这张卡。完成时信箱会提醒你，在信箱里可以一步撤销。'));
       core.refresh().catch(() => {});
       return true;
     } catch (failure) {
       setError(failure.message || ui('这次没有提交成功，也没有拿到具体原因。可以再提交一次。'));
       return false;
     }
-  }, [call, notify, setError, core, noteAssistance, flushDraft]);
+  }, [call, notify, setError, core, noteAssistance, patch, flushDraft]);
   // Slaying is one click next to other tools; offer an immediate undo instead of sending the learner to the slay deck in 管理题组.
   const slayCard = useCallback(async () => {
     const current = runRef.current, ref = { deckId: current.deckId, cardId: current.card.id };
@@ -363,14 +396,17 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     inEditable: !!event.target.closest?.('input,textarea,select,[contenteditable],dialog'), onButton: !!event.target.closest?.('button') });
   const canShortcut = (event) => shortcutGate(eventShape(event), gateContext()) && !event.defaultPrevented && !event.repeat && !event.shiftKey && page === 'review' && !!run?.card;
   keyHandler.current = (event) => {
-    const outcome = shortcutAction(eventShape(event), { ...gateContext(), page, run, busy, shortcutHelp, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
+    const shape = eventShape(event);
+    const k = shape.key?.toLowerCase();
+    if ((k === 'g' || k === 'b') && !shape.repeat && !shape.shiftKey && page === 'review' && run?.card && shortcutGate(shape, gateContext())) cancelAutoAdvance();
+    const outcome = shortcutAction(shape, { ...gateContext(), page, run, busy, shortcutHelp, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
     if (!outcome) return;
     cancelAutoAdvance();
     if (outcome.preventDefault) event.preventDefault();
     const action = outcome.action;
     if (!action) return;
     if (action.type === 'help') setShortcutHelp((value) => !value);
-    else if (action.type === 'help-close') setShortcutHelp(false);
+    else if (action.type === 'help-close') { event.preventDefault(); setShortcutHelp(false); }
     else if (action.type === 'autopilot') toggleAutopilot();
     else if (action.type === 'resume') late.current.resume?.();
     else if (action.type === 'answer') { markKeyGrade(pressedGradeOf(action)); reviewAct('review.answer', action.args); }
@@ -421,7 +457,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     autopilot, onStatus: () => core.refresh().catch(() => {}), onPractice: onCoachPractice,
     onContinue: () => continueTo(null).go(),
     onReviewWeak: () => act('review.weak.start', { runId: run.id }, enterRun),
-    canShortcut, autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0, debrief: null,
+    canShortcut, cancelAutoAdvance, autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0, debrief: null,
   };
   const actions = useMemo(() => ({
     reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn,
@@ -438,5 +474,5 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     toggleAutopilot,
   }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleHint, noteAssistance]);
   return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
-    shortcutHelp, keyGrade, ...kind, coach, continueTo, onCoachPractice, enterRun, reset, clearRun, patchRun, actions, flushDraft };
+    shortcutHelp, keyGrade, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, actions, flushDraft };
 }

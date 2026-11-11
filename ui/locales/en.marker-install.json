@@ -65,7 +65,9 @@
   "换用「国内直连」的下载源，或检查网络和代理后，点「重试」。": "Switch to a download source marked Reachable in mainland China, or check the network and proxy, then press Retry.",
   "清理磁盘，或点「更改位置」换到空间更大的磁盘后重试。": "Free some disk space, or press Change location to use a disk with more room, then retry.",
   "点「更改位置」换一个你有写入权限的文件夹后重试。": "Press Change location and pick a folder you can write to, then retry.",
-  "安装 Python 3.10 – 3.12 后重试。": "Install Python 3.10 – 3.12, then retry.",
+  "安装 Python {0}–{1} 后重试。": "Install Python {0}–{1}, then retry.",
+  "安装 Marker 支持的 Python 版本后重试。": "Install a Python version Marker supports, then retry.",
+  "你的 Python {0} 在支持范围内，这次不是版本问题，而是本机缺少编译工具。点「发给主会话」让主会话看日志、给出办法。": "Your Python {0} is supported, so the version is not the problem: this computer is missing the build tools. Press Send to the main chat so the main chat reads the log and suggests a fix.",
   "把安装位置里 venv 的 marker_single 路径填到下面的输入框，点「检测并保存」。": "Type the path of marker_single inside the venv folder of the install location into the box below, then press Check and save.",
   "没有改动任何设置。需要时点「重试」。": "No settings were changed. Press Retry when you want to.",
   "点「重试」接着安装，已下载的内容会被 pip 缓存复用。": "Press Retry to continue; what was already downloaded is reused from pip's cache.",
@@ -101,5 +103,12 @@
   "不用 Docker": "Without Docker",
   "在同一个位置重新安装 1.x：模型直接在 Marker 里运行，不需要 Docker。已经转换好的页不受影响。": "Install 1.x again in the same place: the models run inside Marker, with no Docker. Pages already converted are not affected.",
   "修复安装（改装 1.x）": "Repair: install 1.x",
-  "这份 Marker 不是 StudyHub 装的：用下面的「一键安装 Marker」装一份 1.x，或在它自己的 Python 环境里运行 pip install \"marker-pdf>=1.10,<2\"，再点「检测并保存」。": "StudyHub did not install this Marker: install a 1.x with One-click install below, or run pip install \"marker-pdf>=1.10,<2\" in its own Python environment, then press Check and save."
+  "这份 Marker 不是 StudyHub 装的：用下面的「一键安装 Marker」装一份 1.x，或在它自己的 Python 环境里运行 pip install \"marker-pdf>=1.10,<2\"，再点「检测并保存」。": "StudyHub did not install this Marker: install a 1.x with One-click install below, or run pip install \"marker-pdf>=1.10,<2\" in its own Python environment, then press Check and save.",
+  "找到的 Python {0} 版本太新，需要 {1}–{2}（推荐 {3}）": "The Python found ({0}) is too new; {1}–{2} is needed ({3} recommended)",
+  "点「更改位置」换一个短一些的路径（例如 D:\\Tools\\marker）后重试。": "Press Change location and pick a shorter path (for example D:\\Tools\\marker), then retry.",
+  "安装 Python {0}（Marker 目前支持 Python {1}–{2}），装好后点「重新检测」再重试。": "Install Python {0} (Marker supports Python {1}–{2}), press Check again, then retry.",
+  "找到的 Python 版本太新（Marker 目前支持 Python 3.10–3.13，推荐 3.12）。请安装 Python 3.12 后重试。": "The Python found is too new (Marker currently supports Python 3.10–3.13; 3.12 is recommended). Install Python 3.12 and retry.",
+  "安装路径太长，Windows 写不下深层文件。": "The install path is too long for Windows to write deep files.",
+  "安装依赖包时编译失败：有一个依赖包没有现成安装包，要在本机编译。": "Building a dependency package failed: one dependency has no ready-made package for this computer and must be compiled here.",
+  "另一个 StudyHub 窗口正在安装，这里会同步显示进度；要取消请去那个窗口操作。": "Another StudyHub window is installing this; progress updates here automatically. Cancel it from that window if needed."
 }

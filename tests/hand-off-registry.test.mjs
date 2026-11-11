@@ -29,6 +29,8 @@ const FIXTURES = {
   'topics.group': { input: { mode: 'merge', ungrouped: 12, topicCount: 40, course: 'SA', alternative: true }, fenced: [] },
   'import.file': { input: { purpose: 'audio', error: 'unsupported', files: ['lecture1.mp4'] }, fenced: ['error', 'files'] },
   'job.failed': { input: { jobId: 'j1', kind: 'audio-import', title: 'Week 3', status: 'failed', line: 'ffmpeg missing', error: 'ffmpeg missing', sourceIds: ['s1'] }, fenced: ['title', 'line', 'error'] },
+  'setup.failed': { input: { tool: 'mineru', status: 'error (install)', stage: '5/6 enable', code: 'not-writable', summary: 'Permission denied on home folder', folder: '/opt/studyhub/mineru', tier: 'basic', source: 'mainland', python: 'Python 3', log: 'PermissionError: Credential configuration directory' },
+    fenced: ['stage', 'code', 'summary', 'folder', 'python', 'log'] },
   'skeleton.design': { input: { scope: [{ deckId: 'd1', topic: 'Entropy' }], lint: null, topics: ['Entropy', 'Heat'], update: { id: 'sk1', title: 'Physics map' } }, fenced: ['topics', 'scope'] },
   'skeleton.archify': { input: { skeleton: { id: 'sk1', title: 'Physics map' } }, fenced: [] },
   'skeleton.extend': { input: { skeleton: { id: 'sk1', title: 'Physics map' }, nodeId: 'n1', term: 'Entropy', intent: 'contrast', text: 'Enthalpy' }, fenced: ['term', 'text'] },
@@ -55,6 +57,7 @@ const FIXTURES = {
   'method.explain': { input: { course: 'Biochemistry', stage: 'Understand enzyme kinetics' }, fenced: ['course', 'stage'] },
   'method.draftMaterial': { input: { course: 'Biochemistry', stage: 'Understand enzyme kinetics', stageIndex: 1, methodName: 'Lab track', note: 'Include Michaelis-Menten derivation and clinical inhibitor examples' }, fenced: ['course', 'stage', 'methodName', 'note'] },
   'method.missed': { input: { course: 'Biochemistry', stage: 'Understand enzyme kinetics', missed: [{ deckId: 'd1', cardId: 'c1', topic: 'Inhibition', prompt: 'How does Km change under competitive inhibition?' }], note: 'I keep mixing up Km and Vmax' }, fenced: ['course', 'stage', 'missed', 'note'] },
+  'question.stubborn': { input: { course: 'Biochemistry', deckId: 'd1', cardId: 'c1', topic: 'Inhibition', prompt: 'How does Km change under competitive inhibition?', note: 'I have missed this five times' }, fenced: ['course', 'topic', 'prompt', 'note'] },
   'course.focus': { input: { course: 'OS', files: ['studyhub-work/focus-intake/b1/01-scope.png'], notes: 'Focus on page replacement', existingTopics: ['Deadlock'], generateAfter: true }, fenced: ['course', 'files', 'notes', 'existingTopics'] },
   'task.check': { input: { deckId: 'd1', cardId: 'c1', runId: 'r1', deckTitle: 'Distributed Systems', topic: 'Inventory deduction', prompt: 'Implement atomic stock deduction without overselling.', rubric: '1. Atomic check-and-decrement; 2. Reject non-positive quantity.', rubricCriteria: [{ id: 'c1', label: 'Atomicity', marks: 2, descriptor: 'Check and deduct atomically' }], filePath: 'src/stock.lua', note: 'Focus on concurrency edge cases' }, fenced: ['deckTitle', 'topic', 'prompt', 'rubric', 'filePath', 'note'] },
 };

@@ -88,14 +88,22 @@ test("modelCompletion reads the stream finish: provider errors keep their code, 
   await assert.rejects(slow("sys", "p"), (e) => e.name === "TimeoutError" && e.modelFailure === true);
 
   let requests = 0;
+  let firstUnwound;
   const stalledOnce = plugin.modelCompletion(ctxWith(async function* ({ signal }) {
     if (++requests === 1) {
-      await new Promise((resolve) => signal.addEventListener("abort", resolve));
-      yield { type: "finish", reason: { kind: "aborted", failure: { message: "aborted", code: "ABORTED" } } };
-      return;
+      let markDone;
+      firstUnwound = new Promise((resolve) => { markDone = resolve; });
+      try {
+        await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }));
+        yield { type: "finish", reason: { kind: "aborted", failure: { message: "aborted", code: "ABORTED" } } };
+        return;
+      } finally {
+        markDone();
+      }
     }
     yield* textChunks('{"ok":true}');
   }), route, "s", { light: true, lightTimeoutMs: 5000, hedgeMs: 30 });
   assert.equal(await stalledOnce("sys", "p"), '{"ok":true}');
+  await firstUnwound;
   assert.equal(requests, 2);
 });

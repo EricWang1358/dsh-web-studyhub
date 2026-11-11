@@ -623,6 +623,13 @@
     .book-export__estimate {
       gap: var(--space-1);
     }
+    .book-export__page-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: var(--space-3);
+      min-width: 0;
+    }
     .book-export__lead,
     .book-export__pages {
       margin: 0;

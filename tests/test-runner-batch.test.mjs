@@ -134,6 +134,41 @@ test('a test timeout inside a batch names the real test file rather than the bat
   assert.doesNotMatch(err, /batch-\d+\.test\.mjs/);
 });
 
+test('a dynamic import inside an early batched test never captures a later batched file\'s top-level tests as subtests (#926)', async t => {
+  const suite = await makeTempSuite(t);
+  await writeFile(join(suite, 'shared-dep.mjs'), [
+    'await new Promise(resolve => setTimeout(resolve, 120));',
+    'export const ready = true;',
+  ].join('\n'), 'utf8');
+  await writeFile(join(suite, '01-early.test.mjs'), [
+    "import test from 'node:test';",
+    "test('early test dynamically imports shared dep', async () => {",
+    "  await import('./shared-dep.mjs');",
+    '});',
+  ].join('\n'), 'utf8');
+  await writeFile(join(suite, '02-spacer.test.mjs'), [
+    "import test from 'node:test';",
+    'await new Promise(resolve => setTimeout(resolve, 30));',
+    "test('spacer', () => {});",
+  ].join('\n'), 'utf8');
+  await writeFile(join(suite, '03-later.test.mjs'), [
+    "import test from 'node:test';",
+    "import { ready } from './shared-dep.mjs';",
+    "test('later top-level test is not cancelled by early test', async () => {",
+    '  await new Promise(resolve => setTimeout(resolve, 60));',
+    "  if (!ready) throw new Error('missing');",
+    '});',
+  ].join('\n'), 'utf8');
+
+  const { code, out, err } = await runSuite(suite, {
+    args: ['--test-reporter=tap'],
+    env: { STUDY_TEST_BATCH: '1', STUDY_TEST_BATCH_SIZE: '10' },
+  });
+  assert.equal(code, 0, err + out);
+  assert.doesNotMatch(out, /cancelledByParent/);
+  assert.match(out, /# pass 3/);
+});
+
 test('CI verification workflows cancel superseded main runs while release workflow never cancels in-flight releases', async () => {
   const verify = await readFile(join(repoRoot, '.github', 'workflows', 'verify.yml'), 'utf8');
   const smoke = await readFile(join(repoRoot, '.github', 'workflows', 'browser-smoke.yml'), 'utf8');

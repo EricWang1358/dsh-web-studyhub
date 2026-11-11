@@ -209,22 +209,26 @@ function controlledWorker() {
   return worker;
 }
 
-test('local drain waits for progress and sends only one end marker', async () => {
+test('local drain waits for progress and sends only one end marker', async t => {
   const worker = controlledWorker();
-  const socket = new LoopbackWebSocket('local://live', { createWorker: () => worker, timing: { drainIdleMs: 100 } });
+  const socket = new LoopbackWebSocket('local://live', { createWorker: () => worker, timing: { drainIdleMs: 1000 } });
   await waitFor(() => socket.readyState === 1, 'open');
-  for (let i = 0; i < 3; i++) socket.send(JSON.stringify(audioMessage(pcm(0.1))));
-  const drained = socket.drain();
-  socket.drain();
+  // The idle timer runs on a mocked clock, so the limit is exact on any runner: every gap between progress messages is below it, the total is well above it.
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (let i = 0; i < 6; i++) socket.send(JSON.stringify(audioMessage(pcm(0.1))));
+  const outcome = { settled: false };
+  const drained = Promise.all([socket.drain(), socket.drain()]).then(() => { outcome.settled = true; }, error => { outcome.settled = error; throw error; });
   socket.send(JSON.stringify(audioMessage(pcm(0.1))));
-  for (let i = 1; i <= 3; i++) {
-    await sleep(50);
+  for (let i = 1; i <= 6; i++) {
+    t.mock.timers.tick(400);
     worker.emit('message', { type: 'progress', samples: i * 1600 });
   }
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(outcome.settled, false, 'progress kept coming, so the drain neither timed out nor finished before done');
   worker.emit('message', { type: 'done' });
   await drained;
   assert.equal(worker.sent.filter(message => message.type === 'end').length, 1);
-  assert.equal(worker.sent.filter(message => message.type === 'audio').length, 3, 'no new audio enters a draining worker');
+  assert.equal(worker.sent.filter(message => message.type === 'audio').length, 6, 'no new audio enters a draining worker');
   assert.equal(socket.readyState, 3);
 });
 

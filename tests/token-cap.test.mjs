@@ -21,9 +21,8 @@ const PER_CALL = 500;
 /** A library with a fake model that reports what a provider reports (usage), so the run has something to count. */
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-token-cap-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root, { coverage: { roundLimit: 8 } });
-  t.after(() => service.dispose());
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   const model = clusteringModel(), calls = { total: 0 };
   service.complete = async (system, prompt, context = {}) => {
     calls.total += 1;

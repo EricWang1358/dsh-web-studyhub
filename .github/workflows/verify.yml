@@ -113,6 +113,9 @@ jobs:
           tests/store.test.mjs
           tests/local-command.test.mjs
           tests/live-loopback.test.mjs
+          tests/mineru-local.test.mjs
+          tests/jev-settings.test.mjs
+          tests/wp2-preset.test.mjs
           tests/test-runner-batch.test.mjs
           tests/test-runner-lock.test.mjs
           tests/test-runner-schedule.test.mjs

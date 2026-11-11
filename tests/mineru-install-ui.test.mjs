@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 /* The one-click MinerU card (ui/MineruInstallCard.jsx): every display state with its exact words, exactly one primary button, Tooltips (never title=),
@@ -9,9 +10,9 @@ import { loadUi } from './helpers/ui-module.mjs';
    default folder, a drive change is two more, and a cancelled install continues with 继续安装. */
 
 const mod = await loadUi(`export { default as MineruInstallCard } from './ui/MineruInstallCard.jsx';
-  export { cardState, STATUS_TEXT, FIX_FOR, fixFor, stageStates, installProgress, installLine, locationHint, mineruUsable, errorHint } from './ui/mineru-install-flow.js';
+  export { cardState, STATUS_TEXT, FIX_FOR, fixFor, stageStates, installProgress, installLine, locationHint, mineruUsable, errorHint, retryNote, tierFor, tierChange, tierChangeLine, fixMenu } from './ui/mineru-install-flow.js';
   export { setUiLanguage } from './ui/i18n.js';`);
-const { MineruInstallCard, cardState, FIX_FOR, fixFor, stageStates, installProgress, installLine, locationHint, mineruUsable, errorHint } = mod;
+const { MineruInstallCard, cardState, FIX_FOR, fixFor, stageStates, installProgress, installLine, locationHint, mineruUsable, errorHint, retryNote, tierFor, tierChange, tierChangeLine, fixMenu } = mod;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const textOf = html => html.replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ');
@@ -49,6 +50,15 @@ const local = {
   enablePort: { state: 'not-installed', origin: null, install: ended('failed', 'port-in-use', 'enable'), lastError: null, external: null },
   enablePortExternal: { state: 'not-installed', origin: null, install: ended('failed', 'port-in-use', 'enable'), lastError: null, external: { exe: 'C:\\Tools\\mineru.exe', state: 'found' } },
   enableService: { state: 'not-installed', origin: null, install: ended('failed', 'service-failed', 'enable'), lastError: null, external: null },
+  // #936: a file of the settings folder MinerU cannot read, during the install (安装 MinerU) and when the service starts; and a service start refused for permissions.
+  homeInstall: { state: 'not-installed', origin: null, install: ended('failed', 'home-permissions', 'package', { done: ['tools', 'python'] }), lastError: null, external: null },
+  homeService: { state: 'server-stopped', origin: 'installed', folder: FOLDER, install: complete, external: null,
+    lastError: { code: 'home-permissions', file: 'config.yaml', message: '本机服务没能启动：MinerU 读不了配置文件夹里的文件，或认为它们不够私有。安装位置没问题，不用换位置。', at: '2026-11-10T00:00:00Z' } },
+  writableService: { state: 'server-stopped', origin: 'installed', folder: FOLDER, install: complete, external: null,
+    lastError: { code: 'not-writable', message: '本机服务没能启动：配置文件夹的权限不符合要求，或没有写入权限。', at: '2026-11-10T00:00:00Z' } },
+  // MinerU's privacy complaint names no file.
+  homeServiceBare: { state: 'server-stopped', origin: 'installed', folder: FOLDER, install: { ...complete, tier: 'standard', installedTier: 'standard' }, external: null,
+    lastError: { code: 'home-permissions', message: '本机服务没能启动：MinerU 读不了配置文件夹里的文件，或认为它们不够私有。安装位置没问题，不用换位置。', at: '2026-11-10T00:00:00Z' } },
 };
 const render = (props, language = 'zh') => { mod.setUiLanguage(language); try { return renderToStaticMarkup(h(MineruInstallCard, { call, ...props })); } finally { mod.setUiLanguage('zh'); } };
 const primaries = html => (html.match(/class="sh-btn sh-btn--primary/g) || []).length;
@@ -78,7 +88,8 @@ test('the one fix of each failure (FIX_FOR), with the second network failure on 
   const ids = Object.fromEntries(Object.keys(FIX_FOR).map(code => [code, fixFor(code).id]));
   assert.deepEqual(ids, { network: 'retry', checksum: 'retry', cancelled: 'continue', interrupted: 'continue', 'no-space': 'relocate', 'not-writable': 'relocate', 'folder-in-use': 'relocate',
     'bad-location': 'relocate', 'path-too-long': 'relocate', 'tools-failed': 'repair', 'python-failed': 'repair', 'package-failed': 'repair', 'models-failed': 'repair', 'check-failed': 'repair',
-    'needs-models': 'repair', 'models-missing': 'repair', 'service-failed': 'restart-service', 'service-timeout': 'restart-service', 'port-in-use': 'restart-service', 'vc-runtime': 'vc-runtime', unreadable: 'recheck' });
+    'needs-models': 'repair', 'models-missing': 'repair', 'service-failed': 'restart-service', 'service-timeout': 'restart-service', 'port-in-use': 'restart-service', 'vc-runtime': 'vc-runtime', unreadable: 'recheck',
+    'home-permissions': 'repair-permissions' });
   assert.deepEqual([fixFor('network', { attempts: 2, source: 'mainland' }).id, fixFor('network', { attempts: 2, source: 'mainland' }).source], ['switch-source', 'global']);
   assert.equal(fixFor('port-in-use', { external: true }).id, 'stop-external');
   assert.equal(fixFor('something-new').id, 'repair');
@@ -466,13 +477,17 @@ test('a change of tier that did not finish: the ready state of the installed tie
 test('a service that does not start never shows a traceback or English CLI text on the status line: a plain reason by its code; the raw text only in 更多 › 详细信息', () => {
   const raw = 'Traceback (most recent call last):\n  File "mineru\\cli\\server.py", line 88, in start\nRuntimeError: worker exited with code 3';
   for (const [code, line] of [['service-failed', '本机服务没能启动：它一启动就退出了。'], ['service-timeout', '本机服务没能启动：等了很久它还没有准备好。'],
+    ['not-writable', '本机服务没能启动：配置文件夹的权限不符合要求，或没有写入权限。'],
     ['models-missing', '本机服务没能启动：模型文件不完整。'], ['port-in-use', '本机服务没能启动：它要用的端口被别的程序占用了。'], ['vc-runtime', '本机服务没能启动：这台电脑缺少微软 VC++ 运行库。'],
     ['something-new', '本机服务没能启动：它一启动就退出了。']]) {
     const status = { state: 'server-stopped', origin: 'installed', folder: FOLDER, install: complete, external: null,
       lastError: { code, message: `本机服务没能启动：${raw}`, detail: raw, at: '2026-10-16T00:00:00Z' } };
     const html = render({ initialLocal: status });
     assert.equal(sentenceOf(html), line, code);
-    assert.doesNotMatch(textOf(html), /Traceback|RuntimeError|worker exited|server\.py/, code);
+    // 复制诊断信息 keeps what it would copy one fold away (看看会复制什么, closed): the learner reads it only by opening it, like 详细信息.
+    const preview = /<details(?![^>]*\sopen)[^>]*sh-diagnostic-copy__fold[^>]*>[\s\S]*?<\/details>/g;
+    assert.ok(html.match(preview)?.length >= 1, `${code}: the copy preview is folded`);
+    assert.doesNotMatch(textOf(html.replace(preview, '')), /Traceback|RuntimeError|worker exited|server\.py/, code);
     const more = render({ initialLocal: status, initialPlan: plan(), initialMore: true });
     assert.match(textOf(more), /详细信息/);
     assert.doesNotMatch(sentenceOf(more), /Traceback/);
@@ -493,4 +508,301 @@ test('the path field\'s placeholder reads as an example, and 取消 and 收起 a
   const source = await (await import('node:fs/promises')).readFile(new URL('../ui/install/LocationChooser.jsx', import.meta.url), 'utf8');
   assert.match(source, /placeholder=\{uiFormat\('例如 \{0\}'/);
   assert.match(source, /\{draft === null && <div className="mineru-install__row">/, 'the 收起 row shows only while the path field is closed');
+});
+
+test('error states offer 复制诊断信息 (with credential redaction) and 发给主会话 (setup.failed); non-error states do not', async t => {
+  for (const errState of [local.enableService, local.network, local.port]) {
+    const html = render({ initialLocal: errState, initialPlan: plan() });
+    assert.match(textOf(html), /复制诊断信息/);
+    assert.match(textOf(html), /发给主会话/);
+    assert.match(html, /data-hand-off="setup\.failed"/);
+    assert.equal(primaries(html), 1);
+    assert.doesNotMatch(html, /\stitle="/);
+  }
+  for (const okState of [local.missing, local.cancelled, local.ready, local.stopped]) {
+    const html = render({ initialLocal: okState, initialPlan: plan() });
+    assert.doesNotMatch(textOf(html), /复制诊断信息/);
+    assert.doesNotMatch(html, /data-hand-off="setup\.failed"/);
+  }
+  const status = {
+    ...local.enableService,
+    install: {
+      ...local.enableService.install,
+      log: ['GET https://user:secret-pass@pypi.example.com/simple/mineru/', '[doclib.stderr.log]', 'PermissionError: Credential configuration directory'],
+    },
+  };
+  const mounted = await remount(t, status);
+  const actions = find(mounted.card.render(), item => typeof item.props?.diagnostic === 'function');
+  assert.ok(actions, 'DiagnosticActions is rendered on error states');
+  const { text: copied, input } = actions.props.diagnostic();
+  assert.equal(input.tool, 'mineru');
+  assert.match(copied, /^\[MinerU\]/);
+  assert.match(copied, /stage: 5\/6 启用本机服务/);
+  assert.match(copied, /folder: D:\\StudyHub\\MinerU/);
+  assert.match(copied, /https:\/\/\*\*\*@pypi\.example\.com\/simple/);
+  assert.ok(!copied.includes('secret-pass'), 'credentials are redacted before copying');
+  assert.ok(!input.log.includes('secret-pass'), 'credentials are redacted before hand-off');
+});
+
+/* ---------- #936 修复权限 · #937 the tier of an unfinished install · #938 the ⋯ menu ---------- */
+
+test('#936: a file of the settings folder is repaired, not moved: 修复权限 (inside the install) / 修复权限并重启 (the service); a service refused for permissions repairs first, 换位置 second and quiet', () => {
+  assert.deepEqual(['id', 'label', 'icon'].map(key => fixFor('home-permissions', { origin: 'install' })[key]), ['repair-permissions', '修复权限', 'key']);
+  assert.equal(fixFor('home-permissions', { origin: 'install' }).secondary, undefined, 'the location is fine: no 换位置 at all');
+  assert.equal(fixFor('home-permissions', { origin: 'service' }).label, '修复权限并重启');
+  const service = fixFor('not-writable', { origin: 'service' });
+  assert.deepEqual([service.id, service.label, service.secondary], ['repair-permissions', '修复权限并重启', { id: 'relocate', label: '换位置' }]);
+  assert.equal(fixFor('not-writable', { origin: 'install' }).id, 'relocate', 'a location that cannot be written during the install still offers 换位置');
+  assert.match(fixFor('home-permissions', { origin: 'install' }).tip, /不用换位置/);
+  // The next button is obvious: the hint says that 修复权限 continues where it stopped and downloads nothing again.
+  assert.match(errorHint('home-permissions', { origin: 'install' }), /点「修复权限」.*接着装.*不会重下/);
+  // A repair that failed again says so plainly and points to 发给主会话; the same fix failing twice points to the ⋯ menu (only when there is one).
+  const repair = fixFor('home-permissions', { origin: 'service' });
+  assert.deepEqual(retryNote({ action: repair, failedTimes: 0, menu: true }), '');
+  assert.match(retryNote({ action: repair, failedTimes: 1, menu: true }), /修复权限后还是不行.*「发给主会话」/);
+  assert.match(retryNote({ action: fixFor('network'), failedTimes: 2, menu: true }), /失败两次.*「⋯」/);
+  assert.equal(retryNote({ action: fixFor('network'), failedTimes: 2, menu: false }), '');
+  assert.equal(retryNote({ action: fixFor('network'), failedTimes: 1, menu: true }), '');
+});
+
+test('#936: the error says which file and that the location is fine; the one primary is 修复权限 (it continues the install in its folder) or 修复权限并重启 (a service restart)', async t => {
+  const install = render({ initialLocal: local.homeInstall });
+  assert.equal(primaries(install), 1);
+  assert.match(install, /sh-btn--primary[^>]*>(?:(?!<\/button>).)*修复权限</s);
+  assert.doesNotMatch(install, />换位置</, 'no 换位置 button');
+  const service = render({ initialLocal: local.homeService });
+  assert.equal(sentenceOf(service), '本机服务没能启动：MinerU 读不了配置文件夹里的 config.yaml。安装位置没问题，不用换位置。');
+  assert.match(service, /sh-btn--primary[^>]*>(?:(?!<\/button>).)*修复权限并重启/s);
+  const writable = render({ initialLocal: local.writableService });
+  assert.equal(primaries(writable), 1);
+  assert.match(writable, /sh-btn--primary[^>]*>(?:(?!<\/button>).)*修复权限并重启/s);
+  assert.match(writable, /sh-btn--quiet[^>]*>(?:(?!<\/button>).)*换位置/s, '换位置 is the second, quiet way');
+  const [continued] = await pressFix(t, local.homeInstall, '修复权限');
+  assert.deepEqual(continued, { action: 'mineru.install.start', args: { confirm: true, location: FOLDER, tier: 'basic' } });
+  const [restarted] = await pressFix(t, local.homeService, '修复权限并重启');
+  assert.deepEqual(restarted, { action: 'mineru.local.start', args: { restart: true } });
+});
+
+test('#936: a repair that fails again says so under the hint and points to 发给主会话', async t => {
+  const { card } = await remount(t, local.homeService);
+  await find(card.render(), named('修复权限并重启')).props.onClick(); await flush(); await flush();
+  const after = card.render();
+  const hints = findAll(after, item => item.props?.className === undefined && typeof item.props?.children === 'string' && /修复权限后还是不行/.test(item.props.children));
+  assert.equal(hints.length, 1, 'one sentence says the repair did not work');
+  assert.match(hints[0].props.children, /发给主会话/);
+});
+
+test('#937: the tier of a start: a tier picked in this visit wins; else the unfinished install\'s; else the installed one; else the plan\'s or basic; a move keeps the installed tier unless one was picked', () => {
+  const unfinished = { status: 'failed', tier: 'standard', folder: FOLDER, installed: false };
+  assert.equal(tierFor({ picked: 'basic', install: unfinished }), 'basic');
+  assert.equal(tierFor({ install: unfinished, installedTier: 'basic' }), 'standard');
+  assert.equal(tierFor({ installedTier: 'standard' }), 'standard');
+  assert.equal(tierFor({ planTier: 'standard' }), 'standard');
+  assert.equal(tierFor({}), 'basic');
+  assert.equal(tierFor({ install: { ...unfinished, tier: 'basic' }, installedTier: 'standard', moving: true }), 'standard', 'a move keeps the tier that works');
+  assert.equal(tierFor({ picked: 'basic', installedTier: 'standard', moving: true }), 'basic');
+  // A different pick on an unfinished install is a change of tier, said in one sentence that is true of what the install re-does.
+  assert.equal(tierChange({ picked: '', install: unfinished }), null);
+  assert.equal(tierChange({ picked: 'standard', install: unfinished }), null);
+  assert.equal(tierChange({ picked: 'basic', install: { ...unfinished, installed: true } }), null, 'an installed MinerU changes tier from 更多 (换成 X 档)');
+  assert.equal(tierChange({ picked: 'basic', install: { ...unfinished, status: 'complete' } }), null);
+  const change = tierChange({ picked: 'basic', install: { ...unfinished, done: ['tools', 'python', 'package'] } });
+  assert.deepEqual(change, { from: 'standard', to: 'basic', kept: 'program' });
+  // No size in the line: the tier's size is said once, beside the tier in 更多.
+  assert.equal(tierChangeLine(change), '已下载的程序和 Python 会保留，只换模型：改下 basic 档的模型。');
+  assert.equal(tierChangeLine(tierChange({ picked: 'basic', install: { ...unfinished, status: 'cancelled', done: ['tools'] } })), '会从停下的那一步接着装，模型换成 basic 档。');
+});
+
+test('#937: on an unfinished standard install, picking basic in 更多 turns the one primary into 改装 basic 档 with its sentence, and every start then asks for basic', async t => {
+  const unfinished = { state: 'not-installed', origin: null, install: ended('failed', 'models-failed', 'models', { tier: 'standard' }), lastError: null, external: null };
+  const { card, starts } = await remount(t, unfinished, { initialMore: true });
+  assert.ok(find(card.render(), named('修复')), 'before a pick: the install\'s own fix');
+  findAll(card.render(), item => item.props?.name === 'mineru-install-tier' && item.props?.value === 'basic')[0].props.onSelect('basic');
+  card.render(); await flush(); await flush();
+  const tree = card.render();
+  const primary = findAll(tree, item => item.props?.variant === 'primary');
+  assert.deepEqual(primary.map(item => item.props.children), ['改装 basic 档'], 'ONE clear button');
+  assert.ok(findAll(tree, item => typeof item.props?.children === 'string' && item.props.children.startsWith('已下载的程序和 Python 会保留')).length === 1);
+  await primary[0].props.onClick(); await flush();
+  assert.deepEqual(starts().at(-1), { confirm: true, location: FOLDER, tier: 'basic' });
+  // A paused install continues in the tier picked too.
+  const paused = await remount(t, { ...local.cancelled, install: { ...ended('cancelled', 'cancelled', 'models'), tier: 'standard' } }, { initialMore: true });
+  findAll(paused.card.render(), item => item.props?.name === 'mineru-install-tier' && item.props?.value === 'basic')[0].props.onSelect('basic');
+  paused.card.render(); await flush(); await flush();
+  await find(paused.card.render(), named('改装 basic 档')).props.onClick(); await flush();
+  assert.equal(paused.starts().at(-1).tier, 'basic');
+});
+
+test('#938: the ⋯ menu: only in the error state (both sizes) and the paused state (Settings), only for StudyHub\'s own install; 换成 basic 档 only when the tier in hand is not basic; 安装到其他位置 not twice', () => {
+  const ids = args => fixMenu(args).map(item => item.id);
+  const error = { state: 'error', code: 'models-failed', origin: 'install' };
+  const unfinished = { status: 'failed', tier: 'standard', folder: FOLDER };
+  assert.deepEqual(ids({ shown: error, install: unfinished, tierInHand: 'standard', action: fixFor('models-failed') }), ['tier-basic', 'reinstall', 'relocate', 'log']);
+  assert.deepEqual(ids({ shown: error, install: unfinished, tierInHand: 'basic', action: fixFor('models-failed') }), ['reinstall', 'relocate', 'log']);
+  assert.deepEqual(ids({ shown: { state: 'error', code: 'no-space', origin: 'install' }, install: unfinished, tierInHand: 'basic', action: fixFor('no-space') }), ['reinstall', 'log'], 'its fix already is 换位置');
+  const writable = { state: 'error', code: 'not-writable', origin: 'service' };
+  assert.deepEqual(ids({ shown: writable, install: complete, installed: true, ours: true, tierInHand: 'basic', action: fixFor('not-writable', { origin: 'service' }) }), ['reinstall', 'log'], '换位置 is already the quiet second button');
+  const paused = { state: 'paused', code: 'cancelled', origin: 'install' };
+  assert.deepEqual(ids({ shown: paused, install: unfinished, tierInHand: 'standard' }), ['tier-basic', 'reinstall', 'relocate', 'log']);
+  assert.deepEqual(ids({ shown: paused, install: unfinished, tierInHand: 'standard', compact: true }), [], 'the compact card: the error state only');
+  assert.deepEqual(ids({ shown: error, install: unfinished, tierInHand: 'standard', compact: true, action: fixFor('models-failed') }).length, 4);
+  for (const state of ['ready', 'stopped', 'not-installed', 'installing', 'checking']) assert.deepEqual(ids({ shown: { state }, install: complete, installed: true, ours: true, tierInHand: 'standard' }), [], state);
+  // Another MinerU (the learner's own) that cannot be read is not StudyHub's to uninstall or change.
+  assert.deepEqual(ids({ shown: { state: 'error', code: 'unreadable', origin: 'check' }, install: idle, ours: false, tierInHand: 'basic', action: fixFor('unreadable') }), []);
+  const labels = fixMenu({ shown: error, install: unfinished, tierInHand: 'standard', action: fixFor('models-failed') }).map(item => item.label);
+  assert.deepEqual(labels, ['换成 basic 档', '卸载后重装', '安装到其他位置…', '查看安装日志']);
+});
+
+test('#938: the menu sits beside the one primary in the error state of both card sizes (and in Settings\' paused state), never in ready or not installed', () => {
+  const menus = html => (html.match(/aria-haspopup="menu"/g) || []).length;
+  const unfinished = { state: 'not-installed', origin: null, install: ended('failed', 'models-failed', 'models', { tier: 'standard' }), lastError: null, external: null };
+  for (const compact of [false, true]) {
+    const html = render({ initialLocal: unfinished, compact, onOpenSettings() {} });
+    assert.equal(menus(html), 1, `error, compact ${compact}`);
+    assert.equal(primaries(html), 1, 'the primary stays the only primary');
+    assert.doesNotMatch(html, /\stitle="/);
+  }
+  assert.equal(menus(render({ initialLocal: local.cancelled })), 1, 'paused in Settings');
+  assert.equal(menus(render({ initialLocal: local.cancelled, compact: true, onOpenSettings() {} })), 0, 'the compact card stays compact');
+  for (const state of [local.ready, local.missing, local.stopped, local.installing]) assert.equal(menus(render({ initialLocal: state, initialPlan: plan() })), 0, state.state);
+});
+
+test('#938: 卸载后重装 is one confirmed step: the confirmation says it uninstalls and installs again at the same place and tier and downloads again; then uninstall, then start; a failed uninstall stops there', async t => {
+  const status = { state: 'server-stopped', origin: 'installed', folder: FOLDER, install: { ...complete, tier: 'standard', installedTier: 'standard' }, external: null,
+    lastError: { code: 'service-failed', message: '本机服务没能启动：它一启动就退出了。', at: '2026-11-10T00:00:00Z' } };
+  const { card, calls } = await remount(t, status);
+  const menu = () => find(card.render(), item => Array.isArray(item.props?.items) && typeof item.props?.onSelect === 'function');
+  assert.deepEqual(menu().props.items.map(item => item.id), ['tier-basic', 'reinstall', 'relocate', 'log']);
+  menu().props.onSelect('reinstall');
+  const dialog = find(card.render(), item => typeof item.props?.onConfirm === 'function');
+  assert.equal(dialog.props.confirmLabel, '卸载后重装');
+  const said = textOf(renderToStaticMarkup(h('div', null, dialog.props.children)));
+  assert.match(said, /先.*卸载.*D:\\StudyHub\\MinerU.*再在同一个位置用 standard 档重新安装/);
+  assert.match(said, /重新下载/);
+  await dialog.props.onConfirm(); await flush();
+  const acted = calls.filter(item => ['mineru.install.uninstall', 'mineru.install.start'].includes(item.action));
+  assert.deepEqual(acted, [{ action: 'mineru.install.uninstall', args: { confirm: true } }, { action: 'mineru.install.start', args: { confirm: true, location: FOLDER, tier: 'standard' } }]);
+  // An uninstall that fails stops there (the dialog shows why): nothing is started.
+  const fake = [];
+  const failingCall = async (action, args) => { fake.push({ action, args }); if (action === 'mineru.install.uninstall') throw Object.assign(new Error('有一份 PDF 正在用本机 MinerU 解析，请等它完成或先停止它。'), { code: 'conversion-running' }); return status; };
+  const card2 = await mount({ call: failingCall, initialLocal: status });
+  card2.render(); await flush();
+  find(card2.render(), item => Array.isArray(item.props?.items) && typeof item.props?.onSelect === 'function').props.onSelect('reinstall');
+  await assert.rejects(find(card2.render(), item => typeof item.props?.onConfirm === 'function').props.onConfirm(), /正在用本机 MinerU 解析/);
+  assert.ok(!fake.some(item => item.action === 'mineru.install.start'), 'no start after a failed uninstall');
+  card2.close();
+});
+
+test('#938: 换成 basic 档 starts the tier change where the install is; 查看安装日志 opens the log; the same fix failing twice points to the menu', async t => {
+  const status = { state: 'server-stopped', origin: 'installed', folder: FOLDER, install: { ...complete, tier: 'standard', installedTier: 'standard', log: ['== check ==', 'mineru server status: ready (standard)'] }, external: null,
+    lastError: { code: 'service-failed', message: '本机服务没能启动：它一启动就退出了。', at: '2026-11-10T00:00:00Z' } };
+  const { card, starts } = await remount(t, status);
+  const menu = () => find(card.render(), item => Array.isArray(item.props?.items) && typeof item.props?.onSelect === 'function');
+  menu().props.onSelect('tier-basic'); await flush();
+  assert.deepEqual(starts().at(-1), { confirm: true, location: FOLDER, tier: 'basic' });
+  const logged = await remount(t, status);
+  find(logged.card.render(), item => Array.isArray(item.props?.items) && typeof item.props?.onSelect === 'function').props.onSelect('log');
+  const dialog = find(logged.card.render(), item => item.props?.title === '安装日志' && typeof item.props?.onClose === 'function');
+  assert.ok(dialog, 'the log opens in a dialog (both card sizes)');
+  assert.match(textOf(renderToStaticMarkup(h('div', null, dialog.props.children))), /mineru server status: ready \(standard\)/);
+  // 重新启动服务 twice, and the service still does not start: one sentence points to the menu.
+  const twice = await remount(t, status);
+  for (let i = 0; i < 2; i++) { await find(twice.card.render(), named('重新启动服务')).props.onClick(); await flush(); await flush(); }
+  const notes = findAll(twice.card.render(), item => typeof item.props?.children === 'string' && /失败两次/.test(item.props.children));
+  assert.equal(notes.length, 1);
+});
+
+test('#936–#938 in English: the repair, the notes, the change of tier and every menu item have no Chinese', () => {
+  mod.setUiLanguage('en');
+  try {
+    const said = [fixFor('home-permissions', { origin: 'install' }), fixFor('home-permissions', { origin: 'service' }), fixFor('not-writable', { origin: 'service' })]
+      .flatMap(item => [item.label, item.tip, item.secondary?.label || '']);
+    said.push(errorHint('home-permissions', { origin: 'install' }), retryNote({ action: fixFor('home-permissions'), failedTimes: 2, menu: true }));
+    const unfinished = { status: 'failed', tier: 'standard', folder: FOLDER };
+    for (const done of [['tools', 'python', 'package'], []]) said.push(tierChangeLine(tierChange({ picked: 'basic', install: { ...unfinished, done } })));
+    const items = fixMenu({ shown: { state: 'error', code: 'models-failed', origin: 'install' }, install: unfinished, tierInHand: 'standard' });
+    assert.ok(items.every(item => item.tip === undefined), 'no item Tooltips: the menu focuses its first item, and a Tooltip on it would cover the rest on a phone');
+    said.push(...items.map(item => item.label));
+    for (const text of said) assert.doesNotMatch(text, han, text);
+    assert.equal(tierChangeLine(tierChange({ picked: 'basic', install: { ...unfinished, done: ['package'] } })),
+      'The program and Python already downloaded are kept; only the models change: it downloads the basic tier models instead.');
+  } finally { mod.setUiLanguage('zh'); }
+  // The dialogs and the ⋯ button's own words.
+  const english = JSON.parse(readFileSync(new URL('../ui/locales/en.mineru-install.json', import.meta.url), 'utf8'));
+  for (const key of ['卸载后重装本机 MinerU？', '其他办法', '其他办法：旁边的按钮不管用时，这里还有别的路。', '改装 {0} 档', '（约 {0}）', REINSTALL_SENTENCE])
+    assert.doesNotMatch(english[key] || '中', han, key);
+});
+
+const REINSTALL_SENTENCE = '会先停止本机服务并卸载 StudyHub 在 {0} 里装的 MinerU，再在同一个位置用 {1} 档重新安装（那里如果还留着不是 StudyHub 创建的文件，会装进里面新建的「StudyHub-MinerU」文件夹）。程序、Python 和模型都要重新下载，磁盘上要留出和新装一样多的空间{2}。已经转换好的资料不受影响。';
+
+/* ---------- #942 review: another MinerU is not StudyHub's to repair; the reinstall says what it costs; the labels the hand-off prompt names ---------- */
+
+const otherHome = { state: 'server-stopped', origin: 'search', exe: 'C:\\Users\\lee\\.local\\bin\\mineru.exe', install: idle, external: null, version: '4.0.10',
+  lastError: { code: 'home-permissions', file: 'config.yaml', message: '本机服务没能启动：这份 MinerU 读不了它自己的配置文件夹里的文件，或认为它们不够私有。StudyHub 不改不是它创建的文件夹的权限。', at: '2026-11-10T00:00:00Z' } };
+
+test('#942 M1: a MinerU StudyHub did not install is never offered 修复权限: its fix is a plain restart and the hand-off, and its line names the file in that MinerU\'s own settings folder (no 安装位置)', async t => {
+  assert.equal(fixFor('home-permissions', { origin: 'service', ours: false }).id, 'restart-service');
+  const writable = fixFor('not-writable', { origin: 'service', ours: false });
+  assert.deepEqual([writable.id, writable.secondary], ['restart-service', undefined], 'not 换位置 either: there is no StudyHub location to move');
+  assert.equal(fixFor('home-permissions', { origin: 'service' }).id, 'repair-permissions', 'StudyHub\'s own install still repairs');
+  assert.match(errorHint('home-permissions', { origin: 'service', ours: false }), /重新启动服务.*「发给主会话」/);
+  const html = render({ initialLocal: otherHome });
+  assert.equal(sentenceOf(html), '本机服务没能启动：这份 MinerU 读不了 config.yaml，那是它自己的配置文件夹里的文件。StudyHub 不改不是它创建的文件夹的权限。');
+  assert.doesNotMatch(textOf(html), /修复权限/, 'no permission repair is offered anywhere on the card');
+  assert.doesNotMatch(`${sentenceOf(html)} ${errorHint('home-permissions', { origin: 'service', ours: false })}`, /安装位置/, 'the card\'s own sentences name no StudyHub location (the hover text of the hand-off bar may)');
+  assert.equal(primaries(html), 1);
+  assert.match(html, /sh-btn--primary[^>]*>(?:(?!<\/button>).)*重新启动服务/s);
+  assert.match(html, /data-hand-off="setup\.failed"/);
+  assert.equal((html.match(/aria-haspopup="menu"/g) || []).length, 0, 'nothing of StudyHub\'s to uninstall or change');
+  const bare = render({ initialLocal: { ...otherHome, lastError: { ...otherHome.lastError, file: '' } } });
+  assert.equal(sentenceOf(bare), '本机服务没能启动：这份 MinerU 读不了它自己的配置文件夹里的文件，或认为它们不够私有。StudyHub 不改不是它创建的文件夹的权限。');
+  assert.doesNotMatch(textOf(render({ initialLocal: otherHome }, 'en')), han);
+  const [restarted] = await pressFix(t, otherHome, '重新启动服务');
+  assert.deepEqual(restarted, { action: 'mineru.local.start', args: { restart: true } });
+});
+
+test('#942 L5: StudyHub\'s own unfinished install keeps its ⋯ menu when another MinerU is also found (the failure is the install\'s)', () => {
+  const both = { state: 'server-stopped', origin: 'search', exe: 'C:\\Users\\lee\\.local\\bin\\mineru.exe', install: ended('failed', 'models-failed', 'models', { tier: 'standard' }), lastError: null, external: null };
+  assert.deepEqual(cardState(both), { state: 'error', code: 'models-failed', origin: 'install' });
+  assert.equal((render({ initialLocal: both }).match(/aria-haspopup="menu"/g) || []).length, 1);
+});
+
+test('#942 L5: 卸载后重装 says it downloads everything again and needs the room of a new install, and where it lands when the folder keeps files StudyHub did not create', async t => {
+  const status = { state: 'server-stopped', origin: 'installed', folder: FOLDER, install: { ...complete, tier: 'standard', installedTier: 'standard' }, external: null,
+    lastError: { code: 'service-failed', message: '本机服务没能启动：它一启动就退出了。', at: '2026-11-10T00:00:00Z' } };
+  const withTiers = plan({ tiers: [{ id: 'basic', modelsMb: 800, neededMb: 2500 }, { id: 'standard', modelsMb: 2000, neededMb: 4000 }] });
+  const saved = globalThis.document;
+  globalThis.document = { hidden: false, addEventListener() {}, removeEventListener() {} };
+  t.after(() => { if (saved === undefined) delete globalThis.document; else globalThis.document = saved; });
+  const card = await mount({ call: async action => (action === 'mineru.install.plan' ? withTiers : action === 'mineru.local.status' ? status : {}), initialLocal: status, initialPlan: withTiers });
+  t.after(() => card.close());
+  card.render(); await flush();
+  find(card.render(), item => Array.isArray(item.props?.items) && typeof item.props?.onSelect === 'function').props.onSelect('reinstall');
+  const dialog = find(card.render(), item => typeof item.props?.onConfirm === 'function');
+  const said = textOf(renderToStaticMarkup(h('div', null, dialog.props.children)));
+  assert.match(said, /都要重新下载，磁盘上要留出和新装一样多的空间（约 3\.9 GB）/);
+  assert.match(said, /不是 StudyHub 创建的文件，会装进里面新建的「StudyHub-MinerU」文件夹/);
+});
+
+test('#942 N1: files the repair left alone because they are linked from elsewhere are said under the error (the repair is not complete), in both languages', () => {
+  const said = '有 2 个文件同时链接在别的位置，StudyHub 为了不改到别处的文件没有动它们，所以这次修复不完整。';
+  assert.ok(errorHint('home-permissions', { origin: 'service', linked: 2 }).includes(said));
+  assert.ok(errorHint('home-permissions', { origin: 'install', linked: 2 }).includes(said));
+  assert.doesNotMatch(errorHint('home-permissions', { origin: 'service' }), /链接/, 'no count, no sentence');
+  assert.ok(textOf(render({ initialLocal: { ...local.homeService, lastError: { ...local.homeService.lastError, linked: 2 } } })).includes(said));
+  const install = { ...local.homeInstall, install: { ...local.homeInstall.install, homeLinked: 1 } };
+  assert.ok(textOf(render({ initialLocal: install })).includes('有 1 个文件同时链接在别的位置'));
+  const english = textOf(render({ initialLocal: { ...local.homeService, lastError: { ...local.homeService.lastError, linked: 2 } } }, 'en'));
+  assert.match(english, /2 file\(s\) are also linked from another place.*this repair is not complete/);
+  assert.doesNotMatch(english, han);
+});
+
+test('#940 pins these labels: the hand-off prompt tells the chat to have the learner press exactly 「修复权限」 / 「修复权限并重启」 (Repair permissions / Repair permissions and restart)', () => {
+  assert.equal(fixFor('home-permissions', { origin: 'install' }).label, '修复权限');
+  assert.equal(fixFor('home-permissions', { origin: 'service' }).label, '修复权限并重启');
+  mod.setUiLanguage('en');
+  try {
+    assert.equal(fixFor('home-permissions', { origin: 'install' }).label, 'Repair permissions');
+    assert.equal(fixFor('home-permissions', { origin: 'service' }).label, 'Repair permissions and restart');
+  } finally { mod.setUiLanguage('zh'); }
 });

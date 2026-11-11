@@ -3,6 +3,7 @@
 @layer study.features {
   :where(.study-app, .study-seat) {
     .explanation-followup { margin-top: var(--space-5); }
+    .explanation > .explanation-followup:first-child { margin-top: 0; }
     .followup-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); padding-bottom: var(--space-2); font-size: var(--fs-md); color: var(--text-muted); }
     .followup-item { border-top: 1px solid var(--line); padding: var(--space-3-5) 0; overflow-wrap: anywhere; }
     .followup-item > summary { display: flex; align-items: baseline; gap: var(--space-2-5); cursor: pointer; --sh-summary-marker-gap: 0; }

@@ -7,6 +7,7 @@ import TopicChips from './TopicChips.jsx';
 import FocusProgressList from './FocusProgressList.jsx';
 import CustomPlanCard from './CustomPlanCard.jsx';
 import CourseMethodCard from './CourseMethodCard.jsx';
+import CourseRulesEditor from './course-rules/CourseRulesEditor.jsx';
 import GuidanceSuggestions, { guidanceSuggestions } from './GuidanceSuggestions.jsx';
 import { splitTopics } from './course-topics.js';
 import { useStudy } from './study-context.jsx';
@@ -14,6 +15,8 @@ import { HandOff } from './hand-off/HandOff.jsx';
 import { useLiveEffect } from './use-async.js';
 import { joinMeta } from './format.js';
 import { ActiveSwitch, isParked } from './CourseActive.jsx';
+import { ExamAlignmentPointer, examPointerShown } from './ExamAlignmentPointer.jsx';
+import { alignmentReceipt } from './exam-alignment-words.js';
 import { daysUntilExam, examProfile, EXAM_SETTING_LIMITS } from '../lib/courses.js';
 import { courseNameKey, findDuplicateCourses, groupCourseNames, rankCourses, similarCourses } from './course-names.js';
 import css from './course-settings.css';
@@ -41,6 +44,7 @@ export function draftFromCourse(course = {}) {
       marks: text(section.marks), topics: (section.topics || []).join('; ') })),
     focusTopics: (course.focusTopics || []).join('; '), guidanceSourceIds: [...(course.guidanceSourceIds || [])],
     interviewRole: course.interview?.role || '', interviewJd: course.interview?.jd || '',
+    generationRules: [...(course.generationRules || [])],
   };
 }
 
@@ -61,13 +65,15 @@ export function payloadFromDraft(course, draft) {
   return { id: course.id, name: course.name,
     ...(stated ? { exam: { format: draft.format, ...numbers, ...(draft.date ? { date: draft.date } : {}), sections } } : {}),
     ...(hasInterview ? { interview: interviewPayload } : {}),
-    guidanceSourceIds: draft.guidanceSourceIds, focusTopics: splitTopics(draft.focusTopics) };
+    guidanceSourceIds: draft.guidanceSourceIds, focusTopics: splitTopics(draft.focusTopics),
+    // 出题守则 (#889): sent when the course has some or the form added some; [] removes them.
+    ...(course.generationRules?.length || draft.generationRules?.length ? { generationRules: draft.generationRules || [] } : {}) };
 }
 
 /** Does the course already carry anything the fold holds (everything but the exam date)? Then the fold is open when the panel opens. */
 const hasMoreValues = draft => draft.format !== 'other' || ['totalMarks', 'writingMinutes', 'readingMinutes', 'minutesPerMark'].some(key => draft[key] !== '')
   || draft.sections.length > 0 || splitTopics(draft.focusTopics).length > 0 || draft.guidanceSourceIds.length > 0
-  || Boolean(String(draft.interviewRole ?? '').trim() || String(draft.interviewJd ?? '').trim());
+  || Boolean(String(draft.interviewRole ?? '').trim() || String(draft.interviewJd ?? '').trim()) || draft.generationRules.length > 0;
 
 /** The learner's weakest topics of a course, from their own answers (local, no model): offered as suggestions for the focus topics, never added by themselves. */
 function useWeakTopics(course) {
@@ -307,18 +313,20 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
     catch (caught) { setError(errorMessage(caught)); }
     finally { setWorking(false); }
   };
-  const save = () => run('course.save', payloadFromDraft(course, draft), () => {
-    toast.success(uiFormat('已保存「{0}」的课程信息', [course.name]));
+  const save = () => run('course.save', payloadFromDraft(course, draft), result => {
+    // 考前对齐 (#882): a changed exam date may have moved this course's questions; the receipt says how many.
+    const moved = alignmentReceipt(result?.alignment);
+    toast.success([uiFormat('已保存「{0}」的课程信息', [course.name]), moved].filter(Boolean).join(ui('；')));
     onClose?.('saved');
   });
   const rename = () => run('course.rename', { id: course.id, name: name.trim() }, result => {
     setConfirm(null); setName(result?.course?.name || name.trim());
-    toast.success(uiFormat('已改名为「{0}」，题组、资料和练习都已同步', [result?.course?.name || name.trim()]));
+    toast.success([uiFormat('已改名为「{0}」，题组、资料和练习都已同步', [result?.course?.name || name.trim()]), alignmentReceipt(result?.alignment)].filter(Boolean).join(ui('；')));
   });
   const merge = () => run('course.merge', { from: mergeIds, into: course.id }, result => {
     if (result?.course) setDraft(current => draftAfterMerge(course, current, result.course));
     setConfirm(null); setMergeIds([]);
-    toast.success(uiFormat('已把 {0} 门课程并入「{1}」', [result?.merged?.length || mergeIds.length, course.name]));
+    toast.success([uiFormat('已把 {0} 门课程并入「{1}」', [result?.merged?.length || mergeIds.length, course.name]), alignmentReceipt(result?.alignment)].filter(Boolean).join(ui('；')));
   });
   const renamed = name.trim() && name.trim() !== course.name;
   const mergeNames = others.filter(item => mergeIds.includes(item.id)).map(item => item.name);
@@ -337,6 +345,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
       <section className="course-settings__block course-settings__first" aria-label={ui('考试日期')}>
         <Field label={ui('考试日期')} width="full" hint={ui('填了就会在首页倒数；其余都可以不填。')}>
           <TextInput type="date" value={draft.date} disabled={disabled} onChange={event => change({ date: event.target.value })} /></Field>
+        {examPointerShown(course.exam) && <ExamAlignmentPointer course={course.name} examDate={course.exam.date} onLeave={() => onClose?.('dismiss')} />}
       </section>
 
       {/* 学法 (#775): every course has one, the default package until it is changed. */}
@@ -347,7 +356,7 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
 
       <Disclosure className="course-settings__more" bodyClassName="course-settings__more-body" summary={ui('更多设置')} defaultOpen={startOpen}
         meta={joinMeta([draft.format !== 'other' ? examFormatLabel(draft.format) : '', String(draft.interviewRole ?? '').trim(), splitTopics(draft.focusTopics).length ? uiFormat('{0} 个重点知识点', [splitTopics(draft.focusTopics).length]) : '',
-          draft.guidanceSourceIds.length ? uiFormat('考官指引 {0} 份', [draft.guidanceSourceIds.length]) : ''])}>
+          draft.guidanceSourceIds.length ? uiFormat('考官指引 {0} 份', [draft.guidanceSourceIds.length]) : '', draft.generationRules.length ? uiFormat('出题守则 {0} 条', [draft.generationRules.length]) : ''])}>
         <section className="course-settings__block" aria-labelledby="course-settings-name">
           <h3 id="course-settings-name">{ui('名称')}</h3>
           <div className="course-settings__rename">
@@ -406,6 +415,11 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
           {/* Read only, and of the saved topics: a chip not yet saved has nothing to read against. */}
           <FocusProgressList course={course.name} saved={course.focusTopics} lock={disabled} onGenerateTopic={onGenerateTopic} />
         </section>
+
+        <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('出题守则')}
+          meta={draft.generationRules.length ? uiFormat('{0} 条守则', [draft.generationRules.length]) : ui('未设置')} defaultOpen={draft.generationRules.length > 0}>
+          <CourseRulesEditor value={draft.generationRules} disabled={disabled} onChange={generationRules => change({ generationRules })} />
+        </Disclosure>
 
         <section className="course-settings__block" aria-labelledby="course-settings-interview">
           <h3 id="course-settings-interview">{ui('岗位与面试（可选）')}</h3>

@@ -38,7 +38,7 @@
   "下次打开 Jev 设置时": "the next time you open the Jev settings",
   "没能保存：这个浏览器现在不让保存设置，这次的改动没有生效。": "Not saved: this browser does not let settings be saved right now, so this change did not take effect.",
   "引导提示已打开。": "Guidance tips are on.",
-  "引导提示已关闭：阅读页的两条提示、「补全原文件」的说明、主题组提醒、Archify 推荐卡和「笔记换了位置」不再出现。": "Guidance tips are off: the two reader hints, the “Re-attach the original files” note, the topic-group reminder, the Archify card and “Notes moved” no longer appear.",
+  "引导提示已关闭：阅读页的两条提示、练习页答题之后的三条提示、「补全原文件」的说明、主题组提醒、Archify 推荐卡和「笔记换了位置」不再出现。": "Guidance tips are off: the two reader hints, the three tips on the practice page after an answer, the “Re-attach the original files” note, the topic-group reminder, the Archify card and “Notes moved” no longer appear.",
   "{0}已重置，但「显示引导提示」和它自己的开关现在都关着；都打开后，{1}会再出现。": "{0} is reset, but “Show guidance tips” and its own switch are both off; once both are on, it appears again {1}.",
   "{0}已重置，但「显示引导提示」现在关着；打开后，{1}会再出现。": "{0} is reset, but “Show guidance tips” is off; once that is on, it appears again {1}.",
   "{0}已重置，但它自己的开关现在关着；打开后，{1}会再出现。": "{0} is reset, but its own switch is off; once that is on, it appears again {1}.",
@@ -52,7 +52,7 @@
   "引导": "Guidance",
   "第一次用到某个功能时，StudyHub 会给一句提示或一张卡片。这里可以把它们关掉，或让看过的再出现一次。这些选择只存在这个浏览器里。": "The first time you use a feature, StudyHub may show a tip or a card. Here you can turn them off, or bring back one you have seen. These choices are kept in this browser only.",
   "显示引导提示": "Show guidance tips",
-  "关掉后，阅读页的两条提示、「补全原文件」的说明、主题组提醒、Archify 推荐卡和「笔记换了位置」都不再出现；首页的入门三步、首页顶部的「下一步」卡、模型设置的引导、出错和空页面的说明，以及课程准备「全部完成」那句照常显示。": "When off, the two reader hints, the “Re-attach the original files” note, the topic-group reminder, the Archify card and “Notes moved” no longer appear; the first three steps on the home page, the “Next step” card at its top, the model setup guide, the help on errors and empty pages, and the course setup “all done” note still show.",
+  "关掉后，阅读页的两条提示、练习页答题之后的三条提示、「补全原文件」的说明、主题组提醒、Archify 推荐卡和「笔记换了位置」都不再出现；首页的入门三步、首页顶部的「下一步」卡、模型设置的引导、出错和空页面的说明，以及课程准备「全部完成」那句照常显示。": "When off, the two reader hints, the three tips on the practice page after an answer, the “Re-attach the original files” note, the topic-group reminder, the Archify card and “Notes moved” no longer appear; the first three steps on the home page, the “Next step” card at its top, the model setup guide, the help on errors and empty pages, and the course setup “all done” note still show.",
   "「显示引导提示」关着时，下面每一项的开关暂时不起作用；打开后恢复各自的设置。": "While “Show guidance tips” is off, the switches below do nothing; once it is on, each goes back to its own setting.",
   "重新显示全部提示": "Show all tips again",
   "有 {0} 项可以重新显示。重新显示后，不会马上弹出来，而是在各自该出现的时候再出现。": "{0} can be brought back. Nothing pops up right away; each appears again at its own moment.",
@@ -73,5 +73,14 @@
   "侧栏怎么调整顺序": "How to reorder the sidebar",
   "第一次把鼠标停在侧栏的某一项上（或用键盘移到它）时，提示里多一句「长按并拖动可调整顺序（键盘：Alt+↑/↓）」；说过一次就不再说。": "The first time you rest the pointer on a sidebar entry (or reach it with the keyboard), its tooltip adds “Hold and drag to reorder (keyboard: Alt+↑/↓)”; after that it is not said again.",
   "下次把鼠标停在侧栏的某一项上时": "the next time you rest the pointer on a sidebar entry",
-  "没有点它也会出现。总开关和它自己的开关都能让它不再出现；以后新加的这类提示，每天最多出现一条，做题时不出现。": "Appears without being asked for. The main switch and its own switch can keep it away; tips of this kind added later appear at most once a day and never during practice."
+  "没有点它也会出现。总开关和它自己的开关都能让它不再出现；以后新加的这类提示，每天最多出现一条，做题时不出现（练习页答题之后的三条提示除外：它们各出现一次，不占这一条）。": "Appears without being asked for. The main switch and its own switch can keep it away; tips of this kind added later appear at most once a day and never during practice (the three tips on the practice page after an answer are the exception: each appears once and does not use up that one).",
+  "答错后提示「帮我弄懂」": "A tip for “Help me understand” after a wrong answer",
+  "第一次答错一道题（闪卡：自评没掌握）、看到解析时，在「帮我弄懂」旁提示：讲解会直接出现在这道题下面。": "The first time an answer is wrong (a flashcard: rated not mastered) and its explanation shows, a tip beside “Help me understand” says the explanation appears right under the question.",
+  "下次答错一道题时": "the next time an answer is wrong",
+  "标记「这题有问题」后提示「修题」": "A tip for “Improve question” after “Something is wrong with it”",
+  "第一次标记「这题有问题」时，在「修题」旁提示：助教直接改这张卡，改完可以在信箱里一步撤销。": "The first time you mark “Something is wrong with it”, a tip beside “Improve question” says the assistant edits the card directly and you can undo it from the inbox in one step.",
+  "下次标记「这题有问题」时": "the next time you mark “Something is wrong with it”",
+  "看到讲解后提示「出成前置题」": "A tip for “Turn into a prerequisite question” once an explanation shows",
+  "第一次在题目下看到讲解（帮我弄懂或追问的回答）时，在讲解下面的「出成前置题」旁提示它能做什么。": "The first time an explanation (an answer of “Help me understand” or a follow-up) shows under a question, a tip beside “Turn into a prerequisite question” under it says what it does.",
+  "下次在题目下看到讲解时": "the next time an explanation shows under a question"
 }

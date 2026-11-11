@@ -25,16 +25,16 @@ const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
 const isDailyNote = note => note?.kind?.startsWith('daily-recap');
 const writingStamp = note => JSON.stringify([note?.title, note?.markdown, isDailyNote(note) ? null : note?.cards]);
 
-export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel, onOpenCard, onRecapSettings, onModelSettings, theme = "dark" }) {
+export default function BlogNotes({ data, initialId, initialNote = null, initialEditing = false, onSelect, onBack, backLabel, onOpenCard, onRecapSettings, onModelSettings, theme = "dark" }) {
   const { call, act, busy } = useStudy();
   const science = useSciencePreferences();
   const toast = useToast();
   useInjectCss(noteCss, "study-blog-notes");
   const [rememberedId, rememberId] = usePageScope(data.root, 'notes-open', '');
-  const [id, changeId] = useState(initialId || rememberedId), [note, setNote] = useState(null);
+  const [id, changeId] = useState(initialId || rememberedId), [note, setNote] = useState(initialNote);
   const [course, setCourse] = usePageScope(data.root, 'notes', data.focus?.course ?? '*');
   const [saving, setSaving] = useState(false), [publishing, setPublishing] = useState(false), [serverVersion, setServerVersion] = useState(null);
-  const current = useRef(null), identity = useRef(null), pending = useRef(false);
+  const current = useRef(initialNote), identity = useRef(null), pending = useRef(false);
   const setId = next => { changeId(next); rememberId(next); onSelect?.(next); };
   const [home, setHome] = useState(data.csdnHome || "");
   // Browser storage refused the recovery copy: say it once beside the editor, never as a toast per keystroke.
@@ -43,8 +43,8 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
   const [lookup, setLookup] = useState(null), [link, setLink] = useState("");
   const [query, setQuery] = useState(""), [results, setResults] = useState([]);
   const [picked, setPicked] = useState([]), [newTitle, setNewTitle] = useState("");
-  const [editing, setEditing] = useState(false), [materialSaved, setMaterialSaved] = useState(false);
-  const [savedWriting, setSavedWriting] = useState('');
+  const [editing, setEditing] = useState(initialEditing), [materialSaved, setMaterialSaved] = useState(false);
+  const [savedWriting, setSavedWriting] = useState(() => initialNote ? writingStamp(initialNote) : '');
   // 删除这篇笔记 asks nothing (a note is not a source or a question): the note closes and leaves the list at once, the notice offers 撤销, and the host deletes it
   // (note.delete, which also stops a draft being written for it) when that notice leaves (ui/undoable.js).
   const undoable = useUndoable(), openId = useRef(id);
@@ -189,7 +189,16 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
     await act('note.generate', { id: saved.id, expectedRevision: saved.revision }, () => {
       if (!live()) return;
       applyNote({ ...current.current, generation: { status: 'running' } });
-      toast.info(ui("正在后台起草；完成后会进入信箱，你可以继续学习。"));
+      toast.info(ui("正在后台起草，你可以继续学习；写好后正文会直接写进这篇笔记，完成时信箱会提醒你。"));
+    });
+  });
+  const cancelDraft = () => perform(async live => {
+    const target = current.current;
+    if (!target) return;
+    await act('note.cancel', { id: target.id }, (next) => {
+      if (!live()) return;
+      applyNote(next);
+      toast.info(ui('已停止 AI 起草，当前已保存的内容不受影响。'));
     });
   });
   function removeNote() {
@@ -275,12 +284,14 @@ export default function BlogNotes({ data, initialId, onSelect, onBack, backLabel
       {daily && note.daily?.unassessedCount > 0 && <p className="muted">{uiFormat('其中 {0} 题尚待批改，合集先回顾作答内容，批改后可更新。', [note.daily.unassessedCount])}</p>}
       {daily && note.generation?.status === 'running' && <InlineMessage tone="info">{ui('正在整理今天的讲解与总结，你可以继续学习。')}</InlineMessage>}
       {daily && ['cancelled', 'interrupted'].includes(note.generation?.status) && <InlineMessage tone="info">{ui('生成已停止，已完成的合集仍然保留。')}</InlineMessage>}
+      {!daily && note.generation?.status === 'interrupted' && <InlineMessage tone="info">{ui('上次 AI 起草已中断，已保存的内容仍然保留。你可以直接编辑，或点「AI 起草解析」重新起草。')}</InlineMessage>}
+      {!daily && note.generation?.status === 'cancelled' && <InlineMessage tone="info">{ui('已停止 AI 起草，已保存的内容仍然保留。你可以直接编辑，或点「AI 起草解析」重新起草。')}</InlineMessage>}
       {note.generation?.status === "failed" && <InlineMessage tone="error">{ui("起草失败：")}{note.generation.message}</InlineMessage>}
       {serverVersion && <details className="note-linking"><summary>{ui('已保存版本有更新，展开核对；你的输入已保留')}</summary>
         <strong>{serverVersion.title}</strong><ReadingBlock as="article" prose className="note-preview" dangerouslySetInnerHTML={{ __html: renderNoteMarkdown(serverVersion.markdown || '') }} />
       </details>}
       {note.status === 'draft' && !daily && <NoteDraft note={note} model={modelReadiness(data)} running={note.generation?.status === 'running'} disabled={saving || publishing}
-        onStart={startDraft} onModelSettings={onModelSettings} />}
+        onStart={startDraft} onCancel={cancelDraft} onModelSettings={onModelSettings} />}
       {!editing && note.markdown && <div className="note-reader"><DocumentViewer key={note.id} source={{ id: note.id, title: note.title, text: note.markdown, format: 'md' }}
         localContent={{ id: note.id, title: note.title, markdown: note.markdown }} data={data} call={call} /></div>}
       {editing && writable && <>

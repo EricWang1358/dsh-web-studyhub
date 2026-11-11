@@ -268,7 +268,7 @@ export default function DocumentLearning({ call, document, capture, scope = null
   }, { intervalMs: 1500, enabled: anyActive });
   // Closing the reader leaves a running job running; say so.
   useEffect(() => () => {
-    if (jobsRef.current.some(isActive)) noticeRef.current?.({ text: ui('后台继续生成，完成后进信箱。'), tone: 'info' });
+    if (jobsRef.current.some(isActive)) noticeRef.current?.({ text: ui('后台继续生成；通过审阅的新题会直接加入所选题组，完成时信箱会提醒你。'), tone: 'info' });
   }, []);
 
   /** Ask the model for one node of the thread; a thread that was dropped meanwhile (another selection) is left alone. */

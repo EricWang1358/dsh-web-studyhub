@@ -1,6 +1,6 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
-  "version": "4.6.2",
+  "version": "4.7.3",
   "description": "StudyHub: turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it.",
   "repository": {
     "type": "git",
@@ -153,6 +153,7 @@
     "test:fast": "node scripts/test.mjs --fast",
     "case-study": "node scripts/case-study/build.mjs --out docs/case-study/studyhub-case-study.pdf --write-facts",
     "lint": "eslint --cache --cache-location node_modules/.cache/eslint/ lib scripts tests ui packages eslint.config.js",
+    "lib-graph": "node scripts/qa/lib-graph.mjs",
     "typecheck": "tsc -p .",
     "dev": "node scripts/dev.mjs",
     "qa:journey": "node scripts/qa/journey.mjs",

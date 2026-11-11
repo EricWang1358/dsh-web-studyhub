@@ -7,7 +7,7 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { ui, uiFormat, errorMessage, useUiLanguage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Banner, Button, Checkbox, Dialog, Hint, Icon, InlineMessage, useToast } from './components/index.js';
+import { Badge, Banner, Button, Checkbox, CopyDiagnosticsButton, Dialog, Hint, Icon, InlineMessage, Tooltip, useToast } from './components/index.js';
 import Markdown from './Markdown.jsx';
 import { formatDateTime } from './format.js';
 import { useCopyFeedback } from './use-copy-feedback.js';
@@ -17,6 +17,7 @@ import { selectReleaseNotes } from '../lib/release-notes.js';
 import css from './update.css';
 import { setRetrievalStatus, useRetrievalStatus } from './retrieval-status.js';
 import { useStudy } from './study-context.jsx';
+import { useDiagnostics } from './diagnostics.js';
 
 let snapshot = { update: null, checking: false };
 const listeners = new Set();
@@ -24,6 +25,14 @@ const setStore = patch => { snapshot = { ...snapshot, ...patch }; listeners.forE
 const subscribe = listener => { listeners.add(listener); return () => listeners.delete(listener); };
 const read = () => snapshot;
 export const useUpdateStore = () => useSyncExternalStore(subscribe, read, read);
+/** StudyHub's running version as the last check reported it (undefined before the first one), read when asked, with no subscription. */
+export const currentStudyHubVersion = () => snapshot.update?.current;
+/** The upgrade version a check saw (the install marker, or a newer package found on disk) and whether the restart since then failed, for the diagnostic text; nothing when none is waiting or failed. */
+export function upgradeMarkerOf(update) {
+  const version = update?.restartFailed?.pending || update?.pendingRestart;
+  return version ? { version, restartFailed: !!update.restartFailed } : undefined;
+}
+export const currentUpgradeMarker = () => upgradeMarkerOf(snapshot.update);
 
 let started = false;
 /**
@@ -52,15 +61,18 @@ async function savePreferences(call, preferences) {
 const canUpgrade = update => !!update && (update.upgradeAvailable ??
   (update.newer && isNewerVersion(update.latest, update.pendingRestart || update.installed || update.current)));
 
-/** null | 'new' | 'restart': what the sidebar chip should say. */
+/** null | 'new' | 'restart' | 'stuck': what the sidebar chip should say. 'stuck' (a restart that did not take effect) outranks a new-version nudge and is not silenced by 稍后提醒 or by switching checks off. */
 export function chipState(update) {
   if (!update) return null;
+  if (update.restartFailed) return 'stuck';
   if (canUpgrade(update) && update.autoCheck !== false && !update.snoozed) return 'new';
   if (update.pendingRestart) return 'restart';
   return null;
 }
 
 const CHECK_ERROR_CODE = /^(network|rate-limited|invalid|http-\d+)$/;
+const checkErrorCode = error => (CHECK_ERROR_CODE.test(error) ? error : 'network');
+
 /**
  * What a failed check says, by the host's error code (only reached when GitHub's API and the plain release-page
  * route both failed). A rate limit is not a network problem and an HTTP status is not either; only 'network' blames
@@ -121,17 +133,28 @@ export async function startUpgrade(call, update, { confirmJobs = false } = {}) {
 }
 
 
-/** The sidebar chip: quiet, only when there is something to do. */
+/** What restarting means, in the one wording the chip's explanation and the "installed" page share: the desktop app is quit completely, a service is restarted. */
+const restartInstruction = desktop => (desktop
+  ? ui('请完全退出 DSH 桌面版（包括托盘图标）后重新打开，新版本才会生效。')
+  : ui('请重启 DSH 服务（停止后用原来的方式重新启动），再刷新页面，新版本才会生效。'));
+
+/** The sidebar chip: quiet, only when there is something to do. Hover and focus explain what to do (restart) or what happened (stuck). */
 export function UpdateChip({ update, onOpen, compact = false }) {
   useInjectCss(css, 'study-update');
   const state = chipState(update);
   if (!state) return null;
-  const label = state === 'restart' ? ui('重启 DSH 完成升级') : uiFormat('有新版本 {0}', [update.latest]);
+  const label = state === 'restart' ? ui('重启 DSH 完成升级') : state === 'stuck' ? ui('升级没有生效') : uiFormat('有新版本 {0}', [update.latest]);
+  // The new-version label is the whole message; a compact chip hides its text, so it is named by the explanation too.
+  const tip = state === 'restart' ? restartInstruction(!!update.install?.desktop)
+    : state === 'stuck' ? uiFormat('DSH 重启过，运行的仍是 {0}。点开看原因和办法。', [update.restartFailed.running])
+      : compact ? label : '';
+  const icon = state === 'restart' ? 'info' : state === 'stuck' ? 'warning' : 'sparkle';
   return (
-    <button type="button" className={`update-chip update-chip--${state}${compact ? ' is-compact' : ''}`} onClick={onOpen}
-      aria-label={compact ? label : undefined} title={label}>
-      <Badge className="update-chip__badge" tone="info" icon={state === 'restart' ? 'info' : 'sparkle'}>{!compact && <span className="update-chip__label">{label}</span>}</Badge>
-    </button>
+    <Tooltip layer content={tip} placement="top-start" anchorClassName="update-chip-anchor">
+      <button type="button" className={`update-chip update-chip--${state}${compact ? ' is-compact' : ''}`} onClick={onOpen} aria-label={compact ? label : undefined}>
+        <Badge className="update-chip__badge" tone={state === 'stuck' ? 'warning' : 'info'} icon={icon}>{!compact && <span className="update-chip__label">{label}</span>}</Badge>
+      </button>
+    </Tooltip>
   );
 }
 
@@ -149,8 +172,7 @@ function CopyAddress({ address }) {
   );
 }
 
-function GuidedUpgrade({ update, host }) {
-  const address = update.assetUrl || update.url;
+function GuidedUpgrade({ update, host, address = update.assetUrl || update.url }) {
   return (
     <section className="update-guided" aria-label={ui('手动升级')}>
       <p className="update-lead">{ui('DSH 插件不会自动更新。按下面 4 步换成新版本，学习库和设置都会保留：')}</p>
@@ -167,15 +189,19 @@ function GuidedUpgrade({ update, host }) {
   );
 }
 
-function Installed({ phase, host }) {
+function Installed({ phase, host, onGuided }) {
   return (
     <div className="update-done">
       <InlineMessage tone="success" boxed title={uiFormat('已安装 {0}', [phase.version])}>
-        {phase.desktop
-          ? ui('请完全退出 DSH 桌面版（包括托盘图标）后重新打开，新版本才会生效。')
-          : ui('请重启 DSH 服务（停止后用原来的方式重新启动），再刷新页面，新版本才会生效。')}
+        {restartInstruction(phase.desktop)}
       </InlineMessage>
       <p className="update-note">{ui('重启前，当前页面仍在运行旧版本；学习库和设置不受影响。')}</p>
+      {/* A restart that left the old process running cannot be seen from here; this is the way out for a learner who restarted and still sees this page. */}
+      <p className="update-note">
+        {phase.desktop ? ui('重启后还看到这个提示？先确认已经从托盘退出 DSH；还是不行，可以改用手动升级。')
+          : ui('重启后还看到这个提示？先确认 DSH 服务已经停止、重新启动过，并刷新了页面；还是不行，可以改用手动升级。')}
+        {onGuided && <> <Button variant="link" size="sm" onClick={onGuided}>{ui('查看手动升级步骤')}</Button></>}
+      </p>
       {host?.openPluginManager && <Button variant="quiet" size="sm" icon="external" onClick={() => host.openPluginManager()}>{ui('在插件管理中查看')}</Button>}
     </div>
   );
@@ -199,8 +225,10 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
       (phase.phase !== 'installed' || isNewerVersion(update.pendingRestart, phase.version))) {
     phase = { phase: 'installed', version: update.pendingRestart, restartRequired: true, desktop: !!update.install?.desktop };
   }
-  const [guided, setGuided] = useState(false);
-  const inApp = update.install?.available === true && !guided && !!update.assetUrl;
+  const [guided, setGuided] = useState(false), [checking, setChecking] = useState(false), [checkError, setCheckError] = useState('');
+  // A restart that did not take effect: the install can be done again only when a release newer than this copy is known.
+  const stuck = update.restartFailed || null;
+  const inApp = update.install?.available === true && !guided && !!update.assetUrl && (!stuck || available);
   const working = phase.phase === 'working';
   const notes = selectReleaseNotes(update.notes, language);
   async function upgrade(confirmJobs = false) {
@@ -208,6 +236,12 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
     const next = await startUpgrade(call, update, { confirmJobs });
     setPhase(next);
     if (next.phase === 'installed') refreshUpdate(call);
+  }
+  async function recheck() {
+    setChecking(true); setCheckError('');
+    const result = await refreshUpdate(call, { force: true });
+    setChecking(false);
+    if (result?.error) setCheckError(checkErrorCode(String(result.error)));
   }
   async function later() {
     try { await savePreferences(call, { snooze: update.latest }); toast.info(uiFormat('{0} 先不提醒了，可在「设置 › 关于与更新」里随时升级。', [update.latest])); }
@@ -222,25 +256,32 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
   else if (inApp && phase.phase === 'error' && !NON_RETRYABLE_INSTALL_CODES.has(phase.code)) primary = <Button variant="primary" onClick={() => upgrade(false)}>{ui('重试升级')}</Button>;
   else if (inApp && phase.phase === 'confirm') primary = <Button variant="primary" onClick={() => upgrade(false)}>{ui('确认升级')}</Button>;
   else if (inApp && phase.phase === 'jobs') primary = <Button variant="primary" onClick={() => upgrade(true)}>{ui('停止任务并升级')}</Button>;
-  else if (inApp && phase.phase !== 'error') primary = <Button variant="primary" icon="sparkle" busy={working} onClick={() => setPhase({ phase: 'confirm' })}>{uiFormat('一键升级到 {0}', [update.latest])}</Button>;
+  else if (inApp && phase.phase !== 'error') primary = <Button variant="primary" icon="sparkle" busy={working} onClick={() => setPhase({ phase: 'confirm' })}>{stuck ? uiFormat('重新安装 {0}', [update.latest]) : uiFormat('一键升级到 {0}', [update.latest])}</Button>;
+  else if (stuck && !available) primary = <Button variant="primary" busy={checking} onClick={recheck}>{ui('检查更新')}</Button>;
   const footer = (
     <div className="update-footer">
       <a className="update-release-link" href={update.url} target="_blank" rel="noreferrer">{ui('查看发布页')}<Icon name="external" size={14} /></a>
       <span className="update-footer__actions">
-        {phase.phase !== 'installed' && <Button variant="quiet" lock={working} onClick={later}>{ui('稍后提醒')}</Button>}
+        {phase.phase !== 'installed' && !stuck && <Button variant="quiet" lock={working} onClick={later}>{ui('稍后提醒')}</Button>}
         {primary}
       </span>
     </div>
   );
   return (
-    <Dialog title={phase.phase === 'installed' ? uiFormat('StudyHub {0} 等待重启', [phase.version]) : uiFormat('StudyHub {0} 可以升级了', [update.latest])} description={description} size="md" onClose={onClose} footer={footer}
+    <Dialog title={phase.phase === 'installed' ? uiFormat('StudyHub {0} 等待重启', [phase.version]) : stuck ? uiFormat('StudyHub {0} 没有生效', [stuck.pending]) : uiFormat('StudyHub {0} 可以升级了', [update.latest])} description={description} size="md" onClose={onClose} footer={footer}
       className="update-dialog" bodyLabel={ui('升级说明')}>
-      {phase.phase === 'installed' ? <Installed phase={phase} host={host} /> : <>
+      {phase.phase === 'installed' ? <><Installed phase={phase} host={host} onGuided={guided ? undefined : () => setGuided(true)} />{guided && <GuidedUpgrade update={update} host={host} />}</> : <>
+        {stuck && <InlineMessage tone="warning" boxed actionsBelow className="update-stuck" action={inApp ? { label: ui('改用手动升级'), onClick: () => { setGuided(true); setPhase({ phase: 'idle' }); } } : undefined}>
+          <p>{uiFormat('现在运行的是 {0}。{1} 安装过 {2}，之后 DSH 重新启动过，运行的仍是 {0}。', [stuck.running, formatDateTime(stuck.installedAt), stuck.pending])}</p>
+          <p>{ui('可能的原因：升级装进了这台电脑上的另一份 StudyHub（另一个配置），这一份还是旧的；或者新版本的文件没有真正换上。')}</p>
+        </InlineMessage>}
+        {stuck && !available && <p className="update-lead">{uiFormat('{0} 的安装包地址在下面，可以按步骤手动安装；也可以点「检查更新」看有没有更新的版本。', [stuck.pending])}</p>}
+        {checkError && <InlineMessage tone="warning" className="update-dialog__inline">{updateErrorText({ ...update, error: checkError }, { manual: true })}</InlineMessage>}
         {update.pendingRestart && available && <p className="update-lead">{uiFormat('已安装 {0}，尚未重启。可以直接安装 {1}，然后重启一次 DSH。', [update.pendingRestart, update.latest])}</p>}
-        {notes ? <section className="update-notes-wrap" aria-label={ui('更新内容')}>
+        {notes && (!stuck || available) ? <section className="update-notes-wrap" aria-label={ui('更新内容')}>
           <h3>{ui('更新内容')}</h3>
           <div className="update-notes"><Markdown links={false} text={notes} /></div>
-        </section> : update.source === 'fallback' && <p className="update-note">{ui('这次没能取得更新内容，请点「查看发布页」阅读。')}</p>}
+        </section> : update.source === 'fallback' && (!stuck || available) && <p className="update-note">{ui('这次没能取得更新内容，请点「查看发布页」阅读。')}</p>}
         {inApp && phase.phase === 'idle' && <p className="update-lead">{ui('StudyHub 会从 GitHub 发布页下载安装包，核对 SHA256 校验值后交给 DSH 插件管理安装；安装后重启 DSH 即可使用新版本。')}</p>}
         {inApp && phase.phase === 'confirm' && <InlineMessage tone="info" boxed title={ui('确认升级？')}>
           {ui('升级需要几十秒。安装完成后要重启 DSH，重启前可以继续学习。')}
@@ -251,28 +292,33 @@ export function UpdateDialog({ update, onClose, initialPhase = null }) {
         </InlineMessage>}
         {phase.phase === 'error' && <InlineMessage tone="error" boxed title={ui('这次没有升级成功')}
           action={{ label: ui('改用手动升级'), onClick: () => { setGuided(true); setPhase({ phase: 'idle' }); } }}>{phase.message || failureMessage(phase.code, phase)}</InlineMessage>}
-        {!inApp && <GuidedUpgrade update={update} host={host} />}
+        {!inApp && <GuidedUpgrade update={update} host={host} address={stuck && !available ? stuck.assetUrl || update.url : undefined} />}
       </>}
     </Dialog>
   );
 }
 
 /** Settings › 关于与更新. */
-export function UpdateSettings({ update, onOpen, checking = false, extension, onExtension, onCheck, initialCheckError = '', initialSaveError = '' }) {
+export function UpdateSettings({ update, onOpen, checking = false, extension, retrievalStatus = null, onExtension, onCheck, diagnostic, initialCheckError = '', initialSaveError = '' }) {
   const { call } = useStudy();
   useInjectCss(css, 'study-update');
   const [saving, setSaving] = useState(false), [checkError, setCheckError] = useState(initialCheckError), [saveError, setSaveError] = useState(initialSaveError);
+  const resolvedRetrieval = retrievalStatus || (extension ? { extension } : null);
+  const resolvedExtension = resolvedRetrieval?.extension || extension;
   // The check compares StudyHub only; the search extension is installed once and is not updated with it.
-  const staleExtension = extension?.installed && extension.outdated ? extension : null;
+  const staleExtension = resolvedExtension?.installed && (resolvedExtension.outdated || resolvedExtension.pendingRestart || resolvedExtension.restartFailed)
+    ? resolvedExtension
+    : null;
   async function checkUpdates() {
     setCheckError('');
     const result = await refreshUpdate(call, { force: true });
     onCheck?.();
     if (result?.error) setCheckError(String(result.error));
   }
-  const available = canUpgrade(update);
+  const available = canUpgrade(update), stuck = update?.restartFailed || null;
   // How the check stands: tone and words differ for "up to date", "restart needed", "never checked". An extension behind is said once, by its update notice below.
   const status = !update ? null
+    : stuck ? { tone: 'warning', text: uiFormat('StudyHub {0} 没有生效：DSH 重启过，运行的仍是 {1}。', [stuck.pending, stuck.running]), action: { label: ui('查看处理办法'), onClick: onOpen } }
     : update.pendingRestart ? { tone: 'info', text: uiFormat('已安装 {0}，重启 DSH 后生效。', [update.pendingRestart]) }
       : available || update.error || staleExtension ? null
         : update.checkedAt ? { tone: 'success', text: ui('已是最新版本。') } : { tone: 'hint', text: ui('还没有检查过更新。') };
@@ -297,17 +343,21 @@ export function UpdateSettings({ update, onOpen, checking = false, extension, on
         <div><dt>{ui('上次检查')}</dt><dd>{update?.checkedAt ? formatDateTime(update.checkedAt) : ui('尚未检查')}</dd></div>
       </dl>
       {update?.pendingRestart && <Hint className="update-settings__hint">{ui('当前版本是正在运行的代码；已安装版本在重启 DSH 后生效。')}</Hint>}
-      {available && <Banner className="update-settings__banner" tone="info" icon="sparkle" title={uiFormat('有新版本 {0}', [update.latest])} action={{ label: ui('查看升级'), variant: 'primary', onClick: onOpen }} />}
-      {checkError ? <InlineMessage className="update-settings__inline" tone="error" title={ui('没能检查更新')} action={retry}>{failure(CHECK_ERROR_CODE.test(checkError) ? checkError : 'network', true)}</InlineMessage>
+      {available && !stuck && <Banner className="update-settings__banner" tone="info" icon="sparkle" title={uiFormat('有新版本 {0}', [update.latest])} action={{ label: ui('查看升级'), variant: 'primary', onClick: onOpen }} />}
+      {checkError ? <InlineMessage className="update-settings__inline" tone="error" title={ui('没能检查更新')} action={retry}>{failure(checkErrorCode(checkError), true)}</InlineMessage>
         : update?.error ? <InlineMessage className="update-settings__inline" tone="warning" action={retry}>{failure(update.error, false)}</InlineMessage> : null}
-      {!checkError && status && (status.tone === 'hint' ? <Hint className="update-settings__hint">{status.text}</Hint> : <InlineMessage className="update-settings__inline" tone={status.tone}>{status.text}</InlineMessage>)}
+      {!checkError && status && (status.tone === 'hint' ? <Hint className="update-settings__hint">{status.text}</Hint> : <InlineMessage className="update-settings__inline" tone={status.tone} action={status.action}>{status.text}</InlineMessage>)}
       {saveError && <InlineMessage className="update-settings__inline" tone="error" onDismiss={() => setSaveError('')}>{ui('没能保存这个设置，已恢复原来的选择。')}</InlineMessage>}
-      {extension?.installed && <ExtensionUpdateNotice status={{ extension }} onStatus={onExtension} />}
+      {resolvedExtension?.installed && <ExtensionUpdateNotice status={resolvedRetrieval} onStatus={onExtension} />}
       <div className="update-settings__actions">
         <Button size="sm" busy={checking} onClick={checkUpdates}>{ui('检查更新')}</Button>
         <Checkbox checked={update?.autoCheck !== false} disabled={saving || !update} onChange={toggle} label={ui('自动检查更新')} />
       </div>
       <p className="settings-section__lead">{ui('自动检查通常间隔 6 小时，失败后稍后重试；手动检查立即查询，不自动安装，也不发送学习数据。')}</p>
+      {diagnostic && <div className="update-settings__diagnostic" data-tour="settings-diagnostic">
+        <CopyDiagnosticsButton describe={diagnostic} variant="secondary" />
+        <Hint className="update-settings__hint">{ui('报问题时点「复制诊断信息」，把文字贴给开发者；点「看看会复制什么」可以先读一遍。里面只有版本、界面语言、页面、出错类型、程序自带的报错短句、出错位置的函数名、任务类型和状态、资料/题组/题目的数量、实验性功能是否开启，以及本次打开期间换页的快慢、卡顿次数和数据更新的耗时（只存在内存里，关掉就没了）；别的报错内容不会复制，只写字数。DSH 版本请自己补上。')}</Hint>
+      </div>}
     </fieldset>
   );
 }
@@ -324,8 +374,10 @@ export function UpdateSettingsPanel() {
   // Whether the search extension is behind this StudyHub rides along with the retrieval status (the shared store: an install elsewhere shows here).
   const retrieval = useRetrievalStatus({ call });
   const extension = retrieval.data?.extension;
+  const describe = useDiagnostics(currentStudyHubVersion, currentUpgradeMarker);
   return <>
-    <UpdateSettings update={update} checking={checking} onOpen={() => setOpen(true)} extension={extension} onExtension={value => setRetrievalStatus(value)} onCheck={retrieval.refresh} />
+    <UpdateSettings update={update} checking={checking} onOpen={() => setOpen(true)} extension={extension} retrievalStatus={retrieval.data} onExtension={value => setRetrievalStatus(value)} onCheck={retrieval.refresh}
+      diagnostic={() => describe()} />
     {open && update && <UpdateDialog update={update} onClose={() => setOpen(false)} />}
   </>;
 }

@@ -82,24 +82,64 @@ export function RubricResult({ rubric, title, compact = false }) {
 }
 
 const minutes = (ms) => Math.round((ms || 0) / 60000);
-const statusLabel = (status) => ({ graded: ui("已批改"), pending: ui("批改中"), unanswered: ui("未作答") })[status] || "";
+const statusLabel = (status, running = true) => ({
+  graded: ui("已批改"),
+  pending: running ? ui("批改中") : ui("待重试"),
+  unanswered: ui("未作答"),
+})[status] || "";
+
+function matchesReportQuestion(task, report, question) {
+  if (task?.mode !== "grade" || task.cardId !== question.cardId) return false;
+  if (task.deckId && question.deckId && task.deckId !== question.deckId) return false;
+  if (report?.runId && task.runId) return task.runId === report.runId;
+  return !task.runId;
+}
+
+/** Reconcile a case report's pending questions against live background grading tasks so failed or post-restart reports never spin forever. */
+export function caseGradingState(report, assistTasks, gradingErrors = [], submitting = false) {
+  const paper = report?.case;
+  const pendingQuestions = (paper?.questions || []).filter((question) => question.status === "pending");
+  if (!paper || !pendingQuestions.length) return { phase: "done", runningCount: 0, errors: [...gradingErrors] };
+  if (assistTasks === undefined && !submitting && !gradingErrors.length) {
+    return { phase: "running", runningCount: pendingQuestions.length, errors: [] };
+  }
+  const tasks = Array.isArray(assistTasks) ? assistTasks : [];
+  let runningCount = 0;
+  const taskErrors = [];
+  for (const question of pendingQuestions) {
+    const latest = tasks.findLast((task) => matchesReportQuestion(task, report, question));
+    if (latest?.status === "running") runningCount++;
+    else if (latest?.status === "failed") taskErrors.push(latest.message || ui("批改未完成"));
+  }
+  const errors = [...new Set([...gradingErrors, ...taskErrors].filter(Boolean))];
+  if (submitting || runningCount > 0) return { phase: "running", runningCount: Math.max(runningCount, submitting ? 1 : 0), errors };
+  if (errors.length > 0) return { phase: "failed", runningCount: 0, errors };
+  return { phase: "interrupted", runningCount: 0, errors: [] };
+}
 
 /** The report of a case paper: per-question marks, the three weakest criteria with practice, and the pacing. */
-export function CaseReport({ report, busy, onDrills, onAgain, onPracticeDeck, onRetryGrading, gradingErrors = [] }) {
+export function CaseReport({ report, busy, assistTasks, submitting = false, onDrills, onAgain, onPracticeDeck, onRetryGrading, gradingErrors = [] }) {
   useInjectCss(css, "study-case-result");
   const paper = report?.case;
   if (!paper) return null;
   const graded = paper.questions.filter((question) => question.status === "graded").length;
+  const grading = caseGradingState(report, assistTasks, gradingErrors, submitting);
+  const running = grading.phase === "running";
   return (
     <div className="case-report">
       <div className="case-report__hero sh-paper-card">
         <p className="rubric-score"><strong>{marks(paper.total)}</strong><span>{uiFormat("/ {0} 分", [marks(paper.max)])}</span></p>
         <div>
-          <strong>{paper.pending ? uiFormat("已批改 {0}/{1} 题，其余正在后台批改", [graded, paper.questions.length]) : ui("全部批改完成")}</strong>
+          <strong>{paper.pending
+            ? running
+              ? uiFormat("已批改 {0}/{1} 题，其余正在后台批改", [graded, paper.questions.length])
+              : uiFormat("已批改 {0}/{1} 题，其余未完成批改", [graded, paper.questions.length])
+            : ui("全部批改完成")}</strong>
           <p className="muted">{joinMeta([uiFormat("阅读 {0} 分钟 · 作答 {1} 分钟", [minutes(paper.pacing.readingMs), minutes(paper.pacing.writingMs)]),
             paper.handwriting ? uiFormat("录入 {0} 分钟（不计入考试时间）", [minutes(paper.pacing.transcribeMs)]) : ""])}</p>
-          {paper.pending > 0 && <p className="case-report__pending" role="status"><Spinner size="sm" />{ui("批改结果会自动出现在这里，也会进信箱。")}</p>}
-          {gradingErrors.length > 0 && <InlineMessage tone="error" action={onRetryGrading ? { label: ui("重新提交批改"), onClick: onRetryGrading } : undefined}>{gradingErrors.join("；")}</InlineMessage>}
+          {paper.pending > 0 && running && <p className="case-report__pending" role="status"><Spinner size="sm" />{ui("批改结果会自动出现在这里，完成时信箱也会提醒你。")}</p>}
+          {grading.errors.length > 0 && <InlineMessage tone="error" actionsBelow action={!running && onRetryGrading ? { label: ui("重新提交批改"), onClick: onRetryGrading } : undefined}>{grading.errors.join("；")}</InlineMessage>}
+          {grading.phase === "interrupted" && <InlineMessage tone="warning" actionsBelow action={onRetryGrading ? { label: ui("重新提交批改"), onClick: onRetryGrading } : undefined}>{ui("上次批改没有完成，你的作答已保存。点「重新提交批改」继续批改其余题目；完成后结果会显示在这里，信箱也会提醒你。")}</InlineMessage>}
         </div>
       </div>
       <section className="case-report__section">
@@ -110,7 +150,7 @@ export function CaseReport({ report, busy, onDrills, onAgain, onPracticeDeck, on
             return <li key={question.cardId} className={`is-${question.status}`}>
               <span className="case-report__n">{uiFormat("第 {0} 题", [question.n])}</span>
               <span className="case-report__prompt">{question.prompt}</span>
-              <Badge size="sm">{statusLabel(question.status)}</Badge>
+              <Badge size="sm">{statusLabel(question.status, running)}</Badge>
               <span className="case-report__marks">{question.total === null ? "—" : marks(question.total)}<small>{uiFormat("/{0}", [marks(question.marks)])}</small></span>
               {pace && <small className={"case-report__pace" + (pace.status === "over" ? " is-over" : "")}>
                 {uiFormat("用时 {0}/{1} 分钟", [minutes(pace.spentMs), minutes(pace.budgetMs)])}</small>}

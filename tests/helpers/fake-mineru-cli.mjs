@@ -60,7 +60,9 @@ if (isReadOnlyStatus && state.statusEnteredFile) writeFileSync(state.statusEnter
 if (isReadOnlyStatus && state.statusHoldFile) while (existsSync(state.statusHoldFile)) pause(15);
 if (state.readDelayMs && isReadOnlyStatus)
   await new Promise(resolve => setTimeout(resolve, state.readDelayMs));
-if (command === '--version' || command === '-V') out(`mineru, version ${state.version ?? '4.0.10'}`);
+// `versionFails`: what a mineru that cannot read its own config.yaml prints and exits with (a learner's machine, #936).
+if ((command === '--version' || command === '-V') && state.versionFails) fail(state.versionFails);
+else if (command === '--version' || command === '-V') out(`mineru, version ${state.version ?? '4.0.10'}`);
 else if (command === 'config' && sub === 'show') {
   needService();
   out(`parse_server:\n  local:\n    mode: ${state.mode ?? 'disabled'}\n    managed_tier: ${state.tier ?? 'flash'}${state.device ? `\n    device: ${state.device}` : ''}`);
@@ -88,11 +90,28 @@ else if (command === 'config' && sub === 'show') {
   out(JSON.stringify({ running: true, pid: 12345, workers: { parse_running: active?.status === 'parsing' ? 1 : 0, parse_queue_length: active?.status === 'pending' ? 1 : 0 },
     parse_server: { local: { healthy: !state.unhealthy, starting: !!state.starting } } }, null, 2));
 } else if (command === 'server' && sub === 'status') {
+  if (state.stillStartingOnce) {
+    const text = typeof state.stillStartingOnce === 'string' ? state.stillStartingOnce : '服务仍在启动中(PID 12345)。';
+    delete state.stillStartingOnce; save();
+    out(text); process.exit(0);
+  }
   if (state.running || state.statusStuck) {
     out(`┏━━━━━━━━━━┳━━━━━━━━━━┓\n┃ PID      ┃ 12345    ┃\n┃ Uptime   ┃ 2m       ┃\n┃ Version  ┃ 4.0.10   ┃${state.device ? `\n┃ Device   ┃ ${state.device.padEnd(8)} ┃` : ''}\n┗━━━━━━━━━━┻━━━━━━━━━━┛`);
   } else { out('服务未在运行。'); process.exit(state.statusExitsZero ? 0 : 1); }
 } else if (command === 'server' && (sub === 'start' || sub === 'restart')) {
   if (state.vcRuntime) fail('ImportError: DLL load failed while importing onnxruntime_pybind11_state: 找不到指定的模块。');
+  if (state.startBusyOnce) { delete state.startBusyOnce; save(); fail('Error: doclib.home.lock is being used by another process'); }
+  if (state.startSilentFail) {
+    const home = process.env.MINERU_HOME || state.home;
+    // Appended, like the real daemon log: what an earlier run wrote stays above it.
+    if (home && state.serverLogError) { mkdirSync(join(home, 'logs'), { recursive: true }); appendFileSync(join(home, 'logs', 'doclib.stderr.log'), `${state.serverLogError}\n`, 'utf8'); }
+    fail('服务启动失败：进程退出');
+  }
+  if (state.startStillStarting) {
+    const text = typeof state.startStillStarting === 'string' ? state.startStillStarting : '服务仍在启动中(PID 12345)。';
+    delete state.startStillStarting; state.running = true; state.starts = (state.starts || 0) + 1; save();
+    out(text); process.exit(0);
+  }
   if (state.startFails || state.portInUse) fail('服务启动失败：端口被占用');
   // A service that crashes as it starts: what a learner must never read (a Python traceback in English).
   if (state.startTraceback) fail('Traceback (most recent call last):\n  File "mineru\\cli\\server.py", line 88, in start\n    raise RuntimeError("worker exited with code 3")\nRuntimeError: worker exited with code 3');

@@ -4,6 +4,7 @@ import { bookEditPrompt } from './book.js';
 import { ingestPrompt } from './ingest.js';
 import { importFilePrompt } from './import.js';
 import { jobFailedPrompt } from './job.js';
+import { setupFailedPrompt } from './setup.js';
 import { deckAnalysisPrompt, topicExplainPrompt, weakTopicsPrompt } from './library.js';
 import { archifySkeletonPrompt, designSkeletonPrompt, extendSkeletonPrompt } from './skeleton.js';
 
@@ -16,7 +17,7 @@ import { guidedStartPrompt } from './guided-start.js';
 import { courseFocusPrompt } from './focus.js';
 import { customStartPrompt } from './custom.js';
 import { selfStartPrompt } from './self.js';
-import { methodDraftMaterialPrompt, methodEditPrompt, methodExplainPrompt, methodMissedPrompt } from './method.js';
+import { methodDraftMaterialPrompt, methodEditPrompt, methodExplainPrompt, methodMissedPrompt, stubbornQuestionPrompt } from './method.js';
 import { taskCheckPrompt } from './task.js';
 
 /* The registry of 「发给主会话」 messages (the hand-off plan, section 1.3): every message a StudyHub page hands to the main chat has an id here, and
@@ -34,6 +35,7 @@ export const HAND_OFFS = Object.freeze({
   'topics.group': { build: (input, language) => groupPrompt(input, language) },
   'import.file': { build: (input, language) => importFilePrompt(input, language), skill: 'study-import', tail: 'file' },
   'job.failed': { build: (input, language) => jobFailedPrompt(input, language) },
+  'setup.failed': { build: (input, language) => setupFailedPrompt(input, language), skill: 'study-import' },
   'skeleton.design': { build: (input, language) => designSkeletonPrompt(input, language) },
   'skeleton.archify': { build: (input, language) => archifySkeletonPrompt(input, language) },
   'skeleton.extend': { build: (input, language) => extendSkeletonPrompt(input, language) },
@@ -64,6 +66,8 @@ export const HAND_OFFS = Object.freeze({
   'method.draftMaterial': { build: (input, language) => methodDraftMaterialPrompt(input, language), skill: 'study-import' },
   // 带着错题回主会话 (#777): manual return to main chat when stage checks or practice questions are missed (ui/CourseMethodCard.jsx, ui/Review.jsx, ui/guided-study/GuidedStudyWorkbench.jsx)
   'method.missed': { build: (input, language) => methodMissedPrompt(input, language), skill: 'study-tutor' },
+  // 顽固题 (#884): one question the learner keeps failing, from its opened row in the wrong book (ui/WrongBook.jsx): is it the learner or the question
+  'question.stubborn': { build: (input, language) => stubbornQuestionPrompt(input, language), skill: 'study-tutor' },
   // 动手任务「在主会话里检查」 (#778): static criterion-by-criterion evaluation on user-named files only, written back via card.grade (ui/TaskCardRun.jsx)
   'task.check': { build: (input, language) => taskCheckPrompt(input, language), skill: 'study-tutor', tail: 'file' },
 });

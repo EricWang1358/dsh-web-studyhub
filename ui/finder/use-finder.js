@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { ANCHOR_WAIT_MS, findAnchor, locateAnchor } from '../tour/anchor.js';
+import { ANCHOR_WAIT_MS, findAnchor, locateAnchor, scrollToAnchor } from '../tour/anchor.js';
 import { opensFinder } from './keys.js';
 import { planTrip, tripNotice } from './trip.js';
 
@@ -89,8 +89,10 @@ export function useFinder({ nav, settingsEntry, core, tour, rootRef }) {
       const element = hit.element.isConnected ? hit.element : findAnchor(root, entry.anchors);
       if (element) {
         // Settings scrolls to the anchor of its own link, but not when the page was already there (no link) and not to a control inside a fold it could not see yet (hit.opened).
-        if (!linked || hit.opened) element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
+        // In one scroll, not an animation, and re-checked once frames settle in case an open chunked list right above appended a batch (#900, #930).
+        const scrolling = !linked || hit.opened ? scrollToAnchor(element, { block: 'center', inline: 'nearest' }, aborted) : null;
         focusTarget(element);
+        if (scrolling) await scrolling;
       }
     }
     if (notice) notify(notice);

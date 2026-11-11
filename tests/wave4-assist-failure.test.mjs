@@ -22,10 +22,10 @@ const h = React.createElement;
 
 const RAW_403 = '403: {"message":"Authentication failed. Please check your credentials.","type":"permission_error"}';
 const card = { id: "q", kind: "quiz", topic: "Context", prompt: "Who processes payments?", options: [{ id: "a", text: "Payment System" }] };
-function failed(task, links = {}) {
+function failed(task, { data = { sources: [] }, ...links } = {}) {
   const inner = reviewElement(m.Review, m.StudyServicesContext, {
     run: { id: "r", index: 0, total: 2, card, revealed: false, feedback: null, solution: null },
-    data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false,
+    data, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false,
     assistTasks: [{ id: "t", cardId: "q", mode: "ask", status: "failed", question: "为什么？", choices: ["prerequisite"], ...task }], ...links });
   return renderToStaticMarkup(h(m.ModelSettingsContext.Provider, { value: () => {} }, inner));
 }
@@ -65,17 +65,19 @@ test("plainAssistFailure drops the doubled prefix the backend used to add (#180)
   assert.equal(m.plainAssistFailure(""), "");
 });
 
-test("a credential failure of the background assistant: readable cause, 前往设置, no 重新提交 (#180)", () => {
+test("a credential failure of the background assistant: readable cause, 前往设置, 改一改再提交 kept, 重新提交 only once model is ready (#180, #961)", () => {
   const html = failed({ message: `后台助教未完成：${RAW_403}` });
   assert.match(html, /role="alert"/);
   assert.match(html, /模型服务拒绝了请求/);
   assert.match(html, />前往设置<\/button>/);
-  assert.doesNotMatch(html, />重新提交<\/button>/, "resubmitting a rejected key cannot work");
-  assert.doesNotMatch(html, />改一改再提交<\/button>/);
+  assert.doesNotMatch(html, />重新提交<\/button>/, "resubmitting while model is unready cannot work");
+  assert.match(html, />改一改再提交<\/button>/, "typed question can still be recovered (#961)");
   assert.match(html, /技术详情/);
   assert.match(html, /Authentication failed/);
   assert.doesNotMatch(html, /后台助教没能完成：后台助教未完成/);
   assert.doesNotMatch(html, /后台助教未完成/);
+  const readyHtml = failed({ message: `后台助教未完成：${RAW_403}` }, { data: { sources: [], model: { ready: true, reason: "ok", label: "DeepSeek" } } });
+  assert.match(readyHtml, />重新提交<\/button>/, "once model is ready again, 重新提交 is offered (#961)");
 });
 
 test("a rate limit or timeout still offers 重新提交 with the retry wording (#180)", () => {
@@ -96,9 +98,10 @@ test("a content failure keeps the plain line with both buttons, without a repeat
   assert.match(html, /<button[^>]*>改一改再提交<\/button>/);
 });
 
-test("a settings-kind failure hides 改一改再提交 even for a typed question; a retry-kind failure shows it only when the task has content to edit (#180)", () => {
-  assert.doesNotMatch(failed({ message: RAW_403 }), /改一改再提交/);
-  assert.doesNotMatch(failed({ message: "429 rate limit" }), />改一改再提交</, "a rate limit is not about the content");
+test("model failures keep 改一改再提交 when the task has editable input and hide it when derived from a Q&A item (#180, #961)", () => {
+  assert.match(failed({ message: RAW_403 }), />改一改再提交<\/button>/);
+  assert.match(failed({ message: "429 rate limit" }), />改一改再提交<\/button>/);
+  assert.doesNotMatch(failed({ mode: "derive", followupId: "f1", question: "", message: RAW_403 }), /改一改再提交/);
 });
 
 test("the dist of the English catalogue and the source: the doubled prefix is gone from the practice page (#180)", () => {

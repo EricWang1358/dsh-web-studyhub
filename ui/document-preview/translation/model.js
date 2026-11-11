@@ -64,8 +64,17 @@ export function reducer(state, action) {
   switch (action.type) {
     case 'loaded': {
       const list = action.list;
+      const items = Object.fromEntries(list.items.map(item => [item.key, item]));
+      let shown = state.shown;
+      if (action.revealNew || action.revealKeys?.length) {
+        shown = { ...state.shown };
+        if (action.revealNew) {
+          for (const item of list.items) if (!state.items[item.key]) shown[item.key] = true;
+        }
+        for (const key of action.revealKeys || []) if (items[key]) shown[key] = true;
+      }
       return { ...state, loaded: true, target: list.target, targetSource: list.targetSource, glossary: list.glossary, modelAvailable: list.modelAvailable, stale: list.stale || [],
-        otherTarget: list.otherTarget || 0, items: Object.fromEntries(list.items.map(item => [item.key, item])) };
+        otherTarget: list.otherTarget || 0, items, shown };
     }
     case 'pending': return { ...state, pending: mark(state.pending, action.keys, action.kind || 'translate'), errors: without(state.errors, action.keys) };
     case 'settled': {
