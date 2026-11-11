@@ -204,3 +204,70 @@ test('concurrent in-flight retainOriginal files are not deleted by source.remove
   assert.deepEqual((await new Store(root).read()).documents || [], []);
 });
 
+test('locked attachments do not fail committed removals or block sibling cleanup, and are reclaimed once unlocked', async t => {
+  const { spawn } = await import('node:child_process');
+  const { unlink } = await import('node:fs/promises');
+  const { pruneAttachments, retainOriginal } = await import('../lib/contexts/materials/files.js');
+  const root = await mkdtemp(join(tmpdir(), 'source-remove-locked-'));
+  const runtime = createStudyRuntime(root);
+  t.after(async () => { await runtime.dispose(); await rm(root, { recursive: true, force: true }).catch(() => {}); });
+
+  // Cross-platform unit check: EBUSY / EPERM / ENOENT during targeted and directory-sweep pruning.
+  const lockedFile = await retainOriginal(root, Buffer.from('# Locked A\n\nHeld by external viewer.\n'), 'md');
+  const freeFile = await retainOriginal(root, Buffer.from('# Free B\n\nUnlocked sibling.\n'), 'md');
+  const lockedName = lockedFile.path.split('/').pop();
+  const simulatedUnlink = async filePath => {
+    if (filePath.endsWith(lockedName)) throw Object.assign(new Error('resource busy or locked'), { code: 'EBUSY' });
+    return unlink(filePath);
+  };
+  const partialTargeted = await pruneAttachments(root, [], { paths: [lockedFile.path, freeFile.path], unlinkFile: simulatedUnlink });
+  assert.deepEqual(partialTargeted, { pruned: 1, skipped: 1 }, 'unlocked sibling is unlinked even when first file is EBUSY');
+  assert.deepEqual(await attachmentFiles(root), [lockedName]);
+
+  const partialSweep = await pruneAttachments(root, [], { unlinkFile: simulatedUnlink });
+  assert.deepEqual(partialSweep, { pruned: 0, skipped: 1 });
+  const enoentSweep = await pruneAttachments(root, [], { unlinkFile: async () => { throw Object.assign(new Error('gone'), { code: 'ENOENT' }); } });
+  assert.deepEqual(enoentSweep, { pruned: 0 }, 'concurrent ENOENT in directory sweep is not miscounted as pruned');
+  assert.deepEqual(await pruneAttachments(root, []), { pruned: 1 });
+  assert.deepEqual(await attachmentFiles(root), []);
+
+  // Windows end-to-end check with a real OS-level FileShare.None lock held across batch source.remove.
+  if (process.platform === 'win32') {
+    const first = await runtime.call('materials.document.import', {
+      filename: 'open-in-viewer.pdf',
+      dataBase64: pdfBytes('Locked PDF in external viewer.').toString('base64'),
+    });
+    const second = await runtime.call('materials.document.import', {
+      filename: 'closed-sibling.pdf',
+      dataBase64: pdfBytes('Unlocked PDF in same batch delete.').toString('base64'),
+    });
+    const docsBefore = (await new Store(root).read()).documents;
+    const firstRelPath = docsBefore.find(d => d.id === first.documentId).versions[0].attachment.path;
+    const firstFullPath = join(root, firstRelPath);
+
+    const holder = spawn('powershell', ['-NoProfile', '-Command',
+      "$fs = [System.IO.File]::Open($env:LOCK_PATH, 'Open', 'Read', 'None'); [Console]::Out.WriteLine('LOCKED'); [Console]::Out.Flush(); Start-Sleep -Seconds 30",
+    ], { env: { ...process.env, LOCK_PATH: firstFullPath }, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    t.after(() => { holder.kill(); });
+    await new Promise(resolve => holder.stdout.on('data', chunk => { if (String(chunk).includes('LOCKED')) resolve(); }));
+
+    const allSourceIds = [...first.sourceIds, ...second.sourceIds];
+    await runtime.call('source.archive', { sourceIds: allSourceIds, archived: true });
+    const removed = await runtime.call('source.remove', { sourceIds: allSourceIds, confirm: true });
+    assert.deepEqual(removed, { ok: true }, 'source.remove succeeds cleanly even when Windows locks an attachment');
+
+    const afterRemove = await new Store(root).read();
+    assert.deepEqual(afterRemove.sources, []);
+    assert.deepEqual(afterRemove.documents || [], []);
+    assert.equal((await runtime.call('export')).portableMaterials, undefined, 'locked orphan file is excluded from backups');
+    assert.deepEqual(await attachmentFiles(root), [firstRelPath.split('/').pop()], 'unlocked sibling PDF was unlinked despite locked first PDF');
+
+    holder.kill();
+    await new Promise(resolve => holder.once('exit', resolve));
+    const swept = await runtime.invoke('materials.v1', 'attachments.prune', {});
+    assert.deepEqual(swept, { pruned: 1 });
+    assert.deepEqual(await attachmentFiles(root), []);
+  }
+});
+
+
