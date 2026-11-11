@@ -9,7 +9,20 @@ import { browserSession, browserStorage, readJSON, readText, removeKey, writeJSO
    retrain options and the plain-language copy for recommendation reasons. */
 
 export const VARIANT_BATCH_CAP = 8;
+/** Matches lib/prereq.js SCOPE_LIMIT so WrongBook never sends an over-limit scope list into review.start (#928). */
+export const PRACTICE_SCOPE_CAP = 200;
 export const RECS_PREVIEW = 3;
+
+export function capPracticeScope(refs = [], limit = PRACTICE_SCOPE_CAP) {
+  const list = Array.isArray(refs) ? refs : [];
+  return { scope: list.slice(0, limit), total: list.length, capped: list.length > limit, limit };
+}
+
+export function practiceCappedText(total, { group = false, limit = PRACTICE_SCOPE_CAP } = {}) {
+  return group
+    ? uiFormat('这一组有 {0} 道题，一次最多 {1} 道：先练前 {1} 道。', [total, limit])
+    : uiFormat('共选了 {0} 道题，一次最多 {1} 道：先练前 {1} 道。', [total, limit]);
+}
 export const DEFAULT_GROUP_BY = 'deck';
 /** From this many mistakes on the page offers its filter bar, grouping switch and fold-all; a shorter list is read as it stands. */
 export const FILTER_MIN = 10;

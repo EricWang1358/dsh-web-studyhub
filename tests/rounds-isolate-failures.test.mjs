@@ -146,9 +146,8 @@ test('a question written for a section is credited to it even when the same word
 
 async function library(t, { model, coverage = { roundLimit: 8 }, sources = lecture.sources, weightOf } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-rounds-isolate-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root, { coverage });
-  t.after(() => service.dispose());
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   service.complete = model.complete;
   service.light = async (system, prompt) => JSON.stringify({ sections: JSON.parse(prompt.split('\n\n')[0]).sections.map(item => ({ id: item.id, importance: weightOf?.(item) ?? 3, kind: 'definition', reason: `Reason for ${item.title}` })) });
   for (const source of sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text });

@@ -6,9 +6,15 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { withStudy } from './helpers/study-services.mjs';
+import { checkScope } from '../lib/prereq.js';
 
-const m = await loadUi(`export { WrongBookView } from './ui/WrongBook.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
-const { WrongBookView, setUiLanguage } = m;
+const m = await loadUi(`
+  export { WrongBookView } from './ui/WrongBook.jsx';
+  export { PRACTICE_SCOPE_CAP, capPracticeScope, practiceCappedText } from './ui/wrongbook-model.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';
+  export { setUiLanguage, errorMessage } from './ui/i18n.js';
+`);
+const { WrongBookView, setUiLanguage, errorMessage } = m;
 const noop = () => {};
 const decks = [{ id: 'd4', course: 'PE', title: 'Platform Engineering｜期末综合卷04｜90题' }, { id: 'd2', course: 'PE', title: 'Platform Engineering｜期末综合卷02｜90题' }];
 const row = (cardId, deckId, topic, prompt, assessment = 'graded') => ({ deckId, deckTitle: decks.find((d) => d.id === deckId).title, cardId, topic, prompt, assessment, lastGrade: 1,
@@ -83,4 +89,43 @@ test('the consent note points to the setting with a real link, not with a path t
   assert.equal(labelled(html, /前往设置/).length, 1);
   const without = render({ initial: { askConsent: true }, coach: { enabled: true, consent: null, ready: 0, readyCards: [], failedCards: [], tasks: [] } });
   assert.equal(labelled(without, /前往设置/).length, 0, 'a page that cannot open Settings draws no dead link');
+});
+
+test('#928: groups over 200 questions cap scope to the first 200 with a plain notice, and checkScope distinguishes over-limit from non-array', () => {
+  setUiLanguage('zh');
+  const bigCards = Array.from({ length: 201 }, (_, i) => ({ id: `b${i}`, prompt: `Q${i}`, answer: 'A' }));
+  const state = { decks: [{ id: 'd4', title: decks[0].title, cards: bigCards }, { id: 'd2', title: decks[1].title, cards: [{ id: 'x1', prompt: 'X', answer: 'A' }] }] };
+
+  assert.throws(() => checkScope(state, 'not-an-array'), /Scope must be a list/);
+  let overErr;
+  assert.throws(() => checkScope(state, bigCards.map((c) => ({ deckId: 'd4', cardId: c.id }))), (e) => { overErr = e; return /一次范围练习最多选 200 道题（这次传了 201 道）/.test(e.message); });
+  setUiLanguage('en');
+  try {
+    assert.equal(errorMessage(overErr), 'A scoped practice round accepts at most 200 questions (got 201)');
+  } finally { setUiLanguage('zh'); }
+
+  assert.equal(m.PRACTICE_SCOPE_CAP, 200);
+  const capped = m.capPracticeScope(bigCards.map((c) => ({ deckId: 'd4', cardId: c.id })));
+  assert.equal(capped.capped, true);
+  assert.equal(capped.total, 201);
+  assert.equal(capped.scope.length, 200);
+  assert.equal(capped.scope[0].cardId, 'b0');
+  assert.equal(capped.scope[199].cardId, 'b199');
+  assert.doesNotThrow(() => checkScope(state, capped.scope), 'the capped 200-card scope is accepted by checkScope');
+  assert.equal(m.practiceCappedText(201, { group: true }), '这一组有 201 道题，一次最多 200 道：先练前 200 道。');
+  assert.equal(m.practiceCappedText(201, { group: false }), '共选了 201 道题，一次最多 200 道：先练前 200 道。');
+
+  const bigItems = [
+    ...bigCards.map((c) => row(c.id, 'd4', '保护状态', c.prompt)),
+    row('x1', 'd2', '恢复探测', 'X'),
+  ];
+  const htmlZh = render({ items: bigItems, counts: { total: 202, graded: 202, self: 0, oral: 0, rubric: 0 } });
+  assert.match(text(htmlZh), /这一组有 201 道题，一次最多 200 道：先练前 200 道。/, 'the >200 group button carries a tooltip explaining the cap');
+
+  setUiLanguage('en');
+  try {
+    const htmlEn = render({ items: bigItems, counts: { total: 202, graded: 202, self: 0, oral: 0, rubric: 0 } });
+    assert.doesNotMatch(text(htmlEn).replace(/期末综合卷0\d/g, ''), /\p{Script=Han}/u);
+    assert.match(text(htmlEn), /This group has 201 questions \(up to 200 at a time\): practising the first 200\./);
+  } finally { setUiLanguage('zh'); }
 });

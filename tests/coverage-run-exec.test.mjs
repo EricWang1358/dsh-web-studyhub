@@ -41,11 +41,25 @@ function gatedAtRound(complete, service, { round, hold }) {
   };
 }
 
+const cleanup = new WeakMap();
+function trackCleanup(t, root, service) {
+  let entry = cleanup.get(t);
+  if (!entry) {
+    entry = { roots: new Set(), services: [] };
+    cleanup.set(t, entry);
+    t.after(async () => {
+      for (const svc of [...entry.services].reverse()) await svc.dispose();
+      for (const dir of entry.roots) await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    });
+  }
+  if (root) entry.roots.add(root);
+  if (service) entry.services.push(service);
+}
+
 async function library(t, { coverage = { roundLimit: 8 }, model = clusteringModel(), wrap, root, weightOf, seed = true } = {}) {
   root ||= await mkdtemp(join(tmpdir(), 'study-coverage-exec-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root, { coverage });
-  t.after(() => service.dispose());
+  trackCleanup(t, root, service);
   service.complete = wrap ? wrap(model.complete, service) : model.complete;
   service.light = async (system, prompt) => {
     const evidence = JSON.parse(prompt.split('\n\n')[0]).sections;
@@ -574,7 +588,7 @@ test('a host that is closed under a run (the plugin is unloaded) leaves the draf
   hold.open();
   await sleep(300);
   const reopened = new StudyService(closing.root);
-  t.after(() => reopened.dispose());
+  trackCleanup(t, null, reopened);
   reopened.complete = clusteringModel().complete;
   const draft = (await reopened.call('export')).drafts[0];
   assert.equal(draft.editorial.coverageRun.state, 'running', 'closing the host is nobody stopping the run: the marker is left as it was');
@@ -592,9 +606,8 @@ test('a host that is closed under a run (the plugin is unloaded) leaves the draf
 test('a round larger than the 30 questions of a production round is accepted when the seam says so: the button of a manual run is not refused by a limit the plan did not use', async (t) => {
   const big = mergedTranscript();
   const root = await mkdtemp(join(tmpdir(), 'study-coverage-limit-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root, { coverage: { roundLimit: 40 } });
-  t.after(() => service.dispose());
+  trackCleanup(t, root, service);
   service.complete = clusteringModel().complete;
   for (const source of big.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
   const started = await service.call('generate', { sourceIds: big.sources.map(source => source.id), coverageLevel: 'lean', kind: 'quiz' });

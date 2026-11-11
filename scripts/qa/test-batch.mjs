@@ -54,23 +54,31 @@ export function hasGlobalSideEffects(absFile, { suiteRoot, cache = new Map(), se
 }
 
 function renderBatchSource(bucket) {
+  // Hold root test execution until every member file in this batch has finished top-level `await import(...)`:
+  // otherwise an early test's dynamic `await import(...)` can share in-flight ESM ModuleJob promises (AsyncContextFrame)
+  // with a later member's static imports and capture that file's top-level `test(...)` calls as un-awaited subtests (#926).
   const lines = [
-    "import test from 'node:test';",
+    "import test, { before } from 'node:test';",
+    'let __releaseBatchImports;',
+    'const __batchImportsDone = new Promise(resolve => { __releaseBatchImports = resolve; });',
+    'before(() => __batchImportsDone);',
     'const __keepGlobals = new Set(Object.getOwnPropertyNames(globalThis));',
     'const __cleanGlobals = () => {',
     '  for (const name of Object.getOwnPropertyNames(globalThis)) {',
     '    if (!__keepGlobals.has(name)) { try { delete globalThis[name]; } catch {} }',
     '  }',
     '};',
+    'try {',
   ];
   for (const { abs, key } of bucket) {
     const href = pathToFileURL(abs).href;
     lines.push(
-      `try { __cleanGlobals(); globalThis.__studyCurrentTestFile = ${JSON.stringify(abs)}; await import(${JSON.stringify(href)}); }`
+      `  try { __cleanGlobals(); globalThis.__studyCurrentTestFile = ${JSON.stringify(abs)}; await import(${JSON.stringify(href)}); }`
       + ` catch (error) { test(${JSON.stringify(key)}, () => { throw error; }); }`
       + ' finally { delete globalThis.__studyCurrentTestFile; __cleanGlobals(); }',
     );
   }
+  lines.push('} finally { __releaseBatchImports(); }');
   return `${lines.join('\n')}\n`;
 }
 

@@ -20,9 +20,8 @@ const PLAIN = { kind: 'quiz', count: 6, performance: { concurrency: 1, batchSize
 
 async function library(t, { coverage = { roundLimit: 8 } } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-deck-parts-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
   const service = new StudyService(root, { coverage });
-  t.after(() => service.dispose());
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   service.complete = clusteringModel().complete;
   for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
   return { service, ids: world.sources.map(source => source.id) };

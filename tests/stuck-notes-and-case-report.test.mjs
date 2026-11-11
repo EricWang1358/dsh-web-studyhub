@@ -97,7 +97,11 @@ test('stale running regular notes reconcile to interrupted across note.get, note
 
 test('disposing a service mid-draft marks the regular note interrupted for the next service in the same process', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'study-issue-962-dispose-'));
-  t.after(async () => { await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
+  let second;
+  t.after(async () => {
+    await second?.dispose();
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
 
   const first = new StudyService(root, {
     complete: (_sys, _prompt, { signal }) => new Promise((_resolve, reject) => {
@@ -113,8 +117,7 @@ test('disposing a service mid-draft marks the regular note interrupted for the n
 
   await first.dispose();
 
-  const second = new StudyService(root, { complete: async () => DRAFT_MARKDOWN });
-  t.after(() => second.dispose());
+  second = new StudyService(root, { complete: async () => DRAFT_MARKDOWN });
   assert.equal((await second.call('note.get', { id: created.id })).generation?.status, 'interrupted');
   assert.equal((await second.call('snapshot')).notes.find((n) => n.id === created.id)?.generation?.status, 'interrupted');
 });

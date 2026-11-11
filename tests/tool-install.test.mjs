@@ -156,8 +156,17 @@ test('the shared failure reading', () => {
   assert.equal(classifyFailure('Error: The specified module could not be found.\r\n\\\\?\\D:\\StudyHub\\live\\sherpa-onnx.node'), 'vc-runtime');
   assert.equal(classifyFailure("Error: ... code: 'ERR_DLOPEN_FAILED'"), 'vc-runtime');
   assert.equal(classifyFailure('OSError: [WinError 126] Error loading "c10.dll" or one of its dependencies.'), 'vc-runtime');
-  for (const unresolved of ["Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'D:\\x\\worker.mjs'", "Error: Cannot find module 'sherpa-onnx-node'", "ModuleNotFoundError: No module named 'mineru'"])
-    assert.notEqual(classifyFailure(unresolved), 'vc-runtime', unresolved);
+  for (const unresolved of ["Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'D:\\x\\worker.mjs'", "Error: Cannot find module 'sherpa-onnx-node'", "ModuleNotFoundError: No module named 'mineru'", "ModuleNotFoundError: No module named 'torch'"])
+    assert.equal(classifyFailure(unresolved), null, unresolved);
+  assert.equal(classifyFailure('Error: getaddrinfo ENOTFOUND pypi.org'), 'network');
+  assert.equal(classifyFailure('requests.exceptions.ConnectionError: Connection refused'), 'network');
+  assert.equal(classifyFailure('urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool: Read timed out.'), 'network');
+  assert.equal(classifyFailure('OSError: [Errno 101] Network is unreachable'), 'network');
+  for (const ordinaryLog of [
+    'INFO: Connection pool initialized (size=4)',
+    'INFO: local network interface ready',
+    'INFO: idle worker timed out after 30s, exiting cleanly',
+  ]) assert.equal(classifyFailure(ordinaryLog), null, ordinaryLog);
   assert.ok(new InstallError('x', 'y') instanceof Error);
 });
 

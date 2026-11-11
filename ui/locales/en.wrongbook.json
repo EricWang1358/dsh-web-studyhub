@@ -137,5 +137,7 @@
   "本轮的顽固题": "Stubborn in this round",
   "只看刚练完的这一轮里的顽固题。": "Shows only the stubborn questions of the round you just finished.",
   "点一下，改看所有顽固题。": "Press to see all stubborn questions instead.",
-  "已恢复这道题。": "Question restored."
+  "已恢复这道题。": "Question restored.",
+  "这一组有 {0} 道题，一次最多 {1} 道：先练前 {1} 道。": "This group has {0} questions (up to {1} at a time): practising the first {1}.",
+  "共选了 {0} 道题，一次最多 {1} 道：先练前 {1} 道。": "{0} questions selected (up to {1} at a time): practising the first {1}."
 }
