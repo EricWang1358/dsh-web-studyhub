@@ -1,16 +1,15 @@
 import { ui } from "./i18n.js";
 import React, { useEffect, useRef } from "react";
 import { useStudy } from "./study-context.jsx";
-import { Tooltip } from "./components/index.js";
-import { tickWords } from "./review/round-words.js";
-
-const labels = { new: "未学", weak: "薄弱", learning: "学习中", familiar: "熟悉", mastered: "掌握" };
+import { Button, Tooltip } from "./components/index.js";
+import { levelWord, tickWords } from "./review/round-words.js";
 
 /* The column of short lines at the left of the practice page: one line per stop of the round. Its colour is the question's mastery before the round, a longer
    line means answered, the longest is the one on screen. Each line says all of that in one sentence on hover, on keyboard focus and to a screen reader
    (「第 2 题 · 主题 · 答对了 · 掌握程度：学习中」) and jumps to its question. On a narrow window the column is gone (the card's own progress bar says where
-   the learner is) so it takes no width from the card (#673). */
-export default function ReviewNavigator({ run, onJump }) {
+   the learner is) so it takes no width from the card (#673); 「N 题待答」 beside the question number does the jumping there (ui/review/RoundPending.jsx).
+   `onEnd` (optional): 到此为止 at the tail of the column (#1008), which asks first under the question. */
+export default function ReviewNavigator({ run, onJump, onEnd }) {
   const { busy } = useStudy();
   const rail = useRef(null);
   useEffect(() => {
@@ -27,7 +26,7 @@ export default function ReviewNavigator({ run, onJump }) {
     <nav className="review-navigator" aria-label={ui("题目跳转与掌握程度")} ref={rail}>
       {run.navigation.map((item) => {
         const current = item.index === run.index;
-        const label = tickWords(item, ui(labels[item.level]));
+        const label = tickWords(item, levelWord(item.level));
         return <Tooltip key={item.index} layer placement="right-start" group="review-ticks" content={label} anchorClassName="review-tick-tip">
           <button
             className="review-tick" aria-label={label}
@@ -39,6 +38,9 @@ export default function ReviewNavigator({ run, onJump }) {
           </button>
         </Tooltip>;
       })}
+      {onEnd && <Tooltip layer placement="right-start" content={ui("到此为止：已答的题照常计分，没答的不记录")} anchorClassName="review-tick-tip">
+        <Button variant="quiet" size="sm" icon="stop" className="sh-btn--icon review-end-tick" aria-label={ui("到此为止…")} lock={busy} onClick={onEnd} />
+      </Tooltip>}
     </nav>
   );
 }

@@ -142,11 +142,34 @@
     .review-tick:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
     /* A stop that is a re-ask (a wrong answer's second try) is drawn dotted, so it reads as an extra try and not as one more question. */
     .review-tick[data-retry="true"] .review-tick-line { border-top-style: dotted; }
+    /* 到此为止 at the tail of the column (#1008): a quiet stop mark under the last tick, the width of a tick. */
+    .review-end-tick { width: 36px; min-height: 28px; margin-top: var(--space-2); color: var(--text-dim); }
+    /* 「N 题待答」 (ui/review/RoundPending.jsx) does the column's work where the column is gone: hidden while the column is drawn. */
+    .round-pending { display: none; }
+    .round-pending__trigger { min-height: 0; padding: 0 var(--space-2); color: var(--accent-text); }
+    .round-pending__panel { width: min(320px, calc(100vw - 32px)); padding: var(--space-3); }
+    .round-pending__list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+      gap: var(--space-1-5);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .round-pending__item { width: 100%; min-width: 0; padding-inline: 0; font-variant-numeric: tabular-nums; }
+    .round-pending__item[data-answered="right"] { color: var(--ok-ink); }
+    .round-pending__item[data-answered="wrong"] { color: var(--bad-ink); }
+    .round-pending__item[data-answered] { background: var(--bg-hover); }
+    .round-pending__item[aria-current="step"] { box-shadow: inset 0 0 0 2px var(--text); }
+    .round-pending__end { margin-top: var(--space-3); }
   }
   @container study (max-width: 600px) {
     :where(.study-app, .study-seat) {
       /* On a narrow window the column of ticks is gone: it took 28px from the card, and the card's progress bar already says where the learner is. */
       .review-navigator { display: none; }
+      .round-pending { display: inline-flex; }
       .review-page.has-rail { display: block; }
       /* The page keeps the app's side gutter (the main area has none at this width): the heading, the card and the grade scale all start 16px in. The heading's
          own side padding goes, or the title would sit twice as far in as the card (#817). */

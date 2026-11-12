@@ -14,6 +14,11 @@ const REVIEW = [
   ["T", "通俗详解：用比喻把这道题讲透（交给后台助教）"],
   ["G / B", "👍 这题不错 / 👎 这题有问题"],
   ["A", "自动跳下一步 开/关"],
+  // The actions of 更多 that have a key (#1008).
+  ["K", "先跳过：这道题留到这一轮最后再做"],
+  ["N", "写笔记"],
+  ["F", "标为重点 / 取消重点"],
+  ["O", "打开这道题出自的资料页"],
 ];
 // 复习全书: the keys of the reading surface (ui/book/reading.js useStepKeys, ui/book/BookToc.jsx).
 const BOOK = [
