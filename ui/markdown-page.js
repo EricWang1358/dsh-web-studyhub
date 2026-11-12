@@ -7,7 +7,7 @@ import { DEFINITION } from '../lib/footnote-syntax.js';
    ui/book/book-html.js; the pocket review page, #887). Pure, no React, no script, no address: the page it builds names none.
 
    The note renderer (ui/note-markdown.js createMarkdown) draws the text and, through the app's formula unit, maths (KaTeX's HTML with its MathML; the page
-   that holds it adds MATH_CSS, see ui/static-page.js). It has no footnotes and no
+   that holds it adds mathPageCss(), see ui/static-page.js). It has no footnotes and no
    heading anchors, so two small rules are written here:
      - footnotes, Pandoc's `[^label]` marks and `[^label]: text` definitions: a mark is a numbered reference with a back-link; the definitions are taken
        out of the text and stand at the END OF THEIR CHAPTER, numbered from 1 again in each chapter, in the order the chapter mentions them. A definition

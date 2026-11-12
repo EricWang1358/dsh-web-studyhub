@@ -1,6 +1,6 @@
 import { BASE_CSS, esc, staticPage } from '../static-page.js';
 import { MARKDOWN_CSS, contentsList, renderMarkdown } from '../markdown-page.js';
-import { MATH_CSS } from '../study-math-render.js';
+import { mathPageCss } from '../study-math-render.js';
 import { DEFINITION, QUOTE_PAIRS, isLabelLine } from '../../lib/footnote-syntax.js';
 import { answerCardWords } from '../../lib/answer-card.js';
 
@@ -97,7 +97,7 @@ main{max-width:46rem;margin:0 auto}
 `;
 
 /** The Markdown of the book's export as the page (see the top of this file). */
-export function bookHtml(markdown, { language = 'zh', quotes = true } = {}) {
+export function bookHtml(markdown, { language = 'zh', quotes = true, mathCss = '' } = {}) {
   const words = wordsOf(language);
   const source = quotes ? String(markdown ?? '') : withoutSourceQuotes(markdown, words.left);
   const { html, headings, title } = renderMarkdown(source, { chapterLevel: 2, dropTitle: true, footnotesLabel: words.sources, backLabel: words.back, isFootnoteLabel: isLabelLine });
@@ -106,8 +106,10 @@ export function bookHtml(markdown, { language = 'zh', quotes = true } = {}) {
 ${contentsList(headings, { label: words.contents })}
 <main>
 ${html}</main>`;
-  return staticPage({ lang: words.lang, title: name, css: CSS, body, mathCss: MATH_CSS });
+  return staticPage({ lang: words.lang, title: name, css: CSS, body, mathCss });
 }
 
 /** What the export dialog saves: the page of an export's answer (course.book.export, the single form), named after its Markdown file. */
-export const bookHtmlFile = (done, { quotes = true } = {}) => ({ filename: bookHtmlFilename(done.filename), html: bookHtml(done.text, { language: done.language, quotes }) });
+export const bookHtmlFile = async (done, { quotes = true } = {}) => ({ filename: bookHtmlFilename(done.filename),
+  // The formula stylesheet with its fonts (#996), embedded only when the page draws a formula (ui/static-page.js).
+  html: bookHtml(done.text, { language: done.language, quotes, mathCss: await mathPageCss() }) });

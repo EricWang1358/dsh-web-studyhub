@@ -8,7 +8,7 @@ import { BASE_CSS, esc, staticPage, withoutNamespace } from '../static-page.js';
 
    cheatSheetHtml(sheet, { formula, formulaCss, links }) -> the page.
      formula(source) -> markup | null: how a formula given as TeX is drawn (null, or none given: its source as text).
-     formulaCss: the stylesheet the drawing needs (MATH_CSS of the same module), put into the page only when it has a formula.
+     formulaCss: the stylesheet and fonts the drawing needs (mathPageCss() of the same module), put into the page only when it has a formula.
      links: true (the view): a point's code is a link `data-go="<hid>"` the view turns into "open the book there"; the saved file has no book to go to. */
 
 const WORDS = {

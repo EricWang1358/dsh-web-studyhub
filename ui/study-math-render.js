@@ -1,8 +1,8 @@
 import katex from 'katex/dist/katex.js';
 import 'katex/dist/contrib/mhchem.js';
-import MATH_CSS from './fonts/math-data.js';
+import MATH_LAYOUT_CSS from './fonts/math-css.js';
 
-export { MATH_CSS };
+export { MATH_LAYOUT_CSS };
 
 /* Commands notes copy from the `physics` and `siunitx` packages and from older LaTeX that KaTeX does not know. Each is written out in what KaTeX
    does know, so a physics note draws instead of falling back to its source. Only the commands whose meaning is certain are here, and a macro that
@@ -61,25 +61,44 @@ const MACROS = {
 /* How a formula is drawn (#996): KaTeX lays it out in HTML with its own fonts, the shapes of LaTeX's Computer Modern, and keeps the MathML beside it,
    out of sight, for screen readers (output 'htmlAndMathml'). Native MathML alone was not enough: Chromium draws only mathvariant="normal", so
    \mathbb{E}, \mathcal{F}, \mathbf{v} and \mathfrak{g} came out as plain letters whatever font the machine had, and every other glyph was whichever
-   serif was installed. The stylesheet and the twenty fonts (woff2 data: URIs, font-display swap) are ui/fonts/math-data.js, part of this chunk,
-   which loads only where a formula is drawn; a saved page embeds the same text (MATH_CSS) when it has a formula. */
+   serif was installed. The layout stylesheet (ui/fonts/math-css.js, MIT) is part of this chunk. The twenty fonts (ui/fonts/math-data.js, woff2
+   data: URIs, font-display swap, SIL OFL 1.1) are about 350 KB, so they are a chunk of their own, asked for when the first formula is drawn: the
+   views that only might show a formula (the book, the reader, workflows, notes) import this module without fetching them. A saved page embeds
+   both (mathPageCss) when it has a formula. */
 export const MATH_STYLE_MARKER = 'study-math';
+export const MATH_FONTS_MARKER = 'study-math-fonts';
 
-/** The stylesheet as the app's document takes it: in the app's lowest cascade layer (the order is declared by every app sheet, e.g. ui/markdown.css), so
+/** The layout as the app's document takes it: in the app's lowest cascade layer (the order is declared by every app sheet, e.g. ui/markdown.css), so
     the app's own rules for a formula (.md-math, .reader-math) win over KaTeX's defaults; unlayered, KaTeX's would win over every layered rule. */
-export const MATH_STYLE = `@layer study.reset {\n${MATH_CSS}\n}`;
+export const MATH_STYLE = `@layer study.reset {\n${MATH_LAYOUT_CSS}\n}`;
 
-/** Put the stylesheet into the document once. Without it the HTML and the MathML would both show, so it goes in before the first drawing is returned.
-    A missing or partial document (tests, a saved page built outside a browser) is left alone. */
-export function installMathStyle(doc = globalThis.document) {
+/** The @font-face rules of the twenty KaTeX fonts, from their own chunk (each starts with its licence notice). */
+export const loadMathFonts = () => import('./fonts/math-data.js').then(module => module.default);
+
+/** The whole stylesheet a saved page embeds when it draws a formula: the fonts, then the layout, each with its notice, so the file reads offline. */
+export const mathPageCss = async () => `${await loadMathFonts()}\n${MATH_LAYOUT_CSS}`;
+
+const styled = new WeakSet();
+const appendStyle = (doc, marker, text) => {
+  const element = doc.createElement('style');
+  element.setAttribute(`data-${marker}`, '');
+  element.textContent = text;
+  doc.head.appendChild(element);
+};
+
+/** Put the layout into the document once, before the first drawing is returned (without it the HTML and the MathML would both show), and ask for
+    the fonts; until they arrive a formula shows in the fallback serif. Later formulas only find the document in a WeakSet, nothing is looked up.
+    A document that already has the sheet (another copy of this module) is left as it is. A missing or partial document (tests, a saved page built
+    outside a browser) is left alone, and a font chunk that fails to load leaves the layout. `load` is injectable for tests. */
+export function installMathStyle(doc = globalThis.document, { load = loadMathFonts } = {}) {
   try {
-    const head = doc?.head;
+    if (!doc || typeof doc !== 'object' || styled.has(doc)) return;
+    const head = doc.head;
     if (!head || typeof head.querySelector !== 'function' || typeof head.appendChild !== 'function' || typeof doc.createElement !== 'function') return;
+    styled.add(doc);
     if (head.querySelector(`style[data-${MATH_STYLE_MARKER}]`)) return;
-    const element = doc.createElement('style');
-    element.setAttribute(`data-${MATH_STYLE_MARKER}`, '');
-    element.textContent = MATH_STYLE;
-    head.appendChild(element);
+    appendStyle(doc, MATH_STYLE_MARKER, MATH_STYLE);
+    load().then(fonts => appendStyle(doc, MATH_FONTS_MARKER, fonts)).catch(() => { /* the fallback serif stays */ });
   } catch { /* the formula still draws; only its fonts are missing */ }
 }
 

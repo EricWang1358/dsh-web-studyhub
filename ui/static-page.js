@@ -3,7 +3,8 @@
    no script, no image, no address; the one font is the formulas', inlined, and only in a page that has a formula. Pure, no React.
 
    staticPage({ lang, title, css, body, mathCss }) -> the document; `css` follows BASE_CSS, `body` is the markup inside <body>. `mathCss`: the formula
-   stylesheet with its fonts (ui/study-math-render.js MATH_CSS, woff2 data: URIs, #996), added only when the body draws a formula, so it reads offline. */
+   stylesheet with its fonts and their licence notices (ui/study-math-render.js mathPageCss(), woff2 data: URIs, #996), added only when the body draws
+   a formula, so it reads offline. */
 
 /** Text as it may stand in HTML (element text and double-quoted attributes). */
 export const esc = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

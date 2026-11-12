@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { withCardNumbers } from '../lib/course-book-card-numbers.js';
 import { cheatSheet, readConfusables } from '../ui/book/cheat-sheet-model.js';
 import { cheatSheetHtml, cheatSheetFilename } from '../ui/book/cheat-sheet-html.js';
-import { renderStudyFormula, MATH_CSS } from '../ui/study-math-render.js';
+import { renderStudyFormula, mathPageCss } from '../ui/study-math-render.js';
+const MATH_CSS = await mathPageCss();
 
 const ID = n => `i${String(n).padStart(11, '0')}`;
 const card = (n, name, extra = {}) => ({ item: ID(n), name, plain: `${name} plainly`, pitch: `${name} in one exam sentence.`, ...extra });

@@ -11,7 +11,8 @@ export async function cheatSheetPage(book, { links = false } = {}) {
   if (!sheet) return null;
   // The formulas are drawn only when there are some; the renderer arrives with them.
   const math = sheet.formulas.length ? await import('../study-math-render.js') : null;
-  return { html: cheatSheetHtml(sheet, { formula: math?.renderStudyFormula ?? null, formulaCss: math?.MATH_CSS ?? '', links }), filename: cheatSheetFilename(sheet) };
+  const formulaCss = math ? await math.mathPageCss() : '';
+  return { html: cheatSheetHtml(sheet, { formula: math?.renderStudyFormula ?? null, formulaCss, links }), filename: cheatSheetFilename(sheet) };
 }
 
 /** Saves the book's 速查表 as one .html file through the book export's own download (ui/book/download.js). false when there is none to save. */

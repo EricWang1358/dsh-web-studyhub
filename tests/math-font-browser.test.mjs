@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { launchChromium } from '../scripts/qa/browser.mjs';
-import { renderStudyFormula, MATH_STYLE } from '../ui/study-math-render.js';
+import { renderStudyFormula, loadMathFonts, MATH_STYLE } from '../ui/study-math-render.js';
 import { MATH_SAMPLES as SAMPLES, INLINE_SAMPLES as INLINE } from './helpers/math-samples.mjs';
 const esc = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const formula = (source, display) => `<span class="md-math${display ? ' md-math-display' : ''}"><span class="md-math-content">${renderStudyFormula(source, display)}</span></span>`;
@@ -19,7 +19,7 @@ const sentence = (inner) => `<p class="probe">在快照隔离 (snapshot isolatio
 async function page(theme) {
   const css = (await Promise.all(['ui/tokens.css', 'ui/markdown.css'].map((path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')))).join('\n');
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>${css}</style><style>${MATH_STYLE}</style>
+<style>${css}</style><style>${MATH_STYLE}</style><style>${await loadMathFonts()}</style>
 <style>body{margin:0}.study-app{background:var(--bg-canvas);color:var(--text);font:16px/1.6 "Segoe UI","Microsoft YaHei",sans-serif;padding:16px}
 table{border-collapse:collapse;width:100%;table-layout:fixed}td{padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
 td.src{width:38%;font:12px/1.4 ui-monospace,Consolas,monospace;color:var(--text-muted);overflow-wrap:anywhere}</style></head>

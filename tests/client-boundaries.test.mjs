@@ -146,6 +146,14 @@ test('generated native modules resolve through classic chunk factories and share
   assert.ok(fontOutput, 'the font has a chunk of its own');
   assert.ok(Object.entries(result.metafile.outputs).some(([, record]) => record.imports.some(edge => edge.kind === 'dynamic-import' && basename(edge.path) === basename(fontOutput[0]))), 'only a dynamic import reaches it');
   assert.match((await asyncModule(`./${basename(fontOutput[0])}`)).default, /^data:font\/woff2;base64,d09GMg/, 'the chunk carries the woff2');
+  // The formula fonts (#996) likewise: a chunk of their own, reached only by the dynamic import in ui/study-math-render.js at the first formula,
+  // so a view that only might show a formula (the book, the reader, workflows, notes) never fetches them.
+  const mathFonts = Object.entries(result.metafile.outputs).find(([, record]) => Object.keys(record.inputs).some(path => /ui[\/]fonts[\/]math-data\.js$/.test(path)));
+  assert.ok(mathFonts, 'the formula fonts have a chunk of their own');
+  assert.ok(!Object.keys(mathEntry[1].inputs).some(path => /ui[\/]fonts[\/]math-data\.js$/.test(path)), 'not inside the renderer');
+  assert.ok(Object.values(result.metafile.outputs).every(record => !record.imports.some(edge => edge.kind !== 'dynamic-import' && basename(edge.path) === basename(mathFonts[0]))),
+    'only a dynamic import reaches it');
+  assert.match((await asyncModule(`./${basename(mathFonts[0])}`)).default, /@font-face\{font-family:KaTeX_[\s\S]*data:font\/woff2;base64,d09GMg/, 'the chunk carries the fonts');
   // StudyMath imports from its effect rather than React.lazy. Exercise that
   // package-local factory path and its shared engine before counting modules.
   const math = await asyncModule(`./${mathName}`);
