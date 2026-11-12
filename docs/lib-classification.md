@@ -96,7 +96,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/passage-translation.js`: 2 ui files; contexts generation, materials; 1 other lib file
 - `lib/plain-reason.js`: 2 ui files; 2 other lib files
 - `lib/plan-weekly.js`: 1 ui file; 2 other lib files
-- `lib/practice-settings.js`: 8 ui files; contexts coach, study, system; 8 other lib files
+- `lib/practice-settings.js`: 10 ui files; contexts coach, study, system; 10 other lib files
 - `lib/question-references.js`: 3 ui files; context generation; 5 other lib files
 - `lib/question-voice.js`: 3 ui files; 3 other lib files
 - `lib/quote-locate.js`: 1 ui file; context generation; 12 other lib files

@@ -344,7 +344,8 @@ test('a round started on the 总纲 says 回到总纲 (no second line); every ot
   assert.doesNotMatch(outline, /review-return/);
   for (const kind of ['library', 'notes', 'review', 'sources', '']) {
     const html = result({ contextKind: kind, contextReturnLabel: '返回学习库首页', onReturnContext: noop });
-    const [first, second] = buttonsOf(nextBlock(html));
+    // The gear beside the next-round button (本轮设置, #1010) is not a way anywhere: it is left out of the order of the buttons that are.
+    const [first, second] = buttonsOf(nextBlock(html)).filter((button) => !/round-setup__trigger/.test(button.cls));
     assert.match(first.cls, /sh-btn--primary/, kind);
     assert.equal(first.text, '继续学习', kind);
     assert.equal(second.text, '返回学习库首页', kind);
