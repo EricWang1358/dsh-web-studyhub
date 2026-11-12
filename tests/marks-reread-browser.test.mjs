@@ -11,9 +11,10 @@ import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layou
 
 /* 今日 「重读 N 段」 (#1018) in the real page at 1280 and 420 px. Two passages of an imported text were highlighted and bolded days ago and its questions
    were answered wrong, so the home's today card shows 「重读 2 段」. The home is drawn before the answer comes (the request is held back here: the line
-   never delays the first screen). The line opens the reader at the passage (quoted, painted, in view); 已重读 keeps the time and moves on to the
-   next passage; back home the count dropped. At 420: 再练这一节 starts the section's questions; 已重读 on the last passage ends it and the line goes.
-   Screenshots go to REREAD_SHOTS when set. */
+   never delays the first screen), and when it comes the day's button does not move. The line opens the reader at the passage (quoted, painted,
+   in view); 已重读 keeps the time and moves on to the next passage; back home the line keeps its count while the new answer is on its way (no
+   blink), then the count dropped. At 420: 再练这一节 starts the section's questions; 已重读 on the last passage ends it and the line goes. With
+   设置 › 练习 「重读 N 段」 off, the home never asks. Screenshots go to REREAD_SHOTS when set. */
 
 const COURSE = 'SA';
 const FIRST = 'tactics detect faults and recover from them';
@@ -73,20 +74,27 @@ test('重读 N 段: the line comes after the home is drawn, opens the reader at 
       const closeReader = async () => { await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'detached', timeout: 30000 }); };
 
       // The home is drawn while materials.marks.reread is still unanswered: the line never holds the first screen back.
-      let release = () => {};
-      const held = new Promise(resolve => { release = resolve; });
-      let asked = 0;
+      let release = () => {}, held = null, asked = 0;
+      const hold = () => { held = new Promise(resolve => { release = () => { held = null; resolve(); }; }); };
       await page.route('**/*', async route => {
         let action = '';
         try { action = JSON.parse(route.request().postData() || '{}').action; } catch { /* not JSON */ }
-        if (action === 'materials.marks.reread') { asked += 1; if (asked === 1) await held; }
+        if (action === 'materials.marks.reread') { asked += 1; if (held) await held; }
         await route.continue();
       });
+      hold();
       await page.goto(running.server.url);
       await page.locator('.today-card').waitFor({ timeout: 30000 });
       assert.equal(await line.count(), 0, `${width}px: no line before the answer`);
+      // The day's button stays where it was when the line comes (its place in the page, once the card has been dealt).
+      const top = () => page.evaluate(() => { const box = document.querySelector('.today-card .today-go')?.getBoundingClientRect(); return box ? box.top + window.scrollY : null; });
+      await settleAnimations(page);
+      const before = await top();
+      assert.ok(Number.isFinite(before), `${width}px: the today card has its button`);
       release();
       await open.waitFor({ timeout: 30000 });
+      await settleAnimations(page);
+      assert.ok(Math.abs((await top()) - before) < 1, `${width}px: the day's button did not move when the line came (${before} → ${await top()})`);
       assert.ok(asked >= 1, `${width}px: asked once the home was drawn`);
       const expected = width === 1280 ? 2 : 1;
       assert.equal((await open.innerText()).trim(), `重读 ${expected} 段`);
@@ -108,13 +116,16 @@ test('重读 N 段: the line comes after the home is drawn, opens the reader at 
       await shot('2-reader');
 
       if (width === 1280) {
-        // 已重读 → kept on the mark, and the reader moves on to the second passage.
+        // 已重读 → kept on the mark, and the reader moves on to the second passage. The new answer is held back: the line must not blink meanwhile.
+        hold();
         await done.click();
         await quote.getByText(SECOND).waitFor({ timeout: 30000 });
         await page.waitForFunction(() => (CSS.highlights?.get('study-source-quote')?.size || 0) > 0, null, { timeout: 30000 });
         assert.ok(await placed(page), `${width}px: the next passage is in view`);
         await closeReader();
         await open.waitFor({ timeout: 30000 });
+        assert.equal((await open.innerText()).trim(), '重读 2 段', `${width}px: while the new answer is on its way the line keeps the last one`);
+        release();
         await page.waitForFunction(() => document.querySelector('[data-usage="home.reread"]')?.textContent.includes('1'), null, { timeout: 30000 });
         assert.equal((await open.innerText()).trim(), '重读 1 段', `${width}px: the count dropped`);
         await shot('3-home-after');
@@ -142,5 +153,21 @@ test('重读 N 段: the line comes after the home is drawn, opens the reader at 
     }
     const kept = await running.api('materials.marks.reread', { course: COURSE });
     assert.equal(kept.count, 0, 'both re-read today');
+
+    // 设置 › 练习 「重读 N 段」 off: the home never asks.
+    await running.api('settings.practice.set', { patch: { rereadMarks: false } });
+    const { page, errors, context } = await openPage(browser, running, { width: 1280, height: 900 });
+    let asked = 0;
+    await page.route('**/*', async route => {
+      try { if (JSON.parse(route.request().postData() || '{}').action === 'materials.marks.reread') asked += 1; } catch { /* not JSON */ }
+      await route.continue();
+    });
+    await page.goto(running.server.url);
+    await page.locator('.today-card').waitFor({ timeout: 30000 });
+    await page.waitForTimeout(1500);
+    assert.equal(asked, 0, 'switched off: no materials.marks.reread call');
+    assert.equal(await page.locator('[data-reread]').count(), 0, 'switched off: no line');
+    assert.deepEqual(errors, [], 'switched off: no page errors');
+    await context.close();
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });
