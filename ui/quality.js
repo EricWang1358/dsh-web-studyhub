@@ -1,9 +1,13 @@
 import { uiIsEnglish } from "./i18n.js";
+import { reasonLabel } from "./quality-reasons.js";
 const fields = {
   id: "题目编号", kind: "题型", topic: "主题", objective: "学习目标",
   prompt: "问题", answer: "答案", hint: "提示", explanation: "讲解",
-  misconception: "易错点",
+  misconception: "易错点", rubric: "评分标准", cloze: "填空",
 };
+/** A field not in the requested 出题语言 (lib/contexts/generation/content-language.js LANGUAGE_ISSUE): an option by its id, the correct one so named. */
+const LANGUAGE_DETAIL = /^(?:(correct option|option) (\S+)|(\w+)) is not in the requested content language\b/;
+const languageField = ([, option, id, field]) => option ? `${option === "option" ? "选项" : "正确选项"} ${id}` : fields[field] || field;
 
 export function readableQualityIssue(issue) {
   const value = String(issue || "");
@@ -13,6 +17,8 @@ export function readableQualityIssue(issue) {
   const [, index, detail] = match;
   const required = /^(id|kind|topic|objective|prompt|answer|hint|explanation|misconception) is required$/.exec(detail);
   if (required) return `第 ${index} 题：${fields[required[1]]}不能为空`;
+  const language = LANGUAGE_DETAIL.exec(detail);
+  if (language) return `第 ${index} 题：${reasonLabel("language")}（${languageField(language)}）`;
   const known = {
     "duplicate id": "题目编号重复",
     "duplicate learning objective": "学习目标与前面的题目重复",

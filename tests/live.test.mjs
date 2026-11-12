@@ -499,11 +499,15 @@ test("selected sentences become a source and a generation job while the class co
   await assert.rejects(service.call("live.generate", { id, segmentIds: [] }), /请先选中/);
   await assert.rejects(service.call("live.generate", { id, segmentIds: [segments[0].id, 999] }), /已经不存在/);
   await assert.rejects(service.call("live.generate", { id, segmentIds: [segments[0].id, segments[1].id], kind: "essay" }), /不支持的题型/);
+  await assert.rejects(service.call("live.generate", { id, segmentIds: [segments[0].id, segments[1].id], language: "Klingon" }), /不支持的题目语言/);
 
+  // The questions follow the 出题语言 setting (#1002), as every other run does, not the interface language (Chinese here).
+  await service.call("settings", { generation: { language: "English" } });
   const result = await service.call("live.generate", { id, segmentIds: [segments[1].id, segments[0].id], count: 4, kind: "quiz", includeChinese: true });
   assert.equal(result.segments, 2);
   const job = await service.call("job.wait", { jobId: result.jobId, timeoutSeconds: 20 });
   assert.equal(job.count, 4);
+  assert.equal(job.asked.language, "English");
   const source = await service.call("source.get", { id: result.sourceId });
   assert.deepEqual(source.courses, ['Databases']);
   assert.equal(job.course, 'Databases');
