@@ -27,13 +27,14 @@ test('queued reads keep the chapter and material they were made under, also afte
   const groups = drainReads(queue);
   assert.equal(queue.size, 0, 'drained');
   assert.deepEqual(groups.map(group => ({ target: group.target, chapters: group.chapters.map(chapter => chapter.id), read: group.read, unread: group.unread })), [
-    { target: r1, chapters: ['chapter-0', 'chapter-1'], read: [before[1]], unread: ['chapter-0'] },
+    { target: r1, chapters: ['chapter-0', 'chapter-1'], read: [before[1]], unread: [before[0]] },
     { target: r2, chapters: ['chapter-0', 'chapter-2'], read: [after[1]], unread: [] },
   ], 'each save names the chapter as it was when it was read, under its own material and revision');
   // A save that failed goes back in the queue, unless the learner changed the same chapter since.
   queueRead(queue, { target: r1, chapters: before, id: 'chapter-1', value: false });
   for (const entry of groups[0].entries) if (!queue.has(entry.key)) queue.set(entry.key, entry);
-  assert.deepEqual(drainReads(queue).map(group => [group.read.map(chapter => chapter.id), group.unread]), [[[], ['chapter-1', 'chapter-0']]]);
+  assert.deepEqual(drainReads(queue).map(group => [group.read.map(chapter => chapter.id), group.unread]), [[[], [before[1], before[0]]]],
+    'unread goes as the chapter as it was shown (re-review L1), not its id alone');
 });
 
 test('a chapter is read once scrolled 90% through; one that fits on the screen is seen whole', () => {

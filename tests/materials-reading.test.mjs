@@ -39,7 +39,7 @@ async function fixture(t) {
     const result = await raw('materials.document.import', { filename, ...(documentId ? { documentId } : {}), dataBase64: Buffer.from(body).toString('base64') });
     return raw('materials.document.get', { id: result.documentId });
   };
-  return { raw, reading, imported, restart: () => { ops = operationsOver(root); } };
+  return { root, raw, reading, imported, restart: () => { ops = operationsOver(root); } };
 }
 
 test('a chapter read is kept in the library and read back after a restart; 标为未读 takes it back', async t => {
@@ -56,7 +56,7 @@ test('a chapter read is kept in the library and read back after a restart; 标�
   // Saving the same thing twice changes nothing (idempotent).
   await f.reading('save', { ...id, chapters: CHAPTERS, read: [CHAPTERS[0]] });
   assert.deepEqual((await f.reading('get', { ...id, chapters: CHAPTERS })).read, ['chapter-0', 'chapter-2']);
-  await f.reading('save', { ...id, chapters: CHAPTERS, unread: ['chapter-0'] });
+  await f.reading('save', { ...id, chapters: CHAPTERS, unread: [CHAPTERS[0]] });
   f.restart();
   assert.deepEqual((await f.reading('get', { ...id, chapters: CHAPTERS })).read, ['chapter-2'], '标为未读 is kept too');
   // The document as the reader gets it never carries the record.
@@ -74,14 +74,13 @@ test('a chapter counts only while its id, title and pages still match (an applie
   const changed = [CHAPTERS[0], { ...CHAPTERS[1], endPage: 42 }, { ...CHAPTERS[2], title: 'Market failure' }];
   const id = { sourceId: second.sources[0].id, revision: second.revision };
   assert.deepEqual((await f.reading('get', { ...id, chapters: changed })).read, ['chapter-0'], 'only the chapter that still matches');
-  // The first save in the new revision keeps what matched and forgets the rest, and the other revisions' records go (one record per material).
+  // The first save in the new revision keeps what matched and forgets the rest; the old revision's record is left alone.
   await f.reading('save', { ...id, chapters: changed, read: [changed[1]] });
   assert.deepEqual((await f.reading('get', { ...id, chapters: changed })).read, ['chapter-0', 'chapter-1']);
   assert.deepEqual((await f.reading('get', { ...id, chapters: CHAPTERS })).read, ['chapter-0'], 'the old shape of chapter 1 is gone from the new revision');
-  assert.deepEqual((await f.reading('get', { sourceId: first.sources[0].id, revision: first.revision, chapters: CHAPTERS })).read, ['chapter-0'],
-    'the old revision has no record of its own any more: it reads the newest one');
+  assert.deepEqual((await f.reading('get', { sourceId: first.sources[0].id, revision: first.revision, chapters: CHAPTERS })).read, ['chapter-0', 'chapter-1', 'chapter-2']);
   // Unread in the new revision is not undone by the older revision's record.
-  await f.reading('save', { ...id, chapters: changed, unread: ['chapter-0', 'chapter-1'] });
+  await f.reading('save', { ...id, chapters: changed, unread: [changed[0], changed[1]] });
   assert.deepEqual((await f.reading('get', { ...id, chapters: changed })).read, []);
 });
 
@@ -91,12 +90,47 @@ test('within one revision a save never erases what another window read under ano
   // Window A applied an outline: two parts. Window B still shows the old three chapters.
   const parts = [{ id: 'chapter-0', title: 'Part A', startPage: 1, endPage: 10 }, { id: 'chapter-1', title: 'Part B', startPage: 11, endPage: 60 }];
   await f.reading('save', { ...id, chapters: parts, read: [parts[1]] });
-  await f.reading('save', { ...id, chapters: CHAPTERS, read: [CHAPTERS[2]] });
+  await f.reading('save', { ...id, chapters: CHAPTERS, read: [CHAPTERS[1], CHAPTERS[2]] });
   assert.deepEqual((await f.reading('get', { ...id, chapters: parts })).read, ['chapter-1'], 'window A still sees its part read');
-  assert.deepEqual((await f.reading('get', { ...id, chapters: CHAPTERS })).read, ['chapter-2'], 'window B sees its chapter, not a part of the same id');
-  // 标为未读 by id still takes a chapter back whatever list it was read under.
-  await f.reading('save', { ...id, chapters: CHAPTERS, unread: ['chapter-1'] });
-  assert.deepEqual((await f.reading('get', { ...id, chapters: parts })).read, []);
+  assert.deepEqual((await f.reading('get', { ...id, chapters: CHAPTERS })).read, ['chapter-1', 'chapter-2'],
+    'window B sees its own chapter-1 (another title and pages) read too: both are kept (re-review L1)');
+  // 标为未读 takes back only the chapter as it is shown, not another chapter of the same id.
+  await f.reading('save', { ...id, chapters: CHAPTERS, unread: [CHAPTERS[1]] });
+  assert.deepEqual((await f.reading('get', { ...id, chapters: CHAPTERS })).read, ['chapter-2']);
+  assert.deepEqual((await f.reading('get', { ...id, chapters: parts })).read, ['chapter-1'], 'window A keeps its part');
+  await assert.rejects(f.reading('save', { ...id, chapters: parts, unread: ['chapter-1'] }), /unread must list chapters/);
+});
+
+test('a save on an older revision never takes away what a newer one read (re-review of #1021, R1)', async t => {
+  const f = await fixture(t), first = await f.imported(markdown(page(1), page(2)), 'notes.md');
+  const second = await f.imported(markdown(page(1), page(2), page(3)), 'notes.md', first.documentId);
+  const r1 = { sourceId: first.sources[0].id, revision: first.revision }, r2 = { sourceId: second.sources[0].id, revision: second.revision };
+  const changed = [{ ...CHAPTERS[0], title: 'Demand again' }, CHAPTERS[1], CHAPTERS[2]];
+  await f.reading('save', { ...r1, chapters: CHAPTERS, read: [CHAPTERS[0]] });
+  await f.reading('save', { ...r2, chapters: changed, read: [changed[1], changed[2]] });
+  // A citation opens the old revision (or an old window is still open): it saves there.
+  await f.reading('save', { ...r1, chapters: CHAPTERS, read: [CHAPTERS[1]] });
+  await f.reading('save', { ...r1, chapters: CHAPTERS, unread: [CHAPTERS[0]] });
+  f.restart();
+  assert.deepEqual((await f.reading('get', { ...r2, chapters: changed })).read, ['chapter-1', 'chapter-2'], 'the newer revision still reads both');
+  assert.deepEqual((await f.reading('get', { ...r1, chapters: CHAPTERS })).read, ['chapter-1']);
+});
+
+test('at most the newest three revision records are kept, never the current revision\'s (re-review of #1021, R1)', async t => {
+  const f = await fixture(t), revisions = [];
+  let document = await f.imported(markdown(page(1)), 'notes.md');
+  revisions.push(document);
+  for (let n = 2; n <= 5; n += 1) { document = await f.imported(markdown(...Array.from({ length: n }, (_, i) => page(i + 1))), 'notes.md', document.documentId); revisions.push(document); }
+  const current = revisions.at(-1), idOf = doc => ({ sourceId: doc.sources[0].id, revision: doc.revision });
+  // The current revision is saved first (the oldest write), then four older ones.
+  await f.reading('save', { ...idOf(current), chapters: CHAPTERS, read: [CHAPTERS[0]] });
+  for (const doc of revisions.slice(0, 4)) await f.reading('save', { ...idOf(doc), chapters: CHAPTERS, read: [CHAPTERS[1]] });
+  const stored = (await new Store(f.root).read()).documents.find(item => item.id === current.documentId);
+  const kept = stored.versions.filter(version => version.reading).map(version => version.revision);
+  assert.equal(kept.length, 3, `three records (${kept.length})`);
+  assert.ok(kept.includes(current.revision), 'the current revision keeps its record');
+  assert.deepEqual(kept.filter(revision => revision !== current.revision).sort(), [revisions[2].revision, revisions[3].revision].sort(), 'and the two newest writes');
+  assert.deepEqual((await f.reading('get', { ...idOf(current), chapters: CHAPTERS })).read, ['chapter-0']);
 });
 
 test('a converted book with no materials record of its own keeps its chapters read on its first source, out of the library snapshot', async t => {

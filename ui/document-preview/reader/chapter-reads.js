@@ -16,18 +16,18 @@ export function scrollProgress({ scrollTop = 0, clientHeight = 0, scrollHeight =
 /**
  * The reads waiting to be written (useChapterReads), each kept with what it was made under: the material and revision (`target`), the chapter list and
  * the chapter's ref of that moment, so a write after an outline was applied or a revision loaded still names the chapter that was read.
- * queue: a Map; a chapter changed again replaces its entry. A read of a chapter not in `chapters` is not queued.
+ * queue: a Map; a chapter changed again replaces its entry. A chapter not in `chapters` is not queued (read and unread both go as the chapter shown).
  */
 export function queueRead(queue, { target, chapters, id, value }) {
   const ref = (chapters || []).find(chapter => chapter.id === id) || null;
-  if (!target || (value && !ref)) return queue;
+  if (!target || !ref) return queue;
   const key = `${target.sourceId}|${target.revision}|${id}`;
   queue.delete(key);
   queue.set(key, { key, target, chapters, id, ref, value: !!value });
   return queue;
 }
 
-/** Empties `queue` into one save per material and revision: [{ target, chapters, read: [ref], unread: [id], entries }] (entries: to queue again on a failure). */
+/** Empties `queue` into one save per material and revision: [{ target, chapters, read: [ref], unread: [ref], entries }] (entries: to queue again on a failure). */
 export function drainReads(queue) {
   const groups = new Map();
   for (const entry of queue.values()) {
@@ -35,7 +35,7 @@ export function drainReads(queue) {
     if (!groups.has(at)) groups.set(at, { target: entry.target, chapters: entry.chapters, read: [], unread: [], entries: [] });
     const group = groups.get(at);
     group.chapters = entry.chapters; // the list of the latest change under that revision
-    if (entry.value) group.read.push(entry.ref); else group.unread.push(entry.id);
+    (entry.value ? group.read : group.unread).push(entry.ref);
     group.entries.push(entry);
   }
   queue.clear();
