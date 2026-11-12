@@ -12,7 +12,8 @@ import { renderMarkdown } from '../ui/markdown-page.js';
 import { staticPage } from '../ui/static-page.js';
 import { MATH_SAMPLES } from './helpers/math-samples.mjs';
 
-const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+// A Windows checkout may hold the committed text with CRLF; what is compared is the text.
+const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
 test('a formula is laid out by KaTeX with its own fonts, and keeps its MathML for screen readers', () => {
   const html = renderStudyFormula(String.raw`\mathbb{E}[X] + \mathcal{F} + \mathbf{v} + \mathfrak{g} + \sum_{i\ge1} x_i^2`, false);
