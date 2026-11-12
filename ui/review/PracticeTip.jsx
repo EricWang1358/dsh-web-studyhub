@@ -60,6 +60,8 @@ export default function PracticeTip({ id, onClose, onShown }) {
     const card = element.current;
     if (!card) return undefined;
     let frame = 0, reported = false, ringed = null, dwellTimer = 0;
+    // Its own question only: another question may be on the page too (the reader's 本节题目 round over the practice page, #1013).
+    const scope = card.closest('.review-body') || document;
     const open = () => card.matches?.(':popover-open');
     const clearDwell = () => { if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = 0; } };
     const ring = target => { if (ringed !== target) { ringed?.removeAttribute(RING); target?.setAttribute(RING, ''); ringed = target; } };
@@ -67,7 +69,7 @@ export default function PracticeTip({ id, onClose, onShown }) {
     const measure = () => { const box = card.getBoundingClientRect(); return { width: box.width, height: box.height }; };
     const place = () => {
       frame = 0;
-      const target = [...document.querySelectorAll(control)].find(visible), at = target?.getBoundingClientRect();
+      const target = [...scope.querySelectorAll(control)].find(visible), at = target?.getBoundingClientRect();
       // Only next to a control that is on screen (a link far down the page waits until the learner scrolls to it), and not on top of an open menu, sheet or tray.
       if (!at || at.top < BAR_HEIGHT || at.bottom > window.innerHeight || document.querySelector(PRACTICE_TIP_YIELD_TO)) { hide(); return; }
       card.style.visibility = 'hidden';
@@ -83,7 +85,7 @@ export default function PracticeTip({ id, onClose, onShown }) {
       // The tip goes next to its control; a link far from the toolbar (出成前置题, down in the answer) may also use the toolbar's free band while both are on screen,
       // the ring on the link says which control it is about.
       let spot = tipSpot({ anchor: at, ...originOf(target.closest('.question-tools, .followup-derive'), at, target.closest('.question-toolbar')), ...where });
-      const bar = document.querySelector('.question-toolbar'), tools = bar?.querySelector('.question-tools');
+      const bar = scope.querySelector('.question-toolbar'), tools = bar?.querySelector('.question-tools');
       if (!spot && bar && tools && !bar.contains(target)) spot = tipSpot({ anchor: tools.getBoundingClientRect(), ...originOf(tools, tools.getBoundingClientRect(), bar), ...where });
       // Nothing free: nothing is drawn now, and the control is not marked; a scroll or a message that goes away asks again.
       if (!spot) { hide(); return; }
@@ -106,7 +108,7 @@ export default function PracticeTip({ id, onClose, onShown }) {
     window.addEventListener('scroll', soon, true);
     window.addEventListener('resize', soon);
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(soon);
-    observer?.observe(document.querySelector('.question-area') || document.body);
+    observer?.observe(scope.querySelector('.question-area') || document.body);
     const changes = typeof MutationObserver === 'undefined' ? null : new MutationObserver(soon);
     changes?.observe(document.body, { childList: true, subtree: true, characterData: true });
     return () => {

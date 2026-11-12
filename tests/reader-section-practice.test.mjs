@@ -60,3 +60,17 @@ test('the reader starts its round with the very arguments of 做这几页的题:
   assert.equal(m.readingPracticeArgs(refs, reading, 'library').mode, 'path');
   assert.equal(m.readingPracticeArgs(refs, reading, 'library').fresh, true);
 });
+
+test('a question looks up its own parts inside its own .review-body: the reader round sits over the practice page (#1013)', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const own = /document\.querySelector(All)?\(\s*['"`]\.(assist-|question-)/;
+  for (const file of ['../ui/review/QuestionRun.jsx', '../ui/review/PracticeTip.jsx', '../ui/document-preview/practice/SectionPractice.jsx']) {
+    const text = await readFile(new URL(file, import.meta.url), 'utf8');
+    assert.doesNotMatch(text, own, `${file}: no page-wide lookup of a question's part`);
+  }
+  const tip = await readFile(new URL('../ui/review/PracticeTip.jsx', import.meta.url), 'utf8');
+  assert.match(tip, /const scope = card\.closest\('\.review-body'\) \|\| document;/);
+  assert.doesNotMatch(tip, /document\.querySelectorAll\(control\)/, 'the tip finds its control in its own question');
+  const run = await readFile(new URL('../ui/review/QuestionRun.jsx', import.meta.url), 'utf8');
+  assert.match(run, /onAskMore=\{\(event\) => \{ const body = event\?\.currentTarget\?\.closest\?\.\("\.review-body"\)/, '继续追问 opens the 追问 box of its own question');
+});
