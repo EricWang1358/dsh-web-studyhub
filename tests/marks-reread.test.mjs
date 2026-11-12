@@ -7,6 +7,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
+import { assistantRefusal } from '../lib/assistant-boundary.js';
+import { capabilityIndex, filterCapabilities } from '../lib/runtime/tools.js';
 
 const DAY = 86400000, NOW = Date.now(), OLD = new Date(NOW - 5 * DAY).toISOString();
 const PAGES = [
@@ -125,4 +127,14 @@ test('an imported document keeps its marks on its version: listed with its docum
   assert.equal(listed.items[0].page, undefined, 'a text has no pages to name');
   assert.equal((await service.call('materials.marks.seen', { ...id, id: listed.items[0].id })).status, 'saved');
   assert.equal((await reread({ course: 'SA' })).count, 0);
+});
+
+test('the reread list is the home page read: the main chat is refused it and sees it neither in the index nor in a context listing', () => {
+  assert.match(assistantRefusal('materials.marks.reread') || '', /not available to the assistant/);
+  assert.equal(assistantRefusal('materials.marks.seen'), null);
+  const domain = { id: 'library', api: 'library.v1', operations: ['materials.marks.list', 'materials.marks.reread', 'materials.marks.seen'].map((name) => ({ name, available: true })) };
+  assert.doesNotMatch(JSON.stringify(capabilityIndex([domain])), /marks\.reread/);
+  const listed = JSON.stringify(filterCapabilities([domain], { context: 'library' }));
+  assert.doesNotMatch(listed, /marks\.reread/);
+  assert.match(listed, /marks\.seen/);
 });
