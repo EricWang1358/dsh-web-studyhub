@@ -70,7 +70,7 @@ function Furniture({ paragraph }) {
  * data-study-page / data-study-source on a page, data-study-text around the paragraphs.
  * A transcript part's 【】 stay in the text (hidden, not removed), so a passage captured in
  * the plain 原文 view still finds its context here.
- * `scrollRoot` (a ref to the scroll area) draws the formulas as they come near the screen (lazy-formulas.js); without it every one is drawn at once.
+ * `scrollRoot` (a ref to the scroll area) draws the formulas as they come near the screen (ui/formula-queue.js); without it every one is drawn at once.
  * Memoised: a change of the reading position, a selection or a panel does not draw the chapter again (keep `labelOf` and `onPeek` stable).
  */
 const ReadingSections = React.memo(function ReadingSections({ sections, labelOf, onPeek, scrollRoot }) {
