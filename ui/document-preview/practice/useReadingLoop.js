@@ -9,6 +9,7 @@ import { useLiveEffect } from '../../use-async.js';
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 const FLASH_MS = 2400, PULSE_MS = 3600, WAIT_MS = 700;
+const NO_NOTES = [];
 
 /** The page range of the converted-book chapter that holds `page` (a book converted with its own chapters). */
 function chapterPagesOf(item, page) {
@@ -36,7 +37,7 @@ function outlineLineage(outline, sectionId) {
  * documentItem (groupSourcesByDocument's item, for the chapters), body / scroller (refs), loading, rendered (changes when the
  * drawn text does), resume (a stored reading context to go back to: { nonce, sectionId, sectionOffset, scrollTop, progress, revision, before, after }).
  */
-export function useReadingLoop({ call, document, source, version, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume }) {
+export function useReadingLoop({ call, document, source, version, view, paged, unit, sections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume, notes = NO_NOTES }) {
   const documentId = document?.documentId || document?.id;
   const [state, setState] = useState({ status: 'loading', cards: [], summary: summarizeLinked([]), inactiveCourses: [], drafts: [] });
   const [reloads, setReloads] = useState(0), [open, setOpenState] = useState(false), [choice, setChoice] = useState(null);
@@ -68,7 +69,8 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
   const reload = useCallback(() => { setState(current => ({ ...current, status: 'loading' })); setReloads(count => count + 1); }, []);
 
   // 2. Where each question is in what is drawn. Pages of a PDF or slides are their own sections; anything else is read from the text.
-  const [placed, setPlaced] = useState({ assigned: new Map(), unplaced: [], draftAssigned: new Map() });
+  // The 批注 (`notes`: practice/section-practice.js notePlaces) are placed the same way, in the same walk, for the 本节题目 line (#1013).
+  const [placed, setPlaced] = useState({ assigned: new Map(), unplaced: [], draftAssigned: new Map(), noteAssigned: new Map() });
   // A chaptered reader's chapter entries (reader/chapters.js) hold pages; they are no page themselves, and the questions of their pages count up to them.
   const pageSections = useMemo(() => {
     if (!paged || !outline.length || !sections.length) return false;
@@ -80,17 +82,17 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
     if (pageSections) {
       const bySource = new Map(sections.filter(section => section.sourceId).map(section => [section.sourceId, section.id]));
       const place = link => bySource.get(link.sourceId) ?? null;
-      setPlaced({ ...assignCards(state.cards, place), draftAssigned: assignCards(state.drafts, place).assigned });
+      setPlaced({ ...assignCards(state.cards, place), draftAssigned: assignCards(state.drafts, place).assigned, noteAssigned: assignCards(notes, place).assigned });
     } else if (!loading && outline.length) {
-      const dom = domPlacer({ root: body.current, items: outline, cards: [...state.cards, ...state.drafts] });
+      const dom = domPlacer({ root: body.current, items: outline, cards: [...state.cards, ...state.drafts, ...notes] });
       // One chapter is drawn (reader/chapters.js): a passage on a page that is not drawn goes under the entry of its page, from data (an AI outline's
       // entries carry their page), so the meters of the other chapters stay.
       const drawn = new Set([...(body.current?.querySelectorAll('[data-study-source]') || [])].map(node => node.dataset.studySource));
       const byPage = drawn.size ? sourcePlacer({ items: outline, order: new Map(sections.map((section, index) => [section.sourceId, index])) }) : null;
       const place = link => byPage && link.sourceId && !drawn.has(link.sourceId) ? byPage(link) : dom(link);
-      setPlaced({ ...assignCards(state.cards, place), draftAssigned: assignCards(state.drafts, place).assigned });
-    } else setPlaced({ assigned: new Map(), unplaced: state.cards, draftAssigned: new Map() });
-  }, [state.status, state.cards, state.drafts, pageSections, sections, outline, loading, rendered, body]);
+      setPlaced({ ...assignCards(state.cards, place), draftAssigned: assignCards(state.drafts, place).assigned, noteAssigned: assignCards(notes, place).assigned });
+    } else setPlaced({ assigned: new Map(), unplaced: state.cards, draftAssigned: new Map(), noteAssigned: new Map() });
+  }, [state.status, state.cards, state.drafts, notes, pageSections, sections, outline, loading, rendered, body]);
 
   // 3. What has been read in this session: the entries the reading position passed through.
   useEffect(() => { setVisited([]); }, [documentId, source.id]);
@@ -197,6 +199,6 @@ export function useReadingLoop({ call, document, source, version, view, paged, u
   const documentSummary = state.summary;
   const current = (activeId !== null && meters.get(activeId)) || (outline.length ? summarizeLinked([]) : documentSummary);
   return { status: state.status, message: state.message, cards: state.cards, options, selected, kind: selected?.kind, setKind: setChoice, open, setOpen, reload, inactiveCourses: state.inactiveCourses,
-    meters, entryOf, current, documentSummary, start, here: herePlace, generateIds, resumeNote: note, returnDelta, upgradedIds, total: state.cards.length,
+    meters, entryOf, current, documentSummary, start, here: herePlace, generateIds, resumeNote: note, returnDelta, upgradedIds, total: state.cards.length, noteAssigned: placed.noteAssigned,
     coverage: coverage.view?.coverage || null, outlineCoverage: outlineCov };
 }

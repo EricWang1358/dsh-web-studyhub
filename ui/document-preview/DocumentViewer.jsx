@@ -25,6 +25,8 @@ import { isOfficeFormat, isPagedFormat, isSlideFormat } from '../../lib/office/l
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { displayTitle } from '../../lib/document-title.js';
 import ReadingPractice from './practice/ReadingPractice.jsx';
+import SectionPractice from './practice/SectionPractice.jsx';
+import { notePlaces } from './practice/section-practice.js';
 import { masteryText } from './practice/mastery-copy.js';
 import { coverageChipText } from '../coverage/copy.js';
 import DocumentTopUp, { offersDocumentTopUp } from '../coverage/DocumentTopUp.jsx';
@@ -146,7 +148,7 @@ export default function DocumentViewer(props) {
 }
 
 function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, onGenerateStarted, generateDisabled = false, initialMode = 'read',
-  onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false, onReconvert }) {
+  onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false, onReconvert, inlinePractice = null }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
   useInjectCss(css, 'study-document-preview');
@@ -253,6 +255,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     return selection === item.selection ? item : { ...item, selection };
   }), [kept.items, expandSelection]);
   const annotationMarks = useMemo(() => (localMode ? [] : annotationLinks(keptItems).filter(link => annotationMode === 'annotate' || link.explain)), [annotationMode, keptItems, localMode]);
+  // 批注 n of the 本节题目 line (#1013): the kept threads (not the AI 词解), placed with the questions by the reading loop.
+  const noteLinks = useMemo(() => (localMode ? [] : notePlaces(annotationLinks(keptItems).filter(link => !link.explain))), [keptItems, localMode]);
   const expandedLinks = useMemo(() => links.map(link => {
     const selection = expandSelection(link.selection);
     return selection === link.selection ? link : { ...link, selection };
@@ -363,6 +367,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const toolsOn = !localMode && (narrow ? overlay === 'tools' : settings.tools);
   const toggle = panel => narrow ? setOverlay(current => current === panel ? null : panel)
     : panel === 'outline' && outline.length === 0 ? setEmptyOpen(open => !open) : updateSettings({ [panel]: !settings[panel] });
+  // The learning panel slides over the text on a narrow reader and sits beside it otherwise (the browser's scroll anchoring keeps the reading place as the text narrows).
+  const openTools = () => { if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true }); };
 
   const select = () => {
     // 原始 PDF draws the page in a frame whose selection never reaches here: the panel asks about the page (pageScope), not a selection.
@@ -370,7 +376,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     const value = captureSelection(body.current);
     if (!value) return;
     setCapture(value);
-    if (!narrow && !settings.tools) updateSettings({ tools: true });
+    if (!narrow) openTools();
   };
   // A click on a formula selects it whole, so one click asks about one formula (on click: the browser has collapsed any selection it was in).
   const pick = event => { if (pickFormula(window.getSelection(), event.target)) select(); };
@@ -395,7 +401,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // Only the sections this reader draws (a transcript's recordings and parts) can be started at; Markdown draws its own headings, text without structure has none.
   const resumeAt = useMemo(() => resume && (place?.kind === 'recording' || place?.kind === 'part') ? { ...resume, sectionId: place.sectionId } : resume, [resume, place]);
   const unit = aiOn || !paged ? 'section' : isSlideFormat(format) ? 'slide' : 'page';
-  const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections: allSections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt });
+  const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections: allSections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt, notes: noteLinks });
   // `relanded`: counted each time the learner goes back from 原始 PDF to the text, which lands at the PDF's page; that landing is their new place.
   const [relanded, setRelanded] = useState(0);
   useKeepLastRead({ key: materialKey, enabled: !localMode && view !== 'original' && !loading, root, scroller, here: loop.here, watch: chapter.current?.id, moved: relanded,
@@ -420,6 +426,20 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const chapterSources = useMemo(() => (chaptered && drawnChapter ? new Set(drawnChapter.sourceIds) : null), [chaptered, drawnChapter]);
   useEffect(() => { if (loop.open && pickPagesGuide) setPickPagesGuide(false); }, [loop.open, pickPagesGuide]);
   const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
+  // 本节题目 (#1013): 做这几页的题 › 在这里做 hands its range to the panel, which starts the round beside the text; 错题 n opens the 错题 panel.
+  const [practiceRequest, setPracticeRequest] = useState(null), [wrongRequest, setWrongRequest] = useState(0);
+  const practiseHere = option => { loop.setOpen(false); openTools(); setPracticeRequest({ option, nonce: Date.now() }); };
+  const showNotes = () => {
+    annotation.onMode('annotate');
+    requestAnimationFrame(() => root.current?.querySelector('.reader-links')?.scrollIntoView?.({ block: 'nearest' }));
+  };
+  // 看原文 of a question of the round: its passage in this reader when it is placed here (false: it is in another material).
+  const seekRun = run => {
+    const id = run?.card ? loop.entryOf(`${run.deckId}|${run.card.id}`) : null, item = id != null ? outline.find(entry => entry.id === id) : null;
+    if (!item) return false;
+    jumpTo(item);
+    return true;
+  };
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
   const openDraftPages = draftIds => { loop.setOpen(false); onOpenDraftPages?.(draftIds); };
   const meters = !localMode && loop.status === 'ready' && loop.total > 0 && view !== 'original' ? loop.meters : null;
@@ -433,13 +453,13 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     if (view === 'original') setMode('read'); // a kept passage is shown where it can be selected
     setCapture(previous => previous?.sourceId === at.sourceId && previous?.start === at.start && previous?.end === at.end ? previous
       : { quote: at.quote, prefix: at.prefix || '', suffix: at.suffix || '', sourceId: at.sourceId, start: at.start, end: at.end, ...(at.page ? { page: at.page } : {}) });
-    if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true });
+    openTools();
   };
   const openGroup = group => {
     setFocusedKey(group.key);
     const note = group.links.find(link => link.kind === 'annotation');
     if (note) openAnnotation(note);
-    else if (narrow) setOverlay('tools'); else if (!settings.tools) updateSettings({ tools: true });
+    else openTools();
   };
   // A 词解 shows its answer in a card while the pointer is on its line (marks/ExplainCard.jsx), not in hover text.
   const [explainShown, setExplainShown] = useState(null);
@@ -550,6 +570,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     else if (stop) setMatch(stop.match);
   };
   const onKeyDown = event => {
+    // A round of 本节题目 answers with its own keys (1–4, Enter, P…): only Esc is the reader's there.
+    if (event.key !== 'Escape' && event.target.closest?.('[data-inline-run]')) return;
     if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'f' && view !== 'original') { event.preventDefault(); openFind(); }
     else if (event.key === 'Escape' && overlay) { event.preventDefault(); event.stopPropagation(); setOverlay(null); }
     else if (!localMode && onPracticePages && view !== 'original' && event.key.toLowerCase() === 'p' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
@@ -695,11 +717,11 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       <div className="reader-toolbar__actions">
         {!localMode && onGenerate && <span className="reader-split" data-tour="reader-generate">
           <Tooltip layer content={ui('从这份资料出题')}><Button variant="primary" size="sm" icon="sparkle" className="reader-split__main" disabled={generateDisabled} onClick={onGenerate}>{ui('AI 出题')}</Button></Tooltip>
-          {view !== 'original' && onPracticePages && <ReadingPractice split loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
+          {view !== 'original' && onPracticePages && <ReadingPractice split loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onStartHere={inlinePractice ? practiseHere : undefined} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
         </span>}
-        {!localMode && !onGenerate && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
+        {!localMode && !onGenerate && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onStartHere={inlinePractice ? practiseHere : undefined} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
         {!localMode && document && call && canStudyBank && <WrongPanel read={readWrong} cards={loop.cards} entryOf={loop.entryOf} drawn={drawnIds} chapterTitle={chapter.current ? chapterTitle(chapter.current) : ''}
-          disabled={loop.status !== 'ready'} onPractice={practiseRow} onSeek={seekRow} />}
+          disabled={loop.status !== 'ready'} onPractice={practiseRow} onSeek={seekRow} openRequest={wrongRequest} />}
         {!loading && <MindMapPanel map={mindMap} document={materialName} pages={chapterPages} onJump={jumpMap} />}
         {marks.chip}
       </div>
@@ -755,6 +777,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         </div>
       </div>
       {!localMode && <aside className="study-document-side reader-tools" data-tour="source-tools" id={toolsId} aria-label={ui('学习工具')} hidden={!toolsOn}>
+        {inlinePractice && view !== 'original' && <SectionPractice loop={loop} outline={outline} title={here ? [itemLabel(here), here.title].filter(Boolean).join(' · ') : ''}
+          chapterName={chapter.current ? chapterTitle(chapter.current) : ''} unit={unit}
+          inline={inlinePractice} version={data?.revision} visible={toolsOn} request={practiceRequest} onWrong={canStudyBank ? () => setWrongRequest(count => count + 1) : undefined}
+          onNotes={showNotes} onSeek={seekRun} onElsewhere={onPracticePages ? practise : undefined} />}
         <h3 className="reader-panel__title">{ui('学习')}</h3>
         <div className="study-document-selection">
           {view !== 'original' && <Button className="study-document-wide" icon="plus" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</Button>}
