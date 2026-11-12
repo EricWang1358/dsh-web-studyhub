@@ -39,6 +39,7 @@
   "没有读到可用的文字，可能是扫描件或图片。请先做文字识别（OCR）再导入。": "No usable text was found; it may be a scan or images. Run text recognition (OCR) first, then import it.",
   "文件里没有可用的文字。": "The file has no usable text.",
   "题组文件不能超过 2 MB。": "Deck files must not exceed 2 MB.",
+  "这是题组文件，需要启用题库与出题组件后才能导入。": "This is a deck file; turn on the question bank and authoring components to import it.",
   "这是字幕文件，需要启用音频组件后才能导入。": "This is a subtitle file; turn on the audio component to import it.",
   "已导入「{0}」": "Imported “{0}”",
   "已导入「{0}」（1 页）": "Imported “{0}” (1 page)",

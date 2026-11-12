@@ -59,6 +59,7 @@ import { chapterFindGroups, chapterOutline, findStop, withElsewhere } from './re
 import { useChapterGoal, useReaderChapters } from './reader/useReaderChapters.js';
 import { chapterName, chapterRange, chapterTitle, chapterPagerLabel, elsewhereCount, nextChapterWord, previousChapterWord } from './reader/chapter-copy.js';
 import { useNarrow } from '../use-narrow.js';
+import { hasContext } from '../capabilities.js';
 
 /** Under this width of the viewer the toolbar's controls fill one row (reader-slim.css, @container reader 520px): 待出题 moves into 更多. */
 const COMPACT_TOOLBAR = 520;
@@ -221,16 +222,31 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       .catch(() => { if (current) setKept({ items: [], stale: [] }); });
     return () => { current = false; };
   }, [call, document, annotationMode, keptReload, localMode]);
-  const annotationMarks = useMemo(() => (localMode ? [] : annotationLinks(kept.items).filter(link => annotationMode === 'annotate' || link.explain)), [annotationMode, kept.items, localMode]);
-  const groups = useMemo(() => groupPassageLinks(localMode ? [] : [...links, ...annotationMarks]), [links, annotationMarks, localMode]);
-  const annotation = useMemo(() => ({ mode: annotationMode, items: kept.items, stale: kept.stale,
-    onMode: next => { setAnnotationMode(next); saveAnnotationMode(next); }, onChanged: () => setKeptReload(count => count + 1) }), [annotationMode, kept]);
+  const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
+  const sources = useMemo(() => localMode ? [{ id: localContent.id, title: localContent.title, text: content, format: 'md' }] : document?.sources || [source], [localMode, localContent?.id, localContent?.title, content, document, source]);
+  // A page section's text is its source's (readingSections makes one section per source); find reads the chapters not drawn from it.
+  const textBySource = useMemo(() => new Map(sources.map(item => [item.id, item.text ?? ''])), [sources]);
+  const expandSelection = useCallback(at => {
+    if (!at || !Number.isInteger(at.start) || !Number.isInteger(at.end) || at.end <= at.start) return at;
+    const sliced = textBySource.get(at.sourceId)?.slice(at.start, at.end);
+    return sliced && sliced !== at.quote ? { ...at, quote: sliced } : at;
+  }, [textBySource]);
+  const keptItems = useMemo(() => kept.items.map(item => {
+    const selection = expandSelection(item.selection);
+    return selection === item.selection ? item : { ...item, selection };
+  }), [kept.items, expandSelection]);
+  const annotationMarks = useMemo(() => (localMode ? [] : annotationLinks(keptItems).filter(link => annotationMode === 'annotate' || link.explain)), [annotationMode, keptItems, localMode]);
+  const expandedLinks = useMemo(() => links.map(link => {
+    const selection = expandSelection(link.selection);
+    return selection === link.selection ? link : { ...link, selection };
+  }), [links, expandSelection]);
+  const groups = useMemo(() => groupPassageLinks(localMode ? [] : [...expandedLinks, ...annotationMarks]), [expandedLinks, annotationMarks, localMode]);
+  const annotation = useMemo(() => ({ mode: annotationMode, items: keptItems, stale: kept.stale,
+    onMode: next => { setAnnotationMode(next); saveAnnotationMode(next); }, onChanged: () => setKeptReload(count => count + 1) }), [annotationMode, keptItems, kept.stale]);
   const clearStaleAnnotations = async () => {
     await call('materials.annotation.delete', { documentId: document.documentId || document.id, revision: document.revision, stale: true });
     setKeptReload(count => count + 1);
   };
-  const learningDocument = useMemo(() => document ? { ...document, sourceId: source.id } : { sourceId: source.id }, [document, source.id]);
-  const sources = useMemo(() => localMode ? [{ id: localContent.id, title: localContent.title, text: content, format: 'md' }] : document?.sources || [source], [localMode, localContent?.id, localContent?.title, content, document, source]);
   // 原始 PDF: the learning panel asks about the page our own controls show (page-scope.js). It is a panel of its own, mounted the first time the
   // view is opened and then kept: the reading panel (its selection, its thread, a question still being answered and kept as 批注) is only hidden
   // meanwhile, so it is never shown with an old quote in 原始 PDF and is all there again on the way back to 阅读.
@@ -270,8 +286,6 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     [resume, source.id, source.document?.page]);
   const chapter = useReaderChapters({ paged, sections: allSections, chapters: documentChapters, opening, openKey: `${source.id}:${resume?.nonce ?? ''}` });
   const chaptered = chapter.chapters.length > 0, sections = chapter.sections;
-  // A page section's text is its source's (readingSections makes one section per source); find reads the chapters not drawn from it.
-  const textBySource = useMemo(() => new Map(sources.map(item => [item.id, item.text ?? ''])), [sources]);
   const slides = isSlideFormat(format);
   const pageLabel = useCallback(page => slides ? uiFormat('第 {0} 张', [page]) : uiFormat('第 {0} 页', [page]), [slides]);
   // A recording's entry says which one it is; a part that carries on from the previous volume says so.
@@ -370,7 +384,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const linkTitle = group => groupTitle(group, linkTitleWords());
   // A kept thread is opened in the learning panel: its passage becomes the selection there, and the panel brings its answers back.
   const openAnnotation = link => {
-    const at = link.selection;
+    const at = expandSelection(link.selection);
     if (view === 'original') setMode('read'); // a kept passage is shown where it can be selected
     setCapture(previous => previous?.sourceId === at.sourceId && previous?.start === at.start && previous?.end === at.end ? previous
       : { quote: at.quote, prefix: at.prefix || '', suffix: at.suffix || '', sourceId: at.sourceId, start: at.start, end: at.end, ...(at.page ? { page: at.page } : {}) });
@@ -386,11 +400,15 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [explainShown, setExplainShown] = useState(null);
   const explainOf = group => { const link = group.links.find(item => item.explain); return link ? { term: link.term, answer: link.answer } : null; };
   usePassageLinkLayer({ body, groups: model.groups, rendered, underline: underlineShown(settings), onOpen: openGroup, titleOf: linkTitle, cardOf: explainOf, onCard: setExplainShown });
+  const canStudyBank = hasContext(data, 'bank') && hasContext(data, 'study');
+  const canBatchTranslate = hasContext(data, 'generation');
+  const canAudio = hasContext(data, 'audio');
+  const canQueueGenerate = hasContext(data, 'generation') && hasContext(data, 'bank') && hasContext(data, 'authoring');
   // Right-click on the text: 下划线 / 加粗 / 荧光笔, 加入待出题 and AI 词解 (marks/useReaderMarks.jsx); 待出题 N in the toolbar starts one run for the list.
   const marks = useReaderMarks({ call, document: learningDocument, data, body, rendered, enabled: !localMode && view !== 'original' && !!document, compact,
-    onExplained: () => setKeptReload(count => count + 1), onBatchStarted: onGenerateStarted, busy: generateDisabled });
+    canQueue: canQueueGenerate, onExplained: () => setKeptReload(count => count + 1), onBatchStarted: onGenerateStarted, busy: generateDisabled });
   // The bilingual reading (译): marks and blocks beside the paragraphs, the page / chapter job, the glossary (translation/useBilingual.jsx).
-  const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, enabled: !localMode });
+  const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, enabled: !localMode, batchEnabled: canBatchTranslate });
   const quoteText = sources.find(item => item.id === source.id)?.text || content;
   const quoteState = useMemo(() => !quote ? null : view === 'text' ? resolveQuote(quoteText, quote, source.selection) : locateQuote(quoteText, quote, source.selection),
     [quote, quoteText, source.selection, view === 'text']); // eslint-disable-line react-hooks/exhaustive-deps
@@ -414,7 +432,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     setPlaced(how);
     // Not found in the drawn text: the page it belongs to is shown, and the notice says the place is not exact.
     if (!range) { showSourcePage(); return undefined; }
-    scrollToNode(scroller.current, range.startContainer.parentElement, { center: true, smooth: false });
+    scrollToNode(scroller.current, range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement, { center: true, smooth: false });
     if (window.CSS?.highlights && window.Highlight) {
       window.CSS.highlights.set('study-source-quote', new window.Highlight(range));
       return () => window.CSS.highlights.delete('study-source-quote');
@@ -586,7 +604,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
           {view !== 'original' && onPracticePages && <ReadingPractice split loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
         </span>}
         {!localMode && !onGenerate && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
-        {!localMode && document && call && <WrongPanel read={readWrong} cards={loop.cards} entryOf={loop.entryOf} drawn={drawnIds} chapterTitle={chapter.current ? chapterTitle(chapter.current) : ''}
+        {!localMode && document && call && canStudyBank && <WrongPanel read={readWrong} cards={loop.cards} entryOf={loop.entryOf} drawn={drawnIds} chapterTitle={chapter.current ? chapterTitle(chapter.current) : ''}
           disabled={loop.status !== 'ready'} onPractice={practiseRow} onSeek={seekRow} />}
         {!loading && <MindMapPanel map={mindMap} document={materialName} pages={chapterPages} onJump={jumpMap} />}
         {marks.chip}
@@ -603,13 +621,13 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     <div className="reader-aux">
       {quote && <div className="reader-aux__bar"><blockquote className="highlight-quote reader-aux__quote"><MathText text={quote} /></blockquote>
         {canPeek && !!fileUrl && Number.isInteger(source.document?.page) && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={source.document.page} title={ui('看原页')} onClick={() => openPeek(source.document.page)}>{ui('看原页')}</Button>}</div>}
-      {!localMode && <AudioCorrections audio={source.audio} onReview={call && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />}
+      {!localMode && <AudioCorrections audio={source.audio} onReview={call && canAudio && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />}
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
       {outlineOn && <OutlinePanel id={outlineId} data-tour="reader-outline" items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters} upgradedIds={loop.upgradedIds}
         coverage={!localMode && view !== 'original' && loop.coverage?.cards > 0 ? loop.outlineCoverage : null} coverageTotals={loop.coverage}
-        coverageAction={!localMode && data && offersDocumentTopUp({ item: documentItem, coverage: loop.coverage, jobs: data.jobs, modelReady: modelReadiness(data).ready })
+        coverageAction={!localMode && data && canQueueGenerate && offersDocumentTopUp({ item: documentItem, coverage: loop.coverage, jobs: data.jobs, modelReady: modelReadiness(data).ready })
           ? <DocumentTopUp item={documentItem} revision={data.revision} placement="bottom-start" block /> : null}
         footer={assistTarget && call && view !== 'original' ? <OutlineAssist call={call} target={assistTarget} current={outline} saved={aiOutline} stale={document?.outlineStale}
           missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}
@@ -646,7 +664,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
               onOpenDeck={onOpenDeck} onPractice={onPractice} onStarted={onStarted} />
           </div>)}
           {/* Case practice (WP12): a passage can be the seed of a case paper. */}
-          {onCaseFromPassage && view !== 'original' && <Button className="study-document-wide" disabled={!capture?.quote} title={capture?.quote ? undefined : ui('先在原文中选中一段文字')}
+          {onCaseFromPassage && view !== 'original' && <Button className="study-document-wide" disabled={!capture?.quote || !!capture.crossPage} title={!capture?.quote ? ui('先在原文中选中一段文字') : capture.crossPage ? ui('选区跨了多页，请在一页内选择。') : undefined}
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}
         </div>
         <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} onAnnotation={openAnnotation} />

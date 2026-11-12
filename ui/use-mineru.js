@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { AppContext } from './app/app-context.js';
+import { hasContext } from './capabilities.js';
 import { useHostQuery, setQueryData, fetchQuery } from './host-query.js';
 import { usePolling } from './use-polling.js';
 
@@ -22,7 +24,9 @@ export const loadMineruLocal = (call) => fetchQuery(call, LOCAL, {});
  * when it could not. enabled: false reads nothing.
  */
 export function useMineruState({ call, initialLocal = null, enabled = true } = {}) {
-  const localQuery = useHostQuery(LOCAL, {}, { call, initialData: initialLocal ?? undefined, enabled: enabled && !initialLocal });
+  const app = useContext(AppContext);
+  const active = enabled && hasContext(app?.data, 'audio');
+  const localQuery = useHostQuery(LOCAL, {}, { call, initialData: initialLocal ?? undefined, enabled: active && !initialLocal });
   return {
     local: localQuery.data ?? (localQuery.error ? LOCAL_FAILED : null),
     localFailed: localQuery.data === undefined && !!localQuery.error,

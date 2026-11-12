@@ -18,20 +18,22 @@ const MASTERY_PRIORITY = { weak: 5, learning: 4, familiar: 4, mastered: 4, 'qa-m
 
 const SHOW_TEXT = 4;
 const isSpace = char => /\s/.test(char);
+const isMdMark = char => char === '*' || char === '_' || char === '\\' || char === '`' || char === '~';
 const compact = value => String(value || '').replace(/\s/g, '');
+const stripMd = value => String(value || '').replace(/[\s*_\\`~]/g, '');
 
 /** The compact text (whitespace removed) of one page or the whole container, with the way back to its text nodes. */
 function indexText(container, root) {
   const walker = container.ownerDocument.createTreeWalker(root, SHOW_TEXT), nodes = [], map = [];
   let raw = 0, text = '', node;
   while ((node = walker.nextNode())) {
-    if (node.parentElement?.closest('[data-study-marker]')) continue;
+    if (node.parentElement?.closest('[data-study-marker], [data-tr-key], [data-find-skip], .reader-section__label, .md-image-caption')) continue;
     const value = node.textContent;
     nodes.push({ node, start: raw });
     for (let index = 0; index < value.length; index++) if (!isSpace(value[index])) { map.push(raw + index); text += value[index]; }
     raw += value.length;
   }
-  return { nodes, map, text };
+  return { nodes, map, text, plain: null };
 }
 
 /** The text node holding raw offset `at` (the last node starting at or before it; `strict` when it ends the range). */
@@ -47,15 +49,9 @@ function nodeAt(nodes, at, strict) {
 const commonSuffix = (a, b) => { let n = 0; while (n < a.length && n < b.length && a[a.length - 1 - n] === b[b.length - 1 - n]) n++; return n; };
 const commonPrefix = (a, b) => { let n = 0; while (n < a.length && n < b.length && a[n] === b[n]) n++; return n; };
 
-/**
- * The position of a stored passage in compact text. The stored context comes from the source text, so Markdown
- * marks and layout it contains may not exist in the rendered text: first the exact context decides, and when it
- * rules everything out, a passage that is still unique, or clearly best matched by what context does agree, is used.
- */
-function locate(index, selection) {
-  const quote = compact(selection.quote), before = compact(selection.prefix), after = compact(selection.suffix);
+function locateIn(text, quote, before, after) {
   if (!quote) return null;
-  const { text } = index, hits = [];
+  const hits = [];
   for (let at = text.indexOf(quote); at !== -1; at = text.indexOf(quote, at + 1)) hits.push(at);
   if (!hits.length) return null;
   const exact = hits.filter(at => (!before || (at >= before.length && text.startsWith(before, at - before.length))) && (!after || text.startsWith(after, at + quote.length)));
@@ -65,6 +61,32 @@ function locate(index, selection) {
   const scored = hits.map(at => ({ at, score: commonSuffix(text.slice(Math.max(0, at - 40), at), before) + commonPrefix(text.slice(at + quote.length, at + quote.length + 40), after) }))
     .sort((a, b) => b.score - a.score);
   return scored[0].score >= 4 && scored[0].score > scored[1].score ? scored[0].at : null;
+}
+
+function plainIndex(index) {
+  if (index.plain) return index.plain;
+  const map = [];
+  let text = '';
+  for (let i = 0; i < index.text.length; i++) if (!isMdMark(index.text[i])) { map.push(i); text += index.text[i]; }
+  index.plain = { text, map };
+  return index.plain;
+}
+
+/**
+ * The [start, end) span of a stored passage in compact text. The stored context comes from the source text, so Markdown
+ * marks and layout it contains may not exist in the rendered text (or formulas keep raw LaTeX marks stripped in source.text):
+ * first the exact compact text decides, and when formula inline punctuation differs, plain text falls back cleanly.
+ */
+function locate(index, selection) {
+  const quote = compact(selection.quote);
+  if (!quote) return null;
+  const hit = locateIn(index.text, quote, compact(selection.prefix), compact(selection.suffix));
+  if (hit !== null) return { start: hit, end: hit + quote.length };
+  if (index.text.includes(quote)) return null;
+  const plainQuote = stripMd(selection.quote);
+  if (!plainQuote || !/[\p{L}\p{N}]/u.test(plainQuote)) return null;
+  const plain = plainIndex(index), plainHit = locateIn(plain.text, plainQuote, stripMd(selection.prefix), stripMd(selection.suffix));
+  return plainHit !== null ? { start: plain.map[plainHit], end: plain.map[plainHit + plainQuote.length - 1] + 1 } : null;
 }
 
 /**
@@ -80,9 +102,9 @@ export function locateGroups(container, groups) {
     if (!selection?.quote) continue;
     const root = pages.get(selection.sourceId) || container;
     if (!indexes.has(root)) indexes.set(root, indexText(container, root));
-    const index = indexes.get(root), at = locate(index, selection);
-    if (at === null) continue;
-    const length = compact(selection.quote).length, from = index.map[at], to = index.map[at + length - 1] + 1;
+    const index = indexes.get(root), span = locate(index, selection);
+    if (!span) continue;
+    const from = index.map[span.start], to = index.map[span.end - 1] + 1;
     const first = nodeAt(index.nodes, from, false), last = nodeAt(index.nodes, to, true);
     if (!first || !last) continue;
     try {

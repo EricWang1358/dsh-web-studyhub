@@ -18,7 +18,7 @@ import { extensionOf } from './file-names.js';
 import { formatNumber } from './format.js';
 import { toBase64 } from './upload.js';
 import css from './import-hub.css';
-import { hasContext } from './capabilities.js';
+import { hasContext, pageAvailable } from './capabilities.js';
 import { useStudy } from './study-context.jsx';
 import { canPickNative, pickNativePdf } from './pdf-source.js';
 import { repeatedText, restoreRepeated } from './RepeatedNote.jsx';
@@ -182,7 +182,7 @@ async function importDocumentFile(file, { call, courses = [], known = [], conver
     ...(value?.repeated ? { repeated: value.repeated } : {}) };
 }
 
-async function importOne(file, { call, courses = [], known = [], audio = false, convertible = false }) {
+async function importOne(file, { call, courses = [], known = [], audio = false, convertible = false, deckImport = true }) {
   const kind = routeImportFile(file, { audio });
   if (kind === 'audio') throw permanentError(ui('音频请在「音频 / 录音」里导入，那里会先转写成文字。'), { carry: true });
   if (kind === 'subtitle') throw permanentError(ui('字幕要在「音频 / 录音」里确认后再导入：那里会先估算用量。'), { carry: true });
@@ -193,6 +193,7 @@ async function importOne(file, { call, courses = [], known = [], audio = false, 
   // A converter's JSON (WP28) is a textbook, not a question deck.
   if (kind === 'deck' && looksLikeConvertedJson(text)) return importDocumentFile(file, { call, courses, known, convertible });
   if (kind === 'deck' && !looksLikeSubtitleJson(text)) {
+    if (!deckImport) throw permanentError(ui('这是题组文件，需要启用题库与出题组件后才能导入。'));
     if (file.size > MAX_DECK_BYTES) throw permanentError(ui('题组文件不能超过 2 MB。'));
     const proposal = await call('draft.import.propose', { text });
     // A JSON deck keeps one course: the first (a deck belongs to one course).
@@ -211,12 +212,12 @@ async function importOne(file, { call, courses = [], known = [], audio = false, 
  * `known`: the library's courses (a file name may name one when `courses` is empty); `convertible`: PDF conversion is available.
  * An error may carry `carry` (the file belongs in the audio form), `scanned` (a PDF with no text that the converters can read) or `large`.
  */
-export async function runImport(files, { call, courses = [], known = [], audio = false, convertible = false, onUpdate } = {}) {
+export async function runImport(files, { call, courses = [], known = [], audio = false, convertible = false, deckImport = true, onUpdate } = {}) {
   const results = [];
   for (const [index, file] of [...files].entries()) {
     onUpdate?.(index, { status: 'working' });
     try {
-      const result = await importOne(file, { call, courses, known, audio, convertible });
+      const result = await importOne(file, { call, courses, known, audio, convertible, deckImport });
       results.push({ file, status: 'done', result });
       onUpdate?.(index, { status: 'done', result });
     } catch (error) {
@@ -428,6 +429,7 @@ export default function ImportHub({
   useInjectCss(css, 'study-import-hub');
   const audioOn = audio !== undefined && audio !== null && audio !== false;
   const convertible = hasContext(data, 'audio');
+  const deckImportOn = pageAvailable(data, 'draft');
   const [tab, setTab] = useState(initialTab === 'audio' && !audioOn ? 'files' : initialTab);
   const [ownCourse, setOwnCourse] = useState(() => data?.focus?.course || '');
   const courseText = course ?? ownCourse, setCourseText = onCourseChange || setOwnCourse;
@@ -500,7 +502,7 @@ export default function ImportHub({
   }
   async function run(batch) {
     setRunning(true);
-    const results = await runImport(batch.map(item => item.file), { call, courses, known, audio: audioOn, convertible,
+    const results = await runImport(batch.map(item => item.file), { call, courses, known, audio: audioOn, convertible, deckImport: deckImportOn,
       onUpdate: (index, patch) => { if (alive.current) setItems(current => current.map(item => item.id === batch[index].id ? { ...item, ...patch } : item)); } });
     if (!alive.current) return;
     setRunning(false);

@@ -37,7 +37,7 @@ export default function GlossaryDialog({ glossary, target, onSave, onPrice, onRe
       const result = await onSave(toGlossary(rows));
       setSaved(result);
       setRows(list => list.filter(row => row.term.trim()).length ? list.filter(row => row.term.trim()) : [{ term: '', mode: 'keep', to: '' }]);
-      setEstimate(result.affected.count ? await onPrice(result.affected.passages) : null);
+      setEstimate(result.affected.count && onPrice ? await onPrice(result.affected.passages) : null);
     } catch (failure) { setError(failure?.message || ui('出现未知错误')); } finally { setBusyAction(''); }
   };
   const again = async () => { setBusyAction('retranslate'); try { await onRetranslate(saved.affected.passages); onClose(); } catch (failure) { setError(failure?.message || ui('出现未知错误')); setBusyAction(''); } };
@@ -57,7 +57,7 @@ export default function GlossaryDialog({ glossary, target, onSave, onPrice, onRe
         {saved.affected.count > 0 ? <>
           <p>{uiFormat('有 {0} 段已有的译文用到了这些词，可能和新术语不一致。不会自动重译，由你决定。', [saved.affected.count])}</p>
           {estimate && <TokenEstimateView state={{ status: 'ready', estimate }} totalOnly />}
-          <Button size="sm" variant="secondary" busy={busyAction === 'retranslate'} lock={busyAction === 'save'} onClick={again}>{uiFormat('重新翻译这 {0} 段', [saved.affected.count])}</Button>
+          {onRetranslate && <Button size="sm" variant="secondary" busy={busyAction === 'retranslate'} lock={busyAction === 'save'} onClick={again}>{uiFormat('重新翻译这 {0} 段', [saved.affected.count])}</Button>}
         </> : <p className="muted">{ui('已有的译文都不受影响。')}</p>}
       </div>}
     </div>

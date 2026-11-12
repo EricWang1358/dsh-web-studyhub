@@ -40,10 +40,23 @@ async function pack(cwd) {
 // Build and verification are deliberately owned by the release coordinator.
 await mkdir(join(target, 'packages'), { recursive: true });
 const docsPaths = manifest.files.filter(path => path.startsWith('docs/'));
+// Pure client-panel packages never imported by lib/, skills/, references/ or domain plugins (#990).
+const UI_ONLY_DEPENDENCIES = new Set([
+  '@base-ui/react',
+  '@codemirror/lang-markdown',
+  '@uiw/react-codemirror',
+  'dompurify',
+  'katex',
+  'markdown-it-texmath',
+]);
+const CLIENT_BUNDLE_RE = /[/\\]lib[/\\]client(?:\.[A-Za-z0-9._-]+)?\.js$/;
 async function packDomain(domain) {
   const staging = await mkdtemp(join(target, 'packages', `${domain}-`));
-  await Promise.all(['lib', 'skills', 'references', 'locale', 'presets', 'LICENSE', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'CHANGELOG.zh-CN.md']
-    .map(path => cp(join(root, path), join(staging, path), { recursive: true })));
+  await Promise.all([
+    cp(join(root, 'lib'), join(staging, 'lib'), { recursive: true, filter: src => !CLIENT_BUNDLE_RE.test(src) }),
+    ...['skills', 'references', 'locale', 'presets', 'LICENSE', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'CHANGELOG.zh-CN.md']
+      .map(path => cp(join(root, path), join(staging, path), { recursive: true })),
+  ]);
   await mkdir(join(staging, 'docs'), { recursive: true });
   await Promise.all(docsPaths.map(async path => {
     await mkdir(dirname(join(staging, path)), { recursive: true });
@@ -51,11 +64,12 @@ async function packDomain(domain) {
   }));
   const name = `@ericwang1358/dsh-study-${domain}`;
   const entry = `./lib/plugins/${domain}.js`;
+  const dependencies = Object.fromEntries(Object.entries(manifest.dependencies).filter(([pkg]) => !UI_ONLY_DEPENDENCIES.has(pkg)));
   await writeFile(join(staging, 'package.json'), JSON.stringify({
     name, version: manifest.version, description: `StudyHub ${domain} capability plugin for DSH`,
     type: 'module', main: entry, exports: { '.': entry, './runtime': './lib/runtime.js', './locale/*': `./locale/plugins/${domain}/*`, './package.json': './package.json' },
-    files: manifest.files,
-    author: manifest.author, license: manifest.license, engines: manifest.engines, dependencies: manifest.dependencies,
+    files: manifest.files.filter(path => path !== 'scripts/prepare.mjs'),
+    author: manifest.author, license: manifest.license, engines: manifest.engines, dependencies,
     peerDependencies: manifest.peerDependencies, peerDependenciesMeta: manifest.peerDependenciesMeta,
     dsh: { bundle: { patch: './cordis.patch.yml' } },
   }, null, 2) + '\n');

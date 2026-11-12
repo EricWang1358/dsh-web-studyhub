@@ -31,7 +31,9 @@ export function copyText(selection) {
   spanFormulas(range);
   holder.append(range.cloneContents());
   if (!holder.querySelector('.reader-math')) return null;
-  holder.querySelectorAll('[data-study-marker]').forEach(marker => marker.remove());
+  holder.querySelectorAll('[data-study-marker], [data-tr-key], [data-find-skip], .reader-section__label, .md-image-caption').forEach(marker => marker.remove());
+  holder.querySelectorAll('br').forEach(br => { if (br.nextSibling?.textContent?.startsWith('\n')) br.remove(); else br.replaceWith('\n'); });
+  holder.querySelectorAll('td, th').forEach(cell => { if (cell.nextElementSibling) cell.append('\t'); });
   holder.querySelectorAll(BLOCKS).forEach(block => block.append('\n'));
   return holder.textContent.replace(/\n{3,}/g, '\n\n').trim();
 }

@@ -179,6 +179,7 @@
   "这段文字在资料里出现了不止一次，请多选一点上下文。": "These words appear more than once; select a little more around them.",
   "这段文字暂时无法解释。": "These words cannot be explained just now.",
   "选中文字的操作": "Selected text actions",
+  "选区跨了多页，请在一页内选择。": "This selection spans multiple pages. Select within a single page.",
   "需要先连接模型；点一下去设置。": "Needs a model first; click to set one up.",
   "待出题 {0}…": "Queued {0}…"
 }

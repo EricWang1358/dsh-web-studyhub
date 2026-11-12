@@ -78,7 +78,7 @@ const selectionPassage = capture => ({ sourceId: capture.sourceId, kind: 'select
  * @param props call, document (materials.document.get), source, view ('read' | 'text' | 'original'), paged, narrow, body / scroller (refs),
  *   rendered (changes whenever the drawn text does), outline / activeId / chapterLevel (the reader's contents)
  */
-export default function useBilingual({ call, document: doc, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, enabled = true }) {
+export default function useBilingual({ call, document: doc, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, enabled = true, batchEnabled = true }) {
   const language = useUiLanguage();
   const toast = useToast();
   const announce = useCallback(({ text, tone }) => toast.show({ tone, message: text }), [toast]);
@@ -237,7 +237,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     const container = body.current;
     if (!capture || !container) return;
     const tempKey = `tmp:${nextId('sel')}`;
-    const block = reading ? paragraphAround(capture.range.endContainer, layer.current.byElement) : null;
+    const block = reading ? paragraphAround(capture.lastNode || capture.range.endContainer, layer.current.byElement) : null;
     if (block) layer.current.pinned.set(tempKey, block);
     else {
       floatRange.current = capture.range.cloneRange();
@@ -297,7 +297,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
       frame = 0;
       const container = body.current, area = container?.closest('.reader-page');
       const capture = container ? captureSelection(container) : null;
-      if (!capture || !area || !needsTranslation(capture.quote, target) || capture.quote.trim().length < 2) { setChip(current => current ? null : current); return; }
+      if (!capture || capture.crossPage || !area || !needsTranslation(capture.quote, target) || capture.quote.trim().length < 2) { setChip(current => current ? null : current); return; }
       if (!capture.range.getClientRects().length) { setChip(null); return; }
       // Only the live range and the words are kept: where the chip goes is measured against the range (useRangeAnchor), never copied into state.
       chipRange.current = capture.range.cloneRange();
@@ -312,7 +312,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
 
   const translateCurrent = useCallback(() => {
     const capture = captureSelection(body.current);
-    if (capture && needsTranslation(capture.quote, target)) { translateSelection(capture); return; }
+    if (capture && !capture.crossPage && needsTranslation(capture.quote, target)) { translateSelection(capture); return; }
     const own = layer.current, area = scroller.current?.getBoundingClientRect();
     const paragraph = own.active ? own.byElement.get(own.active) : own.paragraphs.find(item => item.offered && (!area || item.element.getBoundingClientRect().bottom > area.top + 40));
     if (paragraph?.offered) onMark(paragraph.key);
@@ -347,10 +347,10 @@ export default function useBilingual({ call, document: doc, source, view, paged,
 
   /* ---------- the page / chapter job ---------- */
   const loadJobs = useCallback(async () => {
-    if (!identity) return;
+    if (!identity || !batchEnabled) return;
     try { const listed = await call('generation.translation.jobs', { documentId: identity.documentId }); setJobs(listed?.jobs || []); } catch { /* the job list is a convenience */ }
-  }, [call, identity]);
-  useEffect(() => { if (supported) void loadJobs(); }, [supported, loadJobs]);
+  }, [call, identity, batchEnabled]);
+  useEffect(() => { if (supported && batchEnabled) void loadJobs(); }, [supported, batchEnabled, loadJobs]);
   const [finishedHere, setFinishedHere] = useState(() => new Set());
   // A running job is always shown; a finished one only if it ended while this reader was open (an old result is not news).
   const job = jobs.find(jobActive) || jobToShow(jobs.filter(item => finishedHere.has(item.id) && !dismissed.has(item.id)));
@@ -377,6 +377,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
   const openMenu = useCallback(async open => {
     setMenuOpen(open);
     if (!open || !identity) return;
+    if (!batchEnabled) { scopeDefs.current = []; setScopes([]); return; }
     const spans = spanKeys();
     const defs = [{ id: 'page', label: paged ? ui('翻译本页') : ui('翻译本节'), short: paged ? ui('本页') : ui('本节'), paragraphs: spans.page },
       ...(spans.chapter ? [{ id: 'chapter', label: ui('翻译本章'), short: ui('本章'), paragraphs: spans.chapter }] : [])];
@@ -388,7 +389,7 @@ export default function useBilingual({ call, document: doc, source, view, paged,
         setScopes(list => list.map(scope => scope.id === def.id ? { ...scope, status: 'ready', counts: priced.counts, estimate: priced.estimate, modelAvailable: priced.modelAvailable } : scope));
       } catch { setScopes(list => list.map(scope => scope.id === def.id ? { ...scope, status: 'error' } : scope)); }
     }
-  }, [call, identity, target, spanKeys, paged]);
+  }, [call, identity, target, spanKeys, paged, batchEnabled]);
 
   const start = useCallback(async scopeId => {
     const def = scopeDefs.current.find(item => item.id === scopeId);
@@ -459,7 +460,8 @@ export default function useBilingual({ call, document: doc, source, view, paged,
     {[...hosts].map(([key, host]) => createPortal(blockFor(key), host, key))}
     {page && chip && !floating && createPortal(<SelectionChip chipRef={chipElement} target={target} onClick={() => translateSelection(captureSelection(body.current))} />, page)}
     {page && floating && blockFor(floating.key) && createPortal(<FloatingTranslation anchorRef={floatElement} onClose={() => setFloating(null)}>{blockFor(floating.key)}</FloatingTranslation>, page)}
-    {glossaryOpen && <GlossaryDialog glossary={state.glossary} target={target} onSave={saveGlossary} onPrice={priceAgain} onRetranslate={retranslateMany} onClose={() => setGlossaryOpen(false)} />}
+    {glossaryOpen && <GlossaryDialog glossary={state.glossary} target={target} onSave={saveGlossary}
+      onPrice={batchEnabled ? priceAgain : undefined} onRetranslate={batchEnabled ? retranslateMany : undefined} onClose={() => setGlossaryOpen(false)} />}
   </>;
   const hasTranslations = Object.keys(state.items).length > 0;
   const panelProps = { scopes, target, modelAvailable: state.modelAvailable, stale: state.stale, busy: active, hasTranslations, onStart: start, onExpandAll: () => showAll(true), onCollapseAll: () => showAll(false),
