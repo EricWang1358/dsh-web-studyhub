@@ -201,3 +201,23 @@ test('a 挑题成文 draft of the same question is not the question\'s note: 写
   assert.equal(badges.filter(badge => badge.qa).length, 1, 'one badge is the note 存进笔记 writes to');
   assert.equal(badges.find(badge => badge.qa).noteId, created.note.id);
 });
+
+test('a short follow-up that also appears in the stem still counts as deleted once its Q&A block is gone', async t => {
+  const { service } = await library(t);
+  await addFollowup(service, 'f3', 'Which', 'The caretaker.');
+  const ref = { deckId: 'deck', cardId: 'c1', title: 'Study note', language: 'en', followupId: 'f3' };
+  const first = await service.call('note.qa.add', ref);
+  const without = first.note.markdown.split('> **Follow-up:**')[0];
+  assert.match(without, /Which part manages the history\?/, 'the stem still holds the word');
+  await service.call('note.save', { id: first.note.id, expectedRevision: first.note.revision, markdown: without });
+  assert.equal((await service.call('note.qa.add', ref)).status, 'added');
+});
+
+test('a draft interrupted by a restart (stored as running, no live job) does not block 存进笔记', async t => {
+  const { service } = await library(t);
+  const ref = { deckId: 'deck', cardId: 'c1', title: 'Study note', language: 'en' };
+  const first = await service.call('note.qa.add', { ...ref, followupId: 'f1' });
+  await service.store.update(state => { state.notes.find(note => note.id === first.note.id).generation = { id: 'gone', status: 'running', session: 'an-earlier-host', pid: process.pid }; });
+  await addFollowup(service, 'f2', 'What does the originator need?', 'Access to its own state.');
+  assert.equal((await service.call('note.qa.add', { ...ref, followupId: 'f2' })).status, 'added');
+});
