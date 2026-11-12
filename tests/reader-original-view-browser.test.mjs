@@ -96,11 +96,13 @@ test('文字 | 原始 PDF: the original opens at the page being read and is reme
   // Back to 文字: the text is at the page the PDF was on; and the next open is the text again.
   await sw.getByRole('button', { name: '文字' }).click();
   await until(async () => (await mode()) === 'read' && (await topPage()) === 7, 'the text at page 7', { timeoutMs: 30000 });
+  await page.waitForTimeout(300); // the place is measured MEASURE_MS (100 ms) after a scroll; no learner closes faster than that
   await closeReader();
   await openRow('Lecture');
   await viewer.locator('.reader-section[data-study-page]').first().waitFor({ timeout: 30000 });
   await page.waitForTimeout(500);
   assert.equal(await mode(), 'read', 'left in the text, it opens in the text');
+  await until(async () => (await topPage()) === 7, 'at the page the text landed on from the original (7), not the place kept before it', { timeoutMs: 15000 });
 
   // 420px: the views are in 更多 only, and the toolbar stays one row.
   await closeReader();

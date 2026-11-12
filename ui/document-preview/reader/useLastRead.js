@@ -24,9 +24,11 @@ export function useLastReadOpening({ key, sourceId, firstSourceId, quote, resume
  * at most every MEASURE_MS while `scroller` scrolls and kept SAVE_MS after the last scroll or a change of `watch` (another chapter). Closing the
  * reader, or leaving the text view, keeps the last place measured: by then the drawn text may be gone, so nothing is measured then. The page
  * hidden (another window, the app closing) keeps the place too.
+ * `moved`: a value that changes when the learner moved the text by a choice of their own that is not an input in it (back from 原始 PDF, the text lands
+ * at the PDF's page, #1001): the scroll that follows is kept like their own.
  * Only while `enabled`.
  */
-export function useKeepLastRead({ key, enabled, root, scroller, here, atStart, watch }) {
+export function useKeepLastRead({ key, enabled, root, scroller, here, atStart, watch, moved = 0 }) {
   const latest = useRef({}); latest.current = { key, here, atStart, enabled };
   const touched = useRef(false), pending = useRef(null), timers = useRef({ measure: 0, save: 0 });
   const stop = useCallback(() => { clearTimeout(timers.current.measure); clearTimeout(timers.current.save); timers.current = { measure: 0, save: 0 }; }, []);
@@ -45,6 +47,7 @@ export function useKeepLastRead({ key, enabled, root, scroller, here, atStart, w
   }, []);
   const save = useCallback(() => { stop(); measure(); write(); }, [stop, measure, write]);
   useEffect(() => { touched.current = false; }, [key]);
+  useEffect(() => { if (moved) touched.current = true; }, [moved]);
 
   useEffect(() => {
     const area = scroller.current, frame = root.current;
@@ -81,7 +84,8 @@ export function useKeepLastRead({ key, enabled, root, scroller, here, atStart, w
 
 /**
  * 上次读到, the view (#1001): while `original` (原始 PDF is shown), its `page` is kept in the material's record, with `place.current` (the text place of
- * the moment the learner switched, taken before the text went) the first time; back in the text the view is cleared and the place stays. A page turn
+ * the moment the learner switched, taken before the text went) the first time; back in the text the view is cleared, and the text lands at the PDF's
+ * page, which useKeepLastRead keeps as the new place (its `moved`). A page turn
  * is a press, not a scroll: each one is written at once. It runs after useKeepLastRead's own write on leaving the text, so the view is the last word.
  * Only while `enabled`.
  */

@@ -385,7 +385,9 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const resumeAt = useMemo(() => resume && (place?.kind === 'recording' || place?.kind === 'part') ? { ...resume, sectionId: place.sectionId } : resume, [resume, place]);
   const unit = aiOn || !paged ? 'section' : isSlideFormat(format) ? 'slide' : 'page';
   const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections: allSections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt });
-  useKeepLastRead({ key: materialKey, enabled: !localMode && view !== 'original' && !loading, root, scroller, here: loop.here, watch: chapter.current?.id,
+  // `relanded`: counted each time the learner goes back from 原始 PDF to the text, which lands at the PDF's page; that landing is their new place.
+  const [relanded, setRelanded] = useState(0);
+  useKeepLastRead({ key: materialKey, enabled: !localMode && view !== 'original' && !loading, root, scroller, here: loop.here, watch: chapter.current?.id, moved: relanded,
     atStart: () => (!chaptered || chapter.index <= 0) && (scroller.current?.scrollTop ?? 0) < START_PX });
   // 原始 PDF and its page are kept in the same record (useKeepLastView); `switchPlace` is the text place taken as the learner switched to it.
   const switchPlace = useRef(null);
@@ -558,7 +560,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       switchPlace.current = place;
     }
     // Back from 原始 PDF, the text opens at the page the PDF was on, in its chapter.
-    if (view === 'original' && value !== 'original') { if (chaptered) chapter.goTo({ page: pdfPage }); else if (paged) landing.current = pdfPage; }
+    if (view === 'original' && value !== 'original') { if (chaptered) chapter.goTo({ page: pdfPage }); else if (paged) landing.current = pdfPage; setRelanded(count => count + 1); }
     if (value !== 'original') setTextView(value);
     setMode(value);
   };
