@@ -58,10 +58,11 @@ test('a long chapter is read in well under 5 ms', () => {
   assert.ok(big.length > 250_000);
   looksGarbled(big); // warm up
   let best = Infinity;
-  for (let round = 0; round < 5; round += 1) {
+  // The best of twenty: a busy machine (parallel CI shards) slows some rounds, not the function.
+  for (let round = 0; round < 20; round += 1) {
     const started = performance.now();
     looksGarbled(big);
     best = Math.min(best, performance.now() - started);
   }
-  assert.ok(best < 5, `best of five: ${best.toFixed(2)} ms`);
+  assert.ok(best < 5, `best of twenty: ${best.toFixed(2)} ms`);
 });
