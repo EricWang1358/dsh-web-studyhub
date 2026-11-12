@@ -85,3 +85,12 @@ test('the 批注 handed to the loop keep one identity while their places are the
   assert.equal(m.noteKey(m.notePlaces([])), '', 'no note: nothing to place');
   assert.equal(m.noteKey(m.notePlaces(null)), '');
 });
+
+test('做这几页的题 › 在这里做 says when it takes only the first 30 of the range (#1013)', async () => {
+  assert.equal(m.hereLabelArgs(12), null, 'up to 30: plain 在这里做');
+  assert.equal(m.hereLabelArgs(30), null);
+  assert.deepEqual(m.hereLabelArgs(31), [30], 'more: 在这里做前 30 道');
+  const { readFile } = await import('node:fs/promises');
+  const en = JSON.parse(await readFile(new URL('../ui/locales/en.loop.json', import.meta.url), 'utf8'));
+  assert.equal(en['在这里做前 {0} 道'], 'Answer the first {0} here');
+});

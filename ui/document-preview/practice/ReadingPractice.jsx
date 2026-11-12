@@ -5,6 +5,7 @@ import { useInjectCss } from '../../shared.js';
 import { MasteryMark } from './MasteryMark.jsx';
 import { countsLine, draftExtraText, draftNoneText, inclusionNote, meaningLine, noneText, questionsWord, rangeLabel, stateLabel } from './mastery-copy.js';
 import { rangeCoverageOf } from './coverage-outline.js';
+import { hereLabelArgs } from './section-practice.js';
 import { rangeUncoveredLine } from '../../coverage/copy.js';
 import css from './practice.css';
 
@@ -73,7 +74,7 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
           <Button variant="primary" icon="arrow-right" className="reader-practice__action" lock={busy} onClick={() => onStart(selected)}>
             {total === 1 ? ui('开始做这 1 道题') : uiFormat('开始做这 {0} 道题', [total])}</Button>
           {onStartHere && <Button variant="secondary" size="sm" icon="book" className="reader-practice__action" lock={busy} onClick={() => onStartHere(selected)}
-            data-usage="reader.practice-here">{ui('在这里做')}</Button>}
+            data-usage="reader.practice-here">{hereLabelArgs(total) ? uiFormat('在这里做前 {0} 道', hereLabelArgs(total)) : ui('在这里做')}</Button>}
         </> : <>
           <p className="reader-practice__none" data-testid="practice-none"><MasteryMark summary={null} size={16} /> {drafted ? draftNoneText(drafted.draftCards) : ui('这几页还没有题')}
             {drafted && <HelpTip label={ui('为什么还不能练')}>{ui('发布草稿后才能练习这几页的题。')}</HelpTip>}</p>

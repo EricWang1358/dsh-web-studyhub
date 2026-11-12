@@ -5,6 +5,8 @@ import { cardKey, rangeCards } from './practice-range.js';
 
 /** How many questions a reader panel lists (本节题目 and 错题): the rest are on the practice page or on 错题与待巩固. */
 export const SHOWN_MAX = 30;
+/** 做这几页的题 › 在这里做 over a range of `total` questions: null (plain 在这里做), or the arguments of 在这里做前 {0} 道 when it takes the first SHOWN_MAX. */
+export const hereLabelArgs = total => (total > SHOWN_MAX ? [SHOWN_MAX] : null);
 
 /** The ranges the panel offers, from the reading loop's own options: 本节 (`here`) and 本章 (`chapter`, only when it holds more than 本节). */
 export const sectionRanges = options => (options || []).filter(option => option.kind === 'here' || option.kind === 'chapter');
