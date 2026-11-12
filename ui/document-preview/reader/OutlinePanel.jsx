@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Checkbox, DisclosureToggle, Icon, Tooltip } from '../../components/index.js';
+import { Checkbox, DisclosureToggle, Icon, IconButton, Tooltip } from '../../components/index.js';
 import { defaultExpanded, filterOutline, outlineRows } from './outline.js';
 import { MasteryMark } from '../practice/MasteryMark.jsx';
 import MathText from '../../MathText.jsx';
@@ -20,8 +20,9 @@ const FILTER_FROM = 12;
  * `meters` (mastery: asked and answered) and `coverage` (practice/coverage-outline.js outlineCoverage: asked at all) are different facts and have different marks: a round mastery ring
  * and a square coverage mark. `coverageTotals` (lib/coverage.js) is what the header says (覆盖 7/80); `initialOnlyUncovered` starts with 只看没覆盖的 on. `coverageAction` is the one top-up of the
  * material, under the header (ui/coverage/DocumentTopUp.jsx).
+ * `reads` (已读, #1014): { read (a Set of chapter ids), count, total, onUnread(id) }: a ✓ on each chapter read (a press takes it back) and 已读 7/24 章 at the top.
  */
-export default function OutlinePanel({ items, activeId, onJump, labelOf = () => '', id, className = '', footer = null, initialOpen, meters = null, upgradedIds = null, coverage = null, coverageTotals = null, coverageAction = null, initialOnlyUncovered = false, ...rest }) {
+export default function OutlinePanel({ items, activeId, onJump, labelOf = () => '', id, className = '', footer = null, initialOpen, meters = null, upgradedIds = null, coverage = null, coverageTotals = null, coverageAction = null, initialOnlyUncovered = false, reads = null, ...rest }) {
   useInjectCss(coverageCss, 'study-coverage');
   const list = useRef(null), [query, setQuery] = useState(''), [toggled, setToggled] = useState(() => new Map()), [onlyUncovered, setOnlyUncovered] = useState(initialOnlyUncovered);
   const signature = `${items.length}:${items[0]?.id ?? ''}:${items.at(-1)?.id ?? ''}`;
@@ -52,6 +53,7 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
   const name = item => [labelOf(item), item.title].filter(Boolean).join(' · ');
   return <nav id={id} className={`reader-outline ${className}`.trim()} aria-label={ui('目录')} {...rest}>
     <h3 className="reader-panel__title">{ui('目录')}</h3>
+    {reads && reads.total > 0 && <p className="reader-outline__readhead" data-read-count>{uiFormat('已读 {0}/{1} 章', [reads.count, reads.total])}</p>}
     {coverage && coverageTotals?.leaves > 0 && <div className="reader-outline__covhead" data-coverage-head>
       <span className="cov-meter" data-coverage-count>{coverageOutlineHead(coverageTotals)}</span>
       {coverageTotals.covered < coverageTotals.leaves && <Checkbox className="reader-outline__covtoggle" label={ui('只看没覆盖的')} checked={onlyUncovered} onChange={setOnlyUncovered} data-coverage-filter />}
@@ -79,6 +81,8 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
               {item.title && <span className="reader-outline__title"><MathText text={item.title} /></span>}
               {filtering && item.trail?.length > 0 && <small className="reader-outline__trail">{item.trail.at(-1)}</small>}
             </button>
+            {reads?.read.has(reads.marks?.get(item.id)) && <IconButton icon="check" size="sm" className="reader-outline__read" data-chapter-read={reads.marks.get(item.id)}
+              label={uiFormat('已读：{0}。点一下标为未读', [name(item) || ui('此节')])} onClick={() => reads.onUnread(reads.marks.get(item.id))} />}
             {/* 覆盖 of this entry: a square mark for a section, the count of the sections below for a part; a different shape from the mastery ring. */}
             {coverage && <span className="reader-outline__cov">{here?.own ? <CoverageMark state={here.own.state} reason={here.own.reason} recorded={coverageTotals?.recorded !== false} title={name(item)} size={12} />
               : here?.leaves ? <Tooltip layer placement="left-start" content={joinMeta([rangeCoverageText(here, coverageTotals?.units), here.plannedFailed > 0 && plannedFailedText(here.plannedFailed),

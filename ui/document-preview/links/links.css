@@ -86,6 +86,9 @@
     .study-document-links-heading { margin: var(--space-4) 0 0; font-size: var(--fs-md); font-weight: var(--fw-strong); }
     .reader-links { display: grid; gap: var(--space-2); }
     .reader-links__list { display: grid; }
+    /* 本章 / 全书 of the linked questions (#1014), and the line when the chapter has none. */
+    .reader-links__scope { justify-self: start; }
+    .reader-links__empty { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
     .reader-link-group, .reader-links__stale { border-bottom: 1px solid var(--line); }
     .reader-link-group > summary {
       display: grid;

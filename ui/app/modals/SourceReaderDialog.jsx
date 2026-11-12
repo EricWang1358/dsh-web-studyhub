@@ -11,7 +11,7 @@ import { useApp } from '../app-context.js';
 
 /** The reader: a material full-size, with the questions and tasks that belong to it. Opens at a quote or where the learner stopped reading. */
 export default function SourceReaderDialog({ modal, onClose }) {
-  const { data, host, core, nav, learn, intents, drafts, dailyPlan, selectionNotices, settingsEntry } = useApp();
+  const { data, host, core, nav, learn, intents, drafts, dailyPlan, selectionNotices, settingsEntry, set } = useApp();
   const { call, act, busy, refresh } = core;
   const toast = useToast();
   const source = modal.source;
@@ -53,6 +53,8 @@ export default function SourceReaderDialog({ modal, onClose }) {
               if (!draft) { toast.error(ui('这份草稿已经不在了，可能已发布或删除。')); return; }
               onClose(); drafts.openDraft(draft, { navigation: true });
             } : undefined}
+            /* 用 MinerU 重新转换 (#1001): the one PDF 解析 entry of 添加资料, with this PDF and its course; the reader gives way to it. */
+            onReconvert={(file) => set.setModal({ type: 'add', ...(source.courses?.[0] ? { course: source.courses[0] } : {}), resumeConversion: file })}
             backLabel={modal.back ? ui('回到这道题') : undefined} onBack={modal.back ? onClose : undefined} peekPage={modal.peekPage} pickPages={!!modal.pickPages}
             onStarted={(started) => { selectionNotices.track(started.jobId); return refresh(); }}
             onGenerateStarted={() => refresh()}

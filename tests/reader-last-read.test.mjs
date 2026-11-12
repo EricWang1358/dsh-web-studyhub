@@ -3,7 +3,7 @@
    (a quote, a way back, a chapter, a page) does not. The scroll restore itself is the reading loop's (checked in the browser). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LAST_READ_KEY, LAST_READ_LIMIT, lastReadKey, readLastRead, saveLastRead, forgetLastRead, lastReadOpening } from '../ui/document-preview/reader/last-read.js';
+import { LAST_READ_KEY, LAST_READ_LIMIT, lastReadKey, readLastRead, saveLastRead, saveLastView, forgetLastRead, lastReadOpening } from '../ui/document-preview/reader/last-read.js';
 
 const memory = () => {
   const map = new Map();
@@ -68,4 +68,34 @@ test('a plain open of a material goes back to its place; an open aimed somewhere
   assert.equal(lastReadOpening({ ...plain, peekPage: 4 }), null, '看原页图');
   assert.equal(lastReadOpening({ ...plain, sourceId: 'p7' }), null, 'a chapter or a page of the material');
   assert.equal(lastReadOpening({ ...plain, localMode: true }), null, 'saved writing');
+  // Opens aimed elsewhere (gate review of #1021): picking pages to practise (openReaderForPages), and a reader with a way back to a question
+  // (QuestionSourcePage: a page-1 card opens at page 1, not at the kept place or view).
+  assert.equal(lastReadOpening({ ...plain, pickPages: true }), null, 'picking pages');
+  assert.equal(lastReadOpening({ ...plain, back: true }), null, 'a way back to the question');
+  assert.equal(lastReadOpening({ ...plain, entry: { ...entry, view: 'original', originalPage: 4 }, back: true }), null, 'not the kept 原始 PDF either');
+});
+
+test('the view a material was left in (原始 PDF at a page) is kept in the same record, and leaving it clears it (#1001)', () => {
+  const storage = memory();
+  // Switched to 原始 PDF at page 5 before any text place was kept: the text place of that moment is kept with it.
+  assert.equal(saveLastView('lib|m', { original: true, page: 5, place: place({ page: 5, sectionId: 'page-5' }) }, { storage, now: 1 }), true);
+  assert.deepEqual(readLastRead('lib|m', storage), { ...place({ page: 5, sectionId: 'page-5' }), view: 'original', originalPage: 5, at: 1 });
+  // A page turn in 原始 PDF changes only the page.
+  saveLastView('lib|m', { original: true, page: 9 }, { storage, now: 2 });
+  assert.equal(readLastRead('lib|m', storage).originalPage, 9);
+  assert.equal(readLastRead('lib|m', storage).sectionId, 'page-5');
+  const opened = lastReadOpening({ entry: readLastRead('lib|m', storage), sourceId: 'p1', firstSourceId: 'p1', nonce: 'n' });
+  assert.deepEqual([opened.view, opened.originalPage], ['original', 9], 'a plain open says which view to open');
+  // A text place kept later (reading on in the text) is the text view again.
+  saveLastRead('lib|m', place(), { storage, now: 3 });
+  assert.equal(readLastRead('lib|m', storage).view, undefined);
+  saveLastView('lib|m', { original: true, page: 4 }, { storage, now: 4 });
+  saveLastView('lib|m', { original: false }, { storage, now: 5 });
+  assert.deepEqual(readLastRead('lib|m', storage), { ...place(), at: 5 }, 'back to the text: the view goes, the place stays');
+  // A view with nothing else is still a record; a bad page is not kept.
+  saveLastView('lib|n', { original: true, page: 2 }, { storage, now: 6 });
+  assert.deepEqual(readLastRead('lib|n', storage), { view: 'original', originalPage: 2, at: 6 });
+  assert.equal(saveLastView('lib|o', { original: true, page: 0 }, { storage }), false);
+  storage.setItem(LAST_READ_KEY, JSON.stringify({ 'lib|x': { view: 'other' } }));
+  assert.equal(readLastRead('lib|x', storage), null, 'an unknown view is no record');
 });

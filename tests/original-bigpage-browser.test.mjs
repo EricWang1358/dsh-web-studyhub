@@ -1,3 +1,4 @@
+/* global localStorage */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -49,6 +50,7 @@ test('a page of a referenced original over 40 MB is drawn from that page alone (
     page.on('response', response => { if (response.request().method() === 'POST') pending.push(response.body().then(body => sizes.push(body.length), () => {})); });
     const open = async () => {
       await page.goto(running.server.url);
+      await page.evaluate(() => localStorage.removeItem('studyhub-last-read:v1')); // each open starts fresh: a material reopens in the view and page it was left at (#1001)
       await (await revealNavRow(page, 'sources')).click().catch(() => {});
       await page.locator('.source-doc', { hasText: 'Atlas of Systems' }).first().locator('.source-main').click();
       await page.locator('.study-document-viewer').waitFor({ timeout: 30000 });

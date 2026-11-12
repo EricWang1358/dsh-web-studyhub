@@ -1,4 +1,4 @@
-/* global document, window */
+/* global document, window, localStorage */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -50,6 +50,7 @@ test('原始 PDF: a range and 接着读 in the panel, at 1440 and 420 (#488)', {
     for (const width of [1440, 420]) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(running.server.url);
+      await page.evaluate(() => localStorage.removeItem('studyhub-last-read:v1')); // each open starts fresh: a material reopens in the view and page it was left at (#1001)
       await (await revealNavRow(page, 'sources')).click().catch(() => {});
       await page.locator('.source-doc').first().locator('.source-main').click();
       await page.locator('.study-document-viewer').waitFor({ timeout: 30000 });
