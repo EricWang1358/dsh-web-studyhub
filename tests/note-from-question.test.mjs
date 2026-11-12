@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { followupDigest } from '../lib/followup.js';
+import { renderNoteMarkdown } from '../ui/note-markdown.js';
 
 /* 写笔记 / 存进笔记 from a question (#1017): the note starts with what the learner just worked through (stem and answer, the misconception and the
    wrong options, the explanation with its page, each Q&A), written from the card with no model call; a Q&A saved again is never added twice; a learner's
@@ -12,10 +13,10 @@ import { followupDigest } from '../lib/followup.js';
 
 const QUOTE = 'Caretaker keeps the history of snapshots without looking inside them.';
 
-async function library(t, language = 'en') {
+async function library(t, language = 'en', { complete } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-note-question-'));
   let calls = 0;
-  const service = new StudyService(root, { complete: async () => { calls++; return '{}'; } });
+  const service = new StudyService(root, { complete: complete || (async () => { calls++; return '{}'; }) });
   t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
   await service.store.update(state => {
     state.sources.push({ id: 'book-p3', title: 'Patterns · p.3', text: `Intro. ${QUOTE} More.`, document: { id: 'a'.repeat(64), format: 'pdf', page: 3, materialId: `document-${'a'.repeat(64)}-pdf` } });
@@ -109,4 +110,94 @@ test('a published note is finished: 存进笔记 starts a new draft instead of t
   const next = await service.call('note.qa.add', ref);
   assert.equal(next.status, 'created');
   assert.notEqual(next.note.id, first.note.id);
+});
+
+/* ---------- gate review of #1024 ---------- */
+
+const editCard = (service, change) => service.store.update(state => { change(state.decks[0].cards[0]); });
+const html = markdown => renderNoteMarkdown(markdown);
+const count = (text, pattern) => (text.match(pattern) || []).length;
+
+test('a stem with an open code fence, heading lines or a multi-line option explanation leaves the note\'s own headings intact', async t => {
+  const { service } = await library(t);
+  await editCard(service, card => {
+    card.prompt = '```js\nconst memento = save();\n';
+    card.misconception = '# Big claim\nThe memento manages history.';
+    card.options[1].explanation = 'It is one snapshot.\n```\nopen fence in an option';
+  });
+  const note = await service.call('note.create', { title: 'Study note', cards: [{ deckId: 'deck', cardId: 'c1' }], prefill: true, language: 'en' });
+  const page = html(note.markdown);
+  assert.equal(count(page, /<h1>/g), 1, 'one title: a heading line of the card is not a note heading of that level');
+  for (const heading of ['Core concepts', 'Common misconceptions', 'Explanation and examples', 'Study log']) assert.match(page, new RegExp(`<h2>${heading}</h2>`), heading);
+  assert.match(page, /<li>[^]*?Memento[^]*?It is one snapshot\.[^]*?open fence in an option[^]*?<\/li>/, 'a multi-line explanation stays in its list item');
+  assert.match(page, /The caretaker stores snapshots/);
+  assert.doesNotMatch(page.slice(page.indexOf('<h2>Study log</h2>')), /<pre>/, 'nothing after the stem sits in a code block');
+  assert.match(note.markdown, /\*\*Question:\*\*\n\n```js/, 'the label on its own line, the value as its own block');
+});
+
+test('a Q&A counts as saved only while its question is still in the note: deleted by the learner, or lost to a recovered draft, it is added again', async t => {
+  const { service } = await library(t);
+  const ref = { deckId: 'deck', cardId: 'c1', title: 'Study note', language: 'en' };
+  const first = await service.call('note.qa.add', { ...ref, followupId: 'f1' });
+  // The learner deletes the section (or a recovered local draft, saved over the current revision, never had it).
+  const without = first.note.markdown.split('> **Follow-up:**')[0];
+  const saved = await service.call('note.save', { id: first.note.id, expectedRevision: first.note.revision, markdown: without });
+  assert.deepEqual((await service.call('snapshot')).noteBadges.c1[0].followupIds, [], 'the practice page no longer says 已存进笔记');
+  const again = await service.call('note.qa.add', { ...ref, followupId: 'f1' });
+  assert.equal(again.status, 'added');
+  assert.equal(again.note.revision, saved.revision + 1);
+  assert.equal(again.note.markdown.split('Why can the caretaker not read it?').length, 2, 'back once');
+  assert.deepEqual(again.note.followupIds, ['f1'], 'the id is recorded once');
+  assert.equal((await service.call('note.qa.add', { ...ref, followupId: 'f1' })).status, 'unchanged');
+});
+
+test('an AI draft that replaces the text forgets the Q&A it held; 存进笔记 during a running draft is refused and the draft goes on', async t => {
+  let release;
+  const draft = '# Study note\n\n' + 'A clear explanation of the caretaker and the memento, with an example of saving and restoring. '.repeat(4);
+  const { service } = await library(t, 'en', { complete: () => new Promise(resolve => { release = () => resolve(draft); }) });
+  const ref = { deckId: 'deck', cardId: 'c1', title: 'Study note', language: 'en' };
+  const first = await service.call('note.qa.add', { ...ref, followupId: 'f1' });
+  await service.call('note.generate', { id: first.note.id });
+  while (!release) await new Promise(resolve => setTimeout(resolve, 5));
+  await addFollowup(service, 'f2', 'What does the originator need?', 'Access to its own state.');
+  await assert.rejects(service.call('note.qa.add', { ...ref, followupId: 'f2' }), /AI/, 'a new Q&A is refused with a plain message while the draft is written');
+  release();
+  let ready;
+  for (let i = 0; i < 60; i++) {
+    ready = await service.call('note.get', { id: first.note.id });
+    if (ready.generation?.status !== 'running') break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.equal(ready.generation.status, 'done', 'the draft was not superseded');
+  assert.equal(ready.markdown.trim(), draft.trim());
+  assert.deepEqual(ready.followupIds || [], [], 'the new text holds no Q&A');
+  assert.equal((await service.call('note.qa.add', { ...ref, followupId: 'f1' })).status, 'added');
+});
+
+test('a prefilled note keeps within the note length: the newest Q&A that fit, and a line saying how many were left out', async t => {
+  const { service } = await library(t);
+  await editCard(service, card => {
+    for (let n = 2; n <= 6; n++) card.followups.push({ id: `f${n}`, digest: followupDigest(card), question: `Question ${n}?`, answer: `${'long answer '.repeat(4000)}${n}` });
+  });
+  const note = await service.call('note.create', { title: 'Study note', cards: [{ deckId: 'deck', cardId: 'c1' }], prefill: true, language: 'en' });
+  assert.ok(note.markdown.length <= 200000, `within the limit (${note.markdown.length})`);
+  assert.match(note.markdown, /Question 6\?/, 'the newest Q&A is kept');
+  assert.doesNotMatch(note.markdown, /Why can the caretaker not read it\?/, 'the oldest is left out');
+  assert.match(note.markdown, /\d+ earlier Q&A (was|were) left out/);
+  assert.ok(!note.followupIds.includes('f1') && note.followupIds.includes('f6'), 'only what the note holds is recorded');
+});
+
+test('a 挑题成文 draft of the same question is not the question\'s note: 写笔记 and 存进笔记 make their own; the badge says saved only for that note', async t => {
+  const { service } = await library(t);
+  const article = await service.call('note.create', { title: 'Public', cards: [{ deckId: 'deck', cardId: 'c1' }] });
+  const created = await service.call('note.qa.add', { deckId: 'deck', cardId: 'c1', title: 'Study note', language: 'en', followupId: 'f1' });
+  assert.equal(created.status, 'created');
+  assert.notEqual(created.note.id, article.id, 'the public-article draft is left alone');
+  const reused = await service.call('note.create', { title: 'Study note', cards: [{ deckId: 'deck', cardId: 'c1' }], reuse: true, prefill: true, language: 'en' });
+  assert.equal(reused.id, created.note.id);
+  const badges = (await service.call('snapshot')).noteBadges.c1;
+  assert.deepEqual(badges.find(badge => badge.noteId === article.id).followupIds, []);
+  assert.deepEqual(badges.find(badge => badge.noteId === created.note.id).followupIds, ['f1']);
+  assert.equal(badges.filter(badge => badge.qa).length, 1, 'one badge is the note 存进笔记 writes to');
+  assert.equal(badges.find(badge => badge.qa).noteId, created.note.id);
 });

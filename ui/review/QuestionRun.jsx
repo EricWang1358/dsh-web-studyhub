@@ -686,7 +686,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
               onAskMore={() => { setAssistMode("ask"); requestAnimationFrame(() => { document.querySelector(".assist-area")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); document.querySelector(".assist-form__input")?.focus(); }); }}
               bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }}
-              noteQa={onSaveQaToNote ? { savedIn: (followupId) => cardNotes.find((note) => note.followupIds?.includes(followupId))?.noteId || "", onSave: onSaveQaToNote, onOpen: onOpenNote } : null} />}
+              noteQa={onSaveQaToNote ? { savedIn: (followupId) => cardNotes.find((note) => note.qa && note.followupIds?.includes(followupId))?.noteId || "", onSave: onSaveQaToNote, onOpen: onOpenNote } : null} />}
           </ReadingBlock>
         )}
         {run.feedback && run.mode !== "exam" && <>
