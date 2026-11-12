@@ -68,6 +68,11 @@ test('a plain open of a material goes back to its place; an open aimed somewhere
   assert.equal(lastReadOpening({ ...plain, peekPage: 4 }), null, '看原页图');
   assert.equal(lastReadOpening({ ...plain, sourceId: 'p7' }), null, 'a chapter or a page of the material');
   assert.equal(lastReadOpening({ ...plain, localMode: true }), null, 'saved writing');
+  // Opens aimed elsewhere (gate review of #1021): picking pages to practise (openReaderForPages), and a reader with a way back to a question
+  // (QuestionSourcePage: a page-1 card opens at page 1, not at the kept place or view).
+  assert.equal(lastReadOpening({ ...plain, pickPages: true }), null, 'picking pages');
+  assert.equal(lastReadOpening({ ...plain, back: true }), null, 'a way back to the question');
+  assert.equal(lastReadOpening({ ...plain, entry: { ...entry, view: 'original', originalPage: 4 }, back: true }), null, 'not the kept 原始 PDF either');
 });
 
 test('the view a material was left in (原始 PDF at a page) is kept in the same record, and leaving it clears it (#1001)', () => {

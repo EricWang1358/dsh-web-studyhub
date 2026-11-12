@@ -10,6 +10,7 @@ import { openPage, startLateServer, until } from '../scripts/qa/layout-late.mjs'
 import { makeTextPdf } from './helpers/text-pdf.mjs';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { Store } from '../lib/store.js';
 
 /* #1001 in the real page. A PDF with its original file has a 文字 | 原始 PDF switch on the toolbar (in 更多 only when the reader is narrow, so the toolbar
    stays one row): read to page 5, switch, and the original shows page 5; closed and opened again from its row it is still the original at that page
@@ -32,9 +33,13 @@ test('文字 | 原始 PDF: the original opens at the page being read and is reme
   await buildPreview({ outdir: dist });
   const running = await startLateServer({ distDir: dist, seed: async (root) => {
     const runtime = createStudyRuntime(root);
-    await runtime.call('materials.document.import', { filename: 'Lecture.pdf', dataBase64: (await makeTextPdf(lecture)).toString('base64'), courses: ['QA'] });
+    const book = await runtime.call('materials.document.import', { filename: 'Lecture.pdf', dataBase64: (await makeTextPdf(lecture)).toString('base64'), courses: ['QA'] });
     await runtime.call('materials.document.import', { filename: 'Formulas.pdf', dataBase64: (await makeTextPdf(formulas)).toString('base64'), courses: ['QA'] });
     runtime.dispose();
+    // Two new questions citing the Lecture (pages 3 and 9), for the opens aimed somewhere: 去资料选页做题 and 看这题的原文.
+    const card = (id, page) => ({ id, kind: 'flashcard', topic: 'Lecture', objective: `Objective ${id}`, prompt: `Question about part ${page}: what does page ${page} explain?`,
+      answer: `Part ${page}.`, hint: 'Think.', explanation: 'See the lecture.', misconception: 'None.', citations: [{ sourceId: book.sourceIds[page - 1], quote: `Line 2 of page ${page} explains part ${page}` }] });
+    await new Store(root).update(state => { state.decks.push({ id: 'lecture-deck', title: 'Lecture deck', course: 'QA', cards: [card('c3', 3), card('c9', 9)] }); });
   } });
   t.after(() => running.close?.());
   const shots = process.env.READER_ORIGINAL_SHOTS || '';
@@ -131,6 +136,42 @@ test('文字 | 原始 PDF: the original opens at the page being read and is reme
   await viewer.locator('.reader-section[data-study-page]').first().waitFor({ timeout: 30000 });
   await page.waitForTimeout(800);
   assert.equal(await hint.count(), 0, 'told once: not again on the next open');
-  // The Lecture's prose never suggested it.
+  await closeReader();
+
+  // Opens aimed somewhere do not take the kept 原始 PDF (gate review of #1021): the Lecture is left in the original at page 4, then
+  // 去资料选页做题 from a practice round (pick pages, with a way back) opens the text with its guide, and 看这题的原文 (a quote) opens the text at the quote.
+  await openRow('Lecture');
+  await sw.getByRole('button', { name: '原始 PDF' }).click();
+  await until(async () => (await mode()) === 'original', 'the Lecture in the original', { timeoutMs: 30000 });
+  await viewer.locator('.reader-pdf-bar').getByRole('spinbutton', { name: '页码' }).fill('4');
+  await viewer.locator('.reader-pdf-bar').getByRole('spinbutton', { name: '页码' }).press('Enter');
+  await until(async () => (await pdfPage()) === '4', 'page 4', { timeoutMs: 30000 });
+  await page.evaluate(() => document.activeElement?.blur()); // Esc in the page field is the field's own
+  await closeReader();
+  await page.goto(running.server.url);
+  await page.getByRole('button', { name: '开始今日学习' }).first().click();
+  await page.locator('.review-page').waitFor({ timeout: 30000 });
+  await page.getByRole('button', { name: '去资料选页做题' }).click();
+  await viewer.waitFor({ timeout: 30000 });
+  await viewer.locator('.reader-section[data-study-page]').first().waitFor({ timeout: 30000 });
+  await page.waitForTimeout(800);
+  assert.equal(await mode(), 'read', 'picking pages opens the text, not the kept 原始 PDF');
+  assert.match(await viewer.innerText(), /先翻到正在看的那一章或那几页/, 'with the guide to picking pages');
+  await shot('pick-pages');
+  await closeReader();
+  // Back in the round (the reader had a way back to it): show the answer, then its citation.
+  await page.locator('.review-page').waitFor({ timeout: 30000 });
+  const citedPage = /part 9/.test(await page.locator('.review-page').innerText()) ? 9 : 3;
+  await page.locator('.review-heading h1').first().click().catch(() => {});
+  await page.keyboard.press('Space'); await page.waitForTimeout(400);
+  await page.keyboard.press('5'); await page.waitForTimeout(400);
+  const cited = page.getByRole('button', { name: '看这题的原文' });
+  await cited.waitFor({ timeout: 15000 });
+  await cited.click();
+  await viewer.waitFor({ timeout: 30000 });
+  await viewer.locator('.reader-section[data-study-page]').first().waitFor({ timeout: 30000 });
+  await page.waitForTimeout(800);
+  assert.equal(await mode(), 'read', 'a quote opens the text, not the kept 原始 PDF');
+  await until(async () => (await topPage()) <= citedPage && (await topPage()) >= citedPage - 1, `the text near the quoted page ${citedPage}`, { timeoutMs: 15000 });
   assert.deepEqual(errors, [], 'no console or page errors');
 });

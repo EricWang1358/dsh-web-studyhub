@@ -287,7 +287,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const documentItem = useMemo(() => data?.sources ? groupSourcesByDocument(data.sources).find(item => item.sourceIds.includes(source.id)) || null : null, [data?.sources, source.id]);
   // 上次读到 (reader/useLastRead.js): opened plainly from its 资料 row, a material goes back to where it was last read; the reader keeps that place while the learner reads.
   const materialKey = lastReadKey(data?.root, documentItem?.key);
-  const lastReadOpening = useLastReadOpening({ key: materialKey, sourceId: source.id, firstSourceId: documentItem?.sourceIds?.[0], quote, resume: resumeProp, peekPage, localMode });
+  const lastReadOpening = useLastReadOpening({ key: materialKey, sourceId: source.id, firstSourceId: documentItem?.sourceIds?.[0], quote, resume: resumeProp, peekPage, localMode,
+    pickPages: !!pickPages, back: !!onBack });
   const resume = resumeProp || lastReadOpening;
   // The view it was left in (#1001): opened plainly, a material last read in 原始 PDF opens there again at its page (once the file is there; until then, and
   // when it never comes, the text).

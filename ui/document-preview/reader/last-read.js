@@ -66,11 +66,12 @@ export function forgetLastRead(key, storage = browserStorage()) {
 
 /**
  * Where a reader opening goes back to: the kept place, as a stored reading context the reader resumes (`lastRead: true`), when the
- * material was opened plainly — its first source (the 资料 row), with no quote, no way back, no 看原页图 and not as saved writing.
+ * material was opened plainly — its first source (the 资料 row), with no quote, no stored way back (resume), no way back to a question (back),
+ * no 看原页图, not to pick pages to practise (pickPages) and not as saved writing.
  * Null otherwise: an open aimed at a place goes there.
  */
-export function lastReadOpening({ entry, sourceId, firstSourceId, quote, resume, peekPage, localMode, nonce = Date.now() }) {
-  if (!entry || localMode || quote || resume || peekPage) return null;
+export function lastReadOpening({ entry, sourceId, firstSourceId, quote, resume, peekPage, localMode, pickPages = false, back = false, nonce = Date.now() }) {
+  if (!entry || localMode || quote || resume || peekPage || pickPages || back) return null;
   if (firstSourceId && sourceId !== firstSourceId) return null;
   return { ...entry, lastRead: true, nonce };
 }

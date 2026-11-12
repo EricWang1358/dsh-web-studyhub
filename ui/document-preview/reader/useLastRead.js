@@ -14,9 +14,9 @@ const INPUT = ['wheel', 'touchmove', 'keydown', 'pointerdown'];
  * resumes it like any stored reading context, silently, as the review book lands at its kept place (ui/book/use-book-place.js). Returns the
  * opening (null when there is none).
  */
-export function useLastReadOpening({ key, sourceId, firstSourceId, quote, resume, peekPage, localMode }) {
-  return useMemo(() => lastReadOpening({ entry: readLastRead(key), sourceId, firstSourceId, quote, resume, peekPage, localMode }),
-    [key, sourceId, firstSourceId, quote, resume, peekPage, localMode]);
+export function useLastReadOpening({ key, sourceId, firstSourceId, quote, resume, peekPage, localMode, pickPages = false, back = false }) {
+  return useMemo(() => lastReadOpening({ entry: readLastRead(key), sourceId, firstSourceId, quote, resume, peekPage, localMode, pickPages, back }),
+    [key, sourceId, firstSourceId, quote, resume, peekPage, localMode, pickPages, back]);
 }
 
 /**
