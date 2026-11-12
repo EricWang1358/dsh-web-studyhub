@@ -27,7 +27,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/board-model.js`: 16 ui files; 8 other lib files
 - `lib/book-flip.js`: 1 ui file; 1 other lib file
 - `lib/book-settings.js`: 6 ui files; contexts generation, system; 5 other lib files
-- `lib/card-kinds.js`: 11 ui files; contexts generation, library, recording, study; 25 other lib files
+- `lib/card-kinds.js`: 12 ui files; contexts generation, library, recording, study; 25 other lib files
 - `lib/case-study.js`: 5 ui files; contexts generation, library, study; 10 other lib files
 - `lib/chemistry-balance.js`: 1 ui file
 - `lib/cloze-text.js`: 1 ui file; 2 other lib files

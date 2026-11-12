@@ -32,7 +32,7 @@ export default function ReviewNavigator({ run, onJump, onEnd }) {
             className="review-tick" aria-label={label}
             data-answered={item.answered ? "true" : undefined}
             data-retry={item.retry ? "true" : undefined}
-            aria-current={current ? "step" : undefined} lock={busy}
+            aria-current={current ? "step" : undefined} disabled={busy}
             onClick={() => { if (!current) onJump(item.index); }}>
             <span className={"review-tick-line lv-" + item.level} />
           </button>

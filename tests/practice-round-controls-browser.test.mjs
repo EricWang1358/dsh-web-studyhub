@@ -66,6 +66,7 @@ test('先跳过, 「N 题待答」, 到此为止 and the look-back, at 1280 and 
     const context = await browser.newContext({ viewport: { width, height } });
     const page = await context.newPage(), errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
+    page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
     await page.addInitScript((language) => { localStorage.setItem('study-ui-language', language); }, lang);
     await page.goto(server.url);
     await page.getByRole('button', { name: words.resume(deck.title) }).first().click();
@@ -147,6 +148,7 @@ test('先跳过, 「N 题待答」, 到此为止 and the look-back, at 1280 and 
   // The control: with the same switch on, a round answered to the end does count down on its result page (so the check above is not empty).
   const control = deckOf('c');
   for (const open of (await previewCall(server, 'snapshot', {})).runs || []) await previewCall(server, 'review.end', { runId: open.id });
+  await previewCall(server, 'settings.practice.set', { patch: { autopilot: false } });
   await previewCall(server, 'review.start', { mode: 'path', fresh: true, scope: [{ deckId: control.id }] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
@@ -156,7 +158,9 @@ test('先跳过, 「N 题待答」, 到此为止 and the look-back, at 1280 and 
   for (const n of [1, 2]) {
     await page.waitForFunction((k) => new RegExp(`Question number ${k}\\?`).test(document.querySelector('.question-card .question')?.textContent || ''), n);
     await answerRight(page);
-    if (n === 2 && await nextButton(page).isVisible()) await nextButton(page).click().catch(() => {}); // autopilot may have moved on already
+    // The switch goes on only for the last step, so the questions themselves do not move on by the countdown (the step reloads the library).
+    if (n === 2) await previewCall(server, 'settings.practice.set', { patch: { autopilot: true } });
+    await nextButton(page).click();
   }
   await page.locator('.result-page').waitFor({ timeout: 30000 });
   assert.equal(await page.locator('.result-title').innerText(), '这一轮，完成了。');
