@@ -85,11 +85,16 @@ export default function Menu({ label, items, onSelect, defaultOpen = false, icon
   useDismiss({ open, onClose: () => setOpen(false), refs: [list, button], returnFocusRef: button });
   // The list is hidden until it is placed, and a hidden element cannot take focus.
   const placed = !!place;
-  useEffect(() => { if (open && placed) enabled()[0]?.focus(); }, [open, placed]);
+  // preventScroll: focusing the first item must not scroll the page, since any scroll closes the menu (below); on a narrow page it shut the menu as it opened.
+  useEffect(() => { if (open && placed) enabled()[0]?.focus({ preventScroll: true }); }, [open, placed]);
   useEffect(() => {
     if (!open) return undefined;
     if (inBrowser && !host) return undefined;
-    const leave = event => { if (!list.current?.contains(event.target)) setOpen(false); };
+    // A scroll closes the menu because its place would go stale; a scroll that leaves the trigger where it was (the page's own settling, scroll
+    // anchoring as the list is placed) does not, or a narrow page shut the menu as it opened. A resize always closes it.
+    const at = button.current?.getBoundingClientRect();
+    const moved = () => { const now = button.current?.getBoundingClientRect(); return !at || !now || Math.abs(now.top - at.top) > 1 || Math.abs(now.left - at.left) > 1; };
+    const leave = event => { if (!list.current?.contains(event.target) && (event.type === 'resize' || moved())) setOpen(false); };
     document.addEventListener('scroll', leave, true);
     window.addEventListener('resize', leave);
     return () => { document.removeEventListener('scroll', leave, true); window.removeEventListener('resize', leave); };

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ui, uiFormat } from '../../i18n.js';
+import { errorMessage, ui, uiFormat } from '../../i18n.js';
 import { Dialog, useToast } from '../../components/index.js';
 import { relatedTaskItems } from '../../DailyPlan.jsx';
 import { DocumentViewer } from '../../workspace-views.jsx';
@@ -33,6 +33,18 @@ export default function SourceReaderDialog({ modal, onClose }) {
     ...(canBank ? (source.usedBy || []) : []).map(deck => ({ id: `deck:${deck.kind}:${deck.id}`, icon: 'book', label: deck.archived ? uiFormat('{0} · 已归档', [deck.title]) : deck.title, hint: ui('题组'),
       disabled: busy || deck.kind === 'draft' || !canPractice, run: () => learn.openLearningTarget({ kind: 'deck', id: deck.id }) })),
   ];
+  // 今日 「重读 N 段」 (#1018): 已重读 keeps the time on the mark (materials.marks.seen), then the reader moves on to the next passage; after the last one it stays where it is.
+  const rereadItems = modal.reread?.items || [], rereadAt = modal.reread?.index ?? 0, rereadItem = rereadItems[rereadAt];
+  const reread = source && rereadItem ? { position: rereadAt + 1, total: rereadItems.length, onDone: async () => {
+    try {
+      await call('materials.marks.seen', { sourceId: rereadItem.selection.sourceId, revision: rereadItem.revision, id: rereadItem.id });
+    } catch (cause) { toast.error(errorMessage(cause)); return; }
+    void refresh();
+    const next = rereadItems[rereadAt + 1], nextSource = next && data.sources?.find(item => item.id === next.selection.sourceId);
+    if (nextSource) { set.setModal({ ...modal, source: { ...nextSource, selection: next.selection }, quote: next.selection.quote, reread: { items: rereadItems, index: rereadAt + 1 } }); return; }
+    toast.success(ui('今天要重读的段落都读完了'));
+    set.setModal({ ...modal, reread: null });
+  } } : null;
   const title = source
     ? <ReaderHeading data={data} source={source} act={act} call={call} renameRequest={renameRequest}
       onRenamed={(done) => toast.success(done.status === 'renamed' ? uiFormat('已重命名为「{0}」', [done.title]) : ui('名称没有变化'))} />
@@ -57,7 +69,7 @@ export default function SourceReaderDialog({ modal, onClose }) {
               onClose(); drafts.openDraft(draft, { navigation: true });
             } : undefined}
             /* 用 MinerU 重新转换 (#1001): the one PDF 解析 entry of 添加资料, with this PDF and its course; the reader gives way to it. */
-            onReconvert={(file) => set.setModal({ type: 'add', ...(source.courses?.[0] ? { course: source.courses[0] } : {}), resumeConversion: file })}
+            reread={reread} onReconvert={(file) => set.setModal({ type: 'add', ...(source.courses?.[0] ? { course: source.courses[0] } : {}), resumeConversion: file })}
             backLabel={modal.back ? ui('回到这道题') : undefined} onBack={modal.back ? onClose : undefined} peekPage={modal.peekPage} pickPages={!!modal.pickPages}
             onStarted={(started) => { selectionNotices.track(started.jobId); return refresh(); }}
             onGenerateStarted={() => refresh()}
