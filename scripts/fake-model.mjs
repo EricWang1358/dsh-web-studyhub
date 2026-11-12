@@ -62,7 +62,11 @@ function quoteFor(source, index, focusTopics) {
   const start = Math.max(0, Math.min((index * 97) % Math.max(1, text.length - 60), text.length - 60));
   return text.slice(start, start + 60);
 }
-const topicOf = (source, english) => clip(String(source?.title || "").replace(/\.(md|pdf|txt)$/i, ""), 40) || (english ? "Key idea" : "要点");
+// Questions asked in English from a Chinese material keep to English, as the content-language rule asks (#1002): a Chinese title is not an English topic.
+const topicOf = (source, english) => {
+  const title = clip(String(source?.title || "").replace(/\.(md|pdf|txt)$/i, ""), 40);
+  return title && !(english && CJK.test(title)) ? title : english ? "Key idea" : "要点";
+};
 
 /* ---------- generation: evidence, concrete answers, author, review ---------- */
 
@@ -164,7 +168,7 @@ const COPY = {
     right: "Correct: the statement says exactly this.", wrong: "Incorrect: a common confusion that does not match the statement.",
     flashcard: (n, topic, quote) => `(Q${n}) In your own words, which mechanism of ${topic} does “${clip(quote, 50)}” describe?`,
     open: (n, topic, quote) => `(Q${n}) Using an example, explain why “${clip(quote, 50)}” matters for ${topic}.`,
-    openAnswer: (quote) => `Reference answer: ${quote}`,
+    openAnswer: (quote) => `Reference answer: “${quote}”`,
     rubric: "1 point for the role; 1 point for the condition; 1 point for a fitting example.",
     task: (n, topic, quote) => `(Q${n} · Hands-on task) For ${topic}, produce a complete deliverable (implementation, derivation, design or outline) grounded in “${clip(quote, 50)}” that satisfies each acceptance criterion.`,
     taskAnswer: (quote) => `Reference solution: state the preconditions and boundaries first, execute the core steps grounded in “${quote}”, and guard edge cases.`,
@@ -214,7 +218,7 @@ function authorDeck(request) {
     const topic = topicOf(sources.find((source) => source.id === citation.sourceId), english);
     const common = { id: `q${index + 1}`, targetId: target?.targetId, kind, topic, objective: target?.objective || `#${n}`, hint: copy.hint,
       explanation: copy.explanation(topic, quote), misconception: copy.misconception, citations: [{ sourceId: citation.sourceId, quote }] };
-    if (kind === "flashcard") return { ...common, prompt: copy.flashcard(n, topic, quote), answer: quote };
+    if (kind === "flashcard") return { ...common, prompt: copy.flashcard(n, topic, quote), answer: english && CJK.test(quote) ? `It states: “${quote}”` : quote };
     if (kind === "open") return { ...common, prompt: copy.open(n, topic, quote), answer: copy.openAnswer(quote), rubric: copy.rubric };
     if (kind === "task") return { ...common, prompt: copy.task(n, topic, quote), answer: copy.taskAnswer(quote), marks: 3, rubric: copy.taskRubric, rubricCriteria: copy.taskCriteria };
     if (kind === "cloze") {

@@ -24,8 +24,6 @@ import { useLiveEffect } from './use-async.js';
 import { useUndoable } from './use-undoable.js';
 import { useStudy } from './study-context.jsx';
 
-// What the host's generator is told to write in, by interface language.
-const GENERATION_LANGUAGE = { en: 'English', zh: '中文' };
 const active = (session) => session && !['ended', 'error'].includes(session.status);
 const statusText = (status) => ({
   live: ui('正在实录'), paused: ui('已暂停'), connecting: ui('正在连接'),
@@ -374,7 +372,7 @@ export default function LiveClass({ data, visible, onJobs, onSettings, onSources
               <IconButton className="live-count-btn" icon="plus" size="sm" label={ui('增加题数')} disabled={count >= 15} onClick={() => setCount(Math.min(15, count + 1))} /></div>
             <Why off={!canGenerate && !disabled} reason={generateWhy}><Button className="live-selection-btn" variant="primary" busy={activeOp === 'generate'} lock={disabled} disabled={!canGenerate}
               onClick={() => void perform('generate', async () => {
-                const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count, language: GENERATION_LANGUAGE[language] });
+                const result = await call('live.generate', { id: session.id, segmentIds: chosen.map((segment) => segment.id), count });
                 toast.success(ui('已加入出题任务；课堂实录会继续。草稿会出现在「学习库 › 待发布草稿」，进度在「任务」。'));
                 setSelected(new Set()); await client.poll(); onJobs?.(result);
               })}>{ui('选中内容出题')}</Button></Why></div></div>
