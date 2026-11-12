@@ -87,6 +87,7 @@
     "tests/nav-layout.test.mjs",
     "tests/nav-reorder-hint-browser.test.mjs",
     "tests/next-card-browser.test.mjs",
+    "tests/note-from-question-browser.test.mjs",
     "tests/open-agent.test.mjs",
     "tests/open-in-sidebar.test.mjs",
     "tests/original-bigpage-browser.test.mjs",
