@@ -203,6 +203,9 @@ test('the linked questions start with 本章, in the order of the text; 全书 l
     // Chapter 1 holds the passages of pages 3 and 12 (numbers [3] and [2]), in the order of the text.
     const numbers = async () => (await listed()).join(' ');
     assert.equal(await numbers(), '[3] [2]', `${width}px: 本章 in the order of the text`);
+    // Not renumbered: the numbers are the markers drawn in the text of the chapter (usePassageLinkLayer).
+    const marked = (await viewer.locator('.reader-scroll .study-passage-mark__btn').allInnerTexts()).sort();
+    assert.deepEqual([...(await listed())].sort(), marked, `${width}px: 本章 numbers = the markers in the text`);
     await scope.getByRole('button', { name: '全书 3' }).click();
     assert.equal(await numbers(), '[3] [2] [1]', `${width}px: 全书 in the order of the text`);
     await scope.getByRole('button', { name: '本章 2' }).click();

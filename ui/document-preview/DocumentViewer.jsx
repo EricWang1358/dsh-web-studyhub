@@ -105,6 +105,15 @@ export function originalHandling(value) {
   return isOfficeFormat(value.format) || value.format === 'tex' ? 'download' : 'text';
 }
 
+/** The 文字 | 原始 PDF switch of the toolbar (#1001): only for an original shown in place (originalHandling 'pdf') whose file is here. */
+export const showsViewSwitch = ({ localMode = false, document, fileUrl }) => !localMode && originalHandling(document) === 'pdf' && !!fileUrl;
+
+/**
+ * Whether the 公式乱码 notice offers 用 MinerU 重新转换 (#1001): there is the 添加资料 › PDF 解析 entry to open (`onReconvert`, `canImport`), MinerU did
+ * not make this book (`converter`), and the reader holds the whole PDF to hand over (not an original served page by page).
+ */
+export const offersReconvert = ({ onReconvert, canImport, converter, fileUrl }) => !!onReconvert && !!canImport && converter !== 'mineru' && !!fileUrl && !isPagedUrl(fileUrl);
+
 /** The format the viewer lays out: the loaded document's, else the source's own (a slide is a slide before loading). */
 export const viewerFormat = (document, source) => document?.format
   || (source?.document ? source.document.format || 'pdf' : source?.audio ? 'txt' : 'md');
@@ -295,6 +304,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useIsoLayoutEffect(() => {
     if (lastReadOpening?.view === 'original') { setMode('original'); setPdfPage(lastReadOpening.originalPage); }
   }, [lastReadOpening]);
+  // A kept page past the end (the file was replaced by a shorter one) is the last page, once the document says how many it has.
+  useEffect(() => { if (document && totalPages && pdfPage > totalPages) setPdfPage(totalPages); }, [document, totalPages, pdfPage]);
   // Where the reader opens: a stored reading position (its section, its page), else the source it was opened with (a page, a chapter's first page, a citation).
   const opening = useMemo(() => resume?.sectionId || Number.isInteger(resume?.page) ? { sectionId: resume.sectionId, page: resume.page } : { sourceId: source.id, page: source.document?.page },
     [resume, source.id, source.document?.page]);
@@ -564,8 +575,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     if (value !== 'original') setTextView(value);
     setMode(value);
   };
-  // Only a PDF original is shown in place (originalHandling: Office and .tex originals are download-only), so only then the 文字 | 原始 PDF switch.
-  const canOriginal = !localMode && originalHandling(document) === 'pdf' && !!fileUrl;
+  const canOriginal = showsViewSwitch({ localMode, document, fileUrl });
   // 公式乱码 (#1001): when the converted text of the chapter on screen looks like its formulas fell apart (reader/formula-garble.js, worked out once per
   // chapter), a notice suggests 原始 PDF, or converting the PDF again with MinerU; once per material (reader/formula-hint.js), for that chapter only.
   const garbleCache = useRef(new Map()), [formulaHint, setFormulaHint] = useState(null); // { chapterId, open }
@@ -579,12 +589,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useEffect(() => { if (garbled && tellFormulaHint(materialKey)) setFormulaHint({ chapterId: hintChapter, open: true }); }, [garbled]); // eslint-disable-line react-hooks/exhaustive-deps
   const closeFormulaHint = () => setFormulaHint(hint => ({ ...hint, open: false }));
   // Converting again with MinerU is the 添加资料 › PDF 解析 entry, with this PDF when the reader holds all of it; not offered for a book MinerU made.
-  const canReconvert = !!onReconvert && hasContext(data, 'audio') && sources[0]?.document?.converter !== 'mineru';
+  const canReconvert = offersReconvert({ onReconvert, canImport: hasContext(data, 'audio'), converter: sources[0]?.document?.converter, fileUrl });
   const reconvert = async () => {
     let file = null;
-    try {
-      if (fileUrl && !isPagedUrl(fileUrl)) file = new File([await originalBytes(fileUrl)], document?.filename || `${source.title || 'document'}.pdf`, { type: 'application/pdf' });
-    } catch { file = null; }
+    try { file = new File([await originalBytes(fileUrl)], document?.filename || `${source.title || 'document'}.pdf`, { type: 'application/pdf' }); } catch { file = null; }
     onReconvert(file);
   };
   // What the original file is: nothing was kept ('none': said in 更多), or a file that went missing or changed (a fault: its notice stays).
