@@ -75,6 +75,7 @@
     "tests/layout-late-sources.test.mjs",
     "tests/layout-late-wrongbook.test.mjs",
     "tests/layout-stability-guard.test.mjs",
+    "tests/learning-loop-browser.test.mjs",
     "tests/live-capture-browser.test.mjs",
     "tests/local-study-image.test.mjs",
     "tests/mineru-fix-menu-browser.test.mjs",

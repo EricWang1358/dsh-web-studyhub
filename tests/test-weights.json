@@ -629,6 +629,8 @@
  "tests/layout-late-wrongbook.test.mjs": 740,
  "tests/layout-stability-guard.test.mjs": 690,
  "tests/learner-facts.test.mjs": 940,
+ "tests/learning-loop-browser.test.mjs": 3000,
+ "tests/learning-loop.test.mjs": 1500,
  "tests/learning-scope-ui.test.mjs": 140,
  "tests/leech-result-line.test.mjs": 140,
  "tests/leech-round.test.mjs": 880,
