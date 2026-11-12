@@ -6,64 +6,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :where(.study-app, .study-seat) {
-    ::highlight(study-link-question) {
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-thickness: 1.5px;
-      text-decoration-color: color-mix(in srgb, var(--accent) 80%, transparent);
-    }
-    ::highlight(study-link-question-weak) {
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-thickness: 2px;
-      text-decoration-color: var(--bad);
-      background-color: var(--bad-halo);
-    }
-    ::highlight(study-link-question-learning) {
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-thickness: 1.5px;
-      text-decoration-color: var(--warn);
-    }
-    ::highlight(study-link-question-familiar) {
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-thickness: 1.5px;
-      text-decoration-color: color-mix(in srgb, var(--ok-mid) 82%, transparent);
-    }
-    ::highlight(study-link-question-mastered) {
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-thickness: 1.5px;
-      text-decoration-color: var(--ok);
-      background-color: var(--ok-halo);
-    }
-    ::highlight(study-link-qa) {
-      text-decoration-line: underline;
-      text-decoration-style: dotted;
-      text-decoration-thickness: 2px;
-      text-decoration-color: color-mix(in srgb, var(--accent) 80%, transparent);
-    }
-    ::highlight(study-link-qa-mastered) {
-      text-decoration-line: underline;
-      text-decoration-style: dotted;
-      text-decoration-thickness: 2px;
-      text-decoration-color: var(--ok);
-    }
-    ::highlight(study-link-annotation) {
-      text-decoration-line: underline;
-      text-decoration-style: wavy;
-      text-decoration-thickness: 1px;
-      text-decoration-color: color-mix(in srgb, var(--accent) 70%, transparent);
-    }
-    ::highlight(study-link-note) {
-      text-decoration-line: underline;
-      text-decoration-style: dashed;
-      text-decoration-thickness: 1.5px;
-      text-decoration-color: var(--text-muted);
-    }
-  }
+  /* The underlines are highlight styles of the reading page, in reader.css: the page owns its class, and its text inherits them. */
   :is(.study-app, .study-seat) {
     /* The Aa popover's underline row sits on one line so the popover stays short. */
     /* ── Save an answer as a flashcard ──────────────────────────────────── */

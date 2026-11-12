@@ -7,31 +7,7 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  :where(.study-app, .study-seat) {
-    ::highlight(study-mark-underline) {
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-thickness: 2px;
-      text-decoration-color: var(--text);
-      text-underline-offset: 0.18em;
-    }
-    ::highlight(study-mark-bold) {
-      color: var(--text);
-      text-shadow: 0.025em 0 0 currentColor, -0.025em 0 0 currentColor;
-    }
-    ::highlight(study-mark-highlight) {
-      background-color: var(--warn-mark);
-    }
-    ::highlight(study-mark-queue) {
-      background-color: var(--info-halo);
-    }
-    ::highlight(study-mark-pending) {
-      text-decoration-line: underline;
-      text-decoration-style: dotted;
-      text-decoration-thickness: 2px;
-      text-decoration-color: var(--text-muted);
-    }
-  }
+  /* The marks are highlight styles of the reading page, in reader.css: the page owns its class, and its text inherits them. */
   :is(.study-app, .study-seat) {
     .sh-menu--context { min-width: 11rem; }
 
