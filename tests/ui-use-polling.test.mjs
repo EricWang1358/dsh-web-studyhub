@@ -134,3 +134,17 @@ test('the hook renders without starting anything on the server', () => {
   const Probe = () => { m.usePolling(() => { throw new Error('must not run'); }, { intervalMs: 1000, immediate: true }); return React.createElement('i', null, 'ok'); };
   assert.match(renderToStaticMarkup(React.createElement(Probe)), /ok/);
 });
+
+test('restart() forgets the unchanged streak and waits the base interval again, without asking now', async () => {
+  const env = fakeEnv(), calls = [];
+  const poller = m.createPoller({ run: () => { calls.push(1); return { unchanged: true }; }, intervalMs: 4000, env,
+    backoff: (base, { unchanged }) => base * (unchanged + 1) });
+  poller.start();
+  for (let n = 0; n < 3; n++) { await env.fire(); await settle(); }
+  assert.equal(env.pending()[0].ms, 16000, 'three unchanged answers: slowed down');
+  poller.restart();
+  assert.equal(calls.length, 3, 'no extra request');
+  assert.equal(env.pending().length, 1);
+  assert.equal(env.pending()[0].ms, 4000, 'back to the base interval (the practice page: a new question)');
+  poller.stop();
+});

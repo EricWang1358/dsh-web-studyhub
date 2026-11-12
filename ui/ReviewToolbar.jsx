@@ -14,13 +14,14 @@ const NEXT_HINT_ID = "review-next-hint";
  * (mark it, note, task, derive a prerequisite, slay). `moreDefaultOpen` opens the menu at first render.
  * `onThumb('up' | 'down')` and `thumbVote` are the page's 评价: its ThumbFeedback keeps the vote and the keys; `thumbs` is that component (it draws only the tag tray).
  */
-export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, moreDefaultOpen = false }) {
+export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, onSkip, onEndRound, moreDefaultOpen = false }) {
   const { busy } = useStudy();
   const [readingOpen, setReadingOpen] = React.useState(false);
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer; a pending step is still saving.
   const needsAnswer = !run.feedback && run.mode !== "exam";
   const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
   const exam = run.mode === "exam";
+  // 完成 only when 下一题 has nowhere to go: the round says so (lib/round-position.js), a question set aside with 先跳过 included.
   const last = roundAt(run).last;
   const deferLabel = onDeferUnstudiedPages && !exam && !run.reading && !run.feedback && Number.isInteger(run.cardSource?.page)
     ? (run.cardSource.unit === "slide"
@@ -40,10 +41,15 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
     onThumb && { heading: true, label: ui("评价这道题") },
     onThumb && { id: "thumb-up", label: ui("这题不错"), checked: thumbVote === "up", hint: "G", attrs: { "aria-keyshortcuts": "G" }, run: () => onThumb("up") },
     onThumb && { id: "thumb-down", label: ui("这题有问题…"), checked: thumbVote === "down", hint: "B", attrs: { "aria-keyshortcuts": "B" }, run: () => onThumb("down") },
+    // 这一轮 (#1008): set this question aside for the end of the round, or stop the round here with a result. Not in an exam, which has its own rules.
+    !exam && (onSkip || onEndRound) && { heading: true, label: ui("这一轮") },
+    !exam && onSkip && { id: "skip", label: ui("先跳过"), hint: "K", attrs: { "aria-keyshortcuts": "K" }, disabled: busy,
+      tip: ui("这道题先放一放，到这一轮最后再回来做。跳过不记成绩，回来时重新计时。"), run: onSkip },
+    !exam && onEndRound && { id: "end-round", label: ui("到此为止…"), disabled: busy, run: onEndRound },
     { heading: true, label: ui("这道题") },
     deferLabel && { id: "defer-pages", label: deferLabel, disabled: busy, run: onDeferUnstudiedPages },
-    onToggleFocus && { id: "focus", label: run.card?.focus ? ui("取消重点标记") : ui("标为重点"), disabled: busy, run: onToggleFocus },
-    { id: "note", label: ui("写笔记"), disabled: busy, run: onNote },
+    onToggleFocus && { id: "focus", label: run.card?.focus ? ui("取消重点标记") : ui("标为重点"), hint: "F", attrs: { "aria-keyshortcuts": "F" }, disabled: busy, run: onToggleFocus },
+    { id: "note", label: ui("写笔记"), hint: onNote ? "N" : undefined, attrs: onNote ? { "aria-keyshortcuts": "N" } : undefined, disabled: busy, run: onNote },
     onTask && { id: "task", label: ui("记待办"), disabled: busy, run: onTask },
     onDerive && { id: "derive", label: ui("出前置题…"), attrs: { "data-usage": "review.derive" }, run: onDerive },
     { id: "slay", label: ui("斩掉此题"), disabled: busy, danger: true, run: onSlay },
@@ -74,7 +80,8 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
           {last ? ui("完成") : ui("下一题")} →
         </Button>
       </div>
-      {needsAnswer && !busy && !run.card?.publicationUngrable && <p className="muted small next-hint" id={NEXT_HINT_ID}>{ui("请先作答，才能进入下一题")}</p>}
+      {needsAnswer && !busy && !run.card?.publicationUngrable && <p className="muted small next-hint" id={NEXT_HINT_ID}>
+        {onSkip ? ui("请先作答，才能进入下一题；也可以在「更多」里先跳过（K）") : ui("请先作答，才能进入下一题")}</p>}
       {readingOpen && <ReadingSettingsDialog onClose={() => setReadingOpen(false)} />}
     </div>
   );

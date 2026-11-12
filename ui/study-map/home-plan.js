@@ -4,6 +4,7 @@ import { TERMS } from '../mastery-terms.js';
 import { joinMeta, formatDateTime } from '../format.js';
 import { JOB_TYPES, isActiveJob, isDeckJob } from '../../lib/job-status.js';
 import { practiceArgs } from '../learning-navigation.js';
+import { freshRoundCount } from '../../lib/practice-settings.js';
 import { courseMatcher } from '../PageScope.jsx';
 import { isVerifiableMaterialSource, roundEndAlternative } from '../method-alternatives.js';
 import { readableMaterialItems } from '../document-preview/practice/open-reader-pages.js';
@@ -103,9 +104,11 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   const headline = starter ? starter.headline
     : today.ahead ? (pendingDrafts.length ? ui('检查草稿，就能开始练习') : ui('今天的任务都完成了'))
       : breakdown.join(' · ') || (pendingDrafts.length || (stageOneStart && courseDraft) ? ui('检查草稿，就能开始练习') : stageOneStart && generating ? ui('第一组题正在生成') : ui('这个范围里还没有可学习的题'));
-  const freshCount = Math.min(10, data.focus?.fresh?.length || 0);
+  // One round of new questions is the round size of 设置 › 练习 (#1009): the label counts it and the button starts it.
+  const roundSize = freshRoundCount(data.settings?.practice);
+  const freshCount = Math.min(roundSize, data.focus?.fresh?.length || 0);
   const todayLabel = formatDateTime(new Date(), 'longDay');
-  const startFresh = () => start({ mode: 'new', currentCourse: true, count: 10, fresh: true });
+  const startFresh = () => start({ mode: 'new', currentCourse: true, count: roundSize, fresh: true });
   const startPath = () => (todayRun ? resume(todayRun.id) : start(dailyPathArgs(today)));
   const startEverywhere = () => start(practiceArgs(undefined, { fresh: false }));
   const startFocusOnly = () => start(practiceArgs(undefined, { ...(today?.course != null ? { course: today.course } : {}), focusOnly: true, fresh: true }));

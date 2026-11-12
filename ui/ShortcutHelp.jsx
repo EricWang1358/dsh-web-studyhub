@@ -14,6 +14,11 @@ const REVIEW = [
   ["T", "通俗详解：用比喻把这道题讲透（交给后台助教）"],
   ["G / B", "👍 这题不错 / 👎 这题有问题"],
   ["A", "自动跳下一步 开/关"],
+  // The actions of 更多 that have a key (#1008).
+  ["K", "先跳过：这道题留到这一轮最后再做"],
+  ["N", "写笔记"],
+  ["F", "标为重点 / 取消重点"],
+  ["O", "打开这道题出自的资料页"],
 ];
 // 复习全书: the keys of the reading surface (ui/book/reading.js useStepKeys, ui/book/BookToc.jsx).
 const BOOK = [
@@ -25,6 +30,7 @@ const EVERYWHERE = [
   // The sidebar's reorder keys (ui/nav-order.js): its tooltips say them once only (ui/nav-reorder-hint.js), so they are kept here.
   ["Alt+↑ / Alt+↓", "侧栏：把有焦点的那一项上移 / 下移（用鼠标就长按并拖动）"],
   ["P", "阅读资料时：做这几页的题（范围可选，做完回到阅读）"],
+  ["[ / ]", "阅读资料时：上一章 / 下一章"],
   ["?", "打开 / 关闭这张速查"],
   ["Esc", "关闭弹层"],
 ];

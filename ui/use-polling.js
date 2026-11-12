@@ -63,11 +63,13 @@ export function createPoller({ run, intervalMs, backoff, pauseWhenHidden = true,
     },
     /** Ask now and restart the wait; a call already in flight is not doubled. */
     refresh() { clear(); return tick(); },
+    /** Forget the unchanged streak and wait the base interval again, without asking now (something new is on screen: the practice page's next question). */
+    restart() { unchanged = 0; if (!busy) schedule(); },
   };
 }
 
 /**
- * Call `fn` every `intervalMs` while `enabled`. Returns `{ refresh }` to ask outside the rhythm.
+ * Call `fn` every `intervalMs` while `enabled`. Returns `{ refresh }` to ask outside the rhythm and `{ restart }` to drop a backoff.
  * `immediate` also asks once when polling starts. `backoff: true` is the standard table. `fn` and `backoff` may change between renders without restarting the loop.
  */
 export function usePolling(fn, { intervalMs, enabled = true, pauseWhenHidden = true, immediate = false, backoff, onError } = {}) {
@@ -83,5 +85,5 @@ export function usePolling(fn, { intervalMs, enabled = true, pauseWhenHidden = t
     loop.start();
     return () => { loop.stop(); if (poller.current === loop) poller.current = null; };
   }, [enabled, intervalMs, pauseWhenHidden, immediate]);
-  return { refresh: () => poller.current?.refresh() };
+  return { refresh: () => poller.current?.refresh(), restart: () => poller.current?.restart() };
 }

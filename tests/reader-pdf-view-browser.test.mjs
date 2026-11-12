@@ -1,4 +1,4 @@
-/* global document, window, getSelection */
+/* global document, window, getSelection, localStorage */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -39,6 +39,7 @@ test('原始 PDF: turning the page keeps the view, the zoom and the sideways pla
     const view = page.locator('.reader-pdf-view'), bar = page.locator('.reader-pdf-bar');
     const open = async (name) => {
       await page.goto(running.server.url);
+      await page.evaluate(() => localStorage.removeItem('studyhub-last-read:v1')); // each open starts fresh: a material reopens in the view and page it was left at (#1001)
       await (await revealNavRow(page, 'sources')).click().catch(() => {});
       await page.locator('.source-doc', { hasText: name }).first().locator('.source-main').click();
       await page.locator('.study-document-viewer').waitFor({ timeout: 30000 });

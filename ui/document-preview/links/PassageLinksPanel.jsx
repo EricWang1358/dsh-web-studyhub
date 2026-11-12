@@ -1,12 +1,13 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Markdown from '../../Markdown.jsx';
 import MathText from '../../MathText.jsx';
-import { Badge, Button, InlineMessage } from '../../components/index.js';
+import { Badge, Button, InlineMessage, SegmentedControl } from '../../components/index.js';
 import { joinMeta } from '../../format.js';
 import { ui, uiFormat } from '../../i18n.js';
 import { MasteryMark } from '../practice/MasteryMark.jsx';
 import { stateLabel } from '../practice/mastery-copy.js';
 import { answerText, clip, displayPrompt, groupTitle, linkKind } from './link-model.js';
+import { chapterGroups, inReadingOrder } from './link-scope.js';
 import { stripTermMarkers } from '../../term-marker.js';
 
 const REASON_TEXT = {
@@ -100,13 +101,22 @@ function Group({ group, focused, onOpen, onAnnotation }) {
  * and the passages whose link no longer resolves (to be selected again). `model` is buildLinkModel's result;
  * `focusedKey` narrows the list to one passage (set by clicking its underline); `onOpen` receives
  * { deckId, cardId } or { kind: 'note', id }.
+ * The passages come in the order of the text (`order`: a Map of a source id to its place in reading order). `chapterSources` (#1014): the sources of the
+ * chapter on screen (a Set) when the reader shows one chapter at a time: the list starts with 本章 (that chapter's passages) and 全书 lists them all.
  */
-export default function PassageLinksPanel({ model, focusedKey, onFocus, onOpen, onAnnotation }) {
+export default function PassageLinksPanel({ model, focusedKey, onFocus, onOpen, onAnnotation, order = null, chapterSources = null }) {
+  const [scope, setScope] = useState('chapter');
   const focused = model.groups.some(group => group.key === focusedKey) ? focusedKey : null;
-  const shown = focused ? model.groups.filter(group => group.key === focused) : model.groups;
+  const all = useMemo(() => inReadingOrder(model.groups, order), [model.groups, order]);
+  const inChapter = useMemo(() => (chapterSources ? chapterGroups(model.groups, { sourceIds: chapterSources, order }) : all), [model.groups, chapterSources, order, all]);
+  const chapter = !!chapterSources, listed = chapter && scope === 'chapter' ? inChapter : all;
+  const shown = focused ? model.groups.filter(group => group.key === focused) : listed;
   if (!model.groups.length && !model.stale.length) return null;
   return <section className="reader-links" aria-label={ui('原文关联题目与解析')}>
     <h3 className="study-document-links-heading">{ui('原文关联题目与解析')}</h3>
+    {chapter && !focused && model.groups.length > 0 && <SegmentedControl size="xs" className="reader-links__scope" label={ui('关联题目的范围')} value={scope} onChange={setScope}
+      options={[{ value: 'chapter', label: uiFormat('本章 {0}', [inChapter.length]) }, { value: 'all', label: uiFormat('全书 {0}', [model.groups.length]) }]} />}
+    {!focused && listed.length === 0 && model.groups.length > 0 && <p className="reader-links__empty" role="status">{ui('这一章还没有关联的题目。')}</p>}
     <div className="reader-links__list">
       {shown.map(group => <Group key={group.key} group={group} focused={group.key === focused} onOpen={onOpen} onAnnotation={onAnnotation} />)}
     </div>
