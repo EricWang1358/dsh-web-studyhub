@@ -37,6 +37,20 @@ const countedText = html => {
 const inners = text => findFootnotes(text).map(note => note.inner);
 /** The drawn markup without the hidden stored text (the escaped tags kept in reader-bracket spans). */
 const visibleMarkup = html => html.replace(/<span class="reader-bracket" aria-hidden="true">[^<]*<\/span>/g, '');
+/** The page without the drawing of each formula: KaTeX positions its glyphs with inline style (#996), which is the formula unit's, not the text's. */
+const withoutFormulaViews = html => {
+  let out = '', at = 0;
+  for (let start = html.indexOf('<span class="reader-math__view"', at); start !== -1; start = html.indexOf('<span class="reader-math__view"', at)) {
+    out += html.slice(at, start);
+    let depth = 0, cursor = start;
+    do {
+      const open = html.indexOf('<span', cursor + 1), close = html.indexOf('</span>', cursor + 1);
+      if (open !== -1 && open < close) { depth++; cursor = open; } else { depth--; cursor = close; }
+    } while (depth >= 0 && cursor !== -1);
+    at = cursor + '</span>'.length;
+  }
+  return out + html.slice(at);
+};
 
 test('the helper recognises the DocVortex footnote family and nothing else', () => {
   assert.deepEqual(inners(OWNER), ['① pH 是个例外，用正体。']);
@@ -141,8 +155,9 @@ test('Markdown sources draw the footnote the same way and leave the rest of Mark
   const stored = `正文，含 $a+b$ 公式。\n\n${OWNER}\n${OWNER.replace('①', '②').replace('是个例外', 'A &amp; B *例外*')}\n\n## 下一节\n\n| a | b |\n|---|---|\n| 1 | 2 |`;
   const html = ui.renderReaderMarkdown(stored);
   assert.equal((html.match(/<p class="reader-footnote" role="note">/g) || []).length, 2);
-  assert.doesNotMatch(visibleMarkup(html), /&lt;small|&lt;span|docvortex|style=/, 'no literal tags outside the hidden brackets');
-  assert.doesNotMatch(html, /<[^>]*\sstyle=|<small/);
+  assert.doesNotMatch(visibleMarkup(withoutFormulaViews(html)), /&lt;small|&lt;span|docvortex|style=/, 'no literal tags outside the hidden brackets');
+  assert.doesNotMatch(withoutFormulaViews(html), /<[^>]*\sstyle=|<small/);
+  assert.match(html, /class="katex-html"/, 'the formula itself is drawn');
   assert.match(html, /<em>例外<\/em>/, 'Markdown emphasis inside is rendered by the Markdown renderer');
   assert.match(html, /A &amp; B/, 'entities are decoded once, then escaped');
   assert.match(html, /<h2>下一节<\/h2>/);

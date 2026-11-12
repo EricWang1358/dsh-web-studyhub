@@ -44,6 +44,7 @@ test('nothing saved: the defaults show as the contract says, and there is nothin
   assert.match(html, /data-tour="settings-practice"/);
   assert.doesNotMatch(input(html, 'autopilot'), /checked/);
   assert.match(input(html, 'debrief'), /checked/);
+  assert.match(input(html, 'rereadMarks'), /checked/, '今日 「重读 N 段」 is on by default');
   assert.match(html, /<option[^>]*value="20"[^>]*selected|<option[^>]*selected[^>]*value="20"/);
   assert.match(words(html), /每轮题数/);
   assert.match(words(html), /当前是 20 题一轮，新题最多 10 道/);
@@ -132,6 +133,8 @@ test('a switch saves just its own field at once and shows the choice without wai
   await named(view, 'debrief').props.onChange(false);
   assert.deepEqual(calls[1].slice(0, 2), ['settings.practice.set', { patch: { debrief: false } }]);
   assert.equal(named(view, 'debrief').props.checked, false);
+  await named(view, 'rereadMarks').props.onChange(false);
+  assert.deepEqual(calls[2].slice(0, 2), ['settings.practice.set', { patch: { rereadMarks: false } }]);
   assert.equal(named(view, 'autopilot').props.checked, true, 'the earlier choice stays');
 });
 

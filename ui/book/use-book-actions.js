@@ -68,13 +68,18 @@ async function copyText(text) {
 
 /** The handlers every point reads (ui/book/PointBody.jsx and below). ai: the stable ctions of ui/book/use-book-ai.js (the lines themselves reach the points
     through BookAiContext, so a line or the 问 AI panel never gives every point new handlers). */
-export function useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource, modelReady = true, onBack, ai, foldAi, onPlace, goTo }) {
+export function useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember, onPractice, onCreate, onOpenSource, modelReady = true, model, onBack, ai, foldAi, onPlace, goTo }) {
   const [qa, setQa] = useState(() => new Set());
+  const [retell, setRetell] = useState(() => new Set());
   const [choosing, setChoosing] = useState(false);
   return useMemo(() => ({
     gone: goneSet(book?.missing),
     qaOpen: heading => qa.has(heading),
     toggleQa: heading => setQa(current => { const next = new Set(current); if (next.has(heading)) next.delete(heading); else next.add(heading); return next; }),
+    // 用自己的话讲一遍 of a point (#1016, ui/review/RetellPanel.jsx): which points have it open; `model` is the readiness its gate shows.
+    retellOpen: heading => retell.has(heading),
+    toggleRetell: heading => setRetell(current => { const next = new Set(current); if (next.has(heading)) next.delete(heading); else next.add(heading); return next; }),
+    model: model ?? { ready: modelReady },
     source: (sourceId, quote) => onOpenSource?.(sourceId, quote),
     card: (ref, from, element) => { const place = remember(from, element); onPractice([ref], { resume: true, place }); },
     // 练 N 道: the next N of the point's questions in a practice round's order (due, weak, new); an open round of exactly those goes on.
@@ -146,5 +151,5 @@ export function useBookHandlers({ call, act, course, notify, book, setBook, rows
     aiWords: id => showWords(id),
     // A 术语卡's link (#710): its point opened when the card is not drawn, then the card shown (ui/book/term-card-go.js).
     goCard: (hid, code) => { if (!cardShown(code)) goTo?.(hid); showCard(code); },
-  }), [book, qa, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, onBack, ai, foldAi, reload, act, onPlace, goTo]);
+  }), [book, qa, retell, rows, call, course, notify, onCreate, onOpenSource, onPractice, remember, choosing, setBook, modelReady, model, onBack, ai, foldAi, reload, act, onPlace, goTo]);
 }

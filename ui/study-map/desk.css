@@ -226,7 +226,6 @@
       position: relative;
       display: flex;
       flex-direction: column;
-      min-height: 330px;
       --paper-pad-top: var(--space-4-5);
       /* Index-card ruling under the cinnabar header rule. */
       background-image: repeating-linear-gradient(
@@ -242,6 +241,15 @@
       animation: card-deal 0.55s var(--ease-out) backwards;
     }
     .today-stack:hover .today-card { transform: translateY(-4px) rotate(-0.6deg); }
+    /* The card's body holds the card's height (330px with its padding), so the line under the action (重读 N 段) adds to the card instead of
+       taking the action's room: the action never moves when it comes. */
+    .today-card-main {
+      display: flex;
+      flex: 1 0 auto;
+      flex-direction: column;
+      /* The card's 330px less its paddings and its 1px top and bottom borders, so the card is as tall as before the reread line. */
+      min-height: calc(330px - var(--paper-pad-top, var(--paper-pad-y)) - var(--paper-pad-bottom, var(--paper-pad-y)) - 2px);
+    }
     .today-card-head {
       display: flex;
       justify-content: space-between;
@@ -262,8 +270,9 @@
     }
     .today-detail:has(+ :is(.today-stage-advance, .today-method-alt, .today-pick-pages)) { margin-bottom: var(--space-2); }
     .today-stage-advance:has(+ :is(.today-method-alt, .today-pick-pages)),
-    .today-method-alt:has(+ .today-pick-pages) { margin-bottom: var(--space-2); }
-    .today-stage-advance, .today-method-alt, .today-pick-pages { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1-5); margin: 0 0 var(--space-5-5); font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--paper-dim); }
+    .today-method-alt:has(+ .today-pick-pages), .today-pick-pages:has(+ .today-pick-pages) { margin-bottom: var(--space-2); }
+    .today-stage-advance, .today-method-alt, .today-pick-pages, .today-reread { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1-5); margin: 0 0 var(--space-5-5); font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--paper-dim); }
+    .today-reread { margin: var(--space-3) 0 0; }
     /* The start button and, beside it, the 本轮设置 popover's button (ui/review/RoundSetup.jsx): the row takes the card's bottom, the button the room. */
     .today-go-row { display: flex; align-items: stretch; gap: var(--space-2); margin-top: auto; }
     .today-go-row .today-setup .round-setup__trigger { height: 100%; min-height: 44px; }
@@ -304,7 +313,7 @@
         gap: 0;
       }
       /* Narrow: tabs, heading, the card, then the details (the order of every part: ui/home-tiers.css). */
-      .today-card { min-height: 0; }
+      .today-card-main { min-height: 0; }
     }
   }
   :where(.study-app, .study-seat) {

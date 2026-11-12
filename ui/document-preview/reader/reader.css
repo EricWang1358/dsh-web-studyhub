@@ -8,8 +8,11 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    ::highlight(study-find) { background-color: var(--warn-mark); color: inherit; }
-    ::highlight(study-find-current) { background-color: var(--warn-solid); color: inherit; }
+    /* Matched on the reading page's elements outside a drawn formula (gate review of #996). Written for every element of the app (` ::highlight`), the
+       browser resolved all 19 highlight styles of the reader for each element of a KaTeX drawing (~200 for a display formula): ~100 ms of style
+       a formula. Not on the page alone for its text to inherit: WebKit has no highlight inheritance, and each element keeps its own tokens (paper). */
+    .reader-page :not(.katex, .katex *)::highlight(study-find) { background-color: var(--warn-mark); color: inherit; }
+    .reader-page :not(.katex, .katex *)::highlight(study-find-current) { background-color: var(--warn-solid); color: inherit; }
     /* 中英混排 (#744): the little space between Chinese and Latin the font itself does not give. A property, so no byte of the text changes:
        a copied selection, a quote back to the page and a search substring stay exactly the original. Engines without it ignore the line. */
     .source-md { white-space: normal; line-height: 1.8; text-autospace: normal; }
@@ -118,6 +121,8 @@
     .reader-aux { flex: none; padding: 0 var(--space-5); }
     .reader-aux:empty { display: none; }
     .reader-aux__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: var(--space-3) 0; }
+    .reader-aux .reader-reread { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+    .reader-reread__count { font-size: var(--fs-sm); color: var(--text-muted); }
     .reader-aux .reader-aux__quote { flex: 1 1 18rem; min-width: 0; margin: 0; padding: var(--space-2-5) var(--space-4); font-size: var(--fs-md); line-height: 1.7; }
     /* ── Layout: outline | reading column | learning panel ───────────────── */
     .reader-layout { position: relative; display: flex; flex: 1 1 auto; min-height: 0; }
@@ -365,9 +370,7 @@
     .reader-math { position: relative; }
     /* The source carries .sh-visually-hidden; it only keeps its line breaks. */
     .reader-math__source { white-space: pre; }
-    .reader-math__view math { font-family: math, "Cambria Math", serif; font-size: 1em; font-weight: var(--fw-regular); }
-    /* mhchem subscripts carry a phantom X that sticks out past the formula and showed a scrollbar under every \ce{}. */
-    .reader-math__view math:has(mphantom) { padding-inline-end: 0.2em; }
+    /* KaTeX's own box inside it is styled with every other formula's, in ui/markdown.css (#996). */
     .reader-math--display { display: block; margin: 0.9em 0; overflow-x: auto; overflow-y: hidden; text-align: center; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
     .reader-math--display > .reader-math__view { display: block; width: max-content; min-width: 100%; }
     .reader-math__label { margin-inline-start: 1.2em; color: var(--text-muted); }

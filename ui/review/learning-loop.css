@@ -1,0 +1,83 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+/* The learning loop under a question and on a review-book point (#1015, #1016): 试一道同类题 (ui/review/SimilarTry.jsx) and 用自己的话讲一遍
+   (ui/review/RetellPanel.jsx, with its 讲清楚过 mark). One stylesheet for both pages; it reads well from 420px up. */
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .similar-try {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      flex: 1 1 100%;
+    }
+    .similar-try__note {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1-5);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .retell-panel {
+      display: grid;
+      gap: var(--space-2-5);
+      margin-top: var(--space-2);
+      padding: var(--space-3) var(--space-3-5);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      min-width: 0;
+    }
+    .retell-panel form { display: grid; gap: var(--space-2); }
+    .retell-panel__field {
+      display: grid;
+      gap: var(--space-1-5);
+      margin: 0;
+      color: var(--text-dim);
+      font-size: var(--fs-md);
+    }
+    .retell-panel__input {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 6rem;
+      font-size: var(--fs-md);
+      resize: vertical;
+    }
+    .retell-panel__note {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .retell-panel__actions { display: flex; justify-content: flex-end; }
+    .retell-panel__failure { display: grid; gap: var(--space-2); justify-items: start; }
+    .retell-panel__detail { color: var(--text-muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+    .retell-result {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-3-5);
+      background: var(--bg-sunken);
+      border-left: 2px solid var(--line-strong);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-size: var(--fs-md);
+    }
+    .retell-result__head { margin: 0; color: var(--text); }
+    .retell-result__part h4 { margin: 0 0 var(--space-1); font-size: var(--fs-sm); color: var(--text-dim); }
+    .retell-result__part ul { margin: 0; padding-left: var(--space-4-5); }
+    .retell-result__none { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
+    .retell-result__source { justify-self: start; }
+    .retold-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      color: var(--ok-ink);
+      font-size: var(--fs-sm);
+    }
+  }
+  @container study (max-width: 480px) {
+    :where(.study-app, .study-seat) {
+      .retell-panel { padding: var(--space-3); }
+      .retell-panel__actions > * { width: 100%; }
+    }
+  }
+}

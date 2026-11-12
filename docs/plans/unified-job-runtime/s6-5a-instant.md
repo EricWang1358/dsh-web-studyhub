@@ -34,6 +34,8 @@ Exactly these, and every `oral.*` (the list is `INSTANT_ACTIONS` and `tests/inst
 - `focus.suggest`
 - `teach.start`
 - `teach.answer`
+- `teach.retell`
+- `book.retell`
 - `coach.nudge`
 - `coach.reply`
 - `coach.feedback`

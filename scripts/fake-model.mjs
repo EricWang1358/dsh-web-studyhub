@@ -673,6 +673,17 @@ const HANDLERS = [
   { name: "assist", match: (s) => s.startsWith("You are a background study assistant."),
     reply: ({ input, english }) => {
       const card = input.card || {}, question = input.request?.question || "";
+      // 出题 (derive, e.g. 生成一道变式 #1015): one new flashcard citing the first supplied source window verbatim, or no change without one.
+      if (input.mode === "derive") {
+        const source = (input.sources || []).find((item) => String(item.text || "").trim().length >= 12);
+        if (!source) return { noChange: english ? "Preview: no source to cite." : "预览：没有可引用的资料。" };
+        const quote = String(source.text).trim().slice(0, 60), topic = card.topic || (english ? "this point" : "这个知识点");
+        return { card: { kind: "flashcard", topic, objective: english ? `Preview variant of ${topic}` : `预览变式：${topic}`,
+          prompt: english ? `Preview variant: in a new situation, what does ${topic} do?` : `预览变式：换一个情境，${topic}会怎样？`,
+          answer: english ? `Preview answer: ${quote}` : `预览答案：${quote}`, hint: english ? "Think of the conditions." : "先想成立条件。",
+          explanation: english ? `Preview explanation from the source: ${quote}` : `预览解析，来自资料：${quote}`,
+          misconception: english ? "Remembering only the name." : "只记住名字。", citations: [{ sourceId: source.sourceId, quote }] } };
+      }
       if (input.mode === "improve") return english
         ? { patch: { explanation: `${card.explanation}\n\n(Preview rewrite: added a reusable rule — ask what problem it solves, then when it holds.)` },
           reason: "Preview rewrite: added a decision rule at the end of the explanation." }
@@ -748,6 +759,13 @@ const HANDLERS = [
         { lesson: "再说明它在什么条件下成立。", check: "它在什么条件下成立？", answer: "说出至少一个条件。" }] }) },
   { name: "teaching.judge", match: (s) => s.startsWith("Judge only the current prerequisite check"),
     reply: ({ input }) => ({ passed: String(input.learnerAnswer || "").trim().length >= 4, feedback: "预览判定：回答长度足够即视为通过。" }) },
+  // 用自己的话讲一遍 (lib/teaching.js checkRetell): an explanation of 20 characters or more is clear; a shorter one misses a part. Never echoes the words.
+  { name: "teaching.retell", match: (s) => s.startsWith("The learner explains a study point in their own words."),
+    reply: ({ input }) => {
+      const english = input.language === "en", clear = String(input.learnerExplanation || "").trim().length >= 20;
+      return { passed: clear, right: [english ? "Preview: you named what the point is about." : "预览：说出了这个知识点讲的是什么。"],
+        missed: clear ? [] : [english ? "Preview: say when it applies, too." : "预览：还要说出它在什么条件下成立。"], wrong: [], cite: input.citations > 0 ? 0 : null };
+    } },
   // Guided workflow (AI 带学): choose material, write a lesson, review it, read a retelling.
   { name: "workflow.pick", match: (s) => s.startsWith("You choose study material"),
     reply: ({ input }) => ({ keys: (input.topics || []).slice(0, 6).map((t) => t.key), title: String(input.goal || "").slice(0, 20) }) },

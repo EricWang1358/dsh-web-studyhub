@@ -38,7 +38,6 @@
     .note-preview pre { padding: var(--space-3); overflow: auto; border-radius: var(--radius-sm); background: var(--bg-sunken); }
     .note-preview table { border-collapse: collapse; }
     .note-preview th, .note-preview td { border: 1px solid var(--line); padding: var(--space-1) var(--space-2); }
-    .note-preview math { font-size: calc(1em * var(--study-formula-scale, 1)); }
     .note-preview section:has(> eqn) { overflow-x: auto; max-width: 100%; }
     .note-preview section > eqn { display: flex; width: max-content; min-width: 100%; justify-content: var(--study-formula-align, center); }
     .note-linking, .note-publish { margin-top: var(--space-4); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); }

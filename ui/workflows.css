@@ -91,7 +91,6 @@
     .wf-prose table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin-block: var(--space-5-5); font-size: var(--fs-md); }
     .wf-prose :is(th, td) { border: 1px solid var(--line); padding: var(--space-2-5) var(--space-3); text-align: left; }
     .wf-prose th { background: var(--bg-sunken); font-weight: var(--fw-strong); }
-    .wf-prose math { max-width: 100%; font-size: 1.12em; overflow-x: auto; }
     .wf-prose img { max-width: 100%; height: auto; }
     .wf-prose hr { margin-block: var(--space-6-5); border: 0; border-top: 1px solid var(--line); }
     .wf-teaching-help { border-top: 1px solid var(--line); margin-top: calc(var(--space-6) + var(--space-half)); padding-top: var(--space-2-5); }

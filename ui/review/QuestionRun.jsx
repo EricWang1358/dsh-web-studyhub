@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale, uiMessage } from "../i18n.js";
+import { ui, uiFormat, uiMessage } from "../i18n.js";
 import React from "react";
 import Markdown from "../Markdown.jsx";
 import Cloze from "../Cloze.jsx";
@@ -18,7 +18,8 @@ import { voteTipMoments } from "../guidance/practice-tips.js";
 import { reviewEntryKey } from "../async.js";
 import ModelErrorNote from "../ModelErrorNote.jsx";
 import ModelSetupGate from "../ModelSetupGate.jsx";
-import TeachingStatus from "./TeachingStatus.jsx";
+import LearningActions from "./LearningActions.jsx";
+import SimilarTry from "./SimilarTry.jsx";
 import { describeModelError, modelReadiness, plainAssistFailure } from "../generation-status.js";
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
@@ -99,9 +100,9 @@ function AssistFailure({ task, modelReady = false, onSettings, onResubmit, onEdi
 
 export default function QuestionRun({ session, data, coachProps, links = {}, context = {}, feedback }) {
   useInjectCss(reviewCss, "study-review");
-  const { run, entry, showBack, showEn, enBusyKey, keyGrade, teachingBusy, teachingError, choice, isCloze, autopilot, actions } = session;
+  const { run, entry, showBack, showEn, enBusyKey, keyGrade, teachingBusy, choice, isCloze, autopilot, actions } = session;
   const { selected, hint, explain, response, teaching, teachAnswer, clozeValues } = entry;
-  const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn } = actions;
+  const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, toggleEn } = actions;
   const { call, act, busy, openModal, openSettings, notify } = useStudy();
   const toggleCardFocus = React.useCallback(() => {
     if (!run?.card?.id) return;
@@ -115,7 +116,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     () => runDeferUnstudiedPages({ run, sources: data?.sources, openModal, reviewAct, notify }),
     [data?.sources, notify, openModal, reviewAct, run],
   );
-  const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
+  const { onOpenNote, onMakeNote, onMakeTask, onModelSettings, onSaveQaToNote } = links;
   // 先跳过 / 到此为止 and the N / F / O keys (#1008): ui/review/RoundSteps.jsx.
   const roundSteps = useRoundSteps({ session, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus });
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
@@ -164,7 +165,6 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const thumbVote = thumbState.vote;
   const [assistText, setAssistText] = React.useState("");
   const [dismissedTaskId, setDismissedTaskId] = React.useState("");
-  const [teachGate, setTeachGate] = React.useState(false);
   const showSolution = !!(run.solution && (explain || !!run.feedback));
   const showUnansweredFollowups = !run.revealed && !showSolution && run.mode !== "exam" && !!(explain || entry.assistance?.askedTutorBeforeAnswer) && (run.followups?.length ?? 0) > 0;
   const voteMoments = voteTipMoments(thumbVote, thumbState.tags, !!run.feedback);
@@ -178,8 +178,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   // 出题守则 of the question's course (#889): 「设为本课守则」 under the 修题 box and on the 👎 tray add to them.
   const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
   const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
-  React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); setTeachGate(false); }, [run.id, run.index, run.card?.id]);
-  React.useEffect(() => { if (model.ready) setTeachGate(false); }, [model.ready]);
+  React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); }, [run.id, run.index, run.card?.id]);
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
@@ -685,19 +684,12 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly
               onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
               onAskMore={() => { setAssistMode("ask"); requestAnimationFrame(() => { document.querySelector(".assist-area")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); document.querySelector(".assist-form__input")?.focus(); }); }}
-              bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }} />}
+              bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }}
+              noteQa={onSaveQaToNote ? { savedIn: (followupId) => cardNotes.find((note) => note.qa && note.followupIds?.includes(followupId))?.noteId || "", onSave: onSaveQaToNote, onOpen: onOpenNote } : null} />}
           </ReadingBlock>
         )}
-        {run.feedback && run.mode !== "exam" && <>
-          <div className="assist-actions" aria-label={ui("引导学习方式")}>
-            <Chip selected={teaching?.mode === "understanding"}
-              onClick={() => { if (!model.ready) setTeachGate(true); else if (!teachingBusy) teachingAct("teach.start", { mode: "understanding", language: uiLocale().startsWith("en") ? "en" : "zh" }); }}>{ui("逐步理解")}</Chip>
-            <Chip selected={teaching?.mode === "calculation"}
-              onClick={() => { if (!model.ready) setTeachGate(true); else if (!teachingBusy) teachingAct("teach.start", { mode: "calculation", language: uiLocale().startsWith("en") ? "en" : "zh" }); }}>{ui("计算题引导练习")}</Chip>
-            <TeachingStatus busy={teachingBusy} failure={teachingError} onCancel={cancelTeaching} onRetry={retryTeaching} />
-          </div>
-          {teachGate && !model.ready && <ModelSetupGate variant="inline" feature="welcome" model={model} onOpenSettings={modelSettings} />}
-        </>}
+        {/* 逐步理解 / 计算题引导练习 / 用自己的话讲一遍 / 试一道同类题 (ui/review/LearningActions.jsx). */}
+        <LearningActions session={session} data={data} model={model} onModelSettings={modelSettings} openModal={openModal} />
         {teaching && <div className="teaching-panel">
           <ReadingBlock as="section" measure className="explanation">
             <div className="eyebrow">
@@ -711,6 +703,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               <>
                 <h3>{ui("把理解迁移到下一题")}</h3>
                 <Markdown text={teaching.transfer} />
+                <SimilarTry session={session} data={data} model={model} onModelSettings={modelSettings} />
               </>
             ) : (
               <>

@@ -53,33 +53,35 @@ test('physics and siunitx commands KaTeX does not know are written out, so the n
   // Commands whose package meaning is not the plain text they would give are left out: the source shows, nothing else is drawn.
   for (const source of ['\\ev{x}', '\\ev{A}{\\psi}', '\\va{a}', '\\vu{x}', '\\ang{30;15;10}', '\\num{3e8}']) assert.equal(renderStudyFormula(source, false), null, source);
   // The space the lexer drops after a control word stays: an argument is not glued into another command.
-  const flat = (html) => html.replace(/<annotation[\s\S]*?<\/annotation>/g, '').replace(/<[^>]+>/g, '');
+  // What the formula says, read from its MathML (the HTML beside it draws the same symbols with spacing of its own).
+  const mathml = (html) => /<math[\s\S]*<\/math>/.exec(html)[0];
+  const flat = (html) => mathml(html).replace(/<annotation[\s\S]*?<\/annotation>/g, '').replace(/<[^>]+>/g, '');
   assert.equal(flat(renderStudyFormula('\\abs{F \\cdot s}', false)), '∣F⋅s∣');
   assert.match(renderStudyFormula('\\abs{\\sin h}', false), /<mi>sin<\/mi>[\s\S]*<mi>h<\/mi>/, '\\sin h keeps its h');
   assert.doesNotMatch(renderStudyFormula('\\abs{x \\in t}', false), /∫/, '\\in t is not \\int');
   // A command that draws nothing takes its argument with it.
-  const plain = (html) => html.replace(/<annotation[\s\S]*?<\/annotation>/g, '').replace(/<[^>]+>/g, '');
+  const plain = (html) => mathml(html).replace(/<annotation[\s\S]*?<\/annotation>/g, '').replace(/<[^>]+>/g, '');
   assert.equal(plain(renderStudyFormula('\\label{eq:newton}F = ma', false)), 'F=ma');
   assert.equal(plain(renderStudyFormula('\\require{physics}\\vb{F}=m\\vb{a}', false)), 'F=ma');
   assert.equal(plain(renderStudyFormula('\\dv{x}{t}', false)), 'dxdt');
-  // Where there is a document and no MathML (an old Chromium) the source is shown instead of a garbled drawing.
+  // A browser without native MathML (an older Chromium) draws it too: the layout is KaTeX's HTML, the MathML is only for screen readers (#996).
   const saved = { document: globalThis.document, unknown: globalThis.HTMLUnknownElement, mathml: globalThis.MathMLElement };
   globalThis.HTMLUnknownElement = class {};
+  delete globalThis.MathMLElement;
   globalThis.document = { createElement: () => new globalThis.HTMLUnknownElement() };
   try {
-    assert.equal(renderStudyFormula('x^2', false), null);
-    globalThis.MathMLElement = class {};
-    assert.match(renderStudyFormula('x^2', false), /<math/, 'a browser that has MathML keeps the drawing');
+    assert.match(renderStudyFormula('x^2', false), /class="katex-html"/);
   } finally {
     for (const [key, value] of [['document', saved.document], ['HTMLUnknownElement', saved.unknown], ['MathMLElement', saved.mathml]]) { if (value === undefined) delete globalThis[key]; else globalThis[key] = value; }
   }
 });
 
-test('local native MathML supports fractions, alignment and chemistry without fonts or executable markup', () => {
+test('local KaTeX draws fractions, alignment and chemistry with its own fonts and no executable markup', () => {
   for (const source of [String.raw`\frac{x_i^2}{\sqrt{2}}`, String.raw`\begin{aligned}a&=1\\b&=2\end{aligned}`, String.raw`\ce{2H2(g) + O2(g) -> 2H2O(l)}`, String.raw`\ce{Fe^{3+} + SCN- <=> FeSCN^{2+}}`, String.raw`\pu{1.5 mol L-1}`]) {
     const html = renderStudyFormula(source, true);
     assert.match(html, /<math[^>]*display="block"/);
-    assert.doesNotMatch(html, /katex-html|<img|<script|<link/);
+    assert.match(html, /class="katex-display"[\s\S]*class="katex-html" aria-hidden="true"/);
+    assert.doesNotMatch(html, /<img|<script|<link|url\(/);
   }
   const chemistry = renderStudyFormula(String.raw`\ce{2H2 + O2 -> 2H2O}`, false);
   assert.match(chemistry, /<msub>/);

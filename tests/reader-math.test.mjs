@@ -47,7 +47,7 @@ test('the reader draws each formula as a marker and keeps its source as the coun
   const html = renderToStaticMarkup(React.createElement(ReadingSections, { sections, labelOf: () => '' }));
   assert.equal((html.match(/class="reader-math(?: reader-math--display)?"/g) || []).length, 5);
   assert.equal((html.match(/class="reader-math reader-math--display"/g) || []).length, 1);
-  assert.match(html, /<span class="reader-math__view" data-study-marker="true"><span class="katex"><math/);
+  assert.match(html, /<span class="reader-math__view" data-study-marker="true"><span class="katex"><span class="katex-mathml"><math/);
   const counted = countedText(html);
   for (const formula of splitStudyMath(STORED).filter(piece => typeof piece !== 'string')) assert.ok(counted.includes(formula.raw), formula.raw);
   assert.match(counted, /价格 \$5 and \$10/, 'currency stays text');

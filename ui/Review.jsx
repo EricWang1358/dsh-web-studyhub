@@ -29,6 +29,7 @@ import { askForLeeches } from "./wrongbook-model.js";
 import RoundLookBack from "./review/RoundLookBack.jsx";
 import RoundSetup from "./review/RoundSetup.jsx";
 import { resultTarget } from "./review/round-setup.js";
+import { similarWinsText } from "./review/similar-words.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -220,6 +221,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               <p className="muted summary-topics__empty">{ui("本轮没有低分记录，继续按间隔复习巩固。")}</p>
             )}
           </div>
+          {run.complete && run.similarWins?.length > 0 && <p className="muted" data-similar-wins="">{similarWinsText(run.similarWins)}</p>}
           {leechCount > 0 && (
             <p className="summary-leech">
               {leechCount === 1 ? ui("本轮有 1 道题你已经反复答错。") : uiFormat("本轮有 {0} 道题你已经反复答错。", [leechCount])}

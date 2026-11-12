@@ -3,14 +3,15 @@ import texmath from "markdown-it-texmath";
 import katex from "katex/dist/katex.js";
 import "katex/dist/contrib/mhchem.js";
 import { safeStudyImage } from './study-media.js';
+import { installMathStyle } from './study-math-render.js';
 
-// Parser and math renderer are bundled locally. MathML avoids a font/CDN
-// dependency and uses the host browser's native math layout.
+// Parser and math renderer are bundled locally. Maths is drawn as the formula unit draws it (ui/study-math-render.js, #996): KaTeX's HTML with its own
+// fonts, the MathML beside it for screen readers; the stylesheet goes into the document with the first note rendered.
 /** `mathRules` replace how the formula tokens (math_inline, math_inline_double, math_block, math_block_eqno) are written out. */
 export function createMarkdown(mathRules = {}, { markerCaptions = false } = {}) {
   const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
     .use(texmath, { engine: katex, delimiters: "dollars",
-      katexOptions: { output: "mathml", throwOnError: false } });
+      katexOptions: { output: "htmlAndMathml", throwOnError: false } });
   Object.assign(md.renderer.rules, mathRules);
   const renderImage = md.renderer.rules.image;
   md.renderer.rules.image = (tokens, index, options, env, self) => {
@@ -24,4 +25,7 @@ export function createMarkdown(mathRules = {}, { markerCaptions = false } = {}) 
 }
 
 const renderer = createMarkdown();
-export const renderNoteMarkdown = (source, options = {}) => renderer.render(String(source || ""), options);
+export const renderNoteMarkdown = (source, options = {}) => {
+  installMathStyle();
+  return renderer.render(String(source || ""), options);
+};
