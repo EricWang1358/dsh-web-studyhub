@@ -1,5 +1,5 @@
 // @ts-check
-import { reviewEntryKey } from '../async.js';
+import { mergeReviewPoll, reviewEntryKey } from '../async.js';
 import { mergeAssistance, restoredDraft } from './draft-persistence.js';
 import { hasOptions } from '../../lib/card-kinds.js';
 
@@ -65,6 +65,24 @@ export function autopilotPlan({ autopilot, page, passed, complete, teaching, ski
    the autopilot before reading it. The hold is that question's key (advanceKeyOf of the run when the jump opened it); the switch stays on and nothing about the setting
    changes. The hold ends when any other question is on screen: 回到第 N 题 and every other move go through there, so the autopilot is as before. */
 export const keepAutopilotHold = (holdKey, advanceKey) => (holdKey && holdKey === advanceKey ? holdKey : '');
+
+/* ── the poll of the open question ── */
+
+export function mergeReviewPollWithFollowups(current, next) {
+  const merged = mergeReviewPoll(current, next);
+  if (!current || !next || current.id !== next.id || (current.queueVersion || 0) !== (next.queueVersion || 0)
+    || current.index !== next.index || current.revealed !== next.revealed || !!current.feedback !== !!next.feedback) return merged;
+  if (JSON.stringify(merged.followups) === JSON.stringify(next.followups)) return merged;
+  return { ...merged, followups: next.followups };
+}
+
+/** What one poll of the open question tells the poll loop (#1011): `unchanged` when the answer changes nothing on screen (the loop slows down), `running` while a
+    helper task works on this question (the loop keeps 4 s). */
+export const reviewPollResult = (current, next, running = false) =>
+  (mergeReviewPollWithFollowups(current, next) === current ? { unchanged: true, running } : { running });
+
+/** A helper task (帮我弄懂, 修题, 出前置题) is running on this question: the library's list of background tasks says so. 批改 has its own waiting line. */
+export const assistRunningOn = (tasks, cardId) => !!cardId && (tasks || []).some((task) => task.cardId === cardId && task.status === 'running' && task.mode !== 'grade');
 
 /* ── 先跳过 and the questions still waiting (#1008) ── */
 

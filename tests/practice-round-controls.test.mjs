@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { freshRoundCount } from '../lib/practice-settings.js';
 import { followupDigest } from '../lib/followup.js';
-import { pendingCount, shortcutAction, skipTarget } from '../ui/review/session-logic.js';
+import { assistRunningOn, pendingCount, reviewPollResult, shortcutAction, skipTarget } from '../ui/review/session-logic.js';
 import { reviewPollDelay } from '../ui/poll-schedule.js';
 
 /* #1008 / #1009 / #1011: inside a practice round the learner can set a question aside (先跳过, the existing review.move {index}) and stop the round with a
@@ -160,4 +160,18 @@ test('the practice page polls every 4 s, slows down while nothing changes up to 
   assert.ok(delays[3] > 4000, 'slower after a few unchanged answers');
   assert.equal(Math.max(...delays), 30000, 'capped at 30 s');
   assert.equal(reviewPollDelay(4000, { unchanged: 50, running: true }), 4000, 'a running helper task keeps the quick rhythm');
+});
+
+test('a poll that changes nothing says so, and a helper task on the open question keeps the poll quick', () => {
+  const open = { id: 'r', index: 0, queueVersion: 0, revealed: false, feedback: null, card: { id: 'c' }, followups: [] };
+  assert.deepEqual(reviewPollResult(open, { ...open }), { unchanged: true, running: false });
+  assert.deepEqual(reviewPollResult(open, { ...open, followups: [{ id: 'f1', question: 'Q', answer: 'A' }] }), { running: false }, 'a new Q&A is a change');
+  assert.deepEqual(reviewPollResult(open, { ...open, card: { id: 'c', prompt: 'fixed' } }), { running: false }, 'a fixed question is a change');
+  assert.deepEqual(reviewPollResult(open, { ...open }, true), { unchanged: true, running: true });
+  const tasks = [{ cardId: 'c', status: 'running', mode: 'ask' }, { cardId: 'x', status: 'running', mode: 'improve' }, { cardId: 'g', status: 'running', mode: 'grade' }];
+  assert.equal(assistRunningOn(tasks, 'c'), true);
+  assert.equal(assistRunningOn(tasks, 'g'), false, '批改 has its own waiting line');
+  assert.equal(assistRunningOn(tasks, 'y'), false);
+  assert.equal(assistRunningOn([{ cardId: 'c', status: 'done', mode: 'ask' }], 'c'), false);
+  assert.equal(assistRunningOn(undefined, 'c'), false);
 });
