@@ -7,9 +7,10 @@ import { StudyService } from '../lib/service.js';
 import { emptyState } from '../lib/store.js';
 import { planPath } from '../lib/mastery.js';
 import {
-  PRACTICE_LIMITS, ROUND_ONLY, ROUND_SIZE_LIMITS, checkedRoundOnly, checkedRoundSize, freshRoundCount, mergePracticeSettings, normalizePracticeSettings,
+  LAST_ROUND_LIMITS, PRACTICE_LIMITS, ROUND_ONLY, ROUND_SIZE_LIMITS, checkedNewCount, checkedRoundOnly, checkedRoundSize, freshRoundCount, mergePracticeSettings, normalizePracticeSettings,
   resolvePracticeSettings, roundLimits, validatePracticePatch,
 } from '../lib/practice-settings.js';
+import english from '../lib/application-messages-en.js';
 import { loadUi } from './helpers/ui-module.mjs';
 import { chaptersOf, resultTarget, roundArgs, roundChoice, roundDefaults, roundKey, sameRound } from '../ui/review/round-setup.js';
 
@@ -120,7 +121,7 @@ test('an empty range says which one, and a settings-only request never resumes t
   const second = await service.call('review.start', { mode: 'path', course: 'A', daily: true, size: 10 });
   assert.notEqual(second.id, first.id, 'a size asked for starts a round of that size');
   assert.equal(second.total, 10);
-  assert.equal((await service.call('review.start', { mode: 'path', course: 'A', daily: true })).id, second.id, 'and without one, the open round is resumed as ever');
+  assert.equal((await service.call('review.start', { mode: 'path', course: 'A', daily: true })).id, first.id, "and a plain start resumes the day's round as ever, not the one with a size");
 });
 
 test('planPath: only keeps one kind, and never falls back to "ahead"', () => {
@@ -231,7 +232,17 @@ test('the result page offers the popover where the next-round button starts a ro
   const run = (extra) => ({ complete: true, mode: 'path', scope: [{ deckId: 'a' }], ...extra });
   assert.deepEqual(resultTarget(run({ dailyCourse: 'A' }), { kind: 'path', course: 'A' }), { course: 'A', scope: undefined, range: undefined });
   assert.deepEqual(resultTarget(run({}), { kind: 'scope', scope: [{ deckId: 'a' }] }), { course: undefined, scope: [{ deckId: 'a' }], range: undefined });
-  assert.deepEqual(resultTarget(run({ mode: 'new' }), { kind: 'scope', scope: [{ deckId: 'a' }] }), { course: undefined, scope: [{ deckId: 'a' }], range: 'new' }, 'after a round of new ones the range starts on 新题');
+  assert.deepEqual(resultTarget(run({ mode: 'new' }), { kind: 'scope', scope: [{ deckId: 'a' }] }), { course: undefined, scope: [{ deckId: 'a' }], range: undefined }, 'without 继续下一批新题 as the next step it is an ordinary next round');
+  // After a round of new ones the next-round button is 继续下一批新题 (mode new, the new-question count, reading order): the popover opens on exactly that
+  // (the same size, 新题) and left alone it starts exactly what that button starts.
+  const newBatch = { mode: 'new', scope: [{ deckId: 'a' }], count: 10, ordered: true, fresh: true };
+  const target = resultTarget(run({ mode: 'new' }), { kind: 'path', course: undefined }, { newBatch });
+  assert.deepEqual(target, { course: undefined, scope: [{ deckId: 'a' }], range: 'new', size: 10, base: newBatch });
+  const defaults = roundDefaults({ roundSize: 20 }, target);
+  assert.deepEqual(defaults, { size: 10, range: 'new', chapter: null }, 'the size of the button, not the round size');
+  assert.deepEqual(roundArgs({ ...defaults }, target, defaults), newBatch, 'unchanged: the button\'s own arguments');
+  assert.deepEqual(roundArgs({ ...defaults, size: 15 }, target, defaults), { mode: 'path', scope: [{ deckId: 'a' }], fresh: true, size: 15, only: 'new' }, 'changed: a path round of the same scope');
+  assert.deepEqual(resultTarget(run({ mode: 'path' }), { kind: 'path', course: 'A' }, { newBatch: null }), { course: 'A', scope: undefined, range: undefined });
   assert.deepEqual(resultTarget(run({}), { kind: 'path', reason: 'scope-done' }), { course: undefined, scope: undefined, range: undefined }, 'every active course');
   for (const [name, r, destination] of [
     ['an exam', run({ mode: 'exam' }), { kind: 'scope', scope: [] }],
@@ -244,4 +255,56 @@ test('the result page offers the popover where the next-round button starts a ro
     ['a course batch', run({ mode: 'course' }), { kind: 'path' }],
     ['no destination', run({}), undefined],
   ]) assert.equal(resultTarget(r, destination), null, name);
+});
+
+/* ── review fixes of the gate: prerequisites, run keys, the messages, the caps ── */
+
+test('a 错题 or 到期 round holds that kind alone: unlearned prerequisites are not pulled in, so a size keeps the wrong ones', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'study-round-setup-pre-'));
+  const service = new StudyService(root);
+  t.after(async () => { service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
+  const cards = [], attempts = [];
+  for (let n = 0; n < 10; n++) { cards.push(make(`pre${n}`)); cards.push({ ...make(`weak${n}`), requires: [{ deckId: 'p', cardId: `pre${n}` }] }); attempts.push({ deckId: 'p', quiz_id: `weak${n}`, grade: 1, timestamp: PAST }); }
+  await service.store.update((s) => { Object.assign(s, { decks: [{ id: 'p', title: 'P', course: 'C', cards }], attempts, focus: { mode: 'class', course: 'C' } }); });
+  const wrong = await started(service, { course: 'C', daily: true, only: 'wrong' });
+  assert.equal(ids(wrong).length, 10, 'the ten wrong questions, not twenty');
+  assert.ok(ids(wrong).every((id) => id.startsWith('weak')));
+  const capped = await started(service, { course: 'C', daily: true, only: 'wrong', size: 10 });
+  assert.equal(ids(capped).length, 10, 'a size of ten keeps ten wrong questions');
+  assert.ok(ids(capped).every((id) => id.startsWith('weak')), 'and no prerequisite pushed one out');
+  const plain = await started(service, { course: 'C', daily: true, fresh: true });
+  assert.ok(ids(plain).some((id) => id.startsWith('pre')), 'the plain path still pulls prerequisites in, as ever');
+});
+
+test('a round with a size or a range has a key of its own: it never closes today\'s round and is never resumed as it', async (t) => {
+  const service = await library(t);
+  const today = await service.call('review.start', { mode: 'path', course: 'A', daily: true });
+  const own = await service.call('review.start', { mode: 'path', course: 'A', daily: true, only: 'wrong' });
+  assert.notEqual(own.id, today.id);
+  let state = await service.store.read();
+  assert.equal(state.runs.find((r) => r.id === today.id).closedAt, undefined, 'today\'s open round is left as it is, with or without fresh');
+  assert.notEqual(state.runs.find((r) => r.id === own.id).key, state.runs.find((r) => r.id === today.id).key);
+  assert.equal((await service.call('review.start', { mode: 'path', course: 'A', daily: true })).id, today.id, 'a plain start resumes today\'s round, not the wrong-only one');
+  const again = await service.call('review.start', { mode: 'path', course: 'A', daily: true, only: 'wrong' });
+  assert.notEqual(again.id, own.id, 'asking for a size or a range always starts that round');
+  state = await service.store.read();
+  assert.ok(state.runs.find((r) => r.id === own.id).closedAt, 'the earlier round of the same kind of request is the one that closes');
+});
+
+test('the English of the bound messages is built from the limits, so a change of the limits cannot leave a refusal untranslated', () => {
+  for (const [name, check] of [['round size', () => checkedRoundSize(ROUND_SIZE_LIMITS.min - 1)], ['new count', () => checkedNewCount(0)]]) {
+    let message = '';
+    try { check(); } catch (error) { message = error.message; }
+    assert.ok(message, name);
+    assert.ok(english[message], `${name}: "${message}" has an English entry`);
+  }
+});
+
+test('lastRounds keeps short strings only: a long course name, deck id or topic is not remembered', () => {
+  const long = 'x'.repeat(LAST_ROUND_LIMITS.text + 1);
+  assert.throws(() => validatePracticePatch({ lastRounds: { [long]: { size: 10, range: 'due' } } }), /lastRounds/);
+  assert.throws(() => validatePracticePatch({ lastRounds: { A: { size: 10, range: 'due', chapter: { deckId: long, topic: 'T' } } } }), /lastRounds/);
+  assert.throws(() => validatePracticePatch({ lastRounds: { A: { size: 10, range: 'due', chapter: { deckId: 'd', topic: long } } } }), /lastRounds/);
+  assert.ok(LAST_ROUND_LIMITS.text <= 120, 'a reasonable length');
+  assert.equal(normalizePracticeSettings({ lastRounds: { [long]: { size: 10, range: 'due' }, A: { size: 10, range: 'due' } } }).lastRounds.A.size, 10);
 });

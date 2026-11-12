@@ -238,8 +238,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   /* 本轮设置 (#1010, ui/review/RoundSetup.jsx): the popover beside the start button, offered only where the button starts a round (a round to resume is resumed as it is).
      The button itself is untouched: `plan.action` stays what it was, and `base` is exactly the arguments it sends. */
   plan.roundSetup = plan.kind === 'path' && !plan.action?.disabled && !todayRun
-    ? { data, context: { course: today.course ?? undefined, scope: undefined, base: dailyPathArgs(today) }, chapterRefs: today.course != null ? today.scope ?? [] : [], start,
-      onPickPages: !interview && !starter && pickPagesItems.length > 0 && typeof onPickPages === 'function' ? () => onPickPages(pickPagesSourceIds) : undefined }
+    ? { data, context: { course: today.course ?? undefined, scope: undefined, base: dailyPathArgs(today) }, chapterRefs: today.course != null ? today.scope ?? [] : [], start }
     : null;
   plan.stageAdvance = !starter && focusMethod?.own && focusMethod.gate?.ready && focusMethod.nextStage
     ? {

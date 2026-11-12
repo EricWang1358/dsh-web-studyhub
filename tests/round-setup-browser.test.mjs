@@ -21,8 +21,8 @@ const make = (id, topic, extra = {}) => ({ id, kind: 'quiz', topic, objective: '
   options: [{ id: 'a', text: 'yes', correct: true, explanation: 'Right.' }, { id: 'b', text: 'no', correct: false, explanation: 'Wrong.' }], ...extra });
 const PAST = '2026-10-01T00:00:00Z';
 const WORDS = {
-  zh: { setup: '本轮设置', mixed: '混合', due: '到期', fresh: '新题', wrong: '错题', chapter: '只练某章', whole: '整个范围', start: '开始本轮', makeDefault: '设为默认', end: /到此为止…/, confirm: '到此为止，看结果' },
-  en: { setup: 'This round', mixed: 'Mixed', due: 'Due', fresh: 'New', wrong: 'Mistakes', chapter: 'One chapter only', whole: 'The whole range', start: 'Start this round', makeDefault: 'Make default', end: /Stop here…/, confirm: 'Stop and see the result' },
+  zh: { noDue: /没有到期/, setup: '本轮设置', mixed: '混合', due: '到期', fresh: '新题', wrong: '错题', chapter: '只练某章', whole: '整个范围', start: '开始本轮', makeDefault: '设为默认', end: /到此为止…/, confirm: '到此为止，看结果' },
+  en: { noDue: /are due now/, setup: 'This round', mixed: 'Mixed', due: 'Due', fresh: 'New', wrong: 'Mistakes', chapter: 'One chapter only', whole: 'The whole range', start: 'Start this round', makeDefault: 'Make default', end: /Stop here…/, confirm: 'Stop and see the result' },
 };
 
 async function serve(t) {
@@ -52,14 +52,18 @@ const geometry = (page) => page.evaluate(() => {
   const box = document.querySelector('.round-setup__panel')?.getBoundingClientRect();
   return { overflow: document.documentElement.scrollWidth - innerWidth, inside: box ? box.left >= -1 && box.right <= innerWidth + 1 : null };
 });
-// The toolbar re-renders while the round loads, which can close a menu just opened: open it again until the item is there.
 async function chooseMore(page, name) {
-  const item = page.getByRole('menuitem', { name });
-  for (let attempt = 0; attempt < 5; attempt++) {
-    if (!(await item.count())) await page.locator('.review-more-trigger').click();
-    try { await item.click({ timeout: 3000 }); return; } catch { /* closed again: retry */ }
+  await page.locator('.review-more-trigger').click();
+  await page.getByRole('menuitem', { name }).click();
+}
+// The choice is remembered once the round has started, in the background: wait for it.
+async function lastRounds(server, expected) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const found = (await previewCall(server, 'export', {})).settings.practice?.lastRounds;
+    if (JSON.stringify(found) === JSON.stringify(expected)) return found;
+    await new Promise((done) => setTimeout(done, 100));
   }
-  await item.click({ timeout: 3000 });
+  return (await previewCall(server, 'export', {})).settings.practice?.lastRounds;
 }
 async function openSettingsPractice(page) {
   if (!(await page.locator('.sidebar').count())) { await page.locator('.nav-menu-toggle').click(); await page.locator('.nav-drawer .sidebar').waitFor(); }
@@ -112,9 +116,8 @@ test('本轮设置: never opened it changes nothing; opened, a 10-question 错�
     assert.equal(wrongRun.entries.length, 10, `${where}: a round of ten`);
     assert.ok(idsOf(wrongRun).every((id) => id.startsWith('weak')), `${where}: wrong questions only`);
     assert.match(await page.locator('.question-card .question').first().innerText(), /Question weak\d+\?/, `${where}: the page shows one of them`);
-    const saved = (await previewCall(server, 'export', {})).settings.practice;
-    assert.deepEqual(saved.lastRounds, { Course: { size: 10, range: 'wrong' } }, `${where}: the choice is kept for the course`);
-    assert.equal(saved.roundSize ?? 20, 20, `${where}: the default is untouched`);
+    assert.deepEqual(await lastRounds(server, { Course: { size: 10, range: 'wrong' } }), { Course: { size: 10, range: 'wrong' } }, `${where}: the choice is kept for the course`);
+    assert.equal((await previewCall(server, 'export', {})).settings.practice.roundSize ?? 20, 20, `${where}: the default is untouched`);
 
     /* 3. The result page offers it beside its next-round button, opened on the same choice; a round of due ones from there. */
     await chooseMore(page, words.end);
@@ -139,10 +142,20 @@ test('本轮设置: never opened it changes nothing; opened, a 10-question 错�
     await openPopover(page);
     assert.equal(await pressed(page, words.due), 'true', `${where}: prefilled with the last choice`);
     assert.equal(await panel(page).locator('input[name="round-size"]').inputValue(), '10');
-    await panel(page).getByRole('button', { name: words.mixed, exact: true }).click();
     await panel(page).getByRole('combobox').click();
     await page.getByRole('option', { name: 'New chapter' }).click();
     assert.equal(await panel(page).isVisible(), true, `${where}: choosing a chapter does not close the popover`);
+    // 到期 inside a chapter with nothing due: the refusal is said in the open popover, nothing is remembered, and a second press is not needed to see it.
+    await panel(page).getByRole('button', { name: words.due, exact: true }).waitFor();
+    sent.length = 0;
+    await panel(page).locator('[data-usage="round.setup.start"]').click();
+    await panel(page).locator('[role="alert"]').waitFor();
+    assert.match(await panel(page).locator('[role="alert"]').innerText(), words.noDue, `${where}: the refusal is shown`);
+    assert.equal(await panel(page).isVisible(), true, `${where}: the popover stays open on a refusal`);
+    assert.equal(await page.locator('.question-card').count(), 0, `${where}: no round started`);
+    assert.equal(sent.length, 1, `${where}: one request, no retry`);
+    assert.deepEqual((await previewCall(server, 'export', {})).settings.practice.lastRounds, { Course: { size: 10, range: 'due' } }, `${where}: the refused choice is not remembered`);
+    await panel(page).getByRole('button', { name: words.mixed, exact: true }).click();
     sent.length = 0;
     await panel(page).locator('[data-usage="round.setup.start"]').click();
     await page.locator('.question-card').waitFor({ timeout: 30000 });
@@ -187,7 +200,9 @@ test('本轮设置: never opened it changes nothing; opened, a 10-question 错�
     await page.keyboard.press('Enter');
     await panel(page).waitFor();
     assert.equal(await page.evaluate(() => !!document.activeElement?.closest('.round-setup__panel')), true, `${where}: Enter opens it with focus inside`);
-    assert.deepEqual(errors, [], `${where}: no page errors`);
+    // The one refusal above (the browser logs a 400 for it) is the only console error.
+    assert.equal(errors.filter((error) => /status of 400/.test(error)).length, 1, `${where}: the one refused request`);
+    assert.deepEqual(errors.filter((error) => !/status of 400/.test(error)), [], `${where}: no page errors`);
     await context.close();
   }
 });

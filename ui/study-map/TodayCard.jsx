@@ -61,7 +61,7 @@ export default function TodayCard({ plan, todayLabel, quiet = false, extra = nul
             </Button>
             {/* 本轮设置: one more click for a round that is not the day's usual (ui/review/RoundSetup.jsx); the button beside it is unchanged. */}
             {plan.roundSetup && <RoundSetup data={plan.roundSetup.data} context={plan.roundSetup.context} chapterRefs={plan.roundSetup.chapterRefs}
-              onStart={plan.roundSetup.start} onPickPages={plan.roundSetup.onPickPages} className="today-setup" />}
+              onStart={plan.roundSetup.start} className="today-setup" />}
           </div>
         )}
         </div>
