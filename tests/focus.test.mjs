@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
 
-test("current course persists and its newest deck supplies only ten fresh cards", async () => {
+test("current course persists and its newest deck supplies one round of fresh cards (the round size, ten here)", async () => {
   const root = await mkdtemp(join(tmpdir(), "study-focus-"));
   const service = new StudyService(root);
   await service.store.update((state) => {
@@ -18,6 +18,8 @@ test("current course persists and its newest deck supplies only ten fresh cards"
     state.decks.push({ id: "old", title: "Old", folder: "Platform Engineering", createdAt: "2026-09-01", cards: make("old", 15) });
     state.decks.push({ id: "new", title: "New", folder: "Platform Engineering", createdAt: "2026-09-25", cards: make("new", 15) });
     state.decks.push({ id: "other", title: "Other", folder: "Architecture", createdAt: "2026-09-26", cards: make("other", 15) });
+    // The home's new-question round is the round size of 设置 › 练习 (#1009).
+    state.settings = { ...state.settings, practice: { roundSize: 10 } };
   });
   await service.call("focus.set", { course: "Platform Engineering" });
   const restored = new StudyService(root);

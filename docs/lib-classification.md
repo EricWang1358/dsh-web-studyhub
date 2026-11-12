@@ -40,7 +40,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-book-own-titles.js`: 2 ui files; 5 other lib files
 - `lib/course-book-qa-text.js`: 1 ui file; 3 other lib files
 - `lib/course-method-gate.js`: 1 ui file; contexts courses, library; 1 other lib file
-- `lib/course-method-progress.js`: 1 ui file; contexts courses, library; 7 other lib files
+- `lib/course-method-progress.js`: 1 ui file; contexts courses, library, study; 7 other lib files
 - `lib/course-method-schedule.js`: 1 ui file; contexts courses, library
 - `lib/course-method.js`: 4 ui files; context courses; 4 other lib files
 - `lib/course-rules.js`: 3 ui files; context authoring; 3 other lib files
@@ -96,7 +96,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/passage-translation.js`: 2 ui files; contexts generation, materials; 1 other lib file
 - `lib/plain-reason.js`: 2 ui files; 2 other lib files
 - `lib/plan-weekly.js`: 1 ui file; 2 other lib files
-- `lib/practice-settings.js`: 5 ui files; contexts coach, study, system; 8 other lib files
+- `lib/practice-settings.js`: 7 ui files; contexts coach, study, system; 8 other lib files
 - `lib/question-references.js`: 3 ui files; context generation; 5 other lib files
 - `lib/question-voice.js`: 3 ui files; 3 other lib files
 - `lib/quote-locate.js`: 1 ui file; context generation; 12 other lib files
@@ -149,7 +149,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/experimental.js`: contexts generation, library, system
 - `lib/focus-progress.js`: contexts generation, library; 4 other lib files
 - `lib/focus.js`: contexts audio, authoring, bank, courses, generation, library, materials, recording, study; 27 other lib files
-- `lib/followup.js`: contexts bank, coach, materials; 5 other lib files
+- `lib/followup.js`: contexts bank, coach, materials, study; 5 other lib files
 - `lib/generation.js`: contexts authoring, bank, generation, library, study; 24 other lib files
 - `lib/guided-question-prep.js`: contexts jobs, study
 - `lib/inbox.js`: contexts audio, bank, coach, generation, library, notes, notifications, recording, study; 4 other lib files

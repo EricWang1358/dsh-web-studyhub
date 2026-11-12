@@ -45,7 +45,14 @@ test('the other ways to start are links: the course batch, new questions only, t
   m.setUiLanguage('zh');
   const route = { course: 'A', current: 0, chapters: [{}, {}], next: { label: '第一章', fresh: 5, reviews: 2 } };
   const { home, started } = plan({ route, todayPatch: { elsewhere: 6 } });
-  assert.deepEqual(labels(home), ['课程下一批 · 7 题', '只学当前课程新题 · 10 题', '其他课程另有 6 题到期或薄弱 · 一起学']);
+  // 只学当前课程新题 is one round: the round size of 设置 › 练习 (default 20), or what waits when fewer do (#1009).
+  assert.deepEqual(labels(home), ['课程下一批 · 7 题', '只学当前课程新题 · 14 题', '其他课程另有 6 题到期或薄弱 · 一起学']);
+  for (const size of [5, 10]) {
+    const sized = plan({ data: { settings: { practice: { roundSize: size } } } });
+    assert.ok(labels(sized.home).includes(`只学当前课程新题 · ${size} 题`), `round size ${size}`);
+    sized.home.alternatives.find(([label]) => /只学当前课程新题/.test(label))[1]();
+    assert.equal(sized.started.at(-1).count, size, 'the button starts as many as the label says');
+  }
   home.alternatives.at(-1)[1]();
   assert.deepEqual(started, [{ mode: 'path' }], 'together with every active course');
   assert.deepEqual(labels(plan().home).filter((label) => /其他课程/.test(label)), [], 'nothing elsewhere: no link');

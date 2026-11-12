@@ -60,7 +60,7 @@ test('the other ways to start sit under one folded line: new questions, due revi
   assert.match(html, /<details class="desk-more"><summary>其他开始方式<\/summary>/);
   const more = html.slice(html.indexOf('<details class="desk-more">'), html.indexOf('</details>', html.indexOf('<details class="desk-more">')));
   assert.match(more, /课程下一批 · 3 题/);
-  assert.match(more, /只学当前课程新题 · 10 题/);
+  assert.match(more, /只学当前课程新题 · 14 题/, 'one round (the round size, 20 by default) or what waits when fewer do');
   assert.doesNotMatch(more, /先讲后练 · 学习流/);
   assert.match(more, /刷 4 道为你定制的题/);
   assert.match(more, /2 题薄弱/);
