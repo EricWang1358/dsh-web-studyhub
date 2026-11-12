@@ -54,7 +54,7 @@ test('from the draft page: save, quick publish into the chosen deck, start the n
   await m.publishAndPractice({ ...h.parts, draft: cleanDraft(), intoDeck: 'deckA', practice: { roundSize: 10 } });
   assert.deepEqual(h.calls.map(([action]) => action), ['draft.save', 'draft.publish.quick', 'review.start']);
   assert.deepEqual(h.calls[1][1], { id: 'd1', draftVersion: 5, mergeTargetId: 'deckA' }, 'publishes the version it just saved, into the chosen deck');
-  assert.deepEqual(h.calls[2][1], { deckId: 'deck1', mode: 'new', count: 10, ordered: true, fresh: true }, 'one round of new questions: the round size of 设置 › 练习 (#1009)');
+  assert.deepEqual(h.calls[2][1], { deckId: 'deck1', mode: 'new', count: 5, ordered: true, fresh: true }, 'one round of new questions: the new-question limit of 设置 › 练习 (#1009)');
   assert.deepEqual(h.effects, [['openDraft', 5], ['clearRecovery'], ['enterRun', 'run1'], ['toast', '已发布，开始学习本轮 7 道新题。']]);
   assert.deepEqual(h.options, [{ afterNavigation: true }], 'the follow-up work survives the page change');
 });
@@ -64,7 +64,7 @@ test('from the finished card: no save (nothing was edited), the same publish and
   await m.publishAndPractice({ ...h.parts, draft: cleanDraft(), save: false });
   assert.deepEqual(h.calls.map(([action]) => action), ['draft.publish.quick', 'review.start']);
   assert.deepEqual(h.calls[0][1], { id: 'd1', draftVersion: 4 });
-  assert.equal(h.calls[1][1].count, 20, 'no saved practice settings: the default round size');
+  assert.equal(h.calls[1][1].count, 10, 'no saved practice settings: 10 new of the default 20');
   assert.deepEqual(h.effects, [['clearRecovery'], ['enterRun', 'run1'], ['toast', '已发布，开始学习本轮 7 道新题。']]);
 });
 

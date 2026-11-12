@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { freshRoundCount } from '../lib/practice-settings.js';
+import { freshRoundCount, roundLimits } from '../lib/practice-settings.js';
 import { followupDigest } from '../lib/followup.js';
 import { assistRunningOn, pendingCount, reviewPollResult, shortcutAction, skipTarget } from '../ui/review/session-logic.js';
 import { reviewPollDelay } from '../ui/poll-schedule.js';
@@ -126,10 +126,31 @@ test('an exam never carries the look-back', async (t) => {
 
 /* ── the size of the next batch (#1009) ── */
 
-test('「继续下一批新题」 takes the round size of the practice settings, whatever it is', () => {
-  for (const size of [5, 10, 30]) assert.equal(freshRoundCount({ roundSize: size }), size);
-  assert.equal(freshRoundCount(undefined), 20, 'the default round size when nothing was saved');
-  assert.equal(freshRoundCount({ roundSize: 999 }), 20, 'an out-of-range value falls back to the default');
+test('a round of new questions takes the new-question limit of the round size (设置 › 练习: 「新题最多 N 道」)', () => {
+  for (const [size, fresh] of [[5, 3], [10, 5], [30, 15]]) {
+    assert.equal(freshRoundCount({ roundSize: size }), fresh, `round size ${size}`);
+    assert.equal(freshRoundCount({ roundSize: size }), roundLimits(size).newLimit, 'the same number the settings hint shows');
+  }
+  assert.equal(freshRoundCount(undefined), 10, 'the default: 20 a round, at most 10 new');
+  assert.equal(freshRoundCount({ roundSize: 999 }), 10, 'an out-of-range value falls back to the default');
+});
+
+test('the host defaults for new questions are the same number (review.start mode new, focus.fresh)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'fresh-defaults-'));
+  const service = new StudyService(root);
+  try {
+    await service.store.update((s) => {
+      s.decks.push({ id: 'n', title: 'New', course: 'C', cards: Array.from({ length: 30 }, (_, i) => quiz(`n${i}`)) });
+      s.settings = { ...s.settings, practice: { roundSize: 30 } };
+    });
+    await service.call('focus.set', { course: 'C' });
+    assert.equal((await service.call('snapshot')).focus.fresh.length, 15, 'focus.fresh: the new-question limit of a 30 round');
+    const run = await service.call('review.start', { mode: 'new', currentCourse: true, fresh: true });
+    assert.equal(run.total, 15, 'review.start mode new without a count');
+  } finally {
+    await service.dispose();
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
 });
 
 /* ── the keys (#1008) ── */
