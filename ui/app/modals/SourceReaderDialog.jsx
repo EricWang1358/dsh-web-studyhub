@@ -20,8 +20,9 @@ export default function SourceReaderDialog({ modal, onClose }) {
   const canPractice = hasContext(data, 'bank') && hasContext(data, 'study');
   const canDraft = pageAvailable(data, 'draft');
   const canBank = hasContext(data, 'bank');
-  // 本节题目 (#1013): the round of 做这几页的题, answered beside the text (ReaderRun) instead of on the practice page.
-  const inlinePractice = useMemo(() => ({ start: (refs, reading, then) => intents.practiceFromReading({ refs, reading }, { then }), Run: ReaderRun }), [intents]);
+  // 本节题目 (#1013): the round of 做这几页的题, answered beside the text (ReaderRun) instead of on the practice page; an open round of the same
+  // questions is taken up, so the panel never closes the round the practice page shows.
+  const inlinePractice = useMemo(() => ({ start: (refs, reading, then) => intents.practiceFromReading({ refs, reading }, { then, takeUp: true }), Run: ReaderRun }), [intents]);
   // The reader is a dialog over the page: a Settings page opened from it is not seen unless the dialog goes (the host's own model settings open beside it and the reader stays).
   const openSettings = (section) => { onClose(); settingsEntry.openSettings(section); };
   const openModelSettings = () => { if (!host.openModelSettings) onClose(); settingsEntry.openModelSettings(); };

@@ -45,10 +45,10 @@ export function useIntents({ core, lib, nav, session, learn }) {
 
   // 读 → 做这几页的题 → 回到阅读: the run keeps where the learner was reading (lib/reading-return.js), so the way back is on the
   // run itself and survives closing the app; nothing is held only in memory. `then` (the reader's 本节题目, #1013) keeps the round in the reader
-  // instead of going to the practice page: the same request, only where it is answered differs.
-  const practiceFromReading = useCallback(({ refs: pages, reading }, { then } = {}) => {
+  // instead of going to the practice page: the same request, only where it is answered differs (`takeUp`: see readingPracticeArgs).
+  const practiceFromReading = useCallback(({ refs: pages, reading }, { then, takeUp = false } = {}) => {
     if (!pages?.length || !reading) return undefined;
-    return act('review.start', readingPracticeArgs(pages, reading, latest.current.page),
+    return act('review.start', readingPracticeArgs(pages, reading, latest.current.page, { takeUp }),
       then || ((started) => { setModal(null); session.enterRun(started); setFocusRequest({}); }));
   }, [act, session, setModal, setFocusRequest]);
 

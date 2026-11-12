@@ -20,8 +20,9 @@ export const practiceArgs = (scope, { fresh = true, returnTo, ...extra } = {}) =
   mode: 'path', ...(scope ? { scope } : {}), ...(fresh ? { fresh: true } : {}), ...(returnTo ? { returnTo } : {}), ...extra,
 });
 /** 读 → 做这几页的题: a practice request that keeps where the learner was reading (lib/reading-return.js) and the page the reader was opened over.
-    The practice page and the reader's own 本节题目 panel (#1013) start their rounds with these same arguments. */
-export const readingPracticeArgs = (scope, reading, page) => practiceArgs(scope, { reading: { ...reading, origin: { page } } });
+    The practice page and the reader's own 本节题目 panel (#1013) start their rounds with these same arguments. `takeUp` (the panel): a round of the same
+    questions still open (on the practice page, or left in the panel) is taken up where it is, instead of being closed by a fresh one. */
+export const readingPracticeArgs = (scope, reading, page, { takeUp = false } = {}) => practiceArgs(scope, { fresh: !takeUp, reading: { ...reading, origin: { page } } });
 const startPath = (call, scope) => call('review.start', practiceArgs(scope));
 
 export const LEARNING_TARGETS = {
