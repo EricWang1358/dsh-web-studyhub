@@ -74,3 +74,14 @@ test('a question looks up its own parts inside its own .review-body: the reader 
   const run = await readFile(new URL('../ui/review/QuestionRun.jsx', import.meta.url), 'utf8');
   assert.match(run, /onAskMore=\{\(event\) => \{ const body = event\?\.currentTarget\?\.closest\?\.\("\.review-body"\)/, '继续追问 opens the 追问 box of its own question');
 });
+
+test('the 批注 handed to the loop keep one identity while their places are the same, so a re-read of the annotations does not walk the text again (#1013)', () => {
+  const link = (cardId, start) => ({ cardId, selection: { sourceId: 's', start, end: start + 4, quote: 'abcd' } });
+  const first = m.notePlaces([link('n1', 0), link('n2', 10)]), again = m.notePlaces([link('n1', 0), link('n2', 10)]);
+  assert.notEqual(first, again, 'a re-read builds new arrays');
+  assert.equal(m.noteKey(first), m.noteKey(again), 'with the same places');
+  assert.notEqual(m.noteKey(first), m.noteKey(m.notePlaces([link('n1', 0), link('n2', 12)])), 'a passage moved is a change');
+  assert.notEqual(m.noteKey(first), m.noteKey(m.notePlaces([link('n1', 0)])), 'a note removed is a change');
+  assert.equal(m.noteKey(m.notePlaces([])), '', 'no note: nothing to place');
+  assert.equal(m.noteKey(m.notePlaces(null)), '');
+});

@@ -26,7 +26,7 @@ import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { displayTitle } from '../../lib/document-title.js';
 import ReadingPractice from './practice/ReadingPractice.jsx';
 import SectionPractice from './practice/SectionPractice.jsx';
-import { notePlaces } from './practice/section-practice.js';
+import { noteKey, notePlaces } from './practice/section-practice.js';
 import RereadBar from './RereadBar.jsx';
 import { masteryText } from './practice/mastery-copy.js';
 import { coverageChipText } from '../coverage/copy.js';
@@ -257,7 +257,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   }), [kept.items, expandSelection]);
   const annotationMarks = useMemo(() => (localMode ? [] : annotationLinks(keptItems).filter(link => annotationMode === 'annotate' || link.explain)), [annotationMode, keptItems, localMode]);
   // 批注 n of the 本节题目 line (#1013): the kept threads (not the AI 词解), placed with the questions by the reading loop.
-  const noteLinks = useMemo(() => (localMode ? [] : notePlaces(annotationLinks(keptItems).filter(link => !link.explain))), [keptItems, localMode]);
+  const notesNow = useMemo(() => (localMode ? [] : notePlaces(annotationLinks(keptItems).filter(link => !link.explain))), [keptItems, localMode]);
+  // One identity while the places are the same (practice/section-practice.js noteKey): the reading loop places them only when they change.
+  const notesKey = noteKey(notesNow);
+  const noteLinks = useMemo(() => notesNow, [notesKey]); // eslint-disable-line react-hooks/exhaustive-deps -- the key is the content
   const expandedLinks = useMemo(() => links.map(link => {
     const selection = expandSelection(link.selection);
     return selection === link.selection ? link : { ...link, selection };

@@ -49,3 +49,5 @@ export function sectionStats({ cards = [], wrongKeys = null, followups = [], ids
 /** The 批注 of a material as the loop places them: one entry per passage (annotation/model annotationLinks), each with its passage as its one link. */
 export const notePlaces = links => (links || []).filter(link => link?.selection?.sourceId).map(link => ({ deckId: 'note', cardId: link.cardId,
   links: [{ sourceId: link.selection.sourceId, start: link.selection.start, end: link.selection.end, selection: link.selection }] }));
+/** What the placement of those 批注 depends on: the same key, the same places (a re-read of the annotations walks nothing again); none: ''. */
+export const noteKey = places => places.map(place => [place.cardId, ...place.links.map(item => `${item.sourceId}:${item.start}-${item.end}:${item.selection?.quote ?? ''}`)].join('|')).join('\n');
