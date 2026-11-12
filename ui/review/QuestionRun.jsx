@@ -42,9 +42,12 @@ import { resolveBookSettings } from "../../lib/book-settings.js";
 import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 import { roundAt, roundWords } from "./round-words.js";
+import { finishedTask } from "./session-logic.js";
 import { fixedOptionsOf } from "../../lib/card-kinds.js";
 import { deferUnstudiedPagesPlan, runDeferUnstudiedPages } from "../document-preview/practice/open-reader-pages.js";
 import QuestionSourcePage from "./QuestionSourcePage.jsx";
+import RoundPending from "./RoundPending.jsx";
+import { RoundEndConfirm, useRoundSteps } from "./RoundSteps.jsx";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -113,6 +116,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     [data?.sources, notify, openModal, reviewAct, run],
   );
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
+  // 先跳过 / 到此为止 and the N / F / O keys (#1008): ui/review/RoundSteps.jsx.
+  const roundSteps = useRoundSteps({ session, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus });
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
   const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader, tourRunning } = context;
   const contextReturnLabel = inHeader ? '' : contextLabel;
@@ -178,11 +183,13 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
-  const wasRunningRef = React.useRef("");
+  // A task on this question (批改 included) that ends with a result: ask for the question at once, the poll may have slowed down (#1011).
+  const watchedRef = React.useRef("");
+  const ended = finishedTask(watchedRef.current, assistTasks, run.card?.id);
   React.useEffect(() => {
-    if (runningTask?.id) wasRunningRef.current = runningTask.id;
-    else if (wasRunningRef.current && lastTask?.id === wasRunningRef.current && lastTask.status === "done") { wasRunningRef.current = ""; session.pollRun?.(); }
-  }, [runningTask?.id, lastTask?.id, lastTask?.status, session]);
+    watchedRef.current = ended.watch;
+    if (ended.done) (session.pollNow || session.pollRun)?.();
+  }, [ended.watch, ended.done, session]);
   // The question column follows the chosen reading width (the card, the toolbar and the explanation share it), not a fixed 700px: 窄 / 标准 / 宽 in the Aa popover.
   const readingStyle = useReadingProps().style || {};
   const readingMeasure = readingStyle["--reading-measure"];
@@ -257,6 +264,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <div className="question-meta">
               <span>
                 <span>{words.main}</span>{words.note && <small className="question-retry-note">{words.note}</small>}
+                {roundSteps.onEnd && <RoundPending run={run} onJump={(index) => reviewAct("review.move", { index })} onEnd={roundSteps.onEnd} />}
                 {run.mode !== "exam" && run.liveMastery?.before?.total > 0 && run.liveMastery?.after?.total > 0 && (() => {
                   const { before, after } = run.liveMastery, delta = after.percent - before.percent;
                   return (
@@ -536,6 +544,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
           onToggleEn={toggleEn}
           autopilot={autopilot} onToggleAutopilot={actions.toggleAutopilot}
+          onSkip={roundSteps.onSkip} onEndRound={roundSteps.onEnd}
           // 这题不错 / 这题有问题 are items of 更多; ThumbFeedback keeps the vote, the tag tray and the G / B keys (#671).
           thumbVote={thumbVote} onThumb={coachProps && run.mode !== "exam" ? (vote) => thumbsRef.current?.[vote === "up" ? "up" : "down"]() : undefined}
           thumbs={coachProps && run.mode !== "exam" && (
@@ -544,6 +553,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} courseRules={courseRules} />
           )}
         />
+        <RoundEndConfirm session={session} />
         {practiceTip.tip && <PracticeTip id={practiceTip.tip} onClose={practiceTip.close} onShown={practiceTip.onShown} />}
         {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
         {/* A stem that asks what the source says tests memory of a document's wording, not the concept: say so and offer the fix, so the learner never has to find the words. */}

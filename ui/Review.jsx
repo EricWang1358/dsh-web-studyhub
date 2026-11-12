@@ -20,12 +20,13 @@ import { useInjectCss } from "./shared.js";
 import { MasteryChange, ReadingBackButton, ReadingResult, ReturnPrimary } from "./document-preview/practice/ReadingReturn.jsx";
 import { practiceArgs } from "./learning-navigation.js";
 import { isBackDestination, wayBackOf } from "./review/way-back.js";
-import { resolvePracticeSettings } from "../lib/practice-settings.js";
+import { freshRoundCount, resolvePracticeSettings } from "../lib/practice-settings.js";
 import { countMaterials } from "../lib/source-groups.js";
 import { openReaderForPages, readableMaterialItems } from "./document-preview/practice/open-reader-pages.js";
 import { currentMethodStage, resolveRoundCourse, roundEndAlternative, useMethodAlternativeOpen } from "./method-alternatives.js";
 import { pageAvailable } from "./capabilities.js";
 import { askForLeeches } from "./wrongbook-model.js";
+import RoundLookBack from "./review/RoundLookBack.jsx";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -101,7 +102,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
         : destination?.kind === "original" ? { label: destination.label, run: destination.go }
           : run.course?.next ? { label: ui("继续课程下一批 →"), run: () => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun) }
             : run.mode === "new" && nextFreshCount > 0 ? { label: ui("继续下一批新题 →"),
-              run: () => act("review.start", { mode: "new", scope: run.scope ?? [{ deckId: run.deckId }], count: 10, ordered: true, fresh: true }, enterRun) }
+              run: () => act("review.start", { mode: "new", scope: run.scope ?? [{ deckId: run.deckId }], count: freshRoundCount(data?.settings?.practice), ordered: true, fresh: true }, enterRun) }
               : destination ? { label: destination.label, run: destination.go, back: isBackDestination(destination) } : null;
   // With a way back as the main button (the book's, the 总纲's or the reader's), a next step that is just another place to go back to (回到学习路径) is left out: both would go back.
   const onward = backHere && nextStep?.back ? null : nextStep;
@@ -122,7 +123,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
     >
       {/* The rail is a full-height column of the page, not of the question body,
           so it is pinned from the first frame instead of sliding up to stick. */}
-      {rail && <ReviewNavigator run={run} onJump={(index) => reviewAct("review.move", { index })} />}
+      {rail && <ReviewNavigator run={run} onJump={(index) => reviewAct("review.move", { index })} onEnd={run.mode !== "exam" ? actions.askEnd : undefined} />}
       <PageHeader className="review-heading" compact
         eyebrow={flow ? [ui("学习流"), flow.stepIndex >= 0 && uiFormat("第 {0}/{1} 步", [flow.stepIndex + 1, flow.stepCount]), flow.stepTitle].filter(Boolean).join(" · ") : undefined}
         title={[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}
@@ -191,8 +192,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               key={"debrief-" + run.id}
               run={run}
               initial={coachProps.debrief}
-              // Autopilot must not pull a learner out of a workflow or a detour.
-              autopilot={coachProps.autopilot && !flow && !detour && !run.returnTo && !backHere}
+              // Autopilot must not pull a learner out of a workflow or a detour, nor carry on a round the learner stopped (到此为止, #1008).
+              autopilot={coachProps.autopilot && !flow && !detour && !run.returnTo && !backHere && !run.closed}
               onPractice={coachProps.onPractice}
               onContinue={coachProps.onContinue}
               destination={coachProps.destination}
@@ -250,6 +251,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               </Tooltip>
             </p>
           )}
+          {/* 本轮题目 (#1009): which questions went wrong or were left, each with a read-only look-back from the run itself. */}
+          <RoundLookBack key={"look-back-" + run.id} run={run}
+            onOpenWrongBook={pageAvailable(data, "wrongbook") ? (refs) => { askForLeeches(data?.root, refs); navigate("wrongbook"); } : undefined} />
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>
             <p className="muted">{ui("每道题的下次复习时间已保存。")}</p>

@@ -12,20 +12,33 @@ import { roundPosition } from "../lib/round-position.js";
    course rows all read. */
 
 const entries = (...retry) => retry.map((value) => ({ retry: !!value }));
+// The learner on question `index` has answered the ones before it (a question set aside with 先跳过 is the exception, tested below).
+const at_ = ({ entries: queue, index }) => ({ entries: queue.map((entry, place) => (place < index ? { ...entry, feedback: { correct: true } } : entry)), index });
 
 test("roundPosition: the size is the questions of the round, a re-ask does not grow it", () => {
   const queue = entries(0, 0, 0, 0, 1);
-  assert.deepEqual(roundPosition({ entries: queue, index: 0 }), { total: 4, at: 1, retries: 1, retryAt: 0, last: false });
-  assert.deepEqual(roundPosition({ entries: queue, index: 3 }), { total: 4, at: 4, retries: 1, retryAt: 0, last: false });
-  assert.deepEqual(roundPosition({ entries: queue, index: 4 }), { total: 4, at: 4, retries: 1, retryAt: 1, last: true }, "the re-ask is the end of a full round");
-  assert.deepEqual(roundPosition({ entries: queue, index: 5 }), { total: 4, at: 4, retries: 1, retryAt: 0, last: true }, "past the end: the round is full");
+  assert.deepEqual(roundPosition(at_({ entries: queue, index: 0 })), { total: 4, at: 1, retries: 1, retryAt: 0, last: false });
+  assert.deepEqual(roundPosition(at_({ entries: queue, index: 3 })), { total: 4, at: 4, retries: 1, retryAt: 0, last: false });
+  assert.deepEqual(roundPosition(at_({ entries: queue, index: 4 })), { total: 4, at: 4, retries: 1, retryAt: 1, last: true }, "the re-ask is the end of a full round");
+  assert.deepEqual(roundPosition(at_({ entries: queue, index: 5 })), { total: 4, at: 4, retries: 1, retryAt: 0, last: true }, "past the end: the round is full");
 });
 
 test("roundPosition: several re-asks are counted one by one, and no re-ask means none", () => {
   const queue = entries(0, 0, 1, 1);
-  assert.deepEqual(roundPosition({ entries: queue, index: 2 }), { total: 2, at: 2, retries: 2, retryAt: 1, last: false });
-  assert.deepEqual(roundPosition({ entries: queue, index: 3 }), { total: 2, at: 2, retries: 2, retryAt: 2, last: true });
-  assert.deepEqual(roundPosition({ entries: entries(0, 0, 0), index: 1 }), { total: 3, at: 2, retries: 0, retryAt: 0, last: false });
+  assert.deepEqual(roundPosition(at_({ entries: queue, index: 2 })), { total: 2, at: 2, retries: 2, retryAt: 1, last: false });
+  assert.deepEqual(roundPosition(at_({ entries: queue, index: 3 })), { total: 2, at: 2, retries: 2, retryAt: 2, last: true });
+  assert.deepEqual(roundPosition(at_({ entries: entries(0, 0, 0), index: 1 })), { total: 3, at: 2, retries: 0, retryAt: 0, last: false });
+
+});
+
+test("roundPosition: 完成 waits for a question set aside with 先跳过; an exam goes by order", () => {
+  const queue = entries(0, 0, 0).map((entry, place) => (place === 1 ? { ...entry, feedback: { correct: true } } : entry));
+  assert.equal(roundPosition({ entries: queue, index: 2 }).last, false, "question 1 was set aside and still waits");
+  assert.equal(roundPosition({ entries: queue, index: 0 }).last, false, "back on question 1, question 3 still waits");
+  const done = queue.map((entry, place) => (place === 2 ? { ...entry, feedback: { correct: true } } : entry));
+  assert.equal(roundPosition({ entries: done, index: 0 }).last, true, "the set-aside question is the only one left");
+  assert.equal(roundPosition({ entries: queue, index: 2, mode: "exam" }).last, true, "an exam: the last in order");
+  assert.equal(roundPosition({ entries: done, index: 0, mode: "exam" }).last, false);
 });
 
 async function started(t) {
