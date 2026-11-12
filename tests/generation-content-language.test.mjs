@@ -11,9 +11,9 @@ import { qualityPlan, qualityReview } from './helpers/assessment.mjs';
 import { requestData } from './helpers/request-data.mjs';
 
 // ui/quality-reasons.js reads the interface catalogue (JSON), so it is bundled the way the client is before it is imported.
-const { outputFiles } = await build({ entryPoints: [fileURLToPath(new URL('../ui/quality-reasons.js', import.meta.url))], bundle: true, write: false, format: 'esm',
-  platform: 'browser', logLevel: 'silent' });
-const { issueCode, reasonLabel } = await import(`data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString('base64')}`);
+const { outputFiles } = await build({ stdin: { contents: `export { issueCode, reasonLabel } from './ui/quality-reasons.js'; export { readableQualityIssue } from './ui/quality.js';
+  export { setUiLanguage } from './ui/i18n.js';`, resolveDir: fileURLToPath(new URL('..', import.meta.url)) }, bundle: true, write: false, format: 'esm', platform: 'browser', logLevel: 'silent' });
+const { issueCode, reasonLabel, readableQualityIssue, setUiLanguage } = await import(`data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString('base64')}`);
 
 /* #1002: the questions are written in the language the learner chose (出题语言), from Chinese sources too. The language is resolved once
    (resolveGenerationRequest), every stage is sent the same rule, and a deterministic check routes a card in the wrong language to the
@@ -87,6 +87,14 @@ test('a language finding is a wording defect where the repair may write, and say
   assert.equal(rejectionCode(local[0]), 'language');
   assert.equal(issueCode(local[0]), 'language');
   assert.notEqual(reasonLabel('language'), 'language');
+  // A held card's reason in the draft (ui/Draft.jsx) reads the same reason in Chinese, with the field it is about.
+  setUiLanguage('zh');
+  assert.equal(readableQualityIssue(local[0]), '第 1 题：有内容没有用设定的出题语言写（选项 b）');
+  assert.equal(readableQualityIssue(local[1]), '第 2 题：有内容没有用设定的出题语言写（正确选项 a）');
+  assert.equal(readableQualityIssue(`Card 3: prompt ${LANGUAGE_ISSUE} (Chinese with English)`), '第 3 题：有内容没有用设定的出题语言写（问题）');
+  assert.equal(readableQualityIssue(`Card 4: cloze ${LANGUAGE_ISSUE} (English)`), '第 4 题：有内容没有用设定的出题语言写（填空）');
+  setUiLanguage('en');
+  assert.equal(readableQualityIssue(local[0]), local[0], 'the English interface shows the line as it is');
 });
 
 test('the language is resolved once: auto follows the interface, a deck keeps the language it was written in, an explicit choice wins', () => {
