@@ -95,8 +95,10 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     if (!pageRef.current.querySelector(`[data-book-point="${CSS.escape(ai.ask.heading)}"]`)) ai.closeAsk();
   });
   const placeSection = useCallback(section => setStructure({ kind: 'place', section }), []);
+  // The model's readiness as primitives, so a poll that rebuilds the snapshot does not rebuild every point's handlers.
+  const readiness = modelReadiness(data), model = useMemo(() => readiness, [readiness.ready, readiness.reason, readiness.label]); // eslint-disable-line react-hooks/exhaustive-deps
   const handlers = useBookHandlers({ call, act, course, notify, book, setBook, rows, reload, remember: where.remember, onPractice, onCreate, onOpenSource,
-    modelReady: modelReadiness(data).ready, onBack, ai: ai.actions, foldAi: aiFold.fold, onPlace: placeSection, goTo: where.goTo });
+    modelReady: model.ready, model, onBack, ai: ai.actions, foldAi: aiFold.fold, onPlace: placeSection, goTo: where.goTo });
   const [tocWide, setTocWide] = usePersistentState(`study-book-toc:${root}:${course}`, true, { parse: value => value !== 'closed', serialize: value => (value ? 'open' : 'closed') });
   const [tocOver, setTocOver] = useState(false), closeToc = useCallback(() => setTocOver(false), []);
   useEffect(() => { setTocOver(false); }, [narrow]);

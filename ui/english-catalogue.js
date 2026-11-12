@@ -87,6 +87,7 @@ import indexGuidanceCopy from './locales/en.index-guidance.json';
 import taskCardCopy from './locales/en.task-card.json';
 import coachCopy from './locales/en.coach.json';
 import similarCopy from './locales/en.similar.json';
+import learningLoopCopy from './locales/en.learning-loop.json';
 import appMessages from '../lib/application-messages-en.js';
 
 export const ENGLISH_SOURCES = {
@@ -172,6 +173,7 @@ export const ENGLISH_SOURCES = {
   'en.task-card.json': taskCardCopy,
   'en.coach.json': coachCopy,
   'en.similar.json': similarCopy,
+  'en.learning-loop.json': learningLoopCopy,
 };
 
 /** The English of lib/application-messages.js (localizeAppMessage), handed to it once this module is here. */
