@@ -47,7 +47,7 @@ test('another question, a note with more cards, a published note and a call with
   await service.call('note.link', { id: one.id, url: 'https://blog.csdn.net/example/article/details/1' });
   const after = await service.call('note.create', { title: 'F', cards: [{ deckId: 'deck', cardId: 'c1' }], reuse: true });
   assert.notEqual(after.id, one.id, 'a published note is finished and is never the one reused');
-  assert.equal(after.id, plain.id, 'the open draft of exactly this card is');
+  assert.notEqual(after.id, plain.id, 'a hand-picked (public article) draft of the same card is not the question note either: a new one is made');
 });
 
 test('the AI draft has an estimate of its own, from the same prompt the draft sends, with no model call', async t => {

@@ -8,6 +8,7 @@ import { StudyService } from '../lib/service.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { createFakeModel } from '../scripts/fake-model.mjs';
 
 /* 修题 on the card, with the learner's own phrases, in a real browser: the button is on the toolbar (not behind 更多), the box offers the built-in choices, a typed
    line is kept with one click and comes back as a chip after a reload (it is in the library's settings, not in the browser), a click on the chip fills the box, its ✕
@@ -22,7 +23,7 @@ test('修题 is a button on the card, the box keeps my own phrases as chips, and
   await service.store.update((s) => { s.decks.push({ id: 'd', title: 'Flash deck', cards: [1, 2, 3].map((n) => flash(`c${n}`, n)) }); });
   await service.dispose(); // the preview server owns the library from here
   const distDir = join(root, 'dist'); await buildPreview({ outdir: distDir });
-  const server = await createPreviewServer({ libraryRoot: join(root, 'library'), home: join(root, 'home'), port: 0, model: null, distDir });
+  const server = await createPreviewServer({ libraryRoot: join(root, 'library'), home: join(root, 'home'), port: 0, model: createFakeModel({ latencyMs: 20 }), distDir }); // 修题 is behind the model gate
   let browser;
   t.after(async () => { await browser?.close(); await server.close(); await rm(root, { recursive: true, force: true }); });
   try { browser = await launchChromium(); }

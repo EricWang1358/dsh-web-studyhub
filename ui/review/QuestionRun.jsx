@@ -116,7 +116,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     () => runDeferUnstudiedPages({ run, sources: data?.sources, openModal, reviewAct, notify }),
     [data?.sources, notify, openModal, reviewAct, run],
   );
-  const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
+  const { onOpenNote, onMakeNote, onMakeTask, onModelSettings, onSaveQaToNote } = links;
   // 先跳过 / 到此为止 and the N / F / O keys (#1008): ui/review/RoundSteps.jsx.
   const roundSteps = useRoundSteps({ session, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus });
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
@@ -684,7 +684,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly
               onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
               onAskMore={() => { setAssistMode("ask"); requestAnimationFrame(() => { document.querySelector(".assist-area")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); document.querySelector(".assist-form__input")?.focus(); }); }}
-              bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }} />}
+              bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }}
+              noteQa={onSaveQaToNote ? { savedIn: (followupId) => cardNotes.find((note) => note.qa && note.followupIds?.includes(followupId))?.noteId || "", onSave: onSaveQaToNote, onOpen: onOpenNote } : null} />}
           </ReadingBlock>
         )}
         {/* 逐步理解 / 计算题引导练习 / 用自己的话讲一遍 / 试一道同类题 (ui/review/LearningActions.jsx). */}
