@@ -9,6 +9,8 @@ export const DIMENSIONS = { selfContained: 'self-contained', answerLeak: 'answer
 export function issueCode(issue) {
   const text = String(issue ?? '');
   if (text === 'over-count') return 'over-count';
+  // A field not in the requested 出题语言 (lib/contexts/generation/content-language.js LANGUAGE_ISSUE).
+  if (/is not in the requested content language/.test(text)) return 'language';
   const dimension = /\b(selfContained|answerLeak|optionQuality|learningValue|sourceSupport|explanationQuality)\b(?: failed| in )/.exec(text);
   if (dimension) return DIMENSIONS[dimension[1]];
   if (/explanation only repeats the answer/.test(text)) return 'explanation';
@@ -43,6 +45,7 @@ export const reasonLabel = (code) => ({
   'options-shape': ui('选项结构不完整'),
   binding: ui('题目没有对上已核实的考点'),
   structure: ui('题目格式不完整'),
+  language: ui('有内容没有用设定的出题语言写'),
   'over-count': ui('这一批已满额，多出的候选没有采用'),
   review: ui('独立审阅没有通过'),
 })[code] || code;
