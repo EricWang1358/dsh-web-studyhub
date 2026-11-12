@@ -20,24 +20,25 @@ export function outlineFromSections(sections) {
 /** The entries of rendered Markdown without the labels of a bilingual transcript (### 英文原句, ### 中文对照): they are text of their part, not sections. */
 export const withoutLabels = items => items.filter(item => !isLabelTitle(item.title));
 
-const levelOf = node => Number(node.tagName[1]);
+const hashMark = node => /^#{1,4}(?=[ \t])/.exec(node.querySelector?.('.reader-bracket')?.textContent || '')?.[0] || '';
+const levelOf = node => hashMark(node).length || Number(node.tagName[1]);
 
 /**
- * Entries for the headings (h1–h4) of rendered Markdown or HTML; tags each heading with
- * data-outline-id. Levels are relative to the shallowest heading, so a document that
- * starts at h2 still lists its top headings at level 1.
+ * Entries for the headings (h1–h4) of rendered Markdown, HTML or `#`-marked reading sections;
+ * tags each heading with data-outline-id. Levels are relative to the shallowest heading, so a
+ * document that starts at h2 still lists its top headings at level 1.
  */
-/** A heading's stored text: a drawn formula (a data-study-marker) is left out, its hidden source stays. */
+/** A heading's stored text: a drawn formula (a data-study-marker) and hidden `# ` bracket are left out, its hidden formula source stays. */
 function headingText(node) {
-  if (!node.querySelector?.('[data-study-marker]')) return node.textContent;
+  if (!node.querySelector?.('[data-study-marker]') && !node.querySelector?.('.reader-bracket')) return node.textContent;
   const copy = node.cloneNode(true);
-  copy.querySelectorAll('[data-study-marker]').forEach(marker => marker.remove());
+  copy.querySelectorAll('[data-study-marker], .reader-bracket').forEach(marker => marker.remove());
   return copy.textContent;
 }
 
-export function collectHeadings(root, { max = 400 } = {}) {
+export function collectHeadings(root, { max = 400, markedOnly = false } = {}) {
   if (!root) return [];
-  const nodes = [...root.querySelectorAll('h1,h2,h3,h4')].filter(node => !node.closest('[data-study-marker]') && node.textContent.trim());
+  const nodes = [...root.querySelectorAll('h1,h2,h3,h4')].filter(node => !node.closest('[data-study-marker]') && (!markedOnly || hashMark(node)) && node.textContent.trim());
   const base = nodes.length ? Math.min(...nodes.map(levelOf)) : 1;
   return nodes.slice(0, max).map((node, index) => {
     const id = `h-${index}`;

@@ -105,7 +105,7 @@ function Sections({ sections, labelOf, onPeek }) {
           ? <Label key={index} text={paragraph.text} />
           : paragraph.kind === 'furniture'
           ? <Furniture key={index} paragraph={paragraph} />
-          : <p key={index} className={`reader-p reader-p--${paragraph.kind}`}>{paragraph.kind === 'layout'
+          : <p key={index} className={`reader-p reader-p--${paragraph.kind}`}>{paragraph.kind === 'layout' && paragraph.text.startsWith('```')
             ? paragraph.text : withFormulas(paragraph.text, paragraph.kind === 'prose')}</p>)}
       </div>
     </section>;

@@ -115,7 +115,7 @@ test('the reader: a chip asks with one click, the answer stays when the passage 
         const fold = form.locator('details.study-selection-more');
         assert.equal(await fold.count(), 1);
         assert.match(await fold.locator('summary').innerText(), /更多设置/);
-        assert.match(await fold.locator('summary').innerText(), /单选测验 · 10 题/, `${width}px: the fold says the preferences' kind and number`);
+        assert.match(await fold.locator('summary').innerText(), /单选测验 · 3 题/, `${width}px: the fold says the preferences' kind and number`);
         assert.equal(await form.getByRole('button', { name: '生成、审核并补充题目' }).isDisabled(), false, `${width}px: 生成 is ready without choosing a deck`);
         await shot(page, `reader-${width}-topup`);
         await fold.locator('summary').click();

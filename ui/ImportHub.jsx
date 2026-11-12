@@ -38,12 +38,12 @@ import { hintDocOf } from './index-hint.js';
    it), and a fully successful batch hands its summary to onComplete (the App
    closes the dialog, shows the toast and highlights the new material). */
 
-/** PDF, Markdown, HTML and TXT. Word and PowerPoint (.pptx and the old .ppt) have MAX_OFFICE_BYTES (one constant per format: lib/office/limits.js). */
+/** PDF, Markdown, LaTeX, HTML and TXT. Word and PowerPoint (.pptx and the old .ppt) have MAX_OFFICE_BYTES (one constant per format: lib/office/limits.js). */
 export const MAX_DOCUMENT_BYTES = MAX_TEXT_DOCUMENT_BYTES;
 export { MAX_OFFICE_BYTES };
 export const MAX_DECK_BYTES = 2_000_000;
 /** PDF and text documents; Word and PowerPoint follow them in the picker (HUB_DOCUMENTS). */
-const DOCUMENT_EXTENSIONS = ['.pdf', '.md', '.markdown', '.html', '.htm', '.txt'];
+const DOCUMENT_EXTENSIONS = ['.pdf', '.md', '.markdown', '.tex', '.ltx', '.latex', '.html', '.htm', '.txt'];
 const OFFICE_EXTENSIONS = ['.docx', '.pptx', '.ppt'];
 // Documents in the order the native picker shows them: .docx, .pptx and .ppt right after .pdf.
 const HUB_DOCUMENTS = ['.pdf', ...OFFICE_EXTENSIONS, ...DOCUMENT_EXTENSIONS.slice(1)];
@@ -52,7 +52,7 @@ const LEGACY_EXTENSIONS = ['.doc', '.wps', '.key', '.pages'];
 const DECK_EXTENSIONS = ['.json'];
 const SUBTITLE_EXTENSIONS = SUBTITLE_TIMED_EXTENSIONS;
 // '.json' is only a document when it is a converter's output (MinerU, Docling); a question deck takes the deck route.
-const FORMAT_OF = { '.pdf': 'pdf', '.docx': 'docx', '.pptx': 'pptx', '.ppt': 'ppt', '.md': 'md', '.markdown': 'md', '.html': 'html', '.htm': 'html', '.txt': 'txt', '.json': 'json' };
+const FORMAT_OF = { '.pdf': 'pdf', '.docx': 'docx', '.pptx': 'pptx', '.ppt': 'ppt', '.md': 'md', '.markdown': 'md', '.tex': 'tex', '.ltx': 'tex', '.latex': 'tex', '.html': 'html', '.htm': 'html', '.txt': 'txt', '.json': 'json' };
 
 /** The size limit of a file, by its format. */
 export const documentLimit = name => maxBytesFor(FORMAT_OF[extensionOf(name)]);
@@ -110,7 +110,7 @@ const IMPORT_COPY = {
   [IMPORT_ERROR.TOO_MANY_PAGES]: ({ limit = LARGE_DOCUMENT_LIMITS.pdfPages }) => uiFormat('PDF 超过 {0} 页。请按章节拆分后再导入。', [limit]),
   [IMPORT_ERROR.TEXT_TOO_LONG]: ({ limit = SELECTION_CHARS }) => uiFormat('提取出的文字超过 {0} 字符。请按章节拆分后再导入。', [formatNumber(limit)]),
   [IMPORT_ERROR.NOT_UTF8]: () => ui('文本文件需要是 UTF-8 编码。请在编辑器里“另存为 UTF-8”后再导入。'),
-  [IMPORT_ERROR.UNSUPPORTED_FORMAT]: () => ui('不支持这种文件。可以导入 PDF、Word、PowerPoint、Markdown、HTML、TXT、JSON 题组和字幕。'),
+  [IMPORT_ERROR.UNSUPPORTED_FORMAT]: () => ui('不支持这种文件。可以导入 PDF、Word、PowerPoint、Markdown、LaTeX、HTML、TXT、JSON 题组和字幕。'),
   [IMPORT_ERROR.UPLOAD_INCOMPLETE]: () => ui('文件没能完整读取，请重试。'),
   // OfficeFileError codes (lib/office/zip.js): unreadable package, locked or old file, unpacked size.
   corrupt: damaged, invalid: damaged, xml: damaged, 'not-zip': damaged, 'unsupported-method': damaged,
@@ -187,7 +187,7 @@ async function importOne(file, { call, courses = [], known = [], audio = false, 
   if (kind === 'audio') throw permanentError(ui('音频请在「音频 / 录音」里导入，那里会先转写成文字。'), { carry: true });
   if (kind === 'subtitle') throw permanentError(ui('字幕要在「音频 / 录音」里确认后再导入：那里会先估算用量。'), { carry: true });
   if (kind === 'legacy') throw permanentError(ui(LEGACY_MESSAGES[extensionOf(file.name)]));
-  if (!kind) throw permanentError(ui('不支持这种文件。可以导入 PDF、Word、PowerPoint、Markdown、HTML、TXT、JSON 题组和字幕。'));
+  if (!kind) throw permanentError(ui('不支持这种文件。可以导入 PDF、Word、PowerPoint、Markdown、LaTeX、HTML、TXT、JSON 题组和字幕。'));
   if (kind === 'document') return importDocumentFile(file, { call, courses, known, convertible });
   const text = await file.text();
   // A converter's JSON (WP28) is a textbook, not a question deck.
@@ -577,7 +577,7 @@ export default function ImportHub({
         </InlineMessage>}
         {(!conversionOpen || items.length > 0 || largeItem) && <FileDrop className={stray ? 'is-attention' : undefined} dropClassName="import-hub__drop" accept={importAccept({ audio: audioOn })} multiple compact
           label={ui('把讲义、笔记或题组文件拖到这里，可以一次放多个')}
-          hint={[audioOn ? ui('PDF · Word · PowerPoint · Markdown · HTML · TXT · JSON 题组 · SRT / VTT 字幕') : ui('PDF · Word · PowerPoint · Markdown · HTML · TXT · JSON 题组'),
+          hint={[audioOn ? ui('PDF · Word · PowerPoint · Markdown · LaTeX · HTML · TXT · JSON 题组 · SRT / VTT 字幕') : ui('PDF · Word · PowerPoint · Markdown · LaTeX · HTML · TXT · JSON 题组'),
             uiFormat('PDF 与文本最大 {0} MB，Word / PPT 最大 {1} MB', [megabytes(MAX_DOCUMENT_BYTES), megabytes(MAX_OFFICE_BYTES)])].join(' · ')}
           buttonLabel={ui('选择文件')} busy={running} disabled={busy && !running} items={shown}
           rejectAction={rejections => handOff.action('import.file', rejectedFilesInput(rejections, { area: '添加资料' }), { what: '让主会话转换这些文件再导入；文件在输入框里用 @ 选' })}
