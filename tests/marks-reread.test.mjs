@@ -9,6 +9,11 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { capabilityIndex, filterCapabilities } from '../lib/runtime/tools.js';
+import { markReread } from '../lib/contexts/library/mark-reread.js';
+import { materialMasteryOf } from '../lib/material-mastery.js';
+import { groupSourcesByDocument } from '../lib/source-groups.js';
+import { groupRevision } from '../lib/document-outline.js';
+import { textHash } from '../lib/passage-translation.js';
 
 const DAY = 86400000, NOW = Date.now(), OLD = new Date(NOW - 5 * DAY).toISOString();
 const PAGES = [
@@ -137,4 +142,63 @@ test('the reread list is the home page read: the main chat is refused it and see
   const listed = JSON.stringify(filterCapabilities([domain], { context: 'library' }));
   assert.doesNotMatch(listed, /marks\.reread/);
   assert.match(listed, /marks\.seen/);
+});
+
+test('an archived material is not offered', async t => {
+  const { service, mark, age, reread } = await library(t);
+  await mark('book-p1', 'keeps the history of snapshots', 'highlight');
+  await age();
+  assert.equal((await reread({ course: 'SA' })).count, 1);
+  await service.store.update(state => { for (const source of state.sources) if (source.id.startsWith('book-')) source.archived = true; });
+  assert.equal((await reread({ course: 'SA' })).count, 0);
+});
+
+/* The host has one event loop: the list must not hold it. A made-up library of 10 books of 500 pages (frozen, as the store shares it), 4000 questions
+   and 600 marks. The yardstick is measured in the same process (grouping the library once with its texts, what the 资料 page pays per revision), so a
+   slow machine moves both. The very first answer must check every marked book's revision once (the hash of its pages, as materials does when
+   the book opens), so it stays under one grouping; a repeated answer costs about nothing, and the answer after 已重读 (one page of one book changed,
+   the rest shared and their revisions kept) well under half of one. */
+const deepFreeze = value => { if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); for (const inner of Object.values(value)) deepFreeze(inner); } return value; };
+function bigLibrary() {
+  const at = new Date(Date.now() - 6 * DAY).toISOString(), sources = [], decks = [], attempts = [];
+  for (let book = 0; book < 10; book++) {
+    for (let page = 1; page <= 500; page++) sources.push({ id: `b${book}-p${page}`, title: `Book ${book} · p. ${page}`, courses: ['SA'], createdAt: at,
+      text: `Page ${page} of book ${book}. ${'Lorem ipsum dolor sit amet consectetur. '.repeat(40)}`,
+      document: { materialId: `document-b${book}`, page, totalPages: 500, format: 'pdf', origin: 'converted', converter: 'marker', filename: `b${book}.pdf`, extractionVersion: 2 } });
+    const cards = [];
+    for (let n = 0; n < 400; n++) cards.push({ id: `c${book}-${n}`, kind: 'flashcard', topic: 't', prompt: `Q${n}`, answer: 'A', citations: [{ sourceId: `b${book}-p${1 + (n * 7) % 500}`, quote: `Page ${1 + (n * 7) % 500} of book ${book}.` }] });
+    decks.push({ id: `deck${book}`, title: `Deck ${book}`, course: 'SA', cards });
+    for (let n = 0; n < 400; n += 3) attempts.push({ deckId: `deck${book}`, quiz_id: `c${book}-${n}`, grade: 1, at });
+  }
+  const byId = new Map(sources.map(source => [source.id, source]));
+  for (let book = 0; book < 10; book++) {
+    const members = sources.filter(source => source.document.materialId === `document-b${book}`), items = [];
+    for (let m = 0; m < 60; m++) {
+      const sourceId = `b${book}-p${1 + (m * 13) % 500}`, quote = `Page ${1 + (m * 13) % 500} of book ${book}.`;
+      items.push({ id: `${m % 2 ? 'bold' : 'highlight'}|${sourceId}:${m}`, key: `${sourceId}:${m}`, style: m % 2 ? 'bold' : 'highlight', sourceId, start: 0, end: quote.length, hash: textHash(byId.get(sourceId).text.slice(0, quote.length)), quote, at });
+    }
+    byId.get(`b${book}-p1`).marks = { revision: groupRevision(members), items };
+  }
+  return { revision: 1, sources, documents: [], decks, drafts: [], attempts, courses: [], settings: {} };
+}
+const timed = fn => { const start = performance.now(); const value = fn(); return { value, ms: performance.now() - start }; };
+
+test('the list costs little on a large library: well under one grouping of it when new, about nothing when asked again', () => {
+  const state = deepFreeze(bigLibrary()), now = Date.now(), root = 'timing-guard';
+  const yardstick = Math.min(...[0, 1].map(() => timed(() => groupSourcesByDocument(state.sources)).ms));
+  materialMasteryOf(state, { root, now }); // the snapshot of the same revision pays this before the home asks
+  const cold = timed(() => markReread(state, { course: 'SA', now }, { root }));
+  assert.equal(cold.value.count, 3);
+  const hit = timed(() => markReread(state, { course: 'SA', now }, { root }));
+  // 已重读 on one book: its first page (the holder) is a new object, every other page the same; the library's revision moves on.
+  const holder = state.sources.find(source => source.id === 'b0-p1');
+  const marks = { ...holder.marks, items: holder.marks.items.map((item, at) => (at === 0 ? { ...item, rereadAt: new Date(now).toISOString() } : item)) };
+  const next = deepFreeze({ ...state, revision: 2, sources: state.sources.map(source => (source === holder ? { ...holder, marks } : source)) });
+  materialMasteryOf(next, { root, now });
+  const after = timed(() => markReread(next, { course: 'SA', now }, { root }));
+  assert.equal(after.value.count, 2, 'one re-read today: two more');
+  const report = `yardstick ${yardstick.toFixed(1)} ms, new ${cold.ms.toFixed(1)} ms, again ${hit.ms.toFixed(2)} ms, after 已重读 ${after.ms.toFixed(1)} ms`;
+  assert.ok(cold.ms < yardstick, report);
+  assert.ok(hit.ms < Math.max(2, yardstick / 50), report);
+  assert.ok(after.ms < yardstick / 2, report);
 });
