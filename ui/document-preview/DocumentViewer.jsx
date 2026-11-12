@@ -25,6 +25,7 @@ import { isOfficeFormat, isPagedFormat, isSlideFormat } from '../../lib/office/l
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { displayTitle } from '../../lib/document-title.js';
 import ReadingPractice from './practice/ReadingPractice.jsx';
+import RereadBar from './RereadBar.jsx';
 import { masteryText } from './practice/mastery-copy.js';
 import { coverageChipText } from '../coverage/copy.js';
 import DocumentTopUp, { offersDocumentTopUp } from '../coverage/DocumentTopUp.jsx';
@@ -146,7 +147,7 @@ export default function DocumentViewer(props) {
 }
 
 function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, onGenerateStarted, generateDisabled = false, initialMode = 'read',
-  onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false, onReconvert }) {
+  onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false, onReconvert, reread = null }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
   useInjectCss(css, 'study-document-preview');
@@ -719,7 +720,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     <div className="study-document-notices reader-notices">{notices}</div>
     <div className="reader-aux">
       {quote && <div className="reader-aux__bar"><blockquote className="highlight-quote reader-aux__quote"><MathText text={quote} /></blockquote>
-        {canPeek && !!fileUrl && Number.isInteger(source.document?.page) && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={source.document.page} title={ui('看原页')} onClick={() => openPeek(source.document.page)}>{ui('看原页')}</Button>}</div>}
+        {canPeek && !!fileUrl && Number.isInteger(source.document?.page) && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={source.document.page} title={ui('看原页')} onClick={() => openPeek(source.document.page)}>{ui('看原页')}</Button>}
+        {reread && <RereadBar reread={reread} onPractise={!localMode && onPracticePages && loop.selected?.cards?.length ? () => practise(loop.selected) : null} />}</div>}
       {!localMode && <AudioCorrections audio={source.audio} onReview={call && canAudio && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />}
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>

@@ -193,5 +193,14 @@
   "用 MinerU 重新转换": "Convert again with MinerU",
   "打开「添加资料」里的 PDF 解析，用本机 MinerU 把这份 PDF 再转换一次，公式会转成可读的写法。已经导入的这份不会变。": "Opens PDF conversion in Add materials to convert this PDF again with MinerU on this computer, which writes the formulas in a readable form. The material already imported stays as it is.",
   "这一章公式较多，转换后的文字可能不好读。": "This chapter has many formulas, and its converted text may be hard to read.",
-  "阅读资料时：上一章 / 下一章": "Reading a material: previous / next chapter"
+  "阅读资料时：上一章 / 下一章": "Reading a material: previous / next chapter",
+  "划过的重点": "Your marked passages",
+  "3 天没再看、所在章节或页有到期或薄弱题：{0}": "Not looked at for 3 days, and their chapter or page has due or weak questions: {0}",
+  "{0} 第 {1} 页": "{0}, p. {1}",
+  "重读 {0} 段": "Re-read ({0})",
+  "重读": "Re-read",
+  "第 {0} / {1} 段": "Passage {0} of {1}",
+  "已重读": "Re-read done",
+  "再练这一节": "Practise this section",
+  "今天要重读的段落都读完了": "You have re-read today's passages"
 }

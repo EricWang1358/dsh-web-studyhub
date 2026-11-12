@@ -6,7 +6,7 @@ import { useStudy } from '../study-context.jsx';
 import { useMethodAlternativeOpen } from '../method-alternatives.js';
 
 /** The right of the home desk: the one card with today's count and its one action (a newcomer's three steps are the first-run line's compact card, ui/first-run). `quiet`: the 下一步 card above holds the page's primary button (ui/study-map/NextStepCard.jsx), so this action is a secondary one. */
-export default function TodayCard({ plan, todayLabel, quiet = false }) {
+export default function TodayCard({ plan, todayLabel, quiet = false, extra = null }) {
   const { act, busy } = useStudy();
   const openAlt = useMethodAlternativeOpen();
   const advanceStage = () => {
@@ -52,6 +52,7 @@ export default function TodayCard({ plan, todayLabel, quiet = false }) {
             </Tooltip>
           </p>
         )}
+        {extra}
         {plan.action && (
           <Button variant={quiet ? "secondary" : "primary"} className="today-go" iconEnd="arrow-right" disabled={plan.action.disabled} lock={busy} data-usage="home.start" onClick={plan.action.run}>
             {plan.action.label}

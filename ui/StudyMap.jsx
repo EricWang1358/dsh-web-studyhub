@@ -23,6 +23,7 @@ import { openReaderForPages } from "./document-preview/practice/open-reader-page
 import HomeActivity, { HomeDrafts } from "./study-map/HomeActivity.jsx";
 import DeskIntro from "./study-map/DeskIntro.jsx";
 import TodayCard from "./study-map/TodayCard.jsx";
+import RereadLine from "./study-map/RereadLine.jsx";
 import NextStepCard from "./study-map/NextStepCard.jsx";
 import { nextCardView } from "./study-map/next-card-view.js";
 import { nextStep, nextStepFacts } from "./study-map/next-step.js";
@@ -176,7 +177,7 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
           onFocus={onFocus} onCourseSettings={onCourseSettings} onGenerateFocus={onGenerateFocus} onShowOutline={onShowOutline} />
         {line.show
           ? <div className="today-stack" data-depth={0} data-tour="home-today"><FirstRunLine line={line} form="compact" todayLabel={home.todayLabel} on={lineOn} plan={firstRun?.plan} /></div>
-          : <TodayCard plan={home.plan} todayLabel={home.todayLabel} quiet={nextHasButton} />}
+          : <TodayCard plan={home.plan} todayLabel={home.todayLabel} quiet={nextHasButton} extra={<RereadLine data={data} />} />}
       </div>
       {/* 待发布 sits under the day's work; it opens on its own when unpublished drafts wait and today's round is empty or finished. */}
       <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} defaultOpen={autoOpenDrafts} />
