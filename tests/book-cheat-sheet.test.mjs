@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { withCardNumbers } from '../lib/course-book-card-numbers.js';
 import { cheatSheet, readConfusables } from '../ui/book/cheat-sheet-model.js';
 import { cheatSheetHtml, cheatSheetFilename } from '../ui/book/cheat-sheet-html.js';
-import { renderStudyFormula } from '../ui/study-math-render.js';
+import { renderStudyFormula, mathPageCss } from '../ui/study-math-render.js';
+const MATH_CSS = await mathPageCss();
 
 const ID = n => `i${String(n).padStart(11, '0')}`;
 const card = (n, name, extra = {}) => ({ item: ID(n), name, plain: `${name} plainly`, pitch: `${name} in one exam sentence.`, ...extra });
@@ -92,7 +93,7 @@ test('counts say what the sheet holds', () => {
   assert.deepEqual(cheatSheet(bookOf({ confusables: [PAIR] })).counts, { cards: 3, types: 1, confusables: 1, formulas: 2 });
 });
 
-const sheetHtml = (extra, options) => cheatSheetHtml(cheatSheet(bookOf(extra)), { formula: renderStudyFormula, ...options });
+const sheetHtml = (extra, options) => cheatSheetHtml(cheatSheet(bookOf(extra)), { formula: renderStudyFormula, formulaCss: MATH_CSS, ...options });
 const plain = html => html.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
 
 test('the file is one self-contained page: inline style, a print layout, no external address, no script', () => {
@@ -105,7 +106,8 @@ test('the file is one self-contained page: inline style, a print layout, no exte
   assert.match(html, /@media print/);
   assert.match(html, /@page/);
   assert.doesNotMatch(html, /https?:\/\//, 'no network address');
-  assert.doesNotMatch(html, /<script|<link|<img|<iframe|@import|url\(/i, 'nothing fetched, nothing run');
+  // The one url() is a formula font inlined as a data: URI (#996): nothing is fetched.
+  assert.doesNotMatch(html, /<script|<link|<img|<iframe|@import|url\((?!data:font\/woff2;base64,)/i, 'nothing fetched, nothing run');
   assert.doesNotMatch(html, /:has\(/);
 });
 
@@ -125,7 +127,10 @@ test('every part: templates, signal matrix, comparisons, formulas rendered, card
   assert.match(html, /<mark class="slot">\[A\]<\/mark>/, 'template slots marked');
   assert.match(text, /H3 1\.1 What architecture is/, 'the point it comes from');
   assert.match(text, /p\. 2/, 'the page it is taught on');
-  assert.match(html, /<math[\s\S]*?lambda|<math[\s\S]*?λ/i, 'a TeX formula is drawn as MathML (no font or stylesheet needed offline)');
+  assert.match(html, /<math[\s\S]*?lambda|<math[\s\S]*?λ/i, 'a TeX formula is drawn, its MathML kept for screen readers');
+  assert.match(html, /class="katex-html"/, 'laid out by KaTeX (#996)');
+  assert.ok(html.includes(MATH_CSS), 'with its stylesheet and fonts inlined, so the saved file draws it offline');
+  assert.doesNotMatch(html, /url\((?!data:font\/woff2;base64,)|https?:\/\//, 'and still no address');
   assert.match(html, /<code>Throughput = WIP \/ cycle time<\/code>/, 'a formula in words stays text');
   assert.match(html, /Queues &lt;b&gt;&amp; more&lt;\/b&gt;/, 'escaped');
   assert.doesNotMatch(html, /<b>& more/);

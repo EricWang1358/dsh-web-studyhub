@@ -111,7 +111,7 @@ export async function startLateServer({ distDir, seed, lang = "zh" } = {}) {
   const seeded = seed ? await seed(root) : null;
   const server = await createPreviewServer({ libraryRoot: root, home: join(base, "home"), port: 0, model: createFakeModel({ latencyMs: 20 }), ...(distDir ? { distDir } : {}) });
   return { base, server, seeded, lang, api: (action, args = {}) => previewCall(server, action, { ...args, uiLanguage: lang }),
-    close: async () => { await server.close(); await rm(base, { recursive: true, force: true }); } };
+    close: async () => { await server.close(); await rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } };
 }
 
 export async function openPage(browser, running, { lang = "zh", theme = "dark", width = 1280, height = 900, timezoneId } = {}) {

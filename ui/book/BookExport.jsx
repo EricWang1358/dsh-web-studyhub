@@ -62,7 +62,7 @@ export default function BookExport({ course, pageLimit, book = null, onClose }) 
   const downloadPage = async () => {
     try {
       // A static import: a chunk of its own, reached only from a click, is a module the host's classic chunk loading never materializes (tests/client-boundaries.test.mjs).
-      const file = bookHtmlFile(done, { quotes: !noQuotes });
+      const file = await bookHtmlFile(done, { quotes: !noQuotes });
       downloadText(file.filename, file.html, 'text/html');
     } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); }
   };

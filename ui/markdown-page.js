@@ -6,7 +6,8 @@ import { DEFINITION } from '../lib/footnote-syntax.js';
 /* Markdown as the BODY of one self-contained static page (#896): the part every page the app saves as a file from Markdown shares (the whole review book,
    ui/book/book-html.js; the pocket review page, #887). Pure, no React, no script, no address: the page it builds names none.
 
-   The note renderer (ui/note-markdown.js createMarkdown) draws the text and, through the app's formula unit, maths as MathML. It has no footnotes and no
+   The note renderer (ui/note-markdown.js createMarkdown) draws the text and, through the app's formula unit, maths (KaTeX's HTML with its MathML; the page
+   that holds it adds mathPageCss(), see ui/static-page.js). It has no footnotes and no
    heading anchors, so two small rules are written here:
      - footnotes, Pandoc's `[^label]` marks and `[^label]: text` definitions: a mark is a numbered reference with a back-link; the definitions are taken
        out of the text and stand at the END OF THEIR CHAPTER, numbered from 1 again in each chapter, in the order the chapter mentions them. A definition
@@ -260,8 +261,9 @@ th{background:var(--soft)}
 img{max-width:100%;height:auto}
 hr{border:0;border-top:1px solid var(--line)}
 .math-block{display:block;max-width:100%;margin:.5rem 0;overflow-x:auto}
-.math-block math{font-size:1.1em}
+.math-block .katex-display{margin:0}
 .math{display:inline-block;max-width:100%;overflow-x:auto;vertical-align:middle}
+.math .katex{line-height:1}
 .eqno{margin-left:1em;color:var(--mute)}
 .fnref{font-size:.75em;line-height:0}
 .fnref a{padding:0 .1em}
