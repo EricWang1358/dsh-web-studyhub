@@ -2,6 +2,7 @@ import React from "react";
 import { ui, uiFormat } from "../i18n.js";
 import { Button, LoadingState } from "../components/index.js";
 import { useInjectCss } from "../shared.js";
+import { useStudy } from "../study-context.jsx";
 import QuestionRun from "./QuestionRun.jsx";
 import { MasteryMark } from "../document-preview/practice/MasteryMark.jsx";
 import css from "./inline-run.css";
@@ -23,6 +24,7 @@ export function roundTally(run) {
 }
 
 function InlineRunDone({ session, onClose, onContinue }) {
+  const { busy } = useStudy();
   const run = session.run, { answered, passed } = roundTally(run);
   const before = run.liveMastery?.before, after = run.liveMastery?.after;
   const weak = answered > passed && session.coach?.onReviewWeak;
@@ -33,8 +35,8 @@ function InlineRunDone({ session, onClose, onContinue }) {
         <span>{after.percent !== before.percent ? uiFormat("本组 {0}% → {1}%", [before.percent, after.percent]) : uiFormat("本组 {0}%", [after.percent])}</span></p>}
       <div className="inline-run__done-actions">
         <Button variant="primary" size="sm" icon="arrow-left" onClick={onClose}>{ui("回到题目列表")}</Button>
-        {weak && <Button size="sm" onClick={session.coach.onReviewWeak}>{ui("错的再练一遍")}</Button>}
-        {onContinue && <Button size="sm" variant="quiet" onClick={onContinue}>{ui("在练习页看结果")}</Button>}
+        {weak && <Button size="sm" lock={busy} onClick={session.coach.onReviewWeak}>{ui("错的再练一遍")}</Button>}
+        {onContinue && <Button size="sm" variant="quiet" lock={busy} onClick={onContinue}>{ui("在练习页看结果")}</Button>}
       </div>
     </div>
   );
@@ -42,6 +44,7 @@ function InlineRunDone({ session, onClose, onContinue }) {
 
 export default function InlineRun({ session, data, label, rootRef, onClose, onContinue, links, feedback }) {
   useInjectCss(css, "study-inline-run");
+  const { busy } = useStudy();
   const run = session.run;
   // The keys of the question work at once: the focus goes into the column when a round (or another round) opens, without moving any scroll.
   React.useEffect(() => { if (run?.id) rootRef?.current?.focus?.({ preventScroll: true }); }, [run?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -50,7 +53,7 @@ export default function InlineRun({ session, data, label, rootRef, onClose, onCo
       <header className="inline-run__head">
         <span className="inline-run__label">{label}</span>
         <span className="inline-run__actions">
-          {onContinue && run && !run.complete && <Button size="sm" variant="quiet" onClick={onContinue}>{ui("去练习页继续")}</Button>}
+          {onContinue && run && !run.complete && <Button size="sm" variant="quiet" lock={busy} onClick={onContinue}>{ui("去练习页继续")}</Button>}
           <Button size="sm" variant="secondary" icon="arrow-left" onClick={onClose}>{ui("回到题目列表")}</Button>
         </span>
       </header>

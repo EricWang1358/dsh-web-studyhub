@@ -41,13 +41,17 @@ export default function ReaderRun({ started, label, onClose, onSeek, shown = tru
   useEffect(() => { enterRun(started); }, [started]); // eslint-disable-line react-hooks/exhaustive-deps -- each round handed in is entered once
   const runRef = useRef(null);
   runRef.current = session.run || started;
-  const continueThere = useCallback(() => { const runId = runRef.current.id; set.setModal(null); intents.openRun(runId); }, [intents, set]);
+  // The practice page takes the round first; the reader gives way only to a round opened there (else the round stays here, with what went wrong).
+  const continueThere = useCallback(async () => {
+    const opened = await intents.openRun(runRef.current.id);
+    if (opened) set.setModal(null);
+    return !!opened;
+  }, [intents, set]);
   const [flagging, setFlagging] = useState(false);
   const openModal = useCallback((modal) => {
     if (modal?.type === 'flag') { setFlagging(true); return; }
     if (modal?.type === 'source' && onSeek?.(modal)) return;
-    continueThere();
-    if (modal) set.setModal(modal);
+    continueThere().then(opened => { if (opened && modal) set.setModal(modal); });
   }, [continueThere, onSeek, set]);
   const services = useMemo(() => ({ ...study, openModal }), [study, openModal]);
   // The model settings open beside the reader when the host has them; otherwise the reader gives way to the Settings page (as SourceReaderDialog does).

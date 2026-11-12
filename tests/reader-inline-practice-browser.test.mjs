@@ -219,6 +219,14 @@ test('本节题目: answered beside the text with the practice page\'s keys; the
       assert.equal(await attempts(), hiddenFrom, `${lang} ${width}px: nothing was recorded while hidden`);
     }
     if (lang === 'zh' && width === 420) {
+      // 去练习页继续 while the round cannot be opened there: the reader and its round stay (the reader gives way only to an opened round).
+      const refuse = route => { try { if (JSON.parse(route.request().postData() || '{}').action === 'review.get') return route.abort(); } catch { /* not JSON */ } return route.continue(); };
+      await page.route('**/api/call', refuse);
+      await round.getByRole('button', { name: words.continue }).click();
+      await page.waitForTimeout(1500);
+      assert.equal(await viewer.count(), 1, `${lang} ${width}px: the reader stays when the round could not be opened on the practice page`);
+      assert.equal(await round.count(), 1, `${lang} ${width}px: with its round`);
+      await page.unroute('**/api/call', refuse);
       // 去练习页继续: the same round on the practice page (the reader gives way).
       await round.getByRole('button', { name: words.continue }).click();
       await until(async () => !(await viewer.count()), 'the reader to give way', { timeoutMs: 30000 });
