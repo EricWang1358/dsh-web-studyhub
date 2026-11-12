@@ -219,6 +219,18 @@ test('本节题目: answered beside the text with the practice page\'s keys; the
       assert.equal(await attempts(), hiddenFrom, `${lang} ${width}px: nothing was recorded while hidden`);
     }
     if (lang === 'zh' && width === 420) {
+      // Answered, the question's learning actions (#1026: 逐步理解 · 用自己的话讲一遍 · 试一道同类题) are under it in the narrow panel, which still fits.
+      const wrongIndex = await round.locator('.options button.option').evaluateAll(nodes => nodes.findIndex(node => node.innerText.includes('Wrong')));
+      await until(async () => { await page.keyboard.press(String(wrongIndex + 1)); return (await round.locator('.options button.option.incorrect').count()) > 0; }, 'b answered');
+      const actions = round.locator('.assist-actions');
+      await actions.waitFor({ timeout: 15000 });
+      await actions.getByRole('button', { name: '用自己的话讲一遍' }).click();
+      await page.waitForTimeout(400);
+      const overflow = await tools.evaluate(node => [node.scrollWidth - node.clientWidth,
+        ...[...node.querySelectorAll('.assist-actions, .assist-actions > *, [data-inline-run] textarea')].map(item => Math.round(item.getBoundingClientRect().right - node.getBoundingClientRect().right))]);
+      t.diagnostic(`${lang} ${width}px: learning actions in the round: overflow ${JSON.stringify(overflow)}`);
+      assert.ok(overflow.every(value => value <= 1), `${lang} ${width}px: the learning actions fit the panel (${overflow})`);
+      await shot('learning-actions');
       // 去练习页继续 while the round cannot be opened there: the reader and its round stay (the reader gives way only to an opened round).
       const refuse = route => { try { if (JSON.parse(route.request().postData() || '{}').action === 'review.get') return route.abort(); } catch { /* not JSON */ } return route.continue(); };
       await page.route('**/api/call', refuse);
