@@ -5,8 +5,8 @@ import { cardKey, refsOf } from './practice-range.js';
 import { followupsOf, rangeKey, sectionStats } from './section-practice.js';
 
 /* The reads behind the 本节题目 line (#1013), through the existing operations and never while scrolling:
-   - 错题: the 错题与待巩固 page's rows of this material (reader/wrong-rows.js readWrongBook), read once per set of the material's questions (the reading loop
-     reads that set again when the library changes) and counted per range here;
+   - 错题: the 错题与待巩固 page's rows of this material (reader/wrong-rows.js readWrongBook), read at most once per library version and set of the
+     material's questions (closing and opening the panel, or a round in it, reads nothing again until the library changes), counted per range here;
    - 追问: course.outline.qa for the range's questions (at most its 200), kept per library version and range; a change of section asks at most once, after
      the reading position has rested a moment;
    - 批注: placed by the reading loop with the questions (no request).
@@ -18,10 +18,12 @@ const SETTLE_MS = 250, KEPT = 24, QA_MAX = 200, NONE = Object.freeze([]);
 export function useSectionStats({ call, enabled, version, allCards, cards, ids, noteAssigned }) {
   const keys = useMemo(() => new Set((allCards || []).map(cardKey)), [allCards]);
   const [wrongKeys, setWrongKeys] = useState(null);
+  const wrongWanted = useMemo(() => `${version ?? ''}|${[...keys].sort().join(',')}`, [version, keys]), wrongRead = useRef('');
   useLiveEffect(live => {
-    if (!enabled || !call || !keys.size) return;
-    readWrongBook({ call, keys }).then(items => { if (live()) setWrongKeys(new Set(items.map(cardKey))); }, () => { if (live()) setWrongKeys(null); });
-  }, [call, enabled, keys]);
+    if (!enabled || !call || !keys.size || wrongRead.current === wrongWanted) return;
+    readWrongBook({ call, keys }).then(items => { if (live()) { wrongRead.current = wrongWanted; setWrongKeys(new Set(items.map(cardKey))); } },
+      () => { if (live()) setWrongKeys(null); });
+  }, [call, enabled, wrongWanted]); // `wrongWanted` names the version and the questions (`keys`)
 
   const kept = useRef(new Map());
   const range = rangeKey(cards), wanted = `${version ?? ''}|${range}`;

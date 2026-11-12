@@ -144,6 +144,21 @@ test('本节题目: answered beside the text with the practice page\'s keys; the
     await until(async () => (await panel.locator('[data-section-card]').count()) === 3, 'the three questions of the chapter');
     assert.deepEqual(await panel.locator('[data-section-card]').evaluateAll(nodes => nodes.map(node => node.dataset.sectionCard)), ['d1|a', 'd1|b', 'd1|c']);
     await until(async () => words.follow1.test(await panel.locator('[data-testid="section-stats"]').innerText()), '追问 1');
+    if (lang === 'zh' && width === 1000) {
+      // 错题 n is read once per library version: the panel closed and opened again reads nothing again.
+      let reads = 0;
+      page.on('request', request => {
+        try { if (request.url().endsWith('/api/call') && JSON.parse(request.postData() || '{}').action === 'wrongbook') reads++; } catch { /* not JSON */ }
+      });
+      for (let round = 0; round < 2; round++) {
+        await chooseMore(page, viewer, words.more, words.tools);
+        await until(async () => !(await tools.isVisible()), 'the panel to close');
+        await chooseMore(page, viewer, words.more, words.tools);
+        await panel.locator('[data-testid="section-stats"]').waitFor();
+      }
+      await page.waitForTimeout(600);
+      assert.equal(reads, 0, `${lang} ${width}px: the 错题 of the panel are not read again while nothing changed`);
+    }
     if (width === 420) {
       const fits = await tools.evaluate(node => node.scrollWidth <= node.clientWidth + 1);
       assert.ok(fits, `${lang} ${width}px: the panel does not scroll sideways`);
@@ -227,8 +242,8 @@ test('本节题目: answered beside the text with the practice page\'s keys; the
       assert.ok(index >= 0, `the option ${text}`);
       await page.keyboard.press(String(index + 1));
     };
-    await pressOption('Wrong');
-    await round.locator('.options button.option.incorrect').first().waitFor({ timeout: 30000 });
+    // The keys work once the start has settled (the app is busy until its refresh, as on the practice page).
+    await until(async () => { await pressOption('Wrong'); return (await round.locator('.options button.option.incorrect').count()) > 0; }, 'b answered wrong');
     for (let step = 0; step < 8; step++) {
       if (await round.locator('.inline-run__done').count()) break;
       if (await round.locator('.options button.option:not([disabled])').count()) await pressOption('Right');
