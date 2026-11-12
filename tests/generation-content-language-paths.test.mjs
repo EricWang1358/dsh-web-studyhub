@@ -102,6 +102,20 @@ test('a generated question that is not English is held back in the draft at publ
   assert.ok(calls.every((call) => call.text.includes(ENGLISH)), 'the repair and its review are sent the English rule');
 });
 
+test('a draft generated before the language check was recorded is not held back for its language at publication', async (t) => {
+  const { service, lesson } = await englishLibrary(t);
+  const draft = await finished(service, await service.call('generate', { sourceIds: [lesson.id], count: 2, kind: 'quiz', kinds: ['quiz'] }));
+  assert.ok(draft.editorial.generation.languageCheck, 'a run records the version of the check its questions passed');
+  const [first] = draft.cards;
+  const slipped = { ...first, options: first.options.map((option) => option === first.options.find((item) => !item.correct) ? { ...option, text: '它只是给这条要点换了一个名字' } : option) };
+  const { languageCheck, ...earlier } = draft.editorial.generation;
+  const saved = await service.call('draft.save', { deck: { ...draft, editorial: { ...draft.editorial, generation: earlier }, cards: [slipped, ...draft.cards.slice(1)] } });
+  const stored = (await service.call('export')).drafts.find((item) => item.id === draft.id);
+  assert.equal(stored.editorial.generation.languageCheck, undefined, 'the draft is one from before the check');
+  const published = await service.call('draft.publish', { id: draft.id, draftVersion: saved.draftVersion });
+  assert.equal(published.rejected ?? 0, 0, 'what the learner already has is not held back by a check it was never written for');
+});
+
 test('a passage added to a deck (补题) follows the saved 出题语言, or the deck\'s own, never the interface language alone', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'study-1002-selection-'));
   t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));

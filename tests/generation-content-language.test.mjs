@@ -61,12 +61,19 @@ test('English: a field with Chinese prose is flagged; quotations, glosses, formu
 
 test('Chinese is asked for, not checked; 中英双语 needs both in the stem; a free-form language is not checked', () => {
   const english = { kind: 'quiz', prompt: 'Which statement about snapshot isolation and write skew is correct in this case?' };
-  const chinese = { kind: 'quiz', prompt: '关于快照隔离（snapshot isolation），哪一项说法正确？', options: [{ id: 'a', text: 'MVCC', correct: true }] };
+  const chinese = { kind: 'quiz', prompt: '关于快照隔离（MVCC），哪一项说法正确？', options: [{ id: 'a', text: 'MVCC', correct: true }] };
   assert.deepEqual(languageIssues({ cards: [english, chinese] }, '中文'), [], 'an English stem in a Chinese run is not held back (English material keeps its terms)');
   const both = { kind: 'quiz', prompt: '快照隔离何时检测冲突？\nWhen does snapshot isolation check for conflicts?', options: [{ id: 'a', text: '提交时（commit）', correct: true }] };
   assert.deepEqual(languageIssues({ cards: [both, chinese, english] }, '中英双语'),
     [`Card 2: prompt ${LANGUAGE_ISSUE} (Chinese with English)`, `Card 3: prompt ${LANGUAGE_ISSUE} (Chinese with English)`]);
   assert.deepEqual(languageIssues({ cards: [{ kind: 'cloze', prompt: '冲突在{{b1}}阶段检测。' }] }, '中英双语'), [], 'a cloze sentence stays one Chinese sentence');
+  // The setting only says "Chinese & English" (ui/locales/en.json), so every common layout of the two passes: the English in brackets, a second
+  // sentence, a short English stem; a flashcard front may be just the term in both languages. Code and formulas are not words of either.
+  const layouts = ['什么是闭包？(What is a closure?)', '什么是闭包？（What is a closure?）', '定义熵。Define entropy.', '求极限 $\\lim_{x \\to 0} \\frac{\\sin x}{x}$。Find the limit.'];
+  assert.deepEqual(languageIssues({ cards: layouts.map((prompt) => ({ kind: 'quiz', prompt })) }, '中英双语'), []);
+  assert.deepEqual(languageIssues({ cards: [{ kind: 'flashcard', prompt: '熵 Entropy' }, { kind: 'flashcard', prompt: '熵' }] }, '中英双语'), [], 'a flashcard front is not checked');
+  assert.deepEqual(languageIssues({ cards: [{ kind: 'quiz', prompt: '计算 `select count(*) from orders` 的结果。' }, { kind: 'quiz', prompt: '求 $\\int x \\, dx$ 的值。' }] }, '中英双语'),
+    [`Card 1: prompt ${LANGUAGE_ISSUE} (Chinese with English)`, `Card 2: prompt ${LANGUAGE_ISSUE} (Chinese with English)`], 'code and a formula are not the English half');
   assert.deepEqual(languageIssues({ cards: [english, chinese] }, '日本語'), []);
   assert.deepEqual(languageIssues({ cards: [english, chinese] }, undefined), []);
 });
