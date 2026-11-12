@@ -13,6 +13,8 @@ test('system review titles translate without rewriting course or question names'
   const titles = [
     [{ mode: 'path', scope: [{ deckId: 'd', cardId: 'c' }], purpose: 'inbox' }, '信箱 · 1 道', 'Inbox · 1'],
     [{ mode: 'path', scope: [{ deckId: 'd', cardId: 'c' }], returnTo: 'r' }, '前置题 · 1 道', 'Prerequisites · 1'],
+    // 试一道同类题 (#1015) is a detour too, but not a prerequisite.
+    [{ mode: 'path', scope: [{ deckId: 'd', cardId: 'c2' }], returnTo: 'r', similarFor: { deckId: 'd', cardId: 'c' } }, '同类题 · 1 道', 'Similar question · 1'],
     [{ mode: 'path', scope: [{ deckId: 'd' }] }, '信箱 · 1 道', '信箱 · 1 道'],
     [{ mode: 'path', purpose: 'course', course: '设计模式' }, '课程 · 设计模式', 'Course · 设计模式'],
     [{ mode: 'path', workflowSessionId: 'w' }, '学习流 · 设计模式', 'Learning flow · 设计模式'],

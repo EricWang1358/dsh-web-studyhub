@@ -744,6 +744,13 @@ const HANDLERS = [
         { lesson: "再说明它在什么条件下成立。", check: "它在什么条件下成立？", answer: "说出至少一个条件。" }] }) },
   { name: "teaching.judge", match: (s) => s.startsWith("Judge only the current prerequisite check"),
     reply: ({ input }) => ({ passed: String(input.learnerAnswer || "").trim().length >= 4, feedback: "预览判定：回答长度足够即视为通过。" }) },
+  // 用自己的话讲一遍 (lib/teaching.js checkRetell): an explanation of 20 characters or more is clear; a shorter one misses a part. Never echoes the words.
+  { name: "teaching.retell", match: (s) => s.startsWith("The learner explains a study point in their own words."),
+    reply: ({ input }) => {
+      const english = input.language === "en", clear = String(input.learnerExplanation || "").trim().length >= 20;
+      return { passed: clear, right: [english ? "Preview: you named what the point is about." : "预览：说出了这个知识点讲的是什么。"],
+        missed: clear ? [] : [english ? "Preview: say when it applies, too." : "预览：还要说出它在什么条件下成立。"], wrong: [], cite: input.citations > 0 ? 0 : null };
+    } },
   // Guided workflow (AI 带学): choose material, write a lesson, review it, read a retelling.
   { name: "workflow.pick", match: (s) => s.startsWith("You choose study material"),
     reply: ({ input }) => ({ keys: (input.topics || []).slice(0, 6).map((t) => t.key), title: String(input.goal || "").slice(0, 20) }) },
