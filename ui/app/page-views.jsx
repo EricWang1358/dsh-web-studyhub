@@ -39,7 +39,7 @@ import { importForQuestions } from './import-handoff.js';
 import { shellTitleOf } from './shell-title.js';
 import WorkspaceBindingPanel from './WorkspaceBindingPanel.jsx';
 import { RecoveryBanner } from './AppBanners.jsx';
-import { formatDateTime } from '../format.js';
+import { qaToNoteArgs, questionNoteRef, questionNoteTitle } from '../review/question-note.js';
 import { appendFocus } from '../generate-form.js';
 import { retryForm, retryNotice } from './retry-generation.js';
 import { practiseRound } from './practise-round.js';
@@ -438,8 +438,7 @@ function ReviewView({ feedback }) {
   useEffect(() => { if (run?.complete) dailyPlan.refresh?.(); }, [run?.id, run?.complete]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!run) return null;
   const detour = lib.detour && !(lib.detour.runId === run.id && lib.detour.index === run.index) ? lib.detour : null;
-  const questionRef = { deckId: run.deckId || run.card?.deckId, cardId: run.card?.id };
-  const noteTitle = () => uiFormat('学习笔记 · {0}', [formatDateTime(Date.now(), 'date')]);
+  const questionRef = questionNoteRef(run);
   const links = {
     onBackToWorkflow: (sessionId) => { set.setWorkflowReturn({ sessionId, nonce: Date.now() }); nav.navigate('workflows'); },
 
@@ -450,11 +449,11 @@ function ReviewView({ feedback }) {
     // 写笔记 opens the question's note, a new one filled from the card (prefill: stem, misconceptions, explanation, the Q&A; #1017) in the page's language.
     onMakeNote: () => {
       const origin = learn.captureContext();
-      return core.act('note.create', { title: noteTitle(), cards: [questionRef], reuse: true, prefill: true, language: getUiLanguage() },
+      return core.act('note.create', { title: questionNoteTitle(), cards: [questionRef], reuse: true, prefill: true, language: getUiLanguage() },
         (note) => { learn.rememberContext(origin); nav.show.note(note.id); });
     },
     // 存进笔记 under a Q&A: into that same note, once (note.qa.add); the practice page then reads 已存进笔记 from the note badges.
-    onSaveQaToNote: (followupId) => core.act('note.qa.add', { ...questionRef, followupId, title: noteTitle(), language: getUiLanguage() }, undefined, { rethrow: true }),
+    onSaveQaToNote: (followupId) => core.act('note.qa.add', qaToNoteArgs(run, followupId), undefined, { rethrow: true }),
     onMakeTask: learn.openBoardWithContext,
     openSkeleton: (id) => learn.openLearningTarget({ kind: 'skeleton', id }),
     onReturnToReading: learn.returnToReading,

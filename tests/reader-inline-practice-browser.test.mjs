@@ -252,12 +252,23 @@ test('本节题目: answered beside the text with the practice page\'s keys; the
     };
     // The keys work once the start has settled (the app is busy until its refresh, as on the practice page).
     await until(async () => { await pressOption('Wrong'); return (await round.locator('.options button.option.incorrect').count()) > 0; }, 'b answered wrong');
+    let savedQa = false;
     for (let step = 0; step < 8; step++) {
       if (await round.locator('.inline-run__done').count()) break;
       if (await round.locator('.options button.option:not([disabled])').count()) await pressOption('Right');
-      else await page.keyboard.press('Enter');
+      else {
+        // c answered: its 追问 has 存进笔记 (#1017), as on the practice page; saved, it reads 已存进笔记.
+        if (!savedQa && await round.locator('[data-note-qa="save"]').count()) {
+          await round.locator('[data-note-qa="save"]').first().click();
+          await round.locator('[data-note-qa="saved"]').first().waitFor({ timeout: 15000 });
+          savedQa = true;
+          await round.focus();
+        }
+        await page.keyboard.press('Enter');
+      }
       await page.waitForTimeout(250);
     }
+    assert.ok(savedQa, 'the 追问 of c could be kept in its note from the reader');
     await round.locator('.inline-run__done').waitFor({ timeout: 30000 });
     assert.match(await round.innerText(), words.done);
     const answered = await place();

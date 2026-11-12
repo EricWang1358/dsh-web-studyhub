@@ -5,6 +5,7 @@ import { useReviewSession } from '../../review/useReviewSession.js';
 import InlineRun from '../../review/InlineRun.jsx';
 import FlagDialog from './FlagDialog.jsx';
 import ShortcutHelp from '../../ShortcutHelp.jsx';
+import { qaToNoteArgs } from '../../review/question-note.js';
 import { useApp } from '../app-context.js';
 
 /* The round of the reader's 本节题目 (#1013), answered in the reader: a second practice session of the app (useReviewSession with `embeddedIn`), so the
@@ -24,7 +25,7 @@ const NO_HOST = Object.freeze({});
 /** started: the run review.start (or the move to the question clicked) answered; label: what is practised; onClose(); onSeek({ source, quote, peekPage }) -> boolean;
     shown: the panel holding the round is on screen. */
 export default function ReaderRun({ started, label, onClose, onSeek, shown = true }) {
-  const { core, nav, intents, set, data, host, settingsEntry } = useApp();
+  const { core, nav, intents, set, data, host, settingsEntry, learn } = useApp();
   const study = useStudy();
   const rootRef = useRef(null), late = useRef({});
   const readerNav = useMemo(() => ({ page: shown ? PAGE : HIDDEN, setPage: () => {}, show: nav.show }), [nav.show, shown]);
@@ -55,7 +56,12 @@ export default function ReaderRun({ started, label, onClose, onSeek, shown = tru
   }, [continueThere, onSeek, set]);
   const services = useMemo(() => ({ ...study, openModal }), [study, openModal]);
   // The model settings open beside the reader when the host has them; otherwise the reader gives way to the Settings page (as SourceReaderDialog does).
-  const links = useMemo(() => ({ onModelSettings: () => { if (!host.openModelSettings) set.setModal(null); settingsEntry.openModelSettings(); } }), [host, set, settingsEntry]);
+  // 存进笔记 under a Q&A keeps it in the question's note as on the practice page; 已存进笔记 · 打开 opens that note, the reader giving way to it.
+  const links = useMemo(() => ({
+    onModelSettings: () => { if (!host.openModelSettings) set.setModal(null); settingsEntry.openModelSettings(); },
+    onSaveQaToNote: (followupId) => core.act('note.qa.add', qaToNoteArgs(runRef.current, followupId), undefined, { rethrow: true }),
+    onOpenNote: (noteId) => { set.setModal(null); learn.openLearningTarget({ kind: 'note', id: noteId }); },
+  }), [host, set, settingsEntry, core, learn]);
   const feedback = core.error ? <ActionFeedback error={core.error} onCloseError={() => core.setError('')} /> : null;
   return (
     <StudyServicesContext.Provider value={services}>
