@@ -32,6 +32,7 @@ export default function ReaderRun({ started, label, onClose, onSeek, shown = tru
   const session = useReviewSession({ core, nav: readerNav, modalOpen: !shown, host: NO_HOST, rootRef, late, embeddedIn: PAGE });
   const { enterRun, shortcutHelp, actions: { closeShortcutHelp } } = session;
   const helpOpen = shown && shortcutHelp;
+  useEffect(() => { if (!shown) closeShortcutHelp(); }, [shown, closeShortcutHelp]); // hidden with the panel, it does not come back by itself
   useEffect(() => {
     if (!helpOpen) return undefined;
     // Before the reader's own Esc (it hides the panel on a narrow window, closes the reader on a wide one): the sheet is the top layer.
