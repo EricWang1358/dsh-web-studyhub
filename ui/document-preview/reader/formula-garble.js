@@ -10,6 +10,8 @@ export const GARBLED_SHARE = 0.1;
 export const MIN_STACKED = 15;
 /** Longest fragment (after trimming). */
 const MAX_FRAGMENT = 3;
+/* A line longer than this once its ASCII spaces are off is never a fragment (other spaces, like U+3000, are trimmed for the short ones). */
+const SHORT_LINE = 16;
 
 /* What a fragment of a formula is made of: Latin letters and digits, Greek, the math operators, arrows and letter-like symbols, super- and subscript
    digits, and the ASCII signs formulas use. */
@@ -28,10 +30,17 @@ export function isFragment(line) {
 
 /** How much of `text` is formula fragments stacked in runs: { lines (non-empty), stacked (lines in runs of RUN_LINES or more), share }. */
 export function formulaGarble(text) {
-  const all = String(text || '').split('\n');
+  // One scan over the string, no array of lines: only a short line (the only kind that can be a fragment) is cut out and trimmed.
+  const all = String(text || ''), size = all.length;
   let lines = 0, stacked = 0, run = 0;
-  for (const raw of all) {
-    const line = raw.trim();
+  for (let start = 0; start <= size;) {
+    let end = all.indexOf('\n', start);
+    if (end < 0) end = size;
+    let from = start, to = end;
+    while (from < to && all.charCodeAt(from) <= 32) from += 1;
+    while (to > from && all.charCodeAt(to - 1) <= 32) to -= 1;
+    start = end + 1;
+    const line = to - from <= SHORT_LINE ? all.slice(from, to).trim() : 'long';
     if (!line) continue;
     lines += 1;
     if (isFragment(line)) { run += 1; continue; }
