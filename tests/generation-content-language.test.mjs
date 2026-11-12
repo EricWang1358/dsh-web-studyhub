@@ -103,8 +103,8 @@ const englishCard = (target, index, n = target.targetId.replace('target-', '')) 
     { id: 'b', text: `When the transaction starts ${n}`, correct: false, explanation: 'That is when the snapshot is read.' },
     { id: 'c', text: `On every single read ${n}`, correct: false, explanation: 'Reads see the snapshot; nothing is compared.' }] });
 
-/** A model that records every call and writes English unless a stage is told to slip (`authorSlip`, `blueprintSlip`); `patch` is the reply to the repair. */
-function recordingModel({ authorSlip = () => (card) => card, blueprintSlip = null, patch = null } = {}) {
+/** A model that records every call and writes English unless a stage is told to slip (`authorSlip`, `blueprintSlip` on the first `blueprintSlipCalls` calls); `patch` is the reply to the repair. */
+function recordingModel({ authorSlip = () => (card) => card, blueprintSlip = null, blueprintSlipCalls = 1, patch = null } = {}) {
   const calls = [];
   let authors = 0, blueprints = 0;
   const complete = async (rawSystem, prompt) => {
@@ -117,7 +117,7 @@ function recordingModel({ authorSlip = () => (card) => card, blueprintSlip = nul
       const items = data.assessmentPlan.targets.map((target, index) => {
         const card = englishCard(target, index);
         const item = { targetId: target.targetId, answer: card.answer, reasoning: card.explanation, scenario: { kind: 'none', facts: [], decisiveConditions: [] }, comparisonAxis: 'When the check runs', options: card.options };
-        return blueprintSlip && blueprints === 1 ? blueprintSlip(item, index) : item;
+        return blueprintSlip && blueprints <= blueprintSlipCalls ? blueprintSlip(item, index) : item;
       });
       return JSON.stringify({ items });
     }
@@ -149,6 +149,19 @@ test('options the answer stage wrote in Chinese go back once through its own cor
   assert.match(model.calls[2].text, new RegExp(LANGUAGE_ISSUE), 'the correction names the language defect');
   assert.ok(model.calls.every((call) => call.text.includes(ENGLISH)));
   assert.deepEqual(languageIssues(deck, 'English'), []);
+});
+
+test('an answer stage still writing Chinese after its correction does not fail the part: the later checks drop that card with the reason and a fill round replaces it', async () => {
+  // Both blueprint calls of the part bind Chinese wrong options; the fill round's blueprint is clean.
+  const model = recordingModel({ blueprintSlipCalls: 2, patch: () => ({ cards: [] }),
+    blueprintSlip: (item) => ({ ...item, options: item.options.map((option) => option.correct ? option : { ...option, text: `在事务启动时读取快照 ${option.id}` }) }) });
+  const reserve = [{ targetId: 'target-9', objective: 'Reserve target', knowledge: quote, citations: [{ sourceId: 's', quote }] }];
+  const deck = await generateDeck(model.complete, { count: 1, kind: 'quiz', sources: [source], language: 'English', fillRounds: 1,
+    claimReserve: async (missing) => reserve.splice(0, missing) });
+  assert.deepEqual(model.calls.slice(0, 4).map((call) => call.stage), ['plan', 'blueprint', 'blueprint', 'author'], 'the correction round, then the part goes on');
+  assert.equal(deck.cards.length, 1, 'the fill round replaces the dropped card');
+  assert.deepEqual(languageIssues(deck, 'English'), [], 'nothing in the wrong language reaches the deck');
+  assert.ok(deck.editorial.omitted.some((item) => item.reasons.some((reason) => reason.includes(LANGUAGE_ISSUE))), 'the card in the wrong language is dropped with the reason');
 });
 
 test('a card written partly in Chinese gets the one wording repair with the rule; one still wrong after it is dropped with the reason, and a fill round replaces it', async () => {
