@@ -1,4 +1,4 @@
-import { ui, uiFormat } from "./i18n.js";
+import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 import { Badge, Button, InlineMessage } from "./components/index.js";
@@ -7,8 +7,10 @@ import BookQaButton, { BookQaAuto } from "./book/BookQaButton.jsx";
 
 /* bookQa (optional): { course, mode: 'manual' | 'auto', onMode(mode), book (ui/book/BookQaButton.jsx useBookQa, shared with the page), note } — the card's
    course and the 自动加入复习全书 setting (settings.book.qaToBook). With a book for that course each Q&A has 「加入复习全书」. The automatic adds are made by
-   the practice page (ui/review/QuestionRun.jsx), which is on screen even while this list is folded away; `note` says when one failed. */
-export default function ExplanationFollowup({ run, readOnly = false, onDerive, onAskMore = null, deriving = false, bookQa = null }) {
+   the practice page (ui/review/QuestionRun.jsx), which is on screen even while this list is folded away; `note` says when one failed.
+   noteQa (optional): { savedIn(followupId) -> noteId | '', onSave(followupId), onOpen(noteId) } — 「存进笔记」 under each Q&A (#1017): into this question's
+   learning note once (note.qa.add); saved, it reads 已存进笔记 · 打开. Needs no review book. */
+export default function ExplanationFollowup({ run, readOnly = false, onDerive, onAskMore = null, deriving = false, bookQa = null, noteQa = null }) {
   const { call } = useStudy();
   const book = bookQa?.book;
   const withBook = !!book && book.ready && book.courses.has(bookQa.course ?? "");
@@ -95,6 +97,7 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
             <span className="followup-state" aria-hidden="true">{openIds.has(item.id) ? ui("收起") : ui("展开")}</span></summary>
           <Markdown text={item.answer} />
           {withBook && <BookQaButton refOf={{ ...ref, followupId: item.id }} book={book} />}
+          {noteQa && <NoteQaButton followupId={item.id} noteQa={noteQa} />}
           {/* A long answer can be folded from its end, landing back on its question. */}
           {/* 出成题: this Q&A becomes a question of its own, as a prerequisite of this card or standalone (a background task, the result goes to the deck and the inbox). */}
           {onDerive && <div className="followup-derive" role="group" aria-label={ui("用这个问答出题")}>
@@ -138,5 +141,22 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
       )}
       {pending && <p className="muted small" role="status">{pending === "suggest" ? ui("正在准备 3 个追问…") : ui("正在解答，完成后会保存到本题，可继续下一题。")}</p>}</>}
     </section>
+  );
+}
+
+/** 「存进笔记」 of one Q&A: saved, 已存进笔记 · 打开 opens the note (the note badges of the snapshot say which follow-ups a note holds). */
+function NoteQaButton({ followupId, noteQa }) {
+  const [working, setWorking] = React.useState(false), [error, setError] = React.useState("");
+  const noteId = noteQa.savedIn(followupId);
+  if (noteId) return <Button variant="link" size="sm" icon="check" className="note-qa-button" data-note-qa="saved" onClick={() => noteQa.onOpen(noteId)}>{ui("已存进笔记 · 打开")}</Button>;
+  const save = async () => {
+    setWorking(true); setError("");
+    try { await noteQa.onSave(followupId); } catch (failure) { setError(errorMessage(failure)); } finally { setWorking(false); }
+  };
+  return (
+    <span className="note-qa-button">
+      <Button variant="link" size="sm" icon="note" data-note-qa="save" busy={working} onClick={save}>{ui("存进笔记")}</Button>
+      {error && <InlineMessage tone="error">{error}</InlineMessage>}
+    </span>
   );
 }

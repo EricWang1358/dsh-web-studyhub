@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { PageBoundary } from './page-boundary.jsx';
 import { useDiagnostics } from '../diagnostics.js';
 import { currentStudyHubVersion, currentUpgradeMarker } from '../UpdateCenter.jsx';
-import { ui, uiFormat, setUiLanguage, errorMessage } from '../i18n.js';
+import { ui, uiFormat, setUiLanguage, errorMessage, getUiLanguage } from '../i18n.js';
 import { pageAvailable } from '../capabilities.js';
 import { pageFlag } from '../pages.js';
 import { exportAppearance, importAppearance } from '../appearance-prefs.js';
@@ -438,6 +438,8 @@ function ReviewView({ feedback }) {
   useEffect(() => { if (run?.complete) dailyPlan.refresh?.(); }, [run?.id, run?.complete]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!run) return null;
   const detour = lib.detour && !(lib.detour.runId === run.id && lib.detour.index === run.index) ? lib.detour : null;
+  const questionRef = { deckId: run.deckId || run.card?.deckId, cardId: run.card?.id };
+  const noteTitle = () => uiFormat('学习笔记 · {0}', [formatDateTime(Date.now(), 'date')]);
   const links = {
     onBackToWorkflow: (sessionId) => { set.setWorkflowReturn({ sessionId, nonce: Date.now() }); nav.navigate('workflows'); },
 
@@ -445,11 +447,14 @@ function ReviewView({ feedback }) {
     onRecapSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-daily-recap'); nav.show.page('settings'); },
     onPracticeSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-practice'); nav.show.page('settings'); },
     onModelSettings: settingsEntry.openModelSettings,
+    // 写笔记 opens the question's note, a new one filled from the card (prefill: stem, misconceptions, explanation, the Q&A; #1017) in the page's language.
     onMakeNote: () => {
       const origin = learn.captureContext();
-      return core.act('note.create', { title: uiFormat('学习笔记 · {0}', [formatDateTime(Date.now(), 'date')]),
-        cards: [{ deckId: run.deckId || run.card?.deckId, cardId: run.card?.id }], reuse: true }, (note) => { learn.rememberContext(origin); nav.show.note(note.id); });
+      return core.act('note.create', { title: noteTitle(), cards: [questionRef], reuse: true, prefill: true, language: getUiLanguage() },
+        (note) => { learn.rememberContext(origin); nav.show.note(note.id); });
     },
+    // 存进笔记 under a Q&A: into that same note, once (note.qa.add); the practice page then reads 已存进笔记 from the note badges.
+    onSaveQaToNote: (followupId) => core.act('note.qa.add', { ...questionRef, followupId, title: noteTitle(), language: getUiLanguage() }, undefined, { rethrow: true }),
     onMakeTask: learn.openBoardWithContext,
     openSkeleton: (id) => learn.openLearningTarget({ kind: 'skeleton', id }),
     onReturnToReading: learn.returnToReading,
@@ -470,6 +475,7 @@ function NotesView() {
     <BlogNotes key={data.root} data={data} theme={shell.resolvedTheme} onModelSettings={settingsEntry.openModelSettings}
       onRecapSettings={() => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-daily-recap'); nav.show.page('settings'); }}
       initialId={lib.noteInitialId} onSelect={set.setNoteInitialId} onOpenCard={(reference) => learn.openLearningTarget({ kind: 'card', ...reference })}
+      onOpenSource={(id, quote) => learn.openLearningTarget({ kind: 'source', id, quote })}
       backLabel={learn.trailLabel} onBack={learn.hasTrail ? learn.returnFromContext : () => { set.setNoteInitialId(''); nav.navigate('library'); }} />
   );
 }

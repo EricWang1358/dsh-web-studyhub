@@ -19,13 +19,14 @@ import { useStudy } from './study-context.jsx';
 import NoteDraft from './NoteDraft.jsx';
 import { modelReadiness } from './generation-status.js';
 import { useUndoable } from './use-undoable.js';
+import { parseCiteHref } from '../lib/contexts/notes/note-links.js';
 
 const editorExtensions = [markdown()];
 const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
 const isDailyNote = note => note?.kind?.startsWith('daily-recap');
 const writingStamp = note => JSON.stringify([note?.title, note?.markdown, isDailyNote(note) ? null : note?.cards]);
 
-export default function BlogNotes({ data, initialId, initialNote = null, initialEditing = false, onSelect, onBack, backLabel, onOpenCard, onRecapSettings, onModelSettings, theme = "dark" }) {
+export default function BlogNotes({ data, initialId, initialNote = null, initialEditing = false, onSelect, onBack, backLabel, onOpenCard, onOpenSource, onRecapSettings, onModelSettings, theme = "dark" }) {
   const { call, act, busy } = useStudy();
   const science = useSciencePreferences();
   const toast = useToast();
@@ -212,6 +213,18 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
       onRestore: () => { if (!openId.current) setId(gone.id); },
       focus: () => document.querySelector('.note-heading [data-context-heading]') });
   }
+  /** 来源：第 N 页 of a note written from a question (#1017): the reader opens at that citation's quote, as the practice page's 引用与来源核对 does. */
+  async function openCitation(event) {
+    const cite = onOpenSource && parseCiteHref(event.target.closest?.('a[href]')?.getAttribute('href'));
+    if (!cite) return;
+    event.preventDefault();
+    try {
+      const found = await call('card.get', { deckId: cite.deckId, cardId: cite.cardId });
+      const citation = found.card?.citations?.[cite.index];
+      if (citation?.sourceId) onOpenSource(citation.sourceId, citation.quote || '');
+      else toast.error(ui('这条来源已不在原题上'));
+    } catch (error) { toast.error(error); }
+  }
   async function saveMaterial() {
     return perform(async live => {
       const submitted = writable ? await persistCurrent() : current.current;
@@ -292,7 +305,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
       </details>}
       {note.status === 'draft' && !daily && <NoteDraft note={note} model={modelReadiness(data)} running={note.generation?.status === 'running'} disabled={saving || publishing}
         onStart={startDraft} onCancel={cancelDraft} onModelSettings={onModelSettings} />}
-      {!editing && note.markdown && <div className="note-reader"><DocumentViewer key={note.id} source={{ id: note.id, title: note.title, text: note.markdown, format: 'md' }}
+      {!editing && note.markdown && <div className="note-reader" onClickCapture={openCitation}><DocumentViewer key={note.id} source={{ id: note.id, title: note.title, text: note.markdown, format: 'md' }}
         localContent={{ id: note.id, title: note.title, markdown: note.markdown }} data={data} call={call} /></div>}
       {editing && writable && <>
         <label className="note-title">{ui("文章标题")}<TextInput className="note-input" value={note.title} disabled={publishing || note.generation?.status === "running"}
