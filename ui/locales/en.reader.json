@@ -181,5 +181,17 @@
   "选中文字的操作": "Selected text actions",
   "选区跨了多页，请在一页内选择。": "This selection spans multiple pages. Select within a single page.",
   "需要先连接模型；点一下去设置。": "Needs a model first; click to set one up.",
-  "待出题 {0}…": "Queued {0}…"
+  "待出题 {0}…": "Queued {0}…",
+  "已读 {0}/{1} 章": "Read {0}/{1} chapters",
+  "已读：{0}。点一下标为未读": "Read: {0}. Press to mark it unread",
+  "关联题目的范围": "Which linked questions",
+  "本章 {0}": "This chapter {0}",
+  "全书 {0}": "Whole book {0}",
+  "这一章还没有关联的题目。": "No linked questions in this chapter yet.",
+  "文字": "Text",
+  "看原始 PDF": "Show the original PDF",
+  "用 MinerU 重新转换": "Convert again with MinerU",
+  "打开「添加资料」里的 PDF 解析，用本机 MinerU 把这份 PDF 再转换一次，公式会转成可读的写法。已经导入的这份不会变。": "Opens PDF conversion in Add materials to convert this PDF again with MinerU on this computer, which writes the formulas in a readable form. The material already imported stays as it is.",
+  "这一章公式较多，转换后的文字可能不好读。": "This chapter has many formulas, and its converted text may be hard to read.",
+  "阅读资料时：上一章 / 下一章": "Reading a material: previous / next chapter"
 }
