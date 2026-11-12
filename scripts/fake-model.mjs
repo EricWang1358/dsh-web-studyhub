@@ -673,6 +673,17 @@ const HANDLERS = [
   { name: "assist", match: (s) => s.startsWith("You are a background study assistant."),
     reply: ({ input, english }) => {
       const card = input.card || {}, question = input.request?.question || "";
+      // 出题 (derive, e.g. 生成一道变式 #1015): one new flashcard citing the first supplied source window verbatim, or no change without one.
+      if (input.mode === "derive") {
+        const source = (input.sources || []).find((item) => String(item.text || "").trim().length >= 12);
+        if (!source) return { noChange: english ? "Preview: no source to cite." : "预览：没有可引用的资料。" };
+        const quote = String(source.text).trim().slice(0, 60), topic = card.topic || (english ? "this point" : "这个知识点");
+        return { card: { kind: "flashcard", topic, objective: english ? `Preview variant of ${topic}` : `预览变式：${topic}`,
+          prompt: english ? `Preview variant: in a new situation, what does ${topic} do?` : `预览变式：换一个情境，${topic}会怎样？`,
+          answer: english ? `Preview answer: ${quote}` : `预览答案：${quote}`, hint: english ? "Think of the conditions." : "先想成立条件。",
+          explanation: english ? `Preview explanation from the source: ${quote}` : `预览解析，来自资料：${quote}`,
+          misconception: english ? "Remembering only the name." : "只记住名字。", citations: [{ sourceId: source.sourceId, quote }] } };
+      }
       if (input.mode === "improve") return english
         ? { patch: { explanation: `${card.explanation}\n\n(Preview rewrite: added a reusable rule — ask what problem it solves, then when it holds.)` },
           reason: "Preview rewrite: added a decision rule at the end of the explanation." }

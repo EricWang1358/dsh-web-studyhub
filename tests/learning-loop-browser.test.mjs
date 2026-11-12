@@ -1,13 +1,14 @@
 /* global window, document */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
 import { openPage, settleAnimations, startLateServer } from '../scripts/qa/layout-late.mjs';
+import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outline-book.js';
 import { courseNotesMaterial } from '../lib/course-book.js';
 import { buildOutlineIndex } from '../lib/course-outline-index.js';
@@ -18,7 +19,8 @@ import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
    a wrong answer → 试一道同类题 practises a similar question of the bank as a detour → its result page's 回到原题 is one click back to the question, as it
    was left, and the round's own counts did not move; 用自己的话讲一遍 checks an explanation (讲对了的 / 漏掉的 / 讲错的, 去原文看这段 opens the cited source and
    回到这道题 comes back) and the library keeps no words; on the 复习全书 a point's 用自己的话讲一遍 leaves 讲清楚过 ✓, which a reload keeps. Nothing scrolls
-   sideways. LEARNING_LOOP_SHOTS=<folder> keeps screenshots. */
+   sideways. With no similar question 生成一道变式 has the fake model write one, and 做这道变式题 (still there after a reload) practises it the same way; a
+   check that fails keeps the words; without a model both stand behind the model gate. LEARNING_LOOP_SHOTS=<folder> keeps screenshots. */
 
 const RUNS = [['zh', 1280, 900], ['zh', 420, 900], ['en', 420, 900]];
 const SOURCE = { id: 'breaker-notes', title: 'Breaker notes', text: 'A circuit breaker opens after repeated failures and rejects calls. After a pause it lets a few trial calls through; success closes it again.' };
@@ -28,6 +30,11 @@ const quiz = (id, topic, prompt) => ({ id, kind: 'quiz', topic, objective: 'Unde
 // One deck per run: a similar question answered right is not offered again for a week (lib/recommend.js).
 const deckOf = (i) => ({ id: `loop${i}`, title: `Breakers ${i}`, course: 'SRE', cards: [quiz(`loop${i}-orig`, `Half-open ${i}`, `What does a half-open breaker do (${i})?`),
   quiz(`loop${i}-twin`, `Half-open ${i}`, `When does a breaker turn half-open (${i})?`), quiz(`loop${i}-far`, `Logging ${i}`, `Why structured logs (${i})?`)] });
+// A deck with no similar question anywhere in the bank: its own source, its own topics (the variant segment).
+const AUDIT = { id: 'audit-notes', title: 'Audit notes', text: 'Audit trails keep a record of who changed what and when; they are kept for a long time and never edited.' };
+const auditQuiz = (id, topic, prompt) => ({ ...quiz(id, topic, prompt), citations: [{ sourceId: AUDIT.id, quote: AUDIT.text.slice(0, 50) }] });
+const VARIANT_DECK = { id: 'audit', title: 'Audit', course: 'SRE', cards: [auditQuiz('audit-orig', 'Audit trails', 'Which record keeps who changed what?'),
+  auditQuiz('audit-far', 'Key rotation', 'Why rotate signing keys?')] };
 const WORDS = {
   zh: { similar: '试一道同类题', back: /回到原题/, retell: '用自己的话讲一遍', check: '让 AI 看看', parts: ['讲对了的', '漏掉的', '讲错的'],
     source: '去原文看这段', backToQuestion: '回到这道题', retold: '讲清楚过' },
@@ -42,8 +49,8 @@ async function seed(root) {
   await service.call('snapshot');
   const { sources, decks } = outlineLibrary();
   await service.store.update(state => {
-    state.sources.push(SOURCE, ...sources);
-    state.decks.push(...RUNS.map((_, i) => deckOf(i)), ...decks);
+    state.sources.push(SOURCE, AUDIT, ...sources);
+    state.decks.push(...RUNS.map((_, i) => deckOf(i)), VARIANT_DECK, ...decks);
     const lecture = groupSourcesByDocument(state.sources).find(item => item.sourceIds.includes('document-l1-p1')).key;
     const outline = { ...courseOutlineMaterial({ title: '总纲 · SA', course: COURSE, orderBasis: { codes: ['numbering'] }, fingerprint: materialsFingerprint(buildOutlineIndex(state, { course: COURSE }).allDocuments),
       nodes: [{ id: 'c1', title: 'Introduction', children: [{ id: 'what', title: 'What architects do', anchors: [`${lecture}#0`] }, { id: 'who', title: 'Stakeholders and concerns', anchors: [`${lecture}#1`] }] }],
@@ -64,6 +71,15 @@ const sideways = (page, scope) => page.evaluate(selector => {
 }, scope);
 const flat = overflow => overflow.doc <= 0 && overflow.wide.length === 0;
 const prompt = (page) => page.locator('.question-card .question').first().innerText();
+/** A page on the open round of `running` (the home's 接着做). */
+async function openRound(browser, running, { lang, width }) {
+  const opened = await openPage(browser, running, { lang, width, height: 900 });
+  await opened.page.goto(running.server.url);
+  // 接着做: the next-step card's, or (without a model that card asks for one) the 接着上次 card's.
+  await opened.page.getByRole('button', { name: lang === 'en' ? /^Continue/ : /^接着做/ }).first().click({ timeout: 30000 });
+  await opened.page.locator('.question-card').waitFor({ timeout: 30000 });
+  return opened;
+}
 const pendingText = async (page) => (await page.locator('.round-pending__trigger').count() && await page.locator('.round-pending__trigger').isVisible()
   ? (await page.locator('.round-pending__trigger').innerText()).trim() : '');
 
@@ -123,6 +139,7 @@ test('试一道同类题 and back in one click; 用自己的话讲一遍 on a qu
       await page.locator('[data-usage="review.retell"]').click();
       const input = page.locator('.retell-panel__input');
       await input.waitFor();
+      await page.waitForFunction(() => document.activeElement?.classList.contains('retell-panel__input'), null, { timeout: 5000 });
       const box = await input.boundingBox();
       assert.ok(box && box.x >= 0 && box.x + box.width <= width + 1 && box.width >= Math.min(300, width - 80), `${where}: the text box is usable (${JSON.stringify(box)})`);
       await input.fill(SECRET);
@@ -175,6 +192,86 @@ test('试一道同类题 and back in one click; 用自己的话讲一遍 on a qu
       assert.equal(JSON.stringify(await running.api('export', {})).includes(SECRET), false, `${width}px: the words are not kept`);
       assert.deepEqual(errors.filter((text) => !/favicon|ResizeObserver/.test(text)), [], `${width}px: no page errors`);
       await context.close();
+    }
+
+    // No similar question: 生成一道变式 asks for one (the fake model writes it), 做这道变式题 is offered, still after a reload, and starts the detour.
+    {
+      const [vorig, vfar] = VARIANT_DECK.cards;
+      for (const open of (await running.api('snapshot', {})).runs || []) await running.api('review.end', { runId: open.id });
+      const round = await running.api('review.start', { mode: 'path', fresh: true, ordered: true, scope: [{ deckId: VARIANT_DECK.id, cardId: vorig.id }, { deckId: VARIANT_DECK.id, cardId: vfar.id }] });
+      const { page, errors, context } = await openRound(browser, running, { lang: 'zh', width: 1280 });
+      await page.locator('.option', { hasText: 'no' }).click();
+      await page.locator('[data-usage="review.similar"]').click();
+      await page.locator('.similar-try__note', { hasText: '题库里没有这一轮之外的同类题' }).waitFor({ timeout: 30000 });
+      await page.locator('[data-usage="review.similar-variant"]').click();
+      const go = page.locator('[data-usage="review.similar-variant-go"]');
+      await go.waitFor({ timeout: 60000 });
+      const written = (await running.api('export', {})).decks.find((deck) => deck.id === VARIANT_DECK.id).cards.find((card) => !VARIANT_DECK.cards.some((own) => own.id === card.id));
+      assert.ok(written, 'the variant is a new question of the same deck');
+      // A reload keeps the offer: it is read from the task list, not from the page's memory.
+      await page.reload();
+      await page.locator('.next-card [data-next-action], .question-card').first().waitFor({ timeout: 30000 });
+      if (!(await page.locator('.question-card').count())) await page.locator('.next-card [data-next-action]').first().click();
+      await go.waitFor({ timeout: 30000 });
+      await go.click();
+      // (a flashcard: the prompt is on the card's face)
+      await page.waitForFunction((text) => (document.querySelector('.question-card')?.textContent || '').includes(text), written.prompt, { timeout: 30000 });
+      const detour = (await running.api('export', {})).runs.find((run) => run.returnTo === round.id);
+      assert.deepEqual(detour?.similarFor, { deckId: VARIANT_DECK.id, cardId: vorig.id }, 'the variant is practised as a similar question of the original');
+
+      // A check that fails keeps the words in the box (and in this tab) and stores nothing; the reason is said in the learner's language.
+      await page.locator('.result-page, .question-card').first().waitFor();
+      await running.api('review.end', { runId: detour.id });
+      await page.goto(running.server.url);
+      await page.locator('.next-card [data-next-action]').first().click({ timeout: 30000 });
+      await page.locator('.question-card').waitFor({ timeout: 30000 });
+      await page.route('**/api/call', async (route) => {
+        let action = '';
+        try { action = JSON.parse(route.request().postData() || '{}').action; } catch { /* not JSON */ }
+        if (action !== 'teach.retell') return route.continue();
+        return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'Invalid retell feedback; retry' }) });
+      });
+      await page.locator('[data-usage="review.retell"]').click();
+      const input = page.locator('.retell-panel__input');
+      await input.fill(SECRET);
+      await page.getByRole('button', { name: WORDS.zh.check }).click();
+      await page.locator('.retell-panel [role="alert"]', { hasText: '这次没有拿到 AI 的反馈' }).waitFor({ timeout: 30000 });
+      assert.equal(await input.inputValue(), SECRET, 'the words stay in the box');
+      assert.ok(await page.evaluate((secret) => Object.keys(sessionStorage).some((key) => key.startsWith('studyhub:retell:') && sessionStorage.getItem(key) === secret), SECRET),
+        'and in this tab');
+      const state = await running.api('export', {});
+      assert.equal(state.decks.find((deck) => deck.id === VARIANT_DECK.id).cards.find((card) => card.id === vorig.id).retell, undefined, 'nothing is stored');
+      assert.equal(JSON.stringify(state).includes(SECRET), false);
+      assert.deepEqual(errors.filter((text) => !/favicon|ResizeObserver|400|Invalid retell/.test(text)), [], 'no page errors');
+      await context.close();
+    }
+
+    // Without a model: 生成一道变式 and 用自己的话讲一遍 stand behind the model gate, at 420 px.
+    {
+      const base = await mkdtemp(join(tmpdir(), 'study-learning-loop-nomodel-'));
+      await seed(join(base, 'library'));
+      const bare = { server: await createPreviewServer({ libraryRoot: join(base, 'library'), home: join(base, 'home'), port: 0, model: null, distDir: dist }) };
+      try {
+        const [vorig, vfar] = VARIANT_DECK.cards;
+        await previewCall(bare.server, 'settings.practice.set', { patch: { autopilot: false, debrief: false } });
+        await previewCall(bare.server, 'review.start', { mode: 'path', fresh: true, ordered: true, scope: [{ deckId: VARIANT_DECK.id, cardId: vorig.id }, { deckId: VARIANT_DECK.id, cardId: vfar.id }] });
+        const { page, errors, context } = await openRound(browser, bare, { lang: 'zh', width: 420 });
+        await page.locator('.option', { hasText: 'no' }).click();
+        await page.locator('[data-usage="review.similar"]').click();
+        await page.locator('[data-usage="review.similar-variant"]').click();
+        await page.locator('.similar-try [role="status"], .similar-try .sh-inline').filter({ hasText: /模型/ }).first().waitFor({ timeout: 30000 });
+        await page.locator('[data-usage="review.retell"]').click();
+        await page.locator('.retell-panel .sh-inline').filter({ hasText: /模型/ }).first().waitFor({ timeout: 30000 });
+        assert.equal(await page.locator('.retell-panel__input').count(), 0, 'no box to write in without a model');
+        const overflow = await sideways(page, '.review-body');
+        assert.ok(flat(overflow), `no sideways scroll with the gates: ${JSON.stringify(overflow)}`);
+        if (shots) await page.screenshot({ path: join(shots, 'gates-zh-420.png'), fullPage: true });
+        assert.deepEqual(errors.filter((text) => !/favicon|ResizeObserver/.test(text)), [], 'no page errors');
+        await context.close();
+      } finally {
+        await bare.server.close();
+        await rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+      }
     }
   } finally {
     await browser.close();
