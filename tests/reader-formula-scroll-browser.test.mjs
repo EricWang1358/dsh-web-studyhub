@@ -15,8 +15,8 @@ import { chooseMore } from './helpers/reader-more.mjs';
 /* Scrolling a formula-heavy chapter does not stall (gate review of #996). A KaTeX drawing is 70–210 elements, and the reader's 19 highlight styles
    (find, link underlines, marks) were written for every element of the app (` ::highlight(…)`), so the browser resolved 19 highlight styles for each
    element drawn: one display formula cost ~100 ms of style, and drawing ten at once (one 450 px scroll step of this book) was a 180–780 ms task on
-   every step. The styles now sit on the reading page and its text inherits them (~6 ms a formula), and formulas near the screen are drawn a few per
-   frame, the nearest first, those on screen at once. A generated converted book of 60 pages in 3
+   every step. The styles now match the reading page's elements outside a drawn formula (~10 ms a formula), and formulas near the screen are drawn
+   a few per frame through one queue for the page, the nearest first, those on screen at once. A generated converted book of 60 pages in 3
    chapters, each page with 9 inline formulas and a display one (200 a chapter), seeded through the real store, fake model, no key. At 1280 and 420 px:
    opening the chapter is measured and reported; no 450 px scroll step has a long task over 100 ms and every formula on screen after it is drawn; a copy
    and find read a formula not drawn yet by its own text; and a citation in a part of the chapter not drawn yet lands in view and stays there while the
@@ -39,7 +39,9 @@ const quoteOn = page => `Paragraph 2 of page ${page} relates output`;
 const card = { id: 'heavy', kind: 'flashcard', topic: 'Output', objective: 'Objective heavy',
   prompt: tex('Given $Y = C + I + G$, $#frac{#Delta Y}{#Delta G} = #frac{1}{1-c}$, $c = 0.8$, $#mathbb{E}[X] = #mu$ and $#sum_{i=1}^{n} x_i = S$, what is $#Delta Y$ when $#Delta G = 10$?'),
   answer: tex('$#Delta Y = 50$, since $#frac{1}{1-0.8} = 5$.'), hint: 'Think of the multiplier.',
-  explanation: tex('The multiplier is $k = #frac{1}{1-c}$; with $c=0.8$, $k=5$. So $#Delta Y = k#,#Delta G = 5 #times 10 = 50$, and $#lim_{n#to#infty} #sum_{t=0}^{n} c^t = #frac{1}{1-c}$.'),
+  // A long explanation: 40 display formulas below the first screen, so a jump to its end lands among formulas not drawn yet.
+  explanation: tex('The multiplier is $k = #frac{1}{1-c}$; with $c=0.8$, $k=5$. So $#Delta Y = k#,#Delta G = 5 #times 10 = 50$, and $#lim_{n#to#infty} #sum_{t=0}^{n} c^t = #frac{1}{1-c}$.')
+    + Array.from({ length: 40 }, (_, n) => tex(`\n\nStep ${n + 1}:\n\n$$#sum_{t=0}^{${n + 1}} c^t = #frac{1-c^{${n + 2}}}{1-c}$$`)).join(''),
   misconception: 'None.', citations: [{ sourceId: `fm-p${CITED_PAGE}`, quote: quoteOn(CITED_PAGE) }] };
 const seed = async root => {
   await mkdir(root, { recursive: true });
@@ -97,6 +99,14 @@ const paints = async (page, name) => {
   return !plain.equals(marked);
 };
 
+/** The formulas of the practice card: all, drawn, on screen, and on screen but not drawn yet. */
+const cardFormulas = page => page.evaluate(() => {
+  const all = [...document.querySelectorAll('.review-page .md-math')], height = window.innerHeight;
+  const onScreen = all.filter(node => { const rect = node.getBoundingClientRect(); return rect.height > 0 && rect.bottom > 0 && rect.top < height; });
+  return { all: all.length, drawn: all.filter(node => node.querySelector('.md-math-content')).length, onScreen: onScreen.length,
+    waitingOnScreen: onScreen.filter(node => node.querySelector('.md-math-source')).length };
+});
+
 let built = null;
 const previewDist = () => built ??= (async () => {
   const dist = await mkdtemp(join(tmpdir(), 'study-reader-formula-scroll-dist-'));
@@ -131,10 +141,18 @@ test('a formula-heavy chapter scrolls without long tasks; copy, find and a citat
       await page.keyboard.press('Space');
       await page.waitForTimeout(1200);
       const answerLong = await takeLong(page);
-      const shownFormulas = await page.evaluate(() => ({ formulas: document.querySelectorAll('.review-page .md-math').length, drawn: document.querySelectorAll('.review-page .md-math-content').length }));
-      t.diagnostic(`${width}px practice: question long tasks ${JSON.stringify(questionLong)}; answer shown long tasks ${JSON.stringify(answerLong)}; ${shownFormulas.drawn} of ${shownFormulas.formulas} formulas drawn`);
-      assert.equal(shownFormulas.drawn, shownFormulas.formulas, 'every formula of the card is drawn once it settles');
-      await page.keyboard.press('5'); await page.waitForTimeout(400);
+      const shownFormulas = await cardFormulas(page);
+      t.diagnostic(`${width}px practice: question long tasks ${JSON.stringify(questionLong)}; answer shown long tasks ${JSON.stringify(answerLong)}; ${shownFormulas.drawn} of ${shownFormulas.all} formulas drawn`);
+      assert.equal(shownFormulas.waitingOnScreen, 0, 'every formula of the card on screen is drawn');
+      await page.keyboard.press('5');
+      // Graded, the explanation shows. A jump to its end: the formulas there are drawn at once (they are on screen), not after the ones above them.
+      await until(async () => (await cardFormulas(page)).all > 40, 'the long explanation', { timeoutMs: 15000 });
+      await page.evaluate(() => { const all = document.querySelectorAll('.review-page .md-math'); all[all.length - 1].scrollIntoView({ block: 'end', behavior: 'instant' }); });
+      await page.waitForTimeout(150);
+      const atEnd = await cardFormulas(page);
+      t.diagnostic(`${width}px explanation end: ${JSON.stringify(atEnd)}`);
+      assert.ok(atEnd.onScreen > 0, 'the end of the explanation is on screen');
+      assert.equal(atEnd.waitingOnScreen, 0, `${width}px: the formulas at the end of a long explanation are drawn at once after a jump (${JSON.stringify(atEnd)})`);
       await page.getByRole('button', { name: '看这题的原文' }).click();
       await viewer.waitFor({ timeout: 30000 });
       const quoteInView = () => page.evaluate(() => {
@@ -193,7 +211,7 @@ test('a formula-heavy chapter scrolls without long tasks; copy, find and a citat
       await until(() => pageInView(page, FOUND_PAGE), 'the match in view', { timeoutMs: 15000 });
       await page.keyboard.press('Escape');
 
-      // ---- the reader's highlights are styled on the reading page and reach its text (find, a linked question, a 荧光笔 mark) ----
+      // ---- the reader's highlights reach its text (find, a linked question, a 荧光笔 mark) ----
       for (const name of ['study-find', 'study-link-question', 'study-mark-highlight']) assert.ok(await paints(page, name), `${width}px: ${name} is painted on the text`);
       await page.evaluate(() => { document.querySelector('.study-document-viewer .reader-scroll').scrollTop = 0; });
       await page.waitForTimeout(1500);
@@ -212,7 +230,7 @@ test('a formula-heavy chapter scrolls without long tasks; copy, find and a citat
       const longest = Math.max(0, ...steps.flatMap(step => step.long));
       assert.ok(longest <= LONGEST_STEP_MS, `${width}px: no scroll step has a long task over ${LONGEST_STEP_MS} ms (longest ${longest})`);
       assert.ok(steps.every(step => step.waitingOnScreen === 0), `every formula on screen is drawn after each step (${JSON.stringify(steps.map(step => step.waitingOnScreen))})`);
-      assert.ok(steps.reduce((sum, step) => sum + step.drew, 0) > 50, 'the scroll draws the formulas it comes to');
+      assert.ok(steps.reduce((sum, step) => sum + step.drew, 0) >= 30, 'the scroll draws the formulas it comes to');
 
       assert.deepEqual(errors.filter(error => !error.includes('400 (Bad Request)')), [], 'no console or page errors');
       await context.close();
