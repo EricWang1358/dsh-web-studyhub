@@ -45,6 +45,8 @@ import { roundAt, roundWords } from "./round-words.js";
 import { fixedOptionsOf } from "../../lib/card-kinds.js";
 import { deferUnstudiedPagesPlan, runDeferUnstudiedPages } from "../document-preview/practice/open-reader-pages.js";
 import QuestionSourcePage from "./QuestionSourcePage.jsx";
+import RoundPending from "./RoundPending.jsx";
+import { RoundEndConfirm, useRoundSteps } from "./RoundSteps.jsx";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -113,6 +115,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     [data?.sources, notify, openModal, reviewAct, run],
   );
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
+  // 先跳过 / 到此为止 and the N / F / O keys (#1008): ui/review/RoundSteps.jsx.
+  const roundSteps = useRoundSteps({ session, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus });
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
   const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader, tourRunning } = context;
   const contextReturnLabel = inHeader ? '' : contextLabel;
@@ -257,6 +261,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <div className="question-meta">
               <span>
                 <span>{words.main}</span>{words.note && <small className="question-retry-note">{words.note}</small>}
+                {roundSteps.onEnd && <RoundPending run={run} onJump={(index) => reviewAct("review.move", { index })} onEnd={roundSteps.onEnd} />}
                 {run.mode !== "exam" && run.liveMastery?.before?.total > 0 && run.liveMastery?.after?.total > 0 && (() => {
                   const { before, after } = run.liveMastery, delta = after.percent - before.percent;
                   return (
@@ -536,6 +541,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
           onToggleEn={toggleEn}
           autopilot={autopilot} onToggleAutopilot={actions.toggleAutopilot}
+          onSkip={roundSteps.onSkip} onEndRound={roundSteps.onEnd}
           // 这题不错 / 这题有问题 are items of 更多; ThumbFeedback keeps the vote, the tag tray and the G / B keys (#671).
           thumbVote={thumbVote} onThumb={coachProps && run.mode !== "exam" ? (vote) => thumbsRef.current?.[vote === "up" ? "up" : "down"]() : undefined}
           thumbs={coachProps && run.mode !== "exam" && (
@@ -544,6 +550,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               onFix={(tags) => { setAssistMode("improve"); setAssistText(fixSuggestionFor(tags)); }} courseRules={courseRules} />
           )}
         />
+        <RoundEndConfirm session={session} />
         {practiceTip.tip && <PracticeTip id={practiceTip.tip} onClose={practiceTip.close} onShown={practiceTip.onShown} />}
         {!assistMode && <div className="action-feedback-slot">{feedback}</div>}
         {/* A stem that asks what the source says tests memory of a document's wording, not the concept: say so and offer the fix, so the learner never has to find the words. */}

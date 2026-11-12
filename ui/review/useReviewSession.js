@@ -12,7 +12,7 @@ import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
   AUTO_ADVANCE_MS, advanceKeyOf, autopilotPlan, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
-  shortcutAction, shortcutGate, shouldResetEntry,
+  shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
 import { createDraftSaver, draftKey, draftPayloadOf, draftable, entrySignature, keepTyped, savedSignature } from './draft-persistence.js';
@@ -220,6 +220,24 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const reviewActRef = useRef(reviewAct);
   reviewActRef.current = reviewAct;
 
+  /* ── 先跳过 and 到此为止 (#1008): the round's own steps, review.move {index} and review.end, nothing new on the host ── */
+  // 先跳过: the next question nobody answered yet; this one stays in the round and comes back at its end, its clock started again.
+  const skipQuestion = useCallback(() => {
+    const target = skipTarget(runRef.current);
+    return target === null ? undefined : reviewActRef.current('review.move', { index: target });
+  }, []);
+  // 到此为止 asks first (the one InlineConfirm under the question, whoever asked: 更多, the rail or the list of questions), then ends the round: the answered
+  // questions keep their grades, the rest record nothing, and the result page opens like a finished round's (reviewAct reloads the library after it).
+  const [endAsked, setEndAsked] = useState(false);
+  useEffect(() => { setEndAsked(false); }, [run?.id, run?.complete]);
+  const endRound = useCallback(async () => {
+    if (!runRef.current?.id || runRef.current.complete || runRef.current.mode === 'exam') return;
+    await reviewActRef.current('review.end');
+    setEndAsked(false);
+  }, []);
+  /* The question's own actions that live in QuestionRun (写笔记, 标为重点, its page): it puts them here, and the keys N / F / O run them. */
+  const questionKeys = useRef({});
+
   const flipCard = useCallback(async () => {
     const current = runRef.current;
     if (!current?.card) return;
@@ -416,6 +434,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     else if (action.type === 'explain') patch((value) => ({ explain: !value.explain }));
     else if (action.type === 'assist-plain') assistCard('ask', '', ['plain']);
     else if (action.type === 'choose') choose(action.id);
+    else if (action.type === 'skip') skipQuestion();
+    else if (action.type === 'note' || action.type === 'focus' || action.type === 'source') questionKeys.current[action.type]?.();
   };
   useEffect(() => {
     const handler = (event) => keyHandler.current?.(event);
@@ -472,7 +492,11 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     // The sidebar's 快捷键 entry opens the same sheet as the ? key (ui/ShortcutHelp.jsx): one sheet, two ways in.
     openShortcutHelp: () => setShortcutHelp(true),
     toggleAutopilot,
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleHint, noteAssistance]);
+    skipQuestion,
+    askEnd: () => setEndAsked(true),
+    cancelEnd: () => setEndAsked(false),
+    endRound,
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleHint, noteAssistance, skipQuestion, endRound]);
   return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
-    shortcutHelp, keyGrade, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, actions, flushDraft };
+    shortcutHelp, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, actions, flushDraft };
 }

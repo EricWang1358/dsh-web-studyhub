@@ -40,6 +40,21 @@
     .result-page .result-details,
     .exam-report .result-details { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-4) var(--space-5); margin-top: var(--space-4-5); }
     .result-details > summary { cursor: pointer; font-weight: var(--fw-strong); }
+    /* 本轮题目 (ui/review/RoundLookBack.jsx, #1009): a row per question, its read-only look-back opening under it. */
+    .round-look-back { margin-top: var(--space-4-5); }
+    .round-look-back__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); }
+    .round-look-back__head h3 { margin: 0; font-size: var(--fs-lg); }
+    .look-back__rows { margin: var(--space-3) 0 0; padding: 0; list-style: none; }
+    .look-back__row { border-top: 1px solid var(--line-soft); }
+    .look-back__line { display: flex; width: 100%; min-width: 0; gap: var(--space-2-5); align-items: center; text-align: left; padding-block: var(--space-2-5); }
+    .look-back__number { flex: none; min-width: 2ch; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+    .look-back__prompt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .look-back__page { flex: none; }
+    .look-back__panel { padding: 0 0 var(--space-4) calc(2ch + var(--space-2-5)); }
+    .look-back__body { display: grid; gap: var(--space-3); min-width: 0; }
+    .look-back__options { margin: 0; }
+    .look-back__explanation { margin: 0; }
+    .look-back__reference h4 { margin: var(--space-2) 0 var(--space-1); }
     .result-details[open] > summary { margin-bottom: var(--space-4-5); }
     .exam-report .result-hero { margin-bottom: var(--space-1); }
     .exam-report .result-weak { padding: var(--space-5) var(--space-6); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
