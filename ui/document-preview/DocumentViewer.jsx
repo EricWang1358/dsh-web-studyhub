@@ -428,17 +428,22 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useEffect(() => { if (loop.open && pickPagesGuide) setPickPagesGuide(false); }, [loop.open, pickPagesGuide]);
   const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
   // 本节题目 (#1013): 做这几页的题 › 在这里做 hands its range to the panel, which starts the round beside the text; 错题 n opens the 错题 panel.
-  const [practiceRequest, setPracticeRequest] = useState(null), [wrongRequest, setWrongRequest] = useState(0);
-  const practiseHere = option => { loop.setOpen(false); openTools(); setPracticeRequest({ option, nonce: Date.now() }); };
+  // Both requests are used once: the panel that takes one clears it (it is drawn again after 原始 PDF, and must not start the round again).
+  const [practiceRequest, setPracticeRequest] = useState(null), [wrongRequest, setWrongRequest] = useState(false);
+  const practiseHere = option => { loop.setOpen(false); openTools(); setPracticeRequest({ option }); };
   const showNotes = () => {
     annotation.onMode('annotate');
     requestAnimationFrame(() => root.current?.querySelector('.reader-links')?.scrollIntoView?.({ block: 'nearest' }));
   };
-  // 看原文 of a question of the round: its passage in this reader when it is placed here (false: it is in another material).
-  const seekRun = run => {
-    const id = run?.card ? loop.entryOf(`${run.deckId}|${run.card.id}`) : null, item = id != null ? outline.find(entry => entry.id === id) : null;
-    if (!item) return false;
-    jumpTo(item);
+  // A source link of the round (看原文, a citation, a figure's page, the question's page): shown in this reader when its source is part of this material
+  // (false: it is in another one). A figure's page opens in 看原页; otherwise its chapter is drawn and its quote marked as a citation opened here is.
+  const [seekGoal, setSeekGoal] = useState(null);
+  const seekSource = ({ source: target, quote: cited, peekPage: figurePage } = {}) => {
+    if (!target?.id || !allSections.some(section => section.sourceId === target.id)) return false;
+    if (Number.isInteger(figurePage) && canPeek) { openPeek(figurePage, { figure: true }); return true; }
+    if (chaptered && !sections.some(section => section.sourceId === target.id)) chapter.goTo({ sourceId: target.id });
+    setSeekGoal({ sourceId: target.id, quote: cited || '' });
+    if (narrow) setOverlay(null);
     return true;
   };
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
@@ -482,6 +487,20 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const showSourcePage = () => {
     if (paged && (source.document?.page || 1) > 1) scrollToNode(scroller.current, scroller.current?.querySelector(`[data-study-source="${source.id}"]`), { smooth: false });
   };
+  // Where a quote is in what the reading view draws: as written ('resolved'), else by its letters ('fuzzy': hyphenation, markup, width), else not ('missing').
+  const findQuote = selection => {
+    const range = renderedPassageRange(body.current, selection);
+    if (range) return { range, how: 'resolved' };
+    const found = fuzzyPassageRange(body.current, selection);
+    return { range: found.range || null, how: found.status };
+  };
+  // A placed quote is centred and marked (until the next one); returns the unmarking.
+  const markQuote = range => {
+    scrollToNode(scroller.current, range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement, { center: true, smooth: false });
+    if (!window.CSS?.highlights || !window.Highlight) return undefined;
+    window.CSS.highlights.set('study-source-quote', new window.Highlight(range));
+    return () => window.CSS.highlights.delete('study-source-quote');
+  };
   // How the quote was placed in what the reading view draws: 'resolved' (as written), 'fuzzy' (by its letters: hyphenation, markup, width), 'ambiguous', 'missing'.
   const [placed, setPlaced] = useState(null);
   useEffect(() => {
@@ -489,21 +508,11 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     // One chapter at a time: the quote is placed while the chapter of its page is drawn. In another chapter it is neither found nor missing: no notice, no scroll.
     if (chaptered && !sections.some(section => section.sourceId === source.id)) return undefined;
     if (quoteState?.status === 'ambiguous' || quoteState?.status === 'stale') { setPlaced(null); showSourcePage(); return undefined; }
-    const selection = { ...source.selection, sourceId: source.id, quote };
-    let range = renderedPassageRange(body.current, selection), how = 'resolved';
-    if (!range) {
-      const found = fuzzyPassageRange(body.current, selection);
-      range = found.range || null; how = found.status;
-    }
+    const { range, how } = findQuote({ ...source.selection, sourceId: source.id, quote });
     setPlaced(how);
     // Not found in the drawn text: the page it belongs to is shown, and the notice says the place is not exact.
     if (!range) { showSourcePage(); return undefined; }
-    scrollToNode(scroller.current, range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement, { center: true, smooth: false });
-    if (window.CSS?.highlights && window.Highlight) {
-      window.CSS.highlights.set('study-source-quote', new window.Highlight(range));
-      return () => window.CSS.highlights.delete('study-source-quote');
-    }
-    return undefined;
+    return markQuote(range);
   }, [reading, loading, html, sections, quote, quoteState?.status, source.id, source.selection]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A new view starts at the top; a page or slide opened from a link starts at that page.
@@ -524,6 +533,14 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   }, [paged, quote, reading, quoteState?.status, loading, sections, view, source.id, source.document?.page]); // eslint-disable-line react-hooks/exhaustive-deps
   // Another chapter, once drawn, opens at its top or at the page / entry the jump named (after the effects above, so it has the last word).
   useChapterGoal({ goal: chapter.goal, reached: chapter.reached, scroller, body, ready: !loading && view !== 'original', drawn: sections });
+  // A source link of the round, once its chapter is drawn (after the chapter's own landing): its quote, else the top of its page.
+  useEffect(() => {
+    if (!seekGoal || loading || view === 'original' || !sections.some(section => section.sourceId === seekGoal.sourceId)) return;
+    setSeekGoal(null);
+    const { range } = seekGoal.quote ? findQuote({ sourceId: seekGoal.sourceId, quote: seekGoal.quote }) : { range: null };
+    if (range) markQuote(range);
+    else scrollToNode(scroller.current, scroller.current?.querySelector(`[data-study-source="${seekGoal.sourceId}"]`), { smooth: false });
+  }, [seekGoal, loading, view, sections]);
 
   // Search in the document: matches are DOM ranges painted with the Custom Highlight API.
   const deferredQuery = useDeferredValue(query);
@@ -722,7 +739,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         </span>}
         {!localMode && !onGenerate && view !== 'original' && onPracticePages && <ReadingPractice loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onStartHere={inlinePractice ? practiseHere : undefined} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}
         {!localMode && document && call && canStudyBank && <WrongPanel read={readWrong} cards={loop.cards} entryOf={loop.entryOf} drawn={drawnIds} chapterTitle={chapter.current ? chapterTitle(chapter.current) : ''}
-          disabled={loop.status !== 'ready'} onPractice={practiseRow} onSeek={seekRow} openRequest={wrongRequest} />}
+          disabled={loop.status !== 'ready'} onPractice={practiseRow} onSeek={seekRow} openRequest={wrongRequest} onOpenRequested={() => setWrongRequest(false)} />}
         {!loading && <MindMapPanel map={mindMap} document={materialName} pages={chapterPages} onJump={jumpMap} />}
         {marks.chip}
       </div>
@@ -781,8 +798,9 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       {!localMode && <aside className="study-document-side reader-tools" data-tour="source-tools" id={toolsId} aria-label={ui('学习工具')} hidden={!toolsOn}>
         {inlinePractice && view !== 'original' && <SectionPractice loop={loop} outline={outline} title={here ? [itemLabel(here), here.title].filter(Boolean).join(' · ') : ''}
           chapterName={chapter.current ? chapterTitle(chapter.current) : ''} unit={unit}
-          inline={inlinePractice} version={data?.revision} visible={toolsOn} request={practiceRequest} onWrong={canStudyBank ? () => setWrongRequest(count => count + 1) : undefined}
-          onNotes={showNotes} onSeek={seekRun} onElsewhere={onPracticePages ? practise : undefined} />}
+          inline={inlinePractice} version={data?.revision} visible={toolsOn} request={practiceRequest} onRequested={() => setPracticeRequest(null)}
+          onWrong={canStudyBank ? () => setWrongRequest(true) : undefined}
+          onNotes={showNotes} onSeek={seekSource} onElsewhere={onPracticePages ? practise : undefined} />}
         <h3 className="reader-panel__title">{ui('学习')}</h3>
         <div className="study-document-selection">
           {view !== 'original' && <Button className="study-document-wide" icon="plus" onPointerDown={event => { event.preventDefault(); select(); }} onClick={select}>{ui('使用当前选区')}</Button>}

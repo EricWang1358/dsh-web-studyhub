@@ -1,5 +1,5 @@
 /* global document, window, MutationObserver, requestAnimationFrame */
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -7,11 +7,13 @@ import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
+import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { Store } from '../lib/store.js';
 import { followupDigest } from '../lib/followup.js';
 import { openPage, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { until } from './helpers/wait.mjs';
+import { makeTextPdf } from './helpers/text-pdf.mjs';
 
 /* #1013 in the real page: a converted book of 500 pages (25 chapters of 20) and three questions on its first pages. The learning panel opens with 本节题目
    at the top; opening it changes nothing in the drawn text (no DOM mutation in .study-document-body) and leaves the reading place where it was (the
@@ -45,7 +47,36 @@ const seed = async root => {
     state.decks.push({ id: 'd1', title: 'Demand', course: 'Macro', cards: [question('a', 1), question('b', 1), c] });
   });
   await service.dispose();
+  // An imported PDF of six pages (it has 原始 PDF): two questions on its first page, the first citing page 5 as well.
+  const runtime = createStudyRuntime(root);
+  const lecture = Array.from({ length: 6 }, (_, i) => [`Lecture page ${i + 1}: the main idea of part ${i + 1}.`, ...[1, 2, 3].map(n => `Line ${n} of page ${i + 1} explains part ${i + 1} of the lecture in plain words.`)]);
+  const book = await runtime.call('materials.document.import', { filename: 'Lecture.pdf', dataBase64: (await makeTextPdf(lecture)).toString('base64'), courses: ['Macro'] });
+  runtime.dispose();
+  const cite = page => ({ sourceId: book.sourceIds[page - 1], quote: `Line 3 of page ${page} explains part ${page}` });
+  const lectureCard = (id, cites) => ({ ...question(id, 1), prompt: `Lecture question ${id}?`, citations: cites.map(cite) });
+  const again = new StudyService(root);
+  await again.store.update(state => {
+    state.decks.push({ id: 'dk', title: 'Lecture', course: 'Macro', cards: [lectureCard('p', [1, 5]), lectureCard('q', [1])] });
+    // Imported the same day as the book, so both are in the one (open) group of 资料.
+    for (const item of state.sources) if (book.sourceIds.includes(item.id)) item.createdAt = at;
+  });
+  await again.dispose();
 };
+
+/** One build and one library for the tests of this file, closed once all of them ran. */
+let shared = null;
+const cleanups = [];
+after(async () => { for (const cleanup of cleanups.reverse()) await cleanup(); });
+const setup = () => (shared ??= (async () => {
+  const browser = await launchChromium();
+  cleanups.push(() => browser.close());
+  const dist = await mkdtemp(join(tmpdir(), 'study-reader-inline-dist-'));
+  cleanups.push(() => rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  await buildPreview({ outdir: dist });
+  const running = await startLateServer({ distDir: dist, seed });
+  cleanups.push(() => running.close?.());
+  return { browser, running };
+})());
 
 /** 更多 › an item (tests/helpers/reader-more.mjs, in either language). */
 const chooseMore = async (page, viewer, more, text) => {
@@ -60,14 +91,8 @@ const WORDS = {
 };
 
 test('本节题目: answered beside the text with the practice page\'s keys; the text never moves; 错题 n follows (#1013)', { timeout: 600000 }, async t => {
-  let browser;
-  try { browser = await launchChromium(); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
-  t.after(() => browser.close());
-  const dist = await mkdtemp(join(tmpdir(), 'study-reader-inline-dist-'));
-  t.after(() => rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
-  await buildPreview({ outdir: dist });
-  const running = await startLateServer({ distDir: dist, seed });
-  t.after(() => running.close?.());
+  let browser, running;
+  try { ({ browser, running } = await setup()); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
   const attempts = async () => (await new Store(join(running.base, 'library')).read()).attempts.length;
   const shots = process.env.READER_INLINE_SHOTS;
   if (shots) await mkdir(shots, { recursive: true });
@@ -235,4 +260,70 @@ test('本节题目: answered beside the text with the practice page\'s keys; the
     assert.deepEqual(errors.filter(error => !REFUSED.test(error)), [], 'no console or page errors');
     await context.close();
   }
+});
+
+test('本节题目 on an imported PDF: a source link shows its own place; 在这里做 is used once; an open round is taken up (#1013)', { timeout: 300000 }, async t => {
+  let browser, running;
+  try { ({ browser, running } = await setup()); } catch (error) { t.skip(`no Chromium to look with: ${String(error.message).split('\n')[0]}`); return; }
+  const library = new Store(join(running.base, 'library'));
+  // The open rounds of the lecture's questions (the first test leaves rounds of the book open).
+  const openRuns = async () => (await library.read()).runs.filter(run => !run.closedAt && run.index < run.entries.length && run.entries.some(entry => (entry.deckId ?? run.deckId) === 'dk'))
+    .map(run => run.id);
+  const { page, errors, context } = await openPage(browser, running, { lang: 'zh', width: 1280, height: 900 });
+  t.after(() => context.close());
+  await context.addInitScript(() => { try { window.localStorage.setItem('study-autopilot', 'off'); } catch { /* blocked */ } });
+  const viewer = page.locator('.study-document-viewer'), views = viewer.locator('.reader-view-switch'), scroller = viewer.locator('.reader-scroll');
+  const panel = viewer.locator('[data-tour="reader-section-practice"]'), round = panel.locator('[data-inline-run]');
+  await page.goto(running.server.url);
+  await (await revealNavRow(page, 'sources')).dispatchEvent('click');
+  await page.locator('.source-doc', { hasText: 'Lecture' }).first().locator('.source-main').click();
+  await viewer.locator('.reader-section[data-study-page="6"]').waitFor({ timeout: 60000 });
+  await views.waitFor({ timeout: 30000 });
+  const answerHere = async () => {
+    await scroller.focus();
+    await page.keyboard.press('p');
+    await page.locator('.reader-practice__panel').getByRole('button', { name: '在这里做', exact: true }).click();
+    await round.locator('.options button.option').first().waitFor({ timeout: 30000 });
+  };
+  await answerHere();
+  const first = await openRuns();
+  assert.equal(first.length, 1, 'one round open');
+
+  // A citation of the round shows its own passage (page 5), marked, in this reader; the round stays.
+  assert.match(await round.innerText(), /Lecture question p\?/);
+  const index = await round.locator('.options button.option').evaluateAll(nodes => nodes.findIndex(node => node.innerText.includes('Right')));
+  // The keys work once the start has settled (the app is busy until then, as on the practice page).
+  await until(async () => { await page.keyboard.press(String(index + 1)); return (await round.locator('.options button.option.correct').count()) > 0; }, 'the answer taken');
+  await round.locator('.citation-disclosure summary').click();
+  await round.locator('.citations__button').nth(1).click();
+  const marked = () => page.evaluate(() => { const mark = window.CSS?.highlights?.get('study-source-quote'); return mark ? [...mark].map(range => range.toString()).join(' ') : ''; });
+  await until(async () => /Line 3 of page 5/.test(await marked()), 'the passage of page 5 marked');
+  const onScreen = await scroller.evaluate(node => {
+    const mark = [...window.CSS.highlights.get('study-source-quote')][0].getBoundingClientRect(), area = node.getBoundingClientRect();
+    return mark.top >= area.top && mark.bottom <= area.bottom;
+  });
+  assert.ok(onScreen, 'the passage is on screen');
+  assert.equal(await round.count(), 1, 'the round stays in the reader');
+  const underneath = await page.evaluate(() => [...document.querySelectorAll('.question-card')].filter(node => !node.closest('.study-document-viewer')).length);
+  assert.equal(underneath, 0, 'the practice page did not open under the reader');
+
+  // 回到题目列表, then 原始 PDF and back to the text: the panel comes back with its list; no round starts by itself, the open one is not closed.
+  await round.getByRole('button', { name: '回到题目列表' }).first().click();
+  await panel.locator('[data-testid="section-stats"]').waitFor({ timeout: 15000 });
+  await views.getByRole('button', { name: '原始 PDF' }).click();
+  await until(async () => !(await panel.count()), 'the panel to give way to 原始 PDF');
+  await views.getByRole('button', { name: '文字' }).click();
+  await panel.locator('[data-testid="section-stats"]').waitFor({ timeout: 30000 });
+  await page.waitForTimeout(1500);
+  assert.equal(await round.count(), 0, 'no round started again by itself');
+  assert.deepEqual(await openRuns(), first, 'the open round is still the one open');
+
+  // 在这里做 again, on page 1 (the text came back at the PDF's page): the open round of the same questions is taken up, not replaced.
+  await scroller.evaluate(node => { node.scrollTop = 0; });
+  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+  await answerHere();
+  assert.deepEqual(await openRuns(), first, 'the same round, still open');
+  assert.match(await round.innerText(), /Lecture question p\?/, 'it is where it was left: p, answered');
+  assert.equal(await round.locator('.options button.option.correct').count(), 1, 'with its answer');
+  assert.deepEqual(errors.filter(error => !REFUSED.test(error)), [], 'no console or page errors');
 });

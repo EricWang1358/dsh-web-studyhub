@@ -7,7 +7,7 @@ import { useInjectCss } from '../../shared.js';
 import { QaList } from '../../book/BookQa.jsx';
 import { cardKey, refsOf } from './practice-range.js';
 import { rangeLabel } from './mastery-copy.js';
-import { questionsOf, sectionRanges, shownRange } from './section-practice.js';
+import { SHOWN_MAX, questionsOf, sectionRanges, shownRange } from './section-practice.js';
 import { useSectionStats } from './useSectionStats.js';
 import css from './section-practice.css';
 
@@ -19,8 +19,8 @@ import css from './section-practice.css';
 
    Props: loop (practice/useReadingLoop), outline (the reader's, for the order of the text), title (the section on screen), chapterName, unit ('page' | 'slide' |
    'section'), inline ({ start(refs, reading, then), Run }), version (the library's revision), visible (the panel is on screen: only then is anything
-   read), request ({ option, nonce }: 做这几页的题 › 在这里做), onWrong(), onNotes(), onSeek(ref) -> boolean, onElsewhere(option) (the whole range on the
-   practice page). */
+   read, and only then does the round take keys), request ({ option }: 做这几页的题 › 在这里做, used once: onRequested() is called as it is taken),
+   onWrong(), onNotes(), onSeek({ source, quote, peekPage }) -> boolean, onElsewhere(option) (the whole range on the practice page). */
 
 /** The round's own label: 本节 · 3 题. */
 const roundLabel = (option, count, unit) => `${rangeLabel(option, unit)} · ${count === 1 ? ui('1 题') : uiFormat('{0} 题', [count])}`;
@@ -31,7 +31,8 @@ function Stat({ count, label, onOpen, ...rest }) {
     : <span className="section-practice__stat" data-empty={count > 0 ? undefined : 'true'}>{text}</span>;
 }
 
-export default function SectionPractice({ loop, outline, title, chapterName = '', unit = 'section', inline, version, visible, request, onWrong, onNotes, onSeek, onElsewhere }) {
+export default function SectionPractice({ loop, outline, title, chapterName = '', unit = 'section', inline, version, visible, request, onRequested, onWrong, onNotes, onSeek,
+  onElsewhere }) {
   useInjectCss(css, 'study-section-practice');
   const { call, busy } = useStudy();
   const headingId = useId(), qaId = useId();
@@ -44,34 +45,39 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
   const listed = useMemo(() => questionsOf(option, { entryOf: loop.entryOf, order }), [option, loop.entryOf, order]);
   const stats = useSectionStats({ call, enabled: visible && loop.status === 'ready' && !active, version, allCards: loop.cards, cards: listed.cards, ids: option?.ids ?? null, noteAssigned: loop.noteAssigned });
   const [qaOpen, setQaOpen] = useState(false);
-  const lastRow = useRef('');
+  const lastRow = useRef(''), root = useRef(null);
 
   const start = (card, from = option) => {
     const shown = from === option ? listed.shown : questionsOf(from, { entryOf: loop.entryOf, order }).shown;
     if (!inline || !shown.length || busy) return;
     setNote('');
     lastRow.current = card ? cardKey(card) : '';
-    const label = roundLabel(from, shown.length, unit);
-    // The reading context of 做这几页的题 (where the learner is, read, not changed); a question clicked in the list is the one the round opens at.
-    Promise.resolve(inline.start(refsOf(shown), loop.start(from).reading, async started => {
+    // A question clicked past the first SHOWN_MAX of the list (from its 追问) is practised with the first of them.
+    const questions = !card || shown.some(item => cardKey(item) === cardKey(card)) ? shown : [card, ...shown.slice(0, SHOWN_MAX - 1)];
+    const label = roundLabel(from, questions.length, unit);
+    const same = stop => !!card && stop.deckId === card.deckId && stop.cardId === card.cardId;
+    // The reading context of 做这几页的题 (where the learner is, read, not changed); a question clicked in the list is the one the round opens at: where
+    // it is still to be answered, else (a round taken up again) where it was answered.
+    Promise.resolve(inline.start(refsOf(questions), loop.start(from).reading, async started => {
       let run = started;
-      const at = card ? (run.navigation || []).findIndex(stop => stop.deckId === card.deckId && stop.cardId === card.cardId && !stop.answered && !stop.retry) : -1;
-      if (at >= 0 && at !== run.index) run = await call('review.move', { runId: run.id, cardId: run.card?.id, queueVersion: run.queueVersion || 0, index: at });
+      const stops = run.navigation || [], open = stops.findIndex(stop => same(stop) && !stop.answered), at = open >= 0 ? open : stops.findIndex(same);
+      // The round is open whatever happens to the move: it is shown where it is.
+      if (at >= 0 && at !== run.index) run = await call('review.move', { runId: run.id, cardId: run.card?.id, queueVersion: run.queueVersion || 0, index: at }).catch(() => run) || run;
       setActive({ started: run, option: from, label });
     })).then(result => { if (!result) setNote(ui('没能开始这一轮，稍后再试一次。')); });
   };
-  // 做这几页的题 › 在这里做: the range chosen there, started here.
-  useEffect(() => { if (request?.option) start(null, request.option); }, [request?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 做这几页的题 › 在这里做: the range chosen there, started here, once (a panel drawn again later does not start it again).
+  useEffect(() => { if (!request?.option) return; onRequested?.(); start(null, request.option); }, [request]); // eslint-disable-line react-hooks/exhaustive-deps
   const close = () => {
     setActive(null);
     // Back to the list, at the question the round was opened from.
-    requestAnimationFrame(() => document.querySelector(`[data-section-card="${CSS.escape(lastRow.current)}"]`)?.focus?.({ preventScroll: true }));
+    requestAnimationFrame(() => root.current?.querySelector(`[data-section-card="${CSS.escape(lastRow.current)}"]`)?.focus?.({ preventScroll: true }));
   };
 
   const Run = inline?.Run;
   // Which part of the text the list is about: the section's title, or the chapter's name (the range itself is said by 本页 | 本章 above).
   const where = !option || active ? '' : option.kind === 'chapter' ? chapterName : title;
-  return <section className="section-practice" aria-labelledby={headingId} data-tour="reader-section-practice">
+  return <section ref={root} className="section-practice" aria-labelledby={headingId} data-tour="reader-section-practice">
     <div className="section-practice__head">
       <h3 id={headingId} className="reader-panel__title">{ui('本节题目')}</h3>
       {!active && ranges.length > 1 && <SegmentedControl size="xs" label={ui('题目范围')} value={option?.kind} onChange={setChoice}

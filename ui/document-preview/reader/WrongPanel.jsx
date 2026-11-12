@@ -53,13 +53,13 @@ function WrongBody({ read, cards, entryOf, drawn, chapterTitle, onPractice, onSe
 /**
  * The 错题 button of the toolbar and its panel. read(keys): reads the 错题 rows of those `deckId|cardId` keys (readWrongBook with the reader's call); cards: the questions linked to this material (practice/useReadingLoop `cards`);
  * entryOf(key): the outline entry a question is placed in; drawn: the ids of the entries of the chapter that is drawn (null: the material has no chapters);
- * onPractice(row), onSeek(row): what the two buttons of a row do (the panel closes after either); openRequest: a count that opens the panel each time it
- * grows (错题 n of the 本节题目 line, #1013).
+ * onPractice(row), onSeek(row): what the two buttons of a row do (the panel closes after either); openRequest: true asks for the panel to open (错题 n of
+ * the 本节题目 line, #1013), once: onOpenRequested() is called as it opens.
  */
-export default function WrongPanel({ read, cards, entryOf, drawn, chapterTitle, onPractice, onSeek, openRequest = 0 }) {
+export default function WrongPanel({ read, cards, entryOf, drawn, chapterTitle, onPractice, onSeek, openRequest = false, onOpenRequested }) {
   useInjectCss(css, 'study-reader-slim');
   const [open, setOpen] = useState(false);
-  useEffect(() => { if (openRequest > 0) setOpen(true); }, [openRequest]);
+  useEffect(() => { if (openRequest) { setOpen(true); onOpenRequested?.(); } }, [openRequest]); // eslint-disable-line react-hooks/exhaustive-deps -- once per request
   const done = action => row => { setOpen(false); action(row); };
   return <Popover open={open} onOpenChange={setOpen} label={ui('错题')} className="reader-popover reader-wrong" panelClassName="reader-popover__panel reader-wrong__panel"
     boundsSelector=".study-document-viewer" flip={false} data-tour="reader-wrong"

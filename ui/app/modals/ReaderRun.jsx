@@ -12,7 +12,7 @@ import { useApp } from '../app-context.js';
    the page under the reader moves: the session never navigates, and the app's own session (the practice page's) is not touched.
 
    What leaves the reader goes through one way: 去练习页继续 opens the same round on the practice page (its way back to the reading place is on the run).
-   The question's own dialogs are this round's: ⚑ marks this question; 看原文 shows its passage in this reader (`onSeek(run)`, true when it could); any other
+   The question's own dialogs are this round's: ⚑ marks this question; a source link (看原文, a citation, a figure's page, the question's page) shows its own place in this reader (`onSeek(link)`, true when it is in it); any other
    dialog opens over the practice page with this round on it, as from the practice page itself.
 
    While the panel is not on screen (`shown` false: a narrow window's Esc hides it, the round staying as it was) the session is not on its page: no key
@@ -21,7 +21,7 @@ import { useApp } from '../app-context.js';
 const PAGE = 'reader-run', HIDDEN = 'reader-run:hidden';
 const NO_HOST = Object.freeze({});
 
-/** started: the run review.start (or the move to the question clicked) answered; label: what is practised; onClose(); onSeek(run) -> boolean;
+/** started: the run review.start (or the move to the question clicked) answered; label: what is practised; onClose(); onSeek({ source, quote, peekPage }) -> boolean;
     shown: the panel holding the round is on screen. */
 export default function ReaderRun({ started, label, onClose, onSeek, shown = true }) {
   const { core, nav, intents, set, data, host, settingsEntry } = useApp();
@@ -45,7 +45,7 @@ export default function ReaderRun({ started, label, onClose, onSeek, shown = tru
   const [flagging, setFlagging] = useState(false);
   const openModal = useCallback((modal) => {
     if (modal?.type === 'flag') { setFlagging(true); return; }
-    if (modal?.type === 'source' && onSeek?.(runRef.current)) return;
+    if (modal?.type === 'source' && onSeek?.(modal)) return;
     continueThere();
     if (modal) set.setModal(modal);
   }, [continueThere, onSeek, set]);
