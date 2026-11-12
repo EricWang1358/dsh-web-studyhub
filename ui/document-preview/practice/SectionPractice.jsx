@@ -90,7 +90,7 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
       <QaList items={stats.items} cardLabel={ui('在这里做这道题')}
         onCard={ref => { setQaOpen(false); const card = listed.cards.find(item => item.deckId === ref.deckId && item.cardId === ref.cardId); if (card) start(card); }} />
     </div>}
-    {active && Run ? <Run started={active.started} label={active.label} onClose={close} onSeek={onSeek} />
+    {active && Run ? <Run started={active.started} label={active.label} onClose={close} onSeek={onSeek} shown={visible} />
       : loop.status === 'loading' ? <LoadingState inline label={ui('正在读取这几页的题…')} />
         : loop.status !== 'ready' ? <p className="section-practice__none" role="status">{ui('没能读取这几页的题。')}</p>
           : !listed.cards.length ? <p className="section-practice__none" role="status">{option?.kind === 'chapter' ? ui('这一章还没有题。') : ui('这一节还没有题。')}</p>

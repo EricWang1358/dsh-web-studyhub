@@ -4,6 +4,7 @@ import { StudyServicesContext, useStudy } from '../../study-context.jsx';
 import { useReviewSession } from '../../review/useReviewSession.js';
 import InlineRun from '../../review/InlineRun.jsx';
 import FlagDialog from './FlagDialog.jsx';
+import ShortcutHelp from '../../ShortcutHelp.jsx';
 import { useApp } from '../app-context.js';
 
 /* The round of the reader's 本节题目 (#1013), answered in the reader: a second practice session of the app (useReviewSession with `embeddedIn`), so the
@@ -12,19 +13,31 @@ import { useApp } from '../app-context.js';
 
    What leaves the reader goes through one way: 去练习页继续 opens the same round on the practice page (its way back to the reading place is on the run).
    The question's own dialogs are this round's: ⚑ marks this question; 看原文 shows its passage in this reader (`onSeek(run)`, true when it could); any other
-   dialog opens over the practice page with this round on it, as from the practice page itself. */
+   dialog opens over the practice page with this round on it, as from the practice page itself.
 
-const PAGE = 'reader-run';
+   While the panel is not on screen (`shown` false: a narrow window's Esc hides it, the round staying as it was) the session is not on its page: no key
+   reaches the round, nothing is polled, nothing advances by itself. ? shows the round's keys; one Esc closes that sheet before anything else. */
+
+const PAGE = 'reader-run', HIDDEN = 'reader-run:hidden';
 const NO_HOST = Object.freeze({});
 
-/** started: the run review.start (or the move to the question clicked) answered; label: what is practised; onClose(); onSeek(run) -> boolean. */
-export default function ReaderRun({ started, label, onClose, onSeek }) {
+/** started: the run review.start (or the move to the question clicked) answered; label: what is practised; onClose(); onSeek(run) -> boolean;
+    shown: the panel holding the round is on screen. */
+export default function ReaderRun({ started, label, onClose, onSeek, shown = true }) {
   const { core, nav, intents, set, data, host, settingsEntry } = useApp();
   const study = useStudy();
   const rootRef = useRef(null), late = useRef({});
-  const readerNav = useMemo(() => ({ page: PAGE, setPage: () => {}, show: nav.show }), [nav.show]);
-  const session = useReviewSession({ core, nav: readerNav, modalOpen: false, host: NO_HOST, rootRef, late, embeddedIn: PAGE });
-  const { enterRun } = session;
+  const readerNav = useMemo(() => ({ page: shown ? PAGE : HIDDEN, setPage: () => {}, show: nav.show }), [nav.show, shown]);
+  const session = useReviewSession({ core, nav: readerNav, modalOpen: !shown, host: NO_HOST, rootRef, late, embeddedIn: PAGE });
+  const { enterRun, shortcutHelp, actions: { closeShortcutHelp } } = session;
+  const helpOpen = shown && shortcutHelp;
+  useEffect(() => {
+    if (!helpOpen) return undefined;
+    // Before the reader's own Esc (it hides the panel on a narrow window, closes the reader on a wide one): the sheet is the top layer.
+    const onKey = (event) => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); closeShortcutHelp(); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [helpOpen, closeShortcutHelp]);
   useEffect(() => { enterRun(started); }, [started]); // eslint-disable-line react-hooks/exhaustive-deps -- each round handed in is entered once
   const runRef = useRef(null);
   runRef.current = session.run || started;
@@ -44,6 +57,7 @@ export default function ReaderRun({ started, label, onClose, onSeek }) {
     <StudyServicesContext.Provider value={services}>
       <InlineRun session={session} data={data} label={label} rootRef={rootRef} onClose={onClose} onContinue={continueThere} links={links} feedback={feedback} />
       {flagging && session.run?.card && <FlagDialog run={session.run} onClose={() => setFlagging(false)} />}
+      {helpOpen && <ShortcutHelp page="review" onClose={closeShortcutHelp} />}
     </StudyServicesContext.Provider>
   );
 }

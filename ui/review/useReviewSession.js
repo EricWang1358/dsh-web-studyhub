@@ -466,6 +466,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       document.removeEventListener('focusin', engage, true);
     };
   }, [rootRef]);
+  // A question mounted elsewhere (embeddedIn) that leaves the screen is not where the learner last was: its keys wait for a new press or focus in it.
+  useEffect(() => { if (embeddedIn && page !== 'review') engaged.current = false; }, [embeddedIn, page]);
 
   /* ── what Review and the result page's coach strip are handed ── */
   const onCoachPractice = useCallback(() => act('coach.practice', {}, enterRun), [act, enterRun]);

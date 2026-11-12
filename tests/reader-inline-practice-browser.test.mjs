@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
+import { Store } from '../lib/store.js';
 import { followupDigest } from '../lib/followup.js';
 import { openPage, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
@@ -67,6 +68,7 @@ test('本节题目: answered beside the text with the practice page\'s keys; the
   await buildPreview({ outdir: dist });
   const running = await startLateServer({ distDir: dist, seed });
   t.after(() => running.close?.());
+  const attempts = async () => (await new Store(join(running.base, 'library')).read()).attempts.length;
   const shots = process.env.READER_INLINE_SHOTS;
   if (shots) await mkdir(shots, { recursive: true });
 
@@ -155,6 +157,27 @@ test('本节题目: answered beside the text with the practice page\'s keys; the
     const placeInRound = await place();
     assert.equal(placeInRound.scrollTop, opened.scrollTop, `${lang} ${width}px: starting the round does not move the text`);
     await shot('round');
+    if (lang === 'en' && width === 420) {
+      // ? shows the round's keys; Esc closes that sheet first, then the panel (one press, one layer).
+      await page.keyboard.press('?');
+      const sheet = page.locator('.shortcut-sheet');
+      await sheet.waitFor({ timeout: 10000 });
+      await page.keyboard.press('Escape');
+      await until(async () => !(await sheet.count()), 'Esc to close the key sheet first');
+      assert.ok(await tools.isVisible(), `${lang} ${width}px: the first Esc closed the key sheet, not the panel`);
+      // The panel hidden, the round in it takes no key: a number, Enter, K and Space do nothing to it.
+      const hiddenFrom = await attempts();
+      await round.focus();
+      await page.keyboard.press('Escape');
+      await until(async () => !(await tools.isVisible()), 'the panel to hide');
+      for (const key of ['1', 'Enter', 'k', ' ']) await page.keyboard.press(key);
+      await page.waitForTimeout(800);
+      await chooseMore(page, viewer, words.more, words.tools);
+      await round.locator('.options button.option').first().waitFor({ timeout: 15000 });
+      assert.equal(await round.locator('.options button.option.correct, .options button.option.incorrect').count(), 0, `${lang} ${width}px: the hidden round was not answered`);
+      assert.match(await round.innerText(), /Question b about page 1\?/, `${lang} ${width}px: the hidden round did not move on`);
+      assert.equal(await attempts(), hiddenFrom, `${lang} ${width}px: nothing was recorded while hidden`);
+    }
     if (lang === 'zh' && width === 420) {
       // 去练习页继续: the same round on the practice page (the reader gives way).
       await round.getByRole('button', { name: words.continue }).click();
