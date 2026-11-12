@@ -12,6 +12,9 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { recommendSimilar, similarWins } from '../lib/recommend.js';
 import { retellRecord, RETELL_GAPS } from '../lib/teaching.js';
+import { completeJson } from '../lib/generation.js';
+import { assistantRefusal } from '../lib/assistant-boundary.js';
+import { capabilityIndex, filterCapabilities } from '../lib/runtime/tools.js';
 import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 import { courseOutlineMaterial, materialsFingerprint } from '../lib/course-outline-book.js';
 import { courseNotesMaterial } from '../lib/course-book.js';
@@ -56,6 +59,34 @@ test('review.similar: a similar question of the course that is not in this round
   assert.equal(found.item.deckId, 'd');
   const both = await answered(study, ['orig', 'twin'], 1);
   assert.equal((await study.call('review.similar', { runId: both.run.id, cardId: both.cardId })).item, null, 'a question of this round is never offered');
+  await assert.rejects(study.call('review.similar', { runId: run.id, cardId: 'far' }), /not in this round/i, 'only a question of the round has a similar one');
+});
+
+test('a question that builds on the original (or on a question of the round) is no similar question, and a detour holds exactly what it was given', async (t) => {
+  const study = await library(t);
+  // twin builds on orig: it is no similar question (a round of it would pull orig back in, a right answer would credit orig).
+  await study.store.update((state) => { state.decks[0].cards.find((c) => c.id === 'twin').requires = [{ deckId: 'd', cardId: 'orig' }]; });
+  const { run } = await answered(study, ['orig', 'far'], 1);
+  assert.equal((await study.call('review.similar', { runId: run.id, cardId: 'orig' })).item, null, 'twin requires the original');
+  // twin2 builds on far, a question of the round, through mid: two steps, the reach of creditPrerequisites.
+  await study.store.update((state) => {
+    const cards = state.decks[0].cards;
+    cards.push({ ...card('twin2', '熔断器', '熔断器关闭后什么时候会再次打开？'), requires: [{ deckId: 'd', cardId: 'mid' }] });
+    cards.push({ ...card('mid', '日志', '日志级别怎么选？'), requires: [{ deckId: 'd', cardId: 'far' }] });
+  });
+  assert.equal((await study.call('review.similar', { runId: run.id, cardId: 'orig' })).item, null, 'twin2 reaches a question of the round');
+  await study.store.update((state) => { state.decks[0].cards.push(card('plain', '熔断器', '熔断器为什么要有半开状态？')); });
+  assert.equal((await study.call('review.similar', { runId: run.id, cardId: 'orig' })).item?.cardId, 'plain', 'a question that builds on neither is offered');
+  // Even a detour over a question that requires the (unlearned) original asks only that question: no prerequisite is pulled in, nothing credited.
+  const detour = await study.call('review.start', { mode: 'path', scope: [{ deckId: 'd', cardId: 'twin' }], fresh: true, returnTo: run.id, similarFor: { deckId: 'd', cardId: 'orig' } });
+  assert.deepEqual([detour.card.id, detour.total], ['twin', 1]);
+  await study.call('review.reveal', { runId: detour.id, cardId: 'twin' });
+  await study.call('review.answer', { runId: detour.id, cardId: 'twin', grade: 4 });
+  const state = await study.call('export');
+  assert.deepEqual(state.attempts.filter((a) => a.quiz_id === 'orig').map((a) => [a.grade, !!a.implicit]), [[1, false]], 'the original is not credited');
+  // A prerequisite round (returnTo without similarFor) still pulls unlearned prerequisites in, as before.
+  const prerequisite = await study.call('review.start', { mode: 'path', scope: [{ deckId: 'd', cardId: 'twin2' }], fresh: true, returnTo: run.id });
+  assert.ok(prerequisite.total > 1, 'an ordinary detour keeps its prerequisites');
 });
 
 test('the similar question is a detour of its own: an ordinary attempt for that card, no credit for the original, the round untouched', async (t) => {
@@ -129,6 +160,11 @@ test('teach.retell: one model call, the three parts back, only the aggregate on 
   study.complete = async () => '{"passed":"yes"}';
   await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /retell/i);
   assert.equal((await study.call('export')).decks[0].cards.find((c) => c.id === 'orig').retell.tries, 1, 'a failed check stores nothing');
+  // An unreadable reply is not asked again: one check stays one model call.
+  calls = 0;
+  study.complete = async () => { calls += 1; return 'not json at all'; };
+  await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /retell/i);
+  assert.equal(calls, 1, 'no second call for an unreadable reply');
   study.complete = null;
   await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /model/i);
 });
@@ -170,4 +206,71 @@ test('book.retell: one model call on the point, 讲清楚过 on the point once p
   const state = await study.call('export');
   assert.equal(JSON.stringify(state).includes(SECRET), false, 'the learner words are not stored');
   await assert.rejects(study.call('book.retell', { hid: 'h-none', text: SECRET }), /point/i);
+});
+
+test('the panel keeps the loop: the main chat is refused review.similar, teach.retell and book.retell and sees them in no listing', () => {
+  for (const action of ['review.similar', 'teach.retell', 'book.retell']) assert.match(assistantRefusal(action) || '', /not available to the assistant/, action);
+  assert.match(assistantRefusal('teach.retell'), /grade|mastery/i, 'a retell aggregate is learner performance');
+  assert.equal(assistantRefusal('wrongbook.recommend'), null, 'the main chat finds similar questions with wrongbook.recommend');
+  const study = { id: 'study', api: 'study.v1', operations: ['review.get', 'review.similar', 'teach.answer', 'teach.retell'].map((name) => ({ name, available: true })) };
+  const library = { id: 'library', api: 'library.v1', operations: ['book.read', 'book.retell'].map((name) => ({ name, available: true })) };
+  const index = JSON.stringify(capabilityIndex([study, library]));
+  assert.doesNotMatch(index, /similar|retell/, 'not in the index');
+  const listed = JSON.stringify(filterCapabilities([study, library], {}));
+  assert.doesNotMatch(listed, /similar|retell/, 'not in a context listing');
+  assert.match(listed, /teach\.answer/);
+});
+
+test('completeJson can make exactly one call: an unreadable reply is an error, not a second call', async () => {
+  let calls = 0;
+  const complete = async () => { calls += 1; return 'nope'; };
+  await assert.rejects(completeJson(complete, 's', 'p', { retry: false }));
+  assert.equal(calls, 1);
+  calls = 0;
+  await assert.rejects(completeJson(complete, 's', 'p'));
+  assert.equal(calls, 2, 'the default still asks once more');
+});
+
+test('teach.retell gives the model the citations it may point at (index and quote), and 去原文看这段 points at one of them', async (t) => {
+  const study = await library(t);
+  await study.store.update((state) => {
+    state.sources.push({ id: 'src', title: 'Notes', text: 'A breaker opens after failures and lets trial calls through when half-open.' });
+    state.decks[0].cards.find((c) => c.id === 'orig').citations = [{ sourceId: 'src', quote: 'lets trial calls through when half-open' }];
+  });
+  await answered(study, ['orig'], 1);
+  let sent;
+  study.complete = async (system, prompt) => { sent = JSON.parse(prompt); return JSON.stringify({ ...verdict, cite: 0 }); };
+  const answer = await study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET });
+  assert.deepEqual(sent.material.citations, [{ index: 0, quote: 'lets trial calls through when half-open' }]);
+  assert.equal(answer.cite, 0);
+});
+
+test('the retell aggregate follows the review: kept through a published edit of other questions, gone when the question itself changed', async (t) => {
+  const study = await library(t);
+  // card.update checks the deck: each question its own objective and a citation.
+  await study.store.update((state) => {
+    state.sources.push({ id: 'src', title: 'Notes', text: 'A breaker opens after failures and lets trial calls through when half-open.' });
+    for (const c of state.decks[0].cards) Object.assign(c, { objective: `Objective of ${c.id}`, citations: [{ sourceId: 'src', quote: 'A breaker opens after failures' }], addedAt: '2026-11-01T00:00:00.000Z' });
+  });
+  const { run } = await answered(study, ['orig'], 1);
+  await study.call('review.end', { runId: run.id });
+  study.complete = async () => JSON.stringify(verdict);
+  const editing = await study.call('deck.edit', { id: 'd' });
+  await study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET });
+  await study.call('teach.retell', { deckId: 'd', cardId: 'twin', text: SECRET });
+  // The edit draft was opened before the checks; publishing it changes only `far` and must not roll the aggregates back.
+  const draft = await study.call('draft.get', { id: editing.id });
+  draft.cards.find((c) => c.id === 'far').answer = 'Structured logs can be queried.';
+  const saved = await study.call('draft.save', { deck: draft });
+  await study.call('draft.publish.quick', { id: saved.id, draftVersion: saved.draftVersion });
+  let cards = (await study.call('export')).decks.find((d) => d.id === 'd').cards;
+  assert.equal(cards.find((c) => c.id === 'far').answer, 'Structured logs can be queried.', 'the edit is published');
+  assert.equal(cards.find((c) => c.id === 'orig').review.reps, 1, 'the unchanged question keeps its review');
+  assert.equal(cards.find((c) => c.id === 'orig').retell?.tries, 1, 'kept through the publish');
+  assert.equal(cards.find((c) => c.id === 'twin').retell?.tries, 1, 'kept through the publish');
+  // A substantive change of the question resets its review, and its retell with it.
+  await study.call('card.update', { deckId: 'd', cardId: 'twin', patch: { answer: 'Another answer altogether.' }, reason: 'test', quiet: true });
+  cards = (await study.call('export')).decks.find((d) => d.id === 'd').cards;
+  assert.equal(cards.find((c) => c.id === 'twin').retell, undefined, 'reset with the review');
+  assert.equal(cards.find((c) => c.id === 'orig').retell?.tries, 1);
 });
