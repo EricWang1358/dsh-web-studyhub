@@ -120,6 +120,7 @@
     "tests/report-kit-browser.test.mjs",
     "tests/review-autopilot-way-back.test.mjs",
     "tests/review-run-context-browser.test.mjs",
+    "tests/round-setup-browser.test.mjs",
     "tests/row-coverage-browser.test.mjs",
     "tests/science-settings-browser.test.mjs",
     "tests/scroll-fade-browser.test.mjs",
