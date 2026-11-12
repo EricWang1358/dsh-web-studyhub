@@ -7,7 +7,32 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  /* The marks are highlight styles of the reading page, in reader.css: the page owns its class, and its text inherits them. */
+  :where(.study-app, .study-seat) {
+    /* Matched outside a drawn formula only, like the find highlight in reader.css (which says why). */
+    .reader-page :not(.katex, .katex *)::highlight(study-mark-underline) {
+      text-decoration-line: underline;
+      text-decoration-style: solid;
+      text-decoration-thickness: 2px;
+      text-decoration-color: var(--text);
+      text-underline-offset: 0.18em;
+    }
+    .reader-page :not(.katex, .katex *)::highlight(study-mark-bold) {
+      color: var(--text);
+      text-shadow: 0.025em 0 0 currentColor, -0.025em 0 0 currentColor;
+    }
+    .reader-page :not(.katex, .katex *)::highlight(study-mark-highlight) {
+      background-color: var(--warn-mark);
+    }
+    .reader-page :not(.katex, .katex *)::highlight(study-mark-queue) {
+      background-color: var(--info-halo);
+    }
+    .reader-page :not(.katex, .katex *)::highlight(study-mark-pending) {
+      text-decoration-line: underline;
+      text-decoration-style: dotted;
+      text-decoration-thickness: 2px;
+      text-decoration-color: var(--text-muted);
+    }
+  }
   :is(.study-app, .study-seat) {
     .sh-menu--context { min-width: 11rem; }
 

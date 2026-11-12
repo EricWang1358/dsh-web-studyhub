@@ -5,9 +5,6 @@
     /* 复习全书 (ui/book/): the header and the sticky book bar (book-bar.css), the 目录 and the reading column (book-toc.css), the points (here). Tokens only.
        A long title or link wraps; nothing is wider than the page. --book-bar-top: where the bar sticks, set by the bar once drawn (under the app's top bar, ui/shell.css
        .topbar, or 0 once that has scrolled away; it matters only once the bar sticks); --book-bar-h: its row; the 目录 column sticks under both. */
-    /* The words 在书里找 went to (use-found-marks.js): a highlight style of the page, inherited by its text, not resolved for every element (reader.css). */
-    .book-page::highlight(study-find) { background-color: var(--warn-mark); color: inherit; }
-    .book-page::highlight(study-find-current) { background-color: var(--warn-solid); color: inherit; }
     .book-page {
       --book-bar-top: 0px;
       --book-bar-h: 44px;

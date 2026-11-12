@@ -6,7 +6,65 @@
 @layer study.reset, study.tokens, study.components, study.features, study.overrides;
 
 @layer study.features {
-  /* The underlines are highlight styles of the reading page, in reader.css: the page owns its class, and its text inherits them. */
+  :where(.study-app, .study-seat) {
+    /* Matched outside a drawn formula only, like the find highlight in reader.css (which says why). */
+    .reader-page :not(.katex, .katex *)::highlight(study-link-question) {
+      text-decoration-line: underline;
+      text-decoration-style: solid;
+      text-decoration-thickness: 1.5px;
+      text-decoration-color: color-mix(in srgb, var(--accent) 80%, transparent);
+    }
+    .reader-page :not(.katex, .katex *)::highlight(study-link-question-weak) {
+      text-decoration-line: underline;
+      text-decoration-style: solid;
+      text-decoration-thickness: 2px;
+      text-decoration-color: var(--bad);
+      background-color: var(--bad-halo);
+    }
+    .reader-page :not(.katex, .katex *)::highlight(study-link-question-learning) {
+      text-decoration-line: underline;
+      text-decoration-style: solid;
+      text-decoration-thickness: 1.5px;
+      text-decoration-color: var(--warn);
+    }
+    .reader-page :not(.katex, .katex *)::highlight(study-link-question-familiar) {
+      text-decoration-line: underline;
+      text-decoration-style: solid;
+      text-decoration-thickness: 1.5px;
+      text-decoration-color: color-mix(in srgb, var(--ok-mid) 82%, transparent);
+    }
+    .reader-page :not(.katex, .katex *)::highlight(study-link-question-mastered) {
+      text-decoration-line: underline;
+      text-decoration-style: solid;
+      text-decoration-thickness: 1.5px;
+      text-decoration-color: var(--ok);
+      background-color: var(--ok-halo);
+    }
+    .reader-page :not(.katex, .katex *)::highlight(study-link-qa) {
+      text-decoration-line: underline;
+      text-decoration-style: dotted;
+      text-decoration-thickness: 2px;
+      text-decoration-color: color-mix(in srgb, var(--accent) 80%, transparent);
+    }
+    .reader-page :not(.katex, .katex *)::highlight(study-link-qa-mastered) {
+      text-decoration-line: underline;
+      text-decoration-style: dotted;
+      text-decoration-thickness: 2px;
+      text-decoration-color: var(--ok);
+    }
+    .reader-page :not(.katex, .katex *)::highlight(study-link-annotation) {
+      text-decoration-line: underline;
+      text-decoration-style: wavy;
+      text-decoration-thickness: 1px;
+      text-decoration-color: color-mix(in srgb, var(--accent) 70%, transparent);
+    }
+    .reader-page :not(.katex, .katex *)::highlight(study-link-note) {
+      text-decoration-line: underline;
+      text-decoration-style: dashed;
+      text-decoration-thickness: 1.5px;
+      text-decoration-color: var(--text-muted);
+    }
+  }
   :is(.study-app, .study-seat) {
     /* The Aa popover's underline row sits on one line so the popover stays short. */
     /* ── Save an answer as a flashcard ──────────────────────────────────── */

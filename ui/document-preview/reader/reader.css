@@ -8,91 +8,11 @@
 
 @layer study.features {
   :where(.study-app, .study-seat) {
-    /* Every highlight of the reading page (find; the link underlines, whose kinds links.css explains; the learner's marks, marks.css) is a style of
-       the page itself, not of each element in it (` ::highlight`): its text inherits them (highlight inheritance), with the page's own tokens (paper
-       re-scopes them, paper.css). Written for every element, the browser resolved all 19 for each one, and drawing a formula of ~200 elements
-       cost ~100 ms (gate review of #996). */
-    .reader-page::highlight(study-find) { background-color: var(--warn-mark); color: inherit; }
-    .reader-page::highlight(study-find-current) { background-color: var(--warn-solid); color: inherit; }
-    .reader-page::highlight(study-link-question) {
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-thickness: 1.5px;
-      text-decoration-color: color-mix(in srgb, var(--accent) 80%, transparent);
-    }
-    .reader-page::highlight(study-link-question-weak) {
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-thickness: 2px;
-      text-decoration-color: var(--bad);
-      background-color: var(--bad-halo);
-    }
-    .reader-page::highlight(study-link-question-learning) {
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-thickness: 1.5px;
-      text-decoration-color: var(--warn);
-    }
-    .reader-page::highlight(study-link-question-familiar) {
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-thickness: 1.5px;
-      text-decoration-color: color-mix(in srgb, var(--ok-mid) 82%, transparent);
-    }
-    .reader-page::highlight(study-link-question-mastered) {
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-thickness: 1.5px;
-      text-decoration-color: var(--ok);
-      background-color: var(--ok-halo);
-    }
-    .reader-page::highlight(study-link-qa) {
-      text-decoration-line: underline;
-      text-decoration-style: dotted;
-      text-decoration-thickness: 2px;
-      text-decoration-color: color-mix(in srgb, var(--accent) 80%, transparent);
-    }
-    .reader-page::highlight(study-link-qa-mastered) {
-      text-decoration-line: underline;
-      text-decoration-style: dotted;
-      text-decoration-thickness: 2px;
-      text-decoration-color: var(--ok);
-    }
-    .reader-page::highlight(study-link-annotation) {
-      text-decoration-line: underline;
-      text-decoration-style: wavy;
-      text-decoration-thickness: 1px;
-      text-decoration-color: color-mix(in srgb, var(--accent) 70%, transparent);
-    }
-    .reader-page::highlight(study-link-note) {
-      text-decoration-line: underline;
-      text-decoration-style: dashed;
-      text-decoration-thickness: 1.5px;
-      text-decoration-color: var(--text-muted);
-    }
-    .reader-page::highlight(study-mark-underline) {
-      text-decoration-line: underline;
-      text-decoration-style: solid;
-      text-decoration-thickness: 2px;
-      text-decoration-color: var(--text);
-      text-underline-offset: 0.18em;
-    }
-    .reader-page::highlight(study-mark-bold) {
-      color: var(--text);
-      text-shadow: 0.025em 0 0 currentColor, -0.025em 0 0 currentColor;
-    }
-    .reader-page::highlight(study-mark-highlight) {
-      background-color: var(--warn-mark);
-    }
-    .reader-page::highlight(study-mark-queue) {
-      background-color: var(--info-halo);
-    }
-    .reader-page::highlight(study-mark-pending) {
-      text-decoration-line: underline;
-      text-decoration-style: dotted;
-      text-decoration-thickness: 2px;
-      text-decoration-color: var(--text-muted);
-    }
+    /* Matched on the reading page's elements outside a drawn formula (gate review of #996). Written for every element of the app (` ::highlight`), the
+       browser resolved all 19 highlight styles of the reader for each element of a KaTeX drawing (~200 for a display formula): ~100 ms of style
+       a formula. Not on the page alone for its text to inherit: WebKit has no highlight inheritance, and each element keeps its own tokens (paper). */
+    .reader-page :not(.katex, .katex *)::highlight(study-find) { background-color: var(--warn-mark); color: inherit; }
+    .reader-page :not(.katex, .katex *)::highlight(study-find-current) { background-color: var(--warn-solid); color: inherit; }
     /* 中英混排 (#744): the little space between Chinese and Latin the font itself does not give. A property, so no byte of the text changes:
        a copied selection, a quote back to the page and a search substring stay exactly the original. Engines without it ignore the line. */
     .source-md { white-space: normal; line-height: 1.8; text-autospace: normal; }

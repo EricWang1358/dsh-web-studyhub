@@ -104,7 +104,9 @@
       background-color: var(--warn-mark);
       color: inherit;
     }
-    /* The find highlight is a style of the book page, in book.css. */
+    /* Matched outside a drawn formula only, like the find highlight in reader.css (which says why). */
+    .book-page :not(.katex, .katex *)::highlight(study-find) { background-color: var(--warn-mark); color: inherit; }
+    .book-page :not(.katex, .katex *)::highlight(study-find-current) { background-color: var(--warn-solid); color: inherit; }
     /* A big book's chapter opens from its caret: pointing right when shut, down when open. */
     .book-toc__fold {
       flex: 0 0 auto;
