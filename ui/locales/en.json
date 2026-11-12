@@ -1720,5 +1720,8 @@
   "上一个操作还没结束，已处理 {0} 个，剩下的没有开始。等它结束后再点一次。": "The previous action has not finished: {0} done, the rest did not start. Click again once it finishes.",
   "StudyHub 只对这台电脑上的 DSH 主人开放；通过远程访问打开的浏览器不能使用它。StudyHub is only available to the owner of this DSH, not to remote-access browsers.": "StudyHub is only available to the owner of this DSH, not to remote-access browsers.",
   "学习库读不出来，正在重试": "Cannot read the library, retrying",
-  "剩余时间 {0}": "Time left {0}"
+  "剩余时间 {0}": "Time left {0}",
+  "存进笔记": "Save to note",
+  "已存进笔记 · 打开": "Saved to note · Open",
+  "这条来源已不在原题上": "This source is no longer on the question"
 }

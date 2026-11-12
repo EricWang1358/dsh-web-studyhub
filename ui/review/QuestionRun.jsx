@@ -112,7 +112,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     () => runDeferUnstudiedPages({ run, sources: data?.sources, openModal, reviewAct, notify }),
     [data?.sources, notify, openModal, reviewAct, run],
   );
-  const { onOpenNote, onMakeNote, onMakeTask, onModelSettings } = links;
+  const { onOpenNote, onMakeNote, onMakeTask, onModelSettings, onSaveQaToNote } = links;
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
   const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader, tourRunning } = context;
   const contextReturnLabel = inHeader ? '' : contextLabel;
@@ -675,7 +675,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly
               onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
               onAskMore={() => { setAssistMode("ask"); requestAnimationFrame(() => { document.querySelector(".assist-area")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); document.querySelector(".assist-form__input")?.focus(); }); }}
-              bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }} />}
+              bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }}
+              noteQa={onSaveQaToNote ? { savedIn: (followupId) => cardNotes.find((note) => note.followupIds?.includes(followupId))?.noteId || "", onSave: onSaveQaToNote, onOpen: onOpenNote } : null} />}
           </ReadingBlock>
         )}
         {run.feedback && run.mode !== "exam" && <>

@@ -765,6 +765,8 @@
  "tests/notation.test.mjs": 10,
  "tests/note-draft-ui.test.mjs": 30,
  "tests/note-draft.test.mjs": 350,
+ "tests/note-from-question-browser.test.mjs": 400,
+ "tests/note-from-question.test.mjs": 60,
  "tests/note-preview.test.mjs": 60,
  "tests/notebooks.test.mjs": 110,
  "tests/notify.test.mjs": 770,
