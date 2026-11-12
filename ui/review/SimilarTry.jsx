@@ -33,6 +33,9 @@ export default function SimilarTry({ session, data, model, onModelSettings }) {
   const origin = { deckId: run.deckId, cardId: run.card.id };
   const detour = (cardId, deckId = run.deckId) => actions.studyPrerequisites([{ deckId, cardId }], { similarFor: origin });
   const variant = variantTask(data?.assist, run);
+  // A variant that failed, or ended without a new question (the assistant found nothing to write), is not the end: 生成一道变式 is offered again.
+  const variantReady = variant?.status === "done" && !!variant.resultCardId, variantRunning = variant?.status === "running";
+  const variantMissed = !!variant && !variantReady && !variantRunning;
 
   async function find() {
     setState({ key, kind: "finding", message: "" });
@@ -58,14 +61,14 @@ export default function SimilarTry({ session, data, model, onModelSettings }) {
   );
   return (
     <div className="similar-try">
-      {variant?.status === "done" && variant.resultCardId
+      {variantReady
         ? <Button size="sm" variant="primary" icon="play" className="similar-try__go" lock={busy} data-usage="review.similar-variant-go"
           onClick={() => detour(variant.resultCardId, variant.deckId)}>{ui("做这道变式题")}</Button>
         : tryButton}
-      {variant?.status === "running" && <span className="similar-try__note" role="status"><Spinner size="sm" />{ui("正在出一道变式题，写好后这里会出现「做这道变式题」。")}</span>}
-      {here.kind === "none" && !variant && (
+      {variantRunning && <span className="similar-try__note" role="status"><Spinner size="sm" />{ui("正在出一道变式题，写好后这里会出现「做这道变式题」。")}</span>}
+      {here.kind === "none" && (!variant || variantMissed) && (
         <span className="similar-try__note" role="status">
-          {ui("题库里没有这一轮之外的同类题。")}{" "}
+          {variantMissed ? ui("上一次没有出成变式题。") : ui("题库里没有这一轮之外的同类题。")}{" "}
           <Tooltip layer content={ui("后台助教按这道题的知识点出一道新题，放进同一题组：约 1 次模型调用。")}>
             <Button variant="link" size="sm" icon="sparkle" data-usage="review.similar-variant" lock={busy} onClick={generate}>{ui("生成一道变式")}</Button>
           </Tooltip>

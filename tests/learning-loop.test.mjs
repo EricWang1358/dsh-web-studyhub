@@ -165,6 +165,8 @@ test('teach.retell: one model call, the three parts back, only the aggregate on 
   study.complete = async () => { calls += 1; return 'not json at all'; };
   await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /retell/i);
   assert.equal(calls, 1, 'no second call for an unreadable reply');
+  study.complete = async () => null;
+  await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /Invalid retell feedback/, 'no text at all reads as unreadable, not a TypeError');
   study.complete = null;
   await assert.rejects(study.call('teach.retell', { deckId: 'd', cardId: 'orig', text: SECRET }), /model/i);
 });

@@ -7,6 +7,7 @@
   "做这道变式题": "Do the variant question",
   "正在出一道变式题，写好后这里会出现「做这道变式题」。": "Writing a variant question; when it is ready, Do the variant question appears here.",
   "题库里没有这一轮之外的同类题。": "Your bank has no similar question outside this round.",
+  "上一次没有出成变式题。": "The last variant could not be written.",
   "后台助教按这道题的知识点出一道新题，放进同一题组：约 1 次模型调用。": "The background assistant writes one new question on this question's point into the same deck: about 1 model call.",
   "生成一道变式": "Write a variant",
   "用自己的话讲过 {0} 次，其中 {1} 次 AI 认为讲清楚了。": "Explained in your own words {0} times; {1} of them clear, according to the AI.",
