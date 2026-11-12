@@ -4,6 +4,7 @@
    kept per formula text, so a formula seen once (another chapter, the same chapter again) is never drawn twice. */
 import { createContext, useContext, useEffect, useState } from 'react';
 import { formulaViewHtml } from './formula.js';
+import { createFormulaQueue, FORMULAS_PER_FRAME } from '../../formula-queue.js';
 
 /** How far below and above the visible part of the reading column a formula is drawn ahead of time. */
 export const FORMULA_MARGIN_PX = 1200;
@@ -34,33 +35,55 @@ export function formulaDrawing(formula) {
 }
 
 /**
- * One watcher per reading column: `observe(element, show)` calls `show()` once when the element is within FORMULA_MARGIN_PX of the visible
- * part of `rootOf()` (the scroll area, read when the first element is observed); it returns the function that stops watching. Without
- * IntersectionObserver every formula is shown at once.
+ * One watcher per reading column: `observe(element, show)` calls `show()` once: at once when the element is on the visible part of `rootOf()`
+ * (the scroll area, read when the first element is observed), and when it is within FORMULA_MARGIN_PX of it, in a later frame, a few a frame
+ * (formula-queue.js), the nearest to the middle of the screen first; one that leaves that band before its turn waits again. It returns the
+ * function that stops watching. Without IntersectionObserver every formula is shown at once.
  */
-export function createFormulaWatch(rootOf, { margin = FORMULA_MARGIN_PX } = {}) {
-  let observer = null;
-  const waiting = new Map();
+export function createFormulaWatch(rootOf, { margin = FORMULA_MARGIN_PX, perFrame = FORMULAS_PER_FRAME } = {}) {
+  let near = null, onScreen = null, height = 0;
+  const shows = new Map(), places = new Map();
+  const scrolled = () => { const root = rootOf(); return root ? root.scrollTop : (globalThis.scrollY ?? 0); };
+  const nearestFirst = elements => {
+    const middle = scrolled() + height / 2;
+    return elements.sort((a, b) => Math.abs(places.get(a) - middle) - Math.abs(places.get(b) - middle));
+  };
+  const queue = createFormulaQueue({ perFrame, order: nearestFirst });
+  const forget = element => {
+    shows.delete(element); places.delete(element); queue.remove(element);
+    near?.unobserve(element); onScreen?.unobserve(element);
+  };
+  const show = element => { const draw = shows.get(element); forget(element); draw?.(); };
   const ensure = () => {
-    if (observer || typeof IntersectionObserver === 'undefined') return observer;
-    observer = new IntersectionObserver(entries => {
+    if (near || typeof IntersectionObserver === 'undefined') return near;
+    const root = rootOf() || null;
+    near = new IntersectionObserver(entries => {
       for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const show = waiting.get(entry.target);
-        waiting.delete(entry.target); observer.unobserve(entry.target);
-        show?.();
+        const element = entry.target;
+        if (!shows.has(element)) continue;
+        if (!entry.isIntersecting) { queue.remove(element); continue; }
+        // Where it is in the scrolled content: its top below the area's top (the band's top plus the margin), plus how far the area is scrolled.
+        const band = entry.rootBounds;
+        if (band) height = Math.max(0, band.height - 2 * margin);
+        places.set(element, entry.boundingClientRect.top - (band ? band.top + margin : 0) + scrolled());
+        queue.add(element, () => show(element));
       }
-    }, { root: rootOf() || null, rootMargin: `${margin}px 0px` });
-    return observer;
+    }, { root, rootMargin: `${margin}px 0px` });
+    onScreen = new IntersectionObserver(entries => {
+      for (const entry of entries) if (entry.isIntersecting && shows.has(entry.target)) show(entry.target);
+    }, { root });
+    return near;
   };
   return {
-    observe(element, show) {
-      const watcher = ensure();
-      if (!watcher) { show(); return () => {}; }
-      waiting.set(element, show); watcher.observe(element);
-      return () => { waiting.delete(element); watcher.unobserve(element); };
+    observe(element, draw) {
+      if (!ensure()) { draw(); return () => {}; }
+      shows.set(element, draw); near.observe(element); onScreen.observe(element);
+      return () => forget(element);
     },
-    disconnect() { observer?.disconnect(); observer = null; waiting.clear(); },
+    disconnect() {
+      near?.disconnect(); onScreen?.disconnect(); near = onScreen = null;
+      queue.clear(); shows.clear(); places.clear();
+    },
   };
 }
 
