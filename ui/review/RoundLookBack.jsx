@@ -6,9 +6,11 @@ import ExplanationFollowup from "../ExplanationFollowup.jsx";
 import { Badge, Button, ChunkedRows } from "../components/index.js";
 import { fixedOptionLabel, optionMark } from "../option-label.js";
 import { fixedOptionsOf, hasOptions, isGraded } from "../../lib/card-kinds.js";
+import { useHostQuery } from "../host-query.js";
 
-/* 本轮题目 on the result page (#1009): one row per question of the round (the run's own `lookBack`, lib/contexts/study/round-look-back.js), and a press on a
-   row opens a read-only look-back under it: the question, the answer given, the right answer, the explanation and the Q&A. It asks the host for nothing, so
+/* 本轮题目 on the result page (#1009): one row per question of the round, read once when the page opens with review.lookBack {runId}
+   (lib/contexts/study/round-look-back.js; a read the main chat is refused, so a chat's tool results of the round stay small), and a press on a row opens a
+   read-only look-back under it: the question, the answer given, the right answer, the explanation and the Q&A. Opening a row asks the host for nothing, so
    it opens at once and can change no schedule and no clock. An unanswered question shows only itself: its answer waits until it is practised. At first only the
    wrong and unanswered rows are listed (all of them when there are none), long lists draw in chunks (ChunkedRows). A mock exam has no look-back (its report). */
 
@@ -22,6 +24,8 @@ const ROW_CHUNK = 20;
 
 const pageWords = (row) => row.page == null ? "" : row.unit === "slide" ? uiFormat("第 {0} 张", [row.page])
   : row.unit === "part" ? uiFormat("第 {0} 节", [row.page]) : uiFormat("第 {0} 页", [row.page]);
+/** The prompt of a row: in its card when it was answered, alone when it was not. */
+const promptOf = (row) => String(row.card?.prompt ?? row.prompt ?? "");
 const plainLine = (text) => String(text || "").replace(/\{\{[^{}]+\}\}/g, "＿＿").replace(/[#*_`>$\\]/g, "").replace(/\s+/g, " ").trim();
 
 /** How a row's answer is measured: chosen or filled in (答对 / 答错), or graded by the learner (达标 / 未达标). */
@@ -65,7 +69,7 @@ function LookBack({ row, mode }) {
   if (!row.solution) {
     return (
       <div className="look-back__body">
-        <Markdown text={row.prompt} />
+        <Markdown text={promptOf(row)} />
         <p className="muted small">{ui("这道题这一轮没有作答，答案留到下次练到时再看。")}</p>
       </div>
     );
@@ -74,7 +78,7 @@ function LookBack({ row, mode }) {
   return (
     <div className="look-back__body">
       {/* A cloze draws its own sentence with the blanks; anything else shows the question first. */}
-      {!(mode !== "flashcard" && row.card.kind === "cloze") && <Markdown text={row.prompt} />}
+      {!(mode !== "flashcard" && row.card.kind === "cloze") && <Markdown text={promptOf(row)} />}
       <LookBackAnswer row={row} mode={mode} />
       {(row.solution.explanation || row.solution.misconception) && (
         <div className="explanation look-back__explanation">
@@ -89,13 +93,16 @@ function LookBack({ row, mode }) {
 }
 
 /**
- * props: run (the finished run, with `lookBack`), onOpenWrongBook(refs) (optional: the wrong book on these questions, where its rescue is; absent when the page
- * is not available).
+ * props: run (the finished run), onOpenWrongBook(refs) (optional: the wrong book on these questions, where its rescue is; absent when the page is not available).
  */
 export default function RoundLookBack({ run, onOpenWrongBook }) {
-  const rows = run.lookBack || [];
+  // One read per opening of the result page, shared by any other reader of the same round (ui/host-query.js); nothing for an exam.
+  const query = useHostQuery("review.lookBack", { runId: run.id }, { enabled: run.mode !== "exam" });
+  const rows = (run.mode !== "exam" && query.data?.rows) || [];
   const needsLook = rows.filter((row) => row.status === "wrong" || row.status === "unanswered");
-  const [all, setAll] = React.useState(needsLook.length === 0);
+  // Until the learner chooses, the list shows the wrong and unanswered ones, or all of them when there are none.
+  const [chosen, setAll] = React.useState(null);
+  const all = chosen ?? needsLook.length === 0;
   const [open, setOpen] = React.useState(() => new Set());
   if (!rows.length) return null;
   const shown = all ? rows : needsLook;
@@ -114,7 +121,7 @@ export default function RoundLookBack({ run, onOpenWrongBook }) {
           <span className="look-back__number">{row.number}</span>
           <Badge size="sm" tone={words.tone}>{ui(selfGraded(row, run.mode) ? words.self : words.graded)}</Badge>
           {row.hinted && <Badge size="sm">{ui("用了提示")}</Badge>}
-          <span className="look-back__prompt">{plainLine(row.prompt) || ui("题干尚未填写")}</span>
+          <span className="look-back__prompt">{plainLine(promptOf(row)) || ui("题干尚未填写")}</span>
           {row.page != null && <span className="look-back__page muted small">{pageWords(row)}</span>}
         </Button>
         {expanded && (

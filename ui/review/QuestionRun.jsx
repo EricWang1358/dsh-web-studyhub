@@ -42,6 +42,7 @@ import { resolveBookSettings } from "../../lib/book-settings.js";
 import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 import { roundAt, roundWords } from "./round-words.js";
+import { finishedTask } from "./session-logic.js";
 import { fixedOptionsOf } from "../../lib/card-kinds.js";
 import { deferUnstudiedPagesPlan, runDeferUnstudiedPages } from "../document-preview/practice/open-reader-pages.js";
 import QuestionSourcePage from "./QuestionSourcePage.jsx";
@@ -182,11 +183,13 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
-  const wasRunningRef = React.useRef("");
+  // A task on this question (批改 included) that ends with a result: ask for the question at once, the poll may have slowed down (#1011).
+  const watchedRef = React.useRef("");
+  const ended = finishedTask(watchedRef.current, assistTasks, run.card?.id);
   React.useEffect(() => {
-    if (runningTask?.id) wasRunningRef.current = runningTask.id;
-    else if (wasRunningRef.current && lastTask?.id === wasRunningRef.current && lastTask.status === "done") { wasRunningRef.current = ""; session.pollRun?.(); }
-  }, [runningTask?.id, lastTask?.id, lastTask?.status, session]);
+    watchedRef.current = ended.watch;
+    if (ended.done) (session.pollNow || session.pollRun)?.();
+  }, [ended.watch, ended.done, session]);
   // The question column follows the chosen reading width (the card, the toolbar and the explanation share it), not a fixed 700px: 窄 / 标准 / 宽 in the Aa popover.
   const readingStyle = useReadingProps().style || {};
   const readingMeasure = readingStyle["--reading-measure"];

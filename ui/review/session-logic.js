@@ -81,8 +81,19 @@ export function mergeReviewPollWithFollowups(current, next) {
 export const reviewPollResult = (current, next, running = false) =>
   (mergeReviewPollWithFollowups(current, next) === current ? { unchanged: true, running } : { running });
 
-/** A helper task (帮我弄懂, 修题, 出前置题) is running on this question: the library's list of background tasks says so. 批改 has its own waiting line. */
-export const assistRunningOn = (tasks, cardId) => !!cardId && (tasks || []).some((task) => task.cardId === cardId && task.status === 'running' && task.mode !== 'grade');
+/** A helper task (帮我弄懂, 修题, 出前置题, 批改) is running on this question: the library's list of background tasks says so. Its result reaches the page
+    through this poll (a 批改 too), so the poll keeps the quick rhythm while it runs. */
+export const assistRunningOn = (tasks, cardId) => !!cardId && (tasks || []).some((task) => task.cardId === cardId && task.status === 'running');
+
+/** The task on this question the page watches (`watch`: the running one, any mode) and whether the one it watched has just ended with a result
+    (`done`): then the page asks for the question at once instead of waiting out a slowed-down poll. */
+export function finishedTask(watched, tasks, cardId) {
+  const own = (tasks || []).filter((task) => task.cardId === cardId);
+  const running = own.find((task) => task.status === 'running');
+  if (running) return { watch: running.id, done: false };
+  const ended = watched ? own.find((task) => task.id === watched) : null;
+  return { watch: '', done: ended?.status === 'done' };
+}
 
 /* ── 先跳过 and the questions still waiting (#1008) ── */
 

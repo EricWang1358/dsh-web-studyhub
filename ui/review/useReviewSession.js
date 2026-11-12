@@ -203,6 +203,9 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const polling = usePolling(pollRun, { intervalMs: REVIEW_POLL_MS, backoff: reviewPollDelay, enabled: page === 'review' && !!run?.card?.id });
   const pollingRef = useRef(polling);
   pollingRef.current = polling;
+  // A new question on screen: the rhythm starts again at 4 s, without an extra request. A task that ends on the question asks at once (QuestionRun).
+  useEffect(() => { pollingRef.current.restart(); }, [run?.id, run?.index, run?.card?.id]);
+  const pollNow = useCallback(() => pollingRef.current.refresh(), []);
 
   /* ── one step of the round ── */
   const stepWaiting = useRef(false);
@@ -237,8 +240,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   useEffect(() => { setEndAsked(false); }, [run?.id, run?.complete]);
   const endRound = useCallback(async () => {
     if (!runRef.current?.id || runRef.current.complete || runRef.current.mode === 'exam') return;
-    await reviewActRef.current('review.end');
-    setEndAsked(false);
+    // A dropped call (another step holds act(), or it failed) resolves with nothing: the question stays asked, so the press is not lost.
+    if (await reviewActRef.current('review.end')) setEndAsked(false);
   }, []);
   /* The question's own actions that live in QuestionRun (写笔记, 标为重点, its page): it puts them here, and the keys N / F / O run them. */
   const questionKeys = useRef({});
@@ -506,5 +509,5 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     endRound,
   }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleHint, noteAssistance, skipQuestion, endRound]);
   return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
-    shortcutHelp, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, actions, flushDraft };
+    shortcutHelp, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft };
 }

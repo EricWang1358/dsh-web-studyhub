@@ -6,7 +6,9 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { freshRoundCount, roundLimits } from '../lib/practice-settings.js';
 import { followupDigest } from '../lib/followup.js';
-import { assistRunningOn, pendingCount, retriesWaiting, reviewPollResult, shortcutAction, skipTarget } from '../ui/review/session-logic.js';
+import { assistantRefusal } from '../lib/assistant-boundary.js';
+import { capabilityIndex } from '../lib/runtime/tools.js';
+import { assistRunningOn, finishedTask, pendingCount, retriesWaiting, reviewPollResult, shortcutAction, skipTarget } from '../ui/review/session-logic.js';
 import { reviewPollDelay } from '../ui/poll-schedule.js';
 
 /* #1008 / #1009 / #1011: inside a practice round the learner can set a question aside (先跳过, the existing review.move {index}) and stop the round with a
@@ -155,14 +157,17 @@ test('a finished round carries every question for the look-back: answer, solutio
   await answer(service, run, ['b']);
   let current = await service.call('review.move', { runId: run.id, direction: 1 });
   await answer(service, current);
-  const open = await service.call('review.get', { runId: run.id });
-  assert.equal(open.lookBack, undefined, 'nothing while the round is open');
+  assert.deepEqual((await service.call('review.lookBack', { runId: run.id })).rows, [], 'nothing while the round is open');
   const ended = await service.call('review.end', { runId: run.id });
-  const rows = ended.lookBack;
+  assert.equal(ended.lookBack, undefined, 'the run itself does not carry it (a main-chat tool result of a finished round stays small)');
+  const { rows } = await service.call('review.lookBack', { runId: run.id });
   assert.equal(rows.length, 3);
   assert.deepEqual(rows.map((row) => row.status), ['wrong', 'right', 'unanswered']);
   assert.deepEqual(rows.map((row) => row.number), [1, 2, 3]);
-  assert.equal(rows[0].prompt, 'q1?');
+  assert.equal(rows[0].card.prompt, 'q1?');
+  assert.equal(rows[0].prompt, undefined, 'an answered row has its prompt once, in its card');
+  assert.equal(rows[2].prompt, 'q3?', 'an unanswered row has only its prompt');
+  for (const row of rows) assert.deepEqual(Object.keys(row).filter((key) => ['index', 'retried'].includes(key)), [], 'no field the page does not read');
   assert.deepEqual(rows[0].feedback.selected, ['b'], 'what the learner chose');
   assert.equal(rows[0].solution.explanation, 'E-q1');
   assert.equal(rows[0].solution.options.find((option) => option.correct).id, 'a', 'the right answer');
@@ -173,8 +178,7 @@ test('a finished round carries every question for the look-back: answer, solutio
   // Reading it changes nothing: no attempt, no schedule, no clock.
   const state = await service.store.read();
   const snapshot = JSON.stringify({ attempts: state.attempts, cards: state.decks[0].cards.map((card) => card.review), clocks: state.runs[0].entries.map((entry) => entry.startedAt) });
-  current = await service.call('review.get', { runId: run.id });
-  assert.equal(current.lookBack.length, 3);
+  assert.equal((await service.call('review.lookBack', { runId: run.id })).rows.length, 3);
   const after = await service.store.read();
   assert.equal(JSON.stringify({ attempts: after.attempts, cards: after.decks[0].cards.map((card) => card.review), clocks: after.runs[0].entries.map((entry) => entry.startedAt) }), snapshot);
 });
@@ -182,8 +186,25 @@ test('a finished round carries every question for the look-back: answer, solutio
 test('an exam never carries the look-back', async (t) => {
   const { service } = await library(t);
   const exam = await service.call('review.start', { mode: 'exam', scope: [{ deckId: 'd' }], count: 3 });
-  const ended = await service.call('review.end', { runId: exam.id });
-  assert.equal(ended.lookBack, undefined);
+  await service.call('review.end', { runId: exam.id });
+  assert.deepEqual((await service.call('review.lookBack', { runId: exam.id })).rows, [], 'its report has its own rules');
+});
+
+test('the look-back is the panel read: the main chat is refused it and does not see it, and review.end of a 50-question round stays small', async (t) => {
+  assert.match(assistantRefusal('review.lookBack') || '', /not available to the assistant/);
+  assert.equal(assistantRefusal('review.get'), null);
+  const index = JSON.stringify(capabilityIndex([{ id: 'study', api: 'study.v1', operations: ['review.get', 'review.lookBack', 'review.end'].map((name) => ({ name, available: true })) }]));
+  assert.doesNotMatch(index, /lookBack/, 'not listed to the assistant');
+  const { service, run } = await library(t, 50);
+  let current = run;
+  for (let n = 0; n < 50; n++) {
+    current = await answer(service, current);
+    if (n < 49) current = await service.call('review.move', { runId: run.id, direction: 1 });
+  }
+  const open = JSON.stringify(await service.call('review.get', { runId: run.id })).length;
+  const ended = JSON.stringify(await service.call('review.end', { runId: run.id })).length;
+  assert.ok(ended < open * 1.5, `review.end of 50 answered questions is about the size of the open run (${ended} vs ${open} characters)`);
+  assert.ok(JSON.stringify(await service.call('review.lookBack', { runId: run.id })).length > ended, 'the rows are the big part, and only the panel reads them');
 });
 
 /* ── the size of the next batch (#1009) ── */
@@ -253,8 +274,15 @@ test('a poll that changes nothing says so, and a helper task on the open questio
   assert.deepEqual(reviewPollResult(open, { ...open }, true), { unchanged: true, running: true });
   const tasks = [{ cardId: 'c', status: 'running', mode: 'ask' }, { cardId: 'x', status: 'running', mode: 'improve' }, { cardId: 'g', status: 'running', mode: 'grade' }];
   assert.equal(assistRunningOn(tasks, 'c'), true);
-  assert.equal(assistRunningOn(tasks, 'g'), false, '批改 has its own waiting line');
+  assert.equal(assistRunningOn(tasks, 'g'), true, '批改 arrives through the same poll, so it keeps the quick rhythm too');
   assert.equal(assistRunningOn(tasks, 'y'), false);
   assert.equal(assistRunningOn([{ cardId: 'c', status: 'done', mode: 'ask' }], 'c'), false);
   assert.equal(assistRunningOn(undefined, 'c'), false);
+
+  // The page asks at once when a task on the open question ends (its answer or its 批改 is in the run): which task to watch, whatever its mode.
+  const own = [{ id: 't1', cardId: 'g', status: 'running', mode: 'grade' }];
+  assert.deepEqual(finishedTask('', own, 'g'), { watch: 't1', done: false }, 'a running 批改 is watched');
+  assert.deepEqual(finishedTask('t1', [{ ...own[0], status: 'done' }], 'g'), { watch: '', done: true }, 'it ended: ask now');
+  assert.deepEqual(finishedTask('t1', [{ ...own[0], status: 'failed' }], 'g'), { watch: '', done: false }, 'a failed task brings nothing to show');
+  assert.deepEqual(finishedTask('', [], 'g'), { watch: '', done: false });
 });
