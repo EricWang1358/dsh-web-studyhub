@@ -94,6 +94,8 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
         hint={uiFormat('答对（或自评达标）后，等 {0} 秒自动进入下一题；一轮做完，结果页也会在 {1} 秒后自动开始建议的下一步（学习流和「回到原题」的练习除外）。点任意处或按任意键就能停下。练习页的工具栏里也有这个开关，按 A 键同样可以切换。', [seconds(AUTO_ADVANCE_MS), RESULT_COUNTDOWN_SECONDS])} />
       <Switch name="debrief" label={ui('本轮点评由模型来写')} checked={values.debrief} disabled={disabled} onChange={(debrief) => set({ debrief })}
         hint={ui('每轮做完、答了 3 题以上时，结果页会请较轻量的模型写一句点评并更新你的学习画像摘要，这是练习里唯一自动调用模型的地方。关掉后不再调用模型：点评卡片只按作答统计给出建议。')} />
+      <Switch name="rereadMarks" label={ui('首页提醒重读划过的段落')} checked={values.rereadMarks} disabled={disabled} onChange={(rereadMarks) => set({ rereadMarks })}
+        hint={ui('阅读器里用荧光笔或加粗标过的段落，3 天没再看、所在章节或页又有到期或薄弱题时，首页「今日」会出现一行「重读 N 段」，每天最多 3 段。关掉后这一行不再出现。')} />
       <Switch name="qaToBook" label={ui('自动加入复习全书')} checked={bookMode === 'auto'} disabled={disabled} onChange={(on) => setBook(on ? 'auto' : 'manual')}
         hint={ui('练习时得到的追问和「帮我弄懂」的回答，打开后会自动放进这门课的复习全书（这道题所在知识点的问答里）；关着时在每条问答旁点「加入复习全书」才放进去。题目自己的问答记录不受影响，加进书里的随时可以撤回。只影响之后的问答。')} />
       <Field label={ui('多少次答错算顽固题')} hint={ui('一道题累计答错这么多次，错题本里会标上「顽固」，展开后有修题、补前置小卡、发给主会话和暂停几个办法。只看作答记录，不调用模型。')}>

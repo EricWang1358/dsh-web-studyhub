@@ -5,8 +5,8 @@ import { TERMS } from '../mastery-terms.js';
 import { useStudy } from '../study-context.jsx';
 import { useMethodAlternativeOpen } from '../method-alternatives.js';
 
-/** The right of the home desk: the one card with today's count and its one action (a newcomer's three steps are the first-run line's compact card, ui/first-run). `quiet`: the 下一步 card above holds the page's primary button (ui/study-map/NextStepCard.jsx), so this action is a secondary one. */
-export default function TodayCard({ plan, todayLabel, quiet = false }) {
+/** The right of the home desk: the one card with today's count and its one action (a newcomer's three steps are the first-run line's compact card, ui/first-run). `quiet`: the 下一步 card above holds the page's primary button (ui/study-map/NextStepCard.jsx), so this action is a secondary one. `extra`: a line that comes later (重读 N 段), drawn under the action and outside the card's body, so its coming never moves the action. */
+export default function TodayCard({ plan, todayLabel, quiet = false, extra = null }) {
   const { act, busy } = useStudy();
   const openAlt = useMethodAlternativeOpen();
   const advanceStage = () => {
@@ -21,6 +21,7 @@ export default function TodayCard({ plan, todayLabel, quiet = false }) {
   return (
     <div className="today-stack" data-depth={plan.depth} data-tour="home-today">
       <div className="today-card sh-paper-card">
+        <div className="today-card-main">
         <div className="today-card-head">
           <span>{plan.eyebrow}</span>
           <time>{todayLabel}</time>
@@ -57,6 +58,8 @@ export default function TodayCard({ plan, todayLabel, quiet = false }) {
             {plan.action.label}
           </Button>
         )}
+        </div>
+        {extra}
       </div>
     </div>
   );

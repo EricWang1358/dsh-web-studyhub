@@ -24,7 +24,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/assist-contract.js`: 1 ui file; 1 other lib file
 - `lib/audio-formats.js`: 4 ui files; 3 other lib files
 - `lib/audio-providers.js`: 4 ui files; context audio; 3 other lib files
-- `lib/board-model.js`: 16 ui files; 8 other lib files
+- `lib/board-model.js`: 17 ui files; 8 other lib files
 - `lib/book-flip.js`: 1 ui file; 1 other lib file
 - `lib/book-settings.js`: 6 ui files; contexts generation, system; 5 other lib files
 - `lib/card-kinds.js`: 12 ui files; contexts generation, library, recording, study; 25 other lib files
@@ -45,7 +45,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-method.js`: 4 ui files; context courses; 4 other lib files
 - `lib/course-rules.js`: 3 ui files; context authoring; 3 other lib files
 - `lib/course-setup.js`: 1 ui file
-- `lib/course-tree.js`: 8 ui files; contexts generation, materials; 14 other lib files
+- `lib/course-tree.js`: 8 ui files; contexts generation, library, materials; 14 other lib files
 - `lib/courses.js`: 10 ui files; contexts authoring, coach, courses, generation, library; 11 other lib files
 - `lib/coverage-run.js`: 6 ui files; contexts generation, library; 4 other lib files
 - `lib/coverage-strength.js`: 4 ui files; context generation; 5 other lib files
@@ -96,7 +96,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/passage-translation.js`: 2 ui files; contexts generation, materials; 1 other lib file
 - `lib/plain-reason.js`: 2 ui files; 2 other lib files
 - `lib/plan-weekly.js`: 1 ui file; 2 other lib files
-- `lib/practice-settings.js`: 7 ui files; contexts coach, study, system; 8 other lib files
+- `lib/practice-settings.js`: 8 ui files; contexts coach, study, system; 8 other lib files
 - `lib/question-references.js`: 3 ui files; context generation; 5 other lib files
 - `lib/question-voice.js`: 3 ui files; 3 other lib files
 - `lib/quote-locate.js`: 1 ui file; context generation; 12 other lib files
@@ -110,7 +110,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/shortfall.js`: 2 ui files
 - `lib/sm2.js`: 2 ui files; 5 other lib files
 - `lib/source-courses.js`: 7 ui files; contexts audio, bank, courses, generation, library, materials, recording; 24 other lib files
-- `lib/source-groups.js`: 23 ui files; contexts generation, materials; 9 other lib files
+- `lib/source-groups.js`: 23 ui files; contexts generation, library, materials; 9 other lib files
 - `lib/source-provenance.js`: 6 ui files; contexts library, materials; 6 other lib files
 - `lib/source-relations.js`: 2 ui files
 - `lib/stage-effort.js`: 1 ui file; context generation; 3 other lib files

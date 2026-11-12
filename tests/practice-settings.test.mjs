@@ -10,7 +10,7 @@ import { writesFor } from '../lib/runtime/domain-contracts.js';
 import { NEW_CARD_ORDERS, PRACTICE_DEFAULTS, PRACTICE_LIMITS, mergePracticeSettings, normalizePracticeSettings, resolvePracticeSettings, roundLimits,
   validatePracticePatch } from '../lib/practice-settings.js';
 
-const expected = { autopilot: false, roundSize: 20, newCardOrder: 'reading', debrief: true, leechFailures: 4, leechWindow: 5, leechRate: 60 };
+const expected = { autopilot: false, roundSize: 20, newCardOrder: 'reading', debrief: true, rereadMarks: true, leechFailures: 4, leechWindow: 5, leechRate: 60 };
 async function library(t) {
   const root = await mkdtemp(join(tmpdir(), 'study-practice-settings-'));
   const service = new StudyService(root);

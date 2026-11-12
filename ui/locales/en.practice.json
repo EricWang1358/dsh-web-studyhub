@@ -166,5 +166,7 @@
   "点一道题回看：题目、你的答案、正确答案、讲解和问答。只是回看，不会重新计时或改成绩。": "Press a question to look back: the question, your answer, the right answer, the explanation and the Q&A. Looking back does not restart a timer or change a score.",
   "先跳过：这道题留到这一轮最后再做": "Skip for now: come back to this question at the end of the round",
   "标为重点 / 取消重点": "Mark as focus / unmark",
-  "打开这道题出自的资料页": "Open the material page this question comes from"
+  "打开这道题出自的资料页": "Open the material page this question comes from",
+  "首页提醒重读划过的段落": "Remind me on the home page to re-read marked passages",
+  "阅读器里用荧光笔或加粗标过的段落，3 天没再看、所在章节或页又有到期或薄弱题时，首页「今日」会出现一行「重读 N 段」，每天最多 3 段。关掉后这一行不再出现。": "Passages you highlighted or bolded in the reader come back as a \"Re-read N passages\" line in Today when you have not looked at them for 3 days and their chapter or page has due or weak questions, at most 3 a day. Turn this off and the line no longer appears."
 }
