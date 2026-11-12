@@ -18,14 +18,17 @@ export const roundDefaults = (practice, context = {}) => ({ size: resolvePractic
 
 export const sameRound = (a, b) => a.size === b.size && a.range === b.range && (a.chapter?.deckId ?? '') === (b.chapter?.deckId ?? '') && (a.chapter?.topic ?? '') === (b.chapter?.topic ?? '');
 
+/** The topics of a deck as the snapshot knows them (data.progress[deckId].topics, lib/insights.js studyMap). */
+const topicsOf = (data, deckId) => (data?.progress?.[deckId]?.topics || []).filter((topic) => topic?.name);
+const titleOf = (data, deckId) => (data?.decks || []).find((deck) => deck.id === deckId)?.title ?? data?.progress?.[deckId]?.title ?? deckId;
+
 /** The chapters offered: the topics of the decks `refs` name ({ deckId }[], a course's scope or a round's), each as { value, label, ref }. Several decks: the deck is named. */
 export function chaptersOf(data, refs) {
-  const wanted = [...new Set((Array.isArray(refs) ? refs : []).map((ref) => ref?.deckId).filter(Boolean))];
-  const decks = wanted.map((id) => (data?.decks || []).find((deck) => deck.id === id)).filter(Boolean);
-  return decks.flatMap((deck) => (deck.topics || []).filter((topic) => topic?.name).map((topic) => ({
-    value: JSON.stringify([deck.id, topic.name]), label: decks.length > 1 ? `${deck.title} · ${topic.name}` : topic.name, ref: { deckId: deck.id, topic: topic.name } })));
+  const wanted = [...new Set((Array.isArray(refs) ? refs : []).map((ref) => ref?.deckId).filter(Boolean))].filter((id) => topicsOf(data, id).length > 0);
+  return wanted.flatMap((deckId) => topicsOf(data, deckId).map((topic) => ({
+    value: JSON.stringify([deckId, topic.name]), label: wanted.length > 1 ? `${titleOf(data, deckId)} · ${topic.name}` : topic.name, ref: { deckId, topic: topic.name } })));
 }
-const chapterExists = (data, chapter) => !!chapter && (data?.decks || []).some((deck) => deck.id === chapter.deckId && (deck.topics || []).some((topic) => topic?.name === chapter.topic));
+const chapterExists = (data, chapter) => !!chapter && topicsOf(data, chapter.deckId).some((topic) => topic.name === chapter.topic);
 
 /** What the popover opens on: the course's last choice (settings.practice.lastRounds) when it still makes sense, else the defaults. A round of a chosen scope remembers nothing. */
 export function roundChoice(practice, context = {}, data) {

@@ -1,0 +1,20 @@
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* 本轮设置 (#1010): the popover beside a start button. Its surface is the shared popover's (components/overlays.css); this is the layout of the form. Tokens only. */
+    .round-setup { position: relative; display: inline-flex; flex: none; }
+    .round-setup__panel {
+      width: min(320px, calc(100vw / var(--study-ui-scale, 1) - var(--space-6)));
+      max-height: min(80vh, 560px);
+    }
+    .round-setup__form { display: grid; gap: var(--space-3); min-width: 0; }
+    .round-setup__custom { display: flex; align-items: flex-start; gap: var(--space-2); }
+    .round-setup__custom > :first-child { flex: 1 1 auto; min-width: 0; }
+    .round-setup__size { width: 100%; min-width: 0; }
+    .round-setup__default { flex: none; margin-top: var(--space-6); white-space: nowrap; }
+    .round-setup__pages { justify-self: start; }
+    .round-setup__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+    .round-setup__start { margin-left: auto; }
+  }
+}

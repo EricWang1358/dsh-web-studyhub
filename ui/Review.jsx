@@ -27,6 +27,8 @@ import { currentMethodStage, resolveRoundCourse, roundEndAlternative, useMethodA
 import { pageAvailable } from "./capabilities.js";
 import { askForLeeches } from "./wrongbook-model.js";
 import RoundLookBack from "./review/RoundLookBack.jsx";
+import RoundSetup from "./review/RoundSetup.jsx";
+import { resultTarget } from "./review/round-setup.js";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -106,6 +108,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               : destination ? { label: destination.label, run: destination.go, back: isBackDestination(destination) } : null;
   // With a way back as the main button (the book's, the 总纲's or the reader's), a next step that is just another place to go back to (回到学习路径) is left out: both would go back.
   const onward = backHere && nextStep?.back ? null : nextStep;
+  // 本轮设置 (#1010): beside the next-round button, only where that button starts a round of the course or of the scope (the page decided it: ui/review/round-setup.js).
+  const roundSetup = onward && !backHere && !flow && !detour && !run.course ? resultTarget(run, destination) : null;
   const roundCourse = run.complete ? resolveRoundCourse(data, run) : "";
   const roundStage = roundCourse ? (currentMethodStage(data, roundCourse)?.stage?.name || "") : "";
   const missedList = run.complete && run.mode !== "exam"
@@ -181,6 +185,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             <div className={cx("result-next", wayBack && "result-next--back")}>
               {wayBack && <ReturnPrimary arrow oneLine label={wayBack.label} place={wayBack.place} disabled={busy} onReturn={wayBack.go} />}
               {onward && <Button variant={backHere ? "secondary" : "primary"} align={backHere ? "start" : undefined} iconEnd="arrow-right" lock={busy} onClick={onward.run}>{onward.label.replace(/\s*→$/, "")}</Button>}
+              {roundSetup && <RoundSetup data={data} context={roundSetup} chapterRefs={run.scope} onStart={(args) => act("review.start", args, enterRun)} className="result-setup" />}
 
               {onward && !backHere && contextReturnLabel && <Button icon="arrow-left" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
             </div>

@@ -264,12 +264,16 @@
     .today-stage-advance:has(+ :is(.today-method-alt, .today-pick-pages)),
     .today-method-alt:has(+ .today-pick-pages) { margin-bottom: var(--space-2); }
     .today-stage-advance, .today-method-alt, .today-pick-pages { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1-5); margin: 0 0 var(--space-5-5); font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--paper-dim); }
+    /* The start button and, beside it, the 本轮设置 popover's button (ui/review/RoundSetup.jsx): the row takes the card's bottom, the button the room. */
+    .today-go-row { display: flex; align-items: stretch; gap: var(--space-2); margin-top: auto; }
+    .today-go-row .today-setup .round-setup__trigger { height: 100%; min-height: 44px; }
     .today-card .today-go {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex: 1 1 auto;
+      min-width: 0;
       width: 100%;
-      margin-top: auto;
       padding: var(--space-3) var(--space-4-5);
       border-radius: var(--radius);
       font-size: var(--fs-lg);

@@ -921,6 +921,8 @@
  "tests/round-asked-keys-exec.test.mjs": 8550,
  "tests/round-asked-keys.test.mjs": 710,
  "tests/round-mastery-ui.test.mjs": 680,
+ "tests/round-setup-browser.test.mjs": 50000,
+ "tests/round-setup.test.mjs": 1600,
  "tests/rounds-isolate-failures-copy.test.mjs": 10,
  "tests/rounds-isolate-failures.test.mjs": 2020,
  "tests/row-coverage-browser.test.mjs": 650,

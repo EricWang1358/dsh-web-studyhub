@@ -176,8 +176,8 @@ test('设为默认 is settings.practice.set {roundSize}: the settings, the home 
 /* ── the popover's pure side (ui/review/round-setup.js) ── */
 
 const today = { course: 'A', scope: [{ deckId: 'a' }], due: 6, weak: 4, new: 10, size: 20 };
-const data = { settings: { practice: { roundSize: 20 } }, decks: [
-  { id: 'a', title: 'Deck A', topics: [{ name: 'T' }, { name: 'Weak chapter' }] }, { id: 'b', title: 'Deck B', topics: [{ name: 'Other' }] }] };
+const data = { settings: { practice: { roundSize: 20 } }, decks: [{ id: 'a', title: 'Deck A' }, { id: 'b', title: 'Deck B' }],
+  progress: { a: { topics: [{ name: 'T' }, { name: 'Weak chapter' }] }, b: { topics: [{ name: 'Other' }] } } };
 
 test('never opened: the choice is the default and the args are exactly the ones the start button always sent', () => {
   const context = { course: today.course, scope: undefined, base: dailyPathArgs(today) };
