@@ -664,6 +664,7 @@
  "tests/local-command.test.mjs": 1800,
  "tests/local-study-image.test.mjs": 950,
  "tests/locale-keys-used.test.mjs": 11980,
+ "tests/math-font-browser.test.mjs": 6100,
  "tests/main-chat-tools.test.mjs": 4150,
  "tests/main-context.restart.test.mjs": 15040,
  "tests/main-context.runtime.test.mjs": 15040,

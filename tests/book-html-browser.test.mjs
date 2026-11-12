@@ -45,8 +45,10 @@ test('the book page opens offline, does not scroll sideways at 420 px, draws mat
       assert.deepEqual(errors, [], `${width}px: no page error`);
       const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       assert.ok(sideways <= 0, `${width}px: nothing scrolls sideways (${sideways}px too wide)`);
-      assert.ok(await page.locator('main math').count() >= 2, `${width}px: maths is MathML`);
-      assert.ok(await page.locator('math').first().evaluate(element => element.getBoundingClientRect().width > 0), `${width}px: and the browser draws it`);
+      assert.ok(await page.locator('main .katex math').count() >= 2, `${width}px: maths keeps its MathML`);
+      assert.ok(await page.locator('main .katex-html').first().evaluate(element => element.getBoundingClientRect().width > 0), `${width}px: and the page draws it`);
+      assert.equal(await page.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some(face => face.family.replace(/"/g, '') === 'KaTeX_Main' && face.status === 'loaded'); }), true,
+        `${width}px: with the fonts inlined in the file`);
       // A footnote mark goes to its footnote, the footnote's arrow comes back to the mark.
       const mark = page.locator('a[href="#fn-h2g-1"]').first();
       await mark.click();

@@ -42,10 +42,14 @@
       justify-content: var(--study-formula-align, center);
     }
     .md-math-display:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
-    .md-math math { font-size: 1em; font-weight: var(--fw-regular); font-family: math, "Cambria Math", serif; }
-    /* mhchem subscripts carry a phantom X that sticks out past the formula and showed a scrollbar under every \ce{}. */
-    .md-math math:has(mphantom) { padding-inline-end: 0.2em; }
-    .note-preview math { font-size: calc(1em * var(--study-formula-scale, 1)); }
+    /* KaTeX's own box (ui/study-math-render.js, #996), in every place a formula is drawn: this sheet is the one that styles it (the reader, notes
+       and workflow lessons included). The frame around a display formula gives its margin. Inline, KaTeX's struts and the frame's padding made
+       the line taller than its neighbours (x_i^2: +3.9 px at 16 px / 1.6); counted as one line of text, a sentence keeps its rhythm. */
+    :is(.md-math, .reader-math__view, .wf-prose) .katex-display { margin: 0; }
+    .wf-prose .katex-display { max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+    :is(.md-math, .reader-math:not(.reader-math--display), .note-preview) .katex { line-height: 1; }
+    .md-math:not(.md-math-display) { margin-block: -0.3em; }
+    .note-preview .katex { font-size: calc(1.21em * var(--study-formula-scale, 1)); }
     .md-math-source { white-space: pre-wrap; }
     .md-image { display: inline-block; max-width: 100%; margin-block: 0.5em; vertical-align: middle; }
     .md-image img { display: block; max-width: 100%; max-height: var(--study-image-height, 360px); width: auto; height: auto; object-fit: contain; border-radius: var(--radius-sm); margin-inline: auto; }
