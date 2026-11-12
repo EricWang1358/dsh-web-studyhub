@@ -146,6 +146,7 @@
   "到此为止：已答的题照常计分，没答的不记录": "Stop here: answered questions count as usual, the rest record nothing",
   "本轮题目": "Questions in this round",
   "{0} 题待答": "{0} to answer",
+  "{0} 道再练": "{0} to retry",
   "这一轮到此为止？": "Stop this round here?",
   "到此为止，看结果": "Stop and see the result",
   "还有 {0} 题没答，没答的不记录、不改复习进度；已答的照常计分。": "{0} questions are still unanswered. They record nothing and keep their review schedule; the answered ones count as usual.",

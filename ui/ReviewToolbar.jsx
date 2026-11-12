@@ -4,7 +4,6 @@ import { Button, Menu } from "./components/index.js";
 import { ReadingSettingsDialog } from "./reading-settings/ReadingSettings.jsx";
 import { useStudy } from "./study-context.jsx";
 import { roundAt } from "./review/round-words.js";
-import { pendingCount } from "./review/session-logic.js";
 
 const NEXT_HINT_ID = "review-next-hint";
 
@@ -22,8 +21,8 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
   const needsAnswer = !run.feedback && run.mode !== "exam";
   const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
   const exam = run.mode === "exam";
-  // 完成 only when nothing else waits: after the last question in the queue, a question set aside earlier (先跳过) comes back first.
-  const last = roundAt(run).last && pendingCount(run) - (run.feedback ? 0 : 1) <= 0;
+  // 完成 only when 下一题 has nowhere to go: the round says so (lib/round-position.js), a question set aside with 先跳过 included.
+  const last = roundAt(run).last;
   const deferLabel = onDeferUnstudiedPages && !exam && !run.reading && !run.feedback && Number.isInteger(run.cardSource?.page)
     ? (run.cardSource.unit === "slide"
         ? uiFormat("还没学到第 {0} 张（本轮移出后续页）", [run.cardSource.page])

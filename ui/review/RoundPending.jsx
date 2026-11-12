@@ -2,7 +2,7 @@ import { ui, uiFormat } from "../i18n.js";
 import React from "react";
 import { Button, Popover } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
-import { pendingCount } from "./session-logic.js";
+import { pendingCount, retriesWaiting } from "./session-logic.js";
 import { levelWord, tickWords } from "./round-words.js";
 
 /* 「N 题待答」 beside the question number (#1008). On a narrow window the column of ticks (ui/ReviewNavigator.jsx) is gone, so this small chip does its work:
@@ -11,12 +11,13 @@ import { levelWord, tickWords } from "./round-words.js";
 export default function RoundPending({ run, onJump, onEnd }) {
   const { busy } = useStudy();
   const [open, setOpen] = React.useState(false);
-  const waiting = pendingCount(run);
-  if (!waiting || !run.navigation?.length) return null;
+  // Questions of the round first; when only re-asks (再练) are left the chip names those, so 到此为止 stays one press away.
+  const waiting = pendingCount(run), retries = retriesWaiting(run);
+  if (!(waiting + retries) || !run.navigation?.length) return null;
   const close = () => setOpen(false);
   return (
     <Popover label={ui("本轮题目")} open={open} onOpenChange={setOpen} placement="bottom-start" className="round-pending" panelClassName="round-pending__panel"
-      trigger={({ props, ref }) => <Button ref={ref} variant="quiet" size="sm" className="round-pending__trigger" {...props}>{uiFormat("{0} 题待答", [waiting])}</Button>}>
+      trigger={({ props, ref }) => <Button ref={ref} variant="quiet" size="sm" className="round-pending__trigger" {...props}>{waiting ? uiFormat("{0} 题待答", [waiting]) : uiFormat("{0} 道再练", [retries])}</Button>}>
       <ol className="round-pending__list">
         {run.navigation.map((item) => {
           const current = item.index === run.index;

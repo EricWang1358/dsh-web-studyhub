@@ -86,8 +86,11 @@ export const assistRunningOn = (tasks, cardId) => !!cardId && (tasks || []).some
 
 /* ── 先跳过 and the questions still waiting (#1008) ── */
 
-/** How many questions of the round have no answer yet (the one on screen included): the 「N 题待答」 of a narrow window and the 到此为止 question. 0 in an exam. */
-export const pendingCount = (run) => (run?.mode === 'exam' ? 0 : (run?.navigation || []).filter((item) => !item.answered).length);
+/** How many questions of the round have no answer yet (the one on screen included): the 「N 题待答」 of a narrow window and the 到此为止 question. A re-ask
+    (再练) queued by a wrong answer is not a question of the round, so this is what the result page's 未答 will say. 0 in an exam. */
+export const pendingCount = (run) => (run?.mode === 'exam' ? 0 : (run?.navigation || []).filter((item) => !item.answered && !item.retry).length);
+/** The re-asks (再练) still waiting, counted on their own. */
+export const retriesWaiting = (run) => (run?.mode === 'exam' ? 0 : (run?.navigation || []).filter((item) => !item.answered && item.retry).length);
 
 /**
  * Where 先跳过 goes: the index of the next unanswered question after the one on screen, wrapping round to the start; null when it cannot set this one aside

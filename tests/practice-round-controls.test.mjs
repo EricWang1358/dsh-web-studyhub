@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { freshRoundCount, roundLimits } from '../lib/practice-settings.js';
 import { followupDigest } from '../lib/followup.js';
-import { assistRunningOn, pendingCount, reviewPollResult, shortcutAction, skipTarget } from '../ui/review/session-logic.js';
+import { assistRunningOn, pendingCount, retriesWaiting, reviewPollResult, shortcutAction, skipTarget } from '../ui/review/session-logic.js';
 import { reviewPollDelay } from '../ui/poll-schedule.js';
 
 /* #1008 / #1009 / #1011: inside a practice round the learner can set a question aside (先跳过, the existing review.move {index}) and stop the round with a
@@ -43,6 +43,11 @@ test('先跳过 goes to the next unanswered question after this one, wraps round
   assert.equal(skipTarget(run(0, [false, false], { card: { id: 'c0', publicationUngrable: true } })), null, 'an ungradable question has its own 跳过');
   assert.equal(pendingCount(run(0, [false, true, false])), 2);
   assert.equal(pendingCount({ mode: 'exam', navigation: undefined }), 0);
+  // A re-ask (再练) queued by a wrong answer is not a question of the round: 「N 题待答」 and 到此为止 say what the result page's 未答 will say.
+  const withRetry = { mode: 'path', navigation: [{ index: 0, answered: true }, { index: 1, answered: false }, { index: 2, answered: false, retry: true }] };
+  assert.equal(pendingCount(withRetry), 1, 'the waiting re-ask is not counted as unanswered');
+  assert.equal(retriesWaiting(withRetry), 1, 'it is counted on its own');
+  assert.equal(retriesWaiting({ ...withRetry, navigation: withRetry.navigation.slice(0, 2) }), 0);
 });
 
 test('a skipped question is timed afresh when it comes back, and records one answer', async (t) => {
@@ -62,6 +67,63 @@ test('a skipped question is timed afresh when it comes back, and records one ans
   const attempts = (await service.store.read()).attempts.filter((item) => item.quiz_id === 'q1');
   assert.equal(attempts.length, 1, 'one answer, no record for the skip');
   assert.ok(attempts[0].elapsed_ms < 5000, `the time before the skip is not counted, got ${attempts[0].elapsed_ms}`);
+});
+
+test('下一题 goes to the next question still waiting: after the skipped one comes back and is answered, one press opens the result', async (t) => {
+  const { service, run } = await library(t, 4);
+  let current = await service.call('review.move', { runId: run.id, index: 1 }); // 先跳过 q1
+  for (const id of ['q2', 'q3', 'q4']) {
+    assert.equal(current.card.id, id);
+    assert.equal(current.position.last, false, `${id}: q1 still waits, so the button is 下一题, not 完成`);
+    current = await answer(service, current);
+    current = await service.call('review.move', { runId: run.id, direction: 1 });
+  }
+  assert.equal(current.card.id, 'q1', 'the skipped question comes back');
+  assert.equal(current.position.last, true, 'nothing else waits: the button says 完成');
+  current = await answer(service, current);
+  // ← still steps back one question to re-read an answered one, and 下一题 from there does not walk through the answered ones.
+  const back = await service.call('review.move', { runId: run.id, direction: -1 });
+  assert.equal(back.index, 0, 'nothing before q1: ← stays');
+  current = await service.call('review.move', { runId: run.id, direction: 1 });
+  assert.equal(current.complete, true, 'one press from the last answer opens the result page, not question 2');
+  assert.equal(current.answered, 4);
+});
+
+test('← steps back one question, answered or not, and 下一题 from a re-read question goes to the one still waiting', async (t) => {
+  const { service, run } = await library(t, 4);
+  let current = await answer(service, run);
+  current = await service.call('review.move', { runId: run.id, direction: 1 });
+  current = await answer(service, current);
+  current = await service.call('review.move', { runId: run.id, direction: 1 });
+  assert.equal(current.card.id, 'q3');
+  current = await service.call('review.move', { runId: run.id, direction: -1 });
+  assert.equal(current.card.id, 'q2', '← re-reads the answered question before');
+  current = await service.call('review.move', { runId: run.id, direction: -1 });
+  assert.equal(current.card.id, 'q1');
+  current = await service.call('review.move', { runId: run.id, direction: 1 });
+  assert.equal(current.card.id, 'q3', '下一题 skips what is already answered');
+});
+
+test('an exam keeps its plain order: 下一题 is the next question, answered or not', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'round-exam-'));
+  const service = new StudyService(root);
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
+  await service.store.update((s) => { s.decks.push({ id: 'd', title: 'D', course: 'C', cards: ['e1', 'e2', 'e3'].map(quiz) }); });
+  const exam = await service.call('review.start', { mode: 'exam', deckId: 'd', count: 3 });
+  let current = await service.call('review.answer', { runId: exam.id, cardId: exam.card.id, selected: ['a'] });
+  current = await service.call('review.move', { runId: exam.id, direction: 1 });
+  assert.equal(current.index, 1);
+  current = await service.call('review.answer', { runId: exam.id, cardId: current.card.id, selected: ['a'] });
+  current = await service.call('review.move', { runId: exam.id, direction: 1 });
+  assert.equal(current.index, 2);
+  current = await service.call('review.move', { runId: exam.id, direction: -1 });
+  current = await service.call('review.move', { runId: exam.id, direction: -1 });
+  assert.equal(current.index, 0);
+  current = await service.call('review.move', { runId: exam.id, direction: 1 });
+  assert.equal(current.index, 1, 'an answered question next in order is still the next one');
+  assert.equal(current.position.last, false);
+  current = await service.call('review.move', { runId: exam.id, direction: 1 });
+  assert.equal(current.position.last, true, 'an exam: the last in order');
 });
 
 /* ── 到此为止 (#1008) ── */

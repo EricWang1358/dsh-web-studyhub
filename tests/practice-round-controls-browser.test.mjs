@@ -28,7 +28,7 @@ const WORDS = {
 async function serve(t) {
   const root = await mkdtemp(join(tmpdir(), 'round-controls-browser-'));
   const service = new StudyService(join(root, 'library'));
-  await service.store.update((s) => { s.decks.push(...RUNS.map((_, i) => deckOf(i)), { ...deckOf('c'), cards: deckOf('c').cards.slice(0, 2) }); });
+  await service.store.update((s) => { s.decks.push(...RUNS.map((_, i) => deckOf(i)), { ...deckOf('c'), cards: deckOf('c').cards.slice(0, 3) }); });
   await service.dispose();
   const distDir = join(root, 'dist'); await buildPreview({ outdir: distDir });
   const server = await createPreviewServer({ libraryRoot: join(root, 'library'), home: join(root, 'home'), port: 0, model: null, distDir });
@@ -145,7 +145,8 @@ test('先跳过, 「N 题待答」, 到此为止 and the look-back, at 1280 and 
     assert.deepEqual(errors, [], `${where}: no page errors`);
     await context.close();
   }
-  // The control: with the same switch on, a round answered to the end does count down on its result page (so the check above is not empty).
+  /* The control, a finished round: 先跳过 question 1, answer 2 and 3, 下一题 brings 1 back, and once it is answered the button says 完成 and one press opens
+     the result page (下一题 does not walk through the answered ones). With the same switch on, this result page does count down (so the check above is not empty). */
   const control = deckOf('c');
   for (const open of (await previewCall(server, 'snapshot', {})).runs || []) await previewCall(server, 'review.end', { runId: open.id });
   await previewCall(server, 'settings.practice.set', { patch: { autopilot: false } });
@@ -155,13 +156,20 @@ test('先跳过, 「N 题待答」, 到此为止 and the look-back, at 1280 and 
   await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); });
   await page.goto(server.url);
   await page.getByRole('button', { name: '接着做' }).first().click(); // the home card for the open round
-  for (const n of [1, 2]) {
-    await page.waitForFunction((k) => new RegExp(`Question number ${k}\\?`).test(document.querySelector('.question-card .question')?.textContent || ''), n);
+  const on = (k) => page.waitForFunction((n) => new RegExp(`Question number ${n}\\?`).test(document.querySelector('.question-card .question')?.textContent || ''), k);
+  await on(1);
+  await page.keyboard.press('k');
+  for (const n of [2, 3]) {
+    await on(n);
     await answerRight(page);
-    // The switch goes on only for the last step, so the questions themselves do not move on by the countdown (the step reloads the library).
-    if (n === 2) await previewCall(server, 'settings.practice.set', { patch: { autopilot: true } });
     await nextButton(page).click();
   }
+  await on(1);
+  await answerRight(page);
+  assert.equal((await nextButton(page).innerText()).replace('→', '').trim(), '完成', 'the set-aside question was the last one waiting');
+  // The switch goes on only for the last step, so the questions themselves do not move on by the countdown (the step reloads the library).
+  await previewCall(server, 'settings.practice.set', { patch: { autopilot: true } });
+  await nextButton(page).click();
   await page.locator('.result-page').waitFor({ timeout: 30000 });
   assert.equal(await page.locator('.result-title').innerText(), '这一轮，完成了。');
   await page.locator('.coach-countdown[role="status"]').waitFor({ timeout: 15000 });
