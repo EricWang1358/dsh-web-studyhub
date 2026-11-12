@@ -247,7 +247,8 @@
       display: flex;
       flex: 1 0 auto;
       flex-direction: column;
-      min-height: calc(330px - var(--paper-pad-top, var(--paper-pad-y)) - var(--paper-pad-bottom, var(--paper-pad-y)));
+      /* The card's 330px less its paddings and its 1px top and bottom borders, so the card is as tall as before the reread line. */
+      min-height: calc(330px - var(--paper-pad-top, var(--paper-pad-y)) - var(--paper-pad-bottom, var(--paper-pad-y)) - 2px);
     }
     .today-card-head {
       display: flex;

@@ -185,6 +185,9 @@ const timed = fn => { const start = performance.now(); const value = fn(); retur
 
 test('the list costs little on a large library: well under one grouping of it when new, about nothing when asked again', () => {
   const state = deepFreeze(bigLibrary()), now = Date.now(), root = 'timing-guard';
+  // Warm the code first on a library of its own (another root, other objects), so the cold answer measures the work, not the JIT: run alone, the
+  // test was slower than the yardstick 2 times in 8.
+  { const warm = deepFreeze(bigLibrary()); materialMasteryOf(warm, { root: 'timing-warm', now }); markReread(warm, { course: 'SA', now }, { root: 'timing-warm' }); }
   const yardstick = Math.min(...[0, 1].map(() => timed(() => groupSourcesByDocument(state.sources)).ms));
   materialMasteryOf(state, { root, now }); // the snapshot of the same revision pays this before the home asks
   const cold = timed(() => markReread(state, { course: 'SA', now }, { root }));
