@@ -5,7 +5,8 @@ import { lineBreakPieces, headingMark } from './text-sections.js';
 import { isFigurePlaceholder } from '../peek/peek-logic.js';
 import { splitStudyMath } from '../../study-media.js';
 import { formulaClass } from './formula.js';
-import { FormulaWatch, createFormulaWatch, formulaDrawing, useFormulaShown } from './lazy-formulas.js';
+import { FormulaWatch, formulaDrawing, useFormulaShown } from './lazy-formulas.js';
+import { createFormulaWatch } from '../../formula-queue.js';
 
 /** One formula, as formula.js's formulaHtml writes it: the stored text hidden, the drawing a marker beside it. The raw text
  * decides the drawing, so a re-render of the page (a selection, a find) never draws it again. It is drawn when it comes near the
