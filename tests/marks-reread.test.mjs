@@ -62,6 +62,7 @@ test('highlighter and bold marks in weak sections come back, the riskiest page f
   assert.equal(first.title, 'Patterns.pdf');
   assert.deepEqual(first.risk, { due: 0, weak: 2 });
   assert.ok(first.documentId && first.revision && first.id, 'what the reader and materials.marks.seen need');
+  assert.equal(first.selection.revision, first.revision, 'the passage names its revision, so the reader does not call it an older one');
   assert.equal(listed.count, 2);
 });
 
