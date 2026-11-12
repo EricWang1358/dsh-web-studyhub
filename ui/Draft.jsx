@@ -615,7 +615,7 @@ export default function Draft({
             return;
           }
           // The same quick publication as 发布并开始练 on the finished card of a run (ui/app/use-drafts.js).
-          await publishAndPractice({ call, act, toast, draft: d, intoDeck, openDraft, clearRecovery, enterRun: onStartPublished, setPage });
+          await publishAndPractice({ call, act, toast, draft: d, intoDeck, openDraft, clearRecovery, enterRun: onStartPublished, setPage, practice: data?.settings?.practice });
         }} />
     </section>
   );

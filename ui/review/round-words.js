@@ -15,6 +15,10 @@ export function roundWords(position) {
   };
 }
 
+const LEVEL_WORDS = { new: '未学', weak: '薄弱', learning: '学习中', familiar: '熟悉', mastered: '掌握' };
+/** A mastery level in words (the rail's colours, said). */
+export const levelWord = (level) => ui(LEVEL_WORDS[level] || LEVEL_WORDS.new);
+
 /** What a tick of the question rail says (hover, keyboard focus and screen readers read this one sentence): the number, the topic, what happened, the mastery colour in words. */
 export function tickWords(item, levelWord) {
   const place = item.retry ? ui('再练') : uiFormat('第 {0} 题', [item.number ?? item.index + 1]);

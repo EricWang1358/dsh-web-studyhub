@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { hasUnsavedDraft } from '../draft-editor.js';
 import { browserSession, readJSON, removeKey, writeJSON } from '../storage.js';
 import { topUpArgs, topUpNotice } from '../coverage/top-up.js';
+import { freshRoundCount } from '../../lib/practice-settings.js';
 
 /* The draft the learner is editing, and the copy of it this window keeps in sessionStorage so a reload offers it back
    (the 有本窗口暂存的编辑 banner). The draft itself is part of the library state; this is its editing verbs. */
@@ -14,12 +15,13 @@ const recoveryKey = (root) => `study-draft:${root}`;
  * card's 发布并开始练 both call this, so there is one sequence and one set of words. `call`/`act` are the app's (ui/study-context.jsx), `toast` the app's toast; the follow-up work runs even if the
  * learner has left the page (afterNavigation), and only its UI effects are skipped then.
  */
-export async function publishAndPractice({ call, act, toast, draft, intoDeck, save = true, openDraft, clearRecovery, enterRun, setPage }) {
+export async function publishAndPractice({ call, act, toast, draft, intoDeck, save = true, openDraft, clearRecovery, enterRun, setPage, practice }) {
   const publishArgs = (target) => ({ id: target.id, draftVersion: target.draftVersion, ...(intoDeck ? { mergeTargetId: intoDeck } : {}) });
   const practise = async (published, { isCurrent = () => true } = {}) => {
     if (isCurrent()) clearRecovery?.();
     try {
-      const run = await call('review.start', { deckId: published.id, mode: 'new', count: 10, ordered: true, fresh: true });
+      // As many new questions as one round (设置 › 练习, #1009): `practice` is the library's saved practice settings.
+      const run = await call('review.start', { deckId: published.id, mode: 'new', count: freshRoundCount(practice), ordered: true, fresh: true });
       if (isCurrent()) {
         enterRun?.(run);
         toast?.success(uiFormat('已发布，开始学习本轮 {0} 道新题。', [run.total]));
@@ -85,6 +87,7 @@ export function useDrafts({ core, lib, nav, data, session }) {
   const forgetDraft = useCallback((id) => { if (draft?.id === id || recovery?.draft?.id === id) clearRecovery(); }, [draft, recovery, clearRecovery]);
   /** 发布并开始练 from the finished card of a run: the quick publication of the draft as it is (nothing to save), then the new questions. The stash of the page is dropped only when it is this draft's. */
   const publishDraft = useCallback((target, { intoDeck } = {}) => publishAndPractice({ call: core.call, act: core.act, toast: core.toast, draft: target, intoDeck, save: false,
+    practice: core.refs.dataRef.current?.settings?.practice,
     clearRecovery: () => { if (draft?.id === target.id) clearRecovery(); }, enterRun: session?.enterRun, setPage: nav.navigate }), [core, session, nav, draft, clearRecovery]);
   /** Put the stashed edit back and open it. */
   const restoreRecovery = useCallback((saved) => {

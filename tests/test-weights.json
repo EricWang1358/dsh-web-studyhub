@@ -831,6 +831,7 @@
  "tests/practice-material-count.test.mjs": 280,
  "tests/practice-range.test.mjs": 10,
  "tests/practice-result.test.mjs": 1320,
+ "tests/practice-round-controls-browser.test.mjs": 4000,
  "tests/practice-round-count.test.mjs": 800,
  "tests/practice-round-words.test.mjs": 350,
  "tests/practice-settings-ui.test.mjs": 310,

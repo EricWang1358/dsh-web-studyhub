@@ -1,5 +1,5 @@
 // @ts-check
-import { reviewEntryKey } from '../async.js';
+import { mergeReviewPoll, reviewEntryKey } from '../async.js';
 import { mergeAssistance, restoredDraft } from './draft-persistence.js';
 import { hasOptions } from '../../lib/card-kinds.js';
 
@@ -66,6 +66,58 @@ export function autopilotPlan({ autopilot, page, passed, complete, teaching, ski
    changes. The hold ends when any other question is on screen: 回到第 N 题 and every other move go through there, so the autopilot is as before. */
 export const keepAutopilotHold = (holdKey, advanceKey) => (holdKey && holdKey === advanceKey ? holdKey : '');
 
+/* ── the poll of the open question ── */
+
+export function mergeReviewPollWithFollowups(current, next) {
+  const merged = mergeReviewPoll(current, next);
+  if (!current || !next || current.id !== next.id || (current.queueVersion || 0) !== (next.queueVersion || 0)
+    || current.index !== next.index || current.revealed !== next.revealed || !!current.feedback !== !!next.feedback) return merged;
+  if (JSON.stringify(merged.followups) === JSON.stringify(next.followups)) return merged;
+  return { ...merged, followups: next.followups };
+}
+
+/** What one poll of the open question tells the poll loop (#1011): `unchanged` when the answer changes nothing on screen (the loop slows down), `running` while a
+    helper task works on this question (the loop keeps 4 s). */
+export const reviewPollResult = (current, next, running = false) =>
+  (mergeReviewPollWithFollowups(current, next) === current ? { unchanged: true, running } : { running });
+
+/** A helper task (帮我弄懂, 修题, 出前置题, 批改) is running on this question: the library's list of background tasks says so. Its result reaches the page
+    through this poll (a 批改 too), so the poll keeps the quick rhythm while it runs. */
+export const assistRunningOn = (tasks, cardId) => !!cardId && (tasks || []).some((task) => task.cardId === cardId && task.status === 'running');
+
+/** The task on this question the page watches (`watch`: the running one, any mode) and whether the one it watched has just ended with a result
+    (`done`): then the page asks for the question at once instead of waiting out a slowed-down poll. */
+export function finishedTask(watched, tasks, cardId) {
+  const own = (tasks || []).filter((task) => task.cardId === cardId);
+  const running = own.find((task) => task.status === 'running');
+  if (running) return { watch: running.id, done: false };
+  const ended = watched ? own.find((task) => task.id === watched) : null;
+  return { watch: '', done: ended?.status === 'done' };
+}
+
+/* ── 先跳过 and the questions still waiting (#1008) ── */
+
+/** How many questions of the round have no answer yet (the one on screen included): the 「N 题待答」 of a narrow window and the 到此为止 question. A re-ask
+    (再练) queued by a wrong answer is not a question of the round, so this is what the result page's 未答 will say. 0 in an exam. */
+export const pendingCount = (run) => (run?.mode === 'exam' ? 0 : (run?.navigation || []).filter((item) => !item.answered && !item.retry).length);
+/** The re-asks (再练) still waiting, counted on their own. */
+export const retriesWaiting = (run) => (run?.mode === 'exam' ? 0 : (run?.navigation || []).filter((item) => !item.answered && item.retry).length);
+
+/**
+ * Where 先跳过 goes: the index of the next unanswered question after the one on screen, wrapping round to the start; null when it cannot set this one aside
+ * (an exam, an answered question that goes on with 下一题, a question that cannot be graded and has its own 跳过, or no other question waiting). It is a plain
+ * review.move {index}: nothing is recorded for the question left, and its clock starts again when it comes back.
+ * @param {Record<string, any> | null | undefined} run
+ * @returns {number | null}
+ */
+export function skipTarget(run) {
+  if (!run?.card || run.mode === 'exam' || run.feedback || run.card.publicationUngrable) return null;
+  const list = run.navigation || [];
+  const waiting = (item) => !item.answered && item.index !== run.index;
+  const next = list.find((item) => item.index > run.index && waiting(item)) || list.find(waiting);
+  return next ? next.index : null;
+}
+
 /** Which kind of answer the open question takes. A flashcard-mode round shows every card as a flashcard. */
 export function reviewChoiceKind(run) {
   const flash = run?.mode === 'flashcard';
@@ -88,7 +140,7 @@ const BLANK = (value) => String(value).trim();
 /**
  * What a key press means. Returns null when the press is not ours, otherwise { cancelAuto, preventDefault, action }
  * (action may be null: the key is consumed, nothing happens). Actions: help, help-close, autopilot, resume, answer{args},
- * move{direction}, flip, hint, explain, assist-plain, choose{id}.
+ * move{direction}, flip, hint, explain, assist-plain, choose{id}, skip, note, focus, source.
  * event: { key, code, shiftKey, repeat, defaultPrevented, ctrlKey, metaKey, altKey, inEditable, onButton }.
  * ctx: { inside, modalOpen, page, run, busy, shortcutHelp, choice, isCloze, rubricCard, selected, clozeValues }.
  */
@@ -116,6 +168,9 @@ export function shortcutAction(event, ctx) {
   if (letter === 'h') return result({ type: run.revealed ? 'explain' : 'hint' }, true);
   // 通俗详解 in one key: the background assistant explains with an analogy.
   if (letter === 't' && run.mode !== 'exam') return result({ type: 'assist-plain' }, true);
+  // The actions of 更多 that have a key of their own (#1008): 先跳过, 写笔记, 标为重点, and the question's own page. An exam has none of them.
+  const moreKey = { k: 'skip', n: 'note', f: 'focus', o: 'source' }[letter];
+  if (moreKey) return run.mode === 'exam' ? result(null) : result({ type: moreKey }, true);
   if (event.key === 'ArrowRight' && run.feedback) return result({ type: 'move', direction: 1 }, true);
   if (event.key === 'ArrowLeft' && run.index) return result({ type: 'move', direction: -1 }, true);
   if (event.code === 'Space' && flipsOnly) return result({ type: 'flip' }, true);

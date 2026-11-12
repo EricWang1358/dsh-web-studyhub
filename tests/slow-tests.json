@@ -95,6 +95,7 @@
     "tests/page-counts-browser.test.mjs",
     "tests/page-peek-decode.test.mjs",
     "tests/pdf-console-browser.test.mjs",
+    "tests/practice-round-controls-browser.test.mjs",
     "tests/qa-harness-dist-isolation.test.mjs",
     "tests/question-figure-link-browser.test.mjs",
     "tests/question-tools-first-use-browser.test.mjs",

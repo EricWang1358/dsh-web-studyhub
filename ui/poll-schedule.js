@@ -14,6 +14,14 @@ export function backoffDelay(intervalMs, { unchanged = 0, running = false } = {}
   return intervalMs;
 }
 
+/** The practice page's poll of the open question (#1011): its own interval while anything may move (a helper task runs on the question), half as fast again
+    after each unchanged answer, never slower than every 30 s. A usePolling `backoff`. */
+export const REVIEW_POLL_MAX_MS = 30000;
+export function reviewPollDelay(intervalMs, { unchanged = 0, running = false } = {}) {
+  if (running) return intervalMs;
+  return Math.min(REVIEW_POLL_MAX_MS, Math.round(intervalMs * 1.5 ** Math.max(0, unchanged)));
+}
+
 /** Delay before the next poll. `running`: a job or coach task is in progress; `unchanged`: consecutive unchanged answers. */
 export function pollDelay({ unchanged = 0, running = false } = {}) {
   if (running) return POLL_FAST_MS;

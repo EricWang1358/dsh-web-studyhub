@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
 import { Button, Field, Hint, Select, SettingsSection, Switch, useToast } from '../components/index.js';
-import { NEW_CARD_ORDERS, PRACTICE_DEFAULTS, resolvePracticeSettings } from '../../lib/practice-settings.js';
+import { NEW_CARD_ORDERS, PRACTICE_DEFAULTS, freshRoundCount, resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { leechMisses } from '../../lib/leech.js';
 import { COVERAGE_DEFAULT, CRUNCH_MINUTES, CRUNCH_WINDOW, bookCoverage, crunchMinutes, crunchWindow, resolveBookSettings } from '../../lib/book-settings.js';
 import { levelHint, levelOptions } from '../outline/words.js';
@@ -82,7 +82,7 @@ export default function PracticePane({ data, busy, act, openSchedule }) {
   return <div className="settings-form">
     <SettingsSection tour="settings-practice" disabled={disabled} title={ui('练习')}
       lead={ui('每天的练习怎么走。这里是你的个人默认值，改动立即保存；练习页里也能临时开关自动跳下一步。')}>
-      <Field label={ui('每轮题数')} hint={uiFormat('首页的「今日学习」每轮最多这么多题：先排到期复习，再排薄弱题，最后补新题，新题最多占一半。当前是 {0} 题一轮，新题最多 {1} 道。', [values.roundSize, Math.ceil(values.roundSize / 2)])}>
+      <Field label={ui('每轮题数')} hint={uiFormat('首页的「今日学习」每轮最多这么多题：先排到期复习，再排薄弱题，最后补新题，新题最多占一半。当前是 {0} 题一轮，新题最多 {1} 道。', [values.roundSize, freshRoundCount(values)])}>
         <Select name="roundSize" value={String(values.roundSize)} disabled={disabled} onChange={(roundSize) => set({ roundSize: Number(roundSize) })}
           options={sizes.map((size) => ({ value: String(size), label: uiFormat('{0} 题', [size]) }))} />
       </Field>

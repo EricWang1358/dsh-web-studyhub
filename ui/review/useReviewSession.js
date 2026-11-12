@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui, getUiLanguage, errorMessage } from '../i18n.js';
-import { mergeReviewPoll, reviewEntryKey } from '../async.js';
+import { reviewEntryKey } from '../async.js';
 import { submitAssist } from '../assist-request.js';
 import { readTeachingDraft, saveTeachingDraft } from '../teaching-draft.js';
 import { reviewNoticeScope } from '../ActionFeedback.jsx';
 import { usePersistentState } from '../storage.js';
 import { usePolling } from '../use-polling.js';
+import { reviewPollDelay } from '../poll-schedule.js';
 import { EN_KEY, flag } from '../app/use-app-shell.js';
 import { resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
-  AUTO_ADVANCE_MS, advanceKeyOf, autopilotPlan, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
-  shortcutAction, shortcutGate, shouldResetEntry,
+  AUTO_ADVANCE_MS, advanceKeyOf, assistRunningOn, autopilotPlan, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
+  mergeReviewPollWithFollowups, reviewPollResult, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
 import { createDraftSaver, draftKey, draftPayloadOf, draftable, entrySignature, keepTyped, savedSignature } from './draft-persistence.js';
@@ -22,14 +23,11 @@ import { hiddenMsOf, noteVisibility, openClock } from './hidden-time.js';
 const SAVES_FIRST = new Set(['review.answer', 'review.move']);
 // How long a number key's grade button wears its press (#745): long enough to be seen, short enough never to look stuck.
 const KEY_PRESS_MS = 220;
+// The practice page asks for the open question every 4 s, slower while nothing changes (#1011). Right after a helper task is sent it keeps the quick rhythm this long, until the library lists the task as running.
+const REVIEW_POLL_MS = 4000;
+const ASSIST_SENT_FAST_MS = 20000;
 
-export function mergeReviewPollWithFollowups(current, next) {
-  const merged = mergeReviewPoll(current, next);
-  if (!current || !next || current.id !== next.id || (current.queueVersion || 0) !== (next.queueVersion || 0)
-    || current.index !== next.index || current.revealed !== next.revealed || !!current.feedback !== !!next.feedback) return merged;
-  if (JSON.stringify(merged.followups) === JSON.stringify(next.followups)) return merged;
-  return { ...merged, followups: next.followups };
-}
+export { mergeReviewPollWithFollowups } from './session-logic.js';
 
 /* The practice session (ui-consistency #112): the open run, what the learner has typed on its question, the teaching
    panel, the EN translation, the autopilot and the keyboard. It used to live in App, which re-rendered it on every
@@ -190,14 +188,24 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   // Each card mounts on the side matching its state; flipping after that is local.
   useEffect(() => { setShowBack(!!run?.revealed); }, [run?.id, run?.card?.id, run?.index, run?.queueVersion, run?.revealed]);
 
-  /* Links and fixes made in the conversation reach the open question without a reload. */
+  /* Links and fixes made in the conversation reach the open question without a reload. While nothing changes the poll slows down to every 30 s; a helper task on
+     the question (or one just sent) keeps it at 4 s, so its answer shows within one interval (#1011). */
+  const assistSentAt = useRef(0);
   const pollRun = useCallback(async () => {
     const current = runRef.current;
-    if (!current?.id) return;
+    if (!current?.id) return undefined;
     const next = await call('review.get', { runId: current.id });
-    setRun((existing) => mergeReviewPollWithFollowups(existing, next));
-  }, [call]);
-  usePolling(pollRun, { intervalMs: 4000, enabled: page === 'review' && !!run?.card?.id });
+    const running = assistRunningOn(refs.dataRef.current?.assist, runRef.current?.card?.id) || Date.now() - assistSentAt.current < ASSIST_SENT_FAST_MS;
+    const result = reviewPollResult(runRef.current, next, running);
+    if (!result.unchanged) setRun((existing) => mergeReviewPollWithFollowups(existing, next));
+    return result;
+  }, [call, refs]);
+  const polling = usePolling(pollRun, { intervalMs: REVIEW_POLL_MS, backoff: reviewPollDelay, enabled: page === 'review' && !!run?.card?.id });
+  const pollingRef = useRef(polling);
+  pollingRef.current = polling;
+  // A new question on screen: the rhythm starts again at 4 s, without an extra request. A task that ends on the question asks at once (QuestionRun).
+  useEffect(() => { pollingRef.current.restart(); }, [run?.id, run?.index, run?.card?.id]);
+  const pollNow = useCallback(() => pollingRef.current.refresh(), []);
 
   /* ── one step of the round ── */
   const stepWaiting = useRef(false);
@@ -219,6 +227,24 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   }, [act, awayArgs, enterRun, flushDraft, refs, syncDraft]);
   const reviewActRef = useRef(reviewAct);
   reviewActRef.current = reviewAct;
+
+  /* ── 先跳过 and 到此为止 (#1008): the round's own steps, review.move {index} and review.end, nothing new on the host ── */
+  // 先跳过: the next question nobody answered yet; this one stays in the round and comes back at its end, its clock started again.
+  const skipQuestion = useCallback(() => {
+    const target = skipTarget(runRef.current);
+    return target === null ? undefined : reviewActRef.current('review.move', { index: target });
+  }, []);
+  // 到此为止 asks first (the one InlineConfirm under the question, whoever asked: 更多, the rail or the list of questions), then ends the round: the answered
+  // questions keep their grades, the rest record nothing, and the result page opens like a finished round's (reviewAct reloads the library after it).
+  const [endAsked, setEndAsked] = useState(false);
+  useEffect(() => { setEndAsked(false); }, [run?.id, run?.complete]);
+  const endRound = useCallback(async () => {
+    if (!runRef.current?.id || runRef.current.complete || runRef.current.mode === 'exam') return;
+    // A dropped call (another step holds act(), or it failed) resolves with nothing: the question stays asked, so the press is not lost.
+    if (await reviewActRef.current('review.end')) setEndAsked(false);
+  }, []);
+  /* The question's own actions that live in QuestionRun (写笔记, 标为重点, its page): it puts them here, and the keys N / F / O run them. */
+  const questionKeys = useRef({});
 
   const flipCard = useCallback(async () => {
     const current = runRef.current;
@@ -349,6 +375,9 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     try {
       await submitAssist(call, { deckId: current.deckId, cardId: current.card.id, runId: current.id,
         mode, text: text.trim(), helpChoices, ...(derive ? { derive } : {}), uiLanguage: getUiLanguage() });
+      // Back to the quick rhythm at once: the answer must not wait out a slowed-down poll.
+      assistSentAt.current = Date.now();
+      pollingRef.current.refresh();
       notify(mode === 'ask' ? ui('后台助教正在解答。讲解会出现在这道题下面的问答里，完成时信箱会提醒你。')
         : mode === 'derive' ? ui('后台助教正在出题。新题会放进同一题组，完成时信箱会提醒你。')
           : mode === 'grade' ? { text: ui('已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，完成时信箱也会提醒你。'), tone: 'success' }
@@ -416,6 +445,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     else if (action.type === 'explain') patch((value) => ({ explain: !value.explain }));
     else if (action.type === 'assist-plain') assistCard('ask', '', ['plain']);
     else if (action.type === 'choose') choose(action.id);
+    else if (action.type === 'skip') skipQuestion();
+    else if (action.type === 'note' || action.type === 'focus' || action.type === 'source') questionKeys.current[action.type]?.();
   };
   useEffect(() => {
     const handler = (event) => keyHandler.current?.(event);
@@ -472,7 +503,11 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     // The sidebar's 快捷键 entry opens the same sheet as the ? key (ui/ShortcutHelp.jsx): one sheet, two ways in.
     openShortcutHelp: () => setShortcutHelp(true),
     toggleAutopilot,
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleHint, noteAssistance]);
+    skipQuestion,
+    askEnd: () => setEndAsked(true),
+    cancelEnd: () => setEndAsked(false),
+    endRound,
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleHint, noteAssistance, skipQuestion, endRound]);
   return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
-    shortcutHelp, keyGrade, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, actions, flushDraft };
+    shortcutHelp, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft };
 }
