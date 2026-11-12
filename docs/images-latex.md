@@ -42,4 +42,4 @@ Images fit the available card width. On a flashcard, activate an image to enlarg
 
 The browser retrieves web images from their URL. Choose an image you can access and share with the intended learners. Filesystem paths, relative paths, `file:`, `data:` and script URLs are not supported: cards do not currently have a trusted local image attachment base.
 
-Math and chemistry use bundled MathML rendering, with no CDN or font download. Image loading remains subject to the URL host's availability and the browser's network rules.
+Math and chemistry are drawn by the bundled KaTeX with its own fonts (the shapes of LaTeX's Computer Modern, #996), packed into the app: no CDN or font download, and a page saved as .html carries them, so it reads offline. Each formula keeps its MathML for screen readers. Image loading remains subject to the URL host's availability and the browser's network rules.
