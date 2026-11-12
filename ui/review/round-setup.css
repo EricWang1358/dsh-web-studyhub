@@ -13,7 +13,6 @@
     .round-setup__custom > :first-child { flex: 1 1 auto; min-width: 0; }
     .round-setup__size { width: 100%; min-width: 0; }
     .round-setup__default { flex: none; margin-top: var(--space-6); white-space: nowrap; }
-    .round-setup__pages { justify-self: start; }
     .round-setup__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); }
     .round-setup__start { margin-left: auto; }
   }
