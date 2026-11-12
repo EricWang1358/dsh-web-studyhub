@@ -116,6 +116,25 @@ test('a draft generated before the language check was recorded is not held back 
   assert.equal(published.rejected ?? 0, 0, 'what the learner already has is not held back by a check it was never written for');
 });
 
+test('a draft from before the language check, repaired for another reason, is not held for its language by the repair either', async (t) => {
+  const { service, lesson } = await englishLibrary(t);
+  const draft = await finished(service, await service.call('generate', { sourceIds: [lesson.id], count: 2, kind: 'quiz', kinds: ['quiz'] }));
+  const [first] = draft.cards;
+  // A Chinese incorrect option (fine for a draft made before the check) and an explanation that only repeats the answer (what it is held for).
+  const slipped = { ...first, explanation: first.answer,
+    options: first.options.map((option) => option === first.options.find((item) => !item.correct) ? { ...option, text: '它只是给这条要点换了一个名字' } : option) };
+  const { languageCheck, ...earlier } = draft.editorial.generation;
+  const saved = await service.call('draft.save', { deck: { ...draft, editorial: { ...draft.editorial, generation: earlier }, cards: [slipped, ...draft.cards.slice(1)] } });
+  const published = await service.call('draft.publish', { id: draft.id, draftVersion: saved.draftVersion });
+  assert.equal(published.rejected, 1);
+  let held = (await service.call('export')).drafts.find((item) => item.cards.some((card) => card.id === first.id));
+  assert.ok(!held.editorial.rejectedIssues[first.id].some((issue) => issue.includes(LANGUAGE_ISSUE)), 'held for the explanation, not the language');
+  const repair = await service.call('draft.repair', { id: held.id, draftVersion: held.draftVersion });
+  await service.call('job.wait', { jobId: repair.jobId, timeoutSeconds: 30 });
+  held = (await service.call('export')).drafts.find((item) => item.id === held.id);
+  assert.ok(!held.editorial.rejectedIssues?.[first.id], `the repair fixed what it was held for: ${JSON.stringify(held.editorial.rejectedIssues?.[first.id])}`);
+});
+
 test('a passage added to a deck (补题) follows the saved 出题语言, or the deck\'s own, never the interface language alone', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'study-1002-selection-'));
   t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
