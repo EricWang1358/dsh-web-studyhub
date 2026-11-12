@@ -14,6 +14,35 @@ export function scrollProgress({ scrollTop = 0, clientHeight = 0, scrollHeight =
 }
 
 /**
+ * The reads waiting to be written (useChapterReads), each kept with what it was made under: the material and revision (`target`), the chapter list and
+ * the chapter's ref of that moment, so a write after an outline was applied or a revision loaded still names the chapter that was read.
+ * queue: a Map; a chapter changed again replaces its entry. A read of a chapter not in `chapters` is not queued.
+ */
+export function queueRead(queue, { target, chapters, id, value }) {
+  const ref = (chapters || []).find(chapter => chapter.id === id) || null;
+  if (!target || (value && !ref)) return queue;
+  const key = `${target.sourceId}|${target.revision}|${id}`;
+  queue.delete(key);
+  queue.set(key, { key, target, chapters, id, ref, value: !!value });
+  return queue;
+}
+
+/** Empties `queue` into one save per material and revision: [{ target, chapters, read: [ref], unread: [id], entries }] (entries: to queue again on a failure). */
+export function drainReads(queue) {
+  const groups = new Map();
+  for (const entry of queue.values()) {
+    const at = `${entry.target.sourceId}|${entry.target.revision}`;
+    if (!groups.has(at)) groups.set(at, { target: entry.target, chapters: entry.chapters, read: [], unread: [], entries: [] });
+    const group = groups.get(at);
+    group.chapters = entry.chapters; // the list of the latest change under that revision
+    if (entry.value) group.read.push(entry.ref); else group.unread.push(entry.id);
+    group.entries.push(entry);
+  }
+  queue.clear();
+  return [...groups.values()];
+}
+
+/**
  * Which 目录 row shows a chapter's ✓ (and 标为未读): Map row id -> chapter id. The automatic outline lists the chapters themselves (kind 'chapter');
  * a kept AI outline lists its own entries, so the first entry placed inside a chapter (by its sourceId) stands for that chapter.
  */

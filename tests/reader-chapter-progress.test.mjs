@@ -2,7 +2,7 @@
    chapter on screen in the order of the text. The browser side is tests/reader-chapter-progress-browser.test.mjs. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { READ_AT, chapterRefs, chapterStep, outlineChapterMarks, scrollProgress } from '../ui/document-preview/reader/chapter-reads.js';
+import { READ_AT, chapterRefs, chapterStep, drainReads, outlineChapterMarks, queueRead, scrollProgress } from '../ui/document-preview/reader/chapter-reads.js';
 import { chapterGroups, inReadingOrder } from '../ui/document-preview/links/link-scope.js';
 
 test('with a kept AI outline, the first entry inside each chapter carries that chapter\'s ✓ (gate review of #1021, 2)', () => {
@@ -12,6 +12,28 @@ test('with a kept AI outline, the first entry inside each chapter carries that c
   // The automatic outline: its chapter rows are the chapters themselves.
   assert.deepEqual([...outlineChapterMarks([{ id: 'chapter-0', kind: 'chapter' }, { id: 'h-1', kind: 'page', sourceId: 'p1' }], chapters)], [['chapter-0', 'chapter-0']]);
   assert.equal(outlineChapterMarks(null, chapters).size, 0);
+});
+
+test('queued reads keep the chapter and material they were made under, also after the chapter list changed (gate review of #1021, 3)', () => {
+  const r1 = { sourceId: 'p1', revision: 'r1' }, r2 = { sourceId: 'p1', revision: 'r2' };
+  const before = [{ id: 'chapter-0', title: 'One', startPage: 1, endPage: 20 }, { id: 'chapter-1', title: 'Two', startPage: 21, endPage: 40 }];
+  // An outline applied (or a new revision loaded): chapter-0 is now another range, chapter-1 is gone.
+  const after = [{ id: 'chapter-0', title: 'Part A', startPage: 1, endPage: 10 }, { id: 'chapter-2', title: 'Part B', startPage: 11, endPage: 40 }];
+  const queue = new Map();
+  queueRead(queue, { target: r1, chapters: before, id: 'chapter-1', value: true });
+  queueRead(queue, { target: r1, chapters: before, id: 'chapter-0', value: false });
+  queueRead(queue, { target: r2, chapters: after, id: 'chapter-2', value: true });
+  queueRead(queue, { target: r2, chapters: after, id: 'chapter-9', value: true }); // not a chapter of that list: nothing to keep
+  const groups = drainReads(queue);
+  assert.equal(queue.size, 0, 'drained');
+  assert.deepEqual(groups.map(group => ({ target: group.target, chapters: group.chapters.map(chapter => chapter.id), read: group.read, unread: group.unread })), [
+    { target: r1, chapters: ['chapter-0', 'chapter-1'], read: [before[1]], unread: ['chapter-0'] },
+    { target: r2, chapters: ['chapter-0', 'chapter-2'], read: [after[1]], unread: [] },
+  ], 'each save names the chapter as it was when it was read, under its own material and revision');
+  // A save that failed goes back in the queue, unless the learner changed the same chapter since.
+  queueRead(queue, { target: r1, chapters: before, id: 'chapter-1', value: false });
+  for (const entry of groups[0].entries) if (!queue.has(entry.key)) queue.set(entry.key, entry);
+  assert.deepEqual(drainReads(queue).map(group => [group.read.map(chapter => chapter.id), group.unread]), [[[], ['chapter-1', 'chapter-0']]]);
 });
 
 test('a chapter is read once scrolled 90% through; one that fits on the screen is seen whole', () => {

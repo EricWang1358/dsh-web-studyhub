@@ -1,7 +1,7 @@
 /* global document window */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveEffect } from '../../use-async.js';
-import { READ_AT, chapterRefs, scrollProgress } from './chapter-reads.js';
+import { READ_AT, chapterRefs, drainReads, queueRead, scrollProgress } from './chapter-reads.js';
 
 /* The learner's own input in the reader: a chapter the reader scrolled by itself (a restored place, a jump) is not read until the learner has used it. */
 const INPUT = ['wheel', 'touchmove', 'keydown', 'pointerdown'];
@@ -31,17 +31,17 @@ export function useChapterReads({ call, target, chapters, current, scroller, roo
   const ready = state.key === key && !!key;
   const read = ready ? state.read : EMPTY;
 
+  // Each change is queued with the material, revision and chapter of its moment (chapter-reads.js queueRead), so a write that comes after an outline
+  // was applied or a revision loaded (the cleanup below runs after `latest` names the new list) still names what was read.
   const flush = useCallback(() => {
-    const { call: send, target: at, refs: list } = latest.current, changes = pending.current;
-    if (!changes.size || !send || !at) return;
-    pending.current = new Map();
-    const byId = new Map(list.map(chapter => [chapter.id, chapter]));
-    const readList = [...changes].filter(([, value]) => value).map(([id]) => byId.get(id)).filter(Boolean);
-    const unreadList = [...changes].filter(([, value]) => !value).map(([id]) => id);
-    send('materials.reading.save', { ...at, chapters: list, read: readList, unread: unreadList }).catch(() => {
-      // Not kept: tried again with the next write, unless the learner changed the same chapter since.
-      for (const [id, value] of changes) if (!pending.current.has(id)) pending.current.set(id, value);
-    });
+    const send = latest.current.call;
+    if (!pending.current.size || !send) return;
+    for (const group of drainReads(pending.current)) {
+      send('materials.reading.save', { ...group.target, chapters: group.chapters, read: group.read, unread: group.unread }).catch(() => {
+        // Not kept: tried again with the next write, unless the learner changed the same chapter since.
+        for (const entry of group.entries) if (!pending.current.has(entry.key)) pending.current.set(entry.key, entry);
+      });
+    }
   }, []);
   const change = useCallback((id, value) => {
     setState(previous => {
@@ -50,7 +50,8 @@ export function useChapterReads({ call, target, chapters, current, scroller, roo
       if (value) next.add(id); else next.delete(id);
       return { ...previous, read: next };
     });
-    pending.current.set(id, value);
+    const { target: at, refs: list } = latest.current;
+    queueRead(pending.current, { target: at, chapters: list, id, value });
   }, []);
   const unread = useCallback(id => { change(id, false); flush(); }, [change, flush]);
 
