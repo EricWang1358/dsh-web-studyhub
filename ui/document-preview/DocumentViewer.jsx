@@ -4,11 +4,11 @@ import MathText from '../MathText.jsx';
 import { AudioCorrections } from '../audio/AudioCorrections.jsx';
 import { ui, uiFormat, useUiLanguage } from '../i18n.js';
 import { useInjectCss } from '../shared.js';
-import { Button, HelpTip, IconButton, InlineMessage, LoadingState, Tooltip } from '../components/index.js';
+import { Button, HelpTip, IconButton, InlineMessage, LoadingState, SegmentedControl, Tooltip } from '../components/index.js';
 import DocumentLearning from './DocumentLearning.jsx';
 import { ReaderModelContext } from './ReaderModelGate.jsx';
 import { OriginalNotice, OriginalDialog } from './OriginalFile.jsx';
-import { originalBytes, pagedFileUrl } from './peek/paged-original.js';
+import { isPagedUrl, originalBytes, pagedFileUrl } from './peek/paged-original.js';
 import { issueOf } from './original-file.js';
 import { peekStatus } from './peek/peek-logic.js';
 import { renderPageImages } from './peek/page-image.js';
@@ -48,7 +48,11 @@ import { copyText, pickFormula } from './reader/formula.js';
 import { useReaderSettings } from './reader/useReaderSettings.js';
 import { useReadingPosition, scrollToNode } from './reader/useReadingPosition.js';
 import { lastReadKey } from './reader/last-read.js';
-import { useLastReadOpening, useKeepLastRead } from './reader/useLastRead.js';
+import { useLastReadOpening, useKeepLastRead, useKeepLastView } from './reader/useLastRead.js';
+import { useChapterReads } from './reader/useChapterReads.js';
+import { chapterStep } from './reader/chapter-reads.js';
+import { looksGarbled } from './reader/formula-garble.js';
+import { formulaHintTold, tellFormulaHint } from './reader/formula-hint.js';
 import { readerVars, underlineShown } from './reader/settings.js';
 import { readingSections } from './reader/text-sections.js';
 import { sectionAtOffset } from '../../lib/sections.js';
@@ -123,6 +127,8 @@ function QuotedText({ text, quote, anchor, format }) {
  * localContent ({ id, title, markdown }) reads saved writing in the same reader without a material identity or material actions.
  * peekPage: a page number to open the 看原页 panel at once the document can show it (a question's 看原页图 sets it).
  * onOpenModelSettings / onOpenSettings(section): where the gates of the reader's model features and the 前往设置 link lead (ReaderModelGate.jsx); without them the app's own are used.
+ * onReconvert(file | null): converts the original PDF again with MinerU (the 添加资料 › PDF 解析 entry, with the file when the reader holds it); offered by the
+ * 公式乱码 suggestion (#1001).
  */
 export default function DocumentViewer(props) {
   const { data, onOpenModelSettings, onOpenSettings } = props, model = modelReadiness(data);
@@ -131,7 +137,7 @@ export default function DocumentViewer(props) {
 }
 
 function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, onGenerateStarted, generateDisabled = false, initialMode = 'read',
-  onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false }) {
+  onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false, onReconvert }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
   useInjectCss(css, 'study-document-preview');
@@ -142,6 +148,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   useInjectCss(translationCss, 'study-reader-translation');
   const [loadedDocument, setDocument] = useState(null), [loadedContent, setContent] = useState(''), [fileUrl, setFileUrl] = useState('');
   const [error, setError] = useState(''), [fetching, setLoading] = useState(true), [mode, setMode] = useState(initialMode);
+  // The text view the 文字 | 原始 PDF switch goes back to (阅读 or 原文: the one last chosen).
+  const [textView, setTextView] = useState(initialMode === 'original' ? 'read' : initialMode);
   // Local writing is authoritative on every render, including edits and a switch from an open material.
   const document = localMode ? null : loadedDocument, content = localMode ? String(localContent.markdown ?? '') : loadedContent;
   const loading = !localMode && fetching;
@@ -281,6 +289,11 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const materialKey = lastReadKey(data?.root, documentItem?.key);
   const lastReadOpening = useLastReadOpening({ key: materialKey, sourceId: source.id, firstSourceId: documentItem?.sourceIds?.[0], quote, resume: resumeProp, peekPage, localMode });
   const resume = resumeProp || lastReadOpening;
+  // The view it was left in (#1001): opened plainly, a material last read in 原始 PDF opens there again at its page (once the file is there; until then, and
+  // when it never comes, the text).
+  useIsoLayoutEffect(() => {
+    if (lastReadOpening?.view === 'original') { setMode('original'); setPdfPage(lastReadOpening.originalPage); }
+  }, [lastReadOpening]);
   // Where the reader opens: a stored reading position (its section, its page), else the source it was opened with (a page, a chapter's first page, a citation).
   const opening = useMemo(() => resume?.sectionId || Number.isInteger(resume?.page) ? { sectionId: resume.sectionId, page: resume.page } : { sourceId: source.id, page: source.document?.page },
     [resume, source.id, source.document?.page]);
@@ -373,6 +386,22 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const loop = useReadingLoop({ call, document, source, version: data?.revision, view, paged, unit, sections: allSections, outline, activeId, chapterLevel, documentItem, body, scroller, loading, rendered, resume: resumeAt });
   useKeepLastRead({ key: materialKey, enabled: !localMode && view !== 'original' && !loading, root, scroller, here: loop.here, watch: chapter.current?.id,
     atStart: () => (!chaptered || chapter.index <= 0) && (scroller.current?.scrollTop ?? 0) < START_PX });
+  // 原始 PDF and its page are kept in the same record (useKeepLastView); `switchPlace` is the text place taken as the learner switched to it.
+  const switchPlace = useRef(null);
+  useKeepLastView({ key: materialKey, enabled: !localMode, original: view === 'original', page: pdfPage, place: switchPlace });
+  // 已读 of the chapters (#1014), kept in the study library (reader/useChapterReads.js): a ✓ in the 目录 and 已读 7/24 章.
+  const readTarget = useMemo(() => (!localMode && chaptered && document ? { sourceId: source.id, revision: document.revision } : null), [localMode, chaptered, document, source.id]);
+  const reads = useChapterReads({ call, target: readTarget, chapters: chapter.chapters, current: chapter.current, scroller, root, watching: view !== 'original' && !loading });
+  const outlineReads = useMemo(() => (reads.ready ? { read: reads.read, count: reads.count, total: chapter.chapters.length, onUnread: reads.unread } : null),
+    [reads.ready, reads.read, reads.count, reads.unread, chapter.chapters.length]);
+  // The linked questions in the order of the text, and the chapter on screen for their 本章 / 全书 (links/PassageLinksPanel.jsx).
+  const sourceOrder = useMemo(() => {
+    const order = new Map();
+    allSections.forEach((section, index) => { if (!order.has(section.sourceId)) order.set(section.sourceId, index); });
+    return order;
+  }, [allSections]);
+  const drawnChapter = chapter.current;
+  const chapterSources = useMemo(() => (chaptered && drawnChapter ? new Set(drawnChapter.sourceIds) : null), [chaptered, drawnChapter]);
   useEffect(() => { if (loop.open && pickPagesGuide) setPickPagesGuide(false); }, [loop.open, pickPagesGuide]);
   const practise = option => { const started = loop.start(option); loop.setOpen(false); onPracticePages?.(started); };
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
@@ -442,6 +471,13 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
 
   // A new view starts at the top; a page or slide opened from a link starts at that page.
   useEffect(() => { scroller.current?.scrollTo?.({ top: 0 }); }, [view]);
+  // Back from 原始 PDF in a document shown whole (no chapters), the text opens at the page the PDF was on (a chaptered one goes there through its chapter).
+  const landing = useRef(0);
+  useEffect(() => {
+    if (view === 'original' || loading || !landing.current) return;
+    scrollToNode(scroller.current, body.current?.querySelector(`[data-study-page="${landing.current}"]`), { smooth: false });
+    landing.current = 0;
+  }, [view, loading]);
   useEffect(() => {
     const key = `${source.id}:${view}`;
     // A quote owns the scroll when the reading view places it (above, which also falls back to the page) or the 原文 view marks it.
@@ -502,14 +538,48 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     else if (event.key === 'Escape' && overlay) { event.preventDefault(); event.stopPropagation(); setOverlay(null); }
     else if (!localMode && onPracticePages && view !== 'original' && event.key.toLowerCase() === 'p' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
       && !event.target.closest?.('input,textarea,select,[contenteditable]')) { event.preventDefault(); loop.setOpen(!loop.open); }
+    // [ / ]: the chapter before / after (reader/chapter-reads.js chapterStep), from the text views.
+    else if (chaptered && view !== 'original' && chapterStep(event)) {
+      const target = chapterStep(event) < 0 ? chapter.around.previous : chapter.around.next;
+      if (target) { event.preventDefault(); chapter.goTo({ chapterId: target.id }); }
+    }
   };
 
   // The 原始 PDF tab without a file is not dead: it explains and offers 补全原文件.
   const chooseView = value => {
     if (value === 'original' && !fileUrl) { if (document) setAttaching(issueOf(document.original)?.kind === 'none' ? 'attach' : 'relink'); return; }
+    // To 原始 PDF, it opens at the page being read (#1001); the text place of this moment is kept with the view (上次读到), before the text goes.
+    if (value === 'original' && view !== 'original') {
+      const place = loop.here();
+      if (Number.isInteger(place?.page)) goToPage(place.page);
+      switchPlace.current = place;
+    }
     // Back from 原始 PDF, the text opens at the page the PDF was on, in its chapter.
-    if (view === 'original' && value !== 'original' && chaptered) chapter.goTo({ page: pdfPage });
+    if (view === 'original' && value !== 'original') { if (chaptered) chapter.goTo({ page: pdfPage }); else if (paged) landing.current = pdfPage; }
+    if (value !== 'original') setTextView(value);
     setMode(value);
+  };
+  const canOriginal = !localMode && format === 'pdf' && !!fileUrl;
+  // 公式乱码 (#1001): when the converted text of the chapter on screen looks like its formulas fell apart (reader/formula-garble.js, worked out once per
+  // chapter), a notice suggests 原始 PDF, or converting the PDF again with MinerU; once per material (reader/formula-hint.js), for that chapter only.
+  const garbleCache = useRef(new Map()), [formulaHint, setFormulaHint] = useState(null); // { chapterId, open }
+  const hintChapter = chapter.current?.id ?? '';
+  const garbled = useMemo(() => {
+    if (!canOriginal || view === 'original' || loading || !sections.length || formulaHint || formulaHintTold(materialKey)) return false;
+    const id = `${document?.revision}:${hintChapter}`;
+    if (!garbleCache.current.has(id)) garbleCache.current.set(id, looksGarbled(sections.map(section => textBySource.get(section.sourceId) ?? '').join('\n')));
+    return garbleCache.current.get(id);
+  }, [canOriginal, view, loading, sections, formulaHint, materialKey, document?.revision, hintChapter, textBySource]);
+  useEffect(() => { if (garbled && tellFormulaHint(materialKey)) setFormulaHint({ chapterId: hintChapter, open: true }); }, [garbled]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeFormulaHint = () => setFormulaHint(hint => ({ ...hint, open: false }));
+  // Converting again with MinerU is the 添加资料 › PDF 解析 entry, with this PDF when the reader holds all of it; not offered for a book MinerU made.
+  const canReconvert = !!onReconvert && hasContext(data, 'audio') && sources[0]?.document?.converter !== 'mineru';
+  const reconvert = async () => {
+    let file = null;
+    try {
+      if (fileUrl && !isPagedUrl(fileUrl)) file = new File([await originalBytes(fileUrl)], document?.filename || `${source.title || 'document'}.pdf`, { type: 'application/pdf' });
+    } catch { file = null; }
+    onReconvert(file);
   };
   // What the original file is: nothing was kept ('none': said in 更多), or a file that went missing or changed (a fault: its notice stays).
   const originalIssue = !localMode && document && !document.originalAvailable ? issueOf(document.original) : null;
@@ -534,11 +604,21 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       && <InlineMessage key="revision" tone="warning">{ui('此引用来自较早版本，当前资料已有更新。')}</InlineMessage>,
     bilingual.notice,
     !localMode && loop.resumeNote === 'updated' && <p key="resume" className="reader-resume-note" role="status">{ui('资料已更新，已回到该章节大致的位置。')}</p>,
+    formulaHint?.open && formulaHint.chapterId === hintChapter && view !== 'original' && (
+      <InlineMessage key="formula" tone="info" data-formula-hint onDismiss={closeFormulaHint} dismissText={ui('关闭提示')}
+        action={{ label: ui('看原始 PDF'), onClick: () => { closeFormulaHint(); chooseView('original'); } }}
+        secondary={canReconvert ? { label: ui('用 MinerU 重新转换'), tip: ui('打开「添加资料」里的 PDF 解析，用本机 MinerU 把这份 PDF 再转换一次，公式会转成可读的写法。已经导入的这份不会变。'),
+          onClick: () => { closeFormulaHint(); reconvert(); } } : undefined}>
+        {ui('这一章公式较多，转换后的文字可能不好读。')}
+      </InlineMessage>
+    ),
   ].filter(Boolean);
   const pagerTitle = item => [itemLabel(item), item.title].filter(Boolean).join(' · ');
   // The links under the text: 上一章 / 下一章 when one chapter is drawn, else 上一节 / 下一节.
   const pagerLink = (target, word) => !target ? null : chaptered ? { word, title: chapterName(target, slides), go: () => chapter.goTo({ chapterId: target.id }) }
     : { word, title: pagerTitle(target), go: () => jumpTo(target) };
+  // The chapter pager says its key ([ / ], onKeyDown).
+  const pagerKey = direction => chaptered ? <kbd className="reader-pager__key" aria-hidden="true">{direction === 'previous' ? '[' : ']'}</kbd> : null;
   const pager = chaptered ? { label: chapterPagerLabel(), previous: pagerLink(chapter.around.previous, previousChapterWord()), next: pagerLink(chapter.around.next, nextChapterWord()) }
     : { label: ui('上一节与下一节'), previous: pagerLink(around.previous, ui('上一节')), next: pagerLink(around.next, ui('下一节')) };
   const pageText = section => textBySource.get(section.sourceId) ?? '';
@@ -612,7 +692,12 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       <p className="reader-toolbar__where">{where ? <Tooltip layer content={where}><span tabIndex={0}>{where}</span></Tooltip> : null}</p>
       {view === 'original' && !localMode && <HelpTip label={ui('在原始 PDF 里怎么提问')} placement="bottom-end">{ui('在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。')}</HelpTip>}
       {!localMode && loop.returnDelta > 0 && <span className="reader-toolbar__delta" role="status">{uiFormat('本轮 +{0}%', [loop.returnDelta])}</span>}
-      <div className="reader-toolbar__group reader-toolbar__group--end"><ReaderMore items={menu} attention={(!!capture && !toolsOn) || marks.moreItems.length > 0} /></div>
+      <div className="reader-toolbar__group reader-toolbar__group--end">
+        {/* 文字 | 原始 PDF (#1001): for a PDF whose original file is here; in a narrow reader the views stay in 更多 only, so the toolbar keeps one row. */}
+        {canOriginal && !compact && <SegmentedControl size="xs" className="reader-view-switch" data-tour="reader-view-switch" label={ui('显示方式')} value={view === 'original' ? 'original' : 'text'}
+          onChange={value => chooseView(value === 'original' ? 'original' : textView)} options={[{ value: 'text', label: ui('文字') }, { value: 'original', label: ui('原始 PDF') }]} />}
+        <ReaderMore items={menu} attention={(!!capture && !toolsOn) || marks.moreItems.length > 0} />
+      </div>
     </div>
     <div className="reader-progress" aria-hidden="true"><span style={{ transform: `scaleX(${view === 'original' ? 0 : position.progress})` }} /></div>
     {finding && view !== 'original' && <FindBar query={query} onQuery={setQuery} total={total} index={Math.min(match, Math.max(total - 1, 0))} elsewhere={elsewhere}
@@ -625,7 +710,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
-      {outlineOn && <OutlinePanel id={outlineId} data-tour="reader-outline" items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters} upgradedIds={loop.upgradedIds}
+      {outlineOn && <OutlinePanel id={outlineId} data-tour="reader-outline" items={outline} activeId={activeId} labelOf={itemLabel} onJump={jumpTo} meters={meters} upgradedIds={loop.upgradedIds} reads={outlineReads}
         coverage={!localMode && view !== 'original' && loop.coverage?.cards > 0 ? loop.outlineCoverage : null} coverageTotals={loop.coverage}
         coverageAction={!localMode && data && canQueueGenerate && offersDocumentTopUp({ item: documentItem, coverage: loop.coverage, jobs: data.jobs, modelReady: modelReadiness(data).ready })
           ? <DocumentTopUp item={documentItem} revision={data.revision} placement="bottom-start" block /> : null}
@@ -648,10 +733,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
                   : <QuotedText format={format} text={content || sources[0]?.text || ''} quote={quote} anchor={source.selection} />}
           </div>
           {view !== 'original' && (pager.previous || pager.next) && <nav className="reader-pager" data-pager={chaptered ? 'chapter' : 'section'} aria-label={pager.label}>
-            {pager.previous ? <button type="button" className="reader-pager__link" data-direction="previous" onClick={pager.previous.go}>
-              <small>{pager.previous.word}</small><span>{pager.previous.title}</span></button> : <span />}
-            {pager.next ? <button type="button" className="reader-pager__link" data-direction="next" onClick={pager.next.go}>
-              <small>{pager.next.word}</small><span>{pager.next.title}</span></button> : <span />}
+            {pager.previous ? <button type="button" className="reader-pager__link" data-direction="previous" aria-keyshortcuts={chaptered ? '[' : undefined} onClick={pager.previous.go}>
+              <small>{pager.previous.word}{pagerKey('previous')}</small><span>{pager.previous.title}</span></button> : <span />}
+            {pager.next ? <button type="button" className="reader-pager__link" data-direction="next" aria-keyshortcuts={chaptered ? ']' : undefined} onClick={pager.next.go}>
+              <small>{pager.next.word}{pagerKey('next')}</small><span>{pager.next.title}</span></button> : <span />}
           </nav>}
         </div>
       </div>
@@ -667,7 +752,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
           {onCaseFromPassage && view !== 'original' && <Button className="study-document-wide" disabled={!capture?.quote || !!capture.crossPage} title={!capture?.quote ? ui('先在原文中选中一段文字') : capture.crossPage ? ui('选区跨了多页，请在一页内选择。') : undefined}
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}
         </div>
-        <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} onAnnotation={openAnnotation} />
+        <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} onAnnotation={openAnnotation} order={sourceOrder} chapterSources={chapterSources} />
         {annotationMode === 'annotate' && <StaleAnnotations stale={kept.stale} onClear={clearStaleAnnotations} />}
       </aside>}
     </div>
