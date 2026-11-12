@@ -1,10 +1,11 @@
 import { BASE_CSS, esc, staticPage } from '../static-page.js';
 import { MARKDOWN_CSS, contentsList, renderMarkdown } from '../markdown-page.js';
+import { mathPageCss } from '../study-math-render.js';
 import { DEFINITION, QUOTE_PAIRS, isLabelLine } from '../../lib/footnote-syntax.js';
 import { answerCardWords } from '../../lib/answer-card.js';
 
 /* The 复习全书 as ONE self-contained HTML page (#896): the Markdown of the export (lib/course-book-export.js, the text the dialog already holds) made into a
-   page that opens offline and prints cleanly, with no Pandoc. Everything general (footnotes at the end of their chapter, heading anchors, MathML, links that
+   page that opens offline and prints cleanly, with no Pandoc. Everything general (footnotes at the end of their chapter, heading anchors, maths, links that
    stay inside the page, the print rules) is ui/markdown-page.js's, shared with the other pages saved from Markdown; this file is what is the book's:
    the cover and the contents, the book's words, and 「不含原文引文」.
 
@@ -96,7 +97,7 @@ main{max-width:46rem;margin:0 auto}
 `;
 
 /** The Markdown of the book's export as the page (see the top of this file). */
-export function bookHtml(markdown, { language = 'zh', quotes = true } = {}) {
+export function bookHtml(markdown, { language = 'zh', quotes = true, mathCss = '' } = {}) {
   const words = wordsOf(language);
   const source = quotes ? String(markdown ?? '') : withoutSourceQuotes(markdown, words.left);
   const { html, headings, title } = renderMarkdown(source, { chapterLevel: 2, dropTitle: true, footnotesLabel: words.sources, backLabel: words.back, isFootnoteLabel: isLabelLine });
@@ -105,8 +106,10 @@ export function bookHtml(markdown, { language = 'zh', quotes = true } = {}) {
 ${contentsList(headings, { label: words.contents })}
 <main>
 ${html}</main>`;
-  return staticPage({ lang: words.lang, title: name, css: CSS, body });
+  return staticPage({ lang: words.lang, title: name, css: CSS, body, mathCss });
 }
 
 /** What the export dialog saves: the page of an export's answer (course.book.export, the single form), named after its Markdown file. */
-export const bookHtmlFile = (done, { quotes = true } = {}) => ({ filename: bookHtmlFilename(done.filename), html: bookHtml(done.text, { language: done.language, quotes }) });
+export const bookHtmlFile = async (done, { quotes = true } = {}) => ({ filename: bookHtmlFilename(done.filename),
+  // The formula stylesheet with its fonts (#996), embedded only when the page draws a formula (ui/static-page.js).
+  html: bookHtml(done.text, { language: done.language, quotes, mathCss: await mathPageCss() }) });

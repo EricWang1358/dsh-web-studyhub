@@ -39,7 +39,7 @@ test('science settings apply, persist and run exact local tools in the real app'
   await page.locator('[data-usage="nav.settings"]').click();
   const open = () => page.getByRole('button', { name: 'Formulas, images and calculation tools', exact: true }).click();
   await open();
-  await page.locator('.science-preview math').waitFor();
+  await page.locator('.science-preview .katex-html').waitFor();
   await pick(page, page.getByRole('combobox', { name: 'Formula size', exact: true }), '150%');
   await pick(page, page.getByRole('combobox', { name: 'Formula alignment', exact: true }), 'Left');
   await pick(page, page.getByRole('combobox', { name: 'Maximum image height', exact: true }), '540 px');

@@ -3,6 +3,7 @@ import { ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/index.js';
 import { useStudy } from '../study-context.jsx';
 import { useLiveEffect } from '../use-async.js';
+import { RetoldMark } from '../review/RetellPanel.jsx';
 
 /* The one row of a knowledge point's actions (复习全书, docs/review-book.md "Reading a point"), in place of the 练 5 道 · 本节问答 line and 这一节还没有题。
    at its end: 练 5 道 (a point with questions; one without says nothing about it here, 给这个知识点出题 is in 更多) and 本节问答 (N). Asking the AI about the
@@ -20,8 +21,8 @@ function useQaCount(course, nodeKey) {
   return count;
 }
 
-/** node, course, handlers (ui/book/BookPage.jsx); cites: the point's 出处 chip or null (first of the actions). */
-export default function PointToolbar({ node, course, handlers, cites = null }) {
+/** node, course, handlers (ui/book/BookPage.jsx); cites: the point's 出处 chip or null (first of the actions); retold: the point's retell aggregate (讲清楚过 ✓). */
+export default function PointToolbar({ node, course, handlers, cites = null, retold = null }) {
   const qaCount = useQaCount(course, node.key), qaOpen = handlers.qaOpen(node.hid);
   return (
     <div className="book-point__bar">
@@ -31,6 +32,9 @@ export default function PointToolbar({ node, course, handlers, cites = null }) {
           onClick={event => handlers.practice(node.hid, 5, node.hid, event.currentTarget)}>{ui('练 5 道')}</Button>}
         <Button size="sm" variant="quiet" className="book-point__qa" data-book-link="qa" aria-expanded={qaOpen} onClick={() => handlers.toggleQa(node.hid)}>
           {qaCount ? uiFormat('本节问答 ({0})', [qaCount]) : ui('本节问答')}</Button>
+        {handlers.toggleRetell && <Button size="sm" variant="quiet" className="book-point__retell" data-book-link="retell" data-usage="book.retell" aria-expanded={!!handlers.retellOpen?.(node.hid)}
+          onClick={() => handlers.toggleRetell(node.hid)}>{ui('用自己的话讲一遍')}</Button>}
+        <RetoldMark retold={retold} />
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { exportBook } from '../lib/course-book-export.js';
-import { bookHtml } from '../ui/book/book-html.js';
+import { bookHtmlFile } from '../ui/book/book-html.js';
 import { cardOf, exportBook as book, GEN } from './helpers/course-book-export-book.mjs';
 
 /* The whole 复习全书 as one page (#896, ui/book/book-html.js) in a real Chromium, opened from a file with the network off at 420 and 1440 px: nothing is
@@ -20,9 +20,10 @@ const WIDE = ['| Column one | Column two | Column three | Column four |', '| ---
 const INLINE = '$' + Array.from({ length: 40 }, (_, at) => `y_{${at}}`).join('') + '$';
 const FORMULA = '$$' + Array.from({ length: 24 }, (_, at) => `x_{${at}}`).join(' + ') + '$$';
 
-function sample() {
+/** The page as the export dialog saves it (bookHtmlFile: with the formula stylesheet and fonts when it draws a formula). */
+async function sample() {
   const done = exportBook(book({ gen: GEN.replace('串联时 A = A1 x A2。', () => `串联时 $A = A_1 \\times A_2$。 A long one in a line: ${INLINE} and on.\n\n${FORMULA}\n\n${WIDE}\n\n${LONG}\n\n\`${LONG}\`\n`) }), { cardOf, answerKey: true, questions: 'all' });
-  return bookHtml(done.text, { language: done.language });
+  return (await bookHtmlFile(done)).html;
 }
 
 test('the book page opens offline, does not scroll sideways at 420 px, draws maths, links footnotes both ways, and prints a page per chapter', { timeout: 180000 }, async (t) => {
@@ -33,7 +34,7 @@ test('the book page opens offline, does not scroll sideways at 420 px, draws mat
   if (shots) await mkdir(shots, { recursive: true });
   try {
     const path = join(work, 'book.html');
-    await writeFile(path, sample(), 'utf8');
+    await writeFile(path, await sample(), 'utf8');
     for (const width of [420, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 900 }, offline: true });
       const page = await context.newPage(), requested = [], errors = [];
@@ -45,8 +46,10 @@ test('the book page opens offline, does not scroll sideways at 420 px, draws mat
       assert.deepEqual(errors, [], `${width}px: no page error`);
       const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       assert.ok(sideways <= 0, `${width}px: nothing scrolls sideways (${sideways}px too wide)`);
-      assert.ok(await page.locator('main math').count() >= 2, `${width}px: maths is MathML`);
-      assert.ok(await page.locator('math').first().evaluate(element => element.getBoundingClientRect().width > 0), `${width}px: and the browser draws it`);
+      assert.ok(await page.locator('main .katex math').count() >= 2, `${width}px: maths keeps its MathML`);
+      assert.ok(await page.locator('main .katex-html').first().evaluate(element => element.getBoundingClientRect().width > 0), `${width}px: and the page draws it`);
+      assert.equal(await page.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some(face => face.family.replace(/"/g, '') === 'KaTeX_Main' && face.status === 'loaded'); }), true,
+        `${width}px: with the fonts inlined in the file`);
       // A footnote mark goes to its footnote, the footnote's arrow comes back to the mark.
       const mark = page.locator('a[href="#fn-h2g-1"]').first();
       await mark.click();

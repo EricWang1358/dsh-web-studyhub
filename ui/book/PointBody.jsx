@@ -9,6 +9,7 @@ import BookSuggestion from './BookSuggestion.jsx';
 import BookAiBlock from './BookAiBlock.jsx';
 import BookAiLine from './BookAiLine.jsx';
 import PointToolbar from './PointToolbar.jsx';
+import RetellPanel from '../review/RetellPanel.jsx';
 import PointLayer from './PointLayer.jsx';
 import PointText from './PointText.jsx';
 import TermCards from './TermCards.jsx';
@@ -56,6 +57,8 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
   // Which blocks have their words marked (each text says so once drawn).
   const [marked, setMarked] = useState({});
   const [cites, setCites] = useState(false);
+  // 讲清楚过 (#1016): the aggregate of the last check made here, until the book is read again (node.retold).
+  const [retold, setRetold] = useState(null);
   const onAnchored = (key, ids) => setMarked(current => (String(current[key]) === String(ids) ? current : { ...current, [key]: ids }));
   // A text that is no longer drawn (its block is deleted, or its words changed and the block became lost) never reports again: only a block that still has its
   // words in the point counts as anchored.
@@ -102,7 +105,11 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
       {/* The point's actions close it, so the reading starts right under its heading (S2 turns this row into the point's end); 出处 is the first of them, its
           list opens under the row. */}
       <PointToolbar node={node} course={course} handlers={handlers} cites={view.citeCount > 0 ? <Button variant="quiet" size="sm" icon={<Icon name="caret" size={14} className="book-point__caret" />}
-        className="book-point__cites-toggle" aria-expanded={cites} onClick={() => setCites(value => !value)}>{uiFormat('出处 {0}', [view.citeCount])}</Button> : null} />
+        className="book-point__cites-toggle" aria-expanded={cites} onClick={() => setCites(value => !value)}>{uiFormat('出处 {0}', [view.citeCount])}</Button> : null}
+        retold={retold ?? node.retold ?? null} />
+      {/* 去原文看这段 opens the point's 出处 list, the book's own way to the source. */}
+      {handlers.retellOpen?.(node.hid) && <RetellPanel op="book.retell" args={{ course, hid: node.hid }} draftKey={`point:${course}:${node.hid}`} model={handlers.model}
+        onSource={view.citeCount > 0 ? () => setCites(true) : undefined} onDone={answer => setRetold(answer.record)} />}
       {cites && view.citeCount > 0 && <BookFile text={view.cites} citeText={node.gen} hid={node.hid} handlers={handlers} className="book-file book-point__cite-list" />}
       {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} onBookChanged={handlers.reload} />}
     </div>

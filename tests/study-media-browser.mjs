@@ -47,7 +47,7 @@ test('fake-library math/media browser smoke at desktop and narrow widths', { tim
       await page.getByRole('button', { name: /Return to question/ }).focus();
       await page.keyboard.press('s');
 
-      await page.locator('.flip-front math').first().waitFor();
+      await page.locator('.flip-front .katex-html').first().waitFor();
       const faceFits = await page.locator('.flip-front').evaluate(face => {
         const card = face.closest('.flashcard').getBoundingClientRect(), bounds = face.getBoundingClientRect();
         return bounds.left >= card.left - 1 && bounds.right <= card.right + 1;
@@ -58,7 +58,7 @@ test('fake-library math/media browser smoke at desktop and narrow widths', { tim
         const formula = page.locator('.flip-front .md-math-display');
         assert.equal(await formula.evaluate(el => el.scrollWidth > el.clientWidth), true);
         assert.ok(await formula.evaluate(el => {
-          const equation = el.querySelector('math').getBoundingClientRect();
+          const equation = el.querySelector('.katex-html').getBoundingClientRect();
           return equation.left >= el.getBoundingClientRect().left - 1;
         }), 'the beginning of a centered long equation must remain reachable');
         await formula.focus();
@@ -68,7 +68,7 @@ test('fake-library math/media browser smoke at desktop and narrow widths', { tim
         assert.equal(await page.locator('.flashcard.flipped').count(), 0);
       }
       await page.getByRole('button', { name: 'Hint', exact: true }).click();
-      await page.locator('.hint math').waitFor();
+      await page.locator('.hint .katex-html').waitFor();
       await page.getByRole('button', { name: 'Hint', exact: true }).click();
       assert.equal(await page.getByText('SECRET ANSWER', { exact: false }).count(), 0);
       assert.equal(await page.getByText('SECRET EN ANSWER', { exact: false }).count(), 0);
@@ -89,11 +89,11 @@ test('fake-library math/media browser smoke at desktop and narrow widths', { tim
       assert.equal(await page.locator('.flip-front .md-image-open').evaluate(el => el === el.ownerDocument.activeElement), true);
       await page.locator('.flip-control').focus();
       await page.keyboard.press('Space');
-      await page.locator('.flashcard.flipped .flip-back math').first().waitFor();
+      await page.locator('.flashcard.flipped .flip-back .katex-html').first().waitFor();
       await page.locator('.flip-back').getByText('SECRET ANSWER', { exact: false }).waitFor();
       assert.ok((await page.locator('.flip-back').innerText()).includes('SECRET ANSWER'));
       await page.getByRole('button', { name: 'Explanation', exact: true }).click();
-      await page.locator('.explanation math').waitFor();
+      await page.locator('.explanation .katex-html').waitFor();
       await page.getByRole('button', { name: 'Explanation', exact: true }).click();
       const fits = await page.locator('.flashcard').evaluate(el => el.getBoundingClientRect().width <= el.parentElement.getBoundingClientRect().width + 1);
       assert.equal(fits, true);

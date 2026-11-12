@@ -401,10 +401,11 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   // Practise the given prerequisites (learned ones included), then offer a way back to this question.
   // The way back remembers what was typed or picked on the original question, so it is found as it was left.
   const returnInput = useRef(null);
-  const studyPrerequisites = useCallback(async (list) => {
+  // `extra`: more of review.start, e.g. similarFor (试一道同类题, #1015: which question the detour is for).
+  const studyPrerequisites = useCallback(async (list, extra = {}) => {
     if (!(await flushDraft())) return undefined;
     returnInput.current = { runId: runRef.current.id, input: { key: reviewEntryKey(runRef.current), ...entryRef.current } };
-    return act('review.start', practiceArgs(list.map(({ deckId, cardId }) => ({ deckId, cardId })), { returnTo: runRef.current.id }), enterRun);
+    return act('review.start', practiceArgs(list.map(({ deckId, cardId }) => ({ deckId, cardId })), { returnTo: runRef.current.id, ...extra }), enterRun);
   }, [act, enterRun, flushDraft]);
 
   /* ── hint and explanation: the hint is help the answer got, once it is opened and has something to show (#542) ── */
