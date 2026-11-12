@@ -559,7 +559,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     if (value !== 'original') setTextView(value);
     setMode(value);
   };
-  const canOriginal = !localMode && format === 'pdf' && !!fileUrl;
+  // Only a PDF original is shown in place (originalHandling: Office and .tex originals are download-only), so only then the 文字 | 原始 PDF switch.
+  const canOriginal = !localMode && originalHandling(document) === 'pdf' && !!fileUrl;
   // 公式乱码 (#1001): when the converted text of the chapter on screen looks like its formulas fell apart (reader/formula-garble.js, worked out once per
   // chapter), a notice suggests 原始 PDF, or converting the PDF again with MinerU; once per material (reader/formula-hint.js), for that chapter only.
   const garbleCache = useRef(new Map()), [formulaHint, setFormulaHint] = useState(null); // { chapterId, open }
