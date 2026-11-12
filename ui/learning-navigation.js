@@ -19,6 +19,9 @@ const scopeOf = (deckId, cardIds) => cardIds.map((cardId) => ({ deckId, cardId }
 export const practiceArgs = (scope, { fresh = true, returnTo, ...extra } = {}) => ({
   mode: 'path', ...(scope ? { scope } : {}), ...(fresh ? { fresh: true } : {}), ...(returnTo ? { returnTo } : {}), ...extra,
 });
+/** 读 → 做这几页的题: a practice request that keeps where the learner was reading (lib/reading-return.js) and the page the reader was opened over.
+    The practice page and the reader's own 本节题目 panel (#1013) start their rounds with these same arguments. */
+export const readingPracticeArgs = (scope, reading, page) => practiceArgs(scope, { reading: { ...reading, origin: { page } } });
 const startPath = (call, scope) => call('review.start', practiceArgs(scope));
 
 export const LEARNING_TARGETS = {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
 import { Button, LoadingState, Popover } from '../../components/index.js';
 import StudyInline from '../../StudyInline.jsx';
@@ -6,6 +6,7 @@ import { useInjectCss } from '../../shared.js';
 import { useLiveEffect } from '../../use-async.js';
 import { statusLabel, statusOf } from '../../wrongbook-model.js';
 import { cardKey } from '../practice/practice-range.js';
+import { SHOWN_MAX } from '../practice/section-practice.js';
 import { wrongRowsOf } from './wrong-rows.js';
 import css from './reader-slim.css';
 
@@ -13,7 +14,7 @@ import css from './reader-slim.css';
    the two never disagree), the current chapter's first and then the rest of the book. Each row goes to practice (去练, the reader's own way: the run comes
    back to this place) or to the passage it asks about (看原文). The list is read when the panel opens; nothing is stored. */
 
-const SHOWN_MAX = 30;
+export { SHOWN_MAX };
 
 function Rows({ rows, onPractice, onSeek }) {
   return <ul className="reader-wrong__list">
@@ -52,11 +53,13 @@ function WrongBody({ read, cards, entryOf, drawn, chapterTitle, onPractice, onSe
 /**
  * The 错题 button of the toolbar and its panel. read(keys): reads the 错题 rows of those `deckId|cardId` keys (readWrongBook with the reader's call); cards: the questions linked to this material (practice/useReadingLoop `cards`);
  * entryOf(key): the outline entry a question is placed in; drawn: the ids of the entries of the chapter that is drawn (null: the material has no chapters);
- * onPractice(row), onSeek(row): what the two buttons of a row do (the panel closes after either).
+ * onPractice(row), onSeek(row): what the two buttons of a row do (the panel closes after either); openRequest: a count that opens the panel each time it
+ * grows (错题 n of the 本节题目 line, #1013).
  */
-export default function WrongPanel({ read, cards, entryOf, drawn, chapterTitle, onPractice, onSeek }) {
+export default function WrongPanel({ read, cards, entryOf, drawn, chapterTitle, onPractice, onSeek, openRequest = 0 }) {
   useInjectCss(css, 'study-reader-slim');
   const [open, setOpen] = useState(false);
+  useEffect(() => { if (openRequest > 0) setOpen(true); }, [openRequest]);
   const done = action => row => { setOpen(false); action(row); };
   return <Popover open={open} onOpenChange={setOpen} label={ui('错题')} className="reader-popover reader-wrong" panelClassName="reader-popover__panel reader-wrong__panel"
     boundsSelector=".study-document-viewer" flip={false} data-tour="reader-wrong"
