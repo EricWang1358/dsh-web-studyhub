@@ -8,7 +8,7 @@ import { Store } from '../lib/store.js';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { stageSystem } from '../lib/prompt-order.js';
 import { createSelectionOperations } from '../lib/contexts/generation/selection.js';
-import { languageRule, languageIssues, cardLanguage, LANGUAGE_ISSUE } from '../lib/contexts/generation/content-language.js';
+import { languageRule, languageIssues, questionLanguage, LANGUAGE_ISSUE } from '../lib/contexts/generation/content-language.js';
 import { writeVariants, writeRewrite } from '../lib/coach.js';
 import { createAssistService } from '../lib/assist.js';
 import { authored, qualityPlan, qualityBlueprint, qualityReview } from './helpers/assessment.mjs';
@@ -161,9 +161,9 @@ test('questions made from an existing card keep its language: a variant, a rewri
   const importedChinese = { id: 'i', title: '导入题组', cards: [] };
   const card = { id: 'c', kind: 'quiz', topic: 'Isolation', objective: 'Snapshot isolation', prompt: 'When does snapshot isolation check for conflicts?', answer: 'At commit', citations: [] };
   const chineseCard = { ...card, prompt: '快照隔离什么时候检测冲突？' };
-  assert.equal(cardLanguage(englishDeck, chineseCard), 'English', 'the deck\'s recorded language decides');
-  assert.equal(cardLanguage(importedChinese, chineseCard), '中文', 'an imported card keeps its own');
-  assert.equal(cardLanguage(importedChinese, card), 'English');
+  assert.equal(questionLanguage({ deck: englishDeck, card: chineseCard }), 'English', 'the deck\'s recorded language decides');
+  assert.equal(questionLanguage({ deck: importedChinese, card: chineseCard }), '中文', 'an imported card keeps its own');
+  assert.equal(questionLanguage({ deck: importedChinese, card }), 'English');
 
   const sent = [];
   const record = async (system, prompt) => { sent.push(`${system}\n${prompt}`); return '{"cards":[],"patch":{},"summary":""}'; };

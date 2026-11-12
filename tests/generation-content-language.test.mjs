@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateDeck } from '../lib/generation.js';
 import { stageSystem } from '../lib/prompt-order.js';
-import { contentLanguage, languageRule, languageIssues, withContentLanguage, LANGUAGE_ISSUE } from '../lib/contexts/generation/content-language.js';
+import { contentLanguage, languageRule, languageIssues, withContentLanguage, questionLanguage, LANGUAGE_ISSUE } from '../lib/contexts/generation/content-language.js';
 import { patchCandidates, rejectionCode } from '../lib/generation-yield.js';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -103,6 +103,20 @@ test('the language is resolved once: auto follows the interface, a deck keeps th
   assert.equal(deckContentLanguage({ language: 'English' }, { cards: [] }, { language: 'zh' }), 'English', 'a deck without a record takes today\'s setting');
   assert.equal(deckContentLanguage({ language: '中文' }, { editorial: { generation: { language: 'English' } } }, { language: 'zh' }), 'English', 'a deck written in English stays English');
   assert.equal(deckContentLanguage({ language: '中文' }, { editorial: { generation: { language: 'English' } } }, { language: 'zh', explicit: '中英双语' }), '中英双语');
+});
+
+test('one order decides the language of questions for an existing deck or card: asked, the deck\'s record, the card\'s own, the setting', () => {
+  const recorded = { editorial: { generation: { language: 'English' } }, cards: [] }, imported = { cards: [] };
+  const chinese = { prompt: '快照隔离什么时候检测冲突？' }, english = { prompt: 'When does snapshot isolation check for conflicts?' };
+  assert.equal(questionLanguage({ asked: '中英双语', deck: recorded, card: chinese, fallback: '中文' }), '中英双语', 'what was asked');
+  assert.equal(questionLanguage({ deck: recorded, card: chinese, fallback: '中文' }), 'English', 'then the language the deck was generated in');
+  assert.equal(questionLanguage({ deck: imported, card: english, fallback: '中文' }), 'English', 'then the card\'s own');
+  assert.equal(questionLanguage({ deck: imported, card: { prompt: '' }, fallback: '中文' }), '中文', 'then the setting');
+  assert.equal(questionLanguage({ deck: imported, card: { prompt: '求 $\\int x \\, dx$' } }), '中文', 'a formula is no language: the stem around it is Chinese');
+  assert.equal(questionLanguage({ deck: imported, card: { prompt: 'Evaluate $\\int x \\, dx$ for 熵.' } }), 'English');
+  // The settings side resolves the setting (auto: the interface language) and the same order runs: a card of an imported deck keeps its own language.
+  assert.equal(deckContentLanguage({ language: '中文' }, imported, { language: 'zh', card: english }), 'English');
+  assert.equal(deckContentLanguage({ language: 'auto' }, imported, { language: 'en' }), 'English', 'no card: the setting, auto meaning the interface language');
 });
 
 /* ---------- every stage of a run ---------- */

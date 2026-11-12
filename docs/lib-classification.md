@@ -68,7 +68,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/generation-failure.js`: 2 ui files; context generation; 6 other lib files
 - `lib/generation-modules.js`: 1 ui file; contexts authoring, generation; 7 other lib files
 - `lib/generation-path.js`: 3 ui files; context generation
-- `lib/generation-settings.js`: 9 ui files; contexts audio, generation, system; 8 other lib files
+- `lib/generation-settings.js`: 9 ui files; contexts audio, generation, system; 9 other lib files
 - `lib/import-errors.js`: 1 ui file; context materials; 2 other lib files
 - `lib/inbox-kinds.js`: 2 ui files; context library; 2 other lib files
 - `lib/jev-messages.js`: 1 ui file; 5 other lib files
