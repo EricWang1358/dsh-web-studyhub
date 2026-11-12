@@ -1,7 +1,7 @@
 {
   "没能查找同类题，可以再试一次。": "Could not look for a similar question. Try again.",
   "出一道和这道题考同一知识点的变式题：换一个情境或数字，不要照抄原题。": "Write one variant question that tests the same point as this one: change the situation or the numbers, do not copy the original.",
-  "从题库里找一道考同一知识点、这一轮没出现过的题，不消耗模型。做完点「回到原题」回到这里。": "Finds a question in your bank that tests the same point and is not in this round, with no model call. When you are done, Back to the question brings you here.",
+  "从题库里找一道考同一知识点、这一轮没出现过的题，不消耗模型。做完点「回到原题」回到这里。": "Finds a question in your bank that tests the same point and is not in this round, with no model call. When you are done, Return to original question brings you here.",
   "试一道同类题": "Try a similar question",
   "同类题 · {0} 道": "Similar question · {0}",
   "做这道变式题": "Do the variant question",

@@ -16,8 +16,10 @@ import css from "./learning-loop.css";
 /** Whether the question on screen was answered wrong (a choice, a grade under 3). */
 export const answeredWrong = (run) => !!run?.feedback && (run.feedback.correct === false || run.feedback.grade < 3);
 
-/** The derive tasks this component started, by the question they were asked for (kept while the page is open). */
-const asked = new Set();
+/** The variant 生成一道变式 asked for this question of this round: the latest standalone 出题 of the task list made from this round for this card (deck and
+ *  card), without a Q&A behind it (把问答出成独立题 always has one). Read from the tasks, so it is still there after a reload. */
+export const variantTask = (tasks, run) => (tasks || []).filter((task) => task.mode === "derive" && task.relation === "standalone" && !task.followupId
+  && task.runId === run.id && task.deckId === run.deckId && task.cardId === run.card?.id).at(-1) ?? null;
 
 /** session: useReviewSession(); data: the snapshot (assist tasks); model: modelReadiness(data); onModelSettings: the way to the model settings. */
 export default function SimilarTry({ session, data, model, onModelSettings }) {
@@ -30,8 +32,7 @@ export default function SimilarTry({ session, data, model, onModelSettings }) {
   if (!answeredWrong(run) || run.mode === "exam" || run.returnTo) return null;
   const origin = { deckId: run.deckId, cardId: run.card.id };
   const detour = (cardId, deckId = run.deckId) => actions.studyPrerequisites([{ deckId, cardId }], { similarFor: origin });
-  // The variant this question asked for: the latest standalone 出题 of this card started from here.
-  const variant = asked.has(key) ? (data?.assist || []).filter((task) => task.cardId === run.card.id && task.mode === "derive" && task.relation === "standalone").at(-1) : null;
+  const variant = variantTask(data?.assist, run);
 
   async function find() {
     setState({ key, kind: "finding", message: "" });
@@ -45,9 +46,7 @@ export default function SimilarTry({ session, data, model, onModelSettings }) {
   }
   async function generate() {
     if (!model?.ready) { setState({ key, kind: "gate", message: "" }); return; }
-    asked.add(key);
-    const sent = await actions.assistCard("derive", ui("出一道和这道题考同一知识点的变式题：换一个情境或数字，不要照抄原题。"), [], { relation: "standalone" });
-    if (!sent) asked.delete(key);
+    await actions.assistCard("derive", ui("出一道和这道题考同一知识点的变式题：换一个情境或数字，不要照抄原题。"), [], { relation: "standalone" });
     setState({ key, kind: "none", message: "" });
   }
 
@@ -60,7 +59,8 @@ export default function SimilarTry({ session, data, model, onModelSettings }) {
   return (
     <div className="similar-try">
       {variant?.status === "done" && variant.resultCardId
-        ? <Button size="sm" variant="primary" icon="play" className="similar-try__go" lock={busy} onClick={() => detour(variant.resultCardId)}>{ui("做这道变式题")}</Button>
+        ? <Button size="sm" variant="primary" icon="play" className="similar-try__go" lock={busy} data-usage="review.similar-variant-go"
+          onClick={() => detour(variant.resultCardId, variant.deckId)}>{ui("做这道变式题")}</Button>
         : tryButton}
       {variant?.status === "running" && <span className="similar-try__note" role="status"><Spinner size="sm" />{ui("正在出一道变式题，写好后这里会出现「做这道变式题」。")}</span>}
       {here.kind === "none" && !variant && (

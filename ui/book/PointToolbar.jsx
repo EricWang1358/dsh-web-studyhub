@@ -32,7 +32,7 @@ export default function PointToolbar({ node, course, handlers, cites = null, ret
           onClick={event => handlers.practice(node.hid, 5, node.hid, event.currentTarget)}>{ui('练 5 道')}</Button>}
         <Button size="sm" variant="quiet" className="book-point__qa" data-book-link="qa" aria-expanded={qaOpen} onClick={() => handlers.toggleQa(node.hid)}>
           {qaCount ? uiFormat('本节问答 ({0})', [qaCount]) : ui('本节问答')}</Button>
-        {handlers.toggleRetell && <Button size="sm" variant="quiet" className="book-point__retell" data-book-link="retell" aria-expanded={!!handlers.retellOpen?.(node.hid)}
+        {handlers.toggleRetell && <Button size="sm" variant="quiet" className="book-point__retell" data-book-link="retell" data-usage="book.retell" aria-expanded={!!handlers.retellOpen?.(node.hid)}
           onClick={() => handlers.toggleRetell(node.hid)}>{ui('用自己的话讲一遍')}</Button>}
         <RetoldMark retold={retold} />
       </div>

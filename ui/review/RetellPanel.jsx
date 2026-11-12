@@ -42,6 +42,7 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
   const [checking, setChecking] = useState(false);
   const [answer, setAnswer] = useState(null);
   const [failure, setFailure] = useState("");
+  const unread = ui("这次没有拿到 AI 的反馈，写的内容还在，可以再试一次。");
   const edit = (value) => { setText(value); if (value) writeText(storeKey, value, browserSession()); else removeKey(storeKey, browserSession()); };
 
   async function submit(event) {
@@ -57,7 +58,7 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
       setText("");
       onDone?.(result);
     } catch (error) {
-      setFailure(error?.message || ui("这次没有拿到 AI 的反馈，写的内容还在，可以再试一次。"));
+      setFailure(error?.message || unread);
     } finally { setChecking(false); }
   }
 
@@ -68,7 +69,7 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
       <form onSubmit={submit}>
         <label className="retell-panel__field">
           <span>{ui("不看讲解，用自己的话把这个知识点讲一遍：是什么、为什么、什么时候用。")}</span>
-          <textarea className="retell-panel__input" rows={4} maxLength={MAX} value={text} onChange={(event) => edit(event.target.value)}
+          <textarea className="retell-panel__input" rows={4} maxLength={MAX} value={text} autoFocus onChange={(event) => edit(event.target.value)}
             placeholder={ui("它讲的是……；之所以这样，是因为……；在……的时候用。")} />
         </label>
         <p className="retell-panel__note">{ui("AI 反馈用于帮你查漏，不是评分。每次检查约 1 次模型调用；只记下讲清楚的次数，不保存你写的内容。")}</p>
@@ -79,7 +80,9 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
       {failure && (known
         ? <div className="retell-panel__failure"><ModelErrorNote error={failure} context="assist" onSettings={onModelSettings} />
           <Button size="sm" onClick={submit}>{ui("再试一次")}</Button></div>
-        : <InlineMessage tone="error" action={{ label: ui("再试一次"), onClick: submit }}>{failure}</InlineMessage>)}
+        // Any other failure (an unreadable reply, a refusal) is said in the learner's language; the raw reason stays as the detail.
+        : <InlineMessage tone="error" title={unread} action={{ label: ui("再试一次"), onClick: submit }}>
+          {failure !== unread && <span className="retell-panel__detail">{failure}</span>}</InlineMessage>)}
       {answer && !checking && (
         <div className="retell-result" role="status">
           <p className="retell-result__head">{answer.passed ? ui("讲清楚了。") : ui("还差一点，看看下面漏掉或讲错的地方，再讲一遍。")}</p>
