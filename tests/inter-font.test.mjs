@@ -110,7 +110,9 @@ test('built for the DSH host: one @font-face in all chunks, the data in its own 
   /* Other chunks mention @font-face too (pdf.js registers the fonts of the PDFs it draws; the editor lists CSS at-rules): only ours counts. */
   const ours = text => text.split('U+00B8-00FF').length - 1; // a token only our unicode-range has (the bundle folds the family name into a variable)
   assert.equal(files.reduce((n, file) => n + ours(file.text), 0), 1, 'the @font-face of StudyHub Inter appears once across every client chunk');
-  const withData = files.filter(file => file.text.includes('data:font/woff2;base64,'));
+  // The formula fonts (ui/fonts/math-data.js, #996) are woff2 data: URIs too, inside a stylesheet's url(): only the bare URI is Inter's.
+  const interData = /(?<!url\()data:font\/woff2;base64,/g;
+  const withData = files.filter(file => (file.text.match(interData) || []).length);
   assert.equal(withData.filter(file => ours(file.text) === 1).length, 0, 'the rule (eager, tiny) and the bytes (lazy) are separate chunks');
   assert.equal(withData.length, 1, 'the font bytes are in exactly one chunk');
   assert.notEqual(withData[0].name, 'client.js', 'the entry chunk never carries the font');
@@ -125,5 +127,5 @@ test('built for the DSH host: one @font-face in all chunks, the data in its own 
   const preview = await buildPreview({ write: false });
   const app = preview.outputFiles.filter(file => /\.(js|css)$/.test(file.path));
   assert.equal(app.reduce((n, file) => n + ours(file.text), 0), 1, 'the preview has the face once as well');
-  assert.equal(app.reduce((n, file) => n + file.text.split('data:font/woff2;base64,').length - 1, 0), 1);
+  assert.equal(app.reduce((n, file) => n + (file.text.match(interData) || []).length, 0), 1);
 });

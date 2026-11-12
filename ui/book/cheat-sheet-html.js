@@ -3,11 +3,12 @@ import { BASE_CSS, esc, staticPage, withoutNamespace } from '../static-page.js';
 
 /* The 速查表 of the review book as ONE self-contained HTML page (#710 S5): the page the 速查表 view shows in a frame, the browser prints (its @media print
    makes A4 pages of two columns without anything around them), and the learner saves as a .html file that opens offline on a computer or a phone. Inline
-   style only, no script, no font, no image, no address: formulas are MathML drawn by the browser itself (ui/study-math-render.js). Drawn from
+   style only, no script, no image, no address: formulas are drawn by KaTeX (ui/study-math-render.js), their stylesheet and fonts inlined. Drawn from
    ui/book/cheat-sheet-model.js, in the language of the book (the words are below, like lib/course-book-lookup.js's). Pure, no React.
 
-   cheatSheetHtml(sheet, { formula, links }) -> the page.
-     formula(source) -> MathML | null: how a formula given as TeX is drawn (null, or none given: its source as text).
+   cheatSheetHtml(sheet, { formula, formulaCss, links }) -> the page.
+     formula(source) -> markup | null: how a formula given as TeX is drawn (null, or none given: its source as text).
+     formulaCss: the stylesheet the drawing needs (MATH_CSS of the same module), put into the page only when it has a formula.
      links: true (the view): a point's code is a link `data-go="<hid>"` the view turns into "open the book there"; the saved file has no book to go to. */
 
 const WORDS = {
@@ -69,7 +70,6 @@ table{width:100%;border-collapse:collapse;font-size:.92em}
 th,td{border:1px solid var(--line);padding:.2rem .4rem;text-align:left;vertical-align:top}
 th{background:var(--soft)}
 .math{font-size:1.05em}
-.math math{font-size:1.1em}
 .fm{break-inside:avoid;margin:0 0 .5rem;padding:.3rem .5rem;border-bottom:1px dotted var(--line)}
 @media (max-width:40rem){
   body{padding:10px 12px 28px}
@@ -149,7 +149,7 @@ function formulaItem(entry, words, formula, known, links) {
 const part = (id, title, body) => `<section id="${id}"><h2>${esc(title)}</h2>\n${body}</section>`;
 
 /** The sheet (ui/book/cheat-sheet-model.js cheatSheet) as the page. */
-export function cheatSheetHtml(sheet, { formula = null, links = false } = {}) {
+export function cheatSheetHtml(sheet, { formula = null, formulaCss = '', links = false } = {}) {
   const words = wordsOf(sheet.language), known = new Set(sheet.chapters.flatMap(chapter => chapter.cards.map(card => card.code)));
   const parts = [];
   if (sheet.kit) {
@@ -161,7 +161,7 @@ export function cheatSheetHtml(sheet, { formula = null, links = false } = {}) {
   if (sheet.chapters.length) parts.push(['sheet-cards', words.cards, part('sheet-cards', words.cards, sheet.chapters.map(chapter => `<h3>${esc([chapter.number, chapter.title].filter(Boolean).join(' '))}</h3>
 <div class="cols">${chapter.cards.map(card => cardBox(card, words, known, links)).join('\n')}</div>`).join('\n'))]);
   const { counts } = sheet, name = [sheet.title, words.sheet].filter(Boolean).join(' · ');
-  return staticPage({ lang: words.lang, title: name, css: CSS, body: `<header><h1>${esc(sheet.title)}<small>${esc(words.sheet)}</small></h1>
+  return staticPage({ lang: words.lang, title: name, css: CSS, mathCss: formulaCss, body: `<header><h1>${esc(sheet.title)}<small>${esc(words.sheet)}</small></h1>
 <p class="sub">${esc(Object.keys(words.counts).filter(key => counts[key]).map(key => `${words.counts[key]} ${counts[key]}`).join(' · '))}</p>
 <nav class="nav" aria-label="${esc(words.nav)}">${parts.map(([id, title]) => `<a href="#${id}">${esc(title)}</a>`).join('')}</nav></header>
 <main>
