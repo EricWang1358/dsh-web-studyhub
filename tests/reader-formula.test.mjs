@@ -13,6 +13,7 @@ const compiled = await build({ stdin: { contents: `
   export { default as ReadingSections } from './ui/document-preview/reader/ReadingSections.jsx';
   export { readingSections } from './ui/document-preview/reader/text-sections.js';
   export { formulaHtml, formulaViewHtml, spanFormulas, pickFormula, copyText } from './ui/document-preview/reader/formula.js';
+  export { formulaDrawing, keptFormulaChars, KEPT_FORMULA_CHARS } from './ui/document-preview/reader/lazy-formulas.js';
   export { renderReaderMarkdown } from './ui/document-preview/reader/markdown.js';
   export { renderNoteMarkdown } from './ui/note-markdown.js';
   export { findRanges } from './ui/document-preview/reader/find.js';
@@ -23,7 +24,7 @@ const compiled = await build({ stdin: { contents: `
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { ReadingSections, readingSections, formulaHtml, formulaViewHtml, spanFormulas, pickFormula, copyText, renderReaderMarkdown, renderNoteMarkdown,
-  findRanges, locateGroups, captureSelection, MathText } = module.exports;
+  findRanges, locateGroups, captureSelection, MathText, formulaDrawing, keptFormulaChars, KEPT_FORMULA_CHARS } = module.exports;
 
 /** What selection / find / links count in rendered markup: the text outside every data-study-marker. */
 const countedText = html => {
@@ -155,4 +156,14 @@ test('a quote draws its formulas and keeps the rest as text', () => {
   assert.equal((html.match(/class="md-math"/g) || []).length, 1);
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(MathText, { text: '$$x$$' })), /md-math-display/, 'inside a quote even display formulas are inline');
   assert.equal(renderToStaticMarkup(React.createElement(MathText, { text: '' })), '');
+});
+
+test('the drawings kept for formulas seen before stay within a memory budget, not a count (a KaTeX drawing is ~4 KB of text)', () => {
+  const formula = (i) => ({ source: String.raw`\sum_{k=0}^{${i}} rac{a_k}{b_k} + \mathbb{E}[X_{${i}}]`, display: i % 2 === 0, raw: `$x_{${i}}$` });
+  const first = formulaDrawing(formula(0));
+  assert.equal(formulaDrawing(formula(0)), first, 'a formula seen before is not drawn again');
+  for (let i = 1; i < 3000; i++) formulaDrawing(formula(i));
+  assert.ok(keptFormulaChars() <= KEPT_FORMULA_CHARS, `${keptFormulaChars()} characters kept, budget ${KEPT_FORMULA_CHARS}`);
+  assert.ok(KEPT_FORMULA_CHARS <= 3_000_000, 'about 6 MB of strings at most, near what 4000 MathML drawings took before #996');
+  assert.equal(formulaDrawing(formula(2999)), formulaDrawing(formula(2999)), 'the latest ones are kept');
 });

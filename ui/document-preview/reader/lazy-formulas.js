@@ -7,8 +7,15 @@ import { formulaViewHtml } from './formula.js';
 
 /** How far below and above the visible part of the reading column a formula is drawn ahead of time. */
 export const FORMULA_MARGIN_PX = 1200;
-const KEPT = 4000;
+/** How much drawn text the cache keeps, in characters (about 6 MB of strings). A budget, not a count: a KaTeX drawing (#996) is about 4,200
+    characters where a MathML one was about 640, so the old 4000 drawings would have kept about 34 MB; this keeps about 700 of them,
+    more than a chapter shows at once, and drawing one again costs well under a millisecond. */
+export const KEPT_FORMULA_CHARS = 3_000_000;
 const drawings = new Map();
+let keptChars = 0;
+
+/** The characters the cache holds now (what KEPT_FORMULA_CHARS bounds). */
+export const keptFormulaChars = () => keptChars;
 
 /** The drawing of a formula, from the cache when it was drawn before. */
 export function formulaDrawing(formula) {
@@ -17,7 +24,11 @@ export function formulaDrawing(formula) {
   if (html === undefined) {
     html = formulaViewHtml(formula);
     drawings.set(key, html);
-    if (drawings.size > KEPT) drawings.delete(drawings.keys().next().value);
+    keptChars += html.length;
+    for (const [oldest, kept] of drawings) {
+      if (keptChars <= KEPT_FORMULA_CHARS || oldest === key) break;
+      drawings.delete(oldest); keptChars -= kept.length;
+    }
   }
   return html;
 }
