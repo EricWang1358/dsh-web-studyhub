@@ -81,8 +81,8 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
               {item.title && <span className="reader-outline__title"><MathText text={item.title} /></span>}
               {filtering && item.trail?.length > 0 && <small className="reader-outline__trail">{item.trail.at(-1)}</small>}
             </button>
-            {item.kind === 'chapter' && reads?.read.has(item.id) && <IconButton icon="check" size="sm" className="reader-outline__read" data-chapter-read={item.id}
-              label={uiFormat('已读：{0}。点一下标为未读', [name(item) || ui('此节')])} onClick={() => reads.onUnread(item.id)} />}
+            {reads?.read.has(reads.marks?.get(item.id)) && <IconButton icon="check" size="sm" className="reader-outline__read" data-chapter-read={reads.marks.get(item.id)}
+              label={uiFormat('已读：{0}。点一下标为未读', [name(item) || ui('此节')])} onClick={() => reads.onUnread(reads.marks.get(item.id))} />}
             {/* 覆盖 of this entry: a square mark for a section, the count of the sections below for a part; a different shape from the mastery ring. */}
             {coverage && <span className="reader-outline__cov">{here?.own ? <CoverageMark state={here.own.state} reason={here.own.reason} recorded={coverageTotals?.recorded !== false} title={name(item)} size={12} />
               : here?.leaves ? <Tooltip layer placement="left-start" content={joinMeta([rangeCoverageText(here, coverageTotals?.units), here.plannedFailed > 0 && plannedFailedText(here.plannedFailed),

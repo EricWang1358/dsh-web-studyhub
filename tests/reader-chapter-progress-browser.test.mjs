@@ -8,6 +8,7 @@ import { build } from 'esbuild';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { StudyService } from '../lib/service.js';
+import { planOutline } from '../lib/contexts/materials/outline.js';
 import { openPage, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { chooseMore } from './helpers/reader-more.mjs';
@@ -124,6 +125,30 @@ test('a chapter read to its end is ✓ in the 目录, kept in the library (not t
   await openRow();
   await openOutline();
   await until(async () => (await readCount()) === `已读 0/${CHAPTERS} 章`, 'still unread after a reopen', { timeoutMs: 15000 });
+  assert.equal(await outline.locator('[data-chapter-read]').count(), 0);
+  await closeReader();
+
+  // With a kept AI outline the 目录 lists its own entries: the ✓ and 标为未读 sit on the first entry of each chapter (gate review of #1021, 2).
+  const firsts = new Map();
+  for (const unit of planOutline(Array.from({ length: PAGES }, (_, index) => source(index + 1))).units) {
+    const chapter = chapterOf(Number(unit.sourceId.slice('book-p'.length)));
+    if (!firsts.has(chapter)) firsts.set(chapter, { title: `Part ${chapter + 1} opens`, level: 1, startBlock: unit.index });
+  }
+  await running.api('materials.outline.save', { sourceId: 'book-p1', entries: [...firsts.values()] });
+  await page.goto(running.server.url);
+  await (await revealNavRow(page, 'sources')).dispatchEvent('click');
+  await openRow();
+  await waitChapter(0, 'the first chapter under the kept outline');
+  await openOutline();
+  await outline.locator('.reader-outline__link', { hasText: 'Part 1 opens' }).waitFor({ timeout: 15000 });
+  await until(async () => (await readCount()) === `已读 0/${CHAPTERS} 章`, 'the read count under the kept outline', { timeoutMs: 15000 });
+  await wheelToEnd();
+  await outline.locator('[data-chapter-read="chapter-0"]').waitFor({ timeout: 15000 });
+  assert.equal(await readCount(), `已读 1/${CHAPTERS} 章`);
+  assert.equal(await outline.locator('[data-chapter-read]').count(), 1, 'one ✓, on the entry of chapter 1');
+  await shot('read-ai-outline');
+  await outline.getByRole('button', { name: /已读：.*Part 1 opens.*标为未读/ }).click();
+  await until(async () => (await readCount()) === `已读 0/${CHAPTERS} 章`, 'unread from the kept outline', { timeoutMs: 15000 });
   assert.equal(await outline.locator('[data-chapter-read]').count(), 0);
   await closeReader();
 

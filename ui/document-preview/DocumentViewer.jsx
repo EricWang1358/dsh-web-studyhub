@@ -50,7 +50,7 @@ import { useReadingPosition, scrollToNode } from './reader/useReadingPosition.js
 import { lastReadKey } from './reader/last-read.js';
 import { useLastReadOpening, useKeepLastRead, useKeepLastView } from './reader/useLastRead.js';
 import { useChapterReads } from './reader/useChapterReads.js';
-import { chapterStep } from './reader/chapter-reads.js';
+import { chapterStep, outlineChapterMarks } from './reader/chapter-reads.js';
 import { looksGarbled } from './reader/formula-garble.js';
 import { formulaHintTold, tellFormulaHint } from './reader/formula-hint.js';
 import { readerVars, underlineShown } from './reader/settings.js';
@@ -393,8 +393,10 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // 已读 of the chapters (#1014), kept in the study library (reader/useChapterReads.js): a ✓ in the 目录 and 已读 7/24 章.
   const readTarget = useMemo(() => (!localMode && chaptered && document ? { sourceId: source.id, revision: document.revision } : null), [localMode, chaptered, document, source.id]);
   const reads = useChapterReads({ call, target: readTarget, chapters: chapter.chapters, current: chapter.current, scroller, root, watching: view !== 'original' && !loading });
-  const outlineReads = useMemo(() => (reads.ready ? { read: reads.read, count: reads.count, total: chapter.chapters.length, onUnread: reads.unread } : null),
-    [reads.ready, reads.read, reads.count, reads.unread, chapter.chapters.length]);
+  // In the 目录: the chapter rows, or under a kept AI outline the first entry of each chapter (reader/chapter-reads.js outlineChapterMarks).
+  const readMarks = useMemo(() => (chaptered ? outlineChapterMarks(outline, chapter.chapters) : null), [chaptered, outline, chapter.chapters]);
+  const outlineReads = useMemo(() => (reads.ready ? { read: reads.read, count: reads.count, total: chapter.chapters.length, onUnread: reads.unread, marks: readMarks } : null),
+    [reads.ready, reads.read, reads.count, reads.unread, chapter.chapters.length, readMarks]);
   // The linked questions in the order of the text, and the chapter on screen for their 本章 / 全书 (links/PassageLinksPanel.jsx).
   const sourceOrder = useMemo(() => {
     const order = new Map();

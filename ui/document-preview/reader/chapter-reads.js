@@ -13,6 +13,21 @@ export function scrollProgress({ scrollTop = 0, clientHeight = 0, scrollHeight =
   return range > 1 ? Math.min(1, Math.max(0, scrollTop / range)) : 1;
 }
 
+/**
+ * Which 目录 row shows a chapter's ✓ (and 标为未读): Map row id -> chapter id. The automatic outline lists the chapters themselves (kind 'chapter');
+ * a kept AI outline lists its own entries, so the first entry placed inside a chapter (by its sourceId) stands for that chapter.
+ */
+export function outlineChapterMarks(items, chapters) {
+  const marks = new Map(), chapterOf = new Map(), taken = new Set();
+  for (const chapter of chapters || []) for (const id of chapter.sourceIds || []) chapterOf.set(id, chapter.id);
+  for (const item of items || []) {
+    const chapterId = item.kind === 'chapter' ? item.id : chapterOf.get(item.sourceId);
+    if (!chapterId || taken.has(chapterId) || item.kind === 'page') continue;
+    taken.add(chapterId); marks.set(item.id, chapterId);
+  }
+  return marks;
+}
+
 const EDITABLE = 'input,textarea,select,[contenteditable]:not([contenteditable="false"])';
 /**
  * `[` / `]`: the chapter before / after (-1 / 1), else 0. Not with a modifier (Alt+← is the browser's back, and the brackets are typed with AltGr on some
