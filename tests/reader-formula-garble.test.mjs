@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { formulaGarble, isFragment, looksGarbled } from '../ui/document-preview/reader/formula-garble.js';
+import { FORMULA_HINT_KEY, HINT_LIMIT, formulaHintTold, tellFormulaHint } from '../ui/document-preview/reader/formula-hint.js';
 
 const prose = n => Array.from({ length: n }, (_, index) => `Sentence ${index + 1} explains how output relates to demand through spending, saving and the multiplier.`).join('\n');
 // What a converter without formula support makes of E[X] = Σ_{i=1}^{n} x_i p_i and Var(X) = E[X^2] − (E[X])^2: one piece per line.
@@ -35,6 +36,20 @@ test('prose, code, tables and LaTeX are not flagged', () => {
   for (const [name, text] of Object.entries({ prose: prose(300), chinese, headings, javascript, ruby, numbers, markdownTable, latex, options, oneFormula, empty: '' })) {
     assert.equal(looksGarbled(text), false, `${name}: ${JSON.stringify(formulaGarble(text))}`);
   }
+});
+
+test('the suggestion is told once per material and the store keeps the newest materials only', () => {
+  const map = new Map(), storage = { getItem: key => (map.has(key) ? map.get(key) : null), setItem: (key, value) => map.set(key, String(value)), removeItem: key => map.delete(key) };
+  assert.equal(formulaHintTold('lib|book', storage), false);
+  assert.equal(tellFormulaHint('lib|book', { storage, now: 1 }), true);
+  assert.equal(formulaHintTold('lib|book', storage), true);
+  assert.equal(formulaHintTold('lib|other', storage), false);
+  assert.equal(tellFormulaHint('', { storage }), false, 'no material, nothing kept');
+  for (let index = 0; index < HINT_LIMIT + 3; index += 1) tellFormulaHint(`lib|m${index}`, { storage, now: 10 + index });
+  assert.equal(formulaHintTold('lib|book', storage), false, 'the oldest went');
+  assert.equal(formulaHintTold(`lib|m${HINT_LIMIT + 2}`, storage), true);
+  map.set(FORMULA_HINT_KEY, 'not json');
+  assert.equal(formulaHintTold('lib|m5', storage), false, 'a broken store reads as nothing');
 });
 
 test('a long chapter is read in well under 5 ms', () => {

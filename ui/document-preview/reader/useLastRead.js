@@ -1,6 +1,6 @@
 /* global document window */
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { forgetLastRead, lastReadOpening, readLastRead, saveLastRead } from './last-read.js';
+import { forgetLastRead, lastReadOpening, readLastRead, saveLastRead, saveLastView } from './last-read.js';
 
 /** How long after the last scroll the place is kept. */
 export const SAVE_MS = 600;
@@ -77,4 +77,22 @@ export function useKeepLastRead({ key, enabled, root, scroller, here, atStart, w
     const id = setTimeout(save, SAVE_MS);
     return () => clearTimeout(id);
   }, [watch, save]);
+}
+
+/**
+ * 上次读到, the view (#1001): while `original` (原始 PDF is shown), its `page` is kept in the material's record, with `place.current` (the text place of
+ * the moment the learner switched, taken before the text went) the first time; back in the text the view is cleared and the place stays. A page turn
+ * is a press, not a scroll: each one is written at once. It runs after useKeepLastRead's own write on leaving the text, so the view is the last word.
+ * Only while `enabled`.
+ */
+export function useKeepLastView({ key, enabled, original, page, place }) {
+  const shown = useRef(false);
+  useEffect(() => { shown.current = false; }, [key]);
+  useEffect(() => {
+    if (!enabled || !key) return;
+    if (original) {
+      saveLastView(key, { original: true, page, place: shown.current ? null : place.current });
+      shown.current = true; place.current = null;
+    } else if (shown.current) { shown.current = false; saveLastView(key, { original: false }); }
+  }, [enabled, key, original, page, place]);
 }
