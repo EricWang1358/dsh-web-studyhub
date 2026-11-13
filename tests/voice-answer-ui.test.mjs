@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { splitSpokenBlanks, clozeBlankIds } from '../ui/voice/cloze-split.js';
 import { suggestedGrade } from '../ui/voice/suggest-grade.js';
 import { createVoiceRecorder } from '../ui/voice/mic.js';
-import { autopilotPlan, gradesOutstanding, shortcutAction } from '../ui/review/session-logic.js';
+import { autopilotPlan, gradeRunning, gradesOutstanding, shortcutAction } from '../ui/review/session-logic.js';
 import { mergeReviewPoll } from '../ui/async.js';
 
 /* The browser half of voice answering (#1031) without a browser: the transcript goes into the same inputs as typing (cloze blanks split locally, no
@@ -162,4 +162,12 @@ test('cancel while the clip is uploading deletes the uploaded clip instead of le
   capture.push(new Array(4000).fill(700));
   await assert.rejects(recorder.finish());
   assert.deepEqual(calls, [['audio.upload.cancel', { uploadId: 'u-late' }]], 'cancelled on the server, never transcribed');
+});
+
+test('a finished round asks the host again only while a grade is running; an unread correction alone waits for the window to come back', () => {
+  const done = { complete: true, mode: 'path', navigation: [{ index: 0, answered: true }] };
+  assert.equal(gradeRunning({ ...done, navigation: [{ index: 0, answered: true, grading: true }] }), true);
+  assert.equal(gradeRunning({ ...done, correctionsPending: 1 }), false, 'nothing will change on the host by itself');
+  assert.equal(gradeRunning({ ...done, mode: 'exam', navigation: [{ index: 0, grading: true }] }), false);
+  assert.equal(gradeRunning(null), false);
 });
