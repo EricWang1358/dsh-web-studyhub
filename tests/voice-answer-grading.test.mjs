@@ -14,7 +14,9 @@ import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { createAssistService } from '../lib/assist.js';
 import { createHostHandler } from '../lib/host.js';
-import { GRADING_BUSY } from '../lib/contexts/study/grading-marker.js';
+import { GRADING_BUSY, GRADING_STALE_MS } from '../lib/contexts/study/grading-marker.js';
+import { MAX_WAIT_SECONDS } from '../lib/runtime/web-gemini-settings.js';
+import { ASSIST } from '../lib/contexts/study/settings.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 
 const evidence = 'Idempotent retries with exponential backoff keep a payment service from charging twice when a request times out.';
@@ -324,4 +326,10 @@ test('改分 never overwrites a newer review of the question: once it was review
   const state = await f.service.store.read();
   assert.deepEqual(state.decks[0].cards[0].review, newer, 'the newer review is untouched');
   assert.equal(state.runs[0].entries[run.index].feedback.grade, 5, 'and so is the grade');
+});
+
+test('a marker outlives the longest grade job (a slow web model included), with room to spare', () => {
+  const longest = Math.max(ASSIST.timeoutMs, MAX_WAIT_SECONDS * 1000);
+  assert.ok(GRADING_STALE_MS > longest, `${GRADING_STALE_MS} ms is not longer than the longest job, ${longest} ms`);
+  assert.ok(GRADING_STALE_MS - longest >= 60_000, 'at least a minute of margin for the commit');
 });
