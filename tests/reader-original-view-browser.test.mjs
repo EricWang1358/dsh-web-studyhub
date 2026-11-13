@@ -11,6 +11,7 @@ import { makeTextPdf } from './helpers/text-pdf.mjs';
 import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { Store } from '../lib/store.js';
+import { backToQuestion } from './helpers/source-column.mjs';
 
 /* #1001 in the real page. A PDF with its original file has a 文字 | 原始 PDF switch on the toolbar (in 更多 only when the reader is narrow, so the toolbar
    stays one row): read to page 5, switch, and the original shows page 5; closed and opened again from its row it is still the original at that page
@@ -175,7 +176,7 @@ test('文字 | 原始 PDF: the original opens at the page being read and is reme
   await page.waitForTimeout(800);
   assert.equal(await mode(), 'read', 'a quote opens the text, not the kept 原始 PDF');
   await until(async () => (await topPage()) <= citedPage && (await topPage()) >= citedPage - 1, `the text near the quoted page ${citedPage}`, { timeoutMs: 15000 });
-  await closeReader();
+  await backToQuestion(page);
 
   // A kept page past the end (the file replaced by a shorter one) opens at the last page of the 12.
   await page.evaluate(() => {

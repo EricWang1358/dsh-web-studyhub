@@ -11,6 +11,7 @@ import { openPage, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { until } from './helpers/wait.mjs';
 import { chooseMore } from './helpers/reader-more.mjs';
+import { backToQuestion } from './helpers/source-column.mjs';
 
 /* Scrolling a formula-heavy chapter does not stall (gate review of #996). A KaTeX drawing is 70–210 elements, and the reader's 19 highlight styles
    (find, link underlines, marks) were written for every element of the app (` ::highlight(…)`), so the browser resolved 19 highlight styles for each
@@ -167,7 +168,7 @@ test('a formula-heavy chapter scrolls without long tasks; copy, find and a citat
       const settled = await quoteInView();
       assert.ok(settled?.inView, `${width}px: the cited passage stays in view while the formulas around it are drawn (${JSON.stringify(settled)})`);
       assert.equal((await formulas(page)).waitingOnScreen, 0, 'every formula on screen at the citation is drawn');
-      await viewer.getByRole('button', { name: '回到这道题' }).click();
+      await backToQuestion(page);
       await page.locator('.review-page').waitFor();
 
       // ---- open the book: measured, the formulas near the screen drawn, the rest waiting ----
