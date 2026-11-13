@@ -354,16 +354,53 @@ test("a stop whose reconnect does not come back in time ends anyway and says how
   assert.equal(live.backlog.length, 0, "nothing is left waiting for a connection that will not come");
   const saved = live.toSaved();
   assert.equal(saved.lostAudioMs, 1200, "the record keeps how much audio was not transcribed");
-  assert.match(live.snapshot().message, /最后约 1 秒.*没有转写/);
+  assert.match(live.snapshot().message, /约 1 秒的声音没有转写/);
   assert.doesNotMatch(live.snapshot().message, /正在重连/, "an ended class is not reconnecting");
   assert.doesNotMatch(localizeAppMessage(live.snapshot().message), /[㐀-鿿]/, "said in English too");
   const reopened = session(Socket, { saved });
-  assert.match(reopened.snapshot().message, /最后约 1 秒.*没有转写/, "the note survives a reload");
+  assert.match(reopened.snapshot().message, /约 1 秒的声音没有转写/, "the note survives a reload");
   // The attempt that was still connecting gives up later: it is closed, and it does not turn the ended class into an error.
   await new Promise((resolve) => setTimeout(resolve, 300));
   assert.equal(Socket.instances[1].readyState, 3);
   assert.equal(live.status, "ended");
   assert.match(live.snapshot().message, /没有转写/);
+});
+
+/* #1040 review: the backlog keeps the last 30 s. Audio pushed out of it during a longer outage, and the backlog left when reconnecting gives up, were lost
+   without being counted. */
+test("a 60 s outage keeps the last 30 s for the new connection and the record says about 30 s were not transcribed", async () => {
+  const Socket = socketClass((socket) => {
+    if (Socket.instances.length === 1) return healthy(socket);
+    socket.onSend = (message) => { if (message.setup) socket.say({ setupComplete: {} }); };
+    setTimeout(() => socket.open(), 15);
+  });
+  const live = session(Socket, { timing: { ...timing, reconnectDelaysMs: [30] } });
+  await live.start();
+  Socket.instances[0].readyState = 3;
+  Socket.instances[0].emit("close", { code: 1006, reason: "" });
+  live.push(pcm(60_000));
+  await until(() => live.status === "live" && Socket.instances.length === 2);
+  await until(() => Socket.instances[1].audio().length === 300);
+  assert.equal(Math.round(live.lostAudioMs), 30_000, "the half pushed out of the backlog is counted");
+  assert.match(live.snapshot().message, /约 30 秒的声音没有转写/, "the record says so while the class goes on");
+  assert.match(localizeAppMessage(live.snapshot().message), /About 30 seconds of audio were not transcribed/);
+  assert.doesNotMatch(localizeAppMessage(live.snapshot().message), /[㐀-鿿]/);
+  await live.stop();
+  assert.equal(live.toSaved().lostAudioMs, 30_000);
+});
+
+test("a reconnect that gives up counts the audio it was holding", async () => {
+  const Dead = socketClass((socket) => { if (Dead.instances.length === 1) healthy(socket); else refuse(1006, "")(socket); });
+  const live = session(Dead);
+  await live.start();
+  Dead.instances[0].readyState = 3;
+  Dead.instances[0].emit("close", { code: 1006, reason: "" });
+  live.push(pcm(2_000));
+  await until(() => live.status === "error", 4000);
+  assert.equal(live.backlog.length, 0, "nothing is left waiting for a connection that will not come");
+  assert.equal(live.toSaved().lostAudioMs, 2_000);
+  assert.match(live.snapshot().message, /连接中断.*约 2 秒的声音没有转写/);
+  assert.doesNotMatch(localizeAppMessage(live.snapshot().message), /[㐀-鿿]/);
 });
 
 test("paused audio is neither sent nor counted", async () => {
