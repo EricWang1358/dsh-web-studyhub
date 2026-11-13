@@ -61,7 +61,7 @@ export function useVoiceAnswer({ session, data, model, rubricCard, setAssistMode
     if (!pending || pending.key !== key) return;
     setPending(null);
     if (pending.kind === "cloze") actions.reviewAct("review.answer", { answers: pending.values });
-    else actions.assistCard("grade", pending.text);
+    else actions.assistCard("grade", pending.text, [], undefined, { quiet: true });
   }, [pending]); // eslint-disable-line react-hooks/exhaustive-deps
   const suggested = kind === "flash" && run.revealed && !run.feedback && said.text ? suggestedGrade(said.text, run.solution?.answer ?? run.card?.answer) : null;
   const root = React.useRef(null);

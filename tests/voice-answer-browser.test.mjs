@@ -27,8 +27,8 @@ const deckOf = (i) => ({ id: `v${i}`, title: `Voice ${i}`, course: 'Systems', ca
     citations: [], options: [{ id: 'a', text: 'yes', correct: true, explanation: 'Right.' }, { id: 'b', text: 'no', correct: false, explanation: 'Wrong.' }] })),
 ] });
 const WORDS = {
-  zh: { resume: '接着做', grading: /正在批改/, pending: /待看订正 1/, ack: '我看懂了 · 加入重练', setup: /转写服务还没配置/, correction: /更专业的说法/ },
-  en: { resume: 'Continue', grading: /Grading/, pending: /Corrections to read 1/, ack: 'Got it · add a retry', setup: /./, correction: /How an examiner would put it/ },
+  zh: { resume: '接着做', grading: /正在批改/, pending: /待看订正 1/, ack: '我看懂了 · 加入重练', submitted: /已提交批改/, setup: /转写服务还没配置/, correction: /更专业的说法/ },
+  en: { resume: 'Continue', grading: /Grading/, pending: /Corrections to read 1/, ack: 'Got it · add a retry', submitted: /Submitted for grading/, setup: /./, correction: /How an examiner would put it/ },
 };
 
 async function serve(t) {
@@ -118,6 +118,7 @@ test('voice answers: autopilot grades and moves on, 待看订正 → 加入重�
     await page.waitForFunction(() => document.querySelector('.response-label textarea')?.value === '不知道', null, { timeout: 20000 })
       .catch(async () => assert.fail(`${where}: the transcript did not reach the answer box: ${await page.locator('.voice-answer').innerText().catch(() => '')}`));
     await page.getByText(words.grading).first().waitFor({ timeout: 15000 });
+    assert.equal(await page.getByText(words.submitted).count(), 0, `${where}: the status under the question says it; no toast on top (it covered 待看订正 on a phone)`);
     await shot(page, `grading-${lang}-${width}`);
     await page.locator('.cloze').waitFor({ timeout: 15000 });
     const left = (await previewCall(server, 'review.get', { runId: run.id })).navigation[0];

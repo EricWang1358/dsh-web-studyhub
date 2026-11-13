@@ -382,7 +382,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   }, [teachingFailure, teachingAct]);
 
   /* ── helping the learner: the background assistant, slaying, prerequisites ── */
-  const assistCard = useCallback(async (mode, text, helpChoices = [], derive = undefined) => {
+  // `quiet`: the caller shows the state itself (a spoken answer's 正在批改 under the question, #1031), so no toast covers the page.
+  const assistCard = useCallback(async (mode, text, helpChoices = [], derive = undefined, { quiet = false } = {}) => {
     const current = runRef.current;
     if (!current?.card || (!text.trim() && !(mode === 'ask' && helpChoices.length) && !(mode === 'derive' && derive?.followupId))) return false;
     // Only asking helps with the answer: 修题 and 出题 change the bank, and 批改 is the answer itself, which reads what was recorded.
@@ -394,7 +395,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       // Back to the quick rhythm at once: the answer must not wait out a slowed-down poll.
       assistSentAt.current = Date.now();
       pollingRef.current.refresh();
-      notify(mode === 'ask' ? ui('后台助教正在解答。讲解会出现在这道题下面的问答里，完成时信箱会提醒你。')
+      if (!quiet) notify(mode === 'ask' ? ui('后台助教正在解答。讲解会出现在这道题下面的问答里，完成时信箱会提醒你。')
         : mode === 'derive' ? ui('后台助教正在出题。新题会放进同一题组，完成时信箱会提醒你。')
           : mode === 'grade' ? { text: ui('已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，完成时信箱也会提醒你。'), tone: 'success' }
             : ui('后台助教正在改这道题，会直接改这张卡。完成时信箱会提醒你，在信箱里可以一步撤销。'));
