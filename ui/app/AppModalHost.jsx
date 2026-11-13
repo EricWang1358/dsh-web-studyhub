@@ -36,8 +36,8 @@ const DIALOGS = {
   ),
 };
 
-/** Is the reader (a material full-size) the open dialog? The daily plan listens while it is. */
-export const readerOpen = (modal) => modal?.type === 'source';
+/** Is the reader the open dialog? (ui/app/app-context.js, where the practice page reads it too.) */
+export { readerOpen } from './app-context.js';
 
 /** ModalRouter: the one open dialog of the library state. */
 export function ModalRouter() {

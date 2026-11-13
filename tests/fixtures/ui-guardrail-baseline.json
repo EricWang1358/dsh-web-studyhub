@@ -88,7 +88,7 @@
       "ui/OralExam.jsx": 1,
       "ui/Review.jsx": 2,
       "ui/Sources.jsx": 2,
-      "ui/app/modals/SourceReaderDialog.jsx": 3,
+      "ui/app/modals/source-reader.jsx": 2,
       "ui/dev.jsx": 1,
       "ui/document-preview/DocumentLearning.jsx": 1,
       "ui/document-preview/DocumentViewer.jsx": 3,

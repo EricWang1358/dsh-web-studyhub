@@ -141,6 +141,9 @@ function QuotedText({ text, quote, anchor, format }) {
  * onOpenModelSettings / onOpenSettings(section): where the gates of the reader's model features and the 前往设置 link lead (ReaderModelGate.jsx); without them the app's own are used.
  * onReconvert(file | null): converts the original PDF again with MinerU (the 添加资料 › PDF 解析 entry, with the file when the reader holds it); offered by the
  * 公式乱码 suggestion (#1001).
+ * The 对照栏 beside a question (#1012): fromQuestion (opened at a question's place: never at the last-read place, as with onBack), seek ({ source, quote,
+ * peekPage, nonce }: a one-shot request to show a place of this material, without loading or mounting anything again), onSeekMissed(seek) (the place is not
+ * in this material), strip (what is kept in view above the text: the 题干条 of the question the reader was opened from).
  */
 export default function DocumentViewer(props) {
   const { data, onOpenModelSettings, onOpenSettings } = props, model = modelReadiness(data);
@@ -149,7 +152,8 @@ export default function DocumentViewer(props) {
 }
 
 function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, onGenerateStarted, generateDisabled = false, initialMode = 'read',
-  onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false, onReconvert, inlinePractice = null, reread = null }) {
+  onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false, onReconvert, inlinePractice = null, reread = null,
+  fromQuestion = false, seek = null, onSeekMissed, strip = null }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
   useInjectCss(css, 'study-document-preview');
@@ -305,7 +309,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // 上次读到 (reader/useLastRead.js): opened plainly from its 资料 row, a material goes back to where it was last read; the reader keeps that place while the learner reads.
   const materialKey = lastReadKey(data?.root, documentItem?.key);
   const lastReadOpening = useLastReadOpening({ key: materialKey, sourceId: source.id, firstSourceId: documentItem?.sourceIds?.[0], quote, resume: resumeProp, peekPage, localMode,
-    pickPages: !!pickPages, back: !!onBack });
+    pickPages: !!pickPages, back: !!onBack || fromQuestion });
   const resume = resumeProp || lastReadOpening;
   // The view it was left in (#1001): opened plainly, a material last read in 原始 PDF opens there again at its page (once the file is there; until then, and
   // when it never comes, the text).
@@ -441,14 +445,28 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // A source link of the round (看原文, a citation, a figure's page, the question's page): shown in this reader when its source is part of this material
   // (false: it is in another one). A figure's page opens in 看原页; otherwise its chapter is drawn and its quote marked as a citation opened here is.
   const [seekGoal, setSeekGoal] = useState(null);
-  const seekSource = ({ source: target, quote: cited, peekPage: figurePage } = {}) => {
+  const seekMark = useRef(null);
+  const unmarkSeek = () => { seekMark.current?.(); seekMark.current = null; };
+  const seekSource =({ source: target, quote: cited, peekPage: figurePage } = {}) => {
     if (!target?.id || !allSections.some(section => section.sourceId === target.id)) return false;
+    // In 原始 PDF the place is its page there (the 对照栏 follows the questions in either view, #1012).
+    if (view === 'original') { const page = Number.isInteger(figurePage) ? figurePage : target.document?.page; if (Number.isInteger(page)) goToPage(page); return true; }
     if (Number.isInteger(figurePage) && canPeek) { openPeek(figurePage, { figure: true }); return true; }
     if (chaptered && !sections.some(section => section.sourceId === target.id)) chapter.goTo({ sourceId: target.id });
     setSeekGoal({ sourceId: target.id, quote: cited || '' });
     if (narrow) setOverlay(null);
     return true;
   };
+  // `seek` (the 对照栏, #1012): a one-shot request from outside to show a place of this material, used once the text is there; a place this reader does not
+  // hold is handed back (onSeekMissed), never sought again. Nothing is loaded or mounted again for it.
+  // Every seek takes down the mark of the one before (it may be an earlier answer's passage); one with no place does only that.
+  const sought = useRef(0);
+  useEffect(() => {
+    if (!seek || sought.current === seek.nonce || loading) return;
+    sought.current = seek.nonce;
+    unmarkSeek();
+    if (seek.source && !seekSource(seek)) onSeekMissed?.(seek);
+  }, [seek, loading]); // eslint-disable-line react-hooks/exhaustive-deps -- each request is used once, when the text is there
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
   const openDraftPages = draftIds => { loop.setOpen(false); onOpenDraftPages?.(draftIds); };
   const meters = !localMode && loop.status === 'ready' && loop.total > 0 && view !== 'original' ? loop.meters : null;
@@ -536,14 +554,17 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   }, [paged, quote, reading, quoteState?.status, loading, sections, view, source.id, source.document?.page]); // eslint-disable-line react-hooks/exhaustive-deps
   // Another chapter, once drawn, opens at its top or at the page / entry the jump named (after the effects above, so it has the last word).
   useChapterGoal({ goal: chapter.goal, reached: chapter.reached, scroller, body, ready: !loading && view !== 'original', drawn: sections });
-  // A source link of the round, once its chapter is drawn (after the chapter's own landing): its quote, else the top of its page.
+  // A source link of the round, once its chapter is drawn (after the chapter's own landing): its quote, else the top of its page. Its mark stays until the
+  // next link or `seek`, and goes with the reader.
   useEffect(() => {
     if (!seekGoal || loading || view === 'original' || !sections.some(section => section.sourceId === seekGoal.sourceId)) return;
     setSeekGoal(null);
+    unmarkSeek();
     const { range } = seekGoal.quote ? findQuote({ sourceId: seekGoal.sourceId, quote: seekGoal.quote }) : { range: null };
-    if (range) markQuote(range);
+    if (range) seekMark.current = markQuote(range);
     else scrollToNode(scroller.current, scroller.current?.querySelector(`[data-study-source="${seekGoal.sourceId}"]`), { smooth: false });
   }, [seekGoal, loading, view, sections]);
+  useEffect(() => unmarkSeek, []); // on unmount only
 
   // Search in the document: matches are DOM ranges painted with the Custom Highlight API.
   const deferredQuery = useDeferredValue(query);
@@ -761,6 +782,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       onStep={stepFind} onClose={closeFind} inputRef={findInput} />}
     <div className="study-document-notices reader-notices">{notices}</div>
     <div className="reader-aux">
+      {strip}
       {quote && <div className="reader-aux__bar"><blockquote className="highlight-quote reader-aux__quote"><MathText text={quote} /></blockquote>
         {canPeek && !!fileUrl && Number.isInteger(source.document?.page) && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={source.document.page} title={ui('看原页')} onClick={() => openPeek(source.document.page)}>{ui('看原页')}</Button>}
         {reread && <RereadBar reread={reread} onPractise={!localMode && onPracticePages && loop.selected?.cards?.length ? () => practise(loop.selected) : null} />}</div>}

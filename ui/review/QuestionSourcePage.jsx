@@ -2,12 +2,13 @@ import React from "react";
 import { ui, uiFormat } from "../i18n.js";
 import { Badge, Button, Tooltip } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
+import { questionPlace } from "./source-dock.js";
 
 /** What the page badge does, for the badge and for the O key (#1008): the reader on the question's page, or null when there is none to open
     (an exam, a question with no page, a material that is gone). */
 export function questionSourceOpener(run, sources, openModal) {
-  if (run?.mode === "exam" || !Number.isInteger(run?.cardSource?.page)) return null;
-  const source = sources?.find((item) => item.id === run.cardSource.sourceId) || sources?.find((item) => item.id === run.cardSource.documentSourceId);
+  // The question's place (ui/review/source-dock.js): the same one the 对照栏 follows from question to question (#1012).
+  const source = questionPlace(run, sources);
   return source ? () => openModal({ type: "source", source, pickPages: !run.reading, back: true }) : null;
 }
 

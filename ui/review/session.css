@@ -86,6 +86,23 @@
     }
     .review-page.has-rail > :not(.review-navigator) { grid-column: 2; }
     .review-page.has-rail > .review-heading { padding-left: 0; }
+    /* 对照栏 (#1012, ui/review/source-split.css): the material takes the last track, as wide as the learner dragged it (--source-column), at least 360px
+       and leaving the question 480px (--rail-room: the column of ticks and its two gaps; the page docks only where both fit, ui/review/source-dock.js
+       questionRoom); folded it is a 32px rail. The question body is a size container of its own, so the question takes the layout of its own width
+       (ui/review/question.css), as in a narrower window. */
+    .review-page.has-source {
+      --rail-room: 0px;
+      --source-track: clamp(360px, var(--source-column, 45%), calc(100% - 480px - var(--rail-room)));
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) var(--source-track);
+      align-items: start;
+    }
+    .review-page.has-source[data-source-folded] { --source-track: 32px; }
+    .review-page.has-rail.has-source { --rail-room: calc(36px + 2 * var(--space-3)); grid-template-columns: 36px minmax(0, 1fr) var(--source-track); }
+    .review-page.has-source:not(.has-rail) > :not(.source-column) { grid-column: 1; }
+    .review-page.has-source > .review-body { container: study / inline-size; }
+    /* The column of ticks stays drawn beside a narrower question: its 「N 题待答」 is not said a second time in the question's head. */
+    .review-page.has-rail.has-source .round-pending { display: none; }
     .review-body {
       display: grid;
       grid-template-columns: minmax(0, 1fr);

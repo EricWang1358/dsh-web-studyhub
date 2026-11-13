@@ -12,8 +12,8 @@ import DailyRecap from './DailyRecap.jsx';
 import { Badge, Button, PageHeader, Tooltip } from "./components/index.js";
 import { cx } from "./components/css.js";
 import { uiRich } from "./i18n-rich.jsx";
-import { useStudy } from "./study-context.jsx";
-import { AppContext } from "./app/app-context.js";
+import { StudyServicesContext, useStudy } from "./study-context.jsx";
+import { AppContext, readerOpen } from "./app/app-context.js";
 import { HandOff } from "./hand-off/HandOff.jsx";
 import reviewCss from "./review/review.css";
 import { useInjectCss } from "./shared.js";
@@ -30,6 +30,7 @@ import RoundLookBack from "./review/RoundLookBack.jsx";
 import RoundSetup from "./review/RoundSetup.jsx";
 import { resultTarget } from "./review/round-setup.js";
 import { similarWinsText } from "./review/similar-words.js";
+import { useSourceDock } from "./review/use-source-dock.jsx";
 
 /* 复习视图：quiz/multi 选项作答、cloze 填空、闪卡翻面与开放问答自评，
    附前置题条、逐步讲解面板与薄弱主题收尾。会话状态（run）与本地作答
@@ -56,7 +57,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   useInjectCss(reviewCss, "study-review");
   const { run, choice, actions } = session;
   const { reviewAct } = actions;
-  const { call, act, busy, host, navigate, openModal, openSettings, notify } = useStudy();
+  const study = useStudy();
+  const { call, act, busy, host, navigate, openSettings, notify } = study;
   const { onBackToWorkflow, openSkeleton, onOpenNote, onRecapSettings, onModelSettings, onReturnToReading } = links;
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const enterRun = session.enterRun;
@@ -86,8 +88,11 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const backHere = !!wayBack || readingBack;
   const returnLabel = flow ? ui("回到学习流") : wayBack ? wayBack.label : ui("返回学习库");
   usePinQuestion(pageRef, run);
-  const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
+  // 对照栏 (#1012): on a wide page a source opened from the question docks beside it (ui/review/use-source-dock.jsx); its openModal is the page's.
   const rail = !run.complete && run.navigation?.length > 0;
+  const dock = useSourceDock({ pageRef, rail, run, sources: data?.sources, study, readerDialogOpen: readerOpen(app?.lib?.modal), modalOpen: !!app?.lib?.modal });
+  const openModal = dock.services.openModal;
+  const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
   const skeletonHere = run.card ? data?.skeletons?.find((k) => k.cardIds.includes(run.card.id)) : null;
   // A finished round on a case set (WP12): its weak criteria become drills, or another case like it.
   const summaryCase = run.complete ? data?.decks?.find((deck) => deck.id === run.deckId && deck.format === "case-study") : null;
@@ -124,9 +129,11 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const leechCount = run.complete && run.mode !== "exam" && pageAvailable(data, "wrongbook") ? (run.leechCards || []).length : 0;
   const methodAlt = run.complete && !flow && run.mode !== "exam" ? roundEndAlternative(data, roundCourse, { guidedSession: app?.lib?.guidedSession }) : null;
   return (
+    <StudyServicesContext.Provider value={dock.services}>
     <section
       ref={pageRef}
-      className={"review-page " + (!choice && !rubricCard ? "flash-mode" : "") + (rail ? " has-rail" : "")}
+      className={"review-page " + (!choice && !rubricCard ? "flash-mode" : "") + (rail ? " has-rail" : "") + (dock.docked ? " has-source" : "")}
+      style={dock.style}
     >
       {/* The rail is a full-height column of the page, not of the question body,
           so it is pinned from the first frame instead of sliding up to stick. */}
@@ -151,7 +158,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [countMaterials(data?.sources, run.sourceIds)])}</Button>
           {!run.complete && !run.reading && run.mode !== "exam" && readableMaterialItems(data?.sources, run.sourceIds).length > 0 && (
             <Tooltip layer content={ui("打开资料阅读器，翻到已学章节或页码后点「做这几页的题」，避开还没学到的后续页。")}>
-              <Button variant="quiet" size="sm" onClick={() => openReaderForPages({ sources: data?.sources, sourceIds: run.sourceIds, openModal, back: true })}>
+              <Button variant="quiet" size="sm" onClick={() => openReaderForPages({ sources: data?.sources, sourceIds: run.sourceIds, openModal: study.openModal, back: true })}>
                 {ui("去资料选页做题")}
               </Button>
             </Tooltip>
@@ -280,6 +287,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
       ) : (
         <QuestionRun key="body" session={session} data={data} coachProps={coachProps} links={links} context={{ ...context, inHeader: !!wayBack }} feedback={feedback} />
       )}
+      {dock.column}
     </section>
+    </StudyServicesContext.Provider>
   );
 }
