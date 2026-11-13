@@ -7,8 +7,10 @@ import { VOICE_MAX_SECONDS, wavBytes } from './wav.js';
    itself at the time limit. `onState({ phase, left, error })`: phase idle | recording | sending, `left` the seconds still allowed, `error` a failure
    or one of its own messages (catalogue keys), which ui/voice/useVoiceInput.js turns into text (this file stays free of the interface, so it runs in
    plain Node). `scope()`: where the text belongs (the question on screen); a transcript that comes back under another scope is dropped with the
-   code VOICE_MOVED, so a learner who moved on while it was being transcribed never has it put into, or graded on, the next question. */
+   code VOICE_MOVED, so a learner who moved on while it was being transcribed never has it put into, or graded on, the next question; one who moves
+   on while still recording is stopped at once (`moved()`), with the same words, instead of talking into a clip that would be dropped. */
 
+const movedAway = () => Object.assign(new Error('换了题，刚才说的没有放进这道题'), { code: 'VOICE_MOVED' });
 /** Less than this much audio is nothing said (0.1 s). */
 const MIN_BYTES = 3200;
 /** The countdown's tick while recording: a chain of timeouts, stopped by the returned function. */
@@ -67,7 +69,7 @@ export function createVoiceRecorder({ call, language, capture = captureAudio, up
         if (signal.aborted) { await Promise.resolve(call('audio.upload.cancel', { uploadId })).catch(() => {}); signal.throwIfAborted(); }
         const result = await call('audio.clip.transcribe', { uploadId, ...(language ? { language } : {}) });
         const text = String(result?.text ?? '').trim();
-        if (scope() !== startedIn) throw Object.assign(new Error('换了题，刚才说的没有放进这道题'), { code: 'VOICE_MOVED' });
+        if (scope() !== startedIn) throw movedAway();
         if (!text) throw new Error('没有听清，请再说一次');
         phase = 'idle'; emit({ error: '' });
         return text;
@@ -75,6 +77,14 @@ export function createVoiceRecorder({ call, language, capture = captureAudio, up
         phase = 'idle'; emit({ error });
         throw error;
       } finally { aborted = null; }
+    },
+    /** The question changed while recording: stop the microphone and drop the clip, saying why. True when there was a recording to stop. */
+    async moved() {
+      if (phase !== 'recording') return false;
+      chunks = [];
+      await release();
+      phase = 'idle'; emit({ error: movedAway() });
+      return true;
     },
     /** Drop the clip: nothing is sent, or the upload under way is cancelled. */
     async cancel() {

@@ -4,7 +4,7 @@ import { splitSpokenBlanks, clozeBlankIds } from '../ui/voice/cloze-split.js';
 import { suggestedGrade } from '../ui/voice/suggest-grade.js';
 import { createVoiceRecorder } from '../ui/voice/mic.js';
 import { autopilotPlan, gradeRunning, gradesOutstanding, shortcutAction } from '../ui/review/session-logic.js';
-import { mergeReviewPoll } from '../ui/async.js';
+import { mergeReviewPoll, voiceScopeKey } from '../ui/async.js';
 
 /* The browser half of voice answering (#1031) without a browser: the transcript goes into the same inputs as typing (cloze blanks split locally, no
    model), a flashcard gets a local suggested grade, the recorder uploads one clip and gives back text, and the keys. */
@@ -241,4 +241,72 @@ test('the voice pre-check asks with 只用付费密钥 from the audio settings, 
   assert.deepEqual(await voiceReadiness(call), { ready: true, reason: 'no-provider' });
   assert.deepEqual(asked.find(([action]) => action === 'audio.preflight')[1], {});
   forgetVoiceReadiness();
+});
+
+test('the voice scope is the question on screen: a queue edit or a content resync keeps it, another question or its retry does not', () => {
+  const run = { id: 'r1', index: 2, card: { id: 'c3' }, queueVersion: 4, revision: 1, retry: false };
+  const key = voiceScopeKey(run);
+  assert.ok(key);
+  assert.equal(voiceScopeKey({ ...run, queueVersion: 5 }), key, 'review.queue.edit from the main chat');
+  assert.equal(voiceScopeKey({ ...run, revision: 2 }), key, 'the review.get resync');
+  for (const other of [{ ...run, index: 3 }, { ...run, card: { id: 'c4' } }, { ...run, id: 'r2' }, { ...run, retry: true }]) assert.notEqual(voiceScopeKey(other), key);
+  assert.equal(voiceScopeKey({ id: 'r1', complete: true }), '');
+});
+
+test('moving to another question while recording stops the microphone at once, sends nothing and says why', async () => {
+  const { build } = await import('esbuild');
+  // The hook's own code against a stand-in for react's hooks, with a fake microphone and upload (no DOM, no browser).
+  const reactStandIn = `
+    let slots = [], index = 0, pending = [];
+    export const __begin = () => { index = 0; pending = []; };
+    export const __flush = () => { for (const run of pending) run(); };
+    export const useState = (initial) => { const slot = index++; slots[slot] ??= { value: initial };
+      return [slots[slot].value, (value) => { slots[slot].value = typeof value === 'function' ? value(slots[slot].value) : value; }]; };
+    export const useRef = (initial) => { const slot = index++; return slots[slot] ??= { current: initial }; };
+    export const useCallback = (fn) => { index++; return fn; };
+    export const useSyncExternalStore = (subscribe, get) => get();
+    export const useEffect = (effect, deps) => {
+      const slot = index++, before = slots[slot];
+      if (before && deps.every((dep, i) => Object.is(dep, before.deps[i]))) return;
+      pending.push(() => { before?.cleanup?.(); slots[slot] = { deps, cleanup: effect() }; });
+    };`;
+  const fakes = {
+    react: reactStandIn,
+    'live-audio': `export const captureAudio = (...args) => globalThis.__voiceFake.capture(...args);`,
+    upload: `export const uploadInChunks = (...args) => globalThis.__voiceFake.upload(...args);`,
+  };
+  const compiled = await build({ stdin: { contents: "export { useVoiceInput, forgetVoiceReadiness } from './ui/voice/useVoiceInput.js'; export { __begin, __flush } from 'react';", resolveDir: process.cwd() },
+    bundle: true, write: false, platform: 'node', format: 'cjs', logLevel: 'silent', loader: { '.json': 'json' },
+    plugins: [{ name: 'stand-ins', setup(b) {
+      b.onResolve({ filter: /^react$|\/live-audio\.js$|\/upload\.js$/ }, (args) => ({ path: args.path === 'react' ? 'react' : args.path.includes('live-audio') ? 'live-audio' : 'upload', namespace: 'stand-in' }));
+      b.onLoad({ filter: /.*/, namespace: 'stand-in' }, (args) => ({ contents: fakes[args.path], loader: 'js' }));
+    } }] });
+  const module = { exports: {} };
+  new Function('module', 'exports', 'require', compiled.outputFiles[0].text)(module, module.exports, (await import('node:module')).createRequire(import.meta.url));
+  const { useVoiceInput, forgetVoiceReadiness, __begin, __flush } = module.exports;
+  const capture = fakeCapture(), calls = [];
+  globalThis.__voiceFake = { capture: capture.fn, upload: async () => { calls.push('upload'); return 'u-1'; } };
+  let hook = null;
+  try {
+    const call = async (action) => {
+      calls.push(action);
+      if (action === 'audio.settings.get') return {};
+      if (action === 'audio.preflight') return { transcription: true };
+      return {};
+    };
+    const render = (scope) => { __begin(); const hook = useVoiceInput({ call, scope, onText: () => assert.fail('no text') }); __flush(); return hook; };
+    forgetVoiceReadiness();
+    hook = render('q1');
+    await hook.start();
+    capture.push(new Array(8000).fill(1000));
+    hook = render('q1');
+    assert.equal(hook.phase, 'recording');
+    hook = render('q2');
+    await new Promise((resolve) => setImmediate(resolve));
+    hook = render('q2');
+    assert.ok(capture.stopped, 'the microphone is released at once');
+    assert.equal(hook.phase, 'idle');
+    assert.match(hook.error, /换了题/);
+    assert.equal(calls.filter((action) => action === 'upload' || action === 'audio.clip.transcribe').length, 0, 'nothing is sent');
+  } finally { hook?.cancel(); delete globalThis.__voiceFake; forgetVoiceReadiness(); }
 });

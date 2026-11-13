@@ -42,6 +42,8 @@ export function useVoiceInput({ call, onText, scope = '' }) {
     voiceReadiness(call).then((status) => { if (mounted.current) setUnavailable(!!status.unavailable); });
     return () => { mounted.current = false; recorder.current?.cancel(); };
   }, [call]);
+  // Another question while recording: the microphone stops now, not when the learner presses again (ui/voice/mic.js moved()).
+  useEffect(() => { void recorder.current?.moved(); }, [scope]);
   const deliver = useCallback(async (finished) => {
     try {
       const text = await finished;

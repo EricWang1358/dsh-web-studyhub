@@ -2,7 +2,7 @@ import { ui, uiFormat } from "../i18n.js";
 import React from "react";
 import { Button, InlineMessage, Spinner } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
-import { reviewEntryKey } from "../async.js";
+import { reviewEntryKey, voiceScopeKey } from "../async.js";
 import { plainAssistFailure } from "../generation-status.js";
 import VoiceButton from "../voice/VoiceButton.jsx";
 import { useVoiceInput } from "../voice/useVoiceInput.js";
@@ -35,8 +35,10 @@ export function useVoiceAnswer({ session, data, model, rubricCard, setAssistMode
   const deck = data?.decks?.find((item) => item.id === run.deckId);
   const aiFlash = kind === "flash" && model.ready && !!(data?.courses || []).find((course) => course.name === (deck?.course ?? deck?.folder))?.practice?.aiGradeFlashcards;
   const aiOpen = kind === "open" && (rubricCard || model.ready);
-  // `scope: key`: a transcript that comes back after the learner moved to another question is dropped, never put into (or graded on) that one.
-  const answer = useVoiceInput({ call, scope: key, onText: (text) => {
+  // `scope`: a transcript that comes back after the learner moved to another question is dropped, never put into (or graded on) that one; moving on while
+  // recording stops the microphone. The question's identity, not reviewEntryKey: a queue edit or a resync leaves the same question on screen.
+  const scope = voiceScopeKey(run);
+  const answer = useVoiceInput({ call, scope, onText: (text) => {
     if (run.feedback) return;
     if (kind === "cloze") {
       const split = splitSpokenBlanks(text, clozeBlankIds(run.card));
@@ -55,7 +57,7 @@ export function useVoiceAnswer({ session, data, model, rubricCard, setAssistMode
       if (!aiFlash && !run.revealed) actions.flipCard();
     }
   } });
-  const ask = useVoiceInput({ call, scope: key, onText: (text) => setAssistText((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text)) });
+  const ask = useVoiceInput({ call, scope, onText: (text) => setAssistText((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text)) });
   // Submitted only after the text is in the box on screen (a render later): nothing is graded that the learner could not see.
   React.useEffect(() => {
     if (!pending || pending.key !== key) return;
