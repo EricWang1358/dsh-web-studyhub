@@ -10,6 +10,7 @@ import { LiveSession, deleteSaved, listSaved, makeTranslator, readSaved, writeSa
 import { GeminiTiers } from "../lib/gemini.js";
 import { clock, excerptText, quickDocuments } from "../lib/live-save.js";
 import { StudyService } from "../lib/service.js";
+import { localizeAppMessage } from "../lib/application-messages.js";
 
 const FREE = "AIzaLiveFreeKey_00000000000000001", PAID = "AIzaLivePaidKey_00000000000000002";
 const pcm = (ms) => Buffer.alloc(ms * 32);
@@ -307,6 +308,62 @@ test("a dropped connection is reopened and the audio that waited is sent", async
   Dead.instances[0].emit("close", { code: 1006, reason: "" });
   await until(() => doomed.status === "error", 4000);
   assert.match(doomed.message, /连接中断/);
+});
+
+/* #874: a stop that lands while the recognizer is reconnecting used to end at once. finishStop sent the end only to the connections it had, and the audio cached
+   during the outage (the backlog, which only attach() sends) was dropped without a word. */
+test("a stop during a reconnect waits for the new connection, sends the audio that waited and keeps what it heard", async () => {
+  const Socket = socketClass((socket) => {
+    if (Socket.instances.length === 1) return healthy(socket);
+    socket.onSend = (message) => {
+      if (message.setup) socket.say({ setupComplete: {} });
+      // The recognizer answers the cached audio once the stream ends, then closes.
+      if (message.realtimeInput?.audioStreamEnd) { socket.say({ serverContent: { inputTranscription: { text: "Words spoken while the connection was down." } } }); socket.close(); }
+    };
+    setTimeout(() => socket.open(), 15);
+  });
+  const live = session(Socket, { timing: { ...timing, reconnectDelaysMs: [30], stopWaitMs: 1000 } });
+  await live.start();
+  Socket.instances[0].readyState = 3;
+  Socket.instances[0].emit("close", { code: 1006, reason: "" });
+  live.push(pcm(300));
+  assert.equal(live.backlog.length, 3);
+  await live.stop();
+  assert.equal(Socket.instances.length, 2, "the stop waited for the reconnection");
+  const sent = Socket.instances[1].sent.filter((message) => message.realtimeInput);
+  assert.equal(sent.filter((message) => message.realtimeInput.audio).length, 3, "every cached frame reached the new connection");
+  assert.equal(sent.at(-1).realtimeInput.audioStreamEnd, true, "then the end");
+  assert.deepEqual(live.segments.map((segment) => segment.en), ["Words spoken while the connection was down."]);
+  assert.equal(live.status, "ended");
+  assert.equal(live.toSaved().lostAudioMs, undefined, "nothing was lost");
+  assert.doesNotMatch(live.snapshot().message, /没有转写/);
+});
+
+test("a stop whose reconnect does not come back in time ends anyway and says how much audio was lost", async () => {
+  // The second connection never opens: the stop waits stopWaitMs, no longer.
+  const Socket = socketClass((socket) => { if (Socket.instances.length === 1) healthy(socket); });
+  const live = session(Socket, { timing: { ...timing, reconnectDelaysMs: [5], stopWaitMs: 60, connectTimeoutMs: 150 } });
+  await live.start();
+  Socket.instances[0].readyState = 3;
+  Socket.instances[0].emit("close", { code: 1006, reason: "" });
+  live.push(pcm(1200));
+  const started = Date.now();
+  await live.stop();
+  assert.ok(Date.now() - started < 1000, "bounded by stopWaitMs, not by the connect timeout");
+  assert.equal(live.status, "ended");
+  assert.equal(live.backlog.length, 0, "nothing is left waiting for a connection that will not come");
+  const saved = live.toSaved();
+  assert.equal(saved.lostAudioMs, 1200, "the record keeps how much audio was not transcribed");
+  assert.match(live.snapshot().message, /最后约 1 秒.*没有转写/);
+  assert.doesNotMatch(live.snapshot().message, /正在重连/, "an ended class is not reconnecting");
+  assert.doesNotMatch(localizeAppMessage(live.snapshot().message), /[㐀-鿿]/, "said in English too");
+  const reopened = session(Socket, { saved });
+  assert.match(reopened.snapshot().message, /最后约 1 秒.*没有转写/, "the note survives a reload");
+  // The attempt that was still connecting gives up later: it is closed, and it does not turn the ended class into an error.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(Socket.instances[1].readyState, 3);
+  assert.equal(live.status, "ended");
+  assert.match(live.snapshot().message, /没有转写/);
 });
 
 test("paused audio is neither sent nor counted", async () => {
