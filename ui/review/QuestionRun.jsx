@@ -258,7 +258,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           highlights={caseHighlights} onChange={saveHighlights} />}
         {/* The card: header, stem and answers on paper stock. Toolbar,
             status and explanation sit below it on the desk. */}
-        <div className={"question-card" + (!choice && !isCloze && !rubricCard && !taskCard ? "" : " sh-paper-card sh-paper-card--roomy")} data-tour="review-question">
+        <div className={"question-card" + (!choice && !isCloze && !rubricCard && !taskCard ? "" : " sh-paper-card sh-paper-card--roomy")} data-tour="review-question" tabIndex={-1}>
           <div className="question-card__head">
             <div className="question-meta">
               <span>

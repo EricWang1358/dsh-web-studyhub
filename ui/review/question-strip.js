@@ -6,6 +6,7 @@ import { fixedOptionsOf } from '../../lib/card-kinds.js';
    for every kind but a fixed-option one, which has no options here); the round's card comes with its options in the order it shows them. A 判断题 is its statement: 对 / 错 add nothing to it. */
 
 const BLANK = /\{\{[^{}]+\}\}/g;
+// Not optionMark itself: ui/option-label.js loads ui/i18n.js, whose locale JSON node cannot import without an import attribute (tests/source-split.test.mjs).
 
 /** { stem, options: [{ id, mark, text }] } of a question card, or null without one. */
 export function stripOf(card) {

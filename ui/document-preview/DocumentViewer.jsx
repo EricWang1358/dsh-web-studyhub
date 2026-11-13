@@ -564,7 +564,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     if (range) seekMark.current = markQuote(range);
     else scrollToNode(scroller.current, scroller.current?.querySelector(`[data-study-source="${seekGoal.sourceId}"]`), { smooth: false });
   }, [seekGoal, loading, view, sections]);
-  useEffect(() => unmarkSeek, []); // eslint-disable-line react-hooks/exhaustive-deps -- on unmount only
+  useEffect(() => unmarkSeek, []); // on unmount only
 
   // Search in the document: matches are DOM ranges painted with the Custom Highlight API.
   const deferredQuery = useDeferredValue(query);

@@ -12,9 +12,15 @@ import { readText, writeText } from '../storage.js';
 /** The column never gets narrower than this, and always leaves the question at least QUESTION_MIN (the same limits are in ui/review/session.css). */
 export const COLUMN_MIN = 360;
 export const QUESTION_MIN = 480;
-/** From this width (px) of the practice page's content, where both fit, a source opened from a question docks beside it; below it, the reader is the
-    full-size dialog. With the sidebar open that is a window of about 1100 px. */
+/** From this much room (px) for the question and the column together (questionRoom), where both fit, a source opened from a question docks beside it;
+    below it, the reader is the full-size dialog. With the sidebar open and the column of ticks drawn, that is a window of about 1170 px. */
 export const SPLIT_MIN = COLUMN_MIN + QUESTION_MIN;
+
+/** The room the question and the column share on the practice page: its width less its padding, and less the column of ticks with the gap after it and
+    the gap before the column when the ticks are drawn (ui/review/session.css: .has-rail, --rail-room). Measured values in px. */
+export function questionRoom({ width = 0, paddingLeft = 0, paddingRight = 0, rail = 0, gap = 0 }) {
+  return Math.max(0, width - paddingLeft - paddingRight - (rail ? rail + 2 * gap : 0));
+}
 const WIDTH_KEY = 'study-source-column-width';
 
 /** Where a source opened from the practice page is shown: 'column' beside the question, else 'dialog' (the full-size reader, as before). The one decision.
@@ -84,10 +90,19 @@ export function dockReducer(state, action) {
   }
 }
 
-/** The column's width for a page of `page` px: the kept one, else 45% of the page, within COLUMN_MIN and what leaves the question QUESTION_MIN. */
-export function columnWidth(kept, page) {
-  const wanted = Number.isFinite(kept) && kept > 0 ? kept : Math.round(page * 0.45);
-  return Math.max(COLUMN_MIN, Math.min(wanted, page - QUESTION_MIN));
+/** The column's width in a `room` (questionRoom) of px: the kept one, else 45% of it, within COLUMN_MIN and what leaves the question QUESTION_MIN. */
+export function columnWidth(kept, room) {
+  const wanted = Number.isFinite(kept) && kept > 0 ? kept : Math.round(room * 0.45);
+  return Math.max(COLUMN_MIN, Math.min(wanted, room - QUESTION_MIN));
+}
+
+/** The reader modal that shows what the column shows (the page turned narrow: the reader is the dialog now): the place it is at, with the quote of the
+    link that brought it there (a link of this question: the quotes of questions before are gone, dockReducer 'follow'); a place that waited while folded. */
+export function dockedPlace(state) {
+  const seek = state.seek?.source?.id === state.at ? state.seek : null;
+  const source = state.pending || seek?.source || state.modal.source;
+  const quote = state.pending ? '' : seek ? seek.quote : state.modal.quote;
+  return { type: 'source', source, back: true, ...(quote ? { quote } : {}) };
 }
 
 /** The width the learner last dragged the column to (a per-viewer convenience: null when none was kept or the storage is blocked). */

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COLUMN_MIN, QUESTION_MIN, SPLIT_MIN, columnWidth, dockReducer, openDock, questionPlace, readColumnWidth, saveColumnWidth, sameMaterial, sourcePlacement }
+import { COLUMN_MIN, QUESTION_MIN, SPLIT_MIN, columnWidth, dockReducer, dockedPlace, openDock, questionPlace, questionRoom, readColumnWidth, saveColumnWidth, sameMaterial,
+  sourcePlacement }
   from '../ui/review/source-dock.js';
 import { stripOf } from '../ui/review/question-strip.js';
 import { keysElsewhere } from '../ui/review/session-logic.js';
@@ -101,11 +102,33 @@ test('a seek the reader cannot place mounts that place\'s material; a stale one 
   assert.equal(dockReducer(state, { type: 'missed', seek: { ...state.seek, nonce: 99 } }), state);
 });
 
-test('the column width: 45% of the page by default, the kept one otherwise, within the limits; kept per viewer, a blocked storage is no error', () => {
+test('a page turning narrow hands the column\'s place to the reader dialog: where it is, with the quote of this question\'s link, nothing that waited', () => {
+  let state = openDock(modal(page(2), { quote: 'cited', pickPages: true }));
+  assert.deepEqual(dockedPlace(state), { type: 'source', source: page(2), back: true, quote: 'cited' });
+  state = dockReducer(state, { type: 'follow', place: page(25) });
+  assert.deepEqual(dockedPlace(state), { type: 'source', source: page(25), back: true }, 'the place it followed to, not the one it loaded');
+  state = dockReducer(state, { type: 'open', modal: modal(page(1), { quote: 'answer passage' }) });
+  assert.deepEqual(dockedPlace(state), { type: 'source', source: page(1), back: true, quote: 'answer passage' });
+  state = dockReducer(dockReducer(state, { type: 'collapse' }), { type: 'follow', place: page(2) });
+  assert.deepEqual(dockedPlace(state), { type: 'source', source: page(2), back: true }, 'folded: the place that waited');
+});
+
+test('the split is decided on the room the question really shares with the column: the page less its padding, less the tick rail and both gaps when shown', () => {
+  const page = { width: 1026, paddingLeft: 14, paddingRight: 16 };
+  assert.equal(questionRoom(page), 996, 'no rail: the page\'s content box');
+  assert.equal(questionRoom({ ...page, rail: 36, gap: 12 }), 996 - 36 - 2 * 12, 'the rail, the gap after it and the gap before the column');
+  assert.ok(questionRoom({ ...page, rail: 36, gap: 12 }) >= SPLIT_MIN, 'a 1280 px window with the sidebar open still docks');
+  // A page of SPLIT_MIN with the rail left the question about 406 px once the column took its 360: that is the dialog now.
+  const tight = questionRoom({ width: SPLIT_MIN, paddingLeft: 14, paddingRight: 16, rail: 36, gap: 12 });
+  assert.ok(tight < SPLIT_MIN && tight - COLUMN_MIN < QUESTION_MIN);
+  assert.equal(questionRoom({ width: 0 }), 0);
+});
+
+test('the column width: 45% of the room by default, the kept one otherwise, within the limits; kept per viewer, a blocked storage is no error', () => {
   assert.equal(columnWidth(null, 1280), 576);
   assert.equal(columnWidth(500, 1280), 500);
   assert.equal(columnWidth(100, 1280), COLUMN_MIN);
-  assert.equal(columnWidth(900, 1280), 1280 - QUESTION_MIN);
+  assert.equal(columnWidth(900, 1280), 1280 - QUESTION_MIN, 'the question keeps its room');
   const map = new Map(), storage = { getItem: key => map.get(key) ?? null, setItem: (key, value) => map.set(key, value) };
   assert.equal(readColumnWidth(storage), null);
   saveColumnWidth(512.4, storage);

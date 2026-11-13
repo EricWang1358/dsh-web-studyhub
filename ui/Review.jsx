@@ -89,10 +89,10 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const returnLabel = flow ? ui("回到学习流") : wayBack ? wayBack.label : ui("返回学习库");
   usePinQuestion(pageRef, run);
   // 对照栏 (#1012): on a wide page a source opened from the question docks beside it (ui/review/use-source-dock.jsx); its openModal is the page's.
-  const dock = useSourceDock({ pageRef, run, sources: data?.sources, study, readerDialogOpen: readerOpen(app?.lib?.modal) });
+  const rail = !run.complete && run.navigation?.length > 0;
+  const dock = useSourceDock({ pageRef, rail, run, sources: data?.sources, study, readerDialogOpen: readerOpen(app?.lib?.modal) });
   const openModal = dock.services.openModal;
   const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
-  const rail = !run.complete && run.navigation?.length > 0;
   const skeletonHere = run.card ? data?.skeletons?.find((k) => k.cardIds.includes(run.card.id)) : null;
   // A finished round on a case set (WP12): its weak criteria become drills, or another case like it.
   const summaryCase = run.complete ? data?.decks?.find((deck) => deck.id === run.deckId && deck.format === "case-study") : null;
@@ -158,7 +158,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [countMaterials(data?.sources, run.sourceIds)])}</Button>
           {!run.complete && !run.reading && run.mode !== "exam" && readableMaterialItems(data?.sources, run.sourceIds).length > 0 && (
             <Tooltip layer content={ui("打开资料阅读器，翻到已学章节或页码后点「做这几页的题」，避开还没学到的后续页。")}>
-              <Button variant="quiet" size="sm" onClick={() => openReaderForPages({ sources: data?.sources, sourceIds: run.sourceIds, openModal, back: true })}>
+              <Button variant="quiet" size="sm" onClick={() => openReaderForPages({ sources: data?.sources, sourceIds: run.sourceIds, openModal: study.openModal, back: true })}>
                 {ui("去资料选页做题")}
               </Button>
             </Tooltip>
