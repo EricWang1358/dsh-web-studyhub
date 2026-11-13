@@ -421,9 +421,11 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const active = document.activeElement;
     return { inside: !!(rootRef.current?.contains(active) || ((!active || active === document.body) && engaged.current)), modalOpen };
   };
+  // A dialog over the page takes the keys; the one the question itself sits in (the reader's 本节题目, #1013) does not.
+  const inOverlay = (target) => { const dialog = target.closest?.('dialog'); return !!dialog && !dialog.contains(rootRef.current); };
   const eventShape = (event) => ({ key: event.key, code: event.code, shiftKey: event.shiftKey, repeat: event.repeat, defaultPrevented: event.defaultPrevented,
     ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey,
-    inEditable: !!event.target.closest?.('input,textarea,select,[contenteditable],dialog'), onButton: !!event.target.closest?.('button') });
+    inEditable: !!event.target.closest?.('input,textarea,select,[contenteditable]') || inOverlay(event.target), onButton: !!event.target.closest?.('button') });
   const canShortcut = (event) => shortcutGate(eventShape(event), gateContext()) && !event.defaultPrevented && !event.repeat && !event.shiftKey && page === 'review' && !!run?.card;
   keyHandler.current = (event) => {
     const shape = eventShape(event);
@@ -464,6 +466,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       document.removeEventListener('focusin', engage, true);
     };
   }, [rootRef]);
+  // A question mounted elsewhere (embeddedIn) that leaves the screen is not where the learner last was: its keys wait for a new press or focus in it.
+  useEffect(() => { if (embeddedIn && page !== 'review') engaged.current = false; }, [embeddedIn, page]);
 
   /* ── what Review and the result page's coach strip are handed ── */
   const onCoachPractice = useCallback(() => act('coach.practice', {}, enterRun), [act, enterRun]);

@@ -106,6 +106,7 @@
     "tests/reader-chapter-progress-browser.test.mjs",
     "tests/reader-chip-browser.test.mjs",
     "tests/reader-formula-scroll-browser.test.mjs",
+    "tests/reader-inline-practice-browser.test.mjs",
     "tests/reader-last-read-browser.test.mjs",
     "tests/reader-marks-browser.test.mjs",
     "tests/reader-multiline-selection-browser.test.mjs",

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { practiceArgs } from '../learning-navigation.js';
+import { practiceArgs, readingPracticeArgs } from '../learning-navigation.js';
 import { dailyPathArgs } from '../study-map/home-plan.js';
 
 /* What the learner means, said once (ui-consistency #114): "go and make questions", "open this deck", "practise these".
@@ -44,12 +44,13 @@ export function useIntents({ core, lib, nav, session, learn }) {
   const openRun = useCallback((runId) => act('review.get', { runId }, session.enterRun), [act, session.enterRun]);
 
   // 读 → 做这几页的题 → 回到阅读: the run keeps where the learner was reading (lib/reading-return.js), so the way back is on the
-  // run itself and survives closing the app; nothing is held only in memory.
-  const practiceFromReading = useCallback(({ refs: pages, reading }) => {
+  // run itself and survives closing the app; nothing is held only in memory. `then` (the reader's 本节题目, #1013) keeps the round in the reader
+  // instead of going to the practice page: the same request, only where it is answered differs (`takeUp`: see readingPracticeArgs).
+  const practiceFromReading = useCallback(({ refs: pages, reading }, { then, takeUp = false } = {}) => {
     if (!pages?.length || !reading) return undefined;
-    return practice(pages, { extra: { reading: { ...reading, origin: { page: latest.current.page } } },
-      then: (started) => { setModal(null); session.enterRun(started); setFocusRequest({}); } });
-  }, [practice, session, setModal, setFocusRequest]);
+    return act('review.start', readingPracticeArgs(pages, reading, latest.current.page, { takeUp }),
+      then || ((started) => { setModal(null); session.enterRun(started); setFocusRequest({}); }));
+  }, [act, session, setModal, setFocusRequest]);
 
   /** S from anywhere: resume the last round, start today's path (the one the home card starts), or (with no decks) go and make some. */
   const resumeOrStart = useCallback(() => {

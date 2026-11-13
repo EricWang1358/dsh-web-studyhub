@@ -482,25 +482,7 @@
       color: var(--text-muted);
       font-size: var(--fs-sm);
     }
-    .book-qa {
-      display: grid;
-      gap: var(--space-2);
-      margin: 0;
-      padding: var(--space-2) var(--space-3);
-      list-style: none;
-      border: 1px dashed var(--line-strong);
-      border-radius: var(--radius-sm);
-    }
-    .book-qa__item {
-      min-width: 0;
-    }
-    .book-qa__question {
-      display: inline-flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: var(--space-1);
-      overflow-wrap: anywhere;
-    }
+    /* .book-qa, its items and questions: ui/book/qa-list.css (the list is shared with the reader's 追问, #1013). */
     .book-qa__none {
       margin: 0;
       color: var(--text-muted);

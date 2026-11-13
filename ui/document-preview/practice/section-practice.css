@@ -1,0 +1,84 @@
+/* 本节题目 of the reader (practice/SectionPractice.jsx, #1013): the heading with 本节 | 本章, the line 错题 n · 追问 n · 批注 n, the list of the section's
+   questions (one line each) and the two ways to start. The round itself is ui/review/inline-run.css. Tokens only. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .section-practice {
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .section-practice__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+    .section-practice__where {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      overflow-wrap: anywhere;
+    }
+    .section-practice__stats {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1-5);
+      margin: 0;
+      color: var(--text-faint);
+      font-size: var(--fs-sm);
+    }
+    .section-practice__stat {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-variant-numeric: tabular-nums;
+    }
+    .section-practice__stat[data-empty] {
+      color: var(--text-faint);
+    }
+    .section-practice__qa-panel {
+      max-height: min(360px, 50vh);
+      overflow-y: auto;
+    }
+    .section-practice__list {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .section-practice__row {
+      display: flex;
+      width: 100%;
+      justify-content: flex-start;
+      gap: var(--space-2);
+      align-items: baseline;
+      text-align: start;
+      white-space: normal;
+    }
+    .section-practice__row > :last-child {
+      display: -webkit-box;
+      min-width: 0;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow-wrap: anywhere;
+    }
+    .section-practice__none {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .section-practice__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+  }
+}

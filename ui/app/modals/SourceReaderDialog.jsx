@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { errorMessage, ui, uiFormat } from '../../i18n.js';
 import { Dialog, useToast } from '../../components/index.js';
 import { relatedTaskItems } from '../../DailyPlan.jsx';
@@ -8,6 +8,7 @@ import { documentSourceIds } from '../../../lib/source-groups.js';
 import { draftToOpen } from '../../document-preview/practice/practice-range.js';
 import { hasContext, pageAvailable } from '../../capabilities.js';
 import { useApp } from '../app-context.js';
+import ReaderRun from './ReaderRun.jsx';
 
 /** The reader: a material full-size, with the questions and tasks that belong to it. Opens at a quote or where the learner stopped reading. */
 export default function SourceReaderDialog({ modal, onClose }) {
@@ -19,6 +20,9 @@ export default function SourceReaderDialog({ modal, onClose }) {
   const canPractice = hasContext(data, 'bank') && hasContext(data, 'study');
   const canDraft = pageAvailable(data, 'draft');
   const canBank = hasContext(data, 'bank');
+  // 本节题目 (#1013): the round of 做这几页的题, answered beside the text (ReaderRun) instead of on the practice page; an open round of the same
+  // questions is taken up, so the panel never closes the round the practice page shows.
+  const inlinePractice = useMemo(() => ({ start: (refs, reading, then) => intents.practiceFromReading({ refs, reading }, { then, takeUp: true }), Run: ReaderRun }), [intents]);
   // The reader is a dialog over the page: a Settings page opened from it is not seen unless the dialog goes (the host's own model settings open beside it and the reader stays).
   const openSettings = (section) => { onClose(); settingsEntry.openSettings(section); };
   const openModelSettings = () => { if (!host.openModelSettings) onClose(); settingsEntry.openModelSettings(); };
@@ -57,7 +61,7 @@ export default function SourceReaderDialog({ modal, onClose }) {
             onPublished={() => refresh()} onOpenCard={canBank ? (reference) => { onClose(); learn.openLearningTarget({ kind: 'card', ...reference }); } : undefined}
             onOpenDeck={canPractice ? (deckId) => learn.openLearningTarget({ kind: 'deck', id: deckId }) : undefined}
             onPractice={canPractice ? ({ deckId, cardIds }) => learn.openLearningTarget({ kind: 'cards', deckId, cardIds }) : undefined}
-            onPracticePages={canPractice ? intents.practiceFromReading : undefined}
+            onPracticePages={canPractice ? intents.practiceFromReading : undefined} inlinePractice={canPractice ? inlinePractice : undefined}
             onGeneratePages={canGenerate ? (ids) => intents.goGenerate({ sourceIds: ids, remember: true, closeModal: true }) : undefined} resume={modal.resume}
             onOpenDraftPages={canDraft ? (draftIds) => {
               // The questions of these pages are still in a draft: the same 草稿 page the home card and 检查草稿 open.

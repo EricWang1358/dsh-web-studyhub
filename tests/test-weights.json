@@ -867,6 +867,7 @@
  "tests/quote-jump-fallback.test.mjs": 50,
  "tests/reader-chapter-progress-browser.test.mjs": 700,
  "tests/reader-chip-browser.test.mjs": 670,
+ "tests/reader-inline-practice-browser.test.mjs": 700,
  "tests/reader-defaults.test.mjs": 10,
  "tests/reader-footnote.test.mjs": 80,
  "tests/reader-formula-scroll-browser.test.mjs": 700,

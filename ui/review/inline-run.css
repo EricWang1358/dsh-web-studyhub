@@ -1,0 +1,65 @@
+/* InlineRun (ui/review/InlineRun.jsx): a round answered in a column beside something else (the reader's 本节题目, #1013). The column is a size container named
+   `study`, so the question itself takes the practice page's own narrow layout (ui/review/question.css) from its width, not from the window's. Tokens only. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    .inline-run {
+      container: study / inline-size;
+      display: grid;
+      gap: var(--space-2);
+      min-width: 0;
+      outline: none;
+    }
+    .inline-run__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-1) var(--space-2);
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .inline-run__label {
+      min-width: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      overflow-wrap: anywhere;
+    }
+    .inline-run__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+      margin-inline-start: auto;
+    }
+    .inline-run__done {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+    }
+    .inline-run__score {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-2);
+      margin: 0;
+    }
+    .inline-run__mastery {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1-5);
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+    .inline-run__done-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+  }
+}

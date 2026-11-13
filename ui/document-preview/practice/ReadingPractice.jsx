@@ -5,6 +5,7 @@ import { useInjectCss } from '../../shared.js';
 import { MasteryMark } from './MasteryMark.jsx';
 import { countsLine, draftExtraText, draftNoneText, inclusionNote, meaningLine, noneText, questionsWord, rangeLabel, stateLabel } from './mastery-copy.js';
 import { rangeCoverageOf } from './coverage-outline.js';
+import { hereLabelArgs } from './section-practice.js';
 import { rangeUncoveredLine } from '../../coverage/copy.js';
 import css from './practice.css';
 
@@ -22,9 +23,10 @@ export function InactiveNote({ summary, courses = [] }) {
  * chooser: this page / this chapter / what was just read), how many questions that is and how many are due, new and weak, and
  * only then starts; with no question yet it offers one button, 为这几页出题. Questions that are still in drafts (not published, so
  * not practisable) are said in the same words as the 资料 rows, with the way to the draft (`onOpenDraft(draftIds)`).
- * Props: `loop` (practice/useReadingLoop), `unit` ('page' | 'slide' | 'section'), `busy`.
+ * Props: `loop` (practice/useReadingLoop), `unit` ('page' | 'slide' | 'section'), `busy`; `onStartHere(option)`: 在这里做, the same range answered in the
+ * reader's 本节题目 (#1013), when the reader can.
  */
-export default function ReadingPractice({ loop, unit = 'section', busy = false, split = false, onStart, onGenerate, onOpenDraft }) {
+export default function ReadingPractice({ loop, unit = 'section', busy = false, split = false, onStart, onStartHere, onGenerate, onOpenDraft }) {
   useInjectCss(css, 'study-reading-loop');
   const { open, setOpen, status, options, setKind, selected } = loop;
   const groupName = useId();
@@ -71,6 +73,8 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
           {openDraft}
           <Button variant="primary" icon="arrow-right" className="reader-practice__action" lock={busy} onClick={() => onStart(selected)}>
             {total === 1 ? ui('开始做这 1 道题') : uiFormat('开始做这 {0} 道题', [total])}</Button>
+          {onStartHere && <Button variant="secondary" size="sm" icon="book" className="reader-practice__action" lock={busy} onClick={() => onStartHere(selected)}
+            data-usage="reader.practice-here">{hereLabelArgs(total) ? uiFormat('在这里做前 {0} 道', hereLabelArgs(total)) : ui('在这里做')}</Button>}
         </> : <>
           <p className="reader-practice__none" data-testid="practice-none"><MasteryMark summary={null} size={16} /> {drafted ? draftNoneText(drafted.draftCards) : ui('这几页还没有题')}
             {drafted && <HelpTip label={ui('为什么还不能练')}>{ui('发布草稿后才能练习这几页的题。')}</HelpTip>}</p>
