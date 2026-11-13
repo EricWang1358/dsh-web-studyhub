@@ -278,3 +278,38 @@ test('help on a question that is no longer on screen is refused again (当前题
   assert.match(JSON.stringify(reply), /当前题已切换/);
   assert.equal(f.assist.assistView(f.root).tasks.length, 0);
 });
+
+test('a grade still lands, and its marker still clears, after the round was edited under it; the question being graded cannot be removed', async (t) => {
+  for (const outcome of ['done', 'failed']) {
+    const release = gate();
+    const complete = { current: outcome === 'done' ? grader({ hold: () => release.promise }) : async () => { await release.promise; throw new Error('model unavailable'); } };
+    const f = await library(t, complete, { cards: [open('o1'), open('o2'), open('o3')] });
+    const run = await f.start(['o1', 'o2', 'o3']);
+    await f.service.call('review.move', { runId: run.id, index: 1 });
+    const task = await f.grade(run.id, 'o2');
+    // The main chat cannot take a question out of the round while it is graded.
+    const kept = await f.service.call('review.queue.edit', { runId: run.id, remove: [{ cardId: 'o2' }], allowCurrent: true });
+    assert.deepEqual(kept.removed, [], `${outcome}: the question being graded stays`);
+    // The learner goes back to the first question, and it is taken out of the round: the graded one moves from place 1 to place 0.
+    await f.service.call('review.move', { runId: run.id, index: 0 });
+    const edited = await f.service.call('review.queue.edit', { runId: run.id, remove: [{ cardId: 'o1' }], allowCurrent: true });
+    assert.deepEqual(edited.removed.map((item) => item.cardId), ['o1']);
+    release.resolve();
+    assert.equal((await f.settled(task.id)).status, outcome);
+    const entry = (await f.service.store.read()).runs[0].entries.find((item) => item.card.id === 'o2');
+    await until(async () => !(await f.service.store.read()).runs[0].entries.find((item) => item.card.id === 'o2').grading);
+    if (outcome === 'done') assert.equal(entry.feedback?.grade, 5, 'the grade landed on the question it was for');
+    else assert.equal(entry.feedback, null, 'the failed job left the question waiting again');
+  }
+});
+
+test('a grade job that fails after the round was ended still clears its marker', async (t) => {
+  const release = gate();
+  const f = await library(t, { current: async () => { await release.promise; throw new Error('model unavailable'); } });
+  const run = await f.start();
+  const task = await f.grade(run.id, run.card.id);
+  await f.service.call('review.end', { runId: run.id });
+  release.resolve();
+  assert.equal((await f.settled(task.id)).status, 'failed');
+  await until(async () => !(await f.entryOf(run.id, run.index)).grading);
+});
