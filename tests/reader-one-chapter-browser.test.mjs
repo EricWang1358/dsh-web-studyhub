@@ -12,6 +12,7 @@ import { openPage, startLateServer } from '../scripts/qa/layout-late.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { until } from './helpers/wait.mjs';
 import { chooseMore } from './helpers/reader-more.mjs';
+import { backToQuestion } from './helpers/source-column.mjs';
 
 /* The reader draws one chapter (owner decision 2026-11-06; a real 513-page book blocked the page for 9.6 s with 53,687 nodes): a generated converted book of
    500 pages in 25 chapters of 20, with about 3000 inline formulas, seeded through the real store, fake model, no key. In the real page at 1280 and 420 px:
@@ -219,7 +220,7 @@ test('the reader draws one chapter of a 500-page book and every way to a page re
       assert.equal(quote.text, quoteOn(CITED_PAGE));
       assert.ok(quote.inView, 'the cited passage is in view');
       await shot('citation');
-      await viewer.getByRole('button', { name: '回到这道题' }).click();
+      await backToQuestion(page);
       await page.locator('.review-page').waitFor();
       // The rest of the day's run is answered, so the practice below starts a run of its own.
       for (let guard = 0; guard < 4 && !(await page.locator('.result-page').count()); guard += 1) {
@@ -335,7 +336,7 @@ test('with a kept AI outline: meters of every chapter, find across chapters, a c
   await waitChapter(page, chapterOf(CITED_PAGE), '上一章 back to the chapter of the quote');
   await page.waitForTimeout(800);
   assert.equal(await viewer.getByText('没能精确定位这段引文').count(), 0, 'back in its chapter the quote is placed again');
-  await viewer.getByRole('button', { name: '回到这道题' }).click();
+  await backToQuestion(page);
   await page.locator('.review-page').waitFor();
   for (let guard = 0; guard < 4 && !(await page.locator('.result-page').count()); guard += 1) {
     await page.locator('.review-heading h1').first().click().catch(() => {});
