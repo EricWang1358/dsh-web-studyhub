@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 import { Store } from '../lib/store.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { focusByKeyboard, launchChromium } from '../scripts/qa/browser.mjs';
 
 /* 「在右栏打开」 on the practice page moves THAT run into DSH's right sidebar and returns the main area to the conversation.
    The REAL host adapter (ui/host/workspace.jsx) and the REAL App run in Chromium against a real library; only DSH is faked:
@@ -216,7 +216,7 @@ test('the button explains itself on hover or focus through the project Tooltip, 
   assert.equal(await button.getAttribute('title'), null);
   const tip = page.locator('#main .review-heading [role="tooltip"]').filter({ hasText: '右栏' }).first();
   assert.equal(await tip.isVisible(), false, 'hidden until hover or focus');
-  await button.focus();
+  await focusByKeyboard(button);
   await tip.waitFor({ state: 'visible', timeout: 5000 });
   const words = await tip.textContent();
   assert.match(words, /主区域回到主会话/);
