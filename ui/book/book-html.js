@@ -3,6 +3,7 @@ import { MARKDOWN_CSS, contentsList, renderMarkdown } from '../markdown-page.js'
 import { mathPageCss } from '../study-math-render.js';
 import { DEFINITION, QUOTE_PAIRS, isLabelLine } from '../../lib/footnote-syntax.js';
 import { answerCardWords } from '../../lib/answer-card.js';
+import { fenceMask } from '../../lib/contexts/notes/markdown-fences.js';
 
 /* The 复习全书 as ONE self-contained HTML page (#896): the Markdown of the export (lib/course-book-export.js, the text the dialog already holds) made into a
    page that opens offline and prints cleanly, with no Pandoc. Everything general (footnotes at the end of their chapter, heading anchors, maths, links that
@@ -30,7 +31,6 @@ const PAIRS = QUOTE_PAIRS;
 const LINE_PREFIX = /^(?:[ \t]*>[ \t]?|[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+)*[ \t]*/;
 /** A line that goes on with the definition above it: blockquote markers, then four spaces or a tab. */
 const CONTINUATION = /^(?:[ \t]*>)*(?: {4}|\t)\s*(\S.*)$/;
-const FENCE = /^\s*(```|~~~)/;
 const SOURCE_LINK = /^\[(.*)\]\(studyhub:\/\/source\/[^)\s]*\)(.*)$/;
 const PLACE = /^\s*·\s*(\S[\s\S]*)$/;
 const CONCEPT_LABELS = new Set(['zh', 'en'].map(language => `**${answerCardWords(language).concepts}**`));
@@ -57,12 +57,11 @@ function conceptWithout(line, left) {
 
 /** The Markdown with the words quoted from the materials left out (see the top of this file). `left`: what stands in their place. */
 export function withoutSourceQuotes(markdown, left) {
-  const lines = String(markdown ?? '').split(/\r?\n/), out = [];
-  let fenced = false, concepts = 0;
+  const lines = String(markdown ?? '').split(/\r?\n/), out = [], fenced = fenceMask(lines);
+  let concepts = 0;
   for (let at = 0; at < lines.length; at++) {
     const line = lines[at];
-    if (FENCE.test(line)) { fenced = !fenced; out.push(line); continue; }
-    if (fenced) { out.push(line); continue; }
+    if (fenced[at]) { out.push(line); continue; }
     // The 概念 lines of an answer card: after the label, one blank line, then the bullets up to the next blank line.
     if (CONCEPT_LABELS.has(line.trim())) { concepts = 1; out.push(line); continue; }
     if (concepts) {

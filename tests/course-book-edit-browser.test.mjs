@@ -127,7 +127,7 @@ test('复习全书 editing: 预览/原文, edit and save a generated file (已�
       await page.keyboard.press('Control+End');
       await page.keyboard.type(`\n\n## My heading ${width}\n\nUnder my heading.`);
       await page.locator('.book-editor__save').click();
-      await page.waitForFunction(text => document.querySelector('.cm-content')?.innerText.includes(text), 'sh:id h', { timeout: 30000 });
+      await page.waitForFunction(text => document.querySelector('.cm-content')?.innerText.includes(`${text} <!-- sh:id h`), `My heading ${width}`, { timeout: 30000 });
       await mode('预览');
       if (width === 420) await page.locator('.book-bar__toc').click();
       await page.locator('.book-toc__go', { hasText: `My heading ${width}` }).click();
