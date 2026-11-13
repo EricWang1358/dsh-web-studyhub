@@ -89,7 +89,7 @@ export function stateMeaning(state, recorded = true, scheduled = false) {
 }
 
 /** Why a planned section did not come out: the words of each failure code (lib/generation-failure.js), the ones the 任务 console and the draft already use. */
-const REASON_WORD = { 'plan-short': '模型给出的考点比计划的少', quote: '引用在资料里找不到', plan: '考点规划未通过检查', quality: '题没有通过质量审阅', 'review-protocol': '审阅回复格式不对，重新审阅后仍不行',
+const REASON_WORD = { engine: 'DSH 没能启动出题用的子代理', 'plan-short': '模型给出的考点比计划的少', quote: '引用在资料里找不到', plan: '考点规划未通过检查', quality: '题没有通过质量审阅', 'review-protocol': '审阅回复格式不对，重新审阅后仍不行',
   timeout: '模型长时间没有回应', 'rate-limit': '被模型服务限流', 'no-reply': '模型没有返回内容', quota: '模型账户余额或额度不足', credential: '模型服务拒绝了请求（密钥无效或没有权限）',
   budget: '因为这一轮的时间用完了，没做完的批次被停止', cancelled: '因为你停止了任务', unavailable: '模型服务暂时不可用，或中断了这次请求', other: '其他原因' };
 export const reasonWord = (code) => ui(REASON_WORD[code] || REASON_WORD.other);

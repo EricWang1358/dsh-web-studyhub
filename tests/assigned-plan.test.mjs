@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { completeJson } from '../lib/generation.js';
 import { planAssigned, enforceAssignment, assignmentGroups, pieceOfAssignment, PLAN_SHORT } from '../lib/assigned-plan.js';
 import { planAssessment } from '../lib/assessment-quality.js';
+import { startWorker } from '../lib/subagent-api.js';
 import { strengthPlan, assignmentsOf, roundsOf } from '../lib/coverage-strength.js';
 import { classifyFailure, FAILURE_CODES } from '../lib/generation-failure.js';
 import { sectionKey } from '../lib/coverage.js';
@@ -103,6 +104,21 @@ test('a failure that repeating cannot fix (a refused key, a stop) is thrown, not
   const controller = new AbortController();
   controller.abort(new Error('stopped by the learner'));
   await assert.rejects(planAssigned(ask(clusteringModel()), request(fx.sources, { count: 6, signal: controller.signal }), { assignments }), /stopped/);
+});
+
+test('#1037: a sub-agent the host refuses to start stops the plan as an engine failure, not "0 of N knowledge points (plan-short)"', async () => {
+  // A DSH 0.2.2-rc.2 host fed the old nested spec: startActivation reads spec.parent.id (dsh-subagent lib/index.js:3024) before any model call.
+  const subagents = { async startActivation(spec) { return spec.missing.id; } };
+  const parent = { id: 'learner' };
+  let calls = 0;
+  const complete = async () => { calls += 1; return startWorker({ root: { on: () => () => {} } }, subagents, { parent, label: 'Plan', prompt: [] }); };
+  const assignments = assign(leaves.slice(0, 6), 1);
+  const error = await planAssigned((system, prompt) => completeJson(complete, system, prompt), request(fx.sources, { count: 6 }), { assignments })
+    .then(() => null, caught => caught);
+  assert.ok(error, 'the plan does not come back with dozens of short sections');
+  assert.equal(classifyFailure(error).code, 'engine');
+  assert.match(error.message, /reading 'id'/, 'the engine\'s words stay in the log');
+  assert.equal(calls, 1, 'not asked again');
 });
 
 test('plan-short is a failure code with one description', () => {

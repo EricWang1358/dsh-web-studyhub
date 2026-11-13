@@ -51,6 +51,21 @@ test("the classifier names the cause of an error or of the text the pipeline lef
   assert.equal(isPermanentFailure(OWNER_5), false);
 });
 
+test("#1037: a sub-agent DSH refused to start is an engine failure in plain words, never a short plan or a refused key", () => {
+  const raw = "DSH sub-agent engine could not start a StudyHub worker (SUBAGENT_START): agent has no active runtime owner (UNAUTHORIZED)";
+  assert.equal(classifyFailure(raw).code, "engine", "UNAUTHORIZED here is DSH's, not the model service's");
+  assert.equal(isPermanentFailure(raw), true);
+  for (const input of [raw, `Part 3: ${raw}`]) {
+    const zh = inLanguage("zh", () => m.describeFailure(input)), en = inLanguage("en", () => m.describeFailure(input));
+    assert.equal(zh.code, "engine");
+    assert.match(zh.title, /DSH/);
+    assert.match(zh.hint, /不是资料或模型的问题/);
+    assert.doesNotMatch([zh.title, zh.cause, zh.hint].join(" "), /SUBAGENT_START|runtime owner|考点/);
+    assert.doesNotMatch([en.title, en.cause, en.hint].join(" "), han);
+    assert.doesNotMatch([en.title, en.cause, en.hint].join(" "), /SUBAGENT_START|runtime owner/);
+  }
+});
+
 test("describeFailure gives { code, title, cause, retried, hint } in plain words, zh and en; the raw English exception is never the cause", () => {
   const zh = inLanguage("zh", () => m.describeFailure(OWNER_5));
   assert.equal(zh.code, "review-protocol");

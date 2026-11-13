@@ -117,6 +117,7 @@ export function shortfall(draft) {
 export function describePartReport(report) {
   if (!report || !(report.total > 0) || report.passed === report.total) return null;
   const reasons = report.reasons || {}, line = {
+    engine: (n) => uiFormat('{0} 个批次因 DSH 没能启动出题用的子代理而没有完成', [n]),
     'plan-short': (n) => uiFormat('{0} 个批次里模型给出的考点比计划的少，补问一次后仍然不足', [n]),
     quote: (n) => uiFormat('{0} 个批次的引用在资料里找不到', [n]),
     plan: (n) => uiFormat('{0} 个批次的考点规划没有通过检查', [n]),
