@@ -45,12 +45,33 @@ test('the column follows the questions: within the material a seek (same key: th
   assert.equal(state.key, 1, 'no new reader for a place of the same material');
   assert.deepEqual(state.seek, { source: page(25), quote: '', nonce: 1 });
   assert.equal(state.modal.source.id, 'book-p2', 'the reader keeps the source it loaded');
-  // The same place again (a re-ask, the next question on the same page): nothing moves.
+  // The same place again (a re-ask, the next question on the same page) with no quote of an answer on screen: nothing moves.
   assert.equal(dockReducer(state, { type: 'follow', place: page(25) }), state);
   assert.equal(dockReducer(state, { type: 'follow', place: null }), state, 'a question without a page leaves the column where it is');
   // Another material: a swap, a new key.
   const swapped = dockReducer(state, { type: 'follow', place: page(1, 'other') });
   assert.deepEqual([swapped.key, swapped.seek, swapped.modal.source.id, !!swapped.modal.pickPages], [2, null, 'other-p1', false]);
+});
+
+test('a new question takes down the quote of an earlier answer, even on the same page: nothing of an answer stays on screen', () => {
+  // 看原文 after a wrong answer opened the column at the answer's passage (its opening quote).
+  let state = openDock(modal(page(2), { quote: 'EVIDENCE OF THE ANSWER' }));
+  // The next question (or the same card asked again) is on the same page: the column stays, the quote goes, and the reader drops its marks.
+  state = dockReducer(state, { type: 'follow', place: page(2) });
+  assert.deepEqual([state.key, state.modal.quote, state.at], [1, '', 'book-p2'], 'the same reader, without the quote');
+  assert.deepEqual(state.seek, { nonce: 1 }, 'a seek with no place: the reader only takes its marks down');
+  // 看原文 while docked (a quoted seek), then a question with no page: the seek's quote goes too.
+  state = dockReducer(state, { type: 'open', modal: modal(page(25), { quote: 'EVIDENCE 2' }) });
+  assert.equal(state.seek.quote, 'EVIDENCE 2');
+  state = dockReducer(state, { type: 'follow', place: null });
+  assert.deepEqual(state.seek, { nonce: 3 }, 'no quote left, nothing sought');
+  assert.equal(dockReducer(state, { type: 'follow', place: null }), state, 'nothing to take down twice');
+  // Folded, the quote goes all the same (the place waits for the unfolding).
+  let folded = dockReducer(openDock(modal(page(2), { quote: 'EVIDENCE' })), { type: 'collapse' });
+  folded = dockReducer(folded, { type: 'follow', place: page(2) });
+  assert.deepEqual([folded.modal.quote, folded.seek, folded.collapsed], ['', { nonce: 1 }, true]);
+  folded = dockReducer(dockReducer(openDock(modal(page(2), { quote: 'EVIDENCE' })), { type: 'collapse' }), { type: 'follow', place: page(25) });
+  assert.deepEqual([folded.modal.quote, folded.seek, folded.pending.id], ['', { nonce: 1 }, 'book-p25']);
 });
 
 test('a link opened while docked: same material a seek with its quote (the opening quote goes), another a swap; the column unfolds', () => {

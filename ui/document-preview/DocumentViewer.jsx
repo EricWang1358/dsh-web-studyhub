@@ -445,7 +445,9 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // A source link of the round (看原文, a citation, a figure's page, the question's page): shown in this reader when its source is part of this material
   // (false: it is in another one). A figure's page opens in 看原页; otherwise its chapter is drawn and its quote marked as a citation opened here is.
   const [seekGoal, setSeekGoal] = useState(null);
-  const seekSource = ({ source: target, quote: cited, peekPage: figurePage } = {}) => {
+  const seekMark = useRef(null);
+  const unmarkSeek = () => { seekMark.current?.(); seekMark.current = null; };
+  const seekSource =({ source: target, quote: cited, peekPage: figurePage } = {}) => {
     if (!target?.id || !allSections.some(section => section.sourceId === target.id)) return false;
     // In 原始 PDF the place is its page there (the 对照栏 follows the questions in either view, #1012).
     if (view === 'original') { const page = Number.isInteger(figurePage) ? figurePage : target.document?.page; if (Number.isInteger(page)) goToPage(page); return true; }
@@ -457,11 +459,13 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   };
   // `seek` (the 对照栏, #1012): a one-shot request from outside to show a place of this material, used once the text is there; a place this reader does not
   // hold is handed back (onSeekMissed), never sought again. Nothing is loaded or mounted again for it.
+  // Every seek takes down the mark of the one before (it may be an earlier answer's passage); one with no place does only that.
   const sought = useRef(0);
   useEffect(() => {
     if (!seek || sought.current === seek.nonce || loading) return;
     sought.current = seek.nonce;
-    if (!seekSource(seek)) onSeekMissed?.(seek);
+    unmarkSeek();
+    if (seek.source && !seekSource(seek)) onSeekMissed?.(seek);
   }, [seek, loading]); // eslint-disable-line react-hooks/exhaustive-deps -- each request is used once, when the text is there
   const generatePages = option => { loop.setOpen(false); onGeneratePages?.(loop.generateIds(option)); };
   const openDraftPages = draftIds => { loop.setOpen(false); onOpenDraftPages?.(draftIds); };
@@ -550,14 +554,17 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   }, [paged, quote, reading, quoteState?.status, loading, sections, view, source.id, source.document?.page]); // eslint-disable-line react-hooks/exhaustive-deps
   // Another chapter, once drawn, opens at its top or at the page / entry the jump named (after the effects above, so it has the last word).
   useChapterGoal({ goal: chapter.goal, reached: chapter.reached, scroller, body, ready: !loading && view !== 'original', drawn: sections });
-  // A source link of the round, once its chapter is drawn (after the chapter's own landing): its quote, else the top of its page.
+  // A source link of the round, once its chapter is drawn (after the chapter's own landing): its quote, else the top of its page. Its mark stays until the
+  // next link or `seek`, and goes with the reader.
   useEffect(() => {
     if (!seekGoal || loading || view === 'original' || !sections.some(section => section.sourceId === seekGoal.sourceId)) return;
     setSeekGoal(null);
+    unmarkSeek();
     const { range } = seekGoal.quote ? findQuote({ sourceId: seekGoal.sourceId, quote: seekGoal.quote }) : { range: null };
-    if (range) markQuote(range);
+    if (range) seekMark.current = markQuote(range);
     else scrollToNode(scroller.current, scroller.current?.querySelector(`[data-study-source="${seekGoal.sourceId}"]`), { smooth: false });
   }, [seekGoal, loading, view, sections]);
+  useEffect(() => unmarkSeek, []); // eslint-disable-line react-hooks/exhaustive-deps -- on unmount only
 
   // Search in the document: matches are DOM ranges painted with the Custom Highlight API.
   const deferredQuery = useDeferredValue(query);

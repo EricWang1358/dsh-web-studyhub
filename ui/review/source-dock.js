@@ -50,10 +50,19 @@ function show(state, { source, quote = '', peekPage }, opening) {
   return { ...state, modal: opening || { type: 'source', source, back: true }, key: state.key + 1, seek: null, at, collapsed: false, pending: null };
 }
 
+/* A quote on screen came from a link of the question before (看原文 of a wrong answer is the answer's passage): when the question changes it goes, the
+   opening quote from the modal and a seek's mark by a seek with no place (DocumentViewer takes its marks down at every seek). */
+function unquote(state) {
+  if (!state.modal.quote && !state.seek?.quote) return state;
+  const nonce = state.nonce + 1;
+  return { ...state, modal: state.modal.quote ? { ...state.modal, quote: '' } : state.modal, seek: { nonce }, nonce };
+}
+
 /**
  * The column's state. Actions:
  *   open { modal }    a source link of the question (看原页, the page badge, a citation, a figure's page): shown, the column unfolded;
- *   follow { place }  the question changed: the column goes to its place, unless it is already there (or the question has none); folded, it waits;
+ *   follow { place }  the question changed (another card, or the same one asked again): any quote of the question before goes (it may be its answer's
+ *                     passage), and the column goes to the new place unless it is already there (or the question has none); folded, the place waits;
  *   collapse / expand folded to the rail and back (a place that waited is shown then);
  *   missed { seek }   the reader on screen does not hold the place it was asked to seek: the place's material is mounted instead.
  */
@@ -62,8 +71,8 @@ export function dockReducer(state, action) {
     case 'open': return show(state, action.modal, action.modal);
     case 'follow': {
       const place = action.place;
-      if (!place || place.id === state.at) return state;
-      if (state.collapsed) return { ...state, pending: place, at: place.id };
+      if (!place || place.id === state.at) return unquote(state);
+      if (state.collapsed) return { ...unquote(state), pending: place, at: place.id };
       return show(state, { source: place });
     }
     case 'collapse': return state.collapsed ? state : { ...state, collapsed: true };
