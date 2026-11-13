@@ -20,6 +20,7 @@ lib/chemistry-balance.js
 lib/cloze-text.js
 lib/contexts/generation/book/plan-parts.js
 lib/contexts/jobs/contracts.js
+lib/contexts/notes/markdown-fences.js
 lib/contexts/notes/note-links.js
 lib/converted-document.js
 lib/course-book-ai-anchor.js

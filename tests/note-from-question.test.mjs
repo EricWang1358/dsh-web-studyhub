@@ -135,6 +135,20 @@ test('a stem with an open code fence, heading lines or a multi-line option expla
   assert.match(note.markdown, /\*\*Question:\*\*\n\n```js/, 'the label on its own line, the value as its own block');
 });
 
+test('a stem with an open ~~~ fence or a Stem + --- underline leaves the note with one title and its four headings (#1029)', async t => {
+  const { service } = await library(t);
+  const headings = ['Core concepts', 'Common misconceptions', 'Explanation and examples', 'Study log'];
+  for (const [prompt, misconception] of [['~~~js\nconst memento = save();\n', 'plain'], ['Stem\n---\nWhich part manages the history?', 'Stem\n===\nThe memento manages history.']]) {
+    await editCard(service, card => { card.prompt = prompt; card.misconception = misconception; });
+    const note = await service.call('note.create', { title: `Study note ${prompt.length}`, cards: [{ deckId: 'deck', cardId: 'c1' }], prefill: true, language: 'en' });
+    const page = html(note.markdown);
+    assert.equal(count(page, /<h1>/g), 1, `one title for ${JSON.stringify(prompt)}`);
+    assert.equal(count(page, /<h2>/g), 4, 'only the four headings of the note are level 2');
+    for (const heading of headings) assert.match(page, new RegExp(`<h2>${heading}</h2>`), heading);
+    assert.doesNotMatch(page.slice(page.indexOf('<h2>Study log</h2>')), /<pre>/, 'nothing after the stem sits in a code block');
+  }
+});
+
 test('a Q&A counts as saved only while its question is still in the note: deleted by the learner, or lost to a recovered draft, it is added again', async t => {
   const { service } = await library(t);
   const ref = { deckId: 'deck', cardId: 'c1', title: 'Study note', language: 'en' };
