@@ -129,6 +129,13 @@ export function reviewChoiceKind(run) {
   };
 }
 
+/** Is a key press on `target` someone else's: in a dialog over the page, or in a region that owns its keys ([data-own-keys]: the 对照栏's reader beside the
+    question, #1012), unless the question itself (`root`) is inside it (the reader's 本节题目, #1013)? */
+export function keysElsewhere(target, root) {
+  const owner = target?.closest?.('dialog, [data-own-keys]');
+  return !!owner && !owner.contains(root);
+}
+
 /**
  * May a key press be a shortcut at all? ctx.inside: the focus (or the learner's last interaction) is in the panel;
  * event.inEditable: the target is a field or a dialog; ctx.modalOpen: one of the app's dialogs is open.

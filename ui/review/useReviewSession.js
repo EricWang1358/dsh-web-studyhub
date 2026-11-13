@@ -13,7 +13,7 @@ import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
   AUTO_ADVANCE_MS, advanceKeyOf, assistRunningOn, autopilotPlan, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
-  mergeReviewPollWithFollowups, reviewPollResult, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
+  keysElsewhere, mergeReviewPollWithFollowups, reviewPollResult, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
 import { createDraftSaver, draftKey, draftPayloadOf, draftable, entrySignature, keepTyped, savedSignature } from './draft-persistence.js';
@@ -421,11 +421,10 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const active = document.activeElement;
     return { inside: !!(rootRef.current?.contains(active) || ((!active || active === document.body) && engaged.current)), modalOpen };
   };
-  // A dialog over the page takes the keys; the one the question itself sits in (the reader's 本节题目, #1013) does not.
-  const inOverlay = (target) => { const dialog = target.closest?.('dialog'); return !!dialog && !dialog.contains(rootRef.current); };
+  // A dialog over the page, or the 对照栏 beside the question (#1012), takes the keys; the dialog the question itself sits in (the reader's 本节题目, #1013) does not.
   const eventShape = (event) => ({ key: event.key, code: event.code, shiftKey: event.shiftKey, repeat: event.repeat, defaultPrevented: event.defaultPrevented,
     ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey,
-    inEditable: !!event.target.closest?.('input,textarea,select,[contenteditable]') || inOverlay(event.target), onButton: !!event.target.closest?.('button') });
+    inEditable: !!event.target.closest?.('input,textarea,select,[contenteditable]') || keysElsewhere(event.target, rootRef.current), onButton: !!event.target.closest?.('button') });
   const canShortcut = (event) => shortcutGate(eventShape(event), gateContext()) && !event.defaultPrevented && !event.repeat && !event.shiftKey && page === 'review' && !!run?.card;
   keyHandler.current = (event) => {
     const shape = eventShape(event);
