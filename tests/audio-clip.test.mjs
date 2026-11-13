@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
-import { wavPcm } from '../lib/contexts/audio/clip.js';
+import { transcribeClip, transcribeLocally, wavPcm } from '../lib/contexts/audio/clip.js';
+import { createUploadRegistry } from '../lib/audio-upload.js';
 import { wavBytes, VOICE_MAX_SECONDS } from '../ui/voice/wav.js';
 
 /* A voice answer is transcribed once (#1031): audio.clip.transcribe reads the uploaded clip, asks one tier (a configured cloud provider, else the
@@ -124,4 +125,49 @@ test('只用付费密钥 is honoured: the default of the audio settings or the r
   const third = await h.upload(wavBytes([square(1)]));
   assert.equal((await h.call('audio.clip.transcribe', { uploadId: third })).text, '免费转写', 'with paid-only off the free key transcribes');
   assert.equal(asked, 1);
+});
+
+test('a clip whose declared size is over the limit is refused before it is read, and a WAV with no sensible length is refused as a format', async (t) => {
+  let read = false;
+  const removed = [];
+  const uploads = { claimUpload: () => ({ path: '/never/read.wav', size: 200 * 32000 }), cancelUpload: async () => {}, dropUnclaimedUpload: async () => {},
+    discardUpload: async (upload) => { removed.push(upload.path); } };
+  await assert.rejects(transcribeClip({ root: '/r', uploadId: 'u', uploads, settings: {}, local: async () => { read = true; return null; } }), /90 秒/);
+  assert.equal(read, false, 'no tier was asked');
+  assert.deepEqual(removed, ['/never/read.wav'], 'the clip is deleted all the same');
+  const h = await fixture(t);
+  const silentRate = Buffer.from(wavBytes([square(1)], 0));
+  const id = await h.upload(silentRate);
+  await assert.rejects(h.call('audio.clip.transcribe', { uploadId: id }), /格式/);
+  assert.deepEqual(await h.folders(), []);
+});
+
+test('the local engine that never answers after the clip is sent gives up instead of hanging the answer', async () => {
+  class Silent {
+    constructor() { this.listeners = {}; setTimeout(() => this.emit('message', { data: JSON.stringify({ setupComplete: {} }) }), 5); }
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+    emit(type, event) { for (const fn of this.listeners[type] || []) fn(event); }
+    send() {}
+    close() { this.emit('close', { code: 1006, reason: '' }); }
+  }
+  const started = Date.now();
+  await assert.rejects(transcribeLocally(Silent, Buffer.alloc(3200), { replyTimeoutMs: 50 }), /没有按时/);
+  assert.ok(Date.now() - started < 5000);
+});
+
+test('a clip another import has already claimed is not cancelled under it; an unfinished one is', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'audio-clip-claim-'));
+  try {
+    const registry = createUploadRegistry();
+    const { uploadId } = await registry.startUpload(dir, { name: 'a.wav', size: 4 });
+    await registry.appendUpload(dir, { uploadId, offset: 0, data: Buffer.from('abcd').toString('base64') });
+    registry.finishUpload(dir, uploadId);
+    registry.claimUpload(dir, uploadId);
+    const settings = {}, local = async () => null;
+    await assert.rejects(transcribeClip({ root: dir, uploadId, uploads: registry, settings, local }), /已经在导入/);
+    assert.deepEqual(await readdir(join(dir, 'audio-uploads')), [uploadId], 'the claimed upload is still there');
+    const open = await registry.startUpload(dir, { name: 'b.wav', size: 4 });
+    await assert.rejects(transcribeClip({ root: dir, uploadId: open.uploadId, uploads: registry, settings, local }), /没有传完/);
+    assert.deepEqual(await readdir(join(dir, 'audio-uploads')), [uploadId], 'the unfinished one is gone');
+  } finally { await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });
