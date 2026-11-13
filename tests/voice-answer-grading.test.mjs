@@ -313,3 +313,15 @@ test('a grade job that fails after the round was ended still clears its marker',
   assert.equal((await f.settled(task.id)).status, 'failed');
   await until(async () => !(await f.entryOf(run.id, run.index)).grading);
 });
+
+test('改分 never overwrites a newer review of the question: once it was reviewed again, the old grade cannot be changed', async (t) => {
+  const f = await library(t, { current: grader({ ratio: 1 }) }, { cards: [open('o1')] });
+  const run = await f.start(['o1']);
+  assert.equal((await f.settled((await f.grade(run.id, 'o1')).id)).status, 'done');
+  const newer = { ...(await f.service.store.read()).decks[0].cards[0].review, due_at: '2099-01-01T00:00:00.000Z', reps: 99 };
+  await f.service.store.update((s) => { s.decks[0].cards[0].review = structuredClone(newer); });
+  await assert.rejects(f.service.call('review.grade.adjust', { runId: run.id, entryIndex: run.index, cardId: 'o1', grade: 1 }), /又复习过/);
+  const state = await f.service.store.read();
+  assert.deepEqual(state.decks[0].cards[0].review, newer, 'the newer review is untouched');
+  assert.equal(state.runs[0].entries[run.index].feedback.grade, 5, 'and so is the grade');
+});
