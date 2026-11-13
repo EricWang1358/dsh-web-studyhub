@@ -389,6 +389,33 @@ test("a 60 s outage keeps the last 30 s for the new connection and the record sa
   assert.equal(live.toSaved().lostAudioMs, 30_000);
 });
 
+/* #1040 polish: the English of the lost-audio note agrees with its count, reads on after "; ", and every part of a joined message is translated. */
+test("the English lost-audio note says was for one second, were otherwise, and continues a sentence after the semicolon", () => {
+  const note = (seconds) => `转写连接断开期间，约 ${seconds} 秒的声音没有转写`;
+  assert.equal(localizeAppMessage(note(1)), "About 1 second of audio was not transcribed while the transcription connection was down");
+  assert.match(localizeAppMessage(note(2)), /^About 2 seconds of audio were not transcribed/);
+  const joined = localizeAppMessage(`页面已关闭或断开，实录已自动结束；${note(1)}`);
+  assert.equal(joined, "The page closed or disconnected; live recording ended automatically; about 1 second of audio was not transcribed while the transcription connection was down");
+});
+
+test("a message joined from three parts has no Han characters in English", () => {
+  const interrupted = "连接中断：无法重连。已记录的内容已保存，可以从列表打开。";
+  const storage = "自动保存失败，请检查磁盘；当前文字暂留在内存中";
+  const note = "转写连接断开期间，约 2 秒的声音没有转写";
+  for (const message of [
+    `页面已关闭或断开，实录已自动结束；${interrupted}；${note}`,
+    `${interrupted}；${storage}；${note}`,
+    `${interrupted}；${storage}`,
+    `页面已关闭或断开，实录已自动结束；${interrupted}`,
+  ]) {
+    const english = localizeAppMessage(message);
+    assert.doesNotMatch(english, /[㐀-鿿；]/, english);
+    assert.ok(english.includes("; "), english);
+  }
+  assert.equal(localizeAppMessage(`${interrupted}；${storage}；${note}`),
+    "Connection interrupted: Unable to reconnect. Recorded content was saved and can be opened from the list; autosave failed. Check the disk; current text remains in memory; about 2 seconds of audio were not transcribed while the transcription connection was down");
+});
+
 test("a reconnect that gives up counts the audio it was holding", async () => {
   const Dead = socketClass((socket) => { if (Dead.instances.length === 1) healthy(socket); else refuse(1006, "")(socket); });
   const live = session(Dead);
