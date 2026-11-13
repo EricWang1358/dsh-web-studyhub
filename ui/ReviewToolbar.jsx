@@ -17,8 +17,8 @@ const NEXT_HINT_ID = "review-next-hint";
 export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, onSkip, onEndRound, moreDefaultOpen = false }) {
   const { busy } = useStudy();
   const [readingOpen, setReadingOpen] = React.useState(false);
-  // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer; a pending step is still saving.
-  const needsAnswer = !run.feedback && run.mode !== "exam";
+  // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer (one whose AI grade is on its way is answered: the grade lands on it later, #1031); a pending step is still saving.
+  const needsAnswer = !run.feedback && !run.grading && run.mode !== "exam";
   const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
   const exam = run.mode === "exam";
   // 完成 only when 下一题 has nowhere to go: the round says so (lib/round-position.js), a question set aside with 先跳过 included.

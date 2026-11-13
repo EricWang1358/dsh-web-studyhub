@@ -1,4 +1,4 @@
-/* global localStorage, document, innerWidth */
+/* global localStorage, document, innerWidth, innerHeight */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -27,8 +27,8 @@ const deckOf = (i) => ({ id: `v${i}`, title: `Voice ${i}`, course: 'Systems', ca
     citations: [], options: [{ id: 'a', text: 'yes', correct: true, explanation: 'Right.' }, { id: 'b', text: 'no', correct: false, explanation: 'Wrong.' }] })),
 ] });
 const WORDS = {
-  zh: { resume: '接着做', grading: /正在批改/, pending: /待看订正 1/, ack: '我看懂了 · 加入重练', submitted: /已提交批改/, setup: /转写服务还没配置/, correction: /更专业的说法/ },
-  en: { resume: 'Continue', grading: /Grading/, pending: /Corrections to read 1/, ack: 'Got it · add a retry', submitted: /Submitted for grading/, setup: /./, correction: /How an examiner would put it/ },
+  zh: { resume: '接着做', grading: /正在批改/, pending: /待看订正 1/, ack: '我看懂了 · 加入重练', submitted: /已提交批改/, setup: /转写服务还没配置/, correction: /更专业的说法/, rewrite: '可以这样改写' },
+  en: { resume: 'Continue', grading: /Grading/, pending: /Corrections to read 1/, ack: 'Got it · add a retry', submitted: /Submitted for grading/, setup: /./, correction: /How an examiner would put it/, rewrite: 'A stronger way to write it' },
 };
 
 async function serve(t) {
@@ -59,13 +59,16 @@ async function fakeTranscription(page, server, said) {
     return route.continue();
   });
 }
-async function speak(page, said, text) {
+async function speak(page, said, text, key = 'v') {
   said.next = text;
-  await page.keyboard.press('v');
+  await page.keyboard.press(key === 'V' ? 'Shift+V' : key);
   await page.locator('.voice-input[data-phase="recording"]').first().waitFor();
   // Long enough that a busy machine's capture has delivered more than the recorder's 0.1 s minimum.
   await page.waitForTimeout(1500);
-  await page.keyboard.press('v');
+  const live = await page.locator('.voice-input[data-phase="recording"]').first().boundingBox();
+  const height = await page.evaluate(() => innerHeight);
+  assert.ok(live && live.y >= 0 && live.y + live.height <= height, `the recording is on screen when the key starts it (${JSON.stringify(live)} in ${height} px)`);
+  await page.keyboard.press(key === 'V' ? 'Shift+V' : key);
 }
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `voice-${name}.png`) }); };
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -91,8 +94,54 @@ test('voice answers: autopilot grades and moves on, 待看订正 → 加入重�
     await page.getByText(WORDS.zh.setup).first().waitFor({ timeout: 15000 });
     await page.getByText(WORDS.zh.setup).first().scrollIntoViewIfNeeded();
     await shot(page, 'setup-zh-1280');
+    await page.keyboard.press('Escape');
+    await page.locator('.voice-input__setup').waitFor({ state: 'detached', timeout: 5000 });
     await context.close();
     for (const open of (await previewCall(server, 'snapshot', {})).runs || []) await previewCall(server, 'review.end', { runId: open.id });
+  }
+
+  // Autopilot off, AI 批改 pressed by hand: the status line under the answer is the only message (no toast on top), the box is read-only while the grade runs,
+  // and 下一题 is open: the answer is in, so the learner is not left waiting for the grade.
+  {
+    for (const open of (await previewCall(server, 'snapshot', {})).runs || []) await previewCall(server, 'review.end', { runId: open.id });
+    await previewCall(server, 'review.start', { mode: 'path', fresh: true, scope: [{ deckId: 'vgate' }] });
+    const said = { next: '', uploads: [] };
+    const context = await browser.newContext({ viewport: { width: 420, height: 900 }, permissions: ['microphone'] });
+    const page = await context.newPage();
+    await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); });
+    await fakeTranscription(page, server, said);
+    await page.goto(server.url);
+    await page.getByRole('button', { name: WORDS.zh.resume, exact: true }).first().click();
+    await page.locator('.question-card').waitFor({ timeout: 30000 });
+    await page.locator('.question-card').click({ position: { x: 5, y: 5 } });
+    await speak(page, said, '不知道');
+    await page.getByRole('button', { name: 'AI 批改' }).click();
+    await page.getByText(WORDS.zh.grading).first().waitFor({ timeout: 15000 });
+    assert.equal(await page.getByText(WORDS.zh.submitted).count(), 0, 'a hand-pressed AI 批改 says it once, under the answer');
+    assert.equal(await page.locator('.response-label textarea').evaluate((box) => box.readOnly), true, 'what was sent cannot be edited while it is graded');
+    assert.equal(await page.locator('[data-usage="review.next"]').isDisabled(), false, 'the answer is in: 下一题 is open');
+    assert.equal(await page.getByText('请先作答').count(), 0, 'and no "answer first" line contradicts the status');
+    await shot(page, 'grading-manual-zh-420');
+    await context.close();
+  }
+
+  // Shift+V: the 帮我弄懂 box opens with the cursor in it; the second Shift+V sends the recording instead of typing a capital V into the box.
+  {
+    for (const open of (await previewCall(server, 'snapshot', {})).runs || []) await previewCall(server, 'review.end', { runId: open.id });
+    await previewCall(server, 'review.start', { mode: 'path', fresh: true, scope: [{ deckId: 'vgate' }] });
+    const said = { next: '', uploads: [] };
+    const context = await browser.newContext({ viewport: { width: 420, height: 900 }, permissions: ['microphone'] });
+    const page = await context.newPage();
+    await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'en'); });
+    await fakeTranscription(page, server, said);
+    await page.goto(server.url);
+    await page.getByRole('button', { name: WORDS.en.resume, exact: true }).first().click();
+    await page.locator('.question-card').waitFor({ timeout: 30000 });
+    await page.locator('.question-card').click({ position: { x: 5, y: 5 } });
+    await speak(page, said, 'Why does a retry need a delay?', 'V');
+    await page.waitForFunction(() => document.querySelector('.assist-form__input')?.value === 'Why does a retry need a delay?', null, { timeout: 15000 })
+      .catch(async () => assert.fail(`Shift+V: the box holds "${await page.locator('.assist-form__input').inputValue().catch(() => '')}"`));
+    await context.close();
   }
 
   for (const [i, [lang, width, height]] of RUNS.entries()) {
@@ -135,10 +184,12 @@ test('voice answers: autopilot grades and moves on, 待看订正 → 加入重�
     // 3. The open question's grade landed after the learner left it: a miss, so it waits under 待看订正 in the practice header.
     const pending = page.getByRole('button', { name: words.pending }).first();
     await pending.waitFor({ timeout: 30000 });
+    await page.waitForTimeout(700); // the question's entry animation (the header can land while the next question is still fading in)
     await shot(page, `pending-${lang}-${width}`);
     await pending.click();
     const dialog = page.getByRole('dialog');
     await dialog.getByText(words.correction).first().waitFor({ timeout: 15000 });
+    assert.equal(await dialog.getByText(words.rewrite).count(), 1, `${where}: the fake model gives every criterion the same rewrite: it is said once`);
     await page.waitForTimeout(400); // the dialog's fade-in, for the screenshot
     await shot(page, `correction-${lang}-${width}`);
     assert.ok((await overflow(page)) <= 1, `${where}: nothing scrolls sideways`);

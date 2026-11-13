@@ -21,6 +21,7 @@ export const ICON_MAP = {
   download: 'download-simple',
   file: 'file-text',
   audio: 'music-notes',
+  microphone: 'microphone',
   sparkle: 'sparkle',
   info: 'info',
   success: 'check-circle',

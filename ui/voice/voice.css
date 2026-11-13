@@ -11,9 +11,13 @@
     .voice-input__setup { display: grid; gap: var(--space-2); justify-items: start; }
     @media (prefers-reduced-motion: reduce) { .voice-input[data-phase="recording"] .voice-button { animation: none; } }
 
+    /* While the answer is being graded the box shows what was sent and is not editable. */
+    .response-sent { cursor: default; opacity: 0.8; }
+
     .voice-said { margin: var(--space-2) 0 0; padding: var(--space-2) var(--space-3); border-inline-start: 3px solid var(--line-strong); color: var(--text); overflow-wrap: anywhere; }
     .voice-said__label { display: block; color: var(--text-muted); font-size: var(--fs-sm); }
-    .voice-grade { display: grid; gap: var(--space-2); justify-items: start; margin-block: var(--space-2); }
+    .voice-grade { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-block: var(--space-2); }
+    .voice-grade small { flex-basis: 100%; }
 
     .correction-card { display: grid; gap: var(--space-2); margin-block: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .correction-card h4 { margin: 0; font-size: var(--fs-sm); }
