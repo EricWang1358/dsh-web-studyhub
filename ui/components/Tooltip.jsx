@@ -7,13 +7,13 @@ import { computePlacement, useAnchoredPosition, useDismiss } from './use-dismiss
 
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
-const HOVER_DELAY = 250, PRESS_DELAY = 500, TOUCH_LINGER = 3000, LEAVE_DELAY = 150;
+const HOVER_DELAY = 250, PRESS_DELAY = 500, TOUCH_LINGER = 3000, LEAVE_DELAY = 150, PRESS_FOCUS = 1000;
 const chain = (own, extra) => event => { own?.(event); extra(event); };
 // The open tooltip of each `group`: opening one closes the one before at once, so two cards are never on screen together.
 const openInGroup = new Map();
-// A card opens on focus only when the focus is the user's: keyboard focus (:focus-visible, which a mouse press or a touch does not give). A script that
-// moves focus after a press (a dialog handing it back, a suggested answer taking it) opens nothing; focusQuietly is for a script that moves focus while
-// the user is on the keyboard, where :focus-visible still holds.
+// A card opens on focus only when the focus is the user's: keyboard focus (:focus-visible), or focus that follows a press on the anchor itself (a tap
+// on a 「?」 that focuses it). A script that moves focus after a press elsewhere (a dialog handing it back, a suggested answer taking it) opens nothing;
+// focusQuietly is for a script that moves focus while the user is on the keyboard, where :focus-visible still holds.
 let quiet = false;
 const userFocus = event => { if (quiet) return false; try { return event.target.matches(':focus-visible'); } catch { return true; } };
 /** element.focus() that opens no tooltip card: focus the program chose (the control the answer suggests), not one the user moved there. */
@@ -23,7 +23,7 @@ export function focusQuietly(element, options) {
 }
 
 /**
- * Words for a control, shown on hover, on keyboard focus (not on a script's focus, see userFocus) and on a long press,
+ * Words for a control, shown on hover, on keyboard focus or a tap that focuses it (not on a script's focus, see userFocus) and on a long press,
  * and tied to it with aria-describedby (the text stays in the DOM, hidden,
  * while closed, so the description always resolves). Use it where the text
  * carries something the label does not; a title attribute that only repeats
@@ -45,7 +45,7 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
   useComponentCss(overlayCss, 'study-overlays');
   useComponentCss(layerCss, 'study-tooltip-layer');
   const [open, setOpen] = useState(false);
-  const id = useId(), anchor = useRef(null), panel = useRef(null), timer = useRef(0), self = useRef(null);
+  const id = useId(), anchor = useRef(null), panel = useRef(null), timer = useRef(0), self = useRef(null), pressedAt = useRef(0);
   if (!self.current) self.current = { close: () => {} };
   self.current.close = () => { clearTimeout(timer.current); setOpen(false); };
   const closeOthers = () => { const other = group && openInGroup.get(group); if (other && other !== self.current) other.close(); };
@@ -103,9 +103,10 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
         'aria-describedby': describedBy,
         onPointerEnter: chain(own.onPointerEnter, event => { if (event.pointerType !== 'touch') { closeOthers(); later(HOVER_DELAY, true); } }),
         onPointerLeave: chain(own.onPointerLeave, event => { if (event.pointerType !== 'touch') { if (interactive) later(LEAVE_DELAY, false); else now(false); } }),
-        onFocus: chain(own.onFocus, event => { if (userFocus(event)) now(true); }),
-        onBlur: chain(own.onBlur, () => now(false)),
+        onFocus: chain(own.onFocus, event => { if (userFocus(event) || (!quiet && Date.now() - pressedAt.current < PRESS_FOCUS)) now(true); }),
+        onBlur: chain(own.onBlur, () => { pressedAt.current = 0; now(false); }),
         onPointerDown: chain(own.onPointerDown, event => {
+          pressedAt.current = Date.now();
           if (event.pointerType !== 'touch') return;
           clearTimeout(timer.current);
           timer.current = setTimeout(() => { setOpen(worded); timer.current = setTimeout(() => setOpen(false), TOUCH_LINGER); }, PRESS_DELAY);
