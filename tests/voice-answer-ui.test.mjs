@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { splitSpokenBlanks, clozeBlankIds } from '../ui/voice/cloze-split.js';
 import { suggestedGrade } from '../ui/voice/suggest-grade.js';
 import { createVoiceRecorder } from '../ui/voice/mic.js';
-import { autopilotPlan, shortcutAction } from '../ui/review/session-logic.js';
+import { autopilotPlan, gradesOutstanding, shortcutAction } from '../ui/review/session-logic.js';
+import { mergeReviewPoll } from '../ui/async.js';
 
 /* The browser half of voice answering (#1031) without a browser: the transcript goes into the same inputs as typing (cloze blanks split locally, no
    model), a flashcard gets a local suggested grade, the recorder uploads one clip and gives back text, and the keys. */
@@ -111,4 +112,23 @@ test('the autopilot moves on from a question whose AI grade is on its way, as it
   assert.equal(plan({ grading: true }).schedule, true);
   assert.equal(plan({ grading: true, skippedKey: 'r:0:0' }).schedule, false, 'stopped by the learner stays stopped');
   assert.equal(autopilotPlan({ autopilot: false, page: 'review', grading: true, advanceKey: 'k' }).schedule, false);
+});
+
+test('the poll brings 正在批改 and 待看订正 to the question on screen, and takes them away again', () => {
+  const current = { id: 'r', index: 0, queueVersion: 0, revealed: false, feedback: null, card: { id: 'c' } };
+  const marked = mergeReviewPoll(current, { ...current, grading: true });
+  assert.equal(marked.grading, true, 'the grade job started: the question shows it is being graded');
+  assert.equal(mergeReviewPoll(marked, { ...current }).grading, undefined, 'the job failed: the marker is gone');
+  const waiting = mergeReviewPoll(current, { ...current, correctionsPending: 1 });
+  assert.equal(waiting.correctionsPending, 1, 'a miss graded after the learner left counts in the header');
+  assert.equal(mergeReviewPoll(current, { ...current }), current, 'nothing changed: the same object, no re-render');
+});
+
+test('a finished round with a grade still running or a correction unread holds its result page: the autopilot waits and the page keeps asking', () => {
+  const done = { complete: true, mode: 'path', navigation: [{ index: 0, answered: true, passed: true }] };
+  assert.equal(gradesOutstanding(done), false, 'nothing waits: the autopilot may carry on');
+  assert.equal(gradesOutstanding({ ...done, navigation: [{ index: 0, answered: true, grading: true }] }), true, 'a grade is still on its way');
+  assert.equal(gradesOutstanding({ ...done, correctionsPending: 1 }), true, 'a correction waits to be read');
+  assert.equal(gradesOutstanding({ ...done, mode: 'exam', correctionsPending: 1 }), false, 'an exam has no 待看订正');
+  assert.equal(gradesOutstanding(null), false);
 });

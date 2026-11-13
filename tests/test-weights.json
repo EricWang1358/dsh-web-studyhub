@@ -1195,6 +1195,7 @@
  "tests/usage-ui.test.mjs": 1790,
  "tests/uv-bootstrap.test.mjs": 200,
  "tests/variants-console-browser.test.mjs": 510,
+ "tests/voice-answer-browser.test.mjs": 87300,
  "tests/wave1-c-feedback.test.mjs": 70,
  "tests/wave1-c-inbox.test.mjs": 210,
  "tests/wave1-c-jobs.test.mjs": 100,

@@ -29,7 +29,8 @@ export function mergeReviewPoll(current, next) {
   if (after > before) return next;
   if (after !== before || current.index !== next.index || current.revealed !== next.revealed || !!current.feedback !== !!next.feedback) return current;
   // `intervals`: the gaps under the 0–5 buttons follow the clock (a new day changes them), so each poll brings them up to date.
-  const fields = ["prerequisites", "card", "solution", "revision", "sourceIds", "navigation", "coach", "vote", "level", "origin", "intervals"];
+  // `grading` / `correctionsPending` (#1031): a background grade started or failed on this question, a miss graded after the learner left it.
+  const fields = ["prerequisites", "card", "solution", "revision", "sourceIds", "navigation", "coach", "vote", "level", "origin", "intervals", "grading", "correctionsPending"];
   if (fields.every((key) => JSON.stringify(current[key]) === JSON.stringify(next[key]))) return current;
   return { ...current, ...Object.fromEntries(fields.map((key) => [key, next[key]])) };
 }

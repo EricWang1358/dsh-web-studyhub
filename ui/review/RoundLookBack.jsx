@@ -101,6 +101,10 @@ function LookBack({ row, mode }) {
 export default function RoundLookBack({ run, onOpenWrongBook, onAck }) {
   // One read per opening of the result page, shared by any other reader of the same round (ui/host-query.js); nothing for an exam.
   const query = useHostQuery("review.lookBack", { runId: run.id }, { enabled: run.mode !== "exam" });
+  // A grade that lands while this page is open (#1031: the run's poll brings the new count) is read again, so its row and 待看订正 show at once.
+  const landed = `${run.correctionsPending || 0}:${(run.navigation || []).filter((item) => item.grading).length}`;
+  const seen = React.useRef(landed);
+  React.useEffect(() => { if (seen.current !== landed) { seen.current = landed; invalidate("review.lookBack", { runId: run.id }); } }, [landed, run.id]);
   const rows = (run.mode !== "exam" && query.data?.rows) || [];
   const needsLook = rows.filter((row) => row.status === "wrong" || row.status === "unanswered");
   const corrections = rows.filter((row) => row.correctionPending);

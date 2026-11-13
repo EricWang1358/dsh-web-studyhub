@@ -101,6 +101,10 @@ export function finishedTask(watched, tasks, cardId) {
 /** How many questions of the round have no answer yet (the one on screen included): the 「N 题待答」 of a narrow window and the 到此为止 question. A re-ask
     (再练) queued by a wrong answer is not a question of the round, so this is what the result page's 未答 will say. 0 in an exam. */
 export const pendingCount = (run) => (run?.mode === 'exam' ? 0 : (run?.navigation || []).filter((item) => !item.answered && !item.retry).length);
+/** A finished round whose AI grades are not all read (#1031): one still running, or a miss graded after the learner left it waiting under 待看订正.
+    Its result page stays put (the autopilot does not carry on) and keeps asking the host until the grade lands. */
+export const gradesOutstanding = (run) => !!run && run.mode !== 'exam'
+  && (run.correctionsPending > 0 || (run.navigation || []).some((item) => item.grading));
 /** The re-asks (再练) still waiting, counted on their own. */
 export const retriesWaiting = (run) => (run?.mode === 'exam' ? 0 : (run?.navigation || []).filter((item) => !item.answered && item.retry).length);
 

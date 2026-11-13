@@ -12,7 +12,7 @@ import { resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
-  AUTO_ADVANCE_MS, advanceKeyOf, assistRunningOn, autopilotPlan, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
+  AUTO_ADVANCE_MS, advanceKeyOf, assistRunningOn, autopilotPlan, gradesOutstanding, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
   keysElsewhere, mergeReviewPollWithFollowups, reviewPollResult, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
@@ -200,7 +200,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     if (!result.unchanged) setRun((existing) => mergeReviewPollWithFollowups(existing, next));
     return result;
   }, [call, refs]);
-  const polling = usePolling(pollRun, { intervalMs: REVIEW_POLL_MS, backoff: reviewPollDelay, enabled: page === 'review' && !!run?.card?.id });
+  // A finished round keeps asking while a grade is on its way or a correction waits (#1031): it lands on the result page, not on the next visit.
+  const polling = usePolling(pollRun, { intervalMs: REVIEW_POLL_MS, backoff: reviewPollDelay, enabled: page === 'review' && (!!run?.card?.id || (!!run?.complete && gradesOutstanding(run))) });
   const pollingRef = useRef(polling);
   pollingRef.current = polling;
   // A new question on screen: the rhythm starts again at 4 s, without an extra request. A task that ends on the question asks at once (QuestionRun).
