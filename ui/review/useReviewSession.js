@@ -206,6 +206,13 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   // A new question on screen: the rhythm starts again at 4 s, without an extra request. A task that ends on the question asks at once (QuestionRun).
   useEffect(() => { pollingRef.current.restart(); }, [run?.id, run?.index, run?.card?.id]);
   const pollNow = useCallback(() => pollingRef.current.refresh(), []);
+  // A dialog over the question closes (the reader, whose 本节题目 panel may have answered this very round, #1013): ask for the round once, at once, rather
+  // than show a stale question until the slowed-down poll comes round (a different option would then be refused as already answered).
+  const modalWas = useRef(modalOpen);
+  useEffect(() => {
+    if (modalWas.current && !modalOpen && page === 'review' && runRef.current?.card?.id) pollingRef.current.refresh();
+    modalWas.current = modalOpen;
+  }, [modalOpen, page]);
 
   /* ── one step of the round ── */
   const stepWaiting = useRef(false);
