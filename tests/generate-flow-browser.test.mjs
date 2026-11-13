@@ -226,7 +226,8 @@ test('a draft with sections without a question: unsaved edits are saved by the t
       await shot(page, `hold-${width}`);
       assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll while it waits`);
       await page.locator('[data-draft-hold] button', { hasText: '停止并保留已出的题' }).click();
-      await until(async () => (await page.locator('[data-draft-hold]').count()) === 0 || /正在停止/.test(await page.locator('[data-draft-hold]').innerText()), 'the job is stopping');
+      // one read inside the page: a banner that goes away between a count and a read of its text is the job being free, not an element to wait 30 s for
+      await until(() => page.evaluate(() => { const hold = document.querySelector('[data-draft-hold]'); return !hold || /正在停止/.test(hold.innerText); }), 'the job is stopping');
       await until(async () => (await page.locator('[data-draft-hold]').count()) === 0, 'and the page is free again', { timeoutMs: 90000 });
       assert.equal(await page.locator('.draft-page .sticky-actions button.sh-btn--primary').isDisabled(), false, 'saving and publishing are back');
       await context.close();
