@@ -342,6 +342,9 @@ test('本轮题目 counts a question being graded as answered, pending, like the
   await f.service.call('review.end', { runId: run.id });
   const { rows } = await f.service.call('review.lookBack', { runId: run.id });
   assert.deepEqual(rows.map((row) => [row.cardId, row.status]), [[run.card.id, 'grading'], [run.card.id === 'o1' ? 'o2' : 'o1', 'unanswered']]);
+  // Until its grade lands the row carries only its question: no verdict, no answer key (the page draws it like an unanswered one, with 批改中).
+  assert.ok(rows[0].prompt);
+  for (const field of ['card', 'feedback', 'solution']) assert.equal(field in rows[0], false, field);
   release.resolve();
   assert.equal((await f.settled(task.id)).status, 'done');
 });

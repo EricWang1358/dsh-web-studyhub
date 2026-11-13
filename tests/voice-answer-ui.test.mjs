@@ -171,3 +171,50 @@ test('a finished round asks the host again only while a grade is running; an unr
   assert.equal(gradeRunning({ ...done, mode: 'exam', navigation: [{ index: 0, grading: true }] }), false);
   assert.equal(gradeRunning(null), false);
 });
+
+test('本轮题目 with a question still being graded: it is listed by default, blocks 全部过关, and opens as 批改中 without a verdict (an option card too)', async () => {
+  const React = (await import('react')).default;
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { loadUi } = await import('./helpers/ui-module.mjs');
+  const ui = await loadUi(`
+    export { default as RoundLookBack } from './ui/review/RoundLookBack.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setQueryData } from './ui/host-query.js';`);
+  const noop = () => {};
+  const services = { call: async () => ({}), act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+  const options = [{ id: 'a', text: 'Alpha' }, { id: 'b', text: 'Beta' }, { id: 'c', text: 'Gamma' }];
+  const rows = [
+    // What review.lookBack gives for a question being graded: the question alone.
+    { number: 1, entryIndex: 0, deckId: 'd', cardId: 'o1', kind: 'open', status: 'grading', prompt: 'Explain idempotency' },
+    // A row in the answered shape with no feedback yet (a read cached before the fix): it must not crash on the missing feedback.
+    { number: 2, entryIndex: 1, deckId: 'd', cardId: 'q1', kind: 'quiz', status: 'grading', card: { id: 'q1', kind: 'quiz', prompt: 'Pick one', options }, feedback: null,
+      solution: { options: [{ id: 'a', correct: true }], followups: [] } },
+    { number: 3, entryIndex: 2, deckId: 'd', cardId: 'o2', kind: 'open', status: 'right', card: { id: 'o2', kind: 'open', prompt: 'Explain retries' },
+      feedback: { grade: 4 }, solution: { answer: 'ref', followups: [] } },
+    // Any answered-shape row without feedback draws its options without crashing (the look-back's own guard).
+    { number: 4, entryIndex: 3, deckId: 'd', cardId: 'q2', kind: 'quiz', status: 'unanswered', card: { id: 'q2', kind: 'quiz', prompt: 'Pick again', options }, feedback: null,
+      solution: { options: [{ id: 'b', correct: true }], followups: [] } },
+  ];
+  const run = { id: 'r-look', mode: 'practice', navigation: [{ grading: true }, { grading: true }, {}, {}], correctionsPending: 0 };
+  const render = (openAll) => {
+    ui.setQueryData('review.lookBack', { runId: run.id }, { rows });
+    const realUseState = React.useState;
+    if (openAll) React.useState = (init) => (typeof init === 'function' && init() instanceof Set ? realUseState(() => new Set([1, 2, 3, 4])) : realUseState(init));
+    try {
+      return renderToStaticMarkup(React.createElement(ui.StudyServicesContext.Provider, { value: services }, React.createElement(ui.RoundLookBack, { run })));
+    } finally { React.useState = realUseState; }
+  };
+  const closed = render(false);
+  assert.doesNotMatch(closed, /全部过关/, 'a grade on its way is not a pass yet');
+  assert.match(closed, /批改中 2/);
+  assert.match(closed, /Explain idempotency/, 'the graded question is listed by default');
+  assert.match(closed, /Pick one/);
+  assert.doesNotMatch(closed, /Explain retries/, 'the passed one waits behind 显示全部');
+  const open = render(true);
+  assert.match(open, /Explain idempotency/);
+  assert.match(open, /正在批改，分数出来后这里会显示答案和讲解/);
+  assert.doesNotMatch(open, /这道题这一轮没有作答/, 'it was answered');
+  const panel = (number) => open.split(`id="look-back-r-look-${number}"`)[1].split('</li>')[0];
+  for (const number of [1, 2]) assert.doesNotMatch(panel(number), /option-letter|answer-state|参考答案/, 'no verdict and no key while it is graded');
+  assert.match(panel(4), /正确答案/, 'the guarded row still draws its options');
+});
