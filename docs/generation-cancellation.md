@@ -28,11 +28,13 @@ If another window edits the draft during the job, its optimistic version check s
 of overwriting that edit. Older drafts without stored generation settings need
 a new generation request.
 
-Each job has a 20-minute execution budget, starting when its queue slot opens.
+Each job has an execution budget, starting when its queue slot opens: **Time budget per round (minutes)** in Settings, 20 by default (5–180).
+A plain task has it for the whole task; a coverage plan has it for each round and no limit as a whole. Time held in the queue after a model error does not count.
+A selection run and a background draft repair have a fixed 20 minutes.
 The existing 10-minute per-phase bound also applies. Reaching the job budget
 aborts active work and prevents subsequent batches. Cleanup can extend beyond
 the budget; the UI must not claim a worker has stopped until it has. This is a
-cost/latency guard, not a promise of a full deck in 20 minutes. Failed work must
+cost/latency guard, not a promise of a full deck within the budget. Failed work must
 not be automatically re-enqueued or bypassed through ingest.
 
 The tests cover cross-library isolation, idempotent cancellation, skipped queued
