@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { errorMessage, ui, uiFormat } from '../../i18n.js';
 import { useToast } from '../../components/index.js';
 import { relatedTaskItems } from '../../DailyPlan.jsx';
@@ -35,12 +35,17 @@ export function useSourceReader({ modal, onClose, column = false }) {
   const openModelSettings = () => { if (!host.openModelSettings) onClose(); settingsEntry.openModelSettings(); };
   // What the reader's 更多 adds (the rename, today's tasks, the question sets): they were buttons above the reader, and are items of its menu now.
   const [renameRequest, setRenameRequest] = useState(0);
-  const moreItems = !source ? [] : [
+  // Made again only when what they show changes (their actions read the page's latest services), so a page render does not draw the reader again.
+  const live = useRef(null);
+  live.current = { onClose, nav, learn, dailyPlan };
+  const planState = dailyPlan?.state, planBusy = dailyPlan?.busy;
+  const moreItems = useMemo(() => !source ? [] : [
     ...(data.sources?.some(item => item.id === source.id) ? [{ id: 'rename', icon: 'edit', label: ui('重命名…'), run: () => setRenameRequest(count => count + 1) }] : []),
-    ...(dailyPlan ? relatedTaskItems({ plan: dailyPlan, reference: { root: data.root, kind: 'source', id: source.id }, onBoard: () => { onClose(); nav.navigate('board'); } }) : []),
+    ...(dailyPlan ? relatedTaskItems({ plan: { state: planState, busy: planBusy, complete: (id) => live.current.dailyPlan.complete(id) }, reference: { root: data.root, kind: 'source', id: source.id },
+      onBoard: () => { live.current.onClose(); live.current.nav.navigate('board'); } }) : []),
     ...(canBank ? (source.usedBy || []) : []).map(deck => ({ id: `deck:${deck.kind}:${deck.id}`, icon: 'book', label: deck.archived ? uiFormat('{0} · 已归档', [deck.title]) : deck.title, hint: ui('题组'),
-      disabled: busy || deck.kind === 'draft' || !canPractice, run: () => learn.openLearningTarget({ kind: 'deck', id: deck.id }) })),
-  ];
+      disabled: busy || deck.kind === 'draft' || !canPractice, run: () => live.current.learn.openLearningTarget({ kind: 'deck', id: deck.id }) })),
+  ], [source, data.sources, data.root, !!dailyPlan, planState, planBusy, canBank, canPractice, busy]); // eslint-disable-line react-hooks/exhaustive-deps -- the plan is read through its state and busy
   // 今日 「重读 N 段」 (#1018): 已重读 keeps the time on the mark (materials.marks.seen), then the reader moves on to the next passage; after the last one it stays where it is.
   const rereadItems = modal.reread?.items || [], rereadAt = modal.reread?.index ?? 0, rereadItem = rereadItems[rereadAt];
   const reread = source && rereadItem ? { position: rereadAt + 1, total: rereadItems.length, onDone: async () => {
@@ -82,5 +87,19 @@ export function useSourceReader({ modal, onClose, column = false }) {
     onCaseFromPassage: canGenerate ? (passage) => intents.goGenerate({ source: 'case', remember: true, closeModal: true,
       caseInitial: { sourceIds: documentSourceIds(data.sources, source.id), focus: passage.quote, nonce: Date.now() } }) : undefined,
   };
-  return { source, title, viewer };
+  return { source, title, viewer: useSteadyFunctions(viewer) };
+}
+
+/* The props with steady functions: each function prop is one wrapper for the reader's life that calls the latest function, so a render of the page that
+   only made new closures (a key typed in the question beside the 对照栏) gives a memoised reader the same props. A prop that is a function or not
+   (an action offered or not) still changes the props. */
+function useSteadyFunctions(props) {
+  const latest = useRef(props), wrappers = useRef({});
+  latest.current = props;
+  if (!props) return props;
+  const steady = {};
+  for (const [key, value] of Object.entries(props)) {
+    steady[key] = typeof value !== 'function' ? value : (wrappers.current[key] ||= (...args) => latest.current?.[key]?.(...args));
+  }
+  return steady;
 }

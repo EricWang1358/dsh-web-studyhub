@@ -7,6 +7,9 @@ import { useInjectCss } from "../shared.js";
 import { COLUMN_MIN, QUESTION_MIN, columnWidth, dockReducer, openDock } from "./source-dock.js";
 import css from "./source-split.css";
 
+// The column's reader is drawn again only when its props change (they are steady: ui/app/modals/source-reader.jsx), not with every render of the page.
+const ColumnReader = React.memo(DocumentViewer);
+
 /* 对照栏 (#1012): the material beside the question on a wide practice page. It is the reader of the dialog (the same DocumentViewer with the same props,
    app/modals/source-reader.jsx), docked on the right of the page instead of over it, so the question stays on the left to be answered.
    - It follows the questions: the next question's place (ui/review/source-dock.js) is shown within the material on screen by a seek (nothing is loaded or
@@ -112,7 +115,7 @@ export default function SourceColumn({ request, followKey, place, pageRef, onWid
           <IconButton icon="chevron" size="sm" label={ui("收起资料栏")} onClick={() => dispatch({ type: "collapse" })} />
           <CloseButton label={ui("关闭资料栏")} onClick={onClose} />
         </header>
-        {viewer && <DocumentViewer key={state.key} {...viewer} seek={state.seek} onSeekMissed={onSeekMissed} />}
+        {viewer && <ColumnReader key={state.key} {...viewer} seek={state.seek} onSeekMissed={onSeekMissed} />}
       </div>
     </aside>
   );
