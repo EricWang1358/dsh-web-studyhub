@@ -31,8 +31,8 @@
 </head>
 <body>
 <main>
-  <p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.8.0/StudyHub-4.8.0-Setup.html">English setup guide</a> · 中文</p>
-  <p class="muted">STUDYHUB 4.8.0 · 安装引导</p>
+  <p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.8.1/StudyHub-4.8.1-Setup.html">English setup guide</a> · 中文</p>
+  <p class="muted">STUDYHUB 4.8.1 · 安装引导</p>
   <h1>从安装开始，到自己的学习库</h1>
   <p>StudyHub 是 DeepSeek Harness（DSH）的学习插件。DSH 可以装成桌面应用，也可以在浏览器里以网页版运行。先装好 DSH，再在 DSH 的插件管理里添加 StudyHub，最后配一个模型用来出题。</p>
   <p class="note"><strong>已经在用 DSH 桌面版或网页版？</strong>保留现有的 DSH、模型和配置，直接<a href="#plugin">在 DSH 中安装 StudyHub</a>。网页版不用下载客户端。</p>
@@ -57,27 +57,27 @@
       <p><small>打开磁盘映像，按提示把 DSH 放进「应用程序」，然后启动。不用另装 Node.js。</small></p>
     </article>
   </div>
-  <p class="muted">以上链接来自 <a href="https://www.deepseek.com/en/harness/">DSH 官网</a>，下载的是 DSH 本身，StudyHub 在下一步安装。Intel 芯片的 Mac 或 Windows ARM 电脑，请查看官网的支持情况，或改用<a href="#web">网页版</a>。StudyHub 4.8.0 适用于 DSH 0.2（0.2.0-rc.2 起，0.3 之前）；DSH 和 StudyHub 的版本号各自独立。</p>
+  <p class="muted">以上链接来自 <a href="https://www.deepseek.com/en/harness/">DSH 官网</a>，下载的是 DSH 本身，StudyHub 在下一步安装。Intel 芯片的 Mac 或 Windows ARM 电脑，请查看官网的支持情况，或改用<a href="#web">网页版</a>。StudyHub 4.8.1 适用于 DSH 0.2（0.2.0-rc.2 起，0.3 之前）；DSH 和 StudyHub 的版本号各自独立。</p>
   <section id="plugin">
     <h2>在 DSH 中安装 StudyHub</h2>
     <p>以下步骤桌面版和网页版通用，原有的模型、工作区和配置都不用动。</p>
     <ol>
       <li>在 DSH 打开「插件」页，点「添加插件」。</li>
-      <li>粘贴下方地址。安装完成后，确认包名是 <code>@ericwang1358/dsh-daily-flashcard</code>，版本是 <code>4.8.0</code>。</li>
+      <li>粘贴下方地址。安装完成后，确认包名是 <code>@ericwang1358/dsh-daily-flashcard</code>，版本是 <code>4.8.1</code>。</li>
       <li>点「启用」，启用 StudyHub 和你需要的组件。如果 DSH 提示重新加载，先等后台任务完成或取消它们。</li>
       <li>第一次启用后，StudyHub 会自动打开；之后从 DSH 左栏的「StudyHub」进入，不用先发消息。学习库为空时，点「载入示例并开始导览」，会载入一门示例课程并开始 7 步、一两分钟的导览，不需要模型。</li>
     </ol>
-    <code class="address">https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.8.0/ericwang1358-dsh-daily-flashcard-4.8.0.tgz</code>
-    <p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.8.0">查看 4.8.0 安装包与校验值</a> · <a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.8.0/ericwang1358-dsh-daily-flashcard-4.8.0.tgz">直接下载 StudyHub 安装包</a></p>
+    <code class="address">https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.8.1/ericwang1358-dsh-daily-flashcard-4.8.1.tgz</code>
+    <p><a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.8.1">查看 4.8.1 安装包与校验值</a> · <a href="https://github.com/EricWang1358/dsh-web-studyhub/releases/download/v4.8.1/ericwang1358-dsh-daily-flashcard-4.8.1.tgz">直接下载 StudyHub 安装包</a></p>
     <p class="note"><strong>常规安装只需上方完整主包：主入口和 6 个组件，共 7 项。不用解压，也不用合并其他组件包。</strong></p>
     <h3>下载地址装不上？从本地文件安装</h3>
     <p>如果下载失败，或出现 <code>unable to get local issuer certificate</code>，按下面的步骤操作：</p>
     <ol>
-      <li>用浏览器点击上方「直接下载 StudyHub 安装包」，保存 <code>ericwang1358-dsh-daily-flashcard-4.8.0.tgz</code>。<strong>保留原始 .tgz 文件，不用解压。</strong>GitHub 的「Source code」源码压缩包不是这里的安装包。</li>
+      <li>用浏览器点击上方「直接下载 StudyHub 安装包」，保存 <code>ericwang1358-dsh-daily-flashcard-4.8.1.tgz</code>。<strong>保留原始 .tgz 文件，不用解压。</strong>GitHub 的「Source code」源码压缩包不是这里的安装包。</li>
       <li>在 DSH「插件 › 添加插件」里填<strong>这个 .tgz 文件本身的绝对路径</strong>，包括完整文件名和 <code>.tgz</code> 后缀。例如下方 Windows 路径，请替换为实际保存路径；不要只填下载目录或解压后的 <code>package</code> 目录。Windows 可右键文件选择「复制文件地址」，粘贴时去掉路径最外层的双引号。</li>
-      <li>安装完成后，确认包名为 <code>@ericwang1358/dsh-daily-flashcard</code>、版本为 <code>4.8.0</code>，再点「启用」。</li>
+      <li>安装完成后，确认包名为 <code>@ericwang1358/dsh-daily-flashcard</code>、版本为 <code>4.8.1</code>，再点「启用」。</li>
     </ol>
-    <code class="address">C:\Users\你的用户名\Downloads\ericwang1358-dsh-daily-flashcard-4.8.0.tgz</code>
+    <code class="address">C:\Users\你的用户名\Downloads\ericwang1358-dsh-daily-flashcard-4.8.1.tgz</code>
     <p class="muted">文件必须放在运行 DSH 的电脑或服务器上：访问远程网页版时，你自己电脑上的路径在服务器上并不存在，请先把文件传到服务器。本地文件安装跳过从 GitHub 下载主包这一步；安装依赖仍可能需要联网。如果仍报证书错误，需要检查运行 DSH 的电脑或服务器上的网络和受信任证书。</p>
     <details>
       <summary>高级：自定义组件</summary>
@@ -125,7 +125,7 @@
     <h2>选择中文或英文界面</h2>
     <p>第一次打开时，StudyHub 跟随浏览器的首选语言：中文浏览器显示中文，其他显示英文。在 StudyHub 侧栏底部的「语言」切换，这个浏览器会记住你的选择。切换界面语言不会翻译已保存的资料、题目、笔记或文件名。</p>
   </section>
-  <footer>DSH 与 StudyHub 版本号各自独立 · <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/v4.8.0/docs/install.zh-CN.md">详细安装说明</a></footer>
+  <footer>DSH 与 StudyHub 版本号各自独立 · <a href="https://github.com/EricWang1358/dsh-web-studyhub/blob/v4.8.1/docs/install.zh-CN.md">详细安装说明</a></footer>
 </main>
 </body>
 </html>
