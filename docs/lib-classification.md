@@ -184,7 +184,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/token-estimate.js`: contexts generation, library, materials; 5 other lib files
 - `lib/update-check.js`: contexts generation, system; 4 other lib files
 - `lib/usage-scope.js`: contexts authoring, coach, generation, materials, workflows; 6 other lib files
-- `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 44 other lib files
+- `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 45 other lib files
 
 ## Used by exactly one context (136)
 
@@ -374,7 +374,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/generation-yield.js`: 4 other lib files
 - `lib/groq.js`: 6 other lib files
 - `lib/heading-levels.js`: 1 other lib file
-- `lib/host-service.js`: 3 other lib files
+- `lib/host-service.js`: 4 other lib files
 - `lib/host.js`: 2 other lib files
 - `lib/http.js`: 3 other lib files
 - `lib/index.js`: 1 other lib file
@@ -414,7 +414,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/quote-match.js`: 3 other lib files
 - `lib/reasoning-effort.js`: 7 other lib files
 - `lib/retrieval-extension.js`: 1 other lib file
-- `lib/retrieval-host.js`: 2 other lib files
+- `lib/retrieval-host.js`: 3 other lib files
 - `lib/retrieval-index-ingest.js`: 1 other lib file
 - `lib/runtime-config.js`: 1 other lib file
 - `lib/runtime.js`: 3 other lib files

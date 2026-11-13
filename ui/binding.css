@@ -76,4 +76,35 @@
       .settings-page .binding-actions { justify-content: flex-start; }
     }
   }
+  :where(.study-app, .study-seat) {
+    .web-gemini {
+      display: grid;
+      gap: var(--space-3);
+      margin-top: var(--space-5);
+      padding-top: var(--space-5);
+      border-top: 1px solid var(--line-soft);
+    }
+    .web-gemini__head {
+      display: grid;
+      gap: var(--space-1-5);
+    }
+    .web-gemini__controls {
+      display: grid;
+      gap: var(--space-3);
+    }
+    .web-gemini__wait-form {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: var(--space-2) var(--space-3);
+    }
+    .web-gemini__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+    .web-gemini__probe {
+      overflow-wrap: anywhere;
+    }
+  }
 }
