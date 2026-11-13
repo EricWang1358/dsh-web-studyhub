@@ -110,7 +110,8 @@ test('a page turning narrow hands the column\'s place to the reader dialog: wher
   state = dockReducer(state, { type: 'open', modal: modal(page(1), { quote: 'answer passage' }) });
   assert.deepEqual(dockedPlace(state), { type: 'source', source: page(1), back: true, quote: 'answer passage' });
   state = dockReducer(dockReducer(state, { type: 'collapse' }), { type: 'follow', place: page(2) });
-  assert.deepEqual(dockedPlace(state), { type: 'source', source: page(2), back: true }, 'folded: the place that waited');
+  assert.equal(dockedPlace(state), null, 'folded: the learner put the reader away, a narrower page does not bring it back');
+  assert.deepEqual(dockedPlace(dockReducer(state, { type: 'expand' })), { type: 'source', source: page(2), back: true }, 'unfolded: the place that waited');
 });
 
 test('the split is decided on the room the question really shares with the column: the page less its padding, less the tick rail and both gaps when shown', () => {

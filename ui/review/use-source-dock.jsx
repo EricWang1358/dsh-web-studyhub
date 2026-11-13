@@ -10,9 +10,10 @@ import SourceColumn, { roomOf } from "./SourceColumn.jsx";
    opens over the page, the round ends (its result page has no question) or an exam is on the page; when the page turns too narrow for both, the reader
    goes on as the dialog, at the column's place.
    pageRef: the practice page (measured for the room the question and the column share; carries the column's width); rail: the page draws its column of
-   ticks (.has-rail); run: the session's run; sources: the library's; study: useStudy(); readerDialogOpen: a reader dialog is open over the page.
+   ticks (.has-rail); run: the session's run; sources: the library's; study: useStudy(); readerDialogOpen: a reader dialog is open over the page; modalOpen:
+   any dialog is.
    Returns { services, column (the element or null), docked, style }. */
-export function useSourceDock({ pageRef, rail, run, sources, study, readerDialogOpen }) {
+export function useSourceDock({ pageRef, rail, run, sources, study, readerDialogOpen, modalOpen }) {
   const wide = useRoomForSplit(pageRef, rail);
   const [request, setRequest] = React.useState(null);
   const [width, setWidth] = React.useState(() => readColumnWidth());
@@ -32,7 +33,8 @@ export function useSourceDock({ pageRef, rail, run, sources, study, readerDialog
   const gone = !wide || blocked;
   React.useEffect(() => {
     if (!gone) return;
-    if (!blocked && request && shown.current) fallback(shown.current);
+    // Another dialog open over the page (报告问题, 资料) is never replaced by the reader: the app shows one modal at a time, and what was typed there would go.
+    if (!blocked && !modalOpen && request && shown.current) fallback(shown.current);
     shown.current = null;
     setRequest(null);
   }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps -- when the column has to go

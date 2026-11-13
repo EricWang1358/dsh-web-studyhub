@@ -97,8 +97,10 @@ export function columnWidth(kept, room) {
 }
 
 /** The reader modal that shows what the column shows (the page turned narrow: the reader is the dialog now): the place it is at, with the quote of the
-    link that brought it there (a link of this question: the quotes of questions before are gone, dockReducer 'follow'); a place that waited while folded. */
+    link that brought it there (a link of this question: the quotes of questions before are gone, dockReducer 'follow'). Null while folded: the learner put
+    the reader away to see the question, so a narrower page does not bring it back over the question. */
 export function dockedPlace(state) {
+  if (state.collapsed) return null;
   const seek = state.seek?.source?.id === state.at ? state.seek : null;
   const source = state.pending || seek?.source || state.modal.source;
   const quote = state.pending ? '' : seek ? seek.quote : state.modal.quote;
