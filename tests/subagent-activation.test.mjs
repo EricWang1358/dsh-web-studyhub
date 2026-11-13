@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { runGenerationAgent } from '../lib/generation-agent.js';
 import { runCorrectionAgent } from '../lib/live-correction-agent.js';
-import { backgroundCapability, startBoundedChild } from '../lib/host-capabilities.js';
+import { backgroundCapability, startBoundedChild, disposeIdleCoordinators } from '../lib/host-capabilities.js';
 import { subagentApi, boundChildTools, startWorker, WORKER_PRESET } from '../lib/subagent-api.js';
 import { foldSessionUsage } from '../lib/token-usage.js';
 import { classifyFailure, isPermanentFailure } from '../lib/generation-failure.js';
@@ -280,6 +280,54 @@ test('a cold panel on DSH 0.2.2 runs under a coordinator that is the root of its
   }
 });
 
+/*
+ * #1042: DSH 0.2.2 persists every coordinator as a session of its own (each child appends its `subagent/catalog` event to its parent,
+ * dsh-subagent 0.2.2-rc.2 lib/index.js:934-942) and has no API to delete one (dsh-session-persistence 0.2.2 types/index.d.ts:119-166:
+ * create/open/flush/stat/list). One coordinator per model call left one session file per call. An idle coordinator is now reused by the next
+ * call of the same conversation and model; a busy one is never shared, so each tree still has one live child (cap 8, index.js:1176-1177).
+ */
+test('a cold panel reuses an idle coordinator for the next call and never shares a busy one', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const host = activationHost({ desktop: true, version: '0.2.2' });
+  const capability = backgroundCapability(host.ctx, 'panel', route);
+  const request = () => ({ label: 'Assist', signal: new AbortController().signal, agentOptions: route, prompt: [{ type: 'text', text: 'Task' }] });
+  const once = async () => { const run = await startBoundedChild(host.subagents, request(), capability); await run.result; await run.dispose(); };
+  await once();
+  await once();
+  assert.equal(host.created.length, 1, 'sequential calls of one run share one coordinator');
+  assert.equal(host.calls.start[1].parent, host.created[0]);
+
+  const [a, b] = await Promise.all([startBoundedChild(host.subagents, request(), capability), startBoundedChild(host.subagents, request(), capability)]);
+  assert.notEqual(host.calls.start[2].parent, host.calls.start[3].parent, 'concurrent calls never share a coordinator');
+  assert.equal(host.created.length, 2);
+  await Promise.all([a.result, b.result]);
+  await a.dispose(); await a.dispose(); await b.dispose();
+
+  const other = backgroundCapability(host.ctx, 'panel', { provider: 'p', model: 'other' });
+  await (await startBoundedChild(host.subagents, request(), other)).dispose();
+  assert.equal(host.created.length, 3, 'a coordinator carries its model: another model gets its own');
+
+  t.mock.timers.tick(30_000);
+  await new Promise(resolve => setImmediate(resolve));
+  for (const coordinator of host.created) assert.equal(host.ctx.get('agents').get(coordinator.id), undefined, 'idle coordinators are unloaded after 30 s');
+});
+
+test('a coordinator that was unloaded meanwhile or whose call failed is not reused', async () => {
+  const host = activationHost({ desktop: true, version: '0.2.2' });
+  const capability = backgroundCapability(host.ctx, 'panel', route);
+  const request = () => ({ label: 'Assist', signal: new AbortController().signal, agentOptions: route, prompt: [{ type: 'text', text: 'Task' }] });
+  await (await startBoundedChild(host.subagents, request(), capability)).dispose();
+  await disposeIdleCoordinators();
+  assert.equal(host.ctx.get('agents').get(host.created[0].id), undefined, 'disposeIdleCoordinators unloads them');
+  await (await startBoundedChild(host.subagents, request(), capability)).dispose();
+  assert.equal(host.created.length, 2);
+
+  host.subagents.startActivation = async () => { throw new Error('boom'); };
+  await assert.rejects(startBoundedChild(host.subagents, request(), capability), /boom/);
+  assert.equal(host.ctx.get('agents').get(host.created[1].id), undefined, 'a failed start disposes its coordinator');
+  await disposeIdleCoordinators();
+});
+
 test('a start the DSH engine rejects is an engine failure, never a short plan', async () => {
   const typeError = new TypeError("Cannot read properties of undefined (reading 'id')");
   for (const thrown of [typeError, subagentError('agent has no active runtime owner', 'UNAUTHORIZED'),
@@ -293,6 +341,27 @@ test('a start the DSH engine rejects is an engine failure, never a short plan', 
     assert.equal(isPermanentFailure(error), true, 'asking again cannot fix it: the run stops instead of filling dozens of short sections');
     assert.match(error.message, new RegExp(thrown.message.replace(/[()'".]/g, '.')), 'the engine\'s own words stay in the log');
     assert.equal(error.cause, thrown);
+    assert.equal(host.listeners.size, 0);
+  }
+});
+
+/*
+ * #1042: a chat reloaded or closed while its job runs leaves StudyHub holding an Agent DSH no longer has; 0.2.2 then refuses with
+ * UNAUTHORIZED "subagent creation requires the exact live parent agent" (dsh-subagent 0.2.2-rc.2 lib/index.js:3024; rootOf's
+ * "subagent tree access requires the exact live caller", :1643). That is not a version mismatch: it gets its own permanent cause.
+ */
+test('a start under a conversation that was closed or reloaded meanwhile is its own cause, not "update StudyHub"', async () => {
+  for (const thrown of [null, subagentError('subagent tree access requires the exact live caller', 'UNAUTHORIZED')]) {
+    const host = activationHost({ version: '0.2.2' });
+    if (thrown) host.subagents.startActivation = async () => { throw thrown; };
+    const stale = { id: host.parent.id }; // the reloaded chat: DSH now holds a different Agent under the same id
+    const error = await startWorker(host.ctx, host.subagents, { parent: thrown ? host.parent : stale, label: 'Plan', prompt: [{ type: 'text', text: 'Task' }] })
+      .then(() => null, caught => caught);
+    assert.ok(error);
+    assert.equal(classifyFailure(error).code, 'parent-gone', error.message);
+    assert.equal(isPermanentFailure(error), true);
+    assert.equal(error.cause?.code, 'UNAUTHORIZED');
+    assert.match(error.message, /exact live (parent|caller)/, 'DSH\'s own words stay in the log');
     assert.equal(host.listeners.size, 0);
   }
 });

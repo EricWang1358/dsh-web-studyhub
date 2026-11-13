@@ -376,6 +376,8 @@ export function failureRowLabel(row) {
 
 /* Causes only the generation pipeline has, named by lib/generation-failure.js: the learner's wording of each (title, the cause in one clause, what to do). */
 const OWN_FAILURES = Object.freeze({
+  'parent-gone': { action: 'retry', title: '发起这次任务的对话已关闭或重新加载', cause: '发起这次任务的对话已关闭或重新加载',
+    hint: '还没有调用模型，这不是资料或模型的问题：任务进行中，发起它的对话被关闭或重新加载了，DSH 不能再在它下面启动出题用的子代理。请重新开始这项任务。' },
   engine: { action: 'retry', title: 'DSH 没能启动出题用的子代理', cause: 'DSH 没能启动出题用的子代理',
     hint: '还没有调用模型，这不是资料或模型的问题：多半是 StudyHub 与当前的 DSH 版本不匹配。请把 StudyHub 更新到最新版再试；仍然出现的话，把这条记录发给开发者。' },
   'plan-short': { action: 'retry', title: '模型给出的考点比计划的少', cause: '模型给出的考点比计划的少',

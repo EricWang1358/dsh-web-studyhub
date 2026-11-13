@@ -66,6 +66,22 @@ test("#1037: a sub-agent DSH refused to start is an engine failure in plain word
   }
 });
 
+test("#1042: a conversation closed or reloaded while its work ran says so, permanently, and never asks to update StudyHub", () => {
+  const raw = "The DSH conversation that started this StudyHub work was closed or reloaded (PARENT_GONE): subagent creation requires the exact live parent agent";
+  assert.equal(classifyFailure(raw).code, "parent-gone", "UNAUTHORIZED from DSH here is not a refused key");
+  assert.equal(isPermanentFailure(raw), true, "asking again under the same closed conversation cannot work");
+  for (const input of [raw, `Part 2: ${raw}`]) {
+    const zh = inLanguage("zh", () => m.describeFailure(input)), en = inLanguage("en", () => m.describeFailure(input));
+    assert.equal(zh.code, "parent-gone");
+    assert.match(zh.title, /对话.*关闭或重新加载/);
+    assert.match(zh.hint, /重新开始/);
+    assert.doesNotMatch([zh.title, zh.cause, zh.hint].join(" "), /更新|版本|PARENT_GONE|UNAUTHORIZED/);
+    assert.doesNotMatch([en.title, en.cause, en.hint].join(" "), han);
+    assert.match(en.title, /closed or reloaded/);
+    assert.doesNotMatch([en.title, en.cause, en.hint].join(" "), /update|version|PARENT_GONE|UNAUTHORIZED/i);
+  }
+});
+
 test("describeFailure gives { code, title, cause, retried, hint } in plain words, zh and en; the raw English exception is never the cause", () => {
   const zh = inLanguage("zh", () => m.describeFailure(OWNER_5));
   assert.equal(zh.code, "review-protocol");
