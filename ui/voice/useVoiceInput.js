@@ -38,7 +38,7 @@ export function useVoiceInput({ call, onText }) {
       if (mounted.current && text) onTextRef.current?.(text);
     } catch (error) {
       if (!mounted.current) return;
-      if (error?.code === 'AUDIO_SETUP') { setSetup({ reason: 'no-provider' }); setState(IDLE); }
+      if (error?.code === 'AUDIO_SETUP') { setSetup({ reason: error.reason || 'no-provider' }); setState(IDLE); }
       else setState((current) => ({ ...current, error: errorMessage(error), code: error?.code || '' }));
     }
   }, []);

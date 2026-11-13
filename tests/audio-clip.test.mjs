@@ -107,3 +107,21 @@ test('without a cloud key, the installed local live engine transcribes the clip 
   assert.equal(result.tier, 'local');
   assert.deepEqual(await h.folders(), []);
 });
+
+test('只用付费密钥 is honoured: the default of the audio settings or the request, never a free key when it is on', async (t) => {
+  const FREE = 'AIzaClipTestFreeKey_000000000000001';
+  let asked = 0;
+  const h = await fixture(t, { key: null, fetch: async () => { asked++; return json({ candidates: [{ content: { parts: [{ text: '免费转写' }] } }], usageMetadata: {} }); } });
+  await h.call('audio.settings.set', { freeKey: FREE, paidOnlyByDefault: true });
+  const first = await h.upload(wavBytes([square(1)]));
+  await assert.rejects(h.call('audio.clip.transcribe', { uploadId: first }), (error) => error.code === 'AUDIO_SETUP', 'the default is paid only and there is no paid key');
+  assert.equal(asked, 0, 'the free key was not used');
+  assert.deepEqual(await h.folders(), []);
+  await h.call('audio.settings.set', { paidOnlyByDefault: false });
+  const second = await h.upload(wavBytes([square(1)]));
+  await assert.rejects(h.call('audio.clip.transcribe', { uploadId: second, paidOnly: true }), (error) => error.code === 'AUDIO_SETUP', 'the request asks for paid only');
+  assert.equal(asked, 0, 'the free key was not used');
+  const third = await h.upload(wavBytes([square(1)]));
+  assert.equal((await h.call('audio.clip.transcribe', { uploadId: third })).text, '免费转写', 'with paid-only off the free key transcribes');
+  assert.equal(asked, 1);
+});
