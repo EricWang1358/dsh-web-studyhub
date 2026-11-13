@@ -26,7 +26,11 @@ const subagentError = (message, code) => Object.assign(new Error(message), { nam
  *   lib/index.js:1643-1651 `rootOf` refuses a parent whose session header says origin 'subagent' unless it is a resident child of a live tree.
  * Both throw a TypeError on a missing parent: there is no parent-less start in either release.
  */
-function activationHost({ observe = true, stopReason = 'completed', text = '{"ok":true}', presets = true, inherits = false, desktop = false, teacher = false, version = '0.2.1' } = {}) {
+/* Cordis 4 hands out a fresh traceable Proxy of a service on every ctx.get (@deepseek-ai/cordis lib/index.js:124-130, the original behind
+   Symbol.for('cordis.original')): the agent registry is never the same object twice. */
+const cordisProxy = target => new Proxy(target, { get: (object, prop) => prop === Symbol.for('cordis.original') ? object : Reflect.get(object, prop) });
+
+function activationHost({ observe = true, stopReason = 'completed', text = '{"ok":true}', presets = true, inherits = false, desktop = false, teacher = false, version = '0.2.1', traced = false } = {}) {
   const listeners = new Set(), calls = { start: [], disposed: 0, messages: [] }, created = [], followups = [];
   const tools = { restricted: [], mode: undefined, restrict(filter) { this.restricted.push(filter); return () => {}; }, presentAs(mode) { this.mode = mode; } };
   const parent = { id: 'learner' };
@@ -40,6 +44,7 @@ function activationHost({ observe = true, stopReason = 'completed', text = '{"ok
     async startActivation(spec) {
       calls.start.push(spec);
       const task = flat ? spec : spec.request;
+      if (calls.vanishParent) { calls.vanishParent = false; live.delete(task.parent.id); } // unloaded between StudyHub's check and DSH's
       if (live.get(task.parent.id) !== task.parent) throw subagentError('subagent creation requires the exact live parent agent', 'UNAUTHORIZED');
       if (flat && task.parent.meta?.origin === 'subagent') throw subagentError('agent has no active runtime owner', 'UNAUTHORIZED');
       spec.signal.throwIfAborted(); // dsh-subagent 0.2.1 startLocal, unguarded
@@ -62,7 +67,7 @@ function activationHost({ observe = true, stopReason = 'completed', text = '{"ok
   };
   const ctx = {
     on: (name, listener) => { if (name !== 'agent/created') return () => {}; listeners.add(listener); return () => listeners.delete(listener); },
-    get: name => name === 'subagents' ? subagents : name === 'agents' ? agents
+    get: name => name === 'subagents' ? subagents : name === 'agents' ? (traced ? cordisProxy(agents) : agents)
       : name === 'agentPresets' && presets ? { mount() {} } : undefined,
     // A cold panel: the conversation is not live, its folder is known from the session header.
     ...(desktop ? { sessions: { get: id => id === 'panel' ? { header: { cwd: 'D:/work' } } : undefined } } : {}),
@@ -286,46 +291,122 @@ test('a cold panel on DSH 0.2.2 runs under a coordinator that is the root of its
  * create/open/flush/stat/list). One coordinator per model call left one session file per call. An idle coordinator is now reused by the next
  * call of the same conversation and model; a busy one is never shared, so each tree still has one live child (cap 8, index.js:1176-1177).
  */
-test('a cold panel reuses an idle coordinator for the next call and never shares a busy one', async (t) => {
+const coldRequest = () => ({ label: 'Assist', signal: new AbortController().signal, agentOptions: route, prompt: [{ type: 'text', text: 'Task' }] });
+// As lib/generation-agent.js, lib/live-correction-agent.js and lib/assist.js do: a new capability (and a new ctx.get('agents')) for every call.
+const coldCall = async (host, model = route) => {
+  const run = await startBoundedChild(host.subagents, coldRequest(), backgroundCapability(host.ctx, 'panel', model));
+  await run.result;
+  return run;
+};
+const registry = host => host.ctx.get('agents');
+
+test('a cold panel reuses an idle coordinator for the next call and never shares a busy one (DSH 0.2.1 and 0.2.2, cordis proxies)', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const host = activationHost({ desktop: true, version: '0.2.2' });
-  const capability = backgroundCapability(host.ctx, 'panel', route);
-  const request = () => ({ label: 'Assist', signal: new AbortController().signal, agentOptions: route, prompt: [{ type: 'text', text: 'Task' }] });
-  const once = async () => { const run = await startBoundedChild(host.subagents, request(), capability); await run.result; await run.dispose(); };
-  await once();
-  await once();
-  assert.equal(host.created.length, 1, 'sequential calls of one run share one coordinator');
-  assert.equal(host.calls.start[1].parent, host.created[0]);
+  for (const version of ['0.2.1', '0.2.2']) {
+    const host = activationHost({ desktop: true, version, traced: true });
+    assert.notEqual(registry(host), registry(host), 'the stand-in hands out a new proxy per get, like cordis');
+    await (await coldCall(host)).dispose();
+    await (await coldCall(host)).dispose();
+    assert.equal(host.created.length, 1, `${version}: sequential calls share one coordinator`);
+    const parentOf = spec => (version === '0.2.2' ? spec : spec.request).parent;
+    assert.equal(parentOf(host.calls.start[1]), host.created[0]);
 
-  const [a, b] = await Promise.all([startBoundedChild(host.subagents, request(), capability), startBoundedChild(host.subagents, request(), capability)]);
-  assert.notEqual(host.calls.start[2].parent, host.calls.start[3].parent, 'concurrent calls never share a coordinator');
-  assert.equal(host.created.length, 2);
-  await Promise.all([a.result, b.result]);
-  await a.dispose(); await a.dispose(); await b.dispose();
+    const [a, b] = await Promise.all([coldCall(host), coldCall(host)]);
+    assert.notEqual(parentOf(host.calls.start[2]), parentOf(host.calls.start[3]), 'concurrent calls never share a coordinator');
+    assert.equal(host.created.length, 2);
+    await a.dispose(); await a.dispose(); await b.dispose();
 
-  const other = backgroundCapability(host.ctx, 'panel', { provider: 'p', model: 'other' });
-  await (await startBoundedChild(host.subagents, request(), other)).dispose();
-  assert.equal(host.created.length, 3, 'a coordinator carries its model: another model gets its own');
-
-  t.mock.timers.tick(30_000);
-  await new Promise(resolve => setImmediate(resolve));
-  for (const coordinator of host.created) assert.equal(host.ctx.get('agents').get(coordinator.id), undefined, 'idle coordinators are unloaded after 30 s');
+    await (await coldCall(host, { provider: 'p', model: 'other' })).dispose();
+    assert.equal(host.created.length, 3, 'a coordinator carries its model: another model gets its own');
+    t.mock.timers.tick(30_000);
+    await new Promise(resolve => setImmediate(resolve));
+    for (const coordinator of host.created) assert.equal(registry(host).get(coordinator.id), undefined, 'idle coordinators are unloaded after 30 s');
+    await (await coldCall(host)).dispose();
+    assert.equal(host.created.length, 4, 'and the next call creates a new one');
+    await disposeIdleCoordinators(host.ctx);
+  }
 });
 
-test('a coordinator that was unloaded meanwhile or whose call failed is not reused', async () => {
-  const host = activationHost({ desktop: true, version: '0.2.2' });
-  const capability = backgroundCapability(host.ctx, 'panel', route);
-  const request = () => ({ label: 'Assist', signal: new AbortController().signal, agentOptions: route, prompt: [{ type: 'text', text: 'Task' }] });
-  await (await startBoundedChild(host.subagents, request(), capability)).dispose();
-  await disposeIdleCoordinators();
-  assert.equal(host.ctx.get('agents').get(host.created[0].id), undefined, 'disposeIdleCoordinators unloads them');
-  await (await startBoundedChild(host.subagents, request(), capability)).dispose();
-  assert.equal(host.created.length, 2);
+test('a DSH 0.2.0 cold panel (legacy start) reuses an idle coordinator too', async () => {
+  const live = new Map(), created = [], started = [];
+  const agents = { get: id => live.get(id), async create(options) {
+    const agent = { id: options.sessionId, meta: options.meta }; created.push(agent); live.set(agent.id, agent);
+    return { agent, dispose: async () => { live.delete(agent.id); } };
+  } };
+  const subagents = { getProvider: () => ({ capabilities: { toolFilter: true, agentOptions: true } }),
+    async start(kind, request) {
+      if (live.get(request.parent.id) !== request.parent) throw subagentError('subagent creation requires the exact live parent agent', 'UNAUTHORIZED');
+      started.push(request);
+      return { id: `child-${started.length}`, result: Promise.resolve({ stopReason: 'completed', output: [{ type: 'text', text: '{}' }] }), dispose: async () => {} };
+    } };
+  const ctx = { sessions: { get: () => ({ header: { cwd: 'D:/work' } }) },
+    get: name => name === 'agents' ? cordisProxy(agents) : name === 'subagents' ? subagents : undefined };
+  for (let call = 0; call < 3; call++) {
+    const capability = backgroundCapability(ctx, 'panel', route);
+    assert.equal(capability.api, 'legacy');
+    await (await startBoundedChild(subagents, coldRequest(), capability)).dispose();
+  }
+  assert.equal(created.length, 1);
+  assert.equal(created[0].meta.origin, 'subagent', 'no sub-agent trees on 0.2.0: the old marking stays');
+  assert.ok(started.every(request => request.parent === created[0]));
+  await disposeIdleCoordinators(ctx);
+  assert.equal(live.size, 0);
+});
 
+test('only the coordinators of the host being torn down are unloaded', async () => {
+  const one = activationHost({ desktop: true, version: '0.2.2', traced: true }), two = activationHost({ desktop: true, version: '0.2.2', traced: true });
+  await (await coldCall(one)).dispose();
+  await (await coldCall(two)).dispose();
+  await disposeIdleCoordinators(one.ctx);
+  assert.equal(registry(one).get(one.created[0].id), undefined);
+  assert.equal(registry(two).get(two.created[0].id), two.created[0], 'another host keeps its idle coordinator');
+  await (await coldCall(two)).dispose();
+  assert.equal(two.created.length, 1);
+  await disposeIdleCoordinators(two.ctx);
+  assert.equal(registry(two).get(two.created[0].id), undefined);
+});
+
+test('a start that fails or is stopped unloads its coordinator; a child that ran and failed leaves it for the next call', async () => {
+  const host = activationHost({ desktop: true, version: '0.2.2', traced: true });
+  await (await coldCall(host)).dispose();
+  const original = host.subagents.startActivation;
   host.subagents.startActivation = async () => { throw new Error('boom'); };
-  await assert.rejects(startBoundedChild(host.subagents, request(), capability), /boom/);
-  assert.equal(host.ctx.get('agents').get(host.created[1].id), undefined, 'a failed start disposes its coordinator');
-  await disposeIdleCoordinators();
+  await assert.rejects(startBoundedChild(host.subagents, coldRequest(), backgroundCapability(host.ctx, 'panel', route)), /boom/);
+  assert.equal(registry(host).get(host.created[0].id), undefined, 'a failed start unloads the coordinator');
+  host.subagents.startActivation = original;
+
+  const controller = new AbortController();
+  const stopped = startBoundedChild(host.subagents, { ...coldRequest(), signal: controller.signal }, { ...backgroundCapability(host.ctx, 'panel', route), awaitAdmissionCleanup: true });
+  controller.abort();
+  await assert.rejects(stopped);
+  assert.equal(host.created.length, 2);
+  assert.equal(registry(host).get(host.created[1].id), undefined, 'a stopped call unloads the coordinator');
+
+  const failing = activationHost({ desktop: true, version: '0.2.2', traced: true, stopReason: 'error' });
+  const run = await coldCall(failing);
+  assert.equal((await run.result).stopReason, 'error');
+  await run.dispose();
+  await (await coldCall(failing)).dispose();
+  assert.equal(failing.created.length, 1, 'the model failing in a child says nothing against its coordinator');
+  await disposeIdleCoordinators(failing.ctx);
+});
+
+test('a reused coordinator that DSH unloaded before the start is replaced once, not reported as a closed conversation', async () => {
+  const host = activationHost({ desktop: true, version: '0.2.2', traced: true });
+  await (await coldCall(host)).dispose();
+  host.calls.vanishParent = true;
+  const run = await coldCall(host);
+  assert.equal((await run.result).stopReason, 'completed');
+  assert.equal(host.created.length, 2, 'a fresh coordinator');
+  assert.equal(host.calls.start.at(-1).parent, host.created[1]);
+  await run.dispose();
+  // A fresh coordinator that vanishes is not retried: that is a real failure.
+  await disposeIdleCoordinators(host.ctx);
+  host.calls.vanishParent = true;
+  const error = await coldCall(host).then(() => null, caught => caught);
+  assert.equal(classifyFailure(error).code, 'parent-gone');
+  assert.equal(host.created.length, 3);
+  assert.equal(registry(host).get(host.created[2].id), undefined, 'and its coordinator is unloaded');
 });
 
 test('a start the DSH engine rejects is an engine failure, never a short plan', async () => {
