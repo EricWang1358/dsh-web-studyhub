@@ -1,5 +1,6 @@
 import { ui, uiFormat } from "./i18n.js";
 import { TERM_SOURCE } from "./term-marker.js";
+import { closesFence, fenceMask, fenceOpening } from "../lib/contexts/notes/markdown-fences.js";
 import { Button } from "./components/Button.jsx";
 import Tooltip from "./components/Tooltip.jsx";
 import React from "react";
@@ -188,17 +189,8 @@ const cells = (row) =>
 
 /** Normalize line endings and convert allowed HTML outside code fences. */
 function prepare(src) {
-  let fenced = false;
-  return src
-    .replace(/\r\n?/g, "\n")
-    .split("\n")
-    .flatMap((row) => {
-      if (/^\s*(```|~~~)/.test(row)) {
-        fenced = !fenced;
-        return [row];
-      }
-      return [fenced ? row : tidyHtml(row)];
-    });
+  const rows = src.replace(/\r\n?/g, "\n").split("\n"), fenced = fenceMask(rows);
+  return rows.map((row, at) => (fenced[at] ? row : tidyHtml(row)));
 }
 
 function blocks(rows, options) {
@@ -211,10 +203,10 @@ function blocks(rows, options) {
       i++;
       continue;
     }
-    const fence = row.match(/^\s*(```|~~~)/);
+    const fence = fenceOpening(row);
     if (fence) {
       const body = [];
-      for (i++; i < rows.length && !rows[i].trim().startsWith(fence[1]); i++)
+      for (i++; i < rows.length && !closesFence(rows[i], fence); i++)
         body.push(rows[i]);
       i++;
       out.push(
