@@ -137,6 +137,7 @@
     "tests/tour-zoom-browser.test.mjs",
     "tests/undoable-browser.test.mjs",
     "tests/variants-console-browser.test.mjs",
+    "tests/voice-answer-browser.test.mjs",
     "tests/wave2-g-fields-browser.test.mjs",
     "tests/wave4-daily-plan-ui.test.mjs",
     "tests/wave4-host-query.test.mjs",

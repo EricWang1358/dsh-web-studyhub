@@ -6,18 +6,23 @@ import ExplanationFollowup from "../ExplanationFollowup.jsx";
 import { Badge, Button, ChunkedRows } from "../components/index.js";
 import { fixedOptionLabel, optionMark } from "../option-label.js";
 import { fixedOptionsOf, hasOptions, isGraded } from "../../lib/card-kinds.js";
-import { useHostQuery } from "../host-query.js";
+import { invalidate, useHostQuery } from "../host-query.js";
+import CorrectionCard from "./CorrectionCard.jsx";
 
 /* 本轮题目 on the result page (#1009): one row per question of the round, read once when the page opens with review.lookBack {runId}
    (lib/contexts/study/round-look-back.js; a read the main chat is refused, so a chat's tool results of the round stay small), and a press on a row opens a
    read-only look-back under it: the question, the answer given, the right answer, the explanation and the Q&A. Opening a row asks the host for nothing, so
-   it opens at once and can change no schedule and no clock. An unanswered question shows only itself: its answer waits until it is practised. At first only the
-   wrong and unanswered rows are listed (all of them when there are none), long lists draw in chunks (ChunkedRows). A mock exam has no look-back (its report). */
+   it opens at once and can change no schedule and no clock. An unanswered question shows only itself: its answer waits until it is practised; a question being
+   graded (#1031) also shows only itself, with 批改中, until its grade lands. At first only the wrong, unanswered and being-graded rows are listed (all of them
+   when there are none), long lists draw in chunks (ChunkedRows). A mock exam has no look-back (its report).
+   待看订正 (#1031) comes first when there are any: the misses whose AI grade landed after the learner had moved on, each with its correction and
+   我看懂了 · 加入重练 (`onAck(row)`), which sends the round back to that question's retry. */
 
 const STATUS = {
   right: { tone: "success", graded: "答对", self: "达标" },
   wrong: { tone: "error", graded: "答错", self: "未达标" },
   self: { tone: "neutral", graded: "自报", self: "自报" },
+  grading: { tone: "neutral", graded: "批改中", self: "批改中" },
   unanswered: { tone: "neutral", graded: "未答", self: "未答" },
 };
 const ROW_CHUNK = 20;
@@ -32,7 +37,7 @@ const plainLine = (text) => String(text || "").replace(/\{\{[^{}]+\}\}/g, "＿�
 const selfGraded = (row, mode) => mode === "flashcard" || !isGraded(row.kind);
 
 function LookBackAnswer({ row, mode }) {
-  const { card, feedback, solution } = row;
+  const { card, solution } = row, feedback = row.feedback || {};
   if (mode !== "flashcard" && hasOptions(card.kind) && card.options?.length) {
     const verdict = !!fixedOptionsOf(card.kind);
     return (
@@ -66,11 +71,11 @@ function LookBackAnswer({ row, mode }) {
 
 /** The read-only look-back of one row. */
 function LookBack({ row, mode }) {
-  if (!row.solution) {
+  if (!row.solution || row.status === "grading") {
     return (
       <div className="look-back__body">
         <Markdown text={promptOf(row)} />
-        <p className="muted small">{ui("这道题这一轮没有作答，答案留到下次练到时再看。")}</p>
+        <p className="muted small">{row.status === "grading" ? ui("正在批改，分数出来后这里会显示答案和讲解。") : ui("这道题这一轮没有作答，答案留到下次练到时再看。")}</p>
       </div>
     );
   }
@@ -95,18 +100,24 @@ function LookBack({ row, mode }) {
 /**
  * props: run (the finished run), onOpenWrongBook(refs) (optional: the wrong book on these questions, where its rescue is; absent when the page is not available).
  */
-export default function RoundLookBack({ run, onOpenWrongBook }) {
+export default function RoundLookBack({ run, onOpenWrongBook, onAck }) {
   // One read per opening of the result page, shared by any other reader of the same round (ui/host-query.js); nothing for an exam.
   const query = useHostQuery("review.lookBack", { runId: run.id }, { enabled: run.mode !== "exam" });
+  // A grade that lands while this page is open (#1031: the run's poll brings the new count) is read again, so its row and 待看订正 show at once.
+  const landed = `${run.correctionsPending || 0}:${(run.navigation || []).filter((item) => item.grading).length}`;
+  const seen = React.useRef(landed);
+  React.useEffect(() => { if (seen.current !== landed) { seen.current = landed; invalidate("review.lookBack", { runId: run.id }); } }, [landed, run.id]);
   const rows = (run.mode !== "exam" && query.data?.rows) || [];
-  const needsLook = rows.filter((row) => row.status === "wrong" || row.status === "unanswered");
-  // Until the learner chooses, the list shows the wrong and unanswered ones, or all of them when there are none.
+  const needsLook = rows.filter((row) => row.status === "wrong" || row.status === "unanswered" || row.status === "grading");
+  const corrections = rows.filter((row) => row.correctionPending);
+  // Until the learner chooses: the corrections waiting to be read, else the wrong, unanswered and being-graded ones, or all of them when there are none.
   const [chosen, setAll] = React.useState(null);
-  const all = chosen ?? needsLook.length === 0;
+  const view = chosen ?? (corrections.length ? "pending" : needsLook.length ? "some" : "all"), all = view === "all";
   const [open, setOpen] = React.useState(() => new Set());
   if (!rows.length) return null;
-  const shown = all ? rows : needsLook;
-  const wrong = rows.filter((row) => row.status === "wrong").length, unanswered = rows.filter((row) => row.status === "unanswered").length;
+  const shown = view === "pending" ? corrections : all ? rows : needsLook;
+  const count = (status) => rows.filter((row) => row.status === status).length;
+  const wrong = count("wrong"), unanswered = count("unanswered"), grading = count("grading");
   const toggle = (number) => setOpen((previous) => {
     const next = new Set(previous);
     if (next.has(number)) next.delete(number); else next.add(number);
@@ -121,12 +132,15 @@ export default function RoundLookBack({ run, onOpenWrongBook }) {
           <span className="look-back__number">{row.number}</span>
           <Badge size="sm" tone={words.tone}>{ui(selfGraded(row, run.mode) ? words.self : words.graded)}</Badge>
           {row.hinted && <Badge size="sm">{ui("用了提示")}</Badge>}
+          {row.correctionPending && <Badge size="sm" tone="warning">{ui("待看订正")}</Badge>}
           <span className="look-back__prompt">{plainLine(promptOf(row)) || ui("题干尚未填写")}</span>
           {row.page != null && <span className="look-back__page muted small">{pageWords(row)}</span>}
         </Button>
         {expanded && (
           <div id={regionId} className="look-back__panel" role="region" aria-label={uiFormat("第 {0} 题回看", [row.number])}>
             <LookBack row={row} mode={run.mode} />
+            {row.feedback && <CorrectionCard feedback={row.feedback} withRubric={!!row.feedback.rubric && row.card?.kind !== "task"}
+              onAck={row.correctionPending && onAck ? () => Promise.resolve(onAck(row)).then(() => invalidate("review.lookBack")) : undefined} />}
             {row.status === "wrong" && onOpenWrongBook && (
               <Button variant="link" size="sm" onClick={() => onOpenWrongBook([{ deckId: row.deckId, cardId: row.cardId }])}>{ui("去错题本练这道题")}</Button>
             )}
@@ -139,16 +153,18 @@ export default function RoundLookBack({ run, onOpenWrongBook }) {
     <section className="round-look-back sh-paper-card" aria-label={ui("本轮题目")}>
       <div className="round-look-back__head">
         <h3>{ui("本轮题目")}</h3>
-        <span className="muted small">{[wrong > 0 && uiFormat("错 {0}", [wrong]), unanswered > 0 && uiFormat("未答 {0}", [unanswered])].filter(Boolean).join(" · ") || ui("全部过关")}</span>
+        <span className="muted small">{[wrong > 0 && uiFormat("错 {0}", [wrong]), unanswered > 0 && uiFormat("未答 {0}", [unanswered]), grading > 0 && uiFormat("批改中 {0}", [grading])].filter(Boolean).join(" · ") || ui("全部过关")}</span>
+        {corrections.length > 0 && view !== "pending" && <Button variant="link" size="sm" onClick={() => setAll("pending")}>{uiFormat("待看订正 {0}", [corrections.length])}</Button>}
         {needsLook.length > 0 && needsLook.length < rows.length && (
-          <Button variant="link" size="sm" onClick={() => setAll(!all)}>
-            {all ? ui("只看错题和未答") : uiFormat("显示全部 {0} 题", [rows.length])}
+          <Button variant="link" size="sm" onClick={() => setAll(view === "some" ? "all" : "some")}>
+            {view === "some" ? uiFormat("显示全部 {0} 题", [rows.length]) : grading ? ui("只看错题、未答和批改中") : ui("只看错题和未答")}
           </Button>
         )}
+        {view === "pending" && !(needsLook.length > 0 && needsLook.length < rows.length) && <Button variant="link" size="sm" onClick={() => setAll("all")}>{uiFormat("显示全部 {0} 题", [rows.length])}</Button>}
       </div>
       <p className="muted small">{ui("点一道题回看：题目、你的答案、正确答案、讲解和问答。只是回看，不会重新计时或改成绩。")}</p>
       <ol className="look-back__rows">
-        <ChunkedRows items={shown} render={render} chunk={ROW_CHUNK} resetKey={all ? "all" : "some"} as="li" />
+        <ChunkedRows items={shown} render={render} chunk={ROW_CHUNK} resetKey={view} as="li" />
       </ol>
     </section>
   );

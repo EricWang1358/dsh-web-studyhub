@@ -12,13 +12,13 @@ import { pendingCount, skipTarget } from "./session-logic.js";
  * `{ onSkip, onEnd }` for the toolbar's 更多 and the 「N 题待答」 list: undefined where the step is not there. Also hands the session the actions the
  * N / F / O keys run while this question is on screen. `toggleFocus` and `onNote` are QuestionRun's own.
  */
-export function useRoundSteps({ session, run, sources, openModal, onNote, toggleFocus }) {
+export function useRoundSteps({ session, run, sources, openModal, onNote, toggleFocus, voiceKeys = {} }) {
   const steps = run.mode !== "exam";
   const openSource = questionSourceOpener(run, sources, openModal);
   const keys = session.questionKeys;
   React.useEffect(() => {
     if (!keys) return undefined;
-    keys.current = steps ? { note: onNote, focus: toggleFocus, source: openSource || undefined } : {};
+    keys.current = steps ? { note: onNote, focus: toggleFocus, source: openSource || undefined, ...voiceKeys } : {};
     return () => { keys.current = {}; };
   });
   return {

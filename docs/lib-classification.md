@@ -11,8 +11,8 @@ The report moves nothing (#902): it is the data for deciding what could later go
 | --- | ---: |
 | Used by ui | 105 |
 | Used by several contexts | 61 |
-| Used by exactly one context | 136 |
-| Used by none of these (other lib files, entry points, scripts and tests only) | 120 |
+| Used by exactly one context | 137 |
+| Used by none of these (other lib files, entry points, scripts and tests only) | 119 |
 
 ## Used by ui (105)
 
@@ -30,7 +30,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/card-kinds.js`: 13 ui files; contexts generation, library, recording, study; 25 other lib files
 - `lib/case-study.js`: 5 ui files; contexts generation, library, study; 10 other lib files
 - `lib/chemistry-balance.js`: 1 ui file
-- `lib/cloze-text.js`: 1 ui file; 2 other lib files
+- `lib/cloze-text.js`: 2 ui files; 2 other lib files
 - `lib/converted-document.js`: 1 ui file; contexts audio, materials; 2 other lib files
 - `lib/course-book-ai-anchor.js`: 1 ui file
 - `lib/course-book-ai-text.js`: 5 ui files; context generation; 5 other lib files
@@ -186,7 +186,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/usage-scope.js`: contexts authoring, coach, generation, materials, workflows; 6 other lib files
 - `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 45 other lib files
 
-## Used by exactly one context (136)
+## Used by exactly one context (137)
 
 - `lib/answer-card-materials.js`: context generation
 - `lib/answer-time.js`: context study
@@ -278,6 +278,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/live-local.js`: context audio; 1 other lib file
 - `lib/live-loopback-install.js`: context audio
 - `lib/live-loopback.js`: context audio
+- `lib/live-protocol.js`: context audio; 2 other lib files
 - `lib/live-save.js`: context audio; 3 other lib files
 - `lib/live.js`: context audio; 1 other lib file
 - `lib/marker-install-text.js`: context audio
@@ -325,7 +326,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/workflows.js`: context workflows; 4 other lib files
 - `lib/wrong-detail.js`: context library
 
-## Used by none of these (other lib files, entry points, scripts and tests only) (120)
+## Used by none of these (other lib files, entry points, scripts and tests only) (119)
 
 - `lib/assigned-plan.js`: 2 other lib files
 - `lib/assist-child.js`: 1 other lib file
@@ -394,7 +395,6 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/live-local-files.js`: 2 other lib files
 - `lib/live-loopback-source.js`: 1 other lib file
 - `lib/live-notes-fallback.js`: 1 other lib file
-- `lib/live-protocol.js`: 2 other lib files
 - `lib/live-reply.js`: 2 other lib files
 - `lib/local-command.js`: 7 other lib files
 - `lib/marker-output.js`: 2 other lib files

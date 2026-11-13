@@ -410,6 +410,29 @@ function importedCriteria(input) {
     }) };
 }
 
+/* A question with deriveCriteria (#1031: a plain open question or an opted-in flashcard) has no criteria yet: the preview derives two from its reference
+   answer, scores the learner's answer by the words it shares with that answer, and adds a correction. A short answer of bare terms is fragments only. */
+const termsOf = (text) => {
+  const value = String(text || "").toLowerCase(), found = new Set();
+  for (const [run] of value.matchAll(/[㐀-鿿]+/g)) for (let i = 0; i + 1 < run.length; i++) found.add(run.slice(i, i + 2));
+  for (const word of value.match(/[a-z0-9]{3,}/g) || []) found.add(word);
+  return found;
+};
+function derivedGrade(question, english) {
+  const want = termsOf(question.referenceAnswer), got = termsOf(question.learnerAnswer);
+  const share = want.size ? [...want].filter((term) => got.has(term)).length / want.size : 0;
+  const rubric = [{ id: "c1", label: english ? "Core idea" : "核心概念", marks: 2, keyPoints: [clip(question.referenceAnswer, 60)] },
+    { id: "c2", label: english ? "Mechanism and reason" : "机制与理由", marks: 2, keyPoints: [english ? "why it works" : "为什么成立"] }];
+  const fragments = String(question.learnerAnswer || "").trim().length < 12 && !/[，。,.]/.test(question.learnerAnswer || "");
+  return { cardId: question.cardId, rubric, fragmentsOnly: fragments,
+    summary: english ? "Preview grading (fake model) against criteria derived from the reference answer." : "预览批改（模拟模型）：按参考答案定的评分维度批改。",
+    criteria: rubric.map((criterion, index) => ({ id: criterion.id, score: Math.round(criterion.marks * Math.min(1, share * (index ? 1 : 1.5)) * 2) / 2,
+      evidence: [], covered: [], missing: [], suggestion: english ? "Connect the terms into one mechanism." : "把这些词连成一条机制。" })),
+    correction: { keywordExpansion: english ? `Say it as one chain: ${clip(question.referenceAnswer, 80)}` : `连成一句：${clip(question.referenceAnswer, 60)}`,
+      phrasingUpgrade: { informal: clip(question.learnerAnswer, 30), professional: clip(question.referenceAnswer, 80) },
+      missingLinks: share < 0.5 ? [english ? "the reason it works" : "为什么这样做"] : [] } };
+}
+
 function gradeCaseAnswers(input, english) {
   const scenario = (input.scenario || []).map((item) => item.text).join("\n\n");
   const lowerScenario = scenario.toLowerCase();
@@ -422,6 +445,7 @@ function gradeCaseAnswers(input, english) {
   const pattern = [0.75, 0.5, 0.25, 1, 0.5];
   return { summary: english ? "Preview grading (fake model): clear direction; tie more choices to the case." : "预览批改（模拟模型）：方向清楚，还需要把更多选择和案例联系起来。",
     questions: (input.questions || []).map((question) => {
+      if (question.deriveCriteria) return derivedGrade(question, english);
       const parts = sentences(question.learnerAnswer).concat(String(question.learnerAnswer || "").split(/\n+/).map((item) => item.trim()).filter((item) => item.length >= 8));
       const said = [...new Set(parts)];
       const assumption = said.find((sentence) => /assum|假设|假定/i.test(sentence));

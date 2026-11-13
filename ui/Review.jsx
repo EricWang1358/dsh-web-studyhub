@@ -27,6 +27,7 @@ import { currentMethodStage, resolveRoundCourse, roundEndAlternative, useMethodA
 import { pageAvailable } from "./capabilities.js";
 import { askForLeeches } from "./wrongbook-model.js";
 import RoundLookBack from "./review/RoundLookBack.jsx";
+import { gradesOutstanding } from "./review/session-logic.js";
 import RoundSetup from "./review/RoundSetup.jsx";
 import { resultTarget } from "./review/round-setup.js";
 import { similarWinsText } from "./review/similar-words.js";
@@ -207,8 +208,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               key={"debrief-" + run.id}
               run={run}
               initial={coachProps.debrief}
-              // Autopilot must not pull a learner out of a workflow or a detour, nor carry on a round the learner stopped (到此为止, #1008).
-              autopilot={coachProps.autopilot && !flow && !detour && !run.returnTo && !backHere && !run.closed}
+              // Autopilot must not pull a learner out of a workflow or a detour, nor carry on a round the learner stopped (到此为止, #1008), nor leave a
+              // grade still running or a correction unread behind (#1031).
+              autopilot={coachProps.autopilot && !flow && !detour && !run.returnTo && !backHere && !run.closed && !gradesOutstanding(run)}
               onPractice={coachProps.onPractice}
               onContinue={coachProps.onContinue}
               destination={coachProps.destination}
@@ -268,7 +270,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </p>
           )}
           {/* 本轮题目 (#1009): which questions went wrong or were left, each with a read-only look-back from the run itself. */}
-          <RoundLookBack key={"look-back-" + run.id} run={run}
+          <RoundLookBack key={"look-back-" + run.id} run={run} onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })}
             onOpenWrongBook={pageAvailable(data, "wrongbook") ? (refs) => { askForLeeches(data?.root, refs); navigate("wrongbook"); } : undefined} />
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>

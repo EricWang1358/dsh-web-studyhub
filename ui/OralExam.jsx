@@ -13,6 +13,9 @@ import { ExamSetupCard, CountField } from './ExamShell.jsx';
 import { modelReadiness } from './generation-status.js';
 import { useExamRun } from './exam/useExamRun.js';
 import { useStudy } from './study-context.jsx';
+import VoiceButton from './voice/VoiceButton.jsx';
+import { useVoiceInput } from './voice/useVoiceInput.js';
+import CorrectionCard from './review/CorrectionCard.jsx';
 
 /* 口头面试：lifecycle (restore, submit, report) in ui/exam/useExamRun.js; this file keeps the answering UI and the
    answer drafts the browser holds while the learner types. */
@@ -56,6 +59,12 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
     try { writeDraft(draftKey(data.root, 'oral', [active.id, active.entry.cardId, field]), value); }
     catch { exam.setError(ui('浏览器暂存不可用，请及时保存草稿。')); }
   }
+
+  // Voice (#1031) is a way to fill the box: the text is appended for editing, then saved by oral.answer like typing.
+  const spoken = (field) => (text) => { if (current.current.run?.entry) editAnswer(field, [current.current[field].trimEnd(), text].filter(Boolean).join('\n')); };
+  // `scope`: the question on screen; what comes back after the next question opened is dropped, not appended to it.
+  const voiceScope = run?.entry ? `${run.id}:${run.entry.cardId}` : '';
+  const answerVoice = useVoiceInput({ call, scope: voiceScope, onText: spoken('answer') }), followupVoice = useVoiceInput({ call, scope: voiceScope, onText: spoken('followupAnswer') });
 
   React.useEffect(() => {
     exam.begin();
@@ -131,11 +140,13 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
         {run.entry.options?.length > 0 && <details><summary>{ui("查看题目选项")}</summary><ul>
           {run.entry.options.map((option) => <li key={option.id}><Markdown text={option.text} links={false} /></li>)}
         </ul></details>}
+        <VoiceButton voice={answerVoice} label="语音口述" />
         <label className="oral-answer-label">{ui("你的口述要点")}<textarea className="oral-answer-input" value={answer} disabled={busy} onChange={(event) => editAnswer('answer', event.target.value)} maxLength={8000}
             placeholder={ui("写下你刚才口头回答的要点；这里不会立即判分。")} />
         </label>
         {run.entry.followup && <div className="oral-followup">
           <strong>{ui("面试官追问")}</strong><p>{run.entry.followup}</p>
+          <VoiceButton voice={followupVoice} label="语音口述" />
           <label className="oral-answer-label">{ui("补充回答")}<textarea className="oral-answer-input" value={followupAnswer} disabled={busy} maxLength={8000} onChange={(event) => editAnswer('followupAnswer', event.target.value)}
               placeholder={ui("补充回答后继续下一题。")} />
           </label>
@@ -172,6 +183,7 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
           <p>{ui("你的回答：")}{entry.answer || ui("未答")}</p>
           {entry.followup && <p>{ui("追问：")}{entry.followup}<br />{ui("补充回答：")}{entry.followupAnswer || ui("未答")}</p>}
           {entry.assessment?.reason && <p>{ui("反馈：")}{entry.assessment.reason}</p>}
+          {entry.assessment?.correction && <CorrectionCard feedback={{ correction: entry.assessment.correction }} />}
           <p>{ui("参考答案：")}{entry.expected || ui("本题无参考答案")}</p>
         </article>)}
       </details>
@@ -202,7 +214,7 @@ export function OralSetup({ data, course, decks, selection, count, onCount, onSt
     intro={ui("像面试官当面提问：你回答，可以被追问，整场结束后一次性给出反馈。")}
     steps={[
       ui("屏幕上会出现一道题，像面试官当面提问；题目来自你选的学习库范围。"),
-      ui("把你口头回答的要点写在输入框里（目前是文字作答，没有语音输入）。"),
+      ui("按「语音口述」说出回答，转成文字放进输入框，改好再保存；也可以直接打字。录音转成文字后立刻删除。"),
       ui("想被追问就点「追问一次」，每道题最多追问一次。"),
       ui("点「保存并继续」进入下一题；回答保存在本地学习库。"),
       ui("整场结束后一次性给出每题反馈，中途不显示对错。"),

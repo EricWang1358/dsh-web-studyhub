@@ -130,3 +130,28 @@ test('another course ignores interview course role while explicit card and topic
   assert.equal(all.total, 3);
   assert.deepEqual((await service.call('export')).oralRuns.at(-1).scope, []);
 });
+
+test('oral mock passes the course JD to the follow-up and the assessment, and reads the shared correction with the fragments cap', async () => {
+  const seenFollowup = [], seenAssess = [];
+  const service = await fixture({
+    light: async (_system, prompt) => { seenFollowup.push(JSON.parse(prompt)); return '那你在容灾切换时会怎么控制写入不一致？'; },
+    complete: async (_system, prompt) => {
+      seenAssess.push(JSON.parse(prompt));
+      return JSON.stringify({ results: [{ cardId: JSON.parse(prompt).questions[0].cardId, band: 'strong', grade: 4, fragmentsOnly: true, reason: '只提到关键词',
+        correction: { keywordExpansion: '把分片键和租约串成一条因果链。', phrasingUpgrade: { informal: '只记得分片', professional: '按分片键路由，并用租约与 fencing token 防止双写。' } } }] });
+    },
+  });
+  const start = await service.call('oral.start', { count: 1 });
+  assert.equal(start.jd, undefined, 'the JD is not echoed into every view');
+  await service.call('oral.answer', { runId: start.id, cardId: start.entry.cardId, answer: '只记得分片关键词' });
+  await service.call('oral.followup', { runId: start.id, cardId: start.entry.cardId });
+  assert.equal(seenFollowup[0].jd, '分布式系统与容量规划');
+  const report = await service.call('oral.submit', { runId: start.id });
+  assert.equal(seenAssess[0].jd, '分布式系统与容量规划');
+  const [entry] = report.entries;
+  assert.equal(entry.assessment.grade, 2, 'fragments only stay at 2 or below');
+  assert.equal(entry.assessment.band, 'weak', 'the band follows the capped grade');
+  assert.match(entry.assessment.correction.phrasingUpgrade.professional, /fencing token/);
+  const attempt = (await service.call('export')).attempts.find((item) => item.assessment === 'oral');
+  assert.equal(attempt.grade, 2);
+});

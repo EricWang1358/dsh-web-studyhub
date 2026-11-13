@@ -3,6 +3,12 @@ export const reviewEntryKey = (run) => run?.card
   ? JSON.stringify([run.id, run.index, run.card.id, run.queueVersion || 0, run.revision || 0])
   : "";
 
+/** The question on screen for a voice answer (#1031): the round, its place, the card and whether it is the retry. Unlike reviewEntryKey it outlives a
+ * queue edit (review.queue.edit from the main chat) and a content resync (review.get), which leave the same question in front of the learner. */
+export const voiceScopeKey = (run) => run?.card
+  ? JSON.stringify([run.id, run.index, run.card.id, !!run.retry])
+  : "";
+
 /** Keep answer writes ordered; a failed last write blocks navigation/submit
  * until a subsequent selection has been saved successfully. */
 export function createWriteQueue() {
@@ -29,7 +35,8 @@ export function mergeReviewPoll(current, next) {
   if (after > before) return next;
   if (after !== before || current.index !== next.index || current.revealed !== next.revealed || !!current.feedback !== !!next.feedback) return current;
   // `intervals`: the gaps under the 0–5 buttons follow the clock (a new day changes them), so each poll brings them up to date.
-  const fields = ["prerequisites", "card", "solution", "revision", "sourceIds", "navigation", "coach", "vote", "level", "origin", "intervals"];
+  // `grading` / `correctionsPending` (#1031): a background grade started or failed on this question, a miss graded after the learner left it.
+  const fields = ["prerequisites", "card", "solution", "revision", "sourceIds", "navigation", "coach", "vote", "level", "origin", "intervals", "grading", "correctionsPending"];
   if (fields.every((key) => JSON.stringify(current[key]) === JSON.stringify(next[key]))) return current;
   return { ...current, ...Object.fromEntries(fields.map((key) => [key, next[key]])) };
 }

@@ -12,7 +12,7 @@ import { resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
-  AUTO_ADVANCE_MS, advanceKeyOf, assistRunningOn, autopilotPlan, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
+  AUTO_ADVANCE_MS, advanceKeyOf, assistRunningOn, autopilotPlan, gradeRunning, gradesOutstanding, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
   keysElsewhere, mergeReviewPollWithFollowups, reviewPollResult, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
@@ -200,7 +200,16 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     if (!result.unchanged) setRun((existing) => mergeReviewPollWithFollowups(existing, next));
     return result;
   }, [call, refs]);
-  const polling = usePolling(pollRun, { intervalMs: REVIEW_POLL_MS, backoff: reviewPollDelay, enabled: page === 'review' && !!run?.card?.id });
+  // A finished round keeps asking while a grade is on its way (#1031): it lands on the result page, not on the next visit. Corrections waiting to be
+  // read change only when the learner reads them (here, or in another window: the round is read again when this window comes back).
+  const polling = usePolling(pollRun, { intervalMs: REVIEW_POLL_MS, backoff: reviewPollDelay, enabled: page === 'review' && (!!run?.card?.id || (!!run?.complete && gradeRunning(run))) });
+  const waitingCorrections = page === 'review' && !!run?.complete && gradesOutstanding(run) && !gradeRunning(run);
+  useEffect(() => {
+    if (!waitingCorrections) return undefined;
+    const back = () => { void pollRun().catch(() => {}); };
+    window.addEventListener('focus', back);
+    return () => window.removeEventListener('focus', back);
+  }, [waitingCorrections, pollRun]);
   const pollingRef = useRef(polling);
   pollingRef.current = polling;
   // A new question on screen: the rhythm starts again at 4 s, without an extra request. A task that ends on the question asks at once (QuestionRun).
@@ -285,7 +294,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     clearTimeout(autoTimer.current);
     autoTimer.current = null;
     autoHold.current = keepAutopilotHold(autoHold.current, advanceKey);
-    const plan = autopilotPlan({ autopilot, page, passed, complete: run?.complete, teaching: !!entry.teaching, skippedKey: autoSkipped.current, advanceKey, holdKey: autoHold.current });
+    const plan = autopilotPlan({ autopilot, page, passed, grading: !!run?.grading, complete: run?.complete, teaching: !!entry.teaching, skippedKey: autoSkipped.current, advanceKey, holdKey: autoHold.current });
     if (!plan.schedule) { setAutoAdvance(''); return undefined; }
     setAutoAdvance(plan.key);
     autoTimer.current = setTimeout(() => {
@@ -294,7 +303,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       reviewActRef.current('review.move', { direction: 1 });
     }, plan.ms);
     return () => clearTimeout(autoTimer.current);
-  }, [autopilot, page, passed, advanceKey, run?.complete, !!entry.teaching, holdTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autopilot, page, passed, !!run?.grading, advanceKey, run?.complete, !!entry.teaching, holdTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── EN: one translate per card entry, a second click joins the in-flight call ── */
   const enFlights = useRef(createFlightSet());
@@ -373,7 +382,8 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   }, [teachingFailure, teachingAct]);
 
   /* ── helping the learner: the background assistant, slaying, prerequisites ── */
-  const assistCard = useCallback(async (mode, text, helpChoices = [], derive = undefined) => {
+  // `quiet`: the caller shows the state itself (a spoken answer's 正在批改 under the question, #1031), so no toast covers the page.
+  const assistCard = useCallback(async (mode, text, helpChoices = [], derive = undefined, { quiet = false } = {}) => {
     const current = runRef.current;
     if (!current?.card || (!text.trim() && !(mode === 'ask' && helpChoices.length) && !(mode === 'derive' && derive?.followupId))) return false;
     // Only asking helps with the answer: 修题 and 出题 change the bank, and 批改 is the answer itself, which reads what was recorded.
@@ -385,7 +395,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       // Back to the quick rhythm at once: the answer must not wait out a slowed-down poll.
       assistSentAt.current = Date.now();
       pollingRef.current.refresh();
-      notify(mode === 'ask' ? ui('后台助教正在解答。讲解会出现在这道题下面的问答里，完成时信箱会提醒你。')
+      if (!quiet) notify(mode === 'ask' ? ui('后台助教正在解答。讲解会出现在这道题下面的问答里，完成时信箱会提醒你。')
         : mode === 'derive' ? ui('后台助教正在出题。新题会放进同一题组，完成时信箱会提醒你。')
           : mode === 'grade' ? { text: ui('已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，完成时信箱也会提醒你。'), tone: 'success' }
             : ui('后台助教正在改这道题，会直接改这张卡。完成时信箱会提醒你，在信箱里可以一步撤销。'));
@@ -455,7 +465,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     else if (action.type === 'assist-plain') assistCard('ask', '', ['plain']);
     else if (action.type === 'choose') choose(action.id);
     else if (action.type === 'skip') skipQuestion();
-    else if (action.type === 'note' || action.type === 'focus' || action.type === 'source') questionKeys.current[action.type]?.();
+    else if (['note', 'focus', 'source', 'voice', 'voice-ask'].includes(action.type)) questionKeys.current[action.type]?.();
   };
   useEffect(() => {
     const handler = (event) => keyHandler.current?.(event);

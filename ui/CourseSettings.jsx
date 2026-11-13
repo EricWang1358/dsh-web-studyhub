@@ -45,6 +45,7 @@ export function draftFromCourse(course = {}) {
     focusTopics: (course.focusTopics || []).join('; '), guidanceSourceIds: [...(course.guidanceSourceIds || [])],
     interviewRole: course.interview?.role || '', interviewJd: course.interview?.jd || '',
     generationRules: [...(course.generationRules || [])],
+    aiGradeFlashcards: course.practice?.aiGradeFlashcards === true,
   };
 }
 
@@ -67,7 +68,9 @@ export function payloadFromDraft(course, draft) {
     ...(hasInterview ? { interview: interviewPayload } : {}),
     guidanceSourceIds: draft.guidanceSourceIds, focusTopics: splitTopics(draft.focusTopics),
     // 出题守则 (#889): sent when the course has some or the form added some; [] removes them.
-    ...(course.generationRules?.length || draft.generationRules?.length ? { generationRules: draft.generationRules || [] } : {}) };
+    ...(course.generationRules?.length || draft.generationRules?.length ? { generationRules: draft.generationRules || [] } : {}),
+    // AI grading of flashcards (#1031): sent when the course has it or the form turned it on; false removes it.
+    ...(course.practice || draft.aiGradeFlashcards ? { practice: { aiGradeFlashcards: draft.aiGradeFlashcards === true } } : {}) };
 }
 
 /** Does the course already carry anything the fold holds (everything but the exam date)? Then the fold is open when the panel opens. */
@@ -432,6 +435,12 @@ export default function CourseSettings({ data, courseId, onClose, mergeFrom = []
             <TextArea rows={3} value={draft.interviewJd ?? ''} maxLength={20000} placeholder={ui('粘贴岗位要求或 JD 要点（可选）')} disabled={disabled}
               onChange={event => change({ interviewJd: event.target.value })} />
           </Field>
+        </section>
+
+        <section className="course-settings__block" aria-labelledby="course-settings-practice">
+          <h3 id="course-settings-practice">{ui('练习')}</h3>
+          <Checkbox label={ui('闪卡也可以用 AI 批改')} checked={draft.aiGradeFlashcards === true} disabled={disabled} onChange={checked => change({ aiGradeFlashcards: checked })}
+            hint={ui('说出或写下答案后，可以让 AI 按参考答案批改并给出订正；默认还是翻面自评。要用 AI 模型。')} />
         </section>
 
         <Disclosure className="course-settings__disclosure" bodyClassName="course-settings__disclosure-body" summary={ui('考官指引')}
