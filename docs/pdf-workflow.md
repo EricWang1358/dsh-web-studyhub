@@ -13,8 +13,8 @@ This page covers ordinary lecture PDFs. For a scanned PDF, or a book over 8 MB o
 | PDF file size | 8 MB | The file is not imported. A **Large textbooks** card appears under it. |
 | PDF length | 200 pages | The same card appears. |
 | Text extracted from one PDF | 600,000 characters | The same card appears. |
-| Text sent to one generation | 600,000 characters | **Generate & check deck** stays off. Narrow the selection, or use the step-by-step path or a search tool ([Large textbooks](large-documents.md)). |
-| Questions per generation | 1–30 | Choose a number in this range. |
+| Text sent to one generation | 600,000 characters (3,000,000 when the generation has a coverage plan) | **Generate & check deck** stays off. Narrow the selection, or use the step-by-step path or a search tool ([Large textbooks](large-documents.md)). |
+| Questions per generation | 1–30 in one round | A total up to 500 is planned by coverage level and made in rounds of at most 30. |
 | Scanned pages | Not read | StudyHub reads the PDF's text layer only. It does no OCR. |
 
 ## Import a PDF
@@ -48,11 +48,11 @@ Notes on the options:
 
 ## What happens during generation
 
-- By default, questions are written in batches of up to 5, and up to 3 batches run at once.
+- By default, questions are written in batches of up to 5, and up to 4 batches run at once (1–8 can be set).
 - First, StudyHub picks knowledge points from the selected pages, each with a verbatim passage. For each batch it then prepares the answers, writes the questions with a self-check and runs **one independent review**.
 - Only questions that pass the review are kept. Rejected candidates are recorded with their reasons.
 - Since 1.4.6, generation does not repair, review again or write extra questions to reach the count. Repair is a separate step that you request later.
-- Each model call may take up to 10 minutes. By default, a whole job may run for up to 20 minutes; time spent waiting in the queue does not count. When the budget runs out, the accepted questions are kept.
+- Each model call may take up to 10 minutes. A task may run for its time budget, 20 minutes by default (5–180); a coverage plan has it for each round and no limit as a whole. Time spent waiting in the queue does not count. When the budget runs out, the accepted questions are kept.
 - Restarting DeepSeek Harness (DSH) interrupts unfinished jobs. A saved draft that does not cover all of its material can be completed with its **Add questions for the uncovered parts** button: a new model task uses the same sources, covers the sections that have no question and keeps the accepted questions. An old model conversation is not resumed.
 - Existing questions are never rewritten because the extraction or StudyHub changed.
 
