@@ -106,7 +106,7 @@ To add to an existing deck, choose that deck: approved questions are added, and 
 
 </details>
 
-Save a default question type, count, content language, difficulty and focus in **Settings › Question defaults**; each new request can override them. Questions per batch, parallel batches and the time budget are there too, initially 5, 4 and 20 minutes. Started tasks and continued drafts keep their original choices. See [Generation pace](docs/generation-agents-sidebar.md#what-a-generation-task-does).
+Save a default question type, count, content language, difficulty and focus in **Settings › Question defaults**; each new request can override them. Questions per batch, parallel batches and the time budget are there too, initially 5, 4 and 20 minutes. Started tasks keep their original choices; a continued draft keeps its own, except the time budget and applying review suggestions, which follow the setting as it is now. See [Generation pace](docs/generation-agents-sidebar.md#what-a-generation-task-does).
 
 ### Practise and review
 

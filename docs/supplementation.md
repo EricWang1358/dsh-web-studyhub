@@ -47,7 +47,7 @@ Only questions that were saved into the deck count as added. A question that was
 ## Limits and failures
 
 - **One review per batch.** Each batch gets one independent review. Accepted questions are kept and rejected ones are dropped with their reasons. StudyHub does not keep repairing or regenerating questions to reach the requested number.
-- **Time budget.** A task may run for 20 minutes by default, not counting time in the queue. Change this with **Time budget (minutes)** in **Settings › Question defaults**. When a task runs out of time, questions that were already saved and reviewed, and not changed since, are still added. This step makes no further model call. The notice reports how many are missing.
+- **Time budget.** A task may run for 20 minutes by default, not counting time in the queue. Change this with **Time budget per round (minutes)** in **Settings › Question defaults**. When a task runs out of time, questions that were already saved and reviewed, and not changed since, are still added. This step makes no further model call. The notice reports how many are missing.
 - **Stopping wins.** If you stop the task, nothing more is added, even at the end of the budget.
 - **Changes block publication.** If the deck is archived or edited, or a question changes while the task runs, the affected questions are not added.
 - **No automatic retry.** A task that fails because the deck was removed or archived, because of a conflict, a cancellation or a failed review does not restart. It never falls back to another deck. Unfinished work stays in a draft that can be resumed.
