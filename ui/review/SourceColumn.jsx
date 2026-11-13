@@ -1,6 +1,6 @@
 import React from "react";
 import { ui } from "../i18n.js";
-import { CloseButton, IconButton } from "../components/index.js";
+import { Button, CloseButton, IconButton } from "../components/index.js";
 import { DocumentViewer } from "../workspace-views.jsx";
 import { useSourceReader } from "../app/modals/source-reader.jsx";
 import { useInjectCss } from "../shared.js";
@@ -53,6 +53,12 @@ export default function SourceColumn({ request, followKey, place, pageRef, onWid
   };
   const setWidth = (px) => pageRef.current?.style.setProperty("--source-column", `${Math.round(px)}px`);
   React.useLayoutEffect(() => { if (!collapsed) tellWidth(widthNow()); }, [collapsed]); // eslint-disable-line react-hooks/exhaustive-deps -- measured as the divider is drawn
+  // Folded, the page's last track is the rail's (ui/review/session.css [data-source-folded]); written on the page as its width is, so the page does not render for it.
+  React.useLayoutEffect(() => {
+    const page = pageRef.current;
+    page?.toggleAttribute("data-source-folded", collapsed);
+    return () => page?.removeAttribute("data-source-folded");
+  }, [collapsed, pageRef]);
   const onPointerDown = (event) => {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -93,9 +99,9 @@ export default function SourceColumn({ request, followKey, place, pageRef, onWid
   return (
     <aside ref={asideRef} className="source-column" data-own-keys="" data-collapsed={collapsed || undefined} aria-label={ui("对照资料")}>
       {collapsed ? (
-        <button type="button" className="source-column__rail" aria-label={ui("展开对照资料")} onClick={() => dispatch({ type: "expand" })}>
+        <Button variant="quiet" className="source-column__rail" aria-label={ui("展开对照资料")} onClick={() => dispatch({ type: "expand" })}>
           <span aria-hidden="true">{ui("资料")}</span>
-        </button>
+        </Button>
       ) : (
         <div ref={handleRef} className="source-column__handle" role="separator" aria-orientation="vertical" aria-label={ui("拖动调整资料栏宽度")} tabIndex={0}
           aria-valuemin={COLUMN_MIN} onPointerDown={onPointerDown} onKeyDown={onHandleKey} />

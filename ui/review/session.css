@@ -95,7 +95,7 @@
       grid-template-columns: minmax(0, 1fr) var(--source-track);
       align-items: start;
     }
-    .review-page.has-source:has(> .source-column[data-collapsed]) { --source-track: 32px; }
+    .review-page.has-source[data-source-folded] { --source-track: 32px; }
     .review-page.has-rail.has-source { grid-template-columns: 36px minmax(0, 1fr) var(--source-track); }
     .review-page.has-source:not(.has-rail) > :not(.source-column) { grid-column: 1; }
     .review-page.has-source > .review-body { container: study / inline-size; }
