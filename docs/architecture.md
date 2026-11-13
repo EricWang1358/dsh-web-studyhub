@@ -116,6 +116,8 @@ ctx.inject(['studyRuntime'], async c => {
 
 `runtimeForLibrary(path)` returns the `StudyRuntime` itself, for example to call `registerParticipant`. The `runtime.describe` and `runtime.capabilities` actions expose the same contracts to the UI and agents.
 
+`forLibrary(path).register(definition)` accepts the JSON Schema your tools already emit: a schema keyword the validator does not enforce (`pattern`, `format`, `anyOf`, `$schema`, ...) is ignored, with one console warning naming the operation and the keyword. `runtimeForLibrary(path).register(definition)` is strict, as the contexts StudyHub installs are: it refuses such a keyword unless you pass `{ lenientSchemas: true }` as the second argument. The keywords that are enforced are listed in `lib/runtime/schema.js`.
+
 One runtime serves each library. It is reused across requests and compact tools.
 
 ### Request services
