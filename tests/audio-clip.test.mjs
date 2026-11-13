@@ -155,6 +155,29 @@ test('the local engine that never answers after the clip is sent gives up instea
   assert.ok(Date.now() - started < 5000);
 });
 
+test('the local engine gets time for the clip it was sent: 30 s plus 1.5 times the clip, not a fixed minute for up to 92 s', async (t) => {
+  class Silent {
+    constructor() { this.listeners = {}; setTimeout(() => this.emit('message', { data: JSON.stringify({ setupComplete: {} }) }), 5); }
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+    emit(type, event) { for (const fn of this.listeners[type] || []) fn(event); }
+    send() {}
+    close() { this.emit('close', { code: 1006, reason: '' }); }
+  }
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  let outcome = null;
+  // 90 s of 16 kHz mono PCM16.
+  transcribeLocally(Silent, Buffer.alloc(90 * 32000)).then(() => { outcome = 'text'; }, (error) => { outcome = error.message; });
+  t.mock.timers.tick(5);
+  await settle();
+  t.mock.timers.tick(150_000);
+  await settle();
+  assert.equal(outcome, null, 'a minute and a half of speech is still being worked on after 150 s');
+  t.mock.timers.tick(15_001);
+  await settle();
+  assert.match(String(outcome), /没有按时/, 'it gives up at 30 s + 1.5 × 90 s');
+});
+
 test('a clip another import has already claimed is not cancelled under it; an unfinished one is', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'audio-clip-claim-'));
   try {
