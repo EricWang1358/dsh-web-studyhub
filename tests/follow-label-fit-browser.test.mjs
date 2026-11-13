@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { focusByKeyboard, launchChromium } from '../scripts/qa/browser.mjs';
 import { frames, until } from '../scripts/qa/layout-late.mjs';
 import { startConsole, startJobs, openConsole } from '../scripts/qa/task-console.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
@@ -129,7 +129,7 @@ test('the follow-session select reads clearly and the 即时控制 row holds tog
         // so the one tooltip counted below is the one keyboard focus brings.
         await page.mouse.move(1, 1);
         await planning.blur();
-        await planning.focus();
+        await focusByKeyboard(planning);
         await until(async () => (await page.locator('.sh-tooltip:popover-open').count()) === 1, 'the tooltip on focus');
         const tip = await page.evaluate(() => {
           const el = document.querySelector('.sh-tooltip:popover-open'), r = el.getBoundingClientRect();
@@ -169,7 +169,7 @@ test('出题偏好 in Settings: the same select, the closed one short, the popup
       const cut = await page.evaluate(() => [...document.querySelectorAll('[role="combobox"] .sh-select__value')].filter((v) => v.scrollWidth > v.clientWidth + 1).map((v) => v.textContent));
       assert.deepEqual(cut, [], `${where}: no closed select is cut`);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${where}: no sideways scroll`);
-      await follow.first().focus();
+      await focusByKeyboard(follow.first());
       await until(async () => (await page.locator('.sh-tooltip:popover-open').count()) === 1, 'the tooltip on focus');
       assert.equal(squash(await page.locator('.sh-tooltip:popover-open').innerText()), words.tip, `${where}: the same sentence as the row's`);
       await follow.first().click();

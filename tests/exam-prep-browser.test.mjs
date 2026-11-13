@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
 import { createPreviewServer } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { focusByKeyboard, launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
@@ -107,7 +107,7 @@ test('turned off in Settings the page has no sidebar entry and one switch there 
         const basis = page.locator('.exam-prep-row__basis').first();
         const tip = page.locator('.exam-prep-row__basis + [role="tooltip"]').first();
         assert.equal(await tip.isVisible(), false, 'hidden by default');
-        await basis.focus();
+        await focusByKeyboard(basis);
         await until(async () => tip.isVisible(), 'the basis explanation on focus');
         assert.match(await tip.innerText(), /样卷/);
         await shot(page, `tip-${width}`);

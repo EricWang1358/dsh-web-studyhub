@@ -36,6 +36,13 @@ export async function findChromium(env = process.env) {
   return null;
 }
 
+/** Put keyboard focus on `locator`, the way a person who is on the keyboard does. A tooltip opens on :focus-visible, which a script's focus() gets only when
+ *  the last input was a key (after a mouse press it does not: that is the point of the shared Tooltip). A Shift press first makes it one. */
+export async function focusByKeyboard(locator) {
+  await locator.page().keyboard.press("Shift");
+  await locator.focus();
+}
+
 /** Launch headless Chromium through the repository's Playwright.
  *  STUDY_QA_ACTION_TIMEOUT_MS (set by scripts/test.mjs) stretches Playwright's 30 s waits for the launch and for every action and navigation of the pages
  *  made from this browser: a whole test suite shares the machine, and a wait is a deadline for something to happen, not a measure of speed. */
