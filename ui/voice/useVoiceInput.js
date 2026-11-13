@@ -4,20 +4,27 @@ import { createVoiceRecorder } from './mic.js';
 import { VOICE_MAX_SECONDS } from './wav.js';
 
 /* One voice input (#1031): press to talk, press again to send, the text comes back through `onText`. Before the first recording of a page it asks
-   whether a transcription tier is there (audio.preflight: a cloud provider or the installed local engine), once per page; without one the
+   whether a transcription tier is there (audio.preflight: a cloud provider, a paid one when 只用付费密钥 is the default in 设置 › 音频转写, as the
+   recording will be sent, or the installed local engine), once per page and again after a setup failure; without one the
    button opens the setup guide instead of the microphone. A library whose host has no audio context hides the button (`unavailable`). `scope` names
    where the text belongs (the question on screen): text that comes back after it changed is dropped and the learner is told (ui/voice/mic.js). */
 
 let readiness = null;
-/** Is voice transcription set up? Asked once per page; `again` after the learner saved a key. */
+/** Is voice transcription set up? Asked once per page; `again` after the learner saved a key. The check uses the same 只用付费密钥 as the clip
+    (audio.clip.transcribe falls back to the settings' paidOnlyByDefault), so "ready" never means a free key the clip will not use. */
 export function voiceReadiness(call, again = false) {
   if (again || !readiness) {
-    readiness = Promise.resolve(call('audio.preflight', {})).then(
+    readiness = (async () => {
+      const settings = await Promise.resolve(call('audio.settings.get', {})).catch(() => null);
+      return call('audio.preflight', settings?.paidOnlyByDefault === true ? { paidOnly: true } : {});
+    })().then(
       (status) => ({ ready: !!(status?.transcription || status?.liveLocal?.ready), reason: status?.reason || 'no-provider' }),
       () => ({ ready: false, unavailable: true }));
   }
   return readiness;
 }
+/** Forget the answer, so the next recording asks again (after a setup failure: the settings changed since). */
+export function forgetVoiceReadiness() { readiness = null; }
 
 const IDLE = { phase: 'idle', left: VOICE_MAX_SECONDS, error: '', code: '' };
 
@@ -42,7 +49,7 @@ export function useVoiceInput({ call, onText, scope = '' }) {
     } catch (error) {
       if (!mounted.current) return;
       if (error?.name === 'AbortError') return; // the learner cancelled
-      if (error?.code === 'AUDIO_SETUP') { setSetup({ reason: error.reason || 'no-provider' }); setState(IDLE); }
+      if (error?.code === 'AUDIO_SETUP') { forgetVoiceReadiness(); setSetup({ reason: error.reason || 'no-provider' }); setState(IDLE); }
       else setState((current) => ({ ...current, error: errorMessage(error), code: error?.code || '' }));
     }
   }, []);

@@ -218,3 +218,27 @@ test('本轮题目 with a question still being graded: it is listed by default, 
   for (const number of [1, 2]) assert.doesNotMatch(panel(number), /option-letter|answer-state|参考答案/, 'no verdict and no key while it is graded');
   assert.match(panel(4), /正确答案/, 'the guarded row still draws its options');
 });
+
+test('the voice pre-check asks with 只用付费密钥 from the audio settings, and a forgotten answer is asked again', async () => {
+  const { loadUi } = await import('./helpers/ui-module.mjs');
+  const { forgetVoiceReadiness, voiceReadiness } = await loadUi(`export { forgetVoiceReadiness, voiceReadiness } from './ui/voice/useVoiceInput.js';`);
+  const asked = [];
+  let paidOnlyByDefault = true;
+  const call = async (action, args) => {
+    asked.push([action, args]);
+    if (action === 'audio.settings.get') return { paidOnlyByDefault };
+    if (action === 'audio.preflight') return args.paidOnly ? { transcription: false, reason: 'paid-missing' } : { transcription: true, reason: null };
+    throw new Error(action);
+  };
+  forgetVoiceReadiness();
+  assert.deepEqual(await voiceReadiness(call), { ready: false, reason: 'paid-missing' }, 'only a free key with 只用付费密钥 on is not ready');
+  assert.deepEqual(asked.find(([action]) => action === 'audio.preflight')[1], { paidOnly: true });
+  paidOnlyByDefault = false;
+  asked.length = 0;
+  await voiceReadiness(call);
+  assert.equal(asked.length, 0, 'asked once per page');
+  forgetVoiceReadiness();
+  assert.deepEqual(await voiceReadiness(call), { ready: true, reason: 'no-provider' });
+  assert.deepEqual(asked.find(([action]) => action === 'audio.preflight')[1], {});
+  forgetVoiceReadiness();
+});
