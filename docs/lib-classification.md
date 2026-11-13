@@ -108,7 +108,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/selection-evidence.js`: 1 ui file; context generation; 1 other lib file
 - `lib/semver.js`: 1 ui file; context generation; 4 other lib files
 - `lib/shortfall.js`: 2 ui files
-- `lib/sm2.js`: 2 ui files; 5 other lib files
+- `lib/sm2.js`: 2 ui files; 6 other lib files
 - `lib/source-courses.js`: 7 ui files; contexts audio, bank, courses, generation, library, materials, recording; 24 other lib files
 - `lib/source-groups.js`: 24 ui files; contexts generation, library, materials; 9 other lib files
 - `lib/source-provenance.js`: 6 ui files; contexts library, materials; 6 other lib files
