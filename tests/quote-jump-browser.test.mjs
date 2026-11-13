@@ -11,6 +11,7 @@ import { createStudyRuntime } from '../lib/runtime/builtins.js';
 import { Store } from '../lib/store.js';
 import { makeTextPdf } from './helpers/text-pdf.mjs';
 import { until } from './helpers/wait.mjs';
+import { backToQuestion } from './helpers/source-column.mjs';
 
 /* Question <-> source: the reader finds a citation the way the citation was checked (letters and digits), also when it is not a literal
    substring of the stored text, and shows a plain notice when it cannot. Set JUMP_FALLBACK_SHOTS=<dir> to keep a screenshot of each step. */
@@ -107,7 +108,7 @@ for (const width of [1280, 420]) {
           assert.ok(where && where.top < where.height, `the page of the citation is shown (${JSON.stringify(where)})`);
         }
         await shot(page, `${current.kind}-reader`);
-        await viewer.getByRole('button', { name: '回到这道题' }).click();
+        await backToQuestion(page);
         await page.locator('.review-page').waitFor();
         assert.equal(await viewer.count(), 0, 'back at the question');
         await page.locator('.review-heading h1').first().click().catch(() => {});
