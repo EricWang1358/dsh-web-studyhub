@@ -55,9 +55,10 @@ export const pressedGradeOf = (action) => (action?.type === 'answer' && Number.i
 export const advanceKeyOf = (run) => (run ? `${run.id}:${run.index}:${run.queueVersion || 0}` : '');
 
 /** Should the autopilot count down to the next question now? `skippedKey` is the question the learner stopped it on; `holdKey` the question they were taken to read (see keepAutopilotHold). */
-export function autopilotPlan({ autopilot, page, passed, complete, teaching, skippedKey, advanceKey, holdKey = '' }) {
+export function autopilotPlan({ autopilot, page, passed, grading = false, complete, teaching, skippedKey, advanceKey, holdKey = '' }) {
   const idle = { schedule: false, key: '', ms: 0 };
-  if (!autopilot || page !== 'review' || !passed || complete || teaching || skippedKey === advanceKey || (holdKey && holdKey === advanceKey)) return idle;
+  // An answer whose AI grade is on its way (#1031, run.grading) is done for now: the grade lands on it after the learner has moved on.
+  if (!autopilot || page !== 'review' || !(passed || grading) || complete || teaching || skippedKey === advanceKey || (holdKey && holdKey === advanceKey)) return idle;
   return { schedule: true, key: advanceKey, ms: AUTO_ADVANCE_MS };
 }
 
@@ -146,7 +147,7 @@ const BLANK = (value) => String(value).trim();
 
 /**
  * What a key press means. Returns null when the press is not ours, otherwise { cancelAuto, preventDefault, action }
- * (action may be null: the key is consumed, nothing happens). Actions: help, help-close, autopilot, resume, answer{args},
+ * (action may be null: the key is consumed, nothing happens). Actions: help, help-close, autopilot, resume, answer{args}, voice, voice-ask,
  * move{direction}, flip, hint, explain, assist-plain, choose{id}, skip, note, focus, source.
  * event: { key, code, shiftKey, repeat, defaultPrevented, ctrlKey, metaKey, altKey, inEditable, onButton }.
  * ctx: { inside, modalOpen, page, run, busy, shortcutHelp, choice, isCloze, rubricCard, selected, clozeValues }.
@@ -157,6 +158,8 @@ export function shortcutAction(event, ctx) {
   const { run, busy, choice, isCloze, rubricCard } = ctx;
   if (event.key === '?' || (event.shiftKey && event.code === 'Slash')) return result({ type: 'help' }, true);
   if (event.key === 'Escape' && ctx.shortcutHelp) return result({ type: 'help-close' });
+  // Shift+V: ask 帮我弄懂 by voice (#1031), on any question outside an exam.
+  if (event.shiftKey && event.code === 'KeyV') return result(ctx.page === 'review' && run?.card && !busy && run.mode !== 'exam' ? { type: 'voice-ask' } : null, true);
   if (event.shiftKey || (event.onButton && (event.key === 'Enter' || event.code === 'Space'))) return result(null);
   const letter = event.key.length === 1 ? event.key.toLowerCase() : '';
   if (letter === 'a') return result({ type: 'autopilot' }, true);
@@ -178,6 +181,8 @@ export function shortcutAction(event, ctx) {
   // The actions of 更多 that have a key of their own (#1008): 先跳过, 写笔记, 标为重点, and the question's own page. An exam has none of them.
   const moreKey = { k: 'skip', n: 'note', f: 'focus', o: 'source' }[letter];
   if (moreKey) return run.mode === 'exam' ? result(null) : result({ type: moreKey }, true);
+  // V: answer by voice (#1031): a flashcard, an open question or a cloze not yet answered; never a choice, a task or an exam.
+  if (letter === 'v') return result(run.mode !== 'exam' && !run.feedback && !choice && !taskCard && (isCloze || flipsOnly || rubricCard) ? { type: 'voice' } : null, true);
   if (event.key === 'ArrowRight' && run.feedback) return result({ type: 'move', direction: 1 }, true);
   if (event.key === 'ArrowLeft' && run.index) return result({ type: 'move', direction: -1 }, true);
   if (event.code === 'Space' && flipsOnly) return result({ type: 'flip' }, true);

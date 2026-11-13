@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../lib/service.js';
 import { wavPcm } from '../lib/contexts/audio/clip.js';
-import { wavBytes, toPcm16, VOICE_MAX_SECONDS } from '../ui/voice/wav.js';
+import { wavBytes, VOICE_MAX_SECONDS } from '../ui/voice/wav.js';
 
 /* A voice answer is transcribed once (#1031): audio.clip.transcribe reads the uploaded clip, asks one tier (a configured cloud provider, else the
    local live engine), and deletes the raw audio on every path, success or failure. No real provider: a fake fetch and the fake sherpa engine. */
@@ -47,8 +47,7 @@ async function fixture(t, { fetch, key = KEY, engine = false } = {}) {
 }
 
 test('the WAV of the recorder is 16 kHz mono PCM16, and the server reads its samples back byte for byte', () => {
-  const samples = toPcm16(Float32Array.from({ length: 48000 }, (_, i) => Math.sin(i / 10)), 48000);
-  assert.equal(samples.length, 16000, '48 kHz input is resampled to 16 kHz');
+  const samples = Int16Array.from({ length: 16000 }, (_, i) => Math.round(Math.sin(i / 10) * 8000));
   const wav = Buffer.from(wavBytes([samples]));
   const read = wavPcm(wav);
   assert.equal(read.rate, 16000);

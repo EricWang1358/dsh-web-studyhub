@@ -49,6 +49,7 @@ import { deferUnstudiedPagesPlan, runDeferUnstudiedPages } from "../document-pre
 import QuestionSourcePage from "./QuestionSourcePage.jsx";
 import RoundPending from "./RoundPending.jsx";
 import { RoundEndConfirm, useRoundSteps } from "./RoundSteps.jsx";
+import { useVoiceAnswer } from "./VoiceAnswer.jsx";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -117,8 +118,6 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     [data?.sources, notify, openModal, reviewAct, run],
   );
   const { onOpenNote, onMakeNote, onMakeTask, onModelSettings, onSaveQaToNote } = links;
-  // 先跳过 / 到此为止 and the N / F / O keys (#1008): ui/review/RoundSteps.jsx.
-  const roundSteps = useRoundSteps({ session, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus });
   // `inHeader`: the page's header already carries the way back (the review book's or the 总纲's, ui/Review.jsx), so it is not said a second time under the card.
   const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader, tourRunning } = context;
   const contextReturnLabel = inHeader ? '' : contextLabel;
@@ -198,6 +197,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
   const taskCard = run.mode !== "flashcard" && run.card?.kind === "task";
   const gradeTask = cardTasks.filter((task) => task.mode === "grade").at(-1);
+  // Answering by voice (#1031, V / Shift+V): ui/review/VoiceAnswer.jsx. 先跳过 / 到此为止 and the N / F / O keys (#1008): ui/review/RoundSteps.jsx.
+  const voice = useVoiceAnswer({ session, data, model, rubricCard, setAssistMode, setAssistText });
+  const roundSteps = useRoundSteps({ session, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus, voiceKeys: voice.keys });
   const caseDeck = run.card ? data?.decks?.find((deck) => deck.id === run.deckId && deck.format === "case-study") : null;
   const caseSource = caseDeck ? data?.sources?.find((source) => source.id === caseDeck.caseSourceId) : null;
   const [caseHighlights, setCaseHighlights] = React.useState(run.highlights || []);
@@ -264,6 +266,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               <span>
                 <span>{words.main}</span>{words.note && <small className="question-retry-note">{words.note}</small>}
                 {roundSteps.onEnd && <RoundPending run={run} onJump={(index) => reviewAct("review.move", { index })} onEnd={roundSteps.onEnd} />}
+                {voice.pending}
                 {run.mode !== "exam" && run.liveMastery?.before?.total > 0 && run.liveMastery?.after?.total > 0 && (() => {
                   const { before, after } = run.liveMastery, delta = after.percent - before.percent;
                   return (
@@ -440,17 +443,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                   {enAnswer.blanks.map((b) => b.value).join(" · ")}
                 </p>
               )}
+              {voice.answer}
               {!run.feedback && (
-                <Button
-                  variant="primary" className="submit-answer"
-                  data-usage="review.submit"
-                  disabled={!Object.values(clozeValues).some((v) =>
-                      String(v).trim(),
-                    )} lock={busy}
-                  onClick={() =>
-                    reviewAct("review.answer", { answers: clozeValues })
-                  }
-                >{ui("提交答案")}</Button>
+                <Button variant="primary" className="submit-answer" data-usage="review.submit" disabled={!Object.values(clozeValues).some((v) => String(v).trim())} lock={busy}
+                  onClick={() => reviewAct("review.answer", { answers: clozeValues })}>{ui("提交答案")}</Button>
               )}
             </>
           ) : taskCard ? (
@@ -463,6 +459,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <>
               <RubricAnswer run={run} data={data} value={response} onChange={actions.setResponse} task={gradeTask}
                 onSubmit={(text) => assistCard("grade", text)} onSetupModel={onModelSettings || (() => openSettings("settings-model"))} />
+              {voice.answer}
               {prereqStrip}
             </>
           ) : (
@@ -473,6 +470,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 <label className="response-label">{ui("先组织你的回答")}<textarea rows={3} value={response} onChange={(e) => actions.setResponse(e.target.value)}
                     placeholder={ui("在脑中作答，或在这里写下思路（提交前会自动保存）")} /></label>
               )}
+              {voice.answer}
               {run.revealed && !run.feedback && (
                 <div className="grading">
                   <div className="grading-head">
@@ -497,7 +495,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       return (
                         <Tooltip key={grade} layer content={uiFormat("快捷键 {0}：{1}", [grade, label])} anchorClassName="grade-tip">
                           <button
-                            className={"grade " + (grade < 3 ? "low" : "high") + (keyGrade === grade ? " is-key-pressed" : "")}
+                            className={"grade " + (grade < 3 ? "low" : "high") + (keyGrade === grade ? " is-key-pressed" : "") + (voice.suggested === grade ? " is-suggested" : "")}
                             aria-label={gap ? uiFormat("{0} 分：{1}，{2}后再复习", [grade, label, gap]) : uiFormat("{0} 分：{1}", [grade, label])}
                             aria-keyshortcuts={String(grade)}
                             data-usage="review.grade"
@@ -520,6 +518,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             </>
           )}
           {/* What the answer did and when the question comes back: at the foot of the card, right after the explanations, where the eyes already are (#672). */}
+          {voice.correction}
           {run.feedback && <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} />}
         </div>
         {/* Under the card, which stays in view when a question switch pins it to the top. */}
@@ -609,6 +608,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                   placeholder={assistMode === "ask" ? ui("例如：不懂为什么重试会放大负载") : assistMode === "derive" ? ui("例如：什么是聚合根；为什么重试要幂等") : ui("例如：选项 B 和 C 说的是一回事；解析没说清为什么 A 错")}
                   onChange={(event) => setAssistText(event.target.value)} />
               </label>
+              {assistMode === "ask" && voice.askButton}
               {assistMode === "improve" && <FixPhraseSave phrases={fixPhrases.phrases} text={assistText} onSave={fixPhrases.add} />}
               {assistMode === "improve" && <CourseRuleAdd courseRules={courseRules} text={assistText} />}
               <div className="action-feedback-slot">{feedback}</div>

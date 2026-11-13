@@ -90,6 +90,7 @@ import similarCopy from './locales/en.similar.json';
 import learningLoopCopy from './locales/en.learning-loop.json';
 import sourceSplitCopy from './locales/en.source-split.json';
 import webGeminiCopy from './locales/en.web-gemini.json';
+import voiceReviewCopy from './locales/en.voice-review.json';
 import appMessages from '../lib/application-messages-en.js';
 
 export const ENGLISH_SOURCES = {
@@ -178,6 +179,7 @@ export const ENGLISH_SOURCES = {
   'en.learning-loop.json': learningLoopCopy,
   'en.source-split.json': sourceSplitCopy,
   'en.web-gemini.json': webGeminiCopy,
+  'en.voice-review.json': voiceReviewCopy,
 };
 
 /** The English of lib/application-messages.js (localizeAppMessage), handed to it once this module is here. */

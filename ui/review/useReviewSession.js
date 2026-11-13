@@ -285,7 +285,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     clearTimeout(autoTimer.current);
     autoTimer.current = null;
     autoHold.current = keepAutopilotHold(autoHold.current, advanceKey);
-    const plan = autopilotPlan({ autopilot, page, passed, complete: run?.complete, teaching: !!entry.teaching, skippedKey: autoSkipped.current, advanceKey, holdKey: autoHold.current });
+    const plan = autopilotPlan({ autopilot, page, passed, grading: !!run?.grading, complete: run?.complete, teaching: !!entry.teaching, skippedKey: autoSkipped.current, advanceKey, holdKey: autoHold.current });
     if (!plan.schedule) { setAutoAdvance(''); return undefined; }
     setAutoAdvance(plan.key);
     autoTimer.current = setTimeout(() => {
@@ -294,7 +294,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       reviewActRef.current('review.move', { direction: 1 });
     }, plan.ms);
     return () => clearTimeout(autoTimer.current);
-  }, [autopilot, page, passed, advanceKey, run?.complete, !!entry.teaching, holdTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autopilot, page, passed, !!run?.grading, advanceKey, run?.complete, !!entry.teaching, holdTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── EN: one translate per card entry, a second click joins the in-flight call ── */
   const enFlights = useRef(createFlightSet());
@@ -455,7 +455,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     else if (action.type === 'assist-plain') assistCard('ask', '', ['plain']);
     else if (action.type === 'choose') choose(action.id);
     else if (action.type === 'skip') skipQuestion();
-    else if (action.type === 'note' || action.type === 'focus' || action.type === 'source') questionKeys.current[action.type]?.();
+    else if (['note', 'focus', 'source', 'voice', 'voice-ask'].includes(action.type)) questionKeys.current[action.type]?.();
   };
   useEffect(() => {
     const handler = (event) => keyHandler.current?.(event);

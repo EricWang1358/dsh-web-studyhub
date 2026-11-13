@@ -5,16 +5,6 @@ export const VOICE_RATE = 16000;
 /** The longest voice answer: the recorder stops itself here, and the server refuses a longer clip. */
 export const VOICE_MAX_SECONDS = 90;
 
-/** Float samples (-1..1) of any rate, resampled to 16 kHz Int16 by nearest neighbour (speech, short clips). */
-export function toPcm16(float32, rate) {
-  const ratio = rate / VOICE_RATE, length = Math.floor(float32.length / ratio), out = new Int16Array(length);
-  for (let i = 0; i < length; i++) {
-    const value = Math.max(-1, Math.min(1, float32[Math.floor(i * ratio)] || 0));
-    out[i] = value < 0 ? value * 0x8000 : value * 0x7fff;
-  }
-  return out;
-}
-
 /** The WAV bytes of Int16 mono chunks at `rate`. */
 export function wavBytes(chunks, rate = VOICE_RATE) {
   const samples = chunks.reduce((sum, chunk) => sum + chunk.length, 0);

@@ -886,6 +886,8 @@
     .grade:active:not(:disabled) { background: var(--bg-selected); }
     /* A number key answers without a click (#745): the button the key named wears the same press for a moment, so the key is seen to land. */
     .grade.is-key-pressed { background: var(--bg-selected); }
+    /* The grade a spoken flashcard suggests (#1031, ui/review/VoiceAnswer.jsx): preselected, the learner confirms it or presses another. */
+    .grade.is-suggested { background: var(--bg-selected); box-shadow: inset 0 0 0 2px var(--line-strong); }
     .grade.low {
       color: var(--bad-ink);
     }
