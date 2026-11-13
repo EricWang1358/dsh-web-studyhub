@@ -467,7 +467,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               <FlipCard key={run.card.id} run={run} showBack={showBack} flipCard={flipCard} enOn={enOn} />
               <SmoothHeight className="flash-follow" key={"follow:" + run.card.id}>
               {run.card.kind === "open" && !run.revealed && (
-                <label className="response-label">{ui("先组织你的回答")}<textarea rows={3} value={response} onChange={(e) => actions.setResponse(e.target.value)}
+                <label className="response-label">{ui("先组织你的回答")}<textarea rows={3} value={response} readOnly={!!run.grading} className={run.grading ? "response-sent" : undefined} onChange={(e) => actions.setResponse(e.target.value)}
                     placeholder={ui("在脑中作答，或在这里写下思路（提交前会自动保存）")} /></label>
               )}
               {voice.answer}

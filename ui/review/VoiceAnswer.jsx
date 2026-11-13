@@ -104,12 +104,12 @@ function VoiceAnswer({ voice, kind, said, run, entry, actions, root, aiOpen, aiF
       {kind === "flash" && said.text && <p className="voice-said"><span className="voice-said__label">{ui("你说的")}</span>{said.text}</p>}
       {kind === "flash" && run.revealed && !run.feedback && said.text && <p className="muted small">{ui("已按你说的和参考答案的重合，预选了一个分数：按 Enter 确认，或点别的分。")}</p>}
       {offerGrade && <div className="voice-grade">
-        <Button size="sm" variant={kind === "flash" ? "primary" : "secondary"} icon="sparkle" lock={busy} onClick={() => actions.assistCard("grade", text)}>{ui("AI 批改")}</Button>
+        <Button size="sm" variant={kind === "flash" ? "primary" : "secondary"} icon="sparkle" lock={busy} onClick={() => actions.assistCard("grade", text, [], undefined, { quiet: true })}>{ui("AI 批改")}</Button>
         {kind === "flash" && <Button size="sm" lock={busy} onClick={actions.flipCard}>{ui("翻面自评")}</Button>}
         <small className="muted">{ui("AI 按参考答案定 2–4 个评分维度逐项打分，并给出订正；也可以照常翻面自评。")}</small>
       </div>}
       {grading && <p className="assist-status" role="status"><Spinner size="sm" />{ui("正在批改…结果出来会显示在这道题下；可以先做别的题。")}</p>}
-      {failed && (aiOpen || aiFlash) && <InlineMessage action={model.ready && text.trim() ? { label: ui("重新提交"), onClick: () => actions.assistCard("grade", text) } : undefined}>
+      {failed && (aiOpen || aiFlash) && <InlineMessage action={model.ready && text.trim() ? { label: ui("重新提交"), onClick: () => actions.assistCard("grade", text, [], undefined, { quiet: true }) } : undefined}>
         {uiFormat("批改没有完成：{0}", [plainAssistFailure(gradeTask.message) || ui("没有拿到具体原因")])}</InlineMessage>}
     </div>
   );

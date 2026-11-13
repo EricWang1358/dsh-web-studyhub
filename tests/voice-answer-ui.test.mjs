@@ -310,3 +310,58 @@ test('moving to another question while recording stops the microphone at once, s
     assert.equal(calls.filter((action) => action === 'upload' || action === 'audio.clip.transcribe').length, 0, 'nothing is sent');
   } finally { hook?.cancel(); delete globalThis.__voiceFake; forgetVoiceReadiness(); }
 });
+
+test('the voice button is a microphone, and a stop mark while it records (the same Phosphor Light registry as every icon)', async () => {
+  const React = (await import('react')).default;
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { loadUi } = await import('./helpers/ui-module.mjs');
+  const { ICON_PATHS } = await import('../ui/components/icon-paths.js');
+  const { VoiceButton } = await loadUi(`export { default as VoiceButton } from './ui/voice/VoiceButton.jsx';`);
+  const voice = (extra) => ({ phase: 'idle', left: 90, error: '', setup: null, unavailable: false, toggle() {}, cancel() {}, clearError() {}, closeSetup() {}, recheck() {}, ...extra });
+  const idle = renderToStaticMarkup(React.createElement(VoiceButton, { voice: voice({}) }));
+  assert.ok(idle.includes(ICON_PATHS.microphone), 'idle: the microphone');
+  assert.ok(!idle.includes(ICON_PATHS.audio), 'not the music note');
+  const recording = renderToStaticMarkup(React.createElement(VoiceButton, { voice: voice({ phase: 'recording', left: 75 }) }));
+  assert.ok(recording.includes(ICON_PATHS.stop), 'recording: the stop mark, the button now ends the recording');
+  assert.ok(!recording.includes(ICON_PATHS.microphone));
+});
+
+test('a rewrite that every criterion repeats is shown once after the criteria; different rewrites stay with their criterion', async () => {
+  const React = (await import('react')).default;
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { loadUi } = await import('./helpers/ui-module.mjs');
+  const { RubricResult } = await loadUi(`export { RubricResult } from './ui/CaseResult.jsx';`);
+  const rubric = (suggestions) => ({ total: 0, max: 4, band: 'weak', summary: '', criteria: suggestions.map((suggestion, index) =>
+    ({ id: `c${index}`, label: `Criterion ${index}`, score: 0, max: 2, ratio: 0, ...(suggestion ? { suggestion } : {}) })) });
+  const count = (html) => (html.match(/可以这样改写/g) || []).length;
+  const same = renderToStaticMarkup(React.createElement(RubricResult, { rubric: rubric(['Connect the terms.', 'Connect the terms.']) }));
+  assert.equal(count(same), 1, 'one rewrite, not one per criterion');
+  assert.equal((same.match(/Connect the terms\./g) || []).length, 1);
+  assert.ok(same.indexOf('可以这样改写') > same.lastIndexOf('rubric-row'), 'it comes after the last criterion');
+  const different = renderToStaticMarkup(React.createElement(RubricResult, { rubric: rubric(['Say A.', 'Say B.']) }));
+  assert.equal(count(different), 2, 'different rewrites stay with their criteria');
+  const single = renderToStaticMarkup(React.createElement(RubricResult, { rubric: rubric(['Only one.']) }));
+  assert.equal(count(single), 1, 'one criterion keeps its own');
+  assert.ok(single.indexOf('可以这样改写') < single.lastIndexOf('</li>'), 'a lone criterion keeps its rewrite inside its row');
+  const partial = renderToStaticMarkup(React.createElement(RubricResult, { rubric: rubric(['Same.', 'Same.', '']) }));
+  assert.equal(count(partial), 2, 'a criterion without a rewrite means they are not all the same: each keeps its own');
+});
+
+test('下一题 is open while the AI grade of the answer is on its way, with no "answer first" nag', async () => {
+  const React = (await import('react')).default;
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { loadUi } = await import('./helpers/ui-module.mjs');
+  const ui = await loadUi(`
+    export { default as ReviewToolbar } from './ui/ReviewToolbar.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';`);
+  const noop = () => {};
+  const services = { call: async () => ({}), act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+  const render = (run) => renderToStaticMarkup(React.createElement(ui.StudyServicesContext.Provider, { value: services },
+    React.createElement(ui.ReviewToolbar, { run: { mode: 'path', index: 0, feedback: null, card: { id: 'c' }, navigation: [{}, {}], ...run }, onReviewAction: noop, onSkip: noop })));
+  const next = (html) => html.match(/<button[^>]*data-usage="review.next"[^>]*>/)[0];
+  assert.match(next(render({})), /disabled/, 'nothing answered yet: it waits');
+  assert.match(render({}), /请先作答/);
+  const grading = render({ grading: true });
+  assert.doesNotMatch(next(grading), /disabled/, 'the answer is in and being graded: the learner may go on');
+  assert.doesNotMatch(grading, /请先作答/);
+});

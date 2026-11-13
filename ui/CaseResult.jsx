@@ -26,6 +26,9 @@ function Bar({ ratio, label }) {
 export function RubricResult({ rubric, title, compact = false }) {
   useInjectCss(css, "study-case-result");
   if (!rubric) return null;
+  // A rewrite every criterion repeats word for word (a thin answer gets the same advice for each) is said once, after the criteria.
+  const rows = rubric.criteria || [];
+  const shared = rows.length > 1 && rows[0].suggestion && rows.every((criterion) => criterion.suggestion === rows[0].suggestion) ? rows[0].suggestion : "";
   return (
     <section className={"rubric-result" + (compact ? " is-compact" : "")} aria-label={title || ui("批改结果")}>
       <header className="rubric-result__head">
@@ -36,7 +39,7 @@ export function RubricResult({ rubric, title, compact = false }) {
         </div>
       </header>
       <ol className="rubric-rows">
-        {(rubric.criteria || []).map((criterion) => (
+        {rows.map((criterion) => (
           <li className={"rubric-row" + (criterion.ratio < 0.6 ? " is-weak" : "")} key={criterion.id}>
             <div className="rubric-row__head">
               <strong>{criterion.label}</strong>
@@ -53,13 +56,17 @@ export function RubricResult({ rubric, title, compact = false }) {
               <small>{ui("遗漏的要点")}</small>
               <ul>{criterion.missing.map((point, index) => <li key={point.id || index}>{point.text}</li>)}</ul>
             </div>}
-            {criterion.suggestion && <div className="rubric-block rubric-suggestion">
+            {criterion.suggestion && !shared && <div className="rubric-block rubric-suggestion">
               <small>{ui("可以这样改写")}</small>
               <p>{criterion.suggestion}</p>
             </div>}
           </li>
         ))}
       </ol>
+      {shared && <div className="rubric-block rubric-suggestion">
+        <small>{ui("可以这样改写")}</small>
+        <p>{shared}</p>
+      </div>}
       {rubric.unanchored?.length > 0 && <section className="rubric-flags">
         <h4>{ui("没有落到案例上的建议")}</h4>
         <ul>{rubric.unanchored.map((item, index) => <li key={index}>
