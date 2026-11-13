@@ -261,7 +261,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/generation-report.js`: context generation; 2 other lib files
 - `lib/generation-run-store.js`: context generation
 - `lib/guided-qa.js`: context study
-- `lib/host-capabilities.js`: context study; 8 other lib files
+- `lib/host-capabilities.js`: context study; 9 other lib files
 - `lib/ingest.js`: context recording; 1 other lib file
 - `lib/insights.js`: context library
 - `lib/jev-course-suggest.js`: context library; 2 other lib files

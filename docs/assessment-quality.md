@@ -15,7 +15,7 @@ In short:
 
 The pipeline covers **Quiz + flashcards**, **Single choice**, **Multiple choice**, **True/False**, **Flashcard**, **Open response** and **Fill in the blank**, including questions written from converted PDFs. **Case paper** has its own workflow, which this pipeline does not change.
 
-StudyHub splits a request into batches of up to 5 questions by default. Knowledge extraction runs once for each group of selected pages. After that, up to 3 batches run at the same time by default. Adjust [question defaults and generation pace](generation-agents-sidebar.md#what-a-generation-task-does) in **Settings › Question defaults**.
+StudyHub splits a request into batches of up to 5 questions by default. Knowledge extraction runs once for each group of selected pages. After that, up to 4 batches run at the same time by default (you can set 1–8). Adjust [question defaults and generation pace](generation-agents-sidebar.md#what-a-generation-task-does) in **Settings › Question defaults**.
 
 1. **Extract knowledge points.** The model finds valuable facts, rules, mechanisms or boundaries and quotes the passages that support them, word for word. It does not design questions, scenarios or distractors at this stage. Code confirms that every quote exists in the selected sources before any later stage uses it. If the sources support fewer points than you asked for, the valid ones are kept: the requested count is a ceiling, not a quota.
 2. **Prepare answers.** For each verified point, the model first gives a concrete answer and a derivation that can be checked. Then it adds the scenario conditions the question needs, plus the options, rubric or blanks for the question type. A constructed scenario must state its assumptions and must not invent subject-matter facts. If an application is not supported, it is narrowed to a supported recall question or dropped. Code checks the answer structure before writing starts.
@@ -77,7 +77,7 @@ The job record shows each stage. Where DSH supports native subagents, the stages
 ### Time limits
 
 - Each generation-stage call: 10 minutes, whether it runs as a direct call, a one-shot subagent or a communicating subagent. Ordinary teaching calls keep their own limits.
-- A whole generation job: 20 minutes of running time by default, adjustable to 5–180 minutes in **Settings › Question defaults** (for a coverage plan this is the limit of each round). Time waiting in the queue does not count. Questions that already passed are kept.
+- A whole generation job: 20 minutes of running time by default, adjustable to 5–180 minutes in **Settings › Question defaults** (for a coverage plan this is the limit of each round, and the plan as a whole has none). Time waiting in the queue does not count. Questions that already passed are kept.
 - A timeout is not a quality rejection, and it does not guarantee the requested count.
 
 In supplementation, when the time budget runs out, saved questions whose review records are still valid can be published without another model call. The job reports the shortfall. Cancellation, version conflicts, an archived target deck and later edits still block publishing the affected questions.

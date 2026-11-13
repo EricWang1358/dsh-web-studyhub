@@ -184,14 +184,23 @@ function bigLibrary() {
 const timed = fn => { const start = performance.now(); const value = fn(); return { value, ms: performance.now() - start }; };
 
 test('the list costs little on a large library: well under one grouping of it when new, about nothing when asked again', () => {
-  const state = deepFreeze(bigLibrary()), now = Date.now(), root = 'timing-guard';
+  const now = Date.now();
   // Warm the code first on a library of its own (another root, other objects), so the cold answer measures the work, not the JIT: run alone, the
   // test was slower than the yardstick 2 times in 8.
   { const warm = deepFreeze(bigLibrary()); materialMasteryOf(warm, { root: 'timing-warm', now }); markReread(warm, { course: 'SA', now }, { root: 'timing-warm' }); }
-  const yardstick = Math.min(...[0, 1].map(() => timed(() => groupSourcesByDocument(state.sources)).ms));
-  materialMasteryOf(state, { root, now }); // the snapshot of the same revision pays this before the home asks
-  const cold = timed(() => markReread(state, { course: 'SA', now }, { root }));
-  assert.equal(cold.value.count, 3);
+  // A cold answer can be measured only once per library, and a busy CI shard can pause any single measurement (it failed twice at about 2x on a
+  // shard while 45 ms locally). So it is measured on up to three fresh libraries, each against its own yardstick, and the best ratio counts: the
+  // stall this guards against was 18 times the yardstick on every try, and would still fail all three.
+  let state, root, yardstick, cold;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const tryState = deepFreeze(bigLibrary()), tryRoot = `timing-guard-${attempt}`;
+    const tryYardstick = Math.min(...[0, 1].map(() => timed(() => groupSourcesByDocument(tryState.sources)).ms));
+    materialMasteryOf(tryState, { root: tryRoot, now }); // the snapshot of the same revision pays this before the home asks
+    const tryCold = timed(() => markReread(tryState, { course: 'SA', now }, { root: tryRoot }));
+    assert.equal(tryCold.value.count, 3);
+    if (!cold || tryCold.ms / tryYardstick < cold.ms / yardstick) { state = tryState; root = tryRoot; yardstick = tryYardstick; cold = tryCold; }
+    if (cold.ms < 2 * yardstick) break;
+  }
   const hit = timed(() => markReread(state, { course: 'SA', now }, { root }));
   // 已重读 on one book: its first page (the holder) is a new object, every other page the same; the library's revision moves on.
   const holder = state.sources.find(source => source.id === 'b0-p1');
