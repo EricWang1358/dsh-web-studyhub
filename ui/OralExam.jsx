@@ -1,4 +1,4 @@
-import { ui, uiFormat } from "./i18n.js";
+import { ui, uiFormat, getUiLanguage } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
 import css from "./oral-exam.css";
@@ -13,6 +13,8 @@ import { ExamSetupCard, CountField } from './ExamShell.jsx';
 import { modelReadiness } from './generation-status.js';
 import { useExamRun } from './exam/useExamRun.js';
 import { useStudy } from './study-context.jsx';
+import MicButton from './voice/MicButton.jsx';
+import CorrectionCard from './review/CorrectionCard.jsx';
 
 /* 口头面试：lifecycle (restore, submit, report) in ui/exam/useExamRun.js; this file keeps the answering UI and the
    answer drafts the browser holds while the learner types. */
@@ -105,6 +107,20 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
     if (alive()) showRun(next);
   });
   const submit = () => exam.submit({ before: saveAnswers, clearRun: true, after: forgetDrafts });
+  const voiceAnswer = (field, uploadId) => exam.perform(async alive => {
+    const active = current.current.run;
+    if (!active?.entry) return;
+    const next = await call('oral.answer', {
+      runId: active.id,
+      cardId: active.entry.cardId,
+      field: field === 'answer' ? 'main' : 'followup',
+      uploadId,
+      language: getUiLanguage(),
+    });
+    if (!alive()) return;
+    clearDraft(draftKey(data.root, 'oral', [active.id, active.entry.cardId, field]));
+    showRun(next);
+  });
   const practiceWeak = () => exam.perform(async alive => {
     const next = await call("review.start", { mode: "path", scope: report.weakScope, fresh: true });
     if (!alive()) return;
@@ -124,18 +140,38 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
       {recent}
     </>}
     {run?.entry && !report && <>
-      <div className="oral-progress"><span>{uiFormat("第 {0} / {1} 题", [run.index + 1, run.total])}</span><span>{uiFormat("本轮已回答 {0} 题", [run.answered])}</span></div>
+      <div className="oral-progress">
+        <span>{uiFormat("第 {0} / {1} 题", [run.index + 1, run.total])}</span>
+        {run.role && <Badge size="sm">{run.role}</Badge>}
+        <span>{uiFormat("本轮已回答 {0} 题", [run.answered])}</span>
+      </div>
       <Panel className="oral-question" tone="paper" data-exam-paper="">
         <Badge tone="info">{run.entry.topic}</Badge>
         <div className="oral-prompt"><Markdown text={run.entry.prompt} links={false} /></div>
         {run.entry.options?.length > 0 && <details><summary>{ui("查看题目选项")}</summary><ul>
           {run.entry.options.map((option) => <li key={option.id}><Markdown text={option.text} links={false} /></li>)}
         </ul></details>}
+        <div className="voice-controls">
+          <MicButton
+            label="语音回答本题"
+            uploadingLabel="正在转写并写入要点…"
+            disabled={busy}
+            onRecorded={(uploadId) => voiceAnswer('answer', uploadId)}
+          />
+        </div>
         <label className="oral-answer-label">{ui("你的口述要点")}<textarea className="oral-answer-input" value={answer} disabled={busy} onChange={(event) => editAnswer('answer', event.target.value)} maxLength={8000}
-            placeholder={ui("写下你刚才口头回答的要点；这里不会立即判分。")} />
+            placeholder={ui("可直接点上方语音作答，或在这里补写/修改回答要点；模拟中不即时评分。")} />
         </label>
         {run.entry.followup && <div className="oral-followup">
           <strong>{ui("面试官追问")}</strong><p>{run.entry.followup}</p>
+          <div className="voice-controls">
+            <MicButton
+              label="语音回答追问"
+              uploadingLabel="正在转写补充回答…"
+              disabled={busy}
+              onRecorded={(uploadId) => voiceAnswer('followupAnswer', uploadId)}
+            />
+          </div>
           <label className="oral-answer-label">{ui("补充回答")}<textarea className="oral-answer-input" value={followupAnswer} disabled={busy} maxLength={8000} onChange={(event) => editAnswer('followupAnswer', event.target.value)}
               placeholder={ui("补充回答后继续下一题。")} />
           </label>
@@ -172,6 +208,17 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
           <p>{ui("你的回答：")}{entry.answer || ui("未答")}</p>
           {entry.followup && <p>{ui("追问：")}{entry.followup}<br />{ui("补充回答：")}{entry.followupAnswer || ui("未答")}</p>}
           {entry.assessment?.reason && <p>{ui("反馈：")}{entry.assessment.reason}</p>}
+          {(entry.rubric || entry.correction) && (
+            <CorrectionCard
+              feedback={{
+                grade: entry.assessment?.grade,
+                rubric: entry.rubric,
+                correction: entry.correction,
+                transcript: entry.answer,
+              }}
+              compact
+            />
+          )}
           <p>{ui("参考答案：")}{entry.expected || ui("本题无参考答案")}</p>
         </article>)}
       </details>
@@ -202,7 +249,7 @@ export function OralSetup({ data, course, decks, selection, count, onCount, onSt
     intro={ui("像面试官当面提问：你回答，可以被追问，整场结束后一次性给出反馈。")}
     steps={[
       ui("屏幕上会出现一道题，像面试官当面提问；题目来自你选的学习库范围。"),
-      ui("把你口头回答的要点写在输入框里（目前是文字作答，没有语音输入）。"),
+      ui("支持点击语音按钮口述回答（转写后即删原始音频），也可文字补充要点。"),
       ui("想被追问就点「追问一次」，每道题最多追问一次。"),
       ui("点「保存并继续」进入下一题；回答保存在本地学习库。"),
       ui("整场结束后一次性给出每题反馈，中途不显示对错。"),

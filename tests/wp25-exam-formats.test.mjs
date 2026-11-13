@@ -180,12 +180,12 @@ test("案例分析卷 setup: pick a paper, reading and writing time from the cou
   assert.match(empty, /怎么考/, "an empty library still explains the format");
 }));
 
-test("口头面试 setup explains itself plainly, with 3/5/8 presets and without promising voice input", () => {
+test("口头面试 setup explains itself plainly, with 3/5/8 presets and voice recording support", () => {
   const html = render(OralSetup, { data, count: 5, onCount: noop, onStart: noop, scopeNote: "沿用勾选的 2 个题组", busy: false, canStart: true });
   assert.match(html, /怎么考/);
   assert.equal((html.match(/<li class="es-step"/g) || []).length, 5);
   assert.match(html, /追问一次/);
-  assert.match(html, /没有语音输入/);
+  assert.match(html, /语音按钮口述回答/);
   assert.match(html, /整场结束后/);
   assert.match(html, /发给 AI 模型的内容/);
   for (const preset of ["3", "5", "8"]) assert.match(html, new RegExp(`aria-pressed="(true|false)"[^>]*>${preset}<`));
@@ -246,5 +246,5 @@ test("English: every format's setup and the recent list are fully translated", (
   for (const html of pages) assert.doesNotMatch(html.replace(/CS5224 · Final paper 0\d|Orchard case|Final paper 0\d/g, ""), han, "no untranslated application copy");
   assert.match(pages[0], /Exam format/);
   assert.match(pages[0], /How it works/);
-  assert.match(pages[3], /Type the key points/);
+  assert.match(pages[3], /Record a voice answer/);
 }));

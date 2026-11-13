@@ -16,11 +16,11 @@ import PracticeTip from "./PracticeTip.jsx";
 import { usePracticeTip } from "./use-practice-tip.js";
 import { voteTipMoments } from "../guidance/practice-tips.js";
 import { reviewEntryKey } from "../async.js";
-import ModelErrorNote from "../ModelErrorNote.jsx";
 import ModelSetupGate from "../ModelSetupGate.jsx";
 import LearningActions from "./LearningActions.jsx";
 import SimilarTry from "./SimilarTry.jsx";
-import { describeModelError, modelReadiness, plainAssistFailure } from "../generation-status.js";
+import AssistFailure from "./AssistFailure.jsx";
+import { modelReadiness } from "../generation-status.js";
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
 import { Badge, Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
@@ -49,6 +49,9 @@ import { deferUnstudiedPagesPlan, runDeferUnstudiedPages } from "../document-pre
 import QuestionSourcePage from "./QuestionSourcePage.jsx";
 import RoundPending from "./RoundPending.jsx";
 import { RoundEndConfirm, useRoundSteps } from "./RoundSteps.jsx";
+import MicButton from "../voice/MicButton.jsx";
+import QuestionVoiceBar from "../voice/QuestionVoiceBar.jsx";
+import CorrectionCard from "./CorrectionCard.jsx";
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -72,38 +75,21 @@ const CALCULATION_STAGE_LABELS = {
   computation: "中间计算", verification: "结果检查与舍入",
 };
 
-/* A failed background-assistant task. A model failure goes through the one model note: a key or model problem points to the settings
-   (sending the same request again cannot work, so there is no 重新提交), a busy or slow service keeps 重新提交. Anything else is about the
-   content: the plain line, 重新提交, and 改一改再提交 when there is a question to edit. */
-function AssistFailure({ task, modelReady = false, onSettings, onResubmit, onEdit }) {
-  const { busy } = useStudy();
-  const text = plainAssistFailure(task.message) || ui("没有拿到具体原因");
-  const info = describeModelError(text);
-  const resubmit = <Button className="assist-actions__btn" variant="primary" size="sm" lock={busy} onClick={onResubmit}>{ui("重新提交")}</Button>;
-  const edit = onEdit && <Button className="assist-actions__btn" size="sm" onClick={onEdit}>{ui("改一改再提交")}</Button>;
-  if (info.kind !== "unknown") {
-    const canRetry = info.action === "retry" || modelReady;
-    return (
-      <div className="assist-note assist-failed" data-kind={info.kind}>
-        <ModelErrorNote error={text} context="assist" onSettings={onSettings} />
-        {(canRetry || edit) && <div className="assist-actions">{canRetry && resubmit}{edit}</div>}
-      </div>
-    );
-  }
-  return (
-    <div className="assist-status failed assist-failed" role="status">
-      <p>{uiFormat("后台助教没能完成：{0}", [text])}</p>
-      <div className="assist-actions">{resubmit}{edit}</div>
-    </div>
-  );
-}
-
 export default function QuestionRun({ session, data, coachProps, links = {}, context = {}, feedback }) {
   useInjectCss(reviewCss, "study-review");
   const { run, entry, showBack, showEn, enBusyKey, keyGrade, teachingBusy, choice, isCloze, autopilot, actions } = session;
   const { selected, hint, explain, response, teaching, teachAnswer, clozeValues } = entry;
   const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, toggleEn } = actions;
   const { call, act, busy, openModal, openSettings, notify } = useStudy();
+  const voiceAnswerRef = React.useRef(null);
+  const voiceAskRef = React.useRef(null);
+  React.useEffect(() => {
+    const map = session.questionKeys?.current;
+    if (!map) return undefined;
+    map['voice-answer'] = () => voiceAnswerRef.current?.toggle();
+    map['voice-ask'] = () => { setAssistMode('ask'); requestAnimationFrame(() => voiceAskRef.current?.toggle()); };
+    return () => { delete map['voice-answer']; delete map['voice-ask']; };
+  }, [session.questionKeys]);
   const toggleCardFocus = React.useCallback(() => {
     if (!run?.card?.id) return;
     const nextFocus = !run.card.focus;
@@ -440,18 +426,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                   {enAnswer.blanks.map((b) => b.value).join(" · ")}
                 </p>
               )}
-              {!run.feedback && (
-                <Button
-                  variant="primary" className="submit-answer"
-                  data-usage="review.submit"
-                  disabled={!Object.values(clozeValues).some((v) =>
-                      String(v).trim(),
-                    )} lock={busy}
-                  onClick={() =>
-                    reviewAct("review.answer", { answers: clozeValues })
-                  }
-                >{ui("提交答案")}</Button>
-              )}
+              {!run.feedback && <QuestionVoiceBar voiceRef={voiceAnswerRef} mode="cloze" gradeTask={gradeTask}
+                canSubmitCloze={Object.values(clozeValues).some((v) => String(v).trim())}
+                onSubmitCloze={() => reviewAct("review.answer", { answers: clozeValues })}
+                onVoiceSubmit={run.mode !== "exam" ? (uploadId) => assistCard("grade", "", [], undefined, { uploadId }) : undefined} />}
             </>
           ) : taskCard ? (
             <>
@@ -462,6 +440,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           ) : rubricCard ? (
             <>
               <RubricAnswer run={run} data={data} value={response} onChange={actions.setResponse} task={gradeTask}
+                voiceRef={voiceAnswerRef}
+                onVoiceSubmit={run.mode !== "exam" ? (uploadId) => assistCard("grade", "", [], undefined, { uploadId }) : undefined}
                 onSubmit={(text) => assistCard("grade", text)} onSetupModel={onModelSettings || (() => openSettings("settings-model"))} />
               {prereqStrip}
             </>
@@ -473,6 +453,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 <label className="response-label">{ui("先组织你的回答")}<textarea rows={3} value={response} onChange={(e) => actions.setResponse(e.target.value)}
                     placeholder={ui("在脑中作答，或在这里写下思路（提交前会自动保存）")} /></label>
               )}
+              {!run.feedback && run.mode !== "exam" && <QuestionVoiceBar voiceRef={voiceAnswerRef} mode={run.card.kind}
+                gradeTask={gradeTask} typedResponse={response}
+                onVoiceSubmit={(uploadId) => assistCard("grade", "", [], undefined, { uploadId })}
+                onGradeTyped={run.card.kind === "open" ? () => assistCard("grade", response) : undefined} />}
               {run.revealed && !run.feedback && (
                 <div className="grading">
                   <div className="grading-head">
@@ -521,6 +505,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           )}
           {/* What the answer did and when the question comes back: at the foot of the card, right after the explanations, where the eyes already are (#672). */}
           {run.feedback && <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} />}
+          {!choice && !taskCard && run.feedback && <CorrectionCard feedback={run.feedback} showRubric={!rubricCard}
+            onAdjustGrade={run.mode !== "exam" ? (grade) => reviewAct("review.grade.adjust", { grade }) : undefined}
+            onAckCorrection={run.mode !== "exam" && run.feedback.correctionPending ? () => reviewAct("review.correction.ack") : undefined} />}
         </div>
         {/* Under the card, which stays in view when a question switch pins it to the top. */}
         {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
@@ -615,6 +602,13 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               <div className="assist-actions">
                 <Button type="submit" variant="primary" size="sm" className="assist-actions__btn"
                   disabled={!assistText.trim() && !(assistMode === "ask" && helpChoices.length)}>{ui("提交到后台")}</Button>
+                {assistMode === "ask" && <MicButton ref={voiceAskRef} label="语音提问 (Shift+V)"
+                  hint={ui("口述你的疑问，异步交给「帮我弄懂」（不计入作答）")} disabled={busy}
+                  onRecorded={async (uploadId) => {
+                    if (await assistCard("ask", assistText.trim(), helpChoices, undefined, { uploadId })) {
+                      setAssistMode(""); setAssistText(""); setHelpChoices([]);
+                    }
+                  }} />}
                 <Button size="sm" className="assist-actions__btn" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
               </div>
               {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教。讲解会出现在这道题下面的问答里，完成时信箱会提醒你；做题和主会话可以继续。")}</p>}

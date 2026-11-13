@@ -157,6 +157,8 @@ export function shortcutAction(event, ctx) {
   const { run, busy, choice, isCloze, rubricCard } = ctx;
   if (event.key === '?' || (event.shiftKey && event.code === 'Slash')) return result({ type: 'help' }, true);
   if (event.key === 'Escape' && ctx.shortcutHelp) return result({ type: 'help-close' });
+  if (event.shiftKey && event.key?.toLowerCase() === 'v' && ctx.page === 'review' && run?.card && !busy && run.mode !== 'exam')
+    return result({ type: 'voice-ask' }, true);
   if (event.shiftKey || (event.onButton && (event.key === 'Enter' || event.code === 'Space'))) return result(null);
   const letter = event.key.length === 1 ? event.key.toLowerCase() : '';
   if (letter === 'a') return result({ type: 'autopilot' }, true);
@@ -175,6 +177,8 @@ export function shortcutAction(event, ctx) {
   if (letter === 'h') return result({ type: run.revealed ? 'explain' : 'hint' }, true);
   // 通俗详解 in one key: the background assistant explains with an analogy.
   if (letter === 't' && run.mode !== 'exam') return result({ type: 'assist-plain' }, true);
+  // 语音作答 (#1031): flashcard, open and cloze only; choice cards stay click/number-key only.
+  if (letter === 'v' && !choice && !taskCard && !run.feedback && run.mode !== 'exam') return result({ type: 'voice-answer' }, true);
   // The actions of 更多 that have a key of their own (#1008): 先跳过, 写笔记, 标为重点, and the question's own page. An exam has none of them.
   const moreKey = { k: 'skip', n: 'note', f: 'focus', o: 'source' }[letter];
   if (moreKey) return run.mode === 'exam' ? result(null) : result({ type: moreKey }, true);

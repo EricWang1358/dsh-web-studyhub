@@ -1,5 +1,5 @@
 {
-  "已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，完成时信箱也会提醒你。": "Submitted for grading: each rubric criterion is marked in the background. The result appears under this question, and your inbox notifies you when done.",
+  "已提交批改：后台正在评估并生成订正，结果会显示在这道题下，完成时信箱也会提醒你。": "Submitted for grading: assessing recall and preparing corrections in the background. Results appear under the question and in your inbox.",
   "已开始导入案例并批改你的 {0} 个回答；案例会加入学习库、得分显示在各题下方，完成时信箱会提醒你。": "Importing the case and grading your {0} answer(s). The case joins your library with scores under each question, and your inbox notifies you when done.",
   "已开始导入案例；评分标准写好后草稿出现在学习库。": "Importing the case; the draft appears in your library once the marking criteria are written.",
   "已开始出一套案例题：写案例、出题、独立审阅。完成后草稿出现在学习库。": "Writing a case paper: the case, its questions and an independent review. The draft appears in your library when it is ready.",

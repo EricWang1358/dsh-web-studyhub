@@ -130,3 +130,49 @@ test('another course ignores interview course role while explicit card and topic
   assert.equal(all.total, 3);
   assert.deepEqual((await service.call('export')).oralRuns.at(-1).scope, []);
 });
+
+test('oral mock forwards JD, supports voice uploadId answers and normalizes unified rubric + correction output', async () => {
+  const seenFollowup = [];
+  const seenAssess = [];
+  const service = await fixture({
+    transcribeUpload: async ({ uploadId }) => ({ text: `口述作答(${uploadId})：只记得分片关键词` }),
+    light: async (_sys, prompt) => {
+      seenFollowup.push(JSON.parse(prompt));
+      return '那你在容灾切换时会怎么控制写入不一致？';
+    },
+    complete: async (_sys, prompt) => {
+      seenAssess.push(JSON.parse(prompt));
+      return JSON.stringify({
+        results: [
+          {
+            cardId: 'a',
+            grade: 4,
+            fragmentsOnly: true,
+            reason: '仅提及关键词',
+            criteria: [{ id: 'c1', label: '机制', max: 5, score: 2, evidence: ['分片关键词'], missing: ['主从切换与租约'], suggestion: '展开说明' }],
+            correction: {
+              keywordExpansion: '补充基于租约（Lease）的选主与写栅栏机制。',
+              phrasingUpgrade: { informal: '只记得分片关键词', professional: '采用分片键路由配合 Epoch/Fencing Token 防止脑裂双写。' },
+            },
+          },
+        ],
+      });
+    },
+  });
+
+  const start = await service.call('oral.start', { count: 1 });
+  assert.equal(start.jd, '分布式系统与容量规划');
+
+  const answered = await service.call('oral.answer', { runId: start.id, cardId: start.entry.cardId, uploadId: 'oral-clip-001' });
+  assert.equal(answered.entry.answer, '口述作答(oral-clip-001)：只记得分片关键词');
+
+  await service.call('oral.followup', { runId: start.id, cardId: start.entry.cardId });
+  assert.equal(seenFollowup[0].jd, '分布式系统与容量规划');
+
+  const report = await service.call('oral.submit', { runId: start.id });
+  assert.equal(seenAssess[0].jd, '分布式系统与容量规划');
+  assert.equal(report.jd, '分布式系统与容量规划');
+  assert.equal(report.entries[0].assessment.grade, 2, 'fragmentsOnly caps oral FSRS grade <= 2');
+  assert.equal(report.entries[0].rubric.criteria[0].label, '机制');
+  assert.equal(report.entries[0].correction.phrasingUpgrade.professional.includes('Fencing Token'), true);
+});

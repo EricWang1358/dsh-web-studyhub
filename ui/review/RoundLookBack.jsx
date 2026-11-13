@@ -3,6 +3,7 @@ import React from "react";
 import Markdown from "../Markdown.jsx";
 import Cloze from "../Cloze.jsx";
 import ExplanationFollowup from "../ExplanationFollowup.jsx";
+import CorrectionCard from "./CorrectionCard.jsx";
 import { Badge, Button, ChunkedRows } from "../components/index.js";
 import { fixedOptionLabel, optionMark } from "../option-label.js";
 import { fixedOptionsOf, hasOptions, isGraded } from "../../lib/card-kinds.js";
@@ -64,8 +65,8 @@ function LookBackAnswer({ row, mode }) {
   );
 }
 
-/** The read-only look-back of one row. */
-function LookBack({ row, mode }) {
+/** The read-only look-back of one row (with optional interactive correction ack / manual grade adjust when open). */
+function LookBack({ row, mode, onAckCorrection, onAdjustGrade }) {
   if (!row.solution) {
     return (
       <div className="look-back__body">
@@ -75,11 +76,20 @@ function LookBack({ row, mode }) {
     );
   }
   const isChoice = mode !== "flashcard" && (hasOptions(row.card.kind) || row.card.kind === "cloze");
+  const isChoiceOnly = mode !== "flashcard" && hasOptions(row.card.kind);
   return (
     <div className="look-back__body">
       {/* A cloze draws its own sentence with the blanks; anything else shows the question first. */}
       {!(mode !== "flashcard" && row.card.kind === "cloze") && <Markdown text={promptOf(row)} />}
       <LookBackAnswer row={row} mode={mode} />
+      {!isChoiceOnly && row.feedback && (
+        <CorrectionCard
+          feedback={row.feedback}
+          compact
+          onAdjustGrade={onAdjustGrade ? (grade) => onAdjustGrade(row, grade) : undefined}
+          onAckCorrection={row.feedback.correctionPending && onAckCorrection ? () => onAckCorrection(row) : undefined}
+        />
+      )}
       {(row.solution.explanation || row.solution.misconception) && (
         <div className="explanation look-back__explanation">
           {row.solution.explanation && <><h4>{ui("理解这道题")}</h4><Markdown text={row.solution.explanation} /></>}
@@ -93,9 +103,9 @@ function LookBack({ row, mode }) {
 }
 
 /**
- * props: run (the finished run), onOpenWrongBook(refs) (optional: the wrong book on these questions, where its rescue is; absent when the page is not available).
+ * props: run (the finished run), onOpenWrongBook(refs), onAckCorrection(row), onAdjustGrade(row, grade).
  */
-export default function RoundLookBack({ run, onOpenWrongBook }) {
+export default function RoundLookBack({ run, onOpenWrongBook, onAckCorrection, onAdjustGrade }) {
   // One read per opening of the result page, shared by any other reader of the same round (ui/host-query.js); nothing for an exam.
   const query = useHostQuery("review.lookBack", { runId: run.id }, { enabled: run.mode !== "exam" });
   const rows = (run.mode !== "exam" && query.data?.rows) || [];
@@ -126,7 +136,7 @@ export default function RoundLookBack({ run, onOpenWrongBook }) {
         </Button>
         {expanded && (
           <div id={regionId} className="look-back__panel" role="region" aria-label={uiFormat("第 {0} 题回看", [row.number])}>
-            <LookBack row={row} mode={run.mode} />
+            <LookBack row={row} mode={run.mode} onAckCorrection={onAckCorrection} onAdjustGrade={onAdjustGrade} />
             {row.status === "wrong" && onOpenWrongBook && (
               <Button variant="link" size="sm" onClick={() => onOpenWrongBook([{ deckId: row.deckId, cardId: row.cardId }])}>{ui("去错题本练这道题")}</Button>
             )}
