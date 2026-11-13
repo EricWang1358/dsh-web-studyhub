@@ -18,7 +18,7 @@ import { COURSE, outlineLibrary } from './helpers/course-outline-library.mjs';
 /* The learning loop under a question in a real browser, with the preview's fake model (#1015, #1016), at 1280 and 420 px (and English at 420):
    a wrong answer → 试一道同类题 practises a similar question of the bank as a detour → its result page's 回到原题 is one click back to the question, as it
    was left, and the round's own counts did not move; 用自己的话讲一遍 checks an explanation (讲对了的 / 漏掉的 / 讲错的, 去原文看这段 opens the cited source and
-   回到这道题 comes back) and the library keeps no words; on the 复习全书 a point's 用自己的话讲一遍 leaves 讲清楚过 ✓, which a reload keeps. Nothing scrolls
+   回到这道题 comes back in the dialog at 420 px; at 1280 the original opens in the 对照栏 beside the question instead) and the library keeps no words; on the 复习全书 a point's 用自己的话讲一遍 leaves 讲清楚过 ✓, which a reload keeps. Nothing scrolls
    sideways. With no similar question 生成一道变式 has the fake model write one, and 做这道变式题 (still there after a reload) practises it the same way; a
    check that fails keeps the words; without a model both stand behind the model gate. LEARNING_LOOP_SHOTS=<folder> keeps screenshots. */
 
@@ -157,9 +157,16 @@ test('试一道同类题 and back in one click; 用自己的话讲一遍 on a qu
       assert.equal(kept.decks.find((d) => d.id === deck.id).cards.find((c) => c.id === orig.id).retell.tries, 1, `${where}: the aggregate is kept`);
       assert.equal(JSON.stringify(kept).includes(SECRET), false, `${where}: the words are not kept`);
       await result.getByRole('button', { name: words.source }).click();
-      const backButton = page.getByRole('button', { name: words.backToQuestion });
-      await backButton.first().waitFor({ timeout: 30000 });
-      await backButton.first().click();
+      if (width >= 1280) {
+        // On a wide page the original opens in the 对照栏 beside the question (#1012): there is no dialog to come back from, so no 回到这道题; the question stays where it is.
+        await page.locator('.source-column .study-document-viewer').waitFor({ timeout: 30000 });
+        assert.equal(await page.getByRole('button', { name: words.backToQuestion }).count(), 0, `${where}: the question is beside the original, nothing to go back to`);
+        assert.ok(await page.locator('.question-card').isVisible(), `${where}: the question stays beside the original`);
+      } else {
+        const backButton = page.getByRole('button', { name: words.backToQuestion });
+        await backButton.first().waitFor({ timeout: 30000 });
+        await backButton.first().click();
+      }
       await page.locator('.question-card').waitFor({ timeout: 30000 });
       assert.deepEqual(errors.filter((text) => !/favicon|ResizeObserver/.test(text)), [], `${where}: no page errors`);
       await context.close();

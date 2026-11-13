@@ -19,6 +19,7 @@ import { bookModel } from './helpers/course-book-model.mjs';
    one click asks for the task. Screenshots go to COURSE_BOOK_SHOTS when it is set. */
 
 const PAPER = 'doc:document-paper-2025', at = '2026-10-01T08:00:00.000Z';
+const READER_LISTS = new Set(['materials.translation.list', 'materials.annotation.list', 'materials.marks.list']);
 
 async function seed(root) {
   await mkdir(root, { recursive: true });
@@ -59,7 +60,7 @@ test('复习全书 on the 总纲 page: a knowledge point opens to its notes, a �
     for (const width of [1280, 420]) {
       await running.api('focus.set', { course: COURSE });
       const { page, errors, context } = await openPage(browser, running, { width, height: 1000 });
-      // The synthetic library has no document records, so the reader's translation list of a material is refused (400): that alone is the fixture's, not the page's.
+      // The synthetic library has no document records, so the reader's lists of a material (translations, annotations, marks) are refused (400 "Material document or source not found"): that alone is the fixture's, not the page's.
       const refused = [];
       page.on('response', response => { if (response.status() >= 400) refused.push(/"action":"([^"]+)"/.exec(response.request().postData() || '')?.[1] ?? response.url()); });
       await page.goto(running.server.url);
@@ -103,7 +104,7 @@ test('复习全书 on the 总纲 page: a knowledge point opens to its notes, a �
       await reader.getByText(/Views and viewpoints fact 0/).first().waitFor({ timeout: 30000 });
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `book-cite-${width}.png`) });
-      assert.deepEqual([...new Set(refused)].filter(action => action !== 'materials.translation.list'), [], `${width}px: no other request refused`);
+      assert.deepEqual([...new Set(refused)].filter(action => !READER_LISTS.has(action)), [], `${width}px: no other request refused`);
       assert.deepEqual(errors.filter(line => !(refused.length && /status of 400/.test(line))), [], `${width}px: no page errors`);
       await context.close();
 
