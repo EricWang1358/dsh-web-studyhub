@@ -26,7 +26,7 @@ const PINNED = {
   "generate.suggest": {"generate":[2,536,2,391,0]}, // was [2,532,2,387,0]: generatable kinds include 'task' (lib/card-kinds.js)
   "ingest": {"generate":[1,572,194,0,0]},
   "focus.suggest": {"coach":[1,88,1,0,0]},
-  "oral.followup": {"coach":[1,88,9,0,0]},
+  "oral.followup": {"coach":[1,105,9,0,0]}, // was [1,88,9,0,0]: the follow-up instruction says to ask what the course JD would need (#1031)
   "coach.nudge": {"coach":[1,235,43,0,0]},
   "teach.start": {"coach":[1,424,52,0,0]},
   "materials.outline.suggest": {"other":[1,438,14,0,0]},
