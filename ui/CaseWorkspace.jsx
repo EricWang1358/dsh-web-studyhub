@@ -25,7 +25,6 @@ import {
 import { RubricResult, CaseReport, caseGradingState } from "./CaseResult.jsx";
 import AnswerCardSection from "./AnswerCard.jsx";
 import { useStudy } from "./study-context.jsx";
-import MicButton from "./voice/MicButton.jsx";
 import css from "./case-study.css";
 
 /* Case practice inside the existing loop (WP12): the scenario panel (numbered
@@ -140,7 +139,7 @@ export function ScenarioPanel({ title, text, highlights = [], onChange, readOnly
  * An open question with rubric criteria: write the answer, then 提交批改 (a
  * background grading task); the per-criterion result replaces self-rating.
  */
-export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, onSetupModel, voiceRef, onVoiceSubmit }) {
+export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, onSetupModel }) {
   const { busy, call } = useStudy();
   useInjectCss(css, "study-case-workspace");
   const card = run.card, rubric = run.feedback?.rubric;
@@ -181,20 +180,10 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
           </label>
           <div className="rubric-answer__foot">
             <small className="muted">{uiFormat("{0} 字/词 · 篇幅不等于得分", [countWords(draft)])}</small>
-            <div className="voice-controls">
-              {onVoiceSubmit && (
-                <MicButton
-                  ref={voiceRef}
-                  label="语音作答 (V)"
-                  disabled={busy || grading}
-                  onRecorded={onVoiceSubmit}
-                />
-              )}
-              {model.ready
-                ? <Button variant="primary" icon="sparkle" busy={grading} disabled={busy || grading || !draft.trim()} onClick={() => onSubmit?.(draft)}>
-                  {grading ? ui("正在批改…") : ui("提交批改")}</Button>
-                : <ModelSetupGate variant="inline" feature="grade" model={model} onOpenSettings={onSetupModel} />}
-            </div>
+            {model.ready
+              ? <Button variant="primary" icon="sparkle" busy={grading} disabled={busy || grading || !draft.trim()} onClick={() => onSubmit?.(draft)}>
+                {grading ? ui("正在批改…") : ui("提交批改")}</Button>
+              : <ModelSetupGate variant="inline" feature="grade" model={model} onOpenSettings={onSetupModel} />}
           </div>
           {/* What marking this answer is expected to use: the case, the rubric and the answer as typed (WP27). */}
           <TokenEstimate enabled={!!call && !!draft.trim() && !rubric}

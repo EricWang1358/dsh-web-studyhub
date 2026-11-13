@@ -373,35 +373,22 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   }, [teachingFailure, teachingAct]);
 
   /* ── helping the learner: the background assistant, slaying, prerequisites ── */
-  const assistCard = useCallback(async (mode, text = '', helpChoices = [], derive = undefined, extra = undefined) => {
+  const assistCard = useCallback(async (mode, text, helpChoices = [], derive = undefined) => {
     const current = runRef.current;
-    const uploadId = typeof extra?.uploadId === 'string' ? extra.uploadId.trim() : '';
-    if (!current?.card || (!String(text ?? '').trim() && !uploadId && !(mode === 'ask' && helpChoices.length) && !(mode === 'derive' && derive?.followupId))) return false;
+    if (!current?.card || (!text.trim() && !(mode === 'ask' && helpChoices.length) && !(mode === 'derive' && derive?.followupId))) return false;
     // Only asking helps with the answer: 修题 and 出题 change the bank, and 批改 is the answer itself, which reads what was recorded.
     if (mode === 'ask') { noteAssistance('askedTutorBeforeAnswer'); patch({ explain: true }); }
-    if (mode === 'grade' && !uploadId && !(await flushDraft())) return false;
-    const targetNext = mode === 'grade' && autopilotRef.current && current.mode !== 'exam' ? skipTarget(current) : null;
+    if (mode === 'grade' && !(await flushDraft())) return false;
     try {
-      await submitAssist(call, {
-        deckId: current.deckId, cardId: current.card.id, runId: current.id,
-        mode, text: String(text ?? '').trim(), helpChoices,
-        ...(derive ? { derive } : {}),
-        ...(uploadId ? { uploadId } : {}),
-        ...(Array.isArray(extra?.vocabulary) ? { vocabulary: extra.vocabulary } : {}),
-        uiLanguage: getUiLanguage(),
-      });
+      await submitAssist(call, { deckId: current.deckId, cardId: current.card.id, runId: current.id,
+        mode, text: text.trim(), helpChoices, ...(derive ? { derive } : {}), uiLanguage: getUiLanguage() });
       // Back to the quick rhythm at once: the answer must not wait out a slowed-down poll.
       assistSentAt.current = Date.now();
       pollingRef.current.refresh();
-      if (targetNext !== null && targetNext !== current.index) {
-        notify({ text: ui('语音作答已提交后台转写批改，先做下一题；完成后会保存评分与订正。'), tone: 'success' });
-        await reviewActRef.current('review.move', { index: targetNext });
-      } else {
-        notify(mode === 'ask' ? ui('后台助教正在解答。讲解会出现在这道题下面的问答里，完成时信箱会提醒你。')
-          : mode === 'derive' ? ui('后台助教正在出题。新题会放进同一题组，完成时信箱会提醒你。')
-            : mode === 'grade' ? { text: ui('已提交批改：后台正在评估并生成订正，结果会显示在这道题下，完成时信箱也会提醒你。'), tone: 'success' }
-              : ui('后台助教正在改这道题，会直接改这张卡。完成时信箱会提醒你，在信箱里可以一步撤销。'));
-      }
+      notify(mode === 'ask' ? ui('后台助教正在解答。讲解会出现在这道题下面的问答里，完成时信箱会提醒你。')
+        : mode === 'derive' ? ui('后台助教正在出题。新题会放进同一题组，完成时信箱会提醒你。')
+          : mode === 'grade' ? { text: ui('已提交批改：后台按评分标准逐项打分，结果会显示在这道题下，完成时信箱也会提醒你。'), tone: 'success' }
+            : ui('后台助教正在改这道题，会直接改这张卡。完成时信箱会提醒你，在信箱里可以一步撤销。'));
       core.refresh().catch(() => {});
       return true;
     } catch (failure) {
@@ -466,7 +453,6 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     else if (action.type === 'hint') toggleHint();
     else if (action.type === 'explain') patch((value) => ({ explain: !value.explain }));
     else if (action.type === 'assist-plain') assistCard('ask', '', ['plain']);
-    else if (action.type === 'voice-answer' || action.type === 'voice-ask') questionKeys.current[action.type]?.();
     else if (action.type === 'choose') choose(action.id);
     else if (action.type === 'skip') skipQuestion();
     else if (action.type === 'note' || action.type === 'focus' || action.type === 'source') questionKeys.current[action.type]?.();

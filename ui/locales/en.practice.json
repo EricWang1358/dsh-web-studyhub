@@ -50,7 +50,7 @@
   "查看全部": "View all",
   "像面试官当面提问：你回答，可以被追问，整场结束后一次性给出反馈。": "Like an interviewer asking you in person: you answer, you may be asked a follow-up, and all feedback comes together at the end.",
   "屏幕上会出现一道题，像面试官当面提问；题目来自你选的学习库范围。": "A question appears on screen as if an interviewer asked it. Questions come from the library scope you chose.",
-  "支持点击语音按钮口述回答（转写后即删原始音频），也可文字补充要点。": "Record a voice answer (raw audio is deleted after transcription) or type key points in the box.",
+  "把你口头回答的要点写在输入框里（目前是文字作答，没有语音输入）。": "Type the key points of what you would say in the box. Answers are typed for now; there is no voice input.",
   "想被追问就点「追问一次」，每道题最多追问一次。": "Press Ask one follow-up if you want to be probed. Each question gets at most one follow-up.",
   "点「保存并继续」进入下一题；回答保存在本地学习库。": "Press Save & continue for the next question. Your answers are kept in your local library.",
   "整场结束后一次性给出每题反馈，中途不显示对错。": "Feedback for every question comes together after the whole round. Right and wrong are not shown along the way.",

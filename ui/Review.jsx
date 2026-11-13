@@ -27,7 +27,6 @@ import { currentMethodStage, resolveRoundCourse, roundEndAlternative, useMethodA
 import { pageAvailable } from "./capabilities.js";
 import { askForLeeches } from "./wrongbook-model.js";
 import RoundLookBack from "./review/RoundLookBack.jsx";
-import CorrectionCard from "./review/CorrectionCard.jsx";
 import RoundSetup from "./review/RoundSetup.jsx";
 import { resultTarget } from "./review/round-setup.js";
 import { similarWinsText } from "./review/similar-words.js";
@@ -268,33 +267,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               </Tooltip>
             </p>
           )}
-          {!run.closed && run.pendingCorrections?.length > 0 && (
-            <section className="voice-pending-banner" role="region" aria-label={ui("待看订正错题")}>
-              <div>
-                <strong>{uiFormat("本轮有 {0} 道错题尚未查看订正", [run.pendingCorrections.length])}</strong>
-                <p className="muted small">{ui("查看关键词扩写或表达修正后点击「我看懂了 · 加入重练」，即可进入第 ③ 步重练。")}</p>
-                {run.pendingCorrections.map((item) => (
-                  <CorrectionCard
-                    key={`${item.deckId}:${item.cardId}:${item.entryIndex}`}
-                    feedback={{
-                      grade: item.grade,
-                      transcript: item.transcript,
-                      rubric: item.rubric,
-                      correction: item.correction,
-                      correctionPending: true,
-                    }}
-                    compact
-                    onAdjustGrade={(grade) => reviewAct("review.grade.adjust", { deckId: item.deckId, cardId: item.cardId, entryIndex: item.entryIndex, grade })}
-                    onAckCorrection={() => reviewAct("review.correction.ack", { deckId: item.deckId, cardId: item.cardId, entryIndex: item.entryIndex })}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
           {/* 本轮题目 (#1009): which questions went wrong or were left, each with a read-only look-back from the run itself. */}
           <RoundLookBack key={"look-back-" + run.id} run={run}
-            onAckCorrection={!run.closed ? (row) => reviewAct("review.correction.ack", { deckId: row.deckId, cardId: row.cardId, entryIndex: row.entryIndex }) : undefined}
-            onAdjustGrade={(row, grade) => reviewAct("review.grade.adjust", { deckId: row.deckId, cardId: row.cardId, entryIndex: row.entryIndex, grade })}
             onOpenWrongBook={pageAvailable(data, "wrongbook") ? (refs) => { askForLeeches(data?.root, refs); navigate("wrongbook"); } : undefined} />
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>
