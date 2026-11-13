@@ -89,6 +89,7 @@ import coachCopy from './locales/en.coach.json';
 import similarCopy from './locales/en.similar.json';
 import learningLoopCopy from './locales/en.learning-loop.json';
 import sourceSplitCopy from './locales/en.source-split.json';
+import webGeminiCopy from './locales/en.web-gemini.json';
 import appMessages from '../lib/application-messages-en.js';
 
 export const ENGLISH_SOURCES = {
@@ -176,6 +177,7 @@ export const ENGLISH_SOURCES = {
   'en.similar.json': similarCopy,
   'en.learning-loop.json': learningLoopCopy,
   'en.source-split.json': sourceSplitCopy,
+  'en.web-gemini.json': webGeminiCopy,
 };
 
 /** The English of lib/application-messages.js (localizeAppMessage), handed to it once this module is here. */
