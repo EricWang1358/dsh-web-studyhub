@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { assignHeadingIds, closeFences } from '../lib/course-book-links.js';
 import { fenceMask, fenceOpening, closesFence, markdownHeadings } from '../lib/contexts/notes/markdown-fences.js';
 import { relabelFootnotes } from '../lib/book-parked-text.js';
+import { Worker } from 'node:worker_threads';
 import { loadUi } from './helpers/ui-module.mjs';
 
 /* #1038 re-gate: a line that is the book's own (a footnote definition, a link reference definition, a math block) is never the text of an underlined title;
@@ -83,4 +84,33 @@ test('the footnote tools do not relabel what a mixed fence holds', () => {
   const relabeled = relabelFootnotes(text, label => `x-${label}`);
   assert.match(relabeled, /~~~\n```\n\[\^1\]\n~~~/, 'the mark inside the fence stays');
   assert.match(relabeled, /Body \[\^x-1\]/);
+});
+
+/* The reader's block loop decides what a fence is in ONE place (fenceOpening): a line that starts with ``` but is no fence (its info string holds a backtick) is
+   an ordinary paragraph line, and a render never stands still on it. A worker gives up after a time. */
+async function renderWithin(text, ms = 30000) {
+  const worker = new Worker(new URL('./helpers/render-markdown-worker.mjs', import.meta.url));
+  try {
+    return await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`the reader does not finish ${JSON.stringify(text)}`)), ms);
+      worker.on('error', reject);
+      worker.on('message', message => { if (message === 'ready') worker.postMessage(text); else { clearTimeout(timer); resolve(message); } });
+    });
+  } finally { await worker.terminate(); }
+}
+
+test('a line that starts with ``` and is no fence is a paragraph line, never an endless render', async () => {
+  const cases = { inlineTriple: "Text\n```print('hi')```\nmore", alone: '```a`b```', afterPara: 'para\n```x`y\nmore', thenHeading: '``` a`b\n\n## After' };
+  for (const [name, text] of Object.entries(cases)) {
+    const html = await renderWithin(text);
+    assert.match(html, /<p>/, name);
+    assert.doesNotMatch(html, /<p><\/p>/, `${name}: no empty paragraph`);
+  }
+  assert.match(await renderWithin('``` a`b\n\n## After'), /<h\d[^>]*>After<\/h\d>/);
+});
+
+test('an ordinary fence still renders as code, and a ```js line inside a fence is code (CommonMark)', async () => {
+  const html = await renderWithin('a\n\n```js\nx\n```js\nstill code\n```\n\nafter');
+  assert.match(html, /<pre[^>]*><code>x\n```js\nstill code<\/code><\/pre>/);
+  assert.match(html, /<p>after<\/p>/);
 });

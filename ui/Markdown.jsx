@@ -314,12 +314,15 @@ function blocks(rows, options) {
       i < rows.length &&
       rows[i].trim() &&
       !LIST.test(rows[i]) &&
-      !/^\s*(#{1,6}\s|>|```|~~~)/.test(rows[i]) &&
+      !/^\s*(#{1,6}\s|>)/.test(rows[i]) &&
+      !fenceOpening(rows[i]) &&
       !DETAILS_OPEN.test(rows[i]) &&
       !DETAILS_CLOSE.test(rows[i]);
       i++
     )
       para.push(rows[i]);
+    // Every block takes at least its own line: a line no rule above knows is a paragraph line, never a reason to stand still.
+    if (!para.length) para.push(rows[i++]);
     out.push(<p key={key}>{lines(para.join("\n"), options, key)}</p>);
   }
   return out;
