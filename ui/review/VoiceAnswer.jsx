@@ -35,7 +35,8 @@ export function useVoiceAnswer({ session, data, model, rubricCard, setAssistMode
   const deck = data?.decks?.find((item) => item.id === run.deckId);
   const aiFlash = kind === "flash" && model.ready && !!(data?.courses || []).find((course) => course.name === (deck?.course ?? deck?.folder))?.practice?.aiGradeFlashcards;
   const aiOpen = kind === "open" && (rubricCard || model.ready);
-  const answer = useVoiceInput({ call, onText: (text) => {
+  // `scope: key`: a transcript that comes back after the learner moved to another question is dropped, never put into (or graded on) that one.
+  const answer = useVoiceInput({ call, scope: key, onText: (text) => {
     if (run.feedback) return;
     if (kind === "cloze") {
       const split = splitSpokenBlanks(text, clozeBlankIds(run.card));
@@ -54,7 +55,7 @@ export function useVoiceAnswer({ session, data, model, rubricCard, setAssistMode
       if (!aiFlash && !run.revealed) actions.flipCard();
     }
   } });
-  const ask = useVoiceInput({ call, onText: (text) => setAssistText((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text)) });
+  const ask = useVoiceInput({ call, scope: key, onText: (text) => setAssistText((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text)) });
   // Submitted only after the text is in the box on screen (a render later): nothing is graded that the learner could not see.
   React.useEffect(() => {
     if (!pending || pending.key !== key) return;

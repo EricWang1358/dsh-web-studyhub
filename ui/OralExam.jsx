@@ -62,7 +62,9 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
 
   // Voice (#1031) is a way to fill the box: the text is appended for editing, then saved by oral.answer like typing.
   const spoken = (field) => (text) => { if (current.current.run?.entry) editAnswer(field, [current.current[field].trimEnd(), text].filter(Boolean).join('\n')); };
-  const answerVoice = useVoiceInput({ call, onText: spoken('answer') }), followupVoice = useVoiceInput({ call, onText: spoken('followupAnswer') });
+  // `scope`: the question on screen; what comes back after the next question opened is dropped, not appended to it.
+  const voiceScope = run?.entry ? `${run.id}:${run.entry.cardId}` : '';
+  const answerVoice = useVoiceInput({ call, scope: voiceScope, onText: spoken('answer') }), followupVoice = useVoiceInput({ call, scope: voiceScope, onText: spoken('followupAnswer') });
 
   React.useEffect(() => {
     exam.begin();

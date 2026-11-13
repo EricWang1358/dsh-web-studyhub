@@ -6,7 +6,8 @@ import { VOICE_MAX_SECONDS, wavBytes } from './wav.js';
    the shared chunked upload (cancelled on any failure), then audio.clip.transcribe, which deletes the clip on the server whatever happens. It stops
    itself at the time limit. `onState({ phase, left, error })`: phase idle | recording | sending, `left` the seconds still allowed, `error` a failure
    or one of its own messages (catalogue keys), which ui/voice/useVoiceInput.js turns into text (this file stays free of the interface, so it runs in
-   plain Node). */
+   plain Node). `scope()`: where the text belongs (the question on screen); a transcript that comes back under another scope is dropped with the
+   code VOICE_MOVED, so a learner who moved on while it was being transcribed never has it put into, or graded on, the next question. */
 
 /** Less than this much audio is nothing said (0.1 s). */
 const MIN_BYTES = 3200;
@@ -17,8 +18,8 @@ const repeat = (fn, ms) => {
 };
 
 export function createVoiceRecorder({ call, language, capture = captureAudio, upload = uploadInChunks, maxSeconds = VOICE_MAX_SECONDS,
-  now = () => Date.now(), every = repeat, onState, onLimit } = {}) {
-  let phase = 'idle', handle = null, chunks = [], startedAt = 0, stopTimer = null, aborted = null;
+  now = () => Date.now(), every = repeat, onState, onLimit, scope = () => '' } = {}) {
+  let phase = 'idle', handle = null, chunks = [], startedAt = 0, stopTimer = null, aborted = null, startedIn = '';
   const emit = (extra = {}) => onState?.({ phase, left: phase === 'recording' ? Math.max(0, Math.ceil(maxSeconds - (now() - startedAt) / 1000)) : maxSeconds, ...extra });
   const release = async () => {
     stopTimer?.(); stopTimer = null;
@@ -30,7 +31,7 @@ export function createVoiceRecorder({ call, language, capture = captureAudio, up
     get phase() { return phase; },
     async start() {
       if (phase !== 'idle') return false;
-      chunks = []; startedAt = now(); phase = 'recording';
+      chunks = []; startedAt = now(); phase = 'recording'; startedIn = scope();
       try {
         handle = await capture('microphone', (buffer) => { if (buffer?.byteLength) chunks.push(new Int16Array(buffer)); },
           () => { if (phase === 'recording') { void release(); phase = 'idle'; emit({ error: '麦克风断开了，请再录一次' }); } });
@@ -60,10 +61,13 @@ export function createVoiceRecorder({ call, language, capture = captureAudio, up
         const bytes = wavBytes(clip);
         const file = new Blob([bytes], { type: 'audio/wav' });
         Object.defineProperty(file, 'name', { value: 'voice-answer.wav' });
-        const uploadId = await upload(call, 'audio', file, { signal: aborted.signal });
-        aborted.signal.throwIfAborted();
+        const signal = aborted.signal;
+        const uploadId = await upload(call, 'audio', file, { signal });
+        // Cancelled while the last chunk was on its way: the clip is complete on the server, so it is deleted there now, not left for the daily prune.
+        if (signal.aborted) { await Promise.resolve(call('audio.upload.cancel', { uploadId })).catch(() => {}); signal.throwIfAborted(); }
         const result = await call('audio.clip.transcribe', { uploadId, ...(language ? { language } : {}) });
         const text = String(result?.text ?? '').trim();
+        if (scope() !== startedIn) throw Object.assign(new Error('换了题，刚才说的没有放进这道题'), { code: 'VOICE_MOVED' });
         if (!text) throw new Error('没有听清，请再说一次');
         phase = 'idle'; emit({ error: '' });
         return text;

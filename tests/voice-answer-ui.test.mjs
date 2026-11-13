@@ -132,3 +132,34 @@ test('a finished round with a grade still running or a correction unread holds i
   assert.equal(gradesOutstanding({ ...done, mode: 'exam', correctionsPending: 1 }), false, 'an exam has no 待看订正');
   assert.equal(gradesOutstanding(null), false);
 });
+
+test('a transcript that comes back after the learner moved to another question is dropped, not put into the new one', async () => {
+  let where = 'q1';
+  const calls = [];
+  const capture = fakeCapture();
+  const recorder = createVoiceRecorder({ capture: capture.fn, upload: async () => 'u-moved', scope: () => where,
+    call: async (action, args) => { calls.push(action); where = 'q2'; return { text: '幂等' }; } });
+  await recorder.start();
+  capture.push(new Array(4000).fill(700));
+  await assert.rejects(recorder.finish(), (error) => error.code === 'VOICE_MOVED' && /换了题/.test(error.message));
+  assert.deepEqual(calls, ['audio.clip.transcribe'], 'the clip was still transcribed once, so the server deleted it');
+  assert.equal(recorder.phase, 'idle');
+  // Without a scope (a page with one box) nothing is dropped.
+  const plain = fakeCapture();
+  const free = createVoiceRecorder({ capture: plain.fn, upload: async () => 'u-plain', call: async () => ({ text: '好' }) });
+  await free.start();
+  plain.push(new Array(4000).fill(700));
+  assert.equal(await free.finish(), '好');
+});
+
+test('cancel while the clip is uploading deletes the uploaded clip instead of leaving it for a day', async () => {
+  const calls = [];
+  const capture = fakeCapture();
+  let recorder;
+  recorder = createVoiceRecorder({ capture: capture.fn, call: async (action, args) => { calls.push([action, args]); return {}; },
+    upload: async () => { await recorder.cancel(); return 'u-late'; } });
+  await recorder.start();
+  capture.push(new Array(4000).fill(700));
+  await assert.rejects(recorder.finish());
+  assert.deepEqual(calls, [['audio.upload.cancel', { uploadId: 'u-late' }]], 'cancelled on the server, never transcribed');
+});

@@ -34,6 +34,7 @@
   "没有听清，请再说一次": "That was not clear. Say it again",
   "没有录到声音，请靠近麦克风再说一次": "Nothing was heard. Move closer to the microphone and try again",
   "麦克风断开了，请再录一次": "The microphone disconnected. Record again",
+  "换了题，刚才说的没有放进这道题": "You moved to another question, so what you said was not put into this one",
   "说出或写下答案后，可以让 AI 按参考答案批改并给出订正；默认还是翻面自评。要用 AI 模型。": "After you say or write an answer, the AI can grade it against the reference answer and add a correction; flipping and grading yourself stays the default. Needs an AI model.",
   "闪卡也可以用 AI 批改": "Flashcards can be AI-graded too",
   "语音作答：闪卡、开放题、填空题；再按一次发送": "Answer by voice: flashcards, open questions, cloze; press again to send",
