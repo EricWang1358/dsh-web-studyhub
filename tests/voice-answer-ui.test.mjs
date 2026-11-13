@@ -365,3 +365,17 @@ test('下一题 is open while the AI grade of the answer is on its way, with no 
   assert.doesNotMatch(next(grading), /disabled/, 'the answer is in and being graded: the learner may go on');
   assert.doesNotMatch(grading, /请先作答/);
 });
+
+test('one family of voice labels: 语音作答 / Answer by voice in practice and the oral mock, 语音提问 / Ask by voice beside the 帮我弄懂 box (#1031)', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const read = (file) => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
+  const en = JSON.parse(await read('ui/locales/en.voice-review.json'));
+  assert.equal(en['语音作答'], 'Answer by voice');
+  assert.equal(en['语音提问'], 'Ask by voice');
+  for (const gone of ['语音口述', '说出你的疑问']) assert.equal(gone in en, false, `${gone} is not a third name for the same button`);
+  const sources = (await Promise.all(['ui/OralExam.jsx', 'ui/review/VoiceAnswer.jsx', 'ui/ShortcutHelp.jsx', 'ui/finder/entries.js'].map(read))).join(' ');
+  assert.doesNotMatch(sources, /语音口述|说出你的疑问/);
+  assert.match(await read('ui/review/VoiceAnswer.jsx'), /label="语音提问"/);
+  assert.match(await read('ui/OralExam.jsx'), /<VoiceButton voice=\{answerVoice\} \/>/);
+  for (const [zh, english] of Object.entries(en)) if (/语音作答|语音提问/.test(zh) && zh.length > 8) assert.match(english, /Answer by voice|Ask by voice/, `the English of "${zh.slice(0, 20)}…" uses the same names`);
+});

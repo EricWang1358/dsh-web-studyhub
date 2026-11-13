@@ -11,9 +11,19 @@ const HOVER_DELAY = 250, PRESS_DELAY = 500, TOUCH_LINGER = 3000, LEAVE_DELAY = 1
 const chain = (own, extra) => event => { own?.(event); extra(event); };
 // The open tooltip of each `group`: opening one closes the one before at once, so two cards are never on screen together.
 const openInGroup = new Map();
+// A card opens on focus only when the focus is the user's: keyboard focus (:focus-visible, which a mouse press or a touch does not give). A script that
+// moves focus after a press (a dialog handing it back, a suggested answer taking it) opens nothing; focusQuietly is for a script that moves focus while
+// the user is on the keyboard, where :focus-visible still holds.
+let quiet = false;
+const userFocus = event => { if (quiet) return false; try { return event.target.matches(':focus-visible'); } catch { return true; } };
+/** element.focus() that opens no tooltip card: focus the program chose (the control the answer suggests), not one the user moved there. */
+export function focusQuietly(element, options) {
+  quiet = true;
+  try { element?.focus(options); } finally { quiet = false; }
+}
 
 /**
- * Words for a control, shown on hover, on keyboard focus and on a long press,
+ * Words for a control, shown on hover, on keyboard focus (not on a script's focus, see userFocus) and on a long press,
  * and tied to it with aria-describedby (the text stays in the DOM, hidden,
  * while closed, so the description always resolves). Use it where the text
  * carries something the label does not; a title attribute that only repeats
@@ -93,7 +103,7 @@ export default function Tooltip({ content, children, placement = 'bottom-start',
         'aria-describedby': describedBy,
         onPointerEnter: chain(own.onPointerEnter, event => { if (event.pointerType !== 'touch') { closeOthers(); later(HOVER_DELAY, true); } }),
         onPointerLeave: chain(own.onPointerLeave, event => { if (event.pointerType !== 'touch') { if (interactive) later(LEAVE_DELAY, false); else now(false); } }),
-        onFocus: chain(own.onFocus, () => now(true)),
+        onFocus: chain(own.onFocus, event => { if (userFocus(event)) now(true); }),
         onBlur: chain(own.onBlur, () => now(false)),
         onPointerDown: chain(own.onPointerDown, event => {
           if (event.pointerType !== 'touch') return;

@@ -185,4 +185,21 @@ test('Tooltip shows on keyboard focus, is described by aria-describedby and hide
   await tip.waitFor({ state: 'hidden' });
 });
 
+test('Tooltip opens on keyboard focus (Tab), not when the program moves focus after a mouse press', { skip: unavailable }, async t => {
+  const { page } = await open(t, 'tooltip');
+  const tip = page.getByRole('tooltip');
+  // A press with the mouse, then a script puts focus on the control (a dialog handing focus back, a suggested answer taking it): no card.
+  await page.locator('#after').click();
+  await page.mouse.move(800, 600);
+  await page.evaluate(() => document.getElementById('subject').focus());
+  await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'subject');
+  assert.equal(await tip.isVisible(), false, 'a programmatic focus is not a reason to open the card');
+  // Tab away and back: that is keyboard focus, so the card opens.
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Shift+Tab');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'subject');
+  await tip.waitFor({ state: 'visible' });
+});
+
 after(async () => { await browser?.close(); });
