@@ -17,9 +17,9 @@ import BookHistory from './BookHistory.jsx';
 const extensions = [markdown(), EditorView.lineWrapping];
 
 /** book: course.book.open's answer; file; onPick(file); onChanged(book) with the new answer; onDirty(dirty): whether there are unsaved edits (the page asks before
-    leaving them); theme: 'light' | 'dark'; root: the library (what was left unsaved with no question possible waits per library, ui/book/unsaved-draft.js); discarded: a ref, true once the learner answered
+    leaving them); onSaving(running, saved): a save started, or ended and whether it worked (a 完成 pressed meanwhile waits for it); theme: 'light' | 'dark'; root: the library (what was left unsaved with no question possible waits per library, ui/book/unsaved-draft.js); discarded: a ref, true once the learner answered
     丢掉改动 (nothing is kept then). */
-export default function BookEditor({ book, file, onPick, onChanged, onDirty, theme = 'dark', root = '', discarded }) {
+export default function BookEditor({ book, file, onPick, onChanged, onDirty, onSaving, theme = 'dark', root = '', discarded }) {
   const { call, notify } = useStudy();
   const meta = book.files[file] || { version: 0 };
   const [draft, setDraft] = useState(() => fileText(book, file));
@@ -63,6 +63,8 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, the
   };
   const save = async () => {
     setSaving(true);
+    onSaving?.(true);
+    let saved = false;
     try {
       const next = await call('course.book.save', { course: book.course, file, text: draft, version: base.current.version });
       // A save answers what was left unsaved of this file.
@@ -70,7 +72,8 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, the
       setMerged(next.write === 'merged');
       if (next.write === 'merged') notify({ text: ui('书已更新：你的改动已保存，另一边的内容放在了建议里。'), tone: 'info' });
       settle(next);
-    } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); } finally { setSaving(false); }
+      saved = true;
+    } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); } finally { setSaving(false); onSaving?.(false, saved); }
   };
   const revert = async () => {
     setReverting(true);

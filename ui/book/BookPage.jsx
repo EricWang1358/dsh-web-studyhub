@@ -120,6 +120,15 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   // Saved (or given up) with the question still up: nothing is left to ask about. The learner stays; the click that raised the question is not carried out later.
   useEffect(() => { if (!unsaved) setLeaving(null); }, [unsaved]);
   const back = useCallback(() => { setLeaving(null); setDirty(false); setView('read'); }, []);
+  // 完成 pressed while a save is still running waits for it: it leaves when the save worked, and asks (the text is still unsaved) when it did not.
+  const saveRunning = useRef(false), leaveAfterSave = useRef(false);
+  const onSaving = useCallback((running, saved) => {
+    saveRunning.current = running;
+    if (running || !leaveAfterSave.current) return;
+    leaveAfterSave.current = false;
+    if (saved) back(); else setLeaving(() => back);
+  }, [back]);
+  const finishEdit = useCallback(() => { if (saveRunning.current) leaveAfterSave.current = true; else guard(back); }, [guard, back]);
   // The editor and 翻看 take the page's place; 完成 · 回到阅读 comes back to the heading being read where it was on screen (held until it is drawn again).
   const openView = useCallback(next => { place.current?.hold(); setView(next); }, []);
   // A save that lands in a pending rebuild (#461): the editor is done, so a later read is not dropped as "an editor is open", and applying leads to reading.
@@ -187,8 +196,8 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
     {dialog === 'mock' && <MockDialog course={course} pointIds={plan.day ? plan.points.map(point => point.id) : undefined} onStarted={onExamRun} onClose={() => setDialog(null)} />}
   </>;
   if (view === 'edit') return <section className="page book-page" ref={pageRef}>{header}
-    <EditView book={book} step={step} theme={theme} root={root} onChanged={setBook} onDirty={setDirty} leaving={!!leaving} onStay={() => setLeaving(null)}
-      onLeave={() => { const then = leaving; back(); then?.(); }} onDone={() => guard(back)} /></section>;
+    <EditView book={book} step={step} theme={theme} root={root} onChanged={setBook} onDirty={setDirty} onSaving={onSaving} leaving={!!leaving} onStay={() => setLeaving(null)}
+      onLeave={() => { const then = leaving; back(); then?.(); }} onDone={finishEdit} /></section>;
   if (view === 'flip') return <section className="page book-page" ref={pageRef}>{header}
     <BookAiContext.Provider value={ai.lines}><FlipView book={book} crunch={plan.crunch} course={course} handlers={handlers} aiFold={aiFold} onMark={(hid, on) => plan.mark(hid, 'seen', on)}
       onGo={hid => { setView('read'); where.goTo(hid); }} onMockStarted={onExamRun} onDone={() => setView('read')} /></BookAiContext.Provider>{askPanel}{dialogs}</section>;

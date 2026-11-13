@@ -85,6 +85,8 @@
       --paper-pad-top: var(--space-4-5);
       animation: card-deal 0.45s var(--ease-out) backwards;
     }
+    /* The card is a place focus is put by the program (Esc out of the source column), never a Tab stop: no ring around the whole card. Its controls keep theirs. */
+    .question-card:focus-visible { outline: none; }
     .question-meta {
       display: flex;
       flex-wrap: wrap;
