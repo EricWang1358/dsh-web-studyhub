@@ -21,6 +21,7 @@ const STATUS = {
   right: { tone: "success", graded: "答对", self: "达标" },
   wrong: { tone: "error", graded: "答错", self: "未达标" },
   self: { tone: "neutral", graded: "自报", self: "自报" },
+  grading: { tone: "neutral", graded: "批改中", self: "批改中" },
   unanswered: { tone: "neutral", graded: "未答", self: "未答" },
 };
 const ROW_CHUNK = 20;

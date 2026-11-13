@@ -333,3 +333,15 @@ test('a marker outlives the longest grade job (a slow web model included), with 
   assert.ok(GRADING_STALE_MS > longest, `${GRADING_STALE_MS} ms is not longer than the longest job, ${longest} ms`);
   assert.ok(GRADING_STALE_MS - longest >= 60_000, 'at least a minute of margin for the commit');
 });
+
+test('本轮题目 counts a question being graded as answered, pending, like the navigation does', async (t) => {
+  const release = gate();
+  const f = await library(t, { current: grader({ hold: () => release.promise }) }, { cards: [open('o1'), open('o2')] });
+  const run = await f.start(['o1', 'o2']);
+  const task = await f.grade(run.id, run.card.id);
+  await f.service.call('review.end', { runId: run.id });
+  const { rows } = await f.service.call('review.lookBack', { runId: run.id });
+  assert.deepEqual(rows.map((row) => [row.cardId, row.status]), [[run.card.id, 'grading'], [run.card.id === 'o1' ? 'o2' : 'o1', 'unanswered']]);
+  release.resolve();
+  assert.equal((await f.settled(task.id)).status, 'done');
+});
