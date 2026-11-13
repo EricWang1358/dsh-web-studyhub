@@ -30,7 +30,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/card-kinds.js`: 13 ui files; contexts generation, library, recording, study; 25 other lib files
 - `lib/case-study.js`: 5 ui files; contexts generation, library, study; 10 other lib files
 - `lib/chemistry-balance.js`: 1 ui file
-- `lib/cloze-text.js`: 1 ui file; 2 other lib files
+- `lib/cloze-text.js`: 2 ui files; 2 other lib files
 - `lib/converted-document.js`: 1 ui file; contexts audio, materials; 2 other lib files
 - `lib/course-book-ai-anchor.js`: 1 ui file
 - `lib/course-book-ai-text.js`: 5 ui files; context generation; 5 other lib files
