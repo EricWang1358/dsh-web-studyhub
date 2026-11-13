@@ -230,6 +230,9 @@ test('voice answers: autopilot grades and moves on, 待看订正 → 加入重�
     const withoutCount = await frame();
     await page.evaluate(() => { document.querySelector('.corrections-pending').style.display = ''; });
     assert.deepEqual(withCount, withoutCount, `${where}: 待看订正 appearing leaves the header and the card where they were`);
+    // ...and it is still a finger's height to tap: a press a little above or below the words lands on it.
+    assert.ok(await page.evaluate(() => { const button = document.querySelector('.corrections-pending'), box = button.getBoundingClientRect(), x = box.left + box.width / 2;
+      return [box.top - 8, box.bottom + 8].every((y) => button.contains(document.elementFromPoint(x, y))); }), `${where}: 待看订正 takes a press 8 px above and below its words`);
     await pending.click();
     const dialog = page.getByRole('dialog');
     await dialog.getByText(words.correction).first().waitFor({ timeout: 15000 });
