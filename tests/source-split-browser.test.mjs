@@ -1,4 +1,4 @@
-/* global document, window, performance, requestAnimationFrame, MutationObserver, localStorage */
+/* global document, window, performance, requestAnimationFrame, localStorage */
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -217,6 +217,8 @@ test('对照栏: open before answering, keys stay apart, answer, the column foll
   await column.getByRole('button', { name: words.fold }).click();
   await until(async () => (await column.getAttribute('data-collapsed')) === 'true', 'the column to fold');
   assert.ok((await questionWidth()) > wideQuestion + 200, 'the question takes the room back');
+  assert.ok((await column.boundingBox()).width <= 40, 'folded to a rail');
+  if (process.env.SOURCE_SPLIT_SHOTS) await page.screenshot({ path: join(process.env.SOURCE_SPLIT_SHOTS, 'source-split-zh-1280-folded.png') });
   await column.getByRole('button', { name: words.unfold }).click();
   await viewer.waitFor({ state: 'visible' });
   assert.equal(await page.evaluate(() => document.querySelector('.source-column .study-document-viewer').__splitMark), 'folded', 'unfolded, the same reader');
@@ -236,6 +238,9 @@ test('对照栏: open before answering, keys stay apart, answer, the column foll
   assert.match(stripText, /Right answer/);
   assert.match(stripText, /Wrong answer/);
   assert.doesNotMatch(stripText, /Explained|正确|✓/, 'the 题干条 says nothing of the answer');
+  const marked = locator => locator.evaluateAll(rows => rows.map(row => row.innerText.replace(/\s+/g, ' ').replace(/^([A-Z])\.? /, '$1 ').trim()));
+  assert.deepEqual(await marked(strip.locator('.question-strip__option')), await marked(page.locator('.review-body .question-card .option')),
+    'the 题干条 lists the options with the letters and in the order of the card');
   await strip.locator('summary').click();
   await until(async () => !(await strip.evaluate(node => node.open)), 'the 题干条 to fold');
   assert.equal(await strip.locator('.question-strip__options').isVisible(), false, 'folded to its stem');

@@ -2,7 +2,8 @@ import { fixedOptionsOf } from '../../lib/card-kinds.js';
 
 /* 题干条 (#1012): what the narrow reader keeps of the question it was opened from, so the learner reads the material with the question in view. Only what
    the question itself shows before an answer: the stem (a cloze's text with its blanks as ＿＿, never what fills them; a flashcard's front, never its back)
-   and the options' letters and words (never which one is right, never an explanation). A 判断题 is its statement: 对 / 错 add nothing to it. */
+   and the options' letters and words (never which one is right, never an explanation). The letters are the card's (ui/option-label.js optionMark: A, B, …
+   for every kind but a fixed-option one, which has no options here); the round's card comes with its options in the order it shows them. A 判断题 is its statement: 对 / 错 add nothing to it. */
 
 const BLANK = /\{\{[^{}]+\}\}/g;
 
