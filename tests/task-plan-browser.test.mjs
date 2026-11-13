@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { focusByKeyboard, launchChromium } from '../scripts/qa/browser.mjs';
 import { drainLayoutStability, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
 import { frames, until } from '../scripts/qa/layout-late.mjs';
 import { startConsole, startJobs, openConsole, measure } from '../scripts/qa/task-console.mjs';
@@ -67,7 +67,7 @@ test('the goal and the points tab fills the panel, scrolls inside it, moves noth
         await page.locator('[data-plan-tab]').dispatchEvent('click');
         await frames(page, 4);
         // The explanations: the state of a point says what it means, on keyboard focus too.
-        await page.locator('[data-plan-state]').first().focus();
+        await focusByKeyboard(page.locator('[data-plan-state]').first());
         await until(async () => (await page.locator('.sh-tooltip:popover-open').count()) > 0, 'the tooltip of a state');
         assert.match(await page.locator('.sh-tooltip:popover-open').first().innerText(), /这个考点/);
         await page.keyboard.press('Escape');

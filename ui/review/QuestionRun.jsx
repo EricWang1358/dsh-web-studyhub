@@ -269,13 +269,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 {voice.pending}
                 {run.mode !== "exam" && run.liveMastery?.before?.total > 0 && run.liveMastery?.after?.total > 0 && (() => {
                   const { before, after } = run.liveMastery, delta = after.percent - before.percent;
-                  return (
+                  return (<>
+                    <span className="question-meta__break" aria-hidden="true" />
                     <span className="question-live-mastery" data-testid="live-mastery" data-rose={delta > 0 ? "true" : delta < 0 ? "down" : undefined}>
                       <MasteryMark summary={after} size={13} />
                       <span>{delta !== 0 ? uiFormat("本组 {0}% → {1}%", [before.percent, after.percent]) : uiFormat("本组 {0}%", [after.percent])}</span>
                       {delta > 0 && <strong className="question-live-mastery__delta">{`+${delta}%`}</strong>}
                     </span>
-                  );
+                  </>);
                 })()}
               </span>
               <div>

@@ -289,7 +289,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'voice-answer', area: 'practice', title: '语音作答', page: 'review', anchors: ['review-voice', 'review-question'],
     aliases: ['语音', '说答案', '口述', '麦克风', '录音作答', '说出来', 'voice', 'speak', 'voice answer', 'microphone', 'v'],
     path: ['练习', '题目下方', '语音作答'],
-    what: '闪卡、开放题和填空题可以说出答案：点题目下方的「语音作答」或按 V，说完再按一次。录音转成文字后立刻删除，文字放进作答框，和打字一样提交；填空题按「第一空 …，第二空 …」说。按 Shift+V 把疑问说进「帮我弄懂」。要先在「设置 › 音频转写」填一个转写服务，或装好课堂实录的本地转写。',
+    what: '闪卡、开放题和填空题可以说出答案：点题目下方的「语音作答」或按 V，说完再按一次。录音转成文字后立刻删除，文字放进作答框，和打字一样提交；填空题按「第一空 …，第二空 …」说。按 Shift+V 用「语音提问」把疑问说进「帮我弄懂」。要先在「设置 › 音频转写」填一个转写服务，或装好课堂实录的本地转写。',
     needs: { capability: 'audio' } }),
   feature({ id: 'grade-corrections', area: 'practice', title: '待看订正与改分', page: 'review', anchors: ['review-question'],
     aliases: ['订正', '待看订正', '改分', 'AI 批改', '批改不对', '判错了', 'correction', 'adjust grade', 'ai grading'],

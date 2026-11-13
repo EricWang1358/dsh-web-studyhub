@@ -126,6 +126,9 @@
       font-weight: var(--fw-strong);
       animation: sh-telemetry-in 0.32s var(--ease-out) backwards;
     }
+    /* A phone's header is two lines always: the counts (and 待看订正 when it comes) on the first, the group's mastery on the second. The count appearing
+       or going (a grade landing after the learner moved on) never wraps the line and moves the card. */
+    .question-meta__break { display: none; }
     .question-meta > span:first-child {
       display: inline-flex;
       align-items: center;
@@ -1012,6 +1015,7 @@
         margin-left: var(--space-1);
         margin-right: var(--space-1);
       }
+      .question-meta__break { display: block; flex: 0 0 100%; height: 0; }
       .question-meta > div > span {
         max-width: 130px;
       }
@@ -1028,7 +1032,7 @@
       }
       .flip-face {
         min-height: 280px;
-        --paper-pad-top: 6.25rem;
+        --paper-pad-top: 8rem; /* the flashcard head is three lines here (counts, mastery, topic) and floats over the face */
         --paper-pad-x: var(--space-5);
         --paper-pad-bottom: var(--space-5);
       }

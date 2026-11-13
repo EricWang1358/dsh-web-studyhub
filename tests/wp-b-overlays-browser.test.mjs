@@ -15,8 +15,8 @@ try { browser = await launchChromium(); }
 catch (error) { if (!/Executable doesn't exist|browserType\.launch/.test(String(error.message))) throw error; unavailable = true; }
 
 /** `clock: true` gives the page a fake clock that stands still until the test moves it: a timer (the toast's timeout) then runs for as long as the test says, not for as long as a busy machine takes. */
-async function open(t, scenario, { clock = false } = {}) {
-  const context = await browser.newContext({ viewport: { width: 900, height: 700 }, locale: 'zh-CN' });
+async function open(t, scenario, { clock = false, touch = false } = {}) {
+  const context = await browser.newContext({ viewport: { width: 900, height: 700 }, locale: 'zh-CN', hasTouch: touch });
   t.after(() => context.close());
   const page = await context.newPage();
   const errors = [];
@@ -183,6 +183,37 @@ test('Tooltip shows on keyboard focus, is described by aria-describedby and hide
   await tip.waitFor({ state: 'visible' });
   await page.mouse.move(800, 600);
   await tip.waitFor({ state: 'hidden' });
+});
+
+test('Tooltip opens on keyboard focus (Tab), not when the program moves focus after a mouse press', { skip: unavailable }, async t => {
+  const { page } = await open(t, 'tooltip');
+  const tip = page.getByRole('tooltip');
+  // A press with the mouse, then a script puts focus on the control (a dialog handing focus back, a suggested answer taking it): no card.
+  await page.locator('#after').click();
+  await page.mouse.move(800, 600);
+  await page.evaluate(() => document.getElementById('subject').focus());
+  await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'subject');
+  assert.equal(await tip.isVisible(), false, 'a programmatic focus is not a reason to open the card');
+  // Tab away and back: that is keyboard focus, so the card opens.
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Shift+Tab');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'subject');
+  await tip.waitFor({ state: 'visible' });
+});
+
+test('Tooltip opens on a tap that focuses its control (a 「?」 on a phone)', { skip: unavailable }, async t => {
+  const { page } = await open(t, 'tooltip', { touch: true });
+  const tip = page.getByRole('tooltip');
+  await page.locator('#subject').tap();
+  await tip.waitFor({ state: 'visible', timeout: 2000 });
+  // A tap elsewhere, then the program puts focus back on the control: still no card.
+  await page.locator('#after').tap();
+  await tip.waitFor({ state: 'hidden' });
+  await page.waitForTimeout(1100); // past the window in which a focus counts as the tap's own
+  await page.evaluate(() => document.getElementById('subject').focus());
+  await page.waitForTimeout(500);
+  assert.equal(await tip.isVisible(), false, 'a programmatic focus after a tap elsewhere opens no card');
 });
 
 after(async () => { await browser?.close(); });

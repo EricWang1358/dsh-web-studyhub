@@ -185,7 +185,8 @@ test("口头面试 setup explains itself plainly, with 3/5/8 presets and voice a
   assert.match(html, /怎么考/);
   assert.equal((html.match(/<li class="es-step"/g) || []).length, 5);
   assert.match(html, /追问一次/);
-  assert.match(html, /语音口述/);
+  assert.match(html, /语音作答/, "the oral mock names the voice button as practice does");
+  assert.doesNotMatch(html, /语音口述/);
   assert.doesNotMatch(html, /没有语音输入/);
   assert.match(html, /整场结束后/);
   assert.match(html, /发给 AI 模型的内容/);

@@ -1,6 +1,6 @@
 import { ui, uiFormat } from "../i18n.js";
 import React from "react";
-import { Button, InlineMessage, Spinner } from "../components/index.js";
+import { Button, InlineMessage, Spinner, focusQuietly } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
 import { reviewEntryKey, voiceScopeKey } from "../async.js";
 import { plainAssistFailure } from "../generation-status.js";
@@ -70,7 +70,8 @@ export function useVoiceAnswer({ session, data, model, rubricCard, setAssistMode
   // The suggested grade is preselected: its button takes the focus, so Enter or Space confirms it and any other grade is one press away.
   React.useEffect(() => {
     if (suggested === null) return;
-    root.current?.closest(".question-card")?.querySelectorAll(".grade-scale .grade")[suggested]?.focus();
+    // Quietly: the program chose this button, so its 「快捷键 N」 card stays shut (it covered the neighbouring labels on a phone).
+    focusQuietly(root.current?.closest(".question-card")?.querySelectorAll(".grade-scale .grade")[suggested]);
   }, [suggested, key]);
   const voiceable = !!kind && !run.feedback && run.mode !== "exam";
   const keys = {
@@ -83,7 +84,7 @@ export function useVoiceAnswer({ session, data, model, rubricCard, setAssistMode
     keys, suggested,
     answer: voiceable || said.text ? <VoiceAnswer voice={answer} kind={kind} said={said} run={run} entry={entry} actions={actions} root={root}
       aiOpen={aiOpen && !rubricCard} aiFlash={aiFlash} gradeTask={gradeTask} model={model} /> : null,
-    askButton: run.mode !== "exam" ? <VoiceButton voice={ask} label="说出你的疑问" shortcut="Shift+V" /> : null,
+    askButton: run.mode !== "exam" ? <VoiceButton voice={ask} label="语音提问" shortcut="Shift+V" /> : null,
     correction: run.feedback ? <CorrectionCard feedback={run.feedback} withRubric={!rubricCard && !!run.feedback.rubric}
       onAdjust={canAdjust ? (grade) => actions.reviewAct("review.grade.adjust", { entryIndex: run.index, grade }) : undefined} /> : null,
     pending: run.correctionsPending > 0 && run.mode !== "exam" ? <CorrectionsPending run={run} onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })} /> : null,

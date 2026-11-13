@@ -164,6 +164,8 @@
     /* 「N 题待答」 (ui/review/RoundPending.jsx) does the column's work where the column is gone: hidden while the column is drawn. */
     .round-pending { display: none; }
     .round-pending__trigger { min-height: 0; padding: 0 var(--space-2); color: var(--accent-text); }
+    /* 「待看订正 N」 sits in the header line: as tall as the text beside it, so its appearing never makes the line taller (and moves the card). */
+    .corrections-pending { min-height: 0; padding: 0 var(--space-2); }
     .round-pending__panel { width: min(320px, calc(100vw - 32px)); padding: var(--space-3); }
     .round-pending__list {
       display: grid;

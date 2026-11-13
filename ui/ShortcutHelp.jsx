@@ -21,7 +21,7 @@ const REVIEW = [
   ["O", "打开这道题出自的资料页"],
   // Voice answering (#1031): an input method, so only where the answer is typed (flashcard, open question, cloze).
   ["V", "语音作答：闪卡、开放题、填空题；再按一次发送"],
-  ["Shift+V", "把疑问说进「帮我弄懂」"],
+  ["Shift+V", "语音提问：把疑问说进「帮我弄懂」"],
 ];
 // 复习全书: the keys of the reading surface (ui/book/reading.js useStepKeys, ui/book/BookToc.jsx).
 const BOOK = [

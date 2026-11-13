@@ -26,6 +26,9 @@ const deckOf = (i) => ({ id: `v${i}`, title: `Voice ${i}`, course: 'Systems', ca
   ...[1, 2].map((n) => ({ id: `v${i}-quiz${n}`, kind: 'quiz', topic: 'Retries', objective: 'Recall', prompt: `Choice ${n} (${i})?`, hint: '', explanation: 'Yes.', misconception: '',
     citations: [], options: [{ id: 'a', text: 'yes', correct: true, explanation: 'Right.' }, { id: 'b', text: 'no', correct: false, explanation: 'Wrong.' }] })),
 ] });
+const FLASH = { id: 'vflash', title: 'Voice flash', course: 'Systems', cards: [
+  { id: 'vflash-1', kind: 'flashcard', topic: 'Retries', objective: 'Recall', prompt: 'What must a retried request be?', answer: '幂等的：重试多次和一次的效果一样。', hint: '', explanation: 'Retries repeat a request.', misconception: '', citations: [] },
+] };
 const WORDS = {
   zh: { resume: '接着做', grading: /正在批改/, pending: /待看订正 1/, ack: '我看懂了 · 加入重练', submitted: /已提交批改/, setup: /转写服务还没配置/, correction: /更专业的说法/, rewrite: '可以这样改写' },
   en: { resume: 'Continue', grading: /Grading/, pending: /Corrections to read 1/, ack: 'Got it · add a retry', submitted: /Submitted for grading/, setup: /./, correction: /How an examiner would put it/, rewrite: 'A stronger way to write it' },
@@ -34,7 +37,7 @@ const WORDS = {
 async function serve(t) {
   const root = await mkdtemp(join(tmpdir(), 'voice-answer-browser-'));
   const service = new StudyService(join(root, 'library'));
-  await service.store.update((s) => { s.decks.push(...RUNS.map((_, i) => deckOf(i)), deckOf('gate')); });
+  await service.store.update((s) => { s.decks.push(...RUNS.map((_, i) => deckOf(i)), deckOf('gate'), FLASH); });
   await service.dispose();
   const distDir = join(root, 'dist'); await buildPreview({ outdir: distDir });
   // The grade takes longer than the autopilot's 1.5 s, so it lands after the learner has moved on.
@@ -96,6 +99,14 @@ test('voice answers: autopilot grades and moves on, 待看订正 → 加入重�
     await shot(page, 'setup-zh-1280');
     await page.keyboard.press('Escape');
     await page.locator('.voice-input__setup').waitFor({ state: 'detached', timeout: 5000 });
+    // One Esc closes the guide even when the voice button's 「快捷键 V」 card is open under the pointer (the card used to take the first Esc).
+    await page.locator('.voice-button').first().hover();
+    await page.locator('.sh-tooltip:popover-open').waitFor({ timeout: 5000 });
+    await page.locator('.voice-button').first().click();
+    await page.locator('.voice-input__setup').waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('.sh-tooltip:popover-open').count(), 0, 'the guide has opened: the shortcut card is not left over it');
+    await page.keyboard.press('Escape');
+    await page.locator('.voice-input__setup').waitFor({ state: 'detached', timeout: 5000 });
     await context.close();
     for (const open of (await previewCall(server, 'snapshot', {})).runs || []) await previewCall(server, 'review.end', { runId: open.id });
   }
@@ -144,6 +155,31 @@ test('voice answers: autopilot grades and moves on, 待看订正 → 加入重�
     await context.close();
   }
 
+  // A spoken flashcard answer: the suggested grade button takes the focus, and its 「快捷键 N」 card stays shut (it covered the neighbouring labels at 420 px).
+  for (const [lang, width, height] of [['zh', 420, 900], ['en', 420, 900], ['zh', 1280, 800], ['en', 1280, 800]]) {
+    const where = `flashcard ${lang} ${width}px`, said = { next: '', uploads: [] };
+    for (const open of (await previewCall(server, 'snapshot', {})).runs || []) await previewCall(server, 'review.end', { runId: open.id });
+    await previewCall(server, 'settings.practice.set', { patch: { autopilot: false, debrief: false } });
+    await previewCall(server, 'review.start', { mode: 'path', fresh: true, scope: [{ deckId: 'vflash' }] });
+    const context = await browser.newContext({ viewport: { width, height }, permissions: ['microphone'] });
+    const page = await context.newPage();
+    await page.addInitScript((language) => { localStorage.setItem('study-ui-language', language); }, lang);
+    await fakeTranscription(page, server, said);
+    await page.goto(server.url);
+    await page.getByRole('button', { name: WORDS[lang].resume, exact: true }).first().click();
+    await page.locator('.question-card').waitFor({ timeout: 30000 });
+    await page.locator('.question-card').click({ position: { x: 5, y: 5 } });
+    await speak(page, said, '重试要幂等，多次和一次的效果一样');
+    await page.locator('.grade-scale .grade:focus').waitFor({ timeout: 20000 });
+    await page.waitForTimeout(700); // the hover delay is 250 ms: a card that was going to open has opened by now
+    assert.equal(await page.locator('.sh-tooltip:popover-open').count(), 0, `${where}: the program's focus on the suggested grade opens no shortcut card`);
+    await shot(page, `flash-suggested-${lang}-${width}`);
+    // The keyboard still gets it: Tab to the next grade shows that button's shortcut.
+    await page.keyboard.press('Tab');
+    await page.locator('.sh-tooltip:popover-open').waitFor({ timeout: 5000 });
+    await context.close();
+  }
+
   for (const [i, [lang, width, height]] of RUNS.entries()) {
     const where = `${lang} ${width}px`, words = WORDS[lang], deck = deckOf(i), said = { next: '', uploads: [] };
     for (const open of (await previewCall(server, 'snapshot', {})).runs || []) await previewCall(server, 'review.end', { runId: open.id });
@@ -186,6 +222,14 @@ test('voice answers: autopilot grades and moves on, 待看订正 → 加入重�
     await pending.waitFor({ timeout: 30000 });
     await page.waitForTimeout(700); // the question's entry animation (the header can land while the next question is still fading in)
     await shot(page, `pending-${lang}-${width}`);
+    // The count appearing does not move the card: the header is as tall, and the question as low, as with the count taken away.
+    const frame = () => page.evaluate(() => ({ head: document.querySelector('.question-card__head').getBoundingClientRect().height, card: document.querySelector('.question-card').getBoundingClientRect().height,
+      question: document.querySelector('.question-card .question').getBoundingClientRect().top }));
+    const withCount = await frame();
+    await page.evaluate(() => { document.querySelector('.corrections-pending').style.display = 'none'; });
+    const withoutCount = await frame();
+    await page.evaluate(() => { document.querySelector('.corrections-pending').style.display = ''; });
+    assert.deepEqual(withCount, withoutCount, `${where}: 待看订正 appearing leaves the header and the card where they were`);
     await pending.click();
     const dialog = page.getByRole('dialog');
     await dialog.getByText(words.correction).first().waitFor({ timeout: 15000 });

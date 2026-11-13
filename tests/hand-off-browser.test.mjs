@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 import { Store } from '../lib/store.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
-import { launchChromium } from '../scripts/qa/browser.mjs';
+import { focusByKeyboard, launchChromium } from '../scripts/qa/browser.mjs';
 import { seedBookFixture } from './helpers/book-fixtures.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 
@@ -417,7 +417,7 @@ test('the shared parts: ConfirmDialog\'s errorAction on its error line, FileDrop
   // The card's links: run (as before) and onClick both work; a tip shows on focus.
   await page.getByRole('button', { name: '旧写法' }).click();
   const newer = page.getByRole('button', { name: '新写法' });
-  await newer.focus();
+  await focusByKeyboard(newer);
   await page.getByRole('tooltip').filter({ hasText: '新写法的说明' }).waitFor({ timeout: 5000 });
   await newer.click();
   // The menu: the item with run is run (and not also handed to onSelect); the plain one reaches onSelect.
