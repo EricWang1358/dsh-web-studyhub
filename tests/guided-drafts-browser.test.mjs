@@ -89,7 +89,7 @@ const runIdOf = (calls) => calls.findLast((call) => call.args?.runId)?.args.runI
 test('the real practice page saves, restores, clears and waits for the unsubmitted answer, and records whether the answer had help', { timeout: 600000 }, async (t) => {
   const served = await setup(t);
   if (!served) return;
-  const { service, server, browser } = served;
+  const { root, service, server, browser } = served;
 
   await t.test('typing reaches review.draft.save by itself, never going busy, and a reload brings it back; clearing it stays cleared', async () => {
     const view = await openPage(browser, server);
@@ -190,15 +190,19 @@ test('the real practice page saves, restores, clears and waits for the unsubmitt
     assert.equal((await attemptsOf(service, 'f1'))[0].assistance.used, false, 'the flip is how a flashcard is answered');
     await view.close();
 
-    const asked = await openPage(browser, server);
-    await asked.startDeck('deck-ask');
-    await asked.page.locator('[data-usage="review.help"]').click();
-    await asked.page.locator('.assist-form textarea').fill('why?');
-    await asked.page.locator('.assist-form button[type="submit"]').click();
-    const noted = await until(() => asked.saves().find((save) => save.args.assistance?.askedTutorBeforeAnswer), 'the asked-tutor signal');
-    assert.equal(noted.args.cardId, 'f-ask');
-    await until(async () => (await previewCall(server, 'review.get', { runId: noted.args.runId })).assistance?.askedTutorBeforeAnswer, 'the signal in the library');
-    await asked.close();
+    // 帮我弄懂 opens its form only when a model is set up (#961: without one the box asks for a model instead), so asking runs against a preview with the fake model, on the same library.
+    const withModel = await createPreviewServer({ libraryRoot: join(root, 'library'), home: join(root, 'home-model'), port: 0, model: 'fake', distDir: join(root, 'dist') });
+    try {
+      const asked = await openPage(browser, withModel);
+      await asked.startDeck('deck-ask');
+      await asked.page.locator('[data-usage="review.help"]').click();
+      await asked.page.locator('.assist-form textarea').fill('why?');
+      await asked.page.locator('.assist-form button[type="submit"]').click();
+      const noted = await until(() => asked.saves().find((save) => save.args.assistance?.askedTutorBeforeAnswer), 'the asked-tutor signal');
+      assert.equal(noted.args.cardId, 'f-ask');
+      await until(async () => (await previewCall(withModel, 'review.get', { runId: noted.args.runId })).assistance?.askedTutorBeforeAnswer, 'the signal in the library');
+      await asked.close();
+    } finally { await withModel.close(); }
   });
 
   await t.test('a step waits for the save; when the save fails it does not go ahead, says so, keeps the words, and works once it can save', async () => {
