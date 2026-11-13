@@ -1,0 +1,155 @@
+/* 资料对照 (#1012): the 对照栏 beside the question on a wide practice page (ui/review/SourceColumn.jsx) and the 题干条 at the top of the narrow reader
+   (ui/review/QuestionStrip.jsx). The page's grid that makes room for the column is the practice page's own (ui/review/session.css .has-source). Tokens only. */
+
+@layer study.reset, study.tokens, study.components, study.features, study.overrides;
+
+@layer study.features {
+  :is(.study-app, .study-seat) {
+    /* The last track of the page's grid, from the top of the page; it stays in view (under the 51px top bar) while the question scrolls. */
+    .review-page.has-source > .source-column,
+    .review-page.has-rail.has-source > .source-column {
+      grid-column: -2 / -1;
+      grid-row: 1 / span 40;
+    }
+    .source-column {
+      position: sticky;
+      top: 51px;
+      align-self: start;
+      display: flex;
+      min-width: 0;
+      height: calc(100dvh - 51px);
+      border-left: 1px solid var(--line);
+      background: var(--bg-canvas);
+    }
+    .source-column[data-dragging] { cursor: col-resize; user-select: none; }
+    /* The divider: 8px to grab, a 2px line that shows on hover, focus and while dragged. */
+    .source-column__handle {
+      position: relative;
+      flex: none;
+      width: 8px;
+      margin-left: -5px;
+      cursor: col-resize;
+      touch-action: none;
+      outline: none;
+      z-index: 1;
+    }
+    .source-column__handle::after {
+      content: "";
+      position: absolute;
+      inset: 0 3px;
+      border-radius: var(--radius-xs);
+      background: transparent;
+      transition: background var(--dur-fast) ease;
+    }
+    .source-column__handle:hover::after,
+    .source-column__handle:focus-visible::after,
+    .source-column[data-dragging] .source-column__handle::after { background: var(--accent); }
+    .source-column__body {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+    .source-column__body[hidden] { display: none; }
+    .source-column__head {
+      display: flex;
+      flex: none;
+      align-items: center;
+      gap: var(--space-1);
+      min-height: 40px;
+      padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .source-column__title {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      font-size: var(--fs-md);
+      font-weight: var(--fw-strong);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .source-column__body > .study-document-viewer { flex: 1 1 auto; min-height: 0; }
+    /* Folded: a rail on the right edge, the whole height, one click to unfold. */
+    .source-column__rail {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      padding: var(--space-4) 0;
+      border: 0;
+      background: var(--bg-sunken);
+      color: var(--text-dim);
+      font: inherit;
+      font-size: var(--fs-sm);
+      letter-spacing: 0.08em;
+      writing-mode: vertical-rl;
+      cursor: pointer;
+    }
+    .source-column__rail:hover { background: var(--bg-hover); color: var(--text); }
+    .source-column__rail:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+
+    /* 题干条: the stem (one line folded) and the options, above the text of the narrow reader. */
+    .question-strip {
+      margin: var(--space-2-5) 0 0;
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      background: var(--bg-sunken);
+      font-size: var(--fs-sm);
+      line-height: 1.55;
+    }
+    .question-strip__summary {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-2);
+      min-width: 0;
+      cursor: pointer;
+      list-style: none;
+    }
+    .question-strip__summary::-webkit-details-marker { display: none; }
+    .question-strip__label {
+      flex: none;
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+    }
+    .question-strip__stem { flex: 1 1 auto; min-width: 0; color: var(--text); }
+    .question-strip__stem > :first-child { margin-top: 0; }
+    .question-strip__stem > :last-child { margin-bottom: 0; }
+    .question-strip:not([open]) .question-strip__stem {
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 1;
+    }
+    .question-strip__options {
+      display: grid;
+      gap: var(--space-1);
+      margin: var(--space-1-5) 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    .question-strip__option {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-2);
+      min-width: 0;
+      color: var(--text-dim);
+    }
+    .question-strip__option > :last-child {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .question-strip__option > :last-child > * { display: inline; margin: 0; }
+    .question-strip__mark { flex: none; min-width: 1.2em; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :is(.study-app, .study-seat) {
+      .source-column__handle::after { transition: none; }
+    }
+  }
+}
