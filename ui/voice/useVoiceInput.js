@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { errorMessage, getUiLanguage } from '../i18n.js';
+import { refreshQuery } from '../host-query-store.js';
 import { createVoiceRecorder } from './mic.js';
 import { VOICE_MAX_SECONDS } from './wav.js';
 
@@ -15,7 +16,7 @@ let readiness = null;
 export function voiceReadiness(call, again = false) {
   if (again || !readiness) {
     readiness = (async () => {
-      const settings = await Promise.resolve(call('audio.settings.get', {})).catch(() => null);
+      const settings = await refreshQuery(call, 'audio.settings.get', {}).catch(() => null);
       return call('audio.preflight', settings?.paidOnlyByDefault === true ? { paidOnly: true } : {});
     })().then(
       (status) => ({ ready: !!(status?.transcription || status?.liveLocal?.ready), reason: status?.reason || 'no-provider' }),
