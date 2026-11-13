@@ -95,8 +95,8 @@ test('shiftLevels leaves a thematic break and a fenced underline as they are', (
   assert.deepEqual(shiftLevels(lines, 2), lines);
 });
 
-test('assignHeadingIds gives a setext heading an id on its text line', () => {
-  assert.equal(assignHeadingIds('Stem\n===\n', { next: 1 }).text, 'Stem <!-- sh:id h1 -->\n===\n');
+test('assignHeadingIds gives a setext heading an id and writes it as an ATX heading (more in tests/book-setext-normalised.test.mjs)', () => {
+  assert.equal(assignHeadingIds('Stem\n===\n', { next: 1 }).text, '# Stem <!-- sh:id h1 -->\n\n');
 });
 
 test('definedTerms skips what a ~~~ fence holding ``` lines holds', () => {
