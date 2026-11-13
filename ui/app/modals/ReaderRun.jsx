@@ -33,6 +33,12 @@ export default function ReaderRun({ started, label, onClose, onSeek, shown = tru
   const { enterRun, shortcutHelp, actions: { closeShortcutHelp } } = session;
   const helpOpen = shown && shortcutHelp;
   useEffect(() => { if (!shown) closeShortcutHelp(); }, [shown, closeShortcutHelp]); // hidden with the panel, it does not come back by itself
+  // Shown again (a narrow window's 学习工具 after Esc): the keys work at once, as when the round opened, without a click into it first.
+  const shownWas = useRef(shown);
+  useEffect(() => {
+    if (shown && !shownWas.current && session.run) rootRef.current?.focus?.({ preventScroll: true });
+    shownWas.current = shown;
+  }, [shown]); // eslint-disable-line react-hooks/exhaustive-deps -- only the moment the panel comes back
   useEffect(() => {
     if (!helpOpen) return undefined;
     // Before the reader's own Esc (it hides the panel on a narrow window, closes the reader on a wide one): the sheet is the top layer.

@@ -160,3 +160,24 @@ test('the reader panel takes up an open round of the same questions; 做这几�
   const fresh = await runtime.call('review.start', readingPracticeArgs(scope, reading(seeded), 'sources'));
   assert.notEqual(fresh.id, open.id, 'a new round');
 });
+
+test('the reader panel never takes up a 试一道同类题 detour of the same question, and a taken-up round keeps the new reading place', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: NOW });
+  const seeded = await library(t);
+  const runtime = createStudyRuntime(seeded.root);
+  t.after(() => runtime.dispose());
+  const base = await runtime.call('review.start', practiceArgs([{ deckId: 'd1', cardId: 'c' }]));
+  // A detour of question a from that round: its scope is a alone, with the way back.
+  const detour = await runtime.call('review.start', { ...practiceArgs([{ deckId: 'd1', cardId: 'a' }]), returnTo: base.id, similarFor: { deckId: 'd1', cardId: 'c' } });
+  const taken = await runtime.call('review.start', readingPracticeArgs([{ deckId: 'd1', cardId: 'a' }], reading(seeded), 'sources', { takeUp: true }));
+  assert.notEqual(taken.id, detour.id, 'the detour is not taken up');
+  let state = await new Store(seeded.root).read();
+  assert.ok(!state.runs.find(item => item.id === detour.id).closedAt, 'nor closed: its way back still works');
+  assert.equal(state.runs.find(item => item.id === taken.id).returnTo, undefined, 'the panel round is an ordinary round');
+  // Taken up again from another place in the reader: the round keeps where it was answered, and the way back goes to the new place.
+  const later = { ...reading(seeded), sectionOffset: 900, scrollTop: 1800 };
+  const again = await runtime.call('review.start', readingPracticeArgs([{ deckId: 'd1', cardId: 'a' }], later, 'sources', { takeUp: true }));
+  assert.equal(again.id, taken.id);
+  state = await new Store(seeded.root).read();
+  assert.equal(state.runs.find(item => item.id === taken.id).reading.scrollTop, 1800, 'the new reading place');
+});

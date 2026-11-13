@@ -145,11 +145,15 @@ export function ContextMenu({ label, items, point, within, onSelect, onClose }) 
   const placed = !!place;
   useEffect(() => { if (placed) list.current?.querySelector('[role^="menuitem"]:not(:disabled)')?.focus({ preventScroll: true }); }, [placed]);
   useEffect(() => {
-    const leave = event => { if (!list.current?.contains(event.target)) onClose?.(); };
+    // As Menu's: a scroll closes it only when what it was opened over moved (a scroll event that lands just after the right-click, from a scroll made
+    // before it, left it shut at once); a resize always does.
+    const at = within?.getBoundingClientRect?.();
+    const moved = () => { const now = within?.getBoundingClientRect?.(); return !at || !now || Math.abs(now.top - at.top) > 1 || Math.abs(now.left - at.left) > 1; };
+    const leave = event => { if (!list.current?.contains(event.target) && (event.type === 'resize' || moved())) onClose?.(); };
     document.addEventListener('scroll', leave, true);
     window.addEventListener('resize', leave);
     return () => { document.removeEventListener('scroll', leave, true); window.removeEventListener('resize', leave); };
-  }, [onClose]);
+  }, [onClose, within]);
   const style = place ? { left: place.left, top: place.top, maxHeight: place.maxHeight, overflowY: place.maxHeight ? 'auto' : undefined, position: place.fixed ? 'fixed' : 'absolute' }
     : { left: 0, top: 0, visibility: 'hidden' };
   return createPortal(<div ref={list} role="menu" aria-label={label} className="sh-menu sh-menu--context" onKeyDown={menuKeys(list, () => onClose?.())} style={style}
