@@ -8,7 +8,7 @@ import { askRequest } from '../ask-request.js';
 import { copyText } from '../reader/formula.js';
 import { supportsHighlights } from '../reader/find.js';
 import { ReaderModelContext } from '../ReaderModelGate.jsx';
-import { batchRequest, batchStartedText, clipText, drawnMarks, explainQuestion, marksAt, paintMarks, queueOf, selectionMenu } from './model.js';
+import { batchRequest, batchStartedText, clipText, drawnMarks, explainQuestion, formatCitedQuote, marksAt, overlappingQueueIndex, paintMarks, queueOf, selectionMenu } from './model.js';
 import QueueChip from './QueueChip.jsx';
 
 /* The reader's right-click menu (owner request 2026-11-11): select, right-click, and mark the passage (下划线 / 加粗 / 荧光笔), put it on the
@@ -39,7 +39,7 @@ const pointOf = (event, capture) => {
  * `onBatchStarted(job)`: 一次性出题 started a run (the host refreshes and follows it). `busy`: the host is busy, nothing starts.
  * Returns { onContextMenu, menu, chip, moreItems }.
  */
-export function useReaderMarks({ call, document, data, body, rendered, enabled, compact = false, canQueue = true, onExplained, onBatchStarted, busy = false }) {
+export function useReaderMarks({ call, document, data, body, rendered, enabled, compact = false, canQueue = true, onExplained, onBatchStarted, busy = false, materialName = '', slides = false, onAppendQuestionNote }) {
   const toast = useToast(), services = useContext(ReaderModelContext);
   const model = services?.model, ready = !!model?.ready;
   const [items, setItems] = useState([]), [reload, setReload] = useState(0), [pending, setPending] = useState([]), [menu, setMenu] = useState(null), [queueOpen, setQueueOpen] = useState(false), [queueLimit, setQueueLimit] = useState(QUEUE_LIMIT);
@@ -96,12 +96,21 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
     setMenu({ point: pointOf(event, capture), capture, here, selected: !!capture.range });
   };
 
+  const queue = queueOf(resolvedItems);
   const marksCall = (action, args) => call(`materials.marks.${action}`, { documentId, revision, ...args });
   const save = async (capture, style) => {
     if (capture?.crossPage) { say(ui('选区跨了多页，请在一页内选择。'), 'warning'); return; }
+    if (style === 'queue') {
+      const idx = overlappingQueueIndex(queue, { ...capture, sourceId: capture?.sourceId || document?.sourceId });
+      if (idx >= 0) {
+        setQueueOpen(true);
+        say(uiFormat('这段已在「待出题」第 {0} 条里。', [idx + 1]), 'info');
+        return;
+      }
+    }
     const result = await marksCall('save', { selection: selectionRequest(document, capture), style });
     if (!READY.has(result.status)) { say(REFUSED(queueLimit)[result.status] || result.message || ui('暂时无法保存这个标记。'), 'warning'); return; }
-    if (style === 'queue' && result.status === 'saved') say(uiFormat('已加入待出题（共 {0} 段），继续读吧。', [queueOf(resolvedItems).length + 1]), 'success');
+    if (style === 'queue' && result.status === 'saved') say(uiFormat('已加入待出题（共 {0} 段），继续读吧。', [queue.length + 1]), 'success');
     setReload(count => count + 1);
   };
   const remove = async ids => { if (ids.length) await marksCall('delete', { ids }); setReload(count => count + 1); };
@@ -126,23 +135,40 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
     finally { setPending(list => list.filter(entry => entry !== drawn)); }
   };
 
+  const pageOf = capture => {
+    if (Number.isInteger(capture?.page) && capture.page > 0) return capture.page;
+    const match = capture?.sourceId && document?.sources?.find(item => item.id === capture.sourceId);
+    return Number.isInteger(match?.page) && match.page > 0 ? match.page : undefined;
+  };
+  const selectedText = capture => (capture.range ? copyText(window.getSelection()) ?? capture.quote : capture.quote);
+  const titleOf = () => materialName || document?.title || document?.filename || '';
+
   const copy = capture => {
     // The browser's own copy (the reader's copy handler keeps formulas as their source); the quote itself when the selection is gone.
     if (capture.range && globalThis.document.execCommand?.('copy')) return;
-    const text = capture.range ? copyText(window.getSelection()) ?? capture.quote : capture.quote;
+    const text = selectedText(capture);
     navigator.clipboard?.writeText(text).catch(() => say(ui('没能复制，请用 Ctrl+C。'), 'warning'));
+  };
+
+  const copyCited = capture => {
+    const text = formatCitedQuote({ quote: selectedText(capture), title: titleOf(), page: pageOf(capture), slides });
+    if (!text) return;
+    if (!navigator.clipboard?.writeText) { say(ui('没能复制，请用 Ctrl+C。'), 'warning'); return; }
+    Promise.resolve(navigator.clipboard.writeText(text))
+      .then(() => say(ui('已带出处复制'), 'success'), () => say(ui('没能复制，请用 Ctrl+C。'), 'warning'));
   };
 
   const choose = id => {
     const { capture, here } = menu;
     if (id === 'copy') copy(capture);
+    else if (id === 'copy-cite') copyCited(capture);
+    else if (id === 'question-note') onAppendQuestionNote?.({ ...capture, quote: selectedText(capture), title: titleOf(), page: pageOf(capture), slides });
     else if (id === 'explain') explain(capture);
     else if (id === 'unmark:all') remove(here.map(item => item.id));
     else if (id.startsWith('unmark:')) remove(here.filter(item => item.style === id.slice(7)).map(item => item.id));
     else if (id.startsWith('mark:')) save(capture, id.slice(5)).catch(error => say(error.message, 'error'));
   };
 
-  const queue = queueOf(resolvedItems);
   const startBatch = async perPassage => {
     const used = queue;
     const request = batchRequest({ queue: used, perPassage, settings: data?.settings, title: document?.title || document?.filename || '' });
@@ -156,7 +182,7 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
   return {
     onContextMenu,
     menu: menu && <ContextMenu label={ui('选中文字的操作')} within={body.current} point={menu.point} onClose={() => setMenu(null)} onSelect={choose}
-      items={selectionMenu({ here: menu.here, explain: model ? (ready ? 'ready' : 'no-model') : 'unavailable', queueFull: queue.length >= queueLimit, canQueue })} />,
+      items={selectionMenu({ here: menu.here, quote: menu.capture?.quote, canQuestionNote: !!onAppendQuestionNote, explain: model ? (ready ? 'ready' : 'no-model') : 'unavailable', queueFull: queue.length >= queueLimit, canQueue })} />,
     chip: canQueue && live && queue.length > 0 ? <QueueChip queue={queue} disabled={busy} modelReady={ready} onOpenModelSettings={services?.openModelSettings} compact={compact}
       open={queueOpen} onOpenChange={setQueueOpen} onRemove={item => remove([item.id])} onStart={startBatch} body={body} /> : null,
     // At the narrowest the toolbar has no room for a fifth control: the same panel opens from 更多.

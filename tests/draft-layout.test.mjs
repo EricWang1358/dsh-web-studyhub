@@ -15,7 +15,7 @@ import { draftView, seedView } from './helpers/coverage-view.mjs';
 const m = await loadUi(`
   export { AppContext } from './ui/app/app-context.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
-  export { default as Draft } from './ui/Draft.jsx';
+  export { default as Draft, collectFlaggedCardIndices } from './ui/Draft.jsx';
   export { seedCoverage, forgetCoverage } from './ui/coverage/use-coverage.js';
   export { setUiLanguage } from './ui/i18n.js';
 `);
@@ -90,4 +90,33 @@ test('#670: the question is cut at two lines and shown whole when its row is ope
   assert.match(row, /display:\s*grid/);
   assert.match(row, /grid-template-columns:\s*auto auto minmax\(0, 1fr\) auto/, 'chevron, number, question, tags in one row');
   assert.match(sheet, /\.draft-card \{ margin: var\(--space-2\) 0; padding: var\(--space-2-5\) var\(--space-4\); \}/, 'a closed row is about 66px high with two lines, not 120 to 145');
+});
+
+test('collectFlaggedCardIndices gathers quality and rejected warnings without adding similarity buttons and Draft shows 下一道待核对', () => {
+  const flaggedDraft = {
+    ...draft,
+    quality: { errors: ['Card 3: duplicate prompt'] },
+    editorial: {
+      ...draft.editorial,
+      rejectedIssues: { c1: ['Citation missing'] },
+      quality: { issues: { c4: ['Missing rubric'] } },
+    },
+  };
+  assert.deepEqual(m.collectFlaggedCardIndices(flaggedDraft), [0, 2, 3]);
+  assert.deepEqual(m.collectFlaggedCardIndices(draft), []);
+
+  const cleanHtml = page();
+  assert.doesNotMatch(cleanHtml, /下一道待核对/);
+
+  m.forgetCoverage();
+  seedView(m, draftView({ draftId: 'd1', draftVersion: 3, covered: ['r1.p1'] }));
+  const flaggedHtml = renderToStaticMarkup(inApp(m, React.createElement(m.Draft, {
+    data: { sources: [{ id: 's', title: 'S' }], decks: [], drafts: [flaggedDraft], jobs: [], modelReady: true, runs: [] },
+    draft: flaggedDraft, draftLoaded: JSON.stringify(flaggedDraft), setDraft: noop, draftText: '', setDraftText: noop,
+    jsonMode: false, setJsonMode: noop, openDraft: noop, onOpenPublished: noop, onStartPublished: noop,
+    clearRecovery: noop, setPage: noop, setModal: noop, blankCard: noop, patchCard: noop, parseDraft: JSON.parse, topUpDraft: noop,
+  }), { data: { sources: [{ id: 's', title: 'S' }], decks: [], drafts: [flaggedDraft], jobs: [] } }));
+  assert.match(flaggedHtml, /class="sh-btn sh-btn--quiet sh-btn--sm draft-next-flagged"[^>]*>下一道待核对 \(0\/3\)</);
+  assert.match(flaggedHtml, /data-draft-index="0"/);
+  assert.match(flaggedHtml, /data-draft-index="3"/);
 });

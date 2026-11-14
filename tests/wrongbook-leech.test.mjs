@@ -2,14 +2,16 @@
    in the opened detail only (a collapsed row gains no control, #675); a filter that shows just those; every word in both languages. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { withStudy } from './helpers/study-services.mjs';
 
-const m = await loadUi(`export { WrongBookView } from './ui/WrongBook.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';
+const m = await loadUi(`export { WrongBookView } from './ui/WrongBook.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage, uiCatalogue } from './ui/i18n.js';
   export { NO_FILTER, filterActive, filterRows, leechCount, leechWords, rescueCall, rescueNote, undoPauseCall, refKey } from './ui/wrongbook-model.js';
   export { handOffText } from './ui/agent-prompts/index.js';`);
+Object.assign(m.uiCatalogue(), JSON.parse(readFileSync(new URL('../ui/locales/en.polish-results.json', import.meta.url), 'utf8')));
 const { WrongBookView, setUiLanguage, NO_FILTER, filterActive, filterRows, leechCount, leechWords, rescueCall, rescueNote, undoPauseCall, refKey, handOffText } = m;
 const noop = () => {};
 const han = /\p{Script=Han}/u;

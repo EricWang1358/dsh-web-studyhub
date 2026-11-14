@@ -1,0 +1,20 @@
+{
+  "Shift+Enter 回上一空": "Shift+Enter for previous blank",
+  "{0} · 先跳过待答": "{0} · Skipped for later",
+  "{0} 字 · Ctrl+Enter 看答案": "{0} chars · Ctrl+Enter to reveal",
+  "先跳过待答": "Skipped for later",
+  "只看未答": "Unanswered only",
+  "对照漏点再补一句": "Add to missed points",
+  "展开解析 (H)": "Show explanation (H)",
+  "已填 {0}/{1} 空": "{0}/{1} blanks filled",
+  "已存进「{0}」": "Saved to \"{0}\"",
+  "已存进「{0}」（含 {1} 条问答）": "Saved to \"{0}\" ({1} Q&As)",
+  "已暂停自动跳下一步（移开指针或取消选中后继续）": "Auto-advance paused (move pointer away or clear selection to resume)",
+  "已自检 {0}/{1} 项": "{0}/{1} checked",
+  "已选 {0} 项 · 按 Enter 提交": "{0} selected · Press Enter to submit",
+  "按 1–7 选标签，Esc 收起": "Press 1–7 to pick a tag, Esc to collapse",
+  "按 Space 可翻回正面核对题干": "Press Space to flip back to the front",
+  "收起解析 (H)": "Hide explanation (H)",
+  "正在看正面题干 · 按 Space 回背面": "Viewing front · Press Space for back",
+  "笔记中已保存 {0} 条问答": "{0} Q&As saved in notes"
+}

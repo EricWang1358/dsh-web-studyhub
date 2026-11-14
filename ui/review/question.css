@@ -598,6 +598,30 @@
       display: block;
       margin: var(--space-4-5) 0 0 auto;
     }
+    .submit-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--space-3);
+      margin-top: var(--space-4-5);
+    }
+    .submit-row > .submit-answer {
+      margin: 0;
+    }
+    .submit-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-variant-numeric: tabular-nums;
+    }
+    .submit-clear {
+      min-height: 0;
+      padding: 0;
+      font-size: var(--fs-sm);
+    }
     .flash-area {
       margin-top: var(--space-9);
     }
@@ -849,12 +873,23 @@
     }
     .grading-head {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: baseline;
       gap: var(--space-2);
       margin-bottom: var(--space-2-5);
       color: var(--text-dim);
       font-size: var(--fs-md);
+    }
+    .grading-head__meta {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1);
+    }
+    .grading-side-cue {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
     }
     .grading-head small {
       color: var(--text-dim);
@@ -944,6 +979,13 @@
     .response-label {
       font-size: var(--fs-md);
       color: var(--text-dim);
+    }
+    .response-hint {
+      display: block;
+      margin-top: var(--space-1);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      font-variant-numeric: tabular-nums;
     }
     .session-summary {
       max-width: 568px;

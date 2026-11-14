@@ -91,6 +91,12 @@ import learningLoopCopy from './locales/en.learning-loop.json';
 import sourceSplitCopy from './locales/en.source-split.json';
 import webGeminiCopy from './locales/en.web-gemini.json';
 import voiceReviewCopy from './locales/en.voice-review.json';
+import polishReviewCopy from './locales/en.polish-review.json';
+import polishResultsCopy from './locales/en.polish-results.json';
+import polishReaderCopy from './locales/en.polish-reader.json';
+import polishRichtextCopy from './locales/en.polish-richtext.json';
+import polishNotesCopy from './locales/en.polish-notes.json';
+import polishShellCopy from './locales/en.polish-shell.json';
 import appMessages from '../lib/application-messages-en.js';
 
 export const ENGLISH_SOURCES = {
@@ -180,6 +186,12 @@ export const ENGLISH_SOURCES = {
   'en.source-split.json': sourceSplitCopy,
   'en.web-gemini.json': webGeminiCopy,
   'en.voice-review.json': voiceReviewCopy,
+  'en.polish-review.json': polishReviewCopy,
+  'en.polish-results.json': polishResultsCopy,
+  'en.polish-reader.json': polishReaderCopy,
+  'en.polish-richtext.json': polishRichtextCopy,
+  'en.polish-notes.json': polishNotesCopy,
+  'en.polish-shell.json': polishShellCopy,
 };
 
 /** The English of lib/application-messages.js (localizeAppMessage), handed to it once this module is here. */

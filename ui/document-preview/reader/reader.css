@@ -108,6 +108,8 @@
     .reader-find__count { min-width: 5em; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     .reader-find__input::-webkit-search-cancel-button { display: none; }
     .reader-find { flex-wrap: wrap; }
+    .reader-find .reader-find__case { font-weight: var(--fw-strong); }
+    .reader-find .reader-find__case[aria-pressed='true'] { background: var(--bg-selected); color: var(--accent); }
     /* The other chapters that hold the text (one chapter is drawn at a time): one quiet row of buttons under the field. */
     .reader-find__elsewhere { display: flex; flex: 1 0 100%; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); min-width: 0; }
     .reader-find__elsewhere-label { color: var(--text-muted); font-size: var(--fs-xs); }
@@ -126,6 +128,19 @@
     .reader-aux .reader-aux__quote { flex: 1 1 18rem; min-width: 0; margin: 0; padding: var(--space-2-5) var(--space-4); font-size: var(--fs-md); line-height: 1.7; }
     /* ── Layout: outline | reading column | learning panel ───────────────── */
     .reader-layout { position: relative; display: flex; flex: 1 1 auto; min-height: 0; }
+    .reader-jump-back {
+      position: absolute;
+      left: 50%;
+      bottom: var(--space-4);
+      z-index: var(--z-popover, 40);
+      transform: translateX(-50%);
+      max-width: min(22rem, calc(100% - var(--space-6)));
+      overflow: hidden;
+      border-radius: var(--radius-pill);
+      box-shadow: var(--shadow-popover);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .reader-scroll {
       flex: 1 1 0;
       min-width: 0;
@@ -203,8 +218,10 @@
     }
     .reader-outline__empty { margin: 0; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); }
     /* 已读 (#1014): the count under the title and a quiet ✓ beside each chapter read (a press takes it back). */
-    .reader-outline__readhead { margin: 0; padding: 0 var(--space-3) var(--space-2); color: var(--text-dim); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .reader-outline__readhead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); margin: 0; padding: 0 var(--space-3) var(--space-2); color: var(--text-dim); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .reader-outline__readbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); }
     .reader-outline__read { flex: none; align-self: center; color: var(--ok); }
+    .reader-outline__read[data-read-weak='true'] { color: var(--warn-ink); }
     .reader-outline__filter { display: flex; flex: none; align-items: center; gap: var(--space-2); padding: 0 var(--space-3) var(--space-2); }
     .reader-outline__filter .reader-outline__filter-input { flex: 1 1 auto; width: auto; min-width: 0; min-height: 32px; margin: 0; padding: var(--space-1) var(--space-3); font-size: var(--fs-sm); }
     .reader-outline__filter .reader-outline__filter-input::-webkit-search-cancel-button { display: none; }

@@ -14,7 +14,7 @@ const NEXT_HINT_ID = "review-next-hint";
  * (mark it, note, task, derive a prerequisite, slay). `moreDefaultOpen` opens the menu at first render.
  * `onThumb('up' | 'down')` and `thumbVote` are the page's 评价: its ThumbFeedback keeps the vote and the keys; `thumbs` is that component (it draws only the tag tray).
  */
-export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, onSkip, onEndRound, moreDefaultOpen = false }) {
+export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, autoAdvanceActive = false, autoAdvancePaused = false, autoAdvanceMs = 0, onSkip, onEndRound, moreDefaultOpen = false }) {
   const { busy } = useStudy();
   const [readingOpen, setReadingOpen] = React.useState(false);
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer (one whose AI grade is on its way is answered: the grade lands on it later, #1031); a pending step is still saving.
@@ -73,11 +73,18 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
           trigger={({ props, ref }) => <Button ref={ref} variant="quiet" className="tool-action review-more-trigger" {...props}>{ui("更多")}</Button>} />
         <Button size="sm" data-usage="review.prev" disabled={run.index === 0} lock={busy} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: -1 })}>{ui("上一题")}</Button>
-        <Button variant="primary" size="sm" data-usage="review.next" disabled={nextBlocked}
+        <Button variant="primary" size="sm" data-usage="review.next"
+          className={"next-question" + (autoAdvanceActive ? " is-autopilot" + (autoAdvancePaused ? " is-paused" : "") : "")}
+          disabled={nextBlocked}
           aria-describedby={needsAnswer && !busy ? NEXT_HINT_ID : undefined}
           title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: 1 })}>
           {last ? ui("完成") : ui("下一题")} →
+          {autoAdvanceActive && (
+            <span className={"next-question__bar" + (autoAdvancePaused ? " is-paused" : "")}
+              style={autoAdvanceMs > 0 ? { "--autopilot-ms": `${autoAdvanceMs}ms` } : undefined}
+              aria-hidden="true" />
+          )}
         </Button>
       </div>
       {needsAnswer && !busy && !run.card?.publicationUngrable && <p className="muted small next-hint" id={NEXT_HINT_ID}>

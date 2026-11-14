@@ -244,9 +244,15 @@
     .wb-detail p { margin: 0; }
     .wb-full-prompt { color: var(--text); line-height: var(--lh-body); overflow-wrap: anywhere; }
     .wb-facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); margin: 0; }
+    .wb-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+    .wb-compare .wb-fact { grid-template-columns: minmax(0, 1fr); gap: var(--space-half); }
     .wb-fact { display: grid; grid-template-columns: 6em minmax(0, 1fr); gap: var(--space-3); }
     .wb-fact dt { color: var(--text-muted); }
     .wb-fact dd { margin: 0; overflow-wrap: anywhere; line-height: var(--lh-body); }
+    .wb-detail__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+    .wb-count-toggle { font: inherit; padding-inline: var(--space-1); min-height: 0; }
+    .wb-count-toggle[aria-pressed="true"] { background: var(--bg-selected); color: var(--text); border-color: var(--line-strong); }
+    .wb-hit { background: var(--warn-mark); color: var(--text); border-radius: var(--radius-xs); padding-inline: var(--space-half); }
     .wb-sub h4 { margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .wb-sub ul, .wb-why-list { margin: 0; padding-left: 1.2em; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
     .wb-sub .wb-sub-rec { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-3); list-style: none; margin-left: -1.2em; }
@@ -305,6 +311,7 @@
        taking a third of the width, and formulas in the value scrolling inside a sliver). */
     :is(.study-app, .study-seat) {
       .wb-fact { grid-template-columns: minmax(0, 1fr); gap: var(--space-half); }
+      .wb-compare { grid-template-columns: minmax(0, 1fr); }
     }
     /* The groups and the filter bar of 3.0.2; written with the same weight as their base rules, which a :where() block would not beat. */
     :is(.study-app, .study-seat) {

@@ -7,6 +7,8 @@ import { describeModelError } from "../generation-status.js";
 import { useStudy } from "../study-context.jsx";
 import { browserSession, readText, removeKey, writeText } from "../storage.js";
 import { useInjectCss } from "../shared.js";
+import VoiceButton from "../voice/VoiceButton.jsx";
+import { useVoiceInput } from "../voice/useVoiceInput.js";
 import css from "./learning-loop.css";
 
 /* 用自己的话讲一遍 (#1016): the learner explains a question (teach.retell) or a 复习全书 point (book.retell) in their own words, and the AI says what was right,
@@ -34,24 +36,38 @@ export function RetoldMark({ retold }) {
  * model: modelReadiness(); onModelSettings; onSource(cite): opens the source (cite: the verdict's citation index, or null), absent = no link;
  * onDone(answer): after a check (the answer carries `record`, the new aggregate).
  */
-export default function RetellPanel({ op, args, draftKey, model, onModelSettings, onSource, onDone }) {
+export default function RetellPanel({ op, args, draftKey, model, onModelSettings, onSource, onDone, onClose }) {
   useInjectCss(css, "study-learning-loop");
   const { call } = useStudy();
   const storeKey = DRAFT + draftKey;
   const [text, setText] = useState(() => readText(storeKey, "", browserSession()));
+  const [lastSubmittedText, setLastSubmittedText] = useState("");
   const [checking, setChecking] = useState(false);
   const [answer, setAnswer] = useState(null);
   const [failure, setFailure] = useState("");
+  const inputRef = React.useRef(null);
+  const textRef = React.useRef(text);
+  textRef.current = text;
   const unread = ui("这次没有拿到 AI 的反馈，写的内容还在，可以再试一次。");
   const edit = (value) => { setText(value); if (value) writeText(storeKey, value, browserSession()); else removeKey(storeKey, browserSession()); };
+  const voice = useVoiceInput({
+    call,
+    scope: storeKey,
+    onText: (spoken) => {
+      const current = textRef.current;
+      edit(current.trim() ? `${current.trimEnd()} ${spoken}` : spoken);
+    },
+  });
 
   async function submit(event) {
     event?.preventDefault();
-    if (!text.trim() || checking) return;
+    const submitted = text.trim();
+    if (!submitted || checking) return;
     setChecking(true);
     setFailure("");
     try {
-      const result = await call(op, { ...args, text: text.trim(), language: uiLocale().startsWith("en") ? "en" : "zh" });
+      const result = await call(op, { ...args, text: submitted, language: uiLocale().startsWith("en") ? "en" : "zh" });
+      setLastSubmittedText(submitted);
       setAnswer(result);
       // Checked: the words leave this tab too.
       removeKey(storeKey, browserSession());
@@ -69,11 +85,35 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
       <form onSubmit={submit}>
         <label className="retell-panel__field">
           <span>{ui("不看讲解，用自己的话把这个知识点讲一遍：是什么、为什么、什么时候用。")}</span>
-          <textarea className="retell-panel__input" rows={4} maxLength={MAX} value={text} autoFocus onChange={(event) => edit(event.target.value)}
+          <textarea ref={inputRef} className="retell-panel__input" rows={4} maxLength={MAX} value={text} autoFocus onChange={(event) => edit(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
+              if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.shiftKey && !event.altKey) {
+                if (text.trim() && !checking) {
+                  event.preventDefault();
+                  submit();
+                }
+                return;
+              }
+              if (event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !text.trim()) {
+                event.preventDefault();
+                event.stopPropagation();
+                const cardEl = event.currentTarget.closest?.(".question-card") || event.currentTarget.closest?.(".review-body")?.querySelector?.(".question-card");
+                const panel = event.currentTarget.closest?.(".retell-panel");
+                const trigger = panel?.previousElementSibling?.querySelector?.("button");
+                onClose?.();
+                requestAnimationFrame(() => {
+                  if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+                  else if (cardEl?.focus) cardEl.focus({ preventScroll: true });
+                  else inputRef.current?.blur?.();
+                });
+              }
+            }}
             placeholder={ui("它讲的是……；之所以这样，是因为……；在……的时候用。")} />
         </label>
         <p className="retell-panel__note">{ui("AI 反馈用于帮你查漏，不是评分。每次检查约 1 次模型调用；只记下讲清楚的次数，不保存你写的内容。")}</p>
         <div className="retell-panel__actions">
+          <VoiceButton voice={voice} />
           <Button type="submit" variant="primary" size="sm" busy={checking} disabled={!text.trim()}>{ui("让 AI 看看")}</Button>
         </div>
       </form>
@@ -92,6 +132,12 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
               {answer[part]?.length ? <ul>{answer[part].map((item, index) => <li key={index}>{item}</li>)}</ul> : <p className="retell-result__none">{ui("没有")}</p>}
             </div>
           ))}
+          {answer.missed?.length > 0 && !text.trim() && lastSubmittedText && (
+            <Button size="sm" variant="secondary" className="retell-result__restore" onClick={() => {
+              edit(lastSubmittedText);
+              requestAnimationFrame(() => inputRef.current?.focus());
+            }}>{ui("对照漏点再补一句")}</Button>
+          )}
           {onSource && <Button variant="link" size="sm" icon="book" className="retell-result__source" onClick={() => onSource(answer.cite ?? null)}>{ui("去原文看这段")}</Button>}
         </div>
       )}

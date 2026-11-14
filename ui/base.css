@@ -284,14 +284,6 @@
       cursor: default;
       opacity: 0.4;
     }
-    & button:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
-    & a:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
-    & input:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
-    & textarea:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
-    & select:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible {
-      outline: 2px solid var(--accent-soft);
-      outline-offset: 3px;
-    }
     & input:where(:not([class^="sh-"], [class*=" sh-"])):focus,
     & textarea:where(:not([class^="sh-"], [class*=" sh-"])):focus,
     & select:where(:not([class^="sh-"], [class*=" sh-"])):focus {
@@ -306,13 +298,20 @@
       accent-color: var(--accent);
     }
     & button:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
-    & a:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
-    & input:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
-    & textarea:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
-    & select:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible {
+    & a:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible {
       outline: 2px solid var(--accent-soft);
       outline-offset: 2px;
       box-shadow: var(--ring);
+    }
+    & input:where(:not([type="checkbox"], [type="radio"], [class^="sh-"], [class*=" sh-"])):focus-visible,
+    & textarea:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible,
+    & select:where(:not([class^="sh-"], [class*=" sh-"])):focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: -1px;
+    }
+    & input:where([type="checkbox"], [type="radio"]):where(:not([class^="sh-"], [class*=" sh-"])):focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: 2px;
     }
   }
   @media (forced-colors: active) {

@@ -206,6 +206,12 @@ test('对照栏: open before answering, keys stay apart, answer, the column foll
   await until(() => page.evaluate(() => document.activeElement?.matches('.review-body .question-card')), 'Esc to give the focus back to the question');
   assert.equal(await column.count(), 1, 'Esc does not close the column');
 
+  // Alt+` toggles focus between the question card and the docked source column (#54).
+  await page.keyboard.press('Alt+Backquote');
+  await until(() => page.evaluate(() => !!document.activeElement?.closest('.source-column')), 'Alt+` moves focus into the source column');
+  await page.keyboard.press('Alt+Backquote');
+  await until(() => page.evaluate(() => document.activeElement?.matches('.review-body .question-card')), 'Alt+` returns focus to the question card');
+
   // Focus in the question: a number answers it; Ctrl+F does not open the column's find.
   await page.locator('.review-body .question-card .question').click();
   await page.keyboard.press('Control+f');

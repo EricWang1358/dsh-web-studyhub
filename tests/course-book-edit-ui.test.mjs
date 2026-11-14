@@ -3,9 +3,23 @@
    with 保存, 放弃改动 and 回退到上一版. Fakes only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { EditorSelection, EditorState } from '@codemirror/state';
+import { keymap } from '@codemirror/view';
 import { loadUi } from './helpers/ui-module.mjs';
+import {
+  wrapOrUnwrapSelection,
+  linkifyPastedUrl,
+  toggleBold,
+  toggleItalic,
+  toggleInlineCode,
+  handlePasteUrl,
+  isSaveShortcut,
+  handleSaveKeyDown,
+  markdownEditorExtensions,
+} from '../ui/editor/markdown-shortcuts.js';
 
 const ui = await loadUi(`
   export { default as BookChapter, headingAnchor } from './ui/book/BookChapter.jsx';
@@ -71,3 +85,108 @@ test('English: the editing words are English', () => english(() => {
   assert.match(textOf(html), /New generated text[\s\S]*Take it[\s\S]*Ignore/);
   assert.match(textOf(editor), /Back to the previous version/);
 }));
+
+test('markdown shortcuts: wrap/unwrap, URL paste linkification, CodeMirror transactions, and Mod-s save handling (#21, #22)', () => {
+  // 1. Pure wrap/unwrap helper for **, *, and `
+  const wrappedBold = wrapOrUnwrapSelection('hello world', 6, 11, '**');
+  assert.equal(wrappedBold.doc, 'hello **world**');
+  assert.equal(wrappedBold.from, 8);
+  assert.equal(wrappedBold.to, 13);
+  const unwrappedInner = wrapOrUnwrapSelection(wrappedBold.doc, wrappedBold.from, wrappedBold.to, '**');
+  assert.equal(unwrappedInner.doc, 'hello world');
+  assert.equal(unwrappedInner.from, 6);
+  assert.equal(unwrappedInner.to, 11);
+  const unwrappedOuterSel = wrapOrUnwrapSelection('hello **world**', 6, 15, '**');
+  assert.equal(unwrappedOuterSel.doc, 'hello world');
+  assert.equal(unwrappedOuterSel.from, 6);
+  assert.equal(unwrappedOuterSel.to, 11);
+
+  // Empty caret toggles symmetric markers
+  const caretWrap = wrapOrUnwrapSelection('ab', 1, 1, '`');
+  assert.equal(caretWrap.doc, 'a``b');
+  assert.deepEqual([caretWrap.from, caretWrap.to], [2, 2]);
+  const caretUnwrap = wrapOrUnwrapSelection(caretWrap.doc, caretWrap.from, caretWrap.to, '`');
+  assert.equal(caretUnwrap.doc, 'ab');
+  assert.deepEqual([caretUnwrap.from, caretUnwrap.to], [1, 1]);
+
+  // Bold vs italic distinction: * inside **bold** wraps to ***bold***, and * unwraps ***bold*** -> **bold**
+  const italicOnBold = wrapOrUnwrapSelection('**word**', 2, 6, '*');
+  assert.equal(italicOnBold.doc, '***word***');
+  assert.deepEqual([italicOnBold.from, italicOnBold.to], [3, 7]);
+  const unwrapItalicOnBoth = wrapOrUnwrapSelection(italicOnBold.doc, italicOnBold.from, italicOnBold.to, '*');
+  assert.equal(unwrapItalicOnBoth.doc, '**word**');
+  assert.deepEqual([unwrapItalicOnBoth.from, unwrapItalicOnBoth.to], [2, 6]);
+  // Multi-span selection isn't corrupted by naive edge stripping
+  assert.equal(wrapOrUnwrapSelection('*a* and *b*', 0, 11, '*').doc, '**a* and *b**');
+
+  // 2. linkifyPastedUrl helper
+  assert.equal(linkifyPastedUrl('React docs', '  https://react.dev/learn \n'), '[React docs](https://react.dev/learn)');
+  assert.equal(linkifyPastedUrl('local', 'http://localhost:3000/page'), '[local](http://localhost:3000/page)');
+  assert.equal(linkifyPastedUrl('', 'https://example.com'), null);
+  assert.equal(linkifyPastedUrl('   ', 'https://example.com'), null);
+  assert.equal(linkifyPastedUrl('line1\nline2', 'https://example.com'), null);
+  assert.equal(linkifyPastedUrl('https://old.example', 'https://new.example'), null);
+  assert.equal(linkifyPastedUrl('plain words', 'not a url'), null);
+
+  // 3. CodeMirror EditorState commands & paste transaction
+  let savedCalls = 0;
+  const extensions = markdownEditorExtensions({ onSave: () => { savedCalls += 1; } });
+  let state = EditorState.create({
+    doc: 'alpha beta',
+    selection: EditorSelection.create([EditorSelection.range(0, 5), EditorSelection.range(6, 10)]),
+    extensions: [extensions, EditorState.allowMultipleSelections.of(true)],
+  });
+  const target = { get state() { return state; }, dispatch(tr) { state = tr.state; } };
+  assert.equal(toggleBold(target), true);
+  assert.equal(state.doc.toString(), '**alpha** **beta**');
+  assert.equal(toggleBold(target), true);
+  assert.equal(state.doc.toString(), 'alpha beta');
+  assert.equal(toggleItalic(target), true);
+  assert.equal(state.doc.toString(), '*alpha* *beta*');
+  assert.equal(toggleInlineCode(target), true);
+  assert.equal(state.doc.toString(), '*`alpha`* *`beta`*');
+  assert.equal(toggleInlineCode(target), true);
+  assert.equal(state.doc.toString(), '*alpha* *beta*');
+  assert.equal(toggleItalic(target), true);
+  assert.equal(state.doc.toString(), 'alpha beta');
+
+  // Keymap facet carries Mod-b, Mod-i, Mod-`, Mod-s
+  const registered = state.facet(keymap).flat();
+  const keys = registered.map(binding => binding.key);
+  for (const key of ['Mod-b', 'Mod-i', 'Mod-`', 'Mod-s']) assert.ok(keys.includes(key), `missing ${key}`);
+  registered.find(binding => binding.key === 'Mod-s').run();
+  assert.equal(savedCalls, 1);
+
+  // Paste URL replaces selected text with [sel](url) and calls preventDefault()
+  let pasteState = EditorState.create({ doc: 'read guide now', selection: EditorSelection.range(5, 10), extensions });
+  let pastePrevented = false;
+  const pasteHandled = handlePasteUrl(
+    { clipboardData: { getData: type => (type === 'text/plain' ? 'https://studyhub.test/guide' : '') }, preventDefault() { pastePrevented = true; } },
+    { get state() { return pasteState; }, dispatch(tr) { pasteState = tr.state; } },
+  );
+  assert.equal(pasteHandled, true);
+  assert.equal(pastePrevented, true);
+  assert.equal(pasteState.doc.toString(), 'read [guide](https://studyhub.test/guide) now');
+
+  // Read-only state refuses mutation commands & paste
+  const roState = EditorState.create({ doc: 'read only', selection: EditorSelection.range(0, 4), extensions: [extensions, EditorState.readOnly.of(true)] });
+  assert.equal(toggleBold({ state: roState, dispatch() { throw new Error('must not dispatch'); } }), false);
+  assert.equal(handlePasteUrl({ clipboardData: { getData: () => 'https://example.com' } }, { state: roState }), false);
+
+  // 4. Container Ctrl/Cmd+S helper & English locale fragment
+  assert.equal(isSaveShortcut({ ctrlKey: true, key: 's' }), true);
+  assert.equal(isSaveShortcut({ metaKey: true, key: 'S' }), true);
+  assert.equal(isSaveShortcut({ ctrlKey: true, altKey: true, key: 's' }), false);
+  assert.equal(isSaveShortcut({ ctrlKey: true, shiftKey: true, key: 's' }), false);
+
+  let handlerPrevented = false, containerSaves = 0;
+  assert.equal(handleSaveKeyDown({ ctrlKey: true, key: 's', preventDefault() { handlerPrevented = true; } }, () => { containerSaves += 1; }), true);
+  assert.equal(handlerPrevented, true);
+  assert.equal(containerSaves, 1);
+  assert.equal(handleSaveKeyDown({ ctrlKey: true, key: 's', defaultPrevented: true, preventDefault() {} }, () => { containerSaves += 1; }), false);
+  assert.equal(handleSaveKeyDown({ ctrlKey: true, key: 's', target: { closest: sel => sel === 'dialog' }, preventDefault() {} }, () => { containerSaves += 1; }), false);
+  assert.equal(containerSaves, 1);
+
+  const polishEn = JSON.parse(readFileSync(new URL('../ui/locales/en.polish-notes.json', import.meta.url), 'utf8'));
+  assert.equal(polishEn['已是最新'], 'Up to date');
+});

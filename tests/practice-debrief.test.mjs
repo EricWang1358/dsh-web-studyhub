@@ -86,3 +86,136 @@ test('a debrief already made keeps being served after the switch goes off, witho
   assert.equal(again.at, made.at);
   assert.equal(modelCalls(log), 1);
 });
+
+test('#45: CoachDebrief pauses auto-advance while hovered and cancels countdown on Escape', async (t) => {
+  const React = (await import('react')).default;
+  const { loadUi } = await import('./helpers/ui-module.mjs');
+  const { readFileSync } = await import('node:fs');
+  const m = await loadUi(`
+    export { default as CoachDebrief } from './ui/CoachDebrief.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setUiLanguage, uiCatalogue } from './ui/i18n.js';
+  `);
+  Object.assign(m.uiCatalogue(), JSON.parse(readFileSync(new URL('../ui/locales/en.polish-results.json', import.meta.url), 'utf8')));
+
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const listeners = new Map();
+  const prevWindow = globalThis.window;
+  globalThis.window = {
+    addEventListener: (type, fn) => {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type).add(fn);
+    },
+    removeEventListener: (type, fn) => listeners.get(type)?.delete(fn),
+  };
+
+  const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+  const hooks = [];
+  const cleanups = [];
+  let cursor = 0;
+  let pending = [];
+  let tree = null;
+  const sameDeps = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
+  const debriefInitial = {
+    headline: '不错',
+    why: '保持节奏',
+    next: 'continue_path',
+    metrics: { answered: 3, gradedAnswered: 3, gradedCorrect: 3, selfAnswered: 0, selfMet: 0, levels: {} },
+    insights: [],
+    status: { enabled: true, consent: true, ready: 0, preparing: false },
+  };
+  let actions = 0;
+  const props = { run: { id: 'run-debrief', answered: 3 }, initial: debriefInitial, autopilot: true, onContinue: () => { actions++; } };
+  const render = () => {
+    cursor = 0;
+    pending = [];
+    const prev = internals.H;
+    internals.H = {
+      useContext: (ctx) => (ctx === m.StudyServicesContext ? { call: () => new Promise(() => {}), busy: false } : ctx._currentValue),
+      useState: (init) => {
+        const i = cursor++;
+        if (!(i in hooks)) hooks[i] = [typeof init === 'function' ? init() : init, (val) => {
+          hooks[i][0] = typeof val === 'function' ? val(hooks[i][0]) : val;
+        }];
+        return hooks[i];
+      },
+      useRef: (init) => { const i = cursor++; if (!(i in hooks)) hooks[i] = { current: init }; return hooks[i]; },
+      useMemo: (fn, deps) => { const i = cursor++; if (!(i in hooks) || !sameDeps(hooks[i].deps, deps)) hooks[i] = { deps, value: fn() }; return hooks[i].value; },
+      useCallback: (fn, deps) => internals.H.useMemo(() => fn, deps),
+      useEffect: (fn, deps) => { const i = cursor++; if (!(i in hooks) || !sameDeps(hooks[i].deps, deps)) pending.push({ i, fn, deps }); },
+      useLayoutEffect: (fn, deps) => internals.H.useEffect(fn, deps),
+      useInsertionEffect: (fn, deps) => internals.H.useEffect(fn, deps),
+      useId: () => { const i = cursor++; if (!(i in hooks)) hooks[i] = `:cd${i}:`; return hooks[i]; },
+      useDeferredValue: (v) => v,
+      useSyncExternalStore: (_sub, getSnap) => getSnap(),
+    };
+    try { tree = m.CoachDebrief(props); } finally { internals.H = prev; }
+    for (const eff of pending) {
+      cleanups[eff.i]?.();
+      cleanups[eff.i] = undefined;
+      const done = eff.fn();
+      hooks[eff.i] = { deps: eff.deps };
+      if (typeof done === 'function') cleanups[eff.i] = done;
+    }
+    return tree;
+  };
+  const nodeText = (node) => {
+    if (node == null || typeof node === 'boolean') return '';
+    if (typeof node === 'string' || typeof node === 'number') return String(node);
+    if (Array.isArray(node)) return node.map(nodeText).join('');
+    return typeof node === 'object' && node.props ? nodeText(node.props.children) : '';
+  };
+  const findClass = (node, cls) => {
+    if (!node || typeof node !== 'object') return null;
+    if (Array.isArray(node)) { for (const c of node) { const r = findClass(c, cls); if (r) return r; } return null; }
+    if (node.props?.className?.split(/\s+/).includes(cls)) return node;
+    return findClass(node.props?.children, cls);
+  };
+
+  try {
+    m.setUiLanguage('zh');
+    render();
+    tree = render();
+    let status = findClass(tree, 'coach-countdown');
+    assert.ok(status, 'countdown renders initially');
+    assert.doesNotMatch(nodeText(status), /已暂停/);
+
+    t.mock.timers.tick(1000);
+    tree = render();
+    const afterOneSec = nodeText(findClass(tree, 'coach-countdown'));
+    assert.match(afterOneSec, /4 秒/, 'countdown ticks down while not hovered');
+
+    tree.props.onMouseEnter();
+    tree = render();
+    status = findClass(tree, 'coach-countdown');
+    assert.match(nodeText(status), /（已暂停）/, 'hovering pauses countdown and shows indicator');
+
+    t.mock.timers.tick(3000);
+    tree = render();
+    assert.match(nodeText(findClass(tree, 'coach-countdown')), /4 秒/, 'timer did not advance while hovered');
+    assert.equal(actions, 0);
+
+    m.setUiLanguage('en');
+    tree = render();
+    assert.match(nodeText(findClass(tree, 'coach-countdown')), /\(paused\)/, 'English pause suffix');
+    m.setUiLanguage('zh');
+
+    tree.props.onMouseLeave();
+    tree = render();
+    assert.doesNotMatch(nodeText(findClass(tree, 'coach-countdown')), /已暂停/);
+    t.mock.timers.tick(1000);
+    tree = render();
+    assert.match(nodeText(findClass(tree, 'coach-countdown')), /3 秒/, 'countdown resumes after mouse leave');
+
+    for (const fn of listeners.get('keydown') || []) fn({ key: 'Escape' });
+    tree = render();
+    assert.equal(findClass(tree, 'coach-countdown'), null, 'Escape cancels countdown');
+    t.mock.timers.tick(5000);
+    assert.equal(actions, 0, 'cancelled countdown never fires action');
+  } finally {
+    for (const c of cleanups) c?.();
+    m.setUiLanguage('zh');
+    if (prevWindow === undefined) delete globalThis.window; else globalThis.window = prevWindow;
+  }
+});
+

@@ -322,3 +322,113 @@ test('the single-page PDF budget counts CPU render work only (not asset download
     for (const attribute of slowEn.match(/aria-label="[^"]*"|title="[^"]*"/g) || []) assert.doesNotMatch(attribute, han, attribute);
   });
 });
+
+test('#55 PagePeek and PagePeekView support ArrowLeft/ArrowRight paging at fit zoom, Ctrl/Meta wheel zoom, and canvas double-click toggle', async () => {
+  let hooks = [], cursor = 0, tree = null;
+  const hLocal = (type, p, ...children) => ({ $$type: type, props: { ...(p || {}), ...(children.length === 1 ? { children: children[0] } : children.length > 1 ? { children } : {}) } });
+  const reactShim = {
+    default: null, Fragment: Symbol('Fragment'), createElement: hLocal,
+    useState(init) { const i = cursor++; if (!(i in hooks)) hooks[i] = typeof init === 'function' ? init() : init; return [hooks[i], v => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }]; },
+    useRef(init) { const i = cursor++; if (!(i in hooks)) hooks[i] = { current: init }; return hooks[i]; },
+    useCallback(fn) { return fn; },
+    useEffect() {},
+    useLayoutEffect() {},
+    useSyncExternalStore(_sub, snap) { return snap(); },
+  };
+  reactShim.default = reactShim;
+  globalThis.__PEEK_TEST_REACT__ = reactShim;
+  try {
+    const built = await build({
+      stdin: { contents: `export { default as PagePeek } from './ui/document-preview/peek/PagePeek.jsx'; export { default as PagePeekView } from './ui/document-preview/peek/PagePeekView.jsx';`, resolveDir: process.cwd() },
+      bundle: true, write: false, platform: 'node', format: 'cjs', loader: { '.css': 'text' }, logLevel: 'silent',
+      plugins: [{
+        name: 'shim-peek',
+        setup(builder) {
+          builder.onResolve({ filter: /^react$|^react\/jsx-runtime$/ }, () => ({ path: 'react', namespace: 'pr' }));
+          builder.onLoad({ filter: /.*/, namespace: 'pr' }, () => ({
+            contents: `const R = globalThis.__PEEK_TEST_REACT__; export default R; export const { Fragment, createElement, useState, useRef, useCallback, useEffect, useLayoutEffect, useSyncExternalStore } = R; export const jsx = (t, p) => R.createElement(t, p); export const jsxs = jsx; export const jsxDEV = jsx;`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /components\/index\.js$/ }, () => ({ path: 'comp', namespace: 'pc' }));
+          builder.onLoad({ filter: /.*/, namespace: 'pc' }, () => ({
+            contents: `const R = globalThis.__PEEK_TEST_REACT__; export const Button = p => R.createElement('button', p); export const CloseButton = p => R.createElement('button', p); export const IconButton = p => R.createElement('button', p); export const LoadingState = p => R.createElement('div', p);`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /renderer\.js$/ }, () => ({ path: 'renderer', namespace: 'prd' }));
+          builder.onLoad({ filter: /.*/, namespace: 'prd' }, () => ({
+            contents: `export const createPeekRenderer = () => ({ pages: 10, destroy() {} }); export const isCancelled = () => false; export const openPdf = async () => ({ pages: 10, destroy() {} });`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /shared\.js$/ }, () => ({ path: 'shared', namespace: 'psh' }));
+          builder.onLoad({ filter: /.*/, namespace: 'psh' }, () => ({ contents: `export const useInjectCss = () => {}; export const focusVisible = () => {};`, loader: 'js' }));
+        },
+      }],
+    });
+    const mod = { exports: {} };
+    new Function('module', 'exports', built.outputFiles[0].text)(mod, mod.exports);
+    const { PagePeek, PagePeekView } = mod.exports;
+    const expandNode = node => {
+      if (Array.isArray(node)) return node.map(expandNode);
+      if (!node || typeof node !== 'object') return node;
+      if (typeof node.$$type === 'function') return expandNode(node.$$type(node.props));
+      return node.props?.children ? { ...node, props: { ...node.props, children: expandNode(node.props.children) } } : node;
+    };
+    const renderPeek = (props = { fileUrl: 'blob:test', page: 3, totalPages: 10, onClose: noop }) => {
+      cursor = 0; tree = expandNode(PagePeek(props)); return tree;
+    };
+    const find = (pred, node = tree) => {
+      if (!node || typeof node !== 'object') return null;
+      if (Array.isArray(node)) { for (const c of node) { const hit = find(pred, c); if (hit) return hit; } return null; }
+      if (pred(node)) return node;
+      return node.props?.children ? find(pred, node.props.children) : null;
+    };
+
+    // Direct PagePeekView checks: double-click zoom/fit and Ctrl/Meta wheel handler.
+    const zoomed = []; let fitted = 0, viewPrevented = 0;
+    const viewAtFit = expandNode(PagePeekView({ ...base, phase: 'ready', zoom: 1, onZoom: d => zoomed.push(d), onFit: () => { fitted += 1; } }));
+    find(n => n.$$type === 'canvas', viewAtFit).props.onDoubleClick();
+    assert.deepEqual(zoomed, [2]);
+    const viewZoomed = expandNode(PagePeekView({ ...base, phase: 'ready', zoom: 1.5, onZoom: d => zoomed.push(d), onFit: () => { fitted += 1; } }));
+    find(n => n.$$type === 'canvas', viewZoomed).props.onDoubleClick();
+    assert.equal(fitted, 1);
+    const scroller = find(n => n.props?.className === 'page-peek__scroll', viewAtFit);
+    scroller.props.onWheel({ ctrlKey: true, metaKey: false, deltaY: -100, preventDefault: () => { viewPrevented += 1; } });
+    scroller.props.onWheel({ ctrlKey: false, metaKey: true, deltaY: 100, preventDefault: () => { viewPrevented += 1; } });
+    scroller.props.onWheel({ ctrlKey: false, metaKey: false, deltaY: -100, preventDefault: () => { viewPrevented += 1; } });
+    assert.deepEqual(zoomed, [2, 1, -1]);
+    assert.equal(viewPrevented, 2);
+
+    renderPeek();
+    const viewProps = () => find(n => n.props?.className === 'page-peek').props;
+    let prevented = 0;
+    const key = name => ({ key: name, preventDefault: () => { prevented += 1; }, stopPropagation() {} });
+    // Force phase='ready' hook state so PagePeekView receives active paging/zoom handlers.
+    hooks[0] = 'ready';
+    renderPeek();
+    viewProps().onKeyDown(key('ArrowRight'));
+    renderPeek();
+    assert.equal(find(n => n.props?.className === 'page-peek__where').props.children, '第 4 / 10 页');
+    viewProps().onKeyDown(key('ArrowLeft'));
+    renderPeek();
+    assert.equal(find(n => n.props?.className === 'page-peek__where').props.children, '第 3 / 10 页');
+    assert.equal(prevented, 2);
+
+    // Wheel zoom in -> zoom becomes 1.5, so ArrowRight should no longer page-turn.
+    find(n => n.props?.className === 'page-peek__scroll').props.onWheel({ ctrlKey: true, metaKey: false, deltaY: -120, preventDefault: () => { prevented += 1; } });
+    renderPeek();
+    assert.equal(find(n => n.props?.className === 'page-peek__zoom').props.children.join(''), '150%');
+    viewProps().onKeyDown(key('ArrowRight'));
+    renderPeek();
+    assert.equal(find(n => n.props?.className === 'page-peek__where').props.children, '第 3 / 10 页', 'zoomed in: arrow keys pan rather than paging');
+
+    // Canvas double-click while zoomed fits back to 100%, then double-clicking again zooms in to 150%.
+    find(n => n.props?.className === 'page-peek__canvas').props.onDoubleClick();
+    renderPeek();
+    assert.equal(find(n => n.props?.className === 'page-peek__zoom').props.children.join(''), '100%');
+    find(n => n.props?.className === 'page-peek__canvas').props.onDoubleClick();
+    renderPeek();
+    assert.equal(find(n => n.props?.className === 'page-peek__zoom').props.children.join(''), '150%');
+  } finally {
+    delete globalThis.__PEEK_TEST_REACT__;
+  }
+});

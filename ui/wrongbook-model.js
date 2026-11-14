@@ -288,7 +288,11 @@ export function sameVariantState(a, b) {
 /* ---- what the learner chose, kept in the browser ---- */
 
 const GROUP_BY_KEY = 'study-wrongbook-groupby';
+const SORT_BY_KEY = 'study-wrongbook-sort';
 const OPEN_CAP = 500;
+
+export const SORT_KINDS = ['recent', 'most', 'order'];
+export const DEFAULT_SORT_BY = 'recent';
 
 /** The grouping the learner chose last time (kept per viewer), else by deck. A missing, blocked or corrupt store is the default. */
 export function readGroupBy(storage = browserStorage()) {
@@ -297,6 +301,47 @@ export function readGroupBy(storage = browserStorage()) {
 }
 
 export const saveGroupBy = (value, storage = browserStorage()) => writeText(GROUP_BY_KEY, value, storage);
+
+/** The row ordering the learner chose last time (kept per viewer), else newest first. */
+export function readSortBy(storage = browserStorage()) {
+  const saved = readText(SORT_BY_KEY, '', storage);
+  return SORT_KINDS.includes(saved) ? saved : DEFAULT_SORT_BY;
+}
+
+export const saveSortBy = (value, storage = browserStorage()) => writeText(SORT_BY_KEY, value, storage);
+
+/** Sort each group's rows by recent miss, miss count, or original deck order (pure). */
+export function sortGroupRows(groups = [], sortBy = DEFAULT_SORT_BY, options = {}) {
+  const decks = Array.isArray(options?.decks) ? options.decks : Array.isArray(options) ? options : [];
+  const wrongCounts = options?.wrongCounts instanceof Map ? options.wrongCounts : (options instanceof Map ? options : null);
+  const deckOrder = new Map();
+  if (sortBy === 'order') {
+    for (const deck of decks) {
+      const cards = deck?.cards || [];
+      for (let i = 0; i < cards.length; i++) deckOrder.set(`${deck.id}\0${cards[i].id}`, i);
+    }
+  }
+  const timeOf = (row) => row.lastAt ?? row.lastWrongAt ?? row.recoveredAt ?? '';
+  const countOf = (row) => (Number.isFinite(row.wrongCount) ? row.wrongCount : (wrongCounts?.get(`${row.deckId}\0${row.cardId}`) ?? (row.leech ? 1 : 0)));
+  const orderOf = (row) => (Number.isInteger(row.index) ? row.index : Number.isInteger(row.order) ? row.order : (deckOrder.get(`${row.deckId}\0${row.cardId}`) ?? null));
+  const compare = (a, b) => {
+    if (sortBy === 'most') {
+      const diff = countOf(b) - countOf(a);
+      if (diff !== 0) return diff;
+    } else if (sortBy === 'order') {
+      const oa = orderOf(a), ob = orderOf(b);
+      if (oa !== null && ob !== null && oa !== ob) return oa - ob;
+      if (oa !== null && ob === null) return -1;
+      if (oa === null && ob !== null) return 1;
+      const dc = String(a.deckId || '').localeCompare(String(b.deckId || ''));
+      if (dc !== 0) return dc;
+      return String(a.cardId || '').localeCompare(String(b.cardId || ''));
+    }
+    const ta = timeOf(a), tb = timeOf(b);
+    return tb < ta ? -1 : tb > ta ? 1 : 0;
+  };
+  return (groups || []).map((group) => ({ ...group, rows: [...(group.rows || [])].sort(compare) }));
+}
 
 /** The ids of the groups the learner opened in this tab (kept for the session under `key`). */
 export function readOpenGroups(key, storage = browserSession()) {

@@ -8,7 +8,7 @@ import { spanFormulas } from './formula.js';
  * Folds text for matching: NFKC, lower case, runs of whitespace as one space, no leading
  * space. starts[i] / ends[i] give the original UTF-16 span of folded character i.
  */
-export function foldWithMap(text) {
+export function foldWithMap(text, { caseSensitive = false } = {}) {
   let folded = '', index = 0;
   const starts = [], ends = [];
   for (const char of String(text ?? '')) {
@@ -19,7 +19,8 @@ export function foldWithMap(text) {
       else if (folded.endsWith(' ')) ends[ends.length - 1] = end;
       continue;
     }
-    const piece = char.normalize('NFKC').toLowerCase();
+    const norm = char.normalize('NFKC');
+    const piece = caseSensitive ? norm : norm.toLowerCase();
     folded += piece;
     for (let at = 0; at < piece.length; at++) { starts.push(start); ends.push(end); }
   }
@@ -27,7 +28,7 @@ export function foldWithMap(text) {
 }
 
 /** The query as it is matched: folded and trimmed. */
-export const foldQuery = query => foldWithMap(query).folded.trim();
+export const foldQuery = (query, options) => foldWithMap(query, options).folded.trim();
 
 /** Offsets (into the folded text) of every non-overlapping match of the folded needle. */
 export function matchOffsets(folded, needle, limit = 1000) {
@@ -43,15 +44,16 @@ export function matchOffsets(folded, needle, limit = 1000) {
  */
 export const drawnSectionText = section => (section?.paragraphs || []).map(paragraph => paragraph.text).join('');
 
-const folds = new WeakMap();
+const folds = new WeakMap(), foldsSensitive = new WeakMap();
 /** A group's text folded once (not per query), with where each of its pages starts in it. */
-const foldedOf = group => {
-  if (!folds.has(group)) {
+const foldedOf = (group, { caseSensitive = false } = {}) => {
+  const cache = caseSensitive ? foldsSensitive : folds;
+  if (!cache.has(group)) {
     let text = '';
     const starts = group.parts.map(part => { const at = text.length; text += part.text ?? ''; return at; });
-    folds.set(group, { ...foldWithMap(text), pageStarts: starts });
+    cache.set(group, { ...foldWithMap(text, { caseSensitive }), pageStarts: starts });
   }
-  return folds.get(group);
+  return cache.get(group);
 };
 
 /**
@@ -59,11 +61,11 @@ const foldedOf = group => {
  * find reads a drawn chapter: its pages' text back to back, so the count is the one found on arrival. `groups` [{ key, parts: [{ page, sourceId, text }] }]
  * -> [{ key, count, first: { page, sourceId } }] for the groups with a match, in order (`first`: the page the first match starts on).
  */
-export function textHits(groups, query, { limit = 1000 } = {}) {
-  const needle = foldQuery(query), out = [];
+export function textHits(groups, query, { limit = 1000, caseSensitive = false } = {}) {
+  const needle = foldQuery(query, { caseSensitive }), out = [];
   if (!needle) return out;
   for (const group of groups || []) {
-    const { folded, starts, pageStarts } = foldedOf(group), offsets = matchOffsets(folded, needle, limit);
+    const { folded, starts, pageStarts } = foldedOf(group, { caseSensitive }), offsets = matchOffsets(folded, needle, limit);
     if (!offsets.length) continue;
     const from = starts[offsets[0]];
     let part = 0;
@@ -96,12 +98,12 @@ function lastStarting(nodes, at, strict = false) {
 }
 
 /** DOM ranges for every match of `query` in the text of `root`, in reading order. */
-export function findRanges(root, query, { limit = 1000 } = {}) {
-  const needle = foldQuery(query);
+export function findRanges(root, query, { limit = 1000, caseSensitive = false } = {}) {
+  const needle = foldQuery(query, { caseSensitive });
   if (!root || !needle) return [];
   const { nodes, raw } = textNodes(root);
   if (!nodes.length) return [];
-  const { folded, starts, ends } = foldWithMap(raw);
+  const { folded, starts, ends } = foldWithMap(raw, { caseSensitive });
   const ranges = [];
   for (const at of matchOffsets(folded, needle, limit)) {
     const from = starts[at], to = ends[at + needle.length - 1];

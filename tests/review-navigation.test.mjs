@@ -3,9 +3,12 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { StudyService } from "../lib/service.js";
 import { importExample } from "../ui/json-prompts.js";
 import { mergeReviewPoll, reviewEntryKey } from "../ui/async.js";
+import { loadUi } from "./helpers/ui-module.mjs";
 
 test("background review results belong to an entry and revision, not just a run", () => {
   const run = { id: "r", index: 0, card: { id: "q" }, queueVersion: 0, revision: 0 };
@@ -51,4 +54,22 @@ test("a closed run poll preserves completion together with its empty card", () =
   const current = { id: "r", index: 0, card: { id: "q" }, complete: false };
   const next = { ...current, card: null, closed: true, complete: true };
   assert.equal(mergeReviewPoll(current, next), next);
+});
+
+test("ReviewNavigator highlights skipped unanswered ticks and clears them once answered (#5)", async () => {
+  const { default: ReviewNavigator } = await loadUi("export { default } from './ui/ReviewNavigator.jsx';");
+  const navigation = [
+    { index: 0, answered: false, correct: null, level: "new", kind: "quiz", prompt: "First?", topic: "T1" },
+    { index: 1, answered: true, correct: true, level: "learning", kind: "quiz", prompt: "Second?", topic: "T2" },
+    { index: 2, answered: false, correct: null, level: "new", kind: "quiz", prompt: "Third?", topic: "T3" },
+  ];
+  const html = renderToStaticMarkup(React.createElement(ReviewNavigator, {
+    run: { id: "r", index: 2, navigation }, skippedIndices: new Set([0, 1]), onJump() {},
+  }));
+  const ticks = [...html.matchAll(/<button[^>]*class="review-tick\b[^"]*"[^>]*>/g)].map((m) => m[0]);
+  assert.equal(ticks.length, 3);
+  assert.match(ticks[0], /data-skipped="true"/, "skipped unanswered tick gets data-skipped");
+  assert.match(ticks[0], /aria-label="[^"]*先跳过待答"/, "skipped unanswered label notes skip state");
+  assert.doesNotMatch(ticks[1], /data-skipped=/, "answered question does not render skipped marker");
+  assert.doesNotMatch(ticks[2], /data-skipped=/, "unskipped unanswered question stays regular");
 });

@@ -74,6 +74,35 @@
       vertical-align: middle;
     }
     .answer-card__table {
+      position: relative;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .answer-card__table::before,
+    .answer-card__table::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: var(--space-4);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity var(--dur-fast) var(--ease);
+      z-index: 1;
+    }
+    .answer-card__table::before {
+      left: 0;
+      background: linear-gradient(to right, color-mix(in srgb, var(--text) 14%, transparent), transparent);
+    }
+    .answer-card__table::after {
+      right: 0;
+      background: linear-gradient(to left, color-mix(in srgb, var(--text) 14%, transparent), transparent);
+    }
+    .answer-card__table[data-edge-left="true"]::before,
+    .answer-card__table[data-edge-right="true"]::after {
+      opacity: 1;
+    }
+    .answer-card__table-scroll {
       max-width: 100%;
       overflow-x: auto;
     }
@@ -115,6 +144,12 @@
       margin: 0;
       color: var(--text-dim);
       font-size: var(--fs-sm);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.study-app, .study-seat) {
+      .answer-card__table::before,
+      .answer-card__table::after { transition: none; }
     }
   }
 }

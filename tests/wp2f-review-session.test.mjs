@@ -184,3 +184,32 @@ test('one request per question: a second click joins the one in flight', () => {
   assert.equal(flights.begin('k'), true, 'free again once it finished');
   assert.equal(flights.begin(''), false, 'no question, no request');
 });
+
+test('shortcuts: multi-choice clears selected answers with 0 or Backspace (#31)', () => {
+  const multiRun = run({ card: card({ kind: 'multi', multiple: true }) });
+  for (const k of ['0', 'Backspace']) {
+    const cleared = act(key(k), { choice: true, run: multiRun, selected: ['a', 'b'] });
+    assert.deepEqual(cleared, { cancelAuto: true, preventDefault: true, action: { type: 'clear-choice' } });
+    assert.equal(act(key(k), { choice: true, run: multiRun, selected: [] }).action, null, 'nothing selected -> noop');
+    assert.equal(act(key(k), { choice: true, run: run({ card: card({ kind: 'multi', multiple: true }), feedback: { correct: false } }), selected: ['a'] }).action, null, 'after feedback -> noop');
+    assert.equal(act(key(k), { choice: true, run: run({ card: card({ kind: 'quiz' }) }), selected: ['a'] }).action, null, 'single-choice -> noop');
+  }
+  assert.equal(act(key('Backspace', { inEditable: true }), { choice: true, run: multiRun, selected: ['a'] }), null, 'editing field stays editable');
+});
+
+test('shortcuts: endAsked cancels on Escape and blocks Enter from advancing behind the confirm bar (#37)', () => {
+  const answered = run({ feedback: { correct: true } });
+  const esc = act(key('Escape'), { endAsked: true, run: answered });
+  assert.deepEqual(esc, { cancelAuto: true, preventDefault: true, action: { type: 'end-cancel' } });
+  const enterBlocked = act(key('Enter'), { endAsked: true, run: answered });
+  assert.equal(enterBlocked.action, null, 'Enter cannot skip past the confirm prompt');
+  assert.equal(enterBlocked.preventDefault, true);
+  const escFallback = act(key('Escape'), { endAsked: true, page: 'review', run: run({ card: null }) });
+  assert.deepEqual(escFallback.action, { type: 'end-cancel' });
+});
+
+test('shortcuts: H switches from hint to explain once feedback is recorded even if revealed is false (#39)', () => {
+  assert.deepEqual(act(key('h'), { run: run({ revealed: false, feedback: null }) }).action, { type: 'hint' });
+  assert.deepEqual(act(key('h'), { run: run({ revealed: false, feedback: { correct: true } }) }).action, { type: 'explain' });
+  assert.deepEqual(act(key('h'), { run: run({ revealed: true, feedback: null }) }).action, { type: 'explain' });
+});

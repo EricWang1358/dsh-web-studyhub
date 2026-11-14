@@ -39,6 +39,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
   // The timers and queued posts outlive the render that created them: they read the latest callbacks.
   const callbacks = useRef({});
   callbacks.current = { toast, onFix, onSent, onInteract };
+  const rootRef = useRef(null);
   const sent = useRef(new Set(run.vote?.tags || [])),
     submitting = useRef(new Set()),
     saved = useRef({ vote: run.vote?.vote || null, tags: run.vote?.tags || [] }),
@@ -163,7 +164,12 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
       const { open, thumb, toggle, canShortcut } = latest.current;
       if (e.key === "Escape" && open) {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
         setOpen(false);
+        const root = rootRef.current;
+        const target = root?.closest?.(".review-body")?.querySelector?.(".question-card") || root?.closest?.(".study-app");
+        target?.focus?.({ preventScroll: true });
         return;
       }
       if (!canShortcut(e)) return;
@@ -188,7 +194,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
   }, []);
 
   return (
-    <span className="thumbs" data-tour={buttons ? "review-thumbs" : undefined} onPointerUp={(e) => {
+    <span ref={rootRef} className="thumbs" data-tour={buttons ? "review-thumbs" : undefined} onPointerUp={(e) => {
       // Pointer feedback should leave Enter available for the next question.
       // Keyboard activation retains normal button focus and accessibility.
       e.currentTarget.closest(".study-app")?.focus({ preventScroll: true });
@@ -204,6 +210,7 @@ export default forwardRef(function ThumbFeedback({ run, canShortcut, onSent, onF
               <kbd>{i + 1}</kbd>{ui(label)}
             </Chip>
           ))}
+          <small className="thumb-tray__keys">{ui("按 1–7 选标签，Esc 收起")}</small>
           <small>{ui("选好停一下就自动提交；已提交的标签不能撤销。改题类问题会带到下方的「修题」。")}</small>
           {courseRules?.course && ruleTextsForTags(tags).length > 0 && (
             <Button variant="link" size="sm" data-usage="review.course-rule" onClick={() => setRuleTexts(ruleTextsForTags(tags))}>{ui("设为本课守则")}</Button>

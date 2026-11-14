@@ -21,7 +21,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/application-messages-en.js`: 1 ui file; 1 other lib file
 - `lib/application-messages.js`: 2 ui files; 6 other lib files
 - `lib/ask-prompt.js`: 4 ui files; contexts generation, materials
-- `lib/assist-contract.js`: 1 ui file; 1 other lib file
+- `lib/assist-contract.js`: 2 ui files; 1 other lib file
 - `lib/audio-formats.js`: 4 ui files; 3 other lib files
 - `lib/audio-providers.js`: 4 ui files; context audio; 3 other lib files
 - `lib/board-model.js`: 17 ui files; 8 other lib files
@@ -30,7 +30,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/card-kinds.js`: 13 ui files; contexts generation, library, recording, study; 25 other lib files
 - `lib/case-study.js`: 5 ui files; contexts generation, library, study; 10 other lib files
 - `lib/chemistry-balance.js`: 1 ui file
-- `lib/cloze-text.js`: 2 ui files; 2 other lib files
+- `lib/cloze-text.js`: 3 ui files; 2 other lib files
 - `lib/converted-document.js`: 1 ui file; contexts audio, materials; 2 other lib files
 - `lib/course-book-ai-anchor.js`: 1 ui file
 - `lib/course-book-ai-text.js`: 5 ui files; context generation; 5 other lib files
@@ -110,8 +110,8 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/shortfall.js`: 2 ui files
 - `lib/sm2.js`: 2 ui files; 5 other lib files
 - `lib/source-courses.js`: 7 ui files; contexts audio, bank, courses, generation, library, materials, recording; 24 other lib files
-- `lib/source-groups.js`: 24 ui files; contexts generation, library, materials; 9 other lib files
-- `lib/source-provenance.js`: 6 ui files; contexts library, materials; 6 other lib files
+- `lib/source-groups.js`: 25 ui files; contexts generation, library, materials; 9 other lib files
+- `lib/source-provenance.js`: 7 ui files; contexts library, materials; 6 other lib files
 - `lib/source-relations.js`: 2 ui files
 - `lib/stage-effort.js`: 1 ui file; context generation; 3 other lib files
 - `lib/stage-usage.js`: 1 ui file; context generation; 2 other lib files

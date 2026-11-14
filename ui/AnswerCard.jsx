@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { ui, uiFormat, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import Markdown from './Markdown.jsx';
+import Markdown, { ScrollEdgeWrap } from './Markdown.jsx';
 import { Badge, Button, InlineMessage, Spinner } from './components/index.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { modelReadiness } from './generation-status.js';
@@ -74,7 +74,7 @@ export function AnswerCardView({ card, actions = null, flat = false, embedded = 
       {justification.verify && <Part id="verify" label={ui('如何验证')}><Markdown text={justification.verify} /></Part>}
       {card.pitfalls?.length > 0 && <Part id="pitfalls" label={ui('易错检查')}><ul>{card.pitfalls.map((item, at) => <li key={at}>{item}</li>)}</ul></Part>}
       {card.marksMap?.length > 0 && <Part id="marks" label={ui('评分点对照')}>
-        <div className="answer-card__table">
+        <ScrollEdgeWrap className="answer-card__table" scrollClassName="answer-card__table-scroll">
           <table>
             <thead><tr><th scope="col">{ui('评分点')}</th><th scope="col">{ui('分值')}</th><th scope="col">{ui('对应的句子')}</th></tr></thead>
             <tbody>{card.marksMap.map(item => <tr key={item.point} className={item.found ? '' : 'is-missing'}>
@@ -82,7 +82,7 @@ export function AnswerCardView({ card, actions = null, flat = false, embedded = 
               <td>{item.found ? item.sentence : <Badge size="sm" tone="warning">{ui('没有句子对应')}</Badge>}</td>
             </tr>)}</tbody>
           </table>
-        </div>
+        </ScrollEdgeWrap>
       </Part>}
       {actions && <div className="answer-card__actions">{actions}</div>}
     </section>

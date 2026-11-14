@@ -24,7 +24,7 @@ const services = { call: async () => ({}), act: async () => undefined, busy: fal
 const render = element => renderToStaticMarkup(h(ui.StudyServicesContext.Provider, { value: services }, element));
 const english = fn => { ui.setUiLanguage('en'); try { return fn(); } finally { ui.setUiLanguage('zh'); } };
 // The no-wrap unit around a 角标 (ui/Markdown.jsx md-cite-keep) holds the character before it: it is not a word break in the text.
-const textOf = html => html.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<span class="md-cite-keep">/g, '').replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+const textOf = html => html.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<sup class="md-cite">([\s\S]*?)<\/sup>/g, (_, inner) => `<sup class="md-cite">${inner.replace(/<span[^>]*role="tooltip"[^>]*>[\s\S]*?<\/span>/g, '')}</sup>`).replace(/<span class="md-cite-keep">/g, '').replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 globalThis.window ??= { innerWidth: 1280, addEventListener: noop, removeEventListener: noop };
 
 const gen = ['**知识梳理**', '', '- 熵度量无序 [^1]', '', '**讲解**', '', '熵是系统无序程度的度量[^1]。它在孤立系统里只增不减。', '', '**例子**', '', '冰块融化。', '',
@@ -52,6 +52,7 @@ test('a point reads takeaway first (type only), then 讲解 without it, the AI b
   assert.match(html, /<details class="sh-disclosure book-point__fold" data-book-part="points">/, '要点清单 folded');
   assert.match(html, /<details class="sh-disclosure book-point__fold" data-book-part="extra">/, '补充 folded');
   assert.doesNotMatch(text, /练 5 道：熵|本节问答：熵|课本/, 'no line of links at the end, and the 出处 list waits behind its chip');
+  assert.match(html, /role="tooltip"[^>]*>「熵度量无序」<br\/>出处：课本<\/span>/);
   assert.match(html, /data-book-link="practice"/);
   assert.match(text, /练 5 道 本节问答$/, 'the row of actions closes the point');
   assert.doesNotMatch(text, /在这里加一段|发给主会话/, '问 AI is at the title: no 在这里加一段 nor 发给主会话 in the row');

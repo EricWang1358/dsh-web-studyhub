@@ -51,7 +51,8 @@ import { useFinder } from './finder/use-finder.js';
 import FinderSheet from './finder/FinderSheet.jsx';
 import { freshGeneration, initialGeneration, useLibraryConnection } from './app/use-library-connection.js';
 import { useReviewSession } from './review/useReviewSession.js';
-import { shellTitleOf } from './app/shell-title.js';
+import { shellTitleOf, useTabTitle } from './app/shell-title.js';
+import { isActiveJob } from './job-visibility.js';
 import AppSidebar from './app/AppSidebar.jsx';
 import AppTopbar from './app/AppTopbar.jsx';
 import AppModalHost, { readerOpen } from './app/AppModalHost.jsx';
@@ -102,7 +103,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const notebooks = useNotebooks({ core, lib: handle, nav, host, root: connection.binding.root });
   const sources = useSourceImport({ core, lib: handle, nav, drafts, intents, data });
   const tour = useTour({ core, lib: handle, nav, session, drafts, intents, data, rootRef: shell.rootRef });
-  const finder = useFinder({ nav, settingsEntry, core, tour, rootRef: shell.rootRef });
+  const finder = useFinder({ nav, settingsEntry, core, tour, rootRef: shell.rootRef, learn });
   const selectionNotices = useSelectionNotices({ core, learn, data });
   const { courseActive } = useHostLinks({ host, core, nav, session, learn, lib: handle, rootRef: shell.rootRef, data, loading: connection.loading });
   const boardState = useBoard(core.call, nav.page === 'board' || nav.page === 'dashboard');
@@ -121,6 +122,10 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   [core.call, core.act, core.busy, core.notify, core.askInChat, host, settingsEntry.openSettings, nav.navigate, set.setModal]);
   const app = { language, host, data, canChat: host.capabilities?.chat ?? !!host.askInChat, connection, core, shell, nav, lib, set, session, learn, intents, drafts,
     notebooks, inbox, sources, tour, finder, settingsEntry, dailyPlan, board, selectionNotices, resetLibraryState };
+
+  const runningJobs = Array.isArray(data?.jobs) ? data.jobs.filter(isActiveJob).length : 0;
+  const activePageTitle = shellTitleOf(nav.page, { run: session.run, decks: data?.decks });
+  useTabTitle(activePageTitle ? `${activePageTitle} · StudyHub` : 'StudyHub', { runningJobs });
 
   if (connection.loading) return <div className="study-app"><LoadingState className="app-loading" label={connection.connecting || ui('正在打开学习工作区…')} /></div>;
   const { run } = session, page = nav.page;

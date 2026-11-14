@@ -71,3 +71,103 @@ export function rememberPatch(choice, context = {}, defaults = roundDefaults(und
   const round = sameRound(choice, defaults) ? null : { size: choice.size, range: choice.range, ...(choice.chapter ? { chapter: { ...choice.chapter } } : {}) };
   return { lastRounds: { [roundKey(context.course)]: round } };
 }
+
+const KIND_SECONDS = {
+  quiz: [25, 40],
+  multi: [25, 40],
+  truefalse: [25, 40],
+  choice: [25, 40],
+  verdict: [25, 40],
+  cloze: [35, 55],
+  flashcard: [35, 55],
+  open: [90, 150],
+  rubric: [90, 150],
+  task: [90, 150],
+};
+const DEFAULT_SECONDS = [35, 55];
+
+function averageSecondsFromCards(pool) {
+  if (!pool.length) return null;
+  let sumMin = 0;
+  let sumMax = 0;
+  for (const card of pool) {
+    const [minSec, maxSec] = KIND_SECONDS[card?.kind] || DEFAULT_SECONDS;
+    sumMin += minSec;
+    sumMax += maxSec;
+  }
+  return [sumMin / pool.length, sumMax / pool.length];
+}
+
+function selectScopedCards(cards, chapter) {
+  const active = cards.filter((card) => card && !card.suspended);
+  const base = active.length ? active : cards.filter(Boolean);
+  if (!base.length) return [];
+  if (!chapter?.deckId && !chapter?.topic) return base;
+  const filtered = base.filter((card) =>
+    (!chapter.deckId || !card.deckId || card.deckId === chapter.deckId)
+    && (!chapter.topic || card.topic === chapter.topic));
+  return filtered.length ? filtered : base;
+}
+
+function selectDecks(data, { chapter, course, scope } = {}) {
+  const decks = Array.isArray(data?.decks) ? data.decks : [];
+  if (!decks.length) return [];
+  if (chapter?.deckId) {
+    const one = decks.filter((deck) => deck && deck.id === chapter.deckId);
+    if (one.length) return one;
+  }
+  const active = decks.filter((deck) => deck && !deck.archived);
+  const pool = active.length ? active : decks.filter(Boolean);
+  const scopeDeckIds = new Set((Array.isArray(scope) ? scope : []).map((ref) => ref?.deckId).filter(Boolean));
+  if (scopeDeckIds.size) {
+    const byScope = pool.filter((deck) => scopeDeckIds.has(deck.id));
+    if (byScope.length) return byScope;
+  }
+  if (typeof course === 'string' && course) {
+    const byCourse = pool.filter((deck) => deck.course === course);
+    if (byCourse.length) return byCourse;
+  }
+  return pool;
+}
+
+/**
+ * Estimate `[minMinutes, maxMinutes]` for a round from card kinds in scope/deck:
+ * choice/verdict ~25–40s, cloze/flashcard ~35–55s, open/rubric/task ~90–150s, clamped `>= 1`.
+ */
+export function estimateRoundMinutes({ size, range: _range, chapter, data, cards, course, scope } = {}) {
+  let rangeSeconds = null;
+  if (Array.isArray(cards) && cards.length > 0) {
+    rangeSeconds = averageSecondsFromCards(selectScopedCards(cards, chapter));
+  } else {
+    const decks = selectDecks(data, { chapter, course, scope });
+    const deckCards = decks.flatMap((deck) => (Array.isArray(deck.cards) ? deck.cards.map((card) => ({ ...card, deckId: card.deckId ?? deck.id })) : []));
+    if (deckCards.length > 0) {
+      rangeSeconds = averageSecondsFromCards(selectScopedCards(deckCards, chapter));
+    } else if (decks.length > 0) {
+      let weight = 0;
+      let sumMin = 0;
+      let sumMax = 0;
+      for (const deck of decks) {
+        const total = Math.max(0, Number(deck.available ?? deck.count) || 0);
+        if (!total) continue;
+        const choice = Math.max(0, Math.min(total, Number(deck.examCount) || 0));
+        const hasQuizMeta = deck.quizCount !== undefined;
+        const quizTotal = hasQuizMeta ? Math.max(choice, Math.min(total, Number(deck.quizCount) || 0)) : choice;
+        const flash = hasQuizMeta ? Math.max(0, total - quizTotal) : Math.max(0, total - choice);
+        const other = Math.max(0, quizTotal - choice);
+        sumMin += choice * 25 + flash * 35 + other * 55;
+        sumMax += choice * 40 + flash * 55 + other * 90;
+        weight += choice + flash + other;
+      }
+      if (weight > 0) rangeSeconds = [sumMin / weight, sumMax / weight];
+    }
+  }
+  const [avgMinSec, avgMaxSec] = rangeSeconds || DEFAULT_SECONDS;
+  const numericSize = Number(size);
+  const count = Number.isFinite(numericSize) && numericSize > 0
+    ? Math.round(numericSize)
+    : (Array.isArray(cards) && cards.length > 0 ? cards.length : 1);
+  const minMinutes = Math.max(1, Math.round((count * avgMinSec) / 60));
+  const maxMinutes = Math.max(minMinutes, Math.round((count * avgMaxSec) / 60));
+  return [minMinutes, maxMinutes];
+}

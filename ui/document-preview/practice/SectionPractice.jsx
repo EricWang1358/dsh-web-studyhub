@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Button, InlineMessage, LoadingState, SegmentedControl } from '../../components/index.js';
+import { Button, Chip, InlineMessage, LoadingState, SegmentedControl } from '../../components/index.js';
 import StudyInline from '../../StudyInline.jsx';
 import { useStudy } from '../../study-context.jsx';
 import { useInjectCss } from '../../shared.js';
@@ -24,6 +24,7 @@ import css from './section-practice.css';
 
 /** The round's own label: 本节 · 3 题. */
 const roundLabel = (option, count, unit) => `${rangeLabel(option, unit)} · ${count === 1 ? ui('1 题') : uiFormat('{0} 题', [count])}`;
+const isMastered = card => card?.level === 'familiar' || card?.level === 'mastered';
 
 function Stat({ count, label, onOpen, ...rest }) {
   const text = `${label} ${count}`;
@@ -44,11 +45,18 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
   const order = useMemo(() => new Map(outline.map((item, at) => [item.id, at])), [outline]);
   const listed = useMemo(() => questionsOf(option, { entryOf: loop.entryOf, order }), [option, loop.entryOf, order]);
   const stats = useSectionStats({ call, enabled: visible && loop.status === 'ready' && !active, version, allCards: loop.cards, cards: listed.cards, ids: option?.ids ?? null, noteAssigned: loop.noteAssigned });
-  const [qaOpen, setQaOpen] = useState(false);
+  const [qaOpen, setQaOpen] = useState(false), [onlyUnmastered, setOnlyUnmastered] = useState(false);
   const lastRow = useRef(''), root = useRef(null);
+  const unmastered = useMemo(() => listed.cards.filter(card => !isMastered(card)), [listed.cards]);
+  const hasMixedMastery = unmastered.length > 0 && unmastered.length < listed.cards.length;
+  const filteringUnmastered = onlyUnmastered && hasMixedMastery;
+  const shownCards = useMemo(() => (filteringUnmastered ? unmastered.slice(0, SHOWN_MAX) : listed.shown), [filteringUnmastered, unmastered, listed.shown]);
+  const shownRest = filteringUnmastered ? Math.max(0, unmastered.length - SHOWN_MAX) : listed.rest;
 
   const start = (card, from = option) => {
-    const shown = from === option ? listed.shown : questionsOf(from, { entryOf: loop.entryOf, order }).shown;
+    const shown = from === option ? shownCards
+      : (filteringUnmastered ? questionsOf(from, { entryOf: loop.entryOf, order }).cards.filter(item => !isMastered(item)).slice(0, SHOWN_MAX)
+        : questionsOf(from, { entryOf: loop.entryOf, order }).shown);
     if (!inline || !shown.length || busy) return;
     setNote('');
     lastRow.current = card ? cardKey(card) : '';
@@ -96,13 +104,20 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
       <QaList items={stats.items} cardLabel={ui('在这里做这道题')}
         onCard={ref => { setQaOpen(false); const card = listed.cards.find(item => item.deckId === ref.deckId && item.cardId === ref.cardId); if (card) start(card); }} />
     </div>}
+    {!active && loop.status === 'ready' && hasMixedMastery && (
+      <div className="section-practice__filter">
+        <Chip size="sm" selected={onlyUnmastered} onClick={() => setOnlyUnmastered(value => !value)}>
+          {uiFormat('只看未掌握 {0}', [unmastered.length])}
+        </Chip>
+      </div>
+    )}
     {active && Run ? <Run started={active.started} label={active.label} onClose={close} onSeek={onSeek} shown={visible} />
       : loop.status === 'loading' ? <LoadingState inline label={ui('正在读取这几页的题…')} />
         : loop.status !== 'ready' ? <p className="section-practice__none" role="status">{ui('没能读取这几页的题。')}</p>
           : !listed.cards.length ? <p className="section-practice__none" role="status">{option?.kind === 'chapter' ? ui('这一章还没有题。') : ui('这一节还没有题。')}</p>
             : <>
               <ol className="section-practice__list">
-                {listed.shown.map(card => <li key={cardKey(card)}>
+                {shownCards.map(card => <li key={cardKey(card)}>
                   <Button variant="quiet" size="sm" className="section-practice__row" data-section-card={cardKey(card)} disabled={!inline} lock={busy} onClick={() => start(card)}>
                     <span className={`map-dot lv-${card.level || 'new'}`} aria-hidden="true" /><StudyInline text={card.prompt} />
                   </Button>
@@ -111,9 +126,9 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
               {note && <InlineMessage tone="warning">{note}</InlineMessage>}
               <div className="section-practice__actions">
                 {inline && <Button variant="primary" size="sm" icon="arrow-right" lock={busy} onClick={() => start(null)} data-usage="reader.section-practice">
-                  {listed.shown.length === 1 ? ui('在这里做这 1 道题') : uiFormat('在这里做这 {0} 道题', [listed.shown.length])}</Button>}
+                  {shownCards.length === 1 ? ui('在这里做这 1 道题') : uiFormat('在这里做这 {0} 道题', [shownCards.length])}</Button>}
                 {onElsewhere && <Button variant="quiet" size="sm" lock={busy} onClick={() => onElsewhere(option)}>
-                  {listed.rest > 0 ? uiFormat('还有 {0} 道，去练习页做全部', [listed.rest]) : ui('去练习页做')}</Button>}
+                  {shownRest > 0 ? uiFormat('还有 {0} 道，去练习页做全部', [shownRest]) : ui('去练习页做')}</Button>}
               </div>
             </>}
   </section>;

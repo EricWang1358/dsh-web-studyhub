@@ -14,6 +14,8 @@ const m = await loadUi(`
   export { opensFinder, moveActive, finderShortcutLabel, isMacPlatform } from './ui/finder/keys.js';
   export { planTrip, tripNotice, pathText } from './ui/finder/trip.js';
   export { readRecentFinderIds, recordRecentFinderId, clearRecentFinderIds, recentFinderEntries } from './ui/finder/recent.js';
+  export { searchLibraryHits } from './ui/finder/library-hits.js';
+  export { formatDocumentTitle, shellTitleOf } from './ui/app/shell-title.js';
   export { default as ShortcutHelp } from './ui/ShortcutHelp.jsx';
   export { TOUR_STEPS } from './ui/tour/steps.js';
   export { shortcutKeyFor } from './ui/usage/capture.js';
@@ -229,4 +231,84 @@ test("FinderSheet renders 最近去过 above the 8 groups in browse mode, uses u
   assert.doesNotMatch(text(en), han, 'English recent section has no Chinese characters');
   assert.match(text(en), /\bRecent\b/);
   assert.match(text(en), /\bClear\b/);
+});
+
+test("searchLibraryHits returns up to 6 scored non-archived hits across courses, decks, materials, and notes", () => {
+  const sampleData = {
+    ...HOST,
+    focus: {
+      course: "Operating Systems",
+      courses: [
+        { name: "Operating Systems", focusTopics: ["Scheduling"] },
+        { name: "Systems Design" },
+      ],
+    },
+    decks: [
+      { id: "d-active", title: "OS Scheduling", course: "Operating Systems", available: 12 },
+      { id: "d-archived", title: "OS Old Scheduling", course: "Operating Systems", available: 5, archived: true },
+      { id: "d-1", title: "OS Memory", course: "Operating Systems", available: 8 },
+      { id: "d-2", title: "OS Concurrency", course: "Operating Systems", available: 6 },
+      { id: "d-3", title: "OS Filesystem", course: "Operating Systems", available: 7 },
+    ],
+    sources: [
+      { id: "s1", documentId: "doc1", title: "OS Lecture Notes", page: 1, text: "Virtual memory and OS", courses: ["Operating Systems"] },
+      { id: "s2", documentId: "doc1", title: "OS Lecture Notes", page: 2, text: "Paging details", courses: ["Operating Systems"] },
+      { id: "s-arch", documentId: "doc-arch", title: "OS Archived Slides", archived: true, text: "archived" },
+      { id: "s-hist", documentId: "doc-hist", title: "OS Superseded", historical: true, text: "old revision" },
+      { id: "s-list", documentId: "doc-list", title: "OS Exam Point List", systemKind: "exam-point-list", text: "points" },
+    ],
+    notes: [
+      { id: "n1", title: "OS Lab Review", course: "Operating Systems" },
+      { id: "n-arch", title: "OS Archived Note", archived: true },
+    ],
+  };
+
+  assert.deepEqual(m.searchLibraryHits(sampleData, "   "), []);
+  const hits = m.searchLibraryHits(sampleData, "OS");
+  assert.equal(hits.length, 6, "caps live library hits at 6");
+  const ids = hits.map((h) => h.id);
+  assert.ok(!ids.some((id) => id.includes("archived") || id.includes("doc-arch") || id.includes("doc-hist") || id.includes("doc-list")),
+    "filters out archived, historical, and exam-point-list items");
+
+  const courseHits = m.searchLibraryHits(sampleData, "Operating Systems");
+  assert.equal(courseHits[0].libraryKind, "course");
+  assert.deepEqual(courseHits[0].target, { kind: "course", course: "Operating Systems" });
+  const schedHits = m.searchLibraryHits(sampleData, "Scheduling");
+  assert.ok(schedHits.some((h) => h.libraryKind === "deck" && h.target.kind === "deck" && h.target.id === "d-active"));
+  const noteHits = m.searchLibraryHits(sampleData, "Lab Review");
+  assert.deepEqual(noteHits.map((h) => h.target), [{ kind: "note", id: "n1" }]);
+  const sourceHits = m.searchLibraryHits(sampleData, "Lecture Notes");
+  assert.equal(sourceHits[0].libraryKind, "source");
+  assert.deepEqual(sourceHits[0].target, { kind: "source", id: "s1" });
+});
+
+test("FinderSheet shows 学习库内容 below feature results with unique ids and seamless selection", () => {
+  const richData = {
+    ...HOST,
+    focus: { course: "操作系统", courses: [{ name: "操作系统" }] },
+    decks: [{ id: "deck-tr", title: "翻译练习题组", course: "操作系统", available: 10 }],
+    sources: [{ id: "src-1", documentId: "doc-1", title: "操作系统讲义", page: 1, text: "讲义正文", courses: ["操作系统"] }],
+    notes: [{ id: "note-1", title: "调度复习笔记", course: "操作系统" }],
+  };
+  const mixed = sheet({ data: richData, initialQuery: "翻译" });
+  assert.match(mixed, /学习库内容/);
+  assert.ok(mixed.indexOf("finder-library") > mixed.indexOf('data-entry="translation"'), "appears below feature hits");
+  assert.match(mixed, /翻译练习题组/);
+  assert.equal(rows(mixed).length, 4, "3 feature hits + 1 library hit");
+  assert.match(mixed, /找到 4 项/);
+  const domIds = [...mixed.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
+  assert.equal(new Set(domIds).size, domIds.length, "unique DOM ids across feature and library rows");
+
+  const libraryOnly = sheet({ data: richData, initialQuery: "讲义" });
+  assert.match(libraryOnly, /学习库内容/);
+  assert.match(libraryOnly, /操作系统讲义/);
+  assert.doesNotMatch(libraryOnly, /finder-empty/, "library matches suppress empty state");
+  assert.equal((libraryOnly.match(/aria-selected="true"/g) || []).length, 1, "first library hit is active when no features match");
+});
+
+test("formatDocumentTitle shows running job count and hidden-tab completion notice", () => {
+  assert.equal(m.formatDocumentTitle("今日学习 · StudyHub", { runningJobs: 0, completedWhileHidden: false }), "今日学习 · StudyHub");
+  assert.equal(m.formatDocumentTitle("今日学习 · StudyHub", { runningJobs: 2, completedWhileHidden: false }), "[2 项进行中] 今日学习 · StudyHub");
+  assert.equal(m.formatDocumentTitle("今日学习 · StudyHub", { runningJobs: 0, completedWhileHidden: true }), "[已完成 ✓] 今日学习 · StudyHub");
+  assert.equal(m.formatDocumentTitle("", { runningJobs: 1, completedWhileHidden: false }), "[1 项进行中] StudyHub");
 });

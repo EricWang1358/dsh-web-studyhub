@@ -147,8 +147,28 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
   const grading = task?.status === "running";
   const key = `${run.id}:${card.id}`;
   const [draft, setDraft] = useState(() => value || readSession(data?.root, key)?.answer || "");
+  const [checkedIds, setCheckedIds] = useState(() => {
+    const saved = readSession(data?.root, key)?.checkedIds;
+    return Array.isArray(saved) ? saved : [];
+  });
+  useEffect(() => {
+    const saved = readSession(data?.root, key);
+    setDraft(value || saved?.answer || "");
+    setCheckedIds(Array.isArray(saved?.checkedIds) ? saved.checkedIds : []);
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (value && value !== draft) setDraft(value); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
-  const change = (next) => { setDraft(next); onChange?.(next); writeSession(data?.root, key, next ? { answer: next } : null); };
+  const persistSession = (nextAnswer, nextChecked) => {
+    const payload = {};
+    if (nextAnswer) payload.answer = nextAnswer;
+    if (nextChecked?.length) payload.checkedIds = nextChecked;
+    writeSession(data?.root, key, Object.keys(payload).length ? payload : null);
+  };
+  const change = (next) => { setDraft(next); onChange?.(next); persistSession(next, checkedIds); };
+  const toggleCriterion = (id, checked) => {
+    const next = checked ? (checkedIds.includes(id) ? checkedIds : [...checkedIds, id]) : checkedIds.filter((item) => item !== id);
+    setCheckedIds(next);
+    persistSession(draft, next);
+  };
   const marks = Number(card.marks) || 0;
   return (
     <div className="rubric-answer" data-tour="case-practice">
@@ -159,10 +179,21 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
         <Badge size="sm">{lengthHintLabel(marks)}</Badge>
         {run.lastRubric && !rubric && <Badge size="sm">{uiFormat("上次批改 {0}/{1} 分", [run.lastRubric.total, run.lastRubric.max])}</Badge>}
       </div>
-      {card.rubricCriteria?.length > 0 && !rubric && <details className="rubric-dims">
-        <summary>{ui("评分维度")}</summary>
-        <ul>{card.rubricCriteria.map((criterion) => <li key={criterion.id}>{criterion.label}<span>{uiFormat("{0} 分", [criterion.marks])}</span></li>)}</ul>
-      </details>}
+      {card.rubricCriteria?.length > 0 && !rubric && (() => {
+        const checkedSet = new Set(checkedIds);
+        const checkedCount = card.rubricCriteria.filter((criterion) => checkedSet.has(criterion.id)).length;
+        return (
+          <details className="rubric-dims">
+            <summary>{ui("评分维度")} · {uiFormat("已自检 {0}/{1} 项", [checkedCount, card.rubricCriteria.length])}</summary>
+            <ul>{card.rubricCriteria.map((criterion) => (
+              <li key={criterion.id}>
+                <Checkbox checked={checkedSet.has(criterion.id)} label={criterion.label} onChange={(on) => toggleCriterion(criterion.id, on)} />
+                <span>{uiFormat("{0} 分", [criterion.marks])}</span>
+              </li>
+            ))}</ul>
+          </details>
+        );
+      })()}
       {rubric ? (
         <>
           {run.feedback.answer && <details className="rubric-my-answer"><summary>{ui("我的回答")}</summary><Markdown text={run.feedback.answer} /></details>}
@@ -176,7 +207,16 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
             <span>{ui("你的回答")}</span>
             <textarea className="rubric-editor__input" rows={10} value={draft} readOnly={grading} maxLength={30000}
               placeholder={ui("写出建议，并用案例里的事实说明理由；案例没说的地方先写假设，再说明为什么不选另一种方案。支持 Markdown。")}
-              onChange={(event) => change(event.target.value)} />
+              onChange={(event) => change(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
+                if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.shiftKey && !event.altKey) {
+                  if (model.ready && !busy && !grading && draft.trim()) {
+                    event.preventDefault();
+                    onSubmit?.(draft);
+                  }
+                }
+              }} />
           </label>
           <div className="rubric-answer__foot">
             <small className="muted">{uiFormat("{0} 字/词 · 篇幅不等于得分", [countWords(draft)])}</small>

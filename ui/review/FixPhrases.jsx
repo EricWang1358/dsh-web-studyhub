@@ -6,10 +6,20 @@ import { IMPROVE_SUGGESTIONS } from "../agent-prompts/card.js";
 import { FIX_PHRASE_LIMITS, canAddFixPhrase } from "../../lib/fix-phrases.js";
 
 /* 修题 box: the choices under its heading and the one link that keeps what was typed. The built-in choices (ui/agent-prompts/card.js) come first, then the
-   learner's own phrases (settings.practice.fixPhrases, ui/review/use-fix-phrases.js), each a chip with a ✕ of its own. A click on a chip puts its whole text in the
-   box (`onPick`); the chip shows a clipped line when the phrase is long. A write that is running (busy) takes the ✕ away and locks the link. */
+   learner's own phrases (settings.practice.fixPhrases, ui/review/use-fix-phrases.js), each a chip with a ✕ of its own. A click on a chip appends its text into
+   the box (`onPick`); the chip shows a clipped line when the phrase is long. A write that is running (busy) takes the ✕ away and locks the link. */
 const CHIP_CHARS = 24;
 const clip = (text) => ([...text].length > CHIP_CHARS ? `${[...text].slice(0, CHIP_CHARS).join("")}…` : text);
+
+/** Append a picked fix phrase to existing text without duplicating it. */
+export function appendFixPhrase(current = "", picked = "") {
+  const cur = String(current ?? "");
+  const add = String(picked ?? "");
+  if (!add.trim()) return cur;
+  if (!cur.trim()) return add;
+  if (cur.includes(add)) return cur;
+  return `${cur.trim()}；${add}`;
+}
 
 export function FixPhraseChips({ phrases, onPick, onRemove }) {
   const { busy } = useStudy();

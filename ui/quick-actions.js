@@ -105,7 +105,7 @@ export function createQuickActions({ call, now = Date.now, holdMs = 8000, errorM
       const wanted = new Set(ids);
       let changed = false;
       for (const [key, entry] of entries)
-        if (entry.settledAt !== null && entry.action === action && entry.groups?.length && entry.groups.every((names) => names.some((name) => wanted.has(name)))) { entries.delete(key); changed = true; }
+        if (entry.settledAt !== null && entry.action === action && (wanted.has('*') || (entry.groups?.length && entry.groups.every((names) => names.some((name) => wanted.has(name)))))) { entries.delete(key); changed = true; }
       if (changed) emit();
     },
   };
@@ -200,8 +200,10 @@ export const deleteJobs = (quick, ids) => inParts(ids, (part) => {
 export function markInboxRead(quick, { ids } = {}) {
   if (ids) {
     const wanted = new Set(ids);
+    quick.release?.(ids, "inbox.unread");
     return quick.run("inbox.read", { ids }, {
       key: `inbox:read:${ids.join(",")}`,
+      groups: ids.map((id) => [id]),
       patch: (data) => {
         let flipped = 0;
         const items = (data.inbox?.items || []).map((item) => wanted.has(item.id) && !item.read ? (flipped++, { ...item, read: true }) : item);
@@ -210,10 +212,30 @@ export function markInboxRead(quick, { ids } = {}) {
       confirmed: (data) => !(data.inbox?.items || []).some((item) => wanted.has(item.id) && !item.read),
     });
   }
+  quick.release?.(["*"], "inbox.unread");
+  quick.release?.(["__all__"], "inbox.read");
   return quick.run("inbox.read", { all: true }, {
     key: "inbox:read",
+    groups: [["__all__"]],
     patch: (data) => data.inbox ? { ...data, inbox: { ...data.inbox, unread: 0, items: (data.inbox.items || []).map((item) => item.read ? item : { ...item, read: true }) } } : data,
     confirmed: (data) => !data.inbox?.unread,
+  });
+}
+
+/** Single-letter unread toggle: marks the given inbox letter ids unread immediately. */
+export function markInboxUnread(quick, { ids } = {}) {
+  const list = Array.isArray(ids) ? ids : ids ? [ids] : [];
+  const wanted = new Set(list);
+  quick.release?.(list, "inbox.read");
+  return quick.run("inbox.unread", { ids: list }, {
+    key: `inbox:unread:${list.join(",")}`,
+    groups: list.map((id) => [id]),
+    patch: (data) => {
+      let flipped = 0;
+      const items = (data.inbox?.items || []).map((item) => wanted.has(item.id) && item.read ? (flipped++, { ...item, read: false }) : item);
+      return flipped ? { ...data, inbox: { ...data.inbox, unread: (data.inbox.unread || 0) + flipped, items } } : data;
+    },
+    confirmed: (data) => !(data.inbox?.items || []).some((item) => wanted.has(item.id) && item.read),
   });
 }
 

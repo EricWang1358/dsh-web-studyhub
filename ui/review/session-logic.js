@@ -152,10 +152,10 @@ const BLANK = (value) => String(value).trim();
 
 /**
  * What a key press means. Returns null when the press is not ours, otherwise { cancelAuto, preventDefault, action }
- * (action may be null: the key is consumed, nothing happens). Actions: help, help-close, autopilot, resume, answer{args}, focus-cloze, voice, voice-ask,
- * move{direction}, flip, hint, explain, assist-plain, choose{id}, skip, note, focus, source.
+ * (action may be null: the key is consumed, nothing happens). Actions: help, help-close, end-cancel, autopilot, resume, answer{args}, focus-cloze, voice, voice-ask,
+ * move{direction}, flip, hint, explain, assist-plain, choose{id}, clear-choice, skip, note, focus, source.
  * event: { key, code, shiftKey, repeat, defaultPrevented, ctrlKey, metaKey, altKey, inEditable, onButton }.
- * ctx: { inside, modalOpen, page, run, busy, shortcutHelp, choice, isCloze, rubricCard, selected, clozeValues }.
+ * ctx: { inside, modalOpen, page, run, busy, shortcutHelp, endAsked, choice, isCloze, rubricCard, selected, clozeValues }.
  */
 export function shortcutAction(event, ctx) {
   if (!shortcutGate(event, ctx) || event.defaultPrevented || event.repeat) return null;
@@ -163,6 +163,7 @@ export function shortcutAction(event, ctx) {
   const { run, busy, choice, isCloze, rubricCard } = ctx;
   if (event.key === '?' || (event.shiftKey && event.code === 'Slash')) return result({ type: 'help' }, true);
   if (event.key === 'Escape' && ctx.shortcutHelp) return result({ type: 'help-close' });
+  if (event.key === 'Escape' && ctx.endAsked && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) return result({ type: 'end-cancel' }, true);
   // Shift+V: ask 帮我弄懂 by voice (#1031), on any question outside an exam.
   if (event.shiftKey && event.code === 'KeyV') return result(ctx.page === 'review' && run?.card && !busy && run.mode !== 'exam' ? { type: 'voice-ask' } : null, true);
   if (event.shiftKey || (event.onButton && (event.key === 'Enter' || event.code === 'Space'))) return result(null);
@@ -171,6 +172,7 @@ export function shortcutAction(event, ctx) {
   // S from anywhere: resume the last round or start today's path.
   if (letter === 's' && !busy && (ctx.page !== 'review' || !run || run.complete)) return result({ type: 'resume' }, true);
   if (ctx.page !== 'review' || !run?.card || busy) return result(null);
+  if (ctx.endAsked && event.key === 'Enter') return result(null, true);
   const taskCard = run.mode !== 'flashcard' && run.card.kind === 'task';
   const flipsOnly = !choice && !isCloze && !rubricCard && !taskCard;
   if (!choice && !isCloze && !taskCard && run.revealed && !run.feedback && /^[0-5]$/.test(event.key)) return result({ type: 'answer', args: { grade: Number(event.key) } }, true);
@@ -180,7 +182,7 @@ export function shortcutAction(event, ctx) {
     if (isCloze) return result(Object.values(ctx.clozeValues).some(BLANK) ? { type: 'answer', args: { answers: ctx.clozeValues } } : { type: 'focus-cloze' }, true);
     return result(flipsOnly ? { type: 'flip' } : null, true);
   }
-  if (letter === 'h') return result({ type: run.revealed ? 'explain' : 'hint' }, true);
+  if (letter === 'h') return result({ type: (run.revealed || !!run.feedback) ? 'explain' : 'hint' }, true);
   // 通俗详解 in one key: the background assistant explains with an analogy.
   if (letter === 't' && run.mode !== 'exam') return result({ type: 'assist-plain' }, true);
   // The actions of 更多 that have a key of their own (#1008): 先跳过, 写笔记, 标为重点, and the question's own page. An exam has none of them.
@@ -191,6 +193,9 @@ export function shortcutAction(event, ctx) {
   if (event.key === 'ArrowRight' && run.feedback) return result({ type: 'move', direction: 1 }, true);
   if (event.key === 'ArrowLeft' && run.index) return result({ type: 'move', direction: -1 }, true);
   if (event.code === 'Space' && flipsOnly) return result({ type: 'flip' }, true);
+  if (choice && (run.card.multiple || run.card.kind === 'multi') && !run.feedback && ctx.selected?.length > 0 && (event.key === '0' || event.key === 'Backspace')) {
+    return result({ type: 'clear-choice' }, true);
+  }
   if (choice && !run.feedback && /^[1-6]$/.test(event.key)) {
     const option = run.card.options[Number(event.key) - 1];
     return result(option ? { type: 'choose', id: option.id } : null);
@@ -198,7 +203,7 @@ export function shortcutAction(event, ctx) {
   return result(null);
 }
 
-/** What a key press inside a Cloze blank means: jump to next empty blank, submit when ready, or blur back to the card (Esc). Ignores IME composition. */
+/** What a key press inside a Cloze blank means: jump to next empty blank (or Shift+Enter to previous blank), submit when ready, or blur back to the card (Esc). Ignores IME composition. */
 export function clozeBlankKeyAction(event, { blankIds = [], currentId = '', values = {} } = {}) {
   if (!event || event.isComposing || event.keyCode === 229 || event.repeat) return null;
   if (event.key === 'Escape' && !event.ctrlKey && !event.metaKey && !event.altKey) return { type: 'blur' };
@@ -206,6 +211,12 @@ export function clozeBlankKeyAction(event, { blankIds = [], currentId = '', valu
   const ids = Array.isArray(blankIds) ? blankIds : [];
   const filled = (id) => Boolean(BLANK(values?.[id] ?? ''));
   if (event.ctrlKey || event.metaKey) return { type: ids.some(filled) ? 'submit' : 'noop' };
+  if (event.shiftKey && !event.altKey) {
+    if (ids.length <= 1) return { type: 'noop' };
+    const cur = ids.indexOf(currentId);
+    const prevId = cur >= 0 ? ids[(cur - 1 + ids.length) % ids.length] : ids[ids.length - 1];
+    return prevId && prevId !== currentId ? { type: 'focus', id: prevId } : { type: 'noop' };
+  }
   if (event.shiftKey || event.altKey) return { type: 'noop' };
   if (ids.length > 0 && ids.every(filled)) return { type: 'submit' };
   const cur = ids.indexOf(currentId);

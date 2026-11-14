@@ -54,12 +54,28 @@ function scoreWording(run) {
   return self === 0 ? "道题答对 / {0} 道" : self >= (run.answered || 0) ? "道题自评达标 / {0} 道" : "道题达标 / {0} 道";
 }
 
+const SEGMENT_TO_STATUS = { correct: "right", practice: "wrong", remaining: "unanswered" };
+const STATUS_TO_SEGMENT = { right: "correct", wrong: "practice", unanswered: "remaining" };
+
 export default function Review({ session, data, shellTitle, feedback, coachProps, links = {}, context = {} }) {
   useInjectCss(reviewCss, "study-review");
   const { run, choice, actions } = session;
   const { reviewAct } = actions;
   const study = useStudy();
   const { call, act, busy, host, navigate, openSettings, notify } = study;
+  const [lookBackSegmentState, setLookBackSegmentState] = React.useState({ runId: null, segment: null });
+  const lookBackSegment = lookBackSegmentState.runId === run?.id ? lookBackSegmentState.segment : null;
+  const setLookBackSegment = (segment) => setLookBackSegmentState({ runId: run?.id ?? null, segment });
+  const handleSelectSegment = (key) => {
+    const mapped = SEGMENT_TO_STATUS[key] || null;
+    const next = mapped && lookBackSegment === mapped ? null : mapped;
+    setLookBackSegment(next);
+    if (next) {
+      requestAnimationFrame?.(() => {
+        document.querySelector(".round-look-back")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+      });
+    }
+  };
   const { onBackToWorkflow, openSkeleton, onOpenNote, onRecapSettings, onModelSettings, onReturnToReading } = links;
   const { label: contextReturnLabel, onReturn: onReturnContext, detour, onReturnFromDetour } = context;
   const enterRun = session.enterRun;
@@ -93,6 +109,29 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const rail = !run.complete && run.navigation?.length > 0;
   const dock = useSourceDock({ pageRef, rail, run, sources: data?.sources, study, readerDialogOpen: readerOpen(app?.lib?.modal), modalOpen: !!app?.lib?.modal });
   const openModal = dock.services.openModal;
+  const { docked: dockDocked, focusColumn: focusSourceColumn } = dock;
+  React.useEffect(() => {
+    if (!dockDocked) return undefined;
+    const onKeyDown = (event) => {
+      if (event.defaultPrevented || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.code !== "Backquote" && event.key !== "`") return;
+      const root = pageRef.current;
+      if (!root) return;
+      if (root.ownerDocument?.querySelector(".sh-dialog__backdrop, dialog[open]")) return;
+      event.preventDefault();
+      if (root.ownerDocument?.activeElement?.closest?.(".source-column")) {
+        const card = root.querySelector(".review-body .question-card");
+        if (card) {
+          if (!card.hasAttribute("tabindex")) card.setAttribute("tabindex", "-1");
+          card.focus({ preventScroll: true });
+        }
+      } else {
+        focusSourceColumn();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [dockDocked, focusSourceColumn]);
   const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
   const skeletonHere = run.card ? data?.skeletons?.find((k) => k.cardIds.includes(run.card.id)) : null;
   // A finished round on a case set (WP12): its weak criteria become drills, or another case like it.
@@ -138,7 +177,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
     >
       {/* The rail is a full-height column of the page, not of the question body,
           so it is pinned from the first frame instead of sliding up to stick. */}
-      {rail && <ReviewNavigator run={run} onJump={(index) => reviewAct("review.move", { index })} onEnd={run.mode !== "exam" ? actions.askEnd : undefined} />}
+      {rail && <ReviewNavigator run={run} skippedIndices={session.skippedIndices} onJump={(index) => reviewAct("review.move", { index })} onEnd={run.mode !== "exam" ? actions.askEnd : undefined} />}
       <PageHeader className="review-heading" compact
         eyebrow={flow ? [ui("学习流"), flow.stepIndex >= 0 && uiFormat("第 {0}/{1} 步", [flow.stepIndex + 1, flow.stepCount]), flow.stepTitle].filter(Boolean).join(" · ") : undefined}
         title={[shellTitle, run.mode === "flashcard" && ui("闪卡"), run.retry && !run.complete && ui("本轮重练")].filter(Boolean).join(" · ")}
@@ -188,7 +227,9 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
               <span>{uiFormat(scoreWording(run), [run.questions ?? run.total])}</span>
               {run.retries > 0 && <small>{run.retries === 1 ? ui("另外重练了 1 次") : uiFormat("另外重练了 {0} 次", [run.retries])}</small>}
             </div>
-            <ResultBreakdown total={run.questions ?? run.total} answered={run.answered} correct={run.correct} />
+            <ResultBreakdown total={run.questions ?? run.total} answered={run.answered} correct={run.correct}
+              activeSegment={lookBackSegment ? STATUS_TO_SEGMENT[lookBackSegment] : null}
+              onSelectSegment={run.mode !== "exam" ? handleSelectSegment : undefined} />
           </div>
           {/* The next step comes first (the page decided it with today's plan in view): one filled button, then the 点评 and the rest. */}
           {/* A round started in the book (or on the 总纲) goes back there first; the page's own next step is then the second button. */}
@@ -270,7 +311,10 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </p>
           )}
           {/* 本轮题目 (#1009): which questions went wrong or were left, each with a read-only look-back from the run itself. */}
-          <RoundLookBack key={"look-back-" + run.id} run={run} sources={data?.sources} onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })}
+          <RoundLookBack key={"look-back-" + run.id} run={run} sources={data?.sources}
+            segment={lookBackSegment} onSegmentChange={setLookBackSegment}
+            onPracticeWrong={(refs) => act("review.start", practiceArgs(refs), enterRun)}
+            onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })}
             onOpenWrongBook={pageAvailable(data, "wrongbook") ? (refs) => { askForLeeches(data?.root, refs); navigate("wrongbook"); } : undefined} />
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>

@@ -114,7 +114,9 @@ test('terms work inside bold and lists, and duplicates each get a button', () =>
 });
 
 test('terms inside code blocks are untouched; malformed markers stay plain text', () => {
-  assert.doesNotMatch(html('```\n[[ELK]]\n```'), /<button/);
+  const fenced = html('```\n[[ELK]]\n```');
+  assert.doesNotMatch(fenced, /md-term/);
+  assert.match(fenced, /<code>\[\[ELK\]\]<\/code>/);
   for (const text of ['[[ELK', 'ELK]]', '[[ ]]', '[[]]', '[[a\nb]]', `[[${'x'.repeat(100)}]]`]) assert.doesNotMatch(html(text), /<button/, text);
   assert.match(html('[[ELK'), /\[\[ELK/);
 });

@@ -1,5 +1,5 @@
 import { sourceItemKey } from '../../lib/source-groups.js';
-import { readText, writeText } from '../storage.js';
+import { readText, removeKey, writeText } from '../storage.js';
 
 /* 对照栏 (#1012): a material opened from a question sits beside it on a wide practice page, instead of a full-size dialog over it. The rules, away from the
    DOM. Glossary:
@@ -43,7 +43,7 @@ export function questionPlace(run, sources) {
 export const sameMaterial = (a, b) => !!a && !!b && (a.id === b.id || sourceItemKey(a) === sourceItemKey(b));
 
 /** The dock of a first opening. */
-export const openDock = modal => ({ modal, key: 1, seek: null, at: modal.source.id, collapsed: false, pending: null, nonce: 0 });
+export const openDock = modal => ({ modal, key: 1, seek: null, at: modal.source.id, collapsed: false, pinned: false, pending: null, nonce: 0 });
 
 /* A place within the material on screen is a seek (its opening quote, now another place's, goes); another material is a swap (a new key). */
 function show(state, { source, quote = '', peekPage }, opening) {
@@ -77,12 +77,21 @@ export function dockReducer(state, action) {
     case 'open': return show(state, action.modal, action.modal);
     case 'follow': {
       const place = action.place;
+      if (state.pinned) {
+        if (!place || place.id === state.at) return state.pending ? { ...state, pending: null } : state;
+        return { ...state, pending: place };
+      }
       if (!place || place.id === state.at) return unquote(state);
       if (state.collapsed) return { ...unquote(state), pending: place, at: place.id };
       return show(state, { source: place });
     }
     case 'collapse': return state.collapsed ? state : { ...state, collapsed: true };
-    case 'expand': return state.pending ? show({ ...state, collapsed: false }, { source: state.pending }) : state.collapsed ? { ...state, collapsed: false } : state;
+    case 'expand': return state.pending && !state.pinned ? show({ ...state, collapsed: false }, { source: state.pending }) : state.collapsed ? { ...state, collapsed: false } : state;
+    case 'toggle-pin': {
+      const pinned = !state.pinned;
+      if (!pinned && !state.collapsed && state.pending) return show({ ...state, pinned }, { source: state.pending });
+      return { ...state, pinned };
+    }
     case 'missed': return action.seek?.nonce === state.seek?.nonce
       ? { ...state, modal: { type: 'source', source: action.seek.source, back: true, ...(action.seek.quote ? { quote: action.seek.quote } : {}) }, key: state.key + 1, seek: null }
       : state;
@@ -102,8 +111,9 @@ export function columnWidth(kept, room) {
 export function dockedPlace(state) {
   if (state.collapsed) return null;
   const seek = state.seek?.source?.id === state.at ? state.seek : null;
-  const source = state.pending || seek?.source || state.modal.source;
-  const quote = state.pending ? '' : seek ? seek.quote : state.modal.quote;
+  const followed = state.pinned ? null : state.pending;
+  const source = followed || seek?.source || state.modal.source;
+  const quote = followed ? '' : seek ? seek.quote : state.modal.quote;
   return { type: 'source', source, back: true, ...(quote ? { quote } : {}) };
 }
 
@@ -114,3 +124,6 @@ export function readColumnWidth(storage) {
 }
 
 export const saveColumnWidth = (width, storage) => writeText(WIDTH_KEY, String(Math.round(width)), storage);
+
+/** Forget any saved column width so the split falls back to its default proportion. */
+export const clearColumnWidth = (storage) => removeKey(WIDTH_KEY, storage);

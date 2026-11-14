@@ -1,10 +1,10 @@
 import React from "react";
 import { ui } from "../i18n.js";
-import { Button, CloseButton, IconButton } from "../components/index.js";
+import { Button, CloseButton, IconButton, Tooltip } from "../components/index.js";
 import { DocumentViewer } from "../workspace-views.jsx";
 import { useSourceReader } from "../app/modals/source-reader.jsx";
 import { useInjectCss } from "../shared.js";
-import { COLUMN_MIN, QUESTION_MIN, columnWidth, dockReducer, dockedPlace, openDock, questionRoom } from "./source-dock.js";
+import { COLUMN_MIN, QUESTION_MIN, clearColumnWidth, columnWidth, dockReducer, dockedPlace, openDock, questionRoom } from "./source-dock.js";
 import css from "./source-split.css";
 
 // The column's reader is drawn again only when its props change (they are steady: ui/app/modals/source-reader.jsx), not with every render of the page.
@@ -30,7 +30,7 @@ export function roomOf(page) {
    Props: request ({ modal, nonce }: the last source link opened), followKey + place (the question on screen and its place), pageRef (the practice page, whose
    CSS variable --source-column sets the width), shownRef (kept up to date with the reader modal of what the column shows: dockedPlace), onWidth(px) (keep
    a width), onClose(). */
-export default function SourceColumn({ request, followKey, place, pageRef, shownRef, onWidth, onClose }) {
+const SourceColumn = React.forwardRef(function SourceColumn({ request, followKey, place, pageRef, shownRef, onWidth, onResetWidth, onClose, onExpand }, ref) {
   useInjectCss(css, "study-source-split");
   const [state, dispatch] = React.useReducer(dockReducer, request.modal, openDock);
   // A link opened while docked is shown here (the first one opened the column).
@@ -71,6 +71,33 @@ export default function SourceColumn({ request, followKey, place, pageRef, shown
     tellWidth(next);
     onWidth(next);
   };
+  const resetWidth = () => {
+    pageRef.current?.style.removeProperty("--source-column");
+    if (onResetWidth) onResetWidth();
+    else clearColumnWidth();
+    requestAnimationFrame(() => tellWidth(widthNow()));
+  };
+  const wantFocus = React.useRef(false);
+  const focusScroller = React.useCallback(() => {
+    const scroller = asideRef.current?.querySelector(".reader-scroll");
+    if (scroller) scroller.focus({ preventScroll: true });
+    else asideRef.current?.focus({ preventScroll: true });
+  }, []);
+  React.useImperativeHandle(ref, () => ({
+    focus() {
+      if (state.collapsed) {
+        wantFocus.current = true;
+        dispatch({ type: "expand" });
+        return;
+      }
+      focusScroller();
+    },
+  }), [state.collapsed, focusScroller]);
+  React.useEffect(() => {
+    if (collapsed || !wantFocus.current) return;
+    wantFocus.current = false;
+    focusScroller();
+  }, [collapsed, focusScroller]);
   React.useLayoutEffect(() => { if (!collapsed) tellWidth(widthNow()); }, [collapsed]); // eslint-disable-line react-hooks/exhaustive-deps -- measured as the divider is drawn
   // Folded, the page's last track is the rail's (ui/review/session.css [data-source-folded]); written on the page as its width is, so the page does not render for it.
   React.useLayoutEffect(() => {
@@ -110,6 +137,12 @@ export default function SourceColumn({ request, followKey, place, pageRef, shown
     handle.addEventListener("pointercancel", end);
   };
   const onHandleKey = (event) => {
+    if (event.key === "0") {
+      event.preventDefault();
+      event.stopPropagation();
+      resetWidth();
+      return;
+    }
     const room = roomNow();
     const to = event.key === "ArrowLeft" ? widthNow() + 32 : event.key === "ArrowRight" ? widthNow() - 32
       : event.key === "Home" ? COLUMN_MIN : event.key === "End" ? room - QUESTION_MIN : null;
@@ -128,23 +161,38 @@ export default function SourceColumn({ request, followKey, place, pageRef, shown
   };
 
   return (
-    <aside ref={asideRef} className="source-column" data-own-keys="" data-collapsed={collapsed || undefined} aria-label={ui("对照资料")} onKeyDown={onKeyDown}>
+    <aside ref={asideRef} className="source-column" tabIndex={-1} data-own-keys="" data-collapsed={collapsed || undefined} aria-label={ui("对照资料")} onKeyDown={onKeyDown}>
       {collapsed ? (
         <Button variant="quiet" className="source-column__rail" aria-label={ui("展开对照资料")} onClick={() => dispatch({ type: "expand" })}>
           <span aria-hidden="true">{ui("资料")}</span>
         </Button>
       ) : (
         <div ref={handleRef} className="source-column__handle" role="separator" aria-orientation="vertical" aria-label={ui("拖动调整资料栏宽度")} tabIndex={0}
-          aria-valuemin={COLUMN_MIN} onPointerDown={onPointerDown} onKeyDown={onHandleKey} />
+          aria-valuemin={COLUMN_MIN} onPointerDown={onPointerDown} onDoubleClick={resetWidth} onKeyDown={onHandleKey} />
       )}
       <div className="source-column__body" hidden={collapsed}>
         <header className="source-column__head">
           <div className="source-column__title">{title}</div>
-          <IconButton icon="chevron" size="sm" label={ui("收起资料栏")} onClick={() => dispatch({ type: "collapse" })} />
-          <CloseButton label={ui("关闭资料栏")} onClick={onClose} />
+          <Tooltip layer content={state.pinned ? ui("取消固定") : ui("固定当前资料，切题不自动跟随")}>
+            <IconButton icon="pin" size="sm" aria-pressed={!!state.pinned} data-pinned={state.pinned ? "true" : undefined}
+              label={state.pinned ? ui("取消固定") : ui("固定资料")} onClick={() => dispatch({ type: "toggle-pin" })} />
+          </Tooltip>
+          {onExpand && (
+            <Tooltip layer content={ui("大窗打开阅读器")}>
+              <IconButton icon="external" size="sm" label={ui("大窗打开阅读器")} onClick={() => onExpand(dockedPlace(state))} />
+            </Tooltip>
+          )}
+          <Tooltip layer content={ui("收起资料栏（Esc 回题目）")}>
+            <IconButton icon="chevron" size="sm" label={ui("收起资料栏")} onClick={() => dispatch({ type: "collapse" })} />
+          </Tooltip>
+          <Tooltip layer content={ui("关闭资料栏（Esc 回题目）")}>
+            <CloseButton label={ui("关闭资料栏")} onClick={onClose} />
+          </Tooltip>
         </header>
         {viewer && <ColumnReader key={state.key} {...viewer} seek={state.seek} onSeekMissed={onSeekMissed} />}
       </div>
     </aside>
   );
-}
+});
+
+export default SourceColumn;

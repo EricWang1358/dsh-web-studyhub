@@ -31,6 +31,7 @@
     .result-segment-remaining { background: var(--decor-faint); }
     .result-breakdown-legend { display: flex; flex-wrap: wrap; gap: var(--space-2-5) var(--space-5-5); margin-top: var(--space-4-5); }
     .result-legend-item { display: inline-flex; gap: var(--space-2); align-items: center; font-size: var(--fs-md); color: var(--text-muted); }
+    .result-legend-item[aria-pressed="true"] { background: var(--bg-selected); border-color: var(--line-strong); color: var(--text); }
     .result-legend-item strong { color: var(--text); font-variant-numeric: tabular-nums; }
     .result-legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
     .result-page .result-next { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-5) 0 var(--space-4); }
@@ -42,7 +43,9 @@
     .result-details > summary { cursor: pointer; font-weight: var(--fw-strong); }
     /* 本轮题目 (ui/review/RoundLookBack.jsx, #1009): a row per question, its read-only look-back opening under it. */
     .round-look-back { margin-top: var(--space-4-5); }
-    .round-look-back__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); }
+    .round-look-back__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-3); }
+    .round-look-back__lead { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); min-width: 0; }
+    .round-look-back__tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); margin-inline-start: auto; }
     .round-look-back__head h3 { margin: 0; font-size: var(--fs-lg); }
     .look-back__rows { margin: var(--space-3) 0 0; padding: 0; list-style: none; }
     .look-back__row { border-top: 1px solid var(--line-soft); }
@@ -78,6 +81,7 @@
   @container study (max-width: 640px) {
     :where(.study-app, .study-seat) {
       .result-hero { grid-template-columns: 1fr; padding: var(--space-5-5); gap: var(--space-6); }
+      .round-look-back__tools { margin-inline-start: 0; }
       .result-page.result-page { margin-top: var(--space-6-5); padding: 0 var(--space-3-5); }
     }
   }
