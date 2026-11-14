@@ -2,6 +2,12 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 4.8.3 — 2026-11-14
+
+- **A flashcard's question no longer sits on the red line under its header on a narrow screen.** On a phone of 360 px, or a 600 px window with the sidebar open, the header takes three lines (count, 本组 mastery, topic) and the question started 1 px under its rule, while at 420 px it left a large hole. The card now measures its header and starts the question just below it at every width and in both languages, including when "Corrections to read" or a note badge joins the header. Not verified: a real phone (checked in a browser at 360, 420, 600 and 1280 px in Chinese and English, with short and long topics).
+
+Not checked before this release: `main` did not run for a day of real use on the experience channel, and nothing here was tried end to end with a real model in a real DSH desktop window after packaging. The change was checked with the automated tests and headless Chromium at 360, 420, 600 and 1280 px (zh and en, short and long topics), with the voice answering browser test and the fake model only. Not tried: a real phone. npm's `latest` tag is not updated; the version on the release page is the newest.
+
 ## 4.8.2 — 2026-11-14
 
 - **Four small fixes around answering by voice.**

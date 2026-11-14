@@ -1,7 +1,7 @@
 {
   "about": "Written by npm run changelog:release. A pull request adds a fragment to changes/unreleased instead of editing a changelog (changes/README.md).",
   "files": {
-    "CHANGELOG.md": "sha256:a56202e739cd9b07a9be77ea37894356cf1f52b5d821c6c1899edc036de0c99e",
-    "CHANGELOG.zh-CN.md": "sha256:d72bf2363f3aa9f5eb28e6e34bb8aedd22add0bf58aedc1c5f33e2f73e440e2c"
+    "CHANGELOG.md": "sha256:8fbf77666b92503a48fc5ac8d73ac46200a815a6fed901bd268b21b56eb554d2",
+    "CHANGELOG.zh-CN.md": "sha256:0bb903fadf00fc8f4429ddf192828bb84fcc7003601facf81207359cca27303c"
   }
 }
