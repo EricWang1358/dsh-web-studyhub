@@ -28,6 +28,7 @@ import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES } from "../agent-prompts/card.js";
 import { FixPhraseChips, FixPhraseSave } from "./FixPhrases.jsx";
 import { useFixPhrases } from "./use-fix-phrases.js";
+import { useFlashHead } from "./use-flash-head.js";
 import { CourseRuleAdd } from "../course-rules/CourseRuleAdd.jsx";
 import { useCourseRules } from "../course-rules/use-course-rules.js";
 import { fixSuggestionFor } from "../card-fix.js";
@@ -196,6 +197,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   // Case questions (WP12): the scenario sits above the question; its highlights belong to this run.
   const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
   const taskCard = run.mode !== "flashcard" && run.card?.kind === "task";
+  // A flashcard's head floats over its faces: they start below its measured height (ui/review/use-flash-head.js).
+  const flashHead = useFlashHead(!choice && !isCloze && !rubricCard && !taskCard);
   const gradeTask = cardTasks.filter((task) => task.mode === "grade").at(-1);
   // Answering by voice (#1031, V / Shift+V): ui/review/VoiceAnswer.jsx. 先跳过 / 到此为止 and the N / F / O keys (#1008): ui/review/RoundSteps.jsx.
   const voice = useVoiceAnswer({ session, data, model, rubricCard, setAssistMode, setAssistText });
@@ -261,7 +264,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         {/* The card: header, stem and answers on paper stock. Toolbar,
             status and explanation sit below it on the desk. */}
         <div className={"question-card" + (!choice && !isCloze && !rubricCard && !taskCard ? "" : " sh-paper-card sh-paper-card--roomy")} data-tour="review-question" tabIndex={-1}>
-          <div className="question-card__head">
+          <div className="question-card__head" ref={flashHead}>
             <div className="question-meta">
               <span>
                 <span>{words.main}</span>{words.note && <small className="question-retry-note">{words.note}</small>}
