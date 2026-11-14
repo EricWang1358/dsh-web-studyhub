@@ -11,8 +11,11 @@ const chunkName = /^client\.[A-Za-z0-9][A-Za-z0-9._-]*\.js$/;
 export const buildCacheDir = resolve(root, 'node_modules', '.cache', 'studyhub-tests', 'bundles');
 const cacheEnabled = () => process.env.STUDY_BUILD_CACHE !== '0';
 
+export const UI_MODULE_EXTRA_FILES = ['tests/helpers/ui-module.mjs', 'tests/helpers/native-selects.mjs', 'tests/helpers/native-select-stub.jsx'];
+
 /** Fast nanosecond-resolution fingerprint of every source file that can affect UI/client bundles, excluding emitted lib/client*.js chunks. */
 export async function sourceTreeDigest(extraFiles = []) {
+  if (!extraFiles.length && process.env.STUDY_SOURCE_TREE_DIGEST) return process.env.STUDY_SOURCE_TREE_DIGEST;
   const hash = createHash('sha256');
   async function walk(dir, topLib = false) {
     const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));

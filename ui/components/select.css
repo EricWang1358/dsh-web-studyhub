@@ -85,7 +85,7 @@
     .sh-combobox__action { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 2.1em; margin: 0; padding: var(--space-1-5) var(--space-2-5); border: 0;
       border-radius: calc(var(--radius) - var(--sh-inset) - var(--hairline)); background: none; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); text-align: start; cursor: pointer; }
     .sh-combobox__action:hover:not(:disabled), .sh-combobox__action:focus-visible { background: var(--bg-hover); color: var(--text); }
-    .sh-combobox__action:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; box-shadow: var(--ring); }
+    .sh-combobox__action:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
     .sh-combobox__action:disabled { color: var(--text-faint); cursor: default; }
     .sh-combobox__action > svg { flex: none; color: var(--text-muted); }
     .sh-combobox__action-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

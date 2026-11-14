@@ -9,6 +9,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { availableParallelism, constants, tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildPreview, sourceTreeDigest, UI_MODULE_EXTRA_FILES } from './build.mjs';
 import { scrubSecrets } from './qa/env.mjs';
 import { chooseConcurrency, listTestFiles, parseTestArgs, readSlowList, repoRoot } from './qa/test-schedule.mjs';
 import { acquireFullRunLock, fullRunHolder, MAX_WAIT_MS, POLL_MS } from './qa/test-lock.mjs';
@@ -54,6 +55,15 @@ try {
     }
   }
   if (!receivedSignal) {
+    if (!process.env.STUDY_TEST_SUITE_DIR && process.env.STUDY_BUILD_CACHE !== '0') {
+      const [srcDigest, uiDigest] = await Promise.all([
+        env.STUDY_SOURCE_TREE_DIGEST || sourceTreeDigest(),
+        env.STUDY_UI_TREE_DIGEST || sourceTreeDigest(UI_MODULE_EXTRA_FILES),
+      ]);
+      env.STUDY_SOURCE_TREE_DIGEST = srcDigest;
+      env.STUDY_UI_TREE_DIGEST = uiDigest;
+      if (ordered && !fast) await buildPreview({ write: false });
+    }
     const concurrency = args.some(arg => arg.startsWith('--test-concurrency')) ? [] : [`--test-concurrency=${chooseConcurrency({ available: availableParallelism(), reduced })}`];
     // The ordered runner takes the whole suite; node's own runner (sorting by name) takes explicit files and any option the runner does not know.
     const command = ordered ? [fileURLToPath(new URL('./qa/run-tests.mjs', import.meta.url)), ...(fast ? ['--fast'] : []), ...concurrency, ...args]

@@ -15,8 +15,8 @@ const full = { language: 'zh', onLanguage: noop, theme: 'dark', onTheme: noop, a
   fontCustom: '', onFontCustom: noop, fontTitle: 'follow', onFontTitle: noop, motion: 'auto', onMotion: noop, contrast: 'auto', onContrast: noop, density: 'standard', onDensity: noop,
   radius: 'standard', onRadius: noop, onReset: noop, onExport: () => '{"studyhubAppearance":1}', onImport: () => true };
 
+const mod = await loadUi(`export { default as AppearanceSection } from './ui/settings/AppearanceSection.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
 async function draw(appearance = full, lang = 'zh') {
-  const mod = await loadUi(`export { default as AppearanceSection } from './ui/settings/AppearanceSection.jsx'; export { setUiLanguage } from './ui/i18n.js';`);
   mod.setUiLanguage(lang);
   try { return renderToStaticMarkup(h(mod.AppearanceSection, { appearance })); } finally { mod.setUiLanguage('zh'); }
 }

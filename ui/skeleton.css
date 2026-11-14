@@ -536,7 +536,7 @@
     & .skc-class.skc-class:focus-visible {
       outline: 2px solid var(--accent-soft);
       outline-offset: 2px;
-      box-shadow: var(--ring), var(--shadow-popover);
+      box-shadow: var(--shadow-popover);
     }
     & .skc-class.dim {
       opacity: 0.35;
@@ -774,7 +774,6 @@
     & .sqc-label.sqc-label:focus-visible {
       outline: 2px solid var(--accent-soft);
       outline-offset: 2px;
-      box-shadow: var(--ring);
     }
   }
   @media (forced-colors: active) {

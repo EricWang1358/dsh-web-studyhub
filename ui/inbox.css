@@ -42,6 +42,7 @@
       color: var(--bg-canvas);
       font-size: var(--fs-xs);
       font-weight: var(--fw-strong);
+      font-variant-numeric: tabular-nums;
       line-height: 20px;
       text-align: center;
       box-shadow: 0 0 0 2px var(--bg-canvas);
@@ -71,7 +72,7 @@
       border-bottom: 1px solid var(--line-soft);
     }
     .mailbox__head strong { font-size: var(--fs-md); }
-    .mailbox__sub { color: var(--text-muted); font-size: var(--fs-sm); }
+    .mailbox__sub { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     /* Two classes of the mailbox, so a Button margin reset injected after this file cannot win. */
     .mailbox .mailbox__read-all { margin-left: auto; }
     .mailbox__error { margin: var(--space-2) var(--space-3) 0; }
@@ -128,8 +129,8 @@
       white-space: nowrap;
       font-size: var(--fs-sm);
     }
-    .mailbox__time { flex: none; margin-left: auto; font-size: var(--fs-sm); }
-    .mailbox__multi { flex: none; font-size: var(--fs-sm); }
+    .mailbox__time { flex: none; margin-left: auto; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+    .mailbox__multi { flex: none; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .mailbox__prompt {
       overflow: hidden;
       text-overflow: ellipsis;

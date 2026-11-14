@@ -145,6 +145,8 @@
       gap: var(--space-3);
     }
 
+    .guided-study-card-view:focus { outline: none; }
+
     .guided-study-card-prompt {
       font-size: var(--fs-md);
       font-weight: var(--fw-medium);
@@ -170,11 +172,15 @@
       border-radius: var(--radius-sm);
       cursor: pointer;
       min-width: 0;
+      transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
     }
 
+    .guided-study-card-options:not(:disabled) .guided-study-card-option:hover { background: var(--bg-hover); }
+    .guided-study-card-option > [type]:focus-visible { outline: none; }
+    .guided-study-card-option:has(input:focus-visible) { outline: 2px solid var(--accent-soft); outline-offset: -1px; }
     .guided-study-card-option[data-picked] { border-color: var(--text-muted); }
-    .guided-study-card-option[data-verdict="correct"] { border-color: var(--ok-line); }
-    .guided-study-card-option[data-verdict="wrong"] { border-color: var(--bad-line); }
+    .guided-study-card-option[data-verdict="correct"] { border-color: var(--ok-line); background: var(--ok-bg); color: var(--ok-ink); }
+    .guided-study-card-option[data-verdict="wrong"] { border-color: var(--bad-line); background: var(--bad-bg); color: var(--bad-ink); }
     .guided-study-card-options:disabled .guided-study-card-option { cursor: default; }
 
     .question-prep-stage {
@@ -269,6 +275,7 @@
     .progress-main-line {
       font-size: var(--fs-md);
       font-weight: var(--fw-strong);
+      font-variant-numeric: tabular-nums;
       margin-bottom: var(--space-1);
     }
 
@@ -276,6 +283,7 @@
     .progress-time-line {
       font-size: var(--fs-sm);
       color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
       margin-bottom: var(--space-1);
     }
 
@@ -341,7 +349,12 @@
       padding-left: var(--space-4);
       font-size: var(--fs-sm);
       color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
       line-height: var(--lh-snug);
+    }
+
+    .guided-study-footer-status {
+      font-variant-numeric: tabular-nums;
     }
 
     .progress-add-form {

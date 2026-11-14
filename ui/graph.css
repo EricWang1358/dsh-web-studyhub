@@ -275,16 +275,19 @@
         box-shadow var(--dur-fast) var(--ease);
     }
     .cloze-blank--input:focus {
-      outline: 2px solid transparent;
-      outline-offset: 2px;
+      outline: none;
       background: var(--bg-raised);
       border-color: var(--accent);
       box-shadow: var(--ring);
     }
-    .cloze-blank.cloze-blank:focus-visible {
+    .cloze-blank--input.cloze-blank--input:focus-visible {
+      outline: 2px solid var(--accent-soft);
+      outline-offset: -1px;
+      box-shadow: none;
+    }
+    .cloze-blank:not(.cloze-blank--input):focus-visible {
       outline: 2px solid var(--accent-soft);
       outline-offset: 2px;
-      box-shadow: var(--ring);
     }
     .cloze-blank--input:disabled {
       opacity: 0.65;
