@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,9 +16,10 @@ import { until } from './helpers/wait.mjs';
 const m = await loadUi(`
   export { WrongBookView } from './ui/WrongBook.jsx';
   export { StudyServicesContext } from './ui/study-context.jsx';
-  export { setUiLanguage } from './ui/i18n.js';
+  export { setUiLanguage, uiCatalogue } from './ui/i18n.js';
   export * as wbModel from './ui/wrongbook-model.js';
 `);
+Object.assign(m.uiCatalogue(), JSON.parse(readFileSync('ui/locales/en.polish-results.json', 'utf8')));
 const { WrongBookView, setUiLanguage, wbModel } = m;
 const { rescueCall, rescueGate, rescueNote } = wbModel;
 

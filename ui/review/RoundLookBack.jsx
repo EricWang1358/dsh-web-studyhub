@@ -4,11 +4,12 @@ import Markdown from "../Markdown.jsx";
 import Cloze from "../Cloze.jsx";
 import CitationDisclosure from "../CitationDisclosure.jsx";
 import ExplanationFollowup from "../ExplanationFollowup.jsx";
-import { Badge, Button, ChunkedRows } from "../components/index.js";
+import { Badge, Button, ChunkedRows, Tooltip } from "../components/index.js";
 import { fixedOptionLabel, optionMark } from "../option-label.js";
 import { fixedOptionsOf, hasOptions, isGraded } from "../../lib/card-kinds.js";
 import { invalidate, useHostQuery } from "../host-query.js";
 import { useStudy } from "../study-context.jsx";
+import { useCopyFeedback } from "../use-copy-feedback.js";
 import CorrectionCard from "./CorrectionCard.jsx";
 
 /* 本轮题目 on the result page (#1009): one row per question of the round, read once when the page opens with review.lookBack {runId}
@@ -37,6 +38,65 @@ const plainLine = (text) => String(text || "").replace(/\{\{[^{}]+\}\}/g, "＿�
 
 /** How a row's answer is measured: chosen or filled in (答对 / 答错), or graded by the learner (达标 / 未达标). */
 const selfGraded = (row, mode) => mode === "flashcard" || !isGraded(row.kind);
+
+function rowYourAnswerMarkdown(row, mode) {
+  const { card, feedback = {} } = row;
+  if (card && mode !== "flashcard" && hasOptions(card.kind) && card.options?.length) {
+    const pickedIds = new Set(feedback.selected || []);
+    const fixed = !!fixedOptionsOf(card.kind);
+    return card.options
+      .map((opt, idx) => (pickedIds.has(opt.id) ? (fixed ? fixedOptionLabel(card, opt) : `${optionMark(card, opt, idx)}. ${opt.text}`) : null))
+      .filter(Boolean)
+      .join("；");
+  }
+  if (card && mode !== "flashcard" && card.kind === "cloze" && feedback.answers && typeof feedback.answers === "object") {
+    return Object.values(feedback.answers).map((value) => String(value ?? "").trim()).filter(Boolean).join("；");
+  }
+  return [
+    Number.isInteger(feedback.grade) && !feedback.selfReported ? `${feedback.grade}` : "",
+    feedback.note ? String(feedback.note).trim() : "",
+  ].filter(Boolean).join(" — ");
+}
+
+function rowCorrectAnswerMarkdown(row, mode) {
+  const { card, solution } = row;
+  if (!solution) return "";
+  if (card && mode !== "flashcard" && hasOptions(card.kind) && card.options?.length) {
+    const fixed = !!fixedOptionsOf(card.kind);
+    return card.options
+      .filter((opt) => solution.options?.find((item) => item.id === opt.id)?.correct)
+      .map((opt, idx) => (fixed ? fixedOptionLabel(card, opt) : `${optionMark(card, opt, idx)}. ${opt.text}`))
+      .join("；");
+  }
+  if (card && mode !== "flashcard" && card.kind === "cloze" && solution.cloze?.answers?.length) {
+    return solution.cloze.answers.map((answer) => answer.value).filter(Boolean).join("；");
+  }
+  return String(solution.answer || "").trim();
+}
+
+/** Format look-back rows with solutions as clean Markdown for copying notes out of a round. */
+export function formatLookBackMarkdown(rows = [], translate = ui) {
+  const sections = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row) continue;
+    const mode = row.mode || "";
+    const words = STATUS[row.status] || STATUS.wrong;
+    const statusText = translate(selfGraded(row, mode) ? words.self : words.graded);
+    const titlePrefix = row.number != null ? `${row.number}. ` : "";
+    const lines = [`### ${titlePrefix}[${statusText}] ${plainLine(promptOf(row)) || translate("题干尚未填写")}`];
+    if (row.solution) {
+      const yours = rowYourAnswerMarkdown(row, mode);
+      const correct = rowCorrectAnswerMarkdown(row, mode);
+      if (yours) lines.push(`**${translate("你的答案")}**：${yours}`);
+      if (correct) lines.push(`**${translate("正确答案")}**：${correct}`);
+      if (row.solution.explanation) lines.push(`**${translate("解析")}**：${String(row.solution.explanation).trim()}`);
+      if (row.solution.misconception) lines.push(`**${translate("易错点")}**：${String(row.solution.misconception).trim()}`);
+      if (row.solution.rubric) lines.push(`**${translate("评分依据")}**：${String(row.solution.rubric).trim()}`);
+    }
+    sections.push(lines.join("\n\n"));
+  }
+  return sections.join("\n\n---\n\n");
+}
 
 function LookBackAnswer({ row, mode }) {
   const { card, solution } = row, feedback = row.feedback || {};
@@ -104,7 +164,7 @@ function LookBack({ row, mode, sources, onOpenSource }) {
  * props: run (the finished run), sources (optional material list for citations and source jumps),
  * onOpenWrongBook(refs) (optional: the wrong book on these questions, where its rescue is; absent when the page is not available).
  */
-export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAck }) {
+export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAck, onPracticeWrong, segment = null, onSegmentChange }) {
   const study = useStudy();
   const openSource = study?.openModal ? (source, quote, peekPage) => {
     if (source) study.openModal({ type: "source", source, quote, peekPage, back: true });
@@ -118,32 +178,93 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
   const rows = (run.mode !== "exam" && query.data?.rows) || [];
   const needsLook = rows.filter((row) => row.status === "wrong" || row.status === "unanswered" || row.status === "grading");
   const corrections = rows.filter((row) => row.correctionPending);
+  const hesitantRows = rows.filter((row) => row.hesitant);
   // Until the learner chooses: the corrections waiting to be read, else the wrong, unanswered and being-graded ones, or all of them when there are none.
   const [chosen, setAll] = React.useState(null);
+  const [hesitantOnly, setHesitantOnly] = React.useState(false);
   const view = chosen ?? (corrections.length ? "pending" : needsLook.length ? "some" : "all"), all = view === "all";
   const [open, setOpen] = React.useState(() => new Set());
+  React.useEffect(() => { if (segment) setHesitantOnly(false); }, [segment]);
+  const shown = hesitantOnly
+    ? hesitantRows
+    : segment
+      ? rows.filter((row) => row.status === segment)
+      : (view === "pending" ? corrections : all ? rows : needsLook);
+  const withSolution = shown.filter((row) => row.solution);
+  const expandedWithSolution = withSolution.filter((row) => open.has(row.number));
+  const copyTargets = (expandedWithSolution.length ? expandedWithSolution : withSolution).map((row) => (row.mode ? row : { ...row, mode: run.mode }));
+  const { copied, copy } = useCopyFeedback(() => formatLookBackMarkdown(copyTargets, ui));
   if (!rows.length) return null;
-  const shown = view === "pending" ? corrections : all ? rows : needsLook;
   const count = (status) => rows.filter((row) => row.status === status).length;
   const wrong = count("wrong"), unanswered = count("unanswered"), grading = count("grading");
+  const wrongRefs = rows.filter((row) => row.status === "wrong").map((row) => ({ deckId: row.deckId, cardId: row.cardId }));
+  const allShownOpen = shown.length >= 2 && shown.every((row) => open.has(row.number));
+  const pickView = (nextView) => {
+    setAll(nextView);
+    setHesitantOnly(false);
+    onSegmentChange?.(null);
+  };
   const toggle = (number) => setOpen((previous) => {
     const next = new Set(previous);
     if (next.has(number)) next.delete(number); else next.add(number);
     return next;
   });
+  const toggleAllShown = () => setOpen((previous) => {
+    const next = new Set(previous);
+    if (allShownOpen) for (const row of shown) next.delete(row.number);
+    else for (const row of shown) next.add(row.number);
+    return next;
+  });
+  const sourceForRow = (row) => (
+    study?.openModal && Array.isArray(sources) && (row?.sourceId || row?.documentSourceId)
+      ? (sources.find((item) => item.id === row.sourceId) || sources.find((item) => item.id === row.documentSourceId) || null)
+      : null
+  );
+  const onKeyDown = (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
+    const target = event.target;
+    if (target?.closest?.("input, textarea, select, [contenteditable='true']")) return;
+    const line = target?.closest?.(".look-back__line");
+    if (line && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      const lines = [...event.currentTarget.querySelectorAll(".look-back__line")];
+      const index = lines.indexOf(line);
+      if (index < 0 || !lines.length) return;
+      event.preventDefault();
+      const nextIndex = event.key === "ArrowDown" ? Math.min(lines.length - 1, index + 1)
+        : event.key === "ArrowUp" ? Math.max(0, index - 1)
+        : event.key === "Home" ? 0
+        : lines.length - 1;
+      lines[nextIndex]?.focus?.();
+      return;
+    }
+    if (event.key === "o" || event.key === "O") {
+      const rowEl = target?.closest?.(".look-back__row");
+      const num = rowEl?.dataset?.number ? Number(rowEl.dataset.number) : null;
+      const focusedRow = num !== null ? shown.find((item) => item.number === num) : null;
+      const targetRow = focusedRow || shown.find((item) => open.has(item.number) && sourceForRow(item)) || null;
+      const place = sourceForRow(targetRow);
+      if (place && study?.openModal) {
+        event.preventDefault();
+        study.openModal({ type: "source", source: place, back: true });
+      }
+    }
+  };
   const render = (row) => {
     const words = STATUS[row.status] || STATUS.unanswered;
     const expanded = open.has(row.number), regionId = `look-back-${run.id}-${row.number}`;
-    const place = study?.openModal && Array.isArray(sources) && (row.sourceId || row.documentSourceId)
-      ? (sources.find((item) => item.id === row.sourceId) || sources.find((item) => item.id === row.documentSourceId) || null)
-      : null;
+    const place = sourceForRow(row);
     return (
-      <li key={row.number} className="look-back__row" data-status={row.status}>
+      <li key={row.number} className="look-back__row" data-status={row.status} data-number={row.number}>
         <Button variant="quiet" className="look-back__line" align="start" aria-expanded={expanded} aria-controls={expanded ? regionId : undefined} onClick={() => toggle(row.number)}>
           <span className="look-back__number">{row.number}</span>
           <Badge size="sm" tone={words.tone}>{ui(selfGraded(row, run.mode) ? words.self : words.graded)}</Badge>
           {row.hinted && <Badge size="sm">{ui("用了提示")}</Badge>}
           {row.correctionPending && <Badge size="sm" tone="warning">{ui("待看订正")}</Badge>}
+          {row.hesitant && (
+            <Tooltip layer content={uiFormat("用时约 {0} 秒", [Math.round((row.elapsedMs || 0) / 1000)])}>
+              <Badge size="sm">{ui("想了较久")}</Badge>
+            </Tooltip>
+          )}
           <span className="look-back__prompt">{plainLine(promptOf(row)) || ui("题干尚未填写")}</span>
           {row.page != null && <span className="look-back__page muted small">{pageWords(row)}</span>}
         </Button>
@@ -176,21 +297,46 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
     );
   };
   return (
-    <section className="round-look-back sh-paper-card" aria-label={ui("本轮题目")}>
+    <section className="round-look-back sh-paper-card" aria-label={ui("本轮题目")} onKeyDown={onKeyDown}>
       <div className="round-look-back__head">
         <h3>{ui("本轮题目")}</h3>
         <span className="muted small">{[wrong > 0 && uiFormat("错 {0}", [wrong]), unanswered > 0 && uiFormat("未答 {0}", [unanswered]), grading > 0 && uiFormat("批改中 {0}", [grading])].filter(Boolean).join(" · ") || ui("全部过关")}</span>
-        {corrections.length > 0 && view !== "pending" && <Button variant="link" size="sm" onClick={() => setAll("pending")}>{uiFormat("待看订正 {0}", [corrections.length])}</Button>}
+        {corrections.length > 0 && (view !== "pending" || !!segment || hesitantOnly) && <Button variant="link" size="sm" onClick={() => pickView("pending")}>{uiFormat("待看订正 {0}", [corrections.length])}</Button>}
         {needsLook.length > 0 && needsLook.length < rows.length && (
-          <Button variant="link" size="sm" onClick={() => setAll(view === "some" ? "all" : "some")}>
-            {view === "some" ? uiFormat("显示全部 {0} 题", [rows.length]) : grading ? ui("只看错题、未答和批改中") : ui("只看错题和未答")}
+          <Button variant="link" size="sm" onClick={() => pickView(!segment && !hesitantOnly && view === "some" ? "all" : "some")}>
+            {!segment && !hesitantOnly && view === "some" ? uiFormat("显示全部 {0} 题", [rows.length]) : grading ? ui("只看错题、未答和批改中") : ui("只看错题和未答")}
           </Button>
         )}
-        {view === "pending" && !(needsLook.length > 0 && needsLook.length < rows.length) && <Button variant="link" size="sm" onClick={() => setAll("all")}>{uiFormat("显示全部 {0} 题", [rows.length])}</Button>}
+        {(view === "pending" || !!segment || hesitantOnly) && !(needsLook.length > 0 && needsLook.length < rows.length) && (
+          <Button variant="link" size="sm" onClick={() => pickView("all")}>{uiFormat("显示全部 {0} 题", [rows.length])}</Button>
+        )}
+        {segment && needsLook.length > 0 && needsLook.length < rows.length && (
+          <Button variant="link" size="sm" onClick={() => pickView("all")}>{uiFormat("显示全部 {0} 题", [rows.length])}</Button>
+        )}
+        {hesitantRows.length > 0 && (
+          <Button variant="quiet" size="sm" aria-pressed={hesitantOnly} onClick={() => { setHesitantOnly((prev) => !prev); onSegmentChange?.(null); }}>
+            {uiFormat("只看想了较久 ({0})", [hesitantRows.length])}
+          </Button>
+        )}
+        {shown.length >= 2 && (
+          <Button variant="quiet" size="sm" onClick={toggleAllShown}>
+            {allShownOpen ? ui("全部收起") : ui("全部展开")}
+          </Button>
+        )}
+        {onPracticeWrong && wrong >= 1 && (
+          <Button size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(wrongRefs)}>
+            {wrong === 1 ? ui("重练这道错题") : uiFormat("重练这 {0} 道错题", [wrong])}
+          </Button>
+        )}
+        {withSolution.length > 0 && (
+          <Button variant="quiet" size="sm" onClick={copy}>
+            {copied ? ui("已复制") : ui("复制复盘摘录")}
+          </Button>
+        )}
       </div>
       <p className="muted small">{ui("点一道题回看：题目、你的答案、正确答案、讲解和问答。只是回看，不会重新计时或改成绩。")}</p>
       <ol className="look-back__rows">
-        <ChunkedRows items={shown} render={render} chunk={ROW_CHUNK} resetKey={view} as="li" />
+        <ChunkedRows items={shown} render={render} chunk={ROW_CHUNK} resetKey={`${view}:${segment || ""}:${hesitantOnly}`} as="li" />
       </ol>
     </section>
   );

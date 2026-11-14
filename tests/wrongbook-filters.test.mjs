@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -9,9 +10,10 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const m = await loadUi(`export { WrongBookView } from './ui/WrongBook.jsx';
   export * from './ui/wrongbook-model.js';
-  export { setUiLanguage } from './ui/i18n.js';`);
+  export { setUiLanguage, uiCatalogue } from './ui/i18n.js';`);
+Object.assign(m.uiCatalogue(), JSON.parse(readFileSync(new URL('../ui/locales/en.polish-results.json', import.meta.url), 'utf8')));
 const { WrongBookView, groupRows, filterRows, filterActive, NO_FILTER, statusOf, groupSummary, groupSummaryText, deckChoices, scopedFilter, readGroupBy, saveGroupBy,
-  readOpenGroups, saveOpenGroups, sameVariantState, variantState, VARIANT_BATCH_CAP, setUiLanguage } = m;
+  readOpenGroups, saveOpenGroups, SORT_KINDS, DEFAULT_SORT_BY, sortGroupRows, readSortBy, saveSortBy, sameVariantState, variantState, VARIANT_BATCH_CAP, setUiLanguage } = m;
 const noop = () => {};
 const han = /\p{Script=Han}/u;
 
@@ -335,3 +337,222 @@ test('English: the whole new surface is translated while question text stays as 
     assert.match(text(none), /No mistakes match the filters/);
   } finally { setUiLanguage('zh'); }
 });
+
+function mountSync(Component, initialProps) {
+  const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+  const hooks = [];
+  const cleanups = [];
+  let cursor = 0;
+  let pending = [];
+  let currentProps = initialProps;
+  const sameDeps = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
+  const renderTree = (nextProps = currentProps) => {
+    currentProps = nextProps;
+    cursor = 0;
+    pending = [];
+    const prev = internals.H;
+    internals.H = {
+      useContext: (ctx) => ctx._currentValue,
+      useState: (init) => {
+        const i = cursor++;
+        if (!(i in hooks)) hooks[i] = [typeof init === 'function' ? init() : init, (val) => {
+          hooks[i][0] = typeof val === 'function' ? val(hooks[i][0]) : val;
+        }];
+        return hooks[i];
+      },
+      useRef: (init) => { const i = cursor++; if (!(i in hooks)) hooks[i] = { current: init }; return hooks[i]; },
+      useMemo: (fn, deps) => { const i = cursor++; if (!(i in hooks) || !sameDeps(hooks[i].deps, deps)) hooks[i] = { deps, value: fn() }; return hooks[i].value; },
+      useCallback: (fn, deps) => internals.H.useMemo(() => fn, deps),
+      useEffect: (fn, deps) => { const i = cursor++; if (!(i in hooks) || !sameDeps(hooks[i].deps, deps)) pending.push({ i, fn, deps }); },
+      useLayoutEffect: (fn, deps) => internals.H.useEffect(fn, deps),
+      useInsertionEffect: (fn, deps) => internals.H.useEffect(fn, deps),
+      useId: () => { const i = cursor++; if (!(i in hooks)) hooks[i] = `:wf${i}:`; return hooks[i]; },
+      useDeferredValue: (v) => v,
+    };
+    let tree;
+    try { tree = Component(currentProps); } finally { internals.H = prev; }
+    for (const eff of pending) {
+      cleanups[eff.i]?.();
+      cleanups[eff.i] = undefined;
+      const done = eff.fn();
+      hooks[eff.i] = { deps: eff.deps };
+      if (typeof done === 'function') cleanups[eff.i] = done;
+    }
+    return tree;
+  };
+  return { render: renderTree, unmount: () => { for (const c of cleanups) c?.(); } };
+}
+
+function walkEls(node, visit) {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) { for (const c of node) walkEls(c, visit); return; }
+  if (node.props) {
+    visit(node);
+    walkEls(node.props.children, visit);
+    walkEls(node.props.description, visit);
+  }
+}
+
+const elText = (node) => {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(elText).join('');
+  return typeof node === 'object' && node.props ? elText(node.props.children) : '';
+};
+
+test('#8: RowDetail places your answer and correct answer side-by-side in .wb-compare only when both are non-empty', () => {
+  setUiLanguage('zh');
+  const bothHtml = render({
+    initial: { groups: ['deck:d4'], expanded: ['c1', 'c2'] },
+    details: {
+      c1: { deckId: 'd4', cardId: 'c1', yourAnswer: '半开状态', correctAnswer: '熔断状态', explanation: '解析', misconception: '' },
+      c2: { deckId: 'd4', cardId: 'c2', yourAnswer: '', correctAnswer: '减少耦合', explanation: '', misconception: '' },
+    },
+  });
+  assert.equal(count(bothHtml, /class="wb-compare"/g), 1, 'only row with both answers renders .wb-compare');
+  const compareSlice = bothHtml.split('class="wb-compare"')[1].split('</div></div>')[0];
+  assert.match(compareSlice, /<dt>你的答案<\/dt>/);
+  assert.match(compareSlice, /<dt>正确答案<\/dt>/);
+  assert.match(bothHtml, /<dl class="wb-facts">[\s\S]*<div class="wb-compare">[\s\S]*<\/dl>/);
+
+  const selfRatedHtml = render({
+    initial: { groups: ['deck:d4'], expanded: ['c3'] },
+    details: { c3: { deckId: 'd4', cardId: 'c3', selfGrade: 2, yourAnswer: '', correctAnswer: '平台团队负责共享能力', explanation: '', misconception: '' } },
+  });
+  assert.equal(count(selfRatedHtml, /class="wb-compare"/g), 1, 'selfGrade + correctAnswer also pairs in .wb-compare');
+});
+
+test('#9: PageHeader status counts are interactive filter toggles even when total < filterMin', () => {
+  setUiLanguage('zh');
+  const shortItems = [
+    row('s1', 'd4', 'T1', 'Q1', 'graded'),
+    row('s2', 'd4', 'T2', 'Q2', 'self'),
+  ];
+  const app = mountSync(WrongBookView, {
+    ...base,
+    items: shortItems,
+    counts: { total: 2, graded: 1, self: 1, oral: 0, rubric: 1 },
+    filterMin: 8,
+  });
+  let tree = app.render();
+  const findToggle = (needle) => {
+    let found = null;
+    walkEls(tree, (n) => { if (!found && typeof n.type !== 'string' && n.props.className === 'wb-count-toggle' && elText(n).includes(needle)) found = n; });
+    return found;
+  };
+  const gradedBtn = findToggle('客观答错 1 题');
+  const selfBtn = findToggle('自评未掌握 1 题');
+  const rubricBtn = findToggle('按评分标准批改未达标 1 题');
+  assert.ok(gradedBtn && selfBtn && rubricBtn, 'non-zero counts render as toggle buttons even below filterMin');
+  assert.equal(findToggle('口头评估待巩固 0 题'), null, 'zero counts remain plain text');
+  assert.equal(gradedBtn.props['aria-pressed'], false);
+
+  gradedBtn.props.onClick();
+  tree = app.render();
+  assert.equal(findToggle('客观答错 1 题').props['aria-pressed'], true);
+  // Only graded row s1 remains in the rendered group
+  const htmlFiltered = render({ items: shortItems, counts: { total: 2, graded: 1, self: 1, oral: 0, rubric: 1 }, filterMin: 8, initial: { filter: { status: 'graded' } } });
+  assert.match(text(htmlFiltered), /客观答错 1 题/);
+  assert.match(htmlFiltered, /aria-pressed="true"[^>]*>客观答错 1 题</);
+  findToggle('客观答错 1 题').props.onClick();
+  tree = app.render();
+  assert.equal(findToggle('客观答错 1 题').props['aria-pressed'], false);
+  app.unmount();
+});
+
+test('#10: Escape on .wb-search-input clears query first while keeping focus, then blurs on second Escape; filter-result is polite', () => {
+  setUiLanguage('zh');
+  const html = render();
+  assert.match(html, /class="wb-filter-result" role="status" aria-live="polite"/);
+
+  const app = mountSync(WrongBookView, { ...base, initial: { filter: { query: '熔断' } } });
+  let tree = app.render();
+  const findInput = () => {
+    let found = null;
+    walkEls(tree, (n) => { if (!found && n.props?.className === 'wb-search-input') found = n; });
+    return found;
+  };
+  let prevented = false, stopped = false, blurred = false;
+  findInput().props.onKeyDown({
+    key: 'Escape',
+    preventDefault: () => { prevented = true; },
+    stopPropagation: () => { stopped = true; },
+    currentTarget: { blur: () => { blurred = true; } },
+  });
+  assert.equal(prevented, true);
+  assert.equal(stopped, true);
+  assert.equal(blurred, false, 'first Escape keeps focus in search input');
+
+  tree = app.render();
+  assert.equal(findInput().props.value, '', 'first Escape cleared search query');
+
+  let secondPrevented = false, secondStopped = false;
+  findInput().props.onKeyDown({
+    key: 'Escape',
+    preventDefault: () => { secondPrevented = true; },
+    stopPropagation: () => { secondStopped = true; },
+    currentTarget: { blur: () => { blurred = true; } },
+  });
+  assert.equal(blurred, true, 'second Escape when empty blurs search input');
+  assert.equal(secondPrevented, false);
+  assert.equal(secondStopped, false);
+  app.unmount();
+});
+
+test('#46: sortGroupRows sorts by recent, most missed, and original deck order and persists preference', () => {
+  assert.deepEqual(SORT_KINDS, ['recent', 'most', 'order']);
+  assert.equal(DEFAULT_SORT_BY, 'recent');
+  const storage = memoryStorage();
+  assert.equal(readSortBy(storage), 'recent');
+  saveSortBy('most', storage);
+  assert.equal(readSortBy(storage), 'most');
+  storage.setItem('study-wrongbook-sort', 'invalid');
+  assert.equal(readSortBy(storage), 'recent');
+
+  const decksWithOrder = [{ id: 'd4', title: decks[0].title, cards: [{ id: 'c2' }, { id: 'c3' }, { id: 'c1' }] }];
+  const mixed = [
+    row('c1', 'd4', 'T', 'Q1', 'graded', '2026-10-01T08:00:00Z'),
+    row('c2', 'd4', 'T', 'Q2', 'graded', '2026-10-01T12:00:00Z'),
+    row('c3', 'd4', 'T', 'Q3', 'graded', '2026-10-01T10:00:00Z'),
+  ];
+  const groups = groupRows(mixed, 'deck', decksWithOrder);
+  assert.deepEqual(sortGroupRows(groups, 'recent')[0].rows.map((r) => r.cardId), ['c2', 'c3', 'c1']);
+  const wrongCounts = new Map([['d4\0c1', 5], ['d4\0c2', 2], ['d4\0c3', 2]]);
+  assert.deepEqual(sortGroupRows(groups, 'most', { wrongCounts })[0].rows.map((r) => r.cardId), ['c1', 'c2', 'c3']);
+  assert.deepEqual(sortGroupRows(groups, 'order', { decks: decksWithOrder })[0].rows.map((r) => r.cardId), ['c2', 'c3', 'c1']);
+
+  setUiLanguage('zh');
+  const htmlZh = render();
+  assert.match(htmlZh, /aria-label="排序方式"/);
+  assert.match(text(htmlZh), /最近 错次 原序/);
+
+  setUiLanguage('en');
+  try {
+    const enDecks = [{ id: 'd4', course: 'PE', title: 'Platform Engineering | Final 04' }, { id: 'd2', course: 'PE', title: 'Platform Engineering | Final 02' }];
+    const enItems = [
+      { ...row('e1', 'd4', 'Breaker', 'Which state rejects?'), deckTitle: enDecks[0].title },
+      { ...row('e2', 'd2', 'Probe', 'How many probes?'), deckTitle: enDecks[1].title },
+    ];
+    const htmlEn = render({ data: { ...base.data, decks: enDecks }, items: enItems, counts: { total: 2, graded: 2, self: 0, oral: 0, rubric: 0 }, coach: null });
+    assert.doesNotMatch(htmlEn, han);
+    assert.match(htmlEn, /aria-label="Sort order"/);
+    assert.match(text(htmlEn), /Recent Most missed Deck order/);
+  } finally { setUiLanguage('zh'); }
+});
+
+test('#50: search query highlights matches with .wb-hit in meta and plain text without breaking math', () => {
+  setUiLanguage('zh');
+  const mathItems = [
+    ...items,
+    row('cm', 'd4', '公式', '状态转移满足 $x^2 + y^2 = r^2$，何时拒绝？', 'graded', '2026-10-01T13:00:00Z'),
+  ];
+  const html = render({
+    items: mathItems,
+    counts: { total: 6, graded: 5, self: 1, oral: 0, rubric: 0 },
+    initial: { groups: ['deck:d4'], filter: { query: '状态' } },
+  });
+  assert.match(html, /<span class="wb-meta"><span class="wb-hit">状态<\/span>|<span class="wb-meta">[^<]*<span class="wb-hit">状态<\/span>/);
+  assert.match(html, /<span class="wb-prompt"><span class="wb-hit">状态<\/span>转移满足 /);
+  assert.match(html, /katex|x\^2/, 'inline math stays rendered cleanly alongside highlighted prose');
+});
+

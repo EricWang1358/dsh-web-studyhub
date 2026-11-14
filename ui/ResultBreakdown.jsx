@@ -1,13 +1,13 @@
 import { ui, uiFormat } from "./i18n.js";
 import React from "react";
-import { StackedBar } from "./components/index.js";
+import { Button, StackedBar } from "./components/index.js";
 import css from "./review-results.css";
 import { useInjectCss } from "./shared.js";
 
 const SEGMENT_TONE = { correct: "success", practice: "warning", remaining: "neutral" };
 
 // The service supplies these counts. This component only turns them into a visual.
-export default function ResultBreakdown({ total, answered, correct, correctLabel = ui("掌握") }) {
+export default function ResultBreakdown({ total, answered, correct, correctLabel = ui("掌握"), activeSegment = null, onSelectSegment }) {
   useInjectCss(css, "review-results");
   const remaining = Math.max(0, total - answered);
   const practice = Math.max(0, answered - correct);
@@ -21,13 +21,25 @@ export default function ResultBreakdown({ total, answered, correct, correctLabel
       <StackedBar size="lg" name={uiFormat("{0} {1} 题，需要巩固 {2} 题，未答 {3} 题", [correctLabel, correct, practice, remaining])}
         segments={segments.map((segment) => ({ value: segment.count, tone: SEGMENT_TONE[segment.key] }))} />
       <div className="result-breakdown-legend">
-        {segments.map((segment) => (
-          <div key={segment.key} className="result-legend-item">
-            <span className={`result-legend-dot result-segment-${segment.key}`} aria-hidden="true" />
-            <span>{segment.label}</span>
-            <strong>{segment.count}</strong>
-          </div>
-        ))}
+        {segments.map((segment) => {
+          const inner = (
+            <>
+              <span className={`result-legend-dot result-segment-${segment.key}`} aria-hidden="true" />
+              <span>{segment.label}</span>
+              <strong>{segment.count}</strong>
+            </>
+          );
+          return onSelectSegment && segment.count > 0 ? (
+            <Button key={segment.key} variant="quiet" size="sm" className="result-legend-item"
+              aria-pressed={activeSegment === segment.key} onClick={() => onSelectSegment(segment.key)}>
+              {inner}
+            </Button>
+          ) : (
+            <div key={segment.key} className="result-legend-item">
+              {inner}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

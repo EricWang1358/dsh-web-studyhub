@@ -1,0 +1,19 @@
+{
+  "想了较久": "Took longer",
+  "用时约 {0} 秒": "About {0}s spent",
+  "只看想了较久 ({0})": "Took longer only ({0})",
+  "重练这道错题": "Practice this missed question",
+  "重练这 {0} 道错题": "Practice these {0} missed questions",
+  "复制复盘摘录": "Copy review excerpt",
+  "（已暂停）": " (paused)",
+  "客观答错 {0} 题": "Objectively incorrect: {0}",
+  "自评未掌握 {0} 题": "Low self-ratings: {0}",
+  "口头评估待巩固 {0} 题": "Weak oral assessments: {0}",
+  "排序方式": "Sort order",
+  "最近": "Recent",
+  "错次": "Most missed",
+  "原序": "Deck order",
+  "展开各题解析": "Expand explanations",
+  "收起各题解析": "Collapse explanations",
+  "。": "."
+}
