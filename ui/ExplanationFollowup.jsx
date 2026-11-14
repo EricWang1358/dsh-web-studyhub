@@ -1,7 +1,7 @@
 import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
-import { Badge, Button, InlineMessage } from "./components/index.js";
+import { Badge, Button, InlineMessage, Tooltip } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 import BookQaButton, { BookQaAuto } from "./book/BookQaButton.jsx";
 
@@ -10,7 +10,7 @@ import BookQaButton, { BookQaAuto } from "./book/BookQaButton.jsx";
    the practice page (ui/review/QuestionRun.jsx), which is on screen even while this list is folded away; `note` says when one failed.
    noteQa (optional): { savedIn(followupId) -> noteId | '', onSave(followupId), onOpen(noteId) } — 「存进笔记」 under each Q&A (#1017): into this question's
    learning note once (note.qa.add); saved, it reads 已存进笔记 · 打开. Needs no review book. */
-export default function ExplanationFollowup({ run, readOnly = false, onDerive, onAskMore = null, deriving = false, bookQa = null, noteQa = null }) {
+export default function ExplanationFollowup({ run, readOnly = false, onDerive, onAskMore = null, deriving = false, bookQa = null, noteQa = null, cardNotes = [] }) {
   const { call } = useStudy();
   const book = bookQa?.book;
   const withBook = !!book && book.ready && book.courses.has(bookQa.course ?? "");
@@ -18,6 +18,7 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
   const [questions, setQuestions] = React.useState([]);
   const [custom, setCustom] = React.useState(false);
   const [question, setQuestion] = React.useState("");
+  const customTriggerRef = React.useRef(null);
   const [added, setAdded] = React.useState([]);
   const [pending, setPending] = React.useState("");
   const [error, setError] = React.useState("");
@@ -97,7 +98,7 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
             <span className="followup-state" aria-hidden="true">{openIds.has(item.id) ? ui("收起") : ui("展开")}</span></summary>
           <Markdown text={item.answer} />
           {withBook && <BookQaButton refOf={{ ...ref, followupId: item.id }} book={book} />}
-          {noteQa && <NoteQaButton followupId={item.id} noteQa={noteQa} />}
+          {noteQa && <NoteQaButton followupId={item.id} noteQa={noteQa} cardNotes={cardNotes} />}
           {/* A long answer can be folded from its end, landing back on its question. */}
           {/* 出成题: this Q&A becomes a question of its own, as a prerequisite of this card or standalone (a background task, the result goes to the deck and the inbox). */}
           {onDerive && <div className="followup-derive" role="group" aria-label={ui("用这个问答出题")}>
@@ -125,13 +126,33 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
           {questions.map((text) => (
             <Button key={text} className="followup-picker__choice" size="sm" wrap align="start" lock={!!pending} onClick={() => ask(text)}>{text}</Button>
           ))}
-          <Button className="followup-picker__choice" size="sm" lock={pending === "answer"} aria-expanded={custom}
+          <Button ref={customTriggerRef} className="followup-picker__choice" size="sm" lock={pending === "answer"} aria-expanded={custom}
             onClick={() => setCustom(!custom)}>{ui("你的疑问")}</Button>
           {custom && (
             <form onSubmit={(event) => { event.preventDefault(); ask(question); }}>
               <label className="followup-picker__field">{ui("你的疑问")}<textarea className="followup-picker__input" autoFocus value={question} maxLength={1000} rows={3} disabled={pending === "answer"}
                   placeholder={ui("写下你想弄清楚的地方，也可以接着上面的回答问…")}
-                  onChange={(event) => setQuestion(event.target.value)} />
+                  onChange={(event) => setQuestion(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
+                    if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.shiftKey && !event.altKey) {
+                      if (!pending && question.trim()) {
+                        event.preventDefault();
+                        ask(question);
+                      }
+                      return;
+                    }
+                    if (event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !question.trim()) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      const cardEl = event.currentTarget.closest?.(".question-card");
+                      setCustom(false);
+                      requestAnimationFrame(() => {
+                        if (customTriggerRef.current?.focus) customTriggerRef.current.focus({ preventScroll: true });
+                        else cardEl?.focus?.({ preventScroll: true });
+                      });
+                    }
+                  }} />
               </label>
               <Button className="followup-picker__submit" type="submit" variant="primary" size="sm" busy={pending === "answer"} disabled={!!pending || !question.trim()}>{ui("解答并添加")}</Button>
             </form>
@@ -145,10 +166,27 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
 }
 
 /** 「存进笔记」 of one Q&A: saved, 已存进笔记 · 打开 opens the note (the note badges of the snapshot say which follow-ups a note holds). */
-function NoteQaButton({ followupId, noteQa }) {
+function NoteQaButton({ followupId, noteQa, cardNotes = [] }) {
   const [working, setWorking] = React.useState(false), [error, setError] = React.useState("");
   const noteId = noteQa.savedIn(followupId);
-  if (noteId) return <Button variant="link" size="sm" icon="check" className="note-qa-button" data-note-qa="saved" onClick={() => noteQa.onOpen(noteId)}>{ui("已存进笔记 · 打开")}</Button>;
+  if (noteId) {
+    const note = cardNotes.find((item) => item.noteId === noteId || item.id === noteId);
+    const title = note?.title?.trim();
+    const count = note?.followupIds?.length || 0;
+    const tip = title && count > 0
+      ? uiFormat("已存进「{0}」（含 {1} 条问答）", [title, count])
+      : title
+        ? uiFormat("已存进「{0}」", [title])
+        : count > 0
+          ? uiFormat("笔记中已保存 {0} 条问答", [count])
+          : "";
+    const button = (
+      <Button variant="link" size="sm" icon="check" className="note-qa-button" data-note-qa="saved" onClick={() => noteQa.onOpen(noteId)}>
+        {ui("已存进笔记 · 打开")}
+      </Button>
+    );
+    return tip ? <Tooltip layer content={tip}>{button}</Tooltip> : button;
+  }
   const save = async () => {
     setWorking(true); setError("");
     try { await noteQa.onSave(followupId); } catch (failure) { setError(errorMessage(failure)); } finally { setWorking(false); }

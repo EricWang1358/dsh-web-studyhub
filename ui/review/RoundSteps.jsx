@@ -33,12 +33,20 @@ export function useRoundSteps({ session, run, sources, openModal, onNote, toggle
 /** The one question 到此为止 asks, under the toolbar, whoever asked it (更多, the column of ticks, the 「N 题待答」 list). */
 export function RoundEndConfirm({ session }) {
   const { run, actions } = session;
+  const hostRef = React.useRef(null);
   if (!session.endAsked || run.mode === "exam" || run.complete) return null;
   const left = pendingCount(run);
+  const handleCancel = () => {
+    const card = hostRef.current?.closest?.(".review-body")?.querySelector?.(".question-card");
+    actions.cancelEnd?.();
+    requestAnimationFrame(() => card?.focus?.({ preventScroll: true }));
+  };
   return (
-    <InlineConfirm tone="warning" className="round-end-confirm" title={ui("这一轮到此为止？")}
-      confirmLabel={ui("到此为止，看结果")} cancelLabel={ui("接着做")} onConfirm={actions.endRound} onCancel={actions.cancelEnd}>
-      {left > 0 ? uiFormat("还有 {0} 题没答，没答的不记录、不改复习进度；已答的照常计分。", [left]) : ui("已答的题照常计分。")}
-    </InlineConfirm>
+    <div ref={hostRef}>
+      <InlineConfirm tone="warning" className="round-end-confirm" title={ui("这一轮到此为止？")}
+        confirmLabel={ui("到此为止，看结果")} cancelLabel={ui("接着做")} onConfirm={actions.endRound} onCancel={handleCancel}>
+        {left > 0 ? uiFormat("还有 {0} 题没答，没答的不记录、不改复习进度；已答的照常计分。", [left]) : ui("已答的题照常计分。")}
+      </InlineConfirm>
+    </div>
   );
 }

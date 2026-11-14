@@ -1,4 +1,4 @@
-import { ui } from "./i18n.js";
+import { ui, uiFormat } from "./i18n.js";
 import React, { useEffect, useRef } from "react";
 import { useStudy } from "./study-context.jsx";
 import { Button, Tooltip } from "./components/index.js";
@@ -9,9 +9,10 @@ import { levelWord, tickWords } from "./review/round-words.js";
    (「第 2 题 · 主题 · 答对了 · 掌握程度：学习中」) and jumps to its question. On a narrow window the column is gone (the card's own progress bar says where
    the learner is) so it takes no width from the card (#673); 「N 题待答」 beside the question number does the jumping there (ui/review/RoundPending.jsx).
    `onEnd` (optional): 到此为止 at the tail of the column (#1008), which asks first under the question. */
-export default function ReviewNavigator({ run, onJump, onEnd }) {
+export default function ReviewNavigator({ run, onJump, onEnd, skippedIndices }) {
   const { busy } = useStudy();
   const rail = useRef(null);
+  const skippedSet = skippedIndices instanceof Set ? skippedIndices : new Set(Array.isArray(skippedIndices) ? skippedIndices : []);
   useEffect(() => {
     const container = rail.current;
     const current = container?.querySelector('[aria-current="step"]');
@@ -26,12 +27,15 @@ export default function ReviewNavigator({ run, onJump, onEnd }) {
     <nav className="review-navigator" aria-label={ui("题目跳转与掌握程度")} ref={rail}>
       {run.navigation.map((item) => {
         const current = item.index === run.index;
-        const label = tickWords(item, levelWord(item.level));
+        const isSkipped = !item.answered && skippedSet.has(item.index);
+        const baseLabel = tickWords(item, levelWord(item.level));
+        const label = isSkipped ? uiFormat("{0} · 先跳过待答", [baseLabel]) : baseLabel;
         return <Tooltip key={item.index} layer placement="right-start" group="review-ticks" content={label} anchorClassName="review-tick-tip">
           <button
             className="review-tick" aria-label={label}
             data-answered={item.answered ? "true" : undefined}
             data-retry={item.retry ? "true" : undefined}
+            data-skipped={isSkipped ? "true" : undefined}
             aria-current={current ? "step" : undefined} disabled={busy}
             onClick={() => { if (!current) onJump(item.index); }}>
             <span className={"review-tick-line lv-" + item.level} />

@@ -60,6 +60,9 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
       .catch((failure) => { setAutopilotChoice(null); setError(errorMessage(failure)); });
   }, [call, core, setError]);
   const [autoAdvance, setAutoAdvance] = useState('');
+  const [autoAdvancePaused, setAutoAdvancePausedState] = useState(false);
+  const [explainHidden, setExplainHidden] = useState(false);
+  const [skippedIndices, setSkippedIndices] = useState(() => new Set());
   const [shortcutHelp, setShortcutHelp] = useState(false);
   /* A number key answers straight from here, so no <button> is ever seen going down (#745): the grade button the key names wears the same press for a
      moment. The one key handler below is the only writer; the view only reads it. */
@@ -245,15 +248,43 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   reviewActRef.current = reviewAct;
 
   /* ── 先跳过 and 到此为止 (#1008): the round's own steps, review.move {index} and review.end, nothing new on the host ── */
+  useEffect(() => { setSkippedIndices(new Set()); }, [run?.id]);
+  useEffect(() => {
+    const nav = run?.navigation;
+    const answeredFeedbackIndex = run?.feedback && typeof run?.index === 'number' ? run.index : null;
+    if (!nav?.length && answeredFeedbackIndex === null) return;
+    setSkippedIndices((prev) => {
+      if (!prev.size) return prev;
+      const done = new Set((nav || []).filter((item) => item.answered).map((item) => item.index));
+      if (answeredFeedbackIndex !== null) done.add(answeredFeedbackIndex);
+      let changed = false;
+      for (const idx of prev) if (done.has(idx)) { changed = true; break; }
+      if (!changed) return prev;
+      const next = new Set(prev);
+      for (const idx of done) next.delete(idx);
+      return next;
+    });
+  }, [run?.navigation, run?.feedback, run?.index]);
   // 先跳过: the next question nobody answered yet; this one stays in the round and comes back at its end, its clock started again.
   const skipQuestion = useCallback(() => {
-    const target = skipTarget(runRef.current);
-    return target === null ? undefined : reviewActRef.current('review.move', { index: target });
+    const current = runRef.current;
+    const target = skipTarget(current);
+    if (target === null) return undefined;
+    const skippedIndex = current.index;
+    setSkippedIndices((prev) => {
+      if (prev.has(skippedIndex)) return prev;
+      const next = new Set(prev);
+      next.add(skippedIndex);
+      return next;
+    });
+    return reviewActRef.current('review.move', { index: target });
   }, []);
   // 到此为止 asks first (the one InlineConfirm under the question, whoever asked: 更多, the rail or the list of questions), then ends the round: the answered
   // questions keep their grades, the rest record nothing, and the result page opens like a finished round's (reviewAct reloads the library after it).
   const [endAsked, setEndAsked] = useState(false);
+  const hasFeedback = !!run?.feedback;
   useEffect(() => { setEndAsked(false); }, [run?.id, run?.complete]);
+  useEffect(() => { setExplainHidden(false); }, [run?.id, run?.index, run?.card?.id, hasFeedback]);
   const endRound = useCallback(async () => {
     if (!runRef.current?.id || runRef.current.complete || runRef.current.mode === 'exam') return;
     // A dropped call (another step holds act(), or it failed) resolves with nothing: the question stays asked, so the press is not lost.
@@ -279,31 +310,73 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
 
   /* ── autopilot: after a pass, move on by itself unless the learner touches anything during the short countdown ── */
   const autoTimer = useRef(null), autoSkipped = useRef('');
+  const autoPausedRef = useRef(false), autoRemainingRef = useRef(AUTO_ADVANCE_MS), autoStartedAtRef = useRef(0), autoKeyRef = useRef('');
+  const autoHold = useRef(''), [holdTick, setHoldTick] = useState(0);
+  const scheduleAutoTimer = useCallback((ms) => {
+    clearTimeout(autoTimer.current);
+    autoStartedAtRef.current = Date.now();
+    autoRemainingRef.current = ms;
+    autoTimer.current = setTimeout(() => {
+      autoTimer.current = null;
+      autoKeyRef.current = '';
+      autoPausedRef.current = false;
+      setAutoAdvancePausedState(false);
+      setAutoAdvance('');
+      reviewActRef.current('review.move', { direction: 1 });
+    }, ms);
+  }, []);
+  const setAutoAdvancePaused = useCallback((paused) => {
+    const next = !!paused;
+    if (!autoKeyRef.current) return;
+    if (next === autoPausedRef.current) return;
+    autoPausedRef.current = next;
+    setAutoAdvancePausedState(next);
+    if (next) {
+      if (autoTimer.current) {
+        clearTimeout(autoTimer.current);
+        autoTimer.current = null;
+        const elapsed = Math.max(0, Date.now() - autoStartedAtRef.current);
+        autoRemainingRef.current = Math.max(0, autoRemainingRef.current - elapsed);
+      }
+    } else if (autopilotRef.current && autoKeyRef.current && autoSkipped.current !== autoKeyRef.current && autoHold.current !== autoKeyRef.current) {
+      scheduleAutoTimer(Math.max(autoRemainingRef.current, 450));
+    }
+  }, [scheduleAutoTimer]);
   const cancelAutoAdvance = useCallback(() => {
-    if (!autoTimer.current) return;
+    if (!autoTimer.current && !autoKeyRef.current) return;
     clearTimeout(autoTimer.current);
     autoTimer.current = null;
+    autoKeyRef.current = '';
+    autoPausedRef.current = false;
+    autoRemainingRef.current = 0;
+    setAutoAdvancePausedState(false);
     setAutoAdvance((key) => { autoSkipped.current = key; return ''; });
   }, []);
   const cancelRef = useRef(cancelAutoAdvance);
   cancelRef.current = cancelAutoAdvance;
   /* The question the learner was taken to read (showExplanation, below): the autopilot leaves it alone until another question is on screen (keepAutopilotHold). */
-  const autoHold = useRef(''), [holdTick, setHoldTick] = useState(0);
   const passed = isPassed(run), advanceKey = advanceKeyOf(run);
   useEffect(() => {
     clearTimeout(autoTimer.current);
     autoTimer.current = null;
     autoHold.current = keepAutopilotHold(autoHold.current, advanceKey);
     const plan = autopilotPlan({ autopilot, page, passed, grading: !!run?.grading, complete: run?.complete, teaching: !!entry.teaching, skippedKey: autoSkipped.current, advanceKey, holdKey: autoHold.current });
-    if (!plan.schedule) { setAutoAdvance(''); return undefined; }
-    setAutoAdvance(plan.key);
-    autoTimer.current = setTimeout(() => {
-      autoTimer.current = null;
+    if (!plan.schedule) {
+      autoKeyRef.current = '';
+      autoPausedRef.current = false;
+      autoRemainingRef.current = 0;
+      setAutoAdvancePausedState(false);
       setAutoAdvance('');
-      reviewActRef.current('review.move', { direction: 1 });
-    }, plan.ms);
-    return () => clearTimeout(autoTimer.current);
-  }, [autopilot, page, passed, !!run?.grading, advanceKey, run?.complete, !!entry.teaching, holdTick]); // eslint-disable-line react-hooks/exhaustive-deps
+      return undefined;
+    }
+    autoKeyRef.current = plan.key;
+    autoPausedRef.current = false;
+    autoRemainingRef.current = plan.ms;
+    setAutoAdvancePausedState(false);
+    setAutoAdvance(plan.key);
+    scheduleAutoTimer(plan.ms);
+    return () => { clearTimeout(autoTimer.current); autoTimer.current = null; };
+  }, [autopilot, page, passed, !!run?.grading, advanceKey, run?.complete, !!entry.teaching, holdTick, scheduleAutoTimer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── EN: one translate per card entry, a second click joins the in-flight call ── */
   const enFlights = useRef(createFlightSet());
@@ -447,7 +520,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const shape = eventShape(event);
     const k = shape.key?.toLowerCase();
     if ((k === 'g' || k === 'b') && !shape.repeat && !shape.shiftKey && page === 'review' && run?.card && shortcutGate(shape, gateContext())) cancelAutoAdvance();
-    const outcome = shortcutAction(shape, { ...gateContext(), page, run, busy, shortcutHelp, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
+    const outcome = shortcutAction(shape, { ...gateContext(), page, run, busy, shortcutHelp, endAsked, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
     if (!outcome) return;
     cancelAutoAdvance();
     if (outcome.preventDefault) event.preventDefault();
@@ -455,15 +528,17 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     if (!action) return;
     if (action.type === 'help') setShortcutHelp((value) => !value);
     else if (action.type === 'help-close') { event.preventDefault(); setShortcutHelp(false); }
+    else if (action.type === 'end-cancel') { setEndAsked(false); rootRef.current?.querySelector?.('.question-card')?.focus?.({ preventScroll: true }); }
     else if (action.type === 'autopilot') toggleAutopilot();
     else if (action.type === 'resume') late.current.resume?.();
     else if (action.type === 'answer') { markKeyGrade(pressedGradeOf(action)); reviewAct('review.answer', action.args); }
     else if (action.type === 'move') reviewAct('review.move', { direction: action.direction });
     else if (action.type === 'flip') flipCard();
     else if (action.type === 'hint') toggleHint();
-    else if (action.type === 'explain') patch((value) => ({ explain: !value.explain }));
+    else if (action.type === 'explain') { if (runRef.current?.feedback) setExplainHidden((value) => !value); else patch((value) => ({ explain: !value.explain })); }
     else if (action.type === 'assist-plain') assistCard('ask', '', ['plain']);
     else if (action.type === 'choose') choose(action.id);
+    else if (action.type === 'clear-choice') patch({ selected: [] });
     else if (action.type === 'skip') skipQuestion();
     else if (['note', 'focus', 'source', 'voice', 'voice-ask', 'focus-cloze'].includes(action.type)) questionKeys.current[action.type]?.();
   };
@@ -509,14 +584,14 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     autopilot, onStatus: () => core.refresh().catch(() => {}), onPractice: onCoachPractice,
     onContinue: () => continueTo(null).go(),
     onReviewWeak: () => act('review.weak.start', { runId: run.id }, enterRun),
-    canShortcut, cancelAutoAdvance, autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0, debrief: null,
+    canShortcut, cancelAutoAdvance, autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0, autoAdvanceActive: !!autoAdvance, autoAdvancePaused, setAutoAdvancePaused, debrief: null,
   };
   const actions = useMemo(() => ({
-    reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn,
-    toggleHelp: () => { if (runRef.current?.revealed) patch((value) => ({ explain: !value.explain })); else toggleHint(); },
+    reviewAct, choose, clearChoice: () => patch({ selected: [] }), flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn,
+    toggleHelp: () => { if (runRef.current?.feedback) setExplainHidden((value) => !value); else if (runRef.current?.revealed) patch((value) => ({ explain: !value.explain })); else toggleHint(); },
     noteAssistance,
     // Opening a question to read its Q&A (a 信箱 letter): the explanation shows and the autopilot is held on this question, whatever the answer was.
-    showExplanation: () => { patch({ explain: true }); autoHold.current = advanceKeyOf(runRef.current); setHoldTick((tick) => tick + 1); },
+    showExplanation: () => { setExplainHidden(false); patch({ explain: true }); autoHold.current = advanceKeyOf(runRef.current); setHoldTick((tick) => tick + 1); },
     setResponse: (response) => patch({ response }),
     setClozeValue: (id, value) => patch((current) => ({ clozeValues: { ...current.clozeValues, [id]: value } })),
     setTeachAnswer: (teachAnswer) => patch({ teachAnswer }),
@@ -524,11 +599,12 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     // The sidebar's 快捷键 entry opens the same sheet as the ? key (ui/ShortcutHelp.jsx): one sheet, two ways in.
     openShortcutHelp: () => setShortcutHelp(true),
     toggleAutopilot,
+    setAutoAdvancePaused,
     skipQuestion,
     askEnd: () => setEndAsked(true),
     cancelEnd: () => setEndAsked(false),
     endRound,
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleHint, noteAssistance, skipQuestion, endRound]);
-  return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, advanceKey,
-    shortcutHelp, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft };
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, endRound]);
+  return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, autoAdvanceActive: !!autoAdvance, autoAdvancePaused, setAutoAdvancePaused, advanceKey,
+    explainHidden, skippedIndices, shortcutHelp, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft };
 }

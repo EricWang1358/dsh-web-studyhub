@@ -167,3 +167,19 @@ test("修题 reads Improve question in English and is no item of the English men
     assert.doesNotMatch(menu.replace(improveButton(menu), ""), /Improve question/);
   } finally { setUiLanguage("zh"); }
 });
+
+test("autopilot countdown renders a progress bar on 下一题 and freezes with .is-paused when paused (#2)", () => {
+  setUiLanguage("zh");
+  const base = render({ feedback: { correct: true } }, { autopilot: true, onToggleAutopilot() {}, autoAdvanceActive: false });
+  assert.doesNotMatch(base, /next-question__bar/, "no bar before countdown starts");
+  assert.doesNotMatch(base, /is-autopilot/);
+
+  const active = render({ feedback: { correct: true } }, { autopilot: true, onToggleAutopilot() {}, autoAdvanceActive: true, autoAdvancePaused: false, autoAdvanceMs: 1500 });
+  assert.match(active, /class="[^"]*next-question[^"]*is-autopilot[^"]*"/, "marks next button with .next-question.is-autopilot");
+  assert.doesNotMatch(active, /is-paused/);
+  assert.match(active, /class="next-question__bar"[^>]*style="[^"]*--autopilot-ms:1500ms/);
+
+  const paused = render({ feedback: { correct: true } }, { autopilot: true, onToggleAutopilot() {}, autoAdvanceActive: true, autoAdvancePaused: true, autoAdvanceMs: 900 });
+  assert.match(paused, /class="[^"]*next-question[^"]*is-autopilot[^"]*is-paused/);
+  assert.match(paused, /--autopilot-ms:900ms/);
+});

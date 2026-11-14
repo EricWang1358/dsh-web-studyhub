@@ -255,3 +255,84 @@ test("a stem that asks what the source says is called out with a one-click fix, 
     data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false, assistCard() {} }));
   assert.doesNotMatch(exam, /在问「资料怎么说」/, "no hint in an exam");
 });
+
+test("multi-choice shows selection count and 清空 link; multi-blank cloze counts filled blanks; open shows char hint (#1, #31, #32, #33)", () => {
+  const multiCard = { id: "m1", kind: "multi", multiple: true, topic: "T", prompt: "Pick two", options: [{ id: "a", text: "A" }, { id: "b", text: "B" }] };
+  const multiSelected = renderToStaticMarkup(reviewEl({
+    run: { id: "r", index: 0, total: 1, card: multiCard, revealed: false, feedback: null, solution: null },
+    data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: ["a"], clozeValues: {}, shellTitle: "Review", busy: false,
+  }));
+  assert.match(multiSelected, /已选 1 项 · 按 Enter 提交/);
+  assert.match(multiSelected, /submit-clear[^>]*>清空<\/button>/);
+  const multiEmpty = renderToStaticMarkup(reviewEl({
+    run: { id: "r", index: 0, total: 1, card: multiCard, revealed: false, feedback: null, solution: null },
+    data: { sources: [] }, host: {}, choice: true, isCloze: false, selected: [], clozeValues: {}, shellTitle: "Review", busy: false,
+  }));
+  assert.doesNotMatch(multiEmpty, /已选|submit-clear/);
+
+  const twoBlankCloze = { id: "c2", kind: "cloze", topic: "T", prompt: "", cloze: { text: "{{b1}} and {{b2}}", blanks: [{ id: "b1" }, { id: "b2" }] } };
+  const clozeHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r", index: 0, total: 1, card: twoBlankCloze, revealed: false, feedback: null, solution: null },
+    data: { sources: [] }, host: {}, choice: false, isCloze: true, selected: [], clozeValues: { b1: "one", b2: "" }, shellTitle: "Review", busy: false,
+  }));
+  assert.match(clozeHtml, /已填 1\/2 空/);
+  assert.match(clozeHtml, /Shift\+Enter 回上一空/);
+
+  const openHtml = renderToStaticMarkup(reviewEl({
+    run: { id: "r", index: 0, total: 1, card: { id: "o1", kind: "open", topic: "T", prompt: "Explain?", options: [] }, revealed: false, feedback: null, solution: null },
+    data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, response: "hello", shellTitle: "Review", busy: false,
+  }));
+  assert.match(openHtml, /5 字 · Ctrl\+Enter 看答案/);
+});
+
+test("flashcard grading shows side cue and keeps 0-5 buttons; long explanations add collapse/next footer (#35, #39)", () => {
+  const flashFront = render("flashcard", true, { feedback: null });
+  assert.match(flashFront, /grading-side-cue[^>]*>正在看正面题干 · 按 Space 回背面</);
+  assert.match(flashFront, /data-usage="review\.grade"/);
+
+  const flashBack = renderToStaticMarkup(reviewEl({
+    run: { id: "r", index: 0, total: 2, card: { id: "q", kind: "flashcard", topic: "Context", prompt: "Q?" }, revealed: true, feedback: null, solution: { answer: "A", explanation: "E" } },
+    data: { sources: [] }, host: {}, choice: false, isCloze: false, selected: [], clozeValues: {}, showBack: true, shellTitle: "Review", busy: false,
+  }));
+  assert.match(flashBack, /grading-side-cue[^>]*>按 Space 可翻回正面核对题干</);
+  assert.match(flashBack, /data-usage="review\.grade"/);
+
+  const longExplanation = "X".repeat(290);
+  const longHtml = render("quiz", true, {
+    complete: false,
+    feedback: { correct: true, details: [] },
+    solution: { answer: "Payment System", explanation: longExplanation },
+  });
+  assert.match(longHtml, /class="explanation-foot"/);
+  assert.match(longHtml, /收起解析 \(H\)/);
+  assert.match(longHtml, /下一题/);
+
+  const shortHtml = render("quiz", true, {
+    complete: false,
+    feedback: { correct: true, details: [] },
+    solution: { answer: "Payment System", explanation: "Short." },
+  });
+  assert.doesNotMatch(shortHtml, /explanation-foot/);
+});
+
+test("RetellPanel offers voice input and ExplanationFollowup shows saved note tooltip (#4, #25)", async () => {
+  const { loadUi } = await import("./helpers/ui-module.mjs");
+  const uiMods = await loadUi(`
+    export { default as RetellPanel } from './ui/review/RetellPanel.jsx';
+    export { default as ExplanationFollowup } from './ui/ExplanationFollowup.jsx';
+  `);
+
+  const retellHtml = renderToStaticMarkup(React.createElement(uiMods.RetellPanel, {
+    op: "teach.retell", args: { cardId: "q" }, draftKey: "r:q", model: { ready: true }, onDone() {}, onClose() {},
+  }));
+  assert.match(retellHtml, /让 AI 看看/);
+  assert.match(retellHtml, /语音作答/);
+
+  const fuHtml = renderToStaticMarkup(React.createElement(uiMods.ExplanationFollowup, {
+    run: { id: "r", card: { id: "q" }, solution: { followups: [{ id: "f1", question: "Q1?", answer: "A1" }] } },
+    noteQa: { savedIn: () => "n1", onSave() {}, onOpen() {} },
+    cardNotes: [{ noteId: "n1", title: "交易系统笔记", followupIds: ["f1", "f2"] }],
+  }));
+  assert.match(fuHtml, /已存进笔记 · 打开/);
+  assert.match(fuHtml, /已存进「交易系统笔记」（含 2 条问答）/);
+});

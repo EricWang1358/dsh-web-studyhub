@@ -64,7 +64,7 @@ export default function Cloze({ card, values, onChange, onSubmit, focusRequest =
           {!onSubmit
             ? ui("把空格补全")
             : blankIds.length > 1
-              ? ui("把空格补全 · 按 Enter 跳到下一空或提交 · Esc 退回题目")
+              ? <>{ui("把空格补全 · 按 Enter 跳到下一空或提交 · Esc 退回题目")}{" · "}{ui("Shift+Enter 回上一空")}</>
               : ui("把空格补全 · 按 Enter 提交 · Esc 退回题目")}
         </div>
       )}

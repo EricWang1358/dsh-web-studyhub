@@ -1,4 +1,4 @@
-/* global localStorage, document, innerWidth */
+/* global localStorage, document, innerWidth, window, KeyboardEvent */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -240,4 +240,300 @@ test('Cloze Enter/Esc keyboard flow and RoundLookBack source-page jump in a real
   await page.waitForFunction(() => /Alpha beta is the answer\./.test(document.querySelector('dialog[open]')?.innerText || ''), undefined, { timeout: 15000 });
   assert.deepEqual(errors, []);
   await context.close();
+});
+
+test('Slice 1 practice controls: multi-choice clear, cloze Shift+Enter, open draft, flashcard cues, long footer, thumb Esc, assist append/Esc, RoundPending roving/filter, RoundEndConfirm (#1,#3,#5,#31-#40)', { timeout: 600000 }, async (t) => {
+  const mixedDeck = {
+    id: 'slice1-mix',
+    title: 'Slice 1 Mix',
+    course: 'Course',
+    cards: [
+      { id: 'm1', kind: 'multi', multiple: true, topic: 'Multi', objective: 'O', prompt: 'Pick two options.', hint: 'Hint', explanation: 'Long '.repeat(80), misconception: 'M', citations: [],
+        options: [{ id: 'a', text: 'Alpha', correct: true, explanation: 'Right A' }, { id: 'b', text: 'Beta', correct: true, explanation: 'Right B' }, { id: 'c', text: 'Gamma', correct: false, explanation: 'Wrong C' }] },
+      { id: 'cl2', kind: 'cloze', topic: 'Cloze', objective: 'O', prompt: 'One {{b1}} and two {{b2}}.', hint: 'H', explanation: 'Cloze explanation.', misconception: 'M', citations: [],
+        cloze: { text: 'One {{b1}} and two {{b2}}.', answers: [{ id: 'b1', value: 'one' }, { id: 'b2', value: 'two' }] } },
+      { id: 'op1', kind: 'open', topic: 'Open', objective: 'O', prompt: 'Explain why idempotency matters.', hint: 'H', explanation: 'Reference open explanation.', misconception: 'M', citations: [], options: [] },
+      { id: 'fl1', kind: 'flashcard', topic: 'Flash', objective: 'O', prompt: 'Front side question?', answer: 'Back side answer.', hint: 'H', explanation: 'Flash explanation.', misconception: 'M', citations: [], options: [] },
+    ],
+  };
+  const served = await serve(t, (s) => { s.decks.push(mixedDeck); });
+  if (!served) return;
+  const { server, browser } = served;
+  await previewCall(server, 'settings.practice.set', { patch: { autopilot: false, debrief: false } });
+  await previewCall(server, 'review.start', { mode: 'path', fresh: true, scope: [{ deckId: 'slice1-mix' }] });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage(), errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); });
+  await page.goto(server.url);
+  await page.getByRole('button', { name: '继续 Slice 1 Mix' }).first().click();
+  await page.locator('.question-card').waitFor({ timeout: 30000 });
+
+  // #1 & #31: Multi-choice selection hint, 0/Backspace clear, 清空 link.
+  await page.locator('.option', { hasText: 'Alpha' }).click();
+  assert.match(await page.locator('.submit-hint').innerText(), /已选 1 项 · 按 Enter 提交/);
+  await page.locator('.submit-clear').waitFor();
+  await page.locator('.question-card').focus();
+  await page.keyboard.press('0');
+  assert.equal(await page.locator('.submit-hint').count(), 0, '0 clears selected choices');
+  await page.locator('.option', { hasText: 'Alpha' }).click();
+  await page.locator('.submit-clear').click();
+  assert.equal(await page.locator('.submit-hint').count(), 0, '清空 link clears selection');
+  await page.locator('.option', { hasText: 'Alpha' }).click();
+  await page.keyboard.press('Backspace');
+  assert.equal(await page.locator('.submit-hint').count(), 0, 'Backspace clears selection');
+
+  // #38: ThumbFeedback tray hint + Escape closes & stops propagation & focuses .question-card.
+  await page.locator('.question-card').focus();
+  await page.keyboard.press('b');
+  await page.locator('.thumb-tray').waitFor();
+  assert.match(await page.locator('.thumb-tray__keys').innerText(), /按 1–7 选标签，Esc 收起/);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.thumb-tray').count(), 0, 'Esc closes thumb tray');
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('question-card')), true, 'Esc restores focus to .question-card');
+
+  // Answer multi-choice & check #39 long explanation footer collapse/expand.
+  await page.locator('.option', { hasText: 'Alpha' }).click();
+  await page.locator('.option', { hasText: 'Beta' }).click();
+  await page.locator('.submit-answer').click();
+  await page.locator('.explanation-foot').waitFor({ timeout: 15000 });
+  assert.match(await page.locator('.explanation-foot').innerText(), /收起解析 \(H\)/);
+  assert.match(await page.locator('.explanation-foot').innerText(), /下一题/);
+  await page.locator('.explanation-foot').getByRole('button', { name: /收起解析/ }).click();
+  await page.locator('.explanation-collapsed').waitFor();
+  await page.locator('.question-card').focus();
+  await page.keyboard.press('h');
+  await page.locator('.explanation-foot').waitFor();
+
+  // #5: skip Q1? Q1 is already answered; let's go to Q2 (Cloze) and test #32, then skip Q2 later or test RoundPending at 420px!
+  await nextButton(page).click();
+  await page.locator('.cloze-blank--input').first().waitFor();
+
+  // #32: Cloze filled count + Shift+Enter back navigation.
+  await page.locator('.cloze-blank--input').nth(0).fill('one');
+  assert.match(await page.locator('.submit-hint').innerText(), /已填 1\/2 空/);
+  await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), '第 2 个空');
+  await page.keyboard.press('Shift+Enter');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), '第 1 个空');
+  // Skip cl2 with K before moving to open card so Q2 becomes skipped unanswered!
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('k');
+
+  // #33: Open answer char hint, Esc blur to card, Ctrl+Enter reveal.
+  await page.waitForFunction(() => /Explain why idempotency matters/.test(document.querySelector('.question-card')?.innerText || ''));
+  const responseBox = page.locator('.response-label textarea');
+  await responseBox.fill('Prevent duplicate side effects.');
+  assert.match(await page.locator('.response-hint').innerText(), /\d+ 字 · Ctrl\+Enter 看答案/);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('question-card')), true, 'Esc blurs open draft to card');
+  await responseBox.focus();
+  await page.keyboard.press('Control+Enter');
+  await page.locator('.grading .grade').first().waitFor();
+  await page.locator('.grade').nth(4).click();
+
+  // #35: Flashcard front/back cue + 0-5 grading works on front side too!
+  await nextButton(page).click();
+  await page.waitForFunction(() => /Front side question\?/.test(document.querySelector('.question-card')?.innerText || ''));
+  await page.locator('.flip-control').click();
+  await page.locator('.grading-side-cue').waitFor();
+  assert.match(await page.locator('.grading-side-cue').innerText(), /按 Space 可翻回正面核对题干/);
+  await page.locator('.question-card').focus();
+  await page.keyboard.press(' ');
+  assert.match(await page.locator('.grading-side-cue').innerText(), /正在看正面题干 · 按 Space 回背面/);
+  await page.keyboard.press('4');
+  await page.locator('.next-question:not(:disabled)').waitFor();
+
+  // #36 & #37 at 420px: RoundPending shows skipped cl2, 只看未答 toggle, arrow roving focus; RoundEndConfirm mounts focus + Esc + Enter block!
+  await page.setViewportSize({ width: 420, height: 900 });
+  await page.locator('.round-pending__trigger').click();
+  await page.locator('.round-pending__panel').waitFor();
+  assert.equal(await page.locator('.round-pending__item[data-skipped="true"]').count(), 1, 'skipped cl2 marked in RoundPending');
+  assert.equal(await page.locator('.round-pending__item').count(), 4);
+  const firstPending = page.locator('.round-pending__item').first();
+  await firstPending.focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.evaluate(() => document.activeElement?.innerText?.trim().startsWith('2')), true, 'ArrowRight roves focus');
+  await page.keyboard.press('End');
+  assert.equal(await page.evaluate(() => document.activeElement?.innerText?.trim().startsWith('4')), true, 'End focuses last pending item');
+  await page.keyboard.press('Home');
+  assert.equal(await page.evaluate(() => document.activeElement?.innerText?.trim().startsWith('1')), true, 'Home focuses first pending item');
+  await page.getByRole('button', { name: '只看未答' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.round-pending__item').length === 1);
+  assert.equal(await page.locator('.round-pending__item').count(), 1, '只看未答 filters to unanswered cl2');
+  await page.locator('.round-pending__trigger').click(); // close popover
+
+  // #37: RoundEndConfirm focus + Enter blocked behind confirm + Esc cancels back to card.
+  await chooseMore(page, /到此为止…/);
+  await page.locator('.round-end-confirm').waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.innerText?.trim()), '接着做', 'cancel button receives mount focus');
+  await page.locator('.question-card').focus();
+  const cardBefore = await page.locator('.question-card').innerText();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('.round-end-confirm').count(), 1, 'Enter blocked while end confirm open');
+  assert.equal(await page.locator('.question-card').innerText(), cardBefore);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.round-end-confirm').count(), 0, 'Escape closes end confirm');
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('question-card')), true, 'Escape returns focus to card');
+
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('RetellPanel (#3, #4), ExplanationFollowup (#3, #25), and QuestionRun assist form (#3, #40) in browser', { timeout: 60000 }, async (t) => {
+  const { build: esbuild } = await import('esbuild');
+  const compBundle = await esbuild({ stdin: { contents: `
+    import React from 'react';
+    import { createRoot } from 'react-dom/client';
+    import RetellPanel from './ui/review/RetellPanel.jsx';
+    import ExplanationFollowup from './ui/ExplanationFollowup.jsx';
+    import QuestionRun from './ui/review/QuestionRun.jsx';
+    import { StudyServicesContext } from './ui/study-context.jsx';
+    import { setUiLanguage } from './ui/i18n.js';
+    setUiLanguage('zh');
+    window.__calls = [];
+    window.__assists = [];
+    window.__retellClosed = 0;
+    function App() {
+      const [showRetell, setShowRetell] = React.useState(true);
+      const call = async (op, args) => {
+        window.__calls.push([op, args]);
+        if (op === 'teach.retell') return { right: ['Point A'], missed: ['Missed B'], wrong: [] };
+        if (op === 'card.followup.suggest') return { questions: ['Why?'] };
+        if (op === 'card.followup') return { item: { id: 'f-new', question: args.question, answer: 'Because.' } };
+        return {};
+      };
+      const services = React.useMemo(() => ({
+        call, act: async () => {}, busy: false, notify() {}, askInChat() {}, host: {}, openSettings() {}, navigate() {}, openModal() {},
+      }), []);
+      const session = {
+        run: { id: 'r1', deckId: 'd1', index: 0, total: 1, mode: 'path', complete: false, revealed: false, feedback: null, solution: null,
+          position: { last: true }, navigation: [{ index: 0, answered: false, level: 'new' }],
+          card: { id: 'q1', kind: 'quiz', topic: 'T', prompt: 'Stem?', options: [{ id: 'a', text: 'Yes' }] } },
+        entry: { selected: [], hint: false, explain: false, response: '', clozeValues: {}, teaching: null, teachAnswer: '' },
+        showBack: false, showEn: false, enBusyKey: '', keyGrade: null, teachingBusy: false, autopilot: false, choice: true, isCloze: false, rubricCard: false,
+        actions: {
+          reviewAct() {}, choose() {}, clearChoice() {}, flipCard() {},
+          assistCard: async (...args) => { window.__assists.push(args); return true; },
+          slayCard() {}, studyPrerequisites() {}, teachingAct() {}, toggleEn() {}, toggleHelp() {}, setResponse() {}, setClozeValue() {}, setTeachAnswer() {},
+          closeShortcutHelp() {}, showExplanation() {}, toggleAutopilot() {}, skipQuestion() {}, askEnd() {},
+        },
+      };
+      const data = { root: 'r1', sources: [], decks: [], model: { ready: true }, settings: { practice: { fixPhrases: ['选项有歧义', '解析不完整'] } } };
+      return (
+        <StudyServicesContext.Provider value={services}>
+          <div className="study-app">
+            <QuestionRun session={session} data={data} shellTitle="练习" feedback={null} coachProps={null} links={{}} context={{}} />
+            <div className="standalone-extras" tabIndex={-1}>
+              {showRetell && (
+                <RetellPanel
+                  op="teach.retell"
+                  args={{ cardId: 'q1' }}
+                  draftKey="r1:q1"
+                  model={{ ready: true }}
+                  onDone={() => {}}
+                  onClose={() => { window.__retellClosed++; setShowRetell(false); }}
+                />
+              )}
+              <ExplanationFollowup
+                run={{ id: 'r1', deckId: 'd1', card: { id: 'q1' }, solution: { followups: [{ id: 'f1', question: 'Q1?', answer: 'A1' }] } }}
+                noteQa={{ savedIn: () => 'n1', onSave() {}, onOpen() {} }}
+                cardNotes={[{ noteId: 'n1', title: '笔记A', followupIds: ['f1', 'f2'] }]}
+              />
+            </div>
+          </div>
+        </StudyServicesContext.Provider>
+      );
+    }
+    createRoot(document.getElementById('root')).render(<App />);
+  `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife', loader: { '.css': 'text' }, logLevel: 'silent' });
+  let browser;
+  try { browser = await launchChromium(); }
+  catch (error) {
+    if (!/browserType\.launch: Executable doesn't exist/.test(String(error.message))) throw error;
+    t.skip('Chromium unavailable'); return;
+  }
+  t.after(() => browser.close());
+  const page = await browser.newPage({ locale: 'zh-CN' });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.route('http://test.local/**', (route) => route.fulfill({ contentType: 'text/html', body: '<main id="root"></main>' }));
+  await page.goto('http://test.local/');
+  await page.addScriptTag({ content: compBundle.outputFiles[0].text });
+
+  // QuestionRun .assist-form (#3 & #40): append fix phrases, 清空, IME guard, empty Esc collapse restoring focus, Ctrl+Enter submit.
+  await page.locator('[data-tour="review-improve"]').click();
+  await page.locator('.assist-form__input').waitFor();
+  await page.getByRole('button', { name: '选项有歧义', exact: true }).click();
+  await page.getByRole('button', { name: '解析不完整', exact: true }).click();
+  assert.equal(await page.locator('.assist-form__input').inputValue(), '选项有歧义；解析不完整');
+  await page.getByRole('button', { name: '解析不完整', exact: true }).click();
+  assert.equal(await page.locator('.assist-form__input').inputValue(), '选项有歧义；解析不完整', 'duplicate phrase not appended twice');
+  await page.locator('.assist-actions').getByRole('button', { name: '清空' }).click();
+  assert.equal(await page.locator('.assist-form__input').inputValue(), '');
+  await page.locator('.assist-form__input').focus();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.assist-form__input').count(), 0, 'empty Esc collapses assist form');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-tour')), 'review-improve', 'focus returns to trigger');
+  await page.locator('[data-tour="review-improve"]').click();
+  await page.locator('.assist-form__input').fill('Fix stem wording');
+  await page.evaluate(() => {
+    const el = document.querySelector('.assist-form__input');
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, isComposing: true, bubbles: true }));
+    const legacy = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true });
+    Object.defineProperty(legacy, 'keyCode', { value: 229 });
+    el.dispatchEvent(legacy);
+  });
+  assert.equal(await page.evaluate(() => window.__assists.length), 0, 'IME Enter ignored in assist form');
+  await page.locator('.assist-form__input').focus();
+  await page.keyboard.press('Control+Enter');
+  await page.waitForFunction(() => window.__assists.length === 1);
+  assert.equal(await page.evaluate(() => window.__assists[0][0]), 'improve');
+
+  // RetellPanel: IME Ctrl+Enter ignored, real Ctrl+Enter submits, 对照漏点再补一句 restores & focuses textarea, empty Esc closes.
+  const retellInput = page.locator('.retell-panel__input');
+  await retellInput.fill('First retell draft');
+  await page.evaluate(() => {
+    const el = document.querySelector('.retell-panel__input');
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, isComposing: true, bubbles: true }));
+    const legacy = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true });
+    Object.defineProperty(legacy, 'keyCode', { value: 229 });
+    el.dispatchEvent(legacy);
+  });
+  assert.equal(await page.evaluate(() => window.__calls.filter(([op]) => op === 'teach.retell').length), 0, 'IME Enter ignored in RetellPanel');
+  await retellInput.focus();
+  await page.keyboard.press('Control+Enter');
+  await page.locator('.retell-result__restore').waitFor();
+  assert.equal(await retellInput.inputValue(), '');
+  await page.locator('.retell-result__restore').click();
+  assert.equal(await retellInput.inputValue(), 'First retell draft');
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('retell-panel__input')), true);
+  await retellInput.fill('');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => window.__retellClosed), 1);
+
+  // ExplanationFollowup: open ask -> custom ask -> IME ignored -> empty Esc restores trigger focus -> type & Ctrl+Enter submits.
+  await page.getByRole('button', { name: '追问？' }).click();
+  await page.getByRole('button', { name: '你的疑问' }).click();
+  const fuInput = page.locator('.followup-picker__input');
+  await fuInput.focus();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.followup-picker__input').count(), 0, 'empty Esc collapses custom followup input');
+  assert.equal(await page.evaluate(() => /你的疑问/.test(document.activeElement?.innerText || '')), true, 'focus returns to custom trigger');
+  await page.getByRole('button', { name: '你的疑问' }).click();
+  await fuInput.fill('Custom followup question?');
+  await page.evaluate(() => {
+    const el = document.querySelector('.followup-picker__input');
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, isComposing: true, bubbles: true }));
+    const legacy = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true });
+    Object.defineProperty(legacy, 'keyCode', { value: 229 });
+    el.dispatchEvent(legacy);
+  });
+  assert.equal(await page.evaluate(() => window.__calls.filter(([op]) => op === 'card.followup').length), 0, 'IME ignored in ExplanationFollowup');
+  await fuInput.focus();
+  await page.keyboard.press('Control+Enter');
+  await page.waitForFunction(() => window.__calls.filter(([op]) => op === 'card.followup').length === 1);
+  assert.match(await page.locator('.explanation-followup').innerHTML(), /已存进「笔记A」（含 2 条问答）/);
+  assert.deepEqual(errors, []);
 });

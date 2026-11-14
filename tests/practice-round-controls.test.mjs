@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { StudyService } from '../lib/service.js';
 import { freshRoundCount, roundLimits } from '../lib/practice-settings.js';
 import { followupDigest } from '../lib/followup.js';
@@ -10,6 +12,7 @@ import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { capabilityIndex } from '../lib/runtime/tools.js';
 import { assistRunningOn, clozeBlankKeyAction, finishedTask, pendingCount, retriesWaiting, reviewPollResult, shortcutAction, skipTarget } from '../ui/review/session-logic.js';
 import { reviewPollDelay } from '../ui/poll-schedule.js';
+import { loadUi } from './helpers/ui-module.mjs';
 
 /* #1008 / #1009 / #1011: inside a practice round the learner can set a question aside (先跳过, the existing review.move {index}) and stop the round with a
    result (到此为止, the existing review.end); the result page lists the round's questions with a read-only look-back from the run itself; 「继续下一批新题」 takes
@@ -398,4 +401,49 @@ test('a poll that changes nothing says so, and a helper task on the open questio
   assert.deepEqual(finishedTask('t1', [{ ...own[0], status: 'done' }], 'g'), { watch: '', done: true }, 'it ended: ask now');
   assert.deepEqual(finishedTask('t1', [{ ...own[0], status: 'failed' }], 'g'), { watch: '', done: false }, 'a failed task brings nothing to show');
   assert.deepEqual(finishedTask('', [], 'g'), { watch: '', done: false });
+});
+
+test('Cloze Shift+Enter steps back through blanks cleanly and ignores modifiers/IME (#32)', () => {
+  const key = (k, extra = {}) => ({ key: k, repeat: false, isComposing: false, keyCode: 13, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...extra });
+  assert.deepEqual(clozeBlankKeyAction(key('Enter', { shiftKey: true }), { blankIds: ['b1', 'b2', 'b3'], currentId: 'b2', values: {} }), { type: 'focus', id: 'b1' });
+  assert.deepEqual(clozeBlankKeyAction(key('Enter', { shiftKey: true }), { blankIds: ['b1', 'b2', 'b3'], currentId: 'b1', values: {} }), { type: 'focus', id: 'b3' }, 'wraps from first to last blank');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter', { shiftKey: true }), { blankIds: ['b1'], currentId: 'b1', values: {} }), { type: 'noop' }, 'single blank does not step');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter', { shiftKey: true, ctrlKey: true }), { blankIds: ['b1', 'b2'], currentId: 'b2', values: {} }), { type: 'noop' });
+  assert.deepEqual(clozeBlankKeyAction(key('Enter', { shiftKey: true, altKey: true }), { blankIds: ['b1', 'b2'], currentId: 'b2', values: {} }), { type: 'noop' });
+  assert.equal(clozeBlankKeyAction(key('Enter', { shiftKey: true, isComposing: true }), { blankIds: ['b1', 'b2'], currentId: 'b2', values: {} }), null);
+});
+
+test('appendFixPhrase appends without overwriting and avoids duplicates (#40)', async () => {
+  const { appendFixPhrase } = await loadUi("export { appendFixPhrase } from './ui/review/FixPhrases.jsx';");
+  assert.equal(appendFixPhrase('', '解析没说清'), '解析没说清');
+  assert.equal(appendFixPhrase('   ', '解析没说清'), '解析没说清');
+  assert.equal(appendFixPhrase('选项 B 有歧义', '解析没说清'), '选项 B 有歧义；解析没说清');
+  assert.equal(appendFixPhrase('选项 B 有歧义；解析没说清', '解析没说清'), '选项 B 有歧义；解析没说清');
+});
+
+test('RoundPending renders pending chip only when waiting questions remain (#5, #36)', async () => {
+  const { default: RoundPending } = await loadUi("export { default } from './ui/review/RoundPending.jsx';");
+  const mixed = [
+    { index: 0, answered: true, correct: true, prompt: 'Answered Q' },
+    { index: 1, answered: false, prompt: 'Skipped Q' },
+    { index: 2, answered: false, prompt: 'Normal Q' },
+  ];
+  const html = renderToStaticMarkup(React.createElement(RoundPending, {
+    run: { id: 'r1', mode: 'path', index: 2, navigation: mixed }, skippedIndices: new Set([0, 1]), onJump() {}, onEnd() {},
+  }));
+  assert.match(html, /2 题待答/);
+
+  const finished = renderToStaticMarkup(React.createElement(RoundPending, {
+    run: { id: 'r1', mode: 'path', index: 0, navigation: [{ index: 0, answered: true, prompt: 'Done' }] }, onJump() {}, onEnd() {},
+  }));
+  assert.equal(finished, '', 'hides chip once all questions are answered');
+});
+
+test('RoundEndConfirm renders confirm controls when endAsked is active (#37)', async () => {
+  const { RoundEndConfirm } = await loadUi("export { RoundEndConfirm } from './ui/review/RoundSteps.jsx';");
+  const html = renderToStaticMarkup(React.createElement(RoundEndConfirm, {
+    session: { endAsked: true, run: { navigation: [{ index: 0, answered: false }, { index: 1, answered: true }] }, actions: { confirmEnd() {}, cancelEnd() {} } },
+  }));
+  assert.match(html, /到此为止，看结果/);
+  assert.match(html, /接着做/);
 });

@@ -1,3 +1,4 @@
+/* global window, document, KeyboardEvent */
 /* WP12 · rubric grading inside the existing learning loop. A rubric card in a
    review run is graded by background help (assist mode `grade`) or by the
    runtime action `card.grade`; both store the result like any answer: the run
@@ -386,4 +387,119 @@ test("rubric skills over time feed 错题与待巩固 and 统计", () => {
   assert.equal(skills[0].ratio, 0.375);
   assert.deepEqual(skills[0].trend, [0.25, 0.5]);
   assert.equal(skills[1].latest, 0);
+});
+
+test("RubricAnswer renders checkable criterion items with live count summary (#34)", async () => {
+  const React = (await import("react")).default;
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { loadUi } = await import("./helpers/ui-module.mjs");
+  const { RubricAnswer } = await loadUi("export { RubricAnswer } from './ui/CaseWorkspace.jsx';");
+  const html = renderToStaticMarkup(React.createElement(RubricAnswer, {
+    run: { id: "r-rubric", card: card("q1", 1, "Event-driven") },
+    data: { model: { ready: true } },
+    onSubmit() {},
+  }));
+  assert.match(html, /评分维度 · 已自检 0\/3 项/);
+  const checks = [...html.matchAll(/type="checkbox"/g)];
+  assert.equal(checks.length, 3, "one shared Checkbox per rubric criterion");
+  assert.doesNotMatch(html, /<button[^>]*rubric-dim/i, "no raw button on rubric checklist items");
+});
+
+test("RubricAnswer persists checkedIds per question key and submits on IME-safe Ctrl/Cmd+Enter (#34)", { timeout: 60000 }, async (t) => {
+  const { build } = await import("esbuild");
+  const { launchChromium } = await import("../scripts/qa/browser.mjs");
+  const bundle = await build({ stdin: { contents: `
+    import React from 'react';
+    import { createRoot } from 'react-dom/client';
+    import { RubricAnswer } from './ui/CaseWorkspace.jsx';
+    import { StudyServicesContext } from './ui/study-context.jsx';
+    import { setUiLanguage } from './ui/i18n.js';
+    setUiLanguage('zh');
+    window.__submits = [];
+    const criteria = [
+      { id: 'c1', label: 'Dim 1', marks: 3 },
+      { id: 'c2', label: 'Dim 2', marks: 2 },
+      { id: 'c3', label: 'Dim 3', marks: 1 },
+    ];
+    function Harness() {
+      const [cfg, setCfg] = React.useState({ cardId: 'q1', ready: true, busy: false, running: false });
+      const [mountKey, setMountKey] = React.useState(0);
+      window.__setCfg = (patch) => setCfg((c) => ({ ...c, ...patch }));
+      window.__remount = () => setMountKey((k) => k + 1);
+      const services = React.useMemo(() => ({
+        call: async () => ({}), act: async () => {}, busy: cfg.busy, notify() {}, askInChat() {}, host: {}, openSettings() {}, navigate() {}, openModal() {},
+      }), [cfg.busy]);
+      return (
+        <StudyServicesContext.Provider value={services}>
+          <div className="study-app" key={mountKey}>
+            <RubricAnswer
+              run={{ id: 'run-34', card: { id: cfg.cardId, kind: 'open', marks: 6, rubricCriteria: criteria } }}
+              data={{ root: 'root-34', model: { ready: cfg.ready, reason: cfg.ready ? '' : 'no-route' } }}
+              task={cfg.running ? { status: 'running' } : null}
+              onSubmit={(val) => window.__submits.push(val)}
+            />
+          </div>
+        </StudyServicesContext.Provider>
+      );
+    }
+    createRoot(document.getElementById('root')).render(<Harness />);
+  `, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, platform: 'browser', format: 'iife', loader: { '.css': 'text' }, logLevel: 'silent' });
+  let browser;
+  try { browser = await launchChromium(); }
+  catch (error) {
+    if (!/browserType\.launch: Executable doesn't exist/.test(String(error.message))) throw error;
+    t.skip("Chromium unavailable"); return;
+  }
+  t.after(() => browser.close());
+  const page = await browser.newPage({ locale: 'zh-CN' });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.route('http://test.local/**', (route) => route.fulfill({ contentType: 'text/html', body: '<main id="root"></main>' }));
+  await page.goto('http://test.local/');
+  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+  await page.locator('.rubric-dims').waitFor();
+
+  // Expand criteria, check 2 items -> 已自检 2/3 项, persists across remount, resets for q2.
+  await page.locator('.rubric-dims summary').click();
+  const boxes = page.locator('.rubric-dims input[type="checkbox"]');
+  await boxes.nth(0).check();
+  await boxes.nth(1).check();
+  assert.match(await page.locator('.rubric-dims summary').innerText(), /已自检 2\/3 项/);
+  await page.evaluate(() => window.__remount());
+  await page.locator('.rubric-dims').waitFor();
+  await page.waitForFunction(() => /已自检 2\/3 项/.test(document.querySelector('.rubric-dims summary')?.innerText || ''));
+  assert.match(await page.locator('.rubric-dims summary').innerText(), /已自检 2\/3 项/, 'checkedIds persist per key');
+  await page.evaluate(() => window.__setCfg({ cardId: 'q2' }));
+  await page.waitForFunction(() => /已自检 0\/3 项/.test(document.querySelector('.rubric-dims summary')?.innerText || ''));
+  assert.match(await page.locator('.rubric-dims summary').innerText(), /已自检 0\/3 项/, 'distinct card key starts unchecked');
+  await page.evaluate(() => window.__setCfg({ cardId: 'q1' }));
+  await page.waitForFunction(() => /已自检 2\/3 项/.test(document.querySelector('.rubric-dims summary')?.innerText || ''));
+  assert.match(await page.locator('.rubric-dims summary').innerText(), /已自检 2\/3 项/);
+
+  // Ctrl+Enter guardrails: empty ignored, IME isComposing/keyCode 229 ignored, busy/grading/!ready ignored, valid submits.
+  const input = page.locator('.rubric-editor__input');
+  await input.focus();
+  await page.keyboard.press('Control+Enter');
+  assert.equal(await page.evaluate(() => window.__submits.length), 0, 'empty draft ignored');
+  await input.fill('Use alerting on missing telemetry.');
+  await page.evaluate(() => {
+    const el = document.querySelector('.rubric-editor__input');
+    const ime = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, isComposing: true, bubbles: true });
+    el.dispatchEvent(ime);
+    const legacy = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true });
+    Object.defineProperty(legacy, 'keyCode', { value: 229 });
+    el.dispatchEvent(legacy);
+  });
+  assert.equal(await page.evaluate(() => window.__submits.length), 0, 'IME Enter ignored');
+  await page.evaluate(() => window.__setCfg({ busy: true }));
+  await page.keyboard.press('Control+Enter');
+  await page.evaluate(() => window.__setCfg({ busy: false, running: true }));
+  await page.keyboard.press('Control+Enter');
+  await page.evaluate(() => window.__setCfg({ running: false, ready: false }));
+  assert.equal(await page.evaluate(() => window.__submits.length), 0, 'busy / grading / unready guarded');
+  await page.evaluate(() => window.__setCfg({ ready: true }));
+  await input.focus();
+  await page.keyboard.press('Control+Enter');
+  assert.deepEqual(await page.evaluate(() => window.__submits), ['Use alerting on missing telemetry.']);
+  assert.deepEqual(errors, []);
 });

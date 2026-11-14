@@ -26,7 +26,7 @@ import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettin
 import { Badge, Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES } from "../agent-prompts/card.js";
-import { FixPhraseChips, FixPhraseSave } from "./FixPhrases.jsx";
+import { FixPhraseChips, FixPhraseSave, appendFixPhrase } from "./FixPhrases.jsx";
 import { useFixPhrases } from "./use-fix-phrases.js";
 import { useFlashHead } from "./use-flash-head.js";
 import { CourseRuleAdd } from "../course-rules/CourseRuleAdd.jsx";
@@ -41,10 +41,11 @@ import { MasteryMark } from "../document-preview/practice/MasteryMark.jsx";
 import { NextDue } from "../NextDue.jsx";
 import { formatGap } from "../format.js";
 import { resolveBookSettings } from "../../lib/book-settings.js";
+import { clozeRuns } from "../../lib/cloze-text.js";
 import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
 import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 import { roundAt, roundWords } from "./round-words.js";
-import { finishedTask } from "./session-logic.js";
+import { AUTO_ADVANCE_MS, finishedTask } from "./session-logic.js";
 import { fixedOptionsOf } from "../../lib/card-kinds.js";
 import { deferUnstudiedPagesPlan, runDeferUnstudiedPages } from "../document-preview/practice/open-reader-pages.js";
 import QuestionSourcePage from "./QuestionSourcePage.jsx";
@@ -165,7 +166,12 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const thumbVote = thumbState.vote;
   const [assistText, setAssistText] = React.useState("");
   const [dismissedTaskId, setDismissedTaskId] = React.useState("");
-  const showSolution = !!(run.solution && (explain || !!run.feedback));
+  const hasSessionExplainHidden = typeof session.explainHidden === "boolean";
+  const [localExplainHidden, setLocalExplainHidden] = React.useState(false);
+  const hasFeedback = !!run.feedback;
+  React.useEffect(() => { setLocalExplainHidden(false); }, [run.id, run.index, run.card?.id, hasFeedback]);
+  const isFeedbackHidden = hasSessionExplainHidden ? session.explainHidden : localExplainHidden;
+  const showSolution = !!(run.solution && (run.feedback ? !isFeedbackHidden : explain));
   const showUnansweredFollowups = !run.revealed && !showSolution && run.mode !== "exam" && !!(explain || entry.assistance?.askedTutorBeforeAnswer) && (run.followups?.length ?? 0) > 0;
   const voteMoments = voteTipMoments(thumbVote, thumbState.tags, !!run.feedback);
   // The three first-use tips under the question (#948): which one shows, if any, is ui/guidance/practice-tips.js; it says nothing before the learner has acted.
@@ -174,6 +180,35 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const [helpChoices, setHelpChoices] = React.useState([]);
   const [clozeFocusTick, setClozeFocusTick] = React.useState(0);
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
+  const reviewBodyRef = React.useRef(null);
+  const autoAdvanceMs = coachProps?.autoAdvance > 0 ? coachProps.autoAdvance : session.autoAdvanceActive ? AUTO_ADVANCE_MS : 0;
+  const autoAdvanceActive = Boolean(session.autoAdvanceActive || autoAdvanceMs > 0);
+  const autoAdvancePaused = Boolean(session.autoAdvancePaused);
+  const hoverPauseRef = React.useRef({ card: false, explanation: false });
+  const selectionPauseRef = React.useRef(false);
+  const syncAutoPause = React.useCallback(() => {
+    const paused = hoverPauseRef.current.card || hoverPauseRef.current.explanation || selectionPauseRef.current;
+    session.setAutoAdvancePaused?.(paused);
+  }, [session]);
+  React.useEffect(() => {
+    hoverPauseRef.current = { card: false, explanation: false };
+    selectionPauseRef.current = false;
+  }, [session.advanceKey]);
+  React.useEffect(() => {
+    if (!autoAdvanceActive || typeof document === "undefined") return undefined;
+    const onSelectionChange = () => {
+      const sel = window.getSelection?.();
+      const text = sel?.toString?.().trim() || "";
+      const body = reviewBodyRef.current;
+      const inside = !!(text && body && ((sel?.anchorNode && body.contains(sel.anchorNode)) || (sel?.focusNode && body.contains(sel.focusNode))));
+      if (selectionPauseRef.current !== inside) {
+        selectionPauseRef.current = inside;
+        syncAutoPause();
+      }
+    };
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => document.removeEventListener("selectionchange", onSelectionChange);
+  }, [autoAdvanceActive, syncAutoPause]);
   // 我的常用语句: the learner's own chips of the 修题 box (settings.practice.fixPhrases).
   const fixPhrases = useFixPhrases(data);
   // 出题守则 of the question's course (#889): 「设为本课守则」 under the 修题 box and on the 👎 tray add to them.
@@ -251,7 +286,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     </details>
   );
   return (
-    <div className="review-body">
+    <div className="review-body" ref={reviewBodyRef}>
       <div
         className={
           "question-area " +
@@ -265,12 +300,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           highlights={caseHighlights} onChange={saveHighlights} />}
         {/* The card: header, stem and answers on paper stock. Toolbar,
             status and explanation sit below it on the desk. */}
-        <div className={"question-card" + (!choice && !isCloze && !rubricCard && !taskCard ? "" : " sh-paper-card sh-paper-card--roomy")} data-tour="review-question" tabIndex={-1}>
+        <div className={"question-card" + (!choice && !isCloze && !rubricCard && !taskCard ? "" : " sh-paper-card sh-paper-card--roomy")} data-tour="review-question" tabIndex={-1}
+          onPointerEnter={() => { if (!autoAdvanceActive) return; hoverPauseRef.current.card = true; syncAutoPause(); }}
+          onPointerLeave={() => { if (!hoverPauseRef.current.card) return; hoverPauseRef.current.card = false; syncAutoPause(); }}>
           <div className="question-card__head" ref={flashHead}>
             <div className="question-meta">
               <span>
                 <span>{words.main}</span>{words.note && <small className="question-retry-note">{words.note}</small>}
-                {roundSteps.onEnd && <RoundPending run={run} onJump={(index) => reviewAct("review.move", { index })} onEnd={roundSteps.onEnd} />}
+                {roundSteps.onEnd && <RoundPending run={run} skippedIndices={session.skippedIndices} onJump={(index) => reviewAct("review.move", { index })} onEnd={roundSteps.onEnd} />}
                 {voice.pending}
                 {run.mode !== "exam" && run.liveMastery?.before?.total > 0 && run.liveMastery?.after?.total > 0 && (() => {
                   const { before, after } = run.liveMastery, delta = after.percent - before.percent;
@@ -412,14 +449,23 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 })}
               </div>
               {run.card.multiple && !run.feedback && (
-                <Button
-                  variant="primary" className="submit-answer"
-                  data-usage="review.submit"
-                  disabled={!selected.length} lock={busy}
-                  onClick={() =>
-                    reviewAct("review.answer", { selected })
-                  }
-                >{ui("提交答案")}</Button>
+                <div className="submit-row">
+                  {selected.length > 0 && (
+                    <span className="submit-hint" role="status">
+                      <span>{uiFormat("已选 {0} 项 · 按 Enter 提交", [selected.length])}</span>
+                      <Button variant="link" size="sm" className="submit-clear" lock={busy}
+                        onClick={() => actions.clearChoice?.()}>{ui("清空")}</Button>
+                    </span>
+                  )}
+                  <Button
+                    variant="primary" className="submit-answer"
+                    data-usage="review.submit"
+                    disabled={!selected.length} lock={busy}
+                    onClick={() =>
+                      reviewAct("review.answer", { selected })
+                    }
+                  >{ui("提交答案")}</Button>
+                </div>
               )}
             </>
           ) : isCloze ? (
@@ -452,10 +498,19 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 </p>
               )}
               {voice.answer}
-              {!run.feedback && (
-                <Button variant="primary" className="submit-answer" data-usage="review.submit" disabled={!Object.values(clozeValues).some((v) => String(v).trim())} lock={busy}
-                  onClick={() => reviewAct("review.answer", { answers: clozeValues })}>{ui("提交答案")}</Button>
-              )}
+              {!run.feedback && (() => {
+                const clozeIds = clozeRuns(run.card?.cloze?.text || "").filter((p) => p.t === "blank").map((p) => p.id);
+                const filledCloze = clozeIds.filter((id) => String(clozeValues?.[id] ?? "").trim()).length;
+                return (
+                  <div className="submit-row">
+                    {clozeIds.length >= 2 && (
+                      <span className="submit-hint" role="status">{uiFormat("已填 {0}/{1} 空", [filledCloze, clozeIds.length])}</span>
+                    )}
+                    <Button variant="primary" className="submit-answer" data-usage="review.submit" disabled={!Object.values(clozeValues).some((v) => String(v).trim())} lock={busy}
+                      onClick={() => reviewAct("review.answer", { answers: clozeValues })}>{ui("提交答案")}</Button>
+                  </div>
+                );
+              })()}
             </>
           ) : taskCard ? (
             <>
@@ -475,15 +530,38 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               <FlipCard key={run.card.id} run={run} showBack={showBack} flipCard={flipCard} enOn={enOn} />
               <SmoothHeight className="flash-follow" key={"follow:" + run.card.id}>
               {run.card.kind === "open" && !run.revealed && (
-                <label className="response-label">{ui("先组织你的回答")}<textarea rows={3} value={response} readOnly={!!run.grading} className={run.grading ? "response-sent" : undefined} onChange={(e) => actions.setResponse(e.target.value)}
-                    placeholder={ui("在脑中作答，或在这里写下思路（提交前会自动保存）")} /></label>
+                <label className="response-label">{ui("先组织你的回答")}<textarea rows={3} value={response} readOnly={!!run.grading} className={run.grading ? "response-sent" : undefined}
+                    onChange={(e) => actions.setResponse(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.nativeEvent?.isComposing || e.isComposing || e.keyCode === 229) return;
+                      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !e.shiftKey && !e.altKey) {
+                        e.preventDefault();
+                        flipCard();
+                        return;
+                      }
+                      if (e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+                        e.preventDefault();
+                        const cardEl = e.currentTarget.closest?.(".question-card");
+                        if (cardEl?.focus) cardEl.focus({ preventScroll: true });
+                        else e.currentTarget.blur();
+                      }
+                    }}
+                    placeholder={ui("在脑中作答，或在这里写下思路（提交前会自动保存）")} />
+                  {response.trim().length > 0 && (
+                    <small className="response-hint">{uiFormat("{0} 字 · Ctrl+Enter 看答案", [[...response.trim()].length])}</small>
+                  )}
+                </label>
               )}
               {voice.answer}
               {run.revealed && !run.feedback && (
                 <div className="grading">
                   <div className="grading-head">
                     <span>{run.retry ? ui("本轮重练 · 掌握程度") : ui("掌握程度")}</span>
-                    <small>
+                    <small className="grading-head__meta">
+                      <span className="grading-side-cue">
+                        {!showBack ? ui("正在看正面题干 · 按 Space 回背面") : ui("按 Space 可翻回正面核对题干")}
+                      </span>
+                      {" · "}
                       {ui("按 0–5 评分")}
                       {run.intervals && <>{" · "}<Tooltip layer content={ui("每个按钮下面是选它以后，隔多久再复习这道题。间隔按上次复习到现在实际隔了几天来算：没到期就复习，间隔涨得少；当天重复答，间隔不再变长。")}>
                       <span tabIndex={0} className="grade-gaps-tip">{ui("下面是下次复习的间隔")}</span>
@@ -528,6 +606,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           {/* What the answer did and when the question comes back: at the foot of the card, right after the explanations, where the eyes already are (#672). */}
           {voice.correction}
           {run.feedback && <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} />}
+          {autoAdvanceActive && (
+            <div className={"question-card__autopilot" + (autoAdvancePaused ? " is-paused" : "")}
+              key={"card-auto:" + run.index}
+              style={{ "--autopilot-ms": `${autoAdvanceMs}ms` }}
+              aria-hidden="true">
+              <span className="question-card__autopilot-fill" />
+            </div>
+          )}
         </div>
         {/* Under the card, which stays in view when a question switch pins it to the top. */}
         {contextReturnLabel && <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
@@ -550,6 +636,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           enBusy={!!enBusyKey && enBusyKey === reviewEntryKey(run)}
           onToggleEn={toggleEn}
           autopilot={autopilot} onToggleAutopilot={actions.toggleAutopilot}
+          autoAdvanceActive={autoAdvanceActive} autoAdvancePaused={autoAdvancePaused} autoAdvanceMs={autoAdvanceMs}
           onSkip={roundSteps.onSkip} onEndRound={roundSteps.onEnd}
           // 这题不错 / 这题有问题 are items of 更多; ThumbFeedback keeps the vote, the tag tray and the G / B keys (#671).
           thumbVote={thumbVote} onThumb={coachProps && run.mode !== "exam" ? (vote) => thumbsRef.current?.[vote === "up" ? "up" : "down"]() : undefined}
@@ -577,57 +664,88 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 <Button size="sm" className="assist-actions__btn" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
               </div>
             </div>
-          ) : (
-            <form
-              className="assist-form"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                const mode = assistMode;
-                if (!assistText.trim() && !(mode === "ask" && helpChoices.length)) return;
-                if (await assistCard(mode, assistText.trim(), mode === "ask" ? helpChoices : [], mode === "derive" ? { relation: deriveRelation } : undefined)) {
-                  if (mode === "ask" && helpChoices.includes("prerequisite") && run.prerequisites?.length)
-                    studyPrerequisites(run.prerequisites);
-                  setAssistMode("");
-                  setAssistText("");
-                  setHelpChoices([]);
-                }
-              }}
-            >
-              {assistMode === "ask" && <>
-                <strong>{ui("想从哪里弄懂？可多选")}</strong>
-                <div className="assist-quick-choices" role="group" aria-label={ui("帮助方式")}>
-                  {HELP_CHOICES.filter((choice) => choice.id !== "mistake" || run.feedback).map((choice) =>
-                    <Chip key={choice.id} selected={helpChoices.includes(choice.id)}
-                      onClick={() => setHelpChoices((items) => items.includes(choice.id)
-                        ? items.filter((item) => item !== choice.id) : [...items, choice.id])}>
-                      {ui(choice.label)}
-                    </Chip>)}
+          ) : (() => {
+            const canSubmitAssist = !!assistText.trim() || (assistMode === "ask" && helpChoices.length > 0);
+            const submitAssist = async () => {
+              const mode = assistMode;
+              if (!assistText.trim() && !(mode === "ask" && helpChoices.length)) return;
+              if (await assistCard(mode, assistText.trim(), mode === "ask" ? helpChoices : [], mode === "derive" ? { relation: deriveRelation } : undefined)) {
+                if (mode === "ask" && helpChoices.includes("prerequisite") && run.prerequisites?.length)
+                  studyPrerequisites(run.prerequisites);
+                setAssistMode("");
+                setAssistText("");
+                setHelpChoices([]);
+              }
+            };
+            return (
+              <form
+                className="assist-form"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  await submitAssist();
+                }}
+              >
+                {assistMode === "ask" && <>
+                  <strong>{ui("想从哪里弄懂？可多选")}</strong>
+                  <div className="assist-quick-choices" role="group" aria-label={ui("帮助方式")}>
+                    {HELP_CHOICES.filter((choice) => choice.id !== "mistake" || run.feedback).map((choice) =>
+                      <Chip key={choice.id} selected={helpChoices.includes(choice.id)}
+                        onClick={() => setHelpChoices((items) => items.includes(choice.id)
+                          ? items.filter((item) => item !== choice.id) : [...items, choice.id])}>
+                        {ui(choice.label)}
+                      </Chip>)}
+                  </div>
+                </>}
+                {assistMode === "derive" && <SegmentedControl size="sm" className="assist-quick-choices" label={ui("出成什么题")} value={deriveRelation} onChange={setDeriveRelation}
+                  options={[{ value: "prerequisite", label: ui("这道题的前置题") }, { value: "standalone", label: ui("一道独立的新题") }]} />}
+                {assistMode === "improve" && <>
+                  <strong>{ui("不知道怎么说？点一个，或者让助教自己检查")}</strong>
+                  <FixPhraseChips phrases={fixPhrases.phrases}
+                    onPick={(picked) => setAssistText((current) => appendFixPhrase(current, picked))}
+                    onRemove={fixPhrases.remove} />
+                </>}
+                <label className="assist-form__field">
+                  {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : assistMode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : ui("这道题哪里不好？后台助教会直接改这张卡，改完可在信箱里一步撤销")}
+                  <textarea className="assist-form__input" autoFocus rows={2} value={assistText} maxLength={1000}
+                    placeholder={assistMode === "ask" ? ui("例如：不懂为什么重试会放大负载") : assistMode === "derive" ? ui("例如：什么是聚合根；为什么重试要幂等") : ui("例如：选项 B 和 C 说的是一回事；解析没说清为什么 A 错")}
+                    onChange={(event) => setAssistText(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.nativeEvent?.isComposing || event.keyCode === 229) return;
+                      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                        if (!canSubmitAssist) return;
+                        event.preventDefault();
+                        submitAssist();
+                      } else if (event.key === "Escape" && !assistText.trim()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const selector = assistMode === "ask" ? '[data-tour="review-help"]'
+                          : assistMode === "improve" ? '[data-tour="review-improve"]'
+                          : ".question-card";
+                        setAssistMode("");
+                        const body = reviewBodyRef.current;
+                        const target = body?.querySelector?.(selector) || body?.querySelector?.(".question-card");
+                        target?.focus?.({ preventScroll: true });
+                      }
+                    }} />
+                </label>
+                {assistMode === "ask" && voice.askButton}
+                {assistMode === "improve" && <FixPhraseSave phrases={fixPhrases.phrases} text={assistText} onSave={fixPhrases.add} />}
+                {assistMode === "improve" && <CourseRuleAdd courseRules={courseRules} text={assistText} />}
+                <div className="action-feedback-slot">{feedback}</div>
+                <div className="assist-actions">
+                  <Button type="submit" variant="primary" size="sm" className="assist-actions__btn"
+                    disabled={!canSubmitAssist}>{ui("提交到后台")}</Button>
+                  {assistText.trim() && (
+                    <Button variant="quiet" size="sm" className="assist-actions__btn" onClick={() => setAssistText("")}>
+                      {ui("清空")}
+                    </Button>
+                  )}
+                  <Button size="sm" className="assist-actions__btn" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
                 </div>
-              </>}
-              {assistMode === "derive" && <SegmentedControl size="sm" className="assist-quick-choices" label={ui("出成什么题")} value={deriveRelation} onChange={setDeriveRelation}
-                options={[{ value: "prerequisite", label: ui("这道题的前置题") }, { value: "standalone", label: ui("一道独立的新题") }]} />}
-              {assistMode === "improve" && <>
-                <strong>{ui("不知道怎么说？点一个，或者让助教自己检查")}</strong>
-                <FixPhraseChips phrases={fixPhrases.phrases} onPick={setAssistText} onRemove={fixPhrases.remove} />
-              </>}
-              <label className="assist-form__field">
-                {assistMode === "ask" ? ui("补充你自己的疑问（可选）") : assistMode === "derive" ? ui("根据哪个知识点出题？写下来，后台助教会出成一道题，放进同一题组") : ui("这道题哪里不好？后台助教会直接改这张卡，改完可在信箱里一步撤销")}
-                <textarea className="assist-form__input" autoFocus rows={2} value={assistText} maxLength={1000}
-                  placeholder={assistMode === "ask" ? ui("例如：不懂为什么重试会放大负载") : assistMode === "derive" ? ui("例如：什么是聚合根；为什么重试要幂等") : ui("例如：选项 B 和 C 说的是一回事；解析没说清为什么 A 错")}
-                  onChange={(event) => setAssistText(event.target.value)} />
-              </label>
-              {assistMode === "ask" && voice.askButton}
-              {assistMode === "improve" && <FixPhraseSave phrases={fixPhrases.phrases} text={assistText} onSave={fixPhrases.add} />}
-              {assistMode === "improve" && <CourseRuleAdd courseRules={courseRules} text={assistText} />}
-              <div className="action-feedback-slot">{feedback}</div>
-              <div className="assist-actions">
-                <Button type="submit" variant="primary" size="sm" className="assist-actions__btn"
-                  disabled={!assistText.trim() && !(assistMode === "ask" && helpChoices.length)}>{ui("提交到后台")}</Button>
-                <Button size="sm" className="assist-actions__btn" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
-              </div>
-              {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教。讲解会出现在这道题下面的问答里，完成时信箱会提醒你；做题和主会话可以继续。")}</p>}
-            </form>
-          ))}
+                {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教。讲解会出现在这道题下面的问答里，完成时信箱会提醒你；做题和主会话可以继续。")}</p>}
+              </form>
+            );
+          })())}
           {runningTask && (
             <p className="assist-status" role="status">
               <Spinner size="sm" />{uiFormat(runningTask.mode === "ask" ? "后台助教正在解答：{0}" : runningTask.mode === "derive" ? "后台助教正在出新题：{0}" : "后台助教正在改题：{0}", [runningTask.text])}
@@ -657,18 +775,26 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             return null;
           })()}
         </SmoothHeight>
-        {coachProps?.autoAdvance > 0 && (
+        {autoAdvanceActive && (
           <>
-            <div className="autopilot-bar" key={run.index} style={{ "--autopilot-ms": coachProps.autoAdvance + "ms" }} />
+            <div className={"autopilot-bar" + (autoAdvancePaused ? " is-paused" : "")} key={run.index} style={{ "--autopilot-ms": autoAdvanceMs + "ms" }} />
             <small className="autopilot-note">{ui("自动跳下一步：马上进入下一题，点任意处或按键可停下")}</small>
+            {autoAdvancePaused && <small className="autopilot-note review-autopilot-note is-paused" role="status">{ui("已暂停自动跳下一步（移开指针或取消选中后继续）")}</small>}
           </>
         )}
         {hint && !run.revealed && (
           <div className="hint"><Icon name="help" className="hint__icon" /><Markdown text={run.card.hint} /></div>
         )}
         <WrongAnswerSource run={run} sources={data.sources} onOpen={(source, quote) => openModal({ type: "source", source, quote, back: true })} />
+        {run.solution && run.feedback && isFeedbackHidden && (
+          <div className="explanation-collapsed">
+            <Button variant="quiet" size="sm" onClick={() => (hasSessionExplainHidden ? actions.toggleHelp() : setLocalExplainHidden(false))}>{ui("展开解析 (H)")}</Button>
+          </div>
+        )}
         {(showSolution || showUnansweredFollowups) && (
-          <ReadingBlock measure className="explanation">
+          <ReadingBlock measure className="explanation"
+            onPointerEnter={() => { if (!autoAdvanceActive) return; hoverPauseRef.current.explanation = true; syncAutoPause(); }}
+            onPointerLeave={() => { if (!hoverPauseRef.current.explanation) return; hoverPauseRef.current.explanation = false; syncAutoPause(); }}>
             {showSolution && <>
               <h3>{ui("理解这道题")}</h3>
               <Markdown text={run.solution.explanation} />
@@ -689,11 +815,29 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               <FigurePageLink key={"figure:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
                 onOpen={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage, back: true })} />
             </>}
-            {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly
+            {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly cardNotes={cardNotes}
               onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}
               onAskMore={(event) => { const body = event?.currentTarget?.closest?.(".review-body"); setAssistMode("ask"); requestAnimationFrame(() => { body?.querySelector(".assist-area")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); body?.querySelector(".assist-form__input")?.focus(); }); }}
               bookQa={{ course: bookCourse, mode: qaToBook, onMode: setQaToBook, book, note: bookNote }}
               noteQa={onSaveQaToNote ? { savedIn: (followupId) => cardNotes.find((note) => note.qa && note.followupIds?.includes(followupId))?.noteId || "", onSave: onSaveQaToNote, onOpen: onOpenNote } : null} />}
+            {showSolution && (allFollowups.length > 0 || (run.solution?.explanation?.length || 0) >= 280) && (
+              <div className="explanation-foot">
+                <Button variant="quiet" size="sm" onClick={() => {
+                  if (run.feedback) {
+                    if (hasSessionExplainHidden) actions.toggleHelp();
+                    else setLocalExplainHidden(true);
+                  } else {
+                    actions.toggleHelp();
+                  }
+                  requestAnimationFrame(() => reviewBodyRef.current?.querySelector?.(".question-card")?.focus?.({ preventScroll: true }));
+                }}>{ui("收起解析 (H)")}</Button>
+                {run.feedback && !run.complete && (
+                  <Button variant="primary" size="sm" lock={busy} onClick={() => reviewAct("review.move", { direction: 1 })}>
+                    {position.last ? ui("完成") : ui("下一题")} →
+                  </Button>
+                )}
+              </div>
+            )}
           </ReadingBlock>
         )}
         {/* 逐步理解 / 计算题引导练习 / 用自己的话讲一遍 / 试一道同类题 (ui/review/LearningActions.jsx). */}
