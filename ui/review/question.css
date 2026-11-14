@@ -676,7 +676,8 @@
       grid-area: 1 / 1;
       min-width: 0;
       min-height: 400px;
-      --paper-pad-top: 5.5rem;
+      /* Below the head that floats over the face (its height is measured into --flash-head, ui/review/use-flash-head.js), with a gap. */
+      --paper-pad-top: calc(var(--flash-head, 4rem) + var(--space-5));
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1032,7 +1033,6 @@
       }
       .flip-face {
         min-height: 280px;
-        --paper-pad-top: 8rem; /* the flashcard head is three lines here (counts, mastery, topic) and floats over the face */
         --paper-pad-x: var(--space-5);
         --paper-pad-bottom: var(--space-5);
       }

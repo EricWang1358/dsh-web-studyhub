@@ -156,7 +156,7 @@ test('voice answers: autopilot grades and moves on, 待看订正 → 加入重�
   }
 
   // A spoken flashcard answer: the suggested grade button takes the focus, and its 「快捷键 N」 card stays shut (it covered the neighbouring labels at 420 px).
-  for (const [lang, width, height] of [['zh', 420, 900], ['en', 420, 900], ['zh', 1280, 800], ['en', 1280, 800]]) {
+  for (const [lang, width, height] of [['zh', 360, 800], ['zh', 420, 900], ['en', 420, 900], ['zh', 1280, 800], ['en', 1280, 800]]) {
     const where = `flashcard ${lang} ${width}px`, said = { next: '', uploads: [] };
     for (const open of (await previewCall(server, 'snapshot', {})).runs || []) await previewCall(server, 'review.end', { runId: open.id });
     await previewCall(server, 'settings.practice.set', { patch: { autopilot: false, debrief: false } });
@@ -168,6 +168,9 @@ test('voice answers: autopilot grades and moves on, 待看订正 → 加入重�
     await page.goto(server.url);
     await page.getByRole('button', { name: WORDS[lang].resume, exact: true }).first().click();
     await page.locator('.question-card').waitFor({ timeout: 30000 });
+    // The head floats over the card's face: the prompt starts below it with room to spare, however many lines the head takes at this width.
+    const gap = await page.evaluate(() => document.querySelector('.flip-front .flash-prompt').getBoundingClientRect().top - document.querySelector('.flash-area .question-card__head').getBoundingClientRect().bottom);
+    assert.ok(gap >= 12, `${where}: the flashcard prompt starts ${gap} px below the head (at least 12)`);
     await page.locator('.question-card').click({ position: { x: 5, y: 5 } });
     await speak(page, said, '重试要幂等，多次和一次的效果一样');
     await page.locator('.grade-scale .grade:focus').waitFor({ timeout: 20000 });
