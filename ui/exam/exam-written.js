@@ -33,6 +33,12 @@ export const unansweredCount = (run, picks = {}) => {
   return Math.max(0, (run?.total || 0) - Object.keys(picks).filter(has).length);
 };
 
+export const firstUnansweredIndex = (run, picks = {}) => {
+  if (!Array.isArray(run?.picks) || !run.picks.length) return -1;
+  const has = (key) => Array.isArray(picks[key]) && picks[key].length > 0;
+  return run.picks.findIndex((pick) => !has(`${pick.deckId}:${pick.cardId}`));
+};
+
 /** The short name of an exam question's kind (lib/card-kinds.js); an unknown kind reads as 单选, as every exam question once was. */
 export const kindName = (kind) => ui((kindOf(kind) ?? kindOf('quiz')).short);
 export const cardKindName = (card) => kindName(card?.kind ?? (card?.multiple ? 'multi' : 'quiz'));

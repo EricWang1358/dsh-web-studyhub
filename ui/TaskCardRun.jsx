@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ui, uiFormat } from "./i18n.js";
 import Markdown from "./Markdown.jsx";
-import { Badge, Button, Disclosure, Field, InlineMessage, TextInput, Tooltip } from "./components/index.js";
+import { Badge, Button, Checkbox, Disclosure, Field, InlineMessage, TextInput, Tooltip } from "./components/index.js";
 import { handOffTip, useHandOff } from "./hand-off/use-hand-off.js";
+import { readSession, writeSession } from "./case-session.js";
 import { useStudy } from "./study-context.jsx";
 import { useInjectCss } from "./shared.js";
 import css from "./task-card.css";
@@ -86,10 +87,26 @@ export default function TaskCardRun({
   const marks = Number(card.marks) || 0;
   const trimmedInput = String(value ?? "").trim();
   const previousFiles = Array.isArray(taskCheck?.files) ? taskCheck.files.join(", ") : "";
+  const criteriaIds = Array.isArray(card.rubricCriteria) ? card.rubricCriteria.map((criterion) => criterion.id) : [];
+  const taskSessionId = run?.id && card?.id ? `task:${run.id}:${card.id}` : "";
+  const [checkedIds, setCheckedIds] = useState(() => {
+    const saved = taskSessionId ? readSession(data?.root || "", taskSessionId)?.checked : null;
+    return Array.isArray(saved) ? saved.filter((id) => criteriaIds.includes(id)) : [];
+  });
 
   useEffect(() => {
     setReferenceOpen(!!run?.revealed && !run?.feedback);
+    const saved = taskSessionId ? readSession(data?.root || "", taskSessionId)?.checked : null;
+    setCheckedIds(Array.isArray(saved) ? saved.filter((id) => criteriaIds.includes(id)) : []);
   }, [run?.id, run?.index, card?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const checkedSet = new Set(checkedIds);
+  const checkedCount = checkedIds.length;
+  const toggleCriterion = (id, checked) => {
+    const next = criteriaIds.filter((itemId) => (itemId === id ? checked : checkedSet.has(itemId)));
+    setCheckedIds(next);
+    if (taskSessionId) writeSession(data?.root || "", taskSessionId, next.length ? { checked: next } : null);
+  };
 
   const handleCheckInMainChat = async () => {
     if (flight.current) return;
@@ -184,25 +201,38 @@ export default function TaskCardRun({
         <section className="task-run__criteria" aria-label={ui("验收标准")}>
           <div className="task-run__section-head">
             <span className="task-run__section-title">{ui("验收标准")}</span>
-            <span className="task-run__section-sub">{ui("对照完成，不在应用内运行测试")}</span>
+            <span className="task-run__section-sub">
+              {!feedback && card.rubricCriteria?.length > 0 && checkedCount > 0
+                ? `${uiFormat("已自检 {0}/{1} 项", [checkedCount, card.rubricCriteria.length])} · ${ui("对照完成，不在应用内运行测试")}`
+                : ui("对照完成，不在应用内运行测试")}
+            </span>
           </div>
           {card.rubricCriteria?.length > 0 ? (
             <ol className="task-run__criteria-list">
-              {card.rubricCriteria.map((criterion) => (
-                <li key={criterion.id} className="task-run__criterion">
-                  <div className="task-run__criterion-top">
-                    <span className="task-run__criterion-label">{criterion.label}</span>
-                    {Number(criterion.marks) > 0 && (
-                      <span className="task-run__criterion-marks">{uiFormat("{0} 分", [criterion.marks])}</span>
-                    )}
-                  </div>
-                  {criterion.descriptor && (
-                    <div className="task-run__criterion-desc">
-                      <Markdown links={false} className="md-compact" text={criterion.descriptor} />
+              {card.rubricCriteria.map((criterion) => {
+                const checked = !feedback && checkedSet.has(criterion.id);
+                return (
+                  <li key={criterion.id}
+                    className={"task-run__criterion" + (!feedback ? " task-run__criterion--interactive" : "")}
+                    data-checked={checked ? "true" : undefined}>
+                    <div className="task-run__criterion-top">
+                      {!feedback ? (
+                        <Checkbox checked={checked} label={criterion.label} onChange={(on) => toggleCriterion(criterion.id, on)} />
+                      ) : (
+                        <span className="task-run__criterion-label">{criterion.label}</span>
+                      )}
+                      {Number(criterion.marks) > 0 && (
+                        <span className="task-run__criterion-marks">{uiFormat("{0} 分", [criterion.marks])}</span>
+                      )}
                     </div>
-                  )}
-                </li>
-              ))}
+                    {criterion.descriptor && (
+                      <div className="task-run__criterion-desc">
+                        <Markdown links={false} className="md-compact" text={criterion.descriptor} />
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ol>
           ) : (
             <div className="task-run__rubric-body">
@@ -226,6 +256,12 @@ export default function TaskCardRun({
               data-testid="task-file-input"
               placeholder={ui("例如：src/stock.lua、queries.sql、proof.md（也可切到主会话再选文件）")}
               onChange={(event) => onChange?.(event.target.value)}
+              onKeyDown={(event) => {
+                if (!event.nativeEvent?.isComposing && !event.isComposing && event.keyCode !== 229 && event.key === "Enter" && !sending && !busy && trimmedInput) {
+                  event.preventDefault();
+                  void handleCheckInMainChat();
+                }
+              }}
             />
           </Field>
           <div className="task-run__actions">
@@ -336,6 +372,12 @@ export default function TaskCardRun({
                 data-testid="task-file-input"
                 placeholder={previousFiles || ui("例如：src/stock.lua、queries.sql、proof.md（也可切到主会话再选文件）")}
                 onChange={(event) => onChange?.(event.target.value)}
+                onKeyDown={(event) => {
+                  if (!event.nativeEvent?.isComposing && !event.isComposing && event.keyCode !== 229 && event.key === "Enter" && !sending && !busy && trimmedInput) {
+                    event.preventDefault();
+                    void handleCheckInMainChat();
+                  }
+                }}
               />
             </Field>
             <div className="task-run__actions">

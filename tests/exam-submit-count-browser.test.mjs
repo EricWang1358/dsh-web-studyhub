@@ -70,21 +70,29 @@ test('交卷 asks only about questions that are still open, and a full paper goe
     await dialog.waitFor({ state: 'detached', timeout: 10000 });
     assert.equal(await page.locator('.exam-card').count(), 1, 'the paper is still on screen');
 
-    // Answer the first, step past the second (skipped), answer the third: one is open.
+    // Answer the first, step past the second (skipped) via ArrowRight, step to third, answer via key "2", test ArrowLeft/Right, then submit: one is open.
     await page.locator('.exam-option').nth(0).click();
-    await next(2);
+    await page.keyboard.press('ArrowRight');
+    await until(async () => (await page.locator('.exam-progress').innerText()).startsWith('2 '), 'ArrowRight moves to question 2');
     await next(3);
-    await page.locator('.exam-option').nth(1).click();
+    await page.keyboard.press('2');
+    await until(async () => (await page.locator('.exam-option').nth(1).getAttribute('aria-pressed')) === 'true', 'key 2 selects second option');
+    await page.keyboard.press('ArrowLeft');
+    await until(async () => (await page.locator('.exam-progress').innerText()).startsWith('2 '), 'ArrowLeft returns to question 2');
+    await page.keyboard.press('ArrowRight');
+    await until(async () => (await page.locator('.exam-progress').innerText()).startsWith('3 '), 'ArrowRight advances back to question 3');
     await submit.click();
     await dialog.waitFor({ timeout: 10000 });
     assert.match(await dialog.innerText(), /还有 1 题未作答/, 'a skipped question is counted, the answered ones are not');
-    await dialog.getByRole('button', { name: '继续作答' }).click();
+    const jumpBlank = dialog.locator('[data-testid="exam-jump-first-blank"]');
+    assert.match(await jumpBlank.innerText(), /跳到第 2 题补答/, 'jump button names the first skipped question');
+    await jumpBlank.click();
     await dialog.waitFor({ state: 'detached', timeout: 10000 });
 
-    // Take the third answer back by going to the skipped one and answering it: nothing is open any more.
-    await page.getByRole('button', { name: '← 上一题' }).click();
-    await until(async () => (await page.locator('.exam-progress').innerText()).startsWith('2 '), 'the skipped question');
-    await page.locator('.exam-option').nth(0).click();
+    // Jumping lands directly on the skipped question (2); answer it via key "1": nothing is open any more.
+    await until(async () => (await page.locator('.exam-progress').innerText()).startsWith('2 '), 'jumped straight to skipped question');
+    await page.keyboard.press('1');
+    await until(async () => (await page.locator('.exam-option').nth(0).getAttribute('aria-pressed')) === 'true', 'key 1 selects first option');
     await submit.click();
     await page.locator('.exam-report').waitFor({ timeout: 30000 });
     assert.equal(await page.getByRole('button', { name: '仍然交卷' }).count(), 0, 'no question was open: the paper went in without a dialog');

@@ -120,6 +120,8 @@
     .case-mark-tools .case-mark-tools__note {
       flex: 1 1 10rem;
       min-width: 0;
+      padding: var(--space-1) var(--space-2-5);
+      font-size: var(--fs-sm);
     }
     /* ---------- a rubric question in review ---------- */
     .rubric-answer {
@@ -145,12 +147,18 @@
     }
     .rubric-dims li {
       display: flex;
+      align-items: flex-start;
       justify-content: space-between;
       gap: var(--space-3);
       color: var(--text-dim);
       font-size: var(--fs-sm);
     }
-    .rubric-dims li span { color: var(--text-muted); }
+    .rubric-dims li > span {
+      flex: none;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+    }
     .rubric-editor {
       display: grid;
       gap: var(--space-1);
@@ -180,6 +188,10 @@
       align-items: center;
       justify-content: space-between;
       gap: var(--space-3);
+    }
+    .rubric-answer__foot small,
+    .case-question .rubric-editor small {
+      font-variant-numeric: tabular-nums;
     }
     /* A case question in review: the scenario on the left, the question on the right. */
     .question-area.has-case > * { grid-column: 2; min-width: 0; }

@@ -98,6 +98,18 @@
       overflow-wrap: anywhere;
     }
 
+    .task-run__criterion--interactive .task-run__criterion-top {
+      align-items: flex-start;
+    }
+
+    .task-run__criterion--interactive .task-run__criterion-desc {
+      padding-inline-start: var(--space-6);
+    }
+
+    .task-run__criterion--interactive[data-checked="true"] .task-run__criterion-marks {
+      color: var(--ok-ink);
+    }
+
     .task-run__rubric-body {
       min-width: 0;
       font-size: var(--fs-sm);
@@ -288,6 +300,10 @@
 
       .task-run__actions {
         align-items: stretch;
+      }
+
+      .task-run__criterion--interactive .task-run__criterion-desc {
+        padding-inline-start: 0;
       }
     }
   }

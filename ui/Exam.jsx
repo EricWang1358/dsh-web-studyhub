@@ -17,7 +17,7 @@ import { ExamHeader, RecentExams } from './ExamShell.jsx';
 import { defaultExamFormat, isExamFormat, recentExams, shortDeckTitles } from './exam-format.js';
 import { formatClock, joinMeta } from './format.js';
 import { useExamRun } from './exam/useExamRun.js';
-import { DEFAULT_COUNT, cardKindName, clampCount, picksFromRun, typeAvailableOf, unansweredCount } from './exam/exam-written.js';
+import { DEFAULT_COUNT, cardKindName, clampCount, firstUnansweredIndex, picksFromRun, typeAvailableOf, unansweredCount } from './exam/exam-written.js';
 import { fixedOptionLabel, optionMark } from './option-label.js';
 import WrittenSetup from './exam/WrittenSetup.jsx';
 import WrittenReport from './exam/WrittenReport.jsx';
@@ -214,6 +214,36 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
   }, [call, exam.submit, exam.setError, run, curKey, startMs, runLimitMs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const unanswered = useMemo(() => unansweredCount(run, picks), [run, picks]);
+  const firstBlank = useMemo(() => firstUnansweredIndex(run, picks), [run, picks]);
+
+  const kbRef = useRef(null);
+  kbRef.current = { options: run?.card?.options || [], index: run?.index ?? 0, total: run?.total ?? 0, busy, pick, move };
+  useEffect(() => {
+    if (examMode !== "written" || phase !== "running" || !run?.card || confirming || expired) return undefined;
+    const onKeyDown = (event) => {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.closest?.('[role="dialog"]'))) return;
+      const { options, index, total, busy: isBusy, pick: choose, move: step } = kbRef.current || {};
+      if (event.key === "ArrowLeft") {
+        if (!isBusy && index > 0) { event.preventDefault(); step(-1); }
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        if (!isBusy && index < total - 1) { event.preventDefault(); step(1); }
+        return;
+      }
+      const num = /^[1-9]$/.test(event.key) ? Number(event.key) - 1 : -1;
+      const letter = /^[a-iA-I]$/.test(event.key) ? event.key.toUpperCase().charCodeAt(0) - 65 : -1;
+      const idx = num >= 0 ? num : letter;
+      if (idx >= 0 && options[idx] && !isBusy) {
+        event.preventDefault();
+        choose(options[idx].id);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [examMode, phase, run?.card, confirming, expired]);
 
   const queueWeak = () => {
     if (pathNote || !report?.weakScope?.length) return;
@@ -328,7 +358,11 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
                 : uiFormat("未交卷的考试会保留在回到题目里 · 计时满 {0} 分钟自动交卷", [Math.round(runLimitMs / 60000)])}
             </p>
           </div>
-          {confirming && unanswered > 0 && <SubmitBlanksDialog onClose={() => setConfirming(false)} onConfirm={submit}>
+          {confirming && unanswered > 0 && <SubmitBlanksDialog
+            firstBlankNumber={firstBlank >= 0 ? firstBlank + 1 : 0}
+            onJumpFirstBlank={() => { setConfirming(false); if (firstBlank >= 0) jumpTo(firstBlank); }}
+            onClose={() => setConfirming(false)}
+            onConfirm={submit}>
             <p>{uiFormat("还有 {0} 题未作答，交卷后将立即判分并结束本次考试。", [unanswered])}</p>
           </SubmitBlanksDialog>}
           {err && <ErrorState error={err} />}

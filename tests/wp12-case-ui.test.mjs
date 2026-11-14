@@ -20,13 +20,13 @@ import { requestData } from './helpers/request-data.mjs';
 
 const compiled = await build({ stdin: { contents: `export { RubricResult, CaseReport, RubricSkills } from './ui/CaseResult.jsx';
   export { ScenarioPanel, RubricAnswer, CasePaper, CaseDraftHeader, CriteriaEditor } from './ui/CaseWorkspace.jsx'; export { default as Generate } from './ui/Generate.jsx';
-  export { default as Exam } from './ui/Exam.jsx'; export { default as Review } from './ui/Review.jsx'; export { setUiLanguage } from './ui/i18n.js';
+  export { default as Exam } from './ui/Exam.jsx'; export { default as Review } from './ui/Review.jsx'; export { default as SubmitBlanksDialog } from './ui/SubmitBlanksDialog.jsx'; export { setUiLanguage } from './ui/i18n.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { default as DocumentViewer } from './ui/document-preview/DocumentViewer.jsx';`,
   resolveDir: process.cwd() }, bundle: true, write: false, platform: "node", format: "cjs", external: ["react"], plugins: [nativeSelects], loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { RubricResult, CaseReport, RubricSkills, ScenarioPanel, RubricAnswer, CasePaper, CaseDraftHeader, CriteriaEditor, Generate, Exam, Review, StudyServicesContext, setUiLanguage } = module.exports;
+const { RubricResult, CaseReport, RubricSkills, ScenarioPanel, RubricAnswer, CasePaper, CaseDraftHeader, CriteriaEditor, Generate, Exam, Review, SubmitBlanksDialog, StudyServicesContext, setUiLanguage } = module.exports;
 const han = /[㐀-鿿]/;
 const render = (type, props) => renderToStaticMarkup(type === Review ? reviewElement(Review, StudyServicesContext, props) : React.createElement(type, props));
 const noop = () => {};
@@ -292,4 +292,46 @@ test("a passage of a material can seed a case: 围绕这段出案例题 in the v
     setSelectedSources: noop, setModal: noop, askInChat: noop, openModelSettings: noop, genSource: "case",
     caseInitial: { sourceIds: ["a"], focus: "Polyglot persistence chooses a store per workload." } });
   assert.match(form, /围绕这段资料出题[\s\S]*Polyglot persistence chooses a store per workload./);
+});
+
+test("ScenarioPanel exposes data-highlight-id and SubmitBlanksDialog offers a bilingual jump to the first blank question", () => {
+  const html = render(ScenarioPanel, { title: "Case: Orchard", text: scenario, onChange: noop,
+    highlights: [{ id: "h", paragraph: 2, start: 3, end: 8, color: "pink", note: "cue" }] });
+  assert.match(html, /<mark class="case-hl hl-pink" data-highlight-id="h"[^>]*>March<\/mark>/);
+
+  try {
+    setUiLanguage("zh");
+    const zhDialog = render(SubmitBlanksDialog, {
+      firstBlankNumber: 2,
+      onJumpFirstBlank: noop,
+      onConfirm: noop,
+      onClose: noop,
+      children: React.createElement("p", null, "还有 1 题未作答"),
+    });
+    assert.match(zhDialog, /data-testid="exam-jump-first-blank"/);
+    assert.match(zhDialog, /跳到第 2 题补答/);
+
+    setUiLanguage("en");
+    const enDialog = render(SubmitBlanksDialog, {
+      firstBlankNumber: 2,
+      onJumpFirstBlank: noop,
+      onConfirm: noop,
+      onClose: noop,
+      children: React.createElement("p", null, "1 question unanswered"),
+    });
+    assert.match(enDialog, /data-testid="exam-jump-first-blank"/);
+    assert.match(enDialog, /Jump to question 2/);
+    assert.doesNotMatch(enDialog, han);
+
+    const noJumpDialog = render(SubmitBlanksDialog, {
+      firstBlankNumber: 0,
+      onJumpFirstBlank: noop,
+      onConfirm: noop,
+      onClose: noop,
+      children: React.createElement("p", null, "Unanswered"),
+    });
+    assert.doesNotMatch(noJumpDialog, /exam-jump-first-blank/);
+  } finally {
+    setUiLanguage("zh");
+  }
 });

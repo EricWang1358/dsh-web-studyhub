@@ -1084,3 +1084,49 @@ test('publicCard, task.check prompt, and CriteriaEditor (variant="task") never l
   assert.equal(editedPub.rubric.includes('HIDDEN_REDIS_SECRET_TOKEN'), false, 'edited keyPoint stripped from publicCard');
   assert.equal(publicTaskRubric(editedCard).includes('HIDDEN_REDIS_SECRET_TOKEN'), false);
 });
+
+test('TaskCardRun renders interactive criteria self-checklist backed by localStorage before feedback in zh and en', () => {
+  const prevStorage = globalThis.localStorage;
+  const store = new Map([[
+    'study-case:/tmp/lib:task:run-check:task-self',
+    JSON.stringify({ checked: ['c1', 'c2'] }),
+  ]]);
+  globalThis.localStorage = {
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+  };
+  try {
+    const run = { id: 'run-check', deckId: 'd-tasks', card: publicCard(makeTaskCard('task-self')) };
+    const decksData = { root: '/tmp/lib', decks: [{ id: 'd-tasks', title: 'Hands-on Workshop' }] };
+
+    uiMod.setUiLanguage('zh');
+    const zhHtml = renderToStaticMarkup(
+      React.createElement(uiMod.TaskCardRun, { run, data: decksData, value: '' }),
+    );
+    assert.ok(zhHtml.includes('task-run__criterion--interactive'));
+    assert.equal((zhHtml.match(/data-checked="true"/g) || []).length, 2, 'two pre-checked criteria restored from storage');
+    assert.ok(zhHtml.includes('已自检 2/3 项'));
+
+    uiMod.setUiLanguage('en');
+    const enHtml = renderToStaticMarkup(
+      React.createElement(uiMod.TaskCardRun, { run, data: decksData, value: '' }),
+    );
+    assert.ok(enHtml.includes('2/3 checked'));
+    assert.doesNotMatch(enHtml, han, 'zero Chinese characters leak in English TaskCardRun checklist');
+
+    const gradedRun = {
+      ...run,
+      feedback: { correct: true, grade: 4, rubric: { total: 6, max: 6, criteria: [], summary: 'Looks good.' } },
+    };
+    const gradedHtml = renderToStaticMarkup(
+      React.createElement(uiMod.TaskCardRun, { run: gradedRun, data: decksData, value: '' }),
+    );
+    assert.equal(gradedHtml.includes('task-run__criterion--interactive'), false, 'interactive checklist hides once feedback exists');
+    assert.ok(gradedHtml.includes('task-run__criterion-label'));
+  } finally {
+    uiMod.setUiLanguage('zh');
+    if (prevStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = prevStorage;
+  }
+});
