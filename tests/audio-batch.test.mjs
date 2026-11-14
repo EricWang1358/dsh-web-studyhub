@@ -109,7 +109,7 @@ async function fixture(t, { hold = false, fail = () => false, limit = 1 } = {}) 
   await service.call('audio.settings.set', { paidKey: KEY, textProvider: 'gemini', transcribeConcurrency: limit });
   const a = join(dir, 'A.wav'), b = join(dir, 'B.wav');
   await writeFile(a, wav(1)); await writeFile(b, wav(2));
-  t.after(async () => { for (const release of held.values()) release(); if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; await rm(dir, { recursive: true, force: true }); });
+  t.after(async () => { for (const release of held.values()) release(); await service.dispose?.().catch(() => {}); if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous; await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); });
   const wait = job => settleJob(service, job.jobId || job.id);
   return { dir, root, service, a, b, calls, prompts, held, wait };
 }

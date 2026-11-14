@@ -124,6 +124,14 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
   const heading = <PageHeader eyebrow={ui("岗位模拟")} title={ui("口头面试")} />;
   const scopeNote = selection.scope ? uiFormat('沿用勾选的 {0} 个题组', [selection.scope.length]) : "";
   const last = run && run.index >= run.total - 1;
+  const onAnswerKeyDown = (event) => {
+    if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.shiftKey && !event.altKey) {
+      if (busy || (!answer.trim() && !followupAnswer.trim())) return;
+      event.preventDefault();
+      (last ? submit : nextQuestion)();
+    }
+  };
   return <section className="page exam oral-exam">
     {!loading && (run || report) ? heading : header || heading}
     {loading && <LoadingState label={ui("正在恢复口头模拟…")} />}
@@ -141,13 +149,13 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
           {run.entry.options.map((option) => <li key={option.id}><Markdown text={option.text} links={false} /></li>)}
         </ul></details>}
         <VoiceButton voice={answerVoice} />
-        <label className="oral-answer-label">{ui("你的口述要点")}<textarea className="oral-answer-input" value={answer} disabled={busy} onChange={(event) => editAnswer('answer', event.target.value)} maxLength={8000}
+        <label className="oral-answer-label">{ui("你的口述要点")}<textarea className="oral-answer-input" value={answer} disabled={busy} onChange={(event) => editAnswer('answer', event.target.value)} onKeyDown={onAnswerKeyDown} maxLength={8000}
             placeholder={ui("写下你刚才口头回答的要点；这里不会立即判分。")} />
         </label>
         {run.entry.followup && <div className="oral-followup">
           <strong>{ui("面试官追问")}</strong><p>{run.entry.followup}</p>
           <VoiceButton voice={followupVoice} />
-          <label className="oral-answer-label">{ui("补充回答")}<textarea className="oral-answer-input" value={followupAnswer} disabled={busy} maxLength={8000} onChange={(event) => editAnswer('followupAnswer', event.target.value)}
+          <label className="oral-answer-label">{ui("补充回答")}<textarea className="oral-answer-input" value={followupAnswer} disabled={busy} maxLength={8000} onChange={(event) => editAnswer('followupAnswer', event.target.value)} onKeyDown={onAnswerKeyDown}
               placeholder={ui("补充回答后继续下一题。")} />
           </label>
         </div>}
@@ -184,7 +192,10 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
           {entry.followup && <p>{ui("追问：")}{entry.followup}<br />{ui("补充回答：")}{entry.followupAnswer || ui("未答")}</p>}
           {entry.assessment?.reason && <p>{ui("反馈：")}{entry.assessment.reason}</p>}
           {entry.assessment?.correction && <CorrectionCard feedback={{ correction: entry.assessment.correction }} />}
-          <p>{ui("参考答案：")}{entry.expected || ui("本题无参考答案")}</p>
+          <div className="oral-report-expected">
+            <span>{ui("参考答案：")}</span>
+            {entry.expected ? <Markdown text={entry.expected} links={false} /> : <span>{ui("本题无参考答案")}</span>}
+          </div>
         </article>)}
       </details>
     </Panel>}

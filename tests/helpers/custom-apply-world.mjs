@@ -11,9 +11,12 @@ export const held = () => new Promise(() => {});
 
 export async function open(t, { model = true, library = outlineLibrary({ paper: true }), course = COURSE, complete = held, light = held } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-custom-apply-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  const study = new StudyService(root, model ? { complete, light } : {});
-  t.after(() => study.dispose());
+  let study;
+  t.after(async () => {
+    await study?.dispose?.().catch(() => {});
+    await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  });
+  study = new StudyService(root, model ? { complete, light } : {});
   await study.call('snapshot');
   await study.store.update(own => { own.sources.push(...structuredClone(library.sources)); own.decks.push(...structuredClone(library.decks)); own.focus = { mode: 'class', course, role: '', jd: '', targetTopics: [] }; });
   return study;

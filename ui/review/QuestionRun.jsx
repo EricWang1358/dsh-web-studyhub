@@ -19,7 +19,7 @@ import { reviewEntryKey } from "../async.js";
 import ModelErrorNote from "../ModelErrorNote.jsx";
 import ModelSetupGate from "../ModelSetupGate.jsx";
 import LearningActions from "./LearningActions.jsx";
-import SimilarTry from "./SimilarTry.jsx";
+import TeachingPanel from "./TeachingPanel.jsx";
 import { describeModelError, modelReadiness, plainAssistFailure } from "../generation-status.js";
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
@@ -52,28 +52,6 @@ import { useAssistWatch, useAutopilotPause, useBookQaSync, useCaseHighlights } f
 
 export { formatAssistTaskSummary };
 
-/* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
-   (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
-   keyboard, grading, feedback, hints, background assistant and teaching panel, because it is the same component.
-
-   What the embedder provides:
-   - the study context (useStudy(): call, act, busy, openModal, openSettings ...), i.e. a <StudyServicesContext.Provider> above it;
-   - `session`: the one useReviewSession() value (run, entry, actions ...) with an open run that is not complete. A page other than
-     'review' creates it with useReviewSession({ ..., embeddedIn: '<its page name>' }), so that starting or moving a run does not
-     navigate to the practice page. The round's summary (run.complete) is not part of this component: the embedder shows its own;
-   - `data`: the library snapshot (decks, sources, skeletons, noteBadges, assist, settings ...);
-   - optional `links` (onOpenNote, onMakeNote, onMakeTask, onModelSettings), `coachProps` (thumbs controls and the autopilot bar),
-     `context` (label, onReturn, detour, onReturnFromDetour: the way back to where the learner came from) and `feedback` (the app's
-     one feedback region).
-   Scrolling: this component never scrolls its page. The practice page pins the question under its top bar with usePinQuestion
-   (ui/review/usePinQuestion.js); an embedder that wants the same calls it with its own container and `{ scroller }`.
-   Styling: the body's classes are global (ui/review/question.css); review.css is injected here too, so no page has to. */
-
-const CALCULATION_STAGE_LABELS = {
-  conditions: "已知条件与未知量", formula: "公式与适用理由", substitution: "代入与单位",
-  computation: "中间计算", verification: "结果检查与舍入",
-};
-
 /* A failed background-assistant task. A model failure goes through the one model note: a key or model problem points to the settings
    (sending the same request again cannot work, so there is no 重新提交), a busy or slow service keeps 重新提交. Anything else is about the
    content: the plain line, 重新提交, and 改一改再提交 when there is a question to edit. */
@@ -103,9 +81,9 @@ function AssistFailure({ task, modelReady = false, onSettings, onResubmit, onEdi
 export default function QuestionRun({ session, data, coachProps, links = {}, context = {}, feedback }) {
   useInjectCss(reviewCss, "study-review");
   useInjectCss(coachCss, "study-coach");
-  const { run, entry, showBack, showEn, enBusyKey, keyGrade, teachingBusy, choice, isCloze, autopilot, actions } = session;
-  const { selected, hint, explain, response, teaching, teachAnswer, clozeValues } = entry;
-  const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, toggleEn } = actions;
+  const { run, entry, showBack, showEn, enBusyKey, keyGrade, choice, isCloze, autopilot, actions } = session;
+  const { selected, hint, explain, response, clozeValues } = entry;
+  const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, toggleEn } = actions;
   const { call, act, busy, openModal, openSettings, notify } = useStudy();
   const toggleCardFocus = React.useCallback(() => {
     if (!run?.card?.id) return;
@@ -673,48 +651,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             )}
           </ReadingBlock>
         )}
-        {/* 逐步理解 / 计算题引导练习 / 用自己的话讲一遍 / 试一道同类题 (ui/review/LearningActions.jsx). */}
+        {/* 逐步理解 / 计算题引导练习 / 用自己的话讲一遍 / 试一道同类题 (ui/review/LearningActions.jsx, TeachingPanel.jsx). */}
         <LearningActions session={session} data={data} model={model} onModelSettings={modelSettings} openModal={openModal} />
-        {teaching && <div className="teaching-panel">
-          <ReadingBlock as="section" measure className="explanation">
-            <div className="eyebrow">
-              {uiFormat("{0} · {1} / {2}", [teaching.mode === "calculation" ? ui("计算题引导练习") : ui("逐步理解"), Math.min(teaching.index + 1, teaching.total), teaching.total])}
-            </div>
-            <ProgressBar className="teaching-progress" size="sm" value={teaching.index} max={teaching.total}
-              label={teaching.mode === "calculation" ? ui("计算题引导练习") : ui("逐步理解")} />
-            {teaching.mode === "calculation" && <p className="muted small">{ui("每次只练当前步骤。AI 反馈用于辅助学习，不能证明计算正确。")}</p>}
-            {teaching.feedback && <Markdown className="teaching-feedback" text={teaching.feedback} />}
-            {teaching.complete ? (
-              <>
-                <h3>{ui("把理解迁移到下一题")}</h3>
-                <Markdown text={teaching.transfer} />
-                <SimilarTry session={session} data={data} model={model} onModelSettings={modelSettings} />
-              </>
-            ) : (
-              <>
-                {teaching.mode === "calculation" && <h3>{ui(CALCULATION_STAGE_LABELS[teaching.stage] || "计算题引导练习")}</h3>}
-                <Markdown text={teaching.lesson} />
-                {teaching.mode === "calculation" && <>
-                  <dl className="teaching-context">
-                    <div><dt>{ui("本步假设")}</dt><dd><Markdown text={teaching.assumptions} /></dd></div>
-                    <div><dt>{ui("本步单位")}</dt><dd><Markdown text={teaching.units} /></dd></div>
-                    <div><dt>{ui("精度与舍入")}</dt><dd><Markdown text={teaching.rounding} /></dd></div>
-                  </dl>
-                  <CitationDisclosure card={teaching} sources={data.sources}
-                    onOpenSource={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage, back: true })} />
-                </>}
-                <form onSubmit={(e) => { e.preventDefault(); teachingAct("teach.answer", { id: teaching.id, stepIndex: teaching.index, answer: teachAnswer }); }}>
-                  <label className="teaching-panel__field">
-                    <Markdown text={teaching.check} />
-                    <textarea required maxLength={10000} rows={3} aria-label={ui("当前步骤的回答")} value={teachAnswer} onChange={(e) => actions.setTeachAnswer(e.target.value)} />
-                  </label>
-                  <Button className="teaching-panel__submit" variant="primary" disabled={teachingBusy || !teachAnswer.trim()}
-                    onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })} type="submit">{ui("检查理解 →")}</Button>
-                </form>
-              </>
-            )}
-          </ReadingBlock>
-        </div>}
+        <TeachingPanel session={session} data={data} model={model} onModelSettings={modelSettings} />
       </div>
     </div>
   );

@@ -40,7 +40,7 @@ export default function LearningActions({ session, data, model, onModelSettings,
       </div>
       {gate && !model.ready && <ModelSetupGate variant="inline" feature="welcome" model={model} onOpenSettings={onModelSettings} />}
       {retell && <RetellPanel key={key} op="teach.retell" args={{ deckId: run.deckId, cardId: run.card.id }} draftKey={`card:${run.deckId}:${run.card.id}`}
-        model={model} onModelSettings={onModelSettings} onSource={citations.length ? openCite : undefined} />}
+        model={model} onModelSettings={onModelSettings} onSource={citations.length ? openCite : undefined} onClose={() => setRetell(false)} />}
     </>
   );
 }

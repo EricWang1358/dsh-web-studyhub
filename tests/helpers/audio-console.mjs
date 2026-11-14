@@ -50,8 +50,9 @@ export async function consoleLibrary(t) {
   const blocked = async (system, prompt, options = {}) => { await busy(turn(), options.signal); return answer(system, prompt, options); };
   const fetch = async (url, init = {}) => { await busy(turn(), init.signal); return reply('A short lecture about database transactions and indexes.'); };
   const pilot = {}, { runtimePilot: _fixed, ...managed } = switchOptions('runtime', { complete: blocked, paths: [] });
-  const lib = await library(t, { settings: { paidKey: KEY, textProvider: 'host', transcribeConcurrency: 3 }, fetch, complete: blocked, completeLight: blocked, ...managed, runtimePilot: pilot });
+  // Release blocked model/fetch calls before library(t, ...)'s cleanup calls retirePersistence() / service.dispose().
   t.after(release);
+  const lib = await library(t, { settings: { paidKey: KEY, textProvider: 'host', transcribeConcurrency: 3 }, fetch, complete: blocked, completeLight: blocked, ...managed, runtimePilot: pilot });
   const files = [];
   for (let fill = 1; fill <= 12; fill++) { const path = join(lib.dir, `W${fill}.wav`); await writeFile(path, wav(fill)); files[fill] = path; }
   return { ...lib, files, release, trickle, pilot, set: (value, ...names) => { for (const name of names) pilot[name] = value; } };

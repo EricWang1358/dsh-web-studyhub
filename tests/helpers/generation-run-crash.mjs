@@ -20,10 +20,21 @@ const WORKER = fileURLToPath(new URL('../fixtures/generation-crash-worker.mjs', 
 export const GOAL = 19;
 export const CRASH_CONCURRENCY = Math.min(2, Math.max(1, Math.floor(availableParallelism() / 2)));
 
+const openedByTest = new WeakMap();
+function testServices(t) {
+  let set = openedByTest.get(t);
+  if (!set) { set = new Set(); openedByTest.set(t, set); }
+  return set;
+}
+
 export async function die(t, name, mode, scenario = {}, root, roundOne = null) {
   if (!root) {
     root = await mkdtemp(join(tmpdir(), 'study-run-crash-'));
-    t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+    const services = testServices(t);
+    t.after(async () => {
+      for (const service of [...services]) { services.delete(service); await service.dispose?.().catch(() => {}); }
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    });
   }
   const child = spawn(process.execPath, [WORKER, root, name, mode, String(roundOne), JSON.stringify(scenario)], { env: { ...process.env, DSH_HOME: join(root, '.home') }, stdio: 'inherit' });
   const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('exit', resolve); });
@@ -37,7 +48,11 @@ export async function reopen(t, root, mode, { roundLimit = CORPUS_ROUND_LIMIT } 
   const service = new StudyService(root, { coverage: { roundLimit }, ...modeOptions(mode, complete) });
   service.light = weighing;
   service.complete = complete;
-  t.after(() => service.dispose());
+  const services = testServices(t);
+  services.add(service);
+  t.after(async () => {
+    if (services.delete(service)) await service.dispose();
+  });
   return { service, log, use: next => { model = next; } };
 }
 
