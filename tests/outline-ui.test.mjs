@@ -253,3 +253,135 @@ test('plain text drawn as one block keeps the place as a range but has no elemen
   assert.equal(elements[0].hasAttribute('data-ai-outline-id'), false);
   assert.deepEqual(items[0].range.start, [0, 8], 'the range starts where the second part does');
 });
+
+test('#14 & #57 outline shows weak-question read hints, 只看未读 filter chip, and 下一未读章 jump with wrap-around', async () => {
+  const chapters = [
+    { id: 'c1', level: 1, depth: 0, kind: 'chapter', children: 1, title: '第一章 索引' },
+    { id: 's1', level: 2, depth: 1, parent: 'c1', children: 0, title: 'B+ 树' },
+    { id: 'c2', level: 1, depth: 0, kind: 'chapter', children: 0, title: '第二章 事务' },
+    { id: 'c3', level: 1, depth: 0, kind: 'chapter', children: 0, title: '第三章 锁' },
+  ];
+  const marks = new Map([['c1', 'c1'], ['c2', 'c2'], ['c3', 'c3']]);
+  const meters = new Map([
+    ['c1', { total: 4, mastered: 1, familiar: 0, learning: 1, weak: 2, unseen: 0, mastery: 0.4 }],
+    ['c2', { total: 2, mastered: 2, familiar: 0, learning: 0, weak: 0, unseen: 0, mastery: 1 }],
+    ['c3', { total: 3, mastered: 0, familiar: 0, learning: 0, weak: 1, unseen: 2, mastery: 0.1 }],
+  ]);
+
+  const partial = panel({
+    items: chapters,
+    activeId: 'c1',
+    meters,
+    reads: { read: new Set(['c1', 'c2']), count: 2, total: 3, marks, onUnread: () => {} },
+  });
+  assert.match(partial, /data-read-weak="true"/);
+  assert.match(partial, /已读：第一章 索引（还有 2 道待巩固题）。点一下标为未读/);
+  assert.match(partial, /aria-label="已读：第二章 事务。点一下标为未读"/);
+  assert.match(partial, /只看未读/);
+  assert.match(partial, /下一未读章/);
+
+  const allRead = panel({
+    items: chapters,
+    activeId: 'c1',
+    meters,
+    reads: { read: new Set(['c1', 'c2', 'c3']), count: 3, total: 3, marks, onUnread: () => {} },
+  });
+  assert.doesNotMatch(allRead, /只看未读/);
+  assert.doesNotMatch(allRead, /下一未读章/);
+
+  // Interactive harness for 只看未读 toggle & 下一未读章 wrap-around jump.
+  let hooks = [], cursor = 0, tree = null, compProps = {};
+  const hLocal = (type, p, ...children) => ({ $$type: type, props: { ...(p || {}), ...(children.length === 1 ? { children: children[0] } : children.length > 1 ? { children } : {}) } });
+  const reactShim = {
+    default: null,
+    Fragment: Symbol('Fragment'),
+    createElement: hLocal,
+    memo: c => c,
+    forwardRef: r => r,
+    useState(init) { const i = cursor++; if (!(i in hooks)) hooks[i] = typeof init === 'function' ? init() : init; return [hooks[i], v => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }]; },
+    useRef(init) { const i = cursor++; if (!(i in hooks)) hooks[i] = { current: init }; return hooks[i]; },
+    useMemo(fn, deps) { const i = cursor++, prev = hooks[i]; if (!prev || !deps || deps.some((d, k) => d !== prev.deps[k])) hooks[i] = { val: fn(), deps }; return hooks[i].val; },
+    useEffect() {},
+    useCallback(fn) { return fn; },
+    useSyncExternalStore(_sub, snap) { return snap(); },
+  };
+  reactShim.default = reactShim;
+  globalThis.__OUTLINE_UI_REACT__ = reactShim;
+  try {
+    const built = await build({
+      stdin: { contents: `export { default as OutlinePanel } from './ui/document-preview/reader/OutlinePanel.jsx';`, resolveDir: process.cwd() },
+      bundle: true, write: false, platform: 'node', format: 'cjs', loader: { '.css': 'text' }, logLevel: 'silent',
+      plugins: [{
+        name: 'shim-outline',
+        setup(builder) {
+          builder.onResolve({ filter: /^react$|^react\/jsx-runtime$/ }, () => ({ path: 'react', namespace: 'sr' }));
+          builder.onLoad({ filter: /.*/, namespace: 'sr' }, () => ({
+            contents: `const R = globalThis.__OUTLINE_UI_REACT__; export default R; export const { Fragment, createElement, memo, forwardRef, useState, useRef, useMemo, useEffect, useCallback, useSyncExternalStore } = R; export const jsx = (t, p) => R.createElement(t, p); export const jsxs = jsx; export const jsxDEV = jsx;`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /components\/index\.js$/ }, () => ({ path: 'comp', namespace: 'sc' }));
+          builder.onLoad({ filter: /.*/, namespace: 'sc' }, () => ({
+            contents: `
+              const R = globalThis.__OUTLINE_UI_REACT__;
+              export const Button = p => R.createElement('button', { ...p, 'data-comp': 'Button' });
+              export const Checkbox = p => R.createElement('input', { type: 'checkbox', ...p });
+              export const Chip = p => R.createElement('button', { ...p, 'data-comp': 'Chip', 'aria-pressed': p.selected });
+              export const Disclosure = p => R.createElement('div', { ...p }, p.children);
+              export const DisclosureToggle = p => R.createElement('button', { ...p });
+              export const Icon = p => R.createElement('span', { 'data-icon': p.name });
+              export const IconButton = p => R.createElement('button', { ...p, 'aria-label': p.label });
+              export const StackedBar = () => R.createElement('div', null);
+              export const Tooltip = p => R.createElement('span', { 'data-tooltip': p.content }, p.children);`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /shared\.js$/ }, () => ({ path: 'shared', namespace: 'ss' }));
+          builder.onLoad({ filter: /.*/, namespace: 'ss' }, () => ({ contents: `export const useInjectCss = () => {};`, loader: 'js' }));
+        },
+      }],
+    });
+    const mod = { exports: {} };
+    new Function('module', 'exports', built.outputFiles[0].text)(mod, mod.exports);
+    const { OutlinePanel: Panel } = mod.exports;
+    const expandNode = node => {
+      if (Array.isArray(node)) return node.map(expandNode);
+      if (!node || typeof node !== 'object') return node;
+      if (typeof node.$$type === 'function') return expandNode(node.$$type(node.props));
+      return node.props?.children ? { ...node, props: { ...node.props, children: expandNode(node.props.children) } } : node;
+    };
+    const renderPanel = next => { compProps = next; cursor = 0; tree = expandNode(Panel(compProps)); return tree; };
+    const findAll = (pred, node = tree, out = []) => {
+      if (!node || typeof node !== 'object') return out;
+      if (Array.isArray(node)) { node.forEach(n => findAll(pred, n, out)); return out; }
+      if (pred(node)) out.push(node);
+      if (node.props?.children) findAll(pred, node.props.children, out);
+      return out;
+    };
+
+    // Unread chapters are c2 (unread only if excluded from read set): set read = {'c2'} so unread are c1 and c3!
+    const jumped = [];
+    renderPanel({
+      items: chapters,
+      activeId: 'c1',
+      meters,
+      reads: { read: new Set(['c2']), count: 1, total: 3, marks, onUnread: () => {} },
+      onJump: item => jumped.push(item.id),
+      id: 'o',
+    });
+
+    // Clicking 下一未读章 from c1 jumps to c3 (next unread after activeId).
+    findAll(n => n.props?.['data-comp'] === 'Button' && n.props?.children === '下一未读章')[0].props.onClick();
+    // Moving activeId to c3 (last unread) wraps around to c1 (first unread).
+    renderPanel({ ...compProps, activeId: 'c3' });
+    findAll(n => n.props?.['data-comp'] === 'Button' && n.props?.children === '下一未读章')[0].props.onClick();
+    assert.deepEqual(jumped, ['c3', 'c1']);
+
+    // Toggling 只看未读 hides c2 while keeping c1, s1 (unread via c1 ancestor), and c3.
+    findAll(n => n.props?.['data-comp'] === 'Chip' && n.props?.children === '只看未读')[0].props.onClick();
+    renderPanel(compProps);
+    const textOf = node => (typeof node === 'string' || typeof node === 'number') ? String(node) : Array.isArray(node) ? node.map(textOf).join('') : node?.props?.children ? textOf(node.props.children) : '';
+    const visibleTitles = findAll(n => n.props?.className === 'reader-outline__link').map(textOf);
+    assert.deepEqual(visibleTitles, ['第一章 索引', 'B+ 树', '第三章 锁']);
+  } finally {
+    delete globalThis.__OUTLINE_UI_REACT__;
+  }
+});

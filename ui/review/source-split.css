@@ -61,6 +61,10 @@
       padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
       border-bottom: 1px solid var(--line-soft);
     }
+    .source-column__head [aria-pressed="true"] {
+      color: var(--accent);
+      background: var(--bg-selected);
+    }
     .source-column__title {
       flex: 1 1 auto;
       min-width: 0;

@@ -1,6 +1,6 @@
 import React from "react";
 import { reviewEntryKey } from "../async.js";
-import { SPLIT_MIN, questionPlace, readColumnWidth, saveColumnWidth, sourcePlacement } from "./source-dock.js";
+import { SPLIT_MIN, clearColumnWidth, questionPlace, readColumnWidth, saveColumnWidth, sourcePlacement } from "./source-dock.js";
 import SourceColumn, { roomOf } from "./SourceColumn.jsx";
 
 /* The practice page's side of the 对照栏 (#1012). `services` is the page's study services with the one openModal every source link of the question goes
@@ -26,9 +26,24 @@ export function useSourceDock({ pageRef, rail, run, sources, study, readerDialog
   }, [fallback]);
   const services = React.useMemo(() => ({ ...study, openModal }), [study, openModal]);
   const keep = React.useCallback((px) => { setWidth(px); saveColumnWidth(px); }, []);
+  const resetWidth = React.useCallback(() => {
+    setWidth(null);
+    clearColumnWidth();
+    pageRef.current?.style.removeProperty("--source-column");
+  }, [pageRef]);
   // What the column shows, kept by it (dockedPlace), for the dialog that takes over when the page turns narrow; nothing once the column is closed.
   const shown = React.useRef(null);
+  const columnRef = React.useRef(null);
   const close = React.useCallback(() => { shown.current = null; setRequest(null); }, []);
+  const expand = React.useCallback((modal) => {
+    const target = modal || shown.current;
+    close();
+    if (target) fallback(target);
+  }, [close, fallback]);
+  const focusColumn = React.useCallback(() => {
+    if (columnRef.current) { columnRef.current.focus(); return; }
+    pageRef.current?.querySelector(".source-column .reader-scroll")?.focus({ preventScroll: true });
+  }, [pageRef]);
   const blocked = readerDialogOpen || !run?.card || !!run.complete || run.mode === "exam";
   const gone = !wide || blocked;
   React.useEffect(() => {
@@ -42,9 +57,9 @@ export function useSourceDock({ pageRef, rail, run, sources, study, readerDialog
   const cardSource = run?.cardSource;
   const place = React.useMemo(() => questionPlace(run, sources), [run?.mode, cardSource?.sourceId, cardSource?.documentSourceId, cardSource?.page, sources]); // eslint-disable-line react-hooks/exhaustive-deps -- the place is named by these
   const column = docked
-    ? <SourceColumn request={request} followKey={reviewEntryKey(run)} place={place} pageRef={pageRef} shownRef={shown} onWidth={keep} onClose={close} />
+    ? <SourceColumn ref={columnRef} request={request} followKey={reviewEntryKey(run)} place={place} pageRef={pageRef} shownRef={shown} onWidth={keep} onResetWidth={resetWidth} onClose={close} onExpand={expand} />
     : null;
-  return { services, column, docked, style: width ? { "--source-column": `${width}px` } : undefined };
+  return { services, column, docked, focusColumn, style: width ? { "--source-column": `${width}px` } : undefined };
 }
 
 /** Whether both the question (QUESTION_MIN) and the column (COLUMN_MIN) fit, measured before the first paint, when the page is resized and when its column

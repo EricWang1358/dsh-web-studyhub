@@ -153,7 +153,7 @@ export default function DocumentViewer(props) {
 
 function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, onGenerateStarted, generateDisabled = false, initialMode = 'read',
   onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false, onReconvert, inlinePractice = null, reread = null,
-  fromQuestion = false, seek = null, onSeekMissed, strip = null }) {
+  fromQuestion = false, seek = null, onSeekMissed, strip = null, onAppendQuestionNote }) {
   const language = useUiLanguage();
   const localMode = localContent != null;
   useInjectCss(css, 'study-document-preview');
@@ -174,7 +174,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // 阅读 / 批注: in 批注 the answers of the learning panel are kept with their passage, and the annotated passages are marked like the linked ones.
   const [annotationMode, setAnnotationMode] = useState(loadAnnotationMode), [kept, setKept] = useState({ items: [], stale: [] }), [keptReload, setKeptReload] = useState(0);
   const [overlay, setOverlay] = useState(null);
-  const [finding, setFinding] = useState(false), [query, setQuery] = useState(''), [total, setTotal] = useState(0), [match, setMatch] = useState(0);
+  const [finding, setFinding] = useState(false), [query, setQuery] = useState(''), [caseSensitive, setCaseSensitive] = useState(false), [total, setTotal] = useState(0), [match, setMatch] = useState(0);
+  const [returnSpot, setReturnSpot] = useState(null), pendingReturn = useRef(null), restoreScroll = useRef(null);
   const [headings, setHeadings] = useState([]);
   const [aiOutline, setAiOutline] = useState(null), [aiItems, setAiItems] = useState([]), [emptyOpen, setEmptyOpen] = useState(false);
   const [pdfPage, setPdfPage] = useState(() => source.document?.page || source.selection?.page || 1), [pdfView, setPdfView] = useState({ zoom: 1, native: false });
@@ -356,7 +357,58 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const around = useMemo(() => chapterLevel ? chapterNeighbours(outline, activeId, chapterLevel) : sectionNeighbours(outline, activeId), [outline, activeId, chapterLevel]);
   const here = outline.find(item => item.id === activeId);
   const where = here ? [itemLabel(here), outlinePath(outline, here.id).join(' › ')].filter(Boolean).join(' · ') : '';
+  const snapshotSpot = () => {
+    if (view === 'original' || loading) return null;
+    const raw = here?.title || (here ? itemLabel(here) : '') || (chapter.current ? chapterTitle(chapter.current) : '');
+    const label = raw.length > 20 ? `${raw.slice(0, 19)}…` : raw || ui('刚才的位置');
+    return { chapterId: chapter.current?.id ?? null, scrollTop: scroller.current?.scrollTop ?? 0, clientHeight: scroller.current?.clientHeight ?? 0, label };
+  };
+  const armReturnCheck = () => {
+    const origin = snapshotSpot();
+    if (!origin) return;
+    pendingReturn.current = origin;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const pending = pendingReturn.current;
+      if (!pending || pending !== origin) return;
+      if ((chapter.current?.id ?? null) !== pending.chapterId) {
+        pendingReturn.current = null;
+        setReturnSpot({ chapterId: pending.chapterId, scrollTop: pending.scrollTop, label: pending.label });
+        return;
+      }
+      const dist = Math.abs((scroller.current?.scrollTop ?? 0) - pending.scrollTop);
+      if (dist >= Math.max(600, 1.5 * (pending.clientHeight || scroller.current?.clientHeight || 0))) {
+        pendingReturn.current = null;
+        setReturnSpot({ chapterId: pending.chapterId, scrollTop: pending.scrollTop, label: pending.label });
+      }
+    }));
+  };
+  const activeChapterId = chapter.current?.id ?? null;
+  useEffect(() => {
+    const pending = pendingReturn.current;
+    if (!pending || activeChapterId === pending.chapterId) return;
+    pendingReturn.current = null;
+    setReturnSpot({ chapterId: pending.chapterId, scrollTop: pending.scrollTop, label: pending.label });
+  }, [activeChapterId]);
+  useEffect(() => {
+    if (!returnSpot) return undefined;
+    const timer = setTimeout(() => setReturnSpot(null), 8000);
+    return () => clearTimeout(timer);
+  }, [returnSpot]);
+  useEffect(() => { pendingReturn.current = null; restoreScroll.current = null; setReturnSpot(null); }, [source.id]);
+  const jumpBack = () => {
+    if (!returnSpot) return;
+    const spot = returnSpot;
+    pendingReturn.current = null;
+    setReturnSpot(null);
+    if (chaptered && spot.chapterId && spot.chapterId !== (chapter.current?.id ?? null)) {
+      restoreScroll.current = { chapterId: spot.chapterId, top: spot.scrollTop };
+      chapter.goTo({ chapterId: spot.chapterId });
+    } else {
+      scroller.current?.scrollTo?.({ top: spot.scrollTop, behavior: 'auto' });
+    }
+  };
   const jumpTo = item => {
+    if (view !== 'original') armReturnCheck();
     if (view === 'original') { const page = item.kind === 'chapter' ? item.chapter.startPage : item.page; if (page) setPdfPage(page); }
     // A chapter opens at its top; an entry of a chapter that is not drawn opens its chapter and lands on it (useReaderChapters).
     else if (item.kind === 'chapter') chapter.goTo({ chapterId: item.id });
@@ -452,6 +504,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     // In 原始 PDF the place is its page there (the 对照栏 follows the questions in either view, #1012).
     if (view === 'original') { const page = Number.isInteger(figurePage) ? figurePage : target.document?.page; if (Number.isInteger(page)) goToPage(page); return true; }
     if (Number.isInteger(figurePage) && canPeek) { openPeek(figurePage, { figure: true }); return true; }
+    armReturnCheck();
     if (chaptered && !sections.some(section => section.sourceId === target.id)) chapter.goTo({ sourceId: target.id });
     setSeekGoal({ sourceId: target.id, quote: cited || '' });
     if (narrow) setOverlay(null);
@@ -496,9 +549,11 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const canBatchTranslate = hasContext(data, 'generation');
   const canAudio = hasContext(data, 'audio');
   const canQueueGenerate = hasContext(data, 'generation') && hasContext(data, 'bank') && hasContext(data, 'authoring');
+  const materialName = documentItem?.title ? displayTitle(documentItem.title) : source.title || '';
   // Right-click on the text: 下划线 / 加粗 / 荧光笔, 加入待出题 and AI 词解 (marks/useReaderMarks.jsx); 待出题 N in the toolbar starts one run for the list.
   const marks = useReaderMarks({ call, document: learningDocument, data, body, rendered, enabled: !localMode && view !== 'original' && !!document, compact,
-    canQueue: canQueueGenerate, onExplained: () => setKeptReload(count => count + 1), onBatchStarted: onGenerateStarted, busy: generateDisabled });
+    canQueue: canQueueGenerate, onExplained: () => setKeptReload(count => count + 1), onBatchStarted: onGenerateStarted, busy: generateDisabled,
+    materialName, slides, onAppendQuestionNote });
   // The bilingual reading (译): marks and blocks beside the paragraphs, the page / chapter job, the glossary (translation/useBilingual.jsx).
   const bilingual = useBilingual({ call, document, source, view, paged, narrow, body, scroller, rendered, outline, activeId, chapterLevel, enabled: !localMode, batchEnabled: canBatchTranslate });
   const quoteText = sources.find(item => item.id === source.id)?.text || content;
@@ -554,6 +609,13 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   }, [paged, quote, reading, quoteState?.status, loading, sections, view, source.id, source.document?.page]); // eslint-disable-line react-hooks/exhaustive-deps
   // Another chapter, once drawn, opens at its top or at the page / entry the jump named (after the effects above, so it has the last word).
   useChapterGoal({ goal: chapter.goal, reached: chapter.reached, scroller, body, ready: !loading && view !== 'original', drawn: sections });
+  useEffect(() => {
+    const restore = restoreScroll.current;
+    if (!restore || loading || view === 'original') return;
+    if (activeChapterId !== restore.chapterId) return;
+    restoreScroll.current = null;
+    requestAnimationFrame(() => scroller.current?.scrollTo?.({ top: restore.top, behavior: 'auto' }));
+  }, [activeChapterId, loading, view]);
   // A source link of the round, once its chapter is drawn (after the chapter's own landing): its quote, else the top of its page. Its mark stays until the
   // next link or `seek`, and goes with the reader.
   useEffect(() => {
@@ -571,7 +633,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // The chapter drawn is searched in the page; every chapter also in the text the view draws of it (find.js textHits), so another chapter's count is the one found there.
   const [findRun, setFindRun] = useState(0), findLanding = useRef(null);
   useEffect(() => {
-    ranges.current = finding && view !== 'original' && deferredQuery.trim() ? findRanges(body.current, deferredQuery) : [];
+    ranges.current = finding && view !== 'original' && deferredQuery.trim() ? findRanges(body.current, deferredQuery, { caseSensitive }) : [];
     const landing = findLanding.current;
     findLanding.current = null;
     // Arriving in another chapter from find: at its first match, or at its last when Shift+Enter went back.
@@ -579,7 +641,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     setTotal(ranges.current.length);
     setMatch(Math.max(0, at));
     setFindRun(count => count + 1);
-  }, [finding, deferredQuery, view, html, sections, content, model]);
+  }, [finding, deferredQuery, caseSensitive, view, html, sections, content, model]);
   useEffect(() => {
     if (!total) return undefined;
     const index = Math.min(match, total - 1), clear = paintMatches(ranges.current, index);
@@ -591,9 +653,9 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   // What find reads in each chapter: the reading view's paragraphs, or each page's stored text in 原文 (folded once per chapter, kept while the text is).
   const findGroups = useMemo(() => chaptered ? chapterFindGroups(chapter.chapters, allSections, view === 'text' ? section => textBySource.get(section.sourceId) ?? '' : drawnSectionText) : [],
     [chaptered, chapter.chapters, allSections, view, textBySource]);
-  const findHits = useMemo(() => finding && chaptered && view !== 'original' && deferredQuery.trim() ? textHits(findGroups, deferredQuery)
-    .map(hit => ({ ...hit, at: chapter.chapters.findIndex(entry => entry.id === hit.key) })) : [], [finding, chaptered, view, deferredQuery, findGroups, chapter.chapters]);
-  const findIn = (at, landing) => { findLanding.current = landing; chapter.goTo({ chapterId: chapter.chapters[at].id }); };
+  const findHits = useMemo(() => finding && chaptered && view !== 'original' && deferredQuery.trim() ? textHits(findGroups, deferredQuery, { caseSensitive })
+    .map(hit => ({ ...hit, at: chapter.chapters.findIndex(entry => entry.id === hit.key) })) : [], [finding, chaptered, view, deferredQuery, caseSensitive, findGroups, chapter.chapters]);
+  const findIn = (at, landing) => { armReturnCheck(); findLanding.current = landing; chapter.goTo({ chapterId: chapter.chapters[at].id }); };
   const elsewhere = useMemo(() => findHits.filter(hit => hit.at !== chapter.index).map(hit => ({ key: hit.key, title: chapterTitle(chapter.chapters[hit.at]),
     detail: elsewhereCount(hit.first.page, hit.count, slides), onGo: () => findIn(hit.at, 'first') })),
   [findHits, chapter.index, chapter.chapters, slides, language]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -606,14 +668,16 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const closeFind = () => { setFinding(false); scroller.current?.focus?.({ preventScroll: true }); };
   // Enter / Shift+Enter: the next / previous match of the chapter, then on to the next chapter that has one (the one before, at its last match), round the book.
   const stepFind = delta => {
-    if (!chaptered) { setMatch(current => total ? (current + delta + total) % total : 0); return; }
+    if (!chaptered) { armReturnCheck(); setMatch(current => total ? (current + delta + total) % total : 0); return; }
     const stop = findStop({ hits: findHits.map(hit => hit.at), current: chapter.index, total, match: Math.min(match, Math.max(total - 1, 0)), delta });
     if (stop?.chapter !== undefined) findIn(stop.chapter, stop.landing);
-    else if (stop) setMatch(stop.match);
+    else if (stop) { armReturnCheck(); setMatch(stop.match); }
   };
   const onKeyDown = event => {
     // A round of 本节题目 answers with its own keys (1–4, Enter, P…): only Esc is the reader's there.
     if (event.key !== 'Escape' && event.target.closest?.('[data-inline-run]')) return;
+    if (reread?.onDone && event.altKey && !event.ctrlKey && !event.metaKey && event.key === 'Enter') { event.preventDefault(); reread.onDone(); return; }
+    if (returnSpot && view !== 'original' && event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.key === 'ArrowLeft') { event.preventDefault(); jumpBack(); return; }
     if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'f' && view !== 'original') { event.preventDefault(); openFind(); }
     else if (event.key === 'Escape' && overlay) { event.preventDefault(); event.stopPropagation(); setOverlay(null); }
     else if (!localMode && onPracticePages && view !== 'original' && event.key.toLowerCase() === 'p' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
@@ -711,7 +775,6 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
 
   // 思维导图: the current chapter drawn from its headings, no model (reader/mind-map.js). A page-based document is read from the heading paragraphs of the pages drawn;
   // text, and a kept AI outline, from the branch of the outline around the current entry.
-  const materialName = documentItem?.title ? displayTitle(documentItem.title) : source.title || '';
   const chapterPages = chapter.current ? { from: chapter.current.startPage, to: chapter.current.endPage } : null;
   const mindMap = useMemo(() => {
     if (paged && !aiOn) {
@@ -724,6 +787,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     const target = node.target || {};
     if (target.outlineId != null) { const item = outline.find(entry => entry.id === target.outlineId); if (item) jumpTo(item); return; }
     if (view === 'original') { if (target.page) setPdfPage(target.page); return; }
+    armReturnCheck();
     scrollToNode(scroller.current, headingNode(scroller.current, target), { smooth: false });
   };
   // 错题: the rows of the 错题与待巩固 page that are questions of this material, this chapter's first (reader/wrong-rows.js).
@@ -779,7 +843,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     </div>
     <div className="reader-progress" aria-hidden="true"><span style={{ transform: `scaleX(${view === 'original' ? 0 : position.progress})` }} /></div>
     {finding && view !== 'original' && <FindBar query={query} onQuery={setQuery} total={total} index={Math.min(match, Math.max(total - 1, 0))} elsewhere={elsewhere}
-      onStep={stepFind} onClose={closeFind} inputRef={findInput} />}
+      caseSensitive={caseSensitive} onCaseSensitive={setCaseSensitive} onStep={stepFind} onClose={closeFind} inputRef={findInput} />}
     <div className="study-document-notices reader-notices">{notices}</div>
     <div className="reader-aux">
       {strip}
@@ -796,6 +860,11 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
           ? <DocumentTopUp item={documentItem} revision={data.revision} placement="bottom-start" block /> : null}
         footer={assistTarget && call && view !== 'original' ? <OutlineAssist call={call} target={assistTarget} current={outline} saved={aiOutline} stale={document?.outlineStale}
           missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}
+      {returnSpot && view !== 'original' && (
+        <Button variant="secondary" size="sm" className="reader-jump-back" aria-keyshortcuts="Alt+ArrowLeft" onClick={jumpBack}>
+          {uiFormat('← 回到{0}', [returnSpot.label])}
+        </Button>
+      )}
       <div className="reader-scroll" ref={scroller} tabIndex={0} role="region" aria-label={localMode ? localContent.title || source.title || ui('资料内容') : ui('资料内容')} data-mode={view}>
         <div className="reader-page">
           <div className="study-document-body" ref={body} onMouseUp={select} onKeyUp={select} onTouchEnd={select} onClick={pick} onCopy={copy} onContextMenu={marks.onContextMenu}>

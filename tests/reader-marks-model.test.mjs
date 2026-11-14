@@ -2,9 +2,10 @@
    selection, which marks are drawn and how, and the ONE ordinary question run a list of waiting passages becomes. No DOM, no model. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { loadUi } from './helpers/ui-module.mjs';
 
-const { batchFocus, batchRequest, drawnMarks, explainQuestion, marksAt, MARK_HIGHLIGHTS, paintMarks, queueOf, selectionMenu, annotationLinks, setUiLanguage } = await loadUi(
+const { batchFocus, batchRequest, drawnMarks, explainQuestion, formatCitedQuote, marksAt, MARK_HIGHLIGHTS, overlappingQueueIndex, paintMarks, queueOf, selectionMenu, selectionStatsText, annotationLinks, setUiLanguage } = await loadUi(
   `export * from './ui/document-preview/marks/model.js'; export { annotationLinks } from './ui/document-preview/annotation/model.js'; export { setUiLanguage } from './ui/i18n.js';`);
 setUiLanguage('zh');
 
@@ -73,4 +74,39 @@ test('a 词解 asks in plain words about the selected term, and its kept answer 
     selection: { sourceId: 's1', start: 0, end: 4, quote: 'CQRS' } }]);
   assert.equal(links[0].explain, true);
   assert.equal(links[0].answer, 'Reads and writes use different models.');
+});
+
+test('#15 overlappingQueueIndex flags high span overlap (>=70%) or included long quotes on the same source', () => {
+  const queue = [
+    mark('queue', 'alpha beta gamma delta', 100),
+    mark('queue', 'spaced repetition improves memory retention over weeks', 200, { sourceId: 's2' }),
+  ];
+  assert.equal(overlappingQueueIndex([], { sourceId: 's1', quote: 'anything', start: 0, end: 8 }), -1);
+  assert.equal(overlappingQueueIndex(queue, { sourceId: 's1', quote: '' }), -1);
+  assert.equal(overlappingQueueIndex(queue, { sourceId: 's1', quote: 'beta gamma', start: 106, end: 116 }), 0, 'shorter span 100% covered');
+  assert.equal(overlappingQueueIndex(queue, { sourceId: 's1', quote: 'partial', start: 118, end: 138 }), -1, '4/20 = 20% < 70%');
+  assert.equal(overlappingQueueIndex(queue, { sourceId: 's2', quote: 'alpha beta gamma delta', start: 100, end: 122 }), -1, 'different sourceId is not a duplicate');
+  assert.equal(overlappingQueueIndex(queue, { sourceId: 's2', quote: 'spaced repetition improves' }), 1, 'normalized inclusion >= 12 chars without spans');
+  assert.equal(overlappingQueueIndex(queue, { sourceId: 's2', quote: 'short' }), -1, '< 12 chars without overlapping span does not warn');
+});
+
+test('#58 & #11 selectionMenu adds copy-cite with stats and question-note when allowed, and formats cited quotes', () => {
+  assert.equal(formatCitedQuote({ quote: 'Read models differ.', title: 'DDIA', page: 12 }), 'Read models differ.\n\n——《DDIA》第 12 页');
+  assert.equal(formatCitedQuote({ quote: 'Slide point', title: 'CS101', page: 3, slides: true }), 'Slide point\n\n——《CS101》第 3 张');
+  assert.equal(formatCitedQuote({ quote: 'Plain quote' }), 'Plain quote');
+  assert.equal(formatCitedQuote({ quote: '   ' }), '');
+
+  assert.equal(selectionStatsText('Read model separation'), '3 词 · 19 字符');
+  assert.equal(selectionStatsText('读写分离模型'), '6 字');
+
+  const withQuote = selectionMenu({ quote: 'Read model separation', canQuestionNote: true });
+  assert.equal(withQuote[0].id, 'copy');
+  assert.deepEqual(withQuote[1], { id: 'copy-cite', label: '带出处复制', icon: 'copy', hint: '3 词 · 19 字符' });
+  assert.deepEqual(withQuote[2], { id: 'question-note', label: '记入本题笔记', icon: 'note' });
+  assert.ok(!selectionMenu({ quote: 'abc', canQuestionNote: false }).some(item => item.id === 'question-note'));
+
+  const enFragment = JSON.parse(readFileSync(new URL('../ui/locales/en.polish-reader.json', import.meta.url), 'utf8'));
+  assert.equal(enFragment['{0} 词 · {1} 字符'], '{0} words · {1} chars');
+  assert.equal(enFragment['带出处复制'], 'Copy with citation');
+  assert.equal(enFragment['记入本题笔记'], 'Add to question note');
 });

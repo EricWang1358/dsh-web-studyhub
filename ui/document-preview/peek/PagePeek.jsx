@@ -118,9 +118,17 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
     if (event.target?.matches?.('input, textarea, select')) return;
     if (event.key === 'PageUp') { event.preventDefault(); go(-1); }
     else if (event.key === 'PageDown') { event.preventDefault(); go(1); }
+    else if (event.key === 'ArrowLeft' && zoom <= 1) { event.preventDefault(); go(-1); }
+    else if (event.key === 'ArrowRight' && zoom <= 1) { event.preventDefault(); go(1); }
     else if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomBy(1); }
     else if (event.key === '-') { event.preventDefault(); zoomBy(-1); }
     else if (event.key === '0') { event.preventDefault(); fit(); }
+  };
+  const onWheel = event => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    if (event.deltaY < 0) zoomBy(1);
+    else if (event.deltaY > 0) zoomBy(-1);
   };
   /* The panel's box is plain left/top/width/height (set once it is showing a page, from where it sits), so every handle moves exactly what it is
      dragged on: the title moves the box, the corner grips resize it (the bottom-right one keeps the top-left still, the top-left one keeps the
@@ -185,7 +193,7 @@ export default function PagePeek({ page, figure = false, totalPages = 0, offset 
     rect.current = resizeBox(corner, move[0], move[1], rect.current, win()); apply();
   };
   return <PagePeekView phase={phase} page={current} total={total} zoom={zoom} figure={figure} busy={busy} message={message} mismatch={mismatch} issue={status} undecoded={undecoded}
-    panelRef={panel} canvasRef={canvas} scrollRef={scroller} onClose={onClose} onPrev={() => go(-1)} onNext={() => go(1)} onZoom={zoomBy} onFit={fit}
+    panelRef={panel} canvasRef={canvas} scrollRef={scroller} onClose={onClose} onPrev={() => go(-1)} onNext={() => go(1)} onZoom={zoomBy} onFit={fit} onWheel={onWheel}
     onAttach={onAttach} onShowOriginal={onShowOriginal ? () => onShowOriginal(shownPage.current) : undefined} onRetry={() => { setPhase('ready'); setTries(count => count + 1); }} onDragStart={onDragStart} onResizeStart={onResizeStart} onGripKey={onGripKey} onKeyDown={onKeyDown} />;
 }
 

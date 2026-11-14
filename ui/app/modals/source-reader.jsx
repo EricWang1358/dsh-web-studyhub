@@ -1,10 +1,11 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { errorMessage, ui, uiFormat } from '../../i18n.js';
+import { errorMessage, getUiLanguage, ui, uiFormat } from '../../i18n.js';
 import { useToast } from '../../components/index.js';
 import { relatedTaskItems } from '../../DailyPlan.jsx';
 import { ReaderHeading } from '../../document-preview/RenameTitle.jsx';
 import { documentSourceIds } from '../../../lib/source-groups.js';
 import { draftToOpen } from '../../document-preview/practice/practice-range.js';
+import { formatQuoteForNote, questionNoteRef, questionNoteTitle } from '../../review/question-note.js';
 import { hasContext, pageAvailable } from '../../capabilities.js';
 import { useApp } from '../app-context.js';
 import ReaderRun from './ReaderRun.jsx';
@@ -19,7 +20,7 @@ import ReaderRun from './ReaderRun.jsx';
 /** { source, title, viewer }: the material of `modal` (a reader modal: source, quote, peekPage, pickPages, resume, back, reread), its heading, and the
     DocumentViewer props. `column`: shown beside the question instead of over it. */
 export function useSourceReader({ modal, onClose, column = false }) {
-  const { data, host, core, nav, learn, intents, drafts, dailyPlan, selectionNotices, settingsEntry, set } = useApp();
+  const { data, host, core, nav, learn, intents, drafts, dailyPlan, selectionNotices, settingsEntry, set, session } = useApp();
   const { call, act, busy, refresh } = core;
   const toast = useToast();
   const source = modal.source;
@@ -48,16 +49,54 @@ export function useSourceReader({ modal, onClose, column = false }) {
   ], [source, data.sources, data.root, !!dailyPlan, planState, planBusy, canBank, canPractice, busy]); // eslint-disable-line react-hooks/exhaustive-deps -- the plan is read through its state and busy
   // 今日 「重读 N 段」 (#1018): 已重读 keeps the time on the mark (materials.marks.seen), then the reader moves on to the next passage; after the last one it stays where it is.
   const rereadItems = modal.reread?.items || [], rereadAt = modal.reread?.index ?? 0, rereadItem = rereadItems[rereadAt];
-  const reread = source && rereadItem ? { position: rereadAt + 1, total: rereadItems.length, onDone: async () => {
+  const prevItem = rereadAt > 0 ? rereadItems[rereadAt - 1] : null;
+  const prevSource = prevItem && (data.sources?.find(item => item.id === prevItem.selection.sourceId) || (prevItem.selection.sourceId === source?.id ? source : null));
+  const reread = source && rereadItem ? { position: rereadAt + 1, total: rereadItems.length,
+    ...(rereadAt > 0 && prevSource ? { onPrev: () => {
+      set.setModal({ ...modal, source: { ...prevSource, selection: prevItem.selection }, quote: prevItem.selection.quote, reread: { items: rereadItems, index: rereadAt - 1 } });
+    } } : {}),
+    onDone: async () => {
+      try {
+        await call('materials.marks.seen', { sourceId: rereadItem.selection.sourceId, revision: rereadItem.revision, id: rereadItem.id });
+      } catch (cause) { toast.error(errorMessage(cause)); return; }
+      void refresh();
+      const next = rereadItems[rereadAt + 1], nextSource = next && data.sources?.find(item => item.id === next.selection.sourceId);
+      if (nextSource) { set.setModal({ ...modal, source: { ...nextSource, selection: next.selection }, quote: next.selection.quote, reread: { items: rereadItems, index: rereadAt + 1 } }); return; }
+      toast.success(ui('今天要重读的段落都读完了'));
+      set.setModal({ ...modal, reread: null });
+    } } : null;
+  const run = session?.run;
+  const activeRun = run?.card?.id && !run.complete && run.mode !== 'exam' ? run : null;
+  const onAppendQuestionNote = activeRun ? async (passage) => {
+    const block = formatQuoteForNote({
+      quote: passage?.quote,
+      title: passage?.title || source.document?.title || source.title || '',
+      page: passage?.page ?? source.document?.page,
+      slides: !!passage?.slides,
+    });
+    if (!block) return;
     try {
-      await call('materials.marks.seen', { sourceId: rereadItem.selection.sourceId, revision: rereadItem.revision, id: rereadItem.id });
-    } catch (cause) { toast.error(errorMessage(cause)); return; }
-    void refresh();
-    const next = rereadItems[rereadAt + 1], nextSource = next && data.sources?.find(item => item.id === next.selection.sourceId);
-    if (nextSource) { set.setModal({ ...modal, source: { ...nextSource, selection: next.selection }, quote: next.selection.quote, reread: { items: rereadItems, index: rereadAt + 1 } }); return; }
-    toast.success(ui('今天要重读的段落都读完了'));
-    set.setModal({ ...modal, reread: null });
-  } } : null;
+      const created = await call('note.create', {
+        title: questionNoteTitle(),
+        cards: [questionNoteRef(activeRun)],
+        reuse: true,
+        prefill: true,
+        language: getUiLanguage(),
+      });
+      const noteId = created?.id;
+      if (!noteId) return;
+      const note = await call('note.get', { id: noteId });
+      const existing = String(note?.markdown ?? '');
+      if (!existing.includes(block)) {
+        const markdown = existing.trimEnd() ? `${existing.trimEnd()}\n\n${block}` : block;
+        await call('note.save', { id: noteId, markdown, expectedRevision: note?.revision ?? 0 });
+        void refresh();
+      }
+      toast.success(ui('已记入本题笔记'));
+    } catch (cause) {
+      toast.error(errorMessage(cause));
+    }
+  } : undefined;
   const title = source
     ? <ReaderHeading data={data} source={source} act={act} call={call} renameRequest={renameRequest}
       onRenamed={(done) => toast.success(done.status === 'renamed' ? uiFormat('已重命名为「{0}」', [done.title]) : ui('名称没有变化'))} />
@@ -86,6 +125,7 @@ export function useSourceReader({ modal, onClose, column = false }) {
     onGenerateStarted: () => refresh(),
     onCaseFromPassage: canGenerate ? (passage) => intents.goGenerate({ source: 'case', remember: true, closeModal: true,
       caseInitial: { sourceIds: documentSourceIds(data.sources, source.id), focus: passage.quote, nonce: Date.now() } }) : undefined,
+    onAppendQuestionNote,
   };
   return { source, title, viewer: useSteadyFunctions(viewer) };
 }

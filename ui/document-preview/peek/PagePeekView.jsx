@@ -13,9 +13,16 @@ import css from './peek.css';
 
 /** The panel as markup, for every phase: 'loading' | 'ready' | 'error' | 'none' | 'mismatch'. */
 export default function PagePeekView({ phase, page, total, zoom = 1, figure = false, busy = false, message = '', mismatch = null, issue = null, undecoded = 0,
-  panelRef, canvasRef, scrollRef, onClose, onPrev, onNext, onZoom, onFit, onAttach, onRetry, onShowOriginal, onDragStart, onResizeStart, onGripKey, onKeyDown }) {
+  panelRef, canvasRef, scrollRef, onClose, onPrev, onNext, onZoom, onFit, onWheel, onAttach, onRetry, onShowOriginal, onDragStart, onResizeStart, onGripKey, onKeyDown }) {
   useInjectCss(css, 'study-page-peek');
   const ready = phase === 'ready';
+  const handleWheel = event => {
+    if (onWheel) { onWheel(event); return; }
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    if (event.deltaY < 0) onZoom?.(1);
+    else if (event.deltaY > 0) onZoom?.(-1);
+  };
   return <div className="page-peek" role="dialog" aria-modal="false" aria-label={ui('原页预览')} tabIndex={-1} ref={panelRef} data-phase={phase} onKeyDown={onKeyDown}>
     {ready && <button type="button" className="page-peek__grip page-peek__grip--nw" aria-label={ui('从左上角调整大小（也可用方向键）')} title={ui('从左上角调整大小（也可用方向键）')}
       onPointerDown={onResizeStart?.('nw')} onKeyDown={onGripKey?.('nw')} />}
@@ -53,8 +60,9 @@ export default function PagePeekView({ phase, page, total, zoom = 1, figure = fa
         <p>{ui('这一页的图像无法在预览中显示，请在「原始 PDF」里查看')}</p>
         {onShowOriginal && <Button size="sm" variant="secondary" icon="file" onClick={onShowOriginal}>{ui('查看原始 PDF')}</Button>}
       </div>}
-      {ready && <div className="page-peek__scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={ui('原页')} data-fit={zoom === 1 ? 'true' : 'false'}>
-        <canvas ref={canvasRef} className="page-peek__canvas" role="img" aria-label={uiFormat('原文件第 {0} 页', [page])} />
+      {ready && <div className="page-peek__scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={ui('原页')} data-fit={zoom === 1 ? 'true' : 'false'} onWheel={handleWheel}>
+        <canvas ref={canvasRef} className="page-peek__canvas" role="img" aria-label={uiFormat('原文件第 {0} 页', [page])}
+          onDoubleClick={() => (zoom === 1 ? onZoom?.(2) : onFit?.())} />
       </div>}
       {ready && busy && <p className="page-peek__busy" role="status">{ui('正在绘制…')}</p>}
       {ready && figure && <p className="page-peek__note">{ui('文字版不含图片：这里直接显示原文件的这一页。')}</p>}

@@ -12,3 +12,15 @@ export const questionNoteTitle = () => uiFormat('学习笔记 · {0}', [formatDa
 
 /** note.qa.add: one Q&A of the question on screen into its note (made when there is none), in the page's language. */
 export const qaToNoteArgs = (run, followupId) => ({ ...questionNoteRef(run), followupId, title: questionNoteTitle(), language: getUiLanguage() });
+
+/** Format a document passage as a blockquote with book title and page/slide citation for appending to a question note. */
+export function formatQuoteForNote({ quote, title, page, slides = false } = {}) {
+  const text = String(quote ?? '').trim();
+  if (!text) return '';
+  const body = text.split(/\r?\n/).map(line => `> ${line}`).join('\n');
+  const book = String(title ?? '').trim();
+  const pageNum = Number(page);
+  const loc = Number.isInteger(pageNum) && pageNum > 0 ? uiFormat(slides ? '第 {0} 张' : '第 {0} 页', [pageNum]) : '';
+  const cite = `${book ? `《${book}》` : ''}${loc}`;
+  return cite ? `${body}\n\n——${cite}` : body;
+}

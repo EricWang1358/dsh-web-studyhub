@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COLUMN_MIN, QUESTION_MIN, SPLIT_MIN, columnWidth, dockReducer, dockedPlace, openDock, questionPlace, questionRoom, readColumnWidth, saveColumnWidth, sameMaterial,
+import { build } from 'esbuild';
+import { clearColumnWidth, COLUMN_MIN, QUESTION_MIN, SPLIT_MIN, columnWidth, dockReducer, dockedPlace, openDock, questionPlace, questionRoom, readColumnWidth, saveColumnWidth, sameMaterial,
   sourcePlacement }
   from '../ui/review/source-dock.js';
 import { stripOf } from '../ui/review/question-strip.js';
@@ -167,4 +168,268 @@ test('whose keys: a press inside the 对照栏 or a dialog the question is not i
   assert.equal(keysElsewhere(inDialog, app), true, 'a dialog over the page takes the keys');
   const readerRound = node(['[data-inline-run]'], dialog);
   assert.equal(keysElsewhere(node(['button'], readerRound), readerRound), false, 'a question inside the reader (its 本节题目) keeps its keys');
+});
+
+test('#51 clearColumnWidth removes the stored column width and tolerates blocked storage', () => {
+  const map = new Map(), storage = { getItem: key => map.get(key) ?? null, setItem: (key, value) => map.set(key, value), removeItem: key => map.delete(key) };
+  saveColumnWidth(520, storage);
+  assert.equal(readColumnWidth(storage), 520);
+  assert.equal(clearColumnWidth(storage), true);
+  assert.equal(readColumnWidth(storage), null);
+  const blocked = { removeItem() { throw new Error('blocked'); } };
+  assert.equal(clearColumnWidth(blocked), false);
+});
+
+test('#52 pin keeps the column on its current material across question follows until unpinned', () => {
+  let state = openDock(modal(page(2)));
+  assert.equal(state.pinned, false);
+  state = dockReducer(state, { type: 'toggle-pin' });
+  assert.equal(state.pinned, true);
+
+  // Following another page or even another material holds `pending` instead of navigating.
+  state = dockReducer(state, { type: 'follow', place: page(25) });
+  assert.deepEqual([state.key, state.at, state.seek, state.pending.id], [1, 'book-p2', null, 'book-p25']);
+  state = dockReducer(state, { type: 'follow', place: page(1, 'other') });
+  assert.deepEqual([state.key, state.at, state.pending.id], [1, 'book-p2', 'other-p1']);
+  assert.deepEqual(dockedPlace(state), { type: 'source', source: page(2), back: true }, 'narrowing/expanding keeps the pinned source, not pending');
+
+  // Following back to the pinned source clears pending.
+  state = dockReducer(state, { type: 'follow', place: page(2) });
+  assert.equal(state.pending, null);
+
+  // Explicit link (`open`) still navigates while pinned.
+  state = dockReducer(state, { type: 'open', modal: modal(page(25), { quote: 'cited' }) });
+  assert.deepEqual([state.at, state.pinned, state.seek.quote], ['book-p25', true, 'cited']);
+
+  // Collapsing and expanding while pinned keeps pending rather than jumping on unfold.
+  state = dockReducer(dockReducer(state, { type: 'collapse' }), { type: 'follow', place: page(1) });
+  state = dockReducer(state, { type: 'expand' });
+  assert.deepEqual([state.collapsed, state.at, state.pending.id], [false, 'book-p25', 'book-p1']);
+
+  // Unpinning while expanded navigates immediately to pending.
+  state = dockReducer(state, { type: 'toggle-pin' });
+  assert.deepEqual([state.pinned, state.at, state.pending, state.seek.source.id], [false, 'book-p1', null, 'book-p1']);
+});
+
+test('#51-#54 SourceColumn and useSourceDock: pin toggle, pop-out expand, divider double-click/0 reset, Esc hints, and focusColumn', async () => {
+  function createReactHarness() {
+    let hooks = [], cursor = 0, tree = null, props = {}, pendingEffects = [], currentComp = null;
+    const h = (type, p, ...children) => ({ $$type: type, props: { ...(p || {}), ...(children.length === 1 ? { children: children[0] } : children.length > 1 ? { children } : {}) } });
+    const wrapRef = { current: null };
+    const reactShim = {
+      default: null,
+      Fragment: Symbol('Fragment'),
+      createElement: h,
+      memo: c => c,
+      forwardRef: r => Object.assign((p) => r(p, wrapRef), { __forward: r }),
+      useState(init) {
+        const idx = cursor++;
+        if (!(idx in hooks)) hooks[idx] = typeof init === 'function' ? init() : init;
+        return [hooks[idx], v => { hooks[idx] = typeof v === 'function' ? v(hooks[idx]) : v; }];
+      },
+      useReducer(reducer, initArg, initFn) {
+        const idx = cursor++;
+        if (!(idx in hooks)) hooks[idx] = initFn ? initFn(initArg) : initArg;
+        return [hooks[idx], action => { hooks[idx] = reducer(hooks[idx], action); }];
+      },
+      useRef(init) { const idx = cursor++; if (!(idx in hooks)) hooks[idx] = { current: init }; return hooks[idx]; },
+      useCallback(fn) { return fn; },
+      useMemo(fn, deps) {
+        const idx = cursor++, prev = hooks[idx];
+        if (!prev || !deps || deps.some((d, i) => d !== prev.deps[i])) hooks[idx] = { val: fn(), deps };
+        return hooks[idx].val;
+      },
+      useEffect(fn, deps) {
+        const idx = cursor++, prev = hooks[idx];
+        if (!prev || !deps || deps.some((d, i) => d !== prev.deps?.[i])) { hooks[idx] = { deps }; pendingEffects.push(fn); }
+      },
+      useLayoutEffect(fn, deps) {
+        const idx = cursor++, prev = hooks[idx];
+        if (!prev || !deps || deps.some((d, i) => d !== prev.deps?.[i])) { hooks[idx] = { deps }; pendingEffects.push(fn); }
+      },
+      useImperativeHandle(ref, create) { if (ref) ref.current = create(); },
+      useSyncExternalStore(_sub, snap) { return snap(); },
+    };
+    reactShim.default = reactShim;
+    const expandNode = node => {
+      if (Array.isArray(node)) return node.map(expandNode);
+      if (!node || typeof node !== 'object') return node;
+      if (typeof node.$$type === 'function') return expandNode(node.$$type(node.props));
+      return node.props?.children ? { ...node, props: { ...node.props, children: expandNode(node.props.children) } } : node;
+    };
+    const mount = (Comp, initialProps) => { hooks = []; currentComp = Comp; props = initialProps; wrapRef.current = null; };
+    const render = (nextProps = props) => {
+      props = nextProps;
+      cursor = 0;
+      pendingEffects = [];
+      tree = expandNode(currentComp(props, wrapRef));
+      for (const ef of pendingEffects.splice(0)) ef();
+      return tree;
+    };
+    const findAll = (pred, node = tree, out = []) => {
+      if (!node || typeof node !== 'object') return out;
+      if (Array.isArray(node)) { node.forEach(n => findAll(pred, n, out)); return out; }
+      if (pred(node)) out.push(node);
+      if (node.props?.children) findAll(pred, node.props.children, out);
+      return out;
+    };
+    return { reactShim, mount, render, findAll, wrapRef };
+  }
+
+  const localBuild = await build({
+    stdin: {
+      contents: `
+        export * from './ui/i18n.js';
+        export { default as SourceColumn } from './ui/review/SourceColumn.jsx';
+        export { useSourceDock } from './ui/review/use-source-dock.jsx';`,
+      resolveDir: process.cwd(),
+    },
+    bundle: true, write: false, platform: 'node', format: 'cjs', loader: { '.css': 'text' }, logLevel: 'silent',
+    plugins: [{
+      name: 'shim-source-column',
+      setup(builder) {
+        builder.onResolve({ filter: /^react$|^react\/jsx-runtime$/ }, () => ({ path: 'react', namespace: 'shim-react' }));
+        builder.onLoad({ filter: /.*/, namespace: 'shim-react' }, () => ({
+          contents: `const R = globalThis.__SOURCE_SPLIT_REACT__; export default R; export const { Fragment, createElement, memo, forwardRef, useState, useReducer, useRef, useCallback, useMemo, useEffect, useLayoutEffect, useImperativeHandle, useSyncExternalStore } = R; export const jsx = (t, p) => R.createElement(t, p); export const jsxs = jsx; export const jsxDEV = jsx;`,
+          loader: 'js',
+        }));
+        builder.onResolve({ filter: /components\/index\.js$/ }, () => ({ path: 'components', namespace: 'shim-comp' }));
+        builder.onLoad({ filter: /.*/, namespace: 'shim-comp' }, () => ({
+          contents: `
+            const R = globalThis.__SOURCE_SPLIT_REACT__;
+            export const Button = p => R.createElement('button', { ...p, 'data-comp': 'Button' });
+            export const IconButton = p => R.createElement('button', { ...p, 'aria-label': p.label, 'data-comp': 'IconButton', 'data-icon': p.icon });
+            export const CloseButton = p => R.createElement('button', { ...p, 'aria-label': p.label || '关闭', 'data-comp': 'CloseButton' });
+            export const Tooltip = p => R.createElement('span', { 'data-comp': 'Tooltip', 'data-tooltip': p.content }, p.children);`,
+          loader: 'js',
+        }));
+        builder.onResolve({ filter: /source-reader\.jsx$/ }, () => ({ path: 'source-reader', namespace: 'shim-sr' }));
+        builder.onLoad({ filter: /.*/, namespace: 'shim-sr' }, () => ({
+          contents: `export function useSourceReader({ modal }) { return { title: modal?.source?.title || 'Title', viewer: modal ? { source: modal.source } : null }; }`,
+          loader: 'js',
+        }));
+        builder.onResolve({ filter: /workspace-views\.jsx$/ }, () => ({ path: 'workspace', namespace: 'shim-ws' }));
+        builder.onLoad({ filter: /.*/, namespace: 'shim-ws' }, () => ({
+          contents: `const R = globalThis.__SOURCE_SPLIT_REACT__; export const DocumentViewer = p => R.createElement('div', { className: 'reader-scroll', 'data-source-id': p.source?.id });`,
+          loader: 'js',
+        }));
+        builder.onResolve({ filter: /shared\.js$/ }, () => ({ path: 'shared', namespace: 'shim-shared' }));
+        builder.onLoad({ filter: /.*/, namespace: 'shim-shared' }, () => ({
+          contents: `export const useInjectCss = () => {};`,
+          loader: 'js',
+        }));
+      },
+    }],
+  });
+
+  const harness = createReactHarness();
+  globalThis.__SOURCE_SPLIT_REACT__ = harness.reactShim;
+  const prevRaf = globalThis.requestAnimationFrame;
+  const prevCompStyle = globalThis.getComputedStyle;
+  globalThis.requestAnimationFrame = cb => { cb(); return 1; };
+  globalThis.getComputedStyle = () => ({ paddingLeft: '0', paddingRight: '0', columnGap: '0' });
+  const prevStorage = globalThis.localStorage;
+  const store = new Map();
+  globalThis.localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v), removeItem: k => store.delete(k) };
+  try {
+    const mod = { exports: {} };
+    new Function('module', 'exports', localBuild.outputFiles[0].text)(mod, mod.exports);
+    const { SourceColumn, useSourceDock, setUiLanguage } = mod.exports;
+    setUiLanguage('zh');
+
+    // Test SourceColumn pin toggle, pop-out expand, tooltips, handle reset.
+    const removed = [], focused = [];
+    const scrollerEl = { focus: opts => focused.push(['scroller', opts]) };
+    const asideEl = { querySelector: sel => (sel === '.reader-scroll' ? scrollerEl : null), getBoundingClientRect: () => ({ width: 500 }), focus: opts => focused.push(['aside', opts]) };
+    const pageEl = {
+      clientWidth: 1200,
+      classList: { contains: () => false },
+      style: { setProperty: () => {}, removeProperty: k => removed.push(k) },
+      toggleAttribute: () => {},
+      removeAttribute: () => {},
+    };
+    let resetCalls = 0; const expanded = [];
+    harness.mount(SourceColumn, {
+      request: { modal: modal(page(2)), nonce: 1 },
+      followKey: 'k1',
+      place: page(2),
+      pageRef: { current: pageEl },
+      shownRef: { current: null },
+      onWidth: () => {},
+      onResetWidth: () => { resetCalls += 1; },
+      onClose: () => {},
+      onExpand: target => expanded.push(target),
+    });
+    harness.render();
+    // Attach aside ref cleanly via tree walk.
+    const asideNode = harness.findAll(n => n.$$type === 'aside')[0];
+    if (asideNode?.props?.ref) asideNode.props.ref.current = asideEl;
+
+    const tooltips = harness.findAll(n => n.props?.['data-comp'] === 'Tooltip').map(n => n.props['data-tooltip']);
+    assert.ok(tooltips.includes('固定当前资料，切题不自动跟随'));
+    assert.ok(tooltips.includes('大窗打开阅读器'));
+    assert.ok(tooltips.includes('收起资料栏（Esc 回题目）'));
+    assert.ok(tooltips.includes('关闭资料栏（Esc 回题目）'));
+
+    const pinBtn = () => harness.findAll(n => n.props?.['data-icon'] === 'pin')[0];
+    assert.equal(pinBtn().props['aria-pressed'], false);
+    pinBtn().props.onClick();
+    harness.render();
+    assert.equal(pinBtn().props['aria-pressed'], true);
+    assert.equal(pinBtn().props['data-pinned'], 'true');
+    assert.equal(pinBtn().props.label, '取消固定');
+
+    const popBtn = harness.findAll(n => n.props?.['data-icon'] === 'external')[0];
+    assert.equal(popBtn.props.label, '大窗打开阅读器');
+    popBtn.props.onClick();
+    assert.equal(expanded[0]?.source?.id, 'book-p2');
+
+    const handle = harness.findAll(n => n.props?.className === 'source-column__handle')[0];
+    handle.props.onDoubleClick();
+    let prevented = false, stopped = false;
+    handle.props.onKeyDown({ key: '0', preventDefault: () => { prevented = true; }, stopPropagation: () => { stopped = true; } });
+    assert.equal(resetCalls, 2);
+    assert.deepEqual([prevented, stopped], [true, true]);
+    assert.deepEqual(removed, ['--source-column', '--source-column']);
+
+    // Test collapse + ref.focus() expanding and focusing scroller with preventScroll: true.
+    const collapseBtn = harness.findAll(n => n.props?.label === '收起资料栏')[0];
+    collapseBtn.props.onClick();
+    harness.render();
+    harness.wrapRef.current.focus();
+    harness.render();
+    assert.deepEqual(focused.at(-1), ['scroller', { preventScroll: true }]);
+
+    // Test useSourceDock exposing focusColumn, resetWidth, docked, column.
+    const openedModals = [];
+    let dockResult = null;
+    function DockHost(props) { dockResult = useSourceDock(props); return null; }
+    harness.mount(DockHost, {
+      pageRef: { current: { clientWidth: 1280, classList: { contains: () => false }, querySelector: sel => (sel === '.source-column .reader-scroll' ? scrollerEl : null), style: { removeProperty: k => removed.push(k) } } },
+      rail: false,
+      run: run(),
+      sources,
+      study: { openModal: m => openedModals.push(m) },
+      readerDialogOpen: false,
+      modalOpen: false,
+    });
+    harness.render();
+    harness.render(); // flush useRoomForSplit layout measurement
+    dockResult.services.openModal(modal(page(2)));
+    harness.render();
+    assert.equal(dockResult.docked, true);
+    assert.equal(typeof dockResult.focusColumn, 'function');
+    dockResult.focusColumn();
+    assert.equal(focused.length >= 2, true);
+    dockResult.column.props.onExpand(modal(page(2)));
+    assert.equal(openedModals.at(-1).source.id, 'book-p2');
+    saveColumnWidth(480, globalThis.localStorage);
+    dockResult.column.props.onResetWidth();
+    assert.equal(readColumnWidth(globalThis.localStorage), null);
+  } finally {
+    delete globalThis.__SOURCE_SPLIT_REACT__;
+    globalThis.localStorage = prevStorage;
+    globalThis.requestAnimationFrame = prevRaf;
+    globalThis.getComputedStyle = prevCompStyle;
+  }
 });
