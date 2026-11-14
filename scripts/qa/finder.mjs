@@ -158,8 +158,17 @@ export async function walkFinder({ browser, running, lang = "zh", theme = "light
     expect(toast.includes(word("先在「资料」里打开一份资料", "First open a material")), "a toast says what is left to do");
     await shot("goto-prepare");
 
-    // nothing found
+    // 7. recent jumps appear when browsing with an empty query, keep the 8 groups and one active row, and clear cleanly
     await openSheet("click");
+    expect(await page.locator("dialog[open] .finder-recent").count() === 1, "最近去过 shows after visiting entries");
+    expect(await page.locator("dialog[open] .finder-recent .finder-row").count() === 4, "最近去过 keeps up to 4 recent entries");
+    expect(await page.locator("dialog[open] details.finder-group").count() === 8, "still eight area groups");
+    expect(await page.locator('dialog[open] [aria-selected="true"]').count() === 1, "only one row is selected");
+    await page.locator("dialog[open] .finder-recent button", { hasText: word("清除记录", "Clear") }).click();
+    expect(await page.locator("dialog[open] .finder-recent").count() === 0, "清除记录 removes 最近去过");
+    expect(await page.evaluate(() => document.activeElement?.getAttribute("role") === "combobox"), "focus stays in search after clearing");
+
+    // nothing found
     await page.locator('dialog[open] [role="combobox"]').fill("zzqx");
     await sleep(150);
     expect(await page.locator("dialog[open] .finder-empty").count() === 1, "nothing found says so and offers the tour");

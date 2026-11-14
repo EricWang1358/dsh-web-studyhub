@@ -17,6 +17,23 @@
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
     }
+    .finder-recent {
+      border-bottom: var(--hairline) solid var(--line-soft);
+      padding-bottom: var(--space-1);
+    }
+    .finder-recent__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      min-height: 32px;
+      padding-inline: var(--space-1);
+    }
+    .finder-recent__label {
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      color: var(--text-muted);
+    }
     .finder-group {
       border-bottom: var(--hairline) solid var(--line-soft);
     }

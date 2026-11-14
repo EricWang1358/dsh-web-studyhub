@@ -1,10 +1,11 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import css from "./graph.css";
 import { useInjectCss } from "./shared.js";
 import { Icon, Tooltip } from "./components/index.js";
 import MathText from "./MathText.jsx";
 import { clozeRuns } from "../lib/cloze-text.js";
+import { clozeBlankKeyAction } from "./review/session-logic.js";
 
 /* Fill-in-the-blank card, display only: grading lives on the server
    (review.answer → feedback.details, contract §5). `card.cloze` is the
@@ -22,7 +23,7 @@ const chLen = (s) => {
   return w;
 };
 
-export default function Cloze({ card, values, onChange, disabled, details, solution }) {
+export default function Cloze({ card, values, onChange, onSubmit, focusRequest = 0, disabled, details, solution }) {
   useInjectCss(css, "study-graph");
   const cloze = card?.cloze;
   const text = typeof cloze?.text === "string" ? cloze.text : "";
@@ -40,6 +41,17 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
   // Split the text on {{id}} markers: text runs keep their spacing (pre-wrap
   // keeps spacing/newlines) and draw their formulas, each marker becomes a blank slot in place.
   const parts = useMemo(() => clozeRuns(text), [text]);
+  const blankIds = useMemo(() => parts.filter((p) => p.t === "blank").map((p) => p.id), [parts]);
+  const inputRefs = useRef({});
+  const latest = useRef({ blankIds, values });
+  latest.current = { blankIds, values };
+
+  useEffect(() => {
+    if (!focusRequest || disabled || details) return;
+    const { blankIds: ids, values: currentValues } = latest.current;
+    const targetId = ids.find((id) => !String(currentValues?.[id] ?? "").trim()) ?? ids[0];
+    if (targetId) inputRefs.current[targetId]?.focus();
+  }, [focusRequest, disabled, details]);
 
   if (!card || !cloze || !text)
     return <p className="cloze cloze-missing">{ui("这张卡片没有可填写的空位。")}</p>;
@@ -47,7 +59,15 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
   let nth = 0;
   return (
     <div className="cloze">
-      {!details && <div className="cloze-hint">{ui("把空格补全")}</div>}
+      {!details && (
+        <div className="cloze-hint">
+          {!onSubmit
+            ? ui("把空格补全")
+            : blankIds.length > 1
+              ? ui("把空格补全 · 按 Enter 跳到下一空或提交 · Esc 退回题目")
+              : ui("把空格补全 · 按 Enter 提交 · Esc 退回题目")}
+        </div>
+      )}
       <div className="cloze-text">
         {parts.map((p, i) => {
           if (p.t === "text") return <span key={i}><MathText text={p.v} /></span>;
@@ -78,6 +98,10 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
           return (
             <input
               key={i}
+              ref={(el) => {
+                if (el) inputRefs.current[id] = el;
+                else delete inputRefs.current[id];
+              }}
               className="cloze-blank cloze-blank--input"
               type="text"
               value={val}
@@ -86,7 +110,29 @@ export default function Cloze({ card, values, onChange, disabled, details, solut
               aria-label={uiFormat("第 {0} 个空", [nthBlank])}
               onChange={(e) => onChange?.(id, e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") e.preventDefault(); // never submit the form
+                const action = clozeBlankKeyAction(
+                  {
+                    key: e.key,
+                    repeat: e.repeat,
+                    isComposing: e.isComposing || e.nativeEvent?.isComposing,
+                    keyCode: e.keyCode || e.nativeEvent?.keyCode,
+                    ctrlKey: e.ctrlKey,
+                    metaKey: e.metaKey,
+                    shiftKey: e.shiftKey,
+                    altKey: e.altKey,
+                  },
+                  { blankIds, currentId: id, values },
+                );
+                if (!action) return;
+                if (action.type === "blur") {
+                  const cardEl = e.currentTarget.closest?.(".question-card");
+                  if (cardEl?.focus) cardEl.focus({ preventScroll: true });
+                  else e.currentTarget.blur();
+                  return;
+                }
+                e.preventDefault();
+                if (action.type === "focus") inputRefs.current[action.id]?.focus();
+                else if (action.type === "submit") onSubmit?.();
               }}
             />
           );

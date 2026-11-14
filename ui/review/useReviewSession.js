@@ -465,7 +465,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     else if (action.type === 'assist-plain') assistCard('ask', '', ['plain']);
     else if (action.type === 'choose') choose(action.id);
     else if (action.type === 'skip') skipQuestion();
-    else if (['note', 'focus', 'source', 'voice', 'voice-ask'].includes(action.type)) questionKeys.current[action.type]?.();
+    else if (['note', 'focus', 'source', 'voice', 'voice-ask', 'focus-cloze'].includes(action.type)) questionKeys.current[action.type]?.();
   };
   useEffect(() => {
     const handler = (event) => keyHandler.current?.(event);

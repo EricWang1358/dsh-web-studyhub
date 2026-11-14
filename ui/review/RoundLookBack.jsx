@@ -2,11 +2,13 @@ import { ui, uiFormat } from "../i18n.js";
 import React from "react";
 import Markdown from "../Markdown.jsx";
 import Cloze from "../Cloze.jsx";
+import CitationDisclosure from "../CitationDisclosure.jsx";
 import ExplanationFollowup from "../ExplanationFollowup.jsx";
 import { Badge, Button, ChunkedRows } from "../components/index.js";
 import { fixedOptionLabel, optionMark } from "../option-label.js";
 import { fixedOptionsOf, hasOptions, isGraded } from "../../lib/card-kinds.js";
 import { invalidate, useHostQuery } from "../host-query.js";
+import { useStudy } from "../study-context.jsx";
 import CorrectionCard from "./CorrectionCard.jsx";
 
 /* 本轮题目 on the result page (#1009): one row per question of the round, read once when the page opens with review.lookBack {runId}
@@ -70,7 +72,7 @@ function LookBackAnswer({ row, mode }) {
 }
 
 /** The read-only look-back of one row. */
-function LookBack({ row, mode }) {
+function LookBack({ row, mode, sources, onOpenSource }) {
   if (!row.solution || row.status === "grading") {
     return (
       <div className="look-back__body">
@@ -92,15 +94,21 @@ function LookBack({ row, mode }) {
           {!isChoice && row.solution.rubric && <><h4>{row.card.kind === "task" ? ui("验收标准") : ui("评分依据")}</h4><Markdown text={row.solution.rubric} /></>}
         </div>
       )}
+      {onOpenSource && <CitationDisclosure card={row.solution} sources={sources} onOpenSource={onOpenSource} />}
       <ExplanationFollowup run={{ deckId: row.deckId, card: { id: row.cardId }, solution: row.solution }} readOnly />
     </div>
   );
 }
 
 /**
- * props: run (the finished run), onOpenWrongBook(refs) (optional: the wrong book on these questions, where its rescue is; absent when the page is not available).
+ * props: run (the finished run), sources (optional material list for citations and source jumps),
+ * onOpenWrongBook(refs) (optional: the wrong book on these questions, where its rescue is; absent when the page is not available).
  */
-export default function RoundLookBack({ run, onOpenWrongBook, onAck }) {
+export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAck }) {
+  const study = useStudy();
+  const openSource = study?.openModal ? (source, quote, peekPage) => {
+    if (source) study.openModal({ type: "source", source, quote, peekPage, back: true });
+  } : null;
   // One read per opening of the result page, shared by any other reader of the same round (ui/host-query.js); nothing for an exam.
   const query = useHostQuery("review.lookBack", { runId: run.id }, { enabled: run.mode !== "exam" });
   // A grade that lands while this page is open (#1031: the run's poll brings the new count) is read again, so its row and 待看订正 show at once.
@@ -126,6 +134,9 @@ export default function RoundLookBack({ run, onOpenWrongBook, onAck }) {
   const render = (row) => {
     const words = STATUS[row.status] || STATUS.unanswered;
     const expanded = open.has(row.number), regionId = `look-back-${run.id}-${row.number}`;
+    const place = study?.openModal && Array.isArray(sources) && (row.sourceId || row.documentSourceId)
+      ? (sources.find((item) => item.id === row.sourceId) || sources.find((item) => item.id === row.documentSourceId) || null)
+      : null;
     return (
       <li key={row.number} className="look-back__row" data-status={row.status}>
         <Button variant="quiet" className="look-back__line" align="start" aria-expanded={expanded} aria-controls={expanded ? regionId : undefined} onClick={() => toggle(row.number)}>
@@ -138,11 +149,26 @@ export default function RoundLookBack({ run, onOpenWrongBook, onAck }) {
         </Button>
         {expanded && (
           <div id={regionId} className="look-back__panel" role="region" aria-label={uiFormat("第 {0} 题回看", [row.number])}>
-            <LookBack row={row} mode={run.mode} />
+            <LookBack row={row} mode={run.mode} sources={sources} onOpenSource={openSource} />
             {row.feedback && <CorrectionCard feedback={row.feedback} withRubric={!!row.feedback.rubric && row.card?.kind !== "task"}
               onAck={row.correctionPending && onAck ? () => Promise.resolve(onAck(row)).then(() => invalidate("review.lookBack")) : undefined} />}
-            {row.status === "wrong" && onOpenWrongBook && (
-              <Button variant="link" size="sm" onClick={() => onOpenWrongBook([{ deckId: row.deckId, cardId: row.cardId }])}>{ui("去错题本练这道题")}</Button>
+            {(place || (row.status === "wrong" && onOpenWrongBook)) && (
+              <div className="look-back__actions">
+                {place && (
+                  <Button variant="link" size="sm" onClick={() => study.openModal({ type: "source", source: place, back: true })}>
+                    {row.sourceTitle && row.page != null
+                      ? uiFormat("打开出处「{0}」{1}", [row.sourceTitle, pageWords(row)])
+                      : row.sourceTitle
+                        ? uiFormat("打开出处「{0}」", [row.sourceTitle])
+                        : row.page != null
+                          ? uiFormat("打开出处 · {0}", [pageWords(row)])
+                          : ui("打开出处")}
+                  </Button>
+                )}
+                {row.status === "wrong" && onOpenWrongBook && (
+                  <Button variant="link" size="sm" onClick={() => onOpenWrongBook([{ deckId: row.deckId, cardId: row.cardId }])}>{ui("去错题本练这道题")}</Button>
+                )}
+              </div>
             )}
           </div>
         )}

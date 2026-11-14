@@ -25,10 +25,13 @@ const WORDS = {
     lookBack: 'Questions in this round', showAll: (n) => `Show all ${n} questions`, unansweredNote: /did not answer this question/, left: (n) => `${n} questions are still unanswered` },
 };
 
-async function serve(t) {
+async function serve(t, setup) {
   const root = await mkdtemp(join(tmpdir(), 'round-controls-browser-'));
   const service = new StudyService(join(root, 'library'));
-  await service.store.update((s) => { s.decks.push(...RUNS.map((_, i) => deckOf(i)), { ...deckOf('c'), cards: deckOf('c').cards.slice(0, 3) }); });
+  await service.store.update((s) => {
+    if (setup) setup(s);
+    else s.decks.push(...RUNS.map((_, i) => deckOf(i)), { ...deckOf('c'), cards: deckOf('c').cards.slice(0, 3) });
+  });
   await service.dispose();
   const distDir = join(root, 'dist'); await buildPreview({ outdir: distDir });
   const server = await createPreviewServer({ libraryRoot: join(root, 'library'), home: join(root, 'home'), port: 0, model: null, distDir });
@@ -173,5 +176,68 @@ test('先跳过, 「N 题待答」, 到此为止 and the look-back, at 1280 and 
   await page.locator('.result-page').waitFor({ timeout: 30000 });
   assert.equal(await page.locator('.result-title').innerText(), '这一轮，完成了。');
   await page.locator('.coach-countdown[role="status"]').waitFor({ timeout: 15000 });
+  await context.close();
+});
+
+test('Cloze Enter/Esc keyboard flow and RoundLookBack source-page jump in a real browser', { timeout: 600000 }, async (t) => {
+  const clozeDeck = {
+    id: 'cloze-src',
+    title: 'Cloze Source Flow',
+    course: 'Course',
+    cards: [{
+      id: 'clz-1',
+      kind: 'cloze',
+      topic: 'Topic',
+      objective: 'Recall',
+      prompt: 'First {{b1}} then {{b2}}.',
+      hint: 'Check order.',
+      explanation: 'Alpha comes before beta.',
+      misconception: 'Not reversed.',
+      citations: [{ sourceId: 's1-p5', quote: 'Alpha beta is the answer.' }],
+      cloze: { text: 'First {{b1}} then {{b2}}.', answers: [{ id: 'b1', value: 'alpha' }, { id: 'b2', value: 'beta' }] },
+    }],
+  };
+  const served = await serve(t, (s) => {
+    s.sources.push({ id: 's1-p5', title: 'Notes · p. 5', format: 'pdf', document: { id: 'doc1', format: 'pdf', bookTitle: 'Notes', page: 5 }, text: 'Alpha beta is the answer.' });
+    s.decks.push(clozeDeck);
+  });
+  if (!served) return;
+  const { server, browser } = served;
+  await previewCall(server, 'settings.practice.set', { patch: { autopilot: false, debrief: false } });
+  await previewCall(server, 'review.start', { mode: 'path', fresh: true, scope: [{ deckId: 'cloze-src', cardId: 'clz-1' }] });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage(), errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); });
+  await page.goto(server.url);
+  await page.getByRole('button', { name: '继续 Cloze Source Flow' }).first().click();
+  await page.locator('.cloze-blank--input').first().waitFor({ timeout: 30000 });
+  // Focus card (not input), Enter -> jumps to first empty blank; Esc -> returns to card; h -> hint works.
+  await page.locator('.question-card').click();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), '第 1 个空');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('question-card')), true);
+  await page.keyboard.press('h');
+  await page.locator('.hint').waitFor();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), '第 1 个空');
+  await page.keyboard.type('alpha');
+  await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), '第 2 个空');
+  await page.keyboard.type('beta');
+  await page.keyboard.press('Enter');
+  await page.locator('.cloze-right').first().waitFor({ timeout: 15000 });
+  await nextButton(page).click();
+  await page.locator('.result-page').waitFor({ timeout: 30000 });
+  const row = page.locator('.round-look-back .look-back__row').first();
+  await row.locator('.look-back__line').click();
+  const panel = row.locator('.look-back__panel');
+  await panel.locator('.citation-disclosure').waitFor();
+  await panel.getByRole('button', { name: /打开出处「Notes」第 5 页/ }).click();
+  await page.locator('dialog[open]').waitFor({ timeout: 15000 });
+  await page.waitForFunction(() => /Alpha beta is the answer\./.test(document.querySelector('dialog[open]')?.innerText || ''), undefined, { timeout: 15000 });
+  assert.deepEqual(errors, []);
   await context.close();
 });

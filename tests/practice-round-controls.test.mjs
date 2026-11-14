@@ -8,7 +8,7 @@ import { freshRoundCount, roundLimits } from '../lib/practice-settings.js';
 import { followupDigest } from '../lib/followup.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { capabilityIndex } from '../lib/runtime/tools.js';
-import { assistRunningOn, finishedTask, pendingCount, retriesWaiting, reviewPollResult, shortcutAction, skipTarget } from '../ui/review/session-logic.js';
+import { assistRunningOn, clozeBlankKeyAction, finishedTask, pendingCount, retriesWaiting, reviewPollResult, shortcutAction, skipTarget } from '../ui/review/session-logic.js';
 import { reviewPollDelay } from '../ui/poll-schedule.js';
 
 /* #1008 / #1009 / #1011: inside a practice round the learner can set a question aside (先跳过, the existing review.move {index}) and stop the round with a
@@ -207,6 +207,94 @@ test('the look-back is the panel read: the main chat is refused it and does not 
   assert.ok(JSON.stringify(await service.call('review.lookBack', { runId: run.id })).length > ended, 'the rows are the big part, and only the panel reads them');
 });
 
+test('review.lookBack exposes answer-safe source metadata for cited questions without leaking quotes on unanswered rows', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'lookback-sources-'));
+  const service = new StudyService(join(root, 'library'));
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
+  await service.store.update((s) => {
+    s.sources.push(
+      { id: 's1-p5', title: 'Algorithm Notes · p. 5', format: 'pdf', document: { id: 'doc-algo', format: 'pdf', bookTitle: 'Algorithm Notes', page: 5 }, text: 'Alpha beta.' },
+      { id: 's-plain', title: 'Plain Note', text: 'Delta epsilon.' },
+    );
+    const cited = (id, sourceId, quote) => ({ ...quiz(id), citations: [{ sourceId, quote }] });
+    s.decks.push({ id: 'd', title: 'D', course: 'C', cards: [cited('c1', 's1-p5', 'Alpha'), cited('c2', 's-plain', 'Delta'), quiz('c3')] });
+  });
+  let current = await service.call('review.start', { mode: 'path', fresh: true, scope: ['c1', 'c2', 'c3'].map((cardId) => ({ deckId: 'd', cardId })) });
+  await answer(service, current, ['b']);
+  await service.call('review.move', { runId: current.id, direction: 1 });
+  // Leave c2 unanswered to verify quote stays private; c3 has no citation.
+  await service.call('review.end', { runId: current.id });
+  const { rows } = await service.call('review.lookBack', { runId: current.id });
+  assert.equal(rows[0].sourceId, 's1-p5');
+  assert.equal(rows[0].documentSourceId, 's1-p5');
+  assert.equal(rows[0].sourceTitle, 'Algorithm Notes');
+  assert.equal(rows[0].page, 5);
+  assert.equal(rows[1].sourceId, 's-plain');
+  assert.equal(rows[1].sourceTitle, 'Plain Note');
+  assert.equal(rows[1].page, undefined, 'unpaged text source omits page');
+  assert.equal(rows[1].solution, undefined, 'unanswered row leaks no solution or quote');
+  assert.doesNotMatch(JSON.stringify(rows[1]), /Delta/, 'unanswered row does not leak cited quote');
+  assert.equal(rows[2].sourceId, undefined);
+  assert.equal(rows[2].sourceTitle, undefined);
+});
+
+test('RoundLookBack shows CitationDisclosure for answered rows and clickable source-page links in Chinese and English', async () => {
+  const React = (await import('react')).default;
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { loadUi } = await import('./helpers/ui-module.mjs');
+  const uiMod = await loadUi(`
+    export { default as RoundLookBack } from './ui/review/RoundLookBack.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setQueryData } from './ui/host-query.js';
+    export { setUiLanguage } from './ui/i18n.js';`);
+  const inLanguage = (lang, fn) => { uiMod.setUiLanguage(lang); try { return fn(); } finally { uiMod.setUiLanguage('zh'); } };
+  const noop = () => {};
+  const services = { call: async () => ({}), act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+  const sources = [{ id: 's1-p5', title: 'Algorithm Notes · p. 5', format: 'pdf', document: { id: 'doc-algo', format: 'pdf', bookTitle: 'Algorithm Notes', page: 5 }, text: 'Alpha beta.' }];
+  const options = [{ id: 'a', text: 'yes' }, { id: 'b', text: 'no' }];
+  const rows = [
+    {
+      number: 1, entryIndex: 0, deckId: 'd', cardId: 'c1', kind: 'quiz', status: 'wrong',
+      sourceId: 's1-p5', documentSourceId: 's1-p5', sourceTitle: 'Algorithm Notes', page: 5,
+      card: { id: 'c1', kind: 'quiz', prompt: 'Q1?', options },
+      feedback: { selected: ['b'] },
+      solution: { explanation: 'E1', options: [{ id: 'a', correct: true }], citations: [{ sourceId: 's1-p5', quote: 'Alpha beta' }], followups: [] },
+    },
+    {
+      number: 2, entryIndex: 1, deckId: 'd', cardId: 'c2', kind: 'quiz', status: 'unanswered',
+      sourceId: 's1-p5', documentSourceId: 's1-p5', sourceTitle: 'Algorithm Notes', page: 5,
+      prompt: 'Q2?',
+    },
+    {
+      number: 3, entryIndex: 2, deckId: 'd', cardId: 'c3', kind: 'open', status: 'grading',
+      sourceId: 's1-p5', documentSourceId: 's1-p5', sourceTitle: 'Algorithm Notes', page: 5,
+      prompt: 'Q3?',
+      solution: { citations: [{ sourceId: 's1-p5', quote: 'Secret grading answer' }], followups: [] },
+    },
+  ];
+  const run = { id: 'r-lb-src', mode: 'path', navigation: [{ answered: true }, { answered: false }, { grading: true }], correctionsPending: 0 };
+  const render = () => {
+    uiMod.setQueryData('review.lookBack', { runId: run.id }, { rows });
+    const realUseState = React.useState;
+    React.useState = (init) => (typeof init === 'function' && init() instanceof Set ? realUseState(() => new Set([1, 2, 3])) : realUseState(init));
+    try {
+      return renderToStaticMarkup(React.createElement(uiMod.StudyServicesContext.Provider, { value: services },
+        React.createElement(uiMod.RoundLookBack, { run, sources })));
+    } finally { React.useState = realUseState; }
+  };
+  const zh = render();
+  const panel = (n) => zh.split(`id="look-back-r-lb-src-${n}"`)[1].split('</li>')[0];
+  assert.match(panel(1), /citation-disclosure/, 'answered row renders CitationDisclosure');
+  assert.match(panel(1), /打开出处「Algorithm Notes」第 5 页/, 'answered row renders source page button');
+  assert.doesNotMatch(panel(2), /citation-disclosure/, 'unanswered row hides CitationDisclosure');
+  assert.match(panel(2), /打开出处「Algorithm Notes」第 5 页/, 'unanswered row still links to source page safely');
+  assert.doesNotMatch(panel(3), /citation-disclosure/, 'grading row hides CitationDisclosure');
+  const en = inLanguage('en', render);
+  assert.doesNotMatch(en, /[\u3400-\u9fff]/, 'English look-back has no Chinese characters');
+  assert.match(en, /Open source “Algorithm Notes” \(Page 5\)/);
+  assert.match(en, /Check citations/);
+});
+
 /* ── the size of the next batch (#1009) ── */
 
 test('a round of new questions takes the new-question limit of the round size (设置 › 练习: 「新题最多 N 道」)', () => {
@@ -253,6 +341,31 @@ test('K sets the question aside, N writes a note, F marks it as focus, O opens i
   // The old keys keep their meaning.
   assert.deepEqual(press('h'), { type: 'hint' });
   assert.deepEqual(press('1'), { type: 'choose', id: 'a' });
+});
+
+test('Cloze Enter jumps into the first blank, advances across empty blanks, submits when filled, and Esc returns focus to the card', () => {
+  const clozeRun = { id: 'rc', mode: 'path', index: 0, card: { id: 'c', kind: 'cloze', cloze: { text: '{{b1}} and {{b2}}' } }, feedback: null, revealed: false };
+  const ctx = (extra = {}) => ({ inside: true, modalOpen: false, page: 'review', run: clozeRun, busy: false, shortcutHelp: false, choice: false, isCloze: true, rubricCard: false, selected: [], clozeValues: {}, ...extra });
+  const press = (key, extra = {}) => shortcutAction({ key, code: key === 'Enter' ? 'Enter' : `Key${key.toUpperCase()}`, shiftKey: false, repeat: false, defaultPrevented: false, inEditable: false }, ctx(extra))?.action;
+  assert.deepEqual(press('Enter'), { type: 'focus-cloze' }, 'Enter on an empty cloze jumps into the first blank');
+  assert.deepEqual(press('Enter', { clozeValues: { b1: 'one' } }), { type: 'answer', args: { answers: { b1: 'one' } } }, 'Enter from the card submits once a blank has text');
+  assert.deepEqual(press('v'), { type: 'voice' }, 'V still triggers voice while the card holds focus');
+  assert.deepEqual(press('h'), { type: 'hint' }, 'H still opens hint while the card holds focus');
+  assert.deepEqual(press('Enter', { run: { ...clozeRun, feedback: { grade: 5 } } }), { type: 'move', direction: 1 }, 'Enter after feedback still advances');
+
+  const key = (k, extra = {}) => ({ key: k, repeat: false, isComposing: false, keyCode: k === 'Enter' ? 13 : 27, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...extra });
+  assert.equal(clozeBlankKeyAction(key('Enter', { isComposing: true }), { blankIds: ['b1'], currentId: 'b1', values: { b1: 'x' } }), null, 'IME Enter is ignored');
+  assert.equal(clozeBlankKeyAction(key('Enter', { keyCode: 229 }), { blankIds: ['b1'], currentId: 'b1', values: { b1: 'x' } }), null, 'legacy IME keyCode 229 is ignored');
+  assert.equal(clozeBlankKeyAction(key('Escape', { isComposing: true }), { blankIds: ['b1'], currentId: 'b1', values: {} }), null, 'IME Escape cancels composition first');
+  assert.deepEqual(clozeBlankKeyAction(key('Escape'), { blankIds: ['b1'], currentId: 'b1', values: {} }), { type: 'blur' }, 'Escape returns focus to the card');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter'), { blankIds: ['b1'], currentId: 'b1', values: {} }), { type: 'noop' }, 'single empty blank does not submit');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter'), { blankIds: ['b1'], currentId: 'b1', values: { b1: 'ok' } }), { type: 'submit' }, 'single filled blank submits');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter'), { blankIds: ['b1', 'b2'], currentId: 'b1', values: { b1: 'one', b2: '' } }), { type: 'focus', id: 'b2' }, 'Enter moves from filled blank 1 to empty blank 2');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter'), { blankIds: ['b1', 'b2'], currentId: 'b2', values: { b1: '', b2: 'two' } }), { type: 'focus', id: 'b1' }, 'Enter wraps back to an earlier empty blank');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter'), { blankIds: ['b1', 'b2'], currentId: 'b1', values: { b1: '', b2: 'two' } }), { type: 'noop' }, 'stays on the only empty blank');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter'), { blankIds: ['b1', 'b2'], currentId: 'b2', values: { b1: 'one', b2: 'two' } }), { type: 'submit' }, 'all filled submits on Enter');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter', { ctrlKey: true }), { blankIds: ['b1', 'b2'], currentId: 'b1', values: { b1: 'one' } }), { type: 'submit' }, 'Ctrl+Enter submits with >=1 blank filled');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter', { metaKey: true }), { blankIds: ['b1', 'b2'], currentId: 'b1', values: {} }), { type: 'noop' }, 'Cmd+Enter with all empty does nothing');
 });
 
 /* ── the poll (#1011) ── */

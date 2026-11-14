@@ -13,6 +13,7 @@ const m = await loadUi(`
   export { FINDER_ENTRIES, PREPARE_STEPS } from './ui/finder/entries.js';
   export { opensFinder, moveActive, finderShortcutLabel, isMacPlatform } from './ui/finder/keys.js';
   export { planTrip, tripNotice, pathText } from './ui/finder/trip.js';
+  export { readRecentFinderIds, recordRecentFinderId, clearRecentFinderIds, recentFinderEntries } from './ui/finder/recent.js';
   export { default as ShortcutHelp } from './ui/ShortcutHelp.jsx';
   export { TOUR_STEPS } from './ui/tour/steps.js';
   export { shortcutKeyFor } from './ui/usage/capture.js';
@@ -185,4 +186,47 @@ test("the toast says the path, then what is left to do: nothing when the control
   assert.equal(m.pathText(entry("pdf-convert")), "资料 › 添加资料 › PDF 解析");
   const english = inLanguage("en", () => m.tripNotice(entry("budget"), -1).text);
   assert.doesNotMatch(english, han);
+});
+
+test("recent finder entries deduplicate, move to front, cap at 4, clear cleanly, and drop terms or unavailable items", () => {
+  const store = new Map();
+  const mem = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+  };
+  assert.deepEqual(m.readRecentFinderIds(mem), []);
+  mem.setItem('studyhub:finder-recent', '{bad-json');
+  assert.deepEqual(m.readRecentFinderIds(mem), [], 'corrupt storage is ignored');
+  for (const id of ['a', 'b', 'c', 'd', 'e', 'b']) m.recordRecentFinderId(id, mem);
+  assert.deepEqual(m.readRecentFinderIds(mem), ['b', 'e', 'd', 'c'], 'moves b to front and caps at 4');
+  const marked = [
+    { id: 'b', kind: 'entry' },
+    { id: 'e', kind: 'term' },
+    { id: 'd', kind: 'entry', unavailable: '未开启' },
+    { id: 'c', kind: 'entry' },
+  ];
+  assert.deepEqual(m.recentFinderEntries(marked, ['b', 'e', 'd', 'c', 'missing']).map((e) => e.id), ['b', 'c']);
+  m.clearRecentFinderIds(mem);
+  assert.deepEqual(m.readRecentFinderIds(mem), []);
+});
+
+test("FinderSheet renders 最近去过 above the 8 groups in browse mode, uses unique slot ids, hides on search, and translates to English", () => {
+  const firstAreaEntry = m.FINDER_ENTRIES.find((entry) => entry.kind !== 'term' && !entry.unavailable);
+  const html = sheet({ initialRecentIds: [firstAreaEntry.id, 'translation'] });
+  const recentIdx = html.indexOf('finder-recent');
+  const firstGroupIdx = html.indexOf('finder-group');
+  assert.ok(recentIdx > 0 && firstGroupIdx > recentIdx, '最近去过 appears above the 8 groups');
+  assert.match(html, /最近去过/);
+  assert.match(html, /清除记录/);
+  assert.equal([...html.matchAll(/<details[^>]*class="finder-group"/g)].length, 8, 'still 8 area <details>');
+  assert.equal((html.match(/aria-selected="true"/g) || []).length, 1, 'exactly one row is selected');
+  const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
+  assert.equal(new Set(ids).size, ids.length, 'every row id in the DOM is unique even when duplicated in an open area');
+  const searching = sheet({ initialRecentIds: [firstAreaEntry.id], initialQuery: '翻译' });
+  assert.doesNotMatch(searching, /finder-recent/, 'hides 最近去过 when searching');
+  const en = inLanguage('en', () => sheet({ initialRecentIds: [firstAreaEntry.id, 'translation'] }));
+  assert.doesNotMatch(text(en), han, 'English recent section has no Chinese characters');
+  assert.match(text(en), /\bRecent\b/);
+  assert.match(text(en), /\bClear\b/);
 });

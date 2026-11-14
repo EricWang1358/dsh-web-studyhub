@@ -270,7 +270,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </p>
           )}
           {/* 本轮题目 (#1009): which questions went wrong or were left, each with a read-only look-back from the run itself. */}
-          <RoundLookBack key={"look-back-" + run.id} run={run} onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })}
+          <RoundLookBack key={"look-back-" + run.id} run={run} sources={data?.sources} onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })}
             onOpenWrongBook={pageAvailable(data, "wrongbook") ? (refs) => { askForLeeches(data?.root, refs); navigate("wrongbook"); } : undefined} />
           <details key={run.id} className="result-details">
             <summary>{ui("更多结果与练习")}</summary>
