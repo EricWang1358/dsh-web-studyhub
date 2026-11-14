@@ -152,7 +152,7 @@ const BLANK = (value) => String(value).trim();
 
 /**
  * What a key press means. Returns null when the press is not ours, otherwise { cancelAuto, preventDefault, action }
- * (action may be null: the key is consumed, nothing happens). Actions: help, help-close, autopilot, resume, answer{args}, voice, voice-ask,
+ * (action may be null: the key is consumed, nothing happens). Actions: help, help-close, autopilot, resume, answer{args}, focus-cloze, voice, voice-ask,
  * move{direction}, flip, hint, explain, assist-plain, choose{id}, skip, note, focus, source.
  * event: { key, code, shiftKey, repeat, defaultPrevented, ctrlKey, metaKey, altKey, inEditable, onButton }.
  * ctx: { inside, modalOpen, page, run, busy, shortcutHelp, choice, isCloze, rubricCard, selected, clozeValues }.
@@ -177,7 +177,7 @@ export function shortcutAction(event, ctx) {
   if (event.key === 'Enter') {
     if (run.feedback) return result({ type: 'move', direction: 1 }, true);
     if (choice && run.card.multiple && ctx.selected.length) return result({ type: 'answer', args: { selected: ctx.selected } }, true);
-    if (isCloze && Object.values(ctx.clozeValues).some(BLANK)) return result({ type: 'answer', args: { answers: ctx.clozeValues } }, true);
+    if (isCloze) return result(Object.values(ctx.clozeValues).some(BLANK) ? { type: 'answer', args: { answers: ctx.clozeValues } } : { type: 'focus-cloze' }, true);
     return result(flipsOnly ? { type: 'flip' } : null, true);
   }
   if (letter === 'h') return result({ type: run.revealed ? 'explain' : 'hint' }, true);
@@ -196,6 +196,22 @@ export function shortcutAction(event, ctx) {
     return result(option ? { type: 'choose', id: option.id } : null);
   }
   return result(null);
+}
+
+/** What a key press inside a Cloze blank means: jump to next empty blank, submit when ready, or blur back to the card (Esc). Ignores IME composition. */
+export function clozeBlankKeyAction(event, { blankIds = [], currentId = '', values = {} } = {}) {
+  if (!event || event.isComposing || event.keyCode === 229 || event.repeat) return null;
+  if (event.key === 'Escape' && !event.ctrlKey && !event.metaKey && !event.altKey) return { type: 'blur' };
+  if (event.key !== 'Enter') return null;
+  const ids = Array.isArray(blankIds) ? blankIds : [];
+  const filled = (id) => Boolean(BLANK(values?.[id] ?? ''));
+  if (event.ctrlKey || event.metaKey) return { type: ids.some(filled) ? 'submit' : 'noop' };
+  if (event.shiftKey || event.altKey) return { type: 'noop' };
+  if (ids.length > 0 && ids.every(filled)) return { type: 'submit' };
+  const cur = ids.indexOf(currentId);
+  const rotated = cur >= 0 ? [...ids.slice(cur + 1), ...ids.slice(0, cur)] : ids;
+  const nextEmpty = rotated.find((id) => !filled(id));
+  return nextEmpty ? { type: 'focus', id: nextEmpty } : { type: 'noop' };
 }
 
 /**

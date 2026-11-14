@@ -183,5 +183,7 @@
   "只练最近一次答错的题。": "Only questions whose latest answer was wrong.",
   "只对这一轮有效；想让题数一直这样，点「设为默认」。": "This applies to this round only. To keep the size, press Make default.",
   "首页提醒重读划过的段落": "Remind me on the home page to re-read marked passages",
-  "阅读器里用荧光笔或加粗标过的段落，3 天没再看、所在章节或页又有到期或薄弱题时，首页「今日」会出现一行「重读 N 段」，每天最多 3 段。关掉后这一行不再出现。": "Passages you highlighted or bolded in the reader come back as a \"Re-read N passages\" line in Today when you have not looked at them for 3 days and their chapter or page has due or weak questions, at most 3 a day. Turn this off and the line no longer appears."
+  "阅读器里用荧光笔或加粗标过的段落，3 天没再看、所在章节或页又有到期或薄弱题时，首页「今日」会出现一行「重读 N 段」，每天最多 3 段。关掉后这一行不再出现。": "Passages you highlighted or bolded in the reader come back as a \"Re-read N passages\" line in Today when you have not looked at them for 3 days and their chapter or page has due or weak questions, at most 3 a day. Turn this off and the line no longer appears.",
+  "把空格补全 · 按 Enter 提交 · Esc 退回题目": "Fill in the blanks · Enter to submit · Esc to return to the question",
+  "把空格补全 · 按 Enter 跳到下一空或提交 · Esc 退回题目": "Fill in the blanks · Enter to jump to the next blank or submit · Esc to return to the question"
 }

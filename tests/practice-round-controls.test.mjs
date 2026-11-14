@@ -8,7 +8,7 @@ import { freshRoundCount, roundLimits } from '../lib/practice-settings.js';
 import { followupDigest } from '../lib/followup.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { capabilityIndex } from '../lib/runtime/tools.js';
-import { assistRunningOn, finishedTask, pendingCount, retriesWaiting, reviewPollResult, shortcutAction, skipTarget } from '../ui/review/session-logic.js';
+import { assistRunningOn, clozeBlankKeyAction, finishedTask, pendingCount, retriesWaiting, reviewPollResult, shortcutAction, skipTarget } from '../ui/review/session-logic.js';
 import { reviewPollDelay } from '../ui/poll-schedule.js';
 
 /* #1008 / #1009 / #1011: inside a practice round the learner can set a question aside (先跳过, the existing review.move {index}) and stop the round with a
@@ -253,6 +253,31 @@ test('K sets the question aside, N writes a note, F marks it as focus, O opens i
   // The old keys keep their meaning.
   assert.deepEqual(press('h'), { type: 'hint' });
   assert.deepEqual(press('1'), { type: 'choose', id: 'a' });
+});
+
+test('Cloze Enter jumps into the first blank, advances across empty blanks, submits when filled, and Esc returns focus to the card', () => {
+  const clozeRun = { id: 'rc', mode: 'path', index: 0, card: { id: 'c', kind: 'cloze', cloze: { text: '{{b1}} and {{b2}}' } }, feedback: null, revealed: false };
+  const ctx = (extra = {}) => ({ inside: true, modalOpen: false, page: 'review', run: clozeRun, busy: false, shortcutHelp: false, choice: false, isCloze: true, rubricCard: false, selected: [], clozeValues: {}, ...extra });
+  const press = (key, extra = {}) => shortcutAction({ key, code: key === 'Enter' ? 'Enter' : `Key${key.toUpperCase()}`, shiftKey: false, repeat: false, defaultPrevented: false, inEditable: false }, ctx(extra))?.action;
+  assert.deepEqual(press('Enter'), { type: 'focus-cloze' }, 'Enter on an empty cloze jumps into the first blank');
+  assert.deepEqual(press('Enter', { clozeValues: { b1: 'one' } }), { type: 'answer', args: { answers: { b1: 'one' } } }, 'Enter from the card submits once a blank has text');
+  assert.deepEqual(press('v'), { type: 'voice' }, 'V still triggers voice while the card holds focus');
+  assert.deepEqual(press('h'), { type: 'hint' }, 'H still opens hint while the card holds focus');
+  assert.deepEqual(press('Enter', { run: { ...clozeRun, feedback: { grade: 5 } } }), { type: 'move', direction: 1 }, 'Enter after feedback still advances');
+
+  const key = (k, extra = {}) => ({ key: k, repeat: false, isComposing: false, keyCode: k === 'Enter' ? 13 : 27, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...extra });
+  assert.equal(clozeBlankKeyAction(key('Enter', { isComposing: true }), { blankIds: ['b1'], currentId: 'b1', values: { b1: 'x' } }), null, 'IME Enter is ignored');
+  assert.equal(clozeBlankKeyAction(key('Enter', { keyCode: 229 }), { blankIds: ['b1'], currentId: 'b1', values: { b1: 'x' } }), null, 'legacy IME keyCode 229 is ignored');
+  assert.equal(clozeBlankKeyAction(key('Escape', { isComposing: true }), { blankIds: ['b1'], currentId: 'b1', values: {} }), null, 'IME Escape cancels composition first');
+  assert.deepEqual(clozeBlankKeyAction(key('Escape'), { blankIds: ['b1'], currentId: 'b1', values: {} }), { type: 'blur' }, 'Escape returns focus to the card');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter'), { blankIds: ['b1'], currentId: 'b1', values: {} }), { type: 'noop' }, 'single empty blank does not submit');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter'), { blankIds: ['b1'], currentId: 'b1', values: { b1: 'ok' } }), { type: 'submit' }, 'single filled blank submits');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter'), { blankIds: ['b1', 'b2'], currentId: 'b1', values: { b1: 'one', b2: '' } }), { type: 'focus', id: 'b2' }, 'Enter moves from filled blank 1 to empty blank 2');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter'), { blankIds: ['b1', 'b2'], currentId: 'b2', values: { b1: '', b2: 'two' } }), { type: 'focus', id: 'b1' }, 'Enter wraps back to an earlier empty blank');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter'), { blankIds: ['b1', 'b2'], currentId: 'b1', values: { b1: '', b2: 'two' } }), { type: 'noop' }, 'stays on the only empty blank');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter'), { blankIds: ['b1', 'b2'], currentId: 'b2', values: { b1: 'one', b2: 'two' } }), { type: 'submit' }, 'all filled submits on Enter');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter', { ctrlKey: true }), { blankIds: ['b1', 'b2'], currentId: 'b1', values: { b1: 'one' } }), { type: 'submit' }, 'Ctrl+Enter submits with >=1 blank filled');
+  assert.deepEqual(clozeBlankKeyAction(key('Enter', { metaKey: true }), { blankIds: ['b1', 'b2'], currentId: 'b1', values: {} }), { type: 'noop' }, 'Cmd+Enter with all empty does nothing');
 });
 
 /* ── the poll (#1011) ── */

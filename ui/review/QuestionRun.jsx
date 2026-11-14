@@ -172,13 +172,14 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const practiceTip = usePracticeTip({ run, assistMode, tourRunning: !!tourRunning, modelReady: model.ready, votedDown: voteMoments.votedDown, tooHard: voteMoments.tooHard,
     answerShown: run.mode !== "exam" && ((showSolution && (run.solution?.followups?.length ?? 0) > 0) || showUnansweredFollowups) });
   const [helpChoices, setHelpChoices] = React.useState([]);
+  const [clozeFocusTick, setClozeFocusTick] = React.useState(0);
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
   // 我的常用语句: the learner's own chips of the 修题 box (settings.practice.fixPhrases).
   const fixPhrases = useFixPhrases(data);
   // 出题守则 of the question's course (#889): 「设为本课守则」 under the 修题 box and on the 👎 tray add to them.
   const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
   const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
-  React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); }, [run.id, run.index, run.card?.id]);
+  React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); setClozeFocusTick(0); }, [run.id, run.index, run.card?.id]);
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
@@ -202,7 +203,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const gradeTask = cardTasks.filter((task) => task.mode === "grade").at(-1);
   // Answering by voice (#1031, V / Shift+V): ui/review/VoiceAnswer.jsx. 先跳过 / 到此为止 and the N / F / O keys (#1008): ui/review/RoundSteps.jsx.
   const voice = useVoiceAnswer({ session, data, model, rubricCard, setAssistMode, setAssistText });
-  const roundSteps = useRoundSteps({ session, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus, voiceKeys: voice.keys });
+  const roundSteps = useRoundSteps({ session, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus, voiceKeys: voice.keys,
+    focusCloze: isCloze && !run.feedback && !busy ? () => setClozeFocusTick((n) => n + 1) : undefined });
   const caseDeck = run.card ? data?.decks?.find((deck) => deck.id === run.deckId && deck.format === "case-study") : null;
   const caseSource = caseDeck ? data?.sources?.find((source) => source.id === caseDeck.caseSourceId) : null;
   const [caseHighlights, setCaseHighlights] = React.useState(run.highlights || []);
@@ -427,6 +429,8 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 card={run.card}
                 values={run.feedback?.answers || clozeValues}
                 onChange={actions.setClozeValue}
+                onSubmit={() => { if (!busy && !run.feedback && Object.values(clozeValues).some((v) => String(v).trim())) reviewAct("review.answer", { answers: clozeValues }); }}
+                focusRequest={clozeFocusTick}
                 disabled={busy || !!run.feedback}
                 details={run.feedback?.details || null}
                 solution={run.solution}
