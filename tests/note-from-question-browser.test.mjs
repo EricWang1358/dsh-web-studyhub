@@ -97,6 +97,34 @@ test('存进笔记 on a Q&A: the filled note, 已存进笔记 · 打开, its 来
       await dialog.getByText(QUOTE).first().waitFor({ timeout: 30000 });
       await settleAnimations(page);
       if (shots) await page.screenshot({ path: join(shots, `note-qa-source-${width}.png`) });
+      if (width === 1280) {
+        await page.keyboard.press('Escape');
+        await dialog.waitFor({ state: 'detached', timeout: 10000 });
+        await page.getByRole('button', { name: '编辑内容' }).click();
+        const pane = page.locator('.note-edit-pane');
+        await pane.locator('.cm-content').waitFor({ timeout: 15000 });
+        await pane.locator('.cm-content').click();
+        const outline = await pane.evaluate((el) => {
+          const style = window.getComputedStyle(el);
+          return { style: style.outlineStyle, width: parseFloat(style.outlineWidth) || 0 };
+        });
+        assert.equal(outline.style, 'solid', 'CodeMirror container restores visible focus outline');
+        assert.ok(outline.width >= 2, `CodeMirror container focus outline >= 2px (got ${outline.width})`);
+
+        const linking = page.locator('details.note-linking').filter({ hasText: '关联题目' });
+        await linking.locator('summary').click();
+        const searchBox = linking.getByLabel('搜索题目或知识点');
+        await searchBox.fill('快照');
+        await searchBox.evaluate((el) => {
+          const ev = new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+          Object.defineProperty(ev, 'isComposing', { value: true });
+          Object.defineProperty(ev, 'keyCode', { value: 229 });
+          el.dispatchEvent(ev);
+        });
+        assert.equal(await linking.locator('.note-search-result').count(), 0, 'IME composition Enter does not trigger card search');
+        await searchBox.press('Enter');
+        await linking.locator('.note-search-result').first().waitFor({ timeout: 10000 });
+      }
       // A seeded book has no materials record, so the reader's per-material lists are refused (as in reader-last-read-browser): those 400s only.
       assert.ok(refused.every(action => ['materials.translation.list', 'materials.annotation.list', 'materials.marks.list'].includes(action)), `only the per-material lists are refused: ${JSON.stringify(refused)}`);
       assert.deepEqual(errors.filter(error => error !== REFUSED), [], `${width}px: no other page errors`);

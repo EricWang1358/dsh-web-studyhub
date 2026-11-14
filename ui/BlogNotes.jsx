@@ -253,6 +253,11 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
       if (live()) { setMaterialSaved(true); toast.success(ui(existing ? '这份内容已经保存为资料。' : '已单独保存为资料，可在资料页阅读和复习。')); }
     });
   }
+  const isImeComposing = (event) => Boolean(event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229);
+  const onSearchKeyDown = (event) => {
+    if (isImeComposing(event)) return;
+    if (event.key === "Enter") { event.preventDefault(); void addCard(); }
+  };
   return <section className="page blog-notes-page" onKeyDown={editing && writable ? (event) => handleSaveKeyDown(event, () => saveShortcutRef.current?.()) : undefined}>
     <PageHeader className={`note-heading${note && !editing && note.markdown ? ' note-heading-reading' : ''}`}
       back={note ? { label: ui('全部笔记'), onClick: () => guardLeave(() => { setId(''); setLookup(null); }) } : undefined}
@@ -282,7 +287,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
           onChange={(event) => setNewTitle(event.target.value)} /></label>
         <div className="note-card-search"><TextInput className="note-input" aria-label={ui("搜索题目或知识点")} value={query} placeholder={ui("搜索题目或知识点")}
           onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => { if (event.key === "Enter") addCard(); }} />
+          onKeyDown={onSearchKeyDown} />
           <Button onClick={addCard}>{ui("搜索题目")}</Button></div>
         {results.map((item) => <label key={item.cardId} className="note-search-result">
           <CheckboxInput checked={picked.some((ref) => ref.cardId === item.cardId)}
@@ -359,7 +364,8 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
         {lookup?.matches?.map((url) => <Button key={url} onClick={() => linkArticle(url)}>{uiFormat("确认这篇文章 · {0}", [url])}</Button>)}
         {note.publicUrl && <p><a href={note.publicUrl} target="_blank" rel="noopener noreferrer">{ui("打开已发布文章 ↗")}</a></p>}
         {writable && <div className="note-card-search"><TextInput className="note-input" aria-label={ui("找不到时粘贴文章链接")} value={link}
-          placeholder={ui("找不到时粘贴文章链接")} onChange={(event) => setLink(event.target.value)} />
+          placeholder={ui("找不到时粘贴文章链接")} onChange={(event) => setLink(event.target.value)}
+          onKeyDown={(event) => { if (isImeComposing(event)) return; if (event.key === "Enter" && link.trim() && !saving) { event.preventDefault(); void linkArticle(link); } }} />
           <Button disabled={!link.trim()} lock={saving} onClick={() => linkArticle(link)}>{ui("手动关联")}</Button></div>}
       </details>
       </div>
@@ -371,7 +377,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
             cards: note.cards.filter((item) => item.cardId !== ref.cardId) })}>{ui("移除")}</Button>}</li>)}</ul>
         {editing && note.status === "draft" && !daily && <><div className="note-card-search"><TextInput className="note-input" aria-label={ui("搜索题目或知识点")} value={query}
           placeholder={ui("搜索题目或知识点")} onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => { if (event.key === "Enter") addCard(); }} />
+          onKeyDown={onSearchKeyDown} />
           <Button onClick={addCard}>{ui("搜索题目")}</Button></div>
           {results.map((item) => <button key={item.cardId} className="note-search-result"
             disabled={note.cards.some((ref) => ref.cardId === item.cardId)}

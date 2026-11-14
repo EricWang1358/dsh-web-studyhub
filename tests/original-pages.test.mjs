@@ -2,7 +2,7 @@
    into a small PDF with pdf-lib. The one big file being read is held in memory for a short while (never more than one) and let go when idle. Generated PDFs only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../lib/store.js';
@@ -18,11 +18,7 @@ const PAGES = 50;
 const lines = number => [`Chapter page ${number} of the big book`, `Figure ${number} is drawn on this page and cannot be read from the converted text.`];
 const pagesOf = count => Array.from({ length: count }, (_, index) => lines(index + 1));
 
-/** A converted book (its text only) whose original is a 50-page, 50+ MB PDF referenced by path. */
-async function bigBook(t, { name = 'Textbook.pdf', pages = PAGES } = {}) {
-  const root = await mkdtemp(join(tmpdir(), 'original-pages-'));
-  const outside = await mkdtemp(join(tmpdir(), 'original-pages-files-'));
-  t.after(async () => { pageSource.release(); await rm(root, { recursive: true, force: true }); await rm(outside, { recursive: true, force: true }); });
+function opsFor(root) {
   const store = new Store(root);
   const ops = createMaterialsOperations({ root,
     read: async () => { const state = await store.read(); return structuredClone({ sources: state.sources, documents: state.documents || [] }); },
@@ -30,17 +26,78 @@ async function bigBook(t, { name = 'Textbook.pdf', pages = PAGES } = {}) {
       const own = { sources: state.sources, documents: state.documents || [] };
       const result = await fn(own); state.sources = own.sources; state.documents = own.documents; return result;
     }) });
-  const call = (action, args = {}) => ops.handlers[action](args, {});
-  const small = await makeTextPdf(pagesOf(pages));
-  const imported = await call('materials.document.import', { dataBase64: small.toString('base64'), filename: name });
+  return (action, args = {}) => ops.handlers[action](args, {});
+}
+
+// Keep generated PDF templates on disk only (never retain the 50+ MB Buffer in JS memory across tests).
+let templateDir = '';
+let templateStoreRoot = '';
+let templateDocumentId = '';
+let templateSmallBase64 = '';
+let templateBigPath = '';
+let templateBigSize = 0;
+
+test.before(async () => {
+  templateDir = await mkdtemp(join(tmpdir(), 'original-pages-tpl-'));
+  templateStoreRoot = await mkdtemp(join(templateDir, 'store-'));
+  {
+    const small = await makeTextPdf(pagesOf(PAGES));
+    templateSmallBase64 = small.toString('base64');
+  }
+  const call = opsFor(templateStoreRoot);
+  const imported = await call('materials.document.import', { dataBase64: templateSmallBase64, filename: 'Textbook.pdf' });
   await call('materials.original.detach', { documentId: imported.documentId });
-  const big = await makeTextPdf(pagesOf(pages), { padBytes: MB });
-  assert.ok(big.length > 40 * MB, `the original is over the copy limit (${big.length})`);
+  templateDocumentId = imported.documentId;
+  {
+    const big = await makeTextPdf(pagesOf(PAGES), { padBytes: MB });
+    assert.ok(big.length > 40 * MB, `the original is over the copy limit (${big.length})`);
+    templateBigSize = big.length;
+    templateBigPath = join(templateDir, 'big.pdf');
+    await writeFile(templateBigPath, big);
+  }
+});
+
+test.after(async () => {
+  pageSource.release();
+  if (templateDir) await rm(templateDir, { recursive: true, force: true });
+});
+
+/** A converted book (its text only) whose original is a 50-page, 50+ MB PDF referenced by path. */
+async function bigBook(t, { name = 'Textbook.pdf', pages = PAGES } = {}) {
+  const root = await mkdtemp(join(tmpdir(), 'original-pages-'));
+  const outside = await mkdtemp(join(tmpdir(), 'original-pages-files-'));
+  t.after(async () => { pageSource.release(); await rm(root, { recursive: true, force: true }); await rm(outside, { recursive: true, force: true }); });
+  let documentId;
+  let call;
   const path = join(outside, name);
-  await writeFile(path, big);
-  const attached = await call('materials.original.attach', { documentId: imported.documentId, path, mode: 'reference', confirm: true });
+  let size;
+  if (pages === PAGES && name === 'Textbook.pdf' && templateStoreRoot) {
+    await cp(templateStoreRoot, root, { recursive: true });
+    call = opsFor(root);
+    documentId = templateDocumentId;
+    await copyFile(templateBigPath, path);
+    size = templateBigSize;
+  } else if (pages === PAGES && templateSmallBase64) {
+    call = opsFor(root);
+    const imported = await call('materials.document.import', { dataBase64: templateSmallBase64, filename: name });
+    await call('materials.original.detach', { documentId: imported.documentId });
+    documentId = imported.documentId;
+    await copyFile(templateBigPath, path);
+    size = templateBigSize;
+  } else {
+    call = opsFor(root);
+    const small = await makeTextPdf(pagesOf(pages));
+    const imported = await call('materials.document.import', { dataBase64: small.toString('base64'), filename: name });
+    await call('materials.original.detach', { documentId: imported.documentId });
+    documentId = imported.documentId;
+    const big = await makeTextPdf(pagesOf(pages), { padBytes: MB });
+    assert.ok(big.length > 40 * MB, `the original is over the copy limit (${big.length})`);
+    await writeFile(path, big);
+    size = big.length;
+  }
+  const attached = await call('materials.original.attach', { documentId, path, mode: 'reference', confirm: true });
   assert.equal(attached.status, 'attached');
-  return { call, root, path, documentId: imported.documentId, size: big.length };
+  return { call, root, path, documentId, size };
 }
 
 const textOf = async base64 => {

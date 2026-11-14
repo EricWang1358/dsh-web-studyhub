@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rename, rm, stat, symlink, truncate, utimes, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, mkdtemp, readFile, rename, rm, stat, symlink, truncate, utimes, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -19,10 +19,7 @@ import { collectGarbage, settledMemory } from '../scripts/qa/perf-probe.mjs';
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 
-async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'original-attach-'));
-  const outside = await mkdtemp(join(tmpdir(), 'original-attach-files-'));
-  t.after(async () => { await rm(root, { recursive: true, force: true }); await rm(outside, { recursive: true, force: true }); });
+function createHarness(root) {
   const store = new Store(root);
   const ops = createMaterialsOperations({ root,
     read: async () => { const state = await store.read(); return structuredClone({ sources: state.sources, documents: state.documents || [] }); },
@@ -31,11 +28,55 @@ async function fixture(t) {
       const result = await fn(own); state.sources = own.sources; state.documents = own.documents; return result;
     }) });
   const call = (action, args = {}) => ops.handlers[action](args, {});
-  return { root, outside, store, call };
+  return { store, call };
+}
+
+let templateDir = '';
+let templateStoreRoot = '';
+let templateLectureFile = '';
+let templateImported = null;
+
+test.before(async () => {
+  templateDir = await mkdtemp(join(tmpdir(), 'original-attach-tpl-'));
+  templateStoreRoot = join(templateDir, 'store');
+  await mkdir(templateStoreRoot, { recursive: true });
+  templateLectureFile = join(templateDir, 'lecture.pdf');
+  const { store, call } = createHarness(templateStoreRoot);
+  const bytes = await makeTextPdf(LECTURE_PAGES);
+  await writeFile(templateLectureFile, bytes);
+  templateImported = await call('materials.document.import', { dataBase64: bytes.toString('base64'), filename: 'lecture.pdf' });
+  await store.update(state => {
+    state.documents = [];
+    for (const source of state.sources) { delete source.document.materialId; delete source.document.materialRevision; delete source.document.format; }
+  });
+  await rm(join(templateStoreRoot, 'attachments'), { recursive: true, force: true });
+});
+
+test.after(async () => {
+  if (templateDir) await rm(templateDir, { recursive: true, force: true });
+});
+
+async function fixture(t) {
+  const root = await mkdtemp(join(tmpdir(), 'original-attach-'));
+  const outside = await mkdtemp(join(tmpdir(), 'original-attach-files-'));
+  t.after(async () => { await rm(root, { recursive: true, force: true }); await rm(outside, { recursive: true, force: true }); });
+  return { root, outside, ...createHarness(root) };
 }
 
 /** A lecture PDF imported the way every version before originals were kept did it: text only, no document record. */
 async function legacyLecture(t, pages = LECTURE_PAGES) {
+  if (pages === LECTURE_PAGES && templateStoreRoot) {
+    const root = await mkdtemp(join(tmpdir(), 'original-attach-'));
+    const outside = await mkdtemp(join(tmpdir(), 'original-attach-files-'));
+    t.after(async () => { await rm(root, { recursive: true, force: true }); await rm(outside, { recursive: true, force: true }); });
+    await cp(templateStoreRoot, root, { recursive: true });
+    const { store, call } = createHarness(root);
+    const file = join(outside, 'lecture.pdf');
+    await copyFile(templateLectureFile, file);
+    const bytes = await readFile(file);
+    const sources = (await store.read()).sources;
+    return { root, outside, store, call, bytes, file, sources, sourceId: sources[0].id, imported: structuredClone(templateImported) };
+  }
   const env = await fixture(t);
   const bytes = await makeTextPdf(pages);
   const file = join(env.outside, 'lecture.pdf');
