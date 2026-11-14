@@ -55,6 +55,7 @@
     .look-back__options { margin: 0; }
     .look-back__explanation { margin: 0; }
     .look-back__reference h4 { margin: var(--space-2) 0 var(--space-1); }
+    .look-back__actions { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; margin-top: var(--space-2); }
     .result-details[open] > summary { margin-bottom: var(--space-4-5); }
     .exam-report .result-hero { margin-bottom: var(--space-1); }
     .exam-report .result-weak { padding: var(--space-5) var(--space-6); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
