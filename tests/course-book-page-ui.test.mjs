@@ -10,7 +10,9 @@ import { loadUi } from './helpers/ui-module.mjs';
 
 const ui = await loadUi(`
   export { default as BookChapter } from './ui/book/BookChapter.jsx';
-  export { default as BookToc, BookTocList } from './ui/book/BookToc.jsx';
+  export { default as BookFile, citePreviewFor, citeTitlesOf } from './ui/book/BookFile.jsx';
+  export { default as BookPage, handleBookFindShortcut, isBookFindShortcut, selectedBookFindQuery } from './ui/book/BookPage.jsx';
+  export { default as BookToc, BookTocList, handleSearchKeyDown } from './ui/book/BookToc.jsx';
   export * from './ui/book/model.js';
   export { CourseOutlineView } from './ui/outline/CourseOutline.jsx';
   export { emptyPick } from './ui/outline/model.js';
@@ -121,4 +123,78 @@ test('生成复习全书 on a course without a book: a refused start is said (ac
   said.length = 0;
   await ui.startBookBuild({ act: runner(false).act, course: 'SA', notify: note => said.push(note) });
   assert.deepEqual(said.map(note => note.tone), ['success']);
+});
+
+test('BookFile citePreviewFor formats two-line quote + source preview for citation marks (#24)', () => {
+  const cites = ui.citesOf(gen);
+  const titles = ui.citeTitlesOf(gen);
+  assert.deepEqual([...titles], [[1, 'Textbook']]);
+
+  const zhHtml = renderToStaticMarkup(ui.citePreviewFor(cites, 1, titles));
+  assert.match(zhHtml, /「Entropy measures disorder」<br\/>出处：Textbook/);
+
+  english(() => {
+    const enHtml = renderToStaticMarkup(ui.citePreviewFor(cites, 1, titles));
+    assert.match(enHtml, /“Entropy measures disorder”<br\/>Source: Textbook/);
+    assert.doesNotMatch(enHtml, han);
+  });
+
+  // Fallback to sourceId when footnote line lacks trailing title, truncate >100-char quote, null when unknown n
+  const longQuote = 'A'.repeat(120);
+  const noTitleText = `[^2]: [「${longQuote}」](studyhub://source/doc-p4)`;
+  const fallbackHtml = renderToStaticMarkup(ui.citePreviewFor(ui.citesOf(noTitleText), 2, ui.citeTitlesOf(noTitleText)));
+  assert.match(fallbackHtml, /「A{99}…」<br\/>出处：doc-p4/);
+  assert.equal(ui.citePreviewFor(cites, 99, titles), null);
+
+  const fileHtml = render(h(ui.BookFile, { text: 'Entropy measures disorder [^1]', citeText: gen, hid: 'h2', handlers }));
+  assert.match(fileHtml, /class="[^"]*\bmd-cite__mark\b[^"]*"/);
+});
+
+test('BookPage Ctrl/Cmd+F shortcut selection prefill and BookToc two-stage Escape (#23)', () => {
+  // 1. Ctrl/Cmd+F predicate & BookPage read-mode gating
+  assert.equal(ui.isBookFindShortcut({ ctrlKey: true, key: 'f' }), true);
+  assert.equal(ui.isBookFindShortcut({ metaKey: true, key: 'F' }), true);
+  assert.equal(ui.isBookFindShortcut({ ctrlKey: true, altKey: true, key: 'f' }), false);
+
+  let opens = 0, prevented = false;
+  assert.equal(ui.handleBookFindShortcut({ ctrlKey: true, key: 'f', preventDefault() { prevented = true; } }, { view: 'edit', ready: true, inOverlay: false, onOpen() { opens += 1; } }), false);
+  assert.equal(ui.handleBookFindShortcut({ ctrlKey: true, key: 'f', preventDefault() { prevented = true; } }, { view: 'read', ready: true, inOverlay: true, onOpen() { opens += 1; } }), false);
+  assert.equal(ui.handleBookFindShortcut({ ctrlKey: true, key: 'f', preventDefault() { prevented = true; } }, { view: 'read', ready: true, inOverlay: false, onOpen() { opens += 1; } }), true);
+  assert.equal(prevented, true);
+  assert.equal(opens, 1);
+
+  // 2. selectedBookFindQuery reads trimmed single-line selections <= 80 chars
+  const prevWindow = globalThis.window;
+  try {
+    globalThis.window = { getSelection: () => ({ toString: () => '  Entropy  ' }) };
+    assert.equal(ui.selectedBookFindQuery(), 'Entropy');
+    globalThis.window = { getSelection: () => ({ toString: () => 'line1\nline2' }) };
+    assert.equal(ui.selectedBookFindQuery(), '');
+    globalThis.window = { getSelection: () => ({ toString: () => 'x'.repeat(81) }) };
+    assert.equal(ui.selectedBookFindQuery(), '');
+  } finally {
+    if (prevWindow === undefined) delete globalThis.window;
+    else globalThis.window = prevWindow;
+  }
+
+  // 3. BookToc search input two-stage Escape: clears non-empty query without closing; second Escape blurs (and closes in narrow mode)
+  let query = 'Entropy', clearedTo = null, blurred = 0, closed = 0, stopped = 0, escPrevented = 0;
+  const makeEsc = () => ({ key: 'Escape', preventDefault() { escPrevented += 1; }, stopPropagation() { stopped += 1; }, currentTarget: { blur() { blurred += 1; } } });
+  assert.equal(ui.handleSearchKeyDown(makeEsc(), { query, onQuery(next) { query = next; clearedTo = next; }, narrow: true, onClose() { closed += 1; } }), true);
+  assert.equal(clearedTo, '');
+  assert.equal(blurred, 0);
+  assert.equal(closed, 0);
+
+  assert.equal(ui.handleSearchKeyDown(makeEsc(), { query, onQuery(next) { query = next; }, narrow: true, onClose() { closed += 1; } }), true);
+  assert.equal(blurred, 1);
+  assert.equal(closed, 1);
+  assert.equal(stopped, 2);
+  assert.equal(escPrevented, 2);
+
+  // Wide mode stage 2: blurs without calling onClose
+  let wideBlurred = 0, wideClosed = 0;
+  assert.equal(ui.handleSearchKeyDown({ key: 'Escape', preventDefault() {}, stopPropagation() {}, currentTarget: { blur() { wideBlurred += 1; } } },
+    { query: '', onQuery: noop, narrow: false, onClose() { wideClosed += 1; } }), true);
+  assert.equal(wideBlurred, 1);
+  assert.equal(wideClosed, 0);
 });

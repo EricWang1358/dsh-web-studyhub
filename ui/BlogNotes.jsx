@@ -1,7 +1,8 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
+import { handleSaveKeyDown, markdownEditorExtensions } from "./editor/markdown-shortcuts.js";
 import noteCss from "./blog-notes.css";
 import { useInjectCss } from "./shared.js";
 import { renderNoteMarkdown } from "./note-markdown.js";
@@ -21,7 +22,6 @@ import { modelReadiness } from './generation-status.js';
 import { useUndoable } from './use-undoable.js';
 import { parseCiteHref } from '../lib/contexts/notes/note-links.js';
 
-const editorExtensions = [markdown()];
 const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
 const isDailyNote = note => note?.kind?.startsWith('daily-recap');
 const writingStamp = note => JSON.stringify([note?.title, note?.markdown, isDailyNote(note) ? null : note?.cards]);
@@ -146,6 +146,16 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
   async function save() {
     return perform(async live => { await persistCurrent(); if (live()) toast.success(ui(daily ? '合集已保存' : '草稿已保存')); });
   }
+  const saveShortcutRef = useRef(null);
+  saveShortcutRef.current = () => {
+    if (!editing || !writable || publishing || note?.generation?.status === "running") return;
+    if (dirty) void save();
+    else toast.info(ui("已是最新"));
+  };
+  const editorExtensions = useMemo(() => [
+    markdown(),
+    ...markdownEditorExtensions({ onSave: () => saveShortcutRef.current?.() }),
+  ], []);
   async function returnToReading() {
     if (!dirty) { setEditing(false); return; }
     return perform(async live => {
@@ -243,7 +253,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
       if (live()) { setMaterialSaved(true); toast.success(ui(existing ? '这份内容已经保存为资料。' : '已单独保存为资料，可在资料页阅读和复习。')); }
     });
   }
-  return <section className="page blog-notes-page">
+  return <section className="page blog-notes-page" onKeyDown={editing && writable ? (event) => handleSaveKeyDown(event, () => saveShortcutRef.current?.()) : undefined}>
     <PageHeader className={`note-heading${note && !editing && note.markdown ? ' note-heading-reading' : ''}`}
       back={note ? { label: ui('全部笔记'), onClick: () => guardLeave(() => { setId(''); setLookup(null); }) } : undefined}
       title={note?.title || ui('学习笔记')} titleProps={{ tabIndex: -1, 'data-context-heading': true }}

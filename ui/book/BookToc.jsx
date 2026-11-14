@@ -66,11 +66,27 @@ function FoundList({ results, query, onFound }) {
   </>;
 }
 
+export function handleSearchKeyDown(event, { query, onQuery, narrow, onClose }) {
+  if (event?.key !== 'Escape') return false;
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  if (query) onQuery?.('');
+  else {
+    event.currentTarget?.blur?.();
+    if (narrow) onClose?.();
+  }
+  return true;
+}
+
 /** The 目录 itself: the book's coverage line on top (quiet, explained on hover), 在书里找, then the list. narrow: it is the slide-over (onClose closes it, the focus goes
     back to `returnRef`); coverage: course.book.open's `coverage` or null; book, query, onQuery(text), onFound(row, query): the search (the page keeps what is typed while a narrow 目录 is closed). */
-export default function BookToc({ entries, here, onGo, narrow, onClose, returnRef, coverage, book, query = '', onQuery, onFound }) {
+export default function BookToc({ entries, here, onGo, narrow, onClose, returnRef, coverage, book, query = '', onQuery, onFound, searchRef }) {
   useInjectCss(css, 'study-book-toc');
   const panel = useRef(null);
+  const setSearchInput = useCallback(node => {
+    if (typeof searchRef === 'function') searchRef(node);
+    else if (searchRef) searchRef.current = node;
+  }, [searchRef]);
   // A row goes there, and closes the slide-over (one handler, so the memoised list is not drawn again for nothing).
   const go = useCallback(id => { onGo(id); if (narrow) onClose(); }, [onGo, narrow, onClose]);
   const found = useCallback((row, words) => { onFound?.(row, words); if (narrow) onClose(); }, [onFound, narrow, onClose]);
@@ -110,8 +126,8 @@ export default function BookToc({ entries, here, onGo, narrow, onClose, returnRe
         <p className="book-toc__levels" data-book-levels="" tabIndex={0}>{levelsText(coverage)}</p>
       </Tooltip>}
       {onFound && <div className="book-toc__search" role="search">
-        <TextInput type="search" className="book-toc__input" value={query} autoComplete="off" spellCheck={false} placeholder={ui('在书里找')} aria-label={ui('在书里找')} onChange={event => onQuery(event.target.value)}
-          onKeyDown={event => { if (event.key === 'Escape' && query) { event.preventDefault(); event.stopPropagation(); onQuery(''); } }} />
+        <TextInput ref={setSearchInput} type="search" className="book-toc__input" value={query} autoComplete="off" spellCheck={false} placeholder={ui('在书里找')} aria-label={ui('在书里找')} onChange={event => onQuery(event.target.value)}
+          onKeyDown={event => handleSearchKeyDown(event, { query, onQuery, narrow, onClose })} />
       </div>}
       {results ? <FoundList results={results} query={typed} onFound={found} />
         : <BookTocList entries={shown} here={here} onGo={go} opened={opened} parents={parents} onToggle={toggle} hidden={opened && hereChapter && !opened.has(hereChapter) && hereChapter !== here ? hereChapter : null} />}
