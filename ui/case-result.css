@@ -32,6 +32,7 @@
       gap: var(--space-1);
       margin: 0;
       white-space: nowrap;
+      font-variant-numeric: tabular-nums;
     }
     .rubric-score strong {
       font-family: var(--font-display);
@@ -200,7 +201,7 @@
       border: 1px solid var(--line);
       background: var(--bg-surface);
     }
-    .case-report__n { font-weight: var(--fw-strong); color: var(--text); white-space: nowrap; }
+    .case-report__n { font-weight: var(--fw-strong); color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
     .case-report__prompt {
       min-width: 0;
       overflow: hidden;
@@ -219,11 +220,13 @@
       grid-column: 2 / -1;
       color: var(--text-muted);
       font-size: var(--fs-xs);
+      font-variant-numeric: tabular-nums;
     }
     .case-report__pace.is-over { color: var(--warn-ink); }
     .case-report__questions li.is-unanswered { border-color: var(--bad); }
     .case-report__weak li {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       gap: var(--space-3);
       align-items: center;
@@ -233,8 +236,8 @@
       border-left: 3px solid var(--warn);
       background: var(--bg-surface);
     }
-    .case-report__weak li div { display: grid; gap: var(--space-half); }
-    .case-report__weak small { color: var(--text-muted); font-size: var(--fs-xs); }
+    .case-report__weak li div { display: grid; gap: var(--space-half); flex: 1 1 12rem; min-width: 0; }
+    .case-report__weak small { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
     .case-report__actions {
       display: flex;
       flex-wrap: wrap;

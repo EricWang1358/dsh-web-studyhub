@@ -16,11 +16,13 @@ import { useStudy } from './study-context.jsx';
 import VoiceButton from './voice/VoiceButton.jsx';
 import { useVoiceInput } from './voice/useVoiceInput.js';
 import CorrectionCard from './review/CorrectionCard.jsx';
+import SubmitBlanksDialog from './SubmitBlanksDialog.jsx';
 
 /* 口头面试：lifecycle (restore, submit, report) in ui/exam/useExamRun.js; this file keeps the answering UI and the
    answer drafts the browser holds while the learner types. */
 
 const bandName = { strong: "回答扎实", developing: "有待补充", weak: "需要巩固" };
+const bandTone = { strong: "success", developing: "warning", weak: "error" };
 const FIELDS = ['answer', 'followupAnswer'];
 
 export default function OralExam({ data, onExit, onStartRun, initialRunId, onLocation, header, recent, onSetupModel, course = '*', selection = { course } }) {
@@ -33,7 +35,11 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
   const [count, setCount] = React.useState(5);
   const [answer, setAnswer] = React.useState("");
   const [followupAnswer, setFollowupAnswer] = React.useState("");
+  const [confirmSubmitOpen, setConfirmSubmitOpen] = React.useState(false);
+  const [weakOnly, setWeakOnly] = React.useState(false);
   const current = React.useRef({ run: null, answer: '', followupAnswer: '' });
+  React.useEffect(() => { setConfirmSubmitOpen(false); }, [run?.id]);
+  React.useEffect(() => { setWeakOnly(false); }, [report?.runId]);
   const availableDecks = decksInCourse(data, course, selection.includeInactive === true).filter(deck => deck.available &&
     (!selection.scope || selection.scope.some(ref => ref.deckId === deck.id)));
 
@@ -124,9 +130,27 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
   const heading = <PageHeader eyebrow={ui("岗位模拟")} title={ui("口头面试")} />;
   const scopeNote = selection.scope ? uiFormat('沿用勾选的 {0} 个题组', [selection.scope.length]) : "";
   const last = run && run.index >= run.total - 1;
+  const currentHasAnswer = Boolean(answer.trim());
+  const serverCurrentHasAnswer = Boolean(run?.entry?.answer?.trim());
+  const effectiveAnswered = run ? run.answered + (currentHasAnswer ? 1 : 0) - (serverCurrentHasAnswer ? 1 : 0) : 0;
+  const unansweredCount = run ? Math.max(0, run.total - effectiveAnswered) : 0;
+  const requestEarlySubmit = () => {
+    if (unansweredCount > 0) setConfirmSubmitOpen(true);
+    else void submit();
+  };
+  const indexedEntries = report ? (report.entries || []).map((entry, index) => ({ entry, index })) : [];
+  const needWorkEntries = indexedEntries.filter(({ entry }) => !entry.answer?.trim() || (entry.assessment && entry.assessment.band !== "strong"));
+  const canFilterWeak = report?.feedbackStatus === "assessed" && needWorkEntries.length > 0 && needWorkEntries.length < indexedEntries.length;
+  const visibleEntries = canFilterWeak && weakOnly ? needWorkEntries : indexedEntries;
   const onAnswerKeyDown = (event) => {
     if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
-    if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.shiftKey && !event.altKey) {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.altKey) {
+      if (event.shiftKey) {
+        if (busy || run?.entry?.followup || !answer.trim()) return;
+        event.preventDefault();
+        void followup();
+        return;
+      }
       if (busy || (!answer.trim() && !followupAnswer.trim())) return;
       event.preventDefault();
       (last ? submit : nextQuestion)();
@@ -165,9 +189,16 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
         {last
           ? <Button variant="primary" busy={busy} onClick={submit}>{busy ? ui("正在集中评估…") : ui("结束模拟，查看反馈 →")}</Button>
           : <Button variant="primary" lock={busy} onClick={nextQuestion}>{ui("保存并继续 →")}</Button>}
-        {!last && <Button lock={busy} onClick={submit}>{ui("提前结束")}</Button>}
+        {!last && <Button lock={busy} onClick={requestEarlySubmit}>{ui("提前结束")}</Button>}
       </div>
       <p className="muted small">{ui("模拟过程中不会显示对错；回答在本地学习库保存。")}</p>
+      {confirmSubmitOpen && (
+        <SubmitBlanksDialog
+          onConfirm={() => { setConfirmSubmitOpen(false); void submit(); }}
+          onClose={() => setConfirmSubmitOpen(false)}>
+          <p>{uiFormat("还有 {0} 题未作答，提前结束将立即完成本次口头模拟。", [unansweredCount])}</p>
+        </SubmitBlanksDialog>
+      )}
     </>}
     {report && <Panel className="oral-report" tone="paper" data-exam-paper="">
       <div className="result-kicker">{ui("口头模拟报告")}</div>
@@ -185,18 +216,42 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
       <div className="oral-actions"><Button variant="primary" onClick={onExit}>{ui("回到学习库")}</Button>
         <Button onClick={() => exam.leave()}>{ui("再来一轮")}</Button></div>
       <details className="result-details"><summary>{ui("查看逐题反馈与原回答")}</summary>
-        {report.entries.map((entry, index) => <article key={`${entry.deckId}:${entry.cardId}`} className="oral-report-entry">
-          <strong>{index + 1}. {entry.topic} · {entry.assessment ? ui(bandName[entry.assessment.band]) : ui("未评估")}</strong>
-          <Markdown text={entry.prompt} links={false} />
-          <p>{ui("你的回答：")}{entry.answer || ui("未答")}</p>
-          {entry.followup && <p>{ui("追问：")}{entry.followup}<br />{ui("补充回答：")}{entry.followupAnswer || ui("未答")}</p>}
-          {entry.assessment?.reason && <p>{ui("反馈：")}{entry.assessment.reason}</p>}
-          {entry.assessment?.correction && <CorrectionCard feedback={{ correction: entry.assessment.correction }} />}
-          <div className="oral-report-expected">
-            <span>{ui("参考答案：")}</span>
-            {entry.expected ? <Markdown text={entry.expected} links={false} /> : <span>{ui("本题无参考答案")}</span>}
+        {canFilterWeak && (
+          <div className="oral-report-toolbar">
+            <Button variant="link" size="sm" aria-pressed={weakOnly} onClick={() => setWeakOnly((prev) => !prev)}>
+              {weakOnly ? uiFormat("显示全部 {0} 题", [indexedEntries.length]) : uiFormat("只看需巩固 ({0})", [needWorkEntries.length])}
+            </Button>
           </div>
-        </article>)}
+        )}
+        {visibleEntries.map(({ entry, index }) => {
+          const veilExpected = Boolean(entry.expected && report.feedbackStatus === "assessed" && (!entry.answer?.trim() || (entry.assessment && entry.assessment.band !== "strong")));
+          return <article key={`${entry.deckId}:${entry.cardId}`} className="oral-report-entry">
+            <div className="oral-report-entry__head">
+              <strong>{index + 1}. {entry.topic}</strong>
+              <Badge size="sm" tone={entry.assessment ? bandTone[entry.assessment.band] : "neutral"}>
+                {entry.assessment ? ui(bandName[entry.assessment.band]) : ui("未评估")}
+              </Badge>
+            </div>
+            <Markdown text={entry.prompt} links={false} />
+            <p>{ui("你的回答：")}{entry.answer || ui("未答")}</p>
+            {entry.followup && <p>{ui("追问：")}{entry.followup}<br />{ui("补充回答：")}{entry.followupAnswer || ui("未答")}</p>}
+            {entry.assessment?.reason && <p>{ui("反馈：")}{entry.assessment.reason}</p>}
+            {entry.assessment?.correction && <CorrectionCard feedback={{ correction: entry.assessment.correction }} />}
+            <div className="oral-report-expected">
+              {veilExpected ? (
+                <details className="oral-expected-veil">
+                  <summary>{ui("先对照反馈想一想 · 展开参考答案")}</summary>
+                  <Markdown text={entry.expected} links={false} />
+                </details>
+              ) : (
+                <>
+                  <span>{ui("参考答案：")}</span>
+                  {entry.expected ? <Markdown text={entry.expected} links={false} /> : <span>{ui("本题无参考答案")}</span>}
+                </>
+              )}
+            </div>
+          </article>;
+        })}
       </details>
     </Panel>}
     {error && <ErrorState error={error} />}

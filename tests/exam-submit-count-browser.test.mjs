@@ -96,6 +96,50 @@ test('交卷 asks only about questions that are still open, and a full paper goe
     await submit.click();
     await page.locator('.exam-report').waitFor({ timeout: 30000 });
     assert.equal(await page.getByRole('button', { name: '仍然交卷' }).count(), 0, 'no question was open: the paper went in without a dialog');
+
+    // Oral interview: early-exit confirmation with unanswered count, Ctrl+Shift+Enter follow-up, report veil & needs-work filter.
+    await page.getByRole('button', { name: '再考一次' }).click();
+    await page.locator('.es-sheet').waitFor({ timeout: 15000 });
+    await page.locator('.es-format__seg').getByText('口头面试').click();
+    await page.getByRole('button', { name: '开始口头模拟' }).click();
+    await page.locator('.oral-question').waitFor({ timeout: 30000 });
+    assert.match(await page.locator('.oral-progress').innerText(), /第 1 \/ 3 题/);
+
+    await page.getByRole('button', { name: '提前结束' }).click();
+    await dialog.waitFor({ timeout: 10000 });
+    assert.match(await dialog.innerText(), /还有 3 题未作答，提前结束将立即完成本次口头模拟。/);
+    await dialog.getByRole('button', { name: '继续作答' }).click();
+    await dialog.waitFor({ state: 'detached', timeout: 10000 });
+
+    const mainInput = page.locator('.oral-answer-input').first();
+    await mainInput.click();
+    await mainInput.fill('Indexing uses a B-tree to narrow lookup paths quickly.');
+    await page.keyboard.press('Control+Shift+Enter');
+    await page.locator('.oral-followup').waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: '保存并继续 →' }).click();
+    await until(async () => (await page.locator('.oral-progress').innerText()).includes('第 2 / 3 题'), 'advanced to oral Q2');
+    await page.locator('.oral-answer-input').first().fill('Second oral answer leaving Q3 blank.');
+    await page.getByRole('button', { name: '提前结束' }).click();
+    await dialog.waitFor({ timeout: 10000 });
+    assert.match(await dialog.innerText(), /还有 1 题未作答/);
+    await dialog.getByRole('button', { name: '仍然交卷' }).click();
+
+    await page.locator('.oral-report').waitFor({ timeout: 30000 });
+    await page.locator('.oral-report .result-details summary').first().click();
+    await until(async () => (await page.locator('.oral-report-entry').count()) === 3, 'all 3 oral entries shown');
+    assert.equal(await page.locator('.oral-report-entry').nth(0).locator('.oral-expected-veil').count(), 0, 'strong entry reveals reference directly');
+    assert.equal(await page.locator('.oral-report-entry').nth(1).locator('.oral-expected-veil').count(), 1, 'developing entry veils reference behind active-recall disclosure');
+    assert.equal(await page.locator('.oral-report-entry').nth(2).locator('.oral-expected-veil').count(), 1, 'unanswered entry veils reference behind active-recall disclosure');
+
+    const filterBtn = page.getByRole('button', { name: '只看需巩固 (2)' });
+    await filterBtn.click();
+    await until(async () => (await page.locator('.oral-report-entry').count()) === 2, 'needs-work filter hides strong entry');
+    await page.getByRole('button', { name: '显示全部 3 题' }).click();
+    await until(async () => (await page.locator('.oral-report-entry').count()) === 3, 'show-all restores all oral entries');
+    const firstVeil = page.locator('.oral-expected-veil').first();
+    await firstVeil.locator('summary').click();
+    assert.match(await firstVeil.innerText(), /Right one/);
+
     assert.deepEqual(errors.filter(Boolean), [], 'no page errors');
     await context.close();
   } finally {
