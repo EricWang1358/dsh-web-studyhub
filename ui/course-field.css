@@ -17,7 +17,7 @@
       padding: var(--space-1) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--bg-surface); color: var(--text-dim);
       font-size: var(--fs-sm); font-weight: var(--fw-regular); line-height: var(--lh-tight); white-space: nowrap; cursor: pointer; }
     .course-field__pick-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-    .course-field__pick-meta { flex: none; padding-left: var(--space-1-5); color: var(--text-muted); }
+    .course-field__pick-meta { flex: none; padding-left: var(--space-1-5); color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .course-field__pick:hover:not(:disabled) { border-color: var(--line-strong); color: var(--text); }
     .course-field__pick[aria-pressed="true"], .course-field__pick.has-chosen {
       border-color: var(--text-muted); color: var(--text); background: var(--bg-selected); }
@@ -29,7 +29,7 @@
     .course-field__more[aria-expanded="true"] .course-field__caret { transform: translateY(1px) rotate(225deg); }
     .course-field__more { border-style: dashed; color: var(--text); font-weight: var(--fw-medium); }
     .course-field__more[aria-expanded="true"] { border-style: solid; background: var(--bg-raised); }
-    .course-field__pick:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
+    .course-field__pick:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .course-field__panel { display: grid; gap: var(--space-2); padding: var(--space-2) var(--space-3) var(--space-3); }
     .course-field__panel-head { display: flex; align-items: center; gap: var(--space-2); min-height: 32px; }
     .course-field__panel-head strong { color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
@@ -44,7 +44,7 @@
     .course-field__option--chapter { padding-left: calc(var(--space-3) + var(--space-5) * var(--depth, 1)); }
     .course-field__option-tip { flex: 1; min-width: 0; }
     .course-field__option-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .course-field__option small { flex: none; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
+    .course-field__option small { flex: none; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-regular); font-variant-numeric: tabular-nums; }
     .course-field__option .course-field__option-check { color: var(--accent-text); font-weight: var(--fw-strong); }
     .course-field__option-chevron { flex: none; width: 6px; height: 6px; margin: 0 var(--space-1) 0 var(--space-half); border-right: 1.5px solid currentColor;
       border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); opacity: 0.7; transition: transform 0.18s var(--ease); }

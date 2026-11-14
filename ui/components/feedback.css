@@ -69,7 +69,7 @@
     }
     .sh-chip__main { cursor: pointer; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
     .sh-chip__main:hover { background: var(--bg-hover); color: var(--text); }
-    .sh-chip__main:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
+    .sh-chip__main:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .sh-chip.is-selected {
       border-color: color-mix(in srgb, var(--sh-tone) 55%, var(--line));
       background: color-mix(in srgb, var(--sh-tone) 18%, transparent);

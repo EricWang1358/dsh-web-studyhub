@@ -291,3 +291,91 @@ test('#48: .wb-rows arrow keys navigate row toggles and L triggers practice on f
   app.unmount();
 });
 
+test('Wave 5: .wb-rows Escape collapses an open row and restores focus, and O opens cited source', () => {
+  setUiLanguage('zh');
+  const openedModals = [];
+  const prevServices = m.StudyServicesContext._currentValue;
+  m.StudyServicesContext._currentValue = { ...(prevServices || {}), busy: false, openModal: (modal) => openedModals.push(modal) };
+  try {
+    const citedSource = { id: 's1', title: 'Lecture 1', text: '熔断器保护下游服务' };
+    const decksWithCards = [
+      { ...decks[0], cards: [{ id: 'c1', citations: [{ sourceId: 's1', quote: '熔断器保护下游服务' }] }, { id: 'c2' }] },
+      decks[1],
+    ];
+    const app = mountSync(WrongBookView, {
+      ...base,
+      data: { ...base.data, decks: decksWithCards, sources: [citedSource] },
+      initial: { groups: ['deck:d4'], expanded: ['c1'] },
+    });
+    const findRowsUl = (tree) => {
+      let rowsUl = null;
+      walkEls(tree, (n) => { if (!rowsUl && n.type === 'ul' && n.props.className === 'wb-rows') rowsUl = n; });
+      return rowsUl;
+    };
+    const isCardOpen = (rowsUl, cardId) => {
+      let chunked = null;
+      walkEls(rowsUl, (n) => { if (!chunked && typeof n.type !== 'string' && typeof n.props?.render === 'function') chunked = n; });
+      const targetItem = items.find((item) => item.cardId === cardId);
+      return Boolean(chunked && targetItem && chunked.props.render(targetItem).props.isOpen);
+    };
+
+    let tree = app.render();
+    let rowsUl = findRowsUl(tree);
+    assert.ok(rowsUl?.props?.onKeyDown, '.wb-rows attaches keyboard handler');
+    assert.equal(isCardOpen(rowsUl, 'c1'), true, 'c1 starts open');
+
+    const focused = [];
+    const btnMap = new Map();
+    const rowEl = { querySelector: (q) => (q === '.wb-row-toggle' ? btnMap.get('c1') : null) };
+    const insideOpenRow = {
+      closest: (sel) => (sel === '.wb-row' ? rowEl : null),
+    };
+    const makeBtn = (cardId) => ({
+      dataset: { cardId },
+      closest: (sel) => (sel === '.wb-row-toggle' ? btnMap.get(cardId) : sel === '.wb-row' ? (cardId === 'c1' ? rowEl : null) : null),
+      focus: () => focused.push(cardId),
+    });
+    btnMap.set('c1', makeBtn('c1'));
+    btnMap.set('c2', makeBtn('c2'));
+    btnMap.set('c3', makeBtn('c3'));
+
+    const fireEvent = (key, targetEl, extra = {}) => {
+      let prevented = false;
+      let stopped = false;
+      rowsUl.props.onKeyDown({
+        key,
+        metaKey: false, ctrlKey: false, altKey: false, isComposing: false,
+        ...extra,
+        target: targetEl,
+        currentTarget: { querySelectorAll: () => [...btnMap.values()] },
+        preventDefault: () => { prevented = true; },
+        stopPropagation: () => { stopped = true; },
+      });
+      return { prevented, stopped };
+    };
+
+    assert.equal(fireEvent('o', btnMap.get('c1'), { isComposing: true }).prevented, false, 'IME composition ignores O');
+    assert.equal(fireEvent('o', btnMap.get('c2')).prevented, false, 'uncited c2 does not open source');
+    assert.equal(fireEvent('o', btnMap.get('c1')).prevented, true);
+    assert.equal(fireEvent('O', btnMap.get('c1')).prevented, true);
+    assert.equal(openedModals.length, 2);
+    assert.equal(openedModals[0].type, 'source');
+    assert.equal(openedModals[0].source.id, 's1');
+    assert.equal(openedModals[0].quote, '熔断器保护下游服务');
+    assert.equal(openedModals[0].back, true);
+
+    const escOpen = fireEvent('Escape', insideOpenRow);
+    assert.equal(escOpen.prevented, true);
+    assert.equal(escOpen.stopped, true);
+    assert.deepEqual(focused, ['c1']);
+
+    tree = app.render();
+    rowsUl = findRowsUl(tree);
+    assert.equal(isCardOpen(rowsUl, 'c1'), false, 'Escape collapsed c1');
+    assert.equal(fireEvent('Escape', insideOpenRow).prevented, false, 'already collapsed row leaves Escape alone');
+    app.unmount();
+  } finally {
+    m.StudyServicesContext._currentValue = prevServices;
+  }
+});
+

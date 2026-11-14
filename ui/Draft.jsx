@@ -182,15 +182,42 @@ export default function Draft({
   const similar = useSimilarQuestions(draft.id, { version: `${data.revision}:${draft.draftVersion}`, enabled: draft.draftVersion > 0 && !missingDraft && !updatingDraft });
   const flaggedIndices = React.useMemo(() => collectFlaggedCardIndices(draft), [draft]);
   const flaggedPos = flaggedState.id === draft.id && flaggedState.pos >= 0 && flaggedState.pos < flaggedIndices.length ? flaggedState.pos : -1;
-  const jumpToNextFlagged = () => {
+  const jumpToFlagged = (step = 1) => {
     if (!flaggedIndices.length) return;
-    const nextPos = (flaggedPos + 1) % flaggedIndices.length;
+    const nextPos = step < 0
+      ? (flaggedPos <= 0 ? flaggedIndices.length - 1 : flaggedPos - 1)
+      : (flaggedPos + 1) % flaggedIndices.length;
     const targetIndex = flaggedIndices[nextPos];
     setFlaggedState({ id: draft.id, pos: nextPos });
     flushSync(() => setDrawnTo({ id: draft.id, index: targetIndex }));
     const cardEl = pageRef.current?.querySelector(`[data-draft-index="${targetIndex}"]`);
     cardEl?.scrollIntoView?.({ block: "center" });
     cardEl?.querySelector("summary")?.focus?.({ preventScroll: true });
+  };
+  const jumpToNextFlagged = () => jumpToFlagged(1);
+  const saveDraft = () => {
+    let d;
+    try {
+      d = jsonMode ? parseDraft(draftText) : draft;
+    } catch (e) {
+      toast.error("JSON 格式不正确：" + e.message);
+      return;
+    }
+    act("draft.save", { deck: d }, openDraft);
+  };
+  const onDraftKeyDown = (event) => {
+    if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && (event.key === "s" || event.key === "S")) {
+      event.preventDefault();
+      if (!(updatingDraft || staleDraft || missingDraft) && !busy && unsavedDraft) saveDraft();
+      return;
+    }
+    if (event.altKey && !event.ctrlKey && !event.metaKey && (event.key === "n" || event.key === "N")) {
+      if (!jsonMode && flaggedIndices.length > 0) {
+        event.preventDefault();
+        jumpToFlagged(event.shiftKey ? -1 : 1);
+      }
+    }
   };
   // Live (the coverage of the draft now, every run of it), never the snapshot of the last run (`editorial.coverage.selected` counts that run's sources only): pages of a PDF, else materials.
   const liveView = covered.view?.status === "ok" ? covered.view : null;
@@ -249,12 +276,12 @@ export default function Draft({
   const headerActions = jsonMode
     ? <Button variant="quiet" onClick={toggleJsonMode}>{ui("返回逐题编辑")}</Button>
     : flaggedIndices.length > 0
-      ? <Button size="sm" variant="quiet" className="draft-next-flagged" onClick={jumpToNextFlagged}>
+      ? <Button size="sm" variant="quiet" className="draft-next-flagged" title="Alt+N / Alt+Shift+N" onClick={jumpToNextFlagged}>
           {uiFormat("下一道待核对 ({0}/{1})", [flaggedPos >= 0 ? flaggedPos + 1 : 0, flaggedIndices.length])}
         </Button>
       : undefined;
   return (
-    <section className="page draft-page" ref={pageRef}>
+    <section className="page draft-page" ref={pageRef} onKeyDown={onDraftKeyDown}>
       <PageHeader eyebrow={ui("发布草稿")} title={ui("草稿与发布")}
         actions={headerActions} />
       {!jsonMode && <label className="draft-title-field">{ui("题组标题")}<input className="draft-title-field__input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
@@ -658,16 +685,7 @@ export default function Draft({
       <DraftBar status={<>{uiRich("当前草稿 {0} 题", <strong>{draft.cards.length}</strong>)}{unsavedDraft && <><span aria-hidden="true"> · </span><span>{ui("有未保存修改")}</span></>}{hold && <><span aria-hidden="true"> · </span><span>{ui("后台任务进行中，暂时不能保存或发布")}</span></>}</>} unsaved={unsavedDraft || !!hold} publishLabel={publicationLabel} saveDisabled={updatingDraft || staleDraft || missingDraft} deleteDisabled={missingDraft}
         publishDisabled={updatingDraft || staleDraft || missingDraft || activeReview} publishTitle={activeReview ? ui("先完成或结束原题组的学习") : undefined} describedBy={hold ? "draft-hold" : undefined}
         onDelete={() => setDeletingId(draft.id)}
-        onSave={() => {
-          let d;
-          try {
-            d = jsonMode ? parseDraft(draftText) : draft;
-          } catch (e) {
-            toast.error("JSON 格式不正确：" + e.message);
-            return;
-          }
-          act("draft.save", { deck: d }, openDraft);
-        }}
+        onSave={saveDraft}
         onPublish={async () => {
           let d;
           try {
