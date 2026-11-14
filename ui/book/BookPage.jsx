@@ -48,6 +48,23 @@ import aiCss from './book-ai.css';
    read (逐节读) or the chapters in one scroll (整章连着读, from 更多). Every other view (编辑, 翻看, 速查页, 导出, 模拟卷, 发给主会话) opens from 更多 and comes
    back to the same point. The place is kept for the next visit (ui/book/use-book-place.js); what the main chat wrote shows up when the page comes back into view. */
 
+export function selectedBookFindQuery() {
+  const selected = typeof window !== 'undefined' ? window.getSelection?.()?.toString().trim() : '';
+  return selected && selected.length <= 80 && !/[\r\n]/.test(selected) ? selected : '';
+}
+
+export function isBookFindShortcut(event) {
+  return Boolean(event && (event.ctrlKey || event.metaKey) && !event.altKey && String(event.key ?? '').toLowerCase() === 'f');
+}
+
+export function handleBookFindShortcut(event, { view, ready, inOverlay, onOpen }) {
+  if (!event || event.defaultPrevented || !isBookFindShortcut(event)) return false;
+  if (view !== 'read' || !ready || inOverlay) return false;
+  event.preventDefault?.();
+  onOpen?.();
+  return true;
+}
+
 /** data: the snapshot; onBack() (the 总纲); onPractice(scope, { resume, place }); onOpenSource(sourceId, quote); onCreate() (出题); onOpenTask(jobId);
     onExamRun(run): enters a mock exam started here (M7); onCourseSettings(courseId); theme: 'light' | 'dark' (the editor's); holdLeave(ask): the app's leave gate, held while the editor has unsaved text. */
 export default function BookPage({ data, onBack, onPractice, onOpenSource, onCreate, onOpenTask, onExamRun, onCourseSettings, onBuildIndex, theme, holdLeave }) {
@@ -109,6 +126,47 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   const onFindQuery = useCallback(text => { setFindQuery(text); if (!text.trim()) setFound(null); }, []);
   const { goTo } = where;
   const onFound = useCallback((row, query) => { goTo(row.hid); setFound({ hid: row.hid, query, count: row.count, nonce: Date.now() }); }, [goTo]);
+  const tocSearchRef = useRef(null), pendingFindFocusRef = useRef(false);
+  const [findFocusTick, setFindFocusTick] = useState(0);
+  const openBookFind = useCallback(() => {
+    const selected = selectedBookFindQuery();
+    if (selected) onFindQuery(selected);
+    pendingFindFocusRef.current = true;
+    if (narrow) setTocOver(true);
+    else setTocWide(true);
+    setFindFocusTick(tick => tick + 1);
+  }, [narrow, onFindQuery, setTocWide]);
+  const handleFindShortcut = useCallback(event => handleBookFindShortcut(event, {
+    view,
+    ready: book?.status === 'ok' && !!book?.notes,
+    inOverlay: Boolean(event?.target?.closest?.('dialog, .cm-editor') || pageRef.current?.querySelector?.('dialog[open]')),
+    onOpen: openBookFind,
+  }), [view, book?.status, book?.notes, openBookFind]);
+  useEffect(() => {
+    if (view !== 'read' || book?.status !== 'ok' || !book?.notes || typeof window === 'undefined') return undefined;
+    window.addEventListener('keydown', handleFindShortcut);
+    return () => window.removeEventListener('keydown', handleFindShortcut);
+  }, [view, book?.status, book?.notes, handleFindShortcut]);
+  useEffect(() => {
+    if (!findFocusTick || !pendingFindFocusRef.current || view !== 'read' || !tocOpen) return undefined;
+    const focusInput = () => {
+      const input = tocSearchRef.current ?? pageRef.current?.querySelector?.('.book-toc__input');
+      if (!input) return false;
+      input.focus?.({ preventScroll: true });
+      input.select?.();
+      pendingFindFocusRef.current = false;
+      return true;
+    };
+    focusInput();
+    if (typeof requestAnimationFrame !== 'function') return undefined;
+    const frame = requestAnimationFrame(() => {
+      const input = tocSearchRef.current ?? pageRef.current?.querySelector?.('.book-toc__input');
+      if (!input) return;
+      input.focus?.({ preventScroll: true });
+      input.select?.();
+    });
+    return () => cancelAnimationFrame?.(frame);
+  }, [findFocusTick, view, tocOpen]);
   useFoundMarks({ found, drawn: `${view}:${reading.mode}:${where.stepAt}:${book?.revision}`, pageRef, aiFold, onGone: dropFound });
   useStepKeys(view === 'read' && !tocOver && book?.status === 'ok' && !!book.notes, where.go);
   // Leaving the editor with unsaved text asks first: the 完成 button and another course here, every other way out of the page through the app's one leave gate
@@ -204,7 +262,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
   if (view === 'cheat') return <section className="page book-page" ref={pageRef}>{header}
     <CheatView book={book} onGo={hid => { setView('read'); where.goTo(hid); }} onDone={() => setView('read')} />{dialogs}</section>;
   return (
-    <section className="page book-page" ref={pageRef} data-narrow={narrow ? '' : undefined}>
+    <section className="page book-page" ref={pageRef} data-narrow={narrow ? '' : undefined} onKeyDown={handleFindShortcut}>
       {header}
       <BookBar ref={tocRef} at={step && !unplaced ? where.current + 1 : 0} total={counted} number={step?.node.number || ''} title={step?.node.title ?? ''}
         hid={step?.hid ?? null} tocOpen={tocOpen}
@@ -224,7 +282,7 @@ export default function BookPage({ data, onBack, onPractice, onOpenSource, onCre
         onPractice={(point, element) => handlers.practice(point.id, 5, point.id, element)} onMarkRead={(point, on) => plan.mark(point.id, 'read', on)}
         onFlip={() => openView('flip')} onMockStarted={onExamRun} />}
       <div className={tocOpen && !narrow ? 'book-layout book-layout--toc' : 'book-layout'}>
-        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} book={book} query={findQuery} onQuery={onFindQuery} onFound={onFound} />}
+        {tocOpen && <BookToc entries={toc} here={where.here} onGo={where.goTo} narrow={narrow} onClose={closeToc} returnRef={tocRef} coverage={book.coverage ?? null} book={book} query={findQuery} onQuery={onFindQuery} onFound={onFound} searchRef={tocSearchRef} />}
         <ReadingBlock className="book-read" measure>
           <AiFoldContext.Provider value={aiFold}><BookAiContext.Provider value={ai.lines}><BookReadContext.Provider value={reading}>
             {reading.mode === 'step' ? <BookStep steps={steps} at={where.stepAt} onGo={index => where.go(index - where.stepAt)} course={course} handlers={handlers} />

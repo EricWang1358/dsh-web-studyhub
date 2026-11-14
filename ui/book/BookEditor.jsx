@@ -7,6 +7,7 @@ import { useStudy } from '../study-context.jsx';
 import { fileOptionsOf, fileText } from './model.js';
 import { forgetUnsaved, keepUnsaved, readUnsaved } from './unsaved-draft.js';
 import BookHistory from './BookHistory.jsx';
+import { handleSaveKeyDown, markdownEditorExtensions } from '../editor/markdown-shortcuts.js';
 
 /* 原文 of the review book (docs/plans/review-book.md M2): the raw Markdown of ONE file in the CodeMirror Markdown editor (the one ui/BlogNotes.jsx uses), any
    file: a point's generated file (editing it forks it: the program then offers its new texts instead of writing over yours) or your own file, or 未归位.
@@ -79,8 +80,18 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, onS
     setReverting(true);
     try { settle(await call('course.book.revert', { course: book.course, file })); setMerged(false); } catch (failure) { notify({ text: errorMessage(failure), tone: 'error' }); } finally { setReverting(false); }
   };
+  const saveShortcutRef = useRef(null);
+  saveShortcutRef.current = () => {
+    if (working) return;
+    if (dirty) void save();
+    else notify({ text: ui('已是最新'), tone: 'info' });
+  };
+  const editorExtensions = useMemo(() => [
+    ...extensions,
+    ...markdownEditorExtensions({ onSave: () => saveShortcutRef.current?.() }),
+  ], []);
   return (
-    <section className="book-editor" aria-label={ui('原文')}>
+    <section className="book-editor" aria-label={ui('原文')} onKeyDown={event => handleSaveKeyDown(event, () => saveShortcutRef.current?.())}>
       <div className="book-editor__bar">
         {/* While there are unsaved edits the file stays chosen: save them or 放弃改动 first, so nothing is lost by switching. */}
         <Combobox className="book-editor__file" label={ui('要改的文件')} aria-label={ui('要改的文件')} searchPlaceholder={ui('搜索文件')} value={file} options={options} disabled={dirty || working} onChange={value => onPick(value)} />
@@ -96,7 +107,7 @@ export default function BookEditor({ book, file, onPick, onChanged, onDirty, onS
         {ui('上次离开时这份文件还有没保存的改动，当时没来得及问你。')}</InlineMessage>}
       {merged && <InlineMessage tone="info">{ui('书已更新：你的改动已保存，另一边的内容放在了建议里，可以在预览里采用或忽略。')}</InlineMessage>}
       {historyOpen && <BookHistory course={book.course} book={book} file={file} dirty={dirty} locked={working} onRestored={next => { settle(next); setMerged(false); }} />}
-      <CodeMirror className="book-editor__code" value={draft} height="60vh" theme={theme === 'light' ? 'light' : 'dark'} extensions={extensions} onChange={setDraft}
+      <CodeMirror className="book-editor__code" value={draft} height="60vh" theme={theme === 'light' ? 'light' : 'dark'} extensions={editorExtensions} onChange={setDraft}
         basicSetup={{ lineNumbers: false, foldGutter: false }} />
     </section>
   );

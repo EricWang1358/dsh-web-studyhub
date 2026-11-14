@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useRef } from 'react';
+import { uiFormat } from '../i18n.js';
 import Markdown from '../Markdown.jsx';
 import { bookResolver } from './BookLinks.jsx';
 import { citesOf } from './model.js';
@@ -22,16 +23,44 @@ export const headingAnchor = text => {
 export const resolverOf = (handlers, hid) => bookResolver({ gone: handlers.gone, onCard: (ref, element) => handlers.card(ref, hid, element),
   onPractice: (heading, n, element) => handlers.practice(heading, n, hid, element), onQa: handlers.toggleQa, qaOpen: handlers.qaOpen, onSource: handlers.source });
 
+const CITE_TITLE_DEF = /^\[\^(\d{1,2})\]: \[.+?\]\(studyhub:\/\/source\/[^)\s]+\)(?:\s*·\s*(.+))?$/gm;
+
+/** Optional source titles on footnote definitions (`[^n]: [quote](studyhub://source/id) · title`) -> Map<n, title>. */
+export function citeTitlesOf(text) {
+  const out = new Map();
+  for (const match of String(text ?? '').matchAll(CITE_TITLE_DEF)) {
+    const title = match[2]?.trim();
+    if (title) out.set(Number(match[1]), title);
+  }
+  return out;
+}
+
+/** Two-line hover/focus preview (`quote` + `出处：source`) for a `[^n]` citation mark. */
+export function citePreviewFor(cites, n, titles) {
+  const cite = cites?.get?.(n);
+  if (!cite) return null;
+  const rawQuote = String(cite.quote ?? '').replace(/\s+/g, ' ').trim();
+  const shortQuote = rawQuote.length > 100 ? `${rawQuote.slice(0, 99).trimEnd()}…` : rawQuote;
+  const quoteLine = shortQuote ? uiFormat('「{0}」', [shortQuote]) : '';
+  const source = titles?.get?.(n) || cite.title || cite.sourceId || '';
+  const sourceLine = source ? uiFormat('出处：{0}', [source]) : '';
+  if (!quoteLine && !sourceLine) return null;
+  if (quoteLine && sourceLine) return <>{quoteLine}<br />{sourceLine}</>;
+  return quoteLine || sourceLine;
+}
+
 /** `citeText`: the whole file its 角标 are numbered in; `anchors` [{ id, quote }]: the words of the blocks about this text; `onAnchored(ids)` once drawn. */
 export default function BookFile({ text, citeText = text, hid, handlers, className, anchors = [], onAnchored }) {
   const cites = useMemo(() => citesOf(citeText), [citeText]);
+  const citeTitles = useMemo(() => citeTitlesOf(citeText), [citeText]);
   const resolve = useMemo(() => resolverOf(handlers, hid), [handlers, hid]);
   const onCite = useCallback(n => { const cite = cites.get(n); if (cite) handlers.source(cite.sourceId, cite.quote); }, [cites, handlers]);
+  const citePreview = useCallback(n => citePreviewFor(cites, n, citeTitles), [cites, citeTitles]);
   // A Q&A block's marker lines are the book's, not the reader's (the heading ids stay: headingAnchor reads them); so are the noprint markers (M6: only
   // the export leaves that text out) and the brackets of a [[term]].
   const shown = useMemo(() => plainTerms(withoutNoprintMarkers(withoutQaMarkers(text))), [text]);
   // The paragraph is drawn fresh (key) whenever its words or its anchors change, so the underline is only ever put on new text.
   const rootRef = useRef(null), signature = anchors.length ? `${shortHash(shown)}\u0002${anchors.map(item => `${item.id}\u0000${item.quote}`).join('\u0001')}` : 'plain';
   useAiAnchors(rootRef, anchors, signature, { onOpen: handlers.aiOpen, onFound: onAnchored });
-  return <Markdown key={signature} rootRef={rootRef} className={className} text={shown} resolveLink={resolve} onCite={onCite} headingAnchor={headingAnchor} />;
+  return <Markdown key={signature} rootRef={rootRef} className={className} text={shown} resolveLink={resolve} onCite={onCite} citePreview={citePreview} headingAnchor={headingAnchor} />;
 }
