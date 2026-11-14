@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { build } from 'esbuild';
 import { StudyService } from '../lib/service.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
 import { capabilityIndex, filterCapabilities } from '../lib/runtime/tools.js';
@@ -214,4 +215,214 @@ test('the list costs little on a large library: well under one grouping of it wh
   assert.ok(cold.ms < 2 * yardstick, report);
   assert.ok(hit.ms < Math.max(2, yardstick / 50), report);
   assert.ok(after.ms < yardstick / 2, report);
+});
+
+test('#11, #15, #58, #60 useSourceReader & useReaderMarks: question-note append, duplicate queue guard, copy-cite, and reread.onPrev', async () => {
+  let hooks = [], cursor = 0, pendingEffects = [];
+  const hLocal = (type, p, ...children) => ({ $$type: type, props: { ...(p || {}), ...(children.length === 1 ? { children: children[0] } : children.length > 1 ? { children } : {}) } });
+  const toasts = [], calls = [];
+  const toastApi = {
+    show: item => toasts.push(['show', item]),
+    success: msg => toasts.push(['success', msg]),
+    info: msg => toasts.push(['info', msg]),
+    warning: msg => toasts.push(['warning', msg]),
+    error: msg => toasts.push(['error', msg]),
+  };
+  let appValue = null;
+  const reactShim = {
+    default: null, Fragment: Symbol('Fragment'), createElement: hLocal, memo: c => c,
+    createContext: def => ({ Provider: p => p.children, _def: def }),
+    useContext: () => appValue,
+    useState(init) { const i = cursor++; if (!(i in hooks)) hooks[i] = typeof init === 'function' ? init() : init; return [hooks[i], v => { hooks[i] = typeof v === 'function' ? v(hooks[i]) : v; }]; },
+    useRef(init) { const i = cursor++; if (!(i in hooks)) hooks[i] = { current: init }; return hooks[i]; },
+    useMemo(fn, deps) { const i = cursor++, prev = hooks[i]; if (!prev || !deps || deps.some((d, k) => d !== prev.deps[k])) hooks[i] = { val: fn(), deps }; return hooks[i].val; },
+    useEffect(fn, deps) { const i = cursor++, prev = hooks[i]; if (!prev || !deps || deps.some((d, k) => d !== prev.deps?.[k])) { hooks[i] = { deps }; pendingEffects.push(fn); } },
+    useInsertionEffect() {},
+    useCallback(fn) { return fn; },
+    useSyncExternalStore(_sub, snap) { return snap(); },
+  };
+  reactShim.default = reactShim;
+  globalThis.__MARKS_REREAD_REACT__ = reactShim;
+  const prevWin = globalThis.window, prevNav = globalThis.navigator, prevDoc = globalThis.document;
+  const copied = [];
+  globalThis.window = {
+    getSelection: () => null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    matchMedia: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
+  };
+  if (!globalThis.document) globalThis.document = { querySelector: () => null, createElement: () => ({ style: {} }) };
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, writable: true, value: { clipboard: { writeText: async text => { copied.push(text); } } } });
+  try {
+    const built = await build({
+      stdin: {
+        contents: `
+          export { formatQuoteForNote } from './ui/review/question-note.js';
+          export { useSourceReader } from './ui/app/modals/source-reader.jsx';
+          export { useReaderMarks } from './ui/document-preview/marks/useReaderMarks.jsx';
+          export { setUiLanguage } from './ui/i18n.js';`,
+        resolveDir: process.cwd(),
+      },
+      bundle: true, write: false, platform: 'node', format: 'cjs', loader: { '.css': 'text' }, logLevel: 'silent',
+      plugins: [{
+        name: 'shim-mr',
+        setup(builder) {
+          builder.onResolve({ filter: /^react$|^react\/jsx-runtime$/ }, () => ({ path: 'react', namespace: 'mrr' }));
+          builder.onLoad({ filter: /.*/, namespace: 'mrr' }, () => ({
+            contents: `const R = globalThis.__MARKS_REREAD_REACT__; export default R; export const { Fragment, createElement, memo, createContext, useContext, useState, useRef, useMemo, useEffect, useInsertionEffect, useCallback, useSyncExternalStore } = R; export const jsx = (t, p) => R.createElement(t, p); export const jsxs = jsx; export const jsxDEV = jsx;`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /components\/index\.js$/ }, () => ({ path: 'comp', namespace: 'mrc' }));
+          builder.onLoad({ filter: /.*/, namespace: 'mrc' }, () => ({
+            contents: `const R = globalThis.__MARKS_REREAD_REACT__; export const useToast = () => globalThis.__MARKS_REREAD_TOAST__; export const ContextMenu = p => R.createElement('div', { ...p, 'data-comp': 'ContextMenu' });`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /QueueChip\.jsx$/ }, () => ({ path: 'qchip', namespace: 'mrq' }));
+          builder.onLoad({ filter: /.*/, namespace: 'mrq' }, () => ({
+            contents: `const R = globalThis.__MARKS_REREAD_REACT__; export default p => R.createElement('div', { ...p, 'data-comp': 'QueueChip' });`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /app-context\.js$/ }, () => ({ path: 'appctx', namespace: 'mra' }));
+          builder.onLoad({ filter: /.*/, namespace: 'mra' }, () => ({
+            contents: `const R = globalThis.__MARKS_REREAD_REACT__; export const useApp = () => R.useContext(null);`,
+            loader: 'js',
+          }));
+          builder.onResolve({ filter: /DailyPlan\.jsx$|RenameTitle\.jsx$|ReaderRun\.jsx$|ReaderModelGate\.jsx$/ }, args => ({ path: args.path, namespace: 'mrstub' }));
+          builder.onLoad({ filter: /.*/, namespace: 'mrstub' }, () => ({
+            contents: `export const relatedTaskItems = () => []; export const ReaderHeading = () => null; export default () => null; export const ReaderModelContext = {};`,
+            loader: 'js',
+          }));
+        },
+      }],
+    });
+    globalThis.__MARKS_REREAD_TOAST__ = toastApi;
+    const mod = { exports: {} };
+    new Function('module', 'exports', built.outputFiles[0].text)(mod, mod.exports);
+    const { formatQuoteForNote, useSourceReader, useReaderMarks, setUiLanguage } = mod.exports;
+    setUiLanguage('zh');
+
+    // #11 formatQuoteForNote handles multi-line passages and slide labels.
+    assert.equal(formatQuoteForNote({ quote: 'Line 1\nLine 2', title: 'Patterns', page: 2 }), '> Line 1\n> Line 2\n\n——《Patterns》第 2 页');
+    assert.equal(formatQuoteForNote({ quote: 'Slide line', title: 'Deck', page: 5, slides: true }), '> Slide line\n\n——《Deck》第 5 张');
+    assert.equal(formatQuoteForNote({ quote: '  ' }), '');
+
+    // #11 & #60 useSourceReader
+    let noteMarkdown = '# 已有内容', noteRevision = 3, savedNotes = [], modalSets = [], refreshed = 0;
+    const s1 = { id: 'book-p1', title: 'Patterns · p. 1', text: 'Page one explains the caretaker.', document: { materialId: 'doc-1', title: 'Patterns', page: 1 } };
+    const s2 = { id: 'book-p2', title: 'Patterns · p. 2', text: 'Page two explains the originator.', document: { materialId: 'doc-1', title: 'Patterns', page: 2 } };
+    const call = async (name, params) => {
+      calls.push([name, params]);
+      if (name === 'note.create') return { id: 'note-q1' };
+      if (name === 'note.get') return { id: 'note-q1', markdown: noteMarkdown, revision: noteRevision };
+      if (name === 'note.save') { savedNotes.push(params); noteMarkdown = params.markdown; noteRevision += 1; return { id: params.id }; }
+      if (name === 'materials.marks.list') return { items: [{ id: 'q1', key: 'book-p1|0|22', style: 'queue', status: 'resolved', selection: { sourceId: 'book-p1', start: 0, end: 22, quote: 'Page one explains the ' } }], limits: { queue: 40 } };
+      return { status: 'saved' };
+    };
+    appValue = {
+      data: { sources: [s1, s2], contexts: ['bank', 'study'], root: 'r' },
+      host: {},
+      core: { call, act: call, busy: false, refresh: () => { refreshed += 1; } },
+      nav: { navigate: () => {} },
+      learn: { openLearningTarget: () => {} },
+      intents: { practiceFromReading: () => {} },
+      drafts: {},
+      dailyPlan: null,
+      selectionNotices: { subscribe: () => () => {} },
+      settingsEntry: { openSettings: () => {}, openModelSettings: () => {} },
+      set: { setModal: m => modalSets.push(m) },
+      session: { run: { deckId: 'd1', card: { id: 'c1', kind: 'quiz' }, complete: false, mode: 'path' } },
+    };
+
+    let readerRes = null;
+    const ReaderHost = props => { readerRes = useSourceReader(props); return null; };
+    const rereadItems = [
+      { id: 'm1', revision: 'r1', selection: { sourceId: 'book-p1', quote: 'Page one explains' } },
+      { id: 'm2', revision: 'r1', selection: { sourceId: 'book-p2', quote: 'Page two explains' } },
+    ];
+    cursor = 0; hooks = [];
+    ReaderHost({ modal: { type: 'source', source: s2, reread: { items: rereadItems, index: 1 } }, onClose: () => {} });
+    assert.equal(typeof readerRes.viewer.onAppendQuestionNote, 'function');
+    assert.equal(typeof readerRes.viewer.reread.onPrev, 'function');
+
+    // Test #60 reread.onPrev jumps back to index 0 (and at index 0 onPrev is absent).
+    readerRes.viewer.reread.onPrev();
+    assert.equal(modalSets[0].reread.index, 0);
+    assert.equal(modalSets[0].source.id, 'book-p1');
+    cursor = 0; hooks = [];
+    ReaderHost({ modal: { type: 'source', source: s1, reread: { items: rereadItems, index: 0 } }, onClose: () => {} });
+    assert.equal(readerRes.viewer.reread.onPrev, undefined);
+
+    // Test #11 appending passage note creates/reuses question note, appends once, avoids duplicate save, shows toast.
+    await readerRes.viewer.onAppendQuestionNote({ quote: 'Originator quote', title: 'Patterns', page: 2 });
+    assert.equal(savedNotes.length, 1);
+    assert.equal(savedNotes[0].markdown, '# 已有内容\n\n> Originator quote\n\n——《Patterns》第 2 页');
+    assert.equal(refreshed, 1);
+    assert.deepEqual(toasts.at(-1), ['success', '已记入本题笔记']);
+    await readerRes.viewer.onAppendQuestionNote({ quote: 'Originator quote', title: 'Patterns', page: 2 });
+    assert.equal(savedNotes.length, 1, 'identical formatted block is not appended twice');
+
+    // Exam/completed/absent run disables question note.
+    appValue.session = { run: { deckId: 'd1', card: { id: 'c1' }, complete: false, mode: 'exam' } };
+    cursor = 0; hooks = [];
+    ReaderHost({ modal: { type: 'source', source: s1 }, onClose: () => {} });
+    assert.equal(readerRes.viewer.onAppendQuestionNote, undefined);
+
+    // #15, #58, #11 useReaderMarks
+    let marksRes = null;
+    const noteCalls = [];
+    const MarksHost = props => { marksRes = useReaderMarks(props); return null; };
+    hooks = []; cursor = 0; pendingEffects = [];
+    const doc = { documentId: 'doc-1', revision: 'r1', title: 'Patterns', sources: [{ id: 'book-p1', page: 1, text: 'Page one explains the caretaker.' }] };
+    const bodyRef = { current: { ownerDocument: { createTreeWalker: () => ({ nextNode: () => null }) }, querySelectorAll: () => [] } };
+    const marksProps = {
+      call,
+      document: doc,
+      data: { settings: {} },
+      body: bodyRef,
+      rendered: 1,
+      enabled: true,
+      materialName: 'Patterns',
+      slides: false,
+      onAppendQuestionNote: item => noteCalls.push(item),
+    };
+    const renderMarks = () => { cursor = 0; pendingEffects = []; MarksHost(marksProps); const efs = pendingEffects.splice(0); efs.forEach(fn => fn()); };
+    renderMarks();
+    await new Promise(r => setTimeout(r, 10)); // resolve materials.marks.list
+    renderMarks();
+    assert.equal(marksRes.chip.props.open, false);
+
+    // Simulate menu open state on marks[4] (`menu` useState) for duplicate queue guard, copy-cite, and question-note.
+    hooks[3] = {
+      point: { x: 10, y: 20 },
+      capture: { sourceId: 'book-p1', start: 0, end: 17, quote: 'Page one explains' },
+      here: [],
+      selected: false,
+    };
+    renderMarks();
+
+    // #15 duplicate queue guard: warns instead of calling materials.marks.save, opens QueueChip.
+    const saveCallsBefore = calls.filter(([name]) => name === 'materials.marks.save').length;
+    marksRes.menu.props.onSelect('mark:queue');
+    await new Promise(r => setTimeout(r, 10));
+    renderMarks();
+    assert.equal(calls.filter(([name]) => name === 'materials.marks.save').length, saveCallsBefore);
+    assert.equal(marksRes.chip.props.open, true);
+    assert.deepEqual(toasts.at(-1), ['show', { tone: 'info', message: '这段已在「待出题」第 1 条里。' }]);
+
+    // #58 copy-cite copies formatted citation and shows toast.
+    marksRes.menu.props.onSelect('copy-cite');
+    await new Promise(r => setTimeout(r, 10));
+    assert.equal(copied.at(-1), 'Page one explains\n\n——《Patterns》第 1 页');
+    assert.deepEqual(toasts.at(-1), ['show', { tone: 'success', message: '已带出处复制' }]);
+
+    // #11 question-note forwards enriched capture to onAppendQuestionNote.
+    marksRes.menu.props.onSelect('question-note');
+    assert.deepEqual(noteCalls[0], { sourceId: 'book-p1', start: 0, end: 17, quote: 'Page one explains', title: 'Patterns', page: 1, slides: false });
+  } finally {
+    delete globalThis.__MARKS_REREAD_REACT__;
+    delete globalThis.__MARKS_REREAD_TOAST__;
+    globalThis.window = prevWin;
+    globalThis.document = prevDoc;
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, writable: true, value: prevNav });
+  }
 });

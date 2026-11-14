@@ -61,16 +61,66 @@ export function marksAt(items = [], capture) {
   });
 }
 
+const normalizeQuote = text => String(text ?? '').replace(/\s+/g, '').trim();
+
+/** Index of a queued entry whose span overlaps >= 70% of the shorter span or whose text overlaps by inclusion (>= 12 chars); -1 if none. */
+export function overlappingQueueIndex(queue = [], capture) {
+  if (!capture?.quote || !queue?.length) return -1;
+  const source = capture.sourceId || '';
+  const hasSpan = Number.isInteger(capture.start) && Number.isInteger(capture.end) && capture.end > capture.start;
+  const norm = normalizeQuote(capture.quote);
+  return queue.findIndex(item => {
+    const sel = item?.selection;
+    if (!sel?.quote) return false;
+    if (source && sel.sourceId && sel.sourceId !== source) return false;
+    if (hasSpan && Number.isInteger(sel.start) && Number.isInteger(sel.end) && sel.end > sel.start) {
+      const overlap = Math.min(capture.end, sel.end) - Math.max(capture.start, sel.start);
+      const shorter = Math.min(capture.end - capture.start, sel.end - sel.start);
+      if (shorter > 0 && overlap / shorter >= 0.7) return true;
+    }
+    const stored = normalizeQuote(sel.quote);
+    if (!norm || !stored) return false;
+    return Math.min(norm.length, stored.length) >= 12 && (stored.includes(norm) || norm.includes(stored));
+  });
+}
+
+/** Short selection length label for the context menu. */
+export function selectionStatsText(quote) {
+  const clean = String(quote ?? '').trim();
+  if (!clean) return '';
+  const chars = clean.replace(/\s+/g, '').length;
+  if (!chars) return '';
+  const latinWords = clean.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g);
+  if (!/\p{Script=Han}/u.test(clean) && latinWords?.length) {
+    return uiFormat('{0} 词 · {1} 字符', [latinWords.length, chars]);
+  }
+  return uiFormat('{0} 字', [chars]);
+}
+
+/** Format a quote with its material title and page/slide location for cited copying. */
+export function formatCitedQuote({ quote, title, page, slides = false } = {}) {
+  const text = String(quote ?? '').trim();
+  if (!text) return '';
+  const book = String(title ?? '').trim();
+  const pageNum = Number(page);
+  const loc = Number.isInteger(pageNum) && pageNum > 0 ? uiFormat(slides ? '第 {0} 张' : '第 {0} 页', [pageNum]) : '';
+  const cite = `${book ? `《${book}》` : ''}${loc}`;
+  return cite ? `${text}\n\n——${cite}` : text;
+}
+
 /**
  * The right-click menu over a selection: [{ id, label, icon, hint?, disabled?, tip? }] in Menu's shape. `here`: the marks the selection is in
  * (marksAt); `explain`: 'ready' | 'no-model' | 'unavailable'; `queueFull`: the list is at its limit.
  * Each stroke turns into its 去掉 when the selection is already in one; 复制 is first, so the browser's own copy is never lost.
  */
-export function selectionMenu({ here = [], explain = 'ready', queueFull = false, canMark = true, canQueue = true } = {}) {
+export function selectionMenu({ here = [], explain = 'ready', queueFull = false, canMark = true, canQueue = true, quote = '', canQuestionNote = false } = {}) {
   const has = style => here.some(item => item.style === style);
+  const hasQuote = !!String(quote ?? '').trim();
   const stroke = (style, add, remove, icon) => ({ id: has(style) ? `unmark:${style}` : `mark:${style}`, label: has(style) ? remove : add, icon, disabled: !canMark });
   return [
     { id: 'copy', label: ui('复制'), icon: 'copy', hint: 'Ctrl+C' },
+    ...(hasQuote ? [{ id: 'copy-cite', label: ui('带出处复制'), icon: 'copy', hint: selectionStatsText(quote) }] : []),
+    ...(canQuestionNote && hasQuote ? [{ id: 'question-note', label: ui('记入本题笔记'), icon: 'note' }] : []),
     stroke('underline', ui('下划线'), ui('去掉下划线'), 'underline'),
     stroke('bold', ui('加粗'), ui('去掉加粗'), 'bold'),
     stroke('highlight', ui('荧光笔'), ui('去掉荧光笔'), 'highlighter'),

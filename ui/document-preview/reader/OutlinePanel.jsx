@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { Checkbox, DisclosureToggle, Icon, IconButton, Tooltip } from '../../components/index.js';
+import { Button, Checkbox, Chip, DisclosureToggle, Icon, IconButton, Tooltip } from '../../components/index.js';
 import { defaultExpanded, filterOutline, outlineRows } from './outline.js';
 import { MasteryMark } from '../practice/MasteryMark.jsx';
 import MathText from '../../MathText.jsx';
@@ -24,15 +24,49 @@ const FILTER_FROM = 12;
  */
 export default function OutlinePanel({ items, activeId, onJump, labelOf = () => '', id, className = '', footer = null, initialOpen, meters = null, upgradedIds = null, coverage = null, coverageTotals = null, coverageAction = null, initialOnlyUncovered = false, reads = null, ...rest }) {
   useInjectCss(coverageCss, 'study-coverage');
-  const list = useRef(null), [query, setQuery] = useState(''), [toggled, setToggled] = useState(() => new Map()), [onlyUncovered, setOnlyUncovered] = useState(initialOnlyUncovered);
+  const list = useRef(null), [query, setQuery] = useState(''), [toggled, setToggled] = useState(() => new Map()), [onlyUncovered, setOnlyUncovered] = useState(initialOnlyUncovered), [onlyUnread, setOnlyUnread] = useState(false);
   const signature = `${items.length}:${items[0]?.id ?? ''}:${items.at(-1)?.id ?? ''}`;
   useEffect(() => { setToggled(new Map()); setQuery(''); }, [signature]);
   const base = useMemo(() => initialOpen ? new Set(initialOpen) : defaultExpanded(items, activeId), [items, activeId, initialOpen]);
   const expanded = useMemo(() => new Set(items.filter(item => toggled.has(item.id) ? toggled.get(item.id) : base.has(item.id)).map(item => item.id)), [items, base, toggled]);
   const filtering = query.trim().length > 0;
-  // 只看没覆盖的: the sections with no question and the parts they are in, in the outline's own order and indentation.
-  const narrowed = onlyUncovered && !!coverage;
-  const kept = useMemo(() => narrowed ? items.filter(item => coverage.uncovered.has(item.id)) : items, [narrowed, items, coverage]);
+  const unreadPartial = !!reads && reads.total > 0 && reads.count < reads.total;
+  const unreadKeptIds = useMemo(() => {
+    if (!unreadPartial) return null;
+    const byId = new Map(items.map(item => [item.id, item])), kept = new Set();
+    const ownMark = item => {
+      for (let node = item; node; node = byId.get(node.parent)) {
+        const markId = reads.marks ? reads.marks.get(node.id) : (node.kind === 'chapter' ? node.id : null);
+        if (markId) return markId;
+      }
+      return null;
+    };
+    for (const item of items) {
+      const markId = ownMark(item);
+      if (markId && !reads.read.has(markId)) {
+        for (let node = item; node; node = byId.get(node.parent)) kept.add(node.id);
+      }
+    }
+    return kept;
+  }, [items, reads, unreadPartial]);
+  const unreadTargets = useMemo(() => {
+    if (!reads) return [];
+    return items.filter(item => {
+      const markId = reads.marks ? reads.marks.get(item.id) : (item.kind === 'chapter' ? item.id : null);
+      return markId && !reads.read.has(markId);
+    });
+  }, [items, reads]);
+  const jumpNextUnread = () => {
+    if (!unreadTargets.length) return;
+    const indexById = new Map(items.map((item, idx) => [item.id, idx]));
+    const activeAt = activeId ? (indexById.get(activeId) ?? -1) : -1;
+    const next = unreadTargets.find(item => indexById.get(item.id) > activeAt) || unreadTargets[0];
+    onJump(next);
+  };
+  // 只看没覆盖的 / 只看未读: matching sections and their ancestors, in the outline's own order and indentation.
+  const narrowed = (onlyUncovered && !!coverage) || (onlyUnread && unreadPartial);
+  const kept = useMemo(() => items.filter(item => (!onlyUncovered || !coverage || coverage.uncovered.has(item.id))
+    && (!onlyUnread || !unreadKeptIds || unreadKeptIds.has(item.id))), [items, onlyUncovered, coverage, onlyUnread, unreadKeptIds]);
   const rows = useMemo(() => filtering ? filterOutline(kept, query) : narrowed ? kept : outlineRows(items, expanded), [filtering, kept, narrowed, items, query, expanded]);
   // The current entry, or the nearest part above it that is on screen.
   const current = useMemo(() => {
@@ -53,7 +87,13 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
   const name = item => [labelOf(item), item.title].filter(Boolean).join(' · ');
   return <nav id={id} className={`reader-outline ${className}`.trim()} aria-label={ui('目录')} {...rest}>
     <h3 className="reader-panel__title">{ui('目录')}</h3>
-    {reads && reads.total > 0 && <p className="reader-outline__readhead" data-read-count>{uiFormat('已读 {0}/{1} 章', [reads.count, reads.total])}</p>}
+    {reads && reads.total > 0 && <div className="reader-outline__readhead">
+      <span data-read-count>{uiFormat('已读 {0}/{1} 章', [reads.count, reads.total])}</span>
+      {unreadPartial && <div className="reader-outline__readbar">
+        <Chip size="sm" selected={onlyUnread} onClick={() => setOnlyUnread(value => !value)}>{ui('只看未读')}</Chip>
+        {unreadTargets.length > 0 && <Button variant="quiet" size="sm" onClick={jumpNextUnread}>{ui('下一未读章')}</Button>}
+      </div>}
+    </div>}
     {coverage && coverageTotals?.leaves > 0 && <div className="reader-outline__covhead" data-coverage-head>
       <span className="cov-meter" data-coverage-count>{coverageOutlineHead(coverageTotals)}</span>
       {coverageTotals.covered < coverageTotals.leaves && <Checkbox className="reader-outline__covtoggle" label={ui('只看没覆盖的')} checked={onlyUncovered} onChange={setOnlyUncovered} data-coverage-filter />}
@@ -81,8 +121,18 @@ export default function OutlinePanel({ items, activeId, onJump, labelOf = () => 
               {item.title && <span className="reader-outline__title"><MathText text={item.title} /></span>}
               {filtering && item.trail?.length > 0 && <small className="reader-outline__trail">{item.trail.at(-1)}</small>}
             </button>
-            {reads?.read.has(reads.marks?.get(item.id)) && <IconButton icon="check" size="sm" className="reader-outline__read" data-chapter-read={reads.marks.get(item.id)}
-              label={uiFormat('已读：{0}。点一下标为未读', [name(item) || ui('此节')])} onClick={() => reads.onUnread(reads.marks.get(item.id))} />}
+            {(() => {
+              const markId = reads?.marks ? reads.marks.get(item.id) : (item.kind === 'chapter' ? item.id : null);
+              if (!markId || !reads?.read.has(markId)) return null;
+              const weak = meters?.get(item.id)?.weak || 0;
+              const readLabel = weak > 0
+                ? uiFormat('已读：{0}（还有 {1} 道待巩固题）。点一下标为未读', [name(item) || ui('此节'), weak])
+                : uiFormat('已读：{0}。点一下标为未读', [name(item) || ui('此节')]);
+              return <Tooltip layer content={readLabel}>
+                <IconButton icon="check" size="sm" className="reader-outline__read" data-chapter-read={markId}
+                  data-read-weak={weak > 0 ? 'true' : undefined} label={readLabel} onClick={() => reads.onUnread(markId)} />
+              </Tooltip>;
+            })()}
             {/* 覆盖 of this entry: a square mark for a section, the count of the sections below for a part; a different shape from the mastery ring. */}
             {coverage && <span className="reader-outline__cov">{here?.own ? <CoverageMark state={here.own.state} reason={here.own.reason} recorded={coverageTotals?.recorded !== false} title={name(item)} size={12} />
               : here?.leaves ? <Tooltip layer placement="left-start" content={joinMeta([rangeCoverageText(here, coverageTotals?.units), here.plannedFailed > 0 && plannedFailedText(here.plannedFailed),

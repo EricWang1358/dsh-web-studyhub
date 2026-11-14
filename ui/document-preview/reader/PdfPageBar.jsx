@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat } from '../../i18n.js';
-import { IconButton, NumberInput } from '../../components/index.js';
+import { IconButton, NumberInput, Tooltip } from '../../components/index.js';
 import { clampPage } from '../page-scope.js';
 import { ZOOMS } from '../peek/peek-logic.js';
 
@@ -11,9 +11,11 @@ import { ZOOMS } from '../peek/peek-logic.js';
  */
 
 /** The page box's keys: Enter applies the number; Escape puts the current page back and stays in the box (it must not close the reader, like FindBar's). */
-export function pageBoxKey(event, { apply, reset }) {
+export function pageBoxKey(event, { apply, reset, step }) {
   if (event.key === 'Enter') { event.preventDefault(); apply(); return true; }
   if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); reset(); return true; }
+  if (event.key === 'ArrowUp') { event.preventDefault(); step?.(event.shiftKey ? 10 : 1); return true; }
+  if (event.key === 'ArrowDown') { event.preventDefault(); step?.(event.shiftKey ? -10 : -1); return true; }
   return false;
 }
 
@@ -35,12 +37,14 @@ export default function PdfPageBar({ page, total, onPage, zoom, onZoom, children
     <IconButton size="sm" icon="chevron-left" label={ui('上一页')} disabled={page <= 1} onClick={() => step(-1)} />
     <NumberInput inputMode="numeric" min={1} max={total || undefined} step={1} value={draft} className="reader-pdf-bar__input" aria-label={ui('页码')}
       onChange={event => setDraft(event.target.value)} onBlur={apply}
-      onKeyDown={event => pageBoxKey(event, { apply, reset: () => setDraft(String(page)) })} />
+      onKeyDown={event => pageBoxKey(event, { apply, reset: () => setDraft(String(page)), step })} />
     {total > 0 && <span className="reader-pdf-bar__total">{uiFormat('/ {0} 页', [total])}</span>}
     <IconButton size="sm" icon="chevron" label={ui('下一页')} disabled={!!total && page >= total} onClick={() => step(1)} />
     {zoom !== undefined && <span className="reader-pdf-bar__zooms">
       <IconButton size="sm" icon="minus" label={ui('缩小')} disabled={zoom <= ZOOMS[0]} onClick={() => onZoom(-1)} />
-      <output className="reader-pdf-bar__zoom" aria-live="polite">{Math.round(zoom * 100)}%</output>
+      <Tooltip layer content={ui('双击切换适合宽度与放大')}>
+        <output className="reader-pdf-bar__zoom" aria-live="polite" onDoubleClick={() => onZoom(zoom === 1 ? 1 : 0)}>{Math.round(zoom * 100)}%</output>
+      </Tooltip>
       <IconButton size="sm" icon="plus" label={ui('放大')} disabled={zoom >= ZOOMS.at(-1)} onClick={() => onZoom(1)} />
       <IconButton size="sm" icon="fit" label={ui('适合宽度')} onClick={() => onZoom(0)} />
     </span>}

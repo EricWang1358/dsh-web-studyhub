@@ -42,6 +42,11 @@
     .section-practice__stat[data-empty] {
       color: var(--text-faint);
     }
+    .section-practice__filter {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1-5);
+    }
     .section-practice__qa-panel {
       max-height: min(360px, 50vh);
       overflow-y: auto;
