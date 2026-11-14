@@ -1,10 +1,11 @@
-/* global document */
+/* global document, WheelEvent */
 /* Images in question cards: a Markdown image in a stem, an option or an explanation is drawn as an
    image; an address that is unsafe or cannot be loaded is drawn as a readable fallback, never as
    active markup and never as an error in the card. The same Markdown component draws every card
    surface (review, flashcard, mock exam), so these cases cover all of them. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
@@ -119,4 +120,97 @@ test('an image that cannot be loaded is replaced by the fallback and the card ke
   assert.equal(await page.locator('.card math').count(), 1, 'the formula next to the images still renders');
   assert.deepEqual(errors, []);
   assert.ok(requested.length >= 2 && requested.every(url => url.startsWith('https://example.org/')), requested.join());
+});
+
+test('StudyImage lightbox provides zoom toolbar, keyboard +/=/-/0 & Ctrl+Wheel zoom, and restores focus to trigger', { timeout: 60000 }, async t => {
+  const source = readFileSync(new URL('../ui/StudyImage.jsx', import.meta.url), 'utf8');
+  assert.equal((source.match(/<button\b/g) || []).length, 1, 'StudyImage keeps exactly one raw <button>');
+  assert.match(source, /triggerRef/);
+
+  const bundle = await compile(`
+    import React from 'react';
+    import { createRoot } from 'react-dom/client';
+    import Markdown from './ui/Markdown.jsx';
+    import { setUiLanguage } from './ui/i18n.js';
+    setUiLanguage('zh');
+    createRoot(document.getElementById('root')).render(
+      <div className="study-app"><Markdown text="![图解](https://example.org/diagram.png)" /></div>
+    );`, { platform: 'browser', format: 'iife' });
+
+  let browser;
+  try { browser = await launchChromium(); }
+  catch (error) {
+    if (!/browserType\.launch: Executable doesn't exist/.test(String(error.message))) throw error;
+    t.skip('Chromium unavailable'); return;
+  }
+  t.after(() => browser.close());
+  const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 800, height: 700 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZkAAAAASUVORK5CYII=', 'base64');
+  await page.route('**/*', route => {
+    const url = route.request().url();
+    if (url.startsWith('about:') || url.startsWith('data:')) return route.continue();
+    return route.fulfill({ contentType: 'image/png', body: PNG });
+  });
+  await page.setContent('<main id="root"></main>');
+  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+
+  const openBtn = page.locator('.md-image-open');
+  await openBtn.waitFor();
+  await openBtn.focus();
+  await openBtn.click();
+
+  const dialog = page.locator('dialog.sh-dialog--media');
+  await dialog.waitFor();
+  const toolbar = dialog.locator('.md-image-toolbar');
+  const zoomOutBtn = toolbar.getByRole('button', { name: '缩小' });
+  const resetBtn = toolbar.getByRole('button', { name: '重设缩放' });
+  const zoomInBtn = toolbar.getByRole('button', { name: '放大' });
+
+  assert.equal(await zoomOutBtn.isDisabled(), true);
+  assert.equal(await resetBtn.innerText(), '100%');
+  assert.equal(await zoomInBtn.isDisabled(), false);
+
+  await zoomInBtn.click();
+  assert.equal(await resetBtn.innerText(), '125%');
+  assert.equal(await zoomOutBtn.isDisabled(), false);
+  assert.equal(await dialog.locator('.md-image-dialog-canvas img').evaluate(img => img.style.transform), 'scale(1.25)');
+
+  await zoomInBtn.focus();
+  await page.keyboard.press('+');
+  assert.equal(await resetBtn.innerText(), '150%');
+  await page.keyboard.press('=');
+  assert.equal(await resetBtn.innerText(), '175%');
+  await page.keyboard.press('-');
+  assert.equal(await resetBtn.innerText(), '150%');
+  await page.keyboard.press('0');
+  assert.equal(await resetBtn.innerText(), '100%');
+
+  for (let n = 0; n < 9; n++) await page.keyboard.press('+');
+  assert.equal(await resetBtn.innerText(), '300%');
+  assert.equal(await zoomInBtn.isDisabled(), true);
+
+  await resetBtn.click();
+  assert.equal(await resetBtn.innerText(), '100%');
+
+  await dialog.locator('.md-image-dialog-canvas').evaluate(el => {
+    el.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, deltaY: -100, bubbles: true, cancelable: true }));
+  });
+  assert.equal(await resetBtn.innerText(), '125%');
+  await dialog.locator('.md-image-dialog-canvas').evaluate(el => {
+    el.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, deltaY: 100, bubbles: true, cancelable: true }));
+  });
+  assert.equal(await resetBtn.innerText(), '100%');
+
+  await dialog.locator('.sh-dialog__close').click();
+  await page.waitForFunction(() => !document.querySelector('dialog.sh-dialog--media'));
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('md-image-open')), true);
+
+  await openBtn.click();
+  await dialog.waitFor();
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('dialog.sh-dialog--media'));
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('md-image-open')), true);
+  assert.deepEqual(errors, []);
 });
