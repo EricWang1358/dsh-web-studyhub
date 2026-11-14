@@ -281,6 +281,9 @@
     /* The title is one row: the label, then the field (the page's first screen is for the questions, #669); on a narrow screen they stack again. */
     .draft-title-field { flex-direction: row; align-items: center; gap: var(--space-3); white-space: nowrap; }
     .draft-title-field .draft-title-field__input { flex: 1 1 auto; min-width: 0; margin: 0; }
+    .draft-next-flagged {
+      white-space: nowrap;
+    }
     .draft-card { margin: var(--space-2) 0; padding: var(--space-2-5) var(--space-4); }
     /* The page's toasts stand above the bar, not behind it (the bar is 60 to 90px high, and the rail's bottom edge is below the bar's). */
     main:has([data-draft-bar]) { --sh-toast-offset: calc(var(--space-9) * 2); }

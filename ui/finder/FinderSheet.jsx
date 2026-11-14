@@ -7,6 +7,7 @@ import { FINDER_AREAS, FINDER_ENTRIES, entryTags } from './entries.js';
 import { groupByArea, searchFeatures } from './search.js';
 import { withAvailability } from './availability.js';
 import { moveActive } from './keys.js';
+import { searchLibraryHits } from './library-hits.js';
 import { clearRecentFinderIds, readRecentFinderIds, recentFinderEntries, recordRecentFinderId } from './recent.js';
 
 /* 找功能 (#653): one dialog. A search field, then the results as a listbox: ↑ and ↓ move, Enter is 「带我去」, Esc closes and gives the focus back to what opened it
@@ -16,17 +17,37 @@ import { clearRecentFinderIds, readRecentFinderIds, recentFinderEntries, recordR
    its meaning and has none. The selected row is --bg-selected, never the accent: 「带我去」 is not the page's one primary action.
    `onGo(entry)` closes the sheet and moves (ui/finder/use-finder.js); `onTour` starts the feature tour (the empty state's way on). */
 
+const LIBRARY_KIND_LABEL = {
+  course: '课程',
+  deck: '题组',
+  source: '资料',
+  note: '笔记',
+};
+
+function libraryMeta(entry) {
+  const parts = [];
+  if (entry.current) parts.push(ui('当前课程'));
+  if (entry.libraryKind === 'deck' && entry.count > 0) parts.push(uiFormat('{0} 题', [entry.count]));
+  if (entry.libraryKind === 'source' && entry.pages > 0) parts.push(uiFormat('{0} 页', [entry.pages]));
+  return parts.join(' · ');
+}
+
 /** One result row. The 「带我去」 button is drawn for every reachable row and only shown on the selected one and on hover (a per-row action, DESIGN.md Restraint). */
 function Row({ entry, domId, active, onSelect, onGo }) {
-  const tags = entryTags(entry, ui);
-  const crumbs = entry.path.length > 1 || entry.path[0] !== entry.title ? entry.path.map((crumb) => ui(crumb)).join(' › ') : '';
+  const isLibrary = entry.kind === 'library';
+  const tags = isLibrary ? [] : entryTags(entry, ui);
+  const crumbs = isLibrary
+    ? [ui(LIBRARY_KIND_LABEL[entry.libraryKind] || '资料'), entry.course].filter(Boolean).join(' › ')
+    : (entry.path.length > 1 || entry.path[0] !== entry.title ? entry.path.map((crumb) => ui(crumb)).join(' › ') : '');
+  const titleText = isLibrary ? (entry.title || ui('未命名笔记')) : ui(entry.title);
+  const whatText = isLibrary ? libraryMeta(entry) : ui(entry.what);
   const canGo = entry.kind !== 'term' && !entry.unavailable;
   return (
     <div id={domId} role="option" aria-selected={active} aria-disabled={entry.unavailable ? 'true' : undefined} className="finder-row" data-entry={entry.id}
       data-active={active ? 'true' : undefined} data-unavailable={entry.unavailable ? 'true' : undefined} onClick={onSelect}>
       <div className="finder-row__text">
-        <p className="finder-row__head"><span className="finder-row__title">{ui(entry.title)}</span>{crumbs && <span className="finder-row__crumbs">{crumbs}</span>}</p>
-        <p className="finder-row__what">{ui(entry.what)}</p>
+        <p className="finder-row__head"><span className="finder-row__title">{titleText}</span>{crumbs && <span className="finder-row__crumbs">{crumbs}</span>}</p>
+        {whatText && <p className="finder-row__what">{whatText}</p>}
         {(tags.length > 0 || entry.unavailable) && <p className="finder-row__tags">
           {tags.map((tag) => <Badge key={tag} size="sm">{tag}</Badge>)}
           {entry.unavailable && <span className="finder-row__reason">{entry.unavailable}</span>}
@@ -46,9 +67,11 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
   const [selected, setSelected] = useState(null);
   const input = useRef(null), byKey = useRef(false);
   const base = useId(), listId = `${base}-list`;
+  const hasQuery = query.trim().length >= 1;
+  const browsing = !hasQuery;
   const marked = useMemo(() => withAvailability(entries, data), [entries, data]);
   const found = useMemo(() => searchFeatures(marked, query, { translate: ui }), [marked, query]);
-  const browsing = !query.trim();
+  const libraryHits = useMemo(() => (hasQuery ? searchLibraryHits(data, query) : []), [hasQuery, data, query]);
   const recentEntries = useMemo(() => (browsing ? recentFinderEntries(marked, recentIds) : []), [browsing, marked, recentIds]);
   const groups = useMemo(() => (browsing ? groupByArea(found, FINDER_AREAS) : []), [browsing, found]);
   // What the arrow keys can reach: the rows that are drawn open.
@@ -57,21 +80,25 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
       ...recentEntries.map((entry) => ({ slotKey: `recent:${entry.id}`, entry })),
       ...groups.filter((group) => openAreas.has(group.area.id)).flatMap((group) => group.entries.map((entry) => ({ slotKey: entry.id, entry }))),
     ]
-    : found.map((entry) => ({ slotKey: entry.id, entry }));
+    : [
+      ...found.map((entry) => ({ slotKey: entry.id, entry })),
+      ...libraryHits.map((entry) => ({ slotKey: entry.id, entry })),
+    ];
   const ids = visibleSlots.map((slot) => slot.slotKey);
   const active = ids.includes(selected) ? selected : ids[0] ?? null;
-  const domId = (slotKey) => `${base}-${slotKey}`;
+  const domId = (slotKey) => `${base}-${String(slotKey).replace(/\s+/g, '-')}`;
+  const activeDomId = active ? domId(active) : undefined;
 
   // A key press that moves the selection scrolls it into view; a click does not move the list under the pointer.
   useEffect(() => {
-    if (!byKey.current || !active) return;
+    if (!byKey.current || !activeDomId) return;
     byKey.current = false;
-    document.getElementById(`${base}-${active}`)?.scrollIntoView({ block: 'nearest' });
-  }, [active, base]);
+    document.getElementById(activeDomId)?.scrollIntoView({ block: 'nearest' });
+  }, [activeDomId]);
 
   const go = (entry) => {
     if (!entry || entry.kind === 'term' || entry.unavailable) return;
-    setRecentIds(recordRecentFinderId(entry.id));
+    if (entry.kind !== 'library') setRecentIds(recordRecentFinderId(entry.id));
     onGo(entry);
   };
   const onKeyDown = (event) => {
@@ -100,7 +127,7 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
   return (
     <Dialog title={ui('找功能')} description={ui('搜一个功能在哪；什么都不输入，就是完整的索引。')} size="md" className="finder-sheet" bodyClassName="finder-body" onClose={onClose} initialFocus={input}>
       <TextInput ref={input} className="finder-input" role="combobox" aria-label={ui('搜索功能')} aria-autocomplete="list" aria-expanded="true" aria-controls={listId}
-        aria-activedescendant={active ? `${base}-${active}` : undefined} autoComplete="off" spellCheck={false} placeholder={ui('输入功能名，例如 翻译、花费上限')}
+        aria-activedescendant={activeDomId} autoComplete="off" spellCheck={false} placeholder={ui('输入功能名，例如 翻译、花费上限')}
         value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={onKeyDown} />
       <div id={listId} className="finder-results" role="listbox" aria-label={ui('功能')} data-mode={browsing ? 'index' : 'search'}>
         {browsing
@@ -121,15 +148,25 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
               </details>
             ))}
           </>
-          : found.map((entry) => row(entry))}
-        {!browsing && found.length === 0 && (
+          : <>
+            {found.map((entry) => row(entry))}
+            {libraryHits.length > 0 && (
+              <section className="finder-library" aria-label={ui('学习库内容')}>
+                <div className="finder-library__head">
+                  <span className="finder-library__label">{ui('学习库内容')}</span>
+                </div>
+                <div role="group" aria-label={ui('学习库内容')}>{libraryHits.map((entry) => row(entry))}</div>
+              </section>
+            )}
+          </>}
+        {!browsing && found.length === 0 && libraryHits.length === 0 && (
           <div className="finder-empty">
             <p>{uiFormat('没找到『{0}』。试试换个说法，或打开功能导览。', [query.trim()])}</p>
             <Button size="sm" variant="secondary" onClick={onTour}>{ui('打开功能导览')}</Button>
           </div>
         )}
       </div>
-      <p className="sh-visually-hidden" role="status" aria-live="polite">{!browsing && found.length > 0 ? uiFormat('找到 {0} 项', [found.length]) : ''}</p>
+      <p className="sh-visually-hidden" role="status" aria-live="polite">{!browsing && (found.length + libraryHits.length) > 0 ? uiFormat('找到 {0} 项', [found.length + libraryHits.length]) : ''}</p>
     </Dialog>
   );
 }

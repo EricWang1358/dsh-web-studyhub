@@ -45,10 +45,10 @@ const waitFor = (look, timeout, aborted) => new Promise((resolve) => {
   tick();
 });
 
-export function useFinder({ nav, settingsEntry, core, tour, rootRef }) {
+export function useFinder({ nav, settingsEntry, core, tour, rootRef, learn }) {
   const [open, setOpen] = useState(false);
   const trip = useRef(0), latest = useRef({});
-  latest.current = { page: nav.page, touring: !!tour.tourStep, open };
+  latest.current = { page: nav.page, touring: !!tour.tourStep, open, openTarget: learn?.openLearningTarget };
   const { notify } = core, { navigate } = nav, { openSettings } = settingsEntry, { startTour } = tour;
 
   const openFinder = useCallback(() => {
@@ -71,6 +71,11 @@ export function useFinder({ nav, settingsEntry, core, tour, rootRef }) {
   /** 带我去. */
   const go = useCallback(async (entry) => {
     setOpen(false);
+    if (entry?.kind === 'library' && entry.target) {
+      ++trip.current;
+      await latest.current.openTarget?.(entry.target);
+      return;
+    }
     const mine = ++trip.current, aborted = () => trip.current !== mine;
     const root = rootRef.current, plan = planTrip(entry, { page: latest.current.page });
     let hit = plan.here ? locateAnchor(root, entry.anchors) : null, linked = false;
