@@ -240,7 +240,7 @@ test('Wave 6: StudyProgressPanel add-item input guards IME Enter and implements 
   input.props.onKeyDown(escBlur.event);
   assert.deepEqual(escBlur.state(), { prevented: false, stopped: false, blurred: 1 });
 
-  const escDialog = makeKeyEvent('Escape', { currentTarget: { blur: () => { throw new Error('must not blur inside dialog'); }, closest: (s) => (s === '[role="dialog"]' ? {} : null) } });
+  const escDialog = makeKeyEvent('Escape', { currentTarget: { blur: () => { throw new Error('must not blur inside dialog'); }, closest: (s) => (/role=['"]dialog['"]|dialog\[open\]/.test(s) ? {} : null) } });
   input.props.onKeyDown(escDialog.event);
   assert.deepEqual(escDialog.state(), { prevented: false, stopped: false, blurred: 0 });
   assert.deepEqual(added, []);
@@ -314,7 +314,7 @@ test('Wave 6: Sources and ScrollWindow filter inputs guard IME composition and d
     assert.deepEqual(swBlur.state(), { prevented: false, stopped: false, blurred: 1 });
 
     const swDialog = makeKeyEvent('Escape', {
-      currentTarget: { blur: () => { throw new Error('ScrollWindow inside dialog must let Escape close dialog'); }, closest: (s) => (s === '[role="dialog"]' ? {} : null) },
+      currentTarget: { blur: () => { throw new Error('ScrollWindow inside dialog must let Escape close dialog'); }, closest: (s) => (/role=['"]dialog['"]|dialog\[open\]/.test(s) ? {} : null) },
     });
     swInput.props.onKeyDown(swDialog.event);
     assert.deepEqual(swDialog.state(), { prevented: false, stopped: false, blurred: 0 });

@@ -167,7 +167,7 @@ export default function ScrollWindow({ label, items = [], itemKey = (item, index
             if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
             if (event.key !== 'Escape') return;
             if (value) { event.preventDefault(); event.stopPropagation(); setQuery(''); }
-            else if (!event.currentTarget?.closest?.('[role="dialog"]')) event.currentTarget?.blur?.();
+            else if (!event.currentTarget?.closest?.(".sh-dialog__backdrop, dialog[open], [role='dialog']")) event.currentTarget?.blur?.();
           }} />}
         {toolbar}
         {counted && <small className="sh-scroll__count" aria-live="polite">{scrollWindowCount(items.length, shown.length, filtering)}</small>}

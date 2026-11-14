@@ -186,7 +186,7 @@ export function StudyProgressPanel({
                     e.preventDefault();
                     e.stopPropagation();
                     setNewItemTitle('');
-                  } else if (!e.currentTarget?.closest?.('[role="dialog"]')) {
+                  } else if (!e.currentTarget?.closest?.(".sh-dialog__backdrop, dialog[open], [role='dialog']")) {
                     e.currentTarget?.blur?.();
                   }
                 }}
