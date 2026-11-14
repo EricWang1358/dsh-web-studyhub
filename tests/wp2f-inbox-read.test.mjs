@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createQuickActions, markInboxRead } from '../ui/quick-actions.js';
+import { createQuickActions, markInboxRead, markInboxUnread } from '../ui/quick-actions.js';
 import { openInboxResult } from '../ui/app/inbox-open.js';
 
 // UI wave 2 · WP-F (#93): "seen means read" goes through the same quick path as 全部已读, and a letter opens by its registry row.
@@ -112,4 +112,28 @@ test('a letter about a card opens the run, keeps the way back, and shows the exp
   openInboxResult({ item: { kind: 'coach' }, result: { id: 'r1', index: 3 }, from: { runId: 'r1', index: 3 }, fromReview: true }, same);
   assert.deepEqual(same.log.map(([name]) => name), ['run'], 'the same question: nothing to come back to');
   void nothing;
+});
+
+test('markInboxUnread flips read letters back to unread immediately and supports re-toggling back to read within holdMs', async () => {
+  const calls = [];
+  const quick = createQuickActions({ call: async (action, args) => { calls.push([action, args]); return {}; }, timers: false, holdMs: 60000 });
+  const raw = { inbox: inbox() };
+  await markInboxUnread(quick, { ids: ['d'] });
+  const unreadView = quick.view(raw);
+  assert.equal(unreadView.inbox.unread, 4);
+  assert.equal(unreadView.inbox.items.find((item) => item.id === 'd').read, false);
+  assert.equal(raw.inbox.unread, 3, 'server snapshot is not mutated');
+
+  await markInboxRead(quick, { ids: ['d'] });
+  const readView = quick.view(raw);
+  assert.equal(readView.inbox.items.find((item) => item.id === 'd').read, true);
+  assert.deepEqual(calls, [['inbox.unread', { ids: ['d'] }], ['inbox.read', { ids: ['d'] }]]);
+});
+
+test('a failed mark-as-unread drops its patch and stores the failure under inbox:unread:<id>', async () => {
+  const quick = createQuickActions({ call: async () => { throw new Error('offline'); }, timers: false });
+  const raw = { inbox: inbox() };
+  await markInboxUnread(quick, { ids: ['d'] });
+  assert.equal(quick.view(raw), raw);
+  assert.deepEqual(Object.keys(quick.failures()), ['inbox:unread:d']);
 });

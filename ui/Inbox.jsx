@@ -36,7 +36,7 @@ function Preview({ m }) {
   </>;
 }
 
-function Letter({ m, now, onOpen, onUndo, close }) {
+function Letter({ m, now, onOpen, onToggleRead, onUndo, close }) {
   const { busy } = useStudy();
   const tone = inboxTone(m.kind);
   return (
@@ -64,13 +64,38 @@ function Letter({ m, now, onOpen, onUndo, close }) {
         {m.detail && <span className="mailbox__detail">{m.detail}</span>}
       </button>
       </Tooltip>
-      {m.canRevert && onUndo && <Button variant="link" size="sm" className="mailbox__undo"
-        lock={busy} onClick={() => onUndo(m)}>{ui("回退这次改题")}</Button>}
+      <div className="mailbox__row-actions">
+        <Button size="sm" variant="quiet" className="mailbox__read-toggle" lock={busy}
+          onClick={() => onToggleRead?.(m)}>{m.read ? ui("标为未读") : ui("标为已读")}</Button>
+        {m.canRevert && onUndo && <Button variant="link" size="sm" className="mailbox__undo"
+          lock={busy} onClick={() => onUndo(m)}>{ui("回退这次改题")}</Button>}
+      </div>
     </>
   );
 }
 
-export default function Inbox({ inbox, onOpen, onReadAll, onUndo, readError = "", defaultOpen = false, onOpenTasks }) {
+/** Move keyboard focus across `.mailbox__item` rows inside the open mailbox panel. */
+export function moveMailboxFocus(panelElement, event) {
+  if (!panelElement || event.altKey || event.ctrlKey || event.metaKey) return false;
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return false;
+  const inList = event.target === panelElement || !!event.target?.closest?.(".mailbox__list");
+  if (!inList) return false;
+  const rows = [...panelElement.querySelectorAll(".mailbox__item:not(:disabled)")];
+  if (!rows.length) return false;
+  const activeRow = event.target?.closest?.(".mailbox__row")?.querySelector?.(".mailbox__item") || null;
+  const current = rows.indexOf(activeRow);
+  let next = 0;
+  if (event.key === "Home") next = 0;
+  else if (event.key === "End") next = rows.length - 1;
+  else if (event.key === "ArrowDown") next = current < 0 ? 0 : Math.min(rows.length - 1, current + 1);
+  else if (event.key === "ArrowUp") next = current < 0 ? rows.length - 1 : Math.max(0, current - 1);
+  event.preventDefault();
+  rows[next].focus?.();
+  rows[next].scrollIntoView?.({ block: "nearest" });
+  return true;
+}
+
+export default function Inbox({ inbox, onOpen, onReadAll, onToggleRead, onUndo, readError = "", defaultOpen = false, onOpenTasks }) {
   useInjectCss(css, "study-inbox");
   useInjectCss(previewCss, "study-inbox-preview");
   const [open, setOpen] = React.useState(defaultOpen);
@@ -110,7 +135,8 @@ export default function Inbox({ inbox, onOpen, onReadAll, onUndo, readError = ""
         {unread > 0 && <span className="mailbox__count">{unread > 99 ? "99+" : unread}</span>}
       </IconButton>
       {open && (
-        <div className="mailbox__panel" ref={panel} tabIndex={-1} role="dialog" aria-label={ui("信箱")}>
+        <div className="mailbox__panel" ref={panel} tabIndex={-1} role="dialog" aria-label={ui("信箱")}
+          onKeyDown={(event) => moveMailboxFocus(panel.current, event)}>
           <div className="mailbox__head">
             <strong>{ui("信箱")}</strong>
             <small className="mailbox__sub">{unread ? uiFormat("{0} 条未读", [unread]) : ui("都看过了")}</small>
@@ -120,7 +146,7 @@ export default function Inbox({ inbox, onOpen, onReadAll, onUndo, readError = ""
           {items.length ? (
             <ScrollWindow className="mailbox__scroll" frameClassName="mailbox__scroll-frame" label={ui("信箱消息")} items={items} itemKey={(m) => m.id}
               listClassName="mailbox__list" itemClassName="mailbox__row" style={PANEL_ROWS}
-              renderItem={(m) => <Letter m={m} now={now} onOpen={onOpen} onUndo={onUndo} close={() => setOpen(false)} />} />
+              renderItem={(m) => <Letter m={m} now={now} onOpen={onOpen} onToggleRead={onToggleRead} onUndo={onUndo} close={() => setOpen(false)} />} />
           ) : <EmptyMailbox onOpenTasks={onOpenTasks ? () => { setOpen(false); onOpenTasks(); } : undefined} />}
         </div>
       )}

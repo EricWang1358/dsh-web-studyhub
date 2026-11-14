@@ -13,11 +13,11 @@ import { localizeAppResponse, localizeAppMessage } from '../lib/application-mess
 const han = /[㐀-鿿]/;
 const read = async path => (await readFile(path, 'utf8')).replace(/\r\n/g, '\n');
 const require = createRequire(import.meta.url);
-const compiled = await build({ stdin: { contents: `export { default as Inbox } from './ui/Inbox.jsx'; export { setUiLanguage, ui } from './ui/i18n.js';`, resolveDir: process.cwd() },
+const compiled = await build({ stdin: { contents: `export { default as Inbox, moveMailboxFocus } from './ui/Inbox.jsx'; export { setUiLanguage, ui } from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
-const { Inbox, setUiLanguage, ui: translate } = module.exports;
+const { Inbox, moveMailboxFocus, setUiLanguage, ui: translate } = module.exports;
 const h = React.createElement;
 const GROUPS = ['card', 'job', 'note'], TONES = ['success', 'warning', 'error', 'info', 'neutral'];
 
@@ -207,4 +207,44 @@ test('inbox styles live in ui/inbox.css with tokens only', async () => {
   assert.doesNotMatch(css, /\b15px\b/);
   assert.doesNotMatch(css, /z-index:\s*\d/);
   assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b/);
+});
+
+test('every inbox row has a quiet read/unread toggle button outside .mailbox__item and keeps raw <button> count at 1', async () => {
+  setUiLanguage('zh');
+  const out = panel();
+  const toggles = [...out.matchAll(/<button[^>]*class="[^"]*sh-btn--quiet[^"]*sh-btn--sm[^"]*mailbox__read-toggle[^"]*"[^>]*>([^<]+)<\/button>/g)].map((m) => m[1]);
+  assert.deepEqual(toggles, ['标为已读', '标为未读', '标为已读', '标为未读']);
+  const source = await read('ui/Inbox.jsx');
+  assert.equal((source.match(/<button[\s>]/g) || []).length, 1, 'Inbox.jsx raw <button> count remains 1');
+});
+
+test('moveMailboxFocus moves focus across .mailbox__item rows via ArrowDown, ArrowUp, Home, and End', () => {
+  const focused = [];
+  const makeRow = (id, disabled = false) => {
+    const item = { id, disabled, focus: () => focused.push(id), scrollIntoView: () => {} };
+    const row = { querySelector: (sel) => (sel === '.mailbox__item' ? item : null) };
+    item.closest = (sel) => (sel === '.mailbox__list' || sel === '.mailbox__row' ? row : null);
+    return item;
+  };
+  const rows = [makeRow('a'), makeRow('b'), makeRow('c')];
+  const panelEl = {
+    querySelectorAll: (sel) => (sel === '.mailbox__item:not(:disabled)' ? rows : []),
+  };
+  const keyEvent = (key, target) => {
+    let prevented = false;
+    return { key, target, altKey: false, ctrlKey: false, metaKey: false, preventDefault: () => { prevented = true; }, get prevented() { return prevented; } };
+  };
+  const e1 = keyEvent('ArrowDown', rows[0]);
+  assert.equal(moveMailboxFocus(panelEl, e1), true);
+  assert.equal(e1.prevented, true);
+  assert.equal(focused.at(-1), 'b');
+
+  assert.equal(moveMailboxFocus(panelEl, keyEvent('End', rows[0])), true);
+  assert.equal(focused.at(-1), 'c');
+
+  assert.equal(moveMailboxFocus(panelEl, keyEvent('ArrowUp', rows[2])), true);
+  assert.equal(focused.at(-1), 'b');
+
+  assert.equal(moveMailboxFocus(panelEl, keyEvent('Home', rows[2])), true);
+  assert.equal(focused.at(-1), 'a');
 });

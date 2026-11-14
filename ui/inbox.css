@@ -146,7 +146,15 @@
       font-size: var(--fs-sm);
       line-height: var(--lh-snug);
     }
-    .mailbox .mailbox__undo { margin: 0 0 var(--space-1) var(--space-5); }
+    .mailbox__row-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-2);
+      margin: 0 0 var(--space-1) var(--space-5);
+    }
+    .mailbox .mailbox__read-toggle { color: var(--text-muted); }
+    .mailbox .mailbox__undo { margin: 0; }
     .mailbox__empty { padding: var(--space-6) var(--space-4); }
   }
   @media (prefers-reduced-motion: reduce) {

@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,9 +14,15 @@ import {
 } from '../lib/practice-settings.js';
 import english from '../lib/application-messages-en.js';
 import { loadUi } from './helpers/ui-module.mjs';
-import { chaptersOf, resultTarget, roundArgs, roundChoice, roundDefaults, roundKey, sameRound } from '../ui/review/round-setup.js';
+import { inApp } from './helpers/fake-app.mjs';
+import { chaptersOf, estimateRoundMinutes, resultTarget, roundArgs, roundChoice, roundDefaults, roundKey, sameRound } from '../ui/review/round-setup.js';
 
 const { dailyPathArgs } = await loadUi("export { dailyPathArgs } from './ui/study-map/home-plan.js';");
+const uiMod = await loadUi(`
+  export { AppContext } from './ui/app/app-context.js';
+  export { StudyServicesContext } from './ui/study-context.jsx';
+  export { default as RoundSetup } from './ui/review/RoundSetup.jsx';
+`);
 
 /* #1010 本轮设置: one round's size, range (到期 / 新题 / 错题 / 混合) and chapter, chosen where a round starts. The defaults come from resolvePracticeSettings, the bounds are the
    ones the backend validates with (lib/practice-settings.js), and a popover that is never opened starts exactly the round the button always started. */
@@ -307,4 +315,46 @@ test('lastRounds keeps short strings only: a long course name, deck id or topic 
   assert.throws(() => validatePracticePatch({ lastRounds: { A: { size: 10, range: 'due', chapter: { deckId: 'd', topic: long } } } }), /lastRounds/);
   assert.ok(LAST_ROUND_LIMITS.text <= 120, 'a reasonable length');
   assert.equal(normalizePracticeSettings({ lastRounds: { [long]: { size: 10, range: 'due' }, A: { size: 10, range: 'due' } } }).lastRounds.A.size, 10);
+});
+
+test('estimateRoundMinutes scales by card kinds, scopes by chapter, clamps >= 1, and renders in RoundSetup form', () => {
+  assert.deepEqual(estimateRoundMinutes({ size: 20, cards: [{ kind: 'quiz' }, { kind: 'multi' }, { kind: 'truefalse' }] }), [8, 13]);
+  assert.deepEqual(estimateRoundMinutes({ size: 20, cards: [{ kind: 'cloze' }, { kind: 'flashcard' }] }), [12, 18]);
+  assert.deepEqual(estimateRoundMinutes({ size: 20, cards: [{ kind: 'open' }, { kind: 'task' }] }), [30, 50]);
+  assert.deepEqual(estimateRoundMinutes({ size: 1, cards: [{ kind: 'quiz' }] }), [1, 1]);
+
+  const mixedCards = [
+    { deckId: 'd1', topic: 'Ch1', kind: 'quiz' },
+    { deckId: 'd1', topic: 'Ch2', kind: 'open' },
+  ];
+  assert.deepEqual(estimateRoundMinutes({ size: 20, chapter: { deckId: 'd1', topic: 'Ch1' }, cards: mixedCards }), [8, 13]);
+  assert.deepEqual(estimateRoundMinutes({ size: 20, chapter: { deckId: 'd1', topic: 'Ch2' }, cards: mixedCards }), [30, 50]);
+
+  const snapshotData = {
+    decks: [{ id: 'd1', title: 'D1', available: 20, quizCount: 20, examCount: 20 }],
+    settings: { practice: { roundSize: 20 } },
+  };
+  assert.deepEqual(estimateRoundMinutes({ size: 20, data: snapshotData }), [8, 13]);
+
+  const htmlRange = renderToStaticMarkup(inApp(uiMod, React.createElement(uiMod.RoundSetup, {
+    data: snapshotData,
+    context: { course: undefined, range: 'mixed' },
+    chapterRefs: [{ deckId: 'd1' }],
+    onStart: () => {},
+    defaultOpen: true,
+  }), { data: snapshotData }));
+  assert.match(htmlRange, /round-setup__estimate[^>]*>预计约 8–13 分钟</);
+
+  const singleData = {
+    decks: [{ id: 'd1', title: 'D1', available: 1, quizCount: 1, examCount: 1 }],
+    settings: { practice: { roundSize: 1 } },
+  };
+  const htmlSingle = renderToStaticMarkup(inApp(uiMod, React.createElement(uiMod.RoundSetup, {
+    data: singleData,
+    context: { course: undefined, range: 'mixed', size: 1 },
+    chapterRefs: [{ deckId: 'd1' }],
+    onStart: () => {},
+    defaultOpen: true,
+  }), { data: singleData }));
+  assert.match(htmlSingle, /round-setup__estimate[^>]*>预计约 1 分钟</);
 });

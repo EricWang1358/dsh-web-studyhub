@@ -44,6 +44,48 @@ import { useSimilarQuestions } from "./draft-similar.js";
 /** A draft of more questions than this draws its questions in chunks of this many (ChunkedRows); a question is a fold with its whole editor inside, so a chunk is smaller than a list's. */
 const DRAFT_CHUNK = 80;
 
+/** Sorted 0-based indices of draft cards with quality issues, rejection notes, or similarity warnings. */
+export function collectFlaggedCardIndices(draft, similar) {
+  const cards = Array.isArray(draft?.cards) ? draft.cards : [];
+  if (!cards.length) return [];
+  const indices = new Set();
+  const byId = new Map(cards.map((card, index) => [card?.id, index]));
+  const rejected = draft.editorial?.rejectedIssues || {};
+  const addCardIndex = (cardIndex) => {
+    if (Number.isInteger(cardIndex) && cardIndex >= 0 && cardIndex < cards.length) indices.add(cardIndex);
+  };
+  const scanIssue = (issue) => {
+    if (!issue) return;
+    if (typeof issue === "string") {
+      const match = /^Card (\d+):/.exec(issue);
+      if (match) addCardIndex(Number(match[1]) - 1);
+      return;
+    }
+    if (typeof issue === "object") {
+      if (issue.cardId && byId.has(issue.cardId)) addCardIndex(byId.get(issue.cardId));
+      else if (Number.isInteger(issue.cardIndex)) addCardIndex(issue.cardIndex);
+      else if (Number.isInteger(issue.index)) addCardIndex(issue.index);
+    }
+  };
+  cards.forEach((card, index) => {
+    if (!card) return;
+    const hasRejected = Array.isArray(rejected[card.id]) ? rejected[card.id].length > 0 : Boolean(rejected[card.id]);
+    const hasSimilar = similar instanceof Map ? Boolean(similar.get(card.id)) : Boolean(similar?.get?.(card.id) ?? similar?.[card.id]);
+    if (hasRejected || hasSimilar) indices.add(index);
+  });
+  for (const issue of Array.isArray(draft.quality?.errors) ? draft.quality.errors : []) scanIssue(issue);
+  const editorialIssues = draft.editorial?.quality?.issues;
+  if (Array.isArray(editorialIssues)) {
+    for (const issue of editorialIssues) scanIssue(issue);
+  } else if (editorialIssues && typeof editorialIssues === "object") {
+    for (const [cardId, detail] of Object.entries(editorialIssues)) {
+      const nonEmpty = Array.isArray(detail) ? detail.length > 0 : Boolean(detail);
+      if (nonEmpty && byId.has(cardId)) addCardIndex(byId.get(cardId));
+    }
+  }
+  return [...indices].sort((a, b) => a - b);
+}
+
 export default function Draft({
   data,
   draft,
@@ -69,9 +111,11 @@ export default function Draft({
   const toast = useToast();
   // 删除草稿 asks once, in the shared dialog (ui/DeleteDraftDialog.jsx; the 待发布 row opens the same one): the draft's unpublished questions cost tokens.
   const [deletingId, setDeletingId] = React.useState(null);
+  const pageRef = React.useRef(null);
   const detailsRef = React.useRef(null);
   // A question something goes to is drawn even past the first chunk: the one just added, and every question when 查看详情 goes to the details that follow them (ChunkedRows `reveal`).
   const [drawnTo, setDrawnTo] = React.useState({ id: "", index: -1 });
+  const [flaggedState, setFlaggedState] = React.useState({ id: "", pos: -1 });
   const revealCard = drawnTo.id === draft.id ? drawnTo.index : -1;
   // A draft made as the next part of a published deck (lib/deck-parts.js): where it goes is chosen here, when it is published; nothing touches the deck before.
   const targets = partTargets(draft, data), [partTarget, setPartTarget] = React.useState(undefined);
@@ -137,6 +181,18 @@ export default function Draft({
   // Questions that are near-duplicates of another one of the same kind, in this draft or the course's decks (#890): asked with the draft, again when it changes.
   // Not while a job is still changing the draft (it would ask after every batch): the last answer stays on screen, and the page asks once the job is done.
   const similar = useSimilarQuestions(draft.id, { version: `${data.revision}:${draft.draftVersion}`, enabled: draft.draftVersion > 0 && !missingDraft && !updatingDraft });
+  const flaggedIndices = React.useMemo(() => collectFlaggedCardIndices(draft, similar), [draft, similar]);
+  const flaggedPos = flaggedState.id === draft.id && flaggedState.pos >= 0 && flaggedState.pos < flaggedIndices.length ? flaggedState.pos : -1;
+  const jumpToNextFlagged = () => {
+    if (!flaggedIndices.length) return;
+    const nextPos = (flaggedPos + 1) % flaggedIndices.length;
+    const targetIndex = flaggedIndices[nextPos];
+    setFlaggedState({ id: draft.id, pos: nextPos });
+    flushSync(() => setDrawnTo({ id: draft.id, index: targetIndex }));
+    const cardEl = pageRef.current?.querySelector(`[data-draft-index="${targetIndex}"]`);
+    cardEl?.scrollIntoView?.({ block: "center" });
+    cardEl?.querySelector("summary")?.focus?.({ preventScroll: true });
+  };
   // Live (the coverage of the draft now, every run of it), never the snapshot of the last run (`editorial.coverage.selected` counts that run's sources only): pages of a PDF, else materials.
   const liveView = covered.view?.status === "ok" ? covered.view : null;
   const liveCited = !liveView ? null : coverageCount ? (liveView.coverage?.units === "page" ? [liveView.coverage.covered, liveView.coverage.leaves] : null)
@@ -191,10 +247,17 @@ export default function Draft({
     }
     setJsonMode(!jsonMode);
   }
+  const headerActions = jsonMode
+    ? <Button variant="quiet" onClick={toggleJsonMode}>{ui("返回逐题编辑")}</Button>
+    : flaggedIndices.length > 0
+      ? <Button size="sm" variant="quiet" className="draft-next-flagged" onClick={jumpToNextFlagged}>
+          {uiFormat("下一道待核对 ({0}/{1})", [flaggedPos >= 0 ? flaggedPos + 1 : 0, flaggedIndices.length])}
+        </Button>
+      : undefined;
   return (
-    <section className="page draft-page">
+    <section className="page draft-page" ref={pageRef}>
       <PageHeader eyebrow={ui("发布草稿")} title={ui("草稿与发布")}
-        actions={jsonMode && <Button variant="quiet" onClick={toggleJsonMode}>{ui("返回逐题编辑")}</Button>} />
+        actions={headerActions} />
       {!jsonMode && <label className="draft-title-field">{ui("题组标题")}<input className="draft-title-field__input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
       </label>}
       {!jsonMode && draft.format === "case-study" && <CaseDraftHeader draft={draft} data={data} />}
@@ -260,7 +323,7 @@ export default function Draft({
       ) : (
         <>
           <ChunkedRows items={draft.cards} chunk={DRAFT_CHUNK} resetKey={draft.id} reveal={revealCard} anchors={{ "draft-similar": draft.cards.findIndex((card) => similar.get(card.id)) }} render={(q, i) => (
-            <Panel as="details" className="draft-card" key={q.id}>
+            <Panel as="details" className="draft-card" data-draft-index={i} key={q.id}>
               {/* One row layout for every question (#670): the number, the question (two lines at most, whole when the row is open) and, at the end, the kind and what is not as it should be. */}
               <summary className="draft-card__row">
                 <span className="draft-card__no">{formatNumber(i + 1, { minimumIntegerDigits: 2 })}</span>

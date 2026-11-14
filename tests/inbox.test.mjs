@@ -4,7 +4,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
-import { notify, inboxView, markRead } from "../lib/inbox.js";
+import { notify, inboxView, markRead, markUnread } from "../lib/inbox.js";
+import { writesFor } from "../lib/runtime/domain-contracts.js";
 
 test("every counted unread letter stays visible beyond the recent history window", () => {
   const state = { decks: [], inbox: Array.from({ length: 120 }, (_, i) => ({
@@ -140,4 +141,27 @@ test("note letters point to the draft and fold by note rather than card", async 
   assert.equal(letter.count, 2);
   assert.deepEqual(await service.call("inbox.open", { id: letter.id }), { kind: "note", noteId: created.id });
   assert.equal((await service.call("inbox")).unread, 0);
+});
+
+test("markUnread and inbox.unread restore unread status without removing history", async (t) => {
+  assert.deepEqual(writesFor("library", "inbox.unread"), ["inbox"]);
+  const s = { inbox: [{ id: "m1", kind: "followup", cardId: "c1", read: true }, { id: "m2", kind: "coach", cardId: "c2", read: false }] };
+  assert.equal(markUnread(s, { ids: ["m1"] }), 1);
+  assert.equal(s.inbox[0].read, false);
+  assert.equal(markUnread(s, { ids: ["m1"] }), 0);
+
+  const service = await setup(t);
+  await service.call("card.update", { cardId: "c1", patch: { hint: "Updated hint." }, reason: "补充" });
+  let inbox = await service.call("inbox");
+  const letter = inbox.items[0];
+  inbox = await service.call("inbox.read", { ids: [letter.id] });
+  assert.equal(inbox.unread, 0);
+  inbox = await service.call("inbox.unread", { ids: [letter.id] });
+  assert.equal(inbox.unread, 1);
+  assert.equal(inbox.items.find((item) => item.id === letter.id).read, false);
+  inbox = await service.call("inbox.read", { ids: [letter.id] });
+  assert.equal(inbox.unread, 0);
+  inbox = await service.call("inbox.read", { ids: [letter.id], read: false });
+  assert.equal(inbox.unread, 1);
+  assert.equal(inbox.items.length, 1, "marking unread preserves inbox history");
 });
