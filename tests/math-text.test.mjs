@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { build } from 'esbuild';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { bareMathText, toTex, wrapMathText } from '../lib/math-text.js';
 
 test('Unicode and ASCII math a card would show raw is found', () => {
@@ -70,4 +74,40 @@ test('a power chain with a space-separated product is one span, a capital variab
   assert.deepEqual(bareMathText('复杂度 O(n^2) 与 O(n log n)'), ['O(n^2)']);
   assert.deepEqual(bareMathText('1+1 a and A/B and N-1'), []);
   assert.equal(wrapMathText('Take z^l + b^l, see https://example.com/rule.'), 'Take $z^{l} + b^{l}$, see https://example.com/rule.');
+});
+
+test('StudyMath shows a TeX copy button only on copyable display formulas with non-empty source', async () => {
+  const compiled = await build({
+    stdin: { contents: `export { default as StudyMath } from './ui/StudyMath.jsx'; export { default as Markdown } from './ui/Markdown.jsx'; export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
+    bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent',
+  });
+  const module = { exports: {} };
+  new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
+  const { StudyMath, Markdown, setUiLanguage } = module.exports;
+  setUiLanguage('zh');
+
+  const displayCopyable = renderToStaticMarkup(React.createElement(StudyMath, {
+    formula: { source: '  x^2 + 1  ', display: true, raw: '$$x^2 + 1$$' },
+    copyable: true,
+  }));
+  assert.match(displayCopyable, /class="md-math md-math-display"/);
+  assert.match(displayCopyable, /<button[^>]*class="[^"]*md-math-copy[^"]*"[^>]*aria-label="复制公式"[^>]*>TeX<\/button>/);
+
+  const inline = renderToStaticMarkup(React.createElement(StudyMath, {
+    formula: { source: 'x^2', display: false, raw: '$x^2$' },
+    copyable: true,
+  }));
+  assert.doesNotMatch(inline, /md-math-copy|<button/);
+
+  const emptySource = renderToStaticMarkup(React.createElement(StudyMath, {
+    formula: { source: '   \n\t  ', display: true, raw: '$$$$' },
+    copyable: true,
+  }));
+  assert.doesNotMatch(emptySource, /md-math-copy|<button/);
+
+  const inCardButton = renderToStaticMarkup(React.createElement(Markdown, { text: '$$\nE = mc^2\n$$', links: false }));
+  assert.doesNotMatch(inCardButton, /md-math-copy|<button/);
+
+  const inMarkdown = renderToStaticMarkup(React.createElement(Markdown, { text: '$$\nE = mc^2\n$$' }));
+  assert.match(inMarkdown, /md-math-copy/);
 });

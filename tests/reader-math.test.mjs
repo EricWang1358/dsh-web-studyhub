@@ -1,13 +1,16 @@
+/* global document, window */
 /* Formulas in the text reader (阅读): drawn like on the cards, while the text that selection, find, the link
    underlines and translation count stays exactly the stored text. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { parseFragment } from 'parse5';
 import { splitStudyMath } from '../ui/study-media.js';
+import { launchChromium } from '../scripts/qa/browser.mjs';
 
 const compiled = await build({ stdin: { contents: `
   export { default as ReadingSections } from './ui/document-preview/reader/ReadingSections.jsx';
@@ -69,4 +72,62 @@ test('a line that is just a formula is body text, not a heading (a heading would
   const stored = String.raw`前向传播如下` + '\n\n' + String.raw`$$\delta = x$$` + '\n\n' + String.raw`$a = b$` + '\n\n结尾说明文字在这里。';
   const [section] = readingSections({ paged: false, sources: [{ id: 's', text: stored }], text: stored });
   assert.deepEqual(section.paragraphs.map(item => item.kind), ['heading', 'prose', 'prose', 'prose']);
+});
+
+test('StudyMath display copy button copies trimmed TeX source and stops propagation', { timeout: 60000 }, async t => {
+  const css = readFileSync(new URL('../ui/markdown.css', import.meta.url), 'utf8');
+  assert.match(css, /\.md-math-copy/);
+  assert.match(css, /data-copied="true"/);
+
+  const bundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { createRoot } from 'react-dom/client';
+        import Markdown from './ui/Markdown.jsx';
+        import { setUiLanguage } from './ui/i18n.js';
+        setUiLanguage('zh');
+        window.__copied = [];
+        window.__parentClicks = 0;
+        window.__parentKeys = 0;
+        Object.defineProperty(navigator, 'clipboard', {
+          configurable: true,
+          value: { writeText: async text => { window.__copied.push(text); } },
+        });
+        createRoot(document.getElementById('root')).render(
+          <div className="study-app" onClick={() => { window.__parentClicks++; }} onKeyDown={() => { window.__parentKeys++; }}>
+            <Markdown text={'$$\\n\\\\frac{a}{b} + c\\n$$'} />
+          </div>
+        );`,
+      resolveDir: process.cwd(),
+      loader: 'jsx',
+    },
+    bundle: true, write: false, platform: 'browser', format: 'iife', loader: { '.css': 'text' }, logLevel: 'silent',
+  });
+
+  let browser;
+  try { browser = await launchChromium(); }
+  catch (error) {
+    if (!/browserType\.launch: Executable doesn't exist/.test(String(error.message))) throw error;
+    t.skip('Chromium unavailable'); return;
+  }
+  t.after(() => browser.close());
+  const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 500, height: 500 } });
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+  await page.setContent('<main id="root"></main>');
+  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+
+  const mathBtn = page.locator('.md-math-copy');
+  await mathBtn.waitFor();
+  await mathBtn.click();
+  await page.waitForFunction(() => document.querySelector('.md-math-copy')?.getAttribute('data-copied') === 'true');
+  assert.match(await mathBtn.innerText(), /已复制/);
+  assert.deepEqual(await page.evaluate(() => window.__copied), ['\\frac{a}{b} + c']);
+  assert.equal(await page.evaluate(() => window.__parentClicks), 0);
+
+  await page.locator('.md-math-display').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(() => window.__parentKeys), 0);
+  assert.deepEqual(errors, []);
 });

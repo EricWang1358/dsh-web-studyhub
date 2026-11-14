@@ -1,3 +1,4 @@
+/* global document, window */
 /* 复习全书 M5 on the page (static zh and en): the feedback of a graded case question shows its 分析题答案卡 in its parts instead of the plain reference
    answer, each unfound quote marked 未核实, the marks map, the state (已核对 / 部分未核对 / 被改过) with 「已核对 ≠ 答案正确」; without a card the
    reference answer as before and 「生成答题卡」, or the shared model gate (its own feature key) without a model. Fakes only. */
@@ -6,7 +7,9 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFile } from 'node:fs/promises';
+import { build } from 'esbuild';
 import { loadUi } from './helpers/ui-module.mjs';
+import { launchChromium } from '../scripts/qa/browser.mjs';
 import { CASE_TYPES } from '../lib/case-types.js';
 import { answerCardBasis, answerCardState, checkAnswerCard, finishAnswerCard, normalizeAnswerCard } from '../lib/answer-card.js';
 import { MATERIAL, SCENARIO, caseCard, criteria, goodCard } from './helpers/answer-card-library.mjs';
@@ -76,4 +79,81 @@ test('the gate\'s feature key is the answer card\'s own; the case feedback uses 
   assert.equal((gate.match(/^\s+answerCard: \(\) => \(\{/gm) || []).length, 1);
   const workspace = await readFile(new URL('../ui/CaseWorkspace.jsx', import.meta.url), 'utf8');
   assert.match(workspace, /<AnswerCardSection run=\{run\} data=\{data\} onSetupModel=\{onSetupModel\} \/>/);
+});
+
+test('answer card table tracks horizontal scroll edges with token-based shadow cues', { timeout: 60000 }, async t => {
+  const card = made(goodCard());
+  const html = runWith({ answer: 'The reference answer.', answerCard: card });
+  assert.match(html, /<div class="answer-card__table"><div class="answer-card__table-scroll"><table>/);
+
+  for (const sheet of ['../ui/markdown.css', '../ui/answer-card.css']) {
+    const css = (await readFile(new URL(sheet, import.meta.url), 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.match(css, /\[data-edge-left="true"\]/, sheet);
+    assert.match(css, /\[data-edge-right="true"\]/, sheet);
+    assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|rgba?\(/i, sheet);
+  }
+
+  const bundle = await build({
+    stdin: {
+      contents: `
+        import React from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { AnswerCardView } from './ui/AnswerCard.jsx';
+        import { StudyServicesContext } from './ui/study-context.jsx';
+        import answerCardCss from './ui/answer-card.css';
+        import { setUiLanguage } from './ui/i18n.js';
+        setUiLanguage('zh');
+        const card = ${JSON.stringify(card)};
+        const noop = () => {};
+        const services = { call: async () => ({ courses: [] }), act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
+        createRoot(document.getElementById('root')).render(
+          <StudyServicesContext.Provider value={services}>
+            <div className="study-app" style={{ width: 180 }}>
+              <style>{answerCardCss + '.answer-card__table th, .answer-card__table td { white-space: nowrap; }'}</style>
+              <AnswerCardView card={card} />
+            </div>
+          </StudyServicesContext.Provider>
+        );`,
+      resolveDir: process.cwd(),
+      loader: 'jsx',
+    },
+    bundle: true, write: false, platform: 'browser', format: 'iife', loader: { '.css': 'text' }, logLevel: 'silent',
+  });
+
+  let browser;
+  try { browser = await launchChromium(); }
+  catch (error) {
+    if (!/browserType\.launch: Executable doesn't exist/.test(String(error.message))) throw error;
+    t.skip('Chromium unavailable'); return;
+  }
+  t.after(() => browser.close());
+  const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 400, height: 800 } });
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+  await page.setContent('<main id="root"></main>');
+  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+  await page.locator('.answer-card__table').waitFor();
+
+  await page.waitForFunction(() => document.querySelector('.answer-card__table')?.getAttribute('data-edge-right') === 'true');
+  assert.deepEqual(await page.evaluate(() => ({
+    left: document.querySelector('.answer-card__table')?.getAttribute('data-edge-left'),
+    right: document.querySelector('.answer-card__table')?.getAttribute('data-edge-right'),
+  })), { left: null, right: 'true' });
+
+  await page.evaluate(() => {
+    const scroller = document.querySelector('.answer-card__table-scroll');
+    scroller.scrollLeft = 24;
+    scroller.dispatchEvent(new window.Event('scroll'));
+  });
+  await page.waitForFunction(() => document.querySelector('.answer-card__table')?.getAttribute('data-edge-left') === 'true');
+  assert.equal(await page.evaluate(() => document.querySelector('.answer-card__table')?.getAttribute('data-edge-right')), 'true');
+
+  await page.evaluate(() => {
+    const scroller = document.querySelector('.answer-card__table-scroll');
+    scroller.scrollLeft = scroller.scrollWidth;
+    scroller.dispatchEvent(new window.Event('scroll'));
+  });
+  await page.waitForFunction(() => !document.querySelector('.answer-card__table')?.getAttribute('data-edge-right'));
+  assert.equal(await page.evaluate(() => document.querySelector('.answer-card__table')?.getAttribute('data-edge-left')), 'true');
+  assert.deepEqual(errors, []);
 });

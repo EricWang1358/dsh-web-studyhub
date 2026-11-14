@@ -3,10 +3,85 @@ import { TERM_SOURCE } from "./term-marker.js";
 import { closesFence, fenceMask, fenceOpening } from "../lib/contexts/notes/markdown-fences.js";
 import { Button } from "./components/Button.jsx";
 import Tooltip from "./components/Tooltip.jsx";
+import { createEdgeTracker } from "./components/scroll-edges.js";
 import React from "react";
 import { prepareStudyMath, STUDY_IMAGE_PATTERN } from "./study-media.js";
+import { useCopyFeedback } from "./use-copy-feedback.js";
 import StudyMath from "./StudyMath.jsx";
 import StudyImage from "./StudyImage.jsx";
+
+const NO_TABLE_EDGES = { left: false, right: false };
+const tableEdgesX = (element) => ({
+  left: element.scrollLeft > 2,
+  right: element.scrollLeft + element.clientWidth < element.scrollWidth - 2,
+});
+const useIsoLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
+
+/** Wraps a horizontally scrollable table with edge state attributes (`data-edge-left`, `data-edge-right`) for scroll-shadow cues. */
+export function ScrollEdgeWrap({ className = "", scrollClassName = "", children }) {
+  const nodeRef = React.useRef(null);
+  const [edges, setEdges] = React.useState(NO_TABLE_EDGES);
+  const trackerRef = React.useRef(null);
+  trackerRef.current ??= createEdgeTracker(tableEdgesX, setEdges, NO_TABLE_EDGES);
+  const measure = React.useCallback(() => {
+    if (nodeRef.current) trackerRef.current(nodeRef.current);
+  }, []);
+  const observerRef = React.useRef(null);
+  const ref = React.useCallback((element) => {
+    nodeRef.current = element;
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    observerRef.current = new ResizeObserver(measure);
+    observerRef.current.observe(element);
+    if (element.firstElementChild) observerRef.current.observe(element.firstElementChild);
+  }, [measure]);
+  useIsoLayoutEffect(() => { measure(); });
+  return (
+    <div
+      className={className}
+      data-edge-left={edges.left ? "true" : undefined}
+      data-edge-right={edges.right ? "true" : undefined}
+    >
+      <div ref={ref} className={scrollClassName} onScroll={measure}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function CodeBlock({ lang, content }) {
+  const { copied, copy } = useCopyFeedback(() => content);
+  const copyLabel = copied ? ui("已复制") : ui("复制代码");
+  return (
+    <div className="md-code-block">
+      {(lang || content) && (
+        <div className="md-code-head">
+          {lang && <span className="md-code-lang">{lang}</span>}
+          {content && (
+            <Button
+              size="sm"
+              variant="quiet"
+              className="md-code-copy"
+              data-copied={copied ? "true" : undefined}
+              icon={copied ? "check" : undefined}
+              aria-label={copyLabel}
+              onClick={(event) => {
+                event.stopPropagation();
+                copy();
+              }}
+            >
+              {copied ? ui("已复制") : ui("复制")}
+            </Button>
+          )}
+        </div>
+      )}
+      <pre className="md-code">
+        <code>{content}</code>
+      </pre>
+    </div>
+  );
+}
 
 /**
  * Safe Markdown for study text: builds React elements (source HTML is never
@@ -105,14 +180,19 @@ function inline(text, options, key = "i") {
     } else if (type === "cite" && out.length) lead = "⁠";
     if (before) out.push(before);
     if (type === "code") out.push(<code key={k}>{m[1]}</code>);
-    else if (type === "math") out.push(<StudyMath key={k} formula={options.formulas[Number(m[1])]} />);
+    else if (type === "math") out.push(<StudyMath key={k} formula={options.formulas[Number(m[1])]} copyable={options.links !== false} />);
     else if (type === "image") out.push(<StudyImage key={k} alt={m[1]} src={m[2] || m[3]} interactive={options.mediaInteractive} />);
     else if (type === "cite") {
+      const citeNumber = Number(m[1]);
+      const citeButton = (
+        <Button variant="link" size="sm" className="md-cite__mark" aria-label={uiFormat("看原文 {0}", [m[1]])} onClick={() => options.onCite(citeNumber)}>
+          {m[1]}
+        </Button>
+      );
+      const tip = options.citePreview?.(citeNumber);
       const mark = (
         <sup key={k} className="md-cite">
-          <Button variant="link" size="sm" className="md-cite__mark" aria-label={uiFormat("看原文 {0}", [m[1]])} onClick={() => options.onCite(Number(m[1]))}>
-            {m[1]}
-          </Button>
+          {tip ? <Tooltip layer content={tip}>{citeButton}</Tooltip> : citeButton}
         </sup>
       );
       // The character before the mark and a full stop or closing mark right after it stay with it on one line (a button is a box the line may break around).
@@ -205,14 +285,21 @@ function blocks(rows, options) {
     }
     const fence = fenceOpening(row);
     if (fence) {
+      const info = row.trimStart().slice(fence.length).trim();
+      const lang = info ? info.split(/\s+/)[0].toLowerCase() : "";
       const body = [];
       for (i++; i < rows.length && !closesFence(rows[i], fence); i++)
         body.push(rows[i]);
       i++;
+      const raw = body.join("\n");
       out.push(
-        <pre key={key} className="md-code">
-          <code>{body.join("\n")}</code>
-        </pre>,
+        options.links !== false ? (
+          <CodeBlock key={key} lang={lang} content={raw} />
+        ) : (
+          <pre key={key} className="md-code">
+            <code>{raw}</code>
+          </pre>
+        ),
       );
       continue;
     }
@@ -266,7 +353,7 @@ function blocks(rows, options) {
       for (i += 2; i < rows.length && /^\s*\|.*\|\s*$/.test(rows[i]); i++)
         body.push(cells(rows[i]));
       out.push(
-        <div key={key} className="md-table">
+        <ScrollEdgeWrap key={key} className="md-table-wrap" scrollClassName="md-table">
           <table>
             <thead>
               <tr>
@@ -285,7 +372,7 @@ function blocks(rows, options) {
               ))}
             </tbody>
           </table>
-        </div>,
+        </ScrollEdgeWrap>,
       );
       continue;
     }
@@ -354,10 +441,10 @@ function list(items, options, key) {
     `resolveLink(href, label, key, text)`: a `studyhub://` link is drawn by the page that knows it (the review book's question links, ui/book/BookLinks.jsx);
     null leaves it plain text. Any other link stays as before. `headingAnchor(text)` -> { text, props } | null: a heading's own attributes (its id) and
     the text to show. */
-export default function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms, onCite, resolveLink, headingAnchor, rootRef }) {
+export default function Markdown({ text, links = true, mediaInteractive = links, className = "", onTerm, askedTerms, onCite, citePreview, resolveLink, headingAnchor, rootRef }) {
   const content = React.useMemo(() => {
     const { value, formulas } = prepareStudyMath(typeof text === "string" ? text : "");
-    return blocks(prepare(value), { links, mediaInteractive, formulas, onTerm, askedTerms, onCite, resolveLink, headingAnchor });
-  }, [text, links, mediaInteractive, onTerm, askedTerms, onCite, resolveLink, headingAnchor]);
+    return blocks(prepare(value), { links, mediaInteractive, formulas, onTerm, askedTerms, onCite, citePreview, resolveLink, headingAnchor });
+  }, [text, links, mediaInteractive, onTerm, askedTerms, onCite, citePreview, resolveLink, headingAnchor]);
   return <div ref={rootRef} className={("md " + className).trim()}>{content}</div>;
 }

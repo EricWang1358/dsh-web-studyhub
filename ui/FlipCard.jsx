@@ -1,7 +1,7 @@
 import { ui } from "./i18n.js";
 import React from "react";
 import Markdown from "./Markdown.jsx";
-import { Badge } from "./components/index.js";
+import EnBlock from "./EnBlock.jsx";
 import { useStudy } from "./study-context.jsx";
 
 /* 闪卡翻面。两面叠在同一个 grid 格里，默认高度取两面中较高者；答案加载
@@ -44,10 +44,7 @@ export default function FlipCard({ run, showBack, flipCard, enOn }) {
             text={run.card.prompt}
           />
           {enOn && run.card.translation?.prompt && (
-            <div className="en-block">
-              <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
-              <Markdown links={false} mediaInteractive className="md-compact" text={run.card.translation.prompt} />
-            </div>
+            <EnBlock text={run.card.translation.prompt} mediaInteractive />
           )}
           <span className="flip-label">
             {run.revealed ? ui("点击看答案 · Space") : ui("点击翻面 · Space")}
@@ -64,10 +61,7 @@ export default function FlipCard({ run, showBack, flipCard, enOn }) {
                 text={run.solution.answer}
               />
               {enOn && run.solution.translation?.answer && (
-                <div className="en-block">
-                  <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
-                  <Markdown links={false} mediaInteractive className="md-compact" text={run.solution.translation.answer} />
-                </div>
+                <EnBlock text={run.solution.translation.answer} mediaInteractive />
               )}
             </>
           ) : (

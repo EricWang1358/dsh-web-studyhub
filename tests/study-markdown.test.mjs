@@ -1,14 +1,19 @@
+/* global document, window */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { launchChromium } from '../scripts/qa/browser.mjs';
 
-const compiled = await build({ stdin: { contents: `export { default as Markdown } from './ui/Markdown.jsx'; export { default as FlipCard } from './ui/FlipCard.jsx';`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react', 'react-dom'], loader: { '.css': 'text' }, logLevel: 'silent' });
+const compile = (contents, options) => build({ stdin: { contents, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false,
+  loader: { '.css': 'text' }, logLevel: 'silent', ...options });
+const compiled = await compile(`export { default as Markdown } from './ui/Markdown.jsx'; export { default as FlipCard } from './ui/FlipCard.jsx'; export { default as EnBlock } from './ui/EnBlock.jsx'; export { setUiLanguage } from './ui/i18n.js';`,
+  { platform: 'node', format: 'cjs', external: ['react', 'react-dom'] });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Markdown, FlipCard } = module.exports;
+const { Markdown, FlipCard, EnBlock, setUiLanguage } = module.exports;
 const render = (text, props = {}) => renderToStaticMarkup(React.createElement(Markdown, { text, ...props }));
 
 test('study Markdown preserves math as one formula across newlines and formatting characters', () => {
@@ -87,4 +92,146 @@ test('an ordered list keeps its start number: items cut apart by paragraphs (an 
   assert.match(render('3、 丙'), /<ol start="3">/, 'and 3、');
   assert.match(render('- a\n- b'), /<ul><li>a/, 'a bullet list has none');
   assert.match(render('1. a\n   2. nested'), /<ol start="2">/, 'a nested list keeps its own start');
+});
+
+test('fenced code blocks show normalized language tag and copy button only outside button containers', () => {
+  setUiLanguage('zh');
+  const python = render('```Python title=demo\nx = 1\nprint(x)\n```');
+  assert.match(python, /<div class="md-code-block">/);
+  assert.match(python, /<span class="md-code-lang">python<\/span>/);
+  assert.match(python, /<button[^>]*class="[^"]*md-code-copy[^"]*"[^>]*aria-label="复制代码"[^>]*>复制<\/button>/);
+  assert.match(python, /<pre class="md-code"><code>x = 1\nprint\(x\)<\/code><\/pre>/);
+
+  const tilde = render('~~~  SQL  \nSELECT 1;\n~~~');
+  assert.match(tilde, /<span class="md-code-lang">sql<\/span>/);
+
+  const noLang = render('```\nplain line\n```');
+  assert.doesNotMatch(noLang, /md-code-lang/);
+  assert.match(noLang, /md-code-copy/);
+
+  const emptyNoLang = render('```\n```');
+  assert.doesNotMatch(emptyNoLang, /md-code-head|md-code-copy/);
+
+  const emptyWithLang = render('```js\n```');
+  assert.match(emptyWithLang, /<span class="md-code-lang">js<\/span>/);
+  assert.doesNotMatch(emptyWithLang, /md-code-copy/);
+
+  const insideButton = render('```python\nx = 1\n```', { links: false });
+  assert.match(insideButton, /<pre class="md-code"><code>x = 1<\/code><\/pre>/);
+  assert.doesNotMatch(insideButton, /<button|md-code-copy/);
+});
+
+test('citePreview wraps cite buttons in a Tooltip when present while keeping md-cite-keep intact', () => {
+  const html = render('见定义[^1]。', { onCite: () => {}, citePreview: n => `第 ${n} 条摘录` });
+  assert.match(html, /<span class="md-cite-keep">义<sup class="md-cite">[\s\S]*?<span[^>]*role="tooltip"[^>]*>第 1 条摘录<\/span>[\s\S]*?<\/sup>。<\/span>/);
+  assert.match(html, /aria-describedby="/);
+
+  const none = render('见定义[^1]。', { onCite: () => {}, citePreview: () => null });
+  assert.doesNotMatch(none, /role="tooltip"|aria-describedby=/);
+});
+
+test('Markdown tables wrap with ScrollEdgeWrap and EnBlock avoids raw buttons across block and inline modes', () => {
+  setUiLanguage('zh');
+  const tableHtml = render('| A | B |\n| --- | --- |\n| 1 | 2 |');
+  assert.match(tableHtml, /<div class="md-table-wrap"><div class="md-table"><table>/);
+
+  const blockEn = renderToStaticMarkup(React.createElement(EnBlock, { text: 'Hello $x^2$' }));
+  assert.doesNotMatch(blockEn, /<button/);
+  assert.match(blockEn, /<div class="en-block"><span role="button" tabindex="0" class="en-block__toggle" aria-expanded="true" aria-label="收起译文">[\s\S]*?en-mark[^>]*>EN<\/span><\/span><div class="md md-compact">/);
+
+  const inlineEn = renderToStaticMarkup(React.createElement(EnBlock, { text: 'alpha · beta', inline: true, className: 'extra' }));
+  assert.doesNotMatch(inlineEn, /<button/);
+  assert.match(inlineEn, /<p class="en-block en-inline-line extra"><span role="button" tabindex="0" class="en-block__toggle" aria-expanded="true" aria-label="收起译文">[\s\S]*?en-mark[^>]*>EN<\/span><\/span>alpha · beta<\/p>/);
+});
+
+test('code copy, table scroll edges, and local EN collapse work interactively in Chromium', { timeout: 60000 }, async t => {
+  const bundle = await compile(`
+    import React from 'react';
+    import { createRoot } from 'react-dom/client';
+    import Markdown from './ui/Markdown.jsx';
+    import FlipCard from './ui/FlipCard.jsx';
+    import markdownCss from './ui/markdown.css';
+    import { setUiLanguage } from './ui/i18n.js';
+    setUiLanguage('zh');
+    window.__cardFlips = 0;
+    window.__copied = [];
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async text => { window.__copied.push(text); } },
+    });
+    function App() {
+      const [flipped, setFlipped] = React.useState(false);
+      const card = { prompt: '中文题面', translation: { prompt: 'Front English prompt' } };
+      const solution = { answer: '中文答案', translation: { answer: 'Back English answer' } };
+      return <div className="study-app">
+        <style>{markdownCss + '.narrow { width: 180px; } .md table td { white-space: nowrap; }'}</style>
+        <Markdown text={'\`\`\`python\\nx = 1\\nprint(x)\\n\`\`\`\\n\\n| 列一 | 列二 | 列三 | 列四 |\\n| --- | --- | --- | --- |\\n| verylongcolumnone | verylongcolumntwo | verylongcolumnthree | verylongcolumnfour |'} className="narrow" />
+        <FlipCard run={{ card, revealed: true, solution }} showBack={flipped} flipCard={() => { window.__cardFlips++; setFlipped(v => !v); }} enOn />
+      </div>;
+    }
+    createRoot(document.getElementById('root')).render(<App />);
+  `, { platform: 'browser', format: 'iife' });
+
+  let browser;
+  try { browser = await launchChromium(); }
+  catch (error) {
+    if (!/browserType\.launch: Executable doesn't exist/.test(String(error.message))) throw error;
+    t.skip('Chromium unavailable'); return;
+  }
+  t.after(() => browser.close());
+  const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 500, height: 800 } });
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+  await page.setContent('<main id="root"></main>');
+  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+  await page.locator('.md-code-copy').waitFor();
+
+  await page.locator('.md-code-copy').click();
+  await page.waitForFunction(() => document.querySelector('.md-code-copy')?.textContent?.includes('已复制'));
+  assert.deepEqual(await page.evaluate(() => window.__copied), ['x = 1\nprint(x)']);
+
+  const edgeAtStart = await page.evaluate(() => ({
+    left: document.querySelector('.md-table-wrap')?.getAttribute('data-edge-left'),
+    right: document.querySelector('.md-table-wrap')?.getAttribute('data-edge-right'),
+  }));
+  assert.deepEqual(edgeAtStart, { left: null, right: 'true' });
+
+  await page.evaluate(() => {
+    const scroller = document.querySelector('.md-table');
+    scroller.scrollLeft = 40;
+    scroller.dispatchEvent(new window.Event('scroll'));
+  });
+  await page.waitForFunction(() => document.querySelector('.md-table-wrap')?.getAttribute('data-edge-left') === 'true');
+  assert.equal(await page.evaluate(() => document.querySelector('.md-table-wrap')?.getAttribute('data-edge-right')), 'true');
+
+  await page.evaluate(() => {
+    const scroller = document.querySelector('.md-table');
+    scroller.scrollLeft = scroller.scrollWidth;
+    scroller.dispatchEvent(new window.Event('scroll'));
+  });
+  await page.waitForFunction(() => !document.querySelector('.md-table-wrap')?.getAttribute('data-edge-right'));
+  assert.equal(await page.evaluate(() => document.querySelector('.md-table-wrap')?.getAttribute('data-edge-left')), 'true');
+
+  // Local EN toggle on FlipCard front does not flip the card and does not collapse back EN.
+  const frontToggle = page.locator('.flip-front .en-block__toggle');
+  await frontToggle.click();
+  assert.equal(await frontToggle.getAttribute('aria-expanded'), 'false');
+  assert.match(await frontToggle.innerText(), /EN[\s\S]*展开译文/);
+  assert.equal(await page.locator('.flip-front .en-block .md-compact').count(), 0);
+  assert.equal(await page.evaluate(() => window.__cardFlips), 0);
+  assert.equal(await page.locator('.flip-back .en-block__toggle').getAttribute('aria-expanded'), 'true');
+  assert.equal(await page.locator('.flip-back .en-block .md-compact').count(), 1);
+
+  // Flip to back, then toggle back EN with Enter and Space without flipping the card.
+  await page.locator('.flip-control').click({ force: true });
+  assert.equal(await page.evaluate(() => window.__cardFlips), 1);
+  const backToggle = page.locator('.flip-back .en-block__toggle');
+  await backToggle.focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await backToggle.getAttribute('aria-expanded'), 'false');
+  assert.equal(await page.evaluate(() => window.__cardFlips), 1);
+  await page.keyboard.press('Space');
+  assert.equal(await backToggle.getAttribute('aria-expanded'), 'true');
+  assert.equal(await page.evaluate(() => window.__cardFlips), 1);
+  assert.deepEqual(errors, []);
 });
