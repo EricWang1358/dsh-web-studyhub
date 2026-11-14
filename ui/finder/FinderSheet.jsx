@@ -7,6 +7,7 @@ import { FINDER_AREAS, FINDER_ENTRIES, entryTags } from './entries.js';
 import { groupByArea, searchFeatures } from './search.js';
 import { withAvailability } from './availability.js';
 import { moveActive } from './keys.js';
+import { clearRecentFinderIds, readRecentFinderIds, recentFinderEntries, recordRecentFinderId } from './recent.js';
 
 /* 找功能 (#653): one dialog. A search field, then the results as a listbox: ↑ and ↓ move, Enter is 「带我去」, Esc closes and gives the focus back to what opened it
    (the Dialog does that). With nothing typed the list is the browsable index of every feature by area, each area a <details> (the shared chevron), so the sheet is
@@ -36,23 +37,30 @@ function Row({ entry, domId, active, onSelect, onGo }) {
   );
 }
 
-export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQuery = '', onGo, onClose, onTour }) {
+export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQuery = '', initialRecentIds = null, onGo, onClose, onTour }) {
   useInjectCss(css, 'study-finder');
   const [query, setQuery] = useState(initialQuery);
   // The index opens with its first area; the others are one click (or one Tab and Enter) away.
   const [openAreas, setOpenAreas] = useState(() => new Set([FINDER_AREAS[0].id]));
+  const [recentIds, setRecentIds] = useState(() => (Array.isArray(initialRecentIds) ? initialRecentIds : readRecentFinderIds()));
   const [selected, setSelected] = useState(null);
   const input = useRef(null), byKey = useRef(false);
   const base = useId(), listId = `${base}-list`;
   const marked = useMemo(() => withAvailability(entries, data), [entries, data]);
   const found = useMemo(() => searchFeatures(marked, query, { translate: ui }), [marked, query]);
   const browsing = !query.trim();
+  const recentEntries = useMemo(() => (browsing ? recentFinderEntries(marked, recentIds) : []), [browsing, marked, recentIds]);
   const groups = useMemo(() => (browsing ? groupByArea(found, FINDER_AREAS) : []), [browsing, found]);
   // What the arrow keys can reach: the rows that are drawn open.
-  const visible = browsing ? groups.filter((group) => openAreas.has(group.area.id)).flatMap((group) => group.entries) : found;
-  const ids = visible.map((entry) => entry.id);
+  const visibleSlots = browsing
+    ? [
+      ...recentEntries.map((entry) => ({ slotKey: `recent:${entry.id}`, entry })),
+      ...groups.filter((group) => openAreas.has(group.area.id)).flatMap((group) => group.entries.map((entry) => ({ slotKey: entry.id, entry }))),
+    ]
+    : found.map((entry) => ({ slotKey: entry.id, entry }));
+  const ids = visibleSlots.map((slot) => slot.slotKey);
   const active = ids.includes(selected) ? selected : ids[0] ?? null;
-  const domId = (entry) => `${base}-${entry.id}`;
+  const domId = (slotKey) => `${base}-${slotKey}`;
 
   // A key press that moves the selection scrolls it into view; a click does not move the list under the pointer.
   useEffect(() => {
@@ -61,7 +69,11 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
     document.getElementById(`${base}-${active}`)?.scrollIntoView({ block: 'nearest' });
   }, [active, base]);
 
-  const go = (entry) => { if (entry && entry.kind !== 'term' && !entry.unavailable) onGo(entry); };
+  const go = (entry) => {
+    if (!entry || entry.kind === 'term' || entry.unavailable) return;
+    setRecentIds(recordRecentFinderId(entry.id));
+    onGo(entry);
+  };
   const onKeyDown = (event) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
@@ -69,7 +81,7 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
       setSelected(moveActive(ids, active, event.key));
     } else if (event.key === 'Enter' && !event.nativeEvent?.isComposing) {
       event.preventDefault();
-      go(visible.find((entry) => entry.id === active));
+      go(visibleSlots.find((slot) => slot.slotKey === active)?.entry);
     }
   };
   const toggle = (area, open) => setOpenAreas((current) => {
@@ -78,7 +90,13 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
     if (open) next.add(area); else next.delete(area);
     return next;
   });
-  const row = (entry) => <Row key={entry.id} entry={entry} domId={domId(entry)} active={entry.id === active} onSelect={() => setSelected(entry.id)} onGo={go} />;
+  const clearRecent = () => {
+    setRecentIds(clearRecentFinderIds());
+    input.current?.focus();
+  };
+  const row = (entry, slotKey = entry.id) => (
+    <Row key={slotKey} entry={entry} domId={domId(slotKey)} active={slotKey === active} onSelect={() => setSelected(slotKey)} onGo={go} />
+  );
   return (
     <Dialog title={ui('找功能')} description={ui('搜一个功能在哪；什么都不输入，就是完整的索引。')} size="md" className="finder-sheet" bodyClassName="finder-body" onClose={onClose} initialFocus={input}>
       <TextInput ref={input} className="finder-input" role="combobox" aria-label={ui('搜索功能')} aria-autocomplete="list" aria-expanded="true" aria-controls={listId}
@@ -86,13 +104,24 @@ export default function FinderSheet({ data, entries = FINDER_ENTRIES, initialQue
         value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={onKeyDown} />
       <div id={listId} className="finder-results" role="listbox" aria-label={ui('功能')} data-mode={browsing ? 'index' : 'search'}>
         {browsing
-          ? groups.map(({ area, entries: inArea }) => (
-            <details key={area.id} className="finder-group" data-area={area.id} open={openAreas.has(area.id)} onToggle={(event) => toggle(area.id, event.currentTarget.open)}>
-              <summary className="finder-group__summary"><span className="finder-group__label">{ui(area.label)}</span><span className="finder-group__count">{inArea.length}</span></summary>
-              <div role="group" aria-label={ui(area.label)}>{inArea.map(row)}</div>
-            </details>
-          ))
-          : found.map(row)}
+          ? <>
+            {recentEntries.length > 0 && (
+              <section className="finder-recent" aria-label={ui('最近去过')}>
+                <div className="finder-recent__head">
+                  <span className="finder-recent__label">{ui('最近去过')}</span>
+                  <Button size="sm" variant="link" onClick={clearRecent}>{ui('清除记录')}</Button>
+                </div>
+                <div role="group" aria-label={ui('最近去过')}>{recentEntries.map((entry) => row(entry, `recent:${entry.id}`))}</div>
+              </section>
+            )}
+            {groups.map(({ area, entries: inArea }) => (
+              <details key={area.id} className="finder-group" data-area={area.id} open={openAreas.has(area.id)} onToggle={(event) => toggle(area.id, event.currentTarget.open)}>
+                <summary className="finder-group__summary"><span className="finder-group__label">{ui(area.label)}</span><span className="finder-group__count">{inArea.length}</span></summary>
+                <div role="group" aria-label={ui(area.label)}>{inArea.map((entry) => row(entry))}</div>
+              </details>
+            ))}
+          </>
+          : found.map((entry) => row(entry))}
         {!browsing && found.length === 0 && (
           <div className="finder-empty">
             <p>{uiFormat('没找到『{0}』。试试换个说法，或打开功能导览。', [query.trim()])}</p>
