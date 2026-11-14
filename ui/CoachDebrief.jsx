@@ -28,6 +28,7 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
   const [debrief, setDebrief] = useState(initial || null),
     [error, setError] = useState(""),
     [left, setLeft] = useState(null),
+    [hovered, setHovered] = useState(false),
     [consent, setConsent] = useState({ busy: false, answer: null, error: "" });
   // The coach status is the host's shared answer (ui/host-query.js): this debrief and the 错题 page see the same copy while variants are written.
   const statusQuery = useHostQuery("coach.status", {}, { call, enabled: false, initialData: initial?.status || undefined });
@@ -72,8 +73,8 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
     }
     setLeft(COUNTDOWN);
   }, [autopilot, !!debrief, next, busy]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The countdown keeps its seconds even if the tab is in the background: the suggested step is taken on time.
-  usePolling(() => setLeft((n) => (n > 0 ? n - 1 : 0)), { intervalMs: 1000, enabled: left !== null && left > 0, pauseWhenHidden: false });
+  // The countdown keeps its seconds even if the tab is in the background: the suggested step is taken on time (paused while hovered).
+  usePolling(() => setLeft((n) => (n > 0 ? n - 1 : 0)), { intervalMs: 1000, enabled: left !== null && left > 0 && !hovered, pauseWhenHidden: false });
   useEffect(() => {
     if (left === 0 && action && !cancelled.current) {
       cancelled.current = true;
@@ -85,8 +86,15 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
       cancelled.current = true;
       setLeft(null);
     };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") stop();
+    };
     window.addEventListener("pointerdown", stop, { once: true });
-    return () => window.removeEventListener("pointerdown", stop);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", stop);
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, []);
 
   /* 定制题 need the learner's yes. The 陪学 column that used to ask is gone, so
@@ -123,7 +131,8 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
     );
   const m = debrief.metrics || {};
   return (
-    <ReadingBlock className="coach-debrief" data-next={next} role="region" aria-label={ui("本轮建议")}>
+    <ReadingBlock className="coach-debrief" data-next={next} role="region" aria-label={ui("本轮建议")}
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
       <div className="eyebrow coach-debrief__eyebrow">{ui("陪学 · 本轮建议")}</div>
       <h2>{promisesNext ? ui("这一轮的状态不错。") : debrief.headline}</h2>
       {debrief.why && <p>{debrief.why}</p>}
@@ -166,7 +175,8 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
           </Button>
         )}
         {left !== null && left > 0 && (
-          <span className="coach-countdown" role="status">{back ? uiFormat("自动跳下一步：{0} 秒后{1} ·", [left, label.replace(/\s*→$/, "")]) : uiFormat("自动跳下一步：{0} 秒后执行 ·", [left])}{" "}
+          <span className="coach-countdown" role="status">{back ? uiFormat("自动跳下一步：{0} 秒后{1} ·", [left, label.replace(/\s*→$/, "")]) : uiFormat("自动跳下一步：{0} 秒后执行 ·", [left])}
+            {hovered && <span className="coach-countdown__paused">{ui("（已暂停）")}</span>}{" "}
             <Button variant="link" size="sm" onClick={() => { cancelled.current = true; setLeft(null); }}>{ui("取消")}</Button>
           </span>
         )}

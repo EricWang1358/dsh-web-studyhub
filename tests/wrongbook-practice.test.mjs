@@ -2,6 +2,7 @@
    and with a filter on there is a second, quieter button for just what the filter shows. A page with one group has no group-level repeats (#675). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
@@ -12,8 +13,9 @@ const m = await loadUi(`
   export { WrongBookView } from './ui/WrongBook.jsx';
   export { PRACTICE_SCOPE_CAP, capPracticeScope, practiceCappedText } from './ui/wrongbook-model.js';
   export { StudyServicesContext } from './ui/study-context.jsx';
-  export { setUiLanguage, errorMessage } from './ui/i18n.js';
+  export { setUiLanguage, errorMessage, uiCatalogue } from './ui/i18n.js';
 `);
+Object.assign(m.uiCatalogue(), JSON.parse(readFileSync(new URL('../ui/locales/en.polish-results.json', import.meta.url), 'utf8')));
 const { WrongBookView, setUiLanguage, errorMessage } = m;
 const noop = () => {};
 const decks = [{ id: 'd4', course: 'PE', title: 'Platform Engineering｜期末综合卷04｜90题' }, { id: 'd2', course: 'PE', title: 'Platform Engineering｜期末综合卷02｜90题' }];
@@ -129,3 +131,163 @@ test('#928: groups over 200 questions cap scope to the first 200 with a plain no
     assert.match(text(htmlEn), /This group has 201 questions \(up to 200 at a time\): practising the first 200\./);
   } finally { setUiLanguage('zh'); }
 });
+
+function mountSync(Component, initialProps) {
+  const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+  const hooks = [];
+  const cleanups = [];
+  let cursor = 0;
+  let pending = [];
+  let currentProps = initialProps;
+  const sameDeps = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
+  const render = (nextProps = currentProps) => {
+    currentProps = nextProps;
+    cursor = 0;
+    pending = [];
+    const prev = internals.H;
+    internals.H = {
+      useContext: (ctx) => ctx._currentValue,
+      useState: (init) => {
+        const i = cursor++;
+        if (!(i in hooks)) hooks[i] = [typeof init === 'function' ? init() : init, (val) => {
+          hooks[i][0] = typeof val === 'function' ? val(hooks[i][0]) : val;
+        }];
+        return hooks[i];
+      },
+      useRef: (init) => { const i = cursor++; if (!(i in hooks)) hooks[i] = { current: init }; return hooks[i]; },
+      useMemo: (fn, deps) => { const i = cursor++; if (!(i in hooks) || !sameDeps(hooks[i].deps, deps)) hooks[i] = { deps, value: fn() }; return hooks[i].value; },
+      useCallback: (fn, deps) => internals.H.useMemo(() => fn, deps),
+      useEffect: (fn, deps) => { const i = cursor++; if (!(i in hooks) || !sameDeps(hooks[i].deps, deps)) pending.push({ i, fn, deps }); },
+      useLayoutEffect: (fn, deps) => internals.H.useEffect(fn, deps),
+      useInsertionEffect: (fn, deps) => internals.H.useEffect(fn, deps),
+      useId: () => { const i = cursor++; if (!(i in hooks)) hooks[i] = `:wp${i}:`; return hooks[i]; },
+      useDeferredValue: (v) => v,
+    };
+    let tree;
+    try { tree = Component(currentProps); } finally { internals.H = prev; }
+    for (const eff of pending) {
+      cleanups[eff.i]?.();
+      cleanups[eff.i] = undefined;
+      const done = eff.fn();
+      hooks[eff.i] = { deps: eff.deps };
+      if (typeof done === 'function') cleanups[eff.i] = done;
+    }
+    return tree;
+  };
+  const unmount = () => { for (const c of cleanups) c?.(); };
+  return { render, unmount };
+}
+
+function walkEls(node, visit) {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) { for (const c of node) walkEls(c, visit); return; }
+  if (node.props) {
+    visit(node);
+    walkEls(node.props.children, visit);
+    walkEls(node.props.description, visit);
+  }
+}
+
+const elText = (node) => {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(elText).join('');
+  return typeof node === 'object' && node.props ? elText(node.props.children) : '';
+};
+
+test('#47: open group with >= 2 rows offers bulk expand/collapse capped at 20 details', () => {
+  setUiLanguage('zh');
+  const manyCards = Array.from({ length: 24 }, (_, i) => row(`x${i}`, 'd4', '保护状态', `问题 ${i}`));
+  assert.doesNotMatch(text(render({ items: manyCards, counts: { total: 24, graded: 24, self: 0, oral: 0, rubric: 0 } })), /展开各题解析/, 'folded group hides detail bulk toggle');
+  assert.doesNotMatch(text(render({ items: [row('only1', 'd4', '保护状态', '唯一题')], counts: { total: 1, graded: 1, self: 0, oral: 0, rubric: 0 }, initial: { groups: 'all' } })), /展开各题解析/, '<2 rows omits detail bulk toggle');
+
+  const loaded = [];
+  const app = mountSync(WrongBookView, {
+    ...base,
+    items: manyCards,
+    counts: { total: 24, graded: 24, self: 0, oral: 0, rubric: 0 },
+    details: {},
+    onLoadDetail: (cardId) => loaded.push(cardId),
+    initial: { groups: 'all' },
+  });
+  let tree = app.render();
+  const findBtn = (label) => {
+    let found = null;
+    walkEls(tree, (n) => { if (!found && typeof n.type !== 'string' && elText(n).trim() === label) found = n; });
+    return found;
+  };
+  const expandBtn = findBtn('展开各题解析');
+  assert.ok(expandBtn, 'open group with >= 2 rows shows 展开各题解析');
+  expandBtn.props.onClick();
+  tree = app.render();
+  assert.equal(loaded.length, 20, 'expanding group details caps at first 20 rows');
+  assert.equal(loaded[0].cardId, 'x0');
+  assert.equal(loaded[19].cardId, 'x19');
+
+  const collapseBtn = findBtn('收起各题解析');
+  assert.ok(collapseBtn, 'label flips to 收起各题解析 once first 20 are expanded');
+  collapseBtn.props.onClick();
+  tree = app.render();
+  assert.ok(findBtn('展开各题解析'), 'clicking again collapses group details back');
+
+  setUiLanguage('en');
+  try {
+    tree = app.render();
+    assert.ok(findBtn('Expand explanations'), 'English expand label');
+    findBtn('Expand explanations').props.onClick();
+    tree = app.render();
+    assert.ok(findBtn('Collapse explanations'), 'English collapse label');
+  } finally {
+    setUiLanguage('zh');
+    app.unmount();
+  }
+});
+
+test('#48: .wb-rows arrow keys navigate row toggles and L triggers practice on focused row', () => {
+  setUiLanguage('zh');
+  const practiced = [];
+  const app = mountSync(WrongBookView, {
+    ...base,
+    onPractice: (scope) => practiced.push(scope),
+    initial: { groups: ['deck:d4'] },
+  });
+  const tree = app.render();
+  let rowsUl = null;
+  walkEls(tree, (n) => { if (!rowsUl && n.type === 'ul' && n.props.className === 'wb-rows') rowsUl = n; });
+  assert.ok(rowsUl?.props?.onKeyDown, '.wb-rows attaches keyboard handler');
+
+  const focused = [];
+  const makeBtn = (cardId) => ({
+    dataset: { cardId },
+    closest: (sel) => (sel === '.wb-row-toggle' ? btnMap.get(cardId) : null),
+    focus: () => focused.push(cardId),
+  });
+  const btnMap = new Map([['c1', makeBtn('c1')], ['c2', makeBtn('c2')], ['c3', makeBtn('c3')]]);
+  const buttonsList = [...btnMap.values()];
+  const currentTarget = { querySelectorAll: (sel) => (sel === '.wb-row-toggle' ? buttonsList : []) };
+  const fire = (key, cardId, extra = {}) => {
+    let prevented = false;
+    rowsUl.props.onKeyDown({
+      key,
+      metaKey: false, ctrlKey: false, altKey: false, isComposing: false,
+      ...extra,
+      target: btnMap.get(cardId),
+      currentTarget,
+      preventDefault: () => { prevented = true; },
+    });
+    return prevented;
+  };
+
+  assert.equal(fire('ArrowDown', 'c1'), true);
+  assert.equal(fire('End', 'c1'), true);
+  assert.equal(fire('ArrowUp', 'c3'), true);
+  assert.equal(fire('Home', 'c2'), true);
+  assert.deepEqual(focused, ['c2', 'c3', 'c2', 'c1']);
+
+  assert.equal(fire('l', 'c2'), true);
+  assert.equal(fire('L', 'c3'), true);
+  assert.equal(fire('l', 'c1', { ctrlKey: true }), false, 'modified shortcut is ignored');
+  assert.deepEqual(practiced, [[{ deckId: 'd4', cardId: 'c2' }], [{ deckId: 'd4', cardId: 'c3' }]]);
+  app.unmount();
+});
+

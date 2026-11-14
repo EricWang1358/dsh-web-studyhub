@@ -9,8 +9,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 import { withStudy } from './helpers/study-services.mjs';
 
-const m = await loadUi(`export { WrongBookView } from './ui/WrongBook.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage } from './ui/i18n.js';
+const m = await loadUi(`export { WrongBookView } from './ui/WrongBook.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { setUiLanguage, uiCatalogue } from './ui/i18n.js';
   export { FILTER_MIN, readSignature } from './ui/wrongbook-model.js';`);
+Object.assign(m.uiCatalogue(), JSON.parse(readFileSync(new URL('../ui/locales/en.polish-results.json', import.meta.url), 'utf8')));
 const { WrongBookView, setUiLanguage, FILTER_MIN, readSignature } = m;
 const noop = () => {};
 const decks = [{ id: 'd4', course: 'PE', title: 'Platform Engineering｜期末综合卷04｜90题' }, { id: 'd2', course: 'PE', title: 'Platform Engineering｜期末综合卷02｜90题' }];

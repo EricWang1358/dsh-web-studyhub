@@ -6,19 +6,23 @@ import overlayCss from "./components/overlays.css";
 import { useInjectCss, plainPrompt } from "./shared.js";
 import Markdown from "./Markdown.jsx";
 import StudyInline from "./StudyInline.jsx";
+import StudyMath from "./StudyMath.jsx";
+import { splitStudyMath } from "./study-media.js";
 import { usePolling } from "./use-polling.js";
 import EmptyStudyActions from "./EmptyStudyActions.jsx";
 import { RubricSkills } from "./CaseResult.jsx";
 import PageScope, { decksInCourse, usePageScope, useShowInactive, scopeArgs } from './PageScope.jsx';
-import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, TextInput, Tooltip, Chip, useToast } from './components/index.js';
+import { Badge, Banner, Button, ChunkedRows, Combobox, DisclosureToggle, foldLabel, EmptyState, ErrorState, Icon, InlineMessage, LoadingState, PageHeader, SegmentedControl, TextInput, Tooltip, Chip, highlightParts, useToast } from './components/index.js';
 import { scrollToAnchor } from './tour/anchor.js';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { leechLimits } from '../lib/leech.js';
+import { isJsonCardSource } from '../lib/source-provenance.js';
+import { firstCitation, usableCitations } from './document-preview/practice/citations.js';
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { modelReadiness } from './generation-status.js';
 import { similarWinLine } from './review/similar-words.js';
-import { FILTER_MIN, NO_FILTER, PRACTICE_SCOPE_CAP, RECS_PREVIEW, STATUS_KINDS, VARIANT_BATCH_CAP, capPracticeScope, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, leechCount, leechWords, practiceCappedText, readGroupBy, readOpenGroups, reasonText, retrainOptions,
-  sameVariantState, saveGroupBy, rescueCall, rescueGate, rescueNote, takeArrival, undoPauseCall, readSignature, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
+import { FILTER_MIN, NO_FILTER, PRACTICE_SCOPE_CAP, RECS_PREVIEW, SORT_KINDS, STATUS_KINDS, VARIANT_BATCH_CAP, capPracticeScope, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, leechCount, leechWords, practiceCappedText, readGroupBy, readOpenGroups, readSortBy, reasonText, retrainOptions,
+  sameVariantState, saveGroupBy, saveSortBy, sortGroupRows, rescueCall, rescueGate, rescueNote, takeArrival, undoPauseCall, readSignature, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
 import { peekQuery, refreshQuery, setQueryData, useHostQuery } from './host-query.js';
 import { formatDateTime, joinMeta, META_DOT } from "./format.js";
@@ -186,7 +190,65 @@ function DetailLine({ label, children, plain = false }) {
   return children ? <div className="wb-fact"><dt>{label}</dt><dd>{shown}</dd></div> : null;
 }
 
-function RowDetail({ id, item, course, detail, variants, recs, shortName, rescuePrompt, rescuing, canOpenModel, canOpenSettings, onPractice, onRescue, onDismissRescue, onOpenModel, onOpenProfileSettings, disabled }) {
+const SORT_LABELS = { recent: () => ui("最近"), most: () => ui("错次"), order: () => ui("原序") };
+
+function renderHighlightedText(text, query) {
+  const value = String(text ?? "");
+  const trimmed = String(query ?? "").trim();
+  if (!trimmed || !value) return value;
+  return highlightParts(value, trimmed).map((part, index) => (
+    part.match ? <span key={index} className="wb-hit">{part.text}</span> : <React.Fragment key={index}>{part.text}</React.Fragment>
+  ));
+}
+
+function PromptPreview({ text, query }) {
+  const trimmed = String(query ?? "").trim();
+  if (!trimmed) return <StudyInline text={text} />;
+  const plain = plainPrompt(text);
+  const pieces = splitStudyMath(plain);
+  if (pieces.every((piece) => typeof piece === "string")) return renderHighlightedText(plain, trimmed);
+  return pieces.map((piece, at) => {
+    if (typeof piece === "string") return <React.Fragment key={at}>{renderHighlightedText(piece, trimmed)}</React.Fragment>;
+    if (piece.raw.startsWith("\\begin{")) return <React.Fragment key={at}>{piece.raw.replace(/\s+/g, " ")}</React.Fragment>;
+    return <StudyMath key={at} formula={{ ...piece, display: false }} />;
+  });
+}
+
+function resolveCardSourceTarget(item, decks = [], sources = []) {
+  if (!item || !Array.isArray(sources) || !sources.length) return null;
+  const deck = Array.isArray(decks) ? decks.find((d) => d.id === item.deckId) : null;
+  const card = Array.isArray(deck?.cards) ? deck.cards.find((c) => c.id === item.cardId) : null;
+  if (card) {
+    const usable = usableCitations(card, sources);
+    const pick = usable.find((citation) => citation.selection) || usable[0];
+    if (pick) {
+      return {
+        source: pick.selection ? { ...pick.source, selection: pick.selection } : pick.source,
+        quote: pick.quote || pick.selection?.quote || "",
+        peekPage: pick.selection?.page ?? pick.page ?? card.page ?? undefined,
+      };
+    }
+    if (card.sourceId) {
+      const src = sources.find((s) => s.id === card.sourceId && !isJsonCardSource(s));
+      if (src) return { source: src, quote: card.quote || "", peekPage: card.page ?? undefined };
+    }
+    return null;
+  }
+  const itemCited = firstCitation(item, sources);
+  if (itemCited) return { ...itemCited, peekPage: itemCited.source?.selection?.page ?? item.page ?? undefined };
+  const fallbackId = item.sourceId || (!deck?.cards ? (deck?.sourceId || deck?.case?.sourceId) : null);
+  if (fallbackId) {
+    const src = sources.find((s) => s.id === fallbackId && !isJsonCardSource(s));
+    if (src) return { source: src, quote: item.quote || "", peekPage: item.page ?? undefined };
+  }
+  return null;
+}
+
+function RowDetail({ id, item, course, detail, variants, recs, shortName, rescuePrompt, rescuing, canOpenModel, canOpenSettings, onPractice, onRescue, onDismissRescue, onOpenModel, onOpenProfileSettings, onOpenSource, disabled }) {
+  const yourAnswerText = detail && detail !== "loading" && !detail?.error
+    ? (detail.selfGrade !== null && detail.selfGrade !== undefined ? uiFormat("自评 {0} 分", [detail.selfGrade]) : detail.yourAnswer)
+    : "";
+  const hasCompare = Boolean(yourAnswerText && detail?.correctAnswer);
   return (
     <div className="wb-detail" id={id}>
       {item.similarWin && <p className="muted" data-similar-win="">{similarWinLine()}</p>}
@@ -195,8 +257,17 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
           : (
             <dl className="wb-facts">
               <DetailLine label={ui("上次答错")}>{detail.missedAt ? formatDateTime(detail.missedAt, "stamp") : ""}</DetailLine>
-              <DetailLine label={ui("你的答案")} plain>{detail.selfGrade !== null && detail.selfGrade !== undefined ? uiFormat("自评 {0} 分", [detail.selfGrade]) : detail.yourAnswer}</DetailLine>
-              <DetailLine label={ui("正确答案")}>{detail.correctAnswer}</DetailLine>
+              {hasCompare ? (
+                <div className="wb-compare">
+                  <DetailLine label={ui("你的答案")} plain>{yourAnswerText}</DetailLine>
+                  <DetailLine label={ui("正确答案")}>{detail.correctAnswer}</DetailLine>
+                </div>
+              ) : (
+                <>
+                  <DetailLine label={ui("你的答案")} plain>{yourAnswerText}</DetailLine>
+                  <DetailLine label={ui("正确答案")}>{detail.correctAnswer}</DetailLine>
+                </>
+              )}
               <DetailLine label={ui("解析")}>{detail.explanation}</DetailLine>
               <DetailLine label={ui("易错点")}>{detail.misconception}</DetailLine>
             </dl>
@@ -233,7 +304,10 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
           </ul>
         </div>
       )}
-      <small className="muted">{shortName(item.deckTitle)}</small>
+      <div className="wb-detail__foot">
+        <small className="muted">{shortName(item.deckTitle)}</small>
+        {onOpenSource && <Button variant="link" size="sm" onClick={onOpenSource}>{ui("打开出处")}</Button>}
+      </div>
     </div>
   );
 }
@@ -243,7 +317,7 @@ const sameRow = (a, b) => Object.keys(a).every((key) => (key === 'state' ? sameV
 
 /* One question. Memoised, so opening a group, typing in the search box or a status poll redraws only the rows whose own props changed (the
    `handlers` are stable). */
-const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers, limits, course, rescuePrompt = null, rescuing = false, canOpenModel = false, canOpenSettings = false, history = false, mistake = "", showPractice = true }) {
+const Row = memo(function Row({ it, metaText, query = "", isOpen, state, detail, sourceTarget = null, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers, limits, course, rescuePrompt = null, rescuing = false, canOpenModel = false, canOpenSettings = false, history = false, mistake = "", showPractice = true }) {
   const detailId = `wb-detail-${it.cardId}`;
   const recs = useMemo(() => (isOpen ? relatedTo(recItems, it.cardId) : []), [isOpen, recItems, it.cardId]);
   const fullPrompt = plainPrompt(it.prompt);
@@ -251,10 +325,10 @@ const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, s
     ? joinMeta([metaText, fullPrompt])
     : "";
   const toggleBtn = (
-    <FoldButton className="wb-row-toggle" open={isOpen} controls={detailId} onClick={() => handlers.open(it)}>
+    <FoldButton className="wb-row-toggle" open={isOpen} controls={detailId} data-card-id={it.cardId} onClick={() => handlers.open(it)}>
       <Icon name="chevron" size={16} className="wb-chevron" />
-      <span className="wb-meta">{metaText}</span>
-      <span className="wb-prompt"><StudyInline text={it.prompt} /></span>
+      <span className="wb-meta">{renderHighlightedText(metaText, query)}</span>
+      <span className="wb-prompt"><PromptPreview text={it.prompt} query={query} /></span>
     </FoldButton>
   );
   return (
@@ -288,7 +362,8 @@ const Row = memo(function Row({ it, metaText, isOpen, state, detail, recItems, s
           variants={state.kind === "ready" ? state.prompts : []}
           recs={recs}
           onPractice={handlers.practiceRec} onRescue={handlers.rescue}
-          onDismissRescue={handlers.dismissRescue} onOpenModel={handlers.openModel} onOpenProfileSettings={handlers.openProfileSettings} />
+          onDismissRescue={handlers.dismissRescue} onOpenModel={handlers.openModel} onOpenProfileSettings={handlers.openProfileSettings}
+          onOpenSource={sourceTarget ? () => handlers.openSource(sourceTarget) : undefined} />
       )}
     </li>
   );
@@ -352,7 +427,7 @@ export function WrongBookView({
   recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings,
   onLibrary, onCreate, onSources, onRescue, onNotify, arrival, openKey, initial = {}, filterMin = FILTER_MIN,
 }) {
-  const { busy } = useStudy();
+  const { busy, openModal } = useStudy();
   useInjectCss(css, "study-views");
   useInjectCss(wrongCss, "study-wrongbook");
   // The distribution's tooltip is the shared point tooltip surface (.sh-tooltip--point, ui/components/overlays.css).
@@ -365,6 +440,8 @@ export function WrongBookView({
   const showViews = typeof onView === "function" && (historyCount > 0 || isHistory);
   const [groupBy, setGroupBy] = useState(() => initial.groupBy || readGroupBy());
   const chooseGroupBy = (value) => { setGroupBy(value); saveGroupBy(value); };
+  const [sortBy, setSortBy] = useState(() => initial.sortBy || readSortBy());
+  const chooseSortBy = (value) => { setSortBy(value); saveSortBy(value); };
   const [expanded, setExpanded] = useState(() => new Set(initial.expanded || []));
   // A row that stays open across a reload (刷新 drops what was read) asks for its detail again; the page asks each card once per list load, so this never loops.
   useEffect(() => {
@@ -400,7 +477,29 @@ export function WrongBookView({
   const localDecks = decksInCourse(data, course, showInactive);
   const shortName = useMemo(() => shortDeckNames(rows, data?.decks), [rows, data?.decks]);
   const shown = useMemo(() => filterRows(rows, applied), [rows, applied]);
-  const groups = useMemo(() => groupRows(shown, groupBy, data?.decks), [shown, groupBy, data?.decks]);
+  const wrongCounts = useMemo(() => {
+    if (!Array.isArray(data?.attempts) || !data.attempts.length) return null;
+    const map = new Map();
+    for (const attempt of data.attempts) {
+      if (!attempt || attempt.retry || !(attempt.grade < 3)) continue;
+      const key = `${attempt.deckId}\0${attempt.quiz_id}`;
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return map;
+  }, [data?.attempts]);
+  const groups = useMemo(
+    () => sortGroupRows(groupRows(shown, groupBy, data?.decks), sortBy, { decks: data?.decks, wrongCounts }),
+    [shown, groupBy, data?.decks, sortBy, wrongCounts]
+  );
+  const sourceTargetByCard = useMemo(() => {
+    const map = new Map();
+    if (!data?.sources?.length) return map;
+    for (const item of rows) {
+      const target = resolveCardSourceTarget(item, data?.decks, data.sources);
+      if (target) map.set(item.cardId, target);
+    }
+    return map;
+  }, [rows, data?.decks, data?.sources]);
   const choices = useMemo(() => deckChoices(rows, data?.decks), [rows, data?.decks]);
   const filtering = filterActive(applied);
   const kindsHere = useMemo(() => statusCounts(rows), [rows]);
@@ -541,7 +640,7 @@ export function WrongBookView({
   const practiceRec = (rec) => onPractice([refOf(rec)]);
   const groupsId = useId();
   // A group draws its rows in chunks (ChunkedRows); another filter, grouping, view, scope or page starts every group from its first chunk again.
-  const chunkKey = useMemo(() => JSON.stringify([scopeKey, applied, groupBy, view, page]), [scopeKey, applied, groupBy, view, page]);
+  const chunkKey = useMemo(() => JSON.stringify([scopeKey, applied, groupBy, sortBy, view, page]), [scopeKey, applied, groupBy, sortBy, view, page]);
   // A segment of 薄弱点分布 takes the learner to its group: the row's own 只看这个题组 when the group is one deck, otherwise open it and go there.
   const pickGroup = (group) => {
     if (group.deckIds.length === 1) { onlyThisDeck(group); return; }
@@ -579,9 +678,57 @@ export function WrongBookView({
     }
   };
   const dismissRescue = () => setRescuePrompt(null);
+  const openCardSource = (target) => {
+    if (!target?.source || !openModal) return;
+    openModal({
+      type: "source",
+      source: target.source,
+      ...(target.quote ? { quote: target.quote } : {}),
+      ...(target.peekPage != null ? { peekPage: target.peekPage } : {}),
+      back: true,
+    });
+  };
+  const toggleGroupDetails = (capRows, allExpanded) => {
+    setExpanded((previous) => {
+      const next = new Set(previous);
+      if (allExpanded) {
+        for (const row of capRows) next.delete(row.cardId);
+      } else {
+        for (const row of capRows) next.add(row.cardId);
+      }
+      return next;
+    });
+  };
+  const onRowsKeyDown = (event, groupRowsList) => {
+    if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
+    const target = event.target;
+    if (target?.closest?.("input, textarea, select, [contenteditable='true']")) return;
+    const toggleEl = target?.closest?.(".wb-row-toggle");
+    if (!toggleEl) return;
+    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      const toggles = [...event.currentTarget.querySelectorAll(".wb-row-toggle")];
+      const index = toggles.indexOf(toggleEl);
+      if (index < 0 || !toggles.length) return;
+      event.preventDefault();
+      const nextIndex = event.key === "ArrowDown" ? Math.min(toggles.length - 1, index + 1)
+        : event.key === "ArrowUp" ? Math.max(0, index - 1)
+        : event.key === "Home" ? 0
+        : toggles.length - 1;
+      toggles[nextIndex]?.focus?.();
+      return;
+    }
+    if (event.key === "l" || event.key === "L") {
+      const cardId = toggleEl.dataset?.cardId;
+      const item = cardId ? groupRowsList.find((row) => row.cardId === cardId) : null;
+      if (item && !busy && onPractice) {
+        event.preventDefault();
+        handlers.practice(item);
+      }
+    }
+  };
   // The handlers every row shares; the row itself is memoised, so these must keep their identity from render to render.
   const latest = useRef(null);
-  latest.current = { openRow, generate, onPractice, onPracticePrepared, practiceRec, triggerRescue, dismissRescue, openModel, openProfileSettings };
+  latest.current = { openRow, generate, onPractice, onPracticePrepared, practiceRec, triggerRescue, dismissRescue, openModel, openProfileSettings, openCardSource };
   const handlers = useMemo(() => ({
     open: (item) => latest.current.openRow(item),
     generate: (item) => latest.current.generate([item]),
@@ -592,6 +739,7 @@ export function WrongBookView({
     dismissRescue: () => latest.current.dismissRescue(),
     openModel: () => latest.current.openModel?.(),
     openProfileSettings: () => latest.current.openProfileSettings?.(),
+    openSource: (target) => latest.current.openCardSource(target),
   }), []);
 
   return (
@@ -601,11 +749,33 @@ export function WrongBookView({
           {isHistory
             ? counts.total ? uiFormat('已订正的错题：答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估 {2} 题。', [counts.graded, counts.self, counts.oral])
               : ui('答对一次后，错题会移到这里，作为历史保留，随时可以再练。')
-            : counts.total ? uiFormat('客观答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估待巩固 {2} 题。', [counts.graded, counts.self, counts.oral])
+            : counts.total ? (
+              <>
+                {[
+                  { kind: "graded", count: counts.graded, text: uiFormat("客观答错 {0} 题", [counts.graded]) },
+                  { kind: "self", count: counts.self, text: uiFormat("自评未掌握 {0} 题", [counts.self]) },
+                  { kind: "oral", count: counts.oral, text: uiFormat("口头评估待巩固 {0} 题", [counts.oral]) },
+                ].map((part, index) => (
+                  <React.Fragment key={part.kind}>
+                    {index > 0 && " · "}
+                    {(counts.total > 1 || filter.status !== "all") && part.count > 0 ? (
+                      <Button variant="quiet" size="sm" className="wb-count-toggle" aria-pressed={filter.status === part.kind}
+                        onClick={() => patchFilter({ status: filter.status === part.kind ? "all" : part.kind })}>{part.text}</Button>
+                    ) : part.text}
+                  </React.Fragment>
+                ))}
+                {ui("。")}
+              </>
+            )
               : ui('客观答错、自评未掌握或口头评估待巩固的题会收在这里。')}
           {/* The switch already says 已订正 N; the weak page's header says the history is kept so a cleared page is not read as an empty one. */}
           {!isHistory && historyCount > 0 && <>{META_DOT}{uiFormat('已订正 {0} 题，记录保留', [historyCount])}</>}
-          {counts.rubric > 0 && uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric])}
+          {!isHistory && counts.rubric > 0 && ((counts.total > 1 || filter.status !== "all") ? (
+            <Button variant="quiet" size="sm" className="wb-count-toggle" aria-pressed={filter.status === "rubric"}
+              onClick={() => patchFilter({ status: filter.status === "rubric" ? "all" : "rubric" })}>
+              {uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric])}
+            </Button>
+          ) : uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric]))}
         </>}
         scope={<PageScope courses={data?.focus?.courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />} />
 
@@ -714,6 +884,8 @@ export function WrongBookView({
               <SegmentedControl label={ui("分组方式")} value={groupBy} onChange={chooseGroupBy} size="sm"
                 options={[{ value: "topic", label: ui("按主题") }, { value: "deck", label: ui("按题组") }]} />
             </Tooltip>
+            <SegmentedControl className="wb-sort__seg" label={ui("排序方式")} value={sortBy} onChange={chooseSortBy} size="sm"
+              options={SORT_KINDS.map((value) => ({ value, label: SORT_LABELS[value]() }))} />
             <span className="wb-fold-all">
               <Button variant="quiet" size="sm" disabled={allOpen || !groups.length} onClick={() => setOpenGroups((previous) => new Set([...previous, ...groups.map((group) => group.key)]))}>{ui("全部展开")}</Button>
               <Button variant="quiet" size="sm" disabled={!anyOpen} onClick={() => setOpenGroups(new Set())}>{ui("全部收起")}</Button>
@@ -731,6 +903,16 @@ export function WrongBookView({
             <label className="wb-search">
               <Icon name="search" size={16} className="wb-search-icon" />
               <TextInput type="search" className="wb-search-input" value={filter.query} onChange={(event) => patchFilter({ query: event.target.value })}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return;
+                  if (filter.query) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    patchFilter({ query: "" });
+                  } else {
+                    event.currentTarget?.blur?.();
+                  }
+                }}
                 placeholder={ui("搜索题目或主题")} aria-label={ui("搜索题目或主题")} />
             </label>
             <div className="wb-status-group" role="group" aria-label={ui("按状态筛选")}>
@@ -762,7 +944,7 @@ export function WrongBookView({
               )}
             </div>
           </div>
-          <div className="wb-filter-result" role="status">
+          <div className="wb-filter-result" role="status" aria-live="polite">
             {canGenerate && batch.length > VARIANT_BATCH_CAP
               ? <Tooltip layer content={tip(uiFormat('这里有 {0} 题可以生成变式，一次最多 {1} 题。', [batch.length, VARIANT_BATCH_CAP]), ui('其余的等这批写好后再点一次。'))}>
                 <span tabIndex={0}>{uiFormat("显示 {0} / 共 {1} 题", [shown.length, total])}</span>
@@ -818,6 +1000,9 @@ export function WrongBookView({
             {group.mode === "topic" && <small className="muted wb-from">{uiFormat("来自 {0}", [group.deckTitles.join("、")])}</small>}
           </span>
         );
+        const capRows = group.rows.slice(0, 20);
+        const canExpandDetails = isOpen && group.rows.length >= 2;
+        const allGroupRowsExpanded = canExpandDetails && capRows.every((row) => expanded.has(row.cardId));
         return (
           <div key={group.key} className={"wb-group" + (isOpen ? " is-open" : "")} {...(index === 0 ? { "data-tour": "wrongbook-list" } : {})}>
             <div className={"wb-group-head" + (flat ? " is-flat" : "")}>
@@ -828,23 +1013,28 @@ export function WrongBookView({
                 </FoldButton>
               )}
               {/* With one group these would say what the page's own buttons already say: the start, the filter and the batch. */}
-              {!oneGroup && (
+              {(!oneGroup || canExpandDetails) && (
                 <div className="wb-group-actions">
-                  {group.rows.length > PRACTICE_SCOPE_CAP ? (
+                  {canExpandDetails && (
+                    <Button size="sm" variant="quiet" onClick={() => toggleGroupDetails(capRows, allGroupRowsExpanded)}>
+                      {allGroupRowsExpanded ? ui("收起各题解析") : ui("展开各题解析")}
+                    </Button>
+                  )}
+                  {!oneGroup && group.rows.length > PRACTICE_SCOPE_CAP ? (
                     <Tooltip layer content={practiceCappedText(group.rows.length, { group: true })}>
                       <Button variant="quiet" size="sm" icon="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
                         onClick={() => practiceScope(group.rows.map(refOf), { group: true })}>{ui("练这一组")}</Button>
                     </Tooltip>
-                  ) : (
+                  ) : !oneGroup && (
                     <Button variant="quiet" size="sm" icon="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
                       onClick={() => practiceScope(group.rows.map(refOf), { group: true })}>{ui("练这一组")}</Button>
                   )}
-                  {showBar && group.deckIds.length === 1 && applied.deck !== group.deckIds[0] && (
+                  {!oneGroup && showBar && group.deckIds.length === 1 && applied.deck !== group.deckIds[0] && (
                     <Tooltip layer content={tip(ui('只显示这个题组里的错题。'), ui('点「清除筛选」可以回到全部。'))}>
                       <Button variant="quiet" size="sm" icon="filter" onClick={() => onlyThisDeck(group)}>{ui("只看这个题组")}</Button>
                     </Tooltip>
                   )}
-                  {!isHistory && canGenerate && todo.length > 0 && (
+                  {!oneGroup && !isHistory && canGenerate && todo.length > 0 && (
                     <Tooltip layer content={generateTip()}>
                       <Button variant="quiet" size="sm" icon="sparkle" lock={busy || working} onClick={() => generate(todo)}>
                         {uiFormat("为本组生成变式 ({0})", [todo.length])}
@@ -855,10 +1045,13 @@ export function WrongBookView({
               )}
             </div>
             {isOpen && (
-              <ul className="wb-rows" id={rowsId}>
+              <ul className="wb-rows" id={rowsId} onKeyDown={(event) => onRowsKeyDown(event, group.rows)}>
                 <ChunkedRows as="li" items={group.rows} resetKey={chunkKey} render={(it) => (
                   <Row key={it.cardId} it={it} metaText={group.mode === "topic" ? shortName(it.deckTitle) : it.topic || ui("未分类")}
-                    isOpen={expanded.has(it.cardId)} state={stateOf(it.cardId)} detail={details[it.cardId]} recItems={recItems} shortName={shortName}
+                    query={applied.query.trim()}
+                    isOpen={expanded.has(it.cardId)} state={stateOf(it.cardId)} detail={details[it.cardId]}
+                    sourceTarget={expanded.has(it.cardId) ? (sourceTargetByCard.get(it.cardId) || null) : null}
+                    recItems={recItems} shortName={shortName}
                     canGenerate={!isHistory && canGenerate} canPracticePrepared={!!onPracticePrepared} disabled={busy} variantDisabled={busy || working} handlers={handlers} limits={limits} course={courseOfDeck.get(it.deckId) || ''} showPractice={isHistory || total !== 1}
                     rescuePrompt={activeRescuePrompt?.cardId === it.cardId ? activeRescuePrompt : null} rescuing={rescuingCard === it.cardId}
                     canOpenModel={!!openModel} canOpenSettings={!!openProfileSettings}

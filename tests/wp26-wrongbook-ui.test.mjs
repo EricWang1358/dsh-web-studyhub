@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
@@ -8,13 +9,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 // WP26: the wrong-book page groups by topic, recommends similar questions, offers
 // variants per topic/row, and splits "重练" into three scopes.
 const compiled = await build({ stdin: { contents: `export {WrongBookView} from './ui/WrongBook.jsx';
+  export {StudyServicesContext} from './ui/study-context.jsx';
   export {groupRows, retrainOptions, variantState, variantFailureText, reasonText} from './ui/wrongbook-model.js';
   export {formatDateTime} from './ui/format.js';
-  export {setUiLanguage} from './ui/i18n.js';`, resolveDir: process.cwd() },
+  export {setUiLanguage, uiCatalogue} from './ui/i18n.js';`, resolveDir: process.cwd() },
   bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'], loader: { '.css': 'text' } });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { WrongBookView, groupRows, retrainOptions, variantState, variantFailureText, reasonText, formatDateTime, setUiLanguage } = module.exports;
+Object.assign(module.exports.uiCatalogue(), JSON.parse(readFileSync(new URL('../ui/locales/en.polish-results.json', import.meta.url), 'utf8')));
+const { WrongBookView, StudyServicesContext, groupRows, retrainOptions, variantState, variantFailureText, reasonText, formatDateTime, setUiLanguage } = module.exports;
 const noop = () => {};
 const han = /\p{Script=Han}/u;
 
@@ -356,3 +359,89 @@ test('English: the history view is translated while the question text stays as w
     assert.match(text(empty), /No corrected mistakes yet/);
   } finally { setUiLanguage('zh'); }
 });
+
+test('#49: opened RowDetail renders 打开出处 from card citations/source and opens source modal', () => {
+  setUiLanguage('zh');
+  const modals = [];
+  const srcPdf = { id: 'src-pdf', title: 'Platform Notes · p. 12', format: 'pdf', document: { id: 'doc-1', format: 'pdf', bookTitle: 'Platform Notes', page: 12 }, text: 'Circuit breaker rejects traffic.' };
+  const decksWithCards = [
+    { id: 'd4', course: 'PE', title: decks[0].title, cards: [{ id: 'c1', citations: [{ sourceId: 'src-pdf', quote: 'rejects traffic', page: 12 }] }, { id: 'c2', citations: [] }] },
+    decks[1],
+  ];
+  const withDetails = {
+    c1: { deckId: 'd4', cardId: 'c1', yourAnswer: 'A', correctAnswer: 'B', explanation: 'E1', misconception: '' },
+    c2: { deckId: 'd4', cardId: 'c2', yourAnswer: 'X', correctAnswer: 'Y', explanation: 'E2', misconception: '' },
+  };
+  const props = {
+    ...base,
+    data: { ...base.data, decks: decksWithCards, sources: [srcPdf] },
+    details: withDetails,
+    initial: { groups: ['deck:d4'], expanded: ['c1', 'c2'] },
+  };
+  const htmlZh = renderToStaticMarkup(React.createElement(StudyServicesContext.Provider, { value: { openModal: (m) => modals.push(m), busy: false } },
+    React.createElement(WrongBookView, props)));
+  assert.match(htmlZh, /class="wb-detail__foot"/);
+  assert.equal((htmlZh.match(/>打开出处<\/button>/g) || []).length, 1, 'only the row with a resolvable source renders 打开出处');
+
+  const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+  const hooks = [];
+  let cursor = 0;
+  const sameDeps = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
+  const prev = internals.H;
+  const baseDispatcher = {
+    useContext: (ctx) => (ctx === StudyServicesContext ? { openModal: (m) => modals.push(m), busy: false } : ctx._currentValue),
+    useState: (init) => { const i = cursor++; if (!(i in hooks)) hooks[i] = [typeof init === 'function' ? init() : init, () => {}]; return hooks[i]; },
+    useRef: (init) => { const i = cursor++; if (!(i in hooks)) hooks[i] = { current: init }; return hooks[i]; },
+    useMemo: (fn, deps) => { const i = cursor++; if (!(i in hooks) || !sameDeps(hooks[i].deps, deps)) hooks[i] = { deps, value: fn() }; return hooks[i].value; },
+    useCallback: (fn, deps) => internals.H.useMemo(() => fn, deps),
+    useEffect: () => { cursor++; },
+    useLayoutEffect: () => { cursor++; },
+    useInsertionEffect: () => { cursor++; },
+    useId: () => { const i = cursor++; return `:wp26-${i}:`; },
+    useDeferredValue: (v) => v,
+  };
+  internals.H = baseDispatcher;
+  let tree;
+  try { tree = WrongBookView(props); } finally { internals.H = prev; }
+  const openBtns = [];
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (typeof node.type?.type === 'function' && node.props?.it) {
+      let c = 0;
+      const prevRowH = internals.H;
+      const rowHooks = [];
+      internals.H = {
+        ...baseDispatcher,
+        useContext: (ctx) => ctx._currentValue,
+        useState: (init) => { const i = c++; if (!(i in rowHooks)) rowHooks[i] = [typeof init === 'function' ? init() : init, () => {}]; return rowHooks[i]; },
+        useRef: (init) => { const i = c++; if (!(i in rowHooks)) rowHooks[i] = { current: init }; return rowHooks[i]; },
+        useMemo: (fn, deps) => { const i = c++; if (!(i in rowHooks) || !sameDeps(rowHooks[i].deps, deps)) rowHooks[i] = { deps, value: fn() }; return rowHooks[i].value; },
+      };
+      let rowTree;
+      try { rowTree = node.type.type(node.props); } finally { internals.H = prevRowH; }
+      walk(rowTree);
+      return;
+    }
+    if (typeof node.type === 'function' && node.props?.onOpenSource) openBtns.push(node.props.onOpenSource);
+    if (node.props?.render && Array.isArray(node.props?.items)) node.props.items.forEach((it) => walk(node.props.render(it)));
+    walk(node.props?.children);
+  };
+  walk(tree);
+  assert.equal(openBtns.length, 1);
+  openBtns[0]();
+  assert.equal(modals.length, 1);
+  assert.equal(modals[0].type, 'source');
+  assert.equal(modals[0].source.id, 'src-pdf');
+  assert.equal(modals[0].quote, 'rejects traffic');
+  assert.equal(modals[0].peekPage, 12);
+  assert.equal(modals[0].back, true);
+
+  setUiLanguage('en');
+  try {
+    const htmlEn = renderToStaticMarkup(React.createElement(StudyServicesContext.Provider, { value: { openModal: () => {}, busy: false } },
+      React.createElement(WrongBookView, props)));
+    assert.match(htmlEn, />Open source<\/button>/);
+  } finally { setUiLanguage('zh'); }
+});
+

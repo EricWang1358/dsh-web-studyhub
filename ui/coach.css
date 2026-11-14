@@ -107,6 +107,7 @@
     /* One filled primary per screen: the page's next step (ui/Review.jsx .result-next) is it; the 雷霆建议's own suggestion (定制题 or 补薄弱) is a secondary button. */
     .coach-model-note { margin: var(--space-3) 0 0; font-size: var(--fs-md); color: var(--text-muted); }
     .coach-countdown { font-size: var(--fs-md); color: var(--text-muted); }
+    .coach-countdown__paused { color: var(--text-dim); margin-left: var(--space-1); }
     .skeleton {
       border-radius: var(--radius-sm);
       background: linear-gradient(90deg, var(--line-soft) 25%, var(--bg-hover) 50%, var(--line-soft) 75%);

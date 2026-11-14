@@ -241,12 +241,14 @@ test('review.lookBack exposes answer-safe source metadata for cited questions wi
 test('RoundLookBack shows CitationDisclosure for answered rows and clickable source-page links in Chinese and English', async () => {
   const React = (await import('react')).default;
   const { renderToStaticMarkup } = await import('react-dom/server');
+  const { readFileSync } = await import('node:fs');
   const { loadUi } = await import('./helpers/ui-module.mjs');
   const uiMod = await loadUi(`
     export { default as RoundLookBack } from './ui/review/RoundLookBack.jsx';
     export { StudyServicesContext } from './ui/study-context.jsx';
     export { setQueryData } from './ui/host-query.js';
-    export { setUiLanguage } from './ui/i18n.js';`);
+    export { setUiLanguage, uiCatalogue } from './ui/i18n.js';`);
+  Object.assign(uiMod.uiCatalogue(), JSON.parse(readFileSync(new URL('../ui/locales/en.polish-results.json', import.meta.url), 'utf8')));
   const inLanguage = (lang, fn) => { uiMod.setUiLanguage(lang); try { return fn(); } finally { uiMod.setUiLanguage('zh'); } };
   const noop = () => {};
   const services = { call: async () => ({}), act: async () => undefined, busy: false, notify: noop, askInChat: noop, host: {}, openSettings: noop, navigate: noop, openModal: noop };
@@ -399,3 +401,338 @@ test('a poll that changes nothing says so, and a helper task on the open questio
   assert.deepEqual(finishedTask('t1', [{ ...own[0], status: 'failed' }], 'g'), { watch: '', done: false }, 'a failed task brings nothing to show');
   assert.deepEqual(finishedTask('', [], 'g'), { watch: '', done: false });
 });
+
+async function loadLookBackUi() {
+  const React = (await import('react')).default;
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { readFileSync } = await import('node:fs');
+  const { loadUi } = await import('./helpers/ui-module.mjs');
+  const uiMod = await loadUi(`
+    export { default as RoundLookBack, formatLookBackMarkdown } from './ui/review/RoundLookBack.jsx';
+    export { default as ResultBreakdown } from './ui/ResultBreakdown.jsx';
+    export { StudyServicesContext } from './ui/study-context.jsx';
+    export { setQueryData } from './ui/host-query.js';
+    export { setUiLanguage, uiCatalogue } from './ui/i18n.js';`);
+  Object.assign(uiMod.uiCatalogue(), JSON.parse(readFileSync(new URL('../ui/locales/en.polish-results.json', import.meta.url), 'utf8')));
+  return { React, renderToStaticMarkup, uiMod };
+}
+
+function mountLookBackSync(React, uiMod, services) {
+  const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+  const hooks = [];
+  const cleanups = [];
+  let cursor = 0;
+  let pending = [];
+  const sameDeps = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
+  return {
+    render(Component, props) {
+      cursor = 0;
+      pending = [];
+      const prev = internals.H;
+      internals.H = {
+        useContext: (ctx) => (ctx === uiMod.StudyServicesContext ? services : ctx._currentValue),
+        useState: (init) => {
+          const i = cursor++;
+          if (!(i in hooks)) hooks[i] = [typeof init === 'function' ? init() : init, (val) => {
+            hooks[i][0] = typeof val === 'function' ? val(hooks[i][0]) : val;
+          }];
+          return hooks[i];
+        },
+        useRef: (init) => { const i = cursor++; if (!(i in hooks)) hooks[i] = { current: init }; return hooks[i]; },
+        useMemo: (fn, deps) => { const i = cursor++; if (!(i in hooks) || !sameDeps(hooks[i].deps, deps)) hooks[i] = { deps, value: fn() }; return hooks[i].value; },
+        useCallback: (fn, deps) => internals.H.useMemo(() => fn, deps),
+        useEffect: (fn, deps) => { const i = cursor++; if (!(i in hooks) || !sameDeps(hooks[i].deps, deps)) pending.push({ i, fn, deps }); },
+        useLayoutEffect: (fn, deps) => internals.H.useEffect(fn, deps),
+        useInsertionEffect: (fn, deps) => internals.H.useEffect(fn, deps),
+        useId: () => { const i = cursor++; if (!(i in hooks)) hooks[i] = `:lb${i}:`; return hooks[i]; },
+        useDeferredValue: (v) => v,
+        useSyncExternalStore: (_sub, getSnap) => getSnap(),
+      };
+      let tree;
+      try { tree = Component(props); } finally { internals.H = prev; }
+      for (const eff of pending) {
+        cleanups[eff.i]?.();
+        cleanups[eff.i] = undefined;
+        const done = eff.fn();
+        hooks[eff.i] = { deps: eff.deps };
+        if (typeof done === 'function') cleanups[eff.i] = done;
+      }
+      return tree;
+    },
+    unmount() { for (const c of cleanups) c?.(); },
+  };
+}
+
+function walkLookBack(node, visit) {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) { for (const c of node) walkLookBack(c, visit); return; }
+  if (node.props) {
+    visit(node);
+    if (typeof node.props.render === 'function' && Array.isArray(node.props.items)) {
+      node.props.items.forEach((item) => walkLookBack(node.props.render(item), visit));
+    }
+    walkLookBack(node.props.children, visit);
+  }
+}
+
+const textOf = (node) => {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join('');
+  return typeof node === 'object' && node.props ? textOf(node.props.children) : '';
+};
+
+test('#7: roundLookBack flags hesitant-correct rows when elapsed_ms >= 25s and >= 3x median across >= 3 timed answers, and RoundLookBack renders badge + filter', async (t) => {
+  const { service, run } = await library(t, 5);
+  // Answer q1..q4 as right, wrong, right, right; leave q5 unanswered.
+  let cur = run;
+  for (let i = 0; i < 4; i++) {
+    cur = await answer(service, cur, [i === 1 ? 'b' : 'a']);
+    if (i < 3) cur = await service.call('review.move', { runId: run.id, direction: 1 });
+  }
+  await service.call('review.end', { runId: run.id });
+  const elapsed = { q1: 4000, q2: 32000, q3: 5000, q4: 95000 };
+  await service.store.update((s) => {
+    for (const a of s.attempts) {
+      if (a.runId === run.id && elapsed[a.quiz_id]) a.elapsed_ms = elapsed[a.quiz_id];
+    }
+    // Add a slow retry attempt on q3 that must be ignored for non-retry hesitant timing
+    s.attempts.push({ runId: run.id, quiz_id: 'q3', retry: true, elapsed_ms: 90000, grade: 5 });
+  });
+  const { rows } = await service.call('review.lookBack', { runId: run.id });
+  const byId = Object.fromEntries(rows.map((r) => [r.cardId, r]));
+  assert.equal(byId.q1.hesitant, undefined);
+  assert.equal(byId.q2.hesitant, undefined, 'wrong rows are never marked hesitant');
+  assert.equal(byId.q3.hesitant, undefined, 'retry attempt does not mark q3 hesitant');
+  assert.equal(byId.q4.hesitant, true, 'q4 (95s >= 25s and >= 3x median 18.5s) is hesitant');
+
+  // Verify exact threshold: [4000, 5000, 6000, 26000] -> median=(5000+6000)/2=5500, 3x=16500 -> 26000 qualifies
+  await service.store.update((s) => {
+    for (const a of s.attempts) {
+      if (a.runId === run.id && a.quiz_id === 'q2') a.elapsed_ms = 6000;
+      if (a.runId === run.id && a.quiz_id === 'q4') a.elapsed_ms = 26000;
+    }
+  });
+  const rowsFixed = (await service.call('review.lookBack', { runId: run.id })).rows;
+  const q4Fixed = rowsFixed.find((r) => r.cardId === 'q4');
+  assert.equal(q4Fixed.hesitant, true);
+  assert.equal(q4Fixed.elapsedMs, 26000);
+
+  // < 3 timed answers never flags hesitant
+  await service.store.update((s) => {
+    for (const a of s.attempts) if (a.runId === run.id && (a.quiz_id === 'q1' || a.quiz_id === 'q2')) a.elapsed_ms = 0;
+  });
+  const rowsTooFew = (await service.call('review.lookBack', { runId: run.id })).rows;
+  assert.equal(rowsTooFew.find((r) => r.cardId === 'q4').hesitant, undefined);
+
+  const { React, renderToStaticMarkup, uiMod } = await loadLookBackUi();
+  const services = { call: async () => ({}), act: async () => undefined, busy: false, notify: () => {}, openModal: () => {} };
+  const sampleRows = [
+    { number: 1, entryIndex: 0, deckId: 'd', cardId: 'q1', kind: 'quiz', status: 'wrong', card: { id: 'q1', kind: 'quiz', prompt: 'Wrong Q', options: [{ id: 'a', text: 'yes' }] }, feedback: { selected: [] }, solution: { explanation: 'E1', options: [{ id: 'a', correct: true }] } },
+    { number: 2, entryIndex: 1, deckId: 'd', cardId: 'q4', kind: 'quiz', status: 'right', hesitant: true, elapsedMs: 26000, card: { id: 'q4', kind: 'quiz', prompt: 'Slow right Q', options: [{ id: 'a', text: 'yes' }] }, feedback: { selected: ['a'] }, solution: { explanation: 'E4', options: [{ id: 'a', correct: true }] } },
+  ];
+  const uiRun = { id: 'r-hesitant', mode: 'path', navigation: [{ answered: true }, { answered: true }], correctionsPending: 0 };
+  const renderHtml = () => {
+    uiMod.setQueryData('review.lookBack', { runId: uiRun.id }, { rows: sampleRows });
+    return renderToStaticMarkup(React.createElement(uiMod.StudyServicesContext.Provider, { value: services },
+      React.createElement(uiMod.RoundLookBack, { run: uiRun })));
+  };
+  uiMod.setUiLanguage('zh');
+  const htmlZh = renderHtml();
+  assert.match(htmlZh, /只看想了较久 \(1\)/);
+
+  uiMod.setQueryData('review.lookBack', { runId: uiRun.id }, { rows: sampleRows });
+  const app = mountLookBackSync(React, uiMod, services);
+  let tree = app.render(uiMod.RoundLookBack, { run: uiRun });
+  let filterBtn = null;
+  walkLookBack(tree, (n) => { if (!filterBtn && textOf(n).trim() === '只看想了较久 (1)') filterBtn = n; });
+  assert.ok(filterBtn);
+  filterBtn.props.onClick();
+  tree = app.render(uiMod.RoundLookBack, { run: uiRun });
+  const renderedNumbers = [];
+  walkLookBack(tree, (n) => { if (n.type === 'li' && n.props.className === 'look-back__row') renderedNumbers.push(n.props['data-number']); });
+  assert.deepEqual(renderedNumbers, [2], 'hesitant toggle filters list to hesitant-correct rows');
+  const badgeNodes = [];
+  walkLookBack(tree, (n) => { if (textOf(n) === '想了较久') badgeNodes.push(n); });
+  assert.ok(badgeNodes.length >= 1, 'renders 想了较久 badge');
+
+  uiMod.setUiLanguage('en');
+  try {
+    tree = app.render(uiMod.RoundLookBack, { run: uiRun });
+    let enFilter = null;
+    walkLookBack(tree, (n) => { if (!enFilter && textOf(n).trim() === 'Took longer only (1)') enFilter = n; });
+    assert.ok(enFilter, 'English hesitant filter toggle');
+    const enBadges = [];
+    walkLookBack(tree, (n) => { if (textOf(n) === 'Took longer') enBadges.push(n); });
+    assert.ok(enBadges.length >= 1, 'English hesitant badge');
+  } finally {
+    uiMod.setUiLanguage('zh');
+    app.unmount();
+  }
+});
+
+test('#6, #41, #42, #43, #44: ResultBreakdown legend filtering, RoundLookBack expand all, practice wrong, Markdown copy, and keyboard nav', async () => {
+  const { React, renderToStaticMarkup, uiMod } = await loadLookBackUi();
+  const { RoundLookBack, ResultBreakdown, formatLookBackMarkdown, setQueryData, setUiLanguage } = uiMod;
+
+  // #41: ResultBreakdown interactive legend items (only count > 0)
+  const pickedSegments = [];
+  const breakdownHtml = renderToStaticMarkup(React.createElement(ResultBreakdown, {
+    total: 3, answered: 3, correct: 2, activeSegment: 'practice',
+    onSelectSegment: (k) => pickedSegments.push(k),
+  }));
+  assert.match(breakdownHtml, /aria-pressed="true"[^>]*>[\s\S]*?<span>需要巩固<\/span><strong>1<\/strong>/);
+  assert.match(breakdownHtml, /aria-pressed="false"[^>]*>[\s\S]*?<span>掌握<\/span><strong>2<\/strong>/);
+  assert.doesNotMatch(breakdownHtml, /<button[^>]*>(?:(?!<\/button>)[\s\S])*?未答/, 'zero-count segment stays non-interactive');
+  const bdApp = mountLookBackSync(React, uiMod, { call: async () => ({}), act: async () => undefined, busy: false });
+  const bdTree = bdApp.render(ResultBreakdown, { total: 3, answered: 3, correct: 2, activeSegment: 'practice', onSelectSegment: (k) => pickedSegments.push(k) });
+  let rightBtn = null;
+  walkLookBack(bdTree, (n) => { if (!rightBtn && n.props?.className === 'result-legend-item' && typeof n.props?.onClick === 'function' && textOf(n).includes('掌握')) rightBtn = n; });
+  rightBtn.props.onClick();
+  bdApp.unmount();
+  assert.deepEqual(pickedSegments, ['correct']);
+
+  // Look-back rows across right, wrong, unanswered + sources
+  const srcA = { id: 'src-a', title: 'Notes A', format: 'pdf', document: { id: 'doc-a', format: 'pdf', bookTitle: 'Notes A', page: 3 }, text: 'Alpha' };
+  const sampleRows = [
+    {
+      number: 1, entryIndex: 0, deckId: 'd1', cardId: 'c1', kind: 'quiz', status: 'wrong',
+      sourceId: 'src-a', documentSourceId: 'src-a', sourceTitle: 'Notes A', page: 3,
+      card: { id: 'c1', kind: 'quiz', prompt: 'Q1?', options: [{ id: 'a', text: 'OptA' }, { id: 'b', text: 'OptB' }] },
+      feedback: { selected: ['b'] },
+      solution: { explanation: 'Exp 1', misconception: 'Mis 1', options: [{ id: 'a', correct: true }] },
+    },
+    {
+      number: 2, entryIndex: 1, deckId: 'd1', cardId: 'c2', kind: 'quiz', status: 'wrong',
+      card: { id: 'c2', kind: 'quiz', prompt: 'Q2?', options: [{ id: 'a', text: 'Yes' }, { id: 'b', text: 'No' }] },
+      feedback: { selected: ['b'] },
+      solution: { explanation: 'Exp 2', options: [{ id: 'a', correct: true }] },
+    },
+    {
+      number: 3, entryIndex: 2, deckId: 'd1', cardId: 'c3', kind: 'quiz', status: 'right',
+      card: { id: 'c3', kind: 'quiz', prompt: 'Q3?', options: [{ id: 'a', text: 'Right' }, { id: 'b', text: 'Bad' }] },
+      feedback: { selected: ['a'] },
+      solution: { explanation: 'Exp 3', options: [{ id: 'a', correct: true }] },
+    },
+    {
+      number: 4, entryIndex: 3, deckId: 'd1', cardId: 'c4', kind: 'quiz', status: 'unanswered',
+      prompt: 'Q4?',
+    },
+  ];
+  const modals = [];
+  const practicedWrong = [];
+  const run = { id: 'r-kb', mode: 'path', navigation: [{ answered: true }, { answered: true }, { answered: true }, { answered: false }], correctionsPending: 0 };
+  const services = {
+    call: async (action) => (action === 'review.lookBack' ? { rows: sampleRows } : {}),
+    act: async () => undefined,
+    busy: false,
+    notify: () => {},
+    openModal: (m) => modals.push(m),
+  };
+
+  setUiLanguage('zh');
+  setQueryData('review.lookBack', { runId: run.id }, { rows: sampleRows });
+  const app = mountLookBackSync(React, uiMod, services);
+  const props = { run, sources: [srcA], onPracticeWrong: (refs) => practicedWrong.push(refs) };
+  let tree = app.render(RoundLookBack, props);
+
+  // #42: Expand all / Collapse all
+  const findButton = (label) => {
+    let found = null;
+    walkLookBack(tree, (n) => { if (!found && typeof n.type !== 'string' && textOf(n).trim() === label) found = n; });
+    return found;
+  };
+  assert.ok(findButton('全部展开'), 'shows 全部展开 when >= 2 rows shown');
+  findButton('全部展开').props.onClick();
+  tree = app.render(RoundLookBack, props);
+  assert.ok(findButton('全部收起'), 'flips to 全部收起 once all shown rows are expanded');
+
+  // #43: 重练这 2 道错题 & singular 重练这道错题
+  const retryBtn = findButton('重练这 2 道错题');
+  assert.ok(retryBtn);
+  retryBtn.props.onClick();
+  assert.deepEqual(practicedWrong, [[{ deckId: 'd1', cardId: 'c1' }, { deckId: 'd1', cardId: 'c2' }]]);
+
+  // #41: segment prop filters RoundLookBack rows to matching status
+  tree = app.render(RoundLookBack, { ...props, segment: 'unanswered' });
+  const segNumbers = [];
+  walkLookBack(tree, (n) => { if (n.type === 'li' && n.props.className === 'look-back__row') segNumbers.push(n.props['data-number']); });
+  assert.deepEqual(segNumbers, [4]);
+
+  // #44: formatLookBackMarkdown & clipboard copy button
+  const mdZh = formatLookBackMarkdown([{ ...sampleRows[0], mode: 'path' }]);
+  assert.match(mdZh, /### 1\. \[答错\] Q1\?/);
+  assert.match(mdZh, /\*\*你的答案\*\*：B\. OptB/);
+  assert.match(mdZh, /\*\*正确答案\*\*：A\. OptA/);
+  assert.match(mdZh, /\*\*解析\*\*：Exp 1/);
+  assert.match(mdZh, /\*\*易错点\*\*：Mis 1/);
+  assert.match(formatLookBackMarkdown([{ number: 9, status: 'wrong', mode: 'path', card: { id: 'empty', kind: 'open', prompt: '' }, solution: { answer: 'Ans' } }]), /题干尚未填写/);
+
+  const copiedTexts = [];
+  const origNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: { writeText: async (txt) => { copiedTexts.push(txt); } } } });
+  try {
+    tree = app.render(RoundLookBack, props);
+    const copyBtn = findButton('复制复盘摘录');
+    assert.ok(copyBtn);
+    await copyBtn.props.onClick();
+    assert.equal(copiedTexts.length, 1);
+    assert.match(copiedTexts[0], /### 1\. \[答错\] Q1\?/);
+    assert.match(copiedTexts[0], /### 2\. \[答错\] Q2\?/);
+    tree = app.render(RoundLookBack, props);
+    assert.ok(findButton('已复制'), 'button shows 已复制 feedback');
+
+    setUiLanguage('en');
+    tree = app.render(RoundLookBack, props);
+    assert.ok(findButton('Practice these 2 missed questions'));
+    assert.ok(findButton('Copied'));
+    assert.ok(findButton('Collapse all'));
+  } finally {
+    setUiLanguage('zh');
+    if (origNavigator) Object.defineProperty(globalThis, 'navigator', origNavigator); else delete globalThis.navigator;
+  }
+
+  // #6: keyboard ArrowDown/ArrowUp/Home/End + O opens source modal
+  tree = app.render(RoundLookBack, props);
+  const focusedLines = [];
+  const lineNodes = [1, 2, 4].map((num) => {
+    const rowEl = { dataset: { number: String(num) } };
+    const el = {
+      focus: () => focusedLines.push(num),
+      closest: (sel) => (sel === '.look-back__line' ? el : sel === '.look-back__row' ? rowEl : null),
+    };
+    return el;
+  });
+  const sectionContainer = { querySelectorAll: (sel) => (sel === '.look-back__line' ? lineNodes : []) };
+  const fireKey = (key, idx, extra = {}) => {
+    let prevented = false;
+    tree.props.onKeyDown({
+      key,
+      metaKey: false, ctrlKey: false, altKey: false, isComposing: false,
+      ...extra,
+      target: lineNodes[idx],
+      currentTarget: sectionContainer,
+      preventDefault: () => { prevented = true; },
+    });
+    return prevented;
+  };
+  assert.equal(fireKey('ArrowDown', 0), true);
+  assert.equal(fireKey('End', 0), true);
+  assert.equal(fireKey('ArrowUp', 2), true);
+  assert.equal(fireKey('Home', 2), true);
+  assert.deepEqual(focusedLines, [2, 4, 2, 1]);
+
+  assert.equal(fireKey('o', 0), true);
+  assert.equal(modals.length, 1);
+  assert.equal(modals[0].type, 'source');
+  assert.equal(modals[0].source.id, 'src-a');
+  assert.equal(fireKey('O', 0, { ctrlKey: true }), false, 'modified O does not trigger source jump');
+
+  app.unmount();
+
+  // Verify Review.jsx passes skippedIndices to ReviewNavigator (regression check)
+  const { readFileSync } = await import('node:fs');
+  const reviewSrc = readFileSync(new URL('../ui/Review.jsx', import.meta.url), 'utf8');
+  assert.match(reviewSrc, /skippedIndices=\{session\.skippedIndices\}/);
+});
+
