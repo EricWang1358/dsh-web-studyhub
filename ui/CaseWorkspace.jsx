@@ -64,6 +64,14 @@ export function ScenarioPanel({ title, text, highlights = [], onChange, readOnly
   const [active, setActive] = useState(null);
   const [note, setNote] = useState("");
   const rootRef = useRef(null);
+  const skipNoteBlurRef = useRef(false);
+  const focusMark = (markId) => {
+    requestAnimationFrame(() => {
+      const mark = [...(rootRef.current?.querySelectorAll("[data-highlight-id]") || [])]
+        .find((el) => el.getAttribute("data-highlight-id") === markId);
+      mark?.focus?.();
+    });
+  };
   const editable = !readOnly && typeof onChange === "function";
   function mark(nextColor = color) {
     const selection = window.getSelection?.();
@@ -108,7 +116,7 @@ export function ScenarioPanel({ title, text, highlights = [], onChange, readOnly
                   {segmentParagraph(paragraph, own).map((piece, at) => {
                     if (!piece.id) return <React.Fragment key={at}>{piece.text}</React.Fragment>;
                     const markEl = <mark key={at} className={`case-hl hl-${piece.color}` + (piece.id === active ? " is-active" : "")}
-                      tabIndex={editable || piece.note ? 0 : undefined} onClick={() => editable && setActive(piece.id)}
+                      data-highlight-id={piece.id} tabIndex={editable || piece.note ? 0 : undefined} onClick={() => editable && setActive(piece.id)}
                       onKeyDown={(event) => { if (editable && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setActive(piece.id); } }}>{piece.text}</mark>;
                     return piece.note ? <Tooltip key={at} layer content={piece.note}>{markEl}</Tooltip> : markEl;
                   })}
@@ -118,8 +126,30 @@ export function ScenarioPanel({ title, text, highlights = [], onChange, readOnly
                   {HIGHLIGHT_COLORS.map((name) => <button key={name} type="button" className={`case-swatch hl-${name}`} aria-pressed={current.color === name}
                     aria-label={ui(COLOR_LABEL[name])} onClick={() => onChange(recolorHighlight(highlights, current.id, name))} />)}
                   <input className="case-mark-tools__note" aria-label={ui("批注")} placeholder={ui("写一句批注（可选）")} value={note} maxLength={500}
+                    onFocus={() => { skipNoteBlurRef.current = false; }}
                     onChange={(event) => setNote(event.target.value)}
-                    onBlur={() => { if ((current.note || "") !== note.trim()) onChange(annotateHighlight(highlights, current.id, note)); }} />
+                    onKeyDown={(event) => {
+                      if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
+                      const markId = current.id;
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        skipNoteBlurRef.current = true;
+                        if ((current.note || "") !== note.trim()) onChange(annotateHighlight(highlights, markId, note));
+                        setActive(null);
+                        focusMark(markId);
+                      } else if (event.key === "Escape") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        skipNoteBlurRef.current = true;
+                        setNote(current.note || "");
+                        setActive(null);
+                        focusMark(markId);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (skipNoteBlurRef.current) { skipNoteBlurRef.current = false; return; }
+                      if ((current.note || "") !== note.trim()) onChange(annotateHighlight(highlights, current.id, note));
+                    }} />
                   <Button size="sm" variant="quiet" onClick={() => { onChange(removeHighlight(highlights, current.id)); setActive(null); }}>{ui("移除高亮")}</Button>
                   <Button size="sm" variant="link" onClick={() => { if ((current.note || "") !== note.trim()) onChange(annotateHighlight(highlights, current.id, note)); setActive(null); }}>{ui("完成")}</Button>
                 </div>}
@@ -508,7 +538,7 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
         {paperCards.map((card, index) => {
           const spent = session.perQuestion?.[card.id] || 0, budget = questionMinutes(card.marks, run.paper.minutesPerMark) * 60000;
           return (
-            <Panel as="article" key={card.id} className={"case-question" + (activeId === card.id ? " is-active" : "")}>
+            <Panel as="article" key={card.id} data-case-question={card.id} className={"case-question" + (activeId === card.id ? " is-active" : "")}>
               <header className="case-question__head">
                 <strong>{uiFormat("第 {0} 题", [index + 1])}</strong>
                 <Badge size="sm">{uiFormat("{0} 分", [card.marks])}</Badge>
@@ -558,7 +588,22 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
           {questions}
         </div>
         {error && <InlineMessage>{error}</InlineMessage>}
-        {confirming && <SubmitBlanksDialog onClose={() => setConfirming(false)} onConfirm={submit}>
+        {confirming && <SubmitBlanksDialog
+          firstBlankNumber={blanks.length ? paperCards.findIndex((card) => card.id === blanks[0]) + 1 : 0}
+          onJumpFirstBlank={() => {
+            const firstId = blanks[0];
+            setConfirming(false);
+            if (!firstId) return;
+            setActiveId(firstId);
+            requestAnimationFrame(() => {
+              const cardEl = [...(document.querySelectorAll("[data-case-question]") || [])]
+                .find((el) => el.getAttribute("data-case-question") === firstId);
+              cardEl?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+              cardEl?.querySelector?.("textarea:not([readonly]), textarea, button")?.focus?.({ preventScroll: true });
+            });
+          }}
+          onClose={() => setConfirming(false)}
+          onConfirm={submit}>
           <p>{uiFormat("第 {0} 题还是空的。漏答一道就会丢掉它的全部分数；哪怕写几行要点也比空着好。", [blanks.map((id) => paperCards.findIndex((card) => card.id === id) + 1).join("、")])}</p>
         </SubmitBlanksDialog>}
       </section>

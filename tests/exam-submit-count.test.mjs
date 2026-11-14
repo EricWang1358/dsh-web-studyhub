@@ -32,3 +32,13 @@ test('交卷 asks only when something is unanswered', async () => {
   assert.match(source, /expired \|\| !unanswered \? submit : \(\) => setConfirming\(true\)/, 'a full paper is handed in at once; the time-up retry never asks');
   assert.match(source, /\{confirming && unanswered > 0 &&/, 'and the dialog never shows a zero');
 });
+
+test('firstUnansweredIndex returns the 0-based index of the first blank question or -1 when complete', async () => {
+  const { firstUnansweredIndex } = await loadUi("export * from './ui/exam/exam-written.js';");
+  const paper = run('d1:q1', 'd1:q2', 'd2:q1');
+  assert.equal(firstUnansweredIndex(paper, {}), 0);
+  assert.equal(firstUnansweredIndex(paper, { 'd1:q1': ['a'], 'd2:q1': ['b'] }), 1);
+  assert.equal(firstUnansweredIndex(paper, { 'd1:q1': ['a'], 'd1:q2': [], 'd2:q1': ['b'] }), 1);
+  assert.equal(firstUnansweredIndex(paper, { 'd1:q1': ['a'], 'd1:q2': ['c'], 'd2:q1': ['b'] }), -1);
+  assert.equal(firstUnansweredIndex({}, {}), -1);
+});

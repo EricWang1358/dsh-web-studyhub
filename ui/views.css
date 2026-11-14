@@ -312,7 +312,6 @@
     .exam-option:focus-visible {
       outline: 2px solid var(--accent-soft);
       outline-offset: 2px;
-      box-shadow: var(--ring);
     }
     .exam-option-letter {
       flex: none;

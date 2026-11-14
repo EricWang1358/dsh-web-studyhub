@@ -1,5 +1,5 @@
 /* global window */
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -66,21 +66,42 @@ const cards = Array.from({ length: 4 }, (_, i) => ({
 }));
 const reading = { documentId: 'doc1', sourceId: 'src1', sectionTitle: '检索练习', page: 2, scope: { kind: 'here', count: 1, label: '这一页' } };
 
+let sharedBrowserPromise = null;
+
+async function getSharedBrowser(t) {
+  if (!sharedBrowserPromise) {
+    sharedBrowserPromise = launchChromium().catch((error) => {
+      sharedBrowserPromise = null;
+      throw error;
+    });
+  }
+  try {
+    return await sharedBrowserPromise;
+  } catch (error) {
+    if (!/browserType\.launch: Executable doesn't exist/.test(error.message)) throw error;
+    t.skip('Chromium unavailable');
+    return null;
+  }
+}
+
+after(async () => {
+  const browser = await sharedBrowserPromise?.catch(() => null);
+  await browser?.close();
+});
+
 async function open(t, { sidebar = 'works', withReading = true, premount = false, width = 1100, placement = 'main', mountDelay = 0 } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'open-in-sidebar-'));
-  let server, browser;
-  t.after(async () => { await browser?.close(); await server?.close(); await rm(root, { recursive: true, force: true, maxRetries: 3 }); });
+  let server, context;
+  t.after(async () => { await context?.close(); await server?.close(); await rm(root, { recursive: true, force: true, maxRetries: 3 }); });
   const store = new Store(join(root, 'library'));
   await store.update(state => { state.decks.push({ id: 'deck', title: '检索练习', course: '学习方法', cards }); });
   server = await createPreviewServer({ port: 0, libraryRoot: store.root, home: join(root, 'home'), model: createFakeModel() });
   await previewCall(server, 'review.start', { mode: 'path', scope: [{ deckId: 'deck', cardId: 'q0' }, { deckId: 'deck', cardId: 'q1' }],
     fresh: true, ...(withReading ? { reading } : {}) });
-  try { browser = await launchChromium(); }
-  catch (error) {
-    if (!/browserType\.launch: Executable doesn't exist/.test(error.message)) throw error;
-    t.skip('Chromium unavailable'); return null;
-  }
-  const page = await browser.newPage({ locale: 'zh-CN', reducedMotion: 'reduce', viewport: { width, height: 800 } });
+  const browser = await getSharedBrowser(t);
+  if (!browser) return null;
+  context = await browser.newContext({ locale: 'zh-CN', reducedMotion: 'reduce', viewport: { width, height: 800 } });
+  const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.exposeFunction('invokeStudy', async (action, args) => {
