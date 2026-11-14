@@ -21,6 +21,88 @@ import { rubricAttemptPassed } from '../../lib/course-method.js';
 /* How the session's status reads to the learner (never the raw value). */
 const STATUS_WORD = { active: '带学进行中', paused: '带学已暂停', ended: '带学已结束' };
 
+/** Keyboard retrieval loop inside the guided-study card (digits/letters pick options, Enter/Space reveal, advance, or self-rate). */
+export function handleGuidedWorkbenchKeyDown(event, {
+  currentCard,
+  isPreparing = false,
+  choice = false,
+  selected = [],
+  setSelected,
+  isRevealed = false,
+  hasFeedback = false,
+  run,
+  onAnswer,
+  onReveal,
+  onNext,
+} = {}) {
+  if (!currentCard || isPreparing || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return false;
+  if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return false;
+  const target = event.target;
+  const tag = typeof target?.tagName === 'string' ? target.tagName.toUpperCase() : '';
+  const inputType = typeof target?.type === 'string' ? target.type.toLowerCase() : '';
+  const inTextInput = tag === 'INPUT' && inputType !== 'radio' && inputType !== 'checkbox';
+  if (inTextInput || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable || target?.closest?.('textarea, select, [contenteditable="true"]')) {
+    return false;
+  }
+  const onInteractiveControl = Boolean(
+    tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY' || target?.getAttribute?.('role') === 'button'
+    || target?.closest?.('button, a, summary, [role="button"]'),
+  );
+
+  if (!hasFeedback) {
+    if (choice) {
+      let idx = -1;
+      if (/^[1-9]$/.test(event.key)) idx = Number(event.key) - 1;
+      else if (/^[a-iA-I]$/.test(event.key)) idx = event.key.toLowerCase().charCodeAt(0) - 97;
+      if (idx >= 0 && idx < currentCard.options.length) {
+        const option = currentCard.options[idx];
+        event.preventDefault();
+        if (typeof setSelected === 'function') {
+          const next = currentCard.kind === 'multi'
+            ? (selected.includes(option.id) ? selected.filter((id) => id !== option.id) : [...selected, option.id])
+            : [option.id];
+          setSelected(next);
+        }
+        return true;
+      }
+      if (event.key === 'Enter' && !onInteractiveControl && selected.length > 0 && onAnswer) {
+        event.preventDefault();
+        onAnswer({ selected });
+        return true;
+      }
+      return false;
+    }
+    if (!isRevealed) {
+      if ((event.key === ' ' || event.key === 'Enter') && !onInteractiveControl && onReveal) {
+        event.preventDefault();
+        onReveal(run?.id);
+        return true;
+      }
+      return false;
+    }
+    if (onAnswer) {
+      if (event.key === '1') {
+        event.preventDefault();
+        onAnswer(1);
+        return true;
+      }
+      if (event.key === '2' || event.key === '3') {
+        event.preventDefault();
+        onAnswer(3);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if ((event.key === 'Enter' || event.key === ' ') && !onInteractiveControl && onNext) {
+    event.preventDefault();
+    onNext(run?.id);
+    return true;
+  }
+  return false;
+}
+
 export default function GuidedStudyWorkbench({
   session,
   run,
@@ -133,7 +215,22 @@ export default function GuidedStudyWorkbench({
   };
 
   return (
-    <div className={`guided-study-workbench ${adaptiveClass}`}>
+    <div
+      className={`guided-study-workbench ${adaptiveClass}`}
+      onKeyDown={(event) => handleGuidedWorkbenchKeyDown(event, {
+        currentCard,
+        isPreparing,
+        choice,
+        selected,
+        setSelected,
+        isRevealed,
+        hasFeedback,
+        run,
+        onAnswer,
+        onReveal,
+        onNext,
+      })}
+    >
       {/* 1. 顶部紧凑目标栏 */}
       <div className="guided-study-topbar">
         <div className="guided-study-topbar-info">
@@ -188,7 +285,7 @@ export default function GuidedStudyWorkbench({
               onFallbackToExisting={onFallbackToExisting}
             />
           ) : currentCard ? (
-            <div className="guided-study-card-view sh-paper-card sh-paper-card--snug">
+            <div className="guided-study-card-view sh-paper-card sh-paper-card--snug" tabIndex={-1}>
               <div className="guided-study-card-prompt">
                 <Markdown text={currentCard.prompt} />
               </div>

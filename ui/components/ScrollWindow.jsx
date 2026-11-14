@@ -163,7 +163,12 @@ export default function ScrollWindow({ label, items = [], itemKey = (item, index
         {filterable && <input type="search" className="sh-scroll__filter" value={value} aria-label={filterLabel || filterPlaceholder || ui('筛选')}
           placeholder={filterPlaceholder || ui('筛选…')} aria-controls={id} autoComplete="off" spellCheck={false}
           onChange={event => setQuery(event.target.value)}
-          onKeyDown={event => { if (event.key === 'Escape' && value) { event.preventDefault(); event.stopPropagation(); setQuery(''); } }} />}
+          onKeyDown={event => {
+            if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
+            if (event.key !== 'Escape') return;
+            if (value) { event.preventDefault(); event.stopPropagation(); setQuery(''); }
+            else if (!event.currentTarget?.closest?.('[role="dialog"]')) event.currentTarget?.blur?.();
+          }} />}
         {toolbar}
         {counted && <small className="sh-scroll__count" aria-live="polite">{scrollWindowCount(items.length, shown.length, filtering)}</small>}
       </div>}

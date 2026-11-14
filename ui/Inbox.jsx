@@ -45,6 +45,7 @@ function Letter({ m, now, onOpen, onToggleRead, onUndo, close }) {
       <button
         type="button"
         className={"mailbox__item" + (m.read ? "" : " is-unread")}
+        data-letter-id={m.id}
         disabled={busy}
         aria-disabled={m.missing || undefined}
         onClick={() => {
@@ -77,6 +78,7 @@ function Letter({ m, now, onOpen, onToggleRead, onUndo, close }) {
 /** Move keyboard focus across `.mailbox__item` rows inside the open mailbox panel. */
 export function moveMailboxFocus(panelElement, event) {
   if (!panelElement || event.altKey || event.ctrlKey || event.metaKey) return false;
+  if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return false;
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return false;
   const inList = event.target === panelElement || !!event.target?.closest?.(".mailbox__list");
   if (!inList) return false;
@@ -95,9 +97,31 @@ export function moveMailboxFocus(panelElement, event) {
   return true;
 }
 
+/** Handle arrow navigation and `r`/`R` read-state toggle inside the open mailbox panel. */
+export function handleMailboxKeyDown(panelElement, event, { items = [], onToggleRead, busy = false } = {}) {
+  if (!panelElement || event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return false;
+  if (moveMailboxFocus(panelElement, event)) return true;
+  if (!busy && typeof onToggleRead === "function" && !event.altKey && !event.ctrlKey && !event.metaKey
+    && (event.key === "r" || event.key === "R")) {
+    const tag = typeof event.target?.tagName === "string" ? event.target.tagName.toUpperCase() : "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || event.target?.isContentEditable) return false;
+    const rowEl = event.target?.closest?.(".mailbox__row");
+    const id = rowEl?.getAttribute?.("data-scroll-key")
+      || rowEl?.querySelector?.("[data-letter-id]")?.getAttribute?.("data-letter-id");
+    const letter = id ? items.find((m) => m.id === id) : null;
+    if (letter) {
+      event.preventDefault();
+      onToggleRead(letter);
+      return true;
+    }
+  }
+  return false;
+}
+
 export default function Inbox({ inbox, onOpen, onReadAll, onToggleRead, onUndo, readError = "", defaultOpen = false, onOpenTasks }) {
   useInjectCss(css, "study-inbox");
   useInjectCss(previewCss, "study-inbox-preview");
+  const { busy = false } = useStudy();
   const [open, setOpen] = React.useState(defaultOpen);
   const root = React.useRef(null);
   const unread = inbox?.unread || 0,
@@ -136,7 +160,7 @@ export default function Inbox({ inbox, onOpen, onReadAll, onToggleRead, onUndo, 
       </IconButton>
       {open && (
         <div className="mailbox__panel" ref={panel} tabIndex={-1} role="dialog" aria-label={ui("信箱")}
-          onKeyDown={(event) => moveMailboxFocus(panel.current, event)}>
+          onKeyDown={(event) => handleMailboxKeyDown(panel.current, event, { items, onToggleRead, busy })}>
           <div className="mailbox__head">
             <strong>{ui("信箱")}</strong>
             <small className="mailbox__sub">{unread ? uiFormat("{0} 条未读", [unread]) : ui("都看过了")}</small>

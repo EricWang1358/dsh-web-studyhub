@@ -5,6 +5,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { periodPlan } from '../lib/plan-schedule.js';
 import { loadUi } from './helpers/ui-module.mjs';
 
+const { selectTodayUpcomingPlan, TodayView, setUiLanguage } = await loadUi(`
+  export { selectTodayUpcomingPlan } from './ui/board/today-upcoming-plan.js';
+  export { default as TodayView } from './ui/board/TodayView.jsx';
+  export { setUiLanguage } from './ui/i18n.js';
+`);
+
 const emptyBoard = () => ({
   version: 1,
   revision: 1,
@@ -53,10 +59,6 @@ function makePlanAnswer({ today = '2026-11-08', examDate = '2026-11-16', plan = 
 }
 
 test('selectTodayUpcomingPlan (#861): reads next N days strictly from periodPlan including rest days and mock days', async () => {
-  const { selectTodayUpcomingPlan, setUiLanguage } = await loadUi(`
-    export { selectTodayUpcomingPlan } from './ui/board/today-upcoming-plan.js';
-    export { setUiLanguage } from './ui/i18n.js';
-  `);
   setUiLanguage('zh');
 
   const plan = {
@@ -98,10 +100,6 @@ test('selectTodayUpcomingPlan (#861): reads next N days strictly from periodPlan
 });
 
 test('selectTodayUpcomingPlan (#861): returns empty upcoming days on exam day and after exam day', async () => {
-  const { selectTodayUpcomingPlan, setUiLanguage } = await loadUi(`
-    export { selectTodayUpcomingPlan } from './ui/board/today-upcoming-plan.js';
-    export { setUiLanguage } from './ui/i18n.js';
-  `);
   setUiLanguage('zh');
 
   const plan = { version: 1, minutesPerDay: 90 };
@@ -129,10 +127,6 @@ test('selectTodayUpcomingPlan (#861): returns empty upcoming days on exam day an
 });
 
 test('selectTodayUpcomingPlan (#861): weekly chapter plan uses plan-weekly phrasing and empties after final week', async () => {
-  const { selectTodayUpcomingPlan, setUiLanguage } = await loadUi(`
-    export { selectTodayUpcomingPlan } from './ui/board/today-upcoming-plan.js';
-    export { setUiLanguage } from './ui/i18n.js';
-  `);
   setUiLanguage('zh');
 
   const weeklyPlan = {
@@ -174,10 +168,6 @@ test('selectTodayUpcomingPlan (#861): weekly chapter plan uses plan-weekly phras
 });
 
 test('selectTodayUpcomingPlan (#861): falls back to quiet 建一个备考计划 state when no active plan exists, and suppresses flash while loading', async () => {
-  const { selectTodayUpcomingPlan, setUiLanguage } = await loadUi(`
-    export { selectTodayUpcomingPlan } from './ui/board/today-upcoming-plan.js';
-    export { setUiLanguage } from './ui/i18n.js';
-  `);
   setUiLanguage('zh');
 
   // Planned course whose RPC is still in flight (`planAnswer: null`): waits quietly.
@@ -212,11 +202,6 @@ test('selectTodayUpcomingPlan (#861): falls back to quiet 建一个备考计划 
 });
 
 test('TodayUpcomingPlan & TodayView (#861): SSR renders zh and en with plan, no-plan fallback, and narrow disclosure button', async () => {
-  const { TodayView, setUiLanguage } = await loadUi(`
-    export { default as TodayView } from './ui/board/TodayView.jsx';
-    export { setUiLanguage } from './ui/i18n.js';
-  `);
-
   const board = emptyBoard();
   const plan = {
     version: 1,

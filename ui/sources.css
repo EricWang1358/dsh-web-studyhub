@@ -8,7 +8,7 @@
     .sources-page .sources-page__header { margin-bottom: var(--space-4); }
     .sources-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); }
     .sources-filter > .sources-filter__input { flex: 1 1 14rem; max-width: 24rem; }
-    .sources-filter__count { font-size: var(--fs-sm); }
+    .sources-filter__count { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
     & .source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     /* A material is a row on the desk under its day's rule, not a card in a box (#570, ui/DESIGN.md "the card is the only physical object"): no border, no stock,
@@ -22,7 +22,7 @@
     .source-doc .source-main strong { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
     .source-doc .source-main small { margin-top: var(--space-half); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     /* The facts line: the courses, then the format and size; the courses give way first so the size stays readable. */
-    .source-doc__meta { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+    .source-doc__meta { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; font-variant-numeric: tabular-nums; }
     .source-doc .source-main .source-doc__meta > small { flex: 1 1 auto; min-width: 0; max-width: none; margin: 0; }
     .source-doc .source-main .source-doc__meta > small:first-child { flex: 0 0 auto; max-width: 45%; }
     .source-doc__meta > small + small::before { content: "·"; margin-right: var(--space-2); color: var(--text-faint); }

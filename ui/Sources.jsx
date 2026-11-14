@@ -549,7 +549,13 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           <TextInput type="search" className="sources-filter__input" value={query} placeholder={ui('筛选资料…')} aria-label={ui('筛选资料…')}
             autoComplete="off" spellCheck={false}
             onChange={event => setQuery(event.target.value)}
-            onKeyDown={event => { if (event.key === 'Escape' && query) { event.preventDefault(); event.stopPropagation(); setQuery(''); } }} />
+            onKeyDown={event => {
+              if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
+              if (event.key !== 'Escape') return;
+              event.preventDefault();
+              if (query) { event.stopPropagation(); setQuery(''); }
+              else event.currentTarget?.blur?.();
+            }} />
           {filtering && <>
             <small className="sources-filter__count muted" aria-live="polite">{scrollWindowCount(scoped.length, filtered.length, true)}</small>
             <Button variant="quiet" size="sm" onClick={() => setQuery('')}>{ui('清除筛选')}</Button>

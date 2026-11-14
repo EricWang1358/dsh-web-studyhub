@@ -176,6 +176,20 @@ export function StudyProgressPanel({
                 placeholder={ui('新检验项的名称…')}
                 value={newItemTitle}
                 onChange={(e) => setNewItemTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.nativeEvent?.isComposing || e.isComposing || e.keyCode === 229) {
+                    if (e.key === 'Enter') e.preventDefault();
+                    return;
+                  }
+                  if (e.key !== 'Escape') return;
+                  if (newItemTitle) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setNewItemTitle('');
+                  } else if (!e.currentTarget?.closest?.('[role="dialog"]')) {
+                    e.currentTarget?.blur?.();
+                  }
+                }}
                 className="progress-add-input"
               />
               <Button type="submit" variant="primary" size="sm" className="guided-study-btn">
