@@ -80,8 +80,9 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
 
   if (!model?.ready) return <div className="retell-panel"><ModelSetupGate variant="inline" feature="welcome" model={model} onOpenSettings={onModelSettings} /></div>;
   const known = failure && describeModelError(failure).kind !== "unknown";
+  const drafting = !answer || Boolean(text.trim());
   return (
-    <section className="retell-panel" aria-label={ui("用自己的话讲一遍")}>
+    <section className="retell-panel" aria-label={ui("用自己的话讲一遍")} data-retell-drafting={drafting ? "" : undefined}>
       <form onSubmit={submit}>
         <label className="retell-panel__field">
           <span>{ui("不看讲解，用自己的话把这个知识点讲一遍：是什么、为什么、什么时候用。")}</span>
@@ -100,7 +101,8 @@ export default function RetellPanel({ op, args, draftKey, model, onModelSettings
                 event.stopPropagation();
                 const cardEl = event.currentTarget.closest?.(".question-card") || event.currentTarget.closest?.(".review-body")?.querySelector?.(".question-card");
                 const panel = event.currentTarget.closest?.(".retell-panel");
-                const trigger = panel?.previousElementSibling?.querySelector?.("button");
+                const prev = panel?.previousElementSibling;
+                const trigger = prev?.querySelector?.('[data-usage="review.retell"], .book-point__retell') || prev?.querySelector?.("button");
                 onClose?.();
                 requestAnimationFrame(() => {
                   if (trigger?.isConnected) trigger.focus({ preventScroll: true });

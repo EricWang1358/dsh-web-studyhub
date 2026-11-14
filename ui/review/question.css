@@ -517,6 +517,14 @@
       padding: var(--space-5-5) 0 var(--space-1-5);
       margin-top: var(--space-5-5);
     }
+    /* Feynman recall veil: softly frost the explanation above while drafting in 用自己的话讲一遍, lifting on hover, focus or after feedback. */
+    .review-body > .explanation {
+      transition: filter var(--dur) var(--ease), opacity var(--dur) var(--ease);
+    }
+    .review-body > .explanation:has(~ [data-retell-drafting]):not(:hover, :focus-within) {
+      filter: blur(5px);
+      opacity: 0.42;
+    }
     .explanation h3 {
       font-size: var(--fs-lg);
     }

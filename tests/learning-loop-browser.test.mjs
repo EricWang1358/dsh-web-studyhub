@@ -140,6 +140,11 @@ test('试一道同类题 and back in one click; 用自己的话讲一遍 on a qu
       const input = page.locator('.retell-panel__input');
       await input.waitFor();
       await page.waitForFunction(() => document.activeElement?.classList.contains('retell-panel__input'), null, { timeout: 5000 });
+      await page.keyboard.press('Escape');
+      await input.waitFor({ state: 'detached', timeout: 5000 });
+      await page.locator('[data-usage="review.retell"]').click();
+      await input.waitFor();
+      await page.waitForFunction(() => document.activeElement?.classList.contains('retell-panel__input'), null, { timeout: 5000 });
       const box = await input.boundingBox();
       assert.ok(box && box.x >= 0 && box.x + box.width <= width + 1 && box.width >= Math.min(300, width - 80), `${where}: the text box is usable (${JSON.stringify(box)})`);
       await input.fill(SECRET);

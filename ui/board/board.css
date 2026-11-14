@@ -94,7 +94,8 @@
       transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
     }
     .board-input:hover:not(:disabled) { border-color: var(--line-strong); }
-    .board-input:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; border-color: var(--accent-soft); box-shadow: var(--ring); background: var(--bg-surface); }
+    .board-input:focus { border-color: var(--accent-soft); background: var(--bg-surface); box-shadow: var(--ring); outline: none; }
+    .board-input:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -1px; }
     .board-column__rename .board-input, .board-column--new .board-input { padding: var(--space-2) var(--space-2-5); font-size: var(--fs-sm); line-height: 1.5; }
     .board-column.is-collapsed .board-column__head { margin-bottom: 0; }
     .board-column.is-collapsed .board-column__title { font-weight: var(--fw-medium); color: var(--text-dim); }

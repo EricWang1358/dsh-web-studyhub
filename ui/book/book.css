@@ -155,6 +155,14 @@
     .book-point__exam {
       color: var(--text-muted);
     }
+    /* Feynman recall veil: softly frost point content while drafting in 用自己的话讲一遍, lifting on hover, focus or after feedback. */
+    [data-book-point] > :is(.book-point__gist, .book-point__part, .book-point__exam) {
+      transition: filter var(--dur) var(--ease), opacity var(--dur) var(--ease);
+    }
+    [data-book-point]:has(> [data-retell-drafting]) > :is(.book-point__gist, .book-point__part, .book-point__exam):not(:hover, :focus-within) {
+      filter: blur(5px);
+      opacity: 0.42;
+    }
     .book-point__bridge {
       margin: 0;
       color: var(--text-dim);

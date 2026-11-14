@@ -109,7 +109,7 @@ export default function PointBody({ node, course, handlers, level = 4 }) {
         retold={retold ?? node.retold ?? null} />
       {/* 去原文看这段 opens the point's 出处 list, the book's own way to the source. */}
       {handlers.retellOpen?.(node.hid) && <RetellPanel op="book.retell" args={{ course, hid: node.hid }} draftKey={`point:${course}:${node.hid}`} model={handlers.model}
-        onSource={view.citeCount > 0 ? () => setCites(true) : undefined} onDone={answer => setRetold(answer.record)} />}
+        onSource={view.citeCount > 0 ? () => setCites(true) : undefined} onDone={answer => setRetold(answer.record)} onClose={() => handlers.toggleRetell(node.hid)} />}
       {cites && view.citeCount > 0 && <BookFile text={view.cites} citeText={node.gen} hid={node.hid} handlers={handlers} className="book-file book-point__cite-list" />}
       {handlers.qaOpen(node.hid) && <BookQa course={course} nodeKey={node.key} onCard={ref => handlers.card(ref, node.hid)} onSource={handlers.source} onBookChanged={handlers.reload} />}
     </div>
