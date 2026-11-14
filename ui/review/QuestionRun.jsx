@@ -1,7 +1,7 @@
 import { ui, uiFormat, uiMessage } from "../i18n.js";
 import React from "react";
 import Markdown from "../Markdown.jsx";
-import Cloze from "../Cloze.jsx";
+import EnBlock from "../EnBlock.jsx";
 import FlipCard from "../FlipCard.jsx";
 import SmoothHeight from "../SmoothHeight.jsx";
 import ReviewToolbar from "../ReviewToolbar.jsx";
@@ -23,7 +23,7 @@ import SimilarTry from "./SimilarTry.jsx";
 import { describeModelError, modelReadiness, plainAssistFailure } from "../generation-status.js";
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
-import { Badge, Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
+import { Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES } from "../agent-prompts/card.js";
 import { FixPhraseChips, FixPhraseSave, appendFixPhrase } from "./FixPhrases.jsx";
@@ -33,25 +33,24 @@ import { CourseRuleAdd } from "../course-rules/CourseRuleAdd.jsx";
 import { useCourseRules } from "../course-rules/use-course-rules.js";
 import { fixSuggestionFor } from "../card-fix.js";
 import reviewCss from "./review.css";
+import coachCss from "../coach.css";
 import { useInjectCss } from "../shared.js";
 import { RubricAnswer, ScenarioPanel } from "../CaseWorkspace.jsx";
 import TaskCardRun from "../TaskCardRun.jsx";
 import { WrongAnswerSource } from "../document-preview/practice/ReadingReturn.jsx";
-import { MasteryMark } from "../document-preview/practice/MasteryMark.jsx";
 import { NextDue } from "../NextDue.jsx";
 import { formatGap } from "../format.js";
-import { resolveBookSettings } from "../../lib/book-settings.js";
-import { clozeRuns } from "../../lib/cloze-text.js";
-import { qaAddFailureText, useBookQa } from "../book/BookQaButton.jsx";
-import { autoAddPlan, seeFollowups } from "../book/qa-auto.js";
 import { roundAt, roundWords } from "./round-words.js";
-import { AUTO_ADVANCE_MS, finishedTask } from "./session-logic.js";
 import { fixedOptionsOf } from "../../lib/card-kinds.js";
 import { deferUnstudiedPagesPlan, runDeferUnstudiedPages } from "../document-preview/practice/open-reader-pages.js";
-import QuestionSourcePage from "./QuestionSourcePage.jsx";
 import RoundPending from "./RoundPending.jsx";
 import { RoundEndConfirm, useRoundSteps } from "./RoundSteps.jsx";
 import { useVoiceAnswer } from "./VoiceAnswer.jsx";
+import { formatAssistTaskSummary } from "./assist-summary.js";
+import { ClozeQuestion, OpenResponseField, QuestionLiveMastery, QuestionMetaBadges } from "./QuestionParts.jsx";
+import { useAssistWatch, useAutopilotPause, useBookQaSync, useCaseHighlights } from "./use-review-run-sync.js";
+
+export { formatAssistTaskSummary };
 
 /* QuestionRun: the question being answered, graded and explained, without the page around it. It is what the practice page
    (ui/Review.jsx) shows under its header and rail, and what any other page can mount to practise in place, with the same
@@ -103,6 +102,7 @@ function AssistFailure({ task, modelReady = false, onSettings, onResubmit, onEdi
 
 export default function QuestionRun({ session, data, coachProps, links = {}, context = {}, feedback }) {
   useInjectCss(reviewCss, "study-review");
+  useInjectCss(coachCss, "study-coach");
   const { run, entry, showBack, showEn, enBusyKey, keyGrade, teachingBusy, choice, isCloze, autopilot, actions } = session;
   const { selected, hint, explain, response, teaching, teachAnswer, clozeValues } = entry;
   const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, toggleEn } = actions;
@@ -124,37 +124,12 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const { label: contextLabel, onReturn: onReturnContext, detour, onReturnFromDetour, inHeader, tourRunning } = context;
   const contextReturnLabel = inHeader ? '' : contextLabel;
   const assistTasks = data?.assist;
-  // 自动加入复习全书 (settings.book.qaToBook): what was just chosen shows at once, until the library says the same.
-  const savedQaToBook = resolveBookSettings(data?.settings?.book).qaToBook;
-  const [qaToBookChoice, setQaToBookChoice] = React.useState(null);
-  React.useEffect(() => { if (qaToBookChoice !== null && qaToBookChoice === savedQaToBook) setQaToBookChoice(null); }, [savedQaToBook, qaToBookChoice]);
-  const qaToBook = qaToBookChoice ?? savedQaToBook;
-  const setQaToBook = React.useCallback((mode) => {
-    setQaToBookChoice(mode);
-    call("settings.book.set", { patch: { qaToBook: mode } }).catch(() => setQaToBookChoice(null));
-  }, [call]);
-  // 「加入复习全书」: one list of what the books hold for the page and its buttons. In 自动加入, each Q&A that arrives while this question is on screen (a
-  // 追问 answer or a 帮我弄懂 result, also while the 讲解 section is folded away) is added once, through the same op as the button.
-  const book = useBookQa();
-  const bookCourse = data?.decks?.find((deck) => deck.id === run.deckId)?.course ?? "";
-  const [bookNote, setBookNote] = React.useState("");
-  const qaSeen = React.useRef(null), qaTried = React.useRef(new Set());
-  const allFollowups = run.solution?.followups ?? run.followups ?? [];
-  const followupKey = allFollowups.map((item) => item.id).join("|");
-  React.useEffect(() => {
-    const seen = seeFollowups(qaSeen.current, reviewEntryKey(run), allFollowups.map((item) => item.id), !!(run.solution || run.followups));
-    qaSeen.current = seen.state;
-    for (const id of autoAddPlan({ mode: qaToBook, withBook: book.ready && book.courses.has(bookCourse), fresh: seen.fresh, tried: qaTried.current, added: book.ids })) {
-      qaTried.current.add(id);
-      book.add({ deckId: run.deckId, cardId: run.card.id, followupId: id }).catch((failure) => setBookNote(failure?.code === 'course-book-rebuild-pending' ? qaAddFailureText(failure) : failure?.message || ui("没能加入复习全书，可以点「加入复习全书」再试。")));
-    }
-  }, [followupKey, run.id, run.index, !!(run.solution || run.followups)]); // eslint-disable-line react-hooks/exhaustive-deps -- keyed on the question and its Q&A ids
+  // 「加入复习全书」 + autopilot hover/selection pause + assist polling + case highlights.
+  const { book, bookCourse, qaToBook, setQaToBook, bookNote, allFollowups } = useBookQaSync({ run, data, call });
   const multiple = run.card?.multiple || run.card?.kind === "multi";
-  // 判断题: two large 对 / 错 buttons instead of lettered options.
   const verdict = !!fixedOptionsOf(run.card?.kind);
   const publicationIssues = (run.card?.publicationIssues || []).map((issue) =>
     readableQualityIssue(`Card 1: ${issue}`).replace(/^第 1 题：/, ""));
-  // EN button: show the cached English after each Chinese stem and answer.
   const enOn = !!showEn && run.mode !== "exam" && !run.complete;
   const enStem = enOn ? run.card?.translation : null;
   const enAnswer = enOn && run.solution ? run.solution.translation : null;
@@ -181,73 +156,26 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const [clozeFocusTick, setClozeFocusTick] = React.useState(0);
   const [deriveRelation, setDeriveRelation] = React.useState("prerequisite");
   const reviewBodyRef = React.useRef(null);
-  const autoAdvanceMs = coachProps?.autoAdvance > 0 ? coachProps.autoAdvance : session.autoAdvanceActive ? AUTO_ADVANCE_MS : 0;
-  const autoAdvanceActive = Boolean(session.autoAdvanceActive || autoAdvanceMs > 0);
-  const autoAdvancePaused = Boolean(session.autoAdvancePaused);
-  const hoverPauseRef = React.useRef({ card: false, explanation: false });
-  const selectionPauseRef = React.useRef(false);
-  const syncAutoPause = React.useCallback(() => {
-    const paused = hoverPauseRef.current.card || hoverPauseRef.current.explanation || selectionPauseRef.current;
-    session.setAutoAdvancePaused?.(paused);
-  }, [session]);
-  React.useEffect(() => {
-    hoverPauseRef.current = { card: false, explanation: false };
-    selectionPauseRef.current = false;
-  }, [session.advanceKey]);
-  React.useEffect(() => {
-    if (!autoAdvanceActive || typeof document === "undefined") return undefined;
-    const onSelectionChange = () => {
-      const sel = window.getSelection?.();
-      const text = sel?.toString?.().trim() || "";
-      const body = reviewBodyRef.current;
-      const inside = !!(text && body && ((sel?.anchorNode && body.contains(sel.anchorNode)) || (sel?.focusNode && body.contains(sel.focusNode))));
-      if (selectionPauseRef.current !== inside) {
-        selectionPauseRef.current = inside;
-        syncAutoPause();
-      }
-    };
-    document.addEventListener("selectionchange", onSelectionChange);
-    return () => document.removeEventListener("selectionchange", onSelectionChange);
-  }, [autoAdvanceActive, syncAutoPause]);
-  // 我的常用语句: the learner's own chips of the 修题 box (settings.practice.fixPhrases).
+  const { autoAdvanceMs, autoAdvanceActive, autoAdvancePaused, hoverPauseRef, syncAutoPause } = useAutopilotPause({ session, coachProps, reviewBodyRef });
   const fixPhrases = useFixPhrases(data);
-  // 出题守则 of the question's course (#889): 「设为本课守则」 under the 修题 box and on the 👎 tray add to them.
   const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
   const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
   React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); setClozeFocusTick(0); }, [run.id, run.index, run.card?.id]);
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
-  // A task on this question (批改 included) that ends with a result: ask for the question at once, the poll may have slowed down (#1011).
-  const watchedRef = React.useRef("");
-  const ended = finishedTask(watchedRef.current, assistTasks, run.card?.id);
-  React.useEffect(() => {
-    watchedRef.current = ended.watch;
-    if (ended.done) (session.pollNow || session.pollRun)?.();
-  }, [ended.watch, ended.done, session]);
-  // The question column follows the chosen reading width (the card, the toolbar and the explanation share it), not a fixed 700px: 窄 / 标准 / 宽 in the Aa popover.
+  useAssistWatch({ session, assistTasks, cardId: run.card?.id });
   const readingStyle = useReadingProps().style || {};
   const readingMeasure = readingStyle["--reading-measure"];
-  // The card's own type (stem, options, flashcard faces) scales with the chosen size too: 16px is the designed size, so 1.0.
   const cardScale = Math.round((parseFloat(readingStyle["--reader-size"]) / 16 || 1) * 100) / 100;
-  // Case questions (WP12): the scenario sits above the question; its highlights belong to this run.
   const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
   const taskCard = run.mode !== "flashcard" && run.card?.kind === "task";
-  // A flashcard's head floats over its faces: they start below its measured height (ui/review/use-flash-head.js).
   const flashHead = useFlashHead(!choice && !isCloze && !rubricCard && !taskCard);
   const gradeTask = cardTasks.filter((task) => task.mode === "grade").at(-1);
-  // Answering by voice (#1031, V / Shift+V): ui/review/VoiceAnswer.jsx. 先跳过 / 到此为止 and the N / F / O keys (#1008): ui/review/RoundSteps.jsx.
   const voice = useVoiceAnswer({ session, data, model, rubricCard, setAssistMode, setAssistText });
   const roundSteps = useRoundSteps({ session, run, sources: data?.sources, openModal, onNote: onMakeNote, toggleFocus: toggleCardFocus, voiceKeys: voice.keys,
     focusCloze: isCloze && !run.feedback && !busy ? () => setClozeFocusTick((n) => n + 1) : undefined });
-  const caseDeck = run.card ? data?.decks?.find((deck) => deck.id === run.deckId && deck.format === "case-study") : null;
-  const caseSource = caseDeck ? data?.sources?.find((source) => source.id === caseDeck.caseSourceId) : null;
-  const [caseHighlights, setCaseHighlights] = React.useState(run.highlights || []);
-  React.useEffect(() => { setCaseHighlights(run.highlights || []); }, [run.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const saveHighlights = (next) => {
-    setCaseHighlights(next);
-    Promise.resolve(call?.("review.highlights", { runId: run.id, highlights: next })).catch(() => {});
-  };
+  const { caseSource, caseHighlights, saveHighlights } = useCaseHighlights({ run, data, call });
   const cardNotes = data?.noteBadges?.[run.card?.id] || [];
   // The round's own size and the re-ask, said by one function (the round model puts `position` on the run, #660).
   const position = roundAt(run), words = roundWords(position);
@@ -309,36 +237,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 <span>{words.main}</span>{words.note && <small className="question-retry-note">{words.note}</small>}
                 {roundSteps.onEnd && <RoundPending run={run} skippedIndices={session.skippedIndices} onJump={(index) => reviewAct("review.move", { index })} onEnd={roundSteps.onEnd} />}
                 {voice.pending}
-                {run.mode !== "exam" && run.liveMastery?.before?.total > 0 && run.liveMastery?.after?.total > 0 && (() => {
-                  const { before, after } = run.liveMastery, delta = after.percent - before.percent;
-                  return (<>
-                    <span className="question-meta__break" aria-hidden="true" />
-                    <span className="question-live-mastery" data-testid="live-mastery" data-rose={delta > 0 ? "true" : delta < 0 ? "down" : undefined}>
-                      <MasteryMark summary={after} size={13} />
-                      <span>{delta !== 0 ? uiFormat("本组 {0}% → {1}%", [before.percent, after.percent]) : uiFormat("本组 {0}%", [after.percent])}</span>
-                      {delta > 0 && <strong className="question-live-mastery__delta">{`+${delta}%`}</strong>}
-                    </span>
-                  </>);
-                })()}
+                <QuestionLiveMastery run={run} />
               </span>
               <div>
-                {cardNotes.map((note) => note.status === "published" && note.url
-                  ? <a key={note.noteId} className="result-note-link" href={note.url} target="_blank" rel="noopener noreferrer" title={note.title}><Badge size="sm" icon="external">{ui("已发布笔记")}</Badge></a>
-                  : <Button key={note.noteId} variant="quiet" size="sm" className="result-note-link question-meta__action" disabled={!onOpenNote}
-                    title={note.title} onClick={() => onOpenNote?.(note.noteId)}>{ui("笔记草稿")}</Button>)}
-                {run.origin && (
-                  <Badge size="sm" className="origin-note" title={run.origin.prompt ? uiFormat("源自：{0}", [run.origin.prompt]) : ""}>
-                    {(() => {
-                      const reason = run.origin.reason === "too-hard" ? ui("前置台阶") : run.origin.reason === "followup" ? ui("追问巩固") : ui("变式");
-                      return run.origin.prompt ? uiFormat("{0} · 源自「{1}」", [reason, run.origin.prompt.length > 18 ? run.origin.prompt.slice(0, 18) + "…" : run.origin.prompt]) : reason;
-                    })()}
-                  </Badge>
-                )}
-                {run.card.focus && <Badge size="sm" tone="accent" className="origin-note">{ui("重点")}</Badge>}
-                {run.card.importedFromJson && <Badge size="sm" className="origin-note">{ui("外部导入")}</Badge>}
-                {run.card.sourceQa && <Badge size="sm" className="origin-note">{ui("问答")}</Badge>}
-                <QuestionSourcePage run={run} sources={data?.sources} />
-                <span>{run.card.topic}</span>
+                <QuestionMetaBadges run={run} sources={data?.sources} cardNotes={cardNotes} onOpenNote={onOpenNote} />
                 {!!publicationIssues.length && !run.card.publicationUngrable &&
                   <Popover label={ui("待核对")} className="publication-mark" panelClassName="publication-mark__panel"
                     trigger={({ props, ref }) => <Button ref={ref} variant="link" size="sm" className="publication-mark__trigger" {...props}>{ui("待核对")}</Button>}>
@@ -369,12 +271,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <>
               <div className="question" role="heading" aria-level={2} key={"stem:" + reviewEntryKey(run)}>
                 <Markdown text={run.card.prompt} />
-                {enOn && enStem?.prompt && (
-                  <div className="en-block">
-                    <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
-                    <Markdown links={false} className="md-compact" text={enStem.prompt} />
-                  </div>
-                )}
+                {enOn && enStem?.prompt && <EnBlock text={enStem.prompt} />}
               </div>
               {run.card.multiple && (
                 <p className="muted small">{ui("多选题 · 选出所有符合条件的选项")}</p>
@@ -469,49 +366,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               )}
             </>
           ) : isCloze ? (
-            <>
-              <Cloze
-                key={"cloze:" + reviewEntryKey(run)}
-                card={run.card}
-                values={run.feedback?.answers || clozeValues}
-                onChange={actions.setClozeValue}
-                onSubmit={() => { if (!busy && !run.feedback && Object.values(clozeValues).some((v) => String(v).trim())) reviewAct("review.answer", { answers: clozeValues }); }}
-                focusRequest={clozeFocusTick}
-                disabled={busy || !!run.feedback}
-                details={run.feedback?.details || null}
-                solution={run.solution}
-              />
-              {enOn && (enStem?.clozeText || enStem?.prompt) && (
-                <div className="en-block">
-                  <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
-                  <Markdown
-                    links={false}
-                    className="md-compact"
-                    text={String(enStem.clozeText || enStem.prompt).replace(/\{\{[^{}]+\}\}/g, "＿＿")}
-                  />
-                </div>
-              )}
-              {enOn && run.feedback && enAnswer?.blanks?.length > 0 && (
-                <p className="en-block en-inline-line">
-                  <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
-                  {enAnswer.blanks.map((b) => b.value).join(" · ")}
-                </p>
-              )}
-              {voice.answer}
-              {!run.feedback && (() => {
-                const clozeIds = clozeRuns(run.card?.cloze?.text || "").filter((p) => p.t === "blank").map((p) => p.id);
-                const filledCloze = clozeIds.filter((id) => String(clozeValues?.[id] ?? "").trim()).length;
-                return (
-                  <div className="submit-row">
-                    {clozeIds.length >= 2 && (
-                      <span className="submit-hint" role="status">{uiFormat("已填 {0}/{1} 空", [filledCloze, clozeIds.length])}</span>
-                    )}
-                    <Button variant="primary" className="submit-answer" data-usage="review.submit" disabled={!Object.values(clozeValues).some((v) => String(v).trim())} lock={busy}
-                      onClick={() => reviewAct("review.answer", { answers: clozeValues })}>{ui("提交答案")}</Button>
-                  </div>
-                );
-              })()}
-            </>
+            <ClozeQuestion run={run} clozeValues={clozeValues} clozeFocusTick={clozeFocusTick} enOn={enOn} enStem={enStem} enAnswer={enAnswer} voiceAnswer={voice.answer} actions={actions} />
           ) : taskCard ? (
             <>
               <TaskCardRun run={run} data={data} value={response} onChange={actions.setResponse} onReveal={() => reviewAct("review.reveal")}
@@ -530,27 +385,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
               <FlipCard key={run.card.id} run={run} showBack={showBack} flipCard={flipCard} enOn={enOn} />
               <SmoothHeight className="flash-follow" key={"follow:" + run.card.id}>
               {run.card.kind === "open" && !run.revealed && (
-                <label className="response-label">{ui("先组织你的回答")}<textarea rows={3} value={response} readOnly={!!run.grading} className={run.grading ? "response-sent" : undefined}
-                    onChange={(e) => actions.setResponse(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.nativeEvent?.isComposing || e.isComposing || e.keyCode === 229) return;
-                      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !e.shiftKey && !e.altKey) {
-                        e.preventDefault();
-                        flipCard();
-                        return;
-                      }
-                      if (e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
-                        e.preventDefault();
-                        const cardEl = e.currentTarget.closest?.(".question-card");
-                        if (cardEl?.focus) cardEl.focus({ preventScroll: true });
-                        else e.currentTarget.blur();
-                      }
-                    }}
-                    placeholder={ui("在脑中作答，或在这里写下思路（提交前会自动保存）")} />
-                  {response.trim().length > 0 && (
-                    <small className="response-hint">{uiFormat("{0} 字 · Ctrl+Enter 看答案", [[...response.trim()].length])}</small>
-                  )}
-                </label>
+                <OpenResponseField grading={run.grading} value={response} onChange={actions.setResponse} onFlip={flipCard} />
               )}
               {voice.answer}
               {run.revealed && !run.feedback && (
@@ -728,10 +563,9 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       }
                     }} />
                 </label>
-                {assistMode === "ask" && voice.askButton}
                 {assistMode === "improve" && <FixPhraseSave phrases={fixPhrases.phrases} text={assistText} onSave={fixPhrases.add} />}
                 {assistMode === "improve" && <CourseRuleAdd courseRules={courseRules} text={assistText} />}
-                <div className="action-feedback-slot">{feedback}</div>
+                <div className="action-feedback-slot assist-form__feedback">{feedback}</div>
                 <div className="assist-actions">
                   <Button type="submit" variant="primary" size="sm" className="assist-actions__btn"
                     disabled={!canSubmitAssist}>{ui("提交到后台")}</Button>
@@ -741,6 +575,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                     </Button>
                   )}
                   <Button size="sm" className="assist-actions__btn" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
+                  {assistMode === "ask" && voice.askButton}
                 </div>
                 {assistMode === "ask" && <p className="muted small">{ui("提交后才启动后台助教。讲解会出现在这道题下面的问答里，完成时信箱会提醒你；做题和主会话可以继续。")}</p>}
               </form>
@@ -748,7 +583,10 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           })())}
           {runningTask && (
             <p className="assist-status" role="status">
-              <Spinner size="sm" />{uiFormat(runningTask.mode === "ask" ? "后台助教正在解答：{0}" : runningTask.mode === "derive" ? "后台助教正在出新题：{0}" : "后台助教正在改题：{0}", [runningTask.text])}
+              <span className="assist-status__spinner" aria-hidden="true"><Spinner size="sm" /></span>
+              <span className="assist-status__text">
+                {uiFormat(runningTask.mode === "ask" ? "后台助教正在解答：{0}" : runningTask.mode === "derive" ? "后台助教正在出新题：{0}" : "后台助教正在改题：{0}", [formatAssistTaskSummary(runningTask)])}
+              </span>
             </p>
           )}
           {(() => {
@@ -798,12 +636,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             {showSolution && <>
               <h3>{ui("理解这道题")}</h3>
               <Markdown text={run.solution.explanation} />
-              {enOn && enAnswer?.explanation && (
-                <div className="en-block">
-                  <Badge size="sm" tone="accent" className="en-mark">EN</Badge>
-                  <Markdown links={false} className="md-compact" text={enAnswer.explanation} />
-                </div>
-              )}
+              {enOn && enAnswer?.explanation && <EnBlock text={enAnswer.explanation} />}
               <h4>{ui("容易混淆的地方")}</h4>
               <Markdown text={run.solution.misconception} />
               {run.solution.rubric && <>

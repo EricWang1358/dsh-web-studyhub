@@ -302,6 +302,9 @@ test('#14 & #57 outline shows weak-question read hints, 只看未读 filter chip
     useRef(init) { const i = cursor++; if (!(i in hooks)) hooks[i] = { current: init }; return hooks[i]; },
     useMemo(fn, deps) { const i = cursor++, prev = hooks[i]; if (!prev || !deps || deps.some((d, k) => d !== prev.deps[k])) hooks[i] = { val: fn(), deps }; return hooks[i].val; },
     useEffect() {},
+    useLayoutEffect() {},
+    useInsertionEffect() {},
+    useId() { return 'id'; },
     useCallback(fn) { return fn; },
     useSyncExternalStore(_sub, snap) { return snap(); },
   };
@@ -316,7 +319,7 @@ test('#14 & #57 outline shows weak-question read hints, 只看未读 filter chip
         setup(builder) {
           builder.onResolve({ filter: /^react$|^react\/jsx-runtime$/ }, () => ({ path: 'react', namespace: 'sr' }));
           builder.onLoad({ filter: /.*/, namespace: 'sr' }, () => ({
-            contents: `const R = globalThis.__OUTLINE_UI_REACT__; export default R; export const { Fragment, createElement, memo, forwardRef, useState, useRef, useMemo, useEffect, useCallback, useSyncExternalStore } = R; export const jsx = (t, p) => R.createElement(t, p); export const jsxs = jsx; export const jsxDEV = jsx;`,
+            contents: `const R = globalThis.__OUTLINE_UI_REACT__; export default R; export const { Fragment, createElement, memo, forwardRef, useState, useRef, useMemo, useEffect, useLayoutEffect, useInsertionEffect, useId, useCallback, useSyncExternalStore } = R; export const jsx = (t, p) => R.createElement(t, p); export const jsxs = jsx; export const jsxDEV = jsx;`,
             loader: 'js',
           }));
           builder.onResolve({ filter: /components\/index\.js$/ }, () => ({ path: 'comp', namespace: 'sc' }));

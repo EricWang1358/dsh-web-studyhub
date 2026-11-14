@@ -15,8 +15,8 @@ export function shellTitleOf(page, { run, decks } = {}) {
 export function formatDocumentTitle(baseTitle, { runningJobs = 0, completedWhileHidden = false } = {}) {
   const base = String(baseTitle || '').trim() || 'StudyHub';
   const active = Math.max(0, Number(runningJobs) || 0);
-  if (active > 0) return `${uiFormat('[{0} 项进行中] ', [active])}${base}`;
-  if (completedWhileHidden) return `${ui('[已完成 ✓] ')}${base}`;
+  if (active > 0) return uiFormat('[{0} 项进行中] {1}', [active, base]);
+  if (completedWhileHidden) return uiFormat('[已完成 ✓] {0}', [base]);
   return base;
 }
 

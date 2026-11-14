@@ -1528,7 +1528,6 @@
   "这份资料已被删除。": "This material was deleted.",
   "未分类课程": "Uncategorised course",
   "口头 AI 评估 · {0} 次，其中回答扎实 {1} 次；不计入客观题通过率。": "Oral AI assessments · {0}, including {1} strong answers; excluded from objective accuracy.",
-  "客观答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估待巩固 {2} 题。": "Objectively incorrect: {0} · Low self-ratings: {1} · Weak oral assessments: {2}.",
   "客观答错、自评未掌握或口头评估待巩固的题会收在这里。": "Incorrect answers, low self-ratings and weak oral assessments appear here.",
   "最近一次口头 AI 评估：需要巩固": "Latest oral AI assessment: needs practice",
   "口头评估": "Oral assessment",

@@ -92,7 +92,7 @@ test('#670: the question is cut at two lines and shown whole when its row is ope
   assert.match(sheet, /\.draft-card \{ margin: var\(--space-2\) 0; padding: var\(--space-2-5\) var\(--space-4\); \}/, 'a closed row is about 66px high with two lines, not 120 to 145');
 });
 
-test('collectFlaggedCardIndices gathers quality, rejected, and similarity warnings and Draft shows 下一道待核对', () => {
+test('collectFlaggedCardIndices gathers quality and rejected warnings without adding similarity buttons and Draft shows 下一道待核对', () => {
   const flaggedDraft = {
     ...draft,
     quality: { errors: ['Card 3: duplicate prompt'] },
@@ -102,9 +102,8 @@ test('collectFlaggedCardIndices gathers quality, rejected, and similarity warnin
       quality: { issues: { c4: ['Missing rubric'] } },
     },
   };
-  const similar = new Map([['c2', { similarity: 0.9, other: { prompt: 'x' } }], ['c3', { similarity: 0.9, other: { prompt: 'y' } }]]);
-  assert.deepEqual(m.collectFlaggedCardIndices(flaggedDraft, similar), [0, 1, 2, 3]);
-  assert.deepEqual(m.collectFlaggedCardIndices(draft, new Map()), []);
+  assert.deepEqual(m.collectFlaggedCardIndices(flaggedDraft), [0, 2, 3]);
+  assert.deepEqual(m.collectFlaggedCardIndices(draft), []);
 
   const cleanHtml = page();
   assert.doesNotMatch(cleanHtml, /下一道待核对/);

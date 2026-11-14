@@ -7,12 +7,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { globalCss } from "./helpers/global-css.mjs";
 import { reviewElement } from "./helpers/review-render.mjs";
 
-const compiled = await build({ stdin: { contents: "export { default } from './ui/Review.jsx'; export { StudyServicesContext } from './ui/study-context.jsx';", resolveDir: process.cwd() }, bundle: true,
+const compiled = await build({ stdin: { contents: "export { default } from './ui/Review.jsx'; export { StudyServicesContext } from './ui/study-context.jsx'; export { formatAssistTaskSummary } from './ui/review/QuestionRun.jsx';", resolveDir: process.cwd() }, bundle: true,
   write: false, platform: "node", format: "cjs", external: ["react"],
   loader: { ".css": "text" }, logLevel: "silent" });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const Review = module.exports.default;
+const { formatAssistTaskSummary } = module.exports;
 const reviewEl = (old) => reviewElement(Review, module.exports.StudyServicesContext, old);
 function render(kind, revealed, runPatch = {}, dataPatch = {}) {
   const card = { id: "q", kind, topic: "Context", prompt: "Who processes payments?",
@@ -335,4 +336,35 @@ test("RetellPanel offers voice input and ExplanationFollowup shows saved note to
   }));
   assert.match(fuHtml, /已存进笔记 · 打开/);
   assert.match(fuHtml, /已存进「交易系统笔记」（含 2 条问答）/);
+});
+
+test("formatAssistTaskSummary summarizes chips without raw prompts (#U3) and QuestionRun renders collapsible EnBlock (#48)", async () => {
+  const { PLAIN_HELP_REQUEST } = await import("../lib/assist-contract.js");
+  assert.equal(
+    formatAssistTaskSummary({ choices: ["plain", "angle"], question: "为什么重试会放大负载" }),
+    "通俗详解 · 换个角度讲 · 为什么重试会放大负载",
+  );
+  const rawOnly = formatAssistTaskSummary({
+    text: `${PLAIN_HELP_REQUEST}；换一种解释角度，指出关键概念之间的关系；重试延迟机制`,
+  });
+  assert.equal(rawOnly, "通俗详解 · 换个角度讲 · 重试延迟机制");
+  assert.doesNotMatch(rawOnly, /贴近生活的比喻/);
+
+  const card = {
+    id: "q-en", kind: "quiz", topic: "T", prompt: "题目",
+    translation: { prompt: "English stem" },
+    options: [{ id: "a", text: "是" }],
+  };
+  const enHtml = renderToStaticMarkup(reviewEl({
+    run: {
+      id: "r-en", index: 0, total: 1, card, revealed: true,
+      feedback: { correct: true, details: [] },
+      solution: { answer: "是", explanation: "解析", translation: { explanation: "English explanation" } },
+    },
+    data: { sources: [] }, host: {}, choice: true, isCloze: false, showEn: true,
+    selected: [], clozeValues: {}, shellTitle: "Review", busy: false,
+  }));
+  assert.equal((enHtml.match(/class="en-block__toggle"/g) || []).length, 2);
+  assert.match(enHtml, /English stem/);
+  assert.match(enHtml, /English explanation/);
 });

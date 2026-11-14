@@ -299,39 +299,45 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
   return (
     <section className="round-look-back sh-paper-card" aria-label={ui("本轮题目")} onKeyDown={onKeyDown}>
       <div className="round-look-back__head">
-        <h3>{ui("本轮题目")}</h3>
-        <span className="muted small">{[wrong > 0 && uiFormat("错 {0}", [wrong]), unanswered > 0 && uiFormat("未答 {0}", [unanswered]), grading > 0 && uiFormat("批改中 {0}", [grading])].filter(Boolean).join(" · ") || ui("全部过关")}</span>
-        {corrections.length > 0 && (view !== "pending" || !!segment || hesitantOnly) && <Button variant="link" size="sm" onClick={() => pickView("pending")}>{uiFormat("待看订正 {0}", [corrections.length])}</Button>}
-        {needsLook.length > 0 && needsLook.length < rows.length && (
-          <Button variant="link" size="sm" onClick={() => pickView(!segment && !hesitantOnly && view === "some" ? "all" : "some")}>
-            {!segment && !hesitantOnly && view === "some" ? uiFormat("显示全部 {0} 题", [rows.length]) : grading ? ui("只看错题、未答和批改中") : ui("只看错题和未答")}
-          </Button>
-        )}
-        {(view === "pending" || !!segment || hesitantOnly) && !(needsLook.length > 0 && needsLook.length < rows.length) && (
-          <Button variant="link" size="sm" onClick={() => pickView("all")}>{uiFormat("显示全部 {0} 题", [rows.length])}</Button>
-        )}
-        {segment && needsLook.length > 0 && needsLook.length < rows.length && (
-          <Button variant="link" size="sm" onClick={() => pickView("all")}>{uiFormat("显示全部 {0} 题", [rows.length])}</Button>
-        )}
-        {hesitantRows.length > 0 && (
-          <Button variant="quiet" size="sm" aria-pressed={hesitantOnly} onClick={() => { setHesitantOnly((prev) => !prev); onSegmentChange?.(null); }}>
-            {uiFormat("只看想了较久 ({0})", [hesitantRows.length])}
-          </Button>
-        )}
-        {shown.length >= 2 && (
-          <Button variant="quiet" size="sm" onClick={toggleAllShown}>
-            {allShownOpen ? ui("全部收起") : ui("全部展开")}
-          </Button>
-        )}
-        {onPracticeWrong && wrong >= 1 && (
-          <Button size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(wrongRefs)}>
-            {wrong === 1 ? ui("重练这道错题") : uiFormat("重练这 {0} 道错题", [wrong])}
-          </Button>
-        )}
-        {withSolution.length > 0 && (
-          <Button variant="quiet" size="sm" onClick={copy}>
-            {copied ? ui("已复制") : ui("复制复盘摘录")}
-          </Button>
+        <div className="round-look-back__lead">
+          <h3>{ui("本轮题目")}</h3>
+          <span className="muted small">{[wrong > 0 && uiFormat("错 {0}", [wrong]), unanswered > 0 && uiFormat("未答 {0}", [unanswered]), grading > 0 && uiFormat("批改中 {0}", [grading])].filter(Boolean).join(" · ") || ui("全部过关")}</span>
+          {corrections.length > 0 && (view !== "pending" || !!segment || hesitantOnly) && <Button variant="link" size="sm" onClick={() => pickView("pending")}>{uiFormat("待看订正 {0}", [corrections.length])}</Button>}
+          {needsLook.length > 0 && needsLook.length < rows.length && (
+            <Button variant="link" size="sm" onClick={() => pickView(!segment && !hesitantOnly && view === "some" ? "all" : "some")}>
+              {!segment && !hesitantOnly && view === "some" ? uiFormat("显示全部 {0} 题", [rows.length]) : grading ? ui("只看错题、未答和批改中") : ui("只看错题和未答")}
+            </Button>
+          )}
+          {(view === "pending" || !!segment || hesitantOnly) && !(needsLook.length > 0 && needsLook.length < rows.length) && (
+            <Button variant="link" size="sm" onClick={() => pickView("all")}>{uiFormat("显示全部 {0} 题", [rows.length])}</Button>
+          )}
+          {segment && needsLook.length > 0 && needsLook.length < rows.length && (
+            <Button variant="link" size="sm" onClick={() => pickView("all")}>{uiFormat("显示全部 {0} 题", [rows.length])}</Button>
+          )}
+        </div>
+        {(hesitantRows.length > 0 || shown.length >= 2 || (onPracticeWrong && wrong >= 1) || withSolution.length > 0) && (
+          <div className="round-look-back__tools">
+            {hesitantRows.length > 0 && (
+              <Button variant="quiet" size="sm" aria-pressed={hesitantOnly} onClick={() => { setHesitantOnly((prev) => !prev); onSegmentChange?.(null); }}>
+                {uiFormat("只看想了较久 ({0})", [hesitantRows.length])}
+              </Button>
+            )}
+            {shown.length >= 2 && (
+              <Button variant="quiet" size="sm" onClick={toggleAllShown}>
+                {allShownOpen ? ui("全部收起") : ui("全部展开")}
+              </Button>
+            )}
+            {onPracticeWrong && wrong >= 1 && (
+              <Button size="sm" variant="quiet" lock={study?.busy} onClick={() => onPracticeWrong(wrongRefs)}>
+                {wrong === 1 ? ui("重练这道错题") : uiFormat("重练这 {0} 道错题", [wrong])}
+              </Button>
+            )}
+            {withSolution.length > 0 && (
+              <Button variant="quiet" size="sm" onClick={copy}>
+                {copied ? ui("已复制") : ui("复制复盘摘录")}
+              </Button>
+            )}
+          </div>
         )}
       </div>
       <p className="muted small">{ui("点一道题回看：题目、你的答案、正确答案、讲解和问答。只是回看，不会重新计时或改成绩。")}</p>

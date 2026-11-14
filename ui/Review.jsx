@@ -109,6 +109,29 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const rail = !run.complete && run.navigation?.length > 0;
   const dock = useSourceDock({ pageRef, rail, run, sources: data?.sources, study, readerDialogOpen: readerOpen(app?.lib?.modal), modalOpen: !!app?.lib?.modal });
   const openModal = dock.services.openModal;
+  const { docked: dockDocked, focusColumn: focusSourceColumn } = dock;
+  React.useEffect(() => {
+    if (!dockDocked) return undefined;
+    const onKeyDown = (event) => {
+      if (event.defaultPrevented || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.code !== "Backquote" && event.key !== "`") return;
+      const root = pageRef.current;
+      if (!root) return;
+      if (root.ownerDocument?.querySelector(".sh-dialog__backdrop, dialog[open]")) return;
+      event.preventDefault();
+      if (root.ownerDocument?.activeElement?.closest?.(".source-column")) {
+        const card = root.querySelector(".review-body .question-card");
+        if (card) {
+          if (!card.hasAttribute("tabindex")) card.setAttribute("tabindex", "-1");
+          card.focus({ preventScroll: true });
+        }
+      } else {
+        focusSourceColumn();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [dockDocked, focusSourceColumn]);
   const rubricCard = run.card?.kind === "open" && !!run.card.rubricCriteria?.length;
   const skeletonHere = run.card ? data?.skeletons?.find((k) => k.cardIds.includes(run.card.id)) : null;
   // A finished round on a case set (WP12): its weak criteria become drills, or another case like it.

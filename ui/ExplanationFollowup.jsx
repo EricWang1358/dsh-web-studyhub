@@ -154,7 +154,13 @@ export default function ExplanationFollowup({ run, readOnly = false, onDerive, o
                     }
                   }} />
               </label>
-              <Button className="followup-picker__submit" type="submit" variant="primary" size="sm" busy={pending === "answer"} disabled={!!pending || !question.trim()}>{ui("解答并添加")}</Button>
+              <div className="followup-picker__actions">
+                <Button className="followup-picker__submit" type="submit" variant="primary" size="sm" busy={pending === "answer"} disabled={!!pending || !question.trim()}>{ui("解答并添加")}</Button>
+                <Button variant="quiet" size="sm" lock={pending === "answer"} onClick={() => {
+                  setCustom(false);
+                  requestAnimationFrame(() => { customTriggerRef.current?.focus?.({ preventScroll: true }); });
+                }}>{ui("取消")}</Button>
+              </div>
             </form>
           )}
           {error && !questions.length && !pending && <Button className="followup-picker__choice" size="sm" onClick={suggest}>{ui("重新推荐问题")}</Button>}

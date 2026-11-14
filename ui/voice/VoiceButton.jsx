@@ -38,9 +38,29 @@ export default function VoiceButton({ voice, label = '语音作答', shortcut, c
   const root = React.useRef(null), guide = React.useRef(null);
   React.useEffect(() => {
     const target = phase === 'recording' ? root.current : setup ? guide.current : null;
-    if (!target?.scrollIntoView) return;
-    const box = target.getBoundingClientRect();
-    if (box.top < 0 || box.bottom > window.innerHeight - 90) target.scrollIntoView({ block: phase === 'recording' ? 'center' : 'nearest', behavior: 'smooth' });
+    if (!target?.scrollIntoView) return undefined;
+    const ensureVisible = (behavior = 'smooth') => {
+      if (!target.isConnected) return;
+      const box = target.getBoundingClientRect();
+      if (box.top < 0 || box.bottom > window.innerHeight - 90) {
+        target.scrollIntoView({ block: phase === 'recording' ? 'center' : 'nearest', behavior });
+      }
+    };
+    ensureVisible();
+    const smoothHost = target.closest?.('.smooth-height');
+    const onEnd = (event) => { if (event.propertyName === 'height') ensureVisible(); };
+    smoothHost?.addEventListener('transitionend', onEnd);
+    const settleTimer = smoothHost ? setTimeout(() => ensureVisible(), 360) : 0;
+    const guardTimer = setTimeout(() => {
+      if (!target.isConnected) return;
+      const box = target.getBoundingClientRect();
+      if (box.top < 0 || box.bottom > window.innerHeight) ensureVisible('instant');
+    }, 750);
+    return () => {
+      smoothHost?.removeEventListener('transitionend', onEnd);
+      if (settleTimer) clearTimeout(settleTimer);
+      clearTimeout(guardTimer);
+    };
   }, [phase === 'recording', !!setup]); // eslint-disable-line react-hooks/exhaustive-deps
   if (voice.unavailable) return null;
   const recording = voice.phase === 'recording', sending = voice.phase === 'sending';

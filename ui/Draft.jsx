@@ -44,8 +44,8 @@ import { useSimilarQuestions } from "./draft-similar.js";
 /** A draft of more questions than this draws its questions in chunks of this many (ChunkedRows); a question is a fold with its whole editor inside, so a chunk is smaller than a list's. */
 const DRAFT_CHUNK = 80;
 
-/** Sorted 0-based indices of draft cards with quality issues, rejection notes, or similarity warnings. */
-export function collectFlaggedCardIndices(draft, similar) {
+/** Sorted 0-based indices of draft cards with quality issues or rejection notes. */
+export function collectFlaggedCardIndices(draft) {
   const cards = Array.isArray(draft?.cards) ? draft.cards : [];
   if (!cards.length) return [];
   const indices = new Set();
@@ -70,8 +70,7 @@ export function collectFlaggedCardIndices(draft, similar) {
   cards.forEach((card, index) => {
     if (!card) return;
     const hasRejected = Array.isArray(rejected[card.id]) ? rejected[card.id].length > 0 : Boolean(rejected[card.id]);
-    const hasSimilar = similar instanceof Map ? Boolean(similar.get(card.id)) : Boolean(similar?.get?.(card.id) ?? similar?.[card.id]);
-    if (hasRejected || hasSimilar) indices.add(index);
+    if (hasRejected) indices.add(index);
   });
   for (const issue of Array.isArray(draft.quality?.errors) ? draft.quality.errors : []) scanIssue(issue);
   const editorialIssues = draft.editorial?.quality?.issues;
@@ -181,7 +180,7 @@ export default function Draft({
   // Questions that are near-duplicates of another one of the same kind, in this draft or the course's decks (#890): asked with the draft, again when it changes.
   // Not while a job is still changing the draft (it would ask after every batch): the last answer stays on screen, and the page asks once the job is done.
   const similar = useSimilarQuestions(draft.id, { version: `${data.revision}:${draft.draftVersion}`, enabled: draft.draftVersion > 0 && !missingDraft && !updatingDraft });
-  const flaggedIndices = React.useMemo(() => collectFlaggedCardIndices(draft, similar), [draft, similar]);
+  const flaggedIndices = React.useMemo(() => collectFlaggedCardIndices(draft), [draft]);
   const flaggedPos = flaggedState.id === draft.id && flaggedState.pos >= 0 && flaggedState.pos < flaggedIndices.length ? flaggedState.pos : -1;
   const jumpToNextFlagged = () => {
     if (!flaggedIndices.length) return;

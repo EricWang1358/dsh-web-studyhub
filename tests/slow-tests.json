@@ -1,6 +1,7 @@
 {
   "browser": [
     "tests/answer-card-browser.test.mjs",
+    "tests/answer-card-ui.test.mjs",
     "tests/board-today-s1-browser.test.mjs",
     "tests/board-today-s2-browser.test.mjs",
     "tests/board-today-s3-browser.test.mjs",
@@ -111,6 +112,7 @@
     "tests/reader-inline-practice-browser.test.mjs",
     "tests/reader-last-read-browser.test.mjs",
     "tests/reader-marks-browser.test.mjs",
+    "tests/reader-math.test.mjs",
     "tests/reader-multiline-selection-browser.test.mjs",
     "tests/reader-notes-tasks-browser.test.mjs",
     "tests/reader-one-chapter-browser.test.mjs",
@@ -132,6 +134,7 @@
     "tests/sources-filter-archive-batch-browser.test.mjs",
     "tests/spine-layout.test.mjs",
     "tests/study-image-cards.test.mjs",
+    "tests/study-markdown.test.mjs",
     "tests/task-console-browser.test.mjs",
     "tests/task-plan-browser.test.mjs",
     "tests/toast-anchor-browser.test.mjs",
@@ -151,6 +154,7 @@
     "tests/wp-b-overlays-browser.test.mjs",
     "tests/wp-e-inbox-browser.test.mjs",
     "tests/wp0-qa-tools.test.mjs",
+    "tests/wp12-rubric-review.test.mjs",
     "tests/wp2f-shell-browser.test.mjs",
     "tests/wp5-tour-steps.test.mjs",
     "tests/wrongbook-distribution-browser.test.mjs",

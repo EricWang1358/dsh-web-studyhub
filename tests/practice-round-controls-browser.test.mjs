@@ -8,6 +8,8 @@ import { StudyService } from '../lib/service.js';
 import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
+import { globalCss } from './helpers/global-css.mjs';
+import { PLAIN_HELP_REQUEST } from '../lib/assist-contract.js';
 
 /* #1008 / #1009 in a real browser, at 1280 and 420 px: a question set aside (先跳过: K at 1280, 更多 at 420) comes back after the others, 下一题 does not say 完成
    while it waits, the narrow window's 「N 题待答」 list jumps, 到此为止 asks once and opens the result page with the unanswered one counted, the result page lists
@@ -420,7 +422,15 @@ test('RetellPanel (#3, #4), ExplanationFollowup (#3, #25), and QuestionRun assis
           closeShortcutHelp() {}, showExplanation() {}, toggleAutopilot() {}, skipQuestion() {}, askEnd() {},
         },
       };
-      const data = { root: 'r1', sources: [], decks: [], model: { ready: true }, settings: { practice: { fixPhrases: ['选项有歧义', '解析不完整'] } } };
+      const data = {
+        root: 'r1', sources: [], decks: [], model: { ready: true },
+        settings: { practice: { fixPhrases: ['选项有歧义', '解析不完整'] } },
+        assist: [{
+          id: 't-run', status: 'running', mode: 'ask', cardId: 'q1',
+          choices: ['plain', 'angle'], question: 'Why does retry amplify load?',
+          text: ${JSON.stringify(`${PLAIN_HELP_REQUEST}；换一种解释角度，指出关键概念之间的关系；Why does retry amplify load?`)},
+        }],
+      };
       return (
         <StudyServicesContext.Provider value={services}>
           <div className="study-app">
@@ -455,12 +465,34 @@ test('RetellPanel (#3, #4), ExplanationFollowup (#3, #25), and QuestionRun assis
     t.skip('Chromium unavailable'); return;
   }
   t.after(() => browser.close());
-  const page = await browser.newPage({ locale: 'zh-CN' });
+  const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1280, height: 900 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.route('http://test.local/**', (route) => route.fulfill({ contentType: 'text/html', body: '<main id="root"></main>' }));
   await page.goto('http://test.local/');
+  await page.addStyleTag({ content: globalCss() });
   await page.addScriptTag({ content: compBundle.outputFiles[0].text });
+
+  // Assist status summarizes chips instead of raw PLAIN_HELP_REQUEST prompt (#U3).
+  const statusText = await page.locator('.assist-status__text').innerText();
+  assert.match(statusText, /通俗详解 · 换个角度讲 · Why does retry amplify load\?/);
+  assert.doesNotMatch(statusText, /贴近生活的比喻/);
+
+  // Help form layout (#U1, #U2): no empty 44px feedback hole, unified -1px outlineOffset, zero horizontal overflow.
+  await page.locator('[data-tour="review-help"]').click();
+  await page.locator('.assist-form__input').waitFor();
+  const holeHeight = await page.locator('.assist-form .action-feedback-slot').evaluate((el) => el.getBoundingClientRect().height);
+  assert.equal(holeHeight, 0, 'empty feedback slot inside assist form collapses to 0px');
+  await page.locator('.assist-actions').getByRole('button', { name: '取消' }).focus();
+  await page.keyboard.press('Shift+Tab');
+  const focusStyle = await page.locator('.assist-form__input').evaluate((el) => ({
+    active: document.activeElement === el,
+    outlineOffset: window.getComputedStyle(el).outlineOffset,
+  }));
+  assert.equal(focusStyle.active, true, 'Shift+Tab reaches textarea');
+  assert.equal(focusStyle.outlineOffset, '-1px', 'single unified focus ring on textarea');
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'no horizontal overflow at 1280px');
+  await page.locator('.assist-actions').getByRole('button', { name: '取消' }).click();
 
   // QuestionRun .assist-form (#3 & #40): append fix phrases, 清空, IME guard, empty Esc collapse restoring focus, Ctrl+Enter submit.
   await page.locator('[data-tour="review-improve"]').click();
@@ -517,6 +549,11 @@ test('RetellPanel (#3, #4), ExplanationFollowup (#3, #25), and QuestionRun assis
   await page.getByRole('button', { name: '追问？' }).click();
   await page.getByRole('button', { name: '你的疑问' }).click();
   const fuInput = page.locator('.followup-picker__input');
+  await fuInput.focus();
+  await page.locator('.followup-picker__actions').getByRole('button', { name: '取消' }).click();
+  assert.equal(await page.locator('.followup-picker__input').count(), 0, 'cancel closes custom followup form');
+  assert.equal(await page.evaluate(() => /你的疑问/.test(document.activeElement?.innerText || '')), true, 'cancel returns focus to custom trigger');
+  await page.getByRole('button', { name: '你的疑问' }).click();
   await fuInput.focus();
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('.followup-picker__input').count(), 0, 'empty Esc collapses custom followup input');
