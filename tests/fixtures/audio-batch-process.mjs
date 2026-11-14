@@ -54,7 +54,9 @@ if (mode === 'interrupt' || mode === 'last') {
 } else if (mode === 'probe') {
   const before = (await service.call('snapshot')).jobs[0];
   const refusal = await service.call('audio.retry', { jobId: before.id }).then(() => null, error => ({ code: error.code, message: error.message }));
-  process.stdout.write(JSON.stringify({ before, refusal, calls: calls.length, sources: (await service.store.read()).sources.length }));
+  const sources = (await service.store.read()).sources.length;
+  await service.dispose();
+  process.stdout.write(JSON.stringify({ before, refusal, calls: calls.length, sources }));
 } else {
   const before = (await service.call('snapshot')).jobs[0], callsBeforeRetry = calls.length;
   // A fresh upload invokes stale-upload pruning; the unfinished batch owns an independent copy.
@@ -63,6 +65,7 @@ if (mode === 'interrupt' || mode === 'last') {
   const started = await service.call('audio.retry', { jobId: before.id });
   const done = await settleJob(service, started.jobId);
   const state = await service.store.read();
+  await service.dispose();
   process.stdout.write(JSON.stringify({ before, callsBeforeRetry, done, transcribed, sources: state.sources,
     oldFailureLetters: state.inbox.filter(item => item.jobId === before.id && item.kind === 'audio-failed').length }));
 }

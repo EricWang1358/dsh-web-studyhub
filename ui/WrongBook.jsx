@@ -700,9 +700,24 @@ export function WrongBookView({
     });
   };
   const onRowsKeyDown = (event, groupRowsList) => {
-    if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
+    if (event.metaKey || event.ctrlKey || event.altKey || event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
     const target = event.target;
     if (target?.closest?.("input, textarea, select, [contenteditable='true']")) return;
+    if (event.key === "Escape") {
+      const rowEl = target?.closest?.(".wb-row");
+      const toggleBtn = rowEl?.querySelector?.(".wb-row-toggle");
+      const cardId = toggleBtn?.dataset?.cardId;
+      if (cardId && expanded.has(cardId)) {
+        const item = groupRowsList.find((row) => row.cardId === cardId);
+        if (item) {
+          event.preventDefault();
+          event.stopPropagation();
+          handlers.open(item);
+          toggleBtn?.focus?.();
+          return;
+        }
+      }
+    }
     const toggleEl = target?.closest?.(".wb-row-toggle");
     if (!toggleEl) return;
     if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
@@ -723,6 +738,15 @@ export function WrongBookView({
       if (item && !busy && onPractice) {
         event.preventDefault();
         handlers.practice(item);
+      }
+      return;
+    }
+    if (event.key === "o" || event.key === "O") {
+      const cardId = toggleEl.dataset?.cardId;
+      const srcTarget = cardId ? sourceTargetByCard.get(cardId) : null;
+      if (srcTarget?.source && openModal) {
+        event.preventDefault();
+        handlers.openSource(srcTarget);
       }
     }
   };

@@ -117,7 +117,7 @@
     }
     .board-card[draggable="true"] { cursor: grab; }
     .board-card:hover { border-color: var(--line-strong); }
-    .board-card:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; box-shadow: var(--ring); }
+    .board-card:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .board-card.is-dragging { opacity: 0.45; cursor: grabbing; }
     .board-card.is-done { opacity: 0.66; }
     .board-card.is-done .board-card__title { text-decoration: line-through; text-decoration-color: var(--decor-faint); color: var(--text-dim); }
