@@ -1,6 +1,0 @@
-- **Library search in Quick Finder, inbox read toggles, draft review navigation, round time estimates, and tab title progress.** Live work across search, triage, drafting, and practice setup now responds faster without extra page hops.
-  - Quick Finder (`Ctrl K` / `⌘K`) searches courses, non-archived decks, materials, and notes under a Library items section with full keyboard navigation.
-  - Inbox rows support `ArrowDown` / `ArrowUp` / `Home` / `End` navigation and per-letter mark unread / mark read toggles backed by `inbox.unread` and `inbox.read`.
-  - Draft review highlights a "Next to review" header action that cycles through flagged or near-duplicate cards across chunk boundaries.
-  - Round Setup shows live minute range estimates derived from question kinds as size or chapter changes, and the browser tab title prefixes active background jobs and `[Done ✓] ` when hidden work finishes.
-  - Not verified: live DSH Electron host window rendering, full Playwright suite, and `ui/english-catalogue.js` wiring (reserved outside Slice 6).
