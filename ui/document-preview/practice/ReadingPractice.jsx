@@ -64,9 +64,10 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
         {options.length === 1 && <p className="reader-practice__scope">{rangeLabel(selected, unit)}{inclusionNote(selected) && <small className="reader-practice__older">{inclusionNote(selected)}</small>}</p>}
         {total > 0 ? <>
           <p className="reader-practice__counts" data-testid="practice-counts">{countsLine(summary)}</p>
-          <p className="reader-practice__mastery"><MasteryMark summary={summary} size={16} />
+          <p className="reader-practice__mastery" data-state={summary.state}><MasteryMark summary={summary} size={16} />
             <span>{summary.state === 'unlearned' ? stateLabel('unlearned') : `${uiFormat('掌握 {0}%', [summary.percent])} · ${stateLabel(summary.state)}`}</span>
             <HelpTip label={ui('掌握度是什么意思')}>{meaningLine()}</HelpTip></p>
+          {summary.state === 'mastered' && <p className="reader-practice__attained" data-testid="practice-mastered">{ui('当前范围已全部掌握，可随时巩固或继续往下读。')}</p>}
           {coverageLine && <p className="reader-practice__coverage" data-testid="practice-coverage">{coverageLine}</p>}
           <InactiveNote summary={summary} courses={loop.inactiveCourses} />
           {drafted && <p className="reader-practice__drafts" data-testid="practice-drafts">{draftExtraText(drafted.draftCards)}</p>}

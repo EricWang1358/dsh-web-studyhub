@@ -1,0 +1,7 @@
+- **Added earned completion feedback and alignment polish across the dashboard, daily recap, hands-on tasks, and reading practice, while speeding up custom-plan application tests.**
+  - Dashboard weak-topic cleared state (`All clear`) and mastery panel all-met confirmation now appear only when measured data is actually present, with `tabular-nums` alignment and roomier mobile mastery bars.
+  - Daily recap cards now surface a `Zero mistakes today` pill only when answered questions exist with zero mistakes and zero pending grading, alongside semantic status pills and left-aligned standalone action buttons.
+  - Hands-on task cards now indicate when interactive rubric self-checks are all ticked (`Self-check complete`) and mark static passes cleanly when achieved without self-reporting or viewing the reference solution beforehand (`Verified independently`).
+  - Reading practice panels and return cards now mark fully mastered ranges cleanly, align option counts, and let the standalone result progress rail span the card width on desktop.
+  - Made the held test model stub honor abort signals during service disposal and cached the shared course outline fixture in custom-apply tests, with updated `tests/test-weights.json` shard calibration.
+  - Not verified: interactive clicks in full Electron/VS Code hosts beyond the server-rendered suites and headless Chromium box-model verification.

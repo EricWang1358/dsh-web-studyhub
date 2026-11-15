@@ -50,8 +50,9 @@ export function MasteryChange({ change, kind = 'pages', className }) {
   const beforePct = Math.max(0, Math.min(100, Number(change.before.percent) || 0));
   const afterPct = Math.max(0, Math.min(100, Number(change.after.percent) || 0));
   const delta = afterPct - beforePct;
+  const mastered = change.after?.state === 'mastered';
   const shifts = masteryShiftParts(change);
-  return <div className={cx('reading-result__change', className)} data-testid="mastery-change" data-rose={delta > 0 ? 'true' : undefined}>
+  return <div className={cx('reading-result__change', className)} data-testid="mastery-change" data-rose={delta > 0 ? 'true' : undefined} data-mastered={mastered ? 'true' : undefined}>
     <p className="reading-result__headline">
       <MasteryMark summary={change.after} size={18} />
       {' '}
@@ -108,7 +109,8 @@ export function ReadingResult({ run, onReturn, busy }) {
   const reading = run?.reading;
   if (!reading) return null;
   const rose = reading.after?.percent > reading.before?.percent;
-  return <section className="reading-result" aria-label={ui('这几页的掌握度')} data-rose={rose || undefined}>
+  const mastered = reading.after?.state === 'mastered';
+  return <section className="reading-result" aria-label={ui('这几页的掌握度')} data-rose={rose || undefined} data-mastered={mastered ? 'true' : undefined}>
     <MasteryChange change={reading} />
     <p className="reading-result__meaning muted">{scopeLabel(reading.scope)} · {meaningLine()}</p>
     <ReturnPrimary arrow label={ui('回到阅读')} place={placeText(reading)} lock={busy} onReturn={() => onReturn(reading)} />

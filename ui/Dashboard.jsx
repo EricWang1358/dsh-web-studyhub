@@ -11,7 +11,7 @@ import { useCourseActive } from './CourseActive.jsx';
 import { FocusDurationPanel, ForecastPanel, MasteryPanel, TrendPanel } from "./charts/DashboardCharts.jsx";
 import { shortDeckTitles } from "./charts/chart-math.js";
 import { ModelUsage } from "./TokenUsage.jsx";
-import { Button, EmptyState, ErrorState, LoadingState, PageHeader, Tooltip } from "./components/index.js";
+import { Badge, Button, EmptyState, ErrorState, Icon, LoadingState, PageHeader, Tooltip } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 import { MEASURES, THIN_DATA, enoughAnswers } from "./mastery-terms.js";
 
@@ -161,8 +161,11 @@ export function StatsView({
       <RubricSkills attempts={scopedAttempts} />
 
       <div className="dash-split">
-        <section className="dash-section">
-          <h2>{ui("需要补强")}{weak.length ? <small>{" · "}{uiFormat("前 {0}", [weak.length])}</small> : null}</h2>
+        <section className="dash-section" data-weak-cleared={totals.attempts > 0 && !weak.length ? "true" : undefined}>
+          <h2 className="dash-section__head">
+            <span>{ui("需要补强")}{weak.length ? <small>{" · "}{uiFormat("前 {0}", [weak.length])}</small> : null}</span>
+            {totals.attempts > 0 && !weak.length && <Badge size="sm" tone="success" className="dash-section__badge">{ui("已清零")}</Badge>}
+          </h2>
           {weak.length ? (
             <ul className="dash-weak">
               {weak.map((w) => (
@@ -181,10 +184,13 @@ export function StatsView({
                 </li>
               ))}
             </ul>
+          ) : totals.attempts ? (
+            <p className="dash-weak-clear" role="status" data-testid="dash-weak-clear">
+              <Icon name="check" size={14} strokeWidth={2.2} />
+              <span>{ui("最近没有明显薄弱的主题，继续保持。")}</span>
+            </p>
           ) : (
-            <p className="muted">{totals.attempts
-              ? ui("最近没有明显薄弱的主题，继续保持。")
-              : ui("开始练习后，这里会显示需要补强的主题。")}</p>
+            <p className="muted">{ui("开始练习后，这里会显示需要补强的主题。")}</p>
           )}
         </section>
 

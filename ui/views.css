@@ -127,8 +127,15 @@
       column-gap: var(--space-9);
     }
     .dash-section h2 {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-2);
       margin: 0 0 var(--space-3-5);
       font-size: var(--fs-lg);
+    }
+    .dash-section__badge {
+      font-weight: var(--fw-medium);
     }
     .dash-section h2 small {
       font-family: var(--font-ui);
@@ -164,6 +171,7 @@
       gap: var(--space-2);
       margin-top: var(--space-2);
       font-size: var(--fs-md);
+      font-variant-numeric: tabular-nums;
       color: var(--text-muted);
     }
     .dash-rates i {
@@ -204,6 +212,20 @@
     .dash-weak-name small {
       color: var(--text-muted);
       font-size: var(--fs-md);
+      font-variant-numeric: tabular-nums;
+    }
+    .dash-weak-clear {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin: 0;
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--ok-line);
+      border-radius: var(--radius-sm);
+      background: var(--ok-bg);
+      color: var(--ok-ink);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
     }
     .dash-weak-row .dash-weak-start {
       flex: none;

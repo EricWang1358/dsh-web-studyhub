@@ -48,5 +48,7 @@
   "多做几道题，这里会显示各层次的达标率。": "Answer a few more questions to see the met rate here.",
   "活跃天数": "Active days",
   "累计作答 {0} 次": "{0} attempts in total",
-  "今天学一题，就开始新的连续学习": "Answer one question today to start a new streak"
+  "今天学一题，就开始新的连续学习": "Answer one question today to start a new streak",
+  "已清零": "All clear",
+  "已统计维度均已达标": "All measured dimensions meet target"
 }

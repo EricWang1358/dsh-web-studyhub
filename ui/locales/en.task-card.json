@@ -24,6 +24,8 @@
   "看参考实现": "View reference solution",
   "收起参考实现": "Hide reference solution",
   "写完了（自报）": "Done (self-report)",
+  "自检已完成": "Self-check complete",
+  "独立完成验收": "Verified independently",
   "本次作答已记录为「看过答案」，不计入独立完成。": "This attempt is recorded as having viewed the solution and does not count as independent completion.",
   "静态验收结果": "Static check result",
   "静态检查通过": "Static check passed",

@@ -154,6 +154,9 @@ export default function TaskCardRun({
   const missingCount = checks.filter((item) => item.status === "missing").length;
   const issueCount = checks.filter((item) => item.status === "issue").length;
   const allSatisfied = checks.length > 0 && satisfiedCount === checks.length;
+  const totalCriteria = Array.isArray(card.rubricCriteria) ? card.rubricCriteria.length : 0;
+  const allChecked = totalCriteria > 0 && checkedCount === totalCriteria;
+  const verifiedIndependently = allSatisfied && !selfReported && !viewedBeforeAnswer;
   const lastAttempt = !feedback ? run.lastTaskAttempt : null;
 
   return (
@@ -198,12 +201,17 @@ export default function TaskCardRun({
       )}
 
       {(card.rubricCriteria?.length > 0 || card.rubric) && (
-        <section className="task-run__criteria" aria-label={ui("验收标准")}>
+        <section className="task-run__criteria" aria-label={ui("验收标准")} data-all-checked={!feedback && allChecked ? "true" : undefined}>
           <div className="task-run__section-head">
-            <span className="task-run__section-title">{ui("验收标准")}</span>
+            <span className="task-run__section-title-group">
+              <span className="task-run__section-title">{ui("验收标准")}</span>
+              {!feedback && allChecked && (
+                <Badge size="sm" tone="success" data-testid="task-all-checked">{ui("自检已完成")}</Badge>
+              )}
+            </span>
             <span className="task-run__section-sub">
-              {!feedback && card.rubricCriteria?.length > 0 && checkedCount > 0
-                ? `${uiFormat("已自检 {0}/{1} 项", [checkedCount, card.rubricCriteria.length])} · ${ui("对照完成，不在应用内运行测试")}`
+              {!feedback && totalCriteria > 0 && checkedCount > 0
+                ? `${uiFormat("已自检 {0}/{1} 项", [checkedCount, totalCriteria])} · ${ui("对照完成，不在应用内运行测试")}`
                 : ui("对照完成，不在应用内运行测试")}
             </span>
           </div>
@@ -306,11 +314,14 @@ export default function TaskCardRun({
       ) : (
         <>
           {checks.length > 0 && !selfReported && (
-            <section className="task-run__result" data-testid="task-static-result" aria-label={ui("静态验收结果")}>
+            <section className="task-run__result" data-testid="task-static-result" data-all-satisfied={allSatisfied ? "true" : undefined} aria-label={ui("静态验收结果")}>
               <div className="task-run__result-head">
                 <Badge size="sm" tone={allSatisfied ? "success" : feedback.grade >= 3 ? "warning" : "error"}>
                   {allSatisfied ? ui("静态检查通过") : ui("静态检查反馈")}
                 </Badge>
+                {verifiedIndependently && (
+                  <Badge size="sm" tone="success" data-testid="task-independent-badge">{ui("独立完成验收")}</Badge>
+                )}
                 <span className="task-run__result-counts">
                   {uiFormat("满足 {0} · 缺失 {1} · 有问题 {2}", [satisfiedCount, missingCount, issueCount])}
                 </span>
