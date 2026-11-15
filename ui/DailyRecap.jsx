@@ -67,7 +67,7 @@ export function DailyRecapPanel(props) {
       const progress = group.generation?.progress;
       return <article className="daily-recap-course" data-state={phase} data-all-clear={allClear || undefined} key={recapGroupKey(group)}>
         <div className="daily-recap-course-heading"><h3>{group.course || ui('未分配课程')}</h3>
-          <span className="daily-recap-badges">
+          <span className="daily-recap-status-row">
             {allClear && <span className="daily-recap-clear" data-testid="daily-recap-clear"><Icon name="check" size={12} strokeWidth={2.2} /><span>{ui('今日零错题')}</span></span>}
             <span className="daily-recap-state">{ui(stateLabels[phase])}</span>
           </span></div>

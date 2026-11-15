@@ -16,7 +16,7 @@
     .daily-recap-lead { color: var(--text-muted); font-size: var(--fs-md); line-height: 1.7; margin: var(--space-2-5) 0 0; }
     .daily-recap-course { border-top: 1px solid var(--line); margin-top: var(--space-5); padding-top: var(--space-5); min-width: 0; }
     .daily-recap-course h3 { margin: 0; font-size: var(--fs-xl); overflow-wrap: anywhere; }
-    .daily-recap-badges { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
+    .daily-recap-status-row { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
     .daily-recap-clear { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-half) var(--space-2); border: 1px solid var(--ok-line); border-radius: var(--radius-pill); background: var(--ok-bg); color: var(--ok-ink); font-size: var(--fs-xs); font-weight: var(--fw-medium); white-space: nowrap; }
     .daily-recap-state { flex-shrink: 0; font-size: var(--fs-xs); color: var(--text-muted); padding: var(--space-half) var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); white-space: nowrap; }
     .daily-recap-course[data-state="running"] .daily-recap-state { color: var(--info-ink); border-color: var(--info-line); background: var(--info-bg); }
