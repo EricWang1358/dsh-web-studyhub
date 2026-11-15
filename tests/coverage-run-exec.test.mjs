@@ -1,8 +1,8 @@
-import test from 'node:test';
+import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { reportUsage } from '../lib/usage-scope.js';
 import { jobContract } from '../lib/job-contract.js';
@@ -56,8 +56,63 @@ function trackCleanup(t, root, service) {
   if (service) entry.services.push(service);
 }
 
+let seedFilesPromise = null;
+async function walkFiles(dir, prefix = '') {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...await walkFiles(fullPath, relPath));
+    else files.push({ relPath, data: await readFile(fullPath) });
+  }
+  return files;
+}
+
+async function copySeedFiles(root, seedFiles) {
+  const dirs = [...new Set(seedFiles.map(file => dirname(join(root, file.relPath))))];
+  await Promise.all(dirs.map(dir => mkdir(dir, { recursive: true })));
+  await Promise.all(seedFiles.map(file => writeFile(join(root, file.relPath), file.data)));
+}
+
+/** Seed world.sources once per process so each test starts from in-memory file copies instead of repeating 12 source.add calls. */
+function ensureSeedFiles() {
+  if (!seedFilesPromise) {
+    seedFilesPromise = (async () => {
+      const seedRoot = await mkdtemp(join(tmpdir(), 'study-coverage-seed-'));
+      const service = new StudyService(seedRoot, { coverage: { roundLimit: 8 } });
+      try {
+        for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
+        await service.dispose();
+        const seedFiles = await walkFiles(seedRoot);
+        return { seedFiles, ids: world.sources.map(source => source.id) };
+      } finally {
+        await rm(seedRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+      }
+    })();
+  }
+  return seedFilesPromise;
+}
+
 async function library(t, { coverage = { roundLimit: 8 }, model = clusteringModel(), wrap, root, weightOf, seed = true } = {}) {
+  const customRoot = Boolean(root);
   root ||= await mkdtemp(join(tmpdir(), 'study-coverage-exec-'));
+  trackCleanup(t, root, null);
+  let ids = world.sources.map(source => source.id);
+  if (seed) {
+    if (!customRoot) {
+      const seeded = await ensureSeedFiles();
+      ids = seeded.ids;
+      await copySeedFiles(root, seeded.seedFiles);
+    } else {
+      const prep = new StudyService(root, { coverage });
+      try {
+        for (const source of world.sources) await prep.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
+      } finally {
+        await prep.dispose();
+      }
+    }
+  }
   const service = new StudyService(root, { coverage });
   trackCleanup(t, root, service);
   service.complete = wrap ? wrap(model.complete, service) : model.complete;
@@ -65,13 +120,82 @@ async function library(t, { coverage = { roundLimit: 8 }, model = clusteringMode
     const evidence = JSON.parse(prompt.split('\n\n')[0]).sections;
     return JSON.stringify({ sections: evidence.map(item => ({ id: item.id, importance: weightOf?.(item) ?? 3, kind: 'definition', reason: `Reason for ${item.title}` })) });
   };
-  if (seed) for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
-  return { service, model, root, ids: world.sources.map(source => source.id) };
+  return { service, model, root, ids };
 }
 const draftOf = async service => (await service.call('export')).drafts[0];
 const contractOfJob = async (service, jobId) => (await service.call('snapshot')).jobs.find(job => job.id === jobId)?.contract;
 const statuses = draft => roundList(draft.editorial.coverageSpec).map(round => round.status);
 const eventCodes = contract => contract.events.map(event => event.code);
+/** Counts every model call the run makes, and holds nothing: what a pause must stop is the NEXT one. */
+const counting = (complete, counter) => async (system, prompt, context = {}) => { counter.calls += 1; return complete(system, prompt, context); };
+
+describe('coverage run executor', { concurrency: 3 }, () => {
+
+test('a round has its own time limit; the run has none: three rounds take longer than one round is allowed', async (t) => {
+  // Every round waits 2.5 s once (its first planning call): a round takes 2.5 s plus the run's own overhead (up to ~3 s more on a slow Windows runner), the three of them more than the 6 s one round may take, and one round alone less.
+  const slowRounds = (complete, service) => {
+    const slept = new Set();
+    return async (system, prompt, context = {}) => {
+      if (system.startsWith(PLAN)) {
+        const running = ((await service.call('export')).drafts[0]?.editorial.coverageSpec?.rounds || []).findIndex(round => round.status === 'running'), key = Math.max(0, running);
+        if (!slept.has(key)) { slept.add(key); await sleep(2500); }
+      }
+      return complete(system, prompt, context);
+    };
+  };
+  const { service, ids } = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: 6000 }, wrap: slowRounds });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
+  const job = await settleJob(service, started.jobId);
+  assert.equal(job.status, 'complete', job.stage);
+  const draft = await draftOf(service), spec = draft.editorial.coverageSpec;
+  assert.ok(Date.parse(spec.rounds[2].finishedAt) - Date.parse(spec.rounds[0].startedAt) > 6000, 'the run lasted longer than one round may');
+  assert.ok(spec.rounds.every(round => round.ms >= 2400 && round.ms < 6000), JSON.stringify(spec.rounds.map(round => round.ms)));
+  const stuck = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: 300 }, wrap: complete => async (system, prompt, context = {}) => {
+    if (system.startsWith(PLAN) && context.signal) await new Promise((_, reject) => { context.signal.addEventListener('abort', () => reject(context.signal.reason), { once: true }); });
+    return complete(system, prompt, context);
+  } });
+  const startedStuck = await stuck.service.call('generate', { sourceIds: stuck.ids, coverageLevel: 'standard', kind: 'quiz' });
+  const ended = await settleJob(stuck.service, startedStuck.jobId, { timeoutMs: 20_000 });
+  assert.equal(ended.status, 'failed', 'a round that never answers ends the job at the round limit');
+  assert.match(ended.stage, /round|轮|budget/i);
+});
+
+test('the time limit of a round is the time it works: a pause longer than the limit does not cost the round, and the round records only the time it worked', async (t) => {
+  const hold = gate(), roundMs = 3000;
+  const { service, ids } = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: roundMs }, wrap: complete => gated({ complete }, { at: 1, hold }).complete });
+  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
+  await until(() => hold.entered, 'round 1 to be in flight');
+  await service.call('job.control', { jobId: started.jobId, action: 'pause' });
+  hold.open();
+  await until(async () => (await contractOfJob(service, started.jobId)).status === 'paused', 'the pause to be reached');
+  const since = Date.now();
+  await until(() => Date.now() - since > roundMs + 500, 'the pause to outlast the limit of a round', { intervalMs: 50 });
+  await service.call('job.control', { jobId: started.jobId, action: 'resume' });
+  const job = await settleJob(service, started.jobId);
+  assert.equal(job.status, 'complete', `the round must not have timed out while paused: ${job.stage}`);
+  const rounds = roundList((await draftOf(service)).editorial.coverageSpec);
+  assert.deepEqual(rounds.map(round => round.status), ['done', 'done', 'done']);
+  assert.ok(rounds[0].ms < roundMs, `the pause is not in the ${rounds[0].ms} ms the round took`);
+  assert.ok(Date.parse(rounds[0].finishedAt) - Date.parse(rounds[0].startedAt) > roundMs, 'although it ended long after it started');
+});
+
+test('a round larger than the 30 questions of a production round is accepted when the seam says so: the button of a manual run is not refused by a limit the plan did not use', async (t) => {
+  const big = mergedTranscript();
+  const root = await mkdtemp(join(tmpdir(), 'study-coverage-limit-'));
+  const service = new StudyService(root, { coverage: { roundLimit: 40 } });
+  trackCleanup(t, root, service);
+  service.complete = clusteringModel().complete;
+  for (const source of big.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
+  const started = await service.call('generate', { sourceIds: big.sources.map(source => source.id), coverageLevel: 'lean', kind: 'quiz' });
+  assert.equal(started.autoComplete, false);
+  assert.ok(started.plan.questions > 30 && started.plan.questions <= 40, `round 1 holds ${started.plan.questions} questions`);
+  await settleJob(service, started.jobId);
+  const draft = await draftOf(service), view = await service.call('coverage.get', { draftId: draft.id });
+  assert.ok(view.round.questions > 30, `round 2 holds ${view.round.questions} questions`);
+  const next = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { sectionIds: view.round.picks.map(pick => pick.key) } });
+  assert.equal((await settleJob(service, next.jobId)).status, 'complete');
+  assert.deepEqual(statuses(await draftOf(service)).slice(0, 2), ['done', 'done']);
+});
 
 test('every round runs, in order, on the same draft: the approved questions stay, what was asked for does not move, and the draft says what each round did', async (t) => {
   const { service, ids } = await library(t);
@@ -295,8 +419,7 @@ test('a token budget the learner set stops the run at a round boundary and says 
   assert.ok(view.round.sections > 0 && view.canTopUp);
 });
 
-/** Counts every model call the run makes, and holds nothing: what a pause must stop is the NEXT one. */
-const counting = (complete, counter) => async (system, prompt, context = {}) => { counter.calls += 1; return complete(system, prompt, context); };
+
 
 test('pause stops new model calls and waits for the running ones, not for the round: the call in flight finishes, nothing else starts, resume goes on; no round runs twice', async (t) => {
   const hold = gate(), counter = { calls: 0 }, plans = [];
@@ -403,25 +526,6 @@ test('pause and resume more than once in one round: each pause is reached with n
   assert.deepEqual(statuses(await draftOf(service)), ['done', 'done', 'done']);
 });
 
-test('the time limit of a round is the time it works: a pause longer than the limit does not cost the round, and the round records only the time it worked', async (t) => {
-  const hold = gate(), roundMs = 3000;
-  const { service, ids } = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: roundMs }, wrap: complete => gated({ complete }, { at: 1, hold }).complete });
-  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
-  await until(() => hold.entered, 'round 1 to be in flight');
-  await service.call('job.control', { jobId: started.jobId, action: 'pause' });
-  hold.open();
-  await until(async () => (await contractOfJob(service, started.jobId)).status === 'paused', 'the pause to be reached');
-  const since = Date.now();
-  await until(() => Date.now() - since > roundMs + 500, 'the pause to outlast the limit of a round', { intervalMs: 50 });
-  await service.call('job.control', { jobId: started.jobId, action: 'resume' });
-  const job = await settleJob(service, started.jobId);
-  assert.equal(job.status, 'complete', `the round must not have timed out while paused: ${job.stage}`);
-  const rounds = roundList((await draftOf(service)).editorial.coverageSpec);
-  assert.deepEqual(rounds.map(round => round.status), ['done', 'done', 'done']);
-  assert.ok(rounds[0].ms < roundMs, `the pause is not in the ${rounds[0].ms} ms the round took`);
-  assert.ok(Date.parse(rounds[0].finishedAt) - Date.parse(rounds[0].startedAt) > roundMs, 'although it ended long after it started');
-});
-
 test('stop here (cancel) keeps everything approved: the rounds done stay, the round in flight is marked, the run says the learner stopped it', async (t) => {
   const hold = gate();
   const { service, ids } = await library(t, { wrap: (complete, service) => gatedAtRound(complete, service, { round: 2, hold }) });
@@ -488,35 +592,6 @@ test('the toggle 自动补到完整 can be flipped any time: off makes the run w
   assert.equal((await settleJob(second.service, startedOff.jobId)).status, 'complete');
   const done = await draftOf(second.service);
   assert.deepEqual(statuses(done), ['done', 'done', 'done'], 'ticked in the middle of round 1: it went on to the end');
-});
-
-test('a round has its own time limit; the run has none: three rounds take longer than one round is allowed', async (t) => {
-  // Every round waits 2.5 s once (its first planning call): a round takes 2.5 s plus the run's own overhead (up to ~3 s more on a slow Windows runner), the three of them more than the 6 s one round may take, and one round alone less.
-  const slowRounds = (complete, service) => {
-    const slept = new Set();
-    return async (system, prompt, context = {}) => {
-      if (system.startsWith(PLAN)) {
-        const running = ((await service.call('export')).drafts[0]?.editorial.coverageSpec?.rounds || []).findIndex(round => round.status === 'running'), key = Math.max(0, running);
-        if (!slept.has(key)) { slept.add(key); await sleep(2500); }
-      }
-      return complete(system, prompt, context);
-    };
-  };
-  const { service, ids } = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: 6000 }, wrap: slowRounds });
-  const started = await service.call('generate', { sourceIds: ids, coverageLevel: 'standard', kind: 'quiz' });
-  const job = await settleJob(service, started.jobId);
-  assert.equal(job.status, 'complete', job.stage);
-  const draft = await draftOf(service), spec = draft.editorial.coverageSpec;
-  assert.ok(Date.parse(spec.rounds[2].finishedAt) - Date.parse(spec.rounds[0].startedAt) > 6000, 'the run lasted longer than one round may');
-  assert.ok(spec.rounds.every(round => round.ms >= 2400 && round.ms < 6000), JSON.stringify(spec.rounds.map(round => round.ms)));
-  const stuck = await library(t, { coverage: { roundLimit: 8, roundTimeoutMs: 300 }, wrap: complete => async (system, prompt, context = {}) => {
-    if (system.startsWith(PLAN) && context.signal) await new Promise((_, reject) => { context.signal.addEventListener('abort', () => reject(context.signal.reason), { once: true }); });
-    return complete(system, prompt, context);
-  } });
-  const startedStuck = await stuck.service.call('generate', { sourceIds: stuck.ids, coverageLevel: 'standard', kind: 'quiz' });
-  const ended = await settleJob(stuck.service, startedStuck.jobId, { timeoutMs: 20_000 });
-  assert.equal(ended.status, 'failed', 'a round that never answers ends the job at the round limit');
-  assert.match(ended.stage, /round|轮|budget/i);
 });
 
 test('a restart does not lose a run: the draft is the checkpoint; a second service restores it as interrupted, 接着做 re-runs the round that was in flight and goes on', async (t) => {
@@ -603,20 +678,4 @@ test('a host that is closed under a run (the plugin is unloaded) leaves the draf
   assert.equal(done.cards.length, done.editorial.coverageSpec.goal);
 });
 
-test('a round larger than the 30 questions of a production round is accepted when the seam says so: the button of a manual run is not refused by a limit the plan did not use', async (t) => {
-  const big = mergedTranscript();
-  const root = await mkdtemp(join(tmpdir(), 'study-coverage-limit-'));
-  const service = new StudyService(root, { coverage: { roundLimit: 40 } });
-  trackCleanup(t, root, service);
-  service.complete = clusteringModel().complete;
-  for (const source of big.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
-  const started = await service.call('generate', { sourceIds: big.sources.map(source => source.id), coverageLevel: 'lean', kind: 'quiz' });
-  assert.equal(started.autoComplete, false);
-  assert.ok(started.plan.questions > 30 && started.plan.questions <= 40, `round 1 holds ${started.plan.questions} questions`);
-  await settleJob(service, started.jobId);
-  const draft = await draftOf(service), view = await service.call('coverage.get', { draftId: draft.id });
-  assert.ok(view.round.questions > 30, `round 2 holds ${view.round.questions} questions`);
-  const next = await service.call('generate', { resumeDraftId: draft.id, draftVersion: draft.draftVersion, coverage: { sectionIds: view.round.picks.map(pick => pick.key) } });
-  assert.equal((await settleJob(service, next.jobId)).status, 'complete');
-  assert.deepEqual(statuses(await draftOf(service)).slice(0, 2), ['done', 'done']);
 });

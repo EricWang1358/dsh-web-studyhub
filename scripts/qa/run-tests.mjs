@@ -182,8 +182,15 @@ try {
     if ((type === 'test:pass' || type === 'test:fail') && data.nesting === 0 && data.file && !inContainer) {
       const key = keyOf(data.file), ms = data.details?.duration_ms || 0;
       // Sum top-level tests; if module evaluation or hooks add substantial wall time (or a thin wrapper delegates its tests), keep the file's own span.
-      if (isFileEvent(data)) fileWall[key] = Math.max(fileWall[key] || 0, ms);
-      else measured[key] = (measured[key] || 0) + ms;
+      if (isFileEvent(data)) {
+        if (all.has(key)) fileWall[key] = Math.max(fileWall[key] || 0, ms);
+      } else if (all.has(key)) {
+        measured[key] = (measured[key] || 0) + ms;
+      }
+    }
+    if (type === 'test:complete' && isFileEvent(data) && !inContainer && data.details?.error?.failureType !== 'cancelledByParent') {
+      const key = keyOf(data.file), ms = data.details?.duration_ms || 0;
+      if (all.has(key)) fileWall[key] = Math.max(fileWall[key] || 0, ms);
     }
     if (type === 'test:fail') failed = true;
     if (!data?.file) continue;
@@ -250,7 +257,11 @@ for (const { input } of sinks) input.end();
 await Promise.all(sinks.map(({ done }) => done));
 if (timeouts.size) say(`\nTimed out (${timeouts.size}):\n${[...timeouts].map(([key, what]) => `  ${key}: ${what}`).join('\n')}`);
 for (const [key, wall] of Object.entries(fileWall)) {
+  if (!all.has(key)) continue;
   if (!(key in measured) || wall - measured[key] >= 400) measured[key] = wall;
 }
-if (!abort.signal.aborted) await mergeDurations(durationsFile(), Object.fromEntries(Object.entries(measured).map(([key, ms]) => [key, Math.round(ms)])));
+if (!abort.signal.aborted) {
+  const validDurations = Object.fromEntries(Object.entries(measured).filter(([key]) => all.has(key)).map(([key, ms]) => [key, Math.round(ms)]));
+  await mergeDurations(durationsFile(), validDurations);
+}
 process.exitCode = failed || timeouts.size || abort.signal.aborted ? 1 : 0;

@@ -1,0 +1,6 @@
+- **Clarified mastery, rubric, oral-exam, and practice debrief feedback while speeding up coverage executor tests and fixing wrapped-test timing attribution.**
+  - Reader section practice now aligns row dots cleanly with the top line of multi-line prompts, shows a compact mastered progress counter (`Mastered X/Y`) alongside the unmastered filter, and displays a quiet completion notice when all section or chapter questions are mastered.
+  - Rubric details and case reports now color-code strong vs. weak criteria consistently, highlight fully attained case papers, and align mobile pacing labels and skill trend strips on narrow viewports.
+  - Oral interview reports now mark all-strong rounds and clear topic states calmly with color-coded legend swatches and left-aligned action controls, while practice debrief cards highlight fully met rounds across both objective and self-rated items.
+  - Test infrastructure now attributes wall-clock durations from wrapper-delegating test suites back to their `.test.mjs` files and runs `coverage-run-exec` roughly twice as fast using a shared seed fixture and bounded concurrency.
+  - Not verified: interactive runtime clicks across Electron/VS Code hosts outside the server-rendered UI suite and headless Chromium box-model harness.

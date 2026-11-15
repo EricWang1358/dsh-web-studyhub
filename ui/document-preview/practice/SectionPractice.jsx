@@ -49,6 +49,8 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
   const lastRow = useRef(''), root = useRef(null);
   const unmastered = useMemo(() => listed.cards.filter(card => !isMastered(card)), [listed.cards]);
   const hasMixedMastery = unmastered.length > 0 && unmastered.length < listed.cards.length;
+  const masteredCount = listed.cards.length - unmastered.length;
+  const allMastered = listed.cards.length > 0 && unmastered.length === 0;
   const filteringUnmastered = onlyUnmastered && hasMixedMastery;
   const shownCards = useMemo(() => (filteringUnmastered ? unmastered.slice(0, SHOWN_MAX) : listed.shown), [filteringUnmastered, unmastered, listed.shown]);
   const shownRest = filteringUnmastered ? Math.max(0, unmastered.length - SHOWN_MAX) : listed.rest;
@@ -85,7 +87,8 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
   const Run = inline?.Run;
   // Which part of the text the list is about: the section's title, or the chapter's name (the range itself is said by 本页 | 本章 above).
   const where = !option || active ? '' : option.kind === 'chapter' ? chapterName : title;
-  return <section ref={root} className="section-practice" aria-labelledby={headingId} data-tour="reader-section-practice">
+  return <section ref={root} className="section-practice" aria-labelledby={headingId} data-tour="reader-section-practice"
+    data-all-mastered={!active && loop.status === 'ready' && allMastered ? 'true' : undefined}>
     <div className="section-practice__head">
       <h3 id={headingId} className="reader-panel__title">{ui('本节题目')}</h3>
       {!active && ranges.length > 1 && <SegmentedControl size="xs" label={ui('题目范围')} value={option?.kind} onChange={setChoice}
@@ -109,7 +112,13 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
         <Chip size="sm" selected={onlyUnmastered} onClick={() => setOnlyUnmastered(value => !value)}>
           {uiFormat('只看未掌握 {0}', [unmastered.length])}
         </Chip>
+        <span className="section-practice__progress">{uiFormat('已掌握 {0}/{1}', [masteredCount, listed.cards.length])}</span>
       </div>
+    )}
+    {!active && loop.status === 'ready' && allMastered && (
+      <p className="section-practice__mastered" role="status" data-testid="section-all-mastered">
+        {ui(option?.kind === 'chapter' ? '本章题目已全部掌握' : '本节题目已全部掌握')}
+      </p>
     )}
     {active && Run ? <Run started={active.started} label={active.label} onClose={close} onSeek={onSeek} shown={visible} />
       : loop.status === 'loading' ? <LoadingState inline label={ui('正在读取这几页的题…')} />
@@ -119,7 +128,7 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
               <ol className="section-practice__list">
                 {shownCards.map(card => <li key={cardKey(card)}>
                   <Button variant="quiet" size="sm" className="section-practice__row" data-section-card={cardKey(card)} disabled={!inline} lock={busy} onClick={() => start(card)}>
-                    <span className={`map-dot lv-${card.level || 'new'}`} aria-hidden="true" /><StudyInline text={card.prompt} />
+                    <span className={`map-dot lv-${card.level || 'new'} section-practice__dot`} aria-hidden="true" /><StudyInline text={card.prompt} />
                   </Button>
                 </li>)}
               </ol>

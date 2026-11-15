@@ -20,5 +20,8 @@
   "已带出处复制": "Copied with citation",
   "{0} 词 · {1} 字符": "{0} words · {1} chars",
   "只看未掌握 {0}": "Not mastered ({0})",
-  "上一段": "Previous passage"
+  "上一段": "Previous passage",
+  "本节题目已全部掌握": "All questions in this section mastered",
+  "本章题目已全部掌握": "All questions in this chapter mastered",
+  "已掌握 {0}/{1}": "Mastered {0}/{1}"
 }

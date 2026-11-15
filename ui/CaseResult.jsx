@@ -19,7 +19,9 @@ export const bandLabel = (band) => ({ excellent: ui("优秀"), good: ui("良好"
 const noteLabel = (note) => note === "unanswered" ? ui("这道题没有作答，按 0 分计。") : note === "not-scored" ? ui("评分助手没有给这一项打分，按 0 分计。") : "";
 
 function Bar({ ratio, label }) {
-  return <ProgressBar className="rubric-meter" label={label} value={Math.max(0, Math.min(1, ratio || 0))} max={1} />;
+  const clamped = Math.max(0, Math.min(1, ratio || 0));
+  const tone = clamped >= 0.8 ? "success" : clamped < 0.6 ? "warning" : "accent";
+  return <ProgressBar className="rubric-meter" tone={tone} label={label} value={clamped} max={1} />;
 }
 
 /** One graded answer, criterion by criterion. */
@@ -40,7 +42,8 @@ export function RubricResult({ rubric, title, compact = false }) {
       </header>
       <ol className="rubric-rows">
         {rows.map((criterion) => (
-          <li className={"rubric-row" + (criterion.ratio < 0.6 ? " is-weak" : "")} key={criterion.id}>
+          <li className={"rubric-row" + (criterion.ratio < 0.6 ? " is-weak" : "")}
+            data-band={criterion.ratio >= 0.8 ? "strong" : criterion.ratio < 0.6 ? "weak" : undefined} key={criterion.id}>
             <div className="rubric-row__head">
               <strong>{criterion.label}</strong>
               <span className="rubric-row__score">{uiFormat("{0}/{1} 分", [marks(criterion.score), marks(criterion.max)])}</span>
@@ -132,11 +135,13 @@ export function CaseReport({ report, busy, assistTasks, submitting = false, onDr
   const graded = paper.questions.filter((question) => question.status === "graded").length;
   const grading = caseGradingState(report, assistTasks, gradingErrors, submitting);
   const running = grading.phase === "running";
+  const allAttained = !paper.pending && paper.questions.length > 0 && graded === paper.questions.length && paper.weakest.length === 0 && paper.pacing.unanswered.length === 0;
   return (
-    <div className="case-report">
+    <div className="case-report" data-all-attained={allAttained ? "true" : undefined}>
       <div className="case-report__hero sh-paper-card">
         <p className="rubric-score"><strong>{marks(paper.total)}</strong><span>{uiFormat("/ {0} 分", [marks(paper.max)])}</span></p>
         <div>
+          {allAttained && <span className="rubric-band band-good case-report__attained-badge" data-testid="case-all-attained">{ui("各评分项均已达标")}</span>}
           <strong>{paper.pending
             ? running
               ? uiFormat("已批改 {0}/{1} 题，其余正在后台批改", [graded, paper.questions.length])
@@ -179,6 +184,7 @@ export function CaseReport({ report, busy, assistTasks, submitting = false, onDr
           </li>)}
         </ol>
       </section>}
+      {allAttained && <p className="case-report__attained-note" role="status">{ui("本次案例各评分项均已达标，没有待补薄弱项。")}</p>}
       <div className="case-report__actions">
         {onDrills && <Button variant="primary" icon="sparkle" disabled={!paper.weakest.length} lock={busy} onClick={() => onDrills()}>{ui("把薄弱项变成练习")}</Button>}
         {onAgain && <Button variant="secondary" lock={busy} onClick={onAgain}>{ui("再来一个同类案例")}</Button>}

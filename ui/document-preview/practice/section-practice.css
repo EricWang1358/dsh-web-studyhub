@@ -45,7 +45,25 @@
     .section-practice__filter {
       display: flex;
       flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
       gap: var(--space-1-5);
+    }
+    .section-practice__progress {
+      color: var(--ok-ink);
+      font-size: var(--fs-xs);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .section-practice__mastered {
+      margin: 0;
+      padding: var(--space-1-5) var(--space-2-5);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--ok-line);
+      background: var(--ok-bg);
+      color: var(--ok-ink);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-medium);
     }
     .section-practice__qa-panel {
       max-height: min(360px, 50vh);
@@ -63,9 +81,13 @@
       width: 100%;
       justify-content: flex-start;
       gap: var(--space-2);
-      align-items: baseline;
+      align-items: flex-start;
       text-align: start;
       white-space: normal;
+    }
+    .section-practice__row > .section-practice__dot {
+      flex: none;
+      margin-top: 0.45em;
     }
     .section-practice__row > :last-child {
       display: -webkit-box;
