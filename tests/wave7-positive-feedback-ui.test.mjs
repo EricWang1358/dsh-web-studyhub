@@ -239,7 +239,9 @@ test('Wave 7 U32: TodayView shows all-done milestone when open=0 && done>0 and c
     }));
     const bannerStart = enHtml.indexOf('data-testid="board-today-complete"');
     assert.ok(bannerStart > -1, 'EN TodayView renders completion banner');
-    const banner = enHtml.slice(bannerStart, bannerStart + 500);
+    const bannerEnd = enHtml.indexOf('</div>', bannerStart);
+    assert.ok(bannerEnd > bannerStart, 'EN completion banner has closing div');
+    const banner = enHtml.slice(bannerStart, bannerEnd);
     assert.match(textOfHtml(banner), /All scheduled tasks completed/);
     assert.match(textOfHtml(banner), /3 task\(s\) finished today/);
     assert.doesNotMatch(textOfHtml(banner), CJK);

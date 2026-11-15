@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { joinMeta } from '../format.js';
-import { Button, SegmentedControl } from '../components/index.js';
+import { Button, Icon, SegmentedControl } from '../components/index.js';
 import {
   TODAY_LANES, cardActualMinutes, cardTodaySource, isMeaningfulTitle, locateCard, selectTodayBoard, selectTodayTimeLog, splitMemoDraft, todayBudgetMinutes,
 } from '../../lib/board-model.js';
@@ -296,7 +296,9 @@ export default function TodayView({
 
             {allDoneToday && (
               <div className="board-today__complete" role="status" data-testid="board-today-complete">
-                <span className="board-today__complete-mark" aria-hidden="true">✓</span>
+                <span className="board-today__complete-mark" aria-hidden="true">
+                  <Icon name="check" size={14} strokeWidth={2.2} />
+                </span>
                 <p className="board-today__complete-copy">
                   <strong>{ui('今日排程已全部完成')}</strong>
                   <span>{uiFormat('已完成 {0} 项任务，可安心休息或在下方补充新安排。', [done.length])}</span>
