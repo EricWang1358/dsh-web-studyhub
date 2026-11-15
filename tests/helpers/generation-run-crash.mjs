@@ -1,10 +1,11 @@
 /* Shared harness for generation crash recovery tests (issue #608): spawns tests/fixtures/generation-crash-worker.mjs at a chosen window
    and reopens a fresh StudyService over the directory left behind. Fake models only. */
+import test, { before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { availableParallelism, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StudyService } from '../../lib/service.js';
 import { roundList } from '../../lib/coverage-run.js';
@@ -20,6 +21,70 @@ const WORKER = fileURLToPath(new URL('../fixtures/generation-crash-worker.mjs', 
 export const GOAL = 19;
 export const CRASH_CONCURRENCY = Math.min(2, Math.max(1, Math.floor(availableParallelism() / 2)));
 
+let seedFilesPromise = null;
+async function walkFiles(dir, prefix = '') {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...await walkFiles(fullPath, relPath));
+    else files.push({ relPath, data: await readFile(fullPath) });
+  }
+  return files;
+}
+
+async function copySeedFiles(root, seedFiles) {
+  const dirs = [...new Set(seedFiles.map(file => dirname(join(root, file.relPath))))];
+  await Promise.all(dirs.map(dir => mkdir(dir, { recursive: true })));
+  await Promise.all(seedFiles.map(file => writeFile(join(root, file.relPath), file.data)));
+}
+
+/** Seed the default corpus sources once per test process so spawned crash workers can skip source.add I/O. */
+export function ensureSeedFiles() {
+  if (!seedFilesPromise) {
+    seedFilesPromise = (async () => {
+      const world = corpusWorld();
+      const seedRoot = await mkdtemp(join(tmpdir(), 'study-run-seed-'));
+      const service = new StudyService(seedRoot, { coverage: { roundLimit: CORPUS_ROUND_LIMIT } });
+      try {
+        for (const source of world.sources) await service.call('source.add', { id: source.id, title: source.title, text: source.text, audio: source.audio });
+        await service.dispose();
+        const seedFiles = await walkFiles(seedRoot);
+        return { sourceIds: world.sources.map(source => source.id), seedFiles };
+      } finally {
+        await rm(seedRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+      }
+    })();
+  }
+  return seedFilesPromise;
+}
+
+/** Measure how many model calls an uncut run takes in round 1 and in total on the pre-seeded default corpus. */
+export async function prepareUncutCorpus() {
+  const { sourceIds, seedFiles } = await ensureSeedFiles();
+  const root = await mkdtemp(join(tmpdir(), 'study-run-uncut-'));
+  const inner = clusteringModel().complete;
+  const service = new StudyService(root, { coverage: { roundLimit: CORPUS_ROUND_LIMIT } });
+  const uncut = { roundOne: null, calls: 0 };
+  service.light = weighing;
+  service.complete = async (system, prompt, context = {}) => {
+    uncut.calls += 1;
+    if (uncut.roundOne === null && (await draftOf(service))?.editorial.coverageSpec?.rounds[1]?.status === 'running') uncut.roundOne = uncut.calls - 1;
+    return inner(system, prompt, context);
+  };
+  try {
+    await copySeedFiles(root, seedFiles);
+    const { jobId } = await service.call('generate', { sourceIds, coverageLevel: 'standard', kind: 'quiz' });
+    await settleJob(service, jobId);
+    assert.equal((await draftOf(service)).cards.length, GOAL);
+    await service.dispose();
+    return uncut;
+  } finally {
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
+}
+
 const openedByTest = new WeakMap();
 function testServices(t) {
   let set = openedByTest.get(t);
@@ -28,6 +93,7 @@ function testServices(t) {
 }
 
 export async function die(t, name, mode, scenario = {}, root, roundOne = null) {
+  const isFreshDefault = !root && !scenario.world && !scenario.direct && !scenario.press;
   if (!root) {
     root = await mkdtemp(join(tmpdir(), 'study-run-crash-'));
     const services = testServices(t);
@@ -36,7 +102,13 @@ export async function die(t, name, mode, scenario = {}, root, roundOne = null) {
       await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     });
   }
-  const child = spawn(process.execPath, [WORKER, root, name, mode, String(roundOne), JSON.stringify(scenario)], { env: { ...process.env, DSH_HOME: join(root, '.home') }, stdio: 'inherit' });
+  let workerScenario = scenario;
+  if (isFreshDefault) {
+    const seed = await ensureSeedFiles();
+    await copySeedFiles(root, seed.seedFiles);
+    workerScenario = { ...scenario, seeded: true, sourceIds: seed.sourceIds };
+  }
+  const child = spawn(process.execPath, [WORKER, root, name, mode, String(roundOne), JSON.stringify(workerScenario)], { env: { ...process.env, DSH_HOME: join(root, '.home') }, stdio: 'inherit' });
   const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('exit', resolve); });
   assert.equal(code, WINDOWS[name].code, `the process died in the window "${name}" (70: the window was never reached)`);
   return root;
@@ -45,7 +117,7 @@ export async function die(t, name, mode, scenario = {}, root, roundOne = null) {
 export async function reopen(t, root, mode, { roundLimit = CORPUS_ROUND_LIMIT } = {}) {
   let model = async () => { throw new Error('a restart must not call a model by itself'); };
   const log = [], complete = (system, prompt, context) => { log.push(system.slice(0, 30)); return model(system, prompt, context); };
-  const service = new StudyService(root, { coverage: { roundLimit }, ...modeOptions(mode, complete) });
+  const service = new StudyService(root, { coverage: { roundLimit }, ...(await modeOptions(mode, complete)) });
   service.light = weighing;
   service.complete = complete;
   const services = testServices(t);
@@ -108,3 +180,56 @@ export const SHORT_WORLDS = [
 ];
 export const shortScenario = ({ parts, count }) => ({ world: { recordings: 1, parts, paragraphs: 16 }, count, roundLimit: 30 });
 export const shortfallFor = async (service, draft) => shortfallOf({ draft, coverage: (await service.call('coverage.get', { draftId: draft.id })).coverage });
+
+const MIDDLE_WINDOWS = [
+  'first-part-saved',
+  'round-1-done-unsaved',
+  'round-2-running-saved',
+  'round-2-part-saved',
+  'last-question-saved',
+  'closing-unsaved',
+];
+
+/** Register the full or sliced crash-window recovery suite for a single execution mode (`legacy`, `generation`, or `restart`). */
+export function defineCrashWindowModeSuite(mode, {
+  includeBeforeFirstDraft = true,
+  middleWindows = MIDDLE_WINDOWS,
+  includePaused = mode === 'legacy',
+  includeClosingSaved = true,
+} = {}) {
+  let uncut = { roundOne: null, calls: 0 };
+  before(async () => {
+    uncut = await prepareUncutCorpus();
+  });
+
+  describe(`crash windows (${mode})`, { concurrency: CRASH_CONCURRENCY }, () => {
+    if (includeBeforeFirstDraft) test(`${mode}: killed before its first draft`, async t => {
+      const root = await die(t, 'before-first-draft', mode, {}, undefined, uncut.roundOne), after = await reopen(t, root, mode);
+      assert.equal(await draftOf(after.service), undefined, 'nothing was written');
+      const jobs = (await after.service.call('snapshot')).jobs;
+      if (mode !== 'restart') { assert.deepEqual(jobs, [], 'kept in memory only: the run is lost, and says nothing (a limit of this mode)'); return; }
+      assert.equal(jobs.length, 1, 'kept on disk: the same job');
+      assert.equal(jobs[0].contract.status, 'interrupted');
+      assert.deepEqual(after.log, []);
+      after.use(clusteringModel().complete);
+      const done = await settleJob(after.service, attemptOf(await after.service.call('job.control', { jobId: jobs[0].id, action: 'retry' })));
+      assert.equal(done.status, 'complete', done.stage);
+      await assertFinished(after.service, await draftOf(after.service));
+    });
+    for (const name of middleWindows) test(`${mode}: killed at ${name}`, async t => {
+      const { calls } = await recoverAndFinish(t, await die(t, name, mode, {}, undefined, uncut.roundOne), mode, { exact: !name.endsWith('-part-saved') });
+      assert.ok(calls <= uncut.calls, `no more model calls than the whole run takes (${calls}, the run: ${uncut.calls})`);
+      if (['last-question-saved', 'closing-unsaved'].includes(name)) assert.equal(calls, 0, 'everything was written: closing it asks no model');
+    });
+    // A run on the runtime cannot be paused (its pause is declared unsupported, S3-2), so a draft is left paused only on the legacy path.
+    if (includePaused) test(`${mode}: killed while paused between rounds`, async t => {
+      await recoverAndFinish(t, await die(t, 'paused', mode, {}, undefined, uncut.roundOne), mode);
+    });
+    if (includeClosingSaved) test(`${mode}: killed after the closing write: nothing comes back`, async t => {
+      const root = await die(t, 'closing-saved', mode, {}, undefined, uncut.roundOne), after = await reopen(t, root, mode), draft = await draftOf(after.service);
+      await assertFinished(after.service, draft);
+      assert.deepEqual((await jobsOnDraft(after.service, draft)).filter(job => job.contract.status === 'interrupted').map(job => job.id), []);
+      assert.deepEqual(after.log, []);
+    });
+  });
+}

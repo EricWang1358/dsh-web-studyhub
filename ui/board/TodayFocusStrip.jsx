@@ -47,11 +47,25 @@ export default function TodayFocusStrip({ library, today, budgetMinutes = null, 
         </div>
       )}
       {strip.budget && (
-        <div className="board-today__focus-budget">
-          <Tooltip layer group="today-focus-strip" content={strip.budget.tooltip}>
-            <span className="board-today__focus-budget-label" tabIndex={0}>{strip.budget.label}</span>
-          </Tooltip>
-          <ProgressBar size="sm" value={strip.budget.value} max={strip.budget.max} label={strip.budget.label} />
+        <div className="board-today__focus-budget" data-goal-met={strip.budget.met ? 'true' : undefined}>
+          <div className="board-today__focus-budget-head">
+            <Tooltip layer group="today-focus-strip" content={strip.budget.tooltip}>
+              <span className="board-today__focus-budget-label" tabIndex={0}>{strip.budget.label}</span>
+            </Tooltip>
+            {strip.budget.met && (
+              <span className="board-today__focus-budget-met" data-testid="focus-budget-met">
+                <Icon name="check" size={12} strokeWidth={2.2} />
+                <span>{ui('已达标')}</span>
+              </span>
+            )}
+          </div>
+          <ProgressBar
+            size="sm"
+            tone={strip.budget.met ? 'success' : 'accent'}
+            value={strip.budget.value}
+            max={strip.budget.max}
+            label={strip.budget.label}
+          />
         </div>
       )}
     </section>

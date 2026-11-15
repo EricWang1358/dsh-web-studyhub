@@ -298,6 +298,10 @@
     /* 重点 × 掌握度: one line under the course progress; the summary is a quiet button, the practice link follows it. */
     .focus-progress { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--fs-md); color: var(--text-dim); }
     .focus-progress .focus-progress__summary { min-height: 0; padding: 0; font-size: inherit; font-weight: var(--fw-regular); text-align: start; }
+    .focus-progress__done {
+      display: inline-flex; align-items: center; gap: var(--space-1);
+      color: var(--ok-ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); white-space: nowrap;
+    }
     /* 学法 (#775): the stage of a course's own method, one quiet line under the course progress like the 重点 line; it opens the course settings. */
     .course-method-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--fs-md); color: var(--text-dim); }
     .course-method-line .course-method-line__summary { min-height: 0; padding: 0; font-size: inherit; font-weight: var(--fw-regular); text-align: start; gap: var(--space-2); }

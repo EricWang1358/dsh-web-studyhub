@@ -11,10 +11,11 @@ import { kindName, scoreChange } from './exam-written.js';
    (by topic, deck and kind, the wrong and the skipped questions). Props come from Exam.jsx; nothing is fetched here. */
 
 function BarRow({ label, row, soft }) {
+  const allRowCorrect = (row.total || 0) > 0 && row.correct === row.total;
   return (
     <div className="exam-bar-row">
       <span className="exam-bar-label">{label}</span>
-      <ProgressBar label={label} value={row.correct} max={row.total || 1} tone={soft ? 'neutral' : 'accent'} />
+      <ProgressBar label={label} value={row.correct} max={row.total || 1} tone={soft ? 'neutral' : (allRowCorrect ? 'success' : 'accent')} />
       <span className="exam-bar-value">{row.correct}/{row.total}</span>
     </div>
   );
@@ -48,22 +49,34 @@ export default function WrittenReport({ report, busy, pathNote, error, onQueueWe
     .filter((topic) => topic.total > topic.correct)
     .sort((a, b) => (b.total - b.correct) - (a.total - a.correct))
     .slice(0, 3);
+  const totalCount = Number(report.total) || 0;
+  const correctCount = Number(report.correct) || 0;
+  const allCorrect = totalCount > 0 && correctCount === totalCount;
+  const scoreDelta = report.comparison && Number.isFinite(report.comparison.scorePct)
+    ? Math.round(report.scorePct ?? 0) - Math.round(report.comparison.scorePct)
+    : 0;
   return (
     <ReadingBlock className="exam-report">
       <PageHeader title={ui('考试报告')} actions={<ReadingSettingsButton className="exam-reading" />}
         description={report.examRole ? uiFormat('{0} · 已判分并计入复习计划。', [report.examRole]) : ui('已判分并计入复习计划。')} />
-      <div className="result-hero sh-paper-card sh-paper-card--roomy">
+      <div className="result-hero sh-paper-card sh-paper-card--roomy" data-all-correct={allCorrect ? 'true' : undefined}>
         <div className="result-headline">
           <strong>{Math.round(report.scorePct ?? 0)}%</strong>
           <span>{uiFormat('本次笔试得分 · {0}/{1} 题', [report.correct ?? 0, report.total ?? 0])}</span>
+          {(allCorrect || scoreDelta > 0) && (
+            <div className="result-hero__badges">
+              {allCorrect && <span className="result-hero__badge" data-testid="exam-all-correct">{ui('本次全部答对')}</span>}
+              {scoreDelta > 0 && <span className="result-hero__badge" data-testid="exam-score-up">{uiFormat('较上次 +{0}%', [scoreDelta])}</span>}
+            </div>
+          )}
           <small>{uiFormat('用时：{0}', [formatDuration(report.durationMs || 0)])}</small>
         </div>
         <ResultBreakdown total={report.total ?? 0} answered={report.answered ?? 0} correct={report.correct ?? 0} correctLabel={ui('答对')} />
       </div>
       {report.comparison && <p className="muted">{uiFormat('同范围、题数及题型构成的上次考试为 {0}%；这次{1}。两次抽到的题目可能不同，仅供参考。', [report.comparison.scorePct, scoreChange(report.comparison)])}</p>}
 
-      <div className="result-weak">
-        <h2>{ui('下次先练这些主题')}</h2>
+      <div className="result-weak" data-all-correct={allCorrect && !weakTopicRows.length ? 'true' : undefined}>
+        <h2>{allCorrect && !weakTopicRows.length ? ui('全部主题均已达标') : ui('下次先练这些主题')}</h2>
         {weakTopicRows.length ? <ol>{weakTopicRows.map((topic) => <li key={`${topic.deckId}:${topic.topic}`}>
           {topicLabel(report, topic)} <span className="muted">· {uiFormat('{0}/{1} 题答错或未答', [topic.total - topic.correct, topic.total])}</span>
           {onPracticeTopic && <Button variant="link" size="sm" iconEnd="arrow-right" className="exam-topic-practice" disabled={!!pathNote} lock={busy}

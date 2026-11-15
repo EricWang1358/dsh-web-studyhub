@@ -194,7 +194,7 @@
     }
     .map-name strong { font-size: var(--fs-md); }
     /* Secondary line under a name: small but never faint. */
-    .map-name small { font-size: var(--fs-md); font-weight: var(--fw-medium); line-height: 1.5; color: var(--text-dim); }
+    .map-name small { font-size: var(--fs-md); font-weight: var(--fw-medium); line-height: 1.5; color: var(--text-dim); font-variant-numeric: tabular-nums; }
     .folder-row .map-name { gap: var(--space-1); }
     .mastery {
       display: inline-flex;
@@ -237,13 +237,15 @@
       );
     }
     .mastery-value {
-      width: 36px;
+      min-width: 40px;
       text-align: right;
       font-size: var(--fs-md);
       font-variant-numeric: tabular-nums;
       color: var(--text-dim);
+      white-space: nowrap;
       flex-shrink: 0;
     }
+    .mastery-value.is-mastered { color: var(--ok-ink); font-weight: var(--fw-medium); }
     .mastery-value.zero { color: var(--text-faint); }
     .map-play {
       flex-shrink: 0;

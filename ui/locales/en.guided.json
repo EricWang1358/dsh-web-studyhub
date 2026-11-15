@@ -73,5 +73,8 @@
   "{0} 项需复核": "{0} need review",
   "{0} 项待检验": "{0} to check",
   "，": ", ",
-  "{0}；{1}": "{0}; {1}"
+  "{0}；{1}": "{0}; {1}",
+  "这道题还没过关，先看下方解析或带回主会话讲透": "Not passed yet — review the explanation below or bring it back to the main chat",
+  "已记录掌握，会计入检验与复习排期": "Recorded as mastered and added to your review schedule",
+  "已记入待巩固，先看解析或带回主会话": "Marked for review — check the explanation or bring it to the main chat"
 }

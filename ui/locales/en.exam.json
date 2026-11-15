@@ -29,5 +29,8 @@
   "已改；课程设置是 {0} 分钟 · 到时自动交卷": "Changed; the course setting is {0} minutes · handed in automatically at the limit",
   "已改；默认是 {0} 分钟 · 到时自动交卷": "Changed; the default is {0} minutes · handed in automatically at the limit",
   "未交卷的考试会保留在回到题目里 · 计时满 {0} 分钟自动交卷": "Unsubmitted exams remain in Return to question · automatic submission after {0} minutes",
-  "已把「{0}」的题排进学习路径，回到学习库即可开始练习。": "Added “{0}” to your study path. Return to the library to practise."
+  "已把「{0}」的题排进学习路径，回到学习库即可开始练习。": "Added “{0}” to your study path. Return to the library to practise.",
+  "本次全部答对": "All correct this exam",
+  "较上次 +{0}%": "+{0}% vs last exam",
+  "全部主题均已达标": "All tested topics attained"
 }
