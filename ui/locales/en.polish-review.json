@@ -16,5 +16,7 @@
   "按 Space 可翻回正面核对题干": "Press Space to flip back to the front",
   "收起解析 (H)": "Hide explanation (H)",
   "正在看正面题干 · 按 Space 回背面": "Viewing front · Press Space for back",
-  "笔记中已保存 {0} 条问答": "{0} Q&As saved in notes"
+  "笔记中已保存 {0} 条问答": "{0} Q&As saved in notes",
+  "脱离薄弱 · {0} → {1}": "Out of weak · {0} → {1}",
+  "熟练度进阶 · {0} → {1}": "Level up · {0} → {1}"
 }

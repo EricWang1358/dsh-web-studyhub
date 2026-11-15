@@ -1,0 +1,6 @@
+- **Positive learning feedback and layout polish across answer review, Today board, round results, and wrongbook.**
+  - Answer feedback now surfaces a verified top-level progression badge (`Out of weak` / `Level up`) outside the FSRS disclosure whenever a card genuinely climbs out of `weak` or advances from `learning` onward.
+  - The Today board celebrates completion with a milestone banner once all scheduled items are done (`open === 0 && done > 0`) and collapses empty lane bodies instead of showing blank min-height boxes.
+  - Round results highlight 100% completion on `.result-hero` without adding extra buttons, add an `Attainment {N}%` chip to the breakdown row, and frame `.result-mastery` with a full-width progress rail.
+  - When all active mistakes are cleared and corrected history exists, the wrongbook highlights a green caught-up milestone card with a direct link to corrected history; CI test shard weights were also recalibrated from PR #1064 shard timings.
+  - Not verified: live Electron desktop interaction flows and the full Windows CI matrix were not executed locally (verified via SSR unit tests, headless Chromium dark/light desktop and mobile box-model checks, `lint`, `typecheck`, and `build`).

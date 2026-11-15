@@ -17,5 +17,8 @@
   "原序": "Deck order",
   "展开各题解析": "Expand explanations",
   "收起各题解析": "Collapse explanations",
+  "本轮全部答对": "All answered right this round",
+  "本轮全部达标": "All met target this round",
+  "达标率 {0}%": "Attainment {0}%",
   "。": "."
 }
