@@ -1,6 +1,0 @@
-- **Clearer milestone feedback and tighter narrow-screen layouts across core study views.** Added calm completion and progress cues alongside targeted responsive fixes without introducing extra toggles or visual noise:
-  - Today's focus strip shows a quiet "Goal met" indicator and switches the budget bar to the success tone once focused minutes reach the daily plan, while letting English budget labels wrap cleanly in narrow columns.
-  - Guided Study renders a measured check-item progress bar, highlights all-passed completion states, adds an immediate verdict strip above card explanations for both graded and self-rated cards, and prevents long titles from overflowing 390px viewports.
-  - Written Exam reports highlight 100% all-correct attempts, surface positive score gains against the previous attempt, show an attainment heading when no weak topics remain, and right-align bar values so progress tracks line up cleanly.
-  - Study Map widens percentage labels so "100%" never clips, subtly emphasizes mastered nodes, and adds an "All mastered" completion marker on course focus lines.
-  - Not verified: live interactive clicking inside a running DSH host container or real-model guided generation runs; verified via React SSR regression tests and headless Chromium box-model audits across light/dark themes and desktop/mobile viewports.
