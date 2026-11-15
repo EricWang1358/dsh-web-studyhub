@@ -10,9 +10,9 @@ import { withLearnerFence } from '../agent-prompts/message.js';
 /* What every other app hook leans on: the refs that fence late answers (library epoch, navigation request), the host call that
    honours them, the single-flight act(), the quick-action controller and the feedback slots. One place, so a hook never has
    to reach into another to learn whether an answer is still wanted. */
-export function useAppCore(transportCall, host) {
+export function useAppCore(transportCall, host, warm = null) {
   const epoch = useRef(0), navigation = useRef(0), requestSequence = useRef(0), notebookRequest = useRef(0);
-  const dataRef = useRef(null), snapshotKey = useRef({}), leaveTimer = useRef(0), examLocation = useRef(null), bindingRoot = useRef('');
+  const dataRef = useRef(warm?.data ?? null), snapshotKey = useRef(warm?.snapshotKey ? { ...warm.snapshotKey } : {}), leaveTimer = useRef(0), examLocation = useRef(null), bindingRoot = useRef(warm?.binding?.root ?? '');
   const actRunner = useRef(null), actDeps = useRef(null), refreshRef = useRef(null), noticeRef = useRef(() => {}), hostRef = useRef(host);
   hostRef.current = host;
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);

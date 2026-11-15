@@ -49,7 +49,8 @@ import HandOffSheet from './hand-off/HandOffSheet.jsx';
 import { useTour } from './app/use-tour.js';
 import { useFinder } from './finder/use-finder.js';
 import FinderSheet from './finder/FinderSheet.jsx';
-import { freshGeneration, initialGeneration, useLibraryConnection } from './app/use-library-connection.js';
+import { freshGeneration, useLibraryConnection } from './app/use-library-connection.js';
+import { useWarmEntry, useWarmSync } from './app/use-warm-session.js';
 import { useReviewSession } from './review/useReviewSession.js';
 import { shellTitleOf, useTabTitle } from './app/shell-title.js';
 import { isActiveJob } from './job-visibility.js';
@@ -81,16 +82,18 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   useInjectCss(libraryChipCss, 'study-library-location');
   useInjectCss(quickCss, 'study-quick-actions');
   const shell = useAppShell();
-  const core = useAppCore(transportCall, host);
-  const [lib, set] = useLibraryState({ gen: initialGeneration(host, language) });
+  const warmEntry = useWarmEntry(host, language);
+  const core = useAppCore(transportCall, host, warmEntry.warm);
+  const [lib, set] = useLibraryState(warmEntry.initialLib);
   const handle = { state: lib, set };
   const late = useRef({});
-  const nav = useNavigation({ core, lib: handle, motion: shell.motion, rootRef: shell.rootRef });
+  const nav = useNavigation({ core, lib: handle, motion: shell.motion, rootRef: shell.rootRef, initialPage: warmEntry.initialPage });
   useSessionPerformance(nav.page); // here, not in PageView: the board and the start page are drawn beside it, and the observer stays for the whole session
   const session = useReviewSession({ core, nav, modalOpen: !!lib.modal, host, rootRef: shell.rootRef, late });
   const resetLibraryState = useLibraryReset({ core, libApi: set, nav, session, defaultGen: () => freshGeneration(core.refs.dataRef.current?.settings),
-    abandonPending: abandonUndoable, unsentText: (count) => uiFormat('学习库已更换：刚才的 {0} 项删除没有执行，它们还在原来的学习库里。', [count]) });
-  const connection = useLibraryConnection({ core, libApi: set, resetLibraryState, session, nav, host, language });
+    abandonPending: abandonUndoable, unsentText: (count) => uiFormat('学习库已更换：刚才的 {0} 项删除没有执行，它们还在原来的学习库里。', [count]),
+    onReset: warmEntry.clear });
+  const connection = useLibraryConnection({ core, libApi: set, resetLibraryState, session, nav, host, language, warm: warmEntry.warm });
   const { data } = connection;
   const [notice, setNotice] = useNotice(reviewNoticeScope(connection.binding.root, nav.page, session.run));
   core.refs.noticeRef.current = setNotice;
@@ -106,14 +109,20 @@ export default function App({ call: transportCall, host = NO_HOST }) {
   const finder = useFinder({ nav, settingsEntry, core, tour, rootRef: shell.rootRef, learn });
   const selectionNotices = useSelectionNotices({ core, learn, data });
   const { courseActive } = useHostLinks({ host, core, nav, session, learn, lib: handle, rootRef: shell.rootRef, data, loading: connection.loading });
-  const boardState = useBoard(core.call, nav.page === 'board' || nav.page === 'dashboard');
-  useInitialLanding({ loading: connection.loading, data, boardState, nav, setBoardView: set.setBoardView, navigationCount: () => core.refs.navigation.current });
+  const boardState = useBoard(core.call, nav.page === 'board' || nav.page === 'dashboard', {
+    initialBoard: warmEntry.warm?.board ?? null,
+    onBoard: (next) => warmEntry.saveBoard(core.refs.bindingRoot.current || core.refs.dataRef.current?.root, next),
+  });
+  useInitialLanding({ loading: connection.loading, data, boardState, nav, setBoardView: set.setBoardView, navigationCount: () => core.refs.navigation.current, restoredPage: warmEntry.restoredPage });
+  const liveReady = useWarmSync({ host, placement: warmEntry.placement, loading: connection.loading, root: connection.binding.root, board: boardState.board, page: nav.page, boardView: lib.boardView });
   // Cards due today or overdue light the badge, so a deadline shows from any page.
   const board = { state: boardState, count: boardState.board?.columns.reduce((total, column) => total + (column.done ? 0 : column.cardIds.filter((id) => !isMemoCard(boardState.board.cards?.[id])).length), 0),
     due: boardState.board ? dueSummary(boardState.board) : { overdue: 0, today: 0 } };
   const dailyPlan = useDailyPlan({ call: core.call, root: data && pageAvailable(data, 'review') ? data.root : null, navigation: () => core.refs.navigation.current,
     progressKey: session.run ? `${session.run.id}:${session.run.answered}:${session.run.complete}` : '',
     visible: ['library', 'board', 'review', 'workflows'].includes(nav.page) || readerOpen(lib.modal),
+    initialSnapshot: warmEntry.warm?.dailyPlan ?? null,
+    onSnapshot: (next) => warmEntry.saveDailyPlan(data?.root || connection.binding.root, next),
     onLaunch: async (result) => { if (result.run) session.enterRun(result.run); else if (result.studyRef) await learn.openBoardReference(result.studyRef); },
     onChanged: () => boardState.refresh({ force: true }) });
 
@@ -147,7 +156,7 @@ export default function App({ call: transportCall, host = NO_HOST }) {
                     <IngestBanner />
                     <StorageIssuesBanner />
                     <ContextReturn />
-                    {data && pageAvailable(data, 'live') && <LiveClass key={connection.binding.root} data={data} visible={page === 'live'}
+                    {data && pageAvailable(data, 'live') && liveReady && <LiveClass key={connection.binding.root} data={data} visible={page === 'live'}
                       onSettings={() => nav.navigate('settings')} onSources={() => nav.navigate('sources')}
                       onJobs={() => { void core.refresh().catch((failure) => core.setError(failure.message)); }} />}
                     {page === 'board' ? (

@@ -10,11 +10,18 @@ export function useStudyReferenceHandoff(take, root, onOpen) {
 }
 
 /** One controller for home, board and the current learning context. Reads never ask AI. */
-export function useDailyPlan({ call, root, visible, progressKey, onLaunch, onChanged, navigation }) {
-  const latest = useRef({ call, root, onLaunch, onChanged, navigation });
-  latest.current = { call, root, onLaunch, onChanged, navigation };
+export function useDailyPlan({ call, root, visible, progressKey, onLaunch, onChanged, navigation, initialSnapshot = null, onSnapshot }) {
+  const latest = useRef({ call, root, onLaunch, onChanged, navigation, onSnapshot });
+  latest.current = { call, root, onLaunch, onChanged, navigation, onSnapshot };
   const [date, setDate] = useState(localDate);
-  const [snapshot, setSnapshot] = useState(null);
+  const [snapshot, setSnapshot] = useState(() => (initialSnapshot?.scope === `${root || ''}:${date}` ? initialSnapshot : null));
+  const syncedSnapshot = useRef(initialSnapshot);
+  useEffect(() => {
+    if (snapshot && snapshot !== syncedSnapshot.current) {
+      syncedSnapshot.current = snapshot;
+      latest.current.onSnapshot?.(snapshot);
+    }
+  }, [snapshot]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(null);
   const sequence = useRef(0), pending = useRef(null);

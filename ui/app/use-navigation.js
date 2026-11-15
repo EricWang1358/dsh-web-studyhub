@@ -7,8 +7,8 @@ import { markPageSwitch } from '../use-session-performance.js';
    target does when it arrives: they set the page's own state and the page together, so nothing else does it by hand.
    Every way out handed out here passes the leave gate (createLeaveGate, #489): a page with unsaved work holds it (`holdLeave`) and is asked first. The one exception is
    `forcePage`, for a library that is already gone: there is nothing left to stay on. */
-export function useNavigation({ core, lib, motion, rootRef }) {
-  const [page, setPageState] = useState('library');
+export function useNavigation({ core, lib, motion, rootRef, initialPage = 'library' }) {
+  const [page, setPageState] = useState(initialPage);
   // The one setter of the page: the session's performance log (ui/session-performance.js) starts the clock of a page switch here, whichever way it came.
   const rawSetPage = useCallback((id) => { markPageSwitch(id); setPageState(id); }, []);
   const [pageTarget, setPageTarget] = useState(null);

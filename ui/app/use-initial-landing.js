@@ -18,8 +18,8 @@ export function fallbackLandingPage(data) {
  * or open items for today on the board; otherwise stay on 学习库 (or the first available page such as 资料 when
  * 学习库's contexts are disabled). Evaluated once on initial open so explicit navigation is never overridden.
  */
-export function useInitialLanding({ loading, data, boardState, nav, setBoardView, navigationCount }) {
-  const decided = useRef(false), redirectedFromLibrary = useRef(false);
+export function useInitialLanding({ loading, data, boardState, nav, setBoardView, navigationCount, restoredPage = false }) {
+  const decided = useRef(Boolean(restoredPage)), redirectedFromLibrary = useRef(false);
   useInitialEffect(() => {
     if (decided.current || loading || !data) return;
     if (navigationCount() === 0 && nav.page === 'library' && !pageAvailable(data, 'library')) {

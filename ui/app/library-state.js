@@ -19,8 +19,14 @@ const FRESH = {
 export const LIBRARY_KEYS = Object.freeze([...Object.keys(FRESH), 'gen', 'settings']);
 
 /** A library's state before anything happened. `gen` is the generate form's defaults, `settings` the Settings page's working copy. */
-export function initialLibraryState({ gen, settings } = {}) {
-  return { ...Object.fromEntries(Object.entries(FRESH).map(([key, make]) => [key, make()])), gen, settings: settings ?? {} };
+export function initialLibraryState({ gen, settings, notebooks, boardView } = {}) {
+  return {
+    ...Object.fromEntries(Object.entries(FRESH).map(([key, make]) => [key, make()])),
+    ...(notebooks !== undefined ? { notebooks } : {}),
+    ...(boardView ? { boardView } : {}),
+    gen,
+    settings: settings ?? {},
+  };
 }
 
 /** actions: { type: 'set', key, value | (current) => next } or { type: 'reset', initial }. */
@@ -74,14 +80,15 @@ export function createLibraryReset(deps) {
     // The generate form starts from the defaults of the library it was in unless the caller knows the new library's.
     deps.resetLibrary({ gen: gen ?? deps.defaultGen?.(), settings: settings ?? {} });
     deps.setPage('library');
+    deps.onReset?.(reason);
     return reason;
   };
 }
 
 /** resetLibraryState(reason, { gen, settings }) over the app's hooks; one stable function, always acting on the latest hooks. */
-export function useLibraryReset({ core, libApi, nav, session, defaultGen, abandonPending, unsentText }) {
+export function useLibraryReset({ core, libApi, nav, session, defaultGen, abandonPending, unsentText, onReset }) {
   const latest = useRef(null);
-  latest.current = { libApi, nav, session, defaultGen, abandonPending, unsentText };
+  latest.current = { libApi, nav, session, defaultGen, abandonPending, unsentText, onReset };
   return useMemo(() => createLibraryReset({
     refs: core.refs, quick: core.quick, defaultGen: () => latest.current.defaultGen?.(),
     resetLibrary: (initial) => latest.current.libApi.reset(initial),
@@ -91,5 +98,6 @@ export function useLibraryReset({ core, libApi, nav, session, defaultGen, abando
     setBusy: core.setBusy, setNotice: core.notify, setError: core.setError,
     setPage: (value) => latest.current.nav.forcePage(value),
     abandonPending: () => latest.current.abandonPending?.() || 0, unsentText: (count) => latest.current.unsentText?.(count) || '',
+    onReset: (reason) => latest.current.onReset?.(reason),
   }), [core.refs, core.quick, core.setBusy, core.notify, core.setError]);
 }

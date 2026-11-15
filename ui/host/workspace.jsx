@@ -225,17 +225,24 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
       }
     }, [models, sessionId]);
     const current = useHostStore(directory);
+    const modelGroups = catalog?.value?.groups;
+    const sessionModel = current?.current || catalog?.value?.default;
+    const hasOpenView = typeof openView === "function";
+    const latestSeatRef = React.useRef({ openView, sessionModel });
+    latestSeatRef.current = { openView, sessionModel };
     React.useEffect(() => {
-      models?.catalog?.load?.().catch(() => {});
-    }, [models]);
+      if (!modelGroups?.length) models?.catalog?.load?.().catch(() => {});
+    }, [models, modelGroups?.length]);
     const workspace = ctx.get("uiWorkspace");
     const host = React.useMemo(
       () => {
         // The conversation tab switches views; the top-level page reveals the Conversation panel.
         const showChat = placement === "page"
           ? () => ctx.get("layout")?.selectPanel(null)
-          : () => openView?.("chat", "");
+          : () => latestSeatRef.current.openView?.("chat", "");
         return {
+        warmKey: sessionId || "",
+        placement,
         capabilities: PLUGIN_CAPABILITIES,
         pickDirectory: workspace?.pickDirectory
           ? () => workspace.pickDirectory()
@@ -244,8 +251,8 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
         pickFile: workspace?.pickFile
           ? (options) => workspace.pickFile(options)
           : undefined,
-        modelGroups: catalog?.value?.groups,
-        sessionModel: current?.current || catalog?.value?.default,
+        modelGroups,
+        sessionModel,
         // The top-level page covers the conversation, where the assistant opens: reveal it, as askInChat does.
         // Absent when this DSH cannot open a session from the panel, so no link is drawn that would only say so when clicked;
         // `openAgent.canOpen(id, { parentId })` says whether one particular child can be opened (the link is drawn only then).
@@ -265,7 +272,7 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
           : undefined,
         openDocument: path => ctx.get('sidebarRight')?.openResource(sessionFileAddress(sessionId, path)),
         // 发给主会话's 去主会话 (a kept receipt): the same switch askInChat makes after it fills the box; absent where this DSH cannot show the chat.
-        showChat: (placement === "page" ? typeof ctx.get("layout")?.selectPanel === "function" : typeof openView === "function") ? () => showChat() : undefined,
+        showChat: (placement === "page" ? typeof ctx.get("layout")?.selectPanel === "function" : hasOpenView) ? () => showChat() : undefined,
         // Cross-workspace jump: create a new conversation in the notebook's
         // own workspace and select it; the study tab there opens that library.
         // Throws at call time when the host lacks the sessions create face.
@@ -298,7 +305,7 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
           let faces = false;
           try { const actx = ctx.get("sessions")?.scope?.(sessionId); faces = canAttachToComposer(actx?.get("conversation"), actx); } catch { /* no faces */ }
           if (!faces) return null;
-          const route = models?.directoryFor?.(sessionId)?.store?.getSnapshot?.()?.current || current?.current || catalog?.value?.default;
+          const route = models?.directoryFor?.(sessionId)?.store?.getSnapshot?.()?.current || latestSeatRef.current.sessionModel;
           if (!route?.provider) return undefined;
           return (await call("chat.model.images", { provider: route.provider, model: route.model }))?.takes ?? undefined;
         },
@@ -383,7 +390,7 @@ export function createWorkspaceHost(ctx, { effect = (fn, label) => ctx.effect(fn
         },
         };
       },
-      [workspace, catalog, current, sessionId, openView, placement, call, models],
+      [workspace, modelGroups, sessionModel, sessionId, hasOpenView, placement, call, models],
     );
     const seat = (
       <div className="study-seat" {...seatLook}><StudyBoundary>

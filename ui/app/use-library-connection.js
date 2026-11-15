@@ -14,6 +14,7 @@ import { attachWake, createSnapshotPoll } from './snapshot-poll.js';
 import { applyLiveJobs } from './live-jobs.js';
 import { flushUndoable } from '../undoable.js';
 import { sessionPerformance, snapshotChars } from '../session-performance.js';
+import { clearWarmSession, writeWarmBinding, writeWarmSnapshot } from './warm-session.js';
 
 /* The connection to the library: the binding (which folder, which model), the snapshot the whole app reads, how it is kept
    fresh (the first handshake, then the shared polling loop) and what happens when the library underneath changes. */
@@ -23,11 +24,13 @@ const CONTENT_LANGUAGE = { en: 'English', zh: '中文' };
 export const initialGeneration = (host, language) => ({ ...GENERATION_DEFAULTS, language: host.defaultContentLanguage || CONTENT_LANGUAGE[language] || CONTENT_LANGUAGE.zh });
 export const freshGeneration = (settings) => ({ ...generationFormDefaults(settings?.generation), title: '', course: undefined });
 
-export function useLibraryConnection({ core, libApi, resetLibraryState, session, nav, host, language }) {
+export function useLibraryConnection({ core, libApi, resetLibraryState, session, nav, host, language, warm = null }) {
   const { call, quick, quickStamp, setError, setBusy, notify, refs } = core;
-  const [serverData, setData] = useState(null);
-  const [binding, setBinding] = useState({ root: '', provider: '', model: '' });
-  const [loading, setLoading] = useState(true), [connecting, setConnecting] = useState(''), [syncIssue, setSyncIssueText] = useState(''), [syncTransient, setSyncTransient] = useState(false);
+  const [serverData, setData] = useState(() => warm?.data ?? null);
+  const [binding, setBinding] = useState(() => warm?.binding ?? { root: '', provider: '', model: '' });
+  const bindingRef = useRef(binding);
+  bindingRef.current = binding;
+  const [loading, setLoading] = useState(() => !warm?.data), [connecting, setConnecting] = useState(''), [syncIssue, setSyncIssueText] = useState(''), [syncTransient, setSyncTransient] = useState(false);
   // The bar says 重新连接中… for a host that is not up yet; the code of the error says so, the text alone cannot (the host's words are Chinese).
   const setSyncIssue = useCallback((text, transient = false) => { setSyncIssueText(text); setSyncTransient(!!text && !!transient); }, []);
   /* Light actions (知道了, 全部已读) patch what is on screen at once and run in the background; see ui/quick-actions.js.
@@ -68,9 +71,11 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
       const shared = next.partial ? mergePartial(cur, next, refs.snapshotKey.current) : shareUnchanged(cur, next, refs.snapshotKey.current);
       const value = shared.value;
       if (shared.changed) {
+        const nextBinding = cur && cur.root !== value.root ? { ...bindingRef.current, root: value.root } : bindingRef.current;
         if (cur && cur.root !== value.root) {
           resetLibraryState('switch', { gen: freshGeneration(value.settings), settings: value.settings });
-          setBinding((b) => ({ ...b, root: value.root }));
+          bindingRef.current = nextBinding;
+          setBinding(nextBinding);
         }
         if (!cur || (cur.root === value.root && cur.settings !== value.settings)) {
           const before = cur ? generationFormDefaults(cur.settings?.generation) : initialGeneration(host, getUiLanguage());
@@ -80,6 +85,7 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
         refs.dataRef.current = value;
         refs.snapshotKey.current = shared.texts;
         setData(value);
+        writeWarmSnapshot(host.warmKey, { binding: nextBinding, data: value, snapshotKey: shared.texts });
         libApi.setSettings((current) => syncScheduleSettings(current, cur?.settings, value.settings));
         result = value;
         // Only a snapshot that changed more than the clock counts; its size is read from the texts the diff above made, not measured again.
@@ -87,7 +93,7 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
       } else result = cur;
     }
     return next.partial ? liveJobs() : result;
-  }, [call, refs, resetLibraryState, libApi, host.defaultContentLanguage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [call, refs, resetLibraryState, libApi, host.defaultContentLanguage, host.warmKey]); // eslint-disable-line react-hooks/exhaustive-deps
   refs.refreshRef.current = refresh;
 
   // The interface language is also the default language of what gets generated, and run titles are localized.
@@ -111,7 +117,29 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
           // Both requests resolve the library on the server; firing them together saves a full round trip on first open.
           const [b, snapshot] = await Promise.allSettled([call('binding.get'), refresh()]);
           if (b.status === 'rejected') throw b.reason;
-          if (live) setBinding(b.value);
+          if (live) {
+            if (refs.dataRef.current && b.value.root !== refs.dataRef.current.root) {
+              resetLibraryState('switch', { gen: freshGeneration(undefined) });
+              refs.dataRef.current = null;
+              refs.snapshotKey.current = {};
+              setData(null);
+              bindingRef.current = b.value;
+              setBinding(b.value);
+              if (b.value.root) {
+                writeWarmBinding(host.warmKey, b.value);
+                await refresh();
+              } else {
+                clearWarmSession(host.warmKey);
+              }
+            } else {
+              bindingRef.current = b.value;
+              setBinding((current) => JSON.stringify(current) === JSON.stringify(b.value) ? current : b.value);
+              writeWarmBinding(host.warmKey, b.value);
+              if (refs.dataRef.current && refs.dataRef.current.root === b.value.root) {
+                writeWarmSnapshot(host.warmKey, { binding: b.value, data: refs.dataRef.current, snapshotKey: refs.snapshotKey.current });
+              }
+            }
+          }
           if (b.value.root && snapshot.status === 'rejected') throw snapshot.reason;
           break;
         } catch (failure) {
@@ -164,7 +192,9 @@ export function useLibraryConnection({ core, libApi, resetLibraryState, session,
     try {
       const value = await call('binding.set', customBinding(patch));
       const moved = value.root !== binding.root;
+      bindingRef.current = value;
       setBinding(value);
+      writeWarmBinding(host.warmKey, value);
       if (moved) {
         resetLibraryState('binding', { gen: freshGeneration(refs.dataRef.current?.settings) });
         setBusy(true);

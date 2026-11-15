@@ -13,7 +13,7 @@ import css from './settings.css';
 import { loadMineruLocal } from './use-mineru.js';
 import { loadRetrievalStatus } from './retrieval-status.js';
 import { readText, writeText } from './storage.js';
-import { useHostQuery } from './host-query.js';
+import { peekQuery, useHostQuery } from './host-query.js';
 import { useLiveEffect } from './use-async.js';
 import { useScrollEdges } from './components/use-scroll-edges.js';
 
@@ -106,7 +106,14 @@ export default function Settings({
   }, []);
 
   // What the host says is set up: read once, quietly (no model is called). It only decides which group starts open.
-  const [loaded, setStatus] = useState({});
+  const [loaded, setStatus] = useState(() => {
+    const mineru = peekQuery('mineru.local.status', {});
+    const retrieval = peekQuery('retrieval.status', {});
+    return {
+      ...(mineru ? { mineru: { configured: ['ready', 'server-stopped'].includes(mineru.state) } } : {}),
+      ...(retrieval ? { retrieval: { status: retrieval, plan: null } } : {}),
+    };
+  });
   // The audio keys are one of the host's shared answers (ui/host-query.js): a key saved in the audio pane changes this page's "set up" mark at once.
   const audioSettings = useHostQuery('audio.settings.get', {}, { enabled: typeof call === 'function' && hasContext(data, 'audio') }).data;
   const status = audioSettings ? { ...loaded, audio: { configured: KEY_FIELDS.some((field) => audioSettings[field]?.set) } } : loaded;

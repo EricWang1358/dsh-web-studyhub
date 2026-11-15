@@ -9,9 +9,9 @@ import { applyBoardAction } from '../../lib/board-model.js';
 
 const isConflict = (message) => /revision conflict/i.test(String(message));
 
-export function createBoardStore(call) {
-  let state = { board: null, error: '', conflict: false, busy: false };
-  let server = null;            // the last board the server confirmed
+export function createBoardStore(call, { initialBoard = null, onBoard } = {}) {
+  let state = { board: initialBoard, error: '', conflict: false, busy: false };
+  let server = initialBoard;            // the last board the server confirmed
   let pending = 0;              // writes accepted but not yet settled
   let epoch = 0;                // bumped on failure: older queued writes are dropped
   let reading = false, ticket = 0, chain = Promise.resolve();
@@ -30,6 +30,7 @@ export function createBoardStore(call) {
       const next = await call('board.get', !force && server && !server.readOnly ? { since: server.revision } : {});
       if (mine !== ticket || pending > 0 || next.unchanged) return;
       server = next;
+      onBoard?.(next);
       set({ board: next });
     } catch (error) {
       if (mine === ticket) set({ error: error.message, conflict: false });
@@ -53,6 +54,7 @@ export function createBoardStore(call) {
       try {
         const next = await call(action, { revision: server.revision, ...args });
         server = next;
+        onBoard?.(next);
         if (pending === 1) set({ board: next });
         return true;
       } catch (error) {
