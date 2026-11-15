@@ -2,6 +2,11 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 4.9.2 — 2026-11-15
+
+- **Added optional tactile sound effects under Settings › Appearance (off by default).** New and existing browsers start quiet; learners who want subtle desk feedback can switch between Off, Subtle (card flip, graded feedback, earned level climbs and finished rounds) and Standard (adds a light tap when picking multi-choice options or marking focus), or audition a short clip first with Preview. Sounds are synthesized in memory with damped paper, wood and felt transients (no bundled audio files) and mute automatically whenever voice input or live-class recording is active; the focus timer's completion chime uses the same warm tone. Not verified: physical speaker listening in a live DSH desktop window or across real microphone hardware.
+- **Faster return to StudyHub after switching away in DSH.** Reopening StudyHub in the same session paints the last snapshot, board state, daily plan, settings statuses and active page on the first frame while validating changes with a lightweight since-fingerprint check, defers mounting the hidden LiveClass surface until Live Class is opened, stabilizes the host service object across seat mounts, and memoizes revision-bound library snapshot projections on the server. Not verified: end-to-end timing inside a live DSH desktop window under active panel switching.
+
 ## 4.9.1 — 2026-11-15
 
 - **Web Gemini bridge tests and task failures clearly report when setup is not started.** Plain-text MCP bridge or browser-extension errors and verification replies missing the test token no longer display as a passing test or leak raw English error text, and the wait-timeout Save button aligns inline with its input field. Not verified: live DSH runtime with an active `ask-gemini-mcp` browser extension (verified via unit tests and headless Chromium DOM layout assertions with stubbed MCP tool responses).
