@@ -271,26 +271,31 @@ export function MasteryPanel({ mastery, defaultView = 'level' }) {
   const rows = (view === 'level' ? mastery?.levels : mastery?.kinds) || [];
   const names = view === 'level' ? LEVEL_NAME : KIND_NAME;
   const answered = rows.reduce((n, r) => n + r.n, 0);
+  const enoughRows = rows.filter((r) => r.enough);
+  const allMet = answered > 0 && enoughRows.length > 0 && enoughRows.every((r) => r.rate >= 70);
   return (
     <Panel className="dash-chart dash-mastery-panel" headClassName="dash-chart__head" title={ui(MEASURES.passRate.label)}
       description={uiFormat('近 {0} 天作答，3 分及以上算达标', [windowDays])}
       actions={<SegmentedControl size="sm" label={ui('统计维度')} value={view} onChange={setView}
         options={[{ value: 'level', label: ui('按认知层次') }, { value: 'kind', label: ui('按题型') }]} />}>
       {answered ? (
-        <ul className="dash-mastery">
-          {rows.map((r) => (
-            <li key={r.id} className={`dash-mrow${r.enough ? '' : ' thin'}`}>
-              <span className="dash-mname">{names[r.id]}</span>
-              {r.enough
-                ? <ProgressBar className="dash-mbar" tone={tone(r.rate)} label={uiFormat('{0}：{1}%', [names[r.id], r.rate])} value={r.rate} />
-                : <span className="dash-mbar dash-mbar--empty" aria-hidden="true" />}
-              <span className="dash-mvalue">
-                {r.enough ? <b>{r.rate}%</b> : <em>{ui(THIN_DATA)}</em>}
-                <small>{uiFormat('{0} 次作答', [r.n])}</small>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="dash-mastery" data-all-met={allMet ? 'true' : undefined}>
+            {rows.map((r) => (
+              <li key={r.id} className={`dash-mrow${r.enough ? '' : ' thin'}`}>
+                <span className="dash-mname">{names[r.id]}</span>
+                {r.enough
+                  ? <ProgressBar className="dash-mbar" tone={tone(r.rate)} label={uiFormat('{0}：{1}%', [names[r.id], r.rate])} value={r.rate} />
+                  : <span className="dash-mbar dash-mbar--empty" aria-hidden="true" />}
+                <span className="dash-mvalue">
+                  {r.enough ? <b>{r.rate}%</b> : <em>{ui(THIN_DATA)}</em>}
+                  <small>{uiFormat('{0} 次作答', [r.n])}</small>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {allMet && <p className="dash-mastery-note" role="status" data-testid="dash-mastery-all-met">{ui('已统计维度均已达标')}</p>}
+        </>
       ) : (
         <div className="dash-chart-box">
           <Empty title={uiFormat('近 {0} 天还没有足够的作答', [windowDays])}>{ui('多做几道题，这里会显示各层次的达标率。')}</Empty>

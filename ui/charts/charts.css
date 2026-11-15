@@ -33,6 +33,7 @@
     :where(.study-app, .study-seat) {
       .dash-charts { gap: var(--space-4); }
       .dash-chart { padding: var(--space-4); }
+      .dash-mrow { grid-template-columns: minmax(4em, 6.25em) minmax(0, 1fr) auto; gap: var(--space-2); }
     }
   }
   :where(.study-app, .study-seat) {
@@ -76,6 +77,7 @@
       gap: var(--space-1) var(--space-4);
       margin: 0 0 var(--space-2);
       font-size: var(--fs-sm);
+      font-variant-numeric: tabular-nums;
       color: var(--text-muted);
     }
     .dash-chart-summary span:first-child { color: var(--text); font-weight: var(--fw-strong); }
@@ -124,7 +126,18 @@
     .dash-mvalue { display: flex; flex-direction: column; align-items: flex-end; line-height: var(--lh-tight); text-align: right; }
     .dash-mvalue b { font-size: var(--fs-lg); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; color: var(--text); }
     .dash-mvalue em { font-size: var(--fs-sm); font-style: normal; color: var(--text-muted); }
-    .dash-mvalue small { font-size: var(--fs-xs); color: var(--text-muted); }
+    .dash-mvalue small { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-muted); }
+    .dash-mastery-note {
+      margin: var(--space-3) 0 0;
+      padding: var(--space-1-5) var(--space-2-5);
+      border: 1px solid var(--ok-line);
+      border-radius: var(--radius-sm);
+      background: var(--ok-bg);
+      color: var(--ok-ink);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-medium);
+      line-height: var(--lh-snug);
+    }
     /* A hero rate over too few answers: the words 数据不足 in the numeral's place, quiet, on the numeral's baseline. */
     .dash-rates strong.is-thin { display: flex; align-items: center; height: var(--fs-5xl); font-family: var(--font-ui); font-size: var(--fs-xl); font-weight: var(--fw-regular); letter-spacing: 0; line-height: 1; color: var(--text-muted); }
   }

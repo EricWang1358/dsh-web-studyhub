@@ -23,5 +23,6 @@
   "上一段": "Previous passage",
   "本节题目已全部掌握": "All questions in this section mastered",
   "本章题目已全部掌握": "All questions in this chapter mastered",
-  "已掌握 {0}/{1}": "Mastered {0}/{1}"
+  "已掌握 {0}/{1}": "Mastered {0}/{1}",
+  "当前范围已全部掌握，可随时巩固或继续往下读。": "All questions in this range are mastered — review ahead anytime or keep reading."
 }

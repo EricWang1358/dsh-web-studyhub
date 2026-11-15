@@ -5,6 +5,7 @@ import { Button } from './components/Button.jsx';
 import { ProgressBar } from './components/Progress.jsx';
 import { LoadingState, Spinner } from './components/Loading.jsx';
 import { InlineMessage } from './components/Feedback.jsx';
+import Icon from './components/Icon.jsx';
 import { gateTitle } from './ModelSetupGate.jsx';
 import { recapGroupKey, useDailyRecap } from './useDailyRecap.js';
 import css from './DailyRecap.css';
@@ -62,10 +63,14 @@ export function DailyRecapPanel(props) {
     {status?.groups?.map(group => {
       const phase = presentation(group), running = phase === 'running', protectedEdit = phase === 'protected';
       const retry = ['failed', 'paused'].includes(phase), canGenerate = !running && !protectedEdit && (!group.hasContent || group.stale || retry);
+      const allClear = Boolean(group.answeredCount > 0 && !group.wrongCount && !group.unassessedCount);
       const progress = group.generation?.progress;
-      return <article className="daily-recap-course" data-state={phase} key={recapGroupKey(group)}>
+      return <article className="daily-recap-course" data-state={phase} data-all-clear={allClear || undefined} key={recapGroupKey(group)}>
         <div className="daily-recap-course-heading"><h3>{group.course || ui('未分配课程')}</h3>
-          <span className="daily-recap-state">{ui(stateLabels[phase])}</span></div>
+          <span className="daily-recap-badges">
+            {allClear && <span className="daily-recap-clear" data-testid="daily-recap-clear"><Icon name="check" size={12} strokeWidth={2.2} /><span>{ui('今日零错题')}</span></span>}
+            <span className="daily-recap-state">{ui(stateLabels[phase])}</span>
+          </span></div>
         <p className="daily-recap-meta">{group.day !== status.day && <>{group.day} · </>}{uiFormat('已练习 {0} 题 · 需要回顾 {1} 题', [group.answeredCount, group.wrongCount])}</p>
         {!group.eligible && !group.hasContent && <div className="daily-recap-threshold">
           <ProgressBar size="sm" className="daily-recap-bar" label={ui('今日合集生成进度')} value={group.answeredCount} max={group.answeredCount + group.remaining} />

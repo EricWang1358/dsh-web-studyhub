@@ -7,9 +7,15 @@ import { customDefaults } from '../../lib/custom-plan.js';
 import { COURSE, LECTURES, outlineLibrary } from './course-outline-library.mjs';
 
 export { COURSE };
-export const held = () => new Promise(() => {});
+const DEFAULT_LIBRARY = outlineLibrary({ paper: true });
+export const held = (_system, _prompt, request) => new Promise((_, reject) => {
+  const signal = request?.signal;
+  const abort = () => reject(signal?.reason ?? Object.assign(new Error('aborted'), { name: 'AbortError' }));
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
+});
 
-export async function open(t, { model = true, library = outlineLibrary({ paper: true }), course = COURSE, complete = held, light = held } = {}) {
+export async function open(t, { model = true, library = DEFAULT_LIBRARY, course = COURSE, complete = held, light = held } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-custom-apply-'));
   let study;
   t.after(async () => {
