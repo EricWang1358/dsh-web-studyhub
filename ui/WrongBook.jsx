@@ -890,12 +890,24 @@ export function WrongBookView({
         <EmptyState data-tour="wrongbook-list" icon="success" title={ui("还没有已订正的错题")}
           description={ui("答对一次后，错题会移到这里，作为历史保留，随时可以再练。")} />
       ) : (
-        <EmptyState data-tour="wrongbook-list" icon="success" title={data?.attempts?.length ? ui("目前没有待巩固的题") : ui("还没有练习记录")}
-          description={data?.attempts?.length
-            ? ui("客观答错或自评未掌握的题会出现在这里，方便集中重练。")
-            : ui("完成一次学习后，答错或自评未掌握的题会收在这里。")}>
+        <EmptyState data-tour="wrongbook-list" icon="success"
+          data-tone={historyCount > 0 ? "success" : undefined}
+          className={historyCount > 0 ? "wb-cleared-milestone" : undefined}
+          title={historyCount > 0 ? ui("待巩固已清零 · 目前没有待巩固的题") : (data?.attempts?.length ? ui("目前没有待巩固的题") : ui("还没有练习记录"))}
+          description={historyCount > 0
+            ? uiFormat("已累计攻克并订正 {0} 道错题；新的错题或低自评题会继续收在这里。", [historyCount])
+            : (data?.attempts?.length
+              ? ui("客观答错或自评未掌握的题会出现在这里，方便集中重练。")
+              : ui("完成一次学习后，答错或自评未掌握的题会收在这里。"))}>
           <EmptyStudyActions data={{ ...data, decks: localDecks }} onStart={() => onPractice(localDecks.map(deck => ({ deckId: deck.id })))} onLibrary={onLibrary}
             onCreate={onCreate} onSources={onSources} />
+          {historyCount > 0 && onView && (
+            <div className="wb-cleared-history">
+              <Button variant="secondary" size="sm" onClick={() => onView('history')}>
+                {uiFormat("查看已订正记录 ({0})", [historyCount])}
+              </Button>
+            </div>
+          )}
         </EmptyState>
       ))}
 

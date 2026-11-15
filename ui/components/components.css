@@ -399,6 +399,11 @@
     }
     .sh-empty--sm { padding: var(--space-6) var(--space-4); }
     .sh-empty--sm .sh-empty__title { font-size: var(--fs-lg); }
+    .sh-empty[data-tone="success"] .sh-empty__icon {
+      background: var(--bg-surface);
+      box-shadow: inset 0 0 0 1px var(--ok-line);
+      color: var(--ok-ink);
+    }
     /* ── Panel and disclosure ───────────────────────────────────────────── */
     .sh-panel {
       padding: var(--space-5) var(--space-6);

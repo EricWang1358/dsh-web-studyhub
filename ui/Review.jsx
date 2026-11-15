@@ -168,6 +168,8 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   // 顽固题 of this round that the wrong book still holds (lib/leech.js, computed with the run): one line, and it opens the wrong book on them.
   const leechCount = run.complete && run.mode !== "exam" && pageAvailable(data, "wrongbook") ? (run.leechCards || []).length : 0;
   const methodAlt = run.complete && !flow && run.mode !== "exam" ? roundEndAlternative(data, roundCourse, { guidedSession: app?.lib?.guidedSession }) : null;
+  const roundTotal = run.questions ?? run.total ?? 0;
+  const allCorrect = Boolean(run.complete && roundTotal > 0 && (run.answered || 0) >= roundTotal && run.correct === roundTotal);
   return (
     <StudyServicesContext.Provider value={dock.services}>
     <section
@@ -221,10 +223,15 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           {/* The mastery of this round's questions before the first answer and now, in the run itself (lib/run-mastery.js), so it is drawn with the page.
               A reader round says it about its pages, in its own card with the way back. */}
           {readingBack ? <ReadingResult run={run} busy={busy} onReturn={onReturnToReading} /> : <MasteryChange kind="round" change={run.mastery} className="result-mastery" />}
-          <div className="result-hero sh-paper-card sh-paper-card--roomy">
+          <div className="result-hero sh-paper-card sh-paper-card--roomy" data-all-correct={allCorrect ? "true" : undefined}>
             <div className="result-headline">
               <strong>{run.correct}</strong>
               <span>{uiFormat(scoreWording(run), [run.questions ?? run.total])}</span>
+              {allCorrect && (
+                <span className="result-hero__badge" data-testid="result-all-correct">
+                  {(run.selfAnswered || 0) > 0 ? ui("本轮全部达标") : ui("本轮全部答对")}
+                </span>
+              )}
               {run.retries > 0 && <small>{run.retries === 1 ? ui("另外重练了 1 次") : uiFormat("另外重练了 {0} 次", [run.retries])}</small>}
             </div>
             <ResultBreakdown total={run.questions ?? run.total} answered={run.answered} correct={run.correct}

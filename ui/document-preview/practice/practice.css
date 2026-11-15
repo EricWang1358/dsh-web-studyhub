@@ -100,6 +100,7 @@
       border-radius: var(--radius-pill);
       background: var(--line);
     }
+    .result-mastery .reading-result__rail { max-width: none; }
     .reading-result__after,
     .reading-result__before {
       position: absolute;

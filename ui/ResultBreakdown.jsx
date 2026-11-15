@@ -11,6 +11,7 @@ export default function ResultBreakdown({ total, answered, correct, correctLabel
   useInjectCss(css, "review-results");
   const remaining = Math.max(0, total - answered);
   const practice = Math.max(0, answered - correct);
+  const rate = total > 0 && answered > 0 ? Math.round((Math.max(0, correct) / total) * 100) : null;
   const segments = [
     { key: "correct", label: correctLabel, count: correct },
     { key: "practice", label: ui("需要巩固"), count: practice },
@@ -40,6 +41,7 @@ export default function ResultBreakdown({ total, answered, correct, correctLabel
             </div>
           );
         })}
+        {rate !== null && <span className="result-breakdown-rate">{uiFormat("达标率 {0}%", [rate])}</span>}
       </div>
     </div>
   );

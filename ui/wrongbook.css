@@ -289,6 +289,13 @@
     .wb-dist-seg[data-narrow] { justify-content: center; padding-inline: 0; }
     .wb-dist-seg[data-narrow] .wb-dist-name, .wb-dist-seg[data-tight] > span { display: none; }
     .wb-dist-empty { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
+    .wb-cleared-milestone {
+      border: 1px solid var(--ok-line);
+      border-radius: var(--radius);
+      background: var(--ok-bg);
+      background-image: radial-gradient(circle at 50% 0, var(--ok-halo), transparent 68%);
+    }
+    .wb-cleared-history { display: flex; justify-content: center; margin-top: var(--space-2-5); font-variant-numeric: tabular-nums; }
   }
   @container study (max-width: 640px) {
     :where(.study-app, .study-seat) {

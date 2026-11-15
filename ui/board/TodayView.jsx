@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
 import { joinMeta } from '../format.js';
-import { Button, SegmentedControl } from '../components/index.js';
+import { Button, Icon, SegmentedControl } from '../components/index.js';
 import {
   TODAY_LANES, cardActualMinutes, cardTodaySource, isMeaningfulTitle, locateCard, selectTodayBoard, selectTodayTimeLog, splitMemoDraft, todayBudgetMinutes,
 } from '../../lib/board-model.js';
@@ -60,6 +60,7 @@ export default function TodayView({
   const heading = formatTodayHeading(today);
   const planLine = todayPlanLine(library, today);
   const todayEmpty = open.length === 0 && done.length === 0;
+  const allDoneToday = open.length === 0 && done.length > 0;
   const canAdd = !readOnly && board.columns.length > 0;
 
   const handleCardTimer = (card) => {
@@ -293,6 +294,18 @@ export default function TodayView({
               </div>
             )}
 
+            {allDoneToday && (
+              <div className="board-today__complete" role="status" data-testid="board-today-complete">
+                <span className="board-today__complete-mark" aria-hidden="true">
+                  <Icon name="check" size={14} strokeWidth={2.2} />
+                </span>
+                <p className="board-today__complete-copy">
+                  <strong>{ui('今日排程已全部完成')}</strong>
+                  <span>{uiFormat('已完成 {0} 项任务，可安心休息或在下方补充新安排。', [done.length])}</span>
+                </p>
+              </div>
+            )}
+
             <div className="board-today__lanes">
               {TODAY_LANES.map((laneId) => {
                 const lane = lanes[laneId];
@@ -347,7 +360,7 @@ export default function TodayView({
                         </React.Fragment>
                       ))}
                       {showLine(lane.cards.length) && <div className="board-drop-line" aria-hidden="true" />}
-                      {!todayEmpty && lane.cards.length === 0 && (
+                      {open.length > 0 && lane.cards.length === 0 && (
                         <p className="board-today__lane-empty">{ui('这一段还没有安排，拖卡片到这里或在下面添加。')}</p>
                       )}
                     </div>

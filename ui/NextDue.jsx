@@ -56,6 +56,11 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
   const meta = telemetry || feedback;
   const promoted = meta.beforeLevel && feedback.level && (LEVEL_RANK[feedback.level] ?? -1) > (LEVEL_RANK[meta.beforeLevel] ?? -1)
     && LEVEL_WORDS[meta.beforeLevel] && LEVEL_WORDS[feedback.level];
+  const earnedClimb = Boolean(promoted && meta.beforeLevel !== 'new');
+  const climbCopy = earnedClimb
+    ? uiFormat(meta.beforeLevel === 'weak' ? '脱离薄弱 · {0} → {1}' : '熟练度进阶 · {0} → {1}',
+      [ui(LEVEL_WORDS[meta.beforeLevel]), ui(LEVEL_WORDS[feedback.level])])
+    : '';
   const selfReported = !!(feedback.selfReported || feedback.assessment === 'self-report');
   const hasAfterDays = Number.isFinite(meta.afterDays) && meta.afterDays > 0;
   const beforeDays = Number.isFinite(meta.beforeDays) ? meta.beforeDays : 0;
@@ -79,8 +84,13 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
         {feedback.retryQueued && <span>{' · '}{ui('这道题放到了本轮最后，会再出现一次')}</span>}
         {feedback.hintGraded && <span>{' · '}{ui('用了提示，按「勉强答对」安排，这道题会更早回来')}</span>}
       </p>
-      {(feedback.focusScheduled || credited > 0) && (
+      {(earnedClimb || feedback.focusScheduled || credited > 0) && (
         <div className="next-due__telemetry">
+          {earnedClimb && (
+            <span className="next-due__chip next-due__chip--up" data-testid="next-due-climb">
+              {climbCopy}
+            </span>
+          )}
           {feedback.focusScheduled && <span className="next-due__chip">{ui('重点加密复习')}</span>}
           {' '}
           {credited > 0 && (
