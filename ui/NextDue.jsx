@@ -51,12 +51,21 @@ export const nextDueWhen = (feedback = {}, now = Date.now()) => {
   return gap ? uiFormat('下次大约 {0}后再见', [gap]) : ui('下次今天内再见');
 };
 
+/** True when an answer earned a real mastery promotion (never counting first graduation from 'new'). */
+export function isEarnedLevelClimb(feedback, telemetry = null) {
+  if (!feedback?.correct) return false;
+  const meta = telemetry || feedback;
+  const promoted = meta.beforeLevel && feedback.level && (LEVEL_RANK[feedback.level] ?? -1) > (LEVEL_RANK[meta.beforeLevel] ?? -1)
+    && LEVEL_WORDS[meta.beforeLevel] && LEVEL_WORDS[feedback.level];
+  return Boolean(promoted && meta.beforeLevel !== 'new');
+}
+
 export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
   if (!feedback) return null;
   const meta = telemetry || feedback;
   const promoted = meta.beforeLevel && feedback.level && (LEVEL_RANK[feedback.level] ?? -1) > (LEVEL_RANK[meta.beforeLevel] ?? -1)
     && LEVEL_WORDS[meta.beforeLevel] && LEVEL_WORDS[feedback.level];
-  const earnedClimb = Boolean(promoted && meta.beforeLevel !== 'new');
+  const earnedClimb = isEarnedLevelClimb(feedback, telemetry);
   const climbCopy = earnedClimb
     ? uiFormat(meta.beforeLevel === 'weak' ? '脱离薄弱 · {0} → {1}' : '熟练度进阶 · {0} → {1}',
       [ui(LEVEL_WORDS[meta.beforeLevel]), ui(LEVEL_WORDS[feedback.level])])

@@ -11,7 +11,7 @@ import { loadUi } from './helpers/ui-module.mjs';
 const h = React.createElement;
 const noop = () => {};
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const full = { language: 'zh', onLanguage: noop, theme: 'dark', onTheme: noop, accent: 'cinnabar', onAccent: noop, scale: 100, onScale: noop, font: 'system', onFont: noop,
+const full = { language: 'zh', onLanguage: noop, theme: 'dark', onTheme: noop, accent: 'cinnabar', onAccent: noop, scale: 100, onScale: noop, sound: 'off', onSound: noop, font: 'system', onFont: noop,
   fontCustom: '', onFontCustom: noop, fontTitle: 'follow', onFontTitle: noop, motion: 'auto', onMotion: noop, contrast: 'auto', onContrast: noop, density: 'standard', onDensity: noop,
   radius: 'standard', onRadius: noop, onReset: noop, onExport: () => '{"studyhubAppearance":1}', onImport: () => true };
 
@@ -28,9 +28,10 @@ const split = (html) => {
 };
 const anchorsIn = (html) => [...html.matchAll(/data-tour="(settings-appearance-[a-z-]+)"/g)].map((match) => match[1]);
 
-test('without opening anything there are four choices: language, look, accent colour, size', async () => {
+test('without opening anything there are five open choices: language, look, accent colour, size, sound effects', async () => {
   const { main } = split(await draw());
-  assert.deepEqual(anchorsIn(main).filter((anchor) => !anchor.endsWith('-reset')), ['settings-appearance-language', 'settings-appearance-theme', 'settings-appearance-accent', 'settings-appearance-scale']);
+  assert.deepEqual(anchorsIn(main).filter((anchor) => !anchor.endsWith('-reset')), ['settings-appearance-language', 'settings-appearance-theme', 'settings-appearance-accent', 'settings-appearance-scale', 'settings-appearance-sound']);
+  assert.match(main, />试听</);
   for (const gone of ['界面字体', '标题字体', '动画', '对比度', '界面密度', '圆角']) assert.doesNotMatch(main, new RegExp(`>${gone}<`), `${gone} is not in the open`);
 });
 
@@ -62,7 +63,7 @@ test('without the handlers there is nothing to restore or carry; in English the 
   const bare = await draw({ ...full, onReset: undefined, onExport: undefined, onImport: undefined });
   assert.doesNotMatch(bare, /恢复默认外观|复制外观设置|导入外观/);
   const en = await draw(full, 'en');
-  for (const label of ['More appearance options', 'Restore default appearance', 'Copy appearance settings', 'Save as file', 'Import appearance']) assert.match(en, new RegExp(label), label);
+  for (const label of ['Sound effects', '>Off<', '>Subtle<', '>Standard<', '>Preview<', 'More appearance options', 'Restore default appearance', 'Copy appearance settings', 'Save as file', 'Import appearance']) assert.match(en, new RegExp(label), label);
 });
 
 test('the finder and the settings category know the new places', async () => {

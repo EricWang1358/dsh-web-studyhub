@@ -420,6 +420,7 @@ function SettingsView() {
         onFontTitle: (value) => updateAppearance({ fontTitle: value }),
         onFontCustom: (value) => updateAppearance({ fontCustom: value }),
         onAccent: (value) => updateAppearance({ accent: value }),
+        onSound: (value) => updateAppearance({ sound: value }),
         onReset: shell.resetAppearance, onExport: () => exportAppearance(appearance),
         onImport: (text) => { const imported = importAppearance(text); if (imported) updateAppearance(imported); return !!imported; } }}
       tourActive={!!tour.tourStep} focusSection={settingsEntry.settingsFocus} onFocused={() => settingsEntry.setSettingsFocus('')}

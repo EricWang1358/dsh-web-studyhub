@@ -1,4 +1,5 @@
 import { captureAudio } from '../live-audio.js';
+import { holdAudioCapture } from '../audio-capture-state.js';
 import { uploadInChunks } from '../upload.js';
 import { VOICE_MAX_SECONDS, wavBytes } from './wav.js';
 
@@ -22,8 +23,11 @@ const repeat = (fn, ms) => {
 export function createVoiceRecorder({ call, language, capture = captureAudio, upload = uploadInChunks, maxSeconds = VOICE_MAX_SECONDS,
   now = () => Date.now(), every = repeat, onState, onLimit, scope = () => '' } = {}) {
   let phase = 'idle', handle = null, chunks = [], startedAt = 0, stopTimer = null, aborted = null, startedIn = '';
+  let releaseCaptureGuard = null;
   const emit = (extra = {}) => onState?.({ phase, left: phase === 'recording' ? Math.max(0, Math.ceil(maxSeconds - (now() - startedAt) / 1000)) : maxSeconds, ...extra });
   const release = async () => {
+    releaseCaptureGuard?.();
+    releaseCaptureGuard = null;
     stopTimer?.(); stopTimer = null;
     const current = handle;
     handle = null;
@@ -34,6 +38,8 @@ export function createVoiceRecorder({ call, language, capture = captureAudio, up
     async start() {
       if (phase !== 'idle') return false;
       chunks = []; startedAt = now(); phase = 'recording'; startedIn = scope();
+      releaseCaptureGuard?.();
+      releaseCaptureGuard = holdAudioCapture();
       try {
         handle = await capture('microphone', (buffer) => { if (buffer?.byteLength) chunks.push(new Int16Array(buffer)); },
           () => { if (phase === 'recording') { void release(); phase = 'idle'; emit({ error: '麦克风断开了，请再录一次' }); } });

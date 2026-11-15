@@ -28,6 +28,7 @@ import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES } from "../agent-prompts/card.js";
 import { FixPhraseChips, FixPhraseSave, appendFixPhrase } from "./FixPhrases.jsx";
 import { useFixPhrases } from "./use-fix-phrases.js";
+import { playSound } from "../sound-effects.js";
 import { useFlashHead } from "./use-flash-head.js";
 import { CourseRuleAdd } from "../course-rules/CourseRuleAdd.jsx";
 import { useCourseRules } from "../course-rules/use-course-rules.js";
@@ -88,6 +89,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const toggleCardFocus = React.useCallback(() => {
     if (!run?.card?.id) return;
     const nextFocus = !run.card.focus;
+    playSound("tap");
     act("card.focus", { deckId: run.deckId, cardId: run.card.id, focus: nextFocus }, (res) => {
       session.patchRun?.((prev) => prev?.card ? { ...prev, card: { ...prev.card, focus: !!res?.focus, focusSource: res?.focus ? "card" : null } } : prev);
     });

@@ -1722,5 +1722,10 @@
   "剩余时间 {0}": "Time left {0}",
   "存进笔记": "Save to note",
   "已存进笔记 · 打开": "Saved to note · Open",
-  "这条来源已不在原题上": "This source is no longer on the question"
+  "这条来源已不在原题上": "This source is no longer on the question",
+  "互动音效": "Sound effects",
+  "无音效": "Off",
+  "轻柔": "Subtle",
+  "试听": "Preview",
+  "翻面、判分和完成一轮时的纸木轻响；选「标准」时，点选多选项和标重点也有轻触声。录音或课堂实录时自动静音。": "Soft paper-and-wood sounds when flipping a card, checking an answer or finishing a round; “Standard” adds a light tap when picking multi-choice options or marking focus. Automatically muted while recording or in live class."
 }

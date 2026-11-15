@@ -18,6 +18,8 @@ import {
 import { continueLabel, continueNote } from './continue-labels.js';
 import { createDraftSaver, draftKey, draftPayloadOf, draftable, entrySignature, keepTyped, savedSignature } from './draft-persistence.js';
 import { hiddenMsOf, noteVisibility, openClock } from './hidden-time.js';
+import { playSound } from '../sound-effects.js';
+import { isEarnedLevelClimb } from '../NextDue.jsx';
 
 // These steps read the entry on the host (review.answer takes the help recorded there) or leave the question: what was typed goes first, and must arrive.
 const SAVES_FIRST = new Set(['review.answer', 'review.move']);
@@ -230,7 +232,19 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const stepWaiting = useRef(false);
   const reviewAct = useCallback((action, args = {}) => {
     const current = runRef.current;
-    const step = () => act(action, { runId: current.id, cardId: current.card?.id, queueVersion: current.queueVersion || 0, ...args, ...awayArgs(action, current) }, (result) => enterRun(result, undefined, action === 'review.move'),
+    const step = () => act(action, { runId: current.id, cardId: current.card?.id, queueVersion: current.queueVersion || 0, ...args, ...awayArgs(action, current) }, (result) => {
+      if (current?.mode !== 'exam' && result?.mode !== 'exam' && !current?.complete && result?.complete && (result.answered || 0) > 0) {
+        playSound('complete');
+      } else if (action === 'review.answer' && result?.feedback && current?.mode !== 'exam') {
+        const fb = result.feedback;
+        if (fb.selfReported || fb.assessment === 'self-report') playSound('correct');
+        else if (fb.correct) playSound(isEarnedLevelClimb(fb, result.feedbackTelemetry) ? 'levelUp' : 'correct');
+        else playSound('miss');
+      } else if (action === 'review.reveal' && !current?.revealed && result?.revealed) {
+        playSound('flip');
+      }
+      enterRun(result, undefined, action === 'review.move');
+    },
       // Practice steps return the run they changed; the snapshot catches up on the next poll.
       // Only a finished round reloads the library (its result page needs fresh counts).
       { refreshAfter: (result) => action === 'review.move' ? !!result.complete : action !== 'review.answer' && action !== 'review.reveal' });
@@ -296,7 +310,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const flipCard = useCallback(async () => {
     const current = runRef.current;
     if (!current?.card) return;
-    if (current.revealed) { setShowBack((value) => !value); return; }
+    if (current.revealed) { setShowBack((value) => !value); playSound('flip'); return; }
     if (busyRef.current) return;
     setShowBack(true);
     if (!(await reviewActRef.current('review.reveal'))) setShowBack(false);
@@ -304,8 +318,10 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const choose = useCallback((id) => {
     const current = runRef.current;
     if (busyRef.current || current.feedback) return;
-    if (current.card.kind === 'multi') patch((value) => ({ selected: value.selected.includes(id) ? value.selected.filter((item) => item !== id) : [...value.selected, id] }));
-    else reviewActRef.current('review.answer', { selected: [id] });
+    if (current.card.kind === 'multi') {
+      playSound('tap');
+      patch((value) => ({ selected: value.selected.includes(id) ? value.selected.filter((item) => item !== id) : [...value.selected, id] }));
+    } else reviewActRef.current('review.answer', { selected: [id] });
   }, [patch]);
 
   /* ── autopilot: after a pass, move on by itself unless the learner touches anything during the short countdown ── */

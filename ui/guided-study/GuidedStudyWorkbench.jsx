@@ -17,6 +17,7 @@ import GuidedStudyStart from './GuidedStudyStart.jsx';
 import { hasOptions } from '../../lib/card-kinds.js';
 import { fixedOptionLabel } from '../option-label.js';
 import { rubricAttemptPassed } from '../../lib/course-method.js';
+import { playSound } from '../sound-effects.js';
 
 /* How the session's status reads to the learner (never the raw value). */
 const STATUS_WORD = { active: '带学进行中', paused: '带学已暂停', ended: '带学已结束' };
@@ -61,6 +62,7 @@ export function handleGuidedWorkbenchKeyDown(event, {
           const next = currentCard.kind === 'multi'
             ? (selected.includes(option.id) ? selected.filter((id) => id !== option.id) : [...selected, option.id])
             : [option.id];
+          if (currentCard.kind === 'multi' || !selected.includes(option.id)) playSound('tap');
           setSelected(next);
         }
         return true;
@@ -304,9 +306,12 @@ export default function GuidedStudyWorkbench({
                     return (
                       <label key={option.id} className="guided-study-card-option" data-picked={picked || undefined} data-verdict={verdict}>
                         <input type={currentCard.kind === 'multi' ? 'checkbox' : 'radio'} name={`guided-${currentCard.id}`} checked={picked}
-                          onChange={() => setSelected(currentCard.kind === 'multi'
-                            ? (picked ? selected.filter((id) => id !== option.id) : [...selected, option.id])
-                            : [option.id])} />
+                          onChange={() => {
+                            if (currentCard.kind === 'multi' || !picked) playSound('tap');
+                            setSelected(currentCard.kind === 'multi'
+                              ? (picked ? selected.filter((id) => id !== option.id) : [...selected, option.id])
+                              : [option.id]);
+                          }} />
                         {fixedOptionLabel(currentCard, option) ?? <Markdown text={option.text} links={false} className="md-compact" />}
                       </label>
                     );

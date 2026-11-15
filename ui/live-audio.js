@@ -157,6 +157,10 @@ export function describeCaptureError(error, kind = 'microphone', context = {}) {
   return text ? Object.assign(new Error(text), { name: error.name, cause: error }, refusal ? { tabRefusal: refusal, captureFacts: captureFacts(context) } : {}) : error;
 }
 
+import { holdAudioCapture, isAudioCaptureActive } from './audio-capture-state.js';
+
+export { holdAudioCapture, isAudioCaptureActive };
+
 export async function captureAudio(kind, onAudio, onEnded, onState, env = browserEnv()) {
   if (!globalThis.navigator?.mediaDevices || !globalThis.AudioContext)
     throw new Error('这个页面不能采集声音。请用最新版 Chrome 或 Edge，通过 HTTPS 或 localhost 打开。');
@@ -171,6 +175,7 @@ export async function captureAudio(kind, onAudio, onEnded, onState, env = browse
     // The policy says only "probably": ask the browser anyway above, and read what it says once it has answered.
     throw describeCaptureError(error, kind, { elapsedMs: env.now() - clicked, policyAllowed: env.tabAllowed(), embedded: env.embedded(), ...(env.host?.() || {}) });
   }
+  const releaseCapture = holdAudioCapture();
   let context, node, source, url, closed = false, paused = false;
   const tracks = stream.getTracks();
   const audioTracks = stream.getAudioTracks();
@@ -179,6 +184,7 @@ export async function captureAudio(kind, onAudio, onEnded, onState, env = browse
   const ended = () => { if (!closed) onEnded?.(); };
   const cleanup = async () => {
     closed = true;
+    releaseCapture();
     for (const track of tracks) {
       track.removeEventListener('ended', ended);
       track.removeEventListener('mute', report); track.removeEventListener('unmute', report);

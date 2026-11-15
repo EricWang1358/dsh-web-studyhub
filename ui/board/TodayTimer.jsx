@@ -7,32 +7,9 @@ import {
 import {
   ACTUAL_MINUTES_MAX, TIMER_BREAK_MAX, TIMER_WORK_MAX, isMeaningfulTitle, resolveTimerPrefs, selectTodayTimeLog, timerSnapshot,
 } from '../../lib/board-model.js';
+import { playTimerChime } from '../sound-effects.js';
 
 const CUSTOM_CARD = '__custom__';
-
-function playGentleChime() {
-  try {
-    const AudioCtx = globalThis.AudioContext || globalThis.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(523.25, now);
-    osc.frequency.setValueAtTime(659.25, now + 0.14);
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.03);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.36);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.38);
-    osc.onended = () => { ctx.close?.().catch?.(() => {}); };
-  } catch {
-    // Ignore Web Audio restrictions in headless / background tabs.
-  }
-}
 
 function sendSystemNotification(title, body) {
   try {
@@ -143,7 +120,7 @@ export default function TodayTimer({
         ? ui('休息到点了。')
         : uiFormat('专注到点了：{0}', [snap.cardTitle]);
       toast.show({ tone: 'info', message: msg });
-      if (prefs.sound) playGentleChime();
+      if (prefs.sound) playTimerChime();
       if (prefs.notify) sendSystemNotification(ui('专注计时'), msg);
     }
   }, [snap, prefs.sound, prefs.notify, toast]);

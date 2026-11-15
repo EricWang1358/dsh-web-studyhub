@@ -23,8 +23,9 @@ const blocked = { getItem() { throw new Error('blocked'); }, setItem() { throw n
 /* ---------- one definition ---------- */
 
 test('one list of settings with defaults and the values each one allows; interface-prefs keeps exporting the same constants', () => {
-  assert.deepEqual({ ...APPEARANCE_DEFAULTS }, { theme: 'auto', motion: 'auto', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard' });
+  assert.deepEqual({ ...APPEARANCE_DEFAULTS }, { theme: 'auto', motion: 'auto', sound: 'off', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard' });
   assert.deepEqual(APPEARANCE_OPTIONS.theme, ['auto', 'dark', 'light', 'oled', 'paper']);
+  assert.deepEqual(APPEARANCE_OPTIONS.sound, ['off', 'subtle', 'standard']);
   assert.equal(APPEARANCE_OPTIONS.motion, legacy.MOTIONS);
   assert.equal(APPEARANCE_OPTIONS.scale, legacy.SCALES);
   assert.equal(APPEARANCE_OPTIONS.font, legacy.FONTS);
@@ -168,15 +169,19 @@ test('another tab changing a key reaches this one without writing anything back'
 });
 
 test('恢复默认外观 puts every setting back and keeps it; a blocked storage still applies for the session', () => {
-  const storage = memory({ 'study-theme': 'light', 'study-interface': JSON.stringify({ scale: 200, font: 'mono', motion: 'off' }) });
+  const storage = memory({ 'study-theme': 'light', 'study-interface': JSON.stringify({ scale: 200, font: 'mono', motion: 'off', sound: 'standard' }) });
   const store = createAppearanceStore({ storage });
+  assert.equal(store.get().sound, 'standard');
   let heard = 0;
   store.subscribe(() => { heard += 1; });
   const { reset } = store;
   reset();
   assert.deepEqual(store.get(), { ...APPEARANCE_DEFAULTS });
+  assert.equal(store.get().sound, 'off');
   assert.equal(heard, 1);
   assert.deepEqual(loadAppearance(storage), { ...APPEARANCE_DEFAULTS }, 'and it is what the next visit loads');
+  const attrs = appearanceAttrs({ sound: 'standard', theme: 'light' }, { light: false, reducedMotion: false });
+  assert.equal('data-sound' in attrs, false, 'sound preference does not mutate root DOM styling attrs');
   const offline = createAppearanceStore({ storage: blocked });
   assert.deepEqual(offline.get(), { ...APPEARANCE_DEFAULTS });
   offline.update({ scale: 150 });

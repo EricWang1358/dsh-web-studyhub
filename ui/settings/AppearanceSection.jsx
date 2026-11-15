@@ -3,6 +3,7 @@ import { ui } from '../i18n.js';
 import { APPEARANCE_LABELS, APPEARANCE_OPTIONS } from '../appearance-prefs.js';
 import { FONT_NAME_MAX, cleanFontName } from '../font-presets.js';
 import { Button, Disclosure, Field, InlineMessage, SegmentedControl, SettingsSection, TextInput } from '../components/index.js';
+import { playSound, playSoundPreview } from '../sound-effects.js';
 import AppearanceTransfer from './AppearanceTransfer.jsx';
 
 /** The choices of one appearance setting, from the module's own lists (so a new value shows up here by itself). */
@@ -42,7 +43,7 @@ const Choice = ({ label, hint, value, onChange, kind, ...rest }) => (
   </Field>
 );
 
-/** The interface language and appearance, the same two switches as the sidebar's, for people who look for them here. Open: language, look, accent colour, size (and 恢复默认外观); the rest (typefaces, animation, contrast, density, corners, carrying the look to another computer) is behind 更多外观选项. */
+/** The interface language and appearance, the same two switches as the sidebar's, for people who look for them here. Open: language, look, accent colour, size, sound effects (and 恢复默认外观); the rest (typefaces, animation, contrast, density, corners, carrying the look to another computer) is behind 更多外观选项. */
 export default function AppearanceSection({ appearance }) {
   if (!appearance) return null;
   return (
@@ -55,6 +56,23 @@ export default function AppearanceSection({ appearance }) {
       {appearance.onAccent && <Choice data-tour="settings-appearance-accent" label={ui('强调色')} value={appearance.accent} onChange={appearance.onAccent} kind="accent" />}
       {appearance.onScale && <Choice data-tour="settings-appearance-scale" label={ui('界面大小')} value={appearance.scale} onChange={appearance.onScale} kind="scale"
         hint={ui('放大整个界面（文字、按钮和间距一起），最大 200%。阅读和做题页另有 Aa 可以单独调字号和宽度。')} />}
+      {appearance.onSound && (
+        <Field group label={ui('互动音效')} width="full" data-tour="settings-appearance-sound"
+          hint={ui('翻面、判分和完成一轮时的纸木轻响；选「标准」时，点选多选项和标重点也有轻触声。录音或课堂实录时自动静音。')}>
+          <div className="appearance-sound-row">
+            <SegmentedControl label={ui('互动音效')} value={appearance.sound || 'off'}
+              onChange={(value) => {
+                appearance.onSound(value);
+                if (value && value !== 'off') playSound(value === 'standard' ? 'tap' : 'flip', { mode: value });
+              }}
+              options={appearanceOptions('sound')} />
+            <Button variant="quiet" size="sm" className="appearance-sound-preview"
+              onClick={() => playSoundPreview(appearance.sound)}>
+              {ui('试听')}
+            </Button>
+          </div>
+        </Field>
+      )}
       {appearance.onReset && <AppearanceReset onReset={appearance.onReset} />}
       <Disclosure className="appearance-more settings-disclosure" summaryClassName="settings-disclosure__summary" bodyClassName="settings-disclosure__body"
         summary={ui('更多外观选项')} meta={ui('字体、动画、对比度等')}>

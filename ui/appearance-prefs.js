@@ -18,21 +18,24 @@ export const CONTRASTS = Object.freeze(['auto', 'standard', 'high']);
 export const DENSITIES = Object.freeze(['compact', 'standard', 'comfortable']);
 export const RADII = Object.freeze(['sharp', 'standard', 'soft']);
 export const MOTIONS = Object.freeze(['auto', 'full', 'reduced', 'off']);
+/** Tactile acoustic feedback levels in 设置 › 界面: off by default so quiet rooms stay silent unless opted in. */
+export const SOUNDS = Object.freeze(['off', 'subtle', 'standard']);
 /** The sizes of the whole interface, in percent (CSS zoom on the app: text, controls and spacing scale together), and the typefaces of its text. */
 export const SCALES = Object.freeze([90, 100, 110, 125, 150, 175, 200]);
 /** The presets of ui/font-presets.js, then `custom`: the name of an installed font typed in `fontCustom` (gated by cleanFontName). */
 export const FONTS = Object.freeze([...FONT_IDS, 'custom']);
 /** The accent colours (强调色, ui/accent.css): cinnabar is the default and needs no override; there is no free colour picker, so contrast stays verifiable. */
 export const ACCENTS = Object.freeze(['cinnabar', 'jade', 'ochre', 'graphite', 'plum']);
-export const APPEARANCE_DEFAULTS = Object.freeze({ theme: 'auto', motion: 'auto', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard' });
+export const APPEARANCE_DEFAULTS = Object.freeze({ theme: 'auto', motion: 'auto', sound: 'off', scale: 100, font: 'system', fontTitle: 'follow', fontCustom: '', accent: 'cinnabar', contrast: 'auto', density: 'standard', radius: 'standard' });
 /** Per setting, its allowed values (in display order): the whitelist and the option list of the settings page. */
-export const APPEARANCE_OPTIONS = Object.freeze({ theme: THEMES, motion: MOTIONS, scale: SCALES, font: FONTS, fontTitle: TITLE_MODES, accent: ACCENTS, contrast: CONTRASTS, density: DENSITIES, radius: RADII });
+export const APPEARANCE_OPTIONS = Object.freeze({ theme: THEMES, motion: MOTIONS, sound: SOUNDS, scale: SCALES, font: FONTS, fontTitle: TITLE_MODES, accent: ACCENTS, contrast: CONTRASTS, density: DENSITIES, radius: RADII });
 /** A setting that is typed, not picked: its own gate instead of a list of values. */
 const GATES = Object.freeze({ fontCustom: cleanFontName });
 /** The zh label of each value, passed through ui() where shown; a scale shows as its percent, a value with no label as itself. */
 export const APPEARANCE_LABELS = Object.freeze({
   theme: { auto: '跟随系统', dark: '深色', light: '浅色', oled: '纯黑 OLED', paper: '护眼纸色' },
   motion: { auto: '跟随系统', full: '标准', reduced: '减弱', off: '无动画' },
+  sound: { off: '无音效', subtle: '轻柔', standard: '标准' },
   font: { ...Object.fromEntries(FONT_IDS.map(id => [id, FONT_PRESETS[id].label])), custom: '本机字体' },
   fontTitle: { follow: '跟随正文', system: '保持系统' },
   accent: { cinnabar: '朱砂', jade: '青玉', ochre: '赭石', graphite: '墨灰', plum: '梅紫' },
