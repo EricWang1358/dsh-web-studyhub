@@ -27,12 +27,12 @@ function toolOptionLabel(tool) {
   return tool.matched ? `${base} (${ui('推荐')})` : base;
 }
 
-export default function WebGeminiSection({ initialStatus = null }) {
+export default function WebGeminiSection({ initialStatus = null, initialProbe = null }) {
   const toast = useToast();
   const { call } = useStudy();
   const [status, setStatus] = useState(initialStatus);
   const [waitDraft, setWaitDraft] = useState(null);
-  const [probe, setProbe] = useState(null);
+  const [probe, setProbe] = useState(initialProbe);
   const { run, working, error } = useAsyncAction({ exclusive: true });
 
   useEffect(() => {
@@ -120,7 +120,7 @@ export default function WebGeminiSection({ initialStatus = null }) {
         </InlineMessage>
       )}
 
-      {status && !current.missing && current.available && current.enabled && (
+      {status && !current.missing && current.available && current.enabled && (!probe || probe.ok) && (
         <InlineMessage tone="success" boxed title={uiFormat('网页 Gemini 代理已就绪：{0}', [current.effectiveTool])}>
           {ui('同一时间会按队列串行发送请求，避免单个浏览器标签页冲突。')}
         </InlineMessage>
@@ -152,21 +152,29 @@ export default function WebGeminiSection({ initialStatus = null }) {
             error={waitDraft !== null && !validWait ? uiFormat('请填写 {0}–{1} 之间的整数秒', [minWait, maxWait]) : undefined}
             hint={ui('网页普通模式建议 180 秒，开启 Extended Thinking 深度思考建议设为 600 秒及以上。')}
           >
-            <NumberInput
-              name="webGeminiWaitSeconds"
-              min={minWait}
-              max={maxWait}
-              step={10}
-              suffix={ui('秒')}
-              value={shownWait}
-              disabled={!!working}
-              invalid={waitDraft !== null && !validWait}
-              onChange={event => setWaitDraft(event.target.value)}
-            />
+            {({ id, describedBy, invalid }) => (
+              <div className="web-gemini__wait-row">
+                <div className="web-gemini__wait-field">
+                  <NumberInput
+                    id={id}
+                    name="webGeminiWaitSeconds"
+                    min={minWait}
+                    max={maxWait}
+                    step={10}
+                    suffix={ui('秒')}
+                    value={shownWait}
+                    disabled={!!working}
+                    invalid={invalid}
+                    aria-describedby={describedBy}
+                    onChange={event => setWaitDraft(event.target.value)}
+                  />
+                </div>
+                <Button variant="secondary" type="submit" busy={working === 'wait'} disabled={!!working || !dirtyWait || !validWait}>
+                  {ui('保存等待时长')}
+                </Button>
+              </div>
+            )}
           </Field>
-          <Button variant="secondary" type="submit" busy={working === 'wait'} disabled={!!working || !dirtyWait || !validWait}>
-            {ui('保存等待时长')}
-          </Button>
         </form>
       </div>
 
@@ -188,7 +196,7 @@ export default function WebGeminiSection({ initialStatus = null }) {
           className="web-gemini__probe"
           title={uiFormat('测试通过：网页已连通并回答（用时 {0} 秒 · {1}）', [((probe.latencyMs || 0) / 1000).toFixed(1), probe.toolName])}
         >
-          {probe.reply ? uiFormat('回答预览：{0}', [probe.reply]) : ui('网页端已返回有效回答。')}
+          {ui('网页端已正常响应测试指令。')}
         </InlineMessage>
       )}
 
@@ -197,9 +205,11 @@ export default function WebGeminiSection({ initialStatus = null }) {
           tone="error"
           boxed
           className="web-gemini__probe"
-          title={uiFormat('测试未通过（{0}）', [probe.toolName || 'ask-gemini-mcp'])}
+          title={probe.reason === 'timeout'
+            ? uiFormat('测试未通过：等待回答超时（{0}）', [probe.toolName || 'ask-gemini-mcp'])
+            : uiFormat('测试未通过：网页 Gemini 配置未启动（{0}）', [probe.toolName || 'ask-gemini-mcp'])}
         >
-          {errorMessage(probe.message) || ui('未能收到网页回答，请检查 Chrome 扩展与 Gemini 页面是否就绪。')}
+          {errorMessage(probe.message) || ui('请确认已在 DSH 启动 ask-gemini-mcp，并在浏览器打开已加载扩展的 Gemini 网页。')}
         </InlineMessage>
       )}
     </section>

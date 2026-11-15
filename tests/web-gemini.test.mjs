@@ -13,12 +13,14 @@ import {
 } from '../lib/runtime/web-gemini-settings.js';
 import {
   PREFERRED_WEB_GEMINI_TOOL,
+  WEB_GEMINI_NOT_READY_MESSAGE,
   WEB_GEMINI_TEST_TOKEN,
   createWebGeminiPort,
   detectWebGeminiTools,
   extractWebGeminiText,
   isWebGeminiEligibleJob,
 } from '../lib/runtime/web-gemini.js';
+import { localizeAppMessage } from '../lib/application-messages.js';
 import { createModelGateway } from '../lib/jobs/gateway.js';
 import { createHostHandler } from '../lib/host.js';
 import { createAssistService } from '../lib/assist.js';
@@ -354,4 +356,82 @@ test('WebGeminiSection and ModelPane render controls in zh and en without untran
     host: {},
   }), 'en');
   assert.doesNotMatch(paneEn.replace(/<[^>]+>/g, ' '), han, 'ModelPane with WebGeminiSection has zero Han characters in English');
+
+  const notReadyProbe = {
+    ok: false,
+    reason: 'not-ready',
+    toolName: PREFERRED_WEB_GEMINI_TOOL,
+    message: '请确认已在 DSH 启动 ask-gemini-mcp，并在浏览器打开已加载扩展的 Gemini 网页。',
+  };
+  const notReadyZh = render(h(m.WebGeminiSection, { initialStatus: status, initialProbe: notReadyProbe }), 'zh');
+  assert.match(notReadyZh, /测试未通过：网页 Gemini 配置未启动/);
+  assert.doesNotMatch(notReadyZh, /网页 Gemini 代理已就绪/, 'Failed probe hides contradictory green ready banner');
+  const notReadyEn = render(h(m.WebGeminiSection, { initialStatus: status, initialProbe: notReadyProbe }), 'en');
+  assert.match(notReadyEn, /Test failed: Web Gemini is not started/);
+  assert.doesNotMatch(notReadyEn.replace(/<[^>]+>/g, ' '), han, 'Not-ready probe renders cleanly in English');
+
+  const timeoutProbe = {
+    ok: false,
+    reason: 'timeout',
+    toolName: PREFERRED_WEB_GEMINI_TOOL,
+    message: '网页 Gemini 等待回答超时（600 秒内未完成响应）',
+  };
+  const timeoutZh = render(h(m.WebGeminiSection, { initialStatus: status, initialProbe: timeoutProbe }), 'zh');
+  assert.match(timeoutZh, /测试未通过：等待回答超时/);
+  const timeoutEn = render(h(m.WebGeminiSection, { initialStatus: status, initialProbe: timeoutProbe }), 'en');
+  assert.match(timeoutEn, /Test failed: response timed out/);
+  assert.doesNotMatch(timeoutEn.replace(/<[^>]+>/g, ' '), han, 'Timeout probe renders cleanly in English');
+
+  const okProbe = { ok: true, latencyMs: 1200, toolName: PREFERRED_WEB_GEMINI_TOOL, matchedToken: true };
+  const okZh = render(h(m.WebGeminiSection, { initialStatus: status, initialProbe: okProbe }), 'zh');
+  assert.match(okZh, /网页端已正常响应测试指令/);
+  const okEn = render(h(m.WebGeminiSection, { initialStatus: status, initialProbe: okProbe }), 'en');
+  assert.match(okEn, /Web Gemini responded to the verification prompt/);
+  assert.doesNotMatch(okEn.replace(/<[^>]+>/g, ' '), han, 'OK probe renders cleanly in English');
+});
+
+test('web-gemini rejects plain-text bridge errors and unverified replies as not-ready instead of passing', async t => {
+  await withTempHome(t, async () => {
+    await saveWebGeminiSettings({ enabled: true, waitSeconds: 120 });
+
+    const extErrorText = 'Error: Chrome extension not connected. Open a Gemini page with the extension loaded.';
+    assert.throws(() => extractWebGeminiText({ content: [{ type: 'text', text: extErrorText }] }), /Chrome extension not connected/);
+    assert.throws(() => extractWebGeminiText({ status: 'error', content: [{ type: 'text', text: 'bridge down' }] }), /bridge down/);
+
+    const makePort = replyOrReject => createWebGeminiPort({
+      tools: {
+        schemas: () => [geminiTool],
+        execute: async () => (typeof replyOrReject === 'function' ? replyOrReject() : replyOrReject),
+      },
+    });
+
+    // Plain-text extension error returned without isError: true must fail connectivity test cleanly.
+    const extProbe = await makePort({ isError: false, value: { content: [{ type: 'text', text: extErrorText }] } }).test();
+    assert.equal(extProbe.ok, false);
+    assert.equal(extProbe.reason, 'not-ready');
+    assert.doesNotMatch(extProbe.message, /Chrome extension/i);
+    assert.match(extProbe.message, /ask-gemini-mcp/);
+
+    // Replies that do not include the verification token must also fail instead of showing green pass.
+    const unexpectedReplyProbe = await makePort({ isError: false, value: { content: [{ type: 'text', text: 'Something unrelated' }] } }).test();
+    assert.equal(unexpectedReplyProbe.ok, false);
+    assert.equal(unexpectedReplyProbe.matchedToken, false);
+    assert.equal(unexpectedReplyProbe.reason, 'not-ready');
+
+    // Timeouts report reason='timeout' and translate cleanly to English.
+    const timeoutProbe = await makePort(() => { throw new Error('Request timed out after 120s'); }).test({ waitSeconds: 120 });
+    assert.equal(timeoutProbe.ok, false);
+    assert.equal(timeoutProbe.reason, 'timeout');
+    assert.match(timeoutProbe.message, /120 秒内未完成响应/);
+    assert.match(localizeAppMessage(timeoutProbe.message, 'en'), /120 seconds/);
+
+    // Task execution surfaces the user-facing "not started" message in both zh and en.
+    const taskPort = makePort({ isError: false, value: { content: [{ type: 'text', text: extErrorText }] } });
+    const prepared = await taskPort.prepareForAssist();
+    await assert.rejects(prepared.ask('', 'hello'), error => {
+      assert.equal(error.message, WEB_GEMINI_NOT_READY_MESSAGE);
+      assert.match(localizeAppMessage(error.message, 'en'), /Web Gemini is not started/);
+      return true;
+    });
+  });
 });
