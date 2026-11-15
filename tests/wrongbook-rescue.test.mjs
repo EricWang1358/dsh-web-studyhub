@@ -21,7 +21,7 @@ const m = await loadUi(`
 `);
 Object.assign(m.uiCatalogue(), JSON.parse(readFileSync('ui/locales/en.polish-results.json', 'utf8')));
 const { WrongBookView, setUiLanguage, wbModel } = m;
-const { rescueCall, rescueGate, rescueNote } = wbModel;
+const { leechRetellNote, rescueCall, rescueGate, rescueNote } = wbModel;
 
 const noop = () => {};
 const han = /\p{Script=Han}/u;
@@ -205,6 +205,49 @@ test('WrongBookView rescue UI: inline consent for easier, inline 打开模型设
       assert.doesNotMatch(text(enNoModel), han, `English no-model (${kind}) has no Chinese`);
       assert.match(text(enNoModel), /Open model settings/);
     }
+  } finally {
+    setUiLanguage('zh');
+  }
+});
+
+test('leechRetellNote & WrongBookView render honest retell hint in zh/en without fake grading (#1027)', () => {
+  setUiLanguage('zh');
+  try {
+    assert.equal(leechRetellNote(null), null);
+    assert.equal(leechRetellNote({ tries: 0, passes: 0, gap: 'missed' }), null);
+    const zhGap = leechRetellNote({ tries: 1, passes: 0, gap: 'missed', at: '2026-10-02T10:00:00Z' });
+    assert.equal(zhGap.signal, 'gap');
+    assert.ok(zhGap.text.includes('AI 反馈，不计入评分'));
+    const zhExplained = leechRetellNote({ tries: 2, passes: 1, gap: 'none', at: '2026-10-02T10:00:00Z' });
+    assert.equal(zhExplained.signal, 'explained');
+    assert.ok(zhExplained.text.includes('AI 反馈，不计入评分'));
+
+    const gapHtml = render([{ ...row('c1'), retell: { tries: 1, passes: 0, gap: 'wrong' } }], { initial: { expanded: ['c1'] } });
+    assert.match(gapHtml, /data-retell-signal="gap"/);
+    assert.ok(text(gapHtml).includes('AI 反馈，不计入评分'));
+
+    const explainedHtml = render([{ ...row('c1'), retell: { tries: 2, passes: 1, gap: 'none' } }], { initial: { expanded: ['c1'] } });
+    assert.match(explainedHtml, /data-retell-signal="explained"/);
+    assert.ok(text(explainedHtml).includes('AI 反馈，不计入评分'));
+
+    const plainHtml = render([row('c1')], { initial: { expanded: ['c1'] } });
+    assert.doesNotMatch(plainHtml, /data-retell-signal/);
+
+    setUiLanguage('en');
+    const enDecks = [{ id: 'd4', course: 'PE', title: 'Final 04' }];
+    const enGapHtml = render([{ ...row('c1'), deckTitle: 'Final 04', retell: { tries: 1, passes: 0, gap: 'missed' } }], {
+      data: { ...base.data, decks: enDecks }, initial: { expanded: ['c1'] },
+    });
+    assert.doesNotMatch(text(enGapHtml), han, 'English gap retell note has no Chinese');
+    assert.match(enGapHtml, /data-retell-signal="gap"/);
+    assert.ok(text(enGapHtml).includes('AI feedback, not a grade'));
+
+    const enExplainedHtml = render([{ ...row('c1'), deckTitle: 'Final 04', retell: { tries: 2, passes: 1, gap: 'none' } }], {
+      data: { ...base.data, decks: enDecks }, initial: { expanded: ['c1'] },
+    });
+    assert.doesNotMatch(text(enExplainedHtml), han, 'English explained retell note has no Chinese');
+    assert.match(enExplainedHtml, /data-retell-signal="explained"/);
+    assert.ok(text(enExplainedHtml).includes('AI feedback, not a grade'));
   } finally {
     setUiLanguage('zh');
   }

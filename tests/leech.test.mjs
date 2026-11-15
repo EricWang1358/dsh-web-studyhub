@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { leechLimits, leechMisses, leechOf, openLeeches } from '../lib/leech.js';
+import { leechLimits, leechMisses, leechOf, openLeeches, retellSignal } from '../lib/leech.js';
 import { PRACTICE_DEFAULTS, PRACTICE_LIMITS, normalizePracticeSettings, validatePracticePatch } from '../lib/practice-settings.js';
 import { emptyState } from '../lib/store.js';
 import { wrongBook } from '../lib/insights.js';
@@ -169,4 +169,47 @@ test('openLeeches: of a round\'s questions, the leeches the wrong book still hol
   assert.deepEqual(openLeeches(attempts, refs), [{ deckId: 'd', cardId: 'stuck' }], 'put-right is in 已订正, twice is no leech');
   assert.deepEqual(openLeeches(attempts, refs, leechLimits({ leechFailures: 2 })).map(ref => ref.cardId), ['stuck', 'twice']);
   assert.deepEqual(openLeeches([], refs), []);
+});
+
+test('retellSignal classifies card.retell aggregates for stubborn questions (#1027)', async () => {
+  assert.equal(retellSignal(undefined), null);
+  assert.equal(retellSignal(null), null);
+  assert.equal(retellSignal({}), null);
+  assert.equal(retellSignal({ tries: 0, passes: 0, gap: 'missed' }), null);
+  assert.equal(retellSignal({ tries: 1, passes: 0, gap: 'missed', at: '2026-10-02T10:00:00Z' }), 'gap');
+  assert.equal(retellSignal({ tries: 2, passes: 1, gap: 'wrong', at: '2026-10-02T10:00:00Z' }), 'gap');
+  assert.equal(retellSignal({ tries: 1, passes: 0, gap: 'none', at: '2026-10-02T10:00:00Z' }), 'gap');
+  assert.equal(retellSignal({ tries: 2, passes: 1, gap: 'none', at: '2026-10-02T10:00:00Z' }), 'explained');
+  assert.equal(retellSignal({ tries: 2, passes: 1, gap: 'other', at: '2026-10-02T10:00:00Z' }), null);
+
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { wrongBook } = await import('../lib/insights.js');
+  const { StudyService } = await import('../lib/service.js');
+  const root = await mkdtemp(join(tmpdir(), 'study-leech-retell-'));
+  const service = new StudyService(root);
+  try {
+    await service.store.update((state) => {
+      state.decks.push({
+        id: 'd-retell',
+        title: 'Retell Deck',
+        course: 'PE',
+        cards: [
+          { id: 'c-gap', kind: 'quiz', topic: 'T1', prompt: 'P1', options: ['A', 'B'], answer: 'A', retell: { tries: 1, passes: 0, gap: 'missed', at: '2026-10-02T10:00:00Z' } },
+          { id: 'c-plain', kind: 'quiz', topic: 'T2', prompt: 'P2', options: ['A', 'B'], answer: 'A' },
+        ],
+      });
+      for (const cardId of ['c-gap', 'c-plain']) {
+        state.attempts.push({ id: `${cardId}-1`, quiz_id: cardId, deckId: 'd-retell', grade: 1, assessment: 'graded', timestamp: '2026-10-01T10:00:00Z' });
+      }
+    });
+    const book = wrongBook(await service.store.read(), { course: 'PE' });
+    const byId = new Map(book.items.map((item) => [item.cardId, item]));
+    assert.deepEqual(byId.get('c-gap')?.retell, { tries: 1, passes: 0, gap: 'missed', at: '2026-10-02T10:00:00Z' });
+    assert.equal('retell' in (byId.get('c-plain') ?? {}), false);
+  } finally {
+    await service.dispose();
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
 });

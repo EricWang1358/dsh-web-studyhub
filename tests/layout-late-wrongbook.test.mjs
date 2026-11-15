@@ -5,9 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { StudyService } from '../lib/service.js';
 import { buildPreview } from '../scripts/build.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
-import { seedWrongBookLibrary, startLateServer, wrongBookScenario } from '../scripts/qa/layout-late.mjs';
+import { openPage, seedWrongBookLibrary, startLateServer, wrongBookScenario } from '../scripts/qa/layout-late.mjs';
+import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 
 /* #206: the mistakes page. Recommendations are found after the list is drawn. They must not move the list (a one-line bar is there from the first
@@ -97,4 +99,85 @@ test('recommendations arriving late move nothing and switch nothing (mistakes pa
       assert.equal(rowResizes, 0);
     }
   } finally { await browser.close(); await running.close(); await rm(dist, { recursive: true, force: true }); }
+});
+
+test('WrongBook headless Chromium shows retell signal on stubborn rows cleanly at 1280px and 420px (#1027)', async (t) => {
+  let browser;
+  try {
+    browser = await launchChromium();
+  } catch (error) {
+    t.skip(`no Chromium to verify with: ${String(error.message).split('\n')[0]}`);
+    return;
+  }
+  const dist = await mkdtemp(join(tmpdir(), 'study-wb-retell-dist-'));
+  let running;
+  try {
+    await buildPreview({ outdir: dist });
+    running = await startLateServer({
+      distDir: dist,
+      seed: async (root) => {
+        const { mkdir } = await import('node:fs/promises');
+        await mkdir(root, { recursive: true });
+        const service = new StudyService(root);
+        await service.call('snapshot');
+        await service.store.update((state) => {
+          state.focus = { ...state.focus, course: 'PE', courses: [{ name: 'PE' }] };
+          state.decks.push({
+            id: 'd-retell',
+            title: 'PE Retell Stubborn',
+            course: 'PE',
+            folder: '',
+            cards: [
+              { id: 'c-gap', kind: 'quiz', topic: 'Fences', prompt: 'Why use a memory fence?', options: ['Ordering', 'Size'], answer: 'Ordering', explanation: 'Orders memory operations.', misconception: '', citations: [], retell: { tries: 2, passes: 0, gap: 'missed', at: '2026-10-02T10:00:00Z' } },
+              { id: 'c-explained', kind: 'quiz', topic: 'Locks', prompt: 'What is a spinlock?', options: ['Busy wait', 'Sleep'], answer: 'Busy wait', explanation: 'Spins in a loop.', misconception: '', citations: [], retell: { tries: 2, passes: 1, gap: 'none', at: '2026-10-02T10:00:00Z' } },
+              { id: 'c-plain', kind: 'quiz', topic: 'Cache', prompt: 'What is false sharing?', options: ['Same cache line', 'Cold miss'], answer: 'Same cache line', explanation: 'Shared cache line.', misconception: '', citations: [] },
+            ],
+          });
+          for (const cardId of ['c-gap', 'c-explained', 'c-plain']) {
+            for (const n of [1, 2, 3]) {
+              state.attempts.push({ id: `${cardId}-${n}`, quiz_id: cardId, deckId: 'd-retell', grade: 1, assessment: 'graded', timestamp: `2026-10-01T10:0${n}:00Z` });
+            }
+          }
+        });
+        await service.dispose();
+      },
+    });
+
+    for (const width of [1280, 420]) {
+      const { context, page, errors } = await openPage(browser, running, { lang: 'zh', width });
+      try {
+        await page.goto(running.server.url);
+        await page.locator('aside, nav').first().waitFor({ timeout: 30000 });
+        const nav = await revealNavRow(page, 'wrongbook');
+        await nav.dispatchEvent('click');
+        await page.locator('.wb-row-toggle[data-card-id="c-gap"]').waitFor({ timeout: 30000 });
+
+        await page.locator('.wb-row-toggle[data-card-id="c-gap"]').dispatchEvent('click');
+        const gapNote = page.locator('[data-retell-signal="gap"]');
+        await gapNote.waitFor({ timeout: 10000 });
+        assert.ok((await gapNote.textContent()).includes('AI 反馈，不计入评分'));
+        const gapBox = await gapNote.boundingBox();
+        assert.ok(gapBox && gapBox.width > 0 && gapBox.x >= 0 && gapBox.x + gapBox.width <= width + 1, `gap note fits in ${width}px viewport`);
+
+        await page.locator('.wb-row-toggle[data-card-id="c-explained"]').dispatchEvent('click');
+        const explainedNote = page.locator('[data-retell-signal="explained"]');
+        await explainedNote.waitFor({ timeout: 10000 });
+        assert.ok((await explainedNote.textContent()).includes('AI 反馈，不计入评分'));
+        const explainedBox = await explainedNote.boundingBox();
+        assert.ok(explainedBox && explainedBox.width > 0 && explainedBox.x >= 0 && explainedBox.x + explainedBox.width <= width + 1, `explained note fits in ${width}px viewport`);
+
+        await page.locator('.wb-row-toggle[data-card-id="c-plain"]').dispatchEvent('click');
+        const plainRow = page.locator('.wb-row', { has: page.locator('[data-card-id="c-plain"]') });
+        await plainRow.locator('.wb-leech').waitFor({ timeout: 10000 });
+        assert.equal(await plainRow.locator('.wb-leech__retell').count(), 0);
+        assert.deepEqual(errors, [], `no console/page errors at ${width}px`);
+      } finally {
+        await context.close();
+      }
+    }
+  } finally {
+    if (running) await running.close();
+    await browser.close();
+    await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
 });

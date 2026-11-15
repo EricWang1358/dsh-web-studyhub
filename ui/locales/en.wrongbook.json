@@ -142,5 +142,7 @@
   "共选了 {0} 道题，一次最多 {1} 道：先练前 {1} 道。": "{0} questions selected (up to {1} at a time): practising the first {1}.",
   "待巩固已清零 · 目前没有待巩固的题": "All caught up · No questions waiting for review",
   "已累计攻克并订正 {0} 道错题；新的错题或低自评题会继续收在这里。": "You have corrected {0} mistake(s) so far. Any new missed or low-rated questions will appear here.",
-  "查看已订正记录 ({0})": "View corrected history ({0})"
+  "查看已订正记录 ({0})": "View corrected history ({0})",
+  "上次「用自己的话讲一遍」还有没讲清或讲错的地方，不妨先试试这些办法（AI 反馈，不计入评分）。": "In \"Explain it in your own words\", something was still missed or wrong — try these options first (AI feedback, not a grade).",
+  "上次「用自己的话讲一遍」已经讲清楚，问题可能出在题干表述本身（AI 反馈，不计入评分）。": "You already explained this clearly in \"Explain it in your own words\" — the question wording itself may be unclear (AI feedback, not a grade)."
 }

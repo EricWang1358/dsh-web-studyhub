@@ -1,0 +1,3 @@
+- **Stubborn questions surface recent “Explain in your own words” feedback (#1027)**
+  Opened stubborn (`顽固`) rows in the wrong book now show a short, non-grading cue when the card has a `retell` check record: noting either that a previous explanation still left something missed or wrong, or that the learner has already explained the concept clearly once so the wording of the question itself may be worth checking, always labelled `"AI feedback, not a grade"`.
+  Not verified: interactive clicking of follow-up rescue actions directly inside the live retell-hint browser view beyond expansion and visibility at 1280px and 420px.

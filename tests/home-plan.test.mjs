@@ -168,3 +168,30 @@ test('课程准备 and 今天先做什么 wait for the first deck of their own, 
   assert.match(await readFile('ui/StudyMap.jsx', 'utf8'), /\{hasOwnDeck\(data\) && <SetupChecklist /);
   assert.match(await readFile('ui/app/page-views.jsx', 'utf8'), /pageAvailable\(data, 'review'\) && hasOwnDeck\(data\) && <DailyPlan /);
 });
+
+test('S3 catch-up hint (#881) uses full roundSize when dueTotal >= roundSize * 3 and not ahead', () => {
+  m.setUiLanguage('zh');
+  try {
+    const below = plan({ todayPatch: { due: 15, weak: 2, new: 3, size: 20, more: 44, dueTotal: 59 } }).home;
+    assert.doesNotMatch(below.plan.detail, /天清完/);
+
+    const atThreshold = plan({ todayPatch: { due: 18, weak: 2, new: 0, size: 20, more: 40, dueTotal: 60 } }).home;
+    assert.ok(atThreshold.plan.detail.includes('到期 60 题，按每天 20 题约 3 天清完；先练还记得住的'), atThreshold.plan.detail);
+
+    const ahead = plan({ todayPatch: { due: 0, weak: 0, new: 0, size: 20, ahead: true, dueTotal: 80 } }).home;
+    assert.doesNotMatch(ahead.plan.detail, /天清完/);
+
+    // Custom roundSize 10 (freshRoundCount would be 5 -> 5*3=15, but catch-up uses full roundSize 10 -> 10*3=30).
+    const customBelow = plan({ data: { settings: { practice: { roundSize: 10 } } }, todayPatch: { due: 10, weak: 0, new: 0, size: 10, more: 15, dueTotal: 25 } }).home;
+    assert.doesNotMatch(customBelow.plan.detail, /天清完/);
+    const customHit = plan({ data: { settings: { practice: { roundSize: 10 } } }, todayPatch: { due: 10, weak: 0, new: 0, size: 10, more: 20, dueTotal: 30 } }).home;
+    assert.ok(customHit.plan.detail.includes('到期 30 题，按每天 10 题约 3 天清完；先练还记得住的'), customHit.plan.detail);
+
+    m.setUiLanguage('en');
+    const english = plan({ todayPatch: { due: 20, weak: 0, new: 0, size: 20, more: 41, dueTotal: 61 } }).home;
+    assert.doesNotMatch(english.plan.detail, /[\u3400-\u9fff]/);
+    assert.ok(english.plan.detail.includes('61 due — about 4 days at 20 a day; starting with the ones you still remember'), english.plan.detail);
+  } finally {
+    m.setUiLanguage('zh');
+  }
+});

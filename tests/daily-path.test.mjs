@@ -7,7 +7,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
 import { planPath } from '../lib/mastery.js';
+import { roundOptions } from '../lib/daily-path.js';
 import { studyMap } from '../lib/insights.js';
+import { FSRS6_WEIGHTS } from '../lib/sm2.js';
 import { emptyState } from '../lib/store.js';
 
 const NOW = Date.parse('2026-10-08T08:00:00Z');
@@ -131,4 +133,49 @@ test('daily is only for a course: a scope the caller lists is studied whole, wha
 test('a course without decks cannot start a round', async (t) => {
   const study = await service(t);
   await assert.rejects(study.call('review.start', { mode: 'path', course: 'Nothing', daily: true }), /当前范围没有可用题目/);
+});
+
+test('unscoped backlog ordering (#881 Direction B): focus -> recall===0 -> descending recall -> due_at, while non-backlog/scoped keep due_at', () => {
+  const fsrsCard = (id, { stability, difficulty = 5, last_review, due_at, focus = false }) => ({
+    id, kind: 'quiz', topic: 'T', prompt: `${id}?`, answer: 'a', focus,
+    options: [{ id: 'y', text: 'Yes', correct: true }, { id: 'n', text: 'No', correct: false }],
+    review: {
+      algorithm: 'fsrs-6', repetitions: 3, interval_days: 3, ease_factor: 2.5,
+      stability, difficulty, ...(last_review ? { last_review } : {}), due_at,
+    },
+  });
+  const cards = [
+    fsrsCard('low-early', { stability: 2, last_review: '2026-09-20T08:00:00Z', due_at: '2026-09-22T08:00:00Z' }),
+    fsrsCard('high-late', { stability: 15, last_review: '2026-10-03T08:00:00Z', due_at: '2026-10-07T08:00:00Z' }),
+    fsrsCard('tie-later', { stability: 6, last_review: '2026-10-01T08:00:00Z', due_at: '2026-10-06T08:00:00Z' }),
+    fsrsCard('tie-sooner', { stability: 6, last_review: '2026-10-01T08:00:00Z', due_at: '2026-10-04T08:00:00Z' }),
+    fsrsCard('no-last-review', { stability: 4, due_at: '2026-10-07T12:00:00Z' }),
+    fsrsCard('focus-low', { stability: 1, last_review: '2026-09-10T08:00:00Z', due_at: '2026-09-12T08:00:00Z', focus: true }),
+  ];
+  const deck = { id: 'backlog', title: 'Backlog', course: 'A', cards };
+  const outcome = () => 4;
+
+  // Backlog (> limit 4) unscoped: focus -> recall === 0 (no starvation) -> higher R -> tie broken by earlier due_at.
+  const backlogIds = planPath([deck], outcome, { now: NOW, limit: 6 - 1 }).entries.map((e) => e.card.id);
+  assert.deepEqual(backlogIds, ['focus-low', 'no-last-review', 'high-late', 'tie-sooner', 'tie-later']);
+
+  // Non-backlog (due.length <= limit): preserves focus -> earliest due_at.
+  const nonBacklogIds = planPath([deck], outcome, { now: NOW, limit: 6 }).entries.map((e) => e.card.id);
+  assert.deepEqual(nonBacklogIds, ['focus-low', 'low-early', 'tie-sooner', 'tie-later', 'high-late', 'no-last-review']);
+
+  // Scoped run with backlog (> limit): preserves focus -> earliest due_at.
+  const scopedIds = planPath([deck], outcome, { now: NOW, limit: 4, scope: [{ deckId: 'backlog' }] }).entries.map((e) => e.card.id);
+  assert.deepEqual(scopedIds, ['focus-low', 'low-early', 'tie-sooner', 'tie-later', 'high-late', 'no-last-review']);
+
+  // studyMap().today.dueTotal exposes plan.counts.due, and roundOptions forwards state.settings.
+  const state = emptyState();
+  const customW = [...FSRS6_WEIGHTS.slice(0, 20), 0.5];
+  state.decks = [deck];
+  state.focus = { mode: 'class', course: 'A' };
+  state.settings = { ...state.settings, w: customW, practice: { roundSize: 5 } };
+  for (const c of cards) state.attempts.push({ deckId: 'backlog', quiz_id: c.id, grade: 4, timestamp: '2026-10-01T00:00:00Z' });
+  assert.equal(roundOptions(state).settings, state.settings);
+  const map = studyMap(state, NOW);
+  assert.equal(map.today.dueTotal, 6);
+  assert.equal(map.today.size, 5);
 });

@@ -4,6 +4,7 @@ import { mkdtemp, rm, readdir, stat, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StudyService } from "../lib/service.js";
+import { planPath } from "../lib/mastery.js";
 import { courseKey } from "../lib/courses.js";
 import { buildCompactScene } from "../lib/study-scene.js";
 import { seedLibrary } from "../scripts/qa/perf-seed.mjs";
@@ -241,4 +242,47 @@ test("polling and clicking for a long time does not grow the heap (memory budget
   for (let round = 30; round < 330; round++) await cycle(round);
   const grown = settledMemory().heapUsed - before;
   assert.ok(grown <= 12, `heap grew ${grown.toFixed(1)} MB over 300 click+poll cycles; budget 12 MB`);
+});
+
+test("planning a daily round over 3 000 overdue cards calls retrievabilityAt once per card (#881 budget)", () => {
+  const now = Date.parse("2026-10-08T08:00:00Z");
+  const count = 3000;
+  const decks = Array.from({ length: 10 }, (_, d) => ({
+    id: `backlog-${d}`,
+    title: `Backlog ${d}`,
+    cards: Array.from({ length: count / 10 }, (_, i) => {
+      const idx = d * (count / 10) + i;
+      return {
+        id: `c-${idx}`,
+        kind: "quiz",
+        topic: "T",
+        prompt: `Q${idx}?`,
+        answer: "a",
+        options: [{ id: "y", text: "Yes", correct: true }],
+        review: {
+          algorithm: "fsrs-6",
+          repetitions: 3,
+          interval_days: 4,
+          ease_factor: 2.5,
+          stability: 2 + (idx % 20),
+          difficulty: 5,
+          last_review: `2026-09-${String(1 + (idx % 28)).padStart(2, "0")}T08:00:00Z`,
+          due_at: `2026-10-0${1 + (idx % 7)}T08:00:00Z`,
+        },
+      };
+    }),
+  }));
+  let powCalls = 0;
+  const originalPow = Math.pow;
+  Math.pow = (...args) => { powCalls++; return originalPow(...args); };
+  let plan;
+  try {
+    plan = planPath(decks, () => 4, { now, limit: 20 });
+  } finally {
+    Math.pow = originalPow;
+  }
+  assert.equal(plan.entries.length, 20);
+  assert.equal(plan.counts.due, count);
+  assert.ok(powCalls >= count, `expected retrievability pass to evaluate ${count} cards, got ${powCalls}`);
+  assert.ok(powCalls <= count * 1.5, `expected <= ${count * 1.5} Math.pow calls, got ${powCalls}`);
 });

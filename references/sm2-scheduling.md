@@ -25,6 +25,8 @@ The weights are the published defaults; StudyHub does not optimise them per lear
 
 `retrievability(review, at, settings)` in `lib/sm2.js` gives this `R` for a stored review at an instant, with `t` counted as an answer at that instant would count it (whole local days); `retrievabilityAt(settings)` builds the model once for a pass over many reviews. A review with no memory state (a new card, or a record with neither an FSRS state nor an SM-2 interval) and an FSRS review without `last_review` give 0, as ts-fsrs says of a new card. A migrated SM-2 review is read as the scheduler reads it (below). It matches ts-fsrs's `get_retrievability` (`tests/fsrs-parity.test.mjs`), except that ts-fsrs counts whole 24-hour periods.
 
+When `planPath` (`lib/mastery.js`) builds an unscoped round (`!scope.length`) from a due backlog larger than `limit` (`rawDue.length > limit`, #881 Direction B), due cards are ordered by `重点` (`focus`) first, `recall === 0` (such as FSRS records without `last_review`) next so they never starve behind decayed cards, then descending predicted `R` (`retrievabilityAt(settings)`) so still-remembered cards are consolidated before slipping further, breaking ties by earlier `due_at`. Scoped runs and non-backlog rounds keep `focus` first then earliest `due_at`.
+
 ## Grades and ratings
 
 Stored grades stay 0–5. The scheduler maps them to the four FSRS ratings:

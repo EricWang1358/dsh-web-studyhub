@@ -4,7 +4,7 @@ import { TERMS } from '../mastery-terms.js';
 import { joinMeta, formatDateTime } from '../format.js';
 import { JOB_TYPES, isActiveJob, isDeckJob } from '../../lib/job-status.js';
 import { practiceArgs } from '../learning-navigation.js';
-import { freshRoundCount } from '../../lib/practice-settings.js';
+import { freshRoundCount, resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { courseMatcher } from '../PageScope.jsx';
 import { isVerifiableMaterialSource, roundEndAlternative } from '../method-alternatives.js';
 import { readableMaterialItems } from '../document-preview/practice/open-reader-pages.js';
@@ -101,6 +101,10 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
     today.new && uiFormat('{0} 题未学', [today.new]),
   ].filter(Boolean);
   const later = today.more > 0 ? uiFormat('另有 {0} 题留到下一轮', [today.more]) : '';
+  const dailyRoundSize = resolvePracticeSettings(data.settings?.practice).roundSize;
+  const catchUp = !today.ahead && Number.isFinite(today.dueTotal) && today.dueTotal >= dailyRoundSize * 3
+    ? uiFormat('到期 {0} 题，按每天 {1} 题约 {2} 天清完；先练还记得住的', [today.dueTotal, dailyRoundSize, Math.ceil(today.dueTotal / dailyRoundSize)])
+    : '';
   const headline = starter ? starter.headline
     : today.ahead ? (pendingDrafts.length ? ui('检查草稿，就能开始练习') : ui('今天的任务都完成了'))
       : breakdown.join(' · ') || (pendingDrafts.length || (stageOneStart && courseDraft) ? ui('检查草稿，就能开始练习') : stageOneStart && generating ? ui('第一组题正在生成') : ui('这个范围里还没有可学习的题'));
@@ -136,7 +140,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   const stageOneCard = () => {
     if (today.size > 0) {
       return { kind: 'path', eyebrow: ui('第 ① 阶段'), count: today.size, unit: ui('题待学'),
-        detail: joinMeta([breakdown.join(' · '), later]),
+        detail: joinMeta([breakdown.join(' · '), later, catchUp]),
         action: { label: ui('开始第 ① 阶段'), run: startPath, disabled: false }, also: otherStarts };
     }
     if (courseDraft) {
@@ -188,7 +192,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
             ? pendingDraftCard()
             : { kind: today.size ? 'path' : 'clear', eyebrow: today.ahead ? ui('提前巩固') : ui('今日学习'),
               count: today.size, unit: ui('题待学'),
-              detail: today.ahead ? ui('今天的任务都完成了') : today.size ? joinMeta([breakdown.join(' · '), later]) : ui('这里还没有可以学的题'),
+              detail: today.ahead ? ui('今天的任务都完成了') : today.size ? joinMeta([breakdown.join(' · '), later, catchUp]) : ui('这里还没有可以学的题'),
               action: { label: today.ahead ? ui('提前巩固') : ui('开始今日学习'), run: startPath, disabled: !today.size },
               also: otherStarts };
   /* The run the learner was last inside (the rail's 回到题目) outranks a new

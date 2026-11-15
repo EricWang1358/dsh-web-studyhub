@@ -87,29 +87,33 @@ test('no band: a point none of whose questions was ever answered, no exam date, 
 
 /* Through the library: book.crunch carries the band on each point, computed inside its memo. */
 const options = [{ id: 'a', text: 'Yes', correct: true }, { id: 'b', text: 'No', correct: false }];
-function library() {
+function library(course = COURSE) {
   const { sources, decks } = outlineLibrary();
+  if (course !== COURSE) {
+    for (const s of sources) if (Array.isArray(s.courses)) s.courses = s.courses.map(item => (item === COURSE ? course : item));
+    for (const d of decks) if (d.course === COURSE) d.course = course;
+  }
   const deck = decks.find(item => item.id === 'deck-l1');
   deck.cards.slice(0, 6).forEach(card => Object.assign(card, { kind: 'quiz', options }));
-  const state = { sources, decks, focus: { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] } };
+  const state = { sources, decks, focus: { mode: 'class', course, role: '', jd: '', targetTopics: [] } };
   const lecture = groupSourcesByDocument(sources).find(item => item.sourceIds.includes('document-l1-p1')).key;
-  const outline = { ...courseOutlineMaterial({ title: '总纲 · SA', course: COURSE, orderBasis: { codes: ['numbering'] }, fingerprint: materialsFingerprint(buildOutlineIndex({ ...state, documents: [], drafts: [], attempts: [] }, { course: COURSE }).allDocuments),
+  const outline = { ...courseOutlineMaterial({ title: '总纲 · SA', course, orderBasis: { codes: ['numbering'] }, fingerprint: materialsFingerprint(buildOutlineIndex({ ...state, documents: [], drafts: [], attempts: [] }, { course }).allDocuments),
     nodes: [{ id: 'c1', title: 'Introduction', children: [{ id: 'what', title: 'What architects do', anchors: [`${lecture}#0`] }, { id: 'who', title: 'Stakeholders', anchors: [`${lecture}#1`] }] }],
     other: { anchors: [] }, counts: { units: 2, leftover: 0, invalid: 0, repeated: 0 } }), createdAt: '2026-10-09T00:00:00.000Z' };
   sources.push(outline);
   const page = sources.find(source => source.id === 'document-l1-p1'), leaves = outline.courseOutline.nodes[0].children;
-  sources.push({ ...courseNotesMaterial({ title: '复习全书 · SA', course: COURSE, outlineId: outline.id, language: 'zh', papers: [], counts: {}, leaves: leaves.map(leaf => ({ id: leaf.id, title: leaf.title, anchors: leaf.anchors,
+  sources.push({ ...courseNotesMaterial({ title: '复习全书 · SA', course, outlineId: outline.id, language: 'zh', papers: [], counts: {}, leaves: leaves.map(leaf => ({ id: leaf.id, title: leaf.title, anchors: leaf.anchors,
     body: { fingerprint: 'f'.repeat(16), points: [`${leaf.title} [^1].`], explain: `About ${leaf.title}.`, cites: [{ n: 1, sourceId: page.id, quote: page.text.slice(0, 30), start: 0, end: 30 }] } })) }),
     createdAt: '2026-10-09T01:00:00.000Z' });
   return { state, deck };
 }
 
-async function service(t) {
+async function service(t, { course = COURSE } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-exam-band-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const study = new StudyService(root);
   await study.call('snapshot');
-  const { state, deck } = library();
+  const { state, deck } = library(course);
   await study.store.update(own => { own.sources.push(...state.sources); own.decks.push(...state.decks); own.focus = state.focus; });
   await study.call('course.book.open');
   const opened = await study.call('course.book.open');
@@ -125,8 +129,8 @@ const learnEverything = (study, deck) => study.store.update(state => {
     for (const back of [26, 25]) state.attempts.push({ id: `l${back}-${card.id}`, quiz_id: card.id, deckId: deck.id, timestamp: new Date(now - back * DAY).toISOString(), grade: 4, assessment: 'graded' });
   }
 });
-const examIn = (study, days) => study.call('course.save', { name: COURSE, exam: { date: addDays(localDate(), days) } });
-const bandOf = async (study, hid) => (await study.call('book.crunch', { date: localDate() })).points.find(point => point.id === hid).examDay;
+const examIn = (study, days, course = COURSE) => study.call('course.save', { name: course, exam: { date: addDays(localDate(), days) } });
+const bandOf = async (study, hid, course = COURSE) => (await study.call('book.crunch', { course, date: localDate() })).points.find(point => point.id === hid).examDay;
 
 test('book.crunch: a never-answered point has no band; with no exam date no point has one', async t => {
   const { study, what } = await service(t);
@@ -195,4 +199,18 @@ test('an answered question with no stored review (an imported or stale attempt) 
   assert.equal(band.band, 'slip');
   assert.deepEqual(band.atRisk.map(item => item.index), [0]);
   assert.equal(examDayBand([bare, solidQuestion(), solidQuestion()], at(3)).band, 'solid', 'one bare question out of three does not tip a point');
+});
+
+test('a chapter sub-course inherits parent exam date for examDay risk bands and course.plan (#923)', async t => {
+  const SUB = `${COURSE} / Ch1`;
+  const { study, deck, what } = await service(t, { course: SUB });
+  await learnEverything(study, deck);
+  await examIn(study, 30, COURSE);
+  assert.equal((await bandOf(study, what.hid, SUB)).band, 'slip');
+  await study.call('course.save', { name: SUB, plan: { version: 1, minutesPerDay: 90 } });
+  const plan = await study.call('course.plan', { course: SUB, date: localDate() });
+  assert.equal(plan.points.find(point => point.id === what.hid).examDay.band, 'slip');
+  await examIn(study, 3, COURSE);
+  const movedPlan = await study.call('course.plan', { course: SUB, date: localDate() });
+  assert.equal(movedPlan.points.find(point => point.id === what.hid).examDay.band, 'solid', 'parent exam update invalidates course.plan memo too');
 });

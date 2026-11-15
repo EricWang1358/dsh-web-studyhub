@@ -12,6 +12,7 @@ import * as study from '../lib/plugins/study.js';
 import * as workbench from '../lib/plugins/composition.js';
 import { Store } from '../lib/store.js';
 import { acquireContexts } from '../lib/runtime/lifecycle.js';
+import { pageAvailable } from '../ui/capabilities.js';
 
 const turn = () => new Promise(resolve => setTimeout(resolve, 20));
 
@@ -95,6 +96,16 @@ test('standalone defaults retain dependencies while independent leaves only own 
   const independentPractice = ctx.plugin(study, { independent: true });
   await independentPractice;
   assert.deepEqual(ctx.studyRuntime.contextIds(), ['study']);
+  const defaultBank = ctx.plugin(bank);
+  await defaultBank;
+  assert.ok(ctx.studyRuntime.contextIds().includes('bank'));
+  assert.ok(ctx.studyRuntime.contextIds().includes('authoring'));
+  await defaultBank.dispose();
+  assert.deepEqual(ctx.studyRuntime.contextIds(), ['study']);
+  const independentBank = ctx.plugin(bank, { independent: true });
+  await independentBank;
+  assert.deepEqual(ctx.studyRuntime.contextIds(), ['study', 'bank']);
+  await independentBank.dispose();
   const independentWriting = ctx.plugin(generation, { independent: true });
   await independentWriting;
   assert.deepEqual(ctx.studyRuntime.contextIds(), ['study', 'authoring', 'generation']);
@@ -136,7 +147,7 @@ test('real Cordis composes standalone then workbench and unloads only final-owne
   t.after(async () => { await ctx.fiber.dispose(); await rm(root, { recursive: true, force: true }); });
   const standalone = ctx.plugin(bank);
   await turn();
-  assert.deepEqual(ctx.studyRuntime.contextIds(), ['bank']);
+  assert.deepEqual(ctx.studyRuntime.contextIds(), ['bank', 'authoring']);
   assert.equal((await ctx.studyRuntime.forLibrary(root).call('bank.list')).decks.length, 0);
   const composed = ctx.plugin(workbench);
   await turn();
@@ -180,9 +191,9 @@ test('independently installed module copies share the scope identity and final-o
   await original;
   const copied = ctx.plugin(independentBank);
   await copied;
-  assert.deepEqual(ctx.studyRuntime.contextIds(), ['bank']);
+  assert.deepEqual(ctx.studyRuntime.contextIds(), ['bank', 'authoring']);
   await original.dispose();
-  assert.deepEqual(ctx.studyRuntime.contextIds(), ['bank']);
+  assert.deepEqual(ctx.studyRuntime.contextIds(), ['bank', 'authoring']);
   await copied.dispose();
   assert.equal(ctx.studyRuntime, undefined);
 });
@@ -206,4 +217,80 @@ test('compact tools await the host binding and request services, and disposed ho
   assert.equal(result.decks[0].title, 'Bound library');
   assert.equal(servicesRead, 1);
   previous();
+});
+
+test('disabling study-suite-generation keeps authoring, import, merge, split and Draft page working (#991)', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'study-no-gen-'));
+  const ctx = new Context();
+  t.after(async () => { await ctx.fiber.dispose(); await rm(root, { recursive: true, force: true }); });
+  const patch = parseYaml(await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8'));
+  const installed = new Map();
+  for (const row of patch.flatMap(layer => layer.insert)) {
+    const fiber = ctx.plugin(await import(row.name), row.config);
+    await fiber;
+    installed.set(row.id, fiber);
+  }
+  await installed.get('study-suite-generation').dispose();
+  const runtime = ctx.studyRuntime.runtimeForLibrary(root);
+  assert.equal(runtime.hasAction('generate'), false);
+  const snapshot = { ...await runtime.call('snapshot'), contexts: ctx.studyRuntime.contextIds() };
+  assert.equal(pageAvailable(snapshot, 'draft'), true, 'Draft & publish page stays available without generation');
+  assert.equal(pageAvailable(snapshot, 'generate'), false);
+
+  const cards = (tag) => [
+    { id: `${tag}-1`, kind: 'flashcard', topic: 'Topic A', objective: `Obj ${tag} 1`, prompt: `Question ${tag} 1?`, answer: 'Answer 1', hint: 'Hint 1', explanation: 'Explanation 1', misconception: 'Misconception 1', citations: [], importedFromJson: true },
+    { id: `${tag}-2`, kind: 'flashcard', topic: 'Topic B', objective: `Obj ${tag} 2`, prompt: `Question ${tag} 2?`, answer: 'Answer 2', hint: 'Hint 2', explanation: 'Explanation 2', misconception: 'Misconception 2', citations: [], importedFromJson: true },
+  ];
+  const saved = await runtime.call('draft.save', { deck: { id: 'draft-1', title: 'Manual One', course: 'CS', cards: cards('m1') } });
+  const plan = await runtime.call('draft.publish.plan', { id: saved.id, draftVersion: saved.draftVersion });
+  assert.equal(plan.expect.receipt.accepted, 2);
+  const similar = await runtime.call('draft.similar', { id: saved.id });
+  assert.equal(similar.status, 'ok');
+  assert.ok(Array.isArray(similar.similar));
+  const published = await runtime.call('draft.publish', { id: saved.id, draftVersion: saved.draftVersion });
+  assert.equal(published.deckId, 'draft-1');
+
+  const quickSaved = await runtime.call('draft.save', { deck: { id: 'draft-2', title: 'Manual Two', course: 'CS', cards: cards('m2') } });
+  const quickPub = await runtime.call('draft.publish.quick', { id: quickSaved.id, draftVersion: quickSaved.draftVersion });
+  assert.equal(quickPub.deckId, 'draft-2');
+
+  const imported = await runtime.call('deck.import', { text: JSON.stringify({ title: 'Imported Deck', course: 'CS',
+    cards: [{ kind: 'flashcard', topic: 'Topic C', prompt: 'Imported prompt?', answer: 'Imported answer.' }] }) });
+  assert.equal(imported.imported, 1);
+  assert.equal((await new Store(root).read()).sources.length, 1, 'with materials enabled, deck.import still saves JSON provenance');
+
+  const split = await runtime.call('deck.split', { id: published.deckId, title: 'Split Part', topics: ['Topic B'] });
+  assert.equal(split.moved, 1);
+  const merged = await runtime.call('deck.merge', { sourceIds: [split.targetId, quickPub.deckId], targetId: published.deckId });
+  assert.equal(merged.count, 4);
+});
+
+test('standalone bank + study works without materials or generation (#991)', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'study-bank-study-'));
+  const ctx = new Context();
+  t.after(async () => { await ctx.fiber.dispose(); await rm(root, { recursive: true, force: true }); });
+  await ctx.plugin(bank);
+  await ctx.plugin(study);
+  assert.ok(ctx.studyRuntime.contextIds().includes('bank'));
+  assert.ok(ctx.studyRuntime.contextIds().includes('authoring'));
+  assert.ok(ctx.studyRuntime.contextIds().includes('study'));
+  assert.equal(ctx.studyRuntime.contextIds().includes('materials'), false);
+  assert.equal(ctx.studyRuntime.contextIds().includes('generation'), false);
+  const runtime = ctx.studyRuntime.runtimeForLibrary(root);
+
+  const imported = await runtime.call('deck.import', { text: JSON.stringify({ title: 'Standalone Import', course: 'Net',
+    cards: [{ kind: 'flashcard', topic: 'TCP', prompt: 'SYN-ACK role?', answer: 'Acknowledge SYN and synchronize.' }] }) });
+  assert.equal(imported.imported, 1);
+
+  const saved = await runtime.call('draft.save', { deck: { id: 'std-1', title: 'Standalone Authoring', course: 'Net', cards: [
+    { id: 's1', kind: 'flashcard', topic: 'A', objective: 'Obj 1', prompt: 'S1?', answer: 'A1', hint: 'H1', explanation: 'E1', misconception: 'M1', citations: [], importedFromJson: true },
+    { id: 's2', kind: 'flashcard', topic: 'B', objective: 'Obj 2', prompt: 'S2?', answer: 'A2', hint: 'H2', explanation: 'E2', misconception: 'M2', citations: [], importedFromJson: true },
+  ] } });
+  const pub = await runtime.call('draft.publish', { id: saved.id, draftVersion: saved.draftVersion });
+  const split = await runtime.call('deck.split', { id: pub.deckId, title: 'Standalone Split', topics: ['B'] });
+  const merged = await runtime.call('deck.merge', { sourceIds: [split.targetId], targetId: pub.deckId });
+  assert.equal(merged.count, 2);
+
+  const run = await runtime.call('review.start', { scope: [{ deckId: pub.deckId }], mode: 'path' });
+  assert.equal(run.total, 2);
 });

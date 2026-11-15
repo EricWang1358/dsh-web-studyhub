@@ -9,6 +9,7 @@
   "按到期、薄弱程度和你的时间排出，没有调用模型。": "Ordered by what is due, how weak it is and your time; no model was used.",
   "AI 重排": "Re-plan with AI",
   "另有 {0} 题留到下一轮": "{0} more for the next round",
+  "到期 {0} 题，按每天 {1} 题约 {2} 天清完；先练还记得住的": "{0} due — about {2} days at {1} a day; starting with the ones you still remember",
   "只学当前课程新题 · {0} 题": "New questions of this course only · {0}",
   "其他课程另有 {0} 题到期或薄弱 · 一起学": "{0} due or weak in other courses · study them too",
   "今日学习 · {0} 题": "Today's study · {0}",

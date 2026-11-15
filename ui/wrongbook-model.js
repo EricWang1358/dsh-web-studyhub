@@ -2,7 +2,7 @@ import { ui, uiFormat } from './i18n.js';
 import { normalizeTopic, deckShortTitles } from '../lib/recommend-text.js';
 import { queryTokens } from './components/option-list.js';
 import { plainPrompt } from './shared.js';
-import { leechMisses } from '../lib/leech.js';
+import { leechMisses, retellSignal } from '../lib/leech.js';
 import { browserSession, browserStorage, readJSON, readText, removeKey, writeJSON, writeText } from './storage.js';
 
 /* Pure helpers behind the wrong-book page: grouping, filtering, variant state,
@@ -222,6 +222,15 @@ export const leechWords = ({ failures, window, rate }) => ({
   sentence: uiFormat('累计答错 {0} 次，或最近 {1} 次作答里答错 {2} 次以上（{3}%；作答不满 {1} 次时也这样算）。', [failures, window, leechMisses({ window, rate }), rate]),
   consequence: uiFormat('最近 {0} 次全部答对后，这个标记就会消失。题目本身也可能有问题：展开这一行，有几个办法。', [window]),
 });
+
+/** Honest hint on a stubborn question from its latest 用自己的话讲一遍 (#1016) aggregate (#1027). */
+export function leechRetellNote(retell) {
+  const signal = retellSignal(retell);
+  if (!signal) return null;
+  return signal === 'gap'
+    ? { signal, text: ui('上次「用自己的话讲一遍」还有没讲清或讲错的地方，不妨先试试这些办法（AI 反馈，不计入评分）。') }
+    : { signal, text: ui('上次「用自己的话讲一遍」已经讲清楚，问题可能出在题干表述本身（AI 反馈，不计入评分）。') };
+}
 
 /** Whether a 顽固题 rescue click can run right now, or should first offer inline model setup / inline background-prep consent (#963). */
 export function rescueGate(kind, { modelReady = true, consent = false } = {}) {

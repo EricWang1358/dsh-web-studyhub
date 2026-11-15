@@ -24,31 +24,35 @@ const TODAY = localDate();
 const options = [{ id: 'a', text: 'Yes', correct: true }, { id: 'b', text: 'No', correct: false }];
 
 /** Two points of lecture 1: 'what' (chapter 0: six single choice, one multiple choice, one open question and flashcards) and 'who' (chapter 1: flashcards only). */
-function library() {
+function library(course = COURSE) {
   const { sources, decks } = outlineLibrary();
+  if (course !== COURSE) {
+    for (const s of sources) if (Array.isArray(s.courses)) s.courses = s.courses.map(item => (item === COURSE ? course : item));
+    for (const d of decks) if (d.course === COURSE) d.course = course;
+  }
   const deck = decks.find(item => item.id === 'deck-l1');
   deck.cards.slice(0, 6).forEach(card => Object.assign(card, { kind: 'quiz', options }));
   Object.assign(deck.cards[6], { kind: 'multi', options: [...options, { id: 'c', text: 'Both', correct: true }] });
   Object.assign(deck.cards[7], { kind: 'open', answer: 'A decision and its reasons.' });
-  const state = { sources, decks, focus: { mode: 'class', course: COURSE, role: '', jd: '', targetTopics: [] } };
+  const state = { sources, decks, focus: { mode: 'class', course, role: '', jd: '', targetTopics: [] } };
   const lecture = groupSourcesByDocument(sources).find(item => item.sourceIds.includes('document-l1-p1')).key;
-  const outline = { ...courseOutlineMaterial({ title: '总纲 · SA', course: COURSE, orderBasis: { codes: ['numbering'] }, fingerprint: materialsFingerprint(buildOutlineIndex({ ...state, documents: [], drafts: [], attempts: [] }, { course: COURSE }).allDocuments),
+  const outline = { ...courseOutlineMaterial({ title: '总纲 · SA', course, orderBasis: { codes: ['numbering'] }, fingerprint: materialsFingerprint(buildOutlineIndex({ ...state, documents: [], drafts: [], attempts: [] }, { course }).allDocuments),
     nodes: [{ id: 'c1', title: 'Introduction', children: [{ id: 'what', title: 'What architects do', anchors: [`${lecture}#0`] }, { id: 'who', title: 'Stakeholders', anchors: [`${lecture}#1`] }] }],
     other: { anchors: [] }, counts: { units: 2, leftover: 0, invalid: 0, repeated: 0 } }), createdAt: '2026-10-09T00:00:00.000Z' };
   sources.push(outline);
   const page = sources.find(source => source.id === 'document-l1-p1'), leaves = outline.courseOutline.nodes[0].children;
-  sources.push({ ...courseNotesMaterial({ title: '复习全书 · SA', course: COURSE, outlineId: outline.id, language: 'zh', papers: [], counts: {}, leaves: leaves.map(leaf => ({ id: leaf.id, title: leaf.title, anchors: leaf.anchors,
+  sources.push({ ...courseNotesMaterial({ title: '复习全书 · SA', course, outlineId: outline.id, language: 'zh', papers: [], counts: {}, leaves: leaves.map(leaf => ({ id: leaf.id, title: leaf.title, anchors: leaf.anchors,
     body: { fingerprint: 'f'.repeat(16), points: [`${leaf.title} [^1].`], explain: `About ${leaf.title}.`, cites: [{ n: 1, sourceId: page.id, quote: page.text.slice(0, 30), start: 0, end: 30 }] } })) }),
     createdAt: '2026-10-09T01:00:00.000Z' });
   return { state, deck };
 }
 
-async function service(t, { book = true } = {}) {
+async function service(t, { book = true, course = COURSE } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'study-book-crunch-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const study = new StudyService(root);
   await study.call('snapshot');
-  const { state, deck } = library();
+  const { state, deck } = library(course);
   await study.store.update(own => { own.sources.push(...state.sources); own.decks.push(...state.decks); own.focus = state.focus; });
   if (book) await study.call('course.book.open');
   const opened = await study.call('course.book.open');
@@ -282,4 +286,26 @@ test('a mock paper says how many case questions it leaves out, apart from other 
   const plan = await study.call('book.mock.plan', { course: COURSE, pointIds: [what.hid] });
   assert.equal(plan.leftOut.case, 1);
   assert.equal(plan.leftOut.open, undefined);
+});
+
+test('a chapter sub-course without its own exam date inherits its parent course exam date in book.crunch, all: true, and invalidates its memo (#923)', async t => {
+  const SUB = `${COURSE} / Ch1`;
+  const { study } = await service(t, { course: SUB });
+  assert.equal((await study.call('book.crunch', { course: SUB, date: TODAY })).status, 'no-exam');
+  await study.call('course.save', { name: COURSE, exam: { date: addDays(TODAY, 7) } });
+  const inherited = await study.call('book.crunch', { course: SUB, date: TODAY });
+  assert.equal(inherited.status, 'ok');
+  assert.equal(inherited.examDate, addDays(TODAY, 7));
+  assert.equal(inherited.daysLeft, 7);
+  const all = await study.call('book.crunch', { all: true, date: TODAY });
+  assert.deepEqual(all.courses.map(c => [c.course, c.daysLeft]), [[SUB, 7]]);
+  const before = crunchComputations();
+  await study.call('book.crunch', { course: SUB, date: TODAY });
+  assert.equal(crunchComputations(), before, 'unchanged parent exam keeps memo');
+  await study.call('course.save', { name: COURSE, exam: { date: addDays(TODAY, 10) } });
+  const moved = await study.call('book.crunch', { course: SUB, date: TODAY });
+  assert.equal(moved.daysLeft, 10);
+  assert.equal(crunchComputations(), before + 1, 'updating parent exam invalidates sub-course crunch memo');
+  await study.call('course.save', { name: SUB, exam: { date: addDays(TODAY, 3) } });
+  assert.equal((await study.call('book.crunch', { course: SUB, date: TODAY })).daysLeft, 3, 'own exam date overrides parent');
 });

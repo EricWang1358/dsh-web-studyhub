@@ -21,7 +21,7 @@ import { firstCitation, usableCitations } from './document-preview/practice/cita
 import ModelSetupGate from './ModelSetupGate.jsx';
 import { modelReadiness } from './generation-status.js';
 import { similarWinLine } from './review/similar-words.js';
-import { FILTER_MIN, NO_FILTER, PRACTICE_SCOPE_CAP, RECS_PREVIEW, SORT_KINDS, STATUS_KINDS, VARIANT_BATCH_CAP, capPracticeScope, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, leechCount, leechWords, practiceCappedText, readGroupBy, readOpenGroups, readSortBy, reasonText, retrainOptions,
+import { FILTER_MIN, NO_FILTER, PRACTICE_SCOPE_CAP, RECS_PREVIEW, SORT_KINDS, STATUS_KINDS, VARIANT_BATCH_CAP, capPracticeScope, deckChoices, filterActive, filterRows, groupRows, groupSummaryText, leechCount, leechRetellNote, leechWords, practiceCappedText, readGroupBy, readOpenGroups, readSortBy, reasonText, retrainOptions,
   sameVariantState, saveGroupBy, saveSortBy, sortGroupRows, rescueCall, rescueGate, rescueNote, takeArrival, undoPauseCall, readSignature, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
 import { peekQuery, refreshQuery, setQueryData, useHostQuery } from './host-query.js';
@@ -93,10 +93,12 @@ const rescueTip = (kind) => kind === 'fix'
 
 /** The four ways out for a question that keeps being failed: the actions that exist elsewhere, called from here (the opened row only; a collapsed row has no menu, #675). */
 function LeechRescue({ item, course, disabled, rescuePrompt, rescuing, canOpenModel, canOpenSettings, onRescue, onDismissRescue, onOpenModel, onOpenProfileSettings }) {
+  const retellNote = leechRetellNote(item?.retell);
   return (
     <div className="wb-sub wb-leech">
       <h4>{ui("这道题总是答错")}</h4>
       <p className="muted">{ui("反复答错，常常是题目本身有问题。先试试这几个办法，再决定要不要接着练：")}</p>
+      {retellNote && <p className="muted wb-leech__retell" data-retell-signal={retellNote.signal}>{retellNote.text}</p>}
       <div className="wb-leech__actions">
         <Tooltip layer content={rescueTip('fix')}><Button variant="quiet" size="sm" data-rescue="fix" disabled={disabled} lock={rescuing} onClick={() => onRescue('fix', item)}>{ui("这题有问题，交给后台修")}</Button></Tooltip>
         <Tooltip layer content={rescueTip('easier')}><Button variant="quiet" size="sm" data-rescue="easier" disabled={disabled} lock={rescuing} onClick={() => onRescue('easier', item)}>{ui("太难了，补一张前置小卡")}</Button></Tooltip>
