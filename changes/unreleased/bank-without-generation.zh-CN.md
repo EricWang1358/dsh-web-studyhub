@@ -1,1 +1,0 @@
-- **题库编排、发布、导入与合并/拆分不再依赖生成组件（#991）。** 题库组件默认同时启用编排能力，即使关闭生成插件，手工保存草稿、`draft.publish` / `draft.publish.quick`、`draft.publish.plan`、`draft.similar`、JSON 导入（`deck.import`）、合组与拆组（`deck.merge` / `deck.split`）以及「草稿与发布」页面仍可正常使用；仅保留「题库 + 学习」两项核心组件时也能完成导入与发布。未验证：在运行中的 DSH 宿主界面内手动开关插件并走查全部页面（已通过 Cordis 插件组合与独立运行自动化测试）。
