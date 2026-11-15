@@ -226,5 +226,7 @@
   "已停止 AI 起草，已保存的内容仍然保留。你可以直接编辑，或点「AI 起草解析」重新起草。": "AI drafting was stopped; your saved content is still here. Edit it directly, or click \"Draft explanation with AI\" to start again.",
   "批改未完成": "Grading did not finish",
   "已批改 {0}/{1} 题，其余未完成批改": "{0}/{1} questions graded; the rest did not finish grading",
-  "上次批改没有完成，你的作答已保存。点「重新提交批改」继续批改其余题目；完成后结果会显示在这里，信箱也会提醒你。": "The previous grading did not finish; your answers are saved. Click \"Submit for grading again\" to grade the remaining questions — results appear here first, and your inbox will let you know when done."
+  "上次批改没有完成，你的作答已保存。点「重新提交批改」继续批改其余题目；完成后结果会显示在这里，信箱也会提醒你。": "The previous grading did not finish; your answers are saved. Click \"Submit for grading again\" to grade the remaining questions — results appear here first, and your inbox will let you know when done.",
+  "各评分项均已达标": "All criteria attained",
+  "本次案例各评分项均已达标，没有待补薄弱项。": "All rubric criteria met this paper — no weak criteria left to drill."
 }

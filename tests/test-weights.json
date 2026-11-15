@@ -260,7 +260,7 @@
  "tests/coverage-replan.test.mjs": 10,
  "tests/coverage-row-related.test.mjs": 20,
  "tests/coverage-run-core.test.mjs": 10,
- "tests/coverage-run-exec.test.mjs": 36280,
+ "tests/coverage-run-exec.test.mjs": 17540,
  "tests/coverage-run-ui.test.mjs": 190,
  "tests/coverage-run.test.mjs": 10970,
  "tests/coverage-state.test.mjs": 580,

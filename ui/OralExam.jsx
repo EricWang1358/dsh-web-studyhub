@@ -142,6 +142,8 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
   const needWorkEntries = indexedEntries.filter(({ entry }) => !entry.answer?.trim() || (entry.assessment && entry.assessment.band !== "strong"));
   const canFilterWeak = report?.feedbackStatus === "assessed" && needWorkEntries.length > 0 && needWorkEntries.length < indexedEntries.length;
   const visibleEntries = canFilterWeak && weakOnly ? needWorkEntries : indexedEntries;
+  const allStrong = Boolean(report && report.feedbackStatus === "assessed" && report.total > 0 && report.strong === report.total && report.developing === 0 && report.weak === 0);
+  const allAssessedTopicsClear = Boolean(report && report.feedbackStatus === "assessed" && report.assessed > 0 && !report.weakTopics?.length && report.weak === 0 && report.developing === 0);
   const onAnswerKeyDown = (event) => {
     if (event.nativeEvent?.isComposing || event.isComposing || event.keyCode === 229) return;
     if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.altKey) {
@@ -200,17 +202,20 @@ export default function OralExam({ data, onExit, onStartRun, initialRunId, onLoc
         </SubmitBlanksDialog>
       )}
     </>}
-    {report && <Panel className="oral-report" tone="paper" data-exam-paper="">
+    {report && <Panel className="oral-report" tone="paper" data-exam-paper="" data-all-strong={allStrong ? "true" : undefined}>
       <div className="result-kicker">{ui("口头模拟报告")}</div>
+      {allStrong && <span className="oral-report__badge" data-testid="oral-all-strong">{ui("全部回答扎实")}</span>}
       <h2>{report.feedbackStatus === "assessed" ? uiFormat("{0} 题回答扎实", [report.strong]) : ui("回答已保存，尚未评估")}</h2>
       <p className="muted">{uiFormat("{0}/{1} 题已回答 · {2} 题已评估", [report.answered, report.total, report.assessed])}</p>
       {report.feedbackStatus === "assessed" ? <StackedBar size="lg" name={uiFormat("回答扎实 {0} 题，有待补充 {1} 题，需要巩固 {2} 题", [report.strong, report.developing, report.weak])}
         segments={[{ value: report.strong, tone: "success" }, { value: report.developing, tone: "warning" }, { value: report.weak, tone: "error" }]} /> : <p>{ui("当前没有可用的模型反馈；未据此更改复习进度。你仍可展开查看回答与参考答案。")}</p>}
       {report.feedbackStatus === "assessed" && <div className="oral-band-legend">
-        <span>{uiFormat("回答扎实 {0}", [report.strong])}</span><span>{uiFormat("有待补充 {0}", [report.developing])}</span><span>{uiFormat("需要巩固 {0}", [report.weak])}</span></div>}
-      <div className="result-weak"><h3>{ui("优先补的知识点")}</h3>
+        <span data-tone="success">{uiFormat("回答扎实 {0}", [report.strong])}</span><span data-tone="warning">{uiFormat("有待补充 {0}", [report.developing])}</span><span data-tone="error">{uiFormat("需要巩固 {0}", [report.weak])}</span></div>}
+      <div className="result-weak"><h3>{ui(allAssessedTopicsClear ? "全部考查主题均已过关" : "优先补的知识点")}</h3>
         {report.weakTopics?.length ? <ol>{report.weakTopics.map((topic) => <li key={topic.topic}>{topic.topic}</li>)}</ol>
-          : <p className="muted">{ui("本次没有已评估的薄弱主题。")}</p>}
+          : allAssessedTopicsClear
+            ? <p className="oral-report__clear">{ui("本轮已评估题目均回答扎实，可以直接开启下一轮或回到学习库。")}</p>
+            : <p className="muted">{ui("本次没有已评估的薄弱主题。")}</p>}
         {!!report.weakScope?.length && <Button busy={busy} onClick={practiceWeak}>{ui("直接练这些题 →")}</Button>}
       </div>
       <div className="oral-actions"><Button variant="primary" onClick={onExit}>{ui("回到学习库")}</Button>

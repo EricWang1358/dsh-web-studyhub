@@ -32,5 +32,8 @@
   "已把「{0}」的题排进学习路径，回到学习库即可开始练习。": "Added “{0}” to your study path. Return to the library to practise.",
   "本次全部答对": "All correct this exam",
   "较上次 +{0}%": "+{0}% vs last exam",
-  "全部主题均已达标": "All tested topics attained"
+  "全部主题均已达标": "All tested topics attained",
+  "全部回答扎实": "All answers strong",
+  "全部考查主题均已过关": "All assessed topics passed",
+  "本轮已评估题目均回答扎实，可以直接开启下一轮或回到学习库。": "Every assessed answer in this round was solid — start another round or return to the library."
 }

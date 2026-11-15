@@ -130,26 +130,35 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
       </div>
     );
   const m = debrief.metrics || {};
+  const gradedCount = m.gradedAnswered || 0, selfCount = m.selfAnswered || 0;
+  const gradedAllMet = gradedCount > 0 && m.gradedCorrect === gradedCount;
+  const selfAllMet = selfCount > 0 && m.selfMet === selfCount;
+  const allAttained = (m.answered || 0) > 0 && gradedCount + selfCount > 0 && (!gradedCount || gradedAllMet) && (!selfCount || selfAllMet);
   return (
-    <ReadingBlock className="coach-debrief" data-next={next} role="region" aria-label={ui("本轮建议")}
+    <ReadingBlock className="coach-debrief" data-next={next} data-all-attained={allAttained ? "true" : undefined} role="region" aria-label={ui("本轮建议")}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
       <div className="eyebrow coach-debrief__eyebrow">{ui("陪学 · 本轮建议")}</div>
       <h2>{promisesNext ? ui("这一轮的状态不错。") : debrief.headline}</h2>
       {debrief.why && <p>{debrief.why}</p>}
       {(m.gradedAnswered > 0 || m.selfAnswered > 0) && <div className="coach-score-split">
-        {m.gradedAnswered > 0 && <span>{uiRich("客观题答对 {0}", <strong>{m.gradedCorrect}/{m.gradedAnswered}</strong>)}</span>}
-        {m.selfAnswered > 0 && <span>{uiRich("自评达标 {0}", <strong>{m.selfMet}/{m.selfAnswered}</strong>)}</span>}
+        {m.gradedAnswered > 0 && <span data-all-met={gradedAllMet ? "true" : undefined}>{uiRich("客观题答对 {0}", <strong>{m.gradedCorrect}/{m.gradedAnswered}</strong>)}</span>}
+        {m.selfAnswered > 0 && <span data-all-met={selfAllMet ? "true" : undefined}>{uiRich("自评达标 {0}", <strong>{m.selfMet}/{m.selfAnswered}</strong>)}</span>}
+        {allAttained && <span className="coach-attained-pill" data-testid="coach-all-attained">{ui("本轮全部达标")}</span>}
       </div>}
       {m.answered > 0 && (
         <>
           <StackedBar className="coach-stack" aria-hidden="true" segments={LEVELS.map(([id]) => ({ value: m.levels?.[id]?.n || 0, tone: id === "recall" ? "neutral" : id === "concept" ? "warning" : "success" }))} />
           <div className="coach-legend">
-            {LEVELS.map(([id, name]) => (
-              <span key={id}>
-                <i className={"coach-levels-dot " + id} style={{ background: `var(--${LEVEL_DOT[id]})` }} />
-                {uiFormat("{0} 达标 {1}/{2}", [ui(name), m.levels?.[id]?.met ?? m.levels?.[id]?.correct ?? 0, m.levels?.[id]?.n || 0])}
-              </span>
-            ))}
+            {LEVELS.map(([id, name]) => {
+              const levelN = m.levels?.[id]?.n || 0;
+              const levelMet = m.levels?.[id]?.met ?? m.levels?.[id]?.correct ?? 0;
+              return (
+                <span key={id} data-empty={levelN === 0 ? "true" : undefined} data-attained={levelN > 0 && levelMet === levelN ? "true" : undefined}>
+                  <i className={"coach-levels-dot " + id} style={{ background: `var(--${LEVEL_DOT[id]})` }} />
+                  {uiFormat("{0} 达标 {1}/{2}", [ui(name), levelMet, levelN])}
+                </span>
+              );
+            })}
           </div>
         </>
       )}

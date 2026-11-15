@@ -89,11 +89,16 @@
     .coach-debrief .coach-debrief__eyebrow { margin-bottom: var(--space-1-5); }
     .coach-debrief h2 { margin: 0 0 var(--space-1-5); font-size: var(--fs-2xl); line-height: 1.4; color: var(--text); }
     .coach-debrief > p { margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); line-height: 1.7; }
-    .coach-score-split { display: flex; flex-wrap: wrap; gap: var(--space-1-5) var(--space-4); margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); }
+    .coach-score-split { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5) var(--space-4); margin: 0 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
     .coach-score-split strong { color: var(--text); }
+    .coach-score-split > span[data-all-met="true"] strong { color: var(--ok-ink); }
+    .coach-attained-pill { display: inline-flex; align-items: center; padding: var(--space-half) var(--space-2); border-radius: var(--radius-pill); border: 1px solid var(--ok-line); background: var(--ok-bg); color: var(--ok-ink); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
     .coach-stack { margin: 0 0 var(--space-3); }
-    .coach-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--fs-md); color: var(--text-muted); margin: calc(var(--space-1) * -1) 0 var(--space-3); }
-    .coach-legend i { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-xs); margin-right: var(--space-1); vertical-align: 0; }
+    .coach-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--fs-md); font-variant-numeric: tabular-nums; color: var(--text-muted); margin: calc(var(--space-1) * -1) 0 var(--space-3); }
+    .coach-legend > span { display: inline-flex; align-items: center; gap: var(--space-1-5); }
+    .coach-legend > span[data-empty="true"] { color: var(--text-faint); }
+    .coach-legend > span[data-attained="true"] { color: var(--ok-ink); }
+    .coach-legend i { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-xs); flex: none; }
     .coach-insights { margin: 0 0 var(--space-3-5); padding-left: var(--space-4-5); font-size: var(--fs-md); line-height: 1.8; color: var(--text-dim); }
     .coach-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
     /* A question, not a second primary: neutral stock and outlined chips. */
@@ -106,7 +111,7 @@
     .coach-consent-note { margin: var(--space-3) 0 0; font-size: var(--fs-md); color: var(--text-muted); }
     /* One filled primary per screen: the page's next step (ui/Review.jsx .result-next) is it; the 雷霆建议's own suggestion (定制题 or 补薄弱) is a secondary button. */
     .coach-model-note { margin: var(--space-3) 0 0; font-size: var(--fs-md); color: var(--text-muted); }
-    .coach-countdown { font-size: var(--fs-md); color: var(--text-muted); }
+    .coach-countdown { font-size: var(--fs-md); color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .coach-countdown__paused { color: var(--text-dim); margin-left: var(--space-1); }
     .skeleton {
       border-radius: var(--radius-sm);

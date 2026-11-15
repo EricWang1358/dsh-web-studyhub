@@ -73,6 +73,9 @@
     .rubric-row.is-weak {
       border-left: 3px solid var(--warn);
     }
+    .rubric-row[data-band="strong"] {
+      border-left: 3px solid var(--ok);
+    }
     .rubric-row__head {
       display: flex;
       justify-content: space-between;
@@ -238,6 +241,19 @@
     }
     .case-report__weak li div { display: grid; gap: var(--space-half); flex: 1 1 12rem; min-width: 0; }
     .case-report__weak small { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .case-report__attained-badge {
+      display: inline-block;
+      margin-bottom: var(--space-1-5);
+    }
+    .case-report__attained-note {
+      margin: 0;
+      padding: var(--space-3) var(--space-3-5);
+      border-radius: var(--radius);
+      border: 1px solid var(--ok-line);
+      background: var(--ok-bg);
+      color: var(--ok-ink);
+      font-size: var(--fs-sm);
+    }
     .case-report__actions {
       display: flex;
       flex-wrap: wrap;
@@ -279,6 +295,8 @@
       height: 18px;
       color: var(--text-muted);
       font-size: var(--fs-xs);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
     }
     .rubric-skills__trend i {
       display: inline-block;
@@ -297,6 +315,7 @@
       .rubric-result__head, .case-report__hero { flex-direction: column; align-items: flex-start; }
       .case-report__questions li { grid-template-columns: minmax(0, 1fr) auto; }
       .case-report__prompt { grid-column: 1 / -1; white-space: normal; }
+      .case-report__pace { grid-column: 1 / -1; }
       .rubric-skills__list li { grid-template-columns: minmax(0, 1fr) 3rem; }
       .rubric-skills__list .rubric-meter { grid-column: 1 / -1; grid-row: 2; }
       .rubric-skills__trend { grid-column: 1 / -1; }

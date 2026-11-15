@@ -18,11 +18,19 @@
     .oral-followup { padding: var(--space-4-5); border-left: 3px solid var(--line-strong); background: var(--bg-raised); border-radius: var(--radius); }
     .oral-followup p { margin: var(--space-2) 0 var(--space-4-5); }
     .oral-report { display: grid; gap: var(--space-4-5); }
+    .oral-report__badge { justify-self: start; padding: var(--space-half) var(--space-2-5); border-radius: var(--radius-pill); border: 1px solid var(--ok-line); background: var(--ok-bg); color: var(--ok-ink); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
     .oral-report h2 { margin: 0; font-size: clamp(var(--fs-3xl), 4cqi, var(--fs-5xl)); }
     .oral-report > p { margin: 0; }
     .oral-band-legend { display: flex; gap: var(--space-4); flex-wrap: wrap; color: var(--text-dim); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
+    .oral-band-legend > span { display: inline-flex; align-items: center; gap: var(--space-1-5); }
+    .oral-band-legend > span::before { content: ""; width: 8px; height: 8px; border-radius: var(--radius-pill); flex: none; background: var(--line-strong); }
+    .oral-band-legend > span[data-tone="success"]::before { background: var(--ok); }
+    .oral-band-legend > span[data-tone="warning"]::before { background: var(--warn); }
+    .oral-band-legend > span[data-tone="error"]::before { background: var(--bad); }
     .oral-report .result-weak h3 { margin: 0 0 var(--space-2-5); }
     .oral-report .result-weak ol { margin-top: 0; }
+    .oral-report__clear { margin: 0; color: var(--ok-ink); font-size: var(--fs-sm); }
+    .oral-report > .oral-actions { justify-content: flex-start; }
     .oral-report-toolbar { display: flex; justify-content: flex-end; margin-top: var(--space-3); }
     .oral-report-entry { padding: var(--space-4-5) 0; border-top: 1px solid var(--line-soft); }
     .oral-report-entry:first-of-type { margin-top: var(--space-3-5); }

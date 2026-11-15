@@ -113,3 +113,38 @@ test('the fast tier leaves out what the slow list names', async t => {
   assert.equal(await new Promise(resolve => child.once('close', resolve)), 0);
   assert.deepEqual((await readFile(log, 'utf8')).split('\n').filter(Boolean), ['a', 'c']);
 });
+
+test('a wrapper test file delegating to a helper records its own .test.mjs duration, not the helper path', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-wrapper-dur-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const customSuite = join(dir, 'suite');
+  await (await import('node:fs/promises')).mkdir(customSuite, { recursive: true });
+  await writeFile(join(customSuite, 'helper.mjs'), `import test, { describe } from 'node:test';
+import assert from 'node:assert/strict';
+export function registerHelperTests() {
+  describe('delegated', () => {
+    test('waits briefly', async () => {
+      await new Promise(resolve => setTimeout(resolve, 60));
+      assert.ok(true);
+    });
+  });
+}
+`, 'utf8');
+  await writeFile(join(customSuite, 'wrapper.test.mjs'), `import { registerHelperTests } from './helper.mjs';
+registerHelperTests();
+`, 'utf8');
+  const durationsPath = join(dir, 'durations.json');
+  const env = { ...process.env, STUDY_TEST_SUITE_DIR: customSuite, STUDY_TEST_DURATIONS_FILE: durationsPath, STUDY_TEST_BATCH: '0' };
+  delete env.NODE_TEST_CONTEXT;
+  const child = spawn(process.execPath, [runner, '--test-concurrency=1'], { env, windowsHide: true });
+  let err = '';
+  child.stderr.on('data', part => { err += part; });
+  const code = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', resolve); });
+  assert.equal(code, 0, err);
+  const recorded = await readDurations(durationsPath);
+  const keys = Object.keys(recorded);
+  assert.equal(keys.length, 1, `expected only wrapper test file key, got: ${JSON.stringify(recorded)}`);
+  assert.ok(keys[0].endsWith('/wrapper.test.mjs'), keys[0]);
+  assert.ok(recorded[keys[0]] >= 40, `expected wrapper duration >= 40ms, got ${recorded[keys[0]]}`);
+  assert.equal(keys.some(key => key.includes('helper.mjs')), false);
+});
