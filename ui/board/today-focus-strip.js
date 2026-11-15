@@ -218,6 +218,7 @@ export function selectTodayFocusStrip({ library, planAnswer = null, budgetMinute
     ? {
       plannedMinutes: planned,
       focusedMinutes: focused,
+      met: focused !== null && focused >= planned,
       value: focused ?? 0,
       max: planned,
       label: focused === null

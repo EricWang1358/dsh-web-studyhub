@@ -289,5 +289,6 @@
   "按不再复习推算：这几章里有考点今天稳，照复习排期的记忆曲线，不再复习的话到考试日会忘到不稳。按钮把其中最容易忘的题排成一轮，最多是你的每轮题数。": "Projected with no further review: these chapters have points that are solid today but, on the review schedule’s own forgetting curve, would no longer be solid by the exam day. The button makes one round of their questions most likely to be forgotten, at most your round size.",
   "练这几章最容易忘的 {0} 道": "Practise their most at-risk questions ({0})",
   "今日排程已全部完成": "All scheduled tasks completed",
-  "已完成 {0} 项任务，可安心休息或在下方补充新安排。": "{0} task(s) finished today. Take a well-earned break or add more below."
+  "已完成 {0} 项任务，可安心休息或在下方补充新安排。": "{0} task(s) finished today. Take a well-earned break or add more below.",
+  "已达标": "Goal met"
 }

@@ -8,6 +8,7 @@ import { BAR_ORDER } from './map-model.js';
 export default function MasteryBar({ node }) {
   const total = BAR_ORDER.reduce((n, level) => n + node.counts[level], 0);
   const label = BAR_ORDER.filter((level) => node.counts[level]).map((level) => `${LEVEL_LABEL[level]} ${node.counts[level]}`).join(' · ') || ui('暂无题目');
+  const isMastered = total > 0 && (node.status === 'done' || (node.mastery >= 80 && !node.counts.weak));
   let seen = 0;
   return (
     <Tooltip layer content={label} anchorClassName="mastery">
@@ -21,7 +22,7 @@ export default function MasteryBar({ node }) {
             return <span key={level} className={`lv-${level}`} style={{ flexGrow: node.counts[level], animationDelay: delay }} />;
           })}
         </span>
-        <span className={total > 0 && node.mastery > 0 ? 'mastery-value' : 'mastery-value zero'}>{total > 0 ? `${node.mastery}%` : '—'}</span>
+        <span className={total > 0 && node.mastery > 0 ? (isMastered ? 'mastery-value is-mastered' : 'mastery-value') : 'mastery-value zero'}>{total > 0 ? `${node.mastery}%` : '—'}</span>
       </span>
     </Tooltip>
   );

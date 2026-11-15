@@ -3,7 +3,7 @@ import Markdown from '../Markdown.jsx';
 import { getUiLanguage, ui, uiFormat } from '../i18n.js';
 import { Button } from '../components/Button.jsx';
 import { Badge } from '../components/Badge.jsx';
-import { Tooltip } from '../components/index.js';
+import { Tooltip, Icon } from '../components/index.js';
 import { joinMeta } from '../format.js';
 import { TeachingArtifactBlock } from './TeachingArtifactBlock.jsx';
 import { QuestionPrepSlot } from './QuestionPrepSlot.jsx';
@@ -154,6 +154,10 @@ export default function GuidedStudyWorkbench({
     : currentFeedback.correct === false));
 
   const choice = hasOptions(currentCard?.kind) && Array.isArray(currentCard?.options) && currentCard.options.length > 0;
+  const isGradedCard = choice || Boolean(currentFeedback?.rubric);
+  const verdictText = !hasFeedback ? '' : isGradedCard
+    ? (currentMissed ? ui('这道题还没过关，先看下方解析或带回主会话讲透') : ui('回答正确'))
+    : (currentMissed ? ui('已记入待巩固，先看解析或带回主会话') : ui('已记录掌握，会计入检验与复习排期'));
   const [selected, setSelected] = useState([]);
   useEffect(() => { setSelected([]); }, [currentCard?.id, run?.id]);
 
@@ -308,6 +312,18 @@ export default function GuidedStudyWorkbench({
                     );
                   })}
                 </fieldset>
+              )}
+
+              {hasFeedback && (
+                <div
+                  className="guided-study-card-verdict"
+                  data-testid="guided-card-verdict"
+                  data-tone={currentMissed ? 'warning' : 'success'}
+                  role="status"
+                >
+                  <Icon name={currentMissed ? 'info' : 'check'} size={15} strokeWidth={2.1} />
+                  <span>{verdictText}</span>
+                </div>
               )}
 
               {(isRevealed || hasFeedback) && currentCard.explanation && (

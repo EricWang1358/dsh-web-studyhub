@@ -282,10 +282,16 @@
     .board-today__focus-slip { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); flex: 1 1 100%; min-width: 0; }
     .board-today__focus-slip-text { min-width: 0; color: var(--text); font-size: var(--fs-sm); border-radius: var(--radius-xs); cursor: default; }
     .board-today__focus-slip-text:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
-    .board-today__focus-budget { display: flex; flex-direction: column; gap: var(--space-1); flex: 0 1 13.5rem; min-width: 10.5rem; }
+    .board-today__focus-budget { display: flex; flex-direction: column; gap: var(--space-1); flex: 0 1 14.5rem; min-width: 10.5rem; }
+    .board-today__focus-budget-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-2); min-width: 0; }
     .board-today__focus-budget-label {
-      display: inline-block; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium);
-      font-variant-numeric: tabular-nums; white-space: nowrap; border-radius: var(--radius-xs); cursor: default;
+      display: inline-block; min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium);
+      font-variant-numeric: tabular-nums; white-space: normal; overflow-wrap: anywhere; border-radius: var(--radius-xs); cursor: default;
+    }
+    .board-today__focus-budget[data-goal-met="true"] .board-today__focus-budget-label { color: var(--ok-ink); }
+    .board-today__focus-budget-met {
+      display: inline-flex; align-items: center; gap: var(--space-half); flex: none;
+      color: var(--ok-ink); font-size: var(--fs-xs); font-weight: var(--fw-strong); white-space: nowrap;
     }
     .board-today__list {
       min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); border-radius: var(--radius);

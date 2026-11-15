@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../components/Button.jsx';
 import { Badge } from '../components/Badge.jsx';
 import { TextInput } from '../components/Field.jsx';
+import { ProgressBar } from '../components/Progress.jsx';
 import Icon from '../components/Icon.jsx';
 import { ui, uiFormat } from '../i18n.js';
 import { LoadingState } from '../components/Loading.jsx';
@@ -77,6 +78,10 @@ export function StudyProgressPanel({
 
   const items = progress.items || [];
   const mainLine = localizedDisplayLine(progress);
+  const hasMeasuredGoal = Number.isFinite(progress.totalCount) && progress.totalCount > 0;
+  const passedCount = hasMeasuredGoal ? Math.max(0, Math.min(progress.totalCount, Number(progress.independentPassedCount) || 0)) : 0;
+  const allPassed = hasMeasuredGoal && passedCount >= progress.totalCount;
+  const goalCompleted = allPassed || estimate?.status === 'completed';
 
   const handleAddItem = (e) => {
     e.preventDefault();
@@ -87,17 +92,29 @@ export function StudyProgressPanel({
   };
 
   return (
-    <div className="study-progress-panel">
+    <div className="study-progress-panel" data-all-passed={allPassed ? 'true' : undefined}>
       {/* 紧凑首屏概览 */}
       <div className="progress-summary-row">
         <div className="progress-main-line">
           {mainLine ? <strong>{mainLine}</strong> : <LoadingState label={ui('正在计算进度…')} />}
         </div>
+        {hasMeasuredGoal && (
+          <ProgressBar
+            size="sm"
+            tone={allPassed ? 'success' : 'accent'}
+            value={passedCount}
+            max={progress.totalCount}
+            label={mainLine}
+            className="progress-goal-bar"
+          />
+        )}
         <div className="progress-sub-line">
           <span>{joinMeta([uiFormat('讲解已覆盖 {0} 点', [progress.lectureCoveredCount || 0]), uiFormat('隔日巩固待复习 {0} 题', [progress.nextDayDueCount || 0])])}</span>
         </div>
         <div className="progress-time-line">
-          <span className="progress-time-text"><Icon name="clock" size={14} /> {estimateLine(estimate)}</span>
+          <span className="progress-time-text" data-completed={goalCompleted ? 'true' : undefined}>
+            <Icon name={goalCompleted ? 'check' : 'clock'} size={14} strokeWidth={goalCompleted ? 2.2 : undefined} /> {estimateLine(estimate)}
+          </span>
         </div>
         <div className="progress-toggle-row">
           <Button
