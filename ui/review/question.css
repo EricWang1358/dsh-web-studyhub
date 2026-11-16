@@ -359,8 +359,8 @@
       color: var(--ok-ink);
       margin: var(--space-2) 0 var(--space-1);
     }
-    /* The mark sits on the centre of the glyphs, not of the line box (the line box is taller than the glyphs by its leading, below them): nudged up by half a pixel. */
-    .answer-state .sh-icon { margin-block-end: 1px; }
+    /* The mark sits on the centre of the glyphs, not of the line box (the line box is taller than the glyphs by its leading, below them): nudged up by a quarter of a pixel (measured on 2x screenshots: Light sat 0.25 - 0.75px low, one pixel of margin overshot to 0.25 - 0.75px high). */
+    .answer-state .sh-icon { margin-block-end: 0.5px; }
     .option.incorrect .answer-state {
       color: var(--bad-ink);
     }
