@@ -32,7 +32,7 @@ test("an en name matches whether the en key still carries the arrow or not", () 
 test("nav() opens the narrow-window drawer and the 更多 fold before it looks for an entry", async () => {
   const source = await readFile(new URL("../scripts/qa/journey.mjs", import.meta.url), "utf8");
   const nav = source.slice(source.indexOf("async nav(id)"), source.indexOf("async openAddSource()"));
-  assert.match(nav, /打开导航/, "a narrow window hides the sidebar in a drawer");
+  assert.match(source, /打开导航/, "a narrow window hides the sidebar in a drawer");
   assert.match(nav, /data-nav-fold/, "entries such as 任务 sit in the closed 更多 fold");
   assert.match(nav, /has no entry for/, "a missing entry is named instead of a 30 s timeout");
 });

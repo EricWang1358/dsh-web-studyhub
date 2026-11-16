@@ -50,7 +50,8 @@ export function controlName(t, zh) {
 /* A step may exceed the default budget up to its own, with the reason; the journey prints it as known and still fails above it, so the list only
    ever shrinks. Nothing here is a design decision: each line is a shift that should be removed. */
 export const KNOWN_LAYOUT = {
-  "import-files": { maxCls: 0.16, why: "the files just imported are inserted at the top of the 资料 list behind the import dialog and push the existing rows down (0 to 0.08 by timing; up to 0.15 since each row keeps its index badge's line from the first paint, #229, and the same insertion moves taller rows)" },
+  "case-practice": { maxCls: 0.14, why: "in a narrow window the graded result replaces the answer box, is much taller and pushes the question toolbar and the 已发布 note below the fold (0.13 at 420, 0.03 at 1440; #1093)" },
+  "import-files": { maxCls: 0.22, why: "the files just imported are inserted at the top of the 资料 list behind the import dialog and push the existing rows down (0 to 0.08 by timing; up to 0.15 since each row keeps its index badge's line from the first paint, #229, and the same insertion moves taller rows; 0.21 at 420, first measured once the narrow journey could reach this step, #1088)" },
 };
 
 /* ---------- steps ---------- */
@@ -159,6 +160,7 @@ export const JOURNEY_STEPS = [
   } },
   { name: "practice", needs: ["deck"], run: async (j) => {
     if (!await j.page.locator(".options .option").count()) {
+      await j.openDrawer();
       await j.page.getByRole("button", { name: j.t("回到题目") }).first().click();
       await j.page.locator(".options .option").first().waitFor({ timeout: 15000 });
     }
@@ -646,6 +648,8 @@ export async function runJourney(options) {
       j.record = record;
       try {
         for (const need of step.needs || []) await SEED[need](j);
+        // Seeding is setup: what its reloads and late data moved is not the step's layout (#1088; it failed every --steps run at 420).
+        if (step.needs?.length) { await j.collectLayout(); j.layoutLog = emptyLayoutLog(); }
         await step.run(j);
       } catch (error) {
         record.status = "failed";
@@ -740,14 +744,16 @@ function journeyContext({ page, server, options, english, fixtures, step }) {
     /** Go to a page. The click is dispatched, not a real input event: Chromium drops layout shifts within 500 ms of real input
      *  (hadRecentInput), and data that arrives right after opening a page is exactly what the layout check must see (#208).
      *  Clicks on controls inside a page stay real input, so a result the learner asked for is not counted against the page. */
-    async nav(id) {
-      // A narrow window (or a learner who put the sidebar away) shows it as a drawer behind 「打开导航」 in the top bar (#657, #1088).
+    /** A narrow window (or a learner who put the sidebar away) shows the sidebar as a drawer behind 「打开导航」 in the top bar (#657, #1088): open it. */
+    async openDrawer() {
       const opener = page.getByRole("button", { name: t("打开导航"), exact: true }).first();
-      if (await opener.count() && await opener.isVisible()) {
-        await opener.click();
-        await page.locator('[data-tour="nav"]').first().waitFor({ state: "visible", timeout: 10000 });
-        await sleep(250);
-      }
+      if (!await opener.count() || !await opener.isVisible()) return;
+      await opener.click();
+      await page.locator('[data-tour="nav"]').first().waitFor({ state: "visible", timeout: 10000 });
+      await sleep(250);
+    },
+    async nav(id) {
+      await j.openDrawer();
       const anchor = j.anchor(`nav-${id}`);
       const target = await anchor.count() ? anchor.first()
         : id === "settings" ? page.getByRole("button", { name: t(NAV.settings), exact: true }).first()
