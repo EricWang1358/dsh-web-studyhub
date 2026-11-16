@@ -270,16 +270,15 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           )}
           {call && <DailyRecap root={data.root} runId={run.id} saved={data.settings?.dailyRecap}
             poll primary={!nextStep && !backHere} onOpenNote={onOpenNote} onSettings={onRecapSettings} onModelSettings={onModelSettings} />}
-          <div className="summary-topics sh-paper-card">
-            <h3>{ui("接下来重点复习 · 最多 3 个主题")}</h3>
-            {(run.weakTopics || []).slice(0, 3).map((t) => run.weakScopes?.[t]?.length
-              ? <Button key={t} size="sm" className="summary-topic" iconEnd="arrow-right" lock={busy} title={ui("练这个主题")} aria-label={uiFormat("练这个主题：{0}", [t])}
-                onClick={() => act("review.start", practiceArgs(run.weakScopes[t]), enterRun)}>{t}</Button>
-              : <Badge className="summary-topic" key={t}>{t}</Badge>)}
-            {!run.weakTopics?.length && (
-              <p className="muted summary-topics__empty">{ui("本轮没有低分记录，继续按间隔复习巩固。")}</p>
-            )}
-          </div>
+          {run.weakTopics?.length > 0 && (
+            <div className="summary-topics sh-paper-card">
+              <h3>{ui("接下来重点复习 · 最多 3 个主题")}</h3>
+              {run.weakTopics.slice(0, 3).map((t) => run.weakScopes?.[t]?.length
+                ? <Button key={t} size="sm" className="summary-topic" iconEnd="arrow-right" lock={busy} title={ui("练这个主题")} aria-label={uiFormat("练这个主题：{0}", [t])}
+                  onClick={() => act("review.start", practiceArgs(run.weakScopes[t]), enterRun)}>{t}</Button>
+                : <Badge className="summary-topic" key={t}>{t}</Badge>)}
+            </div>
+          )}
           {run.complete && run.similarWins?.length > 0 && <p className="muted" data-similar-wins="">{similarWinsText(run.similarWins)}</p>}
           {leechCount > 0 && (
             <p className="summary-leech">
@@ -293,6 +292,11 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </p>
           )}
           <div className="summary-actions">
+            {!run.closed && run.undoable && actions.undoAnswer && (
+              <Button variant="quiet" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={actions.undoAnswer}>
+                {ui("已记分 · 撤销上一题评分 (Z)")}
+              </Button>
+            )}
             {summaryCase && <>
               <Button lock={busy} onClick={() => act("case.drills", { deckId: summaryCase.id }, (value) =>
                 setCaseNote(uiFormat("正在把 {0} 个薄弱评分项写成 {1} 道针对练习，完成后加入「薄弱项练习」题组并排进复习。", [value.criteria, value.count])))}>
@@ -318,7 +322,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
             </p>
           )}
           {/* 本轮题目 (#1009): which questions went wrong or were left, each with a read-only look-back from the run itself. */}
-          <RoundLookBack key={"look-back-" + run.id} run={run} sources={data?.sources}
+          <RoundLookBack collapsible key={"look-back-" + run.id} run={run} sources={data?.sources}
             segment={lookBackSegment} onSegmentChange={setLookBackSegment}
             onPracticeWrong={(refs) => act("review.start", practiceArgs(refs), enterRun)}
             onAck={(row) => actions.reviewAct("review.correction.ack", { entryIndex: row.entryIndex, cardId: row.cardId })}

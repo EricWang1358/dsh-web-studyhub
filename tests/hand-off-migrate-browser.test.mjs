@@ -276,7 +276,16 @@ test('发给主会话 on the places that handed over before: the shared control,
     // The round on screen is answered through the page (every card 'again', the low grades), up to its result page.
     await page.locator('[data-usage="review.flip"]').waitFor({ timeout: 30000 });
     for (let guard = 0; guard < 30 && !(await page.locator('.result-page').count()); guard++) {
-      if (!(await page.locator('.next-due').count())) { await page.locator('[data-usage="review.flip"]').click(); await page.locator('.grade.low').first().click(); }
+      await page.locator('.question-card, .result-page').first().waitFor({ timeout: 15000 });
+      if (await page.locator('.result-page').count()) break;
+      if (await page.locator('[data-usage="review.flip"]').count() && !(await page.locator('.next-due').count())) {
+        const before = await page.locator('.flashcard').innerText();
+        await page.locator('[data-usage="review.flip"]').click();
+        await page.locator('.grade.low').first().waitFor({ timeout: 10000 });
+        await page.locator('.grade.low').first().click();
+        await page.waitForFunction((prev) => document.querySelector('.result-page') || document.querySelector('.flashcard')?.innerText !== prev, before, { timeout: 15000 });
+        continue;
+      }
       await page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 15000 });
       await page.locator('[data-usage="review.next"]').click();
       await page.waitForFunction(() => document.querySelector('.result-page') || !document.querySelector('.next-due'), null, { timeout: 15000 });

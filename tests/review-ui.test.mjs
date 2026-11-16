@@ -306,7 +306,7 @@ test("flashcard grading shows side cue and keeps 0-5 buttons; long explanations 
   });
   assert.match(longHtml, /class="explanation-foot"/);
   assert.match(longHtml, /收起解析 \(H\)/);
-  assert.match(longHtml, /下一题/);
+  assert.equal((longHtml.match(/下一题/g) || []).length, 1, "single sticky primary 下一题 action even on long explanations");
 
   const shortHtml = render("quiz", true, {
     complete: false,

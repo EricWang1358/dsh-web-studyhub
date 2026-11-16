@@ -105,8 +105,8 @@
       font-size: var(--fs-md);
       line-height: 1.9;
       margin: 0 0 var(--space-6);
-      border-left: 3px solid var(--line-strong);
       padding: var(--space-4);
+      border-radius: var(--radius-sm);
       background: var(--bg-sunken);
     }
   }

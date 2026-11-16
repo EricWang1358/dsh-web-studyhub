@@ -135,6 +135,16 @@ export function reviewChoiceKind(run) {
   };
 }
 
+export const SELF_GRADE_ADVANCE_KEY = 'study-self-grade-advance';
+
+/** True when the open question is self-graded by the learner (0–5 scale, outside mock exams). */
+export function isSelfGradedRun(run) {
+  if (!run?.card || run.mode === 'exam') return false;
+  const { choice, isCloze, rubricCard } = reviewChoiceKind(run);
+  const taskCard = run.mode !== 'flashcard' && run.card.kind === 'task';
+  return !choice && !isCloze && !rubricCard && !taskCard;
+}
+
 /** Is a key press on `target` someone else's: in a dialog over the page, or in a region that owns its keys ([data-own-keys]: the 对照栏's reader beside the
     question, #1012), unless the question itself (`root`) is inside it (the reader's 本节题目, #1013)? */
 export function keysElsewhere(target, root) {
@@ -158,6 +168,12 @@ const BLANK = (value) => String(value).trim();
  * ctx: { inside, modalOpen, page, run, busy, shortcutHelp, endAsked, choice, isCloze, rubricCard, selected, clozeValues }.
  */
 export function shortcutAction(event, ctx) {
+  if (!event.defaultPrevented && !event.repeat && !!ctx.inside && !event.inEditable && !ctx.modalOpen
+    && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key?.toLowerCase() === 'z') {
+    return ctx.page === 'review' && ctx.run?.undoable && !ctx.busy && ctx.run.mode !== 'exam'
+      ? { cancelAuto: true, preventDefault: true, action: { type: 'undo' } }
+      : null;
+  }
   if (!shortcutGate(event, ctx) || event.defaultPrevented || event.repeat) return null;
   const result = (action, preventDefault = false) => ({ cancelAuto: true, preventDefault, action });
   const { run, busy, choice, isCloze, rubricCard } = ctx;
@@ -169,13 +185,16 @@ export function shortcutAction(event, ctx) {
   if (event.shiftKey || (event.onButton && (event.key === 'Enter' || event.code === 'Space'))) return result(null);
   const letter = event.key.length === 1 ? event.key.toLowerCase() : '';
   if (letter === 'a') return result({ type: 'autopilot' }, true);
+  // Z: undo the current round's most recent answer/grade (#885), including right after the final card advanced to the summary.
+  if (letter === 'z' && ctx.page === 'review' && run?.undoable && !busy && run.mode !== 'exam') return result({ type: 'undo' }, true);
   // S from anywhere: resume the last round or start today's path.
   if (letter === 's' && !busy && (ctx.page !== 'review' || !run || run.complete)) return result({ type: 'resume' }, true);
   if (ctx.page !== 'review' || !run?.card || busy) return result(null);
   if (ctx.endAsked && event.key === 'Enter') return result(null, true);
   const taskCard = run.mode !== 'flashcard' && run.card.kind === 'task';
   const flipsOnly = !choice && !isCloze && !rubricCard && !taskCard;
-  if (!choice && !isCloze && !taskCard && run.revealed && !run.feedback && /^[0-5]$/.test(event.key)) return result({ type: 'answer', args: { grade: Number(event.key) } }, true);
+  const revealedNow = !!(run.revealed || ctx.showBack);
+  if (!choice && !isCloze && !taskCard && revealedNow && !run.feedback && /^[0-5]$/.test(event.key)) return result({ type: 'answer', args: { grade: Number(event.key) } }, true);
   if (event.key === 'Enter') {
     if (run.feedback || run.grading) return result({ type: 'move', direction: 1 }, true);
     if (choice && run.card.multiple && ctx.selected.length) return result({ type: 'answer', args: { selected: ctx.selected } }, true);

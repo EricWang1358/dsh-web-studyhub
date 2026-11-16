@@ -85,7 +85,7 @@
     .wf-prose p { margin-block: 1em; }
     .wf-prose :is(ul, ol) { padding-left: 1.5em; }
     .wf-prose li { margin-block: .45em; }
-    .wf-prose blockquote { margin: var(--space-6) 0; padding: var(--space-1) 0 var(--space-1) var(--space-5); border-left: 3px solid var(--line-strong); color: var(--text-dim); }
+    .wf-prose blockquote { margin: var(--space-6) 0; padding: var(--space-1) 0 var(--space-1) var(--space-5); border-left: 2px solid var(--line-strong); color: var(--text-dim); }
     .wf-prose pre { max-width: 100%; overflow-x: auto; padding: var(--space-4); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: var(--fs-md); line-height: 1.7; }
     .wf-prose :not(pre) > code { background: var(--bg-sunken); border-radius: var(--radius-xs); padding: var(--space-half) var(--space-1); font-size: max(var(--fs-md), .9em); }
     .wf-prose table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin-block: var(--space-5-5); font-size: var(--fs-md); }
@@ -127,7 +127,7 @@
     }
   }
   :where(.study-app, .study-seat) {
-    .wf-remedy { margin: var(--space-1) 0 var(--space-7-less); padding: var(--space-4) 0 var(--space-1-5) var(--space-5); border-left: 3px solid var(--line-strong); }
+    .wf-remedy { margin: var(--space-1) 0 var(--space-7-less); padding: var(--space-4) 0 var(--space-1-5); }
     .wf-remedy .wf-eyebrow { margin: 0 0 var(--space-2); color: var(--accent); }
     .wf-remedy-gaps { margin: 0 0 var(--space-3-5); padding-left: 1.2em; font-size: var(--fs-md); line-height: 1.7; color: var(--text); }
     .wf-retell.is-stale { opacity: .78; border-style: dashed; }

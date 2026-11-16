@@ -59,7 +59,7 @@ export default function InlineRun({ session, data, label, rootRef, onClose, onCo
       </header>
       {!run ? <LoadingState label={ui("正在打开这一轮…")} />
         : run.complete ? <InlineRunDone session={session} onClose={onClose} onContinue={onContinue} />
-          : <QuestionRun session={session} data={data} coachProps={data ? session.coach : undefined} links={links} feedback={feedback} />}
+          : <QuestionRun inline session={session} data={data} coachProps={data ? session.coach : undefined} links={links} feedback={feedback} />}
     </section>
   );
 }

@@ -96,7 +96,7 @@ Personalisation (设置 › 界面, `ui/appearance-prefs.js`) is data attributes
 ## Restraint
 
 - No boxed navigation, no rows of equal stat tiles, no ambient glow or glass.
-- No side stripes: a card, row or note never gets a thick or tone-coloured left edge. Weak or strong is said by the meter's colour, the score or a badge; a quotation may keep a neutral rule beside it, with no box around it (`tests/side-stripes.test.mjs`, per-file ratchet).
+- No side stripes: a card, row or note never gets a thick or tone-coloured left edge. Weak or strong is said by the meter's colour, the score or a badge; a quotation may keep a neutral rule beside it, with no box around it, and the rule has one width, 2px; a block of text that is not a quotation (a definition, a note, an overview) gets indent or a tint instead (`tests/side-stripes.test.mjs`, per-file ratchet).
 - At most two container levels inside a page: the card, then one hairline or one quiet surface. Lists inside a card are rows under hairlines, not boxes in a box (#1080).
 - Buttons (#1074–#1077, `tests/ui-buttons-round.test.mjs`):
   - A primary rests on its inner `--sheen` only: no accent glow or coloured shadow under it. Hover lifts it 1px on the neutral `--shadow-contact` and darkens the accent (`color-mix(... black 12%)`, never `--accent-soft`, which is light on dark and loses the ink's contrast on three presets); `tests/ui-buttons-round.test.mjs` computes the ink contrast of the hover on all five presets in both themes.

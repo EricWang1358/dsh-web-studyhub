@@ -82,6 +82,7 @@
     "tests/live-capture-browser.test.mjs",
     "tests/local-study-image.test.mjs",
     "tests/marks-reread-browser.test.mjs",
+    "tests/material-folders-and-grouping.test.mjs",
     "tests/math-font-browser.test.mjs",
     "tests/mineru-fix-menu-browser.test.mjs",
     "tests/model-setup-browser.test.mjs",
@@ -126,6 +127,7 @@
     "tests/restore-points.test.mjs",
     "tests/review-autopilot-way-back.test.mjs",
     "tests/review-run-context-browser.test.mjs",
+    "tests/review-step-budget.test.mjs",
     "tests/round-setup-browser.test.mjs",
     "tests/row-coverage-browser.test.mjs",
     "tests/science-settings-browser.test.mjs",
@@ -162,7 +164,8 @@
     "tests/wp2f-shell-browser.test.mjs",
     "tests/wp5-tour-steps.test.mjs",
     "tests/wrongbook-distribution-browser.test.mjs",
-    "tests/wrongbook-filters-browser.test.mjs"
+    "tests/wrongbook-filters-browser.test.mjs",
+    "tests/wrongbook-header-steady-browser.test.mjs"
   ],
   "ffmpeg": [
     "tests/audio-ogg-ffmpeg.test.mjs",
