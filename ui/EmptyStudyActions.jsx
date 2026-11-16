@@ -7,7 +7,7 @@ export default function EmptyStudyActions({ data, onStart, onLibrary, onCreate, 
   const { busy } = useStudy();
   const canStudy = data?.decks?.some((deck) => !deck.archived);
   return <div className="study-empty-actions">
-    {canStudy ? <Button variant="primary" lock={busy} onClick={onStart}>{ui("开始学习")}</Button>
+    {canStudy ? <Button iconEnd="arrow-right" variant="primary" lock={busy} onClick={onStart}>{ui("开始学习")}</Button>
       : data?.drafts?.length ? <Button variant="primary" lock={busy} onClick={onLibrary}>{ui("查看待发布草稿")}</Button>
         : <>
           <Button variant="primary" lock={busy} onClick={onCreate}>{ui("创建题组")}</Button>

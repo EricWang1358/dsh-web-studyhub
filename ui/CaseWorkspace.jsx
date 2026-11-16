@@ -633,7 +633,7 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
         summary={deck ? [uiFormat("满分 {0} 分", [deck.caseMarks]),
           uiFormat("阅读 {0} 分钟 · 作答 {1} 分钟（每分约 {2} 分钟）· 共 {3} 分钟", [reading, writing, settings.minutesPerMark, reading + writing])].join(" · ")
           : ui("先选一套案例卷")}
-        action={<Button variant="primary" busy={busy} disabled={!deck} onClick={start}>{ui("开始考试")}</Button>}>
+        action={<Button iconEnd="arrow-right" variant="primary" busy={busy} disabled={!deck} onClick={start}>{ui("开始考试")}</Button>}>
         <div className="es-section">
           <div className="es-section__head">
             <div><strong>{ui("案例卷")}</strong><small>{ui("每套案例一次考完，可以重考；最好成绩显示在学习库。")}</small></div>

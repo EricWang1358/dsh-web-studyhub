@@ -136,8 +136,8 @@ function VariantControl({ state, onGenerate, onPractice, disabled }) {
   if (state.kind === "ready")
     return (
       <span className="wb-var is-ready">
-        <Icon name="success" size={16} />{uiFormat("已备好 {0} 道", [state.count])}
-        {onPractice && <Button variant="link" size="sm" disabled={disabled} onClick={onPractice}>{ui("去练")}</Button>}
+        <Icon className="sh-icon--inline" name="success" />{uiFormat("已备好 {0} 道", [state.count])}
+        {onPractice && <Button iconEnd="arrow-right" variant="link" size="sm" disabled={disabled} onClick={onPractice}>{ui("去练")}</Button>}
       </span>
     );
   if (state.kind === "failed")

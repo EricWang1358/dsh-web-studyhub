@@ -97,6 +97,6 @@ export function IndexGapLine({ count, canIndex, onGo }) {
     {/* The hover says why to build it: what it is for, that it runs here and costs no tokens, the one-time download. */}
     <Tooltip layer content={[indexWhyLine(), ...indexWhyTip()].join('\n')}><span tabIndex={0}>{uiFormat('有 {0} 份资料的索引还没建完', [formatNumber(count)])}</span></Tooltip>
     <span aria-hidden="true"> · </span>
-    <Button variant="link" size="sm" onClick={onGo}>{canIndex === false ? ui('去安装检索扩展') : ui('去建立索引')}</Button>
+    <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onGo}>{canIndex === false ? ui('去安装检索扩展') : ui('去建立索引')}</Button>
   </p>;
 }

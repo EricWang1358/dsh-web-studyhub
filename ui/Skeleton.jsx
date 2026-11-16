@@ -452,7 +452,7 @@ export default function Skeleton({ data, onPractice, focusId, onFocus }) {
               <header className="sk-view-head">
                 <h3>{viewing.title}</h3>
                 <div className="sk-actions">
-                  <Button variant="secondary"
+                  <Button iconEnd="arrow-right" variant="secondary"
                     lock={busy}
                     onClick={() => onPractice(viewing.nodes.flatMap((n) => n.cards))}
                   >{ui("练整个骨架")}</Button>

@@ -300,7 +300,7 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
                   </Button>
                 )}
                 {row.status === "wrong" && onOpenWrongBook && (
-                  <Button variant="link" size="sm" onClick={() => onOpenWrongBook([{ deckId: row.deckId, cardId: row.cardId }])}>{ui("去错题本练这道题")}</Button>
+                  <Button iconEnd="arrow-right" variant="link" size="sm" onClick={() => onOpenWrongBook([{ deckId: row.deckId, cardId: row.cardId }])}>{ui("去错题本练这道题")}</Button>
                 )}
               </div>
             )}

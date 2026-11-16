@@ -200,7 +200,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           <Button variant="quiet" size="sm" onClick={() => openModal({ type: "sources" })}>{uiFormat("查看 {0} 份资料", [countMaterials(data?.sources, run.sourceIds)])}</Button>
           {!run.complete && !run.reading && run.mode !== "exam" && readableMaterialItems(data?.sources, run.sourceIds).length > 0 && (
             <Tooltip layer content={ui("打开资料阅读器，翻到已学章节或页码后点「做这几页的题」，避开还没学到的后续页。")}>
-              <Button variant="quiet" size="sm" onClick={() => openReaderForPages({ sources: data?.sources, sourceIds: run.sourceIds, openModal: study.openModal, back: true })}>
+              <Button iconEnd="arrow-right" variant="quiet" size="sm" onClick={() => openReaderForPages({ sources: data?.sources, sourceIds: run.sourceIds, openModal: study.openModal, back: true })}>
                 {ui("去资料选页做题")}
               </Button>
             </Tooltip>

@@ -53,7 +53,7 @@ export default function InlineRun({ session, data, label, rootRef, onClose, onCo
       <header className="inline-run__head">
         <span className="inline-run__label">{label}</span>
         <span className="inline-run__actions">
-          {onContinue && run && !run.complete && <Button size="sm" variant="quiet" lock={busy} onClick={onContinue}>{ui("去练习页继续")}</Button>}
+          {onContinue && run && !run.complete && <Button iconEnd="arrow-right" size="sm" variant="quiet" lock={busy} onClick={onContinue}>{ui("去练习页继续")}</Button>}
           <Button size="sm" variant="secondary" icon="arrow-left" onClick={onClose}>{ui("回到题目列表")}</Button>
         </span>
       </header>

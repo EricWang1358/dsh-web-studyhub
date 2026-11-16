@@ -138,7 +138,7 @@ export default function CourseCompanionsBar({ course, data }) {
                 {item.grounded === false && <Badge size="sm" tone="neutral">{ui('AI 推演')}</Badge>}
               </div>
               <div className="sh-comp-bar__btns">
-                <Button size="sm" onClick={() => openModal({ type: 'companion', id: item.id, course })}>
+                <Button iconEnd="arrow-right" size="sm" onClick={() => openModal({ type: 'companion', id: item.id, course })}>
                   {item.progress?.slide > 1 && !item.progress?.completed ? ui('接着看') : ui('打开')}
                 </Button>
                 <Button size="sm" variant="quiet" onClick={() => remove(item)}>{ui('移除')}</Button>

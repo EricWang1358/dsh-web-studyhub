@@ -259,7 +259,7 @@ function ChunkList({ chunks, index, count, running = false, expanded = false, ad
   const list = <ol className="sh-job__steps pdf-chunks" aria-label={ui('各段状态')}>
     {chunks.map(chunk => {
       const label = uiFormat('第 {0} 段 · 第 {1} 页', [chunk.index, pageRange(chunk.startPage, chunk.endPage)]);
-      if (chunk.state === 'done') return <li key={chunk.index} className="is-done"><Icon name="check" size={14} /><span className="sh-visually-hidden">{ui('已完成')} </span>{label}{chunk.seconds > 0 ? ` · ${formatDuration(chunk.seconds * 1000)}` : ''}</li>;
+      if (chunk.state === 'done') return <li key={chunk.index} className="is-done"><Icon className="sh-icon--inline" name="check" /><span className="sh-visually-hidden">{ui('已完成')} </span>{label}{chunk.seconds > 0 ? ` · ${formatDuration(chunk.seconds * 1000)}` : ''}</li>;
       return <li key={chunk.index} className={chunk.index === index && running ? 'is-current' : ''} aria-current={chunk.index === index && running ? 'step' : undefined}>{label}</li>;
     })}
   </ol>;
@@ -342,7 +342,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
           {status === 'running' && row.live && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('查看「{0}」的进度', [row.filename])} onClick={() => onShowJob(row)}>{ui('查看进度')}</Button>}
           {status === 'held' && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onEditHeld(row)}>{HELD_ENTRY()}</Button>}
           {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
-            <Button variant="secondary" size="sm" className="pdf-history__action" busy={busy} lock={!!working && !busy} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
+            <Button iconEnd="arrow-right" variant="secondary" size="sm" className="pdf-history__action" busy={busy} lock={!!working && !busy} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
           </Tooltip>}
           {status !== 'running' && <Button variant="link" size="sm" className="pdf-history__action" lock={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
         </div>

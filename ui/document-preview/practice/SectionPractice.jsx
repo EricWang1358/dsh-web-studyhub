@@ -136,7 +136,7 @@ export default function SectionPractice({ loop, outline, title, chapterName = ''
               <div className="section-practice__actions">
                 {inline && <Button variant="primary" size="sm" iconEnd="arrow-right" lock={busy} onClick={() => start(null)} data-usage="reader.section-practice">
                   {shownCards.length === 1 ? ui('在这里做这 1 道题') : uiFormat('在这里做这 {0} 道题', [shownCards.length])}</Button>}
-                {onElsewhere && <Button variant="quiet" size="sm" lock={busy} onClick={() => onElsewhere(option)}>
+                {onElsewhere && <Button iconEnd="arrow-right" variant="quiet" size="sm" lock={busy} onClick={() => onElsewhere(option)}>
                   {shownRest > 0 ? uiFormat('还有 {0} 道，去练习页做全部', [shownRest]) : ui('去练习页做')}</Button>}
               </div>
             </>}

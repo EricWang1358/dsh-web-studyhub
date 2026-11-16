@@ -291,12 +291,12 @@ export function OralSetup({ data, course, decks, selection, count, onCount, onSt
       ui("整场结束后一次性给出每题反馈，中途不显示对错。"),
     ]}
     summary={uiFormat("{0} 题 · 约 {1}–{2} 分钟 · 结束后看反馈", [count, count * 2, count * 3])}
-    action={<Button variant="primary" busy={busy} disabled={!canStart} onClick={onStart}>{busy ? ui("正在准备…") : ui("开始口头模拟")}</Button>}>
+    action={<Button iconEnd="arrow-right" variant="primary" busy={busy} disabled={!canStart} onClick={onStart}>{busy ? ui("正在准备…") : ui("开始口头模拟")}</Button>}>
     <CountField value={count} presets={[3, 5, 8]} min={1} max={10} onChange={onCount}
       hint={ui("1–10 题 · 每个主题先出一题，薄弱和没考过的主题优先。")} />
     {scopeNote && <p className="es-hint">{scopeNote}</p>}
     {!canStart && <p className="es-warning">{ui("学习库里还没有可用于口头模拟的题；先出题再来。")}</p>}
-    <p className="es-note"><Icon name="info" size={16} /><span>{ui("发给 AI 模型的内容：追问时是当前题目和你的回答；结束评估时是题目、参考答案和你的全部回答。学习库的其他内容不会发送。")}</span></p>
+    <p className="es-note"><Icon className="sh-icon--inline" name="info" /><span>{ui("发给 AI 模型的内容：追问时是当前题目和你的回答；结束评估时是题目、参考答案和你的全部回答。学习库的其他内容不会发送。")}</span></p>
     <ModelSetupGate variant="inline" feature="grade" model={model} onOpenSettings={onSetupModel} />
     {!model.ready && <Hint>{ui("没有模型时：追问会用固定问题，结束后只保存回答、不评估。")}</Hint>}
   </ExamSetupCard>;

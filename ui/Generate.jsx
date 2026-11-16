@@ -194,7 +194,7 @@ export default function Generate({
     <section className="page generate-page">
       <PageHeader className="generate-header" title={ui("出一组新题")}
         description={ui("用你的资料让 AI 出题；已经有现成的题目，也可以直接导入。")}
-        actions={pageAvailable(data, 'examcoach') ? <Button variant="quiet" className="sh-btn--flush-start sh-btn--flush-end" onClick={() => setPage?.('examcoach')}>{ui("去教练先校准考法")}</Button> : undefined} />
+        actions={pageAvailable(data, 'examcoach') ? <Button iconEnd="arrow-right" variant="quiet" className="sh-btn--flush-start sh-btn--flush-end" onClick={() => setPage?.('examcoach')}>{ui("去教练先校准考法")}</Button> : undefined} />
       {/* The row measures its own width (generate-home.css): where the cards no longer fit side by side they become one row of
           titles and the chosen way's line is said once under it (#575). The tab keeps its note, so a screen reader hears the same name. */}
       <div className="source-mode-frame">

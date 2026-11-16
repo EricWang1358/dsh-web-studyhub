@@ -71,7 +71,7 @@ function TaskRow({ task, plan, featured }) {
     <div className="daily-plan__task-copy"><strong>{task.title}</strong><TaskProgress task={task} />
       {task.status === 'done' && task.available !== false && <ActualTime task={task} plan={plan} />}
     </div>
-    {actionable(task) && !featured && <Button className="daily-plan__task-btn" variant="quiet" size="sm" lock={!!plan.busy} onClick={() => plan.start(task.id)}>
+    {actionable(task) && !featured && <Button iconEnd="arrow-right" className="daily-plan__task-btn" variant="quiet" size="sm" lock={!!plan.busy} onClick={() => plan.start(task.id)}>
       {task.status === 'doing' ? ui('继续') : ui('开始')}</Button>}
   </li>;
 }
@@ -132,7 +132,7 @@ function EmptyProposal({ proposal, plan, onSettings, onAdjust }) {
     <p className="daily-plan__intro">{why}</p>
     <div className="daily-plan__actions">
       {reason === 'nothing-due' ? <>
-        <Button variant="secondary" lock={!!plan.busy} onClick={() => navigate('library')}>{ui('去学习库')}</Button>
+        <Button iconEnd="arrow-right" variant="secondary" lock={!!plan.busy} onClick={() => navigate('library')}>{ui('去学习库')}</Button>
         <AddSourceButton variant="quiet" lock={!!plan.busy} onClick={() => openModal({ type: 'add' })} />
       </> : <>
         <Button variant="secondary" disabled={!onAdjust} lock={!!plan.busy} onClick={onAdjust}>{ui('今天再学一会儿')}</Button>
@@ -172,7 +172,7 @@ function NextAction({ task, plan, primary }) {
     {heading !== task.title && <p className="daily-plan__subject">{task.title}</p>}
     {task.reason && <p className="daily-plan__intro">{task.reason}</p>}
     <div className="daily-plan__next-bottom"><TaskProgress task={task} />
-      <div className="daily-plan__actions"><Button variant={primary ? 'primary' : 'secondary'} busy={plan.busy === 'start'} disabled={!!plan.busy} onClick={() => plan.start(task.id)}>
+      <div className="daily-plan__actions"><Button iconEnd="arrow-right" variant={primary ? 'primary' : 'secondary'} busy={plan.busy === 'start'} disabled={!!plan.busy} onClick={() => plan.start(task.id)}>
         {task.status === 'doing' ? ui('继续学习') : ui('开始学习')}</Button>
         {task.kind === 'reading' && <Button variant="quiet" lock={!!plan.busy} onClick={() => plan.complete(task.id)}>{ui('我已完成')}</Button>}
       </div>
@@ -256,7 +256,7 @@ export default function DailyPlan({ plan, onBoard, modelReady = true, openModelS
       <DisclosureToggle open={open} onToggle={setOpen} controls={bodyId} label={foldLabel(open, ui('今天先做什么'))} />
       <h2>{ui('今天先做什么')}</h2>
       {summary && <p className="daily-plan__summary">{summary}</p>}
-      {onBoard && <Button variant="quiet" size="sm" className="daily-plan__board-link" onClick={onBoard}>{ui('去今日')}</Button>}
+      {onBoard && <Button iconEnd="arrow-right" variant="quiet" size="sm" className="daily-plan__board-link" onClick={onBoard}>{ui('去今日')}</Button>}
       {state && <Menu className="daily-plan__menu" label={ui('调整')} items={items} onSelect={choose}
         trigger={({ props, ref }) => { menuTrigger.current = ref; return <Button ref={ref} variant="quiet" size="sm" {...props}>{ui('调整')}</Button>; }} />}
     </header>

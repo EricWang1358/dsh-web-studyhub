@@ -68,7 +68,7 @@ const Row = memo(function Row({ row, data, tabStop, bodyId, pick, papers, unbuil
       {row.kind === 'other' && node.anchors > 0 && <p className="outline-row__hint"><span>{otherText(node.anchors)}</span></p>}
       {row.kind === 'unplaced' && node.materials?.length > 0 && <p className="outline-row__hint">
         <span>{unfiledText(node.materials.map(material => displayTitle(material.title)), node.materialCount)}</span>
-        {onOpenSources && <Button variant="link" size="sm" onClick={onOpenSources}>{ui('去资料页归入课程')}</Button>}
+        {onOpenSources && <Button iconEnd="arrow-right" variant="link" size="sm" onClick={onOpenSources}>{ui('去资料页归入课程')}</Button>}
       </p>}
       {!row.hasChildren && <div id={bodyId} className="outline-row__body" hidden={!row.expanded}>
         {row.expanded && <Questions data={data} holders={holders} pick={pick} onPickCard={onPickCard} />}
