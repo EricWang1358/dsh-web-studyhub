@@ -4,7 +4,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadUi } from './helpers/ui-module.mjs';
 
-const m = await loadUi("export * from './ui/study-map/home-plan.js'; export { setUiLanguage } from './ui/i18n.js';");
+const m = await loadUi(`
+  export * from './ui/study-map/home-plan.js';
+  export { NEXT_STEP_IDS, nextStep, nextStepFacts } from './ui/study-map/next-step.js';
+  export { nextCardView } from './ui/study-map/next-card-view.js';
+  export { setUiLanguage } from './ui/i18n.js';
+`);
 const deck = (id, extra = {}) => ({ id, title: id, course: 'A', ...extra });
 const today = (extra = {}) => ({ due: 3, weak: 2, new: 10, size: 15, ahead: false, more: 0, course: 'A', scope: [{ deckId: 'd1' }], elsewhere: 0, ...extra });
 function plan({ data = {}, todayPatch = {}, runs = [], route = null, fresh = 14, started = [], resumed = [], generated = [] } = {}) {
@@ -102,15 +107,61 @@ test("todayAction is always today's own round, whatever else the card resumes (t
   assert.equal(plan({ todayPatch: { size: 0, due: 0, weak: 0, new: 0 } }).home.todayAction.disabled, true, 'nothing to learn: nothing to press');
 });
 
-test('a day with nothing to do, and an ahead-of-time round', () => {
+test('a day with nothing to do, and an ahead-of-time round never says 题待学 beside 今天的任务都完成了', () => {
   m.setUiLanguage('zh');
   const clear = plan({ todayPatch: { due: 0, weak: 0, new: 0, size: 0 } }).home;
   assert.equal(clear.plan.kind, 'clear');
   assert.equal(clear.plan.detail, '这里还没有可以学的题');
   assert.equal(clear.plan.action.disabled, true);
-  const ahead = plan({ todayPatch: { due: 0, weak: 0, new: 0, size: 20, ahead: true } }).home;
+  const ahead = plan({ todayPatch: { due: 0, weak: 0, new: 0, size: 10, ahead: true } }).home;
   assert.equal(ahead.plan.eyebrow, '提前巩固');
+  assert.equal(ahead.plan.count, 10);
+  assert.equal(ahead.plan.unit, '题可提前练', 'optional ahead review never calls extra practice 题待学');
+  assert.doesNotMatch(`${ahead.plan.unit} ${ahead.plan.detail} ${ahead.headline}`, /题待学/);
+  assert.equal(ahead.plan.detail, '今日已完成，可提前巩固');
+  assert.equal(ahead.headline, '今天的任务都完成了 · 可提前巩固');
   assert.equal(ahead.plan.action.label, '提前巩固');
+  assert.equal(ahead.todayAction.label, '提前巩固');
+  const aheadEmpty = plan({ todayPatch: { due: 0, weak: 0, new: 0, size: 0, ahead: true } }).home;
+  assert.equal(aheadEmpty.plan.unit, '题可提前练');
+  assert.equal(aheadEmpty.plan.detail, '今天的任务都完成了');
+  assert.equal(aheadEmpty.headline, '今天的任务都完成了');
+  assert.equal(aheadEmpty.plan.action.disabled, true);
+  m.setUiLanguage('en');
+  try {
+    const enAhead = plan({ todayPatch: { due: 0, weak: 0, new: 0, size: 10, ahead: true } }).home;
+    for (const s of [enAhead.plan.eyebrow, enAhead.plan.unit, enAhead.plan.detail, enAhead.headline, enAhead.plan.action.label, enAhead.todayAction.label]) {
+      assert.doesNotMatch(s, /[\u3400-\u9fff]/, `English ahead copy leaves zero Han: ${s}`);
+    }
+  } finally {
+    m.setUiLanguage('zh');
+  }
+});
+
+test('NextStepCard and TodayCard share one priority truth: open runs (resume) outrank due reviews across both surfaces', () => {
+  m.setUiLanguage('zh');
+  const openRun = { id: 'r-open', mode: 'quiz', scope: [{ deckId: 'd1' }], index: 2, total: 8, title: '并发控制' };
+  const snapshot = {
+    root: '/lib',
+    model: { ready: true, reason: 'ok', label: 'DeepSeek' },
+    decks: [deck('d1')],
+    sources: [{ id: 's' }],
+    drafts: [],
+    jobs: [],
+    runs: [openRun],
+    lastRun: { id: 'r-open' },
+    today: today({ due: 5, weak: 2, new: 3, size: 10, ahead: false }),
+    focus: { mode: 'class', course: 'A', fresh: [], route: null },
+  };
+  const { home } = plan({ data: snapshot, runs: [openRun], todayPatch: { due: 5, weak: 2, new: 3, size: 10, ahead: false } });
+  const facts = m.nextStepFacts(snapshot, { resumeOpen: home.plan.kind === 'resume' });
+  const step = m.nextStep(facts);
+  assert.equal(home.plan.kind, 'resume');
+  assert.equal(step.id, 'resume');
+  assert.equal(home.headline, '有一组练习没做完');
+  const topView = m.nextCardView(step.id, facts, { plan: home.plan, today: home.todayAction });
+  assert.equal(topView.action.label, home.plan.action.label, 'top NextStepCard and TodayCard offer the same primary resume action');
+  assert.ok(m.NEXT_STEP_IDS.indexOf('resume') < m.NEXT_STEP_IDS.indexOf('due'));
 });
 
 test('a newcomer keeps the next step in front while only the sample course is there', () => {

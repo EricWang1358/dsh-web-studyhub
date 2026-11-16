@@ -50,6 +50,29 @@
       font-weight: var(--fw-medium);
       color: var(--text-muted);
     }
+    .finder-content:not(:first-child) {
+      margin-top: var(--space-2);
+      border-top: var(--hairline) solid var(--line-soft);
+      padding-top: var(--space-1);
+    }
+    .finder-content__head {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-1-5) var(--space-1);
+    }
+    .finder-content__label {
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      color: var(--text-muted);
+    }
+    .finder-hit-mark {
+      background: var(--bg-raised);
+      color: var(--text);
+      font-weight: var(--fw-medium);
+      border-radius: var(--radius-sm);
+      padding-inline: var(--space-1);
+    }
     .finder-group {
       border-bottom: var(--hairline) solid var(--line-soft);
     }

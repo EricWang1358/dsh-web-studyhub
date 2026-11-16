@@ -201,11 +201,12 @@ test('priority order: due and resume outrank draft; draft outranks new-source, w
   // With a published deck, missing model still takes top priority.
   assert.deepEqual(m.nextStep(m.nextStepFacts(base({ model: NOTHING }), { now: NOW })), { id: 'model', surface: 'card' });
 
-  // Due reviews outrank draft.
-  assert.deepEqual(m.nextStep(m.nextStepFacts(base({ today: { due: 3, weak: 2, new: 5, size: 10, ahead: false } }), { now: NOW })), { id: 'due', surface: 'card' });
-
-  // An open practice run (resume) outranks draft when due === 0.
+  // An open practice run (resume) outranks due reviews AND draft.
+  assert.deepEqual(m.nextStep(m.nextStepFacts(base({ today: { due: 3, weak: 2, new: 5, size: 10, ahead: false } }), { now: NOW, resumeOpen: true })), { id: 'resume', surface: 'card' });
   assert.deepEqual(m.nextStep(m.nextStepFacts(base(), { now: NOW, resumeOpen: true })), { id: 'resume', surface: 'card' });
+
+  // Due reviews outrank draft when no run is open.
+  assert.deepEqual(m.nextStep(m.nextStepFacts(base({ today: { due: 3, weak: 2, new: 5, size: 10, ahead: false } }), { now: NOW, resumeOpen: false })), { id: 'due', surface: 'card' });
 
   // When due === 0 and resumeOpen === false, draft outranks new-source, wrong, exam, learn, and done!
   assert.deepEqual(m.nextStep(m.nextStepFacts(base(), { now: NOW, resumeOpen: false })), { id: 'draft', surface: 'card' });

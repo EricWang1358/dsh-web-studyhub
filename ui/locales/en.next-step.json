@@ -28,5 +28,11 @@
   "有 {0} 份草稿待检查发布": "{0} drafts waiting to be checked and published",
   "「{0}」发布后就能开始练习和计入复习。": "Once published, “{0}” is ready to practise and scheduled for review.",
   "检查并发布后就能开始练习和计入复习。": "Check and publish to start practising and include them in review.",
-  "份草稿": "drafts"
+  "份草稿": "drafts",
+  "题可提前练": "optional ahead",
+  "今日已完成，可提前巩固": "Today’s tasks are complete; optional ahead review",
+  "今天的任务都完成了 · 可提前巩固": "Today’s work is complete · Optional ahead review",
+  "可提前巩固": "Optional ahead review",
+  "提前巩固 · {0} 题": "Review ahead · {0} questions",
+  "想多练的话，有 {0} 题可提前练。": "To practise more, {0} questions are ready for ahead review."
 }
