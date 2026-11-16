@@ -66,7 +66,7 @@ export function compactAction(line, on = {}, plan = null) {
 }
 
 function Mark({ index, done }) {
-  return <span className="frl-mark" aria-hidden="true">{done ? <Icon name="check" size={14} /> : index + 1}</span>;
+  return <span className="frl-mark" aria-hidden="true">{done ? <Icon className="sh-icon--inline" name="check" /> : index + 1}</span>;
 }
 
 /** Step 1, open: the gate's own words (ModelSetupGate is the one source), the key line, and 重新检查; the only way to the settings is the quiet link in the step that picks a model. */
@@ -224,7 +224,7 @@ function CompactBlocked({ reason, sourceIds, on }) {
 function RowLink({ step, on }) {
   const { busy } = useStudy();
   if (step.status === 'todo' && on.importFirst) return <AddSourceButton variant="link" size="sm" className="frl-row-link first-run__link" lock={busy} onClick={on.importFirst} />;
-  if (step.status === 'done' && on.importMore) return <Button variant="link" size="sm" className="frl-row-link first-run__link" lock={busy} data-first-run="more" onClick={() => on.importMore(step.sourceIds)}>{ui('再加一份')}</Button>;
+  if (step.status === 'done' && on.importMore) return <AddSourceButton more variant="link" size="sm" className="frl-row-link first-run__link" lock={busy} data-first-run="more" onClick={() => on.importMore(step.sourceIds)} />;
   return null;
 }
 

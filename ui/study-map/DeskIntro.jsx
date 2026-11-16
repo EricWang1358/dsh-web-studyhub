@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Badge, Button, Icon, Tooltip } from '../components/index.js';
+import { AddSourceButton, Badge, Button, Icon, Tooltip } from '../components/index.js';
 import { ParkedChip, isParked } from '../CourseActive.jsx';
 import CourseRoute from '../CourseRoute.jsx';
 import FocusProgressLine from './FocusProgressLine.jsx';
@@ -77,7 +77,8 @@ export default function DeskIntro({ data, home, mastery, start, resume, endRun, 
       {plan.kind === 'empty' && plan.also.length > 0 && (
         <p className="desk-also">
           {plan.also.map((entry) => (Array.isArray(entry) ? <Button key={entry[0]} variant="link" icon={entry[2]} lock={busy} onClick={entry[1]}>{entry[0]}</Button>
-            : <HandOff key={entry.handOff.id} id={entry.handOff.id} input={entry.handOff.input} lead={entry.handOff.lead} what={entry.handOff.what} disabled={busy} />))}
+            : entry.onClick ? <AddSourceButton key={entry.label} more variant="link" lock={busy} onClick={entry.onClick} />
+              : <HandOff key={entry.handOff.id} id={entry.handOff.id} input={entry.handOff.input} lead={entry.handOff.lead} what={entry.handOff.what} disabled={busy} />))}
         </p>
       )}
       {plan.kind === 'empty' && <p className="desk-also"><HandOff id="guide.start" lead={ui('不知道从哪开始？')} what={ui('让主会话看一眼你的学习库，再说两三条能马上开始的路。')} disabled={busy} /></p>}

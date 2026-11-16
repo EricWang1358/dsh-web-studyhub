@@ -95,7 +95,7 @@ test('the first-run line from no model to the first question: one primary per st
         await until(async () => !(await page.locator('dialog[open]').count()) && (await status(page, 'material')) === 'done', 'the import closes on the line, step 2 ticked');
         assert.equal(await page.locator('.generate-page').count(), 0, 'the first import does not hop to 创建题组');
         assert.match(await page.locator('.frl-step[data-step="material"]').innerText(), /第3讲 进程与线程(\.md)? · 已添加/, 'the material by the title 资料 shows');
-        assert.match(await page.locator('.frl-step[data-step="material"]').innerText(), /再加一份/);
+        assert.match(await page.locator('.frl-step[data-step="material"]').innerText(), /再添加资料/);
         assert.equal(await openStep(page), 'deck');
         assert.equal(await primaries(page), 1);
         assert.equal((await page.locator('.first-run .sh-btn--primary').innerText()).trim(), '出第一组题');

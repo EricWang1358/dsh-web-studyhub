@@ -216,7 +216,7 @@ test('the page form: only the open step has a body, with at most one primary but
   const ready = page(m.firstRunLine(library({ sources: [mine] })));
   assert.match(ready, /data-first-run="generate"/);
   assert.match(ready, />出第一组题</);
-  assert.match(ready, />再加一份</, 'an added material can have a second one, quietly');
+  assert.match(ready, /再添加资料/, 'an added material can have a second one, quietly');
   const running = page(m.firstRunLine(library({ sources: [mine], jobs: [job('running')] })), { jobs: h('div', { className: 'cjc' }, 'card') });
   assert.equal(primaries(running), 0, 'a run in progress has nothing to press but its own card');
   assert.match(running, /class="cjc"/, 'the run\'s card is inside the third step');
