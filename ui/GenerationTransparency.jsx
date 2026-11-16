@@ -198,7 +198,7 @@ export default function GenerationTransparency({ gen, setGen, sourceIds = [], so
         );
       })}
 
-      <FormRow label={ui('名称（可选）')} htmlFor="generate-module-template">
+      <FormRow label={ui('要求名称（可选）')} htmlFor="generate-module-template">
         <input
           id="generate-module-template"
           className="generate-row__input"
