@@ -214,7 +214,8 @@ test('the tool contract names the reads in area book, and the description points
   for (const action of ['book.toc {course?', 'book.read {course?,hid', 'source.pages {documentId|sourceId', 'book.coverage {course?,hid}']) assert.ok(libraryContracts.book.includes(action), action);
   assert.match(libraryContracts.book, /never use course\.book\.open or course\.book\.save/);
   for (const text of ['book.toc {course?,offset?,limit?<=40,compact?}', 'offset?|heading? (only with file']) assert.ok(libraryContracts.book.includes(text), text);
-  assert.match(studyToolDescription, /book\.toc\/read\/coverage, source\.pages \(details: book\)/);
+  assert.match(studyToolDescription, /book\.toc\/read\/write/);
+  assert.match(libraryContracts.index, /book\.toc\/read\/coverage, source\.pages \(details: book\)/);
   assert.deepEqual([writesFor('library', 'book.toc'), writesFor('library', 'book.read'), writesFor('library', 'source.pages'), writesFor('library', 'book.coverage')], [['sources'], [], [], []]);
 });
 

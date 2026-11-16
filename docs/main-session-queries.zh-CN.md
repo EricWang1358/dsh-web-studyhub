@@ -44,7 +44,7 @@
 - 当已有学习目标、偏好、练习记录、课程重点或考试安排时，附上实时派生的学习者档案（`learner`，其中模型撰写的画像摘要仅在开启备题同意且未关闭本轮点评时附带）；全新学习库省略这一项；
 - 契约分区列表。
 
-需要某类操作的具体参数时，读取对应分区，例如 `library.context {area:"sources"}`、`{area:"generation"}` 或 `{area:"cards"}`。分区有 `dailyPlan`、`plan`、`custom`、`sources`、`imports`、`decks`、`classroom`、`generation`、`cards`、`learning`、`panel`、`guided`、`book`、`companions`、`organization`、`notes`、`board`、`workflows`、`cases` 和 `skeletons`。
+需要查看完整操作索引时可先读 `library.context {area:"index"}`；需要某类操作的具体参数时，读取对应分区，例如 `library.context {area:"sources"}`、`{area:"generation"}` 或 `{area:"cards"}`。分区有 `index`、`dailyPlan`、`plan`、`custom`、`sources`、`imports`、`decks`、`classroom`、`generation`、`cards`、`learning`、`panel`、`guided`、`book`、`companions`、`organization`、`notes`、`board`、`workflows`、`cases` 和 `skeletons`。
 
 资料原文、题目和关联关系只在需要时分页读取。
 

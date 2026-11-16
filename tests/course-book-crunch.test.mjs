@@ -258,7 +258,8 @@ test('the minutes a day (settings.book.crunchMinutes, default 180) go to the pla
 test('the contracts name the ops', () => {
   assert.match(libraryContracts.learning, /book\.crunch \{course\?/);
   assert.match(libraryContracts.learning, /book\.mock \{course\?/);
-  assert.match(studyToolDescription, /book\.crunch/);
+  assert.match(studyToolDescription, /library\.context \{area:"index"\}/);
+  assert.match(libraryContracts.index, /book\.crunch/);
 });
 
 // #489 item 9: 学完 means studied. Answers given in a mock exam (or an oral one) measure, they do not teach the point, so the plan keeps it; a practice round's answers still count.

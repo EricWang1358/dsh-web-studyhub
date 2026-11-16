@@ -17,7 +17,8 @@ const GUIDED = ['study.session.start', 'study.session.get', 'study.session.updat
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('the tool description names every guided action and points at the guided area, which spells out each one', () => {
-  assert.match(studyToolDescription, /Guided study \(AI 带学\): [^\n]*\(details: guided\)/);
+  assert.match(studyToolDescription, /study\.session\.start\/get/);
+  assert.match(libraryContracts.index, /Guided study \(AI 带学\): [^\n]*\(details: guided\)/);
   for (const action of GUIDED) assert.ok(libraryContracts.guided.includes(action.replace(/^study\./, 'study.')), `the guided contract names ${action}`);
   assert.match(libraryContracts.guided, /courseId is required/);
   assert.match(libraryContracts.guided, /scope:\[\{kind:source\|deck\|card,id\}\]/);
