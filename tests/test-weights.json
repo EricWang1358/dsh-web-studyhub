@@ -446,6 +446,8 @@
  "tests/generate-page-selection.test.mjs": 30,
  "tests/generate-picker-rows-browser.test.mjs": 600,
  "tests/generate-picker-weight.test.mjs": 260,
+ "tests/generate-reach-browser.test.mjs": 2500,
+ "tests/generate-reach.test.mjs": 200,
  "tests/generate-short-browser.test.mjs": 2530,
  "tests/generate-short-page.test.mjs": 200,
  "tests/generation-agent.test.mjs": 20,
