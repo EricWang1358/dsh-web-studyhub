@@ -31,7 +31,7 @@ const workOn = (draft, jobs) => draftWork(draft, jobs) || (() => {
 const classOf = (variant) => `cov-topup${variant === 'compact' ? ' cov-topup--compact' : variant === 'panel' ? ' cov-topup--panel' : ''}`;
 /** While something works on the draft this is a status (the work's own words, with its progress), not a button that cannot be pressed. */
 // On the draft page (variant 'block') the summary above says the coverage once; the home card and the popover have no summary of their own, so their line keeps it.
-const WorkStatus = ({ draft, work, variant, percent }) => <div className={`draft-topup ${classOf(variant)}`} data-draft-topup data-coverage-topup><Badge tone="info" dot data-draft-work>{draftWorkLabel(work, draft, percent, { cover: variant !== 'block' })}</Badge></div>;
+const WorkStatus = ({ draft, work, variant, percent }) => <div className={`draft-topup ${classOf(variant)}`} data-draft-topup data-coverage-topup><Badge tone="neutral" dot data-draft-work>{draftWorkLabel(work, draft, percent, { cover: variant !== 'block' })}</Badge></div>;
 
 /** The body: the round, the button and the estimate. `compact` is the home card's narrow column; `panel` the console header's popover. */
 function TopUpBody({ draft, view, shortfall, modelReady, held, onTopUp, variant }) {
