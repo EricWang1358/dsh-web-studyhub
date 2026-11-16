@@ -25,7 +25,7 @@ export default function CourseRulesEditor({ value, onChange, disabled }) {
             onChange={(event) => onChange(value.map((item, at) => at === index ? event.target.value : item))} />
           <IconButton icon="close" size="sm" label={uiFormat('删除第 {0} 条守则', [index + 1])} disabled={disabled} onClick={() => onChange(value.filter((_, at) => at !== index))} />
         </li>)}
-      </ol> : <Hint>{ui('还没有守则。练习时在「修题」框或 👎 的标签旁点「设为本课守则」，也会加到这里。')}</Hint>}
+      </ol> : <Hint>{ui('还没有守则。练习时在「修题」框或「这题有问题」的标签旁点「设为本课守则」，也会加到这里。')}</Hint>}
       <div className="course-rules__add">
         <TextInput className="course-rules__input" value={text} maxLength={GENERATION_RULE_LIMITS.length} disabled={disabled} aria-label={ui('新守则')}
           placeholder={ui('例如：题干要自带情境和条件，不出只有一句空问的题')} onChange={(event) => setText(event.target.value)}
