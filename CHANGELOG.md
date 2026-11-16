@@ -2,6 +2,11 @@
 
 English · [Complete Chinese history](CHANGELOG.zh-CN.md)
 
+## 4.10.1 — 2026-11-16
+
+- **Repaired library files show up again without restarting StudyHub.** When a damaged or missing record file in a study library is restored on disk, the next background refresh brings its materials back into **Sources** and clears the warning banner right away instead of showing the earlier partial list. Not verified: live recovery across a network-mounted shared drive.
+- **Flashcard auto-advance and question switches keep a single countdown bar and clean card state.** Grading a flashcard with **Auto-advance** on now draws one countdown line under the card instead of a second duplicate bar below the toolbar, opens the next unrevealed flashcard front-side-up without a reverse flip animation, and clears duplicate grading/error indicators and per-slide companion inquiry quotes when moving between questions or slides. Not verified: touch-only hover pause on mobile tablets.
+
 ## 4.10.0 — 2026-11-16
 
 - **Completed end-to-end English localization across notifications, teaching, outlines, skills and overseas tool downloads.** Switching StudyHub to English now localizes all inbox letters, live draft-publication review counts, subtitle and live-class status notices, background job titles, step-by-step teaching prompts (with separate per-language step caches), generated course outlines and exam-point lists in the reader, fallback deck titles and oral-interview topic labels; splits mixed documentation into pure English guides paired with `.zh-CN.md` translations; ships seven English-ready agent skills; and prefers global download mirrors (`pypi.org`, `github.com`, `huggingface.co`) when installing PDF conversion or local speech engines in English. Not verified: live overseas broadband download throughput for multi-gigabyte speech/MinerU models inside a packaged DSH desktop host.

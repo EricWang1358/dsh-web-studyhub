@@ -1,1 +1,0 @@
-- **Repaired library files show up again without restarting StudyHub.** When a damaged or missing record file in a study library is restored on disk, the next background refresh brings its materials back into **Sources** and clears the warning banner right away instead of showing the earlier partial list. Not verified: live recovery across a network-mounted shared drive.
