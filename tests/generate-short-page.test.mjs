@@ -60,7 +60,7 @@ test('every optional control is inside 更多选项, closed unless the form carr
   assert.match(fold, /id="generate-focus"/);
   assert.match(fold, /data-tour="generate-budget"/, 'the spending limit');
   assert.doesNotMatch(fold, /data-coverage-auto|data-coverage-level-note|kinds-quiz|id="generate-count"/, 'the question types and the strength are on the main path, not repeated here');
-  assert.match(text(fold.slice(0, 600)), /想练什么、难度与语言、题组名称、花费上限、额外要求/, 'the closed fold says what is in it');
+  assert.match(text(fold.slice(0, 600)), /想练什么、难度、花费、额外要求/, 'the closed fold says what is in it');
   // typed values open it, so nothing the learner entered is hidden; what stands on the main path does not
   for (const typed of [{ focus: '死锁' }, { title: '期中复习' }, { role: '后端' }, { difficulty: 'advanced' }, { language: 'English' }, { tokenBudget: '2M' }])
     assert.match(parts(render({}, { gen: { ...gen, ...typed } })).fold.slice(0, 80), /\sopen[\s>=]/, `${Object.keys(typed)} opens the fold`);

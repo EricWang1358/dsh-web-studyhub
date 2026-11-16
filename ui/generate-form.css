@@ -6,7 +6,7 @@
        the focus box with its AI assist, 更多选项 and the summary line. Injected by
        Generate (useInjectCss 'study-generate-form'). Tokens only; narrow panes
        follow the `study` container. */
-    .generate-form { padding-top: var(--space-4); }
+    .generate-form { padding-top: var(--space-3); }
     .generate-rows { display: grid; gap: var(--space-5); margin: var(--space-5) 0 0; }
     .generate-row {
       display: grid;
@@ -24,6 +24,7 @@
       line-height: var(--lh-snug);
     }
     .generate-row__control { display: grid; gap: var(--space-2); min-width: 0; justify-items: start; }
+    .generate-row__control .generate-input--off { opacity: 0.6; }
     .generate-row__control > .generate-row__input { width: 100%; }
     .generate-note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     /* Six question types wrap instead of overflowing a narrow pane. */
@@ -45,27 +46,29 @@
     .generate-assist__apply { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
     .generate-assist__why { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); min-width: 0; overflow-wrap: anywhere; }
     /* ── The main path: the one line of what will be made, the reason the page opened ticked, the plan under the form ── */
-    .generate-rows--main { gap: var(--space-4); margin-top: var(--space-3); }
-    .generate-plan { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: var(--space-3); }
+    .generate-rows--main { gap: var(--space-3); margin-top: var(--space-3); }
+    .generate-plan { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: var(--space-2); }
+    /* The case-exam hint is one more line of the plan: it follows the links and wraps with them. */
+    .generate-plan__hint { color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .generate-plan__line { margin: 0; min-width: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .generate-course { margin-top: var(--space-2); }
     .generate-opening { margin: 0 0 var(--space-3); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .generate-estimate { display: grid; gap: var(--space-1); }
     /* ── 更多选项 and the case-exam hint ──────────────────────────────────── */
     .generate-more { margin-top: var(--space-2); }
-    /* The disclosure's body and summary are reached by element: components.css owns .sh-disclosure__body and .sh-disclosure__summary. */
-    .generate-more > div { display: grid; gap: var(--space-6); padding-left: 0; }
-    /* The labels inside stand in the page's own column: the disclosure's indent for its chevron is not taken by the body (nor by the folds inside it). */
-    .generate-more details > div { padding-left: 0; }
-    /* The list of what is inside wraps under the name on a narrow pane instead of squeezing it. */
-    .generate-more > summary { flex-wrap: wrap; }
+    /* 更多选项's body (bodyClassName): its groups under the summary with room above, and the labels in the page's own column (the indent a disclosure keeps for its chevron is not taken). */
+    .generate-more__body { display: grid; gap: var(--space-6); padding: var(--space-4) 0 0; }
+    /* The same for a fold inside it that holds rows of the form (参考样题, 面试方向, 额外要求). */
+    .generate-fold__body { padding-left: 0; }
+    /* What is inside 更多选项 follows its name on one line and is cut cleanly where the pane is too narrow for it (the words in full are in the folds). */
+    .generate-more > summary { min-width: 0; }
+    .generate-more > summary > span:last-child, .generate-extra > summary > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .generate-more .sh-disclosure__label { white-space: nowrap; }
     .generate-more .generate-rows { margin-top: 0; }
     /* A purpose inside 更多选项: a small title over its rows (想练什么 / 难度与语言 / 花费与分轮 / 题组信息). */
     .generate-group { display: grid; gap: var(--space-3); min-width: 0; }
     .generate-group__title { margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); line-height: var(--lh-snug); }
     .generate-role { min-width: 0; }
-    .generate-case-hint { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     /* ── Summary above the one primary button ─────────────────────────────── */
     .generate-summary { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
   }

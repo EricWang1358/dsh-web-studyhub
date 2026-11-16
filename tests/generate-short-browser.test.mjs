@@ -1,4 +1,4 @@
-/* global document, window -- page.evaluate callbacks run in the browser */
+/* global document, window, getComputedStyle -- page.evaluate callbacks run in the browser */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, mkdir } from 'node:fs/promises';
@@ -119,8 +119,15 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
         // #667: the main path (to the end of the button) is about one and a half screens before 更多选项 is opened (was 1312 px for less, with the types and the strength behind the fold)
         const reach = await page.evaluate(() => { const section = document.querySelector('.generate-page'), button = document.querySelector('[data-tour="generate-submit"]');
           return Math.round(button.getBoundingClientRect().bottom - section.getBoundingClientRect().top); });
-        assert.ok(reach <= 900 * 1.6, `the generate button ends ${reach}px down the page (the page, the three ways in and the ticked materials come first: one and a half screens and a little)`);
+        assert.ok(reach <= 900 * 1.3, `the generate button ends ${reach}px down the page (the page, the three ways in and the ticked materials come first: about a screen and a quarter)`);
       }
+      // #1082: 更多选项 is one line at both widths
+      const summaryHeight = await page.locator('.generate-more > summary').evaluate(element => element.getBoundingClientRect().height);
+      assert.ok(summaryHeight <= 50, `${width}px: 更多选项 is one line (${summaryHeight}px)`);
+      // the note under the form: what is checked leads (not smaller, not lighter) what it means
+      const note = await page.evaluate(() => { const lead = getComputedStyle(document.querySelector('.generate-quality__lead')), detail = getComputedStyle(document.querySelector('.generate-quality small'));
+        return { lead: parseFloat(lead.fontSize), detail: parseFloat(detail.fontSize), leadWeight: Number(lead.fontWeight), detailWeight: Number(detail.fontWeight) }; });
+      assert.ok(note.lead >= note.detail && note.leadWeight > note.detailWeight, `the headline leads the note: ${JSON.stringify(note)}`);
       assert.equal(await page.getByText('难度', { exact: true }).first().isVisible(), false, 'nor the difficulty');
       // 找功能 keeps every folded control: its anchor is in the page (with a size, so the finder opens the folds around it) while 更多选项 is shut
       for (const anchor of ['generate-kinds', 'generate-coverage', 'generate-auto', 'generate-course', 'generate-budget', 'generate-difficulty', 'generate-language', 'generate-notation', 'generate-focus', 'generate-reference', 'generate-role', 'generate-extra']) {
@@ -145,6 +152,10 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       // everything optional is one click away, inside the fold
       await page.locator('.generate-more > summary').click();
       await page.locator('#generate-focus').waitFor({ state: 'visible', timeout: 10000 });
+      // room under the summary before the first group, like between the groups
+      const room = await page.evaluate(() => { const summary = document.querySelector('.generate-more > summary').getBoundingClientRect(), title = document.querySelector('.generate-more .generate-group__title').getBoundingClientRect();
+        const groups = [...document.querySelectorAll('.generate-more .generate-group')].map(group => group.getBoundingClientRect()); return { first: title.top - summary.bottom, between: groups[1].top - groups[0].bottom }; });
+      assert.ok(room.first >= 12, `${width}px: the first group starts ${room.first}px under 更多选项 (between groups ${room.between}px)`);
       for (const label of ['难度', '语言', '公式写法', '题组名称（可选）']) assert.ok(await page.locator('.generate-more').getByText(label, { exact: false }).first().isVisible(), `${label} is in the fold`);
       assert.ok(await overflow(page) <= 0, `${width}px: no sideways scroll with the fold open`);
       assert.equal(await page.locator('[data-coverage-consequence]').count(), 0, 'the fold repeats no estimate line');

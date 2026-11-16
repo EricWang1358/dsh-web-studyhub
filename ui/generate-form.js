@@ -247,7 +247,7 @@ export function kindNote(list, count, kindCounts) {
   })[list[0]] || '';
 }
 
-const languageLabel = (value) => LANGUAGES.find((item) => item.value === value)?.label || String(value || '');
+export const languageLabel = (value) => LANGUAGES.find((item) => item.value === value)?.label || String(value || '');
 
 /** The sentence above the submit button: what will be made, from what, and about how long it takes. `count` is the number of questions the plan makes (the estimate's goal); without it the sentence leaves the number out. */
 export function summaryLine({ materials = 0, pages = 0, count = null, difficulty = 'mixed', language = '中文', minutes = null } = {}) {
@@ -303,8 +303,7 @@ export const courseLine = (course = '') => uiFormat('新题组放进课程：{0}
 export function moreValuesOf(gen = {}, defaults = {}) {
   const typed = key => String(gen[key] ?? '').trim() !== '';
   if (['focus', 'title', 'role', 'tokenBudget'].some(typed) || (gen.referenceSourceIds || []).length > 0) return true;
-  if (gen.kindCounts && typeof gen.kindCounts === 'object' && Object.keys(gen.kindCounts).length > 0) return true;
-  if (gen.moduleOverrides && typeof gen.moduleOverrides === 'object' && Object.keys(gen.moduleOverrides).length > 0) return true;
+  if (extraValuesOf(gen)) return true;
   if (['difficulty', 'language'].some(key => defaults[key] !== undefined && gen[key] !== undefined && gen[key] !== defaults[key])) return true;
   return (gen.notation ?? 'auto') !== (defaults.notation ?? 'auto');
 }
