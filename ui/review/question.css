@@ -177,7 +177,7 @@
     }
     .question-meta__overflow {
       color: var(--text-faint);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-variant-numeric: tabular-nums;
     }
     .question-meta .question-meta__action {
