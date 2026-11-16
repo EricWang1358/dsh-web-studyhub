@@ -37,7 +37,9 @@
     }
     /* .page-scope (the course-scope control): ui/course-active.css, so every page shows it the same. */
     .source-organize { margin: var(--space-4) 0; }
-    .source-organize > summary, .source-row-actions > summary { cursor: pointer; color: var(--text-muted); }
+    .source-organize > summary { cursor: pointer; color: var(--text-muted); }
+    /* A row's 更多 is an action, so it has the look of the header's 更多 (a quiet button): ink, not a grey word (ui/DESIGN.md, Buttons). */
+    .source-row-actions > summary { cursor: pointer; color: var(--text); }
     .source-organization-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
     /* 归档所选: its own row under the course buttons, with the sentence that says what archiving does beside it (under it on a narrow page). */
     .source-archive-actions { align-items: center; margin-top: var(--space-3); }
@@ -110,8 +112,8 @@
       background: var(--bg-sunken);
     }
   }
-  /* The index badge (IndexBadge.jsx, on this page and in the picker of 创建题组) says whose pages it counts ("这份资料 404/404 页"). In a narrow window the row
-     has no room for that: it shows the short label (the counts alone) and the hover keeps the scope. */
+  /* The index badge (IndexBadge.jsx, on this page and in the picker of 创建题组) says whose pages it counts ("这份资料 404/404 页"). On a narrow 资料 page the row
+     has no room for that: it shows the short label (the counts alone) and the hover keeps the scope (ui/sources.css, .sources-page.is-narrow). */
   :is(.study-app, .study-seat) {
     .index-badge__short { display: none; }
     /* The way to build the index, after a badge that is not "built": a quiet text button on the same line (IndexBadge.jsx), and one line above a list (.index-gap). */
@@ -122,21 +124,22 @@
     .index-badge__go:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .index-gap { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: 0 0 var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); }
     .source-picker .index-gap { margin: 0; }
+    /* In a 资料 row's slot (ui/sources.css .source-doc__index) the badge keeps one line: it shrinks to the slot and its words end in an ellipsis (the hover has
+       them all; the shared Badge's wrap lets it shrink), 建立索引 after it keeps its width, so a badge is never taller than its slot (#1083). */
+    .source-doc__index .index-badge-line__inner { min-width: 0; max-width: 100%; }
+    .source-doc__index .index-badge__text { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   }
+  /* A narrow 资料 page (.sources-page.is-narrow, ui/Sources.jsx ROWS_NARROW): the short label; with 建立索引 beside it the badge is short of room, so the words say
+     the state and the mark goes. */
+  :is(.study-app, .study-seat) .is-narrow .index-badge__full { display: none; }
+  :is(.study-app, .study-seat) .is-narrow .index-badge__short { display: inline; }
+  :is(.study-app, .study-seat) .is-narrow .index-badge-line__inner { gap: var(--space-1); }
+  :is(.study-app, .study-seat) .is-narrow .index-badge__mark { display: none; }
+  /* A list of materials in a dialog (SourceListDialog) in a narrow window; the 资料 page's own rows follow .sources-page.is-narrow (ui/sources.css). */
   @container study (max-width:720px) {
-    :is(.study-app, .study-seat) {
-      .index-badge__full { display: none; }
-      .index-badge__short { display: inline; }
-      /* With the action beside it the line has no room for the badge's mark: the words say the state. */
-      .index-badge-line__inner { gap: var(--space-1); }
-      .index-badge__mark { display: none; }
-    }
     :where(.study-app, .study-seat) {
       .source-row {
         padding: var(--space-2-5);
-      }
-      .source-main small {
-        max-width: 180px;
       }
     }
   }
