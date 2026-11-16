@@ -137,7 +137,7 @@ test('9: the answer mark and its label share a centre line', async () => {
   const css = await read('ui/review/question.css');
   const rule = ruleOf(css, '.answer-state').join(' ');
   assert.match(rule, /align-items:\s*center/);
-  assert.match(ruleOf(css, '.answer-state .sh-icon').join(' '), /margin-block|margin-top|transform|translate/, 'the icon is nudged onto the centre of the glyphs, not of the line box');
+  assert.match(ruleOf(css, '.answer-state__mark').join(' '), /margin-block|margin-top|transform|translate/, 'the icon is nudged onto the centre of the glyphs, not of the line box');
   const html = renderToStaticMarkup(h(m.AnswerState, { correct: true, picked: true }));
   assert.match(html, /sh-icon--inline/);
 });

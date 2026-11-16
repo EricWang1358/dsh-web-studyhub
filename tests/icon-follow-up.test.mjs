@@ -118,7 +118,7 @@ test('NextDue: a lead line that wraps starts its second line under the words, no
 
 test('the answer mark is an inline icon too: 14px, Regular beside its medium label (weight="regular")', () => {
   const html = renderToStaticMarkup(h(m.AnswerState, { correct: true, picked: true }));
-  assert.match(html, /class="sh-icon sh-icon--inline"/);
+  assert.match(html, /class="sh-icon answer-state__mark sh-icon--inline"/);
   assert.match(html, /stroke-width/);
 });
 
