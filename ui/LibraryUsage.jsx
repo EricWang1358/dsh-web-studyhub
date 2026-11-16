@@ -53,7 +53,7 @@ export function LibraryUsageView({ state, onRefresh }) {
         segments={parts.map((part) => ({ value: Math.max(1, Math.round(part.bytes)), tone: PART_TONE[part.id] || 'neutral', title: `${ui(FULL[part.id] || part.label)} · ${formatUsageBytes(part.bytes)}` }))} />
       <IconButton icon="refresh" size="sm" variant="quiet" label={ui('重新计算')} busy={!!state.refreshing} onClick={onRefresh} />
     </div>
-    {shouldHintBackups(usage) && <small className="usage-hint">{uiFormat('旧备份可以手动删除：{0}（程序不会自动删除）', [usage.paths?.backups || 'backups'])}</small>}
+    {shouldHintBackups(usage) && <small className="usage-hint">{uiFormat('旧备份可以手动删除：{0}（程序不会自动删除）；自动恢复点滚动保留近 7 天加 4 周', [usage.paths?.backups || 'backups'])}</small>}
   </>;
 }
 

@@ -123,6 +123,7 @@
     "tests/reader-pdf-view-browser.test.mjs",
     "tests/reader-slim-browser.test.mjs",
     "tests/report-kit-browser.test.mjs",
+    "tests/restore-points.test.mjs",
     "tests/review-autopilot-way-back.test.mjs",
     "tests/review-run-context-browser.test.mjs",
     "tests/round-setup-browser.test.mjs",
