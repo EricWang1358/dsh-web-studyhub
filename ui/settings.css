@@ -76,7 +76,7 @@
     .restore-points-block { display: grid; gap: var(--space-2); align-content: start; min-width: 0; margin-top: var(--space-4); padding: var(--space-4) var(--space-5);
       border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
     .restore-points-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
-    .restore-points-usage { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .restore-points-usage { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .restore-points-block > p { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-body); }
     .restore-points-block > .restore-points-empty { color: var(--text-muted); }
     .restore-points-list { display: grid; margin: var(--space-1) 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line-soft); }
@@ -85,7 +85,7 @@
     .restore-point-row__info { display: grid; gap: var(--space-1); min-width: 0; }
     .restore-point-row__title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text); font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
     .restore-point-row__icon { flex: none; color: var(--text-muted); }
-    .restore-point-row__bytes { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .restore-point-row__bytes { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .restore-point-row__meta { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
     .restore-point-row__actions { display: flex; justify-content: flex-end; }
     .restore-point-row__confirm { grid-column: 1 / -1; margin-top: var(--space-1); }
