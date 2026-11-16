@@ -553,7 +553,7 @@ export default function Draft({
                       }
                     >
                       <span>
-                        <Icon name="external" size={14} className="sh-icon--inline sh-icon--lead" />
+                        <Icon name="external" className="sh-icon--inline sh-icon--lead" />
                         {data.sources.find((s) => s.id === c.sourceId)
                           ?.title || ui("原文")}
                       </span>
