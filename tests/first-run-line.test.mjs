@@ -193,7 +193,7 @@ test('the page form: only the open step has a body, with at most one primary but
   assert.equal((text(none).match(/前往设置/g) || []).length, 1, 'and nowhere else');
   assert.match(none, />重新检查</);
   assert.match(text(none), /回到这里，这一步会自己打勾；没有变就点「重新检查」/);
-  assert.match(none, /class="sh-btn sh-btn--link[^"]*"[^>]*>添加资料</, 'the material step is never locked: a quiet 添加资料 on its row');
+  assert.match(none, /class="sh-btn sh-btn--link[^"]*"[^>]*>(?:<svg.*?<\/svg>)?添加资料</, 'the material step is never locked: a quiet 添加资料 on its row');
   // A missing key: only the key step (no model to pick), and no settings link at all.
   const noKey = page(m.firstRunLine(library({ model: NO_KEY })));
   assert.match(text(noKey), /在「DeepSeek」卡片填入 API Key 并保存/);

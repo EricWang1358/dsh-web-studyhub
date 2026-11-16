@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { ANCHOR_WAIT_MS, findAnchor, locateAnchor, scrollToAnchor } from '../tour/anchor.js';
+import { keepBook } from '../book/model.js';
 import { opensFinder } from './keys.js';
 import { planTrip, tripNotice } from './trip.js';
 
@@ -48,7 +49,7 @@ const waitFor = (look, timeout, aborted) => new Promise((resolve) => {
 export function useFinder({ nav, settingsEntry, core, tour, rootRef, learn }) {
   const [open, setOpen] = useState(false);
   const trip = useRef(0), latest = useRef({});
-  latest.current = { page: nav.page, touring: !!tour.tourStep, open, openTarget: learn?.openLearningTarget };
+  latest.current = { page: nav.page, touring: !!tour.tourStep, open, openTarget: learn?.openLearningTarget, openSourceAt: learn?.openSourceAt, core };
   const { notify } = core, { navigate } = nav, { openSettings } = settingsEntry, { startTour } = tour;
 
   const openFinder = useCallback(() => {
@@ -71,9 +72,33 @@ export function useFinder({ nav, settingsEntry, core, tour, rootRef, learn }) {
   /** 带我去. */
   const go = useCallback(async (entry) => {
     setOpen(false);
-    if (entry?.kind === 'library' && entry.target) {
+    if ((entry?.kind === 'library' || entry?.kind === 'content') && entry.target) {
       ++trip.current;
-      await latest.current.openTarget?.(entry.target);
+      const target = entry.target;
+      if (target.kind === 'book') {
+        const snapshot = latest.current.core?.refs?.dataRef?.current;
+        const root = snapshot?.root || '';
+        const targetCourse = target.course ?? snapshot?.focus?.course ?? '';
+        const switched = targetCourse !== (snapshot?.focus?.course ?? null);
+        if (switched && latest.current.core?.act) {
+          const ok = await latest.current.core.act('focus.set', { course: targetCourse });
+          if (!ok) return;
+        }
+        keepBook(root, targetCourse, { target: target.chapterId || null, switched });
+        navigate('book', { keepTrail: false, scroll: true });
+        return;
+      }
+      if (target.kind === 'source' && entry.kind === 'content') {
+        if (target.quote && latest.current.openTarget) {
+          await latest.current.openTarget({ kind: 'source', id: target.id, quote: target.quote });
+        } else if (latest.current.openSourceAt) {
+          latest.current.openSourceAt(target.id, target.matchOffset ?? 0);
+        } else {
+          await latest.current.openTarget?.({ kind: 'source', id: target.id });
+        }
+        return;
+      }
+      await latest.current.openTarget?.(target);
       return;
     }
     const mine = ++trip.current, aborted = () => trip.current !== mine;

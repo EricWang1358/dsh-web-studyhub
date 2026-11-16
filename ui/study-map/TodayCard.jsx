@@ -31,7 +31,7 @@ export default function TodayCard({ plan, todayLabel, quiet = false, extra = nul
           <strong>{plan.count}</strong>
           <span>{plan.unit}</span>
         </div>
-        {plan.detail && <p className="today-detail">{plan.kind === 'path' ? <Tooltip layer content={ui(TERMS.due.hint)}><span tabIndex={0}>{plan.detail}</span></Tooltip> : plan.detail}</p>}
+        {plan.detail && <p className="today-detail">{plan.kind === 'path' && !plan.ahead ? <Tooltip layer content={ui(TERMS.due.hint)}><span tabIndex={0}>{plan.detail}</span></Tooltip> : plan.detail}</p>}
         {plan.stageAdvance && (
           <p className="today-stage-advance">
             <span>{plan.stageAdvance.note}</span>
@@ -56,7 +56,7 @@ export default function TodayCard({ plan, todayLabel, quiet = false, extra = nul
         )}
         {plan.action && (
           <div className="today-go-row">
-            <Button variant={quiet ? "secondary" : "primary"} className="today-go" iconEnd="arrow-right" disabled={plan.action.disabled} lock={busy} data-usage="home.start" onClick={plan.action.run}>
+            <Button variant={quiet ? "secondary" : "primary"} className={plan.action.icon ? "today-go today-go--lead" : "today-go"} icon={plan.action.icon} iconEnd={plan.action.icon ? undefined : "arrow-right"} disabled={plan.action.disabled} lock={busy} data-usage="home.start" onClick={plan.action.run}>
               {plan.action.label}
             </Button>
             {/* 本轮设置: one more click for a round that is not the day's usual (ui/review/RoundSetup.jsx); the button beside it is unchanged. */}

@@ -41,7 +41,7 @@ function render(patch = {}, props = {}) {
     React.createElement(StudyServicesContext.Provider, { value: services }, home)));
 }
 const primaries = (html) => (html.match(/class="[^"]*sh-btn--primary[^"]*"/g) || []).length;
-const primaryLabel = (html) => html.match(/<button[^>]*class="[^"]*sh-btn--primary[^"]*today-go[^"]*"[^>]*>(.*?)<svg/)?.[1];
+const primaryLabel = (html) => html.match(/<button[^>]*class="[^"]*sh-btn--primary[^"]*today-go[^"]*"[^>]*>(?:<svg[^>]*>.*?<\/svg>)?([^<]*)/)?.[1];
 // Technical details may keep raw provider wording; everything else must read in the UI language.
 const withoutTechDetails = (html) => html.replace(/<details class="sh-disclosure tech-details"[\s\S]*?<\/details>/g, "");
 const visibleText = (html) => html.replace(/<[^>]+>/g, " ");

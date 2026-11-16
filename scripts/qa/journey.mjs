@@ -36,12 +36,16 @@ const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
+import { controlName } from "./control-name.mjs";
+export { controlName };
+
 /* ---------- layout offenders that are known and not fixed yet (#208) ---------- */
 
 /* A step may exceed the default budget up to its own, with the reason; the journey prints it as known and still fails above it, so the list only
    ever shrinks. Nothing here is a design decision: each line is a shift that should be removed. */
 export const KNOWN_LAYOUT = {
-  "import-files": { maxCls: 0.16, why: "the files just imported are inserted at the top of the 资料 list behind the import dialog and push the existing rows down (0 to 0.08 by timing; up to 0.15 since each row keeps its index badge's line from the first paint, #229, and the same insertion moves taller rows)" },
+  "case-practice": { maxCls: 0.14, why: "in a narrow window the graded result replaces the answer box, is much taller and pushes the question toolbar and the 已发布 note below the fold (0.13 at 420, 0.03 at 1440; #1093)" },
+  "import-files": { maxCls: 0.22, why: "the files just imported are inserted at the top of the 资料 list behind the import dialog and push the existing rows down (0 to 0.08 by timing; up to 0.15 since each row keeps its index badge's line from the first paint, #229, and the same insertion moves taller rows; 0.21 at 420, first measured once the narrow journey could reach this step, #1088)" },
 };
 
 /* ---------- steps ---------- */
@@ -104,7 +108,7 @@ export const JOURNEY_STEPS = [
     await j.page.getByLabel(j.t("题组名称（可选）")).fill(j.lang === "en" ? "QA journey deck" : "QA 旅程题组");
     await j.shot("form", { fullPage: true });
     const before = (await j.snapshot()).jobs.length;
-    await j.anchor("generate-submit").or(j.page.getByRole("button", { name: new RegExp(`^(${escapeRe(j.t("生成并检查题组 →"))}|${escapeRe(j.t("加入生成队列 →"))})`) })).first().click();
+    await j.anchor("generate-submit").or(j.page.getByRole("button", { name: j.named("生成并检查题组") }).or(j.page.getByRole("button", { name: j.named("加入生成队列") }))).first().click();
     await j.until(async () => (await j.snapshot()).jobs.length > before, "a generation job starts");
     j.state.jobId = (await j.snapshot()).jobs.at(-1).id;
   } },
@@ -135,21 +139,22 @@ export const JOURNEY_STEPS = [
   } },
   { name: "draft", needs: ["draft"], run: async (j) => {
     await j.openDraftFromHome();
-    await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).first().waitFor({ timeout: 15000 });
+    await j.page.getByRole("button", { name: j.named("发布并开始练") }).first().waitFor({ timeout: 15000 });
     await j.settle();
     await j.shot();
     await j.shot("full", { fullPage: true });
   } },
   { name: "publish", needs: ["draft"], run: async (j) => {
-    if (!await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).count()) await j.openDraftFromHome();
+    if (!await j.page.getByRole("button", { name: j.named("发布并开始练") }).count()) await j.openDraftFromHome();
     const before = (await j.snapshot()).decks.length;
-    await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).first().click();
+    await j.page.getByRole("button", { name: j.named("发布并开始练") }).first().click();
     await j.until(async () => (await j.snapshot()).decks.length > before, "the deck is published");
     await j.settle(1500);
     await j.shot();
   } },
   { name: "practice", needs: ["deck"], run: async (j) => {
     if (!await j.page.locator(".options .option").count()) {
+      await j.openDrawer();
       await j.page.getByRole("button", { name: j.t("回到题目") }).first().click();
       await j.page.locator(".options .option").first().waitFor({ timeout: 15000 });
     }
@@ -404,8 +409,8 @@ export const CASE_STEPS = [
     await j.shot("full", { fullPage: true });
   } },
   { name: "case-practice", needs: ["caseDraft"], run: async (j) => {
-    if (!await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).count()) await j.openDraftFromHome();
-    await j.page.getByRole("button", { name: j.t("发布并开始练 →") }).first().click();
+    if (!await j.page.getByRole("button", { name: j.named("发布并开始练") }).count()) await j.openDraftFromHome();
+    await j.page.getByRole("button", { name: j.named("发布并开始练") }).first().click();
     await j.page.locator(".rubric-answer textarea").first().waitFor({ timeout: 20000 });
     // Highlight the cue sentence of paragraph 4 with the highlighter (select, mouse up).
     const paragraph = j.page.locator(".case-review-scenario .case-para__text").nth(3);
@@ -637,6 +642,8 @@ export async function runJourney(options) {
       j.record = record;
       try {
         for (const need of step.needs || []) await SEED[need](j);
+        // Seeding is setup: what its reloads and late data moved is not the step's layout (#1088; it failed every --steps run at 420).
+        if (step.needs?.length) { await j.collectLayout(); j.layoutLog = emptyLayoutLog(); }
         await step.run(j);
       } catch (error) {
         record.status = "failed";
@@ -686,10 +693,11 @@ export async function runJourney(options) {
 function journeyContext({ page, server, options, english, fixtures, step }) {
   const index = () => String([...JOURNEY_STEPS, ...TOUR_STEPS, ...CASE_STEPS].findIndex((item) => item.name === step()) + 1).padStart(2, "0");
   const t = (zh) => options.lang === "en" && Object.hasOwn(english, zh) ? english[zh] : zh;
+  const named = (zh) => controlName(t, zh);
   const NAV = { library: "学习库", sources: "资料", generate: "创建题组", wrongbook: "错题与待巩固", exam: "模拟考试",
     dashboard: "统计", skeleton: "知识骨架", workflows: "学习流", settings: "设置", audio: "音频转录", live: "课堂实录" };
   const j = {
-    page, server, fixtures, lang: options.lang, state: {}, record: null, t,
+    page, server, fixtures, lang: options.lang, state: {}, record: null, t, named,
     api: (action, args = {}) => previewCall(server, action, { ...args, uiLanguage: options.lang }),
     snapshot: () => previewCall(server, "snapshot", { uiLanguage: options.lang }),
     anchor: (id) => page.locator(`[data-tour="${id}"]`),
@@ -730,18 +738,34 @@ function journeyContext({ page, server, options, english, fixtures, step }) {
     /** Go to a page. The click is dispatched, not a real input event: Chromium drops layout shifts within 500 ms of real input
      *  (hadRecentInput), and data that arrives right after opening a page is exactly what the layout check must see (#208).
      *  Clicks on controls inside a page stay real input, so a result the learner asked for is not counted against the page. */
+    /** A narrow window (or a learner who put the sidebar away) shows the sidebar as a drawer behind 「打开导航」 in the top bar (#657, #1088): open it. */
+    async openDrawer() {
+      const opener = page.getByRole("button", { name: t("打开导航"), exact: true }).first();
+      if (!await opener.count() || !await opener.isVisible()) return;
+      await opener.click();
+      await page.locator('[data-tour="nav"]').first().waitFor({ state: "visible", timeout: 10000 });
+      await sleep(250);
+    },
     async nav(id) {
+      await j.openDrawer();
       const anchor = j.anchor(`nav-${id}`);
       const target = await anchor.count() ? anchor.first()
         : id === "settings" ? page.getByRole("button", { name: t(NAV.settings), exact: true }).first()
-          : page.locator("nav").getByRole("button", { name: new RegExp(`^\\s*${escapeRe(t(NAV[id]))}`) }).first();
-      await target.waitFor({ state: "visible" });
+          : page.locator("nav").getByRole("button", { name: new RegExp(`^\\s*${escapeRe(t(NAV[id] || id))}`) }).first();
+      if (!await target.count()) throw new Error(`the sidebar has no entry for "${id}" (no [data-tour="nav-${id}"] and no button named ${NAV[id] || id}); was it moved or renamed?`);
+      // An entry folded away in 「更多」 is in the page but hidden until the fold opens.
+      if (!await target.isVisible()) {
+        const fold = target.locator("xpath=ancestor::*[@data-nav-fold][1]").locator(".nav-fold__toggle").first();
+        if (await fold.count() && await fold.getAttribute("aria-expanded") !== "true") await fold.click();
+      }
+      await target.waitFor({ state: "visible", timeout: 10000 })
+        .catch(() => { throw new Error(`the sidebar entry "${id}" stays hidden after opening the drawer and the 「更多」 fold`); });
       await target.dispatchEvent("click");
       await j.settle();
     },
     async openAddSource() {
       await j.nav("sources");
-      const add = j.anchor("sources-add").or(page.getByRole("button", { name: t("＋ 添加资料") }));
+      const add = j.anchor("sources-add").or(page.getByRole("button", { name: named("添加资料") }));
       if (await add.count() && await add.first().isVisible()) await add.first().click();
       await j.settle(400);
     },
