@@ -429,7 +429,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           {/* Concise card verdict at the foot of the card; full schedule telemetry folds under 更多解析与巩固方式. */}
           {voice.correction}
           {run.feedback && <p className={"next-due next-due--verdict" + (run.feedback.correct || run.feedback.selfReported ? "" : " retry")}
-            data-level={run.feedback.level || undefined} role="status">{nextDueIcon(run.feedback) && <Icon name={nextDueIcon(run.feedback)} size={16} className="sh-icon--inline sh-icon--lead" />}{nextDueWord(run.feedback)}</p>}
+            data-level={run.feedback.level || undefined} role="status">{nextDueIcon(run.feedback) && <Icon name={nextDueIcon(run.feedback)} className="sh-icon--inline sh-icon--lead" />}{nextDueWord(run.feedback)}</p>}
           {autoAdvanceActive && (
             <div className={"question-card__autopilot" + (autoAdvancePaused ? " is-paused" : "")}
               key={"card-auto:" + (session.advanceKey || run.index)}
