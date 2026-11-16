@@ -6,8 +6,11 @@
        highlighted. Builds on the .source-group/.source-row rules in style.css;
        tokens only. */
     .sources-page .sources-page__header { margin-bottom: var(--space-4); }
-    .sources-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); }
-    .sources-filter > .sources-filter__input { flex: 1 1 14rem; max-width: 24rem; }
+    /* The filter under 课程范围 (#1085): its input in the control column of .page-scope-form (ui/course-active.css), its count and 清除筛选 after it. */
+    .sources-toolbar { margin: 0 0 var(--space-3); }
+    .sources-toolbar > .sources-filter { display: contents; }
+    .sources-filter__input { grid-column: 2; min-height: 38px; }
+    .sources-filter__state { grid-column: 3; display: inline-flex; align-items: center; gap: var(--space-2); }
     .sources-filter__count { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
     & .source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
@@ -125,6 +128,12 @@
     :is(.study-app, .study-seat) {
       .source-doc__line { flex-wrap: wrap; }
       .source-doc__actions { width: 100%; justify-content: flex-end; }
+      /* The index badge starts the actions' own line (Sources.jsx, `narrow`): it takes the room the buttons leave and shrinks rather than push them to a
+         second line, so a late badge moves nothing (#1083). */
+      .source-doc__actions > .source-doc__index { display: flex; align-items: center; flex: 1 1 0; min-width: 0; margin: 0;
+        min-height: calc(var(--fs-sm) * var(--lh-snug) * 2); font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); }
+      /* The filter's count and 清除筛选 go under the filter, so the filter keeps the select's width. */
+      .sources-filter__state { grid-column: 2 / -1; }
       /* Here a row's actions take their own line under it: a hairline between rows says which row they belong to. */
       .source-doc + .source-doc { border-top: 1px solid var(--line-soft); border-radius: 0; }
       .source-doc__pages { margin-left: 0; }

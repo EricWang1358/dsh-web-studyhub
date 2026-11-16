@@ -32,6 +32,15 @@
     .page-scope__label { display: block; flex: none; margin: 0; color: inherit; cursor: pointer; }
     .page-scope__select { flex: 1 1 12rem; width: 20rem; max-width: 20rem; min-width: 0; min-height: 38px;
       font-size: var(--fs-md); font-weight: var(--fw-regular); text-overflow: ellipsis; }
+    /* A scope with more controls under it (资料: 筛选资料), as one small form (#1085): the label in the first column, the select and the controls
+       under it in the second at one left edge and one width, the follow mark in the third. The scope lends its parts to the grid (display: contents);
+       a control under it takes grid-column 2. */
+    .page-scope-form { display: grid; grid-template-columns: auto minmax(0, 24rem) auto; justify-content: start; align-items: center; gap: var(--space-2); }
+    .page-scope-form > .page-scope { display: contents; }
+    .page-scope-form .page-scope__label { grid-column: 1; }
+    .page-scope-form .page-scope__select { grid-column: 2; width: 100%; max-width: none; }
+    .page-scope-form .page-scope__follow { grid-column: 3; }
+    .page-scope-form .page-scope__note { grid-column: 2 / -1; }
     /* The follow state: a small mark (its words are in the tooltip and for screen readers) and, when pinned, the way back. */
     .page-scope__follow { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; font-weight: var(--fw-regular); }
     .page-scope__mark { display: inline-flex; align-items: center; justify-content: center; width: var(--control-h-sm, 32px); height: var(--control-h-sm, 32px); border-radius: var(--radius-sm);

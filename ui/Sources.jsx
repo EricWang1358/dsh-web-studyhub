@@ -6,7 +6,8 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { Badge, Button, Checkbox, CheckboxInput, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Icon, InlineMessage, PageHeader, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
+import { Badge, Button, Checkbox, CheckboxInput, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Icon, InlineMessage, Menu, PageHeader, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
+import { useNarrow } from "./use-narrow.js";
 import { scrollToAnchor } from "./tour/anchor.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { displayTitle } from '../lib/document-title.js';
@@ -164,7 +165,9 @@ export function RowMenuItems({ item, onChangeCourse, onRemove, onSegment, onRena
 }
 
 const sameRelation = (a, b) => a === b || (!!a && !!b && a.role === b.role && a.of === b.of && a.derived === b.derived && a.count === b.count);
-const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'mastery', 'coverage', 'topUp', 'canIndex', 'indexLink', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark', 'custom'];
+/** Below this width of the study container a row's actions take their own line: mirrors `@container study (max-width: 640px)` in ui/sources.css. */
+export const ROWS_NARROW = 641;
+const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'narrow', 'mastery', 'coverage', 'topUp', 'canIndex', 'indexLink', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark', 'custom'];
 
 /**
  * Does a row need to be drawn again? Only when its own document, its own flags, its own index state or its own relation changed (#229, as the picker's #205):
@@ -175,8 +178,10 @@ export function sourceRowPropsEqual(a, b) {
   return ROW_PROPS.every(key => a[key] === b[key]) && sameIndexInfo(a.indexInfo, b.indexInfo) && sameRelation(a.relation, b.relation);
 }
 
-/* `slot`: the index badge's line is kept from the first paint, so a coverage answer that arrives later fills it instead of making the row taller (#229). */
-const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, indexLink = false, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '', custom = null }) {
+/* `slot`: the index badge's line is kept from the first paint, so a coverage answer that arrives later fills it instead of making the row taller (#229).
+   `narrow`: the row's actions have a line of their own under it (ui/sources.css, the same width as ROWS_NARROW); the badge's slot is then the start of that line, which
+   the buttons leave empty, instead of two reserved lines under the status (#1083: an empty 50px gap in every row at 420). */
+const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, narrow = false, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, indexLink = false, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '', custom = null }) {
   const { busy, openModal } = useStudy();
   const appData = useContext(AppContext)?.data;
   const companionTarget = !item.archived && source
@@ -211,6 +216,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
   const notes = documentNotes(item);
   // One page count for the document (the pages that have text); when the original file has more, that is said once, beside it, with the reason on hover.
   const gap = pageGapNote(item), pages = pageFacts(item).readable;
+  const indexSlot = (slot || indexInfo) && <small className="source-doc__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} onIndex={indexLink ? () => actions.buildIndex(item.courses?.[0] || '') : undefined} />}</small>;
   return (
     <article ref={row} className={"source-row source-doc" + (isNew ? " is-new" : "") + (dragging ? " source-doc--dragging" : "") + (dropMark ? ` source-doc--drop-${dropMark}` : "")} data-document-key={item.key} data-new={isNew ? "true" : undefined} data-stable-row=""
       {...(pinned && !editing ? { draggable: true, onDragStart: event => actions.dragStart(item.key, event), onDragOver: event => actions.dragOver(item.key, event),
@@ -237,12 +243,13 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
                 then the index badge's slot at the end of the same line, kept from the first paint so a late coverage answer fills it and moves nothing (#229). */}
             <span className="source-doc__status">
               <span className="source-doc__quality"><MasteryLine className="source-doc__mastery" summary={mastery?.document ?? null} title={name} /><CoverageChip coverage={coverage} /></span>
-              {(slot || indexInfo) && <small className="source-doc__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} onIndex={indexLink ? () => actions.buildIndex(item.courses?.[0] || '') : undefined} />}</small>}
+              {!narrow && indexSlot}
             </span>
             {item.renamedFrom && <small className="source-original" title={item.renamedFrom}>{originalNote(item)}</small>}
           </span>
         </button>}
         <div className="source-doc__actions">
+          {narrow && indexSlot}
           {companionTarget && openModal && (
             <Button size="sm" variant="secondary" icon="play" className="source-doc__action" onClick={() => openCompanionTarget(openModal, companionTarget)}>
               {ui('打开交互伴学页')}
@@ -360,6 +367,10 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
   const [showArchived, setShowArchived] = useState(false);
   const [query, setQuery] = useState('');
+  // One measure for the page: the width of the study container, which is what the container queries of ui/sources.css read.
+  const pageRef = useRef(null);
+  const studyRoot = useMemo(() => ({ get current() { return pageRef.current?.closest?.('.study-app, .study-seat') || pageRef.current; } }), []);
+  const narrow = useNarrow(studyRoot, ROWS_NARROW);
   const allItems = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
   const items = useMemo(() => allItems.filter(item => item.archived === showArchived), [allItems, showArchived]);
   const byId = useMemo(() => new Map(data.sources.map(source => [source.id, source])), [data.sources]);
@@ -529,7 +540,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const anchorsOf = rows => ({ 'custom-book-row': rowOf(rows, offers) });
   // One row, in a day group or in the pinned group (`pin`: where it stands among the pinned rows).
   const renderRow = (item, pin = {}) => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])}
-    isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} actions={actions}
+    isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} narrow={narrow} actions={actions}
     canGenerate={!showArchived && !!onGenerate} canPractice={!showArchived && !!onPractice} canSegment={typeof call === 'function'} canRename={!!renameFor}
     mastery={data.materialMastery?.[item.key]} coverage={data.materialCoverage?.[item.key]}
     topUp={!showArchived && offersDocumentTopUp({ item, coverage: data.materialCoverage?.[item.key], jobs: data.jobs, modelReady: modelReadiness(data).ready })} indexInfo={infos.get(item.key) ?? null} canIndex={indexCoverage?.canIndex} indexLink={!!onBuildIndex} slot={indexStatus !== 'unavailable'}
@@ -538,23 +549,42 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     pinned={!!pin.pinned} pinFirst={!!pin.first} pinLast={!!pin.last} dragging={!!pin.pinned && drag?.key === item.key} dropMark={pin.pinned && drag?.over === item.key ? drag.side : ''} />;
   const addButton = <Button variant="primary" icon="plus" data-tour="sources-add" data-usage="import.add"
     onClick={() => setModal({ type: "add", course: scope === '*' ? '' : scope })}>{ui("添加资料")}</Button>;
+  // The header's other actions: buttons beside 添加资料 in a wide window; in a narrow one they wait in one 更多 menu, so the one primary action stands alone (#1083).
+  const archivedCount = allItems.filter(item => item.archived).length;
+  const toggleArchived = () => { setShowArchived(value => !value); setSelected([]); setProposals(null); setRemovingBatch(null); };
+  const toggleGroups = () => {
+    if (allOpen) { setOpened(new Set()); setClosed(new Set(groups.map(group => group.key))); }
+    else { setOpened(new Set(groups.map(group => group.key))); setClosed(new Set()); }
+  };
+  const openCompanions = () => setModal({ type: "companionBuild", course: scope === '*' ? (data.focus?.course || '') : scope });
+  const archiveLabel = showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [archivedCount]);
+  const headerActions = narrow
+    ? <>
+      {addButton}
+      <Menu label={ui('更多')} data-tour="sources-archived"
+        items={[{ id: 'archived', icon: showArchived ? 'arrow-left' : 'archive', label: archiveLabel, attrs: { 'data-archive-toggle': '' } },
+          ...(groups.length > 1 ? [{ id: 'groups', icon: 'list', label: allOpen ? ui("全部收起") : ui("全部展开") }] : []),
+          { id: 'companions', icon: 'play', label: ui("交互伴学") }]}
+        onSelect={id => (id === 'archived' ? toggleArchived : id === 'groups' ? toggleGroups : openCompanions)()}
+        trigger={({ props, ref }) => <Button ref={ref} variant="quiet" icon="more" {...props}>{ui('更多')}</Button>} />
+    </>
+    : <>
+      <Button variant="quiet" icon={showArchived ? 'arrow-left' : 'archive'} data-archive-toggle data-tour="sources-archived" aria-pressed={showArchived} onClick={toggleArchived}>{archiveLabel}</Button>
+      {groups.length > 1 && <Button variant="quiet" icon="list" onClick={toggleGroups}>{allOpen ? ui("全部收起") : ui("全部展开")}</Button>}
+      <Button variant="secondary" icon="play" onClick={openCompanions}>{ui("交互伴学")}</Button>
+      {addButton}
+    </>;
   return (
-    <section className="page sources-page">
+    <section ref={pageRef} className="page sources-page">
       <PageHeader className="sources-page__header" title={ui("资料")}
         description={<>{ui("题目从这里生长。原文与引用一直保留。")}{items.length > 0 &&
           (pinned.length ? (rest.length ? uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。", [filtered.length, pinned.length, groups.length]) : uiFormat(" 共 {0} 份资料，全部置顶。", [filtered.length]))
             : uiFormat(" 共 {0} 份资料，按导入日期分为 {1} 组。", [filtered.length, groups.length]))}</>}
-        actions={<>
-          <Button variant="quiet" data-archive-toggle data-tour="sources-archived" aria-pressed={showArchived} onClick={() => { setShowArchived(value => !value); setSelected([]); setProposals(null); setRemovingBatch(null); }}>{showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [allItems.filter(item => item.archived).length])}</Button>
-          {groups.length > 1 && <Button variant="quiet" onClick={() => {
-            if (allOpen) { setOpened(new Set()); setClosed(new Set(groups.map(group => group.key))); }
-            else { setOpened(new Set(groups.map(group => group.key))); setClosed(new Set()); }
-          }}>{allOpen ? ui("全部收起") : ui("全部展开")}</Button>}
-          <Button variant="secondary" onClick={() => setModal({ type: "companionBuild", course: scope === '*' ? (data.focus?.course || '') : scope })}>{ui("交互伴学")}</Button>
-          {addButton}
-        </>} />
+        actions={headerActions} />
       {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}
       {items.length > 0 && <>
+        {/* 课程范围 and 筛选资料 are one small form: the label in one column, both controls in the next, at one left edge and one width (#1085). */}
+        <div className="page-scope-form sources-toolbar">
         <PageScope value={scope} onChange={setScope} courses={data.focus?.courses} />
         <div className="sources-filter">
           <TextInput type="search" className="sources-filter__input" value={query} placeholder={ui('筛选资料…')} aria-label={ui('筛选资料…')}
@@ -567,10 +597,11 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
               if (query) { event.stopPropagation(); setQuery(''); }
               else event.currentTarget?.blur?.();
             }} />
-          {filtering && <>
+          {filtering && <span className="sources-filter__state">
             <small className="sources-filter__count muted" aria-live="polite">{scrollWindowCount(scoped.length, filtered.length, true)}</small>
             <Button variant="quiet" size="sm" onClick={() => setQuery('')}>{ui('清除筛选')}</Button>
-          </>}
+          </span>}
+        </div>
         </div>
         <details className="source-organize" data-tour="sources-organize" onToggle={event => setOrganizing(event.currentTarget.open)}>
           <summary>{showArchived ? ui('批量管理已归档资料') : ui('整理课程归属')}</summary>
