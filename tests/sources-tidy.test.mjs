@@ -52,8 +52,9 @@ test('#1083: the index badge has one place on every row, the status line, in a s
   assert.doesNotMatch(jsx, /DocumentRow\([^)]*\bnarrow\b/, 'a row does not depend on the page width');
   assert.match(css, /\.source-doc__status > \.source-doc__index \{[^}]*min-width: var\(--index-slot\)/, 'the slot is never narrower than --index-slot, so a long button line cannot crush it');
   assert.match(css, /\.source-doc__line > \.source-doc__status \{[^}]*grid-column: -3 \/ -1/, 'the status line runs under the actions too: hidden actions never narrow it');
-  const badge = await read('ui/IndexBadge.jsx');
-  assert.doesNotMatch(badge.slice(badge.indexOf('const badge = <Badge')), /^[^\n]*\bwrap\b[^\n]*tone=/m, 'the row badge keeps one line (it ends in an ellipsis), so it is never taller than its slot');
+  // The shared Badge may wrap elsewhere (the 创建题组 picker); in a 资料 row's slot its words keep one line and end in an ellipsis, so it is never taller than its slot.
+  const badgeCss = await read('ui/sources-page.css');
+  assert.match(badgeCss, /\.source-doc__index \.index-badge__text \{[^}]*white-space: nowrap[^}]*text-overflow: ellipsis/, 'the row badge keeps one line (it ends in an ellipsis), so it is never taller than its slot');
 });
 
 test('#1083: the header keeps 添加资料 last on the title row and shows the other actions only when they fit', async () => {

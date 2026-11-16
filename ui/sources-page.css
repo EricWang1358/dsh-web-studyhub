@@ -125,9 +125,8 @@
     .index-gap { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin: 0 0 var(--space-3); color: var(--text-muted); font-size: var(--fs-sm); }
     .source-picker .index-gap { margin: 0; }
     /* In a 资料 row's slot (ui/sources.css .source-doc__index) the badge keeps one line: it shrinks to the slot and its words end in an ellipsis (the hover has
-       them all), 建立索引 after it keeps its width, so a badge is never taller than its slot (#1083). */
+       them all; the shared Badge's wrap lets it shrink), 建立索引 after it keeps its width, so a badge is never taller than its slot (#1083). */
     .source-doc__index .index-badge-line__inner { min-width: 0; max-width: 100%; }
-    .source-doc__index .index-badge { flex: 0 1 auto; min-width: 0; }
     .source-doc__index .index-badge__text { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   }
   /* A narrow 资料 page (.sources-page.is-narrow, ui/Sources.jsx ROWS_NARROW): the short label; with 建立索引 beside it the badge is short of room, so the words say
