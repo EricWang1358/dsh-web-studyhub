@@ -18,8 +18,22 @@ export function uvWheel(tag, version = UV_TEST_VERSION, size = 200_000) {
     [`uv-${version}.dist-info/METADATA`]: `Metadata-Version: 2.1\nName: uv\nVersion: ${version}\n` });
 }
 
+const WHEEL_CACHE = new Map();
+
+function wheelsForVersion(version) {
+  let cached = WHEEL_CACHE.get(version);
+  if (!cached) {
+    cached = TAGS.map(tag => {
+      const bytes = uvWheel(tag, version);
+      return [`uv-${version}-py3-none-${tag}.whl`, Object.freeze({ bytes, sha256: createHash('sha256').update(bytes).digest('hex') })];
+    });
+    WHEEL_CACHE.set(version, cached);
+  }
+  return new Map(cached);
+}
+
 export async function startFakeIndex({ version = UV_TEST_VERSION } = {}) {
-  const wheels = new Map(TAGS.map(tag => { const bytes = uvWheel(tag, version); return [`uv-${version}-py3-none-${tag}.whl`, { bytes, sha256: createHash('sha256').update(bytes).digest('hex') }]; }));
+  const wheels = wheelsForVersion(version);
   const knobs = {}, requests = [];
   const server = createServer((req, res) => {
     requests.push({ method: req.method, url: req.url, range: req.headers.range || '' });
@@ -45,7 +59,7 @@ export async function startFakeIndex({ version = UV_TEST_VERSION } = {}) {
     const body = wheel.bytes.subarray(start);
     if (knobs.cutAfter) {
       const cut = knobs.cutAfter; delete knobs.cutAfter;
-      res.write(body.subarray(0, cut), () => setTimeout(() => res.destroy(), 20));
+      res.write(body.subarray(0, cut), () => setTimeout(() => res.destroy(), 5));
       return;
     }
     res.end(body);

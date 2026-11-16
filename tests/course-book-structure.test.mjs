@@ -4,12 +4,18 @@
    node leaves no shell, a renamed title survives a rebuilt outline, and the actions show their input schemas in study_capabilities. No model, no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { cp, mkdtemp, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { StudyService } from '../lib/service.js';
+import { defaults } from '../lib/domain.js';
+import { syncCourseReferences } from '../lib/courses.js';
 import { filterCapabilities } from '../lib/runtime/tools.js';
 import { writesFor } from '../lib/runtime/domain-contracts.js';
 import { libraryContracts } from '../lib/study-contracts.js';
 import { STRUCTURE_FILE } from '../lib/course-book-structure.js';
 import { FILE_TEXT_MAX } from '../lib/course-book-edit.js';
-import { bookService } from './helpers/book-agent-library.mjs';
+import { bookLibrary } from './helpers/book-agent-library.mjs';
 
 /** 14 points in 4 chapters of lecture 1, as the owner's book of #470 (10 chapters / 14 points) at a smaller size. */
 const FOURTEEN = (lecture, lectureKey) => [[1, 4], [2, 4], [3, 3], [4, 3]].map(([c, count], at, all) => {
@@ -37,10 +43,105 @@ async function rebuild(study, retitle, keep = () => true, chapter = title => tit
   if (looked.status === 'rebuild-pending') await study.call('course.book.rebuild', { action: 'apply', outlineId: looked.moves.outlineId });
 }
 
+function createMemoryStore(root, initialState) {
+  let state = structuredClone(initialState);
+  let queue = Promise.resolve();
+  const collections = new Set([
+    'sources', 'decks', 'drafts', 'attempts', 'runs', 'oralRuns',
+    'teaching', 'coach', 'feedback', 'prepared', 'inbox', 'skeletons',
+    'topicGroups', 'notes', 'workflowTemplates', 'workflowSessions', 'courses',
+  ]);
+  return {
+    root,
+    collections,
+    registerCollection(name) {
+      collections.add(name);
+      return () => collections.delete(name);
+    },
+    async read() {
+      await queue.catch(() => {});
+      return structuredClone(state);
+    },
+    update(fn) {
+      const next = queue.then(async () => {
+        const draft = structuredClone(state);
+        const value = await fn(draft);
+        syncCourseReferences(draft);
+        draft.revision = (draft.revision || 0) + 1;
+        state = draft;
+        return value;
+      });
+      queue = next.catch(() => {});
+      return next;
+    },
+    async stamp() { return String(state.revision || 1); },
+    async load() { return { stamp: String(state.revision || 1), storageIssues: [], state }; },
+    async restore(backup) { state = structuredClone(backup); return this.read(); },
+  };
+}
+
+function buildSeededState(options) {
+  const { state, lecture, outline } = bookLibrary(options);
+  const full = structuredClone(defaults);
+  // Keep only the sources referenced by the course outline/notes (plus lecture-1..5) instead of cloning 134 unused fixture sources on every transaction.
+  const keepIds = new Set([outline.id]);
+  for (const src of state.sources) {
+    if (src.provenance === 'course-outline-notes' || /^document-l[1-6]-p/.test(src.id)) keepIds.add(src.id);
+  }
+  full.sources = state.sources.filter(src => keepIds.has(src.id));
+  full.decks = [];
+  full.focus = state.focus;
+  syncCourseReferences(full);
+  full.revision = 1;
+  return { state: full, lecture, outline };
+}
+
+const templateDirs = [];
+test.after(async () => {
+  await Promise.all(templateDirs.map(dir => rm(dir, { recursive: true, force: true })));
+});
+
+let defaultSeed = null;
+function getDefaultSeed() {
+  defaultSeed ||= buildSeededState();
+  return defaultSeed;
+}
+
+let fourteenTemplatePromise = null;
+function ensureFourteenTemplate() {
+  fourteenTemplatePromise ||= (async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'study-book-tpl14-'));
+    templateDirs.push(dir);
+    const seeded = buildSeededState({ chapters: FOURTEEN });
+    const storage = createMemoryStore(dir, seeded.state);
+    const study = new StudyService(dir, { storage });
+    const toc = await study.call('book.toc', { limit: 40 });
+    const postTocState = await storage.read();
+    await study.dispose();
+    const booksDir = join(dir, 'course-books');
+    const hasBooksDir = await stat(booksDir).then(() => true, () => false);
+    return { dir, hasBooksDir, state: postTocState, lecture: seeded.lecture, outline: seeded.outline, toc };
+  })();
+  return fourteenTemplatePromise;
+}
+
+async function bookService(t, options) {
+  const seeded = options ? buildSeededState(options) : getDefaultSeed();
+  const root = await mkdtemp(join(tmpdir(), 'study-book-agent-'));
+  const storage = createMemoryStore(root, seeded.state);
+  const study = new StudyService(root, { storage });
+  t.after(async () => { await study.dispose(); await rm(root, { recursive: true, force: true }); });
+  return { study, root, lecture: seeded.lecture, outline: structuredClone(seeded.outline) };
+}
+
 async function fourteen(t) {
-  const made = await bookService(t, { chapters: FOURTEEN });
-  const toc = await made.study.call('book.toc', { limit: 40 });
-  return { ...made, toc };
+  const tpl = await ensureFourteenTemplate();
+  const root = await mkdtemp(join(tmpdir(), 'study-book-agent-'));
+  if (tpl.hasBooksDir) await cp(join(tpl.dir, 'course-books'), join(root, 'course-books'), { recursive: true });
+  const storage = createMemoryStore(root, tpl.state);
+  const study = new StudyService(root, { storage });
+  t.after(async () => { await study.dispose(); await rm(root, { recursive: true, force: true }); });
+  return { study, root, lecture: tpl.lecture, outline: structuredClone(tpl.outline), toc: structuredClone(tpl.toc) };
 }
 
 test('#470 acceptance: in a 14-point book rename one point and move one point to the right place; no outline rebuild, no book text sent; undo walks back', async t => {

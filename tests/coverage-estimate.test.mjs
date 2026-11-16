@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudyService } from '../lib/service.js';
-import { estimateFromState, estimateRun } from '../lib/token-estimate.js';
+import { calibrateEstimate, estimateFromState, estimateRun, stageTotals } from '../lib/token-estimate.js';
 import { settleJob } from './helpers/wait.mjs';
 import { transcriptFixture } from './helpers/coverage-fixture.mjs';
 import { clusteringModel } from './helpers/clustering-model.mjs';
@@ -82,4 +82,24 @@ test('parity: the plan a coverage run makes is the plan the estimate promised, f
     await service.call('job.cancel', { jobId: started.jobId });
     await settleJob(service, started.jobId).catch(() => {});
   }
+});
+
+test('#945: multi-round coverage estimation prices planned rounds and fillRounds accurately and covers a 197-question 7-round run', () => {
+  const autoAll = estimate({ coverageLevel: 'standard', count: 197, autoComplete: true });
+  const firstOnly = estimate({ coverageLevel: 'standard', count: 197, autoComplete: false });
+  const noFill = estimate({ coverageLevel: 'standard', count: 197, autoComplete: true, performance: { fillRounds: 0 } });
+
+  assert.equal(autoAll.coverage.goal, 197);
+  assert.equal(autoAll.coverage.rounds, 7);
+  assert.equal(firstOnly.coverage.rounds, 7, 'coverage structure still reports total rounds of the plan');
+  assert.ok(autoAll.calls.low > firstOnly.calls.low * 4, 'autoComplete=true prices all 7 rounds instead of only round 1');
+  assert.ok(autoAll.totalTokens.low > firstOnly.totalTokens.low * 4);
+  assert.equal(autoAll.calls.low, noFill.calls.low, 'fillRounds do not inflate happy-path calls.low');
+  assert.ok(autoAll.calls.high > noFill.calls.high, 'fillRounds raise the upper bound when autoComplete is enabled');
+
+  const sumStages = side => Object.values(stageTotals(autoAll)).reduce((acc, r) => acc + r[side], 0);
+  assert.deepEqual({ low: sumStages('low'), high: sumStages('high') }, autoAll.totalTokens, 'combined multi-round stageTotals match headline totalTokens');
+
+  const withThinking = calibrateEstimate(autoAll, null, null);
+  assert.ok(withThinking.totalTokens.high >= 10_000_000, `197-question 7-round high bound (${withThinking.totalTokens.high}) covers ~10M actual trajectory (#945)`);
 });

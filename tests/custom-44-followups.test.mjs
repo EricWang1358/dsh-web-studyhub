@@ -1,14 +1,156 @@
 /* 深度定制 4.4 follow-ups (#739): S2 review book by chapters (#1, #2, #3, #5, #6, #7) + gate review regressions. Fake 500-page book and fake model; no network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { StudyService } from '../lib/service.js';
+import { defaults } from '../lib/domain.js';
+import { syncCourseReferences } from '../lib/courses.js';
 import { settleJob } from './helpers/wait.mjs';
-import { BIG_COURSE, bookPaper, chapterTitle } from './helpers/big-book-library.mjs';
-import { bigBookWorld as world, leavesOf, written } from './helpers/big-book-world.mjs';
+import { privateRoot } from './helpers/model-family-baseline.mjs';
+import { switchOptions } from './helpers/runtime-switch.mjs';
+import { bookModel } from './helpers/course-book-model.mjs';
+import { BIG_COURSE, bigBookLibrary, bookPaper, chapterTitle } from './helpers/big-book-library.mjs';
+import { leavesOf, written } from './helpers/big-book-world.mjs';
+import { isCourseNotesSource, isCourseOutlineSource } from '../lib/exam-point-list.js';
 import { courseOutlineMaterial, legacyMaterialsFingerprint, legacyPartPrint, materialsFingerprint, outlineStale, partPrint, partsNow } from '../lib/course-outline-book.js';
 import { currentInventory, normalizeInventory } from '../lib/course-book-inventory.js';
 import { readPaper } from '../lib/contexts/generation/outline/read.js';
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { stampSegmentations } from '../lib/document-outline.js';
+
+const KIND = 'course-book-build';
+
+function createMemoryStore(root, initialState) {
+  let state = structuredClone(initialState);
+  let queue = Promise.resolve();
+  const collections = new Set([
+    'sources', 'decks', 'drafts', 'attempts', 'runs', 'oralRuns',
+    'teaching', 'coach', 'feedback', 'prepared', 'inbox', 'skeletons',
+    'topicGroups', 'notes', 'workflowTemplates', 'workflowSessions', 'courses',
+  ]);
+  return {
+    root,
+    collections,
+    registerCollection(name) {
+      collections.add(name);
+      return () => collections.delete(name);
+    },
+    async read() {
+      await queue.catch(() => {});
+      return structuredClone(state);
+    },
+    update(fn) {
+      const next = queue.then(async () => {
+        const draft = structuredClone(state);
+        const value = await fn(draft);
+        syncCourseReferences(draft);
+        draft.revision = (draft.revision || 0) + 1;
+        state = draft;
+        return value;
+      });
+      queue = next.catch(() => {});
+      return next;
+    },
+    async stamp() { return String(state.revision || 1); },
+    async load() { return { stamp: String(state.revision || 1), storageIssues: [], state }; },
+    async restore(backup) { state = structuredClone(backup); return this.read(); },
+  };
+}
+
+function makeWorldHandle(service, fake, language = 'en') {
+  const records = async () => (await service.store.read()).sources;
+  const contract = () => [...service.runtime.work.jobs.values()].filter(job => job.type === KIND).at(-1)?.contract;
+  const ask = args => service.call('generation.courseBook.build', { course: BIG_COURSE, language, ...args });
+  const build = async args => {
+    const job = await settleJob(service, (await ask(args)).jobId);
+    assert.equal(job.status, 'complete', JSON.stringify(contract()?.error ?? null));
+    return contract();
+  };
+  const chapterIds = async () => (await service.call('course.custom.preview', { course: BIG_COURSE })).skeleton.documents[0].chapters.map(chapter => chapter.id);
+  return {
+    service, fake, ask, build, contract, chapterIds, since: mark => fake.calls.slice(mark),
+    shown: async () => (await service.call('course.outline', { course: BIG_COURSE })).book,
+    notes: async () => (await records()).filter(isCourseNotesSource).find(record => !record.archived),
+    outline: async () => (await records()).filter(isCourseOutlineSource).find(record => !record.archived),
+  };
+}
+
+let baseTemplatePromise = null;
+function ensureBaseTemplate() {
+  baseTemplatePromise ||= (async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'custom-book-s2-tpl-'));
+    try {
+      const initial = {
+        ...structuredClone(defaults),
+        sources: bigBookLibrary().sources,
+        decks: [],
+        drafts: [],
+        documents: [],
+        courses: [],
+        focus: { mode: 'class', course: BIG_COURSE },
+      };
+      syncCourseReferences(initial);
+      initial.revision = 1;
+      const storage = createMemoryStore(dir, initial);
+      const fake = bookModel();
+      const service = new StudyService(dir, { storage, complete: fake.complete, ...switchOptions('runtime', { complete: fake.complete, paths: [] }) });
+      const ids = (await service.call('course.custom.preview', { course: BIG_COURSE })).skeleton.documents[0].chapters.map(chapter => chapter.id);
+      const state = await storage.read();
+      await service.dispose();
+      return { state, ids };
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  })();
+  return baseTemplatePromise;
+}
+
+let builtCh34TemplatePromise = null;
+function ensureBuiltCh34Template() {
+  builtCh34TemplatePromise ||= (async () => {
+    const base = await ensureBaseTemplate();
+    const dir = await mkdtemp(join(tmpdir(), 'custom-book-s2-ch34-tpl-'));
+    try {
+      const storage = createMemoryStore(dir, base.state);
+      const fake = bookModel();
+      const service = new StudyService(dir, { storage, complete: fake.complete, ...switchOptions('runtime', { complete: fake.complete, paths: [] }) });
+      const w = makeWorldHandle(service, fake);
+      await w.build({ chapters: [base.ids[2], base.ids[3]], sample: 'skip' });
+      const calls = fake.calls.map(({ stage, data }) => ({ stage, data: structuredClone(data) }));
+      const state = await storage.read();
+      await service.dispose();
+      return { state, ids: base.ids, calls };
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  })();
+  return builtCh34TemplatePromise;
+}
+
+async function world(t, { language = 'en' } = {}) {
+  const base = await ensureBaseTemplate();
+  const root = await privateRoot(t, 'custom-book-s2-');
+  const storage = createMemoryStore(root, base.state);
+  const fake = bookModel();
+  const service = new StudyService(root, { storage, complete: fake.complete, ...switchOptions('runtime', { complete: fake.complete, paths: [] }) });
+  t.after(() => service.dispose());
+  const handle = makeWorldHandle(service, fake, language);
+  handle.chapterIds = async () => [...base.ids];
+  return handle;
+}
+
+async function worldBuiltCh34(t, { language = 'en' } = {}) {
+  const tpl = await ensureBuiltCh34Template();
+  const root = await privateRoot(t, 'custom-book-s2-');
+  const storage = createMemoryStore(root, tpl.state);
+  const fake = bookModel();
+  fake.calls.push(...structuredClone(tpl.calls));
+  const service = new StudyService(root, { storage, complete: fake.complete, ...switchOptions('runtime', { complete: fake.complete, paths: [] }) });
+  t.after(() => service.dispose());
+  return { ...makeWorldHandle(service, fake, language), ids: [...tpl.ids] };
+}
 
 const run = async (w, args = {}) => {
   const job = await w.ask({ sample: 'skip', ...args });
@@ -16,9 +158,8 @@ const run = async (w, args = {}) => {
 };
 
 test('#739 item 1: a changed chapter whose items all sit in other chapters settles its print and keeps its explanations, alone or beside another chapter', async t => {
-  const w = await world(t);
-  const ids = await w.chapterIds();
-  await w.build({ chapters: [ids[2], ids[3]], sample: 'skip' });
+  const w = await worldBuiltCh34(t);
+  const ids = w.ids;
   const countBefore = written(await w.notes()).length;
   const page3Text = (await w.service.store.read()).sources.find(source => source.id === 'big-p101').text;
 
@@ -42,9 +183,7 @@ test('#739 item 1: a changed chapter whose items all sit in other chapters settl
   assert.deepEqual((await w.outline()).courseOutline.nodes.map(node => node.title), [3, 4, 5].map(chapterTitle));
 
   // Multi-chapter redo where both chapters are redone and one chapter's items all sit in the other redo chapter.
-  const w2 = await world(t);
-  const ids2 = await w2.chapterIds();
-  await w2.build({ chapters: [ids2[2], ids2[3]], sample: 'skip' });
+  const w2 = await worldBuiltCh34(t);
   await w2.service.store.update(state => {
     state.sources.find(source => source.id === 'big-p105').text += ' Heat Basics fact 88888: a fresh note.';
     for (const source of state.sources) if (source.document?.chapter?.index === 3) source.text = `${page3Text} shared only with chapter 3.`;
@@ -216,9 +355,7 @@ test('#739 item 5: parts saved without a print count as unchanged while found, c
 });
 
 test('#739 item 6 & gate 2: cross-chapter rename+move (0 text edits) and lost-chapter deletion sync leaf anchors in 0 calls and never collide on later builds', async t => {
-  const w = await world(t);
-  const ids = await w.chapterIds();
-  await w.build({ chapters: [ids[2], ids[3]], sample: 'skip' });
+  const w = await worldBuiltCh34(t);
   const beforeCount = written(await w.notes()).length;
 
   // Case A: Chapter 3 renamed + shifted 20 pages with a text edit; Chapter 4 renamed + moved 200 pages with unchanged text.
@@ -249,9 +386,7 @@ test('#739 item 6 & gate 2: cross-chapter rename+move (0 text edits) and lost-ch
 
   // Case B (gate v2): Built Chapter 4 (idx=3, pages 151..200) genuinely moves PAST Chapter 10 to pages 501..550 (index: 10, 0 text edits),
   // while unbuilt Chapter 5 (idx=4, pages 201..250) stays put and shifts into doc.sourceIds[150..199]!
-  const w2 = await world(t);
-  const ids2 = await w2.chapterIds();
-  await w2.build({ chapters: [ids2[2], ids2[3]], sample: 'skip' });
+  const w2 = await worldBuiltCh34(t);
   const outlineBeforeMove = await w2.outline(), notesBeforeMove = await w2.notes();
   const savedCh4Bodies = new Map(leavesOf([outlineBeforeMove.courseOutline.nodes[1]]).map(leaf => [
     leaf.id, notesBeforeMove.courseNotes.leaves.find(entry => entry.id === leaf.id)?.body,
@@ -286,9 +421,7 @@ test('#739 item 6 & gate 2: cross-chapter rename+move (0 text edits) and lost-ch
 
   // Case C (gate v2): Deleting built Chapter 4 (`lost: true`) shifts Chapter 5 into doc.sourceIds[150..199]; settling keeps all 10 bodies in 0 calls,
   // and later building Chapter 5 succeeds without `Anchor in two places`!
-  const w3 = await world(t);
-  const ids3 = await w3.chapterIds();
-  await w3.build({ chapters: [ids3[2], ids3[3]], sample: 'skip' });
+  const w3 = await worldBuiltCh34(t);
   assert.equal(written(await w3.notes()).length, 10);
   await w3.service.store.update(state => { state.sources = state.sources.filter(source => source.document?.chapter?.index !== 3); });
   const markLost = w3.fake.calls.length;
@@ -314,9 +447,8 @@ test('#739 item 7 & gate 4: incremental paper matching bounds same-line question
 
   // Standalone `generation.courseOutline.build { papersOnly: true }` warms courseInventory.cache.papers via planPapersOnly.previousInventory,
   // and bounds same-line questions (no \n between Q5 and Q6).
-  const w = await world(t);
-  const ids = await w.chapterIds();
-  await w.build({ chapters: [ids[2], ids[3]], sample: 'skip' });
+  const w = await worldBuiltCh34(t);
+  const ids = w.ids;
   assert.equal(w.fake.of('paper').length, 0);
 
   const sameLinePaper = {
