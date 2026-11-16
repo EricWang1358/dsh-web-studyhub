@@ -108,6 +108,7 @@ export function handleGuidedWorkbenchKeyDown(event, {
 export default function GuidedStudyWorkbench({
   session,
   run,
+  busy = false,
   modelReady = true,
   prepState = null,
   progress = null,
@@ -131,6 +132,7 @@ export default function GuidedStudyWorkbench({
 }) {
   useInjectCss(css, 'study-guided-study');
   const study = useStudy();
+  const effectiveBusy = busy || Boolean(study?.busy);
   const effectiveHost = host || study?.host;
   const [tutorMessage, setTutorMessage] = useState('');
 
@@ -144,6 +146,7 @@ export default function GuidedStudyWorkbench({
 
   const currentCard = run?.card || (run?.entries ? run.entries[run.index]?.card : null);
   const currentFeedback = run?.feedback || (run?.entries ? run.entries[run.index]?.feedback : null);
+  const currentSolution = run?.solution || (run?.entries ? run.entries[run.index]?.solution : null);
   const isRevealed = Boolean(run?.revealed ?? (run?.entries ? run.entries[run.index]?.revealed : false));
   const hasFeedback = Boolean(currentFeedback);
   const currentMissed = Boolean(hasFeedback && (currentFeedback.rubric
@@ -156,12 +159,15 @@ export default function GuidedStudyWorkbench({
     : currentFeedback.correct === false));
 
   const choice = hasOptions(currentCard?.kind) && Array.isArray(currentCard?.options) && currentCard.options.length > 0;
+  const revealedAnswer = !choice ? (currentSolution?.answer ?? currentCard?.answer ?? '') : '';
+  const revealedExplanation = currentSolution?.explanation ?? currentCard?.explanation ?? '';
   const isGradedCard = choice || Boolean(currentFeedback?.rubric);
   const verdictText = !hasFeedback ? '' : isGradedCard
     ? (currentMissed ? ui('这道题还没过关，先看下方解析或带回主会话讲透') : ui('回答正确'))
     : (currentMissed ? ui('已记入待巩固，先看解析或带回主会话') : ui('已记录掌握，会计入检验与复习排期'));
   const [selected, setSelected] = useState([]);
   useEffect(() => { setSelected([]); setTutorMessage(''); }, [currentCard?.id, run?.id, session?.id]);
+  const effectiveSelected = hasFeedback && Array.isArray(currentFeedback?.selected) ? currentFeedback.selected : selected;
 
   const isPreparing = (prepState && prepState.status) || session?.focus?.kind === 'preparing-card';
   const effectivePrepState = prepState || (session?.focus?.kind === 'preparing-card'
@@ -252,6 +258,7 @@ export default function GuidedStudyWorkbench({
               variant="secondary"
               size="sm"
               className="guided-study-btn"
+              lock={effectiveBusy}
               onClick={() => onPause?.(session.id)}
             >
               {ui('暂停')}
@@ -261,6 +268,7 @@ export default function GuidedStudyWorkbench({
             variant="secondary"
             size="sm"
             className="guided-study-btn"
+            lock={effectiveBusy}
             onClick={() => onEnd?.(session.id)}
           >
             {ui('结束')}
@@ -304,8 +312,10 @@ export default function GuidedStudyWorkbench({
                 <fieldset className="guided-study-card-options" disabled={hasFeedback}>
                   <legend className="sh-visually-hidden">{ui('选项')}</legend>
                   {currentCard.options.map((option) => {
-                    const picked = selected.includes(option.id);
-                    const verdict = hasFeedback && (option.correct ? 'correct' : picked ? 'wrong' : undefined);
+                    const picked = effectiveSelected.includes(option.id);
+                    const solOpt = currentSolution?.options?.find((x) => x.id === option.id);
+                    const isCorrect = Boolean(solOpt?.correct ?? option.correct);
+                    const verdict = hasFeedback ? (isCorrect ? 'correct' : picked ? 'wrong' : undefined) : undefined;
                     return (
                       <label key={option.id} className="guided-study-card-option" data-picked={picked || undefined} data-verdict={verdict}>
                         <input type={currentCard.kind === 'multi' ? 'checkbox' : 'radio'} name={`guided-${currentCard.id}`} checked={picked}
@@ -315,7 +325,14 @@ export default function GuidedStudyWorkbench({
                               ? (picked ? selected.filter((id) => id !== option.id) : [...selected, option.id])
                               : [option.id]);
                           }} />
-                        {fixedOptionLabel(currentCard, option) ?? <Markdown text={option.text} links={false} className="md-compact" />}
+                        <div className="guided-study-card-option-body">
+                          {fixedOptionLabel(currentCard, option) ?? <Markdown text={option.text} links={false} className="md-compact" />}
+                          {hasFeedback && solOpt?.explanation && (
+                            <div className="guided-study-card-option-note">
+                              <Markdown text={solOpt.explanation} links={false} className="md-compact" />
+                            </div>
+                          )}
+                        </div>
                       </label>
                     );
                   })}
@@ -334,9 +351,16 @@ export default function GuidedStudyWorkbench({
                 </div>
               )}
 
-              {(isRevealed || hasFeedback) && currentCard.explanation && (
+              {(isRevealed || hasFeedback) && revealedAnswer && (
+                <div className="guided-study-card-answer" data-testid="guided-card-answer">
+                  <strong className="guided-study-card-answer-label">{ui('参考答案')}</strong>
+                  <Markdown text={revealedAnswer} />
+                </div>
+              )}
+
+              {(isRevealed || hasFeedback) && revealedExplanation && (
                 <div className="guided-study-card-explanation">
-                  <Markdown text={currentCard.explanation} />
+                  <Markdown text={revealedExplanation} />
                 </div>
               )}
 

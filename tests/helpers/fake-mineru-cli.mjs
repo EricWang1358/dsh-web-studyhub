@@ -181,7 +181,11 @@ else if (command === 'list' && sub === 'parses') {
     if (folder) { mkdirSync(folder, { recursive: true }); writeFileSync(join(folder, 'model.onnx'), 'fake model'); }
     state.modelsReady = true; state.modelSource = flag('--source'); save(); out('100%|##########| 800M/800M'); process.exit(0);
   };
-  if (state.downloadDelayMs) setTimeout(finish, state.downloadDelayMs); else finish();
+  if (state.downloadHoldFile) {
+    const deadline = Date.now() + 60_000;
+    const waitHold = () => { if (Date.now() < deadline && existsSync(state.downloadHoldFile)) setTimeout(waitHold, 20); else finish(); };
+    waitHold();
+  } else if (state.downloadDelayMs) setTimeout(finish, state.downloadDelayMs); else finish();
 } else if (command === '--tier') { // the old separate model downloader: mineru-models-download --tier T
   out(`Downloading ${argv[1]} models ...`); out('50%');
   if (state.downloadFails) fail('network error while downloading');

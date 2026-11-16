@@ -2,12 +2,23 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { pageAvailable } from '../capabilities.js';
 import { initialGeneration } from './use-library-connection.js';
 import { generationFormDefaults, syncGenerationDefaults } from '../generation-status.js';
+import { relocalizeSnapshotRuns } from '../run-titles.js';
 import { syncScheduleSettings } from '../schedule-settings.js';
 import { RESTORABLE_PAGES, clearWarmSession, readWarmSession, writeWarmBoard, writeWarmDailyPlan, writeWarmView } from './warm-session.js';
 
 /** Seed warm session state, initial landing page, and library defaults on mount without keeping state inside App.jsx. */
 export function useWarmEntry(host, language) {
-  const [warm] = useState(() => readWarmSession(host.warmKey));
+  const [warm] = useState(() => {
+    const entry = readWarmSession(host.warmKey);
+    if (!entry?.data) return entry;
+    const relocalized = relocalizeSnapshotRuns(entry.data);
+    if (relocalized === entry.data) return entry;
+    const snapshotKey = { ...entry.snapshotKey };
+    for (const key of ['runs', 'exams', 'lastRun']) {
+      if (Object.hasOwn(relocalized, key)) snapshotKey[key] = JSON.stringify(relocalized[key]) ?? '';
+    }
+    return { ...entry, data: relocalized, snapshotKey };
+  });
   const placement = host.placement || 'main';
   const savedView = warm && placement !== 'sidebar' ? warm.views?.[placement] : null;
   const restoredPage = Boolean(savedView && RESTORABLE_PAGES.has(savedView.page) && pageAvailable(warm.data, savedView.page));

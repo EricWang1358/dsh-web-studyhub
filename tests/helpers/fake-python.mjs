@@ -1,7 +1,7 @@
 /* A stand-in for `python` and for the virtual environment's python, for the Marker installer tests. It never touches the network:
    `-m venv` makes the folders, `-m pip install` writes a fake `marker_single` program file where the real one would be.
    State comes from FAKE_PY_STATE (a JSON file); FAKE_PY_VENV is the environment the "venv python" belongs to. */
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -35,7 +35,12 @@ if (args[0] === '-m' && args[1] === 'pip') {
   console.log('Collecting marker-pdf');
   console.log('  Downloading marker_pdf-1.0.0-py3-none-any.whl (200 kB)');
   if (state.failPip) { console.error(state.pipError || 'ERROR: Could not find a version that satisfies the requirement marker-pdf (from versions: none)'); process.exit(1); }
-  if (state.delayPip) await wait(60_000);
+  if (state.pipHoldFile) {
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline && await stat(state.pipHoldFile).then(() => true, () => false)) await wait(20);
+  } else if (state.delayPip) {
+    await wait(typeof state.delayPip === 'number' ? state.delayPip : 60_000);
+  }
   const folder = process.env.FAKE_PY_VENV;
   await mkdir(bin(folder), { recursive: true });
   await writeFile(join(bin(folder), process.platform === 'win32' ? 'marker_single.exe' : 'marker_single'), 'fake marker_single');
