@@ -88,7 +88,9 @@
       gap: var(--space-1-5);
       font-size: var(--fs-sm);
     }
-    /* A quiet button that stands at the edge of a column hangs its padding and border outside it (one decision, read from the button's own padding), so its words, not its box, line up with the text beside it. */
+    /* A quiet button that stands at the edge of a column hangs its padding and border outside it (one decision, read from the button's own padding), so its words, not its box, line up with the text beside it.
+       The padding is the tighter --space-2 for it: the hung box then ends inside the page's gutter (a 16px hang put the hover box at x=3 on a 420px pane). */
+    .sh-btn--flush-start, .sh-btn--flush-end { --sh-btn-px: var(--space-2); }
     .sh-btn--flush-start { margin-inline-start: calc((var(--sh-btn-px) + var(--hairline)) * -1); }
     .sh-btn--flush-end { margin-inline-end: calc((var(--sh-btn-px) + var(--hairline)) * -1); }
     .sh-btn--primary {

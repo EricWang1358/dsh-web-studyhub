@@ -121,6 +121,15 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
           return Math.round(button.getBoundingClientRect().bottom - section.getBoundingClientRect().top); });
         assert.ok(reach <= 900 * 1.3, `the generate button ends ${reach}px down the page (the page, the three ways in and the ticked materials come first: about a screen and a quarter)`);
       }
+      // #1076: the header's quiet button hangs its padding: its words stand on the title's edge and its hover box stays inside the page gutter
+      const coach = page.getByRole('button', { name: '去教练先校准考法' });
+      if (await coach.count()) {
+        const edges = await page.evaluate(() => { const button = [...document.querySelectorAll('button')].find(element => element.textContent.includes('去教练先校准考法')), range = document.createRange(); range.selectNodeContents(button);
+          const title = document.querySelector('.generate-page h1').getBoundingClientRect(), box = button.getBoundingClientRect(), text = range.getBoundingClientRect(), pane = (document.querySelector('.source-picker__list') || document.querySelector('.generate-page')).getBoundingClientRect();
+          return { box: box.left, text: text.left, title: title.left, right: box.right, textRight: text.right, pane: pane.left, paneRight: pane.right }; });
+        if (width < 600) { assert.ok(Math.abs(edges.text - edges.title) <= 1.5, `${width}px: the coach link's words start on the title's edge (${edges.text} vs ${edges.title})`); assert.ok(edges.box >= 8, `${width}px: its hover box starts at ${edges.box}, inside the page gutter`); }
+        else assert.ok(Math.abs(edges.textRight - edges.paneRight) <= 1.5, `${width}px: the coach link's words end on the list's right edge (${edges.textRight} vs ${edges.paneRight})`);
+      }
       // #1082: 更多选项 is one line at both widths
       const summaryHeight = await page.locator('.generate-more > summary').evaluate(element => element.getBoundingClientRect().height);
       assert.ok(summaryHeight <= 50, `${width}px: 更多选项 is one line (${summaryHeight}px)`);
