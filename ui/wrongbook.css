@@ -195,14 +195,11 @@
       font-size: var(--fs-md);
     }
     .wb-prompt[tabindex]:focus-visible, .wb-why[tabindex]:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; border-radius: var(--radius-xs); }
-    .wb-grade { flex: none; color: var(--bad-ink); font-size: var(--fs-md); border-radius: var(--radius-sm); cursor: help; }
+    .wb-grade { display: inline-flex; align-items: center; gap: var(--space-1); flex: none; color: var(--bad-ink); font-size: var(--fs-md); border-radius: var(--radius-sm); cursor: help; }
     .wb-grade:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
-    .wb-grade::before { content: "× "; }
     .wb-grade.self { color: var(--warn-ink); }
-    .wb-grade.self::before { content: "○ "; }
-    /* 顽固: a state mark like the two above, with its own glyph so it never reads by colour alone. */
+    /* 顽固: a state mark like the two above, with its own icon (close, circle, diamond) so it never reads by colour alone. */
     .wb-grade.leech { color: var(--warn-ink); }
-    .wb-grade.leech::before { content: "◆ "; }
     /* A corrected mistake: the 已订正 mark and how often, when and how it was missed. */
     .wb-fixed { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-2); flex: none; }
     .wb-fixed-meta { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }

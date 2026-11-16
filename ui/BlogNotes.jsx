@@ -15,7 +15,7 @@ import DailyRecap from './DailyRecap.jsx';
 import { recapTimeZone } from './useDailyRecap.js';
 import DocumentViewer from './document-preview/DocumentViewer.jsx';
 import { existingNoteMaterial } from './DailyRecap-material.js';
-import { Button, CheckboxInput, ConfirmDialog, InlineMessage, Menu, PageHeader, TextInput, useToast } from './components/index.js';
+import { Button, CheckboxInput, ConfirmDialog, Icon, InlineMessage, Menu, PageHeader, TextInput, useToast } from './components/index.js';
 import { useStudy } from './study-context.jsx';
 import NoteDraft from './NoteDraft.jsx';
 import { modelReadiness } from './generation-status.js';
@@ -362,7 +362,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
           <Button onClick={() => act("note.home", { home }, () => toast.success(ui("公开主页已保存")))}>{ui("保存主页")}</Button></div>
         {lookup?.reason && <InlineMessage tone="info">{lookup.reason}</InlineMessage>}
         {lookup?.matches?.map((url) => <Button key={url} onClick={() => linkArticle(url)}>{uiFormat("确认这篇文章 · {0}", [url])}</Button>)}
-        {note.publicUrl && <p><a href={note.publicUrl} target="_blank" rel="noopener noreferrer">{ui("打开已发布文章 ↗")}</a></p>}
+        {note.publicUrl && <p><a href={note.publicUrl} target="_blank" rel="noopener noreferrer">{ui("打开已发布文章")}<Icon name="external" size={14} className="sh-icon--inline sh-icon--trail" /></a></p>}
         {writable && <div className="note-card-search"><TextInput className="note-input" aria-label={ui("找不到时粘贴文章链接")} value={link}
           placeholder={ui("找不到时粘贴文章链接")} onChange={(event) => setLink(event.target.value)}
           onKeyDown={(event) => { if (isImeComposing(event)) return; if (event.key === "Enter" && link.trim() && !saving) { event.preventDefault(); void linkArticle(link); } }} />
@@ -382,7 +382,7 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
           {results.map((item) => <button key={item.cardId} className="note-search-result"
             disabled={note.cards.some((ref) => ref.cardId === item.cardId)}
             onClick={() => edit({ cards: [...note.cards, { deckId: item.deckId, cardId: item.cardId, prompt: item.prompt }] })}>
-            {item.prompt} <small>{ui("＋ 添加")}</small></button>)}</>}
+            {item.prompt} <small><Icon name="plus" size={14} className="sh-icon--inline sh-icon--lead" />{ui("添加")}</small></button>)}</>}
       </details>
     </>}
   </section>;

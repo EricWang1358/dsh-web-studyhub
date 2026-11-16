@@ -111,7 +111,7 @@
   "第一组题": "First deck",
   "出题在后台进行，离开这一页也不会中断。": "The questions are made in the background; leaving this page does not stop it.",
   "出题时已逐题审阅；发布时会再检查一遍题目的结构，然后直接开始练第一轮。": "Every question was reviewed while it was made; publishing checks their structure once more and starts your first round right away.",
-  "发布前先在草稿页看一遍：每道题都能修改，看完点「发布并开始练 →」。": "Look through it on the draft page before publishing: every question can be edited; then press \"Publish and practise →\".",
+  "发布前先在草稿页看一遍：每道题都能修改，看完点「发布并开始练」。": "Look through it on the draft page before publishing: every question can be edited; then press \"Publish and practise\".",
   "回到这里，这一步会自己打勾；没有变就点「重新检查」": "Come back here: this step ticks itself; if it does not, press \"Check again\"",
   "已出的题都在草稿里。打开草稿能看到还差什么，也能从那里接着出。": "The questions made so far are in the draft. Open it to see what is still missing and to carry on from there.",
   "出题需要先配置 AI 模型，在哪里设置见导览第 2 步。": "Making questions needs an AI model; step 2 of the tour shows where to set one up.",

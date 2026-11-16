@@ -210,7 +210,7 @@ export function Banner({ tone = 'info', title, children, action, secondary, onDi
           {children && <div className={cx('sh-banner__body', bodyClassName)}>{children}</div>}
         </div>
         {(action || secondary) && <div className="sh-banner__actions">
-          {action && withTip(action.tip, <Button size="sm" variant={action.variant || 'secondary'} icon={action.icon} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
+          {action && withTip(action.tip, <Button size="sm" variant={action.variant || 'secondary'} icon={action.icon} iconEnd={action.iconEnd} disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>)}
           {secondary && withTip(secondary.tip, <Button size="sm" variant="quiet" disabled={secondary.disabled} onClick={secondary.onClick}>{secondary.label}</Button>)}
         </div>}
         {onDismiss && <IconButton icon="close" size="sm" className="sh-banner__close" label={dismissLabel(kind)} onClick={onDismiss} />}

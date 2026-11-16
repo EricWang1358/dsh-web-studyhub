@@ -878,8 +878,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         footer={assistTarget && call && view !== 'original' ? <OutlineAssist call={call} target={assistTarget} current={outline} saved={aiOutline} stale={document?.outlineStale}
           missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}
       {returnSpot && view !== 'original' && (
-        <Button variant="secondary" size="sm" className="reader-jump-back" aria-keyshortcuts="Alt+ArrowLeft" onClick={jumpBack}>
-          {uiFormat('← 回到{0}', [returnSpot.label])}
+        <Button variant="secondary" size="sm" icon="arrow-left" className="reader-jump-back" aria-keyshortcuts="Alt+ArrowLeft" onClick={jumpBack}>
+          {uiFormat('回到{0}', [returnSpot.label])}
         </Button>
       )}
       <div className="reader-scroll" ref={scroller} tabIndex={0} role="region" aria-label={localMode ? localContent.title || source.title || ui('资料内容') : ui('资料内容')} data-mode={view}>

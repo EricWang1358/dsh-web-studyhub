@@ -18,7 +18,7 @@ export async function attemptOpen(openAgent, id, options) {
  * shows the reason when it cannot be opened. Without a host that can open assistants, or
  * without an id to open, it draws nothing.
  */
-export default function AgentLink({ childId, parentId, openAgent, label, ariaLabel, className, variant = 'link' }) {
+export default function AgentLink({ childId, parentId, openAgent, label, ariaLabel, className, iconEnd, variant = 'link' }) {
   const [state, setState] = useState({ opening: false, error: '' });
   const busy = useRef(false), alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -33,7 +33,7 @@ export default function AgentLink({ childId, parentId, openAgent, label, ariaLab
     if (alive.current) setState({ opening: false, error });
   };
   return <>
-    <Button variant={variant} size="sm" className={className} aria-label={ariaLabel} busy={state.opening} busyLabel={ui('正在打开…')} onClick={open}>
+    <Button variant={variant} size="sm" iconEnd={iconEnd} className={className} aria-label={ariaLabel} busy={state.opening} busyLabel={ui('正在打开…')} onClick={open}>
       {label}</Button>
     {state.error && <ErrorState compact className="agent-link__problem" error={state.error} />}
   </>;

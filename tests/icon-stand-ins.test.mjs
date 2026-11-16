@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { glyphProblems, localeEntries, stringsOf, uiStrings } from './helpers/icon-stand-ins.mjs';
+import { cssContents, glyphProblems, localeEntries, stringsOf, uiStrings } from './helpers/icon-stand-ins.mjs';
 
 /* #1073: no typed → ← ✓ × ⚑ ↻ ＋ ↗ in what the learner reads. A "go on" arrow is `<Button iconEnd="arrow-right">`, a way back `icon="arrow-left"`,
    a tick / cross / flag / refresh is a registry icon (ui/DESIGN.md, Icons). What stays text is listed here, one string at a time, with why; an entry
@@ -25,7 +25,7 @@ const keptText = new Set(KEEP.map((entry) => entry.text));
 
 test('the rule: edge arrows, icon glyphs and a close-mark × are stand-ins; sentence arrows, joiners and multiplications are not', () => {
   for (const text of ['下一题 →', '← 上一题', '→', '✓ 已选 · 正确', '× 你的选择', '⚑', '↻ 将继续巩固', '＋ 添加', '打开 ↗', '「发布并开始练 →」', '回到 ←']) assert.notDeepEqual(glyphProblems(text), [], text);
-  for (const text of ['本组 40% → 55%', '读 → 做题 → 回到阅读', ' → ', '{0} → {1}', '间隔 {0} 天 → {1} 天', '时间 × 精度倾向', '×3', '行 ×{}', '', '继续学习']) assert.deepEqual(glyphProblems(text), [], text);
+  for (const text of ['本组 40% → 55%', '读 → 做题 → 回到阅读', ' → ', '{0} → {1}', '间隔 {0} 天 → {1} 天', '时间 × 精度倾向', '×3', '行 ×{}', '失败 {0}×', '3× 速度', '', '继续学习']) assert.deepEqual(glyphProblems(text), [], text);
   assert.deepEqual(glyphProblems('点关闭 ×'), ['"×" is not a multiplication, use the close icon']);
 });
 
@@ -38,6 +38,11 @@ test('no string of ui/ uses a typed glyph for an icon (#1073)', async () => {
   const found = [];
   for (const { file, text } of await uiStrings()) if (!keptText.has(text) && !SKIP_FILES.has(file)) for (const problem of glyphProblems(text)) found.push(`${file}: ${JSON.stringify(text.slice(0, 70))}: ${problem}`);
   assert.deepEqual([...new Set(found)], [], `${new Set(found).size} string(s) with a typed glyph; draw an icon, or list a key name or a window title in KEEP with why`);
+});
+
+test('no stylesheet draws a typed glyph with content (a pseudo-element is no icon either)', async () => {
+  const found = (await cssContents()).flatMap(({ file, text }) => glyphProblems(text).map((problem) => `${file}: ${JSON.stringify(text)}: ${problem}`));
+  assert.deepEqual(found, []);
 });
 
 test('no English catalogue key or text uses a typed glyph for an icon (the key is the Chinese source string)', async () => {

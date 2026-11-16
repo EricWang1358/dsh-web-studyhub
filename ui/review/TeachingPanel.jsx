@@ -90,8 +90,8 @@ export default function TeachingPanel({ session, data, model, onModelSettings })
                   }}
                 />
               </label>
-              <Button className="teaching-panel__submit" variant="primary" disabled={teachingBusy || !teachAnswer.trim()}
-                onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })} type="submit">{ui("检查理解 →")}</Button>
+              <Button className="teaching-panel__submit" variant="primary" iconEnd="arrow-right" disabled={teachingBusy || !teachAnswer.trim()}
+                onPointerUp={(e) => e.currentTarget.closest(".study-app")?.focus({ preventScroll: true })} type="submit">{ui("检查理解")}</Button>
             </form>
           </>
         )}

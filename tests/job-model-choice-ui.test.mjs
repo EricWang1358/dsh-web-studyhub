@@ -84,10 +84,10 @@ test('the model in force: the run own choice, else the generation model; 存为�
   const saved = m.defaultsPatch(generation({ model: key('siliconflow', 'Qwen/Qwen3-235B-A22B') }));
   assert.equal(saved.action, 'settings');
   assert.equal('model' in saved.args.generation, false, '存为默认 writes the other values only');
-  assert.equal(m.appliedText({ model: key('siliconflow', 'Qwen/Qwen3-235B-A22B') }), '✓ 已生效 · 模型 → Qwen/Qwen3-235B-A22B', 'the log line names the model by its id');
-  assert.equal(m.appliedText({ model: 'follow' }), '✓ 已生效 · 模型 → 跟随设置');
+  assert.equal(m.appliedText({ model: key('siliconflow', 'Qwen/Qwen3-235B-A22B') }), '已生效 · 模型 → Qwen/Qwen3-235B-A22B', 'the log line names the model by its id');
+  assert.equal(m.appliedText({ model: 'follow' }), '已生效 · 模型 → 跟随设置');
   const items = m.controlItems(generation(), GENERATION.session, env());
-  assert.equal(m.appliedText({ model: key('siliconflow', 'Qwen/Qwen3-235B-A22B') }, items), '✓ 已生效 · 模型 → Qwen3 235B', 'the row says it as its select does');
+  assert.equal(m.appliedText({ model: key('siliconflow', 'Qwen/Qwen3-235B-A22B') }, items), '已生效 · 模型 → Qwen3 235B', 'the row says it as its select does');
 });
 
 const render = (job, { language = 'zh', host = { modelGroups: GROUPS } } = {}) => {

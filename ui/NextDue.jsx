@@ -1,7 +1,7 @@
 import React from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { formatDateTime, formatGap } from './format.js';
-import { Disclosure } from './components/index.js';
+import { Disclosure, Icon } from './components/index.js';
 
 /* The line under a practice answer, drawn inside the question's card right after the explanation: what happened to the question and when it comes back,
    in plain words ("答对了 · 下次大约 3 天后再见"). The word follows the SAME level function as every mastery view
@@ -24,11 +24,18 @@ function stabilitySteps(days) {
   return 1;
 }
 
-/** 「答对了」 / 「✓ 已掌握」 / 「↻ 将继续巩固」: what the answer did, by the level the question has now. */
+/** 「答对了」 / 「已掌握」 / 「将继续巩固」: what the answer did, by the level the question has now. */
 export function nextDueWord(feedback = {}) {
   if (feedback.selfReported || feedback.assessment === 'self-report') return ui('自报，未验收');
-  if (!feedback.correct) return ui('↻ 将继续巩固');
-  return feedback.level === 'mastered' ? ui('✓ 已掌握') : ui('答对了');
+  if (!feedback.correct) return ui('将继续巩固');
+  return feedback.level === 'mastered' ? ui('已掌握') : ui('答对了');
+}
+
+/** The icon before that word: a tick for 已掌握, the refresh arrow for a question that comes round again. */
+export function nextDueIcon(feedback = {}) {
+  if (feedback.selfReported || feedback.assessment === 'self-report') return null;
+  if (!feedback.correct) return 'refresh';
+  return feedback.level === 'mastered' ? 'check' : null;
 }
 
 /** The local calendar date of an instant, as a day number. */
@@ -89,7 +96,7 @@ export function NextDue({ feedback, telemetry = null, now = Date.now() }) {
   return (
     <div className={`next-due${feedback.correct || selfReported ? '' : ' retry'}`} data-level={feedback.level || undefined}>
       <p className="next-due__lead">
-        {uiFormat('{0} · {1}', [nextDueWord(feedback), nextDueWhen(feedback, now)])}
+        {nextDueIcon(feedback) && <Icon name={nextDueIcon(feedback)} size={16} className="sh-icon--inline sh-icon--lead" />}{uiFormat('{0} · {1}', [nextDueWord(feedback), nextDueWhen(feedback, now)])}
         {feedback.retryQueued && <span>{' · '}{ui('这道题放到了本轮最后，会再出现一次')}</span>}
         {feedback.hintGraded && <span>{' · '}{ui('用了提示，按「勉强答对」安排，这道题会更早回来')}</span>}
       </p>

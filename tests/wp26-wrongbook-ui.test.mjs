@@ -101,7 +101,7 @@ test('variant states per row: none, generating, ready with a way to practise, fa
 test('a banner offers the prepared variants and reuses the coach practice', () => {
   const html = text(render());
   assert.match(html, /已为你备好 3 道变式题/);
-  assert.match(html, /去练 →/);
+  assert.match(html, /去练/);
   assert.doesNotMatch(text(render({ coach: { ...coach, ready: 0, readyCards: [] } })), /已为你备好/);
 });
 

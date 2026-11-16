@@ -62,7 +62,7 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
   /* The rules' fallback headline promises 「接着学下一批」: with a way back as the page's one button and no way on anywhere (the card has none of its own either), it says something neutral. */
   const ownButton = !!action && !back && !nextShown;
   const promisesNext = plain && !onwardShown && !ownButton && /接着学下一批/.test(debrief?.headline || "");
-  const label = next === "practice_prepared" ? uiFormat("刷 {0} 道为你定制的题 →", [ready]) : next === "review_weak" ? ui("先补薄弱点 →") : destination?.label || ui("继续学习 →");
+  const label = next === "practice_prepared" ? uiFormat("刷 {0} 道为你定制的题", [ready]) : next === "review_weak" ? ui("先补薄弱点") : destination?.label || ui("继续学习");
 
   // Autopilot: count down, then take the suggested step; any click cancels.
   const cancelled = useRef(false);
@@ -174,6 +174,7 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
         {action && !back && (!nextShown || suggestion) && (
           <Button
             variant={quiet ? "secondary" : "primary"}
+            iconEnd="arrow-right"
             lock={busy}
             onClick={() => {
               cancelled.current = true;
@@ -184,7 +185,7 @@ export default function CoachDebrief({ run, initial, autopilot, onPractice, onCo
           </Button>
         )}
         {left !== null && left > 0 && (
-          <span className="coach-countdown" role="status">{back ? uiFormat("自动跳下一步：{0} 秒后{1} ·", [left, label.replace(/\s*→$/, "")]) : uiFormat("自动跳下一步：{0} 秒后执行 ·", [left])}
+          <span className="coach-countdown" role="status">{back ? uiFormat("自动跳下一步：{0} 秒后{1} ·", [left, label]) : uiFormat("自动跳下一步：{0} 秒后执行 ·", [left])}
             {hovered && <span className="coach-countdown__paused">{ui("（已暂停）")}</span>}{" "}
             <Button variant="link" size="sm" onClick={() => { cancelled.current = true; setLeft(null); }}>{ui("取消")}</Button>
           </span>

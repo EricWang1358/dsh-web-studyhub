@@ -30,7 +30,6 @@
   "模型请求太频繁。等一两分钟再试一次。": "Too many requests to the model. Wait a minute or two and try again.",
   "这次没有生成成功。可以再试一次。": "The variants could not be generated this time. You can try again.",
   "已为你备好 {0} 道变式题": "{0} variant questions are ready for you",
-  "去练 →": "Practise →",
   "它们由你的错题改写而来，开练后会放进「为你定制」。": "They are rewritten from your mistakes and move into \"Personalised\" when you start practising them.",
   "重练": "Retrain",
   "重练范围": "Retrain scope",

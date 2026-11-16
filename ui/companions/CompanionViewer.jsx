@@ -82,7 +82,7 @@ export default function CompanionViewer({ modal, onClose }) {
   const [feedbackSeq, setFeedbackSeq] = useState(0);
   const [feedbackState, setFeedbackState] = useState({ loading: false, total: 0, open: 0, items: [], error: '' });
 
-  const askLabel = ui('＋ 记疑问');
+  const askLabel = ui('记疑问');
   const selectionLabel = ui('就这句提问');
   const bootInitRef = useRef({ channelToken, appTheme, initialAnchor, requestedSlide, askLabel, selectionLabel });
   useEffect(() => {

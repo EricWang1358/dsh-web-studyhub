@@ -2,7 +2,7 @@ import { ui, uiFormat } from "./i18n.js";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Markdown from "./Markdown.jsx";
 import { ReadingBlock, ReadingSettingsButton } from "./reading-settings/ReadingSettings.jsx";
-import { Badge, Button, Checkbox, CloseButton, IconButton, Popover, SegmentedControl, Select, TabPanel, Tabs } from './components/index.js';
+import { Badge, Button, Checkbox, CloseButton, Icon, IconButton, Popover, SegmentedControl, Select, TabPanel, Tabs } from './components/index.js';
 import { FullscreenButton, ZoomBar, useCanvasFullscreen, usePanZoom } from "./canvas/index.js";
 import { readJSON, removeKey, writeJSON } from "./storage.js";
 import { CLASS, SEQ, classComponents, visibleClasses, routeClassEdge, layoutClasses, layoutFocus, layoutSequence } from "./skeleton-diagrams.js";
@@ -325,7 +325,7 @@ export function ClassCanvas({ skeleton, onPractice, selected, onSelect, fresh })
           </>
         )}
         <span className="skc-hint">
-          {focused ? ui("点邻居继续走 · Esc 返回") : ui("拖动平移 · 用 ＋ / − 缩放")}
+          {focused ? ui("点邻居继续走 · Esc 返回") : ui("拖动平移 · 用缩放按钮缩放")}
         </span>
       </ZoomBar>
       <div className="skc-search">
@@ -606,7 +606,7 @@ export function SequenceCanvas({ sequence, nodes, onSelectNode }) {
       <p className="sqc-caption" aria-live="polite">
         {step ? (
           <>
-            <b>{uiFormat("第 {0} 步", [current])}</b> {label(step.from)} {step.kind === "return" ? "⇠" : "→"} {label(step.to)}：{step.message}
+            <b>{uiFormat("第 {0} 步", [current])}</b> {label(step.from)} <Icon name={step.kind === "return" ? "undo" : "arrow-right"} size={14} className="sh-icon--inline" /> {label(step.to)}：{step.message}
             {step.note ? `（${step.note}）` : ""}
           </>
         ) : (

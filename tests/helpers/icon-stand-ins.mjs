@@ -14,7 +14,7 @@ import { transform } from 'esbuild';
 export const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
 /** Characters that only ever stand in for an icon. */
-export const ICON_GLYPHS = '✓✔✗✘✕⚑⚐↻↺⟳▶▸▾▼◀◂＋↗↘➜➔⇒⇠⏎';
+export const ICON_GLYPHS = '✓✔✗✘✕⚑⚐↻↺⟳▶▸▾▼◀◂＋↗↘➜➔⇒⇠⏎○◆';
 const ARROWS = '→←↑↓';
 const EDGE_OPEN = /^[\s「『（(“"'‘\[]+/u;
 const EDGE_CLOSE = /[\s」』）)”"'’\]。.；;]+$/u;
@@ -34,7 +34,7 @@ export function glyphProblems(text) {
   for (let at = text.indexOf('×'); at >= 0; at = text.indexOf('×', at + 1)) {
     const before = text[at - 1], after = text[at + 1];
     const operator = before === ' ' && after === ' ';
-    const times = after !== undefined && /[\d{]/.test(after);
+    const times = (after !== undefined && /[\d{]/.test(after)) || (before !== undefined && /[\d}]/.test(before));
     if (!operator && !times) problems.push('"×" is not a multiplication, use the close icon');
   }
   return problems;
@@ -134,6 +134,23 @@ export async function uiStrings(root = repoRoot) {
     const { code } = await transform(source, { loader: 'jsx', jsx: 'transform', charset: 'utf8', sourcefile: file });
     for (const text of stringsOf(code)) rows.push({ file, text });
   }
+  return rows;
+}
+
+/** Every `content: "…"` of every stylesheet of ui/ (a pseudo-element can draw a glyph too): [{ file, text }]. */
+export async function cssContents(root = repoRoot) {
+  const rows = [];
+  async function walkCss(dir) {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) await walkCss(path);
+      else if (entry.name.endsWith('.css')) {
+        const source = await readFile(path, 'utf8');
+        for (const match of source.matchAll(/content:\s*(["'])((?:\\.|(?!\1)[^\\])*)\1/g)) rows.push({ file: relative(root, path).replace(/\\/g, '/'), text: match[2] });
+      }
+    }
+  }
+  await walkCss(join(root, 'ui'));
   return rows;
 }
 

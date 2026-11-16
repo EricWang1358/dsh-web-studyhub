@@ -76,13 +76,13 @@ const PROMPT_TIP_MIN = 48;
 const META_TIP_MIN = 20;
 
 function StatusMark({ kind, history = false }) {
-  return <Tooltip layer content={history ? historyTip() : statusTip(kind)}><span tabIndex={0} className={"wb-grade" + (kind === "graded" ? "" : " self")}>{statusLabel(kind)}</span></Tooltip>;
+  return <Tooltip layer content={history ? historyTip() : statusTip(kind)}><span tabIndex={0} className={"wb-grade" + (kind === "graded" ? "" : " self")}><Icon name={kind === "graded" ? "close" : "circle"} size={14} />{statusLabel(kind)}</span></Tooltip>;
 }
 
 /** 顽固: the question keeps being failed (lib/leech.js). A state mark like the one beside it, not a control; the thresholds are the learner's own. */
 function LeechMark({ limits }) {
   const words = leechWords(limits);
-  return <Tooltip layer content={tip(words.sentence, words.consequence)}><span tabIndex={0} className="wb-grade leech">{ui("顽固")}</span></Tooltip>;
+  return <Tooltip layer content={tip(words.sentence, words.consequence)}><span tabIndex={0} className="wb-grade leech"><Icon name="diamond" size={14} />{ui("顽固")}</span></Tooltip>;
 }
 
 /** What each rescue action does, said where its button is. */
@@ -846,7 +846,7 @@ export function WrongBookView({
 
       {!isHistory && hasCoach && onPracticePrepared && coach.ready > 0 && (
         <Banner tone="success" icon="sparkle" title={uiFormat("已为你备好 {0} 道变式题", [coach.ready])}
-          action={{ label: ui("去练 →"), onClick: () => onPracticePrepared({}), disabled: busy }}>
+          action={{ label: ui("去练"), iconEnd: "arrow-right", onClick: () => onPracticePrepared({}), disabled: busy }}>
           {ui("它们由你的错题改写而来，开练后会放进「为你定制」。")}
         </Banner>
       )}

@@ -6,10 +6,10 @@ import { ui, uiFormat } from '../i18n.js';
 /** The button's words: they name where it goes. */
 export function continueLabel(destination) {
   switch (destination?.kind) {
-    case 'original': return ui('回到原题 →');
-    case 'scope': return ui('继续这个范围 →');
-    case 'plan': return uiFormat('下一步：{0} →', [destination.title]);
-    default: return destination?.reason === 'continuing' || !destination?.reason ? ui('继续学习 →') : ui('回到学习路径 →');
+    case 'original': return ui('回到原题');
+    case 'scope': return ui('继续这个范围');
+    case 'plan': return uiFormat('下一步：{0}', [destination.title]);
+    default: return destination?.reason === 'continuing' || !destination?.reason ? ui('继续学习') : ui('回到学习路径');
   }
 }
 

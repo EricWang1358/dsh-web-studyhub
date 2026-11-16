@@ -166,7 +166,7 @@ function DeckBody({ step, on, jobs, plan }) {
   );
   if (status === 'draft-review') return (
     <>
-      <p className="frl-body__text">{ui('发布前先在草稿页看一遍：每道题都能修改，看完点「发布并开始练 →」。')}</p>
+      <p className="frl-body__text">{ui('发布前先在草稿页看一遍：每道题都能修改，看完点「发布并开始练」。')}</p>
       {on.openDraft && <div className="frl-body__actions">
         <Button variant="primary" iconEnd="arrow-right" lock={busy} data-first-run="review" onClick={() => on.openDraft(draft)}>{ui('检查草稿')}</Button>
       </div>}

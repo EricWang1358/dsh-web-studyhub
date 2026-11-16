@@ -116,7 +116,7 @@ export function headerActions(job) {
   return { pause: actions.pause.available, resume: actions.resume.available, cancel: actions.cancel.available, retry: actions.retry.available && !isHeldTask(job) };
 }
 
-/** The wording of "✓ 已生效 · 校对/翻译并发 → 4" for what a reply says is now in force. `items` (the row's controlItems) names a choice as its select does. */
+/** The wording of "已生效 · 校对/翻译并发 → 4" for what a reply says is now in force. `items` (the row's controlItems) names a choice as its select does. */
 export function appliedText(applied = {}, items = []) {
   const shown = (key, value) => {
     const options = items.find((item) => item.key === key)?.options.flatMap((option) => option.options || [option]) || [];
@@ -125,7 +125,7 @@ export function appliedText(applied = {}, items = []) {
   };
   const parts = Object.entries(applied).map(([key, value]) => typeof value === 'boolean' ? uiFormat('{0}：{1}', [controlLabel(key), value ? ui('开') : ui('关')])
     : uiFormat('{0} → {1}', [controlLabel(key), typeof value === 'string' ? shown(key, value) : value]));
-  return parts.length ? uiFormat('✓ 已生效 · {0}', [parts.join('；')]) : '';
+  return parts.length ? uiFormat('已生效 · {0}', [parts.join('；')]) : '';
 }
 
 /** What a retry ('retry') or a stop ('cancel') keeps of the work done so far, from the contract: 'completed' (the finished part; also when the contract does not say) or 'nothing' (a job that saves only when it is whole). */

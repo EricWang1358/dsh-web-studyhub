@@ -156,7 +156,7 @@ test("a finished job opens its draft, and a stopped one says what was kept", () 
   const drafts = [{ id: "dr", title: "索引小测", cards: [{ id: "a" }, { id: "b" }, { id: "c" }], editorial: {} }];
   const done = render({ sources: pdfPages, drafts, jobs: [{ id: "j", status: "complete", stageCode: "done", draftId: "dr", deckTitle: "索引小测",
     savedCount: 3, requestedTotal: 3, steps: [] }] });
-  assert.match(done, /<button[^>]*>检查草稿<span[^>]*>→<\/span><\/button>/);
+  assert.match(done, /<button[^>]*>检查草稿<svg[^>]*>(?:<path[^>]*><\/path>)+<\/svg><\/button>/);
   const stoppedWithDraft = render({ sources: pdfPages, drafts, jobs: [{ id: "j", status: "cancelled", stageCode: "cancelled", draftId: "dr",
     deckTitle: "索引小测", savedCount: 3, stage: "Generation cancelled; approved questions were retained", steps: [] }] });
   assert.match(stoppedWithDraft, /已生成的 3 题保存在草稿里/);
@@ -170,7 +170,7 @@ test("a failure without a key says so in plain words with a fix; the raw message
   const raw = 'Study subagent error: llm-deepseek: no API key for provider route "deepseek/deepseek-chat"';
   const html = render({ sources: pdfPages, jobs: [{ id: "j", status: "failed", stageCode: "failed", deckTitle: "索引小测", stage: raw, steps: [] }] });
   assert.match(html, /还没有可用的模型密钥/);
-  assert.match(html, /<button[^>]*>去配置模型<span[^>]*>→<\/span><\/button>/);
+  assert.match(html, /<button[^>]*>去配置模型<svg[^>]*>(?:<path[^>]*><\/path>)+<\/svg><\/button>/);
   assert.doesNotMatch(html, /no API key|llm-deepseek/, "the raw message is in the console's log, not on the card");
 });
 

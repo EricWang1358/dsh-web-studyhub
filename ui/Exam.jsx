@@ -18,7 +18,8 @@ import { defaultExamFormat, isExamFormat, recentExams, shortDeckTitles } from '.
 import { formatClock, joinMeta } from './format.js';
 import { useExamRun } from './exam/useExamRun.js';
 import { DEFAULT_COUNT, cardKindName, clampCount, firstUnansweredIndex, picksFromRun, typeAvailableOf, unansweredCount } from './exam/exam-written.js';
-import { fixedOptionLabel, optionMark } from './option-label.js';
+import { fixedOptionLabel } from './option-label.js';
+import OptionMark from './OptionMark.jsx';
 import WrittenSetup from './exam/WrittenSetup.jsx';
 import WrittenReport from './exam/WrittenReport.jsx';
 import { useStudy } from './study-context.jsx';
@@ -338,7 +339,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
                 return (
                   <button key={o.id} className="exam-option" aria-pressed={chosen}
                     disabled={busy || expired} onClick={() => pick(o.id)}>
-                    <span className="exam-option-letter">{optionMark(run.card, o, i)}</span>
+                    <span className="exam-option-letter"><OptionMark card={run.card} option={o} index={i} /></span>
                     <span className="exam-option-text">{fixedOptionLabel(run.card, o) ?? <Markdown text={o.text} links={false} className="md-compact" />}</span>
                   </button>
                 );
@@ -346,8 +347,8 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
             </div>
           </Panel>
           <div className="exam-toolbar">
-            <Button disabled={expired || !run.index} lock={busy} onClick={() => move(-1)}>{ui("← 上一题")}</Button>
-            <Button variant="primary" disabled={expired || run.index >= run.total - 1} lock={busy} onClick={() => move(1)}>{ui("下一题 →")}</Button>
+            <Button icon="arrow-left" disabled={expired || !run.index} lock={busy} onClick={() => move(-1)}>{ui("上一题")}</Button>
+            <Button variant="primary" iconEnd="arrow-right" disabled={expired || run.index >= run.total - 1} lock={busy} onClick={() => move(1)}>{ui("下一题")}</Button>
           </div>
           <div className="exam-foot">
             <Button lock={busy} onClick={expired || !unanswered ? submit : () => setConfirming(true)}>
