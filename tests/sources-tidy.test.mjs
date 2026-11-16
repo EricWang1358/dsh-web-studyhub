@@ -38,13 +38,13 @@ test('#1081: where the files go is a line of text in the dialog, not a box', asy
   assert.match(hub, /ui\('归入：未分类'\)/, 'no course chosen says where the files go, not a bare 未分类');
 });
 
-test('#1083: a narrow row puts the index badge on its actions line; the width rule is the one of sources.css', async () => {
+test('#1083: a narrow row puts the index badge on its actions line; the width is decided in one place', async () => {
   const jsx = await read('ui/Sources.jsx');
   const css = await read('ui/sources.css');
-  const width = Number(jsx.match(/export const ROWS_NARROW = (\d+);/)?.[1]);
-  assert.ok(css.includes(`@container sources (max-width: ${width - 1}px)`), 'ROWS_NARROW mirrors the container query that gives the actions their own line');
-  assert.match(css, /\.sources-page \{ container: sources \/ inline-size; \}/, 'the query measures the page, not the window');
-  assert.match(jsx, /useNarrow\(pageRef, ROWS_NARROW, \{ content: true \}\)/, 'and so does the row: the same element, the same box');
+  assert.match(jsx, /export const ROWS_NARROW = \d+;/);
+  assert.match(jsx, /useNarrow\(pageRef, ROWS_NARROW, \{ content: true \}\)/, 'the page measures its own column, not the window');
+  assert.match(jsx, /className=\{`page sources-page\$\{narrow \? ' is-narrow' : ''\}`\}/, 'and says so with one class');
+  assert.doesNotMatch(css, /@container/, 'sources.css follows that class; no second width of its own');
   assert.match(jsx, /\{!narrow && indexSlot\}/, 'a wide row keeps the badge on its status line');
   assert.match(jsx, /source-doc__actions">\s*\{narrow && indexSlot\}/, 'a narrow row starts its actions line with it');
   assert.match(css, /\.source-doc__actions > \.source-doc__index \{[^}]*flex: 1 1 0/, 'the badge shrinks instead of pushing the buttons to a second line');
@@ -62,7 +62,7 @@ test('#1083: in a narrow window the header keeps 添加资料 and puts the rest 
 
 test('#1085: 课程范围 and 筛选资料 share one grid column', async () => {
   const scope = await read('ui/course-active.css');
-  assert.match(ruleOf(scope, '.page-scope-form'), /grid-template-columns: auto minmax\(0, 24rem\) auto/);
+  assert.match(ruleOf(scope, '.page-scope-form'), /grid-template-columns: auto minmax\(0, 24rem\) minmax\(0, 1fr\)/, 'the third column takes what is left, so its contents never narrow the controls');
   assert.match(scope, /\.page-scope-form \.page-scope__select \{ grid-column: 2;/);
   const css = await read('ui/sources.css');
   assert.match(css, /\.sources-filter__input \{ grid-column: 2;/);
