@@ -46,9 +46,6 @@
       align-items: center;
       gap: var(--space-3);
     }
-    .resume .sh-icon {
-      color: var(--text-dim);
-    }
     .resume-row {
       display: flex;
       align-items: stretch;

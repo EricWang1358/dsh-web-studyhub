@@ -25,7 +25,7 @@ import { describeModelError, modelReadiness, plainAssistFailure } from "../gener
 import { readableQualityIssue } from "../quality.js";
 import { ReadingBlock, useReadingProps } from "../reading-settings/ReadingSettings.jsx";
 import AnswerState from "./AnswerState.jsx";
-import { Banner, Button, Chip, Icon, IconButton, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
+import { Banner, Button, Chip, Icon, InlineMessage, Popover, ProgressBar, SegmentedControl, Spinner, Tooltip } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
 import { HELP_CHOICES } from "../agent-prompts/card.js";
 import { FixPhraseChips, FixPhraseSave, appendFixPhrase } from "./FixPhrases.jsx";
@@ -241,7 +241,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                     <p>{publicationIssues.join("；")}</p>
                     <Button size="sm" onClick={() => assistCard("improve", uiFormat('发布检查发现：{0}', [publicationIssues.join('; ')]))}>{ui("交给后台修题")}</Button>
                   </Popover>}
-                <IconButton icon="flag" label={ui("标记题目")} size="sm" className="question-meta__action" onClick={() => openModal({ type: "flag" })} />
+                <Tooltip layer content={ui("标记题目")}><Button icon="flag" variant="quiet" size="sm" aria-label={ui("标记题目")} className="sh-btn--icon question-meta__action" onClick={() => openModal({ type: "flag" })} /></Tooltip>
               </div>
             </div>
             <ProgressBar size="sm" className="card-progress" label={ui("复习进度")} value={position.at} max={Math.max(1, position.total)} />
