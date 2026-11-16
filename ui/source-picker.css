@@ -28,6 +28,8 @@
     .source-picker__index { display: inline-flex; align-items: center; justify-content: flex-end; flex: none; width: 6.5rem; height: calc(var(--fs-md) * var(--lh-snug)); margin-inline-start: auto; }
     .source-picker__index .index-badge-compact { max-width: 100%; }
     .source-picker__text .source-picker__partial { color: var(--accent-text); }
+    /* One fact never breaks inside (「267 / 字符」): the line breaks between facts; a fact wider than the line still wraps. */
+    .source-picker__fact { display: inline-block; max-width: 100%; }
     .source-picker__expand { flex: 0 0 auto; }
     .source-picker__expand .source-picker__chevron { transition: transform 0.18s var(--ease); }
     .source-picker__expand[aria-expanded="true"] .source-picker__chevron { transform: rotate(90deg); }
@@ -47,21 +49,17 @@
   }
   @container study (max-width: 520px) {
     :is(.study-app, .study-seat) {
-      /* A narrow row gives the title the whole text column (#1084): the badge's slot leaves the title line and ends the row's last line instead, the 选择页面
-         line of a document with pages, else the line of facts. It keeps its word (a touch screen has no hover to explain a lone mark) and its fixed width,
-         on a line that is there anyway, so a late badge changes no height and a row without one has no empty band. The label, the text and the title line
-         lend their children to the row's grid (they stay in the DOM, so a click on the text still ticks the box and Tab meets the badge after the title). */
-      .source-picker__row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "check title title" ". facts slot";
-        align-items: start; gap: var(--space-half) var(--space-3); padding: var(--space-3); }
-      .source-picker__row:has(> .source-picker__expand) { grid-template-areas: "check title title" ". facts facts" ". expand slot"; }
-      .source-picker__row:has(> .source-picker__expand):has(.source-picker__partial) { grid-template-areas: "check title title" ". facts facts" ". partial partial" ". expand slot"; }
-      .source-picker__doc, .source-picker__text, .source-picker__head { display: contents; }
-      .source-picker .source-picker__check { grid-area: check; }
-      .source-picker__head > strong { grid-area: title; }
-      .source-picker__text > small { grid-area: facts; }
-      .source-picker__text > small.source-picker__partial { grid-area: partial; }
-      .source-picker__index { grid-area: slot; align-self: center; height: calc(var(--fs-sm) * var(--lh-snug)); margin: 0; }
-      .source-picker__expand { grid-area: expand; justify-self: start; margin-top: var(--space-1); margin-inline-start: calc((var(--sh-btn-px) + var(--hairline)) * -1); }
+      /* A narrow row gives the title the whole text column (#1084): 选择页面 follows the facts on a line of its own, and the badge's place ends the title's
+         last line at the column's end, beside a short title (the row stays one title line and one line of facts, as wide as it was) and after the last
+         line of a long one, which wraps in the whole column. It keeps its word (a touch screen has no hover to explain a lone mark) and its fixed width, so
+         a badge arriving fills it and moves nothing; the eye and Tab meet it before 选择页面. */
+      .source-picker__row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--space-1) var(--space-3); padding: var(--space-3); }
+      .source-picker__doc { display: contents; }
+      .source-picker__text { cursor: pointer; }
+      .source-picker__head { display: flow-root; line-height: var(--lh-snug); }
+      .source-picker__head > strong { display: inline; }
+      .source-picker__index { float: inline-end; margin-inline-start: var(--space-2); }
+      .source-picker__expand { grid-column: 2; justify-self: start; margin-inline-start: calc((var(--sh-btn-px) + var(--hairline)) * -1); }
       .source-picker__pages { padding-left: var(--space-6); }
     }
   }

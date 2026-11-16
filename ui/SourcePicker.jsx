@@ -140,7 +140,8 @@ export const relationNote = relation => !relation ? ''
   : relation.role === 'derived' ? uiFormat('派生自 {0}', [displayTitle(relation.of)])
     : relation.role === 'original' ? (relation.derived ? uiFormat('另有 {0} 份派生资料', [relation.derived]) : '') : uiFormat('同一文件的 {0} 份资料', [relation.count]);
 
-/* `slot`: the index badge's place at the end of the title line (a fixed width, no line of its own) is kept before the coverage is known, so a badge arriving later fills it and moves nothing (#205). */
+/* `slot`: the index badge's place at the end of the title's last line (a fixed width, no line of its own) is kept while the coverage is still coming, so a badge
+   arriving later fills it and moves nothing (#205); once the answer says this row gets no badge there is no place either. */
 const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled, defaultOpen = false, indexInfo = null, canIndex, slot = false, relation = null }) {
   const [open, setOpen] = useState(defaultOpen), [pagesOpen, setPagesOpen] = useState(false);
   const listId = useId(), chaptersId = useId();
@@ -151,8 +152,9 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
   const picked = item.sourceIds.filter(id => chosen.has(id)).length;
   // Materials made from one original file say so (#207): "派生自 <file>" on a text version, "另有 2 份派生资料" on the file.
   const related = relationNote(relation), name = displayTitle(item.title);
-  const meta = [sourceFormatLabel(item), item.courses.join(' · ') || ui('未分类'),
-    uiFormat('{0} 字符', [formatNumber(item.chars)]), ...documentNotes(item), related];
+  // The facts, each one whole: a narrow row breaks the line only between them, never inside one (「267 / 字符」, #1084); the 「 ·」 stays at the end of a line.
+  const facts = [sourceFormatLabel(item), ...(item.courses.length ? item.courses : [ui('未分类')]),
+    uiFormat('{0} 字符', [formatNumber(item.chars)]), ...documentNotes(item), related, item.coursesInferred ? ui('推断归属') : ''].filter(Boolean);
   return (
     <div className={`source-picker__item${state !== 'none' ? ' is-selected' : ''}`} data-document-key={item.key}>
       <div className="source-picker__row">
@@ -164,7 +166,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
               <strong title={item.title}>{name}</strong>
               {(slot || indexInfo) && <span className="source-picker__index" data-index-slot>{indexInfo && <IndexBadge compact info={indexInfo} coverage={{ canIndex }} />}</span>}
             </span>
-            <small>{[...meta, item.coursesInferred ? ui('推断归属') : ''].filter(Boolean).join(' · ')}</small>
+            <small>{facts.map((fact, at) => <React.Fragment key={at}>{at ? ' ' : ''}<span className="source-picker__fact">{at < facts.length - 1 ? `${fact} ·` : fact}</span></React.Fragment>)}</small>
             {state === 'some' && <small className="source-picker__partial">{uiFormat('已选 {0} / {1} 页', [picked, item.sourceIds.length])}</small>}
           </span>
         </label>
@@ -218,7 +220,7 @@ const DocumentRow = memo(function DocumentRow({ item, selected, apply, disabled,
  * Props: sources (snapshot sources), selected (source ids), onChange(ids),
  * courses + scope + onScopeChange (course scope; omit onScopeChange to show
  * everything), disabled, onAdd (shows “添加资料”), defaultQuery (initial filter
- * text), defaultOpenKey (a document key whose pages/chapters start open), maxHeight (list window height in px), indexCoverage + indexSlot (the index badge of each row; `indexSlot` keeps the badge's place from the first paint, so a coverage answer that arrives later changes no row height),
+ * text), defaultOpenKey (a document key whose pages/chapters start open), maxHeight (list window height in px), indexCoverage + indexSlot (the index badge of each row; `indexSlot` keeps the badge's place while the coverage is still coming, so a badge that arrives later changes no row height; pass it only while a badge can still come),
  * onIndex(course) (the way to 设置 › 检索扩展 with that course chosen: one line above the list says how many rows are not fully indexed and leads there; none without it. The row badges only show the state, #1084). Extra props land on the root.
  * The list scrolls in a bounded window with a filter (WP14), so a course with
  * hundreds of materials never pushes the page down.

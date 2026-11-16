@@ -231,7 +231,7 @@ export default function Generate({
               {/* Why these are ticked (only while the ticks are still the ones the page opened with). */}
               {openingStands(opening, selectedSources) && <p className="generate-opening muted" data-opening-reason>{openingLine(opening.reason)}</p>}
               {/* One row per document with its pages on demand; counts are in documents (WP3, P18). */}
-              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage} indexSlot={indexStatus !== "unavailable"}
+              <SourcePicker sources={evidenceSources} selected={selectedSources} onChange={setSelectedSources} indexCoverage={indexCoverage} indexSlot={indexStatus === "loading"}
                 courses={data.focus?.courses} scope={sourceScope} onScopeChange={setSourceScope} disabled={busy}
                 onIndex={(course) => openIndexBuilder(openLargeDocumentSettings, course)} />
               <div className="generate-sources-actions">
