@@ -325,7 +325,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
       </div>
       {(multi || chaptered) && <div className="source-doc__pages">
         <div className="source-doc__pages-bar">
-          <Button variant="quiet" size="sm" iconEnd="chevron" iconEndClassName="source-doc__pages-chevron" className="source-doc__pages-toggle" aria-expanded={pagesOpen} aria-controls={listId}
+          <Button variant="quiet" size="sm" iconEnd="chevron" iconEndClassName="source-doc__pages-chevron" className="source-doc__pages-toggle sh-btn--flush-start" aria-expanded={pagesOpen} aria-controls={listId}
             onClick={() => setPagesOpen(open => !open)}>
             {pagesOpen ? ui('收起') : chaptered ? uiFormat('查看 {0} 章', [item.chapters.length]) : item.format === 'pdf' ? uiFormat('查看 {0} 页', [item.pages.length]) : uiFormat('查看 {0} 部分', [item.pages.length])}
           </Button>
@@ -463,11 +463,17 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   );
   // The header describes the scope, not the filter: the filter's own count says how many match, so typing changes no line above the controls (#1085);
   // its 全部展开 / 全部收起 is there and named by the scope's groups too, so typing neither adds, removes nor renames a header button.
+  // `groupsInEither`: whether the scope has more than one group in the archive or out of it, so the header's fit counts 全部展开 in both views (below).
   const scopeView = useMemo(() => {
-    const split = showArchived ? { pinned: [], rest: scoped } : splitPinned(scoped, pins);
-    const scopeGroups = buildSourceGroups(split.rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !showArchived, locale, scope, known });
-    return { groupKeys: scopeGroups.map(group => group.key), summary: { count: scoped.length, pinned: split.pinned.length, rest: split.rest.length, groups: scopeGroups.length } };
-  }, [scoped, pins, showArchived, groupMode, materialFolders, sortBy, locale, scope, known]);
+    const view = (rows, archived) => {
+      const split = archived ? { pinned: [], rest: rows } : splitPinned(rows, pins);
+      return { split, groups: buildSourceGroups(split.rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !archived, locale, scope, known }) };
+    };
+    const { split, groups: scopeGroups } = view(scoped, showArchived);
+    const other = view(allItems.filter(item => item.archived !== showArchived && inScope(item, scope, known)), !showArchived).groups;
+    return { groupKeys: scopeGroups.map(group => group.key), groupsInEither: scopeGroups.length > 1 || other.length > 1,
+      summary: { count: scoped.length, pinned: split.pinned.length, rest: split.rest.length, groups: scopeGroups.length } };
+  }, [scoped, allItems, pins, showArchived, groupMode, materialFolders, sortBy, locale, scope, known]);
   const scopeSummary = scopeView.summary;
   // Materials made from one original file say so on their rows (#207), as in the picker of 创建题组.
   const relations = useMemo(() => materialRelations(items), [items]);
@@ -682,7 +688,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     else updateClosed(current => new Set([...current].filter(key => !keys.includes(key))));
   };
   const openCompanions = () => setModal({ type: "companionBuild", course: scope === '*' ? (data.focus?.course || '') : scope });
-  const archiveLabel = showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [archivedCount]);
+  const archiveLabels = [uiFormat('已归档（{0}）', [archivedCount]), ui('返回资料')], archiveLabel = archiveLabels[showArchived ? 1 : 0];
   const requestDeleteFolder = (folder, count) => {
     if (count > 0) { setDeletingFolder({ folder, count }); return; }
     act('source.folder.delete', { folder });
@@ -694,16 +700,23 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     return dayLabel(key);
   };
   // The header's actions sit on the title's row: all of them when they fit beside the title in this language and width, else 添加资料 with one 更多 before it
-  // (#1083). Either way 添加资料 is last, at the right edge; whether they fit is measured (ui/use-row-fit.js), not guessed from the page's width.
-  const groupsLabel = allOpen ? ui("全部收起") : ui("全部展开"), manyGroups = scopeView.groupKeys.length > 1;
-  const fullHeader = useRowFit(pageRef, '.sources-page__header .sh-page-header__title-row', [archiveLabel, manyGroups && groupsLabel, locale].join('|'));
+  // (#1083). Either way 添加资料 is last, at the right edge; whether they fit is measured (ui/use-row-fit.js) on a hidden copy of the full set, not guessed
+  // from the page's width, and never by drawing the visible set again.
+  const groupsLabels = [ui("全部展开"), ui("全部收起")], groupsLabel = groupsLabels[allOpen ? 1 : 0], manyGroups = scopeView.groupKeys.length > 1;
+  const fullHeader = useRowFit(pageRef, '.sources-page__header .sh-page-header__title-row', '.sources-page__fit > .sh-page-header__actions');
+  // The full set: `live` on the title row; otherwise the copy it is measured on, without handlers or the anchors 找功能 and the tour look for. In the copy a
+  // button that changes its words is as wide as the wider of them, and 全部展开 is there when either view of the archive has it, so a choice in 更多
+  // (opening or leaving the archive, expanding every group) never swaps the header under the focus (#1083, round 5).
+  const either = labels => <span className="sources-page__fit-labels">{labels.map(label => <span key={label}>{label}</span>)}</span>;
+  const fullActions = live => <>
+    <Button variant="quiet" icon={showArchived ? 'arrow-left' : 'archive'} aria-pressed={showArchived}
+      {...(live && { 'data-archive-toggle': '', 'data-tour': 'sources-archived', onClick: toggleArchived })}>{live ? archiveLabel : either(archiveLabels)}</Button>
+    {(live ? manyGroups : scopeView.groupsInEither) && <Button variant="quiet" icon="list" onClick={live ? toggleGroups : undefined}>{live ? groupsLabel : either(groupsLabels)}</Button>}
+    <Button variant="secondary" icon="play" onClick={live ? openCompanions : undefined}>{ui("交互伴学")}</Button>
+    {live ? addButton : <AddSourceButton variant="primary" />}
+  </>;
   const headerActions = fullHeader
-    ? <>
-      <Button variant="quiet" icon={showArchived ? 'arrow-left' : 'archive'} data-archive-toggle data-tour="sources-archived" aria-pressed={showArchived} onClick={toggleArchived}>{archiveLabel}</Button>
-      {manyGroups && <Button variant="quiet" icon="list" onClick={toggleGroups}>{groupsLabel}</Button>}
-      <Button variant="secondary" icon="play" onClick={openCompanions}>{ui("交互伴学")}</Button>
-      {addButton}
-    </>
+    ? fullActions(true)
     : <>
       <Menu label={ui('更多')} data-tour="sources-archived"
         items={[{ id: 'archived', icon: showArchived ? 'arrow-left' : 'archive', label: archiveLabel, attrs: { 'data-archive-toggle': '' } },
@@ -718,6 +731,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       <PageHeader className={`sources-page__header sh-page-header--measured${fullHeader ? '' : ' sh-page-header--compact-actions'}`} title={ui("资料")}
         description={<>{ui("题目从这里生长。原文与引用一直保留。")}{items.length > 0 && groupSummaryDescription({ mode: groupMode, summary: scopeSummary })}</>}
         actions={headerActions} actionsOnTitleRow />
+      <div className="sources-page__fit" aria-hidden="true" inert><div className="sh-page-header__actions">{fullActions(false)}</div></div>
       {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}
       {(items.length > 0 || (groupMode === 'folder' && !showArchived && materialFolders.folders.length > 0)) && <>
         {/* 课程范围 and 筛选资料 are one small form: the label in one column, both controls in the next, at one left edge and one width (#1085). */}
@@ -734,9 +748,11 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
               if (query) { event.stopPropagation(); setQuery(''); }
               else event.currentTarget?.blur?.();
             }} />
-          {/* Inside the field's end, over padding it always keeps (ui/sources.css): the numbers, said in full for a screen reader, and the × of 清除筛选. */}
-          {filtering && <span className="sources-filter__state">
-            <small className="sources-filter__count muted" aria-live="polite"><span aria-hidden="true">{filtered.length} / {scoped.length}</span>
+          {/* Inside the field's end, over padding it keeps while filtering (ui/sources.css): the numbers, said in full for a screen reader, and the × of 清除筛选.
+              The numbers hold the room of the widest count this scope can show (all of it), so they keep one width while you type; the field's padding is that
+              width, measured here when they appear. */}
+          {filtering && <span className="sources-filter__state" ref={state => state?.parentElement.style.setProperty('--sources-filter-count', `${state.offsetWidth}px`)}>
+            <small className="sources-filter__count muted" aria-live="polite"><span aria-hidden="true" className="sources-filter__figures" data-widest={`${scoped.length} / ${scoped.length}`}><span>{filtered.length} / {scoped.length}</span></span>
               <span className="sh-visually-hidden">{scrollWindowCount(scoped.length, filtered.length, true)}</span></small>
             <Button variant="quiet" size="sm" icon="close" aria-label={ui('清除筛选')} title={ui('清除筛选')} onClick={() => setQuery('')} />
           </span>}

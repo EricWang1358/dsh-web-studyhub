@@ -51,7 +51,12 @@ test('#1083: the index badge has one place on every row, the status line, in a s
   assert.equal(jsx.match(/\{[^{}]*indexSlot\}/g).length, 1, 'and is drawn nowhere else (not on the actions line of a narrow row)');
   assert.doesNotMatch(jsx, /DocumentRow\([^)]*\bnarrow\b/, 'a row does not depend on the page width');
   assert.match(css, /\.source-doc__status > \.source-doc__index \{[^}]*min-width: var\(--index-slot\)/, 'the slot is never narrower than --index-slot, so a long button line cannot crush it');
-  assert.match(css, /\.source-doc__line > \.source-doc__status \{[^}]*grid-column: -3 \/ -1/, 'the status line runs under the actions too: hidden actions never narrow it');
+  assert.match(css, /\.source-doc__line > \.source-doc__status \{[^}]*grid-column: text-start \/ -1/, 'the status line runs under the actions too: hidden actions never narrow it');
+  // Round 5: actions that wait for the pointer take no column; they lie over the end of the title and the facts, and the facts line has no fixed cap.
+  const hover = css.slice(css.indexOf('@media (hover: hover) and (pointer: fine)'));
+  assert.match(hover, /\.sources-page:not\(\.is-narrow\) \{[^]*?\.source-doc__line \{ position: relative; grid-template-columns: \[text-start\] minmax\(0, 1fr\) \[text-end\]; \}/, 'no column is kept for hidden actions');
+  assert.match(hover, /\.source-doc__actions \{ position: absolute; grid-row: 1 \/ 2; grid-column: text;/, 'they lie over the first line only, never over the status line');
+  assert.doesNotMatch(css, /max-width: 45%/, 'the facts line has no fixed cap that cuts a line that fits');
   // The shared Badge may wrap elsewhere (the 创建题组 picker); in a 资料 row's slot its words keep one line and end in an ellipsis, so it is never taller than its slot.
   const badgeCss = await read('ui/sources-page.css');
   assert.match(badgeCss, /\.source-doc__index \.index-badge__text \{[^}]*white-space: nowrap[^}]*text-overflow: ellipsis/, 'the row badge keeps one line (it ends in an ellipsis), so it is never taller than its slot');
@@ -61,6 +66,9 @@ test('#1083: the header keeps 添加资料 last on the title row and shows the o
   const jsx = await read('ui/Sources.jsx');
   assert.match(jsx, /actions=\{headerActions\} actionsOnTitleRow \/>/, 'the actions always end the title row');
   assert.match(jsx, /const fullHeader = useRowFit\(pageRef,/, 'whether the full set fits is measured, not read from a width');
+  assert.match(jsx, /<div className="sources-page__fit" aria-hidden="true" inert><div className="sh-page-header__actions">\{fullActions\(false\)\}/, 'on a hidden copy, so the visible header is never drawn only to be measured');
+  const hook = await read('ui/use-row-fit.js');
+  assert.doesNotMatch(hook, /setFits\(true\)/, 'the hook never flips the visible set back to measure it');
   const compact = jsx.slice(jsx.indexOf('    : <>', jsx.indexOf('const headerActions = fullHeader')), jsx.indexOf('</>;', jsx.indexOf('const headerActions = fullHeader')));
   assert.match(compact, /<Menu[^]*\{addButton\}\s*$/, 'compact: 更多, then the primary at the right edge');
   for (const id of ['archived', 'groups', 'companions']) assert.match(compact, new RegExp(`id: '${id}'`));

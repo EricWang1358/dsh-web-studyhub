@@ -344,8 +344,9 @@
     .sh-page-header__title-row > .sh-page-header__title { min-width: 0; }
     /* --measured: a page that measures whether its actions fit beside the title (资料, ui/use-row-fit.js) and draws a shorter set when they do not. The title
        and the actions keep their widths on one line, the actions at its end, so the measure is true; --compact (the shorter set) may still go under the title,
-       at the right, on a phone narrower than even that set. */
-    .sh-page-header--measured .sh-page-header__title-row { flex-wrap: nowrap; }
+       at the right, on a phone narrower than even that set. The actions are pushed to the end, so the gap is only the least room between them and the title:
+       one small gap, which keeps the shorter set on the title's line in the narrowest docked column (318px in English, #1083). */
+    .sh-page-header--measured .sh-page-header__title-row { flex-wrap: nowrap; column-gap: var(--space-2); }
     .sh-page-header--measured .sh-page-header__title-row > * { flex: none; }
     .sh-page-header--measured .sh-page-header__actions { flex-wrap: nowrap; margin-inline-start: auto; }
     .sh-page-header--measured.sh-page-header--compact-actions .sh-page-header__title-row { flex-wrap: wrap; }

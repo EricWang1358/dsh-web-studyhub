@@ -6,18 +6,28 @@
        highlighted. Builds on the .source-group/.source-row rules in style.css;
        tokens only. */
     .sources-page .sources-page__header { margin-bottom: var(--space-4); }
+    /* The copy of the header's full set that ui/use-row-fit.js measures: laid out on one line at its own width, out of the flow, unseen and clipped to nothing. */
+    .sources-page__fit { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
+    .sources-page__fit > * { width: max-content; flex-wrap: nowrap; }
+    /* Both words of a button that changes them, one over the other: the copy is as wide as the wider. */
+    .sources-page__fit-labels { display: inline-grid; }
+    .sources-page__fit-labels > * { grid-area: 1 / 1; }
     /* The filter under 课程范围 (#1085): in the control column of .page-scope-form (ui/course-active.css). Its count and 清除筛选 sit inside the field, at its
        end, over the field's own end padding (only while filtering, so the placeholder keeps the whole field): the field's box is the same whatever you type, so
        nothing above the list moves at any width (#1085). */
     .sources-toolbar { margin: 0 0 var(--space-3); }
-    .sources-toolbar > .sources-filter { --sources-filter-end: 7.5rem; grid-column: 2; position: relative; min-width: 0; }
+    .sources-toolbar > .sources-filter { --sources-filter-end: calc(var(--sources-filter-count, 0px) + 2 * var(--space-1)); grid-column: 2; position: relative; min-width: 0; }
     .sources-filter__input { width: 100%; min-height: 38px; }
     .sources-filter:has(> .sources-filter__state) > .sources-filter__input { padding-inline-end: var(--sources-filter-end); }
     /* One way to clear the filter: the × of 清除筛选 beside the count, not the browser's own × in the field as well. */
     .sources-filter__input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
-    .sources-filter__state { position: absolute; inset-block: 0; inset-inline-end: var(--space-1); display: inline-flex; align-items: center; gap: var(--space-1); max-width: var(--sources-filter-end); }
+    .sources-filter__state { position: absolute; inset-block: 0; inset-inline-end: var(--space-1); display: inline-flex; align-items: center; gap: var(--space-1); }
     .sources-filter__count { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .sources-filter__count { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+    /* The count over the widest count of the scope (data-widest, unseen): one width whatever you type. */
+    .sources-filter__figures { display: inline-grid; justify-items: end; }
+    .sources-filter__figures > *, .sources-filter__figures::after { grid-area: 1 / 1; }
+    .sources-filter__figures::after { content: attr(data-widest); visibility: hidden; }
     .sources-view-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); }
     .sources-view-bar__sort { flex: 0 0 auto; width: auto; min-width: 8.5em; }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
@@ -36,27 +46,29 @@
        three lines (title, facts, status) so a 900px window shows five or more. */
     /* --source-doc-lead: the icon and the gap after it, so a line under the title starts where the title's text does. */
     .source-doc { --source-doc-lead: calc(20px + var(--space-3)); display: block; margin: 0; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; }
-    /* A row is a small grid: the title and the facts (after the checkbox while organizing) beside the actions, then the status line under both, as wide as the row.
-       The actions only ever sit beside the title and the facts, so a wide row's hover-only buttons never narrow the status line (#1083). */
-    .source-doc__line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 var(--space-3); min-width: 0; }
-    .source-doc__line:has(> .source-doc__check) { grid-template-columns: auto minmax(0, 1fr) auto; }
-    .source-doc__line > * { grid-row: 1; grid-column: -3; }
+    /* A row is a small grid: the text (title and facts, after the checkbox while organizing) beside the actions, then the status line under both, as wide as the
+       row. The actions only ever sit beside the title and the facts, so a wide row's hover-only buttons never narrow the status line (#1083); where they wait for
+       the pointer they take no column at all (below). */
+    .source-doc__line { display: grid; grid-template-columns: [text-start] minmax(0, 1fr) [text-end] auto; align-items: center; gap: 0 var(--space-3); min-width: 0; }
+    .source-doc__line:has(> .source-doc__check) { grid-template-columns: auto [text-start] minmax(0, 1fr) [text-end] auto; }
+    .source-doc__line > * { grid-row: 1; grid-column: text; }
     .source-doc__line > .source-doc__check { grid-column: 1; margin: 0; }
     /* The text column takes the whole width of the row beside the icon (it used to be as wide as its longest line, the start of the text, so a row with a short title and
        no such line gave the status line a sliver and it broke in two once its content arrived: #676). */
     .source-doc .source-main > span { display: grid; flex: 1 1 auto; gap: var(--space-half); min-width: 0; }
     .source-doc .source-main strong { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
     .source-doc .source-main small { margin-top: var(--space-half); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    /* The facts line: the courses, then the format and size; the courses give way first so the size stays readable. */
+    /* The facts line: the courses, then the format and the numbers. The numbers keep their width (up to the whole line); the courses take what is left, so
+       nothing is cut while the line fits and only the courses give way when it does not (#1083). */
     .source-doc__meta { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; font-variant-numeric: tabular-nums; }
-    .source-doc .source-main .source-doc__meta > small { flex: 1 1 auto; min-width: 0; max-width: none; margin: 0; }
-    .source-doc .source-main .source-doc__meta > small:first-child { flex: 0 0 auto; max-width: 45%; }
+    .source-doc .source-main .source-doc__meta > small { flex: 0 1 auto; min-width: 0; max-width: none; margin: 0; }
+    .source-doc .source-main .source-doc__meta > small + small { flex: 1 0 auto; max-width: 100%; }
     .source-doc__meta > small + small::before { content: "·"; margin-right: var(--space-2); color: var(--text-faint); }
     /* The status line: mastery and coverage, then the index badge's slot. The slot is there from the first paint and at least --index-slot wide; it takes the rest
        of the line, or the next line when the rest is narrower, which the slot decides before the badge comes: a late badge moves nothing (#229, #1083).
        --index-slot holds the longest common badge uncut: "Index partly built · 2/4 pages" with 「Build index」 after it (254px; 「索引建了一部分 · 2/4 页 建立索引」
        is 200px). A rarer, longer one (pages skipped) ends in an ellipsis, and its hover says it all. */
-    .source-doc__line > .source-doc__status { --index-slot: calc(var(--fs-xs) * 22); grid-row: 2; grid-column: -3 / -1; display: flex; flex-wrap: wrap; align-items: center;
+    .source-doc__line > .source-doc__status { --index-slot: calc(var(--fs-xs) * 22); grid-row: 2; grid-column: text-start / -1; display: flex; flex-wrap: wrap; align-items: center;
       gap: var(--space-half) var(--space-4); min-width: 0; margin-top: var(--space-half); padding-inline-start: var(--source-doc-lead); cursor: pointer; }
     .source-doc__status > .source-doc__index { display: flex; align-items: center; flex: 1 1 var(--index-slot); min-width: var(--index-slot); min-height: calc(var(--fs-sm) * var(--lh-snug)); }
     /* “原 PDF 422 页” beside the page count: dotted, so it reads as something to hover for the reason. */
@@ -85,7 +97,8 @@
       margin-top: var(--space-1);
     }
     .source-doc__actions .source-row-menu .source-row-menu__btn { display: block; width: 100%; max-width: 100%; margin: 0; text-align: left; white-space: nowrap; }
-    .source-doc__pages { margin: var(--space-2) 0 0 calc(var(--space-3) + var(--space-5) + var(--space-3)); }
+    /* 查看 N 页 (a flush quiet button) starts where the title's text does, on a wide row and a narrow one. */
+    .source-doc__pages { margin: var(--space-2) 0 0 var(--source-doc-lead); }
     /* 查看 N 章 and the quiet 深度定制 of a long book share one line; at narrow widths the second wraps under the first instead of widening the row. */
     .source-doc__pages-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-2); min-width: 0; }
     .source-doc__pages-toggle .source-doc__pages-chevron { transition: transform 0.18s var(--ease); }
@@ -119,15 +132,24 @@
     .sources-empty__intro p { margin: 0; color: var(--text-muted); }
     .source-doc .source-main--editing .source-doc__icon { margin-top: var(--space-2-5); }
   }
-  /* A row's actions (从这份资料出题, 补题, 更多) wait for the pointer on a device that has one (ui/DESIGN.md, Restraint); the status stays. They keep their place
-     (opacity, not display), so nothing moves when they appear; keyboard focus inside the row, an open 更多 menu or 补题 popover, or a fresh import shows them. Touch and narrow panes
-     (where they sit on their own line under the row) always show them. */
+  /* A row's actions (从这份资料出题, 补题, 更多) wait for the pointer on a device that has one (ui/DESIGN.md, Restraint); the status stays. Keyboard focus inside
+     the row, an open 更多 menu or 补题 popover, or a fresh import shows them. Touch and narrow panes (where they sit on their own line under the row) always show them.
+     While they wait they take no room (#1083): the text runs the whole width of the row and the actions lie over its end, beside the title and the facts, on the
+     row's own surface, which fades the text in before them. So nothing moves when they appear (no column opens, no line rewraps) and an idle row keeps no blank strip. */
   @media (hover: hover) and (pointer: fine) {
     :is(.study-app, .study-seat) {
       .source-doc:hover { background: var(--bg-hover); }
     }
     :is(.study-app, .study-seat) .sources-page:not(.is-narrow) {
-      .source-doc__actions { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+      .source-doc__line { position: relative; grid-template-columns: [text-start] minmax(0, 1fr) [text-end]; }
+      .source-doc__line:has(> .source-doc__check) { grid-template-columns: auto [text-start] minmax(0, 1fr) [text-end]; }
+      /* --source-doc-veil: the hover tint of the row (none while it is not hovered), laid over the canvas under the actions. */
+      .source-doc { --source-doc-veil: transparent; }
+      .source-doc:hover { --source-doc-veil: var(--bg-hover); }
+      /* Its box is the text's cell of the first line (title and facts), both edges named: an absolute grid item's `auto` edge is the row's, and it hid the status. */
+      .source-doc__line > .source-doc__actions { position: absolute; grid-row: 1 / 2; grid-column: text; inset-block: 0; inset-inline-end: 0; flex-wrap: nowrap; padding-inline-start: var(--space-8);
+        background: linear-gradient(to right, transparent, var(--source-doc-veil) var(--space-8)), linear-gradient(to right, transparent, var(--bg-canvas) var(--space-8));
+        opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
       .source-doc:is(:hover, :focus-within, .is-new) .source-doc__actions,
       .source-doc__actions:has(details[open], [aria-expanded="true"]) { opacity: 1; }
     }
@@ -136,13 +158,11 @@
      in two (courses over format), a row's actions take their own line under its status line, and the index badge says its pages without the scope word. */
   :is(.study-app, .study-seat) .sources-page.is-narrow {
     .source-doc__meta { flex-direction: column; align-items: stretch; gap: 0; }
-    .source-doc .source-main .source-doc__meta > small:first-child { max-width: none; }
     .source-doc__meta > small + small::before { content: none; }
     .source-doc .source-main small.source-doc__facts--gap { max-width: none; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-    .source-doc__line > .source-doc__actions { grid-row: 3; grid-column: -3 / -1; justify-content: flex-end; margin-top: var(--space-2); }
+    .source-doc__line > .source-doc__actions { grid-row: 3; grid-column: text-start / -1; justify-content: flex-end; margin-top: var(--space-2); }
     /* Here a row's actions take their own line under it: a hairline between rows says which row they belong to. */
     .source-doc + .source-doc { border-top: 1px solid var(--line-soft); border-radius: 0; }
-    .source-doc__pages { margin-left: 0; }
     /* Narrow: a chapter row keeps 从这一章出题 at its right and breaks inside itself — the title gets a whole line (still one
        line, ellipsised), the size and mastery go on the line below. */
     .source-doc__chapters .source-doc__row { flex-wrap: wrap; row-gap: var(--space-half); }
