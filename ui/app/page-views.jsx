@@ -39,7 +39,7 @@ import { importForQuestions } from './import-handoff.js';
 import { shellTitleOf } from './shell-title.js';
 import WorkspaceBindingPanel from './WorkspaceBindingPanel.jsx';
 import { RecoveryBanner } from './AppBanners.jsx';
-import { qaToNoteArgs, questionNoteRef, questionNoteTitle } from '../review/question-note.js';
+import { qaToNoteArgs, questionNoteCourse, questionNoteRef, questionNoteTitle } from '../review/question-note.js';
 import { appendFocus } from '../generate-form.js';
 import { retryForm, retryNotice } from './retry-generation.js';
 import { practiseRound } from './practise-round.js';
@@ -447,14 +447,15 @@ function ReviewView({ feedback }) {
     onRecapSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-daily-recap'); nav.show.page('settings'); },
     onPracticeSettings: () => { learn.rememberContext(learn.captureContext()); settingsEntry.setSettingsFocus('settings-practice'); nav.show.page('settings'); },
     onModelSettings: settingsEntry.openModelSettings,
-    // 写笔记 opens the question's note, a new one filled from the card (prefill: stem, misconceptions, explanation, the Q&A; #1017) in the page's language.
+    // 写笔记 opens today's course study note (appending this question's block when new; #1017) in the page's language.
     onMakeNote: () => {
       const origin = learn.captureContext();
-      return core.act('note.create', { title: questionNoteTitle(), cards: [questionRef], reuse: true, prefill: true, language: getUiLanguage() },
+      const noteCourse = questionNoteCourse(run, data?.decks);
+      return core.act('note.create', { title: questionNoteTitle(noteCourse), cards: [questionRef], reuse: true, prefill: true, language: getUiLanguage() },
         (note) => { learn.rememberContext(origin); nav.show.note(note.id); });
     },
-    // 存进笔记 under a Q&A: into that same note, once (note.qa.add); the practice page then reads 已存进笔记 from the note badges.
-    onSaveQaToNote: (followupId) => core.act('note.qa.add', qaToNoteArgs(run, followupId), undefined, { rethrow: true }),
+    // 存进笔记 under a Q&A: into today's course study note, once per follow-up (note.qa.add); the practice page then reads 已存进笔记 from the note badges.
+    onSaveQaToNote: (followupId) => core.act('note.qa.add', qaToNoteArgs(run, followupId, data?.decks), undefined, { rethrow: true }),
     onMakeTask: learn.openBoardWithContext,
     openSkeleton: (id) => learn.openLearningTarget({ kind: 'skeleton', id }),
     onReturnToReading: learn.returnToReading,
