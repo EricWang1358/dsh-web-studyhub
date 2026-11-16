@@ -31,7 +31,7 @@ const BASELINE = {
   'ui/charts/charts.css': { strong: 2, xs: 0 },
   'ui/coach.css': { strong: 2, xs: 0 },
   'ui/companions/companions.css': { strong: 2, xs: 0 },
-  'ui/components/components.css': { strong: 18, xs: 0 },
+  'ui/components/components.css': { strong: 11, xs: 0 },
   'ui/components/feedback.css': { strong: 1, xs: 0 },
   'ui/components/fields.css': { strong: 2, xs: 0 },
   'ui/components/overlays.css': { strong: 1, xs: 0 },
@@ -51,11 +51,10 @@ const BASELINE = {
   'ui/exam-prep/exam-prep.css': { strong: 2, xs: 0 },
   'ui/exam-setup.css': { strong: 1, xs: 0 },
   'ui/first-run/first-run.css': { strong: 1, xs: 0 },
-  'ui/focus-intake.css': { strong: 1, xs: 1 },
+  'ui/focus-intake.css': { strong: 1, xs: 0 },
   'ui/focus.css': { strong: 1, xs: 0 },
   'ui/followup.css': { strong: 1, xs: 0 },
-  'ui/generate-form.css': { strong: 4, xs: 0 },
-  'ui/generation-transparency.css': { strong: 0, xs: 4 },
+  'ui/generate-form.css': { strong: 1, xs: 0 },
   'ui/guided-study/guided-study.css': { strong: 4, xs: 0 },
   'ui/home-tiers.css': { strong: 1, xs: 0 },
   'ui/host/studyhub.css': { strong: 1, xs: 0 },
@@ -75,7 +74,6 @@ const BASELINE = {
   'ui/setup-checklist.css': { strong: 1, xs: 0 },
   'ui/shell.css': { strong: 3, xs: 0 },
   'ui/skeleton.css': { strong: 6, xs: 0 },
-  'ui/source-picker.css': { strong: 1, xs: 2 },
   'ui/sources.css': { strong: 0, xs: 1 },
   'ui/study-map/catalog.css': { strong: 2, xs: 0 },
   'ui/study-map/next-step.css': { strong: 1, xs: 0 },
@@ -91,11 +89,8 @@ const BASELINE = {
   'ui/wrongbook.css': { strong: 2, xs: 0 },
 };
 
-/* Files that open pull requests were still editing when the sweep ran (#1091, #1097). They keep their numbers until those merge, then follow up. */
-const FOLLOW_UP = new Set([
-  'ui/components/components.css', 'ui/focus-intake.css', 'ui/generate-form.css', 'ui/generate-home.css', 'ui/generation-transparency.css',
-  'ui/source-picker.css', 'ui/course-active.css', 'ui/import-hub.css', 'ui/sources.css',
-]);
+/* Files that an open pull request is still editing (#1097). They keep their numbers until those merge, then follow up. */
+const FOLLOW_UP = new Set(['ui/course-active.css', 'ui/import-hub.css', 'ui/sources.css']);
 
 test('--fw-medium is 500, not 550: the Han fallback fonts only have 400 and 700, and 550 rounds up to bold (#1079)', async () => {
   const tokens = await readFile(join(root, 'ui/tokens.css'), 'utf8');
@@ -118,6 +113,6 @@ test('strong weight and small type may only fall, file by file (#1079)', async (
 test('strong is under half of the 313 of 2026-11-17 (#1079)', async (t) => {
   const { files, total } = await typeCounts();
   const left = [...FOLLOW_UP].reduce((sum, file) => sum + (files[file]?.strong || 0), 0);
-  t.diagnostic(`strong ${total.strong} (${left} of them in the ${FOLLOW_UP.size} files that wait for #1091 / #1097); the target is under ${Math.ceil(313 / 2)}`);
+  t.diagnostic(`strong ${total.strong} (${left} of them in the ${FOLLOW_UP.size} files that wait for #1097); the target is under ${Math.ceil(313 / 2)}`);
   assert.ok(total.strong < Math.ceil(313 / 2), `strong is ${total.strong}; the stylesheet set has to stay under ${Math.ceil(313 / 2)}`);
 });
