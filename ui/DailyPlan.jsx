@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat } from './i18n.js';
 import { useInjectCss } from './shared.js';
 import { Button } from './components/Button.jsx';
+import { AddSourceButton } from './components/AddSourceButton.jsx';
 import { DisclosureToggle, foldLabel } from './components/DisclosureToggle.jsx';
 import { Disclosure } from './components/Panel.jsx';
 import { Field, NumberInput } from './components/Field.jsx';
@@ -132,7 +133,7 @@ function EmptyProposal({ proposal, plan, onSettings, onAdjust }) {
     <div className="daily-plan__actions">
       {reason === 'nothing-due' ? <>
         <Button variant="secondary" lock={!!plan.busy} onClick={() => navigate('library')}>{ui('去学习库')}</Button>
-        <Button variant="quiet" lock={!!plan.busy} onClick={() => openModal({ type: 'add' })}>{ui('添加资料')}</Button>
+        <AddSourceButton variant="quiet" lock={!!plan.busy} onClick={() => openModal({ type: 'add' })} />
       </> : <>
         <Button variant="secondary" disabled={!onAdjust} lock={!!plan.busy} onClick={onAdjust}>{ui('今天再学一会儿')}</Button>
         <Button variant="quiet" busy={plan.busy === 'accept'} disabled={!!plan.busy} onClick={() => plan.accept(proposal.id)}>{ui('今天到此为止')}</Button>

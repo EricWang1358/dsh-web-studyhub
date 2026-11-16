@@ -6,7 +6,7 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { Badge, Button, Checkbox, CheckboxInput, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Icon, InlineMessage, PageHeader, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
+import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Icon, InlineMessage, PageHeader, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
 import { scrollToAnchor } from "./tour/anchor.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
 import { displayTitle } from '../lib/document-title.js';
@@ -536,8 +536,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     relation={relations.get(item.key) ?? null} advice={bigKeys.has(item.key)} retrieval={bigKeys.has(item.key) ? retrieval : null} custom={offers.get(item.key) ?? null}
     courses={data.focus?.courses} defaultCourse={data.focus?.course}
     pinned={!!pin.pinned} pinFirst={!!pin.first} pinLast={!!pin.last} dragging={!!pin.pinned && drag?.key === item.key} dropMark={pin.pinned && drag?.over === item.key ? drag.side : ''} />;
-  const addButton = <Button variant="primary" icon="plus" data-tour="sources-add" data-usage="import.add"
-    onClick={() => setModal({ type: "add", course: scope === '*' ? '' : scope })}>{ui("添加资料")}</Button>;
+  const addButton = <AddSourceButton variant="primary" data-tour="sources-add" data-usage="import.add"
+    onClick={() => setModal({ type: "add", course: scope === '*' ? '' : scope })} />;
   return (
     <section className="page sources-page">
       <PageHeader className="sources-page__header" title={ui("资料")}
