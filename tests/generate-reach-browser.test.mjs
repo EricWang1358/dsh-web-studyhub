@@ -90,6 +90,19 @@ const reach = page => page.evaluate(() => {
     countInView: !!count && count.top >= 0 && count.bottom <= window.innerHeight };
 });
 
+/** Wait until the focused control stops moving: a row of the list is scrolled into its window a few frames after Tab (a row drawn on demand, #205),
+ *  and only where it lands counts. */
+const focusSettled = page => page.evaluate(() => new Promise(done => {
+  let last = '', still = 0, left = 30;
+  const tick = () => {
+    const box = document.activeElement?.getBoundingClientRect(), now = box ? `${Math.round(box.top)},${Math.round(box.left)}` : '';
+    still = now === last ? still + 1 : 0;
+    last = now;
+    if (still >= 3 || --left <= 0) done(); else requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}));
+
 const boxesOf = page => page.locator('[data-tour="generate-sources"] .source-picker__item input[type="checkbox"]');
 const ticked = page => page.locator('[data-tour="generate-sources"] .source-picker__item.is-selected').count();
 const estimateReady = page => page.locator('[data-generate-estimate] [data-token-estimate][data-status="ready"]').count().then(count => count > 0);
@@ -131,7 +144,7 @@ test('#1082: with five materials ticked, 生成并检查题组 is on the first s
         if (state.done) break;
         if (state.under) covered.push(state.name);
         await page.keyboard.press('Tab');
-        await frames(page, 2);
+        await focusSettled(page);
       }
       assert.deepEqual(covered, [], `${tag}: no focused control sits under the bar`);
 
@@ -218,7 +231,9 @@ const rows = page => page.evaluate(() => {
     range.setEnd(...locate(to ?? length));
     return range;
   };
-  const lineTops = range => new Set([...range.getClientRects()].filter(r => r.width > 0.5).map(r => Math.round(r.top / 4)));
+  // the lines a range is drawn on: its boxes grouped by their middles (a Latin and a CJK run on one line have different tops, never middles 6 px apart)
+  const lineTops = range => [...range.getClientRects()].filter(r => r.width > 0.5).map(r => (r.top + r.bottom) / 2).sort((a, b) => a - b)
+    .reduce((lines, middle) => (lines.length && middle - lines.at(-1) < 6 ? lines : [...lines, middle]), []);
   return [...document.querySelectorAll('[data-tour="generate-sources"] .source-picker__item')].map(item => {
     const row = item.querySelector('.source-picker__row'), style = getComputedStyle(row), box = row.getBoundingClientRect();
     const columnEnd = box.right - parseFloat(style.paddingRight);
@@ -233,7 +248,7 @@ const rows = page => page.evaluate(() => {
       const at = text.indexOf(piece, from), range = textRange(facts, at, at + piece.length);
       from = at + piece.length;
       const width = [...range.getClientRects()].reduce((sum, r) => sum + r.width, 0);
-      if (lineTops(range).size > 1 && width < columnEnd - t.left) split.push(piece);
+      if (lineTops(range).length > 1 && width < columnEnd - t.left) split.push(piece);
     }
     const parts = [...row.querySelectorAll('.source-picker__text strong, .source-picker__text small, .source-picker__expand, [data-index-slot], [data-index-slot] [data-state]')]
       .map(element => element.getBoundingClientRect()).filter(r => r.height > 0);
@@ -243,7 +258,7 @@ const rows = page => page.evaluate(() => {
     const named = element => element.matches('.source-picker__expand') ? 'expand' : 'badge';
     const seen = [...focusable].sort((a, b) => { const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return Math.abs(ra.top - rb.top) > 4 ? ra.top - rb.top : ra.left - rb.left; });
     const titleLH = parseFloat(getComputedStyle(title).lineHeight), factsLH = parseFloat(getComputedStyle(facts).lineHeight);
-    return { title: title.textContent.slice(0, 16), share: t.width / (columnEnd - t.left), lines: titleLines.length ? lineTops(titleRange).size : 0, factLines: lineTops(factRange).size,
+    return { title: title.textContent.slice(0, 16), share: t.width / (columnEnd - t.left), lines: titleLines.length ? lineTops(titleRange).length : 0, factLines: lineTops(factRange).length,
       height: item.getBoundingClientRect().height, oneLineHeight: parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + titleLH + factsLH,
       below: box.bottom - parseFloat(style.paddingBottom) - Math.max(...parts.map(r => r.bottom)), split, expand: !!row.querySelector('.source-picker__expand'),
       slot: !!slotElement, emptySlot: !!slotElement && !badge,
