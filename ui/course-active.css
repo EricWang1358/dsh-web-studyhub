@@ -33,10 +33,11 @@
     .page-scope__select { flex: 1 1 12rem; width: 20rem; max-width: 20rem; min-width: 0; min-height: 38px;
       font-size: var(--fs-md); font-weight: var(--fw-regular); text-overflow: ellipsis; }
     /* A scope with more controls under it (资料: 筛选资料), as one small form (issue 1085): the label in the first column, the select and the controls
-       under it in the second at one left edge and one width, the follow mark in the third. The third column takes what is left (1fr, from 0), so nothing
-       placed there — the follow mark, the 资料 filter's count — can take width from the controls (issue 1085). The scope lends its parts to the grid
-       (display: contents); a control under it takes grid-column 2. */
-    .page-scope-form { display: grid; grid-template-columns: auto minmax(0, 24rem) minmax(0, 1fr); justify-content: start; align-items: center; gap: var(--space-2); }
+       under it in the second at one left edge and one width, the follow mark in the third. The third column is as wide as the mark (auto) and the second
+       takes the rest up to 24rem, so the mark always stays inside the page (a 1fr third column got nothing until the second had its whole 24rem, and the
+       mark hung 32px past a narrow page). Nothing that changes while you type is placed there: the 资料 filter's count is inside its field (ui/sources.css).
+       The scope lends its parts to the grid (display: contents); a control under it takes grid-column 2. */
+    .page-scope-form { display: grid; grid-template-columns: auto minmax(0, 24rem) auto; justify-content: start; align-items: center; gap: var(--space-2); }
     .page-scope-form > .page-scope { display: contents; }
     .page-scope-form .page-scope__label { grid-column: 1; }
     .page-scope-form .page-scope__select { grid-column: 2; width: 100%; max-width: none; }
