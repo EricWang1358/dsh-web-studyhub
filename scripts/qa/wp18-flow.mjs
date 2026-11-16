@@ -12,6 +12,7 @@ import { createPreviewServer, previewCall } from "../preview-server.mjs";
 import { StudyService } from "../../lib/service.js";
 import { launchChromium } from "./browser.mjs";
 import { pick } from "./pick.mjs";
+import { controlName } from "./control-name.mjs";
 import { scrubProcessEnv } from "./env.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -77,7 +78,7 @@ async function run() {
       const goal = lang === "en" ? "understand cloud computing" : "弄懂cloud computing重点";
       await page.getByLabel(lang === "en" ? "What would you like to learn?" : "想学什么").fill(goal);
       await shot("0-start");
-      await page.getByRole("button", { name: lang === "en" ? "Start learning →" : "开始学 →" }).click();
+      await page.getByRole("button", { name: controlName((zh) => (lang === "en" ? "Start learning" : zh), "开始学") }).click();
       await page.locator(".wf-scope-line").waitFor({ timeout: 20000 });
       await page.locator(".wf-teaching .wf-notice .wf-model-error").waitFor({ timeout: 20000 }).catch(() => {});
       await sleep(900);
