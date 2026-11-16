@@ -6,7 +6,8 @@
     .source-picker { display: grid; gap: var(--space-3); min-width: 0; }
     .source-picker__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
     .source-picker__count { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
-    .source-picker__actions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+    /* The small quiet buttons hang their padding on the right, so their words end on the list's edge. */
+    .source-picker__actions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-inline-end: calc((var(--space-3) + var(--hairline)) * -1); }
     .source-picker__note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
     .source-picker__list { list-style: none; margin: 0; padding: 0; display: grid; }
     .source-picker__item { min-width: 0; background: transparent; box-shadow: inset 3px 0 0 transparent; }
