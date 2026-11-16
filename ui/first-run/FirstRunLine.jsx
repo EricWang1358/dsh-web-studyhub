@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Hint, Icon, Tooltip } from '../components/index.js';
+import { AddSourceButton, Button, Hint, Icon, Tooltip, addSourceAction } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
 import { useStudy } from '../study-context.jsx';
 import { modelSetupCopy } from '../ModelSetupGate.jsx';
@@ -57,7 +57,7 @@ export function compactAction(line, on = {}, plan = null) {
   const [, material, deck] = line.steps;
   if (line.step === 0) return null;
   if (deck.status === 'stopped') return !deck.jobIds.length && on.openDraft ? { label: ui('检查草稿'), run: () => on.openDraft(deck.draft) } : null;
-  if (material.status === 'todo' && on.importFirst) return { label: ui('添加资料'), run: on.importFirst };
+  if (material.status === 'todo' && on.importFirst) return { ...addSourceAction(on.importFirst), run: on.importFirst };
   if (deck.status === 'ready' && on.generate && deck.modelReady) return { label: ui('出第一组题'), run: () => on.generate(deck.sourceIds), blocked: generateBlockReason(deck, plan) };
   if (deck.status === 'draft-clean' && on.publish) return { label: ui('发布并开始练'), run: () => on.publish(deck.draft) };
   if (deck.status === 'draft-review' && on.openDraft) return { label: ui('检查草稿'), run: () => on.openDraft(deck.draft) };
@@ -218,7 +218,7 @@ function CompactBlocked({ reason, sourceIds, on }) {
 /** A quiet link on a closed row: the second step is never locked (a material can come before the model), and an added one can have a second. */
 function RowLink({ step, on }) {
   const { busy } = useStudy();
-  if (step.status === 'todo' && on.importFirst) return <Button variant="link" size="sm" className="frl-row-link first-run__link" lock={busy} onClick={on.importFirst}>{ui('添加资料')}</Button>;
+  if (step.status === 'todo' && on.importFirst) return <AddSourceButton variant="link" size="sm" className="frl-row-link first-run__link" lock={busy} onClick={on.importFirst} />;
   if (step.status === 'done' && on.importMore) return <Button variant="link" size="sm" className="frl-row-link first-run__link" lock={busy} data-first-run="more" onClick={() => on.importMore(step.sourceIds)}>{ui('再加一份')}</Button>;
   return null;
 }
@@ -267,7 +267,7 @@ export default function FirstRunLine({ line, form = 'page', sample, todayLabel, 
         </div>
         <Steps line={line} on={on} compact />
         {planned && (action?.blocked ? <CompactBlocked reason={action.blocked} sourceIds={deck.sourceIds} on={on} /> : <CompactPlan plan={plan} />)}
-        {action && <Button variant="primary" className="today-go" iconEnd="arrow-right" disabled={!!action.blocked} lock={busy} data-usage="home.start" onClick={action.run}>{action.label}</Button>}
+        {action && <Button variant="primary" className={action.icon ? 'today-go today-go--lead' : 'today-go'} icon={action.icon} iconEnd={action.icon ? undefined : 'arrow-right'} disabled={!!action.blocked} lock={busy} data-usage="home.start" onClick={action.run}>{action.label}</Button>}
       </div>
     );
   }

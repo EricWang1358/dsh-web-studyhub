@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { build } from "esbuild";
 import React from "react";
@@ -62,14 +62,40 @@ test("#1074: AddSourceButton is the upload icon and 添加资料, only the varia
   try { assert.doesNotMatch(renderToStaticMarkup(h(AddSourceButton, { variant: "quiet" })), han); } finally { setUiLanguage("zh"); }
 });
 
-test("#1074: the call sites of 添加资料 use the shared piece, none draws its own button", () => {
-  const sites = ["ui/Sources.jsx", "ui/Generate.jsx", "ui/DailyPlan.jsx", "ui/EmptyStudyActions.jsx", "ui/exam-prep/ExamPrepCreate.jsx"];
-  for (const file of sites) {
-    const source = read(file);
-    assert.match(source, /AddSourceButton|addSourceAction/, `${file} uses the shared 添加资料`);
-    assert.doesNotMatch(source, /<Button[^>]*>\s*\{ui\(["']添加资料["']\)\}\s*<\/Button>/, `${file} draws no hand-made 添加资料 button`);
-    assert.doesNotMatch(source, /label:\s*ui\(["']添加资料["']\)/, `${file} builds no hand-made 添加资料 action`);
+// The one place allowed to draw 添加资料 by hand: the first-run page's MaterialBody, which lane E's PR #1094 rewrites. The entry goes when #1094 lands and
+// MaterialBody uses <AddSourceButton variant>.
+const HAND_DRAWN_ALLOWED = [{ file: "ui/first-run/FirstRunLine.jsx", marker: 'data-first-run="import"' }];
+const walk = (dir) => readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true }).flatMap((entry) =>
+  entry.isDirectory() ? (entry.name === "locales" ? [] : walk(`${dir}/${entry.name}`)) : /\.(jsx?|mjs)$/.test(entry.name) ? [`${dir}/${entry.name}`] : []);
+
+test("#1074: 添加资料 is never drawn by hand anywhere in ui/ (a Button label or an action label outside AddSourceButton)", () => {
+  const offenders = [];
+  for (const file of walk("ui")) {
+    if (file === "ui/components/AddSourceButton.jsx") continue;
+    read(file).split(/\r?\n/).forEach((line, index) => {
+      const asButton = /<(?:Button|IconButton)\b[^>]*>\s*\{ui\(["']添加资料["']\)\}/.test(line);
+      // An action or menu item that names 添加资料 must take the icon from the same place.
+      const asAction = /label:\s*ui\(["']添加资料["']\)(?!,\s*icon:\s*ADD_SOURCE_ICON)/.test(line);
+      if (!asButton && !asAction) return;
+      if (HAND_DRAWN_ALLOWED.some((entry) => entry.file === file && line.includes(entry.marker))) return;
+      offenders.push(`${file}:${index + 1} ${line.trim().slice(0, 110)}`);
+    });
   }
+  assert.deepEqual(offenders, [], "use <AddSourceButton variant> or addSourceAction(onClick)");
+  for (const file of ["ui/Sources.jsx", "ui/Generate.jsx", "ui/DailyPlan.jsx", "ui/EmptyStudyActions.jsx", "ui/exam-prep/ExamPrepCreate.jsx", "ui/SourcePicker.jsx", "ui/tour/Tour.jsx", "ui/first-run/FirstRunLine.jsx"])
+    assert.match(read(file), /AddSourceButton|addSourceAction/, `${file} uses the shared 添加资料`);
+  assert.match(read("ui/study-map/CatalogHeading.jsx"), /ADD_SOURCE_ICON/, "the catalogue menu item takes the shared icon");
+});
+
+test("#1074: the compact first-run card offers 添加资料 as the shared upload-icon action, not a full-width arrow button", () => {
+  const source = read("ui/first-run/FirstRunLine.jsx");
+  assert.match(source, /icon=\{action\.icon\}/, "the compact button draws the action's own icon");
+  assert.match(source, /iconEnd=\{action\.icon \? undefined : ["']arrow-right["']\}/, "and the arrow only when the action has no icon of its own");
+  // The same plan / step actions elsewhere: the home's today card (home-plan.js) and the setup checklist's step button.
+  assert.match(read("ui/study-map/TodayCard.jsx"), /icon=\{plan\.action\.icon\} iconEnd=\{plan\.action\.icon \? undefined/);
+  assert.match(read("ui/study-map/home-plan.js"), /addSourceAction\(addSource\)/);
+  assert.match(read("ui/SetupChecklist.jsx"), /icon: ADD_SOURCE_ICON/);
+  assert.match(read("ui/SetupChecklist.jsx"), /icon=\{action\.icon\}/);
 });
 
 test("#1075: 下一题 / 完成 is a standard-size primary with the arrow as an icon; 上一题 is standard size too", () => {
@@ -108,4 +134,51 @@ test("#1076: the toolbar does not re-skin .sh-btn (size, border, colour come fro
   const css = read("ui/review/question.css");
   assert.doesNotMatch(css, /\.question-toolbar \.tool-action(,|:hover|\s*\{)/, "no rule re-skins the quiet tool buttons (only the .tool-icon thumbs are raw buttons; the open state of one is the only .tool-action rule)");
   assert.doesNotMatch(css, /min-height:\s*38px/, "no 38px control height next to the 40px buttons");
+});
+
+test("#1076: a quiet button is ink, not --text-dim: at regular weight a grey word reads as a caption, not a control", () => {
+  const quiet = rule(read("ui/components/components.css"), ".sh-btn--quiet");
+  assert.match(quiet, /color:\s*var\(--text\)/);
+  assert.doesNotMatch(quiet, /--text-dim/);
+});
+
+test("#1075: every disabled button, secondary or primary, has the one neutral look (no border, faint ink, a flat fill)", () => {
+  const disabled = rule(read("ui/components/components.css"), ".sh-btn:disabled");
+  assert.match(disabled, /border-color:\s*transparent/);
+  assert.match(disabled, /color:\s*var\(--text-faint\)/);
+  assert.match(disabled, /background:\s*color-mix\(in srgb, var\(--text\) 7%/);
+});
+
+test("#1075: at a narrow width the practice bar is two deliberate rows: the tools, then 更多 with 上一题 / 下一题 sharing the full row", () => {
+  const css = read("ui/review/question.css");
+  const at = css.indexOf("/* The practice bar at a narrow width");
+  assert.ok(at >= 0, "a narrow rule for the toolbar exists");
+  const narrow = css.slice(at, at + 1500);
+  assert.match(narrow, /\.question-navigation\s*\{[^}]*flex-wrap:\s*nowrap[^}]*width:\s*100%/, "the navigation row is one full-width line");
+  assert.match(narrow, /\[data-usage="review\.next"\]\s*\{[^}]*flex:\s*1 1 0/, "上一题 and 下一题 share what 更多 leaves");
+});
+
+test("#1077: the primary hover is the accent darkened, so its ink keeps 4.5:1 on all five presets in both themes (--accent-soft is light on dark)", () => {
+  const hover = rule(read("ui/components/components.css"), ".sh-btn--primary:hover:not(:disabled)");
+  assert.doesNotMatch(hover, /--accent-soft/);
+  assert.match(hover, /background:\s*color-mix\(in srgb, var\(--accent\), black (\d+)%\)/);
+  const dark = Number(/black (\d+)%/.exec(hover)[1]) / 100;
+  const tokens = read("ui/tokens.css"), accent = read("ui/accent.css");
+  const hex = (text) => [0, 2, 4].map((at) => parseInt(text.slice(1 + at, 3 + at), 16) / 255);
+  const lum = (rgb) => { const [r, g, b] = rgb.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+  const first = (css, name, from = 0) => new RegExp(`${name}:\\s*(#[0-9a-f]{6})`).exec(css.slice(from))[1];
+  const lightAt = tokens.indexOf('.study-app[data-theme="light"]');
+  const cases = [["cinnabar dark", first(tokens, "--accent"), first(tokens, "--accent-ink")],
+    ["cinnabar light", first(tokens, "--accent", lightAt), first(tokens, "--accent-ink", lightAt)]];
+  for (const preset of ["jade", "ochre", "graphite", "plum"]) {
+    const lines = accent.slice(accent.indexOf(`data-accent=${preset}]`)).split("\n").slice(1, 3);
+    cases.push([`${preset} dark`, /--accent:\s*(#[0-9a-f]{6})/.exec(lines[0])[1], first(tokens, "--accent-ink")]);
+    cases.push([`${preset} light`, /--accent:\s*(#[0-9a-f]{6})/.exec(lines[1])[1], first(tokens, "--accent-ink", lightAt)]);
+  }
+  assert.equal(cases.length, 10);
+  for (const [name, fill, ink] of cases) {
+    const hovered = hex(fill).map((v) => v * (1 - dark));
+    assert.ok(ratio(hovered, hex(ink)) >= 4.5, `${name}: hover ${ratio(hovered, hex(ink)).toFixed(2)}:1`);
+  }
 });
