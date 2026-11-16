@@ -21,6 +21,18 @@ export const hasOwnDeck = (data) => { const sample = sampleIdsOf(data); return (
 /** Whether a draft is an unpublished new question set (or deck part), not an edit or post-publish leftover repair of an already-published deck. */
 export const isFreshDraft = (draft) => Boolean(draft && !draft.editingDeckId && !draft.editorial?.repairOfDeckId && !draft.editorial?.partialEdit);
 
+/** Shared priority truth across NextStepCard (`next-step.js`) and TodayCard (`home-plan.js`): an open practice round (`resume`) outranks `due` reviews and `draft` checks. */
+export const HOME_PRIMARY_ORDER = Object.freeze(['resume', 'due', 'draft', 'learn', 'ahead', 'done']);
+
+export function resolveHomePrimary({ resumeOpen = false, due = 0, drafts = 0, ahead = false, size = 0 } = {}) {
+  if (resumeOpen) return 'resume';
+  if (due > 0) return 'due';
+  if (drafts > 0) return 'draft';
+  if (!ahead && size > 0) return 'learn';
+  if (ahead && size > 0) return 'ahead';
+  return 'done';
+}
+
 /**
  * What `start` is given for today's path: the current course's round (due, weak, then new, at most the round size), which is the number the home card
  * counts (lib/daily-path.js); every active course's path in 笔试 / 面试 mode and when no course is current. `today` is the snapshot's `data.today`.
@@ -105,9 +117,6 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
   const catchUp = !today.ahead && Number.isFinite(today.dueTotal) && today.dueTotal >= dailyRoundSize * 3
     ? uiFormat('到期 {0} 题，按每天 {1} 题约 {2} 天清完；先练还记得住的', [today.dueTotal, dailyRoundSize, Math.ceil(today.dueTotal / dailyRoundSize)])
     : '';
-  const headline = starter ? starter.headline
-    : today.ahead ? (pendingDrafts.length ? ui('检查草稿，就能开始练习') : ui('今天的任务都完成了'))
-      : breakdown.join(' · ') || (pendingDrafts.length || (stageOneStart && courseDraft) ? ui('检查草稿，就能开始练习') : stageOneStart && generating ? ui('第一组题正在生成') : ui('这个范围里还没有可学习的题'));
   // One round of new questions is the round size of 设置 › 练习 (#1009): the label counts it and the button starts it.
   const roundSize = freshRoundCount(data.settings?.practice);
   const freshCount = Math.min(roundSize, data.focus?.fresh?.length || 0);
@@ -190,11 +199,17 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
           ? stageOneCard()
           : (!today.size || today.ahead) && pendingDrafts.length
             ? pendingDraftCard()
-            : { kind: today.size ? 'path' : 'clear', eyebrow: today.ahead ? ui('提前巩固') : ui('今日学习'),
-              count: today.size, unit: ui('题待学'),
-              detail: today.ahead ? ui('今天的任务都完成了') : today.size ? joinMeta([breakdown.join(' · '), later, catchUp]) : ui('这里还没有可以学的题'),
-              action: { label: today.ahead ? ui('提前巩固') : ui('开始今日学习'), run: startPath, disabled: !today.size },
-              also: otherStarts };
+            : today.ahead
+              ? { kind: today.size ? 'path' : 'clear', ahead: true, eyebrow: ui('提前巩固'),
+                count: today.size, unit: ui('题可提前练'),
+                detail: today.size ? ui('今日已完成，可提前巩固') : ui('今天的任务都完成了'),
+                action: { label: ui('提前巩固'), run: startPath, disabled: !today.size },
+                also: otherStarts }
+              : { kind: today.size ? 'path' : 'clear', eyebrow: ui('今日学习'),
+                count: today.size, unit: ui('题待学'),
+                detail: today.size ? joinMeta([breakdown.join(' · '), later, catchUp]) : ui('这里还没有可以学的题'),
+                action: { label: ui('开始今日学习'), run: startPath, disabled: !today.size },
+                also: otherStarts };
   /* The run the learner was last inside (the rail's 回到题目) outranks a new
      batch: a deck, topic or 为你定制 run left half done must not sink into
      the fold below while the big button quietly starts something else. */
@@ -210,7 +225,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
     return courses.size === 1 && (interview || !inFocus(course ?? '')) ? course : '';
   };
   const inCurrentCourse = (r) => (r.deckIds || [r.deckId]).map((id) => data.decks.find((d) => d.id === id)).some((d) => d && !d.systemKind && inFocus(d.course ?? ''));
-  const baseLink = base.kind === 'path' ? (stageOneStart ? base.action.label : uiFormat('今日学习 · {0} 题', [base.count])) : (stageOneStart || methodNeedsFirstDeck) && base.action && !base.action.disabled ? base.action.label : '';
+  const baseLink = base.kind === 'path' ? (stageOneStart ? base.action.label : uiFormat(today.ahead ? '提前巩固 · {0} 题' : '今日学习 · {0} 题', [base.count])) : (stageOneStart || methodNeedsFirstDeck) && base.action && !base.action.disabled ? base.action.label : '';
   const resumeLastOpen = Boolean(lastOpen && lastOpen !== courseRun && lastOpen !== todayRun && !((stageOneStart || methodNeedsFirstDeck) && !inCurrentCourse(lastOpen)));
   const plan = resumeLastOpen
     ? { kind: 'resume', eyebrow: ui('接着上次'), count: lastOpen.total - lastOpen.index, unit: ui('题未完成'),
@@ -219,6 +234,11 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
       also: [...(baseLink ? [[baseLink, base.action.run]] : []), ...base.also.filter(Array.isArray).filter(([label]) => label !== baseLink)] }
     : base;
   const shownRun = plan === base ? courseRun || todayRun : lastOpen;
+  const primarySlot = resolveHomePrimary({ resumeOpen: Boolean(shownRun), due: today.due, drafts: pendingDrafts.length, ahead: Boolean(today.ahead), size: today.size });
+  const headline = starter ? starter.headline
+    : primarySlot === 'resume' ? ui('有一组练习没做完')
+      : today.ahead ? (pendingDrafts.length ? ui('检查草稿，就能开始练习') : today.size > 0 ? ui('今天的任务都完成了 · 可提前巩固') : ui('今天的任务都完成了'))
+        : breakdown.join(' · ') || (pendingDrafts.length || (stageOneStart && courseDraft) ? ui('检查草稿，就能开始练习') : stageOneStart && generating ? ui('第一组题正在生成') : ui('这个范围里还没有可学习的题'));
   /* The other ways to start (new questions, due review, the flow, personalised questions, weak points) sit under one folded
      line: the card is the one thing to continue, the recommendation the one next step. */
   const alternatives = [
@@ -257,6 +277,6 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
     }
     : null;
   /* Today's own round (due, weak, then new), whatever else the card above resumes: the 下一步 card's facts are about these questions, so its button starts this. */
-  const todayAction = { label: todayRun ? ui('继续学习') : stageOneStart && today.size > 0 && !today.ahead ? ui('开始第 ① 阶段') : ui('开始今日学习'), run: startPath, disabled: !today.size };
+  const todayAction = { label: todayRun ? ui('继续学习') : stageOneStart && today.size > 0 && !today.ahead ? ui('开始第 ① 阶段') : today.ahead ? ui('提前巩固') : ui('开始今日学习'), run: startPath, disabled: !today.size };
   return { interview, route, starter, headline, plan, todayAction, alternatives, shownRun, otherRuns: runs.filter((r) => r !== shownRun), otherCourse, todayLabel };
 }

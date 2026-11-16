@@ -58,7 +58,8 @@ export function nextCardView(id, facts, handlers = {}) {
       action: act(ui('打开复习全书'), () => handlers.exam?.(exam.course), !handlers.exam) };
     default:
       return today.ahead
-        ? { id: 'done', eyebrow, headline: ui('今天的任务都完成了'), detail: ui('想多练的话，可以提前巩固。'), action: null }
+        ? { id: 'done', eyebrow, headline: ui('今天的任务都完成了'),
+          detail: today.size > 0 ? uiFormat('想多练的话，有 {0} 题可提前练。', [today.size]) : ui('想多练的话，可以提前巩固。'), action: null }
         : { id: 'done', eyebrow, headline: ui('今天没有要做的复习'), detail: ui('有新资料、新错题或临近的考试时，下一步会出现在这里。'), action: null };
   }
 }

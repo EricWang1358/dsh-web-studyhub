@@ -35,7 +35,7 @@ test('the priority list, row by row: the first condition that holds names the on
     ['wrong answers outrank a round of only unlearned questions', facts({ today: { ...quiet, new: 2, size: 2 }, wrong: 3 }), 'wrong', 'card'],
     ['practising ahead of a finished day is "done"', facts({ today: { ...quiet, size: 4, ahead: true } }), 'done', 'card'],
     ['a round left open and nothing due', facts({ resumeOpen: true }), 'resume', 'card'],
-    ['a round left open and reviews due: the due reviews name the situation (the button is the same 接着做)', facts({ resumeOpen: true, today: { ...quiet, due: 2, size: 2 } }), 'due', 'card'],
+    ['a round left open outranks reviews that are due (aligned with TodayCard 接着做 / 继续学习)', facts({ resumeOpen: true, today: { ...quiet, due: 2, size: 2 } }), 'resume', 'card'],
     ['an open round outranks a new material', facts({ resumeOpen: true, newSources: { count: 1, title: 'x', sourceIds: ['s'] } }), 'resume', 'card'],
     ['a newly imported material without questions', facts({ newSources: { count: 2, title: 'a', sourceIds: ['a', 'b'] } }), 'new-source', 'card'],
     ['a new material outranks wrong answers', facts({ newSources: { count: 1, title: 'a', sourceIds: ['a'] }, wrong: 7 }), 'new-source', 'card'],
@@ -52,15 +52,15 @@ test('turning the conditions off one at a time walks the whole list in its fixed
     drafts: { count: 1, cards: 10, draft: { id: 'dr1' }, title: '草稿', draftIds: ['dr1'] },
     newSources: { count: 1, title: 'a', sourceIds: ['a'] }, wrong: 3, exam: { course: 'x', days: 2 } });
   const seen = [];
-  const off = [(f) => ({ ...f, modelReady: true }), (f) => ({ ...f, today: { ...f.today, due: 0 } }), (f) => ({ ...f, resumeOpen: false }),
+  const off = [(f) => ({ ...f, modelReady: true }), (f) => ({ ...f, resumeOpen: false }), (f) => ({ ...f, today: { ...f.today, due: 0 } }),
     (f) => ({ ...f, drafts: { count: 0, cards: 0, draft: null, title: '', draftIds: [] } }),
     (f) => ({ ...f, newSources: { count: 0, title: '', sourceIds: [] } }), (f) => ({ ...f, wrong: 0 }), (f) => ({ ...f, exam: null }),
     (f) => ({ ...f, today: { ...quiet } })];
   let current = all;
   seen.push(m.nextStep(current).id);
   for (const turn of off) { current = turn(current); seen.push(m.nextStep(current).id); }
-  assert.deepEqual(seen, ['model', 'due', 'resume', 'draft', 'new-source', 'wrong', 'exam', 'learn', 'done']);
-  assert.deepEqual(m.NEXT_STEP_IDS, ['model', 'sources', 'questions', 'due', 'resume', 'draft', 'new-source', 'wrong', 'exam', 'learn', 'done'], 'the ids, in priority order (the first three are the first-run line)');
+  assert.deepEqual(seen, ['model', 'resume', 'due', 'draft', 'new-source', 'wrong', 'exam', 'learn', 'done']);
+  assert.deepEqual(m.NEXT_STEP_IDS, ['model', 'sources', 'questions', 'resume', 'due', 'draft', 'new-source', 'wrong', 'exam', 'learn', 'done'], 'the ids, in priority order (the first three are the first-run line)');
   assert.deepEqual(m.FIRST_RUN_SURFACE, ['model', 'sources', 'questions'], 'the line\'s three steps are the first three states');
 });
 
@@ -217,6 +217,7 @@ test('every sentence has its English pair, with the placeholders kept', async ()
     m.nextCardView('learn', facts({ today: { ...quiet, weak: 1, new: 2, size: 3 } }), handlers),
     m.nextCardView('draft', facts({ drafts: { count: 1, cards: 25, draft: { id: 'dr1' }, title: 'Quiz 1', draftIds: ['dr1'] } }), handlers),
     m.nextCardView('draft', facts({ drafts: { count: 2, cards: 40, draft: { id: 'dr2' }, title: 'Quiz 2', draftIds: ['dr1', 'dr2'] } }), handlers),
+    m.nextCardView('done', facts({ today: { ...quiet, ahead: true, size: 10 } }), handlers),
   ];
   for (const shown of views) for (const sentence of [shown.eyebrow, shown.headline, shown.detail, shown.action?.label].filter(Boolean))
     assert.doesNotMatch(sentence, /[㐀-鿿]/, `English UI, no Chinese left: ${sentence}`);
