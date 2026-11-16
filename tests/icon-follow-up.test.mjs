@@ -59,19 +59,17 @@ test('the applied note of the task console draws its tick on the line: no inline
   assert.match(rule, /display:\s*flex/, 'a flex row: the icon is an item, not a box in the text line');
 });
 
-test('a 判断题 option carries 对 / 错 (True / False: T / F) in its circle; the tick and cross belong to the verdict only', async () => {
+test('the mark before an option is decided in one place (optionMark): a 判断题 option is its number, no screen spells it again, and the fixed options carry no tick or cross', async () => {
   const trueFalse = { kind: 'truefalse' };
   const circle = (id, index) => text(renderToStaticMarkup(h(m.OptionMark, { card: trueFalse, option: { id }, index })));
-  assert.equal(circle('true', 0), '对');
-  assert.equal(circle('false', 1), '错');
-  assert.doesNotMatch(renderToStaticMarkup(h(m.OptionMark, { card: trueFalse, option: { id: 'true' }, index: 0 })), /<svg/);
+  assert.equal(circle('true', 0), '1');
+  assert.equal(circle('false', 1), '2');
   m.setUiLanguage('en');
-  try {
-    assert.equal(circle('true', 0), 'T');
-    assert.equal(circle('false', 1), 'F');
-  } finally { m.setUiLanguage('zh'); }
-  const kinds = await read('lib/card-kinds.js');
-  assert.doesNotMatch(kinds, /icon:\s*'(?:check|close)'/, 'the fixed options carry no icon any more');
+  try { assert.equal(circle('true', 0), '1'); } finally { m.setUiLanguage('zh'); }
+  assert.doesNotMatch(await read('lib/card-kinds.js'), /icon:\s*'(?:check|close)'/, 'the fixed options carry no icon');
+  const found = [];
+  for (const { file, source } of await uiSources()) if (/verdict \? String\(/.test(source)) found.push(file);
+  assert.deepEqual(found, [], 'a screen asks optionMark, it does not number the options itself');
 });
 
 test('a filled option circle reads in both themes: its mark takes the raised (paper) colour, not the canvas, which is dark on the dark ink and the green in the dark theme', async () => {

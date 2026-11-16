@@ -45,16 +45,15 @@ test('English says the same without a typed mark', () => {
   } finally { m.setUiLanguage('zh'); }
 });
 
-test('a 判断题 option shows its words (对 / 错) in the circle where the other kinds show a letter, never the tick or cross of the verdict; a choice shows A. / A', () => {
+test('a 判断题 option shows its number (the key that picks it) in the circle where the other kinds show a letter, never the tick or cross of the verdict', () => {
   const trueFalse = { kind: 'truefalse' };
   const right = render(h(m.OptionMark, { card: trueFalse, option: { id: 'true' }, index: 0 }));
   const no = render(h(m.OptionMark, { card: trueFalse, option: { id: 'false' }, index: 1 }));
-  assert.equal(right, '对');
-  assert.equal(no, '错');
+  assert.equal(right, '1');
+  assert.equal(no, '2');
   assert.doesNotMatch(right + no, /<svg|[✓✕]/);
   const quiz = { kind: 'quiz' };
   assert.equal(render(h(m.OptionMark, { card: quiz, option: { id: 'b' }, index: 1 })), 'B');
-  assert.equal(render(h(m.OptionMark, { card: quiz, option: { id: 'b' }, index: 1, dot: true })), 'B.');
 });
 
 test('the flag of a question is the registry icon, in a quiet icon button that is named and has its tooltip (#1073)', async () => {

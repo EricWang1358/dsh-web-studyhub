@@ -297,7 +297,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                       onClick={() => choose(o.id)}
                     >
                       <span className="option-letter" aria-hidden={verdict || undefined}>
-                        {verdict ? String(i + 1) : <OptionMark card={run.card} option={o} index={i} />}
+                        <OptionMark card={run.card} option={o} index={i} />
                       </span>
                       <div>
                         {verdict ? <span className="option-verdict">{fixedOptionLabel(run.card, o)}</span>
