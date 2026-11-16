@@ -324,7 +324,7 @@
     /* inherit: the app's global p leading must not win over 行距 */
     .reader-html :is(ul, ol) { margin: 0 0 var(--reader-gap, 1em); padding-left: 1.5em; }
     .reader-html li + li { margin-top: 0.3em; }
-    .reader-html blockquote { margin: 1.2em 0; padding: 0.1em 0 0.1em 1.1em; border-left: 3px solid var(--line-strong); color: var(--text-dim); }
+    .reader-html blockquote { margin: 1.2em 0; padding: 0.1em 0 0.1em 1.1em; border-left: 2px solid var(--line-strong); color: var(--text-dim); }
     .reader-html blockquote > :last-child { margin-bottom: 0; }
     .reader-html table {
       display: block;

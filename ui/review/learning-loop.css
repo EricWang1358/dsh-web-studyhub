@@ -57,8 +57,7 @@
       gap: var(--space-2);
       padding: var(--space-3) var(--space-3-5);
       background: var(--bg-sunken);
-      border-left: 2px solid var(--line-strong);
-      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      border-radius: var(--radius-sm);
       font-size: var(--fs-md);
     }
     .retell-result__head { margin: 0; color: var(--text); }

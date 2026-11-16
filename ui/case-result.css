@@ -86,6 +86,8 @@
       white-space: nowrap;
     }
     .rubric-row.is-weak .rubric-meter { --sh-tone: var(--warn); }
+    /* A middle score is the quietest of the three: lighter than the ochre of a weak one and the jade of a strong one, never the darkest bar on the card (#1080). */
+    .rubric-meter[data-tone='neutral'] { --sh-tone: color-mix(in srgb, var(--text-muted) 55%, var(--bg-sunken)); }
     .rubric-row[data-band="strong"] .rubric-meter { --sh-tone: var(--ok); }
     .rubric-row.is-weak .rubric-row__score { color: var(--warn-ink); }
     .rubric-note {
@@ -291,7 +293,7 @@
       min-height: 2px;
       align-self: flex-end;
       border-radius: var(--radius-xs);
-      background: var(--accent-soft);
+      background: var(--line-strong);
       margin-right: var(--hairline);
     }
     .rubric-skills__trend i:last-of-type { margin-right: var(--space-2); }
@@ -302,9 +304,12 @@
       .case-report__questions li { grid-template-columns: minmax(0, 1fr) auto; }
       .case-report__prompt { grid-column: 1 / -1; white-space: normal; }
       .case-report__pace { grid-column: 1 / -1; }
-      .rubric-skills__list li { grid-template-columns: minmax(0, 1fr) 3rem; }
+      /* The label, how often and the score share the first row; the bar is the second: nothing hangs under the bar. */
+      .rubric-skills__list li { grid-template-columns: minmax(0, 1fr) auto 3rem; row-gap: var(--space-1); }
+      .rubric-skills__label { grid-column: 1; grid-row: 1; }
+      .rubric-skills__trend { grid-column: 2; grid-row: 1; }
+      .rubric-skills__value { grid-column: 3; grid-row: 1; }
       .rubric-skills__list .rubric-meter { grid-column: 1 / -1; grid-row: 2; }
-      .rubric-skills__trend { grid-column: 1 / -1; }
     }
   }
 }
