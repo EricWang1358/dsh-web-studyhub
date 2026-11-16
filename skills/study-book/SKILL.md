@@ -1,7 +1,7 @@
 ---
 name: study-book
-description: Write and rewrite the learner's StudyHub 复习全书 (review book) from the main chat, one knowledge point at a time, with every quote checked against the course materials.
-whenToUse: The learner asks in chat to write, rewrite, extend, restructure, shorten or fix their 复习全书 / review book (one point, a chapter or the whole book), or pastes a 「发给主会话」 message from the book page.
+description: Write and rewrite the learner's StudyHub review book (复习全书) from the main chat, one knowledge point at a time, with every quote checked against the course materials.
+whenToUse: The learner asks in chat to write, rewrite, extend, restructure, shorten or fix their review book / 复习全书 (one point, a chapter or the whole book), or pastes a "Send to main chat" / 「发给主会话」 message from the book page.
 ---
 
 # StudyHub review book (复习全书)
@@ -10,7 +10,7 @@ Every tool below is an action of `study_workspace` (`action` plus `payload_json`
 
 ## Authority
 
-- A learner's request in chat to change the book, in their own words or as a 「发给主会话」 message, IS the authorisation. Do not ask again before saving.
+- A learner's request in chat to change the book, in their own words or as a "Send to main chat" / 「发给主会话」 message, IS the authorisation. Do not ask again before saving.
 - You may edit any file of the book: the generated text of a point (`gen`, the default), and the learner's own notes (`mine`) and Q&A (`qa`) when the learner names them or asks for a whole-book rewrite.
 - Every write keeps the previous version; `course.book.revert {"file": <name from the write's answer>}` undoes it. Say so when the learner is unsure.
 - Always report which points changed (number and title).
@@ -19,14 +19,14 @@ Every tool below is an action of `study_workspace` (`action` plus `payload_json`
 ## The one hard rule: respect the materials
 
 - Facts, definitions, numbers, steps and quotes come from the course materials. Open the pages with `source.pages` before you write what they say; never write a point from memory of the title.
-- Quote only as footnotes the app verifies: put the mark in the text (`…写下来[^1]。`) and the footnote below it, `[^1]: 「exact words from the page」 (sourceId)`. Copy the words exactly as `source.pages` shows them (a short phrase is enough). A footnote the app cannot find is taken out and listed in `dropped`; if the answer says `again: true`, delete or rewrite the sentence that rested on it.
-- Anything that goes beyond the materials (your own example, background, an analogy, a tip) is marked （资料以外） right after it (English book: "(beyond the materials)").
+- Quote only as footnotes the app verifies: put the mark in the text (`…written down[^1].`) and the footnote below it, `[^1]: "exact words from the page" (sourceId)` or `[^1]: 「exact words from the page」 (sourceId)`. Copy the words exactly as `source.pages` shows them (a short phrase is enough). A footnote the app cannot find is taken out and listed in `dropped`; if the answer says `again: true`, delete or rewrite the sentence that rested on it.
+- Anything that goes beyond the materials (your own example, background, an analogy, a tip) is marked `(beyond the materials)` right after it in an English book, or `（资料以外）` in a Chinese book.
 - The book is never evidence: do not use its text to make or check questions or answers.
 - Everything else is free: structure, length, tone, order, headings, tables, transitions, rewriting a point from scratch.
 
 ## Style
 
-Write for a beginner revising alone: long-form, plain language, the why before the what. Start from where the previous point left off and lead into the next one. Use a worked example where it helps and name the usual traps (常见误区). It should read like a strong classmate's open-book notes, not an outline: whole sentences and paragraphs, a few headings, a table only where it compares things. No fixed sections, no length floor or ceiling: as long as the point needs. Write in the book's language (`language` in `book.toc`).
+Write for a beginner revising alone: long-form, plain language, the why before the what. Start from where the previous point left off and lead into the next one. Use a worked example where it helps and name the usual traps and misconceptions. It should read like a strong classmate's open-book notes, not an outline: whole sentences and paragraphs, a few headings, a table only where it compares things. No fixed sections, no length floor or ceiling: as long as the point needs. Write strictly in the book's language (`language` in `book.toc`).
 
 ## Working loop: one point at a time
 
@@ -42,9 +42,9 @@ Write for a beginner revising alone: long-form, plain language, the why before t
 
 Only when the learner asks for it (rename, reorder, remove, tidy up the structure). Nothing here rebuilds the outline or sends the book's text.
 
-- What waits in 未归位: `book.read {"hid": "unplaced"}` shows it with its `sections`; on the learner's word `course.book.place {"section": id, "toHid", "version"}` puts one back at the end of a point's notes, and `course.book.revert {"file": "book.structure"}` undoes it.
-- Sections inside one point's file, by the heading ids `book.read` lists: `book.write {"hid", "op": "rename", "heading": id, "title"}`, `{"op": "move", "heading": id, "after" | "before" | "within": id}` (or `"position"`), `{"op": "delete", "heading": id}` (its sub-sections move up; `"children": "delete"` removes them too, `"toUnplaced"` keeps them in 未归位; to put such a section back, revert the point's file, never `unplaced.md`: its copy may be the only one). A heading of the same title twice is refused (spaces, case and full-width or half-width punctuation do not count): never write placeholder text or a second copy to work around it; delete or rename instead.
-- Chapters and knowledge points of the book, by the `hid` of `book.toc` and its `structureVersion`: `course.book.rename {"hid", "title", "version"}`, `course.book.move {"hid", "toParent" | "afterHid" | "beforeHid", "version"}`, `course.book.delete {"hid", "children": "promote" | "toUnplaced", "version"}` (what the learner wrote in a deleted point goes to 未归位; a chapter left empty stays, named in `emptied`). Each answer gives the next `structureVersion`; a `course-book-conflict` means the book changed: read `book.toc` again. `course.book.revert {"file": "book.structure"}` undoes the latest change, until the outline is made again; a file edited since is left as it is (`kept`): tell the learner, never revert that file to make the undo pass. `course.book.revert {"file", "redo": true}` brings back what a file's revert replaced.
+- What waits in **Not placed** (`hid: "unplaced"`, Chinese `未归位`): `book.read {"hid": "unplaced"}` shows it with its `sections`; on the learner's word `course.book.place {"section": id, "toHid", "version"}` puts one back at the end of a point's notes, and `course.book.revert {"file": "book.structure"}` undoes it.
+- Sections inside one point's file, by the heading ids `book.read` lists: `book.write {"hid", "op": "rename", "heading": id, "title"}`, `{"op": "move", "heading": id, "after" | "before" | "within": id}` (or `"position"`), `{"op": "delete", "heading": id}` (its sub-sections move up; `"children": "delete"` removes them too, `"toUnplaced"` keeps them in Not placed; to put such a section back, revert the point's file, never `unplaced.md`: its copy may be the only one). A heading of the same title twice is refused (spaces, case and full-width or half-width punctuation do not count): never write placeholder text or a second copy to work around it; delete or rename instead.
+- Chapters and knowledge points of the book, by the `hid` of `book.toc` and its `structureVersion`: `course.book.rename {"hid", "title", "version"}`, `course.book.move {"hid", "toParent" | "afterHid" | "beforeHid", "version"}`, `course.book.delete {"hid", "children": "promote" | "toUnplaced", "version"}` (what the learner wrote in a deleted point goes to Not placed; a chapter left empty stays, named in `emptied`). Each answer gives the next `structureVersion`; a `course-book-conflict` means the book changed: read `book.toc` again. `course.book.revert {"file": "book.structure"}` undoes the latest change, until the outline is made again; a file edited since is left as it is (`kept`): tell the learner, never revert that file to make the undo pass. `course.book.revert {"file", "redo": true}` brings back what a file's revert replaced.
 
 ## When the outline was organised again
 
@@ -59,4 +59,4 @@ If `book.toc` answers `status: "rebuild-pending"` or a write is refused with `co
 
 ## Report to the learner
 
-结束时用中文简短汇报：改了哪些知识点（编号和标题），每一点大致改了什么；有几处引文没能在资料里找到、已经删掉或改写；哪些内容标了（资料以外）；还有哪些页没有读到。告诉学习者：每次修改都保留了上一版，在书页上可以「回退到上一版」，或者让我用 course.book.revert 撤回；书里的文字只是复习参考，不是出题和判分的依据。
+Report briefly in the learner's language (English when the learner writes in English; 中文对话：结束时用中文简短汇报): which knowledge points changed (number and title) and what changed in each; how many unfound quotes were dropped or rewritten; which additions were marked `(beyond the materials)` / `（资料以外）`; and any pages not yet opened. Remind the learner that every edit kept the previous version—they can click `"Revert to previous version"` / 「回退到上一版」 on the book page or ask you to run `course.book.revert`—and that the review book is a study reference rather than grading evidence.

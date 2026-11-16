@@ -1,8 +1,41 @@
-# Works well with other tools
+# Interactive Companions and external tools
 
 [中文](companions.zh-CN.md)
 
-StudyHub covers the study side: sources, questions, practice, review. For jobs that are heavy and already done well elsewhere, it recommends a proven open-source tool and gives it a clean way in and out. It does not copy or rebuild those tools, and it has no partnership with their authors. This page lists them.
+StudyHub includes a built-in **Interactive Companions** stage-and-voice engine for self-contained, progressive HTML lessons across any academic discipline, and also gives proven open-source tools a clean, sandboxed way into your study library without copying or rebuilding their work.
+
+## Interactive Companions: cross-discipline stage-and-voice lessons
+
+StudyHub includes a built-in **Interactive Companions** stage and compiler for progressive, self-contained HTML lessons (`studyhub-lesson/1`), and also mounts existing interactive companion packs from disk (such as a local lab repository with `pages/*.html`, `lessons/*.json`, `projects/`, and `feedback/questions.json`).
+
+### Cross-discipline interactive HTML builder (`generation.companion.build`)
+
+Open **Interactive Companions** from **Course outline** or **Sources** (or search `companion` in `Ctrl/⌘ K` **Find a feature**) to generate a 16–20 slide, zero-dependency `.html` file for **any subject** (Mathematics, Philosophy, Mechanical Engineering, Physics, Economics, Law, Computer Science), with clickable cross-discipline starter chips to prefill prompts and archetypes:
+
+- **Four discipline archetypes & tactile stage blocks** on one stage-and-voice engine (`0` external network requests):
+  - **Parametric & Phase-Plane Math Sandbox (`sandbox`)**: Pure AST-evaluated mathematical expressions (`0` `eval`) supporting **1D multi-series curves** (`expr`) with horizontal `threshold` reference bands AND **2D parametric trajectories** (`xExpr` / `yExpr`), normalized **phase-plane quiver vector fields** (`field: { xMin, xMax, yMin, yMax, grid, dxExpr, dyExpr }`), and **live moving equilibrium markers** (`markers: [{ label, xExpr, yExpr }]`) for ODEs, classical/control mechanics, thermodynamics, and macroeconomics — complete with 1-click regime `presets` (`[{ label, values }]`), a built-in `Reset` button, interactive sliders (`Shift + ←/→` fine stepping), and hover crosshair $(x, y_i)$ readouts.
+  - **Dialectical Counterexample Matrix (`dialectic`)**: Thought-experiment stress-test matrices (`matrix`) with optional `predictBeforeReveal` gating, `Reveal all` / `Reset` comparison toggles, scenario tabs, and arrow-key cell focus navigation, paired with two-voice Socratic timelines (`lanes`).
+  - **Closed-Loop Schematic & Force Path (`mechanism`)**: Step-by-step vector schematics (`schematic`) with quadratic Bézier feedback-loop routing (so control loops and vertical force chains never cut across middle blocks), clickable node `detail` inspection, and learner-driven `Step trace` / `Reset` causal walks.
+  - **Empirical Trace, Flaw-Spotting, Diagnostic Quizzes & Hands-On Workshop (`empirical`, `spot`, `quiz`, `try`)**: Line-by-line code/proof walks, interleaving timelines (`inside`), keyboard-operable 1-based token/premise/design flaw-spotting (`spot` with gutter-free text selection), boundary `quiz` blocks with per-distractor `why` trap diagnostics (preserving strict first-attempt `self-check` FSRS integrity), and interactive `try` / `workshop` blocks with checkable criteria, persisted scratchpads, hints, and model solutions.
+- **Built-in zero-dependency W3C MathML (`lib/companion-template/mathml.js`)**: Offline, currency-safe `$...$` / `$$...$$` LaTeX-to-MathML compiler covering `\begin{cases}`, `bmatrix` / `vmatrix` determinants, `\int_a^b`, `\oint`, `\sum`, `\lim`, `\overbrace` / `\underbrace`, norms `\|x\|`, inner products `\langle u, v \rangle`, Newtonian/Lagrangian time derivatives (`\dot{x}`, `\ddot{x}`), `\operatorname{...}`, and formal/modal logic (`\vdash`, `\models`, `\Box`, `\Diamond`, `\forall`, `\exists`, `\implies`, `\iff`).
+- **Dual output, zero-key main-chat compilation & honest provenance**: Every generated lesson is written in plain text to `<workspace>/companions/<course>/<slug>.html` and `<slug>.lesson.json` AND registered in the course (or compiled directly in the main chat with zero provider API key via the shipped `study-companion` skill and `companion.compile`). Grounded builds extract structured high-signal excerpts from selected materials; zero-material free-topic builds run cleanly and are marked `ai-drafted-unverified` (`grounded: false`).
+
+### Mounting local companion packs, live JSON compilation & learner affordances (`companion.attach`, `companion.sync`)
+
+1. **Mount HTML files, folders, or raw authoring JSON packs (`companion.attach`)**:
+   - Point **Mount Local Folder / HTML** at a single `.html` file or a companion pack directory (`pages/*.html`, `lessons/*.json`).
+   - If a pack contains unbuilt `lessons/<slug>.json` specs without pre-built HTML (including `of: "<pkg>.<Class>"` source references under `<pack>/projects/` or `<pack>/src/`, verified strictly inside the mounted folder), StudyHub resolves the source snippets and compiles full interactive HTML on the fly when opened.
+   - Courses with large packs (6+ to 170+ lessons) automatically show instant search and `All` / `In progress` / `Completed` filters in the **Interactive Companions** bar.
+2. **Smart dual-mode question sync, bidirectional deep-linking & 1-click disk re-sync (`companion.sync`)**:
+   - Courses that already have decks use **Enrich existing**: high-confidence concept matches link existing cards (`card.companionRef`) to exact `#slide` anchors, and oral synthesis (`say`) drills are added without duplicating flashcards.
+   - Blank courses use **Full pack**: zero-token deterministic compilation of takeaway flashcards, boundary quizzes, scenario case quizzes, oral rubric cards, and hands-on `task` rubric cards, with **First-Pass Credit** granted when you work through the interactive slides so you are not re-quizzed on the same day.
+   - **Bidirectional deep-linking across the workbench**: Any card or projected note linked to a companion shows **Open slide N in companion** / **Open interactive companion** across **Flashcard Review**, **Mistakes & weak** (Wrong-Answer Book), **Manage deck** inspection, **Round Look-Back**, and the **Sources** reader (`src-companion-<id>`), jumping straight to the exact slide without reloading a mounted stage.
+   - When a `linked` file is edited on disk (`changedOnDisk`), click **Sync source & cards** (`companion.sync`) in the viewer to refresh its SHA-256, projected **Sources** Markdown, and cards while preserving your FSRS-6 review schedules.
+3. **Built-in viewer & standalone HTML affordances**:
+   - **Theater `Expand stage` mode, 1-click `Export HTML`, slide quick-jump & live theme sync**: Maximize phase-plane plots and schematics across narrow (`360px–480px`) IDE sidebars with **Expand stage**, download any self-contained offline `.html` lesson in one click with **Export HTML**, jump directly to any slide, and sync light/dark workbench themes live via token-verified `postMessage`.
+   - **`#toc-pop` Slide-Map Table-of-Contents, `?` shortcut sheet & `@media print` Study-Sheet export**: Click the `N / Total` slide counter or press `g` to open the beat-and-title **Slide Map** (`#toc-pop`), press `?` for keyboard controls (`Space / →`, `←`, `g`, `Shift + ←/→`, `Esc`), or print / save as PDF to trigger multi-slide **Study-Sheet Mode** (crisp light ink tokens, unhidden card/model answers, zero `100vh` clipping).
+   - **In-stage study drawer & `feedback/questions.json` LWW sync**: Highlight any sentence (which opens the drawer and focuses the question box) or click **Look up / Ask** for 0-token glossary/card lookup, a micro-context tutor answer (`companion.ask`), 1-click **Save to Companion Catch-ups** (due tomorrow), or two-way atomic LWW sync with `<pack>/feedback/questions.json` (browsable in the collapsible **Doubt & Feedback Ledger** with 1-click slide jump).
+4. **Backup discipline**: Directory packs mounted in `linked` mode add **0 bytes** to portable library backups while preserving full offline Projected Source notes; `managed` single-file companions travel inside portable backups.
 
 ## Archify: interactive diagrams of your outline
 
@@ -53,6 +86,6 @@ The file may contain any script. StudyHub treats it as untrusted.
 
 What this does not do: it cannot stop a page from using your CPU, or from drawing something misleading. Delete a diagram you do not trust.
 
-## More companions
+## Other external tools
 
-Placeholder: other tools StudyHub may recommend later (heavy PDF conversion and retrieval already link to their own guides: [large textbooks](large-documents.md) and [MinerU conversion](mineru-conversion.md), which StudyHub installs on this computer with **One-click install**). Each will get the same shape: what it is, why, how to install, how the hand-off works, and what stays in your library.
+Heavy PDF conversion and retrieval link to their own guides: [large textbooks](large-documents.md) and [MinerU conversion](mineru-conversion.md), which StudyHub installs on this computer with **One-click install**.

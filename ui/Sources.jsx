@@ -41,6 +41,7 @@ import { hasContext } from './capabilities.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import { HandOff } from './hand-off/HandOff.jsx';
 import { CUSTOM_ROW_EDIT_LABEL, CUSTOM_ROW_EDIT_WHAT, CUSTOM_ROW_LABEL, CUSTOM_BOOK_WHAT, customRowOffer } from './custom-entry.js';
+import { openCompanionTarget, resolveSourceCompanionTarget } from './companions/companion-ref.js';
 
 /* 资料视图：一份文档一行（PDF 的各页收在行内，按需展开；P18）。按导入日期分组，
    最新一组默认展开（P23）；刚导入的资料高亮并滚动到视野里。sourceForm 是 App
@@ -176,7 +177,11 @@ export function sourceRowPropsEqual(a, b) {
 
 /* `slot`: the index badge's line is kept from the first paint, so a coverage answer that arrives later fills it instead of making the row taller (#229). */
 const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, indexLink = false, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '', custom = null }) {
-  const { busy } = useStudy();
+  const { busy, openModal } = useStudy();
+  const appData = useContext(AppContext)?.data;
+  const companionTarget = !item.archived && source
+    ? resolveSourceCompanionTarget({ source, courses: appData?.courses, sources: appData?.sources })
+    : null;
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
   const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
   useEffect(() => () => clearTimeout(opening.current), []);
@@ -238,6 +243,11 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           </span>
         </button>}
         <div className="source-doc__actions">
+          {companionTarget && openModal && (
+            <Button size="sm" variant="secondary" icon="play" className="source-doc__action" onClick={() => openCompanionTarget(openModal, companionTarget)}>
+              {ui('打开交互伴学页')}
+            </Button>
+          )}
           {canGenerate && <Button size="sm" variant="secondary" icon="sparkle" className="source-doc__action" lock={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           {/* 为没覆盖的部分补题 of a material whose questions were published: a NEW draft, the deck's next part (ui/coverage/DocumentTopUp.jsx). */}
           {topUp && <DocumentTopUp item={item} revision={JSON.stringify(coverage)} />}
@@ -540,6 +550,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             if (allOpen) { setOpened(new Set()); setClosed(new Set(groups.map(group => group.key))); }
             else { setOpened(new Set(groups.map(group => group.key))); setClosed(new Set()); }
           }}>{allOpen ? ui("全部收起") : ui("全部展开")}</Button>}
+          <Button variant="secondary" onClick={() => setModal({ type: "companionBuild", course: scope === '*' ? (data.focus?.course || '') : scope })}>{ui("交互伴学")}</Button>
           {addButton}
         </>} />
       {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}

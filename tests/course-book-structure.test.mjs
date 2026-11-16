@@ -282,7 +282,7 @@ test('a save on a file whose point was deleted says so and where its text is', a
   assert.equal(refused.code, 'course-book-file-missing');
   assert.match(refused.message, /已被删除；里面你写的内容在「未归位」里/);
   const english = await study.call('course.book.save', { file: mine.name, text: 'x', version: 1, uiLanguage: 'en' }).then(() => null, error => error);
-  assert.match(english.message, /^This point was deleted; what was written in it is in 未归位/);
+  assert.match(english.message, /^This point was deleted; what was written in it is in Not placed/);
   // A point deleted with nothing of the learner's says that; a file missing for any other reason keeps the plain sentence.
   const two = byTitle(toc, '知识点 2'), gen = (await study.call('book.read', { hid: two.hid, file: 'gen' })).files.gen;
   await study.call('course.book.delete', { hid: two.hid, version: toc.structureVersion + 1 });

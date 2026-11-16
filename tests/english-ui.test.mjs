@@ -90,7 +90,14 @@ function walk(node, visit) {
     else if (value && typeof value === 'object') walk(value, visit);
   }
 }
-test('every static application UI translation has an English catalogue entry', async () => {
+function stringLiteralsOf(expr) {
+  if (!expr) return [];
+  if (expr.type === 'Literal' && typeof expr.value === 'string') return [expr.value];
+  if (expr.type === 'ConditionalExpression') return [...stringLiteralsOf(expr.consequent), ...stringLiteralsOf(expr.alternate)];
+  if (expr.type === 'LogicalExpression') return [...stringLiteralsOf(expr.left), ...stringLiteralsOf(expr.right)];
+  return [];
+}
+test('every static application UI translation (including ternary/logical branches) has an English catalogue entry', async () => {
   const { ui, setUiLanguage } = load();
   setUiLanguage('en');
   const missing = [];
@@ -98,8 +105,9 @@ test('every static application UI translation has an English catalogue entry', a
     const tree = parse(await readFile(file, 'utf8'), { ecmaVersion: 'latest', sourceType: 'module', ecmaFeatures: { jsx: true } });
     walk(tree, node => {
       if (node.type !== 'CallExpression' || !['ui', 'uiFormat'].includes(node.callee.name)) return;
-      const text = node.arguments[0]?.value;
-      if (typeof text === 'string' && han.test(text) && han.test(ui(text))) missing.push(`${file}: ${text}`);
+      for (const text of stringLiteralsOf(node.arguments[0])) {
+        if (han.test(text) && han.test(ui(text))) missing.push(`${file}: ${text}`);
+      }
     });
   }
   assert.deepEqual(missing, []);

@@ -142,6 +142,10 @@ export const FEATURES = Object.freeze([
     path: ['资料', '添加资料', 'PDF 解析'],
     what: '文字读不出来、公式多，或超过 8 MB 的 PDF，可以先在本机解析成带页码的文字，再存为资料。它是音频组件的一部分，用 MinerU 或 Marker 解析。',
     needs: { capability: 'audio', install: 'MinerU' } }),
+  feature({ id: 'interactive-companions', area: 'material', title: '交互伴学', page: 'sources', anchors: ['sources-add', 'sources-list'],
+    aliases: ['伴学', '伴学页', '伴学课', '伴学包', '参数沙盒', '反例矩阵', '矢量框图', '泳道', '跨学科', '挂载 html', 'companion', 'companions', 'interactive', 'interactive companion', 'interactive companions', 'sandbox', 'dialectic', 'mechanism', 'empirical', 'html', 'lesson', 'html lesson'],
+    path: ['资料', '交互伴学'],
+    what: '在「资料」页右上角或任意课程「总纲」顶部点「交互伴学」：可为数学、哲学、机械工程、计算机等任意学科生成独立自包含的逐句互动 HTML 伴学课（含参数沙盒、思辨反例矩阵、分步框图、公式推导与零消耗导题），也可原位挂载本地伴学目录（仅挂载不需要 AI 模型）。' }),
 
   // ── 出题 ──
   feature({ id: 'json-import', area: 'generate', title: '导入 JSON 题组', page: 'generate', anchors: ['generate-json'],

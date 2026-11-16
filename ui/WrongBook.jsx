@@ -26,6 +26,7 @@ import { FILTER_MIN, NO_FILTER, PRACTICE_SCOPE_CAP, RECS_PREVIEW, SORT_KINDS, ST
 import { useStudy } from './study-context.jsx';
 import { peekQuery, refreshQuery, setQueryData, useHostQuery } from './host-query.js';
 import { formatDateTime, joinMeta, META_DOT } from "./format.js";
+import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "./companions/companion-ref.js";
 
 // One page of this view holds ten pages of the service (which gives at most 100), so a filter sees every mistake of a normal library.
 const FETCH_LIMIT = 100;
@@ -246,7 +247,7 @@ function resolveCardSourceTarget(item, decks = [], sources = []) {
   return null;
 }
 
-function RowDetail({ id, item, course, detail, variants, recs, shortName, rescuePrompt, rescuing, canOpenModel, canOpenSettings, onPractice, onRescue, onDismissRescue, onOpenModel, onOpenProfileSettings, onOpenSource, disabled }) {
+function RowDetail({ id, item, course, detail, variants, recs, shortName, rescuePrompt, rescuing, canOpenModel, canOpenSettings, onPractice, onRescue, onDismissRescue, onOpenModel, onOpenProfileSettings, onOpenSource, companionTarget, onOpenCompanion, disabled }) {
   const yourAnswerText = detail && detail !== "loading" && !detail?.error
     ? (detail.selfGrade !== null && detail.selfGrade !== undefined ? uiFormat("自评 {0} 分", [detail.selfGrade]) : detail.yourAnswer)
     : "";
@@ -308,6 +309,11 @@ function RowDetail({ id, item, course, detail, variants, recs, shortName, rescue
       )}
       <div className="wb-detail__foot">
         <small className="muted">{shortName(item.deckTitle)}</small>
+        {companionTarget && onOpenCompanion && (
+          <Button variant="quiet" size="sm" icon="play" onClick={onOpenCompanion}>
+            {companionSlideButtonLabel(companionTarget)}
+          </Button>
+        )}
         {onOpenSource && <Button variant="link" size="sm" onClick={onOpenSource}>{ui("打开出处")}</Button>}
       </div>
     </div>
@@ -319,7 +325,7 @@ const sameRow = (a, b) => Object.keys(a).every((key) => (key === 'state' ? sameV
 
 /* One question. Memoised, so opening a group, typing in the search box or a status poll redraws only the rows whose own props changed (the
    `handlers` are stable). */
-const Row = memo(function Row({ it, metaText, query = "", isOpen, state, detail, sourceTarget = null, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers, limits, course, rescuePrompt = null, rescuing = false, canOpenModel = false, canOpenSettings = false, history = false, mistake = "", showPractice = true }) {
+const Row = memo(function Row({ it, metaText, query = "", isOpen, state, detail, sourceTarget = null, companionTarget = null, recItems, shortName, canGenerate, canPracticePrepared, disabled, variantDisabled, handlers, limits, course, rescuePrompt = null, rescuing = false, canOpenModel = false, canOpenSettings = false, history = false, mistake = "", showPractice = true }) {
   const detailId = `wb-detail-${it.cardId}`;
   const recs = useMemo(() => (isOpen ? relatedTo(recItems, it.cardId) : []), [isOpen, recItems, it.cardId]);
   const fullPrompt = plainPrompt(it.prompt);
@@ -354,7 +360,7 @@ const Row = memo(function Row({ it, metaText, query = "", isOpen, state, detail,
         )}
         {showPractice && (
           <Button variant="quiet" size="sm" disabled={disabled}
-            aria-label={uiFormat("练习 {0}：{1}", [it.topic || "未分类", it.prompt])}
+            aria-label={uiFormat("练习 {0}：{1}", [it.topic || ui("未分类"), it.prompt])}
             onClick={() => handlers.practice(it)}>{ui("练")}</Button>
         )}
       </div>
@@ -365,7 +371,9 @@ const Row = memo(function Row({ it, metaText, query = "", isOpen, state, detail,
           recs={recs}
           onPractice={handlers.practiceRec} onRescue={handlers.rescue}
           onDismissRescue={handlers.dismissRescue} onOpenModel={handlers.openModel} onOpenProfileSettings={handlers.openProfileSettings}
-          onOpenSource={sourceTarget ? () => handlers.openSource(sourceTarget) : undefined} />
+          onOpenSource={sourceTarget ? () => handlers.openSource(sourceTarget) : undefined}
+          companionTarget={companionTarget}
+          onOpenCompanion={companionTarget ? () => handlers.openCompanion(companionTarget) : undefined} />
       )}
     </li>
   );
@@ -511,6 +519,21 @@ export function WrongBookView({
   const leechShown = useMemo(() => leechCount(filterRows(rows, { ...applied, leech: false, only: null })), [rows, applied]);
   const onlyShown = useMemo(() => (Array.isArray(applied.only) ? filterRows(rows, { ...NO_FILTER, only: applied.only }).length : 0), [rows, applied]);
   const courseOfDeck = useMemo(() => new Map((data?.decks || []).map((deck) => [deck.id, deck.course ?? deck.folder ?? ''])), [data?.decks]);
+  const companionTargetByCard = useMemo(() => {
+    const map = new Map();
+    for (const item of rows) {
+      const deck = Array.isArray(data?.decks) ? data.decks.find((d) => d.id === item.deckId) : null;
+      const card = Array.isArray(deck?.cards) ? deck.cards.find((c) => c.id === item.cardId) : null;
+      const target = resolveCompanionTarget({
+        card: card || item,
+        courses: data?.courses,
+        sources: data?.sources,
+        fallbackCourse: courseOfDeck.get(item.deckId) || '',
+      });
+      if (target) map.set(item.cardId, target);
+    }
+    return map;
+  }, [rows, data?.decks, data?.courses, data?.sources, courseOfDeck]);
   // The result page of a round asked to open on exactly its 顽固题 (ui/Review.jsx; the container read the request once): applied when the list of that scope has come, with
   // the groups holding them open, so the rows shown are the ones the line counted. The chip below widens it to every 顽固题.
   const appliedArrival = useRef(null);
@@ -690,6 +713,10 @@ export function WrongBookView({
       back: true,
     });
   };
+  const openCardCompanion = (target) => {
+    if (!target || !openModal) return;
+    openCompanionTarget(openModal, target);
+  };
   const toggleGroupDetails = (capRows, allExpanded) => {
     setExpanded((previous) => {
       const next = new Set(previous);
@@ -754,7 +781,7 @@ export function WrongBookView({
   };
   // The handlers every row shares; the row itself is memoised, so these must keep their identity from render to render.
   const latest = useRef(null);
-  latest.current = { openRow, generate, onPractice, onPracticePrepared, practiceRec, triggerRescue, dismissRescue, openModel, openProfileSettings, openCardSource };
+  latest.current = { openRow, generate, onPractice, onPracticePrepared, practiceRec, triggerRescue, dismissRescue, openModel, openProfileSettings, openCardSource, openCardCompanion };
   const handlers = useMemo(() => ({
     open: (item) => latest.current.openRow(item),
     generate: (item) => latest.current.generate([item]),
@@ -766,6 +793,7 @@ export function WrongBookView({
     openModel: () => latest.current.openModel?.(),
     openProfileSettings: () => latest.current.openProfileSettings?.(),
     openSource: (target) => latest.current.openCardSource(target),
+    openCompanion: (target) => latest.current.openCardCompanion(target),
   }), []);
 
   return (
@@ -1089,6 +1117,7 @@ export function WrongBookView({
                     query={applied.query.trim()}
                     isOpen={expanded.has(it.cardId)} state={stateOf(it.cardId)} detail={details[it.cardId]}
                     sourceTarget={expanded.has(it.cardId) ? (sourceTargetByCard.get(it.cardId) || null) : null}
+                    companionTarget={expanded.has(it.cardId) ? (companionTargetByCard.get(it.cardId) || null) : null}
                     recItems={recItems} shortName={shortName}
                     canGenerate={!isHistory && canGenerate} canPracticePrepared={!!onPracticePrepared} disabled={busy} variantDisabled={busy || working} handlers={handlers} limits={limits} course={courseOfDeck.get(it.deckId) || ''} showPractice={isHistory || total !== 1}
                     rescuePrompt={activeRescuePrompt?.cardId === it.cardId ? activeRescuePrompt : null} rescuing={rescuingCard === it.cardId}

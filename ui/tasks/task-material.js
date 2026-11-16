@@ -10,8 +10,11 @@ import { contractOf } from './task-model.js';
 export function taskMaterial(task, sources) {
   const contract = contractOf(task);
   if (contract.kind === 'coach-daily' || !Array.isArray(sources) || !sources.length) return null;
-  const recorded = [...(Array.isArray(task?.sourceIds) ? task.sourceIds : []), ...(contract.result?.refs || []).filter((ref) => ref.kind === 'source').map((ref) => ref.id)]
-    .filter((id) => typeof id === 'string' && id);
+  const isCompanionBuild = contract.kind === 'companion-lesson-build' || task?.type === 'companion-lesson-build';
+  const recorded = [
+    ...(Array.isArray(task?.sourceIds) ? task.sourceIds : []),
+    ...(isCompanionBuild ? [] : (contract.result?.refs || []).filter((ref) => ref.kind === 'source').map((ref) => ref.id)),
+  ].filter((id) => typeof id === 'string' && id);
   const ids = [...new Set(recorded)];
   if (!ids.length) return null;
   const groups = groupSourcesByDocument(sources), owner = new Map(groups.flatMap((group) => group.sourceIds.map((id) => [id, group])));

@@ -1,105 +1,117 @@
 ---
 name: study-custom
-description: 深度定制：学习者上传了一本大书（比如 500 页），主会话用几个选项问他怎么用、要学哪些章、复习全书要哪些部分、要不要题、要不要计划；确认之后才生成，选了什么就只做什么。
-whenToUse: The learner wants a big book customised — 「深度定制」「这本书我只想学考试范围」「复习全书只要速查」「帮我定制一下怎么学这本书」 — or pastes a 「发给主会话」 message whose id is custom.start (from a long document's row, or from the review book's 更多 menu).
+description: Customise how to study a large textbook in StudyHub — interview the learner on purpose, chapter scope, review-book sections, question types and study plan before generating only what they chose (深度定制).
+whenToUse: The learner wants a big book customised — "customise how I study this book", "I only need the exam chapters", "only build a cheat sheet", 「深度定制」「这本书我只想学考试范围」「复习全书只要速查」「帮我定制一下怎么学这本书」 — or pastes a "Send to main chat" / 「发给主会话」 message whose id is custom.start (from a long document's row, or from the review book's More / 更多 menu).
 ---
 
-# 深度定制：先问清楚，再生成
+# Custom Study Plan for a Large Book: Ask First, Generate Only What Was Chosen (深度定制)
 
-学习者的一本大书，不是每一部分都要做。你用几个选项问清楚他怎么用这本书，答案存成这门课的**定制方案**（`custom`），然后只做他选了的。**确认之前不生成任何东西，也不存任何东西。**
+Not every part of a thick textbook needs a review book or hundreds of questions. Interview the learner with a short sequence of option cards, save their choices as the course's **custom plan** (`custom`), and start only what they ticked. **Nothing is generated and nothing is saved before the learner confirms** (确认之前不生成任何东西，也不存任何东西).
 
-下面每个动作都是 `study_workspace` 的 action（`action` 加 `payload_json`）。参数和限度的全文：`library.context {"area":"book"}`、`{"area":"generation"}`、`{"area":"plan"}`。
+**Language rule:** If the learner writes in English, run the entire interview, option labels, cost updates, the post-confirmation apply step (`"language": "en"`), and closing summary in 100% natural English with zero Chinese characters or `「…」` quotes. Otherwise default to Chinese.
 
-## 先读一次，再问
+Every action below runs through `study_workspace` (`action` plus `payload_json`). Full schemas and limits: `library.context {"area":"custom"}`, `{"area":"book"}`, `{"area":"generation"}`, `{"area":"plan"}`.
 
-1. `library.context {}`：焦点课程、课程列表、有没有可用的模型。课程对不上（消息里没有课程，或有好几门）就问学习者一句，不要猜。
-2. `course.get {"name": "<课程>"}`：课程现在有没有 `custom`（定制方案）。
-3. `course.custom.preview {"course": "<课程>"}`：只读，不调用模型。读它的 `skeleton`（资料、章节、页数，章节标题就来自这里）、`defaults`（每种用途的默认）、`estimate`（调用次数和 token）、`saved`。消息里带了文档 key 时，从 `skeleton.documents` 里按这个 key 找到那本书，先用一句话说「这本书 N 页，分成 M 章」。
-4. 没有模型（`library.context` 里没有）时照样问，照样存；只是后面说清楚「没有模型，现在什么都没法生成，方案先存着」。
+## Read Once Before Asking
 
-## 怎么问
+1. `library.context {}`: check the active course, course list, and whether an AI model is available. If the course is missing or ambiguous, ask one short question instead of guessing.
+2. `course.get {"name": "<course>"}`: check whether the course already has a saved `custom` plan.
+3. `course.custom.preview {"course": "<course>"}`: read-only, zero model calls. Inspect `skeleton` (materials, chapters, page ranges—use its exact chapter titles), `defaults` (per-purpose defaults), `estimate` (model calls and read tokens), and `saved`. When the hand-off names a document `key`, find it in `skeleton.documents` and open with one sentence: `"This book has N pages across M chapters."`
+4. If no model is connected, run the interview and save the plan anyway, explaining clearly that nothing can be generated until a model is set up.
 
-- 一次只问一个问题，用 `ask_user_question`，每个问题 2–4 个选项，每个选项一行说清「做什么 · 得到什么」。不要把几个问题塞进同一次调用。
-- 默认值放在第一个选项，标题后面加 ` (Recommended)`，学习者一路点第一个就是默认方案，只改不同意的地方。问题 1 之后，每个问题的默认都来自他选的用途（预览里的 `defaults`，或 `course.custom.preview` 带上 `custom` 后返回的）。
-- 多选的问题（问题 3 的部分、问题 4 的题型）带上 `"multiSelect": true`：返回的 `selected` 是选中的选项，`custom` 是他在「其他」里手写的补充。**如果宿主拒绝 `multiSelect`，或者多选的问题只回了一个选项**，就改成请他打字回答：把选项编号列成一小段（「1 讲解　2 术语卡和易混概念　3 答题模板和速查表　4 公式页和索引」），请他回「1 2」这样的编号，回「默认」就用推荐。之后所有多选的问题都这样问。
-- 学习者一条消息里已经把几个问题都答了（「期末复习，全书，要题，按考试日期」），直接采用，跳过这些问题，不要再问。
-- 每答一题，用选到现在的方案重读一次 `course.custom.preview {"course": "<课程>", "custom": {…选到现在的方案…}}`（只带已经定下的字段，其余由预览按用途的默认补，补好的完整方案在回答的 `filled` 里），用**一句话**说这一步让总量变了多少：「多了/少了 N 次调用、约 X token」。`estimate.rough` 为真就说「这是粗略估计」。只说调用次数和 token，不说价格。
-- 用「你」，不用「您」；不卖萌、不施压。
+## How to Run the Interview
 
-## 问题 1：这本书你拿来做什么
+- Ask **one question at a time** (一次只问一个问题) via `ask_user_question`, with **2–4 options** (2–4 个选项) per question, one line per option stating **what it does · what you get**. Never bundle multiple questions into one call.
+- Put the default as the **first option** (第一个选项) suffixed with ` (Recommended)`. After Question 1, defaults come from `defaults[purpose]` (or `filled` returned by `course.custom.preview` with partial `custom`).
+- Pass `"multiSelect": true` for multi-choice questions (Q3 parts, Q4 question kinds). If the host rejects `multiSelect` or returns only one selection, switch to numbered plain-text choices (`"1 Explanations  2 Term cards & confusables  3 Answer kit & cheat sheet  4 Formulas & index"` — reply `"1 2"` or `"default"`).
+- Skip any question the learner already answered in one message (e.g. `"Final exam revision, whole book, quiz questions, schedule by exam date"`).
+- After each answer, re-read `course.custom.preview {"course": "<course>", "custom": {…choices so far…}}` (`filled` completes unset fields from `defaults[purpose]`) and state in **one sentence** how the estimate changed (`"+/- N model calls, ~X read tokens"`; mention `"rough estimate"` when `estimate.rough` is true). Report calls and tokens only—**never prices** (只说调用次数和 token，不说价格).
+- Keep the tone direct and matter-of-fact (in Chinese use 「你」, never 「您」).
 
-选项：预习（先看个大概）· 跟课学（跟着课程一章一章学）· 期末复习（把整本书过一遍）· 开卷考试要速查（带进考场翻的东西）。对应 `custom.purpose`：`"preview"` / `"follow"` / `"review"` / `"openbook"`。这一问决定后面所有问题的默认。
+## 问题 1 · Question 1: What are you using this book for?
 
-## 问题 2：要覆盖哪些内容
+Options (`custom.purpose`):
+- **Preview — skim the big picture** (`"preview"`, 预习)
+- **Follow lectures — chapter by chapter** (`"follow"`, 跟课学)
+- **Final exam revision — cover the whole book** (`"review"`, 期末复习)
+- **Open-book quick reference — bring into the exam** (`"openbook"`, 开卷考试)
 
-选项：全书（`"all"`）· 只学考试范围（`"exam"`）· 我挑几章（`"chapters"`）。
+## 问题 2 · Question 2: Which content should we cover?
 
-- 考试范围：请他粘贴老师给的范围说明，或把范围的 PPT/截图交给我；文字和截图按 skill `study-import` 的「考试重点」一节收进这门课（存成资料、合进课程的 `focusTopics`），然后把资料标题写进 `scope.note`，`scope.kind` 为 `"exam"`。
-- 挑章：从 `skeleton` 里把章节标题带编号列给他（太多就先列前 40 章，说明其余可以按编号范围回答），请他打字回答，接受「3–7 章」「1,4,9」「第二部分」这样的范围；把选中的章节 id 写进 `scope.chapters`。听不明白的范围问一句，不要猜。
+Options (`custom.scope.kind`):
+- **Whole book** (`"all"`, 全书)
+- **Exam scope only** (`"exam"`, 考试范围) — ask the learner to paste the syllabus/scope note or share scope slides/screenshots; import and merge into `focusTopics` following skill `study-import`, then store the source title in `scope.note` with `scope.kind: "exam"`.
+- **Pick specific chapters** (`"chapters"`, 挑几章) — list numbered chapter titles from `skeleton` (up to 40 first, noting the rest can be chosen by number) and accept ranges like `"Ch. 3–7"`, `"1,4,9"`, or `"Part II"`; store resolved chapter IDs in `scope.chapters` (ask if ambiguous).
 
-## 问题 3：复习全书要哪些部分
+## 问题 3 · Question 3: Review book sections
 
-分三个小问题，都是同一个话题，按顺序一个一个问：
+Ask in up to three sequential steps on the same topic:
+1. **Build a review book?** (`Yes` / `No`). If `No`, set `book.make: false` and move to Q4.
+2. **Which sections?** (`multiSelect: true`, written into `book.parts`):
+   - **Explanations** (`explain`)
+   - **Term cards & confusable concepts** (`terms`, `confusables`)
+   - **Answer templates & cheat sheet** (`answerKit`, `cheatSheet`)
+   - **Formula sheet & lookup index** (`formulas`, `index`)
+   *(Finer splits like `terms` without `confusables` can be typed in Other.)*
+3. **Explanation depth** (only if `explain` is included, written into `book.coverage`): **Brief** (`"brief"`) · **Standard** (`"standard"`) · **Full** (`"full"`).
 
-1. 要不要复习全书（要 / 不要）。不要就跳过 2、3，`book.make` 为假；题和计划照常问。
-2. 要哪些部分，多选，选项分成四组：讲解（`explain`）· 术语卡和易混概念（`terms`、`confusables`）· 答题模板和速查表（`answerKit`、`cheatSheet`）· 公式页和索引（`formulas`、`index`）。默认的几组放前面。想分得更细（只要术语卡、不要易混概念），请他在「其他」里写，你照写进 `book.parts`。
-3. 讲解多详细：简要（`"brief"`）· 标准（`"standard"`）· 完整（`"full"`），写进 `book.coverage`。只有选了讲解才问。
+## 问题 4 · Question 4: Practice questions
 
-## 问题 4：要不要题
+1. **Generate practice questions?** (`Yes` / `No`). If `No`, set `questions.make: false` and move to Q5.
+2. **Question types** (`multiSelect: true`, written into `questions.kinds`): **Single-choice** (`quiz`) · **Multiple-choice** (`multi`) · **Fill-in-the-blank** (`cloze`) · **Open-ended** (`open`); learner may also request `flashcard`, `truefalse`, or hands-on `task` in Other.
+3. **Coverage strength** (`questions.strength`, showing `~estimate.questions.count` next to each): **Lean** (`lean`) · **Standard** (`standard`) · **Full** (`full`).
+4. **Auto-prepare variants for mistakes in this course?** (`Yes` / `No`, written into `questions.variants`).
 
-1. 要不要出题（要 / 不要）。不要就 `questions.make` 为假，跳过后面。
-2. 题型，多选：单选 `quiz` · 多选 `multi` · 填空 `cloze` · 问答 `open`。记忆卡 `flashcard`、判断题 `truefalse`、动手任务 `task` 请他在「其他」里写。写进 `questions.kinds`。
-3. 多少题：精简 `lean` · 标准 `standard` · 完整 `full`（就是出题页的覆盖强度），每个选项后面写预览里的大约题数（`estimate.questions.count`），写进 `questions.strength`。
-4. 做错的题要不要准备变式题（要 / 不要），写进 `questions.variants`。只管这门课：要，这门课做错的题自动准备；不要，不自动准备。
+## 问题 5 · Question 5: Study schedule
 
-## 问题 5：要不要学习计划
+Options (`custom.plan`):
+- **Schedule by exam date** (`"by": "exam"`, requires course exam date)
+- **Schedule by chapters per week** (`"by": "weekly"`, works without an exam date)
+- **No schedule** (`plan.make: false`)
 
-选项：按考试日期排（`"by": "exam"`，要先有考试日期）· 按每周几章排（`"by": "weekly"`，不需要考试日期）· 不要计划。选了前两个再问每天多少分钟（30 / 60 / 120，或他自己写），按每周几章的再问每周几章（1 / 2 / 3，或自己写），写进 `plan.minutesPerDay` 和 `plan.chaptersPerWeek`。
+If enabled, ask daily study minutes (`30` / `60` / `120` or custom -> `plan.minutesPerDay`), and for `"weekly"` ask chapters per week (`1` / `2` / `3` or custom -> `plan.chaptersPerWeek`).
 
-## 问题 6：确认
+## 问题 6 · Question 6: Summary & confirmation
 
-先用不超过八行总结：用途、范围、复习全书的部分和详尽程度、题（题型和强度）、计划，最后一行是 `estimate.total` 的调用次数和 token。然后问，默认第一个：
+Summarize in at most 8 lines: purpose, chapter scope, review-book sections & depth, question types & strength, schedule, and `estimate.total` (calls + tokens). Then ask:
+- **Build a small sample first (Recommended)** (`sampleFirst: true`, 先做一个样例看看): writes a 2-point review-book sample and the first round of the first chapter group, then waits for your go-ahead.
+- **Build everything now** (`sampleFirst: false`, 直接全部做).
+- **Trim it down** (再精简一些): revisit Q3–Q4 to drop sections or lower question volume, then re-summarize and confirm.
 
-- 先做一个样例看看（推荐）：`sampleFirst` 为真。只先写两个有代表性的知识点，让你看了再决定要不要做完。
-- 直接全部做：`sampleFirst` 为假。
-- 再精简一些：回到问题 3–4，问他想去掉书的哪些部分、或者少出一点题，然后重新总结、再确认。
+## 确认之后 · After confirmation: save, then apply once
 
-## 确认之后：存，再开始
+1. **Save:** Call `course.get` first to preserve existing fields, then `course.save {"name": "<course>", "custom": {…complete custom object…}}` (`custom: null` deletes only on explicit request).
+2. **Apply once (只调用一次):** Call `course.custom.apply {"course": "<course>", "language": "en"}` (use `"language": "zh"` when chatting in Chinese) **once**—do NOT manually invoke `generation.courseBook.build` or `generate` for the runs, and do not call `apply` repeatedly. Summarize the returned buckets using each item's localized `what` text:
+   - `started`: background jobs started now (review book, per-chapter-group question runs with `jobId`, saved study plan).
+   - `waiting`: what did not start and why (no model, sample waiting for review, stale chapter IDs, max 12 concurrent question groups, missing exam date) plus what the learner should do next.
+   - `recorded`: choices只记在定制方案里 that no backend job enforces yet—**never claim they were executed** (不要说已经做了).
+   - `done`: items already completed or active (existing book/questions/plan, variants toggle).
+3. **Continuing after sample (`sampleFirst`):** Once the learner inspects the sample and says `"finish the rest"` / `"go ahead"` (or Chinese 「做完」), call `course.custom.apply {"course": "<course>", "confirm": true, "language": "en"}` (or `"zh"`). Never pass `confirm: true` before they ask.
+4. **Missing outline:** If `waiting` says a fresh course outline is required first (`skeleton.basis` is `"documents"`), run `generation.courseOutline.build {"course": "<course>"}`, inspect top-level chapters with `course.outline {"course": "<course>"}`, map `scope.chapters` by title and page range (flagging any unmatched chapter honestly), `course.save`, and call `course.custom.apply` once more.
+5. **Term & confusable cards:** Once the review book finishes writing, run `generation.courseBook.build {"course": "<course>", "cards": true}` (preview with `estimate: true` first).
+6. **Detailed study plan:** `"weekly"` plans are saved directly by `apply`; `"exam"` plans save a baseline schedule (or wait in `waiting` until the exam date is set in Course settings). For multi-phase schedules and mock dates, draft with `course.plan {"course": "<course>"}` per `library.context {"area":"plan"}` and save only after agreement.
+7. **Background jobs:** Check once with `job.status {}` when asked; never loop-wait or promise proactive push updates between turns.
 
-1. 存：`course.save {"name": "<课程>", "custom": {…整份方案…}}`，整份方案发回去（先 `course.get`，已有的字段保留）；`custom` 为 `null` 是删除，只在他明确要删时才用。
-2. 开始：**只调用一次** `course.custom.apply {"course": "<课程>"}`。它按存下的方案，用现有的后台任务依次做：复习全书、题、备考计划；不用你自己去调 `generation.courseBook.build` 或 `generate`，也不要重复调用。把返回里的几组用一两句话念给他听，每一项的 `what` 就是现成的白话：
-   - `started`：已经开始的（复习全书、每一组章节的题，每组一个任务，还有备考计划存好了）。带 `jobId` 的是后台任务。
-   - `waiting`：没有开始，和为什么（没有模型、样例在等他看、章节编号找不到了、构建拒绝了、一次最多开 12 组题、按考试日期的计划缺考试日期）。每一项都说清楚现在要他做什么。
-   - `recorded`：只记在定制方案里、现在没有功能做的（见下面「只记录」），**不要说已经做了**。
-   - `done`：本来就已经做好的、或已经生效的（写好的书、做过的题、存好的计划、变式题的开关）。
-3. 样例先行（`sampleFirst`）的方案：复习全书先写两个知识点，题先做第一组的第一轮，其余在 `waiting` 里等。他看完样例说「做完」，再调用一次 `course.custom.apply {"course": "<课程>", "confirm": true}`，写完整本、做完所有组的题。没说之前不要自己加 `confirm`。
-4. 还没有总纲、`waiting` 里说「要先有最新的总纲」时：先 `generation.courseOutline.build {"course": "<课程>"}`（后台任务，只清点资料、排章节），建好后用 `course.outline {"course": "<课程>"}` 看顶层章节，按标题和页范围把 `scope.chapters` 对到总纲的章节 id（对不上的章节明说，不要硬配），`course.save` 存回去，再调用 `course.custom.apply` 一次。预览的 `skeleton.basis` 是 `outline` 时，章节 id 本来就是总纲的，不用对。
-5. 选了术语卡和易混概念的：书写完之后再 `generation.courseBook.build {"course": "<课程>", "cards": true}`（先 `estimate: true` 读一次规模），书还没写完就说它在等。
-6. 备考计划：按每周几章排的，`course.custom.apply` 已经存好，不需要考试日期，复习全书写好后才有具体到天的排期；按考试日期排的，`apply` 只存一份最小的（开始日期、每天分钟数），课程没有考试日期就在 `waiting` 里说，请他在课程设置里填，再调用一次。想要阶段、模拟卷日子这样的细节，按 `library.context {"area":"plan"}` 里的做法和他一起用 `course.plan {"course": "<课程>"}` 起草，他同意之后才用 `course.save` 的 `plan` 存（这门课已有计划时 `apply` 不会改它）。
-7. 任务都是后台的：`job.status {}` 看一次，不循环等待，不承诺「过会儿我来告诉你」；你只能在他再来的时候查。
+## How Question Scope Works
 
-## 题是怎么限定的
+`course.custom.apply` scopes question runs strictly to the selected chapters' pages and `questions.kinds` (mixed in one run per chapter group, up to 500 questions per run across multiple groups so large books are never capped at 500). Unpaged single-text sources are read whole and reported honestly in `recorded`.
 
-`course.custom.apply` 出题时，只读选中章节的页（按总纲的章或按资料的章），只出方案里选的题型（一次混合，不是每个题型各一次），强度就是方案里的覆盖强度。一个任务最多出 500 题，所以大书不再被截在 500：章节按顺序分组，每组一个任务，一个章节自己超过上限就按它的页切成几组。资料里一段没有分页的文字里的章节只能整段读，`apply` 会照实说没有切开。变式题的开关只管这门课：开，这门课做错的题自动准备变式题；关，不自动准备（他自己在错题本里要的不受影响）。
+## 只记录 · Recorded-only choices
 
-## 只记录
+- Choices returned in `recorded` are stored in the custom plan (`只记在定制方案里`) without chapter-filtering enforcement: **Exam scope (`scope.kind: "exam"`, 考试范围)** currently builds across the whole course rather than slicing chapters from free-text scope notes. Review-book `parts`, by contrast, ARE honoured directly (unticked parts are skipped).
+- State clearly at the end what has started running vs what is recorded only—**never say recorded-only items were built** (不要说已经做了).
 
-- `apply` 的 `recorded` 里的选择，现在没有功能做：考试范围（`scope.kind` 为 `exam`，只能整门课做）。复习全书的部分现在照方案做：没勾的部分不生成，书页上也不出现（公式页/索引/速查表是书写好之后的视图，有内容才出现）。
-- 这些选择照样存进方案，但**不要说已经做了**。结束时分两句说清楚：已经开始做的是什么，方案里记着但现在还做不到的是什么。
+## 已有定制 · Updating an existing custom plan
 
-## 已有定制
+When the course already has `custom` (已有定制, in the hand-off or `course.get`), **do not re-run the whole 6-question interview from scratch** (不要把整套访谈再问一遍):
+1. Summarize the current plan in one sentence (purpose, scope, book parts, questions, schedule).
+2. Ask one question: **What changed?** (`Purpose changed` · `Added new materials` · `Add/remove chapters` · `Something else`).
+3. Re-ask only the affected questions, preview `course.custom.preview`, confirm, `course.save`, and call `course.custom.apply` once (completed/running work is never duplicated).
 
-课程已经有 `custom`（消息里写了已有定制，或 `course.get` 里有）时，不要把整套访谈再问一遍或重新问整套：
+## Boundaries
 
-1. 用一句话把它说给学习者听（用途、范围、书的部分、题、计划）。
-2. 问一个问题：什么变了？选项：用途变了 · 加了新资料 · 想增减章节 · 别的。
-3. 只问和变化有关的问题，重读预览，确认，存，再调用一次 `course.custom.apply`：已经做过、正在做的不会重做，只做新增的部分。
-
-## 边界
-
-- 变式题和生成的讲解是模型写的，可能有错；答案旁边有原文页码，可以回去核对。这一点要说。
-- 不替学习者做决定：每个选项说清代价和结果，让他选。
-- 永久删除或归档任何东西之前，先用一句话问学习者：什么会没有，什么会留下；得到明确的「好」再动手。
-- 不拿使用时长、学习频率这类记录说事。
-- 学习者用英文写，就整个访谈用英文；否则默认中文。
-- 结束时用一句中文说明现在在跑什么、在等什么（English if the learner writes English）。
+- Note honestly that generated explanations and variants are AI-written and can contain mistakes (可能有错); every answer carries source citations and page numbers (页码) to verify against the original.
+- Present costs and trade-offs clearly and let the learner choose.
+- Before any permanent delete or archive, ask the learner first, in ONE sentence that says what goes and what stays, and act only on a clear yes. (永久删除或归档任何东西之前，先用一句话问学习者：什么会没有，什么会留下；得到明确的「好」再动手。)
+- Never comment on study streaks or usage time.
+- Match the learner's language (`English` when they write English, Chinese otherwise). End with one concise sentence stating what is running and what is waiting (结束时用一句中文说明现在在跑什么、在等什么；English if the learner writes English).

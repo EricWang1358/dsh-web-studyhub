@@ -19,6 +19,7 @@ import { courseNamesOf } from '../PageScope.jsx';
 import { scopeFilter } from '../SourcePicker.jsx';
 import { useHandOff } from '../hand-off/use-hand-off.js';
 import { BOOK_BUILD_KIND, bookDefaultOpen, emptyPick, isPicked, keepView, keptView, mainAction, outlineRows, paperChoices, pickArgs, pickCard, pickRow, runningBuild } from './model.js';
+import CourseCompanionsBar from '../companions/CourseCompanionsBar.jsx';
 import { basisText, bookCostTipText, bookCoverageText, bookIntroText, bookScalePointsText, bookScaleTokensText, bookStartedText, bookWhatText, cappedText, courseLine, levelOptions,
   levelsText, offerText, pickedText, readMoreStartedText, rebuildTipText, runningText, startPickedText, startedText, usedPapersText, whatText, writingText } from './words.js';
 import css from './outline.css';
@@ -168,6 +169,7 @@ export default function CourseOutline({ data, onBack, onCreate, onOpenSources, o
 
   return <CourseOutlineView course={course} outline={outline} details={details} error={error} open={open} deckId={deckId} pick={pick} picked={picked}
     running={runningBuild(data?.jobs, course)} writing={runningBuild(data?.jobs, course, BOOK_BUILD_KIND)} model={modelReadiness(data)} coverage={coverage} gate={gate} bookScale={bookScale}
+    companionsSlot={<CourseCompanionsBar course={course || data?.focus?.course || ''} data={data} />}
     actions={{ onBack, onCreate, onOpenSources, onOpenTask, onOpenSource, onOpenBook, organise, writeBook, readMore, setCoverage, pickScale, startCustom, gateScale, retry, toggle, onPick, onPickCard, onPracticeRow, clearPick: () => setPick(emptyPick()), practisePicked: () => practise(pickArgs(pick)),
       chooseDeck: value => { setDeckId(value); setPick(emptyPick()); } }} />;
 }
@@ -269,7 +271,7 @@ function Organise({ book, documents, running, writing, model, quiet, coverage, g
  * chooseDeck(id).
  */
 export function CourseOutlineView({ course, outline, details = {}, error = null, open, deckId = '', pick, picked = null, running = null, writing = null, model = { ready: true },
-  coverage = COVERAGE_DEFAULT, gate = null, bookScale = null, actions }) {
+  coverage = COVERAGE_DEFAULT, gate = null, bookScale = null, companionsSlot = null, actions }) {
   useInjectCss(css, 'study-outline');
   const { busy } = useStudy();
   const rows = useMemo(() => outlineRows(outline, details, open), [outline, details, open]);
@@ -305,6 +307,7 @@ export function CourseOutlineView({ course, outline, details = {}, error = null,
   return (
     <section className="page outline-page">
       {header}
+      {companionsSlot}
       {!book?.notes && outline.status === 'ok' && outline.documents.length > 0 && <p className="outline-book-intro">{bookIntroText()}</p>}
       {book && <div className="outline-book-line">
         <p className="outline-book-line__basis">{basisText(book.orderBasis)}</p>

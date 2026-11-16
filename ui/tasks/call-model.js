@@ -22,7 +22,7 @@ const STAGE_LABEL = { review: '审阅讲解', repair: '修复讲解', place: '�
 const AUDIO_CALLS = { 'audio-subtitles': ['proofread', 'translate'], 'audio-review': ['proofread'], 'audio-live-save': ['proofread', 'translate'], 'audio-live-correction': ['live.correct'] };
 export const audioCallKinds = (contractKind) => AUDIO_CALLS[contractKind] || ['transcribe', 'proofread', 'translate'];
 const LEGEND = { generation: ['plan', 'author', 'review', 'repair'], coach: ['prep'], 'course-book-build': ['inventory', 'outline', 'write', 'review', 'repair'],
-  'course-outline-build': ['inventory', 'outline'] };
+  'course-outline-build': ['inventory', 'outline'], 'companion-lesson-build': ['plan', 'author', 'repair'] };
 const LEGEND_LABEL = { plan: '规划', author: '出题', review: '审阅', repair: '修复', prep: '备题', inventory: '清点', outline: '归纳', write: '写' };
 /** The legend of the parallel timeline for a family of tasks (and, for audio, for the kind): [[call kind, label]]. */
 export const timelineLegend = (family, contractKind) => family === 'audio' ? audioCallKinds(contractKind).map((kind) => [kind, KIND_LABEL[kind]])

@@ -11,7 +11,7 @@ import { JOB_STATUS } from '../../lib/job-status.js';
 /* The four facts beside a task's progress and the stage segments of its bar, read from the job's contract. */
 
 const dash = '—';
-const UNIT_LABEL = { files: '文件', pages: '页', paragraphs: '段落', questions: '题数' };
+const UNIT_LABEL = { files: '文件', pages: '页', paragraphs: '段落', questions: '题数', steps: '步骤' };
 const SEGMENT_LABEL = { transcribe: '转写', proofread: '校对', translate: '翻译', save: '保存', plan: '规划', blueprint: '答案与情景', author: '出题', review: '审阅', repair: '修复' };
 
 /** When the task really began running: the contract's detail.runStartedAt (the wait in the queue is not in it); a record without one that is not queued began at its start (older hosts); a queued task has not begun (null). */

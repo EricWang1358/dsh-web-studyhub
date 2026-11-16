@@ -84,7 +84,7 @@
   "{0}：约 {1} 道题，覆盖 {2}/{3}，{4}，": "{0}: about {1} questions, covering {2}/{3}, {4}. ",
   "{0} 个排在后面的轮次": "{0} waiting for a later round",
   "排在后面的轮次": "Waiting for a later round",
-  "这一节在出题计划的后面几轮里，还没出题。可以用「为没覆盖的部分补题」继续。": "This section is in a later round of the plan and has no question yet. Continue with 「Add questions for the uncovered parts」.",
+  "这一节在出题计划的后面几轮里，还没出题。可以用「为没覆盖的部分补题」继续。": "This section is in a later round of the plan and has no question yet. Continue with \"Add questions for the uncovered parts\".",
   "不在这次的计划内": "not in this plan",
   "自动补到完整": "Finish automatically",
   "先出第 1 轮，剩下的 {0} 轮一轮接一轮自动做完；可以随时暂停，或停在这里（已出的题都保留）。": "Round 1 first, then the other {0} rounds one after another by themselves. You can pause any time, or stop here (every question made is kept).",

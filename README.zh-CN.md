@@ -10,7 +10,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 
 [在线体验](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [安装指南](docs/install.zh-CN.md) · [发布页](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.9.2) · [更新日志](CHANGELOG.zh-CN.md)
 
-在线体验直接在浏览器里打开，用示例题和预置的 AI 回复演示，不用安装，也不用 Key；体验进度只保存在当前浏览器。
+在线体验直接在浏览器里打开，内置示例题、可直接互动体验的跨学科**交互伴学**课和预置的 AI 回复，不用安装，也不用 Key；体验进度只保存在当前浏览器。
 
 ## 开始前先知道
 
@@ -25,13 +25,14 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 
 - **用自己的资料出题**：按页或按章节选资料，生成闪卡、单选、多选、开放问答或填空题。每道题都标明引用的原文，你检查草稿后再发布。
 - **题目和原文互相跳转**：点引用就回到原文段落；资料里的段落、表格角标能打开关联的题目和讲解。
+- **生成跨学科交互伴学课**：在「课程总纲」或「资料」页打开**交互伴学**，为数学、哲学、机械工程、物理、经济学、计算机科学等任意学科生成 16–20 页零依赖独立 `.html` 互动伴学课（`generation.companion.build`），内置参数数学沙盒、思想实验反例矩阵、分步矢量框图、代码实证泳道、零依赖离线 LaTeX→MathML 公式编译与 0 Token 间隔重复导题；也可以原位挂载本地伴学目录（`companion.attach`）。详见[交互伴学与搭配工具](docs/companions.zh-CN.md)。
 - **练习与复习**：在「学习库」开始今日学习，按每门课的「学法」推进或在主对话里开始「AI 带学」；任何一道题都能点「帮我弄懂」；FSRS-6 会把到期的题按时推给你。
 - **录入考试重点（只有图片也能用）**：在「录入重点…」拖入或粘贴划重点截图、板书照片或范围消息（同时支持看图模型与 DeepSeek 等纯文本主会话模型）；重点题间隔更短、优先进入每日学习与备考计划，出题时自动提高配额并加深到应用 / 进阶难度。存好重点后，首页会写出「重点 N 条：已掌握、还不会、还没有题」各几条，并给一个「练还不会的重点」的入口；课程设置里逐条列出每条重点有几道题、掌握了几道。
 - **找出薄弱点**：用「错题与待巩固」「统计」和「模拟考试」。模拟考试有选择题笔试、案例分析卷和口头面试三种形式。
 - **学完读一篇今日总结**：同一天同一课程累计完成 10 道不同题目后，可以生成错题讲解合集；不同章节合成一篇，重练不重复计数。设置里可选亲切或专业口吻、主动开启自动生成。合集沿用资料阅读器，「转成资料」和 CSDN 发布是单独的操作。
 - **录音转文字**：导入课堂录音，或用「课堂实录」边上课边转写，得到中英对照的讲稿，可以直接拿来出题。
 - **阅读与整理**：阅读器的工具栏只留「目录」「AI 出题」「错题」「思维导图」；查找、「翻译…」、显示设置和学习工具在「更多」里，「做这几页的题」是「AI 出题」右边的小箭头；课程、「学习笔记」「待办」和「知识骨架」帮你把一学期的内容管起来。
-- **搭配开源的 [Archify](https://github.com/tt-a1i/archify)**（MIT 协议，作者 tt-a1i，与 StudyHub 没有合作关系）：助手可以用它把知识骨架画成可交互的图，StudyHub 负责保存和显示这个文件。详见[搭配好用的工具](docs/companions.zh-CN.md)。
+- **搭配开源的 [Archify](https://github.com/tt-a1i/archify)**（MIT 协议，作者 tt-a1i，与 StudyHub 没有合作关系）：助手可以用它把知识骨架画成可交互的图，StudyHub 负责保存和显示这个文件。详见[交互伴学与搭配工具](docs/companions.zh-CN.md)。
 
 ## 快速上手
 
@@ -39,7 +40,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 | --- | --- | --- |
 | 看示例课程和功能导览、浏览资料、练习已有题目 | 装好插件即可 | 免费，不调用模型 |
 | 用资料出题、看讲解、用「帮我弄懂」 | 一个模型服务商的 API Key，填在 DSH 的「设置 › 模型」 | 按服务商计费，例如 [DeepSeek API](https://platform.deepseek.com/) |
-| 录音转文字 | 一个转写服务密钥，填在 StudyHub 的「设置 › 音频转写」 | 硅基流动 SenseVoice 支持录音转写；Gemini、Groq 可用地区和额度由服务商决定 |
+| 录音转文字 | 一个转写服务密钥（或本地实时引擎），在 StudyHub 的「设置 › 音频转写」配置 | 硅基流动 SenseVoice、Gemini、Groq 支持录音转写（可用地区和额度由服务商决定）；「课堂实录」还支持免密钥的本地离线引擎 |
 
 1. **安装 DSH**（已装可跳过）：下载官方的 [Windows 64 位安装器（.exe）](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe)或 [macOS Apple 芯片安装器（.dmg）](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg)。其他电脑先安装 Node.js 22.19 或以上，再运行 `npx @deepseek-ai/dsh web` 启动网页版。
 2. **安装 StudyHub**：在 DSH 打开「插件」，点「添加插件」，粘贴下面的地址，装好后点「启用」：
@@ -108,6 +109,13 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 
 默认题型、题数、内容语言、难度和侧重点可在「设置 › 出题偏好」保存；新建出题仍可单次调整。每批题数、并行批次和运行时限也在这里，初始为 5 题、4 批、20 分钟。已经开始的任务保留原设置；补题的原草稿保留自己的设置，只有运行时限和是否采纳审阅建议按设置里现在的值。详见[生成安排](docs/generation-agents-sidebar.zh-CN.md#出题任务怎么做)。
 
+### 交互伴学
+
+在「课程总纲」或「资料」页打开**交互伴学**，用「单舞台 + 底部逐句领读」拆解难点概念（`studyhub-lesson/1`）：
+
+- **跨学科自由生成（`generation.companion.build`）**：四阶段流水线在 `<工作区>/companions/<课程>/` 下输出 16–20 页零依赖独立 `.html` 课程，支持**数理参数与相平面沙盒**（`sandbox`，纯 AST 1D 多曲线、2D 参数轨迹、相平面向量场箭图、动态平衡点与十字准星读数）、**思辨反例矩阵**（`dialectic`，先猜后看压力测试与苏格拉底双轨交锋）、**闭环矢量框图**（`mechanism`，反馈曲线绕行与部件详情）和**代码实证与实操演练**（`empirical`、`spot`、`try`）四大母版，内置零依赖离线 W3C MathML 公式、`?` 快捷键面板与 `@media print` 多页讲义导出。勾选资料时严格锚定原文，无资料自由命题时诚实标注 `AI 推演`。
+- **挂载本地伴学包、未构建 JSON 实时编译与 0 Token 导题（`companion.attach`、`companion.sync`）**：支持挂载单个 `.html` 或伴学目录（含 `pages/*.html` 或实时编译的原始 `lessons/*.json`）；已有题组自动走**增强挂载**（关联现有卡片精确 `#页码` 锚点并补口述题），空白课程自动走**全量导题**（零 Token 编译带走闪卡、边界自测、口述与实操题，学完授予**首学采信**）。沙箱内支持底部快速跳页、深浅色实时联动、一键同步磁盘修改（`companion.sync`）、划词秒问（`companion.ask`）、存入「伴学拾遗」与双向同步 `feedback/questions.json`。详见[交互伴学与搭配工具](docs/companions.zh-CN.md)。
+
 ### 练习与复习
 
 「今日学习安排」把待办接进学习库首页。先请 AI 根据真实的待复习题、薄弱点、已有资料和已接受任务提出安排，再写下意见让它调整，或直接接受。每项显示建议理由和预计分钟数；接受前不会创建待办，接受后可直接开始或继续。
@@ -145,7 +153,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 - **用量较大**：可以考虑 Coding Plan，但前提是它提供 API Key，并允许在 DSH 和学习用途下使用。购买前确认适用工具、用途、专用 API 地址、模型、并发和额度规则；能创建 Key 不代表套餐允许任意应用调用。
 - **订阅不能当 Key 用**：Claude Pro／Max、ChatGPT／Codex 订阅不能直接作为 DSH 的 API Key 或套餐额度。Anthropic 与 OpenAI 单独付费的 API 可以作为第三方服务商添加；这条限制只针对订阅，不是不能用它们的 API 模型。
 
-配置步骤见[配置模型服务商](docs/install.zh-CN.md#配置模型服务商)。每个功能大概用多少 Token，见 [Token 用量与估算](docs/token-usage.md)。
+配置步骤见[配置模型服务商](docs/install.zh-CN.md#配置模型服务商)。每个功能大概用多少 Token，见 [Token 用量与估算](docs/token-usage.zh-CN.md)。
 
 ## 录音转文字
 
@@ -153,7 +161,7 @@ StudyHub 是 [DeepSeek Harness（DSH）](https://www.deepseek.com/en/harness/)�
 2. 打开「音频转写」，点「添加音频」，再点「开始导入」。没配好转写服务之前，不会开始上传。
 3. 转写好的讲稿保存为一份资料，可以像其他资料一样出题。
 
-这些密钥只用于转写。校对和翻译默认用你在 DSH 里选的模型，这部分 Token 按模型服务商计费，并计入「统计」里的「模型用量」。「课堂实录」的实时转写只支持 Gemini。
+这些密钥只用于转写。校对和翻译默认用你在 DSH 里选的模型，这部分 Token 按模型服务商计费，并计入「统计」里的「模型用量」。「课堂实录」支持使用 Gemini 或本机安装的离线实时引擎（SenseVoice / Whisper，无需转写密钥）实时生成中英对照讲稿。
 
 <details>
 <summary>音频的更多细节</summary>
@@ -243,18 +251,18 @@ npm run release:pack   # 全部发布包和 SHA256SUMS-<版本号>.txt，输出�
 - `npm run test:fast` 跳过 `tests/slow-tests.json` 里列出的文件，即会启动浏览器、运行 ffmpeg 或启动其他程序的测试。新增的测试文件如果做了这些事却没有列入，`tests/slow-tests-list.test.mjs` 会失败，快速档因此不会悄悄变慢；提交 PR 前请运行 `npm run verify`。
 - DSH SDK `@deepseek-ai/dsh-tools` 与 `@deepseek-ai/dsh-llm`（可选 peer 依赖，`>=0.2.0-rc.2 <0.3`）由 DSH 提供；缺少时，依赖它们的测试会明确跳过。
 - CI 在 Node 22 上（Ubuntu 和 Windows）对每个 PR 运行：lint 和构建只在 Ubuntu 上做一次；测试按权重切成大小相近的分片（Ubuntu 3 片、Windows 5 片），每片在一台独立的机器上并行跑；最后的 `verify` 检查只有在 lint 和所有分片都通过时才为绿。同一个 PR 再推新提交时，还在跑的旧检查会被取消。本地可以用 `node scripts/test.mjs --shard=2/5` 只跑一片（`node scripts/qa/run-tests.mjs --shard=2/5 --list` 列出它的文件）。`tests/test-weights.json` 记录每个测试文件大约要多久，让所有机器切法一致，也让全新的机器先跑最慢的文件；用 `node scripts/qa/test-weights.mjs --write <durations.json>` 刷新（CI 每个分片会把自己的耗时作为 `durations-*` 附件上传；同一次运行的多个文件加 `--sum`）。 另有一个独立、不阻塞合并的 `browser-smoke` 任务（`.github/workflows/browser-smoke.yml`，Ubuntu）：安装 Playwright 的 Chromium，运行 4 个真实浏览器测试文件（外壳、复习揭示、错题页、右栏交接）——这些文件在分片里因为没有浏览器而被跳过；它失败时检查仍显示为绿，需要打开该次运行查看结果。要让它变成必过项，去掉 `continue-on-error` 并在分支保护里把它设为必需检查。
-- [静态体验版](docs/static-demo.md)加载真实界面，使用公开示例和预置回复，不调用真实模型。
+- [静态体验版](docs/static-demo.zh-CN.md)加载真实界面，使用公开示例和预置回复，不调用真实模型。
 
 ## 文档
 
 - **安装**：[安装与模型配置](docs/install.zh-CN.md)
 - **资料**：[PDF 出测验与闪卡](docs/pdf-workflow.zh-CN.md) · [大教材](docs/large-documents.zh-CN.md) · [用 MinerU 转换 PDF](docs/mineru-conversion.zh-CN.md) · [JSON 题组导入](docs/json-import.zh-CN.md)
-- **科学工具与媒体**：[公式、图片与计算工具设置](docs/science-settings.md) · [图片与公式显示](docs/images-latex.zh-CN.md) · [计算题逐步引导](docs/calculation-guidance.md)
-- **题目**：[出题与质量检查](docs/assessment-quality.zh-CN.md) · [自己的参考样题](docs/reference-questions.zh-CN.md) · [向已有题组补题](docs/supplementation.zh-CN.md) · [斩题](docs/slay.zh-CN.md) · [题目英文对照](docs/translate-en.zh-CN.md) · [Token 用量与估算](docs/token-usage.md)
+- **科学工具与媒体**：[公式、图片与计算工具设置](docs/science-settings.zh-CN.md) · [图片与公式显示](docs/images-latex.zh-CN.md) · [计算题逐步引导](docs/calculation-guidance.md)
+- **题目**：[出题与质量检查](docs/assessment-quality.zh-CN.md) · [自己的参考样题](docs/reference-questions.zh-CN.md) · [向已有题组补题](docs/supplementation.zh-CN.md) · [斩题](docs/slay.zh-CN.md) · [题目英文对照](docs/translate-en.zh-CN.md) · [Token 用量与估算](docs/token-usage.zh-CN.md)
 - **学习**：[课程跟学、历史学习流与学习笔记](docs/study-workflows.zh-CN.md) · [陪学、自动驾驶与定制题](docs/coach.zh-CN.md) · [讲解追问](docs/followup.zh-CN.md)
 - **音频**：[音频导入](docs/audio-import.zh-CN.md) · [课堂实录](docs/live-class.zh-CN.md)
 - **对话与任务**：[在主对话里查询资料与题组](docs/main-session-queries.zh-CN.md) · [后台任务与侧栏](docs/generation-agents-sidebar.zh-CN.md)
-- **搭配工具**：[Archify 与其他搭配工具](docs/companions.zh-CN.md)
+- **交互伴学与搭配工具**：[跨学科 HTML 伴学课、本地伴学包与 Archify](docs/companions.zh-CN.md)
 - **可选功能**：[使用频率记录](docs/usage-frequency.zh-CN.md) · [Jev 决策层（实验性，英文）](docs/jev-experimental.md)
 - **开发者**：[架构与扩展](docs/architecture.md) · [架构案例分析（英文）](https://github.com/EricWang1358/dsh-web-studyhub/tree/main/docs/case-study) · [开发验证记录（英文）](docs/verification.md) · [界面文字的说话方式](docs/voice-and-tone.zh-CN.md) · [FSRS-6 复习调度](references/sm2-scheduling.md) · [旧版 study-lib-spar 数据格式](references/library-schema.md)
 

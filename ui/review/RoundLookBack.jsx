@@ -9,8 +9,10 @@ import { fixedOptionLabel, optionMark } from "../option-label.js";
 import { fixedOptionsOf, hasOptions, isGraded } from "../../lib/card-kinds.js";
 import { invalidate, useHostQuery } from "../host-query.js";
 import { useStudy } from "../study-context.jsx";
+import { AppContext } from "../app/app-context.js";
 import { useCopyFeedback } from "../use-copy-feedback.js";
 import CorrectionCard from "./CorrectionCard.jsx";
+import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "../companions/companion-ref.js";
 
 /* 本轮题目 on the result page (#1009): one row per question of the round, read once when the page opens with review.lookBack {runId}
    (lib/contexts/study/round-look-back.js; a read the main chat is refused, so a chat's tool results of the round stay small), and a press on a row opens a
@@ -166,6 +168,7 @@ function LookBack({ row, mode, sources, onOpenSource }) {
  */
 export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAck, onPracticeWrong, segment = null, onSegmentChange }) {
   const study = useStudy();
+  const courses = React.useContext(AppContext)?.data?.courses;
   const openSource = study?.openModal ? (source, quote, peekPage) => {
     if (source) study.openModal({ type: "source", source, quote, peekPage, back: true });
   } : null;
@@ -253,6 +256,9 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
     const words = STATUS[row.status] || STATUS.unanswered;
     const expanded = open.has(row.number), regionId = `look-back-${run.id}-${row.number}`;
     const place = sourceForRow(row);
+    const companionTarget = expanded && row.solution && study?.openModal
+      ? resolveCompanionTarget({ card: row.card, solution: row.solution, courses, sources })
+      : null;
     return (
       <li key={row.number} className="look-back__row" data-status={row.status} data-number={row.number}>
         <Button variant="quiet" className="look-back__line" align="start" aria-expanded={expanded} aria-controls={expanded ? regionId : undefined} onClick={() => toggle(row.number)}>
@@ -273,8 +279,13 @@ export default function RoundLookBack({ run, sources = [], onOpenWrongBook, onAc
             <LookBack row={row} mode={run.mode} sources={sources} onOpenSource={openSource} />
             {row.feedback && <CorrectionCard feedback={row.feedback} withRubric={!!row.feedback.rubric && row.card?.kind !== "task"}
               onAck={row.correctionPending && onAck ? () => Promise.resolve(onAck(row)).then(() => invalidate("review.lookBack")) : undefined} />}
-            {(place || (row.status === "wrong" && onOpenWrongBook)) && (
+            {(companionTarget || place || (row.status === "wrong" && onOpenWrongBook)) && (
               <div className="look-back__actions">
+                {companionTarget && (
+                  <Button variant="quiet" size="sm" icon="play" onClick={() => openCompanionTarget(study.openModal, companionTarget)}>
+                    {companionSlideButtonLabel(companionTarget)}
+                  </Button>
+                )}
                 {place && (
                   <Button variant="link" size="sm" onClick={() => study.openModal({ type: "source", source: place, back: true })}>
                     {row.sourceTitle && row.page != null

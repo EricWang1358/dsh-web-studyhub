@@ -67,6 +67,8 @@ import { useChapterGoal, useReaderChapters } from './reader/useReaderChapters.js
 import { chapterName, chapterRange, chapterTitle, chapterPagerLabel, elsewhereCount, nextChapterWord, previousChapterWord } from './reader/chapter-copy.js';
 import { useNarrow } from '../use-narrow.js';
 import { hasContext } from '../capabilities.js';
+import { useStudy } from '../study-context.jsx';
+import { openCompanionTarget, resolveSourceCompanionTarget } from '../companions/companion-ref.js';
 
 /** Under this width of the viewer the toolbar's controls fill one row (reader-slim.css, @container reader 520px): 待出题 moves into 更多. */
 const COMPACT_TOOLBAR = 520;
@@ -153,9 +155,19 @@ export default function DocumentViewer(props) {
 
 function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDeck, onPractice, onStarted, onPublished, onCaseFromPassage, onGenerate, onGenerateStarted, generateDisabled = false, initialMode = 'read',
   onPracticePages, onGeneratePages, onOpenDraftPages, resume: resumeProp, backLabel, onBack, localContent, moreItems: extraItems, peekPage, pickPages = false, onReconvert, inlinePractice = null, reread = null,
-  fromQuestion = false, seek = null, onSeekMissed, strip = null, onAppendQuestionNote }) {
+  fromQuestion = false, seek = null, onSeekMissed, strip = null, onAppendQuestionNote, onOpenCompanion }) {
   const language = useUiLanguage();
+  const study = useStudy();
   const localMode = localContent != null;
+  const fallbackCompanionTarget = useMemo(
+    () => (!localMode && !onOpenCompanion && source
+      ? resolveSourceCompanionTarget({ source, quote, courses: data?.courses, sources: data?.sources })
+      : null),
+    [localMode, onOpenCompanion, source, quote, data?.courses, data?.sources],
+  );
+  const openCompanion = onOpenCompanion || (fallbackCompanionTarget && study?.openModal
+    ? () => openCompanionTarget(study.openModal, fallbackCompanionTarget)
+    : null);
   useInjectCss(css, 'study-document-preview');
   useInjectCss(readerCss, 'study-reader');
   useInjectCss(slimCss, 'study-reader-slim');
@@ -821,6 +833,11 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       </div>
       {/* 出题 is the one primary control; the arrow beside it opens 做这几页的题 (shortcut P). 错题 and 思维导图 are panels. */}
       <div className="reader-toolbar__actions">
+        {!localMode && openCompanion && (
+          <Button size="sm" variant="secondary" icon="play" onClick={openCompanion}>
+            {ui('打开交互伴学页')}
+          </Button>
+        )}
         {!localMode && onGenerate && <span className="reader-split" data-tour="reader-generate">
           <Tooltip layer content={ui('从这份资料出题')}><Button variant="primary" size="sm" icon="sparkle" className="reader-split__main" disabled={generateDisabled} onClick={onGenerate}>{ui('AI 出题')}</Button></Tooltip>
           {view !== 'original' && onPracticePages && <ReadingPractice split loop={loop} unit={unit} busy={generateDisabled} onStart={practise} onStartHere={inlinePractice ? practiseHere : undefined} onGenerate={generatePages} onOpenDraft={onOpenDraftPages ? openDraftPages : undefined} />}

@@ -253,3 +253,89 @@ test('new English transcript scaffolding and default class titles are English wh
   assert.match(defaultTitle(new Date('2026-01-01T12:00:00'), 'en'), /^Live class recording /);
   assert.match(defaultTitle(new Date('2026-01-01T12:00:00')), /^课堂实录 /);
 });
+
+test('English application dictionary has zero CJK leaks and localizes coachStatus, inbox, capture titles, /study-spar, notes, and AI prompts', async t => {
+  const { default: APP_MESSAGES_EN } = await import('../lib/application-messages-en.js');
+  const { localizeAppMessage, localizeAppResponse } = await import('../lib/application-messages.js');
+  const { parseSparInput, formatCapture } = await import('../lib/capture.js');
+  const { suggestFollowups } = await import('../lib/followup.js');
+  const { writeNudge } = await import('../lib/coach.js');
+
+  const cjk = /[\u3400-\u9fff]/;
+  for (const [key, value] of Object.entries(APP_MESSAGES_EN)) {
+    assert.doesNotMatch(value, cjk, `APP_MESSAGES_EN[${JSON.stringify(key)}] leaked CJK: ${value}`);
+  }
+
+  assert.equal(localizeAppMessage('请填写要请教的具体问题，或勾选至少一个帮助方向', 'en'), 'Enter a specific question or select at least one help topic');
+  assert.doesNotMatch(localizeAppMessage('陪学点格式不完整', 'en'), cjk);
+  assert.equal(localizeAppMessage('未归位 / Not placed', 'en'), 'Not placed');
+
+  const snap = localizeAppResponse({
+    sources: [{ id: 's1', origin: 'capture', title: '补充笔记 · RabbitMQ' }],
+    inbox: {
+      unread: 2,
+      items: [
+        { kind: 'variant', label: '定制题', detail: '备好定制题：What is RabbitMQ?' },
+        { kind: 'rewrite', label: '按反馈改题', detail: '核对后未改动：答案无误', detailFull: '核对后未改动：答案无误' },
+      ],
+    },
+    coach: {
+      tasks: [{ id: 't1', label: '准备 2 道定制题', status: 'done', message: '备好 2 道定制题' }],
+      failedCards: [{ cardId: 'c1', message: '这道题没有写出通过校验的变式，已跳过' }],
+    },
+  }, 'snapshot', 'en');
+  assert.equal(snap.sources[0].title, 'Supplementary notes · RabbitMQ');
+  assert.equal(snap.inbox.items[0].label, 'Custom question');
+  assert.equal(snap.inbox.items[0].detail, 'Personalised question ready: What is RabbitMQ?');
+  assert.equal(snap.inbox.items[1].label, 'Revised from feedback');
+  assert.match(snap.inbox.items[1].detail, /^Checked — no change needed:/);
+  assert.equal(snap.coach.tasks[0].label, 'Prepare 2 custom questions');
+  assert.equal(snap.coach.tasks[0].message, 'Prepared 2 custom questions');
+  assert.equal(snap.coach.failedCards[0].message, 'No variant passed validation for this question; skipped');
+  const snapCheck = structuredClone(snap);
+  snapCheck.inbox.items[1].detail = snapCheck.inbox.items[1].detail.replace('答案无误', 'Verified');
+  snapCheck.inbox.items[1].detailFull = snapCheck.inbox.items[1].detailFull.replace('答案无误', 'Verified');
+  assert.doesNotMatch(JSON.stringify(snapCheck), cjk);
+
+  const parsed = parseSparInput('prerequisite: What is RabbitMQ routing as MCQ');
+  assert.deepEqual(parsed, { kind: 'quiz', prerequisite: true, question: 'What is RabbitMQ routing' });
+  const receipt = formatCapture({
+    deckTitle: 'Distributed Systems',
+    topic: 'RabbitMQ',
+    kind: 'quiz',
+    prompt: 'What is RabbitMQ routing?',
+    answer: 'Key match',
+    grounded: false,
+    prerequisiteFor: { prompt: 'Explain AMQP exchanges' },
+  }, 'en');
+  assert.doesNotMatch(receipt, cjk);
+  assert.match(receipt, /Added to Distributed Systems › RabbitMQ \(multiple-choice\)/);
+  assert.match(receipt, /Linked as a prerequisite of “Explain AMQP exchanges”/);
+
+  const service = await library(t);
+  await service.store.update(state => {
+    state.decks.push({ id: 'd1', title: 'Patterns', cards: [{ id: 'c1', kind: 'flashcard', topic: 'Memento', prompt: 'What is Memento?', answer: 'Snapshot.' }] });
+  });
+  const created = await service.call('note.create', { title: 'My English note', cards: [{ deckId: 'd1', cardId: 'c1' }], uiLanguage: 'en' });
+  assert.match(created.markdown, /## Core concepts/);
+  assert.doesNotMatch(created.markdown, cjk);
+
+  let followupPrompt = '';
+  await suggestFollowups(async (sys, usr) => {
+    followupPrompt = sys + '\n' + usr;
+    return JSON.stringify({ questions: ['Why opaque?', 'Who restores?', 'When use Bridge?'] });
+  }, { kind: 'quiz', topic: 'Memento', prompt: 'Who owns state?', answer: 'Originator', explanation: 'Encapsulation.' }, { language: 'en' });
+  assert.doesNotMatch(followupPrompt, cjk);
+
+  let coachPrompt = '';
+  await writeNudge(async (sys, usr) => {
+    coachPrompt = sys + '\n' + usr;
+    return JSON.stringify({ point: 'Role boundary', explain: 'Caretaker stores; Originator restores.', check: { q: 'Who reads state?', options: ['Originator', 'Caretaker'], answer: 0, why: 'Encapsulation.' } });
+  }, {
+    card: { kind: 'quiz', topic: 'Memento', prompt: 'Who restores state?', answer: 'Originator', explanation: 'Only Originator reads Memento.' },
+    answer: { text: 'Caretaker', expected: 'Originator' },
+    learner: { goal: 'exam' },
+    language: 'en',
+  });
+  assert.doesNotMatch(coachPrompt, cjk);
+});

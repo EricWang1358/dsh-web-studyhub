@@ -20,9 +20,15 @@ sampleCards.push(
   extra('bridge-dimensions','Bridge','Name the two independent dimensions in the report example.','Report types and rendering backends.','Bridge separates the abstraction from the implementation so either dimension can change independently.','In a report rendering system, report types and rendering backends are two independent dimensions.',{prompt:'报表例子中两个独立变化的维度是什么？',answer:'报表类型与渲染后端。',explanation:'Bridge 分离抽象与实现，让双方可以独立变化。',hint:'用户要什么报表？系统用什么方式渲染？'}),
   extra('bridge-cross-product','Bridge','With five report types and four rendering backends, how many combination subclasses would be needed?','Twenty combinations: 5 × 4.','This is a constructed application of the source: subclassing every pair produces a cross product. Bridge avoids encoding every combination as a subclass.','Subclassing every report-backend combination produces a cross product of classes.',{prompt:'5 种报表、4 种渲染后端，按每种组合建子类会得到多少种？',answer:'20 种组合：5 × 4。',explanation:'这是根据资料构造的应用例子：组合继承会产生笛卡尔积，Bridge 避免为每种组合建立子类。',hint:'把两种维度的数量相乘。'}),
 );
+export function stripDemoCardFields(card) {
+  if (!card || typeof card !== 'object') return card;
+  const { zh: _zh, demoKey: _demoKey, ...clean } = structuredClone(card);
+  return clean;
+}
 export function localCard(card, lang) {
   if (!card) return card;
-  const original = sampleCards.find(c => c.id === (card.demoKey || card.id.replace(/^demo-\d+-/, '')));
+  const baseId = card.demoKey || String(card.id || '').replace(/^(?:demo-\d+-|draft-)/, '');
+  const original = sampleCards.find(c => c.id === baseId);
   if (lang !== 'zh' || !original?.zh) return card;
   const localized = original.zh;
   return { ...card, ...localized, id: card.id,

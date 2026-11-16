@@ -9,6 +9,7 @@ import { formatQuoteForNote, questionNoteRef, questionNoteTitle } from '../../re
 import { hasContext, pageAvailable } from '../../capabilities.js';
 import { useApp } from '../app-context.js';
 import ReaderRun from './ReaderRun.jsx';
+import { openCompanionTarget, resolveSourceCompanionTarget } from '../../companions/companion-ref.js';
 
 /* The reader of a material, wherever it is shown: the full-size dialog (SourceReaderDialog) or the 对照栏 beside a question on a wide practice page (#1012,
    ui/review/SourceColumn.jsx). One set of DocumentViewer props, so both are the same reader with the same actions; only what belongs to the place differs:
@@ -101,8 +102,13 @@ export function useSourceReader({ modal, onClose, column = false }) {
     ? <ReaderHeading data={data} source={source} act={act} call={call} renameRequest={renameRequest}
       onRenamed={(done) => toast.success(done.status === 'renamed' ? uiFormat('已重命名为「{0}」', [done.title]) : ui('名称没有变化'))} />
     : ui('资料不可用');
+  const companionTarget = useMemo(
+    () => (source ? resolveSourceCompanionTarget({ source, quote: modal.quote, courses: data?.courses, sources: data?.sources }) : null),
+    [source, modal.quote, data?.courses, data?.sources],
+  );
   const viewer = !source ? null : {
     source, quote: modal.quote, moreItems, call, data, host, generateDisabled: busy,
+    onOpenCompanion: companionTarget ? () => openCompanionTarget(set.setModal, companionTarget) : undefined,
     onOpenModelSettings: openModelSettings, onOpenSettings: openSettings,
     onGenerate: canGenerate ? () => intents.goGenerate({ sourceIds: documentSourceIds(data.sources, source.id), remember: true, closeModal: true }) : undefined,
     onPublished: () => refresh(), onOpenCard: canBank ? (reference) => { onClose(); learn.openLearningTarget({ kind: 'card', ...reference }); } : undefined,

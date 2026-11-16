@@ -24,7 +24,7 @@ The install runs six steps, one after the other. The card shows the step in hand
 - It needs no administrator rights and nothing installed beforehand, and it changes no system setting.
 - Everything goes into one folder: the program, Python, the models and MinerU's own settings (`MINERU_HOME`). Nothing is written to `~/.mineru`.
 - Download about 1.3 GB, about 4 GB on disk, about 10–30 minutes (estimates; they depend on the network and the computer).
-- You can leave the page: the install is also listed in **Tasks**. Do not close StudyHub while it runs.
+- You can leave the page: the install is also listed in **Jobs**. Do not close StudyHub while it runs.
 - **Cancel** keeps what was downloaded. **Continue installing** starts again from the step that stopped; finished steps are skipped.
 
 ## Install location (not the system drive by default)

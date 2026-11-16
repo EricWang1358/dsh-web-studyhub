@@ -4,7 +4,7 @@
 
 In DSH, the main chat reaches your StudyHub library through the `study_workspace` tool. You ask in plain words, and the assistant chooses the calls. This page lists what it can look up, so you can phrase requests precisely and check what it reports.
 
-The assistant reads your library in small pages through these calls; reading needs no scripts. In 学习模式 the assistant can also run commands and edit files, which it uses to convert material (for example split a PDF by chapter) before importing it into the library.
+The assistant reads your library in small pages through these calls; reading needs no scripts. In **Study Mode** the assistant can also run commands and edit files, which it uses to convert material (for example split a PDF by chapter) before importing it into the library.
 
 ## What you can ask
 
@@ -20,7 +20,8 @@ The assistant reads your library in small pages through these calls; reading nee
 | Start what a saved custom plan asks for | "Go ahead with the plan we just agreed." | `course.custom.apply` (once: the review book, the questions of the chosen chapters, the study plan; answers what started, what waits and what is only recorded; safe to say again) |
 | Add questions to an existing deck | "Add 5 questions from this lecture to my binary search deck." | `supplement`, see [Add questions to an existing deck](supplementation.md) |
 | Publish a draft into an existing deck | "Merge this draft into my binary search deck." | `draft.publish` |
-| Draw a knowledge outline as an interactive diagram | "Use the archify skill to draw my reliability outline." | `skeleton.get`, then `skeleton.diagram.attach`, see [Works well with other tools](companions.md) |
+| Build or mount an interactive HTML companion | "Build an interactive companion on uniform convergence for Real Analysis." | `generation.companion.build` or `companion.attach`, see [Interactive Companions and external tools](companions.md) |
+| Draw a knowledge outline as an interactive diagram | "Use the archify skill to draw my reliability outline." | `skeleton.get`, then `skeleton.diagram.attach`, see [Interactive Companions and external tools](companions.md) |
 
 To import JSON deck files from your computer, see [Import files from the main chat](json-import.md#import-files-from-the-main-chat).
 
@@ -43,7 +44,7 @@ This page writes a call as `action {arguments}`, for example `source.list {impor
 - live-computed learner facts (`learner`: goal, study preferences, explicit formula notation, weak topics, focus-topic progress, exam countdown, and—when preparation consent and round reviews are both on—the coach's profile summary) when any are set or recorded, omitted on a brand-new library;
 - the list of contract areas.
 
-For the exact arguments of a group of actions, request one area, such as `library.context {area:"sources"}`, `{area:"generation"}` or `{area:"cards"}`. The areas are `dailyPlan`, `plan`, `custom`, `sources`, `imports`, `decks`, `classroom`, `generation`, `cards`, `learning`, `panel`, `guided`, `book`, `organization`, `notes`, `board`, `workflows`, `cases` and `skeletons`.
+For the exact arguments of a group of actions, request one area, such as `library.context {area:"sources"}`, `{area:"generation"}` or `{area:"cards"}`. The areas are `dailyPlan`, `plan`, `custom`, `sources`, `imports`, `decks`, `classroom`, `generation`, `cards`, `learning`, `panel`, `guided`, `book`, `companions`, `organization`, `notes`, `board`, `workflows`, `cases` and `skeletons`.
 
 Read source text, questions and relationships page by page, and only when needed.
 

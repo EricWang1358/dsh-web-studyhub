@@ -60,7 +60,7 @@ Jev's answers are **typed decisions**: a probability, a choice among labelled op
 
 **Off:**
 
-- No Jev section in Settings, no **Jev suggestion** (Jev 建议) button, and no **Jev pre-check** (Jev 预审) or **Decided by Jev** (由 Jev 判定) mark.
+- No Jev section in Settings, no **Jev suggestion** button, and no **Jev pre-check** or **Decided by Jev** mark.
 - No mention in the tour, welcome, home, setup checklist, help sheets, notices or inbox. No extra request and no timer.
 - Every component that can draw something about Jev draws exactly what a build without Jev draws. `tests/jev-hidden-flow.test.mjs` renders each one with the switch off and scans the markup, in both languages.
 - The pipeline hooks (`jevPreReviewHook`, `jevReviewHook`, `jevOrganizeHook`) return `undefined`, so the model call sequence is untouched.

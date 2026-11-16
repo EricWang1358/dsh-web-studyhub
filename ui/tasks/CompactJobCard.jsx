@@ -24,7 +24,7 @@ import { batchRun } from './task-batch.js';
    Everything it says is read from the job's contract; the detail of a job (every step, the live output, the log, the controls) is in the 任务 console,
    which 「查看详情」 opens with this job selected. */
 
-const UNIT = { files: '个文件', pages: '页', paragraphs: '段', questions: '题' };
+const UNIT = { files: '个文件', pages: '页', paragraphs: '段', questions: '题', steps: '步' };
 
 /** Which piece of a long conversion is being worked on: the adaptive plan decides its windows one at a time ("第 3 段"), a fixed one knows how many there are. */
 function pieceOf(contract) {
@@ -48,11 +48,20 @@ export function cardLine(job, clock = Date.now()) {
       uncertain > 0 ? uiFormat('另有 {0} 处把握不大的疑似错词没有改，可在资料里查看', [uncertain]) : '', noticed]);
   }
   if (status === 'complete') {
+    const isCompanion = result.refs.some((ref) => ref.kind === 'companion') || contract.kind === 'companion-lesson-build';
+    if (isCompanion) {
+      const slideCount = Number(contract.detail?.slideCount) || 0;
+      return joinMeta([
+        slideCount > 0 ? uiFormat('已生成 {0} 页交互伴学课', [slideCount]) : ui('交互伴学课已就绪'),
+        result.completeness === 'partial' ? ui('只完成了一部分') : '',
+        noticed,
+      ]);
+    }
     const sources = result.refs.filter((ref) => ref.kind === 'source').length;
     // A 考点清单 is not course material: its own words, not a count of sources.
     return joinMeta([sources ? uiFormat('已存为 {0} 份资料', [sources]) : result.refs.some((ref) => ref.kind === 'exam-point-list') ? ui('已保存考点清单')
       : result.refs.some((ref) => ref.kind === 'draft') ? ui('草稿已生成') : ui('已完成'),
-      result.completeness === 'partial' ? ui('只完成了一部分') : '', ownCount || (progress.unit && progress.total > 0 ? uiFormat('{0}/{1} {2}', [progress.done, progress.total, ui(UNIT[progress.unit])]) : ''), noticed]);
+      result.completeness === 'partial' ? ui('只完成了一部分') : '', ownCount || (progress.unit && progress.total > 0 && UNIT[progress.unit] ? uiFormat('{0}/{1} {2}', [progress.done, progress.total, ui(UNIT[progress.unit])]) : ''), noticed]);
   }
   if (contract.kind === 'pdf-convert' && status === 'queued') {
     const pages = progress.done > 0 && progress.total > 0

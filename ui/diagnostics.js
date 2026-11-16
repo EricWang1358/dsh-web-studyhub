@@ -37,12 +37,12 @@ const ENGINE_START = [
   /^(?:Maximum update depth exceeded|Rendered (?:more|fewer) hooks than|Invalid time value|Invalid array length|Failed to fetch dynamically imported module)/,
 ];
 
-function messageLine(message) {
+function messageLine(message, english) {
   const text = typeof message === 'string' ? message.trim() : '';
   if (!text) return '-';
   if (ENGINE_WHOLE.some(pattern => pattern.test(text))) return text;
   for (const pattern of ENGINE_START) { const found = pattern.exec(text); if (found) return found[0]; }
-  return `(not copied: ${text.length} characters; see 技术详情)`;
+  return `(not copied: ${text.length} characters; see ${english ? 'Technical details' : '技术详情'})`;
 }
 
 /* A frame is its function name and nothing else: a URL, a path and a position say who the learner is. A line is a frame only when it ends in a
@@ -57,11 +57,11 @@ function frameLine(line) {
   return CHROME_ANONYMOUS.test(line) ? '  at <anonymous>' : null;
 }
 
-function errorLines(error) {
+function errorLines(error, english) {
   if (!error) return [];
   const source = typeof error === 'string' ? { message: error } : error;
   const { name, message, stack } = typeof source === 'object' ? source : {};
-  const lines = [`Error: ${typeof name === 'string' && /^[A-Za-z][\w$]{0,39}$/.test(name) ? name : 'Error'}`, `Message: ${messageLine(message)}`];
+  const lines = [`Error: ${typeof name === 'string' && /^[A-Za-z][\w$]{0,39}$/.test(name) ? name : 'Error'}`, `Message: ${messageLine(message, english)}`];
   // The stack's first line repeats the message and is dropped; the frames after it say where it broke.
   // The message is taken out of the stack first: in Chrome the stack begins with the whole message, every line of it.
   const frames = typeof stack === 'string' ? (typeof message === 'string' && message ? stack.replace(message, '') : stack).split('\n').map(frameLine).filter(Boolean).slice(0, DIAGNOSTIC_LIMITS.stackLines) : [];
@@ -108,7 +108,7 @@ export function diagnosticText({ version, language, page, error, data, session, 
     ...upgradeLine(upgrade),
     `Interface language: ${token(language)}`,
     `Page: ${token(page)}`,
-    ...errorLines(error),
+    ...errorLines(error, token(language) === 'en'),
     `Library: sources ${Array.isArray(data?.sources) ? data.sources.length : 0}, decks ${decks.length}, questions ${decks.reduce((total, deck) => total + count(deck?.count), 0)}`,
     `Experimental features: ${data?.experimental === true ? 'on' : 'off'}`,
     `Last jobs (kind/status, oldest first): ${jobs.length ? jobs.map(jobLine).join(', ') : 'none'}`,

@@ -49,7 +49,7 @@ export async function demoModel(system, prompt) {
     question: t('Who manages history, and who creates and restores state? Compare your explanation with the lesson.', '谁管理快照历史，谁创建和恢复状态？请自行对照讲解检查。'),
     note: t('Preset feedback: your retelling is saved in this browser. No AI assessment was performed; continue to practice to check your understanding.', '预置反馈演示：你的复述已保存在本浏览器。此处没有模型判断，可继续练习验证理解。'),
   });
-  if (system.includes('学习卡片的追问老师')) return JSON.stringify(data.question
+  if (system.includes('学习卡片的追问老师') || system.includes('follow-up tutor for a study card')) return JSON.stringify(data.question
     ? { question: data.question, answer: t('Prerecorded reference, not a generated answer to your question:\n\n', '预置参考，不是针对你的问题生成的回答：\n\n') + data.card.explanation }
     : { questions: en ? ['Which role owns the state?', 'Why keep snapshots opaque?', 'How does Bridge separate independent changes?'] : ['谁拥有状态？', '为什么快照需要保持不透明？', 'Bridge 如何分离独立的变化？'] });
   if (system.startsWith('You design a knowledge skeleton')) {
@@ -58,12 +58,12 @@ export async function demoModel(system, prompt) {
     return JSON.stringify({ title: t('Design patterns · sample outline', '设计模式 · 示例脉络'), overview: t('Prerecorded outline; no AI analysis performed.', '预置脉络，没有调用 AI 分析。'), nodes, relations: [] });
   }
   const task = String(data.task || '');
-  if (task.includes('刚答错') || task.includes('掌握程度自评')) {
+  if (task.includes('刚答错') || task.includes('掌握程度自评') || task.includes('answered this question incorrectly') || task.includes('self-assessment rating')) {
     const bridge = data.card?.topic === 'Bridge';
     return JSON.stringify({ point: t('Preset reinforcement', '预置巩固示例'), explain: t('Compare your answer with this reference: ', '请将你的回答与参考解析比较：') + (data.card?.explanation || ''),
       check: bridge ? { q: t('Can report types and rendering backends vary independently with Bridge?', 'Bridge 中报表类型与渲染后端可以独立变化吗？'), options: en ? ['Yes','No'] : ['可以','不可以'], answer: 0, why: t('The abstraction delegates to a separate implementation.', '抽象将渲染委托给独立的实现。') } : { q: t('Does the Caretaker need to read snapshot contents?', 'Caretaker 需要读取快照内容吗？'), options: en ? ['Yes','No'] : ['需要','不需要'], answer: 1, why: t('It stores opaque snapshots; the Originator restores them.', '它保管不透明的快照，由 Originator 恢复状态。') } });
   }
-  if (task.includes('仍然不懂')) return JSON.stringify({ explain: t('Preset analogy: sealed envelopes can be stored without reading them. The owner, rather than the keeper, interprets their contents.', '预置比喻：保管封好的信封不需要阅读内容，由写信者解释其中内容。') });
-  if (task.includes('本轮指标')) return JSON.stringify({ headline: t('Practice saved', '练习已保存'), why: t('Your actual results are shown above. This summary is prerecorded.', '上方显示真实作答记录；此处总结为预置说明。'), next: data.defaultNext, summary: t('Continue reviewing the questions that need more practice.', '继续复习需要巩固的题目。') });
+  if (task.includes('仍然不懂') || task.includes('still confused')) return JSON.stringify({ explain: t('Preset analogy: sealed envelopes can be stored without reading them. The owner, rather than the keeper, interprets their contents.', '预置比喻：保管封好的信封不需要阅读内容，由写信者解释其中内容。') });
+  if (task.includes('本轮指标') || task.includes("round's metrics")) return JSON.stringify({ headline: t('Practice saved', '练习已保存'), why: t('Your actual results are shown above. This summary is prerecorded.', '上方显示真实作答记录；此处总结为预置说明。'), next: data.defaultNext, summary: t('Continue reviewing the questions that need more practice.', '继续复习需要巩固的题目。') });
   return unsupported();
 }

@@ -60,6 +60,7 @@ const FIXTURES = {
   'question.stubborn': { input: { course: 'Biochemistry', deckId: 'd1', cardId: 'c1', topic: 'Inhibition', prompt: 'How does Km change under competitive inhibition?', note: 'I have missed this five times' }, fenced: ['course', 'topic', 'prompt', 'note'] },
   'course.focus': { input: { course: 'OS', files: ['studyhub-work/focus-intake/b1/01-scope.png'], notes: 'Focus on page replacement', existingTopics: ['Deadlock'], generateAfter: true }, fenced: ['course', 'files', 'notes', 'existingTopics'] },
   'task.check': { input: { deckId: 'd1', cardId: 'c1', runId: 'r1', deckTitle: 'Distributed Systems', topic: 'Inventory deduction', prompt: 'Implement atomic stock deduction without overselling.', rubric: '1. Atomic check-and-decrement; 2. Reject non-positive quantity.', rubricCriteria: [{ id: 'c1', label: 'Atomicity', marks: 2, descriptor: 'Check and deduct atomically' }], filePath: 'src/stock.lua', note: 'Focus on concurrency edge cases' }, fenced: ['deckTitle', 'topic', 'prompt', 'rubric', 'filePath', 'note'] },
+  'companion.ask': { input: { course: 'Concurrency', title: 'CAS and ABA', slide: 13, slideTitle: 'Swimlane trace', quote: 'compareAndSet(19, 19)', contextText: 'Slide 13 swimlane', question: 'Why does CAS miss the intermediate 9?' }, fenced: ['course', 'title', 'slideTitle', 'quote', 'contextText', 'question'] },
 };
 // Inside a note on purpose in both languages: the book's own marker for text from outside the materials, in the book's language.
 const KEPT_CHINESE = /（资料以外）/g;

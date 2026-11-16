@@ -35,7 +35,7 @@ Rules that hold across these stages:
 
 ### True/false questions
 
-A **True/False** question (判断题) is one statement the learner judges true or false. It is stored as a choice question with exactly two options, `true` and `false`, in a fixed order, so practice, exams and the mistakes list grade it like a single-choice question. The rules for writing one are a single constant (`TRUE_FALSE_RULE` in `lib/assessment-quality.js`), given to answer preparation, writing and the independent review:
+A **True/False** question is one statement the learner judges true or false. It is stored as a choice question with exactly two options, `true` and `false`, in a fixed order, so practice, exams and the mistakes list grade it like a single-choice question. The rules for writing one are a single constant (`TRUE_FALSE_RULE` in `lib/assessment-quality.js`), given to answer preparation, writing and the independent review:
 
 - One idea per statement.
 - A false statement is a believable misconception or a confusion between neighbouring ideas from the sources. It is never a true sentence with "not" inserted and never an absurd claim.
@@ -45,7 +45,7 @@ A **True/False** question (判断题) is one statement the learner judges true o
 
 ### Course generation rules
 
-A course can keep up to 12 generation rules (出题守则) of its own, one sentence of at most 200 characters each. Every generation for that course carries them: knowledge extraction, answer preparation, writing and the independent review receive them in the same requirements brief as the other generation settings. With sources longer than 4,000 characters the brief comes after the sources, so the cached part of the prompt does not change; with shorter sources the brief comes before them, so a change of rules also changes that short cached part. Questions written from a selected passage into a deck take the rules of that deck's course. A rule never overrides the evidence, the JSON protocol or the checks. Case papers do not take rules.
+A course can keep up to 12 **generation rules** of its own, one sentence of at most 200 characters each. Every generation for that course carries them: knowledge extraction, answer preparation, writing and the independent review receive them in the same requirements brief as the other generation settings. With sources longer than 4,000 characters the brief comes after the sources, so the cached part of the prompt does not change; with shorter sources the brief comes before them, so a change of rules also changes that short cached part. Questions written from a selected passage into a deck take the rules of that deck's course. A rule never overrides the evidence, the JSON protocol or the checks. Case papers do not take rules.
 
 - **See them before a run.** The zero-call requirements preview lists the course rules on a row of their own, they count in the requirements the draft records, and the cost estimate before a run includes them.
 - **Add one while practising.** Type a sentence in the **Improve question** box, or pick tags on the 👎 tray, then press **Make it a course rule**. The confirmation names the course and shows the exact rules before anything is saved. A text that is already a rule, is longer than 200 characters, or would make a 13th rule is not added, and the confirmation says why.

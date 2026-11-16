@@ -19,7 +19,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/annotation.js`: 3 ui files; context materials; 1 other lib file
 - `lib/answer-card.js`: 1 ui file; contexts bank, generation; 6 other lib files
 - `lib/application-messages-en.js`: 1 ui file; 1 other lib file
-- `lib/application-messages.js`: 2 ui files; 6 other lib files
+- `lib/application-messages.js`: 2 ui files; 9 other lib files
 - `lib/ask-prompt.js`: 4 ui files; contexts generation, materials
 - `lib/assist-contract.js`: 2 ui files; 1 other lib file
 - `lib/audio-formats.js`: 4 ui files; 3 other lib files
@@ -46,7 +46,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/course-rules.js`: 3 ui files; context authoring; 3 other lib files
 - `lib/course-setup.js`: 1 ui file
 - `lib/course-tree.js`: 8 ui files; contexts generation, library, materials; 14 other lib files
-- `lib/courses.js`: 10 ui files; contexts authoring, coach, courses, generation, library; 11 other lib files
+- `lib/courses.js`: 10 ui files; contexts authoring, coach, courses, generation, library; 13 other lib files
 - `lib/coverage-run.js`: 6 ui files; contexts generation, library; 4 other lib files
 - `lib/coverage-strength.js`: 4 ui files; context generation; 5 other lib files
 - `lib/coverage.js`: 3 ui files; 5 other lib files
@@ -144,14 +144,14 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/deck-title.js`: contexts bank, library; 3 other lib files
 - `lib/document-outline.js`: contexts library, materials; 3 other lib files
 - `lib/documents.js`: contexts library, materials; 1 other lib file
-- `lib/domain.js`: contexts authoring, bank, coach, generation, recording, study, system; 24 other lib files
+- `lib/domain.js`: contexts authoring, bank, coach, generation, recording, study, system; 25 other lib files
 - `lib/estimate-calibration.js`: contexts generation, library; 1 other lib file
 - `lib/exam-alignment.js`: contexts courses, library
 - `lib/experimental.js`: contexts generation, library, system
 - `lib/focus-progress.js`: contexts generation, library; 4 other lib files
-- `lib/focus.js`: contexts audio, authoring, bank, courses, generation, library, materials, recording, study; 27 other lib files
+- `lib/focus.js`: contexts audio, authoring, bank, courses, generation, library, materials, recording, study; 28 other lib files
 - `lib/followup.js`: contexts bank, coach, materials, notes, study; 5 other lib files
-- `lib/generation.js`: contexts authoring, bank, generation, library, study; 24 other lib files
+- `lib/generation.js`: contexts authoring, bank, generation, library, study; 25 other lib files
 - `lib/guided-question-prep.js`: contexts jobs, study
 - `lib/inbox.js`: contexts audio, bank, coach, generation, library, notes, notifications, recording, study; 4 other lib files
 - `lib/jev-hooks.js`: contexts generation, library
@@ -169,12 +169,12 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/mineru-job.js`: contexts audio, jobs; 1 other lib file
 - `lib/model-retry.js`: contexts coach, generation; 7 other lib files
 - `lib/oral-exam.js`: contexts library, study; 1 other lib file
-- `lib/prereq.js`: contexts bank, coach, library, notes, recording, study; 10 other lib files
+- `lib/prereq.js`: contexts bank, coach, library, notes, recording, study; 11 other lib files
 - `lib/publication-fingerprint.js`: contexts authoring, generation
 - `lib/query-input.js`: contexts bank, library
 - `lib/recommend.js`: contexts library, study; 2 other lib files
 - `lib/recording-state.js`: contexts library, recording
-- `lib/skeleton-diagrams.js`: contexts library, skeleton; 2 other lib files
+- `lib/skeleton-diagrams.js`: contexts library, skeleton; 3 other lib files
 - `lib/skeleton.js`: contexts library, skeleton; 3 other lib files
 - `lib/slay.js`: contexts bank, coach, study; 1 other lib file
 - `lib/solution-exposure.js`: contexts jobs, study; 3 other lib files
@@ -184,7 +184,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/token-estimate.js`: contexts generation, library, materials; 5 other lib files
 - `lib/update-check.js`: contexts generation, system; 4 other lib files
 - `lib/usage-scope.js`: contexts authoring, coach, generation, materials, workflows; 6 other lib files
-- `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 45 other lib files
+- `lib/util.js`: contexts audio, authoring, bank, coach, generation, jobs, library, materials, notes, recording, skeleton, study; 48 other lib files
 
 ## Used by exactly one context (137)
 
@@ -269,7 +269,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/jev-settings.js`: context library; 5 other lib files
 - `lib/job-output.js`: context jobs; 3 other lib files
 - `lib/json-import.js`: context bank; 3 other lib files
-- `lib/language.js`: context audio; 6 other lib files
+- `lib/language.js`: context audio; 9 other lib files
 - `lib/legacy.js`: context library
 - `lib/live-correction.js`: context audio; 1 other lib file
 - `lib/live-finish.js`: context audio
@@ -315,7 +315,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/study-branch.js`: context study
 - `lib/study-resume.js`: context study; 1 other lib file
 - `lib/study-scene.js`: context study
-- `lib/study-session.js`: context study; 3 other lib files
+- `lib/study-session.js`: context study; 4 other lib files
 - `lib/subtitle-job.js`: context audio
 - `lib/subtitles.js`: context audio; 1 other lib file
 - `lib/tool-install.js`: context audio; 7 other lib files
@@ -380,7 +380,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/http.js`: 3 other lib files
 - `lib/index.js`: 1 other lib file
 - `lib/install-drives.js`: 3 other lib files
-- `lib/install-sources.js`: 1 other lib file
+- `lib/install-sources.js`: 3 other lib files
 - `lib/jev-decide.js`: 2 other lib files
 - `lib/jev-eval.js`: no import found in ui/ or lib/
 - `lib/jev-outline.js`: 2 other lib files

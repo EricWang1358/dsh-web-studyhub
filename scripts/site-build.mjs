@@ -12,14 +12,14 @@ export const SITE_OUTPUT = resolve(repositoryRoot, 'output/site-dist');
 export async function buildSite({ outdir = SITE_OUTPUT } = {}) {
   const { version } = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8'));
   if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(version)) throw new Error('Invalid package version for the site');
-  const source = (await readFile(join(repositoryRoot, 'site/index.html'), 'utf8')).replaceAll('2.5.10', version);
+  const source = (await readFile(join(repositoryRoot, 'site/index.html'), 'utf8')).replaceAll(/(?:2\.5\.10|4\.9\.2)/g, version);
   const explorerSource = (await readFile(join(repositoryRoot, 'site/explorer.html'), 'utf8')).replaceAll('4.9.2', version);
   await mkdir(join(outdir, 'assets'), { recursive: true });
   await build({ absWorkingDir: repositoryRoot, entryPoints: ['site/demo.mjs'], bundle: true, platform: 'browser',
     format: 'iife', target: 'es2020', minify: true, outfile: join(outdir, 'assets/site-demo.js') });
   const images = new Set(), pages = [];
   for (const lang of ['zh', 'en']) {
-    let html = source.replace(/<main(?:\s[^>]*)?>[\s\S]*?<\/main>/, renderContent(lang).replaceAll('2.5.10', version));
+    let html = source.replace(/<main(?:\s[^>]*)?>[\s\S]*?<\/main>/, renderContent(lang).replaceAll(/(?:2\.5\.10|4\.9\.2)/g, version));
     html = html.replace(/<html lang="[^"]*">/, `<html lang="${lang === 'en' ? 'en' : 'zh-CN'}">`)
       .replace(/<title>[\s\S]*?<\/title>/, `<title>StudyHub ${version} — ${lang === 'en' ? 'Turn your lecture slides into questions that each link back to their page' : '把老师的课件变成题，每道题都点得回原页'}</title>`);
     if (lang === 'en') {

@@ -97,6 +97,7 @@ import polishReaderCopy from './locales/en.polish-reader.json';
 import polishRichtextCopy from './locales/en.polish-richtext.json';
 import polishNotesCopy from './locales/en.polish-notes.json';
 import polishShellCopy from './locales/en.polish-shell.json';
+import companionsCopy from './locales/en.companions.json';
 import appMessages from '../lib/application-messages-en.js';
 
 export const ENGLISH_SOURCES = {
@@ -192,6 +193,7 @@ export const ENGLISH_SOURCES = {
   'en.polish-richtext.json': polishRichtextCopy,
   'en.polish-notes.json': polishNotesCopy,
   'en.polish-shell.json': polishShellCopy,
+  'en.companions.json': companionsCopy,
 };
 
 /** The English of lib/application-messages.js (localizeAppMessage), handed to it once this module is here. */

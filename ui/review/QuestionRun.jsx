@@ -50,6 +50,8 @@ import { useVoiceAnswer } from "./VoiceAnswer.jsx";
 import { formatAssistTaskSummary } from "./assist-summary.js";
 import { ClozeQuestion, OpenResponseField, QuestionLiveMastery, QuestionMetaBadges } from "./QuestionParts.jsx";
 import { useAssistWatch, useAutopilotPause, useBookQaSync, useCaseHighlights } from "./use-review-run-sync.js";
+import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "../companions/companion-ref.js";
+import companionsCss from "../companions/companions.css";
 
 export { formatAssistTaskSummary };
 
@@ -82,6 +84,7 @@ function AssistFailure({ task, modelReady = false, onSettings, onResubmit, onEdi
 export default function QuestionRun({ session, data, coachProps, links = {}, context = {}, feedback }) {
   useInjectCss(reviewCss, "study-review");
   useInjectCss(coachCss, "study-coach");
+  useInjectCss(companionsCss, "study-companions");
   const { run, entry, showBack, showEn, enBusyKey, keyGrade, choice, isCloze, autopilot, actions } = session;
   const { selected, hint, explain, response, clozeValues } = entry;
   const { reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, toggleEn } = actions;
@@ -157,6 +160,15 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
     focusCloze: isCloze && !run.feedback && !busy ? () => setClozeFocusTick((n) => n + 1) : undefined });
   const { caseSource, caseHighlights, saveHighlights } = useCaseHighlights({ run, data, call });
   const cardNotes = data?.noteBadges?.[run.card?.id] || [];
+  const companionTarget = run.mode !== "exam" && run.revealed
+    ? resolveCompanionTarget({
+      card: run.card,
+      solution: run.solution,
+      courses: data?.courses,
+      sources: data?.sources,
+      fallbackCourse: ruleDeck?.course ?? ruleDeck?.folder ?? "",
+    })
+    : null;
   // The round's own size and the re-ask, said by one function (the round model puts `position` on the run, #660).
   const position = roundAt(run), words = roundWords(position);
   const prereqStrip = run.prerequisites?.length > 0 && !run.complete && (
@@ -368,6 +380,13 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 <OpenResponseField grading={run.grading} value={response} onChange={actions.setResponse} onFlip={flipCard} />
               )}
               {voice.answer}
+              {run.revealed && !run.feedback && companionTarget && openModal && (
+                <div className="sh-comp-card-jump">
+                  <Button size="sm" variant="quiet" icon="play" onClick={() => openCompanionTarget(openModal, companionTarget)}>
+                    {companionSlideButtonLabel(companionTarget)}
+                  </Button>
+                </div>
+              )}
               {run.revealed && !run.feedback && (
                 <div className="grading">
                   <div className="grading-head">
@@ -627,6 +646,13 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
                 onOpenSource={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage, back: true })} />
               <FigurePageLink key={"figure:" + reviewEntryKey(run)} card={run.solution} sources={data.sources}
                 onOpen={(source, quote, peekPage) => openModal({ type: "source", source, quote, peekPage, back: true })} />
+              {!run.feedback && (choice || isCloze || rubricCard || taskCard) && companionTarget && openModal && (
+                <div className="sh-comp-card-jump">
+                  <Button size="sm" variant="quiet" icon="play" onClick={() => openCompanionTarget(openModal, companionTarget)}>
+                    {companionSlideButtonLabel(companionTarget)}
+                  </Button>
+                </div>
+              )}
             </>}
             {run.mode !== "exam" && <ExplanationFollowup key={reviewEntryKey(run)} run={run} readOnly cardNotes={cardNotes}
               onDerive={(followupId, relation) => assistCard("derive", "", [], { relation, followupId })} deriving={!!runningTask}

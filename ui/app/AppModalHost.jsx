@@ -8,6 +8,8 @@ import AddSourceDialog from './modals/AddSourceDialog.jsx';
 import FlagDialog from './modals/FlagDialog.jsx';
 import SourceListDialog from './modals/SourceListDialog.jsx';
 import SourceReaderDialog from './modals/SourceReaderDialog.jsx';
+import CompanionViewer from '../companions/CompanionViewer.jsx';
+import CompanionBuildDialog from '../companions/CompanionBuildDialog.jsx';
 import { practiceArgs } from '../learning-navigation.js';
 import { appendFocus } from '../generate-form.js';
 import { useApp } from './app-context.js';
@@ -19,6 +21,8 @@ const DIALOGS = {
     onOpenSource={(source) => app.set.setModal({ type: 'source', source, ...(modal.pickPages ? { pickPages: true } : {}), ...(modal.back ? { back: true } : {}) })} />,
   flag: ({ onClose, app }) => <FlagDialog run={app.session.run} onClose={onClose} />,
   source: ({ modal, onClose }) => <SourceReaderDialog modal={modal} onClose={onClose} />,
+  companion: ({ modal, onClose }) => <CompanionViewer modal={modal} onClose={onClose} />,
+  companionBuild: ({ modal, onClose }) => <CompanionBuildDialog modal={modal} onClose={onClose} />,
   focusIntake: ({ modal, onClose, app }) => (
     <FocusIntakeDialog
       data={app.data}

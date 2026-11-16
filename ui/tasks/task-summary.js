@@ -12,7 +12,7 @@ import { partTitle } from '../deck-parts.js';
 
 const KIND_LABEL = {
   audio: '音频批量转写', pdf: 'PDF 转换', translation: '翻译', supplement: '补题', repair: '修题', publish: '发布检查',
-  generation: '出题', extension: '后台任务', coach: '为你定制',
+  generation: '出题', companion: '交互伴学', extension: '后台任务', coach: '为你定制',
 };
 export const taskKindLabel = (kind) => ui(KIND_LABEL[kind] || KIND_LABEL.extension);
 
@@ -48,6 +48,7 @@ export function taskTitle(job) {
   // A new draft that will be the next part of a deck (lib/deck-parts.js): 「期中复习 · 第二部分」.
   if (detail?.part?.deckTitle) return partTitle(detail.part.deckTitle, detail.part.n);
   // An install's title is the producer's words (安装本机 MinerU), and so is a search-index build's (建立检索索引 · 课程): in the learner's language like its step.
+  if (title === '生成交互伴学课') return ui('生成交互伴学课');
   if (title) return kind === 'translation' ? uiFormat('翻译「{0}」', [title]) : detail?.install || kind === 'retrieval-index' ? uiMessage(title) : title;
   return kind === 'generation' || kind === 'supplement' ? ui('新题组') : taskKindLabel(taskKindOf(job));
 }
@@ -58,6 +59,18 @@ export const taskPercent = (job) => contractOf(job).progress.percent;
 const AUDIO_PHASES = { queued: '排队中', read: '读取并切分音频', transcribe: '转写音频', proofread: '校对识别错误的词', translate: '翻译并整理成中英对照',
   batch: '按顺序整理逐字稿', assemble: '合成逐字稿', done: '完成' };
 const PDF_PHASES = { held: '等你导入', queued: '排队中', 'start-service': '启动本机服务', split: '切分', upload: '上传', parse: '解析文档', local: '本地解析', download: '下载', merge: '合并', save: '保存', interrupted: '已中断', done: '完成' };
+const COMPANION_PHASES = {
+  queued: '排队等待中',
+  blueprint: '正在设计教学戏剧弧与反例分镜',
+  act1: '正在精写上半场（热身、场景、盲猜下注与找茬）',
+  act2: '正在精写下半场（交互推演、决策树、小测与带走卡）',
+  verify: '正在计算真实公式曲线并执行 18 项结构校验',
+  repair: '正在定向修复结构或公式问题',
+  saving: '正在编译独立 HTML 并挂载至课程',
+  complete: '交互伴学课已就绪',
+  paused: '已在检查点暂停',
+  cancelled: '已停止',
+};
 const withCount = (label, { done, total } = {}) => (total > 0 && done !== undefined ? uiFormat('{0} · {1}/{2}', [label, Math.min(done + 1, total), total]) : label);
 
 const BARE_STAGES = { queued: '排队中', running: '进行中', pausing: '正在暂停', paused: '已暂停', [STATUS.CANCELLING]: '正在停止…',
@@ -70,6 +83,7 @@ export function stageLabel(stage) {
   if (stage.code === 'finished') return ({ complete: ui('已完成'), failed: ui('失败'), cancelled: ui('已停止'), interrupted: ui('已中断') })[stage.args?.status] || '';
   if (family === 'audio' && AUDIO_PHASES[name]) return withCount(ui(AUDIO_PHASES[name]), ['transcribe', 'proofread', 'translate'].includes(name) ? stage.args : undefined);
   if (family === 'pdf' && PDF_PHASES[name]) return ui(PDF_PHASES[name]);
+  if (family === 'companion' && COMPANION_PHASES[name]) return ui(COMPANION_PHASES[name]);
   if (family === 'translation') return name === 'queued' ? ui('排队中') : stage.args?.total > 0 ? uiFormat('正在翻译 · {0}/{1} 段', [stage.args.done, stage.args.total]) : ui('正在翻译');
   if (['generation', 'repair', 'publish'].includes(family)) return stageCodeLabel(name === 'blueprinting' ? 'blueprinting' : name) || ui('进行中');
   if (family === 'task') return name === 'queued' ? ui('排队中') : ui('进行中');

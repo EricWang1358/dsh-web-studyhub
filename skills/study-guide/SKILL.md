@@ -1,40 +1,45 @@
 ---
 name: study-guide
-description: Say in plain words what this learner's StudyHub holds right now and what they can do with it, then offer two or three concrete ways to start. Used when they ask what StudyHub can do, say they do not know where to start studying in StudyHub, ask what to study next in their library, or arrive from the app's 「不知道从哪开始？」/「问问主会话」 link (not on a bare "hi" / "你好" greeting or non-StudyHub coding/repo questions).
-whenToUse: The learner asks what StudyHub can do, says they do not know where to start studying in StudyHub, asks what to study next in their study library, or pastes a 「发给主会话」 message whose id is guide.start. Do not trigger on a bare greeting ("hi", "hello", "你好") or on general coding/repository/project questions unrelated to StudyHub.
+description: Say in plain words what this learner's StudyHub holds right now and what they can do with it, then offer two or three concrete ways to start. Used when they ask what StudyHub can do, say they do not know where to start studying in StudyHub, ask what to study next in their library, or arrive from the app's "Not sure where to start?" / 「不知道从哪开始？」/「问问主会话」 link (not on a bare "hi" / "你好" greeting or non-StudyHub coding/repo questions).
+whenToUse: The learner asks what StudyHub can do, says they do not know where to start studying in StudyHub, asks what to study next in their study library, or pastes a "Send to main chat" / 「发给主会话」 message whose id is guide.start. Do not trigger on a bare greeting ("hi", "hello", "你好") or on general coding/repository/project questions unrelated to StudyHub.
 ---
 
-# StudyHub 的门口
+# StudyHub 的门口 · Welcome to StudyHub
 
-一次读完状态，用 3–5 句平实的话说清「你现在有什么、能做什么」，再给两三个马上能开始的方向。这一步不生成任何内容。
+Read the study library's current state once, explain in 3–5 plain sentences what the learner currently has and what they can do next, and offer 2–3 concrete actions they can start right away. This orientation step never generates any content (这一步不生成任何内容).
 
-- 如果对方只是打个招呼（如 `hi`、`你好`、`在吗`），或是在问与 StudyHub 学习库无关的代码/项目问题，直接正常回应即可，不要读学习库，也不要弹选项卡片。
+**Language rule:** Match the learner's language strictly. When they write in English, write the entire reply, option cards, UI names (`Sources`, `Decks`, `Drafts`, `Jobs`, `Mistakes & weak`, `Review book`, `Interactive Companions`), and closing line in natural English with zero Chinese characters or `「…」` quotes. When they write in Chinese, reply in Chinese.
 
-## 先读一次状态
+- If the user is only saying hello (`hi`, `hello`, `你好`, `在吗`) or asking a general coding/repository question unrelated to StudyHub, reply normally without reading the study library or showing option cards (如果对方只是打个招呼，不要读学习库，也不要弹选项卡片).
 
-- `library.context {}` 读一次就够了：学习库在哪、今天、焦点课程、counts（资料 / 题组 / 卡片 / 草稿）、courses。
-- 直接调工具读取，不要在回复里播报「正在加载技能」「现在读一次学习库状态」之类的内部过程。
-- 只有说到某一块、又确实需要细节时，才读对应的 `library.context {"area": "…"}`（areas 在第一次返回里列着）。
-- 这一刻只读不写：不要出题、不要生成、不要改任何东西。导览不该额外跑生成模型。
+## 1. Read the library state once
 
-## 怎么说
+- Call `library.context {}` once: it returns where the library lives, today's date, the active course, `counts` (sources / decks / cards / drafts), and `courses`.
+- Call the tool directly without narrating internal steps such as "Loading skill…" or "Reading library state…" (不要在回复里播报内部过程).
+- Read a specific `library.context {"area": "…"}` (listed in the first response, e.g. `"companions"`, `"generation"`, `"guided"`, `"imports"`) only when the learner asks about that area and you need exact action details.
+- Read-only in this turn: do not generate questions, build lessons, or mutate library state during orientation.
 
-- 3–5 句，一句一件事：**有什么**（资料 N 份、题组 N 个、草稿 N 个）、**能做什么**（出题、复习今天到期的、复习全书、错题本、导入资料）、**现在最该做的那一件**。
-- 数字只用 `library.context` 里真的有的；没有就说还没有，不要估、不要凑。
-- 用「你」，不用「您」；不卖萌、不施压；不写「稍后」「暂时」这种没有出口的话。
-- 如实说限度：变式题和生成的解析是模型写的，可能有错；答案旁边有原文页码，可以回去核对。这一点要说，不要藏。
+## 2. Explain clearly in 3–5 sentences
 
-## 再给选择
+- Write 3–5 crisp sentences, one fact per sentence:
+  1. **What is here right now** (`N` sources, `N` decks, `N` drafts, courses).
+  2. **What StudyHub can do** (import materials, generate cited flashcards & quizzes, build or mount cross-discipline **Interactive Companions** via `generation.companion.build` / `companion.attach` — self-contained HTML lessons with parametric sandboxes, counterexample matrices, schematics, and execution traces — review due cards, practice `Mistakes & weak`, or build a course outline & review book).
+  3. **The single best next step** given what the library holds right now.
+- Quote only exact counts returned by `library.context`; if something is zero, say there are none yet—never guess or pad numbers.
+- Keep the tone direct, warm, and unhurried (in Chinese use 「你」, never 「您」; avoid filler like "for now" or "please wait").
+- State AI limits honestly: variants, AI explanations, and ungrounded drafts are model-generated and can be wrong; answers carry source citations and page numbers so the learner can verify against the original.
 
-- 先把上面那 3–5 句正文写进回复消息，再在同一条回复里用 `ask_user_question` 给 2–3 个选项，每个一行说清「做什么 · 大概多久 · 得到什么」；不要只调 `ask_user_question` 却漏掉正文。
-- 选项只能来自真实存在的入口（出题、复习今天到期的、复习全书、错题本、导入资料）；不要编功能，也不要一次给五个。
-- 学习者选了就直接开始那一步，不要重复问同一个问题。
-- 学习者想被带着学、边讲边测（「带我学 X」「讲完出道题考我」）时，交给 skill `study-tutor`，这里不开会话、不出题。
+## 3. Offer 2–3 concrete options
 
-## 边界
+- Always write the 3–5 sentence summary in your message body first, and then call `ask_user_question` in the same turn with 2–3 options (先把上面那 3–5 句正文写进回复消息，再在同一条回复里用 `ask_user_question` 给 2–3 个选项; never call `ask_user_question` with an empty reply).
+- Each option states in one line **what it does · rough time · what you get**, drawn only from real StudyHub actions (import materials, generate questions, build an Interactive Companion lesson, review today's due cards, practice mistakes, or build a review book). Never invent features or dump five options at once.
+- Once the learner picks an option, start that workflow directly without re-asking the same question.
+- If the learner asks for interactive step-by-step tutoring and testing ("teach me X and quiz me as we go" / 「带我学 X」), hand off to skill `study-tutor` (交给 skill `study-tutor`) instead of starting a session or generating questions here.
 
-- 学习者是刚来还是老用户，都先看状态再说，不猜。
-- 不替学习者做决定：说清每条路的代价和结果，让他选。
-- 永久删除或归档任何东西之前，先用一句话问学习者：什么会没有，什么会留下；得到明确的「好」再动手。
-- 不拿使用时长、学习频率这类记录说事（应用默认不记录，界面里也不该出现）。
-- 结束时用一句中文说明现在在等什么、或者刚刚发生了什么。
+## Boundaries
+
+- Check `library.context {}` first for both new and returning learners—never assume the library is empty or full.
+- Do not decide on the learner's behalf: state trade-offs clearly and let them choose.
+- Before any permanent delete or archive, ask the learner first, in ONE sentence that says what goes and what stays, and act only on a clear yes. (永久删除或归档任何东西之前，先用一句话问学习者：什么会没有，什么会留下；得到明确的「好」再动手。)
+- Never comment on usage duration or study streaks.
+- End with one short sentence in the learner's language stating what you are waiting on or what just happened (结束时用一句中文说明现在在等什么，学习者用英文时全程用英文说明).

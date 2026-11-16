@@ -836,48 +836,80 @@ const HANDLERS = [
         : { title: `${topics[0] || "本次范围"}的脉络`, overview: "预览用的演示骨架：按主题从基础到应用排成一条主线。", nodes, relations };
     } },
   // Card follow-up teacher (追问).
-  { name: "card.followup", match: (s) => s.includes("学习卡片的追问老师"),
-    reply: ({ input }) => input.question
-      ? { question: `关于${input.card.topic}：${input.question}`, answer: `结合本题：${input.card.explanation}\n\n补充说明：可以用一个具体场景检查自己是否理解。` }
-      : { questions: [`${input.card.topic}可以用一个例子说明吗？`, "这个概念最容易和什么混淆？", "换一个场景时，应该怎样运用这个规则？"] } },
+  { name: "card.followup", match: (s) => s.includes("学习卡片的追问老师") || s.includes("follow-up tutor for a study card"),
+    reply: ({ input, english }) => english
+      ? (input.question
+        ? { question: `On ${input.card.topic || "this concept"}: ${input.question}`, answer: `For this card: ${input.card.explanation}\n\nSupplemental note: try applying it to one concrete scenario to verify your understanding.` }
+        : { questions: [`Can ${input.card.topic || "this concept"} be illustrated with a concrete example?`, "What is this concept most easily confused with?", "How should this rule be applied in a new scenario?"] })
+      : (input.question
+        ? { question: `关于${input.card.topic}：${input.question}`, answer: `结合本题：${input.card.explanation}\n\n补充说明：可以用一个具体场景检查自己是否理解。` }
+        : { questions: [`${input.card.topic}可以用一个例子说明吗？`, "这个概念最容易和什么混淆？", "换一个场景时，应该怎样运用这个规则？"] }) },
   // Coach tasks are told apart by their task text.
-  { name: "coach.nudge", match: (_s, input) => /刚答错|掌握程度自评/.test(String(input.task || "")),
-    reply: ({ input }) => {
-      const topic = input.card?.topic || "这个概念";
-      return { point: `「${topic}」里谁负责什么${input.earlier?.length ? "（换个角度）" : ""}`,
-        explain: `先分清职责再看选项：${String(input.card?.answer || "").slice(0, 40)}。比如保存历史的人不需要知道快照里装了什么。`,
-        check: { q: "管理历史的对象需要读取快照内部吗？", options: ["需要", "不需要"], answer: 1, why: "它只保管不透明的快照。" } };
+  { name: "coach.nudge", match: (_s, input) => /刚答错|掌握程度自评|answered this question incorrectly|self-assessment rating/.test(String(input.task || "")),
+    reply: ({ input, english }) => {
+      const topic = input.card?.topic || (english ? "this concept" : "这个概念");
+      return english
+        ? { point: `Who owns which responsibility in "${topic}"${input.earlier?.length ? " (another angle)" : ""}`,
+          explain: `Separate responsibilities before checking the options: ${String(input.card?.answer || "").slice(0, 80)}. For example, whoever stores history need not inspect snapshot internals.`,
+          check: { q: "Does the history manager need to read inside the snapshot?", options: ["Yes", "No"], answer: 1, why: "It only keeps opaque snapshots." } }
+        : { point: `「${topic}」里谁负责什么${input.earlier?.length ? "（换个角度）" : ""}`,
+          explain: `先分清职责再看选项：${String(input.card?.answer || "").slice(0, 40)}。比如保存历史的人不需要知道快照里装了什么。`,
+          check: { q: "管理历史的对象需要读取快照内部吗？", options: ["需要", "不需要"], answer: 1, why: "它只保管不透明的快照。" } };
     } },
-  { name: "coach.confused", match: (_s, input) => String(input.task || "").includes("仍然不懂"),
-    reply: () => ({ explain: "把快照想成封好的信封：保管员只负责按顺序存放信封，只有写信的人能拆开。" }) },
-  { name: "coach.rewrite", match: (_s, input) => String(input.task || "").includes("反馈标签"),
-    reply: ({ input }) => {
+  { name: "coach.confused", match: (_s, input) => /仍然不懂|still confused/.test(String(input.task || "")),
+    reply: ({ english }) => ({ explain: english
+      ? "Think of a snapshot as a sealed envelope: the archivist only files envelopes in order, and only the sender opens them."
+      : "把快照想成封好的信封：保管员只负责按顺序存放信封，只有写信的人能拆开。" }) },
+  { name: "coach.rewrite", match: (_s, input) => /反馈标签|learner feedback tags/.test(String(input.task || "")),
+    reply: ({ input, english }) => {
       const card = input.card || {}, patch = {};
-      if (Array.isArray(card.options) && input.tags?.some((t) => /选项|解析/.test(t)))
-        patch.options = card.options.map((o) => ({ id: o.id, explanation: `${o.correct ? "正确" : "错误"}：${o.why || o.text}（已按反馈写得更具体）` }));
-      if (input.tags?.includes("题干太空")) patch.prompt = `${card.prompt}（请结合题目给出的职责划分作答）`;
-      return { patch, summary: Object.keys(patch).length ? "补足了题干条件并逐项重写解析" : "核对原文后答案无误" };
+      if (Array.isArray(card.options) && input.tags?.some((t) => /选项|解析|distractors|explanation/i.test(t)))
+        patch.options = card.options.map((o) => ({ id: o.id, explanation: english
+          ? `${o.correct ? "Correct" : "Incorrect"}: ${o.why || o.text} (updated based on feedback)`
+          : `${o.correct ? "正确" : "错误"}：${o.why || o.text}（已按反馈写得更具体）` }));
+      if (input.tags?.some((t) => /题干太空|Stem too vague/i.test(t)))
+        patch.prompt = english ? `${card.prompt} (Answer based on the responsibility split in the stem.)` : `${card.prompt}（请结合题目给出的职责划分作答）`;
+      return { patch, summary: Object.keys(patch).length
+        ? (english ? "Clarified stem conditions and refined option explanations" : "补足了题干条件并逐项重写解析")
+        : (english ? "Checked against source: original answer is accurate" : "核对原文后答案无误") };
     } },
-  { name: "coach.prepare", match: (_s, input) => String(input.task || "").includes("为每个 target"),
-    reply: ({ input, nextNumber }) => {
+  { name: "coach.prepare", match: (_s, input) => /为每个 target|Write 1 new card for each target/.test(String(input.task || "")),
+    reply: ({ input, english, nextNumber }) => {
       const text = input.evidence?.[0]?.text || "", sourceId = input.evidence?.[0]?.sourceId;
       const quote = text.slice(0, Math.min(text.length, 60));
       return { cards: (input.targets || []).map((t, i) => {
         const n = nextNumber();
-        return { target: t.target, kind: t.kind, topic: t.card.topic, objective: `在具体场景中应用 ${t.card.topic}（变式 ${i + 1} · #${n}）`,
-          prompt: `某团队在做编辑器撤销功能时（变式 ${i + 1} · #${n}），应当让哪个角色保存历史而不读取快照内容？`,
-          answer: "负责保管历史的角色", hint: "想想谁需要知道快照里有什么。", explanation: "保管历史与读取内容是两种职责，分开可以保持封装。",
-          misconception: "以为保存历史就必须理解快照结构。", citations: sourceId ? [{ sourceId, quote }] : [],
-          ...(t.kind === "flashcard" ? {} : { options: [
-            { id: "a", text: "历史保管者", correct: true, explanation: "它只存放快照，不读取内容。" },
-            { id: "b", text: "快照对象本身", correct: false, explanation: "快照是被保存的数据，不管理历史。" },
-            { id: "c", text: "界面渲染层", correct: false, explanation: "渲染层与状态保存无关。" }] }) };
+        const en = english || /english|^en\b/i.test(String(t.language || ""));
+        return en
+          ? { target: t.target, kind: t.kind, topic: t.card.topic, objective: `Apply ${t.card.topic} in a concrete scenario (variant ${i + 1} · #${n})`,
+            prompt: `When building undo support for an editor (variant ${i + 1} · #${n}), which role should store history without inspecting snapshot contents?`,
+            answer: "The role managing history", hint: "Consider who actually needs to inspect snapshot state.",
+            explanation: "Keeping history and reading snapshot state are separate responsibilities so encapsulation stays intact.",
+            misconception: "Assuming the history keeper must read snapshot internals.", citations: sourceId ? [{ sourceId, quote }] : [],
+            ...(t.kind === "flashcard" ? {} : { options: [
+              { id: "a", text: "History caretaker", correct: true, explanation: "It stores snapshots without inspecting their contents." },
+              { id: "b", text: "Snapshot object itself", correct: false, explanation: "The snapshot holds state data rather than managing history." },
+              { id: "c", text: "UI rendering layer", correct: false, explanation: "Rendering is unrelated to state history management." }] }) }
+          : { target: t.target, kind: t.kind, topic: t.card.topic, objective: `在具体场景中应用 ${t.card.topic}（变式 ${i + 1} · #${n}）`,
+            prompt: `某团队在做编辑器撤销功能时（变式 ${i + 1} · #${n}），应当让哪个角色保存历史而不读取快照内容？`,
+            answer: "负责保管历史的角色", hint: "想想谁需要知道快照里有什么。", explanation: "保管历史与读取内容是两种职责，分开可以保持封装。",
+            misconception: "以为保存历史就必须理解快照结构。", citations: sourceId ? [{ sourceId, quote }] : [],
+            ...(t.kind === "flashcard" ? {} : { options: [
+              { id: "a", text: "历史保管者", correct: true, explanation: "它只存放快照，不读取内容。" },
+              { id: "b", text: "快照对象本身", correct: false, explanation: "快照是被保存的数据，不管理历史。" },
+              { id: "c", text: "界面渲染层", correct: false, explanation: "渲染层与状态保存无关。" }] }) };
       }) };
     } },
-  { name: "coach.debrief", match: (_s, input) => String(input.task || "").includes("本轮指标"),
-    reply: ({ input }) => {
+  { name: "coach.debrief", match: (_s, input) => /本轮指标|round's metrics/.test(String(input.task || "")),
+    reply: ({ input, english }) => {
       const m = input.metrics || {};
       // Nothing graded (flashcards, self-rated answers): there is no rate, so the clause is left out rather than printed as "null%".
+      if (english) {
+        const rate = Number.isFinite(m.accuracy) ? `, ${m.accuracy}% accuracy` : "";
+        return { headline: m.lowShare >= 70 ? "Concepts look solid — put them into practice next" : "Almost there on the weak spots",
+          why: `Of ${m.answered} questions this round, ${m.lowShare}% were concept questions${rate}.`, next: input.defaultNext,
+          summary: `Goal: ${input.learner?.goal || "Unset"}; prefers focused practice; high share of concept contrast, lighter on application.` };
+      }
       const rate = Number.isFinite(m.accuracy) ? `，正确率 ${m.accuracy}%` : "";
       return { headline: m.lowShare >= 70 ? "概念会了，别停在纸上谈兵" : "薄弱点就差临门一脚",
         why: `本轮 ${m.answered} 题里 ${m.lowShare}% 是概念题${rate}。`, next: input.defaultNext,

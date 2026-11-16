@@ -1,7 +1,7 @@
 {
   "name": "@ericwang1358/dsh-daily-flashcard",
   "version": "4.9.2",
-  "description": "StudyHub: turn your lecture slides into questions that each link back to their page; finish a round and see yourself getting it.",
+  "description": "StudyHub: turn your lecture slides into questions that each link back to their page, plus cross-discipline Interactive Companions (offline MathML & sandboxes), review books, mock exams, and FSRS-6 spaced review.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/EricWang1358/dsh-web-studyhub.git"
@@ -14,10 +14,15 @@
     "studyhub",
     "dsh-plugin",
     "deepseek-harness",
+    "interactive-companions",
     "spaced-repetition",
     "flashcards",
     "active-recall",
     "quiz-generator",
+    "review-book",
+    "mock-exam",
+    "mathml",
+    "stem",
     "exam-prep",
     "transcription",
     "local-first"
@@ -99,6 +104,7 @@
     "docs/chemistry-balance.md",
     "docs/symbolic-proof.md",
     "docs/science-settings.md",
+    "docs/science-settings.zh-CN.md",
     "docs/reference-questions.md",
     "docs/reference-questions.zh-CN.md",
     "docs/reference-question-sources.md",
@@ -112,7 +118,9 @@
     "locale",
     "docs/generation-agents-sidebar.zh-CN.md",
     "docs/token-usage.md",
+    "docs/token-usage.zh-CN.md",
     "docs/static-demo.md",
+    "docs/static-demo.zh-CN.md",
     "docs/verification.md",
     "docs/voice-and-tone.md",
     "docs/voice-and-tone.zh-CN.md",

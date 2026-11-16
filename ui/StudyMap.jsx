@@ -37,6 +37,7 @@ import MergeSuggestions, { useMergeSuggestions } from "./study-map/MergeSuggesti
 import DeckTree from "./study-map/DeckTree.jsx";
 import NotebookDirectory from "./study-map/NotebookDirectory.jsx";
 import SelectionBar from "./study-map/SelectionBar.jsx";
+import CourseCompanionsBar from "./companions/CourseCompanionsBar.jsx";
 import { JOB_TYPES } from '../lib/job-status.js';
 import FirstRunLine from "./first-run/FirstRunLine.jsx";
 import { useFirstRunLine } from "./first-run/use-first-run-line.js";
@@ -181,6 +182,8 @@ export default function StudyMap({ data, actions = {}, setupHandlers, notebooks,
       </div>
       {/* 待发布 sits under the day's work; it opens on its own when unpublished drafts wait and today's round is empty or finished. */}
       <HomeDrafts drafts={drafts} data={data} modelReady={modelReadiness(data).ready} openDraft={openDraft} topUpDraft={topUpDraft} defaultOpen={autoOpenDrafts} />
+      {Boolean(data.focus?.course && (data.courses || []).some((c) => (c.name === data.focus.course || (c.aliases || []).includes(data.focus.course)) && c.companions?.length > 0))
+        && <CourseCompanionsBar course={data.focus.course} data={data} />}
       <CatalogHeading count={data.decks.filter((deck) => !!deck.archived === showArchived).length} showArchived={showArchived} hasDecks={data.decks.length > 0}
         hasSources={data.sources.length > 0} course={data.focus?.course} merge={merge} slain={data.decks.find((deck) => deck.systemKind === "slain")}
         addSource={addSource} createManual={createManual} importLibrary={importLibrary} manage={manage} onShowGraph={onShowGraph}

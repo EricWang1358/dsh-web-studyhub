@@ -1,65 +1,67 @@
 ---
 name: study-self
-description: 一句话建一门自学课：主会话用最多五个选项问清目标和期限，写出一份学法给学习者确认，再导入资料、出第一批题，然后回到 StudyHub 从第一阶段开始。
-whenToUse: The learner wants a course built from a goal rather than from material they already imported — 「我要准备 Java 后端面试」「帮我建一门自学课」「两个月把线代学完」 — or picks 自学目标 in StudyHub's new-course page, or pastes a 「发给主会话」 message whose id is self.start.
+description: Build a self-study course from a goal in up to five questions — draft a custom study method for confirmation, import or draft materials, and generate the first batch of questions (一句话建一门自学课).
+whenToUse: The learner wants a course built from a goal rather than from material they already imported — "help me prepare for a backend interview", "build a self-study course", "finish linear algebra in two months", 「我要准备 Java 后端面试」「帮我建一门自学课」「两个月把线代学完」 — or picks Self-study goal / 自学目标 in StudyHub's new-course page, or pastes a "Send to main chat" / 「发给主会话」 message whose id is self.start.
 ---
 
-# 一句话建一门自学课
+# Goal-Driven Self-Study Course Setup (一句话建一门自学课)
 
-学习者说一句目标（「Java 后端 + AI 求职」「两个月把线代学完」「法考冲刺」「临床执业医师复习」），或在 StudyHub「新建课程」里点「自学目标（求职 / 考证 / 自学技能）」，你把它变成一门课：一份**学法**（这门课怎么学，分成几个阶段）、资料，和第一批题。学法是他能看见、能改的，也是这门课怎么用 StudyHub 的说明书。
+When a learner states a study goal (e.g. `"Backend + AI interview prep"`, `"Finish Linear Algebra in two months"`, `"Bar Exam Torts"`, or Chinese 「Java 后端 + AI 求职」), or clicks **Self-study goal (career / exams / skills)** / 「自学目标（求职 / 考证 / 自学技能）」 on StudyHub's New Course screen, turn that goal into a ready-to-use course: a **study method** (`method`, 1–12 stages the learner can see and edit), grounded materials, and the first batch of practice questions.
 
-下面每个动作都是 `study_workspace` 的 action（`action` 加 `payload_json`）；文档导入走 `study_materials` 的 `document.import`。参数和限度的全文：`library.context {"area":"guided"}`、`{"area":"imports"}`、`{"area":"generation"}`。
+**Language rule:** When the learner writes in English, keep every interview option, stage name, drafted handout (`"AI-drafted · unverified"`), UI label (`Jobs`, `Sources`, `Course settings`), and closing summary in 100% natural English with zero Chinese characters. When they write in Chinese, use Chinese (labeling drafted handouts 「AI 撰写 · 未核对」).
 
-## 先读一次，再问
+Every workspace action below uses `study_workspace` (`action` plus `payload_json`); document imports use `study_materials` operation `document.import`. Full schemas and limits live in `library.context {"area":"guided"}`, `{"area":"imports"}`, and `{"area":"generation"}`.
 
-1. `library.context {}`：焦点课程、课程列表、有没有可用的模型。**有模型才谈出题**；没有模型照样建课、存学法，只是说清楚「现在不能生成，先建好课」。
-2. 学习者已经给了导师计划、岗位 JD、考试大纲、课程表之类的文档时，先读出来：能从里面答出来的问题就不要再问。
-3. 这门课已经有了，就问他是改学法还是重来，不要悄悄覆盖。
+## 先读一次，再问 · Read context first
 
-## 怎么问：最多五问，一次一个
+1. Call `library.context {}` once to check the active course, existing courses, and whether an AI model is connected. Discuss generating questions only when a model is available; without a model, still interview the learner, create the course, and save the study method, stating clearly that question generation waits until a model is connected.
+2. If the learner already shared a study plan, job description (JD), exam syllabus, or schedule, read it first and skip any interview question it already answers.
+3. If a course of that name already exists, ask whether to update its study method or start fresh—never overwrite silently.
 
-用 `ask_user_question`，每个问题 2–4 个选项，每个选项一行说清「选它会怎样」。默认放第一个，标题后加 ` (Recommended)`。**一条消息或已有文档里已经答了的就跳过**，不要重复问。问完不要复述问题，直接进学法草稿。
+## 怎么问：最多五问，一次一个 · Interview (at most 5 questions, one at a time)
 
-1. **目标或岗位**：学它做什么（求职 / 考证 / 自学一门课 / 补基础 / 动手做项目）。岗位、学科或考试特点写进阶段名和资料选择，不要套固定学科模板。
-2. **截止日期**：有日期就写进学法的 `targetDate`（`YYYY-MM-DD`），阶段按日期分；没有就按每周节奏排。
-3. **现在的水平**：没接触过 / 学过一半 / 能用但想系统过一遍。决定第一阶段从讲解还是从练开始。
-4. **每天投入多少时间**：30 分钟 / 1 小时 / 2 小时。只影响进度建议，不写进学法也可以。
-5. **手上有什么资料**：有讲义或题库 / 只有目录或大纲 / 什么都没有。有就让他在 StudyHub 里导入（skill `study-import`），没有就走下面的「资料」一节。
+Use `ask_user_question` for **at most five questions** (最多五问), one question per turn, 2–4 options each, one line per option explaining what choosing it does. Put the recommended default first with ` (Recommended)`. **Skip any question already answered** in the learner's message or attached files, and move straight to the method draft without repeating their answers back.
 
-## 学法草稿：先给他看，再存
+1. **Goal or target role:** Why they are studying this (`Job interview / Certification exam / University course / Core foundations / Hands-on project`). Tailor stage names and materials to the exact discipline—never force a rigid template.
+2. **Target date:** If they have a deadline, store it in `targetDate` (`YYYY-MM-DD`) and pace stages by date; otherwise pace weekly.
+3. **Current level:** `Brand new to it / Learned partway / Solid basics, want a systematic pass`. This decides whether Stage 1 starts with `explain` or `practice`.
+4. **Daily study time:** `30 minutes / 1 hour / 2 hours` (used for pacing guidance; optional in `method`).
+5. **Materials on hand:** `Have slides, notes or a question bank / Only a syllabus or outline / Nothing yet`. If they have files, import them (`study-import`); if not, follow the **Course materials** section below.
 
-按这门课的学科特点与学习者的自定义想法，灵活写一份阶段列表（通常 3–5 个阶段，限度 1–12 个阶段），不要锁死成固定模板。每个阶段：
+## 学法草稿：先给他看，再存 · Draft the study method before saving
 
-- `name`：一句大白话，写清这一阶段在干什么（「把 Java 集合和并发过一遍」「精读民法总则核心法条与典型案例」）。
-- `activity`：主活动，`publish`（导入资料，资料导入后即自动进入下一阶段；实质学习阶段请按第 3 问的水平选 `explain` 或 `practice`，不要把第 1 阶段实质内容标成 `publish`）/ `practice`（练）/ `review`（复习）/ `explain`（讲）/ `check`（检验）/ `project`（整理笔记）。
-- `alternatives`：最多两个「也可以」的活动。
-- `level`：过关宽严，`loose`（答过八成就算）/ `medium`（约八成答对）/ `strict`（全部答对）。
+Design a flexible 3–5 stage sequence (limit: 1–12 stages) tailored to the subject and goal:
 
-然后**一句话念给他听**（第一阶段做什么、一共几个阶段、目标日期），问一句「照这个学法开始，还是先改哪一段？」。他说改就改，说可以才存：
+- `name`: Plain, concrete stage title (`<= 40` chars), e.g. `"Vector spaces & linear maps"` or `"Concurrency & JVM internals"` (Chinese e.g. 「把 Java 集合和并发过一遍」).
+- `activity`: Primary stage activity — `publish` (for importing materials only; auto-advances once imported — **never mark substantive Stage 1 learning as `publish`**, 不要把第 1 阶段实质内容标成 `publish`; pick `explain` or `practice` based on Q3) / `practice` / `review` / `explain` / `check` / `project`.
+- `alternatives`: Up to 2 optional alternative activities.
+- `level`: Stage gate strictness — `loose` (~80% attempted) / `medium` (~80% correct) / `strict` (100% correct).
 
-`course.save {"name": "<课程名>", "method": {…整份学法…}}`
+Summarize the draft in **one sentence** (what Stage 1 does, how many stages total, target date) and ask: `"Start with this study method, or adjust any stage first?"` (Chinese: 「照这个学法开始，还是先改哪一段？」). Save **only after** the learner confirms (没确认之前不生成、不存):
+
+`course.save {"name": "<课程名>", "method": {…full method object…}}`
 `focus.set {"mode": "class", "course": "<课程名>"}`
 
-课程名用他的说法（「Java 后端 + AI 求职」），不要自己起名字。限度：1–12 个阶段，名称不超过 40 字，`targetDate` 可不填；不合格时 `course.save` 会退回一句原因，照着改了再存。**整份发出**，不要只发一个阶段。
+Keep the learner's own course title; send the complete `method` object (`1–12` stages, each `name <= 40` chars, optional `targetDate`); if `course.save` rejects a field, fix it and save again.
 
-## 资料
+## 资料 · Course materials
 
-1. 有资料：请他导入，然后只保留和阶段相关的部分；导入后核对一次章节是否对得上（`course.outline`）。
-2. 缺资料的阶段：由你按这一阶段的目标起草一份结构清晰的 Markdown 讲义（写在工作区 `studyhub-work/` 下），经 `study_materials` 的 `document.import` 导入这门课并传 `provenance: "ai-drafted-unverified"`（或经 `source.add` 传 `provenance: "ai-drafted-unverified"`），标题和来源都如实标注为「AI 撰写 · 未核对」。
-3. **不做无资料生成**：一条能核对的资料都没有的阶段，不要出题；告诉他「这一阶段还没有资料：导入一份，或让我起草一份」（StudyHub 学法卡上缺资料的阶段也会显示「还没有资料 · 导入，或请主会话起草」）。
+1. **Learner has materials:** Help import them (`study-import`), keep the relevant scope, and check alignment with `course.outline`.
+2. **Missing materials for Stage 1:** Draft a well-structured Markdown study guide under `studyhub-work/` in the learner's language, and import it via `study_materials` operation `document.import` with `provenance: "ai-drafted-unverified"` (or `source.add` with `provenance: "ai-drafted-unverified"`), labeling its title and provenance honestly as `"AI-drafted · unverified"` in English or 「AI 撰写 · 未核对」 in Chinese.
+3. **Never generate ungrounded questions (不做无资料生成):** If a stage has zero verifiable sources, do not call `generate`; tell the learner `"This stage has no material yet: import a file, or ask me to draft study notes"` (matching the card badge `"No material yet · Import, or ask main chat to draft"` / 「还没有资料 · 导入，或请主会话起草」).
 
-## 第一批题
+## 第一批题 · First batch of questions
 
-只出第一阶段的范围：`generate {"course": "<课程>", "sourceIds": [...], "count": <题数>, "kind": "quiz"}`（题型可按学科与水平选，其余参数见 `library.context {"area":"generation"}`）。进度在「任务」里；出完是一份草稿，请他在 StudyHub 里看一眼再发布，发布后才能练。说一句「第一批题出好后在草稿里，发布了就能练；练完回来我们看要不要进下一阶段」。
+Generate questions **only for Stage 1's scope**: `generate {"course": "<course>", "sourceIds": [...], "count": <n>, "kind": "quiz", "language": "en"}` (use `"zh"` for Chinese courses; adjust `kind` to fit the subject; see `library.context {"area":"generation"}`). Progress appears in **Jobs** (`任务`), and finished questions land as a draft for review before publishing: tell the learner `"Your first batch of questions is generating into Drafts—review and publish it in StudyHub to start practising, then come back when you're ready for the next stage."`
 
-## 收尾
+## 收尾 · Wrap-up
 
-回到 StudyHub 首页：新课程已经就位，课程进度下面有一行「学法 · 第 1 阶段」，主卡显示「开始第 ① 阶段」（完整学法在「课程设置」里，缺资料的阶段随时可导入或请主会话起草）。用中文简短汇报三件事：课名、几个阶段、第一批题已经开始了（或没有模型，先建好课）。**不要**替他答任何题，也不要把学法里的阶段进度说成已经完成。
+Back on StudyHub's home screen, the new course shows `"Method · Stage 1"` (`学法 · 第 1 阶段`) and `"Start stage ①"` (`开始第 ① 阶段`), with the full method editable in **Course settings**. Report three things briefly in the learner's language: the course name, the number of stages, and that the first question batch has started (or that the course is ready while waiting for a model). Never answer cards on the learner's behalf or claim a stage is already completed.
 
-## 边界
+## 边界 · Boundaries
 
-- 不猜目标、不猜日期、不猜水平；问不清楚就再问一句。
-- 引用必须能核对：把「AI 撰写 · 未核对」的资料说成他的讲义是不允许的。
-- 学法的每一段都能改：他说「把第二个阶段改成只做题」，就改那一段再存。
-- 一次只做他确认过的事；没确认之前不生成、不存。
-- 永久删除或归档任何东西之前，先用一句话问学习者：什么会没有，什么会留下；得到明确的「好」再动手。
+- Never guess the goal, deadline, or starting level—ask one short question when unclear.
+- Keep provenance honest: never present `"AI-drafted · unverified"` / 「AI 撰写 · 未核对」 notes as the learner's own textbook or slides.
+- Every stage remains editable via `course.save` whenever the learner asks.
+- Generate or save nothing before explicit confirmation (没确认之前不生成、不存).
+- Before any permanent delete or archive, ask the learner first, in ONE sentence that says what goes and what stays, and act only on a clear yes. (永久删除或归档任何东西之前，先用一句话问学习者：什么会没有，什么会留下；得到明确的「好」再动手。)

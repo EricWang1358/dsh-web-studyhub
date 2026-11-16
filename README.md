@@ -10,7 +10,7 @@ StudyHub is a plugin for [DeepSeek Harness (DSH)](https://www.deepseek.com/en/ha
 
 [Try the demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) · [Install guide](docs/install.md) · [Release 4.9.2](https://github.com/EricWang1358/dsh-web-studyhub/releases/tag/v4.9.2) · [Changelog](CHANGELOG.md)
 
-The demo runs in your browser with sample questions and prepared AI replies. It needs no install and no key, and your progress there stays in that browser.
+The demo runs in your browser with sample questions, playable **Interactive Companions**, and prepared AI replies. It needs no install and no key, and your progress there stays in that browser.
 
 ## At a glance
 
@@ -25,13 +25,14 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 
 - **Make questions from your own sources.** Pick pages or chapters and generate flashcards, single- or multiple-choice, open-response or fill-in-the-blank questions. Every question cites its passage, and you review the draft before you publish it.
 - **Move between questions and sources.** A citation opens the passage it came from. In a source, paragraph and table markers lead to the questions and explanations linked to them.
-- **Practise and review.** Start today's study from the **Study library**, shape each course's **Learning method** (`学法`) or ask the main chat for **AI-guided study** (`AI 带学`), click **Help me understand** on any question, and let FSRS-6 schedule your reviews.
+- **Build cross-discipline Interactive Companions.** Open **Interactive Companions** on **Course outline** or **Sources** to generate self-contained 16–20 slide zero-dependency `.html` lessons (`generation.companion.build`) across Mathematics, Philosophy, Mechanical Engineering, Physics, Economics and Computer Science — with parametric math sandboxes, dialectical thought-experiment matrices, stepwise vector schematics, empirical code/proof traces, built-in LaTeX-to-MathML formulas and 0-token spaced-repetition card sync — or mount existing local HTML companion packs (`companion.attach`). See [Interactive Companions and external tools](docs/companions.md).
+- **Practise and review.** Start today's study from the **Study library**, shape each course's **Learning method** or ask the main chat for **AI-guided study**, click **Help me understand** on any question, and let FSRS-6 schedule your reviews.
 - **Add exam focus highlights, even from screenshots.** Drop chat screenshots, whiteboard photos or scope notes into **Add exam focus…** (works with both vision and text-only models such as DeepSeek): focus topics schedule at shorter intervals, go first in daily rounds and study plans, and generate deeper application and advanced questions. Once topics are saved, the home shows how many are mastered, not yet and without questions, with a link to practise the ones you can't do yet; **Course settings** lists each topic with its questions.
 - **Find weak points.** Use **Mistakes & weak points**, **Statistics** and **Mock exam**, which offers a multiple-choice paper, a case paper or an oral interview.
-- **Finish with a daily recap.** After answering 10 distinct questions in one course on the same day, generate one recap across its chapters. Retries count once. Choose a friendly or professional tone and opt into automatic generation in Settings. Recaps use the source reader; saving one as a source and publishing on CSDN are separate actions.
+- **Finish with a daily recap.** After answering 10 distinct questions in one course on the same day, generate one recap across its chapters. Retries count once. Choose a friendly or professional tone and opt into automatic generation in Settings. Recaps open in the source reader as publishable Markdown study articles, and saving one as a course source is a separate action.
 - **Turn recordings into text.** Import a lecture recording, or transcribe a **Live class** as it happens, and get a Chinese–English transcript you can generate questions from.
-- **Read and organise.** The reader keeps its toolbar short (**Contents**, **Make questions**, **Mistakes**, **Mind map**); search, **Translate…**, display settings and **Study tools** are in **More**, and **Practise these pages** is the arrow beside **Make questions**. Courses, **Study notes**, **Tasks** and a **Knowledge outline** keep a term's work together.
-- **Works well with** the open-source [Archify](https://github.com/tt-a1i/archify) (MIT licence, by tt-a1i; no partnership with StudyHub): your assistant can draw a knowledge outline as an interactive diagram with it, and StudyHub keeps and shows the file. See [Works well with other tools](docs/companions.md).
+- **Read and organise.** The reader keeps its toolbar short (**Contents**, **Make questions**, **Mistakes**, **Mind map**); search, **Translate…**, display settings and **Study tools** are in **More**, and **Practise these pages** is the arrow beside **Make questions**. Courses, **Study notes**, **Jobs** and a **Knowledge outline** keep a term's work together.
+- **Works well with** the open-source [Archify](https://github.com/tt-a1i/archify) (MIT licence, by tt-a1i; no partnership with StudyHub): your assistant can draw a knowledge outline as an interactive diagram with it, and StudyHub keeps and shows the file. See [Interactive Companions and external tools](docs/companions.md).
 
 ## Quick start
 
@@ -39,7 +40,7 @@ The demo runs in your browser with sample questions and prepared AI replies. It 
 | --- | --- | --- |
 | Take the sample course and tour, browse sources, practise existing questions | StudyHub only | Free, no model calls |
 | Generate questions, explanations and **Help me understand** | A model provider key in DSH **Settings › Models** | Billed by your provider, for example the [DeepSeek API](https://platform.deepseek.com/) |
-| Turn recordings into text | A transcription key in StudyHub **Settings › Audio transcription** | SiliconFlow SenseVoice supports recording transcription. Gemini and Groq availability and allowances depend on the provider |
+| Turn recordings into text | A transcription key (or local live engine) in StudyHub **Settings › Audio transcription** | Google Gemini, Groq Whisper and SiliconFlow SenseVoice are supported for recordings (availability and allowances depend on the provider); **Live class** also supports an offline local engine |
 
 1. **Install DSH** (skip this if you have it). Use the official [Windows x64 installer](https://download.deepseek.com/desktop/dsh-latest-windows-x64.exe) or [macOS Apple silicon installer](https://download.deepseek.com/desktop/dsh-latest-macos-arm64.dmg). On any other computer, install Node.js 22.19 or later and run `npx @deepseek-ai/dsh web`.
 2. **Install StudyHub.** In DSH, open **Plugins**, click **Add plugin**, paste this address and click **Enable**:
@@ -108,6 +109,13 @@ To add to an existing deck, choose that deck: approved questions are added, and 
 
 Save a default question type, count, content language, difficulty and focus in **Settings › Question defaults**; each new request can override them. Questions per batch, parallel batches and the time budget are there too, initially 5, 4 and 20 minutes. Started tasks keep their original choices; a continued draft keeps its own, except the time budget and applying review suggestions, which follow the setting as it is now. See [Generation pace](docs/generation-agents-sidebar.md#what-a-generation-task-does).
 
+### Interactive Companions
+
+Open **Interactive Companions** on **Course outline** or **Sources** to unpack difficult concepts in a progressive stage-and-voice lesson (`studyhub-lesson/1`):
+
+- **Generate for any discipline (`generation.companion.build`).** A 4-stage pipeline compiles a 16–20 slide, zero-dependency `.html` file into `<workspace>/companions/<course>/` using four interactive stage archetypes — **Parametric & Phase-Plane Math Sandbox** (`sandbox`, pure AST 1D curves, 2D parametric trajectories, phase-plane quiver vector fields, live equilibrium markers and hover crosshair readouts), **Dialectical Counterexample Matrix** (`dialectic`, predict-before-reveal matrices and Socratic lanes), **Closed-Loop Schematic & Force Path** (`mechanism`, curved feedback loops and clickable node details) and **Empirical Trace & Workshop** (`empirical`, `spot`, `try`) — with offline built-in zero-dependency W3C MathML rendering, `?` keyboard shortcut help and `@media print` multi-slide study-sheet export. Grounded builds cite selected materials; free-topic builds work without materials and are honestly marked **AI-drafted**.
+- **Mount local packs, live-compile JSON & sync cards (`companion.attach`, `companion.sync`).** Point StudyHub at a single `.html` lesson or a folder of companion pages (`pages/*.html` or unbuilt `lessons/*.json` compiled live): existing courses link matching questions to exact `#slide` anchors (**Enrich existing**), while blank courses deterministically compile takeaway flashcards, boundary quizzes and oral/task drills at **0 model tokens** (**Full pack**, granting **First-Pass Credit** on walkthrough completion). Inside the sandboxed viewer, jump slides, sync dark/light themes, 1-click **Sync disk changes**, or highlight text to look up terms, ask the tutor (`companion.ask`), save cards to **Companion Catch-ups**, and sync `<pack>/feedback/questions.json`. See [Interactive Companions and external tools](docs/companions.md).
+
 ### Practise and review
 
 Today's learning plan connects tasks to the library home. Ask AI for a plan based on real due reviews, weak areas, available materials and accepted tasks. Give feedback to revise it, or accept. Each action has a reason and estimated duration; suggestions become board tasks only after acceptance, with direct start and resume controls.
@@ -134,7 +142,7 @@ When DSH supports local subagents, repeated **Help me understand** on the same q
 - Select a passage to ask about it, or to generate candidate questions that you review and add to an existing deck.
 - A source imported as text only can get its original back with **Add the original file**, with no reimport.
 - When a source changes and a linked position is no longer certain, StudyHub asks you to relocate it instead of guessing.
-- Explanations, notes, **Tasks** and the **Inbox** link back to the question or source they are about. The reader and question links help you return to the current question.
+- Explanations, notes, **Jobs** and the **Inbox** link back to the question or source they are about. The reader and question links help you return to the current question.
 - Press `?` to see every keyboard shortcut.
 
 ## Choose a model
@@ -149,11 +157,11 @@ Setup steps: [configure a model provider](docs/install.md#configure-a-model-prov
 
 ## Transcribe recordings
 
-1. Open **Settings › Audio transcription** and add a key. SiliconFlow SenseVoice supports recording transcription. Gemini (Google AI Studio) and Groq are also supported.
+1. Open **Settings › Audio transcription** and add a key for **Google Gemini** (AI Studio), **Groq** (Whisper) or **SiliconFlow** (SenseVoice, convenient in mainland China).
 2. Open **Audio transcription**, click **Add audio** and then **Start import**. Nothing is uploaded until a provider is set up.
 3. The transcript is saved as a source. Generate questions from it like any other source.
 
-Only transcription uses these keys. Proofreading and translation use your DSH model by default, so their tokens are billed by your model provider and appear under **Model usage** in **Statistics**. **Live class** transcribes in real time and supports only Gemini.
+Only transcription uses these keys. Proofreading and translation use your DSH model by default, so their tokens are billed by your model provider and appear under **Model usage** in **Statistics**. **Live class** transcribes lectures in real time (producing bilingual transcripts) using either **Google Gemini** or the **offline local engine** (SenseVoice / Whisper, installed locally with no transcription key).
 
 <details>
 <summary>More about audio</summary>
@@ -171,9 +179,9 @@ See [audio import](docs/audio-import.md) and [live class](docs/live-class.md).
 
 ## Use StudyHub from the DSH chat
 
-- **Study mode preset.** For a new session, pick the agent preset **学习模式 · StudyHub** (Study mode; the label is in Chinese in both languages). The assistant then takes "materials", "my notes" or "this lecture" to mean your StudyHub library and asks when a request is ambiguous. It has the same tools as DSH's standard preset, so it can also run commands and edit files to convert material (for example split a question book by chapter) before importing it: it writes the results under `studyhub-work/` in the workspace, never deletes or overwrites your originals, and asks before installing anything.
+- **Study mode preset.** For a new session, pick the agent preset **StudyHub · Study Mode**. The assistant then takes "materials", "my notes" or "this lecture" to mean your StudyHub library, replies in your language, and asks when a request is ambiguous. It has the same tools as DSH's standard preset, so it can also run commands and edit files to convert material (for example split a question book by chapter) before importing it: it writes the results under `studyhub-work/` in the workspace, never deletes or overwrites your originals, and asks before installing anything.
 - **Ask about your library** in the main chat: see [query sources and decks from the main chat](docs/main-session-queries.md).
-- **Save a question you could not answer.** Type `/study-spar <your question>` in a DSH chat. StudyHub files it in your question bank as a flashcard. Add `--mq` for single choice or `--multi` for multiple choice; start with `--pre` to file it as a prerequisite of the question you are working on.
+- **Save a question you could not answer.** Type `/study-spar <your question>` in a DSH chat. StudyHub files it in your question bank as a flashcard. Add `--mq` (or `as MCQ`) for single choice, `--multi` (or `as multi-select`) for multiple choice, or `--open` (or `as open question`); start with `--pre` (or `prerequisite:`) to file it as a prerequisite of the question you are working on.
 - **Follow background tasks** in DSH's sidebar: see [background tasks and the sidebar](docs/generation-agents-sidebar.md).
 
 ## Update StudyHub
@@ -243,7 +251,7 @@ npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output
 - `npm run test:fast` skips the files named in `tests/slow-tests.json`: those that launch a browser, run ffmpeg or start another program. `tests/slow-tests-list.test.mjs` fails when a new test file does one of these and is not listed, so the fast tier stays fast; run `npm run verify` before a pull request.
 - The host supplies the DSH SDKs `@deepseek-ai/dsh-tools` and `@deepseek-ai/dsh-llm` (optional peers, `>=0.2.0-rc.2 <0.3`). Tests that need a missing SDK report an explicit skip.
 - CI runs on Node 22, on Ubuntu and Windows, for every pull request: lint and the build once (Ubuntu), and the tests cut into shards of about equal weight (3 on Ubuntu, 5 on Windows), each shard on its own machine, with one `verify` check that is green only when lint and every shard are. A new push to a pull request replaces the checks still running for it. `node scripts/test.mjs --shard=2/5` runs one shard locally (`--list` with `node scripts/qa/run-tests.mjs` names its files). `tests/test-weights.json` says roughly how long each test file takes, so that every machine cuts the suite the same way and a fresh machine starts the longest files first; refresh it with `node scripts/qa/test-weights.mjs --write <durations.json>` (the shards of a CI run upload theirs as `durations-*` artifacts; add `--sum` for the files of one run). A separate, non-blocking `browser-smoke` job (`.github/workflows/browser-smoke.yml`, Ubuntu) installs Playwright's Chromium and runs four real-browser test files (shell, review reveal, mistakes page, right-sidebar hand-off) that otherwise skip in the shards for want of a browser; it stays green when they fail, so open its run to see the result. To make it blocking, remove its `continue-on-error` and require it in the branch protection.
-- The [static demo](docs/static-demo.md) (in Chinese) runs the real interface with public examples and prepared replies instead of a live model.
+- The [static demo](docs/static-demo.md) runs the real interface with public examples and prepared replies instead of a live model.
 
 ## Documentation
 
@@ -254,15 +262,16 @@ npm run release:pack   # release packages and SHA256SUMS-<version>.txt in output
 - **Studying:** [course study, archived learning flows and study notes](docs/study-workflows.md) · [coaching and personalised questions](docs/coach.md) · [follow-up questions](docs/followup.md)
 - **Audio:** [audio import](docs/audio-import.md) · [live class](docs/live-class.md)
 - **Chat and tasks:** [main chat queries](docs/main-session-queries.md) · [background tasks and the sidebar](docs/generation-agents-sidebar.md)
-- **Works well with:** [Archify and other companion tools](docs/companions.md)
+- **Interactive Companions & external tools:** [cross-discipline HTML lessons, companion packs and Archify](docs/companions.md)
 - **Optional:** [usage frequency record](docs/usage-frequency.md) · [Jev decision layer (experimental)](docs/jev-experimental.md)
 - **Developers:** [architecture](docs/architecture.md) · [architecture case study](https://github.com/EricWang1358/dsh-web-studyhub/tree/main/docs/case-study) · [verification records](docs/verification.md) · [voice and tone for interface text](docs/voice-and-tone.md) · [FSRS-6 review scheduling](references/sm2-scheduling.md) · [legacy study-lib-spar format](references/library-schema.md)
 
 ## Join the project
 
-Interested in contributing code, testing, improving documentation or sharing feedback? Join the StudyHub QQ group to discuss the project. Scan the code below with QQ, or [open the full-size image](docs/assets/studyhub-qq-group.jpg).
+Contributions of code, bug reports, testing and documentation are welcome:
 
-<img src="docs/assets/studyhub-qq-group.jpg" alt="QR code for joining the StudyHub project group on QQ" width="360">
+- Open an issue or feature discussion in [GitHub Issues](https://github.com/EricWang1358/dsh-web-studyhub/issues), or send a pull request after running `npm run verify`.
+- Chinese-speaking contributors can also join the StudyHub QQ group listed in [README.zh-CN.md](README.zh-CN.md).
 
 ## Feedback and license
 

@@ -20,7 +20,8 @@
 | 开始做已存的定制方案要求的事 | “就按我们刚定的方案做。” | `course.custom.apply`（说一次：复习全书、选中章节的题、备考计划；回答开始了什么、什么在等、什么只记着；再说一次也安全） |
 | 给已有题组补题 | “根据这份讲义，给二分查找题组补 5 道题” | `supplement`，见[向已有题组补题](supplementation.zh-CN.md) |
 | 把草稿发布到已有题组 | “把这份草稿并入二分查找题组” | `draft.publish` |
-| 把知识骨架画成可交互的图 | “用 archify 技能画我的可靠性骨架” | `skeleton.get`，再 `skeleton.diagram.attach`，见[搭配好用的工具](companions.zh-CN.md) |
+| 生成或挂载跨学科交互伴学课 | “给数学分析生成一节一致收敛的交互伴学课” | `generation.companion.build` 或 `companion.attach`，见[交互伴学与搭配工具](companions.zh-CN.md) |
+| 把知识骨架画成可交互的图 | “用 archify 技能画我的可靠性骨架” | `skeleton.get`，再 `skeleton.diagram.attach`，见[交互伴学与搭配工具](companions.zh-CN.md) |
 
 要从电脑导入 JSON 题组文件，见[在主对话中导入文件](json-import.zh-CN.md#在主对话中导入文件)。
 
@@ -43,7 +44,7 @@
 - 当已有学习目标、偏好、练习记录、课程重点或考试安排时，附上实时派生的学习者档案（`learner`，其中模型撰写的画像摘要仅在开启备题同意且未关闭本轮点评时附带）；全新学习库省略这一项；
 - 契约分区列表。
 
-需要某类操作的具体参数时，读取对应分区，例如 `library.context {area:"sources"}`、`{area:"generation"}` 或 `{area:"cards"}`。分区有 `dailyPlan`、`plan`、`custom`、`sources`、`imports`、`decks`、`classroom`、`generation`、`cards`、`learning`、`panel`、`guided`、`book`、`organization`、`notes`、`board`、`workflows`、`cases` 和 `skeletons`。
+需要某类操作的具体参数时，读取对应分区，例如 `library.context {area:"sources"}`、`{area:"generation"}` 或 `{area:"cards"}`。分区有 `dailyPlan`、`plan`、`custom`、`sources`、`imports`、`decks`、`classroom`、`generation`、`cards`、`learning`、`panel`、`guided`、`book`、`companions`、`organization`、`notes`、`board`、`workflows`、`cases` 和 `skeletons`。
 
 资料原文、题目和关联关系只在需要时分页读取。
 

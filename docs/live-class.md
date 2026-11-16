@@ -31,7 +31,7 @@ The quality model is about 989 MB. On Windows its first installation downloads a
 
 The sizes and default location below describe the speed model.
 
-- **Install.** Click **Install local transcription engine** on the **Live class** page or under **Settings › Audio transcription › Live class transcription**. It installs in three steps: **Install the speech engine**, **Download the speech model**, **Check that it works**. Progress is shown on the card and in **Tasks**; **Pause** keeps what was downloaded, and **Continue install** goes on from there.
+- **Install.** Click **Install local transcription engine** on the **Live class** page or under **Settings › Audio transcription › Live class transcription**. It installs in three steps: **Install the speech engine**, **Download the speech model**, **Check that it works**. Progress is shown on the card and in **Jobs**; **Pause** keeps what was downloaded, and **Continue install** goes on from there.
 - **Where it goes.** By default into `StudyHub\LiveLocal` on the non-system drive with the most free space (**Choose location** to change it): `engine\node_modules` holds the engine and `models\sense-voice` the model. Nothing is added to StudyHub's own package or to the system.
 - **Size.** The first install downloads about 239 MB on Windows: the speech model about 228 MB, the voice detector about 2 MB and the engine about 9 MB. Once installed it uses about 253 MB.
 - **What is downloaded, and how it is checked.** The engine is the npm package `sherpa-onnx-node` and this computer's prebuilt package at version 1.13.8, from npmmirror (or registry.npmjs.org), each compared with the sha512 integrity the npm registry publishes for that version. The model files come from ModelScope at a fixed revision, each compared with the sha256 in ModelScope's file metadata. A file that does not match is deleted and downloaded again; a download that stopped continues from its `.part` file. A model the community package already downloaded to `~/.dsh/live-models/sense-voice` is reused when it matches.
@@ -105,7 +105,7 @@ If the system compiler is disabled on your machine, you can still fall back to W
 
 ### What keeps or ends a recording
 
-- Moving to other StudyHub pages, such as **Tasks** or **Sources**, keeps the recording going.
+- Moving to other StudyHub pages, such as **Jobs** or **Sources**, keeps the recording going.
 - A library can record only one class at a time.
 - Stopping the share in the browser ends the recording.
 - Switching to another library ends the recording.

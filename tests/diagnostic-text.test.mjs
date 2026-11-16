@@ -107,9 +107,12 @@ test('the "is not ..." messages are copied only for a code-shaped subject, never
   for (const text of withheld) assert.match(messageOf(text), /^Message: \(not copied: \d+ characters; see 技术详情\)$/, text);
 });
 
-test('an error message that is not one of the engine\'s own is replaced by its length', () => {
+test('an error message that is not one of the engine\'s own is replaced by its length, in Chinese or English', () => {
   const text = diagnosticText({ version: '1', language: 'zh', page: 'library', error: new Error('题组「期中冲刺卷」没有题目') });
   assert.match(text, /Message: \(not copied: 13 characters; see 技术详情\)/);
+  const english = diagnosticText({ version: '1', language: 'en', page: 'library', error: new Error('secret deck name') });
+  assert.match(english, /Message: \(not copied: 16 characters; see Technical details\)/);
+  assert.doesNotMatch(english, /[\u3400-\u9fff]/);
 });
 
 test('the engine\'s own messages are kept: they say what broke and hold nothing of the learner\'s', () => {

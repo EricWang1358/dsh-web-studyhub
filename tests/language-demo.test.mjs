@@ -59,6 +59,11 @@ test('demo lessons and retelling feedback are bilingual, disclosed and do not pr
     assert.match(feedback.note,language==='en'?/No AI assessment/:/没有模型判断/);
   }
   await assert.rejects(demoModel('Repair an arbitrary card','{}'),/没有预置/);
+  await assert.rejects(demoModel(languageSystem('Repair an arbitrary card','en'),'{}'),/not prerecorded/);
+  const { suggestFollowups } = await import('../lib/followup.js');
+  const suggested = await suggestFollowups((sys, usr) => demoModel(languageSystem(sys, 'en'), usr), sampleCards[0], { language: 'en' });
+  assert.equal(suggested.questions.length, 3);
+  assert.doesNotMatch(suggested.questions.join(' '), /[\u4e00-\u9fff]/);
 });
 
 test('browser storage commits atomically, serializes updates and retains progress after quota errors',async t=>{

@@ -10,15 +10,24 @@ import { useStudy } from '../study-context.jsx';
  * that keeps the heading quiet. `merge` is useMergeSuggestions.
  */
 export default function CatalogHeading({ count, showArchived, hasDecks, hasSources, course, merge, slain, addSource, createManual, importLibrary, manage, onShowGraph, onShowOutline }) {
-  const { busy } = useStudy();
+  const { busy, openModal } = useStudy();
+  const canOpenCompanionBuild = typeof openModal === 'function';
   const items = [
     course != null && { id: 'merge', label: ui('整理题组'), disabled: busy || merge.busy },
     { id: 'add', label: ui('添加资料'), icon: 'plus' },
+    canOpenCompanionBuild && { id: 'companion', label: ui('新建交互伴学课…'), icon: 'play' },
     { id: 'manual', label: ui('手工建卡'), disabled: !hasSources },
     { id: 'json', label: ui('导入 JSON 题组') },
     slain && { id: 'slain', label: uiFormat('斩题组（{0}）', [slain.count]), disabled: busy },
   ].filter(Boolean);
-  const choose = { merge: merge.run, add: addSource, manual: createManual, json: importLibrary, slain: () => manage(slain.id) };
+  const choose = {
+    merge: merge.run,
+    add: addSource,
+    companion: () => openModal?.({ type: 'companionBuild', course: course || '' }),
+    manual: createManual,
+    json: importLibrary,
+    slain: () => manage(slain.id),
+  };
   return (
     <div className="section-heading map-heading" data-tour="home-catalog">
       <h2>{showArchived ? ui('已归档题组') : ui('学习目录')} <span>{count}</span></h2>
@@ -26,6 +35,11 @@ export default function CatalogHeading({ count, showArchived, hasDecks, hasSourc
         {onShowOutline && <OutlineEntry size="sm" onShowOutline={onShowOutline} />}
         {hasDecks && <Button size="sm" lock={busy} title={ui('用整块画布打开知识结构图 / 学习路径图（可缩放、拖拽）')}
           onClick={() => onShowGraph?.(null, { canvas: true })}>{ui('查看图谱')}</Button>}
+        {canOpenCompanionBuild && !showArchived && (
+          <Button size="sm" variant="quiet" icon="play" onClick={() => openModal({ type: 'companionBuild', course: course || '' })}>
+            {ui('新建交互伴学课')}
+          </Button>
+        )}
         <Menu className="map-menu-wrap" label={ui('整理与添加')} items={items} onSelect={(id) => choose[id]()}
           trigger={({ props, ref }) => <Button ref={ref} size="sm" className="catalog-menu-toggle" busy={!!merge.busy} busyLabel={ui('整理中…')} {...props}>{ui('整理与添加')}</Button>} />
       </div>

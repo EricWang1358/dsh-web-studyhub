@@ -17,7 +17,7 @@ Checkpoint drafts show completed batches against planned batches. If the host
 restarts, the in-memory job disappears, but the saved draft stays visible and
 is labelled as interrupted; only its saved questions have passed review. New
 generation drafts also retain source IDs and the original settings. The learner
-can choose **为没覆盖的部分补题** (add questions for the uncovered parts) to run the normal evidence
+can choose **Add questions for the uncovered parts** to run the normal evidence
 planning and review pipeline for the sections of the material that have no question
 (planned-and-failed ones are written again from their plan), then append approved new
 cards to the same draft. This

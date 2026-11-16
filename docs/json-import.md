@@ -53,7 +53,7 @@ A `.txt` file must contain JSON. For questions that are not JSON, such as quiz-a
 | `kind` | Every question | `quiz` (single choice), `multi` (multiple choice), `truefalse` (true/false), `flashcard`, `open` (open response) or `cloze` (fill in the blank). |
 | `topic`, `objective`, `prompt`, `answer`, `hint`, `explanation`, `misconception` | Every question | Non-empty text. |
 | `options` | `quiz`, `multi` | 3–6 options. Each has `id`, `text`, `correct` (`true` or `false`) and `explanation`. A `quiz` has exactly 1 correct option. A `multi` has at least 1 correct and at least 1 incorrect option. |
-| `options` | `truefalse` | Exactly 2 options with the ids `true` and `false`, in that order, each with `text` and `explanation`; exactly 1 is correct. `prompt` is the statement to judge; for a false statement, `answer` gives the true statement. StudyHub shows the two options as **True** and **False** (对 / 错) and never shuffles them. |
+| `options` | `truefalse` | Exactly 2 options with the ids `true` and `false`, in that order, each with `text` and `explanation`; exactly 1 is correct. `prompt` is the statement to judge; for a false statement, `answer` gives the true statement. StudyHub shows the two options as **True** and **False** and never shuffles them. |
 | `rubric` | `open` | The scoring rubric, as text. |
 | `cloze` | `cloze` | `{"text": "...", "answers": [...]}`. `text` is the sentence shown, with each blank marked `{{id}}`. Each answer has `id`, `value` and an optional `accept` list of other correct answers. Every marker needs one answer, and every answer needs one marker. |
 | `citations` | Optional | Links to sources already in your library. See [Link questions to your sources](#link-questions-to-your-sources). |

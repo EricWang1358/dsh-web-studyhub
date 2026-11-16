@@ -2,12 +2,35 @@ import { ui } from '../i18n.js';
 import { contractOf } from './task-model.js';
 import { isLiveStatus } from '../../lib/job-contract.js';
 import { taskMaterial } from './task-material.js';
+import { openCompanionTarget, resolveCompanionTarget } from '../companions/companion-ref.js';
 
 /* Where 打开结果 leads, for the console's header and for the compact card: read from the job's contract (the references to what it made) and carried out by
    the app's own navigation (`app` is the controller of ui/app/app-context.js, or anything shaped like its learn / drafts / intents / data). One place, so a
    job opens the same thing from wherever it is shown. Null when there is nothing to open (yet). */
 export function resultOpener(job, app) {
   const contract = contractOf(job), refs = contract.result.refs, data = app?.data;
+  const companionRef = refs.find((ref) => ref.kind === 'companion')
+    || (Array.isArray(job?.result?.refs) ? job.result.refs.find((ref) => ref.kind === 'companion') : null);
+  const isCompanionJob = Boolean(companionRef || contract.kind === 'companion-lesson-build' || job?.type === 'companion-lesson-build');
+  if (isCompanionJob) {
+    const openModal = app?.set?.setModal || app?.openModal;
+    const rawCompanionId = companionRef?.id || contract.detail?.companionId || job?.result?.companionId || job?.companionId || '';
+    if (!rawCompanionId || contract.status !== 'complete' || isLiveStatus(contract.status) || typeof openModal !== 'function') return null;
+    const fallbackCourse = companionRef?.course || contract.detail?.course || job?.result?.course || job?.course || '';
+    const target = resolveCompanionTarget({
+      card: { companionRef: { companionId: rawCompanionId } },
+      courses: data?.courses,
+      sources: data?.sources,
+      fallbackCourse,
+    });
+    if (!target) return null;
+    const title = target.companionTitle || companionRef?.title || job?.result?.title || contract.title || '';
+    return {
+      kind: 'companion',
+      label: ui('打开伴学页'),
+      run: () => openCompanionTarget(openModal, { ...target, companionTitle: title }),
+    };
+  }
   // A source that has since been deleted is not offered (an archived task outlives what it made); without a list of sources nothing is checked.
   const known = Array.isArray(data?.sources) ? new Set(data.sources.map((source) => source.id)) : null;
   const sourceIds = refs.filter((ref) => ref.kind === 'source' && (!known || known.has(ref.id))).map((ref) => ref.id);

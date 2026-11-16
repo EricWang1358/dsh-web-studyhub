@@ -1,18 +1,17 @@
-# 静态交互体验版
+# Static Interactive Demo
 
-公开体验地址：[Daily Flashcard](https://daily-flashcard-demo.ziangw1358.chatgpt.site)。Sites 项目 ID：`appgprj_6ab9f86def1481918e0fe901197f372c`；后续发布复用此项目，不重新创建。
+[中文](static-demo.zh-CN.md)
 
-`npm run build:demo` 输出 `output/static-demo-site/dist`。将该目录部署到任意静态托管服务即可，无运行时 API、服务端或 API Key。通过 HTTP(S) 打开，不要直接双击 HTML 文件。
+Public demo: [StudyHub Interactive Demo](https://daily-flashcard-demo.ziangw1358.chatgpt.site) (Sites project ID: `appgprj_6ab9f86def1481918e0fe901197f372c` — reuse this project on subsequent deployments).
 
-体验版直接加载 `ui/App.jsx` 和插件原有组件、样式，判分和复习安排复用 `lib/service.js`。`web-demo` 只提供浏览器存储、公开示例资料及预置 AI 适配器。不要另写一套体验版页面。
+`npm run build:demo` builds `output/static-demo-site/dist`. Deploy that directory to any static hosting service — no runtime API, backend server, or API key is required. Open it over HTTP(S) rather than double-clicking the HTML file directly.
 
-- 首次打开默认英文；侧栏的 中文 / EN 同时用于体验版和插件本体，选择保存在浏览器。
-- 语言切换只改变应用文案；已有题目、答案、选项、引用和用户笔记保持原文。新模型讲解、追问与后台帮助接收界面语言偏好；新题仍遵循单独选择的内容语言。
-- 内置示例为 Memento / Bridge 的 7 道英文题。题组草稿、练习、判分、复习安排、笔记和学习流记录保存在本浏览器。
-- 新体验预置 44 次虚构学习记录、2 道薄弱题、2 篇可编辑笔记、5 个概念及关联图和时序图、1 条带完整讲解的学习流程、1 份待发布草稿、3 封信箱消息和 3 张任务卡。所有示例使用产品原有数据结构和操作逻辑；顶部明确说明学习记录为示例。
-- 已访问过的浏览器自动补齐示例数据，使用版本标记避免重复添加。用户已作答的题目不注入虚构作答，也不覆盖题目文本或复习状态；删除过原始示例题的学习库保持原状，可通过「重置体验」加载完整示例。
-- AI 讲解、复述反馈、帮助与出题使用明确标记的预置示例，不做实时模型分析或掌握判断；出题只返回示例库中符合题型的题，可能少于请求数量。
-- 本地 PDF/文件路径、宿主对话、跨工作区笔记本、实时翻译或任意内容的 AI 修改，需要安装插件。静态站不包含个人学习库或密钥。
-- 「重置体验」恢复示例库，清除体验进度与体验版待办；保留界面语言和外观偏好。
+The demo mounts the real `ui/App.jsx` components and styles, reusing `lib/service.js` for grading and FSRS-6 scheduling. `web-demo/` supplies only browser `localStorage` persistence, public sample fixtures, precompiled cross-discipline **Interactive Companions**, and prerecorded AI adapters.
 
-验证：`npm run verify`；新增语言与浏览器适配测试位于 `tests/language-demo.test.mjs`。浏览器验收需覆盖中英文切换但题目不变、选择题判分、刷新后进度保留、先讲后练、草稿发布及 845px 下选项对齐。
+- **English by default** on first visit; the sidebar **Language** switch is shared with the plugin and saved in `localStorage`.
+- Switching interface language changes UI copy, notifications, and new preset AI responses without translating existing cards, options, citations, or user notes.
+- Ships 7 English questions on **Memento / Bridge** (with live **Open slide N in companion** deep-links on revealed cards), **3 precompiled cross-discipline Interactive Companions** playable directly in the browser (**Physics & ODEs** 1D/2D phase-portrait quiver sandbox with regime presets, **Moral Philosophy & Algorithmic Guardrails** `predictBeforeReveal` counterexample matrix & modal logic MathML, and **Software Design Patterns** closed-loop observer/backpressure & Memento/Bridge stage), 44 sample review attempts, 2 weak cards, 2 editable notes, a 5-node knowledge outline, a complete learning flow, 1 pending draft, 3 inbox messages, and 3 board tasks — all clearly disclosed as sample data in the top banner.
+- **Reset demo** clears local sample progress while keeping your chosen interface language.
+- Local PDF/file paths, host chat tools, cross-workspace notebooks, live audio transcription, custom companion authoring, and unscripted AI generation require the installed DSH plugin.
+
+Verification: `npm run verify` and `tests/language-demo.test.mjs`.

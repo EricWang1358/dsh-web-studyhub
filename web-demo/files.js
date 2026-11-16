@@ -4,7 +4,7 @@ export async function readFile(path){let value=localStorage.getItem(prefix+path)
 export async function writeFile(path,value){localStorage.setItem(prefix+path,value);}
 export async function rename(from,to){await writeFile(to,await readFile(from));await rm(from);}
 export async function rm(path){localStorage.removeItem(prefix+path);}
-export const homedir=()=>'/demo';
+export const homedir=()=>'/demo', hostname=()=>'demo', totalmem=()=>8*1024*1024*1024;
 export const tmpdir=()=>{throw new Error('Temporary files require the installed plugin.');};
 const queues=new Map();
 export default {async lock(key){const prior=queues.get(key)||Promise.resolve();let release;const pending=new Promise(resolve=>{release=resolve;});queues.set(key,prior.then(()=>pending));await prior;return release;}};

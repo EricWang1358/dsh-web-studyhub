@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { ui, uiLocale } from "../i18n.js";
+import { ui, uiFormat, uiLocale } from "../i18n.js";
 import { Chip } from "../components/index.js";
 import ModelSetupGate from "../ModelSetupGate.jsx";
 import { reviewEntryKey } from "../async.js";
 import TeachingStatus from "./TeachingStatus.jsx";
 import SimilarTry from "./SimilarTry.jsx";
 import RetellPanel from "./RetellPanel.jsx";
+import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "../companions/companion-ref.js";
 
 /* The ways to learn from an answered question, in one row under its explanation and Q&A (ui/review/QuestionRun.jsx): 逐步理解 and 计算题引导练习 (guided
    teaching, teach.start), 用自己的话讲一遍 (#1016, its panel opens under the row) and, after a wrong answer, 试一道同类题 (#1015; on the finished 逐步理解
@@ -29,9 +30,23 @@ export default function LearningActions({ session, data, model, onModelSettings,
     const cite = citations[index ?? 0] || citations[0], source = data?.sources?.find((item) => item.id === cite?.sourceId);
     if (source) openModal({ type: "source", source, quote: cite.quote, back: true });
   };
+  const companionTarget = resolveCompanionTarget({
+    card: run.card,
+    solution: run.solution,
+    courses: data?.courses,
+    sources: data?.sources,
+  });
+  const openCompanion = companionTarget && openModal
+    ? () => openCompanionTarget(openModal, companionTarget)
+    : null;
   return (
     <>
       <div className="assist-actions" aria-label={ui("引导学习方式")}>
+        {openCompanion && (
+          <Chip onClick={openCompanion}>
+            {companionTarget.label ? uiFormat("打开伴学页 · {0}", [companionTarget.label]) : companionSlideButtonLabel(companionTarget)}
+          </Chip>
+        )}
         <Chip selected={teaching?.mode === "understanding"} onClick={() => teach("understanding")}>{ui("逐步理解")}</Chip>
         <Chip selected={teaching?.mode === "calculation"} onClick={() => teach("calculation")}>{ui("计算题引导练习")}</Chip>
         <Chip selected={retell} data-usage="review.retell" onClick={() => setRetell((open) => !open)}>{ui("用自己的话讲一遍")}</Chip>

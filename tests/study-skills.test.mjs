@@ -54,7 +54,7 @@ test('every action the skill names is an action of the study workspace', async t
 test('the shipped skills are registered with the host\'s registry as bundled, model- and user-invocable skills', () => {
   const registered = [], ctx = { skills: { register: skill => { registered.push(skill); return () => {}; } } };
   assert.equal(registerStudySkills(ctx).length, SHIPPED_SKILLS.length);
-  assert.deepEqual(registered.map(skill => skill.name), ['study-book', 'study-import', 'study-guide', 'study-tutor', 'study-custom', 'study-self']);
+  assert.deepEqual(registered.map(skill => skill.name), ['study-book', 'study-import', 'study-guide', 'study-tutor', 'study-custom', 'study-self', 'study-companion']);
   const [skill] = registered;
   assert.equal(skill.source, 'bundled');
   assert.deepEqual(skill.invocation, { modelInvocable: true, userInvocable: true });
@@ -175,5 +175,45 @@ test('the study-self skill parses, keeps the interview short, and names only act
   const study = new StudyService(root);
   const named = [...new Set([...skillText.matchAll(/`((?:library|course|source|materials)\.[a-z]+(?:\.[a-z]+)*)\b/g)].map(match => match[1]))];
   for (const action of ['library.context', 'course.save', 'course.outline', 'source.add']) assert.ok(named.includes(action), `the skill names ${action}`);
+  for (const action of named) assert.ok(study.runtime.hasAction(action), `${action} is registered`);
+});
+
+test('the study-companion skill parses, covers both API build and zero-key companion.compile workflows, and names only registered workspace actions', async t => {
+  const skillText = await readFile(new URL('../skills/study-companion/SKILL.md', import.meta.url), 'utf8');
+  const skill = parseSkill(skillText);
+  assert.equal(skill.name, 'study-companion');
+  assert.ok(SHIPPED_SKILLS.includes('study-companion'));
+  assert.match(skill.description, /Interactive Companions/);
+  assert.match(skill.whenToUse, /交互伴学/);
+  for (const token of [
+    'generation.companion.build',
+    'companion.compile',
+    'companion.attach',
+    'companion.sync',
+    'companion.catchup.save',
+    'studyhub-lesson/1',
+    'xExpr',
+    'field',
+    'markers',
+    'presets',
+    'predictBeforeReveal',
+    'schematic',
+    'lanes',
+    'spot',
+    'workshop',
+  ]) {
+    assert.ok(skill.content.includes(token), `study-companion covers ${token}`);
+  }
+  const tutorText = await readFile(new URL('../skills/study-tutor/SKILL.md', import.meta.url), 'utf8');
+  assert.match(tutorText, /companion\.catchup\.save/, 'study-tutor routes companion slide catch-up cards through companion.catchup.save');
+
+  const root = await mkdtemp(join(tmpdir(), 'study-skills-companion-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const study = new StudyService(root);
+  t.after(() => study.dispose?.());
+  const named = [...new Set([...skillText.matchAll(/`((?:library|source|generation|companion|job)\.[a-zA-Z]+(?:\.[a-zA-Z]+)*)\b/g)].map(match => match[1]))];
+  for (const action of ['library.context', 'generation.companion.build', 'companion.compile', 'companion.attach', 'companion.sync', 'companion.list', 'companion.get', 'companion.catchup.save', 'companion.remove', 'job.wait', 'job.status']) {
+    assert.ok(named.includes(action), `study-companion names ${action}`);
+  }
   for (const action of named) assert.ok(study.runtime.hasAction(action), `${action} is registered`);
 });

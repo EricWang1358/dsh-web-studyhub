@@ -154,7 +154,7 @@
   "去掉这里的所有标记": "Remove all marks here",
   "只围绕下面这 {0} 段原文出题，每段约 {1} 题；题目要考这段原文本身的意思，不要考资料的其他部分：": "Write questions only about the {0} passages below, about {1} per passage; each question tests what its passage itself says, not the rest of the material:",
   "已加入待出题（共 {0} 段），继续读吧。": "Queued for questions ({0} in all). Read on.",
-  "已开始：{0} 段出约 {1} 题，在后台进行，可以继续读；完成后在「草稿」里检查，进度在「任务」里。": "Started: about {1} questions from {0} passages, in the background, so read on. Check them in Drafts when done; progress is in Tasks.",
+  "已开始：{0} 段出约 {1} 题，在后台进行，可以继续读；完成后在「草稿」里检查，进度在「任务」里。": "Started: about {1} questions from {0} passages, in the background, so read on. Check them in Drafts when done; progress is in Jobs.",
   "待出题": "Queued",
   "待出题 {0}": "Queued {0}",
   "待出题已满，先一次性出题或移出一些。": "The queue is full: write its questions or remove some first.",

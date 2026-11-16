@@ -9,6 +9,7 @@ import { FAMILIAR_DAYS, MASTERED_DAYS, MASTERED_STREAK } from '../lib/mastery.js
 import { FOCUS_RETENTION_BOOST, FSRS6_WEIGHTS, LIMITS, defaults as fsrsDefaults, initialReview, nextIntervals, previewSchedule } from '../lib/sm2.js';
 import { ACTIVITIES, ALTERNATIVES_MAX, CLASSROOM_METHOD, LEVELS as GATE_LEVELS, STAGES_MAX } from '../lib/course-method.js';
 import { libraryContracts } from '../lib/study-contracts.js';
+import { SHIPPED_SKILLS } from '../lib/study-skills.js';
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 export const REPO_BLOB = 'https://github.com/EricWang1358/dsh-web-studyhub/blob/main';
@@ -89,9 +90,9 @@ const OP_CONTEXT_META = {
   },
   courses: {
     file: 'lib/contexts/courses/index.js',
-    zhRole: '课程档案、考试画像、重点主题、备考计划、深度定制与可编辑学法（course.method）。',
-    enRole: 'Course profiles, exam metadata, focus topics, study plans, custom blueprints, and editable course methods.',
-    ops: 'course.get/save, course.plan, course.custom.preview, course.focusProgress, course.rename/merge',
+    zhRole: '课程档案、考试画像、重点主题、备考计划、深度定制、可编辑学法（course.method）与零密钥交互伴学编译同步。',
+    enRole: 'Course profiles, exam metadata, focus topics, study plans, custom blueprints, editable course methods, and companion compile/sync.',
+    ops: 'course.get/save, course.plan, course.custom.preview, companion.compile/attach/sync/catchup.save, course.rename/merge',
   },
   study: {
     file: 'lib/contexts/study/index.js',
@@ -107,9 +108,9 @@ const OP_CONTEXT_META = {
   },
   generation: {
     file: 'lib/contexts/generation/index.js',
-    zhRole: '五阶段可靠出题流水线、选段补题、覆盖度续跑、复习全书与考纲构建。',
-    enRole: 'Five-stage grounded generation pipeline, passage supplementation, coverage top-up, outlines, and review books.',
-    ops: 'generate, supplement, selection.supplement/commit/review, courseOutline.build, courseBook.build',
+    zhRole: '五阶段可靠出题流水线、四阶段跨学科交互伴学课构建、选段补题、覆盖度续跑、复习全书与考纲构建。',
+    enRole: 'Five-stage grounded generation pipeline, 4-stage cross-discipline Interactive Companion builder, passage supplementation, coverage top-up, outlines, and review books.',
+    ops: 'generate, supplement, companion.build, selection.supplement/commit/review, courseOutline.build, courseBook.build',
   },
   audio: {
     file: 'lib/contexts/audio/index.js',
@@ -155,9 +156,9 @@ const OP_CONTEXT_META = {
   },
   library: {
     file: 'lib/contexts/library/index.js',
-    zhRole: `跨上下文门面与主对话按需契约读取（library.context 的 ${Object.keys(libraryContracts).length} 个专题域）。`,
-    enRole: `Cross-context workspace facade and on-demand contract reader across ${Object.keys(libraryContracts).length} library.context areas.`,
-    ops: 'library.context, snapshot, course.custom.apply/fill, attachments.export/import',
+    zhRole: `跨上下文门面与主对话按需契约读取（library.context 的 ${Object.keys(libraryContracts).length} 个专题域）及交互伴学挂载同步。`,
+    enRole: `Cross-context workspace facade, on-demand contract reader across ${Object.keys(libraryContracts).length} library.context areas, and interactive companion mounting.`,
+    ops: 'library.context, snapshot, companion.attach/list/get/ask, course.custom.apply/fill, attachments.export/import',
   },
 };
 
@@ -416,11 +417,11 @@ export function buildExplorerNodes() {
       label: 'study_workspace',
       zhTitle: 'study_workspace（工作台全能力桥接工具）',
       enTitle: 'study_workspace (Workbench Transition Entry Tool)',
-      zhSummary: '主工作台动作入口（action + payload_json）：覆盖课程学法、复习全书、AI 带学、看板与深度定制，并显式拦截仅限面板点击的操作（如 usage.frequency.*、mineru.install.*）。',
-      enSummary: 'Workbench action bridge (action + payload_json) covering course methods, review books, guided study, todo board, and custom plans while refusing UI-only actions like usage.frequency.*.',
+      zhSummary: '主工作台动作入口（action + payload_json）：覆盖交互伴学课生成与挂载、课程学法、复习全书、AI 带学、看板与深度定制，并显式拦截仅限面板点击的操作（如 usage.frequency.*、mineru.install.*）。',
+      enSummary: 'Workbench action bridge (action + payload_json) covering Interactive Companions, course methods, review books, guided study, todo board, and custom plans while refusing UI-only actions like usage.frequency.*.',
       owned: ['Dispatches across StudyRuntime + library.context'],
       deps: ['daily-flashcard', 'lib/study-contracts.js'],
-      ops: `library.context (${Object.keys(libraryContracts).length} areas) + full workspace operations`,
+      ops: `library.context (${Object.keys(libraryContracts).length} areas) + companion.* + full workspace operations`,
       links: [['lib/index.js', 'lib/index.js'], ['lib/study-contracts.js', 'lib/study-contracts.js']],
     },
   ];
@@ -490,6 +491,24 @@ export function buildExplorerNodes() {
         ['docs/architecture.md', 'docs/architecture.md'],
       ],
     },
+    {
+      id: 'infra-companion-stage',
+      group: 'storage',
+      badge: 'Stage · studyhub-lesson/1',
+      label: 'Interactive Companions',
+      zhTitle: '跨学科交互伴学舞台与零依赖公式编译器（lib/companion-template/）',
+      enTitle: 'Cross-Discipline Interactive Companion Stage (lib/companion-template/)',
+      zhSummary: '单文件零外链 HTML 课程编译器：内置带工况预设（presets）的纯 AST 数理与相平面向量场沙盒（sandbox）、先猜后看思辨矩阵（dialectic）、闭环贝塞尔矢量框图（mechanism）、诊断式找茬与自测（spot + quiz）及零依赖 W3C MathML 引擎，支持主对话零密钥直编（companion.compile）、全工作台卡片到页码双向深链、沉浸展开、全课目录（#toc-pop）、一键 HTML / 打印讲义导出与 0 Token 导题。',
+      enSummary: 'Compiles 16-20 slide zero-dependency HTML lessons across four archetypes (sandbox 1D/2D parametric & phase-plane quiver plots with regime presets, dialectic matrices, closed-loop mechanism schematics, empirical traces & diagnostic quizzes) with built-in W3C MathML, zero-key main-chat companion.compile, bidirectional flashcard/reader-to-slide deep-links, Theater expand, #toc-pop Slide Map, 1-click HTML & print study-sheet export, and 0-token card compilation.',
+      owned: ['companions/<course>/<slug>.html', 'studyhub-lesson/1 JSON', '0-byte linked pack mode'],
+      deps: ['Pure AST math-eval (0 eval)', 'Zero-dependency W3C MathML', '18 pedagogical invariants'],
+      ops: 'generation.companion.build | companion.compile/attach/sync | companion.ask/catchup.save',
+      links: [
+        ['lib/companion-template/render-html.js', 'lib/companion-template/render-html.js'],
+        ['lib/companion/companion-lesson.js', 'lib/companion/companion-lesson.js'],
+        ['docs/companions.md', 'docs/companions.md'],
+      ],
+    },
   ];
 
   return [...plugins, ...tools, ...contexts, ...storageAndUi];
@@ -498,11 +517,11 @@ export function buildExplorerNodes() {
 export const OPEN_PRIMITIVES = [
   {
     code: '01 · SKILLS',
-    zhTitle: '6 个模块化场景技能（Skills）',
-    enTitle: '6 Modular Agent Skills',
-    zhBody: '将带学（study-tutor）、导览（study-guide）、多源导入（study-import）、复习全书（study-book）、深度定制（study-custom）与目标自学建课（study-self）拆成按需挂载的 SKILL.md，而非把死板步骤硬编码进单一系统提示词。',
-    enBody: 'Splits tutoring (study-tutor), onboarding (study-guide), multi-format intake (study-import), review-book co-authoring (study-book), custom planning (study-custom), and goal-driven self-study setup (study-self) into on-demand SKILL.md playbooks instead of one rigid prompt.',
-    file: 'skills/study-tutor/SKILL.md',
+    zhTitle: `${SHIPPED_SKILLS.length} 个模块化场景技能（Skills）`,
+    enTitle: `${SHIPPED_SKILLS.length} Modular Agent Skills`,
+    zhBody: '将带学（study-tutor）、跨学科交互伴学编排与零密钥编译（study-companion）、导览（study-guide）、多源导入（study-import）、复习全书（study-book）、深度定制（study-custom）与目标自学建课（study-self）拆成按需挂载的 SKILL.md，而非把死板步骤硬编码进单一系统提示词。',
+    enBody: 'Splits tutoring (study-tutor), cross-discipline companion authoring & zero-key compilation (study-companion), onboarding (study-guide), multi-format intake (study-import), review-book co-authoring (study-book), custom planning (study-custom), and goal-driven self-study setup (study-self) into on-demand SKILL.md playbooks instead of one rigid prompt.',
+    file: 'skills/study-companion/SKILL.md',
   },
   {
     code: '02 · CONTRACTS',
@@ -906,7 +925,7 @@ export function renderExplorerContent(lang = 'zh', { version = '4.9.2' } = {}) {
       <button type="button" class="chip-btn" data-map-filter="plugins" aria-pressed="false">${c('插件与检索包 (8)', 'Plugins & Retrieval (8)')}</button>
       <button type="button" class="chip-btn" data-map-filter="tools" aria-pressed="false">${c('DSH 工具 (7)', 'DSH Agent Tools (7)')}</button>
       <button type="button" class="chip-btn" data-map-filter="contexts" aria-pressed="false">${c('运行时上下文 (19)', 'Runtime Contexts (19)')}</button>
-      <button type="button" class="chip-btn" data-map-filter="storage" aria-pressed="false">${c('分片存储与懒加载视图 (2)', 'Store v5 & Lazy UI (2)')}</button>
+      <button type="button" class="chip-btn" data-map-filter="storage" aria-pressed="false">${c('存储、懒加载与伴学舞台 (3)', 'Store v5, Lazy UI & Stage (3)')}</button>
     </div>
 
     <div class="explorer-split">
@@ -914,7 +933,7 @@ export function renderExplorerContent(lang = 'zh', { version = '4.9.2' } = {}) {
         ${renderGroupButtons('plugins', '1 个工作台主插件 + 6 个能力插件 + 1 个检索扩展包', '1 Workbench + 6 Capability Plugins + 1 Retrieval Package')}
         ${renderGroupButtons('tools', '7 个 DSH 主对话工具（按需发现 + 类型化域工具）', '7 DSH Agent Tools (Compact Discovery + Typed Domain Tools)')}
         ${renderGroupButtons('contexts', '19 个 StudyRuntime 上下文（16 个业务操作域 + 3 个纯数据只读域）', '19 StudyRuntime Contexts (16 Operation + 3 Data-Only)')}
-        ${renderGroupButtons('storage', 'v5 分片内容寻址存储与按需视图拆包', 'Sharded Store v5 & Deferred UI View Chunks')}
+        ${renderGroupButtons('storage', 'v5 分片存储、按需视图拆包与跨学科交互伴学舞台', 'Sharded Store v5, Deferred UI Chunks & Interactive Companion Stage')}
       </div>
 
       <aside class="inspector-card" id="nodeInspector" aria-live="polite">
@@ -969,6 +988,14 @@ export function renderExplorerContent(lang = 'zh', { version = '4.9.2' } = {}) {
           'Attempts shard at 1,000 records per 20-hex SHA-1 file; UI splits 8 optional feature surfaces and 8 occasional pages into 16 deferredView() chunks (plus lazy PagePeek).'
         )}</p>
         <p class="ledger-links">${doc('lib/store.js', 'lib/store.js ↗')} ${doc('ui/workspace-views.jsx', 'ui/workspace-views.jsx ↗')}</p>
+      </div>
+      <div class="ledger-card">
+        <h4>${c('跨学科交互伴学舞台', 'Interactive Companion Stage')}</h4>
+        <p>${c(
+          '四阶段流水线输出 16–20 页零依赖 HTML（<code>sandbox</code> 1D/2D 相平面向量场、<code>dialectic</code> 反例矩阵、<code>mechanism</code> 闭环框图、<code>empirical</code> 泳道 + 离线 W3C MathML + 打印讲义），隔离沙箱渲染并支持 0 Token 间隔重复导题。',
+          'Four-stage builder compiles 16-20 slide zero-dependency HTML lessons (<code>sandbox</code> 1D/2D phase-plane quiver plots, <code>dialectic</code>, <code>mechanism</code>, <code>empirical</code> + built-in W3C MathML + print sheet) with 0-token card compilation.'
+        )}</p>
+        <p class="ledger-links">${doc('lib/companion-template/render-html.js', 'lib/companion-template/render-html.js ↗')} ${doc('docs/companions.md', 'docs/companions.md ↗')}</p>
       </div>
     </div>
   </section>

@@ -63,5 +63,9 @@
   "去哪拿 Key、要不要充值：看": "Where to get a key and whether to top up: see the ",
   "安装说明": "install guide",
   "（以服务商页面为准）": " (the provider's page is the authority)",
-  "没能重新检查。再点一次「重新检查」试试。": "Could not check again. Press \"Check again\" to try once more."
+  "没能重新检查。再点一次「重新检查」试试。": "Could not check again. Press \"Check again\" to try once more.",
+  "生成交互伴学课要调用 AI 模型；挂载已有的本地伴学目录或 HTML 文件不需要模型。": "Building an interactive companion calls an AI model; mounting an existing local folder or HTML file needs none.",
+  "回到这里，点「开始生成 HTML 伴学课」": "Come back here and select Build HTML Companion",
+  "生成交互伴学课需要先配置模型；挂载本地目录或 HTML 文件不需要。": "Building an interactive companion needs a model first; mounting a local folder or HTML file does not.",
+  "可以先填写主题或切换挂载本地文件；AI 生成前需要先配置模型。": "You can fill in a topic or switch to mounting a local file; set up a model before generating with AI."
 }

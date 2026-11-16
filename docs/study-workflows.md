@@ -20,8 +20,8 @@ The library remembers your current course. Its name is the home page heading: ch
 
 Written tests and oral interview preparation are regular courses rather than a separate global mode switch on the home page:
 
-- In **Course settings**, any course can store an optional **Target role** and **Job description / JD**, alongside **Focus topics** and its **Learning method** (`学法`). Oral mock exams and multiple-choice written exams draw from the selected course's scope and focus topics.
-- When an older library (`v4` or earlier) that was in global `interview` mode or had saved a non-empty `role`, `jd` or `targetTopics` is opened, Store migration `v4 → v5` idempotently creates (or reuses) a course (`笔试 / 面试 · <role>` or `笔试 / 面试`), moves `role`, `jd` and `targetTopics` into that course's `interview` profile, `focusTopics` and `笔试 / 面试准备` study method, points `focus.course` to that course if the library was in `interview` mode, and resets global `focus.mode` to `'class'`. Running the migration repeatedly never creates duplicate courses or drops saved settings.
+- In **Course settings**, any course can store an optional **Target role** and **Job description / JD**, alongside **Focus topics** and its **Learning method**. Oral mock exams and multiple-choice written exams draw from the selected course's scope and focus topics.
+- When an older library (`v4` or earlier) that was in global `interview` mode or had saved a non-empty `role`, `jd` or `targetTopics` is opened, Store migration `v4 → v5` idempotently creates (or reuses) a dedicated interview course (titled for that target role), moves `role`, `jd` and `targetTopics` into that course's `interview` profile, `focusTopics` and interview-prep study method, points `focus.course` to that course if the library was in `interview` mode, and resets global `focus.mode` to `'class'`. Running the migration repeatedly never creates duplicate courses or drops saved settings.
 
 ### What the main card offers
 
@@ -37,7 +37,7 @@ The main card on the home page offers one action. It shows the first row that ap
 
 A half-done session in an **Inactive** course is not put on the card. It stays in the list of unfinished sessions.
 
-The other ways to start are folded under **Other ways to start**. Depending on the card, they include the next course batch, **Due reviews & reinforcement**, personalised questions and weak points. Due reviews keep their own entry, separate from the course batch. Stage-level alternatives such as **Explain it to me** (`AI 带学`), **Oral check** and **Write notes** appear on the course's **Learning method** (`学法`) line and in **Course settings**.
+The other ways to start are folded under **Other ways to start**. Depending on the card, they include the next course batch, **Due reviews & reinforcement**, personalised questions and weak points. Due reviews keep their own entry, separate from the course batch. Stage-level alternatives such as **Explain it to me** (**AI-guided study**), **Oral check** and **Write notes** appear on the course's **Learning method** line and in **Course settings**.
 
 Other unfinished sessions sit under **Plus N unfinished sessions**. Each one names its course when that is not the current course. **End** closes a session and keeps the answers you gave.
 
@@ -79,12 +79,12 @@ In practice:
 
 ## Archived Learning flows (retired, read-only)
 
-**Learning flow** (`学习流`) and custom flow templates (up to 5 saved templates) have been retired:
+**Learning flow** and custom flow templates (up to 5 saved templates) have been retired:
 
-- **What replaced it.** Each course now owns an editable **Learning method** (`学法`, `course.method.*`) that defines its stages, gates and optional stage activities, and the main chat guides interactive explanation-and-practice sessions directly through **AI-guided study** (`AI 带学`, `study.session.*`). Custom flow templates are retired directly and are not converted into course methods.
-- **Entry points removed.** **Learning flow** is no longer shown in the sidebar navigation, the feature tour, or under **Other ways to start** on the home page. Searching for "Learning flow" / "学习流" in **Find a feature** (`Ctrl/⌘ K`) leads to **AI-guided study** and **Learning method**.
+- **What replaced it.** Each course now owns an editable **Learning method** (`course.method.*`) that defines its stages, gates and optional stage activities, and the main chat guides interactive explanation-and-practice sessions directly through **AI-guided study** (`study.session.*`). Custom flow templates are retired directly and are not converted into course methods.
+- **Entry points removed.** **Learning flow** is no longer shown in the sidebar navigation, the feature tour, or under **Other ways to start** on the home page. Searching for "Learning flow" in **Find a feature** (`Ctrl/⌘ K`) leads to **AI-guided study** and **Learning method**.
 - **Historical records stay read-only.** Earlier sessions stored in `workflowSessions` are preserved without loss:
-  - When a library has historical sessions, **Statistics** (`学习统计`) shows an **Archived learning flows · Read-only** section that opens any session in the read-only viewer.
+  - When a library has historical sessions, **Statistics** shows an **Archived learning flows · Read-only** section that opens any session in the read-only viewer.
   - Existing board items or practice runs with a `studyRef` (`kind: 'workflow'`) still open the same read-only session viewer, with a calm notice at the top explaining that Learning flows have been replaced by per-course study methods and main-chat guided study.
   - In the read-only viewer you can switch between steps and read saved explanations, recall notes, AI retelling feedback, linked knowledge outlines, practice results and the step activity log, without creating, editing, deleting or advancing steps.
 - **Runtime API boundary.** Read operations (`workflow.list`, `workflow.session.get`, `workflow.context`, and read-only `workflow.teaching.estimate`) remain available for inspecting archived records. Every mutating action (`workflow.save`, `workflow.delete`, `workflow.quickstart`, `workflow.rescope`, `workflow.feedback`, `workflow.session.start`, `workflow.session.record`, `workflow.session.material`, `workflow.session.material.restore`, `workflow.session.advance`, `workflow.session.goto`, `workflow.session.status`, `workflow.session.delete`, `workflow.practice.start`, `workflow.teaching.start`, `workflow.teaching.undo`, `workflow.skeleton.generate`) rejects with `WORKFLOW_RETIRED` and directs callers to `course.method.*` and `study.session.*`.
@@ -234,7 +234,7 @@ Units U1–U9, acceptance examples AE1–AE16 and the test files are listed in t
 
 ## Code boundaries (for developers)
 
-- `lib/focus.js` holds the current course and the order of new questions. `lib/course-route.js` builds chapters and course batches, and `lib/course-method.js` defines per-course study methods (`学法`).
+- `lib/focus.js` holds the current course and the order of new questions. `lib/course-route.js` builds chapters and course batches, and `lib/course-method.js` defines per-course study methods.
 - `lib/store.js` (`LATEST_VERSION = 5`) migrates legacy global interview focus settings (`mode: 'interview'`, `role`, `jd`, `targetTopics`) idempotently into a course record (`interview`, `focusTopics`, `method`).
 - `lib/deck-organization.js` merges, splits and reorders decks and moves every reference to the moved questions. `lib/deck-merge-suggestions.js` checks model suggestions; they never change the library directly.
 - `lib/blog-notes.js` holds note state and question links. `lib/adapters/csdn-public.js` only reads public CSDN pages.

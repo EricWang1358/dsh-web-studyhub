@@ -13,6 +13,7 @@ import { partLabel, partsLine } from "./deck-parts.js";
 import { formatDateTime } from './format.js';
 import { deckChoices, deckEntries } from './deck-picker-entries.js';
 import { offerDeckArchived } from './archive-entries.js';
+import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from './companions/companion-ref.js';
 
 /** The question before a merge removes the source deck: an in-app confirmation (host webviews may block the browser's own). */
 export function MergeDeckDialog({ deck, target, onConfirm, onClose }) {
@@ -37,8 +38,10 @@ export default function Manage({
   runs = [],
 }) {
   useInjectCss(css, "study-manage");
-  const { call, busy, act } = useStudy();
-  const refreshLibrary = useContext(AppContext)?.core?.refresh;
+  const { call, busy, act, openModal } = useStudy();
+  const appCtx = useContext(AppContext);
+  const refreshLibrary = appCtx?.core?.refresh;
+  const courses = appCtx?.data?.courses;
   const toast = useToast();
   const [targetId, setTargetId] = useState("");
   const [merging, setMerging] = useState(false);
@@ -187,7 +190,14 @@ export default function Manage({
       {parts.length > 1 && <SegmentedControl size="sm" className="manage-part-filter" label={ui("按部分查看")} value={showing} onChange={setShownPart} data-part-filter
         options={[{ value: 0, label: ui("全部") }, ...parts.map((part) => ({ value: part.n, label: partLabel(part.n) }))]} />}
       <div className="manage-cards">
-        {shownCards.map((card) => (
+        {shownCards.map((card) => {
+          const companionTarget = resolveCompanionTarget({
+            card,
+            courses,
+            sources,
+            fallbackCourse: managedDeck.course || managedDeck.folder || "",
+          });
+          return (
           <Panel as="article" density="compact" className={`manage-card${card.suspended ? " is-suspended" : ""}`} key={card.id}>
             <div className="manage-card__body">
               <div className="manage-card__meta">
@@ -203,6 +213,11 @@ export default function Manage({
               {card.slain && <p className="muted">{ui("原题组：")}{card.slain.deckTitle} · {formatDateTime(card.slain.at, 'date')}</p>}
             </div>
             <div className="manage-card__actions">
+              {companionTarget && openModal && (
+                <Button size="sm" variant="quiet" icon="play" className="manage-card__action" onClick={() => openCompanionTarget(openModal, companionTarget)}>
+                  {companionSlideButtonLabel(companionTarget)}
+                </Button>
+              )}
               <Button className="manage-card__action" lock={busy} onClick={() => act(
                 slainView ? "card.restore" : "card.slay",
                 { deckId: managedDeck.id, cardId: card.id },
@@ -255,7 +270,8 @@ export default function Manage({
               )}
             </div>
           </Panel>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

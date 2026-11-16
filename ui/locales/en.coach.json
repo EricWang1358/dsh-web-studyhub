@@ -20,7 +20,7 @@
   "已展开样题答案并记录解法暴露；近似题干将不计入未见独立证据。": "Sample answer revealed and solution exposure recorded; near-duplicate stems will not count as unseen independent passes.",
   "已更新推理与评分规则；版本已推进，请重新确认该项考察意图与答案。": "Updated reasoning and rubric rules; spec version advanced — please re-confirm intent and answer.",
   "当前启用配额为 0 题，请先在「调整训练配置」里设置至少 1 个非零配额任务族。": "Active quota is 0 questions; set at least one task family above 0 in Configure quotas first.",
-  "已按教练校准要求启动后台出题，可在「任务」页查看实际请求追溯。": "Started background generation from calibrated coach spec; inspect request traces in Tasks.",
+  "已按教练校准要求启动后台出题，可在「任务」页查看实际请求追溯。": "Started background generation from calibrated coach spec; inspect request traces in Jobs.",
   "基础客观题": "Foundational objective items",
   "先分析考察方式、确认代表变式与干扰项错因，再按模块化配额生成并分开核对资料覆盖、训练覆盖与独立能力证据。普通直接出题无需经过此处。": "Analyze how the exam tests you, confirm representative variants and distractor misconceptions, then generate with modular quotas and inspect material, training, and independent capability evidence separately. Direct deck creation remains available without using the coach.",
   "直接去创建题组": "Go directly to Create deck",

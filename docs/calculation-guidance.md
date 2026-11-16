@@ -1,6 +1,6 @@
 # Guided calculation
 
-After answering a practice question, choose **计算题引导练习 / Guided calculation** in the existing review panel. **逐步理解 / Guided understanding** retains the original prerequisite ladder. Neither option runs automatically or starts before the original answer.
+After answering a practice question, choose **Guided calculation** in the existing review panel. **Guided understanding** retains the original prerequisite ladder. Neither option runs automatically or starts before the original answer.
 
 Calculation practice has five stages: known conditions and unknown quantity; formula and why it applies; substitution and units; intermediate computation; result checks and rounding. Each stage presents one check. An incorrect response keeps that stage and the learner's input; a passing judgment advances once. Only the current stage is returned to clients. Private scoring references and future stages remain withheld; the transfer rule appears after all five stages.
 

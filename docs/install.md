@@ -21,7 +21,7 @@ StudyHub is a study plugin for DeepSeek Harness (DSH). DSH runs as a desktop app
 **What you need**
 
 - **DSH 0.2.** StudyHub 4.9.2 declares DSH `>=0.2.0-rc.2 <0.3`. DSH and StudyHub have separate version numbers.
-- **DSH versions tested.** StudyHub 3.7.3 was tested in isolated DSH hosts 0.2.0-rc.2 and 0.2.1-rc.2. The 4.0.0 release was checked in DSH 0.2.1-rc.2; 4.0.1–4.3.5 were not checked in a DSH host before release; 4.4.4 passed the DSH end-to-end check (`npm run qa:dsh`, fake model) in DSH 0.2.0-rc.2 and 0.2.1-rc.2; 4.4.5–4.9.2 were not checked in a DSH host before release. On DSH 0.2.1-rc.2 use StudyHub 4.0.1 or later: in 3.5.0–3.5.5 every message in 学习模式 fails with `unknown prompt variable "{{cwd}}"`.
+- **DSH versions tested.** StudyHub 3.7.3 was tested in isolated DSH hosts 0.2.0-rc.2 and 0.2.1-rc.2. The 4.0.0 release was checked in DSH 0.2.1-rc.2; 4.0.1–4.3.5 were not checked in a DSH host before release; 4.4.4 passed the DSH end-to-end check (`npm run qa:dsh`, fake model) in DSH 0.2.0-rc.2 and 0.2.1-rc.2; 4.4.5–4.9.2 were not checked in a DSH host before release. On DSH 0.2.1-rc.2 use StudyHub 4.0.1 or later: in 3.5.0–3.5.5 every message in **Study Mode** fails with `unknown prompt variable "{{cwd}}"`.
 - **A supported computer.** The desktop installers in this guide are for Windows x64 and Macs with Apple silicon. On any other system, check the official DSH site or use the DSH web version with Node.js 22.19 or later.
 - **A model, only for AI features.** Generation and explanations need one; see [Configure a model provider](#configure-a-model-provider). Installing, the sample tour, browsing sources and practising existing decks do not.
 
@@ -125,12 +125,12 @@ DSH's model settings do not accept OAuth subscriptions such as Codex. A Claude P
 
 ### Set up transcription for recordings
 
-Turning recordings into text needs a transcription provider of its own. Add its key in StudyHub **Settings › Audio transcription**:
+Turning recordings into text needs a transcription provider of its own. Add a key in StudyHub **Settings › Audio transcription**:
 
-- **SiliconFlow SenseVoice** supports recording transcription.
-- **Gemini** and **Groq** are also supported. Availability, allowances and pricing depend on each provider’s current terms.
+- **Google Gemini** (AI Studio) and **Groq** (Whisper) support recording transcription; availability, free allowances and pricing depend on each provider’s current terms.
+- **SiliconFlow SenseVoice** is also supported (particularly convenient in mainland China).
 
-Real-time transcription in **Live class** works only with Gemini. After transcription, proofreading and translation use your DSH session model by default, billed by your provider. See [Audio import](audio-import.md) and [Live class](live-class.md).
+Real-time transcription in **Live class** works with either **Google Gemini** or the **offline local engine** (SenseVoice / Whisper, installed locally with no transcription key), producing bilingual transcripts. After transcription, proofreading and translation use your DSH session model by default, billed by your provider. See [Audio import](audio-import.md) and [Live class](live-class.md).
 
 ### Keep keys out of your study files
 
