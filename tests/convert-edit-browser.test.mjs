@@ -12,6 +12,7 @@ import { startConsole } from '../scripts/qa/task-console.mjs';
 import { StudyService } from '../lib/service.js';
 import { makePdf } from './helpers/pdf.mjs';
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
+import { controlName } from '../scripts/qa/control-name.mjs';
 
 /* 导入前先让我改 in a real browser, at 1280 and 420 px: a real service with the stand-in Marker converts a book and stops before the import; the preview app shows that job (its snapshot
    answer carries it) and sends the edit calls to the same service. The card says it waits, 修改并导入 opens the editor, a removed block is counted in characters and tokens, and 导入 puts
@@ -149,7 +150,7 @@ test('the editor of a conversion waiting before its import, at 1280 and 420 px',
       // The switch: folded away, off by default; turned on, the start asks for it. A new book, chosen where a learner chooses one.
       if (lang === 'zh' && width === 1280) {
         await (await revealNavRow(page, 'sources')).dispatchEvent('click');
-        await page.locator('[data-tour="sources-add"]').or(page.getByRole('button', { name: '＋ 添加资料' })).first().click();
+        await page.locator('[data-tour="sources-add"]').or(page.getByRole('button', { name: controlName((zh) => zh, '添加资料') })).first().click();
         const picker = page.locator('input[type="file"][accept=".pdf,application/pdf"]').first();
         await picker.waitFor({ state: 'attached', timeout: 15000 });
         await picker.setInputFiles({ name: 'switch.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await makePdf({ pages: 2, title: 'switch' })) });

@@ -36,15 +36,19 @@
       font-size: var(--fs-md);
       font-weight: var(--fw-medium);
     }
+    /* The counter (「5 / 7」) and its arrow: one line, never wrapped, however narrow the row (the title gives way, not the counter). */
     .resume > span:last-child {
       font-size: var(--fs-md);
       font-variant-numeric: tabular-nums;
       color: var(--text-muted);
     }
-    .resume > span:last-child {
+    /* Text, then a trailing icon at the end of a row (a resume row's counter, a draft row's 打开): one gap, the one of a Button's iconEnd, on every row. */
+    .row-end {
       display: inline-flex;
       align-items: center;
-      gap: var(--space-3);
+      gap: var(--space-2);
+      flex: none;
+      white-space: nowrap;
     }
     .resume-row {
       display: flex;
@@ -100,12 +104,7 @@
       display: block;
       margin-top: var(--space-1);
     }
-    .draft-open > span:last-child {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-1);
-      flex: none;
-      white-space: nowrap;
+    .draft-open > .row-end {
       font-size: var(--fs-md);
       color: var(--accent-soft);
     }

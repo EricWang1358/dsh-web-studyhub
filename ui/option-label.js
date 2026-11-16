@@ -8,8 +8,6 @@ export function fixedOptionLabel(card, option) {
   return fixed ? ui(fixed.label) : null;
 }
 
-/** The letter before an option (A, B, …). */
-export const optionMark = (card, option, index) => String.fromCharCode(65 + index);
-
-/** The registry icon a fixed option shows in place of a letter (check / close for 对 / 错), or null. */
-export const optionIcon = (card, option) => fixedOptionsOf(card?.kind)?.find((item) => item.id === option?.id)?.icon ?? null;
+/** What stands in the round before an option: its letter (A, B, …); for a fixed option (判断题: 对 / 错) its number, the key that picks it. Never a tick or a cross:
+    those are the verdict's (ui/review/AnswerState.jsx) and would say "right" / "wrong" about an option that is only "对". */
+export const optionMark = (card, option, index) => (fixedOptionsOf(card?.kind) ? String(index + 1) : String.fromCharCode(65 + index));

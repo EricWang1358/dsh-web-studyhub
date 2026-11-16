@@ -104,7 +104,7 @@ export default function Manage({
       </PageHeader>
       {!slainView && (unreviewed > 0 || selfCited > 0) && (
         <Banner tone="warning" role="status">
-          {unreviewed > 0 && <p>{uiFormat("{0} 题尚未自动审阅。学习时可正常作答，发现问题可点题目标记或 👎 交给后台修题。", [unreviewed])}</p>}
+          {unreviewed > 0 && <p>{uiFormat("{0} 题尚未自动审阅。学习时可正常作答，发现问题可点题目标记或「这题有问题」交给后台修题。", [unreviewed])}</p>}
           {selfCited > 0 && <p>{uiFormat("{0} 题只引用导入题目自身；请先在草稿中换成原始资料引用。", [selfCited])}</p>}
         </Banner>
       )}

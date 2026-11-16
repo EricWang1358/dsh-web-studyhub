@@ -40,7 +40,7 @@ function OtherRuns({ runs, otherCourse, resume, endRun }) {
               <span className="eyebrow resume__eyebrow">{[otherCourse(r) || ui('继续上次学习'), r.inactive ? ui('未激活') : ''].filter(Boolean).join(' · ')}</span>
               <strong>{r.title}</strong>
             </span>
-            <span>{r.index + 1} / {r.total}<Icon name="arrow-right" size={16} /></span>
+            <span className="row-end">{r.index + 1} / {r.total}<Icon name="arrow-right" className="sh-icon--inline" /></span>
           </button>
           <Button variant="quiet" size="sm" lock={busy} onClick={() => endRun(r.id)} title={ui('结束此轮，保留已答记录')}>{ui('结束')}</Button>
         </div>

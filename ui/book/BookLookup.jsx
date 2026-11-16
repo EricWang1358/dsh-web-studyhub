@@ -67,7 +67,7 @@ export default memo(function BookLookup({ lookup, onGo, onCard, toc = true }) {
         <p className="book-lookup__muted">{ui('清点资料时找到、书里讲到的术语与概念，按字母排序；代码打开讲它的那一节。')}</p>
         <ul className="book-lookup__glossary">{lookup.glossary.map(entry => <li key={`${entry.term}|${entry.hid}|${entry.see ?? ''}`} data-glossary-term={entry.term}>
           {entry.see
-            ? <><strong>{entry.term}</strong> <Icon name="arrow-right" size={14} className="sh-icon--inline" /> {entry.see} <CardCode hid={entry.hid} code={entry.code} onGo={onGo} onCard={onCard} /></>
+            ? <><strong>{entry.term}</strong> <Icon name="arrow-right" className="sh-icon--inline" /> {entry.see} <CardCode hid={entry.hid} code={entry.code} onGo={onGo} onCard={onCard} /></>
             : <><strong>{entry.term}</strong>{entry.gist ? uiFormat('：{0}', [entry.gist]) : ''} {entry.code && <CardCode hid={entry.hid} code={entry.code} onGo={onGo} onCard={onCard} />}
               <Code hid={entry.hid} code={places.get(entry.hid)?.code ?? entry.hid} onGo={onGo} />
               {Number.isInteger(entry.page) && <span className="book-lookup__muted"> {uiFormat('第 {0} 页', [entry.page])}</span>}</>}

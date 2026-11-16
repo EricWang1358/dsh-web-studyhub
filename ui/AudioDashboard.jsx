@@ -92,7 +92,7 @@ export function AudioDashboardView({ data, settings, busy, refresh, save, error,
       </form>
     </details>
     <footer className="audio-dashboard-footer"><span>{ui('「今日」和近 7 日按你所在时区的日期；Gemini 免费额度按太平洋时间的额度日计算。从启用此统计起记录模型请求，包含失败及重试。课堂实时音频与 DSH Token 不计入。')}</span>
-      {AUDIO_PROVIDERS.filter(provider => provider.tier !== 'paid').map(provider => <a key={provider.tier} href={provider.usageUrl} target="_blank" rel="noreferrer">{providerName(provider.tier)}<Icon name="external" size={13} className="sh-icon--inline sh-icon--trail" /></a>)}</footer>
+      {AUDIO_PROVIDERS.filter(provider => provider.tier !== 'paid').map(provider => <a key={provider.tier} href={provider.usageUrl} target="_blank" rel="noreferrer">{providerName(provider.tier)}<Icon name="external" className="sh-icon--inline sh-icon--trail" /></a>)}</footer>
   </Panel>;
 }
 

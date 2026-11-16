@@ -13,8 +13,9 @@ import { transform } from 'esbuild';
 
 export const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
-/** Characters that only ever stand in for an icon. */
-export const ICON_GLYPHS = '✓✔✗✘✕⚑⚐↻↺⟳▶▸▾▼◀◂＋↗↘➜➔⇒⇠⏎○◆';
+/** Characters that only ever stand in for an icon. The thumbs are emoji; any other emoji drawn as a picture (EMOJI) is caught the same way. */
+export const ICON_GLYPHS = '✓✔✗✘✕⚑⚐↻↺⟳▶▸▾▼◀◂＋↗↘➜➔⇒⇠⏎○◆↩👍👎';
+const EMOJI = /\p{Emoji_Presentation}/u;
 const ARROWS = '→←↑↓';
 const EDGE_OPEN = /^[\s「『（(“"'‘\[]+/u;
 const EDGE_CLOSE = /[\s」』）)”"'’\]。.；;]+$/u;
@@ -23,7 +24,7 @@ const JOINER = /^\s+[→←↑↓]\s+$/u;
 /** Why a string uses a glyph as an icon (an empty list when it is fine). */
 export function glyphProblems(text) {
   const problems = [];
-  for (const ch of new Set(text)) if (ICON_GLYPHS.includes(ch)) problems.push(`"${ch}" is an icon, use <Icon>`);
+  for (const ch of new Set(text)) if (ICON_GLYPHS.includes(ch) || EMOJI.test(ch)) problems.push(`"${ch}" is an icon, use <Icon>, or name the control in words`);
   if (!JOINER.test(text)) {
     const core = text.replace(EDGE_OPEN, '').replace(EDGE_CLOSE, '');
     const first = [...core][0], last = [...core].at(-1);
@@ -111,6 +112,33 @@ export function stringsOf(code) {
   return found;
 }
 
+/** The source of the expression that starts at `at` (the text after `icon=` or `icon:`): a `{…}` block, a quoted string, or up to the next top-level `,` / `}`. */
+function expressionAt(source, at) {
+  let end = at, depth = 0, quote = '';
+  for (; end < source.length; end++) {
+    const ch = source[end];
+    if (quote) { if (ch === '\\') end++; else if (ch === quote) { quote = ''; if (!depth && source[at] !== '{') { end++; break; } } continue; }
+    if (ch === '"' || ch === "'" || ch === '`') quote = ch;
+    else if (ch === '{' || ch === '(' || ch === '[') depth++;
+    else if (ch === '}' || ch === ')' || ch === ']') { if (!depth) break; depth--; if (!depth && source[at] === '{') { end++; break; } }
+    else if (ch === ',' && !depth) break;
+  }
+  return source.slice(at, end);
+}
+
+/** #1073: where a "go on" arrow is drawn in FRONT of the words: a Button's `icon="arrow-right"`, a Banner / EmptyState `action: { icon: 'arrow-right' }`, an `icon={cond ? 'arrow-left' : 'arrow-right'}`
+    (any `icon=` / `icon:` expression that holds the quoted name). The arrow after the words is `iconEnd`, which this does not match. Returns the matching snippets. */
+export function frontArrowProblems(source) {
+  const found = [];
+  for (const match of source.matchAll(/(?<![\w$.])icon\s*(?:=\s*|:\s*)(?=\S)/g)) {
+    // An IconButton has no words: its arrow IS the control ("next slide"), nothing to put it after.
+    if (/^<IconButton\b/.test(source.slice(source.lastIndexOf('<', match.index)))) continue;
+    const expression = expressionAt(source, match.index + match[0].length);
+    if (/["'`]arrow-right["'`]/.test(expression)) found.push(`${match[0].trim()}${expression}`.slice(0, 80));
+  }
+  return found;
+}
+
 const SOURCE = /\.(?:jsx|js)$/;
 /** The prompts for the model are not the learner's words. */
 const NOT_UI = ['ui/agent-prompts/', 'ui/locales/', 'ui/fonts/'];
@@ -124,13 +152,17 @@ async function walk(dir, files = []) {
   return files;
 }
 
-/** Every string of every UI source file: [{ file, text }]. */
-export async function uiStrings(root = repoRoot) {
+/** Every source file the learner's screens are written in (the model prompts and catalogues left out): [{ file, source }]. */
+export async function uiSources(root = repoRoot) {
   const files = (await walk(join(root, 'ui'))).map((path) => ({ path, file: relative(root, path).replace(/\\/g, '/') }))
     .filter(({ file }) => !NOT_UI.some((prefix) => file.startsWith(prefix)));
+  return Promise.all(files.map(async ({ path, file }) => ({ file, source: await readFile(path, 'utf8') })));
+}
+
+/** Every string of every UI source file: [{ file, text }]. */
+export async function uiStrings(root = repoRoot) {
   const rows = [];
-  for (const { path, file } of files) {
-    const source = await readFile(path, 'utf8');
+  for (const { file, source } of await uiSources(root)) {
     const { code } = await transform(source, { loader: 'jsx', jsx: 'transform', charset: 'utf8', sourcefile: file });
     for (const text of stringsOf(code)) rows.push({ file, text });
   }
