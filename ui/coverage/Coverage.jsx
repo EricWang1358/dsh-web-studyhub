@@ -21,10 +21,10 @@ const SHAPES = {
 export const coverageSegments = (c) => {
   const scheduled = Math.min(c.scheduled || 0, c.neverPlanned || 0);
   return [
-    { value: c.covered, tone: 'info', label: stateWord('covered') },
-    { value: c.plannedFailed, tone: 'warning', label: stateWord('planned-failed') },
-    ...(scheduled > 0 ? [{ value: scheduled, tone: 'neutral', label: stateWord('never-planned', true, true) }] : []),
-    { value: c.neverPlanned - scheduled, tone: 'neutral', label: stateWord('never-planned', c.recorded !== false) },
+    { value: c.covered, tone: 'neutral', kind: 'covered', label: stateWord('covered') },
+    { value: c.plannedFailed, tone: 'warning', kind: 'planned-failed', label: stateWord('planned-failed') },
+    ...(scheduled > 0 ? [{ value: scheduled, tone: 'neutral', kind: 'scheduled', label: stateWord('never-planned', true, true) }] : []),
+    { value: c.neverPlanned - scheduled, tone: 'neutral', kind: 'never-planned', label: stateWord('never-planned', c.recorded !== false) },
   ];
 };
 
