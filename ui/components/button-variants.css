@@ -20,6 +20,8 @@
       display: flex;
       width: 100%;
     }
+    /* flush: the button sits with its text (or icon) on the edge it aligns to, not indented by its own padding and edge. Use it for a quiet button under a list or a form. */
+    .sh-btn--flush { margin-inline-start: calc((var(--sh-btn-pad-x) + var(--hairline)) * -1); }
     .sh-btn--start { justify-content: flex-start; text-align: start; }
     .sh-btn--center { justify-content: center; text-align: center; }
     /* Pill is for toggle buttons only (Button drops it without aria-pressed). */

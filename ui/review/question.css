@@ -1106,6 +1106,18 @@
       }
     }
   }
+  /* The practice bar at a narrow width: two rows that both run from card edge to card edge. The tools stay on the first, and the second is
+     更多 at its own width with 上一题 and 下一题 sharing the rest, so nothing is left alone at one side. */
+  @container study (max-width: 520px) {
+    :where(.study-app, .study-seat) {
+      .question-toolbar { padding-inline: 0; }
+      .question-toolbar > .next-hint { text-align: start; }
+      .question-toolbar .question-navigation { display: flex; flex-wrap: nowrap; width: 100%; gap: var(--space-2); }
+      .question-toolbar .question-navigation > .sh-menu-anchor { flex: none; }
+      .question-toolbar .question-navigation > [data-usage="review.prev"],
+      .question-toolbar .question-navigation > [data-usage="review.next"] { flex: 1 1 0; }
+    }
+  }
   /* The 600px rule comes first: at equal specificity the case review's own width (980px, below) has always won over it. */
   @container study (max-width: 600px) {
     :where(.study-app, .study-seat) {

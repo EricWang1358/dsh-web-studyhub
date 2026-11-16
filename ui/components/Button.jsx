@@ -18,8 +18,9 @@ export const holdWidth = element => element?.style?.setProperty('--sh-held-width
  * aria-busy and keeps the width the button had when it was pressed;
  * `busyLabel` replaces the label while busy. `wrap` lets a long label run over
  * several lines (start-aligned), `block` makes the button full width, `align`
- * (start | center) places the content. `shape="pill"` is for toggle buttons
- * only (it needs aria-pressed).
+ * (start | center) places the content, `flush` pulls the button back by its own
+ * padding and edge so its content sits on the edge it aligns to (a quiet button
+ * under a list). `shape="pill"` is for toggle buttons only (it needs aria-pressed).
  *
  * `lock` takes the flag of a single-flight action (the app's `busy`, a page's
  * `saving`). While it is up the button is disabled; the spinner, aria-busy and
@@ -30,7 +31,7 @@ export const holdWidth = element => element?.style?.setProperty('--sh-held-width
  * quiet. `busy` is for a button that always shows its own work.
  */
 export const Button = forwardRef(function Button({ variant = 'secondary', size = 'md', type = 'button', icon, iconEnd, iconClassName, iconEndClassName,
-  busy = false, lock, busyLabel, wrap = false, block = false, align, shape, disabled = false, className, children, onClick, ...rest }, ref) {
+  busy = false, lock, busyLabel, wrap = false, block = false, flush = false, align, shape, disabled = false, className, children, onClick, ...rest }, ref) {
   useComponentCss(css);
   useComponentCss(variantsCss, 'study-button-variants');
   const kind = VARIANTS.has(variant) ? variant : 'secondary';
@@ -52,7 +53,7 @@ export const Button = forwardRef(function Button({ variant = 'secondary', size =
   const spinOver = working && busyLabel == null && !icon && !iconEnd;
   return (
     <button ref={ref} type={type} onClick={press}
-      className={cx('sh-btn', `sh-btn--${kind}`, `sh-btn--${scale}`, wrap && 'sh-btn--wrap', block && 'sh-btn--block',
+      className={cx('sh-btn', `sh-btn--${kind}`, `sh-btn--${scale}`, wrap && 'sh-btn--wrap', block && 'sh-btn--block', flush && 'sh-btn--flush',
         ALIGNS.has(align) && `sh-btn--${align}`, pill && 'sh-btn--pill', spinOver && 'sh-btn--spin-over', className)}
       disabled={disabled || busy || !!lock} aria-busy={working || undefined} {...rest}>
       {working && !replaceEnd ? <span className="sh-spinner" aria-hidden="true" /> : glyph(icon, iconSize, iconClassName)}
