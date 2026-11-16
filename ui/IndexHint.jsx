@@ -40,7 +40,7 @@ export default function IndexHint({ docs, onOpenSettings, initialCoverage, hidde
   );
   return (
     <p className={`index-hint${className ? ` ${className}` : ''}`} role="status" data-index-hint>
-      <Icon name="info" size={14} className="index-hint__icon" />
+      <Icon name="info" className="index-hint__icon sh-icon--inline" />
       <Tooltip layer anchorClassName="index-hint__tip" content={indexWhyTip().join('\n')}><span tabIndex={0}>{indexWhyLine()}</span></Tooltip>
       <Button variant="link" size="sm" onClick={go}>{indexGoLabel(hint.canIndex)}</Button>
       <Button variant="quiet" size="sm" onClick={dismiss}>{ui('知道了')}</Button>

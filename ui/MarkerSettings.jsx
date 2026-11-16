@@ -73,7 +73,7 @@ export default function MarkerSettings({ disabled = false, available = true }) {
     {!command.trim() && status?.command && <Hint>{uiFormat('正在使用：{0}', [status.command])}</Hint>}
     <div className="marker-settings__actions"><Button disabled={disabled || !call || loading || !available} busy={working} onClick={save}>{ui('检测并保存')}</Button></div>
     <Hint>{ui('程序运行在 StudyHub 服务所在的电脑上。检测只确认命令可用，会启动一次 Marker，第一次可能要一两分钟；模型和 OCR 后端会在实际解析时检查。')}</Hint>
-    {status && <p role="status" className="marker-settings__status" data-ready={status.state === 'ready'}><Icon name={status.state === 'ready' ? 'success' : 'info'} size={16} />{status.state === 'ready' ? ui('Marker 已就绪') : status.state === 'needs-docker' ? ui('Marker 需要 Docker') : ui('Marker 尚未就绪')}{status.message ? ` · ${uiMessage(status.message)}` : ''}</p>}
+    {status && <p role="status" className="marker-settings__status" data-ready={status.state === 'ready'}><Icon className="sh-icon--inline" name={status.state === 'ready' ? 'success' : 'info'} />{status.state === 'ready' ? ui('Marker 已就绪') : status.state === 'needs-docker' ? ui('Marker 需要 Docker') : ui('Marker 尚未就绪')}{status.message ? ` · ${uiMessage(status.message)}` : ''}</p>}
     {status?.notSaved && <Hint>{ui('没有通过检测，所以没有保存；原来的路径没有改动。')}</Hint>}
     {status?.notSaved && diagRow(`${status.state}:${command}`)}
     {error && <><InlineMessage tone="error">{error}</InlineMessage>{diagRow(error, { summary: error })}</>}

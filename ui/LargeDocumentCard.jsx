@@ -74,7 +74,7 @@ export function ToolCard({ tool }) {
       <p className="large-doc__meta">{[ui(tool.license), tool.platforms.join(' / '), ...(tool.outputs ? [tool.outputs.join(', ')] : [])].join(' · ')}</p>
       <ul className="large-doc__channels" aria-label={uiFormat('{0} 的下载渠道', [ui(tool.name)])}>
         {tool.channels.map(channel => <li key={channel.url}>
-          <a href={channel.url} target="_blank" rel="noreferrer">{ui(channel.label)}<Icon name="external" size={13} /></a>
+          <a href={channel.url} target="_blank" rel="noreferrer">{ui(channel.label)}<Icon className="sh-icon--inline" name="external" /></a>
           <Badge size="sm" tone={channel.kind === 'mainland' ? 'success' : 'neutral'}>{KIND_LABEL[channel.kind]()}</Badge>
         </li>)}
       </ul>
@@ -158,7 +158,7 @@ export function DetectionLine({ retrieval, onOpenSettings }) {
   else text = ui('没有检测到检索工具。');
   return (
     <p className={`large-doc__detect large-doc__detect--${tone}`} role="status">
-      <Icon name={tone === 'on' ? 'success' : 'info'} size={16} className="large-doc__detect-icon" />
+      <Icon name={tone === 'on' ? 'success' : 'info'} className="large-doc__detect-icon sh-icon--inline" />
       <span>{text}</span>
       {onOpenSettings && tone !== 'on' && <Button size="sm" variant="link" onClick={onOpenSettings}>{ui('打开检索设置')}</Button>}
       {onOpenSettings && tone === 'on' && <Button size="sm" variant="link" onClick={onOpenSettings}>{ui('查看检索设置')}</Button>}

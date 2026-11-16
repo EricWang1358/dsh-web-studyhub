@@ -297,7 +297,7 @@ export default function TodayView({
             {allDoneToday && (
               <div className="board-today__complete" role="status" data-testid="board-today-complete">
                 <span className="board-today__complete-mark" aria-hidden="true">
-                  <Icon name="check" size={14} strokeWidth={2.2} />
+                  <Icon className="sh-icon--inline" name="check" />
                 </span>
                 <p className="board-today__complete-copy">
                   <strong>{ui('今日排程已全部完成')}</strong>

@@ -199,7 +199,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <button className="prereq-item" disabled={busy} title={ui("只练这一道，做完回到这道题")} onClick={() => studyPrerequisites([p])}>
               <span className={"map-dot lv-" + p.level} />
               <Markdown className="md-compact" links={false} text={p.prompt} />
-              <Icon name="arrow-right" size={16} className="prereq-go" />
+              <Icon name="arrow-right" className="prereq-go sh-icon--inline" />
             </button>
           </li>
         ))}

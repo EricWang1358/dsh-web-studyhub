@@ -26,7 +26,7 @@ export function RetoldMark({ retold }) {
   if (!(retold?.passes > 0)) return null;
   return (
     <Tooltip content={uiFormat("用自己的话讲过 {0} 次，其中 {1} 次 AI 认为讲清楚了。", [retold.tries, retold.passes])}>
-      <span className="retold-mark" data-retold=""><Icon name="check" size={14} />{ui("讲清楚过")}</span>
+      <span className="retold-mark" data-retold=""><Icon className="sh-icon--inline" name="check" />{ui("讲清楚过")}</span>
     </Tooltip>
   );
 }

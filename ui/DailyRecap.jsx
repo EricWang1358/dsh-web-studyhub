@@ -68,7 +68,7 @@ export function DailyRecapPanel(props) {
       return <article className="daily-recap-course" data-state={phase} data-all-clear={allClear || undefined} key={recapGroupKey(group)}>
         <div className="daily-recap-course-heading"><h3>{group.course || ui('未分配课程')}</h3>
           <span className="daily-recap-status-row">
-            {allClear && <span className="daily-recap-clear" data-testid="daily-recap-clear"><Icon name="check" size={12} strokeWidth={2.2} /><span>{ui('今日零错题')}</span></span>}
+            {allClear && <span className="daily-recap-clear" data-testid="daily-recap-clear"><Icon className="sh-icon--inline" name="check" /><span>{ui('今日零错题')}</span></span>}
             <span className="daily-recap-state">{ui(stateLabels[phase])}</span>
           </span></div>
         <p className="daily-recap-meta">{group.day !== status.day && <>{group.day} · </>}{uiFormat('已练习 {0} 题 · 需要回顾 {1} 题', [group.answeredCount, group.wrongCount])}</p>

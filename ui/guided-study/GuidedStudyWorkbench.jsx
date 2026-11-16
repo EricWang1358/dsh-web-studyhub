@@ -346,7 +346,7 @@ export default function GuidedStudyWorkbench({
                   data-tone={currentMissed ? 'warning' : 'success'}
                   role="status"
                 >
-                  <Icon name={currentMissed ? 'info' : 'check'} size={15} strokeWidth={2.1} />
+                  <Icon className="sh-icon--inline" name={currentMissed ? 'info' : 'check'} />
                   <span>{verdictText}</span>
                 </div>
               )}

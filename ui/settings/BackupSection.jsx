@@ -192,7 +192,7 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav, in
                 <li key={point.id} className="restore-point-row">
                   <div className="restore-point-row__info">
                     <div className="restore-point-row__title">
-                      <Icon name="clock" size={16} className="restore-point-row__icon" />
+                      <Icon name="clock" className="restore-point-row__icon sh-icon--inline" />
                       <strong>{label}</strong>
                       {point.tier === 'weekly' && <Badge tone="neutral">{ui('周恢复点')}</Badge>}
                       <small className="restore-point-row__bytes">{uiFormat('额外 {0}', [formatBytes(point.extraBytes || 0)])}</small>

@@ -35,7 +35,7 @@ export function OriginalNotice({ document, onAction, onSync, syncing = false, co
   const closed = collapsed ?? (closedHere.has(id) || noticeCollapsed(id) || !guidanceAllows('reader.original-notice'));
   const close = () => { collapseNotice(id); setClosedHere(previous => new Set(previous).add(id)); onCollapse?.(id); };
   if (issue.kind === 'none' && closed) return <p className="original-quiet" data-tour="reader-original-notice" data-kind="none" data-collapsed="true">
-    <Icon name="info" size={16} />
+    <Icon className="sh-icon--inline" name="info" />
     <span>{ui('这份资料没有原文件。')}</span>
     <Button size="sm" variant="quiet" icon="file" onClick={() => onAction?.('attach')}>{ui('补全原文件…')}</Button>
   </p>;

@@ -186,7 +186,7 @@ export function StatsView({
             </ul>
           ) : totals.attempts ? (
             <p className="dash-weak-clear" role="status" data-testid="dash-weak-clear">
-              <Icon name="check" size={14} strokeWidth={2.2} />
+              <Icon className="sh-icon--inline" name="check" />
               <span>{ui("最近没有明显薄弱的主题，继续保持。")}</span>
             </p>
           ) : (

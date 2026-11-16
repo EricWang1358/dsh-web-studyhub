@@ -28,7 +28,7 @@ export function LibraryChip({ root, onOpen }) {
   if (!root) return null;
   return (
     <Button variant="quiet" size="sm" className="library-location" title={root} aria-label={uiFormat('学习库位置：{0}。打开设置可更改', [root])} onClick={onOpen}>
-      <Icon name="folder" size={14} />
+      <Icon className="sh-icon--inline" name="folder" />
       <span>{uiFormat('学习库：{0}', [libraryFolderName(root)])}</span>
     </Button>
   );
@@ -96,7 +96,7 @@ export default function AppTopbar({ title }) {
       {shell?.navDrawer && <NavMenuButton />}
       <nav className="crumbs" aria-label={ui('位置')}>
         <span className="crumb">{ui('StudyHub')}</span>
-        <span className="breadcrumb" aria-hidden="true"><Icon name="arrow-right" size={12} /></span>
+        <span className="breadcrumb" aria-hidden="true"><Icon className="sh-icon--inline" name="arrow-right" /></span>
         <span className="crumb" aria-current="page">{title}</span>
       </nav>
       <div className="top-right">

@@ -286,7 +286,7 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           onKeyDown={editor ? event => { if (startsEditing(event)) { event.preventDefault(); startEditing(); } } : undefined}>
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
           <span>
-            <strong className="source-title" title={item.title}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <Badge size="sm" className="source-new">{ui("刚导入")}</Badge>}{notes.map(note => <Badge key={note} tone="warning" size="sm" icon wrap className="source-note">{note}</Badge>)}</strong>
+            <strong className="source-title" title={item.title}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon className="sh-icon--inline" name="pin" /></span>}{name}{isNew && <Badge size="sm" className="source-new">{ui("刚导入")}</Badge>}{notes.map(note => <Badge key={note} tone="warning" size="sm" icon wrap className="source-note">{note}</Badge>)}</strong>
             {/* One line of facts under the title (#570): where it belongs, then what it is and how big; each part ellipsises on its own. */}
             <span className="source-doc__meta">
               <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
@@ -872,7 +872,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             } : {};
             const head = (
               <GroupHead expanded={expanded} className={isNamedFolder && !showArchived && !!(act || call) ? 'source-group-head--in-row' : ''} onToggle={() => toggle(g)}>
-                {isNamedFolder && <Icon name="folder" size={16} className="source-group-folder-icon" />}
+                {isNamedFolder && <Icon name="folder" className="source-group-folder-icon sh-icon--inline" />}
                 <strong>{groupTitle(g.key)}</strong>
                 {groupMode === 'day' && g.inferred && <Badge size="sm" title={ui("这些资料保存时没有记录日期，按最早引用它们的题组推断")}>{ui("推断")}</Badge>}
                 <small className="muted">{uiFormat("{0} 份 · {1} 字符", [g.rows.length, formatNumber(g.chars)])}</small>

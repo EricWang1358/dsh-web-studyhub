@@ -47,8 +47,8 @@ function Facts({ plan }) {
   const disk = free == null ? uiFormat('至少需要 {0}', [sizeLabel(plan.disk?.neededMb)]) : uiFormat('剩余 {0} · 至少需要 {1}', [sizeLabel(free), sizeLabel(plan.disk?.neededMb)]);
   const low = free != null && free < plan.disk.neededMb;
   return <dl className="marker-install__facts">
-    <div><dt>{ui('Python')}</dt><dd data-ok={plan.python ? 'true' : 'false'}><span className="marker-install__fact-mark"><Icon name={plan.python ? 'success' : 'warning'} size={16} /></span>{python}</dd></div>
-    <div><dt>{ui('磁盘空间')}</dt><dd data-ok={low ? 'false' : 'true'}><span className="marker-install__fact-mark"><Icon name={low ? 'warning' : 'success'} size={16} /></span>{disk}</dd></div>
+    <div><dt>{ui('Python')}</dt><dd data-ok={plan.python ? 'true' : 'false'}><span className="marker-install__fact-mark"><Icon className="sh-icon--inline" name={plan.python ? 'success' : 'warning'} /></span>{python}</dd></div>
+    <div><dt>{ui('磁盘空间')}</dt><dd data-ok={low ? 'false' : 'true'}><span className="marker-install__fact-mark"><Icon className="sh-icon--inline" name={low ? 'warning' : 'success'} /></span>{disk}</dd></div>
     <div><dt>{ui('下载与时间')}</dt><dd>{uiFormat('约 {0}，通常 {1}–{2} 分钟（估算，取决于网速）', [sizeLabel(plan.estimate?.downloadMb), plan.estimate?.minutes?.[0], plan.estimate?.minutes?.[1]])}</dd></div>
   </dl>;
 }

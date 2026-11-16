@@ -191,7 +191,7 @@ export default function PdfConversion({ available = true, initialConverter = 'mi
 
         {available && gate}
 
-        {usable && <p className="mineru-acked"><Icon name="success" size={16} />{isMarker ? (review ? ui('在 StudyHub 所在电脑运行，转换好后先等你改。') : ui('在 StudyHub 所在电脑运行，结果自动导入。')) : ui('本地解析：不会上传任何内容。')}</p>}
+        {usable && <p className="mineru-acked"><Icon className="sh-icon--inline" name="success" />{isMarker ? (review ? ui('在 StudyHub 所在电脑运行，转换好后先等你改。') : ui('在 StudyHub 所在电脑运行，结果自动导入。')) : ui('本地解析：不会上传任何内容。')}</p>}
         {usable && stopped && <Hint>{ui('本机服务没在运行，开始解析时会先自动启动（约 1 分钟）。')}</Hint>}
         {usable && (() => {
           const active = Array.isArray(jobs) ? jobs.find(j => isConvertJob(j) && isActiveJob(j)) : null;

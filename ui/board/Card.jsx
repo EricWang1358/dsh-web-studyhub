@@ -91,10 +91,10 @@ export default function BoardCard({ card, column, columns, index, count, today, 
         {showActual && <span className="board-duration board-duration--actual">{uiFormat('实际 {0} 分钟', [actualMinutes])}</span>}
         {visibleLabels.map((label) => <span key={label} className={`board-chip board-hue-${labelHue(label)}`}>{label}</span>)}
         {state && <Tooltip content={dueTitle(card.due, state.kind === 'done' ? null : state)}>
-          <span className={`board-due is-${state.kind}`} tabIndex={0}><Icon name="calendar" size={13} />{state.kind === 'done' ? card.due : dueText(state)}</span>
+          <span className={`board-due is-${state.kind}`} tabIndex={0}><Icon className="sh-icon--inline" name="calendar" />{state.kind === 'done' ? card.due : dueText(state)}</span>
         </Tooltip>}
         {progress.total > 0 && <Tooltip layer content={uiFormat('清单 {0}/{1}', [progress.done, progress.total])}>
-          <span className={`board-progress${progress.done === progress.total ? ' is-complete' : ''}`} tabIndex={0}><Icon name="checklist" size={13} />{progress.done}/{progress.total}</span>
+          <span className={`board-progress${progress.done === progress.total ? ' is-complete' : ''}`} tabIndex={0}><Icon className="sh-icon--inline" name="checklist" />{progress.done}/{progress.total}</span>
         </Tooltip>}
         {showStartTimer && (
           <Button
@@ -112,15 +112,15 @@ export default function BoardCard({ card, column, columns, index, count, today, 
       </div>}
       {(origin || link) && <div className="board-meta">
         {origin && (onOrigin && card.origin?.workspace
-          ? <button type="button" className="board-meta__item board-meta__btn" title={card.origin.workspace} onClick={() => onOrigin(card.origin.workspace)}><Icon name="folder" size={13} /><span>{origin}</span></button>
+          ? <button type="button" className="board-meta__item board-meta__btn" title={card.origin.workspace} onClick={() => onOrigin(card.origin.workspace)}><Icon className="sh-icon--inline" name="folder" /><span>{origin}</span></button>
           : card.origin?.workspace
-            ? <Tooltip layer content={card.origin.workspace}><span className="board-meta__item" tabIndex={0}><Icon name="folder" size={13} /><span>{origin}</span></span></Tooltip>
-            : <span className="board-meta__item"><Icon name="folder" size={13} /><span>{origin}</span></span>)}
+            ? <Tooltip layer content={card.origin.workspace}><span className="board-meta__item" tabIndex={0}><Icon className="sh-icon--inline" name="folder" /><span>{origin}</span></span></Tooltip>
+            : <span className="board-meta__item"><Icon className="sh-icon--inline" name="folder" /><span>{origin}</span></span>)}
         {link && (onStudyRef
-          ? <button type="button" className="board-meta__item board-meta__btn" title={card.studyRef.root} onClick={() => onStudyRef(card.studyRef)}><Icon name="link" size={13} /><span>{link.text}</span></button>
+          ? <button type="button" className="board-meta__item board-meta__btn" title={card.studyRef.root} onClick={() => onStudyRef(card.studyRef)}><Icon className="sh-icon--inline" name="link" /><span>{link.text}</span></button>
           : card.studyRef?.root
-            ? <Tooltip layer content={card.studyRef.root}><span className="board-meta__item" tabIndex={0}><Icon name="link" size={13} /><span>{link.text}</span></span></Tooltip>
-            : <span className="board-meta__item"><Icon name="link" size={13} /><span>{link.text}</span></span>)}
+            ? <Tooltip layer content={card.studyRef.root}><span className="board-meta__item" tabIndex={0}><Icon className="sh-icon--inline" name="link" /><span>{link.text}</span></span></Tooltip>
+            : <span className="board-meta__item"><Icon className="sh-icon--inline" name="link" /><span>{link.text}</span></span>)}
       </div>}
     </article>
   );

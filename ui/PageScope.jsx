@@ -118,7 +118,7 @@ export default function PageScope({ courses = [], value, onChange, disabled, una
     ...(strayValue ? [{ value, label: value }] : [])];
   // The follow state is a mark, not a sentence: its name is there for screen readers, and the tooltip (hover and keyboard focus) says what it means.
   const mark = (icon, name, tip) => <Tooltip layer content={tip}><span className="page-scope__mark" tabIndex={0}>
-    <Icon name={icon} size={16} /><span className="sh-visually-hidden">{name}</span></span></Tooltip>;
+    <Icon className="sh-icon--inline" name={icon} /><span className="sh-visually-hidden">{name}</span></span></Tooltip>;
   return <div className="page-scope">
     <label className="page-scope__label" htmlFor={id}>{label}</label>
     <Combobox id={id} className="page-scope__select" value={value} onChange={onChange} disabled={disabled} options={options} searchPlaceholder={ui('搜索课程或章节')}

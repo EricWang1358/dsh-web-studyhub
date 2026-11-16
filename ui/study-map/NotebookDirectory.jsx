@@ -88,7 +88,7 @@ export default function NotebookDirectory({ notebooks, error, onPublish, onUnpub
                     <button className="nb-row due" disabled={busy || !n.exists} title={n.exists ? uiFormat('在新对话中打开：{0}', [n.workspace]) : n.workspace} onClick={() => onOpen?.(n)}>
                       <span className="nb-main"><strong>{n.title}</strong><small className="nb-path">{d.title}</small></span>
                       <span className="nb-stats">{uiFormat('{0} 道到期', [d.due])}</span>
-                      <Icon name="arrow-right" size={16} className="nb-go" />
+                      <Icon name="arrow-right" className="nb-go sh-icon--inline" />
                     </button>
                   </li>
                 ))}
@@ -107,7 +107,7 @@ export default function NotebookDirectory({ notebooks, error, onPublish, onUnpub
                   <button className="nb-row" disabled={busy} title={r.workspace} onClick={() => onOpen?.({ workspace: r.workspace })}>
                     <span className="nb-main"><strong>{r.deckTitle}{r.topic ? ` › ${r.topic}` : ''}</strong><small className="nb-path">{r.prompt || r.cardId || ''}</small></span>
                     <span className="nb-stats">{r.title}</span>
-                    <Icon name="arrow-right" size={16} className="nb-go" />
+                    <Icon name="arrow-right" className="nb-go sh-icon--inline" />
                   </button>
                 </li>
               ))}
@@ -128,7 +128,7 @@ export default function NotebookDirectory({ notebooks, error, onPublish, onUnpub
                     title={n.exists ? uiFormat('在新对话中打开：{0}', [n.workspace]) : n.workspace} onClick={() => onOpen?.(n)}>
                     <span className="nb-main"><strong>{n.title}</strong><small className="nb-path">{n.workspace}</small></span>
                     <span className="nb-stats">{stats(n)}</span>
-                    <Icon name="arrow-right" size={16} className="nb-go" />
+                    <Icon name="arrow-right" className="nb-go sh-icon--inline" />
                   </button>
                 </li>
               ))}

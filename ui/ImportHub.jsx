@@ -567,7 +567,7 @@ export default function ImportHub({
     <div ref={root} className={`import-hub${className ? ` ${className}` : ''}`} data-tab={tab} {...rest}>
       <CourseChoice value={courseText} focus={data?.focus?.course || ''} from={courseFrom} courses={choices} onChange={setCourseText} disabled={busy || running} />
       <SegmentedControl className="import-hub__tabs" iconClassName="import-hub__tab-icon" label={ui('添加方式')} value={tab} options={tabs} disabled={running} onChange={setTab} />
-      {stray && <p className="import-hub__stray" role="status"><Icon name="info" size={16} className="import-hub__stray-icon" />{strayText}</p>}
+      {stray && <p className="import-hub__stray" role="status"><Icon name="info" className="import-hub__stray-icon sh-icon--inline" />{strayText}</p>}
       {tab === 'files' && <div className="import-hub__files">
         {!running && failed > 0 && <InlineMessage tone="warning" boxed className="import-hub__summary" actionsBelow
           title={finished ? uiFormat('{0} 个文件已导入，{1} 个没有导入', [finished, failed]) : uiFormat('{0} 个文件没有导入', [failed])}

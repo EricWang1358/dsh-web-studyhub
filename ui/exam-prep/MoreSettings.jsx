@@ -37,7 +37,7 @@ export default function MoreSettings({ form, title, courses, hideCourse, disable
       <fieldset className="exam-prep-reading" data-role="textbook">
         <legend className="exam-prep-reading__head">
           <span>{ui('推荐教材')}</span>
-          <Explain k="role.textbook" focusable label={uiFormat('「{0}」是什么', [ui('推荐教材')])}><Icon name="info" size={16} /></Explain>
+          <Explain k="role.textbook" focusable label={uiFormat('「{0}」是什么', [ui('推荐教材')])}><Icon className="sh-icon--inline" name="info" /></Explain>
         </legend>
         <div className="exam-prep-form__fields">
           {note('title', ui('书名'), 200)}

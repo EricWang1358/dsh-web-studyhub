@@ -176,7 +176,7 @@ export function MethodForm({ draft, own, disabled, working, onChange, onStage, o
                   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
                 }}
                 onDragEnd={() => { setDragIndex(-1); setOverIndex(-1); }}
-                aria-hidden="true"><Icon name="list" size={16} /></span>
+                aria-hidden="true"><Icon className="sh-icon--inline" name="list" /></span>
             </Tooltip>}
             <IconButton size="sm" icon="arrow-up" label={uiFormat('上移第 {0} 个阶段', [index + 1])} lock={disabled} disabled={index === 0}
               onClick={() => move(index, index - 1)} />
