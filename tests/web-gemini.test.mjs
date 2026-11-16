@@ -175,6 +175,7 @@ test('gateway routes only non-concurrent single-shot tool-less tasks to web Gemi
       ['note-generate', ['direct'], {}],
       ['course-book-ai', ['direct'], {}],
       ['case-answer-card', ['direct'], {}],
+      ['companion-lesson-build', ['direct'], {}],
       ['assist', ['direct', 'subagent'], {}],
       ['generation', ['direct', 'subagent'], { legacy: { kind: 'case' } }],
     ]) {
@@ -186,7 +187,7 @@ test('gateway routes only non-concurrent single-shot tool-less tasks to web Gemi
       assert.equal(record.calls[0].model, PREFERRED_WEB_GEMINI_TOOL);
       assert.equal(record.calls[0].runner, modes.includes('subagent') ? 'subagent' : 'direct');
     }
-    assert.equal(webCalls.length, 8);
+    assert.equal(webCalls.length, 9);
     assert.equal(directCalls.length, 0);
 
     // Concurrent batched / light tasks stay on the direct/native model path.
@@ -203,7 +204,7 @@ test('gateway routes only non-concurrent single-shot tool-less tasks to web Gemi
         .complete('sys', `prompt-${kind}`);
       assert.equal(out, model ? 'LIGHT_OK' : 'DIRECT_OK', `${kind} stays off web Gemini`);
     }
-    assert.equal(webCalls.length, 8);
+    assert.equal(webCalls.length, 9);
     assert.equal(directCalls.length, 5);
     assert.equal(isWebGeminiEligibleJob({ record: makeRecord('generation', ['direct'], { legacy: { kind: 'case' } }), options: { model: 'light' } }), false);
   });
@@ -433,5 +434,76 @@ test('web-gemini rejects plain-text bridge errors and unverified replies as not-
       assert.match(localizeAppMessage(error.message, 'en'), /Web Gemini is not started/);
       return true;
     });
+  });
+});
+
+test('companion.ask routes through active webGemini port and falls back cleanly when disabled', async t => {
+  await withTempHome(t, async () => {
+    const root = await mkdtemp(join(tmpdir(), 'web-gemini-comp-'));
+    t.after(async () => {
+      await rm(root, { recursive: true, force: true, maxRetries: 3 });
+    });
+
+    const webPrompts = [];
+    const lightPrompts = [];
+    const ctx = {
+      tools: {
+        schemas: () => [geminiTool],
+        execute: async input => {
+          const args = JSON.parse(input.calls[0].arguments);
+          webPrompts.push(args.prompt);
+          return {
+            isError: false,
+            value: {
+              content: [{
+                type: 'text',
+                text: JSON.stringify({
+                  answerMarkdown: 'Web Gemini tutor explanation for slide 2.',
+                  suggestedCard: {
+                    prompt: 'What breaks pointwise convergence?',
+                    answer: 'Area escape without uniform sup-norm bound.',
+                    misconception: 'Assuming pointwise limit equals integral limit.',
+                  },
+                }),
+              }],
+            },
+          };
+        },
+      },
+    };
+    const webGemini = createWebGeminiPort(ctx);
+
+    // 1. Active webGemini works even when no API complete/light model is configured
+    await saveWebGeminiSettings({ enabled: true, waitSeconds: 180 });
+    const webOnlySvc = new StudyService(root, { webGemini });
+    t.after(() => webOnlySvc.dispose());
+    const webReply = await webOnlySvc.call('companion.ask', {
+      language: 'en',
+      question: 'Why does pointwise convergence fail here?',
+      context: { lessonTitle: 'Uniform Convergence', slide: 2, slideTitle: 'Moving Bump' },
+    });
+    assert.equal(webPrompts.length, 1);
+    assert.match(webReply.answerMarkdown, /Web Gemini tutor explanation/);
+    assert.equal(webReply.suggestedCard?.prompt, 'What breaks pointwise convergence?');
+
+    // 2. Disabling webGemini falls back cleanly to providedLight / providedComplete
+    await saveWebGeminiSettings({ enabled: false, waitSeconds: 180 });
+    const fallbackSvc = new StudyService(root, {
+      webGemini,
+      light: async (_sys, prompt) => {
+        lightPrompts.push(prompt);
+        return JSON.stringify({ answerMarkdown: 'Fallback light model answer.', suggestedCard: null });
+      },
+    });
+    t.after(() => fallbackSvc.dispose());
+    const fallbackReply = await fallbackSvc.call('companion.ask', {
+      language: 'en',
+      question: 'Second question?',
+      context: { lessonTitle: 'Uniform Convergence', slide: 3 },
+    });
+    assert.equal(webPrompts.length, 1, 'Disabled webGemini must not be invoked');
+    assert.equal(lightPrompts.length, 1, 'Fallback light model must handle the ask');
+    assert.equal(fallbackReply.answerMarkdown, 'Fallback light model answer.');
+    assert.equal(fallbackReply.suggestedCard, null);
   });
 });

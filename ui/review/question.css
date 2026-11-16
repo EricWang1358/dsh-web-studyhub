@@ -387,12 +387,12 @@
       align-items: center;
       gap: var(--space-1);
     }
-    .question-toolbar .tool-action,
+    /* The text tools (提示, 帮我弄懂, 修题, 更多) are quiet Buttons and take their size, weight and hover from the component; only the thumbs are raw icon buttons. */
     .question-toolbar .tool-icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-height: 38px;
+      min-height: var(--control-h, 40px);
       padding: var(--space-2) var(--space-3);
       border: 1px solid transparent;
       border-radius: var(--radius-sm);
@@ -402,13 +402,12 @@
       line-height: 1.2;
       white-space: nowrap;
     }
-    .question-toolbar .tool-action:hover:not(:disabled),
     .question-toolbar .tool-icon:hover:not(:disabled),
     .question-toolbar .tool-action[aria-expanded="true"] {
       background: var(--bg-hover);
       color: var(--text);
     }
-    .question-toolbar .thumbs > .tool-icon { width: 38px; padding: var(--space-2); }
+    .question-toolbar .thumbs > .tool-icon { width: var(--control-h, 40px); padding: var(--space-2); }
     .question-toolbar .thumbs svg { display: block; width: 17px; height: 17px; }
     .question-navigation { margin-left: auto; }
     .question-toolbar > .next-hint { flex: 1 0 100%; margin: 0; text-align: right; }
