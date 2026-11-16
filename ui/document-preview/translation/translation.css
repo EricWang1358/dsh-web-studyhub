@@ -45,7 +45,7 @@
       background: transparent;
       color: var(--text-muted);
       font: inherit;
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       cursor: pointer;
     }
     .tr-mark .tr-mark__btn::before { content: attr(data-label); }
@@ -97,7 +97,7 @@
     .tr-block__error, .tr-block__status { display: inline-flex; flex: 1 1 0; align-items: center; gap: var(--space-2); min-width: 0; margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .tr-block__text { margin: 0.3em 0 0; color: var(--text); overflow-wrap: anywhere; white-space: pre-line; }
     .tr-block[data-state='busy'] .tr-block__text { opacity: 0.55; }
-    .tr-block__note { margin: 0.4em 0 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .tr-block__note { margin: 0.4em 0 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .tr-block__note [type='button'], .tr-block__status .tr-block__status-btn { margin-left: var(--space-1); }
     .tr-fold {
       display: inline-flex;
@@ -125,10 +125,10 @@
       text-overflow: ellipsis;
     }
     .tr-ask { display: grid; gap: var(--space-1); margin-top: 0.5em; font-size: var(--fs-sm); }
-    .tr-ask__label { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
+    .tr-ask__label { color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
     .tr-ask__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
     .tr-ask .tr-ask__input { flex: 1 1 12em; width: auto; min-width: 0; min-height: 32px; margin: 0; padding: var(--space-1) var(--space-3); font-size: var(--fs-sm); line-height: var(--lh-tight); }
-    .tr-history { margin-top: 0.4em; font-size: var(--fs-xs); color: var(--text-muted); }
+    .tr-history { margin-top: 0.4em; font-size: var(--fs-sm); color: var(--text-muted); }
     .tr-history summary { width: fit-content; cursor: pointer; }
     .tr-history ol { display: grid; gap: var(--space-1-5); margin: var(--space-1-5) 0 0; padding: 0; list-style: none; }
     .tr-history li { display: grid; gap: var(--hairline); padding-left: var(--space-2); border-left: 2px solid var(--line-strong); overflow-wrap: anywhere; }
@@ -161,7 +161,7 @@
       color: var(--text);
       font-family: var(--font-ui);
       font-size: var(--fs-sm);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       cursor: pointer;
     }
     /* Placed against the selection by useRangeAnchor (shared anchoring); until then, and while the selection is out of sight, it takes no part. */
@@ -182,21 +182,21 @@
     .tr-toolbar-button[data-busy='true'] .tr-toolbar-button__tag { animation: tr-pulse 1.2s ease-in-out infinite; }
     .tr-panel { gap: var(--space-3); width: 348px; max-width: calc(100cqw - var(--space-4)); }
     .tr-panel__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-    .tr-panel__note { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .tr-panel__note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .tr-scope { display: grid; justify-items: start; gap: var(--space-1-5); padding-top: var(--space-3); border-top: 1px solid var(--line); }
     .tr-scope__head { display: grid; gap: var(--space-half); min-width: 0; }
-    .tr-scope__head small { color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .tr-scope__head small { color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .tr-panel__actions { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--line); }
-    .tr-modes__note { color: var(--text-muted); font-size: var(--fs-xs); }
+    .tr-modes__note { color: var(--text-muted); font-size: var(--fs-sm); }
     /* ── The progress line of a running job, in the reader's notices ── */
     .tr-job { display: grid; gap: var(--space-1); padding: var(--space-half) 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .tr-job__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); min-width: 0; }
-    .tr-job__title { min-width: 0; color: var(--text); font-weight: var(--fw-strong); }
+    .tr-job__title { min-width: 0; color: var(--text); font-weight: var(--fw-medium); }
     .tr-job__counts { color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .tr-job__actions { display: inline-flex; margin-left: auto; }
     .tr-job__meter { height: 3px; background: var(--line); box-shadow: none; }
-    .tr-job__note { color: var(--text-muted); font-size: var(--fs-xs); }
-    .tr-job__usage { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .tr-job__note { color: var(--text-muted); font-size: var(--fs-sm); }
+    .tr-job__usage { font-size: var(--fs-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .tr-job__raw code { display: block; margin-top: var(--space-1); overflow-wrap: anywhere; white-space: pre-wrap; }
     .tr-job[data-status='failed'] .tr-job__title { color: var(--bad-ink); }
     /* ── The glossary dialog ── */

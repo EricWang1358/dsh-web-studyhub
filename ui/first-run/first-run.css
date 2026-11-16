@@ -15,7 +15,7 @@
       margin: 0 0 var(--space-2-5);
       color: var(--text-muted);
       font-size: var(--fs-sm);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       letter-spacing: 0.06em;
     }
     .first-run__title {
@@ -43,7 +43,7 @@
       padding: var(--space-2) 0;
     }
     .frl-step__text { flex: 1 1 auto; min-width: 0; font-size: var(--fs-md); line-height: var(--lh-snug); color: var(--text-dim); overflow-wrap: anywhere; }
-    .frl-step[aria-current="step"] .frl-step__text { color: var(--text); font-weight: var(--fw-strong); }
+    .frl-step[aria-current="step"] .frl-step__text { color: var(--text); font-weight: var(--fw-medium); }
     .frl-step[data-status="done"] .frl-step__text { color: var(--text-muted); }
     .frl-row-link { flex: none; }
     .frl-mark {
@@ -56,7 +56,7 @@
       border-radius: 50%;
       color: var(--text-muted);
       font-size: var(--fs-xs);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       font-variant-numeric: tabular-nums;
     }
     .frl-step[aria-current="step"] .frl-mark { border-color: var(--text); background: var(--text); color: var(--bg-surface); }

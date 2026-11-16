@@ -16,7 +16,7 @@
     .cov-mark[data-state='covered'] { color: var(--cov-covered); }
     .cov-mark[data-state='planned-failed'] { color: var(--warn-ink); }
     .cov-mark__tip { display: grid; gap: var(--space-half); max-width: 22em; }
-    .cov-mark__tip strong { font-weight: var(--fw-strong); }
+    .cov-mark__tip strong { font-weight: var(--fw-medium); }
     .cov-mark__tip span { color: inherit; opacity: 0.85; }
     /* ── The chip: 覆盖 9% ──────────────────────────────────────────────── */
     .cov-meter { display: inline-flex; align-items: center; gap: var(--space-1-5); min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -51,37 +51,37 @@
     .cov-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); }
     .cov-list li:hover { background: var(--bg-hover); }
     .cov-list__name { min-width: 0; overflow-wrap: anywhere; }
-    .cov-list__name small { display: block; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .cov-list__name small { display: block; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .cov-list__open { white-space: nowrap; }
     /* ── The run (the rounds of the plan): where it is, why it stopped, and 自动补到完整 ───────────── */
     .cov-run { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
     .cov-run > * { min-width: 0; margin: 0; }
     /* What the draft holds and which sections have no question: the SHORTFALL (lib/shortfall.js), the same words as the home row and the 任务 console. */
     .cov-run__line { font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
-    .cov-run__stop, .cov-run__hint { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .cov-run__stop, .cov-run__hint { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .cov-run[data-run-state='interrupted'] .cov-run__line, .cov-run[data-run-state='stopped'] .cov-run__line { color: var(--warn-ink, var(--text)); }
-    .cov-run__stop--head { color: var(--text); font-weight: var(--fw-strong); }
+    .cov-run__stop--head { color: var(--text); font-weight: var(--fw-medium); }
     .cov-run__repeating { display: grid; gap: var(--space-1); }
     .cov-run__repeat-list { display: grid; gap: var(--space-half); margin: 0; padding-inline-start: var(--space-4); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     /* 为什么、怎么办: the explanation under the sections that keep failing, closed until asked for. */
     .cov-why { flex: 1 1 100%; min-width: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
-    .cov-why > summary { cursor: pointer; color: var(--text-muted); font-size: var(--fs-xs); }
+    .cov-why > summary { cursor: pointer; color: var(--text-muted); font-size: var(--fs-sm); }
     .cov-why__list, .cov-why__advice { display: grid; gap: var(--space-1); margin: var(--space-1) 0 0; padding-inline-start: var(--space-4); overflow-wrap: anywhere; }
     .cov-why__list li { display: grid; gap: var(--space-half); }
-    .cov-why__list small { color: var(--text-muted); font-size: var(--fs-xs); }
+    .cov-why__list small { color: var(--text-muted); font-size: var(--fs-sm); }
     .cov-why__acts { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-2); }
     /* ── The materials of a draft: 选了 N 份，M 份已出题 (ui/coverage/MaterialsReport.jsx) and the line of the creation form ── */
     .cov-materials { display: grid; gap: var(--space-1-5); min-width: 0; }
     .cov-materials > * { min-width: 0; margin: 0; }
-    .cov-materials__head { color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-    .cov-materials__note { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-materials__head { color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .cov-materials__note { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-materials__list { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
     .cov-materials__row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-half) var(--space-2); min-width: 0; }
     .cov-materials__name { min-width: 0; color: var(--text); font-size: var(--fs-sm); overflow-wrap: anywhere; }
-    .cov-materials__why { flex: 1 1 12em; min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+    .cov-materials__why { flex: 1 1 12em; min-width: 0; color: var(--text-muted); font-size: var(--fs-sm); overflow-wrap: anywhere; }
     .cov-materials__act { flex: none; }
     .cov-run__auto { display: grid; gap: var(--space-half); }
-    .cov-run__auto small { color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); }
+    .cov-run__auto small { color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     .cov-run + .cov-topup { padding-top: 0; border-top: 0; }
     /* ── The one top-up ─────────────────────────────────────────────────── */
     .cov-topup { display: grid; gap: var(--space-2); min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
@@ -93,7 +93,7 @@
     .cov-topup__button { max-width: 100%; height: auto; padding-block: var(--space-2); text-align: center; white-space: normal; overflow-wrap: anywhere; }
     /* The button that spends names what it is expected to use under its label (ui/coverage/RoundCost.jsx). */
     .cov-topup__button--cost { display: inline-grid; justify-items: center; gap: var(--space-half); }
-    .cov-cost { color: inherit; font-size: var(--fs-xs); font-weight: var(--fw-regular); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; opacity: 0.85; }
+    .cov-cost { color: inherit; font-size: var(--fs-sm); font-weight: var(--fw-regular); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; opacity: 0.85; }
     .cov-run__auto .cov-cost { color: var(--text-muted); opacity: 1; }
     .cov-topup__estimate { flex: 1 1 14em; max-width: 34em; min-width: 0; }
     .cov-topup__done { color: var(--text-dim); font-size: var(--fs-sm); }
@@ -114,12 +114,12 @@
     .reader-outline__covhead .cov-meter { color: var(--text-dim); }
     .reader-outline__covaction { flex-basis: 100%; }
     .reader-outline__covaction .cov-popover { width: 100%; }
-    .reader-outline__covtoggle { display: inline-flex; align-items: center; gap: var(--space-1-5); margin: 0; color: var(--text-dim); font-size: var(--fs-xs); cursor: pointer; }
+    .reader-outline__covtoggle { display: inline-flex; align-items: center; gap: var(--space-1-5); margin: 0; color: var(--text-dim); font-size: var(--fs-sm); cursor: pointer; }
     /* ── 覆盖强度 on the 创建题组 form ─────────────────────────────────── */
     .cov-strength { display: grid; gap: var(--space-2); width: 100%; min-width: 0; justify-items: start; }
     .cov-strength > * { min-width: 0; max-width: 100%; }
     .cov-strength__line { display: grid; gap: var(--space-1); width: 100%; }
-    .cov-strength__levels-line { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-strength__levels-line { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .cov-strength__custom { width: 100%; }
     .cov-strength__count { margin-top: var(--space-2); }
     .cov-strength__input { width: 8em; }
@@ -129,9 +129,9 @@
     .cov-strength__input--budget { width: 9em; font-variant-numeric: tabular-nums; }
     .cov-strength__unit { color: var(--text-muted); font-size: var(--fs-sm); }
     /* ── Why a section has the questions it has (the plan of the draft) ───── */
-    .cov-list__why { display: block; color: var(--text-dim); font-size: var(--fs-xs); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .cov-list__why { display: block; color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     /* ── In a part of a question run (the 任务 console) ────────────────── */
-    .tc-cover { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-1-5); min-width: 0; color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .tc-cover { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-1-5); min-width: 0; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .tc-cover .cov-meter__bar { width: 2.75em; }
   }
   @container study (max-width: 520px) {

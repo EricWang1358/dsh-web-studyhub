@@ -17,7 +17,7 @@
       overflow-wrap: anywhere;
       text-align: start;
     }
-    .mailbox-preview__deck { color: var(--text-muted); font-size: var(--fs-xs); }
+    .mailbox-preview__deck { color: var(--text-muted); font-size: var(--fs-sm); }
     .mailbox-preview__prompt { color: var(--text); font-weight: var(--fw-medium); }
     .mailbox-preview__detail { color: var(--text-dim); }
     .mailbox-preview__hint {
@@ -25,7 +25,7 @@
       padding-top: var(--space-1);
       border-top: 1px solid var(--line-soft);
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
   }
 }

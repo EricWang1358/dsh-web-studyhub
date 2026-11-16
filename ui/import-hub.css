@@ -11,7 +11,7 @@
     .import-hub__course small { font-size: var(--fs-sm); font-weight: var(--fw-regular); line-height: var(--lh-snug); }
     /* The course as one line: where the files go, why, and the way to change it. The field opens under it. */
     .import-hub__chip { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); margin: 0; min-width: 0; }
-    .import-hub__chip strong { font-weight: var(--fw-strong); overflow-wrap: anywhere; }
+    .import-hub__chip strong { font-weight: var(--fw-medium); overflow-wrap: anywhere; }
     .import-hub__chip small { color: var(--text-muted); }
     .import-hub__chip + div { margin-top: var(--space-3); }
     .import-hub__tabs { justify-self: start; max-width: 100%; }

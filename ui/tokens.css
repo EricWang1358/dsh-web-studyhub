@@ -199,7 +199,9 @@
     --scrim-strong: color-mix(in srgb, var(--bg-sunken) 82%, transparent);
     --fw-light: 300;
     --fw-regular: 400;
-    --fw-medium: 550;
+    /* 500, not 550 (#1079): the Han fallback fonts (Microsoft YaHei on Windows) have a regular and a bold face only, and a weight between them takes the heavier
+       one, so 550 drew every label as full bold. 500 is a real medium in Inter (digits and Latin) and the regular face in Han; weight is the second rank, size and colour the third. */
+    --fw-medium: 500;
     --fw-strong: 650;
     --radius-xs: 4px;
     --space-half: 2px;

@@ -38,7 +38,7 @@
     .live-meta { font-size: var(--fs-sm); }
     /* What happens after the class, said once under the end button. */
     .live-after { flex: 1 0 100%; font-size: var(--fs-sm); }
-    .live-state { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--fs-md); font-weight: var(--fw-strong); white-space: nowrap; }
+    .live-state { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--fs-md); font-weight: var(--fw-regular); white-space: nowrap; }
     .live-state i { width: 9px; height: 9px; border-radius: 50%; background: var(--text-dim); }
     .live-state.ok i { background: var(--ok); animation: live-pulse 1.8s ease-in-out infinite; }
     .live-state.warn i { background: var(--warn); }
@@ -50,7 +50,7 @@
     .live-audio-meter { height: 12px; overflow: hidden; border-radius: var(--radius-sm); background: var(--bg-sunken); }
     .live-audio-meter > span { display: block; height: 100%; background: var(--ok); border-radius: inherit; }
     .live-audio-meter > span.clipping { background: var(--warn); }
-    .live-audio-scale { display: flex; justify-content: space-between; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--text-dim); }
+    .live-audio-scale { display: flex; justify-content: space-between; margin-top: var(--space-1); font-size: var(--fs-sm); color: var(--text-dim); }
     .live-audio-transfer { margin: var(--space-2) 0 0; font-size: var(--fs-sm); }
     .live-audio-warning { color: var(--warn-ink); white-space: nowrap; }
     .live-audio-hint { margin: var(--space-2) 0 0; font-size: var(--fs-sm); color: var(--warn-ink); }
@@ -66,7 +66,7 @@
     .live-audio-more small { display: block; margin-top: var(--space-1-5); line-height: 1.5; }
     /* Context polish: one status line, details on demand */
     .live-correction-line { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1-5) var(--space-3-5); margin: 0 0 var(--space-3); font-size: var(--fs-sm); overflow-wrap: anywhere; }
-    .live-correction-state { font-weight: var(--fw-strong); font-size: var(--fs-md); }
+    .live-correction-state { font-weight: var(--fw-regular); font-size: var(--fs-md); }
     .live-correction-state.running { color: var(--ok-ink); }
     .live-correction-more { flex: 1 0 100%; }
     .live-correction-more > summary { cursor: pointer; color: var(--text-dim); }
@@ -97,7 +97,7 @@
     .live-sentence:last-of-type { border-bottom: 0; }
     .live-sentence--selected { background: var(--bg-selected); }
     .live-sentence:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
-    .live-select { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); font-size: var(--fs-xs); color: var(--text-dim); cursor: pointer; }
+    .live-select { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); font-size: var(--fs-sm); color: var(--text-dim); cursor: pointer; }
     .live-words { min-width: 0; overflow-wrap: anywhere; }
     .live-words p { margin: 0; line-height: 1.65; white-space: pre-wrap; }
     .live-words .live-chinese { margin-top: var(--space-1-5); font-size: var(--fs-lg); color: var(--text); }
@@ -106,7 +106,7 @@
     /* A sentence that is Chinese already is shown once, as the main text. */
     .live-words--chinese > p:first-child { font-size: var(--fs-lg); color: var(--text); }
     .live-interim, .live-empty { margin: 0; padding: var(--space-4-5) var(--space-3-5); color: var(--text-dim); overflow-wrap: anywhere; }
-    .live-interim__label { display: block; margin-bottom: var(--space-1); font-size: var(--fs-xs); color: var(--text-dim); }
+    .live-interim__label { display: block; margin-bottom: var(--space-1); font-size: var(--fs-sm); color: var(--text-dim); }
     .live-interim > p { margin: 0; line-height: 1.65; white-space: pre-wrap; }
     .live-selection { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2-5) var(--space-4); padding: var(--space-3) var(--space-3-5); border-top: 1px solid var(--line); background: var(--bg-surface); box-shadow: var(--shadow-up); }
     .live-selection-info { display: flex; flex-direction: column; gap: var(--space-half); min-width: 0; font-size: var(--fs-sm); }
@@ -122,12 +122,12 @@
     .live-count-label { display: flex; align-items: center; padding: 0 var(--space-2-5) 0 var(--space-3); color: var(--text-dim); font-size: var(--fs-md); white-space: nowrap; }
     .live-selection .live-count .live-count-btn { width: 34px; height: auto; padding: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; background: transparent; font-size: var(--fs-xl); line-height: 1; }
     .live-selection .live-count .live-count-btn:disabled { color: var(--text-faint); cursor: default; }
-    .live-count output { display: flex; align-items: center; justify-content: center; min-width: 34px; border-left: 1px solid var(--line); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
+    .live-count output { display: flex; align-items: center; justify-content: center; min-width: 34px; border-left: 1px solid var(--line); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
     .live-footer { padding: var(--space-4) 0; }
     .live-history { margin-top: var(--space-5); }
     /* Class notes and history */
     .live-notes { margin: var(--space-3-5) 0; padding: var(--space-3-5) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); overflow-wrap: anywhere; }
-    .live-notes > summary { font-weight: var(--fw-strong); cursor: pointer; }
+    .live-notes > summary { font-weight: var(--fw-medium); cursor: pointer; }
     .live-notes h3 { font-size: var(--fs-md); margin: var(--space-4-5) 0 var(--space-2); }
     .live-note-text { white-space: pre-wrap; line-height: 1.7; margin: var(--space-2) 0; }
     .live-note-refs { display: flex; gap: var(--space-1-5) var(--space-3); flex-wrap: wrap; }

@@ -47,7 +47,7 @@
       color: var(--accent-text);
       background: var(--bg-selected);
       border-color: var(--text);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
     .exam-wrong-prompt-tip {
       display: flex;

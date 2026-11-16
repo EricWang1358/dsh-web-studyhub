@@ -36,7 +36,7 @@
     .book-kit__head {
       margin: 0;
       font-size: var(--fs-sm);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
     .book-kit__tcode {
       color: var(--text-muted);

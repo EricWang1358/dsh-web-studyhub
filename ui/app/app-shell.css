@@ -44,7 +44,7 @@
       border: none;
       background: none;
       color: var(--text-faint);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       text-align: left;
     }
     .nav-reset:hover:not(:disabled) { color: var(--text-dim); background: none; }

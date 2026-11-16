@@ -17,7 +17,7 @@
       padding: var(--space-2-5) var(--space-4);
       border-bottom: 1px solid var(--line-soft);
       background: var(--bg-surface);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
     }
     .tc-trace__calls {
       display: flex;
@@ -32,21 +32,21 @@
       border-radius: var(--radius-xs);
       background: var(--bg-raised);
       color: var(--text-dim);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       cursor: pointer;
     }
     .tc-trace__call[aria-pressed='true'] {
       border-color: var(--line-strong);
       background: var(--bg-selected);
       color: var(--text);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
     .tc-trace__meta {
       margin: 0;
       padding: var(--space-2) var(--space-4);
       border-bottom: 1px solid var(--line-soft);
       color: var(--text-muted);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       line-height: 1.45;
     }
     .tc-trace__guard {
@@ -67,8 +67,8 @@
     .tc-trace__label {
       margin: 0;
       color: var(--text-muted);
-      font-size: var(--fs-xs);
-      font-weight: var(--fw-strong);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
     }
     .tc-trace__code {
       margin: 0;

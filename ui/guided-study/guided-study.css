@@ -35,7 +35,7 @@
     }
 
     .guided-study-title {
-      font-weight: var(--fw-medium);
+      font-weight: var(--fw-strong);
       color: var(--text);
       min-width: 0;
       overflow-wrap: anywhere;
@@ -115,7 +115,7 @@
     }
 
     .teaching-artifact-topic {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
       background: var(--bg-sunken);
       padding: var(--space-1) var(--space-2);
@@ -158,7 +158,7 @@
 
     .guided-study-card-prompt {
       font-size: var(--fs-md);
-      font-weight: var(--fw-medium);
+      font-weight: var(--fw-strong);
       line-height: var(--lh-snug);
     }
 
@@ -192,7 +192,7 @@
     .guided-study-card-option[data-verdict="wrong"] { border-color: var(--bad-line); background: var(--bad-bg); color: var(--bad-ink); }
     .guided-study-card-options:disabled .guided-study-card-option { cursor: default; }
     .guided-study-card-option-body { display: grid; gap: var(--space-1); min-width: 0; flex: 1 1 auto; }
-    .guided-study-card-option-note { font-size: var(--fs-xs); color: var(--text-dim); line-height: var(--lh-snug); }
+    .guided-study-card-option-note { font-size: var(--fs-sm); color: var(--text-dim); line-height: var(--lh-snug); }
 
     .question-prep-stage {
       margin: 0;
@@ -235,7 +235,7 @@
     }
 
     .guided-study-card-answer-label {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-weight: var(--fw-medium);
       color: var(--text-muted);
     }
@@ -292,7 +292,7 @@
       display: flex;
       align-items: center;
       gap: var(--space-2);
-      font-weight: var(--fw-medium);
+      font-weight: var(--fw-strong);
       margin-bottom: var(--space-2);
     }
 
@@ -329,7 +329,7 @@
 
     .progress-main-line {
       font-size: var(--fs-md);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       font-variant-numeric: tabular-nums;
       margin-bottom: var(--space-1);
     }
@@ -398,7 +398,7 @@
 
     .progress-item-evidence {
       margin-top: var(--space-2);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
       display: flex;
       align-items: center;
