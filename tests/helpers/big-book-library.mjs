@@ -20,16 +20,22 @@ function pageText(page) {
   return `${facts.join(' ')}\n${FILLER.repeat(12)}`;
 }
 
+let cachedSources = null;
+
 /** -> { sources }: the book's pages, filed under BIG_COURSE. */
 export function bigBookLibrary() {
-  const sources = [];
-  for (let page = 1; page <= BOOK_PAGES; page++) {
-    const chapter = chapterOfPage(page);
-    sources.push({ id: `big-p${page}`, title: `Big Book · p. ${page}`, text: pageText(page), createdAt: new Date(Date.UTC(2026, 9, 1)).toISOString(), courses: [BIG_COURSE],
-      document: { materialId: 'document-big', page, totalPages: BOOK_PAGES, format: 'pdf', origin: 'converted', converter: 'marker', filename: 'Big Book.pdf',
-        chapter: { index: chapter - 1, title: chapterTitle(chapter), level: 1 }, extractionVersion: 2 } });
+  if (!cachedSources) {
+    const built = [];
+    const createdAt = new Date(Date.UTC(2026, 9, 1)).toISOString();
+    for (let page = 1; page <= BOOK_PAGES; page++) {
+      const chapter = chapterOfPage(page);
+      built.push({ id: `big-p${page}`, title: `Big Book · p. ${page}`, text: pageText(page), createdAt, courses: [BIG_COURSE],
+        document: { materialId: 'document-big', page, totalPages: BOOK_PAGES, format: 'pdf', origin: 'converted', converter: 'marker', filename: 'Big Book.pdf',
+          chapter: { index: chapter - 1, title: chapterTitle(chapter), level: 1 }, extractionVersion: 2 } });
+    }
+    cachedSources = built;
   }
-  return { sources };
+  return { sources: structuredClone(cachedSources) };
 }
 
 /** The pages (1-based) the ranges of one inventory call hold, from its request data. */

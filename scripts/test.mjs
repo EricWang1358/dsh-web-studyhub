@@ -15,6 +15,7 @@ import { chooseConcurrency, listTestFiles, parseTestArgs, readSlowList, repoRoot
 import { acquireFullRunLock, fullRunHolder, MAX_WAIT_MS, POLL_MS } from './qa/test-lock.mjs';
 
 const fast = process.argv.includes('--fast');
+const subset = fast || process.argv.some(arg => arg === '--core' || arg === '--smart' || arg === '--changed');
 const args = process.argv.slice(2).filter(arg => arg !== '--fast');
 // Only identify file arguments; all options and their values still go to Node unchanged.
 const { files, ordered } = parseTestArgs(args);
@@ -47,7 +48,7 @@ try {
   // Full runs queue behind each other; a targeted or fast run does not queue but takes fewer workers while a full run is going.
   let reduced = false;
   if (process.env.STUDY_TEST_NO_LOCK !== '1') {
-    if (files || fast) reduced = !!await fullRunHolder();
+    if (files || subset) reduced = !!await fullRunHolder();
     else {
       lock = await acquireFullRunLock({ signal: abort.signal, log: line => console.error(line),
         pollMs: Number(process.env.STUDY_TEST_LOCK_POLL_MS) || POLL_MS, maxWaitMs: Number(process.env.STUDY_TEST_LOCK_WAIT_MS) || MAX_WAIT_MS });
@@ -62,7 +63,7 @@ try {
       ]);
       env.STUDY_SOURCE_TREE_DIGEST = srcDigest;
       env.STUDY_UI_TREE_DIGEST = uiDigest;
-      if (ordered && !fast) await buildPreview({ write: false });
+      if (ordered && (!subset || process.argv.includes('--include-slow'))) await buildPreview({ write: false });
     }
     const concurrency = args.some(arg => arg.startsWith('--test-concurrency')) ? [] : [`--test-concurrency=${chooseConcurrency({ available: availableParallelism(), reduced })}`];
     // The ordered runner takes the whole suite; node's own runner (sorting by name) takes explicit files and any option the runner does not know.

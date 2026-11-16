@@ -44,7 +44,7 @@ PR 不直接改 `CHANGELOG.md` 和 `CHANGELOG.zh-CN.md`，而是在 `changes/unr
 下面全部做到，按顺序。做不到的一项，要在发布说明里写成「未验证」。
 
 1. `main` 在体验通道上至少经过一整天的真实使用，发现的问题已修复或已列出。
-2. `main` 的 CI 全绿（ubuntu 和 windows 的 `verify`），并且要发布的那个提交上本地 `npm run verify` 通过。
+2. `main` 的 CI 全绿（ubuntu 和 windows 分片 `verify`），并且要发布的那个提交上本地 `npm run verify:fast`（`lint`、`typecheck`、基于核心护栏 + 变更依赖图的 `test:smart` 以及 `build`）通过；全量历史套件 `npm run test:fast` 或 `npm test` 仅在排查额外跨模块缺陷或改动底层存储/调度器时按需选跑。
 3. 更新日志（英文和简体中文）写的是用户能感知到的变化，也写明哪些还没修。用 `npm run changelog:preview -- <版本>`（中文加 `--lang=zh-CN`）看这次要加的内容，措辞在片段里改。发布提交把 `package.json` 改成新版本，并运行 `npm run changelog:release -- <版本> <YYYY-MM-DD>`：它把 `## <版本> — <日期>` 和所有片段（按加入的先后）写进两份更新日志，再删掉片段，并给两份更新日志记下校验值。升级说明、已知问题写成 note 片段（`<名字>.note.en.md`、`<名字>.note.zh-CN.md`），或在同一个提交里直接写进那一节，再运行 `npm run changelog:seal`。
 4. 在体验通道上，用真实资料库和真实模型做真实环境检查。勾选与这次改动相关的项：
    - [ ] 一次出题、一次补题、一份草稿发布；「资料」页的行和阅读器里的数字一致。

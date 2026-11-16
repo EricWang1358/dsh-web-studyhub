@@ -26,6 +26,8 @@ import { compose, PassThrough } from 'node:stream';
 import { pathToFileURL } from 'node:url';
 import { durationsFile, listTestFiles, mergeDurations, orderLongestFirst, parseShard, readDurations, readSlowList, readWeights, repoRoot, shardKeys, suiteDir } from './test-schedule.mjs';
 import { planBatches } from './test-batch.mjs';
+import { buildReverseDependencyGraph, selectSmartTests } from './test-smart.mjs';
+import { detectChangedPaths } from './test-smart-git.mjs';
 import { FILE_TIMEOUT_MARK, TIMEOUT_MARK } from './test-timeout.mjs';
 
 /* Measured on a full local run on a busy machine (Windows, 12 workers next to other test runs, 2026-10-22; 11.5 minutes where CI's
@@ -37,6 +39,10 @@ const FILE_TIMEOUT_MS = 480_000;
 
 const args = process.argv.slice(2);
 const fast = args.includes('--fast');
+const coreOnly = args.includes('--core');
+const smart = args.includes('--smart') || args.includes('--changed');
+const includeSlow = args.includes('--include-slow');
+const explain = args.includes('--explain');
 const values = name => args.flatMap((arg, i) => arg.startsWith(`${name}=`) ? [arg.slice(name.length + 1)] : arg === name && i + 1 < args.length ? [args[i + 1]] : []);
 const concurrency = Number(values('--test-concurrency').at(-1)) || undefined;
 const guard = new URL('./test-network.mjs', import.meta.url).href;
@@ -64,7 +70,32 @@ const durations = await readDurations(), weights = await readWeights();
 const all = new Map((await listTestFiles()).map(file => [keyOf(file), file]));
 // A shard is cut from the whole suite, not from what --fast leaves, so a shard names the same files either way.
 const mine = shard ? shardKeys([...all.keys()], weights, shard) : [...all.keys()];
-const byKey = new Map(mine.filter(key => !slow.has(key)).map(key => [key, all.get(key)]));
+let candidateKeys = mine.filter(key => !slow.has(key));
+if (coreOnly || smart) {
+  const sinceOpt = values('--since').at(-1) || '';
+  const { baseRef, changedPaths } = coreOnly ? { baseRef: 'core', changedPaths: [] } : detectChangedPaths({ root: repoRoot, since: sinceOpt });
+  const reverseGraph = coreOnly ? new Map() : await buildReverseDependencyGraph(repoRoot);
+  const picked = selectSmartTests({
+    mode: coreOnly ? 'core' : 'smart',
+    changedPaths,
+    allTestKeys: fast ? candidateKeys : mine,
+    reverseGraph,
+    slowSet: slowList,
+    includeSlow,
+    weights,
+    durations,
+  });
+  candidateKeys = picked.selected;
+  process.stderr.write(
+    coreOnly
+      ? `[test:core] running ${picked.coreCount} core guardrail suites (${concurrency || 'auto'} workers)\n`
+      : `[test:smart] base=${baseRef} · ${changedPaths.length} changed path(s) -> ${picked.coreCount} core + ${picked.affectedCount} affected = ${candidateKeys.length} suites (${concurrency || 'auto'} workers)\n`,
+  );
+  if (explain) {
+    for (const key of candidateKeys) process.stderr.write(`  ${key}  [${picked.reasons.get(key) || 'core'}]\n`);
+  }
+}
+const byKey = new Map(candidateKeys.map(key => [key, all.get(key)]).filter(([, abs]) => Boolean(abs)));
 // This machine's own timings first, else the committed weights: a fresh machine starts the longest files first too.
 const timings = { ...weights, ...durations };
 const files = orderLongestFirst([...byKey.keys()], timings).map(key => byKey.get(key));

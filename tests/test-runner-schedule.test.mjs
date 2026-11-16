@@ -32,13 +32,15 @@ test('only a plain full run is scheduled by us; file arguments and unknown optio
   assert.deepEqual(parseTestArgs(['--test-name-pattern', 'x', 'tests/groq.test.mjs']), { files: true, ordered: false });
   assert.deepEqual(parseTestArgs(['--', 'tests/groq.test.mjs']), { files: true, ordered: false });
   assert.deepEqual(parseTestArgs(['--test-reporter', 'spec']), { files: false, ordered: true }, 'an option value is not a file');
+  assert.deepEqual(parseTestArgs(['--core']), { files: false, ordered: true });
+  assert.deepEqual(parseTestArgs(['--smart', '--since=v4.9.2', '--explain']), { files: false, ordered: true });
 });
 
-test('a busy machine gets fewer workers, never fewer than two and never more than twelve', () => {
-  assert.equal(chooseConcurrency({ available: 32 }), 12);
+test('a busy machine gets fewer workers, never fewer than two and never more than sixteen', () => {
+  assert.equal(chooseConcurrency({ available: 32 }), 16);
   assert.equal(chooseConcurrency({ available: 8 }), 7);
   assert.equal(chooseConcurrency({ available: 2 }), 2);
-  assert.equal(chooseConcurrency({ available: 32, reduced: true }), 4);
+  assert.equal(chooseConcurrency({ available: 32, reduced: true }), 5);
   assert.equal(chooseConcurrency({ available: 2, reduced: true }), 2);
 });
 

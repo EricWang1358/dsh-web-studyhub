@@ -16,7 +16,8 @@ export const suiteDir = () => process.env.STUDY_TEST_SUITE_DIR || join(repoRoot,
 
 // Options the ordered runner understands; their values are never file names. Anything else (or a file) stays with `node --test`.
 // --test-timeout there is a limit per test (node --test applies it to each whole file when files run in their own processes).
-const ORDERED_OPTIONS = new Set(['--test-reporter', '--test-reporter-destination', '--test-concurrency', '--test-name-pattern', '--test-skip-pattern', '--shard', '--test-timeout']);
+const ORDERED_FLAGS = new Set(['--core', '--smart', '--changed', '--include-slow', '--explain', '--list']);
+const ORDERED_OPTIONS = new Set(['--test-reporter', '--test-reporter-destination', '--test-concurrency', '--test-name-pattern', '--test-skip-pattern', '--shard', '--test-timeout', '--since']);
 // Every Node test option that takes a value, so that the value is not taken for a file.
 const VALUE_OPTIONS = new Set([...ORDERED_OPTIONS, '--test-shard', '--test-coverage-exclude', '--test-coverage-include',
   '--test-coverage-lines', '--test-coverage-branches', '--test-coverage-functions', '--experimental-test-isolation', '--import', '--require', '-r']);
@@ -27,6 +28,7 @@ export function parseTestArgs(args) {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--') { files = i + 1 < args.length; break; }
     const name = args[i].split('=')[0];
+    if (ORDERED_FLAGS.has(name)) continue;
     if (VALUE_OPTIONS.has(name)) { if (!args[i].includes('=')) i++; }
     else if (!args[i].startsWith('-')) files = true;
     if (!ORDERED_OPTIONS.has(name)) ordered = false;
@@ -34,9 +36,9 @@ export function parseTestArgs(args) {
   return { files, ordered: ordered && !files };
 }
 
-/** One test process per core starves the browser, ffmpeg and CLI-spawning tests on a many-core machine (and every other program on it): cap it, and take fewer while another full run holds the machine. */
+/** One test process per core starves the browser, ffmpeg and CLI-spawning tests on a many-core machine (and every other program on it): cap at 16 workers, and take fewer while another full run holds the machine. */
 export function chooseConcurrency({ available, reduced = false }) {
-  const full = Math.max(2, Math.min(available - 1, 12));
+  const full = Math.max(2, Math.min(available - 1, 16));
   return reduced ? Math.max(2, Math.floor(full / 3)) : full;
 }
 

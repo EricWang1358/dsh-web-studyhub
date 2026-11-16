@@ -44,7 +44,7 @@ A pull request does not edit `CHANGELOG.md` or `CHANGELOG.zh-CN.md`. It adds one
 All of these, in this order. A box that cannot be ticked is written into the release notes as not verified.
 
 1. `main` has run on the experience channel for at least a day of real use, and the problems found there are fixed or listed.
-2. CI is green on `main` (ubuntu and windows `verify`), and `npm run verify` passes locally on the commit to be released.
+2. CI is green on `main` (ubuntu and windows sharded `verify`), and `npm run verify:fast` (`lint`, `typecheck`, `test:smart` over core guardrails + diff-affected suites, and `build`) passes locally on the commit to be released; run the full `npm run test:fast` or `npm test` locally only when investigating cross-cutting regressions or runner/storage changes.
 3. The changelog (English and Simplified Chinese) describes what a user will notice, and says what is not fixed. Read what the release will add with `npm run changelog:preview -- <version>` (and `--lang=zh-CN`) and fix the wording in the fragments. The release commit sets the version in `package.json` and runs `npm run changelog:release -- <version> <YYYY-MM-DD>`, which writes `## <version> — <date>` with the fragments into both changelogs (in the order they were added), deletes them and seals both changelogs. An upgrade step or a known issue is a note fragment (`<slug>.note.en.md`, `<slug>.note.zh-CN.md`), or is written into that section in the same commit followed by `npm run changelog:seal`.
 4. The real-environment check, on the experience channel, with the real library and a real model. Tick what applies to the changes in the release:
    - [ ] A question run, a top-up, and a draft published; the **Sources** rows and the reader show the same counts.
