@@ -127,6 +127,7 @@
     .rubric-answer {
       display: grid;
       gap: var(--space-3);
+      min-width: 0;
     }
     .rubric-answer__meta {
       display: flex;
@@ -208,6 +209,11 @@
   @container study (max-width: 980px) {
     :where(.study-app, .study-seat) {
       .question-area.has-case > .case-review-scenario { position: static; max-height: 40vh; margin-bottom: var(--space-4); }
+    }
+  }
+  @container study (max-width: 540px) {
+    :where(.study-app, .study-seat) {
+      .rubric-answer__foot { flex-direction: column; align-items: flex-start; }
     }
   }
   :where(.study-app, .study-seat) {

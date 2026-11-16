@@ -44,7 +44,6 @@ export { controlName };
 /* A step may exceed the default budget up to its own, with the reason; the journey prints it as known and still fails above it, so the list only
    ever shrinks. Nothing here is a design decision: each line is a shift that should be removed. */
 export const KNOWN_LAYOUT = {
-  "case-practice": { maxCls: 0.14, why: "in a narrow window the graded result replaces the answer box, is much taller and pushes the question toolbar and the 已发布 note below the fold (0.13 at 420, 0.03 at 1440; #1093)" },
   "import-files": { maxCls: 0.22, why: "the files just imported are inserted at the top of the 资料 list behind the import dialog and push the existing rows down (0 to 0.08 by timing; up to 0.15 since each row keeps its index badge's line from the first paint, #229, and the same insertion moves taller rows; 0.21 at 420, first measured once the narrow journey could reach this step, #1088)" },
 };
 
