@@ -9,8 +9,10 @@ import { fileURLToPath } from 'node:url';
    a tone (ok, warn, bad, info, accent, hue) or sits on a box (the same rule draws a border or a background). Per-file ratchet: numbers may only fall. */
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const TONE = /var\(--(?:ok|warn|bad|info|accent|hue)[a-z-]*\)/;
+const TONE = /var\(--(?:ok|warn|bad|info|accent|hue|sh-tone)[a-z-]*\)/;
 const EDGE = /border-(?:left|inline-start)(?:-width)?\s*:\s*([2-9])px[^;]*;?/g;
+// The same stripe drawn as a shadow: an inset edge of 2px or more in a tone (the toast had one beside its tone icon).
+const INSET = /box-shadow\s*:\s*inset\s+([2-9])px\s+0\s+0\s+(var\([^)]*\))/g;
 
 async function cssFiles(dir) {
   const out = [];
@@ -39,6 +41,7 @@ export async function sideStripes() {
       const boxed = /(?:^|[;{\s])border\s*:\s*[^;]*\d/.test(block) || /(?:^|[;{\s])background(?:-color)?\s*:/.test(block);
       if (TONE.test(match[0]) || boxed) n += 1;
     }
+    for (const match of text.matchAll(INSET)) if (TONE.test(match[2])) n += 1;
     if (n) counts[relative(root, file).replaceAll('\\', '/')] = n;
   }
   return counts;
@@ -72,7 +75,7 @@ test('no new side stripes; the files of #1080 have none', async () => {
   for (const [file, n] of Object.entries(counts)) {
     assert.ok(n <= (BASELINE[file] ?? 0), `${file}: ${n} side stripe(s), baseline ${BASELINE[file] ?? 0}. Use a hairline row, a badge or the meter colour instead (ui/DESIGN.md › Restraint).`);
   }
-  for (const file of ['ui/case-result.css', 'ui/wrongbook.css', 'ui/blog-notes.css', 'ui/answer-card.css', 'ui/DailyRecap.css']) {
+  for (const file of ['ui/case-result.css', 'ui/wrongbook.css', 'ui/blog-notes.css', 'ui/answer-card.css', 'ui/DailyRecap.css', 'ui/components/components.css']) {
     assert.equal(counts[file] ?? 0, 0, `${file} was cleaned in #1080`);
   }
 });

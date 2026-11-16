@@ -469,11 +469,12 @@
       align-items: flex-start;
       gap: var(--space-3);
       width: 100%;
-      padding: var(--space-3) var(--space-2) var(--space-3) var(--space-3-5);
+      padding: var(--space-3) var(--space-2) var(--space-3) var(--space-3);
       border: 1px solid var(--line-strong);
       border-radius: var(--radius);
       background: var(--bg-raised);
-      box-shadow: inset 3px 0 0 var(--sh-tone), var(--shadow-popover);
+      /* The tone is the icon's colour, not a stripe down the edge (#1080, ui/DESIGN.md › Restraint). */
+      box-shadow: var(--shadow-popover);
       color: var(--text);
       font-size: var(--fs-md);
       line-height: var(--lh-snug);
