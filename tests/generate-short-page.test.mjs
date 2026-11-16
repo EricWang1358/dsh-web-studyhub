@@ -55,12 +55,12 @@ test('the one course field: 课程范围 filters the materials, and the new deck
 test('every optional control is inside 更多选项, closed unless the form carries values', () => {
   const { fold } = parts(render());
   assert.doesNotMatch(fold.slice(0, 80), /\sopen[\s>=]/, 'the fold is closed with the defaults');
-  for (const label of ['想练什么', '难度与语言', '花费', '题组信息', '这次想练什么？', '难度', '语言', '公式写法', '花费上限', '题组名称（可选）', '目标岗位 / 面试方向（可选）', '参考样题（可选）'])
+  for (const label of ['想练什么', '难度与语言', '高级', '题组信息', '额外要求（可选）', '这次想练什么？', '难度', '语言', '公式写法', '花费上限', '题组名称（可选）', '目标岗位 / 面试方向（可选）', '参考样题（可选）'])
     assert.ok(text(fold).includes(label), `${label} is in the fold`);
   assert.match(fold, /id="generate-focus"/);
   assert.match(fold, /data-tour="generate-budget"/, 'the spending limit');
   assert.doesNotMatch(fold, /data-coverage-auto|data-coverage-level-note|kinds-quiz|id="generate-count"/, 'the question types and the strength are on the main path, not repeated here');
-  assert.match(text(fold.slice(0, 600)), /想练什么、难度与语言、花费上限、题组名称/, 'the closed fold says what is in it');
+  assert.match(text(fold.slice(0, 600)), /想练什么、难度与语言、题组名称、花费上限、额外要求/, 'the closed fold says what is in it');
   // typed values open it, so nothing the learner entered is hidden; what stands on the main path does not
   for (const typed of [{ focus: '死锁' }, { title: '期中复习' }, { role: '后端' }, { difficulty: 'advanced' }, { language: 'English' }, { tokenBudget: '2M' }])
     assert.match(parts(render({}, { gen: { ...gen, ...typed } })).fold.slice(0, 80), /\sopen[\s>=]/, `${Object.keys(typed)} opens the fold`);

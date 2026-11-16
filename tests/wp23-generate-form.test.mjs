@@ -200,7 +200,7 @@ test("02 / 学习方式 uses segmented controls (the 覆盖强度 among them) an
   const kindGroup = section.match(/<div role="group" aria-label="题型" class="sh-check-group generate-kind">(.*?)<\/div><p class="generate-note"/)[1];
   assert.deepEqual([...kindGroup.matchAll(/<input type="checkbox"[^>]*name="kinds-(\w+)"[^>]*>/g)].map((match) => [match[1], /checked=""/.test(match[0])]),
     [["quiz", true], ["multi", false], ["truefalse", false], ["flashcard", true], ["open", false], ["cloze", false], ["task", false]], "the old 测验 + 闪卡 is the combination quiz + flashcard, ticked");
-  assert.match(section, /<div role="group" aria-label="语言" class="sh-seg sh-seg--sm/, "language is the small size");
+  assert.doesNotMatch(section, /sh-seg sh-seg--sm/, "every segmented control of the form is the same size (#1082: one family of controls)");
   for (const word of ["混合", "基础理解", "应用迁移", "深入辨析", "中英双语", "精简", "标准", "完整"])
     assert.match(section, new RegExp(`sh-seg__item[^>]*>(?:<svg.*?</svg>)?${word}</button>`), word);
   for (const word of ["单选测验", "多选测验", "闪卡", "开放问答", "填空卡"]) assert.match(kindGroup, new RegExp(`sh-check__label">${word}</span>`), word);

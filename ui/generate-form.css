@@ -6,7 +6,7 @@
        the focus box with its AI assist, 更多选项 and the summary line. Injected by
        Generate (useInjectCss 'study-generate-form'). Tokens only; narrow panes
        follow the `study` container. */
-    .generate-form { padding-top: var(--space-5); }
+    .generate-form { padding-top: var(--space-4); }
     .generate-rows { display: grid; gap: var(--space-5); margin: var(--space-5) 0 0; }
     .generate-row {
       display: grid;
@@ -54,16 +54,18 @@
     /* ── 更多选项 and the case-exam hint ──────────────────────────────────── */
     .generate-more { margin-top: var(--space-2); }
     /* The disclosure's body and summary are reached by element: components.css owns .sh-disclosure__body and .sh-disclosure__summary. */
-    .generate-more > div { display: grid; gap: var(--space-5); }
+    .generate-more > div { display: grid; gap: var(--space-6); padding-left: 0; }
+    /* The labels inside stand in the page's own column: the disclosure's indent for its chevron is not taken by the body (nor by the folds inside it). */
+    .generate-more details > div { padding-left: 0; }
     /* The list of what is inside wraps under the name on a narrow pane instead of squeezing it. */
     .generate-more > summary { flex-wrap: wrap; }
     .generate-more .sh-disclosure__label { white-space: nowrap; }
     .generate-more .generate-rows { margin-top: 0; }
     /* A purpose inside 更多选项: a small title over its rows (想练什么 / 难度与语言 / 花费与分轮 / 题组信息). */
-    .generate-group { display: grid; gap: var(--space-4); min-width: 0; padding-top: var(--space-4); border-top: var(--hairline) solid var(--line-soft); }
+    .generate-group { display: grid; gap: var(--space-3); min-width: 0; }
     .generate-group__title { margin: 0; color: var(--text); font-size: var(--fs-sm); font-weight: var(--fw-strong); line-height: var(--lh-snug); }
     .generate-role { min-width: 0; }
-    .generate-case-hint { margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .generate-case-hint { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); margin: 0 0 var(--space-2); color: var(--text-dim); font-size: var(--fs-sm); line-height: var(--lh-snug); }
     /* ── Summary above the one primary button ─────────────────────────────── */
     .generate-summary { margin: 0; color: var(--text); font-size: var(--fs-md); font-weight: var(--fw-strong); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
   }

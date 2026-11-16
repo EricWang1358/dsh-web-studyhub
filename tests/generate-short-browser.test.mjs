@@ -123,7 +123,7 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       }
       assert.equal(await page.getByText('难度', { exact: true }).first().isVisible(), false, 'nor the difficulty');
       // 找功能 keeps every folded control: its anchor is in the page (with a size, so the finder opens the folds around it) while 更多选项 is shut
-      for (const anchor of ['generate-kinds', 'generate-coverage', 'generate-auto', 'generate-course', 'generate-budget', 'generate-difficulty', 'generate-language', 'generate-notation', 'generate-focus', 'generate-reference', 'generate-role']) {
+      for (const anchor of ['generate-kinds', 'generate-coverage', 'generate-auto', 'generate-course', 'generate-budget', 'generate-difficulty', 'generate-language', 'generate-notation', 'generate-focus', 'generate-reference', 'generate-role', 'generate-extra']) {
         const box = await page.locator(`[data-tour="${anchor}"]`).first().boundingBox();
         assert.ok(box && box.width > 0 && box.height > 0, `the anchor ${anchor} is there for 找功能`);
       }

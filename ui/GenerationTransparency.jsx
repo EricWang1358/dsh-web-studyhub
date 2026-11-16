@@ -8,37 +8,27 @@ import { splitCount } from '../lib/generation-settings.js';
 import { MODULE_INSTRUCTION_MAX, TEMPLATE_NAME_MAX, detectRequirementConflicts, normalizeModuleOverrides, withCourseRules } from '../lib/generation-modules.js';
 import transparencyCss from './generation-transparency.css';
 
-function originBadge(origin) {
-  return ({
-    explicit: ui('显式填写'),
-    course: ui('课程继承'),
-    'coverage-plan': ui('覆盖计划'),
-    'auto-detected': ui('自动识别'),
-    default: ui('默认规则'),
-    system: ui('系统锁定'),
-    none: ui('未启用'),
-  })[origin] || ui('默认规则');
-}
-
 export function EffectiveRequirementsStrip({ gen, focusCount = 0, referenceCount = 0, ruleCount = 0 }) {
   useInjectCss(transparencyCss, 'study-generation-transparency');
   const kinds = kindsOfForm(gen);
   const customQuotas = gen.kindCounts && typeof gen.kindCounts === 'object' && !Array.isArray(gen.kindCounts);
   const quotaText = kinds.length > 1
     ? (customQuotas
-      ? uiFormat('非均分配额：{0}', [kinds.map((k) => `${kindNames[k]} ${gen.kindCounts[k] ?? 0}`).join(' / ')])
+      ? uiFormat('各题型题数：{0}', [kinds.map((k) => `${kindNames[k]} ${gen.kindCounts[k] ?? 0}`).join(' / ')])
       : uiFormat('{0} 种题型均分', [kinds.length]))
     : kindNames[kinds[0]];
   // The run's own modules only: the course's 出题守则 (#889) have their own item.
   const overrides = withCourseRules(gen.moduleOverrides, []);
+  // Nothing but the question types: the page already shows them, so there is nothing to add.
+  if (!customQuotas && !focusCount && !referenceCount && !ruleCount && !overrides) return null;
   return (
     <div className="gen-trans-strip" data-effective-summary>
-      <strong>{ui('本次生效要求：')}</strong>
+      <strong>{ui('本次出题：')}</strong>
       <span className="gen-trans-strip__item">{quotaText}</span>
       {focusCount > 0 && <span className="gen-trans-strip__item">{uiFormat('课程重点继承 {0} 项', [focusCount])}</span>}
       {referenceCount > 0 && <span className="gen-trans-strip__item">{uiFormat('参考样题 {0} 份（仅作形式参考）', [referenceCount])}</span>}
       {ruleCount > 0 && <span className="gen-trans-strip__item">{uiFormat('本课出题守则 {0} 条', [ruleCount])}</span>}
-      {overrides && <span className="gen-trans-strip__item">{overrides.templateName ? uiFormat('自定义模块：{0}', [overrides.templateName]) : ui('已启用自定义推理/错因模块')}</span>}
+      {overrides && <span className="gen-trans-strip__item">{overrides.templateName ? uiFormat('额外要求：{0}', [overrides.templateName]) : ui('已加额外要求')}</span>}
     </div>
   );
 }
@@ -141,23 +131,24 @@ export default function GenerationTransparency({ gen, setGen, course = '', sourc
   const moduleRows = [
     {
       key: 'reasoning',
-      title: ui('关键推理与条件辨析'),
+      title: ui('推理与条件辨析'),
       placeholder: ui('例如：必须包含边界条件反例判断，避免纯定义背诵'),
     },
     {
       key: 'distractors',
-      title: ui('干扰项错因规则（独立于样题措辞）'),
+      title: ui('错误选项怎么设计'),
       placeholder: ui('例如：每个干扰项对应具体常见误区，禁止凑数否定项'),
     },
     {
       key: 'rubric',
-      title: ui('开放题 / 动手题评分要点'),
+      title: ui('开放题 / 动手题怎么评分'),
       placeholder: ui('例如：按推理步骤拆分采分点，标明遗漏关键前提的扣分原因'),
     },
   ];
 
   return (
     <div className="gen-trans-modules" data-generation-transparency>
+      <p className="generate-note">{ui('想让题目更贴近你的考法，可以在这里写；不写就按默认来。')}</p>
       {kinds.length >= 2 && (
         <div className="gen-trans-quota" data-quota-editor>
           <div className="gen-trans-quota__bar">
@@ -192,26 +183,10 @@ export default function GenerationTransparency({ gen, setGen, course = '', sourc
                 ))}
               </div>
               {quotaSum < 1 && <InlineMessage tone="warning">{ui('请至少为一种题型分配 1 道题。')}</InlineMessage>}
-              <p className="generate-note">{ui('注：当前配额单位为「独立题数」；分值与预计作答时长仅作展示估算，不冒充自动反推题数。')}</p>
             </>
           )}
         </div>
       )}
-
-      <div className="gen-trans-module">
-        <div className="gen-trans-module__head">
-          <label htmlFor="generate-module-template">{ui('业务规则模板名称（可选）')}</label>
-        </div>
-        <input
-          id="generate-module-template"
-          className="generate-row__input"
-          maxLength={TEMPLATE_NAME_MAX}
-          disabled={disabled}
-          value={overrides.templateName || ''}
-          onChange={(e) => updateTemplateName(e.target.value)}
-          placeholder={ui('例如：期末辨析强化模板')}
-        />
-      </div>
 
       {moduleRows.map(({ key, title, placeholder }) => {
         const entry = overrides[key] && typeof overrides[key] === 'object' ? overrides[key] : { enabled: true, instruction: '' };
@@ -221,7 +196,7 @@ export default function GenerationTransparency({ gen, setGen, course = '', sourc
             <div className="gen-trans-module__head">
               <span>{title}</span>
               <Checkbox
-                label={ui('启用此模块')}
+                label={ui('使用这条')}
                 checked={enabled}
                 disabled={disabled}
                 onChange={(checked) => updateModule(key, { enabled: checked })}
@@ -243,9 +218,19 @@ export default function GenerationTransparency({ gen, setGen, course = '', sourc
         );
       })}
 
-      <div className="gen-trans-locked" data-locked-protocol>
-        <strong>{ui('系统基础安全约束（只读，不可关闭）：')}</strong>{' '}
-        {ui('JSON 协议校验 · 仅从证据资料逐字核对引文出处 · 题干与提示防漏答案 · 独立审阅闭环')}
+      <div className="gen-trans-module">
+        <div className="gen-trans-module__head">
+          <label htmlFor="generate-module-template">{ui('给这套要求起个名字（可选）')}</label>
+        </div>
+        <input
+          id="generate-module-template"
+          className="generate-row__input"
+          maxLength={TEMPLATE_NAME_MAX}
+          disabled={disabled}
+          value={overrides.templateName || ''}
+          onChange={(e) => updateTemplateName(e.target.value)}
+          placeholder={ui('例如：期末辨析强化')}
+        />
       </div>
 
       {conflicts.map((item) => (
@@ -256,9 +241,9 @@ export default function GenerationTransparency({ gen, setGen, course = '', sourc
 
       <div>
         <Button variant="secondary" size="sm" disabled={disabled || !sourceIds.length}
-          busy={previewState.status === 'loading'} busyLabel={ui('正在汇总生效规则…')}
+          busy={previewState.status === 'loading'} busyLabel={ui('正在汇总…')}
           data-preview-effective onClick={runPreview}>
-          {ui('预览生效要求与阶段规则（零模型调用）')}
+          {ui('预览本次出题要求')}
         </Button>
       </div>
 
@@ -266,10 +251,7 @@ export default function GenerationTransparency({ gen, setGen, course = '', sourc
       {previewState.status === 'ready' && previewState.data && (
         <div className="gen-trans-preview" data-effective-preview-panel>
           <p className="gen-trans-preview__meta">
-            <span>{uiFormat('模型调用：{0} 次（零开销预览）', [previewState.data.modelCalls ?? 0])}</span>
-            <span>{uiFormat('规格版本：{0}', [previewState.data.requirementsVersion || '-'])}</span>
-            <span>{uiFormat('配额来源：{0}', [originBadge(previewState.data.origins?.quota)])}</span>
-            <span>{uiFormat('重点来源：{0}', [originBadge(previewState.data.origins?.focusTopics)])}</span>
+            <span>{uiFormat('模型调用：{0} 次（预览不花 token）', [previewState.data.modelCalls ?? 0])}</span>
           </p>
           <CourseRulesRow rules={previewState.data.modules?.find((module) => module.id === 'course_rules')?.rules || []} />
           <ul className="gen-trans-preview__stages">

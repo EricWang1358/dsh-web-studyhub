@@ -20,13 +20,19 @@
     .generate-page .source-tab strong { display: flex; align-items: center; gap: var(--space-2); }
     .generate-page .source-tab small { font-size: var(--fs-sm); }
     .generate-page .generate-panel { margin-top: var(--space-4); }
+    /* Two steps on one page: the rule above a step and the room under it are one rhythm, not the 52px of a bare fieldset. */
+    .generate-page .generate-panel fieldset { margin: var(--space-5) 0 0; padding: var(--space-4) 0 0; }
+    /* The header's quiet button hangs its padding and border, so its words stand on the title's left edge when it wraps under the text, and on the page's right edge beside it. */
+    .generate-page .generate-coach { margin-inline: calc((var(--space-4) + var(--hairline)) * -1); }
     .generate-page .generate-panel > .generate-gate { margin-bottom: var(--space-4); }
     .generate-page .generate-sources-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-3); }
     .generate-page .generate-submit { display: grid; gap: var(--space-3); margin-top: var(--space-5); }
     .generate-page .generate-submit > .generate-submit__btn { justify-self: start; }
     .generate-page .generate-submit .generate-submit__note { margin: 0; }
     /* The note about the checks is a quiet line, not a card of its own: the button stays within a screen and a half. */
-    .generate-page .generate-submit .generate-quality { padding: var(--space-3) var(--space-4); }
+    .generate-page .generate-submit .generate-quality { gap: var(--space-2); padding: 0; border-radius: 0; background: transparent; color: var(--text-muted); font-size: var(--fs-sm); }
+    .generate-page .generate-submit .generate-quality p { font-size: var(--fs-sm); line-height: var(--lh-snug); }
+    .generate-page .generate-submit .generate-quality > svg { color: var(--text-muted); }
   }
 }
 

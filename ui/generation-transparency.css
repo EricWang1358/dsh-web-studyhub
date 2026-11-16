@@ -2,29 +2,19 @@
 
 @layer study.features {
   :is(.study-app, .study-seat) {
+    /* What this run asks for beyond the question types: one quiet line under the form, only when something is set. */
     .gen-trans-strip {
       display: flex;
       flex-wrap: wrap;
-      align-items: center;
-      gap: var(--space-1-5) var(--space-2);
+      align-items: baseline;
+      gap: var(--space-half) var(--space-3);
       margin: 0;
-      padding: var(--space-2) var(--space-3);
-      border: var(--hairline) solid var(--line-soft);
-      border-radius: var(--radius-sm);
-      background: var(--bg-surface);
-      font-size: var(--fs-xs);
-      color: var(--text-dim);
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: var(--lh-snug);
     }
-    .gen-trans-strip__item {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-1);
-      padding: var(--space-1) var(--space-2);
-      border-radius: var(--radius-xs);
-      background: var(--bg-raised);
-      color: var(--text);
-      font-variant-numeric: tabular-nums;
-    }
+    .gen-trans-strip strong { color: var(--text-dim); font-weight: var(--fw-medium); }
+    .gen-trans-strip__item { font-variant-numeric: tabular-nums; }
     .gen-trans-quota {
       display: grid;
       gap: var(--space-2);
@@ -60,17 +50,10 @@
     }
     .gen-trans-modules {
       display: grid;
-      gap: var(--space-3);
+      gap: var(--space-4);
       width: 100%;
     }
-    .gen-trans-module {
-      display: grid;
-      gap: var(--space-1-5);
-      padding: var(--space-2-5) var(--space-3);
-      border: var(--hairline) solid var(--line-soft);
-      border-radius: var(--radius-xs);
-      background: var(--bg-surface);
-    }
+    .gen-trans-module { display: grid; gap: var(--space-2); }
     .gen-trans-module__head {
       display: flex;
       align-items: center;
@@ -79,15 +62,6 @@
       font-size: var(--fs-sm);
       font-weight: var(--fw-medium);
       color: var(--text);
-    }
-    .gen-trans-locked {
-      padding: var(--space-2) var(--space-3);
-      border: var(--hairline) dashed var(--line);
-      border-radius: var(--radius-xs);
-      background: var(--bg-surface);
-      color: var(--text-muted);
-      font-size: var(--fs-xs);
-      line-height: var(--lh-snug);
     }
     .gen-trans-preview {
       display: grid;

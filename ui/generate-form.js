@@ -309,6 +309,12 @@ export function moreValuesOf(gen = {}, defaults = {}) {
   return (gen.notation ?? 'auto') !== (defaults.notation ?? 'auto');
 }
 
+/** Does the form carry a quota per question type or a module of its own (额外要求)? Then that fold opens with 更多选项, so nothing the learner set is hidden. */
+export function extraValuesOf(gen = {}) {
+  const filled = value => !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
+  return filled(gen.kindCounts) || filled(gen.moduleOverrides);
+}
+
 /** The materials a case paper is written from: no reference sample (a style, not evidence) and no case written by an earlier run (案例：…, kept as a source so it can be graded against). */
 export const caseEvidence = (sources = [], referenceSourceIds = []) => sources.filter((source) => !referenceSourceIds.includes(source.id) && !/^(案例：|Case: )/.test(source.title || ''));
 

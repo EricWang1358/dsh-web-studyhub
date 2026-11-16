@@ -92,6 +92,9 @@ test('#852 browser: non-uniform quotas, modular rules, zero-call preview, and Ta
 
     // Open 更多选项 and enable custom non-uniform quotas (including explicit 0)
     await page.locator('.generate-more > summary').click();
+    // 额外要求 is shut inside 高级 until it is asked for (#1082)
+    assert.equal(await page.locator('.generate-extra').evaluate((element) => element.open), false, '额外要求 is shut by default');
+    await page.locator('.generate-extra > summary').click();
     await page.locator('[data-toggle-custom-quota]').waitFor({ state: 'visible', timeout: 10000 });
     await page.locator('[data-toggle-custom-quota]').click();
 
@@ -106,15 +109,16 @@ test('#852 browser: non-uniform quotas, modular rules, zero-call preview, and Ta
     await page.locator('[data-preview-effective]').click();
     await page.locator('[data-effective-preview-panel]').waitFor({ state: 'visible', timeout: 10000 });
     const previewText = await page.locator('[data-effective-preview-panel]').innerText();
-    assert.match(previewText, /模型调用：0 次（零开销预览）/, 'zero-call preview confirmed');
+    assert.match(previewText, /模型调用：0 次（预览不花 token）/, 'zero-call preview confirmed');
     assert.match(previewText, /阶段 4 · 独立审阅与按需修题/, 'four-stage preview shown');
-    assert.match(await page.locator('[data-locked-protocol]').innerText(), /仅从证据资料逐字核对引文出处/, 'locked safety protocol shown');
+    assert.equal(await page.locator('[data-locked-protocol]').count(), 0, 'no developer-facing safety row: the note under the form says the questions are checked against the source');
+    assert.doesNotMatch(await page.locator('.generate-extra').innerText(), /业务规则模板名称|启用此模块|系统基础安全约束|零模型调用/, 'no engineering words in the fold');
 
     const stripText = await page.locator('[data-effective-summary]').innerText();
-    assert.match(stripText, /非均分配额：/, `effective strip shows non-uniform quota: ${stripText}`);
+    assert.match(stripText, /各题型题数：/, `effective strip shows non-uniform quota: ${stripText}`);
     assert.match(stripText, /2/, `effective strip includes quiz=2: ${stripText}`);
     assert.match(stripText, /0/, `effective strip includes flashcard=0: ${stripText}`);
-    assert.match(stripText, /已启用自定义推理\/错因模块/);
+    assert.match(stripText, /已加额外要求/);
     assert.ok(await overflow(page) <= 0, 'no sideways scroll on Generate with preview open');
 
     // Submit generation and wait for job completion
