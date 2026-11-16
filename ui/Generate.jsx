@@ -24,6 +24,8 @@ import { freshGeneration, generationFormDefaults, modelReadiness } from './gener
 import { startGeneration } from './generate-start.js';
 import GenerateAssist from './GenerateAssist.jsx';
 import { TokenEstimate, TokenEstimateView, useUsageEstimate } from './TokenUsage.jsx';
+import { callsText } from './token-usage.js';
+import { useStickyRoom } from './use-sticky-room.js';
 import CoverageStrength, { MaterialsForecast } from './coverage/CoverageStrength.jsx';
 import { autoLine } from './coverage/copy.js';
 import { openingLine, openingSelection, openingStands } from './generate-opening.js';
@@ -190,6 +192,9 @@ export default function Generate({
   // A summary promises questions: not for a button that is off (the reason is said below), and for the steps it is their own total.
   const blocked = !pathMode && advice.blocked;
   const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null });
+  // The plan is priced for these materials: the tokens in the bar, the rest of the plan under it.
+  const estimating = !pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason;
+  const barRoom = useStickyRoom('--generate-bar-room');
   return (
     <section className="page generate-page">
       <PageHeader className="generate-header" title={ui("出一组新题")}
@@ -344,10 +349,19 @@ export default function Generate({
               </Disclosure>
               {!pathMode && custom && selectedPdfPages > custom && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围、取消自定义题数，或按覆盖强度出题。", [selectedPdfPages, custom])}</InlineMessage>}
             </fieldset>
-            {/* The DOM is the order it is seen (#1082): the count, the one button and why it is off; then what the run asks for and costs; then the note about the checks.
-                The bar is a child of the form, so it can stay at the bottom of the view while its place is further down (ui/generate-home.css). */}
-            <div className="generate-submit" data-generate-bar data-tour="generate-summary">
-              {summary && <p className="generate-summary" role="status">{summary}</p>}
+            {/* The DOM is the order it is seen (#1082): the count and what it costs, the one button and why it is off; then what the run asks for and how it goes on;
+                then the note about the checks. The bar is a child of the form, so it can stay at the bottom of the view while its place is further down
+                (ui/generate-home.css). Its two lines are there whatever is ticked (with nothing ticked they say what to do), so the bar keeps one height and the
+                button one place; the tokens are in it, where the tour's step about the cost lights them. */}
+            <div className="generate-submit" data-generate-bar data-tour="generate-summary" ref={barRoom}>
+              <div className="generate-submit__lines">
+                {summary ? <p className="generate-summary" role="status">{summary}</p>
+                  : <p className="muted generate-submit__note" role="status">{model.ready && !selectedSources.length ? ui("先在「01 / 选择资料」勾选资料。") : ""}</p>}
+                {!pathMode && <div className="generate-submit__cost" data-generate-estimate>
+                  {estimating ? <TokenEstimateView state={planned} totalOnly />
+                    : !selectedSources.length && <p className="muted generate-submit__note">{ui("勾选后，这里写出预计用量。")}</p>}
+                </div>}
+              </div>
               {!model.ready ? (
                 /* P14: no usable model, so there is nothing to click into a 20-second failure; the banner on top says why. */
                 <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" disabled data-tour="generate-submit">{ui("生成并检查题组")}</Button>
@@ -364,7 +378,6 @@ export default function Generate({
                   {running ? ui("加入生成队列") : ui("生成并检查题组")}
                 </Button>
               )}
-              {model.ready && !selectedSources.length && <p className="muted generate-submit__note">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
               {/* Why the button is off, once: with pages picked by topic the panel above already says the topic is missing, so here it is only what to do. */}
               {model.ready && blocked && (retrievalMode ? <Hint>{ui("写下主题后才能生成。")}</Hint>
                 : <InlineMessage tone="warning">{ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</InlineMessage>)}
@@ -376,9 +389,10 @@ export default function Generate({
                   ? uiFormat("（{0} 等 {1} 步）", [group.steps.slice(0, 3).join("、"), group.steps.length]) : uiFormat("（{0}）", [group.steps.join("、")])}</small></p>)}
               </InlineMessage>}
               {!pathMode && selectedSources.length > 0 && <EffectiveRequirementsStrip gen={gen} focusCount={activeFocusCount} referenceCount={referenceSourceIds.length} ruleCount={generationRulesOf(data, generationCourse).length} />}
-              {/* The plan, said once: the tokens and calls it costs, how many rounds, and whether the rest goes on by itself (the count is the bar's). */}
-              {!pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason && <div className="generate-estimate" data-generate-estimate>
-                <TokenEstimateView state={planned} lead={coverageStructure(plannedCoverage)} tight />
+              {/* The rest of the plan, said once: how much it covers, in how many rounds and model calls (the ⓘ has the stages), and whether the rest goes on by
+                  itself (the count and the tokens are the bar's). */}
+              {estimating && <div className="generate-estimate" data-generate-coverage>
+                <TokenEstimateView state={planned} lead={coverageStructure(plannedCoverage)} summary={estimate => callsText(estimate.calls)} warn={false} tight />
                 <MaterialsForecast coverage={plannedCoverage} />
                 {plannedCoverage?.rounds > 1 && <p className="generate-note" data-coverage-auto-note>{autoLine(autoOf({ ...gen, coverageLevel: level }), plannedCoverage.rounds,
                   plannedCoverage.leaves > 0 && Number.isFinite(plannedCoverage.firstRoundSections) ? { level: plannedCoverage.level, percent: Math.round(plannedCoverage.firstRoundSections / plannedCoverage.leaves * 100) } : undefined)}</p>}

@@ -6,7 +6,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { loadUi } from './helpers/ui-module.mjs';
 
 /* 创建题组, the submit area (#1082): the DOM is in the order it is seen, so Tab reaches the one button before anything the run's facts hold (the estimate's ⓘ).
-   No CSS `order` puts it back together. The words of 额外要求 and of the line under the button are a student's (zh and en). The reach on screen is in
+   No CSS `order` puts it back together. The bar holds the count and the tokens, as two lines that are there with nothing ticked too (saying what to do), so the
+   button never moves; the rest of the plan (coverage, rounds, calls, the ⓘ) is under it, each fact once. The words of 额外要求 and of the line under the button are a student's (zh and en). The reach on screen is in
    tests/generate-reach-browser.test.mjs. */
 
 const m = await loadUi(`
@@ -24,16 +25,31 @@ function render(patch = {}, props = {}) {
     genSource: 'files', setGenSource: noop, gen, setGen: noop, selectedSources: ['a', 'b'], setSelectedSources: noop, setModal: noop, askInChat: noop, openModelSettings: noop, ...props }));
 }
 
-test('the submit area is in the order it is seen: the count, then the button, then what the run asks for and costs, then the note about the checks', () => {
+test('the submit area is in the order it is seen: the count and the tokens, the button, then the rest of the plan, then the note about the checks', () => {
   const html = render();
   const submit = html.slice(html.indexOf('data-tour="generate-summary"'));
   const at = needle => submit.indexOf(needle);
+  const bar = submit.slice(0, at('data-generate-run'));
   assert.ok(at('class="generate-summary"') >= 0, 'the count line is there');
   assert.ok(at('data-tour="generate-submit"') > 0, 'the button is there');
-  assert.ok(at('data-generate-estimate') > 0, 'the estimate is there (sources ticked, nothing blocked)');
-  assert.ok(at('class="generate-summary"') < at('data-tour="generate-submit"'), 'the count comes before the button');
-  assert.ok(at('data-tour="generate-submit"') < at('data-generate-estimate'), 'the button comes before the estimate (and its ⓘ), so Tab reaches it first');
-  assert.ok(at('data-generate-estimate') < at('generate-quality'), 'the note about the checks comes last');
+  assert.ok(at('data-generate-estimate') > 0 && at('data-generate-coverage') > 0, 'the tokens and the plan are there (sources ticked, nothing blocked)');
+  assert.ok(bar.includes('data-generate-estimate'), 'the tokens are in the bar, where the tour step about the cost lights them');
+  assert.ok(at('class="generate-summary"') < at('data-generate-estimate') && at('data-generate-estimate') < at('data-tour="generate-submit"'), 'the count, then the tokens, then the button');
+  assert.ok(at('data-tour="generate-submit"') < at('data-generate-coverage'), 'the button comes before the plan (and its ⓘ), so Tab reaches it first');
+  assert.ok(at('data-generate-coverage') < at('generate-quality'), 'the note about the checks comes last');
+});
+
+test('with nothing ticked the bar still has its two lines, saying what to do, so ticking the first material moves nothing', () => {
+  for (const lang of ['zh', 'en']) {
+    m.setUiLanguage(lang);
+    const html = render({}, { selectedSources: [] });
+    const bar = html.slice(html.indexOf('data-tour="generate-summary"'), html.indexOf('data-generate-run'));
+    const lines = /<div class="generate-submit__lines">([\s\S]*?)<button/.exec(bar)?.[1] || '';
+    assert.match(lines, /role="status"[^>]*>[^<]+</, `${lang}: the first line says what to do`);
+    assert.match(lines, /data-generate-estimate[^>]*><p[^>]*>[^<]+</, `${lang}: the second line says where the tokens will be`);
+    assert.ok(bar.indexOf('generate-submit__lines') < bar.indexOf('data-tour="generate-submit"'), `${lang}: the lines come before the button, as when something is ticked`);
+  }
+  m.setUiLanguage('zh');
 });
 
 test('no CSS `order` rearranges 创建题组: what is seen is the DOM, so the Tab order is the reading order', async () => {

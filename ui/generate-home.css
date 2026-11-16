@@ -33,13 +33,18 @@
       display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3);
       margin-top: var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--line-soft); background: var(--bg-canvas);
     }
-    /* The count on the left, the button at the end of its line (the draft's bar does the same); on a narrow page the count takes the line and the button starts the next. */
+    /* The count and the tokens on the left, the button at the end of their line (the draft's bar does the same); on a narrow page they take the line and the button
+       starts the next. They are two lines of fixed height whatever is ticked, each one line (a longer one ends in 「…」; a screen reader hears it whole), so the
+       bar never changes height and the button never moves (#1082). */
     .generate-page .generate-submit > * { flex: 1 1 100%; min-width: 0; margin: 0; }
-    .generate-page .generate-submit > [role="status"] { flex: 1 1 20rem; }
+    .generate-page .generate-submit > .generate-submit__lines { flex: 1 1 20rem; display: grid; align-items: center; row-gap: var(--space-half);
+      grid-template-rows: calc(var(--fs-md) * var(--lh-snug)) calc(var(--fs-sm) * var(--lh-snug)); }
+    .generate-page .generate-submit__lines > * { min-width: 0; margin: 0; overflow: hidden; line-height: var(--lh-snug); white-space: nowrap; text-overflow: ellipsis; }
+    .generate-page .generate-submit__note { font-size: var(--fs-sm); }
     .generate-page .generate-submit > .generate-submit__btn { flex: 0 0 auto; }
-    /* A control the keyboard reaches is scrolled clear of the bar, not under it: while this page is shown its scrolling box keeps the bar's height (at most about
-       this tall, with a two-line count at 420) out of the room a focus or a jump scrolls into. */
-    &:has(.generate-page [data-generate-bar]) { scroll-padding-bottom: calc(var(--space-9) * 2 + var(--space-3)); }
+    /* A control the keyboard reaches is scrolled clear of the bar, not under it: while this page is shown its scrolling box keeps the bar's measured height
+       (--generate-bar-room, ui/use-sticky-room.js) out of the room a focus or a jump scrolls into. */
+    &:has(.generate-page [data-generate-bar]) { scroll-padding-bottom: calc(var(--generate-bar-room, calc(var(--space-9) * 2)) + var(--space-3)); }
     .generate-page .generate-run { display: grid; gap: var(--space-3); margin-top: var(--space-2); }
     /* The note about the checks is a quiet line, not a card of its own. */
     .generate-page .generate-run .generate-quality { gap: var(--space-2); margin: 0; padding: 0; border-radius: 0; background: transparent; color: var(--text-muted); font-size: var(--fs-sm); }

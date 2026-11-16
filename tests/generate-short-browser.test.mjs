@@ -151,7 +151,9 @@ test('创建题组 opens ticked with a reason, the main path is one line, the pl
       assert.ok(count, `the summary line says how many questions: ${summary}`);
       const formText = await page.locator('.generate-page form').innerText();
       assert.equal((formText.match(new RegExp(`(?<![\\d.])${count} (?:题|道题)`, 'g')) || []).length, 1, `the planned ${count} questions are said once on the page`);
-      assert.match(await page.locator('[data-generate-estimate]').innerText(), /覆盖 \d+\/\d+ 个(?:小节|片段)，(?:分 \d+ 轮|一轮出完)，预计/);
+      // the tokens in the bar beside the count, the rest of the plan under it (#1082)
+      assert.match(await page.locator('[data-generate-bar] [data-generate-estimate]').innerText(), /^预计 \S+ tok/);
+      assert.match(await page.locator('[data-generate-coverage]').innerText(), /覆盖 \d+\/\d+ 个(?:小节|片段)，(?:分 \d+ 轮|一轮出完)，\d+(?:–\d+)? 次模型调用/);
       assert.doesNotMatch(await page.locator('.quality-note').innerText(), /发布时/, 'no promise of a check at publish');
       await shot(page, `main-${width}`);
       await shotForm(page, `main-form-${width}`);
