@@ -33,7 +33,7 @@ import { generateAdvice, retrievalReady } from './large-document-advice.js';
 import { useRetrievalStatus } from './retrieval-status.js';
 import {
   DIFFICULTIES, LANGUAGES, appendFocus, applySuggestion, autoOf, customCountOf, courseHasCaseExam, coverageStructure,
-  NOTATION_CHOICES, caseEvidence, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, moreValuesOf, notationNote, courseLine, roleOpenByDefault, selectionStats, summaryLine,
+  NOTATION_CHOICES, caseEvidence, difficultyNote, estimateMinutes, estimateRequestOf, importDialog, kindNote, kindsOfForm, kindsPatch, extraValuesOf, moreValuesOf, notationNote, courseLine, roleOpenByDefault, selectionStats, summaryLine,
 } from './generate-form.js';
 import { DEFAULT_LEVEL, levelOf } from '../lib/coverage-strength.js';
 import homeCss from './generate-home.css';
@@ -42,6 +42,7 @@ import focusIntakeCss from './focus-intake.css';
 import CaseCreate from './CaseCreate.jsx';
 import ReferenceQuestions from './ReferenceQuestions.jsx';
 import GenerationTransparency, { EffectiveRequirementsStrip } from './GenerationTransparency.jsx';
+import { FormGroup, FormRow } from './generate-rows.jsx';
 import { referenceSelection } from './reference-questions.js';
 import { useLiveEffect } from './use-async.js';
 import { settingsSectionOr } from './settings-groups.js';
@@ -115,6 +116,10 @@ export default function Generate({
   const activeCourseRecord = (data.courses || []).find((course) => course?.name === generationCourse);
   const foldOpen = moreChoice ?? (moreValuesOf(gen, saved) || roleOpenByDefault({ goal, focus: data.focus, course: activeCourseRecord, role: gen.role }) || retrievalMode);
   const setMoreOpen = (open) => setMoreChoice(open);
+  // 额外要求 inside it: shut unless a quota or a module is already set, so nothing set is hidden.
+  const [extraChoice, setExtraChoice] = React.useState(null);
+  const extraOpen = extraChoice ?? extraValuesOf(gen);
+  const setExtraOpen = (open) => setExtraChoice(open);
   // The steps' buttons: 只出这一步 narrows the selection to the step and goes back to the ordinary form with the step's own count.
   const narrowToStep = (step) => { setSelectedSources(step.sourceIds); setGen({ ...gen, customCount: String(step.count), ...(step.focus ? { focus: step.focus } : {}) }); setChosenMode(MODES.single); };
   const focusBox = React.useRef(null);
@@ -187,9 +192,9 @@ export default function Generate({
   const summary = pathMode ? pathSummary(path.included) : blocked ? '' : summaryLine({ ...stats, count: plannedGoal, difficulty: gen.difficulty, language: gen.language, minutes: plannedGoal ? estimateMinutes(data.jobs, plannedGoal) : null });
   return (
     <section className="page generate-page">
-      <PageHeader eyebrow={ui("创建题组")} title={ui("出一组新题")}
+      <PageHeader className="generate-header" title={ui("出一组新题")}
         description={ui("用你的资料让 AI 出题；已经有现成的题目，也可以直接导入。")}
-        actions={pageAvailable(data, 'examcoach') ? <Button variant="quiet" onClick={() => setPage?.('examcoach')}>{ui("去教练先校准考法")}</Button> : undefined} />
+        actions={pageAvailable(data, 'examcoach') ? <Button variant="quiet" className="sh-btn--flush-start sh-btn--flush-end" onClick={() => setPage?.('examcoach')}>{ui("去教练先校准考法")}</Button> : undefined} />
       {/* The row measures its own width (generate-home.css): where the cards no longer fit side by side they become one row of
           titles and the chosen way's line is said once under it (#575). The tab keeps its note, so a screen reader hears the same name. */}
       <div className="source-mode-frame">
@@ -231,7 +236,7 @@ export default function Generate({
                 onIndex={(course) => openIndexBuilder(openLargeDocumentSettings, course)} />
               <div className="generate-sources-actions">
                 {/* The one way to add material from here: the shared import dialog (WP3). */}
-                <AddSourceButton variant="quiet" onClick={openImport} />
+                <AddSourceButton variant="quiet" className="sh-btn--flush-start" onClick={openImport} />
               </div>
               {/* A selection too big for one generation: ONE block with the ways on (steps / pages by topic), only the chosen one drawn; with no search tool the old card is a fold under it. */}
               {choice && <TooBigChoice advice={advice} stats={stats} modes={modes} mode={mode} onMode={setChosenMode} disabled={busy}
@@ -266,11 +271,11 @@ export default function Generate({
                 <p className="generate-plan__line">{courseLine(generationCourse)}</p>
                 <Button variant="link" size="sm" aria-expanded={courseOpen} onClick={() => setCourseOpen(open => !open)}>{courseOpen ? ui("收起") : ui("更改")}</Button>
                 <Button variant="link" size="sm" data-open-settings="settings-generation" onClick={openGenerationSettings}>{ui("前往设置")}</Button>
+                {caseExam && <span className="generate-plan__hint">{ui("这门课考案例题，可以切到「案例分析题」出题。")}{" "}
+                  <Button variant="link" size="sm" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></span>}
               </div>
               {courseOpen && <div className="generate-course"><CourseField courses={data.focus?.courses} label={ui("新题组放进的课程")} value={generationCourse} onChange={course => setGen({ ...gen, course })} /></div>}
-              {caseExam && <p className="generate-case-hint">{ui("这门课考案例题，可以切到「案例分析题」出题。")}{" "}
-                <Button variant="link" onClick={() => setGenSource("case")}>{ui("切到案例分析题")}</Button></p>}
-              <Disclosure className="generate-more" data-tour="generate-more" summary={ui("更多选项")} meta={ui("想练什么、难度与语言、花费上限、题组名称")} open={foldOpen} onToggle={setMoreOpen}>
+              <Disclosure className="generate-more" bodyClassName="generate-more__body" data-tour="generate-more" summary={ui("更多选项")} meta={ui("想练什么、难度、花费、额外要求")} open={foldOpen} onToggle={setMoreOpen}>
                 <FormGroup title={ui("想练什么")}>
                   <FormRow label={ui("这次想练什么？")} htmlFor="generate-focus" data-tour="generate-focus">
                     <textarea id="generate-focus" ref={focusBox} className="generate-focus generate-row__input" rows={2} value={gen.focus}
@@ -300,10 +305,6 @@ export default function Generate({
                     onChange={ids => setGen({ ...gen, referenceSourceIds: ids })} onImport={() => openReferenceImport()}
                     courses={data.focus?.courses} />
                 </FormGroup>
-                {!pathMode && <FormGroup title={ui("题型配额与模块化规则")}>
-                  <GenerationTransparency gen={gen} setGen={setGen} course={generationCourse} sourceIds={selectedSources}
-                    sources={data.sources} plannedGoal={plannedGoal} />
-                </FormGroup>}
                 <FormGroup title={ui("难度与语言")}>
                   <FormRow label={ui("难度")} data-tour="generate-difficulty">
                     <SegmentedControl className="generate-seg" label={ui("难度")} value={gen.difficulty} options={DIFFICULTIES.map(({ value, label }) => ({ value, label }))}
@@ -311,37 +312,42 @@ export default function Generate({
                     <p className="generate-note">{difficultyNote(gen.difficulty)}</p>
                   </FormRow>
                   <FormRow label={ui("语言")} data-tour="generate-language">
-                    <SegmentedControl className="generate-seg" label={ui("语言")} size="sm" value={gen.language} options={LANGUAGES.map(({ value, label }) => ({ value, label }))}
+                    <SegmentedControl className="generate-seg" label={ui("语言")} value={gen.language} options={LANGUAGES.map(({ value, label }) => ({ value, label }))}
                       onChange={(language) => setGen({ ...gen, language })} />
                   </FormRow>
                   <FormRow label={ui("公式写法")} data-tour="generate-notation">
-                    <SegmentedControl className="generate-seg" label={ui("公式写法")} size="sm" value={gen.notation ?? 'auto'} options={NOTATION_CHOICES.map(({ value, label }) => ({ value, label }))}
+                    <SegmentedControl className="generate-seg" label={ui("公式写法")} value={gen.notation ?? 'auto'} options={NOTATION_CHOICES.map(({ value, label }) => ({ value, label }))}
                       onChange={(notation) => setGen({ ...gen, notation })} />
                     <p className="generate-note">{notationNote()}</p>
                   </FormRow>
                 </FormGroup>
-                {!pathMode && <FormGroup title={ui("花费")}>
-                  <CoverageStrength compact part="spend" level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}
-                    budget={gen.tokenBudget ?? ''} onBudget={(tokenBudget) => setGen({ ...gen, tokenBudget })} />
-                </FormGroup>}
                 <FormGroup title={ui("题组信息")}>
                   <FormRow label={ui("题组名称（可选）")} htmlFor="generate-title">
                     <input id="generate-title" className="generate-row__input" value={gen.title || ""} onChange={(e) => setGen({ ...gen, title: e.target.value })} placeholder={ui("例如 SWE5001 · Solution Architecture")} />
                   </FormRow>
                   {/* For interview preparation only: folded away unless the learner's goal is an interview or a role is already typed (#666). */}
-                  <Disclosure className="generate-role" summary={ui("面试方向（可选）")} meta={ui("目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, course: activeCourseRecord, role: gen.role })}>
+                  <Disclosure className="generate-role" bodyClassName="generate-fold__body" summary={ui("面试方向（可选）")} meta={ui("目标岗位")} defaultOpen={roleOpenByDefault({ goal, focus: data.focus, course: activeCourseRecord, role: gen.role })}>
                     <FormRow label={ui("目标岗位 / 面试方向（可选）")} htmlFor="generate-role" data-tour="generate-role">
                       <input id="generate-role" className="generate-row__input" value={gen.role} onChange={(e) => setGen({ ...gen, role: e.target.value })} placeholder={ui("例如：后端工程师 · 系统设计")} />
                     </FormRow>
                   </Disclosure>
                 </FormGroup>
+                {!pathMode && <FormGroup title={ui("高级")}>
+                  <CoverageStrength compact part="spend" level={level} customCount={gen.customCount ?? ''} state={planned} stats={stats} enabled={selectedSources.length > 0 && !referenceState.reason} disabled={busy}
+                    budget={gen.tokenBudget ?? ''} onBudget={(tokenBudget) => setGen({ ...gen, tokenBudget })} />
+                  {/* Quotas per question type and the learner's own wording for how to ask (lib/generation-modules.js): shut unless the form carries one. */}
+                  <Disclosure className="generate-extra" bodyClassName="generate-fold__body" data-tour="generate-extra" summary={ui("额外要求（可选）")} meta={ui("各题型题数、补充要求")} open={extraOpen} onToggle={setExtraOpen}>
+                    <GenerationTransparency gen={gen} setGen={setGen} sourceIds={selectedSources} sources={data.sources} plannedGoal={plannedGoal}
+                      focusCount={activeFocusCount} rules={generationRulesOf(data, generationCourse)} />
+                  </Disclosure>
+                </FormGroup>}
               </Disclosure>
               {!pathMode && custom && selectedPdfPages > custom && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围、取消自定义题数，或按覆盖强度出题。", [selectedPdfPages, custom])}</InlineMessage>}
             </fieldset>
             <div className="generate-submit" data-tour="generate-summary">
               <div className="quality-note generate-quality">
                 <Icon name="sparkle" />
-                <p>{ui("原文引用核验 · 独立质量审阅 · 干扰项逐项解释")}<br />
+                <p><span className="generate-quality__lead">{ui("原文引用核验 · 独立质量审阅 · 干扰项逐项解释")}</span>{" "}
                   <small>{ui("出题时已逐题核验并审阅；生成结果先进入草稿，你看过再发布；想再检查一遍，在草稿页点「保存并校验」。")}</small>
                 </p>
               </div>
@@ -387,25 +393,5 @@ export default function Generate({
       )}
       </TabPanel>
     </section>
-  );
-}
-
-/* A purpose in 更多选项: a small title over its rows. */
-function FormGroup({ title, children }) {
-  return (
-    <div className="generate-group" role="group" aria-label={title}>
-      <p className="generate-group__title">{title}</p>
-      {children}
-    </div>
-  );
-}
-
-/* One label-left row of the form: the label column on wide panes, stacked on narrow ones. */
-function FormRow({ label, htmlFor, children, ...rest }) {
-  return (
-    <div className="generate-row" {...rest}>
-      {htmlFor ? <label className="generate-row__label" htmlFor={htmlFor}>{label}</label> : <div className="generate-row__label">{label}</div>}
-      <div className="generate-row__control">{children}</div>
-    </div>
   );
 }

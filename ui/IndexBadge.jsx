@@ -37,6 +37,19 @@ export function indexShortLabel(info, coverage = {}) {
   }
 }
 
+/** One word for a state, for the end of a row's title line (the hover has the pages and the rest): its width is fixed by the row's slot, so the answer arriving changes no row. */
+export function indexCompactLabel(info) {
+  switch (info?.state) {
+    case 'indexed': return ui('已索引');
+    case 'partial': return ui('部分索引');
+    case 'stale': return ui('需更新');
+    case 'building': return ui('建立中');
+    case 'reset': return ui('需重建');
+    case 'missing': return ui('未索引');
+    default: return '';
+  }
+}
+
 /** Tone and mark per state: the words always say it, the icon and colour back them up. */
 const LOOK = { indexed: ['success', 'check'], partial: ['warning', 'warning'], stale: ['warning', 'refresh'], reset: ['warning', 'refresh'], building: ['info', null], missing: ['neutral', null] };
 
@@ -48,11 +61,20 @@ function GoAction({ label, onGo }) {
 }
 
 /**
- * Props: info (documentIndexState), coverage ({ canIndex }), onIndex (optional: the click that goes to 设置 › 检索扩展 to build the index; ui/index-focus.js).
+ * Props: info (documentIndexState), coverage ({ canIndex }), compact (one word, no action), onIndex (optional: the click that goes to 设置 › 检索扩展 to build the index; ui/index-focus.js).
  * With onIndex, a document whose index is partial, stale or missing gets 「建立索引」 after the badge (「安装扩展」 when the extension is not installed), and the hover says where it goes.
  */
-export default function IndexBadge({ info, coverage, onIndex }) {
+export default function IndexBadge({ info, coverage, onIndex, compact = false }) {
   if (!info) return null;
+  if (compact) {
+    const [tone, icon] = LOOK[info.state] || LOOK.missing;
+    // The word is always in the markup (a screen reader reads it); a narrow row shows the mark alone (ui/source-picker.css).
+    return <Tooltip layer content={indexTip(info).join('\n')}>
+      <Badge className="index-badge index-badge-compact" size="sm" tone={tone} icon={info.state === 'building' ? <Spinner size="sm" /> : icon || 'info'} data-state={info.state} tabIndex={0}>
+        <span className="index-badge-compact__word">{indexCompactLabel(info)}</span>
+      </Badge>
+    </Tooltip>;
+  }
   const label = indexLabel(info, coverage), short = indexShortLabel(info, coverage);
   const [tone, icon] = LOOK[info.state] || LOOK.missing;
   const actionable = !!onIndex && NEEDS_INDEX.has(info.state);
