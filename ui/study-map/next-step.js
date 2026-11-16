@@ -2,7 +2,7 @@ import { firstRunLine } from '../first-run/line.js';
 import { hasQuestions } from '../generate-opening.js';
 import { modelReadiness } from '../generation-status.js';
 import { courseMatcher } from '../PageScope.jsx';
-import { hasOwnDeck, isFreshDraft, sampleIdsOf } from './home-plan.js';
+import { hasOwnDeck, isFreshDraft, resolveHomePrimary, sampleIdsOf } from './home-plan.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { daysUntilExam } from '../../lib/courses.js';
 import { isActiveJob, isDeckJob } from '../../lib/job-status.js';
@@ -14,8 +14,8 @@ import { isActiveJob, isDeckJob } from '../../lib/job-status.js';
      model        no usable AI model
      sources      no material of the learner's own          } the first-run line (ui/first-run), not a second surface: while the learner has no deck of their
      questions    a material, but no questions made yet      } own the line IS these three states, so they are named here and drawn there
+     resume       a round left open (接着做 / 继续学习)
      due          questions due today
-     resume       no question due, but a round left open (接着做)
      draft        unpublished draft(s) waiting to be checked and published
      new-source   a material imported in the last two weeks that has no questions yet
      wrong        wrong answers not yet reviewed (待巩固)
@@ -28,7 +28,7 @@ import { isActiveJob, isDeckJob } from '../../lib/job-status.js';
    below still has questions to learn); and "newly imported" is NEW_SOURCE_DAYS. */
 
 /** The states, in priority order. */
-export const NEXT_STEP_IDS = Object.freeze(['model', 'sources', 'questions', 'due', 'resume', 'draft', 'new-source', 'wrong', 'exam', 'learn', 'done']);
+export const NEXT_STEP_IDS = Object.freeze(['model', 'sources', 'questions', 'resume', 'due', 'draft', 'new-source', 'wrong', 'exam', 'learn', 'done']);
 
 /** The first-run line's three steps (ui/first-run/line.js FIRST_RUN_STEPS: model, material, deck) as states, by the index of the open step. */
 export const FIRST_RUN_SURFACE = Object.freeze(['model', 'sources', 'questions']);
@@ -117,12 +117,11 @@ export function nextStep(facts) {
   if (line?.show && !drafts?.count) return { id: FIRST_RUN_SURFACE[line.step] || 'questions', surface: 'line' };
   const card = (id) => ({ id, surface: 'card' });
   if (!modelReady && (ownDeck || !drafts?.count)) return card('model');
-  if (today.due > 0) return card('due');
-  if (resumeOpen) return card('resume');
-  if (drafts?.count > 0) return card('draft');
+  const top = resolveHomePrimary({ resumeOpen, due: today.due, drafts: drafts?.count || 0, ahead: today.ahead, size: today.size });
+  if (top === 'resume' || top === 'due' || top === 'draft') return card(top);
   if (newSources.count > 0) return card('new-source');
   if (wrong > 0) return card('wrong');
   if (exam) return card('exam');
-  if (!today.ahead && today.size > 0) return card('learn');
+  if (top === 'learn') return card('learn');
   return card('done');
 }

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ui, uiFormat } from "../i18n.js";
-import { Button, IconButton, Icon, ProgressBar } from "../components/index.js";
+import { AddSourceButton, Button, IconButton, Icon, ProgressBar } from "../components/index.js";
 import { useTopDialog } from "../components/dialog-stack.js";
 import { useInjectCss } from "../shared.js";
 import { NARROW_WIDTH, inLayer, layerScale, placePopover, spotlightBox } from "./geometry.js";
@@ -43,7 +43,7 @@ export function TourPopover({ step, index, total, model, sampleLoaded = true, bu
         {onBrowse && <Button variant="quiet" lock={busy} onClick={onBrowse}>{ui("只看界面")}</Button>}
       </div>}
       {step.final && <div className="tour-pop__choices">
-        {onImport && <Button variant="primary" icon="upload" onClick={onImport}>{ui("添加资料")}</Button>}
+        {onImport && <AddSourceButton variant="primary" onClick={onImport} />}
         {onFullTour && <Button variant="quiet" onClick={onFullTour}>{ui("看完整导览")}</Button>}
         {onRemoveSample && <Button variant="quiet" onClick={onRemoveSample}>{ui("移除示例数据")}</Button>}
       </div>}

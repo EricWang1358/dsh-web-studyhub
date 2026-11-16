@@ -287,6 +287,8 @@
       border-radius: var(--radius);
       font-size: var(--fs-lg);
     }
+    /* A start button that leads with an icon (添加资料: the upload icon) has no arrow to push apart from its label: centred, like every other button with a leading icon. */
+    .today-card .today-go--lead { justify-content: center; }
     .today-go span { transition: transform var(--dur) var(--ease-out); }
     .today-go:hover:not(:disabled) span { transform: translateX(4px); }
     .today-card .today-go:disabled {

@@ -561,6 +561,9 @@ test('#12, #56, #60 DocumentViewer: jump-back pill + Alt+ArrowLeft + 8s expiry, 
               export const CopyDiagnosticsButton = stub('button');
               export const errorText = e => String(e || '');
               export const EmptyState = stub('div');
+              export const AddSourceButton = stub('button');
+              export const addSourceAction = onClick => ({ label: '', icon: '', onClick });
+              export const ADD_SOURCE_ICON = 'upload';
               export const PageHeader = stub('div');
               export const FileDrop = stub('div');
               export const partitionFiles = f => ({ accepted: f, rejected: [] });
