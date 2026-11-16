@@ -132,6 +132,7 @@
   "字幕要在「音频 / 录音」里确认后再导入：那里会先估算用量。": "Subtitles are confirmed under \"Audio / recording\", which shows the estimate first.",
   "归入「{0}」（文件名里有课程名）": "Filed under \"{0}\" (the file name has the course name)",
   "归入「{0}」": "Filed under \"{0}\"",
+  "归入：未分类": "Filed under: Uncategorised",
   "文件名里有课程名时，会按它归入": "A course name in the file name files it under that course",
   "沿用当前页面的课程": "The course of the page you came from",
   "你选的课程": "The course you chose",

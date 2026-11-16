@@ -5,7 +5,7 @@ import { relatedTaskItems } from '../../DailyPlan.jsx';
 import { ReaderHeading } from '../../document-preview/RenameTitle.jsx';
 import { documentSourceIds } from '../../../lib/source-groups.js';
 import { draftToOpen } from '../../document-preview/practice/practice-range.js';
-import { formatQuoteForNote, questionNoteRef, questionNoteTitle } from '../../review/question-note.js';
+import { formatQuoteForNote, questionNoteCourse, questionNoteRef, questionNoteTitle } from '../../review/question-note.js';
 import { hasContext, pageAvailable } from '../../capabilities.js';
 import { useApp } from '../app-context.js';
 import ReaderRun from './ReaderRun.jsx';
@@ -78,7 +78,7 @@ export function useSourceReader({ modal, onClose, column = false }) {
     if (!block) return;
     try {
       const created = await call('note.create', {
-        title: questionNoteTitle(),
+        title: questionNoteTitle(questionNoteCourse(activeRun, data?.decks)),
         cards: [questionNoteRef(activeRun)],
         reuse: true,
         prefill: true,

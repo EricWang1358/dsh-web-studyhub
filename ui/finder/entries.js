@@ -132,7 +132,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'archive', area: 'material', title: '归档与已归档', page: 'sources', anchors: ['sources-archived', 'sources-list'],
     aliases: ['归档', '已归档', '恢复资料', '永久删除', '删除资料', 'archive', 'archived', 'restore', 'delete material'],
     path: ['资料', '已归档'],
-    what: '资料先归档，之后可以恢复，只有已归档的资料才能永久删除。页面右上角的「已归档」列出收起的资料；每一行的「更多」菜单里有「归档」；在「整理课程归属」里勾选几份后，还可以「归档所选」。' }),
+    what: '资料先归档，之后可以恢复，只有已归档的资料才能永久删除。页面右上角的「已归档」（窄窗口里在「添加资料」旁的「更多」里）列出收起的资料；每一行的「更多」菜单里有「归档」；在「整理课程归属」里勾选几份后，还可以「归档所选」。' }),
   feature({ id: 'organize-courses', area: 'material', title: '整理课程归属', page: 'sources', anchors: ['sources-organize', 'sources-list'], prepare: 'materials',
     aliases: ['课程归属', '改课程', '分到课程', '归课程', '归档所选', 'organize', 'assign course'],
     path: ['资料', '整理课程归属'],
@@ -145,7 +145,7 @@ export const FEATURES = Object.freeze([
   feature({ id: 'interactive-companions', area: 'material', title: '交互伴学', page: 'sources', anchors: ['sources-add', 'sources-list'],
     aliases: ['伴学', '伴学页', '伴学课', '伴学包', '参数沙盒', '反例矩阵', '矢量框图', '泳道', '跨学科', '挂载 html', 'companion', 'companions', 'interactive', 'interactive companion', 'interactive companions', 'sandbox', 'dialectic', 'mechanism', 'empirical', 'html', 'lesson', 'html lesson'],
     path: ['资料', '交互伴学'],
-    what: '在「资料」页右上角或任意课程「总纲」顶部点「交互伴学」：可为数学、哲学、机械工程、计算机等任意学科生成独立自包含的逐句互动 HTML 伴学课（含参数沙盒、思辨反例矩阵、分步框图、公式推导与零消耗导题），也可原位挂载本地伴学目录（仅挂载不需要 AI 模型）。' }),
+    what: '在「资料」页右上角（窄窗口里在「更多」里）或任意课程「总纲」顶部点「交互伴学」：可为数学、哲学、机械工程、计算机等任意学科生成独立自包含的逐句互动 HTML 伴学课（含参数沙盒、思辨反例矩阵、分步框图、公式推导与零消耗导题），也可原位挂载本地伴学目录（仅挂载不需要 AI 模型）。' }),
 
   // ── 出题 ──
   feature({ id: 'json-import', area: 'generate', title: '导入 JSON 题组', page: 'generate', anchors: ['generate-json'],

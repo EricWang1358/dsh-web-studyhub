@@ -1,5 +1,5 @@
 import { ui, uiFormat } from "./i18n.js";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { handleSaveKeyDown, markdownEditorExtensions } from "./editor/markdown-shortcuts.js";
@@ -15,7 +15,7 @@ import DailyRecap from './DailyRecap.jsx';
 import { recapTimeZone } from './useDailyRecap.js';
 import DocumentViewer from './document-preview/DocumentViewer.jsx';
 import { existingNoteMaterial } from './DailyRecap-material.js';
-import { Button, CheckboxInput, ConfirmDialog, Icon, InlineMessage, Menu, PageHeader, TextInput, useToast } from './components/index.js';
+import { Button, CheckboxInput, ConfirmDialog, Icon, InlineMessage, Menu, PageHeader, SegmentedControl, TextInput, useToast } from './components/index.js';
 import { useStudy } from './study-context.jsx';
 import NoteDraft from './NoteDraft.jsx';
 import { modelReadiness } from './generation-status.js';
@@ -25,8 +25,14 @@ import { parseCiteHref } from '../lib/contexts/notes/note-links.js';
 const csdnEditor = "https://mp.csdn.net/mp_blog/creation/editor";
 const isDailyNote = note => note?.kind?.startsWith('daily-recap');
 const writingStamp = note => JSON.stringify([note?.title, note?.markdown, isDailyNote(note) ? null : note?.cards]);
+export const SPLIT_NOTE_MIN_WIDTH = 1100;
+export const isSplitNoteViewport = width => Number(width) >= SPLIT_NOTE_MIN_WIDTH;
+export const resolveNoteEditLayout = (preferred, wide) => {
+  if (preferred === 'split') return wide ? 'split' : 'edit';
+  return preferred === 'preview' ? 'preview' : 'edit';
+};
 
-export default function BlogNotes({ data, initialId, initialNote = null, initialEditing = false, onSelect, onBack, backLabel, onOpenCard, onOpenSource, onRecapSettings, onModelSettings, theme = "dark" }) {
+export default function BlogNotes({ data, initialId, initialNote = null, initialEditing = false, initialEditLayout = 'edit', wideViewport, onSelect, onBack, backLabel, onOpenCard, onOpenSource, onRecapSettings, onModelSettings, theme = "dark" }) {
   const { call, act, busy } = useStudy();
   const science = useSciencePreferences();
   const toast = useToast();
@@ -45,6 +51,29 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
   const [query, setQuery] = useState(""), [results, setResults] = useState([]);
   const [picked, setPicked] = useState([]), [newTitle, setNewTitle] = useState("");
   const [editing, setEditing] = useState(initialEditing), [materialSaved, setMaterialSaved] = useState(false);
+  const [preferredLayout, setPreferredLayout] = usePageScope(data.root, 'notes-edit-layout', initialEditLayout);
+  const [measuredWide, setMeasuredWide] = useState(() => (typeof window !== 'undefined' ? isSplitNoteViewport(window.innerWidth) : false));
+  useEffect(() => {
+    if (wideViewport !== undefined || typeof window === 'undefined') return undefined;
+    const sync = () => setMeasuredWide(isSplitNoteViewport(window.innerWidth));
+    sync();
+    window.addEventListener('resize', sync, { passive: true });
+    return () => window.removeEventListener('resize', sync);
+  }, [wideViewport]);
+  const canSplit = wideViewport !== undefined ? Boolean(wideViewport) : measuredWide;
+  const activeEditLayout = resolveNoteEditLayout(preferredLayout, canSplit);
+  const showEditPane = activeEditLayout === 'edit' || activeEditLayout === 'split';
+  const showPreviewPane = activeEditLayout === 'preview' || activeEditLayout === 'split';
+  const deferredMarkdown = useDeferredValue(note?.markdown || '');
+  const livePreviewHtml = useMemo(
+    () => (editing && showPreviewPane ? renderNoteMarkdown(deferredMarkdown) : ''),
+    [editing, showPreviewPane, deferredMarkdown],
+  );
+  const editLayoutOptions = useMemo(() => [
+    { value: 'edit', label: ui('编辑') },
+    { value: 'preview', label: ui('预览') },
+    ...(canSplit ? [{ value: 'split', label: ui('双栏对照') }] : []),
+  ], [canSplit]);
   const [savedWriting, setSavedWriting] = useState(() => initialNote ? writingStamp(initialNote) : '');
   // 删除这篇笔记 asks nothing (a note is not a source or a question): the note closes and leaves the list at once, the notice offers 撤销, and the host deletes it
   // (note.delete, which also stops a draft being written for it) when that notice leaves (ui/undoable.js).
@@ -323,13 +352,26 @@ export default function BlogNotes({ data, initialId, initialNote = null, initial
       {!editing && note.markdown && <div className="note-reader" onClickCapture={openCitation}><DocumentViewer key={note.id} source={{ id: note.id, title: note.title, text: note.markdown, format: 'md' }}
         localContent={{ id: note.id, title: note.title, markdown: note.markdown }} data={data} call={call} /></div>}
       {editing && writable && <>
-        <label className="note-title">{ui("文章标题")}<TextInput className="note-input" value={note.title} disabled={publishing || note.generation?.status === "running"}
-          onChange={(event) => edit({ title: event.target.value })} /></label>
-        <div className="note-editor note-editor-single"><div className="note-edit-pane"><strong>{ui("编辑 Markdown")}</strong>
-          {science.localImages && <LocalImagePicker key={JSON.stringify([data.root, note.id])} disabled={publishing || note.generation?.status === 'running'}
-            onInsert={markdown => { if (current.current?.id === note.id && writable) edit({ markdown: current.current.markdown + '\n\n' + markdown }); }} />}
-          <CodeMirror value={note.markdown || ''} height="560px" theme={theme === "light" ? "light" : "dark"} extensions={editorExtensions}
-            editable={!publishing && note.generation?.status !== "running"} onChange={(value) => edit({ markdown: value })} /></div></div>
+        <div className={activeEditLayout === 'split' ? 'note-editor-head note-editor-head--split' : 'note-editor-head'}>
+          <label className="note-title">{ui("文章标题")}<TextInput className="note-input" value={note.title} disabled={publishing || note.generation?.status === "running"}
+            onChange={(event) => edit({ title: event.target.value })} /></label>
+          <SegmentedControl size="sm" className="note-layout-toggle" label={ui('编辑视图')} value={activeEditLayout}
+            options={editLayoutOptions} onChange={setPreferredLayout} />
+        </div>
+        <div className={activeEditLayout === 'split' ? 'note-editor note-editor-split' : 'note-editor note-editor-single'}>
+          {showEditPane && <div className="note-edit-pane"><strong>{ui("编辑 Markdown")}</strong>
+            {science.localImages && <LocalImagePicker key={JSON.stringify([data.root, note.id])} disabled={publishing || note.generation?.status === 'running'}
+              onInsert={markdown => { if (current.current?.id === note.id && writable) edit({ markdown: current.current.markdown + '\n\n' + markdown }); }} />}
+            <CodeMirror value={note.markdown || ''} height="560px" theme={theme === "light" ? "light" : "dark"} extensions={editorExtensions}
+              editable={!publishing && note.generation?.status !== "running"} onChange={(value) => edit({ markdown: value })} /></div>}
+          {showPreviewPane && <div className="note-preview-pane" data-note-live-preview="">
+            <strong>{ui("实时预览")}</strong>
+            {note.markdown?.trim()
+              ? <ReadingBlock as="article" prose className="note-preview note-preview--live" onClickCapture={openCitation}
+                dangerouslySetInnerHTML={{ __html: livePreviewHtml }} />
+              : <p className="note-preview-empty muted">{ui("暂无正文内容")}</p>}
+          </div>}
+        </div>
       </>}
       <div className="note-reuse-actions">
       {note.markdown && <details className="note-linking"><summary>{ui('转成资料')}</summary>

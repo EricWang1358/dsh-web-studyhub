@@ -108,6 +108,12 @@
     .book-point .md p {
       margin-bottom: 0.9em;
     }
+    .book-point [data-book-search-hit] {
+      background: var(--bg-selected);
+      border-radius: var(--radius-xs);
+      box-shadow: 0 0 0 4px var(--bg-selected);
+      transition: background-color var(--dur-slow) var(--ease), box-shadow var(--dur-slow) var(--ease);
+    }
     .book-point__bar,
     .book-point__actions,
     .book-layer__divider {
