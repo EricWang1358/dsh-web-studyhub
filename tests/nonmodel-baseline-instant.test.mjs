@@ -91,11 +91,18 @@ test('the MinerU and the Marker install are background runs with their own statu
 });
 
 test('DEFECT BASELINE: unloading the service stops neither a running Marker install nor a running MinerU install (pilot off): nothing owns their end', async t => {
-  const h = await harness(t, { mineru: { mode: 'disabled', tier: 'flash', running: false, modelsReady: false, downloadDelayMs: 60_000 }, py: { delayPip: true } });
-  await h.call('mineru.install.start', { confirm: true });
-  await h.call('marker.install.start', { confirm: true });
-  await until(async () => (await h.installer.mineruLog()).some(entry => entry.argv[0] === 'models' && entry.argv[1] === 'download') && (await h.call('marker.install.status')).log.some(line => /Collecting marker-pdf/.test(line)), 'both child processes', { timeoutMs: 240_000 });
-  h.reopen();
-  assert.equal((await h.call('mineru.install.status')).status, 'running', 'the install run outlived the service that started it');
-  assert.equal((await h.call('marker.install.status')).status, 'running', 'so did the Marker install');
+  const hold = join(tmpdir(), `nonmodel-hold-${process.pid}-${Date.now()}`);
+  await writeFile(hold, '1');
+  const h = await harness(t, { mineru: { mode: 'disabled', tier: 'flash', running: false, modelsReady: false, downloadHoldFile: hold }, py: { pipHoldFile: hold } });
+  try {
+    await h.call('mineru.install.start', { confirm: true });
+    await h.call('marker.install.start', { confirm: true });
+    await until(async () => (await h.installer.mineruLog()).some(entry => entry.argv[0] === 'models' && entry.argv[1] === 'download') && (await h.call('marker.install.status')).log.some(line => /Collecting marker-pdf/.test(line)), 'both child processes', { timeoutMs: 240_000 });
+    h.reopen();
+    assert.equal((await h.call('mineru.install.status')).status, 'running', 'the install run outlived the service that started it');
+    assert.equal((await h.call('marker.install.status')).status, 'running', 'so did the Marker install');
+  } finally {
+    await rm(hold, { force: true });
+    await until(async () => (await h.call('mineru.install.status')).status !== 'running' && (await h.call('marker.install.status')).status !== 'running', 'held child processes exit cleanly', { timeoutMs: 15_000 }).catch(() => {});
+  }
 });

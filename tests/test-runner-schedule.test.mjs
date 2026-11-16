@@ -150,3 +150,42 @@ registerHelperTests();
   assert.ok(recorded[keys[0]] >= 40, `expected wrapper duration >= 40ms, got ${recorded[keys[0]]}`);
   assert.equal(keys.some(key => key.includes('helper.mjs')), false);
 });
+
+test('a shard running a .runtime.test.mjs wrapper records only its own shard file and never pollutes the imported base file from another shard', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'study-shard-wrapper-dur-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const customSuite = join(dir, 'suite');
+  await (await import('node:fs/promises')).mkdir(customSuite, { recursive: true });
+  await writeFile(join(customSuite, 'alpha.test.mjs'), `import test from 'node:test';
+import assert from 'node:assert/strict';
+test('base work', async () => {
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.ok(true);
+});
+`, 'utf8');
+  await writeFile(join(customSuite, 'alpha.runtime.test.mjs'), `await import('./alpha.test.mjs');\n`, 'utf8');
+  const weightsPath = join(dir, 'weights.json');
+  const alphaKey = `tests/fixtures/unused`; // let equal default weights split alphabetically: shard 1 gets alpha.runtime.test.mjs, shard 2 gets alpha.test.mjs
+  void alphaKey;
+  await writeFile(weightsPath, '{}', 'utf8');
+  const durationsShard1 = join(dir, 'durations-1.json');
+  const env = {
+    ...process.env,
+    STUDY_TEST_SUITE_DIR: customSuite,
+    STUDY_TEST_WEIGHTS_FILE: weightsPath,
+    STUDY_TEST_DURATIONS_FILE: durationsShard1,
+    STUDY_TEST_BATCH: '0',
+  };
+  delete env.NODE_TEST_CONTEXT;
+  const child = spawn(process.execPath, [runner, '--shard=1/2', '--test-concurrency=1'], { env, windowsHide: true });
+  let err = '';
+  child.stderr.on('data', part => { err += part; });
+  const code = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', resolve); });
+  assert.equal(code, 0, err);
+  const recorded = await readDurations(durationsShard1);
+  const keys = Object.keys(recorded);
+  assert.equal(keys.length, 1, `expected only shard 1 wrapper key, got: ${JSON.stringify(recorded)}`);
+  assert.ok(keys[0].endsWith('/alpha.runtime.test.mjs'), keys[0]);
+  assert.ok(recorded[keys[0]] >= 35, `expected wrapper wall duration >= 35ms, got ${recorded[keys[0]]}`);
+  assert.equal(keys.some(key => key.endsWith('/alpha.test.mjs')), false, 'imported base file in shard 2 is not polluted');
+});
