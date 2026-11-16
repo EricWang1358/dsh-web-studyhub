@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { DEFAULT_CLS_MAX, drainLayoutStability, installLayoutObserver, judgeLayoutStability } from '../scripts/qa/layout-stability.mjs';
-import { JOURNEY_STEPS, KNOWN_LAYOUT, parseJourneyArgs } from '../scripts/qa/journey.mjs';
+import { CASE_STEPS, JOURNEY_STEPS, KNOWN_LAYOUT, TOUR_STEPS, parseJourneyArgs } from '../scripts/qa/journey.mjs';
 import { until } from './helpers/wait.mjs';
 
 /* WP-LS (#208): the journey measures layout shift and long tasks per step and fails a step whose late content moved what was already shown.
@@ -38,7 +38,7 @@ test('the verdict fails a step over the threshold and names the elements that mo
 
 test('known layout offenders name a real step, give a reason and stay below a hard ceiling', () => {
   for (const [name, known] of Object.entries(KNOWN_LAYOUT)) {
-    assert.ok(JOURNEY_STEPS.some((step) => step.name === name), `${name} is a journey step`);
+    assert.ok([...JOURNEY_STEPS, ...TOUR_STEPS, ...CASE_STEPS].some((step) => step.name === name), `${name} is a journey step`);
     assert.ok(known.why.length > 20 && known.maxCls > DEFAULT_CLS_MAX && known.maxCls <= 0.25, `${name}: a reason and a bounded budget`);
   }
 });
