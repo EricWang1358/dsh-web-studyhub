@@ -149,7 +149,8 @@
       padding: var(--space-2) 0;
       background: var(--bg-canvas);
     }
-    .review-sticky-bar[data-answered="true"] {
+    .review-sticky-bar[data-answered="true"],
+    .review-sticky-bar[data-grading="true"] {
       bottom: 0;
     }
     .review-undo {
