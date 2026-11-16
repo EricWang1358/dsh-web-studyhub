@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ui, uiFormat, errorMessage } from '../i18n.js';
-import { Button, ConfirmDialog, Hint, Icon, InlineMessage, SettingsSection, formatBytes } from '../components/index.js';
+import { useLiveEffect } from '../use-async.js';
+import { Badge, Button, ConfirmDialog, Hint, Icon, InlineConfirm, InlineMessage, SettingsSection, formatBytes } from '../components/index.js';
 import { backupFileName } from './backup-name.js';
 import { useStudy } from '../study-context.jsx';
 import { isActiveJob } from '../job-visibility.js';
@@ -8,6 +9,35 @@ import { isActiveJob } from '../job-visibility.js';
 export { backupFileName };
 
 /* ---------- 数据备份与恢复 ---------- */
+
+const DEFAULT_RETENTION = Object.freeze({ daily: 7, weekly: 4 });
+
+function parseLocalDayIndex(day) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ''));
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const date = Number(match[3]);
+  const utc = Date.UTC(year, month - 1, date);
+  const check = new Date(utc);
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== date) return null;
+  return Math.floor(utc / 86_400_000);
+}
+
+/** Human-friendly label for a `YYYY-MM-DD` restore point (`昨天 · 2026-11-16`, `前天 · ...`, or `YYYY-MM-DD`). */
+export function formatRestorePointDate(date, now = Date.now()) {
+  const target = parseLocalDayIndex(date);
+  if (target === null) return String(date || '');
+  const ref = now instanceof Date ? now : new Date(now);
+  const today = Number.isFinite(ref.getTime())
+    ? Math.floor(Date.UTC(ref.getFullYear(), ref.getMonth(), ref.getDate()) / 86_400_000)
+    : null;
+  const diff = today !== null ? today - target : null;
+  if (diff === 0) return `${ui('今天')} · ${date}`;
+  if (diff === 1) return `${ui('昨天')} · ${date}`;
+  if (diff === 2) return uiFormat('前天 · {0}', [date]);
+  return date;
+}
 
 /** What a backup holds, counted client-side before anything is replaced. */
 export function backupSummary(state = {}) {
@@ -40,15 +70,18 @@ export function RestorePreview({ file, busy, blocked = false, onConfirm, onCance
   </div>;
 }
 
-/** Export and restore as two blocks with the same shape: what it does, where the file goes, one action.
+/** Export and restore as two blocks with the same shape: what it does, where the file goes, one action,
+    plus automatic sharded-manifest restore points (`7 daily + 4 weekly`) below.
     `jobs` is the library snapshot's job list and `nav.show.task` opens one in 任务: together they tell the learner, before they commit, that a running
     job will stop the restore. The host still refuses at the end, so a job that starts after the preview, or one the snapshot has not shown yet, comes back
     as an error inside the confirmation with the same 查看任务 on it. */
-export function BackupSection({ root, exportData, onRestored, jobs = [], nav }) {
-  const { busy, act } = useStudy();
+export function BackupSection({ root, exportData, onRestored, jobs = [], nav, initialRestorePoints = null, now }) {
+  const { busy, act, call } = useStudy();
   const [file, setFile] = useState(null), [error, setError] = useState(''), [confirm, setConfirm] = useState(false);
+  const [restorePoints, setRestorePoints] = useState(() => initialRestorePoints);
+  const [confirmPointId, setConfirmPointId] = useState(null), [pointError, setPointError] = useState(''), [restoringPoint, setRestoringPoint] = useState(false);
   const input = useRef(null), readRequest = useRef(0);
-  const exportId = useId(), restoreId = useId();
+  const exportId = useId(), restoreId = useId(), pointsId = useId();
   const folder = backupsFolder(root);
   const blockers = restoreBlockers(jobs);
   // One job to point at: the first that is running, in the snapshot's order.
@@ -58,6 +91,20 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav }) 
     setFile(null); setError(''); setConfirm(false);
     return () => { readRequest.current += 1; };
   }, [root]);
+  useLiveEffect((isLive) => {
+    setConfirmPointId(null);
+    setPointError('');
+    if (initialRestorePoints) {
+      setRestorePoints(initialRestorePoints);
+      return;
+    }
+    setRestorePoints(null);
+    if (!root || typeof call !== 'function') return;
+    Promise.resolve(call('library.restorePoints.list')).then(
+      (res) => { if (isLive() && res && Array.isArray(res.points)) setRestorePoints(res); },
+      () => { if (isLive()) setRestorePoints({ retention: DEFAULT_RETENTION, totalExtraBytes: 0, points: [] }); },
+    );
+  }, [root, call, initialRestorePoints]);
   async function read(chosen) {
     const request = ++readRequest.current;
     setFile(null); setError(''); setConfirm(false);
@@ -81,6 +128,27 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav }) 
       throw new Error(uiFormat('恢复没有完成，当前学习库保持不变：{0}', [errorMessage(e)]));
     }
   }
+  async function restoreFromPoint(id) {
+    if (blockers.length > 0) {
+      setPointError(ui(RUNNING_JOB));
+      return;
+    }
+    setPointError('');
+    setRestoringPoint(true);
+    try {
+      await act('library.restorePoints.restore', { id }, (result) => {
+        setConfirmPointId(null);
+        onRestored?.(result);
+      }, { rethrow: true });
+    } catch (e) {
+      setPointError(uiFormat('恢复没有完成，当前学习库保持不变：{0}', [errorMessage(e)]));
+    } finally {
+      setRestoringPoint(false);
+    }
+  }
+  const retention = restorePoints?.retention || DEFAULT_RETENTION;
+  const points = Array.isArray(restorePoints?.points) ? restorePoints.points : [];
+  const totalExtraBytes = Number.isFinite(restorePoints?.totalExtraBytes) ? restorePoints.totalExtraBytes : 0;
   return (
     <SettingsSection className="backup-settings" tour="settings-backup" title={ui('数据备份与恢复')}>
       <div className="backup-blocks">
@@ -105,6 +173,65 @@ export function BackupSection({ root, exportData, onRestored, jobs = [], nav }) 
           {file && <RestorePreview file={file} busy={busy || confirm} blocked={blockers.length > 0} onConfirm={() => setConfirm(true)} onCancel={chooseBackup} />}
         </section>
       </div>
+      <section className="restore-points-block" aria-labelledby={pointsId}>
+        <div className="restore-points-head">
+          <h3 id={pointsId} className="settings-subtitle">{ui('自动恢复点')}</h3>
+          {points.length > 0 && <small className="restore-points-usage">{uiFormat('共额外占用 {0}', [formatBytes(totalExtraBytes)])}</small>}
+        </div>
+        <p>{uiFormat('跨天修改学习库时自动留存前一日清单快照，滚动保留最近 {0} 天和 {1} 个周点；你手动导出的备份文件永远不会自动删除。', [retention.daily, retention.weekly])}</p>
+        <Hint>{ui('恢复点涵盖课程、资料文字、题组、作答记录与排程；原附件、复习全书历史与骨架图示保持不变，跨电脑迁移请用上方「导出学习库」。')}</Hint>
+        {points.length === 0 ? (
+          <p className="restore-points-empty">{ui('跨天继续使用学习库后，这里会自动列出可回退的日期恢复点。')}</p>
+        ) : (
+          <ul className="restore-points-list">
+            {points.map((point) => {
+              const label = formatRestorePointDate(point.date, now);
+              const summary = point.summary || {};
+              const confirming = confirmPointId === point.id;
+              return (
+                <li key={point.id} className="restore-point-row">
+                  <div className="restore-point-row__info">
+                    <div className="restore-point-row__title">
+                      <Icon name="clock" size={16} className="restore-point-row__icon" />
+                      <strong>{label}</strong>
+                      {point.tier === 'weekly' && <Badge tone="neutral">{ui('周恢复点')}</Badge>}
+                      <small className="restore-point-row__bytes">{uiFormat('额外 {0}', [formatBytes(point.extraBytes || 0)])}</small>
+                    </div>
+                    <p className="restore-point-row__meta">
+                      {[
+                        uiFormat('修订 {0}', [summary.revision ?? 0]),
+                        uiFormat('{0} 门课程', [summary.courses ?? 0]),
+                        uiFormat('{0} 份资料', [summary.sources ?? 0]),
+                        uiFormat('{0} 个题组（{1} 道题）', [summary.decks ?? 0, summary.cards ?? 0]),
+                        uiFormat('{0} 条作答记录', [summary.attempts ?? 0]),
+                      ].join(' · ')}
+                    </p>
+                  </div>
+                  {!confirming && (
+                    <div className="restore-point-row__actions">
+                      <Button variant="secondary" size="sm" icon="undo" lock={busy} disabled={blockers.length > 0}
+                        onClick={() => { setPointError(''); setConfirmPointId(point.id); }}>
+                        {ui('恢复到这一天')}
+                      </Button>
+                    </div>
+                  )}
+                  {confirming && (
+                    <InlineConfirm tone="warning" className="restore-point-row__confirm" busy={restoringPoint}
+                      title={uiFormat('恢复到 {0}？', [label])}
+                      confirmLabel={ui('确认恢复到这一天')}
+                      onCancel={() => { setConfirmPointId(null); setPointError(''); }}
+                      onConfirm={() => restoreFromPoint(point.id)}>
+                      <p>{uiFormat('回到这一天前会自动保存当前状态副本到 {0}；原附件、复习全书历史与骨架图示保持不变。', [folder || ui('当前学习库的 backups 文件夹')])}</p>
+                      {blockers.length > 0 && <Hint>{ui(RUNNING_JOB)}</Hint>}
+                      {pointError && <InlineMessage>{pointError}</InlineMessage>}
+                    </InlineConfirm>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
       {confirm && file && <ConfirmDialog title={ui('用此备份替换当前学习库？')} confirmLabel={ui('用此备份替换当前学习库')} busy={busy} blocked={blockers.length > 0}
         onClose={() => setConfirm(false)}
         errorAction={openTask ? { label: ui('查看任务'), onClick: openTask } : undefined}
