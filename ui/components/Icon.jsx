@@ -27,9 +27,13 @@ export const ICON_NAMES = [...Object.keys(ICON_PATHS), ...Object.keys(BRAND)];
    value (a checked box's tick asks for 2.4) widens the glyph by the difference, in the 256 grid's units. */
 const DEFAULT_STROKE = 1.6;
 const GRID_PER_PX = 256 / 24;
+/** `weight="regular"`: Phosphor Regular is the Light outline about 4 units thicker on the 256 grid, which is this stroke weight. Light is the house weight; Regular is the one deliberate
+    exception, for a state icon that stands beside a medium-weight label (the tick and cross of an answer, ui/review/AnswerState.jsx), so the mark is not thinner than the words. */
+const REGULAR_STROKE = DEFAULT_STROKE + 4 / GRID_PER_PX;
 
 /** Decorative icon; pair it with visible text or an aria-label on the control. */
-export default function Icon({ name, size = 18, strokeWidth = DEFAULT_STROKE, className }) {
+export default function Icon({ name, size = 18, strokeWidth: requested = DEFAULT_STROKE, weight, className }) {
+  const strokeWidth = weight === 'regular' ? REGULAR_STROKE : requested;
   const cls = className ? `sh-icon ${className}` : 'sh-icon';
   const brand = BRAND[name];
   if (brand) {

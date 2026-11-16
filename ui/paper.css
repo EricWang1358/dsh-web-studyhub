@@ -47,6 +47,8 @@
       --info-bg: color-mix(in srgb, var(--info) 8%, var(--bg-surface));
       --info-line: color-mix(in srgb, var(--info) 30%, var(--line));
       --warn-text: var(--warn-ink);
+      /* The fill behind a letter or a number (the right option's circle): the mark on it is text, so the paper colour on it needs 4.5:1, which --ok itself gives only 4.1:1 (tests/icon-round3.test.mjs). */
+      --ok-fill: color-mix(in srgb, var(--ok) 90%, black);
       --ok-halo: color-mix(in srgb, var(--ok) 22%, transparent);
       --ok-mid: color-mix(in srgb, var(--ok) 45%, transparent);
       --ok-mark: color-mix(in srgb, var(--ok) 32%, transparent);

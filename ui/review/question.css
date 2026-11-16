@@ -255,7 +255,7 @@
       color: var(--bg-raised);
     }
     .option.correct .option-letter {
-      background: var(--ok);
+      background: var(--ok-fill, var(--ok));
       box-shadow: none;
       color: var(--bg-raised);
     }
@@ -359,6 +359,8 @@
       color: var(--ok-ink);
       margin: var(--space-2) 0 var(--space-1);
     }
+    /* The mark sits on the centre of the glyphs, not of the line box (the line box is taller than the glyphs by its leading, below them): nudged up by half a pixel. */
+    .answer-state .sh-icon { margin-block-end: 1px; }
     .option.incorrect .answer-state {
       color: var(--bad-ink);
     }
