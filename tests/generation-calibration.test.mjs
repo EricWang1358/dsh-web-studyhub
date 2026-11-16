@@ -161,7 +161,7 @@ test("what each stage writes per call is measured, and the estimate takes it as 
   assert.equal(perCall.stages.review, 12_000);
   const raised = calibrateEstimate(raw, null, perCall);
   const author = raised.stages.find(stage => stage.id === "author"), before = raw.stages.find(stage => stage.id === "author");
-  assert.equal(author.outputTokens.high, Math.max(before.outputTokens.high, 9_000 * before.calls), "a thinking model writes what a call really writes");
+  assert.equal(author.outputTokens.high, Math.max(before.outputTokens.high, 9_000 * (before.callsHigh ?? before.calls)), "a thinking model writes what a call really writes across its high-end call budget");
   assert.ok(author.outputTokens.low >= before.outputTokens.low);
   assert.ok(raised.outputTokens.high > raw.outputTokens.high, "the total grows with it");
   assert.ok(raised.totalTokens.high > raw.totalTokens.high);
@@ -238,14 +238,15 @@ test("with no history, a stage's high end rises to the measured thinking allowan
   for (const id of ["blueprint", "author", "review"]) {
     const before = raw.stages.find(stage => stage.id === id), after = raised.stages.find(stage => stage.id === id);
     assert.equal(after.outputTokens.low, before.outputTokens.low, `${id}: a model that does not think still fits the low end`);
-    assert.equal(after.outputTokens.high, Math.max(before.outputTokens.high, DEFAULT_OUTPUT_PER_CALL[id] * before.calls), `${id}: the high end is what a thinking model writes`);
+    assert.equal(after.outputTokens.high, Math.max(before.outputTokens.high, DEFAULT_OUTPUT_PER_CALL[id] * (before.callsHigh ?? before.calls)), `${id}: the high end is what a thinking model writes across its high-end call budget`);
   }
   assert.ok(raised.totalTokens.high > raw.totalTokens.high * 2, "the high end is no longer a third of a thinking run");
   assert.equal(raised.totalTokens.low, raw.totalTokens.low, "the low end is the sample estimate");
   assert.ok(raised.notes.includes("thinking-default") && !raised.notes.includes("includes-thinking"), "an assumption, not a measurement");
   // One stage measured on this machine: that stage says "measured", the others stay assumed.
   const mixed = calibrateEstimate(raw, null, { ...perCall, stages: { review: 20_000 }, samples: 3 });
-  assert.equal(mixed.stages.find(stage => stage.id === "review").outputTokens.high, Math.max(raw.stages.find(stage => stage.id === "review").outputTokens.high, 20_000 * raw.stages.find(stage => stage.id === "review").calls));
+  const rawReview = raw.stages.find(stage => stage.id === "review");
+  assert.equal(mixed.stages.find(stage => stage.id === "review").outputTokens.high, Math.max(rawReview.outputTokens.high, 20_000 * (rawReview.callsHigh ?? rawReview.calls)));
   assert.deepEqual(mixed.notes.filter((code) => /thinking/.test(code)), ["thinking-default"], "one note, the one that explains the assumed stages (#771 gate L2)");
 });
 
@@ -382,7 +383,7 @@ test("calibration and measured thinking together still put the real cost inside 
   const partial = { ...factors, stages: Object.fromEntries(Object.entries(factors.stages).filter(([id]) => id !== "plan")) };
   const partialRatio = calibrateEstimate(raw, partial, NO_ASSUMPTION), partialBoth = calibrateEstimate(raw, partial, measured);
   const plan = raw.stages.find((stage) => stage.id === "plan"), raisedPlan = partialBoth.stages.find((stage) => stage.id === "plan");
-  assert.equal(raisedPlan.outputTokens.high, Math.max(plan.outputTokens.high, measured.stages.plan * plan.calls));
+  assert.equal(raisedPlan.outputTokens.high, Math.max(plan.outputTokens.high, measured.stages.plan * (plan.callsHigh ?? plan.calls)));
   assert.equal(partialBoth.totalTokens.high - partialRatio.totalTokens.high, raisedPlan.outputTokens.high - plan.outputTokens.high, "the total grows by that stage's rise alone");
   assert.ok(partialBoth.totalTokens.low >= partialRatio.totalTokens.low);
   assert.ok(partialBoth.notes.includes("includes-thinking"));

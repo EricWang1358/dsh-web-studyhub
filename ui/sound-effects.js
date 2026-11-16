@@ -316,6 +316,8 @@ export function synthesizeCueSamples(cue, sampleRate = 44100) {
   return samples;
 }
 
+const SUSPENDED_STALE_MS = 180;
+
 let sharedCtx = null;
 let sharedCtxRate = 0;
 let cachedBuffers = new Map();
@@ -323,10 +325,23 @@ let lastPlayedAt = 0;
 const lastCueAt = new Map();
 let idleTimer = null;
 let previewTimers = [];
+const activePreviewSources = new Set();
+let pendingSuspendedCue = null;
 
 function clearPreviewTimers() {
   for (const timer of previewTimers) clearTimeout(timer);
   previewTimers = [];
+}
+
+/** Cancel any queued or in-flight Settings › Appearance sound preview cues. */
+export function stopSoundPreview() {
+  clearPreviewTimers();
+  if (pendingSuspendedCue?.options?.preview) pendingSuspendedCue = null;
+  for (const entry of [...activePreviewSources]) {
+    activePreviewSources.delete(entry);
+    try { entry.source.stop?.(); } catch { /* ignore */ }
+    entry.disconnect();
+  }
 }
 
 function clearIdleTimer() {
@@ -371,6 +386,56 @@ function getBakedBuffer(ctx, cue) {
   return buffer;
 }
 
+function startCuePlayback(ctx, buffer, cue, tier, options = {}) {
+  const source = ctx.createBufferSource?.();
+  const gain = ctx.createGain?.();
+  if (!source || !gain || !ctx.destination) return false;
+
+  const targetGain = CUE_GAINS[tier]?.[cue] ?? 0.52;
+  const startAt = ctx.currentTime || 0;
+  source.buffer = buffer;
+  if (source.playbackRate) {
+    const jitter = CUE_JITTER[cue] || 0;
+    source.playbackRate.value = 1 + (Math.random() * 2 - 1) * jitter;
+  }
+  gain.gain?.setValueAtTime?.(targetGain, startAt);
+
+  let warmBus = null;
+  source.connect(gain);
+  if (typeof ctx.createBiquadFilter === 'function') {
+    warmBus = ctx.createBiquadFilter();
+    warmBus.type = 'lowpass';
+    warmBus.frequency?.setValueAtTime?.(2550, startAt);
+    warmBus.Q?.setValueAtTime?.(0.65, startAt);
+    gain.connect(warmBus);
+    warmBus.connect(ctx.destination);
+  } else {
+    gain.connect(ctx.destination);
+  }
+
+  let disconnected = false;
+  let previewEntry = null;
+  const disconnect = () => {
+    if (disconnected) return;
+    disconnected = true;
+    if (previewEntry) activePreviewSources.delete(previewEntry);
+    try { source.disconnect?.(); } catch { /* ignore */ }
+    try { gain.disconnect?.(); } catch { /* ignore */ }
+    if (warmBus) {
+      try { warmBus.disconnect?.(); } catch { /* ignore */ }
+    }
+  };
+  if (options.preview) {
+    previewEntry = { source, disconnect };
+    activePreviewSources.add(previewEntry);
+  }
+  source.onended = disconnect;
+
+  source.start(startAt);
+  scheduleIdleSuspend();
+  return true;
+}
+
 /** Play one Acoustic Desk cue respecting the learner's sound mode, mic mute guard, tab visibility and cooldowns. */
 export function playSound(cue, options = {}) {
   try {
@@ -389,41 +454,39 @@ export function playSound(cue, options = {}) {
     }
 
     const ctx = getOrCreateContext();
-    if (!ctx) return false;
+    if (!ctx || !ctx.destination) return false;
     const buffer = getBakedBuffer(ctx, cue);
-    const source = ctx.createBufferSource?.();
-    const gain = ctx.createGain?.();
-    if (!buffer || !source || !gain || !ctx.destination) return false;
+    if (!buffer || typeof ctx.createBufferSource !== 'function' || typeof ctx.createGain !== 'function') return false;
 
     if (ctx.state === 'suspended') {
-      Promise.resolve(ctx.resume?.()).catch(() => {});
-    }
-    const targetGain = CUE_GAINS[tier]?.[cue] ?? 0.52;
-    const startAt = ctx.currentTime || 0;
-    source.buffer = buffer;
-    if (source.playbackRate) {
-      const jitter = CUE_JITTER[cue] || 0;
-      source.playbackRate.value = 1 + (Math.random() * 2 - 1) * jitter;
-    }
-    gain.gain?.setValueAtTime?.(targetGain, startAt);
-
-    source.connect(gain);
-    if (typeof ctx.createBiquadFilter === 'function') {
-      const warmBus = ctx.createBiquadFilter();
-      warmBus.type = 'lowpass';
-      warmBus.frequency?.setValueAtTime?.(2550, startAt);
-      warmBus.Q?.setValueAtTime?.(0.65, startAt);
-      gain.connect(warmBus);
-      warmBus.connect(ctx.destination);
-    } else {
-      gain.connect(ctx.destination);
+      lastPlayedAt = nowMs;
+      lastCueAt.set(cue, nowMs);
+      pendingSuspendedCue = { cue, tier, options, requestedAt: nowMs };
+      const resuming = Promise.resolve(ctx.resume?.());
+      if (ctx.state === 'suspended') {
+        resuming.then(() => {
+          const pending = pendingSuspendedCue;
+          pendingSuspendedCue = null;
+          if (!pending || ctx !== sharedCtx || ctx.state !== 'running') return;
+          if (Date.now() - pending.requestedAt > SUSPENDED_STALE_MS) return;
+          if (isAudioCaptureActive()) return;
+          if (!pending.options.allowHidden && globalThis.document?.hidden === true) return;
+          const latestMode = pending.options.mode ?? loadAppearance().sound;
+          if (!pending.options.force && latestMode === 'off') return;
+          const baked = getBakedBuffer(ctx, pending.cue);
+          if (!baked) return;
+          startCuePlayback(ctx, baked, pending.cue, pending.tier, pending.options);
+        }, () => {
+          pendingSuspendedCue = null;
+        });
+        return true;
+      }
+      pendingSuspendedCue = null;
     }
 
     lastPlayedAt = nowMs;
     lastCueAt.set(cue, nowMs);
-    source.start(startAt);
-    scheduleIdleSuspend();
-    return true;
+    return startCuePlayback(ctx, buffer, cue, tier, options);
   } catch {
     return false;
   }
@@ -436,7 +499,7 @@ export function playTimerChime() {
 
 /** Audition the current sound tier from Settings › Appearance (works even when mode is still 'off'). */
 export function playSoundPreview(mode = 'subtle') {
-  clearPreviewTimers();
+  stopSoundPreview();
   if (isAudioCaptureActive()) return false;
   const tier = mode === 'standard' ? 'standard' : 'subtle';
   const sequence = tier === 'standard'
@@ -452,10 +515,10 @@ export function playSoundPreview(mode = 'subtle') {
   let started = false;
   for (const step of sequence) {
     if (step.delayMs === 0) {
-      started = playSound(step.cue, { mode: tier, force: true, skipThrottle: true });
+      started = playSound(step.cue, { mode: tier, force: true, skipThrottle: true, preview: true });
     } else {
       const timer = setTimeout(() => {
-        playSound(step.cue, { mode: tier, force: true, skipThrottle: true });
+        playSound(step.cue, { mode: tier, force: true, skipThrottle: true, preview: true });
       }, step.delayMs);
       timer.unref?.();
       previewTimers.push(timer);
@@ -466,7 +529,8 @@ export function playSoundPreview(mode = 'subtle') {
 
 /** Release timers, cooldowns and the shared Web Audio context cleanly between unit tests. */
 export function resetSoundEngineForTests() {
-  clearPreviewTimers();
+  stopSoundPreview();
+  pendingSuspendedCue = null;
   clearIdleTimer();
   lastPlayedAt = 0;
   lastCueAt.clear();

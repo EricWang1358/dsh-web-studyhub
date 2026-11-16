@@ -107,13 +107,14 @@ const sources = [source('a1', 'book.pdf', 1, 2), source('a2', 'book.pdf', 2, 2),
 const picker = (props) => html(h(m.SourcePicker, { sources, selected: [], courses: ['操作系统'], ...props }));
 const coverage = (extra) => ({ indexed: [], stale: [], missing: [], hasIndex: true, canIndex: true, building: null, ...extra });
 
-test('the picker: one line when some materials are not fully indexed, a 建立索引 on those rows, only with the way to go', () => {
+// #1084: the rows show the state only (one word in a fixed slot, so an answer moves nothing); the one way to build is the line above the list.
+test('the picker: one line when some materials are not fully indexed, the way to 建立索引 on that line, only with the way to go', () => {
   const partial = coverage({ indexed: ['a1', 'b1'], missing: ['a2'] });
   const out = picker({ indexCoverage: partial, indexSlot: true, onIndex: go });
   assert.match(out, /data-index-gap/);
   assert.match(out, /有 1 份资料的索引还没建完/);
-  assert.match(out, /去建立索引/);
-  assert.equal((out.match(/data-index-action/g) || []).length, 1, 'the partly built book gets the action, the built slides do not');
+  assert.equal((out.match(/去建立索引/g) || []).length, 1, 'one way to build, on the line');
+  assert.equal((out.match(/data-index-action/g) || []).length, 0, 'no action on the rows');
   assert.doesNotMatch(picker({ indexCoverage: partial, indexSlot: true }), /data-index-gap|data-index-action/, 'no handler: the old passive badge');
   assert.doesNotMatch(picker({ indexCoverage: coverage({ indexed: ['a1', 'a2', 'b1'] }), indexSlot: true, onIndex: go }), /data-index-gap|data-index-action/, 'everything indexed: no line');
   assert.doesNotMatch(picker({ indexCoverage: null, indexSlot: true, onIndex: go }), /data-index-gap|data-index-action/, 'no coverage (the extension is not applicable): nothing');

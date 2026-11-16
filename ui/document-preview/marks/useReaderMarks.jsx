@@ -43,23 +43,30 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
   const toast = useToast(), services = useContext(ReaderModelContext);
   const model = services?.model, ready = !!model?.ready;
   const [items, setItems] = useState([]), [reload, setReload] = useState(0), [pending, setPending] = useState([]), [menu, setMenu] = useState(null), [queueOpen, setQueueOpen] = useState(false), [queueLimit, setQueueLimit] = useState(QUEUE_LIMIT);
+  const [staleGroups, setStaleGroups] = useState([]);
   const located = useRef([]);
   const documentId = document?.documentId || document?.id, revision = document?.revision;
   const live = enabled && !!documentId && !!call;
   const say = useCallback((message, tone = 'info') => toast.show({ tone, message }), [toast]);
 
   useEffect(() => {
-    if (!live) { setItems([]); return undefined; }
+    if (!live) { setItems([]); setStaleGroups([]); return undefined; }
     let current = true;
-    call('materials.marks.list', { documentId, revision }).then(value => { if (current) { setItems(value.items || []); if (value.limits?.queue) setQueueLimit(value.limits.queue); } }).catch(() => { if (current) setItems([]); });
+    call('materials.marks.list', { documentId, revision }).then(value => {
+      if (!current) return;
+      setItems(value.items || []);
+      setStaleGroups(value.stale || []);
+      if (value.limits?.queue) setQueueLimit(value.limits.queue);
+    }).catch(() => { if (current) { setItems([]); setStaleGroups([]); } });
     return () => { current = false; };
   }, [call, live, documentId, revision, reload]);
 
-  // Stored marks clip quote to 4000 chars while retaining full [start, end]; recover the full span so long marks paint and hit-test completely.
+  // Stored marks clip quote to 4000 chars while retaining full [start, end]; recover the full span only for resolved marks so stale marks keep their saved quote.
   const resolvedItems = useMemo(() => {
     if (!items.length || !document?.sources?.length) return items;
     const bySource = new Map(document.sources.map(source => [source.id, source.text ?? '']));
     return items.map(item => {
+      if (item.status === 'stale' || item.stale === true) return item;
       const at = item.selection;
       if (!at || !Number.isInteger(at.start) || !Number.isInteger(at.end) || at.end <= at.start) return item;
       const sliced = bySource.get(at.sourceId)?.slice(at.start, at.end);
@@ -96,8 +103,53 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
     setMenu({ point: pointOf(event, capture), capture, here, selected: !!capture.range });
   };
 
+  const activeItems = useMemo(
+    () => resolvedItems.filter(item => item.status !== 'stale' && !item.stale),
+    [resolvedItems],
+  );
+  const staleMarks = useMemo(() => {
+    const out = [], seen = new Set();
+    const pushStale = (item, fallbackRevision) => {
+      if (!item) return;
+      const quote = item.quote || item.selection?.quote || '';
+      const key = item.id || item.key || `${item.style || 'mark'}:${quote}`;
+      if (!quote || seen.has(key)) return;
+      seen.add(key);
+      out.push({
+        ...item,
+        id: item.id || key,
+        style: item.style || 'highlight',
+        quote,
+        page: item.page ?? item.selection?.page,
+        revision: item.revision || fallbackRevision,
+        status: 'stale',
+        stale: true,
+      });
+    };
+    for (const item of resolvedItems) {
+      if (item.status === 'stale' || item.stale === true) pushStale(item, revision);
+    }
+    for (const entry of staleGroups || []) {
+      if (Array.isArray(entry?.items)) {
+        for (const item of entry.items) pushStale(item, entry.revision);
+      } else if (entry?.quote || entry?.selection?.quote) {
+        pushStale(entry, entry.revision);
+      }
+    }
+    return out;
+  }, [resolvedItems, staleGroups, revision]);
+
   const queue = queueOf(resolvedItems);
   const marksCall = (action, args) => call(`materials.marks.${action}`, { documentId, revision, ...args });
+  const dismissStaleMark = async id => {
+    if (!id) return;
+    await marksCall('delete', { ids: [id], stale: true });
+    setReload(count => count + 1);
+  };
+  const clearStaleMarks = async () => {
+    await marksCall('delete', { stale: true });
+    setReload(count => count + 1);
+  };
   const save = async (capture, style) => {
     if (capture?.crossPage) { say(ui('选区跨了多页，请在一页内选择。'), 'warning'); return; }
     if (style === 'queue') {
@@ -187,5 +239,9 @@ export function useReaderMarks({ call, document, data, body, rendered, enabled, 
       open={queueOpen} onOpenChange={setQueueOpen} onRemove={item => remove([item.id])} onStart={startBatch} body={body} /> : null,
     // At the narrowest the toolbar has no room for a fifth control: the same panel opens from 更多.
     moreItems: canQueue && live && compact && queue.length > 0 ? [{ id: 'queue', icon: 'checklist', label: uiFormat('待出题 {0}…', [queue.length]), run: () => setQueueOpen(true) }] : [],
+    items: activeItems,
+    staleMarks,
+    dismissStaleMark,
+    clearStaleMarks,
   };
 }

@@ -59,6 +59,23 @@
     .reader-explain__tag { color: var(--accent); font-size: var(--fs-xs); font-weight: var(--fw-strong); }
     .reader-explain__answer { max-height: 14rem; overflow: hidden; }
     .reader-explain__hint { color: var(--text-faint); font-size: var(--fs-sm); }
+
+    .reader-marks-summary { display: grid; gap: var(--space-2); padding-bottom: var(--space-2); }
+    .reader-marks-summary__bar { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-1) 0; }
+    .reader-marks-summary__groups { display: grid; gap: var(--space-3); }
+    .reader-marks-summary__group { display: grid; gap: var(--space-2); }
+    .reader-marks-summary__heading { margin: 0; color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-medium); }
+    .reader-marks-summary__items { display: grid; gap: var(--space-2); }
+    .reader-marks-summary__item { display: grid; gap: var(--space-1-5); padding: var(--space-2) var(--space-2-5); border: 1px solid var(--line-soft); background: var(--bg-surface); border-radius: var(--radius-xs); }
+    .reader-marks-summary__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1-5); }
+    .reader-marks-summary__quote { margin: 0; padding-left: var(--space-2); border-left: 2px solid var(--line); color: var(--text); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .reader-marks-summary__note,
+    .reader-marks-summary__question,
+    .reader-marks-summary__empty { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+    .reader-marks-summary__note,
+    .reader-marks-summary__empty { color: var(--text-muted); }
+    .reader-marks-summary__answer { color: var(--text-dim); font-size: var(--fs-sm); max-height: 10rem; overflow: hidden; overflow-wrap: anywhere; }
+    .reader-marks-dialog .reader-marks-dialog__content { display: grid; gap: var(--space-3); max-height: min(70vh, 36rem); overflow-y: auto; }
   }
   :is(.study-app, .study-seat) .reader-queue__anchor { display: inline-block; width: 0; height: 1.5rem; }
   @container reader (max-width: 520px) {

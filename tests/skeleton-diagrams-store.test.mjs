@@ -262,7 +262,7 @@ test('the agent-facing contract names the four operations in a line or two and s
   assert.ok(diagram.length < 700, `the diagram text stays short (${diagram.length})`);
   assert.ok(text.length < 6000);
   assert.ok(studyToolDescription.length + studyUsagePrompt.length < 6000);
-  assert.match(studyToolDescription, /skeleton\.diagram/);
+  assert.match(libraryContracts.index, /skeleton\.diagram/);
 });
 
 test('the full backup carries the attached diagrams and a restore into a fresh library brings them back', async t => {

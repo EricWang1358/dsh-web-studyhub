@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "StudyHub · 资料",
-    "description": "把 PDF、笔记和网页导入为可引用的资料。"
+    "description": "把 PDF、笔记与本地保存的网页文件（.html）导入为可引用的资料（离线解析，不抓取远程网址）。"
   }
 }
