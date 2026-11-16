@@ -251,7 +251,10 @@
     .wb-headline__item { display: inline-flex; align-items: baseline; gap: 0.3em; max-width: 100%; }
     .wb-headline .wb-count-toggle { display: inline; min-height: 0; margin: 0 calc(var(--space-half) * -1); padding: 0 var(--space-half); border: 0; color: inherit; border-radius: var(--radius-xs); font: inherit; line-height: inherit;
       white-space: normal; text-align: start; vertical-align: baseline; }
-    .wb-headline .wb-count-toggle[aria-pressed="true"] { background: var(--bg-selected); color: var(--text); }
+    /* At rest a count that filters says so with a quiet dotted underline (it reads as text otherwise); the pressed one is the selection surface instead. */
+    .wb-headline .wb-count-toggle { text-decoration: underline dotted var(--line-strong); text-underline-offset: 0.25em; }
+    .wb-headline .wb-count-toggle:hover { color: var(--text); text-decoration-color: currentColor; }
+    .wb-headline .wb-count-toggle[aria-pressed="true"] { background: var(--bg-selected); color: var(--text); text-decoration: none; }
     .wb-hit { background: var(--warn-mark); color: var(--text); border-radius: var(--radius-xs); padding-inline: var(--space-half); }
     .wb-sub h4 { margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .wb-sub ul, .wb-why-list { margin: 0; padding-left: 1.2em; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
