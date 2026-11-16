@@ -159,7 +159,8 @@
     "tests/wp2f-shell-browser.test.mjs",
     "tests/wp5-tour-steps.test.mjs",
     "tests/wrongbook-distribution-browser.test.mjs",
-    "tests/wrongbook-filters-browser.test.mjs"
+    "tests/wrongbook-filters-browser.test.mjs",
+    "tests/wrongbook-header-steady-browser.test.mjs"
   ],
   "ffmpeg": [
     "tests/audio-ogg-ffmpeg.test.mjs",
