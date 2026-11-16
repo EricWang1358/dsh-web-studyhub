@@ -3,7 +3,10 @@
 // older day, grouped by import day (so 全部展开 exists), with the index coverage held at the network edge and let through once the page is drawn.
 // Checked at each width: (a) typing in 筛选资料 moves nothing above the list; (b) the index badge is readable, never under the row's icon, and a row is as tall
 // before its badge arrives as after; (c) 添加资料 ends the header's title row at its right edge, the other actions on that one line; (d) the follow mark stays
-// inside the page's content box.
+// inside the page's content box. Then, from what the same pages showed (#1083, round 5): (e) a wide row keeps no blank strip for its hidden actions, its facts
+// are not cut while they fit, and hovering or focusing a row moves nothing; (f) a narrow row puts mastery and coverage on one line where they fit; (g) 查看 N 页
+// starts where the title's text does, and the filter keeps only the room its count needs; (h) a choice in the compact header’s 更多 leaves focus on its
+// trigger, which is the same element; (i) the compact header keeps one line in the narrowest docked column.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -92,6 +95,24 @@ test('资料 holds still and tidy at every width in zh and en: header, controls,
       }),
     };
   });
+  // A row's own boxes, for (e)–(g): the text column against the line it sits in, each piece of the facts line (natural width = scrollWidth), the title and
+  // the facts, the status line's mastery and coverage, and where the text of 查看 N 页 starts.
+  const rowsLook = page => page.evaluate(() => [...document.querySelectorAll('.source-doc')].slice(0, 6).map(row => {
+    // In the row's own coordinates, so a scroll of the page is not taken for a move.
+    const at = row.getBoundingClientRect();
+    const r = el => { if (!el) return null; const b = el.getBoundingClientRect(); return [b.left - at.left, b.right - at.left, b.top - at.top, b.bottom - at.top]; };
+    const meta = row.querySelector('.source-doc__meta'), gap = parseFloat(getComputedStyle(meta).columnGap) || 0;
+    const facts = [...meta.children].map(small => ({ text: small.textContent.trim(), natural: small.scrollWidth, shown: small.clientWidth }));
+    const toggle = row.querySelector('.source-doc__pages-toggle'), words = toggle && [...toggle.childNodes].find(node => node.nodeType === 3 && node.textContent.trim());
+    let toggleText = null;
+    if (words) { const range = document.createRange(); range.selectNodeContents(words); toggleText = range.getBoundingClientRect().left - at.left; }
+    return { key: row.getAttribute('data-document-key'), height: row.getBoundingClientRect().height, line: r(row.querySelector('.source-doc__line')),
+      text: r(row.querySelector('.source-main > span')), title: r(row.querySelector('.source-title')), meta: r(meta), metaWidth: meta.clientWidth,
+      factsNatural: facts.reduce((sum, f) => sum + f.natural, 0) + gap * Math.max(0, facts.length - 1), facts,
+      mastery: r(row.querySelector('.source-doc__quality .mastery-line')), coverage: r(row.querySelector('.source-doc__quality [data-coverage-chip]')), toggleText,
+      status: r(row.querySelector('.source-doc__status')), actions: getComputedStyle(row.querySelector('.source-doc__actions')).opacity === '0' ? null : r(row.querySelector('.source-doc__actions')) };
+  }));
+  const wide = [], narrowRows = [], pagesToggle = [], filterRoom = [];
   const near = (a, b) => Math.abs(a - b) < 1;
   // Within a pixel: the edges are fractional, and a moved or narrowed control (the old faults) was off by ten pixels or more.
   const still = (now, was, what) => assert.ok(now && was && now.every((v, i) => near(v, was[i])), `${what}: ${JSON.stringify(was)} -> ${JSON.stringify(now)}`);
@@ -127,11 +148,32 @@ test('资料 holds still and tidy at every width in zh and en: header, controls,
       // (d) the follow mark is inside the content box.
       if (before.follow) assert.ok(before.follow[1] <= before.column + 0.5, `${at}: the follow mark ends at ${before.follow[1]}, past the column (${before.column})`);
 
+      // Data for (e)–(g), asserted after the loop so that each of them reports every width it fails at.
+      const rows = await rowsLook(page), isNarrow = await page.locator('.sources-page.is-narrow').count() > 0;
+      pagesToggle.push(...rows.filter(row => row.toggleText != null).map(row => ({ at, key: row.key, toggle: row.toggleText, title: row.title[0] })));
+      if (isNarrow) narrowRows.push({ at, rows });
+      else {
+        await page.locator('.source-doc').nth(1).hover();
+        await page.waitForTimeout(250);
+        const hovered = await rowsLook(page);
+        await page.mouse.move(1, 1);
+        await page.locator('.source-doc').nth(2).locator('.source-main').evaluate(el => el.focus({ preventScroll: true }));
+        await page.waitForTimeout(250);
+        const focused = await rowsLook(page);
+        await page.evaluate(() => document.activeElement?.blur());
+        wide.push({ at, rows, hovered, focused });
+      }
+
       // (a) typing changes nothing above the list: the header's actions, the scope select, the filter and the view bar keep their boxes.
       await page.locator('.sources-filter__input').fill(lang === 'en' ? 'lecture' : '讲义');
       await page.locator('.sources-filter__count').waitFor();
       await page.waitForTimeout(100);
       const typing = await look(page);
+      filterRoom.push({ at, ...await page.evaluate(() => {
+        const input = document.querySelector('.sources-filter__input'), state = document.querySelector('.sources-filter__state');
+        return { padding: parseFloat(getComputedStyle(input).paddingInlineEnd), state: state.getBoundingClientRect().width,
+          inset: input.getBoundingClientRect().right - state.getBoundingClientRect().right };
+      }) });
       assert.equal(typing.header.length, before.header.length, `${at}: typing adds or removes no header action`);
       typing.header.forEach((b, i) => still(b, before.header[i], `${at}: header action ${i} while typing`));
       still(typing.select, before.select, `${at}: the scope select while typing`);
@@ -141,4 +183,87 @@ test('资料 holds still and tidy at every width in zh and en: header, controls,
       await page.close();
     }
   }
+
+  // Each of (e)–(i) is a subtest, so a fault in one does not hide the others; each lists every width it fails at.
+  const box = (row, key) => row[key].map(v => v.toFixed(1)).join(',');
+  await t.test('(e) a wide row keeps no blank strip for its hidden actions, its facts are not cut while they fit, and hover or focus moves nothing', () => {
+    const faults = [];
+    for (const { at, rows, hovered, focused } of wide) {
+      for (const row of rows) {
+        const strip = row.line[1] - row.text[1];
+        if (strip > 1) faults.push(`${at}: ${row.key}'s text column ends ${strip.toFixed(1)}px before the row's end`);
+        if (row.factsNatural <= row.metaWidth + 1) {
+          for (const fact of row.facts) if (fact.natural > fact.shown + 1) faults.push(`${at}: ${row.key}'s facts fit (${row.factsNatural.toFixed(0)} of ${row.metaWidth}px) yet "${fact.text}" is cut to ${fact.shown}px`);
+        }
+        const numbers = row.facts.at(-1);
+        if (numbers.natural > numbers.shown + 1) faults.push(`${at}: ${row.key}'s numbers "${numbers.text}" are cut to ${numbers.shown}px`);
+      }
+      for (const [how, now] of [['hovering', hovered], ['focusing', focused]]) now.forEach((row, i) => {
+        const was = rows[i];
+        if (!near(row.height, was.height) || !row.title.every((v, k) => near(v, was.title[k])) || !row.meta.every((v, k) => near(v, was.meta[k])))
+          faults.push(`${at}: ${how} a row moves ${row.key}: height ${was.height} -> ${row.height}, title ${box(was, 'title')} -> ${box(row, 'title')}, facts ${box(was, 'meta')} -> ${box(row, 'meta')}`);
+        // The actions it shows lie beside the title and the facts only: never over the status line under them.
+        if (row.actions && row.actions[3] > row.status[2] + 0.5) faults.push(`${at}: ${how} a row shows ${row.key}'s actions (${box(row, 'actions')}) over its status line (${box(row, 'status')})`);
+      });
+      if (![hovered, focused].every(now => now.some(row => row.actions))) faults.push(`${at}: hovering or focusing a row shows no actions`);
+    }
+    assert.equal(wide.length, 10, 'the wide widths (960–1440) were measured in both languages');
+    assert.deepEqual(faults, []);
+  });
+
+  await t.test('(f) a narrow row puts its mastery and coverage on one line', () => {
+    const faults = [];
+    for (const { at, rows } of narrowRows) for (const row of rows) {
+      if (!row.mastery || !row.coverage) continue;
+      // One line: the two overlap vertically (they are centred on it), instead of the coverage starting under the mastery.
+      if (!(row.coverage[2] < row.mastery[3] && row.coverage[3] > row.mastery[2])) faults.push(`${at}: ${row.key}'s coverage (${box(row, 'coverage')}) is under its mastery (${box(row, 'mastery')})`);
+    }
+    assert.ok(narrowRows.some(({ rows }) => rows.some(row => row.mastery && row.coverage)), 'some narrow row has both');
+    assert.deepEqual(faults, []);
+  });
+
+  await t.test('(g) 查看 N 页 starts where the title text does; the filter keeps only the room its count needs', () => {
+    const faults = pagesToggle.filter(({ toggle, title }) => !near(toggle, title)).map(({ at, key, toggle, title }) => `${at}: ${key}'s 查看 N 页 starts at ${toggle.toFixed(1)}, the title at ${title.toFixed(1)}`);
+    assert.ok(pagesToggle.length >= WIDTHS.length * 2, 'the multi-page rows were measured');
+    // The count (and its ×) sit inside the field's end: the field's end padding holds them, with no more than one small gap to spare.
+    for (const { at, padding, state, inset } of filterRoom) {
+      if (padding < state + inset - 0.5 || padding > state + inset + 8) faults.push(`${at}: the filter keeps ${padding}px at its end for a count of ${(state + inset).toFixed(1)}px`);
+    }
+    assert.deepEqual(faults, []);
+  });
+
+  await t.test('(h) a choice in the compact header’s 更多 leaves focus on its trigger, and the header is not drawn again', async () => {
+    for (const [lang, width] of [['zh', 720], ['en', 1000]]) {
+      const { page, errors, hold } = await open(lang, width);
+      hold.release('retrieval.index.coverage', coverage);
+      const trigger = page.locator('.sources-page__header').getByRole('button', { name: lang === 'en' ? 'More' : '更多', exact: true });
+      await trigger.waitFor();
+      const node = await trigger.elementHandle();
+      for (const item of lang === 'en' ? [/^(Expand|Collapse) all$/, /^Archived/] : [/^全部(展开|收起)$/, /^已归档/]) {
+        await trigger.click();
+        await page.getByRole('menuitem', { name: item }).click();
+        await page.waitForTimeout(300);
+        const after = await node.evaluate(el => ({ connected: el.isConnected, focused: document.activeElement === el, active: `${document.activeElement?.tagName} ${document.activeElement?.textContent?.trim().slice(0, 20)}` }));
+        assert.ok(after.connected, `${lang} ${width}: choosing ${item} drew the header's 更多 again`);
+        assert.ok(after.focused, `${lang} ${width}: after choosing ${item} the focus is on ${after.active}, not on 更多`);
+      }
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  });
+
+  // 580 is the narrowest window with the sidebar docked (a 318px column). A phone (360) may put the compact header under the title: not asserted here.
+  await t.test('(i) the compact header keeps one line in the narrowest docked column and around it', async () => {
+    const faults = [];
+    for (const lang of ['en', 'zh']) for (const width of [560, 580, 600]) {
+      const { page } = await open(lang, width);
+      const { title, actions } = await page.evaluate(() => {
+        const r = el => { const b = el.getBoundingClientRect(); return [b.top, b.bottom]; };
+        return { title: r(document.querySelector('.sources-page__header h1')), actions: [...document.querySelectorAll('.sources-page__header .sh-page-header__actions > *')].map(r) };
+      });
+      if (!actions.every(([top, bottom]) => top < title[1] && bottom > title[0])) faults.push(`${lang} ${width}: the title is ${title} and its actions ${JSON.stringify(actions)}: not one line`);
+      await page.close();
+    }
+    assert.deepEqual(faults, []);
+  });
 });
