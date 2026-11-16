@@ -93,6 +93,11 @@ Personalisation (设置 › 界面, `ui/appearance-prefs.js`) is data attributes
 ## Restraint
 
 - No boxed navigation, no rows of equal stat tiles, no ambient glow or glass.
+- Buttons (#1074–#1077, `tests/ui-buttons-round.test.mjs`):
+  - A primary rests on its inner `--sheen` only: no accent glow or coloured shadow under it. Hover lifts it 1px on the neutral `--shadow-contact`.
+  - A text-only action is a quiet button: regular weight (`--fw-regular`; the Han fallback fonts draw `--fw-medium` as full bold, which made a bare word read as a heading), a hover surface, and an icon where it helps (a tool such as 帮我弄懂 or 修题 always has one). An underline is only for a link that goes somewhere else.
+  - One action, one look: 添加资料 is `<AddSourceButton variant>` (`ui/components/AddSourceButton.jsx`), the upload icon and the words everywhere; only the variant changes with the place (primary: the one main action of the screen; secondary / quiet: beside others; link: inside a sentence), and `addSourceAction(onClick)` is the same as an `EmptyState` action. Never draw it by hand.
+  - The core loop's buttons are standard size: 下一题 / 完成 is a 40px primary with the arrow as `iconEnd="arrow-right"`, 上一题 a standard secondary; `size="sm"` is for a row inside a list or a dense bar, never for the one action of a page.
 - No helper sentence where a number, label or layout already says it.
 - Per-row actions (play, practise, select) appear on hover on pointer devices; information such as "继续 3/5" stays visible.
 
