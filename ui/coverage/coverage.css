@@ -27,8 +27,8 @@
     .cov-bar [data-kind='covered'] { --sh-tone: var(--cov-covered); }
     .cov-bar [data-kind='scheduled'] { --sh-tone: var(--text-faint); }
     .cov-bar [data-kind='never-planned'] { --sh-tone: var(--line); }
-    /* An empty track has no fill to show in the key: its swatch is a ring. */
-    .cov-bar .sh-stacked__key[data-kind='never-planned'] .sh-stacked__swatch { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }
+    /* An empty track has no fill to show in the key: its swatch is a ring (the swatch itself is feedback.css's; this sets what it reads). */
+    .cov-bar li[data-kind='never-planned'] { --sh-tone: transparent; --sh-swatch-ring: var(--line-strong); }
     /* A material row: the mastery line and the coverage chip share one line (it wraps rather than growing the row sideways). */
     .source-doc__quality { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-half) var(--space-4); min-width: 0; }
     /* ── The summary on the draft page ─────────────────────────────────── */

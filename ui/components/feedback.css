@@ -148,7 +148,7 @@
     }
     .sh-stacked__key { display: inline-flex; align-items: center; gap: calc(var(--space-1) + var(--space-half)); }
     .sh-stacked__key strong { color: var(--text); font-variant-numeric: tabular-nums; }
-    .sh-stacked__swatch { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sh-tone); }
+    .sh-stacked__swatch { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sh-tone); box-shadow: inset 0 0 0 1px var(--sh-swatch-ring, transparent); }
     /* ── Error state and crash fallback ─────────────────────────────────── */
     .sh-error-state--compact { margin: 0; }
     .sh-crash {
