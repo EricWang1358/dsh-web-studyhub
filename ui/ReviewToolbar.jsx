@@ -57,11 +57,11 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
   return (
     <div className="question-toolbar">
       <div className="question-tools">
-        {!run.feedback && <Button variant="quiet" className="tool-action" data-tour="review-hint" aria-expanded={!!expanded} onClick={onToggleHelp}>
+        {!run.feedback && <Button variant="quiet" icon="help" className="tool-action" data-tour="review-hint" aria-expanded={!!expanded} onClick={onToggleHelp}>
           {run.revealed ? ui("讲解") : ui("提示")}
         </Button>}
-        <Button variant="quiet" className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</Button>
-        <Button variant="quiet" className="tool-action" data-tour="review-improve" data-usage="review.improve" aria-expanded={assistMode === "improve"} onClick={onImprove}>{ui("修题")}</Button>
+        <Button variant="quiet" icon="sparkle" className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</Button>
+        <Button variant="quiet" icon="edit" className="tool-action" data-tour="review-improve" data-usage="review.improve" aria-expanded={assistMode === "improve"} onClick={onImprove}>{ui("修题")}</Button>
         {thumbs}
       </div>
       {run.mode === "exam" && <p className="muted small next-due">{ui("这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。")}</p>}
@@ -71,15 +71,15 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
         <Menu label={ui("更多")} items={more.map(({ run: _run, ...item }) => item)} defaultOpen={moreDefaultOpen}
           onSelect={(id) => more.find((item) => item.id === id)?.run?.()}
           trigger={({ props, ref }) => <Button ref={ref} variant="quiet" className="tool-action review-more-trigger" {...props}>{ui("更多")}</Button>} />
-        <Button size="sm" data-usage="review.prev" disabled={run.index === 0} lock={busy} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
+        <Button data-usage="review.prev" disabled={run.index === 0} lock={busy} title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: -1 })}>{ui("上一题")}</Button>
-        <Button variant="primary" size="sm" data-usage="review.next"
+        <Button variant="primary" iconEnd="arrow-right" data-usage="review.next"
           className={"next-question" + (autoAdvanceActive ? " is-autopilot" + (autoAdvancePaused ? " is-paused" : "") : "")}
           disabled={nextBlocked}
           aria-describedby={needsAnswer && !busy ? NEXT_HINT_ID : undefined}
           title={busy ? ui("正在保存上一步，稍等一下") : undefined}
           onClick={() => onReviewAction("review.move", { direction: 1 })}>
-          {last ? ui("完成") : ui("下一题")} →
+          {last ? ui("完成") : ui("下一题")}
           {autoAdvanceActive && (
             <span className={"next-question__bar" + (autoAdvancePaused ? " is-paused" : "")}
               style={autoAdvanceMs > 0 ? { "--autopilot-ms": `${autoAdvanceMs}ms` } : undefined}

@@ -180,6 +180,7 @@ test('the one big file is held between pages and let go: never two at once, and 
   assert.ok(pageSource.state().key.includes('Second.pdf'));
   pageSource.release();
   assert.equal(pageSource.state().files, 0);
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(collectGarbage(), true);
   const after = settledMemory().arrayBuffers;
   assert.ok(after - before < 20, `the memory is given back (${after - before} MiB more than before)`);

@@ -10,25 +10,30 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { compileMathExpression, evaluateSandboxPreview } from '../lib/companion-template/math-eval.js';
 import { compileMathInLesson, renderTexToMathMl } from '../lib/companion-template/mathml.js';
 import { buildLessonTemplateRuntimeJs, LESSON_TEMPLATE_RUNTIME_JS } from '../lib/companion-template/template-runtime.js';
+import { LESSON_TEMPLATE_CSS } from '../lib/companion-template/template-styles.js';
 import { normalizeLessonSpec, validateLessonSpec } from '../lib/companion-template/validate.js';
 import { compileLessonHtml } from '../lib/companion-template/render-html.js';
 import {
   applyFirstPassCredit,
   compileLessonCards,
+  detokenizeLesson,
   extractEmbeddedLesson,
   extractWorkshopLesson,
   normalizeSandboxMathExpr,
   projectLessonSource,
 } from '../lib/companion/companion-lesson.js';
 import {
+  MAX_COMPANION_BYTES,
   extractResilientLesson,
   resolveUnbuiltLessonSources,
   sanitizeWindowsFilename,
   scopeCompanionArgs,
 } from '../lib/companion/companions.js';
+import { localizeAppMessage } from '../lib/application-messages.js';
 import { mergeCourses } from '../lib/courses.js';
 import { assistantRefusal } from '../lib/assistant-boundary.js';
-import { extractStructuredSourceExcerpt, planCompanionBuild } from '../lib/contexts/generation/companion/plan.js';
+import { estimateCalls, extractStructuredSourceExcerpt, planCompanionBuild } from '../lib/contexts/generation/companion/plan.js';
+import { estimateOfCompanionPlan } from '../lib/contexts/generation/companion/start.js';
 import { preRepairLessonSpec, preRepairLessonWithReport } from '../lib/contexts/generation/companion/jobs/companion-lesson-build.js';
 import { StudyService } from '../lib/service.js';
 import { switchOptions } from './helpers/runtime-switch.mjs';
@@ -40,7 +45,7 @@ const uiMod = await loadUi(`
   export { StudyServicesContext } from './ui/study-context.jsx';
   export { AppContext } from './ui/app/app-context.js';
   export { default as CourseCompanionsBar } from './ui/companions/CourseCompanionsBar.jsx';
-  export { default as CompanionBuildDialog } from './ui/companions/CompanionBuildDialog.jsx';
+  export { default as CompanionBuildDialog, formatEstimateRange } from './ui/companions/CompanionBuildDialog.jsx';
   export { default as CompanionViewer } from './ui/companions/CompanionViewer.jsx';
   export { resolveCompanionTarget, resolveSourceCompanionTarget } from './ui/companions/companion-ref.js';
   export { default as LearningActions } from './ui/review/LearningActions.jsx';
@@ -55,6 +60,7 @@ const {
   AppContext,
   CourseCompanionsBar,
   CompanionBuildDialog,
+  formatEstimateRange,
   CompanionViewer,
   resolveCompanionTarget,
   resolveSourceCompanionTarget,
@@ -488,6 +494,9 @@ test('Layer 3: 4-stage generation.companion.build Job (estimate, Stage 3 auto-re
     });
     assert.equal(est.status, 'estimate');
     assert.equal(est.grounded, false);
+    assert.deepEqual(est.estimate.calls, { low: 3, high: 4 });
+    assert.ok(est.estimate.inputTokens.low > 500 && est.estimate.outputTokens.low > 1000, 'Companion estimate must produce non-zero token ranges');
+    assert.ok(est.estimate.totalTokens.high > est.estimate.totalTokens.low, 'Companion estimate totalTokens must be a real range');
     assert.equal(modelCalls.length, 0);
 
     // 2. Submit real 4-stage Job (triggers Stage 3 repair because act1Slides has brokenSpotLine: 99!)
@@ -1322,4 +1331,582 @@ test('Wave 5 & 6: </script>+U+2028 lossless round-trip, advanced MathML, LLM ali
   } finally {
     setUiLanguage('zh');
   }
+});
+
+test('Wave 7 Polish: non-zero blueprint estimate ranges, 60-page PDF document grouping, zero cross-course leak & [object Object] guard', () => {
+  const pdfHash = 'a'.repeat(64);
+  const pdfPages = Array.from({ length: 60 }, (_, idx) => ({
+    id: `src-ra-p${idx + 1}`,
+    title: `Real Analysis Lecture Notes.pdf · p. ${idx + 1}`,
+    text: `Chapter ${Math.ceil((idx + 1) / 10)}: Uniform convergence page ${idx + 1} proof and theorem.`,
+    courses: ['Real Analysis'],
+    document: { id: pdfHash, materialId: `document-${pdfHash}-pdf`, format: 'pdf', page: idx + 1, totalPages: 60, bookTitle: 'Real Analysis Lecture Notes.pdf', extractionVersion: 2 },
+    createdAt: '2026-11-16T00:00:00.000Z',
+  }));
+  const state = { sources: pdfPages, documents: [] };
+  const plan = planCompanionBuild(state, {
+    course: 'Real Analysis',
+    topic: 'Uniform convergence and integral swapping',
+    sourceIds: pdfPages.slice(0, 5).map(s => s.id),
+    language: 'en',
+  });
+  const calls = estimateCalls(plan);
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls.map(c => c.id), ['plan', 'author', 'author']);
+  assert.ok(calls.every(c => c.outputChars?.low > 0 && c.outputChars?.high > c.outputChars?.low));
+
+  const est = estimateOfCompanionPlan(plan);
+  assert.deepEqual(est.calls, { low: 3, high: 4 });
+  assert.ok(est.inputTokens.low > 500);
+  assert.ok(est.outputTokens.low > 1000);
+  assert.ok(est.totalTokens.high > est.totalTokens.low);
+
+  assert.equal(formatEstimateRange({ low: 3, high: 4 }, n => String(n)), '3–4');
+  assert.equal(formatEstimateRange({ low: 3, high: 3 }, n => String(n)), '3');
+  assert.equal(formatEstimateRange(5, n => String(n)), '5');
+  assert.ok(!formatEstimateRange(est.totalTokens).includes('[object Object]'));
+
+  setUiLanguage('en');
+  try {
+    const fakeStudy = { busy: false, call: () => new Promise(() => {}), act: async () => ({}), notify: () => {}, openModal: () => {}, openSettings: () => {} };
+    const appWith60PagePdf = {
+      data: {
+        focus: { course: 'Real Analysis', courses: ['Real Analysis', 'Moral Philosophy'] },
+        courses: [{ id: 'c-ra', name: 'Real Analysis', companions: [] }, { id: 'c-mp', name: 'Moral Philosophy', companions: [] }],
+        sources: pdfPages,
+        documents: [],
+        decks: [],
+        settings: { modelReady: true },
+        modelStatus: { ready: true, reason: 'ok', label: 'Mock' },
+      },
+      core: { refresh: () => {} },
+    };
+
+    // 1. 60-page PDF in 'Real Analysis' groups into 1 document checkbox, counts as "1 selected", and formats { low, high } estimate cleanly
+    const raHtml = renderToStaticMarkup(
+      React.createElement(StudyServicesContext.Provider, { value: fakeStudy },
+        React.createElement(AppContext.Provider, { value: appWith60PagePdf },
+          React.createElement(CompanionBuildDialog, {
+            modal: {
+              course: 'Real Analysis',
+              topic: 'Uniform convergence',
+              sourceIds: pdfPages.map(p => p.id),
+              initialEstimate: { status: 'estimate', estimate: est },
+            },
+            onClose: () => {},
+          }),
+        ),
+      ),
+    );
+    const checkboxMatches = raHtml.match(/type="checkbox"/g) || [];
+    assert.equal(checkboxMatches.length, 1, `60-page PDF must collapse into 1 document checkbox, got ${checkboxMatches.length}`);
+    assert.ok(raHtml.includes('Real Analysis Lecture Notes.pdf'));
+    assert.ok(raHtml.includes('(1 selected;'), `60 selected page IDs of 1 PDF must display "(1 selected;", got: ${raHtml}`);
+    assert.ok(raHtml.includes('~3–4 model calls'), `Expected "~3–4 model calls" in estimate banner, got: ${raHtml}`);
+    assert.ok(!raHtml.includes('[object Object]'), 'Estimate banner must never render [object Object]');
+    assert.ok(!raHtml.includes('questions.json'), 'Build dialog must not expose raw questions.json filename');
+    assert.ok(!CJK_RE.test(raHtml), `English CompanionBuildDialog must contain zero Han chars: ${raHtml}`);
+
+    // 2. Course 'Moral Philosophy' with 0 matching documents renders 0 source checkboxes (no fallback to 'Real Analysis' PDF!)
+    const emptyCourseHtml = renderToStaticMarkup(
+      React.createElement(StudyServicesContext.Provider, { value: fakeStudy },
+        React.createElement(AppContext.Provider, { value: appWith60PagePdf },
+          React.createElement(CompanionBuildDialog, {
+            modal: { course: 'Moral Philosophy', topic: 'Kantian duty' },
+            onClose: () => {},
+          }),
+        ),
+      ),
+    );
+    assert.ok(!emptyCourseHtml.includes('Real Analysis Lecture Notes.pdf'), 'Unrelated course materials must never leak when course has 0 matching documents');
+    assert.equal((emptyCourseHtml.match(/type="checkbox"/g) || []).length, 0);
+    assert.ok(!CJK_RE.test(emptyCourseHtml));
+  } finally {
+    setUiLanguage('zh');
+  }
+});
+
+test('Wave 7 Polish: static WeakMap quiz & workshop slot IDs survive out-of-order jumps, back-navigation & beforeprint', () => {
+  // Build a minimal DOM harness to run LESSON_TEMPLATE_RUNTIME_JS end-to-end across slides & print events
+  function makeDomHarness(lessonSpec, initialHash = '#3') {
+    const listeners = new Map();
+    const winListeners = new Map();
+    const idMap = new Map();
+    const posted = [];
+    const storage = new Map();
+
+    class FakeNode {
+      constructor(tag) {
+        this.tagName = String(tag || 'div').toUpperCase();
+        this.localName = String(tag || 'div').toLowerCase();
+        this.className = '';
+        this.children = [];
+        this.parentNode = null;
+        this.attributes = new Map();
+        this.events = new Map();
+        this.dataset = {};
+        this.style = { setProperty() {} };
+        this._text = '';
+        this.hidden = false;
+        this.disabled = false;
+        this.checked = false;
+        this.open = false;
+        this.value = '';
+        this.scrollTop = 0;
+        this.clientHeight = 400;
+        this.offsetTop = 0;
+        this.offsetWidth = 120;
+        this.offsetHeight = 32;
+        this.classList = {
+          add: (...cls) => {
+            const set = new Set(this.className.split(/\s+/).filter(Boolean));
+            for (const c of cls) if (c) set.add(c);
+            this.className = [...set].join(' ');
+          },
+          remove: (...cls) => {
+            const set = new Set(this.className.split(/\s+/).filter(Boolean));
+            for (const c of cls) set.delete(c);
+            this.className = [...set].join(' ');
+          },
+          toggle: (c, force) => {
+            const set = new Set(this.className.split(/\s+/).filter(Boolean));
+            const next = force === undefined ? !set.has(c) : Boolean(force);
+            if (next) set.add(c); else set.delete(c);
+            this.className = [...set].join(' ');
+            return next;
+          },
+          contains: c => this.className.split(/\s+/).filter(Boolean).includes(c),
+        };
+      }
+      get isConnected() { return true; }
+      get textContent() {
+        if (this.children.length === 0) return this._text;
+        return this._text + this.children.map(c => (typeof c === 'string' ? c : c.textContent)).join('');
+      }
+      set textContent(v) {
+        this._text = String(v ?? '');
+        this.children = [];
+      }
+      setAttribute(k, v) {
+        const sv = String(v);
+        this.attributes.set(k, sv);
+        if (k === 'id') idMap.set(sv, this);
+        if (k === 'hidden') this.hidden = true;
+        if (k === 'disabled') this.disabled = true;
+        if (k === 'checked') this.checked = true;
+        if (k === 'open') this.open = true;
+      }
+      getAttribute(k) { return this.attributes.get(k) ?? null; }
+      removeAttribute(k) {
+        this.attributes.delete(k);
+        if (k === 'hidden') this.hidden = false;
+        if (k === 'disabled') this.disabled = false;
+      }
+      append(...kids) {
+        for (const k of kids) {
+          if (k === null || k === undefined || k === false) continue;
+          if (k instanceof FakeFragment) {
+            this.append(...k.children);
+          } else if (typeof k === 'string' || typeof k === 'number') {
+            const tn = new FakeNode('#text');
+            tn._text = String(k);
+            tn.parentNode = this;
+            this.children.push(tn);
+          } else {
+            k.parentNode = this;
+            this.children.push(k);
+          }
+        }
+      }
+      prepend(...kids) {
+        const prev = this.children;
+        this.children = [];
+        this.append(...kids, ...prev);
+      }
+      insertBefore(newNode, refNode) {
+        newNode.parentNode = this;
+        const idx = this.children.indexOf(refNode);
+        if (idx >= 0) this.children.splice(idx, 0, newNode);
+        else this.children.push(newNode);
+        return newNode;
+      }
+      replaceChildren(...kids) {
+        this.children = [];
+        this._text = '';
+        this.append(...kids);
+      }
+      remove() {
+        if (!this.parentNode) return;
+        const idx = this.parentNode.children.indexOf(this);
+        if (idx >= 0) this.parentNode.children.splice(idx, 1);
+      }
+      addEventListener(name, fn) {
+        if (!this.events.has(name)) this.events.set(name, []);
+        this.events.get(name).push(fn);
+      }
+      dispatch(name, ev = {}) {
+        for (const fn of this.events.get(name) || []) {
+          fn({ preventDefault() {}, stopPropagation() {}, currentTarget: this, target: this, ...ev });
+        }
+      }
+      click() { this.dispatch('click'); }
+      closest() { return null; }
+      contains(target) {
+        if (this === target) return true;
+        return this.children.some(c => c instanceof FakeNode && c.contains(target));
+      }
+      getBoundingClientRect() { return { left: 20, top: 20, width: 100, height: 24, bottom: 44 }; }
+      scrollIntoView() {}
+      querySelectorAll(sel) {
+        const parts = sel.split(',').map(s => s.trim()).filter(Boolean);
+        const out = [];
+        const matchOne = (node, part) => {
+          if (part.startsWith('.')) return node.classList.contains(part.slice(1));
+          if (part.includes('.')) {
+            const [tg, cl] = part.split('.');
+            return node.localName === tg && node.classList.contains(cl);
+          }
+          return node.localName === part;
+        };
+        const visit = node => {
+          for (const ch of node.children) {
+            if (ch instanceof FakeNode) {
+              if (parts.some(p => matchOne(ch, p))) out.push(ch);
+              visit(ch);
+            }
+          }
+        };
+        visit(this);
+        return out;
+      }
+      querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
+    }
+    class FakeFragment {
+      constructor() { this.children = []; }
+      append(...kids) {
+        for (const k of kids) {
+          if (k === null || k === undefined || k === false) continue;
+          if (k instanceof FakeFragment) this.children.push(...k.children);
+          else this.children.push(k);
+        }
+      }
+    }
+
+    const docEl = new FakeNode('html');
+    const body = new FakeNode('body');
+    const mkId = (tag, id, cls = '') => {
+      const n = new FakeNode(tag);
+      if (cls) n.className = cls;
+      n.setAttribute('id', id);
+      return n;
+    };
+    const top = new FakeNode('header'); top.className = 'top';
+    const title = mkId('div', 'title', 'top__title');
+    const beats = mkId('nav', 'beats', 'beats');
+    const tools = new FakeNode('div'); tools.className = 'top__tools';
+    const count = mkId('span', 'count', 'num');
+    const notesWrap = new FakeNode('div'); notesWrap.className = 'notes';
+    const notes = mkId('button', 'notes', 'tool');
+    const notesList = mkId('ul', 'notes-list', 'notes__list'); notesList.hidden = true;
+    notesWrap.append(notes, notesList);
+    const theme = mkId('button', 'theme', 'tool');
+    tools.append(count, notesWrap, theme);
+    top.append(title, beats, tools);
+    const stage = mkId('main', 'stage', 'stage');
+    const voice = new FakeNode('footer'); voice.className = 'voice';
+    const line = mkId('p', 'line', 'voice__line');
+    const key = mkId('p', 'key', 'voice__key');
+    const prev = mkId('button', 'prev', 'btn');
+    const next = mkId('button', 'next', 'btn');
+    voice.append(line, key, prev, next);
+    const lessonData = mkId('script', 'lesson-data');
+    lessonData._text = JSON.stringify(lessonSpec);
+    const bootEl = mkId('script', 'sh-companion-boot');
+    bootEl._text = JSON.stringify({ protocol: 'studyhub-companion/1', channelToken: 'tok-slot', theme: 'dark', initialAnchor: initialHash, memory: {} });
+    body.append(top, stage, voice, lessonData, bootEl);
+    docEl.append(body);
+
+    const document = {
+      documentElement: docEl,
+      body,
+      getElementById: id => idMap.get(id) || null,
+      createElement: tag => new FakeNode(tag),
+      createElementNS: (_ns, tag) => new FakeNode(tag),
+      createDocumentFragment: () => new FakeFragment(),
+      createTextNode: txt => { const n = new FakeNode('#text'); n._text = String(txt); return n; },
+      importNode: node => node,
+      querySelector: sel => {
+        if (sel === '.voice') return voice;
+        if (sel === '.top__tools') return tools;
+        return body.querySelector(sel);
+      },
+      addEventListener: (name, fn) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(fn);
+      },
+      dispatchEvent: () => {},
+    };
+    const parentWin = { postMessage: msg => posted.push(msg) };
+    const windowObj = {
+      Lesson: null,
+      parent: parentWin,
+      innerWidth: 390,
+      innerHeight: 844,
+      matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+      getSelection: () => ({ toString: () => '', rangeCount: 0 }),
+      addEventListener: (name, fn) => {
+        if (!winListeners.has(name)) winListeners.set(name, []);
+        winListeners.get(name).push(fn);
+      },
+      dispatch: (name, ev = {}) => {
+        for (const fn of winListeners.get(name) || []) fn(ev);
+      },
+    };
+    const sandbox = {
+      window: windowObj,
+      document,
+      location: { hash: initialHash },
+      localStorage: {
+        getItem: k => storage.get(k) ?? null,
+        setItem: (k, v) => storage.set(k, String(v)),
+      },
+      requestAnimationFrame: fn => fn(),
+      setTimeout,
+      clearTimeout,
+      setInterval,
+      clearInterval,
+      CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init?.detail; } },
+      DOMParser: class { parseFromString() { return { documentElement: null }; } },
+      Math, Number, String, Boolean, Array, Object, Set, Map, WeakMap, RegExp, JSON, Infinity, NaN,
+    };
+    vm.runInNewContext(LESSON_TEMPLATE_RUNTIME_JS, sandbox);
+    return { stage, prev, next, posted, storage, windowObj };
+  }
+
+  const slotLesson = {
+    format: 'studyhub-lesson/1',
+    id: 'slot-stability',
+    language: 'en',
+    title: 'Slot Determinism Test',
+    beats: [{ id: 'run', label: 'Run' }, { id: 'check', label: 'Check' }],
+    slides: [
+      {
+        beat: 'run',
+        title: 'Workshop 1',
+        blocks: [{ t: 'try', title: 'First Drill', prompt: 'Sketch invariant 1', criteria: ['Step A', 'Step B'], say: 'Try 1' }],
+      },
+      {
+        beat: 'check',
+        title: 'Check Slide 1',
+        blocks: [{ t: 'quiz', q: 'First quiz?', answer: 1, say: 'Q1', options: ['Wrong A', 'Right B', 'Wrong C'] }],
+      },
+      {
+        beat: 'check',
+        title: 'Check Slide 2',
+        blocks: [
+          { t: 'quiz', q: 'Second quiz?', answer: 0, say: 'Q2', options: ['Right A', 'Wrong B', 'Wrong C'] },
+          { t: 'try', title: 'Second Drill', prompt: 'Sketch invariant 2', criteria: ['Step C'], say: 'Try 2' },
+        ],
+      },
+    ],
+  };
+
+  // Start directly on Slide 3 (#3) BEFORE Slide 1 or Slide 2 has ever been built!
+  const env = makeDomHarness(slotLesson, '#3');
+  // Click option 0 (correct) on Slide 3's quiz -> MUST report `slot: "check:1"`, NOT `"check:0"`!
+  const slide3QuizBtns = env.stage.querySelectorAll('.opt');
+  assert.equal(slide3QuizBtns.length, 3);
+  slide3QuizBtns[0].click();
+  const checkEvents = env.posted.filter(m => m.kind === 'self-check');
+  assert.equal(checkEvents.length, 1);
+  assert.equal(checkEvents[0].slot, 'check:1', 'Out-of-order jump to Slide 3 must still assign check:1 to the second quiz');
+  assert.equal(checkEvents[0].correct, true);
+
+  // Advance to reveal Workshop 2 on Slide 3 and write into its scratchpad -> MUST store under `try:w1:...`, NOT `try:w0:...`!
+  env.next.click();
+  const textarea3 = env.stage.querySelector('textarea');
+  assert.ok(textarea3, 'Workshop scratchpad textarea should mount on Slide 3');
+  textarea3.value = 'My invariant 2 proof';
+  textarea3.dispatch('change');
+  const memAfterSlide3 = JSON.parse(env.storage.get('lesson:slot-stability'));
+  assert.ok(Object.keys(memAfterSlide3).some(k => k.startsWith('try:w1:') && k.endsWith(':draft')), `Expected try:w1:*:draft key, got ${Object.keys(memAfterSlide3).join(', ')}`);
+
+  // Trigger beforeprint + afterprint (rebuilds ALL slides!) -> must NOT shift any quiz or workshop slot IDs!
+  env.windowObj.dispatch('beforeprint');
+  env.windowObj.dispatch('afterprint');
+
+  // Navigate back to Slide 2 -> answer Slide 2's quiz -> MUST report `slot: "check:0"`!
+  env.windowObj.dispatch('message', { data: { protocol: 'studyhub-companion/1', token: 'tok-slot', kind: 'goto', slide: 2 } });
+  const slide2QuizBtns = env.stage.querySelectorAll('.opt');
+  slide2QuizBtns[1].click();
+  const allChecks = env.posted.filter(m => m.kind === 'self-check');
+  assert.equal(allChecks.length, 2);
+  assert.equal(allChecks[1].slot, 'check:0', 'Navigating back to Slide 2 after beforeprint must still assign check:0');
+  assert.equal(allChecks[1].correct, true);
+
+  // Navigate forward to Slide 3 again -> quiz answer (`is-right`) AND scratchpad draft (`My invariant 2 proof`) remain intact!
+  env.windowObj.dispatch('message', { data: { protocol: 'studyhub-companion/1', token: 'tok-slot', kind: 'goto', slide: 3 } });
+  env.next.click();
+  assert.ok(env.stage.querySelectorAll('.opt')[0].classList.contains('is-right'), 'Quiz state must persist across back/forward navigation');
+  assert.equal(env.stage.querySelector('textarea')?.value, 'My invariant 2 proof', 'Workshop scratchpad draft must persist across back/forward navigation');
+});
+
+test('Wave 7 Polish: detokenized glossary & slide titles in companion.get, 15 MB message, CompanionViewer ready-state isolation, unmount flush & mobile/dark CSS', async () => {
+  // 1. detokenizeLesson + companion.get detokenizes `terms` (zero @@SHM_N@@ leaks) & populates `lesson.slides` titles
+  const tmp = await mkdtemp(join(tmpdir(), 'sh-comp-w7-'));
+  try {
+    const storeDir = join(tmp, 'lib');
+    const wsDir = join(tmp, 'ws');
+    await mkdir(wsDir, { recursive: true });
+    const svc = new StudyService(storeDir, {});
+    const spec = buildArchetypeLesson({ archetype: 'sandbox', language: 'en' });
+    const compiled = await svc.call('companion.compile', {
+      course: 'Vibrations',
+      lesson: spec,
+      workspace: wsDir,
+    });
+    const fetched = await svc.call('companion.get', { id: compiled.companion.id, course: 'Vibrations' });
+    assert.ok(fetched.lesson?.terms?.['Critical Damping'], 'Glossary term should exist in companion.get');
+    assert.ok(fetched.lesson.terms['Critical Damping'].includes('$\\zeta = 1$'), `Expected LaTeX restored in glossary term, got: ${fetched.lesson.terms['Critical Damping']}`);
+    assert.ok(!/@@SHM_\d+@@/.test(JSON.stringify(fetched.lesson)), 'companion.get lesson payload must contain zero raw @@SHM_N@@ tokens');
+    assert.equal(fetched.lesson.slides?.length, 16);
+    assert.equal(fetched.lesson.slides[0].title, 'A Deceptively Simple Question');
+    assert.equal(fetched.lesson.slides[0].beat, 'open');
+
+    // Direct detokenizeLesson export check on tokenized math keys & values
+    const tokenized = compileMathInLesson(normalizeLessonSpec(spec));
+    assert.match(JSON.stringify(tokenized.terms), /@@SHM_\d+@@/);
+    const detok = detokenizeLesson(tokenized);
+    assert.doesNotMatch(JSON.stringify(detok.terms), /@@SHM_\d+@@/);
+
+    // 15 MB limit constant & localized error message check
+    assert.equal(MAX_COMPANION_BYTES, 15 * 1024 * 1024);
+    assert.equal(localizeAppMessage('伴学 HTML 文件超过 15 MB 上限', 'en'), 'The companion HTML file exceeds the 15 MB limit');
+    const compJsText = await readFile(new URL('../lib/companion/companions.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(compJsText, /\b5 MB 上限/, 'companions.js must not contain stale 5 MB message');
+    assert.equal((compJsText.match(/伴学 HTML 文件超过 15 MB 上限/g) || []).length, 5);
+
+    svc.dispose();
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+
+  // 2. CompanionViewer ready-state SSR: ledger isolation, catch-up visibility, aria-label, unified Slide X/Y, zero questions.json jargon & zero Han in English
+  const readyState = {
+    status: 'ready',
+    companion: { id: 'comp-ethics', lessonId: 'ethics-1', title: 'Duty vs Utility', course: 'Moral Philosophy', slideCount: 16, linkedRoot: '/lab' },
+    html: '<!doctype html><html><head><title>Duty</title></head><body><main>Slide</main></body></html>',
+    file: '/lab/pages/ethics.html',
+    changedOnDisk: true,
+    lesson: {
+      id: 'ethics-1',
+      title: 'Duty vs Utility',
+      slideCount: 16,
+      slides: Array.from({ length: 16 }, (_, i) => ({ title: `Slide Title ${i + 1}`, beat: 'open' })),
+      terms: { 'Categorical Imperative': 'Act only according to universalizable maxims.' },
+    },
+    bootConfig: { channelToken: 'tok-ready', theme: 'dark', initialAnchor: '#1', initialSlide: 1, memory: {} },
+    relatedCards: [],
+  };
+
+  setUiLanguage('en');
+  try {
+    const fakeStudy = { busy: false, call: () => new Promise(() => {}), act: async () => ({}), notify: () => {}, openModal: () => {} };
+    const fakeApp = { data: { courses: [], sources: [], decks: [] }, core: { refresh: () => {} } };
+
+    // Case A: Feedback ledger has open items ONLY for `other-lesson-99` + tutorReply present with cleared `cardDraft` (post-save state)
+    const isolatedViewerHtml = renderToStaticMarkup(
+      React.createElement(StudyServicesContext.Provider, { value: fakeStudy },
+        React.createElement(AppContext.Provider, { value: fakeApp },
+          React.createElement(CompanionViewer, {
+            modal: {
+              id: 'comp-ethics',
+              course: 'Moral Philosophy',
+              openDrawer: true,
+              initialState: readyState,
+              initialFeedbackState: {
+                loading: false,
+                total: 2,
+                open: 2,
+                items: [
+                  { id: 'q-other-1', lessonId: 'other-lesson-99', slide: 4, slideTitle: 'Other Lesson Slide', tag: 'unclear', note: 'Leaked doubt from another lesson!', status: 'open' },
+                ],
+                error: '',
+              },
+              initialTutorReply: 'Here is the crisp tutor explanation.',
+              initialCardDraft: { prompt: '', answer: '', misconception: '' },
+            },
+            onClose: () => {},
+          }),
+        ),
+      ),
+    );
+    assert.ok(!isolatedViewerHtml.includes('Leaked doubt from another lesson!'), 'openFeedbackItems must never fall back to allOpen from other lessons');
+    assert.ok(isolatedViewerHtml.includes('0 open · 0 total'), `Expected isolated "0 open · 0 total", got: ${isolatedViewerHtml}`);
+    assert.ok(isolatedViewerHtml.includes('No open doubts recorded for this lesson.'));
+    assert.ok(isolatedViewerHtml.includes('aria-label="Ask Tutor About This Slide"'), 'Tutor TextArea must carry aria-label');
+    assert.ok(isolatedViewerHtml.includes('Slide 1/16'), 'Slide jump label must use unified "Slide 1/16"');
+    assert.ok(!isolatedViewerHtml.includes('Save to Companion Catch-ups'), 'Cleared cardDraft after save must hide catch-up form even while tutorReply stays visible');
+    assert.ok(!isolatedViewerHtml.includes('questions.json'), 'Viewer UI must not expose raw questions.json filename');
+    assert.ok(!CJK_RE.test(isolatedViewerHtml), `English ready CompanionViewer leaked Han chars: ${isolatedViewerHtml}`);
+
+    // Case B: Seeded cardDraft (even when suggestedCard was null, seeded from question + reply) renders catch-up form cleanly in English
+    const seededViewerHtml = renderToStaticMarkup(
+      React.createElement(StudyServicesContext.Provider, { value: fakeStudy },
+        React.createElement(AppContext.Provider, { value: fakeApp },
+          React.createElement(CompanionViewer, {
+            modal: {
+              id: 'comp-ethics',
+              course: 'Moral Philosophy',
+              openDrawer: true,
+              initialState: { ...readyState, companion: { ...readyState.companion, slideCount: 1 }, lesson: { ...readyState.lesson, slideCount: 1, slides: [{ title: 'Single Slide', beat: 'open' }] } },
+              initialTutorReply: 'Direct explanation.',
+              initialCardDraft: { prompt: 'My question', answer: 'Direct explanation.', misconception: 'My question' },
+            },
+            onClose: () => {},
+          }),
+        ),
+      ),
+    );
+    assert.ok(seededViewerHtml.includes('Save to Companion Catch-ups'), 'Seeded cardDraft must render catch-up card form');
+    assert.ok(seededViewerHtml.includes('Slide 1/1'), 'Single-slide badge must also use unified Slide 1/1');
+    assert.ok(!seededViewerHtml.includes('questions.json'));
+    assert.ok(!CJK_RE.test(seededViewerHtml), `English seeded CompanionViewer leaked Han chars: ${seededViewerHtml}`);
+  } finally {
+    setUiLanguage('zh');
+  }
+
+  // 3. Verify CompanionViewer flushes pending debounced `companion.progress` on unmount instead of dropping it
+  {
+    const viewerSrc = await readFile(new URL('../ui/companions/CompanionViewer.jsx', import.meta.url), 'utf8');
+    assert.match(viewerSrc, /flushPendingProgress/, 'CompanionViewer must define and invoke flushPendingProgress on cleanup');
+    assert.match(viewerSrc, /Boolean\(cardDraft\.prompt \|\| cardDraft\.answer\)/, 'Catch-up section must gate on cardDraft.prompt || cardDraft.answer');
+  }
+
+  // 4. Mobile 390px popover bounds, dark `--s4` >= 6:1 contrast, selection pill border & container-query split row
+  assert.match(LESSON_TEMPLATE_CSS, /@media\s*\(max-width:\s*640px\)\s*\{\s*\.notes__list,\s*\.toc__pop,\s*\.kbd__pop\s*\{\s*position:\s*fixed;\s*left:\s*\.65rem;\s*right:\s*\.65rem;/);
+  assert.doesNotMatch(LESSON_TEMPLATE_CSS, /--s4:\s*#7b6a0e/i, 'Low-contrast dark --s4 #7b6a0e must be replaced');
+  assert.equal((LESSON_TEMPLATE_CSS.match(/--s4:\s*#d8b24c/gi) || []).length, 2, 'Both prefers-color-scheme and data-theme="dark" must set --s4: #d8b24c');
+  assert.match(LESSON_TEMPLATE_CSS, /\.sh-sel-pill\s*\{[^}]*border:\s*1px solid var\(--rule-strong\)/);
+
+  // WCAG 2.1 contrast check of #d8b24c against #161412 dark canvas (>= 6:1)
+  const relLum = hex => {
+    const n = parseInt(hex.slice(1), 16);
+    const chans = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => {
+      const s = v / 255;
+      return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * chans[0] + 0.7152 * chans[1] + 0.0722 * chans[2];
+  };
+  const l1 = relLum('#d8b24c'), l2 = relLum('#161412');
+  const contrast = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+  assert.ok(contrast >= 6, `Expected dark --s4 contrast >= 6:1 on #161412, got ${contrast.toFixed(2)}:1`);
+
+  const shimBooted = framedDocument('<!doctype html><html><head></head><body></body></html>', { channelToken: 'tok-dark', theme: 'dark' });
+  assert.match(shimBooted, /border:1px solid var\(--rule-strong,rgba\(255,241,220,\.42\)\)/);
+  assert.doesNotMatch(shimBooted, /border:1px solid #1e1a15/);
+
+  const companionsCss = await readFile(new URL('../ui/companions/companions.css', import.meta.url), 'utf8');
+  assert.match(companionsCss, /container-type:\s*inline-size/);
+  assert.match(companionsCss, /minmax\(0,\s*1fr\)\s+minmax\(0,\s*44%\)/);
 });

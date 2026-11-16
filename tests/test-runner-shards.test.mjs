@@ -112,6 +112,7 @@ test('a shard that is not index/count stops the runner before anything runs', as
 
 test('a thin wrapper that imports another test file shares that file\'s recorded time with it', async () => {
   assert.deepEqual(shareWithWrappers({ base: 300, other: 50 }, new Map([['w1', 'base'], ['w2', 'base']])), { base: 100, other: 50, w1: 100, w2: 100 });
+  assert.deepEqual(shareWithWrappers({ base: 200, w1: 180, w2: 190, other: 50 }, new Map([['w1', 'base'], ['w2', 'base']])), { base: 200, w1: 180, w2: 190, other: 50 }, 'individually measured wrappers keep their own wall times');
   assert.deepEqual(shareWithWrappers({ other: 50 }, new Map([['w1', 'base']])), { other: 50 }, 'nothing recorded for the base: nothing to share');
   const keys = (await listTestFiles()).map(keyOf);
   const wrappers = await wrapperMap(keys);

@@ -52,35 +52,55 @@ export default function CompanionViewer({ modal, onClose }) {
 
   const frameRef = useRef(null);
   const questionRef = useRef(null);
+  const callRef = useRef(call);
+  callRef.current = call;
   const [channelToken] = useState(makeToken);
   const checkResultsRef = useRef({});
   const progressTimerRef = useRef(0);
+  const pendingProgressRef = useRef(null);
 
-  const [state, setState] = useState({ status: 'loading' });
+  const flushPendingProgress = useCallback(() => {
+    if (progressTimerRef.current) {
+      clearTimeout(progressTimerRef.current);
+      progressTimerRef.current = 0;
+    }
+    const pending = pendingProgressRef.current;
+    if (!pending) return;
+    pendingProgressRef.current = null;
+    Promise.resolve(callRef.current('companion.progress', pending)).catch(() => {});
+  }, []);
+
+  const [state, setState] = useState(() => (modal?.initialState?.status === 'ready' ? modal.initialState : { status: 'loading' }));
   const [attempt, setAttempt] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(Boolean(modal?.openDrawer));
   const [expanded, setExpanded] = useState(Boolean(modal?.expanded));
   const [inquiryFocusSeq, setInquiryFocusSeq] = useState(0);
   const [syncingDisk, setSyncingDisk] = useState(false);
-  const [slideCtx, setSlideCtx] = useState({
-    slide: requestedSlide >= 1 ? requestedSlide : 1,
-    slideTotal: 1,
-    slideTitle: '',
-    beat: '',
-    teacherLine: '',
-    quote: '',
-    codeSlice: '',
+  const [slideCtx, setSlideCtx] = useState(() => {
+    const startSlide = requestedSlide >= 1 ? requestedSlide : 1;
+    const initLesson = modal?.initialState?.lesson;
+    const initTotal = Math.max(1, Number(initLesson?.slideCount || modal?.initialState?.companion?.slideCount) || 1);
+    const initSl = initLesson?.slides?.[startSlide - 1];
+    return {
+      slide: startSlide,
+      slideTotal: initTotal,
+      slideTitle: String(initSl?.title || '').slice(0, 200),
+      beat: String(initSl?.beat || '').slice(0, 60),
+      teacherLine: '',
+      quote: '',
+      codeSlice: '',
+    };
   });
   const [question, setQuestion] = useState('');
   const [asking, setAsking] = useState(false);
   const [askError, setAskError] = useState('');
-  const [tutorReply, setTutorReply] = useState(null);
-  const [cardDraft, setCardDraft] = useState({ prompt: '', answer: '', misconception: '' });
+  const [tutorReply, setTutorReply] = useState(() => modal?.initialTutorReply ?? null);
+  const [cardDraft, setCardDraft] = useState(() => modal?.initialCardDraft || { prompt: '', answer: '', misconception: '' });
   const [syncFeedback, setSyncFeedback] = useState(false);
   const [savingCard, setSavingCard] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(true);
   const [feedbackSeq, setFeedbackSeq] = useState(0);
-  const [feedbackState, setFeedbackState] = useState({ loading: false, total: 0, open: 0, items: [], error: '' });
+  const [feedbackState, setFeedbackState] = useState(() => modal?.initialFeedbackState || { loading: false, total: 0, open: 0, items: [], error: '' });
 
   const askLabel = ui('记疑问');
   const selectionLabel = ui('就这句提问');
@@ -111,18 +131,21 @@ export default function CompanionViewer({ modal, onClose }) {
           askLabel: init.askLabel,
           selectionLabel: init.selectionLabel,
         };
+        const initSl = res.lesson?.slides?.[(targetSlide || 1) - 1];
         setState({ status: 'ready', ...res, bootConfig });
         setSlideCtx(cur => ({
           ...cur,
           slide: targetSlide || cur.slide || 1,
           slideTotal,
+          slideTitle: String(initSl?.title || cur.slideTitle || '').slice(0, 200),
+          beat: String(initSl?.beat || cur.beat || '').slice(0, 60),
         }));
       })
       .catch(err => {
         if (isLive()) setState({ status: 'failed', text: errorMessage(err) || ui('暂时无法读取这份交互伴学页。') });
       });
-    return () => { clearTimeout(progressTimerRef.current); };
-  }, [call, companionId, course, attempt]);
+    return () => { flushPendingProgress(); };
+  }, [call, companionId, course, attempt, flushPendingProgress]);
 
   useEffect(() => {
     function onMessage(event) {
@@ -132,12 +155,23 @@ export default function CompanionViewer({ modal, onClose }) {
 
       if (msg.kind === 'self-check' && typeof msg.slot === 'string') {
         checkResultsRef.current = { ...checkResultsRef.current, [msg.slot]: Boolean(msg.correct) };
+        if (pendingProgressRef.current) {
+          pendingProgressRef.current = { ...pendingProgressRef.current, checkResults: checkResultsRef.current };
+        }
       } else if (msg.kind === 'progress') {
         const slide = Math.max(1, Number(msg.slide) || 1);
         const slideTotal = Math.max(slide, Number(msg.slideTotal) || 1);
         setSlideCtx(cur => {
-          if (cur.slide === slide) return { ...cur, slide, slideTotal, beat: String(msg.beat || cur.beat || '') };
           const sl = state.lesson?.slides?.[slide - 1];
+          if (cur.slide === slide) {
+            return {
+              ...cur,
+              slide,
+              slideTotal,
+              slideTitle: cur.slideTitle || String(sl?.title || '').slice(0, 200),
+              beat: String(msg.beat || cur.beat || sl?.beat || '').slice(0, 60),
+            };
+          }
           return {
             slide,
             slideTotal,
@@ -149,17 +183,23 @@ export default function CompanionViewer({ modal, onClose }) {
           };
         });
         setAskError('');
+        const progressPayload = {
+          id: companionId,
+          course: state.companion?.course || course,
+          slide,
+          slideTotal,
+          completed: Boolean(msg.completed),
+          ...(msg.memory && typeof msg.memory === 'object' ? { memory: msg.memory } : {}),
+          checkResults: checkResultsRef.current,
+        };
+        pendingProgressRef.current = progressPayload;
         clearTimeout(progressTimerRef.current);
         progressTimerRef.current = setTimeout(() => {
-          call('companion.progress', {
-            id: companionId,
-            course: state.companion?.course || course,
-            slide,
-            slideTotal,
-            completed: Boolean(msg.completed),
-            ...(msg.memory && typeof msg.memory === 'object' ? { memory: msg.memory } : {}),
-            checkResults: checkResultsRef.current,
-          }).then(res => {
+          progressTimerRef.current = 0;
+          const toSend = pendingProgressRef.current;
+          pendingProgressRef.current = null;
+          if (!toSend) return;
+          call('companion.progress', toSend).then(res => {
             if (res?.firstPassCredited > 0) {
               notify({ text: uiFormat('已完成本节交互推演，{0} 张关联卡片已采信首学记录并排入后续复习。', [res.firstPassCredited]), tone: 'success' });
               Promise.resolve(refresh?.()).catch(() => {});
@@ -341,14 +381,18 @@ export default function CompanionViewer({ modal, onClose }) {
     postToFrame({ kind: 'labels', askLabel, selectionLabel });
   }, [askLabel, postToFrame, selectionLabel, state.status]);
 
-  const openFeedbackItems = useMemo(() => {
-    const allOpen = (feedbackState.items || []).filter(it => it && it.status !== 'resolved');
-    if (!allOpen.length) return [];
+  const lessonFeedbackItems = useMemo(() => {
+    const all = (feedbackState.items || []).filter(Boolean);
+    if (!all.length) return [];
     const curIds = new Set([state.companion?.lessonId, state.lesson?.id, state.companion?.id].filter(Boolean));
-    if (!curIds.size) return allOpen;
-    const matched = allOpen.filter(it => !it.lessonId || curIds.has(it.lessonId));
-    return matched.length ? matched : allOpen;
+    if (!curIds.size) return all;
+    return all.filter(it => !it.lessonId || curIds.has(it.lessonId));
   }, [feedbackState.items, state.companion?.id, state.companion?.lessonId, state.lesson?.id]);
+
+  const openFeedbackItems = useMemo(
+    () => lessonFeedbackItems.filter(it => it.status !== 'resolved'),
+    [lessonFeedbackItems],
+  );
 
   // Instant 0-token glossary & prerequisite lookup matching current quote or slide
   const matchedTerms = useMemo(() => {
@@ -388,15 +432,14 @@ export default function CompanionViewer({ modal, onClose }) {
           ...slideCtx,
         },
       });
-      setTutorReply(res.answerMarkdown || '');
-      if (res.suggestedCard) {
-        setCardDraft({
-          prompt: res.suggestedCard.prompt || q,
-          answer: res.suggestedCard.answer || '',
-          misconception: res.suggestedCard.misconception || q,
-          originCtx: { ...slideCtx },
-        });
-      }
+      const answerMd = res.answerMarkdown || '';
+      setTutorReply(answerMd);
+      setCardDraft({
+        prompt: res.suggestedCard?.prompt || q,
+        answer: res.suggestedCard?.answer || answerMd,
+        misconception: res.suggestedCard?.misconception || q,
+        originCtx: { ...slideCtx },
+      });
     } catch (err) {
       setAskError(errorMessage(err));
     } finally {
@@ -441,7 +484,7 @@ export default function CompanionViewer({ modal, onClose }) {
       });
       notify({
         text: saved.feedbackSynced
-          ? ui('已加入「伴学拾遗」（次日复习），并同步写入 questions.json。')
+          ? ui('已加入「伴学拾遗」（排入次日复习），并同步至讲义改进清单。')
           : ui('已加入「伴学拾遗」题组（排入次日复习），可继续往下看课。'),
         tone: 'success',
       });
@@ -516,7 +559,7 @@ export default function CompanionViewer({ modal, onClose }) {
     const num = idx + 1;
     return {
       value: num,
-      label: uiFormat('第 {0} / {1} 页', [num, totalSlides]),
+      label: uiFormat('第 {0}/{1} 页', [num, totalSlides]),
     };
   });
 
@@ -550,7 +593,7 @@ export default function CompanionViewer({ modal, onClose }) {
                   onChange={val => jumpToSlide(Number(val))}
                 />
               ) : (
-                <Badge tone="neutral">{uiFormat('第 {0} / {1} 页', [slideCtx.slide, totalSlides])}</Badge>
+                <Badge tone="neutral">{uiFormat('第 {0}/{1} 页', [slideCtx.slide, totalSlides])}</Badge>
               )}
               <IconButton
                 size="sm"
@@ -633,13 +676,13 @@ export default function CompanionViewer({ modal, onClose }) {
                   <Disclosure
                     open={ledgerOpen}
                     onToggle={setLedgerOpen}
-                    summary={ui('伴学疑问清单（questions.json）')}
+                    summary={ui('伴学疑问清单')}
                     meta={<Badge size="sm" tone={openFeedbackItems.length > 0 ? 'warning' : 'neutral'}>{openFeedbackItems.length}</Badge>}
                   >
                     <div className="sh-comp-ledger">
                       <div className="sh-comp-ledger__bar">
                         <span className="sh-comp-drawer__loc">
-                          {uiFormat('待解决 {0} 条 · 共 {1} 条', [openFeedbackItems.length, Math.max(openFeedbackItems.length, feedbackState.total)])}
+                          {uiFormat('待解决 {0} 条 · 共 {1} 条', [openFeedbackItems.length, lessonFeedbackItems.length])}
                         </span>
                         <Button size="sm" variant="quiet" icon="sync" busy={feedbackState.loading} onClick={refreshFeedbackLedger}>
                           {ui('刷新疑问清单')}
@@ -699,6 +742,7 @@ export default function CompanionViewer({ modal, onClose }) {
                 <TextArea
                   ref={questionRef}
                   rows={3}
+                  aria-label={ui('就当前页秒问导师')}
                   value={question}
                   onChange={e => setQuestion(e.target.value)}
                   placeholder={ui('写下你在这页卡壳或混淆的地方（例如：putIfAbsent 和 computeIfAbsent 到底差在哪？）')}
@@ -715,7 +759,7 @@ export default function CompanionViewer({ modal, onClose }) {
                 )}
               </section>
 
-              {(cardDraft.prompt || tutorReply) && (
+              {Boolean(cardDraft.prompt || cardDraft.answer) && (
                 <section className="sh-comp-drawer__section">
                   <h5 className="sh-comp-drawer__sub">{ui('一键存为防混闪卡（次日复习，不打断看课）')}</h5>
                   <div className="sh-comp-catchup">
@@ -729,7 +773,7 @@ export default function CompanionViewer({ modal, onClose }) {
                       <Checkbox
                         checked={syncFeedback}
                         onChange={setSyncFeedback}
-                        label={ui('同时记入伴学目录 feedback/questions.json（待改进讲义）')}
+                        label={ui('同时记入伴学目录的讲义改进清单')}
                       />
                     )}
                     <Button size="sm" variant="primary" busy={savingCard} onClick={handleSaveCatchup}>

@@ -1,6 +1,7 @@
 /* StudyHub component library (plan §4, C1). Import from here:
    import { Button, Dialog, FileDrop } from './components/index.js'; */
 export { Button, IconButton } from './Button.jsx';
+export { AddSourceButton, addSourceAction, ADD_SOURCE_ICON } from './AddSourceButton.jsx';
 export { default as SegmentedControl } from './SegmentedControl.jsx';
 export { default as PageHeader } from './PageHeader.jsx';
 export { default as EmptyState } from './EmptyState.jsx';

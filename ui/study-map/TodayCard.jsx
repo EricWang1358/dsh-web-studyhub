@@ -31,7 +31,7 @@ export default function TodayCard({ plan, todayLabel, quiet = false, extra = nul
           <strong>{plan.count}</strong>
           <span>{plan.unit}</span>
         </div>
-        {plan.detail && <p className="today-detail">{plan.kind === 'path' ? <Tooltip layer content={ui(TERMS.due.hint)}><span tabIndex={0}>{plan.detail}</span></Tooltip> : plan.detail}</p>}
+        {plan.detail && <p className="today-detail">{plan.kind === 'path' && !plan.ahead ? <Tooltip layer content={ui(TERMS.due.hint)}><span tabIndex={0}>{plan.detail}</span></Tooltip> : plan.detail}</p>}
         {plan.stageAdvance && (
           <p className="today-stage-advance">
             <span>{plan.stageAdvance.note}</span>

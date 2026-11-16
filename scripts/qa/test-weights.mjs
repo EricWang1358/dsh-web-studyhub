@@ -23,13 +23,14 @@ export async function wrapperMap(keys) {
   return map;
 }
 
-/** Share the time recorded under an imported file equally between it and the wrappers that import it. */
+/** Share the time recorded under an imported file equally between it and the wrappers that import it when wrappers were not timed on their own. */
 export function shareWithWrappers(times, wrappers) {
   const out = { ...times };
   const byBase = new Map();
   for (const [wrapper, base] of wrappers) byBase.set(base, [...(byBase.get(base) || []), wrapper]);
   for (const [base, list] of byBase) {
     if (!Number.isFinite(times[base])) continue;
+    if (list.every(wrapper => Number.isFinite(times[wrapper]))) continue;
     const share = times[base] / (list.length + 1);
     out[base] = share;
     for (const wrapper of list) out[wrapper] = share;
