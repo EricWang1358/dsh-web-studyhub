@@ -35,7 +35,6 @@ const BASELINE = {
   'ui/components/feedback.css': { strong: 1, xs: 0 },
   'ui/components/fields.css': { strong: 2, xs: 0 },
   'ui/components/overlays.css': { strong: 1, xs: 0 },
-  'ui/course-active.css': { strong: 2, xs: 0 },
   'ui/course-settings.css': { strong: 1, xs: 0 },
   'ui/coverage/coverage.css': { strong: 1, xs: 0 },
   'ui/custom-readiness.css': { strong: 1, xs: 0 },
@@ -58,7 +57,6 @@ const BASELINE = {
   'ui/guided-study/guided-study.css': { strong: 4, xs: 0 },
   'ui/home-tiers.css': { strong: 1, xs: 0 },
   'ui/host/studyhub.css': { strong: 1, xs: 0 },
-  'ui/import-hub.css': { strong: 1, xs: 0 },
   'ui/jev.css': { strong: 3, xs: 0 },
   'ui/markdown.css': { strong: 3, xs: 0 },
   'ui/marker-install.css': { strong: 3, xs: 0 },
@@ -74,7 +72,6 @@ const BASELINE = {
   'ui/setup-checklist.css': { strong: 1, xs: 0 },
   'ui/shell.css': { strong: 3, xs: 0 },
   'ui/skeleton.css': { strong: 6, xs: 0 },
-  'ui/sources.css': { strong: 0, xs: 1 },
   'ui/study-map/catalog.css': { strong: 2, xs: 0 },
   'ui/study-map/next-step.css': { strong: 1, xs: 0 },
   'ui/task-card.css': { strong: 1, xs: 0 },
@@ -88,9 +85,6 @@ const BASELINE = {
   'ui/workflows.css': { strong: 1, xs: 0 },
   'ui/wrongbook.css': { strong: 2, xs: 0 },
 };
-
-/* Files that an open pull request is still editing (#1097). They keep their numbers until those merge, then follow up. */
-const FOLLOW_UP = new Set(['ui/course-active.css', 'ui/import-hub.css', 'ui/sources.css']);
 
 test('--fw-medium is 500, not 550: the Han fallback fonts only have 400 and 700, and 550 rounds up to bold (#1079)', async () => {
   const tokens = await readFile(join(root, 'ui/tokens.css'), 'utf8');
@@ -111,8 +105,7 @@ test('strong weight and small type may only fall, file by file (#1079)', async (
 });
 
 test('strong is under half of the 313 of 2026-11-17 (#1079)', async (t) => {
-  const { files, total } = await typeCounts();
-  const left = [...FOLLOW_UP].reduce((sum, file) => sum + (files[file]?.strong || 0), 0);
-  t.diagnostic(`strong ${total.strong} (${left} of them in the ${FOLLOW_UP.size} files that wait for #1097); the target is under ${Math.ceil(313 / 2)}`);
+  const { total } = await typeCounts();
+  t.diagnostic(`strong ${total.strong}; the target is under ${Math.ceil(313 / 2)}`);
   assert.ok(total.strong < Math.ceil(313 / 2), `strong is ${total.strong}; the stylesheet set has to stay under ${Math.ceil(313 / 2)}`);
 });

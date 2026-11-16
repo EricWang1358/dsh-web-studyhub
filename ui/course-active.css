@@ -16,7 +16,7 @@
     .course-active__switch:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
     .course-active__switch:disabled { opacity: 0.55; cursor: default; }
     .course-active__text { display: grid; gap: var(--space-half); min-width: 0; margin: 0; cursor: pointer; }
-    .course-active__text strong { font-size: var(--fs-md); font-weight: var(--fw-strong); color: var(--text); }
+    .course-active__text strong { font-size: var(--fs-md); font-weight: var(--fw-medium); color: var(--text); }
     .course-active__text small,
     .course-active__result { font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); }
     .course-active__state { font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; }
@@ -28,7 +28,7 @@
        with the page or the chosen course; the select itself names a chosen sub-course's whole path), then the follow mark and the one action
        a state offers. A narrow container lets the select give up width first, then wraps the action and the notes to a second line. */
     .page-scope { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); max-width: 100%; margin: 0; flex: 0 1 auto;
-      font-size: var(--fs-sm); font-weight: var(--fw-strong); line-height: var(--lh-snug); color: var(--text-muted); }
+      font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: var(--lh-snug); color: var(--text-muted); }
     .page-scope__label { display: block; flex: none; margin: 0; color: inherit; cursor: pointer; }
     .page-scope__select { flex: 1 1 12rem; width: 20rem; max-width: 20rem; min-width: 0; min-height: 38px;
       font-size: var(--fs-md); font-weight: var(--fw-regular); text-overflow: ellipsis; }
