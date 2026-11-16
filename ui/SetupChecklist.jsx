@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ui, uiFormat } from "./i18n.js";
-import { Button, Icon, Tooltip } from "./components/index.js";
+import { ADD_SOURCE_ICON, Button, Icon, Tooltip } from "./components/index.js";
 import { useStudy } from "./study-context.jsx";
 import { readJSON, readText, removeKey, writeJSON, writeText } from "./storage.js";
 import { useInjectCss } from "./shared.js";
@@ -50,7 +50,7 @@ export function stepAction(step, setup, on = {}) {
     skeleton: [ui("去知识骨架页"), on.skeleton],
   };
   const [label, run] = table[step.action] || [ui("打开"), null];
-  return { label, run: run || (() => {}), disabled: !run || !!step.blockedBy };
+  return { label, run: run || (() => {}), disabled: !run || !!step.blockedBy, ...(step.action === "import" ? { icon: ADD_SOURCE_ICON } : {}) };
 }
 
 /** What a step is called and says: { title, text, hint? } for its current state. */
@@ -98,7 +98,7 @@ function Step({ step, index, setup, on, next, onLater }) {
       </div>
       {!done && (
         <div className="setup-actions">
-          <Button className="setup-actions__btn" size="sm" variant="secondary" disabled={action.disabled} lock={busy} onClick={action.run}>{action.label}</Button>
+          <Button className="setup-actions__btn" size="sm" variant="secondary" icon={action.icon} disabled={action.disabled} lock={busy} onClick={action.run}>{action.label}</Button>
           <Button className="setup-actions__btn" size="sm" variant="link" onClick={() => onLater(step.id)}>{ui("稍后")}</Button>
         </div>
       )}

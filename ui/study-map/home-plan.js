@@ -1,4 +1,5 @@
 import { ui, uiFormat } from '../i18n.js';
+import { addSourceAction } from '../components/add-source.js';
 import { documentCount } from '../generation-status.js';
 import { TERMS } from '../mastery-terms.js';
 import { joinMeta, formatDateTime } from '../format.js';
@@ -89,7 +90,7 @@ export function buildHomePlan({ data, today, runs, runFor, activeJobs, inFocus, 
           also: [[ui('＋ 再添加资料'), addSource], jsonLink] }
           : { kind: 'empty', step: 0, eyebrow: ui('开始'), headline: ui('从一份资料开始'),
             title: ui('还没有资料'), next: ui('添加讲义、笔记或 PDF，AI 会据此出题；发布后这里会给出学习路径。'),
-            action: { label: ui('添加资料'), run: addSource },
+            action: { ...addSourceAction(addSource), run: addSource },
             // A file already in the workspace: the main chat adds it and makes a first set from it (the hand-off plan item 5; offered with or without a
             // chat: without one the message is copied).
             also: [jsonLink, { handOff: { id: 'import.file', input: { purpose: 'material', goal: 'generate', area: '学习库' }, lead: '用工作区里的文件出题：',

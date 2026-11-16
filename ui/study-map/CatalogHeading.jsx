@@ -1,6 +1,6 @@
 import React from 'react';
 import { ui, uiFormat } from '../i18n.js';
-import { Button, Menu } from '../components/index.js';
+import { ADD_SOURCE_ICON, Button, Menu } from '../components/index.js';
 import OutlineEntry from './OutlineEntry.jsx';
 import { useStudy } from '../study-context.jsx';
 
@@ -14,7 +14,7 @@ export default function CatalogHeading({ count, showArchived, hasDecks, hasSourc
   const canOpenCompanionBuild = typeof openModal === 'function';
   const items = [
     course != null && { id: 'merge', label: ui('整理题组'), disabled: busy || merge.busy },
-    { id: 'add', label: ui('添加资料'), icon: 'plus' },
+    { id: 'add', label: ui('添加资料'), icon: ADD_SOURCE_ICON },
     canOpenCompanionBuild && { id: 'companion', label: ui('新建交互伴学课…'), icon: 'play' },
     { id: 'manual', label: ui('手工建卡'), disabled: !hasSources },
     { id: 'json', label: ui('导入 JSON 题组') },
