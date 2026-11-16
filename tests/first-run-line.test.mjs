@@ -490,3 +490,23 @@ test('English: the third step\'s new words have no Chinese left', () => {
       assert.doesNotMatch(text(markup), han, text(markup).slice(0, 300));
   } finally { m.setUiLanguage('zh'); }
 });
+
+test('#1087: with the sample loaded, step 2 says the sample is there and what still counts, without a second primary next to the sample banner', () => {
+  const sampleSources = [{ id: 'sample-src', sample: true, title: '示例讲义' }, { id: 'sample-src-2', sample: true, title: '案例：墨笺笔记应用' }];
+  const line = m.firstRunLine(library({ sample: SAMPLE, sources: sampleSources }));
+  const material = line.steps[1];
+  assert.equal(material.status, 'todo', 'the sample still never ticks the step');
+  assert.equal(material.sampleCount, 2);
+  assert.match(m.stepSentence(material), /示例资料 2 份已载入/);
+  const markup = page(line, { sample: SAMPLE });
+  assert.match(text(markup), /示例资料 2 份已载入/);
+  assert.match(text(markup), /不算你的进度/);
+  assert.equal(primaries(markup), 0, 'the sample banner leads; adding your own is a secondary button');
+  assert.match(markup, /data-first-run="import"/);
+  // Without the sample nothing changes: the step asks for a first material with its primary button.
+  const plain = page(m.firstRunLine(library()));
+  assert.match(text(plain), /添加一份资料：讲义、课件或笔记/);
+  assert.equal(primaries(plain), 1);
+  m.setUiLanguage('en');
+  try { assert.doesNotMatch(text(page(line, { sample: SAMPLE })), han); } finally { m.setUiLanguage('zh'); }
+});
