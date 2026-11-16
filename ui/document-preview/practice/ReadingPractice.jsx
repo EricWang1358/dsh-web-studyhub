@@ -35,7 +35,7 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
   // 覆盖: how much of this range has no question at all (the words of the outline's header and the draft page); said only when part of it has one.
   const covered = loop.coverage && loop.outlineCoverage ? rangeCoverageOf(loop.outlineCoverage, selected?.ids ?? null, loop.coverage) : null;
   const coverageLine = covered && covered.covered > 0 && covered.uncovered > 0 ? rangeUncoveredLine(covered.uncovered, covered.leaves, loop.coverage.units === 'page' ? 'page' : 'section') : '';
-  const openDraft = drafted && onOpenDraft && drafted.draftIds?.length ? <Button size="sm" variant="secondary" icon="arrow-right" className="reader-practice__action" onClick={() => onOpenDraft(drafted.draftIds)}
+  const openDraft = drafted && onOpenDraft && drafted.draftIds?.length ? <Button size="sm" variant="secondary" iconEnd="arrow-right" className="reader-practice__action" onClick={() => onOpenDraft(drafted.draftIds)}
     data-testid="practice-open-draft">{ui('检查草稿')}</Button> : null;
   // On a narrow pane the button can sit anywhere along the wrapped toolbar: Popover slides the panel back inside the viewer.
   return <Popover open={open} onOpenChange={setOpen} label={ui('做这几页的题')} className="reader-popover reader-practice" panelClassName="reader-popover__panel reader-practice__panel"
@@ -72,7 +72,7 @@ export default function ReadingPractice({ loop, unit = 'section', busy = false, 
           <InactiveNote summary={summary} courses={loop.inactiveCourses} />
           {drafted && <p className="reader-practice__drafts" data-testid="practice-drafts">{draftExtraText(drafted.draftCards)}</p>}
           {openDraft}
-          <Button variant="primary" icon="arrow-right" className="reader-practice__action" lock={busy} onClick={() => onStart(selected)}>
+          <Button variant="primary" iconEnd="arrow-right" className="reader-practice__action" lock={busy} onClick={() => onStart(selected)}>
             {total === 1 ? ui('开始做这 1 道题') : uiFormat('开始做这 {0} 道题', [total])}</Button>
           {onStartHere && <Button variant="secondary" size="sm" icon="book" className="reader-practice__action" lock={busy} onClick={() => onStartHere(selected)}
             data-usage="reader.practice-here">{hereLabelArgs(total) ? uiFormat('在这里做前 {0} 道', hereLabelArgs(total)) : ui('在这里做')}</Button>}

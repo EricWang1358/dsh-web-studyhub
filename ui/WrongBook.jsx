@@ -864,13 +864,13 @@ export function WrongBookView({
               <SegmentedControl className="wb-retrain__seg" itemClassName="wb-retrain__seg-item" label={ui("重练范围")} value={picked} options={options} onChange={setChoice} disabled={busy || loading} />
             </Tooltip>
             {/* The one start of the page: the scope above decides what it takes (the mistakes, with the similar questions, with the prepared variants). */}
-            <Button className="wb-retrain__btn" variant="primary" icon="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}>
+            <Button className="wb-retrain__btn" variant="primary" iconEnd="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}>
               {uiFormat("开始重练 · {0} 题", [current.count])}
             </Button>
             {/* The start takes the whole page, whatever the filter shows; with a filter on, what is shown has its own, quieter button. */}
             {filteredSubset && (
               <Tooltip layer content={shown.length > PRACTICE_SCOPE_CAP ? practiceCappedText(shown.length, { group: false }) : ui("只练下面筛选出来的错题")}>
-                <Button className="wb-retrain__btn" variant="secondary" icon="arrow-right" lock={busy || loading} onClick={() => practiceScope(shown.map(refOf))}>
+                <Button className="wb-retrain__btn" variant="secondary" iconEnd="arrow-right" lock={busy || loading} onClick={() => practiceScope(shown.map(refOf))}>
                   {uiFormat("练筛选的 {0} 道", [shown.length])}
                 </Button>
               </Tooltip>
@@ -1088,11 +1088,11 @@ export function WrongBookView({
                   )}
                   {!oneGroup && group.rows.length > PRACTICE_SCOPE_CAP ? (
                     <Tooltip layer content={practiceCappedText(group.rows.length, { group: true })}>
-                      <Button variant="quiet" size="sm" icon="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
+                      <Button variant="quiet" size="sm" iconEnd="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
                         onClick={() => practiceScope(group.rows.map(refOf), { group: true })}>{ui("练这一组")}</Button>
                     </Tooltip>
                   ) : !oneGroup && (
-                    <Button variant="quiet" size="sm" icon="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
+                    <Button variant="quiet" size="sm" iconEnd="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
                       onClick={() => practiceScope(group.rows.map(refOf), { group: true })}>{ui("练这一组")}</Button>
                   )}
                   {!oneGroup && showBar && group.deckIds.length === 1 && applied.deck !== group.deckIds[0] && (

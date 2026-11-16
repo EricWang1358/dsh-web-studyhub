@@ -660,7 +660,7 @@ export default function CompanionViewer({ modal, onClose }) {
                               {item.note && <div className="sh-comp-ledger__note">{item.note}</div>}
                               {item.quote && <blockquote className="sh-comp-drawer__quote">{item.quote}</blockquote>}
                               <div className="sh-comp-foot__actions">
-                                <Button size="sm" variant="secondary" icon="arrow-right" onClick={() => jumpToSlide(item.slide)}>
+                                <Button size="sm" variant="secondary" iconEnd="arrow-right" onClick={() => jumpToSlide(item.slide)}>
                                   {uiFormat('跳至第 {0} 页', [item.slide])}
                                 </Button>
                               </div>

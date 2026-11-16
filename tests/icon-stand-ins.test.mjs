@@ -40,6 +40,24 @@ test('no string of ui/ uses a typed glyph for an icon (#1073)', async () => {
   assert.deepEqual([...new Set(found)], [], `${new Set(found).size} string(s) with a typed glyph; draw an icon, or list a key name or a window title in KEEP with why`);
 });
 
+test('a go-on arrow is on the right of a Button, never icon="arrow-right" in front of the words (#1073)', async () => {
+  const { readdir, readFile } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const found = [];
+  const walk = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) await walk(path);
+      else if (/\.jsx$/.test(entry.name)) {
+        const source = await readFile(path, 'utf8');
+        for (const match of source.matchAll(/<Button\b[^<]*?\sicon=(?:"arrow-right"|\{"arrow-right"\}|\{'arrow-right'\})/g)) found.push(`${path.replace(/\\/g, '/').replace(/^.*\/ui\//, 'ui/')}: ${match[0].slice(0, 60)}`);
+      }
+    }
+  };
+  await walk(new URL('../ui', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+  assert.deepEqual(found, []);
+});
+
 test('no stylesheet draws a typed glyph with content (a pseudo-element is no icon either)', async () => {
   const found = (await cssContents()).flatMap(({ file, text }) => glyphProblems(text).map((problem) => `${file}: ${JSON.stringify(text)}: ${problem}`));
   assert.deepEqual(found, []);
