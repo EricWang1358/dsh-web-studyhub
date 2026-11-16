@@ -219,7 +219,7 @@ export function RubricSkills({ attempts = [], onPractice, practiceLabel }) {
             <Bar ratio={skill.ratio} label={uiFormat("{0}：{1}", [skill.label, percent(skill.ratio)])} />
             <span className="rubric-skills__value">{percent(skill.ratio)}</span>
             <small className="rubric-skills__trend" aria-label={ui("最近几次的得分率")}>
-              {skill.trend.map((ratio, index) => <i key={index} style={{ "--h": percent(ratio) }} />)}
+              {skill.trend.length > 1 && skill.trend.map((ratio, index) => <i key={index} style={{ "--h": percent(ratio) }} />)}
               {uiFormat("{0} 次", [skill.count])}
             </small>
           </li>
