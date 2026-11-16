@@ -190,7 +190,8 @@ test('U40 RubricResult uses semantic bar tones & data-band while CaseReport high
   }, 'en');
   assert.doesNotMatch(rubricHtml, han);
   assert.match(rubricHtml, /class="rubric-row" data-band="strong"[\s\S]*data-tone="success"/);
-  assert.match(rubricHtml, /class="rubric-row">[\s\S]*data-tone="accent"/);
+  // A middle score is ink: cinnabar stays for the one primary action (#1080).
+  assert.match(rubricHtml, /class="rubric-row">[\s\S]*data-tone="neutral"/);
   assert.match(rubricHtml, /class="rubric-row is-weak" data-band="weak"[\s\S]*data-tone="warning"/);
 
   const basePaper = {

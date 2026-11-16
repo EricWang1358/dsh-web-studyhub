@@ -21,6 +21,8 @@ import { annotationLinks, loadAnnotationMode, saveAnnotationMode } from './annot
 import StaleAnnotations from './annotation/StaleAnnotations.jsx';
 import { useReaderMarks } from './marks/useReaderMarks.jsx';
 import ExplainCard from './marks/ExplainCard.jsx';
+import { collectMarksSummary } from './marks-export.js';
+import { MarksSummaryDialog, MarksSummarySection } from './MarksSummaryPanel.jsx';
 import { isOfficeFormat, isPagedFormat, isSlideFormat } from '../../lib/office/limits.js';
 import { groupSourcesByDocument } from '../../lib/source-groups.js';
 import { displayTitle } from '../../lib/document-title.js';
@@ -192,10 +194,13 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const [aiOutline, setAiOutline] = useState(null), [aiItems, setAiItems] = useState([]), [emptyOpen, setEmptyOpen] = useState(false);
   const [pdfPage, setPdfPage] = useState(() => source.document?.page || source.selection?.page || 1), [pdfView, setPdfView] = useState({ zoom: 1, native: false });
   const [attaching, setAttaching] = useState(null), [reload, setReload] = useState(0), attachTarget = useRef(null); // 补全原文件 (OriginalFile.jsx)
+  const [syncedTarget, setSyncedTarget] = useState(null), [syncingOriginal, setSyncingOriginal] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false); // 批注与划线汇总
   const [peek, setPeek] = useState(null); // 看原页 (peek/PagePeek.jsx): { page, figure }
   const [displayOpen, setDisplayOpen] = useState(false); // 更多 › 显示设置…
   const [pickPagesGuide, setPickPagesGuide] = useState(!!pickPages);
   useEffect(() => { setPickPagesGuide(!!pickPages); }, [pickPages, source.id]);
+  useEffect(() => { setSyncedTarget(null); }, [source.id]);
   const root = useRef(null), body = useRef(null), scroller = useRef(null), findInput = useRef(null), ranges = useRef([]), openedAt = useRef('');
   // Narrow panes (under NARROW px of the viewer, ui/use-narrow.js): the outline and the learning panel slide over the text instead of sitting beside it.
   const narrow = useNarrow(root), compact = useNarrow(root, COMPACT_TOOLBAR);
@@ -208,14 +213,16 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     if (localMode) { setLoading(false); return undefined; }
     (async () => {
       try {
-        const value = await call('materials.document.get', { sourceId: source.id,
-          ...(source.selection?.revision ? { revision: source.selection.revision } : {}) });
+        const getArgs = syncedTarget
+          ? { documentId: syncedTarget.documentId, revision: syncedTarget.revision }
+          : { sourceId: source.id, ...(source.selection?.revision ? { revision: source.selection.revision } : {}) };
+        const value = await call('materials.document.get', getArgs);
         if (!current) return;
         setDocument(value);
         const backlink = await call('materials.links.list', { documentId: value.documentId || value.id });
         if (current) setLinks(backlink.links || []);
         const original = originalHandling(value);
-        if (original === 'download' || original === 'none') setContent(value.sources?.find(item => item.id === source.id)?.text || source.text);
+        if (original === 'download' || original === 'none') setContent(value.sources?.find(item => item.id === source.id)?.text || value.sources?.[0]?.text || source.text);
         else {
           const bytes = await call('materials.document.bytes', { documentId: value.documentId || value.id, revision: value.revision });
           if (!current) return;
@@ -223,7 +230,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
           if (!bytes.dataBase64) {
             // The original is not there (a referenced file moved or changed): say so, and keep reading the stored text.
             setDocument({ ...value, originalAvailable: false, original: { ...value.original, status: bytes.reason === 'none' ? 'none' : bytes.reason === 'missing' || bytes.reason === 'unreadable' ? bytes.reason : 'changed', reason: bytes.reason, ...(bytes.path ? { path: bytes.path } : {}) } });
-            setContent(value.sources?.find(item => item.id === source.id)?.text || source.text);
+            setContent(value.sources?.find(item => item.id === source.id)?.text || value.sources?.[0]?.text || source.text);
             return;
           }
           const data = Uint8Array.from(atob(bytes.dataBase64), char => char.charCodeAt(0));
@@ -236,7 +243,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       } finally { if (current) setLoading(false); }
     })();
     return () => { current = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [call, source.id, source.text, source.selection?.revision, reload, localMode]);
+  }, [call, source.id, source.text, source.selection?.revision, syncedTarget, reload, localMode]);
   const format = localMode ? 'md' : viewerFormat(document, source), paged = isPagedFormat(format);
   const view = mode === 'original' && !(format === 'pdf' && fileUrl) ? 'read' : mode, reading = view === 'read';
   const downloadOriginal = async () => {
@@ -269,16 +276,18 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     return sliced && sliced !== at.quote ? { ...at, quote: sliced } : at;
   }, [textBySource]);
   const keptItems = useMemo(() => kept.items.map(item => {
+    if (item.status !== 'resolved') return item;
     const selection = expandSelection(item.selection);
     return selection === item.selection ? item : { ...item, selection };
   }), [kept.items, expandSelection]);
-  const annotationMarks = useMemo(() => (localMode ? [] : annotationLinks(keptItems).filter(link => annotationMode === 'annotate' || link.explain)), [annotationMode, keptItems, localMode]);
+  const annotationMarks = useMemo(() => (localMode ? [] : annotationLinks(keptItems)), [keptItems, localMode]);
   // 批注 n of the 本节题目 line (#1013): the kept threads (not the AI 词解), placed with the questions by the reading loop.
   const notesNow = useMemo(() => (localMode ? [] : notePlaces(annotationLinks(keptItems).filter(link => !link.explain))), [keptItems, localMode]);
   // One identity while the places are the same (practice/section-practice.js noteKey): the reading loop places them only when they change.
   const notesKey = noteKey(notesNow);
   const noteLinks = useMemo(() => notesNow, [notesKey]); // eslint-disable-line react-hooks/exhaustive-deps -- the key is the content
   const expandedLinks = useMemo(() => links.map(link => {
+    if (link.status !== 'resolved') return link;
     const selection = expandSelection(link.selection);
     return selection === link.selection ? link : { ...link, selection };
   }), [links, expandSelection]);
@@ -288,6 +297,23 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
   const clearStaleAnnotations = async () => {
     await call('materials.annotation.delete', { documentId: document.documentId || document.id, revision: document.revision, stale: true });
     setKeptReload(count => count + 1);
+  };
+  const dismissStaleAnnotation = async ids => {
+    if (!ids?.length) return;
+    await call('materials.annotation.delete', { documentId: document.documentId || document.id, revision: document.revision, ids, stale: true });
+    setKeptReload(count => count + 1);
+  };
+  const syncExternalOriginal = async () => {
+    if (!document || syncingOriginal) return;
+    setSyncingOriginal(true); setError('');
+    try {
+      const updated = await call('materials.document.get', { documentId: document.documentId || document.id, refresh: true });
+      if (updated?.revision) setSyncedTarget({ documentId: updated.documentId || updated.id, revision: updated.revision });
+      setReload(count => count + 1);
+      setKeptReload(count => count + 1);
+      await onPublished?.(updated);
+    } catch (e) { setError(e.message); }
+    finally { setSyncingOriginal(false); }
   };
   // 原始 PDF: the learning panel asks about the page our own controls show (page-scope.js). It is a panel of its own, mounted the first time the
   // view is opened and then kept: the reading panel (its selection, its thread, a question still being answered and kept as 批注) is only hidden
@@ -748,7 +774,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
       </InlineMessage>
     ),
     // A document that only kept its text is said in 更多 (the 原始 PDF item, or 补全原文件…); a file that went missing or changed is a fault and keeps its notice.
-    !localMode && originalFault && <OriginalNotice key="original" document={document} onAction={setAttaching} />,
+    !localMode && originalFault && <OriginalNotice key="original" document={document} syncing={syncingOriginal} onSync={syncExternalOriginal}
+      onAction={kind => (kind === 'sync' ? syncExternalOriginal() : setAttaching(kind))} />,
     !localMode && error && <InlineMessage key="error" tone="error">{error}</InlineMessage>,
     (quoteState?.status === 'ambiguous' || (reading && placed === 'ambiguous')) && <InlineMessage key="ambiguous" tone="warning">{ui('引用在资料中出现多次，请结合上下文核对位置。')}</InlineMessage>,
     quoteState?.status === 'stale' && <InlineMessage key="stale" tone="warning">{ui('引用位置与当前文字不一致，请重新核对这段原文。')}</InlineMessage>,
@@ -811,15 +838,47 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
     if (onPracticePages) onPracticePages(loop.start({ kind: 'here', count: 1, cards }));
     else onPractice?.({ deckId: row.deckId, cardIds: [row.cardId] });
   };
+  const marksSummary = useMemo(() => (localMode || !document ? null : collectMarksSummary({
+    title: materialName || document.title || document.filename || source.title || '',
+    sources,
+    chapters: chapter.chapters || [],
+    marks: marks.items || [],
+    staleMarks: marks.staleMarks || [],
+    annotations: keptItems,
+    staleAnnotations: kept.stale || [],
+    links: expandedLinks,
+    slides,
+  })), [localMode, document, materialName, source.title, sources, chapter.chapters, marks.items, marks.staleMarks, keptItems, kept.stale, expandedLinks, slides, language]); // eslint-disable-line react-hooks/exhaustive-deps
+  const jumpSummaryEntry = entry => {
+    if (!entry) return;
+    if (view === 'original' && Number.isInteger(entry.page)) { goToPage(entry.page); return; }
+    const targetSource = sources.find(item => item.id === entry.sourceId) || (Number.isInteger(entry.page) ? sources.find(item => item.document?.page === entry.page) : null);
+    if (targetSource) seekSource({ source: targetSource, quote: entry.quote || '' });
+  };
   // 更多: what the toolbar does not show (reader/more-items.js). Each item opens what it always opened; 掌握度与覆盖 and AI 整理目录 open the 目录, where they live.
   const qualityText = [meters && masteryText(loop.current), !localMode && view !== 'original' && loop.coverage?.cards > 0 && coverageChipText(loop.coverage)].filter(Boolean).join(' · ');
   const openOutlineAnd = focus => {
     if (!outlineOn) toggle('outline');
     if (focus) requestAnimationFrame(() => requestAnimationFrame(() => root.current?.querySelector(focus)?.focus?.()));
   };
+  const lifecycleMoreItems = [
+    ...(!localMode && document ? [{
+      id: 'marks-summary',
+      icon: 'note',
+      label: ui('批注与划线汇总…'),
+      ...(marksSummary?.total ? { hint: String(marksSummary.total) } : {}),
+      run: () => setSummaryOpen(true),
+    }] : []),
+    ...(!localMode && document?.original?.mode === 'reference' ? [{
+      id: 'sync-original',
+      icon: 'refresh',
+      label: ui('同步最新文件内容'),
+      run: syncExternalOriginal,
+    }] : []),
+  ];
   const menu = moreItems({ view, format, fileUrl: !!fileUrl, localMode, translate: bilingual.supported, display: true, tools: localMode ? null : { on: toolsOn, count: groups.length },
     quality: qualityText && canOutline ? { text: qualityText } : null, assist: !!(assistTarget && call && view !== 'original'), download: originalHandling(document) === 'download',
-    hostPreview: !!(document?.preview?.kind === 'file' && host?.openDocument), attach: !localMode && format !== 'pdf' && originalNone, extra: [...marks.moreItems, ...(extraItems || [])] },
+    hostPreview: !!(document?.preview?.kind === 'file' && host?.openDocument), attach: !localMode && format !== 'pdf' && originalNone, extra: [...lifecycleMoreItems, ...marks.moreItems, ...(extraItems || [])] },
   { setView: chooseView, find: openFind, translate: bilingual.openDialog, display: () => setDisplayOpen(true), tools: () => toggle('tools'), quality: () => openOutlineAnd(),
     assist: () => openOutlineAnd('.reader-outline__foot button'), download: downloadOriginal, hostPreview: () => host.openDocument(document.preview.path), attach: () => setAttaching('attach') });
 
@@ -868,6 +927,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         {canPeek && !!fileUrl && Number.isInteger(source.document?.page) && <Button variant="quiet" size="sm" className="reader-peek" data-peek-page={source.document.page} title={ui('看原页')} onClick={() => openPeek(source.document.page)}>{ui('看原页')}</Button>}
         {reread && <RereadBar reread={reread} onPractise={!localMode && onPracticePages && loop.selected?.cards?.length ? () => practise(loop.selected) : null} />}</div>}
       {!localMode && <AudioCorrections audio={source.audio} onReview={call && canAudio && source.audio?.corrections ? () => call('audio.corrections.review', { sourceId: source.id }) : null} />}
+      {!localMode && !toolsOn && view !== 'original' && <StaleAnnotations stale={kept.stale} staleMarks={marks.staleMarks} onClear={clearStaleAnnotations}
+        onDismissAnnotation={dismissStaleAnnotation} onDismissMark={marks.dismissStaleMark} onClearMarks={marks.clearStaleMarks} />}
     </div>
     <div className="reader-layout" data-outline={outlineOn ? 'on' : 'off'} data-tools={toolsOn ? 'on' : 'off'}>
       {narrow && (outlineOn || toolsOn) && <button type="button" className="reader-scrim" aria-label={ui('关闭面板')} onClick={() => setOverlay(null)} />}
@@ -878,8 +939,8 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         footer={assistTarget && call && view !== 'original' ? <OutlineAssist call={call} target={assistTarget} current={outline} saved={aiOutline} stale={document?.outlineStale}
           missing={aiOutline ? Math.max(0, aiOutline.entries.length - aiItems.length) : 0} onSaved={setAiOutline} onCleared={() => setAiOutline(null)} onChanged={() => onPublished?.()} /> : null} />}
       {returnSpot && view !== 'original' && (
-        <Button variant="secondary" size="sm" className="reader-jump-back" aria-keyshortcuts="Alt+ArrowLeft" onClick={jumpBack}>
-          {uiFormat('← 回到{0}', [returnSpot.label])}
+        <Button variant="secondary" size="sm" icon="arrow-left" className="reader-jump-back" aria-keyshortcuts="Alt+ArrowLeft" onClick={jumpBack}>
+          {uiFormat('回到{0}', [returnSpot.label])}
         </Button>
       )}
       <div className="reader-scroll" ref={scroller} tabIndex={0} role="region" aria-label={localMode ? localContent.title || source.title || ui('资料内容') : ui('资料内容')} data-mode={view}>
@@ -924,18 +985,26 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
             onClick={() => onCaseFromPassage({ sourceId: capture.sourceId || source.id, quote: capture.quote })}>{ui('围绕这段出案例题')}</Button>}
         </div>
         <PassageLinksPanel model={model} focusedKey={focusedKey} onFocus={setFocusedKey} onOpen={onOpenCard} onAnnotation={openAnnotation} order={sourceOrder} chapterSources={chapterSources} />
-        {annotationMode === 'annotate' && <StaleAnnotations stale={kept.stale} onClear={clearStaleAnnotations} />}
+        {marksSummary?.total > 0 && <MarksSummarySection summary={marksSummary} onJump={jumpSummaryEntry} onOpenAnnotation={openAnnotation} onOpenSheet={() => setSummaryOpen(true)} />}
+        {toolsOn && <StaleAnnotations stale={kept.stale} staleMarks={marks.staleMarks} onClear={clearStaleAnnotations} onDismissAnnotation={dismissStaleAnnotation}
+          onDismissMark={marks.dismissStaleMark} onClearMarks={marks.clearStaleMarks} />}
       </aside>}
     </div>
     {bilingual.layer}
     {bilingual.dialog}
     {marks.menu}
     <ExplainCard shown={explainShown} />
+    {summaryOpen && marksSummary && <MarksSummaryDialog open={summaryOpen} summary={marksSummary} onClose={() => setSummaryOpen(false)}
+      onJump={jumpSummaryEntry} onOpenAnnotation={openAnnotation} />}
     {displayOpen && <DisplayDialog settings={settings} onChange={updateSettings} onReset={resetSettings} underline={!localMode} extra={bilingual.displayRow} onClose={() => setDisplayOpen(false)} />}
     {peek && canPeek && <Suspense fallback={null}><PagePeek key={document.revision} page={peek.page} figure={peek.figure} totalPages={Math.max(0, ...sources.map(item => item.document?.totalPages || 0))}
       status={peekStatus({ available: !!fileUrl, original: document.original })} loadBytes={peekBytes} onClose={() => setPeek(null)} onAttach={kind => { setPeek(null); setAttaching(kind); }}
       onShowOriginal={page => { setPeek(null); if (page) setPdfPage(page); setMode('original'); }} /></Suspense>}
     {!localMode && attaching && attachTarget.current && <OriginalDialog target={attachTarget.current}
-      call={call} host={host} intent={attaching} onClose={() => setAttaching(null)} onChanged={() => setReload(count => count + 1)} />}
+      call={call} host={host} intent={attaching} onClose={() => setAttaching(null)} onChanged={result => {
+        if (result?.revision) setSyncedTarget({ documentId: result.documentId || result.id, revision: result.revision });
+        setReload(count => count + 1);
+        setKeptReload(count => count + 1);
+      }} />}
   </div>;
 }

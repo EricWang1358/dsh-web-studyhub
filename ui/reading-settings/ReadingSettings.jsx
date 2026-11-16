@@ -24,10 +24,10 @@ export function DisplayControls({ settings, onChange, onReset, underline = true,
     <Field group label={ui('字号')} width="full">
       <div className="reader-stepper">
         <Button size="sm" aria-label={ui('减小字号')} title={ui('减小字号')} disabled={settings.size <= SIZES[0]}
-          onClick={() => onChange({ size: stepSize(settings.size, -1) })}><span aria-hidden="true">A−</span></Button>
+          iconEnd="minus" onClick={() => onChange({ size: stepSize(settings.size, -1) })}>A</Button>
         <output className="reader-stepper__value" aria-live="polite">{settings.size}</output>
         <Button size="sm" aria-label={ui('增大字号')} title={ui('增大字号')} disabled={settings.size >= SIZES.at(-1)}
-          onClick={() => onChange({ size: stepSize(settings.size, 1) })}><span aria-hidden="true">A＋</span></Button>
+          iconEnd="plus" onClick={() => onChange({ size: stepSize(settings.size, 1) })}>A</Button>
       </div>
     </Field>
     <Field group label={ui('版心宽度')} width="full">

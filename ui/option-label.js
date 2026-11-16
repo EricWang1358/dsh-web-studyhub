@@ -8,7 +8,8 @@ export function fixedOptionLabel(card, option) {
   return fixed ? ui(fixed.label) : null;
 }
 
-/** The mark before an option: its letter (A, B, …), or the fixed option's own mark (✓ / ✕ for 对 / 错). */
-export function optionMark(card, option, index) {
-  return fixedOptionsOf(card?.kind)?.find((item) => item.id === option?.id)?.mark ?? String.fromCharCode(65 + index);
-}
+/** The letter before an option (A, B, …). */
+export const optionMark = (card, option, index) => String.fromCharCode(65 + index);
+
+/** The registry icon a fixed option shows in place of a letter (check / close for 对 / 错), or null. */
+export const optionIcon = (card, option) => fixedOptionsOf(card?.kind)?.find((item) => item.id === option?.id)?.icon ?? null;

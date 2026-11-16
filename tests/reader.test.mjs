@@ -707,7 +707,8 @@ test('#12, #56, #60 DocumentViewer: jump-back pill + Alt+ArrowLeft + 8s expiry, 
     tree = render();
     const pill = findAll(tree, n => String(n.props?.className || '').includes('reader-jump-back'))[0];
     assert.ok(pill, 'long distance jump shows reader-jump-back pill');
-    assert.ok(String(pill.props.children).startsWith('← 回到'));
+    assert.ok(String(pill.props.children).startsWith('回到'));
+    assert.equal(pill.props.icon, 'arrow-left', 'the way back draws the registry arrow, on the left');
     const viewerDiv = findAll(tree, n => String(n.props?.className || '').includes('study-document-viewer'))[0];
     let backPrevented = false;
     viewerDiv.props.onKeyDown({ altKey: true, ctrlKey: false, metaKey: false, shiftKey: false, key: 'ArrowLeft', target: {}, preventDefault: () => { backPrevented = true; } });

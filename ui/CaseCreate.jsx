@@ -180,7 +180,7 @@ export default function CaseCreate({ data, onStarted, openImport, openReferenceI
           : { feature: "case", course, language: form.language, sourceIds, referenceSourceIds, referenceLimits, referenceFormat, questions: Number(form.questions), totalMarks: Number(form.totalMarks),
             ...(passage ? { focus: passage } : {}), ...(mode === "style" ? { styleText: form.styleText } : {}) }} />
         <Button className="case-create__action" type="submit" variant="primary" icon="sparkle" busy={busy} disabled={!ready || !model.ready} data-tour="generate-submit" data-usage="generate.submit">
-          {mode === "import" ? answered ? ui("导入并批改 →") : ui("导入案例 →") : ui("出一套案例题 →")}
+          {mode === "import" ? answered ? ui("导入并批改") : ui("导入案例") : ui("出一套案例题")}
         </Button>
       </div>
     </form>

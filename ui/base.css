@@ -314,6 +314,13 @@
       outline-offset: 2px;
     }
   }
+  /* An icon set in running text (a tick before a sentence, the external mark after a link, an arrow between two labels): the registry icon sits on the
+     line like a letter, and the gap to the words is a token, on the side the icon is. A Button, a Chip or a Badge place their own icons. */
+  :where(.study-app, .study-seat) {
+    & .sh-icon--inline { vertical-align: -0.18em; }
+    & .sh-icon--lead { margin-inline-end: var(--space-1-5); }
+    & .sh-icon--trail { margin-inline-start: var(--space-1-5); }
+  }
   @media (forced-colors: active) {
     :where(.study-app, .study-seat) {
       & button { border: 1px solid ButtonText; }

@@ -29,10 +29,11 @@ export function ProgressBar({ value = 0, max = 100, label, tone = 'accent', inde
 }
 
 /**
- * Parts of a whole in one bar. segments: [{ value, tone, label, title? }]; empty
+ * Parts of a whole in one bar. segments: [{ value, tone, label, title?, kind? }]; empty
  * ones are not drawn. The bar is one image named by `label` plus its parts (or by
  * `name` when the caller's own sentence reads better); `legend` adds a visible key
  * (outside the image, so it stays readable). size: md | lg (a taller bar for a result).
+ * `kind` is written on the segment and its key as data-kind, for a caller whose parts need their own look (ui/coverage).
  */
 export function StackedBar({ segments = [], label, name: sentence, legend = false, size = 'md', className, ...rest }) {
   useComponentCss(css, 'study-feedback');
@@ -43,10 +44,10 @@ export function StackedBar({ segments = [], label, name: sentence, legend = fals
   return (
     <div className={cx('sh-stacked', size === 'lg' && 'sh-stacked--lg', className)} {...rest}>
       <div className="sh-stacked__bar" role="img" aria-label={name}>
-        {parts.map((part, index) => <span key={index} className="sh-stacked__segment" data-tone={toneOf(part.tone)} title={part.title} style={{ flexGrow: Number(part.value) }} />)}
+        {parts.map((part, index) => <span key={index} className="sh-stacked__segment" data-tone={toneOf(part.tone)} data-kind={part.kind} title={part.title} style={{ flexGrow: Number(part.value) }} />)}
       </div>
       {legend && parts.length > 0 && <ul className="sh-stacked__legend">
-        {parts.map((part, index) => <li key={index} className="sh-stacked__key" data-tone={toneOf(part.tone)}>
+        {parts.map((part, index) => <li key={index} className="sh-stacked__key" data-tone={toneOf(part.tone)} data-kind={part.kind}>
           <span className="sh-stacked__swatch" aria-hidden="true" />{part.label} <strong>{part.value}</strong>
         </li>)}
       </ul>}

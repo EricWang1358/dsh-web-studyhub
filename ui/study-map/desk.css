@@ -41,9 +41,10 @@
       font-variant-numeric: tabular-nums;
       color: var(--text-muted);
     }
-    .resume b {
-      margin-left: var(--space-3);
-      color: var(--text-dim);
+    .resume > span:last-child {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-3);
     }
     .resume-row {
       display: flex;
@@ -100,6 +101,9 @@
       margin-top: var(--space-1);
     }
     .draft-open > span:last-child {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
       flex: none;
       white-space: nowrap;
       font-size: var(--fs-md);

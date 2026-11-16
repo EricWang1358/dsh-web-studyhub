@@ -44,7 +44,7 @@ This page writes a call as `action {arguments}`, for example `source.list {impor
 - live-computed learner facts (`learner`: goal, study preferences, explicit formula notation, weak topics, focus-topic progress, exam countdown, and—when preparation consent and round reviews are both on—the coach's profile summary) when any are set or recorded, omitted on a brand-new library;
 - the list of contract areas.
 
-For the exact arguments of a group of actions, request one area, such as `library.context {area:"sources"}`, `{area:"generation"}` or `{area:"cards"}`. The areas are `dailyPlan`, `plan`, `custom`, `sources`, `imports`, `decks`, `classroom`, `generation`, `cards`, `learning`, `panel`, `guided`, `book`, `companions`, `organization`, `notes`, `board`, `workflows`, `cases` and `skeletons`.
+For the full action directory read `library.context {area:"index"}`; for the exact arguments of a group of actions, request one area, such as `library.context {area:"sources"}`, `{area:"generation"}` or `{area:"cards"}`. The areas are `index`, `dailyPlan`, `plan`, `custom`, `sources`, `imports`, `decks`, `classroom`, `generation`, `cards`, `learning`, `panel`, `guided`, `book`, `companions`, `organization`, `notes`, `board`, `workflows`, `cases` and `skeletons`.
 
 Read source text, questions and relationships page by page, and only when needed.
 

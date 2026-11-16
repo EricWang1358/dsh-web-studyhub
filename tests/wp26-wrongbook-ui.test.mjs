@@ -101,7 +101,7 @@ test('variant states per row: none, generating, ready with a way to practise, fa
 test('a banner offers the prepared variants and reuses the coach practice', () => {
   const html = text(render());
   assert.match(html, /已为你备好 3 道变式题/);
-  assert.match(html, /去练 →/);
+  assert.match(html, /去练/);
   assert.doesNotMatch(text(render({ coach: { ...coach, ready: 0, readyCards: [] } })), /已为你备好/);
 });
 
@@ -286,11 +286,13 @@ test('no 已订正 switch while there is no history to show', () => {
 test('the header counts the open view and points at the kept history only from 待巩固', () => {
   setUiLanguage('zh');
   const weak = text(render({ viewCounts: { weak: 5, history: 2 }, onView: noop }));
-  assert.match(weak, /客观答错 3 题 · 自评未掌握 1 题 · 口头评估待巩固 0 题。 · 已订正 2 题，记录保留/);
+  // #1086: only the counts that are not zero, one separator, one full stop; the kept history is the last part of the same sentence.
+  assert.match(weak, /客观答错 3 题 · 自评未掌握 1 题 · 已订正 2 题，记录保留。/);
+  assert.doesNotMatch(weak, /0 题|。 ·/);
   const cleared = text(render({ items: [], counts: { total: 0, graded: 0, self: 0, oral: 0, rubric: 0 }, viewCounts: { weak: 0, history: 2 }, onView: noop }));
-  assert.match(cleared, /客观答错、自评未掌握或口头评估待巩固的题会收在这里。 · 已订正 2 题，记录保留/);
+  assert.match(cleared, /客观答错、自评未掌握或口头评估待巩固的题会收在这里。已订正 2 题，记录保留。/);
   const history = text(render(historyBase));
-  assert.match(history, /已订正的错题：答错 1 题 · 自评未掌握 1 题 · 口头评估 0 题。/);
+  assert.match(history, /已订正的错题：客观答错 1 题 · 自评未掌握 1 题。/);
   assert.doesNotMatch(history, /题，记录保留/, 'the history page does not repeat its own count');
 });
 
@@ -351,7 +353,7 @@ test('English: the history view is translated while the question text stays as w
     const t = text(html);
     assert.match(t, /To review 5/);
     assert.match(t, /Corrected 2/);
-    assert.match(t, /Corrected mistakes: incorrect 1 · low self-ratings 1 · oral assessments 0\./);
+    assert.match(t, /Corrected — Objectively incorrect: 1 · Low self-ratings: 1\./);
     assert.match(t, new RegExp('Corrected Missed 3 time\\(s\\) · Last missed ' + escapeRe(formatDateTime('2026-10-03T10:30:00Z', 'stamp'))));
     const empty = render({ ...historyBase, data: { ...base.data, decks: englishDecks }, items: [],
       counts: { total: 0, graded: 0, self: 0, oral: 0, rubric: 0 }, viewCounts: { weak: 5, history: 0 } });

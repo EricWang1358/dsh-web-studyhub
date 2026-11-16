@@ -228,7 +228,7 @@ test("创建题组 offers 案例分析题, and its form starts with the course, 
     exam: { format: "open-book-case", totalMarks: 40, writingMinutes: 100 }, guidanceSourceIds: ["a"], focusTopics: ["Cloud Persistence"] }] } });
   assert.match(linked, /每分约 2.5 分钟，评分说明 1 份，重点主题：Cloud Persistence/);
   assert.match(linked, /修改课程的考试设置、评分说明和重点主题/);
-  assert.match(form, /出一套案例题 →/);
+  assert.match(form, /出一套案例题/);
   assert.match(render(Generate, { ...props, genSource: "case", data: { ...props.data, model: { ready: false, reason: "no-route" } } }), /先配置一个 AI 模型/);
 });
 

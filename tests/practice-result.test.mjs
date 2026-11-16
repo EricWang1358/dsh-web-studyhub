@@ -22,7 +22,7 @@ const noop = () => {};
 const card = { id: 'q', kind: 'quiz', topic: 'Context', prompt: 'Who processes payments?', options: [] };
 const debrief = (next = 'continue_path', extra = {}) => ({ headline: '状态不错，接着学下一批。', why: '本轮 4 题。', next, insights: [], metrics: { answered: 4, gradedAnswered: 4, gradedCorrect: 2 },
   status: { enabled: true, consent: false, ready: 0 }, ...extra });
-const destination = (label = '继续学习 →', extra = {}) => ({ kind: 'path', reason: 'continuing', label, go: noop, note: '', ...extra });
+const destination = (label = '继续学习', extra = {}) => ({ kind: 'path', reason: 'continuing', label, go: noop, note: '', ...extra });
 function result({ run = {}, coach = {}, data = {}, links = {}, ...rest } = {}) {
   return renderToStaticMarkup(reviewElement(Review, StudyServicesContext, {
     run: { id: 'r', mode: 'path', complete: true, index: 4, total: 4, questions: 4, answered: 4, correct: 2, selfAnswered: 0, weakTopics: ['Context'],
@@ -51,7 +51,7 @@ test('a path round has its 继续学习 outside the fold, once; the fold keeps o
   assert.equal((html.match(/继续学习/g) || []).length, 1, 'the next step is said once (the 点评 card does not repeat it)');
   const fold = html.slice(at(html, 'class="result-details"'));
   assert.doesNotMatch(fold, /继续学习/);
-  const scoped = result({ run: { scope: [{ deckId: 'd1' }] }, coach: { destination: destination('继续这个范围 →', { kind: 'scope' }) } });
+  const scoped = result({ run: { scope: [{ deckId: 'd1' }] }, coach: { destination: destination('继续这个范围', { kind: 'scope' }) } });
   assert.match(scoped, /再练此范围/, 'repeating the same scope stays an explicit, folded choice');
   assert.ok(at(scoped, '再练此范围') > at(scoped, 'result-details'));
 });
@@ -62,14 +62,14 @@ test('exactly one filled button on the page, even when the 点评 suggests somet
   for (const next of ['review_weak', 'practice_prepared']) {
     const html = result({ coach: { debrief: debrief(next, { status: { enabled: true, consent: false, ready: 3 } }) } });
     assert.equal(primaries(html), 1, next);
-    assert.match(html, /先补薄弱点 →|刷 3 道为你定制的题 →/, 'the suggestion is still offered');
-    assert.ok(at(html, 'class="result-next"') < at(html, '先补薄弱点 →') || at(html, 'class="result-next"') < at(html, '刷 3 道为你定制的题 →'));
+    assert.match(html, /先补薄弱点|刷 3 道为你定制的题/, 'the suggestion is still offered');
+    assert.ok(at(html, 'class="result-next"') < at(html, '先补薄弱点') || at(html, 'class="result-next"') < at(html, '刷 3 道为你定制的题'));
   }
 });
 
 test('the way back to an original question or a workflow is the next step, and nothing else competes', () => {
   setUiLanguage('zh');
-  const back = result({ run: { returnTo: 'orig' }, coach: { destination: destination('回到原题 →', { kind: 'original', runId: 'orig' }) } });
+  const back = result({ run: { returnTo: 'orig' }, coach: { destination: destination('回到原题', { kind: 'original', runId: 'orig' }) } });
   assert.equal(primaries(back), 1);
   assert.match(back.slice(at(back, 'class="result-next"'), at(back, 'coach-debrief')), /回到原题/);
   assert.doesNotMatch(back, /继续学习/);
@@ -84,7 +84,7 @@ test('the way back to an original question or a workflow is the next step, and n
 test('without a decision from the page (no library) the card keeps its own button, as before', () => {
   setUiLanguage('zh');
   const html = result({ coach: { destination: undefined } });
-  assert.match(html, /继续学习 →/);
+  assert.match(html, /继续学习/);
 });
 
 test('the score says what was measured: answered right for choices, met for self-graded cards, met for a mix', () => {
@@ -131,7 +131,7 @@ test('the 点评 says once that it asks the model and links to the setting; swit
 test('English: the new lines are translated', () => {
   setUiLanguage('en');
   try {
-    const html = result({ run: { selfAnswered: 2 }, coach: { destination: destination('Continue studying →') } });
+    const html = result({ run: { selfAnswered: 2 }, coach: { destination: destination('Continue studying') } });
     const text = html.replace(/<[^>]*>/g, ' ');
     assert.match(text, /Go to settings/);
     assert.match(text, /lighter model/);
@@ -220,7 +220,7 @@ test('a round started in the book: the way back is the one filled button, with t
 test('the book\'s way back and a second button that also goes back never stand side by side: only a forward step of the round is the second button', () => {
   setUiLanguage('zh');
   // Another place to go back to (the path, with nothing left in the scope): left out, and the 点评 card does not repeat it either.
-  const back = result(bookTrail({ coach: { destination: destination('回到学习路径 →', { reason: 'scope-done' }) } }));
+  const back = result(bookTrail({ coach: { destination: destination('回到学习路径', { reason: 'scope-done' }) } }));
   const buttons = buttonsOf(nextBlock(back));
   assert.equal(buttons.length, 1, 'the way back to the book is the only button');
   assert.equal(buttons[0].text, '回到复习全书 回到 1.2.2 Architect the Solution (Asset)');
@@ -230,18 +230,18 @@ test('the book\'s way back and a second button that also goes back never stand s
   assert.equal(primaries(back), 1);
   assert.match(back, /result-next result-next--back/);
   // The same for the 总纲.
-  assert.doesNotMatch(result(bookTrail({ contextKind: 'outline', contextPlace: '', coach: { destination: destination('回到学习路径 →', { reason: 'original-gone' }) } })), /回到学习路径/);
+  assert.doesNotMatch(result(bookTrail({ contextKind: 'outline', contextPlace: '', coach: { destination: destination('回到学习路径', { reason: 'original-gone' }) } })), /回到学习路径/);
   // A step on stays, as the second button.
-  for (const [label, extra] of [['继续这个范围 →', { kind: 'scope' }], ['下一步：复习 →', { kind: 'plan' }], ['继续学习 →', {}]]) {
+  for (const [label, extra] of [['继续这个范围', { kind: 'scope' }], ['下一步：复习', { kind: 'plan' }], ['继续学习', {}]]) {
     const html = result(bookTrail({ coach: { destination: destination(label, extra) } }));
     const [, second] = buttonsOf(nextBlock(html));
-    assert.equal(second.text, label.replace(/\s*→$/, ''));
+    assert.equal(second.text, label);
     assert.match(second.cls, /sh-btn--secondary/);
   }
   const batch = buttonsOf(nextBlock(result(bookTrail({ run: { course: { name: '网络', next: { label: 'x', fresh: 3 }, learned: 1, cards: 5 } } }))));
   assert.equal(batch[1].text, '继续课程下一批');
   // Off the book's trail the same step is the main button, as before.
-  const home = result({ contextKind: 'library', contextReturnLabel: '返回学习库首页', onReturnContext: noop, coach: { destination: destination('回到学习路径 →', { reason: 'scope-done' }) } });
+  const home = result({ contextKind: 'library', contextReturnLabel: '返回学习库首页', onReturnContext: noop, coach: { destination: destination('回到学习路径', { reason: 'scope-done' }) } });
   assert.equal(buttonsOf(nextBlock(home))[0].text, '回到学习路径');
   assert.equal(isBackDestination({ kind: 'path', reason: 'scope-done' }), true);
   assert.equal(isBackDestination({ kind: 'path', reason: 'continuing' }), false);
@@ -280,19 +280,19 @@ test('book -> reader -> practise -> result: a round of the reader goes back to t
   assert.match(readerNext[0].cls, /sh-btn--secondary/);
   assert.doesNotMatch(fromReader, /返回资料/, 'the generic return button is not drawn beside the reader\'s way back');
   assert.match(fromReader, /coach-debrief/, 'the 点评 card is still there');
-  for (const [label, extra] of [['继续这个范围 →', { kind: 'scope' }], ['继续学习 →', {}]]) {
+  for (const [label, extra] of [['继续这个范围', { kind: 'scope' }], ['继续学习', {}]]) {
     const html = reader({ coach: { destination: destination(label, extra) } });
     assert.equal(primaries(html), 1, label);
-    assert.equal(buttonsOf(nextBlock(html))[0].text, label.replace(/\s*→$/, ''));
+    assert.equal(buttonsOf(nextBlock(html))[0].text, label);
   }
   // A next step that is only another place to go back to is dropped, as with the book's way back.
-  const backOnly = reader({ coach: { destination: destination('回到学习路径 →', { reason: 'scope-done' }) } });
+  const backOnly = reader({ coach: { destination: destination('回到学习路径', { reason: 'scope-done' }) } });
   assert.equal(primaries(backOnly), 1);
   assert.doesNotMatch(backOnly, /回到学习路径/);
   // The 点评's own suggestion and the daily recap are plain too: the page still has one filled button.
   const suggesting = reader({ coach: { debrief: debrief('review_weak') } });
   assert.equal(primaries(suggesting), 1);
-  assert.match(suggesting, /先补薄弱点 →/);
+  assert.match(suggesting, /先补薄弱点/);
   // A book round whose learner opened the reader and practised from it: the new round carries the reading, the book's trail is still there; the reader's way back wins.
   const nested = result(bookTrail({ run: { reading }, onReturnToReading: noop }));
   assert.equal(primaries(nested), 1, 'one filled button on the page: the reader\'s');
@@ -330,7 +330,7 @@ test('a round started in the book without a next step to offer still has its way
   const html = result(bookTrail({ coach: { destination: undefined } }));
   assert.equal(primaries(html), 1);
   assert.match(nextBlock(html), /回到复习全书/);
-  assert.match(html, /继续学习 →/, 'the 点评 card still offers the way on');
+  assert.match(html, /继续学习/, 'the 点评 card still offers the way on');
   assert.match(html, /接着学下一批/, 'so its headline may say so');
   assert.equal(primaries(html), 1, 'and it is not a second filled button');
 });
@@ -370,7 +370,7 @@ test('English: the way back to the book and the 总纲 and its second line are t
 
 test('a round nested inside a book round (a prerequisite round, a detour from the inbox) keeps its own way on as the one filled button; the book is not offered first', () => {
   setUiLanguage('zh');
-  const prerequisite = result({ ...bookTrail(), run: { returnTo: { runId: 'outer', index: 2 } }, coach: { destination: destination('回到原题 →', { kind: 'original' }) } });
+  const prerequisite = result({ ...bookTrail(), run: { returnTo: { runId: 'outer', index: 2 } }, coach: { destination: destination('回到原题', { kind: 'original' }) } });
   const [first, second] = buttonsOf(nextBlock(prerequisite));
   assert.equal(primaries(prerequisite), 1);
   assert.match(first.cls, /sh-btn--primary/);

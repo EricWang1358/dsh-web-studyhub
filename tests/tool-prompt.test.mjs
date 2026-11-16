@@ -1,17 +1,50 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { studyToolDescription, studyUsagePrompt, libraryContracts } from '../lib/study-contracts.js';
+import { contractOf, libraryContracts, studyToolDescription, studyUsagePrompt } from "../lib/study-contracts.js";
+import { discoveryTool, domainTool } from "../lib/runtime/tools.js";
+import { StudyService } from "../lib/service.js";
 
-test('actual registered Study prompts are short, discoverable and retain authorization boundaries', () => {
-  const source = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8');
+const DOMAIN_IDS = ["bank", "materials", "generation", "study", "audio"];
+
+function registeredToolSpecs() {
+  const core = { resolveWorkspace: async () => null, requestServices: async () => ({}), contextIds: () => [] };
+  const workspace = {
+    name: "study_workspace",
+    description: studyToolDescription,
+    parameters: {
+      type: "object",
+      properties: {
+        action: { type: "string" },
+        payload_json: { type: "string", description: "JSON object of action arguments; omit for read actions" },
+      },
+      required: ["action"],
+    },
+    output: { schema: { type: "object", additionalProperties: true } },
+  };
+  return [workspace, ...DOMAIN_IDS.map((id) => domainTool(id, core)), discoveryTool(core)];
+}
+
+const serializedSpecLength = (tool) => JSON.stringify({
+  name: tool.name,
+  description: tool.description,
+  parameters: tool.parameters,
+  output: { schema: tool.output.schema },
+}).length;
+
+test("actual registered Study prompts are short, discoverable and retain authorization boundaries", () => {
+  const source = readFileSync(new URL("../lib/index.js", import.meta.url), "utf8");
   assert.match(source, /name: "study_workspace",\s*description: studyToolDescription,/);
   assert.match(source, /name: "daily-flashcard:usage",\s*order: 70,\s*text: studyUsagePrompt,/);
-  assert.ok(studyToolDescription.length < 21715 / 2, 'Full evaluated description is less than half the prior 21715 characters');
-  assert.ok(studyToolDescription.length + studyUsagePrompt.length < 6000);
-  assert.match(studyToolDescription, /library.context/);
+  // #891: resident studyToolDescription cut from 4,707 to ~1,998 chars; lock tight growth ceilings.
+  assert.ok(studyToolDescription.length <= 2_200, `studyToolDescription (${studyToolDescription.length}) must stay <= 2,200 chars`);
+  assert.ok(studyToolDescription.length + studyUsagePrompt.length <= 2_900, `resident prompt + usage (${studyToolDescription.length + studyUsagePrompt.length}) must stay <= 2,900 chars`);
+  assert.match(studyToolDescription, /library\.context \{area:"index"\}/);
   assert.match(studyToolDescription, /supplement/);
   assert.match(libraryContracts.generation, /authorizes local generation and publication/);
   assert.match(libraryContracts.generation, /zero direct citations is not a gap/);
@@ -29,7 +62,58 @@ test('actual registered Study prompts are short, discoverable and retain authori
   assert.doesNotMatch(studyToolDescription + studyUsagePrompt, /\{\{[^}]+\}\}/);
 });
 
-test("Study tool description renders without introducing prompt variables", async (t) => {
+test("resident registered StudyHub tool specs stay within strict total character budget (#891)", () => {
+  const tools = registeredToolSpecs();
+  assert.deepEqual(tools.map((t) => t.name), [
+    "study_workspace",
+    "study_bank",
+    "study_materials",
+    "study_generate_selection",
+    "study_practice",
+    "study_audio",
+    "study_capabilities",
+  ]);
+  const totalDescriptions = tools.reduce((sum, tool) => sum + tool.description.length, 0);
+  const totalSpecsJson = tools.reduce((sum, tool) => sum + serializedSpecLength(tool), 0);
+  // Pre-#891 baseline: totalDescriptions = 6,348 chars, totalSpecsJson = 11,791 chars (+ 939 usage = 12,730 chars).
+  assert.ok(totalDescriptions <= 3_200, `resident tool descriptions (${totalDescriptions}) must stay <= 3,200 chars`);
+  assert.ok(totalSpecsJson <= 8_800, `resident tool specs JSON (${totalSpecsJson}) must stay <= 8,800 chars`);
+  assert.ok(totalSpecsJson + studyUsagePrompt.length <= 9_600, `resident tool specs + usage (${totalSpecsJson + studyUsagePrompt.length}) must stay <= 9,600 chars`);
+});
+
+test('library.context { area: "index" } serves the complete action directory on demand (#891)', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "study-tool-prompt-index-"));
+  const service = new StudyService(root);
+  t.after(async () => { await service.dispose(); await rm(root, { recursive: true, force: true }); });
+
+  const indexed = await service.call("library.context", { area: "index" });
+  assert.equal(indexed.area, "index");
+  assert.equal(indexed.areas[0], "index");
+  assert.equal(indexed.contract, contractOf("index"));
+  assert.equal(indexed.contract, libraryContracts.index);
+  assert.ok(indexed.contract.length < 6_000, `index contract (${indexed.contract.length}) stays bounded`);
+
+  const expanded = new Set(indexed.contract.match(/[a-z][a-zA-Z]*(?:\.[a-z][a-zA-Z]*)+(?:\/[a-z][a-zA-Z.]*)*/g)?.flatMap((token) => {
+    const slash = token.indexOf("/");
+    if (slash < 0) return [token];
+    const head = token.slice(0, slash);
+    const dot = head.lastIndexOf(".");
+    const prefix = dot > 0 ? `${head.slice(0, dot)}.` : "";
+    return [head, ...token.slice(slash + 1).split("/").map((part) => `${prefix}${part}`)];
+  }) || []);
+
+  for (const action of [
+    "source.list", "search.content", "card.search", "card.convert", "card.grade", "case.drills",
+    "supplement", "generate", "deck.import", "ingest", "mineru.import", "audio.import", "live.start",
+    "review.start", "study.session.start", "course.plan", "course.custom.preview", "book.toc",
+    "book.crunch", "note.list", "board.get", "skeleton.diagram.attach", "generation.companion.build",
+    "job.control", "workflow.list",
+  ]) {
+    assert.ok(indexed.contract.includes(action) || expanded.has(action), `index contract lists ${action}`);
+  }
+});
+
+test("Study tool description and SDK declarations render without introducing prompt variables", async (t) => {
   const local = createRequire(import.meta.url);
   let toolsPath;
   try { toolsPath = local.resolve("@deepseek-ai/dsh-tools"); }
@@ -39,10 +123,19 @@ test("Study tool description renders without introducing prompt variables", asyn
     return;
   }
   const host = createRequire(toolsPath);
+  const { renderToolsSdk } = await import(pathToFileURL(toolsPath).href);
   const { renderPrompt } = await import(pathToFileURL(host.resolve("@deepseek-ai/dsh-system-prompt")).href);
   const text = studyToolDescription;
+  const sdkText = renderToolsSdk(registeredToolSpecs().map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters,
+    output: tool.output.schema,
+  })));
+  assert.ok(sdkText.length + studyUsagePrompt.length <= 10_000, `rendered SDK + usage (${sdkText.length + studyUsagePrompt.length}) must stay <= 10,000 chars`);
   const variables = { provider: "test", model: "test", cwd: "." };
   assert.throws(() => renderPrompt({ sections: [{ name: "tools:sdk", text: "{{id}}" }], variables }), /unknown prompt variable/);
   assert.equal(renderPrompt({ sections: [{ name: "tools:sdk", text }], variables }), text);
-  assert.equal(renderPrompt({ sections: [{ name: 'daily-flashcard:usage', text: studyUsagePrompt }], variables }), studyUsagePrompt);
+  assert.equal(renderPrompt({ sections: [{ name: "tools:sdk", text: sdkText }], variables }), sdkText);
+  assert.equal(renderPrompt({ sections: [{ name: "daily-flashcard:usage", text: studyUsagePrompt }], variables }), studyUsagePrompt);
 });

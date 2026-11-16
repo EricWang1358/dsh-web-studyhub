@@ -180,7 +180,7 @@ test('a plan the record refuses is refused here with the same message; no course
 test('the op is declared read only, the assistant may call it, and the chat\'s contract names it', () => {
   assert.deepEqual(writesFor('library', 'course.custom.preview'), []);
   assert.equal(assistantRefusal('course.custom.preview'), null);
-  assert.match(studyToolDescription, /Discovery: [^\n]*source\.pages \(details: book\), course\.custom\.preview \(details: custom\), map/);
+  assert.match(libraryContracts.index, /Discovery: [^\n]*source\.pages \(details: book\), course\.custom\.preview \(details: custom\), map/);
   assert.match(studyToolDescription, /areas: [^\n]*custom/, 'a library.context area of its own');
   assert.match(libraryContracts.custom, /course\.custom\.preview \{course\?,custom\?\}/);
   assert.match(libraryContracts.custom, /course\.save \{name\|id, custom\}/);

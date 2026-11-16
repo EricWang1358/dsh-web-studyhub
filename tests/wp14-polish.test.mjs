@@ -117,10 +117,11 @@ test('the learning panel keeps the selection tools together at full width, and n
 const names = courses.map(item => ({ name: item.name }));
 const field = (props, language) => render(h(CourseField, { courses: names.slice(0, 4), value: '', onChange() {}, ...props }), language);
 
-test('the course field offers a × to clear and a one-line hint', () => {
+test('the course field offers a clear button and a one-line hint', () => {
   const filled = field({ value: 'Databa' });
   assert.match(filled, /aria-label="清空课程"/);
-  assert.match(filled, /输入新课程名，或点下方已有课程直接切换；点 × 清空。/);
+  // The clear mark is an icon now (#1073), so the hint names the button, not a typed ×.
+  assert.match(filled, /输入新课程名，或点下方已有课程直接切换；点清除按钮清空。/);
   assert.doesNotMatch(field({ value: '' }), /清空课程/, 'nothing to clear');
   const multiple = field({ value: 'Databases; 数据结构', multiple: true });
   assert.match(multiple, /aria-label="清空课程"/);

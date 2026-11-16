@@ -389,6 +389,11 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const pins = useMemo(() => pinnedKeys(data.settings), [data.settings]);
   const { pinned, rest } = useMemo(() => showArchived ? { pinned: [], rest: filtered } : splitPinned(filtered, pins), [filtered, pins, showArchived]);
   const groups = useMemo(() => groupByDay(rest), [rest]);
+  // The header describes the scope, not the filter: the filter's own count says how many match, so typing changes no line above the controls (#1085).
+  const scopeSummary = useMemo(() => {
+    const split = showArchived ? { pinned: [], rest: scoped } : splitPinned(scoped, pins);
+    return { count: scoped.length, pinned: split.pinned.length, rest: split.rest.length, groups: groupByDay(split.rest).length };
+  }, [scoped, pins, showArchived]);
   // Materials made from one original file say so on their rows (#207), as in the picker of 创建题组.
   const relations = useMemo(() => materialRelations(items), [items]);
   // One index state per document, reusing the previous object while it is unchanged: a coverage answer then touches only the rows whose badge changed (#229).
@@ -580,8 +585,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     <section ref={pageRef} className="page sources-page">
       <PageHeader className="sources-page__header" title={ui("资料")}
         description={<>{ui("题目从这里生长。原文与引用一直保留。")}{items.length > 0 &&
-          (pinned.length ? (rest.length ? uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。", [filtered.length, pinned.length, groups.length]) : uiFormat(" 共 {0} 份资料，全部置顶。", [filtered.length]))
-            : uiFormat(" 共 {0} 份资料，按导入日期分为 {1} 组。", [filtered.length, groups.length]))}</>}
+          (scopeSummary.pinned ? (scopeSummary.rest ? uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。", [scopeSummary.count, scopeSummary.pinned, scopeSummary.groups]) : uiFormat(" 共 {0} 份资料，全部置顶。", [scopeSummary.count]))
+            : uiFormat(" 共 {0} 份资料，按导入日期分为 {1} 组。", [scopeSummary.count, scopeSummary.groups]))}</>}
         actions={headerActions} actionsOnTitleRow={narrow} />
       {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}
       {items.length > 0 && <>

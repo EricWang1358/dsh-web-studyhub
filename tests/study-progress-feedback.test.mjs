@@ -204,7 +204,7 @@ test('Point 3 (UI): NextDue renders FSRS memory trajectory pills honestly in Chi
       feedback: { correct: true, level: 'mastered', beforeLevel: 'familiar', beforeDays: 8, afterDays: 24, stability: 24.5, credited: 1, nextDue: due },
     }));
     const enText = plain(promotedMastered);
-    assert.match(enText, /^✓ Mastered · see it again/);
+    assert.match(enText, /^Mastered · see it again/);
     assert.match(enText, /Familiar → Mastered/);
     assert.match(enText, /Interval 8d → 24d/);
     assert.match(enText, /Stability 24\.5d/);

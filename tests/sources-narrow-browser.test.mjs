@@ -43,8 +43,9 @@ test('资料 at a docked half-screen width uses the narrow rows, and the filter 
     return { page, errors };
   };
   const look = page => page.evaluate(() => {
-    const box = el => { const r = el.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.top)]; };
-    const sources = document.querySelector('.sources-page');
+    // Positions inside the page: the app above it (top bar, notices) may still settle, which is not the filter's doing.
+    const sources = document.querySelector('.sources-page'), origin = sources.getBoundingClientRect();
+    const box = el => { const r = el.getBoundingClientRect(); return [r.left - origin.left, r.right - origin.left, r.top - origin.top]; };
     const style = getComputedStyle(sources);
     return {
       column: sources.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
@@ -63,8 +64,10 @@ test('资料 at a docked half-screen width uses the narrow rows, and the filter 
   await half.page.locator('.sources-filter__input').fill('kernel');
   await half.page.locator('.sources-filter__state').waitFor();
   const typing = await look(half.page);
-  assert.deepEqual(typing.select, before.select, 'the scope select does not move or shrink while typing');
-  assert.deepEqual(typing.filter, before.filter, 'nor does the filter');
+  // Within a pixel: the edges are fractional, and a moved or narrowed control (the old fault) was off by tens of pixels.
+  const still = (now, was, what) => assert.ok(now.every((edge, i) => Math.abs(edge - was[i]) < 1), `${what}: ${JSON.stringify(was)} -> ${JSON.stringify(now)}`);
+  still(typing.select, before.select, 'the scope select does not move or shrink while typing');
+  still(typing.filter, before.filter, 'nor does the filter');
   assert.deepEqual(half.errors, []);
 
   const wide = await open(1280);

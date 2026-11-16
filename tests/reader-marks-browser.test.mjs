@@ -100,7 +100,7 @@ test('select, right-click, mark and queue; reopen; 一次性出题 runs in the b
       // 1. 下划线, 加粗, 荧光笔: each kept with the document and painted at once.
       await rightClickOn('principles guiding');
       assert.deepEqual(await menu(page).getByRole('menuitem').allInnerTexts().then(list => list.map(text => text.split('\n')[0].trim())),
-        ['复制', '下划线', '加粗', '荧光笔', '加入待出题', 'AI 词解'], `${width}: the menu over a fresh selection`);
+        ['复制', '带出处复制', '下划线', '加粗', '荧光笔', '加入待出题', 'AI 词解'], `${width}: the menu over a fresh selection`);
       await shot('2-menu');
       await choose('下划线');
       await until(() => has('underline', 'principles guiding'), `${width}: the underline is kept`);
@@ -120,7 +120,7 @@ test('select, right-click, mark and queue; reopen; 一次性出题 runs in the b
       await select(page, 'trades freshness for speed');
       await page.evaluate(() => document.querySelector('.study-document-body').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 0 })));
       await menu(page).waitFor();
-      for (let step = 0; step < 4; step++) await page.keyboard.press('ArrowDown');
+      for (let step = 0; step < 5; step++) await page.keyboard.press('ArrowDown');
       await page.keyboard.press('Enter');
       // Wide, 待出题 N is a chip in the toolbar; at the narrowest (420 px) the toolbar is full and the same panel opens from 更多 › 待出题 N….
       const compact = width <= 520, chip = viewer.getByRole('button', { name: /^待出题 \d+$/ });
@@ -131,7 +131,7 @@ test('select, right-click, mark and queue; reopen; 一次性出题 runs in the b
       else await until(async () => (await chip.count()) && (await chip.innerText()).trim() === '待出题 3', `${width}: 待出题 3 in the toolbar`);
       const spread = await toolbarRows();
       assert.ok(spread <= 8, `${width}: the toolbar stays one row with 待出题 (middles ${spread}px apart)`);
-      assert.equal(await painted(page, 'study-mark-queue'), 3);
+      await until(async () => (await painted(page, 'study-mark-queue')) === 3, `${width}: three queued passages painted`);
       await shot('3-marked');
 
       // 3. A right-click on a mark with nothing selected offers its 去掉; the browser's own menu is left alone elsewhere.

@@ -33,7 +33,8 @@ export function stepSentence(step) {
     return step.verified ? uiFormat('已连接：{0}', [step.label]) : uiFormat('已选择模型：{0}', [step.label]);
   }
   if (step.id === 'material') {
-    if (step.status === 'todo') return ui('添加一份资料：讲义、课件或笔记');
+    // With the sample loaded the step still waits for a material of the learner's own, and says so instead of asking as if the library were empty (#1087).
+    if (step.status === 'todo') return step.sampleCount > 0 ? uiFormat('示例资料 {0} 份已载入 · 再加一份你自己的', [step.sampleCount]) : ui('添加一份资料：讲义、课件或笔记');
     return step.count > 1 ? uiFormat('{0} 等 {1} 份资料 · 已添加', [step.title, step.count]) : uiFormat('{0} · 已添加', [step.title]);
   }
   return ({
@@ -103,13 +104,17 @@ function ModelBody({ step, on }) {
   );
 }
 
-function MaterialBody({ on }) {
+/** Step 2, open. While the sample is loaded its banner leads (tour, remove); adding one's own is said here as what still counts, with a secondary button. */
+function MaterialBody({ step, on }) {
   const { busy } = useStudy();
+  const sample = step.sampleCount > 0;
   return (
     <>
-      <p className="frl-body__text">{ui('PDF、Word、PowerPoint、Markdown、保存下来的网页文件（.html）或文本都可以，原文件会保留。添加后就能用它出题。')}</p>
+      <p className="frl-body__text">{sample
+        ? ui('示例只用来看效果，不算你的进度。加一份你自己的讲义、课件或笔记，就能用它出第一组题。')
+        : ui('PDF、Word、PowerPoint、Markdown、保存下来的网页文件（.html）或文本都可以，原文件会保留。添加后就能用它出题。')}</p>
       {on.importFirst && <div className="frl-body__actions">
-        <Button variant="primary" icon="upload" lock={busy} data-first-run="import" onClick={on.importFirst}>{ui('添加资料')}</Button>
+        <Button variant={sample ? 'secondary' : 'primary'} icon="upload" lock={busy} data-first-run="import" onClick={on.importFirst}>{ui('添加资料')}</Button>
       </div>}
     </>
   );
@@ -166,7 +171,7 @@ function DeckBody({ step, on, jobs, plan }) {
   );
   if (status === 'draft-review') return (
     <>
-      <p className="frl-body__text">{ui('发布前先在草稿页看一遍：每道题都能修改，看完点「发布并开始练 →」。')}</p>
+      <p className="frl-body__text">{ui('发布前先在草稿页看一遍：每道题都能修改，看完点「发布并开始练」。')}</p>
       {on.openDraft && <div className="frl-body__actions">
         <Button variant="primary" iconEnd="arrow-right" lock={busy} data-first-run="review" onClick={() => on.openDraft(draft)}>{ui('检查草稿')}</Button>
       </div>}
@@ -238,7 +243,7 @@ function Steps({ line, on, jobs, compact, plan }) {
             </div>
             {open && <div className="frl-body" data-body={step.id}>
               {step.id === 'model' ? <ModelBody step={step} on={on} />
-                : step.id === 'material' ? <MaterialBody on={on} />
+                : step.id === 'material' ? <MaterialBody step={step} on={on} />
                   : <DeckBody step={step} on={on} jobs={jobs} plan={plan} />}
             </div>}
           </li>

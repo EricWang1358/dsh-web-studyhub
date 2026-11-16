@@ -21,7 +21,7 @@ function Rows({ rows, onPractice, onSeek }) {
     {rows.slice(0, SHOWN_MAX).map(row => <li key={row.key} className="reader-wrong__row">
       <p className="reader-wrong__prompt"><span className="reader-wrong__status">{statusLabel(statusOf(row.item))}</span><StudyInline text={row.item.prompt} /></p>
       <span className="reader-wrong__actions">
-        <Button size="sm" variant="secondary" icon="arrow-right" onClick={() => onPractice(row)}>{ui('去练')}</Button>
+        <Button size="sm" variant="secondary" iconEnd="arrow-right" onClick={() => onPractice(row)}>{ui('去练')}</Button>
         <Button size="sm" variant="quiet" disabled={!row.entryId} onClick={() => onSeek(row)}>{ui('看原文')}</Button>
       </span>
     </li>)}

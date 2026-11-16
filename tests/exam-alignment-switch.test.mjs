@@ -84,7 +84,7 @@ test("the receipts say what moved, and the course settings point at the switch o
   assert.equal(m.alignmentReceipt({ pulled: 0, restored: 0 }), "");
   const pointer = (props) => render(React.createElement(m.ExamAlignmentPointerView, props));
   const waiting = preview({ enabled: true, pending: 6, courses: [{ name: "OS", date: "2026-11-20", pending: 6 }, { name: "DB", date: "2026-11-25", pending: 0 }] });
-  assert.match(pointer({ preview: waiting, course: "OS" }), /6 道题仍排在考试之后 → [\s\S]*?设置 · 考前对齐/);
+  assert.match(pointer({ preview: waiting, course: "OS" }), /6 道题仍排在考试之后 <button[\s\S]*?设置 · 考前对齐/);
   assert.equal(pointer({ preview: waiting, course: "DB" }), "");
   assert.equal(pointer({ preview: { ...waiting, enabled: false }, course: "OS" }), "", "switched off: nothing to point at");
   assert.equal(pointer({ preview: null, course: "OS" }), "");

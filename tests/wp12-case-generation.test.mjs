@@ -246,8 +246,8 @@ test("the course profile adapter fills defaults before and after WP13", async ()
 
 test("agents find case generation, grading and drills in the compact study tool contracts", () => {
   assert.match(studyToolDescription, /areas: [^.]*\bcases\b/);
-  assert.match(studyToolDescription, /card\.grade/);
-  assert.match(studyToolDescription, /case\.drills/);
+  assert.match(libraryContracts.index, /card\.grade/);
+  assert.match(libraryContracts.index, /case\.drills/);
   assert.match(libraryContracts.cases, /generate \{kind:'case'/);
   assert.match(libraryContracts.cases, /card\.grade \{/);
   assert.match(libraryContracts.cases, /examKinds:'case'/);

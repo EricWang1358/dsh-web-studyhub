@@ -7,7 +7,7 @@
   "{0} · 已判分并计入复习计划。": "{0} · Graded and added to your review schedule.",
   "同范围、题数及题型构成的上次考试为 {0}%；这次{1}。两次抽到的题目可能不同，仅供参考。": "The previous exam with the same scope, count and type mix scored {0}%; this time is {1}. Questions may differ; this comparison is a reference only.",
   "{0}/{1} 题答错或未答": "{0}/{1} wrong or unanswered",
-  "练习答错与未答的 {0} 道 →": "Practise the {0} wrong or unanswered →",
+  "练习答错与未答的 {0} 道": "Practise the {0} wrong or unanswered",
   "答错 · {0}": "Incorrect · {0}",
   "未答 · {0}": "Unanswered · {0}",
   "第 {0} / {1} 题": "Question {0} of {1}",

@@ -43,7 +43,7 @@ export default function Ingest({ data, start, onOpenSettings }) {
       <p className="muted">{ui("刷题软件、Canvas 错题记录、截图都可以直接贴进主会话。开启后在主会话里贴的题会自动录入，不需要先整理成文档；贴的原文会作为这些题的资料保存。")}</p>
       <fieldset>
         <legend>{ui("01 / 放进哪个题组")}</legend>
-        <label>{ui("题组")}<Combobox value={target} valueLabel={ui("＋ 新建题组")} onChange={setTarget} options={deckOptions} label={ui("题组")} searchPlaceholder={ui("搜索题组")}
+        <label>{ui("题组")}<Combobox value={target} valueLabel={ui("新建题组")} onChange={setTarget} options={deckOptions} label={ui("题组")} searchPlaceholder={ui("搜索题组")}
             emptyText={(query) => uiFormat("没有叫「{0}」的题组", [query])}
             actions={[{ id: "new-deck", icon: "plus", enter: true, label: (query) => query ? uiFormat("新建题组「{0}」", [query]) : ui("新建题组"),
               onSelect: (query) => { setTarget("new"); if (query) setTitle(query); } }]} />

@@ -77,5 +77,7 @@
   "这个路径不是文件：{0}": "This path is not a file: {0}",
   "复制最多 {0}": "Copy: up to {0}",
   "这本书是从 {0}（{1}）转换来的，文件还在原处。": "This book was converted from {0} ({1}), and the file is still where it was.",
-  "使用转换时的原文件": "Use the file it was converted from"
+  "使用转换时的原文件": "Use the file it was converted from",
+  "同步最新文件内容": "Sync latest file from disk",
+  "已同步最新文件内容": "Synced latest file from disk"
 }

@@ -73,7 +73,7 @@ test('the 速查页: A–Z with card codes and other names, the cards by chapter
     glossary: [{ term: '软件架构', item: ID(1), gist: '骨架决策', kind: 'definition', hid: 'h2', material: 'L1', page: 2 },
       { term: '利特尔法则', item: ID(9), gist: 'L = λW', kind: 'formula', hid: 'h4', material: 'L2', page: 9 }] };
   const lookup = ui.bookLookup(book, {}), html = render(h(ui.BookLookup, { lookup, onGo: noop, onCard: noop })), text = textOf(html);
-  assert.match(text, /Software Architecture → 软件架构 K001/, 'an other name points to the same card');
+  assert.match(text, /Software Architecture 软件架构 K001/, 'an other name points to the same card');
   assert.match(text, /软件架构 ：骨架决策 K001 H2/);
   assert.match(text, /术语卡（按章）/);
   assert.match(text, /1 基础 K001 软件架构 · K002 耦合/);

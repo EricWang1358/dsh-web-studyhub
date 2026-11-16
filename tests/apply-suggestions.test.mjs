@@ -79,5 +79,5 @@ test('the console row draws a checkbox for it, in both languages, and 存为默�
   const patch = m.defaultsPatch(generation(true));
   assert.equal(patch.action, 'settings');
   assert.equal(patch.args.generation.applySuggestions, true);
-  assert.equal(m.appliedText({ applySuggestions: true }), '✓ 已生效 · 采纳审阅建议：开');
+  assert.equal(m.appliedText({ applySuggestions: true }), '已生效 · 采纳审阅建议：开');
 });

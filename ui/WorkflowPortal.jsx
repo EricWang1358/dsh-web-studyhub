@@ -158,7 +158,7 @@ function PortalBody({ id, onOpenRun, onBack, revision, initialResult = null }) {
   if (!session) {
     return (
       <section className="page workflow-page">
-        <div className="wf-topline"><Button variant="link" size="sm" onClick={onBack}>{ui("← 返回历史记录")}</Button></div>
+        <div className="wf-topline"><Button variant="link" size="sm" icon="arrow-left" onClick={onBack}>{ui("返回历史记录")}</Button></div>
         <PageHeader title={ui("历史学习记录")} />
         {error ? <ErrorState error={error} onRetry={refresh} retryLabel={ui("重新读取")} /> : <LoadingState label={ui("正在读取历史学习记录…")} />}
       </section>
@@ -175,7 +175,7 @@ function PortalBody({ id, onOpenRun, onBack, revision, initialResult = null }) {
   return (
     <section className="page workflow-page wf-portal">
       <div className="wf-topline">
-        <Button variant="link" size="sm" onClick={onBack}>{ui("← 返回历史记录")}</Button>
+        <Button variant="link" size="sm" icon="arrow-left" onClick={onBack}>{ui("返回历史记录")}</Button>
         <span className="muted small">{ui("只读存档")}</span>
       </div>
       <PageHeader className="wf-heading" ref={headingRef} eyebrow={session.template.title} title={session.topic}

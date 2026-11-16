@@ -96,6 +96,7 @@ test('a question in an open exam is not converted, and the contract names card.c
   const service = await library(t);
   await service.store.update((s) => s.runs.push({ id: 'exam', mode: 'exam', deckId: 'd', index: 0, entries: [{ deckId: 'd', card: { id: 'q1', kind: 'quiz' } }] }));
   await assert.rejects(service.call('card.convert', { cardId: 'q1', kind: 'flashcard', reason: 'x' }), /active exam/);
-  assert.match(studyToolDescription, /card\.convert/);
+  assert.match(studyToolDescription, /library\.context \{area:"index"\}/);
+  assert.match(libraryContracts.index, /card\.convert/);
   assert.match(libraryContracts.cards, /card\.convert \{cardId,deckId\?,kind/);
 });

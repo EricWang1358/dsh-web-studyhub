@@ -17,8 +17,8 @@ export const examPointerShown = (exam, now = Date.now()) => (daysUntilExam(exam,
 export function ExamAlignmentPointerView({ preview, course, onOpen }) {
   const waiting = preview?.enabled ? preview.courses?.find(item => item.name === course)?.pending || 0 : 0;
   if (!waiting) return null;
-  return <Hint className="exam-align-pointer">{uiFormat('{0} 道题仍排在考试之后', [waiting])}{' → '}
-    <Button variant="link" size="sm" onClick={() => onOpen?.()}>{ui('设置 · 考前对齐')}</Button></Hint>;
+  return <Hint className="exam-align-pointer">{uiFormat('{0} 道题仍排在考试之后', [waiting])}{' '}
+    <Button variant="link" size="sm" iconEnd="arrow-right" onClick={() => onOpen?.()}>{ui('设置 · 考前对齐')}</Button></Hint>;
 }
 
 /** Reads the preview for the course (again when its saved exam date changes) and opens Settings at the switch, closing the course

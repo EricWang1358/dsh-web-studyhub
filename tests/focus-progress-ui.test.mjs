@@ -50,7 +50,7 @@ const desk = (over = {}, props = {}) => {
 test('the home line counts the focus topics and sits under the course progress, in one line with one link', () => {
   const html = desk(), line = visible(html);
   assert.match(line, /重点 8 条：已掌握 3 · 还不会 2 · 还没有题 1(?! ·)/);
-  assert.match(line, /练还不会的重点 →/);
+  assert.match(line, /练还不会的重点/);
   assert.equal((html.match(/练还不会的重点/g) || []).length, 1);
   assert.ok(html.indexOf('class="focus-progress"') > html.indexOf('course-heading'), 'under the course title');
   assert.match(html, /<p class="focus-progress"/, 'a single line of text, not a card');
@@ -85,7 +85,7 @@ test('how it is counted is a hover Tooltip, never a title attribute', () => {
 test('English: every word of the line and its explanation is English', () => {
   const html = render(h(m.FocusProgressLine, { progress, courseId: 'course-os', lock: false, start: noop, onCourseSettings: noop }), 'en'), line = visible(html);
   assert.match(line, /Focus topics 8: Mastered 3 · Not yet 2 · No questions 1(?! ·)/);
-  assert.match(line, /Practise the focus topics you can't do yet →/);
+  assert.match(line, /Practise the focus topics you can't do yet/);
   assert.doesNotMatch(text(html), /[㐀-鿿]/, 'the explanation too');
   const rows = text(render(h(m.FocusProgressRows, { progress }), 'en'));
   assert.match(rows, /4 questions · Mastered 3/);
@@ -140,9 +140,9 @@ test('the course settings carry the list under the topic chips, for the saved to
 test('empty focus topics offer an entry into existing generation from both course settings and the home line when no weak focus question blocks it', () => {
   const generated = [];
   const rowsHtml = render(h(m.FocusProgressRows, { progress, lock: false, onGenerateTopic: topic => generated.push(topic) }));
-  assert.match(text(rowsHtml), /页面置换 还没有题 去出题 →/);
-  assert.equal((rowsHtml.match(/去出题 →/g) || []).length, 1, 'only status === none topics get the generation button');
-  assert.match(text(render(h(m.FocusProgressRows, { progress, lock: false, onGenerateTopic: noop }), 'en')), /No questions Generate questions →/);
+  assert.match(text(rowsHtml), /页面置换 还没有题 去出题/);
+  assert.equal((rowsHtml.match(/去出题/g) || []).length, 1, 'only status === none topics get the generation button');
+  assert.match(text(render(h(m.FocusProgressRows, { progress, lock: false, onGenerateTopic: noop }), 'en')), /No questions Generate questions/);
 
   const rowsTree = m.FocusProgressRows({ progress, lock: false, onGenerateTopic: topic => generated.push(topic) });
   const genBtn = walk(rowsTree).find(node => typeof node.props.onClick === 'function');
@@ -160,9 +160,9 @@ test('empty focus topics offer an entry into existing generation from both cours
   const lineTree = m.FocusProgressLine({ progress: noWeak, courseId: 'course-os', lock: false, start: noop, onCourseSettings: noop, onGenerateFocus: (topics, course) => lineCalls.push([topics, course]) });
   const lineBtns = walk(lineTree).filter(node => typeof node.props.onClick === 'function');
   assert.equal(lineBtns.length, 2);
-  assert.match(textOf(lineBtns[1]), /去出缺题重点 →/);
+  assert.match(textOf(lineBtns[1]), /去出缺题重点/);
   lineBtns[1].props.onClick();
   assert.deepEqual(lineCalls, [[['页面置换', '银行家算法'], 'OS']]);
   assert.equal(m.appendFocus('死锁', ['页面置换', '死锁', '银行家算法']), '死锁；页面置换；银行家算法');
-  assert.match(visible(render(h(m.FocusProgressLine, { progress: noWeak, courseId: 'course-os', lock: false, start: noop, onGenerateFocus: noop }), 'en')), /Generate for empty focus topics →/);
+  assert.match(visible(render(h(m.FocusProgressLine, { progress: noWeak, courseId: 'course-os', lock: false, start: noop, onGenerateFocus: noop }), 'en')), /Generate for empty focus topics/);
 });

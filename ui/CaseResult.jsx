@@ -20,7 +20,7 @@ const noteLabel = (note) => note === "unanswered" ? ui("这道题没有作答，
 
 function Bar({ ratio, label }) {
   const clamped = Math.max(0, Math.min(1, ratio || 0));
-  const tone = clamped >= 0.8 ? "success" : clamped < 0.6 ? "warning" : "accent";
+  const tone = clamped >= 0.8 ? "success" : clamped < 0.6 ? "warning" : "neutral";
   return <ProgressBar className="rubric-meter" tone={tone} label={label} value={clamped} max={1} />;
 }
 

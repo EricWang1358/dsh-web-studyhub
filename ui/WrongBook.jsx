@@ -1,4 +1,4 @@
-import { ui, uiFormat, errorMessage } from "./i18n.js";
+import { ui, uiFormat, uiLocale, errorMessage } from "./i18n.js";
 import React, { memo, useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import css from "./views.css";
 import wrongCss from "./wrongbook.css";
@@ -76,13 +76,13 @@ const PROMPT_TIP_MIN = 48;
 const META_TIP_MIN = 20;
 
 function StatusMark({ kind, history = false }) {
-  return <Tooltip layer content={history ? historyTip() : statusTip(kind)}><span tabIndex={0} className={"wb-grade" + (kind === "graded" ? "" : " self")}>{statusLabel(kind)}</span></Tooltip>;
+  return <Tooltip layer content={history ? historyTip() : statusTip(kind)}><span tabIndex={0} className={"wb-grade" + (kind === "graded" ? "" : " self")}><Icon name={kind === "graded" ? "close" : "circle"} size={14} />{statusLabel(kind)}</span></Tooltip>;
 }
 
 /** 顽固: the question keeps being failed (lib/leech.js). A state mark like the one beside it, not a control; the thresholds are the learner's own. */
 function LeechMark({ limits }) {
   const words = leechWords(limits);
-  return <Tooltip layer content={tip(words.sentence, words.consequence)}><span tabIndex={0} className="wb-grade leech">{ui("顽固")}</span></Tooltip>;
+  return <Tooltip layer content={tip(words.sentence, words.consequence)}><span tabIndex={0} className="wb-grade leech"><Icon name="diamond" size={14} />{ui("顽固")}</span></Tooltip>;
 }
 
 /** What each rescue action does, said where its button is. */
@@ -432,6 +432,40 @@ export function WeaknessBar({ groups = [], onPick }) {
     </section>
   );
 }
+
+/** The header's one sentence (#1086): the counts that are not zero, one separator, one full stop. From 待巩固 the kept history is the last part
+ *  of the same sentence; the history view says its own counts the same way and the same words. With more than one mistake (or a filter on)
+ *  each count is a toggle that filters the list below. A plain function, not a component: its toggles are part of the page header's tree. */
+export function wrongBookHeadline({ isHistory, counts, historyCount = 0, status = "all", onToggle }) {
+  const parts = [
+    { kind: "graded", count: counts.graded, text: uiFormat("客观答错 {0} 题", [counts.graded]) },
+    { kind: "self", count: counts.self, text: uiFormat("自评未掌握 {0} 题", [counts.self]) },
+    { kind: "oral", count: counts.oral, text: uiFormat("口头评估待巩固 {0} 题", [counts.oral]) },
+    ...(isHistory ? [] : [{ kind: "rubric", count: counts.rubric, text: uiFormat("按评分标准批改未达标 {0} 题", [counts.rubric]) }]),
+  ].filter((part) => part.count > 0 || (!isHistory && status === part.kind));
+  const kept = !isHistory && historyCount > 0 ? uiFormat("已订正 {0} 题，记录保留", [historyCount]) : "";
+  if (isHistory) {
+    return parts.length ? uiFormat("已订正的错题：{0}。", [parts.map((part) => part.text).join(META_DOT)])
+      : ui("答对一次后，错题会移到这里，作为历史保留，随时可以再练。");
+  }
+  if (!parts.length) {
+    return <>{ui("客观答错、自评未掌握或口头评估待巩固的题会收在这里。")}{kept && <>{uiLocale() === "zh-CN" ? "" : " "}{kept}{ui("。")}</>}</>;
+  }
+  const toggles = (counts.total || 0) > 1 || status !== "all";
+  return <>
+    {parts.map((part, index) => (
+      <React.Fragment key={part.kind}>
+        {index > 0 && META_DOT}
+        {toggles && part.count > 0
+          ? <Button variant="quiet" size="sm" className="wb-count-toggle" aria-pressed={status === part.kind} onClick={() => onToggle?.(part.kind)}>{part.text}</Button>
+          : part.text}
+      </React.Fragment>
+    ))}
+    {kept && <>{META_DOT}{kept}</>}
+    {ui("。")}
+  </>;
+}
+
 export function WrongBookView({
   data, course, onCourse, showInactive, onShowInactive, items, counts, view = "weak", onView, viewCounts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
   recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings,
@@ -799,38 +833,8 @@ export function WrongBookView({
   return (
     <section className="page wb">
       <PageHeader title={ui("错题与待巩固")}
-        description={<>
-          {isHistory
-            ? counts.total ? uiFormat('已订正的错题：答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估 {2} 题。', [counts.graded, counts.self, counts.oral])
-              : ui('答对一次后，错题会移到这里，作为历史保留，随时可以再练。')
-            : counts.total ? (
-              <>
-                {[
-                  { kind: "graded", count: counts.graded, text: uiFormat("客观答错 {0} 题", [counts.graded]) },
-                  { kind: "self", count: counts.self, text: uiFormat("自评未掌握 {0} 题", [counts.self]) },
-                  { kind: "oral", count: counts.oral, text: uiFormat("口头评估待巩固 {0} 题", [counts.oral]) },
-                ].map((part, index) => (
-                  <React.Fragment key={part.kind}>
-                    {index > 0 && " · "}
-                    {(counts.total > 1 || filter.status !== "all") && part.count > 0 ? (
-                      <Button variant="quiet" size="sm" className="wb-count-toggle" aria-pressed={filter.status === part.kind}
-                        onClick={() => patchFilter({ status: filter.status === part.kind ? "all" : part.kind })}>{part.text}</Button>
-                    ) : part.text}
-                  </React.Fragment>
-                ))}
-                {ui("。")}
-              </>
-            )
-              : ui('客观答错、自评未掌握或口头评估待巩固的题会收在这里。')}
-          {/* The switch already says 已订正 N; the weak page's header says the history is kept so a cleared page is not read as an empty one. */}
-          {!isHistory && historyCount > 0 && <>{META_DOT}{uiFormat('已订正 {0} 题，记录保留', [historyCount])}</>}
-          {!isHistory && counts.rubric > 0 && ((counts.total > 1 || filter.status !== "all") ? (
-            <Button variant="quiet" size="sm" className="wb-count-toggle" aria-pressed={filter.status === "rubric"}
-              onClick={() => patchFilter({ status: filter.status === "rubric" ? "all" : "rubric" })}>
-              {uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric])}
-            </Button>
-          ) : uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric]))}
-        </>}
+        description={wrongBookHeadline({ isHistory, counts, historyCount, status: filter.status,
+          onToggle: (kind) => patchFilter({ status: filter.status === kind ? "all" : kind }) })}
         scope={<PageScope courses={data?.focus?.courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />} />
 
       {err && <ErrorState error={items ? uiFormat("没能刷新，下面仍是上次读到的内容：{0}", [err]) : err} onRetry={busy || loading ? undefined : () => onReload(page)} />}
@@ -846,7 +850,7 @@ export function WrongBookView({
 
       {!isHistory && hasCoach && onPracticePrepared && coach.ready > 0 && (
         <Banner tone="success" icon="sparkle" title={uiFormat("已为你备好 {0} 道变式题", [coach.ready])}
-          action={{ label: ui("去练 →"), onClick: () => onPracticePrepared({}), disabled: busy }}>
+          action={{ label: ui("去练"), iconEnd: "arrow-right", onClick: () => onPracticePrepared({}), disabled: busy }}>
           {ui("它们由你的错题改写而来，开练后会放进「为你定制」。")}
         </Banner>
       )}
@@ -864,13 +868,13 @@ export function WrongBookView({
               <SegmentedControl className="wb-retrain__seg" itemClassName="wb-retrain__seg-item" label={ui("重练范围")} value={picked} options={options} onChange={setChoice} disabled={busy || loading} />
             </Tooltip>
             {/* The one start of the page: the scope above decides what it takes (the mistakes, with the similar questions, with the prepared variants). */}
-            <Button className="wb-retrain__btn" variant="primary" icon="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}>
+            <Button className="wb-retrain__btn" variant="primary" iconEnd="arrow-right" disabled={!total} lock={busy || loading} onClick={startRetrain}>
               {uiFormat("开始重练 · {0} 题", [current.count])}
             </Button>
             {/* The start takes the whole page, whatever the filter shows; with a filter on, what is shown has its own, quieter button. */}
             {filteredSubset && (
               <Tooltip layer content={shown.length > PRACTICE_SCOPE_CAP ? practiceCappedText(shown.length, { group: false }) : ui("只练下面筛选出来的错题")}>
-                <Button className="wb-retrain__btn" variant="secondary" icon="arrow-right" lock={busy || loading} onClick={() => practiceScope(shown.map(refOf))}>
+                <Button className="wb-retrain__btn" variant="secondary" iconEnd="arrow-right" lock={busy || loading} onClick={() => practiceScope(shown.map(refOf))}>
                   {uiFormat("练筛选的 {0} 道", [shown.length])}
                 </Button>
               </Tooltip>
@@ -1088,11 +1092,11 @@ export function WrongBookView({
                   )}
                   {!oneGroup && group.rows.length > PRACTICE_SCOPE_CAP ? (
                     <Tooltip layer content={practiceCappedText(group.rows.length, { group: true })}>
-                      <Button variant="quiet" size="sm" icon="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
+                      <Button variant="quiet" size="sm" iconEnd="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
                         onClick={() => practiceScope(group.rows.map(refOf), { group: true })}>{ui("练这一组")}</Button>
                     </Tooltip>
                   ) : !oneGroup && (
-                    <Button variant="quiet" size="sm" icon="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
+                    <Button variant="quiet" size="sm" iconEnd="arrow-right" lock={busy} aria-label={uiFormat("练这一组：{0}", [group.title])}
                       onClick={() => practiceScope(group.rows.map(refOf), { group: true })}>{ui("练这一组")}</Button>
                   )}
                   {!oneGroup && showBar && group.deckIds.length === 1 && applied.deck !== group.deckIds[0] && (

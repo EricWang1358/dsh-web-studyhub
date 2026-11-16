@@ -148,11 +148,11 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
   const newBatchArgs = run.complete && run.mode === "new" && nextFreshCount > 0
     ? { mode: "new", scope: run.scope ?? [{ deckId: run.deckId }], count: freshRoundCount(data?.settings?.practice), ordered: true, fresh: true } : null;
   const nextStep = !run.complete ? null
-    : flow ? { label: ui("回到学习流 →"), run: () => onBackToWorkflow(flow.sessionId) }
-      : detour ? { label: uiFormat("回到之前的第 {0} 题 →", [detour.index + 1]), run: onReturnFromDetour }
+    : flow ? { label: ui("回到学习流"), run: () => onBackToWorkflow(flow.sessionId) }
+      : detour ? { label: uiFormat("回到之前的第 {0} 题", [detour.index + 1]), run: onReturnFromDetour }
         : destination?.kind === "original" ? { label: destination.label, run: destination.go }
-          : run.course?.next ? { label: ui("继续课程下一批 →"), run: () => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun) }
-            : newBatchArgs ? { label: ui("继续下一批新题 →"), run: () => act("review.start", newBatchArgs, enterRun) }
+          : run.course?.next ? { label: ui("继续课程下一批"), run: () => act("review.start", { mode: "course", course: run.course.name, fresh: true }, enterRun) }
+            : newBatchArgs ? { label: ui("继续下一批新题"), run: () => act("review.start", newBatchArgs, enterRun) }
               : destination ? { label: destination.label, run: destination.go, back: isBackDestination(destination) } : null;
   // With a way back as the main button (the book's, the 总纲's or the reader's), a next step that is just another place to go back to (回到学习路径) is left out: both would go back.
   const onward = backHere && nextStep?.back ? null : nextStep;
@@ -243,7 +243,7 @@ export default function Review({ session, data, shellTitle, feedback, coachProps
           {(onward || wayBack) && (
             <div className={cx("result-next", wayBack && "result-next--back")}>
               {wayBack && <ReturnPrimary arrow oneLine label={wayBack.label} place={wayBack.place} disabled={busy} onReturn={wayBack.go} />}
-              {onward && <Button variant={backHere ? "secondary" : "primary"} align={backHere ? "start" : undefined} iconEnd="arrow-right" lock={busy} onClick={onward.run}>{onward.label.replace(/\s*→$/, "")}</Button>}
+              {onward && <Button variant={backHere ? "secondary" : "primary"} align={backHere ? "start" : undefined} iconEnd="arrow-right" lock={busy} onClick={onward.run}>{onward.label}</Button>}
               {roundSetup && <RoundSetup data={data} context={roundSetup} chapterRefs={run.scope} onStart={(args, options) => act("review.start", args, enterRun, options)} className="result-setup" />}
 
               {onward && !backHere && contextReturnLabel && <Button icon="arrow-left" lock={busy} onClick={onReturnContext}>{contextReturnLabel}</Button>}
