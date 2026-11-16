@@ -42,7 +42,9 @@ test('#1083: a narrow row puts the index badge on its actions line; the width ru
   const jsx = await read('ui/Sources.jsx');
   const css = await read('ui/sources.css');
   const width = Number(jsx.match(/export const ROWS_NARROW = (\d+);/)?.[1]);
-  assert.ok(css.includes(`@container study (max-width: ${width - 1}px)`), 'ROWS_NARROW mirrors the container query that gives the actions their own line');
+  assert.ok(css.includes(`@container sources (max-width: ${width - 1}px)`), 'ROWS_NARROW mirrors the container query that gives the actions their own line');
+  assert.match(css, /\.sources-page \{ container: sources \/ inline-size; \}/, 'the query measures the page, not the window');
+  assert.match(jsx, /useNarrow\(pageRef, ROWS_NARROW, \{ content: true \}\)/, 'and so does the row: the same element, the same box');
   assert.match(jsx, /\{!narrow && indexSlot\}/, 'a wide row keeps the badge on its status line');
   assert.match(jsx, /source-doc__actions">\s*\{narrow && indexSlot\}/, 'a narrow row starts its actions line with it');
   assert.match(css, /\.source-doc__actions > \.source-doc__index \{[^}]*flex: 1 1 0/, 'the badge shrinks instead of pushing the buttons to a second line');

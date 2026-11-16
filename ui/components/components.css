@@ -310,8 +310,11 @@
     }
     .sh-page-header__description {
       max-width: 68ch;
-      /* balance, like the empty-state copy: a lead of one or two lines; pretty only stops a one-character last line (#574) */
+      /* balance, like the empty-state copy: a lead of one or two lines; pretty only stops a one-character last line (#574). keep-all: Chinese breaks at its
+         punctuation, not inside a word (「一直保 / 留。」); a run with no break in it still wraps anywhere. */
       text-wrap: balance;
+      word-break: keep-all;
+      overflow-wrap: anywhere;
       margin: var(--space-2) 0 0;
       color: var(--text-dim);
       font-size: var(--fs-md);
@@ -849,7 +852,7 @@
       transform: translateY(-3px);
     }
     .sh-drop__text { display: grid; gap: var(--space-half); min-width: 0; }
-    .sh-drop__label { margin: 0; text-wrap: balance; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-snug); }
+    .sh-drop__label { margin: 0; text-wrap: balance; word-break: keep-all; overflow-wrap: anywhere; color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-snug); }
     .sh-drop__hint { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
     .sh-drop > .sh-btn { margin-top: var(--space-3); }
     .sh-drop--compact {
@@ -862,7 +865,8 @@
     }
     .sh-drop--compact .sh-drop__text { flex: 1 1 14rem; }
     .sh-drop--compact .sh-drop__label { font-size: var(--fs-md); }
-    .sh-drop--compact > .sh-btn { margin: 0 0 0 auto; }
+    /* On one line the text's flex-grow puts the button at the end; wrapped under the text it starts at the text's edge, not alone at the right. */
+    .sh-drop--compact > .sh-btn { margin: 0; }
     .sh-drop__rejects { margin-top: var(--space-3); }
     .sh-drop__reject-name { margin-right: var(--space-2); color: var(--text); font-weight: var(--fw-strong); }
     .sh-file-list { display: grid; gap: var(--space-1-5); margin: var(--space-3) 0 0; padding: 0; list-style: none; }

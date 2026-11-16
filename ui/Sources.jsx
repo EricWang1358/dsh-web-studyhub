@@ -165,8 +165,11 @@ export function RowMenuItems({ item, onChangeCourse, onRemove, onSegment, onRena
 }
 
 const sameRelation = (a, b) => a === b || (!!a && !!b && a.role === b.role && a.of === b.of && a.derived === b.derived && a.count === b.count);
-/** Below this width of the study container a row's actions take their own line: mirrors `@container study (max-width: 640px)` in ui/sources.css. */
-export const ROWS_NARROW = 641;
+/**
+ * Below this width of the 资料 page's own column a row's actions take their own line: mirrors `@container sources (max-width: 600px)` in ui/sources.css. Both measure
+ * the page (its content box), not the window, so a half-screen window with the sidebar docked is narrow too (#1083).
+ */
+export const ROWS_NARROW = 601;
 const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'narrow', 'mastery', 'coverage', 'topUp', 'canIndex', 'indexLink', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark', 'custom'];
 
 /**
@@ -369,8 +372,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const [query, setQuery] = useState('');
   // One measure for the page: the width of the study container, which is what the container queries of ui/sources.css read.
   const pageRef = useRef(null);
-  const studyRoot = useMemo(() => ({ get current() { return pageRef.current?.closest?.('.study-app, .study-seat') || pageRef.current; } }), []);
-  const narrow = useNarrow(studyRoot, ROWS_NARROW);
+  const narrow = useNarrow(pageRef, ROWS_NARROW, { content: true });
   const allItems = useMemo(() => groupSourcesByDocument(data.sources), [data.sources]);
   const items = useMemo(() => allItems.filter(item => item.archived === showArchived), [allItems, showArchived]);
   const byId = useMemo(() => new Map(data.sources.map(source => [source.id, source])), [data.sources]);
@@ -566,7 +568,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           ...(groups.length > 1 ? [{ id: 'groups', icon: 'list', label: allOpen ? ui("全部收起") : ui("全部展开") }] : []),
           { id: 'companions', icon: 'play', label: ui("交互伴学") }]}
         onSelect={id => (id === 'archived' ? toggleArchived : id === 'groups' ? toggleGroups : openCompanions)()}
-        trigger={({ props, ref }) => <Button ref={ref} variant="quiet" icon="more" {...props}>{ui('更多')}</Button>} />
+        trigger={({ props, ref }) => <Button ref={ref} variant="quiet" {...props}>{ui('更多')}</Button>} />
     </>
     : <>
       <Button variant="quiet" icon={showArchived ? 'arrow-left' : 'archive'} data-archive-toggle data-tour="sources-archived" aria-pressed={showArchived} onClick={toggleArchived}>{archiveLabel}</Button>
@@ -580,7 +582,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
         description={<>{ui("题目从这里生长。原文与引用一直保留。")}{items.length > 0 &&
           (pinned.length ? (rest.length ? uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。", [filtered.length, pinned.length, groups.length]) : uiFormat(" 共 {0} 份资料，全部置顶。", [filtered.length]))
             : uiFormat(" 共 {0} 份资料，按导入日期分为 {1} 组。", [filtered.length, groups.length]))}</>}
-        actions={headerActions} />
+        actions={headerActions} actionsOnTitleRow={narrow} />
       {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}
       {items.length > 0 && <>
         {/* 课程范围 and 筛选资料 are one small form: the label in one column, both controls in the next, at one left edge and one width (#1085). */}

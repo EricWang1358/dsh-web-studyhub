@@ -5,11 +5,15 @@
     /* Sources page (WP3): one row per document, pages on demand, fresh imports
        highlighted. Builds on the .source-group/.source-row rules in style.css;
        tokens only. */
+    /* The page is its own width container: its rows change layout by the room they have, not by the window (the sidebar may take 212px of it, #1083). */
+    .sources-page { container: sources / inline-size; }
     .sources-page .sources-page__header { margin-bottom: var(--space-4); }
     /* The filter under 课程范围 (#1085): its input in the control column of .page-scope-form (ui/course-active.css), its count and 清除筛选 after it. */
     .sources-toolbar { margin: 0 0 var(--space-3); }
     .sources-toolbar > .sources-filter { display: contents; }
     .sources-filter__input { grid-column: 2; min-height: 38px; }
+    /* One way to clear the filter: 清除筛选 beside the count, not the browser's own × in the field as well. */
+    .sources-filter__input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
     .sources-filter__state { grid-column: 3; display: inline-flex; align-items: center; gap: var(--space-2); }
     .sources-filter__count { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .source-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
@@ -101,7 +105,7 @@
     :is(.study-app, .study-seat) {
       .source-doc:hover { background: var(--bg-hover); }
     }
-    @container study (min-width: 641px) {
+    @container sources (min-width: 601px) {
       :is(.study-app, .study-seat) {
         .source-doc__actions { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
         .source-doc:is(:hover, :focus-within, .is-new) .source-doc__actions,
@@ -111,7 +115,7 @@
   }
   /* Narrow: the generic row lines are cut at 180px (sources-page.css), which would cut the counts that say what a number counts. The index badge takes its
      column (it shows its short label, ui/sources-page.css); the line that says the original's page count may use two. */
-  @container study (max-width: 720px) {
+  @container sources (max-width: 680px) {
     :is(.study-app, .study-seat) {
       /* A badge that wraps takes two lines here, and the line keeps both from the first paint, so a coverage answer arriving late moves no row (#205, #229). */
       .source-doc .source-main small.source-doc__index { max-width: none; min-height: calc(var(--fs-sm) * var(--lh-snug) * 2); }
@@ -124,7 +128,7 @@
       .source-doc .source-main small.source-doc__facts--gap { max-width: none; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
     }
   }
-  @container study (max-width: 640px) {
+  @container sources (max-width: 600px) {
     :is(.study-app, .study-seat) {
       .source-doc__line { flex-wrap: wrap; }
       .source-doc__actions { width: 100%; justify-content: flex-end; }
@@ -132,8 +136,9 @@
          second line, so a late badge moves nothing (#1083). */
       .source-doc__actions > .source-doc__index { display: flex; align-items: center; flex: 1 1 0; min-width: 0; margin: 0;
         min-height: calc(var(--fs-sm) * var(--lh-snug) * 2); font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); }
-      /* The filter's count and 清除筛选 go under the filter, so the filter keeps the select's width. */
-      .sources-filter__state { grid-column: 2 / -1; }
+      /* The filter's count and 清除筛选 go under the filter, in its column only: spanning the follow mark's column would widen it and narrow both controls
+         while you type (#1085). */
+      .sources-filter__state { grid-column: 2; flex-wrap: wrap; }
       /* Here a row's actions take their own line under it: a hairline between rows says which row they belong to. */
       .source-doc + .source-doc { border-top: 1px solid var(--line-soft); border-radius: 0; }
       .source-doc__pages { margin-left: 0; }
