@@ -344,49 +344,51 @@ export default function Generate({
               </Disclosure>
               {!pathMode && custom && selectedPdfPages > custom && <InlineMessage tone="warning">{uiFormat("已选 {0} 页 PDF，计划生成 {1} 题。题数少于页数，不能保证逐页考察；可缩小页码范围、取消自定义题数，或按覆盖强度出题。", [selectedPdfPages, custom])}</InlineMessage>}
             </fieldset>
-            <div className="generate-submit" data-tour="generate-summary">
-              <div className="quality-note generate-quality">
-                <Icon name="sparkle" />
-                <p><span className="generate-quality__lead">{ui("原文引用核验 · 独立质量审阅 · 干扰项逐项解释")}</span>{" "}
-                  <small>{ui("出题时已逐题核验并审阅；生成结果先进入草稿，你看过再发布；想再检查一遍，在草稿页点「保存并校验」。")}</small>
-                </p>
-              </div>
-              {!pathMode && selectedSources.length > 0 && <EffectiveRequirementsStrip gen={gen} focusCount={activeFocusCount} referenceCount={referenceSourceIds.length} ruleCount={generationRulesOf(data, generationCourse).length} />}
+            {/* The DOM is the order it is seen (#1082): the count, the one button and why it is off; then what the run asks for and costs; then the note about the checks.
+                The bar is a child of the form, so it can stay at the bottom of the view while its place is further down (ui/generate-home.css). */}
+            <div className="generate-submit" data-generate-bar data-tour="generate-summary">
               {summary && <p className="generate-summary" role="status">{summary}</p>}
-              {/* The plan, said once: the tokens and calls it costs, how many rounds, and whether the rest goes on by itself (the count is the line above's). */}
+              {!model.ready ? (
+                /* P14: no usable model, so there is nothing to click into a 20-second failure; the banner on top says why. */
+                <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" disabled data-tour="generate-submit">{ui("生成并检查题组")}</Button>
+              ) : pathMode ? (
+                <Tooltip layer placement="top-start" anchorClassName="generate-submit__btn" content={ui("每一步是一个独立的出题任务，按顺序排队；先做完的一步就可以先练。")}>
+                  <Button variant="primary" type="submit" icon="sparkle" busy={path.queueing} disabled={busy || !path.included.length || !!referenceState.reason}
+                    data-tour="generate-submit" data-usage="generate.path-queue">
+                    {uiFormat("按路径逐步出题 · {0} 步依次排队", [path.included.length])}
+                  </Button>
+                </Tooltip>
+              ) : (
+                <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason || invalidQuota}
+                  data-tour="generate-submit" data-usage="generate.submit">
+                  {running ? ui("加入生成队列") : ui("生成并检查题组")}
+                </Button>
+              )}
+              {model.ready && !selectedSources.length && <p className="muted generate-submit__note">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
+              {/* Why the button is off, once: with pages picked by topic the panel above already says the topic is missing, so here it is only what to do. */}
+              {model.ready && blocked && (retrievalMode ? <Hint>{ui("写下主题后才能生成。")}</Hint>
+                : <InlineMessage tone="warning">{ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</InlineMessage>)}
+              {model.ready && running && <p className="muted generate-submit__note">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
+            </div>
+            <div className="generate-run" data-generate-run>
+              {model.ready && pathMode && path.groups.length > 0 && <InlineMessage tone="warning" boxed title={uiFormat("有 {0} 步没能开始", [path.report.failed.length])}>
+                {path.groups.map(group => <p key={group.message} className="gen-path__failure">{group.message}{" "}<small>{group.steps.length > 3
+                  ? uiFormat("（{0} 等 {1} 步）", [group.steps.slice(0, 3).join("、"), group.steps.length]) : uiFormat("（{0}）", [group.steps.join("、")])}</small></p>)}
+              </InlineMessage>}
+              {!pathMode && selectedSources.length > 0 && <EffectiveRequirementsStrip gen={gen} focusCount={activeFocusCount} referenceCount={referenceSourceIds.length} ruleCount={generationRulesOf(data, generationCourse).length} />}
+              {/* The plan, said once: the tokens and calls it costs, how many rounds, and whether the rest goes on by itself (the count is the bar's). */}
               {!pathMode && !blocked && selectedSources.length > 0 && !referenceState.reason && <div className="generate-estimate" data-generate-estimate>
                 <TokenEstimateView state={planned} lead={coverageStructure(plannedCoverage)} tight />
                 <MaterialsForecast coverage={plannedCoverage} />
                 {plannedCoverage?.rounds > 1 && <p className="generate-note" data-coverage-auto-note>{autoLine(autoOf({ ...gen, coverageLevel: level }), plannedCoverage.rounds,
                   plannedCoverage.leaves > 0 && Number.isFinite(plannedCoverage.firstRoundSections) ? { level: plannedCoverage.level, percent: Math.round(plannedCoverage.firstRoundSections / plannedCoverage.leaves * 100) } : undefined)}</p>}
               </div>}
-              {model.ready ? <>
-                {!selectedSources.length && <p className="muted generate-submit__note">{ui("在「01 / 选择资料」勾选至少一份资料后即可生成。")}</p>}
-                {/* Why the button is off, once: with pages picked by topic the panel above already says the topic is missing, so here it is only what to do. */}
-                {blocked && (retrievalMode ? <Hint>{ui("写下主题后才能生成。")}</Hint>
-                  : <InlineMessage tone="warning">{ui("所选资料超过一次生成的上限。请按章节缩小选择，或按上面的建议用检索工具。")}</InlineMessage>)}
-                {running && <p className="muted generate-submit__note">{ui("已有出题任务在进行，新的会排在它后面。")}</p>}
-                {pathMode ? <>
-                  <Tooltip layer placement="top-start" content={ui("每一步是一个独立的出题任务，按顺序排队；先做完的一步就可以先练。")}>
-                    <Button variant="primary" type="submit" icon="sparkle" busy={path.queueing} disabled={busy || !path.included.length || !!referenceState.reason}
-                      data-tour="generate-submit" data-usage="generate.path-queue">
-                      {uiFormat("按路径逐步出题 · {0} 步依次排队", [path.included.length])}
-                    </Button>
-                  </Tooltip>
-                  {path.groups.length > 0 && <InlineMessage tone="warning" boxed title={uiFormat("有 {0} 步没能开始", [path.report.failed.length])}>
-                    {path.groups.map(group => <p key={group.message} className="gen-path__failure">{group.message}{" "}<small>{group.steps.length > 3
-                      ? uiFormat("（{0} 等 {1} 步）", [group.steps.slice(0, 3).join("、"), group.steps.length]) : uiFormat("（{0}）", [group.steps.join("、")])}</small></p>)}
-                  </InlineMessage>}
-                </> : (
-                  <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" busy={busy} disabled={!selectedSources.length || advice.blocked || !!referenceState.reason || invalidQuota}
-                    data-tour="generate-submit" data-usage="generate.submit">
-                    {running ? ui("加入生成队列") : ui("生成并检查题组")}
-                  </Button>
-                )}
-              </> : (
-                /* P14: no usable model, so there is nothing to click into a 20-second failure; the banner on top says why. */
-                <Button variant="primary" type="submit" icon="sparkle" className="generate-submit__btn" disabled data-tour="generate-submit">{ui("生成并检查题组")}</Button>
-              )}
+              <div className="quality-note generate-quality">
+                <Icon name="sparkle" />
+                <p><span className="generate-quality__lead">{ui("原文引用核验 · 独立质量审阅 · 干扰项逐项解释")}</span>{" "}
+                  <small>{ui("出题时已逐题核验并审阅；生成结果先进入草稿，你看过再发布；想再检查一遍，在草稿页点「保存并校验」。")}</small>
+                </p>
+              </div>
             </div>
           </form>
         </>

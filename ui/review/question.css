@@ -323,7 +323,6 @@
       margin: var(--space-3) 0;
       overflow-wrap: anywhere;
     }
-    .generate-page .generate-submit .quality-note { margin: 0; }
     .home-activity .sh-job .generation-trace { margin-top: var(--space-1); font-size: var(--fs-sm); }
     .result-page .summary-topics { margin: var(--space-5) 0; }
     .result-page .summary-actions { justify-content: flex-start; margin-top: var(--space-5-5); }
