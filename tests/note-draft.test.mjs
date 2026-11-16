@@ -32,14 +32,21 @@ test('写笔记 on a question that already has a draft opens that draft, and the
   assert.equal((await service.call('note.list')).notes.length, 1);
 });
 
-test('another question, a note with more cards, a published note and a call without `reuse` each make a new note', async t => {
+test('same-day same-course questions append into one draft; another course, another day, a published note and a call without `reuse` each make a new note', async t => {
   const service = await library(t);
+  await service.store.update(state => {
+    state.decks.push({ id: 'other-course', title: 'OS', course: 'Operating Systems', cards: [
+      { id: 'c3', prompt: 'What is a page fault?', answer: 'Trap on missing PTE', topic: 'VM' }] });
+  });
   const one = await service.call('note.create', { title: 'A', cards: [{ deckId: 'deck', cardId: 'c1' }], reuse: true });
   const other = await service.call('note.create', { title: 'B', cards: [{ deckId: 'deck', cardId: 'c2' }], reuse: true });
-  assert.notEqual(other.id, one.id, 'another question');
+  assert.equal(other.id, one.id, 'another question in the same course on the same day appends into today\'s draft');
+  assert.deepEqual(other.cards.map(card => card.cardId), ['c1', 'c2']);
+  const diffCourse = await service.call('note.create', { title: 'OS note', cards: [{ deckId: 'other-course', cardId: 'c3' }], reuse: true });
+  assert.notEqual(diffCourse.id, one.id, 'another course gets its own daily draft');
   const both = await service.call('note.create', { title: 'C', cards: [{ deckId: 'deck', cardId: 'c1' }, { deckId: 'deck', cardId: 'c2' }] });
   const single = await service.call('note.create', { title: 'D', cards: [{ deckId: 'deck', cardId: 'c1' }], reuse: true });
-  assert.equal(single.id, one.id, 'a note that also holds other cards is not the one for this card');
+  assert.equal(single.id, one.id, 're-clicking a card already in today\'s question draft reopens that draft');
   assert.notEqual(both.id, one.id);
   const plain = await service.call('note.create', { title: 'E', cards: [{ deckId: 'deck', cardId: 'c1' }] });
   assert.notEqual(plain.id, one.id, 'picking questions by hand (挑题成文) always makes the note that was asked for');

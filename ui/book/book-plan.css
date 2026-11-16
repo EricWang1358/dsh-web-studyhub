@@ -44,6 +44,9 @@
     .book-plan__title[aria-expanded='true'] .book-plan__caret {
       transform: rotate(90deg);
     }
+    .book-plan__countdown {
+      font-variant-numeric: tabular-nums;
+    }
     .book-plan__countdown,
     .book-plan__coverage,
     .book-plan__note,

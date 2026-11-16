@@ -63,11 +63,12 @@ export default function ReaderRun({ started, label, onClose, onSeek, shown = tru
   const services = useMemo(() => ({ ...study, openModal }), [study, openModal]);
   // The model settings open beside the reader when the host has them; otherwise the reader gives way to the Settings page (as SourceReaderDialog does).
   // 存进笔记 under a Q&A keeps it in the question's note as on the practice page; 已存进笔记 · 打开 opens that note, the reader giving way to it.
+  const decks = data?.decks;
   const links = useMemo(() => ({
     onModelSettings: () => { if (!host.openModelSettings) set.setModal(null); settingsEntry.openModelSettings(); },
-    onSaveQaToNote: (followupId) => core.act('note.qa.add', qaToNoteArgs(runRef.current, followupId), undefined, { rethrow: true }),
+    onSaveQaToNote: (followupId) => core.act('note.qa.add', qaToNoteArgs(runRef.current, followupId, decks), undefined, { rethrow: true }),
     onOpenNote: (noteId) => { set.setModal(null); learn.openLearningTarget({ kind: 'note', id: noteId }); },
-  }), [host, set, settingsEntry, core, learn]);
+  }), [host, set, settingsEntry, core, learn, decks]);
   return (
     <StudyServicesContext.Provider value={services}>
       <InlineRun session={session} data={data} label={label} rootRef={rootRef} onClose={onClose} onContinue={continueThere} links={links} feedback={null} />
