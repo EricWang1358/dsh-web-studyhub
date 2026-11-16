@@ -6,10 +6,22 @@ import { PdfConvertHistory, PdfConvertJobs } from './PdfConvertJob.jsx';
 import CourseField, { parseCourses } from './CourseField.jsx';
 import PageScope, { courseNamesOf, usePageScope } from './PageScope.jsx';
 import { useInjectCss } from "./shared.js";
-import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Icon, InlineMessage, Menu, PageHeader, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
+import { AddSourceButton, Badge, Button, Checkbox, CheckboxInput, ChunkedRows, ConfirmDialog, Dialog, Disclosure, Field, Icon, InlineMessage, Menu, PageHeader, SegmentedControl, Select, TextInput, Tooltip, filterItems, scrollWindowCount, useToast } from "./components/index.js";
+import { browserStorage, readJSON, writeJSON } from "./storage.js";
 import { useNarrow } from "./use-narrow.js";
 import { scrollToAnchor } from "./tour/anchor.js";
 import { groupSourcesByDocument } from '../lib/source-groups.js';
+import {
+  UNASSIGNED_COURSE,
+  UNFILED_FOLDER,
+  folderOfItem,
+  groupMaterialsByCourse,
+  groupMaterialsByFolder,
+  groupMaterialsFlat,
+  normalizeFolderName,
+  readMaterialFolders,
+  sortMaterials,
+} from '../lib/contexts/materials/material-folders.js';
 import { displayTitle } from '../lib/document-title.js';
 import { bigDocuments } from '../lib/large-documents.js';
 import { chapterLabel, documentNotes, documentSearchText, inScope, relationNote, sameIndexInfo, sourceFormatLabel } from './SourcePicker.jsx';
@@ -52,6 +64,23 @@ import { openCompanionTarget, resolveSourceCompanionTarget } from './companions/
 const UNKNOWN = "unknown";
 /* The 已置顶 group is not a day: its own key in the open/closed sets (lib/material-pins.js). */
 const PINNED = "__pinned";
+const VALID_GROUP_MODES = new Set(["course", "folder", "day", "none"]);
+const VALID_SORTS = new Set(["recent", "title"]);
+const groupModeKey = root => `study-sources-group-mode:v1:${root || ""}`;
+const sortModeKey = root => `study-sources-sort-mode:v1:${root || ""}`;
+const closedGroupsKey = (root, mode) => `study-sources-group-closed:v1:${root || ""}:${mode}`;
+const readGroupMode = root => {
+  const saved = readJSON(groupModeKey(root), "course", browserStorage());
+  return VALID_GROUP_MODES.has(saved) ? saved : "course";
+};
+const readSortMode = root => {
+  const saved = readJSON(sortModeKey(root), "recent", browserStorage());
+  return VALID_SORTS.has(saved) ? saved : "recent";
+};
+const readClosedSet = (root, mode) => {
+  const saved = readJSON(closedGroupsKey(root, mode), [], browserStorage());
+  return new Set(Array.isArray(saved) ? saved.filter(k => typeof k === "string") : []);
+};
 
 /* A day is the midnight (local time) that starts it, as text: groups sort by it and it needs no formatting. */
 const dayKey = (d) => String(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime());
@@ -67,9 +96,8 @@ function dayLabel(key) {
   return formatDay(Number(key), today);
 }
 
-/* Documents by import day (local time), newest day first; inside a day the
-   newest import first, then natural title order. */
-function groupByDay(items) {
+/* Documents by import day (local time), newest day first; inside a day sorted by the active sort mode. */
+function groupByDay(items, { sort = "recent", locale = uiLocale() } = {}) {
   const groups = new Map();
   for (const item of items) {
     const t = Date.parse(item.createdAt);
@@ -77,15 +105,35 @@ function groupByDay(items) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   }
-  const titleOrder = (a, b) => String(a.title).localeCompare(String(b.title), uiLocale(), { numeric: true });
   return [...groups.entries()]
     .sort(([a], [b]) => (a === UNKNOWN ? 1 : b === UNKNOWN ? -1 : b.localeCompare(a)))
     .map(([key, rows]) => ({
       key,
-      rows: rows.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")) || titleOrder(a, b)),
+      rows: sortMaterials(rows, { sort, locale }),
       inferred: rows.every((r) => r.createdAtInferred),
       chars: rows.reduce((n, r) => n + r.chars, 0),
     }));
+}
+
+function buildSourceGroups(items, { mode, folders, sort = "recent", includeEmpty = false, locale = uiLocale(), scope = "*", known = [] }) {
+  if (mode === "course") return groupMaterialsByCourse(items, { sort, locale, scope, known });
+  if (mode === "folder") return groupMaterialsByFolder(items, folders, { sort, locale, includeEmpty });
+  if (mode === "none") return groupMaterialsFlat(items, { sort, locale });
+  return groupByDay(items, { sort, locale });
+}
+
+function groupSummaryDescription({ mode, summary }) {
+  if (summary.pinned) {
+    if (!summary.rest) return uiFormat(" 共 {0} 份资料，全部置顶。", [summary.count]);
+    if (mode === "none") return uiFormat(" 共 {0} 份资料，其中 {1} 份置顶。", [summary.count, summary.pinned]);
+    if (mode === "course") return uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按课程分为 {2} 组。", [summary.count, summary.pinned, summary.groups]);
+    if (mode === "folder") return uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按文件夹分为 {2} 组。", [summary.count, summary.pinned, summary.groups]);
+    return uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。", [summary.count, summary.pinned, summary.groups]);
+  }
+  if (mode === "none") return uiFormat(" 共 {0} 份资料。", [summary.count]);
+  if (mode === "course") return uiFormat(" 共 {0} 份资料，按课程分为 {1} 组。", [summary.count, summary.groups]);
+  if (mode === "folder") return uiFormat(" 共 {0} 份资料，按文件夹分为 {1} 组。", [summary.count, summary.groups]);
+  return uiFormat(" 共 {0} 份资料，按导入日期分为 {1} 组。", [summary.count, summary.groups]);
 }
 
 /** Delete all pages of one or more documents in one checked transaction; failures retain every page. */
@@ -144,7 +192,7 @@ export function ChapterList({ item, onOpen, onGenerate, onPractice, listId, mast
 }
 
 /** The entries of a row's 更多 menu. */
-export function RowMenuItems({ item, onChangeCourse, onRemove, onSegment, onRename, onArchive, onPin, onPinMove, pin }) {
+export function RowMenuItems({ item, onChangeCourse, onMoveFolder, onRemove, onSegment, onRename, onArchive, onPin, onPinMove, pin }) {
   const { busy, call } = useStudy();
   const close = event => event.currentTarget.closest("details")?.removeAttribute("open");
   return <div className="source-row-menu">
@@ -158,6 +206,7 @@ export function RowMenuItems({ item, onChangeCourse, onRemove, onSegment, onRena
       <Button className="source-row-menu__btn" disabled={pin.first} lock={busy} onClick={event => { close(event); onPinMove(item, 'front'); }}>{ui('置顶到最前')}</Button>
     </>}
     {onChangeCourse && <Button className="source-row-menu__btn" lock={busy} onClick={event => { close(event); onChangeCourse(item); }}>{ui('改课程…')}</Button>}
+    {onMoveFolder && !item.archived && <Button className="source-row-menu__btn" lock={busy} onClick={event => { close(event); onMoveFolder(item); }}>{ui('移入文件夹…')}</Button>}
     {onSegment && <Button className="source-row-menu__btn" lock={busy} onClick={event => { close(event); onSegment(item); }}>{ui('AI 重新分段…')}</Button>}
     {onArchive && <Button className="source-row-menu__btn" lock={busy} onClick={event => { close(event); onArchive(item); }}>{item.archived ? ui('恢复资料') : ui('归档')}</Button>}
     {item.archived && onRemove && <Button className="source-row-menu__btn" lock={busy} onClick={event => { close(event); onRemove(item); }}>{ui('永久删除')}</Button>}
@@ -171,7 +220,7 @@ const sameRelation = (a, b) => a === b || (!!a && !!b && a.role === b.role && a.
  * carries `.is-narrow` and ui/sources.css follows it.
  */
 export const ROWS_NARROW = 681;
-const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'narrow', 'mastery', 'coverage', 'topUp', 'canIndex', 'indexLink', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark', 'custom'];
+const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'narrow', 'mastery', 'coverage', 'topUp', 'canIndex', 'indexLink', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark', 'custom', 'showExtraCourseBadges', 'folderDrag', 'canMoveFolder'];
 
 /**
  * Does a row need to be drawn again? Only when its own document, its own flags, its own index state or its own relation changed (#229, as the picker's #205):
@@ -185,25 +234,20 @@ export function sourceRowPropsEqual(a, b) {
 /* `slot`: the index badge's line is kept from the first paint, so a coverage answer that arrives later fills it instead of making the row taller (#229).
    `narrow`: the row's actions have a line of their own under it (ui/sources.css, the same width as ROWS_NARROW); the badge's slot is then the start of that line, which
    the buttons leave empty, instead of two reserved lines under the status (#1083: an empty 50px gap in every row at 420). */
-const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, narrow = false, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, indexLink = false, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '', custom = null }) {
+const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing, selected, narrow = false, actions, canGenerate, canPractice, canSegment, canRename, mastery, coverage = null, topUp = false, indexInfo = null, canIndex, indexLink = false, slot = false, relation = null, advice = false, retrieval = null, courses, defaultCourse, pinned = false, pinFirst = false, pinLast = false, dragging = false, dropMark = '', custom = null, showExtraCourseBadges = false, folderDrag = false, canMoveFolder = false }) {
   const { busy, openModal } = useStudy();
   const appData = useContext(AppContext)?.data;
   const companionTarget = !item.archived && source
     ? resolveSourceCompanionTarget({ source, courses: appData?.courses, sources: appData?.sources })
     : null;
   const [pagesOpen, setPagesOpen] = useState(false), [editing, setEditing] = useState(false);
-  const listId = useId(), row = useRef(null), opening = useRef(0), main = useRef(null), wasEditing = useRef(false);
-  useEffect(() => () => clearTimeout(opening.current), []);
+  const listId = useId(), row = useRef(null), main = useRef(null), wasEditing = useRef(false);
   useEffect(() => { if (wasEditing.current && !editing) main.current?.focus({ preventScroll: true }); wasEditing.current = editing; }, [editing]);
   const editor = canRename ? actions.rename(item) : null;
   const name = displayTitle(item.title);
-  // A click on the title opens the reader a moment late, so a double-click on it can rename instead; everything else opens at once.
-  const openRow = event => {
-    if (!editor || !event.target.closest?.('.source-title')) { actions.open(item.sourceIds[0]); return; }
-    if (event.detail > 1) return;
-    clearTimeout(opening.current); opening.current = setTimeout(() => actions.open(item.sourceIds[0]), 260);
-  };
-  const startEditing = () => { clearTimeout(opening.current); setEditing(true); };
+  // Clicking anywhere on the row opens the reader immediately (0ms); rename uses hover button, F2, or 更多 menu.
+  const openRow = () => actions.open(item.sourceIds[0]);
+  const startEditing = () => setEditing(true);
   const multi = item.pages.length > 1;
   // A converted book with chapters is browsed by chapter (WP28); its pages stay one click further in the picker.
   const chaptered = !!item.chapters?.length;
@@ -221,10 +265,15 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
   // One page count for the document (the pages that have text); when the original file has more, that is said once, beside it, with the reason on hover.
   const gap = pageGapNote(item), pages = pageFacts(item).readable;
   const indexSlot = (slot || indexInfo) && <small className="source-doc__index">{indexInfo && <IndexBadge info={indexInfo} coverage={{ canIndex }} onIndex={indexLink ? () => actions.buildIndex(item.courses?.[0] || '') : undefined} />}</small>;
+  const dragProps = pinned && !editing
+    ? { draggable: true, onDragStart: event => actions.dragStart(item.key, event), onDragOver: event => actions.dragOver(item.key, event),
+        onDrop: event => actions.drop(item.key, event), onDragEnd: actions.dragEnd }
+    : folderDrag && !item.archived && !editing
+      ? { draggable: true, onDragStart: event => actions.folderDragStart(item.key, event), onDragEnd: actions.folderDragEnd }
+      : {};
   return (
     <article ref={row} className={"source-row source-doc" + (isNew ? " is-new" : "") + (dragging ? " source-doc--dragging" : "") + (dropMark ? ` source-doc--drop-${dropMark}` : "")} data-document-key={item.key} data-new={isNew ? "true" : undefined} data-stable-row=""
-      {...(pinned && !editing ? { draggable: true, onDragStart: event => actions.dragStart(item.key, event), onDragOver: event => actions.dragOver(item.key, event),
-        onDrop: event => actions.drop(item.key, event), onDragEnd: actions.dragEnd } : {})}>
+      {...dragProps}>
       <div className="source-doc__line">
         {organizing && <CheckboxInput className="source-doc__check" aria-label={uiFormat('选择资料：{0}', [name])}
           checked={selected} onChange={event => actions.select(item.key, event.target.checked)} />}
@@ -236,11 +285,11 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           onKeyDown={editor ? event => { if (startsEditing(event)) { event.preventDefault(); startEditing(); } } : undefined}>
           <Icon name={item.format === "audio" ? "audio" : "file"} size={20} className="source-doc__icon" />
           <span>
-            <strong className="source-title" title={item.title} onDoubleClick={editor ? startEditing : undefined}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <Badge size="sm" className="source-new">{ui("刚导入")}</Badge>}{notes.map(note => <Badge key={note} tone="warning" size="sm" icon wrap className="source-note">{note}</Badge>)}</strong>
+            <strong className="source-title" title={item.title}>{pinned && <span className="source-pin" role="img" aria-label={ui('已置顶')}><Icon name="pin" size={14} /></span>}{name}{isNew && <Badge size="sm" className="source-new">{ui("刚导入")}</Badge>}{notes.map(note => <Badge key={note} tone="warning" size="sm" icon wrap className="source-note">{note}</Badge>)}</strong>
             {/* One line of facts under the title (#570): where it belongs, then what it is and how big; each part ellipsises on its own. */}
             <span className="source-doc__meta">
               <small>{[item.courses.join(' · ') || ui('未分类'), item.coursesInferred ? ui('推断归属') : '',
-                item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ')}</small>
+                item.usedBy.length ? uiFormat('用于 {0}', [item.usedBy.map(deck => deck.title).join(' · ')]) : ''].filter(Boolean).join(' · ')}{showExtraCourseBadges && item.courses.length > 1 && item.courses.slice(1).map(extra => <Badge key={extra} size="sm" className="source-course-extra">{extra}</Badge>)}</small>
               <small className={gap ? "source-doc__facts--gap" : undefined}>{sourceFormatLabel(item)}{gap &&<>{" · "}<Tooltip layer content={pageGapHint(item)}><span className="source-doc__gap" tabIndex={0}>{gap}</span></Tooltip></>}{details.length > 0 && ` · ${details.join(" · ")}`}</small>
             </span>
             {/* The status line, always visible: 资料掌握度 (the snapshot's materialMastery) and 覆盖 beside it (drafts included; the mastery is only about published questions),
@@ -262,12 +311,13 @@ const DocumentRow = memo(function DocumentRow({ item, source, isNew, organizing,
           {canGenerate && <Button size="sm" variant="secondary" icon="sparkle" className="source-doc__action" lock={busy} onClick={() => actions.generate(item.sourceIds)}>{ui('从这份资料出题')}</Button>}
           {/* 为没覆盖的部分补题 of a material whose questions were published: a NEW draft, the deck's next part (ui/coverage/DocumentTopUp.jsx). */}
           {topUp && <DocumentTopUp item={item} revision={JSON.stringify(coverage)} />}
+          {editor && !item.archived && <Button size="sm" variant="quiet" icon="edit" className="source-doc__action source-doc__rename" aria-label={uiFormat('重命名「{0}」', [name])} title={ui('重命名')} lock={busy} onClick={startEditing} />}
           {item.archived && <>
             <Button size="sm" variant="secondary" className="source-doc__action" lock={busy} onClick={() => actions.archive(item)}>{ui('恢复资料')}</Button>
             <Button size="sm" variant="danger" className="source-doc__action" lock={busy} onClick={() => actions.remove(item)}>{ui('永久删除')}</Button>
           </>}
           <details className="source-row-actions"><summary>{ui('更多')}</summary>
-            <RowMenuItems item={item} onChangeCourse={actions.changeCourse}
+            <RowMenuItems item={item} onChangeCourse={actions.changeCourse} onMoveFolder={canMoveFolder ? actions.moveFolder : undefined}
               onArchive={item.archived ? undefined : actions.archive} onSegment={canSegment ? actions.segment : undefined} onRename={editor ? startEditing : undefined}
               onPin={actions.pin} onPinMove={actions.pinMove} pin={{ pinned, first: pinFirst, last: pinLast }} />
           </details>
@@ -355,9 +405,9 @@ export function BatchRemoveDialog({ items, onClose, onRemoved }) {
   );
 }
 
-/** The head of a group of rows (a day or the pinned ones): one button that opens and closes it. */
-function GroupHead({ expanded, onToggle, children }) {
-  return <button className="source-group-head" aria-expanded={expanded} onClick={onToggle}>
+/** The head of a group of rows (a course, folder, day, or the pinned ones): one button that opens and closes it. */
+function GroupHead({ expanded, onToggle, className = '', children }) {
+  return <button className={className ? `source-group-head ${className}` : "source-group-head"} aria-expanded={expanded} onClick={onToggle}>
     <Icon name="caret" size={14} className="sh-caret" />
     {children}
   </button>;
@@ -371,6 +421,19 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const [scope, setScope] = usePageScope(data.root, 'sources', data.focus?.course ?? '*');
   const [showArchived, setShowArchived] = useState(false);
   const [query, setQuery] = useState('');
+  const [viewState, setViewState] = useState(() => ({ root: data.root, mode: readGroupMode(data.root), sort: readSortMode(data.root) }));
+  const groupMode = viewState.root === data.root ? viewState.mode : readGroupMode(data.root);
+  const sortBy = viewState.root === data.root ? viewState.sort : readSortMode(data.root);
+  const chooseGroupMode = next => {
+    if (!VALID_GROUP_MODES.has(next)) return;
+    writeJSON(groupModeKey(data.root), next, browserStorage());
+    setViewState({ root: data.root, mode: next, sort: sortBy });
+  };
+  const chooseSort = next => {
+    if (!VALID_SORTS.has(next)) return;
+    writeJSON(sortModeKey(data.root), next, browserStorage());
+    setViewState({ root: data.root, mode: groupMode, sort: next });
+  };
   // One measure for the page: the width of the study container, which is what the container queries of ui/sources.css read.
   const pageRef = useRef(null);
   const narrow = useNarrow(pageRef, ROWS_NARROW, { content: true });
@@ -386,15 +449,24 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // Whether each material's search index is built (the rows say so); read once, and followed while a build runs.
   const [indexCoverage, , indexStatus] = useIndexCoverage(call);
   const { data: retrieval } = useRetrievalStatus({ enabled: bigKeys.size > 0 });
-  // 置顶: the pinned rows leave the day groups and form their own group above them; with nothing pinned `rest` is `filtered` itself. The archive has no pins.
+  // 置顶: the pinned rows leave the groups and form their own group above them; with nothing pinned `rest` is `filtered` itself. The archive has no pins.
   const pins = useMemo(() => pinnedKeys(data.settings), [data.settings]);
+  const materialFolders = useMemo(
+    () => (data.materialFolders ? readMaterialFolders({ materialFolders: data.materialFolders }) : readMaterialFolders(data.settings)),
+    [data.materialFolders, data.settings],
+  );
   const { pinned, rest } = useMemo(() => showArchived ? { pinned: [], rest: filtered } : splitPinned(filtered, pins), [filtered, pins, showArchived]);
-  const groups = useMemo(() => groupByDay(rest), [rest]);
+  const locale = uiLocale();
+  const groups = useMemo(
+    () => buildSourceGroups(rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !filtering && !showArchived, locale, scope, known }),
+    [rest, groupMode, materialFolders, sortBy, filtering, showArchived, locale, scope, known],
+  );
   // The header describes the scope, not the filter: the filter's own count says how many match, so typing changes no line above the controls (#1085).
   const scopeSummary = useMemo(() => {
     const split = showArchived ? { pinned: [], rest: scoped } : splitPinned(scoped, pins);
-    return { count: scoped.length, pinned: split.pinned.length, rest: split.rest.length, groups: groupByDay(split.rest).length };
-  }, [scoped, pins, showArchived]);
+    const scopeGroups = buildSourceGroups(split.rest, { mode: groupMode, folders: materialFolders, sort: sortBy, includeEmpty: groupMode === 'folder' && !showArchived, locale, scope, known });
+    return { count: scoped.length, pinned: split.pinned.length, rest: split.rest.length, groups: scopeGroups.length };
+  }, [scoped, pins, showArchived, groupMode, materialFolders, sortBy, locale, scope, known]);
   // Materials made from one original file say so on their rows (#207), as in the picker of 创建题组.
   const relations = useMemo(() => materialRelations(items), [items]);
   // One index state per document, reusing the previous object while it is unchanged: a coverage answer then touches only the rows whose badge changed (#229).
@@ -411,16 +483,50 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // The materials of this page that are not fully indexed: one line under the header says how many, and goes to where the index is built.
   const gap = useMemo(() => (onBuildIndex && !showArchived ? indexGap(scoped.map(item => ({ item, info: infos.get(item.key) }))) : null), [onBuildIndex, showArchived, scoped, infos]);
   const fresh = useMemo(() => new Set(items.filter(item => item.sourceIds.some(id => highlight?.ids?.includes(id))).map(item => item.key)), [items, highlight]);
-  // Explicit choices win; while filtering, every matching group opens so hits are visible at once; otherwise the newest day and any day holding a fresh import are open.
-  const [opened, setOpened] = useState(() => new Set()), [closed, setClosed] = useState(() => new Set());
-  const isOpen = group => filtering || opened.has(group.key) || (!closed.has(group.key) && (group === groups[0] || group.rows.some(item => fresh.has(item.key))));
-  // A new import reopens its day even if the learner had closed it.
+  // All groups default expanded (newly appearing groups too), with closed group keys persisted in localStorage per library + groupMode (#1071).
+  const foldKey = `${data.root || ''}:${groupMode}`;
+  const [closedState, setClosedState] = useState(() => ({ key: foldKey, set: readClosedSet(data.root, groupMode) }));
+  const closed = closedState.key === foldKey ? closedState.set : readClosedSet(data.root, groupMode);
+  const updateClosed = updater => {
+    setClosedState(current => {
+      const base = current.key === foldKey ? current.set : readClosedSet(data.root, groupMode);
+      const next = updater(base);
+      writeJSON(closedGroupsKey(data.root, groupMode), [...next], browserStorage());
+      return { key: foldKey, set: next };
+    });
+  };
+  const isOpen = group => filtering || !closed.has(group.key);
+  // A new import reopens its group even if the learner had closed it.
   useEffect(() => {
     if (!highlight?.at) return;
     const reopen = new Set(groups.filter(group => group.rows.some(item => fresh.has(item.key))).map(group => group.key));
     if (pinned.some(item => fresh.has(item.key))) reopen.add(PINNED);
-    if (reopen.size) setClosed(current => new Set([...current].filter(key => !reopen.has(key))));
+    if (reopen.size) updateClosed(current => new Set([...current].filter(key => !reopen.has(key))));
   }, [highlight?.at]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Dismiss any open row 更多 menu on outside pointerdown or Escape while keeping <details class="source-row-actions"> intact.
+  useEffect(() => {
+    const root = pageRef.current;
+    if (!root || typeof document === 'undefined') return undefined;
+    const onPointerDown = event => {
+      for (const el of root.querySelectorAll('details.source-row-actions[open]')) {
+        if (!el.contains(event.target)) el.removeAttribute('open');
+      }
+    };
+    const onKeyDown = event => {
+      if (event.key !== 'Escape') return;
+      const openMenus = [...root.querySelectorAll('details.source-row-actions[open]')];
+      if (!openMenus.length) return;
+      const activeMenu = openMenus.find(el => el.contains(document.activeElement));
+      for (const el of openMenus) el.removeAttribute('open');
+      activeMenu?.querySelector('summary')?.focus?.({ preventScroll: true });
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
   /* A material that was just imported must be on the page the import lands on. The page is filtered by course, and the new material may belong to another one
      (or to none): then the page shows all courses, once per import, instead of hiding what the learner just added. */
   const widened = useRef(0);
@@ -433,20 +539,24 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   }, [highlight?.at, allItems]); // eslint-disable-line react-hooks/exhaustive-deps
   const [organizing, setOrganizing] = useState(false), [selected, setSelected] = useState([]);
   const [courseText, setCourseText] = useState(''), [proposals, setProposals] = useState(null);
+  const [batchFolder, setBatchFolder] = useState('');
   // EXPERIMENTAL (hidden unless "Show experimental features" is on, off by default): Jev's course suggestions share the AI suggestions' rows and apply button.
   const experimental = experimentalShown(data), jevOn = useJevCourseSuggest(call, experimental ? undefined : false), [jevNote, setJevNote] = useState(''), [jevRun, setJevRun] = useState(null);
   const [removing, setRemoving] = useState(null);
   const [removingBatch, setRemovingBatch] = useState(null);
   const [editingCourse, setEditingCourse] = useState(null);
+  const [movingFolder, setMovingFolder] = useState(null);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [renamingFolder, setRenamingFolder] = useState(null);
+  const [deletingFolder, setDeletingFolder] = useState(null);
   const [segmenting, setSegmenting] = useState(null);
   // A rename in the row says nothing more: the row shows the new name the moment the field closes (a toast that repeats it is noise, #677).
   const renameFor = (act || call) ? item => ({
     save: async title => { await renameDocument({ act, call }, item, { title }); },
     restore: async () => { await renameDocument({ act, call }, item, { restore: true }); },
   }) : undefined;
-  const selectedItems = items.filter(item => selected.includes(item.key));
   const finish = () => { setProposals(null); setSelected([]); setJevRun(null); };
-  // 归档所选 / 恢复所选 / 永久删除所选: only what the page currently shows (a checked row hidden by course scope or text filter is not acted on unseen).
+  // B6: every batch action (course attribution, AI suggest, folder move, archive, restore, permanent delete) acts strictly on visible `chosen` items in active scope/filter.
   const chosen = filtered.filter(item => selected.includes(item.key));
   const archiveChosen = async () => {
     if (!chosen.length) return;
@@ -466,15 +576,16 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   };
   const toggle = group => {
     const open = isOpen(group);
-    setOpened(current => { const next = new Set(current); open ? next.delete(group.key) : next.add(group.key); return next; });
-    setClosed(current => { const next = new Set(current); open ? next.add(group.key) : next.delete(group.key); return next; });
+    updateClosed(current => { const next = new Set(current); open ? next.add(group.key) : next.delete(group.key); return next; });
   };
   const allOpen = groups.length > 0 && groups.every(isOpen);
   // The pinned group is open unless the learner closed it (or while filtering so matching pinned rows stay visible).
   const pinnedOpen = filtering || !closed.has(PINNED);
-  const togglePinned = () => setClosed(current => { const next = new Set(current); pinnedOpen ? next.add(PINNED) : next.delete(PINNED); return next; });
-  // Dragging a pinned row: `drag` is { key, over, side }; only the rows whose own flag changes are drawn again.
+  const togglePinned = () => updateClosed(current => { const next = new Set(current); pinnedOpen ? next.add(PINNED) : next.delete(PINNED); return next; });
+  // Dragging a pinned row: `drag` is { key, over, side }; dragging a row into a folder in folder mode: `folderDragKey` & `folderDropKey`.
   const [drag, setDrag] = useState(null);
+  const [folderDragKey, setFolderDragKey] = useState(null);
+  const [folderDropKey, setFolderDropKey] = useState(null);
   // The handlers the rows call: one object that never changes and reads the latest state itself, so a row is drawn again only for its own data (#229).
   const latest = useRef(null);
   // 归档 says so and offers 撤销 (source.archive back) and the second step of archive-first, 永久删除…, which opens the same dialog as the archive's own button.
@@ -506,7 +617,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       const done = await latest.current.act('source.archive', { sourceIds: item.sourceIds, archived: !item.archived });
       if (done && !item.archived) latest.current.offerArchived([item]);
     },
-    remove: item => setRemoving(item), changeCourse: item => setEditingCourse(item), segment: item => setSegmenting(item),
+    remove: item => setRemoving(item), changeCourse: item => setEditingCourse(item), moveFolder: item => setMovingFolder(item), segment: item => setSegmenting(item),
     rename: item => latest.current.renameFor(item),
     pin: item => latest.current.act('source.pin', { key: item.key, pinned: !latest.current.pinKeys.includes(item.key) }),
     pinMove: (item, step) => { const request = stepRequest(latest.current.shownPins, item.key, step); if (request) latest.current.act('source.pin.move', request); },
@@ -527,6 +638,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       if (request) latest.current.act('source.pin.move', request);
     },
     dragEnd: () => setDrag(null),
+    folderDragStart: (key, event) => { event.dataTransfer.setData('application/x-study-folder-material', key); event.dataTransfer.effectAllowed = 'move'; setFolderDragKey(key); },
+    folderDragEnd: () => { setFolderDragKey(null); setFolderDropKey(null); },
     openSettings: (...args) => latest.current.onOpenSettings?.(...args),
     buildIndex: course => latest.current.onBuildIndex?.(course),
   }), []);
@@ -542,14 +655,15 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
     return next;
   }, [items, data.courses, showArchived]);
   // A group draws its rows in chunks (ChunkedRows); the rows something goes to are drawn even past the first chunk: the new import, and the 深度定制 button 找功能 looks for.
-  // A new course scope, filter query or archive toggle starts every group from its first chunk again.
-  const chunkKey = `${scope}|${showArchived}|${query.trim()}`;
+  // A new course scope, filter query, grouping mode, sort mode or archive toggle starts every group from its first chunk again.
+  const chunkKey = `${scope}|${showArchived}|${query.trim()}|${groupMode}|${sortBy}`;
   const rowOf = (rows, keys) => rows.findIndex(item => keys.has(item.key));
   const anchorsOf = rows => ({ 'custom-book-row': rowOf(rows, offers) });
-  // One row, in a day group or in the pinned group (`pin`: where it stands among the pinned rows).
+  // One row, in a group or in the pinned group (`pin`: where it stands among the pinned rows).
   const renderRow = (item, pin = {}) => <DocumentRow key={item.key} item={item} source={byId.get(item.sourceIds[0])}
     isNew={fresh.has(item.key)} organizing={organizing} selected={selected.includes(item.key)} narrow={narrow} actions={actions}
     canGenerate={!showArchived && !!onGenerate} canPractice={!showArchived && !!onPractice} canSegment={typeof call === 'function'} canRename={!!renameFor}
+    canMoveFolder={!!(act || call)} showExtraCourseBadges={groupMode === 'course'} folderDrag={groupMode === 'folder' && !showArchived}
     mastery={data.materialMastery?.[item.key]} coverage={data.materialCoverage?.[item.key]}
     topUp={!showArchived && offersDocumentTopUp({ item, coverage: data.materialCoverage?.[item.key], jobs: data.jobs, modelReady: modelReadiness(data).ready })} indexInfo={infos.get(item.key) ?? null} canIndex={indexCoverage?.canIndex} indexLink={!!onBuildIndex} slot={indexStatus !== 'unavailable'}
     relation={relations.get(item.key) ?? null} advice={bigKeys.has(item.key)} retrieval={bigKeys.has(item.key) ? retrieval : null} custom={offers.get(item.key) ?? null}
@@ -561,11 +675,21 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   const archivedCount = allItems.filter(item => item.archived).length;
   const toggleArchived = () => { setShowArchived(value => !value); setSelected([]); setProposals(null); setRemovingBatch(null); };
   const toggleGroups = () => {
-    if (allOpen) { setOpened(new Set()); setClosed(new Set(groups.map(group => group.key))); }
-    else { setOpened(new Set(groups.map(group => group.key))); setClosed(new Set()); }
+    if (allOpen) updateClosed(current => new Set([...current, ...groups.map(group => group.key)]));
+    else updateClosed(current => new Set([...current].filter(key => !groups.some(group => group.key === key))));
   };
   const openCompanions = () => setModal({ type: "companionBuild", course: scope === '*' ? (data.focus?.course || '') : scope });
   const archiveLabel = showArchived ? ui('返回资料') : uiFormat('已归档（{0}）', [archivedCount]);
+  const requestDeleteFolder = (folder, count) => {
+    if (count > 0) { setDeletingFolder({ folder, count }); return; }
+    act('source.folder.delete', { folder });
+  };
+  const groupTitle = key => {
+    if (groupMode === 'course') return key === UNASSIGNED_COURSE ? ui('未分类') : key;
+    if (groupMode === 'folder') return key === UNFILED_FOLDER ? ui('未归入文件夹') : key;
+    if (groupMode === 'none') return ui('全部资料');
+    return dayLabel(key);
+  };
   const headerActions = narrow
     ? <>
       {addButton}
@@ -585,12 +709,10 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   return (
     <section ref={pageRef} className={`page sources-page${narrow ? ' is-narrow' : ''}`}>
       <PageHeader className="sources-page__header" title={ui("资料")}
-        description={<>{ui("题目从这里生长。原文与引用一直保留。")}{items.length > 0 &&
-          (scopeSummary.pinned ? (scopeSummary.rest ? uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。", [scopeSummary.count, scopeSummary.pinned, scopeSummary.groups]) : uiFormat(" 共 {0} 份资料，全部置顶。", [scopeSummary.count]))
-            : uiFormat(" 共 {0} 份资料，按导入日期分为 {1} 组。", [scopeSummary.count, scopeSummary.groups]))}</>}
+        description={<>{ui("题目从这里生长。原文与引用一直保留。")}{items.length > 0 && groupSummaryDescription({ mode: groupMode, summary: scopeSummary })}</>}
         actions={headerActions} actionsOnTitleRow={narrow} />
       {gap && <IndexGapLine count={gap.count} canIndex={indexCoverage?.canIndex} onGo={() => onBuildIndex(gap.course)} />}
-      {items.length > 0 && <>
+      {(items.length > 0 || (groupMode === 'folder' && !showArchived && materialFolders.folders.length > 0)) && <>
         {/* 课程范围 and 筛选资料 are one small form: the label in one column, both controls in the next, at one left edge and one width (#1085). */}
         <div className="page-scope-form sources-toolbar">
         <PageScope value={scope} onChange={setScope} courses={data.focus?.courses} />
@@ -611,20 +733,35 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           </span>}
         </div>
         </div>
-        <details className="source-organize" data-tour="sources-organize" onToggle={event => setOrganizing(event.currentTarget.open)}>
+        <div className="sources-view-bar">
+          <SegmentedControl size="sm" wrap label={ui('分组方式')} value={groupMode} onChange={chooseGroupMode} options={[
+            { value: 'course', label: ui('按课程') },
+            { value: 'folder', label: ui('按文件夹') },
+            { value: 'day', label: ui('按导入日期') },
+            { value: 'none', label: ui('平铺') },
+          ]} />
+          <Select className="sources-view-bar__sort" aria-label={ui('排序')} value={sortBy} onChange={chooseSort} options={[
+            { value: 'recent', label: ui('最近导入') },
+            { value: 'title', label: ui('按标题') },
+          ]} />
+          {groupMode === 'folder' && !showArchived && !!(act || call) && (
+            <Button size="sm" variant="secondary" icon="plus" lock={busy} onClick={() => setCreatingFolder(true)}>{ui('新建文件夹')}</Button>
+          )}
+        </div>
+        {items.length > 0 && <details className="source-organize" data-tour="sources-organize" onToggle={event => setOrganizing(event.currentTarget.open)}>
           <summary>{showArchived ? ui('批量管理已归档资料') : ui('整理课程归属')}</summary>
           <p className="muted">{showArchived ? ui('勾选已归档资料后，可批量恢复、统一永久删除，或整理课程归属。') : ui('勾选资料后统一整理。改课程归属时，原文与引用保持不变。')}</p>
-          <p>{uiFormat('已选择 {0} 份资料', [selectedItems.length])}{' '}
+          <p>{uiFormat('已选择 {0} 份资料', [chosen.length])}{' '}
             <Button disabled={!filtered.length} onClick={() => { setSelected(filtered.map(item => item.key)); setProposals(null); }}>{filtering ? ui('选择筛选结果') : ui('选择当前范围')}</Button>{' '}
             {selected.length > 0 && <Button onClick={finish}>{ui('清空选择')}</Button>}
           </p>
           <CourseField value={courseText} onChange={setCourseText} courses={data.focus?.courses} multiple disabled={busy} />
           <div className="source-organization-actions">
-            <Button disabled={!selectedItems.length} lock={busy} onClick={() => act('source.courses.set', {
-              assignments: courseAssignments(items, selected, parseCourses(courseText), byId),
+            <Button disabled={!chosen.length} lock={busy} onClick={() => act('source.courses.set', {
+              assignments: courseAssignments(chosen, chosen.map(item => item.key), parseCourses(courseText), byId),
             }, finish)}>{ui('应用课程归属')}</Button>
-            <Button disabled={!modelReadiness(data).ready || !selectedItems.length || selectedItems.length > 100} lock={busy}
-              onClick={() => act('source.organize.suggest', { sourceIds: selectedItems.map(item => item.sourceIds[0]) }, result => {
+            <Button disabled={!modelReadiness(data).ready || !chosen.length || chosen.length > 100} lock={busy}
+              onClick={() => act('source.organize.suggest', { sourceIds: chosen.map(item => item.sourceIds[0]) }, result => {
                 setJevRun(result.jev ?? null);
                 setProposals(result.proposals.map(proposal => {
                   const item = items.find(entry => entry.sourceIds.includes(proposal.id));
@@ -632,8 +769,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                   return { ...proposal, key: item?.key, title: item?.title ?? proposal.title, include: proposal.decidedBy === 'jev' ? startsIncluded(proposal) : true, courseText: proposal.courses.join('; ') };
                 }));
               })}>{ui('请 AI 建议')}</Button>
-            <JevSuggestButton enabled={jevOn} disabled={busy || !selectedItems.length || selectedItems.length > 100}
-              onClick={() => { setJevNote(''); act('source.organize.jev', { sourceIds: selectedItems.map(item => item.sourceIds[0]) }, result => {
+            <JevSuggestButton enabled={jevOn} disabled={busy || !chosen.length || chosen.length > 100}
+              onClick={() => { setJevNote(''); act('source.organize.jev', { sourceIds: chosen.map(item => item.sourceIds[0]) }, result => {
                 setJevNote(noteText(result));
                 if (result.proposals.length) setProposals(result.proposals.map(proposal => {
                   const item = items.find(entry => entry.sourceIds.includes(proposal.id));
@@ -641,6 +778,14 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
                 }));
               }); }} />
           </div>
+          {!showArchived && <div className="source-folder-actions">
+            <Select className="source-folder-actions__select" aria-label={ui('目标文件夹')} value={batchFolder} onChange={setBatchFolder}
+              options={[{ value: '', label: ui('未归入文件夹') }, ...materialFolders.folders.map(folder => ({ value: folder, label: folder }))]} disabled={busy} />
+            <Button disabled={!chosen.length} lock={busy} onClick={() => act('source.folder.set', {
+              keys: chosen.map(item => item.key),
+              folder: batchFolder || null,
+            }, finish)}>{ui('移入文件夹')}</Button>
+          </div>}
           <ModelSetupGate variant="compact" feature="organize" model={modelReadiness(data)} />
           {experimental && <JevNote note={jevNote} />}
           {experimental && <JevRunNote jev={jevRun} />}
@@ -665,17 +810,17 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
             </div>)}
             <Button disabled={!proposals.some(proposal => proposal.include)} lock={busy} onClick={() => act('source.courses.set', {
               assignments: proposals.filter(proposal => proposal.include).flatMap(proposal =>
-                courseAssignments(items, [proposal.key], parseCourses(proposal.courseText), byId)),
+                courseAssignments(chosen, [proposal.key], parseCourses(proposal.courseText), byId)),
             }, finish)}>{ui('确认应用建议')}</Button>
           </div>}
-        </details>
-        {!scoped.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
-        {scoped.length > 0 && !filtered.length && <p className="muted">{uiFormat('没有匹配“{0}”的资料', [query.trim()])}</p>}
+        </details>}
+        {items.length > 0 && !scoped.length && <p className="muted">{ui('这个范围还没有资料。可切换到全部课程查看。')}</p>}
+        {items.length > 0 && scoped.length > 0 && !filtered.length && <p className="muted">{uiFormat('没有匹配“{0}”的资料', [query.trim()])}</p>}
       </>}
       <AudioJobs data={data} openAgent={openAgent} onOpenSources={onOpenSources} onLegacyRetry={onLegacyRetry} onGenerate={onGenerate} />
       <PdfConvertJobs data={data} act={act} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} onGenerate={onGenerate} />
       <PdfConvertHistory data={data} act={act} onOpenSources={onOpenSources} onOpenSettings={onOpenSettings} collapsible hideWhenEmpty />
-      {!items.length ? (
+      {!items.length && !(groupMode === 'folder' && !showArchived && materialFolders.folders.length > 0) ? (
         <section className="sources-empty" data-tour="sources-list">
           <div className="sources-empty__intro">
             <h2>{showArchived ? ui('没有已归档的资料。') : ui("还没有资料")}</h2>
@@ -695,14 +840,49 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
           </div>}
           {groups.map((g) => {
             const expanded = isOpen(g);
+            const isNamedFolder = groupMode === 'folder' && g.key !== UNFILED_FOLDER;
+            const folderDropProps = groupMode === 'folder' && !showArchived ? {
+              'data-folder-key': g.key,
+              onDragOver: event => {
+                if (!folderDragKey && !event.dataTransfer?.types?.includes?.('application/x-study-folder-material')) return;
+                event.preventDefault();
+                if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+                if (folderDropKey !== g.key) setFolderDropKey(g.key);
+              },
+              onDragLeave: event => {
+                if (!event.currentTarget.contains(event.relatedTarget) && folderDropKey === g.key) setFolderDropKey(null);
+              },
+              onDrop: event => {
+                const draggedKey = event.dataTransfer?.getData('application/x-study-folder-material') || folderDragKey;
+                setFolderDragKey(null);
+                setFolderDropKey(null);
+                if (!draggedKey) return;
+                event.preventDefault();
+                act('source.folder.set', { key: draggedKey, folder: g.key || null });
+              },
+            } : {};
+            const head = (
+              <GroupHead expanded={expanded} className={isNamedFolder && !showArchived && !!(act || call) ? 'source-group-head--in-row' : ''} onToggle={() => toggle(g)}>
+                {isNamedFolder && <Icon name="folder" size={16} className="source-group-folder-icon" />}
+                <strong>{groupTitle(g.key)}</strong>
+                {groupMode === 'day' && g.inferred && <Badge size="sm" title={ui("这些资料保存时没有记录日期，按最早引用它们的题组推断")}>{ui("推断")}</Badge>}
+                <small className="muted">{uiFormat("{0} 份 · {1} 字符", [g.rows.length, formatNumber(g.chars)])}</small>
+              </GroupHead>
+            );
             return (
-              <div key={g.key} className={"source-group" + (expanded ? " source-group--open" : "")}>
-                <GroupHead expanded={expanded} onToggle={() => toggle(g)}>
-                  <strong>{dayLabel(g.key)}</strong>
-                  {g.inferred && <Badge size="sm" title={ui("这些资料保存时没有记录日期，按最早引用它们的题组推断")}>{ui("推断")}</Badge>}
-                  <small className="muted">{uiFormat("{0} 份 · {1} 字符", [g.rows.length, formatNumber(g.chars)])}</small>
-                </GroupHead>
-                {expanded && <ChunkedRows items={g.rows} resetKey={chunkKey} reveal={rowOf(g.rows, fresh)} anchors={anchorsOf(g.rows)} render={item => renderRow(item)} />}
+              <div key={g.key} className={"source-group" + (expanded ? " source-group--open" : "") + (folderDropKey === g.key ? " source-group--drop" : "")} {...folderDropProps}>
+                {isNamedFolder && !showArchived && !!(act || call) ? (
+                  <div className="source-group-head-row">
+                    {head}
+                    <span className="source-group-actions">
+                      <Button size="xs" variant="quiet" lock={busy} onClick={() => setRenamingFolder(g.key)}>{ui('重命名')}</Button>
+                      <Button size="xs" variant="quiet" lock={busy} onClick={() => requestDeleteFolder(g.key, g.rows.length)}>{ui('删除')}</Button>
+                    </span>
+                  </div>
+                ) : head}
+                {expanded && (g.rows.length > 0
+                  ? <ChunkedRows items={g.rows} resetKey={chunkKey} reveal={rowOf(g.rows, fresh)} anchors={anchorsOf(g.rows)} render={item => renderRow(item)} />
+                  : <p className="source-group__empty muted">{ui('暂无资料。可将资料拖拽到此，或从行菜单移入。')}</p>)}
               </div>
             );
           })}
@@ -710,6 +890,11 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       )}
       {editingCourse && <CourseDialog item={editingCourse} items={items} byId={byId} courses={data.focus?.courses}
         onClose={() => setEditingCourse(null)} />}
+      {movingFolder && <MoveFolderDialog item={movingFolder} folders={materialFolders.folders} currentFolder={folderOfItem(materialFolders, movingFolder.key)}
+        onClose={() => setMovingFolder(null)} />}
+      {creatingFolder && <CreateFolderDialog onClose={() => setCreatingFolder(false)} />}
+      {renamingFolder && <RenameFolderDialog folder={renamingFolder} onClose={() => setRenamingFolder(null)} />}
+      {deletingFolder && <DeleteFolderDialog folder={deletingFolder.folder} count={deletingFolder.count} onClose={() => setDeletingFolder(null)} />}
       {segmenting && <OutlineDialog item={segmenting} onClose={() => setSegmenting(null)} />}
       {removing && <RemoveDialog item={removing} onClose={closeRemoving}
         onRemoved={item => { setRemoving(null); toast.success(uiFormat("已永久删除「{0}」", [displayTitle(item.title)])); }} />}
@@ -746,5 +931,110 @@ export function CourseDialog({ item, items, byId, courses, onClose }) {
       <CourseField value={text} onChange={value => { setText(value); setError(''); }} courses={courses} multiple disabled={busy} />
       {error && <InlineMessage>{error}</InlineMessage>}
     </Dialog>
+  );
+}
+
+export function MoveFolderDialog({ item, folders = [], currentFolder = '', onClose }) {
+  const { busy, act } = useStudy();
+  const [name, setName] = useState(currentFolder);
+  const [error, setError] = useState('');
+  const save = async (target = name) => {
+    try {
+      const normalized = normalizeFolderName(target);
+      await act('source.folder.set', { key: item.key, folder: normalized || null }, onClose, { rethrow: true });
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
+  return (
+    <Dialog size="sm" title={uiFormat('将「{0}」移入文件夹', [displayTitle(item.title)])} busy={busy} onClose={onClose}
+      footer={<>
+        {currentFolder && <Button variant="quiet" lock={busy} onClick={() => save('')}>{ui('移出文件夹')}</Button>}
+        <Button variant="quiet" lock={busy} onClick={onClose}>{ui('取消')}</Button>
+        <Button variant="primary" busy={busy} disabled={busy} onClick={() => save(name)}>{ui('移入文件夹')}</Button>
+      </>}>
+      <p className="muted">{ui('选择已有文件夹，或直接输入新文件夹名称；留空则移回「未归入文件夹」。')}</p>
+      {folders.length > 0 && (
+        <div className="source-folder-dialog__chips">
+          {folders.map(folder => (
+            <Button key={folder} size="xs" variant={normalizeFolderName(name) === folder ? 'primary' : 'secondary'}
+              lock={busy} onClick={() => { setName(folder); setError(''); }}>{folder}</Button>
+          ))}
+        </div>
+      )}
+      <Field label={ui('文件夹名称')}>
+        <TextInput value={name} placeholder={ui('输入新文件夹名称…')} disabled={busy}
+          onChange={event => { setName(event.target.value); setError(''); }}
+          onKeyDown={event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); save(name); } }} />
+      </Field>
+      {error && <InlineMessage>{error}</InlineMessage>}
+    </Dialog>
+  );
+}
+
+function CreateFolderDialog({ onClose }) {
+  const { busy, act } = useStudy();
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const create = async () => {
+    try {
+      await act('source.folder.create', { name: normalizeFolderName(name) }, onClose, { rethrow: true });
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
+  return (
+    <Dialog size="sm" title={ui('新建文件夹')} busy={busy} onClose={onClose}
+      footer={<>
+        <Button variant="quiet" lock={busy} onClick={onClose}>{ui('取消')}</Button>
+        <Button variant="primary" busy={busy} disabled={busy || !normalizeFolderName(name)} onClick={create}>{ui('创建文件夹')}</Button>
+      </>}>
+      <Field label={ui('文件夹名称')}>
+        <TextInput value={name} placeholder={ui('例如：第 1 周讲义、期中复习')} disabled={busy}
+          onChange={event => { setName(event.target.value); setError(''); }}
+          onKeyDown={event => { if (event.key === 'Enter' && !event.isComposing && normalizeFolderName(name)) { event.preventDefault(); create(); } }} />
+      </Field>
+      {error && <InlineMessage>{error}</InlineMessage>}
+    </Dialog>
+  );
+}
+
+function RenameFolderDialog({ folder, onClose }) {
+  const { busy, act } = useStudy();
+  const [name, setName] = useState(folder);
+  const [error, setError] = useState('');
+  const save = async () => {
+    try {
+      await act('source.folder.rename', { from: folder, to: normalizeFolderName(name) }, onClose, { rethrow: true });
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
+  return (
+    <Dialog size="sm" title={uiFormat('重命名文件夹「{0}」', [folder])} busy={busy} onClose={onClose}
+      footer={<>
+        <Button variant="quiet" lock={busy} onClick={onClose}>{ui('取消')}</Button>
+        <Button variant="primary" busy={busy} disabled={busy || !normalizeFolderName(name)} onClick={save}>{ui('保存名称')}</Button>
+      </>}>
+      <Field label={ui('文件夹名称')}>
+        <TextInput value={name} disabled={busy}
+          onChange={event => { setName(event.target.value); setError(''); }}
+          onKeyDown={event => { if (event.key === 'Enter' && !event.isComposing && normalizeFolderName(name)) { event.preventDefault(); save(); } }} />
+      </Field>
+      {error && <InlineMessage>{error}</InlineMessage>}
+    </Dialog>
+  );
+}
+
+function DeleteFolderDialog({ folder, count, onClose }) {
+  const { busy, act } = useStudy();
+  const confirm = async () => {
+    await act('source.folder.delete', { folder, unfile: true }, onClose, { rethrow: true });
+  };
+  return (
+    <ConfirmDialog title={uiFormat('删除文件夹「{0}」？', [folder])} confirmLabel={ui('移出并删除文件夹')}
+      busy={busy} onConfirm={confirm} onDone={onClose} onClose={onClose}>
+      <p>{uiFormat('该文件夹内还有 {0} 份资料。删除文件夹不会删除资料本身，它们会回到「未归入文件夹」。', [count])}</p>
+    </ConfirmDialog>
   );
 }

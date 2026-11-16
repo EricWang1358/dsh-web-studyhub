@@ -55,7 +55,7 @@ test('archived sources leave the active library and generation picker', () => {
 test('a PDF is one row; pages stay inside it and the wording is plain', () => {
   setUiLanguage('zh');
   const html = render();
-  assert.equal(rows(html), 2, 'today: the PDF and the Markdown file; the older day stays closed');
+  assert.equal(rows(html), 3, 'three documents (PDF pages folded into one row, Markdown, and uncategorised)');
   assert.match(html, /lecture5-memory\.pdf/);
   assert.match(html, /PDF · 3 页/);
   assert.doesNotMatch(html, /lecture5-memory\.pdf · p\.2/);
@@ -66,13 +66,23 @@ test('a PDF is one row; pages stay inside it and the wording is plain', () => {
   assert.match(html, /查看 3 页/, 'a multi-page document offers its page list');
 });
 
-test('the newest day is open and older days are collapsed', () => {
+test('all course groups default expanded and collapsed groups persist in storage', () => {
   setUiLanguage('zh');
   const html = render();
   const heads = [...html.matchAll(/class="source-group-head"[^>]*aria-expanded="(true|false)"|aria-expanded="(true|false)"[^>]*class="source-group-head"/g)]
     .map(match => match[1] || match[2]);
-  assert.deepEqual(heads, ['true', 'false']);
-  assert.doesNotMatch(html, /进程与线程/);
+  assert.deepEqual(heads, ['true', 'true']);
+  const store = new Map([['study-sources-group-closed:v1:lib:course', JSON.stringify([''])]]);
+  globalThis.localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) };
+  try {
+    const collapsed = render();
+    const collapsedHeads = [...collapsed.matchAll(/class="source-group-head"[^>]*aria-expanded="(true|false)"|aria-expanded="(true|false)"[^>]*class="source-group-head"/g)]
+      .map(match => match[1] || match[2]);
+    assert.deepEqual(collapsedHeads, ['true', 'false']);
+    assert.doesNotMatch(collapsed, /进程与线程/);
+  } finally {
+    delete globalThis.localStorage;
+  }
 });
 
 test('a freshly imported document is highlighted and its day opened', () => {
