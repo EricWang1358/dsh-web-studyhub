@@ -99,5 +99,6 @@ test('course.outline.qa through the runtime: registered, read-only, documented f
   assert.equal(JSON.stringify((await service.store.read()).decks), before, 'reading writes nothing');
   assert.equal(JSON.stringify(await service.call('snapshot')).includes('Why keep a decision log?'), false, 'the 问答 are read on demand, not carried by the snapshot');
   assert.match(libraryContracts.learning, /course\.outline\.qa \{course\?,keys\?,cards\?/);
-  assert.match(studyToolDescription, /course\.outline, course\.outline\.qa/);
+  assert.match(studyToolDescription, /library\.context \{area:"index"\}/);
+  assert.match(libraryContracts.index, /course\.outline, course\.outline\.qa/);
 });

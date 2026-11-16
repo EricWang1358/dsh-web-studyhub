@@ -148,7 +148,8 @@ test("the readout is part of the snapshot only for a course with topics, and cou
 test("course.focusProgress is declared read only, listed for discovery and described where the main chat reads about the plan", () => {
   assert.deepEqual(writesFor("library", "course.focusProgress"), []);
   assert.equal(assistantRefusal("course.focusProgress"), null);
-  assert.match(studyToolDescription, /Discovery: [^\n]*book\.mock\.plan, course\.focusProgress, book\.toc/);
+  assert.match(studyToolDescription, /library\.context \{area:"index"\}/);
+  assert.match(libraryContracts.index, /Discovery: [^\n]*book\.mock\.plan, course\.focusProgress, book\.toc/);
   assert.match(libraryContracts.plan, /course\.focusProgress \{course\?\} reads the course's saved focus topics/);
   assert.match(libraryContracts.plan, /weakScope/);
   assert.ok(libraryContracts.plan.length < 3000, "the plan area stays short enough to read in one go");

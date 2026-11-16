@@ -78,7 +78,8 @@ test('a question citing an uncategorised material is 未归位 until source.cour
 
 test('agents are told about it in the learning contract and the discovery list', () => {
   assert.match(libraryContracts.learning, /course\.outline \{course\?,deckId\?,expand\?/);
-  assert.match(studyToolDescription, /course\.route, course\.outline/);
+  assert.match(studyToolDescription, /library\.context \{area:"index"\}/);
+  assert.match(libraryContracts.index, /course\.route, course\.outline/);
 });
 
 test('a library of 200 materials and 3000 questions is placed without stalling (the time is reported), and the second read is cached', t => {
