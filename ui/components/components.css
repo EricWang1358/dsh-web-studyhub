@@ -342,6 +342,13 @@
       gap: var(--space-2) var(--space-4);
     }
     .sh-page-header__title-row > .sh-page-header__title { min-width: 0; }
+    /* --measured: a page that measures whether its actions fit beside the title (资料, ui/use-row-fit.js) and draws a shorter set when they do not. The title
+       and the actions keep their widths on one line, the actions at its end, so the measure is true; --compact (the shorter set) may still go under the title,
+       at the right, on a phone narrower than even that set. */
+    .sh-page-header--measured .sh-page-header__title-row { flex-wrap: nowrap; }
+    .sh-page-header--measured .sh-page-header__title-row > * { flex: none; }
+    .sh-page-header--measured .sh-page-header__actions { flex-wrap: nowrap; margin-inline-start: auto; }
+    .sh-page-header--measured.sh-page-header--compact-actions .sh-page-header__title-row { flex-wrap: wrap; }
     /* The scope slot of PageHeader (ui-consistency #142): the page's scope picker sits under the title block.
        Tokens only. */
     .sh-page-header__scope {

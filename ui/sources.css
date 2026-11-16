@@ -6,13 +6,17 @@
        highlighted. Builds on the .source-group/.source-row rules in style.css;
        tokens only. */
     .sources-page .sources-page__header { margin-bottom: var(--space-4); }
-    /* The filter under 课程范围 (#1085): its input in the control column of .page-scope-form (ui/course-active.css), its count and 清除筛选 after it. */
+    /* The filter under 课程范围 (#1085): in the control column of .page-scope-form (ui/course-active.css). Its count and 清除筛选 sit inside the field, at its
+       end, over the field's own end padding (only while filtering, so the placeholder keeps the whole field): the field's box is the same whatever you type, so
+       nothing above the list moves at any width (#1085). */
     .sources-toolbar { margin: 0 0 var(--space-3); }
-    .sources-toolbar > .sources-filter { display: contents; }
-    .sources-filter__input { grid-column: 2; min-height: 38px; }
-    /* One way to clear the filter: 清除筛选 beside the count, not the browser's own × in the field as well. */
+    .sources-toolbar > .sources-filter { --sources-filter-end: 7.5rem; grid-column: 2; position: relative; min-width: 0; }
+    .sources-filter__input { width: 100%; min-height: 38px; }
+    .sources-filter:has(> .sources-filter__state) > .sources-filter__input { padding-inline-end: var(--sources-filter-end); }
+    /* One way to clear the filter: the × of 清除筛选 beside the count, not the browser's own × in the field as well. */
     .sources-filter__input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
-    .sources-filter__state { grid-column: 3; justify-self: start; display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+    .sources-filter__state { position: absolute; inset-block: 0; inset-inline-end: var(--space-1); display: inline-flex; align-items: center; gap: var(--space-1); max-width: var(--sources-filter-end); }
+    .sources-filter__count { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .sources-filter__count { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .sources-view-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); }
     .sources-view-bar__sort { flex: 0 0 auto; width: auto; min-width: 8.5em; }
@@ -30,9 +34,14 @@
     & .source-group-head small { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     /* A material is a row on the desk under its day's rule, not a card in a box (#570, ui/DESIGN.md "the card is the only physical object"): no border, no stock,
        three lines (title, facts, status) so a 900px window shows five or more. */
-    .source-doc { display: block; margin: 0; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; }
-    .source-doc__line { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
-    .source-doc__line > .source-doc__check { margin: 0; }
+    /* --source-doc-lead: the icon and the gap after it, so a line under the title starts where the title's text does. */
+    .source-doc { --source-doc-lead: calc(20px + var(--space-3)); display: block; margin: 0; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; }
+    /* A row is a small grid: the title and the facts (after the checkbox while organizing) beside the actions, then the status line under both, as wide as the row.
+       The actions only ever sit beside the title and the facts, so a wide row's hover-only buttons never narrow the status line (#1083). */
+    .source-doc__line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 var(--space-3); min-width: 0; }
+    .source-doc__line:has(> .source-doc__check) { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .source-doc__line > * { grid-row: 1; grid-column: -3; }
+    .source-doc__line > .source-doc__check { grid-column: 1; margin: 0; }
     /* The text column takes the whole width of the row beside the icon (it used to be as wide as its longest line, the start of the text, so a row with a short title and
        no such line gave the status line a sliver and it broke in two once its content arrived: #676). */
     .source-doc .source-main > span { display: grid; flex: 1 1 auto; gap: var(--space-half); min-width: 0; }
@@ -43,17 +52,19 @@
     .source-doc .source-main .source-doc__meta > small { flex: 1 1 auto; min-width: 0; max-width: none; margin: 0; }
     .source-doc .source-main .source-doc__meta > small:first-child { flex: 0 0 auto; max-width: 45%; }
     .source-doc__meta > small + small::before { content: "·"; margin-right: var(--space-2); color: var(--text-faint); }
-    /* The status line: mastery and coverage, then the index badge's slot at its end (it takes the rest of the line, so a late badge moves nothing). */
-    .source-doc__status { display: flex; align-items: center; gap: var(--space-half) var(--space-4); min-width: 0; margin-top: var(--space-half); }
-    .source-doc .source-main .source-doc__status > small.source-doc__index { flex: 1 1 8em; margin: 0; }
+    /* The status line: mastery and coverage, then the index badge's slot. The slot is there from the first paint and at least --index-slot wide; it takes the rest
+       of the line, or the next line when the rest is narrower, which the slot decides before the badge comes: a late badge moves nothing (#229, #1083).
+       --index-slot holds the longest common badge uncut: "Index partly built · 2/4 pages" with 「Build index」 after it (254px; 「索引建了一部分 · 2/4 页 建立索引」
+       is 200px). A rarer, longer one (pages skipped) ends in an ellipsis, and its hover says it all. */
+    .source-doc__line > .source-doc__status { --index-slot: calc(var(--fs-xs) * 22); grid-row: 2; grid-column: -3 / -1; display: flex; flex-wrap: wrap; align-items: center;
+      gap: var(--space-half) var(--space-4); min-width: 0; margin-top: var(--space-half); padding-inline-start: var(--source-doc-lead); cursor: pointer; }
+    .source-doc__status > .source-doc__index { display: flex; align-items: center; flex: 1 1 var(--index-slot); min-width: var(--index-slot); min-height: calc(var(--fs-sm) * var(--lh-snug)); }
     /* “原 PDF 422 页” beside the page count: dotted, so it reads as something to hover for the reason. */
     .source-doc__gap { text-decoration: underline dotted; text-underline-offset: 0.2em; }
-    /* The index badge's line is there from the first paint (the picker's rule, #205): a coverage answer fills it and moves nothing. A badge too long for the row wraps
-       onto a second line (Badge wrap, ui/components/feedback.css) instead of being cut, so the line is a minimum height and shows what overflows the generic row line's clip. */
-    .source-doc .source-main small.source-doc__index { display: flex; align-items: center; min-width: 0; min-height: calc(var(--fs-sm) * var(--lh-snug)); overflow: visible; white-space: normal; }
-    .source-doc .source-main small.source-doc__index > * { min-width: 0; max-width: 100%; }
+    /* Inside the slot the badge keeps one line (ui/sources-page.css). */
+    .source-doc__index > * { min-width: 0; max-width: 100%; }
     .source-doc__icon { flex: none; margin-top: var(--space-half); color: var(--accent-text); }
-    .source-doc__actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; min-width: 0; align-items: center; gap: var(--space-2); }
+    .source-doc__line > .source-doc__actions { grid-column: -2; display: flex; flex-wrap: wrap; min-width: 0; align-items: center; gap: var(--space-2); }
     .source-doc__actions > .source-doc__action { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
     .source-doc__actions .source-row-actions > summary {
       padding: var(--space-1-5) var(--space-2-5);
@@ -122,23 +133,13 @@
     }
   }
   /* A narrow 资料 page (.is-narrow: Sources.jsx measures the page's own column against ROWS_NARROW, the one place the width is decided, #1083): the facts break
-     in two (courses over format), and a row's actions take their own line under it, which the index badge starts. The generic row lines are cut at 180px
-     (sources-page.css), which would cut the counts that say what a number counts. */
+     in two (courses over format), a row's actions take their own line under its status line, and the index badge says its pages without the scope word. */
   :is(.study-app, .study-seat) .sources-page.is-narrow {
     .source-doc__meta { flex-direction: column; align-items: stretch; gap: 0; }
     .source-doc .source-main .source-doc__meta > small:first-child { max-width: none; }
     .source-doc__meta > small + small::before { content: none; }
-    .source-doc__status { flex-wrap: wrap; }
     .source-doc .source-main small.source-doc__facts--gap { max-width: none; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-    .source-doc__line { flex-wrap: wrap; }
-    .source-doc__actions { width: 100%; justify-content: flex-end; }
-    /* The index badge starts the actions' own line (Sources.jsx, `narrow`): it takes the room the buttons leave and shrinks rather than push them to a
-       second line, so a late badge moves nothing (#1083). */
-    .source-doc__actions > .source-doc__index { display: flex; align-items: center; flex: 1 1 0; min-width: 0; margin: 0;
-      min-height: calc(var(--fs-sm) * var(--lh-snug) * 2); font-size: var(--fs-sm); line-height: var(--lh-snug); color: var(--text-muted); }
-    /* The filter's count and 清除筛选 go under the filter, in its column only: spanning the follow mark's column would widen it and narrow both controls
-       while you type (#1085). */
-    .sources-filter__state { grid-column: 2; }
+    .source-doc__line > .source-doc__actions { grid-row: 3; grid-column: -3 / -1; justify-content: flex-end; margin-top: var(--space-2); }
     /* Here a row's actions take their own line under it: a hairline between rows says which row they belong to. */
     .source-doc + .source-doc { border-top: 1px solid var(--line-soft); border-radius: 0; }
     .source-doc__pages { margin-left: 0; }
