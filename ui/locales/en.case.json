@@ -173,7 +173,7 @@
   "案例分析题组：长案例 + 开放题，按评分标准批改": "Case set: a long case with open questions, graded against a rubric",
   "案例 · 最好 {0}/{1}": "Case · best {0}/{1}",
   "案例 · {0} 分": "Case · {0} marks",
-  "按评分标准批改未达标 {0} 题。": "{0} below the mark on rubric grading.",
+  "按评分标准批改未达标 {0} 题": "Below the mark on rubric grading: {0}",
   "最近一次按评分标准批改：得分不足六成": "Latest rubric grading: under 60% of the marks",
   "批改未达标": "Below the mark",
   "批改完成": "Graded",

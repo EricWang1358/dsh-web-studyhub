@@ -89,7 +89,7 @@
   "已订正 {0}": "Corrected {0}",
   "已订正": "Corrected",
   "已订正 {0} 题，记录保留": "{0} corrected, kept as history",
-  "已订正的错题：答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估 {2} 题。": "Corrected mistakes: incorrect {0} · low self-ratings {1} · oral assessments {2}.",
+  "已订正的错题：{0}。": "Corrected — {0}.",
   "答错 {0} 次": "Missed {0} time(s)",
   "最近答错 {0}": "Last missed {0}",
   "上次答错": "Last missed",

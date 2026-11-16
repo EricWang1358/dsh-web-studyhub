@@ -1,4 +1,4 @@
-import { ui, uiFormat, errorMessage } from "./i18n.js";
+import { ui, uiFormat, uiLocale, errorMessage } from "./i18n.js";
 import React, { memo, useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import css from "./views.css";
 import wrongCss from "./wrongbook.css";
@@ -432,6 +432,40 @@ export function WeaknessBar({ groups = [], onPick }) {
     </section>
   );
 }
+
+/** The header's one sentence (#1086): the counts that are not zero, one separator, one full stop. From 待巩固 the kept history is the last part
+ *  of the same sentence; the history view says its own counts the same way and the same words. With more than one mistake (or a filter on)
+ *  each count is a toggle that filters the list below. A plain function, not a component: its toggles are part of the page header's tree. */
+export function wrongBookHeadline({ isHistory, counts, historyCount = 0, status = "all", onToggle }) {
+  const parts = [
+    { kind: "graded", count: counts.graded, text: uiFormat("客观答错 {0} 题", [counts.graded]) },
+    { kind: "self", count: counts.self, text: uiFormat("自评未掌握 {0} 题", [counts.self]) },
+    { kind: "oral", count: counts.oral, text: uiFormat("口头评估待巩固 {0} 题", [counts.oral]) },
+    ...(isHistory ? [] : [{ kind: "rubric", count: counts.rubric, text: uiFormat("按评分标准批改未达标 {0} 题", [counts.rubric]) }]),
+  ].filter((part) => part.count > 0 || (!isHistory && status === part.kind));
+  const kept = !isHistory && historyCount > 0 ? uiFormat("已订正 {0} 题，记录保留", [historyCount]) : "";
+  if (isHistory) {
+    return parts.length ? uiFormat("已订正的错题：{0}。", [parts.map((part) => part.text).join(META_DOT)])
+      : ui("答对一次后，错题会移到这里，作为历史保留，随时可以再练。");
+  }
+  if (!parts.length) {
+    return <>{ui("客观答错、自评未掌握或口头评估待巩固的题会收在这里。")}{kept && <>{uiLocale() === "zh-CN" ? "" : " "}{kept}{ui("。")}</>}</>;
+  }
+  const toggles = (counts.total || 0) > 1 || status !== "all";
+  return <>
+    {parts.map((part, index) => (
+      <React.Fragment key={part.kind}>
+        {index > 0 && META_DOT}
+        {toggles && part.count > 0
+          ? <Button variant="quiet" size="sm" className="wb-count-toggle" aria-pressed={status === part.kind} onClick={() => onToggle?.(part.kind)}>{part.text}</Button>
+          : part.text}
+      </React.Fragment>
+    ))}
+    {kept && <>{META_DOT}{kept}</>}
+    {ui("。")}
+  </>;
+}
+
 export function WrongBookView({
   data, course, onCourse, showInactive, onShowInactive, items, counts, view = "weak", onView, viewCounts, loading, err, page = 0, pageSize = PAGE_SIZE, hasMore, onReload, onPage,
   recs, recsLoading = false, coach, details = {}, onLoadDetail, onPractice, onPracticePrepared, onGenerate, onOpenSettings, onSettings,
@@ -799,38 +833,8 @@ export function WrongBookView({
   return (
     <section className="page wb">
       <PageHeader title={ui("错题与待巩固")}
-        description={<>
-          {isHistory
-            ? counts.total ? uiFormat('已订正的错题：答错 {0} 题 · 自评未掌握 {1} 题 · 口头评估 {2} 题。', [counts.graded, counts.self, counts.oral])
-              : ui('答对一次后，错题会移到这里，作为历史保留，随时可以再练。')
-            : counts.total ? (
-              <>
-                {[
-                  { kind: "graded", count: counts.graded, text: uiFormat("客观答错 {0} 题", [counts.graded]) },
-                  { kind: "self", count: counts.self, text: uiFormat("自评未掌握 {0} 题", [counts.self]) },
-                  { kind: "oral", count: counts.oral, text: uiFormat("口头评估待巩固 {0} 题", [counts.oral]) },
-                ].map((part, index) => (
-                  <React.Fragment key={part.kind}>
-                    {index > 0 && " · "}
-                    {(counts.total > 1 || filter.status !== "all") && part.count > 0 ? (
-                      <Button variant="quiet" size="sm" className="wb-count-toggle" aria-pressed={filter.status === part.kind}
-                        onClick={() => patchFilter({ status: filter.status === part.kind ? "all" : part.kind })}>{part.text}</Button>
-                    ) : part.text}
-                  </React.Fragment>
-                ))}
-                {ui("。")}
-              </>
-            )
-              : ui('客观答错、自评未掌握或口头评估待巩固的题会收在这里。')}
-          {/* The switch already says 已订正 N; the weak page's header says the history is kept so a cleared page is not read as an empty one. */}
-          {!isHistory && historyCount > 0 && <>{META_DOT}{uiFormat('已订正 {0} 题，记录保留', [historyCount])}</>}
-          {!isHistory && counts.rubric > 0 && ((counts.total > 1 || filter.status !== "all") ? (
-            <Button variant="quiet" size="sm" className="wb-count-toggle" aria-pressed={filter.status === "rubric"}
-              onClick={() => patchFilter({ status: filter.status === "rubric" ? "all" : "rubric" })}>
-              {uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric])}
-            </Button>
-          ) : uiFormat('按评分标准批改未达标 {0} 题。', [counts.rubric]))}
-        </>}
+        description={wrongBookHeadline({ isHistory, counts, historyCount, status: filter.status,
+          onToggle: (kind) => patchFilter({ status: filter.status === kind ? "all" : kind }) })}
         scope={<PageScope courses={data?.focus?.courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />} />
 
       {err && <ErrorState error={items ? uiFormat("没能刷新，下面仍是上次读到的内容：{0}", [err]) : err} onRetry={busy || loading ? undefined : () => onReload(page)} />}
