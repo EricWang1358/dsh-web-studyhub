@@ -245,9 +245,13 @@
     .wb-fact dt { color: var(--text-muted); }
     .wb-fact dd { margin: 0; overflow-wrap: anywhere; line-height: var(--lh-body); }
     .wb-detail__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
-    /* A count in the header sentence that filters the list: it reads as part of the sentence (no inset before its words), the hover surface reaches out instead. */
-    .wb-count-toggle { font: inherit; padding-inline: var(--space-1); margin-inline: calc(var(--space-1) * -1); min-height: 0; }
-    .wb-count-toggle[aria-pressed="true"] { background: var(--bg-selected); color: var(--text); border-color: var(--line-strong); }
+    /* The sentence about the open list, under the view switch (#1086): the controls above it never move when it changes length. */
+    .wb-headline { max-width: 68ch; margin: var(--space-3) 0 0; color: var(--text-dim); font-size: var(--fs-md); line-height: var(--lh-body); overflow-wrap: anywhere; }
+    /* A count in that sentence that filters the list is text in the line: the line's own height, wrapping with its words; the pressed one is marked, the hover surface hugs it. */
+    .wb-headline__item { display: inline-flex; align-items: baseline; gap: 0.3em; max-width: 100%; }
+    .wb-headline .wb-count-toggle { display: inline; min-height: 0; margin: 0 calc(var(--space-half) * -1); padding: 0 var(--space-half); border: 0; color: inherit; border-radius: var(--radius-xs); font: inherit; line-height: inherit;
+      white-space: normal; text-align: start; vertical-align: baseline; }
+    .wb-headline .wb-count-toggle[aria-pressed="true"] { background: var(--bg-selected); color: var(--text); }
     .wb-hit { background: var(--warn-mark); color: var(--text); border-radius: var(--radius-xs); padding-inline: var(--space-half); }
     .wb-sub h4 { margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-strong); }
     .wb-sub ul, .wb-why-list { margin: 0; padding-left: 1.2em; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }

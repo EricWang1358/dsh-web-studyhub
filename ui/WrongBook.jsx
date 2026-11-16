@@ -1,4 +1,4 @@
-import { ui, uiFormat, uiLocale, errorMessage } from "./i18n.js";
+import { ui, uiFormat, errorMessage } from "./i18n.js";
 import React, { memo, useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import css from "./views.css";
 import wrongCss from "./wrongbook.css";
@@ -25,7 +25,7 @@ import { FILTER_MIN, NO_FILTER, PRACTICE_SCOPE_CAP, RECS_PREVIEW, SORT_KINDS, ST
   sameVariantState, saveGroupBy, saveSortBy, sortGroupRows, rescueCall, rescueGate, rescueNote, takeArrival, undoPauseCall, readSignature, rowsAwaitingDetail, saveOpenGroups, scopedFilter, shortDeckNames, statusCounts, statusLabel, statusOf, variantFailureText, variantState } from './wrongbook-model.js';
 import { useStudy } from './study-context.jsx';
 import { peekQuery, refreshQuery, setQueryData, useHostQuery } from './host-query.js';
-import { formatDateTime, joinMeta, META_DOT } from "./format.js";
+import { formatDateTime, joinMeta } from "./format.js";
 import { companionSlideButtonLabel, openCompanionTarget, resolveCompanionTarget } from "./companions/companion-ref.js";
 
 // One page of this view holds ten pages of the service (which gives at most 100), so a filter sees every mistake of a normal library.
@@ -433,35 +433,43 @@ export function WeaknessBar({ groups = [], onPick }) {
   );
 }
 
-/** The header's one sentence (#1086): the counts that are not zero, one separator, one full stop. From 待巩固 the kept history is the last part
+/** The separator belongs to the item after it (#1086): a space the line may break at, then the item, which carries its own dot, so a line never ends in a lone
+ *  「·」. Inside one string (the history sentence) the dot is glued to the next word with a no-break space instead. */
+const HEAD_DOT = " ·\u00a0";
+function HeadItem({ first, children }) {
+  return <>{!first && " "}<span className="wb-headline__item">{!first && <><span className="wb-headline__dot" aria-hidden="true">·</span>{" "}</>}{children}</span></>;
+}
+
+/** The one sentence about the open list (#1086): the counts that are not zero, one separator, one full stop. From 待巩固 the kept history is the last part
  *  of the same sentence; the history view says its own counts the same way and the same words. With more than one mistake (or a filter on)
- *  each count is a toggle that filters the list below. A plain function, not a component: its toggles are part of the page header's tree. */
+ *  each count is a toggle that filters the list below. It sits under the view switch, not in the page header: the header and the switch stay put
+ *  when the sentence changes length between the views. A plain function, not a component: its toggles are part of the page's tree. */
 export function wrongBookHeadline({ isHistory, counts, historyCount = 0, status = "all", onToggle }) {
   const parts = [
     { kind: "graded", count: counts.graded, text: uiFormat("客观答错 {0} 题", [counts.graded]) },
-    { kind: "self", count: counts.self, text: uiFormat("自评未掌握 {0} 题", [counts.self]) },
+    { kind: "self", count: counts.self, text: uiFormat("未掌握 {0} 题", [counts.self]) },
     { kind: "oral", count: counts.oral, text: uiFormat("口头评估待巩固 {0} 题", [counts.oral]) },
     ...(isHistory ? [] : [{ kind: "rubric", count: counts.rubric, text: uiFormat("按评分标准批改未达标 {0} 题", [counts.rubric]) }]),
   ].filter((part) => part.count > 0 || (!isHistory && status === part.kind));
   const kept = !isHistory && historyCount > 0 ? uiFormat("已订正 {0} 题，记录保留", [historyCount]) : "";
   if (isHistory) {
-    return parts.length ? uiFormat("已订正的错题：{0}。", [parts.map((part) => part.text).join(META_DOT)])
+    return parts.length ? uiFormat("已订正的错题：{0}。", [parts.map((part) => part.text).join(HEAD_DOT)])
       : ui("答对一次后，错题会移到这里，作为历史保留，随时可以再练。");
   }
   if (!parts.length) {
-    return <>{ui("客观答错、自评未掌握或口头评估待巩固的题会收在这里。")}{kept && <>{uiLocale() === "zh-CN" ? "" : " "}{kept}{ui("。")}</>}</>;
+    return historyCount > 0 ? uiFormat("客观答错、自评未掌握或口头评估待巩固的题会收在这里。已订正 {0} 题，记录保留。", [historyCount])
+      : ui("客观答错、自评未掌握或口头评估待巩固的题会收在这里。");
   }
   const toggles = (counts.total || 0) > 1 || status !== "all";
   return <>
     {parts.map((part, index) => (
-      <React.Fragment key={part.kind}>
-        {index > 0 && META_DOT}
+      <HeadItem key={part.kind} first={index === 0}>
         {toggles && part.count > 0
           ? <Button variant="quiet" size="sm" className="wb-count-toggle" aria-pressed={status === part.kind} onClick={() => onToggle?.(part.kind)}>{part.text}</Button>
           : part.text}
-      </React.Fragment>
+      </HeadItem>
     ))}
-    {kept && <>{META_DOT}{kept}</>}
+    {kept && <HeadItem first={!parts.length}>{kept}</HeadItem>}
     {ui("。")}
   </>;
 }
@@ -833,8 +841,6 @@ export function WrongBookView({
   return (
     <section className="page wb">
       <PageHeader title={ui("错题与待巩固")}
-        description={wrongBookHeadline({ isHistory, counts, historyCount, status: filter.status,
-          onToggle: (kind) => patchFilter({ status: filter.status === kind ? "all" : kind }) })}
         scope={<PageScope courses={data?.focus?.courses} value={course} onChange={onCourse} showInactive={showInactive} onShowInactive={onShowInactive} />} />
 
       {err && <ErrorState error={items ? uiFormat("没能刷新，下面仍是上次读到的内容：{0}", [err]) : err} onRetry={busy || loading ? undefined : () => onReload(page)} />}
@@ -847,6 +853,8 @@ export function WrongBookView({
             options={[{ value: "weak", label: uiFormat("待巩固 {0}", [weakCount]) }, { value: "history", label: uiFormat("已订正 {0}", [historyCount]) }]} />
         </div>
       )}
+      <p className="wb-headline">{wrongBookHeadline({ isHistory, counts, historyCount, status: filter.status,
+        onToggle: (kind) => patchFilter({ status: filter.status === kind ? "all" : kind }) })}</p>
 
       {!isHistory && hasCoach && onPracticePrepared && coach.ready > 0 && (
         <Banner tone="success" icon="sparkle" title={uiFormat("已为你备好 {0} 道变式题", [coach.ready])}
