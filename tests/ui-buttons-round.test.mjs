@@ -62,9 +62,8 @@ test("#1074: AddSourceButton is the upload icon and 添加资料, only the varia
   try { assert.doesNotMatch(renderToStaticMarkup(h(AddSourceButton, { variant: "quiet" })), han); } finally { setUiLanguage("zh"); }
 });
 
-// The one place allowed to draw 添加资料 by hand: the first-run page's MaterialBody, which lane E's PR #1094 rewrites. The entry goes when #1094 lands and
-// MaterialBody uses <AddSourceButton variant>.
-const HAND_DRAWN_ALLOWED = [{ file: "ui/first-run/FirstRunLine.jsx", marker: 'data-first-run="import"' }];
+// No place may draw 添加资料 by hand: the first-run page's MaterialBody was the last, and uses <AddSourceButton variant> since #1094 landed.
+const HAND_DRAWN_ALLOWED = [];
 const walk = (dir) => readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true }).flatMap((entry) =>
   entry.isDirectory() ? (entry.name === "locales" ? [] : walk(`${dir}/${entry.name}`)) : /\.(jsx?|mjs)$/.test(entry.name) ? [`${dir}/${entry.name}`] : []);
 
