@@ -32,7 +32,7 @@ export default function FlipCard({ run, showBack, flipCard, enOn }) {
       className={"flashcard" + (showBack ? " flipped" : "")}
     >
       <button type="button" className="flip-control"
-        disabled={busy && !run.revealed} aria-pressed={showBack}
+        disabled={(busy || !!run.grading) && !run.revealed} aria-pressed={showBack}
         data-usage="review.flip" aria-label={showBack ? ui("翻回题目") : ui("翻面查看答案")}
         onClick={flipCard} />
       <div className="flip-inner" style={height == null ? undefined : { height }}>

@@ -165,12 +165,13 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     if (next.mode === 'exam') { nav.show.exam('exam', next.id); return; }
     if (moved && draftable(next)) awayClock.current = openClock(draftKey(root, next), Date.now(), document.hidden === true);
     setRun(next);
+    if (!same) setShowBack(!!next.revealed);
     if (!embeddedIn && nav.page !== 'guided') setPage('review');
     const opened = entryForRun(next, input, { draft: (teaching) => readTeachingDraft(refs.dataRef.current?.root, teaching) });
     setEntry(same ? keepTyped(opened, entryRef.current) : opened);
   }, [nav.show, setPage, refs, embeddedIn, nav.page, syncDraft]);
   const enterMovedRun = useCallback((next, input) => enterRun(next, input, true), [enterRun]);
-  const reset = useCallback(() => { draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; setRun(null); setEntry(emptyEntry()); }, []);
+  const reset = useCallback(() => { draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; setRun(null); setShowBack(false); setEntry(emptyEntry()); }, []);
   const clearRun = useCallback(() => setRun(null), []);
   const patchRun = useCallback((change) => setRun(change), []);
 
@@ -311,7 +312,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const current = runRef.current;
     if (!current?.card) return;
     if (current.revealed) { setShowBack((value) => !value); playSound('flip'); return; }
-    if (busyRef.current) return;
+    if (busyRef.current || current.grading) return;
     setShowBack(true);
     if (!(await reviewActRef.current('review.reveal'))) setShowBack(false);
   }, []);
@@ -596,11 +597,12 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     };
     return { ...destination, label: continueLabel(destination), note: continueNote(destination), go };
   }, [run, act, enterRun, refs]);
+  const activeAutoAdvance = Boolean(autoAdvance && autoAdvance === advanceKey);
   const coach = {
     autopilot, onStatus: () => core.refresh().catch(() => {}), onPractice: onCoachPractice,
     onContinue: () => continueTo(null).go(),
     onReviewWeak: () => act('review.weak.start', { runId: run.id }, enterRun),
-    canShortcut, cancelAutoAdvance, autoAdvance: autoAdvance && autoAdvance === advanceKey ? AUTO_ADVANCE_MS : 0, autoAdvanceActive: !!autoAdvance, autoAdvancePaused, setAutoAdvancePaused, debrief: null,
+    canShortcut, cancelAutoAdvance, autoAdvance: activeAutoAdvance ? AUTO_ADVANCE_MS : 0, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, debrief: null,
   };
   const actions = useMemo(() => ({
     reviewAct, choose, clearChoice: () => patch({ selected: [] }), flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn,
@@ -621,6 +623,6 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     cancelEnd: () => setEndAsked(false),
     endRound,
   }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, endRound]);
-  return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, autoAdvanceActive: !!autoAdvance, autoAdvancePaused, setAutoAdvancePaused, advanceKey,
+  return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, advanceKey,
     explainHidden, skippedIndices, shortcutHelp, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft };
 }

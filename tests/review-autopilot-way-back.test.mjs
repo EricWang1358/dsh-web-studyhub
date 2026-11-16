@@ -76,14 +76,16 @@ const hookBundle = await build({ stdin: { contents: `
   import { setUiLanguage } from './ui/i18n.js';
   setUiLanguage('zh');
 
-  const mkRun = (id = 'r1', index = 0, answered = [false, false, false]) => ({
-    id, mode: 'path', index, total: 3, complete: false, revealed: false, feedback: null, solution: null, queueVersion: 0, revision: 0,
+  const mkRun = (id = 'r1', index = 0, answered = [false, false, false], kind = 'quiz') => ({
+    id, mode: kind === 'flashcard' ? 'flashcard' : 'path', index, total: 3, complete: false, revealed: false, feedback: null, solution: null, queueVersion: 0, revision: 0,
     position: { last: index === 2 },
-    navigation: answered.map((done, i) => ({ index: i, answered: done, correct: done ? true : null, level: 'new', kind: 'quiz', prompt: 'Q' + (i + 1) })),
-    card: {
-      id: id + '-c' + index, kind: 'quiz', topic: 'T', prompt: 'Stem text for selection test ' + (index + 1),
-      options: [{ id: 'a', text: 'Yes' }, { id: 'b', text: 'No' }],
-    },
+    navigation: answered.map((done, i) => ({ index: i, answered: done, correct: done ? true : null, level: 'new', kind, prompt: 'Q' + (i + 1) })),
+    card: kind === 'flashcard'
+      ? { id: id + '-c' + index, kind: 'flashcard', topic: 'T', prompt: 'Flashcard front ' + (index + 1) }
+      : {
+        id: id + '-c' + index, kind: 'quiz', topic: 'T', prompt: 'Stem text for selection test ' + (index + 1),
+        options: [{ id: 'a', text: 'Yes' }, { id: 'b', text: 'No' }],
+      },
   });
 
   function Harness() {
@@ -100,16 +102,26 @@ const hookBundle = await build({ stdin: { contents: `
           window.__state.run = { ...window.__state.run, complete: true };
           return window.__state.run;
         }
-        window.__state.run = mkRun(window.__state.run.id, nextIdx, window.__state.answered);
+        window.__state.run = mkRun(window.__state.run.id, nextIdx, window.__state.answered, window.__state.kind || 'quiz');
+        return window.__state.run;
+      }
+      if (action === 'review.reveal') {
+        window.__state.run = {
+          ...window.__state.run,
+          revealed: true,
+          intervals: [0, 1, 1, 2, 4, 7],
+          solution: { answer: 'Flashcard back answer', explanation: 'Detailed flashcard explanation.' },
+        };
         return window.__state.run;
       }
       if (action === 'review.answer') {
         const idx = window.__state.run.index;
         window.__state.answered[idx] = true;
+        const grade = args.grade;
         window.__state.run = {
-          ...mkRun(window.__state.run.id, idx, window.__state.answered),
+          ...mkRun(window.__state.run.id, idx, window.__state.answered, window.__state.kind || 'quiz'),
           revealed: true,
-          feedback: { correct: true, details: [] },
+          feedback: grade !== undefined ? { correct: grade >= 3, grade, level: 'learning' } : { correct: true, details: [] },
           solution: { answer: 'Yes', explanation: 'Because Yes is right and long enough to hover easily.' },
         };
         return window.__state.run;
@@ -131,7 +143,7 @@ const hookBundle = await build({ stdin: { contents: `
     const session = useReviewSession({ core, nav, modalOpen: false, host: {}, rootRef, late });
     window.__session = session;
     window.__setState = (nextRun) => {
-      window.__state = { run: nextRun, answered: nextRun.navigation.map((n) => n.answered) };
+      window.__state = { run: nextRun, answered: nextRun.navigation.map((n) => n.answered), kind: nextRun.card?.kind || 'quiz' };
       session.enterRun(nextRun);
       setTick((t) => t + 1);
     };
@@ -255,5 +267,27 @@ test('useReviewSession autopilot bar, hover/selection pause, freeze/resume >= 45
     window.__setState(next);
   });
   await page.waitForFunction(() => window.__session.run?.id === 'r2' && window.__session.skippedIndices.size === 0);
+
+  // Flashcard auto-advance renders only one full-width card countdown bar (no duplicate legacy .autopilot-bar), and clears cleanly on the next card.
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.evaluate(() => {
+    window.__setState({
+      id: 'rf', mode: 'flashcard', index: 0, total: 3, complete: false, revealed: false, feedback: null, solution: null, queueVersion: 0, revision: 0,
+      position: { last: false },
+      navigation: [0, 1, 2].map((i) => ({ index: i, answered: false, correct: null, level: 'new', kind: 'flashcard', prompt: 'F' + i })),
+      card: { id: 'rf-c0', kind: 'flashcard', topic: 'T', prompt: 'Flashcard front 1' },
+    });
+  });
+  await page.locator('.flashcard .flip-control').click();
+  await page.locator('[data-usage="review.grade"]').nth(4).click();
+  await page.waitForFunction(() => window.__session.autoAdvanceActive === true);
+  assert.equal(await page.locator('.question-card__autopilot').count(), 1, 'single full-width countdown bar on flashcard');
+  assert.equal(await page.locator('.autopilot-bar').count(), 0, 'legacy duplicate .autopilot-bar is gone');
+  await page.mouse.move(1, 1);
+  await page.waitForFunction(() => window.__session.run?.index === 1, null, { timeout: 5000 });
+  assert.equal(await page.evaluate(() => window.__session.showBack), false, 'next unrevealed flashcard mounts front-side-up synchronously');
+  assert.equal(await page.locator('.flashcard.flipped').count(), 0, 'next unrevealed flashcard never mounts upside-down');
+  assert.equal(await page.locator('.question-card__autopilot').count(), 0, 'countdown bar cleared on next ungraded flashcard');
+  assert.equal(await page.locator('.autopilot-bar').count(), 0);
   assert.deepEqual(errors, []);
 });

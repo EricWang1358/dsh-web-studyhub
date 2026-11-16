@@ -177,7 +177,7 @@ export function shortcutAction(event, ctx) {
   const flipsOnly = !choice && !isCloze && !rubricCard && !taskCard;
   if (!choice && !isCloze && !taskCard && run.revealed && !run.feedback && /^[0-5]$/.test(event.key)) return result({ type: 'answer', args: { grade: Number(event.key) } }, true);
   if (event.key === 'Enter') {
-    if (run.feedback) return result({ type: 'move', direction: 1 }, true);
+    if (run.feedback || run.grading) return result({ type: 'move', direction: 1 }, true);
     if (choice && run.card.multiple && ctx.selected.length) return result({ type: 'answer', args: { selected: ctx.selected } }, true);
     if (isCloze) return result(Object.values(ctx.clozeValues).some(BLANK) ? { type: 'answer', args: { answers: ctx.clozeValues } } : { type: 'focus-cloze' }, true);
     return result(flipsOnly ? { type: 'flip' } : null, true);
@@ -190,9 +190,9 @@ export function shortcutAction(event, ctx) {
   if (moreKey) return run.mode === 'exam' ? result(null) : result({ type: moreKey }, true);
   // V: answer by voice (#1031): a flashcard, an open question or a cloze not yet answered; never a choice, a task or an exam.
   if (letter === 'v') return result(run.mode !== 'exam' && !run.feedback && !choice && !taskCard && (isCloze || flipsOnly || rubricCard) ? { type: 'voice' } : null, true);
-  if (event.key === 'ArrowRight' && run.feedback) return result({ type: 'move', direction: 1 }, true);
+  if (event.key === 'ArrowRight' && (run.feedback || run.grading)) return result({ type: 'move', direction: 1 }, true);
   if (event.key === 'ArrowLeft' && run.index) return result({ type: 'move', direction: -1 }, true);
-  if (event.code === 'Space' && flipsOnly) return result({ type: 'flip' }, true);
+  if (event.code === 'Space' && flipsOnly && (!run.grading || run.revealed)) return result({ type: 'flip' }, true);
   if (choice && (run.card.multiple || run.card.kind === 'multi') && !run.feedback && ctx.selected?.length > 0 && (event.key === '0' || event.key === 'Backspace')) {
     return result({ type: 'clear-choice' }, true);
   }

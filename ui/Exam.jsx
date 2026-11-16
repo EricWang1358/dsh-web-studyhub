@@ -55,7 +55,7 @@ export default function Exam({ data, onExit, onCreate, onCreateCase, onStartRun,
     [pathNote, setPathNote] = useState("");
   const picksRef = useRef({}), writes = useRef(createWriteQueue());
   const exam = useExamRun({ kind: 'exam', call, initialRunId, onLocation, limitMs: (current) => examLimitMs(current) ?? Infinity, retryMs: RETRY_SUBMIT_MS, locate: examMode === 'written',
-    autoSubmit: { when: (timing) => timing.expired, run: () => submit() } });
+    autoSubmit: { when: (timing) => examMode === 'written' && timing.expired, run: () => submit() } });
   const { phase, run, report, busy, error: err, elapsedMs, startMs, expired } = exam;
   const count = clampCount(countDraft);
   // How long this paper lasts: what the run says once it is running; before that, the learner's choice for this course, else the course's own time.

@@ -17,6 +17,7 @@ const closeBitmap = bitmap => { try { bitmap.close?.(); } catch { /* already clo
  */
 export default function PagePeek({ page, figure = false, totalPages = 0, offset = 0, windowed = false, status, loadBytes, openRenderer, onAttach, onShowOriginal, onClose }) {
   const [phase, setPhase] = useState(status?.kind === 'ok' ? 'loading' : 'none'), [current, setCurrent] = useState(page), [zoom, setZoom] = useState(1);
+  useEffect(() => { setCurrent(page); }, [page]);
   const [message, setMessage] = useState(''), [mismatch, setMismatch] = useState(null), [busy, setBusy] = useState(false), [tries, setTries] = useState(0), [fitKey, setFitKey] = useState(0), [undecoded, setUndecoded] = useState(0);
   const panel = useRef(null), canvas = useRef(null), scroller = useRef(null), renderer = useRef(null), drag = useRef(null);
   const gate = useRef(null), cache = useRef(null), opener = useRef(null), rect = useRef(null), stats = useRef({ renders: 0, hits: 0 });

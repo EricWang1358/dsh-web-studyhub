@@ -21,8 +21,8 @@ const DIALOGS = {
     onOpenSource={(source) => app.set.setModal({ type: 'source', source, ...(modal.pickPages ? { pickPages: true } : {}), ...(modal.back ? { back: true } : {}) })} />,
   flag: ({ onClose, app }) => <FlagDialog run={app.session.run} onClose={onClose} />,
   source: ({ modal, onClose }) => <SourceReaderDialog modal={modal} onClose={onClose} />,
-  companion: ({ modal, onClose }) => <CompanionViewer modal={modal} onClose={onClose} />,
-  companionBuild: ({ modal, onClose }) => <CompanionBuildDialog modal={modal} onClose={onClose} />,
+  companion: ({ modal, onClose }) => <CompanionViewer key={modal.id || modal.companionId || 'companion'} modal={modal} onClose={onClose} />,
+  companionBuild: ({ modal, onClose }) => <CompanionBuildDialog key={modal.course || 'companionBuild'} modal={modal} onClose={onClose} />,
   focusIntake: ({ modal, onClose, app }) => (
     <FocusIntakeDialog
       data={app.data}

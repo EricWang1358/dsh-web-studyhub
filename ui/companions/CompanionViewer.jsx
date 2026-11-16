@@ -135,7 +135,20 @@ export default function CompanionViewer({ modal, onClose }) {
       } else if (msg.kind === 'progress') {
         const slide = Math.max(1, Number(msg.slide) || 1);
         const slideTotal = Math.max(slide, Number(msg.slideTotal) || 1);
-        setSlideCtx(cur => ({ ...cur, slide, slideTotal, beat: String(msg.beat || cur.beat || '') }));
+        setSlideCtx(cur => {
+          if (cur.slide === slide) return { ...cur, slide, slideTotal, beat: String(msg.beat || cur.beat || '') };
+          const sl = state.lesson?.slides?.[slide - 1];
+          return {
+            slide,
+            slideTotal,
+            slideTitle: String(sl?.title || '').slice(0, 200),
+            beat: String(msg.beat || sl?.beat || '').slice(0, 60),
+            teacherLine: '',
+            quote: '',
+            codeSlice: '',
+          };
+        });
+        setAskError('');
         clearTimeout(progressTimerRef.current);
         progressTimerRef.current = setTimeout(() => {
           call('companion.progress', {
@@ -174,7 +187,7 @@ export default function CompanionViewer({ modal, onClose }) {
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [call, channelToken, companionId, course, notify, refresh, state.companion?.course]);
+  }, [call, channelToken, companionId, course, notify, refresh, state.companion?.course, state.lesson?.slides]);
 
   useEffect(() => {
     if (!drawerOpen || !inquiryFocusSeq) return undefined;
@@ -236,8 +249,21 @@ export default function CompanionViewer({ modal, onClose }) {
     const total = Math.max(1, Number(slideCtx.slideTotal) || 1);
     const nextSlide = Math.max(1, Math.min(total, Math.floor(Number(rawSlide) || 1)));
     postToFrame({ kind: 'goto', slide: nextSlide });
-    setSlideCtx(cur => ({ ...cur, slide: nextSlide }));
-  }, [postToFrame, slideCtx.slideTotal]);
+    setSlideCtx(cur => {
+      if (cur.slide === nextSlide) return cur;
+      const sl = state.lesson?.slides?.[nextSlide - 1];
+      return {
+        slide: nextSlide,
+        slideTotal: cur.slideTotal,
+        slideTitle: String(sl?.title || '').slice(0, 200),
+        beat: String(sl?.beat || '').slice(0, 60),
+        teacherLine: '',
+        quote: '',
+        codeSlice: '',
+      };
+    });
+    setAskError('');
+  }, [postToFrame, slideCtx.slideTotal, state.lesson?.slides]);
 
   const lastRequestedRef = useRef(`${companionId || ''}:${requestedSlide}`);
   useEffect(() => {
@@ -368,6 +394,7 @@ export default function CompanionViewer({ modal, onClose }) {
           prompt: res.suggestedCard.prompt || q,
           answer: res.suggestedCard.answer || '',
           misconception: res.suggestedCard.misconception || q,
+          originCtx: { ...slideCtx },
         });
       }
     } catch (err) {
@@ -380,16 +407,17 @@ export default function CompanionViewer({ modal, onClose }) {
   const handleSaveCatchup = useCallback(async () => {
     if (!cardDraft.prompt.trim() || !cardDraft.answer.trim()) return;
     setSavingCard(true);
+    const targetCtx = cardDraft.originCtx || slideCtx;
     try {
       const saved = await call('companion.catchup.save', {
         companionId,
         course: courseName,
-        slide: slideCtx.slide,
-        slideTotal: slideCtx.slideTotal,
-        slideTitle: slideCtx.slideTitle,
-        beat: slideCtx.beat,
-        teacherLine: slideCtx.teacherLine,
-        quote: slideCtx.quote,
+        slide: targetCtx.slide,
+        slideTotal: targetCtx.slideTotal,
+        slideTitle: targetCtx.slideTitle,
+        beat: targetCtx.beat,
+        teacherLine: targetCtx.teacherLine,
+        quote: targetCtx.quote,
         note: question.trim(),
         prompt: cardDraft.prompt.trim(),
         answer: cardDraft.answer.trim(),

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ActionFeedback from '../../ActionFeedback.jsx';
 import { StudyServicesContext, useStudy } from '../../study-context.jsx';
 import { useReviewSession } from '../../review/useReviewSession.js';
 import InlineRun from '../../review/InlineRun.jsx';
@@ -69,10 +68,9 @@ export default function ReaderRun({ started, label, onClose, onSeek, shown = tru
     onSaveQaToNote: (followupId) => core.act('note.qa.add', qaToNoteArgs(runRef.current, followupId), undefined, { rethrow: true }),
     onOpenNote: (noteId) => { set.setModal(null); learn.openLearningTarget({ kind: 'note', id: noteId }); },
   }), [host, set, settingsEntry, core, learn]);
-  const feedback = core.error ? <ActionFeedback error={core.error} onCloseError={() => core.setError('')} /> : null;
   return (
     <StudyServicesContext.Provider value={services}>
-      <InlineRun session={session} data={data} label={label} rootRef={rootRef} onClose={onClose} onContinue={continueThere} links={links} feedback={feedback} />
+      <InlineRun session={session} data={data} label={label} rootRef={rootRef} onClose={onClose} onContinue={continueThere} links={links} feedback={null} />
       {flagging && session.run?.card && <FlagDialog run={session.run} onClose={() => setFlagging(false)} />}
       {helpOpen && <ShortcutHelp page="review" onClose={closeShortcutHelp} />}
     </StudyServicesContext.Provider>

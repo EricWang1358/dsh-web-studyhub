@@ -22,6 +22,10 @@ export function useBookQaSync({ run, data, call }) {
   const book = useBookQa();
   const bookCourse = data?.decks?.find((deck) => deck.id === run.deckId)?.course ?? "";
   const [bookNote, setBookNote] = React.useState("");
+  const activeCardKeyRef = React.useRef("");
+  const currentCardKey = `${run.id}:${run.index}:${run.card?.id || ""}`;
+  activeCardKeyRef.current = currentCardKey;
+  React.useEffect(() => { setBookNote(""); }, [currentCardKey]);
   const qaSeen = React.useRef(null);
   const qaTried = React.useRef(new Set());
   const allFollowups = run.solution?.followups ?? run.followups ?? [];
@@ -29,13 +33,17 @@ export function useBookQaSync({ run, data, call }) {
   React.useEffect(() => {
     const seen = seeFollowups(qaSeen.current, reviewEntryKey(run), allFollowups.map((item) => item.id), !!(run.solution || run.followups));
     qaSeen.current = seen.state;
+    const expectedKey = currentCardKey;
     for (const id of autoAddPlan({ mode: qaToBook, withBook: book.ready && book.courses.has(bookCourse), fresh: seen.fresh, tried: qaTried.current, added: book.ids })) {
       qaTried.current.add(id);
-      book.add({ deckId: run.deckId, cardId: run.card.id, followupId: id }).catch((failure) => {
-        setBookNote(failure?.code === "course-book-rebuild-pending"
-          ? qaAddFailureText(failure)
-          : failure?.message || ui("没能加入复习全书，可以点「加入复习全书」再试。"));
-      });
+      book.add({ deckId: run.deckId, cardId: run.card.id, followupId: id })
+        .then(() => { if (activeCardKeyRef.current === expectedKey) setBookNote(""); })
+        .catch((failure) => {
+          if (activeCardKeyRef.current !== expectedKey) return;
+          setBookNote(failure?.code === "course-book-rebuild-pending"
+            ? qaAddFailureText(failure)
+            : failure?.message || ui("没能加入复习全书，可以点「加入复习全书」再试。"));
+        });
     }
   }, [followupKey, run.id, run.index, !!(run.solution || run.followups)]); // eslint-disable-line react-hooks/exhaustive-deps -- keyed on the question and its Q&A ids
 

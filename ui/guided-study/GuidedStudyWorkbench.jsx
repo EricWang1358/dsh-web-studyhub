@@ -161,7 +161,7 @@ export default function GuidedStudyWorkbench({
     ? (currentMissed ? ui('这道题还没过关，先看下方解析或带回主会话讲透') : ui('回答正确'))
     : (currentMissed ? ui('已记入待巩固，先看解析或带回主会话') : ui('已记录掌握，会计入检验与复习排期'));
   const [selected, setSelected] = useState([]);
-  useEffect(() => { setSelected([]); }, [currentCard?.id, run?.id]);
+  useEffect(() => { setSelected([]); setTutorMessage(''); }, [currentCard?.id, run?.id, session?.id]);
 
   const isPreparing = (prepState && prepState.status) || session?.focus?.kind === 'preparing-card';
   const effectivePrepState = prepState || (session?.focus?.kind === 'preparing-card'
@@ -190,7 +190,7 @@ export default function GuidedStudyWorkbench({
       correct: hasFeedback ? Boolean(currentFeedback?.correct) : null,
       language: getUiLanguage(),
     });
-    const result = await applyAskTutorMessage(effectiveHost, prompt, 'zh');
+    const result = await applyAskTutorMessage(effectiveHost, prompt, getUiLanguage());
     if (result?.status === 'copied_to_clipboard') {
       let copied = false;
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -212,11 +212,14 @@ export default function GuidedStudyWorkbench({
         } catch {}
       }
     }
-    setTutorMessage(result?.message || '');
     if (onAskTutor) {
+      setTutorMessage('');
       onAskTutor(result);
     } else if (study?.notify) {
+      setTutorMessage('');
       study.notify(result?.message || '');
+    } else {
+      setTutorMessage(result?.message || '');
     }
   };
 

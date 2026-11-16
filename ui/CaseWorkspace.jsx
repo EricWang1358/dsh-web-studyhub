@@ -174,8 +174,8 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
   useInjectCss(css, "study-case-workspace");
   const card = run.card, rubric = run.feedback?.rubric;
   const model = modelReadiness(data);
-  const grading = task?.status === "running";
-  const key = `${run.id}:${card.id}`;
+  const grading = task?.status === "running" || !!run.grading;
+  const key = `${run.id}:${run.index ?? 0}:${card.id}`;
   const [draft, setDraft] = useState(() => value || readSession(data?.root, key)?.answer || "");
   const [checkedIds, setCheckedIds] = useState(() => {
     const saved = readSession(data?.root, key)?.checkedIds;
@@ -186,7 +186,7 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
     setDraft(value || saved?.answer || "");
     setCheckedIds(Array.isArray(saved?.checkedIds) ? saved.checkedIds : []);
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (value && value !== draft) setDraft(value); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (value !== undefined && value !== draft) setDraft(value); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
   const persistSession = (nextAnswer, nextChecked) => {
     const payload = {};
     if (nextAnswer) payload.answer = nextAnswer;
@@ -436,6 +436,10 @@ export function CasePaper({ data, onExit, onCreate, onStartRun, initialRunId, on
 
   /* saving: answers per question, highlights on the run */
   const saveTimers = useRef({});
+  useEffect(() => () => {
+    for (const timer of Object.values(saveTimers.current)) clearTimeout(timer);
+    saveTimers.current = {};
+  }, [run?.id]);
   function answer(cardId, text) {
     setAnswers((current) => ({ ...current, [cardId]: text }));
     clearTimeout(saveTimers.current[cardId]);

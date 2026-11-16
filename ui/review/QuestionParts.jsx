@@ -96,6 +96,7 @@ export function OpenResponseField({ grading, value, onChange, onFlip }) {
         onKeyDown={(e) => {
           if (e.nativeEvent?.isComposing || e.isComposing || e.keyCode === 229) return;
           if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !e.shiftKey && !e.altKey) {
+            if (grading) return;
             e.preventDefault();
             onFlip();
             return;

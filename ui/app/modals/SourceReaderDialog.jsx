@@ -3,6 +3,7 @@ import { ui } from '../../i18n.js';
 import { Dialog } from '../../components/index.js';
 import { DocumentViewer } from '../../workspace-views.jsx';
 import QuestionStrip from '../../review/QuestionStrip.jsx';
+import { sourceItemKey } from '../../../lib/source-groups.js';
 import { useApp } from '../app-context.js';
 import { useSourceReader } from './source-reader.jsx';
 
@@ -17,7 +18,7 @@ export default function SourceReaderDialog({ modal, onClose }) {
   return (
     <Dialog title={title} size="full" className="source-preview" bodyLabel={ui('资料内容')} guardDrops onClose={onClose}>
       {modal.quote && !source && <blockquote className="highlight-quote">{modal.quote}</blockquote>}
-      {source ? <DocumentViewer {...viewer} strip={strip} /> : <p className="muted">{ui('无法找到此资料。')}</p>}
+      {source ? <DocumentViewer key={sourceItemKey(source)} {...viewer} strip={strip} /> : <p className="muted">{ui('无法找到此资料。')}</p>}
     </Dialog>
   );
 }

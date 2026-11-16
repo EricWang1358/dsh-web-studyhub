@@ -110,7 +110,7 @@ The report moves nothing (#902): it is the data for deciding what could later go
 - `lib/shortfall.js`: 2 ui files
 - `lib/sm2.js`: 2 ui files; 6 other lib files
 - `lib/source-courses.js`: 7 ui files; contexts audio, bank, courses, generation, library, materials, recording; 24 other lib files
-- `lib/source-groups.js`: 25 ui files; contexts generation, library, materials; 9 other lib files
+- `lib/source-groups.js`: 26 ui files; contexts generation, library, materials; 9 other lib files
 - `lib/source-provenance.js`: 7 ui files; contexts library, materials; 6 other lib files
 - `lib/source-relations.js`: 2 ui files
 - `lib/stage-effort.js`: 1 ui file; context generation; 3 other lib files

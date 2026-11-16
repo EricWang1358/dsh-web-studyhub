@@ -30,11 +30,13 @@ export default function LearningActions({ session, data, model, onModelSettings,
     const cite = citations[index ?? 0] || citations[0], source = data?.sources?.find((item) => item.id === cite?.sourceId);
     if (source) openModal({ type: "source", source, quote: cite.quote, back: true });
   };
+  const deck = data?.decks?.find((item) => item.id === run.deckId);
   const companionTarget = resolveCompanionTarget({
     card: run.card,
     solution: run.solution,
     courses: data?.courses,
     sources: data?.sources,
+    fallbackCourse: deck?.course ?? deck?.folder ?? "",
   });
   const openCompanion = companionTarget && openModal
     ? () => openCompanionTarget(openModal, companionTarget)

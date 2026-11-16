@@ -143,7 +143,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
   const fixPhrases = useFixPhrases(data);
   const ruleDeck = data?.decks?.find((deck) => deck.id === run.deckId);
   const courseRules = useCourseRules(data, ruleDeck?.course ?? ruleDeck?.folder ?? "");
-  React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); setClozeFocusTick(0); }, [run.id, run.index, run.card?.id]);
+  React.useEffect(() => { setAssistMode(""); setAssistText(""); setHelpChoices([]); setDeriveRelation("prerequisite"); setClozeFocusTick(0); }, [run.id, run.index, run.card?.id]);
   const cardTasks = (assistTasks || []).filter((task) => task.cardId === run.card?.id);
   const runningTask = cardTasks.find((task) => task.status === "running" && task.mode !== "grade");
   const lastTask = cardTasks.filter((task) => task.mode !== "grade").at(-1);
@@ -361,21 +361,21 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
             <ClozeQuestion run={run} clozeValues={clozeValues} clozeFocusTick={clozeFocusTick} enOn={enOn} enStem={enStem} enAnswer={enAnswer} voiceAnswer={voice.answer} actions={actions} />
           ) : taskCard ? (
             <>
-              <TaskCardRun run={run} data={data} value={response} onChange={actions.setResponse} onReveal={() => reviewAct("review.reveal")}
+              <TaskCardRun key={`task:${run.id}:${run.index}:${run.card.id}`} run={run} data={data} value={response} onChange={actions.setResponse} onReveal={() => reviewAct("review.reveal")}
                 onSelfReport={(note) => reviewAct("review.answer", { selfReport: true, ...(note ? { note } : {}) })} enOn={enOn} enStem={enStem} enAnswer={enAnswer} />
               {prereqStrip}
             </>
           ) : rubricCard ? (
             <>
-              <RubricAnswer run={run} data={data} value={response} onChange={actions.setResponse} task={gradeTask}
-                onSubmit={(text) => assistCard("grade", text)} onSetupModel={onModelSettings || (() => openSettings("settings-model"))} />
+              <RubricAnswer key={`rubric:${run.id}:${run.index}:${run.card.id}`} run={run} data={data} value={response} onChange={actions.setResponse} task={gradeTask}
+                onSubmit={(text) => assistCard("grade", text, [], undefined, { quiet: true })} onSetupModel={onModelSettings || (() => openSettings("settings-model"))} />
               {voice.answer}
               {prereqStrip}
             </>
           ) : (
             <>
-              <FlipCard key={run.card.id} run={run} showBack={showBack} flipCard={flipCard} enOn={enOn} />
-              <SmoothHeight className="flash-follow" key={"follow:" + run.card.id}>
+              <FlipCard key={`flip:${run.id}:${run.index}:${run.card.id}`} run={run} showBack={showBack} flipCard={flipCard} enOn={enOn} />
+              <SmoothHeight className="flash-follow" key={`follow:${run.id}:${run.index}:${run.card.id}`}>
               {run.card.kind === "open" && !run.revealed && (
                 <OpenResponseField grading={run.grading} value={response} onChange={actions.setResponse} onFlip={flipCard} />
               )}
@@ -442,7 +442,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           {run.feedback && <NextDue feedback={run.feedback} telemetry={run.feedbackTelemetry} />}
           {autoAdvanceActive && (
             <div className={"question-card__autopilot" + (autoAdvancePaused ? " is-paused" : "")}
-              key={"card-auto:" + run.index}
+              key={"card-auto:" + (session.advanceKey || run.index)}
               style={{ "--autopilot-ms": `${autoAdvanceMs}ms` }}
               aria-hidden="true">
               <span className="question-card__autopilot-fill" />
@@ -454,7 +454,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         {detour && !contextReturnLabel && <Tooltip layer content={ui("回到从信箱跳过来之前正在做的题")} anchorClassName="review-detour">
           <Button variant="quiet" size="sm" icon="arrow-left" className="review-detour__button" lock={busy} onClick={onReturnFromDetour}>{uiFormat("回到之前的第 {0} 题", [detour.index + 1])}</Button></Tooltip>}
         <ReviewToolbar
-          key={reviewEntryKey(run)}
+          key={session.advanceKey || `${run.id}:${run.index}:${run.card?.id}`}
           assistMode={assistMode}
           run={run} expanded={run.revealed ? explain : hint}
           onToggleHelp={actions.toggleHelp}
@@ -494,6 +494,7 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
           {assistMode && (!model.ready ? (
             <div className="assist-form assist-gate">
               <ModelSetupGate variant="inline" feature={assistMode === "derive" ? "generate" : "welcome"} model={model} onOpenSettings={modelSettings} />
+              <div className="action-feedback-slot assist-form__feedback">{feedback}</div>
               <div className="assist-actions">
                 <Button size="sm" className="assist-actions__btn" onClick={() => setAssistMode("")}>{ui("取消")}</Button>
               </div>
@@ -614,7 +615,6 @@ export default function QuestionRun({ session, data, coachProps, links = {}, con
         </SmoothHeight>
         {autoAdvanceActive && (
           <>
-            <div className={"autopilot-bar" + (autoAdvancePaused ? " is-paused" : "")} key={run.index} style={{ "--autopilot-ms": autoAdvanceMs + "ms" }} />
             <small className="autopilot-note">{ui("自动跳下一步：马上进入下一题，点任意处或按键可停下")}</small>
             {autoAdvancePaused && <small className="autopilot-note review-autopilot-note is-paused" role="status">{ui("已暂停自动跳下一步（移开指针或取消选中后继续）")}</small>}
           </>
