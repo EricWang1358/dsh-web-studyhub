@@ -32,7 +32,7 @@
     .page-scope__label { display: block; flex: none; margin: 0; color: inherit; cursor: pointer; }
     .page-scope__select { flex: 1 1 12rem; width: 20rem; max-width: 20rem; min-width: 0; min-height: 38px;
       font-size: var(--fs-md); font-weight: var(--fw-regular); text-overflow: ellipsis; }
-    /* A scope with more controls under it (资料: 筛选资料), as one small form (#1085): the label in the first column, the select and the controls
+    /* A scope with more controls under it (资料: 筛选资料), as one small form (issue 1085): the label in the first column, the select and the controls
        under it in the second at one left edge and one width, the follow mark in the third. The scope lends its parts to the grid (display: contents);
        a control under it takes grid-column 2. */
     .page-scope-form { display: grid; grid-template-columns: auto minmax(0, 24rem) auto; justify-content: start; align-items: center; gap: var(--space-2); }
