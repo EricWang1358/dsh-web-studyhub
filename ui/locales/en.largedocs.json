@@ -197,5 +197,11 @@
   "现在的索引会移到一旁（不删除），这份资料库的索引记录会清空。之后完全退出 DSH 桌面版（包括托盘图标）后重新打开，再重新建立索引；资料多的话要花一些时间。": "The current index is moved aside (nothing is deleted) and this library's index record is cleared. Then quit DSH desktop fully (including the tray icon), reopen it, and build the index again; with many materials this takes a while.",
   "已保存模型下载地址。完全退出 DSH 桌面版（包括托盘图标）后重新打开生效。": "Model download address saved. Quit DSH desktop fully (including the tray icon) and reopen it for this to take effect.",
   "已恢复默认的模型下载地址。完全退出 DSH 桌面版（包括托盘图标）后重新打开生效。": "Default model download address restored. Quit DSH desktop fully (including the tray icon) and reopen it for this to take effect.",
-  "检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在完全退出 DSH 桌面版（包括托盘图标）后重新打开时生效。": "The first time the search extension builds an index, it downloads the search model from this address. If the default address cannot be reached from your network, set another one; leave it empty for the default. Changes take effect after you quit DSH desktop fully (including the tray icon) and reopen it."
+  "检索扩展第一次建立索引时，从这个地址下载检索模型。默认地址在你的网络里打不开时，可以改成别的地址；留空就是默认地址。改动在完全退出 DSH 桌面版（包括托盘图标）后重新打开时生效。": "The first time the search extension builds an index, it downloads the search model from this address. If the default address cannot be reached from your network, set another one; leave it empty for the default. Changes take effect after you quit DSH desktop fully (including the tray icon) and reopen it.",
+  "已索引": "Indexed",
+  "部分索引": "Partial",
+  "需更新": "Update",
+  "建立中": "Building",
+  "需重建": "Rebuild",
+  "未索引": "Not built"
 }
