@@ -76,3 +76,11 @@ test('no new side stripes; the files of #1080 have none', async () => {
     assert.equal(counts[file] ?? 0, 0, `${file} was cleaned in #1080`);
   }
 });
+
+test('a rubric meter says strong, middle or weak without the cinnabar of the primary action (#1080)', async () => {
+  const source = await readFile(join(root, 'ui/CaseResult.jsx'), 'utf8');
+  const bar = source.slice(source.indexOf('function Bar('), source.indexOf('function Bar(') + 400);
+  assert.match(bar, /"success"/);
+  assert.match(bar, /"warning"/);
+  assert.doesNotMatch(bar, /"accent"/, 'a middle score is ink, not the cinnabar kept for the one primary action');
+});
