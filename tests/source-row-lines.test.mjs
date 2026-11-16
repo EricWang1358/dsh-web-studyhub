@@ -58,7 +58,7 @@ test('a reminder is a warning Badge beside the title, one for each thing to chec
 
 test('renaming a row in place says nothing more: the row shows the new name when the field closes (#677)', async () => {
   const source = await readFile(new URL('../ui/Sources.jsx', import.meta.url), 'utf8');
-  const rename = source.slice(source.indexOf('const renameFor ='), source.indexOf('const selectedItems'));
+  const rename = source.slice(source.indexOf('const renameFor ='), source.indexOf('const finish ='));
   assert.ok(rename.includes('renameDocument'), 'the rename is still sent');
   assert.doesNotMatch(rename, /toast/, 'but no toast repeats the name the row now shows');
 });
