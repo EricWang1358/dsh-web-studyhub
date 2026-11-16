@@ -50,29 +50,31 @@ test('资料 at a docked half-screen width uses the narrow rows, and the filter 
     return {
       column: sources.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
       archiveButton: document.querySelectorAll('[data-archive-toggle]').length,
+      narrowClass: sources.classList.contains('is-narrow'),
+      statusSlots: document.querySelectorAll('.source-doc__status .source-doc__index').length,
       actionsOpacity: getComputedStyle(document.querySelector('.source-doc__actions')).opacity,
       select: box(document.querySelector('.page-scope__select')),
       filter: box(document.querySelector('.sources-filter__input')),
     };
   });
 
-  const half = await open(720);
-  const before = await look(half.page);
-  assert.ok(before.column < 601, `the page column at 720 is narrow (${before.column}px)`);
-  assert.equal(before.archiveButton, 0, '已归档 waits in the one 更多, beside 添加资料');
-  assert.equal(before.actionsOpacity, '1', 'the row actions sit on their own line, always shown');
-  await half.page.locator('.sources-filter__input').fill('kernel');
-  await half.page.locator('.sources-filter__state').waitFor();
-  const typing = await look(half.page);
-  // Within a pixel: the edges are fractional, and a moved or narrowed control (the old fault) was off by tens of pixels.
+  // 720 and 880–930 are the docked half-screen band where a row used to keep a blank badge slot and typing used to narrow both controls; 1000 and 1280 are wide.
   const still = (now, was, what) => assert.ok(now.every((edge, i) => Math.abs(edge - was[i]) < 1), `${what}: ${JSON.stringify(was)} -> ${JSON.stringify(now)}`);
-  still(typing.select, before.select, 'the scope select does not move or shrink while typing');
-  still(typing.filter, before.filter, 'nor does the filter');
-  assert.deepEqual(half.errors, []);
-
-  const wide = await open(1280);
-  const roomy = await look(wide.page);
-  assert.ok(roomy.column >= 601, `the page column at 1280 is wide (${roomy.column}px)`);
-  assert.equal(roomy.archiveButton, 1, 'a wide header keeps 已归档 as a button');
-  assert.deepEqual(wide.errors, []);
+  for (const width of [720, 880, 930, 1000, 1280]) {
+    const { page, errors } = await open(width);
+    const before = await look(page);
+    const narrow = before.column < 681;
+    assert.equal(before.narrowClass, narrow, `${width}: the page is narrow exactly when its column is under 681px (${before.column}px)`);
+    assert.equal(before.archiveButton, narrow ? 0 : 1, `${width}: 已归档 is a button only in a wide header`);
+    assert.equal(before.statusSlots, narrow ? 0 : before.statusSlots, `${width}: a narrow row keeps no badge slot in its status line`);
+    if (narrow) assert.equal(before.actionsOpacity, '1', `${width}: the row actions sit on their own line, always shown`);
+    await page.locator('.sources-filter__input').fill('kernel');
+    await page.locator('.sources-filter__state').waitFor();
+    const typing = await look(page);
+    // Within a pixel: the edges are fractional, and a moved or narrowed control (the old fault) was off by tens of pixels.
+    still(typing.select, before.select, `${width}: the scope select does not move or shrink while typing`);
+    still(typing.filter, before.filter, `${width}: nor does the filter`);
+    assert.deepEqual(errors, []);
+    await page.close();
+  }
 });

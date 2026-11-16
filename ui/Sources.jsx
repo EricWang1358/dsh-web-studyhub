@@ -166,10 +166,11 @@ export function RowMenuItems({ item, onChangeCourse, onRemove, onSegment, onRena
 
 const sameRelation = (a, b) => a === b || (!!a && !!b && a.role === b.role && a.of === b.of && a.derived === b.derived && a.count === b.count);
 /**
- * Below this width of the 资料 page's own column a row's actions take their own line: mirrors `@container sources (max-width: 600px)` in ui/sources.css. Both measure
- * the page (its content box), not the window, so a half-screen window with the sidebar docked is narrow too (#1083).
+ * Below this width of the 资料 page's own column (its content box, not the window: the sidebar may take 212px of it) the page is narrow: a row's facts break in
+ * two, its actions take their own line under it, and the header keeps 添加资料 with one 更多 (#1083). This is the one place the width is decided; the page
+ * carries `.is-narrow` and ui/sources.css follows it.
  */
-export const ROWS_NARROW = 601;
+export const ROWS_NARROW = 681;
 const ROW_PROPS = ['item', 'source', 'isNew', 'organizing', 'selected', 'narrow', 'mastery', 'coverage', 'topUp', 'canIndex', 'indexLink', 'slot', 'advice', 'retrieval', 'courses', 'defaultCourse', 'canGenerate', 'canPractice', 'canSegment', 'canRename', 'actions', 'pinned', 'pinFirst', 'pinLast', 'dragging', 'dropMark', 'custom'];
 
 /**
@@ -582,7 +583,7 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
       {addButton}
     </>;
   return (
-    <section ref={pageRef} className="page sources-page">
+    <section ref={pageRef} className={`page sources-page${narrow ? ' is-narrow' : ''}`}>
       <PageHeader className="sources-page__header" title={ui("资料")}
         description={<>{ui("题目从这里生长。原文与引用一直保留。")}{items.length > 0 &&
           (scopeSummary.pinned ? (scopeSummary.rest ? uiFormat(" 共 {0} 份资料，其中 {1} 份置顶，其余按导入日期分为 {2} 组。", [scopeSummary.count, scopeSummary.pinned, scopeSummary.groups]) : uiFormat(" 共 {0} 份资料，全部置顶。", [scopeSummary.count]))
