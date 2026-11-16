@@ -66,7 +66,7 @@ test('in the browser: a 0-5 key makes its own button look pressed, and the short
     setTimeout(() => watch.disconnect(), 15000);
   });
   await page.keyboard.press('4');
-  await page.locator('.next-due').waitFor({ timeout: 20000 });
+  await page.waitForFunction(() => /Question 2\?/.test(document.querySelector('.flashcard')?.innerText || ''), null, { timeout: 20000 });
   assert.equal(await page.evaluate(() => window.__gradePress), '4', 'the button the 4 key named wore its press');
   assert.deepEqual(errors, []);
 });

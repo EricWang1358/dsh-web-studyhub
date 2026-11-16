@@ -14,13 +14,14 @@ const NEXT_HINT_ID = "review-next-hint";
  * (mark it, note, task, derive a prerequisite, slay). `moreDefaultOpen` opens the menu at first render.
  * `onThumb('up' | 'down')` and `thumbVote` are the page's 评价: its ThumbFeedback keeps the vote and the keys; `thumbs` is that component (it draws only the tag tray).
  */
-export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, autoAdvanceActive = false, autoAdvancePaused = false, autoAdvanceMs = 0, onSkip, onEndRound, moreDefaultOpen = false }) {
+export default function ReviewToolbar({ run, expanded, revealed, onToggleHelp, onAsk, onImprove, onDerive, onSlay, onToggleFocus, onDeferUnstudiedPages, onNote, onTask, onReviewAction, thumbs, onThumb, thumbVote, enOn, enBusy, onToggleEn, assistMode, autopilot, onToggleAutopilot, selfGradeAdvance, onToggleSelfGradeAdvance, onUndo, autoAdvanceActive = false, autoAdvancePaused = false, autoAdvanceMs = 0, onSkip, onEndRound, moreDefaultOpen = false }) {
   const { busy } = useStudy();
   const [readingOpen, setReadingOpen] = React.useState(false);
   // Say why 下一题 is unavailable instead of leaving a dim button: an unanswered question waits for its answer (one whose AI grade is on its way is answered: the grade lands on it later, #1031); a pending step is still saving.
   const needsAnswer = !run.feedback && !run.grading && run.mode !== "exam";
   const nextBlocked = busy || !!run.card?.publicationUngrable || needsAnswer;
   const exam = run.mode === "exam";
+  const canUndo = !exam && !!onUndo && !!run.undoable;
   // 完成 only when 下一题 has nowhere to go: the round says so (lib/round-position.js), a question set aside with 先跳过 included.
   const last = roundAt(run).last;
   const deferLabel = onDeferUnstudiedPages && !exam && !run.reading && !run.feedback && Number.isInteger(run.cardSource?.page)
@@ -37,12 +38,15 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
     // 自动驾驶, in plain words: the setting of 设置 › 练习 (default off), switchable here and with the A key; it only flips a setting, so a saving step does not block it.
     !exam && onToggleAutopilot && { id: "autopilot", label: ui("自动跳下一步"), checked: !!autopilot, hint: "A",
       attrs: { "aria-keyshortcuts": "A" }, run: onToggleAutopilot },
+    !exam && onToggleSelfGradeAdvance && { id: "self-grade-advance", label: ui("评分后自动下一题"), checked: selfGradeAdvance !== false,
+      run: onToggleSelfGradeAdvance },
     { id: "reading", label: ui("字号与版心…"), run: () => setReadingOpen(true) },
     onThumb && { heading: true, label: ui("评价这道题") },
     onThumb && { id: "thumb-up", label: ui("这题不错"), checked: thumbVote === "up", hint: "G", attrs: { "aria-keyshortcuts": "G" }, run: () => onThumb("up") },
     onThumb && { id: "thumb-down", label: ui("这题有问题…"), checked: thumbVote === "down", hint: "B", attrs: { "aria-keyshortcuts": "B" }, run: () => onThumb("down") },
     // 这一轮 (#1008): set this question aside for the end of the round, or stop the round here with a result. Not in an exam, which has its own rules.
-    !exam && (onSkip || onEndRound) && { heading: true, label: ui("这一轮") },
+    !exam && (canUndo || onSkip || onEndRound) && { heading: true, label: ui("这一轮") },
+    canUndo && { id: "undo", label: ui("撤销上一题评分"), hint: "Z", attrs: { "aria-keyshortcuts": "Z" }, disabled: busy, run: onUndo },
     !exam && onSkip && { id: "skip", label: ui("先跳过"), hint: "K", attrs: { "aria-keyshortcuts": "K" }, disabled: busy,
       tip: ui("这道题先放一放，到这一轮最后再回来做。跳过不记成绩，回来时重新计时。"), run: onSkip },
     !exam && onEndRound && { id: "end-round", label: ui("到此为止…"), disabled: busy, run: onEndRound },
@@ -58,10 +62,11 @@ export default function ReviewToolbar({ run, expanded, onToggleHelp, onAsk, onIm
     <div className="question-toolbar">
       <div className="question-tools">
         {!run.feedback && <Button variant="quiet" icon="help" className="tool-action" data-tour="review-hint" aria-expanded={!!expanded} onClick={onToggleHelp}>
-          {run.revealed ? ui("讲解") : ui("提示")}
+          {(revealed ?? run.revealed) ? ui("讲解") : ui("提示")}
         </Button>}
         <Button variant="quiet" icon="sparkle" className="tool-action tool-help" data-tour="review-help" data-usage="review.help" aria-expanded={assistMode === "ask"} onClick={onAsk}>{ui("帮我弄懂")}</Button>
         <Button variant="quiet" icon="edit" className="tool-action" data-tour="review-improve" data-usage="review.improve" aria-expanded={assistMode === "improve"} onClick={onImprove}>{ui("修题")}</Button>
+        {canUndo && !run.feedback && <Button variant="quiet" className="tool-action review-undo" data-usage="review.undo" aria-keyshortcuts="Z" lock={busy} onClick={onUndo}>{ui("已记分 · 撤销 (Z)")}</Button>}
         {thumbs}
       </div>
       {run.mode === "exam" && <p className="muted small next-due">{ui("这是进行中的模拟考试：这里可以继续作答，交卷和成绩单在「模拟考试」页。")}</p>}

@@ -152,7 +152,16 @@ test('总纲: open from the home, expand, pick two questions in two chapters, pr
       if (shots) await page.screenshot({ path: join(shots, `review-${tag}.png`) });
       // Finished, the result page goes back to the 总纲 first (no second line: the 总纲 has no point to name); the page's own next step is the plain button after it.
       for (let guard = 0; guard < 8 && !(await page.locator('.result-page').count()); guard += 1) {
-        if (!(await page.locator('.next-due').count())) { await page.locator('[data-usage="review.flip"]').click(); await page.locator('.grade.high').first().click(); }
+        await page.locator('.question-card, .result-page').first().waitFor({ timeout: 15000 });
+        if (await page.locator('.result-page').count()) break;
+        if (await page.locator('[data-usage="review.flip"]').count() && !(await page.locator('.next-due').count())) {
+          const before = await page.locator('.flashcard').innerText();
+          await page.locator('[data-usage="review.flip"]').click();
+          await page.locator('.grade.high').first().waitFor({ timeout: 10000 });
+          await page.locator('.grade.high').first().click();
+          await page.waitForFunction((prev) => document.querySelector('.result-page') || document.querySelector('.flashcard')?.innerText !== prev, before, { timeout: 15000 });
+          continue;
+        }
         await page.locator('[data-usage="review.next"]:not([disabled])').waitFor({ timeout: 10000 });
         await page.locator('[data-usage="review.next"]').click();
         await page.waitForTimeout(400);

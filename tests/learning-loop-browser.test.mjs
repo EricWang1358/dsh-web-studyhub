@@ -82,6 +82,11 @@ async function openRound(browser, running, { lang, width }) {
 }
 const pendingText = async (page) => (await page.locator('.round-pending__trigger').count() && await page.locator('.round-pending__trigger').isVisible()
   ? (await page.locator('.round-pending__trigger').innerText()).trim() : '');
+const openMore = async (page) => {
+  const details = page.locator('details.post-answer-more');
+  await details.waitFor({ timeout: 30000 });
+  if (!(await details.evaluate((el) => el.open))) await details.locator('.post-answer-more__summary').click();
+};
 
 test('试一道同类题 and back in one click; 用自己的话讲一遍 on a question and on a book point (1280 and 420 px, zh and en)', { timeout: 600000 }, async (t) => {
   let browser;
@@ -104,8 +109,9 @@ test('试一道同类题 and back in one click; 用自己的话讲一遍 on a qu
       await page.locator('.question-card').waitFor({ timeout: 30000 });
       assert.ok((await prompt(page)).includes(orig.prompt), `${where}: the round opens on the original question`);
 
-      // A wrong answer: 试一道同类题 under the explanation; the round's counts before the detour.
+      // A wrong answer: 试一道同类题 inside the post-answer disclosure; the round's counts before the detour.
       await page.locator('.option', { hasText: 'no' }).click();
+      await openMore(page);
       const similar = page.locator('[data-usage="review.similar"]');
       await similar.waitFor({ timeout: 30000 });
       assert.equal((await similar.innerText()).trim(), words.similar, `${where}: the button's words`);
@@ -130,6 +136,7 @@ test('试一道同类题 and back in one click; 用自己的话讲一遍 on a qu
       assert.deepEqual([after.index, after.questions, after.answered, after.total, after.complete], [before.index, before.questions, before.answered, before.total, false],
         `${where}: the detour added nothing to the round`);
       assert.equal(await pendingText(page), chipBefore, `${where}: 「N 题待答」 says the same as before`);
+      await openMore(page);
       assert.ok(await page.locator('[data-usage="review.similar"]').isVisible(), `${where}: back on the answered question, with its tools`);
       const state = await running.api('export', {});
       assert.deepEqual(state.attempts.filter((a) => a.deckId === deck.id).map((a) => [a.quiz_id, a.grade >= 3, !!a.implicit]).sort(),
@@ -213,6 +220,7 @@ test('试一道同类题 and back in one click; 用自己的话讲一遍 on a qu
       const round = await running.api('review.start', { mode: 'path', fresh: true, ordered: true, scope: [{ deckId: VARIANT_DECK.id, cardId: vorig.id }, { deckId: VARIANT_DECK.id, cardId: vfar.id }] });
       const { page, errors, context } = await openRound(browser, running, { lang: 'zh', width: 1280 });
       await page.locator('.option', { hasText: 'no' }).click();
+      await openMore(page);
       await page.locator('[data-usage="review.similar"]').click();
       await page.locator('.similar-try__note', { hasText: '题库里没有这一轮之外的同类题' }).waitFor({ timeout: 30000 });
       await page.locator('[data-usage="review.similar-variant"]').click();
@@ -224,6 +232,7 @@ test('试一道同类题 and back in one click; 用自己的话讲一遍 on a qu
       await page.reload();
       await page.locator('.next-card [data-next-action], .question-card').first().waitFor({ timeout: 30000 });
       if (!(await page.locator('.question-card').count())) await page.locator('.next-card [data-next-action]').first().click();
+      await openMore(page);
       await go.waitFor({ timeout: 30000 });
       await go.click();
       // (a flashcard: the prompt is on the card's face)
@@ -243,6 +252,7 @@ test('试一道同类题 and back in one click; 用自己的话讲一遍 on a qu
         if (action !== 'teach.retell') return route.continue();
         return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'Invalid retell feedback; retry' }) });
       });
+      await openMore(page);
       await page.locator('[data-usage="review.retell"]').click();
       const input = page.locator('.retell-panel__input');
       await input.fill(SECRET);
@@ -269,6 +279,7 @@ test('试一道同类题 and back in one click; 用自己的话讲一遍 on a qu
         await previewCall(bare.server, 'review.start', { mode: 'path', fresh: true, ordered: true, scope: [{ deckId: VARIANT_DECK.id, cardId: vorig.id }, { deckId: VARIANT_DECK.id, cardId: vfar.id }] });
         const { page, errors, context } = await openRound(browser, bare, { lang: 'zh', width: 420 });
         await page.locator('.option', { hasText: 'no' }).click();
+        await openMore(page);
         await page.locator('[data-usage="review.similar"]').click();
         await page.locator('[data-usage="review.similar-variant"]').click();
         await page.locator('.similar-try [role="status"], .similar-try .sh-inline').filter({ hasText: /模型/ }).first().waitFor({ timeout: 30000 });

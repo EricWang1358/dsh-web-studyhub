@@ -12,7 +12,7 @@ import { resolvePracticeSettings } from '../../lib/practice-settings.js';
 import { describeModelError, modelReadiness } from '../generation-status.js';
 import { practiceArgs } from '../learning-navigation.js';
 import {
-  AUTO_ADVANCE_MS, advanceKeyOf, assistRunningOn, autopilotPlan, gradeRunning, gradesOutstanding, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
+  AUTO_ADVANCE_MS, SELF_GRADE_ADVANCE_KEY, advanceKeyOf, assistRunningOn, autopilotPlan, gradeRunning, gradesOutstanding, isSelfGradedRun, keepAutopilotHold, continueDestination, createFlightSet, emptyEntry, entryForRun, isCurrentEntry, isPassed, pressedGradeOf, reviewChoiceKind,
   keysElsewhere, mergeReviewPollWithFollowups, reviewPollResult, shortcutAction, shortcutGate, shouldResetEntry, skipTarget,
 } from './session-logic.js';
 import { continueLabel, continueNote } from './continue-labels.js';
@@ -43,7 +43,13 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const [run, setRun] = useState(null);
   const [entry, setEntry] = useState(emptyEntry);
   const [showBack, setShowBack] = useState(false);
+  const showBackRef = useRef(showBack);
+  showBackRef.current = showBack;
   const [showEn, setShowEn] = usePersistentState(EN_KEY, false, flag('1', '0'));
+  const [selfGradeAdvance, setSelfGradeAdvance] = usePersistentState(SELF_GRADE_ADVANCE_KEY, true, flag('1', '0'));
+  const selfGradeAdvanceRef = useRef(selfGradeAdvance);
+  selfGradeAdvanceRef.current = selfGradeAdvance;
+  const toggleSelfGradeAdvance = useCallback(() => setSelfGradeAdvance((value) => !value), [setSelfGradeAdvance]);
   const [enBusyKey, setEnBusyKey] = useState('');
   /* 自动驾驶 is the library's setting (设置 › 练习), not a browser flag: the toolbar switch and the A key write it, and what was just chosen shows at
      once, until the library says the same. */
@@ -171,7 +177,9 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     setEntry(same ? keepTyped(opened, entryRef.current) : opened);
   }, [nav.show, setPage, refs, embeddedIn, nav.page, syncDraft]);
   const enterMovedRun = useCallback((next, input) => enterRun(next, input, true), [enterRun]);
-  const reset = useCallback(() => { draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; setRun(null); setShowBack(false); setEntry(emptyEntry()); }, []);
+  const revealFlights = useRef(new Map());
+  const revealKeyOf = (r) => (r?.card?.id ? `${r.id}:${r.index}:${r.card.id}:${r.queueVersion || 0}` : '');
+  const reset = useCallback(() => { revealFlights.current.clear(); draftSaver.current.discard(); draftBase.current = { key: '', signature: '' }; setRun(null); setShowBack(false); setEntry(emptyEntry()); }, []);
   const clearRun = useCallback(() => setRun(null), []);
   const patchRun = useCallback((change) => setRun(change), []);
 
@@ -201,9 +209,11 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const current = runRef.current;
     if (!current?.id) return undefined;
     const next = await call('review.get', { runId: current.id });
+    const inFlightReveal = revealFlights.current.has(revealKeyOf(runRef.current));
+    const reconciled = inFlightReveal && next && !next.revealed ? { ...next, revealed: true } : next;
     const running = assistRunningOn(refs.dataRef.current?.assist, runRef.current?.card?.id) || Date.now() - assistSentAt.current < ASSIST_SENT_FAST_MS;
-    const result = reviewPollResult(runRef.current, next, running);
-    if (!result.unchanged) setRun((existing) => mergeReviewPollWithFollowups(existing, next));
+    const result = reviewPollResult(runRef.current, reconciled, running);
+    if (!result.unchanged) setRun((existing) => mergeReviewPollWithFollowups(existing, reconciled));
     return result;
   }, [call, refs]);
   // A finished round keeps asking while a grade is on its way (#1031): it lands on the result page, not on the next visit. Corrections waiting to be
@@ -233,32 +243,42 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   const stepWaiting = useRef(false);
   const reviewAct = useCallback((action, args = {}) => {
     const current = runRef.current;
-    const step = () => act(action, { runId: current.id, cardId: current.card?.id, queueVersion: current.queueVersion || 0, ...args, ...awayArgs(action, current) }, (result) => {
-      if (current?.mode !== 'exam' && result?.mode !== 'exam' && !current?.complete && result?.complete && (result.answered || 0) > 0) {
-        playSound('complete');
-      } else if (action === 'review.answer' && result?.feedback && current?.mode !== 'exam') {
-        const fb = result.feedback;
-        if (fb.selfReported || fb.assessment === 'self-report') playSound('correct');
-        else if (fb.correct) playSound(isEarnedLevelClimb(fb, result.feedbackTelemetry) ? 'levelUp' : 'correct');
-        else playSound('miss');
-      } else if (action === 'review.reveal' && !current?.revealed && result?.revealed) {
-        playSound('flip');
-      }
-      enterRun(result, undefined, action === 'review.move');
-    },
-      // Practice steps return the run they changed; the snapshot catches up on the next poll.
-      // Only a finished round reloads the library (its result page needs fresh counts).
-      { refreshAfter: (result) => action === 'review.move' ? !!result.complete : action !== 'review.answer' && action !== 'review.reveal' });
-    if (!SAVES_FIRST.has(action)) return step();
-    syncDraft();
-    if (!draftSaver.current.dirty()) return step();
-    // Like act() itself: one step at a time, a second click while this one waits for its save is dropped.
+    if (!current?.id) return Promise.resolve();
+    const resolvedArgs = action === 'review.answer' && isSelfGradedRun(current) && Number.isInteger(args.grade) && args.advanceOnSelfGrade === undefined
+      ? { ...args, advanceOnSelfGrade: selfGradeAdvanceRef.current !== false }
+      : args;
+    const step = () => {
+      const latest = runRef.current || current;
+      return act(action, { runId: latest.id, cardId: latest.card?.id, queueVersion: latest.queueVersion || 0, ...resolvedArgs, ...awayArgs(action, latest) }, (result) => {
+        const fb = result?.feedback || result?.gradedFeedback;
+        if (latest?.mode !== 'exam' && result?.mode !== 'exam' && !latest?.complete && result?.complete && (result.answered || 0) > 0) {
+          playSound('complete');
+        } else if (action === 'review.answer' && fb && latest?.mode !== 'exam') {
+          if (fb.selfReported || fb.assessment === 'self-report') playSound('correct');
+          else if (fb.correct) playSound(isEarnedLevelClimb(fb, result.feedbackTelemetry) ? 'levelUp' : 'correct');
+          else playSound('miss');
+        } else if (action === 'review.reveal' && !latest?.revealed && result?.revealed) {
+          playSound('flip');
+        }
+        enterRun(result, undefined, action === 'review.move' || !!result?.selfGradeAdvanced || action === 'review.undo');
+      },
+        // Practice steps return the run they changed; the snapshot catches up on the next poll.
+        // Only a finished round (including self-grade advance on the final card) reloads the library.
+        { refreshAfter: (result) => !!result?.complete || action === 'review.undo' || (action !== 'review.move' && action !== 'review.answer' && action !== 'review.reveal') });
+    };
+    const pendingReveal = action === 'review.answer' ? revealFlights.current.get(revealKeyOf(current)) : null;
+    const needsDraftFlush = SAVES_FIRST.has(action) && (syncDraft(), draftSaver.current.dirty());
+    if (!pendingReveal && !needsDraftFlush) return step();
+    // Like act() itself: one step at a time, a second click while this one waits for its reveal/save is dropped.
     if (stepWaiting.current) return Promise.resolve();
     stepWaiting.current = true;
-    const root = refs.dataRef.current?.root, key = draftKey(root, current);
-    return flushDraft().then((saved) => (saved && draftKey(refs.dataRef.current?.root, runRef.current) === key ? step() : undefined))
+    const rKey = revealKeyOf(current);
+    return Promise.all([
+      pendingReveal ? pendingReveal.then((res) => res !== null) : true,
+      needsDraftFlush ? flushDraft() : true,
+    ]).then(([revealedOk, savedOk]) => (revealedOk && savedOk && revealKeyOf(runRef.current) === rKey ? step() : undefined))
       .finally(() => { stepWaiting.current = false; });
-  }, [act, awayArgs, enterRun, flushDraft, refs, syncDraft]);
+  }, [act, awayArgs, enterRun, flushDraft, syncDraft]);
   const reviewActRef = useRef(reviewAct);
   reviewActRef.current = reviewAct;
 
@@ -308,14 +328,48 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
   /* The question's own actions that live in QuestionRun (写笔记, 标为重点, its page): it puts them here, and the keys N / F / O run them. */
   const questionKeys = useRef({});
 
-  const flipCard = useCallback(async () => {
+  const flipCard = useCallback(() => {
     const current = runRef.current;
-    if (!current?.card) return;
-    if (current.revealed) { setShowBack((value) => !value); playSound('flip'); return; }
-    if (busyRef.current || current.grading) return;
+    if (!current?.card) return undefined;
+    const rKey = revealKeyOf(current);
+    if (current.revealed || revealFlights.current.has(rKey)) {
+      setShowBack((value) => !value);
+      playSound('flip');
+      return revealFlights.current.get(rKey);
+    }
+    if (current.grading) return undefined;
+    // Zero-wait local flip: turn the card immediately without locking `busy`, reconciling `solution` when `review.reveal` settles.
     setShowBack(true);
-    if (!(await reviewActRef.current('review.reveal'))) setShowBack(false);
-  }, []);
+    playSound('flip');
+    const optimistic = { ...current, revealed: true };
+    runRef.current = optimistic;
+    setRun((prev) => (revealKeyOf(prev) === rKey ? { ...prev, revealed: true } : prev));
+    const promise = callRef.current('review.reveal', {
+      runId: current.id,
+      cardId: current.card.id,
+      queueVersion: current.queueVersion || 0,
+    }).then((result) => {
+      if (result && revealKeyOf(runRef.current) === rKey && !runRef.current?.feedback) {
+        const merged = { ...result, revealed: true };
+        runRef.current = merged;
+        setRun((prev) => (revealKeyOf(prev) === rKey && !prev?.feedback ? merged : prev));
+      }
+      return result;
+    }).catch((failure) => {
+      if (revealKeyOf(runRef.current) === rKey && !runRef.current?.feedback) {
+        setShowBack(false);
+        const reverted = { ...runRef.current, revealed: false };
+        runRef.current = reverted;
+        setRun((prev) => (revealKeyOf(prev) === rKey ? { ...prev, revealed: false } : prev));
+        setError(errorMessage(failure));
+      }
+      return null;
+    }).finally(() => {
+      if (revealFlights.current.get(rKey) === promise) revealFlights.current.delete(rKey);
+    });
+    revealFlights.current.set(rKey, promise);
+    return promise;
+  }, [setError]);
   const choose = useCallback((id) => {
     const current = runRef.current;
     if (busyRef.current || current.feedback) return;
@@ -521,6 +575,19 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     patch((value) => ({ hint: !value.hint }));
   }, [noteAssistance, patch]);
 
+  const undoAnswer = useCallback(() => {
+    const current = runRef.current;
+    if (!current?.id || !current.undoable || current.mode === 'exam' || current.closed) return undefined;
+    cancelRef.current?.();
+    return act('review.undo', { runId: current.id, attemptId: current.undoable.attemptId }, (result) => {
+      playSound('flip');
+      autoHold.current = advanceKeyOf(result);
+      setHoldTick((tick) => tick + 1);
+      enterRun(result, undefined, true);
+      setShowBack(true);
+    }, { refreshAfter: true });
+  }, [act, enterRun]);
+
   /* ── the keyboard ── */
   const engaged = useRef(false), keyHandler = useRef(null);
   // Clicking an option or grade disables it, which drops focus to <body>. Keep shortcuts alive when the learner's last interaction was in the panel.
@@ -537,7 +604,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     const shape = eventShape(event);
     const k = shape.key?.toLowerCase();
     if ((k === 'g' || k === 'b') && !shape.repeat && !shape.shiftKey && page === 'review' && run?.card && shortcutGate(shape, gateContext())) cancelAutoAdvance();
-    const outcome = shortcutAction(shape, { ...gateContext(), page, run, busy, shortcutHelp, endAsked, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
+    const outcome = shortcutAction(shape, { ...gateContext(), page, run, busy, showBack: showBackRef.current, shortcutHelp, endAsked, choice, isCloze, rubricCard, selected: entry.selected, clozeValues: entry.clozeValues });
     if (!outcome) return;
     cancelAutoAdvance();
     if (outcome.preventDefault) event.preventDefault();
@@ -547,6 +614,7 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     else if (action.type === 'help-close') { event.preventDefault(); setShortcutHelp(false); }
     else if (action.type === 'end-cancel') { setEndAsked(false); rootRef.current?.querySelector?.('.question-card')?.focus?.({ preventScroll: true }); }
     else if (action.type === 'autopilot') toggleAutopilot();
+    else if (action.type === 'undo') undoAnswer();
     else if (action.type === 'resume') late.current.resume?.();
     else if (action.type === 'answer') { markKeyGrade(pressedGradeOf(action)); reviewAct('review.answer', action.args); }
     else if (action.type === 'move') reviewAct('review.move', { direction: action.direction });
@@ -575,7 +643,12 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     };
   }, [rootRef]);
   // A question mounted elsewhere (embeddedIn) that leaves the screen is not where the learner last was: its keys wait for a new press or focus in it.
-  useEffect(() => { if (embeddedIn && page !== 'review') engaged.current = false; }, [embeddedIn, page]);
+  // Conversely, arriving on the standalone Review page from Home (whose button unmounts on navigation) arms shortcuts without forcing an extra click.
+  const hasCard = !!run?.card;
+  useEffect(() => {
+    if (embeddedIn && page !== 'review') engaged.current = false;
+    else if (!embeddedIn && page === 'review' && hasCard) engaged.current = true;
+  }, [embeddedIn, page, run?.id, hasCard]);
 
   /* ── what Review and the result page's coach strip are handed ── */
   const onCoachPractice = useCallback(() => act('coach.practice', {}, enterRun), [act, enterRun]);
@@ -617,12 +690,14 @@ export function useReviewSession({ core, nav, modalOpen, host, rootRef, late, em
     // The sidebar's 快捷键 entry opens the same sheet as the ? key (ui/ShortcutHelp.jsx): one sheet, two ways in.
     openShortcutHelp: () => setShortcutHelp(true),
     toggleAutopilot,
+    toggleSelfGradeAdvance,
+    undoAnswer,
     setAutoAdvancePaused,
     skipQuestion,
     askEnd: () => setEndAsked(true),
     cancelEnd: () => setEndAsked(false),
     endRound,
-  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, endRound]);
-  return { run, entry, showBack, showEn, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, advanceKey,
+  }), [reviewAct, choose, flipCard, assistCard, slayCard, studyPrerequisites, teachingAct, cancelTeaching, retryTeaching, toggleEn, patch, toggleAutopilot, toggleSelfGradeAdvance, undoAnswer, setAutoAdvancePaused, toggleHint, noteAssistance, skipQuestion, endRound]);
+  return { run, entry, showBack, showEn, selfGradeAdvance, enBusyKey, teachingBusy: !!teachingPending[reviewEntryKey(run)], teachingError: teachingFailure[reviewEntryKey(run)]?.message || '', autopilot, autoAdvance, autoAdvanceActive: activeAutoAdvance, autoAdvancePaused, setAutoAdvancePaused, advanceKey,
     explainHidden, skippedIndices, shortcutHelp, keyGrade, endAsked, questionKeys, ...kind, coach, continueTo, onCoachPractice, enterRun, enterMovedRun, reset, clearRun, patchRun, pollRun, pollNow, actions, flushDraft };
 }

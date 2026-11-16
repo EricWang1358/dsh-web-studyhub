@@ -2,12 +2,17 @@ import React from "react";
 import { ui, uiFormat } from "../i18n.js";
 import Cloze from "../Cloze.jsx";
 import EnBlock from "../EnBlock.jsx";
-import { Badge, Button } from "../components/index.js";
+import Markdown from "../Markdown.jsx";
+import { Badge, Button, Tooltip } from "../components/index.js";
 import { useStudy } from "../study-context.jsx";
 import { MasteryMark } from "../document-preview/practice/MasteryMark.jsx";
+import { fixedOptionLabel, optionMark } from "../option-label.js";
 import QuestionSourcePage from "./QuestionSourcePage.jsx";
+import LearningActions from "./LearningActions.jsx";
 import { clozeRuns } from "../../lib/cloze-text.js";
 import { reviewEntryKey } from "../async.js";
+
+export const MAX_QUESTION_META_BADGES = 2;
 
 /** Live deck mastery readout inside the left side of the question meta bar. */
 export function QuestionLiveMastery({ run }) {
@@ -26,26 +31,141 @@ export function QuestionLiveMastery({ run }) {
   );
 }
 
-/** Origin, focus, note links, source page badge, and topic tag on the right side of the question meta bar. */
-export function QuestionMetaBadges({ run, sources, cardNotes, onOpenNote }) {
+/** Origin, focus, note links, source page badge, and topic tag on the right side of the question meta bar, capped at 2 inline badges. */
+export function QuestionMetaBadges({ run, sources, cardNotes = [], onOpenNote }) {
   const reason = run.origin?.reason === "too-hard" ? ui("前置台阶") : run.origin?.reason === "followup" ? ui("追问巩固") : ui("变式");
+  const items = [];
+  if (run.card?.focus) {
+    items.push({
+      key: "focus",
+      summary: ui("重点"),
+      node: <Badge key="focus" size="sm" tone="accent" className="origin-note">{ui("重点")}</Badge>,
+    });
+  }
+  if (run?.mode !== "exam" && Number.isInteger(run?.cardSource?.page)) {
+    const pageLabel = run.cardSource.unit === "slide" ? uiFormat("第 {0} 张", [run.cardSource.page])
+      : run.cardSource.unit === "part" ? uiFormat("第 {0} 节", [run.cardSource.page])
+      : uiFormat("第 {0} 页", [run.cardSource.page]);
+    items.push({
+      key: "page",
+      summary: pageLabel,
+      node: <QuestionSourcePage key="page" run={run} sources={sources} />,
+    });
+  }
+  if (run.origin) {
+    const originText = run.origin.prompt
+      ? uiFormat("{0} · 源自「{1}」", [reason, run.origin.prompt.length > 18 ? run.origin.prompt.slice(0, 18) + "…" : run.origin.prompt])
+      : reason;
+    const originBadge = <Badge key="origin" size="sm" className="origin-note">{originText}</Badge>;
+    items.push({
+      key: "origin",
+      summary: originText,
+      node: run.origin.prompt
+        ? <Tooltip key="origin" layer content={uiFormat("源自：{0}", [run.origin.prompt])}>{originBadge}</Tooltip>
+        : originBadge,
+    });
+  }
+  for (const note of cardNotes) {
+    const statusLabel = note.status === "published" ? ui("已发布笔记") : ui("笔记草稿");
+    const linkNode = note.status === "published" && note.url
+      ? <a key={note.noteId} className="result-note-link" href={note.url} target="_blank" rel="noopener noreferrer"><Badge size="sm" icon="external">{statusLabel}</Badge></a>
+      : <Button key={note.noteId} variant="quiet" size="sm" className="result-note-link question-meta__action" disabled={!onOpenNote}
+          onClick={() => onOpenNote?.(note.noteId)}>{statusLabel}</Button>;
+    items.push({
+      key: `note:${note.noteId}`,
+      summary: note.title ? `${statusLabel}：${note.title}` : statusLabel,
+      node: note.title ? <Tooltip key={note.noteId} layer content={note.title}>{linkNode}</Tooltip> : linkNode,
+    });
+  }
+  if (run.card?.sourceQa) {
+    items.push({
+      key: "qa",
+      summary: ui("问答"),
+      node: <Badge key="qa" size="sm" className="origin-note">{ui("问答")}</Badge>,
+    });
+  }
+  if (run.card?.importedFromJson) {
+    items.push({
+      key: "imported",
+      summary: ui("外部导入"),
+      node: <Badge key="imported" size="sm" className="origin-note">{ui("外部导入")}</Badge>,
+    });
+  }
+  const inlineItems = items.slice(0, MAX_QUESTION_META_BADGES);
+  const overflowItems = items.slice(MAX_QUESTION_META_BADGES);
+  const overflowTitle = overflowItems.map((item) => item.summary).filter(Boolean).join(" · ");
+  const topicNode = (
+    <span className="question-meta__topic" data-overflow-meta={overflowTitle || undefined}>
+      {run.card?.topic}
+      {overflowItems.length > 0 && <small className="question-meta__overflow">{` · +${overflowItems.length}`}</small>}
+    </span>
+  );
   return (
     <>
-      {cardNotes.map((note) => note.status === "published" && note.url
-        ? <a key={note.noteId} className="result-note-link" href={note.url} target="_blank" rel="noopener noreferrer" title={note.title}><Badge size="sm" icon="external">{ui("已发布笔记")}</Badge></a>
-        : <Button key={note.noteId} variant="quiet" size="sm" className="result-note-link question-meta__action" disabled={!onOpenNote}
-            title={note.title} onClick={() => onOpenNote?.(note.noteId)}>{ui("笔记草稿")}</Button>)}
-      {run.origin && (
-        <Badge size="sm" className="origin-note" title={run.origin.prompt ? uiFormat("源自：{0}", [run.origin.prompt]) : ""}>
-          {run.origin.prompt ? uiFormat("{0} · 源自「{1}」", [reason, run.origin.prompt.length > 18 ? run.origin.prompt.slice(0, 18) + "…" : run.origin.prompt]) : reason}
-        </Badge>
-      )}
-      {run.card.focus && <Badge size="sm" tone="accent" className="origin-note">{ui("重点")}</Badge>}
-      {run.card.importedFromJson && <Badge size="sm" className="origin-note">{ui("外部导入")}</Badge>}
-      {run.card.sourceQa && <Badge size="sm" className="origin-note">{ui("问答")}</Badge>}
-      <QuestionSourcePage run={run} sources={sources} />
-      <span>{run.card.topic}</span>
+      {inlineItems.map((item) => item.node)}
+      {overflowTitle ? <Tooltip layer content={overflowTitle}>{topicNode}</Tooltip> : topicNode}
     </>
+  );
+}
+
+/** Secondary post-answer disclosure: schedule details, non-picked option notes, misconception/rubric, and guided learning actions. */
+export function PostAnswerDetails({ session, data, model, onModelSettings, openModal, showSolution, verdict = false, enOn = false, enAnswer = null, defaultOpen = false, nextDueNode = null }) {
+  const { run, choice } = session;
+  const key = reviewEntryKey(run);
+  const [isOpen, setIsOpen] = React.useState(!!defaultOpen);
+  React.useEffect(() => { setIsOpen(!!defaultOpen); }, [key, defaultOpen]);
+  if (!run?.feedback || run.mode === "exam") return null;
+  const otherOptions = choice && Array.isArray(run.card?.options) && Array.isArray(run.solution?.options)
+    ? run.card.options.flatMap((option, index) => {
+      const sol = run.solution.options.find((item) => item.id === option.id);
+      const picked = run.feedback?.selected?.includes(option.id);
+      if (sol?.correct || picked || !sol?.explanation) return [];
+      const enOpt = enOn ? enAnswer?.options?.find((item) => item.id === option.id) : null;
+      return [{
+        id: option.id,
+        mark: verdict ? String(index + 1) : optionMark(run.card, option, index),
+        label: verdict ? fixedOptionLabel(run.card, option) : option.text,
+        explanation: sol.explanation,
+        enExplanation: enOpt?.explanation || "",
+      }];
+    })
+    : [];
+  return (
+    <details className="post-answer-more" open={isOpen || undefined} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
+      <summary className="post-answer-more__summary">{ui("更多解析与巩固方式")}</summary>
+      <div className="post-answer-more__body">
+        {isOpen && nextDueNode}
+        {otherOptions.length > 0 && (
+          <div className="post-answer-more__options">
+            <h4>{ui("其他选项辨析")}</h4>
+            <ul className="post-answer-more__option-list">
+              {otherOptions.map((item) => (
+                <li key={item.id} className="post-answer-more__option-item">
+                  <span className="post-answer-more__option-mark">{item.mark}</span>
+                  <div>
+                    <Markdown text={item.explanation} links={false} className="md-compact option-explanation" />
+                    {item.enExplanation && <Markdown text={item.enExplanation} links={false} className="md-compact option-explanation en-line" />}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {showSolution && run.solution?.misconception && (
+          <div className="post-answer-more__section">
+            <h4>{ui("容易混淆的地方")}</h4>
+            <Markdown text={run.solution.misconception} />
+          </div>
+        )}
+        {showSolution && run.solution?.rubric && (
+          <div className="post-answer-more__section">
+            <h4>{run.card?.kind === "task" ? ui("验收标准") : ui("评分依据")}</h4>
+            <Markdown text={run.solution.rubric} />
+          </div>
+        )}
+        <LearningActions session={session} data={data} model={model} onModelSettings={onModelSettings} openModal={openModal} />
+      </div>
+    </details>
   );
 }
 

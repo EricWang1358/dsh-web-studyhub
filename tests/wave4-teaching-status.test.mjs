@@ -59,6 +59,7 @@ test('in the browser: a slow model shows a quiet spinner, then 取消 after 20 s
   await page.addInitScript(() => { localStorage.setItem('study-ui-language', 'zh'); localStorage.setItem('study-autopilot', 'off'); });
   await page.goto(server.url);
   await page.getByRole('button', { name: '回到题目' }).first().click().catch(() => {});
+  await page.locator('details.post-answer-more > summary').click();
   const chip = page.getByRole('button', { name: '逐步理解', exact: true });
   await chip.waitFor();
   const status = page.locator('.teaching-status');
