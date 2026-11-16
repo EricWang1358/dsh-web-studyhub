@@ -245,7 +245,7 @@ test('--warn-text aliases --warn-ink so the reader and token-usage warnings rend
 test('layer, scrim, weight, radius and duration tokens are defined (#76 #147 #148)', () => {
   const expected = {
     '--z-raised': '1', '--z-sticky': '10', '--z-toast': '11', '--z-popover': '30', '--z-overlay': '40', '--z-tour': '80', '--z-fullscreen': '90',
-    '--fw-light': '300', '--fw-regular': '400', '--fw-medium': '550', '--fw-strong': '650',
+    '--fw-light': '300', '--fw-regular': '400', '--fw-medium': '500', '--fw-strong': '650',
     '--radius-xs': '4px', '--dur-fast': '.15s', '--dur': '.2s', '--dur-slow': '.3s',
   };
   for (const [name, value] of Object.entries(expected)) assert.equal(tokens[name], value, name);

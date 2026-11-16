@@ -69,7 +69,7 @@
       min-width: 0;
       overflow: hidden;
       font-size: var(--fs-md);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -133,7 +133,7 @@
     }
     .exam-prep-inputs strong {
       color: var(--text);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
     .exam-prep-empty__other,
     .exam-prep-none {
@@ -256,7 +256,7 @@
     }
     .exam-prep-point__requirement,
     .exam-prep-point__backing {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
     }
     .exam-prep-point__requirement {
@@ -286,7 +286,7 @@
       font-size: var(--fs-sm);
     }
     .exam-prep-place__where {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
       white-space: nowrap;
     }
@@ -371,7 +371,7 @@
     }
     .exam-prep-docs__counts {
       margin: 0;
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-regular);
       font-variant-numeric: tabular-nums;
     }
     .exam-prep-docs__list {
@@ -409,7 +409,7 @@
     }
     .exam-prep-doc__meta,
     .exam-prep-doc__reason {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
     }
     .exam-prep-doc__role {
@@ -460,7 +460,7 @@
       gap: var(--space-1-5);
       margin: 0;
       font-size: var(--fs-sm);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
     .exam-prep-estimate__wait {
       margin: 0;

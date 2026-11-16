@@ -9,7 +9,7 @@
     }
     .audio-dashboard :is(h2,h3,p) { margin: 0; }
     .audio-dashboard-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-6-5); }
-    .audio-dashboard-heading small { color: var(--text-muted); font-size: var(--fs-xs); letter-spacing: .18em; }
+    .audio-dashboard-heading small { color: var(--text-muted); font-size: var(--fs-sm); letter-spacing: .18em; }
     .audio-dashboard-heading h2 { font-size: var(--fs-2xl); margin-top: var(--space-1-5); letter-spacing: -.04em; }
     .audio-dashboard .audio-dashboard-btn { min-height: 40px; }
     .audio-dashboard-summary { display: grid; grid-template-columns: 156px minmax(0,1fr); align-items: center; gap: calc(var(--space-7) + var(--space-1)); margin-bottom: var(--space-7); }
@@ -19,11 +19,11 @@
     .audio-usage-dial strong { font-size: var(--fs-4xl); letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
     .audio-usage-dial > div > span { color: var(--text-dim); font-size: var(--fs-sm); margin-top: var(--space-1-5); }
     .audio-usage-dial[data-exhausted="true"] > div > :is(strong, span) { color: var(--warn-ink); }
-    .audio-usage-dial small { color: var(--text-muted); font-size: var(--fs-xs); margin-top: var(--space-1); }
+    .audio-usage-dial small { color: var(--text-muted); font-size: var(--fs-sm); margin-top: var(--space-1); }
     .audio-dashboard-metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-5-5) var(--space-7-less); }
-    .audio-dashboard-metrics > div > span { color: var(--text-muted); font-size: var(--fs-xs); }
-    .audio-dashboard-metrics strong { display: block; font-size: var(--fs-4xl); font-weight: var(--fw-strong); letter-spacing: -.045em; font-variant-numeric: tabular-nums; margin-top: var(--space-1); }
-    .audio-dashboard-metrics strong small { color: var(--text-muted); font-size: var(--fs-xs); margin-left: var(--space-2); letter-spacing: 0; font-weight: var(--fw-regular); }
+    .audio-dashboard-metrics > div > span { color: var(--text-muted); font-size: var(--fs-sm); }
+    .audio-dashboard-metrics strong { display: block; font-size: var(--fs-4xl); font-weight: var(--fw-medium); letter-spacing: -.045em; font-variant-numeric: tabular-nums; margin-top: var(--space-1); }
+    .audio-dashboard-metrics strong small { color: var(--text-muted); font-size: var(--fs-sm); margin-left: var(--space-2); letter-spacing: 0; font-weight: var(--fw-regular); }
     .audio-dashboard-metrics .audio-token-count { font-size: var(--fs-2xl); font-variant-numeric: tabular-nums; }
     .audio-provider-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,170px),1fr)); gap: var(--space-6); padding-block: var(--space-6); border-block: 1px solid var(--line); }
     .audio-provider { --provider-color: var(--usage-free); min-width: 0; }
@@ -33,20 +33,20 @@
     .audio-provider-heading { display: grid; grid-template-columns: 7px minmax(0,1fr); gap: var(--space-1) var(--space-2); align-items: center; }
     .audio-provider-heading h3 { font-size: var(--fs-md); font-weight: var(--fw-strong); }
     .audio-provider-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--provider-color); }
-    .audio-provider-heading > small { grid-column: 2; color: var(--text-muted); font-size: var(--fs-xs); }
+    .audio-provider-heading > small { grid-column: 2; color: var(--text-muted); font-size: var(--fs-sm); }
     .audio-provider-heading strong { grid-column: 2; font-size: var(--fs-3xl); font-variant-numeric: tabular-nums; margin-block: var(--space-2); }
-    .audio-provider-heading strong span { font-size: var(--fs-xs); font-weight: var(--fw-regular); color: var(--text-muted); margin-left: var(--space-2); }
+    .audio-provider-heading strong span { font-size: var(--fs-sm); font-weight: var(--fw-regular); color: var(--text-muted); margin-left: var(--space-2); }
     .audio-model-quota { margin-top: var(--space-4); }
-    .audio-model-quota > div:first-child { display: flex; gap: var(--space-2); justify-content: space-between; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--text-dim); }
+    .audio-model-quota > div:first-child { display: flex; gap: var(--space-2); justify-content: space-between; flex-wrap: wrap; font-size: var(--fs-sm); color: var(--text-dim); }
     .audio-model-quota > div:first-child > span { min-width: 0; overflow-wrap: anywhere; }
-    .audio-model-quota > div:first-child small { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+    .audio-model-quota > div:first-child small { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .audio-quota-bar { margin-block: var(--space-2); --sh-tone: var(--provider-color); }
-    .audio-model-quota > small { display: block; font-size: var(--fs-xs); line-height: 1.6; color: var(--text-dim); }
+    .audio-model-quota > small { display: block; font-size: var(--fs-sm); line-height: 1.6; color: var(--text-dim); }
     /* The footnote under a provider's quota rows is a Hint; the gap above it belongs to the card, not to the note. */
     .audio-provider > .audio-provider-footnote { margin-top: var(--space-4); }
     .audio-section-title { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4-5); }
     .audio-section-title h3 { font-size: var(--fs-lg); letter-spacing: -.02em; }
-    .audio-section-title :is(span,small) { font-size: var(--fs-xs); color: var(--text-muted); }
+    .audio-section-title :is(span,small) { font-size: var(--fs-sm); color: var(--text-muted); }
     .audio-section-title i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-left: var(--space-2-5); }
     .audio-dashboard .free { background-color: var(--usage-free); }
     .audio-dashboard .siliconflow { background-color: var(--usage-siliconflow); }
@@ -57,21 +57,21 @@
     .audio-usage-trend { padding-block: var(--space-6); }
     .audio-trend-bars { height: 118px; display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: var(--space-4); }
     .audio-trend-day { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); min-width: 0; }
-    .audio-trend-day > span { font-size: var(--fs-xs); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+    .audio-trend-day > span { font-size: var(--fs-sm); color: var(--text-dim); font-variant-numeric: tabular-nums; }
     .audio-trend-column { flex: 1; width: min(100%,36px); display: flex; flex-direction: column; justify-content: flex-end; }
     .audio-trend-column i { display: block; min-height: 0; }
-    .audio-trend-day > small { color: var(--text-muted); font-size: var(--fs-xs); }
+    .audio-trend-day > small { color: var(--text-muted); font-size: var(--fs-sm); }
     .audio-reasoning { padding-top: var(--space-6); border-top: 1px solid var(--line); }
     .audio-reasoning .audio-section-title small { display: block; margin-bottom: var(--space-2); letter-spacing: .13em; }
     .audio-reasoning-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4) var(--space-6); align-items: start; }
     .audio-reasoning-help { grid-column: 1 / -1; }
-    .audio-quota-settings { margin-top: calc(var(--space-6) + var(--space-half)); font-size: var(--fs-xs); }
+    .audio-quota-settings { margin-top: calc(var(--space-6) + var(--space-half)); font-size: var(--fs-sm); }
     .audio-quota-settings summary { cursor: pointer; color: var(--text-dim); }
     .audio-quota-settings p { color: var(--text-muted); line-height: 1.7; padding-top: var(--space-3); }
     .audio-quota-settings form { margin-top: var(--space-4); }
     .audio-quota-settings .audio-quota-field { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); overflow-wrap: anywhere; }
     .audio-quota-settings .audio-quota-input { width: 110px; min-width: 80px; }
-    .audio-dashboard-footer { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.7; }
+    .audio-dashboard-footer { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.7; }
     .audio-dashboard-footer span { flex: 1 1 320px; }
     .audio-dashboard-footer a { color: var(--text-dim); }
     .audio-dashboard .audio-dashboard__problem { margin-bottom: var(--space-4); }
@@ -100,8 +100,8 @@
   :is(.study-app, .study-seat) {
     /* Folded under one line until the learner opens it. */
     .audio-usage-panel { margin-top: var(--space-6); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
-    .audio-usage-panel > summary { display: flex; align-items: baseline; gap: var(--space-3); padding: var(--space-3) var(--space-4); cursor: pointer; --sh-summary-marker-gap: 0; font-size: var(--fs-sm); font-weight: var(--fw-strong); }
-    .audio-usage-panel > summary small { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
+    .audio-usage-panel > summary { display: flex; align-items: baseline; gap: var(--space-3); padding: var(--space-3) var(--space-4); cursor: pointer; --sh-summary-marker-gap: 0; font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+    .audio-usage-panel > summary small { color: var(--text-muted); font-size: var(--fs-sm); font-weight: var(--fw-regular); }
     .audio-usage-panel > .audio-dashboard { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0 0 var(--radius) var(--radius); }
   }
 }

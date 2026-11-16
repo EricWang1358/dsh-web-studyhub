@@ -204,7 +204,7 @@
     }
     .dash-weak-name strong {
       font-size: var(--fs-md);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -285,7 +285,7 @@
     }
     .exam-progress {
       color: var(--text);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
     .exam-card {
       display: flex;

@@ -17,7 +17,7 @@
     .daily-recap-course { border-top: 1px solid var(--line); margin-top: var(--space-5); padding-top: var(--space-5); min-width: 0; }
     .daily-recap-course h3 { margin: 0; font-size: var(--fs-xl); overflow-wrap: anywhere; }
     .daily-recap-status-row { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
-    .daily-recap-clear { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-half) var(--space-2); border: 1px solid var(--ok-line); border-radius: var(--radius-pill); background: var(--ok-bg); color: var(--ok-ink); font-size: var(--fs-xs); font-weight: var(--fw-medium); white-space: nowrap; }
+    .daily-recap-clear { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-half) var(--space-2); border: 1px solid var(--ok-line); border-radius: var(--radius-pill); background: var(--ok-bg); color: var(--ok-ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); white-space: nowrap; }
     .daily-recap-state { flex-shrink: 0; font-size: var(--fs-xs); color: var(--text-muted); padding: var(--space-half) var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); white-space: nowrap; }
     .daily-recap-course[data-state="running"] .daily-recap-state { color: var(--info-ink); border-color: var(--info-line); background: var(--info-bg); }
     .daily-recap-course[data-state="ready"] .daily-recap-state { color: var(--ok-ink); border-color: var(--ok-line); background: var(--ok-bg); }
@@ -28,7 +28,7 @@
     .daily-recap-hint, .daily-recap-threshold p { margin: var(--space-2-5) 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.7; }
     .daily-recap-bar { width: min(100%, 280px); background: var(--line); box-shadow: none; }
     .daily-recap-preview { margin: var(--space-4) 0; padding: 0 0 0 var(--space-3-5); border-left: 2px solid var(--line-strong); }
-    .daily-recap-preview small { color: var(--text-muted); font-size: var(--fs-xs); }
+    .daily-recap-preview small { color: var(--text-muted); font-size: var(--fs-sm); }
     .daily-recap-preview p { margin: var(--space-1-5) 0 0; max-width: 65ch; font-size: var(--fs-md); line-height: 1.8; overflow-wrap: anywhere; }
     .daily-recap-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--recap-gap); margin-top: var(--space-4-5); }
     .daily-recap-actions:has(.daily-recap-tone-fold[open]) { align-items: flex-end; }
@@ -48,12 +48,12 @@
     .daily-recap-tone:disabled .daily-recap-tone__option { opacity: .6; cursor: default; }
     .daily-recap-progress { display: flex; align-items: flex-start; gap: var(--space-2-5); margin: var(--space-4) 0; }
     .daily-recap-progress p { margin: 0 0 var(--space-1); font-size: var(--fs-md); }
-    .daily-recap-progress small { color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.6; font-variant-numeric: tabular-nums; }
+    .daily-recap-progress small { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.6; font-variant-numeric: tabular-nums; }
     .daily-recap-replace { margin-top: var(--space-3-5); font-size: var(--fs-sm); }
     .daily-recap-replace > p { line-height: 1.7; color: var(--text-muted); }
     .daily-recap-replace .daily-recap-tone { margin: var(--space-3) 0; }
     .daily-recap summary { cursor: pointer; }
-    .daily-recap-footer { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--line); font-size: var(--fs-xs); color: var(--text-muted); }
+    .daily-recap-footer { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--line); font-size: var(--fs-sm); color: var(--text-muted); }
     .daily-recap-footer details { flex: 0 1 auto; }
     .daily-recap-footer details[open] { flex-basis: 100%; }
     .daily-recap-footer p { max-width: 65ch; line-height: 1.7; }

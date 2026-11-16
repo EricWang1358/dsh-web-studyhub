@@ -15,7 +15,7 @@
     /* The Tooltip's wrapper is the grid item: it fills the column, so the bar does. */
     .custom-readiness__anchor { display: block; min-width: 0; }
     .custom-readiness__meter { display: grid; grid-template-columns: minmax(0, 1fr) 3.2ch; align-items: center; gap: var(--space-2); min-width: 0; border-radius: var(--radius-xs); }
-    .custom-readiness__value { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: end; }
+    .custom-readiness__value { font-size: var(--fs-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: end; }
     .custom-readiness__tip { display: block; }
     .custom-readiness__tip + .custom-readiness__tip { margin-top: var(--space-1); }
     .custom-readiness__plan { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-snug); }

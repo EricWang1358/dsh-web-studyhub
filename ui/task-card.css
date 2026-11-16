@@ -57,7 +57,7 @@
     }
 
     .task-run__section-sub {
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-variant-numeric: tabular-nums;
       color: var(--text-muted);
     }
@@ -175,7 +175,7 @@
 
     .task-run__files {
       margin: 0;
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--text-muted);
       overflow-wrap: anywhere;
     }
@@ -224,7 +224,7 @@
 
     .task-run__check-label {
       font-size: var(--fs-sm);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       color: var(--text);
       overflow-wrap: anywhere;
     }
@@ -242,7 +242,7 @@
       padding: var(--space-1-5) var(--space-2-5);
       border-inline-start: var(--space-half) solid var(--line-strong);
       font-family: var(--font-stack-mono);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       line-height: var(--lh-snug);
       color: var(--text-dim);
       overflow-wrap: anywhere;
@@ -251,7 +251,7 @@
 
     .task-run__cap-note {
       margin: 0;
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--warn-ink);
     }
 
@@ -299,7 +299,7 @@
 
     .task-run__reference-note {
       margin: 0;
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       color: var(--warn-ink);
     }
 

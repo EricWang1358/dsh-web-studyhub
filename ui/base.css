@@ -104,7 +104,7 @@
     }
     & h3 {
       font-size: var(--fs-xl);
-      font-weight: var(--fw-medium);
+      font-weight: var(--fw-strong);
     }
     & h4 {
       font-size: var(--fs-md);
@@ -126,7 +126,7 @@
       text-wrap-style: pretty;
     }
     & strong {
-      font-weight: var(--fw-medium);
+      font-weight: var(--fw-strong);
     }
   }
   /* The disclosure marker (#572): every <summary> opens on the same chevron, the icon registry's `chevron` glyph (ui/components/icon-paths.js)

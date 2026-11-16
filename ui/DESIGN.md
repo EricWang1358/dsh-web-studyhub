@@ -52,7 +52,7 @@ Defined in `ui/tokens.css` (on `.study-app` / `.study-seat`, derived with `color
 | `--ok-line` / `--warn-line` / `--bad-line` / `--info-line` | Border of such a surface (tone 30% into `--line`). |
 | `--z-raised` 1, `--z-sticky` 10, `--z-toast` 11, `--z-popover` 30, `--z-overlay` 40, `--z-tooltip` 50, `--z-tour` 80, `--z-fullscreen` 90 | The only stacking order. Pick a layer; never write a number above 2. |
 | `--scrim` / `--scrim-strong` | Page dimming behind dialogs, sheets and `::backdrop` (dark on every theme). |
-| `--fw-light` 300, `--fw-regular` 400, `--fw-medium` 550, `--fw-strong` 650 | Font weights; no other numbers. |
+| `--fw-light` 300, `--fw-regular` 400, `--fw-medium` 500, `--fw-strong` 650 | Font weights; no other numbers. 500 on purpose (see Type): the Han fallback fonts on Windows have only 400 and 700, and a 550 is drawn as the 700. |
 | `--radius-xs` 4px | Chips, keys and inline code; larger shapes keep `--radius-sm`, `--radius`, `--radius-card`, `--radius-pill`. |
 | `--space-half` 2px | Hairline gaps and badge padding below `--space-1`. |
 | `--space-1…9` 4 8 12 16 20 24 32 40 56px | The spacing grid; see Spacing below. |
@@ -68,6 +68,17 @@ Defined in `ui/tokens.css` (on `.study-app` / `.study-seat`, derived with `color
 | `--shadow-contact`, `--shadow-up`, `--shadow-drag`, `--sheen`, `--sheen-strong` | The few shadows and highlights that are not an elevation step. |
 
 Where a rule re-themes `--text` or a tone (card stock), re-declare the derived tones there too.
+
+## Type
+
+Three weights and two sizes carry the order of a page (#1079, `tests/type-weight-ratchet.test.mjs`). Before, 313 declarations were `--fw-strong` and a 550 medium that the Han fallback fonts drew as full bold, so a card title, a row title, a label and a count sentence all looked the same and nothing led.
+
+- **strong** (`--fw-strong` 650): a page title, a card or section title, the one number a block is about, a badge, the current item of a row of steps or tabs. Strong is the exception on a page: if a block has more than one strong line, only the title stays.
+- **medium** (`--fw-medium` 500): a row title, a field label, a tab, a button, a fold's summary. In Inter (digits and Latin) it is a real medium; in Han it is the regular face, so the difference to the text beside it comes from the ink colour (`--text` against `--text-dim`), not from a fake bold.
+- **regular** (`--fw-regular` 400): a description, meta, a counts sentence, a hint, an empty state.
+- **Why 500 and not 550**: Microsoft YaHei and the other Windows Han fallbacks have a regular and a bold face only. CSS font matching takes the heavier face for any weight above 500, so a 550 label was full bold in Chinese and a medium only in English. 500 maps to the lighter face. Never write a number between 400 and 700 for a Han label.
+- **Size**: explanatory text (a description, a hint, a sentence of meta) is `--fs-sm` (13px) or more. `--fs-xs` (12px) is for badges, chips, key caps, counts and numbers, times, chart axes, code and the dense cells of a table, a tiny group label above a list; the ratchet's allow-list is `SMALL_OK` in `scripts/qa/type-weight-counts.mjs`.
+- **Check**: `node scripts/qa/type-weight-counts.mjs` prints strong, medium, regular and small-type counts per file. The test lets each file's strong and small-type numbers only fall; it ends at under half of the 313 of 2026-11-17.
 
 ## Spacing
 
@@ -100,7 +111,7 @@ Personalisation (设置 › 界面, `ui/appearance-prefs.js`) is data attributes
 - At most two container levels inside a page: the card, then one hairline or one quiet surface. Lists inside a card are rows under hairlines, not boxes in a box (#1080).
 - Buttons (#1074–#1077, `tests/ui-buttons-round.test.mjs`):
   - A primary rests on its inner `--sheen` only: no accent glow or coloured shadow under it. Hover lifts it 1px on the neutral `--shadow-contact` and darkens the accent (`color-mix(... black 12%)`, never `--accent-soft`, which is light on dark and loses the ink's contrast on three presets); `tests/ui-buttons-round.test.mjs` computes the ink contrast of the hover on all five presets in both themes.
-  - A text-only action is a quiet button: regular weight (`--fw-regular`; the Han fallback fonts draw `--fw-medium` as full bold, which made a bare word read as a heading), ink colour (`--text`, never `--text-dim`: a grey regular word reads as a caption, not a control), a hover surface, and an icon where it helps (a tool such as 帮我弄懂 or 修题 always has one). An underline is only for a link that goes somewhere else.
+  - A text-only action is a quiet button: regular weight (`--fw-regular`: a bare word set heavier reads as a heading), ink colour (`--text`, never `--text-dim`: a grey regular word reads as a caption, not a control), a hover surface, and an icon where it helps (a tool such as 帮我弄懂 or 修题 always has one). An underline is only for a link that goes somewhere else.
   - One action, one look: 添加资料 is `<AddSourceButton variant>` (`ui/components/AddSourceButton.jsx`), the upload icon and the words everywhere; only the variant changes with the place (primary: the one main action of the screen; secondary / quiet: beside others; link: inside a sentence), and `addSourceAction(onClick)` is the same as an `EmptyState` action. Never draw it by hand: `tests/ui-buttons-round.test.mjs` scans all of `ui/` for a Button or an action labelled 添加资料 outside AddSourceButton / `addSourceAction` (`ui/components/add-source.js`, plain JS so a data module can use it). A button that leads with its icon is centred, not pushed apart from its label like one with an arrow.
   - Every disabled button, secondary or primary, has the one neutral look (flat fill, no border, faint ink).
   - The practice bar at a narrow width is two rows from card edge to card edge: the tools, then 更多 with 上一题 / 下一题 sharing the rest of the row.

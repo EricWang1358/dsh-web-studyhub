@@ -206,7 +206,7 @@ export function RubricAnswer({ run, data, value = "", onChange, onSubmit, task, 
       <div className="rubric-answer__meta">
         <Badge size="sm">{uiFormat("{0} 分", [marks])}</Badge>
         <Badge size="sm">{uiFormat("建议用时约 {0} 分钟", [questionMinutes(marks)])}</Badge>
-        <Badge size="sm">{lengthHintLabel(marks)}</Badge>
+        <Badge size="sm" wrap>{lengthHintLabel(marks)}</Badge>
         {run.lastRubric && !rubric && <Badge size="sm">{uiFormat("上次批改 {0}/{1} 分", [run.lastRubric.total, run.lastRubric.max])}</Badge>}
       </div>
       {card.rubricCriteria?.length > 0 && !rubric && (() => {

@@ -162,7 +162,7 @@
     /* Tasks are running: the count is live, so it reads a little brighter than a plain count. */
     .nav-count.is-live {
       color: var(--accent-text);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
     }
     /* There is no icon rail (#657): a narrow window, or a sidebar put away, is the drawer of ui/app/nav-drawer.css, with every label. */
     .sidebar-bottom {

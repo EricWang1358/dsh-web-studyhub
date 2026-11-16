@@ -36,7 +36,7 @@
     .token-usage__row dd { margin: 0; color: var(--text); text-align: right; white-space: nowrap; }
     /* DSH puts the total first and larger: it is the one number most people want. */
     .token-usage__row--total { background: var(--bg-sunken); }
-    .token-usage__row--total dt { color: var(--text); font-weight: var(--fw-strong); }
+    .token-usage__row--total dt { color: var(--text); font-weight: var(--fw-medium); }
     .token-usage__row--total dd { font-weight: var(--fw-strong); }
     .token-usage__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
     .token-usage__calls { color: var(--text-muted); }
@@ -116,7 +116,7 @@
     /* ── A job's usage ─────────────────────────────────────────────────────── */
     .job-usage { display: grid; gap: var(--space-2); margin-block: var(--space-3); }
     .token-usage--total,
-    .job-usage--total { display: block; margin: 0; color: var(--text-muted); font-size: var(--fs-xs); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
+    .job-usage--total { display: block; margin: 0; color: var(--text-muted); font-size: var(--fs-sm); line-height: var(--lh-snug); font-variant-numeric: tabular-nums; }
     .job-usage__title { font-size: var(--fs-sm); }
     .job-usage__expected { color: var(--text-muted); font-variant-numeric: tabular-nums; }
     .job-usage__note { color: var(--text-dim); line-height: var(--lh-snug); }

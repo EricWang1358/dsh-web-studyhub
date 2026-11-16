@@ -50,7 +50,7 @@
       flex: 0 1 auto;
       min-width: 0;
       overflow: hidden;
-      font-weight: var(--fw-medium);
+      font-weight: var(--fw-strong);
       text-overflow: ellipsis;
     }
     .book-bar__prev svg {
@@ -103,7 +103,7 @@
       margin: var(--space-1) 0 0;
       padding-inline: 0;
       color: var(--accent-text);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       line-height: var(--lh-snug);
     }
     /* The header above the bar (ui/book/BookHeader.jsx): the way back is a quiet ink link (not cinnabar); one quiet status line while a book task runs. */
@@ -223,7 +223,7 @@
       margin: 0;
       min-width: 0;
       color: var(--text);
-      font-weight: var(--fw-strong);
+      font-weight: var(--fw-medium);
       overflow-wrap: anywhere;
     }
     .book-page[data-narrow] .book-bar__word {

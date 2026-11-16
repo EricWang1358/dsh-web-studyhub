@@ -35,7 +35,7 @@
     .omitted-questions ul { display: grid; gap: var(--space-2); margin: var(--space-2) 0 0; padding-left: 1.2em; }
     .omitted-questions li { min-width: 0; overflow-wrap: anywhere; }
     .omitted-questions li > strong, .omitted-questions__why, .omitted-questions__note { display: block; }
-    .omitted-questions li > strong { font-weight: var(--fw-strong); }
+    .omitted-questions li > strong { font-weight: var(--fw-medium); }
     .omitted-questions__why { margin-top: var(--space-half); color: var(--text-dim); }
     .omitted-questions__note { margin-top: var(--space-half); color: var(--text-muted); }
   }
