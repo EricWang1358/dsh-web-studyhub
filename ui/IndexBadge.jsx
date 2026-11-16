@@ -68,7 +68,7 @@ export default function IndexBadge({ info, coverage, onIndex, compact = false })
   if (!info) return null;
   if (compact) {
     const [tone, icon] = LOOK[info.state] || LOOK.missing;
-    // The word is always in the markup (a screen reader reads it); a narrow row shows the mark alone (ui/source-picker.css).
+    // The word is always shown, a narrow row included (a touch screen has no hover to explain a lone mark); the row gives it a slot of fixed width (ui/source-picker.css).
     return <Tooltip layer content={indexTip(info).join('\n')}>
       <Badge className="index-badge index-badge-compact" size="sm" tone={tone} icon={info.state === 'building' ? <Spinner size="sm" /> : icon || 'info'} data-state={info.state} tabIndex={0}>
         <span className="index-badge-compact__word">{indexCompactLabel(info)}</span>
